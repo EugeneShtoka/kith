@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=kith
+GenericName=Matrix client
+Comment=A terminal Matrix client
+# Hands matrix: URIs to the running kith over the daemon socket.
+Exec=kith --open %u
+Terminal=false
+NoDisplay=true
+MimeType=x-scheme-handler/matrix;
+Categories=Network;InstantMessaging;
+Keywords=matrix;chat;

@@ -1,0 +1,50 @@
+name: Weekly vulnerability scan
+
+# A new advisory against mautrix, x/net or the standard library lands whether or not
+# anyone pushes; this finds it within a week instead of at the next commit. The same
+# run checks the tools the workflows pin by hand, which Dependabot never bumps.
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vuln:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      # markdownlint and npm audit run on node: pinned, as every other tool is.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      # The `vuln` gate: govulncheck (a go.mod tool) and npm audit of markdownlint's lock.
+      - name: Vulnerability scan
+        run: make vuln
+
+  # goreleaser, gitleaks, buf, syft and cosign are pinned in tools/versions.env, and
+  # markdownlint-cli2 by its lock. A failure here is a pin behind its latest release,
+  # a missing checksum, or a lock that disagrees with its package.json.
+  pinned-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Hand-pinned tools against their latest releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/pinned-tools.sh

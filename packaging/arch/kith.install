@@ -1,0 +1,21 @@
+# pacman install script shared by kith-bin, kith and kith-git. Prints only:
+# pacman runs as root and cannot manage a user unit.
+
+post_install() {
+	cat <<'NOTE'
+==> kith: set it up as your own user, not root:
+      kith            # first run writes ~/.config/kith/config.toml; edit it
+      kith login      # store the session in the Secret Service keyring
+      systemctl --user daemon-reload
+      systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
+      systemctl --user enable --now kithd     # or kithd@<profile>
+    Guide: /usr/share/doc/kith/docs/getting-started.md
+NOTE
+}
+
+post_upgrade() {
+	cat <<'NOTE'
+==> kith: restart the daemon so it runs the new binary:
+      systemctl --user restart kithd          # and any kithd@<profile>
+NOTE
+}

@@ -1,0 +1,490 @@
+// Command kith is a terminal UI Matrix client.
+//
+// It holds no Matrix session and runs no sync: the kithd daemon owns those and this
+// process talks to it over a unix socket (see ARCHITECTURE.md). There is deliberately
+// no in-process fallback — two processes sharing one device's olm/megolm state corrupt
+// it. The one thing the daemon cannot do is prompt, so `kith login` runs here.
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/adrg/xdg"
+	"golang.org/x/term"
+
+	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/buildinfo"
+	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/daemon"
+	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/logging"
+	"github.com/EugeneShtoka/kith/internal/matrix"
+	"github.com/EugeneShtoka/kith/internal/session"
+	"github.com/EugeneShtoka/kith/internal/setup"
+	"github.com/EugeneShtoka/kith/internal/tui"
+)
+
+// readyTimeout covers a login and a first /sync against a possibly slow homeserver.
+const readyTimeout = 60 * time.Second
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "login" {
+		exitOn(runLogin(os.Args[2:]))
+		return
+	}
+
+	showVersion := flag.Bool("version", false, "print version information and exit")
+	configPath := flag.String("config", "", "path to config file (default: XDG config dir)")
+	profile := flag.String("profile", "", "which [[profile]] account to run as (default: the first one)")
+	clearCache := flag.Bool("clear-cache", false, "ask the daemon to empty the local cache and re-fetch from the server")
+	restoreKeys := flag.Bool("restore-keys", false, "restore room keys from the server backup (prompts for the recovery key/passphrase) before starting")
+	bootstrapKeys := flag.Bool("bootstrap-keys", false, "set this account up for room-key backup (prompts for the account password), print the recovery key and exit")
+	exportKeys := flag.String("export-keys", "", "write this device's room keys to `file`, encrypted with a passphrase, and exit")
+	importKeys := flag.String("import-keys", "", "add the room keys in `file` (a Matrix key export) before starting")
+	printConfig := flag.Bool("print-config", false, "print the fully-documented default configuration and exit")
+	addDict := flag.String("add-dictionary", "", "install a spelling dictionary by `tag` (\"list\" to see them) and exit")
+	addFreq := flag.String("add-frequencies", "", "install word counts for a language by dictionary `tag` (\"list\" to see them) and exit; what `[spell] flag_rare_words` reads")
+	addModelTag := flag.String("add-model", "", "install the local completion model by `tag` (\"list\" to see them) and exit; what `[complete.model]` reads")
+	setModelKeyRef := flag.String("set-model-key", "", "store the language model's API key in the OS keyring under `ref` (what `[assist] key_ref` names) and exit; an empty answer removes it")
+	agentLog := flag.Bool("agent-log", false, "print what an assistant has written on your behalf through kith-mcp — sent, queued, left as a draft, or refused — and exit")
+	open := flag.String("open", "", "hand a matrix: or matrix.to `uri` to the running client — starting a terminal for it if none is running — and exit. This is what the desktop's matrix: handler calls")
+	logLevel, logTarget := flag.String("log-level", "", "how much to log ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`"),
+		flag.String("log-target", "", "where to log ("+logging.Targets+"): the journal, $XDG_STATE_HOME/kith/"+logging.FileName+", or the journal when there is one; overrides $"+logging.EnvTarget+" and `[log] target`")
+	follow, force := flag.String("follow", "", "start the client and go to this matrix `uri` once it knows where it is. Used by --open when it has to start a terminal"),
+		flag.Bool("force", false, "take over from an kith already open on this account: it saves its drafts and closes")
+	flag.Parse()
+
+	// Local, exit-immediately operations run before anything needs a session: a
+	// machine with no dictionaries is exactly one still being set up.
+	switch {
+	case *showVersion:
+		fmt.Println(buildinfo.String("kith"))
+	case *printConfig:
+		fmt.Print(config.Annotated())
+	case *addDict != "":
+		exitOn(addDictionary(*addDict))
+	case *addFreq != "":
+		exitOn(addFrequencies(*addFreq))
+	case *addModelTag != "":
+		exitOn(addModel(*addModelTag))
+	case *setModelKeyRef != "":
+		exitOn(setModelKey(*setModelKeyRef))
+	case *agentLog:
+		exitOn(showAgentLog(*configPath, *profile))
+	case *open != "":
+		exitOn(runOpen(*configPath, *profile, *open))
+	default:
+		exitOn(run(*configPath, *profile, startup{
+			follow:        *follow,
+			force:         *force,
+			logLevel:      *logLevel,
+			logTarget:     *logTarget,
+			clearCache:    *clearCache,
+			restoreKeys:   *restoreKeys,
+			bootstrapKeys: *bootstrapKeys,
+			exportKeys:    *exportKeys,
+			importKeys:    *importKeys,
+		}))
+	}
+}
+
+// startup is the one-off work flags ask for around the session.
+type startup struct {
+	follow        string // a matrix URI the TUI should go to first
+	force         bool   // take the seat from the window that has it
+	logLevel      string // --log-level; empty defers to $KITH_LOG_LEVEL and the config
+	logTarget     string // --log-target; empty defers to $KITH_LOG_TARGET and the config
+	clearCache    bool
+	restoreKeys   bool
+	bootstrapKeys bool
+	// Client-side paths: the daemon runs under ProtectHome=read-only.
+	exportKeys string
+	importKeys string
+}
+
+// attach loads the config, checks a session exists, and attaches to (or starts) the
+// daemon. backend is nil when a first-run default config was just written.
+func attach(ctx context.Context, configPath, profile string, timeout time.Duration) (path string, cfg config.Config, backend *daemon.Remote, note string, err error) {
+	path, cfg, ready, err := loadConfig(configPath, profile)
+	if err != nil || !ready {
+		return "", cfg, nil, "", err
+	}
+	if _, found, serr := session.Load(cfg.User, cfg.AllowTokenFile); serr != nil {
+		return "", cfg, nil, "", fmt.Errorf("load session: %w", serr)
+	} else if !found {
+		return "", cfg, nil, "", fmt.Errorf("no saved session for %s; run `kith login` first", cfg.User)
+	}
+	// The profile travels with the start request: every store the daemon opens is
+	// keyed by the account.
+	backend, note, err = daemon.Ensure(ctx, cfg.User, profile, timeout)
+	if err != nil {
+		return "", cfg, nil, "", fmt.Errorf("attach to kithd: %w", err)
+	}
+	return path, cfg, backend, note, nil
+}
+
+func run(configPath, profile string, jobs startup) error {
+	// SIGTERM and SIGHUP (the terminal closing) end the program like an interrupt, so
+	// the drafts are written on the way out (tui.Run) and a playing voice note stops.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+	defer stop()
+
+	path, cfg, backend, note, err := attach(ctx, configPath, profile, readyTimeout)
+	if err != nil || backend == nil {
+		return err
+	}
+	defer backend.Stop()
+	if note != "" {
+		fmt.Fprintln(os.Stderr, "kith:", note)
+	}
+	warnAboutAgentScope(ctx, backend, cfg.Agent)
+	// One window per daemon (api.Seat), taken before anything the TUI would do. The
+	// two runs that end with a printout need no window.
+	if !jobs.bootstrapKeys && jobs.exportKeys == "" {
+		if serr := backend.TakeSeat(ctx, jobs.force, whereAmI()); errors.Is(serr, api.ErrSeatTaken) {
+			return fmt.Errorf("%w; close it, or run kith --force to take over", serr)
+		} else if serr != nil {
+			return fmt.Errorf("take the seat: %w", serr)
+		}
+	}
+
+	if jobs.clearCache {
+		if cerr := backend.ClearCache(ctx); cerr != nil {
+			return fmt.Errorf("clear cache: %w", cerr)
+		}
+	}
+	// Bootstrap and export end the run: the TUI would scroll away a recovery key
+	// printed only once, and an export asks nothing of the session afterwards.
+	if jobs.bootstrapKeys {
+		return bootstrapKeyBackup(ctx, backend, cfg.User)
+	}
+	if jobs.restoreKeys {
+		if rerr := restoreKeyBackup(ctx, backend, cfg.User); rerr != nil {
+			return rerr
+		}
+	}
+	if jobs.exportKeys != "" {
+		return exportRoomKeys(ctx, backend, cfg.User, jobs.exportKeys)
+	}
+	if jobs.importKeys != "" {
+		if ierr := importRoomKeys(ctx, backend, jobs.importKeys); ierr != nil {
+			return ierr
+		}
+	}
+	log, closeLog, err := openLog(jobs, cfg.Log, profile)
+	if err != nil {
+		return err
+	}
+	defer closeLog()
+	log.Info("kith started", "user", cfg.User, "version", buildinfo.String("kith"))
+	if err := tui.Run(ctx, tui.RunOptions{
+		Backend: backend, Notifications: backend, Schedules: backend,
+		Config: cfg, ConfigPath: path, Me: cfg.User, Log: log, Follow: jobs.follow,
+	}); errors.Is(err, tui.ErrOpenedElsewhere) {
+		log.Info("kith closed: opened in another window")
+		fmt.Fprintln(os.Stderr, "kith: opened in another window")
+	} else if err != nil {
+		log.Error("kith stopped", "err", err)
+		return fmt.Errorf("run tui: %w", err)
+	}
+	return nil
+}
+
+// whereAmI is this window's whereabouts, for another refused the seat: the process,
+// its terminal (Linux names it through /proc), the machine, and now.
+func whereAmI() domain.SeatHolder {
+	where := domain.SeatHolder{PID: os.Getpid(), Since: time.Now()}
+	if tty, err := os.Readlink("/proc/self/fd/0"); err == nil && strings.HasPrefix(tty, "/dev/") {
+		where.TTY = tty
+	}
+	where.Host, _ = os.Hostname()
+	return where
+}
+
+// openLog opens the client's log: the journal (SYSLOG_IDENTIFIER kith, or
+// kith-<profile>) or $XDG_STATE_HOME/kith/kith.log (1 MB, one old copy kept),
+// as `[log] target` says. The terminal belongs to the TUI, so nothing may go to
+// stderr while it runs. It also becomes slog's (and so the log package's) default,
+// so a library that logs does not draw over the screen.
+func openLog(jobs startup, configured config.Log, profile string) (*slog.Logger, func(), error) {
+	level, err := logging.Resolve(jobs.logLevel, configured.Level)
+	if err != nil {
+		return nil, nil, fmt.Errorf("log level: %w", err)
+	}
+	target, err := logging.ResolveTarget(jobs.logTarget, configured.Target)
+	if err != nil {
+		return nil, nil, fmt.Errorf("log target: %w", err)
+	}
+	log, closeLog := openLogTo(logging.Destination{
+		Target:     target,
+		Identifier: logging.Identifier("kith", profile),
+		File:       filepath.Join(xdg.StateHome, "kith", logging.FileName),
+		Level:      level,
+	})
+	return log, closeLog, nil
+}
+
+// openLogTo opens d and makes it slog's default. A log that will not open is
+// reported here, before the TUI starts, and the run goes on without one.
+func openLogTo(d logging.Destination) (*slog.Logger, func()) {
+	sink, err := logging.Open(d)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "kith: no log:", err)
+		log := logging.Discard()
+		slog.SetDefault(log)
+		return log, func() {}
+	}
+	slog.SetDefault(sink.Logger)
+	return sink.Logger, func() {
+		if cerr := sink.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "kith: close log file:", cerr)
+		}
+	}
+}
+
+// runLogin performs a password login and stores the session in the OS keyring for the
+// daemon to resume from. The password is never written to disk.
+func runLogin(args []string) error {
+	fs := flag.NewFlagSet("login", flag.ExitOnError)
+	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
+	profile := fs.String("profile", "", "which [[profile]] account to log in (default: the first one)")
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("parse login flags: %w", err)
+	}
+
+	_, cfg, ready, err := loadConfig(*configPath, *profile)
+	if err != nil || !ready {
+		return err
+	}
+	if cfg.Homeserver == "" || cfg.User == "" {
+		return errors.New("set `homeserver` and `user` in the config before logging in")
+	}
+
+	password, err := readSecret(fmt.Sprintf("Password for %s", cfg.User))
+	if err != nil {
+		return err
+	}
+	// A bare client: building the daemon's stores here would be double ownership.
+	sess, err := matrix.New(nil).Login(context.Background(), cfg.Homeserver, cfg.User, password)
+	if err != nil {
+		return fmt.Errorf("login: %w", err)
+	}
+	if err := session.Save(cfg.User, sess, cfg.AllowTokenFile); err != nil {
+		return fmt.Errorf("save session: %w", err)
+	}
+	fmt.Printf("kith: logged in as %s (device %s); start the daemon with `kithd` or `systemctl --user start kithd`\n",
+		cfg.User, sess.DeviceID)
+	return nil
+}
+
+// loadConfig resolves, loads, selects the profile and validates the config. On first
+// run it writes a documented default and returns ready=false.
+func loadConfig(configPath, profile string) (path string, cfg config.Config, ready bool, err error) {
+	path = configPath
+	if path == "" {
+		if path, err = config.Path(); err != nil {
+			return "", config.Config{}, false, fmt.Errorf("resolve config path: %w", err)
+		}
+	}
+	if created, cerr := config.WriteDefaultIfMissing(path); cerr != nil {
+		return "", config.Config{}, false, fmt.Errorf("write default config: %w", cerr)
+	} else if created {
+		fmt.Printf("kith: wrote a default config to %s\n"+
+			"Edit it — set `homeserver` and `user` — then run `kith login`.\n", path)
+		return path, config.Config{}, false, nil
+	}
+	cfg, err = config.Load(path)
+	if err != nil {
+		return "", config.Config{}, false, fmt.Errorf("load config: %w", err)
+	}
+	if warning := config.ModeWarning(path); warning != "" {
+		fmt.Fprintln(os.Stderr, "kith:", warning)
+	}
+	cfg, err = cfg.Profile(profile)
+	if err != nil {
+		return "", config.Config{}, false, fmt.Errorf("select profile: %w", err)
+	}
+	if err := setup.Validate(cfg); err != nil {
+		return "", config.Config{}, false, fmt.Errorf("load config: %w", err)
+	}
+	return path, cfg, true, nil
+}
+
+// restoreKeyBackup imports the server-side room-key backup. The secret is read here
+// (only a terminal can) and crosses the 0600 socket to the daemon (only it owns the
+// crypto store).
+func restoreKeyBackup(ctx context.Context, backend api.Keys, user string) error {
+	secret, err := readSecret(fmt.Sprintf("Recovery key or passphrase for %s", user))
+	if err != nil {
+		return err
+	}
+	count, err := backend.RestoreKeyBackup(ctx, secret)
+	switch {
+	case errors.Is(err, api.ErrNoEncryption):
+		return errors.New("encryption is not enabled for this device, so there is nowhere to import keys to")
+	case errors.Is(err, api.ErrNoKeyBackup):
+		return errors.New("this account has no room-key backup on the server to restore from")
+	case errors.Is(err, api.ErrBadRecoveryKey):
+		return errors.New("that recovery key or passphrase is not correct")
+	case err != nil:
+		return fmt.Errorf("restore keys: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "kith: restored %d room keys from backup; reopen rooms to see decrypted history\n", count)
+	return nil
+}
+
+// bootstrapKeyBackup sets an account up for room-key backup and prints the recovery
+// key. It refuses when setup already exists: a second run would mint a new
+// cross-signing identity and orphan the first recovery key.
+func bootstrapKeyBackup(ctx context.Context, backend api.Keys, user string) error {
+	fmt.Fprintln(os.Stderr,
+		"kith: this sets this account's encryption up for the first time: cross-signing,\n"+
+			"secret storage and a room-key backup, with a recovery key printed once at the end.\n"+
+			"If the account already has any of that, nothing is changed and this will say so.")
+	password, err := readSecret(fmt.Sprintf("Account password for %s", user))
+	if err != nil {
+		return err
+	}
+	made, err := backend.BootstrapKeyBackup(ctx, password)
+	switch {
+	case errors.Is(err, api.ErrNoEncryption):
+		return errors.New("encryption is not enabled for this device, so there is nothing to set up")
+	case errors.Is(err, api.ErrKeyBackupExists):
+		return errors.New("this account already has secret storage or a key backup; " +
+			"use --restore-keys with the existing recovery key instead. " +
+			"Setting up again would replace the account's cross-signing identity and its recovery key")
+	case errors.Is(err, api.ErrBadPassword):
+		return errors.New("that account password is not correct")
+	case err != nil:
+		return fmt.Errorf("bootstrap key backup: %w", err)
+	}
+	printRecoveryKey(made)
+	return nil
+}
+
+// printRecoveryKey shows the only copy of the recovery key — first, before any
+// partial-failure note, since the key cannot be recovered and the failure can be retried.
+func printRecoveryKey(made domain.KeyBackup) {
+	fmt.Fprintln(os.Stderr, "\nkith: your recovery key — write it down now. "+
+		"It is shown once, stored nowhere, and is the only way back into this account's\n"+
+		"encrypted history if this device is lost:")
+	fmt.Fprintf(os.Stderr, "\n    %s\n\n", made.RecoveryKey)
+	if made.Incomplete != "" {
+		fmt.Fprintf(os.Stderr,
+			"kith: cross-signing and secret storage are set up, but the key backup is not finished: %s\n"+
+				"The recovery key above is still the one that unlocks this account.\n", made.Incomplete)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "kith: key backup version %s created; %d room keys uploaded. "+
+		"The daemon backs up the rest as they arrive.\n", made.Version, made.Uploaded)
+}
+
+// readSecret reads one hidden line from an interactive terminal.
+func readSecret(prompt string) (string, error) {
+	fd := int(os.Stdin.Fd())
+	if !term.IsTerminal(fd) {
+		return "", errors.New("stdin is not a terminal; run kith interactively to enter secrets")
+	}
+	fmt.Fprintf(os.Stderr, "%s: ", prompt)
+	raw, err := term.ReadPassword(fd)
+	fmt.Fprintln(os.Stderr)
+	if err != nil {
+		return "", fmt.Errorf("read secret: %w", err)
+	}
+	secret := strings.TrimRight(string(raw), "\r\n")
+	if secret == "" {
+		return "", errors.New("empty input")
+	}
+	return secret, nil
+}
+
+// exportRoomKeys writes this device's room keys, encrypted with a passphrase, to path.
+// The daemon produces the ciphertext; this process writes it (the daemon cannot).
+func exportRoomKeys(ctx context.Context, backend api.Keys, user, path string) error {
+	passphrase, err := readNewSecret(fmt.Sprintf("Passphrase to encrypt %s's room keys", user))
+	if err != nil {
+		return err
+	}
+	data, err := backend.ExportRoomKeys(ctx, passphrase)
+	switch {
+	case errors.Is(err, api.ErrNoEncryption):
+		return errors.New("encryption is not enabled for this device, so it holds no room keys")
+	case errors.Is(err, api.ErrNoRoomKeys):
+		return errors.New("this device holds no room keys yet; nothing to export")
+	case err != nil:
+		return fmt.Errorf("export keys: %w", err)
+	}
+	// O_EXCL: never overwrite an existing file.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) // #nosec G304 -- the export path this user typed at their own shell
+	if err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	if _, werr := f.Write(data); werr != nil {
+		_ = f.Close() // the write error is the report
+		return fmt.Errorf("write %s: %w", path, werr)
+	}
+	if cerr := f.Close(); cerr != nil {
+		return fmt.Errorf("write %s: %w", path, cerr)
+	}
+	fmt.Fprintf(os.Stderr, "kith: wrote %s (%d bytes, mode 0600). Keep it as safely as the passphrase.\n", path, len(data))
+	return nil
+}
+
+// importRoomKeys adds the sessions in a Matrix key export to this device's store.
+func importRoomKeys(ctx context.Context, backend api.Keys, path string) error {
+	data, err := os.ReadFile(path) // #nosec G304 -- the path is one this user typed at their own shell
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	passphrase, err := readSecret(fmt.Sprintf("Passphrase for %s", path))
+	if err != nil {
+		return err
+	}
+	imported, total, err := backend.ImportRoomKeys(ctx, passphrase, data)
+	switch {
+	case errors.Is(err, api.ErrNoEncryption):
+		return errors.New("encryption is not enabled for this device, so there is nowhere to import keys to")
+	case errors.Is(err, api.ErrBadKeyFile):
+		return errors.New("could not read that export: wrong passphrase, or the file is not a Matrix key export")
+	case err != nil:
+		return fmt.Errorf("import keys: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "kith: imported %d of %d room keys; reopen rooms to see decrypted history\n", imported, total)
+	return nil
+}
+
+// readNewSecret reads a passphrase twice and requires a match: a mistyped export
+// passphrase is otherwise only discovered when the keys are needed.
+func readNewSecret(prompt string) (string, error) {
+	first, err := readSecret(prompt)
+	if err != nil {
+		return "", err
+	}
+	again, err := readSecret("Again, to be sure")
+	if err != nil {
+		return "", err
+	}
+	if first != again {
+		return "", errors.New("the two passphrases do not match; nothing was written")
+	}
+	return first, nil
+}
+
+// exitOn prints err and exits non-zero; nil is a no-op.
+func exitOn(err error) {
+	if err == nil {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "kith:", err)
+	os.Exit(1)
+}

@@ -1,0 +1,80 @@
+version: 2
+updates:
+  # Go module dependencies — batched into two grouped PRs (majors apart, see groups)
+  # to avoid a flood of one-PR-per-dependency. This also keeps the go.mod `tool`
+  # directive entries (golangci-lint, govulncheck) up to date, since they are
+  # ordinary module requirements. CI still gates every bump.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    # Nothing is proposed until it has been public for a few days. A compromised
+    # release is usually found and yanked within hours; a bump that lands the day it
+    # is published gets none of that. Weekly batching means the delay costs nothing —
+    # the PR would have waited for the next Monday anyway.
+    cooldown:
+      default-days: 5
+    open-pull-requests-limit: 5
+    # go.mod replaces bubbletea with a fork (see docs/getting-started.md), so a bump of
+    # the upstream requirement changes nothing that is built. The fork is rebased by hand.
+    ignore:
+      - dependency-name: "charm.land/bubbletea/v2"
+    groups:
+      # Majors go in their own PR. Grouped with the rest, a mautrix-go major that needs
+      # code changes holds every routine security patch behind it — the group is one PR
+      # and it merges or it does not. Two groups means the patches land while the major
+      # waits for somebody to read its changelog.
+      go-majors:
+        patterns:
+          - "*"
+        update-types:
+          - major
+      go-modules:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      # Its own changelog group (see .goreleaser.yaml): a module bump can be a security
+      # fix, and the release notes should say so.
+      prefix: deps
+
+  # GitHub Actions used in the workflows — likewise batched into one grouped PR.
+  # Dependabot bumps the SHA pins while preserving the `# vX.Y.Z` comment, so the
+  # actions-pin-check gate stays satisfied.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Same reasoning as gomod above, and it matters more here: these run with the
+    # repository's token, and a retagged action is the attack this repo already
+    # SHA-pins against (see scripts/actions-pin-check.sh).
+    cooldown:
+      default-days: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - major
+          - minor
+          - patch
+    commit-message:
+      prefix: ci
+
+  # markdownlint for the docs gate, locked in tools/markdownlint (see
+  # scripts/ensure-tools.sh). Not shipped, so kept out of the changelog; `make vuln`
+  # runs npm audit on the lock, and this proposes the fix.
+  - package-ecosystem: npm
+    directory: /tools/markdownlint
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 5
+    groups:
+      markdownlint:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: ci

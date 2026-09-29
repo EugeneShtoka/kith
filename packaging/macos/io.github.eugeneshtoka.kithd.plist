@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  kith's daemon as a launchd LaunchAgent (macOS counterpart of kithd.service).
+
+  Install:
+    mkdir -p ~/Library/LaunchAgents ~/Library/Logs
+    cp io.github.eugeneshtoka.kithd.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.eugeneshtoka.kithd.plist
+
+  Remove:
+    launchctl bootout gui/$(id -u)/io.github.eugeneshtoka.kithd
+    rm ~/Library/LaunchAgents/io.github.eugeneshtoka.kithd.plist
+
+  Runs via /bin/sh so $HOME and PATH (Homebrew or ~/.local/bin) expand.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>io.github.eugeneshtoka.kithd</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>-c</string>
+		<string>PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; exec kithd 2&gt;&gt;"$HOME/Library/Logs/kithd.log"</string>
+	</array>
+
+	<key>RunAtLoad</key>
+	<true/>
+
+	<!-- Exit 0 means another instance holds the lock: do not restart. -->
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>ThrottleInterval</key>
+	<integer>5</integer>
+
+	<!-- 63 = 0077: cache and crypto store must be private. -->
+	<key>Umask</key>
+	<integer>63</integer>
+</dict>
+</plist>

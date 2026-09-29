@@ -1,0 +1,77 @@
+# kith's daemon for one [[profile]], as a templated systemd user unit (%i = profile).
+# Use the plain kithd.service when the config has no [[profile]] blocks.
+#
+# Install:
+#   install -Dm644 packaging/systemd/kithd@.service ~/.config/systemd/user/kithd@.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now kithd@work
+
+[Unit]
+Description=kith Matrix daemon for the %i profile (sync, cache, E2EE, notifications)
+Documentation=https://github.com/EugeneShtoka/kith
+# Wants, not Requires: the daemon still syncs without a desktop session.
+After=graphical-session.target
+Wants=graphical-session.target
+# Never stop retrying a homeserver that is down. Must be in [Unit]; systemd ignores it in [Service].
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/kithd --profile %i
+# ReadWritePaths= must exist before the namespace is built (else NAMESPACE/226).
+# "+" runs this outside the sandbox; UMask= still applies.
+ExecStartPre=+mkdir -p %h/.local/share/kith %h/.local/state/kith %h/.cache/kith
+
+# A second instance exits 0 (lock held), which must not be retried.
+Restart=on-failure
+RestartSec=5s
+
+# D-Bus for notifications/keyring, display for wl-copy/xclip auto-copy. Import with:
+#   systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
+PassEnvironment=WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# state/ holds the scheduled-message queue.
+ReadWritePaths=%h/.local/share/kith %h/.local/state/kith %h/.cache/kith %t/kith
+
+RuntimeDirectory=kith
+# Shared by every profile's unit: removing it on stop would pull other daemons' sockets.
+RuntimeDirectoryPreserve=yes
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+MemoryDenyWriteExecute=true
+
+# Cache and crypto store hold decryptable history and E2EE keys.
+UMask=0077
+
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+# A denied call fails with EPERM instead of killing the daemon: a notification hook
+# that tries something odd gets an error, not the daemon's death. Not ~@resources: the
+# Go runtime raises RLIMIT_NOFILE with setrlimit at startup.
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+LockPersonality=true
+PrivateDevices=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+RestrictRealtime=true
+# The keyring is the Secret Service over D-Bus, not the kernel keyring.
+KeyringMode=private
+
+# PrivateTmp hides the X11 socket that xclip needs.
+BindReadOnlyPaths=-/tmp/.X11-unix
+
+# Not set: ProtectProc=invisible / ProcSubset=pid — known to break D-Bus and portals.
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Pre-commit checks — blocks a commit whose staged changes look like they contain a
+# secret (private key, cloud/provider token, credentialed assignment), then, when Go
+# files are staged, one that is not gofmt'd or fails go vet: the cheap CI gates.
+#
+# Prefers gitleaks (https://github.com/gitleaks/gitleaks); falls back to a small
+# high-confidence pattern scan when gitleaks isn't installed.
+#
+# Enable once per clone:   make hooks   (or: git config core.hooksPath .githooks)
+# Emergency bypass:        git commit --no-verify   (use sparingly!)
+#
+# This is fast local defense, not the enforcement gate — CI runs gitleaks over both
+# the whole history and the working tree on every push/PR, and cannot be bypassed.
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# The cheap CI gates, after the secret scan passes (each exit below runs this first),
+# over the staged snapshot: a copy of the index, so an unstaged edit can neither hide a
+# problem that would be committed nor fail a commit that is clean.
+quality() {
+	git diff --cached --name-only --diff-filter=ACM | grep -q '\.go$' || return 0
+	local snap failed=""
+	snap=$(mktemp -d)
+	git checkout-index --all --prefix="$snap/"
+	if ! make -s -C "$snap" fmt-check; then
+		failed="not formatted — run \`make fmt\` and stage the result."
+	elif ! make -s -C "$snap" vet; then
+		failed="go vet failed (above)."
+	fi
+	rm -rf "$snap"
+	if [ -n "$failed" ]; then
+		echo "pre-commit: $failed" >&2
+		exit 1
+	fi
+}
+trap 'status=$?; [ "$status" -eq 0 ] && quality; exit "$status"' EXIT
+
+if command -v gitleaks >/dev/null 2>&1; then
+	# `git --staged` scans only what's staged, so it's quick and catches the secret
+	# before it ever lands in a commit. (`protect --staged` was the old spelling; it
+	# still works as an alias but no longer appears in --help.)
+	if ! gitleaks git --staged --redact --no-banner; then
+		echo "" >&2
+		echo "pre-commit: gitleaks flagged a potential secret in your staged changes." >&2
+		echo "  • False positive? add an allowlist entry to .gitleaks.toml" >&2
+		echo "  • Real secret?    unstage it and rotate the credential" >&2
+		echo "  • Override:       git commit --no-verify  (only if you are sure)" >&2
+		exit 1
+	fi
+	exit 0
+fi
+
+# ── Fallback: gitleaks not installed ─────────────────────────────────────────
+echo "pre-commit: gitleaks not found — running a basic pattern scan." >&2
+echo "            Install gitleaks for full coverage: https://github.com/gitleaks/gitleaks" >&2
+
+# High-confidence patterns only (POSIX ERE, portable to BSD/macOS grep) so the
+# fallback almost never cries wolf. gitleaks is the real detector. Includes a
+# Matrix access-token shape (syt_… / mdk_…) on top of the usual provider tokens.
+pattern='-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|glpat-[A-Za-z0-9_-]{20}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN OPENSSH PRIVATE KEY-----|syt_[A-Za-z0-9_-]{20,}'
+
+# Only the added ('+') lines of staged changes. Use `-e` so a pattern that
+# begins with '-' (e.g. "-----BEGIN…") isn't parsed as a grep option.
+hits=$(git diff --cached --diff-filter=ACM -U0 | grep -E '^\+' | grep -En -e "$pattern" || true)
+if [ -n "$hits" ]; then
+	echo "" >&2
+	echo "pre-commit: potential secret detected in staged changes:" >&2
+	echo "$hits" >&2
+	echo "Unstage/rotate it, or bypass with --no-verify if it is a false positive." >&2
+	exit 1
+fi
+exit 0

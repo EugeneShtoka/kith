@@ -1,0 +1,553 @@
+version: "2"
+
+run:
+  # Lint the cgo-free goolm build (see Makefile GOFLAGS).
+  build-tags:
+    - goolm
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  default: none
+  enable:
+    - depguard       # enforce layer boundaries (see rules below)
+    - govet          # shadow + copylocks + printf consistency
+    - staticcheck    # industry-leading bug + performance checker
+    - errcheck       # every error must be handled
+    - nilerr         # don't return nil when wrapping a non-nil error
+    - noctx          # http requests must carry a context
+    - errorlint
+    - sqlclosecheck
+    - rowserrcheck
+    - wrapcheck      # errors from external packages must be wrapped with context
+    - gocritic       # diagnostic + style + performance
+    - unconvert      # remove redundant type conversions
+    - misspell       # catch common typos in comments and strings
+    - unused         # dead code detection
+    - bodyclose      # HTTP response bodies must be closed
+    - ineffassign    # detect ineffective assignments
+    - gosec          # security checks (excluded rules listed below)
+    - funlen
+    - gocognit
+    - containedctx   # a context held in a struct must be a decision, not a habit
+    - nolintlint     # every suppression names its linter and says why
+    - exhaustive     # a switch over an enum names every value, or says why not
+    - forbidigo
+    - bidichk        # no invisible direction controls in source: this client draws RTL text
+    - protogetter    # read wire messages through their nil-safe getters
+    - usestdlibvars  # http.MethodGet, not "GET"
+    - modernize      # the current idiom (range over int, slices/maps helpers, new(expr))
+    - unparam        # a parameter every caller passes the same value, or a result nobody reads
+    - sloglint       # slog calls: key/value pairs consistent, keys in one style
+    - durationcheck  # two durations multiplied (a unit error)
+    - errchkjson     # a json encode error that can happen is checked
+    - usetesting     # t.TempDir / t.Context / t.Setenv over the os and context versions
+    # Considered and left off: contextcheck flags the deliberately detached contexts
+    # (the scheduler's base, a spawned daemon), and nilnil the "found nothing" (nil, nil)
+    # returns that are the documented contract of their functions.
+
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+      # Third-party enums, and tui.action, which each pane handles only in part by design.
+      ignore-enum-types: "reflect\\.Kind|html\\.TokenType|event\\.MessageType|tui\\.action"
+    # internal/tui/text.go is the one text pipeline (wrap/cut -> bidi -> style); its
+    # primitives are forbidden elsewhere in internal/tui (see exclusions).
+    forbidigo:
+      forbid:
+        - pattern: '^ansi\.(Wrap|Wordwrap|Hardwrap|Truncate|TruncateLeft)$'
+          msg: "cut or wrap text with drawLine / drawBlock (or truncateLogical / truncateDrawn) in internal/tui/text.go — a cut made outside it happens in the wrong order for right-to-left text"
+        - pattern: '^(reorder|reorderMapped|visualOrder|styledRow|bidiRuns)$'
+          msg: "draw text with drawLine / drawBlock / drawFragment in internal/tui/text.go instead of reordering by hand — callers pass logical text"
+        - pattern: '^bidi\.(AppendReverse|ReverseString|Paragraph)$'
+          msg: "bidi reordering lives in internal/tui/text_bidi.go; draw text with drawLine / drawBlock"
+    govet:
+      enable:
+        - shadow     # catch variable shadowing — footgun in bubbletea update loops
+        - copylocks  # detect mutex copied by value
+
+    depguard:
+      rules:
+        # The foundation packages, each an allow-list of exactly what it may import: a
+        # deny-list only names what it thought of (theme once pulled lipgloss into the
+        # daemon through setup), where an allow-list cannot fall behind.
+        buildinfo-is-standalone:
+          files:
+            - "**/internal/buildinfo/**"
+          allow:
+            - "$gostd"
+        config-is-standalone:
+          files:
+            - "**/internal/config/**"
+          allow:
+            - "$gostd"
+            - "github.com/BurntSushi/toml"
+            - "github.com/adrg/xdg"
+        # The theme as data, for every binary's config check: nothing that renders.
+        themespec-is-standalone:
+          files:
+            - "**/internal/themespec/**"
+          allow:
+            - "$gostd"
+        # The theme as styles, for the TUI alone (deps-check keeps it out of the rest).
+        theme-draws:
+          files:
+            - "**/internal/theme/**"
+          allow:
+            - "$gostd"
+            - "charm.land/lipgloss/v2"
+            - "github.com/charmbracelet/x/ansi"
+            - "github.com/EugeneShtoka/kith/internal/themespec"
+
+        # Pure: the standard library, its own sanitizer and grapheme segmentation.
+        domain-is-pure:
+          files:
+            - "**/internal/domain/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/richtext"
+            - "github.com/rivo/uniseg"
+
+        # The wire. Clients link it, so what it links reaches kith and kith-mcp: never
+        # the cache, the Matrix SDK or the model processes.
+        daemon-is-the-wire:
+          files:
+            - "**/internal/daemon/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/notify"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+            - "connectrpc.com/connect"
+            - "github.com/adrg/xdg"
+            - "github.com/gofrs/flock"
+            - "google.golang.org/protobuf"
+
+        # The cache: SQLite and the domain types it stores.
+        db-is-the-cache:
+          files:
+            - "**/internal/db/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/adrg/xdg"
+            - "modernc.org/sqlite"
+
+        # The Matrix adapter. Only the daemon links it.
+        matrix-is-the-adapter:
+          files:
+            - "**/internal/matrix/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/llamacpp"
+            - "github.com/EugeneShtoka/kith/internal/llm"
+            - "github.com/EugeneShtoka/kith/internal/matrix"
+            - "github.com/EugeneShtoka/kith/internal/richtext"
+            - "github.com/EugeneShtoka/kith/internal/spell"
+            - "github.com/EugeneShtoka/kith/internal/vocab"
+            - "github.com/adrg/xdg"
+            - "github.com/rs/zerolog"
+            - "github.com/yuin/goldmark"
+            - "go.mau.fi/util"
+            - "golang.org/x/image"
+            - "maunium.net/go/mautrix"
+            - "modernc.org/sqlite"
+
+        session-is-a-leaf:
+          files:
+            - "**/internal/session/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/session"
+            - "github.com/adrg/xdg"
+            - "github.com/zalando/go-keyring"
+
+        schedule-is-a-leaf:
+          files:
+            - "**/internal/schedule/**"
+          allow:
+            - "$gostd"
+            - "github.com/BurntSushi/toml"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/schedule"
+            - "github.com/adrg/xdg"
+
+        # The daemon's model layer from the config: the only place outside matrix that
+        # sees the model clients, so clients that need setup do not link them.
+        modelsetup-is-daemon-side:
+          files:
+            - "**/internal/modelsetup/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/llamacpp"
+            - "github.com/EugeneShtoka/kith/internal/llm"
+            - "github.com/EugeneShtoka/kith/internal/modelsetup"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+
+        # Leaves: stdlib (plus the named transport) only. Process spawners and model
+        # clients especially must not see Matrix, the cache or the config.
+        audio-is-a-leaf:
+          files:
+            - "**/internal/audio/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/audio"
+
+        # The daemon side runs headless under systemd.
+        no-bubbletea-in-infra:
+          files:
+            - "**/internal/matrix/**"
+            - "**/internal/db/**"
+            - "**/internal/domain/**"
+            - "**/internal/media/**"
+            - "**/internal/session/**"
+            - "**/internal/notify/**"
+            - "**/internal/audio/**"
+            - "**/internal/daemon/**"
+            - "**/internal/schedule/**"
+          deny:
+            - pkg: "charm.land/bubbletea/v2"
+              desc: "infrastructure packages must not import bubbletea; keep the TUI framework in internal/tui"
+
+        # tui-no-infra checks direct imports only, so what it allows must be pure.
+        seam-is-a-sink:
+          files:
+            - "**/internal/api/*.go"
+            - "**/internal/apitest/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/apitest"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+
+        # The generated wire types: protobuf and connect only. (golangci-lint skips
+        # generated files, so this rule is here for depguard-coverage-check and for
+        # anything hand-written added beside them.)
+        wire-is-generated:
+          files:
+            - "**/internal/api/backend/v1/*.go"
+            - "**/internal/api/backend/v1/backendv1connect/**"
+          allow:
+            - "$gostd"
+            - "google.golang.org/protobuf"
+            - "connectrpc.com/connect"
+            - "github.com/EugeneShtoka/kith/internal/api/backend/v1"
+
+        # Wire <-> domain mapping; no infrastructure.
+        protoconv-maps-wire-to-domain:
+          files:
+            - "**/internal/api/backend/v1/protoconv/**"
+          allow:
+            - "$gostd"
+            - "google.golang.org/protobuf"
+            - "github.com/EugeneShtoka/kith/internal/api/backend/v1"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/notify"
+
+        # In-memory completion ranking: text in, candidates out.
+        vocab-is-a-leaf:
+          files:
+            - "**/internal/vocab/**"
+          allow:
+            - "$gostd"
+            - "golang.org/x/text"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/spell"
+            - "github.com/EugeneShtoka/kith/internal/vocab"
+
+        llm-is-a-leaf:
+          files:
+            - "**/internal/llm/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/llm"
+
+        llamacpp-is-a-leaf:
+          files:
+            - "**/internal/llamacpp/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/llamacpp"
+
+        agent-is-a-leaf:
+          files:
+            - "**/internal/agent/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/agent"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/adrg/xdg"
+            - "github.com/gofrs/flock"
+
+        # The shared log format; stdlib plus go-systemd's journal client (the native
+        # journald sink) and nothing of ours, so every layer may use it.
+        logging-is-a-leaf:
+          files:
+            - "**/internal/logging/**"
+          allow:
+            - "$gostd"
+            - "github.com/coreos/go-systemd/v22/journal"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+
+        richtext-is-a-leaf:
+          files:
+            - "**/internal/richtext/**"
+          allow:
+            - "$gostd"
+            - "golang.org/x/net/html"
+
+        setup-derives-from-config:
+          files:
+            - "**/internal/setup/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/audio"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            # The catalog only: validating a model name must not link the server.
+            - "github.com/EugeneShtoka/kith/internal/llamacpp/models"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/notify"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+            # The theme as data only: every binary links setup, and only the TUI draws.
+            - "github.com/EugeneShtoka/kith/internal/themespec"
+
+        notify-is-pure:
+          files:
+            - "**/internal/notify/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/notify"
+            - "github.com/godbus/dbus/v5"
+
+        spell-is-a-leaf:
+          files:
+            - "**/internal/spell/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/spell"
+
+        launch-is-a-leaf:
+          files:
+            - "**/internal/launch/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/launch"
+
+        focus-is-a-leaf:
+          files:
+            - "**/internal/focus/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/focus"
+
+        filedialog-is-a-leaf:
+          files:
+            - "**/internal/filedialog/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/filedialog"
+            - "github.com/godbus/dbus/v5"
+
+        media-knows-only-domain:
+          files:
+            - "**/internal/media/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/media"
+
+        # The binaries. kith reaches matrix/session/spell/llamacpp only for login and
+        # installers, which run before a daemon exists.
+        client-main-wiring:
+          files:
+            - "**/cmd/kith/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/agent"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/buildinfo"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/launch"
+            - "github.com/EugeneShtoka/kith/internal/llamacpp"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/matrix"
+            - "github.com/EugeneShtoka/kith/internal/session"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+            - "github.com/EugeneShtoka/kith/internal/spell"
+            - "github.com/EugeneShtoka/kith/internal/tui"
+            - "github.com/adrg/xdg"
+            - "golang.org/x/term"
+
+        daemon-main-wiring:
+          files:
+            - "**/cmd/kithd/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/buildinfo"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/matrix"
+            - "github.com/EugeneShtoka/kith/internal/modelsetup"
+            - "github.com/EugeneShtoka/kith/internal/schedule"
+            - "github.com/EugeneShtoka/kith/internal/session"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+            - "github.com/adrg/xdg"
+
+        # Talks only to the daemon; never opens the single-writer cache itself.
+        mcp-main-wiring:
+          files:
+            - "**/cmd/kith-mcp/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/agent"
+            - "github.com/EugeneShtoka/kith/internal/buildinfo"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+
+        probe-main-wiring:
+          files:
+            - "**/cmd/emoji-probe/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+            - "github.com/EugeneShtoka/kith/internal/tui"
+            - "github.com/charmbracelet/x/ansi"
+            - "golang.org/x/term"
+
+        # Allow list: new infrastructure deps must be written down here.
+        tui-no-infra:
+          files:
+            - "**/internal/tui/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/apitest"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+            - "github.com/EugeneShtoka/kith/internal/audio"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/filedialog"
+            - "github.com/EugeneShtoka/kith/internal/focus"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/media"
+            - "github.com/EugeneShtoka/kith/internal/notify"
+            - "github.com/EugeneShtoka/kith/internal/richtext"
+            - "github.com/EugeneShtoka/kith/internal/theme"
+            - "github.com/EugeneShtoka/kith/internal/tui"
+            - "charm.land/bubbletea/v2"
+            - "charm.land/lipgloss/v2"
+            - "github.com/charmbracelet/x/ansi"
+            - "github.com/rivo/uniseg"
+            - "golang.org/x/image"
+            - "golang.org/x/term"
+            - "golang.org/x/text"
+
+    errcheck:
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (*database/sql.Tx).Rollback
+        - (io.Closer).Close
+        # Not (*os.File).Close: closing a file written to reports whether the write
+        # landed, so every one is checked (or discarded by name, with the reason).
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam          # bubbletea models are legitimately large value types
+
+    wrapcheck:
+      # Scan errors are wrapped by the caller. Setting this replaces the defaults.
+      ignore-sigs:
+        - .Errorf(
+        - errors.New(
+        - errors.Unwrap(
+        - errors.Join(
+        - .Wrap(
+        - .Wrapf(
+        - .WithMessage(
+        - .WithMessagef(
+        - .WithStack(
+        - .Scan(
+      # setup's errors already name the config section at fault.
+      ignore-package-globs:
+        - github.com/EugeneShtoka/kith/internal/setup
+
+    misspell:
+      locale: US
+
+    nolintlint:
+      allow-unused: false
+      require-explanation: true
+      require-specific: true
+
+    gosec:
+      excludes:
+        - G104  # unhandled errors: covered by errcheck exclusions (Close/Rollback)
+
+    funlen:
+      # Code lines only; comments are not counted.
+      ignore-comments: true
+      lines: 60        # 60 lines of code
+      statements: 40   # or 40 statements, whichever comes first
+
+    gocognit:
+      # richtext.Sanitize carries the one nolint.
+      min-complexity: 25
+
+  exclusions:
+    rules:
+      - path-except: "internal/tui/"
+        linters:
+          - forbidigo
+      - path: "internal/tui/text(_bidi)?\\.go|_test\\.go"
+        linters:
+          - forbidigo
+      - path: "_test\\.go"
+        linters:
+          - unused
+          - gosec
+          - wrapcheck
+          - funlen
+          - gocognit
+          - containedctx
+          # A test helper keeps a parameter every caller passes alike when naming it at
+          # the call site says what the test is about.
+          - unparam
+      # Every TUI handler returns (Model, tea.Cmd), so route dispatches them alike; one
+      # that has no command yet answers nil rather than a different shape.
+      - linters: [unparam]
+        text: "result 1 \\(charm\\.land/bubbletea/v2\\.Cmd\\) is always nil"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

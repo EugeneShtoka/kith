@@ -1,0 +1,45 @@
+# gitleaks configuration for kith.
+# Used by the local pre-commit/pre-push hooks (.githooks/), the `make secrets`
+# target, and the CI secret-scan job.
+title = "kith gitleaks config"
+
+# Start from gitleaks' built-in rule set, then narrow with the allowlist below.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Project false positives: documented placeholders"
+
+# There is deliberately no `paths` entry for project files.
+#
+# This block used to carry `paths = ['''.*_test\.go$''']` with the reasoning that test
+# files hold fake tokens on purpose and "real secrets never belong in tests anyway".
+# But a `paths` entry under [allowlist] is *global*: it switched off the entire
+# inherited rule set for every `_test.go` file — 138 files, ~34k lines, 43% of the
+# hand-written code — at all four enforcement points (CI, `make secrets`, both hooks).
+# Verified by planting a live-shaped `ghp_` PAT and an OpenSSH private key in a test
+# file: with the block, 1 finding; without it, 3.
+#
+# The exemption also bought nothing. A full working-tree scan with it removed reports
+# no leaks, because the `regexes` below already cover the placeholders that actually
+# false-positive. If a new test fixture ever does trip a rule, add it to `regexes`, or
+# scope it with a per-rule [[rules.allowlist]] — never re-broaden by path.
+
+# The one path entry: .tools/ holds the pinned third-party tools (scripts/ensure-tools.sh:
+# gitleaks, buf and goreleaser binaries, and markdownlint's node_modules). It is
+# gitignored, never part of the project, and `gitleaks dir` would otherwise scan
+# ~100 MB of other people's code on every run.
+paths = [
+  '''(^|/)\.tools/''',
+]
+
+# Placeholder strings that appear in the README / config samples and in test
+# code. These are documentation, not credentials.
+regexes = [
+  '''your-token-here''',
+  '''change-me''',
+  '''s3cr3t''',
+  '''testtoken''',
+  '''@user:example\.org''',
+  '''syt_example''',
+]

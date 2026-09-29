@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Pre-push checks — the last line of defense before commits leave your machine.
+# Blocks the push if any commit being pushed contains a secret, then runs every CI
+# gate (make check CHECK_STRICT=1: CI's toolchain and tools, and nothing skipped), so a
+# push does not fail in CI for something this machine could have said.
+#
+# Harder to skip by accident than the pre-commit hook: even if a bad commit was
+# made with --no-verify or before the hooks were enabled, this still fires.
+#
+# Enable once per clone:   make hooks   (or: git config core.hooksPath .githooks)
+# Emergency bypass:        git push --no-verify   (use sparingly!)
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# The CI gates, after the secret scan passes (each exit below runs this first).
+gates() {
+	if ! make -s check CHECK_STRICT=1; then
+		echo "pre-push: make check failed (above) — CI would fail the same way." >&2
+		exit 1
+	fi
+}
+trap 'status=$?; [ "$status" -eq 0 ] && gates; exit "$status"' EXIT
+
+if command -v gitleaks >/dev/null 2>&1; then
+	# Scan the full committed history: fast (sub-second here) and guarantees
+	# nothing being pushed carries a secret, regardless of the exact ref range.
+	# (`detect` was the old spelling for `git`; still an alias, no longer in --help.)
+	if ! gitleaks git --redact --no-banner; then
+		echo "" >&2
+		echo "pre-push: gitleaks found a secret in committed history — push blocked." >&2
+		echo "  • Rotate the credential (assume it is compromised)." >&2
+		echo "  • Scrub it from history (git filter-repo) before pushing." >&2
+		echo "  • False positive? add an allowlist entry to .gitleaks.toml" >&2
+		echo "  • Override:       git push --no-verify  (only if certain)" >&2
+		exit 1
+	fi
+	exit 0
+fi
+
+# ── Fallback: gitleaks not installed ─────────────────────────────────────────
+echo "pre-push: gitleaks not found — running a basic pattern scan on the commits" >&2
+echo "          being pushed. Install gitleaks for full coverage." >&2
+
+pattern='-----BEGIN [A-Z ]*PRIVATE KEY-----|-----BEGIN OPENSSH PRIVATE KEY-----|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|glpat-[A-Za-z0-9_-]{20}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|syt_[A-Za-z0-9_-]{20,}'
+zero=0000000000000000000000000000000000000000
+status=0
+
+# git feeds ref updates on stdin: <local ref> <local oid> <remote ref> <remote oid>
+while read -r _local_ref local_oid _remote_ref remote_oid; do
+	[ "$local_oid" = "$zero" ] && continue # branch deletion — nothing to scan
+	if [ "$remote_oid" = "$zero" ]; then
+		# New branch on the remote: scan commits not already on any remote.
+		commits=$(git rev-list "$local_oid" --not --remotes)
+	else
+		commits=$(git rev-list "$remote_oid..$local_oid")
+	fi
+	[ -z "$commits" ] && continue
+	# shellcheck disable=SC2086 # word-splitting the commit list is intended
+	hits=$(git show --no-color -U0 $commits 2>/dev/null | grep -E '^\+' | grep -En -e "$pattern" || true)
+	if [ -n "$hits" ]; then
+		echo "pre-push: potential secret in commits being pushed:" >&2
+		echo "$hits" >&2
+		status=1
+	fi
+done
+
+if [ "$status" -ne 0 ]; then
+	echo "Rotate/scrub before pushing, or bypass with --no-verify if it is a false positive." >&2
+fi
+exit "$status"

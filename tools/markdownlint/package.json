@@ -1,0 +1,8 @@
+{
+  "name": "kith-markdownlint",
+  "private": true,
+  "description": "The markdownlint-cli2 that CI and make docs-check both run (npm ci against the lock).",
+  "dependencies": {
+    "markdownlint-cli2": "0.23.3"
+  }
+}

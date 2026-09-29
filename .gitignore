@@ -1,0 +1,71 @@
+# Build output (anchored so cmd/kith/ and cmd/kithd/ sources aren't ignored)
+/kith
+/kithd
+/*.exe
+/kith-mcp
+/emoji-probe
+dist/
+# Generated packaging inputs (scripts/prepare-packaging.sh, the GoReleaser before hook)
+/build/
+
+# Local MCP server config (per-developer, not committed)
+/.mcp.json
+
+# Go test/coverage artifacts
+*.test
+*.out
+coverage.html
+/coverage/
+
+# Internal working notes (plans, recaps, audits, handoffs) — local only.
+# Public documentation lives in docs/ and is committed.
+/notes/
+PLAN.md
+/docs/recap-*.md
+/docs/handoff-*.md
+/docs/audit-*
+
+# Claude Code local agent files
+.claude/
+
+# Logs
+*.log
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config / secrets. The client stores a Matrix access token, device keys,
+# and an E2EE crypto store; defaults live in XDG dirs (outside the repo), but
+# guard against a local copy being dropped in the tree.
+*.local.yaml
+*.local.toml
+/config.toml
+/theme.toml
+.env
+.env.*
+
+# Local runtime state that must never be committed (access tokens / crypto keys
+# / message cache)
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db-wal
+*.db-shm
+*.pem
+*.key
+*.crt
+*.p12
+access_token
+crypto.db
+
+# Pinned tools (scripts/ensure-tools.sh)
+/.tools/

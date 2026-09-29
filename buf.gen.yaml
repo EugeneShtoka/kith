@@ -1,0 +1,14 @@
+version: v2
+# Plugins are invoked through `go tool` so their versions are pinned in
+# go.mod/go.sum alongside the linter (see the Makefile's tools section) rather
+# than depending on whatever `go install` left in $GOBIN. buf itself stays an
+# external tool, like gitleaks.
+plugins:
+  - local: ["go", "tool", "protoc-gen-go"]
+    out: internal/api
+    opt:
+      - paths=source_relative
+  - local: ["go", "tool", "protoc-gen-connect-go"]
+    out: internal/api
+    opt:
+      - paths=source_relative

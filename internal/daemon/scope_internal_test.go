@@ -1,0 +1,61 @@
+package daemon
+
+import (
+	"context"
+	"sync"
+	"testing"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
+)
+
+// gatedRooms serves a room list that can be swapped, and can hold a read mid-flight.
+type gatedRooms struct {
+	mu    sync.Mutex
+	rooms []domain.Room
+	hold  chan struct{} // when set, the next read waits on it
+	read  chan struct{} // signaled once that read has taken its snapshot
+}
+
+func (g *gatedRooms) Rooms(context.Context) ([]domain.Room, error) {
+	g.mu.Lock()
+	rooms, hold, read := g.rooms, g.hold, g.read
+	g.hold = nil
+	g.mu.Unlock()
+	if hold != nil {
+		close(read)
+		<-hold
+	}
+	return rooms, nil
+}
+
+func (g *gatedRooms) Spaces(context.Context) ([]domain.Space, error) { return nil, nil }
+
+func (g *gatedRooms) ThreadParticipant(context.Context, domain.RoomID, domain.EventID) bool {
+	return false
+}
+
+// An invalidation that lands while a rebuild is reading wins: the rebuild's older
+// read is not installed, and the next lookup reads again.
+func TestInvalidateOvertakesARebuildAlreadyReading(t *testing.T) {
+	t.Parallel()
+
+	src := &gatedRooms{rooms: []domain.Room{{ID: "!a:x", Name: "Old name"}}}
+	x := newScopeIndex(src, nil, nil)
+	hold, read := make(chan struct{}), make(chan struct{})
+	src.hold, src.read = hold, read
+
+	done := make(chan struct{})
+	go func() { defer close(done); x.lookup(context.Background(), "!a:x") }()
+	<-read
+	src.mu.Lock()
+	src.rooms = []domain.Room{{ID: "!a:x", Name: "New name"}}
+	src.mu.Unlock()
+	x.Invalidate()
+	close(hold)
+	<-done
+
+	facts, ok := x.lookup(context.Background(), "!a:x")
+	if !ok || facts.name != "New name" {
+		t.Errorf("lookup = %+v, %v; want the name read after the invalidation", facts, ok)
+	}
+}

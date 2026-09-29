@@ -1,0 +1,9 @@
+# Code owners for kith. GitHub requests review from the owner(s) on every PR
+# touching a matching path, and (with branch protection's "require review from
+# Code Owners") blocks merge until they approve.
+#
+# Single maintainer today: everything is owned by @EugeneShtoka. Add more
+# specific rules below the catch-all as the project grows — the last matching
+# pattern wins.
+
+* @EugeneShtoka

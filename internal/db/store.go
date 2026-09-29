@@ -1,0 +1,319 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+
+	"github.com/adrg/xdg"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
+)
+
+// DefaultPath returns the per-user cache path under the XDG data dir, keyed by a
+// hash of the user ID.
+func DefaultPath(user string) (string, error) {
+	return userDBPath(user, "cache")
+}
+
+// CryptoPath returns the per-user path for mautrix-go's crypto/state store.
+func CryptoPath(user string) (string, error) {
+	return userDBPath(user, "crypto")
+}
+
+func userDBPath(user, kind string) (string, error) {
+	path, err := xdg.DataFile(fmt.Sprintf("kith/%s-%s.db", kind, domain.AccountKey(user)))
+	if err != nil {
+		return "", fmt.Errorf("db: resolve %s path: %w", kind, err)
+	}
+	return path, nil
+}
+
+// HoldsRooms reports whether any joined room is cached. An empty cache has lost
+// whatever history the sync position assumes it holds.
+func (c *Cache) HoldsRooms(ctx context.Context) (bool, error) {
+	var holds bool
+	err := c.db.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM rooms WHERE membership = ?)`, membershipJoin).Scan(&holds)
+	if err != nil {
+		return false, fmt.Errorf("db: holds rooms: %w", err)
+	}
+	return holds, nil
+}
+
+// Rooms returns the cached joined rooms, sorted for display. Invitations share
+// the table (see Invites).
+func (c *Cache) Rooms(ctx context.Context) ([]domain.Room, error) {
+	rooms, err := c.roomsWith(ctx, membershipJoin)
+	if err != nil {
+		return nil, err
+	}
+	domain.SortRooms(rooms)
+	return rooms, nil
+}
+
+// roomsWith reads the rooms of one membership, unsorted.
+func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room, error) {
+	return collect(ctx, c.db, "rooms",
+		`SELECT r.id, r.name, r.is_direct, r.invited_by, r.heroes,
+		        COALESCE(t.topic, ''), COALESCE(u.replacement, '')
+		   FROM rooms r
+		   LEFT JOIN room_topics   t ON t.room_id = r.id
+		   LEFT JOIN room_upgrades u ON u.room_id = r.id
+		  WHERE r.membership = ?`,
+		func(rows *sql.Rows) (domain.Room, error) {
+			var (
+				id, name, invitedBy, heroes, topic, replacement string
+				isDirect                                        int
+			)
+			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement); err != nil {
+				return domain.Room{}, err
+			}
+			room := domain.Room{
+				ID:          domain.RoomID(id),
+				Name:        name,
+				Topic:       topic,
+				IsDirect:    isDirect != 0,
+				InvitedBy:   invitedBy,
+				Membership:  membershipFrom(membership),
+				Replacement: domain.RoomID(replacement),
+			}
+			if heroes != "" {
+				if err := json.Unmarshal([]byte(heroes), &room.Members); err != nil {
+					return domain.Room{}, fmt.Errorf("decode heroes for %s: %w", id, err)
+				}
+			}
+			return room, nil
+		}, membership)
+}
+
+// registerRoom inserts a placeholder row (empty membership) so the sync stream can
+// write about a room the room list has not caught up with; the next refresh
+// promotes it. Unpromoted rows are deliberately never swept: a registered
+// predecessor of an upgraded room holds history the chain walk needs.
+func registerRoom(ctx context.Context, exec execer, roomID domain.RoomID) error {
+	if _, err := exec.ExecContext(ctx,
+		"INSERT INTO rooms(id, membership) VALUES(?, '') ON CONFLICT(id) DO NOTHING",
+		string(roomID)); err != nil {
+		return fmt.Errorf("db: register room %s: %w", roomID, err)
+	}
+	return nil
+}
+
+// execer is satisfied by *sql.DB and *sql.Tx.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// Stored rooms.membership values; empty is a registered placeholder (registerRoom).
+// Spelled out because domain.MembershipJoin is the empty string.
+const (
+	membershipJoin   = "join"
+	membershipInvite = "invite"
+)
+
+// membershipFrom maps the stored word back; anything but an invite is joined.
+func membershipFrom(membership string) domain.Membership {
+	if membership == membershipInvite {
+		return domain.MembershipInvite
+	}
+	return domain.MembershipJoin
+}
+
+// SaveRooms reconciles the cached joined rooms with rooms in one transaction:
+// upsert each, then delete the ones that are gone (cascading their data). A plain
+// replace would cascade away every room's history. An empty snapshot sweeps nothing.
+func (c *Cache) SaveRooms(ctx context.Context, rooms []domain.Room) error {
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		if err := upsertRooms(ctx, tx, rooms, membershipJoin); err != nil {
+			return err
+		}
+		return sweepRooms(ctx, tx, rooms, membershipJoin)
+	})
+}
+
+// upsertRooms writes each room, leaving whatever hangs off it in place.
+func upsertRooms(ctx context.Context, tx *sql.Tx, rooms []domain.Room, membership string) error {
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO rooms(id, name, is_direct, membership, invited_by, heroes) VALUES(?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			name=excluded.name,
+			is_direct=excluded.is_direct,
+			membership=excluded.membership,
+			invited_by=excluded.invited_by,
+			heroes=excluded.heroes`)
+	if err != nil {
+		return fmt.Errorf("db: prepare room upsert: %w", err)
+	}
+	defer func() { _ = stmt.Close() }()
+	for i := range rooms {
+		room := &rooms[i]
+		var heroes string
+		if len(room.Members) > 0 {
+			b, err := json.Marshal(room.Members)
+			if err != nil {
+				return fmt.Errorf("db: encode heroes for %s: %w", room.ID, err)
+			}
+			heroes = string(b)
+		}
+		if _, err := stmt.ExecContext(ctx, string(room.ID), room.Name, boolToInt(room.IsDirect),
+			membership, room.InvitedBy, heroes); err != nil {
+			return fmt.Errorf("db: upsert room %s: %w", room.ID, err)
+		}
+	}
+	return upsertTopics(ctx, tx, rooms)
+}
+
+// upsertTopics writes each room's topic, deleting the row when it has none.
+func upsertTopics(ctx context.Context, tx *sql.Tx, rooms []domain.Room) error {
+	set, err := tx.PrepareContext(ctx, `
+		INSERT INTO room_topics(room_id, topic) VALUES(?, ?)
+		ON CONFLICT(room_id) DO UPDATE SET topic=excluded.topic`)
+	if err != nil {
+		return fmt.Errorf("db: prepare topic upsert: %w", err)
+	}
+	defer func() { _ = set.Close() }()
+	clear, err := tx.PrepareContext(ctx, `DELETE FROM room_topics WHERE room_id = ?`)
+	if err != nil {
+		return fmt.Errorf("db: prepare topic delete: %w", err)
+	}
+	defer func() { _ = clear.Close() }()
+	for i := range rooms {
+		room := &rooms[i]
+		stmt, args := clear, []any{string(room.ID)}
+		if room.Topic != "" {
+			stmt, args = set, []any{string(room.ID), room.Topic}
+		}
+		if _, err := stmt.ExecContext(ctx, args...); err != nil {
+			return fmt.Errorf("db: write topic for %s: %w", room.ID, err)
+		}
+	}
+	return nil
+}
+
+// sweepRooms deletes the rooms of one membership the snapshot no longer carries.
+func sweepRooms(ctx context.Context, tx *sql.Tx, rooms []domain.Room, membership string) error {
+	if len(rooms) == 0 {
+		return nil
+	}
+	ids := make([]domain.RoomID, len(rooms))
+	for i := range rooms {
+		ids[i] = rooms[i].ID
+	}
+	in, args := inIDs([]any{membership}, ids)
+	// #nosec G202 -- inIDs emits only placeholders or a bound json_each.
+	query := "DELETE FROM rooms WHERE membership = ? AND id NOT" + in
+	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("db: sweep %s rooms: %w", membership, err)
+	}
+	return nil
+}
+
+// Spaces returns the cached spaces with their child rooms, sorted for display.
+func (c *Cache) Spaces(ctx context.Context) ([]domain.Space, error) {
+	spaces, err := collect(ctx, c.db, "spaces", "SELECT id, name, bridge, keeper FROM spaces",
+		func(rows *sql.Rows) (domain.Space, error) {
+			var id, name, bridge, keeper string
+			err := rows.Scan(&id, &name, &bridge, &keeper)
+			return domain.Space{
+				ID:     domain.SpaceID(id),
+				Name:   name,
+				Bridge: domain.Protocol(bridge),
+				Keeper: keeper,
+			}, err
+		})
+	if err != nil {
+		return nil, err
+	}
+	index := make(map[domain.SpaceID]int, len(spaces))
+	for i := range spaces {
+		index[spaces[i].ID] = i
+	}
+	if childErr := c.loadChildren(ctx, spaces, index); childErr != nil {
+		return nil, childErr
+	}
+	origins, originErr := c.OriginSpaces(ctx)
+	if originErr != nil {
+		return nil, originErr
+	}
+	for i := range spaces {
+		spaces[i].Original = origins[spaces[i].ID]
+	}
+	domain.SortSpaces(spaces)
+	return spaces, nil
+}
+
+// loadChildren attaches each space's child room IDs in position order.
+func (c *Cache) loadChildren(ctx context.Context, spaces []domain.Space, index map[domain.SpaceID]int) error {
+	children, err := collect(ctx, c.db, "space children",
+		"SELECT space_id, room_id FROM space_children ORDER BY space_id, position",
+		func(rows *sql.Rows) (spaceChild, error) {
+			var ch spaceChild
+			err := rows.Scan(&ch.space, &ch.room)
+			return ch, err
+		})
+	if err != nil {
+		return err
+	}
+	for _, ch := range children {
+		if i, ok := index[domain.SpaceID(ch.space)]; ok {
+			spaces[i].Children = append(spaces[i].Children, domain.RoomID(ch.room))
+		}
+	}
+	return nil
+}
+
+type spaceChild struct{ space, room string }
+
+// SaveSpaces replaces the cached spaces and their child mappings in one
+// transaction.
+func (c *Cache) SaveSpaces(ctx context.Context, spaces []domain.Space) error {
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		// Children first (they reference spaces); fixed statements, no interpolation.
+		if _, err := tx.ExecContext(ctx, "DELETE FROM space_children"); err != nil {
+			return fmt.Errorf("db: clear space_children: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM spaces"); err != nil {
+			return fmt.Errorf("db: clear spaces: %w", err)
+		}
+		space, err := tx.PrepareContext(ctx, "INSERT INTO spaces(id, name, bridge, keeper) VALUES(?, ?, ?, ?)")
+		if err != nil {
+			return fmt.Errorf("db: prepare space insert: %w", err)
+		}
+		defer func() { _ = space.Close() }()
+		child, err := tx.PrepareContext(ctx, "INSERT INTO space_children(space_id, room_id, position) VALUES(?, ?, ?)")
+		if err != nil {
+			return fmt.Errorf("db: prepare space-child insert: %w", err)
+		}
+		defer func() { _ = child.Close() }()
+		for _, s := range spaces {
+			if _, err := space.ExecContext(ctx, string(s.ID), s.Name, string(s.Bridge), s.Keeper); err != nil {
+				return fmt.Errorf("db: insert space %s: %w", s.ID, err)
+			}
+			for pos, roomID := range s.Children {
+				if _, err := child.ExecContext(ctx, string(s.ID), string(roomID), pos); err != nil {
+					return fmt.Errorf("db: insert space child %s/%s: %w", s.ID, roomID, err)
+				}
+			}
+		}
+		return nil
+	})
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// SpaceIDs is the set of cached space IDs (empty on a cold cache).
+func (c *Cache) SpaceIDs(ctx context.Context) (map[domain.RoomID]bool, error) {
+	return collectMap(ctx, c.db, "space ids", "SELECT id FROM spaces",
+		func(rows *sql.Rows) (domain.RoomID, bool, error) {
+			var id string
+			err := rows.Scan(&id)
+			return domain.RoomID(id), true, err
+		})
+}

@@ -1,0 +1,93 @@
+name: Bug report
+description: Report something that isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! Please fill in as much as you
+        can — the version and environment fields save a lot of back-and-forth.
+
+        ⚠️ **Do not report security vulnerabilities here** — see
+        [SECURITY.md](https://github.com/EugeneShtoka/kith/blob/main/SECURITY.md) for private reporting.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        Steps to reproduce:
+        1. ...
+        2. ...
+
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+
+  - type: input
+    id: kith-version
+    attributes:
+      label: kith version
+      description: Output of `kith --version`.
+      placeholder: "v0.1.0 (or a commit hash for a source build)"
+    validations:
+      required: true
+
+  - type: input
+    id: homeserver
+    attributes:
+      label: Homeserver
+      description: Which homeserver implementation and version, if known (relevant for sync/API issues).
+      placeholder: "e.g. Synapse 1.x, Dendrite, tuwunel, matrix.org"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: encryption
+    attributes:
+      label: Was the affected room encrypted?
+      description: E2EE code paths differ from cleartext ones; this narrows it down fast.
+      options:
+        - "Encrypted room"
+        - "Unencrypted room"
+        - "Not room-specific / unsure"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS / distro
+      placeholder: "e.g. Arch Linux, macOS 15"
+    validations:
+      required: true
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal
+      description: Terminal emulator and multiplexer, if any (relevant for rendering/keyboard/image issues).
+      placeholder: "e.g. WezTerm, kitty, Ghostty; tmux 3.x"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Daemon log
+      description: |
+        Almost everything that can go wrong happens in the daemon, and it logs to
+        the journal. Reproduce, then paste the relevant portion of:
+
+        ```
+        journalctl --user -u kithd.service -n 200 --no-pager
+        ```
+
+        (For a profile deployment, use `kithd@<profile>.service`.) If the client
+        itself printed anything, include that too. **Redact any access tokens,
+        device keys, or message contents.**
+      render: text
+    validations:
+      required: false

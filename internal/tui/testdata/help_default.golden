@@ -1,0 +1,257 @@
+[1;38;2;102;135;153mAnywhere[m
+  (unbound)        quit, from anywhere — typing, a prompt, a picker
+  ctrl+v           paste the terminal's clipboard, from anywhere
+  tab              next pane
+  shift+tab        previous pane
+  ctrl+n           do not disturb on/off
+  alt+n            mute sound on/off
+  ctrl+l           redraw the screen
+  ctrl+k           go to a room, person or space
+  ctrl+o           back to the room you jumped from
+  ctrl+i, alt+o    forward again
+
+[1;38;2;102;135;153mAnywhere but while typing[m
+  ?                this help
+  q                quit
+  ,                settings, showing what each is set to
+  :                command line — global commands, as / is for this room
+  W                why is it quiet — every rule in force for this room
+  /                search this room
+  ctrl+f           search every room
+  @                every message that names you, newest first
+  gf               every message with a file, newest first
+
+[1;38;2;102;135;153mMoving around[m
+  k, up            up
+  j, down          down
+  l, right, enter  open / enter pane to the right
+  h, left, esc     back / leave pane to the left
+  pgup             scroll a screen back
+  pgdown           scroll a screen forward
+  ctrl+u           scroll half a screen back
+  ctrl+d           scroll half a screen forward
+  gg               the top: oldest message, or the first row of a list — with a count, that row (12G)
+  G                the bottom: newest message, or the last row of a list — with a count, that row
+  home             scroll to the start
+  end              jump to the latest
+
+[1;38;2;102;135;153mSpaces rail[m
+  a                name this group
+  K                move it up
+  J                move it down
+  H                hide it from the rail
+  S                bring a hidden group back
+  F                first names only in this space
+  b                notification rule for this space
+  B                give this space a key sequence to reach it by
+  m                mark every unread room in this group read
+
+[1;38;2;102;135;153mRoom list[m
+  su               unread rooms on top, on/off
+  sm               rooms that name you on top, on/off
+  sd               rooms holding a draft on top, on/off
+  sr               sort by newest
+  sa               sort by name
+  y                accept the selected invitation
+  d                reject the selected invitation
+  p                list the people in this room
+  v                open this room's pictures in an image viewer, newest first
+  alt+r            name the thread under the cursor
+  ctrl+t           list the threads in the room under the cursor
+  a                name this room
+  b                notification rule for this room
+  J                join a room by ID or alias
+  L                leave the selected room
+  B                give this room a key sequence to reach it by
+  m                mark this room read without opening it
+  M                mark this room unread, or clear the mark
+  i                invite someone to this room
+  U                lift a ban on this room
+  n                create a room or a space
+  S                file this room into a space, or take it out of one
+  A                archive / un-archive: keep the room, stop it counting
+  D                read this room right to left, left to right, or as configured
+  P                pin / unpin: follow this conversation, and let it through a silence
+  !                spam / not spam: move this conversation out of the way, or back
+  >                go to the room that replaced this one
+
+[1;38;2;102;135;153mTimeline — message cursor[m
+  i                compose a message
+  ctrl+e           react with any emoji (the grid)
+  alt+r            name this thread
+  a                name the sender of the selected message
+  b                notification rule for this sender or room
+  yy               copy this message's text
+  yu               copy a link from it
+  gx               open a link from it
+  gX               open a link from it and go to the browser
+  gl               follow a Matrix link in it
+  gt               read the room's topic
+  *                star it, or unstar it
+  H                what this message used to say
+  yc               copy the verification code in it
+  s                save this message's attachment
+  S                save it somewhere else — opens a folder picker
+  v                open this picture and the ones before it in an image viewer
+  p                play this voice note, or watch this video
+  r                reply to the selected message
+  enter            go to the message this answers
+  x                delete this message (asks first)
+  E                edit this message of yours, in the composer
+  e                react to the selected message
+  t                open the thread this message is in (back closes it)
+  T                start a thread on this message
+  ctrl+t           list this room's threads
+  m                next mention of you
+  M                previous mention of you
+  f                next message with a file
+  F                previous message with a file
+  [                back a day (start of this day first)
+  ]                forward a day
+  alt+e            write a message in $EDITOR
+  zo               uncover what this message is hiding — a spoiler, or a kept deletion
+  z=               correct the misspellings in the draft, one at a time
+
+[1;38;2;102;135;153mSearch results[m
+  enter            go to the selected message
+  esc              close the results
+  tab              widen or narrow: room → group → everywhere
+  *                unstar the selected message (the starred list)
+
+[1;38;2;102;135;153mComposing a message[m
+  ctrl+enter, alt+enter send
+  enter            new line in the message
+  ctrl+e           browse emoji to insert
+  alt+e            finish this message in $EDITOR
+  ctrl+x           cut the whole draft to the clipboard
+  alt+u            attach a file — what you have typed becomes its caption
+  alt+s            correct the misspellings in what you are writing
+  right            take a word of the completion being offered
+  tab              take the whole completion, or choose from the list
+  alt+m            show what the model would be sent for this draft — and send nothing
+  esc              back to the message cursor
+  alt+1            take the first option on offer
+  alt+2            take the second option on offer
+  alt+3            take the third option on offer
+  alt+4            take the fourth option on offer
+  alt+5            take the fifth option on offer
+
+[1;38;2;102;135;153mCompletion popup (@… :…)[m
+  ctrl+n, down     next candidate
+  ctrl+p, up       previous candidate
+  tab, enter       insert the selected candidate
+  esc              close the popup
+
+[1;38;2;102;135;153mCorrecting a misspelling[m
+  s, space         leave this word, go to the next (space too)
+  a                add it to your dictionary — kept after a restart
+  i                accept it for this session
+  esc              stop, leaving the rest underlined
+  1                take the first suggestion and go to the next word
+  2                take the second suggestion and go to the next word
+  3                take the third suggestion and go to the next word
+  4                take the fourth suggestion and go to the next word
+  5                take the fifth suggestion and go to the next word
+  6                take the sixth suggestion and go to the next word
+  7                take the seventh suggestion and go to the next word
+  8                take the eighth suggestion and go to the next word
+  9                take the ninth suggestion and go to the next word
+
+[1;38;2;102;135;153mEmoji browser[m
+  enter, tab       insert the selected emoji
+  esc              close the browser
+
+[1;38;2;102;135;153mChoosers (people, identities, colors)[m
+  i                start typing to narrow the list
+  a                name the person under the cursor
+  r                remove the person under the cursor from this room
+  b                ban the person under the cursor from this room
+  alt+r            name the thread under the cursor
+  space            tick the row under the cursor (in a list of checkboxes)
+  enter, tab       choose the item under the cursor, or apply the ticked ones
+  esc              stop typing, then close
+
+[1;38;2;102;135;153mReacting[m
+  enter            post the typed reaction
+  esc              close the prompt
+  1                react with the palette's first emoji
+  2                react with the palette's second emoji
+  3                react with the palette's third emoji
+  4                react with the palette's fourth emoji
+  5                react with the palette's fifth emoji
+  6                react with the palette's sixth emoji
+  7                react with the palette's seventh emoji
+  8                react with the palette's eighth emoji
+  9                react with the palette's ninth emoji
+  0                react with the palette's tenth emoji
+
+[1;38;2;102;135;153mVoice note playing[m
+  space            play / pause (from the end, plays it again)
+  [                back by the skip step
+  ]                forward by the skip step
+  {                slower
+  }                faster
+  =                back to the speed set for this place
+  w                remember this speed for a room, a space or a person
+  P                stop and close the player
+
+[1;38;2;102;135;153mAt a prompt[m
+  tab              widen or narrow: room → space → everywhere
+  enter            accept what you typed
+  esc              close the prompt
+
+[1;38;2;102;135;153mConfirming[m
+  y                go ahead
+  n, esc           never mind
+
+[1;38;2;102;135;153mDevice verification[m
+  y                accept / confirm the emoji match
+  n, esc           reject
+
+[1;38;2;102;135;153mEditing text (in any field)[m
+  left             one character left
+  right            one character right
+  ctrl+left, alt+left, alt+b one word left
+  ctrl+right, alt+right, alt+f one word right
+  home, ctrl+a     to the start
+  end, ctrl+e      to the end
+  backspace        delete the character before the caret
+  delete           delete the character after it
+  ctrl+w, ctrl+backspace, ctrl+h, alt+backspace delete the word before it
+  ctrl+delete, alt+d delete the word after it
+  ctrl+u           delete everything before it
+  ctrl+k           delete everything after it
+  ctrl+z           undo
+  ctrl+r           redo
+  up               one row up (in the composer)
+  down             one row down (in the composer)
+  a field's own binding wins: ctrl+e browses emoji in the composer,
+  because [keys] puts it there.
+  home and end are the line's ends in a field, not the timeline's.
+
+[1;38;2;102;135;153mTyped into the composer[m
+  /me <what you are doing>       send as an emote — “* you wave” rather than “you: waves”
+  /summary [2h | 7d | yesterday | 2026-09-18 | 50] what this room has been saying — since you last read it, or over the span you name
+  /plain <message>               send it exactly as typed — no Markdown, no rendering
+  /upload <path[ | caption]>     send a file, with words under it if you add them
+  /at <time> <message>           send it later today — /at 09:00 good morning
+  /in <delay> <message>          send it after a delay — /in 2h see you then
+  /tracked [word]                where your tracked words came up here — tab widens, no word groups them
+  /files                         every message with a file in this room — tab widens it
+  /mentions                      where you were named in this room — tab widens it
+  /search [terms]                search this room — tab widens it, no terms just opens the box
+  /threads                       the conversations in this room — the same list `ctrl+t` opens
+  /starred                       what you have starred here — tab widens it, and it unstars too
+  /scheduled                     what is waiting to go out in this room — enter cancels one
+  /topic                         what this room is for, in full — the same reader `gt` opens
+  /why                           why this room does or does not notify you — the whole rule chain
+  /unread                        mark this room unread — read, and still needs you
+  /pin                           follow this conversation — it joins Pinned and can be let through a silence
+  /caught                        what the spam filters catch here — tab widens it
+  /spam                          move this conversation into Spam, or take it out — out of the counts, still readable
+  /direction                     read this room right to left, then left to right, then as [display.direction] says
+  /archive                       stop this room counting toward anything unread — it stays readable
+  /invite <@user:server>         invite somebody to the room you are writing in
+  /leave                         leave the room you are writing in (asks first)
+  //text            sends a literal leading slash
+  anything else starting with a slash is a message that starts with a slash

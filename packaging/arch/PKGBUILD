@@ -1,0 +1,86 @@
+# Maintainer: Eugene Shtoka <eugene at cloud-surf dot com>
+#
+# kith-git: builds the latest commit on main from source. The tagged-release
+# packages are published by GoReleaser on every tag (.goreleaser.yaml): kith-bin
+# (prebuilt binaries) and kith (the release's source archive). This file is the
+# one that is maintained by hand — see docs/packaging.md.
+#
+# Test locally without installing anything:
+#   cd packaging/arch && makepkg --printsrcinfo   # metadata only
+#   cd packaging/arch && makepkg -s               # full build into ./pkg
+
+pkgname=kith-git
+_pkgname=kith
+pkgver=r0.0000000
+pkgrel=1
+pkgdesc='Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server (git)'
+arch=('x86_64' 'aarch64')
+url='https://github.com/EugeneShtoka/kith'
+license=('MIT')
+# Statically linked, cgo-free (CGO_ENABLED=0, mautrix goolm, modernc sqlite): no
+# runtime library dependencies at all. Everything below is an optional feature.
+depends=()
+makedepends=('go' 'git')
+optdepends=(
+	'gnome-keyring: Secret Service keyring for the session (or kwallet, keepassxc)'
+	'xdg-desktop-portal: file picker for attachments'
+	'mpv: voice messages and audio (preferred player)'
+	'vlc: voice messages and audio (fallback player)'
+	'xdg-utils: open links, files and video (xdg-open)'
+	'wl-clipboard: [clipboard] auto-copy of codes on Wayland'
+	'xclip: [clipboard] auto-copy of codes on X11'
+	'hunspell: spell checking (dictionaries via kith --add-dictionary or hunspell-*)'
+	'dunst: desktop notifications (or any org.freedesktop.Notifications daemon)'
+	'llama.cpp: local completion model (llama-server)'
+)
+provides=("$_pkgname")
+conflicts=("$_pkgname" "$_pkgname-bin")
+install=kith.install
+source=("$_pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+	cd "$_pkgname"
+	# 0.3.0.r12.gabc1234 once a v* tag exists; r<commits>.<hash> before that.
+	if git describe --tags --abbrev=0 >/dev/null 2>&1; then
+		git describe --long --tags --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+	else
+		printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+	fi
+}
+
+prepare() {
+	cd "$_pkgname"
+	export GOPATH="$srcdir/gopath"
+	go mod download -x
+}
+
+build() {
+	cd "$_pkgname"
+	export GOPATH="$srcdir/gopath"
+	# goolm selects mautrix's pure-Go E2EE; without it the build needs libolm and cgo.
+	# PIE links internally with cgo off, so Arch's usual -linkmode=external is not set.
+	export CGO_ENABLED=0
+	export GOFLAGS='-tags=goolm -buildmode=pie -trimpath -mod=readonly -modcacherw'
+	local pkg=github.com/EugeneShtoka/kith/internal/buildinfo
+	local date
+	date=$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y-%m-%dT%H:%M:%SZ)
+	local ldflags="-X $pkg.Version=$pkgver -X $pkg.Commit=$(git rev-parse --short HEAD) -X $pkg.Date=$date"
+	local cmd
+	for cmd in kith kithd kith-mcp; do
+		go build -ldflags "$ldflags" -o "build/$cmd" "./cmd/$cmd"
+	done
+}
+
+package() {
+	cd "$_pkgname"
+	install -Dm755 build/kith build/kithd build/kith-mcp -t "$pkgdir/usr/bin/"
+	# The same ExecStart= rewrite the Makefile and the release packages use.
+	bash scripts/render-units.sh /usr/bin "$pkgdir/usr/lib/systemd/user"
+	install -Dm644 packaging/desktop/kith.desktop -t "$pkgdir/usr/share/applications/"
+	install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$_pkgname/"
+	install -Dm644 README.md ARCHITECTURE.md -t "$pkgdir/usr/share/doc/$_pkgname/"
+	install -Dm644 docs/*.md -t "$pkgdir/usr/share/doc/$_pkgname/docs/"
+	build/kith --print-config >config.toml.example
+	install -Dm644 config.toml.example -t "$pkgdir/usr/share/doc/$_pkgname/"
+}

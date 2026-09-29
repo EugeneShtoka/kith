@@ -1,0 +1,519 @@
+# GoReleaser configuration for kith.
+#
+# Local dry run (no tag needed):  goreleaser release --snapshot --clean
+# Real release:                   git tag v0.1.0 && git push origin v0.1.0
+#                                 (the release workflow runs GoReleaser)
+version: 2
+
+before:
+  hooks:
+    # Verify, do not mutate. `go mod tidy` here rewrote go.mod/go.sum *after* the
+    # verify job had run every gate against the tagged commit — so the published
+    # binaries could be built from a dependency graph nothing had checked. -diff
+    # makes an out-of-date go.mod fail the release instead of being fixed behind it.
+    - go mod tidy -diff
+    # The distribution packages ship systemd units whose ExecStart= is /usr/bin/kithd
+    # (the tracked ones say %h/.local/bin) and the annotated default config. Both are
+    # generated into build/packaging/ rather than committed — see the script.
+    - bash scripts/prepare-packaging.sh
+
+builds:
+  - id: kith
+    main: ./cmd/kith
+    binary: kith
+    env:
+      - CGO_ENABLED=0 # pure-Go E2EE (mautrix goolm) + modernc sqlite — no cgo.
+    flags:
+      - -trimpath
+      - -tags=goolm # pure-Go E2EE backend (no libolm/cgo)
+    ldflags:
+      - -s -w
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Version={{.Version}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Commit={{.ShortCommit}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Date={{.Date}}
+    goos: [linux, darwin, freebsd] # windows: see the WINDOWS slot at the end of builds
+    goarch: [amd64, arm64]
+
+  # The daemon. It ships in the same archive as the client, not a separate one:
+  # kith has no in-process fallback, so a release containing only the client is
+  # a release that cannot run (see ARCHITECTURE.md, "One account per daemon").
+  - id: kithd
+    main: ./cmd/kithd
+    binary: kithd
+    env:
+      - CGO_ENABLED=0 # pure-Go E2EE (mautrix goolm) + modernc sqlite — no cgo.
+    flags:
+      - -trimpath
+      - -tags=goolm # pure-Go E2EE backend (no libolm/cgo)
+    ldflags:
+      - -s -w
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Version={{.Version}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Commit={{.ShortCommit}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Date={{.Date}}
+    goos: [linux, darwin, freebsd] # windows: see the WINDOWS slot at the end of builds
+    goarch: [amd64, arm64]
+
+  # The MCP server. Same archive again, and for a reason one step removed from the
+  # daemon's: it is a *third client of the same socket*, so it is useless without the
+  # daemon and weightless beside it — and a release that omits it is a release where
+  # the AI half of this client does not exist.
+  - id: kith-mcp
+    main: ./cmd/kith-mcp
+    binary: kith-mcp
+    env:
+      - CGO_ENABLED=0 # pure-Go E2EE (mautrix goolm) + modernc sqlite — no cgo.
+    flags:
+      - -trimpath
+      - -tags=goolm # pure-Go E2EE backend (no libolm/cgo)
+    ldflags:
+      - -s -w
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Version={{.Version}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Commit={{.ShortCommit}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Date={{.Date}}
+    goos: [linux, darwin, freebsd] # windows: see the WINDOWS slot at the end of builds
+    goarch: [amd64, arm64]
+
+  # ── WINDOWS slot ────────────────────────────────────────────────────────────
+  # A Windows port is being assessed separately. Do not add `windows` to the goos
+  # lists above until it lands; when it does, the release also needs, here and below:
+  #   * archives: format_overrides: [{ goos: windows, formats: [zip] }]
+  #   * the systemd/launchd files kept out of the zip (they mean nothing there)
+  #   * a scoop/winget publisher, if wanted — GoReleaser has both
+  # Nothing else in this file is Linux-only except nfpms and aurs, which filter by
+  # goos themselves.
+  #
+  # FreeBSD caveat: zalando/go-keyring reaches the Secret Service on FreeBSD only
+  # with cgo, so these CGO_ENABLED=0 builds have no keyring — token file only, and
+  # no E2EE (the pickle key needs the keyring). Documented in getting-started.md.
+
+archives:
+  - id: default
+    ids: [kith, kithd, kith-mcp]
+    name_template: >-
+      kith_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    formats: [tar.gz]
+    files:
+      - README.md
+      - LICENSE
+      - ARCHITECTURE.md
+      # The autostart units belong with the binaries: the daemon is meant to be
+      # already running before any client starts. Both of them — README.md tells
+      # multi-profile users to enable kithd@<profile>, and that file was not in
+      # the archive, so following the README from a release could not work.
+      - packaging/systemd/kithd.service
+      - packaging/systemd/kithd@.service
+      # The matrix: link handler, and macOS's counterpart of the unit. The Homebrew
+      # cask points its caveats at the plist inside the staged archive, and the
+      # kith-bin AUR package installs the desktop entry from here.
+      - packaging/desktop/kith.desktop
+      - packaging/macos/io.github.eugeneshtoka.kithd.plist
+
+# The release's own source, as a tarball beside the binaries. The `kith` AUR
+# package (aur_sources below) builds from it, and it is what a distribution packager
+# would want to pin anyway: the tagged tree, checksummed with everything else.
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}_{{ .Version }}_source"
+  prefix_template: "{{ .ProjectName }}-{{ .Version }}/"
+
+# ── Linux distribution packages ──────────────────────────────────────────────
+# One nfpm definition, four formats: .deb (Debian/Ubuntu), .rpm (Fedora, RHEL,
+# openSUSE), .apk (Alpine) and .pkg.tar.zst (Arch). They are attached to the GitHub
+# release; nothing here publishes an apt/dnf repository (see docs/packaging.md).
+#
+# What differs from `make install`, and why:
+#   * the binaries go to /usr/bin and the units to /usr/lib/systemd/user, rendered
+#     with ExecStart=/usr/bin/kithd (scripts/prepare-packaging.sh) — the tracked
+#     units point at ~/.local/bin, which a package does not own;
+#   * nothing is enabled or started. The daemon is a *user* unit and package
+#     scripts run as root outside any session, so postinstall only prints the steps;
+#   * the unit creates its own ReadWritePaths= directories (ExecStartPre=+mkdir), so
+#     `systemctl --user enable --now kithd` works on a fresh account without the
+#     mkdir `make deploy` used to be the only thing to do.
+#
+# No hard dependencies: the binaries are static and cgo-free. The optional ones are
+# declared per format with the names each distribution uses (apk and the Arch
+# format have no weak dependencies, so their postinstall note lists them instead).
+nfpms:
+  - id: packages
+    package_name: kith
+    ids: [kith, kithd, kith-mcp]
+    formats: [deb, rpm, apk, archlinux]
+    # Each format's own naming (kith_1.2.3_amd64.deb, kith-1.2.3-1.x86_64.rpm,
+    # kith_1.2.3_x86_64.apk, kith-1.2.3-1-x86_64.pkg.tar.zst), which is what the
+    # release footer's install commands glob for.
+    file_name_template: "{{ .ConventionalFileName }}"
+    bindir: /usr/bin
+    vendor: Eugene Shtoka
+    homepage: https://github.com/EugeneShtoka/kith
+    maintainer: Eugene Shtoka <eugene@cloud-surf.com>
+    description: |-
+      Terminal Matrix client with a background sync daemon.
+      kith is the client, kithd the daemon that owns the session (sync, cache,
+      end-to-end encryption, notifications) and kith-mcp an MCP server for AI
+      assistants. Pure Go, no cgo: E2EE via mautrix goolm.
+    license: MIT
+    section: net
+    priority: optional
+    contents:
+      - src: build/packaging/systemd/kithd.service
+        dst: /usr/lib/systemd/user/kithd.service
+        file_info: { mode: 0644 }
+      - src: build/packaging/systemd/kithd@.service
+        dst: /usr/lib/systemd/user/kithd@.service
+        file_info: { mode: 0644 }
+      - src: packaging/desktop/kith.desktop
+        dst: /usr/share/applications/kith.desktop
+        file_info: { mode: 0644 }
+      - src: build/packaging/config.toml.example
+        dst: /usr/share/doc/kith/config.toml.example
+        file_info: { mode: 0644 }
+      - src: README.md
+        dst: /usr/share/doc/kith/README.md
+        file_info: { mode: 0644 }
+      - src: ARCHITECTURE.md
+        dst: /usr/share/doc/kith/ARCHITECTURE.md
+        file_info: { mode: 0644 }
+      - src: docs/*.md
+        dst: /usr/share/doc/kith/docs/
+        file_info: { mode: 0644 }
+      # The license where each format's tooling looks for it.
+      - src: LICENSE
+        dst: /usr/share/doc/kith/copyright
+        packager: deb
+        file_info: { mode: 0644 }
+      - src: LICENSE
+        dst: /usr/share/licenses/kith/LICENSE
+        packager: rpm
+        type: license
+        file_info: { mode: 0644 }
+      - src: LICENSE
+        dst: /usr/share/licenses/kith/LICENSE
+        packager: archlinux
+        file_info: { mode: 0644 }
+      - src: LICENSE
+        dst: /usr/share/licenses/kith/LICENSE
+        packager: apk
+        file_info: { mode: 0644 }
+    scripts:
+      postinstall: packaging/nfpm/postinstall.sh
+    # Reproducible packages: file times from the tagged commit, not the build clock.
+    mtime: "{{ .CommitDate }}"
+    # Each entry below is something the code actually runs or talks to — nothing is
+    # listed for completeness' sake:
+    #   Secret Service    session token (zalando/go-keyring over D-Bus)
+    #   notifications     org.freedesktop.Notifications over D-Bus (not notify-send)
+    #   xdg-desktop-portal  the attachment file picker (internal/filedialog)
+    #   xdg-utils         xdg-open for links, files and video
+    #   mpv / vlc         voice messages (internal/audio; mpv preferred)
+    #   wl-clipboard / xclip  [clipboard] command for unattended auto-copy
+    #   hunspell          spell checking (internal/spell)
+    #   ffmpeg            ffplay, the last video-player fallback
+    overrides:
+      deb:
+        recommends:
+          - gnome-keyring | keepassxc | kwalletmanager
+          - notification-daemon
+          - xdg-desktop-portal
+          - xdg-utils
+          - mpv | vlc
+          - wl-clipboard | xclip
+        suggests:
+          - hunspell
+          - ffmpeg
+      rpm:
+        recommends:
+          - (gnome-keyring or keepassxc or kf6-kwallet)
+          - xdg-desktop-portal
+          - xdg-utils
+          - (mpv or vlc)
+          - (wl-clipboard or xclip)
+        suggests:
+          - hunspell
+          - ffmpeg
+      archlinux:
+        conflicts: [kith-bin, kith-git]
+    rpm:
+      summary: Terminal Matrix client with a background sync daemon
+    # deb and rpm run their post-install script on upgrades too; pacman and apk have
+    # a separate hook for it, and the note's "restart the daemon" line is for exactly
+    # that case.
+    archlinux:
+      packager: Eugene Shtoka <eugene@cloud-surf.com>
+      scripts:
+        postupgrade: packaging/nfpm/postinstall.sh
+    apk:
+      scripts:
+        postupgrade: packaging/nfpm/postinstall.sh
+
+# ── Arch User Repository ─────────────────────────────────────────────────────
+# Two packages, both pushed on every stable tag when AUR_SSH_PRIVATE_KEY is set, and
+# generated into dist/ (but not pushed) when it is not:
+#   kith-bin   the release's prebuilt linux archives
+#   kith       built from the release's source tarball
+# A third, kith-git, is packaging/arch/PKGBUILD in this repository, pushed by
+# hand. All three share packaging/arch/kith.install and conflict with each other.
+aurs:
+  - name: kith-bin
+    ids: [default]
+    homepage: https://github.com/EugeneShtoka/kith
+    description: Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server (prebuilt)
+    maintainers: ["Eugene Shtoka <eugene at cloud-surf dot com>"]
+    license: MIT
+    private_key: '{{ envOrDefault "AUR_SSH_PRIVATE_KEY" "" }}'
+    git_url: ssh://aur@aur.archlinux.org/kith-bin.git
+    skip_upload: '{{ if isEnvSet "AUR_SSH_PRIVATE_KEY" }}auto{{ else }}true{{ end }}'
+    commit_author:
+      name: Eugene Shtoka
+      email: eugene@cloud-surf.com
+    provides: [kith]
+    conflicts: [kith, kith-git]
+    optdepends: &aur_optdepends
+      - "gnome-keyring: Secret Service keyring for the session (or kwallet, keepassxc)"
+      - "xdg-desktop-portal: file picker for attachments"
+      - "mpv: voice messages and audio (preferred player)"
+      - "vlc: voice messages and audio (fallback player)"
+      - "xdg-utils: open links, files and video (xdg-open)"
+      - "wl-clipboard: [clipboard] auto-copy of codes on Wayland"
+      - "xclip: [clipboard] auto-copy of codes on X11"
+      - "hunspell: spell checking (dictionaries via kith --add-dictionary or hunspell-*)"
+      - "dunst: desktop notifications (or any org.freedesktop.Notifications daemon)"
+      - "llama.cpp: local completion model (llama-server)"
+    install: packaging/arch/kith.install
+    # The archive's units say %h/.local/bin; the same rewrite as scripts/render-units.sh.
+    package: |-
+      install -Dm755 kith kithd kith-mcp -t "${pkgdir}/usr/bin/"
+      for unit in kithd.service kithd@.service; do
+        sed 's|^ExecStart=[^ ]*/kithd|ExecStart=/usr/bin/kithd|' "packaging/systemd/${unit}" > "${unit}"
+        install -Dm644 "${unit}" "${pkgdir}/usr/lib/systemd/user/${unit}"
+      done
+      install -Dm644 packaging/desktop/kith.desktop "${pkgdir}/usr/share/applications/kith.desktop"
+      install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/kith/LICENSE"
+      install -Dm644 README.md ARCHITECTURE.md -t "${pkgdir}/usr/share/doc/kith/"
+
+aur_sources:
+  - name: kith
+    homepage: https://github.com/EugeneShtoka/kith
+    description: Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server
+    maintainers: ["Eugene Shtoka <eugene at cloud-surf dot com>"]
+    license: MIT
+    private_key: '{{ envOrDefault "AUR_SSH_PRIVATE_KEY" "" }}'
+    git_url: ssh://aur@aur.archlinux.org/kith.git
+    skip_upload: '{{ if isEnvSet "AUR_SSH_PRIVATE_KEY" }}auto{{ else }}true{{ end }}'
+    commit_author:
+      name: Eugene Shtoka
+      email: eugene@cloud-surf.com
+    provides: [kith]
+    conflicts: [kith-bin, kith-git]
+    makedepends: [go]
+    optdepends: *aur_optdepends
+    install: packaging/arch/kith.install
+    prepare: |-
+      cd "${pkgname}-${pkgver}"
+      export GOPATH="${srcdir}/gopath"
+      go mod download
+    build: |-
+      cd "${pkgname}-${pkgver}"
+      export GOPATH="${srcdir}/gopath"
+      export CGO_ENABLED=0
+      export GOFLAGS='-tags=goolm -buildmode=pie -trimpath -mod=readonly -modcacherw'
+      _pkg=github.com/EugeneShtoka/kith/internal/buildinfo
+      _date=$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y-%m-%dT%H:%M:%SZ)
+      for _cmd in kith kithd kith-mcp; do
+        go build -ldflags "-X ${_pkg}.Version=${pkgver} -X ${_pkg}.Date=${_date}" -o "build/${_cmd}" "./cmd/${_cmd}"
+      done
+    package: |-
+      cd "${pkgname}-${pkgver}"
+      install -Dm755 build/kith build/kithd build/kith-mcp -t "${pkgdir}/usr/bin/"
+      bash scripts/render-units.sh /usr/bin "${pkgdir}/usr/lib/systemd/user"
+      install -Dm644 packaging/desktop/kith.desktop -t "${pkgdir}/usr/share/applications/"
+      install -Dm644 LICENSE -t "${pkgdir}/usr/share/licenses/${pkgname}/"
+      install -Dm644 README.md ARCHITECTURE.md -t "${pkgdir}/usr/share/doc/${pkgname}/"
+      install -Dm644 docs/*.md -t "${pkgdir}/usr/share/doc/${pkgname}/docs/"
+      build/kith --print-config > config.toml.example
+      install -Dm644 config.toml.example -t "${pkgdir}/usr/share/doc/${pkgname}/"
+
+# ── Homebrew (macOS, and Linuxbrew) ──────────────────────────────────────────
+# A cask, not a formula: GoReleaser v2.10 deprecated `brews` for prebuilt binaries.
+# The trade is that a cask has no `service do` block, so `brew services` cannot run
+# the daemon; the plist in the archive is the LaunchAgent instead, and the caveats
+# say how to load it. `uninstall launchctl:` unloads it again on `brew uninstall`.
+#
+# Pushed to EugeneShtoka/homebrew-tap when HOMEBREW_TAP_GITHUB_TOKEN is set (a
+# token with contents:write on that repository only — GITHUB_TOKEN cannot push to
+# another repo); generated into dist/ and not pushed when it is not.
+homebrew_casks:
+  - name: kith
+    ids: [default]
+    binaries: [kith, kithd, kith-mcp]
+    homepage: https://github.com/EugeneShtoka/kith
+    description: Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server
+    license: MIT
+    # No url.verified: deprecated since goreleaser v2.18.1, as Homebrew now verifies
+    # the download URL by default.
+    directory: Casks
+    repository:
+      owner: EugeneShtoka
+      name: homebrew-tap
+      token: '{{ envOrDefault "HOMEBREW_TAP_GITHUB_TOKEN" "" }}'
+    skip_upload: '{{ if isEnvSet "HOMEBREW_TAP_GITHUB_TOKEN" }}auto{{ else }}true{{ end }}'
+    commit_author:
+      name: Eugene Shtoka
+      email: eugene@cloud-surf.com
+    # The binaries are not notarized; without this Gatekeeper refuses to run them.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/kith", "#{staged_path}/kithd", "#{staged_path}/kith-mcp"]
+          end
+    uninstall:
+      launchctl: [io.github.eugeneshtoka.kithd]
+    zap:
+      trash:
+        - ~/Library/LaunchAgents/io.github.eugeneshtoka.kithd.plist
+        - ~/Library/Logs/kithd.log
+        - ~/Library/Caches/kith
+    caveats: |
+      kith needs its daemon, kithd, running. On macOS nothing starts it for you
+      (no systemd, no setsid), so load the LaunchAgent once:
+
+        kith login
+        mkdir -p ~/Library/LaunchAgents
+        cp "$(brew --caskroom)"/kith/*/packaging/macos/io.github.eugeneshtoka.kithd.plist ~/Library/LaunchAgents/
+        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.eugeneshtoka.kithd.plist
+
+      After an upgrade: launchctl kickstart -k gui/$(id -u)/io.github.eugeneshtoka.kithd
+      Log: ~/Library/Logs/kithd.log
+      Not on macOS yet: desktop notifications (D-Bus only), the file picker
+      (XDG portal) and the matrix: link handler. Set [clipboard] command = "pbcopy".
+      Config and data: ~/Library/Application Support/kith (brew zap leaves them,
+      and the keychain session, alone).
+
+checksum:
+  name_template: checksums.txt
+
+# One SBOM per archive, generated by syft (the CI job installs it).
+#
+# checksums.txt answers "is this the file that was published"; it says nothing about
+# what is *in* it. For a client that holds a Matrix access token and E2EE key material
+# — the threat model SECURITY.md takes seriously — the question a downstream packager
+# or a security scanner actually asks is which dependencies are inside, and at which
+# versions. That is what this answers, and it is answered from the build rather than
+# reconstructed from go.mod afterwards.
+sboms:
+  - artifacts: archive
+
+# A keyless signature over the checksum file, which covers every artifact it lists.
+#
+# Keyless (Sigstore/Fulcio) rather than a long-lived key, because a signing key that
+# lives in a repository secret is a key whose compromise is silent and whose rotation
+# is a manual job nobody remembers. An ambient OIDC identity is issued to this workflow
+# for the length of one run, and the certificate records *which workflow, at which
+# commit* asked for it — which is the fact a verifier wants anyway.
+#
+# COSIGN_EXPERIMENTAL is not set: keyless is the default in cosign v2+. Cosign v3
+# writes certificate and signature together as one Sigstore bundle (--bundle), so the
+# release carries checksums.txt.sigstore.json instead of a .sig and a .pem.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  # Group the auto-generated changelog by conventional-commit prefix; drop noise.
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Dependencies
+      regexp: '^deps(\(.+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+
+release:
+  draft: false
+  prerelease: auto # tags like v0.1.0-rc1 are marked prerelease automatically.
+  footer: |
+    ---
+    **Install.** Every package contains the same three binaries: `kith` (the
+    client), `kithd` (the daemon that owns the session — required, the client has
+    no in-process fallback) and `kith-mcp` (the optional MCP server for AI assistants).
+
+    | Platform | How |
+    | --- | --- |
+    | Arch Linux | `yay -S kith-bin` (or `kith` to build from source), or the `.pkg.tar.zst` below |
+    | Debian / Ubuntu | `sudo apt install ./kith_*_amd64.deb` |
+    | Fedora / RHEL / openSUSE | `sudo dnf install ./kith-*.x86_64.rpm` (`zypper install` on openSUSE) |
+    | Alpine | `sudo apk add --allow-untrusted ./kith_*_x86_64.apk` |
+    | macOS | `brew install --cask eugeneshtoka/tap/kith` |
+    | Nix | `nix profile install github:EugeneShtoka/kith` |
+    | FreeBSD, or anything else | the `.tar.gz` for your platform; put the binaries on `PATH` |
+
+    The Linux packages install the systemd *user* units but enable nothing — a
+    package cannot start a service in your session. As your own user:
+
+    ```sh
+    kith login
+    systemctl --user daemon-reload
+    systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
+    systemctl --user enable --now kithd    # or kithd@<profile>
+    ```
+
+    From a tarball, install the binaries and the units yourself (the units' sandbox
+    creates its own directories):
+
+    ```sh
+    tar xzf kith_*_linux_amd64.tar.gz
+    install -Dm755 kith kithd kith-mcp -t ~/.local/bin/
+    install -Dm644 packaging/systemd/kithd.service packaging/systemd/kithd@.service -t ~/.config/systemd/user/
+    ```
+
+    On macOS the daemon runs as a LaunchAgent (`packaging/macos/`, see the cask's
+    caveats). FreeBSD has neither systemd nor `setsid(1)`: run `kithd` under your
+    own supervisor before starting the client. The FreeBSD build has no keyring
+    support (it needs cgo there), so it needs `allow_token_file = true` and runs
+    without end-to-end encryption.
+
+    Full guide: https://github.com/EugeneShtoka/kith/blob/main/docs/getting-started.md
+
+    **Verify what you downloaded.** Every archive and package carries a build
+    attestation naming the workflow and commit that produced it, and `checksums.txt`
+    is signed keylessly with Sigstore:
+
+    ```sh
+    gh attestation verify kith_*_linux_amd64.tar.gz --repo EugeneShtoka/kith
+    cosign verify-blob checksums.txt \
+      --bundle checksums.txt.sigstore.json \
+      --certificate-identity-regexp '^https://github.com/EugeneShtoka/kith/\.github/workflows/release\.yml@refs/tags/v.*$' \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com
+    sha256sum --check --ignore-missing checksums.txt
+    ```
+
+    An SBOM ships beside each archive (`*.sbom.json`) listing every dependency that
+    went into it.
+
+    See the README for configuration (homeserver, login, and the E2EE crypto store).

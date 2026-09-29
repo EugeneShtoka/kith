@@ -1,0 +1,211 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Lets release.yml run these same gates on the tagged commit.
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs, except on tags (the release depends on them).
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+# Pure-Go E2EE, matching the cgo-free release build.
+env:
+  GOFLAGS: -tags=goolm
+
+jobs:
+  # Every step below is a make target, so the gates, their tools and the Go toolchain
+  # (go.mod's `toolchain`, which the Makefile pins) are the same here and in `make
+  # check`. scripts/ci-parity-check.sh (the ci-parity gate) holds the two lists equal.
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Before the build, so an untidy go.mod fails here and not at release time.
+      - name: Modules are tidy and verified, and every package builds as released
+        run: make mod-check compile
+
+      # Race detector, coverage profile and the coverage floors (with a summary).
+      - name: Test and coverage gate
+        run: make coverage-check COVERPROFILE=coverage.out
+
+  # Compile-only: the release targets plus windows (built, not released).
+  cross-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build every CROSS_TARGETS platform
+        run: make cross
+
+  # Repo guards: pins, unit parity, the layer map, and this file against `make check`.
+  repo-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Actions SHA pins, unit parity, layering, CI parity, the gate scripts' tests
+        run: make pin-check unit-check arch-check ci-parity script-check
+
+  # Validates .goreleaser.yaml without building, with the release's goreleaser.
+  release-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: goreleaser check
+        run: make release-check
+
+  # golangci-lint is pinned by the go.mod tool directive.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Lint and format check (gofmt/goimports)
+        run: make lint fmt-check
+
+  # govulncheck is a go.mod tool; npm audit covers markdownlint's lock.
+  vuln:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      # markdownlint and npm audit run on node: pinned, as every other tool is.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Vulnerability scan
+        run: make vuln
+
+  # The CLI at tools/versions.env's version and checksum, not gitleaks-action: the
+  # action's PR-commit API call 403s on fork and Dependabot PRs.
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # full history so gitleaks scans every commit
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # History (needs fetch-depth: 0) and working tree cover disjoint ground.
+      # CHECK_STRICT: a missing history is a failure here, never a skip.
+      - name: Scan history and working tree
+        run: make secrets CHECK_STRICT=1
+
+  # Generated wire types must match api/proto (buf at tools/versions.env's version).
+  proto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Lints, generates into a scratch dir and compares file by file, so a new
+      # (untracked) generated file fails it too.
+      - name: Schema lints and generated code is in sync with api/proto
+        run: make proto-check
+
+  # markdownlint-cli2 from tools/markdownlint's lock.
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      # markdownlint and npm audit run on node: pinned, as every other tool is.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Lint Markdown
+        run: make docs-check
+
+  # The single required check for branch protection.
+  ci-ok:
+    # always(): a skipped required check counts as passed on GitHub.
+    if: always()
+    needs: [build-and-test, cross-compile, repo-checks, release-config, lint, vuln, secrets, proto, docs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every gate passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          set -euo pipefail
+          results="$RESULTS"
+          echo "gate results: $results"
+          for r in $results; do
+            if [ "$r" != "success" ]; then
+              echo "::error::a required gate did not pass ($results)"
+              exit 1
+            fi
+          done
+          echo "all gates green"

@@ -1,0 +1,265 @@
+syntax = "proto3";
+
+package backend.v1;
+
+option go_package = "github.com/EugeneShtoka/kith/internal/api/backend/v1;backendv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Room is a Matrix room we are in or have been invited to (domain.Room).
+message Room {
+  string id = 1;
+  string name = 2;
+  bool is_direct = 3;
+  repeated string members = 4;
+  // Membership is "" for joined (domain.MembershipJoin, the zero value) or "invite".
+  string membership = 5;
+  string invited_by = 6;
+  // Replacement is the room this one was upgraded into (m.room.tombstone's
+  // replacement_room), empty for a room that has never been upgraded.
+  string replacement = 7;
+  // Topic is m.room.topic — the room's one-line description, and on a bridged room the
+  // group description carried across by the bridge.
+  string topic = 8;
+}
+
+// Mention is one @-mention within a message (domain.Mention).
+message Mention {
+  // Exactly one of user_id and room_id is set.
+  string user_id = 1;
+  string name = 2;
+  string room_id = 3;
+}
+
+// Media is a message attachment's display metadata (domain.Media).
+message Media {
+  string type = 1; // "image" | "video" | "audio" | "file"
+  string name = 2;
+  string mime = 3;
+  int64 width = 4;  // pixels, 0 if unknown
+  int64 height = 5; // pixels, 0 if unknown
+  int64 size = 6;   // bytes, 0 if unknown
+}
+
+// Revision is one version of a message (domain.Revision).
+message Revision {
+  // The event that carried this wording.
+  string id = 1;
+  string body = 2;
+  string html = 3;
+  google.protobuf.Timestamp at = 4;
+}
+
+// Activity is what the other people in a room are doing right now (domain.Activity).
+message Activity {
+  string room_id = 1;
+  repeated string typing = 2; // everyone typing right now, us excluded
+}
+
+// Message is a single timeline message event (domain.Message).
+message Message {
+  string id = 1;
+  string room_id = 2;
+  string sender = 3;
+  string sender_name = 4;
+  string body = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  bool redacted = 7;
+  bool edited = 8;
+  string reply_to = 9;
+  bool mentioned = 10;
+  Media media = 11; // unset when the message carries no attachment
+  repeated Mention mentions = 12;
+  // An m.emote — what /me sends.
+  bool emote = 14;
+  // The thread this message belongs to, empty when it is in the main timeline.
+  string thread_root = 13;
+  // The message's formatting, as sanitized HTML, empty when it has none.
+  string html = 15;
+  // Who removed the message, what they said about it, and when.
+  string redacted_by = 16;
+  string redacted_reason = 17;
+  int64 redacted_at_unix_ms = 18;
+  // When the edit now supplying body was sent, 0 when unedited or unknown: edits
+  // arrive in any order, and only a newer one may replace it.
+  int64 edited_at_unix_ms = 19;
+  // The edit event now supplying body, empty when unedited: two edits sent in the same
+  // millisecond are told apart by it, as the cache tells them apart.
+  string revision_id = 20;
+  // Sent because the edit this message showed was deleted: what it shows now, which
+  // replaces the body and edit whatever their times (domain.Message.Reverted).
+  bool reverted = 21;
+}
+
+// Space is a Matrix space with its direct child rooms (domain.Space).
+message Space {
+  string id = 1;
+  string name = 2;
+  repeated string children = 3;
+  // bridge is the network whose bridge created this space, empty for one a person made.
+  string bridge = 4;
+  // original marks a space some room names as its canonical parent — where that room
+  // came from.
+  bool original = 5;
+  // keeper is somebody other than you who is inside this space and inside your rooms at
+  // large — a bridge, from the outside.
+  string keeper = 6;
+}
+
+// Unread is one room's unread state (domain.Unread).
+message Unread {
+  string room_id = 1;
+  int64 notifications = 2;
+  int64 highlights = 3;
+  string read_event = 4;
+  int64 messages = 5; // cached messages after our receipts that are neither ours nor redacted
+  int64 mentions = 6; // the subset of messages that name us
+  bool counted = 7;   // the cache could answer at all; false means fall back to notifications
+  // threads is the per-thread breakdown, newest unread reply first.
+  repeated ThreadUnread threads = 8;
+  // marked is MSC2867's m.marked_unread.
+  bool marked = 9;
+}
+
+// ThreadUnread is one thread's share of a room's unread (domain.ThreadUnread), counted
+// against that thread's own read receipt rather than the room's.
+message ThreadUnread {
+  string root = 1;
+  int64 unread = 2;
+  int64 mentions = 3;
+  google.protobuf.Timestamp latest_at = 4;
+  string latest = 5; // the newest unread reply — what a receipt for this thread points at
+  string title = 6;  // the root's text, for a row in a room nothing has opened
+}
+
+// Thread is one thread's summary (domain.Thread).
+message Thread {
+  string root = 1;
+  string room_id = 2;
+  int64 count = 3; // replies, excluding the root
+  string latest = 4;
+  google.protobuf.Timestamp latest_at = 5;
+  string latest_sender = 6;
+  string latest_sender_name = 7;
+  string anchor = 8;
+  bool root_loaded = 9;
+  int64 unread = 10;
+  int64 mentions = 11;
+  string title = 12; // the root's text, for naming the thread where the root is not on screen
+}
+
+// Reaction is one m.annotation event (domain.Reaction).
+message Reaction {
+  string id = 1;     // the m.reaction event's own ID
+  string room_id = 2;
+  string target = 3; // the message this annotates
+  string sender = 4;
+  string key = 5;    // the reaction key, typically an emoji
+}
+
+// ReactionUpdate is one reaction arriving or going away (domain.ReactionUpdate).
+message ReactionUpdate {
+  Reaction reaction = 1;
+  bool removed = 2;
+}
+
+// TimelinePage is one page of scrollback, oldest→newest, with the reactions discovered
+// in it (domain.TimelinePage).
+message TimelinePage {
+  repeated Message messages = 1;
+  repeated Reaction reactions = 2;
+  string next = 3;
+}
+
+// Draft is an outgoing message before it is sent (domain.Draft).
+message Draft {
+  string body = 1;
+  repeated Mention mentions = 2;
+  string reply_to = 3;
+  // Send the body as an m.emote rather than an m.text.
+  bool emote = 5;
+  // The message this replaces (an m.replace).
+  string edits = 6;
+  // The thread to send into, empty for the main timeline.
+  string thread_root = 4;
+  // txn_id identifies the send, so sending it twice delivers it once.
+  string txn_id = 7;
+  // Send the body exactly as typed, with no Markdown rendering.
+  bool plain = 8;
+}
+
+// Member is one person in a room (domain.Member).
+message Member {
+  string user_id = 1;
+  string display_name = 2;
+}
+
+// SearchHit is one message matching a search (domain.SearchHit).
+message SearchHit {
+  string room_id = 1;
+  string event_id = 2;
+  string sender = 3;
+  string sender_name = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  string snippet = 6;
+  // The attachment's name when the message carries one, empty otherwise.
+  string file_name = 7;
+  // The tracked entry this hit matched, for the tracked list and empty for every other
+  // kind — the entry as configured rather than the text that matched it, because the
+  // list groups by what the user wrote.
+  string word = 8;
+}
+
+// SASEmoji is one emoji of a short authentication string (domain.SASEmoji).
+message SASEmoji {
+  string glyph = 1;
+  string name = 2;
+}
+
+// VerificationKind is the stage of a verification flow a step represents
+// (domain.VerificationKind).
+enum VerificationKind {
+  VERIFICATION_KIND_UNSPECIFIED = 0;
+  VERIFICATION_KIND_REQUESTED = 1;
+  VERIFICATION_KIND_SAS = 2;
+  VERIFICATION_KIND_DONE = 3;
+  VERIFICATION_KIND_CANCELED = 4;
+  VERIFICATION_KIND_RESTORED = 5;
+}
+
+// Verification is one step of an interactive SAS device-verification flow
+// (domain.Verification).
+message Verification {
+  VerificationKind kind = 1;
+  string txn_id = 2;
+  string from = 3;   // requested: who is asking
+  string device = 4; // requested: which device
+  repeated SASEmoji emojis = 5;
+  repeated int64 decimals = 6;
+  string reason = 7; // canceled: why; restored: what was imported
+}
+
+// Level is the bar a message clears to earn something (notify.Level).
+enum Level {
+  LEVEL_UNSPECIFIED = 0;
+  LEVEL_NONE = 1;
+  LEVEL_MENTION = 2;
+  LEVEL_DM = 3;
+  LEVEL_ALL = 4;
+}
+
+// TempRule is one temporary notification rule in force — what do-not-disturb is made of
+// (notify.Rule with Temp set).
+message TempRule {
+  // name is how to say it — "Standup", "Alice", "all notifications".
+  string name = 1;
+  // match names a place.
+  string match = 2;
+  // sender narrows it to one person's MXID.
+  string sender = 3;
+  // show and ring are the bars for a popup and a sound; UNSPECIFIED leaves the axis alone.
+  Level show = 4;
+  Level ring = 5;
+  // until is when it lapses.
+  google.protobuf.Timestamp until = 6;
+}

@@ -1,0 +1,9 @@
+# Require one of the structured templates below; no blank issues.
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/EugeneShtoka/kith/discussions
+    about: For usage questions and open-ended discussion, please use Discussions.
+  - name: Report a security vulnerability
+    url: https://github.com/EugeneShtoka/kith/security/advisories/new
+    about: Report security issues privately, not as a public issue.

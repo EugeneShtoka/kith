@@ -1,0 +1,1277 @@
+syntax = "proto3";
+
+package backend.v1;
+
+option go_package = "github.com/EugeneShtoka/kith/internal/api/backend/v1;backendv1";
+
+import "backend/v1/types.proto";
+import "google/protobuf/timestamp.proto";
+
+// ── Room ──
+
+message RoomsRequest {}
+
+message RoomsResponse {
+  repeated Room rooms = 1;
+}
+
+message RefreshRoomsRequest {}
+
+message RefreshRoomsResponse {
+  repeated Room rooms = 1;
+}
+
+message MarkReadRequest {
+  string room_id = 1;
+  string event_id = 2;
+  // Send m.read.private instead of m.read.
+  bool private = 3;
+}
+
+message MarkReadResponse {}
+
+// Marking a room unread — MSC2867's m.marked_unread, which is room account data and
+// therefore shared with every other client on the account.
+message MarkRoomUnreadRequest {
+  string room_id = 1;
+  bool unread = 2; // false clears the mark
+}
+
+message MarkRoomUnreadResponse {}
+
+// Starring a message.
+message StarMessageRequest {
+  string room_id = 1;
+  string event_id = 2;
+  bool starred = 3; // false unstars
+}
+
+message StarMessageResponse {}
+
+// Which of a room's messages carry your star.
+message StarredInRequest {
+  string room_id = 1;
+}
+
+message StarredInResponse {
+  // Newest star first, which is the order a list of bookmarks is read in — and a
+  // different question from the messages' own timestamps.
+  repeated string event_ids = 1;
+}
+
+// Marking whole rooms read without opening them.
+message MarkRoomsReadRequest {
+  repeated string room_ids = 1;
+  // Send m.read.private instead of m.read.
+  bool private = 2;
+}
+
+// The per-room outcomes, counted rather than reported one by one.
+message MarkRoomsReadResponse {
+  int32 marked = 1;  // got a receipt
+  int32 skipped = 2; // no known event to receipt
+  int32 failed = 3;  // refused by the homeserver
+  // Why the first failed room failed (the homeserver's error), when any did.
+  string first_error = 4;
+}
+
+// SpamVerdict is why one room is in Spam, or that it was released from it.
+message SpamVerdict {
+  string room_id = 1;
+  // rule is domain.SpamRule; 0 is not spam, which is what clearing writes.
+  int32 rule = 2;
+  // filter is the name of the filter that caught it, empty for a hand-made verdict.
+  string filter = 3;
+  int64 at_unix_ms = 4;
+  // released is a person taking the room out (rule 0); it outranks every rule.
+  bool released = 5;
+}
+
+message SpamRoomsRequest {}
+
+message SpamRoomsResponse {
+  repeated SpamVerdict rooms = 1;
+}
+
+message MarkSpamRequest {
+  SpamVerdict verdict = 1;
+}
+
+message MarkSpamResponse {}
+
+message CanonicalParentRequest {
+  string room_id = 1;
+}
+
+message CanonicalParentResponse {
+  string space_id = 1; // empty when the room has no canonical parent
+}
+
+// ── Space ──
+
+message SpacesRequest {}
+
+message SpacesResponse {
+  repeated Space spaces = 1;
+}
+
+message RefreshSpacesRequest {}
+
+message RefreshSpacesResponse {
+  repeated Space spaces = 1;
+}
+
+message AddToSpaceRequest {
+  string space_id = 1;
+  string room_id = 2;
+}
+
+message AddToSpaceResponse {}
+
+message RemoveFromSpaceRequest {
+  string space_id = 1;
+  string room_id = 2;
+}
+
+message RemoveFromSpaceResponse {}
+
+// ── Timeline ──
+
+message CachedTimelineRequest {
+  string room_id = 1;
+}
+
+message CachedTimelineResponse {
+  repeated Message messages = 1;
+}
+
+message TimelineRequest {
+  string room_id = 1;
+  // from is a page's Next token.
+  string from = 2;
+  int64 limit = 3;
+}
+
+message TimelineResponse {
+  TimelinePage page = 1;
+}
+
+message SendRequest {
+  string room_id = 1;
+  Draft draft = 2;
+}
+
+message SendResponse {}
+
+// SendFile posts an attachment.
+message SendFileRequest {
+  string room_id = 1;
+  string path = 2;
+  // caption becomes the message body.
+  string caption = 3;
+}
+
+message SendFileResponse {}
+
+message SendTypingRequest {
+  string room_id = 1;
+  bool typing = 2;               // false stops the notice
+  int64 timeout_ms = 3;          // how long the homeserver keeps it without a refresh
+}
+
+message SendTypingResponse {}
+
+message FetchEventRequest {
+  string room_id = 1;
+  string event_id = 2;
+}
+
+message FetchEventResponse {
+  Message message = 1;
+}
+
+message MessageHistoryRequest {
+  string room_id = 1;
+  string event_id = 2;
+}
+
+message MessageHistoryResponse {
+  // Every version, oldest first.
+  repeated Revision revisions = 1;
+  // The deletion that ended the message, absent when it is still there.
+  Deletion deletion = 2;
+}
+
+// Deletion is who removed a message, why, and when.
+message Deletion {
+  int64 at_unix_ms = 1;
+  string by = 2;
+  string reason = 3;
+}
+
+// ── Unread ──
+
+message CachedUnreadRequest {}
+
+message CachedUnreadResponse {
+  repeated Unread unread = 1;
+}
+
+message UnreadStreamRequest {}
+
+message UnreadStreamResponse {
+  Unread unread = 1;
+}
+
+// ── Thread ──
+
+message ListThreadsRequest {
+  string room_id = 1;
+}
+
+message ListThreadsResponse {
+  repeated Thread threads = 1;
+}
+
+// MarkThreadRead sends a *threaded* receipt.
+message MarkThreadReadRequest {
+  string room_id = 1;
+  string root = 2;
+  string event_id = 3;
+  // Send m.read.private instead of m.read.
+  bool private = 4;
+}
+
+message MarkThreadReadResponse {}
+
+// ThreadPage is a thread's own scrollback, from `/relations/{root}/m.thread` — the one
+// case the local grouping cannot answer, because a long-running thread has replies
+// older than the room's cached window and paging the *room* back to reach them would
+// fetch everything in between.
+message ThreadPageRequest {
+  string room_id = 1;
+  string root = 2;
+  // from is a page's Next token.
+  string from = 3;
+  int64 limit = 4;
+}
+
+message ThreadPageResponse {
+  TimelinePage page = 1;
+}
+
+// ── Reaction ──
+
+message CachedReactionsRequest {
+  string room_id = 1;
+}
+
+message CachedReactionsResponse {
+  repeated Reaction reactions = 1;
+}
+
+message ReactionsRequest {}
+
+message ReactionsResponse {
+  ReactionUpdate update = 1;
+}
+
+message SendReactionRequest {
+  string room_id = 1;
+  string target = 2;
+  string key = 3;
+}
+
+message SendReactionResponse {}
+
+// A reaction a bridged network would not accept, learned by observation — see
+// domain.ReactionRefusal.
+message ReactionRefusal {
+  string protocol = 1;
+  string emoji = 2;
+  int64 at_unix_ms = 3;
+}
+
+message ReactionRefusalsRequest {}
+
+message ReactionRefusalsResponse {
+  repeated ReactionRefusal refusals = 1;
+}
+
+message RecordReactionRefusalRequest {
+  string protocol = 1;
+  string emoji = 2;
+}
+
+message RecordReactionRefusalResponse {}
+
+// ── Emoji ──
+
+message RecordEmojiRequest {
+  string kind = 1;
+  string room_id = 2;
+  string emoji = 3;
+}
+
+message RecordEmojiResponse {}
+
+message EmojiScoresRequest {
+  string kind = 1;
+  string room_id = 2;
+  repeated string space_rooms = 3;
+  // "room" | "space" | "global".
+  string scope = 4;
+}
+
+message EmojiScoresResponse {
+  // emoji → weighted score.
+  map<string, int32> scores = 1;
+}
+
+// ── Media ──
+
+message LoadImageRequest {
+  string room_id = 1;
+  string event_id = 2;
+}
+
+message LoadImageResponse {
+  bytes data = 1;
+}
+
+// ── Member ──
+
+message MembersRequest {
+  string room_id = 1;
+  int64 limit = 2; // 0 = all
+}
+
+message MembersResponse {
+  repeated Member members = 1;
+}
+
+message RefreshMembersRequest {
+  string room_id = 1;
+}
+
+message RefreshMembersResponse {
+  repeated Member members = 1;
+}
+
+message MentionCandidatesRequest {
+  string room_id = 1;
+  int64 limit = 2;
+}
+
+message MentionCandidatesResponse {
+  repeated Member members = 1;
+}
+
+// Who a search can be narrowed to.
+message SearchSendersRequest {
+  // The rooms to read: these, or every room with all_rooms. None listed without
+  // all_rooms reads none.
+  repeated string room_ids = 1;
+  int64 limit = 2;
+  bool all_rooms = 3;
+}
+
+message SearchSendersResponse {
+  repeated Member members = 1;
+}
+
+// People this account could start a direct message with.
+message DirectCandidatesRequest {
+  int64 limit = 1;
+}
+
+message DirectCandidatesResponse {
+  repeated Member members = 1;
+}
+
+// When each room last had a message, for ordering the room list by activity.
+message LastMessagesRequest {}
+
+message LastMessagesResponse {
+  // Unix milliseconds, keyed by room ID.
+  map<string, int64> at = 1;
+}
+
+// Removing a message's content — m.room.redaction.
+message RedactRequest {
+  string room_id = 1;
+  string event_id = 2;
+  // Visible to everyone in the room.
+  string reason = 3;
+}
+
+message RedactResponse {}
+
+// A sender's color slot.
+message SenderSlot {
+  // The identity group's key — an alias when accounts are merged, else the MXID.
+  string key = 1;
+  int32 slot = 2;
+}
+
+message SenderSlotsRequest {
+  string room_id = 1;
+}
+
+message SenderSlotsResponse {
+  repeated SenderSlot slots = 1;
+}
+
+message SaveSenderSlotsRequest {
+  string room_id = 1;
+  repeated SenderSlot slots = 2;
+}
+
+message SaveSenderSlotsResponse {}
+
+// ── Membership ──
+
+message CachedInvitesRequest {}
+
+message CachedInvitesResponse {
+  repeated Room invites = 1;
+}
+
+message InvitesRequest {}
+
+message InvitesResponse {
+  // The whole current set on each change, not a delta — which is what makes
+  // disappearance meaningful.
+  repeated Room invites = 1;
+}
+
+message JoinRoomRequest {
+  string room_id_or_alias = 1;
+  // Servers to try when this homeserver does not know the room.
+  repeated string via = 2;
+}
+
+message JoinRoomResponse {
+  string room_id = 1;
+}
+
+message LeaveRoomRequest {
+  string room_id = 1;
+}
+
+message LeaveRoomResponse {}
+
+// Making a room or a space (domain.NewRoom).
+message CreateRoomRequest {
+  string name = 1;
+  bool space = 2;     // an m.space rather than a room
+  bool encrypted = 3; // set at creation or never; meaningless for a space
+  bool public = 4;    // anyone may join; the default is invitation only
+  string parent = 5;  // file it into this space once it exists
+  repeated string invite = 6; // brought in as the room is created
+  // A one-to-one direct message.
+  bool direct = 7;
+}
+
+message CreateRoomResponse {
+  string room_id = 1;
+  // warning is non-empty when the room exists but something after it did not — filing
+  // it into its space.
+  string warning = 2;
+}
+
+message InviteUserRequest {
+  string room_id = 1;
+  string user_id = 2;
+}
+
+message InviteUserResponse {}
+
+// Removing somebody.
+message KickUserRequest {
+  string room_id = 1;
+  string user_id = 2;
+  string reason = 3;
+}
+
+message KickUserResponse {}
+
+message BanUserRequest {
+  string room_id = 1;
+  string user_id = 2;
+  string reason = 3;
+}
+
+message BanUserResponse {}
+
+message UnbanUserRequest {
+  string room_id = 1;
+  string user_id = 2;
+}
+
+message UnbanUserResponse {}
+
+// ── Search ──
+
+message SearchMessagesRequest {
+  // The terms, with the filter tokens already lifted out by the client — FTS5's MATCH
+  // grammar is what this ends up in, so what travels is terms, not a query language.
+  string query = 1;
+  int64 limit = 3;
+  // The scope, as the rooms it resolves to, or every room with all_rooms. None listed
+  // without all_rooms searches none.
+  repeated string room_ids = 4;
+  bool all_rooms = 13;
+  // An MXID or a fragment of a display name.
+  string sender = 5;
+  // Unix milliseconds.
+  int64 since = 6;
+  int64 until = 7;
+  // Only the messages that name the logged-in user.
+  bool mentioned = 8;
+  // Only the messages carrying an attachment.
+  bool has_file = 9;
+  // Only the messages you starred.
+  bool starred = 10;
+  // Only the messages carrying one of the tracked words, and which of them to look for.
+  bool tracked = 11;
+  repeated string words = 12;
+}
+
+message SearchMessagesResponse {
+  repeated SearchHit hits = 1;
+}
+
+message CompleteWordRequest {
+  // What has been typed of the word, folded to lower case by the caller.
+  string prefix = 1;
+  // The room being typed in, and every room in its spaces (this one included).
+  repeated string room_ids = 2;
+  repeated string space_room_ids = 3;
+  // "room", "space" or "global" — the same three words EmojiScores takes, because it is
+  // the same question about the same places.
+  string scope = 4;
+  int64 limit = 5;
+  // Which corpora may answer.
+  repeated string sources = 6;
+}
+
+message WordCandidate {
+  string word = 1;
+  // The weighted count behind it.
+  int64 score = 2;
+}
+
+message CompleteWordResponse {
+  repeated WordCandidate candidates = 1;
+}
+
+message RoomEncryptionRequest {
+  repeated string room_ids = 1;
+}
+
+message RoomEncryptionResponse {
+  // The rooms, from those asked about, that are end-to-end encrypted.
+  repeated string encrypted_room_ids = 1;
+}
+
+message RoomsWithRequest {
+  // The people who must **all** be in the room.
+  repeated string user_ids = 1;
+  int64 limit = 2;
+  // Only these rooms are candidates, or every room with all_rooms; none listed without
+  // all_rooms is none.
+  repeated string room_ids = 3;
+  bool all_rooms = 4;
+}
+
+message RoomsWithResponse {
+  repeated Room rooms = 1;
+}
+
+message MessagesAroundRequest {
+  string room_id = 1;
+  string event_id = 2;
+  // Counts of messages, not spans of time.
+  int64 before = 3;
+  int64 after = 4;
+}
+
+message MessagesAroundResponse {
+  repeated Message messages = 1;
+}
+
+message StoredDraft {
+  string room_id = 1;
+  string body = 2;
+  int64 caret = 3;
+  repeated Mention mentions = 4;
+  string reply_to = 5;
+  string editing = 6;
+  string edit_saved = 7;
+  // Who wrote it.
+  string author = 8;
+  int64 updated_unix_ms = 9;
+}
+
+message ReplaceDraftRequest {
+  StoredDraft draft = 1;
+  // The draft as the writer read it; unset when none was stored.
+  StoredDraft over = 2;
+  // The writing window, once it has the seat (Seat): a write from a window that no
+  // longer has it is refused. Unset for a writer that is not a window (kith-mcp), which
+  // only appends, and the compare-and-set keeps safe.
+  string client = 3;
+}
+
+message ReplaceDraftResponse {
+  bool saved = 1;
+}
+
+message DraftsRequest {}
+
+message SeatRequest {
+  // A client id, made up by the client and kept for its whole run.
+  string client = 1;
+  // Take the seat from the window that has it: it is told to save and quit.
+  bool force = 2;
+  // Where this window runs, to tell a person refused the seat where to find it.
+  SeatHolder where = 3;
+}
+
+// SeatHolder is one window's whereabouts.
+message SeatHolder {
+  int64 pid = 1;
+  string tty = 2;
+  string host = 3;
+  int64 since_unix_ms = 4;
+}
+
+message SeatResponse {
+  oneof event {
+    // The seat is this client's, for as long as it keeps the stream open.
+    bool granted = 1;
+    // Another window has the seat, and no force was asked: the stream ends here.
+    SeatHolder taken = 2;
+    // Another window took the seat by force: save the drafts, then close the stream.
+    bool step_aside = 3;
+  }
+}
+
+message DraftsResponse {
+  repeated StoredDraft drafts = 1;
+}
+
+message ModelTaskRequest {
+  // Which task.
+  string task = 1;
+  // The room being written in.
+  string room_id = 2;
+  // The draft as typed.
+  string draft = 3;
+  // What the person asked for, for a task that takes an instruction ("shorter", "more
+  // formal").
+  string instruction = 4;
+  // How much of the room a summary should read, when the person asking said.
+  int64 since_unix_ms = 6;
+  int64 max_messages = 7;
+  // The argument as typed, for the line reporting what was read.
+  string span_said = 8;
+  // What the draft is answering — a reply target, or the thread it is being written in.
+  string reply_to = 9;
+  // dry_run assembles everything and sends nothing, so `why` can print exactly what
+  // *would* go out.
+  bool dry_run = 5;
+}
+
+message ModelTaskResponse {
+  // text is what the model said, or — for a dry run — the prompt that would be sent.
+  string text = 1;
+  // refusal says why nothing was asked, in words a status line can show, and is empty
+  // when something was.
+  string refusal = 2;
+  // endpoint and model are what answered (or would have), for the marker that says this
+  // room is live and for `why`.
+  string endpoint = 3;
+  string model = 4;
+  // note says what was read to produce this — how many messages a summary covered, and
+  // whether they were the ones you missed.
+  string note = 5;
+  // options are the continuations a completion offers, best first, of which `text` is
+  // the first.
+  repeated string options = 6;
+}
+
+// ── Sync ──
+
+message MessagesRequest {}
+
+message MessagesResponse {
+  Message message = 1;
+}
+
+message ActivityStreamRequest {}
+
+message ActivityStreamResponse {
+  Activity activity = 1;
+}
+
+message FollowRequest {
+  string uri = 1; // a matrix: or matrix.to URI
+}
+
+message FollowResponse {
+  // Whether a client was listening.
+  bool delivered = 1;
+}
+
+message FollowStreamRequest {}
+
+message FollowStreamResponse {
+  string uri = 1;
+}
+
+// ── Verification ──
+
+message VerificationsRequest {}
+
+message VerificationsResponse {
+  Verification verification = 1;
+}
+
+message StartVerificationRequest {}
+
+message StartVerificationResponse {
+  // The transaction the exchange will run under, so the client can tell its own request
+  // apart from one arriving from elsewhere.
+  string txn_id = 1;
+}
+
+message AcceptVerificationRequest {
+  string txn_id = 1;
+}
+
+message AcceptVerificationResponse {}
+
+message ConfirmSASRequest {
+  string txn_id = 1;
+}
+
+message ConfirmSASResponse {}
+
+message CancelVerificationRequest {
+  string txn_id = 1;
+}
+
+message CancelVerificationResponse {}
+
+// ── Maintenance ──
+
+message StatusRequest {}
+
+message StatusResponse {
+  // ready is true once at least one sync response has been processed, so the cache
+  // reflects the account and "empty" means empty.
+  bool ready = 1;
+  // synced_at is when the most recent sync response arrived.
+  google.protobuf.Timestamp synced_at = 2;
+  // last_error is the sync loop's last failure, empty when there has been none.
+  string last_error = 3;
+}
+
+message ClearCacheRequest {}
+
+message ClearCacheResponse {}
+
+message RestoreKeyBackupRequest {
+  // secret is the account's recovery key or passphrase, typed by a human.
+  string secret = 1;
+}
+
+// Room keys as a file, for an account with no server-side backup to restore from.
+message ExportRoomKeysRequest {
+  string passphrase = 1;
+}
+
+message ExportRoomKeysResponse {
+  bytes data = 1;
+}
+
+message ImportRoomKeysRequest {
+  string passphrase = 1;
+  bytes data = 2;
+}
+
+message ImportRoomKeysResponse {
+  // Sessions that were new, and sessions the file held.
+  int64 imported = 1;
+  int64 total = 2;
+}
+
+message RestoreKeyBackupResponse {
+  int64 keys = 1; // how many room keys were imported
+}
+
+// Setting an account up for key backup when it has none.
+message BootstrapKeyBackupRequest {
+  string password = 1;
+}
+
+message BootstrapKeyBackupResponse {
+  // recovery_key is the base58 secret that unlocks the account's secret storage.
+  string recovery_key = 1;
+  // version is the backup version created on the homeserver.
+  string version = 2;
+  // uploaded is how many of this device's room keys reached that version.
+  int64 uploaded = 3;
+  // incomplete says why the backup was not finished, and is empty when it was.
+  string incomplete = 4;
+}
+
+message CheckSpellingRequest {
+  // The draft as typed.
+  string text = 1;
+}
+
+// Misspelling is one word worth marking, and where it sits in the text.
+message Misspelling {
+  string word = 1;
+  // Byte offsets into the text that was checked, in **logical** order.
+  int64 start = 2;
+  int64 end = 3;
+  // What the engine offered instead, best first.
+  repeated string suggestions = 4;
+  // rare says the engine *accepted* this word and the frequency list disagrees.
+  bool rare = 5;
+  // certain says a rare mark may be applied without asking.
+  bool certain = 6;
+}
+
+message CheckSpellingResponse {
+  repeated Misspelling misspellings = 1;
+}
+
+message LearnWordRequest {
+  // The word exactly as it is written in the draft.
+  string word = 1;
+  // forever writes it into the personal dictionary, where it survives a restart.
+  bool forever = 2;
+}
+
+message LearnWordResponse {}
+
+message AllowRareWordRequest {
+  // The word exactly as typed, for the same reason LearnWord takes it that way.
+  string word = 1;
+}
+
+message AllowRareWordResponse {}
+
+message InstallDictionaryRequest {
+  // The dictionary's tag, as the manifest names it.
+  string tag = 1;
+}
+
+message InstallDictionaryResponse {}
+
+message InstallFrequenciesRequest {
+  string tag = 1;
+}
+
+message InstallFrequenciesResponse {}
+
+message InstallModelRequest {
+  // The model's tag, as the manifest names it.
+  string tag = 1;
+}
+
+message InstallModelResponse {}
+
+message DetectModelRequest {}
+
+// ModelCandidate is the local completion model with the evidence behind it, so the
+// prompt can show its reasoning rather than assert a conclusion.
+message ModelCandidate {
+  // The tag, as `kith --add-model` takes it.
+  string tag = 1;
+  // How the people who made it spell it, so the row names a real thing.
+  string name = 2;
+  // What installing it will download.
+  int64 bytes = 3;
+  // The share of this account's own next words it gets right, measured over 542 probes
+  // from its own messages.
+  double recall = 4;
+}
+
+message DetectModelResponse {
+  ModelCandidate candidate = 1;
+  // offer distinguishes "here is one" from "nothing to offer", which is by far the
+  // commoner answer — every machine that already has a model gives it.
+  bool offer = 2;
+  // Non-empty when the weights could not run even if they were downloaded — no
+  // llama.cpp on this machine — and carrying the sentence that names what to install.
+  string why = 3;
+}
+
+message DetectLanguagesRequest {}
+
+// LanguageCandidate is one suggested dictionary with the evidence behind it, so a
+// prompt can show its reasoning rather than assert a conclusion.
+message LanguageCandidate {
+  // The dictionary's tag, as `kith --add-dictionary` takes it.
+  string tag = 1;
+  // The writing system, for a prompt that groups by it.
+  string script = 2;
+  // Weighted words.
+  int64 words = 3;
+  // words as a fraction of every classified word in the cache.
+  double share = 4;
+  // What installing it will download, so the offer can say so.
+  int64 bytes = 5;
+}
+
+message DetectLanguagesResponse {
+  // Already filtered to what can be installed and is not installed yet.
+  repeated LanguageCandidate candidates = 1;
+  // Non-empty when checking cannot run at all — no engine — and carrying the sentence
+  // that names what to install for this system.
+  string why = 2;
+  // The word-frequency lists worth offering.
+  repeated FrequencyCandidate frequencies = 3;
+}
+
+message FrequencyCandidate {
+  // The dictionary tag the counts belong to, as `kith --add-frequencies` takes it.
+  string tag = 1;
+  string script = 2;
+  // share of your own writing in that script, the same measure the dictionary offer
+  // shows, so the two rows can be read the same way.
+  double share = 3;
+  // What it costs.
+  int64 bytes = 4;
+  int64 disk = 5;
+  int64 words = 6;
+  // recommended marks the languages whose dictionary has been *measured* to accept far
+  // more than the language does — Hebrew, so far.
+  bool recommended = 7;
+  // accepts is that measurement as a fraction.
+  double accepts = 8;
+}
+
+// ── Notification ──
+
+message SetDNDRequest {
+  TempRule rule = 1;
+}
+
+message ClearDNDRequest {
+  // match and sender name the rule to lift — the same pair that identifies it when it
+  // is set, so setting and lifting speak about a rule the same way.
+  string match = 1;
+  string sender = 2;
+  bool all = 3;
+}
+
+message DNDRequest {}
+
+// Every method that touches do-not-disturb answers with the whole set of entries in
+// force, so a client that changed one thing learns the resulting state in the same
+// round trip rather than asking again.
+message SetDNDResponse {
+  repeated TempRule rules = 1;
+}
+
+message ClearDNDResponse {
+  repeated TempRule rules = 1;
+}
+
+message DNDResponse {
+  repeated TempRule rules = 1;
+}
+
+message ReloadConfigRequest {}
+
+message ReloadConfigResponse {}
+
+// ── Schedule ──
+
+// ScheduledMessage is one pending send.
+message ScheduledMessage {
+  // id identifies the entry for canceling.
+  string id = 1;
+  string room_id = 2;
+  string body = 3;
+  // thread_root keeps a scheduled reply in the conversation it was written in.
+  string thread_root = 4;
+  // emote sends it in the third person, as /me does.
+  bool emote = 5;
+  // at_ms is when to send it, Unix milliseconds UTC.
+  int64 at_ms = 6;
+  // written_ms is when it was composed, which is what says how stale a message held
+  // past its cutoff actually is.
+  int64 written_ms = 7;
+  // reply_to and mentions are what a *queued* message needs to arrive as the message it
+  // was.
+  string reply_to = 8;
+  repeated Mention mentions = 9;
+  // txn_id is what makes retrying this entry safe — the homeserver deduplicates by it,
+  // so a send whose outcome was unknown can be tried again without a second copy
+  // arriving.
+  string txn_id = 10;
+}
+
+message ScheduleRequest {
+  // message carries everything but the id, which the daemon assigns.
+  ScheduledMessage message = 1;
+}
+
+message ScheduleResponse {
+  // id is what CancelScheduled takes.
+  string id = 1;
+}
+
+message ScheduledMessagesRequest {}
+
+message ScheduledMessagesResponse {
+  repeated ScheduledMessage messages = 1;
+}
+
+message CancelScheduledRequest {
+  string id = 1;
+}
+
+message CancelScheduledResponse {}
+
+// BackendService is the daemon's whole socket API; its RPCs mirror api.Backend.
+// There is no login: the daemon owns its session, so nothing on the socket can
+// replace the client it syncs with.
+service BackendService {
+  // Room
+  // Rooms returns the daemon's cached joined rooms.
+  rpc Rooms(RoomsRequest) returns (RoomsResponse);
+  // RefreshRooms fetches from the homeserver, updates the cache, and returns the fresh
+  // list.
+  rpc RefreshRooms(RefreshRoomsRequest) returns (RefreshRoomsResponse);
+  // MarkRead sends an m.read receipt, advancing our read marker.
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+  // MarkRoomsRead marks whole rooms read without opening them, receipting the newest
+  // event the daemon knows of in each.
+  rpc MarkRoomsRead(MarkRoomsReadRequest) returns (MarkRoomsReadResponse);
+  // MarkRoomUnread sets or clears m.marked_unread on a room, which every client on the
+  // account then sees.
+  rpc MarkRoomUnread(MarkRoomUnreadRequest) returns (MarkRoomUnreadResponse);
+  // StarMessage adds or removes one message's private bookmark.
+  rpc StarMessage(StarMessageRequest) returns (StarMessageResponse);
+  // StarredIn lists the starred messages of one room, from the cache.
+  rpc StarredIn(StarredInRequest) returns (StarredInResponse);
+  // CanonicalParent resolves the space a room lives in (canonical m.space.parent).
+  rpc CanonicalParent(CanonicalParentRequest) returns (CanonicalParentResponse);
+  // LastMessages is when each room last had a message, for ordering the list by
+  // activity.
+  rpc LastMessages(LastMessagesRequest) returns (LastMessagesResponse);
+  // SpamRooms lists the rooms a spam filter caught, with the rule and the filter that
+  // caught each.
+  rpc SpamRooms(SpamRoomsRequest) returns (SpamRoomsResponse);
+  // MarkSpam records a verdict on one room, or clears it.
+  rpc MarkSpam(MarkSpamRequest) returns (MarkSpamResponse);
+  // Space
+  // Spaces returns the cached spaces, each with its direct child rooms.
+  rpc Spaces(SpacesRequest) returns (SpacesResponse);
+  // RefreshSpaces fetches the hierarchy from the homeserver and caches it.
+  rpc RefreshSpaces(RefreshSpacesRequest) returns (RefreshSpacesResponse);
+  // AddToSpace files a room into a space (m.space.child plus a non-canonical
+  // m.space.parent).
+  rpc AddToSpace(AddToSpaceRequest) returns (AddToSpaceResponse);
+  // RemoveFromSpace takes a room back out, emptying both events AddToSpace wrote.
+  rpc RemoveFromSpace(RemoveFromSpaceRequest) returns (RemoveFromSpaceResponse);
+  // Timeline
+  // CachedTimeline returns a room's most recent cached messages for instant display on
+  // entry.
+  rpc CachedTimeline(CachedTimelineRequest) returns (CachedTimelineResponse);
+  // Timeline fetches one page of history from the homeserver, older-first.
+  rpc Timeline(TimelineRequest) returns (TimelineResponse);
+  // MessageHistory is every version of one message, from the cache and from the server
+  // together.
+  rpc MessageHistory(MessageHistoryRequest) returns (MessageHistoryResponse);
+  // FetchEvent fetches one event by ID — a thread root, or a reply target, that is
+  // older than the room's cached window.
+  rpc FetchEvent(FetchEventRequest) returns (FetchEventResponse);
+  // Send posts a message, with its mentions and its reply target.
+  rpc Send(SendRequest) returns (SendResponse);
+  // Redact removes a message's content.
+  rpc Redact(RedactRequest) returns (RedactResponse);
+  // SendFile uploads a file and posts it, encrypting it first where the room is.
+  rpc SendFile(SendFileRequest) returns (SendFileResponse);
+  // SendTyping tells a room you are typing, or that you have stopped.
+  rpc SendTyping(SendTypingRequest) returns (SendTypingResponse);
+  // Unread
+  // CachedUnread returns every room's cached unread state for instant badges.
+  rpc CachedUnread(CachedUnreadRequest) returns (CachedUnreadResponse);
+  // UnreadStream streams per-room unread updates as sync ingests them.
+  rpc UnreadStream(UnreadStreamRequest) returns (stream UnreadStreamResponse);
+  // Thread
+  // ListThreads returns a room's threads, newest activity first, with what is unread in
+  // each — for a room whether or not it is open.
+  rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
+  // ThreadPage fetches one page of a thread's history from the homeserver, older than
+  // what is cached.
+  rpc ThreadPage(ThreadPageRequest) returns (ThreadPageResponse);
+  // MarkThreadRead marks one thread read up to an event.
+  rpc MarkThreadRead(MarkThreadReadRequest) returns (MarkThreadReadResponse);
+  // Reaction
+  // CachedReactions returns a room's cached reactions for instant display.
+  rpc CachedReactions(CachedReactionsRequest) returns (CachedReactionsResponse);
+  // Reactions streams adds and removals as sync delivers them.
+  rpc Reactions(ReactionsRequest) returns (stream ReactionsResponse);
+  // SendReaction posts an m.reaction annotating a message.
+  rpc SendReaction(SendReactionRequest) returns (SendReactionResponse);
+  // ReactionRefusals returns what has been learned about the emoji bridged networks
+  // refuse as reactions.
+  rpc ReactionRefusals(ReactionRefusalsRequest) returns (ReactionRefusalsResponse);
+  // RecordReactionRefusal notes one the client observed itself.
+  rpc RecordReactionRefusal(RecordReactionRefusalRequest) returns (RecordReactionRefusalResponse);
+  // Emoji
+  // RecordEmoji notes one emoji the user chose, so the ranking learns from it.
+  rpc RecordEmoji(RecordEmojiRequest) returns (RecordEmojiResponse);
+  // EmojiScores weighs each emoji's usage for one room, for ordering the panel, over
+  // the rooms the scope admits.
+  rpc EmojiScores(EmojiScoresRequest) returns (EmojiScoresResponse);
+  // Media
+  // LoadImage resolves a message's media from cache or the homeserver, decrypting it in
+  // an encrypted room, and returns the raw bytes.
+  rpc LoadImage(LoadImageRequest) returns (LoadImageResponse);
+  // Member
+  // Members returns a room's cached members, ordered by display name.
+  rpc Members(MembersRequest) returns (MembersResponse);
+  // RefreshMembers fetches membership from the homeserver and replaces the cache.
+  rpc RefreshMembers(RefreshMembersRequest) returns (RefreshMembersResponse);
+  // MentionCandidates ranks a room's members for the mention dropdown.
+  rpc MentionCandidates(MentionCandidatesRequest) returns (MentionCandidatesResponse);
+  // SearchSenders ranks the people who have posted in a set of rooms, for the search
+  // box's `from:` filter.
+  rpc SearchSenders(SearchSendersRequest) returns (SearchSendersResponse);
+  // DirectCandidates ranks the people this account has no direct message with.
+  rpc DirectCandidates(DirectCandidatesRequest) returns (DirectCandidatesResponse);
+  // SenderSlots returns a room's remembered color slots.
+  rpc SenderSlots(SenderSlotsRequest) returns (SenderSlotsResponse);
+  // SaveSenderSlots records the ones a client has assigned.
+  rpc SaveSenderSlots(SaveSenderSlotsRequest) returns (SaveSenderSlotsResponse);
+  // Membership
+  // CachedInvites returns the cached pending invitations.
+  rpc CachedInvites(CachedInvitesRequest) returns (CachedInvitesResponse);
+  // Invites streams the complete set of pending invitations on each change.
+  rpc Invites(InvitesRequest) returns (stream InvitesResponse);
+  // JoinRoom joins a room by ID or alias, which is also how an invite is accepted, and
+  // returns the ID joined.
+  rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse);
+  // LeaveRoom leaves a room.
+  rpc LeaveRoom(LeaveRoomRequest) returns (LeaveRoomResponse);
+  // Deciding who else is in a room.
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+  rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
+  rpc KickUser(KickUserRequest) returns (KickUserResponse);
+  rpc BanUser(BanUserRequest) returns (BanUserResponse);
+  rpc UnbanUser(UnbanUserRequest) returns (UnbanUserResponse);
+  // Search
+  // SearchMessages finds cached messages matching query, newest first.
+  rpc SearchMessages(SearchMessagesRequest) returns (SearchMessagesResponse);
+  // ModelTask asks the optional language-model layer for one thing.
+  rpc ModelTask(ModelTaskRequest) returns (ModelTaskResponse);
+  // ReplaceDraft stores one room's half-written message (or removes it when there is
+  // nothing left worth keeping), only while the stored draft is still the one the
+  // writer read, so neither writer (TUI, kith-mcp) drops the other's words.
+  rpc ReplaceDraft(ReplaceDraftRequest) returns (ReplaceDraftResponse);
+  rpc Drafts(DraftsRequest) returns (DraftsResponse);
+  // Seat is the one window the daemon serves (kith-mcp and one-shot commands take
+  // none). Opening the stream asks for it; keeping it open keeps it, and a window
+  // that closes or dies frees it. See SeatRequest.force and SeatResponse.
+  rpc Seat(SeatRequest) returns (stream SeatResponse);
+  // RoomsWith finds the rooms a set of people are **all** in, most recently active
+  // first.
+  rpc RoomsWith(RoomsWithRequest) returns (RoomsWithResponse);
+  // RoomEncryption says which of these rooms are end-to-end encrypted.
+  rpc RoomEncryption(RoomEncryptionRequest) returns (RoomEncryptionResponse);
+  // MessagesAround is one message with its neighbours.
+  rpc MessagesAround(MessagesAroundRequest) returns (MessagesAroundResponse);
+  // CompleteWord finishes a partly typed word from what has been said in scope, ranked,
+  // then tops the list up from the installed word-frequency list for the language the
+  // prefix is in.
+  rpc CompleteWord(CompleteWordRequest) returns (CompleteWordResponse);
+  // Sync
+  // Messages streams incoming room messages for as long as the client keeps the stream
+  // open.
+  rpc Messages(MessagesRequest) returns (stream MessagesResponse);
+  // Activity streams typing and other people's read receipts.
+  rpc ActivityStream(ActivityStreamRequest) returns (stream ActivityStreamResponse);
+  // Follow hands a matrix URI to whichever client is attached — the desktop clicked a
+  // link, and the running TUI is what can go there.
+  rpc Follow(FollowRequest) returns (FollowResponse);
+  // FollowStream is the receiving end, held open by the TUI.
+  rpc FollowStream(FollowStreamRequest) returns (stream FollowStreamResponse);
+  // Verification
+  // Verifications streams verification steps (request, SAS, done, canceled).
+  rpc Verifications(VerificationsRequest) returns (stream VerificationsResponse);
+  // StartVerification asks this account's other devices to verify this one.
+  rpc StartVerification(StartVerificationRequest) returns (StartVerificationResponse);
+  // AcceptVerification accepts an incoming request, advancing toward the SAS
+  // comparison.
+  rpc AcceptVerification(AcceptVerificationRequest) returns (AcceptVerificationResponse);
+  // ConfirmSAS confirms the displayed short authentication string matches.
+  rpc ConfirmSAS(ConfirmSASRequest) returns (ConfirmSASResponse);
+  // CancelVerification aborts an in-progress verification.
+  rpc CancelVerification(CancelVerificationRequest) returns (CancelVerificationResponse);
+  // Maintenance
+  // Status reports whether the daemon is ready to serve, and why not if it isn't.
+  rpc Status(StatusRequest) returns (StatusResponse);
+  // ClearCache empties the local cache.
+  rpc ClearCache(ClearCacheRequest) returns (ClearCacheResponse);
+  // RestoreKeyBackup imports the server-side room-key backup, so encrypted history from
+  // before this device joined decrypts.
+  rpc RestoreKeyBackup(RestoreKeyBackupRequest) returns (RestoreKeyBackupResponse);
+  // ExportRoomKeys returns this device's room keys as an encrypted export file, for an
+  // account with no server-side backup to restore from.
+  rpc ExportRoomKeys(ExportRoomKeysRequest) returns (ExportRoomKeysResponse);
+  // ImportRoomKeys adds the sessions in such a file to this device's store.
+  rpc ImportRoomKeys(ImportRoomKeysRequest) returns (ImportRoomKeysResponse);
+  // BootstrapKeyBackup sets up cross-signing, secret storage and key backup.
+  rpc BootstrapKeyBackup(BootstrapKeyBackupRequest) returns (BootstrapKeyBackupResponse);
+  // DetectLanguages counts the scripts in the cached corpus and returns the spelling
+  // dictionaries worth installing for them.
+  rpc DetectLanguages(DetectLanguagesRequest) returns (DetectLanguagesResponse);
+  // InstallDictionary fetches one dictionary by tag, verifying it against the hash the
+  // manifest pinned.
+  rpc InstallDictionary(InstallDictionaryRequest) returns (InstallDictionaryResponse);
+  // InstallFrequencies fetches one language's word counts, which is what the rare-word
+  // check reads.
+  rpc InstallFrequencies(InstallFrequenciesRequest) returns (InstallFrequenciesResponse);
+  // DetectModel answers whether the local completion model is worth offering.
+  rpc DetectModel(DetectModelRequest) returns (DetectModelResponse);
+  // InstallModel fetches the weights by tag, verifying them against the hash the
+  // manifest pinned, and points the running layer at them.
+  rpc InstallModel(InstallModelRequest) returns (InstallModelResponse);
+  // CheckSpelling returns the words in a draft the engine does not accept.
+  rpc CheckSpelling(CheckSpellingRequest) returns (CheckSpellingResponse);
+  // LearnWord teaches the engine a word it rejected.
+  rpc LearnWord(LearnWordRequest) returns (LearnWordResponse);
+  // AllowRareWord stops the rare-word hint firing on one word, for good.
+  rpc AllowRareWord(AllowRareWordRequest) returns (AllowRareWordResponse);
+  // Notification
+  // SetDND puts one temporary rule in force, replacing any rule naming the same thing
+  // (the same match and sender).
+  rpc SetDND(SetDNDRequest) returns (SetDNDResponse);
+  // ClearDND lifts one temporary rule, or all of them.
+  rpc ClearDND(ClearDNDRequest) returns (ClearDNDResponse);
+  // DND reports the temporary rules in force.
+  rpc DND(DNDRequest) returns (DNDResponse);
+  // ReloadConfig re-reads the configuration file the daemon was started with, and
+  // returns the parse error if it will not load — leaving the running configuration
+  // untouched.
+  rpc ReloadConfig(ReloadConfigRequest) returns (ReloadConfigResponse);
+  // Schedule
+  // Schedule queues a message.
+  rpc Schedule(ScheduleRequest) returns (ScheduleResponse);
+  // ScheduledMessages is the whole queue, every room, soonest first.
+  rpc ScheduledMessages(ScheduledMessagesRequest) returns (ScheduledMessagesResponse);
+  // CancelScheduled drops one pending message.
+  rpc CancelScheduled(CancelScheduledRequest) returns (CancelScheduledResponse);
+}
