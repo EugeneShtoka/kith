@@ -30,10 +30,12 @@ type aim struct {
 	thread, replyTo domain.EventID
 }
 
-// errThreadDraft refuses a thread or reply the policy would draft: a draft holds
-// neither yet, and one moved to the main timeline would be said in the wrong place.
-var errThreadDraft = errors.New("this room's messages are drafted, and a draft cannot hold a thread or " +
-	"a reply yet, so nothing was written. Tell them; they can answer in the thread themselves")
+// errElsewhere refuses to add to a draft aimed somewhere else (another thread, the
+// main timeline, another message to answer): the words would be sent where they were
+// not meant, and the person's draft would change what it answers.
+var errElsewhere = errors.New("that room's composer already holds a draft aimed elsewhere (another " +
+	"thread, the main timeline, or another message to answer), so nothing was added to it. Tell them; " +
+	"it can go in once that draft is sent or cleared")
 
 // sendMessage is the tool.
 func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -84,10 +86,7 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	if decision.send {
 		return s.sendNow(ctx, room, text, target)
 	}
-	if target != (aim{}) {
-		return nil, s.refuse(room, text, errThreadDraft)
-	}
-	return s.draftFor(ctx, room, text, decision.reason)
+	return s.draftFor(ctx, room, text, decision.reason, target)
 }
 
 // aimIn resolves a thread and a reply target to messages of this room's cached
@@ -188,10 +187,7 @@ func (s *server) sendNow(ctx context.Context, room domain.Room, text string, tar
 		return s.wrote(room, agent.Queued, text, "the homeserver would not take it yet; the daemon is retrying it")
 	}
 	s.logger().Warn("queueing failed; drafting", "room", room.ID, "err", queueErr)
-	if target != (aim{}) {
-		return nil, s.refuse(room, text, errThreadDraft)
-	}
-	return s.draftFor(ctx, room, text, "the send failed and the queue would not take it either")
+	return s.draftFor(ctx, room, text, "the send failed and the queue would not take it either", target)
 }
 
 // draftAttempts bounds how often an append is rebuilt because someone wrote the
@@ -216,7 +212,7 @@ var (
 // draftFor puts the words in a room's composer, without ever taking any out. The
 // append is written only over the draft it was built on, so words someone saves in
 // between (the TUI's debounced save) are never dropped: it is rebuilt on theirs.
-func (s *server) draftFor(ctx context.Context, room domain.Room, text, why string) (any, error) {
+func (s *server) draftFor(ctx context.Context, room domain.Room, text, why string, target aim) (any, error) {
 	pause := draftBackoff
 	for attempt := range draftAttempts {
 		if attempt > 0 {
@@ -227,8 +223,8 @@ func (s *server) draftFor(ctx context.Context, room domain.Room, text, why strin
 			}
 			pause *= 2
 		}
-		appended, saved, err := s.appendDraft(ctx, room, text)
-		if errors.Is(err, errMidEdit) || errors.Is(err, errDraftFull) {
+		appended, saved, err := s.appendDraft(ctx, room, text, target)
+		if errors.Is(err, errMidEdit) || errors.Is(err, errDraftFull) || errors.Is(err, errElsewhere) {
 			return nil, s.refuse(room, text, err)
 		}
 		if err != nil {
@@ -247,7 +243,7 @@ func (s *server) draftFor(ctx context.Context, room domain.Room, text, why strin
 
 // appendDraft adds text to the room's draft once, over the draft it read. saved is
 // false when the draft changed in between.
-func (s *server) appendDraft(ctx context.Context, room domain.Room, text string) (appended, saved bool, err error) {
+func (s *server) appendDraft(ctx context.Context, room domain.Room, text string, target aim) (appended, saved bool, err error) {
 	held, err := s.draftIn(ctx, room.ID)
 	if err != nil {
 		return false, false, err
@@ -256,6 +252,14 @@ func (s *server) appendDraft(ctx context.Context, room domain.Room, text string)
 	// Appending to an edit in progress would alter a message they are correcting.
 	if held.Editing != "" || held.EditSaved != "" {
 		return false, false, errMidEdit
+	}
+	// An empty composer is aimed where these words go; one holding a draft keeps its
+	// aim, and takes them only when that is where they go.
+	switch {
+	case held.Empty():
+		held.ThreadRoot, held.ReplyTo = target.thread, target.replyTo
+	case held.ThreadRoot != target.thread, target.replyTo != "" && held.ReplyTo != target.replyTo:
+		return false, false, errElsewhere
 	}
 	if n := len([]rune(held.Body)) + len([]rune(text)); n > draftCap {
 		return false, false, fmt.Errorf("%w (%d characters with this addition)", errDraftFull, n)

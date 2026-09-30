@@ -80,28 +80,77 @@ func TestATargetMustBeAMessageOfThatRoom(t *testing.T) {
 	}
 }
 
-// A thread or reply the policy would draft is refused, recorded, and written nowhere:
-// a draft cannot hold one yet, and the main timeline is the wrong place for it.
-func TestAThreadReplyIsNotDraftedIntoTheMainTimeline(t *testing.T) {
+// A thread or reply the policy drafts is drafted aimed there: in an empty composer the
+// draft takes the thread and the reply target.
+func TestAThreadReplyIsDraftedIntoItsThread(t *testing.T) {
 	t.Parallel()
-	for _, args := range []map[string]any{{"thread": "$root"}, {"reply_to": "$main"}} {
+	for _, c := range []struct {
+		args            map[string]any
+		thread, replyTo domain.EventID
+	}{
+		{map[string]any{"thread": "$r1"}, "$root", ""},
+		{map[string]any{"reply_to": "$r2"}, "$root", "$r2"},
+		{map[string]any{"reply_to": "$main"}, "", "$main"},
+	} {
 		f := threaded()
 		s := newWriter(t, f, shareAll, nil) // no send list: every room is drafted
-		args["room"], args["text"] = "Standup", "I will"
-		if got := callErr(t, s, "send_message", args); !strings.Contains(got, "cannot hold a thread") {
-			t.Errorf("%v: %q, want the draft refusal", args, got)
+		c.args["room"], c.args["text"] = "Standup", "I will"
+		if out := call(t, s, "send_message", c.args); out["action"] != agent.Drafted {
+			t.Fatalf("%v: action = %v, want drafted", c.args, out["action"])
 		}
-		if len(f.drafts) != 0 || len(f.sent) != 0 {
-			t.Errorf("%v: written anyway: drafts %+v sent %+v", args, f.drafts, f.sent)
+		held := f.drafts["!open:x"]
+		if held.Body != "I will" || held.ThreadRoot != c.thread || held.ReplyTo != c.replyTo {
+			t.Errorf("%v: draft %+v, want it aimed at thread %q reply %q", c.args, held, c.thread, c.replyTo)
 		}
-		if ledger := entries(t, s); len(ledger) != 1 || ledger[0].Outcome != agent.Refused {
-			t.Errorf("%v: ledger %+v, want the refusal recorded", args, ledger)
+		if len(f.sent) != 0 {
+			t.Errorf("%v: sent %+v, want only a draft", c.args, f.sent)
+		}
+	}
+}
+
+// A composer holding a draft keeps its aim: words for another thread, for the main
+// timeline, or answering another message are refused and recorded, and the draft is
+// untouched; words for the same place are appended.
+func TestADraftAimedElsewhereIsNotAddedTo(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name string
+		held domain.StoredDraft
+		args map[string]any
+		ok   bool
+	}{
+		{"a thread draft, the main timeline", domain.StoredDraft{Body: "mine", ThreadRoot: "$root"}, map[string]any{}, false},
+		{"a main draft, a thread", domain.StoredDraft{Body: "mine"}, map[string]any{"thread": "$root"}, false},
+		{"a reply draft, another reply", domain.StoredDraft{Body: "mine", ReplyTo: "$main"}, map[string]any{"reply_to": "$root"}, false},
+		{"a thread draft, the same thread", domain.StoredDraft{Body: "mine", ThreadRoot: "$root"}, map[string]any{"thread": "$r2"}, true},
+		{"a reply draft, no reply of its own", domain.StoredDraft{Body: "mine", ReplyTo: "$main"}, map[string]any{}, true},
+	} {
+		f := threaded()
+		c.held.RoomID = "!open:x"
+		f.store(c.held)
+		s := newWriter(t, f, shareAll, nil)
+		c.args["room"], c.args["text"] = "Standup", "I will"
+		if !c.ok {
+			if got := callErr(t, s, "send_message", c.args); !strings.Contains(got, "aimed elsewhere") {
+				t.Errorf("%s: %q, want the aim refusal", c.name, got)
+			}
+			if held := f.drafts["!open:x"]; held.Body != "mine" || held.ThreadRoot != c.held.ThreadRoot || held.ReplyTo != c.held.ReplyTo {
+				t.Errorf("%s: the draft changed to %+v", c.name, held)
+			}
+			if ledger := entries(t, s); len(ledger) != 1 || ledger[0].Outcome != agent.Refused {
+				t.Errorf("%s: ledger %+v, want the refusal recorded", c.name, ledger)
+			}
+			continue
+		}
+		call(t, s, "send_message", c.args)
+		if held := f.drafts["!open:x"]; held.Body != "mine\n\nI will" || held.ThreadRoot != c.held.ThreadRoot || held.ReplyTo != c.held.ReplyTo {
+			t.Errorf("%s: draft %+v, want the words appended and the aim kept", c.name, held)
 		}
 	}
 }
 
 // A send that fails goes to the queue still aimed at its thread; one the queue will
-// not take either is refused rather than drafted into the main timeline.
+// not take either is drafted, aimed there too.
 func TestAQueuedThreadReplyKeepsItsThread(t *testing.T) {
 	t.Parallel()
 	f := threaded()
@@ -117,11 +166,11 @@ func TestAQueuedThreadReplyKeepsItsThread(t *testing.T) {
 	f = threaded()
 	f.sendErr, f.queueErr = errors.New("homeserver down"), errors.New("queue full")
 	s = newWriter(t, f, shareAll, []string{"space:Work"})
-	if got := callErr(t, s, "send_message", map[string]any{"room": "Standup", "text": "I will", "thread": "$root"}); !strings.Contains(got, "cannot hold a thread") {
-		t.Errorf("%q, want the draft refusal", got)
+	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "I will", "thread": "$root"}); out["action"] != agent.Drafted {
+		t.Fatalf("action = %v, want drafted", out["action"])
 	}
-	if len(f.drafts) != 0 {
-		t.Errorf("drafted into the main timeline: %+v", f.drafts)
+	if held := f.drafts["!open:x"]; held.ThreadRoot != "$root" {
+		t.Errorf("draft %+v, want it in the thread", held)
 	}
 }
 

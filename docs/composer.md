@@ -165,6 +165,7 @@ To save attachments other people sent, use `s` and `S` on the timeline. The [usa
 - The daemon stores drafts, so they survive quitting the client and restarting the machine. The undo history is kept only for the current session.
 - A draft is saved a moment after you stop typing, at least every five seconds while you keep typing, when you leave the room, and when you quit (which waits up to two seconds for the daemon). Every other way out (the interrupt key, SIGTERM, SIGHUP when the terminal closes, another window taking over) writes once more when the screen is gone.
 - If the daemon does not take that last write (it is down), kith says so as it exits, and the words typed since the last save are gone: at most the last few seconds.
+- A draft remembers the thread it is written in. Opening a room whose draft is in a thread opens that thread, and moving between threads with words in the composer takes them along, as sending would.
 - One kith window at a time is open on an account (see [`--force`](cli.md)), so the drafts have one writer that types. [kith-mcp](mcp.md) only ever adds to a draft: its words go after yours, and a draft sent or cleared while it was writing does not come back. A draft you only visit is not written, so it keeps who drafted it.
 - Rooms that hold a draft are marked `✎` after their name in the room list.
 - The rail has a **Drafts** group that collects them.

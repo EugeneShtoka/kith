@@ -139,6 +139,16 @@ type draftWorld struct {
 	givenUp map[string]bool
 }
 
+// holdsTyped reports whether a stored draft holds a word the person typed.
+func (w *draftWorld) holdsTyped(d domain.StoredDraft) bool {
+	for f := range strings.FieldsSeq(d.Body + " " + d.EditSaved) {
+		if slices.Contains(w.typed, f) {
+			return true
+		}
+	}
+	return false
+}
+
 // setTarget records the person setting a target in a room.
 func (w *draftWorld) setTarget(room domain.RoomID, field, value string) {
 	if w.targets[room] == nil {
@@ -238,7 +248,7 @@ func sequenceOf(msg tea.Msg) ([]tea.Cmd, bool) {
 // step takes one random action.
 func (w *draftWorld) step() {
 	r := w.rng.IntN(100)
-	if w.leaving && r < 41 {
+	if w.leaving && r < 43 {
 		return // no typing, pausing, sending, switching or editing after quit
 	}
 	switch {
@@ -255,6 +265,8 @@ func (w *draftWorld) step() {
 		w.edit()
 	case r < 41:
 		w.reply()
+	case r < 43:
+		w.moveThread()
 	case r < 49:
 		w.note("poll")
 		w.enqueue(w.m.loadDraftsCmd())
@@ -284,8 +296,13 @@ func (w *draftWorld) step() {
 	case w.rng.IntN(2) == 0:
 		w.note("quit (esc, q)")
 		w.leaving = true
-		room, reply, editing := w.m.openRoom, w.m.compose.replyTo, w.m.compose.editing
+		room, reply, editing, thread := w.m.openRoom, w.m.compose.replyTo, w.m.compose.editing, w.m.thread.root
 		w.update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		// Esc can close a thread, taking the composer's words with it.
+		if w.m.thread.root != thread && w.m.compose.input != "" {
+			w.setTarget(room, "thread", string(w.m.thread.root))
+			w.touched[room] = true // moving the words is changing the draft
+		}
 		// Esc in the composer can drop a reply or an edit: the person's change.
 		if w.m.compose.replyTo != reply {
 			w.setTarget(room, "reply", string(w.m.compose.replyTo))
@@ -318,6 +335,8 @@ func (w *draftWorld) typeWord() {
 	for _, r := range word {
 		w.update(keyText(string(r)))
 	}
+	// Words typed here are the person's, in the thread they are typed in.
+	w.setTarget(w.m.openRoom, "thread", string(w.m.thread.root))
 }
 
 func (w *draftWorld) send() {
@@ -385,13 +404,47 @@ func (w *draftWorld) assistantAppends(room domain.RoomID) {
 	if cur.Editing != "" {
 		return
 	}
+	// Sometimes into a thread, by kith-mcp's rule: an empty draft takes the aim, and a
+	// draft aimed elsewhere is not added to.
+	thread := draftThreads[w.rng.IntN(len(draftThreads))]
+	switch {
+	case cur.Empty():
+		cur.ThreadRoot = thread
+	case cur.ThreadRoot != thread:
+		return
+	}
 	word := w.word("a")
-	w.note("assistant appends %q to %s", word, room)
+	w.note("assistant appends %q to %s (thread %q)", word, room, thread)
 	w.added = append(w.added, word)
 	w.clock++
 	cur.RoomID, cur.Body, cur.Author = room, joinDraft(cur.Body, word), "claude-code"
 	cur.Updated = time.UnixMilli(w.clock)
 	s.drafts[room] = cur
+}
+
+// draftThreads are where a draft can be aimed: the main timeline and two threads.
+var draftThreads = []domain.EventID{"", "$t1", "$t2"}
+
+// moveThread takes the open room's composer, and what it holds, to the main timeline
+// or a thread, as opening and closing a thread does.
+func (w *draftWorld) moveThread() {
+	room := w.m.openRoom
+	to := draftThreads[w.rng.IntN(len(draftThreads))]
+	if to == w.m.thread.root {
+		return
+	}
+	w.note("go to thread %q", to)
+	w.touched[room] = true // the person acts in the room, as typing does
+	var cmd tea.Cmd
+	w.m, cmd = w.m.aimAt(to)
+	w.enqueue(cmd)
+	// Moving an empty composer chooses nothing that is stored; carrying words does.
+	if w.m.compose.input != "" {
+		w.setTarget(room, "thread", string(to))
+	}
+	// Leaving or entering a thread drops the reply target, as in the client.
+	w.setTarget(room, "reply", string(w.m.compose.replyTo))
+	w.update(draftTickMsg{gen: -1})
 }
 
 // deleteElsewhere is the room left on another device: the daemon deletes its draft.
@@ -598,8 +651,16 @@ func (w *draftWorld) check() string {
 		}
 		for field, want := range w.targets[room] {
 			got := string(d.ReplyTo)
-			if field == "edit" {
+			switch field {
+			case "edit":
 				got = string(d.Editing)
+			case "thread":
+				// The thread is the person's only where their own words are: a draft of the
+				// assistant's alone (the window followed it) is aimed where it was written.
+				if !w.holdsTyped(d) {
+					continue
+				}
+				got = string(d.ThreadRoot)
 			}
 			if got != want {
 				return fmt.Sprintf("%s: the %s target %q the person set is stored as %q (%s)",
@@ -638,14 +699,19 @@ func localOf(m Model, room domain.RoomID) domain.StoredDraft {
 	d := m.drafts[room]
 	if room == m.openRoom {
 		c := m.compose
-		d = draft{input: c.input, replyTo: c.replyTo, editing: c.editing, editSaved: c.editSaved}
+		d = draft{input: c.input, replyTo: c.replyTo, editing: c.editing, editSaved: c.editSaved, thread: m.thread.root}
 	}
-	return domain.StoredDraft{RoomID: room, Body: d.input, ReplyTo: d.replyTo, Editing: d.editing, EditSaved: d.editSaved}
+	return domain.StoredDraft{
+		RoomID: room, Body: d.input, ReplyTo: d.replyTo, Editing: d.editing, EditSaved: d.editSaved,
+		ThreadRoot: d.thread,
+	}
 }
 
-// sameComposition compares what a person would see of two drafts.
+// sameComposition compares what a person would see of two drafts: its thread too, where
+// there is one to see.
 func sameComposition(a, b domain.StoredDraft) bool {
-	return a.Body == b.Body && a.ReplyTo == b.ReplyTo && a.Editing == b.Editing && a.EditSaved == b.EditSaved
+	return a.Body == b.Body && a.ReplyTo == b.ReplyTo && a.Editing == b.Editing && a.EditSaved == b.EditSaved &&
+		(a.Empty() || a.ThreadRoot == b.ThreadRoot)
 }
 
 // racyDrafts lets the assistant write between the RPCs of one save, as it can when

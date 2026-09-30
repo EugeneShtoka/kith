@@ -34,6 +34,9 @@ type draft struct {
 	replyTo   domain.EventID
 	editing   domain.EventID
 	editSaved string
+	// thread is the thread it is written into ("" for the main timeline): the thread
+	// view the composer was in.
+	thread domain.EventID
 	// edits is the composer's undo history, kept in memory only.
 	edits editHistory
 }
@@ -92,13 +95,13 @@ type ownWrite struct {
 
 // composerKey is what the debounce watches in the open room's composer.
 type composerKey struct {
-	text, editSaved string
-	reply, editing  domain.EventID
+	text, editSaved        string
+	reply, editing, thread domain.EventID
 }
 
 func (m Model) composerKey() composerKey {
 	c := m.compose
-	return composerKey{text: c.input, editSaved: c.editSaved, reply: c.replyTo, editing: c.editing}
+	return composerKey{text: c.input, editSaved: c.editSaved, reply: c.replyTo, editing: c.editing, thread: m.thread.root}
 }
 
 // touch records a save starting or ending for room.
@@ -116,13 +119,14 @@ func (s draftSaver) settled(room domain.RoomID, issued int) bool {
 }
 
 // draftStamp identifies one stored version of a draft, and what it composes: the
-// words, the reply and edit targets, and the draft an edit returns to. The zero stamp
-// is none stored.
+// words, the reply and edit targets, the thread, and the draft an edit returns to. The
+// zero stamp is none stored.
 type draftStamp struct {
 	body    string
 	saved   string
 	editing domain.EventID
 	reply   domain.EventID
+	thread  domain.EventID
 	ms      int64
 }
 
@@ -140,7 +144,10 @@ func stampOf(s domain.StoredDraft) draftStamp {
 	if s.Empty() {
 		return draftStamp{}
 	}
-	return draftStamp{body: s.Body, saved: s.EditSaved, editing: s.Editing, reply: s.ReplyTo, ms: s.Updated.UnixMilli()}
+	return draftStamp{
+		body: s.Body, saved: s.EditSaved, editing: s.Editing, reply: s.ReplyTo, thread: s.ThreadRoot,
+		ms: s.Updated.UnixMilli(),
+	}
 }
 
 // over is the stamp as the draft ReplaceDraft compares against.
@@ -150,7 +157,7 @@ func (st draftStamp) over(room domain.RoomID) domain.StoredDraft {
 	}
 	return domain.StoredDraft{
 		RoomID: room, Body: st.body, ReplyTo: st.reply, Editing: st.editing, EditSaved: st.saved,
-		Updated: time.UnixMilli(st.ms),
+		ThreadRoot: st.thread, Updated: time.UnixMilli(st.ms),
 	}
 }
 
@@ -197,12 +204,33 @@ func (s draftSaver) differs(room domain.RoomID, held draft) bool {
 		return base != (draftStamp{})
 	}
 	return held.input != base.body || held.editSaved != base.saved ||
-		held.editing != base.editing || held.replyTo != base.reply
+		held.editing != base.editing || held.replyTo != base.reply || held.thread != base.thread
 }
 
-// restoreDraft puts a room's stashed draft back in the composer, or empties it.
-func (m Model) restoreDraft(to domain.RoomID) Model {
-	return m.withDraft(m.drafts[to])
+// restoreDraft puts a room's stashed draft back in the composer, or empties it. A draft
+// written in a thread opens that thread: that is where it will be sent.
+func (m Model) restoreDraft(to domain.RoomID) (Model, tea.Cmd) {
+	d := m.drafts[to]
+	m, cmd := m.aimAt(d.thread)
+	return m.withDraft(d), cmd
+}
+
+// aimAt shows the thread a draft is written into (the main timeline for none), so the
+// composer sends where the draft is aimed. The composer's mode is kept: the draft is
+// put in afterwards, and entering or leaving a thread drops the reply target it holds.
+func (m Model) aimAt(thread domain.EventID) (Model, tea.Cmd) {
+	if thread == m.thread.root {
+		return m, nil
+	}
+	mode := m.compose.insertMode
+	var cmd tea.Cmd
+	if thread == "" {
+		m, cmd = m.closeThread()
+	} else {
+		m, cmd = m.enterThread(thread, "")
+	}
+	m.compose.insertMode = mode
+	return m, cmd
 }
 
 // withDraft is the composer set from a draft, empty or not.
@@ -232,15 +260,16 @@ func (m Model) hasDraft(id domain.RoomID) bool {
 // stored is this draft as it survives a restart, for the room it belongs to.
 func (d draft) stored(room domain.RoomID) domain.StoredDraft {
 	return domain.StoredDraft{
-		RoomID:    room,
-		Body:      d.input,
-		Caret:     d.caret,
-		Mentions:  d.drafted,
-		ReplyTo:   d.replyTo,
-		Editing:   d.editing,
-		EditSaved: d.editSaved,
-		Author:    d.author,
-		Updated:   time.Now(),
+		RoomID:     room,
+		Body:       d.input,
+		Caret:      d.caret,
+		Mentions:   d.drafted,
+		ReplyTo:    d.replyTo,
+		Editing:    d.editing,
+		EditSaved:  d.editSaved,
+		ThreadRoot: d.thread,
+		Author:     d.author,
+		Updated:    time.Now(),
 	}
 }
 
@@ -253,6 +282,7 @@ func draftFrom(stored domain.StoredDraft) draft {
 		replyTo:   stored.ReplyTo,
 		editing:   stored.Editing,
 		editSaved: stored.EditSaved,
+		thread:    stored.ThreadRoot,
 		author:    stored.Author,
 		written:   stored.Updated,
 	}
@@ -303,19 +333,24 @@ func (m Model) loadDraftsCmd() tea.Cmd {
 // predate it.
 func (m Model) handleDraftsLoaded(msg draftsLoadedMsg) (Model, tea.Cmd) {
 	stored := make(map[domain.RoomID]bool, len(msg.drafts))
+	var cmds []tea.Cmd
 	for i := range msg.drafts {
 		stored[msg.drafts[i].RoomID] = true
-		m = m.adoptStored(msg.drafts[i], msg.issued)
+		var aimed tea.Cmd
+		m, aimed = m.adoptStored(msg.drafts[i], msg.issued)
+		cmds = append(cmds, aimed)
 	}
 	for room, base := range m.draftSync.bases {
 		if !stored[room] && base != (draftStamp{}) {
-			m = m.adoptStored(domain.StoredDraft{RoomID: room}, msg.issued)
+			var aimed tea.Cmd
+			m, aimed = m.adoptStored(domain.StoredDraft{RoomID: room}, msg.issued)
+			cmds = append(cmds, aimed)
 		}
 	}
 	// The daemon answers again: write what it failed to take.
 	m, retries := m.saveRetries()
 	// The rail's Drafts group must show what arrived.
-	return m.rebuiltRail(), batched(retries)
+	return m.rebuiltRail(), batched(slices.DeleteFunc(append(cmds, retries...), func(c tea.Cmd) bool { return c == nil }))
 }
 
 // saveRetries asks again for the saves that failed, in room order.
@@ -335,14 +370,14 @@ func (m Model) saveRetries() (Model, []tea.Cmd) {
 
 // adoptStored takes one room's stored version (empty: deleted) as its draft, unless
 // the poll is stale for the room or this client holds unsaved typing there.
-func (m Model) adoptStored(stored domain.StoredDraft, issued int) Model {
+func (m Model) adoptStored(stored domain.StoredDraft, issued int) (Model, tea.Cmd) {
 	room := stored.RoomID
 	base := m.draftSync.bases[room]
 	if stampOf(stored) == base || !m.draftSync.settled(room, issued) {
-		return m
+		return m, nil
 	}
 	if m.draftSync.differs(room, m.localDraft(room)) {
-		return m // changes not yet saved: they win here, and the save merges
+		return m, nil // changes not yet saved: they win here, and the save merges
 	}
 	adopted := draftFrom(stored)
 	// Another writer's caret means nothing here: the same words keep this client's
@@ -360,11 +395,24 @@ func (m Model) adoptStored(stored domain.StoredDraft, issued int) Model {
 	}
 	m.drafts = setDraft(m.drafts, room, adopted)
 	m.draftSync.bases = withBase(m.draftSync.bases, room, stampOf(stored))
-	if room == m.openRoom {
-		m = m.withDraft(adopted)
-		m.draftSync.room, m.draftSync.saved = room, m.composerKey()
+	if room != m.openRoom {
+		return m, nil
 	}
-	return m
+	// The composer shows the draft where it will be sent: a draft written into another
+	// thread (by the assistant, into an idle composer) opens that thread. An emptied
+	// draft moves nothing.
+	var aimed tea.Cmd
+	if !adopted.empty() && adopted.thread != m.thread.root {
+		m, aimed = m.aimAt(adopted.thread)
+		where := "the main timeline"
+		if adopted.thread != "" {
+			where = "a thread"
+		}
+		m = m.say("a draft is waiting in " + where + " — showing it")
+	}
+	m = m.withDraft(adopted)
+	m.draftSync.room, m.draftSync.saved = room, m.composerKey()
+	return m, aimed
 }
 
 // armDraftSave notices the composer has changed and schedules a write. Called from
@@ -558,6 +606,7 @@ func (m Model) composerDraft() draft {
 		replyTo:   m.compose.replyTo,
 		editing:   m.compose.editing,
 		editSaved: m.compose.editSaved,
+		thread:    m.thread.root,
 	}
 }
 
@@ -663,9 +712,10 @@ func descentOf(current domain.StoredDraft, base draftStamp, own []ownWrite) (dra
 }
 
 // sameTargets reports whether two versions mean the same by enter besides their
-// words: the reply target, and the message being corrected with its correction.
+// words: the reply target, the thread, and the message being corrected with its
+// correction.
 func sameTargets(a, b draftStamp) bool {
-	return a.reply == b.reply && a.editing == b.editing && (a.editing == "" || a.body == b.body)
+	return a.reply == b.reply && a.thread == b.thread && a.editing == b.editing && (a.editing == "" || a.body == b.body)
 }
 
 // words is a stored draft's draft words: the body, or, while a message is corrected,
@@ -821,7 +871,8 @@ func (m Model) reportDraftSave(err error) Model {
 
 // sameStored reports whether two stored drafts hold the same composition.
 func sameStored(a, b domain.StoredDraft) bool {
-	return a.Body == b.Body && a.ReplyTo == b.ReplyTo && a.Editing == b.Editing && a.EditSaved == b.EditSaved
+	return a.Body == b.Body && a.ReplyTo == b.ReplyTo && a.Editing == b.Editing && a.EditSaved == b.EditSaved &&
+		a.ThreadRoot == b.ThreadRoot
 }
 
 // foldInDraft appends words another writer added, which a save already stored after

@@ -2413,8 +2413,9 @@ func (m Model) selectRoom(room domain.Room) (Model, tea.Cmd) {
 	if room.IsInvite() {
 		m = m.clearStatus()
 		if leaving {
-			m = m.restoreDraft(room.ID)
-			return m, tea.Batch(saveColors, repaint())
+			var aimed tea.Cmd
+			m, aimed = m.restoreDraft(room.ID)
+			return m, tea.Batch(saveColors, repaint(), aimed)
 		}
 		return m, saveColors
 	}
@@ -2424,13 +2425,15 @@ func (m Model) selectRoom(room domain.Room) (Model, tea.Cmd) {
 	m, focusRead := m.armFocusRead()
 	m.timeline.members = nil
 	// Restore this room's draft; rebuild the rail since the Drafts set changed.
+	var aimed tea.Cmd
 	if leaving {
-		m = m.restoreDraft(room.ID).rebuiltRail()
+		m, aimed = m.restoreDraft(room.ID)
+		m = m.rebuiltRail()
 	}
 	// Loads are armed, not issued: they fire once the cursor rests (roomLoadDelay), so
 	// scrolling past rooms costs no round trips.
 	m.loadArmed++
-	cmds := []tea.Cmd{saveColors, focusRead, m.armRoomLoad(room.ID)}
+	cmds := []tea.Cmd{saveColors, focusRead, m.armRoomLoad(room.ID), aimed}
 	// Repaint on a room change: cells the terminal laid out differently than measured
 	// would otherwise survive into the new room. Not on re-selecting the open room,
 	// which happens on every re-sort.

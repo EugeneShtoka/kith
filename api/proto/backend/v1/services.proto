@@ -612,6 +612,8 @@ message StoredDraft {
   // Who wrote it.
   string author = 8;
   int64 updated_unix_ms = 9;
+  // The thread it is written into; empty for the main timeline.
+  string thread_root = 10;
 }
 
 message ReplaceDraftRequest {
