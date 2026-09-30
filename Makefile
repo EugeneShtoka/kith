@@ -1,7 +1,7 @@
 .PHONY: build build-tui build-daemon build-mcp run run-daemon install deploy undeploy \
 	daemon-status daemon-logs daemon-restart daemon-stop \
 	test lint fmt fmt-check fix vuln secrets pin-check unit-check arch-check mod-check release-check \
-	proto-check docs-check hooks check coverage coverage-check tools pins-outdated \
+	proto-check docs-check nix-check hooks check coverage coverage-check tools pins-outdated \
 	compile cross ci-parity ensure-tools vet script-check \
 	proto emoji dict-manifest freq-manifest model-manifest keys-doc
 
@@ -169,6 +169,19 @@ proto-check:
 	@$(ENSURE) buf
 	PROTO_CHECK_REQUIRED=1 bash scripts/proto-check.sh
 
+# The Nix flake builds: flake.lock resolves and packaging/nix/package.nix's vendorHash
+# matches the modules go.mod names. Both go stale silently (every dependency bump
+# changes the hash; nix prints the new one). Without nix it is skipped with a warning,
+# as the secret scan skips history outside a repository; CI sets REQUIRE_NIX.
+nix-check:
+	@if command -v nix >/dev/null 2>&1; then \
+	  nix --extra-experimental-features 'nix-command flakes' build .#default --no-link --print-build-logs; \
+	elif [ -n "$${REQUIRE_NIX:-}" ]; then \
+	  echo "nix-check: nix is required here (REQUIRE_NIX is set)" >&2; exit 1; \
+	else \
+	  echo "nix-check: SKIPPED — nix is not installed; CI builds the flake"; \
+	fi
+
 # .goreleaser.yaml is valid, checked by the goreleaser the release runs.
 release-check:
 	@$(ENSURE) goreleaser
@@ -240,7 +253,7 @@ coverage-check: test
 # Every CI gate, with CI's tools (ci-parity-check.sh holds the two lists equal).
 # Non-mutating. CHECK_STRICT=1 also fails what would be skipped here.
 check: mod-check compile coverage-check cross lint fmt-check vuln secrets pin-check unit-check \
-	arch-check ci-parity script-check release-check proto-check docs-check
+	arch-check ci-parity script-check release-check proto-check docs-check nix-check
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
 # Default install is per-user ($HOME/.local/bin); `make deploy PREFIX=/usr/local`
