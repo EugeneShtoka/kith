@@ -31,5 +31,11 @@ For what already exists, see the [documentation index](README.md).
 
 ## Platforms
 
-- A launchd agent for running `kithd` on macOS; only systemd user units ship today.
+- Full Windows support, released as a zip and through Scoop or winget. It builds for
+  Windows today but has never run there. What it takes: Windows in the test matrix;
+  toast notifications (the desktop sink is D-Bus); the native file dialog (the picker
+  uses the XDG portal); clipboard and link-opening defaults; `matrix:` links through
+  the registry and Windows Terminal; starting `kithd` at login; and signed binaries,
+  so SmartScreen does not warn. Windows Terminal will be required: the old console
+  cannot draw the TUI.
 - Native macOS notifications; today the desktop notification sink is D-Bus, and on macOS the notification command hook is the way to be notified.
