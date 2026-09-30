@@ -176,8 +176,19 @@ func (f *fake) RoomsWith(_ context.Context, userIDs []string, set domain.RoomSet
 	return out, nil
 }
 
-func (f *fake) MessagesAround(context.Context, domain.RoomID, domain.EventID, int, int) ([]domain.Message, error) {
-	return f.around, nil
+// MessagesAround answers the around fixture when there is one; otherwise the event
+// itself, found only in the room asked about, as the cache does.
+func (f *fake) MessagesAround(_ context.Context, room domain.RoomID, event domain.EventID, _, _ int) ([]domain.Message, error) {
+	if f.around != nil {
+		return f.around, nil
+	}
+	msgs := f.messages[room]
+	for i := range msgs {
+		if msgs[i].ID == event {
+			return []domain.Message{msgs[i]}, nil
+		}
+	}
+	return nil, nil
 }
 
 func (f *fake) RoomEncryption(_ context.Context, rooms []domain.RoomID) (map[domain.RoomID]bool, error) {

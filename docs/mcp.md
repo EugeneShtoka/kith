@@ -80,12 +80,12 @@ Eight tools: seven read, one writes. A room argument accepts a room ID or the ro
 | `list_rooms` | `query` (optional, name contains), `limit` (default 40, max 200) | Rooms with unread counts, rooms that have unread messages first; `writable: true` on rooms `send_message` may write to |
 | `find_rooms_with` | `people` (required, list of names or Matrix IDs), `limit` (default 10, max 50) | Rooms that **all** the named people are in |
 | `find_people` | `query` (required), `limit` (default 10, max 50) | People whose display name or Matrix ID contains the query, from the rooms in scope |
-| `read_room` | `room` (required), `limit` (default 40, max 200), `sender` (optional Matrix ID) | The latest messages, oldest first |
+| `read_room` | `room` (required), `limit` (default 40, max 200), `sender` (optional Matrix ID), `thread` (optional: a thread's root, or any message in it) | The latest messages, oldest first; with `thread`, only that thread |
 | `search_messages` | `query` (required), `room`, `sender`, `since` (RFC 3339), `limit` (default 20, max 100) | Full-text hits across the cache |
 | `read_around` | `room` (required), `event` (required, an event ID), `before` (default 5, max 50), `after` (default 10, max 50) | The conversation around one message |
 | `unread_summary` | `limit` (default 20, max 100) | Rooms with unread messages, and how many |
 
-Each message carries `event_id`, `sender`, `sender_name`, `sent` (RFC 3339) and `body`, plus `mine: true` on your own messages. A deleted message has the body `(deleted)`.
+Each message carries `event_id`, `sender`, `sender_name`, `sent` (RFC 3339) and `body`, plus `mine: true` on your own messages, `thread` (the root's event ID) on a message in a thread, and `reply_to` on a reply. A deleted message has the body `(deleted)`.
 
 Search matches terms, not meaning. The tool description tells the assistant to retry with the words someone would actually have typed, in their own language, and to use `read_around` on a hit to see the full exchange.
 
@@ -95,6 +95,10 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 | --- | --- |
 | `room` | The room's ID or name |
 | `text` | The message, exactly as it should appear; nothing is added to it |
+| `thread` | Optional: write into this thread, named by its root or any message in it |
+| `reply_to` | Optional: the event ID of the message this answers. A reply to a message in a thread goes into that thread |
+
+A `thread` or `reply_to` must be a message of that room's cached history, or nothing is written: an event of any other room is not found, whatever room it is in. **A thread reply is only ever sent**, never drafted. A draft belongs to the room, not a thread, so where your configuration would draft it (or when both the send and the retry queue fail) it is refused rather than written to the main timeline, and the refusal is recorded.
 
 **The assistant may write only where `[agent.write]` allows**, and that is never wider than what `[agent.read]` allows. The tool's description, as the assistant receives it, spells out your write scope and send list, so it knows where it may write before it tries. A room it may read but not write is refused with an error naming `[agent.write]`. A room outside `[agent.read]` is answered as if it did not exist. Either way nothing is sent or drafted, and the refusal is recorded in the [ledger](#the-audit-trail-kith---agent-log) with the rule that refused it.
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -451,6 +452,7 @@ func (s *server) readRoom(ctx context.Context, raw json.RawMessage) (any, error)
 	in, err := args[struct {
 		Room   string `json:"room"`
 		Sender string `json:"sender"`
+		Thread string `json:"thread"`
 		Limit  int    `json:"limit"`
 	}](raw)
 	if err != nil {
@@ -460,6 +462,14 @@ func (s *server) readRoom(ctx context.Context, raw json.RawMessage) (any, error)
 	if err != nil {
 		return nil, err
 	}
+	var root domain.EventID
+	if thread := strings.TrimSpace(in.Thread); thread != "" {
+		msg, merr := s.messageIn(ctx, room, thread)
+		if merr != nil {
+			return nil, merr
+		}
+		root = cmp.Or(msg.ThreadRoot, msg.ID)
+	}
 	msgs, err := s.backend.CachedTimeline(ctx, room.ID)
 	if err != nil {
 		return nil, fmt.Errorf("reading the room: %w", err)
@@ -468,6 +478,10 @@ func (s *server) readRoom(ctx context.Context, raw json.RawMessage) (any, error)
 	var out []messageView
 	for i := range msgs {
 		if in.Sender != "" && msgs[i].Sender != in.Sender {
+			continue
+		}
+		// A thread is its root and its replies.
+		if root != "" && msgs[i].ID != root && msgs[i].ThreadRoot != root {
 			continue
 		}
 		out = append(out, s.view(msgs[i], false))
