@@ -173,6 +173,7 @@ var tools = []tool{
 			"room":   str("the room's ID, or its name as shown in the client"),
 			"limit":  num("optional: how many messages (default 40, max 200)"),
 			"sender": str("optional: only messages from this Matrix ID — pass the account's own to see how they write"),
+			"thread": str("optional: only this thread — its root's event ID, or any message's in it (a message's \"thread\")"),
 		}, "room"),
 		run: (*server).readRoom,
 	},
@@ -220,10 +221,15 @@ var tools = []tool{
 			"you and not by anything you pass: rooms the person listed are sent to, every " +
 			"other room you may write to is drafted. The answer says which happened and why, so say that " +
 			"back to them rather than assuming — \"drafted\" means a person still has to " +
-			"press send. Write the message as they would write it; nothing is added to it.",
+			"press send. Write the message as they would write it; nothing is added to it. " +
+			"To answer inside a thread, pass the thread (read_room with thread shows it).",
 		schema: schema(map[string]any{
 			"room": str("the room's ID, or its name as shown in the client"),
 			"text": str("the message, exactly as it should appear"),
+			"thread": str("optional: write into this thread — its root's event ID, or any message's in it " +
+				"(a message's \"thread\" field). Without it the message goes to the room's main timeline"),
+			"reply_to": str("optional: the event ID of the message this answers. A message in a thread " +
+				"is answered in that thread"),
 		}, "room", "text"),
 		run: (*server).sendMessage,
 	},
@@ -253,6 +259,9 @@ type messageView struct {
 	Body    string `json:"body"`
 	// Mine marks the account's own messages.
 	Mine bool `json:"mine,omitempty"`
+	// Thread is the root of the thread this message is in; ReplyTo is what it answers.
+	Thread  string `json:"thread,omitempty"`
+	ReplyTo string `json:"reply_to,omitempty"`
 }
 
 func (s *server) view(msg domain.Message, withRoom bool) messageView {
@@ -263,6 +272,8 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 		Sent:    msg.Timestamp.Format(time.RFC3339),
 		Body:    msg.Body,
 		Mine:    msg.Sender == s.user,
+		Thread:  string(msg.ThreadRoot),
+		ReplyTo: string(msg.ReplyTo),
 	}
 	if withRoom {
 		out.Room = string(msg.RoomID)

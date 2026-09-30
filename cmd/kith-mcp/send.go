@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,11 +16,24 @@ import (
 // draftCap stops a never-sending loop from growing a draft forever.
 const draftCap = 8000
 
-// writeArgs is deliberately only what is said, never what happens.
+// writeArgs is deliberately only what is said and where, never what happens.
 type writeArgs struct {
-	Room string `json:"room"`
-	Text string `json:"text"`
+	Room    string `json:"room"`
+	Text    string `json:"text"`
+	Thread  string `json:"thread"`
+	ReplyTo string `json:"reply_to"`
 }
+
+// aim is where in a room a message goes: a thread (its root) and a message it
+// answers, either empty.
+type aim struct {
+	thread, replyTo domain.EventID
+}
+
+// errThreadDraft refuses a thread or reply the policy would draft: a draft holds
+// neither yet, and one moved to the main timeline would be said in the wrong place.
+var errThreadDraft = errors.New("this room's messages are drafted, and a draft cannot hold a thread or " +
+	"a reply yet, so nothing was written. Tell them; they can answer in the thread themselves")
 
 // sendMessage is the tool.
 func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -53,6 +67,10 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	if refused := s.writable(ctx, room); refused != nil {
 		return nil, s.refuse(room, text, refused)
 	}
+	target, err := s.aimIn(ctx, room, in.Thread, in.ReplyTo)
+	if err != nil {
+		return nil, err
+	}
 	// From the cooldown read to the send's record, no other session decides.
 	release, err := s.ledger.Exclusive(ctx)
 	if err != nil {
@@ -64,9 +82,54 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 		return nil, err
 	}
 	if decision.send {
-		return s.sendNow(ctx, room, text)
+		return s.sendNow(ctx, room, text, target)
+	}
+	if target != (aim{}) {
+		return nil, s.refuse(room, text, errThreadDraft)
 	}
 	return s.draftFor(ctx, room, text, decision.reason)
+}
+
+// aimIn resolves a thread and a reply target to messages of this room's cached
+// history, which is inside the read scope already: an event of any other room is not
+// found, so nothing about it is said. A thread named by one of its replies is its
+// root, and a reply to a message in a thread is written in that thread.
+func (s *server) aimIn(ctx context.Context, room domain.Room, thread, replyTo string) (aim, error) {
+	var out aim
+	if replyTo = strings.TrimSpace(replyTo); replyTo != "" {
+		msg, err := s.messageIn(ctx, room, replyTo)
+		if err != nil {
+			return aim{}, err
+		}
+		out.replyTo, out.thread = msg.ID, msg.ThreadRoot
+	}
+	if thread = strings.TrimSpace(thread); thread != "" {
+		msg, err := s.messageIn(ctx, room, thread)
+		if err != nil {
+			return aim{}, err
+		}
+		root := cmp.Or(msg.ThreadRoot, msg.ID)
+		// The root itself is answered in its thread too.
+		if out.replyTo != "" && out.thread != root && out.replyTo != root {
+			return aim{}, fmt.Errorf("%s is not in that thread; pass the thread's root, or only reply_to", replyTo)
+		}
+		out.thread = root
+	}
+	return out, nil
+}
+
+// messageIn is the cached message with this event ID in room.
+func (s *server) messageIn(ctx context.Context, room domain.Room, event string) (domain.Message, error) {
+	msgs, err := s.backend.MessagesAround(ctx, room.ID, domain.EventID(event), 0, 0)
+	if err != nil {
+		return domain.Message{}, fmt.Errorf("reading the message: %w", err)
+	}
+	for i := range msgs {
+		if msgs[i].ID == domain.EventID(event) {
+			return msgs[i], nil
+		}
+	}
+	return domain.Message{}, fmt.Errorf("%s is not a message in this room's cached history", event)
 }
 
 // writeChoice is the answer to "send or draft, and why".
@@ -107,8 +170,8 @@ func (s *server) howToWrite(ctx context.Context, room domain.Room) (writeChoice,
 // sendNow posts the message, and keeps it when the homeserver will not take it.
 // A failure goes to the daemon's queue under the same txn ID (so it cannot duplicate);
 // a draft is the last resort.
-func (s *server) sendNow(ctx context.Context, room domain.Room, text string) (any, error) {
-	draft := domain.Draft{Body: text, TxnID: domain.NewTxnID()}
+func (s *server) sendNow(ctx context.Context, room domain.Room, text string, target aim) (any, error) {
+	draft := domain.Draft{Body: text, TxnID: domain.NewTxnID(), ThreadRoot: target.thread, ReplyTo: target.replyTo}
 	sendErr := s.backend.Send(ctx, room.ID, draft)
 	if sendErr == nil {
 		return s.wrote(room, agent.Sent, text, "")
@@ -119,11 +182,15 @@ func (s *server) sendNow(ctx context.Context, room domain.Room, text string) (an
 	now := time.Now().UTC()
 	_, queueErr := s.backend.Schedule(ctx, domain.ScheduledMessage{
 		RoomID: room.ID, Body: text, TxnID: draft.TxnID, At: now, Written: now,
+		ThreadRoot: target.thread, ReplyTo: target.replyTo,
 	})
 	if queueErr == nil {
 		return s.wrote(room, agent.Queued, text, "the homeserver would not take it yet; the daemon is retrying it")
 	}
 	s.logger().Warn("queueing failed; drafting", "room", room.ID, "err", queueErr)
+	if target != (aim{}) {
+		return nil, s.refuse(room, text, errThreadDraft)
+	}
 	return s.draftFor(ctx, room, text, "the send failed and the queue would not take it either")
 }
 
