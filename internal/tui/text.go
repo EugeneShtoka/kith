@@ -174,9 +174,6 @@ type blockSpec struct {
 	// marks returns the styling for the row spanning logical [from, to); nil means
 	// paint the row instead.
 	marks func(from, to int) markFunc
-	// end flushes every row right, left-to-right ones too: a mirrored timeline, whose
-	// text sits against the sender column on the right.
-	end bool
 }
 
 // drawBlock draws a paragraph of logical text as screen rows: wrap first, then
@@ -226,7 +223,7 @@ func drawBlock(logical string, spec blockSpec) []string {
 				drawn = spec.paint(vis, dir)
 			}
 		}
-		if dir == bidi.RightToLeft || spec.end {
+		if dir == bidi.RightToLeft {
 			drawn = flushRight(vis, width) + drawn
 		}
 		rows = append(rows, drawn)
@@ -235,19 +232,15 @@ func drawBlock(logical string, spec blockSpec) []string {
 }
 
 // sentenceBlock is drawBlock for a sentence of ours with isolates: every row LTR,
-// flushed only for spec.end, no marks.
+// nothing flushed, no marks.
 func sentenceBlock(segs []string, spec blockSpec) []string {
 	rows := make([]string, 0, len(segs))
 	for _, seg := range segs {
 		vis, dir := visualLine(seg, true)
-		drawn := vis
 		if spec.paint != nil {
-			drawn = spec.paint(vis, dir)
+			vis = spec.paint(vis, dir)
 		}
-		if spec.end {
-			drawn = flushRight(vis, max(spec.width, 1)) + drawn
-		}
-		rows = append(rows, drawn)
+		rows = append(rows, vis)
 	}
 	return rows
 }

@@ -167,7 +167,7 @@ The timeline shows the open room with a **message cursor** (`▸`) that starts o
 
 A rule with the date separates each day. **Right-to-left and mixed-direction text** (Hebrew, Arabic, and either mixed with English) is laid out in the right order, including names, mentions and formatting.
 
-**A room that reads right to left can be mirrored**: its text sits against the sender column on the right, then the name and the time, with quotes, reactions and thread summaries on that side too. Set places by hand in `[display.direction]` (`rtl = ["space:Friends"]`, `ltr = [...]`, the place vocabulary; the narrowest entry wins), or turn on `auto = true` to guess each room from its newest messages when it opens. The guess is kept until you leave the room, so it never flips while you read. `D` in the room list, or `/direction`, cycles the room under the cursor: right to left, left to right, back to what the section says.
+**A room that reads right to left can be mirrored**: the name and the time move to the right. Each message keeps its own direction: Hebrew or Arabic words sit against the name, English ones read from the left edge, and a message's quote, reactions and pictures go with it. Set places by hand in `[display.direction]` (`rtl = ["space:Friends"]`, `ltr = [...]`, the place vocabulary; the narrowest entry wins), or turn on `auto = true` to guess each room from its newest messages when it opens. The guess is kept until you leave the room, so it never flips while you read. `D` in the room list, or `/direction`, cycles the room under the cursor: right to left, left to right, back to what the section says.
 
 An upgraded room continues into the room it replaced: scrolling off the top of the new room carries on into the old one.
 

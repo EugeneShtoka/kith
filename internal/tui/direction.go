@@ -118,6 +118,14 @@ func padStart(row string, width int) string {
 	return row
 }
 
+// padEnd fills a drawn row to width with spaces after it.
+func padEnd(row string, width int) string {
+	if pad := width - ansi.StringWidth(row); pad > 0 {
+		return row + strings.Repeat(" ", pad)
+	}
+	return row
+}
+
 // leadRow puts lead before a flushed row's text, keeping it against the right edge:
 // what trails a message in reading order leads it on screen when it reads right to left.
 func leadRow(row, lead string, width int) string {
