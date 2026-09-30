@@ -88,7 +88,8 @@ func (f *fake) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (
 	}
 	current := f.drafts[draft.RoomID]
 	if current.Body != over.Body || current.ReplyTo != over.ReplyTo || current.Editing != over.Editing ||
-		current.EditSaved != over.EditSaved || !current.Updated.Equal(over.Updated) {
+		current.EditSaved != over.EditSaved || current.ThreadRoot != over.ThreadRoot ||
+		!current.Updated.Equal(over.Updated) {
 		return false, nil
 	}
 	f.store(draft)

@@ -247,8 +247,11 @@ type StoredDraft struct {
 	ReplyTo   EventID
 	Editing   EventID
 	EditSaved string
-	Author    string // empty for the person at the keyboard
-	Updated   time.Time
+	// ThreadRoot is the thread the draft is written into, empty for the main timeline.
+	// A thread alone is not worth keeping: Empty ignores it.
+	ThreadRoot EventID
+	Author     string // empty for the person at the keyboard
+	Updated    time.Time
 }
 
 // DraftAgent is the author recorded for a draft this client did not type.

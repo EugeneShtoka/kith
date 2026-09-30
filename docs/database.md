@@ -257,8 +257,13 @@ A few consequences are worth knowing before you write anything:
   `--clear-cache` and the reset leaves the cache empty, so the next start resets. A
   reset that fails stops the sync instead of resuming from the old token.
 
-`schemaVersion` is `1` and `migrations` is empty: the base is the whole schema as of
-the first public release, so a current cache is at version 1.
+`schemaVersion` is `1`: the base is the whole schema as of the first public release.
+Since then:
+
+- v2 (`draft_threads`): the thread a draft is written into, a row only for a draft
+  in one.
+
+so a current cache is at version 2.
 
 ### Indexes need no migration
 

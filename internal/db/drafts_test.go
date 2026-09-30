@@ -291,6 +291,7 @@ func TestReplaceDraftTellsVersionsApartByTheirComposition(t *testing.T) {
 		"the draft the edit returns to": func(d *domain.StoredDraft) { d.EditSaved = "hi\n\np5" },
 		"the reply target":              func(d *domain.StoredDraft) { d.ReplyTo = "$q" },
 		"the edit target":               func(d *domain.StoredDraft) { d.Editing = "$other" },
+		"the thread":                    func(d *domain.StoredDraft) { d.ThreadRoot = "$t" },
 	} {
 		cache, ctx := openTemp(t), context.Background()
 		stored := read
@@ -303,4 +304,46 @@ func TestReplaceDraftTellsVersionsApartByTheirComposition(t *testing.T) {
 			t.Errorf("%s differs: a write over the version this writer read = %v, %v; want refused", name, saved, err)
 		}
 	}
+}
+
+// A draft's thread comes back with it; written without one, the old thread is gone;
+// and it goes with the draft.
+func TestADraftKeepsItsThread(t *testing.T) {
+	t.Parallel()
+	cache, ctx := openTemp(t), context.Background()
+	inThread := domain.StoredDraft{RoomID: "!r:x", Body: "on it", ThreadRoot: "$root", Updated: time.UnixMilli(5000)}
+	if saved, err := cache.ReplaceDraft(ctx, inThread, domain.StoredDraft{}); err != nil || !saved {
+		t.Fatalf("storing = %v, %v", saved, err)
+	}
+	if got := onlyDraft(t, cache); got.ThreadRoot != "$root" {
+		t.Fatalf("read back thread %q, want $root", got.ThreadRoot)
+	}
+	moved := domain.StoredDraft{RoomID: "!r:x", Body: "on it, in the room", Updated: time.UnixMilli(6000)}
+	if saved, err := cache.ReplaceDraft(ctx, moved, inThread); err != nil || !saved {
+		t.Fatalf("moving to the main timeline = %v, %v", saved, err)
+	}
+	if got := onlyDraft(t, cache); got.ThreadRoot != "" {
+		t.Errorf("read back thread %q after the move, want none", got.ThreadRoot)
+	}
+	again := domain.StoredDraft{RoomID: "!r:x", Body: "back", ThreadRoot: "$root", Updated: time.UnixMilli(7000)}
+	if saved, err := cache.ReplaceDraft(ctx, again, moved); err != nil || !saved {
+		t.Fatal(saved, err)
+	}
+	if saved, err := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: "!r:x"}, again); err != nil || !saved {
+		t.Fatalf("clearing = %v, %v", saved, err)
+	}
+	var left int
+	if err := cache.db.QueryRowContext(ctx, "SELECT count(*) FROM draft_threads").Scan(&left); err != nil || left != 0 {
+		t.Errorf("draft_threads holds %d rows after the draft was cleared (%v), want none", left, err)
+	}
+}
+
+// onlyDraft is the one stored draft.
+func onlyDraft(t *testing.T, cache *Cache) domain.StoredDraft {
+	t.Helper()
+	got, err := cache.Drafts(context.Background())
+	if err != nil || len(got) != 1 {
+		t.Fatalf("Drafts = %+v, %v; want one", got, err)
+	}
+	return got[0]
 }

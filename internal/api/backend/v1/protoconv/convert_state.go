@@ -277,21 +277,23 @@ func StoredDraftToProto(draft domain.StoredDraft) *v1.StoredDraft {
 		EditSaved:     draft.EditSaved,
 		Author:        draft.Author,
 		UpdatedUnixMs: unixMillis(draft.Updated),
+		ThreadRoot:    string(draft.ThreadRoot),
 	}
 }
 
 // ProtoToStoredDraft converts one back.
 func ProtoToStoredDraft(msg *v1.StoredDraft) domain.StoredDraft {
 	return domain.StoredDraft{
-		RoomID:    domain.RoomID(msg.GetRoomId()),
-		Body:      msg.GetBody(),
-		Caret:     int(msg.GetCaret()),
-		Mentions:  ProtoToMentions(msg.GetMentions()),
-		ReplyTo:   domain.EventID(msg.GetReplyTo()),
-		Editing:   domain.EventID(msg.GetEditing()),
-		EditSaved: msg.GetEditSaved(),
-		Author:    msg.GetAuthor(),
-		Updated:   fromUnixMillis(msg.GetUpdatedUnixMs()),
+		RoomID:     domain.RoomID(msg.GetRoomId()),
+		Body:       msg.GetBody(),
+		Caret:      int(msg.GetCaret()),
+		Mentions:   ProtoToMentions(msg.GetMentions()),
+		ReplyTo:    domain.EventID(msg.GetReplyTo()),
+		Editing:    domain.EventID(msg.GetEditing()),
+		EditSaved:  msg.GetEditSaved(),
+		Author:     msg.GetAuthor(),
+		Updated:    fromUnixMillis(msg.GetUpdatedUnixMs()),
+		ThreadRoot: domain.EventID(msg.GetThreadRoot()),
 	}
 }
 

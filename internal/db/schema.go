@@ -230,6 +230,12 @@ CREATE TABLE drafts (
 	updated_ms INTEGER NOT NULL DEFAULT 0
 ) STRICT, WITHOUT ROWID;
 
+-- The thread a draft is written into: a row only for a draft in one.
+CREATE TABLE draft_threads (
+	room_id     TEXT NOT NULL PRIMARY KEY REFERENCES drafts(room_id) ON DELETE CASCADE,
+	thread_root TEXT NOT NULL
+) STRICT, WITHOUT ROWID;
+
 CREATE TABLE reactions (
 	event_id     TEXT NOT NULL PRIMARY KEY,
 	room_id      TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
@@ -304,7 +310,13 @@ CREATE TABLE reaction_refusals (
 // EXISTS, prefer a side table over ADD COLUMN, and pin it in migrationFingerprints.
 // Indexes need no migration (see ensureIndexes); removals are new DROP migrations.
 // TestAnUpgradedCacheMatchesAFreshOne holds a v1 cache, migrated, to a fresh one.
-var migrations = []string{}
+var migrations = []string{
+	// v2: drafts remember their thread.
+	`CREATE TABLE IF NOT EXISTS draft_threads (
+	room_id     TEXT NOT NULL PRIMARY KEY REFERENCES drafts(room_id) ON DELETE CASCADE,
+	thread_root TEXT NOT NULL
+) STRICT, WITHOUT ROWID;`,
+}
 
 // ensureIndexes makes the file's explicit indexes exactly baseSchema's: a missing one
 // is created, one whose definition changed is rebuilt, and one baseSchema no longer

@@ -5797,6 +5797,8 @@ type StoredDraft struct {
 	// Who wrote it.
 	Author        string `protobuf:"bytes,8,opt,name=author,proto3" json:"author,omitempty"`
 	UpdatedUnixMs int64  `protobuf:"varint,9,opt,name=updated_unix_ms,json=updatedUnixMs,proto3" json:"updated_unix_ms,omitempty"`
+	// The thread it is written into; empty for the main timeline.
+	ThreadRoot    string `protobuf:"bytes,10,opt,name=thread_root,json=threadRoot,proto3" json:"thread_root,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5892,6 +5894,13 @@ func (x *StoredDraft) GetUpdatedUnixMs() int64 {
 		return x.UpdatedUnixMs
 	}
 	return 0
+}
+
+func (x *StoredDraft) GetThreadRoot() string {
+	if x != nil {
+		return x.ThreadRoot
+	}
+	return ""
 }
 
 type ReplaceDraftRequest struct {
@@ -9928,7 +9937,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x06before\x18\x03 \x01(\x03R\x06before\x12\x14\n" +
 	"\x05after\x18\x04 \x01(\x03R\x05after\"I\n" +
 	"\x16MessagesAroundResponse\x12/\n" +
-	"\bmessages\x18\x01 \x03(\v2\x13.backend.v1.MessageR\bmessages\"\x95\x02\n" +
+	"\bmessages\x18\x01 \x03(\v2\x13.backend.v1.MessageR\bmessages\"\xb6\x02\n" +
 	"\vStoredDraft\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x12\n" +
 	"\x04body\x18\x02 \x01(\tR\x04body\x12\x14\n" +
@@ -9939,7 +9948,10 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\n" +
 	"edit_saved\x18\a \x01(\tR\teditSaved\x12\x16\n" +
 	"\x06author\x18\b \x01(\tR\x06author\x12&\n" +
-	"\x0fupdated_unix_ms\x18\t \x01(\x03R\rupdatedUnixMs\"\x89\x01\n" +
+	"\x0fupdated_unix_ms\x18\t \x01(\x03R\rupdatedUnixMs\x12\x1f\n" +
+	"\vthread_root\x18\n" +
+	" \x01(\tR\n" +
+	"threadRoot\"\x89\x01\n" +
 	"\x13ReplaceDraftRequest\x12-\n" +
 	"\x05draft\x18\x01 \x01(\v2\x17.backend.v1.StoredDraftR\x05draft\x12+\n" +
 	"\x04over\x18\x02 \x01(\v2\x17.backend.v1.StoredDraftR\x04over\x12\x16\n" +

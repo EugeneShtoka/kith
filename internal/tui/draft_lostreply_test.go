@@ -148,6 +148,8 @@ func TestDescentOf(t *testing.T) {
 			[]ownWrite{{v: draftStamp{body: "fixed", saved: "a2", editing: "$e", ms: 5}}}, v("", 0)},
 		{"words alike by chance, the reply target not: not ours", at("hi\n\na1", 9), v("hi", 1),
 			[]ownWrite{{v: draftStamp{body: "hi\n\na1", reply: "$t", ms: 5}}}, v("hi", 1)},
+		{"words alike by chance, the thread not: not ours", at("hi\n\na1", 9), v("hi", 1),
+			[]ownWrite{{v: draftStamp{body: "hi\n\na1", thread: "$t", ms: 5}}}, v("hi", 1)},
 	}
 	for _, c := range cases {
 		if got, _ := descentOf(c.current, c.base, c.own); got != c.want {

@@ -14,7 +14,9 @@ var migrationFingerprints = []struct {
 	version int    // the user_version this entry stamps
 	what    string // what it does, for the failure message
 	sha     string // first 12 hex of sha256 over the statement, whitespace collapsed
-}{}
+}{
+	{2, "draft_threads: the thread a draft is written into", "2a951409973f"},
+}
 
 func fingerprint(stmt string) string {
 	sum := sha256.Sum256([]byte(strings.Join(strings.Fields(stmt), " ")))
