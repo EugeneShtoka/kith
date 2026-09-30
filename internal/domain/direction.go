@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -93,6 +94,17 @@ func GuessLayout(bodies []string) Layout {
 	default:
 		return LayoutLTR
 	}
+}
+
+// bridgeHeader is the first line a bridge writes above what it carries, in English
+// whatever the conversation's language: a forward (WhatsApp, Telegram) or an album.
+var bridgeHeader = regexp.MustCompile(`^(↷ Forwarded|Forwarded message from [^\n]*|` +
+	`Sent an album with \d+ \w+( and \d+ \w+)*:)[ \t]*(\n|$)`)
+
+// WithoutBridgeHeader is body without a bridge's header line: the words it carries
+// are the sender's, the header is not.
+func WithoutBridgeHeader(body string) string {
+	return bridgeHeader.ReplaceAllString(body, "")
 }
 
 // HasWords reports whether body has a letter outside its links: a message of only
