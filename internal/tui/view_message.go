@@ -30,17 +30,18 @@ const (
 // reactions, and anchored thread summaries.
 func (m Model) hangingRows(msg domain.Message, threads []domain.Thread, nameW, width int) []string {
 	var rows []string
+	dir := m.bodyDir(msg)
 	// A captioned attachment's chip hangs beneath the caption.
 	if msg.Media != nil && msg.Caption() != "" {
 		rows = append(rows, m.underBody(m.theme.Faint.Render(drawLine(mediaChip(msg.Media),
-			lineSpec{width: width - bodyColumn(nameW), sentence: true})), nameW, width))
+			lineSpec{width: width - bodyColumn(nameW), sentence: true})), dir, nameW, width))
 	}
 	if m.showsPictures() && msg.Media.IsImage() {
 		for _, r := range m.pics.rowsFor(msg.ID) {
-			rows = append(rows, m.underBody(r, nameW, width))
+			rows = append(rows, m.underBody(r, dir, nameW, width))
 		}
 	}
-	if rr := m.reactionRow(msg.ID, nameW, width); rr != "" {
+	if rr := m.reactionRow(msg.ID, dir, nameW, width); rr != "" {
 		rows = append(rows, rr)
 	}
 	for i := range threads {
@@ -49,13 +50,23 @@ func (m Model) hangingRows(msg domain.Message, threads []domain.Thread, nameW, w
 	return rows
 }
 
-// underBody places a drawn row under the body column: after it, or, mirrored, flushed
-// against the sender column on the right.
-func (m Model) underBody(row string, nameW, width int) string {
-	if m.mirrored() {
+// underBody places a drawn row under the body column. Mirrored, it goes where its
+// message reads from: against the name on the right for right-to-left words, from the
+// left edge for left-to-right ones.
+func (m Model) underBody(row string, dir bidi.Direction, nameW, width int) string {
+	switch {
+	case !m.mirrored():
+		return strings.Repeat(" ", bodyColumn(nameW)) + row
+	case dir == bidi.RightToLeft:
 		return padStart(row, width-bodyColumn(nameW))
+	default:
+		return row
 	}
-	return strings.Repeat(" ", bodyColumn(nameW)) + row
+}
+
+// bodyDir is the direction a message's words read in (the whole message takes one).
+func (m Model) bodyDir(msg domain.Message) bidi.Direction {
+	return paragraphDir(msg.Body)
 }
 
 // replyPreview is the one-line quote of the message this one replies to, drawn as its
@@ -79,7 +90,7 @@ func (m Model) replyPreview(msg domain.Message, derived *derivedCache, nameW, wi
 	body = strings.Join(strings.Fields(body), " ")
 	// The quoted sender in their hue; marker and snippet dim.
 	name := lipgloss.NewStyle().Foreground(colors[tgt.Sender]).Bold(true).Render(displayName(m.processedName(tgt)))
-	if m.mirrored() {
+	if m.mirrored() && m.bodyDir(msg) == bidi.RightToLeft {
 		// Read from the right: the marker, the name, then the quote, cut on its left.
 		quote := min(quoteWidth, avail-ansi.StringWidth(name)-len("↩ : "))
 		if quote < 1 {
@@ -143,7 +154,7 @@ func humanSize(n int) string {
 }
 
 // reactionRow renders reactions as "key count" chips under the body column, or "".
-func (m Model) reactionRow(target domain.EventID, nameW, width int) string {
+func (m Model) reactionRow(target domain.EventID, dir bidi.Direction, nameW, width int) string {
 	tallies := domain.AggregateReactions(m.timeline.reactions[target], "")
 	if len(tallies) == 0 {
 		return ""
@@ -155,10 +166,10 @@ func (m Model) reactionRow(target domain.EventID, nameW, width int) string {
 		// them; displayName because a key can be any string.
 		chips = append(chips, style.Render(emojiCell(displayName(t.Key))+" "+strconv.Itoa(t.Count)))
 	}
-	if m.mirrored() {
-		return m.underBody(strings.Join(mirroredChips(chips), "  "), nameW, width)
+	if m.mirrored() && dir == bidi.RightToLeft {
+		return m.underBody(strings.Join(mirroredChips(chips), "  "), dir, nameW, width)
 	}
-	return m.underBody(strings.Join(chips, "  "), nameW, width)
+	return m.underBody(strings.Join(chips, "  "), dir, nameW, width)
 }
 
 // senderColorMap is every sender's color in the room (derived.go), computed from the
@@ -181,7 +192,6 @@ func (m Model) messageRows(msg domain.Message, width, nameW int, colors map[stri
 	mirror := m.mirrored()
 	spec := blockSpec{
 		width: bodyW,
-		end:   mirror,
 		// Blank lines are dropped; one row is kept so the sender still shows.
 		dropBlank: true,
 		paint: func(vis string, dir bidi.Direction) string {
@@ -239,14 +249,24 @@ func mirroredMarks(drawn, marks []string, dir bidi.Direction, bodyW int) []strin
 	}
 	joined := strings.Join(marks, " ")
 	if ansi.StringWidth(text)+1+ansi.StringWidth(joined) > bodyW {
-		return append(drawn, padStart(joined, bodyW))
+		return append(drawn, alignIn(joined, dir, bodyW))
 	}
 	if dir == bidi.RightToLeft {
 		drawn[last] = leadRow(text, joined+" ", bodyW)
 	} else {
-		drawn[last] = padStart(text+" "+joined, bodyW)
+		drawn[last] = text + " " + joined
 	}
 	return drawn
+}
+
+// alignIn fills a drawn row to width on the side its direction leaves open: right to
+// left against the right edge, left to right from the left, so what follows it (the
+// name and the time of a mirrored row) always starts at the same column.
+func alignIn(row string, dir bidi.Direction, width int) string {
+	if dir == bidi.RightToLeft {
+		return padStart(row, width)
+	}
+	return padEnd(row, width)
 }
 
 // trailingMarks are what follows a message's words, in reading order: edited, starred.
@@ -261,8 +281,9 @@ func (m Model) trailingMarks(msg domain.Message) []string {
 	return marks
 }
 
-// mirroredMessageRows is messageRows reading right to left: the body flushed against
-// the sender column, then the name and the time on the first row; the quote, when
+// mirroredMessageRows is messageRows in a room that reads right to left: the name and
+// the time on the right of the first row, and the body in its own direction before
+// them (a right-to-left one against the name); the quote, when
 // there is one, shares that row and the body goes under it. The marks that trail the
 // words follow the message's own reading order: on the left of right-to-left words,
 // after left-to-right ones.
@@ -272,9 +293,13 @@ func (m Model) mirroredMessageRows(msg domain.Message, drawn []string, dir bidi.
 	if marks := m.trailingMarks(msg); len(marks) > 0 && len(drawn) > 0 {
 		drawn = mirroredMarks(drawn, marks, dir, bodyW)
 	}
+	// Each message keeps its own direction: only the name and the time moved.
+	for i := range drawn {
+		drawn[i] = alignIn(drawn[i], dir, bodyW)
+	}
 	rows := make([]string, 0, len(drawn)+1)
 	if preview != "" {
-		rows = append(rows, padStart(preview, bodyW)+tail)
+		rows = append(rows, alignIn(preview, dir, bodyW)+tail)
 		return append(rows, drawn...)
 	}
 	rows = append(rows, drawn[0]+tail)

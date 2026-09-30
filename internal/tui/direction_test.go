@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"golang.org/x/text/unicode/bidi"
 
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -38,7 +39,8 @@ func rowsOf(m Model, msgs []domain.Message, i int) []string {
 }
 
 // A room that reads right to left is mirrored: each first row ends in the name and
-// the time at the right edge, and the text, left to right or not, sits against them.
+// the time at the right edge. Only those move: each message keeps its own direction,
+// right-to-left words against the name, left-to-right ones from the left edge.
 func TestARightToLeftRoomIsMirrored(t *testing.T) {
 	t.Parallel()
 	msgs := append(slices.Clone(hebrew), said("", "", "", "", "a word in English")[4])
@@ -56,8 +58,12 @@ func TestARightToLeftRoomIsMirrored(t *testing.T) {
 			t.Errorf("message %d: first row is %d wide, want the full 80", i, w)
 		}
 		body := strings.TrimSuffix(first, " dana "+msgs[i].Timestamp.Format(timeFormat))
-		if strings.TrimRight(body, " ") != body {
-			t.Errorf("message %d: the text %q does not sit against the name", i, body)
+		rtl := paragraphDir(msgs[i].Body) == bidi.RightToLeft
+		if against := strings.TrimRight(body, " ") == body; rtl != against {
+			t.Errorf("message %d (right to left %v): the text %q, want it against the name only when right to left", i, rtl, body)
+		}
+		if !rtl && strings.TrimLeft(body, " ") != body {
+			t.Errorf("message %d: left-to-right text %q does not start at the left edge", i, body)
 		}
 	}
 
@@ -96,7 +102,7 @@ func TestAMirroredRoomMirrorsWhatHangsOnAMessage(t *testing.T) {
 	// An English message in the same room keeps its mark after its words.
 	english := said("", "", "a word in English")[2]
 	english.Edited = true
-	if last := ansi.Strip(rowsOf(m, []domain.Message{english}, 0)[0]); !strings.Contains(last, "English "+editedMarker+" dana") {
+	if last := ansi.Strip(rowsOf(m, []domain.Message{english}, 0)[0]); !strings.HasPrefix(last, "a word in English "+editedMarker) {
 		t.Errorf("an English message's edited mark does not follow its words: %q", last)
 	}
 	chips := plain[len(plain)-1]
