@@ -226,3 +226,29 @@ func TestAMarkNeverPushesARowPastItsColumn(t *testing.T) {
 		}
 	}
 }
+
+// What has no words of its own reads as the room does: kith's text in place of the
+// sender's (a deletion, a bare file chip), a link alone, emoji alone. In a mirrored room
+// it sits against the name. A caption, or words beside a link, keep their direction.
+func TestAPlaceholderFollowsTheRoom(t *testing.T) {
+	t.Parallel()
+	msgs := said("gone", "report.pdf", "a caption in English", // a bare file's body is its name
+		"https://www.linkedin.com/posts/someone-123", "🎂❤️ 100%", "see https://x.com/a")
+	msgs[0].Redacted = true
+	msgs[1].Media = &domain.Media{Type: domain.MediaFile, Name: "report.pdf"}
+	msgs[2].Media = &domain.Media{Type: domain.MediaImage, Name: "cat.jpg"}
+	m := directed(t, config.Direction{RTL: []string{"!a:x"}}, msgs)
+	// A link alone and emoji alone have no language: the room's. Words beside a link do.
+	for i, against := range []bool{true, true, false, true, true, false} {
+		first := ansi.Strip(rowsOf(m, msgs, i)[0])
+		body := strings.TrimSuffix(first, " dana "+msgs[i].Timestamp.Format(timeFormat))
+		if got := strings.TrimRight(body, " ") == body; got != against {
+			t.Errorf("message %d: %q, want it against the name %v", i, body, against)
+		}
+	}
+	// Left to right, a placeholder reads from the left as ever.
+	ltr := directed(t, config.Direction{}, msgs)
+	if first := ansi.Strip(rowsOf(ltr, msgs, 0)[0]); !strings.Contains(first, "dana "+redactedBody) && !strings.Contains(first, "dana (deleted") {
+		t.Errorf("left to right: %q, want the placeholder after the name", first)
+	}
+}

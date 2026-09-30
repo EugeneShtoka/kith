@@ -95,6 +95,13 @@ func GuessLayout(bodies []string) Layout {
 	}
 }
 
+// HasWords reports whether body has a letter outside its links: a message of only
+// addresses, emoji or numbers has no language to read in.
+func HasWords(body string) bool {
+	r, l := letterSides(withoutLinks(body))
+	return r+l > 0
+}
+
 // withoutLinks is body with its written-out addresses cut.
 func withoutLinks(body string) string {
 	links := LinkSpans(body)

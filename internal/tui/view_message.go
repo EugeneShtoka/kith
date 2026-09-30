@@ -66,7 +66,24 @@ func (m Model) underBody(row string, dir bidi.Direction, nameW, width int) strin
 
 // bodyDir is the direction a message's words read in (the whole message takes one).
 func (m Model) bodyDir(msg domain.Message) bidi.Direction {
-	return paragraphDir(msg.Body)
+	return m.rowDir(msg, msg.Body)
+}
+
+// rowDir is the direction a message is laid out in, body its drawn text: the
+// direction of the sender's words. In a mirrored room what has no words of its own
+// reads as the room does: kith's text standing in for them (a deletion, a bare file
+// chip), and a message of only links, emoji or numbers.
+func (m Model) rowDir(msg domain.Message, body string) bidi.Direction {
+	if m.mirrored() && (standsIn(msg) || !domain.HasWords(body)) {
+		return bidi.RightToLeft
+	}
+	return paragraphDir(body)
+}
+
+// standsIn reports whether a message is drawn as kith's own words standing in for the
+// sender's: a deletion, or a file with no caption.
+func standsIn(msg domain.Message) bool {
+	return msg.Redacted || (msg.Media != nil && msg.Caption() == "")
 }
 
 // replyPreview is the one-line quote of the message this one replies to, drawn as its
@@ -206,7 +223,7 @@ func (m Model) messageRows(msg domain.Message, width, nameW int, colors map[stri
 	// One base direction per message keeps wrapped mixed-direction lines stable.
 	drawn := drawBlock(body, spec)
 	if mirror {
-		return m.mirroredMessageRows(msg, drawn, paragraphDir(body), bodyW, nameW, c, selected, preview)
+		return m.mirroredMessageRows(msg, drawn, m.rowDir(msg, body), bodyW, nameW, c, selected, preview)
 	}
 	prefix := m.messagePrefix(msg, nameW, c, selected)
 	indent := strings.Repeat(" ", prefixW)
