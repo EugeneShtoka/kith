@@ -148,16 +148,15 @@ the quarantine attribute so Gatekeeper runs them.
 ### Nix
 
 Nothing to publish: `flake.nix` is used directly as `github:EugeneShtoka/kith`.
-Two things need looking after:
+Two things need looking after, and the `nix` CI job (`make nix-check`) fails when
+either goes stale:
 
-- **`vendorHash`** in `packaging/nix/package.nix` is the hash of `go mod vendor`. It
-  changes whenever `go.mod` or `go.sum` does. After a dependency bump, run
-  `nix build .#kith` once. On a mismatch, nix prints the right value as `got:`;
-  paste it in. The committed value was computed without nix, from `go mod vendor` and
-  a NAR hash of the result, so the first real `nix build` is also what confirms it.
-- **`flake.lock`** isn't committed yet, because nix wasn't available when the flake
-  was written. Run `nix flake lock` once and commit the result, so users get a pinned
-  nixpkgs rather than whatever `nixos-unstable` is that day.
+- **`vendorHash`** in `packaging/nix/package.nix` is the hash of the Go modules
+  `go.mod` names. It changes with every dependency bump, Dependabot's included. On a
+  mismatch the job's log shows the right value as `got:`; paste it in. Locally,
+  `make nix-check` builds the flake when nix is installed and is skipped otherwise.
+- **`flake.lock`** pins nixpkgs, so users get the Go and toolchain the flake was
+  tested with. Refresh it with `nix flake update`, and let the job build it.
 
 The nixpkgs Go must be at least the `go` line of `go.mod` (1.26.3). Nix builds with
 `GOTOOLCHAIN=local`, so an older Go fails with a clear message rather than
