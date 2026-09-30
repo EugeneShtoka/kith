@@ -63,3 +63,22 @@ func TestGuessLayoutVotesPerMessage(t *testing.T) {
 		}
 	}
 }
+
+// A bridge's header line is cut, and only its own: the words after it stay, and a
+// sentence that merely starts alike is left alone.
+func TestWithoutBridgeHeader(t *testing.T) {
+	t.Parallel()
+	for body, want := range map[string]string{
+		"↷ Forwarded\n\n": "\n",
+		"↷ Forwarded":     "",
+		"↷ Forwarded\n\nשוב פעמיים יצא":             "\nשוב פעמיים יצא",
+		"Forwarded message from Артём\n\n> Дорогие": "\n> Дорогие",
+		"Sent an album with 4 images and 1 videos:": "",
+		"Sent an album with 2 images:\nתמונות":      "תמונות",
+		"Forwarded it to Dana already":              "Forwarded it to Dana already",
+	} {
+		if got := WithoutBridgeHeader(body); got != want {
+			t.Errorf("WithoutBridgeHeader(%q) = %q, want %q", body, got, want)
+		}
+	}
+}

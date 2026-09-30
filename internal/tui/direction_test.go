@@ -233,13 +233,15 @@ func TestAMarkNeverPushesARowPastItsColumn(t *testing.T) {
 func TestAPlaceholderFollowsTheRoom(t *testing.T) {
 	t.Parallel()
 	msgs := said("gone", "report.pdf", "a caption in English", // a bare file's body is its name
-		"https://www.linkedin.com/posts/someone-123", "🎂❤️ 100%", "see https://x.com/a")
+		"https://www.linkedin.com/posts/someone-123", "🎂❤️ 100%", "see https://x.com/a",
+		"↷ Forwarded\n\n", "Sent an album with 2 images:", "↷ Forwarded\n\nFYI, the deck")
 	msgs[0].Redacted = true
 	msgs[1].Media = &domain.Media{Type: domain.MediaFile, Name: "report.pdf"}
 	msgs[2].Media = &domain.Media{Type: domain.MediaImage, Name: "cat.jpg"}
 	m := directed(t, config.Direction{RTL: []string{"!a:x"}}, msgs)
 	// A link alone and emoji alone have no language: the room's. Words beside a link do.
-	for i, against := range []bool{true, true, false, true, true, false} {
+	// A bridge's header alone is not the sender's words either; words after it are.
+	for i, against := range []bool{true, true, false, true, true, false, true, true, false} {
 		first := ansi.Strip(rowsOf(m, msgs, i)[0])
 		body := strings.TrimSuffix(first, " dana "+msgs[i].Timestamp.Format(timeFormat))
 		if got := strings.TrimRight(body, " ") == body; got != against {

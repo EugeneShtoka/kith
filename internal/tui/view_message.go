@@ -72,9 +72,10 @@ func (m Model) bodyDir(msg domain.Message) bidi.Direction {
 // rowDir is the direction a message is laid out in, body its drawn text: the
 // direction of the sender's words. In a mirrored room what has no words of its own
 // reads as the room does: kith's text standing in for them (a deletion, a bare file
-// chip), and a message of only links, emoji or numbers.
+// chip), a message of only links, emoji or numbers, and one that is only a bridge's
+// English header ("↷ Forwarded" on a forwarded file).
 func (m Model) rowDir(msg domain.Message, body string) bidi.Direction {
-	if m.mirrored() && (standsIn(msg) || !domain.HasWords(body)) {
+	if m.mirrored() && (standsIn(msg) || !domain.HasWords(domain.WithoutBridgeHeader(body))) {
 		return bidi.RightToLeft
 	}
 	return paragraphDir(body)
