@@ -367,10 +367,10 @@ type editedMsg struct {
 }
 
 // editCmd sends a revision of a message already sent.
-func (m Model) editCmd(roomID domain.RoomID, target domain.EventID, body string, mentions []domain.Mention) tea.Cmd {
+func (m Model) editCmd(roomID domain.RoomID, revision domain.Draft) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
-		err := backend.Send(ctx, roomID, domain.Draft{Body: body, Mentions: mentions, Edits: target})
+		err := backend.Send(ctx, roomID, revision)
 		return editedMsg{roomID: roomID, err: err}
 	}
 }
