@@ -16,7 +16,7 @@ func TestSpamRoomsRoundTrip(t *testing.T) {
 
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 

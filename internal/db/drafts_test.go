@@ -12,7 +12,7 @@ func TestDraftsRoundTrip(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 
@@ -76,7 +76,7 @@ func TestDraftsGoWithTheirRoom(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	if err := putDraft(ctx, cache, domain.StoredDraft{RoomID: "!a:x", Body: "words"}); err != nil {
@@ -98,7 +98,7 @@ func TestRoomsWithNarrowsAsPeopleAreAdded(t *testing.T) {
 	cache := openTemp(t)
 
 	rooms := []domain.Room{{ID: "!both:x", Name: "Both"}, {ID: "!one:x", Name: "One"}, {ID: "!none:x", Name: "None"}}
-	if err := cache.SaveRooms(ctx, rooms); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	member := func(room domain.RoomID, ids ...string) {
@@ -151,7 +151,7 @@ func TestMessagesAroundGivesAHitItsConversation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	var msgs []domain.Message

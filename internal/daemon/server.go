@@ -40,6 +40,9 @@ type Daemon struct {
 	// Scheduler is nil when the queue path could not be resolved; its handlers
 	// then refuse.
 	Scheduler *Scheduler
+	// WhatsApp pairs WhatsApp accounts; nil when [whatsapp] is off, and the pairing
+	// handler then refuses with ErrNetworkOff.
+	WhatsApp api.WhatsAppLink
 	// Log receives every failed call, with the procedure and the reason, so a
 	// failure a client only counted still reaches the journal. nil logs nothing.
 	Log *slog.Logger

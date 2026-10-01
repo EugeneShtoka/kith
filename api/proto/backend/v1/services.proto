@@ -660,6 +660,21 @@ message SeatResponse {
   }
 }
 
+message PairWhatsAppRequest {
+  // The [[whatsapp.account]] name, as the config says it.
+  string account = 1;
+}
+
+message PairWhatsAppResponse {
+  oneof event {
+    // The code to type on the phone (WhatsApp → Linked devices → Link a device →
+    // Link with phone number instead).
+    string code = 1;
+    // The phone accepted: the account's person ID. The stream ends after it.
+    string linked = 2;
+  }
+}
+
 message DraftsResponse {
   repeated StoredDraft drafts = 1;
 }
@@ -1188,6 +1203,10 @@ service BackendService {
   // none). Opening the stream asks for it; keeping it open keeps it, and a window
   // that closes or dies frees it. See SeatRequest.force and SeatResponse.
   rpc Seat(SeatRequest) returns (stream SeatResponse);
+  // PairWhatsApp links one configured [[whatsapp.account]] to kith as a WhatsApp
+  // linked device: the stream carries the code to type on the phone, then the
+  // account's ID once the phone accepts it. A failure ends the stream with an error.
+  rpc PairWhatsApp(PairWhatsAppRequest) returns (stream PairWhatsAppResponse);
   // RoomsWith finds the rooms a set of people are **all** in, most recently active
   // first.
   rpc RoomsWith(RoomsWithRequest) returns (RoomsWithResponse);

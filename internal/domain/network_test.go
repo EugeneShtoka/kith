@@ -136,3 +136,45 @@ func TestANativeRoomIDIsAnEntry(t *testing.T) {
 		t.Errorf("a person's ID was taken as a list entry")
 	}
 }
+
+// A native ID is built as ParseID takes it apart, for rooms, events and people.
+func TestNativeIDsRoundTrip(t *testing.T) {
+	t.Parallel()
+	for _, native := range []string{waGroup, waPhone, waLID, waMessage} {
+		id := domain.NativeID(domain.ProtocolWhatsApp, waAccount, native)
+		if got := domain.ParseID(id); got != (domain.ID{Network: domain.ProtocolWhatsApp, Account: waAccount, Native: native}) {
+			t.Errorf("ParseID(NativeID(%q)) = %+v", native, got)
+		}
+	}
+	person := domain.NativePerson(domain.ProtocolWhatsApp, waPhone)
+	if got := domain.ParseID(person); got != (domain.ID{Network: domain.ProtocolWhatsApp, Native: waPhone}) {
+		t.Errorf("ParseID(NativePerson) = %+v", got)
+	}
+	if !domain.IsUserID(person) || domain.IsRoomID(person) {
+		t.Errorf("%s should be a person, not a room", person)
+	}
+}
+
+// Each writer owns exactly its own rooms: Matrix's, and each account's apart, even
+// when one account's digits begin another's.
+func TestEachWriterOwnsOnlyItsRooms(t *testing.T) {
+	t.Parallel()
+	a := domain.AccountRooms(domain.ProtocolWhatsApp, "359")
+	b := domain.AccountRooms(domain.ProtocolWhatsApp, "3590")
+	rooms := map[domain.RoomID]domain.RoomOwner{
+		"!abc:example.org":                        domain.MatrixRooms,
+		"!v12opaque":                              domain.MatrixRooms,
+		domain.RoomID("whatsapp:359/" + waGroup):  a,
+		domain.RoomID("whatsapp:3590/" + waGroup): b,
+	}
+	for room, owner := range rooms {
+		for _, o := range []domain.RoomOwner{domain.MatrixRooms, a, b} {
+			if got := o.Owns(room); got != (o == owner) {
+				t.Errorf("%q owns %s = %v, want %v", o, room, got, o == owner)
+			}
+		}
+	}
+	if domain.RoomOwner("").Owns("!abc:example.org") {
+		t.Error("the zero owner owns a room")
+	}
+}

@@ -34,6 +34,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/schedule"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
+	"github.com/EugeneShtoka/kith/internal/whatsapp"
 )
 
 // agentScopeTimeout bounds the startup warning's cache reads.
@@ -169,7 +170,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	}
 
 	cache := openCache(ctx, log, cfg.User)
-	backend, err := newServed(cache, log)
+	backend, err := newServed(ctx, cache, log, cfg)
 	if err != nil {
 		closeCache(log, cache)
 		return err
@@ -178,7 +179,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	defer func() {
 		if !handlersLive {
 			backend.Stop()
-			backend.Close()
+			backend.Close(log)
 			closeCache(log, cache)
 		}
 	}()
@@ -280,6 +281,9 @@ type served struct {
 	*route.Router
 	*local.Service
 	matrix *matrixAdapter
+	// whatsapp and its store are nil unless [whatsapp] is enabled and the store opened.
+	whatsapp      *whatsapp.Adapter
+	whatsappStore *whatsapp.Store
 }
 
 var _ api.Backend = served{}
@@ -306,19 +310,75 @@ func (m *matrixAdapter) Start(ctx context.Context) error {
 	return nil
 }
 
-// newServed builds the adapter, the router over it and the service over one cache,
-// the service hearing what the adapter caches.
-func newServed(cache *db.Cache, log *slog.Logger) (served, error) {
+// newServed builds the adapters, the router over them and the service over one
+// cache, the service hearing what the Matrix adapter caches.
+func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config) (served, error) {
 	adapter := &matrixAdapter{InProc: matrix.New(cache)}
 	adapter.UseLogger(log)
-	router, err := route.New(adapter, nil)
+	others := map[domain.Protocol]route.Adapter{}
+	wa, waStore := openWhatsApp(ctx, cache, log, cfg)
+	if wa != nil {
+		others[domain.ProtocolWhatsApp] = wa
+	}
+	router, err := route.New(adapter, others)
 	if err != nil {
+		closeWhatsAppStore(log, waStore)
 		return served{}, fmt.Errorf("route the networks: %w", err)
 	}
 	service := local.New(cache, router)
 	service.UseLogger(log)
 	adapter.OnCached(service.MessageCached, service.RoomChanged)
-	return served{Router: router, Service: service, matrix: adapter}, nil
+	return served{Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore}, nil
+}
+
+// openWhatsApp is the WhatsApp adapter when [whatsapp] is enabled, over its session
+// store. A store that will not open leaves WhatsApp off, logged, rather than Matrix
+// down with it.
+func openWhatsApp(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config) (*whatsapp.Adapter, *whatsapp.Store) {
+	if !cfg.WhatsApp.Enabled {
+		return nil, nil
+	}
+	path, err := db.WhatsAppPath(cfg.User)
+	if err != nil {
+		log.Error("WhatsApp is off: its store has no place", "err", err)
+		return nil, nil
+	}
+	store, err := whatsapp.OpenStore(ctx, path, whatsapp.NewStoreLogger(log))
+	if err != nil {
+		log.Error("WhatsApp is off: its store will not open", "path", path, "err", err)
+		return nil, nil
+	}
+	accounts := make([]whatsapp.Account, 0, len(cfg.WhatsApp.Accounts))
+	for _, a := range cfg.WhatsApp.Accounts {
+		accounts = append(accounts, whatsapp.Account{Name: a.Name, Digits: a.Digits()})
+	}
+	return whatsapp.New(cache, store, accounts, log), store
+}
+
+// whatsAppLink is what pairs WhatsApp accounts: nil, not a nil adapter, when WhatsApp
+// is off, so the handler can tell.
+func (s served) whatsAppLink() api.WhatsAppLink {
+	if s.whatsapp == nil {
+		return nil
+	}
+	return s.whatsapp
+}
+
+// Close stops the local engines and closes the WhatsApp store (after Stop, which
+// disconnected its accounts).
+func (s served) Close(log *slog.Logger) {
+	s.Service.Close()
+	closeWhatsAppStore(log, s.whatsappStore)
+}
+
+// closeWhatsAppStore closes the WhatsApp store (nil: there was none), logging a failure.
+func closeWhatsAppStore(log *slog.Logger, store *whatsapp.Store) {
+	if store == nil {
+		return
+	}
+	if err := store.Close(); err != nil {
+		log.Warn("close the WhatsApp store failed", "err", err)
+	}
 }
 
 // configure applies the config to the backend; internal/matrix and internal/local
@@ -468,6 +528,7 @@ func serve(
 		State:         w.state,
 		Notifications: w.notifications,
 		Scheduler:     scheduler,
+		WhatsApp:      backend.whatsAppLink(),
 		Log:           log,
 		Reload:        reloader(configPath, relevel, cutoff, backend, w.notifications),
 	})
@@ -531,6 +592,10 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)
 	backend.matrix.OnRoomsChanged(refresher.Changed)
+	if backend.whatsapp != nil {
+		// Not the refresher: it refreshes every network, WhatsApp's own refresh included.
+		backend.whatsapp.OnRoomsChanged(notifications.InvalidateScope)
+	}
 
 	// Readiness is "a sync arrived", not "socket open": a cold cache looks like no rooms.
 	state := daemon.NewState()

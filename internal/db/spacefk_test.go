@@ -35,7 +35,7 @@ func TestASpaceCanListAChildTheRoomTableHasNotSeenYet(t *testing.T) {
 
 	// And the room refresh that follows makes them ordinary rooms, with the space
 	// membership already in place.
-	if err = cache.SaveRooms(ctx, []domain.Room{
+	if err = cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{
 		{ID: "!notyet:x", Name: "One"}, {ID: "!alsonotyet:x", Name: "Two"},
 	}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)

@@ -51,6 +51,7 @@ type Config struct {
 	Commands       Commands      `toml:"commands"`
 	Schedule       Schedule      `toml:"schedule"`
 	Log            Log           `toml:"log"`
+	WhatsApp       WhatsApp      `toml:"whatsapp"`
 	Profiles       []Profile     `toml:"profile"`
 }
 

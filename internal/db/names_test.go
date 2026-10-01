@@ -15,7 +15,7 @@ func TestNamesResolveBeyondTheParameterCeiling(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 	room := domain.RoomID("!crowd:example.org")
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: room, Name: "Crowd"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: room, Name: "Crowd"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	// Two people who are really there, so the answer is checkable rather than empty.

@@ -189,6 +189,9 @@ const (
 	BackendServiceDraftsProcedure = "/backend.v1.BackendService/Drafts"
 	// BackendServiceSeatProcedure is the fully-qualified name of the BackendService's Seat RPC.
 	BackendServiceSeatProcedure = "/backend.v1.BackendService/Seat"
+	// BackendServicePairWhatsAppProcedure is the fully-qualified name of the BackendService's
+	// PairWhatsApp RPC.
+	BackendServicePairWhatsAppProcedure = "/backend.v1.BackendService/PairWhatsApp"
 	// BackendServiceRoomsWithProcedure is the fully-qualified name of the BackendService's RoomsWith
 	// RPC.
 	BackendServiceRoomsWithProcedure = "/backend.v1.BackendService/RoomsWith"
@@ -428,6 +431,10 @@ type BackendServiceClient interface {
 	// none). Opening the stream asks for it; keeping it open keeps it, and a window
 	// that closes or dies frees it. See SeatRequest.force and SeatResponse.
 	Seat(context.Context, *connect.Request[v1.SeatRequest]) (*connect.ServerStreamForClient[v1.SeatResponse], error)
+	// PairWhatsApp links one configured [[whatsapp.account]] to kith as a WhatsApp
+	// linked device: the stream carries the code to type on the phone, then the
+	// account's ID once the phone accepts it. A failure ends the stream with an error.
+	PairWhatsApp(context.Context, *connect.Request[v1.PairWhatsAppRequest]) (*connect.ServerStreamForClient[v1.PairWhatsAppResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -871,6 +878,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("Seat")),
 			connect.WithClientOptions(opts...),
 		),
+		pairWhatsApp: connect.NewClient[v1.PairWhatsAppRequest, v1.PairWhatsAppResponse](
+			httpClient,
+			baseURL+BackendServicePairWhatsAppProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PairWhatsApp")),
+			connect.WithClientOptions(opts...),
+		),
 		roomsWith: connect.NewClient[v1.RoomsWithRequest, v1.RoomsWithResponse](
 			httpClient,
 			baseURL+BackendServiceRoomsWithProcedure,
@@ -1137,6 +1150,7 @@ type backendServiceClient struct {
 	replaceDraft          *connect.Client[v1.ReplaceDraftRequest, v1.ReplaceDraftResponse]
 	drafts                *connect.Client[v1.DraftsRequest, v1.DraftsResponse]
 	seat                  *connect.Client[v1.SeatRequest, v1.SeatResponse]
+	pairWhatsApp          *connect.Client[v1.PairWhatsAppRequest, v1.PairWhatsAppResponse]
 	roomsWith             *connect.Client[v1.RoomsWithRequest, v1.RoomsWithResponse]
 	roomEncryption        *connect.Client[v1.RoomEncryptionRequest, v1.RoomEncryptionResponse]
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
@@ -1458,6 +1472,11 @@ func (c *backendServiceClient) Seat(ctx context.Context, req *connect.Request[v1
 	return c.seat.CallServerStream(ctx, req)
 }
 
+// PairWhatsApp calls backend.v1.BackendService.PairWhatsApp.
+func (c *backendServiceClient) PairWhatsApp(ctx context.Context, req *connect.Request[v1.PairWhatsAppRequest]) (*connect.ServerStreamForClient[v1.PairWhatsAppResponse], error) {
+	return c.pairWhatsApp.CallServerStream(ctx, req)
+}
+
 // RoomsWith calls backend.v1.BackendService.RoomsWith.
 func (c *backendServiceClient) RoomsWith(ctx context.Context, req *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {
 	return c.roomsWith.CallUnary(ctx, req)
@@ -1770,6 +1789,10 @@ type BackendServiceHandler interface {
 	// none). Opening the stream asks for it; keeping it open keeps it, and a window
 	// that closes or dies frees it. See SeatRequest.force and SeatResponse.
 	Seat(context.Context, *connect.Request[v1.SeatRequest], *connect.ServerStream[v1.SeatResponse]) error
+	// PairWhatsApp links one configured [[whatsapp.account]] to kith as a WhatsApp
+	// linked device: the stream carries the code to type on the phone, then the
+	// account's ID once the phone accepts it. A failure ends the stream with an error.
+	PairWhatsApp(context.Context, *connect.Request[v1.PairWhatsAppRequest], *connect.ServerStream[v1.PairWhatsAppResponse]) error
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -2209,6 +2232,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("Seat")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServicePairWhatsAppHandler := connect.NewServerStreamHandler(
+		BackendServicePairWhatsAppProcedure,
+		svc.PairWhatsApp,
+		connect.WithSchema(backendServiceMethods.ByName("PairWhatsApp")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceRoomsWithHandler := connect.NewUnaryHandler(
 		BackendServiceRoomsWithProcedure,
 		svc.RoomsWith,
@@ -2529,6 +2558,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceDraftsHandler.ServeHTTP(w, r)
 		case BackendServiceSeatProcedure:
 			backendServiceSeatHandler.ServeHTTP(w, r)
+		case BackendServicePairWhatsAppProcedure:
+			backendServicePairWhatsAppHandler.ServeHTTP(w, r)
 		case BackendServiceRoomsWithProcedure:
 			backendServiceRoomsWithHandler.ServeHTTP(w, r)
 		case BackendServiceRoomEncryptionProcedure:
@@ -2832,6 +2863,10 @@ func (UnimplementedBackendServiceHandler) Drafts(context.Context, *connect.Reque
 
 func (UnimplementedBackendServiceHandler) Seat(context.Context, *connect.Request[v1.SeatRequest], *connect.ServerStream[v1.SeatResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Seat is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PairWhatsApp(context.Context, *connect.Request[v1.PairWhatsAppRequest], *connect.ServerStream[v1.PairWhatsAppResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PairWhatsApp is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {

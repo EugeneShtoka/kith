@@ -18,7 +18,7 @@ func completing(t *testing.T) *Service {
 	t.Helper()
 	b := backendWithCache(t, vocabMe)
 	ctx := context.Background()
-	if err := b.cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x"}, {ID: "!b:x"}}); err != nil {
+	if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}, {ID: "!b:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	at := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
@@ -122,7 +122,7 @@ func TestCompletionScopeWidensAndNarrows(t *testing.T) {
 	t.Parallel()
 	b := backendWithCache(t, vocabMe)
 	ctx := context.Background()
-	if err := b.cache.SaveRooms(ctx, []domain.Room{{ID: "!here:x"}, {ID: "!sib:x"}, {ID: "!far:x"}}); err != nil {
+	if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!here:x"}, {ID: "!sib:x"}, {ID: "!far:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	for i, m := range []domain.Message{

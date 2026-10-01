@@ -18,7 +18,7 @@ func TestConnectionSettingsSurviveAReplacedConnection(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!r:x", Name: "R"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!r:x", Name: "R"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
 	mustSave(t, cache, "!r:x", domain.Message{ID: "$e:x", Body: "hi"})

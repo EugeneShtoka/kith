@@ -81,7 +81,7 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 				t.Errorf("from_before survived opening a database stamped %d", version)
 			}
 			// Usable either way.
-			if serr := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "A"}}); serr != nil {
+			if serr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "A"}}); serr != nil {
 				t.Errorf("SaveRooms() after opening a %d: %v", version, serr)
 			}
 		})
@@ -249,7 +249,7 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 			t.Fatalf("Open() error = %v", err)
 		}
 		defer func() { _ = cache.Close() }()
-		if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!keep:x", Name: "Keep"}}); err != nil {
+		if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!keep:x", Name: "Keep"}}); err != nil {
 			t.Fatalf("SaveRooms() error = %v", err)
 		}
 		if got, verr := userVersion(ctx, cache.db); verr != nil || got != schemaVersion {

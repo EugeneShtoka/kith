@@ -22,6 +22,12 @@ func CryptoPath(user string) (string, error) {
 	return userDBPath(user, "crypto")
 }
 
+// WhatsAppPath returns the per-user path for the WhatsApp session store (whatsmeow's:
+// every linked account's device keys).
+func WhatsAppPath(user string) (string, error) {
+	return userDBPath(user, "whatsapp")
+}
+
 func userDBPath(user, kind string) (string, error) {
 	path, err := xdg.DataFile(fmt.Sprintf("kith/%s-%s.db", kind, domain.AccountKey(user)))
 	if err != nil {
@@ -121,16 +127,43 @@ func membershipFrom(membership string) domain.Membership {
 	return domain.MembershipJoin
 }
 
-// SaveRooms reconciles the cached joined rooms with rooms in one transaction:
-// upsert each, then delete the ones that are gone (cascading their data). A plain
-// replace would cascade away every room's history. An empty snapshot sweeps nothing.
-func (c *Cache) SaveRooms(ctx context.Context, rooms []domain.Room) error {
+// SaveRooms reconciles owner's cached joined rooms with rooms in one transaction:
+// upsert each, then delete the ones of owner's that are gone (cascading their data).
+// Only owner's: the cache holds every network's rooms, and one network's list says
+// nothing about another's. A plain replace would cascade away every room's history.
+// An empty snapshot sweeps nothing. A room owner does not own is refused.
+func (c *Cache) SaveRooms(ctx context.Context, owner domain.RoomOwner, rooms []domain.Room) error {
+	for i := range rooms {
+		if !owner.Owns(rooms[i].ID) {
+			return fmt.Errorf("db: %s is not among %q's rooms", rooms[i].ID, owner)
+		}
+	}
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		if err := upsertRooms(ctx, tx, rooms, membershipJoin); err != nil {
 			return err
 		}
-		return sweepRooms(ctx, tx, rooms, membershipJoin)
+		return sweepOwnedRooms(ctx, tx, owner, rooms)
 	})
+}
+
+// sweepOwnedRooms deletes owner's joined rooms the snapshot no longer carries. An
+// owner is an ID prefix ("!" for Matrix, "whatsapp:<account>/" for an account), so
+// the sweep matches on it and never reaches a room of another's.
+func sweepOwnedRooms(ctx context.Context, tx *sql.Tx, owner domain.RoomOwner, rooms []domain.Room) error {
+	if len(rooms) == 0 {
+		return nil
+	}
+	ids := make([]domain.RoomID, len(rooms))
+	for i := range rooms {
+		ids[i] = rooms[i].ID
+	}
+	in, args := inIDs([]any{membershipJoin, len(owner), string(owner)}, ids)
+	// #nosec G202 -- inIDs emits only placeholders or a bound json_each.
+	query := "DELETE FROM rooms WHERE membership = ? AND substr(id, 1, ?) = ? AND id NOT" + in
+	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("db: sweep %q's rooms: %w", owner, err)
+	}
+	return nil
 }
 
 // upsertRooms writes each room, leaving whatever hangs off it in place.

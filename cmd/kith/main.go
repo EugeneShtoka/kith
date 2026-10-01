@@ -255,6 +255,9 @@ func openLogTo(d logging.Destination) (*slog.Logger, func()) {
 // runLogin performs a password login and stores the session in the OS keyring for the
 // daemon to resume from. The password is never written to disk.
 func runLogin(args []string) error {
+	if len(args) > 0 && args[0] == "whatsapp" {
+		return runWhatsAppLogin(args[1:])
+	}
 	fs := flag.NewFlagSet("login", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
 	profile := fs.String("profile", "", "which [[profile]] account to log in (default: the first one)")

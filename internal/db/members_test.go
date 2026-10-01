@@ -390,7 +390,7 @@ func TestRoomsWithCountsEachPersonOnce(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
 	const room = domain.RoomID("!r:x")
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: room, Name: "R"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: room, Name: "R"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := cache.SaveMembers(ctx, room, []domain.Member{{UserID: "@d:x", DisplayName: "Dana"}}); err != nil {
@@ -410,7 +410,7 @@ func TestRoomsWithOrdersTiesByRoom(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
 	rooms := []domain.Room{{ID: "!c:x", Name: "C"}, {ID: "!a:x", Name: "A"}, {ID: "!b:x", Name: "B"}}
-	if err := cache.SaveRooms(ctx, rooms); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
 		t.Fatal(err)
 	}
 	for _, r := range rooms {

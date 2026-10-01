@@ -28,7 +28,7 @@ func TestOpenStampsTheVersionAndReopeningIsANoOp(t *testing.T) {
 	if got := stampedVersion(t, cache); got != schemaVersion+len(migrations) {
 		t.Errorf("user_version = %d, want %d", got, schemaVersion+len(migrations))
 	}
-	if saveErr := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); saveErr != nil {
 		t.Fatalf("SaveRooms() error = %v", saveErr)
 	}
 	if closeErr := cache.Close(); closeErr != nil {
@@ -89,7 +89,7 @@ func TestOpenRebuildsAnOlderCache(t *testing.T) {
 	if tables := tableNames(t, cache); slices.Contains(tables, "thread_reindex") {
 		t.Errorf("thread_reindex survived the rebuild: %v", tables)
 	}
-	if saveErr := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); saveErr != nil {
 		t.Fatalf("SaveRooms() into the rebuilt cache: %v", saveErr)
 	}
 	mustSave(t, cache, "!a:x", domain.Message{ID: "$2", Body: "from the new shape", Timestamp: time.UnixMilli(1)})
@@ -119,7 +119,7 @@ func TestDeletingARoomCascades(t *testing.T) {
 
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
 	mustSave(t, cache, "!a:x", domain.Message{
@@ -247,7 +247,7 @@ func TestTimestampsRoundTripAsMilliseconds(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 	at := time.Date(2026, 9, 3, 16, 45, 30, 123_000_000, time.UTC)
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
 	mustSave(t, cache, "!a:x", domain.Message{ID: "$1", Body: "when", Timestamp: at})
@@ -372,7 +372,7 @@ func analyzedCache(t *testing.T) *Cache {
 	for r := range joined {
 		joined[r] = domain.Room{ID: domain.RoomID(fmt.Sprintf("!r%d:x", r)), Name: fmt.Sprintf("Room %d", r)}
 	}
-	if err := cache.SaveRooms(ctx, joined); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, joined); err != nil {
 		t.Fatal(err)
 	}
 	for r := range joined {

@@ -403,6 +403,24 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 
 // Seat gives the caller the seat and keeps it for as long as the stream is open, or
 // says who has it (see api.Seat).
+// errWhatsAppOff refuses pairing while [whatsapp] is not enabled.
+var errWhatsAppOff = fmt.Errorf("%w: [whatsapp] enabled is not set in the config kithd runs with", api.ErrNetworkOff)
+
+func (s *server) PairWhatsApp(
+	ctx context.Context, r *req[v1.PairWhatsAppRequest], st *connect.ServerStream[v1.PairWhatsAppResponse],
+) error {
+	if s.WhatsApp == nil {
+		return rpcErr(errWhatsAppOff)
+	}
+	linked, err := s.WhatsApp.PairWhatsApp(ctx, r.Msg.GetAccount(), func(code string) error {
+		return sendFrame(st, &v1.PairWhatsAppResponse{Event: &v1.PairWhatsAppResponse_Code{Code: code}})
+	})
+	if err != nil {
+		return rpcErr(err)
+	}
+	return sendFrame(st, &v1.PairWhatsAppResponse{Event: &v1.PairWhatsAppResponse_Linked{Linked: linked}})
+}
+
 func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {
 	sat, err := s.seat.take(ctx, r.Msg.GetClient(), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
 	if errors.Is(err, api.ErrSeatTaken) {
