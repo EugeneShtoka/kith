@@ -66,8 +66,8 @@ func (m Model) identityItems(mxid string) []pickerItem {
 		if label == "" {
 			label = "(unnamed)"
 		}
-		detail := fmt.Sprintf("%d account(s)", len(ident.MXIDs))
-		if containsKey(ident.MXIDs, mxid) {
+		detail := fmt.Sprintf("%d account(s)", len(ident.IDs))
+		if containsKey(ident.IDs, mxid) {
 			detail = "already here · " + detail
 		}
 		items = append(items, pickerItem{
@@ -147,18 +147,18 @@ func mergeIdentity(display config.Display, alias, mxid, color string) config.Dis
 	identities := make([]config.Identity, 0, len(display.Identities)+1)
 	found := false
 	for _, ident := range display.Identities {
-		ident.MXIDs = without(ident.MXIDs, mxid)
+		ident.IDs = without(ident.IDs, mxid)
 		if ident.Alias == alias {
 			found = true
-			ident.MXIDs = append(ident.MXIDs, mxid)
+			ident.IDs = append(ident.IDs, mxid)
 			ident.Color = color
 		}
-		if ident.Alias == alias || len(ident.MXIDs) > 0 {
+		if ident.Alias == alias || len(ident.IDs) > 0 {
 			identities = append(identities, ident)
 		}
 	}
 	if !found {
-		identities = append(identities, config.Identity{Alias: alias, Color: color, MXIDs: []string{mxid}})
+		identities = append(identities, config.Identity{Alias: alias, Color: color, IDs: []string{mxid}})
 	}
 	display.Identities = identities
 	return display
@@ -212,7 +212,7 @@ func (m Model) peopleItems() []pickerItem {
 			label:  label,
 			detail: member.UserID,
 			value:  member.UserID,
-			match:  member.Name() + " " + domain.Localpart(member.UserID),
+			match:  member.Name() + " " + domain.ShortName(member.UserID),
 		})
 	}
 	return items

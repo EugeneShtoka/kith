@@ -53,7 +53,7 @@ first_name_only = true
 [[display.identity]]
 alias = "Robin"
 color = "#66ccff"
-mxids = ["@robin:x", "@robin_alt:x"]
+ids = ["@robin:x", "@robin_alt:x"]
 
 [display.rail]
 order  = ["dms", "home"]
@@ -73,7 +73,7 @@ title = "{protocol} · {sender}"
 	if len(d.SpaceRules) != 1 || d.SpaceRules[0].Space != "Friends" || !d.SpaceRules[0].FirstNameOnly {
 		t.Errorf("SpaceRules = %+v", d.SpaceRules)
 	}
-	if len(d.Identities) != 1 || d.Identities[0].Alias != "Robin" || len(d.Identities[0].MXIDs) != 2 {
+	if len(d.Identities) != 1 || d.Identities[0].Alias != "Robin" || len(d.Identities[0].IDs) != 2 {
 		t.Errorf("Identities = %+v", d.Identities)
 	}
 	if len(d.Rail.Order) != 2 || d.Rail.Order[0] != "dms" || len(d.Rail.Hidden) != 1 {

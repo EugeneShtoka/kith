@@ -6,20 +6,20 @@ import (
 	"unicode"
 )
 
-// Member is one participant in a room: their Matrix ID and the display name they use
+// Member is one participant in a room: their user ID and the display name they use
 // there.
 type Member struct {
 	UserID      string
 	DisplayName string
 }
 
-// Name is the member's human-facing label, falling back to the MXID's localpart
-// and then the MXID itself, so a member never renders blank.
+// Name is the member's human-facing label, falling back to the ID's short name (a
+// localpart, a phone number) and then the ID itself, so a member never renders blank.
 func (m Member) Name() string {
 	if m.DisplayName != "" {
 		return m.DisplayName
 	}
-	if local := Localpart(m.UserID); local != "" {
+	if local := ShortName(m.UserID); local != "" {
 		return local
 	}
 	return m.UserID
@@ -42,7 +42,7 @@ func (m Member) Matches(query string) int {
 	}
 	q := strings.ToLower(query)
 	name := strings.ToLower(m.Name())
-	local := strings.ToLower(Localpart(m.UserID))
+	local := strings.ToLower(ShortName(m.UserID))
 
 	for _, token := range splitName(name) {
 		if strings.HasPrefix(token, q) {

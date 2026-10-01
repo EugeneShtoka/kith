@@ -126,7 +126,7 @@ func NameTargets(cfg config.Display) error {
 		switch {
 		case target == "":
 			return fmt.Errorf("display.name: an entry names %q with no target", entry.Name)
-		case strings.HasPrefix(target, "!"):
+		case domain.IsRoomID(target):
 		case strings.HasPrefix(target, config.NameTargetRoom),
 			strings.HasPrefix(target, config.NameTargetSpace),
 			strings.HasPrefix(target, config.NameTargetGroup),

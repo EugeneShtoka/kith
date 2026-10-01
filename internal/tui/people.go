@@ -53,7 +53,7 @@ func (m Model) submitMember(input string, act memberAction, doing string) (Model
 func (m Model) memberTarget(input string) (domain.RoomID, string, bool) {
 	room := m.aimedAt.member
 	mxid := strings.TrimSpace(input)
-	if room == "" || !strings.HasPrefix(mxid, "@") || !strings.Contains(mxid, ":") {
+	if room == "" || !domain.IsMatrixUserID(mxid) {
 		return "", "", false
 	}
 	return room, mxid, true

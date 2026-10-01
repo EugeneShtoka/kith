@@ -59,3 +59,21 @@ func TestInvalidateOvertakesARebuildAlreadyReading(t *testing.T) {
 		t.Errorf("lookup = %+v, %v; want the name read after the invalidation", facts, ok)
 	}
 }
+
+// A room whose ID names its network is on that network whether or not the index has
+// listed it yet, though no bridge space holds it.
+func TestANativeRoomIsOnItsOwnNetwork(t *testing.T) {
+	t.Parallel()
+
+	listed := domain.RoomID("whatsapp:359000000001/120363000000000001@g.us")
+	unlisted := domain.RoomID("whatsapp:359000000001/972500000002@s.whatsapp.net")
+	x := newScopeIndex(&gatedRooms{rooms: []domain.Room{{ID: listed, Name: "Choir"}, {ID: "!a:x"}}}, nil, nil)
+	for _, c := range []struct {
+		room domain.RoomID
+		want domain.Protocol
+	}{{listed, domain.ProtocolWhatsApp}, {unlisted, domain.ProtocolWhatsApp}, {"!a:x", domain.ProtocolMatrix}} {
+		if got := x.Facts(context.Background(), c.room).Protocol; got != c.want {
+			t.Errorf("Facts(%s).Protocol = %q, want %q", c.room, got, c.want)
+		}
+	}
+}

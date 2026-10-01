@@ -66,11 +66,6 @@ func ParseJump(value string) (JumpTarget, bool) {
 	return JumpTarget{}, false
 }
 
-// IsRoomID reports whether s has the shape of a Matrix room ID — "!opaque:server".
-func IsRoomID(s string) bool {
-	return strings.HasPrefix(s, "!") && strings.Contains(s, ":")
-}
-
 // JumpKinds are the kinds a target can name, for an issue message that has to list
 // what was allowed.
 func JumpKinds() []string { return []string{"room:<!id:server>", "space:<name>"} }

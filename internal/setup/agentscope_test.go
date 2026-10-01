@@ -194,3 +194,27 @@ func TestPinnedCannotBoundAnAssistant(t *testing.T) {
 		t.Errorf("codes.include refused pinned: %v", err)
 	}
 }
+
+// A room whose ID names its network is on that network, though no bridge space holds
+// it; a bare one in no space is Matrix.
+func TestFactsOfANativeRoom(t *testing.T) {
+	t.Parallel()
+
+	native := domain.Room{ID: domain.RoomID("whatsapp:359000000001/120363000000000001@g.us")}
+	if got := setup.FactsOf(native, nil).Protocol; got != domain.ProtocolWhatsApp {
+		t.Errorf("FactsOf(native).Protocol = %q", got)
+	}
+	if got := setup.FactsOf(domain.Room{ID: "!a:x"}, nil).Protocol; got != domain.ProtocolMatrix {
+		t.Errorf("FactsOf(!a:x).Protocol = %q", got)
+	}
+}
+
+// A display name may be given to a native room by its ID.
+func TestANativeRoomCanBeNamed(t *testing.T) {
+	t.Parallel()
+
+	target := "whatsapp:359000000001/120363000000000001@g.us"
+	if err := setup.NameTargets(config.Display{Names: []config.DisplayName{{Target: target, Name: "Choir"}}}); err != nil {
+		t.Errorf("NameTargets refused a native room ID: %v", err)
+	}
+}

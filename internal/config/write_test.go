@@ -105,8 +105,8 @@ func TestSaveIdentities(t *testing.T) {
 
 	cfg := minimal()
 	cfg.Display.Identities = []Identity{
-		{Alias: "Dana", Color: "#8ff586", MXIDs: []string{"@dana:x", "@whatsapp_dana:x"}},
-		{Alias: "יבגני", MXIDs: []string{"@rtl:x"}},
+		{Alias: "Dana", Color: "#8ff586", IDs: []string{"@dana:x", "@whatsapp_dana:x"}},
+		{Alias: "יבגני", IDs: []string{"@rtl:x"}},
 	}
 	body, path := saved(t, cfg)
 
@@ -115,8 +115,8 @@ func TestSaveIdentities(t *testing.T) {
 	}
 	// An array inside a table must be a bare key, not a dotted path — a dotted path
 	// after a table header lands the value somewhere else that still parses.
-	if strings.Contains(body, "display.identity.mxids") {
-		t.Errorf("mxids must be written as a bare key inside its table:\n%s", body)
+	if strings.Contains(body, "display.identity.ids") {
+		t.Errorf("ids must be written as a bare key inside its table:\n%s", body)
 	}
 	reloaded, err := Load(path)
 	if err != nil {
@@ -168,7 +168,7 @@ func TestSaveIsIdempotent(t *testing.T) {
 
 	cfg := minimal()
 	cfg.Display.Names = []DisplayName{{Target: "!z:x", Name: "Z"}, {Target: "!a:x", Name: "A"}, {Target: "!m:x", Name: "M"}}
-	cfg.Display.Identities = []Identity{{Alias: "A", MXIDs: []string{"@a:x"}}}
+	cfg.Display.Identities = []Identity{{Alias: "A", IDs: []string{"@a:x"}}}
 
 	path := filepath.Join(t.TempDir(), "config.toml")
 	if err := Save(path, cfg); err != nil {
@@ -461,5 +461,20 @@ func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 			len(round.Complete.Sources) != len(tc.cfg.Complete.Sources) {
 			t.Errorf("%s: round trip lost entries", name)
 		}
+	}
+}
+
+// A native room's ID is a room target like a Matrix one; the NameTarget* forms are not.
+func TestRoomNamesTakesEveryRoomID(t *testing.T) {
+	t.Parallel()
+
+	native := "whatsapp:359000000001/120363000000000001@g.us"
+	d := Display{Names: []DisplayName{
+		{Target: "!a:x", Name: "A"}, {Target: native, Name: "Choir"},
+		{Target: NameTargetSpace + "Work", Name: "W"}, {Target: NameTargetThread + "$e", Name: "T"},
+	}}
+	got := d.RoomNames()
+	if len(got) != 2 || got["!a:x"] != "A" || got[native] != "Choir" {
+		t.Errorf("RoomNames() = %v", got)
 	}
 }

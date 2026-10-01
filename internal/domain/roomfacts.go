@@ -24,7 +24,8 @@ const (
 	entryDirect   = "dm"
 	entryGroup    = "group"
 	entryPinned   = "pinned"
-	// roomSigil marks a room ID, which is a complete entry on its own.
+	// roomSigil marks a Matrix room ID, which is a complete entry on its own; so is
+	// any other network's room ID (IsRoomID).
 	roomSigil = "!"
 )
 
@@ -51,7 +52,7 @@ func ParseEntry(entry string) (EntryKind, bool) {
 		strings.EqualFold(entry, entryPinned),
 		hasPrefixFold(entry, entrySpace), hasPrefixFold(entry, entryProtocol):
 		return EntryClass, true
-	case hasPrefixFold(entry, entryRoom), strings.HasPrefix(entry, roomSigil):
+	case hasPrefixFold(entry, entryRoom), strings.HasPrefix(entry, roomSigil), IsRoomID(entry):
 		return EntryRoom, true
 	default:
 		return EntryInvalid, false

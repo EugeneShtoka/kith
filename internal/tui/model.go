@@ -787,7 +787,7 @@ func startupFacts(display config.Display) func(domain.Room) domain.RoomFacts {
 			ID:       string(room.ID),
 			Name:     room.DisplayName(),
 			Direct:   room.IsDirect,
-			Protocol: domain.ProtocolMatrix,
+			Protocol: domain.NetworkOf(string(room.ID)),
 		}
 		if alias, ok := aliases[room.ID]; ok {
 			facts.Name = alias
@@ -812,8 +812,8 @@ func buildIdentities(ids []config.Identity) map[string]resolvedIdentity {
 	out := make(map[string]resolvedIdentity)
 	for i, id := range ids {
 		key := id.Alias
-		if key == "" && len(id.MXIDs) > 0 {
-			key = id.MXIDs[0]
+		if key == "" && len(id.IDs) > 0 {
+			key = id.IDs[0]
 		}
 		if key == "" {
 			key = fmt.Sprintf("identity-%d", i)
@@ -822,18 +822,18 @@ func buildIdentities(ids []config.Identity) map[string]resolvedIdentity {
 		if c, ok := theme.ParseColor(id.Color); ok {
 			ri.color, ri.pinned = c, true
 		}
-		for _, mxid := range id.MXIDs {
+		for _, mxid := range id.IDs {
 			out[mxid] = ri
 		}
 	}
 	return out
 }
 
-// buildRoomAliases indexes room display names by room ID (targets starting with "!").
+// buildRoomAliases indexes room display names by room ID (targets that are one).
 func buildRoomAliases(names []config.DisplayName) map[domain.RoomID]string {
 	out := make(map[domain.RoomID]string, len(names))
 	for _, entry := range names {
-		if entry.Name == "" || !strings.HasPrefix(entry.Target, "!") {
+		if entry.Name == "" || !domain.IsRoomID(entry.Target) {
 			continue
 		}
 		out[domain.RoomID(entry.Target)] = entry.Name

@@ -673,7 +673,7 @@ func firstName(s string) string {
 }
 
 // senderLabel is the name shown for a message: the resolved room display name,
-// falling back to the MXID localpart when none was resolved.
+// falling back to the ID's short name when none was resolved.
 func senderLabel(msg domain.Message) string {
 	if msg.SenderName != "" {
 		return msg.SenderName
@@ -681,13 +681,10 @@ func senderLabel(msg domain.Message) string {
 	return shortSender(msg.Sender)
 }
 
-// shortSender reduces a Matrix user ID (@name:server) to its localpart for a
-// compact timeline, falling back to the full value when it isn't an MXID.
+// shortSender reduces a user ID to its short name (a localpart, a phone number) for a
+// compact timeline, falling back to the full value when it has none.
 func shortSender(sender string) string {
-	s := strings.TrimPrefix(sender, "@")
-	if i := strings.IndexByte(s, ':'); i >= 0 {
-		s = s[:i]
-	}
+	s := domain.ShortName(sender)
 	if s == "" {
 		return sender
 	}

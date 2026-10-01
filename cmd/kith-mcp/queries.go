@@ -108,7 +108,7 @@ func (s *server) placeOf(ctx context.Context, roomID domain.RoomID) ([]string, d
 		return nil, domain.ProtocolMatrix, fmt.Errorf("%w: %w", errPlaceUnknown, err)
 	}
 	var names []string
-	protocol := domain.ProtocolMatrix
+	protocol := domain.NetworkOf(string(roomID))
 	for i := range spaces {
 		for _, child := range spaces[i].Children {
 			if child != roomID {
@@ -412,7 +412,7 @@ func (s *server) findRoomsWith(ctx context.Context, raw json.RawMessage) (any, e
 	}, nil
 }
 
-// resolvePeople turns names into Matrix IDs, refusing anything ambiguous.
+// resolvePeople turns names into user IDs, refusing anything ambiguous.
 func (s *server) resolvePeople(ctx context.Context, inScope []domain.RoomID, names []string) ([]string, error) {
 	people, err := s.peopleInScope(ctx, inScope)
 	if err != nil {
@@ -421,7 +421,7 @@ func (s *server) resolvePeople(ctx context.Context, inScope []domain.RoomID, nam
 	out := make([]string, 0, len(names))
 	for _, name := range names {
 		name = strings.TrimSpace(name)
-		if strings.HasPrefix(name, "@") && strings.Contains(name, ":") {
+		if domain.IsUserID(name) {
 			out = append(out, name)
 			continue
 		}
