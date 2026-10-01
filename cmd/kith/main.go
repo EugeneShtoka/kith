@@ -147,7 +147,7 @@ func run(configPath, profile string, jobs startup) error {
 	if note != "" {
 		fmt.Fprintln(os.Stderr, "kith:", note)
 	}
-	warnAboutAgentScope(ctx, backend, cfg.Agent)
+	warnAboutAgentScope(ctx, backend, cfg)
 	// One window per daemon (api.Seat), taken before anything the TUI would do. The
 	// two runs that end with a printout need no window.
 	if !jobs.bootstrapKeys && jobs.exportKeys == "" {

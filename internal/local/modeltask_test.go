@@ -553,3 +553,30 @@ func TestModelTaskWithNoCacheRefusesAScopeThatNamesPlaces(t *testing.T) {
 		t.Fatalf("a rooms-only scope with no cache = %+v, %v, want it asked", got, err)
 	}
 }
+
+// The model opt-in reads a room by the name you gave it and your pins, as every other
+// scope does.
+func TestTheModelScopeKnowsYourNamesAndPins(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := testCache(t)
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!r:x", Name: "Standup"}, {ID: "!o:x", Name: "Other"}}); err != nil {
+		t.Fatal(err)
+	}
+	s := New(cache, nil)
+	s.UsePlaces(domain.Places{
+		Names:  map[domain.RoomID]string{"!r:x": "Daily"},
+		Pinned: domain.Pinned{Entries: []string{"room:Daily"}},
+	})
+	for _, c := range []struct {
+		only string
+		room domain.RoomID
+		want bool
+	}{{"room:Daily", "!r:x", true}, {"room:Standup", "!r:x", false}, {"pinned", "!r:x", true}, {"pinned", "!o:x", false}} {
+		settings := ModelSettings{Endpoint: "http://model", Scope: domain.ModelScope{Only: []string{c.only}, Encrypted: true}}
+		permit, err := s.permitModel(ctx, c.room, settings)
+		if err != nil || permit.Allowed != c.want {
+			t.Errorf("only %s, room %s = (%+v, %v), want allowed=%v", c.only, c.room, permit, err, c.want)
+		}
+	}
+}

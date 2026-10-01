@@ -81,6 +81,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 		return err
 	}
 	server := &server{
+		places:   setup.PlacesOf(cfg.Display),
 		backend:  daemon.NewRemote(socket),
 		scope:    setup.AgentReadScope(cfg.Agent),
 		write:    setup.AgentWriteScope(cfg.Agent),
@@ -100,15 +101,15 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 		log.Error("no agent ledger; send_message will refuse", "err", ledgerErr)
 	}
 	// Concurrently, so the handshake does not wait on the cache reads.
-	go warnAboutScope(log, server.backend, cfg.Agent)
+	go warnAboutScope(log, server.backend, cfg)
 	return server.serve(os.Stdin, os.Stdout)
 }
 
 // warnAboutScope says, on stderr, which `[agent.write]` entries `[agent.read]` rules out.
-func warnAboutScope(log *slog.Logger, places setup.AgentPlaces, agent config.Agent) {
+func warnAboutScope(log *slog.Logger, places setup.AgentPlaces, cfg config.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), scopeCheckTimeout)
 	defer cancel()
-	for _, warning := range setup.AgentWarnings(ctx, places, agent) {
+	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg.Display), cfg.Agent) {
 		log.Warn("agent scope: " + warning)
 	}
 }
@@ -193,6 +194,8 @@ type server struct {
 	crypto map[domain.RoomID]bool
 	// client is the assistant's name from initialize, recorded as the author.
 	client string
+	// places are the room names, space order and pins every scope reads a room with.
+	places domain.Places
 	// log is stderr; nil (a test) logs nothing.
 	log *slog.Logger
 }

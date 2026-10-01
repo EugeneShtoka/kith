@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -16,30 +17,55 @@ type RoomFacts struct {
 	Pinned   bool
 }
 
-// FactsAmong is roomID as rooms and spaces describe it: the stored name and DM flag
-// of its room (none when it is not among them), the spaces holding it, and the
-// network, taken from the owning space's bridge rather than from senders.
-func FactsAmong(roomID RoomID, rooms []Room, spaces []Space) RoomFacts {
-	facts := RoomFacts{ID: string(roomID), Protocol: NetworkOf(string(roomID))}
-	for i := range rooms {
-		if rooms[i].ID == roomID {
-			facts.Name, facts.Direct = rooms[i].Name, rooms[i].IsDirect
-			break
+// Places is what a room's facts depend on besides the room itself: the names the
+// person gave rooms, the order they put spaces in, and what they pinned. Every place
+// that decides by RoomFacts — notification rules, the assistant's and the agent's
+// scopes, codes, tracked words, the archive — builds them through Facts, so a list
+// entry means the same room everywhere.
+type Places struct {
+	Names    map[RoomID]string // [[display.name]], by room
+	Priority []string          // space_priority
+	Pinned   Pinned
+}
+
+// Facts is room as a list entry matches it. holders are the spaces holding it, in
+// hierarchy order (HoldersOf). The name is the one the person gave the room, else
+// its own display name, never a label shortened for the room list; the spaces are
+// ordered by priority; the network is the first bridged holder's, else the one the
+// room's ID names.
+func (p Places) Facts(room Room, holders []Space) RoomFacts {
+	facts := RoomFacts{
+		ID: string(room.ID), Name: room.DisplayName(), Direct: room.IsDirect,
+		Protocol: NetworkOf(string(room.ID)),
+	}
+	if name := p.Names[room.ID]; name != "" {
+		facts.Name = name
+	}
+	bridged := false
+	names := make([]string, 0, len(holders))
+	for i := range holders {
+		names = append(names, holders[i].DisplayName())
+		if !bridged && holders[i].Bridge.IsBridged() {
+			facts.Protocol, bridged = holders[i].Bridge, true
 		}
 	}
-	for i := range spaces {
-		for _, child := range spaces[i].Children {
-			if child != roomID {
-				continue
-			}
-			facts.Spaces = append(facts.Spaces, spaces[i].DisplayName())
-			if spaces[i].Bridge.IsBridged() {
-				facts.Protocol = spaces[i].Bridge
-			}
-			break
-		}
+	if len(names) > 0 {
+		facts.Spaces = OrderSpaces(names, p.Priority)
 	}
+	// Last: pin entries match on the facts above, and cannot themselves say `pinned`.
+	facts.Pinned = p.Pinned.Pins(facts)
 	return facts
+}
+
+// HoldersOf is the spaces holding roomID, in hierarchy order.
+func HoldersOf(roomID RoomID, spaces []Space) []Space {
+	var out []Space
+	for i := range spaces {
+		if slices.Contains(spaces[i].Children, roomID) {
+			out = append(out, spaces[i])
+		}
+	}
+	return out
 }
 
 // The prefixes and bare words a list entry may use.

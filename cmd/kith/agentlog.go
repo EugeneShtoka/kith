@@ -62,10 +62,10 @@ func agentLogLine(entry agent.Entry) string {
 
 // warnAboutAgentScope prints the `[agent.write]` entries `[agent.read]` rules out.
 // Printed here because kith-mcp's stderr is somewhere nobody looks. Never fatal.
-func warnAboutAgentScope(ctx context.Context, places setup.AgentPlaces, agentCfg config.Agent) {
+func warnAboutAgentScope(ctx context.Context, places setup.AgentPlaces, cfg config.Config) {
 	ctx, cancel := context.WithTimeout(ctx, agentScopeTimeout)
 	defer cancel()
-	for _, warning := range setup.AgentWarnings(ctx, places, agentCfg) {
+	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg.Display), cfg.Agent) {
 		fmt.Fprintln(os.Stderr, "kith: warning:", warning)
 	}
 }

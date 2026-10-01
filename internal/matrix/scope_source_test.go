@@ -338,5 +338,9 @@ func cachedFacts(ctx context.Context, b *InProc, roomID domain.RoomID) (domain.R
 	if err != nil {
 		return domain.RoomFacts{}, err
 	}
-	return domain.FactsAmong(roomID, rooms, spaces), nil
+	room := domain.Room{ID: roomID}
+	if i := slices.IndexFunc(rooms, func(r domain.Room) bool { return r.ID == roomID }); i >= 0 {
+		room = rooms[i]
+	}
+	return domain.Places{}.Facts(room, domain.HoldersOf(roomID, spaces)), nil
 }

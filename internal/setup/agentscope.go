@@ -183,7 +183,7 @@ const examplesShown = 3
 
 // resolveRooms loads what the resolved check reads: every room, its place facts, and
 // which rooms are encrypted. ok is false when there is nothing to resolve against.
-func resolveRooms(ctx context.Context, places AgentPlaces) (
+func resolveRooms(ctx context.Context, places AgentPlaces, named domain.Places) (
 	rooms []domain.Room, facts []domain.RoomFacts, crypto map[domain.RoomID]bool, ok bool,
 ) {
 	rooms, err := places.Rooms(ctx)
@@ -201,14 +201,14 @@ func resolveRooms(ctx context.Context, places AgentPlaces) (
 	crypto, _ = places.RoomEncryption(ctx, ids)
 	facts = make([]domain.RoomFacts, len(rooms))
 	for i := range rooms {
-		facts[i] = FactsOf(rooms[i], spaces)
+		facts[i] = named.Facts(rooms[i], domain.HoldersOf(rooms[i].ID, spaces))
 	}
 	return rooms, facts, crypto, true
 }
 
 // AgentWarnings is the write entries reading rules out, resolved against the rooms this
 // account is in when places can answer, and the static check otherwise.
-func AgentWarnings(ctx context.Context, places AgentPlaces, agent config.Agent) []string {
+func AgentWarnings(ctx context.Context, places AgentPlaces, named domain.Places, agent config.Agent) []string {
 	entries := writeEntries(agent)
 	if len(entries) == 0 {
 		return nil
@@ -218,7 +218,7 @@ func AgentWarnings(ctx context.Context, places AgentPlaces, agent config.Agent) 
 	if places == nil || !read.Shares() {
 		return static
 	}
-	rooms, facts, crypto, ok := resolveRooms(ctx, places)
+	rooms, facts, crypto, ok := resolveRooms(ctx, places, named)
 	if !ok {
 		return static
 	}
@@ -277,26 +277,4 @@ func examples(names []string) string {
 		return strings.Join(names[:examplesShown], ", ") + fmt.Sprintf(" and %d more", len(names)-examplesShown)
 	}
 	return strings.Join(names, ", ")
-}
-
-// FactsOf is a room as a place entry can describe it: its ID and shown name, whether it
-// is a direct message, the spaces it sits in and the network behind it.
-func FactsOf(room domain.Room, spaces []domain.Space) domain.RoomFacts {
-	facts := domain.RoomFacts{
-		ID: string(room.ID), Name: room.DisplayName(), Direct: room.IsDirect,
-		Protocol: domain.NetworkOf(string(room.ID)),
-	}
-	for i := range spaces {
-		for _, child := range spaces[i].Children {
-			if child != room.ID {
-				continue
-			}
-			facts.Spaces = append(facts.Spaces, spaces[i].DisplayName())
-			if spaces[i].Bridge.IsBridged() {
-				facts.Protocol = spaces[i].Bridge
-			}
-			break
-		}
-	}
-	return facts
 }

@@ -33,7 +33,7 @@ var rowReads = map[string]string{
 	"rooms.byID":                 "derivedKey.place (placeFingerprint of the open room's facts)",
 	"rooms.spaceNames":           "derivedKey.place",
 	"rooms.spaces":               "derivedKey.place",
-	"rail.pinned.Pins":           "derivedKey.place (Pinned); pins are set with the config",
+	"rail.pinned":                "derivedKey.place (Pinned); pins are set with the config",
 	"openRoom":                   "derivedKey.room",
 	"timeline.layout.room":       "derivedKey.rtl (mirrored)",
 	"timeline.layout.rtl":        "derivedKey.rtl (mirrored)",
