@@ -16,6 +16,32 @@ type RoomFacts struct {
 	Pinned   bool
 }
 
+// FactsAmong is roomID as rooms and spaces describe it: the stored name and DM flag
+// of its room (none when it is not among them), the spaces holding it, and the
+// network, taken from the owning space's bridge rather than from senders.
+func FactsAmong(roomID RoomID, rooms []Room, spaces []Space) RoomFacts {
+	facts := RoomFacts{ID: string(roomID), Protocol: NetworkOf(string(roomID))}
+	for i := range rooms {
+		if rooms[i].ID == roomID {
+			facts.Name, facts.Direct = rooms[i].Name, rooms[i].IsDirect
+			break
+		}
+	}
+	for i := range spaces {
+		for _, child := range spaces[i].Children {
+			if child != roomID {
+				continue
+			}
+			facts.Spaces = append(facts.Spaces, spaces[i].DisplayName())
+			if spaces[i].Bridge.IsBridged() {
+				facts.Protocol = spaces[i].Bridge
+			}
+			break
+		}
+	}
+	return facts
+}
+
 // The prefixes and bare words a list entry may use.
 const (
 	entryRoom     = "room:"

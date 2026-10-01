@@ -9,7 +9,6 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
-	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -82,13 +81,6 @@ func (b *InProc) StarMessage(ctx context.Context, roomID domain.RoomID, eventID 
 		return fmt.Errorf("matrix: mirror stars for %s: %w", roomID, err)
 	}
 	return nil
-}
-
-// StarredIn is the room's starred set from the cache mirror.
-func (b *InProc) StarredIn(ctx context.Context, roomID domain.RoomID) ([]domain.EventID, error) {
-	return fromCache(b, "list starred in "+string(roomID), func(c *db.Cache) ([]domain.EventID, error) {
-		return c.Starred(ctx, roomID)
-	})
 }
 
 // toEventIDs converts raw IDs.

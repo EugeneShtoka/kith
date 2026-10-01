@@ -26,6 +26,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/local"
 	"github.com/EugeneShtoka/kith/internal/logging"
 	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/modelsetup"
@@ -167,22 +168,22 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	}
 
 	cache := openCache(ctx, log, cfg.User)
-	backend := matrix.New(cache)
-	backend.UseLogger(log)
+	backend := newServed(cache, log)
 	// Registered before configure, so what it starts is stopped on every return.
 	defer func() {
 		if !handlersLive {
 			backend.Stop()
+			backend.Close()
 			closeCache(log, cache)
 		}
 	}()
 	configure(log, backend, cfg)
-	prepare, err := resumeSession(ctx, log, backend, cfg.User, saved)
+	prepare, err := resumeSession(ctx, log, backend.InProc, cfg.User, saved)
 	if err != nil {
 		return err
 	}
 
-	warnAboutAgentScope(ctx, log, backend, cfg.Agent)
+	warnAboutAgentScope(ctx, log, backend.InProc, cfg.Agent)
 
 	err = serve(ctx, log, relevel, lock, backend, cfg, path, prepare)
 	if handlersLive = errors.Is(err, daemon.ErrHandlersRunning); handlersLive {
@@ -265,9 +266,32 @@ func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.Age
 	}
 }
 
-// configure applies the config to the backend; internal/matrix reads no config itself.
-func configure(log *slog.Logger, backend *matrix.InProc, cfg config.Config) {
-	backend.UseSpell(matrix.SpellSettings{
+// served is the daemon's api.Backend: the Matrix adapter for everything that reaches
+// the network, and the local service for what the cache and the engines answer. A
+// method both offered would make it ambiguous and fail to compile, so none is served
+// twice.
+type served struct {
+	*matrix.InProc
+	*local.Service
+}
+
+var _ api.Backend = served{}
+
+// newServed builds the adapter and the service over one cache, the service hearing
+// what the adapter caches.
+func newServed(cache *db.Cache, log *slog.Logger) served {
+	adapter := matrix.New(cache)
+	adapter.UseLogger(log)
+	service := local.New(cache, adapter)
+	service.UseLogger(log)
+	adapter.OnCached(service.MessageCached, service.RoomChanged)
+	return served{InProc: adapter, Service: service}
+}
+
+// configure applies the config to the backend; internal/matrix and internal/local
+// read no config themselves.
+func configure(log *slog.Logger, backend served, cfg config.Config) {
+	backend.UseSpell(local.SpellSettings{
 		Enabled:      cfg.Spell.SpellEnabled(),
 		Command:      cfg.Spell.EngineOrDefault(),
 		Dictionaries: cfg.Spell.Dictionaries,
@@ -291,7 +315,7 @@ func identityGroups(cfg config.Config) [][]string {
 
 // modelSettings translates `[assist]` and `[complete.model]` and reads the API key. A
 // missing key is not fatal: the endpoint's refusal reaches the composer instead.
-func modelSettings(log *slog.Logger, cfg config.Config) matrix.ModelSettings {
+func modelSettings(log *slog.Logger, cfg config.Config) local.ModelSettings {
 	assist, completion := cfg.Assist, cfg.Complete.Model
 	key, kerr := session.Secret(assist.KeyRef)
 	if kerr != nil && assist.KeyRef != "" {
@@ -304,7 +328,7 @@ func modelSettings(log *slog.Logger, cfg config.Config) matrix.ModelSettings {
 		log.Error("[complete.model] pick is invalid; using the default", "err", err)
 		pick, _ = setup.CompletionPick(config.CompleteModel{}) // the zero section always parses
 	}
-	return matrix.ModelSettings{
+	return local.ModelSettings{
 		Endpoint: assist.Endpoint,
 		Model:    assist.Model,
 		Key:      key,
@@ -371,7 +395,7 @@ func serve(
 	log *slog.Logger,
 	relevel func(configured string),
 	lock *daemon.Lock,
-	backend *matrix.InProc,
+	backend served,
 	cfg config.Config,
 	configPath string,
 	prepare func(context.Context) error,
@@ -398,7 +422,7 @@ func serve(
 	go func() { defer wg.Done(); w.backups.Run(ctx) }()
 	go func() {
 		defer wg.Done()
-		syncErr = connectAndSync(ctx, backend, prepare)
+		syncErr = connectAndSync(ctx, backend.InProc, prepare)
 		if syncErr != nil {
 			// Clients see this as the daemon's state; the journal needs it at once,
 			// not only when the process exits.
@@ -407,7 +431,7 @@ func serve(
 		w.state.Failed(syncErr)
 	}()
 
-	scheduler, cutoff := startScheduler(ctx, log, cfg, backend)
+	scheduler, cutoff := startScheduler(ctx, log, cfg, backend.InProc)
 	defer scheduler.Stop()
 
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
@@ -432,7 +456,7 @@ func reloader(
 	configPath string,
 	relevel func(string),
 	cutoff *atomic.Int64,
-	backend *matrix.InProc,
+	backend served,
 	notifications *daemon.Notifications,
 ) daemon.Reload {
 	// One reload at a time: two interleaved would leave a mix of both files' settings.
@@ -463,7 +487,7 @@ type workers struct {
 }
 
 // newWorkers builds the workers and registers their backend callbacks; serve starts them.
-func newWorkers(log *slog.Logger, cfg config.Config, backend *matrix.InProc) (*workers, error) {
+func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, error) {
 	// Delivery happens in the background with no caller to tell: each failed sink is
 	// logged here, by sink, never with the message.
 	sinks := setup.NotifierSinks(func(sink string, err error) {

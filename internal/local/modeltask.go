@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/llm"
 	"github.com/EugeneShtoka/kith/internal/spell"
@@ -59,30 +58,30 @@ type modelLayer struct {
 }
 
 // UseModel wires the model layer, or turns it off. Called at startup and on reload.
-func (b *InProc) UseModel(settings ModelSettings) {
+func (s *Service) UseModel(settings ModelSettings) {
 	client, err := llm.New(settings.Endpoint, settings.Model, settings.Key, settings.Timeout)
 	if err != nil {
 		// New's only error is "nothing configured": the layer then refuses with a reason.
 		client = nil
 	}
-	b.model.mu.Lock()
-	defer b.model.mu.Unlock()
-	b.model.settings = settings
-	b.model.client = client
-	b.model.recent = nil
+	s.model.mu.Lock()
+	defer s.model.mu.Unlock()
+	s.model.settings = settings
+	s.model.client = client
+	s.model.recent = nil
 }
 
 // ModelTask asks the model for one thing, or refuses and says why.
-func (b *InProc) ModelTask(ctx context.Context, req domain.ModelRequest) (domain.ModelResult, error) {
-	b.model.mu.Lock()
-	settings := b.model.settings
-	client := b.model.client
-	b.model.mu.Unlock()
+func (s *Service) ModelTask(ctx context.Context, req domain.ModelRequest) (domain.ModelResult, error) {
+	s.model.mu.Lock()
+	settings := s.model.settings
+	client := s.model.client
+	s.model.mu.Unlock()
 
 	// A completion is answered by the local model only (see completionmodel.go); the
 	// endpoint serves the deliberate tasks (summary, todo, rewrite).
 	if req.Task == domain.ModelComplete {
-		return b.completeFromModel(ctx, req, settings), nil
+		return s.completeFromModel(ctx, req, settings), nil
 	}
 
 	result := domain.ModelResult{Endpoint: settings.Endpoint, Model: settings.Model}
@@ -91,7 +90,7 @@ func (b *InProc) ModelTask(ctx context.Context, req domain.ModelRequest) (domain
 		result.Refusal = fmt.Sprintf("no prompt configured for the %q task", req.Task)
 		return result, nil
 	}
-	refusal, err := b.refuseAsk(ctx, req, settings)
+	refusal, err := s.refuseAsk(ctx, req, settings)
 	if err != nil {
 		return result, err
 	}
@@ -100,7 +99,7 @@ func (b *InProc) ModelTask(ctx context.Context, req domain.ModelRequest) (domain
 		return result, nil
 	}
 
-	fields, note, err := b.modelFields(ctx, req, settings)
+	fields, note, err := s.modelFields(ctx, req, settings)
 	if err != nil {
 		return result, err
 	}
@@ -115,21 +114,21 @@ func (b *InProc) ModelTask(ctx context.Context, req domain.ModelRequest) (domain
 		result.Text = describeAsk(task, fields)
 		return result, nil
 	}
-	if !b.model.spend() {
+	if !s.model.spend() {
 		result.Refusal = fmt.Sprintf("%d requests a minute is the configured cap", settings.PerMinute)
 		return result, nil
 	}
 
 	text, err := client.Ask(ctx, task, fields)
 	if err != nil {
-		return result, fmt.Errorf("matrix: model %s: %w", req.Task, err)
+		return result, fmt.Errorf("local: model %s: %w", req.Task, err)
 	}
 	result.Text = text
 	return result, nil
 }
 
 // refuseAsk returns the first reason not to ask, cheapest first; it costs no request.
-func (b *InProc) refuseAsk(ctx context.Context, req domain.ModelRequest, settings ModelSettings) (string, error) {
+func (s *Service) refuseAsk(ctx context.Context, req domain.ModelRequest, settings ModelSettings) (string, error) {
 	// Room-reading tasks have no draft (and dry runs are exempt from this check).
 	if strings.TrimSpace(req.Draft) == "" && !req.DryRun && !readsRooms(req.Task) {
 		return "nothing written to work from", nil
@@ -138,7 +137,7 @@ func (b *InProc) refuseAsk(ctx context.Context, req domain.ModelRequest, setting
 	if req.Task == domain.ModelTodo {
 		return "", nil
 	}
-	permit, err := b.permitModel(ctx, req.RoomID, settings)
+	permit, err := s.permitModel(ctx, req.RoomID, settings)
 	if err != nil {
 		return "", err
 	}
@@ -152,59 +151,40 @@ func readsRooms(task string) bool {
 }
 
 // permitModel resolves the opt-in for one room, matched by ID or displayed name.
-func (b *InProc) permitModel(ctx context.Context, roomID domain.RoomID, settings ModelSettings) (domain.ModelPermit, error) {
-	facts, err := b.roomFacts(ctx, roomID)
+func (s *Service) permitModel(ctx context.Context, roomID domain.RoomID, settings ModelSettings) (domain.ModelPermit, error) {
+	facts, err := s.roomFacts(ctx, roomID)
 	if err != nil && (!errors.Is(err, errNoPlaces) || settings.Scope.NeedsPlaces()) {
 		return domain.ModelPermit{}, err
 	}
 	return domain.AllowModel(settings.Scope, facts,
-		settings.Endpoint, b.roomEncrypted(ctx, roomID)), nil
+		settings.Endpoint, s.roomEncrypted(ctx, roomID)), nil
 }
 
 // errNoPlaces refuses the model opt-in while the cache is off: where a room sits is
 // unknown, and a scope decided on a guess fails open.
-var errNoPlaces = errors.New("matrix: the cache is off, so which spaces a room is in is unknown")
+var errNoPlaces = errors.New("local: the cache is off, so which spaces a room is in is unknown")
 
 // roomFacts gathers what a scope entry can match: name, spaces, DM flag, and the
 // network, taken from the owning space's bridge rather than from senders.
-func (b *InProc) roomFacts(ctx context.Context, roomID domain.RoomID) (domain.RoomFacts, error) {
-	facts := domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
-	if b.cache == nil {
+func (s *Service) roomFacts(ctx context.Context, roomID domain.RoomID) (domain.RoomFacts, error) {
+	if s.cache == nil {
 		// No cache, no spaces: guessing "in none" would slip past an except = ["space:…"].
-		return facts, errNoPlaces
+		return domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}, errNoPlaces
 	}
-	rooms, err := b.cache.Rooms(ctx)
+	rooms, err := s.cache.Rooms(ctx)
 	if err != nil {
-		return facts, fmt.Errorf("matrix: read rooms for the model opt-in: %w", err)
+		return domain.RoomFacts{}, fmt.Errorf("local: read rooms for the model opt-in: %w", err)
 	}
-	for i := range rooms {
-		if rooms[i].ID == roomID {
-			facts.Name, facts.Direct = rooms[i].Name, rooms[i].IsDirect
-			break
-		}
-	}
-	spaces, err := b.cache.Spaces(ctx)
+	spaces, err := s.cache.Spaces(ctx)
 	if err != nil {
-		return facts, fmt.Errorf("matrix: read spaces for the model opt-in: %w", err)
+		return domain.RoomFacts{}, fmt.Errorf("local: read spaces for the model opt-in: %w", err)
 	}
-	for i := range spaces {
-		for _, child := range spaces[i].Children {
-			if child != roomID {
-				continue
-			}
-			facts.Spaces = append(facts.Spaces, spaces[i].DisplayName())
-			if spaces[i].Bridge.IsBridged() {
-				facts.Protocol = spaces[i].Bridge
-			}
-			break
-		}
-	}
-	return facts, nil
+	return domain.FactsAmong(roomID, rooms, spaces), nil
 }
 
 // modelFields are the template's values. The context is this room's cached messages
 // only: "help me write here" is not permission to quote elsewhere.
-func (b *InProc) modelFields(ctx context.Context, req domain.ModelRequest, settings ModelSettings) (map[string]string, string, error) {
+func (s *Service) modelFields(ctx context.Context, req domain.ModelRequest, settings ModelSettings) (map[string]string, string, error) {
 	budget := settings.Budget
 	if override, ok := settings.Budgets[req.Task]; ok && override > 0 {
 		budget = override
@@ -212,50 +192,50 @@ func (b *InProc) modelFields(ctx context.Context, req domain.ModelRequest, setti
 	var quoted []string
 	var note string
 	if req.Task == domain.ModelTodo {
-		return b.todoFields(ctx, req, settings, budget)
+		return s.todoFields(ctx, req, settings, budget)
 	}
-	if b.cache != nil {
+	if s.cache != nil {
 		// A thread name reads the thread, not the room.
 		if req.Task == domain.ModelThreadName {
-			return b.threadNameFields(ctx, req, budget)
+			return s.threadNameFields(ctx, req, budget)
 		}
-		msgs, err := b.cache.Messages(ctx, req.RoomID, b.contextDepth(req.Task))
+		msgs, err := s.cache.Messages(ctx, req.RoomID, s.contextDepth(req.Task))
 		if err != nil {
-			return nil, "", fmt.Errorf("matrix: read context for the model: %w", err)
+			return nil, "", fmt.Errorf("local: read context for the model: %w", err)
 		}
 		switch req.Task {
 		case domain.ModelSummary:
-			msgs, note = b.summarySpan(ctx, req.RoomID, msgs, req.Span)
+			msgs, note = s.summarySpan(ctx, req.RoomID, msgs, req.Span)
 		default:
 			// Sentence tasks see the exchange they belong to, within the budget.
 			msgs = domain.CompletionContext(msgs, req.ReplyTo, settings.Pick)
 		}
-		quoted = domain.ModelContext(msgs, b.accountID(), budget)
+		quoted = domain.ModelContext(msgs, s.account(), budget)
 	}
 	// A summary's language comes from the conversation (there is no draft).
 	language := modelLanguage(req.Draft)
 	if req.Task == domain.ModelSummary {
 		language = modelLanguage(strings.Join(quoted, "\n"))
 	}
-	return b.promptFields(ctx, req.Draft, strings.Join(quoted, "\n"), language, req.Instruction), note, nil
+	return s.promptFields(ctx, req.Draft, strings.Join(quoted, "\n"), language, req.Instruction), note, nil
 }
 
 // promptFields is the template's value map.
-func (b *InProc) promptFields(ctx context.Context, draft, context, language, instruction string) map[string]string {
+func (s *Service) promptFields(ctx context.Context, draft, context, language, instruction string) map[string]string {
 	return map[string]string{
 		"{draft}":       draft,
 		"{context}":     context,
 		"{language}":    language,
 		"{instruction}": instruction,
-		"{me}":          b.accountName(ctx),
-		"{names}":       b.accountNames(ctx),
+		"{me}":          s.accountName(ctx),
+		"{names}":       s.accountNames(ctx),
 	}
 }
 
 // summarySpan is what a summary reads and a note saying which span it is: an explicit
 // span if asked, else what you missed, else (too little missed, e.g. the room you are
 // looking at) the whole cached tail.
-func (b *InProc) summarySpan(
+func (s *Service) summarySpan(
 	ctx context.Context, roomID domain.RoomID, msgs []domain.Message, asked domain.SummarySpan,
 ) ([]domain.Message, string) {
 	// An explicit span wins even when empty.
@@ -263,7 +243,7 @@ func (b *InProc) summarySpan(
 		chosen := domain.MessagesIn(msgs, asked.Since, asked.Count)
 		return chosen, fmt.Sprintf("%d messages from %s", len(chosen), asked.Said)
 	}
-	missed := domain.MessagesAfter(msgs, b.readMarker(ctx, roomID))
+	missed := domain.MessagesAfter(msgs, s.readMarker(ctx, roomID))
 	if len(missed) >= summaryMinSpan {
 		return missed, fmt.Sprintf("%d messages since you last read this room", len(missed))
 	}
@@ -297,21 +277,21 @@ func emptyContextRefusal(task, context string) string {
 }
 
 // threadNameFields is the context for naming one thread: the thread itself.
-func (b *InProc) threadNameFields(
+func (s *Service) threadNameFields(
 	ctx context.Context, req domain.ModelRequest, budget int,
 ) (map[string]string, string, error) {
-	msgs, err := b.cache.ThreadMessages(ctx, req.RoomID, req.ReplyTo, threadNameMessages)
+	msgs, err := s.cache.ThreadMessages(ctx, req.RoomID, req.ReplyTo, threadNameMessages)
 	if err != nil {
-		return nil, "", fmt.Errorf("matrix: read thread for the model: %w", err)
+		return nil, "", fmt.Errorf("local: read thread for the model: %w", err)
 	}
-	quoted := domain.ModelContext(msgs, b.accountID(), budget)
+	quoted := domain.ModelContext(msgs, s.account(), budget)
 	joined := strings.Join(quoted, "\n")
 	// The thread's language: the name is persisted, so a wrong one would stick.
-	return b.promptFields(ctx, "", joined, modelLanguage(joined), ""), "", nil
+	return s.promptFields(ctx, "", joined, modelLanguage(joined), ""), "", nil
 }
 
 // contextDepth is how many messages to read before the budget trims them.
-func (b *InProc) contextDepth(task string) int {
+func (s *Service) contextDepth(task string) int {
 	if task == domain.ModelSummary {
 		return summaryContextMessages
 	}
@@ -319,13 +299,13 @@ func (b *InProc) contextDepth(task string) int {
 }
 
 // readMarker is how far this account has read in a room ("" when unknown).
-func (b *InProc) readMarker(ctx context.Context, roomID domain.RoomID) domain.EventID {
-	if b.cache == nil {
+func (s *Service) readMarker(ctx context.Context, roomID domain.RoomID) domain.EventID {
+	if s.cache == nil {
 		return ""
 	}
-	unread, err := b.cache.Unread(ctx)
+	unread, err := s.cache.Unread(ctx)
 	if err != nil {
-		b.warnIf(ctx, err, "read cached read marker", "room", roomID)
+		s.warnIf(ctx, err, "read cached read marker", "room", roomID)
 		return ""
 	}
 	for i := range unread {
@@ -389,56 +369,16 @@ func (l *modelLayer) spend() bool {
 	return true
 }
 
-// ReplaceDraft stores (or, when empty, removes) a room's draft in the cache, only
-// while the stored one is still over.
-func (b *InProc) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (bool, error) {
-	return fromCache(b, "replace draft", func(c *db.Cache) (bool, error) {
-		return c.ReplaceDraft(ctx, draft, over)
-	})
-}
-
-// Drafts returns every stored draft.
-func (b *InProc) Drafts(ctx context.Context) ([]domain.StoredDraft, error) {
-	return fromCache(b, "read drafts", func(c *db.Cache) ([]domain.StoredDraft, error) {
-		return c.Drafts(ctx)
-	})
-}
-
-// RoomsWith finds rooms all these people are in, from the cache.
-func (b *InProc) RoomsWith(ctx context.Context, userIDs []string, rooms domain.RoomSet, limit int) ([]domain.Room, error) {
-	return fromCache(b, "rooms with", func(c *db.Cache) ([]domain.Room, error) {
-		return c.RoomsWith(ctx, userIDs, rooms, limit)
-	})
-}
-
-// MessagesAround is one cached message with its neighbors.
-func (b *InProc) MessagesAround(
-	ctx context.Context, roomID domain.RoomID, event domain.EventID, before, after int,
-) ([]domain.Message, error) {
-	return fromCache(b, "messages around", func(c *db.Cache) ([]domain.Message, error) {
-		return c.MessagesAround(ctx, roomID, event, before, after)
-	})
-}
-
-// RoomEncryption reports which of these rooms are encrypted, erring towards yes.
-func (b *InProc) RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {
-	out := make(map[domain.RoomID]bool, len(roomIDs))
-	for _, roomID := range roomIDs {
-		out[roomID] = b.roomEncrypted(ctx, roomID)
-	}
-	return out, nil
-}
-
 // todoFields quotes what unread rooms are waiting on, for the todo task. Only rooms
 // with something unread, each checked against the scope as it is chosen, sharing
 // the budget.
-func (b *InProc) todoFields(
+func (s *Service) todoFields(
 	ctx context.Context, req domain.ModelRequest, settings ModelSettings, budget int,
 ) (map[string]string, string, error) {
-	if b.cache == nil {
+	if s.cache == nil {
 		return nil, "", nil
 	}
-	unread, err := b.roomsWithSomethingUnread(ctx)
+	unread, err := s.roomsWithSomethingUnread(ctx)
 	if err != nil {
 		return nil, "", err
 	}
@@ -454,47 +394,47 @@ func (b *InProc) todoFields(
 		if read >= rooms {
 			break
 		}
-		permit, perr := b.permitModel(ctx, unread[i].RoomID, settings)
+		permit, perr := s.permitModel(ctx, unread[i].RoomID, settings)
 		if perr != nil {
 			return nil, "", perr
 		}
 		if !permit.Allowed {
 			continue
 		}
-		msgs, merr := b.cache.Messages(ctx, unread[i].RoomID, modelContextMessages)
+		msgs, merr := s.cache.Messages(ctx, unread[i].RoomID, modelContextMessages)
 		if merr != nil {
-			return nil, "", fmt.Errorf("matrix: read a room for the todo list: %w", merr)
+			return nil, "", fmt.Errorf("local: read a room for the todo list: %w", merr)
 		}
 		missed := domain.MessagesAfter(msgs, unread[i].ReadEvent)
 		if len(missed) == 0 {
 			continue
 		}
-		lines := domain.ModelContext(missed, b.accountID(), each)
+		lines := domain.ModelContext(missed, s.account(), each)
 		if len(lines) == 0 {
 			continue
 		}
 		read++
 		quoted = append(quoted,
-			"## "+b.namedRoom(ctx, unread[i].RoomID), strings.Join(lines, "\n"), "")
+			"## "+s.namedRoom(ctx, unread[i].RoomID), strings.Join(lines, "\n"), "")
 	}
 	note := fmt.Sprintf("%d rooms with something unread", read)
 	if read == 0 {
 		note = "nothing unread anywhere"
 	}
 	context := strings.Join(quoted, "\n")
-	return b.promptFields(ctx, "", context, modelLanguage(context), req.Instruction), note, nil
+	return s.promptFields(ctx, "", context, modelLanguage(context), req.Instruction), note, nil
 }
 
 // roomsWithSomethingUnread is the rooms with unread messages (local counts, falling
 // back to the server's when no read position resolves), mentions then volume first.
-func (b *InProc) roomsWithSomethingUnread(ctx context.Context) ([]domain.Unread, error) {
-	counts, err := b.cache.CountUnreadAll(ctx, b.me())
+func (s *Service) roomsWithSomethingUnread(ctx context.Context) ([]domain.Unread, error) {
+	counts, err := s.cache.CountUnreadAll(ctx, s.me())
 	if err != nil {
-		return nil, fmt.Errorf("matrix: count what is unread: %w", err)
+		return nil, fmt.Errorf("local: count what is unread: %w", err)
 	}
-	positions, err := b.cache.Unread(ctx)
+	positions, err := s.cache.Unread(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("matrix: read unread positions: %w", err)
+		return nil, fmt.Errorf("local: read unread positions: %w", err)
 	}
 	out := make([]domain.Unread, 0, len(positions))
 	for _, position := range positions {
@@ -519,13 +459,13 @@ func (b *InProc) roomsWithSomethingUnread(ctx context.Context) ([]domain.Unread,
 }
 
 // namedRoom is a room's cached name, or its ID.
-func (b *InProc) namedRoom(ctx context.Context, roomID domain.RoomID) string {
-	if b.cache == nil {
+func (s *Service) namedRoom(ctx context.Context, roomID domain.RoomID) string {
+	if s.cache == nil {
 		return string(roomID)
 	}
-	rooms, err := b.cache.Rooms(ctx)
+	rooms, err := s.cache.Rooms(ctx)
 	if err != nil {
-		b.warnIf(ctx, err, "read cached rooms", "room", roomID)
+		s.warnIf(ctx, err, "read cached rooms", "room", roomID)
 		return string(roomID)
 	}
 	for i := range rooms {
@@ -538,7 +478,7 @@ func (b *InProc) namedRoom(ctx context.Context, roomID domain.RoomID) string {
 
 // accountNames is every way a conversation might address this account (display name,
 // its first word, MXID localpart), so the model recognizes you in the text.
-func (b *InProc) accountNames(ctx context.Context) string {
+func (s *Service) accountNames(ctx context.Context) string {
 	seen := map[string]bool{}
 	var names []string
 	add := func(name string) {
@@ -549,12 +489,12 @@ func (b *InProc) accountNames(ctx context.Context) string {
 		seen[strings.ToLower(name)] = true
 		names = append(names, name)
 	}
-	full := b.accountName(ctx)
+	full := s.accountName(ctx)
 	add(full)
 	if first, _, multiword := strings.Cut(full, " "); multiword {
 		add(first)
 	}
-	if local, _, found := strings.Cut(strings.TrimPrefix(b.accountID(), "@"), ":"); found {
+	if local, _, found := strings.Cut(strings.TrimPrefix(s.account(), "@"), ":"); found {
 		add(local)
 	}
 	return strings.Join(names, ", ")
@@ -562,13 +502,13 @@ func (b *InProc) accountNames(ctx context.Context) string {
 
 // accountName is what to call this account in a prompt: its display name (what the
 // conversation uses), else the localpart, else "you".
-func (b *InProc) accountName(ctx context.Context) string {
-	me := b.accountID()
+func (s *Service) accountName(ctx context.Context) string {
+	me := s.account()
 	if me == "" {
 		return "you"
 	}
-	if b.cache != nil {
-		if name, err := b.cache.MemberName(ctx, me); err == nil && name != "" {
+	if s.cache != nil {
+		if name, err := s.cache.MemberName(ctx, me); err == nil && name != "" {
 			return name
 		}
 	}

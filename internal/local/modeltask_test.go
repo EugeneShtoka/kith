@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"context"
@@ -94,7 +94,7 @@ func TestModelTaskRefusesWhatWasNotOptedIn(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			b := New(nil)
+			b := New(nil, nil)
 			b.UseModel(tc.settings)
 			got, err := b.ModelTask(ctx, domain.ModelRequest{
 				Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "the quick brown ",
@@ -122,7 +122,7 @@ func TestModelTaskAsksWhenOptedIn(t *testing.T) {
 	ctx := context.Background()
 	endpoint, sent := fakeEndpoint(t, "fox jumps over")
 
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseModel(ModelSettings{
 		Endpoint: endpoint, Model: "test-model",
 		Scope: domain.ModelScope{Only: []string{"!a:x"}, Encrypted: true},
@@ -164,7 +164,7 @@ func TestModelTaskCapIsARollingMinute(t *testing.T) {
 	ctx := context.Background()
 	endpoint, sent := fakeEndpoint(t, "ok")
 
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseModel(ModelSettings{
 		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"!a:x"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 2,
@@ -209,7 +209,7 @@ func TestModelTaskDryRunSendsNothing(t *testing.T) {
 	ctx := context.Background()
 	endpoint, sent := fakeEndpoint(t, "should never be reached")
 
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseModel(ModelSettings{
 		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"!a:x"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 10,
@@ -285,7 +285,7 @@ func TestModelTaskQuotesOnlyThisRoom(t *testing.T) {
 	save("!here:x", "quoting-this-is-fine")
 	save("!other:x", "must-never-be-quoted")
 
-	b := New(cache)
+	b := New(cache, nil)
 	b.UseModel(ModelSettings{
 		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"!here:x"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 10, Budget: 500,
@@ -346,7 +346,7 @@ func TestSummaryFallsBackWhenYouAreUpToDate(t *testing.T) {
 		t.Fatalf("SaveMessages: %v", saveErr)
 	}
 
-	b := New(cache)
+	b := New(cache, nil)
 	b.UseModel(ModelSettings{
 		Endpoint: endpoint, Scope: domain.ModelScope{Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 10, Budget: 500,
@@ -463,7 +463,7 @@ func TestTodoReadsUnreadRoomsWithinTheScope(t *testing.T) {
 		}
 	}
 
-	b := New(cache)
+	b := New(cache, nil)
 	b.UseModel(ModelSettings{
 		Endpoint: endpoint,
 		Scope:    domain.ModelScope{Except: []string{"room:Banned"}, Encrypted: true},
@@ -504,7 +504,7 @@ func TestTodoWithNothingUnreadCostsNothing(t *testing.T) {
 
 	cache := testCache(t)
 
-	b := New(cache)
+	b := New(cache, nil)
 	b.UseModel(ModelSettings{
 		Endpoint: endpoint, Scope: domain.ModelScope{Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 10, Budgets: map[string]int{domain.ModelTodo: 4000}, TodoRooms: 5,
@@ -535,7 +535,7 @@ func TestModelTaskWithNoCacheRefusesAScopeThatNamesPlaces(t *testing.T) {
 		{Except: []string{"space:Work"}, Encrypted: true},
 		{Only: []string{"protocol:matrix"}, Encrypted: true},
 	} {
-		b := New(nil)
+		b := New(nil, nil)
 		b.UseModel(ModelSettings{Endpoint: endpoint, Scope: scope, Tasks: modelTasks(), PerMinute: 10})
 		if _, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "x"}); !errors.Is(err, errNoPlaces) {
 			t.Fatalf("scope %+v with no cache: error = %v, want errNoPlaces", scope, err)
@@ -544,7 +544,7 @@ func TestModelTaskWithNoCacheRefusesAScopeThatNamesPlaces(t *testing.T) {
 	if len(*sent) != 0 {
 		t.Fatalf("the endpoint was called %d times", len(*sent))
 	}
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseModel(ModelSettings{
 		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"group"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 10, Budget: 500, Timeout: 2 * time.Second,

@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"context"
@@ -56,7 +56,7 @@ func modelDir() string { return filepath.Join(xdg.DataHome, "kith", "models") }
 // that changes nothing (the same settings, the same weights file) keeps the running
 // predictor, so a completion in flight is not cut off. Otherwise the old predictor's
 // server is stopped.
-func (b *InProc) UseCompletionModel(settings llamacpp.Settings, on bool) {
+func (s *Service) UseCompletionModel(settings llamacpp.Settings, on bool) {
 	weights := weightsOf(settings.Model)
 	var next *llamacpp.Predictor
 	name := ""
@@ -64,36 +64,36 @@ func (b *InProc) UseCompletionModel(settings llamacpp.Settings, on bool) {
 		next = llamacpp.NewPredictor(settings)
 		name = shortModelName(settings.Model)
 	}
-	b.completion.mu.Lock()
-	previous := b.completion.predictor
-	if on && previous != nil && settings == b.completion.settings && weights == b.completion.weights {
-		b.completion.mu.Unlock()
+	s.completion.mu.Lock()
+	previous := s.completion.predictor
+	if on && previous != nil && settings == s.completion.settings && weights == s.completion.weights {
+		s.completion.mu.Unlock()
 		return
 	}
-	b.completion.predictor, b.completion.model, b.completion.settings = next, name, settings
-	b.completion.weights = weights
-	b.completion.mu.Unlock()
+	s.completion.predictor, s.completion.model, s.completion.settings = next, name, settings
+	s.completion.weights = weights
+	s.completion.mu.Unlock()
 	if previous != nil {
-		b.warnIf(context.Background(), previous.Close(), "stop the previous completion model")
+		s.warnIf(context.Background(), previous.Close(), "stop the previous completion model")
 	}
 }
 
 // closeCompletionModel stops the server, if one is running.
-func (b *InProc) closeCompletionModel() {
-	b.completion.mu.Lock()
-	predictor := b.completion.predictor
-	b.completion.predictor = nil
-	b.completion.mu.Unlock()
+func (s *Service) closeCompletionModel() {
+	s.completion.mu.Lock()
+	predictor := s.completion.predictor
+	s.completion.predictor = nil
+	s.completion.mu.Unlock()
 	if predictor != nil {
-		b.warnIf(context.Background(), predictor.Close(), "stop the completion model")
+		s.warnIf(context.Background(), predictor.Close(), "stop the completion model")
 	}
 }
 
 // modelReady is the engine to ask and the name to report it by, or false.
-func (b *InProc) modelReady() (*llamacpp.Predictor, string, bool) {
-	b.completion.mu.Lock()
-	predictor, name := b.completion.predictor, b.completion.model
-	b.completion.mu.Unlock()
+func (s *Service) modelReady() (*llamacpp.Predictor, string, bool) {
+	s.completion.mu.Lock()
+	predictor, name := s.completion.predictor, s.completion.model
+	s.completion.mu.Unlock()
 	if predictor == nil || !predictor.Available() {
 		return nil, "", false
 	}
@@ -101,11 +101,11 @@ func (b *InProc) modelReady() (*llamacpp.Predictor, string, bool) {
 }
 
 // completeFromModel answers a completion, or refuses with a sentence that names the fix.
-func (b *InProc) completeFromModel(ctx context.Context, req domain.ModelRequest, settings ModelSettings) domain.ModelResult {
+func (s *Service) completeFromModel(ctx context.Context, req domain.ModelRequest, settings ModelSettings) domain.ModelResult {
 	result := domain.ModelResult{Endpoint: thisMachine}
-	predictor, name, ok := b.modelReady()
+	predictor, name, ok := s.modelReady()
 	if !ok {
-		result.Refusal = b.whyNoModel()
+		result.Refusal = s.whyNoModel()
 		return result
 	}
 	result.Model = name
@@ -114,7 +114,7 @@ func (b *InProc) completeFromModel(ctx context.Context, req domain.ModelRequest,
 		return result
 	}
 
-	prompt := b.completionPrompt(ctx, req, settings)
+	prompt := s.completionPrompt(ctx, req, settings)
 	if req.DryRun {
 		// The exact prompt, for `why`.
 		result.Text = "To the model on this machine (" + name + "), over no network:\n\n" + prompt
@@ -135,10 +135,10 @@ func (b *InProc) completeFromModel(ctx context.Context, req domain.ModelRequest,
 }
 
 // whyNoModel says which half is missing: the model (downloadable) or the server.
-func (b *InProc) whyNoModel() string {
-	b.completion.mu.Lock()
-	predictor, settings := b.completion.predictor, b.completion.settings
-	b.completion.mu.Unlock()
+func (s *Service) whyNoModel() string {
+	s.completion.mu.Lock()
+	predictor, settings := s.completion.predictor, s.completion.settings
+	s.completion.mu.Unlock()
 	switch {
 	case predictor == nil:
 		return "the completion model is switched off — see [complete.model] enabled"
@@ -154,8 +154,8 @@ const thisMachine = "this machine"
 
 // completionPrompt is the raw text the model continues: quoted context, then the
 // draft. No chat template: the model continues a document.
-func (b *InProc) completionPrompt(ctx context.Context, req domain.ModelRequest, settings ModelSettings) string {
-	fields, _, err := b.modelFields(ctx, req, settings)
+func (s *Service) completionPrompt(ctx context.Context, req domain.ModelRequest, settings ModelSettings) string {
+	fields, _, err := s.modelFields(ctx, req, settings)
 	if err != nil {
 		// The draft alone is a fine prompt.
 		return req.Draft
@@ -180,32 +180,32 @@ func shortModelName(path string) string {
 
 // InstallModel fetches the weights (unless already present) and points the running
 // layer at them, so no restart is needed.
-func (b *InProc) InstallModel(ctx context.Context, tag string) error {
+func (s *Service) InstallModel(ctx context.Context, tag string) error {
 	dir := modelDir()
 	path, ok := models.Installed(dir, tag)
 	if !ok {
 		if _, err := llamacpp.Install(ctx, llamacpp.DefaultClient(), tag, dir); err != nil {
-			return fmt.Errorf("matrix: install model %s: %w", tag, err)
+			return fmt.Errorf("local: install model %s: %w", tag, err)
 		}
 		if path, ok = models.Installed(dir, tag); !ok {
-			return fmt.Errorf("matrix: install model %s: it is not where it was written", tag)
+			return fmt.Errorf("local: install model %s: it is not where it was written", tag)
 		}
 	}
-	b.completion.mu.Lock()
-	settings := b.completion.settings
-	b.completion.mu.Unlock()
+	s.completion.mu.Lock()
+	settings := s.completion.settings
+	s.completion.mu.Unlock()
 	settings.Model = path
-	b.UseCompletionModel(settings, true)
+	s.UseCompletionModel(settings, true)
 	return nil
 }
 
 // DetectModel answers whether to offer the completion model: nothing when installed
 // or off, a sentence when llama.cpp is missing, else a candidate. The daemon answers
 // because it spawns llama-server, and its PATH is what matters.
-func (b *InProc) DetectModel(_ context.Context) (domain.ModelSuggestion, error) {
-	b.completion.mu.Lock()
-	predictor, settings := b.completion.predictor, b.completion.settings
-	b.completion.mu.Unlock()
+func (s *Service) DetectModel(_ context.Context) (domain.ModelSuggestion, error) {
+	s.completion.mu.Lock()
+	predictor, settings := s.completion.predictor, s.completion.settings
+	s.completion.mu.Unlock()
 	if predictor == nil {
 		return domain.ModelSuggestion{}, nil
 	}

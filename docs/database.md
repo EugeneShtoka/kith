@@ -186,7 +186,7 @@ the whole cache.
 Word completion does not query the index. Ranking over it cost time proportional to
 how often the matching words occur (about 180 ms for `the…` at 200k messages), so the
 daemon counts recent windows in memory instead (`internal/vocab`,
-`internal/matrix/recentvocab.go`). They are read through `Cache.RecentBodies`, one index
+`internal/local/recentvocab.go`). They are read through `Cache.RecentBodies`, one index
 walk per window: `messages_by_time`, `messages_by_sender` or `messages_recent`. A
 redaction or an edit drops the windows it touches.
 Completion folds and splits words the way the index does (`vocab.Fold`,

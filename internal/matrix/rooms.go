@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
-	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -217,13 +215,6 @@ func (b *InProc) directPeers(ctx context.Context) (peers map[id.RoomID]id.UserID
 		}
 	}
 	return peers, true
-}
-
-// LastMessages is when each room last had a message, from the cache (nil without one).
-func (b *InProc) LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, error) {
-	return fromCache(b, "read last messages", func(c *db.Cache) (map[domain.RoomID]time.Time, error) {
-		return c.LastMessages(ctx)
-	})
 }
 
 // onMember keeps cached membership (joined only) current from the sync stream, so

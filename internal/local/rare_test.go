@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"os"
@@ -19,7 +19,7 @@ const rareList = "at 300000\nhte 30\nrarer 4\nthe 500000\n"
 
 // rareBackend wires a stub engine accepting every word, a Latin dictionary, and
 // (if withList) a frequency list.
-func rareBackend(t *testing.T, set SpellSettings, withList bool, extraTags ...string) *InProc {
+func rareBackend(t *testing.T, set SpellSettings, withList bool, extraTags ...string) *Service {
 	t.Helper()
 	dir := stubEngine(t, nil)
 	// The TRY alphabet says which script a dictionary is for.
@@ -36,7 +36,7 @@ func rareBackend(t *testing.T, set SpellSettings, withList bool, extraTags ...st
 
 	set.Enabled = true
 	set.Command = filepath.Join(dir, "stubhunspell")
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseSpell(set)
 	b.spell.dirs = []string{dir}
 	b.spell.freqs = freqs
@@ -163,7 +163,7 @@ func TestCheckSpellingStillReportsRealMisspellingsUnmarked(t *testing.T) {
 	freqs := t.TempDir()
 	write(t, filepath.Join(freqs, "en_US.freq"), rareList)
 
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseSpell(SpellSettings{
 		Enabled: true, Command: filepath.Join(dir, "stubhunspell"), FlagRare: true,
 	})

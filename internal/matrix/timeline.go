@@ -9,16 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
-
-// timelineCacheLimit is how many cached messages CachedTimeline reads on room
-// entry — large enough to restore a backfilled room's history instantly.
-const timelineCacheLimit = 2000
 
 // undecryptableBody stands in for an encrypted event we have no megolm session for,
 // so undecryptable history stays visible instead of looking like an empty room.
@@ -35,13 +30,6 @@ func (b *InProc) cacheMessages(ctx context.Context, roomID domain.RoomID, msgs [
 		save = b.cache.SaveMessagesWithRevisions
 	}
 	b.warnIf(ctx, save(ctx, roomID, msgs), "cache messages", "room", roomID, "count", len(msgs))
-}
-
-// CachedTimeline returns a room's most recent cached messages (nil without a cache).
-func (b *InProc) CachedTimeline(ctx context.Context, roomID domain.RoomID) ([]domain.Message, error) {
-	return fromCache(b, "read cached timeline", func(c *db.Cache) ([]domain.Message, error) {
-		return c.Messages(ctx, roomID, timelineCacheLimit)
-	})
 }
 
 // Timeline fetches a page of scrollback via /messages, oldest-first. At the start
@@ -331,25 +319,4 @@ func (b *InProc) decryptEvent(ctx context.Context, evt *event.Event) *event.Even
 		return decrypted
 	}
 	return evt
-}
-
-// SearchMessages searches the cache, newest first (nil without a cache).
-func (b *InProc) SearchMessages(ctx context.Context, req domain.SearchRequest) ([]domain.SearchHit, error) {
-	if b.cache == nil {
-		return nil, nil
-	}
-	// Expand the scope to whole upgrade chains: the FTS index is per room ID, so an
-	// upgraded room's earlier history would otherwise be silently missed.
-	if !req.Rooms.All {
-		rooms, err := b.cache.RoomChains(ctx, req.Rooms.IDs)
-		if err != nil {
-			return nil, fmt.Errorf("matrix: expand search scope: %w", err)
-		}
-		req.Rooms.IDs = rooms
-	}
-	hits, err := b.cache.SearchMessages(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("matrix: search messages: %w", err)
-	}
-	return hits, nil
 }

@@ -67,7 +67,7 @@ func syncingServer(t *testing.T, log *sinceLog) *httptest.Server {
 // --clear-cache reaches a daemon that is already syncing. The loop keeps its token in
 // memory and saves it after each response, so the rewind has to restart the loop: the
 // next /sync must go out with no since token.
-func TestClearCacheRewindsARunningSync(t *testing.T) {
+func TestARewindRestartsARunningSync(t *testing.T) {
 	t.Parallel()
 
 	var log sinceLog
@@ -84,8 +84,8 @@ func TestClearCacheRewindsARunningSync(t *testing.T) {
 	})
 
 	log.waitFor(t, "an incremental sync", func(s []string) bool { return len(s) >= 3 })
-	if err := b.ClearCache(ctx); err != nil {
-		t.Fatalf("ClearCache() error = %v", err)
+	if err := b.RewindSync(ctx); err != nil {
+		t.Fatalf("RewindSync() error = %v", err)
 	}
 	before := len(log.seen())
 	log.waitFor(t, "a full sync after the rewind", func(s []string) bool {
@@ -94,7 +94,7 @@ func TestClearCacheRewindsARunningSync(t *testing.T) {
 }
 
 // Before the loop starts, the rewind is immediate, and the loop starts from it.
-func TestClearCacheBeforeSyncRewindsAtOnce(t *testing.T) {
+func TestARewindBeforeSyncIsImmediate(t *testing.T) {
 	t.Parallel()
 
 	b := backendOn(t, syncingServer(t, &sinceLog{}))
@@ -104,11 +104,11 @@ func TestClearCacheBeforeSyncRewindsAtOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.client.Store = store
-	if err := b.ClearCache(ctx); err != nil {
-		t.Fatalf("ClearCache() error = %v", err)
+	if err := b.RewindSync(ctx); err != nil {
+		t.Fatalf("RewindSync() error = %v", err)
 	}
 	if token, _ := store.LoadNextBatch(ctx, "@me:x"); token != "" {
-		t.Errorf("token = %q after ClearCache, want empty", token)
+		t.Errorf("token = %q after RewindSync, want empty", token)
 	}
 }
 
@@ -176,13 +176,5 @@ func TestASecondStartIsRefused(t *testing.T) {
 	_ = inner.ProcessResponse(context.Background(), res, "s1")
 	if seen != 1 {
 		t.Errorf("a message was handled %d times, want once: the refused Start added handlers", seen)
-	}
-}
-
-// Clearing with no cache open says so: success would read as done.
-func TestClearingWithNoCacheIsAnError(t *testing.T) {
-	t.Parallel()
-	if err := New(nil).ClearCache(context.Background()); !errors.Is(err, errNoCache) {
-		t.Fatalf("ClearCache() with no cache = %v, want errNoCache", err)
 	}
 }
