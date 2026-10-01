@@ -181,6 +181,18 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/vocab"
             - "github.com/adrg/xdg"
 
+        # The networks served as one: knows the adapters only by interface, so it
+        # never links a network's SDK.
+        route-is-the-switch:
+          files:
+            - "**/internal/route/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/route"
+
         session-is-a-leaf:
           files:
             - "**/internal/session/**"
@@ -428,6 +440,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/matrix"
             - "github.com/EugeneShtoka/kith/internal/modelsetup"
+            - "github.com/EugeneShtoka/kith/internal/route"
             - "github.com/EugeneShtoka/kith/internal/schedule"
             - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/EugeneShtoka/kith/internal/setup"
@@ -559,6 +572,11 @@ linters:
           # A test helper keeps a parameter every caller passes alike when naming it at
           # the call site says what the test is about.
           - unparam
+      # The router forwards an adapter's own error, which already names its network;
+      # wrapping each would only repeat the call.
+      - path: "internal/route/"
+        linters:
+          - wrapcheck
       # Every TUI handler returns (Model, tea.Cmd), so route dispatches them alike; one
       # that has no command yet answers nil rather than a different shape.
       - linters: [unparam]

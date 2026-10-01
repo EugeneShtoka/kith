@@ -42,4 +42,11 @@ var (
 	// ErrSeatTaken: another window has the seat (Seat): a window asking for it
 	// without force is refused, and a window that lost it has its draft writes refused.
 	ErrSeatTaken = errors.New("daemon: kith is open in another window")
+	// ErrNetworkOff: the room is on a network this daemon has no connection to (its
+	// account was removed from the config, or never added). Its cached history stays
+	// readable.
+	ErrNetworkOff = errors.New("daemon: that room's network is not connected")
+	// ErrNotOnNetwork: the room's network has no such thing (spaces, threads,
+	// moderation are Matrix's).
+	ErrNotOnNetwork = errors.New("daemon: that room's network cannot do this")
 )
