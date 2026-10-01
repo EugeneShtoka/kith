@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 func TestSortRooms(t *testing.T) {
@@ -323,36 +324,36 @@ func TestANotificationCoversWhatTheSenderCovered(t *testing.T) {
 	}{
 		"a spoiler is replaced": {
 			msg: domain.Message{
-				Body: "the killer is ||the butler||",
-				HTML: `the killer is <span data-mx-spoiler>the butler</span>`,
+				Body:   "the killer is ||the butler||",
+				Format: richtext.FromMarkup(`the killer is <span data-mx-spoiler>the butler</span>`),
 			},
 			want: "the killer is ++spoiler++",
 		},
 		"a labeled spoiler is replaced the same way": {
 			msg: domain.Message{
-				Body: "||he dies||",
-				HTML: `<span data-mx-spoiler="plot">he dies</span>`,
+				Body:   "||he dies||",
+				Format: richtext.FromMarkup(`<span data-mx-spoiler="plot">he dies</span>`),
 			},
 			want: "++spoiler++",
 		},
 		"emphasis inside a spoiler does not leak the words": {
 			msg: domain.Message{
-				Body: "it was ||really him||",
-				HTML: `it was <span data-mx-spoiler>really <strong>him</strong></span>`,
+				Body:   "it was ||really him||",
+				Format: richtext.FromMarkup(`it was <span data-mx-spoiler>really <strong>him</strong></span>`),
 			},
 			want: "it was ++spoiler++",
 		},
 		"two spoilers, both covered": {
 			msg: domain.Message{
-				Body: "||one|| and ||two||",
-				HTML: `<span data-mx-spoiler>one</span> and <span data-mx-spoiler>two</span>`,
+				Body:   "||one|| and ||two||",
+				Format: richtext.FromMarkup(`<span data-mx-spoiler>one</span> and <span data-mx-spoiler>two</span>`),
 			},
 			want: "++spoiler++ and ++spoiler++",
 		},
 		"a formatted message with nothing covered says what it always said": {
 			msg: domain.Message{
-				Body: "**shipped** it",
-				HTML: "<b>shipped</b> it",
+				Body:   "**shipped** it",
+				Format: richtext.FromMarkup("<b>shipped</b> it"),
 			},
 			want: "**shipped** it",
 		},
@@ -383,24 +384,41 @@ func TestANotificationCoversWhatTheSenderCovered(t *testing.T) {
 func TestMergeMessagesEditReplacesTheFormatting(t *testing.T) {
 	t.Parallel()
 
-	orig := domain.Message{ID: "$1", Body: "old", HTML: "<b>old</b>", Timestamp: time.Unix(5, 0)}
+	orig := domain.Message{ID: "$1", Body: "old", Format: richtext.FromMarkup("<b>old</b>"), Timestamp: time.Unix(5, 0)}
 	cases := []struct {
 		name string
 		edit domain.Message
 		html string
 	}{
-		{"a formatted edit", domain.Message{ID: "$1", Body: "new", HTML: "<i>new</i>", Edited: true}, "<i>new</i>"},
+		{"a formatted edit", domain.Message{ID: "$1", Body: "new", Format: richtext.FromMarkup("<i>new</i>"), Edited: true}, "<i>new</i>"},
 		{"a plain edit", domain.Message{ID: "$1", Body: "new", Edited: true}, ""},
 	}
 	for _, c := range cases {
 		got := domain.MergeMessages([]domain.Message{orig}, []domain.Message{c.edit})
-		if len(got) != 1 || got[0].Body != "new" || got[0].HTML != c.html {
+		if len(got) != 1 || got[0].Body != "new" || got[0].Format.Markup() != c.html {
 			t.Errorf("%s: %+v, want body new and html %q", c.name, got, c.html)
 		}
 		// And the original arriving after the edit changes neither.
 		again := domain.MergeMessages(got, []domain.Message{orig})
-		if again[0].Body != "new" || again[0].HTML != c.html {
+		if again[0].Body != "new" || again[0].Format.Markup() != c.html {
 			t.Errorf("%s, then the original: %+v", c.name, again[0])
 		}
+	}
+}
+
+// A copy that brings the missing body brings its formatting only when the row had
+// none: formatting already known is not dropped by a plain copy.
+func TestMergeMessagesKeepsFormattingAPlainCopyLacks(t *testing.T) {
+	t.Parallel()
+
+	known := domain.Message{ID: "$1", Format: richtext.FromMarkup("<b>hi</b>"), Timestamp: time.Unix(5, 0)}
+	got := domain.MergeMessages([]domain.Message{known}, []domain.Message{{ID: "$1", Body: "hi"}})
+	if len(got) != 1 || got[0].Body != "hi" || got[0].Format.Markup() != "<b>hi</b>" {
+		t.Errorf("got %+v, want body hi with its formatting kept", got)
+	}
+	bare := domain.Message{ID: "$1", Timestamp: time.Unix(5, 0)}
+	got = domain.MergeMessages([]domain.Message{bare}, []domain.Message{{ID: "$1", Body: "hi", Format: known.Format}})
+	if len(got) != 1 || got[0].Format.Markup() != "<b>hi</b>" {
+		t.Errorf("got %+v, want the body's formatting brought with it", got)
 	}
 }

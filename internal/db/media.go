@@ -3,9 +3,11 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // message_media has two writers arriving at different times: the display half
@@ -88,6 +90,18 @@ func saveExtras(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain
 	return saveHTML(ctx, tx, roomID, m, apply)
 }
 
+// errDrawnOnly refuses formatting that came without its markup (a client's copy): the
+// cache stores markup, and saving none would silently drop the message's formatting.
+var errDrawnOnly = errors.New("db: formatting without markup cannot be stored")
+
+// storable is formatting's stored form, refusing formatting that has none.
+func storable(f richtext.Formatted, id domain.EventID) (string, error) {
+	if f.Markup() == "" && !f.IsZero() {
+		return "", fmt.Errorf("%w (%s)", errDrawnOnly, id)
+	}
+	return f.Markup(), nil
+}
+
 // saveHTML records a message's formatting, deleting the row when an edit removed
 // it. Like the body, it is never written for an already-redacted row, and a copy
 // that is not a newer edit (apply) never overwrites an edited row's formatting: the
@@ -95,7 +109,11 @@ func saveExtras(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain
 func saveHTML(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message, apply bool) error {
 	const kept = `EXISTS (SELECT 1 FROM messages WHERE room_id = ? AND event_id = ?
 		AND (redacted = 1 OR (edited = 1 AND ? = 0)))`
-	if m.HTML == "" {
+	markup, err := storable(m.Format, m.ID)
+	if err != nil {
+		return err
+	}
+	if markup == "" {
 		if _, err := tx.ExecContext(ctx,
 			"DELETE FROM message_html WHERE room_id = ? AND event_id = ? AND NOT "+kept,
 			string(roomID), string(m.ID), string(roomID), string(m.ID), apply); err != nil {
@@ -107,7 +125,7 @@ func saveHTML(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.M
 		INSERT INTO message_html(room_id, event_id, html)
 		SELECT ?, ?, ? WHERE NOT `+kept+`
 		ON CONFLICT(room_id, event_id) DO UPDATE SET html=excluded.html`,
-		string(roomID), string(m.ID), m.HTML, string(roomID), string(m.ID), apply); err != nil {
+		string(roomID), string(m.ID), markup, string(roomID), string(m.ID), apply); err != nil {
 		return fmt.Errorf("db: save message html %s: %w", m.ID, err)
 	}
 	return nil

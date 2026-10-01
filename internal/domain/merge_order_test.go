@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // One message's history: the original, two edits, and a redaction. Matrix delivers
@@ -13,12 +14,12 @@ import (
 // page), so every order must fold to the same message.
 var (
 	mergeOrig = domain.Message{ID: "$m", RoomID: "!r", Sender: "@a:x", Body: "v0",
-		HTML: "<b>v0</b>", Timestamp: time.UnixMilli(5000)}
+		Format: richtext.FromMarkup("<b>v0</b>"), Timestamp: time.UnixMilli(5000)}
 	mergeEdit1 = domain.Message{ID: "$m", RoomID: "!r", Sender: "@a:x", Body: "v1",
-		HTML: "<b>v1</b>", RevisionID: "$e1", Timestamp: time.UnixMilli(7000),
+		Format: richtext.FromMarkup("<b>v1</b>"), RevisionID: "$e1", Timestamp: time.UnixMilli(7000),
 		EditedAt: time.UnixMilli(7000), Edited: true}
 	mergeEdit2 = domain.Message{ID: "$m", RoomID: "!r", Sender: "@a:x", Body: "v2",
-		HTML: "<b>v2</b>", RevisionID: "$e2", Timestamp: time.UnixMilli(9000),
+		Format: richtext.FromMarkup("<b>v2</b>"), RevisionID: "$e2", Timestamp: time.UnixMilli(9000),
 		EditedAt: time.UnixMilli(9000), Edited: true}
 	// Servers strip the target's content but never redact its m.replace edits, so a
 	// redaction can be followed by an edit that still carries the words.
@@ -71,8 +72,8 @@ func TestMergeMessagesIsOrderIndependent(t *testing.T) {
 			name:   "edits",
 			events: []domain.Message{mergeOrig, mergeEdit1, mergeEdit2},
 			check: func(m domain.Message) error {
-				if m.Body != "v2" || m.HTML != "<b>v2</b>" || !m.Edited || m.Redacted {
-					return fmt.Errorf("want the newest edit v2, got body=%q html=%q edited=%v", m.Body, m.HTML, m.Edited)
+				if m.Body != "v2" || m.Format.Markup() != "<b>v2</b>" || !m.Edited || m.Redacted {
+					return fmt.Errorf("want the newest edit v2, got body=%q html=%q edited=%v", m.Body, m.Format.Markup(), m.Edited)
 				}
 				return nil
 			},
@@ -81,8 +82,8 @@ func TestMergeMessagesIsOrderIndependent(t *testing.T) {
 			name:   "edits and a redaction",
 			events: []domain.Message{mergeOrig, mergeEdit1, mergeEdit2, mergeRedaction},
 			check: func(m domain.Message) error {
-				if !m.Redacted || m.Body != "" || m.HTML != "" {
-					return fmt.Errorf("want redacted with no words, got redacted=%v body=%q html=%q", m.Redacted, m.Body, m.HTML)
+				if !m.Redacted || m.Body != "" || m.Format.Markup() != "" {
+					return fmt.Errorf("want redacted with no words, got redacted=%v body=%q html=%q", m.Redacted, m.Body, m.Format.Markup())
 				}
 				return nil
 			},

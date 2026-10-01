@@ -7,6 +7,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // Following a link to a place, and the three answers it has — go there, ask before
@@ -14,7 +15,7 @@ import (
 
 // linkMsg is a message carrying one address.
 func linkMsg(body, html string) domain.Message {
-	return domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@her:x", Body: body, HTML: html}
+	return domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@her:x", Body: body, Format: richtext.FromMarkup(html)}
 }
 
 // A link to a room you are in is a move, not a question.

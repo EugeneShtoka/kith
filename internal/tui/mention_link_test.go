@@ -10,6 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // A mention pill in the timeline links to the person it names, whichever drawing path
@@ -52,7 +53,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 			name: "formatted pill, name unchanged: the sender's href",
 			msg: domain.Message{
 				Body: "ask Dana about it", Mentions: dana,
-				HTML: `ask <a href="https://matrix.to/#/@dana:x">Dana</a> about it`,
+				Format: richtext.FromMarkup(`ask <a href="https://matrix.to/#/@dana:x">Dana</a> about it`),
 			},
 			want: "https://matrix.to/#/@dana:x",
 		},
@@ -61,7 +62,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"@dana:x"}}}},
 			msg: domain.Message{
 				Body: "ask Dana about it", Mentions: dana,
-				HTML: `ask <a href="https://matrix.to/#/@dana:x">Dana</a> about it`,
+				Format: richtext.FromMarkup(`ask <a href="https://matrix.to/#/@dana:x">Dana</a> about it`),
 			},
 			want: pillHref,
 		},
@@ -70,7 +71,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"@dana:x"}}}},
 			msg: domain.Message{
 				Body: "שאל את Dana על זה", Mentions: dana,
-				HTML: `שאל את <a href="https://matrix.to/#/@dana:x">Dana</a> על זה`,
+				Format: richtext.FromMarkup(`שאל את <a href="https://matrix.to/#/@dana:x">Dana</a> על זה`),
 			},
 			want: pillHref,
 		},

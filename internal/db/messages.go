@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // messagesPerRoom bounds the messages kept per room; SaveMessages trims to it.
@@ -188,7 +189,7 @@ func revertShownEdit(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, rev 
 		return err
 	}
 	var prev domain.Revision
-	var prevID string
+	var prevID, prevMarkup string
 	var prevTS int64
 	have := false
 	if keep {
@@ -198,12 +199,13 @@ func revertShownEdit(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, rev 
 			   AND NOT EXISTS (SELECT 1 FROM message_tombstone t
 			                    WHERE t.room_id = ?1 AND t.event_id = v.revision_id)
 			 ORDER BY v.ts_ms DESC, v.revision_id DESC LIMIT 1`,
-			string(roomID), target, string(rev)).Scan(&prevID, &prev.Body, &prev.HTML, &prevTS))
+			string(roomID), target, string(rev)).Scan(&prevID, &prev.Body, &prevMarkup, &prevTS))
 		if err != nil {
 			return fmt.Errorf("db: read the version before %s: %w", rev, err)
 		}
 	}
 	prev.ID, prev.At = domain.EventID(prevID), time.UnixMilli(prevTS)
+	prev.Format = richtext.FromMarkup(prevMarkup)
 	return showVersion(ctx, tx, roomID, domain.EventID(target), prev, have)
 }
 
@@ -229,11 +231,11 @@ func showVersion(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, target d
 		string(roomID), string(target)); err != nil {
 		return fmt.Errorf("db: clear the formatting of %s: %w", target, err)
 	}
-	if v.HTML != "" {
+	if markup := v.Format.Markup(); markup != "" {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO message_html(room_id, event_id, html) SELECT ?, ?, ? WHERE EXISTS
 				(SELECT 1 FROM messages WHERE room_id = ? AND event_id = ? AND redacted = 0)`,
-			string(roomID), string(target), v.HTML, string(roomID), string(target)); err != nil {
+			string(roomID), string(target), markup, string(roomID), string(target)); err != nil {
 			return fmt.Errorf("db: restore the formatting of %s: %w", target, err)
 		}
 	}
@@ -276,7 +278,7 @@ func revisionsOf(msgs []domain.Message) []revisionRow {
 	rows := make([]revisionRow, 0, len(msgs))
 	for i := range msgs {
 		m := msgs[i]
-		if m.Redacted || (m.Body == "" && m.HTML == "") {
+		if m.Redacted || (m.Body == "" && m.Format.IsZero()) {
 			continue
 		}
 		revision := m.RevisionID
@@ -285,7 +287,7 @@ func revisionsOf(msgs []domain.Message) []revisionRow {
 		}
 		rows = append(rows, revisionRow{
 			event: m.ID,
-			rev:   domain.Revision{ID: revision, Body: m.Body, HTML: m.HTML, At: m.Timestamp},
+			rev:   domain.Revision{ID: revision, Body: m.Body, Format: m.Format, At: m.Timestamp},
 		})
 	}
 	return rows
@@ -295,7 +297,7 @@ func revisionsOf(msgs []domain.Message) []revisionRow {
 func (c *Cache) SaveRevisionsFor(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, revs []domain.Revision) error {
 	rows := make([]revisionRow, 0, len(revs))
 	for _, rev := range revs {
-		if rev.ID == "" || (rev.Body == "" && rev.HTML == "") {
+		if rev.ID == "" || (rev.Body == "" && rev.Format.IsZero()) {
 			continue
 		}
 		rows = append(rows, revisionRow{event: eventID, rev: rev})
@@ -334,9 +336,14 @@ func writeRevisions(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, rows 
 		return fmt.Errorf("db: prepare revision insert: %w", err)
 	}
 	defer func() { _ = stmt.Close() }()
-	for _, row := range rows {
+	for i := range rows {
+		row := &rows[i]
+		markup, err := storable(row.rev.Format, row.rev.ID)
+		if err != nil {
+			return err
+		}
 		if _, err := stmt.ExecContext(ctx, string(roomID), string(row.event), string(row.rev.ID),
-			row.rev.Body, row.rev.HTML, row.rev.At.UnixMilli()); err != nil {
+			row.rev.Body, markup, row.rev.At.UnixMilli()); err != nil {
 			return fmt.Errorf("db: save revision %s: %w", row.rev.ID, err)
 		}
 	}
@@ -355,7 +362,7 @@ func (c *Cache) Revisions(ctx context.Context, roomID domain.RoomID, eventID dom
 			if err := rows.Scan(&id, &body, &html, &ts); err != nil {
 				return domain.Revision{}, err
 			}
-			rev.ID, rev.Body, rev.HTML, rev.At = domain.EventID(id), body, html, time.UnixMilli(ts)
+			rev.ID, rev.Body, rev.Format, rev.At = domain.EventID(id), body, richtext.FromMarkup(html), time.UnixMilli(ts)
 			return rev, nil
 		}, string(roomID), string(eventID))
 }
@@ -699,7 +706,7 @@ func (c *Cache) SenderOf(ctx context.Context, roomID domain.RoomID, eventID doma
 	return sender, nil
 }
 
-// Message is one cached message's body and HTML, and whether it is cached.
+// Message is one cached message's body and formatting, and whether it is cached.
 func (c *Cache) Message(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, bool, error) {
 	var body, html string
 	err := c.db.QueryRowContext(ctx, `
@@ -715,7 +722,7 @@ func (c *Cache) Message(ctx context.Context, roomID domain.RoomID, eventID domai
 		}
 		return domain.Message{}, false, err
 	}
-	return domain.Message{ID: eventID, RoomID: roomID, Body: body, HTML: html}, true, nil
+	return domain.Message{ID: eventID, RoomID: roomID, Body: body, Format: richtext.FromMarkup(html)}, true, nil
 }
 
 // messageSelect is every message read: the row plus its optional side tables.
@@ -760,7 +767,7 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 			Mentioned:  mentioned,
 			ThreadRoot: domain.EventID(threadRoot),
 			Emote:      emote,
-			HTML:       formatted.String,
+			Format:     richtext.FromMarkup(formatted.String),
 			RedactedBy: redactedBy.String, RedactedReason: redactReason.String,
 		}
 		if editedMS.Valid {

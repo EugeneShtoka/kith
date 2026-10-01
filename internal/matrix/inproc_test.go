@@ -863,11 +863,11 @@ func TestAnEditCarriesItsNewFormatting(t *testing.T) {
 		MsgType: event.MsgText, Body: "new", Format: event.FormatHTML,
 		FormattedBody: `<b>new</b><script>alert(1)</script>`,
 	}))
-	if !ok || formatted.ID != "$orig:x" || formatted.Body != "new" || formatted.HTML != "<b>new</b>" {
+	if !ok || formatted.ID != "$orig:x" || formatted.Body != "new" || formatted.Format.Markup() != "<b>new</b>" {
 		t.Fatalf("formatted edit = %+v, want the new sanitized HTML on $orig:x", formatted)
 	}
 	plain, ok := toDomainMessage(edit(&event.MessageEventContent{MsgType: event.MsgText, Body: "new"}))
-	if !ok || plain.HTML != "" {
+	if !ok || plain.Format.Markup() != "" {
 		t.Fatalf("plain edit = %+v, want no HTML", plain)
 	}
 }

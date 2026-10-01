@@ -371,13 +371,13 @@ func coveredByLink(spans []richtext.Span, start, end int) bool {
 	return false
 }
 
-// formattedBody is a message's HTML as text and spans, and whether to use it.
+// formattedBody is a message's formatting as text and spans, and whether to use it.
 // Attachments, redactions and emotes take the plain path.
 func (m Model) formattedBody(msg domain.Message) (string, []richtext.Span, bool) {
-	if msg.HTML == "" || msg.Redacted || msg.Emote || msg.Media != nil {
+	if msg.Format.IsZero() || msg.Redacted || msg.Emote || msg.Media != nil {
 		return "", nil, false
 	}
-	text, spans := richtext.Parse(msg.HTML)
+	text, spans := msg.Format.Text(), msg.Format.Spans()
 	if strings.TrimSpace(text) == "" {
 		// Formatting that draws no words: use the plain body.
 		return "", nil, false

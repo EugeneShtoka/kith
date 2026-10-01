@@ -366,7 +366,7 @@ func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 		kept, ok, kerr := b.cache.Message(ctx, roomID, target)
 		b.warnIf(ctx, kerr, "read the kept copy of a deleted message", "room", roomID, "event", target)
 		if ok {
-			gone.Body, gone.HTML = kept.Body, kept.HTML
+			gone.Body, gone.Format = kept.Body, kept.Format
 		}
 	}
 	emit(&b.out, b.out.msgs, gone)
