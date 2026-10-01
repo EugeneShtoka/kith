@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"context"
@@ -88,10 +88,10 @@ func stubEnginePath(t *testing.T) string {
 const commandLog = "commands"
 
 // checking returns a backend wired to a stub engine in its own directory.
-func checking(t *testing.T, answers map[string]string) *InProc {
+func checking(t *testing.T, answers map[string]string) *Service {
 	t.Helper()
 	dir := stubEngine(t, answers)
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseSpell(SpellSettings{Enabled: true, Command: filepath.Join(dir, "stubhunspell")})
 	b.spell.dirs = []string{dir}
 	t.Cleanup(b.spell.stop)
@@ -171,7 +171,7 @@ func waitForCommands(t *testing.T, dir string, want int) []string {
 func TestLearnWordWithNoEngineSaysThereIsNothingToCheckWith(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil)
+	b := New(nil, nil)
 	b.spell.dirs = []string{t.TempDir()} // no engine, no dictionaries
 	b.UseSpell(SpellSettings{Enabled: true, Command: "definitely-not-an-engine"})
 	t.Cleanup(b.spell.stop)
@@ -231,7 +231,7 @@ func TestCheckSpellingAsksAboutAWordOnce(t *testing.T) {
 func TestCheckSpellingSkipsADraftWithNoWordsInIt(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseSpell(SpellSettings{Enabled: true, Command: "definitely-not-a-real-engine"})
 	got, err := b.CheckSpelling(t.Context(), "https://example.com/a/b :tada: @me:x")
 	if err != nil {
@@ -246,7 +246,7 @@ func TestCheckSpellingHonorsTheSetting(t *testing.T) {
 	t.Parallel()
 
 	dir := stubEngine(t, nil)
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseSpell(SpellSettings{Enabled: false, Command: filepath.Join(dir, "stubhunspell")})
 	b.spell.dirs = []string{dir}
 
@@ -259,7 +259,7 @@ func TestCheckSpellingHonorsTheSetting(t *testing.T) {
 func TestNoEngineIsDecidedOnce(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseSpell(SpellSettings{Enabled: true, Command: "definitely-not-a-real-engine"})
 	b.spell.dirs = []string{t.TempDir()}
 
@@ -292,7 +292,7 @@ func TestADeadEngineIsRestartedButNotForever(t *testing.T) {
 		t.Fatalf("write stub engine: %v", err)
 	}
 
-	b := New(nil)
+	b := New(nil, nil)
 	b.UseSpell(SpellSettings{Enabled: true, Command: engine})
 	b.spell.dirs = []string{dir}
 	t.Cleanup(b.spell.stop)
@@ -339,7 +339,7 @@ func TestSpellIsOffUntilItIsConfigured(t *testing.T) {
 	t.Parallel()
 
 	var got []domain.Misspelling
-	got, err := New(nil).CheckSpelling(context.Background(), "hello there")
+	got, err := New(nil, nil).CheckSpelling(context.Background(), "hello there")
 	if !errors.Is(err, api.ErrSpellUnavailable) {
 		t.Errorf("err = %v, want ErrSpellUnavailable", err)
 	}

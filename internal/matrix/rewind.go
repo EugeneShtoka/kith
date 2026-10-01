@@ -19,7 +19,7 @@ type syncRewind struct {
 	syncing bool
 	pending bool
 	// owed: the next Start must rewind. Decided when the backend is built, from the
-	// cache as it was opened (rebuilt, or holding no room), and set by ClearCache;
+	// cache as it was opened (rebuilt, or holding no room), and set by RewindSync;
 	// not from the cache when Start runs, which a room refresh may have filled by then.
 	owed bool
 }

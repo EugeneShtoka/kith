@@ -59,39 +59,6 @@ func TestMentionCandidatesLeadWithRecentSpeakers(t *testing.T) {
 	}
 }
 
-func TestRecordEmojiFeedsTheRanking(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	b := backendWithCache(t, testUser)
-	seedRoom(t, b, "!r:x")
-
-	for range 3 {
-		if err := b.RecordEmoji(ctx, domain.EmojiComposed, "!r:x", "🎉"); err != nil {
-			t.Fatalf("RecordEmoji: %v", err)
-		}
-	}
-	if err := b.RecordEmoji(ctx, domain.EmojiComposed, "!r:x", "👍"); err != nil {
-		t.Fatalf("RecordEmoji: %v", err)
-	}
-
-	got, err := b.EmojiScores(ctx, domain.EmojiComposed, "!r:x", nil, "room")
-	if err != nil {
-		t.Fatalf("EmojiScores: %v", err)
-	}
-	if got["🎉"] <= got["👍"] {
-		t.Errorf("scores = %v, want the most-used ranked highest", got)
-	}
-	// Composed and reaction emoji are ranked separately.
-	other, err := b.EmojiScores(ctx, domain.EmojiReaction, "!r:x", nil, "room")
-	if err != nil {
-		t.Fatalf("EmojiScores(reaction): %v", err)
-	}
-	if len(other) != 0 {
-		t.Errorf("react ranking = %v, want nothing — those were composed", other)
-	}
-}
-
 // The local unread count replaces the server's when the receipt is cached.
 func TestCachedUnreadPrefersTheLocalCount(t *testing.T) {
 	t.Parallel()
@@ -127,36 +94,12 @@ func TestCachedUnreadPrefersTheLocalCount(t *testing.T) {
 	}
 }
 
-// A backend without a cache answers every read with nothing rather than failing.
-func TestCachelessReadsAnswerNothing(t *testing.T) {
+// A backend without a cache answers its unread read with nothing rather than failing.
+func TestCachelessUnreadAnswersNothing(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	b := New(nil)
-
-	if got, err := b.CachedTimeline(ctx, "!r:x"); err != nil || got != nil {
-		t.Errorf("CachedTimeline = (%v, %v), want nothing", got, err)
-	}
-	if got, err := b.CachedReactions(ctx, "!r:x"); err != nil || got != nil {
-		t.Errorf("CachedReactions = (%v, %v), want nothing", got, err)
-	}
-	if got, err := b.CachedUnread(ctx); err != nil || got != nil {
+	if got, err := New(nil).CachedUnread(context.Background()); err != nil || got != nil {
 		t.Errorf("CachedUnread = (%v, %v), want nothing", got, err)
-	}
-	if got, err := b.SenderSlots(ctx, "!r:x"); err != nil || got != nil {
-		t.Errorf("SenderSlots = (%v, %v), want nothing", got, err)
-	}
-	if err := b.SaveSenderSlots(ctx, "!r:x", map[string]int{"@a:x": 1}); err != nil {
-		t.Errorf("SaveSenderSlots with no cache: %v", err)
-	}
-	if got, err := b.SearchSenders(ctx, domain.EveryRoom(), 10); err != nil || got != nil {
-		t.Errorf("SearchSenders = (%v, %v), want nothing", got, err)
-	}
-	if got, err := b.EmojiScores(ctx, domain.EmojiReaction, "!r:x", nil, "room"); err != nil || got != nil {
-		t.Errorf("EmojiScores = (%v, %v), want nothing", got, err)
-	}
-	if err := b.RecordEmoji(ctx, domain.EmojiReaction, "!r:x", "👍"); err != nil {
-		t.Errorf("RecordEmoji with no cache: %v", err)
 	}
 }
 

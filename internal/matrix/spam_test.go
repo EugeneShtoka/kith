@@ -116,7 +116,7 @@ func TestReleasingARoomWritesTheReleaseToAccountData(t *testing.T) {
 		t.Error("the release carries no time")
 	}
 
-	rooms, err := b.SpamRooms(ctx)
+	rooms, err := b.cache.SpamRooms(ctx)
 	if err != nil {
 		t.Fatalf("SpamRooms() error = %v", err)
 	}
@@ -144,7 +144,7 @@ func TestARuleCannotOverwriteARelease(t *testing.T) {
 		t.Errorf("the release was overwritten: %+v", srv.content(t, "!a:x"))
 	}
 	// The release it found is mirrored.
-	rooms, _ := b.SpamRooms(ctx)
+	rooms, _ := b.cache.SpamRooms(ctx)
 	if len(rooms) != 1 || !rooms[0].Released {
 		t.Errorf("SpamRooms() = %+v, want the release the server had", rooms)
 	}
@@ -174,7 +174,7 @@ func TestSpamAccountDataParsesAndMirrors(t *testing.T) {
 	}
 	b.spamMirror(ctx, "!rel:x", content)
 
-	rooms, err := b.SpamRooms(ctx)
+	rooms, err := b.cache.SpamRooms(ctx)
 	if err != nil {
 		t.Fatalf("SpamRooms() error = %v", err)
 	}

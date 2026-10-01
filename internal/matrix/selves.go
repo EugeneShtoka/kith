@@ -60,3 +60,17 @@ func (u *unreadBook) known() []domain.RoomID {
 	}
 	return rooms
 }
+
+// accountID is this account's MXID, or "" before a session exists.
+func (b *InProc) accountID() string {
+	if b.client == nil {
+		return ""
+	}
+	return string(b.client.UserID)
+}
+
+// Account is this account's MXID, or "" before a session exists.
+func (b *InProc) Account() string { return b.accountID() }
+
+// Me is every MXID that is this person (see me).
+func (b *InProc) Me() []string { return b.me() }

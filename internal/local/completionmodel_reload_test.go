@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"os"
@@ -44,7 +44,7 @@ func TestAReloadKeepsAnUnchangedCompletionModel(t *testing.T) {
 		{"turned off", func(*testing.T) (llamacpp.Settings, bool) { return settings, false }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			b := New(nil)
+			b := New(nil, nil)
 			b.UseCompletionModel(settings, true)
 			before := b.completion.predictor
 			b.UseCompletionModel(tc.reload(t))

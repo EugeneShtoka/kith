@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"context"
@@ -143,7 +143,7 @@ func (v *recentVocab) rank(ctx context.Context, cache *db.Cache, req domain.Comp
 	return vocab.Rank(req.Prefix, scope, limit), nil
 }
 
-// The [complete] scope names (internal/matrix reads no config).
+// The [complete] scope names (internal/local reads no config).
 const (
 	scopeSpace  = "space"
 	scopeGlobal = "global"

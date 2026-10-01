@@ -21,9 +21,6 @@ func (b *InProc) UseLogger(log *slog.Logger) {
 		return
 	}
 	b.logger = log
-	b.spell.mu.Lock()
-	b.spell.log = log
-	b.spell.mu.Unlock()
 }
 
 // log is the backend's logger, never nil.

@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"context"
@@ -106,21 +106,21 @@ func (s *spellcheck) freqDir() string {
 }
 
 // UseSpell sets the spelling settings. Wired at startup.
-func (b *InProc) UseSpell(s SpellSettings) {
-	b.spell.mu.Lock()
-	defer b.spell.mu.Unlock()
-	b.spell.settings = s
+func (s *Service) UseSpell(settings SpellSettings) {
+	s.spell.mu.Lock()
+	defer s.spell.mu.Unlock()
+	s.spell.settings = settings
 }
 
 // CheckSpelling returns the words in text the engine does not accept, plus rare-word
 // hints when enabled. Verdicts are memoized per word.
-func (b *InProc) CheckSpelling(ctx context.Context, text string) ([]domain.Misspelling, error) {
+func (s *Service) CheckSpelling(ctx context.Context, text string) ([]domain.Misspelling, error) {
 	words := spell.Words(text)
 	if len(words) == 0 {
 		// Nothing checkable (e.g. only a URL): no process needed.
 		return nil, nil
 	}
-	checker, err := b.spell.engine()
+	checker, err := s.spell.engine()
 	if err != nil {
 		return nil, err
 	}
@@ -129,13 +129,13 @@ func (b *InProc) CheckSpelling(ctx context.Context, text string) ([]domain.Missp
 
 	out := make([]domain.Misspelling, 0, 4)
 	for _, w := range words {
-		verdict, err := b.spell.verdict(ctx, checker, w.Text)
+		verdict, err := s.spell.verdict(ctx, checker, w.Text)
 		if err != nil {
 			return nil, err
 		}
 		if verdict.OK {
 			// Accepted; maybe still a rare-word slip.
-			if hint, rare := b.spell.rare(w); rare {
+			if hint, rare := s.spell.rare(w); rare {
 				out = append(out, domain.Misspelling{
 					Word: w.Text, Start: w.Start, End: w.End,
 					Suggestions: hint.Alternatives, Rare: true, Certain: hint.Certain,
@@ -172,15 +172,15 @@ func (s *spellcheck) allowList() string {
 }
 
 // AllowRareWord records that a word is not worth hinting about, permanently.
-func (b *InProc) AllowRareWord(_ context.Context, word string) error {
-	b.spell.mu.Lock()
-	if b.spell.allowed == nil {
-		b.spell.allowed = spell.LoadWordFile(b.spell.allowList())
+func (s *Service) AllowRareWord(_ context.Context, word string) error {
+	s.spell.mu.Lock()
+	if s.spell.allowed == nil {
+		s.spell.allowed = spell.LoadWordFile(s.spell.allowList())
 	}
-	allowed := b.spell.allowed
-	b.spell.mu.Unlock()
+	allowed := s.spell.allowed
+	s.spell.mu.Unlock()
 	if err := allowed.Add(word); err != nil {
-		return fmt.Errorf("matrix: allow rare word: %w", err)
+		return fmt.Errorf("local: allow rare word: %w", err)
 	}
 	return nil
 }
@@ -246,22 +246,22 @@ func (s *spellcheck) reloadRarity() {
 // LearnWord teaches the engine a word: forever writes the personal dictionary,
 // otherwise it is accepted for this engine's life. The memo forgets the word either
 // way, or it would stay underlined.
-func (b *InProc) LearnWord(_ context.Context, word string, forever bool) error {
+func (s *Service) LearnWord(_ context.Context, word string, forever bool) error {
 	if word == "" {
 		return nil
 	}
-	checker, err := b.spell.engine()
+	checker, err := s.spell.engine()
 	if err != nil {
 		return err
 	}
 	// A failed write means the engine is gone; retire it so the next check restarts.
 	fail := func(err error) error {
-		b.spell.retire(checker)
+		s.spell.retire(checker)
 		return fmt.Errorf("%w: %w", api.ErrSpellUnavailable, err)
 	}
-	if forever && b.spell.taught(word) {
+	if forever && s.spell.taught(word) {
 		// Already in the personal dictionary; hunspell would duplicate it.
-		b.spell.forget(word)
+		s.spell.forget(word)
 		return nil
 	}
 	learn := checker.Ignore
@@ -276,9 +276,9 @@ func (b *InProc) LearnWord(_ context.Context, word string, forever bool) error {
 		if err := checker.Save(); err != nil {
 			return fail(err)
 		}
-		b.spell.noteTaught(word)
+		s.spell.noteTaught(word)
 	}
-	b.spell.forget(word)
+	s.spell.forget(word)
 	return nil
 }
 

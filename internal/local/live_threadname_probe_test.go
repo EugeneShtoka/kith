@@ -1,4 +1,4 @@
-package matrix_test
+package local_test
 
 // An opt-in probe that names real threads from a real cache, to judge name quality by eye.
 //
@@ -37,7 +37,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/matrix"
+	"github.com/EugeneShtoka/kith/internal/local"
 	"github.com/EugeneShtoka/kith/internal/modelsetup"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
@@ -102,12 +102,12 @@ func TestLiveThreadNames(t *testing.T) {
 		t.Log("dry run — assembling the requests and sending nothing (KITH_SEND=1 to ask for real)")
 	}
 	endpoint, model := assist.Endpoint, assist.Model
-	backend := matrix.New(cache)
+	backend := local.New(cache, nil)
 	key := ""
 	if !dry {
 		key, _ = session.Secret(assist.KeyRef)
 	}
-	backend.UseModel(matrix.ModelSettings{
+	backend.UseModel(local.ModelSettings{
 		Endpoint: endpoint,
 		Model:    model,
 		Key:      key,

@@ -6,7 +6,6 @@ import (
 
 	"maunium.net/go/mautrix/id"
 
-	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -110,27 +109,6 @@ func capMembers(members []domain.Member, limit int) []domain.Member {
 		return members[:limit]
 	}
 	return members
-}
-
-// SenderSlots is a room's remembered color slots (empty: never colored).
-func (b *InProc) SenderSlots(ctx context.Context, roomID domain.RoomID) (map[string]int, error) {
-	return fromCache(b, "sender slots for "+string(roomID), func(c *db.Cache) (map[string]int, error) {
-		return c.SenderSlots(ctx, roomID)
-	})
-}
-
-// SaveSenderSlots records slots a client assigned (no-op without a cache).
-func (b *InProc) SaveSenderSlots(ctx context.Context, roomID domain.RoomID, slots map[string]int) error {
-	return toCache(b, "save sender slots for "+string(roomID), func(c *db.Cache) error {
-		return c.SaveSenderSlots(ctx, roomID, slots)
-	})
-}
-
-// SearchSenders ranks who posted in a set of rooms, for the search `from:` filter.
-func (b *InProc) SearchSenders(ctx context.Context, rooms domain.RoomSet, limit int) ([]domain.Member, error) {
-	return fromCache(b, "read search senders", func(c *db.Cache) ([]domain.Member, error) {
-		return c.SearchSenders(ctx, rooms, limit)
-	})
 }
 
 // directCandidatePool is how many talkers are ranked before excluding existing DMs

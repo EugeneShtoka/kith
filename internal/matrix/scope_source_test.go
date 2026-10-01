@@ -247,7 +247,7 @@ func playScopeSeed(t *testing.T, seed uint64) string {
 	}
 	exact := func(when string) string {
 		for _, room := range world.rooms {
-			got, err := b.roomFacts(ctx, domain.RoomID(room))
+			got, err := cachedFacts(ctx, b, domain.RoomID(room))
 			if err != nil {
 				return fmt.Sprintf("%s: facts of %s: %v", when, room, err)
 			}
@@ -289,7 +289,7 @@ func playScopeSeed(t *testing.T, seed uint64) string {
 			Listed: rng.IntN(2) == 0, Encrypted: true,
 		}
 		for _, room := range world.rooms {
-			got, err := b.roomFacts(ctx, domain.RoomID(room))
+			got, err := cachedFacts(ctx, b, domain.RoomID(room))
 			if err != nil {
 				continue // refused: narrower than anything
 			}
@@ -325,4 +325,18 @@ func sameFacts(a, b domain.RoomFacts) bool {
 	slices.Sort(bs)
 	return a.ID == b.ID && a.Name == b.Name && a.Direct == b.Direct && a.Protocol == b.Protocol &&
 		slices.Equal(as, bs)
+}
+
+// cachedFacts is what the model opt-in decides a room by: its facts as the cache
+// holds them (local.Service reads the same two tables).
+func cachedFacts(ctx context.Context, b *InProc, roomID domain.RoomID) (domain.RoomFacts, error) {
+	rooms, err := b.cache.Rooms(ctx)
+	if err != nil {
+		return domain.RoomFacts{}, err
+	}
+	spaces, err := b.cache.Spaces(ctx)
+	if err != nil {
+		return domain.RoomFacts{}, err
+	}
+	return domain.FactsAmong(roomID, rooms, spaces), nil
 }

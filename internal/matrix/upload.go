@@ -213,3 +213,12 @@ func addDimensions(f io.ReadSeeker, content *event.MessageEventContent) {
 	}
 	content.Info.Width, content.Info.Height = cfg.Width, cfg.Height
 }
+
+// RoomEncryption reports which of these rooms are encrypted, erring towards yes.
+func (b *InProc) RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {
+	out := make(map[domain.RoomID]bool, len(roomIDs))
+	for _, roomID := range roomIDs {
+		out[roomID] = b.roomEncrypted(ctx, roomID)
+	}
+	return out, nil
+}

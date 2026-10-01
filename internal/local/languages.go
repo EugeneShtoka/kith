@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"context"
@@ -24,23 +24,20 @@ func searchPaths() []string { return spell.SearchPaths(filepath.Join(xdg.DataHom
 
 // DetectLanguages counts the cached corpus and returns the dictionaries worth
 // installing, already filtered to installable and not yet installed.
-func (b *InProc) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, error) {
+func (s *Service) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, error) {
 	avail, _ := spell.Look("", nil, searchPaths())
 	if avail.Engine.Path == "" {
 		// No engine: the fix is a package manager, so explain and offer nothing.
 		return domain.SpellSuggestion{Why: avail.Why(spell.Distro())}, nil
 	}
-	if b.cache == nil {
+	if s.cache == nil {
 		return domain.SpellSuggestion{}, nil
 	}
 
-	me := ""
-	if b.client != nil {
-		me = b.client.UserID.String()
-	}
+	me := s.account()
 	var counts spell.Counts
-	if err := b.cache.EachMessageBody(ctx, me, counts.Add); err != nil {
-		return domain.SpellSuggestion{}, fmt.Errorf("matrix: read corpus: %w", err)
+	if err := s.cache.EachMessageBody(ctx, me, counts.Add); err != nil {
+		return domain.SpellSuggestion{}, fmt.Errorf("local: read corpus: %w", err)
 	}
 
 	installed := make(map[string]bool, len(avail.Dictionaries))
@@ -64,17 +61,17 @@ func (b *InProc) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, e
 			Bytes:  src.Bytes(),
 		})
 	}
-	out.Frequencies = b.frequencyCandidates(avail, shares)
+	out.Frequencies = s.frequencyCandidates(avail, shares)
 	return out, nil
 }
 
 // frequencyCandidates are the word-count lists worth offering for installed
 // dictionaries; only when the rare-word check is on.
-func (b *InProc) frequencyCandidates(avail spell.Availability, shares map[string]float64) []domain.FrequencyCandidate {
-	b.spell.mu.Lock()
-	on := b.spell.settings.FlagRare
-	dir := b.spell.freqDir()
-	b.spell.mu.Unlock()
+func (s *Service) frequencyCandidates(avail spell.Availability, shares map[string]float64) []domain.FrequencyCandidate {
+	s.spell.mu.Lock()
+	on := s.spell.settings.FlagRare
+	dir := s.spell.freqDir()
+	s.spell.mu.Unlock()
 	if !on {
 		return nil
 	}
@@ -106,23 +103,23 @@ func (b *InProc) frequencyCandidates(avail spell.Availability, shares map[string
 
 // InstallFrequencies fetches one language's word counts and reloads them, so the
 // rare-word check works without a restart.
-func (b *InProc) InstallFrequencies(ctx context.Context, tag string) error {
+func (s *Service) InstallFrequencies(ctx context.Context, tag string) error {
 	client := &http.Client{Timeout: 10 * time.Minute}
-	b.spell.mu.Lock()
-	dir := b.spell.freqDir()
-	b.spell.mu.Unlock()
+	s.spell.mu.Lock()
+	dir := s.spell.freqDir()
+	s.spell.mu.Unlock()
 	if _, err := spell.InstallFreq(ctx, client, tag, dir); err != nil {
-		return fmt.Errorf("matrix: install word counts for %s: %w", tag, err)
+		return fmt.Errorf("local: install word counts for %s: %w", tag, err)
 	}
-	b.spell.reloadRarity()
+	s.spell.reloadRarity()
 	return nil
 }
 
 // InstallDictionary fetches one dictionary, verifying it against the pinned hash.
-func (b *InProc) InstallDictionary(ctx context.Context, tag string) error {
+func (s *Service) InstallDictionary(ctx context.Context, tag string) error {
 	client := &http.Client{Timeout: 5 * time.Minute}
 	if _, err := spell.Install(ctx, client, tag, dictionaryDir()); err != nil {
-		return fmt.Errorf("matrix: install dictionary %s: %w", tag, err)
+		return fmt.Errorf("local: install dictionary %s: %w", tag, err)
 	}
 	return nil
 }

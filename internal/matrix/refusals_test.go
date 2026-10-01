@@ -52,7 +52,7 @@ func TestRefusalLearnedOnlyFromABridgeTakingOursAway(t *testing.T) {
 				domain.Reaction{RoomID: "!a:x", Sender: tc.reactionSender, Key: "🫶"},
 				&event.Event{Sender: id.UserID(tc.redactedBy)})
 
-			refusals, err := b.ReactionRefusals(ctx)
+			refusals, err := b.cache.ReactionRefusals(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -63,23 +63,6 @@ func TestRefusalLearnedOnlyFromABridgeTakingOursAway(t *testing.T) {
 				t.Errorf("recorded %q, want the emoji that was refused", refusals[0].Emoji)
 			}
 		})
-	}
-}
-
-func TestRecordReactionRefusalFromTheClient(t *testing.T) {
-	t.Parallel()
-
-	b := backendWithCache(t, "@eugene:example.org")
-	ctx := context.Background()
-	if err := b.RecordReactionRefusal(ctx, "RCS", "🤯"); err != nil {
-		t.Fatal(err)
-	}
-	refusals, err := b.ReactionRefusals(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refusals) != 1 || refusals[0].Protocol != "RCS" || refusals[0].Emoji != "🤯" {
-		t.Errorf("refusals = %+v, want one RCS/🤯", refusals)
 	}
 }
 

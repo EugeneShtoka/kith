@@ -97,16 +97,13 @@ type InProc struct {
 		rooms map[domain.RoomID]domain.Room
 	}
 
-	// spell is the spelling engine; its zero value answers ErrSpellUnavailable.
-	spell spellcheck
-	// model is the optional remote language-model layer (see modeltask.go).
-	model modelLayer
-	// completion is the local word-completion model (see completionmodel.go).
-	completion completionModel
 	// keepDeleted is [display.deleted] keep: whether deleted messages' text stays cached.
 	keepDeleted bool
-	// vocab is word completion's recent-history windows (see recentvocab.go).
-	vocab recentVocab
+	// onCached and onChanged, when set, hear a message being cached and a room's
+	// cached messages changing otherwise (an edit's deletion, a redaction). Set
+	// before Start.
+	onCached  func(domain.Message)
+	onChanged func(domain.RoomID)
 }
 
 // fromCache runs a cache read, wrapping its error; without a cache it answers the
@@ -297,8 +294,6 @@ func (b *InProc) Stop() {
 		} else if b.cryptoDB != nil {
 			b.warnIf(context.Background(), b.cryptoDB.Close(), "close the crypto store")
 		}
-		b.spell.stop()
-		b.closeCompletionModel()
 	})
 }
 
@@ -312,7 +307,9 @@ func (b *InProc) onMessage(ctx context.Context, evt *event.Event) {
 	msg.SenderName = b.senderName(ctx, msg.RoomID, msg.Sender)
 	if b.cache != nil {
 		b.cacheMessages(ctx, msg.RoomID, []domain.Message{msg})
-		b.vocab.added(msg, b.accountID())
+		if b.onCached != nil {
+			b.onCached(msg)
+		}
 		if msg.Media != nil {
 			b.saveMediaSource(ctx, msg.RoomID, evt)
 		}
@@ -348,7 +345,7 @@ func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 		b.warnIf(ctx, b.cache.MarkRedacted(ctx, roomID, target, string(evt.Sender), redactionReason(evt),
 			time.UnixMilli(evt.Timestamp), b.keepDeleted),
 			"cache redaction", "room", roomID, "event", target)
-		b.vocab.changed(roomID)
+		b.changed(roomID)
 		b.recount(ctx, roomID)
 		if isEdit {
 			b.emitReverted(ctx, roomID, shownOn, target)
@@ -478,23 +475,22 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 	return true
 }
 
-var _ api.Backend = (*InProc)(nil)
+// OnCached sets who hears each message the backend caches, and each room whose
+// cached messages changed otherwise. Set before Start.
+func (b *InProc) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
+	b.onCached, b.onChanged = cached, changed
+}
 
-// errNoCache refuses to clear a cache that is not open.
-var errNoCache = errors.New("matrix: the cache is not open (the daemon log says why), so there is nothing to clear; " +
-	"remove the cache file and restart kithd to start it anew")
+// changed tells the listener a room's cached messages changed.
+func (b *InProc) changed(roomID domain.RoomID) {
+	if b.onChanged != nil {
+		b.onChanged(roomID)
+	}
+}
 
-// ClearCache empties the local cache and rewinds the sync position so sync refills it.
-func (b *InProc) ClearCache(ctx context.Context) error {
-	if b.cache == nil {
-		// Saying nothing would read as done. A cache that failed to open is in the
-		// daemon's log; removing the file and restarting the daemon starts it anew.
-		return errNoCache
-	}
-	if err := b.cache.Clear(ctx); err != nil {
-		return fmt.Errorf("matrix: clear cache: %w", err)
-	}
-	b.vocab.cleared()
+// RewindSync rewinds the sync position so a full initial sync refills an emptied
+// cache.
+func (b *InProc) RewindSync(ctx context.Context) error {
 	// Owed as well as done: before Start, the store rewound now may not be the one it
 	// syncs on (EnableEncryption swaps in the crypto store). On failure the cache stays
 	// empty, so a restart rewinds too.

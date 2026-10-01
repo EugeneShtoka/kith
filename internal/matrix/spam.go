@@ -126,13 +126,6 @@ func (b *InProc) clearSpam(ctx context.Context, roomID domain.RoomID) error {
 	})
 }
 
-// SpamRooms is every caught room from the cache (mirrored from account data).
-func (b *InProc) SpamRooms(ctx context.Context) ([]domain.SpamVerdict, error) {
-	return fromCache(b, "list spam rooms", func(c *db.Cache) ([]domain.SpamVerdict, error) {
-		return c.SpamRooms(ctx)
-	})
-}
-
 // spamMirror applies a sync's verdict to the cache. Best-effort: the server copy is
 // the record, and an initial sync restates it.
 func (b *InProc) spamMirror(ctx context.Context, roomID domain.RoomID, content spamContent) {

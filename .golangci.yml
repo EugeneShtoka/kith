@@ -154,19 +154,32 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/api"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
-            - "github.com/EugeneShtoka/kith/internal/llamacpp"
-            - "github.com/EugeneShtoka/kith/internal/llm"
             - "github.com/EugeneShtoka/kith/internal/matrix"
             - "github.com/EugeneShtoka/kith/internal/richtext"
-            - "github.com/EugeneShtoka/kith/internal/spell"
-            - "github.com/EugeneShtoka/kith/internal/vocab"
-            - "github.com/adrg/xdg"
             - "github.com/rs/zerolog"
             - "github.com/yuin/goldmark"
             - "go.mau.fi/util"
             - "golang.org/x/image"
             - "maunium.net/go/mautrix"
             - "modernc.org/sqlite"
+
+        # What the daemon answers from its own stores, whatever the network: the cache,
+        # spelling, word completion and the language models. No chat network's SDK.
+        local-is-the-cache-service:
+          files:
+            - "**/internal/local/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/llamacpp"
+            - "github.com/EugeneShtoka/kith/internal/llm"
+            - "github.com/EugeneShtoka/kith/internal/local"
+            - "github.com/EugeneShtoka/kith/internal/spell"
+            - "github.com/EugeneShtoka/kith/internal/vocab"
+            - "github.com/adrg/xdg"
 
         session-is-a-leaf:
           files:
@@ -411,6 +424,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/local"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/matrix"
             - "github.com/EugeneShtoka/kith/internal/modelsetup"

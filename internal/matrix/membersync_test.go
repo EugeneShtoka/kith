@@ -187,9 +187,9 @@ func rawMember(sender string, stateKey *string, content string) *event.Event {
 	}
 }
 
-// ClearCache must also rewind next_batch (kept in the crypto store), or the emptied
-// cache is never refilled.
-func TestClearCacheRewindsTheSyncPosition(t *testing.T) {
+// A rewind (what ClearCache asks for) must clear next_batch, kept in the crypto store,
+// or the emptied cache is never refilled.
+func TestARewindClearsTheSyncPosition(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -200,8 +200,8 @@ func TestClearCacheRewindsTheSyncPosition(t *testing.T) {
 	}
 	b.client.Store = store
 
-	if err := b.ClearCache(ctx); err != nil {
-		t.Fatalf("ClearCache: %v", err)
+	if err := b.RewindSync(ctx); err != nil {
+		t.Fatalf("RewindSync: %v", err)
 	}
 
 	token, err := store.LoadNextBatch(ctx, "@me:x")
@@ -209,11 +209,11 @@ func TestClearCacheRewindsTheSyncPosition(t *testing.T) {
 		t.Fatalf("LoadNextBatch: %v", err)
 	}
 	if token != "" {
-		t.Errorf("sync token = %q after ClearCache, want empty — the next sync must be a full one", token)
+		t.Errorf("sync token = %q after RewindSync, want empty — the next sync must be a full one", token)
 	}
 }
 
-// ClearCache is reachable before Resume; rewinding must not panic without a client.
+// A rewind is reachable before Resume (ClearCache); it must not panic without a client.
 func TestResetSyncPositionWithoutAClient(t *testing.T) {
 	t.Parallel()
 
@@ -333,7 +333,10 @@ func TestAnEmptiedCacheRewindsEvenAfterRoomsArrive(t *testing.T) {
 			}
 		}, "s2"},
 		{"cleared before Start, on a store swapped in afterwards", func(t *testing.T, b *InProc) {
-			if err := b.ClearCache(ctx); err != nil {
+			if err := b.cache.Clear(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.RewindSync(ctx); err != nil {
 				t.Fatal(err)
 			}
 			// EnableEncryption's swap: the store Start syncs on still has the token.

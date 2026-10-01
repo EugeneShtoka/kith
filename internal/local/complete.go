@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 // are filtered out afterwards.
 const completeSpare = 8
 
-// The [complete] sources names (internal/matrix reads no config).
+// The [complete] sources names (internal/local reads no config).
 const (
 	sourceHistory   = "history"
 	sourceFrequency = "frequency"
@@ -24,27 +24,27 @@ const (
 
 // CompleteWord finishes a partly typed word from what has been said in scope, with
 // rooms expanded through their upgrade chains.
-func (b *InProc) CompleteWord(ctx context.Context, req domain.CompleteRequest) ([]domain.WordCandidate, error) {
+func (s *Service) CompleteWord(ctx context.Context, req domain.CompleteRequest) ([]domain.WordCandidate, error) {
 	if req.Prefix == "" || req.Limit <= 0 {
 		return nil, nil
 	}
 
 	var ranked []domain.WordCandidate
-	if b.cache != nil && req.Wants(sourceHistory) {
-		rooms, err := b.cache.RoomChains(ctx, req.RoomIDs)
+	if s.cache != nil && req.Wants(sourceHistory) {
+		rooms, err := s.cache.RoomChains(ctx, req.RoomIDs)
 		if err != nil {
-			return nil, fmt.Errorf("matrix: expand completion scope: %w", err)
+			return nil, fmt.Errorf("local: expand completion scope: %w", err)
 		}
-		spaceRooms, err := b.cache.RoomChains(ctx, req.SpaceRooms)
+		spaceRooms, err := s.cache.RoomChains(ctx, req.SpaceRooms)
 		if err != nil {
-			return nil, fmt.Errorf("matrix: expand completion space: %w", err)
+			return nil, fmt.Errorf("local: expand completion space: %w", err)
 		}
 		scoped := req
 		scoped.RoomIDs, scoped.SpaceRooms = rooms, spaceRooms
 		scoped.Limit = req.Limit + completeSpare
-		ranked, err = b.vocab.rank(ctx, b.cache, scoped, b.accountID(), scoped.Limit)
+		ranked, err = s.vocab.rank(ctx, s.cache, scoped, s.account(), scoped.Limit)
 		if err != nil {
-			return nil, fmt.Errorf("matrix: complete word: %w", err)
+			return nil, fmt.Errorf("local: complete word: %w", err)
 		}
 	}
 	if len(ranked) > req.Limit {
@@ -53,15 +53,7 @@ func (b *InProc) CompleteWord(ctx context.Context, req domain.CompleteRequest) (
 	if !req.Wants(sourceFrequency) {
 		return ranked, nil
 	}
-	return domain.MergeCandidates(ranked, b.spell.completions(req.Prefix, req.Limit), req.Limit), nil
-}
-
-// accountID is this account's MXID, or "" before a session exists.
-func (b *InProc) accountID() string {
-	if b.client == nil {
-		return ""
-	}
-	return string(b.client.UserID)
+	return domain.MergeCandidates(ranked, s.spell.completions(req.Prefix, req.Limit), req.Limit), nil
 }
 
 // completions is what the frequency list for the prefix's script offers. Nothing when

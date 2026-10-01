@@ -1,4 +1,4 @@
-package matrix
+package local
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 const vocabMe = "@me:x"
 
 // completing is a backend with a cache holding a few rooms' messages.
-func completing(t *testing.T) *InProc {
+func completing(t *testing.T) *Service {
 	t.Helper()
 	b := backendWithCache(t, vocabMe)
 	ctx := context.Background()
@@ -37,7 +37,7 @@ func completing(t *testing.T) *InProc {
 	return b
 }
 
-func complete(t *testing.T, b *InProc, prefix string) []string {
+func complete(t *testing.T, b *Service, prefix string) []string {
 	t.Helper()
 	got, err := b.CompleteWord(context.Background(), domain.CompleteRequest{
 		Prefix: prefix, RoomIDs: []domain.RoomID{"!a:x"}, SpaceRooms: []domain.RoomID{"!a:x", "!b:x"},
@@ -74,8 +74,10 @@ func TestCompletionFollowsLiveMessagesAndRedactions(t *testing.T) {
 
 	live := domain.Message{ID: "$live", RoomID: "!a:x", Sender: "@dana:x", Body: "depends on the depot",
 		Timestamp: time.Date(2026, 9, 2, 9, 0, 0, 0, time.UTC)}
-	b.cacheMessages(ctx, live.RoomID, []domain.Message{live})
-	b.vocab.added(live, vocabMe)
+	if err := b.cache.SaveMessages(ctx, live.RoomID, []domain.Message{live}); err != nil {
+		t.Fatal(err)
+	}
+	b.MessageCached(live)
 	if got := complete(t, b, "dep"); !slices.Contains(got, "depends") {
 		t.Fatalf("a live message's word is missing: %v", got)
 	}
@@ -83,7 +85,7 @@ func TestCompletionFollowsLiveMessagesAndRedactions(t *testing.T) {
 	if err := b.cache.MarkRedacted(ctx, "!a:x", "$live", "@dana:x", "", time.Time{}, false); err != nil {
 		t.Fatal(err)
 	}
-	b.vocab.changed("!a:x")
+	b.RoomChanged("!a:x")
 	if got := complete(t, b, "dep"); slices.Contains(got, "depends") {
 		t.Errorf("a redacted message's word is still offered: %v", got)
 	}
