@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"slices"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -26,7 +28,8 @@ func (m Model) askEdit() (Model, tea.Cmd) {
 	m.compose.editSaved = m.editorFor(fieldComposer).text
 	m.compose.editing = msg.ID
 	m = m.store(fieldComposer, newEditor(msg.Body).end())
-	m.compose.insertMode, m.compose.replyTo, m.compose.drafted = true, "", nil
+	// The message's pills come along, so a revision keeps mentioning whom it did.
+	m.compose.insertMode, m.compose.replyTo, m.compose.drafted = true, "", slices.Clone(msg.Mentions)
 	return m, nil
 }
 
@@ -44,7 +47,7 @@ func (m Model) cancelEdit() Model {
 
 // submitEdit sends the revision and folds it into the timeline at once.
 func (m Model) submitEdit(room domain.Room, body string) (Model, tea.Cmd) {
-	target := m.compose.editing
+	target, mentions := m.compose.editing, m.compose.drafted
 	if body == "" {
 		// Refused rather than treated as a deletion, which has its own key and question.
 		return m.say("an empty edit would delete it — " +
@@ -60,7 +63,7 @@ func (m Model) submitEdit(room domain.Room, body string) (Model, tea.Cmd) {
 	m = m.doing("editing…")
 	// The revision ends the typing notice, as a send does.
 	m, stop := m.stopTyping()
-	return m, tea.Batch(m.editCmd(room.ID, target, body), stop)
+	return m, tea.Batch(m.editCmd(room.ID, target, body, mentions), stop)
 }
 
 // handleEdited reports a failed edit and reloads the timeline to undo the
