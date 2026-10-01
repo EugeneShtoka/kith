@@ -60,10 +60,15 @@ func (m Model) submitEdit(room domain.Room, body string) (Model, tea.Cmd) {
 			ID: target, RoomID: room.ID, Body: body, Edited: true,
 		}}))
 	}
+	revision := domain.Draft{
+		Body: body, Mentions: mentions, Edits: target,
+		// Rendered as a new message would be: an edit is no way around markdown = false.
+		Plain: !m.conf.base.Composer.MarkdownEnabled(),
+	}
 	m = m.doing("editing…")
 	// The revision ends the typing notice, as a send does.
 	m, stop := m.stopTyping()
-	return m, tea.Batch(m.editCmd(room.ID, target, body, mentions), stop)
+	return m, tea.Batch(m.editCmd(room.ID, revision), stop)
 }
 
 // handleEdited reports a failed edit and reloads the timeline to undo the

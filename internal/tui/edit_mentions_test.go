@@ -90,3 +90,22 @@ func TestMentioningYouDoesNotRecolorTheSender(t *testing.T) {
 		}
 	}
 }
+
+// markdown = false holds for revisions too: an edit goes out as typed, as a send does.
+func TestAnEditFollowsTheMarkdownSetting(t *testing.T) {
+	t.Parallel()
+
+	off := false
+	for _, tc := range []struct {
+		name      string
+		markdown  *bool
+		wantPlain bool
+	}{{"default", nil, false}, {"false", &off, true}} {
+		m, backend := editingWith(t, domain.Message{Body: "**not bold**"})
+		m.conf.base.Composer = config.Composer{Markdown: tc.markdown}
+		m, _ = press(t, m, keyText("E"))
+		if draft := sentEdit(t, m, backend); draft.Plain != tc.wantPlain {
+			t.Errorf("markdown=%s: Plain = %v, want %v", tc.name, draft.Plain, tc.wantPlain)
+		}
+	}
+}
