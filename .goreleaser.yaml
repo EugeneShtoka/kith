@@ -152,7 +152,7 @@ nfpms:
       kith is the client, kithd the daemon that owns the session (sync, cache,
       end-to-end encryption, notifications) and kith-mcp an MCP server for AI
       assistants. Pure Go, no cgo: E2EE via mautrix goolm.
-    license: MIT
+    license: AGPL-3.0-or-later
     section: net
     priority: optional
     contents:
@@ -259,7 +259,7 @@ aurs:
     homepage: https://github.com/EugeneShtoka/kith
     description: Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server (prebuilt)
     maintainers: ["Eugene Shtoka <eugene at cloud-surf dot com>"]
-    license: MIT
+    license: AGPL-3.0-or-later
     private_key: '{{ envOrDefault "AUR_SSH_PRIVATE_KEY" "" }}'
     git_url: ssh://aur@aur.archlinux.org/kith-bin.git
     skip_upload: '{{ if isEnvSet "AUR_SSH_PRIVATE_KEY" }}auto{{ else }}true{{ end }}'
@@ -296,7 +296,7 @@ aur_sources:
     homepage: https://github.com/EugeneShtoka/kith
     description: Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server
     maintainers: ["Eugene Shtoka <eugene at cloud-surf dot com>"]
-    license: MIT
+    license: AGPL-3.0-or-later
     private_key: '{{ envOrDefault "AUR_SSH_PRIVATE_KEY" "" }}'
     git_url: ssh://aur@aur.archlinux.org/kith.git
     skip_upload: '{{ if isEnvSet "AUR_SSH_PRIVATE_KEY" }}auto{{ else }}true{{ end }}'
@@ -348,7 +348,7 @@ homebrew_casks:
     binaries: [kith, kithd, kith-mcp]
     homepage: https://github.com/EugeneShtoka/kith
     description: Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server
-    license: MIT
+    license: AGPL-3.0-or-later
     # No url.verified: deprecated since goreleaser v2.18.1, as Homebrew now verifies
     # the download URL by default.
     directory: Casks

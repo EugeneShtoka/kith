@@ -59,7 +59,7 @@ buildGoModule {
   meta = {
     description = "Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server";
     homepage = "https://github.com/EugeneShtoka/kith";
-    license = lib.licenses.mit;
+    license = lib.licenses.agpl3Plus;
     mainProgram = "kith";
     platforms = lib.platforms.linux ++ lib.platforms.darwin;
   };
