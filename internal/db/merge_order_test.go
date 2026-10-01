@@ -9,6 +9,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // One message's history, as the daemon saves it: the original, two edits, and a
@@ -25,12 +26,12 @@ type historyStep struct {
 
 var (
 	stepOrig = historyStep{name: "o", msg: domain.Message{ID: "$m", Sender: "@a:x", Body: "v0",
-		HTML: "<b>v0</b>", Timestamp: time.UnixMilli(5000)}}
+		Format: richtext.FromMarkup("<b>v0</b>"), Timestamp: time.UnixMilli(5000)}}
 	stepEdit1 = historyStep{name: "e1", msg: domain.Message{ID: "$m", Sender: "@a:x", Body: "v1",
-		HTML: "<b>v1</b>", RevisionID: "$e1", Timestamp: time.UnixMilli(7000),
+		Format: richtext.FromMarkup("<b>v1</b>"), RevisionID: "$e1", Timestamp: time.UnixMilli(7000),
 		EditedAt: time.UnixMilli(7000), Edited: true}}
 	stepEdit2 = historyStep{name: "e2", msg: domain.Message{ID: "$m", Sender: "@a:x", Body: "v2",
-		HTML: "<b>v2</b>", RevisionID: "$e2", Timestamp: time.UnixMilli(9000),
+		Format: richtext.FromMarkup("<b>v2</b>"), RevisionID: "$e2", Timestamp: time.UnixMilli(9000),
 		EditedAt: time.UnixMilli(9000), Edited: true}}
 	stepRedact = historyStep{name: "R", redact: true}
 	// Redactions of the edit events themselves.
@@ -104,8 +105,8 @@ func TestSavedHistoryIsOrderIndependent(t *testing.T) {
 			name:  "edits",
 			steps: []historyStep{stepOrig, stepEdit1, stepEdit2},
 			check: func(m domain.Message, _ []domain.Revision) error {
-				if m.Body != "v2" || m.HTML != "<b>v2</b>" || !m.Edited || m.Redacted {
-					return fmt.Errorf("want the newest edit v2, got body=%q html=%q edited=%v", m.Body, m.HTML, m.Edited)
+				if m.Body != "v2" || m.Format.Markup() != "<b>v2</b>" || !m.Edited || m.Redacted {
+					return fmt.Errorf("want the newest edit v2, got body=%q html=%q edited=%v", m.Body, m.Format.Markup(), m.Edited)
 				}
 				if !m.EditedAt.Equal(time.UnixMilli(9000)) {
 					return fmt.Errorf("EditedAt = %v, want the newest edit's", m.EditedAt)
@@ -118,8 +119,8 @@ func TestSavedHistoryIsOrderIndependent(t *testing.T) {
 			steps: []historyStep{stepOrig, stepEdit1, stepEdit2},
 			keep:  true,
 			check: func(m domain.Message, revs []domain.Revision) error {
-				if m.Body != "v2" || m.HTML != "<b>v2</b>" || !m.Edited {
-					return fmt.Errorf("want the newest edit v2, got body=%q html=%q", m.Body, m.HTML)
+				if m.Body != "v2" || m.Format.Markup() != "<b>v2</b>" || !m.Edited {
+					return fmt.Errorf("want the newest edit v2, got body=%q html=%q", m.Body, m.Format.Markup())
 				}
 				if len(revs) != 3 {
 					return fmt.Errorf("kept %d revisions, want all 3", len(revs))
@@ -146,8 +147,8 @@ func TestSavedHistoryIsOrderIndependent(t *testing.T) {
 			name:  "a redaction before the message, then only its edits",
 			steps: []historyStep{stepEdit1, stepEdit2, stepRedact},
 			check: func(m domain.Message, revs []domain.Revision) error {
-				if !m.Redacted || m.Body != "" || m.HTML != "" {
-					return fmt.Errorf("want redacted with no words, got redacted=%v body=%q html=%q", m.Redacted, m.Body, m.HTML)
+				if !m.Redacted || m.Body != "" || m.Format.Markup() != "" {
+					return fmt.Errorf("want redacted with no words, got redacted=%v body=%q html=%q", m.Redacted, m.Body, m.Format.Markup())
 				}
 				if m.RedactedBy != "@mod:x" {
 					return fmt.Errorf("RedactedBy = %q, want who deleted it", m.RedactedBy)
@@ -159,8 +160,8 @@ func TestSavedHistoryIsOrderIndependent(t *testing.T) {
 			name:  "edits and a redaction",
 			steps: []historyStep{stepOrig, stepEdit1, stepEdit2, stepRedact},
 			check: func(m domain.Message, revs []domain.Revision) error {
-				if !m.Redacted || m.Body != "" || m.HTML != "" {
-					return fmt.Errorf("want redacted with no words, got redacted=%v body=%q html=%q", m.Redacted, m.Body, m.HTML)
+				if !m.Redacted || m.Body != "" || m.Format.Markup() != "" {
+					return fmt.Errorf("want redacted with no words, got redacted=%v body=%q html=%q", m.Redacted, m.Body, m.Format.Markup())
 				}
 				if len(revs) != 0 {
 					return fmt.Errorf("a forgotten message kept %d revisions", len(revs))
@@ -356,15 +357,19 @@ func resolvedAlike(cache *Cache, order []historyStep, loadedAfter int) error {
 		return nil
 	}
 	c, k := client[0], cached[0]
-	if c.Body != k.Body || c.HTML != k.HTML || c.Redacted != k.Redacted || c.Edited != k.Edited ||
+	// Formatting is compared as it draws: over the wire it has no markup.
+	if c.Body != k.Body || drawn(c.Format) != drawn(k.Format) || c.Redacted != k.Redacted || c.Edited != k.Edited ||
 		!c.EditedAt.Equal(k.EditedAt) || c.RevisionID != k.RevisionID {
-		return fmt.Errorf("the client shows body=%q html=%q redacted=%v edited=%v at %v rev %q,\n"+
-			"the cache body=%q html=%q redacted=%v edited=%v at %v rev %q",
-			c.Body, c.HTML, c.Redacted, c.Edited, c.EditedAt.UnixMilli(), c.RevisionID,
-			k.Body, k.HTML, k.Redacted, k.Edited, k.EditedAt.UnixMilli(), k.RevisionID)
+		return fmt.Errorf("the client shows body=%q format=%s redacted=%v edited=%v at %v rev %q,\n"+
+			"the cache body=%q format=%s redacted=%v edited=%v at %v rev %q",
+			c.Body, drawn(c.Format), c.Redacted, c.Edited, c.EditedAt.UnixMilli(), c.RevisionID,
+			k.Body, drawn(k.Format), k.Redacted, k.Edited, k.EditedAt.UnixMilli(), k.RevisionID)
 	}
 	return nil
 }
+
+// drawn is formatting as a client draws it.
+func drawn(f richtext.Formatted) string { return fmt.Sprintf("%q %+v", f.Text(), f.Spans()) }
 
 // overTheWire is the room as the client receives it: read from the cache and sent
 // through the socket's wire types.
@@ -408,8 +413,8 @@ func TestADeletedEditIsNeverShownAgain(t *testing.T) {
 					}
 					m := msgs[0]
 					for _, gone := range tc.gone {
-						if m.Body == gone || m.HTML == "<b>"+gone+"</b>" {
-							t.Errorf("[%s] shows %q (html %q), the words of a deleted edit", stepNames(order), m.Body, m.HTML)
+						if m.Body == gone || m.Format.Markup() == "<b>"+gone+"</b>" {
+							t.Errorf("[%s] shows %q (html %q), the words of a deleted edit", stepNames(order), m.Body, m.Format.Markup())
 						}
 					}
 					if keep && m.Body != tc.kept {

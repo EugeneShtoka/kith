@@ -131,7 +131,7 @@ linters:
             - "github.com/gofrs/flock"
             - "google.golang.org/protobuf"
 
-        # The cache: SQLite and the domain types it stores.
+        # The cache: SQLite and the domain types it stores (formatting as richtext markup).
         db-is-the-cache:
           files:
             - "**/internal/db/**"
@@ -140,6 +140,7 @@ linters:
             - "$gostd"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/adrg/xdg"
             - "modernc.org/sqlite"
 
@@ -259,6 +260,7 @@ linters:
             - "google.golang.org/protobuf"
             - "github.com/EugeneShtoka/kith/internal/api/backend/v1"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/notify"
 
         # In-memory completion ranking: text in, candidates out.

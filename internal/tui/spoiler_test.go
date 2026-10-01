@@ -5,14 +5,15 @@ import (
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // spoilerMsg is a message with a covered run in it.
 func spoilerMsg() domain.Message {
 	return domain.Message{
 		ID: "$1", RoomID: "!a:x", Sender: "@her:x",
-		Body: "he dies at the end",
-		HTML: `he dies at the <span data-mx-spoiler>end</span>`,
+		Body:   "he dies at the end",
+		Format: richtext.FromMarkup(`he dies at the <span data-mx-spoiler>end</span>`),
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // Editing a formatted message in an open thread shows the new words at once, both from
@@ -18,7 +19,7 @@ func TestAnEditInAThreadShowsTheNewTextAtOnce(t *testing.T) {
 	m = m.setMessages([]domain.Message{
 		{ID: "$root", RoomID: m.openRoom, Sender: benchSenders[1], Body: "the plan", Timestamp: at},
 		{ID: "$mine", RoomID: m.openRoom, Sender: m.me, ThreadRoot: "$root", Timestamp: at.Add(time.Minute),
-			Body: "see you at seven", HTML: "see you at <b>seven</b>"},
+			Body: "see you at seven", Format: richtext.FromMarkup("see you at <b>seven</b>")},
 	})
 	m.thread = threadState{root: "$root"}
 	m = settled(m)
@@ -38,7 +39,7 @@ func TestAnEditInAThreadShowsTheNewTextAtOnce(t *testing.T) {
 	// The homeserver's copy of the edit, formatted again.
 	m, _ = asModel(m.Update(incomingMsg{message: domain.Message{
 		ID: "$mine", RoomID: m.openRoom, Sender: m.me, Body: "see you at nine",
-		HTML: "see you at <i>nine</i>", Edited: true, RevisionID: "$e2",
+		Format: richtext.FromMarkup("see you at <i>nine</i>"), Edited: true, RevisionID: "$e2",
 	}}))
 	frame = stripStyles(m.View().Content)
 	if !strings.Contains(frame, "see you at nine") || strings.Contains(frame, "eight") {

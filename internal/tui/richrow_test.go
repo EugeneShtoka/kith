@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 func formatted(body, html string) domain.Message {
-	return domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@her:x", Body: body, HTML: html}
+	return domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@her:x", Body: body, Format: richtext.FromMarkup(html)}
 }
 
 // A formatted message draws its rendered text, not the Markdown source.
@@ -64,9 +65,9 @@ func TestUnstyledBodies(t *testing.T) {
 	}{
 		"plain":      {domain.Message{ID: "$1", RoomID: "!a:x", Body: "just words"}, "just words"},
 		"no words":   {formatted("the real words", "<strong> </strong>"), "the real words"},
-		"redacted":   {domain.Message{ID: "$1", RoomID: "!a:x", Body: "gone", HTML: "<strong>gone</strong>", Redacted: true}, ""},
-		"an emote":   {domain.Message{ID: "$2", RoomID: "!a:x", Body: "waves", HTML: "<strong>waves</strong>", Emote: true}, ""},
-		"attachment": {domain.Message{ID: "$3", RoomID: "!a:x", Body: "pic.png", HTML: "<strong>pic.png</strong>", Media: &domain.Media{Type: domain.MediaImage, Name: "pic.png"}}, ""},
+		"redacted":   {domain.Message{ID: "$1", RoomID: "!a:x", Body: "gone", Format: richtext.FromMarkup("<strong>gone</strong>"), Redacted: true}, ""},
+		"an emote":   {domain.Message{ID: "$2", RoomID: "!a:x", Body: "waves", Format: richtext.FromMarkup("<strong>waves</strong>"), Emote: true}, ""},
+		"attachment": {domain.Message{ID: "$3", RoomID: "!a:x", Body: "pic.png", Format: richtext.FromMarkup("<strong>pic.png</strong>"), Media: &domain.Media{Type: domain.MediaImage, Name: "pic.png"}}, ""},
 	} {
 		body, _, marks := m.messageBody(tc.msg, nil)
 		if marks != nil {

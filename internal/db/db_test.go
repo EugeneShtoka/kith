@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 func openTemp(t *testing.T) *Cache {
@@ -596,7 +598,7 @@ func TestRedactionKeepsTheWordsOnlyWhenAsked(t *testing.T) {
 		ctx := t.Context()
 		cache := openTemp(t)
 		if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-			{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", HTML: "<strong>secret</strong>",
+			{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", Format: richtext.FromMarkup("<strong>secret</strong>"),
 				Timestamp: time.Unix(1, 0)},
 		}); err != nil {
 			t.Fatalf("SaveMessages: %v", err)
@@ -607,7 +609,7 @@ func TestRedactionKeepsTheWordsOnlyWhenAsked(t *testing.T) {
 		// And a page that was already in flight arrives afterwards, carrying the words
 		// the server has since stripped. It must not put them back.
 		if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-			{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", HTML: "<strong>secret</strong>",
+			{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", Format: richtext.FromMarkup("<strong>secret</strong>"),
 				Timestamp: time.Unix(1, 0)},
 		}); err != nil {
 			t.Fatalf("re-save: %v", err)
@@ -621,8 +623,8 @@ func TestRedactionKeepsTheWordsOnlyWhenAsked(t *testing.T) {
 			t.Errorf("keep = true lost the words anyway: %q", got[0].Body)
 		case !keep && got[0].Body != "":
 			t.Errorf("keep = false left the words on disk: %q", got[0].Body)
-		case !keep && got[0].HTML != "":
-			t.Errorf("keep = false left the formatting on disk: %q", got[0].HTML)
+		case !keep && got[0].Format.Markup() != "":
+			t.Errorf("keep = false left the formatting on disk: %q", got[0].Format.Markup())
 		}
 	}
 }
@@ -636,7 +638,7 @@ func TestRevisionsKeepEveryVersionInOrder(t *testing.T) {
 
 	original := domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "seven", Timestamp: at(1)}
 	firstEdit := domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "seven thirty",
-		HTML: "seven <b>thirty</b>", RevisionID: "$e1", Timestamp: at(2)}
+		Format: richtext.FromMarkup("seven <b>thirty</b>"), RevisionID: "$e1", Timestamp: at(2)}
 	secondEdit := domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "seven thirty, usual place",
 		RevisionID: "$e2", Timestamp: at(3)}
 
@@ -665,7 +667,7 @@ func TestRevisionsKeepEveryVersionInOrder(t *testing.T) {
 	if got[0].ID != "$m" || got[1].ID != "$e1" || got[2].ID != "$e2" {
 		t.Errorf("ids = %q, %q, %q", got[0].ID, got[1].ID, got[2].ID)
 	}
-	if got[1].HTML == "" {
+	if got[1].Format.Markup() == "" {
 		t.Error("a version's formatting was not kept with its words")
 	}
 	// Idempotent: the same edit arriving twice — a re-page, a resync — is one version.
@@ -781,8 +783,8 @@ func TestEditsCarryTheirFormatting(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
-	orig := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "old", HTML: "<b>old</b>", Timestamp: at(5)}
-	formatted := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "new", HTML: "<i>new</i>", Timestamp: at(9), Edited: true}
+	orig := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "old", Format: richtext.FromMarkup("<b>old</b>"), Timestamp: at(5)}
+	formatted := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "new", Format: richtext.FromMarkup("<i>new</i>"), Timestamp: at(9), Edited: true}
 	plain := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "plain now", Timestamp: at(12), Edited: true}
 
 	steps := []struct {
@@ -803,8 +805,35 @@ func TestEditsCarryTheirFormatting(t *testing.T) {
 		if err != nil || len(got) != 1 {
 			t.Fatalf("after %s: %+v, %v", s.name, got, err)
 		}
-		if got[0].Body != s.body || got[0].HTML != s.html {
-			t.Fatalf("after %s: body %q html %q, want %q %q", s.name, got[0].Body, got[0].HTML, s.body, s.html)
+		if got[0].Body != s.body || got[0].Format.Markup() != s.html {
+			t.Fatalf("after %s: body %q html %q, want %q %q", s.name, got[0].Body, got[0].Format.Markup(), s.body, s.html)
 		}
+	}
+}
+
+// Formatting that arrived without its markup (a client's drawn copy) is refused, not
+// saved as "no formatting": that would wipe the stored formatting of the message.
+func TestFormattingWithoutMarkupIsRefused(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	cache := openTemp(t)
+	stored := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "hi",
+		Format: richtext.FromMarkup("<b>hi</b>"), Timestamp: time.Unix(1, 0)}
+	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{stored}); err != nil {
+		t.Fatalf("SaveMessages: %v", err)
+	}
+	drawn := stored
+	drawn.Format = richtext.Drawn(stored.Format.Text(), stored.Format.Spans())
+	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{drawn}); !errors.Is(err, errDrawnOnly) {
+		t.Errorf("SaveMessages(drawn only) = %v, want errDrawnOnly", err)
+	}
+	if err := cache.SaveRevisionsFor(ctx, "!a:x", "$1", []domain.Revision{
+		{ID: "$e1", Body: "hi", Format: drawn.Format, At: time.Unix(2, 0)},
+	}); !errors.Is(err, errDrawnOnly) {
+		t.Errorf("SaveRevisionsFor(drawn only) = %v, want errDrawnOnly", err)
+	}
+	got, _, err := cache.Message(ctx, "!a:x", "$1")
+	if err != nil || got.Format.Markup() != "<b>hi</b>" {
+		t.Errorf("after the refusals the stored formatting is %q, %v", got.Format.Markup(), err)
 	}
 }

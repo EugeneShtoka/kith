@@ -116,7 +116,7 @@ func toDomainMessage(evt *event.Event) (domain.Message, bool) {
 			Sender: string(evt.Sender),
 			Body:   body,
 			// The replacement's own formatting; without it the edit reads as plain.
-			HTML: editHTML(content),
+			Format: editFormatting(content),
 			// See domain.Message.RevisionID.
 			RevisionID: domain.EventID(evt.ID),
 			Timestamp:  time.UnixMilli(evt.Timestamp),
@@ -162,7 +162,7 @@ func toDomainMessage(evt *event.Event) (domain.Message, bool) {
 		Media:      media,
 		Mentions:   parseMentions(content.FormattedBody),
 		// Sanitized at ingest (untrusted HTML).
-		HTML: formattedHTML(content),
+		Format: formatting(content),
 		// m.notice stays text; an emote is an action, not speech.
 		Emote: content.MsgType == event.MsgEmote,
 	}, true
@@ -176,21 +176,22 @@ func editBody(content *event.MessageEventContent) string {
 	return strings.TrimPrefix(content.Body, "* ")
 }
 
-// editHTML is an m.replace's new formatted body, sanitized, or "" when the new
-// content is plain (or absent: the "* " fallback is plain text).
-func editHTML(content *event.MessageEventContent) string {
+// editFormatting is an m.replace's new formatting, or none when the new content is
+// plain (or absent: the "* " fallback is plain text).
+func editFormatting(content *event.MessageEventContent) richtext.Formatted {
 	if content.NewContent == nil {
-		return ""
+		return richtext.Formatted{}
 	}
-	return formattedHTML(content.NewContent)
+	return formatting(content.NewContent)
 }
 
-// formattedHTML is a message's sanitized HTML without the reply fallback, or "".
-func formattedHTML(content *event.MessageEventContent) string {
+// formatting is a message's formatted body, without the reply fallback, as kith's
+// markup: Matrix's HTML, sanitized (it is untrusted). None when it has no HTML.
+func formatting(content *event.MessageEventContent) richtext.Formatted {
 	if content.Format != event.FormatHTML {
-		return ""
+		return richtext.Formatted{}
 	}
-	return richtext.Sanitize(replyFallback.ReplaceAllString(content.FormattedBody, ""))
+	return richtext.FromMarkup(richtext.Sanitize(replyFallback.ReplaceAllString(content.FormattedBody, "")))
 }
 
 // pillRe matches a matrix.to mention pill, capturing the MXID and display text.

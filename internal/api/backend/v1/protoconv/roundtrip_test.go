@@ -7,6 +7,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // TestEveryFieldSurvivesTheRoundTrip fills every field by reflection, so a field
@@ -134,6 +135,32 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 	}
 }
 
+// Formatting read from markup reaches the client drawing exactly what the daemon drew
+// from it; only the markup stays behind.
+func TestFormattingCrossesTheWireAsItDraws(t *testing.T) {
+	t.Parallel()
+
+	for _, markup := range []string{
+		"<b>bold</b> and <i>it</i>",
+		`see <a href="https://example.org/x">the link</a>`,
+		`<span data-mx-spoiler="plot">he dies</span>`,
+		"<blockquote>quoted</blockquote><h2>Heading</h2><ul><li>one</li><li>two</li></ul>",
+		"<pre><code>code</code></pre> <del>gone</del> <u>under</u>",
+	} {
+		sent := richtext.FromMarkup(markup)
+		got := protoconv.ProtoToFormatted(protoconv.FormattedToProto(sent))
+		if got.Text() != sent.Text() || !reflect.DeepEqual(got.Spans(), sent.Spans()) {
+			t.Errorf("%s:\n got %q %+v\nwant %q %+v", markup, got.Text(), got.Spans(), sent.Text(), sent.Spans())
+		}
+		if got.Markup() != "" {
+			t.Errorf("%s: markup crossed the wire: %q", markup, got.Markup())
+		}
+	}
+	if pb := protoconv.FormattedToProto(richtext.Formatted{}); pb != nil {
+		t.Errorf("no formatting went out as %+v", pb)
+	}
+}
+
 // fillTime has no monotonic reading, so DeepEqual compares only the instant.
 var fillTime = time.UnixMilli(1_700_000_000_123)
 
@@ -148,6 +175,15 @@ func fill(t *testing.T, v reflect.Value, path string) {
 	// 7 is not a VerificationKind and would rightly be refused.
 	if v.Type() == reflect.TypeFor[domain.VerificationKind]() {
 		v.Set(reflect.ValueOf(domain.VerificationSAS))
+		return
+	}
+
+	// Formatting is built only by its constructors. It crosses the wire as it draws,
+	// so it is made from two filled spans; its markup stays in the daemon by design.
+	if v.Type() == reflect.TypeFor[richtext.Formatted]() {
+		spans := reflect.New(reflect.TypeFor[[]richtext.Span]()).Elem()
+		fill(t, spans, path+".Spans")
+		v.Set(reflect.ValueOf(richtext.Drawn("filled:"+path, spans.Interface().([]richtext.Span))))
 		return
 	}
 

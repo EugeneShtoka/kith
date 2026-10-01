@@ -20,8 +20,8 @@ type Message struct {
 	SenderName string // the sender's room display name, if resolved; may be empty
 	// Body is the resolved plain text: an edit's replacement, empty when redacted.
 	Body string
-	// HTML is the sanitized formatting (see internal/richtext), usually empty.
-	HTML string
+	// Format is the formatting drawn over Body (see richtext.Formatted), usually none.
+	Format richtext.Formatted
 	// Timestamp is the origin time; the timeline orders by it, ties broken by ID.
 	Timestamp      time.Time
 	Redacted       bool
@@ -108,11 +108,10 @@ const spoilerPlaceholder = "++spoiler++"
 
 // NotifyBody is what a notification is allowed to say about a message.
 func (m Message) NotifyBody() string {
-	if m.HTML == "" {
+	if m.Format.IsZero() {
 		return m.Summary()
 	}
-	text, spans := richtext.Parse(m.HTML)
-	covered, any := coverSpoilers(text, spans)
+	covered, any := coverSpoilers(m.Format.Text(), m.Format.Spans())
 	if !any {
 		return m.Summary()
 	}
@@ -152,10 +151,10 @@ func coverSpoilers(text string, spans []richtext.Span) (string, bool) {
 
 // Revision is one version a message had, and when it had it.
 type Revision struct {
-	ID   EventID
-	Body string
-	HTML string
-	At   time.Time // the edit's own timestamp
+	ID     EventID
+	Body   string
+	Format richtext.Formatted
+	At     time.Time // the edit's own timestamp
 }
 
 // Deletion is the end of a message: who removed it, why they said they did, and when.
@@ -213,7 +212,7 @@ func MergeMessages(existing, incoming []Message) []Message {
 func combine(a, b Message) Message {
 	if b.Redacted {
 		// A redaction says what the body is now, even when that is empty.
-		a.Body, a.HTML = b.Body, b.HTML
+		a.Body, a.Format = b.Body, b.Format
 		if b.RedactedBy != "" {
 			a.RedactedBy, a.RedactedReason = b.RedactedBy, b.RedactedReason
 		}
@@ -247,17 +246,19 @@ func combine(a, b Message) Message {
 		// from an edit, which servers leave unredacted.
 	case b.Reverted:
 		// The edit shown was deleted: back to what the cache holds instead.
-		a.Body, a.HTML, a.Edited = b.Body, b.HTML, b.Edited
+		a.Body, a.Format, a.Edited = b.Body, b.Format, b.Edited
 		a.EditedAt, a.RevisionID = b.EditedAt, b.RevisionID
 	case b.Edited && (!a.Edited || SupersedesEdit(b, a.EditTime(), a.RevisionID)):
 		// The edit's formatting replaces the old, and plain replaces formatted: the
-		// timeline draws HTML over Body, so a kept HTML would show the old words.
-		a.Body, a.HTML = b.Body, b.HTML
+		// timeline draws Format over Body, so a kept Format would show the old words.
+		a.Body, a.Format = b.Body, b.Format
 		a.EditedAt, a.RevisionID = b.EditTime(), b.RevisionID
 	case a.Body == "" && b.Body != "":
-		// Its formatting comes with it: HTML is drawn over Body.
+		// Its formatting comes with it: Format is drawn over Body.
 		a.Body = b.Body
-		a.HTML = cmp.Or(a.HTML, b.HTML)
+		if a.Format.IsZero() {
+			a.Format = b.Format
+		}
 	}
 	if a.Redacted {
 		// A deleted message says it was edited, not when or by which edit (as the

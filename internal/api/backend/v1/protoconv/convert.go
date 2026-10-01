@@ -5,6 +5,7 @@ package protoconv
 import (
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // RoomToProto converts one room.
@@ -51,7 +52,7 @@ func MentionsToProto(ms []domain.Mention) []*v1.Mention {
 // RevisionsToProto converts a message's versions.
 func RevisionsToProto(revs []domain.Revision) []*v1.Revision {
 	return mapSlice(revs, func(r domain.Revision) *v1.Revision {
-		return &v1.Revision{Id: string(r.ID), Body: r.Body, Html: r.HTML, At: toProtoTime(r.At)}
+		return &v1.Revision{Id: string(r.ID), Body: r.Body, Format: FormattedToProto(r.Format), At: toProtoTime(r.At)}
 	})
 }
 
@@ -59,12 +60,43 @@ func RevisionsToProto(revs []domain.Revision) []*v1.Revision {
 func ProtoToRevisions(pb []*v1.Revision) []domain.Revision {
 	return mapSlice(pb, func(r *v1.Revision) domain.Revision {
 		return domain.Revision{
-			ID:   domain.EventID(r.GetId()),
-			Body: r.GetBody(),
-			HTML: r.GetHtml(),
-			At:   fromProtoTime(r.GetAt()),
+			ID:     domain.EventID(r.GetId()),
+			Body:   r.GetBody(),
+			Format: ProtoToFormatted(r.GetFormat()),
+			At:     fromProtoTime(r.GetAt()),
 		}
 	})
+}
+
+// FormattedToProto converts formatting to how it draws; nil when there is none. The
+// markup it was stored as stays in the daemon.
+func FormattedToProto(f richtext.Formatted) *v1.Formatted {
+	if f.IsZero() {
+		return nil
+	}
+	return &v1.Formatted{Text: f.Text(), Spans: mapSlice(f.Spans(), func(s richtext.Span) *v1.Span {
+		return &v1.Span{
+			Start: int64(s.Start), End: int64(s.End),
+			Bold: s.Bold, Italic: s.Italic, Code: s.Code, Strike: s.Strike, Underline: s.Underline,
+			Link: s.Link, Quote: s.Quote, Heading: s.Heading, Spoiler: s.Spoiler,
+			Reason: s.Reason, Href: s.Href,
+		}
+	})}
+}
+
+// ProtoToFormatted converts formatting back, as drawn only.
+func ProtoToFormatted(pb *v1.Formatted) richtext.Formatted {
+	if pb == nil {
+		return richtext.Formatted{}
+	}
+	return richtext.Drawn(pb.GetText(), mapSlice(pb.GetSpans(), func(s *v1.Span) richtext.Span {
+		return richtext.Span{
+			Start: int(s.GetStart()), End: int(s.GetEnd()),
+			Bold: s.GetBold(), Italic: s.GetItalic(), Code: s.GetCode(), Strike: s.GetStrike(),
+			Underline: s.GetUnderline(), Link: s.GetLink(), Quote: s.GetQuote(),
+			Heading: s.GetHeading(), Spoiler: s.GetSpoiler(), Reason: s.GetReason(), Href: s.GetHref(),
+		}
+	}))
 }
 
 // MessageToProto converts one timeline message.
@@ -75,7 +107,7 @@ func MessageToProto(m domain.Message) *v1.Message {
 		Sender:           m.Sender,
 		SenderName:       m.SenderName,
 		Body:             m.Body,
-		Html:             m.HTML,
+		Format:           FormattedToProto(m.Format),
 		Timestamp:        toProtoTime(m.Timestamp),
 		Redacted:         m.Redacted,
 		RedactedBy:       m.RedactedBy,
@@ -155,7 +187,7 @@ func ProtoToMessage(pb *v1.Message) domain.Message {
 		Sender:         pb.GetSender(),
 		SenderName:     pb.GetSenderName(),
 		Body:           pb.GetBody(),
-		HTML:           pb.GetHtml(),
+		Format:         ProtoToFormatted(pb.GetFormat()),
 		Timestamp:      fromProtoTime(pb.GetTimestamp()),
 		Redacted:       pb.GetRedacted(),
 		RedactedBy:     pb.GetRedactedBy(),

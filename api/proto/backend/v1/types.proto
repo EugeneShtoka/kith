@@ -46,8 +46,10 @@ message Revision {
   // The event that carried this wording.
   string id = 1;
   string body = 2;
-  string html = 3;
+  reserved 3;
+  reserved "html";
   google.protobuf.Timestamp at = 4;
+  Formatted format = 5; // unset when the version is plain
 }
 
 // Activity is what the other people in a room are doing right now (domain.Activity).
@@ -74,8 +76,9 @@ message Message {
   bool emote = 14;
   // The thread this message belongs to, empty when it is in the main timeline.
   string thread_root = 13;
-  // The message's formatting, as sanitized HTML, empty when it has none.
-  string html = 15;
+  // Formatting travels drawn (format), never as any network's markup.
+  reserved 15;
+  reserved "html";
   // Who removed the message, what they said about it, and when.
   string redacted_by = 16;
   string redacted_reason = 17;
@@ -89,6 +92,32 @@ message Message {
   // Sent because the edit this message showed was deleted: what it shows now, which
   // replaces the body and edit whatever their times (domain.Message.Reverted).
   bool reverted = 21;
+  // The formatting drawn over body, unset when the message is plain.
+  Formatted format = 22;
+}
+
+// Formatted is formatting as it draws (richtext.Formatted): the text, and the
+// emphasized runs of it. Every network's own markup is converted in the daemon.
+message Formatted {
+  string text = 1;
+  repeated Span spans = 2;
+}
+
+// Span is one emphasized run of Formatted.text, in UTF-8 byte offsets (richtext.Span).
+message Span {
+  int64 start = 1;
+  int64 end = 2;
+  bool bold = 3;
+  bool italic = 4;
+  bool code = 5;
+  bool strike = 6;
+  bool underline = 7;
+  bool link = 8;
+  bool quote = 9;
+  bool heading = 10;
+  bool spoiler = 11;
+  string reason = 12; // a spoiler's label
+  string href = 13; // a link's target
 }
 
 // Space is a Matrix space with its direct child rooms (domain.Space).

@@ -8,6 +8,7 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 const testUser = id.UserID("@me:example.org")
@@ -170,7 +171,7 @@ func TestAKeptDeletionSurvivesAPageFromTheServer(t *testing.T) {
 
 	const kept = "what it actually said"
 	if err := b.cache.SaveMessages(ctx, "!r:x", []domain.Message{
-		{ID: "$1", RoomID: "!r:x", Sender: "@her:x", Body: kept, HTML: "<b>" + kept + "</b>", Timestamp: at(1)},
+		{ID: "$1", RoomID: "!r:x", Sender: "@her:x", Body: kept, Format: richtext.FromMarkup("<b>" + kept + "</b>"), Timestamp: at(1)},
 		{ID: "$2", RoomID: "!r:x", Sender: "@her:x", Body: "erased", Timestamp: at(2)},
 	}); err != nil {
 		t.Fatal(err)
@@ -192,7 +193,7 @@ func TestAKeptDeletionSurvivesAPageFromTheServer(t *testing.T) {
 	if page[0].Body != kept {
 		t.Errorf("kept deletion came back with body %q, want %q", page[0].Body, kept)
 	}
-	if page[0].HTML == "" {
+	if page[0].Format.Markup() == "" {
 		t.Error("the kept formatting was not restored with the words")
 	}
 	if page[1].Body != "" {

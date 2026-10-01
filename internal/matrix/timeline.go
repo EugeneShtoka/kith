@@ -195,7 +195,7 @@ func (b *InProc) restoreKept(ctx context.Context, roomID domain.RoomID, msgs []d
 		if err != nil || !ok || kept.Body == "" {
 			continue
 		}
-		msgs[i].Body, msgs[i].HTML = kept.Body, kept.HTML
+		msgs[i].Body, msgs[i].Format = kept.Body, kept.Format
 	}
 }
 
@@ -243,10 +243,10 @@ func (b *InProc) fetchRevisions(
 		original = b.decryptEvent(ctx, original)
 		if body := original.Content.AsMessage().Body; body != "" {
 			out = append(out, domain.Revision{
-				ID:   eventID,
-				Body: body,
-				HTML: formattedHTML(original.Content.AsMessage()),
-				At:   time.UnixMilli(original.Timestamp),
+				ID:     eventID,
+				Body:   body,
+				Format: formatting(original.Content.AsMessage()),
+				At:     time.UnixMilli(original.Timestamp),
 			})
 		}
 	}
@@ -266,10 +266,10 @@ func (b *InProc) fetchRevisions(
 			continue // a redacted edit: it happened, and what it said is gone
 		}
 		out = append(out, domain.Revision{
-			ID:   domain.EventID(evt.ID),
-			Body: body,
-			HTML: formattedHTML(content),
-			At:   time.UnixMilli(evt.Timestamp),
+			ID:     domain.EventID(evt.ID),
+			Body:   body,
+			Format: formatting(content),
+			At:     time.UnixMilli(evt.Timestamp),
 		})
 	}
 	return out, deletion
