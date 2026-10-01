@@ -30,6 +30,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/logging"
 	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/modelsetup"
+	"github.com/EugeneShtoka/kith/internal/route"
 	"github.com/EugeneShtoka/kith/internal/schedule"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
@@ -168,7 +169,11 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	}
 
 	cache := openCache(ctx, log, cfg.User)
-	backend := newServed(cache, log)
+	backend, err := newServed(cache, log)
+	if err != nil {
+		closeCache(log, cache)
+		return err
+	}
 	// Registered before configure, so what it starts is stopped on every return.
 	defer func() {
 		if !handlersLive {
@@ -178,14 +183,14 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		}
 	}()
 	configure(log, backend, cfg)
-	prepare, err := resumeSession(ctx, log, backend.InProc, cfg.User, saved)
-	if err != nil {
+	// What is left of connecting once the homeserver answers belongs to Matrix's start.
+	if backend.matrix.prepare, err = resumeSession(ctx, log, backend.matrix.InProc, cfg.User, saved); err != nil {
 		return err
 	}
 
-	warnAboutAgentScope(ctx, log, backend.InProc, cfg.Agent)
+	warnAboutAgentScope(ctx, log, backend, cfg.Agent)
 
-	err = serve(ctx, log, relevel, lock, backend, cfg, path, prepare)
+	err = serve(ctx, log, relevel, lock, backend, cfg, path)
 	if handlersLive = errors.Is(err, daemon.ErrHandlersRunning); handlersLive {
 		log.Error("leaving the stores open: handlers were still running at exit", "err", err)
 	}
@@ -266,26 +271,54 @@ func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.Age
 	}
 }
 
-// served is the daemon's api.Backend: the Matrix adapter for everything that reaches
-// the network, and the local service for what the cache and the engines answer. A
-// method both offered would make it ambiguous and fail to compile, so none is served
-// twice.
+// served is the daemon's api.Backend: the networks behind one router for everything
+// that reaches a network, and the local service for what the cache and the engines
+// answer. A method both offered would make it ambiguous and fail to compile, so none
+// is served twice. matrix is the Matrix adapter itself, for what only kithd does
+// with it (the session, encryption, the sync callbacks).
 type served struct {
-	*matrix.InProc
+	*route.Router
 	*local.Service
+	matrix *matrixAdapter
 }
 
 var _ api.Backend = served{}
 
-// newServed builds the adapter and the service over one cache, the service hearing
-// what the adapter caches.
-func newServed(cache *db.Cache, log *slog.Logger) served {
-	adapter := matrix.New(cache)
+// matrixAdapter is the Matrix adapter as the router starts it: the homeserver-
+// dependent startup left over from resuming the session (prepare, nil when the
+// homeserver answered) runs first, so it belongs to Matrix's start and holds up no
+// other network.
+type matrixAdapter struct {
+	*matrix.InProc
+	prepare func(context.Context) error
+}
+
+// Start finishes connecting, then runs the sync loop.
+func (m *matrixAdapter) Start(ctx context.Context) error {
+	if m.prepare != nil {
+		if err := daemon.SyncFault(ctx, m.prepare(ctx)); err != nil {
+			return fmt.Errorf("connect: %w", err)
+		}
+	}
+	if err := m.InProc.Start(ctx); err != nil {
+		return fmt.Errorf("sync: %w", err)
+	}
+	return nil
+}
+
+// newServed builds the adapter, the router over it and the service over one cache,
+// the service hearing what the adapter caches.
+func newServed(cache *db.Cache, log *slog.Logger) (served, error) {
+	adapter := &matrixAdapter{InProc: matrix.New(cache)}
 	adapter.UseLogger(log)
-	service := local.New(cache, adapter)
+	router, err := route.New(adapter, nil)
+	if err != nil {
+		return served{}, fmt.Errorf("route the networks: %w", err)
+	}
+	service := local.New(cache, router)
 	service.UseLogger(log)
 	adapter.OnCached(service.MessageCached, service.RoomChanged)
-	return served{InProc: adapter, Service: service}
+	return served{Router: router, Service: service, matrix: adapter}, nil
 }
 
 // configure applies the config to the backend; internal/matrix and internal/local
@@ -300,8 +333,8 @@ func configure(log *slog.Logger, backend served, cfg config.Config) {
 	})
 	backend.UseModel(modelSettings(log, cfg))
 	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, xdg.DataHome))
-	backend.KeepDeleted(cfg.Display.Deleted.Keep())
-	backend.UseIdentities(context.Background(), identityGroups(cfg))
+	backend.matrix.KeepDeleted(cfg.Display.Deleted.Keep())
+	backend.matrix.UseIdentities(context.Background(), identityGroups(cfg))
 }
 
 // identityGroups is each [[display.identity]]'s user IDs.
@@ -374,16 +407,11 @@ func waitForHomeserver(ctx context.Context, backend *matrix.InProc) error {
 	}
 }
 
-// connectAndSync finishes homeserver-dependent startup, then runs the sync loop.
+// connectAndSync runs every network: each finishes its own connecting, then syncs.
 // SyncFault drops errors caused by our own shutdown, so a clean stop exits 0.
-func connectAndSync(ctx context.Context, backend *matrix.InProc, prepare func(context.Context) error) error {
-	if prepare != nil {
-		if err := daemon.SyncFault(ctx, prepare(ctx)); err != nil {
-			return fmt.Errorf("connect: %w", err)
-		}
-	}
-	if err := daemon.SyncFault(ctx, backend.Start(ctx)); err != nil {
-		return fmt.Errorf("sync: %w", err)
+func connectAndSync(ctx context.Context, router *route.Router) error {
+	if err := daemon.SyncFault(ctx, router.Start(ctx)); err != nil {
+		return fmt.Errorf("networks: %w", err)
 	}
 	return nil
 }
@@ -398,7 +426,6 @@ func serve(
 	backend served,
 	cfg config.Config,
 	configPath string,
-	prepare func(context.Context) error,
 ) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
@@ -422,7 +449,7 @@ func serve(
 	go func() { defer wg.Done(); w.backups.Run(ctx) }()
 	go func() {
 		defer wg.Done()
-		syncErr = connectAndSync(ctx, backend.InProc, prepare)
+		syncErr = connectAndSync(ctx, backend.Router)
 		if syncErr != nil {
 			// Clients see this as the daemon's state; the journal needs it at once,
 			// not only when the process exits.
@@ -431,7 +458,7 @@ func serve(
 		w.state.Failed(syncErr)
 	}()
 
-	scheduler, cutoff := startScheduler(ctx, log, cfg, backend.InProc)
+	scheduler, cutoff := startScheduler(ctx, log, cfg, backend)
 	defer scheduler.Stop()
 
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
@@ -471,7 +498,7 @@ func reloader(
 		relevel(reloaded.Log.Level)
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
 		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, xdg.DataHome))
-		backend.UseIdentities(ctx, identityGroups(reloaded))
+		backend.matrix.UseIdentities(ctx, identityGroups(reloaded))
 		return notifications.Reload(reloaded)
 	}
 }
@@ -503,15 +530,15 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	notifications.UseLogger(log)
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)
-	backend.OnRoomsChanged(refresher.Changed)
+	backend.matrix.OnRoomsChanged(refresher.Changed)
 
 	// Readiness is "a sync arrived", not "socket open": a cold cache looks like no rooms.
 	state := daemon.NewState()
-	backend.OnSynced(func(t time.Time) {
+	backend.matrix.OnSynced(func(t time.Time) {
 		state.Synced(t)
 		notifications.Synced(t)
 	})
-	backups := daemon.NewKeyBackup(backend, func(level slog.Level, line string) {
+	backups := daemon.NewKeyBackup(backend.matrix, func(level slog.Level, line string) {
 		log.Log(context.Background(), level, "key backup: "+line, "op", "key backup")
 	})
 	return &workers{
