@@ -542,11 +542,8 @@ func (m Model) messagePrefix(msg domain.Message, nameW int, c color.Color, selec
 func (m Model) senderCells(msg domain.Message, nameW int, c color.Color, selected bool) (ts, name string) {
 	label := displayName(m.processedName(msg))
 	pad := strings.Repeat(" ", max(nameW-ansi.StringWidth(label), 0))
+	// A sender keeps one color everywhere, mentioning you or not.
 	nameStyle := lipgloss.NewStyle().Foreground(c).Bold(true)
-	if msg.Mentioned {
-		// Mentions of you tint the name (n/N jump between them).
-		nameStyle = m.theme.Badge(true)
-	}
 	if selected {
 		// Reverse video marks the cursor without shifting columns.
 		nameStyle = nameStyle.Reverse(true)
