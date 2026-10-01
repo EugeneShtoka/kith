@@ -33,8 +33,16 @@ func (f failing) RoomEncryption(ctx context.Context, rooms []domain.RoomID) (map
 	return f.fake.RoomEncryption(ctx, rooms)
 }
 
+// Rooms on a network kith reaches directly: in no space, their network named by their
+// IDs alone (invented numbers).
+const (
+	nativeGroup domain.RoomID = "whatsapp:359000000001/120363000000000001@g.us"
+	nativeDM    domain.RoomID = "whatsapp:359000000001/972500000002@s.whatsapp.net"
+)
+
 // scopeRooms covers every kind of place a scope entry can name: a plain room in a
-// space, a bridged room, a room in no space, a DM, and an encrypted room.
+// space, a bridged room, a room in no space, a DM, an encrypted room, and a group and
+// a DM on a network reached directly.
 func scopeRooms() *fake {
 	return &fake{
 		rooms: []domain.Room{
@@ -43,6 +51,8 @@ func scopeRooms() *fake {
 			{ID: "!loose:x", Name: "Loose"},
 			{ID: "!dm:x", Name: "Dana", IsDirect: true},
 			{ID: "!enc:x", Name: "Vault"},
+			{ID: nativeGroup, Name: "Choir"},
+			{ID: nativeDM, Name: "Noa", IsDirect: true},
 		},
 		spaces: []domain.Space{
 			{ID: "!s1:x", Name: "Work", Children: []domain.RoomID{"!work:x", "!enc:x"}},
@@ -55,7 +65,7 @@ func scopeRooms() *fake {
 // scopeEntries is every entry kind, each naming at least one fixture room.
 var scopeEntries = []string{
 	"space:Work", "space:WhatsApp", "protocol:matrix", "protocol:whatsapp",
-	"room:Standup", "!wa:x", "dm", "group",
+	"room:Standup", "!wa:x", "dm", "group", string(nativeGroup),
 }
 
 func someEntries(rng *rand.Rand) []string {
@@ -138,6 +148,23 @@ func TestARoomInNoSpaceIsAPlainMatrixRoom(t *testing.T) {
 	loose := f.rooms[slices.IndexFunc(f.rooms, func(r domain.Room) bool { return r.ID == "!loose:x" })]
 	if err := s.allowed(withCallMemo(context.Background()), loose); err != nil {
 		t.Fatalf("a room in no space was refused: %v", err)
+	}
+}
+
+// A room whose ID names its network is on that network: `protocol:whatsapp` admits it
+// and `protocol:matrix` does not, though no bridge space holds it.
+func TestANativeRoomIsOnItsOwnNetwork(t *testing.T) {
+	t.Parallel()
+	f := scopeRooms()
+	ctx := withCallMemo(context.Background())
+	for _, id := range []domain.RoomID{nativeGroup, nativeDM} {
+		room := f.rooms[slices.IndexFunc(f.rooms, func(r domain.Room) bool { return r.ID == id })]
+		if err := newServer(f, domain.ModelScope{Only: []string{"protocol:whatsapp"}}).allowed(ctx, room); err != nil {
+			t.Errorf("protocol:whatsapp refused %s: %v", room.Name, err)
+		}
+		if err := newServer(f, domain.ModelScope{Only: []string{"protocol:matrix"}}).allowed(ctx, room); err == nil {
+			t.Errorf("protocol:matrix admitted %s, a WhatsApp chat", room.Name)
+		}
 	}
 }
 

@@ -177,7 +177,7 @@ startup.
 - `[[display.name]]` names its `target`: a room ID, `room:<name>`, `space:<name>`,
   `group:<rail row>` or `thread:<root event ID>`;
 - `[[display.rooms.rule]]` names a rail `group`;
-- `[[display.identity]]` lists `mxids`;
+- `[[display.identity]]` lists `ids` (user IDs, on any network);
 - `[[spam.filter]]` matches `words` and `from`.
 
 When several rules match, the narrower one wins: a person in a room beats the room,

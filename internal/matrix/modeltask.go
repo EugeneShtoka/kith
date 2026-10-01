@@ -168,7 +168,7 @@ var errNoPlaces = errors.New("matrix: the cache is off, so which spaces a room i
 // roomFacts gathers what a scope entry can match: name, spaces, DM flag, and the
 // network, taken from the owning space's bridge rather than from senders.
 func (b *InProc) roomFacts(ctx context.Context, roomID domain.RoomID) (domain.RoomFacts, error) {
-	facts := domain.RoomFacts{ID: string(roomID), Protocol: domain.ProtocolMatrix}
+	facts := domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
 	if b.cache == nil {
 		// No cache, no spaces: guessing "in none" would slip past an except = ["space:…"].
 		return facts, errNoPlaces
@@ -572,8 +572,10 @@ func (b *InProc) accountName(ctx context.Context) string {
 			return name
 		}
 	}
-	if local, _, found := strings.Cut(strings.TrimPrefix(me, "@"), ":"); found && local != "" {
-		return local
+	if domain.IsMatrixUserID(me) {
+		if local := domain.Localpart(me); local != "" {
+			return local
+		}
 	}
 	return "you"
 }

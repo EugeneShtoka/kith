@@ -69,7 +69,7 @@ func TestCacheInvalidatedByConfigReload(t *testing.T) {
 		t.Fatalf("sender name missing before the reload:\n%s", got)
 	}
 	cfg := m.conf.base.Clone()
-	cfg.Display.Identities = []config.Identity{{Alias: "Robert", MXIDs: []string{"@bob:x"}}}
+	cfg.Display.Identities = []config.Identity{{Alias: "Robert", IDs: []string{"@bob:x"}}}
 	next, _ := m.applyConfig(cfg, "", "")
 	m = next
 	if got := strings.Join(m.layoutRows(), "\n"); !strings.Contains(got, "Robert") {

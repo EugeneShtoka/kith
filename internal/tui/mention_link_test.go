@@ -58,7 +58,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 		},
 		{
 			name: "formatted pill rewritten to an alias",
-			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", MXIDs: []string{"@dana:x"}}}},
+			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"@dana:x"}}}},
 			msg: domain.Message{
 				Body: "ask Dana about it", Mentions: dana,
 				HTML: `ask <a href="https://matrix.to/#/@dana:x">Dana</a> about it`,
@@ -67,7 +67,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 		},
 		{
 			name: "formatted RTL pill rewritten to an alias",
-			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", MXIDs: []string{"@dana:x"}}}},
+			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"@dana:x"}}}},
 			msg: domain.Message{
 				Body: "שאל את Dana על זה", Mentions: dana,
 				HTML: `שאל את <a href="https://matrix.to/#/@dana:x">Dana</a> על זה`,

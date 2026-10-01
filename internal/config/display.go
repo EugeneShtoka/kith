@@ -165,11 +165,12 @@ type SpaceRule struct {
 	FirstNameOnly bool   `toml:"first_name_only"`
 }
 
-// Identity is one [[display.identity]]: several Matrix accounts shown as one person.
+// Identity is one [[display.identity]]: several accounts, on any networks, shown as one
+// person.
 type Identity struct {
 	Alias string   `toml:"alias"`
 	Color string   `toml:"color"` // "#rrggbb" or a named color
-	MXIDs []string `toml:"mxids"`
+	IDs   []string `toml:"ids"`   // user IDs, on any network
 }
 
 // DisplayName is one [[display.name]]: a name you gave something.
@@ -236,11 +237,25 @@ func (d Display) NameFor(target string) string {
 func (d Display) RoomNames() map[string]string {
 	out := make(map[string]string, len(d.Names))
 	for _, entry := range d.Names {
-		if strings.HasPrefix(entry.Target, "!") && entry.Name != "" {
+		if isBareRoomID(entry.Target) && entry.Name != "" {
 			out[entry.Target] = entry.Name
 		}
 	}
 	return out
+}
+
+// isBareRoomID reports whether a name's target is a room ID on its own, not one of the
+// NameTarget* forms. That is all a target can otherwise be: setup refuses the rest.
+func isBareRoomID(target string) bool {
+	if target == "" {
+		return false
+	}
+	for _, prefix := range []string{NameTargetRoom, NameTargetSpace, NameTargetGroup, NameTargetThread} {
+		if strings.HasPrefix(target, prefix) {
+			return false
+		}
+	}
+	return true
 }
 
 // SetName adds, replaces or removes one entry, and returns the new list.

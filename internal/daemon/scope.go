@@ -114,7 +114,7 @@ func (x *scopeIndex) Scope(ctx context.Context, roomID domain.RoomID, sender str
 // answers with its ID: sync reaches a new room before /joined_rooms names it.
 func (x *scopeIndex) Facts(ctx context.Context, roomID domain.RoomID) domain.RoomFacts {
 	facts, ok := x.lookup(ctx, roomID)
-	out := domain.RoomFacts{ID: string(roomID), Protocol: domain.ProtocolMatrix}
+	out := domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
 	if !ok {
 		return out
 	}
@@ -128,7 +128,7 @@ func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts roomFacts) domain.Roo
 		Name:     facts.name,
 		Spaces:   facts.spaces,
 		Direct:   facts.direct,
-		Protocol: protocolOr(facts.protocol),
+		Protocol: protocolOr(facts.protocol, roomID),
 	}
 	out.Pinned = x.pins().Pins(out)
 	return out
@@ -141,12 +141,13 @@ func (x *scopeIndex) pins() domain.Pinned {
 	return x.pinned
 }
 
-// protocolOr is the network or plain Matrix, so a zero value never reads as a bridge.
-func protocolOr(p domain.Protocol) domain.Protocol {
+// protocolOr is the bridge's network, else the network the room's ID names (plain
+// Matrix for a bare one), so a zero value never reads as a bridge.
+func protocolOr(p domain.Protocol, roomID domain.RoomID) domain.Protocol {
 	if p.IsBridged() {
 		return p
 	}
-	return domain.ProtocolMatrix
+	return domain.NetworkOf(string(roomID))
 }
 
 // Direct reports whether a room is a direct message.
@@ -217,7 +218,8 @@ func buildIndex(
 		return nil, fmt.Errorf("scope: read spaces: %w", err)
 	}
 	inSpaces := make(map[domain.RoomID][]string, len(rooms))
-	// The network comes from the bridge space owning the room, not senders' MXIDs.
+	// The network comes from the bridge space owning the room (or the room's own ID),
+	// not senders' IDs.
 	protocols := make(map[domain.RoomID]domain.Protocol, len(rooms))
 	for i := range spaces {
 		name := spaces[i].DisplayName()
@@ -234,7 +236,7 @@ func buildIndex(
 			name:     nameOf(aliases, rooms[i]),
 			spaces:   domain.OrderSpaces(inSpaces[rooms[i].ID], priority),
 			direct:   rooms[i].IsDirect,
-			protocol: protocolOr(protocols[rooms[i].ID]),
+			protocol: protocolOr(protocols[rooms[i].ID], rooms[i].ID),
 		}
 	}
 	return index, nil

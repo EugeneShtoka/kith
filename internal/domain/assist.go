@@ -133,8 +133,10 @@ func speaker(msg Message, me string) string {
 	if msg.SenderName != "" {
 		return msg.SenderName
 	}
-	if local, _, found := strings.Cut(strings.TrimPrefix(msg.Sender, "@"), ":"); found && local != "" {
-		return local
+	if IsUserID(msg.Sender) {
+		if short := ShortName(msg.Sender); short != "" {
+			return short
+		}
 	}
 	return "someone"
 }

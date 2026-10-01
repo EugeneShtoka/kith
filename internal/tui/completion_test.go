@@ -362,7 +362,7 @@ func TestMentionPopupIsIdentityMergeAware(t *testing.T) {
 
 	display := config.Display{Identities: []config.Identity{{
 		Alias: "Dana",
-		MXIDs: []string{"@dana:x", "@whatsapp_dana:x", "@telegram_dana:x"},
+		IDs:   []string{"@dana:x", "@whatsapp_dana:x", "@telegram_dana:x"},
 	}}}
 	m, _ := composingWith(t, display,
 		domain.Member{UserID: "@dana:x", DisplayName: "Dana Levi"},

@@ -1608,7 +1608,7 @@ func TestMentionRendersResolvedName(t *testing.T) {
 	t.Parallel()
 
 	// An identity alias: mentions of @alice:x collapse to "Ally".
-	disp := config.Display{Identities: []config.Identity{{Alias: "Ally", MXIDs: []string{"@alice:x"}}}}
+	disp := config.Display{Identities: []config.Identity{{Alias: "Ally", IDs: []string{"@alice:x"}}}}
 	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, disp)))
 	m = loadPage(t, m, []domain.Message{{
 		ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "hey Alice Smith, hi", Timestamp: at(1),
@@ -2066,7 +2066,7 @@ func TestIdentityPinsColorAndAlias(t *testing.T) {
 
 	m := newModel()
 	m.prefs.display = config.Display{Identities: []config.Identity{
-		{Alias: "Me", Color: "#66ccff", MXIDs: []string{"@a:x", "@a2:x"}},
+		{Alias: "Me", Color: "#66ccff", IDs: []string{"@a:x", "@a2:x"}},
 	}}
 	m.prefs.identities = buildIdentities(m.prefs.display.Identities)
 

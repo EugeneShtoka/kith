@@ -280,11 +280,11 @@ func configure(log *slog.Logger, backend *matrix.InProc, cfg config.Config) {
 	backend.UseIdentities(context.Background(), identityGroups(cfg))
 }
 
-// identityGroups is each [[display.identity]]'s MXIDs.
+// identityGroups is each [[display.identity]]'s user IDs.
 func identityGroups(cfg config.Config) [][]string {
 	groups := make([][]string, 0, len(cfg.Display.Identities))
 	for _, ident := range cfg.Display.Identities {
-		groups = append(groups, ident.MXIDs)
+		groups = append(groups, ident.IDs)
 	}
 	return groups
 }

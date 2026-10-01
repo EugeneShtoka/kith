@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -70,8 +68,5 @@ func (m Model) deletedBody(msg domain.Message) string {
 	return "(deleted by " + who + " — " + isolate(oneLine.Replace(msg.RedactedReason)) + ")"
 }
 
-// localpart is the readable half of an MXID.
-func localpart(mxid string) string {
-	name, _, _ := strings.Cut(strings.TrimPrefix(mxid, "@"), ":")
-	return name
-}
+// localpart is the readable part of a user ID.
+func localpart(userID string) string { return domain.ShortName(userID) }

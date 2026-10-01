@@ -111,7 +111,7 @@ func TestAliasFlowFromPeoplePicker(t *testing.T) {
 		t.Fatalf("identities = %+v, want one", m.prefs.display.Identities)
 	}
 	got := m.prefs.display.Identities[0]
-	if got.Alias != "Dana" || got.Color != "#8ff586" || len(got.MXIDs) != 1 || got.MXIDs[0] != "@whatsapp_4470:x" {
+	if got.Alias != "Dana" || got.Color != "#8ff586" || len(got.IDs) != 1 || got.IDs[0] != "@whatsapp_4470:x" {
 		t.Errorf("identity = %+v", got)
 	}
 	if ident, ok := m.prefs.identities["@whatsapp_4470:x"]; !ok || ident.alias != "Dana" || !ident.pinned {
@@ -159,8 +159,8 @@ func TestAliasAddsToExistingIdentity(t *testing.T) {
 	t.Parallel()
 
 	m, path := aliasing(t, config.Display{Identities: []config.Identity{
-		{Alias: "Dana", Color: "#8ff586", MXIDs: []string{"@dana:x"}},
-		{Alias: "Someone else", MXIDs: []string{"@whatsapp_4470:x", "@keepme:x"}},
+		{Alias: "Dana", Color: "#8ff586", IDs: []string{"@dana:x"}},
+		{Alias: "Someone else", IDs: []string{"@whatsapp_4470:x", "@keepme:x"}},
 	}})
 	m.focus = paneRooms
 
@@ -191,17 +191,17 @@ func TestAliasAddsToExistingIdentity(t *testing.T) {
 		byAlias[ident.Alias] = ident
 	}
 	dana := byAlias["Dana"]
-	if len(dana.MXIDs) != 2 {
+	if len(dana.IDs) != 2 {
 		t.Errorf("Dana = %+v, want both accounts", dana)
 	}
 	// Moved, not copied: the old identity must not still claim them.
 	other := byAlias["Someone else"]
-	for _, mxid := range other.MXIDs {
+	for _, mxid := range other.IDs {
 		if mxid == "@whatsapp_4470:x" {
 			t.Error("the account is still in its old identity — belonging to two people at once")
 		}
 	}
-	if len(other.MXIDs) != 1 || other.MXIDs[0] != "@keepme:x" {
+	if len(other.IDs) != 1 || other.IDs[0] != "@keepme:x" {
 		t.Errorf("the old identity's other accounts should be untouched, got %+v", other)
 	}
 	if _, err := config.Load(path); err != nil {
@@ -215,8 +215,8 @@ func TestAliasDropsEmptiedIdentity(t *testing.T) {
 	t.Parallel()
 
 	m, _ := aliasing(t, config.Display{Identities: []config.Identity{
-		{Alias: "Only", MXIDs: []string{"@whatsapp_4470:x"}},
-		{Alias: "Target", MXIDs: []string{"@dana:x"}},
+		{Alias: "Only", IDs: []string{"@whatsapp_4470:x"}},
+		{Alias: "Target", IDs: []string{"@dana:x"}},
 	}})
 	m.focus = paneRooms
 	m, _ = press(t, m, keyText("p"))

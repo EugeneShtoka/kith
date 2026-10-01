@@ -132,7 +132,7 @@ row_numbers = false
 # [[display.identity]]
 # alias = "Eugene"
 # color = "#8ff586"
-# mxids = ["@eugene:example.org", "@whatsapp_1234:example.org"]
+# ids = ["@eugene:example.org", "@whatsapp_1234:example.org"]
 
 # Names you gave things: a room, a space, a rail row, a thread (`a` on it in the app).
 # `target` is one of:

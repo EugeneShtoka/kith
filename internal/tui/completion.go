@@ -289,7 +289,7 @@ func (m Model) matchPeople(query string, people []domain.Member) []candidate {
 	}
 	sort.SliceStable(matches, func(a, b int) bool { return matches[a].rank < matches[b].rank })
 
-	// One row per person: a configured identity merges several MXIDs. The kept row is
+	// One row per person: a configured identity merges several user IDs. The kept row is
 	// the highest-ranked account, which is one actually in this room.
 	rows := make([]candidate, 0, len(matches))
 	seen := make(map[string]bool, len(matches))

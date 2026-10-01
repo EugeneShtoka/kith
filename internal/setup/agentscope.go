@@ -284,7 +284,7 @@ func examples(names []string) string {
 func FactsOf(room domain.Room, spaces []domain.Space) domain.RoomFacts {
 	facts := domain.RoomFacts{
 		ID: string(room.ID), Name: room.DisplayName(), Direct: room.IsDirect,
-		Protocol: domain.ProtocolMatrix,
+		Protocol: domain.NetworkOf(string(room.ID)),
 	}
 	for i := range spaces {
 		for _, child := range spaces[i].Children {

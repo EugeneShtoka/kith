@@ -32,7 +32,7 @@ func (m Model) factsFor(room domain.Room) domain.RoomFacts {
 		Name:     m.roomLabel(room),
 		Spaces:   m.spacesOf(room.ID),
 		Direct:   room.IsDirect,
-		Protocol: domain.ProtocolMatrix,
+		Protocol: domain.NetworkOf(string(room.ID)),
 	}
 	// Computed from pin entries, which cannot themselves say `pinned`.
 	facts.Pinned = m.rail.pinned.Pins(facts)

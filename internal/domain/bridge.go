@@ -11,9 +11,10 @@ type Protocol string
 // String returns the network's human-facing name ("WhatsApp", "Matrix", …).
 func (p Protocol) String() string { return string(p) }
 
-// IsBridged reports whether the person reaches us through a bridge rather than
-// natively over Matrix.
-func (p Protocol) IsBridged() bool { return p != ProtocolMatrix }
+// IsBridged reports whether the person (or room) is on a network other than Matrix:
+// reached through a bridge, or directly by an adapter. The zero value is not known to
+// be anywhere else, so it is not.
+func (p Protocol) IsBridged() bool { return p != "" && p != ProtocolMatrix }
 
 // RepliesAreThreads reports whether the network has no reply that is not a thread.
 func (p Protocol) RepliesAreThreads() bool { return p == ProtocolSlack }
@@ -53,8 +54,12 @@ var bridges = map[string]Protocol{
 	"twitter":    ProtocolTwitter,
 }
 
-// ProtocolOf derives the network behind a Matrix ID.
+// ProtocolOf is the network a person is actually on: the one their ID names, or, for a
+// Matrix ID, the one the bridge it belongs to fronts.
 func ProtocolOf(mxid string) Protocol {
+	if p := NetworkOf(mxid); p != ProtocolMatrix {
+		return p
+	}
 	local := strings.TrimPrefix(mxid, "@")
 	if colon := strings.IndexByte(local, ':'); colon >= 0 {
 		local = local[:colon]
