@@ -162,10 +162,10 @@ func TestEachWriterOwnsOnlyItsRooms(t *testing.T) {
 	a := domain.AccountRooms(domain.ProtocolWhatsApp, "359")
 	b := domain.AccountRooms(domain.ProtocolWhatsApp, "3590")
 	rooms := map[domain.RoomID]domain.RoomOwner{
-		"!abc:example.org": domain.MatrixRooms,
-		"!v12opaque":       domain.MatrixRooms,
-		domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, "359", waGroup)):  a,
-		domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, "3590", waGroup)): b,
+		"!abc:example.org":                        domain.MatrixRooms,
+		"!v12opaque":                              domain.MatrixRooms,
+		domain.RoomID("whatsapp:359/" + waGroup):  a,
+		domain.RoomID("whatsapp:3590/" + waGroup): b,
 	}
 	for room, owner := range rooms {
 		for _, o := range []domain.RoomOwner{domain.MatrixRooms, a, b} {

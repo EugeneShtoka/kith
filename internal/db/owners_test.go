@@ -30,8 +30,8 @@ func writers(sizes ...int) []writer {
 		matrix.pool = append(matrix.pool, domain.RoomID(id))
 	}
 	for i := range sizes[1] {
-		a.pool = append(a.pool, domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, "359", fmt.Sprintf("1203%d@g.us", i))))
-		b.pool = append(b.pool, domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, "3590", fmt.Sprintf("1203%d@g.us", i))))
+		a.pool = append(a.pool, domain.RoomID(fmt.Sprintf("whatsapp:359/1203%d@g.us", i)))
+		b.pool = append(b.pool, domain.RoomID(fmt.Sprintf("whatsapp:3590/1203%d@g.us", i)))
 	}
 	return []writer{matrix, a, b}
 }
@@ -100,7 +100,7 @@ func TestEachNetworksRefreshKeepsToItsOwnRooms(t *testing.T) {
 func TestARoomOfAnotherWriterIsRefused(t *testing.T) {
 	t.Parallel()
 	cache := openTemp(t)
-	whatsapp := domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, "359", "1203@g.us"))
+	whatsapp := domain.RoomID("whatsapp:359/1203@g.us")
 	err := cache.SaveRooms(context.Background(), domain.MatrixRooms, []domain.Room{{ID: "!a:x"}, {ID: whatsapp}})
 	if err == nil || !strings.Contains(err.Error(), string(whatsapp)) {
 		t.Fatalf("SaveRooms(Matrix, a WhatsApp room) = %v, want it refused, naming the room", err)

@@ -307,3 +307,12 @@ type Maintenance interface {
 	// ClearCache empties the local cache; the sync loop refills it.
 	ClearCache(ctx context.Context) error
 }
+
+// WhatsAppLink links WhatsApp accounts to kith. Only the daemon pairs, because it owns
+// the WhatsApp store (the devices' keys); `kith login whatsapp` asks it.
+type WhatsAppLink interface {
+	// PairWhatsApp links the named [[whatsapp.account]]: code is told the pairing code
+	// to type on the phone, and the account's person ID is returned once the phone
+	// accepted it. ErrNetworkOff when WhatsApp is not enabled.
+	PairWhatsApp(ctx context.Context, account string, code func(string) error) (string, error)
+}

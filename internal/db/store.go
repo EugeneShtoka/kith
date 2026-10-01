@@ -22,6 +22,12 @@ func CryptoPath(user string) (string, error) {
 	return userDBPath(user, "crypto")
 }
 
+// WhatsAppPath returns the per-user path for the WhatsApp session store (whatsmeow's:
+// every linked account's device keys).
+func WhatsAppPath(user string) (string, error) {
+	return userDBPath(user, "whatsapp")
+}
+
 func userDBPath(user, kind string) (string, error) {
 	path, err := xdg.DataFile(fmt.Sprintf("kith/%s-%s.db", kind, domain.AccountKey(user)))
 	if err != nil {

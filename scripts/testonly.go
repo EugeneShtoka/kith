@@ -46,6 +46,10 @@ var implemented = map[string]string{
 	"Init":                  "tea.Model",
 	"Update":                "tea.Model",
 	"View":                  "tea.Model",
+	"Warnf":                 "waLog.Logger",
+	"Infof":                 "waLog.Logger",
+	"Debugf":                "waLog.Logger",
+	"Configure":             "libsignal logger.Loggable",
 }
 
 func main() {

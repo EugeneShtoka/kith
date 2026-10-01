@@ -50,7 +50,7 @@ func TestMatrixListsOnlyItsOwnCachedRooms(t *testing.T) {
 
 	ctx := context.Background()
 	b := backendWithCache(t, "@me:x")
-	whatsapp := domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, "359", "1203@g.us"))
+	whatsapp := domain.RoomID("whatsapp:359/1203@g.us")
 	if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "A"}}); err != nil {
 		t.Fatal(err)
 	}

@@ -13,6 +13,7 @@ the binaries and exits.
 ```text
 kith [flags]
 kith login [--config path] [--profile name]
+kith login whatsapp [--config path] [--profile name] [account]
 ```
 
 With no flags, `kith` loads the config, checks that a session is stored, attaches to
@@ -39,6 +40,24 @@ command that needs no daemon, because the daemon has no terminal to prompt on.
 | --- | --- |
 | `--config path` | Config file to read. |
 | `--profile name` | Which `[[profile]]` account to log in. The default is the first one. |
+
+### kith login whatsapp
+
+```sh
+kith login whatsapp [account]
+```
+
+Links one `[[whatsapp.account]]` to kith as one of that phone's linked devices. The
+daemon owns the WhatsApp store, so it does the pairing: this command asks it, prints
+the code WhatsApp gives, and waits (up to ten minutes) while you type the code on the
+phone under Settings → Linked devices → Link a device → "Link with phone number
+instead". Once the phone accepts, the account's groups appear in kith.
+
+- `[whatsapp] enabled = true` must be set, and kithd running with it.
+- `account` is the `name` of a `[[whatsapp.account]]`; it can be left out when there
+  is only one.
+- An account already linked is refused: unlink kith on the phone first.
+- A code typed on another number's phone is refused, and that link removed.
 
 ### General flags
 

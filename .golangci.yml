@@ -193,6 +193,22 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/route"
 
+        # The WhatsApp adapter: the only package that imports whatsmeow. Only the daemon
+        # links it.
+        whatsapp-is-the-adapter:
+          files:
+            - "**/internal/whatsapp/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/whatsapp"
+            - "go.mau.fi/libsignal"
+            - "go.mau.fi/whatsmeow"
+            - "modernc.org/sqlite"
+
         session-is-a-leaf:
           files:
             - "**/internal/session/**"
@@ -444,6 +460,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/schedule"
             - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/EugeneShtoka/kith/internal/setup"
+            - "github.com/EugeneShtoka/kith/internal/whatsapp"
             - "github.com/adrg/xdg"
 
         # Talks only to the daemon; never opens the single-writer cache itself.
