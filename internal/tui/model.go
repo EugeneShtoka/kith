@@ -781,19 +781,8 @@ func startupEmoji(display config.Display) (static []string, tone string, tier st
 // startupFacts resolves a room's archive-matching facts before the space hierarchy
 // exists: no spaces, so space entries match once the rail is rebuilt.
 func startupFacts(display config.Display) func(domain.Room) domain.RoomFacts {
-	aliases := buildRoomAliases(display.Names)
-	return func(room domain.Room) domain.RoomFacts {
-		facts := domain.RoomFacts{
-			ID:       string(room.ID),
-			Name:     room.DisplayName(),
-			Direct:   room.IsDirect,
-			Protocol: domain.NetworkOf(string(room.ID)),
-		}
-		if alias, ok := aliases[room.ID]; ok {
-			facts.Name = alias
-		}
-		return facts
-	}
+	places := domain.Places{Names: buildRoomAliases(display.Names)}
+	return func(room domain.Room) domain.RoomFacts { return places.Facts(room, nil) }
 }
 
 // startupMediaMode resolves how attachments are drawn; an invalid mode (only possible

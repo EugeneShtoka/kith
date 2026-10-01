@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -179,7 +180,11 @@ func (s *Service) roomFacts(ctx context.Context, roomID domain.RoomID) (domain.R
 	if err != nil {
 		return domain.RoomFacts{}, fmt.Errorf("local: read spaces for the model opt-in: %w", err)
 	}
-	return domain.FactsAmong(roomID, rooms, spaces), nil
+	room := domain.Room{ID: roomID}
+	if i := slices.IndexFunc(rooms, func(r domain.Room) bool { return r.ID == roomID }); i >= 0 {
+		room = rooms[i]
+	}
+	return s.placesNow().Facts(room, domain.HoldersOf(roomID, spaces)), nil
 }
 
 // modelFields are the template's values. The context is this room's cached messages

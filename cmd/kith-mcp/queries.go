@@ -75,10 +75,13 @@ func (s *server) permits(ctx context.Context, room domain.Room, scope domain.Mod
 
 // factsOf describes a room for every scope list alike.
 func (s *server) factsOf(ctx context.Context, room domain.Room) (domain.RoomFacts, error) {
-	facts := domain.RoomFacts{ID: string(room.ID), Name: room.DisplayName(), Direct: room.IsDirect}
-	var err error
-	facts.Spaces, facts.Protocol, err = s.placeOf(ctx, room.ID)
-	return facts, err
+	holders, err := s.holdersOf(ctx, room.ID)
+	if err != nil {
+		// What is known without the spaces still counts, the names you gave rooms
+		// above all: an `except = ["room:<your name>"]` must keep excluding.
+		return s.places.Facts(room, nil), err
+	}
+	return s.places.Facts(room, holders), nil
 }
 
 // errPlaceUnknown refuses a room whose spaces could not be read. Guessing "in no space"
@@ -100,28 +103,14 @@ func (s *server) placesKnown(ctx context.Context) error {
 	return nil
 }
 
-// placeOf is a room's spaces and the network behind it, for the scope check.
-func (s *server) placeOf(ctx context.Context, roomID domain.RoomID) ([]string, domain.Protocol, error) {
+// holdersOf is the spaces holding a room, for the scope check.
+func (s *server) holdersOf(ctx context.Context, roomID domain.RoomID) ([]domain.Space, error) {
 	spaces, err := s.spaces(ctx)
 	if err != nil {
 		s.logger().Warn("space lookup for the scope check failed", "room", roomID, "err", err)
-		return nil, domain.ProtocolMatrix, fmt.Errorf("%w: %w", errPlaceUnknown, err)
+		return nil, fmt.Errorf("%w: %w", errPlaceUnknown, err)
 	}
-	var names []string
-	protocol := domain.NetworkOf(string(roomID))
-	for i := range spaces {
-		for _, child := range spaces[i].Children {
-			if child != roomID {
-				continue
-			}
-			names = append(names, spaces[i].DisplayName())
-			if spaces[i].Bridge.IsBridged() {
-				protocol = spaces[i].Bridge
-			}
-			break
-		}
-	}
-	return names, protocol, nil
+	return domain.HoldersOf(roomID, spaces), nil
 }
 
 // encrypted asks the daemon whether a room is encrypted, answering yes on failure.

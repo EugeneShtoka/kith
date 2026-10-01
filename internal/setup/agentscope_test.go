@@ -121,7 +121,7 @@ func TestResolvedWarningsSilentForARoomInAReadSpace(t *testing.T) {
 	t.Parallel()
 
 	agent := agentWith([]string{"space:Work"}, nil, nil, []string{"!dbg:x"})
-	if got := setup.AgentWarnings(t.Context(), account(), agent); len(got) != 0 {
+	if got := setup.AgentWarnings(t.Context(), account(), domain.Places{}, agent); len(got) != 0 {
 		t.Fatalf("warned about a readable room: %q", got)
 	}
 }
@@ -132,7 +132,7 @@ func TestResolvedWarningsNameRoomsOutsideReading(t *testing.T) {
 	t.Parallel()
 
 	agent := agentWith([]string{"space:Work"}, nil, []string{"group"}, []string{"!home:x", "!ops:x"})
-	got := setup.AgentWarnings(t.Context(), account(), agent)
+	got := setup.AgentWarnings(t.Context(), account(), domain.Places{}, agent)
 	if len(got) != 2 {
 		t.Fatalf("warnings = %q, want two: group and !home:x", got)
 	}
@@ -150,7 +150,7 @@ func TestResolvedWarningsNameEncryptedRooms(t *testing.T) {
 
 	p := account()
 	p.encrypted = map[domain.RoomID]bool{"!dbg:x": true}
-	got := setup.AgentWarnings(t.Context(), p, agentWith([]string{"space:Work"}, nil, nil, []string{"!dbg:x"}))
+	got := setup.AgentWarnings(t.Context(), p, domain.Places{}, agentWith([]string{"space:Work"}, nil, nil, []string{"!dbg:x"}))
 	if len(got) != 1 || !strings.Contains(got[0], "[agent.read] encrypted is false") {
 		t.Fatalf("warnings = %q, want the encryption named", got)
 	}
@@ -167,7 +167,7 @@ func TestResolvedWarningsFallBackToStatic(t *testing.T) {
 		"failing backend":  places{err: errors.New("down")},
 		"matches no rooms": account(),
 	} {
-		got := setup.AgentWarnings(t.Context(), src, agent)
+		got := setup.AgentWarnings(t.Context(), src, domain.Places{}, agent)
 		if len(got) != 1 || !strings.Contains(got[0], `"!gone:x"`) {
 			t.Errorf("%s: warnings = %q, want the static one", name, got)
 		}
@@ -201,11 +201,11 @@ func TestFactsOfANativeRoom(t *testing.T) {
 	t.Parallel()
 
 	native := domain.Room{ID: domain.RoomID("whatsapp:359000000001/120363000000000001@g.us")}
-	if got := setup.FactsOf(native, nil).Protocol; got != domain.ProtocolWhatsApp {
-		t.Errorf("FactsOf(native).Protocol = %q", got)
+	if got := (domain.Places{}).Facts(native, nil).Protocol; got != domain.ProtocolWhatsApp {
+		t.Errorf("Facts(native).Protocol = %q", got)
 	}
-	if got := setup.FactsOf(domain.Room{ID: "!a:x"}, nil).Protocol; got != domain.ProtocolMatrix {
-		t.Errorf("FactsOf(!a:x).Protocol = %q", got)
+	if got := (domain.Places{}).Facts(domain.Room{ID: "!a:x"}, nil).Protocol; got != domain.ProtocolMatrix {
+		t.Errorf("Facts(!a:x).Protocol = %q", got)
 	}
 }
 

@@ -53,19 +53,31 @@ func scopeRooms() *fake {
 			{ID: "!enc:x", Name: "Vault"},
 			{ID: nativeGroup, Name: "Choir"},
 			{ID: nativeDM, Name: "Noa", IsDirect: true},
+			{ID: "!both:x", Name: "Relay"}, // held by two bridges
+			{ID: "!anon:x"},                // no name of its own
 		},
 		spaces: []domain.Space{
 			{ID: "!s1:x", Name: "Work", Children: []domain.RoomID{"!work:x", "!enc:x"}},
-			{ID: "!s2:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!wa:x", "!dm:x"}},
+			{ID: "!s2:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!wa:x", "!dm:x", "!both:x"}},
+			{ID: "!s3:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{"!both:x"}},
 		},
 		encrypted: map[domain.RoomID]bool{"!enc:x": true},
 	}
 }
 
+// scopePlaces are the names, space order and pins the fixture is read with: a room
+// called something of your own, an unnamed room named, and a pin by that name.
+var scopePlaces = domain.Places{
+	Names:    map[domain.RoomID]string{"!loose:x": "Lounge", "!anon:x": "Quiet"},
+	Priority: []string{"Telegram", "WhatsApp"},
+	Pinned:   domain.Pinned{Entries: []string{"room:Lounge", "!work:x", "space:Telegram"}},
+}
+
 // scopeEntries is every entry kind, each naming at least one fixture room.
 var scopeEntries = []string{
-	"space:Work", "space:WhatsApp", "protocol:matrix", "protocol:whatsapp",
-	"room:Standup", "!wa:x", "dm", "group", string(nativeGroup),
+	"space:Work", "space:WhatsApp", "space:Telegram", "protocol:matrix", "protocol:whatsapp",
+	"protocol:telegram", "room:Standup", "room:Lounge", "room:Quiet", "!wa:x", "dm", "group",
+	"pinned", string(nativeGroup),
 }
 
 func someEntries(rng *rand.Rand) []string {
@@ -111,6 +123,7 @@ func TestAFailedLookupNeverWidensTheScope(t *testing.T) {
 		build := func(backend daemonCalls) *server {
 			s := writerWith(t, scopeRooms(), read, write, send)
 			s.backend = backend
+			s.places = scopePlaces
 			s.cooldown = 0
 			return s
 		}
@@ -135,6 +148,32 @@ func TestAFailedLookupNeverWidensTheScope(t *testing.T) {
 					}
 				}
 			}
+		}
+	}
+}
+
+// A name you gave a room, and a pin, admit the rooms they name — as every other scope
+// reads them — and a room in two bridged spaces is on the bridge of the first.
+func TestNamesAndPinsAdmitWhatTheyName(t *testing.T) {
+	t.Parallel()
+	f := scopeRooms()
+	ctx := withCallMemo(context.Background())
+	room := func(id domain.RoomID) domain.Room {
+		return f.rooms[slices.IndexFunc(f.rooms, func(r domain.Room) bool { return r.ID == id })]
+	}
+	for _, c := range []struct {
+		entry string
+		room  domain.RoomID
+		want  bool
+	}{
+		{"room:Lounge", "!loose:x", true}, {"room:Loose", "!loose:x", false},
+		{"room:Quiet", "!anon:x", true}, {"pinned", "!loose:x", true}, {"pinned", "!work:x", true},
+		{"pinned", "!wa:x", false}, {"protocol:whatsapp", "!both:x", true}, {"protocol:telegram", "!both:x", false},
+	} {
+		s := newServer(f, domain.ModelScope{Only: []string{c.entry}})
+		s.places = scopePlaces
+		if got := s.allowed(ctx, room(c.room)) == nil; got != c.want {
+			t.Errorf("%s admits %s = %v, want %v", c.entry, c.room, got, c.want)
 		}
 	}
 }
@@ -207,5 +246,19 @@ func TestAScopeNamingNoPlaceIgnoresTheSpaces(t *testing.T) {
 	out := call(t, s, "list_rooms", map[string]any{})
 	if !listsRoom(out, "!loose:x") {
 		t.Fatalf("list_rooms = %v, want the group rooms", out["rooms"])
+	}
+}
+
+// A pin can name a space, so `except = ["pinned"]` cannot be decided while the spaces
+// are unreadable: the room is refused, not taken for unpinned.
+func TestAPinNamingASpaceIsNotGuessed(t *testing.T) {
+	t.Parallel()
+	f := scopeRooms()
+	both := f.rooms[slices.IndexFunc(f.rooms, func(r domain.Room) bool { return r.ID == "!both:x" })]
+	s := newServer(f, domain.ModelScope{Only: []string{"room:Relay"}, Except: []string{"pinned"}})
+	s.backend = failing{spaces: true, fake: scopeRooms()}
+	s.places = scopePlaces // pins space:Telegram, which holds !both:x
+	if err := s.allowed(withCallMemo(context.Background()), both); err == nil {
+		t.Error("a room pinned by its space was shared while the spaces could not be read")
 	}
 }

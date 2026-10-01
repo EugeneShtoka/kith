@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/db"
@@ -47,6 +48,24 @@ type Service struct {
 	completion completionModel
 	// vocab is word completion's recent-history windows (see recentvocab.go).
 	vocab recentVocab
+
+	// places are the names, space order and pins a room's facts are read with.
+	placesMu sync.Mutex
+	places   domain.Places
+}
+
+// UsePlaces sets the room names, space priority and pins the model opt-in reads a
+// room's facts with, as every other scope does. Called at startup and on reload.
+func (s *Service) UsePlaces(places domain.Places) {
+	s.placesMu.Lock()
+	defer s.placesMu.Unlock()
+	s.places = places
+}
+
+func (s *Service) placesNow() domain.Places {
+	s.placesMu.Lock()
+	defer s.placesMu.Unlock()
+	return s.places
 }
 
 // New is a service over cache (nil: every read answers empty) for net.

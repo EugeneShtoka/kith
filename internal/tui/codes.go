@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"slices"
-
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -23,27 +21,11 @@ func (m Model) codesHere(roomID domain.RoomID) bool {
 	return m.prefs.codes.scope.Admits(m.factsFor(room))
 }
 
-// factsFor is what a list entry can match about one room. The protocol comes from
-// the bridge space owning the room — the same rule the daemon uses — not from
-// roomProtocol(), which guesses from the open room's senders.
+// factsFor is what a list entry can match about one room, as the daemon and every
+// other scope read it (domain.Places.Facts): the name you gave it or its own, never
+// the shortened room-list label; the network from the bridge space owning it, not
+// from roomProtocol(), which guesses from the open room's senders.
 func (m Model) factsFor(room domain.Room) domain.RoomFacts {
-	facts := domain.RoomFacts{
-		ID:       string(room.ID),
-		Name:     m.roomLabel(room),
-		Spaces:   m.spacesOf(room.ID),
-		Direct:   room.IsDirect,
-		Protocol: domain.NetworkOf(string(room.ID)),
-	}
-	// Computed from pin entries, which cannot themselves say `pinned`.
-	facts.Pinned = m.rail.pinned.Pins(facts)
-	for i := range m.rooms.spaces {
-		if !m.rooms.spaces[i].Bridge.IsBridged() {
-			continue
-		}
-		if slices.Contains(m.rooms.spaces[i].Children, room.ID) {
-			facts.Protocol = m.rooms.spaces[i].Bridge
-			return facts
-		}
-	}
-	return facts
+	places := domain.Places{Names: m.prefs.roomAliases, Priority: m.prefs.display.SpacePriority, Pinned: m.rail.pinned}
+	return places.Facts(room, domain.HoldersOf(room.ID, m.rooms.spaces))
 }

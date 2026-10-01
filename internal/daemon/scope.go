@@ -25,14 +25,6 @@ type scopeSource interface {
 // (Refresher), config reloads and lookups for unknown rooms.
 const scopeTTL = time.Hour
 
-// roomFacts is everything a decision needs to know about where a message landed.
-type roomFacts struct {
-	name     string
-	spaces   []string
-	direct   bool
-	protocol domain.Protocol
-}
-
 // scopeIndex answers "what do I know about this room?" from a cached read of the
 // room list and space hierarchy, so a message does not cost two SQLite queries.
 // Safe for concurrent use.
@@ -45,8 +37,10 @@ type scopeIndex struct {
 	aliases map[domain.RoomID]string
 	// priority ranks spaces; {space} in a notification is the first.
 	priority []string
-	rooms    map[domain.RoomID]roomFacts
-	builtAt  time.Time
+	// rooms are the indexed rooms' facts, pins left out: pins change without a
+	// rebuild, so they are applied as a room is looked up.
+	rooms   map[domain.RoomID]domain.RoomFacts
+	builtAt time.Time
 	// missed records rooms a rebuild did not find, and when (see scopeRetry).
 	missed map[domain.RoomID]time.Time
 	// gen counts config changes; a rebuild (done unlocked) that raced one is discarded.
@@ -121,17 +115,13 @@ func (x *scopeIndex) Facts(ctx context.Context, roomID domain.RoomID) domain.Roo
 	return x.factsFrom(roomID, facts)
 }
 
-// factsFrom is one indexed room as the rule vocabulary takes it.
-func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts roomFacts) domain.RoomFacts {
-	out := domain.RoomFacts{
-		ID:       string(roomID),
-		Name:     facts.name,
-		Spaces:   facts.spaces,
-		Direct:   facts.direct,
-		Protocol: protocolOr(facts.protocol, roomID),
+// factsFrom is one indexed room as the rule vocabulary takes it, with today's pins.
+func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts domain.RoomFacts) domain.RoomFacts {
+	if facts.ID == "" {
+		facts = domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
 	}
-	out.Pinned = x.pins().Pins(out)
-	return out
+	facts.Pinned = x.pins().Pins(facts)
+	return facts
 }
 
 // pins is the pinned list, read under the lock.
@@ -141,19 +131,10 @@ func (x *scopeIndex) pins() domain.Pinned {
 	return x.pinned
 }
 
-// protocolOr is the bridge's network, else the network the room's ID names (plain
-// Matrix for a bare one), so a zero value never reads as a bridge.
-func protocolOr(p domain.Protocol, roomID domain.RoomID) domain.Protocol {
-	if p.IsBridged() {
-		return p
-	}
-	return domain.NetworkOf(string(roomID))
-}
-
 // Direct reports whether a room is a direct message.
 func (x *scopeIndex) Direct(ctx context.Context, roomID domain.RoomID) bool {
 	facts, _ := x.lookup(ctx, roomID)
-	return facts.direct
+	return facts.Direct
 }
 
 // scopeRetry is how long "this room is not in the cache" is believed before
@@ -163,7 +144,7 @@ const scopeRetry = 5 * time.Second
 
 // lookup returns what is known about a room, rebuilding a stale or incomplete index
 // first. The read happens with the lock released; gen guards the install.
-func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (roomFacts, bool) {
+func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.RoomFacts, bool) {
 	x.mu.Lock()
 	facts, ok := x.rooms[roomID]
 	if ok && time.Since(x.builtAt) < scopeTTL {
@@ -208,7 +189,7 @@ func buildIndex(
 	src scopeSource,
 	aliases map[domain.RoomID]string,
 	priority []string,
-) (map[domain.RoomID]roomFacts, error) {
+) (map[domain.RoomID]domain.RoomFacts, error) {
 	rooms, err := src.Rooms(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("scope: read rooms: %w", err)
@@ -217,38 +198,18 @@ func buildIndex(
 	if err != nil {
 		return nil, fmt.Errorf("scope: read spaces: %w", err)
 	}
-	inSpaces := make(map[domain.RoomID][]string, len(rooms))
-	// The network comes from the bridge space owning the room (or the room's own ID),
-	// not senders' IDs.
-	protocols := make(map[domain.RoomID]domain.Protocol, len(rooms))
+	holders := make(map[domain.RoomID][]domain.Space, len(rooms))
 	for i := range spaces {
-		name := spaces[i].DisplayName()
 		for _, child := range spaces[i].Children {
-			inSpaces[child] = append(inSpaces[child], name)
-			if spaces[i].Bridge.IsBridged() {
-				protocols[child] = spaces[i].Bridge
-			}
+			holders[child] = append(holders[child], spaces[i])
 		}
 	}
-	index := make(map[domain.RoomID]roomFacts, len(rooms))
+	places := domain.Places{Names: aliases, Priority: priority}
+	index := make(map[domain.RoomID]domain.RoomFacts, len(rooms))
 	for i := range rooms {
-		index[rooms[i].ID] = roomFacts{
-			name:     nameOf(aliases, rooms[i]),
-			spaces:   domain.OrderSpaces(inSpaces[rooms[i].ID], priority),
-			direct:   rooms[i].IsDirect,
-			protocol: protocolOr(protocols[rooms[i].ID], rooms[i].ID),
-		}
+		index[rooms[i].ID] = places.Facts(rooms[i], holders[rooms[i].ID])
 	}
 	return index, nil
-}
-
-// nameOf is the name a rule matches a room by: the user's alias, else the room's own
-// display name (never the shortened display label, which can change under rules).
-func nameOf(aliases map[domain.RoomID]string, room domain.Room) string {
-	if alias, ok := aliases[room.ID]; ok && alias != "" {
-		return alias
-	}
-	return room.DisplayName()
 }
 
 // roomAliases indexes the configured room names by room ID.

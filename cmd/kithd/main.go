@@ -189,7 +189,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		return err
 	}
 
-	warnAboutAgentScope(ctx, log, backend, cfg.Agent)
+	warnAboutAgentScope(ctx, log, backend, cfg)
 
 	err = serve(ctx, log, relevel, lock, backend, cfg, path)
 	if handlersLive = errors.Is(err, daemon.ErrHandlersRunning); handlersLive {
@@ -264,10 +264,10 @@ func settleLevel(log *slog.Logger, level *slog.LevelVar, flagLevel, configured s
 }
 
 // warnAboutAgentScope logs the `[agent.write]` entries `[agent.read]` rules out. Never fatal.
-func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.AgentPlaces, agent config.Agent) {
+func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.AgentPlaces, cfg config.Config) {
 	ctx, cancel := context.WithTimeout(ctx, agentScopeTimeout)
 	defer cancel()
-	for _, warning := range setup.AgentWarnings(ctx, places, agent) {
+	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg.Display), cfg.Agent) {
 		log.Warn("agent scope: " + warning)
 	}
 }
@@ -393,6 +393,7 @@ func configure(log *slog.Logger, backend served, cfg config.Config) {
 	})
 	backend.UseModel(modelSettings(log, cfg))
 	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, xdg.DataHome))
+	backend.UsePlaces(setup.PlacesOf(cfg.Display))
 	backend.matrix.KeepDeleted(cfg.Display.Deleted.Keep())
 	backend.matrix.UseIdentities(context.Background(), identityGroups(cfg))
 }
@@ -560,6 +561,7 @@ func reloader(
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
 		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, xdg.DataHome))
 		backend.matrix.UseIdentities(ctx, identityGroups(reloaded))
+		backend.UsePlaces(setup.PlacesOf(reloaded.Display))
 		return notifications.Reload(reloaded)
 	}
 }
