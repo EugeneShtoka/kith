@@ -95,7 +95,7 @@ func TestRoomsAndInvitesAreIndependent(t *testing.T) {
 	if err := cache.SaveInvites(ctx, []domain.Room{{ID: "!i1:x", Name: "Invited"}}); err != nil {
 		t.Fatalf("SaveInvites: %v", err)
 	}
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	invites, err := cache.Invites(ctx)

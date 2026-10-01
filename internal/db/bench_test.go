@@ -64,7 +64,7 @@ func seedBench(b *testing.B) (*Cache, []domain.RoomID) {
 		joined[r] = domain.Room{ID: rooms[r], Name: fmt.Sprintf("Room %d", r)}
 	}
 	// All at once: SaveRooms is the whole joined set, and sweeps any room it omits.
-	if err := cache.SaveRooms(ctx, joined); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, joined); err != nil {
 		b.Fatal(err)
 	}
 	for r := range rooms {

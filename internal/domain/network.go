@@ -130,3 +130,39 @@ func ShortName(userID string) string {
 	}
 	return natives[prefixOf(id.Network)].shortName(id.Native)
 }
+
+// NativeID is a non-Matrix network's ID for something seen through account: a room or
+// an event. A person's ID names no account (NativePerson).
+func NativeID(network Protocol, account, native string) string {
+	return prefixOf(network) + ":" + account + accountSep + native
+}
+
+// NativePerson is a person's ID on a non-Matrix network.
+func NativePerson(network Protocol, native string) string {
+	return prefixOf(network) + ":" + native
+}
+
+// RoomOwner names the rooms one writer keeps in the cache: Matrix's, or one account's
+// on another network. Each writer reconciles only its own rooms, so one network's
+// refresh can never sweep away another's history.
+type RoomOwner string
+
+// MatrixRooms owns every Matrix room (all Matrix room IDs start with "!").
+const MatrixRooms RoomOwner = "!"
+
+// AccountRooms owns the rooms one account sees on a non-Matrix network.
+func AccountRooms(network Protocol, account string) RoomOwner {
+	return RoomOwner(prefixOf(network) + ":" + account + accountSep)
+}
+
+// OwnerOf is the writer a room belongs to.
+func OwnerOf(roomID RoomID) RoomOwner {
+	id := ParseID(string(roomID))
+	if id.Network == ProtocolMatrix {
+		return MatrixRooms
+	}
+	return AccountRooms(id.Network, id.Account)
+}
+
+// Owns reports whether roomID is one of this writer's rooms.
+func (o RoomOwner) Owns(roomID RoomID) bool { return o != "" && OwnerOf(roomID) == o }

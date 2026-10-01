@@ -18,7 +18,7 @@ func TestCorruptDraftMentionsAreLoggedNotLost(t *testing.T) {
 	cache := openTemp(t)
 	var out bytes.Buffer
 	cache.UseLogger(slog.New(slog.NewTextHandler(&out, nil)))
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	if err := putDraft(ctx, cache, domain.StoredDraft{RoomID: "!a:x", Body: "private words"}); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -24,7 +25,8 @@ func (b *InProc) Rooms(ctx context.Context) ([]domain.Room, error) {
 	if err != nil {
 		return nil, fmt.Errorf("matrix: read cached rooms: %w", err)
 	}
-	return rooms, nil
+	// The cache holds every network's rooms; the router adds the others' itself.
+	return slices.DeleteFunc(rooms, func(r domain.Room) bool { return !domain.MatrixRooms.Owns(r.ID) }), nil
 }
 
 // RefreshRooms fetches joined rooms with their names, DM flags and member names,
@@ -68,7 +70,7 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	})
 	domain.SortRooms(rooms)
 	if b.cache != nil {
-		if err := b.cache.SaveRooms(ctx, rooms); err != nil {
+		if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
 			return nil, fmt.Errorf("matrix: cache rooms: %w", err)
 		}
 	}

@@ -270,7 +270,7 @@ func TestModelTaskQuotesOnlyThisRoom(t *testing.T) {
 	endpoint, sent := fakeEndpoint(t, "ok")
 
 	cache := testCache(t)
-	if saveErr := cache.SaveRooms(ctx, []domain.Room{{ID: "!here:x", Name: "Here"}, {ID: "!other:x", Name: "Other"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!here:x", Name: "Here"}, {ID: "!other:x", Name: "Other"}}); saveErr != nil {
 		t.Fatalf("SaveRooms: %v", saveErr)
 	}
 	save := func(room domain.RoomID, body string) {
@@ -331,7 +331,7 @@ func TestSummaryFallsBackWhenYouAreUpToDate(t *testing.T) {
 	endpoint, sent := fakeEndpoint(t, "• the deploy is done")
 
 	cache := testCache(t)
-	if saveErr := cache.SaveRooms(ctx, []domain.Room{{ID: "!here:x", Name: "Here"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!here:x", Name: "Here"}}); saveErr != nil {
 		t.Fatalf("SaveRooms: %v", saveErr)
 	}
 	var msgs []domain.Message
@@ -388,7 +388,7 @@ func TestSummaryFallsBackWhenYouAreUpToDate(t *testing.T) {
 	}
 
 	// A room with nothing cached is refused without a request.
-	if saveErr := cache.SaveRooms(ctx, []domain.Room{{ID: "!empty:x", Name: "Empty"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!empty:x", Name: "Empty"}}); saveErr != nil {
 		t.Fatalf("SaveRooms: %v", saveErr)
 	}
 	before := len(*sent)
@@ -432,7 +432,7 @@ func TestTodoReadsUnreadRoomsWithinTheScope(t *testing.T) {
 		{ID: "!quiet:x", Name: "Quiet"},
 		{ID: "!banned:x", Name: "Banned"},
 	}
-	if saveErr := cache.SaveRooms(ctx, rooms); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, rooms); saveErr != nil {
 		t.Fatalf("SaveRooms: %v", saveErr)
 	}
 	say := func(room domain.RoomID, bodies ...string) {

@@ -291,7 +291,7 @@ func reopenedCache(t *testing.T, rooms []domain.Room) *db.Cache {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err = first.SaveRooms(ctx, rooms); err != nil {
+	if err = first.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	if err = first.Close(); err != nil {
@@ -320,7 +320,7 @@ func TestAnEmptiedCacheRewindsEvenAfterRoomsArrive(t *testing.T) {
 		wantToken string
 	}{
 		{"rooms refreshed in before Start", func(t *testing.T, b *InProc) {
-			if err := b.cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+			if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 				t.Fatal(err)
 			}
 		}, ""},

@@ -21,7 +21,7 @@ func at(n int) time.Time {
 // seedRoom registers a room, which every other table references.
 func seedRoom(t *testing.T, b *InProc, roomID domain.RoomID) {
 	t.Helper()
-	if err := b.cache.SaveRooms(context.Background(), []domain.Room{
+	if err := b.cache.SaveRooms(context.Background(), domain.MatrixRooms, []domain.Room{
 		{ID: roomID, Name: "Room"},
 	}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)

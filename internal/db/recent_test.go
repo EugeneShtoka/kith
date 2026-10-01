@@ -31,7 +31,7 @@ func TestRecentVocabTokensAgreeWithTheIndex(t *testing.T) {
 		"Straße GROSS Überraschung façade piñata",
 		"emoji 🎉 then words: résumé, coöperate, jalapeño",
 	}
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	// The index's own terms, through a vocabulary view on this connection only: the
@@ -150,7 +150,7 @@ func TestRecentBodies(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x"}, {ID: "!b:x"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}, {ID: "!b:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	for i, m := range []struct {

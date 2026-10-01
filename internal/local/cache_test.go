@@ -12,7 +12,7 @@ import (
 // seedRoom registers a room, which every other table references.
 func seedRoom(t *testing.T, cache *db.Cache, roomID domain.RoomID) {
 	t.Helper()
-	if err := cache.SaveRooms(context.Background(), []domain.Room{{ID: roomID, Name: "Room"}}); err != nil {
+	if err := cache.SaveRooms(context.Background(), domain.MatrixRooms, []domain.Room{{ID: roomID, Name: "Room"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 }

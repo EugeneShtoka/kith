@@ -17,7 +17,7 @@ func TestTheCacheListenerHearsMessagesAndDeletions(t *testing.T) {
 	ctx := context.Background()
 	b := backendWithCache(t, "@me:x")
 	b.out.open()
-	if err := b.cache.SaveRooms(ctx, []domain.Room{{ID: "!r:x", Name: "Room"}}); err != nil {
+	if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!r:x", Name: "Room"}}); err != nil {
 		t.Fatal(err)
 	}
 	var cached []domain.EventID
@@ -40,5 +40,35 @@ func TestTheCacheListenerHearsMessagesAndDeletions(t *testing.T) {
 	b.fetches.wg.Wait()
 	if len(changed) != 1 || changed[0] != "!r:x" {
 		t.Errorf("changed = %v, want the room whose message was deleted", changed)
+	}
+}
+
+// The cache holds every network's rooms; Matrix lists only its own, or the router,
+// which adds each network's, would show the others' twice.
+func TestMatrixListsOnlyItsOwnCachedRooms(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	b := backendWithCache(t, "@me:x")
+	whatsapp := domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, "359", "1203@g.us"))
+	if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "A"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, "359"), []domain.Room{{ID: whatsapp, Name: "W"}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, room := range []domain.RoomID{"!a:x", whatsapp} {
+		if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: room, Notifications: 1}, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rooms, err := b.Rooms(ctx)
+	if err != nil || len(rooms) != 1 || rooms[0].ID != "!a:x" {
+		t.Errorf("Rooms = (%v, %v), want only the Matrix room", rooms, err)
+	}
+	unread, err := b.CachedUnread(ctx)
+	if err != nil || len(unread) != 1 || unread[0].RoomID != "!a:x" {
+		t.Errorf("CachedUnread = (%v, %v), want only the Matrix room's", unread, err)
 	}
 }

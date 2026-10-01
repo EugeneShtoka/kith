@@ -45,7 +45,7 @@ func TestRoomsRoundTrip(t *testing.T) {
 		{ID: "!b:x", Name: "Bravo", Members: []string{"Bianca Reyes", "Cyrus Vale"}},
 		{ID: "!a:x", Name: "Alpha", IsDirect: true},
 	}
-	if err := cache.SaveRooms(ctx, rooms); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
 
@@ -65,7 +65,7 @@ func TestRoomsRoundTrip(t *testing.T) {
 	}
 
 	// SaveRooms replaces, not appends.
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!c:x", Name: "Charlie"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!c:x", Name: "Charlie"}}); err != nil {
 		t.Fatalf("second SaveRooms() error = %v", err)
 	}
 	got, _ = cache.Rooms(ctx)
@@ -115,7 +115,7 @@ func TestReopenPreservesDataAndSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Open() error = %v", err)
 	}
-	if serr := first.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); serr != nil {
+	if serr := first.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); serr != nil {
 		t.Fatalf("SaveRooms() error = %v", serr)
 	}
 	if cerr := first.Close(); cerr != nil {
@@ -388,7 +388,7 @@ func TestMediaSourceRoundTrip(t *testing.T) {
 
 	// The source hangs off the cached message and cascades with it, so the message
 	// comes first — which is the order every real caller writes them in.
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
 	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{{ID: "$1", Body: "look"}}); err != nil {
@@ -492,7 +492,7 @@ func TestClearEmptiesEverything(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	if err := cache.SaveRooms(ctx, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
 	if err := cache.SaveSpaces(ctx, []domain.Space{{ID: "!s:x", Name: "Work", Children: []domain.RoomID{"!a:x"}}}); err != nil {
