@@ -5,7 +5,7 @@ that keeps working when the terminal is closed.**
 
 [![CI](https://github.com/EugeneShtoka/kith/actions/workflows/ci.yml/badge.svg)](https://github.com/EugeneShtoka/kith/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go)](go.mod)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 
 kith is a full daily-driver Matrix client: end-to-end encryption, spaces, threads,
 reactions, media and voice notes, in a three-pane terminal UI (spaces rail · room
@@ -181,4 +181,10 @@ first. Security issues: see [SECURITY.md](SECURITY.md). This project follows a
 
 ## License
 
-[MIT](LICENSE) © 2026 Eugene Shtoka
+© 2026 Eugene Shtoka. kith is free software: you can redistribute it and/or modify
+it under the terms of the [GNU Affero General Public License](LICENSE) as published
+by the Free Software Foundation, either version 3 of the License, or (at your option)
+any later version. It comes with no warranty.
+
+Releases up to and including v0.1.0 were published under the MIT License, and stay
+so for anyone who has them.
