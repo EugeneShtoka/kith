@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -106,6 +107,11 @@ func (s *server) call(params json.RawMessage) (any, *rpcError) {
 func (s *server) run(t *tool, raw json.RawMessage) any {
 	ctx, cancel := context.WithTimeout(withCallMemo(context.Background()), callTimeout)
 	defer cancel()
+	if selves, err := s.backend.Selves(ctx); err == nil {
+		s.selves = selves
+	} else {
+		s.logger().Warn("ask who this person is failed; messages are marked mine by the Matrix account alone", "err", err)
+	}
 	result, err := t.run(s, ctx, raw)
 	if err != nil {
 		// The assistant reads the reason; the log keeps it for the person. Tool
@@ -271,7 +277,7 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 		Name:    msg.SenderName,
 		Sent:    msg.Timestamp.Format(time.RFC3339),
 		Body:    msg.Body,
-		Mine:    msg.Sender == s.user,
+		Mine:    msg.Sender != "" && (msg.Sender == s.user || slices.Contains(s.selves, msg.Sender)),
 		Thread:  string(msg.ThreadRoot),
 		ReplyTo: string(msg.ReplyTo),
 	}

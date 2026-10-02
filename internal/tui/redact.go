@@ -27,7 +27,7 @@ func (m Model) askRedact() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	m.confirm = confirmState{action: pendingRedact, roomID: room.ID, event: msg.ID, mine: msg.Sender == m.me}
+	m.confirm = confirmState{action: pendingRedact, roomID: room.ID, event: msg.ID, mine: m.isMe(msg.Sender)}
 	return m, nil
 }
 

@@ -88,11 +88,12 @@ config.
 
 ## Startup
 
-### "no saved session for @alice:example.org; run `kith login` first"
+### "Matrix @alice:example.org is logged out: no saved session; run `kith login`"
 
 The keyring holds no session for this account, so run `kith login` (with
-`--profile <name>` if you use profiles). The daemon keeps running meanwhile, with
-Matrix logged out, and starts it as soon as the login is done.
+`--profile <name>` if you use profiles). kith opens meanwhile with whatever else is
+logged in, the daemon keeps running with Matrix logged out, and Matrix starts as soon
+as the login is done.
 
 ### "the OS secret store could not be read (is the keyring unlocked?)"
 

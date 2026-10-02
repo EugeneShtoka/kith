@@ -260,6 +260,9 @@ func (r *Router) Me() []string {
 	return me
 }
 
+// Selves is Me as the API serves it (api.Identity).
+func (r *Router) Selves(context.Context) ([]string, error) { return r.Me(), nil }
+
 // RewindSync has every network refill the emptied cache.
 func (r *Router) RewindSync(ctx context.Context) error {
 	errs := make([]error, 0, len(r.all))

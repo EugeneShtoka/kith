@@ -167,7 +167,7 @@ func (m Model) muteTargets() []muteTarget {
 			kind: "room", match: string(room.ID), label: name, what: name,
 		})
 	}
-	if msg, ok := m.selectedMessage(); ok && msg.Sender != m.me {
+	if msg, ok := m.selectedMessage(); ok && !m.isMe(msg.Sender) {
 		who := m.senderName(msg)
 		targets = append(targets, muteTarget{
 			kind: "person", sender: msg.Sender, label: who, what: who + ", anywhere",

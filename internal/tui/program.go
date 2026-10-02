@@ -30,6 +30,8 @@ type RunOptions struct {
 	Log *slog.Logger
 	// Follow is a matrix URI to open at start, or "".
 	Follow string
+	// Notice is the status line's standing text at start ("" for none): what is logged out.
+	Notice string
 }
 
 // Run starts the Bubble Tea program bound to ctx and blocks until it exits.
@@ -58,6 +60,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 	if opts.Follow != "" {
 		model = model.WithFollow(opts.Follow)
+	}
+	if opts.Notice != "" {
+		// Standing, not an event: it stays true until something else is going on.
+		model = model.doing(opts.Notice)
 	}
 	// The rules only describe (the status badge); the daemon decides and delivers.
 	// Installed whatever `enabled` says, which also gives the model `me`.

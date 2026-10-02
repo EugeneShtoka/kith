@@ -37,13 +37,14 @@ func (m Model) hiddenDeletion(msg domain.Message, mine, others bool) bool {
 	return others
 }
 
-// fromMe reports whether a sender is you: this account, or one grouped with it by
-// [[display.identity]] (e.g. a bridged puppet of your phone).
+// fromMe reports whether a sender is you: any of your accounts (isMe), or one
+// grouped with the Matrix one by [[display.identity]] (e.g. a bridged puppet of your
+// phone).
 func (m Model) fromMe(sender string) bool {
 	if sender == "" {
 		return false
 	}
-	if sender == m.me {
+	if m.isMe(sender) {
 		return true
 	}
 	me, ok := m.prefs.identities[m.me]

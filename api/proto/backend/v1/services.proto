@@ -824,6 +824,13 @@ message NetworkStatus {
   google.protobuf.Timestamp online_at = 5;
 }
 
+message SelvesRequest {}
+
+message SelvesResponse {
+  // Every ID that is this person, on every network served.
+  repeated string ids = 1;
+}
+
 message LoginMatrixRequest {
   // The password for the config's Matrix user, typed by a human. The homeserver and
   // user are the daemon's own config's, never the client's.
@@ -1290,6 +1297,9 @@ service BackendService {
   // Maintenance
   // Status reports whether the daemon is ready to serve, and why not if it isn't.
   rpc Status(StatusRequest) returns (StatusResponse);
+  // Selves is every ID that is this person, on every network served; it grows as
+  // accounts log in.
+  rpc Selves(SelvesRequest) returns (SelvesResponse);
   // ClearCache empties the local cache.
   rpc ClearCache(ClearCacheRequest) returns (ClearCacheResponse);
   // RestoreKeyBackup imports the server-side room-key backup, so encrypted history from

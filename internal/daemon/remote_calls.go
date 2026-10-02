@@ -450,6 +450,32 @@ func (r *Remote) Status(ctx context.Context) (ready bool, syncedAt time.Time, la
 	return resp.GetReady(), syncedAt, resp.GetLastError(), nil
 }
 
+// Networks is each network account the daemon serves, logged in or not.
+func (r *Remote) Networks(ctx context.Context) ([]NetworkStatus, error) {
+	resp, err := call(ctx, "status", r.c.Status, &v1.StatusRequest{})
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]NetworkStatus, 0, len(resp.GetNetworks()))
+	for _, n := range resp.GetNetworks() {
+		row := NetworkStatus{Network: n.GetNetwork(), Account: n.GetAccount(), Phase: protoToPhase(n.GetPhase()), Detail: n.GetDetail()}
+		if ts := n.GetOnlineAt(); ts != nil {
+			row.At = ts.AsTime().Local()
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+// Selves is every ID that is this person (api.Identity).
+func (r *Remote) Selves(ctx context.Context) ([]string, error) {
+	resp, err := call(ctx, "who am I", r.c.Selves, &v1.SelvesRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetIds(), nil
+}
+
 func (r *Remote) ClearCache(ctx context.Context) error {
 	_, err := call(ctx, "clear cache", r.c.ClearCache, &v1.ClearCacheRequest{})
 	return err

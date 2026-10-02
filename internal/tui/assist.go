@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"image/color"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -444,7 +445,7 @@ func (m Model) armPhrases() Model {
 	p := m.phrases
 	// The maps are extended in place, so only by the copy that grew them to this point
 	// (store.n == n): an older copy re-arming would count the same messages twice.
-	grown := p.room == m.openRoom && p.me == m.me && p.n <= len(m.timeline.messages) &&
+	grown := p.room == m.openRoom && slices.Equal(p.me, m.selfIDs()) && p.n <= len(m.timeline.messages) &&
 		p.store != nil && p.store.n == p.n
 	if grown {
 		grown = phraseSum(phraseSeed, m.timeline.messages[:p.n]) == p.sum
@@ -453,12 +454,12 @@ func (m Model) armPhrases() Model {
 		// The timeline grew at the end and nothing already indexed changed (the usual
 		// live message): index only what is new.
 		for i := p.n; i < len(m.timeline.messages); i++ {
-			p.store.phrases.Add(&m.timeline.messages[i], m.me)
+			p.store.phrases.Add(&m.timeline.messages[i], p.me)
 		}
 		p.sum = phraseSum(p.sum, m.timeline.messages[p.n:])
 	} else {
-		p = phraseIndex{room: m.openRoom, me: m.me,
-			store: &phraseStore{phrases: domain.PhrasesOf(m.timeline.messages, m.me)},
+		p = phraseIndex{room: m.openRoom, me: m.selfIDs(),
+			store: &phraseStore{phrases: domain.PhrasesOf(m.timeline.messages, m.selfIDs())},
 			sum:   phraseSum(phraseSeed, m.timeline.messages)}
 	}
 	p.rev, p.n = m.timeline.rev, len(m.timeline.messages)
@@ -472,7 +473,7 @@ func (m Model) armPhrases() Model {
 // can be added to rather than indexed again.
 type phraseIndex struct {
 	room domain.RoomID
-	me   string
+	me   []string
 	rev  uint64
 	n    int
 	sum  uint64

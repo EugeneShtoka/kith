@@ -16,8 +16,9 @@ kith login [--config path] [--profile name]
 kith login whatsapp [--config path] [--profile name] [account]
 ```
 
-With no flags, `kith` loads the config, checks that a session is stored, attaches to
-the daemon (starting it if needed) and opens the interface.
+With no flags, `kith` loads the config, attaches to the daemon (starting it if
+needed) and opens the interface over whatever is logged in. A network account that is
+not logged in is named on the status line, with the command that logs it in.
 
 ### kith login
 
@@ -127,7 +128,7 @@ for the model endpoint, and [mcp.md](mcp.md) for the assistant ledger.
 | Status | When |
 | --- | --- |
 | `0` | Normal exit, including `--help`, and a first run that only wrote the default config. |
-| `1` | An error. The message is printed to stderr prefixed with `kith:`. For example: no saved session, the daemon can't be started or never becomes ready, or the config is invalid. |
+| `1` | An error. The message is printed to stderr prefixed with `kith:`. For example: the daemon can't be started or never becomes ready, or the config is invalid. |
 | `2` | A flag kith doesn't know, or a flag missing its value. |
 
 When the daemon isn't running, `kith` starts it with

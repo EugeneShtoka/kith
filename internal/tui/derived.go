@@ -37,6 +37,9 @@ type derivedKey struct {
 	place uint64
 	// rtl: the timeline is mirrored (direction.go).
 	rtl bool
+	// selves fingerprints who this person is (isMe), which grows as accounts log in
+	// and decides which rows are drawn as one's own.
+	selves uint64
 }
 
 // fnvOffset and fnvMix are FNV-1a over strings, each followed by a separator so "1","23"
@@ -48,6 +51,15 @@ func fnvMix(h uint64, s string) uint64 {
 		h = (h ^ uint64(b)) * fnvPrime
 	}
 	return (h ^ 0xff) * fnvPrime
+}
+
+// selvesFingerprint is an FNV-1a hash of the IDs that are this person, in order.
+func selvesFingerprint(ids []string) uint64 {
+	h := fnvOffset
+	for _, id := range ids {
+		h = fnvMix(h, id)
+	}
+	return h
 }
 
 // unreadFingerprint is an FNV-1a hash of a room's unread state, per-thread counts
@@ -87,6 +99,7 @@ func (m Model) keyFor() derivedKey {
 		cfg:    m.conf.rev,
 		unread: unreadFingerprint(m.unread[m.openRoom]),
 		rtl:    m.mirrored(),
+		selves: selvesFingerprint(m.selves),
 	}
 	if room, ok := m.roomByID(m.openRoom); ok {
 		k.place = placeFingerprint(m.factsFor(room))

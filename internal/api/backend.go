@@ -33,6 +33,15 @@ type Backend interface {
 	Keys
 	Assist
 	Maintenance
+	Identity
+}
+
+// Identity is who this person is on the networks the daemon serves.
+type Identity interface {
+	// Selves is every ID that is this person: the Matrix account and its configured
+	// identities, and each linked WhatsApp account's phone number and LID. It grows as
+	// accounts log in, so a client asks again when the room list changes.
+	Selves(ctx context.Context) ([]string, error)
 }
 
 // Sync is the /sync loop and the streams it feeds.

@@ -27,7 +27,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
-	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
 	"github.com/EugeneShtoka/kith/internal/tui"
 )
@@ -120,8 +119,9 @@ type attached struct {
 	note    string
 }
 
-// attach loads the config, checks a session exists, and attaches to (or starts) the
-// daemon. backend is nil when a first-run default config was just written.
+// attach loads the config and attaches to (or starts) the daemon, whatever is logged
+// in: a network that is not says so in the daemon's status (see loggedOutNotice).
+// backend is nil when a first-run default config was just written.
 func attach(ctx context.Context, configPath, profile string, timeout time.Duration) (attached, error) {
 	path, cfg, ready, err := loadConfig(configPath, profile)
 	if err != nil || !ready {
@@ -131,12 +131,19 @@ func attach(ctx context.Context, configPath, profile string, timeout time.Durati
 	if err != nil {
 		return attached{cfg: cfg}, err
 	}
-	if _, found, serr := session.Load(session.StoreFor(storage, cfg.User), cfg.AllowTokenFile); serr != nil {
-		return attached{cfg: cfg}, fmt.Errorf("load session: %w", serr)
-	} else if !found {
-		return attached{cfg: cfg}, fmt.Errorf("no saved session for %s; run `kith login` first", cfg.User)
-	}
 	return reach(ctx, path, cfg, storage, profile, timeout)
+}
+
+// loggedOutNotice says which network accounts are not logged in, and how to log them
+// in; "" when all are.
+func loggedOutNotice(rows []daemon.NetworkStatus) string {
+	var out []string
+	for _, row := range rows {
+		if row.Phase == daemon.PhaseLoggedOut {
+			out = append(out, fmt.Sprintf("%s %s is logged out: %s", row.Network, row.Account, row.Detail))
+		}
+	}
+	return strings.Join(out, " · ")
 }
 
 // reach attaches to (or starts) the daemon for a loaded config, logged in or not:
@@ -209,6 +216,29 @@ func sharedStorage(configPath, profile string) domain.Storage {
 	return storage
 }
 
+// runKeyJobs does what the key flags ask before the interface opens, reporting whether
+// the run ends with it. Bootstrap and export end the run: the TUI would scroll away a
+// recovery key printed only once, and an export asks nothing of the session afterwards.
+func runKeyJobs(ctx context.Context, backend *daemon.Remote, user string, jobs startup) (bool, error) {
+	if jobs.bootstrapKeys {
+		return true, bootstrapKeyBackup(ctx, backend, user)
+	}
+	if jobs.restoreKeys {
+		if err := restoreKeyBackup(ctx, backend, user); err != nil {
+			return true, err
+		}
+	}
+	if jobs.exportKeys != "" {
+		return true, exportRoomKeys(ctx, backend, user, jobs.exportKeys)
+	}
+	if jobs.importKeys != "" {
+		if err := importRoomKeys(ctx, backend, jobs.importKeys); err != nil {
+			return true, err
+		}
+	}
+	return false, nil
+}
+
 func run(configPath, profile string, jobs startup) error {
 	// SIGTERM and SIGHUP (the terminal closing) end the program like an interrupt, so
 	// the drafts are written on the way out (tui.Run) and a playing voice note stops.
@@ -240,23 +270,8 @@ func run(configPath, profile string, jobs startup) error {
 			return fmt.Errorf("clear cache: %w", cerr)
 		}
 	}
-	// Bootstrap and export end the run: the TUI would scroll away a recovery key
-	// printed only once, and an export asks nothing of the session afterwards.
-	if jobs.bootstrapKeys {
-		return bootstrapKeyBackup(ctx, backend, cfg.User)
-	}
-	if jobs.restoreKeys {
-		if rerr := restoreKeyBackup(ctx, backend, cfg.User); rerr != nil {
-			return rerr
-		}
-	}
-	if jobs.exportKeys != "" {
-		return exportRoomKeys(ctx, backend, cfg.User, jobs.exportKeys)
-	}
-	if jobs.importKeys != "" {
-		if ierr := importRoomKeys(ctx, backend, jobs.importKeys); ierr != nil {
-			return ierr
-		}
+	if done, kerr := runKeyJobs(ctx, backend, cfg.User, jobs); done || kerr != nil {
+		return kerr
 	}
 	log, closeLog, err := openLog(jobs, cfg.Log, profile, at.storage)
 	if err != nil {
@@ -264,9 +279,15 @@ func run(configPath, profile string, jobs startup) error {
 	}
 	defer closeLog()
 	log.Info("kith started", "user", cfg.User, "version", buildinfo.String("kith"))
+	notice := ""
+	if rows, nerr := backend.Networks(ctx); nerr == nil {
+		notice = loggedOutNotice(rows)
+	} else {
+		log.Warn("read which networks are logged in failed", "err", nerr)
+	}
 	if err := tui.Run(ctx, tui.RunOptions{
 		Backend: backend, Notifications: backend, Schedules: backend,
-		Config: cfg, ConfigPath: path, Me: cfg.User, Log: log, Follow: jobs.follow,
+		Config: cfg, ConfigPath: path, Me: cfg.User, Log: log, Follow: jobs.follow, Notice: notice,
 	}); errors.Is(err, tui.ErrOpenedElsewhere) {
 		log.Info("kith closed: opened in another window")
 		fmt.Fprintln(os.Stderr, "kith: opened in another window")

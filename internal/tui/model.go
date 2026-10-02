@@ -585,9 +585,14 @@ type Model struct {
 	// st is the status line's left slot, written only via say/doing/clearStatus so events expire.
 	st statusState
 
-	// me is our own MXID. Notifications are the daemon's; the TUI keeps the rules only
-	// to describe them.
-	me string
+	// me is our own MXID ("" without Matrix), and selves every ID the daemon says is
+	// this person (see isMe). Notifications are the daemon's; the TUI keeps the rules
+	// only to describe them.
+	me     string
+	selves []string
+	// roomAccounts is each network account the room list has had rooms from (see
+	// selvesAfterRooms); nil before the first list.
+	roomAccounts []string
 	// notifications is the notification rules, delivery switch and do-not-disturb state. See dnd.go.
 	notifications notifyState
 
@@ -941,6 +946,7 @@ func (m Model) Init() tea.Cmd {
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
 		m.listenAttachedCmd(),
 		m.lastMessagesCmd(),
+		m.loadSelvesCmd(),
 	)
 }
 
@@ -1242,7 +1248,8 @@ func (m Model) handleRoomListMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
 	next, cmd := m.handleRooms(msg)
 	next, offer := next.maybeOfferDictionaries()
-	return next, tea.Batch(cmd, offer)
+	next, selves := next.selvesAfterRooms(msg.rooms)
+	return next, tea.Batch(cmd, offer, selves)
 }
 
 // handleSideMsg handles account-wide loads, verification, and reactions and images
@@ -1251,6 +1258,8 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case directCandidatesMsg:
 		return answered(m.handleDirectCandidates(msg))
+	case selvesMsg:
+		return answered(m.handleSelves(msg))
 	case searchSendersMsg:
 		return answered(m.handleSearchSenders(msg))
 	case lastMessagesMsg:
@@ -2471,15 +2480,20 @@ func (m Model) loadRoomCmd(roomID domain.RoomID) tea.Cmd {
 	return tea.Batch(append(cmds, m.listThreadsCmd())...)
 }
 
-// clearRoom closes the open room, leaving the timeline blank.
+// clearRoom closes the open room, leaving the timeline blank. The status line goes
+// with the room only when there was one: with none open, what it says (a network
+// logged out) is about the account, not a room.
 func (m Model) clearRoom() (Model, tea.Cmd) {
+	wasOpen := m.openRoom != ""
 	// The draft goes with the room, wherever the room went.
 	m = m.stashDraft(m.openRoom)
 	saveColors := m.flushSenderSlots()
 	m.openRoom = ""
 	m = m.emptiedTimeline()
 	m.rows.cursor = ""
-	m = m.clearStatus()
+	if wasOpen {
+		m = m.clearStatus()
+	}
 	return m, saveColors
 }
 
@@ -2721,7 +2735,7 @@ func (m Model) handleReactionUpdate(msg reactionUpdateMsg) (Model, tea.Cmd) {
 	cmds := []tea.Cmd{m.listenReactionsCmd()}
 	// Our own reaction removed in a bridged room means the bridge refused it; the daemon
 	// has recorded that, so re-read the refusals.
-	if msg.u.Removed && msg.u.Reaction.Sender == m.me && m.roomProtocol().IsBridged() {
+	if msg.u.Removed && m.isMe(msg.u.Reaction.Sender) && m.roomProtocol().IsBridged() {
 		cmds = append(cmds, m.refusalsCmd())
 	}
 	return m, tea.Batch(cmds...)

@@ -87,6 +87,8 @@ func (Nop) CancelVerification(context.Context, string) error                    
 
 var _ api.Backend = Nop{}
 
+func (Nop) Selves(context.Context) ([]string, error) { return nil, nil }
+
 func (Nop) CachedInvites(context.Context) ([]domain.Room, error) { return nil, nil }
 func (n Nop) Invites() <-chan []domain.Room                      { return n.Invs }
 func (Nop) JoinRoom(_ context.Context, roomIDOrAlias string, _ []string) (domain.RoomID, error) {
