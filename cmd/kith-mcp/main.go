@@ -155,6 +155,7 @@ type reader interface {
 	RoomsWith(ctx context.Context, userIDs []string, rooms domain.RoomSet, limit int) ([]domain.Room, error)
 	MessagesAround(ctx context.Context, roomID domain.RoomID, event domain.EventID, before, after int) ([]domain.Message, error)
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
+	Selves(ctx context.Context) ([]string, error)
 }
 
 // writer is everything this binary can change. Nothing here can edit or delete.
@@ -178,7 +179,10 @@ type server struct {
 	scope domain.ModelScope
 	// write is `[agent.write]` rooms/except/encrypted, asked only inside scope.
 	write domain.ModelScope
-	user  string
+	// user is the config's Matrix account ("" without one); selves every ID the daemon
+	// says is this person, asked at each tool call (an account may log in meanwhile).
+	user   string
+	selves []string
 	// send is `[agent.write] send`: rooms posted to rather than drafted into.
 	send []string
 	// cooldown is how long a room rests after a message goes out to it.

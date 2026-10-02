@@ -107,6 +107,9 @@ func TestPhaseToProto(t *testing.T) {
 			t.Errorf("phaseToProto(%d) = %v, want a value of its own", p, got)
 		}
 		seen[got] = true
+		if back := protoToPhase(got); back != p {
+			t.Errorf("protoToPhase(%v) = %d, want %d back", got, back, p)
+		}
 	}
 }
 

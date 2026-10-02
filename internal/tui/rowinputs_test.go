@@ -187,6 +187,7 @@ var derivedReads = map[string]string{
 	"prefs.identities":  "derivedKey.cfg",
 	"theme":             "derivedKey.cfg",
 	"me":                "none needed: set once (WithRules) before the program starts",
+	"selves":            "derivedKey.selves",
 }
 
 // TestTheDerivedCacheReadsOnlyKeyedState walks computeDerived's calls and reads, as

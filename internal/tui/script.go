@@ -232,7 +232,7 @@ func (m Model) scriptMessageRow(msg domain.Message) scriptMessageJSON {
 		Timestamp:  msg.Timestamp.Format(time.RFC3339),
 		Edited:     msg.Edited,
 		Deleted:    msg.Redacted,
-		Mine:       msg.Sender == m.me,
+		Mine:       m.isMe(msg.Sender),
 	}
 }
 

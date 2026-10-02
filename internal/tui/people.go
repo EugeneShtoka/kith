@@ -74,7 +74,7 @@ func (m Model) askAboutPerson(what pendingAction) (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	if item.value == m.me {
+	if m.isMe(item.value) {
 		m = m.say("that is you — use the leave key instead")
 		return m, nil
 	}

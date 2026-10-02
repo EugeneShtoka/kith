@@ -21,7 +21,7 @@ func TestPhrasesNeedsTwoWordsAndAClearLeader(t *testing.T) {
 		"I will be there shortly",
 		"I will be late again",
 	)
-	index := PhrasesOf(msgs, "@me:x")
+	index := PhrasesOf(msgs, []string{"@me:x"})
 
 	// "I will" → "be" three times against nothing else: a clear leader.
 	if got, ok := index.Next("I", "will", 3, 2); !ok || got != "be" {
@@ -65,13 +65,13 @@ func TestPhrasesWeighYourOwnWords(t *testing.T) {
 		said("@dana:x", "let us go north", "let us go north"),
 		said(me, "let us go south")...,
 	)
-	index := PhrasesOf(msgs, me)
+	index := PhrasesOf(msgs, []string{me})
 	// Theirs: 2. Yours: 3 (one use, weighted).
 	if got, ok := index.Next("us", "go", 1, 1); !ok || got != "south" {
 		t.Fatalf("Next(us, go) = %q, %v; want your own word", got, ok)
 	}
 	// With no account given, the weighting drops out and theirs leads on count.
-	if got, ok := PhrasesOf(msgs, "").Next("us", "go", 1, 1); !ok || got != "north" {
+	if got, ok := PhrasesOf(msgs, nil).Next("us", "go", 1, 1); !ok || got != "north" {
 		t.Fatalf("Next(us, go) with no account = %q, %v; want theirs", got, ok)
 	}
 }
@@ -85,7 +85,7 @@ func TestPhrasesSkipsWhatWasTakenBack(t *testing.T) {
 		{Sender: "@dana:x", Body: "the weather is fine today"},
 		{Sender: "@dana:x", Body: "the weather is fine today"},
 	}
-	index := PhrasesOf(msgs, "@me:x")
+	index := PhrasesOf(msgs, []string{"@me:x"})
 	if got, ok := index.Next("secret", "is", 1, 1); ok {
 		t.Fatalf("Next() = %q from a deleted message, want nothing", got)
 	}
@@ -134,7 +134,7 @@ func TestNextWordsOffersWhatTheGateWouldRefuse(t *testing.T) {
 		{Sender: "@me:x", Body: "let us ship it"},
 		{Sender: "@me:x", Body: "let us wait here"},
 		{Sender: "@me:x", Body: "let us wait here"},
-	}, "@me:x")
+	}, []string{"@me:x"})
 
 	if word, ok := index.Next("let", "us", 3, 2); ok {
 		t.Errorf("the ghost offered %q where nothing dominates", word)
@@ -155,7 +155,7 @@ func TestNextWordsWalksTheLadder(t *testing.T) {
 		{Sender: "@me:x", Body: "i will check the logs"},
 		{Sender: "@me:x", Body: "please check the config"},
 		{Sender: "@me:x", Body: "the deploy is ready"},
-	}, "@me:x")
+	}, []string{"@me:x"})
 
 	// The pair has been seen: its continuations come first.
 	if got := index.NextWords("i will check the ", 4); len(got) == 0 || got[0] != "logs" {
@@ -183,7 +183,7 @@ func TestNextWordsOffersFunctionWords(t *testing.T) {
 	index := PhrasesOf([]Message{
 		{Sender: "@me:x", Body: "i went to the office"},
 		{Sender: "@me:x", Body: "i went to the office"},
-	}, "@me:x")
+	}, []string{"@me:x"})
 
 	if got := index.NextWords("i went ", 4); len(got) == 0 || got[0] != "to" {
 		t.Errorf("NextWords = %v, want the function word that actually follows", got)
@@ -198,7 +198,7 @@ func TestNextWordsDoesNotStutter(t *testing.T) {
 	index := PhrasesOf([]Message{
 		{Sender: "@me:x", Body: "the the the and"},
 		{Sender: "@me:x", Body: "the the the and"},
-	}, "@me:x")
+	}, []string{"@me:x"})
 
 	for _, word := range index.NextWords("the the ", 4) {
 		if word == "the" {
@@ -211,7 +211,7 @@ func TestNextWordsDoesNotStutter(t *testing.T) {
 func TestNextWordsWaitsForAFinishedWord(t *testing.T) {
 	t.Parallel()
 
-	index := PhrasesOf([]Message{{Sender: "@me:x", Body: "i will check the logs"}}, "@me:x")
+	index := PhrasesOf([]Message{{Sender: "@me:x", Body: "i will check the logs"}}, []string{"@me:x"})
 	if got := index.NextWords("i will che", 4); len(got) != 0 {
 		t.Errorf("NextWords = %v mid-word, want nothing — that is the word ghost's question", got)
 	}

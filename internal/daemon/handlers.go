@@ -598,6 +598,27 @@ func phaseToProto(p Phase) v1.NetworkPhase {
 	}
 }
 
+func (s *server) Selves(ctx context.Context, _ *req[v1.SelvesRequest]) (*resp[v1.SelvesResponse], error) {
+	ids, err := s.Backend.Selves(ctx)
+	return reply(&v1.SelvesResponse{Ids: ids}, err)
+}
+
+// protoToPhase is a wire phase as a Phase; one this build does not know is 0.
+func protoToPhase(p v1.NetworkPhase) Phase {
+	switch p {
+	case v1.NetworkPhase_NETWORK_PHASE_LOGGED_OUT:
+		return PhaseLoggedOut
+	case v1.NetworkPhase_NETWORK_PHASE_CONNECTING:
+		return PhaseConnecting
+	case v1.NetworkPhase_NETWORK_PHASE_ONLINE:
+		return PhaseOnline
+	case v1.NetworkPhase_NETWORK_PHASE_FAILED:
+		return PhaseFailed
+	case v1.NetworkPhase_NETWORK_PHASE_UNSPECIFIED:
+	}
+	return 0
+}
+
 func (s *server) ClearCache(ctx context.Context, _ *req[v1.ClearCacheRequest]) (*resp[v1.ClearCacheResponse], error) {
 	return reply(&v1.ClearCacheResponse{}, s.Backend.ClearCache(ctx))
 }

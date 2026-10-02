@@ -16,7 +16,7 @@ func (m Model) askEdit() (Model, tea.Cmd) {
 		return m, nil
 	}
 	switch {
-	case msg.Sender != m.me:
+	case !m.isMe(msg.Sender):
 		return m.say("you can only edit your own messages"), nil
 	case msg.Redacted:
 		return m.say("that message is deleted"), nil

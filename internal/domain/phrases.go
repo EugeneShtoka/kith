@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -26,8 +27,9 @@ type phraseKey struct{ first, second string }
 // else's.
 const phraseMineWeight = 3
 
-// PhrasesOf indexes a room's messages, weighting the account's own.
-func PhrasesOf(messages []Message, me string) Phrases {
+// PhrasesOf indexes a room's messages, weighting the ones me (every ID that is this
+// person) sent.
+func PhrasesOf(messages []Message, me []string) Phrases {
 	index := Phrases{
 		after:    make(map[phraseKey]map[string]int),
 		afterOne: make(map[string]map[string]int),
@@ -41,12 +43,12 @@ func PhrasesOf(messages []Message, me string) Phrases {
 
 // Add counts one more message into the index, in place: the index is the sum of its
 // messages, so appending one is the same as indexing them all again.
-func (p Phrases) Add(msg *Message, me string) {
+func (p Phrases) Add(msg *Message, me []string) {
 	if msg.Redacted || msg.Body == "" {
 		return
 	}
 	weight := 1
-	if me != "" && msg.Sender == me {
+	if slices.Contains(me, msg.Sender) {
 		weight = phraseMineWeight
 	}
 	words := phraseWords(msg.Body)

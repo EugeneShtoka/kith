@@ -52,7 +52,7 @@ func TestThePhraseIndexMatchesARebuild(t *testing.T) {
 		// A copy, so the model's own slice changes only through setMessages, as in use.
 		m = m.setMessages(step.edit(slices.Clone(m.timeline.messages)))
 		m = m.armPhrases()
-		if want := domain.PhrasesOf(m.timeline.messages, m.me); !reflect.DeepEqual(m.phrases.phrases(), want) {
+		if want := domain.PhrasesOf(m.timeline.messages, m.selfIDs()); !reflect.DeepEqual(m.phrases.phrases(), want) {
 			t.Fatalf("after %s the index differs from a rebuild", step.name)
 		}
 	}
@@ -79,7 +79,7 @@ func TestAnOlderCopyDoesNotGrowTheSharedIndex(t *testing.T) {
 	newer := grow(base, "$a", "meet at the usual place")
 	older := grow(base, "$b", "meet at the usual place") // the same words: a double count would show
 	for name, copyOf := range map[string]Model{"the newer copy": newer, "the older copy": older} {
-		if want := domain.PhrasesOf(copyOf.timeline.messages, copyOf.me); !reflect.DeepEqual(copyOf.phrases.phrases(), want) {
+		if want := domain.PhrasesOf(copyOf.timeline.messages, copyOf.selfIDs()); !reflect.DeepEqual(copyOf.phrases.phrases(), want) {
 			t.Errorf("%s: the index differs from indexing its own timeline", name)
 		}
 	}

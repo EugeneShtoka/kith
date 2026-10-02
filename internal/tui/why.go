@@ -137,11 +137,11 @@ func sameRule(a, b notify.Rule) bool {
 // spokeInThread reports whether we sent the thread's root or any reply — what
 // `thread = "participating"` asks. The daemon answers the same from its cache.
 func (m Model) spokeInThread(root domain.EventID) bool {
-	if m.me == "" || root == "" {
+	if root == "" {
 		return false
 	}
 	for i := range m.timeline.messages {
-		if m.timeline.messages[i].Sender != m.me {
+		if !m.isMe(m.timeline.messages[i].Sender) {
 			continue
 		}
 		if m.timeline.messages[i].ThreadRoot == root || m.timeline.messages[i].ID == root {

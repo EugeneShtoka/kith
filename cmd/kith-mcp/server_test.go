@@ -37,6 +37,8 @@ type fake struct {
 	encryptionAsked [][]domain.RoomID
 	// withAsked records the IDs find_rooms_with resolved.
 	withAsked []string
+	// selves is who the daemon says this person is.
+	selves []string
 
 	// sendErr and queueErr drive the send → queue → draft ladder.
 	sendErr  error
@@ -97,6 +99,7 @@ func (f *fake) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (
 }
 
 func (f *fake) Rooms(context.Context) ([]domain.Room, error) { return f.rooms, nil }
+func (f *fake) Selves(context.Context) ([]string, error)     { return f.selves, nil }
 func (f *fake) Spaces(context.Context) ([]domain.Space, error) {
 	f.spacesCalls++
 	return f.spaces, nil
@@ -476,6 +479,30 @@ func TestReadRoomMarksYourOwnMessages(t *testing.T) {
 	only := call(t, s, "read_room", map[string]any{"room": "Standup", "sender": "@me:x"})
 	if msgs, _ := only["messages"].([]any); len(msgs) != 1 {
 		t.Fatalf("filtered read returned %d messages, want 1", len(msgs))
+	}
+}
+
+// Without Matrix, what the daemon says is this person marks the messages: a WhatsApp
+// account's own are its own.
+func TestReadRoomMarksTheDaemonsSelvesMine(t *testing.T) {
+	t.Parallel()
+
+	f := twoRooms()
+	f.selves = []string{"@dana:x"}
+	s := newServer(f, shareAllEncrypted)
+	s.user = ""
+	out := call(t, s, "read_room", map[string]any{"room": "Standup"})
+	msgs, _ := out["messages"].([]any)
+	if len(msgs) != 2 {
+		t.Fatalf("read_room returned %d messages, want 2", len(msgs))
+	}
+	first, _ := msgs[0].(map[string]any)
+	second, _ := msgs[1].(map[string]any)
+	if mine, _ := first["mine"].(bool); !mine {
+		t.Error("a message from one of the daemon's selves was not marked mine")
+	}
+	if mine, _ := second["mine"].(bool); mine {
+		t.Error("a message from an account that is not this person's was marked mine")
 	}
 }
 
