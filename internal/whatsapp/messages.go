@@ -62,11 +62,13 @@ func incoming(account string, room domain.RoomID, info *types.MessageInfo, msg *
 	if !ok {
 		return domain.Message{}, false
 	}
+	words, format := formatted(body)
 	out := domain.Message{
 		ID:        domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, account, info.ID)),
 		RoomID:    room,
 		Sender:    sender,
-		Body:      body,
+		Body:      words,
+		Format:    format,
 		Timestamp: info.Timestamp,
 	}
 	if context == nil {
