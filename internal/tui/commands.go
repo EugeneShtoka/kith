@@ -226,6 +226,9 @@ func (m Model) cachedTimelineCmd(roomID domain.RoomID) tea.Cmd {
 }
 
 func (m Model) loadTimelineCmd(roomID domain.RoomID, from string) tea.Cmd {
+	if roomID == "" {
+		return nil // no room open (an empty list): nothing to ask about
+	}
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
 		page, err := backend.Timeline(ctx, roomID, from, timelinePageSize)
@@ -550,6 +553,9 @@ func (m Model) membersCmd(roomID domain.RoomID) tea.Cmd {
 }
 
 func (m Model) refreshMembersCmd(roomID domain.RoomID) tea.Cmd {
+	if roomID == "" {
+		return nil
+	}
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
 		if _, err := backend.RefreshMembers(ctx, roomID); err != nil {
