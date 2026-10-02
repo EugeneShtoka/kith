@@ -137,8 +137,9 @@ func attach(ctx context.Context, configPath, profile string, timeout time.Durati
 	} else if !found {
 		return attached{cfg: cfg}, fmt.Errorf("no saved session for %s; run `kith login` first", cfg.User)
 	}
-	// The daemon serves this config: one other than the default is named to it.
-	launch := daemon.Launch{ConfigPath: path, Profile: profile, OwnConfig: !isDefaultConfig(path)}
+	// The packaged units serve only the default config in the default directories;
+	// any other gets a unit of its own, naming the config.
+	launch := daemon.Launch{ConfigPath: path, Profile: profile, OwnConfig: !isDefaultConfig(path) || !inDefaultDirs(storage)}
 	backend, note, err := daemon.Ensure(ctx, storage, launch, timeout)
 	if err != nil {
 		return attached{cfg: cfg}, fmt.Errorf("attach to kithd: %w", err)
@@ -159,6 +160,14 @@ func isDefaultConfig(path string) bool {
 	a, aerr := filepath.Abs(path)
 	b, berr := filepath.Abs(def)
 	return aerr == nil && berr == nil && a == b
+}
+
+// inDefaultDirs reports whether storage keeps its files where the packaged units let
+// the daemon write: the directories kith uses when [storage] names none.
+func inDefaultDirs(storage domain.Storage) bool {
+	def, err := setup.StorageDirs(config.Config{})
+	return err == nil && storage.DataDir == def.DataDir && storage.StateDir == def.StateDir &&
+		storage.CacheDir == def.CacheDir && storage.RuntimeDir == def.RuntimeDir
 }
 
 // sharedStorage is where the config's shared files go (dictionaries, models, API

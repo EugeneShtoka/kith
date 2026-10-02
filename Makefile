@@ -396,6 +396,13 @@ undeploy:
 	    case "$$u" in "$(UNIT)") ;; *) echo "==> stopped and disabled $$u" ;; esac; \
 	  done; \
 	  rm -f "$(UNITDIR)/$(UNIT)" "$(UNITDIR)/$(TEMPLATE_UNIT)"; \
+	  for f in "$(UNITDIR)"/kithd-?*.service; do \
+	    head -n1 "$$f" 2>/dev/null | grep -q '^# Written by kith for its config' || continue; \
+	    u=$$(basename "$$f"); \
+	    systemctl --user disable --now "$$u" 2>/dev/null || true; \
+	    rm -f "$$f"; \
+	    echo "==> stopped and removed $$u, which kith wrote for its own config"; \
+	  done; \
 	  systemctl --user daemon-reload; \
 	  echo "==> removed $(UNITDIR)/$(UNIT), $(UNITDIR)/$(TEMPLATE_UNIT)"; \
 	fi; \

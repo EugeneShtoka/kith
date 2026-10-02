@@ -10,8 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// unitName is the systemd user unit that autostarts the daemon at login.
-const unitName = "kithd.service"
+// defaultUnit is the packaged systemd user unit serving the default config.
+const defaultUnit = "kithd.service"
 
 // daemonBinary is the executable looked up on PATH when systemd is not available.
 const daemonBinary = "kithd"
@@ -33,8 +33,9 @@ func Attach(ctx context.Context, socket string, timeout time.Duration) (*Remote,
 }
 
 // Launch is how a daemon for a config is started: the config file and the profile
-// it serves. OwnConfig is a config other than the default one, which the systemd
-// units do not know, so its daemon is started directly with --config.
+// it serves. OwnConfig is a config the packaged units do not serve (another file, or
+// the default one keeping its files elsewhere): its daemon gets a unit of its own,
+// or is started directly, with --config.
 type Launch struct {
 	ConfigPath string
 	Profile    string
@@ -64,34 +65,46 @@ func Ensure(ctx context.Context, storage domain.Storage, launch Launch, timeout 
 	if err != nil {
 		return nil, "", err
 	}
-	return attached, startedNote(ctx), nil
+	return attached, startedNote(ctx, launch.unitName(storage)), nil
 }
 
-// spawn starts the daemon so that it outlives this process: the systemd unit for
-// profile first, a detached exec as fallback, never a child of the client.
+// spawn starts the daemon so that it outlives this process: through systemd first
+// (the packaged unit for the default config, a unit written for any other), a
+// detached exec as fallback, never a child of the client.
 func spawn(ctx context.Context, storage domain.Storage, launch Launch) error {
 	// Not canceled with the client (a half-issued start should finish), but bounded.
 	startCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), spawnTimeout)
 	defer cancel()
 
-	if launch.OwnConfig {
+	if _, err := exec.LookPath("systemctl"); err != nil {
 		return detach(detachArgs(storage, launch))
 	}
-	unit := unitFor(launch.Profile)
-	if _, err := exec.LookPath("systemctl"); err == nil {
-		// #nosec G204 -- unit is unitFor(profile), and a profile name is
-		// restricted to [A-Za-z0-9._-] by config.Validate — no shell, no separators.
-		out, err := exec.CommandContext(startCtx, "systemctl", "--user", "start", unit).CombinedOutput()
-		if err == nil {
-			return nil
-		}
-		// The unit may not be installed: fall back, keeping systemd's reason.
-		if derr := detach(detachArgs(storage, launch)); derr != nil {
-			return fmt.Errorf("daemon: start %s: %w (%s); and %w", unit, err, trimOutput(out), derr)
-		}
+	unit, err := systemdStart(startCtx, storage, launch)
+	if err == nil {
 		return nil
 	}
-	return detach(detachArgs(storage, launch))
+	// The unit may not be installed, or systemd may not run a user session: fall
+	// back, keeping systemd's reason.
+	if derr := detach(detachArgs(storage, launch)); derr != nil {
+		return fmt.Errorf("daemon: start %s: %w; and %w", unit, err, derr)
+	}
+	return nil
+}
+
+// systemdStart starts launch's unit, writing it first when it is the config's own.
+func systemdStart(ctx context.Context, storage domain.Storage, launch Launch) (unit string, err error) {
+	unit = launch.unitName(storage)
+	if launch.OwnConfig {
+		if unit, err = installOwnUnit(ctx, storage, launch); err != nil {
+			return ownUnitName(storage), err
+		}
+	}
+	// #nosec G204 -- unit is unitFor(profile) or ownUnitName(instance), each
+	// restricted to [A-Za-z0-9._-] — no shell, no separators.
+	if out, err := exec.CommandContext(ctx, "systemctl", "--user", "start", unit).CombinedOutput(); err != nil {
+		return unit, fmt.Errorf("%w (%s)", err, trimOutput(out))
+	}
+	return unit, nil
 }
 
 // LogFlag is the kithd flag naming a log file instead of stderr.
@@ -125,7 +138,7 @@ func detachArgs(storage domain.Storage, launch Launch) []string {
 // kithd@<profile> (profile arrives as %i), or the plain unit.
 func unitFor(profile string) string {
 	if profile == "" {
-		return unitName
+		return defaultUnit
 	}
 	return "kithd@" + profile + ".service"
 }
@@ -170,23 +183,23 @@ func waitReady(ctx context.Context, r *Remote, timeout time.Duration) error {
 }
 
 // startedNote is the warning shown after auto-spawning, with the autostart hint
-// for as long as the unit is not enabled.
-func startedNote(ctx context.Context) string {
+// for as long as unit is not enabled.
+func startedNote(ctx context.Context, unit string) string {
 	note := "kithd was not running — started it. " +
 		"Anything that arrived while it was down was not notified."
-	if !unitEnabled(ctx) {
-		note += "\n" + autostartHint()
+	if !unitEnabled(ctx, unit) {
+		note += "\n" + autostartHint(unit)
 	}
 	return note
 }
 
 // unitEnabled reports whether the systemd user unit is enabled; any failure counts
 // as not enabled.
-func unitEnabled(ctx context.Context) bool {
+func unitEnabled(ctx context.Context, unit string) bool {
 	if _, err := exec.LookPath("systemctl"); err != nil {
 		return false
 	}
-	out, err := exec.CommandContext(ctx, "systemctl", "--user", "is-enabled", unitName).Output()
+	out, err := exec.CommandContext(ctx, "systemctl", "--user", "is-enabled", unit).Output() // #nosec G204 -- see systemdStart
 	return err == nil && trimOutput(out) == "enabled"
 }
 

@@ -34,6 +34,6 @@ func detach(daemonArgs []string) error {
 }
 
 // autostartHint is shown after the daemon had to be started by hand.
-func autostartHint() string {
-	return "To have it start at login: systemctl --user enable --now " + unitName
+func autostartHint(unit string) string {
+	return "To have it start at login: systemctl --user enable --now " + unit
 }

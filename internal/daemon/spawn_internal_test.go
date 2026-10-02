@@ -16,7 +16,7 @@ import (
 func TestStartedNoteSaysWhatItCost(t *testing.T) {
 	t.Parallel()
 
-	note := startedNote(t.Context())
+	note := startedNote(t.Context(), defaultUnit)
 	if !strings.Contains(note, "was not running") {
 		t.Errorf("note = %q, want it to say the daemon was not running", note)
 	}
@@ -33,10 +33,10 @@ func TestStartedNoteOffersTheUnitWhenNotEnabled(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("no login autostart exists on Windows to offer; see detach_windows.go")
 	}
-	if unitEnabled(t.Context()) {
+	if unitEnabled(t.Context(), defaultUnit) {
 		t.Skip("kithd.service is enabled on this machine; the hint is correctly absent")
 	}
-	note := startedNote(t.Context())
+	note := startedNote(t.Context(), defaultUnit)
 	if !strings.Contains(note, "systemctl --user enable") {
 		t.Errorf("note = %q, want it to say how to make this stop happening", note)
 	}
@@ -139,8 +139,8 @@ func waitFor(t *testing.T, cond func() bool, what string) {
 func TestUnitForProfile(t *testing.T) {
 	t.Parallel()
 
-	if got := unitFor(""); got != unitName {
-		t.Errorf("unitFor(\"\") = %q, want the plain unit %q", got, unitName)
+	if got := unitFor(""); got != defaultUnit {
+		t.Errorf("unitFor(\"\") = %q, want the plain unit %q", got, defaultUnit)
 	}
 	if got := unitFor("work"); got != "kithd@work.service" {
 		t.Errorf("unitFor(\"work\") = %q", got)
