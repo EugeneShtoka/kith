@@ -85,11 +85,11 @@ func TestAMessageAsKithKeepsIt(t *testing.T) {
 		t.Errorf("mentions = %+v, mentioned = %v", got.Mentions, got.Mentioned)
 	}
 	for want, m := range map[string]*waE2E.Message{
-		"hi":                   {Conversation: new("hi")},
-		"[photo] look":         {ImageMessage: &waE2E.ImageMessage{Caption: new("look")}},
-		"[voice message]":      {AudioMessage: &waE2E.AudioMessage{PTT: new(true)}},
-		"[document: plan.pdf]": {DocumentMessage: &waE2E.DocumentMessage{FileName: new("plan.pdf")}},
-		"[poll] Lunch?":        {PollCreationMessage: &waE2E.PollCreationMessage{Name: new("Lunch?")}},
+		"hi":            {Conversation: new("hi")},
+		"look":          {ImageMessage: &waE2E.ImageMessage{Caption: new("look")}},
+		"":              {AudioMessage: &waE2E.AudioMessage{PTT: new(true)}},
+		"plan.pdf":      {DocumentMessage: &waE2E.DocumentMessage{FileName: new("plan.pdf")}},
+		"[poll] Lunch?": {PollCreationMessage: &waE2E.PollCreationMessage{Name: new("Lunch?")}},
 	} {
 		if got, ok := incoming(ownDigits, room, info, m, "x", me); !ok || got.Body != want {
 			t.Errorf("body = (%q, %v), want %q", got.Body, ok, want)

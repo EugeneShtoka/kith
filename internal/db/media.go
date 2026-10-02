@@ -30,12 +30,13 @@ func (c *Cache) SaveMediaSource(ctx context.Context, eventID domain.EventID, roo
 }
 
 // MediaSource returns an attachment's mxc URI and file JSON; ok is false when no
-// source is recorded.
+// source is recorded. A Matrix attachment has an mxc URI (and file JSON when it is
+// encrypted); another network's keeps only its own JSON, in file_json.
 func (c *Cache) MediaSource(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (mxc, fileJSON string, ok bool, err error) {
 	err = c.db.QueryRowContext(ctx,
 		"SELECT mxc, file_json FROM message_media WHERE room_id = ? AND event_id = ?",
 		string(roomID), string(eventID)).Scan(&mxc, &fileJSON)
-	if ok, err = optional(err); !ok || mxc == "" {
+	if ok, err = optional(err); !ok || (mxc == "" && fileJSON == "") {
 		if err != nil {
 			err = fmt.Errorf("db: lookup media source %s: %w", eventID, err)
 		}

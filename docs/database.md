@@ -82,7 +82,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | --- | --- |
 | `messages` | the timeline: sender, resolved name, body, timestamp, reply and thread links, and flags (`redacted`, `edited`, `mentioned`, `emote`). Bounded to the newest `messagesPerRoom` (2000) per room. |
 | `message_html` | the formatting, in kith's markup (the sanitized HTML subset of `internal/richtext`, which each network's formatting converts into), only for messages that carry formatting |
-| `message_media` | the attachment: kind, name, MIME type, size, dimensions, `mxc` URI and the encrypted-file JSON |
+| `message_media` | the attachment: kind, name, MIME type, size, dimensions, and how to fetch it: for Matrix the `mxc` URI and the encrypted-file JSON, for WhatsApp `{"whatsapp": kind, "proto": …}` (the message's media part, with its keys) in `file_json` |
 | `message_redaction` | who deleted a message and why, which outlives the content |
 | `message_edit` | the edit a message's body and formatting come from (its event ID and send time), so an older edit delivered later never replaces a newer one |
 | `message_tombstone` | a redaction whose message was not cached yet (who, why, when): a copy arriving later, such as an edit, which servers do not redact, is saved as deleted. Spent when applied, and trimmed with the room |

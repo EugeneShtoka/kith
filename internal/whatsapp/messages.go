@@ -104,24 +104,19 @@ func content(msg *waE2E.Message) (string, *waE2E.ContextInfo, bool) {
 	case msg.GetExtendedTextMessage() != nil:
 		m := msg.GetExtendedTextMessage()
 		return m.GetText(), m.GetContextInfo(), true
+	// An attachment's words are its caption (a document's, its name): the media chip
+	// says what it is (see attachment).
 	case msg.GetImageMessage() != nil:
-		m := msg.GetImageMessage()
-		return labeled("photo", m.GetCaption()), m.GetContextInfo(), true
+		return msg.GetImageMessage().GetCaption(), msg.GetImageMessage().GetContextInfo(), true
 	case msg.GetVideoMessage() != nil:
-		m := msg.GetVideoMessage()
-		return labeled("video", m.GetCaption()), m.GetContextInfo(), true
+		return msg.GetVideoMessage().GetCaption(), msg.GetVideoMessage().GetContextInfo(), true
 	case msg.GetAudioMessage() != nil:
-		m := msg.GetAudioMessage()
-		kind := "audio"
-		if m.GetPTT() {
-			kind = "voice message"
-		}
-		return labeled(kind, ""), m.GetContextInfo(), true
+		return "", msg.GetAudioMessage().GetContextInfo(), true
 	case msg.GetDocumentMessage() != nil:
 		m := msg.GetDocumentMessage()
-		return labeled("document: "+m.GetFileName(), m.GetCaption()), m.GetContextInfo(), true
+		return cmpOr(m.GetCaption(), m.GetFileName()), m.GetContextInfo(), true
 	case msg.GetStickerMessage() != nil:
-		return labeled("sticker", ""), msg.GetStickerMessage().GetContextInfo(), true
+		return "", msg.GetStickerMessage().GetContextInfo(), true
 	case msg.GetLocationMessage() != nil:
 		return labeled("location", msg.GetLocationMessage().GetName()), msg.GetLocationMessage().GetContextInfo(), true
 	case msg.GetContactMessage() != nil:
@@ -132,6 +127,14 @@ func content(msg *waE2E.Message) (string, *waE2E.ContextInfo, bool) {
 		return labeled("poll", msg.GetPollCreationMessageV3().GetName()), nil, true
 	}
 	return "", nil, false
+}
+
+// cmpOr is the first non-empty string.
+func cmpOr(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // labeled is a placeholder for what kith cannot show yet, with its own words after.
