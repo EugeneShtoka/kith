@@ -14,14 +14,16 @@ import (
 // (with the message) and the fetch half (mxc + encrypted file JSON). Each upserts
 // its own columns only.
 
-// SaveMediaSource records where an attachment's bytes come from. The message must
-// already be cached (foreign key), and not be redacted: a deleted message gains no
-// content, so a late fetch cannot bring back what a redaction forgot.
+// SaveMediaSource records where an attachment's bytes come from, for a cached message
+// that is not redacted: a deleted message gains no content, so a late fetch cannot
+// bring back what a redaction forgot. For a message the cache does not hold (history
+// older than a full room keeps, trimmed as it arrived) it does nothing: there is
+// nothing to show the attachment on.
 func (c *Cache) SaveMediaSource(ctx context.Context, eventID domain.EventID, roomID domain.RoomID, mxc, fileJSON string) error {
 	if _, err := c.db.ExecContext(ctx, `
 		INSERT INTO message_media(room_id, event_id, mxc, file_json)
-		SELECT ?1, ?2, ?3, ?4 WHERE NOT EXISTS
-			(SELECT 1 FROM messages WHERE room_id = ?1 AND event_id = ?2 AND redacted = 1)
+		SELECT ?1, ?2, ?3, ?4 WHERE EXISTS
+			(SELECT 1 FROM messages WHERE room_id = ?1 AND event_id = ?2 AND redacted = 0)
 		ON CONFLICT(room_id, event_id) DO UPDATE SET mxc=excluded.mxc, file_json=excluded.file_json`,
 		string(roomID), string(eventID), mxc, fileJSON); err != nil {
 		return fmt.Errorf("db: save media source %s: %w", eventID, err)

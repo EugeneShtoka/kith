@@ -74,6 +74,10 @@ type Adapter struct {
 	// channels is what each account's last listing said of the channels it follows
 	// (see channels.go).
 	channels map[domain.RoomID]channel
+	// listedAt is when each account was last listed, and trailing marks an account
+	// with a listing waiting for listingEvery to pass (see refreshLater).
+	listedAt map[string]time.Time
+	trailing map[string]bool
 	// keepDeleted is [display.deleted] keep (see KeepDeleted).
 	keepDeleted bool
 	// run is Start's context: an account paired later runs until it ends too.
@@ -105,6 +109,8 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		heard:     map[domain.RoomID]time.Time{},
 		typing:    map[domain.RoomID][]string{},
 		channels:  map[domain.RoomID]channel{},
+		listedAt:  map[string]time.Time{},
+		trailing:  map[string]bool{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
@@ -263,11 +269,33 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 }
 
 // refreshLater rewrites an account's rooms off the event goroutine (whatsmeow handles
-// events in order, and a group listing is a round trip).
+// events in order, and a group listing is a round trip). An account listed moments
+// ago is listed once more when listingEvery has passed, however many changes arrive
+// meanwhile: WhatsApp refuses listings that come faster.
 func (a *Adapter) refreshLater(account Account, client *whatsmeow.Client) {
 	ctx := a.lifetime()
+	wait := a.untilListable(account.Digits)
+	if wait > 0 {
+		a.mu.Lock()
+		pending := a.trailing[account.Digits]
+		a.trailing[account.Digits] = true
+		a.mu.Unlock()
+		if pending {
+			return // the listing already waiting covers this change
+		}
+	}
 	go func() {
-		if _, err := a.refreshAccount(ctx, account, client); err != nil && ctx.Err() == nil {
+		if wait > 0 {
+			select {
+			case <-time.After(wait):
+			case <-ctx.Done():
+				return
+			}
+			a.mu.Lock()
+			delete(a.trailing, account.Digits)
+			a.mu.Unlock()
+		}
+		if _, err := a.refreshAccount(ctx, account, client, false); err != nil && ctx.Err() == nil {
 			a.log.Warn("refresh rooms failed", "account", account.Name, "err", err)
 		}
 	}()
@@ -283,10 +311,15 @@ func (a *Adapter) lifetime() context.Context {
 	return context.Background()
 }
 
-// refreshAccount fetches an account's groups and rewrites its rooms and their members.
-func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *whatsmeow.Client) ([]domain.Room, error) {
+// refreshAccount fetches an account's groups and channels and rewrites its rooms and
+// their members. ifStale answers from the cache instead when the account was listed
+// less than listingEvery ago (a client's refresh; an event's always lists).
+func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *whatsmeow.Client, ifStale bool) ([]domain.Room, error) {
 	a.refreshing.Lock()
 	defer a.refreshing.Unlock()
+	if ifStale && a.untilListable(account.Digits) > 0 {
+		return a.accountRooms(ctx, account, func(domain.RoomID) bool { return true })
+	}
 	fetched := time.Now()
 	groups, err := client.GetJoinedGroups(ctx)
 	if err != nil {
@@ -303,17 +336,18 @@ func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *w
 	rooms, members := groupRooms(ctx, account.Digits, chats, a.names(client))
 	// A failed channel listing fails the refresh: written without them, the sweep
 	// would take the channels' history.
-	followed, err := client.GetSubscribedNewsletters(ctx)
+	channelList, err := a.listChannels(ctx, account, client)
 	if err != nil {
-		return nil, fmt.Errorf("whatsapp: %s's channels: %w", account.Name, err)
+		return nil, err
 	}
-	channelList, known := channelRooms(account.Digits, followed)
-	a.useChannels(account, known)
 	rooms = append(rooms, channelList...)
 	domain.SortRooms(rooms)
 	if err := a.saveListing(ctx, account, groupListing{rooms: rooms, members: members, spaces: spaces}, fetched); err != nil {
 		return nil, err
 	}
+	a.mu.Lock()
+	a.listedAt[account.Digits] = time.Now()
+	a.mu.Unlock()
 	a.fetchChannelHistory(ctx, account, client, channelList)
 	return rooms, nil
 }
@@ -506,7 +540,7 @@ func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
 func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	var out []domain.Room
 	for _, c := range a.connected() {
-		rooms, err := a.refreshAccount(ctx, c.account, c.client)
+		rooms, err := a.refreshAccount(ctx, c.account, c.client, true)
 		if err != nil {
 			return nil, err
 		}
@@ -570,12 +604,24 @@ func (a *Adapter) Members(ctx context.Context, roomID domain.RoomID, limit int) 
 
 // RefreshMembers refetches the account's groups (a group's members come with them).
 func (a *Adapter) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]domain.Member, error) {
-	account := domain.ParseID(string(roomID)).Account
-	for _, c := range a.connected() {
-		if c.account.Digits == account {
-			if _, err := a.refreshAccount(ctx, c.account, c.client); err != nil {
-				return nil, err
-			}
+	id := domain.ParseID(string(roomID))
+	jid, err := types.ParseJID(id.Native)
+	if err != nil || jid.Server != types.GroupServer {
+		return a.Members(ctx, roomID, 0) // a direct chat's or channel's people are known
+	}
+	account, client, ok := a.clientFor(id.Account)
+	if !ok {
+		return a.Members(ctx, roomID, 0)
+	}
+	// The one group, not the account's listing: opening rooms must not cost listings.
+	info, err := client.GetGroupInfo(ctx, jid)
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: members of %s: %w", roomID, err)
+	}
+	_, members := groupRooms(ctx, account.Digits, []*types.GroupInfo{info}, a.names(client))
+	if a.cache != nil {
+		if err := a.cache.SaveMembers(ctx, roomID, members[roomID]); err != nil {
+			return nil, fmt.Errorf("whatsapp: cache members of %s: %w", roomID, err)
 		}
 	}
 	return a.Members(ctx, roomID, 0)

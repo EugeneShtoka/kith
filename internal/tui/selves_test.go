@@ -132,3 +132,13 @@ func TestTheLoggedOutNoticeOutlivesAnEmptyStart(t *testing.T) {
 		t.Errorf("status = %q after closing the open room, want it gone with the room", got)
 	}
 }
+
+// With no room open (an account with no rooms yet), nothing is asked about a room:
+// a call naming none reached the daemon as a Matrix room and was refused, noisily.
+func TestNoRoomAsksNothing(t *testing.T) {
+	t.Parallel()
+	m := newModel()
+	if m.loadTimelineCmd("", "") != nil || m.refreshMembersCmd("") != nil {
+		t.Error("a load was issued for no room")
+	}
+}

@@ -416,6 +416,15 @@ func TestMediaSourceRoundTrip(t *testing.T) {
 	if _, _, ok, _ := cache.MediaSource(ctx, "!a:x", "$none"); ok {
 		t.Error("unknown event should report not-found")
 	}
+
+	// A message the cache does not hold (history older than a full room keeps, trimmed
+	// as it arrived) has nothing to show an attachment on: no error, nothing kept.
+	if err := cache.SaveMediaSource(ctx, "$trimmed", "!a:x", "", `{"key":"w"}`); err != nil {
+		t.Errorf("SaveMediaSource for an uncached message = %v, want nothing done", err)
+	}
+	if _, _, ok, _ := cache.MediaSource(ctx, "!a:x", "$trimmed"); ok {
+		t.Error("a source was kept for a message the cache does not hold")
+	}
 }
 
 func TestReactionsRoundTrip(t *testing.T) {
