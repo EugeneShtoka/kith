@@ -145,7 +145,7 @@ func BenchmarkQueries(b *testing.B) {
 	})
 	run("CountUnreadAll", func() error { _, err := cache.CountUnreadAll(ctx, []string{benchMe}); return err })
 	run("EmojiScores/reaction", func() error {
-		_, err := cache.EmojiScores(ctx, domain.EmojiReaction, room, space, benchMe, "room")
+		_, err := cache.EmojiScores(ctx, domain.EmojiReaction, room, space, []string{benchMe}, "room")
 		return err
 	})
 	run("LastMessages", func() error { _, err := cache.LastMessages(ctx); return err })

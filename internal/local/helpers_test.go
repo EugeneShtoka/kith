@@ -20,14 +20,14 @@ func testCache(t *testing.T) *db.Cache {
 	return cache
 }
 
-// fakeNetwork is one account with nothing encrypted, counting rewinds.
+// fakeNetwork is one person (me: their IDs, on any network) with nothing encrypted,
+// counting rewinds.
 type fakeNetwork struct {
-	account string
+	me      []string
 	rewinds int
 }
 
-func (n *fakeNetwork) Account() string { return n.account }
-func (n *fakeNetwork) Me() []string    { return []string{n.account} }
+func (n *fakeNetwork) Me() []string { return n.me }
 func (n *fakeNetwork) RoomEncryption(_ context.Context, rooms []domain.RoomID) (map[domain.RoomID]bool, error) {
 	out := make(map[domain.RoomID]bool, len(rooms))
 	for _, room := range rooms {
@@ -37,8 +37,17 @@ func (n *fakeNetwork) RoomEncryption(_ context.Context, rooms []domain.RoomID) (
 }
 func (n *fakeNetwork) RewindSync(context.Context) error { n.rewinds++; return nil }
 
-// backendWithCache is a service over a fresh cache for the account me.
+// backendWithCache is a service over a fresh cache for the account me ("" for none).
 func backendWithCache(t *testing.T, me string) *Service {
 	t.Helper()
-	return New(testCache(t), &fakeNetwork{account: me})
+	if me == "" {
+		return backendAs(t)
+	}
+	return backendAs(t, me)
+}
+
+// backendAs is a service over a fresh cache for a person with these IDs.
+func backendAs(t *testing.T, me ...string) *Service {
+	t.Helper()
+	return New(testCache(t), &fakeNetwork{me: me})
 }

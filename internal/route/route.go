@@ -28,9 +28,7 @@ type Adapter interface {
 	Unread() <-chan domain.Unread
 	Reactions() <-chan domain.ReactionUpdate
 
-	// Account is this person's account on the network ("" before a session); Me is
-	// every ID there that is this person.
-	Account() string
+	// Me is every ID on the network that is this person ("" before a session).
 	Me() []string
 	// RewindSync refills an emptied cache from the start.
 	RewindSync(ctx context.Context) error
@@ -237,14 +235,6 @@ func (r *Router) Stop() {
 		close(r.noInvites)
 		close(r.noVerifications)
 	})
-}
-
-// Account is the Matrix account, "" without one.
-func (r *Router) Account() string {
-	if !r.matrixOn() {
-		return ""
-	}
-	return r.matrix.Account()
 }
 
 // Me is every ID on every network that is this person.

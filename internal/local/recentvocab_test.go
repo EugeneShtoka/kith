@@ -106,7 +106,7 @@ func TestCompletionRacesIncomingMessages(t *testing.T) {
 			for j := range 20 {
 				b.vocab.added(domain.Message{
 					ID: domain.EventID(fmt.Sprintf("$r%d-%d", i, j)), RoomID: "!a:x", Sender: vocabMe, Body: "deploy it",
-				}, vocabMe)
+				}, []string{vocabMe})
 				if j%7 == 0 {
 					b.vocab.changed("!b:x")
 				}

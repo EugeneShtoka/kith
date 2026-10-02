@@ -87,7 +87,7 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	scores, err := cache.EmojiScores(ctx, domain.EmojiReaction, here, []domain.RoomID{here, sibling}, me, "room")
+	scores, err := cache.EmojiScores(ctx, domain.EmojiReaction, here, []domain.RoomID{here, sibling}, []string{me}, "room")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 	if resave := cache.SaveReactions(ctx, reacted); resave != nil {
 		t.Fatal(resave)
 	}
-	again, againErr := cache.EmojiScores(ctx, domain.EmojiReaction, here, []domain.RoomID{here, sibling}, me, "room")
+	again, againErr := cache.EmojiScores(ctx, domain.EmojiReaction, here, []domain.RoomID{here, sibling}, []string{me}, "room")
 	if againErr != nil {
 		t.Fatal(againErr)
 	}
@@ -128,7 +128,7 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 	if saveMore := cache.SaveReactions(ctx, more); saveMore != nil {
 		t.Fatal(saveMore)
 	}
-	scores, err = cache.EmojiScores(ctx, domain.EmojiReaction, here, []domain.RoomID{here, sibling}, me, "room")
+	scores, err = cache.EmojiScores(ctx, domain.EmojiReaction, here, []domain.RoomID{here, sibling}, []string{me}, "room")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 	}
 
 	// Composed emoji are ranked apart, from their tally.
-	composed, composedErr := cache.EmojiScores(ctx, domain.EmojiComposed, here, []domain.RoomID{here, sibling}, me, "room")
+	composed, composedErr := cache.EmojiScores(ctx, domain.EmojiComposed, here, []domain.RoomID{here, sibling}, []string{me}, "room")
 	if composedErr != nil {
 		t.Fatal(composedErr)
 	}
@@ -147,7 +147,7 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 	if record := cache.RecordEmoji(ctx, domain.EmojiComposed, here, "✍️", 1); record != nil {
 		t.Fatal(record)
 	}
-	composed, composedErr = cache.EmojiScores(ctx, domain.EmojiComposed, here, []domain.RoomID{here, sibling}, me, "room")
+	composed, composedErr = cache.EmojiScores(ctx, domain.EmojiComposed, here, []domain.RoomID{here, sibling}, []string{me}, "room")
 	if composedErr != nil {
 		t.Fatal(composedErr)
 	}

@@ -48,7 +48,7 @@ func TestLongIDListsStillAnswer(t *testing.T) {
 			return len(got), err
 		},
 		"RecentBodies": func() (int, error) {
-			got, err := cache.RecentBodies(ctx, domain.TheseRooms(rooms), "", 10)
+			got, err := cache.RecentBodies(ctx, domain.TheseRooms(rooms), nil, 10)
 			return len(got), err
 		},
 		"SetStarred": func() (int, error) {
@@ -62,7 +62,7 @@ func TestLongIDListsStillAnswer(t *testing.T) {
 			return 0, err
 		},
 		"EmojiScores": func() (int, error) {
-			_, err := cache.EmojiScores(ctx, domain.EmojiReaction, room, rooms, "@me:x", "")
+			_, err := cache.EmojiScores(ctx, domain.EmojiReaction, room, rooms, []string{"@me:x"}, "")
 			return 1, err
 		},
 	} {

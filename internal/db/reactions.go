@@ -99,7 +99,7 @@ const (
 // emojiScoreQuery is the weighted score query for one kind. Reactions are counted
 // from this account's own annotations (idempotent across re-paging); composed
 // emoji have no such record, so they use the emoji_usage tally.
-func emojiScoreQuery(kind domain.EmojiKind, roomID domain.RoomID, spaceRooms []domain.RoomID, me, scope string) (string, []any) {
+func emojiScoreQuery(kind domain.EmojiKind, roomID domain.RoomID, spaceRooms []domain.RoomID, me []string, scope string) (string, []any) {
 	// Terms a scope excludes are left out of the SQL so args match.
 	var terms []string
 	var args []any
@@ -114,11 +114,13 @@ func emojiScoreQuery(kind domain.EmojiKind, roomID domain.RoomID, spaceRooms []d
 	}
 
 	if kind == domain.EmojiReaction {
-		if me == "" {
+		if len(me) == 0 {
 			return "", nil
 		}
+		var in string
+		in, args = inIDs(args, me)
 		return sumOver(terms, "1", "COUNT(*)",
-			"FROM reactions WHERE sender = ? AND emoji <> '' GROUP BY emoji"), append(args, me)
+			"FROM reactions WHERE sender"+in+" AND emoji <> '' GROUP BY emoji"), args
 	}
 	return sumOver(terms, "count", "SUM(count)",
 		"FROM emoji_usage WHERE kind = ? GROUP BY emoji"), append(args, string(kind))
@@ -142,7 +144,7 @@ func (c *Cache) EmojiScores(
 	kind domain.EmojiKind,
 	roomID domain.RoomID,
 	spaceRooms []domain.RoomID,
-	me string,
+	me []string,
 	scope string,
 ) (map[string]int, error) {
 	query, args := emojiScoreQuery(kind, roomID, spaceRooms, me, scope)

@@ -210,9 +210,6 @@ func TestMeIsEveryNetworksSelf(t *testing.T) {
 	if got := r.Me(); !slices.Equal(got, []string{"@me:x", "@whatsapp_me:x", "whatsapp:359881234567@s.whatsapp.net"}) {
 		t.Errorf("Me = %v", got)
 	}
-	if got := r.Account(); got != m.account {
-		t.Errorf("Account = %q, want Matrix's", got)
-	}
 }
 
 // A cleared cache is refilled by every network.
@@ -483,9 +480,6 @@ func TestWithoutMatrixNothingReachesIt(t *testing.T) {
 			t.Errorf("%s: ThreadParticipant is true without Matrix", name)
 		}
 
-		if got := r.Account(); got != "" {
-			t.Errorf("%s: Account = %q, want none", name, got)
-		}
 		if got := r.Me(); slices.Contains(got, "@matrix:x") {
 			t.Errorf("%s: Me = %v, names the logged-out Matrix account", name, got)
 		}
@@ -516,8 +510,8 @@ func TestMatrixLoggingInIsServedAtOnce(t *testing.T) {
 	if rooms, err := r.Rooms(ctx); err != nil || len(rooms) != 2 {
 		t.Errorf("Rooms after login = (%v, %v), want both networks'", rooms, err)
 	}
-	if got := r.Account(); got != m.account {
-		t.Errorf("Account after login = %q, want Matrix's", got)
+	if got := r.Me(); !slices.Contains(got, m.account) {
+		t.Errorf("Me after login = %v, want Matrix's account in it", got)
 	}
 }
 

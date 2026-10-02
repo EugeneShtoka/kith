@@ -42,7 +42,7 @@ func (s *Service) CompleteWord(ctx context.Context, req domain.CompleteRequest) 
 		scoped := req
 		scoped.RoomIDs, scoped.SpaceRooms = rooms, spaceRooms
 		scoped.Limit = req.Limit + completeSpare
-		ranked, err = s.vocab.rank(ctx, s.cache, scoped, s.account(), scoped.Limit)
+		ranked, err = s.vocab.rank(ctx, s.cache, scoped, s.me(), scoped.Limit)
 		if err != nil {
 			return nil, fmt.Errorf("local: complete word: %w", err)
 		}

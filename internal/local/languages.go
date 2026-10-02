@@ -29,9 +29,8 @@ func (s *Service) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, 
 		return domain.SpellSuggestion{}, nil
 	}
 
-	me := s.account()
 	var counts spell.Counts
-	if err := s.cache.EachMessageBody(ctx, me, counts.Add); err != nil {
+	if err := s.cache.EachMessageBody(ctx, s.me(), counts.Add); err != nil {
 		return domain.SpellSuggestion{}, fmt.Errorf("local: read corpus: %w", err)
 	}
 

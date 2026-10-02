@@ -101,9 +101,9 @@ func BenchmarkRecentCompletion(b *testing.B) {
 	cache, rooms := seedBench(b)
 	ctx := context.Background()
 	room, space := rooms[17], rooms[:30]
-	build := func(rooms domain.RoomSet, sender string, n int) *vocab.Window {
+	build := func(rooms domain.RoomSet, senders []string, n int) *vocab.Window {
 		w := vocab.NewWindow(n)
-		bodies, err := cache.RecentBodies(ctx, rooms, sender, n)
+		bodies, err := cache.RecentBodies(ctx, rooms, senders, n)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -115,22 +115,22 @@ func BenchmarkRecentCompletion(b *testing.B) {
 	var scope vocab.Scope
 	b.Run("build/room", func(b *testing.B) {
 		for b.Loop() {
-			scope.Room = build(domain.TheseRooms([]domain.RoomID{room}), "", 1000)
+			scope.Room = build(domain.TheseRooms([]domain.RoomID{room}), nil, 1000)
 		}
 	})
 	b.Run("build/space", func(b *testing.B) {
 		for b.Loop() {
-			scope.Space = build(domain.TheseRooms(space), "", 3000)
+			scope.Space = build(domain.TheseRooms(space), nil, 3000)
 		}
 	})
 	b.Run("build/mine", func(b *testing.B) {
 		for b.Loop() {
-			scope.Mine = build(domain.EveryRoom(), benchMe, 2000)
+			scope.Mine = build(domain.EveryRoom(), []string{benchMe}, 2000)
 		}
 	})
 	b.Run("build/global", func(b *testing.B) {
 		for b.Loop() {
-			scope.Global = build(domain.EveryRoom(), "", 5000)
+			scope.Global = build(domain.EveryRoom(), nil, 5000)
 		}
 	})
 
@@ -159,7 +159,7 @@ func TestRecentBodies(t *testing.T) {
 		body   string
 	}{
 		{"!a:x", "@me:x", "first"}, {"!b:x", "@dana:x", "second"}, {"!a:x", "@dana:x", "third"},
-		{"!a:x", "@me:x", "taken back"},
+		{"!a:x", "@me:x", "taken back"}, {"!b:x", "whatsapp:359880000001@s.whatsapp.net", "fourth"},
 	} {
 		if err := cache.SaveMessages(ctx, m.room, []domain.Message{{ID: domain.EventID(fmt.Sprintf("$%d", i)),
 			RoomID: m.room, Sender: m.sender, Body: m.body, Timestamp: time.Unix(int64(1_700_000_000+i), 0)}}); err != nil {
@@ -171,21 +171,22 @@ func TestRecentBodies(t *testing.T) {
 	}
 
 	cases := []struct {
-		name   string
-		rooms  domain.RoomSet
-		sender string
-		n      int
-		want   []string
+		name    string
+		rooms   domain.RoomSet
+		senders []string
+		n       int
+		want    []string
 	}{
-		{"everything, newest first", domain.EveryRoom(), "", 10, []string{"third", "second", "first"}},
-		{"bounded", domain.EveryRoom(), "", 2, []string{"third", "second"}},
-		{"one room", domain.TheseRooms([]domain.RoomID{"!a:x"}), "", 10, []string{"third", "first"}},
-		{"one sender", domain.EveryRoom(), "@me:x", 10, []string{"first"}},
-		{"none asked for", domain.EveryRoom(), "", 0, nil},
-		{"no rooms named", domain.TheseRooms(nil), "", 10, nil},
+		{"everything, newest first", domain.EveryRoom(), nil, 10, []string{"fourth", "third", "second", "first"}},
+		{"bounded", domain.EveryRoom(), nil, 2, []string{"fourth", "third"}},
+		{"one room", domain.TheseRooms([]domain.RoomID{"!a:x"}), nil, 10, []string{"third", "first"}},
+		{"one sender", domain.EveryRoom(), []string{"@me:x"}, 10, []string{"first"}},
+		{"one person on two networks", domain.EveryRoom(), []string{"@me:x", "whatsapp:359880000001@s.whatsapp.net"}, 10, []string{"fourth", "first"}},
+		{"none asked for", domain.EveryRoom(), nil, 0, nil},
+		{"no rooms named", domain.TheseRooms(nil), nil, 10, nil},
 	}
 	for _, c := range cases {
-		got, err := cache.RecentBodies(ctx, c.rooms, c.sender, c.n)
+		got, err := cache.RecentBodies(ctx, c.rooms, c.senders, c.n)
 		if err != nil {
 			t.Fatal(err)
 		}

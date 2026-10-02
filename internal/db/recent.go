@@ -9,9 +9,10 @@ import (
 )
 
 // RecentBodies is the bodies of the newest n unredacted messages: in rooms (none when
-// it names none), and only sender's when sender is set. What completion counts
+// it names none), and only senders' when senders names any (this person's IDs, on
+// every network). What completion counts
 // recent words from (internal/vocab); each shape is one index walk, newest first.
-func (c *Cache) RecentBodies(ctx context.Context, rooms domain.RoomSet, sender string, n int) ([]string, error) {
+func (c *Cache) RecentBodies(ctx context.Context, rooms domain.RoomSet, senders []string, n int) ([]string, error) {
 	if n <= 0 || rooms.None() {
 		return nil, nil
 	}
@@ -21,9 +22,10 @@ func (c *Cache) RecentBodies(ctx context.Context, rooms domain.RoomSet, sender s
 		in, args = inIDs(args, rooms.IDs)
 		where = append(where, "room_id"+in)
 	}
-	if sender != "" {
-		where = append(where, "sender = ?")
-		args = append(args, sender)
+	if len(senders) > 0 {
+		var in string
+		in, args = inIDs(args, senders)
+		where = append(where, "sender"+in)
 	}
 	args = append(args, n)
 	return collect(ctx, c.db, "recent bodies",

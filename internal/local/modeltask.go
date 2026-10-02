@@ -215,7 +215,7 @@ func (s *Service) modelFields(ctx context.Context, req domain.ModelRequest, sett
 			// Sentence tasks see the exchange they belong to, within the budget.
 			msgs = domain.CompletionContext(msgs, req.ReplyTo, settings.Pick)
 		}
-		quoted = domain.ModelContext(msgs, s.account(), budget)
+		quoted = domain.ModelContext(msgs, s.me(), budget)
 	}
 	// A summary's language comes from the conversation (there is no draft).
 	language := modelLanguage(req.Draft)
@@ -289,7 +289,7 @@ func (s *Service) threadNameFields(
 	if err != nil {
 		return nil, "", fmt.Errorf("local: read thread for the model: %w", err)
 	}
-	quoted := domain.ModelContext(msgs, s.account(), budget)
+	quoted := domain.ModelContext(msgs, s.me(), budget)
 	joined := strings.Join(quoted, "\n")
 	// The thread's language: the name is persisted, so a wrong one would stick.
 	return s.promptFields(ctx, "", joined, modelLanguage(joined), ""), "", nil
@@ -414,7 +414,7 @@ func (s *Service) todoFields(
 		if len(missed) == 0 {
 			continue
 		}
-		lines := domain.ModelContext(missed, s.account(), each)
+		lines := domain.ModelContext(missed, s.me(), each)
 		if len(lines) == 0 {
 			continue
 		}
@@ -481,8 +481,9 @@ func (s *Service) namedRoom(ctx context.Context, roomID domain.RoomID) string {
 	return string(roomID)
 }
 
-// accountNames is every way a conversation might address this account (display name,
-// its first word, MXID localpart), so the model recognizes you in the text.
+// accountNames is every way a conversation might address this person (each
+// account's display name, its first word, a Matrix ID's localpart), so the model
+// recognizes you in the text.
 func (s *Service) accountNames(ctx context.Context) string {
 	seen := map[string]bool{}
 	var names []string
@@ -494,33 +495,46 @@ func (s *Service) accountNames(ctx context.Context) string {
 		seen[strings.ToLower(name)] = true
 		names = append(names, name)
 	}
-	full := s.accountName(ctx)
-	add(full)
-	if first, _, multiword := strings.Cut(full, " "); multiword {
-		add(first)
-	}
-	if local, _, found := strings.Cut(strings.TrimPrefix(s.account(), "@"), ":"); found {
-		add(local)
+	for _, id := range s.me() {
+		full := s.memberName(ctx, id)
+		add(full)
+		if first, _, multiword := strings.Cut(full, " "); multiword {
+			add(first)
+		}
+		if domain.IsMatrixUserID(id) {
+			add(domain.Localpart(id))
+		}
 	}
 	return strings.Join(names, ", ")
 }
 
-// accountName is what to call this account in a prompt: its display name (what the
-// conversation uses), else the localpart, else "you".
+// accountName is what to call this person in a prompt: the first of their accounts'
+// display names (what the conversation uses), else a Matrix localpart, else "you".
 func (s *Service) accountName(ctx context.Context) string {
-	me := s.account()
-	if me == "" {
-		return "you"
-	}
-	if s.cache != nil {
-		if name, err := s.cache.MemberName(ctx, me); err == nil && name != "" {
+	me := s.me()
+	for _, id := range me {
+		if name := s.memberName(ctx, id); name != "" {
 			return name
 		}
 	}
-	if domain.IsMatrixUserID(me) {
-		if local := domain.Localpart(me); local != "" {
-			return local
+	for _, id := range me {
+		if domain.IsMatrixUserID(id) {
+			if local := domain.Localpart(id); local != "" {
+				return local
+			}
 		}
 	}
 	return "you"
+}
+
+// memberName is one ID's display name in the cache, "" when there is none.
+func (s *Service) memberName(ctx context.Context, id string) string {
+	if s.cache == nil || id == "" {
+		return ""
+	}
+	name, err := s.cache.MemberName(ctx, id)
+	if err != nil {
+		return ""
+	}
+	return name
 }
