@@ -69,6 +69,8 @@ type Adapter struct {
 	positions map[domain.RoomID]time.Time
 	// typing is who is typing in each room now (see typing.go).
 	typing map[domain.RoomID][]string
+	// keepDeleted is [display.deleted] keep (see KeepDeleted).
+	keepDeleted bool
 	// run is Start's context: an account paired later runs until it ends too.
 	run     context.Context //nolint:containedctx // events arrive with no context: their work lives as long as Start's
 	started bool
@@ -524,8 +526,17 @@ func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error {
 	return errNotYet("mark a chat unread")
 }
 
-func (a *Adapter) MessageHistory(context.Context, domain.RoomID, domain.EventID) ([]domain.Revision, domain.Deletion, error) {
-	return nil, domain.Deletion{}, errNotYet("show a message's history")
+// MessageHistory is a message's versions as the cache kept them (under [display.deleted]
+// keep); WhatsApp keeps none to ask for.
+func (a *Adapter) MessageHistory(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, domain.Deletion, error) {
+	if a.cache == nil {
+		return nil, domain.Deletion{}, nil
+	}
+	revisions, err := a.cache.Revisions(ctx, roomID, eventID)
+	if err != nil {
+		return nil, domain.Deletion{}, fmt.Errorf("whatsapp: versions of %s: %w", eventID, err)
+	}
+	return revisions, domain.Deletion{}, nil
 }
 
 // Timeline is empty: WhatsApp keeps no history to page through; what kith has is in
@@ -534,20 +545,18 @@ func (a *Adapter) Timeline(context.Context, domain.RoomID, string, int) (domain.
 	return domain.TimelinePage{}, nil
 }
 
-func (a *Adapter) FetchEvent(context.Context, domain.RoomID, domain.EventID) (domain.Message, error) {
-	return domain.Message{}, errNotYet("fetch a message")
-}
-
-func (a *Adapter) Redact(context.Context, domain.RoomID, domain.EventID, string) error {
-	return errNotYet("delete messages")
+// FetchEvent is a cached message: WhatsApp has no message to fetch by ID.
+func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, error) {
+	if a.cache != nil {
+		if msg, ok, err := a.cache.MessageByID(ctx, roomID, eventID); err == nil && ok {
+			return msg, nil
+		}
+	}
+	return domain.Message{}, fmt.Errorf("whatsapp: %s is not in the cache, and WhatsApp keeps no copy to ask for: %w", eventID, errNotOnWhatsApp)
 }
 
 func (a *Adapter) SendFile(context.Context, domain.RoomID, string, string) error {
 	return errNotYet("send files")
-}
-
-func (a *Adapter) SendReaction(context.Context, domain.RoomID, domain.EventID, string) error {
-	return errNotYet("react")
 }
 
 func (a *Adapter) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error) {

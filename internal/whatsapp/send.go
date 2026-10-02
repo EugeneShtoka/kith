@@ -24,7 +24,7 @@ const sentRemembered = 512
 // streamed here.
 func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error {
 	if draft.Edits != "" {
-		return errNotYet("edit messages")
+		return a.edit(ctx, roomID, draft)
 	}
 	id := domain.ParseID(string(roomID))
 	chat, err := types.ParseJID(id.Native)

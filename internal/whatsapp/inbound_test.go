@@ -177,9 +177,6 @@ func TestSendRefusesWhatItCannot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	a, _, _ := offline(t, Account{Name: "bg", Digits: ownDigits})
-	if err := a.Send(ctx, danaChat, domain.Draft{Body: "x", Edits: "whatsapp:" + ownDigits + "/3EB0"}); !errors.Is(err, api.ErrNotOnNetwork) {
-		t.Errorf("an edit = %v, want ErrNotOnNetwork", err)
-	}
 	if err := a.Send(ctx, danaChat, domain.Draft{Body: "x"}); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("sending with nothing connected = %v, want ErrNetworkOff", err)
 	}
