@@ -53,7 +53,11 @@ the code WhatsApp gives, and waits (up to ten minutes) while you type the code o
 phone under Settings → Linked devices → Link a device → "Link with phone number
 instead". Once the phone accepts, the account's groups appear in kith.
 
-- `[whatsapp] enabled = true` must be set, and kithd running with it.
+- `[whatsapp] enabled = true` must be set, and kithd running with it (turning
+  WhatsApp on takes a kithd restart).
+- An account added to the config needs no restart: this command has kithd re-read
+  the config first. Removing one disconnects it on the next re-read; its chats stay
+  in kith, readable.
 - `account` is the `name` of a `[[whatsapp.account]]`; it can be left out when there
   is only one.
 - An account already linked is refused: unlink kith on the phone first.

@@ -109,3 +109,59 @@ func TestARoomOfAnotherWriterIsRefused(t *testing.T) {
 		t.Errorf("a refused save still wrote %v", rooms)
 	}
 }
+
+// Adding one room sweeps nothing, and refuses a room another writer owns.
+func TestAddingARoomSweepsNothing(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := openTemp(t)
+	owner := domain.AccountRooms(domain.ProtocolWhatsApp, "359")
+	group := domain.RoomID("whatsapp:359/1203@g.us")
+	dm := domain.RoomID("whatsapp:359/972500000002@s.whatsapp.net")
+	if err := cache.SaveRooms(ctx, owner, []domain.Room{{ID: group}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.AddRooms(ctx, owner, []domain.Room{{ID: dm, Name: "Dana", IsDirect: true}}); err != nil {
+		t.Fatal(err)
+	}
+	rooms, err := cache.Rooms(ctx)
+	if err != nil || len(rooms) != 2 {
+		t.Fatalf("rooms = (%v, %v), want the group and the DM", rooms, err)
+	}
+	if err := cache.AddRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: dm}}); err == nil {
+		t.Error("Matrix added a WhatsApp room")
+	}
+}
+
+// Joining marks a room joined once, keeps a joined room's name, and promotes the
+// placeholder a message registered.
+func TestJoiningARoomKeepsWhatIsKnown(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := openTemp(t)
+	owner := domain.AccountRooms(domain.ProtocolWhatsApp, "359")
+	named := domain.RoomID("whatsapp:359/1203@g.us")
+	heard := domain.RoomID("whatsapp:359/1204@g.us")
+	if err := cache.SaveRooms(ctx, owner, []domain.Room{{ID: named, Name: "Choir"}}); err != nil {
+		t.Fatal(err)
+	}
+	mustSave(t, cache, heard, domain.Message{ID: "whatsapp:359/3EB0", RoomID: heard, Body: "hi"})
+	n, err := cache.JoinRooms(ctx, owner, []domain.RoomID{named, heard})
+	if err != nil || n != 1 {
+		t.Fatalf("JoinRooms = (%d, %v), want only the placeholder newly joined", n, err)
+	}
+	rooms, _ := cache.Rooms(ctx)
+	names := map[domain.RoomID]string{}
+	for _, r := range rooms {
+		names[r.ID] = r.Name
+	}
+	if names[named] != "Choir" || len(names) != 2 {
+		t.Errorf("rooms = %v, want both joined and Choir's name kept", names)
+	}
+	if n, _ := cache.JoinRooms(ctx, owner, []domain.RoomID{heard}); n != 0 {
+		t.Errorf("joining again changed %d rooms", n)
+	}
+	if _, err := cache.JoinRooms(ctx, domain.MatrixRooms, []domain.RoomID{heard}); err == nil {
+		t.Error("Matrix joined a WhatsApp room")
+	}
+}

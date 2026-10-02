@@ -29,6 +29,8 @@ type spamWatch struct {
 	log *slog.Logger
 	// me: have you ever written here separates a conversation from a broadcast.
 	me string
+	// mine, when set, is who else is this person (Notifications.UseSelves).
+	mine func(sender string) bool
 
 	mu     sync.Mutex
 	rules  domain.SpamRules
@@ -158,7 +160,7 @@ func (w *spamWatch) history(ctx context.Context, msg domain.Message) (roomHistor
 		if msgs[i].IsUpdate() {
 			continue
 		}
-		if msgs[i].Sender == w.me && w.me != "" {
+		if w.mine != nil && w.mine(msgs[i].Sender) || msgs[i].Sender == w.me && w.me != "" {
 			out.mine = true
 		}
 		if msgs[i].ID != msg.ID {

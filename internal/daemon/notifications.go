@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,10 +40,34 @@ type Notifications struct {
 	tracked       []domain.TrackedRule
 	trackedNotify bool
 	me            string
+	// selves are the other IDs that are this person, asked per message (see UseSelves).
+	selves func() []string
 	// spam has its own lock and outlives reloads: a caught room stays caught.
 	spam *spamWatch
 	// log hears what Deliver cannot return (see UseLogger); nil is silent.
 	log *slog.Logger
+}
+
+// UseSelves sets every ID that is this person beside me: identities a bridge posts
+// as, each network's own accounts (a WhatsApp number linked later included, hence a
+// function). Their messages are ours: they never notify, and they make a room a
+// conversation for the spam rules. Call before Run.
+func (n *Notifications) UseSelves(selves func() []string) {
+	n.selves = selves
+	if n.spam != nil {
+		n.spam.mine = n.isMine
+	}
+}
+
+// isMine reports whether a sender is this person.
+func (n *Notifications) isMine(sender string) bool {
+	if sender == "" {
+		return false
+	}
+	if sender == n.me {
+		return true
+	}
+	return n.selves != nil && slices.Contains(n.selves(), sender)
 }
 
 // UseLogger sets where failed deliveries, copies and cache reads are logged. Call
@@ -194,7 +219,7 @@ func (n *Notifications) InvalidateScope() { n.scope.Invalidate() }
 func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify.Notification, bool) {
 	now := time.Now()
 	scope, _ := n.scope.Scope(ctx, msg.RoomID, msg.Sender, msg.ThreadRoot)
-	mine := n.me != "" && msg.Sender == n.me
+	mine := n.isMine(msg.Sender)
 
 	n.captureCode(ctx, msg, mine)
 

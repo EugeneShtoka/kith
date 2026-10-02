@@ -24,11 +24,12 @@ var errAlreadyLinked = errors.New("whatsapp: already linked (unlink kith on the 
 // code hears the code to type on the phone; the account then runs as if it had been
 // linked at startup.
 func (a *Adapter) PairWhatsApp(ctx context.Context, name string, code func(string) error) (string, error) {
-	i := slices.IndexFunc(a.accounts, func(acc Account) bool { return acc.Name == name })
+	accounts := a.accountsNow()
+	i := slices.IndexFunc(accounts, func(acc Account) bool { return acc.Name == name })
 	if i < 0 {
 		return "", fmt.Errorf("%w: %q", errNoAccount, name)
 	}
-	account := a.accounts[i]
+	account := accounts[i]
 	if !a.beginPairing(account) {
 		return "", fmt.Errorf("%w: %s", errPairing, account.Name)
 	}

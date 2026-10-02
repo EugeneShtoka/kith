@@ -33,7 +33,8 @@ func runWhatsAppLogin(args []string) error {
 		return err
 	}
 	if !cfg.WhatsApp.Enabled {
-		return errors.New("set `enabled = true` under [whatsapp] in the config, and restart kithd, first")
+		return errors.New("set `enabled = true` under [whatsapp] in the config, and restart kithd, first " +
+			"(turning WhatsApp on takes a restart; adding an account to it does not)")
 	}
 	account, err := setup.WhatsAppAccount(cfg.WhatsApp, fs.Arg(0))
 	if err != nil {
@@ -53,6 +54,11 @@ func runWhatsAppLogin(args []string) error {
 		fmt.Fprintln(os.Stderr, "kith:", note)
 	}
 
+	// The daemon reads the config only when asked: an account just added to the file
+	// is one it has not heard of yet.
+	if err = backend.ReloadConfig(ctx); err != nil {
+		return fmt.Errorf("have kithd re-read the config: %w", err)
+	}
 	fmt.Printf("Linking WhatsApp %s (%s)…\n", account.Name, account.Phone)
 	linked, err := backend.PairWhatsApp(ctx, account.Name, func(code string) error {
 		fmt.Printf("\n    %s\n\n", code)

@@ -328,6 +328,9 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	service := local.New(cache, router)
 	service.UseLogger(log)
 	adapter.OnCached(service.MessageCached, service.RoomChanged)
+	if wa != nil {
+		wa.OnCached(service.MessageCached)
+	}
 	return served{Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore}, nil
 }
 
@@ -348,11 +351,16 @@ func openWhatsApp(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg co
 		log.Error("WhatsApp is off: its store will not open", "path", path, "err", err)
 		return nil, nil
 	}
+	return whatsapp.New(cache, store, whatsAppAccounts(cfg), log), store
+}
+
+// whatsAppAccounts is [[whatsapp.account]] as the adapter takes it.
+func whatsAppAccounts(cfg config.Config) []whatsapp.Account {
 	accounts := make([]whatsapp.Account, 0, len(cfg.WhatsApp.Accounts))
 	for _, a := range cfg.WhatsApp.Accounts {
 		accounts = append(accounts, whatsapp.Account{Name: a.Name, Digits: a.Digits()})
 	}
-	return whatsapp.New(cache, store, accounts, log), store
+	return accounts
 }
 
 // whatsAppLink is what pairs WhatsApp accounts: nil, not a nil adapter, when WhatsApp
@@ -562,6 +570,9 @@ func reloader(
 		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, xdg.DataHome))
 		backend.matrix.UseIdentities(ctx, identityGroups(reloaded))
 		backend.UsePlaces(setup.PlacesOf(reloaded.Display))
+		if backend.whatsapp != nil && reloaded.WhatsApp.Enabled {
+			backend.whatsapp.UseAccounts(ctx, whatsAppAccounts(reloaded))
+		}
 		return notifications.Reload(reloaded)
 	}
 }
@@ -591,6 +602,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		log.Warn("auto-copy is on but cannot run", "err", uerr)
 	}
 	notifications.UseLogger(log)
+	notifications.UseSelves(backend.Me)
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)
 	backend.matrix.OnRoomsChanged(refresher.Changed)
