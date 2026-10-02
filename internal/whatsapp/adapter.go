@@ -71,6 +71,9 @@ type Adapter struct {
 	positions map[domain.RoomID]time.Time
 	// typing is who is typing in each room now (see typing.go).
 	typing map[domain.RoomID][]string
+	// channels is what each account's last listing said of the channels it follows
+	// (see channels.go).
+	channels map[domain.RoomID]channel
 	// keepDeleted is [display.deleted] keep (see KeepDeleted).
 	keepDeleted bool
 	// run is Start's context: an account paired later runs until it ends too.
@@ -101,6 +104,7 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		sent:      map[string]types.MessageID{},
 		heard:     map[domain.RoomID]time.Time{},
 		typing:    map[domain.RoomID][]string{},
+		channels:  map[domain.RoomID]channel{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
@@ -289,17 +293,28 @@ func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *w
 		return nil, fmt.Errorf("whatsapp: %s's groups: %w", account.Name, err)
 	}
 	spaces, chats := communities(ctx, account.Digits, groups, func(ctx context.Context, jid types.JID) string {
-		info, err := client.GetGroupInfo(ctx, jid)
-		if err != nil {
-			a.log.Debug("read a community's name failed", "account", account.Name, "err", err)
+		info, gerr := client.GetGroupInfo(ctx, jid)
+		if gerr != nil {
+			a.log.Debug("read a community's name failed", "account", account.Name, "err", gerr)
 			return ""
 		}
 		return info.Name
 	})
 	rooms, members := groupRooms(ctx, account.Digits, chats, a.names(client))
+	// A failed channel listing fails the refresh: written without them, the sweep
+	// would take the channels' history.
+	followed, err := client.GetSubscribedNewsletters(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: %s's channels: %w", account.Name, err)
+	}
+	channelList, known := channelRooms(account.Digits, followed)
+	a.useChannels(account, known)
+	rooms = append(rooms, channelList...)
+	domain.SortRooms(rooms)
 	if err := a.saveListing(ctx, account, groupListing{rooms: rooms, members: members, spaces: spaces}, fetched); err != nil {
 		return nil, err
 	}
+	a.fetchChannelHistory(ctx, account, client, channelList)
 	return rooms, nil
 }
 

@@ -189,6 +189,9 @@ func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID doma
 // SendReaction reacts to a message, replacing our earlier reaction on it (WhatsApp
 // keeps one per person).
 func (a *Adapter) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {
+	if isChannel(roomID) {
+		return errChannelReaction
+	}
 	chat, id, sender, account, client, err := a.target(ctx, roomID, target)
 	if err != nil {
 		return err

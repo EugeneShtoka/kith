@@ -325,6 +325,8 @@ phone number instead". `kith` opens whatever is logged in; an account that is no
 says so on the status line, with the command that logs it in. A WhatsApp community
 shows as a space holding its groups (its announcement group among them); what is in
 it is the community's admins' to decide, so kith does not offer to file rooms into it.
+A channel you follow is a room too, with its latest posts fetched the first time;
+only its admins can post in it, and reacting to channel posts is not supported yet.
 
 ## Run the daemon under systemd
 

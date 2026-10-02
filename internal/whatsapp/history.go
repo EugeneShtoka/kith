@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
@@ -36,7 +35,7 @@ func (a *Adapter) onHistory(ctx context.Context, account Account, client *whatsm
 			}
 		}
 		for room, msgs := range byRoom {
-			a.recordHistory(ctx, account, client, conv, room, msgs)
+			a.recordHistory(ctx, account, client, room, msgs, conv.GetName(), int(conv.GetUnreadCount()))
 		}
 	}
 	if a.onRoomsChanged != nil {
@@ -45,8 +44,10 @@ func (a *Adapter) onHistory(ctx context.Context, account Account, client *whatsm
 }
 
 // recordHistory caches one conversation's messages in one write, its room first,
-// where no listing's sweep can come between (see saveListing).
-func (a *Adapter) recordHistory(ctx context.Context, account Account, client *whatsmeow.Client, conv *waHistorySync.Conversation, room domain.RoomID, msgs []arrived) {
+// where no listing's sweep can come between (see saveListing). name is the
+// conversation's, as history gives it ("" for none), and unread how many of its
+// newest messages are unread.
+func (a *Adapter) recordHistory(ctx context.Context, account Account, client *whatsmeow.Client, room domain.RoomID, msgs []arrived, name string, unread int) {
 	slices.SortFunc(msgs, func(x, y arrived) int { return x.msg.Timestamp.Compare(y.msg.Timestamp) })
 	batch := make([]domain.Message, len(msgs))
 	for i := range msgs {
@@ -54,7 +55,7 @@ func (a *Adapter) recordHistory(ctx context.Context, account Account, client *wh
 	}
 	a.listing.Lock()
 	a.heard[room] = time.Now()
-	a.ensureRoom(ctx, account, client, msgs[0], conv.GetName())
+	a.ensureRoom(ctx, account, client, msgs[0], name)
 	err := a.cache.SaveMessages(ctx, room, batch)
 	a.listing.Unlock()
 	if err != nil {
@@ -64,7 +65,7 @@ func (a *Adapter) recordHistory(ctx context.Context, account Account, client *wh
 	for i := range msgs {
 		a.keepSource(ctx, msgs[i].msg, msgs[i].source)
 	}
-	a.placeRead(ctx, room, readFromHistory(batch, int(conv.GetUnreadCount())))
+	a.placeRead(ctx, room, readFromHistory(batch, unread))
 	if a.onChanged != nil {
 		a.onChanged(room)
 	}

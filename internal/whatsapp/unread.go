@@ -166,8 +166,12 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 		kind = append(kind, types.ReceiptTypeReadSelf)
 	}
 	now := time.Now()
-	if err := client.MarkRead(ctx, []types.MessageID{event.Native}, now, chat, sender, kind...); err != nil {
-		return fmt.Errorf("whatsapp: mark %s read: %w", roomID, err)
+	// A channel's posts are marked viewed by server ID, which kith does not keep: read
+	// there is kith's own.
+	if chat.Server != types.NewsletterServer {
+		if err := client.MarkRead(ctx, []types.MessageID{event.Native}, now, chat, sender, kind...); err != nil {
+			return fmt.Errorf("whatsapp: mark %s read: %w", roomID, err)
+		}
 	}
 	if a.cache != nil {
 		a.readTo(ctx, roomID, eventID, a.timeOf(ctx, roomID, eventID, now))

@@ -46,8 +46,8 @@ func (a *Adapter) SendTyping(ctx context.Context, roomID domain.RoomID, typing b
 		return fmt.Errorf("whatsapp: %s is not a chat: %w", roomID, err)
 	}
 	_, client, ok := a.clientFor(id.Account)
-	if !ok {
-		return nil // a typing notice is a courtesy; nothing to say it failed to
+	if !ok || chat.Server == types.NewsletterServer {
+		return nil // a typing notice is a courtesy; nothing to say it failed to, or to whom in a channel
 	}
 	state := types.ChatPresencePaused
 	if typing {

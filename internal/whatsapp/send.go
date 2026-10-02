@@ -23,6 +23,9 @@ const sentRemembered = 512
 // WhatsApp does not echo a device its own messages, so the one sent is cached and
 // streamed here.
 func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error {
+	if err := a.mayPost(roomID); err != nil {
+		return err
+	}
 	if draft.Edits != "" {
 		return a.edit(ctx, roomID, draft)
 	}
