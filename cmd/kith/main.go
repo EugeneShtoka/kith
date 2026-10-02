@@ -11,6 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -127,11 +128,26 @@ func attach(ctx context.Context, configPath, profile string, timeout time.Durati
 	if err != nil || !ready {
 		return attached{cfg: cfg}, err
 	}
-	storage, err := setup.StorageFor(cfg, path, profile)
+	storage, err := storageFor(cfg, path, profile)
 	if err != nil {
 		return attached{cfg: cfg}, err
 	}
 	return reach(ctx, path, cfg, storage, profile, timeout)
+}
+
+// storageFor is where the config keeps its files, with its instance recorded in the
+// config when it names none (the daemon only ever reads it). A config that cannot be
+// written (one a system manages) is left be: its instance is derived from its path.
+func storageFor(cfg config.Config, path, profile string) (domain.Storage, error) {
+	storage, err := setup.StorageFor(cfg, path, profile)
+	if err != nil {
+		return domain.Storage{}, err
+	}
+	if rerr := setup.RememberInstance(cfg, path); rerr != nil &&
+		!errors.Is(rerr, fs.ErrPermission) && !errors.Is(rerr, syscall.EROFS) {
+		fmt.Fprintln(os.Stderr, "kith:", rerr, "(the instance is derived from the file's path meanwhile)")
+	}
+	return storage, nil
 }
 
 // loggedOutNotice says which network accounts are not logged in, and how to log them
@@ -169,7 +185,7 @@ func reachForLogin(ctx context.Context, configPath, profile string) (attached, e
 	if err != nil || !ready {
 		return attached{cfg: cfg}, err
 	}
-	storage, err := setup.StorageFor(cfg, path, profile)
+	storage, err := storageFor(cfg, path, profile)
 	if err != nil {
 		return attached{cfg: cfg}, err
 	}

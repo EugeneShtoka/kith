@@ -19,7 +19,7 @@ func showAgentLog(configPath, profile string) error {
 	if err != nil || !ready {
 		return err
 	}
-	storage, err := setup.StorageFor(cfg, path, profile)
+	storage, err := storageFor(cfg, path, profile)
 	if err != nil {
 		return err
 	}

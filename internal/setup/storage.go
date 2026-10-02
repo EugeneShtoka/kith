@@ -1,7 +1,7 @@
 package setup
 
 import (
-	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -22,9 +22,11 @@ const defaultKeyring = "kith"
 var validInstance = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
 // StorageFor is where the config at configPath keeps its files, for the profile
-// chosen (cfg is that profile's, as Config.Profile returns it). An instance not yet
-// chosen is chosen now and written into the config: the name an install from before
-// kept its files under, when they exist, else a new one.
+// chosen (cfg is that profile's, as Config.Profile returns it). It never writes the
+// config — the daemon runs with it read-only — so an instance the config does not
+// name is derived, the same in every program: the name an install from before kept
+// its files under, when they exist, else one from the config file's path.
+// RememberInstance writes it into the config.
 func StorageFor(cfg config.Config, configPath, profile string) (domain.Storage, error) {
 	storage, err := StorageDirs(cfg)
 	if err != nil {
@@ -78,9 +80,31 @@ func chosenProfile(cfg config.Config, profile string) string {
 	return cfg.Profiles[0].Name
 }
 
+// RememberInstance writes the instance StorageFor derived into a config that names
+// none, so the files stay found if the config file moves. Only clients call it: the
+// daemon cannot write the config. A config that cannot be written loses nothing
+// while it stays where it is (the instance is derived from its path).
+func RememberInstance(cfg config.Config, configPath string) error {
+	if cfg.Storage.Instance != "" || configPath == "" {
+		return nil
+	}
+	storage, err := StorageDirs(cfg)
+	if err != nil {
+		return err
+	}
+	base, err := baseInstance(cfg, configPath, storage)
+	if err != nil {
+		return err
+	}
+	if _, err := config.SetInstance(configPath, base); err != nil {
+		return fmt.Errorf("record storage.instance in %s: %w", configPath, err)
+	}
+	return nil
+}
+
 // baseInstance is the config's instance: the one it names; else, for an install from
-// before instances, the name its files were kept under; else a new one. Either of the
-// last two is written into the config, so it stays.
+// before instances, the name its files were kept under; else one derived from the
+// config file's path (pathInstance).
 func baseInstance(cfg config.Config, configPath string, storage domain.Storage) (string, error) {
 	if id := cfg.Storage.Instance; id != "" {
 		if !validInstance.MatchString(id) {
@@ -88,23 +112,12 @@ func baseInstance(cfg config.Config, configPath string, storage domain.Storage) 
 		}
 		return id, nil
 	}
-	chosen := ""
 	if len(cfg.Profiles) == 0 && cfg.User != "" {
 		if legacy := domain.AccountKey(cfg.User); hasFiles(storage, legacy) {
-			chosen = legacy
+			return legacy, nil
 		}
 	}
-	if chosen == "" {
-		chosen = newInstance()
-	}
-	if configPath == "" {
-		return chosen, nil
-	}
-	kept, err := config.SetInstance(configPath, chosen)
-	if err != nil {
-		return "", fmt.Errorf("record storage.instance in %s (kith needs to remember it; set it by hand if the file is read-only): %w", configPath, err)
-	}
-	return kept, nil
+	return pathInstance(configPath), nil
 }
 
 // hasFiles reports whether files named for instance exist in storage's directories.
@@ -119,11 +132,23 @@ func hasFiles(storage domain.Storage, instance string) bool {
 	return false
 }
 
-// newInstance is a fresh instance ID: 64 random bits, as hex.
-func newInstance() string {
-	var b [8]byte
-	_, _ = rand.Read(b[:]) // crypto/rand.Read never fails
-	return hex.EncodeToString(b[:])
+// pathInstance is the instance of a config that names none: 64 bits of the hash of
+// the config file's resolved path, so every program reading the same file (the
+// daemon started by systemd, a client given --config) derives the same one, and two
+// config files sharing directories derive different ones.
+func pathInstance(configPath string) string {
+	resolved := configPath
+	// No file at all is one fixed instance, never the working directory's.
+	if configPath != "" {
+		if abs, err := filepath.Abs(configPath); err == nil {
+			resolved = abs
+		}
+		if real, err := filepath.EvalSymlinks(resolved); err == nil {
+			resolved = real
+		}
+	}
+	sum := sha256.Sum256([]byte(resolved))
+	return hex.EncodeToString(sum[:8])
 }
 
 // dirOr is a configured directory with "~" expanded, else the XDG one, each with
