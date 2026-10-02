@@ -69,8 +69,9 @@ func (a *Adapter) onEdited(ctx context.Context, account Account, client *whatsme
 		return
 	}
 	room, sender, target := a.change(ctx, account, client, e, pm.GetKey().GetID())
+	words, format := formatted(body)
 	edit := domain.Message{
-		ID: target, RoomID: room, Sender: sender, Body: body, Edited: true,
+		ID: target, RoomID: room, Sender: sender, Body: words, Format: format, Edited: true,
 		RevisionID: domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, account.Digits, e.Info.ID)),
 		Timestamp:  e.Info.Timestamp, EditedAt: e.Info.Timestamp,
 	}
@@ -210,7 +211,7 @@ func (a *Adapter) edit(ctx context.Context, roomID domain.RoomID, draft domain.D
 	if err != nil {
 		return err
 	}
-	text, mentioned := mentionText(draft)
+	text, mentioned := composed(draft)
 	content, _ := a.outgoing(ctx, account.Digits, roomID, text, mentioned, "")
 	resp, err := client.SendMessage(ctx, chat, client.BuildEdit(chat, id, content))
 	if err != nil {
@@ -219,9 +220,10 @@ func (a *Adapter) edit(ctx context.Context, roomID domain.RoomID, draft domain.D
 	own := selfOf(client).pn
 	edit := domain.Message{
 		ID: draft.Edits, RoomID: roomID, Sender: domain.NativePerson(domain.ProtocolWhatsApp, own.String()),
-		Body: text, Edited: true, Timestamp: resp.Timestamp, EditedAt: resp.Timestamp,
+		Edited: true, Timestamp: resp.Timestamp, EditedAt: resp.Timestamp,
 		RevisionID: domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, account.Digits, resp.ID)),
 	}
+	edit.Body, edit.Format = formatted(text)
 	if a.cache != nil {
 		a.record(ctx, account, edit, func() {})
 	}

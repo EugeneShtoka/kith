@@ -36,7 +36,7 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 		return fmt.Errorf("%w: WhatsApp account %s is not linked or not connected", api.ErrNetworkOff, id.Account)
 	}
 
-	text, mentioned := mentionText(draft)
+	text, mentioned := composed(draft)
 	message, replyTo := a.outgoing(ctx, account.Digits, roomID, text, mentioned, draft.ReplyTo)
 	msgID := a.messageIDFor(client, draft.TxnID)
 	resp, err := client.SendMessage(ctx, chat, message, whatsmeow.SendRequestExtra{ID: msgID})
@@ -49,10 +49,10 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 		ID:        domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, account.Digits, resp.ID)),
 		RoomID:    roomID,
 		Sender:    domain.NativePerson(domain.ProtocolWhatsApp, own.pn.String()),
-		Body:      text,
 		Timestamp: resp.Timestamp,
 		ReplyTo:   replyTo,
 	}
+	sent.Body, sent.Format = formatted(text)
 	for _, jid := range mentioned {
 		sent.Mentions = append(sent.Mentions, domain.Mention{
 			UserID: domain.NativePerson(domain.ProtocolWhatsApp, jid.String()), Name: "@" + jid.User,
@@ -71,6 +71,16 @@ func (a *Adapter) clientFor(digits string) (Account, *whatsmeow.Client, bool) {
 		}
 	}
 	return Account{}, nil, false
+}
+
+// composed is a draft as WhatsApp takes it: mentions written its way, and Markdown
+// in its markers unless the draft is to go as typed.
+func composed(draft domain.Draft) (string, []types.JID) {
+	text, mentioned := mentionText(draft)
+	if !draft.Plain {
+		text = fromMarkdown(text)
+	}
+	return text, mentioned
 }
 
 // mentionText is the draft's text with each mention of a WhatsApp person written as
