@@ -19,7 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adrg/xdg"
 	"golang.org/x/term"
 
 	"github.com/EugeneShtoka/kith/internal/api"
@@ -72,13 +71,13 @@ func main() {
 	case *printConfig:
 		fmt.Print(config.Annotated())
 	case *addDict != "":
-		exitOn(addDictionary(*addDict))
+		exitOn(addDictionary(sharedStorage(*configPath, *profile).DataDir, *addDict))
 	case *addFreq != "":
-		exitOn(addFrequencies(*addFreq))
+		exitOn(addFrequencies(sharedStorage(*configPath, *profile).DataDir, *addFreq))
 	case *addModelTag != "":
-		exitOn(addModel(*addModelTag))
+		exitOn(addModel(sharedStorage(*configPath, *profile).DataDir, *addModelTag))
 	case *setModelKeyRef != "":
-		exitOn(setModelKey(*setModelKeyRef))
+		exitOn(setModelKey(sharedStorage(*configPath, *profile).KeyringService, *setModelKeyRef))
 	case *agentLog:
 		exitOn(showAgentLog(*configPath, *profile))
 	case *open != "":
@@ -112,25 +111,74 @@ type startup struct {
 	importKeys string
 }
 
+// attached is a config's daemon, attached to: the config, where its files are, and
+// the client.
+type attached struct {
+	path    string
+	cfg     config.Config
+	storage domain.Storage
+	backend *daemon.Remote
+	note    string
+}
+
 // attach loads the config, checks a session exists, and attaches to (or starts) the
 // daemon. backend is nil when a first-run default config was just written.
-func attach(ctx context.Context, configPath, profile string, timeout time.Duration) (path string, cfg config.Config, backend *daemon.Remote, note string, err error) {
+func attach(ctx context.Context, configPath, profile string, timeout time.Duration) (attached, error) {
 	path, cfg, ready, err := loadConfig(configPath, profile)
 	if err != nil || !ready {
-		return "", cfg, nil, "", err
+		return attached{cfg: cfg}, err
 	}
-	if _, found, serr := session.Load(cfg.User, cfg.AllowTokenFile); serr != nil {
-		return "", cfg, nil, "", fmt.Errorf("load session: %w", serr)
-	} else if !found {
-		return "", cfg, nil, "", fmt.Errorf("no saved session for %s; run `kith login` first", cfg.User)
-	}
-	// The profile travels with the start request: every store the daemon opens is
-	// keyed by the account.
-	backend, note, err = daemon.Ensure(ctx, cfg.User, profile, timeout)
+	storage, err := setup.StorageFor(cfg, path, profile)
 	if err != nil {
-		return "", cfg, nil, "", fmt.Errorf("attach to kithd: %w", err)
+		return attached{cfg: cfg}, err
 	}
-	return path, cfg, backend, note, nil
+	if _, found, serr := session.Load(session.StoreFor(storage, cfg.User), cfg.AllowTokenFile); serr != nil {
+		return attached{cfg: cfg}, fmt.Errorf("load session: %w", serr)
+	} else if !found {
+		return attached{cfg: cfg}, fmt.Errorf("no saved session for %s; run `kith login` first", cfg.User)
+	}
+	// The daemon serves this config: one other than the default is named to it.
+	launch := daemon.Launch{ConfigPath: path, Profile: profile, OwnConfig: !isDefaultConfig(path)}
+	backend, note, err := daemon.Ensure(ctx, storage, launch, timeout)
+	if err != nil {
+		return attached{cfg: cfg}, fmt.Errorf("attach to kithd: %w", err)
+	}
+	if cfg.Display.Media.CacheDir == "" {
+		cfg.Display.Media.CacheDir = storage.MediaDir() // [storage] cache_dir
+	}
+	return attached{path: path, cfg: cfg, storage: storage, backend: backend, note: note}, nil
+}
+
+// isDefaultConfig reports whether path is the config file kith reads by default,
+// which is the one the systemd units start kithd with.
+func isDefaultConfig(path string) bool {
+	def, err := config.Path()
+	if err != nil {
+		return false
+	}
+	a, aerr := filepath.Abs(path)
+	b, berr := filepath.Abs(def)
+	return aerr == nil && berr == nil && a == b
+}
+
+// sharedStorage is where the config's shared files go (dictionaries, models, API
+// keys), read without writing anything; the defaults when there is no config.
+func sharedStorage(configPath, profile string) domain.Storage {
+	cfg := config.Config{}
+	path := configPath
+	if path == "" {
+		path, _ = config.Path()
+	}
+	if loaded, err := config.Load(path); err == nil {
+		if chosen, perr := loaded.Profile(profile); perr == nil {
+			cfg = chosen
+		}
+	}
+	storage, err := setup.StorageDirs(cfg)
+	if err != nil {
+		storage, _ = setup.StorageDirs(config.Config{})
+	}
+	return storage
 }
 
 func run(configPath, profile string, jobs startup) error {
@@ -139,13 +187,14 @@ func run(configPath, profile string, jobs startup) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
 
-	path, cfg, backend, note, err := attach(ctx, configPath, profile, readyTimeout)
-	if err != nil || backend == nil {
+	at, err := attach(ctx, configPath, profile, readyTimeout)
+	if err != nil || at.backend == nil {
 		return err
 	}
+	path, cfg, backend := at.path, at.cfg, at.backend
 	defer backend.Stop()
-	if note != "" {
-		fmt.Fprintln(os.Stderr, "kith:", note)
+	if at.note != "" {
+		fmt.Fprintln(os.Stderr, "kith:", at.note)
 	}
 	warnAboutAgentScope(ctx, backend, cfg)
 	// One window per daemon (api.Seat), taken before anything the TUI would do. The
@@ -181,7 +230,7 @@ func run(configPath, profile string, jobs startup) error {
 			return ierr
 		}
 	}
-	log, closeLog, err := openLog(jobs, cfg.Log, profile)
+	log, closeLog, err := openLog(jobs, cfg.Log, profile, at.storage)
 	if err != nil {
 		return err
 	}
@@ -216,7 +265,7 @@ func whereAmI() domain.SeatHolder {
 // as `[log] target` says. The terminal belongs to the TUI, so nothing may go to
 // stderr while it runs. It also becomes slog's (and so the log package's) default,
 // so a library that logs does not draw over the screen.
-func openLog(jobs startup, configured config.Log, profile string) (*slog.Logger, func(), error) {
+func openLog(jobs startup, configured config.Log, profile string, storage domain.Storage) (*slog.Logger, func(), error) {
 	level, err := logging.Resolve(jobs.logLevel, configured.Level)
 	if err != nil {
 		return nil, nil, fmt.Errorf("log level: %w", err)
@@ -228,7 +277,7 @@ func openLog(jobs startup, configured config.Log, profile string) (*slog.Logger,
 	log, closeLog := openLogTo(logging.Destination{
 		Target:     target,
 		Identifier: logging.Identifier("kith", profile),
-		File:       filepath.Join(xdg.StateHome, "kith", logging.FileName),
+		File:       filepath.Join(storage.StateDir, logging.FileName),
 		Level:      level,
 	})
 	return log, closeLog, nil
@@ -265,7 +314,7 @@ func runLogin(args []string) error {
 		return fmt.Errorf("parse login flags: %w", err)
 	}
 
-	_, cfg, ready, err := loadConfig(*configPath, *profile)
+	path, cfg, ready, err := loadConfig(*configPath, *profile)
 	if err != nil || !ready {
 		return err
 	}
@@ -282,7 +331,11 @@ func runLogin(args []string) error {
 	if err != nil {
 		return fmt.Errorf("login: %w", err)
 	}
-	if err := session.Save(cfg.User, sess, cfg.AllowTokenFile); err != nil {
+	storage, err := setup.StorageFor(cfg, path, *profile)
+	if err != nil {
+		return err
+	}
+	if err := session.Save(session.StoreFor(storage, cfg.User), sess, cfg.AllowTokenFile); err != nil {
 		return fmt.Errorf("save session: %w", err)
 	}
 	fmt.Printf("kith: logged in as %s (device %s); start the daemon with `kithd` or `systemctl --user start kithd`\n",

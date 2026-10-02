@@ -15,17 +15,39 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/adrg/xdg"
 	"github.com/zalando/go-keyring"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 const (
-	service                  = "kith"
-	pickleKeyLen             = 32
-	ownerOnly    fs.FileMode = 0o600
+	// legacyService is the keyring service before it was configurable; secrets
+	// kept under it are still found.
+	legacyService             = "kith"
+	pickleKeyLen              = 32
+	ownerOnly     fs.FileMode = 0o600
 )
+
+// Store is where one instance's session and encryption key are kept: a keyring
+// service and account, and the fallback file.
+type Store struct {
+	Service string
+	Account string
+	File    string
+}
+
+// StoreFor is the instance's store. An install from before instances (its instance
+// is the name made from the Matrix account) keeps the keyring entries it always had,
+// under the account itself, so nothing moves; any other instance has its own, and
+// never reads another's: a second instance must not take over the first one's
+// Matrix device.
+func StoreFor(storage domain.Storage, user string) Store {
+	account := storage.Instance
+	if user != "" && storage.Instance == domain.AccountKey(user) {
+		account = user
+	}
+	return Store{Service: storage.KeyringService, Account: account, File: storage.SessionFile()}
+}
 
 // ErrNoSecretStore is returned when no OS secret store is usable and the file
 // fallback was not opted into. It is a warning to relay, not a fatal error.
@@ -34,34 +56,27 @@ var ErrNoSecretStore = errors.New(
 
 var errEmptySecret = errors.New("session: a secret needs a name and a value")
 
-// stateDir is the file-fallback directory.
-func stateDir() string { return filepath.Join(xdg.StateHome, "kith") }
-
-func sessionPath(account string) string {
-	return filepath.Join(stateDir(), fmt.Sprintf("session-%s.toml", domain.AccountKey(account)))
-}
-
-// Save stores the session for account in the OS secret store, or in the 0600 file
-// when the store is unavailable and allowFile is set.
-func Save(account string, s domain.Session, allowFile bool) error {
+// Save stores the session in the OS secret store, or in the 0600 file when the store
+// is unavailable and allowFile is set.
+func Save(st Store, s domain.Session, allowFile bool) error {
 	blob, err := json.Marshal(s) // #nosec G117 -- intentional token persistence
 	if err != nil {
 		return fmt.Errorf("session: encode: %w", err)
 	}
-	setErr := keyring.Set(service, account, string(blob))
+	setErr := keyring.Set(st.Service, st.Account, string(blob))
 	if setErr == nil {
-		return removeFile(account) // no plaintext copy once the keyring holds it
+		return removeFile(st.File) // no plaintext copy once the keyring holds it
 	}
 	if allowFile {
-		return saveFile(account, blob)
+		return saveFile(st.File, blob)
 	}
 	return fmt.Errorf("%w: %w", ErrNoSecretStore, setErr)
 }
 
-// Load returns the saved session for account; found=false with a nil error means
-// nothing is stored (first run). The file fallback is consulted only when allowFile.
-func Load(account string, allowFile bool) (domain.Session, bool, error) {
-	blob, err := keyring.Get(service, account)
+// Load returns the saved session; found=false with a nil error means nothing is
+// stored (first run). The file fallback is consulted only when allowFile.
+func Load(st Store, allowFile bool) (domain.Session, bool, error) {
+	blob, err := keyring.Get(st.Service, st.Account)
 	switch {
 	case err == nil:
 		return decode([]byte(blob))
@@ -70,7 +85,7 @@ func Load(account string, allowFile bool) (domain.Session, bool, error) {
 		// A locked or unreachable keyring must not look like a first run, or the
 		// user is told to log in again over a session that was fine.
 		if allowFile {
-			if s, found, ferr := readFile(sessionPath(account)); ferr == nil && found {
+			if s, found, ferr := readFile(st.File); ferr == nil && found {
 				return s, found, nil
 			}
 		}
@@ -78,7 +93,7 @@ func Load(account string, allowFile bool) (domain.Session, bool, error) {
 			"session: the OS secret store could not be read (is the keyring unlocked?): %w", err)
 	}
 	if allowFile {
-		return readFile(sessionPath(account))
+		return readFile(st.File)
 	}
 	return domain.Session{}, false, nil
 }
@@ -90,8 +105,8 @@ var ErrCorruptPickleKey = errors.New("session: the pickle key in the keyring is 
 // LoadOrCreatePickleKey returns the stable key encrypting the E2EE crypto store,
 // generating it on first use. It lives only in the keyring; without one it returns
 // ErrNoSecretStore, and for an entry that is not a key, ErrCorruptPickleKey.
-func LoadOrCreatePickleKey(account string) ([]byte, error) {
-	acct := account + "|pickle"
+func LoadOrCreatePickleKey(st Store) ([]byte, error) {
+	service, acct := st.Service, st.Account+"|pickle"
 	switch existing, err := keyring.Get(service, acct); {
 	case err == nil:
 		key, derr := base64.StdEncoding.DecodeString(existing)
@@ -114,26 +129,30 @@ func LoadOrCreatePickleKey(account string) ([]byte, error) {
 	return key, nil
 }
 
-// Secret reads a named secret (e.g. a model API key). Deliberately not scoped to a
-// Matrix account: the key belongs to the person. A missing entry is "" and no error.
-func Secret(ref string) (string, error) {
+// Secret reads a named secret (e.g. a model API key) under service. Deliberately not
+// scoped to an instance or an account: the key belongs to the person, so one kept
+// under the default service is found from any. A missing entry is "" and no error.
+func Secret(service, ref string) (string, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return "", nil
 	}
-	value, err := keyring.Get(service, secretAccount(ref))
-	switch {
-	case err == nil:
-		return value, nil
-	case errors.Is(err, keyring.ErrNotFound):
-		return "", nil
-	default:
-		return "", ErrNoSecretStore
+	for _, svc := range []string{service, legacyService} {
+		value, err := keyring.Get(svc, secretAccount(ref))
+		switch {
+		case err == nil:
+			return value, nil
+		case errors.Is(err, keyring.ErrNotFound):
+		default:
+			return "", ErrNoSecretStore
+		}
 	}
+	return "", nil
 }
 
-// StoreSecret writes a named secret; an empty value is refused (that is a delete).
-func StoreSecret(ref, value string) error {
+// StoreSecret writes a named secret under service; an empty value is refused (that
+// is a delete).
+func StoreSecret(service, ref, value string) error {
 	ref = strings.TrimSpace(ref)
 	if ref == "" || value == "" {
 		return errEmptySecret
@@ -144,8 +163,8 @@ func StoreSecret(ref, value string) error {
 	return nil
 }
 
-// DeleteSecret removes a named secret.
-func DeleteSecret(ref string) error {
+// DeleteSecret removes a named secret from service.
+func DeleteSecret(service, ref string) error {
 	if err := keyring.Delete(service, secretAccount(ref)); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return fmt.Errorf("session: delete secret: %w", err)
 	}
@@ -185,8 +204,7 @@ func readFile(path string) (domain.Session, bool, error) {
 
 // saveFile writes the fallback file via temp file + sync + rename, so a failed save
 // never destroys the previous (unrecoverable) token.
-func saveFile(account string, blob []byte) error {
-	path := sessionPath(account)
+func saveFile(path string, blob []byte) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("session: create %s: %w", dir, err)
@@ -216,8 +234,7 @@ func saveFile(account string, blob []byte) error {
 	return nil
 }
 
-func removeFile(account string) error {
-	path := sessionPath(account)
+func removeFile(path string) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("session: remove %s: %w", path, err)
 	}

@@ -23,7 +23,15 @@ func withTempState(t *testing.T) string {
 	t.Cleanup(xdg.Reload)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	xdg.Reload()
-	return sessionPath(sample().UserID)
+	return storeOf(sample().UserID).File
+}
+
+// storeOf is user's store as an install from before instances keeps it: the account
+// in the keyring, the file in the state directory under the account's name.
+func storeOf(user string) Store {
+	return StoreFor(domain.Storage{
+		Instance: domain.AccountKey(user), StateDir: filepath.Join(xdg.StateHome, "kith"), KeyringService: legacyService,
+	}, user)
 }
 
 func sample() domain.Session {
@@ -40,7 +48,7 @@ func TestKeyringRoundTrip(t *testing.T) {
 	path := withTempState(t)
 
 	want := sample()
-	if err := Save(want.UserID, want, false); err != nil {
+	if err := Save(storeOf(want.UserID), want, false); err != nil {
 		t.Fatalf("Save() = %v", err)
 	}
 	// The keyring holds it, so no plaintext fallback file should exist.
@@ -48,7 +56,7 @@ func TestKeyringRoundTrip(t *testing.T) {
 		t.Errorf("fallback file present after keyring Save; stat err = %v", err)
 	}
 
-	got, found, err := Load(want.UserID, false)
+	got, found, err := Load(storeOf(want.UserID), false)
 	if err != nil || !found {
 		t.Fatalf("Load() = %+v, found=%v, err=%v", got, found, err)
 	}
@@ -60,20 +68,20 @@ func TestKeyringRoundTrip(t *testing.T) {
 func TestPickleKeyIsStableAndGenerated(t *testing.T) {
 	keyring.MockInit()
 
-	first, err := LoadOrCreatePickleKey("@alice:example.org")
+	first, err := LoadOrCreatePickleKey(storeOf("@alice:example.org"))
 	if err != nil {
-		t.Fatalf("LoadOrCreatePickleKey() error = %v", err)
+		t.Fatalf("LoadOrCreatePickleKey(storeOf()) error = %v", err)
 	}
 	if len(first) != pickleKeyLen {
 		t.Fatalf("pickle key len = %d, want %d", len(first), pickleKeyLen)
 	}
 	// A second call returns the same persisted key.
-	second, _ := LoadOrCreatePickleKey("@alice:example.org")
+	second, _ := LoadOrCreatePickleKey(storeOf("@alice:example.org"))
 	if !bytes.Equal(second, first) {
 		t.Error("pickle key changed between calls; must be stable")
 	}
 	// A different user gets a different key.
-	other, _ := LoadOrCreatePickleKey("@bob:example.org")
+	other, _ := LoadOrCreatePickleKey(storeOf("@bob:example.org"))
 	if bytes.Equal(other, first) {
 		t.Error("pickle key should differ per user")
 	}
@@ -81,7 +89,7 @@ func TestPickleKeyIsStableAndGenerated(t *testing.T) {
 
 func TestPickleKeyWithoutKeyring(t *testing.T) {
 	keyring.MockInitWithError(errors.New("no secret store"))
-	if _, err := LoadOrCreatePickleKey("@alice:example.org"); !errors.Is(err, ErrNoSecretStore) {
+	if _, err := LoadOrCreatePickleKey(storeOf("@alice:example.org")); !errors.Is(err, ErrNoSecretStore) {
 		t.Errorf("error = %v, want ErrNoSecretStore", err)
 	}
 }
@@ -90,7 +98,7 @@ func TestLoadNoSessionIsNotFound(t *testing.T) {
 	keyring.MockInit()
 	withTempState(t)
 
-	got, found, err := Load("@nobody:example.org", false)
+	got, found, err := Load(storeOf("@nobody:example.org"), false)
 	if found || err != nil {
 		t.Errorf("Load(unknown) = %+v, found=%v, err=%v; want zero, false, nil", got, found, err)
 	}
@@ -100,7 +108,7 @@ func TestNoKeyringWithoutOptInIsNotPersisted(t *testing.T) {
 	keyring.MockInitWithError(keyring.ErrUnsupportedPlatform)
 	path := withTempState(t)
 
-	err := Save(sample().UserID, sample(), false)
+	err := Save(storeOf(sample().UserID), sample(), false)
 	if !errors.Is(err, ErrNoSecretStore) {
 		t.Fatalf("Save() = %v, want ErrNoSecretStore", err)
 	}
@@ -108,7 +116,7 @@ func TestNoKeyringWithoutOptInIsNotPersisted(t *testing.T) {
 		t.Errorf("token written to disk without opt-in; stat err = %v", statErr)
 	}
 	// Nothing to resume: Load reports first-run.
-	if _, found, lerr := Load(sample().UserID, false); found || lerr != nil {
+	if _, found, lerr := Load(storeOf(sample().UserID), false); found || lerr != nil {
 		t.Errorf("Load() = found=%v, err=%v; want false, nil", found, lerr)
 	}
 }
@@ -118,7 +126,7 @@ func TestFileFallbackWhenOptedIn(t *testing.T) {
 	path := withTempState(t)
 
 	want := sample()
-	if err := Save(want.UserID, want, true); err != nil {
+	if err := Save(storeOf(want.UserID), want, true); err != nil {
 		t.Fatalf("Save() = %v", err)
 	}
 	info, err := os.Stat(path)
@@ -129,7 +137,7 @@ func TestFileFallbackWhenOptedIn(t *testing.T) {
 		t.Errorf("fallback perm = %#o, want %#o", perm, ownerOnly)
 	}
 
-	got, found, err := Load(want.UserID, true)
+	got, found, err := Load(storeOf(want.UserID), true)
 	if err != nil || !found {
 		t.Fatalf("Load() = %+v, found=%v, err=%v", got, found, err)
 	}
@@ -142,13 +150,13 @@ func TestFileFallbackRejectsInsecurePerms(t *testing.T) {
 	keyring.MockInitWithError(errors.New("no secret store"))
 	path := withTempState(t)
 
-	if err := Save(sample().UserID, sample(), true); err != nil {
+	if err := Save(storeOf(sample().UserID), sample(), true); err != nil {
 		t.Fatalf("Save() = %v", err)
 	}
 	if err := os.Chmod(path, 0o644); err != nil {
 		t.Fatalf("chmod: %v", err)
 	}
-	if _, _, err := Load(sample().UserID, true); err == nil {
+	if _, _, err := Load(storeOf(sample().UserID), true); err == nil {
 		t.Error("Load() of group/other-readable fallback = nil error, want error")
 	}
 }
@@ -162,7 +170,7 @@ func TestAFailedSaveKeepsThePreviousSession(t *testing.T) {
 	path := withTempState(t)
 
 	first := sample()
-	if err := Save(first.UserID, first, true); err != nil {
+	if err := Save(storeOf(first.UserID), first, true); err != nil {
 		t.Fatalf("first Save() = %v", err)
 	}
 	before, err := os.ReadFile(path)
@@ -178,7 +186,7 @@ func TestAFailedSaveKeepsThePreviousSession(t *testing.T) {
 
 	second := sample()
 	second.AccessToken = "syt_a_completely_different_token"
-	if saveErr := Save(second.UserID, second, true); saveErr == nil {
+	if saveErr := Save(storeOf(second.UserID), second, true); saveErr == nil {
 		t.Fatal("saving into an unwritable directory reported success")
 	}
 
@@ -196,7 +204,7 @@ func TestSaveLeavesNoTempFileBehind(t *testing.T) {
 	keyring.MockInitWithError(errors.New("no secret store"))
 	path := withTempState(t)
 
-	if err := Save(sample().UserID, sample(), true); err != nil {
+	if err := Save(storeOf(sample().UserID), sample(), true); err != nil {
 		t.Fatalf("Save() = %v", err)
 	}
 	entries, err := os.ReadDir(filepath.Dir(path))
@@ -215,7 +223,7 @@ func TestALockedKeyringIsNotReportedAsAFirstRun(t *testing.T) {
 	keyring.MockInitWithError(errors.New("org.freedesktop.DBus.Error.TimedOut: keyring is locked"))
 	withTempState(t)
 
-	got, found, err := Load(sample().UserID, false)
+	got, found, err := Load(storeOf(sample().UserID), false)
 	if err == nil {
 		t.Fatalf("Load() = %+v found=%v err=nil; a locked keyring must not read as a first run",
 			got, found)
@@ -233,7 +241,7 @@ func TestSaveExplainsWhyTheSecretStoreRefused(t *testing.T) {
 	keyring.MockInitWithError(errors.New("org.freedesktop.DBus.Error.TimedOut: keyring is locked"))
 	withTempState(t)
 
-	err := Save(sample().UserID, sample(), false)
+	err := Save(storeOf(sample().UserID), sample(), false)
 	if !errors.Is(err, ErrNoSecretStore) {
 		t.Fatalf("Save() = %v, want it to wrap ErrNoSecretStore", err)
 	}
@@ -257,17 +265,17 @@ func TestFileFallbackIsPerAccount(t *testing.T) {
 	withTempState(t)
 
 	a, b := sample(), other()
-	if err := Save(a.UserID, a, true); err != nil {
+	if err := Save(storeOf(a.UserID), a, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := Save(b.UserID, b, true); err != nil {
+	if err := Save(storeOf(b.UserID), b, true); err != nil {
 		t.Fatal(err)
 	}
-	if sessionPath(a.UserID) == sessionPath(b.UserID) {
+	if storeOf(a.UserID).File == storeOf(b.UserID).File {
 		t.Fatal("two accounts share one fallback file")
 	}
 	for _, want := range []domain.Session{a, b} {
-		got, found, err := Load(want.UserID, true)
+		got, found, err := Load(storeOf(want.UserID), true)
 		if err != nil || !found || got != want {
 			t.Errorf("Load(%s) = %+v found=%v err=%v, want %+v", want.UserID, got, found, err, want)
 		}
@@ -279,24 +287,24 @@ func TestKeyringSaveRemovesOnlyItsOwnFile(t *testing.T) {
 	keyring.MockInitWithError(errors.New("no secret store"))
 	withTempState(t)
 	a, b := sample(), other()
-	if err := Save(a.UserID, a, true); err != nil {
+	if err := Save(storeOf(a.UserID), a, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := Save(b.UserID, b, true); err != nil {
+	if err := Save(storeOf(b.UserID), b, true); err != nil {
 		t.Fatal(err)
 	}
 
 	keyring.MockInit()
-	if err := Save(a.UserID, a, true); err != nil {
+	if err := Save(storeOf(a.UserID), a, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(sessionPath(a.UserID)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(storeOf(a.UserID).File); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("a's plaintext file survived a keyring save; stat err = %v", err)
 	}
-	if _, err := os.Stat(sessionPath(b.UserID)); err != nil {
+	if _, err := os.Stat(storeOf(b.UserID).File); err != nil {
 		t.Errorf("a's keyring save deleted b's session file: %v", err)
 	}
-	if got, found, err := Load(b.UserID, true); err != nil || !found || got != other() {
+	if got, found, err := Load(storeOf(b.UserID), true); err != nil || !found || got != other() {
 		t.Errorf("Load(b) = %+v found=%v err=%v", got, found, err)
 	}
 }
@@ -307,13 +315,13 @@ func TestACorruptPickleKeyIsKeptAndReported(t *testing.T) {
 	keyring.MockInit()
 	const acct = "@alice:example.org|pickle"
 	for _, corrupt := range []string{"not base64!", "c2hvcnQ="} { // garbage, and too short
-		if err := keyring.Set(service, acct, corrupt); err != nil {
+		if err := keyring.Set(legacyService, acct, corrupt); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := LoadOrCreatePickleKey("@alice:example.org"); !errors.Is(err, ErrCorruptPickleKey) {
-			t.Errorf("LoadOrCreatePickleKey() with %q stored: error = %v, want ErrCorruptPickleKey", corrupt, err)
+		if _, err := LoadOrCreatePickleKey(storeOf("@alice:example.org")); !errors.Is(err, ErrCorruptPickleKey) {
+			t.Errorf("LoadOrCreatePickleKey(storeOf()) with %q stored: error = %v, want ErrCorruptPickleKey", corrupt, err)
 		}
-		if kept, err := keyring.Get(service, acct); err != nil || kept != corrupt {
+		if kept, err := keyring.Get(legacyService, acct); err != nil || kept != corrupt {
 			t.Errorf("the entry became %q (err %v); want it left as %q", kept, err, corrupt)
 		}
 	}

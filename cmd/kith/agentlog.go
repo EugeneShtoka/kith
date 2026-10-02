@@ -15,15 +15,15 @@ import (
 // showAgentLog prints the account's kith-mcp write ledger, oldest first. It needs no
 // daemon: it must work exactly when something has gone wrong.
 func showAgentLog(configPath, profile string) error {
-	_, cfg, ready, err := loadConfig(configPath, profile)
+	path, cfg, ready, err := loadConfig(configPath, profile)
 	if err != nil || !ready {
 		return err
 	}
-	path, err := agent.DefaultPath(cfg.User)
+	storage, err := setup.StorageFor(cfg, path, profile)
 	if err != nil {
-		return fmt.Errorf("finding the ledger: %w", err)
+		return err
 	}
-	ledger, err := agent.Open(path)
+	ledger, err := agent.Open(storage.LedgerPath())
 	if err != nil {
 		return fmt.Errorf("opening the ledger: %w", err)
 	}

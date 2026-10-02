@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/adrg/xdg"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // unitName is the systemd user unit that autostarts the daemon at login.
@@ -33,11 +32,20 @@ func Attach(ctx context.Context, socket string, timeout time.Duration) (*Remote,
 	return r, nil
 }
 
-// Ensure returns a client attached to user's daemon, starting one if none is
+// Launch is how a daemon for a config is started: the config file and the profile
+// it serves. OwnConfig is a config other than the default one, which the systemd
+// units do not know, so its daemon is started directly with --config.
+type Launch struct {
+	ConfigPath string
+	Profile    string
+	OwnConfig  bool
+}
+
+// Ensure returns a client attached to the instance's daemon, starting one if none is
 // running. note is non-empty when one had to be started and says what that cost
 // (nothing was notified while it was down).
-func Ensure(ctx context.Context, user, profile string, timeout time.Duration) (r *Remote, note string, err error) {
-	socket, err := SocketPath(user)
+func Ensure(ctx context.Context, storage domain.Storage, launch Launch, timeout time.Duration) (r *Remote, note string, err error) {
+	socket, err := SocketPath(storage)
 	if err != nil {
 		return nil, "", err
 	}
@@ -49,7 +57,7 @@ func Ensure(ctx context.Context, user, profile string, timeout time.Duration) (r
 		return attached, "", aerr
 	}
 
-	if serr := spawn(ctx, profile); serr != nil {
+	if serr := spawn(ctx, storage, launch); serr != nil {
 		return nil, "", serr
 	}
 	attached, err := Attach(ctx, socket, timeout)
@@ -61,12 +69,15 @@ func Ensure(ctx context.Context, user, profile string, timeout time.Duration) (r
 
 // spawn starts the daemon so that it outlives this process: the systemd unit for
 // profile first, a detached exec as fallback, never a child of the client.
-func spawn(ctx context.Context, profile string) error {
+func spawn(ctx context.Context, storage domain.Storage, launch Launch) error {
 	// Not canceled with the client (a half-issued start should finish), but bounded.
 	startCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), spawnTimeout)
 	defer cancel()
 
-	unit := unitFor(profile)
+	if launch.OwnConfig {
+		return detach(detachArgs(storage, launch))
+	}
+	unit := unitFor(launch.Profile)
 	if _, err := exec.LookPath("systemctl"); err == nil {
 		// #nosec G204 -- unit is unitFor(profile), and a profile name is
 		// restricted to [A-Za-z0-9._-] by config.Validate — no shell, no separators.
@@ -75,34 +86,37 @@ func spawn(ctx context.Context, profile string) error {
 			return nil
 		}
 		// The unit may not be installed: fall back, keeping systemd's reason.
-		if derr := detach(profile); derr != nil {
+		if derr := detach(detachArgs(storage, launch)); derr != nil {
 			return fmt.Errorf("daemon: start %s: %w (%s); and %w", unit, err, trimOutput(out), derr)
 		}
 		return nil
 	}
-	return detach(profile)
+	return detach(detachArgs(storage, launch))
 }
 
 // LogFlag is the kithd flag naming a log file instead of stderr.
 const LogFlag = "--log-file"
 
 // DaemonLogPath is where a daemon started without systemd logs when there is no
-// journal to log to (or `[log] target` is "file"): $XDG_STATE_HOME/kith/kithd.log,
+// journal to log to (or `[log] target` is "file"): kithd.log in the state directory,
 // or kithd-<profile>.log for a profile. A systemd unit logs to the journal.
-func DaemonLogPath(profile string) string {
-	name := "kithd.log"
+func DaemonLogPath(storage domain.Storage, profile string) string {
 	if profile != "" {
-		name = "kithd-" + profile + ".log"
+		return storage.LogPath("kithd-" + profile)
 	}
-	return filepath.Join(xdg.StateHome, "kith", name)
+	return storage.LogPath("kithd")
 }
 
 // detachArgs is the daemon's argv (after the binary) when detached: its log goes
-// to DaemonLogPath, never to the terminal of the client that started it.
-func detachArgs(profile string) []string {
-	args := []string{LogFlag, DaemonLogPath(profile)}
-	if profile != "" {
-		args = append(args, "--profile", profile)
+// to DaemonLogPath, never to the terminal of the client that started it, and a
+// config other than the default one is named.
+func detachArgs(storage domain.Storage, launch Launch) []string {
+	args := []string{LogFlag, DaemonLogPath(storage, launch.Profile)}
+	if launch.OwnConfig && launch.ConfigPath != "" {
+		args = append(args, "--config", launch.ConfigPath)
+	}
+	if launch.Profile != "" {
+		args = append(args, "--profile", launch.Profile)
 	}
 	return args
 }

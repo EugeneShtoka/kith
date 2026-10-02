@@ -8,21 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/adrg/xdg"
-
 	"github.com/EugeneShtoka/kith/internal/spell"
 )
 
-// dictionaryDir holds installed dictionaries; spell.SearchPaths looks here first.
-func dictionaryDir() string {
-	return filepath.Join(xdg.DataHome, "kith", "hunspell")
-}
-
-// addDictionary fetches one dictionary and reports what it did.
-func addDictionary(tag string) error {
-	dir := dictionaryDir()
+// addDictionary fetches one dictionary into kith's data directory (spell.SearchPaths
+// looks in its hunspell/ first) and reports what it did.
+func addDictionary(data, tag string) error {
+	dir := filepath.Join(data, "hunspell")
 	if tag == "list" || tag == "?" {
-		listDictionaries(dir)
+		listDictionaries(data, dir)
 		return nil
 	}
 	src, ok := spell.SourceFor(tag)
@@ -62,8 +56,8 @@ func filesWritten(src spell.Source) int {
 }
 
 // listDictionaries shows what can be installed and what already is.
-func listDictionaries(dir string) {
-	avail, _ := spell.Look("", nil, spell.SearchPaths(filepath.Join(xdg.DataHome, "kith")))
+func listDictionaries(data, dir string) {
+	avail, _ := spell.Look("", nil, spell.SearchPaths(data))
 	have := make(map[string]bool, len(avail.Dictionaries))
 	for _, d := range avail.Dictionaries {
 		have[d.Tag] = true

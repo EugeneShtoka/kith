@@ -18,8 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adrg/xdg"
-
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/buildinfo"
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -74,8 +72,12 @@ func main() {
 		journal:       logging.SystemJournal,
 	})
 	slog.SetDefault(log)
+	var storage domain.Storage
 	if err == nil {
-		err = run(log, level, *logLevel, cfg, path)
+		storage, err = setup.StorageFor(cfg, path, *profile)
+	}
+	if err == nil {
+		err = run(log, level, *logLevel, cfg, path, storage)
 	}
 	if err != nil {
 		log.Error("kithd stopped", "err", err)
@@ -128,7 +130,7 @@ func newLogger(d daemonLog) (*slog.Logger, func()) {
 
 // run takes the single-instance lock, resumes the stored session
 // and serves until SIGINT/SIGTERM (systemd stops units with SIGTERM).
-func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Config, path string) error {
+func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Config, path string, storage domain.Storage) error {
 	if warning := config.ModeWarning(path); warning != "" {
 		log.Warn(warning)
 	}
@@ -144,7 +146,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		return err
 	}
 
-	lock, held, err := daemon.Acquire(cfg.User)
+	lock, held, err := daemon.Acquire(storage)
 	if err != nil {
 		return fmt.Errorf("acquire single-instance lock: %w", err)
 	}
@@ -164,13 +166,14 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	}()
 
 	// Read before any store is opened so a logged-out account creates nothing.
-	saved, err := storedSession(cfg)
+	keys := session.StoreFor(storage, cfg.User)
+	saved, err := storedSession(cfg, keys)
 	if err != nil {
 		return err
 	}
 
-	cache := openCache(ctx, log, cfg.User)
-	backend, err := newServed(ctx, cache, log, cfg)
+	cache := openCache(ctx, log, storage.CachePath(), cfg.User)
+	backend, err := newServed(ctx, cache, log, cfg, storage)
 	if err != nil {
 		closeCache(log, cache)
 		return err
@@ -183,9 +186,9 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 			closeCache(log, cache)
 		}
 	}()
-	configure(log, backend, cfg)
+	configure(log, backend, cfg, storage)
 	// What is left of connecting once the homeserver answers belongs to Matrix's start.
-	if backend.matrix.prepare, err = resumeSession(ctx, log, backend.matrix.InProc, cfg.User, saved); err != nil {
+	if backend.matrix.prepare, err = resumeSession(ctx, log, backend.matrix.InProc, cryptoPlace{path: storage.CryptoPath(), keys: keys}, saved); err != nil {
 		return err
 	}
 
@@ -198,20 +201,26 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	return err
 }
 
+// cryptoPlace is where the Matrix encryption store and its key are kept.
+type cryptoPlace struct {
+	path string
+	keys session.Store
+}
+
 // resumeSession restores the saved session. prepare is the homeserver-dependent
 // startup left to do, nil when the homeserver answered.
 func resumeSession(
-	ctx context.Context, log *slog.Logger, backend *matrix.InProc, user string, saved domain.Session,
+	ctx context.Context, log *slog.Logger, backend *matrix.InProc, crypto cryptoPlace, saved domain.Session,
 ) (prepare func(context.Context) error, err error) {
 	rerr := backend.Resume(ctx, saved)
 	if rerr == nil || errors.Is(rerr, api.ErrUnreachable) {
 		// Before Serve, and offline too: the state store must be in place before any
 		// RPC runs (see matrix.InProc.OpenCryptoStore).
-		openCryptoStore(ctx, log, backend, user)
+		openCryptoStore(ctx, log, backend, crypto.path)
 	}
 	switch {
 	case rerr == nil:
-		enableEncryption(ctx, log, backend, user)
+		enableEncryption(ctx, log, backend, crypto.keys)
 		return nil, nil
 	case errors.Is(rerr, api.ErrUnreachable):
 		// Serve the on-disk cache offline and connect once the homeserver is back.
@@ -221,11 +230,11 @@ func resumeSession(
 				return werr
 			}
 			log.Info("homeserver reachable again; syncing")
-			enableEncryption(ctx, log, backend, user)
+			enableEncryption(ctx, log, backend, crypto.keys)
 			return nil
 		}, nil
 	default:
-		return nil, fmt.Errorf("saved session for %s is unusable (run `kith login` again): %w", user, rerr)
+		return nil, fmt.Errorf("saved session for %s is unusable (run `kith login` again): %w", saved.UserID, rerr)
 	}
 }
 
@@ -281,6 +290,8 @@ type served struct {
 	*route.Router
 	*local.Service
 	matrix *matrixAdapter
+	// dataDir and schedulePath are this instance's ([storage]).
+	dataDir, schedulePath string
 	// whatsapp and its store are nil unless [whatsapp] is enabled and the store opened.
 	whatsapp      *whatsapp.Adapter
 	whatsappStore *whatsapp.Store
@@ -312,11 +323,11 @@ func (m *matrixAdapter) Start(ctx context.Context) error {
 
 // newServed builds the adapters, the router over them and the service over one
 // cache, the service hearing what the Matrix adapter caches.
-func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config) (served, error) {
+func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage) (served, error) {
 	adapter := &matrixAdapter{InProc: matrix.New(cache)}
 	adapter.UseLogger(log)
 	others := map[domain.Protocol]route.Adapter{}
-	wa, waStore := openWhatsApp(ctx, cache, log, cfg)
+	wa, waStore := openWhatsApp(ctx, cache, log, cfg, storage.WhatsAppPath())
 	if wa != nil {
 		others[domain.ProtocolWhatsApp] = wa
 	}
@@ -331,19 +342,17 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	if wa != nil {
 		wa.OnCached(service.MessageCached, service.RoomChanged)
 	}
-	return served{Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore}, nil
+	return served{
+		Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore,
+		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),
+	}, nil
 }
 
 // openWhatsApp is the WhatsApp adapter when [whatsapp] is enabled, over its session
 // store. A store that will not open leaves WhatsApp off, logged, rather than Matrix
 // down with it.
-func openWhatsApp(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config) (*whatsapp.Adapter, *whatsapp.Store) {
+func openWhatsApp(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, path string) (*whatsapp.Adapter, *whatsapp.Store) {
 	if !cfg.WhatsApp.Enabled {
-		return nil, nil
-	}
-	path, err := db.WhatsAppPath(cfg.User)
-	if err != nil {
-		log.Error("WhatsApp is off: its store has no place", "err", err)
 		return nil, nil
 	}
 	store, err := whatsapp.OpenStore(ctx, path, whatsapp.NewStoreLogger(log))
@@ -391,7 +400,7 @@ func closeWhatsAppStore(log *slog.Logger, store *whatsapp.Store) {
 
 // configure applies the config to the backend; internal/matrix and internal/local
 // read no config themselves.
-func configure(log *slog.Logger, backend served, cfg config.Config) {
+func configure(log *slog.Logger, backend served, cfg config.Config, storage domain.Storage) {
 	backend.UseSpell(local.SpellSettings{
 		Enabled:      cfg.Spell.SpellEnabled(),
 		Command:      cfg.Spell.EngineOrDefault(),
@@ -399,8 +408,9 @@ func configure(log *slog.Logger, backend served, cfg config.Config) {
 		FlagRare:     cfg.Spell.FlagRareWords,
 		RareRatio:    cfg.Spell.RareRatio,
 	})
-	backend.UseModel(modelSettings(log, cfg))
-	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, xdg.DataHome))
+	backend.UseDataDir(storage.DataDir)
+	backend.UseModel(modelSettings(log, cfg, storage.KeyringService))
+	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, storage.DataDir))
 	backend.UsePlaces(setup.PlacesOf(cfg.Display))
 	backend.matrix.KeepDeleted(cfg.Display.Deleted.Keep())
 	if backend.whatsapp != nil {
@@ -420,9 +430,9 @@ func identityGroups(cfg config.Config) [][]string {
 
 // modelSettings translates `[assist]` and `[complete.model]` and reads the API key. A
 // missing key is not fatal: the endpoint's refusal reaches the composer instead.
-func modelSettings(log *slog.Logger, cfg config.Config) local.ModelSettings {
+func modelSettings(log *slog.Logger, cfg config.Config, keyring string) local.ModelSettings {
 	assist, completion := cfg.Assist, cfg.Complete.Model
-	key, kerr := session.Secret(assist.KeyRef)
+	key, kerr := session.Secret(keyring, assist.KeyRef)
 	if kerr != nil && assist.KeyRef != "" {
 		// Not fatal (the endpoint's refusal reaches the composer), but say why here.
 		log.Warn("read the language model's API key failed", "key_ref", assist.KeyRef, "err", kerr)
@@ -530,7 +540,7 @@ func serve(
 		w.state.Failed(syncErr)
 	}()
 
-	scheduler, cutoff := startScheduler(ctx, log, cfg, backend)
+	scheduler, cutoff := startScheduler(ctx, log, cfg, backend, backend.schedulePath)
 	defer scheduler.Stop()
 
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
@@ -570,7 +580,7 @@ func reloader(
 		}
 		relevel(reloaded.Log.Level)
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
-		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, xdg.DataHome))
+		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, backend.dataDir))
 		backend.matrix.UseIdentities(ctx, identityGroups(reloaded))
 		backend.UsePlaces(setup.PlacesOf(reloaded.Display))
 		if backend.whatsapp != nil && reloaded.WhatsApp.Enabled {
@@ -661,8 +671,8 @@ func loadConfig(configPath, profile string) (config.Config, string, error) {
 }
 
 // storedSession reads the session saved by `kith login`; there is no password fallback.
-func storedSession(cfg config.Config) (domain.Session, error) {
-	saved, found, err := session.Load(cfg.User, cfg.AllowTokenFile)
+func storedSession(cfg config.Config, keys session.Store) (domain.Session, error) {
+	saved, found, err := session.Load(keys, cfg.AllowTokenFile)
 	if err != nil {
 		return domain.Session{}, fmt.Errorf("load session: %w", err)
 	}
@@ -675,18 +685,14 @@ func storedSession(cfg config.Config) (domain.Session, error) {
 // enableEncryption turns on E2EE. Failures only warn: unencrypted rooms still work.
 // openCryptoStore opens the crypto/state store, logging a failure: encryption then
 // stays off and encrypted rooms refuse sends.
-func openCryptoStore(ctx context.Context, log *slog.Logger, backend *matrix.InProc, user string) {
-	dbPath, err := db.CryptoPath(user)
-	if err == nil {
-		err = backend.OpenCryptoStore(ctx, dbPath)
-	}
-	if err != nil {
+func openCryptoStore(ctx context.Context, log *slog.Logger, backend *matrix.InProc, dbPath string) {
+	if err := backend.OpenCryptoStore(ctx, dbPath); err != nil {
 		log.Error("encryption disabled", "err", err)
 	}
 }
 
-func enableEncryption(ctx context.Context, log *slog.Logger, backend *matrix.InProc, user string) {
-	pickleKey, err := session.LoadOrCreatePickleKey(user)
+func enableEncryption(ctx context.Context, log *slog.Logger, backend *matrix.InProc, keys session.Store) {
+	pickleKey, err := session.LoadOrCreatePickleKey(keys)
 	if err != nil {
 		log.Error("encryption disabled", "err", err)
 		return
@@ -700,14 +706,9 @@ func enableEncryption(ctx context.Context, log *slog.Logger, backend *matrix.InP
 	}
 }
 
-// openCache opens the per-user cache, or returns nil with a warning: without it the
+// openCache opens the instance's cache, or returns nil with a warning: without it the
 // backend falls through to the network.
-func openCache(ctx context.Context, log *slog.Logger, user string) *db.Cache {
-	path, err := db.DefaultPath(user)
-	if err != nil {
-		log.Error("cache disabled", "err", err)
-		return nil
-	}
+func openCache(ctx context.Context, log *slog.Logger, path, user string) *db.Cache {
 	cache, err := db.Open(ctx, path)
 	if err != nil {
 		log.Error("cache disabled", "path", path, "err", err)
@@ -724,15 +725,10 @@ func openCache(ctx context.Context, log *slog.Logger, user string) *db.Cache {
 // startScheduler starts the send-later queue before Serve, so overdue messages go out
 // without waiting for a client. The returned atomic holds the overdue cutoff so a
 // reload can change it.
-func startScheduler(ctx context.Context, log *slog.Logger, cfg config.Config, sender daemon.Sender) (*daemon.Scheduler, *atomic.Int64) {
+func startScheduler(ctx context.Context, log *slog.Logger, cfg config.Config, sender daemon.Sender, queuePath string) (*daemon.Scheduler, *atomic.Int64) {
 	cutoff := &atomic.Int64{}
 	cutoff.Store(int64(cfg.Schedule.Cutoff()))
 
-	queuePath, err := schedule.DefaultPath(cfg.User)
-	if err != nil {
-		log.Error("scheduled messages unavailable", "err", err)
-		return nil, cutoff
-	}
 	scheduler := daemon.NewScheduler(
 		schedule.New(queuePath), sender,
 		func() time.Duration { return time.Duration(cutoff.Load()) },

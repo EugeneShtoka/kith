@@ -45,13 +45,14 @@ func runWhatsAppLogin(args []string) error {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, pairingTimeout)
 	defer cancel()
-	_, _, backend, note, err := attach(ctx, *configPath, *profile, readyTimeout)
-	if err != nil || backend == nil {
+	at, err := attach(ctx, *configPath, *profile, readyTimeout)
+	if err != nil || at.backend == nil {
 		return err
 	}
+	backend := at.backend
 	defer backend.Stop()
-	if note != "" {
-		fmt.Fprintln(os.Stderr, "kith:", note)
+	if at.note != "" {
+		fmt.Fprintln(os.Stderr, "kith:", at.note)
 	}
 
 	// The daemon reads the config only when asked: an account just added to the file

@@ -6,35 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/adrg/xdg"
-
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
-
-// DefaultPath returns the per-user cache path under the XDG data dir, keyed by a
-// hash of the user ID.
-func DefaultPath(user string) (string, error) {
-	return userDBPath(user, "cache")
-}
-
-// CryptoPath returns the per-user path for mautrix-go's crypto/state store.
-func CryptoPath(user string) (string, error) {
-	return userDBPath(user, "crypto")
-}
-
-// WhatsAppPath returns the per-user path for the WhatsApp session store (whatsmeow's:
-// every linked account's device keys).
-func WhatsAppPath(user string) (string, error) {
-	return userDBPath(user, "whatsapp")
-}
-
-func userDBPath(user, kind string) (string, error) {
-	path, err := xdg.DataFile(fmt.Sprintf("kith/%s-%s.db", kind, domain.AccountKey(user)))
-	if err != nil {
-		return "", fmt.Errorf("db: resolve %s path: %w", kind, err)
-	}
-	return path, nil
-}
 
 // HoldsRooms reports whether any joined room is cached. An empty cache has lost
 // whatever history the sync position assumes it holds.

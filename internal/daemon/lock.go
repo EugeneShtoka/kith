@@ -7,8 +7,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/gofrs/flock"
 )
 
@@ -20,32 +20,19 @@ type Lock struct {
 	socket string
 }
 
-// LockPath returns the path of the daemon's lock file for user (an MXID), beside
-// the socket and named from the same hash.
-func LockPath(user string) (string, error) {
-	socket, err := SocketPath(user)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSuffix(socket, ".sock") + ".lock", nil
-}
-
-// Acquire takes the exclusive lock for user's daemon.
+// Acquire takes the exclusive lock for the instance's daemon.
 //
 // held is false, with no error, when another daemon already holds it: two clients
 // racing to auto-spawn is expected, and the caller exits silently.
-func Acquire(user string) (lock *Lock, held bool, err error) {
-	socket, err := SocketPath(user)
+func Acquire(storage domain.Storage) (lock *Lock, held bool, err error) {
+	socket, err := SocketPath(storage)
 	if err != nil {
 		return nil, false, err
 	}
 	if mkerr := makeSocketDir(filepath.Dir(socket)); mkerr != nil {
 		return nil, false, mkerr
 	}
-	path, err := LockPath(user)
-	if err != nil {
-		return nil, false, err
-	}
+	path := storage.LockPath()
 	fl := flock.New(path)
 	held, err = fl.TryLock()
 	if err != nil {

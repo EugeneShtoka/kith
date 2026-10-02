@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/adrg/xdg"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -175,13 +174,4 @@ func (s *Store) Save(queue []domain.ScheduledMessage) error {
 		return fmt.Errorf("schedule: write %s: %w", s.path, err)
 	}
 	return nil
-}
-
-// DefaultPath is where one account's queue lives.
-func DefaultPath(user string) (string, error) {
-	path, err := xdg.StateFile(fmt.Sprintf("kith/scheduled-%s.toml", domain.AccountKey(user)))
-	if err != nil {
-		return "", fmt.Errorf("schedule: resolve queue path: %w", err)
-	}
-	return path, nil
 }

@@ -17,7 +17,7 @@ import (
 // ModelDir is where installed weights live: kith's own directory, beside the
 // dictionaries and the frequency lists, for the same reasons — no root is needed,
 // nothing else owns it, and what this client installed is what this client reads.
-func ModelDir(dataHome string) string { return filepath.Join(dataHome, "kith", "models") }
+func ModelDir(dataDir string) string { return filepath.Join(dataDir, "models") }
 
 // ModelNames refuses a `model` that cannot ever resolve to weights.
 func ModelNames(cfg config.CompleteModel) error {

@@ -85,6 +85,14 @@ func (s *Service) UseLogger(log *slog.Logger) {
 	s.spell.mu.Unlock()
 }
 
+// UseDataDir sets kith's data directory ([storage] data_dir), where dictionaries,
+// word counts and models are installed. Called at startup.
+func (s *Service) UseDataDir(dir string) {
+	s.spell.mu.Lock()
+	defer s.spell.mu.Unlock()
+	s.spell.data = dir
+}
+
 // Close stops the engines the service started.
 func (s *Service) Close() {
 	s.spell.stop()

@@ -25,10 +25,11 @@ func runOpen(configPath, profile, uri string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	_, cfg, backend, _, err := attach(ctx, configPath, profile, openTimeout)
-	if err != nil || backend == nil {
+	at, err := attach(ctx, configPath, profile, openTimeout)
+	if err != nil || at.backend == nil {
 		return err
 	}
+	cfg, backend := at.cfg, at.backend
 	defer backend.Stop()
 
 	delivered, err := backend.Follow(ctx, uri)

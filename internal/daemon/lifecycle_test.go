@@ -150,18 +150,16 @@ func TestLockReleaseRemovesSocket(t *testing.T) {
 	}
 }
 
-// The lock sits beside the socket and shares its hashed stem (see TestSocketPath).
-func TestLockAndSocketPathsPairPerAccount(t *testing.T) {
+// The lock sits beside the socket and shares its stem.
+func TestLockAndSocketPathsPair(t *testing.T) {
 	t.Parallel()
 
-	socket, err := daemon.SocketPath("@ada:example.org")
+	storage := domain.Storage{Instance: "a1b2c3", RuntimeDir: "/run/user/1000/kith"}
+	socket, err := daemon.SocketPath(storage)
 	if err != nil {
 		t.Fatalf("SocketPath() error = %v", err)
 	}
-	lock, err := daemon.LockPath("@ada:example.org")
-	if err != nil {
-		t.Fatalf("LockPath() error = %v", err)
-	}
+	lock := storage.LockPath()
 	if filepath.Dir(socket) != filepath.Dir(lock) {
 		t.Errorf("lock %q is not beside socket %q", lock, socket)
 	}
@@ -289,9 +287,8 @@ func TestEnsureAttachesToARunningDaemon(t *testing.T) {
 		<-pumped
 	})
 
-	// No profile: this account is named directly, which is what a single-account
-	// config resolves to and what Ensure keys everything by either way.
-	r, note, err := daemon.Ensure(ctx, user, "", settle)
+	// The default config, no profile: what a single-account install starts with.
+	r, note, err := daemon.Ensure(ctx, user, daemon.Launch{}, settle)
 	if err != nil {
 		t.Fatalf("Ensure() error = %v", err)
 	}
@@ -364,18 +361,11 @@ func nopWithChannels() apitest.Nop {
 
 // lockUser returns an account name unique to this test, so parallel tests take different
 // locks.
-func lockUser(t *testing.T) string {
+func lockUser(t *testing.T) domain.Storage {
 	t.Helper()
-
-	user := "@" + strings.ReplaceAll(t.Name(), "/", "-") + ":test.invalid"
-	// Release deliberately leaves the lock file behind (see Lock.Release), which is right
-	// for a daemon and untidy for a test writing into the real runtime directory.
-	t.Cleanup(func() {
-		if path, err := daemon.LockPath(user); err == nil {
-			_ = os.Remove(path)
-		}
-	})
-	return user
+	// Its own runtime directory: the lock file stays behind on Release (see
+	// Lock.Release), which is right for a daemon and untidy in the real one.
+	return domain.Storage{Instance: strings.ReplaceAll(t.Name(), "/", "-"), RuntimeDir: filepath.Join(t.TempDir(), "kith")}
 }
 
 // A clean shutdown must not look like a failure.

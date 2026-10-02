@@ -574,21 +574,6 @@ func TestUnreadRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDefaultPathIsPerUser(t *testing.T) {
-	t.Parallel()
-	a, err := DefaultPath("@alice:x")
-	if err != nil {
-		t.Fatalf("DefaultPath() error = %v", err)
-	}
-	b, _ := DefaultPath("@bob:x")
-	if a == b {
-		t.Error("DefaultPath should differ per user")
-	}
-	if filepath.Ext(a) != ".db" {
-		t.Errorf("DefaultPath() = %q, want a .db file", a)
-	}
-}
-
 // Keeping a deleted message is a setting, and the two halves of it are what the words
 // are for: erased, they are gone from the file; kept, they are still readable.
 func TestRedactionKeepsTheWordsOnlyWhenAsked(t *testing.T) {

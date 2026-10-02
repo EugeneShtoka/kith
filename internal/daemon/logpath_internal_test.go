@@ -1,28 +1,32 @@
 package daemon
 
 import (
-	"path/filepath"
 	"slices"
 	"testing"
 
-	"github.com/adrg/xdg"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A daemon started without systemd logs to a file under the state directory, one per
-// profile, and is told so on its command line.
+// A daemon started without systemd logs to a file in the instance's state directory,
+// one per profile, and is told so on its command line — with the config it serves,
+// when that is not the default one.
 func TestDaemonLogPathAndDetachArgs(t *testing.T) {
 	t.Parallel()
-	base := filepath.Join(xdg.StateHome, "kith")
-	if got, want := DaemonLogPath(""), filepath.Join(base, "kithd.log"); got != want {
+	storage := domain.Storage{StateDir: "/state", Instance: "x"}
+	if got, want := DaemonLogPath(storage, ""), "/state/kithd.log"; got != want {
 		t.Errorf("DaemonLogPath(\"\") = %q, want %q", got, want)
 	}
-	if got, want := DaemonLogPath("work"), filepath.Join(base, "kithd-work.log"); got != want {
+	if got, want := DaemonLogPath(storage, "work"), "/state/kithd-work.log"; got != want {
 		t.Errorf("DaemonLogPath(work) = %q, want %q", got, want)
 	}
-	if got, want := detachArgs(""), []string{LogFlag, DaemonLogPath("")}; !slices.Equal(got, want) {
-		t.Errorf("detachArgs(\"\") = %q, want %q", got, want)
+	if got, want := detachArgs(storage, Launch{}), []string{LogFlag, DaemonLogPath(storage, "")}; !slices.Equal(got, want) {
+		t.Errorf("detachArgs(default) = %q, want %q", got, want)
 	}
-	if got, want := detachArgs("work"), []string{LogFlag, DaemonLogPath("work"), "--profile", "work"}; !slices.Equal(got, want) {
+	if got, want := detachArgs(storage, Launch{Profile: "work"}), []string{LogFlag, DaemonLogPath(storage, "work"), "--profile", "work"}; !slices.Equal(got, want) {
 		t.Errorf("detachArgs(work) = %q, want %q", got, want)
+	}
+	own := Launch{ConfigPath: "/test/config.toml", OwnConfig: true}
+	if got, want := detachArgs(storage, own), []string{LogFlag, DaemonLogPath(storage, ""), "--config", "/test/config.toml"}; !slices.Equal(got, want) {
+		t.Errorf("detachArgs(own config) = %q, want %q", got, want)
 	}
 }

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/adrg/xdg"
 )
 
 // socketDirMode keeps the socket's parent directory owner-only; it closes the
@@ -24,15 +23,14 @@ const socketDirMode = 0o700
 // socketBaseURL is what Connect requests are addressed to; the host is ignored.
 const socketBaseURL = "http://kithd"
 
-// SocketPath returns the path of the daemon's unix socket for user (an MXID), named
-// by a hash to keep the MXID out of directory listings. It is always under the user's
-// runtime directory: never the shared temp directory xdg.RuntimeFile falls back to,
-// where another local user could create the directory first.
-func SocketPath(user string) (string, error) {
-	if xdg.RuntimeDir == "" {
-		return "", errors.New("daemon: no user runtime directory; set XDG_RUNTIME_DIR to an owner-only directory")
+// SocketPath returns the path of the instance's daemon socket. It is always under a
+// runtime directory the user owns ([storage] runtime_dir, else $XDG_RUNTIME_DIR/kith):
+// never a shared temp directory, where another local user could create it first.
+func SocketPath(storage domain.Storage) (string, error) {
+	if storage.RuntimeDir == "" {
+		return "", errors.New("daemon: no user runtime directory; set XDG_RUNTIME_DIR, or [storage] runtime_dir, to an owner-only directory")
 	}
-	return filepath.Join(xdg.RuntimeDir, "kith", domain.AccountKey(user)+".sock"), nil
+	return storage.SocketPath(), nil
 }
 
 // makeSocketDir creates the socket's directory owner-only, or checks an existing one.

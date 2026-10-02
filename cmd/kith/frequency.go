@@ -5,22 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
-
-	"github.com/adrg/xdg"
 
 	"github.com/EugeneShtoka/kith/internal/spell"
 )
 
 // frequencyDir holds installed frequency lists, outside the hunspell directory.
-func frequencyDir() string {
-	return spell.FreqDir(filepath.Join(xdg.DataHome, "kith"))
-}
 
 // addFrequencies fetches one list and reports what it did.
-func addFrequencies(tag string) error {
-	dir := frequencyDir()
+func addFrequencies(data, tag string) error {
+	dir := spell.FreqDir(data)
 	if tag == "list" || tag == "?" {
 		listFrequencies(dir)
 		return nil

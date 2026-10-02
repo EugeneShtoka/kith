@@ -4,10 +4,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/daemon"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // The socket is per-account and named by hash: two accounts on one machine get two daemons,
@@ -16,35 +16,19 @@ import (
 func TestSocketPath(t *testing.T) {
 	t.Parallel()
 
-	const user = "@ada:example.org"
-	path, err := daemon.SocketPath(user)
-	if err != nil {
-		t.Fatalf("SocketPath(%q) = %v", user, err)
+	storage := domain.Storage{Instance: "a1b2c3", RuntimeDir: "/run/user/1000/kith"}
+	path, err := daemon.SocketPath(storage)
+	if err != nil || path != "/run/user/1000/kith/a1b2c3.sock" {
+		t.Errorf("SocketPath() = (%q, %v), want the instance's socket in the runtime directory", path, err)
 	}
-	if !filepath.IsAbs(path) {
-		t.Errorf("SocketPath() = %q, want an absolute path", path)
+	other := storage
+	other.Instance = "d4e5f6"
+	if p, _ := daemon.SocketPath(other); p == path {
+		t.Errorf("two instances share the socket %q", path)
 	}
-	if filepath.Ext(path) != ".sock" {
-		t.Errorf("SocketPath() = %q, want a .sock name", path)
-	}
-	if strings.Contains(path, "ada") || strings.Contains(path, "example.org") {
-		t.Errorf("SocketPath() = %q, want the MXID hashed out of the name", path)
-	}
-
-	again, err := daemon.SocketPath(user)
-	if err != nil {
-		t.Fatalf("SocketPath(%q) second call = %v", user, err)
-	}
-	if again != path {
-		t.Errorf("SocketPath() = %q then %q, want a stable path", path, again)
-	}
-
-	other, err := daemon.SocketPath("@grace:example.org")
-	if err != nil {
-		t.Fatalf("SocketPath() for a second user = %v", err)
-	}
-	if other == path {
-		t.Errorf("SocketPath() = %q for both users, want one socket per account", path)
+	// No runtime directory: refused, never a shared temp directory.
+	if _, err := daemon.SocketPath(domain.Storage{Instance: "a1b2c3"}); err == nil {
+		t.Error("SocketPath() with no runtime directory succeeded")
 	}
 }
 

@@ -22,12 +22,12 @@ const (
 
 // detach starts kithd.exe with no console in its own process group — the Windows
 // shape of `setsid kithd`. context.Background() as in detach_unix.go.
-func detach(profile string) error {
+func detach(daemonArgs []string) error {
 	path, err := daemonPath()
 	if err != nil {
 		return err
 	}
-	args := detachArgs(profile)
+	args := daemonArgs
 	start := func(flags uint32) error {
 		cmd := exec.CommandContext(context.Background(), path, args...) // #nosec G204 -- path is kithd.exe beside us or on PATH; the profile is a config-file name
 		cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: flags, HideWindow: true}
