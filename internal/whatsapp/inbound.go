@@ -14,7 +14,8 @@ import (
 // arrived is one message as kith keeps it, with what its room needs.
 type arrived struct {
 	msg      domain.Message
-	chat     types.JID // the other person, for a direct chat; the group otherwise
+	source   *mediaSource // how to load its attachment; nil when it has none
+	chat     types.JID    // the other person, for a direct chat; the group otherwise
 	group    bool
 	fromMe   bool
 	pushName string
@@ -38,7 +39,9 @@ func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeo
 	if msg.SenderName == "" && !e.Info.IsFromMe {
 		msg.SenderName = e.Info.PushName
 	}
-	return arrived{msg: msg, chat: chat, group: e.Info.IsGroup, fromMe: e.Info.IsFromMe, pushName: e.Info.PushName}, true
+	media, source := attachment(e.Message)
+	msg.Media = media
+	return arrived{msg: msg, source: source, chat: chat, group: e.Info.IsGroup, fromMe: e.Info.IsFromMe, pushName: e.Info.PushName}, true
 }
 
 // onMessage caches a message an account received, or sent from another of its
@@ -56,6 +59,7 @@ func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsm
 		a.record(ctx, account, in.msg, func() {
 			newGroup = a.ensureRoom(ctx, account, client, in, "")
 		})
+		a.keepSource(ctx, in.msg, in.source)
 		if newGroup {
 			a.refreshLater(account, client) // for its name and members
 		}

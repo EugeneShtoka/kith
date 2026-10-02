@@ -554,11 +554,3 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 	}
 	return domain.Message{}, fmt.Errorf("whatsapp: %s is not in the cache, and WhatsApp keeps no copy to ask for: %w", eventID, errNotOnWhatsApp)
 }
-
-func (a *Adapter) SendFile(context.Context, domain.RoomID, string, string) error {
-	return errNotYet("send files")
-}
-
-func (a *Adapter) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error) {
-	return nil, errNotYet("load media")
-}

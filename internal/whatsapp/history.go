@@ -61,6 +61,9 @@ func (a *Adapter) recordHistory(ctx context.Context, account Account, client *wh
 		a.log.Warn("cache history failed", "account", account.Name, "room", room, "count", len(batch), "err", err)
 		return
 	}
+	for i := range msgs {
+		a.keepSource(ctx, msgs[i].msg, msgs[i].source)
+	}
 	a.placeRead(ctx, room, readFromHistory(batch, int(conv.GetUnreadCount())))
 	if a.onChanged != nil {
 		a.onChanged(room)

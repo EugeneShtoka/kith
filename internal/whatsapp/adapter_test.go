@@ -83,9 +83,7 @@ func TestWhatComesLaterIsRefused(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	a, _, _ := offline(t)
-	for name, err := range map[string]error{
-		"SendFile": a.SendFile(ctx, waRoom, "/f", ""),
-	} {
+	for name, err := range map[string]error{} {
 		if !errors.Is(err, api.ErrNotOnNetwork) {
 			t.Errorf("%s = %v, want ErrNotOnNetwork", name, err)
 		}

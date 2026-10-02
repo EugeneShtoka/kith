@@ -127,7 +127,6 @@ func TestTheQuietAnswers(t *testing.T) {
 	}
 	for name, err := range map[string]error{
 		"MarkRoomUnread": a.MarkRoomUnread(ctx, waRoom, true),
-		"LoadImage":      second(a.LoadImage(ctx, waRoom, "e")),
 	} {
 		if !errors.Is(err, api.ErrNotOnNetwork) {
 			t.Errorf("%s = %v, want ErrNotOnNetwork", name, err)
