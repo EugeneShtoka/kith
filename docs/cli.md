@@ -126,9 +126,15 @@ for the model endpoint, and [mcp.md](mcp.md) for the assistant ledger.
 | `2` | A flag kith doesn't know, or a flag missing its value. |
 
 When the daemon isn't running, `kith` starts it with
-`systemctl --user start kithd.service` (or `kithd@<profile>.service`). If that
-fails, it falls back to `setsid kithd`, then waits up to 60 seconds for the daemon's
-first sync.
+`systemctl --user start kithd.service` (or `kithd@<profile>.service`). For a config
+other than the default one, it first writes that config's own unit,
+`~/.config/systemd/user/kithd-<instance>.service`: `kithd --config path`, under the
+same sandbox as `kithd.service`, allowed to write only the directories its
+`[storage]` names. kith rewrites the unit when those change; `systemctl --user enable
+kithd-<instance>` starts it at login. If systemd can't start the daemon, or the
+config's files are somewhere a unit can't name (a path with whitespace, quotes, a
+backslash or `$`, or under `/tmp`, which the sandbox hides), kith falls back to
+`setsid kithd`, then waits up to 60 seconds for the daemon's first sync.
 
 ## kithd
 
@@ -143,7 +149,7 @@ itself.
 
 | Flag | Meaning |
 | --- | --- |
-| `--config path` | Config file to read. The daemon re-reads this same path when a client asks it to reload. A config other than the default one gets its own daemon: its files are wherever its `[storage]` says, named by its instance, and kith starts that daemon itself (`kithd --config path`) rather than through the systemd unit, which knows only the default config. |
+| `--config path` | Config file to read. The daemon re-reads this same path when a client asks it to reload. A config other than the default one gets its own daemon: its files are wherever its `[storage]` says, named by its instance, and kith starts that daemon through a systemd unit it writes for that config (`kithd-<instance>.service`, see above). |
 | `--profile name` | Which `[[profile]]` account to serve. The default is the first one. |
 | `--log-level level` | How much to log: `debug`, `info`, `warn` or `error`. Overrides `KITH_LOG_LEVEL` and `[log] level`. |
 | `-v` | Short for `--log-level debug`. |
@@ -247,7 +253,7 @@ targets (`test`, `lint`, `check`, …) are covered in
 | `make build` | Build `./kith`, `./kithd` and `./kith-mcp` in the repository root. |
 | `make install` | Build, then install the binaries to `$(BINDIR)`, both systemd user units (`kithd.service` and the per-profile `kithd@.service`) to `~/.config/systemd/user/`, and the `matrix:` handler to `~/.local/share/applications/`. It starts nothing. |
 | `make deploy` | `install`, then import the desktop environment variables, enable and restart the daemon's unit, and wait for its socket. With `PROFILE=<name>`, the unit is `kithd@<name>.service`. |
-| `make undeploy` | Stop and disable `kithd.service` and every `kithd@<profile>` instance, remove both units, the `kith`, `kithd` and `kith-mcp` binaries, the desktop entry, and the `matrix:` handler association if it still names kith. Config, cache, crypto store and keyring are left alone. `PROFILE` is ignored: every profile's daemon goes. |
+| `make undeploy` | Stop and disable `kithd.service` and every `kithd@<profile>` instance, remove both units and every `kithd-<instance>.service` kith wrote for a config of its own, the `kith`, `kithd` and `kith-mcp` binaries, the desktop entry, and the `matrix:` handler association if it still names kith. Config, cache, crypto store and keyring are left alone. `PROFILE` is ignored: every profile's daemon goes. |
 | `make daemon-status` | `systemctl --user status` for the unit `PROFILE` selects. |
 | `make daemon-logs` | Print that unit's last 100 journal lines. |
 | `make daemon-restart` | Restart that unit, for example after an upgrade. |

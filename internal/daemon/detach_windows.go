@@ -70,6 +70,6 @@ func daemonPath() (string, error) {
 	return path, nil
 }
 
-func autostartHint() string {
+func autostartHint(string) string {
 	return "(Windows has no login autostart for kithd yet; kith starts it on demand.)"
 }
