@@ -152,54 +152,6 @@ func TestTypingIn(t *testing.T) {
 	}
 }
 
-func TestRankMembers(t *testing.T) {
-	t.Parallel()
-
-	all := []domain.Member{
-		{UserID: "@alice:x"}, {UserID: "@bob:x"}, {UserID: "@carol:x"}, {UserID: "@dave:x"},
-	}
-	byID := map[string]domain.Member{}
-	for _, m := range all {
-		byID[m.UserID] = m
-	}
-	got := rankMembers(all, byID,
-		[]string{"@carol:x", "@ghost:x"}, // a past speaker who has left the room
-		[]string{"@bob:x", "@carol:x"})   // already placed on the rung above
-
-	want := []string{"@carol:x", "@bob:x", "@alice:x", "@dave:x"}
-	if len(got) != len(want) {
-		t.Fatalf("got %d members, want %d: %+v", len(got), len(want), got)
-	}
-	for i := range want {
-		if got[i].UserID != want[i] {
-			t.Errorf("position %d = %s, want %s", i, got[i].UserID, want[i])
-		}
-	}
-}
-
-func TestRankMembersWithNoHistory(t *testing.T) {
-	t.Parallel()
-
-	all := []domain.Member{{UserID: "@alice:x"}, {UserID: "@bob:x"}}
-	got := rankMembers(all, map[string]domain.Member{}, nil)
-	if len(got) != 2 || got[0].UserID != "@alice:x" {
-		t.Errorf("got %+v, want everyone in the order they arrived", got)
-	}
-}
-
-func TestCapMembers(t *testing.T) {
-	t.Parallel()
-
-	members := []domain.Member{{UserID: "@a:x"}, {UserID: "@b:x"}, {UserID: "@c:x"}}
-	for _, tc := range []struct {
-		limit, want int
-	}{{0, 3}, {-1, 3}, {2, 2}, {3, 3}, {10, 3}} {
-		if got := capMembers(members, tc.limit); len(got) != tc.want {
-			t.Errorf("capMembers(limit=%d) kept %d, want %d", tc.limit, len(got), tc.want)
-		}
-	}
-}
-
 // A room's totals include what is unread inside its threads.
 func TestWithThreadsAddsTheirShare(t *testing.T) {
 	t.Parallel()

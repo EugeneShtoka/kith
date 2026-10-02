@@ -207,6 +207,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/whatsapp"
             - "go.mau.fi/libsignal"
             - "go.mau.fi/whatsmeow"
+            - "google.golang.org/protobuf"
             - "modernc.org/sqlite"
 
         session-is-a-leaf:

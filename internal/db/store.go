@@ -146,6 +146,43 @@ func (c *Cache) SaveRooms(ctx context.Context, owner domain.RoomOwner, rooms []d
 	})
 }
 
+// AddRooms upserts some of owner's joined rooms and sweeps nothing: a room a network
+// learns of one at a time (a chat's first message), not from a full listing.
+func (c *Cache) AddRooms(ctx context.Context, owner domain.RoomOwner, rooms []domain.Room) error {
+	for i := range rooms {
+		if !owner.Owns(rooms[i].ID) {
+			return fmt.Errorf("db: %s is not among %q's rooms", rooms[i].ID, owner)
+		}
+	}
+	return c.inTx(ctx, func(tx *sql.Tx) error { return upsertRooms(ctx, tx, rooms, membershipJoin) })
+}
+
+// JoinRooms makes owner's rooms joined — new, or placeholders a message registered —
+// without touching what is known of one already joined (its name above all). It
+// reports how many were not joined before.
+func (c *Cache) JoinRooms(ctx context.Context, owner domain.RoomOwner, ids []domain.RoomID) (int, error) {
+	joined := 0
+	err := c.inTx(ctx, func(tx *sql.Tx) error {
+		for _, id := range ids {
+			if !owner.Owns(id) {
+				return fmt.Errorf("db: %s is not among %q's rooms", id, owner)
+			}
+			res, err := tx.ExecContext(ctx, `
+				INSERT INTO rooms(id, membership) VALUES(?, ?)
+				ON CONFLICT(id) DO UPDATE SET membership = excluded.membership WHERE rooms.membership = ''`,
+				string(id), membershipJoin)
+			if err != nil {
+				return fmt.Errorf("db: join room %s: %w", id, err)
+			}
+			if n, err := res.RowsAffected(); err == nil {
+				joined += int(n)
+			}
+		}
+		return nil
+	})
+	return joined, err
+}
+
 // sweepOwnedRooms deletes owner's joined rooms the snapshot no longer carries. An
 // owner is an ID prefix ("!" for Matrix, "whatsapp:<account>/" for an account), so
 // the sweep matches on it and never reaches a room of another's.

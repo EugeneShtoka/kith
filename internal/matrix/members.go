@@ -9,9 +9,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// mentionRankLimit bounds each ranking rung (recent speakers, mention history).
-const mentionRankLimit = 32
-
 // Members returns a room's cached members (live without a cache).
 func (b *InProc) Members(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
 	if b.cache == nil {
@@ -62,53 +59,17 @@ func (b *InProc) MentionCandidates(ctx context.Context, roomID domain.RoomID, li
 		return nil, err
 	}
 	if len(members) == 0 || b.cache == nil {
-		return capMembers(members, limit), nil
+		return domain.RankMembers(members, nil, nil, limit), nil
 	}
-	byID := make(map[string]domain.Member, len(members))
-	for _, member := range members {
-		byID[member.UserID] = member
-	}
-
-	speakers, err := b.cache.RecentSpeakers(ctx, roomID, mentionRankLimit)
+	speakers, err := b.cache.RecentSpeakers(ctx, roomID, domain.MentionRankRung)
 	if err != nil {
 		return nil, fmt.Errorf("matrix: rank recent speakers: %w", err)
 	}
-	mentioned, err := b.cache.FrequentMentions(ctx, roomID, mentionRankLimit)
+	mentioned, err := b.cache.FrequentMentions(ctx, roomID, domain.MentionRankRung)
 	if err != nil {
 		return nil, fmt.Errorf("matrix: rank mention history: %w", err)
 	}
-	return capMembers(rankMembers(members, byID, speakers, mentioned), limit), nil
-}
-
-// rankMembers lays out the rungs in order, skipping duplicates and non-members.
-func rankMembers(all []domain.Member, byID map[string]domain.Member, rungs ...[]string) []domain.Member {
-	placed := make(map[string]bool, len(all))
-	out := make([]domain.Member, 0, len(all))
-	for _, rung := range rungs {
-		for _, userID := range rung {
-			member, present := byID[userID]
-			if !present || placed[userID] {
-				continue
-			}
-			placed[userID] = true
-			out = append(out, member)
-		}
-	}
-	// Everyone else, alphabetically — `all` arrives sorted.
-	for _, member := range all {
-		if !placed[member.UserID] {
-			out = append(out, member)
-		}
-	}
-	return out
-}
-
-// capMembers trims a ranked list to limit (0 or less = no limit).
-func capMembers(members []domain.Member, limit int) []domain.Member {
-	if limit > 0 && len(members) > limit {
-		return members[:limit]
-	}
-	return members
+	return domain.RankMembers(members, speakers, mentioned, limit), nil
 }
 
 // directCandidatePool is how many talkers are ranked before excluding existing DMs

@@ -734,3 +734,21 @@ func TestAnUnknownRoomIsOnlyAskedAboutOnce(t *testing.T) {
 			"room list; the miss should be remembered for scopeRetry", extra)
 	}
 }
+
+// A message from any of your own IDs — an identity a bridge posts as, a WhatsApp
+// number — is yours: it never notifies you.
+func TestYourOtherIDsNeverNotifyYou(t *testing.T) {
+	t.Parallel()
+	n, _, _ := notifier(t, notifsOn("all"))
+	const whatsapp = "whatsapp:359000000001@s.whatsapp.net"
+	if _, ok := n.Deliver(context.Background(), msg(chatRm, whatsapp, "from my phone")); !ok {
+		t.Fatal("before UseSelves the number is a stranger's, and should notify")
+	}
+	n.UseSelves(func() []string { return []string{me, whatsapp} })
+	if _, ok := n.Deliver(context.Background(), msg(chatRm, whatsapp, "from my phone again")); ok {
+		t.Error("your own WhatsApp number notified you")
+	}
+	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "hi")); !ok {
+		t.Error("someone else stopped notifying")
+	}
+}

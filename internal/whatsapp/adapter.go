@@ -43,6 +43,8 @@ type Adapter struct {
 
 	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
 	onRoomsChanged func()
+	// onCached hears each message cached (see OnCached).
+	onCached func(domain.Message)
 
 	mu sync.Mutex
 	// clients are the linked accounts' connections, by digits.
@@ -53,11 +55,21 @@ type Adapter struct {
 	// refreshing serializes room refreshes, so an older listing is never written
 	// over a newer one.
 	refreshing sync.Mutex
+	// listing orders a listing's sweep against a message's room: a room a message
+	// arrives in is never swept by a listing fetched before it (see heard).
+	listing sync.Mutex
+	// heard is when each room last got a message, so a listing fetched earlier keeps it.
+	heard map[domain.RoomID]time.Time
 	// run is Start's context: an account paired later runs until it ends too.
 	run     context.Context //nolint:containedctx // events arrive with no context: their work lives as long as Start's
 	started bool
 	stopped bool
+	// sent maps a send's TxnID to the WhatsApp message ID it went out as, so a retry
+	// goes out under the same ID and WhatsApp keeps one (see Send).
+	sent map[string]types.MessageID
 
+	streamMu  sync.RWMutex
+	closed    bool
 	messages  chan domain.Message
 	activity  chan domain.Activity
 	unread    chan domain.Unread
@@ -73,6 +85,8 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		cache: cache, store: store, accounts: slices.Clone(accounts), log: log.With("network", "whatsapp"),
 		clients:   map[string]*whatsmeow.Client{},
 		pairing:   map[string]bool{},
+		sent:      map[string]types.MessageID{},
+		heard:     map[domain.RoomID]time.Time{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
@@ -83,6 +97,17 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 // OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
 // before Start.
 func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
+
+// OnCached sets who hears each message the adapter caches (word completion). Set
+// before Start.
+func (a *Adapter) OnCached(cached func(domain.Message)) { a.onCached = cached }
+
+// accountsNow is the configured accounts (UseAccounts replaces them).
+func (a *Adapter) accountsNow() []Account {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.accounts)
+}
 
 var errStartedTwice = errors.New("whatsapp: Start runs once")
 
@@ -95,19 +120,27 @@ func (a *Adapter) Start(ctx context.Context) error {
 	}
 	a.started, a.run = true, ctx
 	a.mu.Unlock()
-	for _, account := range a.accounts {
-		device, err := a.store.device(ctx, account.Digits)
-		if err != nil {
+	for _, account := range a.accountsNow() {
+		if err := a.connectLinked(ctx, account); err != nil {
 			return err
 		}
-		if device == nil {
-			a.log.Info("not linked yet; run `kith login whatsapp " + account.Name + "`")
-			continue
-		}
-		a.connect(account, whatsmeow.NewClient(device, newLogger(a.log, account.Name)))
 	}
 	<-ctx.Done()
 	return ctx.Err() //nolint:wrapcheck // our own shutdown, as the Matrix adapter's
+}
+
+// connectLinked connects an account if it is linked, and says how to link it if not.
+func (a *Adapter) connectLinked(ctx context.Context, account Account) error {
+	device, err := a.store.device(ctx, account.Digits)
+	if err != nil {
+		return err
+	}
+	if device == nil {
+		a.log.Info("not linked yet; run `kith login whatsapp " + account.Name + "`")
+		return nil
+	}
+	a.connect(account, whatsmeow.NewClient(device, newLogger(a.log, account.Name)))
+	return nil
 }
 
 // connect runs one linked account: its events are handled from now on, and it
@@ -135,6 +168,8 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 	switch e := evt.(type) {
 	case *events.Connected, *events.JoinedGroup, *events.GroupInfo:
 		a.refreshLater(account, client)
+	case *events.Message:
+		a.onMessage(a.lifetime(), account, client, e)
 	case *events.LoggedOut:
 		a.log.Warn("the phone unlinked kith; run `kith login whatsapp "+account.Name+"` again",
 			"account", account.Name, "reason", e.Reason.String())
@@ -169,26 +204,67 @@ func (a *Adapter) lifetime() context.Context {
 func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *whatsmeow.Client) ([]domain.Room, error) {
 	a.refreshing.Lock()
 	defer a.refreshing.Unlock()
+	fetched := time.Now()
 	groups, err := client.GetJoinedGroups(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: %s's groups: %w", account.Name, err)
 	}
 	rooms, members := groupRooms(ctx, account.Digits, groups, a.names(client))
-	if a.cache == nil {
-		return rooms, nil
+	if err := a.saveListing(ctx, account, rooms, members, fetched); err != nil {
+		return nil, err
 	}
-	if err := a.cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits), rooms); err != nil {
-		return nil, fmt.Errorf("whatsapp: cache %s's rooms: %w", account.Name, err)
+	return rooms, nil
+}
+
+// saveListing writes an account's groups, with their members, over its cached rooms.
+// What the sweep must not take is kept in the snapshot: the account's direct chats
+// (the listing names groups only), and any room a message arrived in since the
+// listing was fetched (a group just joined, a chat just begun) — either would lose
+// its history otherwise.
+func (a *Adapter) saveListing(ctx context.Context, account Account, rooms []domain.Room, members map[domain.RoomID][]domain.Member, fetched time.Time) error {
+	if a.cache == nil {
+		return nil
+	}
+	a.listing.Lock()
+	defer a.listing.Unlock()
+	owner := domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits)
+	kept, err := a.keptRooms(ctx, owner, rooms, fetched)
+	if err != nil {
+		return err
+	}
+	if err := a.cache.SaveRooms(ctx, owner, append(slices.Clone(rooms), kept...)); err != nil {
+		return fmt.Errorf("whatsapp: cache %s's rooms: %w", account.Name, err)
 	}
 	for id, list := range members {
 		if err := a.cache.SaveMembers(ctx, id, list); err != nil {
-			return nil, fmt.Errorf("whatsapp: cache members of %s: %w", id, err)
+			return fmt.Errorf("whatsapp: cache members of %s: %w", id, err)
 		}
 	}
 	if a.onRoomsChanged != nil {
 		a.onRoomsChanged()
 	}
-	return rooms, nil
+	return nil
+}
+
+// keptRooms is an owner's cached rooms a listing must not sweep: its direct chats, and
+// rooms heard from since the listing was fetched. Caller holds listing.
+func (a *Adapter) keptRooms(ctx context.Context, owner domain.RoomOwner, listed []domain.Room, fetched time.Time) ([]domain.Room, error) {
+	rooms, err := a.cache.Rooms(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: read cached rooms: %w", err)
+	}
+	return slices.DeleteFunc(rooms, func(r domain.Room) bool {
+		if !owner.Owns(r.ID) || slices.ContainsFunc(listed, func(l domain.Room) bool { return l.ID == r.ID }) {
+			return true
+		}
+		return !isDirect(r.ID) && a.heard[r.ID].Before(fetched)
+	}), nil
+}
+
+// isDirect reports whether a WhatsApp room is a chat with one person, by its JID.
+func isDirect(roomID domain.RoomID) bool {
+	jid, err := types.ParseJID(domain.ParseID(string(roomID)).Native)
+	return err == nil && (jid.Server == types.DefaultUserServer || jid.Server == types.HiddenUserServer)
 }
 
 // names looks people up in an account's contacts.
@@ -240,10 +316,28 @@ func (a *Adapter) Stop() {
 	for _, client := range clients {
 		client.Disconnect()
 	}
+	// Under the lock emit sends under, so a late event never sends on a closed one.
+	a.streamMu.Lock()
+	defer a.streamMu.Unlock()
+	a.closed = true
 	close(a.messages)
 	close(a.activity)
 	close(a.unread)
 	close(a.reactions)
+}
+
+// emit delivers v unless the streams are closed. Lossy on a full buffer, as Matrix's:
+// what it carries is in the cache too.
+func emit[T any](a *Adapter, ch chan T, v T) {
+	a.streamMu.RLock()
+	defer a.streamMu.RUnlock()
+	if a.closed {
+		return
+	}
+	select {
+	case ch <- v:
+	default:
+	}
 }
 
 func (a *Adapter) Messages() <-chan domain.Message         { return a.messages }
@@ -258,14 +352,26 @@ func (a *Adapter) Account() string { return "" }
 func (a *Adapter) Me() []string {
 	var me []string
 	for _, c := range a.connected() {
-		if id := c.client.Store.ID; id != nil {
-			me = append(me, domain.NativePerson(domain.ProtocolWhatsApp, id.ToNonAD().String()))
-		}
-		if lid := c.client.Store.GetLID(); !lid.IsEmpty() {
-			me = append(me, domain.NativePerson(domain.ProtocolWhatsApp, lid.ToNonAD().String()))
+		own := selfOf(c.client)
+		for _, jid := range []types.JID{own.pn, own.lid} {
+			if !jid.IsEmpty() {
+				me = append(me, domain.NativePerson(domain.ProtocolWhatsApp, jid.String()))
+			}
 		}
 	}
 	return me
+}
+
+// selfOf is a linked client's own addresses.
+func selfOf(client *whatsmeow.Client) self {
+	var own self
+	if id := client.Store.ID; id != nil {
+		own.pn = id.ToNonAD()
+	}
+	if lid := client.Store.GetLID(); !lid.IsEmpty() {
+		own.lid = lid.ToNonAD()
+	}
+	return own
 }
 
 // RewindSync has nothing to rewind: WhatsApp sends history once, when linking.
@@ -367,9 +473,22 @@ func (a *Adapter) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]d
 	return a.Members(ctx, roomID, 0)
 }
 
-// MentionCandidates is a room's members, alphabetically, until mentions come.
+// MentionCandidates orders a room's members for the mention dropdown, as Matrix's
+// are: recent speakers, the most mentioned, then everyone alphabetically.
 func (a *Adapter) MentionCandidates(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
-	return a.Members(ctx, roomID, limit)
+	members, err := a.Members(ctx, roomID, 0)
+	if err != nil || len(members) == 0 || a.cache == nil {
+		return domain.RankMembers(members, nil, nil, limit), err
+	}
+	speakers, err := a.cache.RecentSpeakers(ctx, roomID, domain.MentionRankRung)
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: rank recent speakers: %w", err)
+	}
+	mentioned, err := a.cache.FrequentMentions(ctx, roomID, domain.MentionRankRung)
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: rank mention history: %w", err)
+	}
+	return domain.RankMembers(members, speakers, mentioned, limit), nil
 }
 
 // DirectCandidates is nobody yet: DMs come with messages.
@@ -414,10 +533,6 @@ func (a *Adapter) FetchEvent(context.Context, domain.RoomID, domain.EventID) (do
 
 func (a *Adapter) Redact(context.Context, domain.RoomID, domain.EventID, string) error {
 	return errNotYet("delete messages")
-}
-
-func (a *Adapter) Send(context.Context, domain.RoomID, domain.Draft) error {
-	return errNotYet("send messages")
 }
 
 func (a *Adapter) SendTyping(context.Context, domain.RoomID, bool, time.Duration) error { return nil }
