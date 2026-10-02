@@ -91,8 +91,8 @@ config.
 ### "no saved session for @alice:example.org; run `kith login` first"
 
 The keyring holds no session for this account, so run `kith login` (with
-`--profile <name>` if you use profiles). The daemon reports the same condition in its
-log, and systemd keeps restarting it until a session exists.
+`--profile <name>` if you use profiles). The daemon keeps running meanwhile, with
+Matrix logged out, and starts it as soon as the login is done.
 
 ### "the OS secret store could not be read (is the keyring unlocked?)"
 
@@ -110,7 +110,8 @@ again.** Doing so would replace a working session with a new device. Instead:
 ### "saved session for … is unusable (run `kith login` again)"
 
 The homeserver rejected the stored token. Usually the device was signed out from
-another client, or the token was revoked. Run `kith login` again. The new device
+another client, or the token was revoked. Run `kith login` again; the daemon, which
+kept running with Matrix logged out, starts on the new session. The new device
 needs its room keys; see [Undecryptable messages](#undecryptable-messages).
 
 ### The daemon cannot start, so kith does not run
@@ -198,7 +199,8 @@ a bad value stops them with a message that names the key. Common ones:
 
 | Message | Fix |
 | --- | --- |
-| `config: homeserver and user are required` | Fill in both at the top of the file, or define `[[profile]]` blocks. |
+| `config: no network to use` | Fill in `homeserver` and `user` at the top of the file (or define `[[profile]]` blocks) for Matrix, or set `enabled = true` under `[whatsapp]`, or both. |
+| `config: Matrix needs both homeserver and user` | Only one of the two is set. Set both, or empty both to use only WhatsApp. |
 | `config: the account is set both at the top level and in [[profile]] blocks` | Keep the account in one place. |
 | `config: no profile called "x" (have personal, work)` | Check the `--profile` spelling. |
 | `config: profile name "…" may only contain letters, digits, dot, dash and underscore` | Rename the profile. The name becomes a systemd instance name. |

@@ -228,11 +228,15 @@ func TestARewindReachesEveryNetwork(t *testing.T) {
 	}
 }
 
-// New refuses what would leave a room with no adapter or two.
-func TestNewRefusesAMissingOrDoubledMatrix(t *testing.T) {
+// New refuses what would leave a room with no adapter or two; Matrix itself is
+// optional.
+func TestNewRefusesNoNetworkOrADoubledMatrix(t *testing.T) {
 	t.Parallel()
 	if _, err := New(nil, nil); err == nil {
-		t.Error("New without Matrix succeeded")
+		t.Error("New with no network succeeded")
+	}
+	if _, err := New(nil, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: newFake("whatsapp")}); err != nil {
+		t.Errorf("New with WhatsApp alone = %v", err)
 	}
 	if _, err := New(newFakeMatrix(), map[domain.Protocol]Adapter{domain.ProtocolMatrix: newFake("m2")}); err == nil {
 		t.Error("New with Matrix twice succeeded")
@@ -361,5 +365,173 @@ func TestEncryptionIsAskedOfEachRoomsNetwork(t *testing.T) {
 				t.Fatalf("%s: WhatsApp was asked about %s", where, room)
 			}
 		}
+	}
+}
+
+// withoutMatrix is each way a daemon can be without a usable Matrix: not configured
+// beside WhatsApp, configured but not logged in beside WhatsApp, or configured, not
+// logged in and alone. m is nil when Matrix is not configured; wa when absent.
+func withoutMatrix(t *testing.T) map[string]func() (*Router, *fakeMatrix, *fake) {
+	t.Helper()
+	build := func(configured, whatsapp bool) func() (*Router, *fakeMatrix, *fake) {
+		return func() (*Router, *fakeMatrix, *fake) {
+			var m *fakeMatrix
+			var matrix Matrix
+			if configured {
+				m = newFakeMatrix()
+				m.loggedOut.Store(true)
+				// Anything that reached it would fail, and say so.
+				m.fail = errFake
+				m.rooms = []domain.Room{{ID: matrixRoomID}}
+				matrix = m
+			}
+			others := map[domain.Protocol]Adapter{}
+			var wa *fake
+			if whatsapp {
+				wa = newFake("whatsapp")
+				wa.rooms = []domain.Room{{ID: whatsappRoomID}}
+				others[domain.ProtocolWhatsApp] = wa
+			}
+			r, err := New(matrix, others)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return r, m, wa
+		}
+	}
+	return map[string]func() (*Router, *fakeMatrix, *fake){
+		"not configured, WhatsApp": build(false, true),
+		"logged out, WhatsApp":     build(true, true),
+		"logged out, no other":     build(true, false),
+	}
+}
+
+// Without a usable Matrix nothing reaches it: its rooms are refused as off, lists are
+// the other networks' alone, its own lists are empty, its own actions are refused as
+// off, and nobody is anyone on it. WhatsApp is served as before.
+func TestWithoutMatrixNothingReachesIt(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for name, build := range withoutMatrix(t) {
+		r, m, wa := build()
+		for call, err := range perRoomCalls(ctx, r, matrixRoomID) {
+			if !errors.Is(err, api.ErrNetworkOff) {
+				t.Errorf("%s: %s on a Matrix room = %v, want ErrNetworkOff", name, call, err)
+			}
+		}
+		if wa != nil {
+			for call, err := range perRoomCalls(ctx, r, whatsappRoomID) {
+				if err != nil {
+					t.Errorf("%s: %s on a WhatsApp room = %v", name, call, err)
+				}
+			}
+		}
+
+		rooms, err := r.Rooms(ctx)
+		if err != nil || slices.ContainsFunc(rooms, func(room domain.Room) bool { return room.ID == matrixRoomID }) {
+			t.Errorf("%s: Rooms = (%v, %v), want WhatsApp's alone", name, rooms, err)
+		}
+		if _, err := r.RefreshRooms(ctx); err != nil {
+			t.Errorf("%s: RefreshRooms = %v", name, err)
+		}
+		if _, err := r.CachedUnread(ctx); err != nil {
+			t.Errorf("%s: CachedUnread = %v", name, err)
+		}
+		if _, err := r.DirectCandidates(ctx, 3); err != nil {
+			t.Errorf("%s: DirectCandidates = %v", name, err)
+		}
+		if got, err := r.MarkRoomsRead(ctx, []domain.RoomID{matrixRoomID}, false); err != nil || got.Failed != 1 {
+			t.Errorf("%s: MarkRoomsRead(a Matrix room) = (%+v, %v), want it counted failed", name, got, err)
+		}
+		if got, err := r.RoomEncryption(ctx, []domain.RoomID{matrixRoomID}); err != nil || !got[matrixRoomID] {
+			t.Errorf("%s: RoomEncryption(a Matrix room) = (%v, %v), want encrypted (the safe answer)", name, got, err)
+		}
+
+		spaces, serr := r.Spaces(ctx)
+		refreshed, rerr := r.RefreshSpaces(ctx)
+		invites, ierr := r.CachedInvites(ctx)
+		if serr != nil || rerr != nil || ierr != nil || len(spaces)+len(refreshed)+len(invites) != 0 {
+			t.Errorf("%s: Matrix's lists = (%v %v %v), (%v %v %v); want empty, no error", name, spaces, refreshed, invites, serr, rerr, ierr)
+		}
+		actions := map[string]error{}
+		_, actions["JoinRoom"] = r.JoinRoom(ctx, "#a:x", nil)
+		_, actions["CreateRoom"] = r.CreateRoom(ctx, domain.NewRoom{})
+		actions["AddToSpace"] = r.AddToSpace(ctx, "!s:x", matrixRoomID)
+		actions["RemoveFromSpace"] = r.RemoveFromSpace(ctx, "!s:x", matrixRoomID)
+		actions["InviteUser"] = r.InviteUser(ctx, matrixRoomID, "@u:x")
+		actions["KickUser"] = r.KickUser(ctx, matrixRoomID, "@u:x", "")
+		actions["BanUser"] = r.BanUser(ctx, matrixRoomID, "@u:x", "")
+		actions["UnbanUser"] = r.UnbanUser(ctx, matrixRoomID, "@u:x")
+		actions["LeaveRoom"] = r.LeaveRoom(ctx, matrixRoomID)
+		_, actions["ListThreads"] = r.ListThreads(ctx, matrixRoomID)
+		_, actions["ThreadPage"] = r.ThreadPage(ctx, matrixRoomID, "$r", "", 10)
+		actions["MarkThreadRead"] = r.MarkThreadRead(ctx, matrixRoomID, "$r", "$e", false)
+		_, actions["StartVerification"] = r.StartVerification(ctx)
+		actions["AcceptVerification"] = r.AcceptVerification(ctx, "t")
+		actions["ConfirmSAS"] = r.ConfirmSAS(ctx, "t")
+		actions["CancelVerification"] = r.CancelVerification(ctx, "t")
+		_, actions["RestoreKeyBackup"] = r.RestoreKeyBackup(ctx, "s")
+		_, actions["ExportRoomKeys"] = r.ExportRoomKeys(ctx, "p")
+		_, _, actions["ImportRoomKeys"] = r.ImportRoomKeys(ctx, "p", nil)
+		_, actions["BootstrapKeyBackup"] = r.BootstrapKeyBackup(ctx, "p")
+		for call, err := range actions {
+			if !errors.Is(err, api.ErrNetworkOff) {
+				t.Errorf("%s: %s = %v, want ErrNetworkOff", name, call, err)
+			}
+		}
+		if r.ThreadParticipant(ctx, matrixRoomID, "$r") {
+			t.Errorf("%s: ThreadParticipant is true without Matrix", name)
+		}
+
+		if got := r.Account(); got != "" {
+			t.Errorf("%s: Account = %q, want none", name, got)
+		}
+		if got := r.Me(); slices.Contains(got, "@matrix:x") {
+			t.Errorf("%s: Me = %v, names the logged-out Matrix account", name, got)
+		}
+		if m != nil {
+			if seen, calls := m.seen(), m.calls(); len(seen)+len(calls) != 0 {
+				t.Errorf("%s: Matrix was reached: rooms %v, calls %v", name, seen, calls)
+			}
+		}
+		r.Stop()
+	}
+}
+
+// A Matrix that logs in later is served from then on, through the same router.
+func TestMatrixLoggingInIsServedAtOnce(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	r, m, _ := withoutMatrix(t)["logged out, WhatsApp"]()
+	m.fail = nil
+	m.loggedOut.Store(false)
+	for call, err := range perRoomCalls(ctx, r, matrixRoomID) {
+		if err != nil {
+			t.Errorf("%s on a Matrix room after login = %v", call, err)
+		}
+	}
+	if _, err := r.StartVerification(ctx); err != nil {
+		t.Errorf("StartVerification after login = %v", err)
+	}
+	if rooms, err := r.Rooms(ctx); err != nil || len(rooms) != 2 {
+		t.Errorf("Rooms after login = (%v, %v), want both networks'", rooms, err)
+	}
+	if got := r.Account(); got != m.account {
+		t.Errorf("Account after login = %q, want Matrix's", got)
+	}
+}
+
+// Without Matrix configured its streams carry nothing and end when the router stops,
+// so the daemon's pumps over them return.
+func TestWithoutMatrixItsStreamsEndWithTheRouter(t *testing.T) {
+	t.Parallel()
+	r, _, _ := withoutMatrix(t)["not configured, WhatsApp"]()
+	invites, verifications := r.Invites(), r.Verifications()
+	r.Stop()
+	if _, open := <-invites; open {
+		t.Error("Invites sent something")
+	}
+	if _, open := <-verifications; open {
+		t.Error("Verifications sent something")
 	}
 }

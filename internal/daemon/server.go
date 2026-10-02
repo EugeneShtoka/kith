@@ -43,6 +43,9 @@ type Daemon struct {
 	// WhatsApp pairs WhatsApp accounts; nil when [whatsapp] is off, and the pairing
 	// handler then refuses with ErrNetworkOff.
 	WhatsApp api.WhatsAppLink
+	// Matrix logs Matrix in; nil when Matrix is not configured, and the login
+	// handler then refuses with ErrNetworkOff.
+	Matrix api.MatrixLogin
 	// Log receives every failed call, with the procedure and the reason, so a
 	// failure a client only counted still reaches the journal. nil logs nothing.
 	Log *slog.Logger

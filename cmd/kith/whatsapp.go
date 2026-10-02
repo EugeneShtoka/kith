@@ -45,7 +45,7 @@ func runWhatsAppLogin(args []string) error {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, pairingTimeout)
 	defer cancel()
-	at, err := attach(ctx, *configPath, *profile, readyTimeout)
+	at, err := reachForLogin(ctx, *configPath, *profile)
 	if err != nil || at.backend == nil {
 		return err
 	}

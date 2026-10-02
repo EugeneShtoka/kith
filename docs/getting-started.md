@@ -292,7 +292,8 @@ kith: wrote a default config to /home/alice/.config/kith/config.toml
 Edit it — set `homeserver` and `user` — then run `kith login`.
 ```
 
-Open the file and fill in the two required fields at the top:
+Open the file and fill in the two fields at the top for Matrix (to use kith only for
+WhatsApp, leave them empty and enable `[whatsapp]` instead):
 
 ```toml
 homeserver = "https://matrix.example.org"
@@ -309,10 +310,10 @@ user       = "@alice:example.org"
 kith login
 ```
 
-`kith login` asks for your password on the terminal with echo off, performs a
-password login, and stores the resulting access token in the OS keyring. The password
-itself is never written anywhere. Login needs no daemon, and it must run
-interactively. Only password login is supported.
+`kith login` asks for your password on the terminal with echo off and hands it to the
+daemon (starting it if need be), which performs a password login, stores the
+resulting access token in the OS keyring and starts syncing. The password itself is
+never written anywhere. It must run interactively. Only password login is supported.
 
 Every successful login creates a **new Matrix device**. Log in once per machine and
 leave it. If you log in again, the new device can't read encrypted history until you

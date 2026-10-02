@@ -448,6 +448,8 @@ linters:
         daemon-main-wiring:
           files:
             - "**/cmd/kithd/**"
+            # Tests stub the keyring (go-keyring's mock), as the session package's do.
+            - "!$test"
           allow:
             - "$gostd"
             - "github.com/EugeneShtoka/kith/internal/api"

@@ -316,3 +316,19 @@ type WhatsAppLink interface {
 	// accepted it. ErrNetworkOff when WhatsApp is not enabled.
 	PairWhatsApp(ctx context.Context, account string, code func(string) error) (string, error)
 }
+
+// MatrixLogin logs Matrix in. Only the daemon logs in, because it owns the session
+// and starts Matrix on it; `kith login` asks it.
+type MatrixLogin interface {
+	// LoginMatrix logs the config's Matrix user in with password and saves the
+	// session. ErrNetworkOff when Matrix is not configured.
+	LoginMatrix(ctx context.Context, password string) (MatrixLoggedIn, error)
+}
+
+// MatrixLoggedIn is a Matrix login's outcome.
+type MatrixLoggedIn struct {
+	UserID, DeviceID string
+	// Started is true when Matrix started on the session at once; false when it was
+	// saved for the daemon's next start.
+	Started bool
+}

@@ -1,7 +1,8 @@
-// Command kithd is kith's daemon: it owns the Matrix session, the /sync loop, the
-// cache and the E2EE crypto store, and serves them to clients over a unix socket. It is
-// the sole owner of that state (an exclusive lock precedes every store), and runs with
-// no terminal open so notifications keep working. It cannot log in; run `kith login`.
+// Command kithd is kith's daemon: it owns the networks' sessions (Matrix's /sync loop
+// and E2EE crypto store, the WhatsApp linked devices) and the cache, and serves them
+// to clients over a unix socket. It is the sole owner of that state (an exclusive lock
+// precedes every store), and runs with no terminal open so notifications keep working.
+// It runs logged in to nothing too: `kith login` logs a network in through it.
 package main
 
 import (
@@ -26,7 +27,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/local"
 	"github.com/EugeneShtoka/kith/internal/logging"
-	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/modelsetup"
 	"github.com/EugeneShtoka/kith/internal/route"
 	"github.com/EugeneShtoka/kith/internal/schedule"
@@ -140,7 +140,9 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	// shutdown that is stuck.
 	context.AfterFunc(ctx, stop)
 
-	log = log.With("user", cfg.User)
+	if cfg.HasMatrix() {
+		log = log.With("user", cfg.User)
+	}
 	relevel, err := settleLevel(log, level, flagLevel, cfg.Log.Level)
 	if err != nil {
 		return err
@@ -165,15 +167,13 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		}
 	}()
 
-	// Read before any store is opened so a logged-out account creates nothing.
-	keys := session.StoreFor(storage, cfg.User)
-	saved, err := storedSession(cfg, keys)
+	saved, err := prepareInstance(cfg, storage)
 	if err != nil {
 		return err
 	}
 
 	cache := openCache(ctx, log, storage.CachePath(), cfg.User)
-	backend, err := newServed(ctx, cache, log, cfg, storage)
+	backend, err := newServed(ctx, cache, log, cfg, storage, saved)
 	if err != nil {
 		closeCache(log, cache)
 		return err
@@ -187,10 +187,6 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		}
 	}()
 	configure(log, backend, cfg, storage)
-	// What is left of connecting once the homeserver answers belongs to Matrix's start.
-	if backend.matrix.prepare, err = resumeSession(ctx, log, backend.matrix.InProc, cryptoPlace{path: storage.CryptoPath(), keys: keys}, saved); err != nil {
-		return err
-	}
 
 	warnAboutAgentScope(ctx, log, backend, cfg)
 
@@ -199,43 +195,6 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		log.Error("leaving the stores open: handlers were still running at exit", "err", err)
 	}
 	return err
-}
-
-// cryptoPlace is where the Matrix encryption store and its key are kept.
-type cryptoPlace struct {
-	path string
-	keys session.Store
-}
-
-// resumeSession restores the saved session. prepare is the homeserver-dependent
-// startup left to do, nil when the homeserver answered.
-func resumeSession(
-	ctx context.Context, log *slog.Logger, backend *matrix.InProc, crypto cryptoPlace, saved domain.Session,
-) (prepare func(context.Context) error, err error) {
-	rerr := backend.Resume(ctx, saved)
-	if rerr == nil || errors.Is(rerr, api.ErrUnreachable) {
-		// Before Serve, and offline too: the state store must be in place before any
-		// RPC runs (see matrix.InProc.OpenCryptoStore).
-		openCryptoStore(ctx, log, backend, crypto.path)
-	}
-	switch {
-	case rerr == nil:
-		enableEncryption(ctx, log, backend, crypto.keys)
-		return nil, nil
-	case errors.Is(rerr, api.ErrUnreachable):
-		// Serve the on-disk cache offline and connect once the homeserver is back.
-		log.Warn("cannot reach the homeserver; serving cached history and connecting when it is back", "err", rerr)
-		return func(ctx context.Context) error {
-			if werr := waitForHomeserver(ctx, backend); werr != nil {
-				return werr
-			}
-			log.Info("homeserver reachable again; syncing")
-			enableEncryption(ctx, log, backend, crypto.keys)
-			return nil
-		}, nil
-	default:
-		return nil, fmt.Errorf("saved session for %s is unusable (run `kith login` again): %w", saved.UserID, rerr)
-	}
 }
 
 // releaseLock gives up the single-instance lock on the way out, logging a failure.
@@ -285,7 +244,8 @@ func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.Age
 // that reaches a network, and the local service for what the cache and the engines
 // answer. A method both offered would make it ambiguous and fail to compile, so none
 // is served twice. matrix is the Matrix adapter itself, for what only kithd does
-// with it (the session, encryption, the sync callbacks).
+// with it (the session, encryption, the sync callbacks); nil when the config names
+// no Matrix account.
 type served struct {
 	*route.Router
 	*local.Service
@@ -299,46 +259,35 @@ type served struct {
 
 var _ api.Backend = served{}
 
-// matrixAdapter is the Matrix adapter as the router starts it: the homeserver-
-// dependent startup left over from resuming the session (prepare, nil when the
-// homeserver answered) runs first, so it belongs to Matrix's start and holds up no
-// other network.
-type matrixAdapter struct {
-	*matrix.InProc
-	prepare func(context.Context) error
-}
-
-// Start finishes connecting, then runs the sync loop.
-func (m *matrixAdapter) Start(ctx context.Context) error {
-	if m.prepare != nil {
-		if err := daemon.SyncFault(ctx, m.prepare(ctx)); err != nil {
-			return fmt.Errorf("connect: %w", err)
-		}
+// newServed builds the adapters (Matrix when the config names an account, starting
+// from saved), the router over them and the service over one cache, the service
+// hearing what each adapter caches.
+func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage, saved domain.Session) (served, error) {
+	// A nil *matrixAdapter in the interface would be a Matrix that is there.
+	var adapter *matrixAdapter
+	var asMatrix route.Matrix
+	if cfg.HasMatrix() {
+		adapter = newMatrixAdapter(cache, log, matrixAccount{
+			homeserver: cfg.Homeserver, user: cfg.User, allowTokenFile: cfg.AllowTokenFile,
+			crypto: cryptoPlace{path: storage.CryptoPath(), keys: session.StoreFor(storage, cfg.User)},
+		}, saved)
+		asMatrix = adapter
 	}
-	if err := m.InProc.Start(ctx); err != nil {
-		return fmt.Errorf("sync: %w", err)
-	}
-	return nil
-}
-
-// newServed builds the adapters, the router over them and the service over one
-// cache, the service hearing what the Matrix adapter caches.
-func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage) (served, error) {
-	adapter := &matrixAdapter{InProc: matrix.New(cache)}
-	adapter.UseLogger(log)
 	others := map[domain.Protocol]route.Adapter{}
 	wa, waStore := openWhatsApp(ctx, cache, log, cfg, storage.WhatsAppPath())
 	if wa != nil {
 		others[domain.ProtocolWhatsApp] = wa
 	}
-	router, err := route.New(adapter, others)
+	router, err := route.New(asMatrix, others)
 	if err != nil {
 		closeWhatsAppStore(log, waStore)
 		return served{}, fmt.Errorf("route the networks: %w", err)
 	}
 	service := local.New(cache, router)
 	service.UseLogger(log)
-	adapter.OnCached(service.MessageCached, service.RoomChanged)
+	if adapter != nil {
+		adapter.OnCached(service.MessageCached, service.RoomChanged)
+	}
 	if wa != nil {
 		wa.OnCached(service.MessageCached, service.RoomChanged)
 	}
@@ -381,6 +330,15 @@ func (s served) whatsAppLink() api.WhatsAppLink {
 	return s.whatsapp
 }
 
+// matrixLogin is what logs Matrix in: nil, not a nil adapter, when the config names
+// no Matrix account, so the handler can tell.
+func (s served) matrixLogin() api.MatrixLogin {
+	if s.matrix == nil {
+		return nil
+	}
+	return s.matrix
+}
+
 // Close stops the local engines and closes the WhatsApp store (after Stop, which
 // disconnected its accounts).
 func (s served) Close(log *slog.Logger) {
@@ -412,11 +370,13 @@ func configure(log *slog.Logger, backend served, cfg config.Config, storage doma
 	backend.UseModel(modelSettings(log, cfg, storage.KeyringService))
 	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, storage.DataDir))
 	backend.UsePlaces(setup.PlacesOf(cfg.Display))
-	backend.matrix.KeepDeleted(cfg.Display.Deleted.Keep())
+	if backend.matrix != nil {
+		backend.matrix.KeepDeleted(cfg.Display.Deleted.Keep())
+		backend.matrix.UseIdentities(context.Background(), identityGroups(cfg))
+	}
 	if backend.whatsapp != nil {
 		backend.whatsapp.KeepDeleted(cfg.Display.Deleted.Keep())
 	}
-	backend.matrix.UseIdentities(context.Background(), identityGroups(cfg))
 }
 
 // identityGroups is each [[display.identity]]'s user IDs.
@@ -463,32 +423,6 @@ func modelSettings(log *slog.Logger, cfg config.Config, keyring string) local.Mo
 	}
 }
 
-// waitForHomeserver polls until the homeserver answers, ctx ends, or the session is
-// rejected. Backoff is capped at 30s so a laptop waking from suspend reconnects quickly.
-func waitForHomeserver(ctx context.Context, backend *matrix.InProc) error {
-	const (
-		first = 2 * time.Second
-		most  = 30 * time.Second
-	)
-	for wait := first; ; {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("waiting for the homeserver: %w", ctx.Err())
-		case <-time.After(wait):
-		}
-		switch err := backend.Reachable(ctx); {
-		case err == nil:
-			return nil
-		case errors.Is(err, api.ErrUnreachable):
-		default:
-			return fmt.Errorf("saved session is unusable (run `kith login` again): %w", err)
-		}
-		if wait *= 2; wait > most {
-			wait = most
-		}
-	}
-}
-
 // connectAndSync runs every network: each finishes its own connecting, then syncs.
 // SyncFault drops errors caused by our own shutdown, so a clean stop exits 0.
 func connectAndSync(ctx context.Context, router *route.Router) error {
@@ -524,13 +458,16 @@ func serve(
 
 	var wg sync.WaitGroup
 	var syncErr error
-	wg.Add(5)
-	go func() { defer wg.Done(); w.streams.Run(ctx, backend) }()
-	go func() { defer wg.Done(); w.notifications.Run(ctx, w.streams) }()
-	go func() { defer wg.Done(); w.refresher.Run(ctx) }()
-	go func() { defer wg.Done(); w.backups.Run(ctx) }()
-	go func() {
-		defer wg.Done()
+	// Before Serve answers anyone: a client polling Status must not see a daemon
+	// that waits for nothing yet.
+	w.state.Expect(expected(ctx, log, backend)...)
+	wg.Go(func() { w.streams.Run(ctx, backend) })
+	wg.Go(func() { w.notifications.Run(ctx, w.streams) })
+	wg.Go(func() { w.refresher.Run(ctx) })
+	if w.backups != nil {
+		wg.Go(func() { w.backups.Run(ctx) })
+	}
+	wg.Go(func() {
 		syncErr = connectAndSync(ctx, backend.Router)
 		if syncErr != nil {
 			// Clients see this as the daemon's state; the journal needs it at once,
@@ -538,7 +475,7 @@ func serve(
 			log.Error("sync stopped", "err", syncErr)
 		}
 		w.state.Failed(syncErr)
-	}()
+	})
 
 	scheduler, cutoff := startScheduler(ctx, log, cfg, backend, backend.schedulePath)
 	defer scheduler.Stop()
@@ -551,6 +488,7 @@ func serve(
 		Notifications: w.notifications,
 		Scheduler:     scheduler,
 		WhatsApp:      backend.whatsAppLink(),
+		Matrix:        backend.matrixLogin(),
 		Log:           log,
 		Reload:        reloader(configPath, relevel, cutoff, backend, w.notifications),
 	})
@@ -581,7 +519,9 @@ func reloader(
 		relevel(reloaded.Log.Level)
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
 		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, backend.dataDir))
-		backend.matrix.UseIdentities(ctx, identityGroups(reloaded))
+		if backend.matrix != nil {
+			backend.matrix.UseIdentities(ctx, identityGroups(reloaded))
+		}
 		backend.UsePlaces(setup.PlacesOf(reloaded.Display))
 		if backend.whatsapp != nil && reloaded.WhatsApp.Enabled {
 			backend.whatsapp.UseAccounts(ctx, whatsAppAccounts(reloaded))
@@ -618,21 +558,33 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	notifications.UseSelves(backend.Me)
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)
-	backend.matrix.OnRoomsChanged(refresher.Changed)
-	if backend.whatsapp != nil {
-		// Not the refresher: it refreshes every network, WhatsApp's own refresh included.
-		backend.whatsapp.OnRoomsChanged(notifications.InvalidateScope)
-	}
 
-	// Readiness is "a sync arrived", not "socket open": a cold cache looks like no rooms.
+	// Readiness is "what the daemon started with has synced", not "socket open": a
+	// cold cache looks like no rooms (see serve's Expect).
 	state := daemon.NewState()
-	backend.matrix.OnSynced(func(t time.Time) {
-		state.Synced(t)
-		notifications.Synced(t)
-	})
-	backups := daemon.NewKeyBackup(backend.matrix, func(level slog.Level, line string) {
-		log.Log(context.Background(), level, "key backup: "+line, "op", "key backup")
-	})
+	var backups *daemon.KeyBackup
+	if m := backend.matrix; m != nil {
+		m.OnRoomsChanged(refresher.Changed)
+		// Logged in after the startup refresh: refresh again, now with Matrix.
+		m.onLoggedIn = refresher.Changed
+		m.report = func(phase daemon.Phase, detail string) {
+			state.Report(matrixStatus(m, phase, detail), time.Now())
+		}
+		m.OnSynced(func(t time.Time) {
+			state.Report(matrixStatus(m, daemon.PhaseOnline, ""), t)
+			notifications.Synced(t)
+		})
+		backups = daemon.NewKeyBackup(m, func(level slog.Level, line string) {
+			log.Log(context.Background(), level, "key backup: "+line, "op", "key backup")
+		})
+	}
+	if wa := backend.whatsapp; wa != nil {
+		// Not the refresher: it refreshes every network, WhatsApp's own refresh included.
+		wa.OnRoomsChanged(notifications.InvalidateScope)
+		wa.OnLink(func(account whatsapp.Account, link whatsapp.Link, detail string) {
+			state.Report(whatsAppStatus(account, link, detail), time.Now())
+		})
+	}
 	return &workers{
 		notifications: notifications,
 		refresher:     refresher,
@@ -640,6 +592,44 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		streams:       daemon.NewStreams(),
 		backups:       backups,
 	}, nil
+}
+
+// matrixStatus is the Matrix account's row in the daemon's status.
+func matrixStatus(m *matrixAdapter, phase daemon.Phase, detail string) daemon.NetworkStatus {
+	return daemon.NetworkStatus{Network: string(domain.ProtocolMatrix), Account: m.account.user, Phase: phase, Detail: detail}
+}
+
+// whatsAppStatus is a WhatsApp account's row in the daemon's status.
+func whatsAppStatus(account whatsapp.Account, link whatsapp.Link, detail string) daemon.NetworkStatus {
+	phase := daemon.PhaseLoggedOut
+	switch link {
+	case whatsapp.Connecting:
+		phase = daemon.PhaseConnecting
+	case whatsapp.Connected:
+		phase = daemon.PhaseOnline
+	case whatsapp.Unlinked:
+	}
+	return daemon.NetworkStatus{Network: string(domain.ProtocolWhatsApp), Account: account.Name, Phase: phase, Detail: detail}
+}
+
+// expected is every account the daemon starts with a session, for State.Expect: the
+// Matrix account when a session was saved, and each linked WhatsApp account. One that
+// cannot be read is not waited for.
+func expected(ctx context.Context, log *slog.Logger, backend served) []daemon.NetworkStatus {
+	var out []daemon.NetworkStatus
+	if m := backend.matrix; m != nil && m.saved.AccessToken != "" {
+		out = append(out, matrixStatus(m, daemon.PhaseConnecting, ""))
+	}
+	if wa := backend.whatsapp; wa != nil {
+		linked, err := wa.Linked(ctx)
+		if err != nil {
+			log.Warn("read which WhatsApp accounts are linked failed", "err", err)
+		}
+		for _, account := range linked {
+			out = append(out, whatsAppStatus(account, whatsapp.Connecting, ""))
+		}
+	}
+	return out
 }
 
 // loadConfig reads and validates the config for the account to serve, returning the
@@ -661,49 +651,35 @@ func loadConfig(configPath, profile string) (config.Config, string, error) {
 	if err != nil {
 		return config.Config{}, "", fmt.Errorf("select profile: %w", err)
 	}
-	if cfg.User == "" {
-		return config.Config{}, "", errors.New("no `user` in the config; set it and run `kith login`")
-	}
 	if err := setup.Validate(cfg); err != nil {
 		return config.Config{}, "", err
 	}
 	return cfg, path, nil
 }
 
-// storedSession reads the session saved by `kith login`; there is no password fallback.
-func storedSession(cfg config.Config, keys session.Store) (domain.Session, error) {
-	saved, found, err := session.Load(keys, cfg.AllowTokenFile)
-	if err != nil {
-		return domain.Session{}, fmt.Errorf("load session: %w", err)
+// prepareInstance makes the instance's directories and reads the saved Matrix session
+// (zero when there is none, or no Matrix). No session is no error: the daemon serves
+// what it has, and `kith login` starts Matrix through it.
+func prepareInstance(cfg config.Config, storage domain.Storage) (domain.Session, error) {
+	if err := makeStorageDirs(storage); err != nil {
+		return domain.Session{}, err
 	}
-	if !found {
-		return domain.Session{}, fmt.Errorf("no saved session for %s; run `kith login` first", cfg.User)
+	if !cfg.HasMatrix() {
+		return domain.Session{}, nil
 	}
-	return saved, nil
+	return savedSession(cfg, session.StoreFor(storage, cfg.User))
 }
 
-// enableEncryption turns on E2EE. Failures only warn: unencrypted rooms still work.
-// openCryptoStore opens the crypto/state store, logging a failure: encryption then
-// stays off and encrypted rooms refuse sends.
-func openCryptoStore(ctx context.Context, log *slog.Logger, backend *matrix.InProc, dbPath string) {
-	if err := backend.OpenCryptoStore(ctx, dbPath); err != nil {
-		log.Error("encryption disabled", "err", err)
+// makeStorageDirs creates the instance's directories, private to this user: the
+// stores create their files, not the directories they live in. The runtime one is
+// the lock's (daemon.Acquire).
+func makeStorageDirs(storage domain.Storage) error {
+	for _, dir := range []string{storage.DataDir, storage.StateDir, storage.CacheDir} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return fmt.Errorf("create %s: %w", dir, err)
+		}
 	}
-}
-
-func enableEncryption(ctx context.Context, log *slog.Logger, backend *matrix.InProc, keys session.Store) {
-	pickleKey, err := session.LoadOrCreatePickleKey(keys)
-	if err != nil {
-		log.Error("encryption disabled", "err", err)
-		return
-	}
-	if err := backend.EnableEncryption(ctx, pickleKey); err != nil {
-		log.Error("encryption disabled", "err", err)
-		return
-	}
-	if verr := backend.VerificationUnavailable(); verr != nil {
-		log.Warn("device verification unavailable", "err", verr)
-	}
+	return nil
 }
 
 // openCache opens the instance's cache, or returns nil with a warning: without it the

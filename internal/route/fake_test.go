@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -209,7 +210,11 @@ func (f *fake) RoomEncryption(_ context.Context, rooms []domain.RoomID) (map[dom
 type fakeMatrix struct {
 	*fake
 	matrixCalls []string
+	// loggedOut is a Matrix with no session yet.
+	loggedOut atomic.Bool
 }
+
+func (m *fakeMatrix) LoggedIn() bool { return !m.loggedOut.Load() }
 
 func newFakeMatrix() *fakeMatrix { return &fakeMatrix{fake: newFake("matrix")} }
 

@@ -192,6 +192,9 @@ const (
 	// BackendServicePairWhatsAppProcedure is the fully-qualified name of the BackendService's
 	// PairWhatsApp RPC.
 	BackendServicePairWhatsAppProcedure = "/backend.v1.BackendService/PairWhatsApp"
+	// BackendServiceLoginMatrixProcedure is the fully-qualified name of the BackendService's
+	// LoginMatrix RPC.
+	BackendServiceLoginMatrixProcedure = "/backend.v1.BackendService/LoginMatrix"
 	// BackendServiceRoomsWithProcedure is the fully-qualified name of the BackendService's RoomsWith
 	// RPC.
 	BackendServiceRoomsWithProcedure = "/backend.v1.BackendService/RoomsWith"
@@ -435,6 +438,10 @@ type BackendServiceClient interface {
 	// linked device: the stream carries the code to type on the phone, then the
 	// account's ID once the phone accepts it. A failure ends the stream with an error.
 	PairWhatsApp(context.Context, *connect.Request[v1.PairWhatsAppRequest]) (*connect.ServerStreamForClient[v1.PairWhatsAppResponse], error)
+	// LoginMatrix logs the config's Matrix user in with a password, saves the session
+	// and starts Matrix on it. A failure (a wrong password, Matrix not configured) is
+	// an error.
+	LoginMatrix(context.Context, *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -884,6 +891,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("PairWhatsApp")),
 			connect.WithClientOptions(opts...),
 		),
+		loginMatrix: connect.NewClient[v1.LoginMatrixRequest, v1.LoginMatrixResponse](
+			httpClient,
+			baseURL+BackendServiceLoginMatrixProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("LoginMatrix")),
+			connect.WithClientOptions(opts...),
+		),
 		roomsWith: connect.NewClient[v1.RoomsWithRequest, v1.RoomsWithResponse](
 			httpClient,
 			baseURL+BackendServiceRoomsWithProcedure,
@@ -1151,6 +1164,7 @@ type backendServiceClient struct {
 	drafts                *connect.Client[v1.DraftsRequest, v1.DraftsResponse]
 	seat                  *connect.Client[v1.SeatRequest, v1.SeatResponse]
 	pairWhatsApp          *connect.Client[v1.PairWhatsAppRequest, v1.PairWhatsAppResponse]
+	loginMatrix           *connect.Client[v1.LoginMatrixRequest, v1.LoginMatrixResponse]
 	roomsWith             *connect.Client[v1.RoomsWithRequest, v1.RoomsWithResponse]
 	roomEncryption        *connect.Client[v1.RoomEncryptionRequest, v1.RoomEncryptionResponse]
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
@@ -1477,6 +1491,11 @@ func (c *backendServiceClient) PairWhatsApp(ctx context.Context, req *connect.Re
 	return c.pairWhatsApp.CallServerStream(ctx, req)
 }
 
+// LoginMatrix calls backend.v1.BackendService.LoginMatrix.
+func (c *backendServiceClient) LoginMatrix(ctx context.Context, req *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error) {
+	return c.loginMatrix.CallUnary(ctx, req)
+}
+
 // RoomsWith calls backend.v1.BackendService.RoomsWith.
 func (c *backendServiceClient) RoomsWith(ctx context.Context, req *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {
 	return c.roomsWith.CallUnary(ctx, req)
@@ -1793,6 +1812,10 @@ type BackendServiceHandler interface {
 	// linked device: the stream carries the code to type on the phone, then the
 	// account's ID once the phone accepts it. A failure ends the stream with an error.
 	PairWhatsApp(context.Context, *connect.Request[v1.PairWhatsAppRequest], *connect.ServerStream[v1.PairWhatsAppResponse]) error
+	// LoginMatrix logs the config's Matrix user in with a password, saves the session
+	// and starts Matrix on it. A failure (a wrong password, Matrix not configured) is
+	// an error.
+	LoginMatrix(context.Context, *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -2238,6 +2261,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("PairWhatsApp")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceLoginMatrixHandler := connect.NewUnaryHandler(
+		BackendServiceLoginMatrixProcedure,
+		svc.LoginMatrix,
+		connect.WithSchema(backendServiceMethods.ByName("LoginMatrix")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceRoomsWithHandler := connect.NewUnaryHandler(
 		BackendServiceRoomsWithProcedure,
 		svc.RoomsWith,
@@ -2560,6 +2589,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceSeatHandler.ServeHTTP(w, r)
 		case BackendServicePairWhatsAppProcedure:
 			backendServicePairWhatsAppHandler.ServeHTTP(w, r)
+		case BackendServiceLoginMatrixProcedure:
+			backendServiceLoginMatrixHandler.ServeHTTP(w, r)
 		case BackendServiceRoomsWithProcedure:
 			backendServiceRoomsWithHandler.ServeHTTP(w, r)
 		case BackendServiceRoomEncryptionProcedure:
@@ -2867,6 +2898,10 @@ func (UnimplementedBackendServiceHandler) Seat(context.Context, *connect.Request
 
 func (UnimplementedBackendServiceHandler) PairWhatsApp(context.Context, *connect.Request[v1.PairWhatsAppRequest], *connect.ServerStream[v1.PairWhatsAppResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PairWhatsApp is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) LoginMatrix(context.Context, *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.LoginMatrix is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {

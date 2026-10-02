@@ -1,5 +1,5 @@
 # kith configuration, with every option documented at its default. Set homeserver
-# and user (required); the rest is optional. The file holds no secrets: the password
+# and user for Matrix, or enable [whatsapp], or both; the rest is optional. The file holds no secrets: the password
 # is prompted for on first login and the access token lives in the OS keyring.
 #
 # Press "," in kith for the settings screen, and "a"/"b" on a person, room or group
@@ -9,7 +9,8 @@
 #
 # Unknown keys are refused at startup.
 
-# Your homeserver's base URL and full Matrix ID (required).
+# Your homeserver's base URL and full Matrix ID. Leave both empty to use only
+# [whatsapp] (below); one of the two networks is required.
 homeserver = ""
 user       = ""
 

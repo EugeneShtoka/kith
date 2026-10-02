@@ -22,6 +22,10 @@ func TestRequireAccount(t *testing.T) {
 		"missing homeserver":    {Config{User: "@a:x"}, true},
 		"missing user":          {Config{Homeserver: "https://x"}, true},
 		"empty":                 {Config{}, true},
+		"whatsapp only":         {Config{WhatsApp: WhatsApp{Enabled: true}}, false},
+		"whatsapp and matrix":   {Config{Homeserver: "https://x", User: "@a:x", WhatsApp: WhatsApp{Enabled: true}}, false},
+		"whatsapp, half matrix": {Config{User: "@a:x", WhatsApp: WhatsApp{Enabled: true}}, true},
+		"whatsapp disabled":     {Config{WhatsApp: WhatsApp{Accounts: []WhatsAppAccount{{Name: "a", Phone: "+1"}}}}, true},
 		"profile":               {Config{Profiles: []Profile{{Name: "work", Homeserver: "https://x", User: "@me:x"}}}, false},
 		"profile no name":       {Config{Profiles: []Profile{{Homeserver: "https://x", User: "@me:x"}}}, true},
 		"profile no user":       {Config{Profiles: []Profile{{Name: "work", Homeserver: "https://x"}}}, true},
@@ -91,7 +95,7 @@ func TestLoadErrors(t *testing.T) {
 		t.Error("missing file loaded")
 	}
 	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte("homeserver = \"https://x\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("allow_token_file = true\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Load(path); !errors.Is(err, ErrIncomplete) {

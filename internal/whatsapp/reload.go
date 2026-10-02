@@ -27,6 +27,11 @@ func (a *Adapter) UseAccounts(ctx context.Context, accounts []Account) {
 		}
 	}
 	a.mu.Unlock()
+	for _, old := range previous {
+		if slices.Contains(gone, old.Digits) {
+			a.link(old, Unlinked, "no longer in the config")
+		}
+	}
 	if !started || stopped {
 		return // Start connects whatever the list holds then
 	}

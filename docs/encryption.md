@@ -6,7 +6,7 @@ Encrypted rooms work without any extra setup. Everything below is about **trust*
 
 ## One process owns the keys
 
-Only `kithd` touches the crypto store. `kith` and `kith-mcp` attach to it over a unix socket and never open the store themselves. Even `kith login` makes a bare login call without opening the store.
+Only `kithd` touches the crypto store. `kith` and `kith-mcp` attach to it over a unix socket and never open the store themselves. Even `kith login` only hands the password to the daemon, which logs in and opens the store itself.
 
 The reason is that two processes sharing one Matrix device's Olm/Megolm state can corrupt it, and restarting does not repair that. So before opening any store, the daemon takes an exclusive `flock` on a lock file next to its socket. The kernel settles who owns the store. A second daemon for the same account sees the lock, exits successfully and silently, and the client uses the daemon that is already running.
 
