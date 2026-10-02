@@ -331,7 +331,7 @@ func TestEmojiScopesAreStrictNotWeighted(t *testing.T) {
 	rec(far, "👍", 9, 30)      // nine times, far away
 
 	scores := func(scope string) map[string]int {
-		got, err := cache.EmojiScores(ctx, domain.EmojiComposed, here, space, "", scope)
+		got, err := cache.EmojiScores(ctx, domain.EmojiComposed, here, space, nil, scope)
 		if err != nil {
 			t.Fatalf("EmojiScores(%q) error = %v", scope, err)
 		}

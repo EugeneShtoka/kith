@@ -69,7 +69,7 @@ func (s *Service) CachedReactions(ctx context.Context, roomID domain.RoomID) ([]
 // EmojiScores weighs each emoji's usage for a room, over the rooms the scope admits.
 func (s *Service) EmojiScores(ctx context.Context, kind domain.EmojiKind, roomID domain.RoomID, spaceRooms []domain.RoomID, scope string) (map[string]int, error) {
 	return fromCache(s, "emoji scores", func(c *db.Cache) (map[string]int, error) {
-		return c.EmojiScores(ctx, kind, roomID, spaceRooms, s.account(), scope)
+		return c.EmojiScores(ctx, kind, roomID, spaceRooms, s.me(), scope)
 	})
 }
 

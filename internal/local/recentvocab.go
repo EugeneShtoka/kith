@@ -102,13 +102,13 @@ func (s *scopedWindowSet) drop(room domain.RoomID) {
 // rank scores req.Prefix over the windows its scope names, building any not yet held.
 // Scope rules: the room term only for a room scope with rooms, the space term unless
 // global, the mine term with an account.
-func (v *recentVocab) rank(ctx context.Context, cache *db.Cache, req domain.CompleteRequest, me string, limit int) ([]domain.WordCandidate, error) {
+func (v *recentVocab) rank(ctx context.Context, cache *db.Cache, req domain.CompleteRequest, me []string, limit int) ([]domain.WordCandidate, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	var firstErr error
-	read := func(rooms domain.RoomSet, sender string, n int) *vocab.Window {
+	read := func(rooms domain.RoomSet, senders []string, n int) *vocab.Window {
 		w := vocab.NewWindow(n)
-		bodies, err := cache.RecentBodies(ctx, rooms, sender, n)
+		bodies, err := cache.RecentBodies(ctx, rooms, senders, n)
 		if err != nil && firstErr == nil {
 			firstErr = err
 		}
@@ -120,19 +120,19 @@ func (v *recentVocab) rank(ctx context.Context, cache *db.Cache, req domain.Comp
 
 	var scope vocab.Scope
 	if req.Scope != scopeSpace && req.Scope != scopeGlobal && len(req.RoomIDs) > 0 {
-		scope.Room = v.rooms.get(req.RoomIDs, func(r []domain.RoomID) *vocab.Window { return read(domain.TheseRooms(r), "", roomWindow) })
+		scope.Room = v.rooms.get(req.RoomIDs, func(r []domain.RoomID) *vocab.Window { return read(domain.TheseRooms(r), nil, roomWindow) })
 	}
 	if req.Scope != scopeGlobal && len(req.SpaceRooms) > 0 {
-		scope.Space = v.spaces.get(req.SpaceRooms, func(r []domain.RoomID) *vocab.Window { return read(domain.TheseRooms(r), "", spaceWindow) })
+		scope.Space = v.spaces.get(req.SpaceRooms, func(r []domain.RoomID) *vocab.Window { return read(domain.TheseRooms(r), nil, spaceWindow) })
 	}
-	if me != "" {
+	if len(me) > 0 {
 		if v.mine == nil || v.mine.Stale() {
 			v.mine = read(domain.EveryRoom(), me, mineWindow)
 		}
 		scope.Mine = v.mine
 	}
 	if v.global == nil || v.global.Stale() {
-		v.global = read(domain.EveryRoom(), "", globalWindow)
+		v.global = read(domain.EveryRoom(), nil, globalWindow)
 	}
 	scope.Global = v.global
 	if firstErr != nil {
@@ -150,7 +150,7 @@ const (
 )
 
 // added counts a new message into every window holding it.
-func (v *recentVocab) added(msg domain.Message, me string) {
+func (v *recentVocab) added(msg domain.Message, me []string) {
 	if msg.Body == "" || msg.Redacted {
 		return
 	}
@@ -164,7 +164,7 @@ func (v *recentVocab) added(msg domain.Message, me string) {
 	count := func(w *vocab.Window) { w.Add(msg.Body) }
 	v.rooms.each(msg.RoomID, count)
 	v.spaces.each(msg.RoomID, count)
-	if v.mine != nil && me != "" && msg.Sender == me {
+	if v.mine != nil && msg.Sender != "" && slices.Contains(me, msg.Sender) {
 		v.mine.Add(msg.Body)
 	}
 	if v.global != nil {

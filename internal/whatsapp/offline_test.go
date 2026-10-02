@@ -122,8 +122,8 @@ func TestTheQuietAnswers(t *testing.T) {
 	if err := a.SendTyping(ctx, waRoom, true, time.Second); err != nil {
 		t.Errorf("SendTyping = %v", err)
 	}
-	if err := a.RewindSync(ctx); err != nil || a.Account() != "" {
-		t.Errorf("RewindSync = %v, Account = %q", err, a.Account())
+	if err := a.RewindSync(ctx); err != nil {
+		t.Errorf("RewindSync = %v", err)
 	}
 	for name, err := range map[string]error{
 		"MarkRoomUnread": a.MarkRoomUnread(ctx, waRoom, true),

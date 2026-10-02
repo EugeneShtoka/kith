@@ -663,9 +663,9 @@ func (c *Cache) LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, 
 }
 
 // EachMessageBody streams every non-redacted, non-empty body to fn, saying whether
-// me wrote it. It reads a page at a time and calls fn between pages, so the one
+// one of me (this person's IDs) wrote it. It reads a page at a time and calls fn between pages, so the one
 // connection is free for sync and the UI while fn works.
-func (c *Cache) EachMessageBody(ctx context.Context, me string, fn func(body string, mine bool)) error {
+func (c *Cache) EachMessageBody(ctx context.Context, me []string, fn func(body string, mine bool)) error {
 	type body struct {
 		rowid        int64
 		sender, text string
@@ -683,7 +683,7 @@ func (c *Cache) EachMessageBody(ctx context.Context, me string, fn func(body str
 			return err
 		}
 		for _, b := range page {
-			fn(b.text, b.sender == me)
+			fn(b.text, slices.Contains(me, b.sender))
 		}
 		if len(page) < bodyPage {
 			return nil

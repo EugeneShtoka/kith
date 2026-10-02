@@ -102,7 +102,7 @@ func TestClearCacheEmptiesItAndRewinds(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	net := &fakeNetwork{account: "@me:x"}
+	net := &fakeNetwork{me: []string{"@me:x"}}
 	s := New(testCache(t), net)
 	seedRoom(t, s.cache, "!r:x")
 	if err := s.ClearCache(ctx); err != nil {

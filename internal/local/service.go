@@ -22,9 +22,8 @@ const timelineCacheLimit = 2000
 
 // Network is what the service asks of the chat networks it serves alongside.
 type Network interface {
-	// Account is this person's own account ID, or "" before a session exists.
-	Account() string
-	// Me is every ID that is this person: the account and its configured identity.
+	// Me is every ID that is this person, on every network: the Matrix account and
+	// its configured identity, each linked WhatsApp account.
 	Me() []string
 	// RoomEncryption reports which rooms are encrypted; unknown reports as encrypted.
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
@@ -100,19 +99,11 @@ func (s *Service) Close() {
 }
 
 // MessageCached counts a message the network side just cached into word completion.
-func (s *Service) MessageCached(msg domain.Message) { s.vocab.added(msg, s.account()) }
+func (s *Service) MessageCached(msg domain.Message) { s.vocab.added(msg, s.me()) }
 
 // RoomChanged is a room's cached messages changing other than by a new one (an edit,
 // a deletion): its completion windows are rebuilt on next use.
 func (s *Service) RoomChanged(roomID domain.RoomID) { s.vocab.changed(roomID) }
-
-// account is this person's own account ID ("" before a session).
-func (s *Service) account() string {
-	if s.net == nil {
-		return ""
-	}
-	return s.net.Account()
-}
 
 // me is every ID that is this person.
 func (s *Service) me() []string {

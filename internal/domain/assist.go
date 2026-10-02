@@ -104,8 +104,9 @@ func namesAny(list []string, room RoomFacts) bool {
 	return slices.ContainsFunc(list, room.Names)
 }
 
-// ModelContext is the conversation quoted to the model, newest last, bounded.
-func ModelContext(messages []Message, me string, budget int) []string {
+// ModelContext is the conversation quoted to the model, newest last, bounded; me
+// (this person's IDs) are quoted as "You".
+func ModelContext(messages []Message, me []string, budget int) []string {
 	if budget <= 0 {
 		return nil
 	}
@@ -128,8 +129,8 @@ func ModelContext(messages []Message, me string, budget int) []string {
 }
 
 // speaker is how one message is attributed in the quoted conversation.
-func speaker(msg Message, me string) string {
-	if me != "" && msg.Sender == me {
+func speaker(msg Message, me []string) string {
+	if msg.Sender != "" && slices.Contains(me, msg.Sender) {
 		return "You"
 	}
 	if msg.SenderName != "" {

@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -133,7 +134,7 @@ func TestModelContextIsRecentBoundedAndInOrder(t *testing.T) {
 	// 40 characters is ~11 tokens by the estimate, so a budget of 25 takes the last two
 	// and drops the oldest — what a model finishing a sentence needs is what was just
 	// said.
-	got := ModelContext(msgs, "", 25)
+	got := ModelContext(msgs, nil, 25)
 	if len(got) != 2 {
 		t.Fatalf("ModelContext() = %d lines, want 2", len(got))
 	}
@@ -141,19 +142,19 @@ func TestModelContextIsRecentBoundedAndInOrder(t *testing.T) {
 		t.Fatalf("ModelContext() = %v, want it to read in the order it was said", got)
 	}
 
-	if got := ModelContext(msgs, "", 0); got != nil {
+	if got := ModelContext(msgs, nil, 0); got != nil {
 		t.Errorf("ModelContext(no budget) = %v, want nothing", got)
 	}
 	// A deleted message is not context: the words are gone and quoting them elsewhere
 	// would be the deletion undone by another feature.
 	deleted := []Message{{SenderName: "Ada", Body: "secret", Redacted: true}, {SenderName: "Bo", Body: "hello"}}
-	if got := ModelContext(deleted, "", 100); len(got) != 1 || !strings.Contains(got[0], "hello") {
+	if got := ModelContext(deleted, nil, 100); len(got) != 1 || !strings.Contains(got[0], "hello") {
 		t.Errorf("ModelContext(with a deletion) = %v, want only what still exists", got)
 	}
 	// One message larger than the whole budget yields nothing rather than being sent
 	// anyway: the budget is a limit on what leaves the machine.
 	huge := []Message{{SenderName: "Ada", Body: strings.Repeat("x", 4000)}}
-	if got := ModelContext(huge, "", 10); len(got) != 0 {
+	if got := ModelContext(huge, nil, 10); len(got) != 0 {
 		t.Errorf("ModelContext(over budget) = %v, want nothing", got)
 	}
 }
@@ -363,5 +364,21 @@ func TestNeedsPlaces(t *testing.T) {
 		if got := c.scope.NeedsPlaces(); got != c.want {
 			t.Errorf("%+v.NeedsPlaces() = %v, want %v", c.scope, got, c.want)
 		}
+	}
+}
+
+// Every ID that is this person is quoted as "You": their WhatsApp account's lines as
+// well as their Matrix account's.
+func TestModelContextQuotesEveryAccountAsYou(t *testing.T) {
+	t.Parallel()
+	msgs := []Message{
+		{Sender: "@me:x", Body: "from Matrix"},
+		{Sender: "whatsapp:359880000001@s.whatsapp.net", Body: "from WhatsApp"},
+		{Sender: "@dana:x", SenderName: "Dana", Body: "hi"},
+	}
+	got := ModelContext(msgs, []string{"@me:x", "whatsapp:359880000001@s.whatsapp.net"}, 1000)
+	want := []string{"You: from Matrix", "You: from WhatsApp", "Dana: hi"}
+	if !slices.Equal(got, want) {
+		t.Errorf("ModelContext = %q, want %q", got, want)
 	}
 }

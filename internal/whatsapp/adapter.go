@@ -424,9 +424,6 @@ func (a *Adapter) Activity() <-chan domain.Activity        { return a.activity }
 func (a *Adapter) Unread() <-chan domain.Unread            { return a.unread }
 func (a *Adapter) Reactions() <-chan domain.ReactionUpdate { return a.reactions }
 
-// Account is empty: the daemon is named after the Matrix account.
-func (a *Adapter) Account() string { return "" }
-
 // Me is every linked account's own IDs: its phone number and its LID.
 func (a *Adapter) Me() []string {
 	var me []string
