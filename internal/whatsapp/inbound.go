@@ -44,6 +44,9 @@ func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeo
 // onMessage caches a message an account received, or sent from another of its
 // devices, and hands it to the clients.
 func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message) {
+	if a.onChange(ctx, account, client, e) {
+		return
+	}
 	in, ok := a.convert(ctx, account, client, e)
 	if !ok {
 		return
@@ -95,7 +98,11 @@ func (a *Adapter) record(ctx context.Context, account Account, msg domain.Messag
 	a.listing.Lock()
 	a.heard[msg.RoomID] = time.Now()
 	room()
-	err := a.cache.SaveMessages(ctx, msg.RoomID, []domain.Message{msg})
+	save := a.cache.SaveMessages
+	if a.keepsDeleted() {
+		save = a.cache.SaveMessagesWithRevisions // an edit keeps what it replaced
+	}
+	err := save(ctx, msg.RoomID, []domain.Message{msg})
 	a.listing.Unlock()
 	if err != nil {
 		a.log.Warn("cache a message failed", "account", account.Name, "room", msg.RoomID, "err", err)

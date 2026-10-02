@@ -403,6 +403,9 @@ func configure(log *slog.Logger, backend served, cfg config.Config) {
 	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, xdg.DataHome))
 	backend.UsePlaces(setup.PlacesOf(cfg.Display))
 	backend.matrix.KeepDeleted(cfg.Display.Deleted.Keep())
+	if backend.whatsapp != nil {
+		backend.whatsapp.KeepDeleted(cfg.Display.Deleted.Keep())
+	}
 	backend.matrix.UseIdentities(context.Background(), identityGroups(cfg))
 }
 
