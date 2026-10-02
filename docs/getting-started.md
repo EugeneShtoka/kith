@@ -322,7 +322,9 @@ leave it. If you log in again, the new device can't read encrypted history until
 For WhatsApp, run `kith login whatsapp` instead (or as well): it shows a pairing code
 to type on the phone, under WhatsApp → Linked devices → Link a device → "Link with
 phone number instead". `kith` opens whatever is logged in; an account that is not
-says so on the status line, with the command that logs it in.
+says so on the status line, with the command that logs it in. A WhatsApp community
+shows as a space holding its groups (its announcement group among them); what is in
+it is the community's admins' to decide, so kith does not offer to file rooms into it.
 
 ## Run the daemon under systemd
 

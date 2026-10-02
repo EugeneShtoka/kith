@@ -529,3 +529,48 @@ func TestWithoutMatrixItsStreamsEndWithTheRouter(t *testing.T) {
 		t.Error("Verifications sent something")
 	}
 }
+
+// Spaces are every network's: Matrix's hierarchy and WhatsApp's communities, by name;
+// a network failing fails the read; a logged-out Matrix adds none. A WhatsApp
+// community is not Matrix's to file rooms into.
+func TestSpacesAreEveryNetworks(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	m, wa := newFakeMatrix(), spacedFake{newFake("whatsapp")}
+	m.spaces = []domain.Space{{ID: "!work:x", Name: "Work"}}
+	community := domain.SpaceID("whatsapp:359881234567/120363@g.us")
+	wa.spaces = []domain.Space{{ID: community, Name: "Building", Bridge: domain.ProtocolWhatsApp}}
+	r, err := New(m, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: wa})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, read := range map[string]func(context.Context) ([]domain.Space, error){"Spaces": r.Spaces, "RefreshSpaces": r.RefreshSpaces} {
+		got, err := read(ctx)
+		if err != nil || len(got) != 2 || got[0].Name != "Building" || got[1].Name != "Work" {
+			t.Errorf("%s = (%v, %v), want both networks', by name", name, got, err)
+		}
+	}
+
+	wa.fail = errFake
+	if got, err := r.Spaces(ctx); !errors.Is(err, errFake) || got != nil {
+		t.Errorf("Spaces with WhatsApp failing = (%v, %v), want the failure and no partial list", got, err)
+	}
+	wa.fail = nil
+
+	for call, err := range map[string]error{
+		"AddToSpace":      r.AddToSpace(ctx, community, matrixRoomID),
+		"RemoveFromSpace": r.RemoveFromSpace(ctx, community, whatsappRoomID),
+	} {
+		if !errors.Is(err, api.ErrNotOnNetwork) {
+			t.Errorf("%s on a WhatsApp community = %v, want ErrNotOnNetwork", call, err)
+		}
+	}
+	if got := m.calls(); slices.Contains(got, "AddToSpace") || slices.Contains(got, "RemoveFromSpace") {
+		t.Errorf("Matrix was asked to file into a WhatsApp community: %v", got)
+	}
+
+	m.loggedOut.Store(true)
+	if got, err := r.Spaces(ctx); err != nil || len(got) != 1 || got[0].ID != community {
+		t.Errorf("Spaces with Matrix logged out = (%v, %v), want WhatsApp's alone", got, err)
+	}
+}

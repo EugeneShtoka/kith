@@ -1,0 +1,107 @@
+package whatsapp
+
+import (
+	"context"
+	"slices"
+	"testing"
+	"time"
+
+	"go.mau.fi/whatsmeow/types"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
+)
+
+func group(jid string) types.JID { return types.NewJID(jid, types.GroupServer) }
+
+// A community is a space holding its groups (the announcement group among them); the
+// community itself is no room. A group in none is a plain room; a community the
+// listing does not carry is named by asking.
+func TestCommunitiesAreSpacesOfTheirGroups(t *testing.T) {
+	t.Parallel()
+	building, school := group("120363001"), group("120363002")
+	groups := []*types.GroupInfo{
+		{JID: building, GroupName: types.GroupName{Name: "Building"}, GroupParent: types.GroupParent{IsParent: true}},
+		{JID: group("120363011"), GroupName: types.GroupName{Name: "Building announcements"},
+			GroupLinkedParent: types.GroupLinkedParent{LinkedParentJID: building}, GroupIsDefaultSub: types.GroupIsDefaultSub{IsDefaultSubGroup: true}},
+		{JID: group("120363012"), GroupName: types.GroupName{Name: "Parking"}, GroupLinkedParent: types.GroupLinkedParent{LinkedParentJID: building}},
+		{JID: group("120363021"), GroupName: types.GroupName{Name: "Class 3B"}, GroupLinkedParent: types.GroupLinkedParent{LinkedParentJID: school}},
+		{JID: group("120363099"), GroupName: types.GroupName{Name: "Family"}},
+	}
+	asked := []types.JID{}
+	spaces, chats := communities(context.Background(), ownDigits, groups, func(_ context.Context, jid types.JID) string {
+		asked = append(asked, jid)
+		return "School"
+	})
+
+	if len(spaces) != 2 || spaces[0].Name != "Building" || spaces[1].Name != "School" {
+		t.Fatalf("spaces = %+v, want Building and School", spaces)
+	}
+	if want := []domain.RoomID{roomID(ownDigits, group("120363011")), roomID(ownDigits, group("120363012"))}; !slices.Equal(spaces[0].Children, want) {
+		t.Errorf("Building's rooms = %v, want its announcements and Parking", spaces[0].Children)
+	}
+	if spaces[0].ID != domain.SpaceID(roomID(ownDigits, building)) || spaces[0].Bridge != domain.ProtocolWhatsApp || !spaces[0].Managed() {
+		t.Errorf("Building = %+v, want the community's ID, WhatsApp's to manage", spaces[0])
+	}
+	if !slices.Equal(asked, []types.JID{school}) {
+		t.Errorf("asked for %v, want only the community the listing lacks", asked)
+	}
+	var names []string
+	for _, g := range chats {
+		names = append(names, g.Name)
+	}
+	if !slices.Equal(names, []string{"Building announcements", "Parking", "Class 3B", "Family"}) {
+		t.Errorf("chats = %v, want every group but the community itself", names)
+	}
+}
+
+// A listing's communities are cached with its groups, per account: another account's
+// stay, and Matrix's are none of WhatsApp's. A room's community is its canonical parent.
+func TestCommunitiesAreCachedPerAccount(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	bg, il := Account{Name: "bg", Digits: ownDigits}, Account{Name: "il", Digits: "972500000001"}
+	a, cache, _ := offline(t, bg, il)
+	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{ID: "!work:x", Name: "Work"}}); err != nil {
+		t.Fatal(err)
+	}
+	room := roomID(ownDigits, group("120363012"))
+	building := domain.Space{ID: domain.SpaceID(roomID(ownDigits, group("120363001"))), Name: "Building", Children: []domain.RoomID{room}, Bridge: domain.ProtocolWhatsApp}
+	theirs := domain.Space{ID: domain.SpaceID(roomID(il.Digits, group("120363005"))), Name: "Theirs", Bridge: domain.ProtocolWhatsApp}
+	if err := a.saveListing(ctx, il, groupListing{spaces: []domain.Space{theirs}}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.saveListing(ctx, bg, groupListing{rooms: []domain.Room{{ID: room}}, spaces: []domain.Space{building}}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	ids := func() []domain.SpaceID {
+		spaces, err := a.Spaces(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []domain.SpaceID
+		for _, s := range spaces {
+			out = append(out, s.ID)
+		}
+		return out
+	}
+	if got := ids(); !slices.Equal(got, []domain.SpaceID{building.ID, theirs.ID}) {
+		t.Errorf("Spaces = %v, want both accounts' communities and no Matrix space", got)
+	}
+	if spaces, _ := a.Spaces(ctx); !spaces[0].Managed() {
+		t.Error("a cached community reads back as a space to file rooms into")
+	}
+	if parent, err := a.CanonicalParent(ctx, room); err != nil || parent != building.ID {
+		t.Errorf("CanonicalParent = (%q, %v), want the community", parent, err)
+	}
+
+	// bg leaves its community: its next listing has none, il's stays.
+	if err := a.saveListing(ctx, bg, groupListing{rooms: []domain.Room{{ID: room}}}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(); !slices.Equal(got, []domain.SpaceID{theirs.ID}) {
+		t.Errorf("after bg's community went = %v, want il's alone", got)
+	}
+	if parent, _ := a.CanonicalParent(ctx, room); parent != "" {
+		t.Errorf("CanonicalParent after leaving = %q, want none", parent)
+	}
+}
