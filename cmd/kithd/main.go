@@ -329,7 +329,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	service.UseLogger(log)
 	adapter.OnCached(service.MessageCached, service.RoomChanged)
 	if wa != nil {
-		wa.OnCached(service.MessageCached)
+		wa.OnCached(service.MessageCached, service.RoomChanged)
 	}
 	return served{Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore}, nil
 }

@@ -11,9 +11,17 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// onMessage caches a message an account received, or sent from another of its
-// devices, and hands it to the clients.
-func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message) {
+// arrived is one message as kith keeps it, with what its room needs.
+type arrived struct {
+	msg      domain.Message
+	chat     types.JID // the other person, for a direct chat; the group otherwise
+	group    bool
+	fromMe   bool
+	pushName string
+}
+
+// convert is a WhatsApp message as kith keeps it, live or from history alike.
+func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message) (arrived, bool) {
 	lookup := a.pnLookup(client)
 	own := selfOf(client)
 	chat := chatOf(ctx, &e.Info, lookup)
@@ -24,26 +32,49 @@ func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsm
 	}
 	msg, ok := incoming(account.Digits, room, &e.Info, e.Message, domain.NativePerson(domain.ProtocolWhatsApp, from.String()), own)
 	if !ok {
-		return
+		return arrived{}, false
 	}
 	msg.SenderName = a.names(client)(ctx, from)
 	if msg.SenderName == "" && !e.Info.IsFromMe {
 		msg.SenderName = e.Info.PushName
 	}
+	return arrived{msg: msg, chat: chat, group: e.Info.IsGroup, fromMe: e.Info.IsFromMe, pushName: e.Info.PushName}, true
+}
+
+// onMessage caches a message an account received, or sent from another of its
+// devices, and hands it to the clients.
+func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message) {
+	in, ok := a.convert(ctx, account, client, e)
+	if !ok {
+		return
+	}
 	if a.cache != nil {
 		newGroup := false
-		a.record(ctx, account, msg, func() {
-			if !e.Info.IsGroup {
-				a.knowDirectChat(ctx, account, client, room, chat, e.Info.PushName, e.Info.IsFromMe)
-				return
-			}
-			newGroup = a.joinGroup(ctx, account, room)
+		a.record(ctx, account, in.msg, func() {
+			newGroup = a.ensureRoom(ctx, account, client, in, "")
 		})
 		if newGroup {
 			a.refreshLater(account, client) // for its name and members
 		}
+		a.placeRead(ctx, in.msg.RoomID, in.msg.Timestamp.Add(-time.Millisecond))
+		a.recount(ctx, in.msg.RoomID)
 	}
-	emit(a, a.messages, msg)
+	emit(a, a.messages, in.msg)
+}
+
+// ensureRoom makes the room a message belongs in one of the account's: a direct chat
+// named after the person (or name, history's), a group joined. It reports a group
+// that was not one of its rooms before. Caller holds listing.
+func (a *Adapter) ensureRoom(ctx context.Context, account Account, client *whatsmeow.Client, in arrived, name string) bool {
+	if !in.group {
+		// A push name is the sender's own: it names the chat only when they sent it.
+		if name == "" && !in.fromMe {
+			name = in.pushName
+		}
+		a.knowDirectChat(ctx, account, client, in.msg.RoomID, in.chat, name)
+		return false
+	}
+	return a.joinGroup(ctx, account, in.msg.RoomID)
 }
 
 // joinGroup makes a group a message came to one of the account's rooms, and reports
@@ -77,10 +108,10 @@ func (a *Adapter) record(ctx context.Context, account Account, msg domain.Messag
 
 // knowDirectChat records a direct chat as a room named after the person, with them as
 // its member, the first time it is seen and whenever their name may have changed.
-func (a *Adapter) knowDirectChat(ctx context.Context, account Account, client *whatsmeow.Client, room domain.RoomID, peer types.JID, pushName string, fromMe bool) {
+func (a *Adapter) knowDirectChat(ctx context.Context, account Account, client *whatsmeow.Client, room domain.RoomID, peer types.JID, fallback string) {
 	name := a.names(client)(ctx, peer)
-	if name == "" && !fromMe {
-		name = pushName
+	if name == "" {
+		name = fallback
 	}
 	owner := domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits)
 	chat := domain.Room{ID: room, Name: name, IsDirect: true}

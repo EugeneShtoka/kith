@@ -24,6 +24,9 @@ const streamBuffer = 64
 // errNotOnWhatsApp is what WhatsApp has no such thing for, or not yet.
 var errNotOnWhatsApp = api.ErrNotOnNetwork
 
+// errNetworkOff is an account that is not linked or not connected.
+var errNetworkOff = api.ErrNetworkOff
+
 // Account is one configured WhatsApp account.
 type Account struct {
 	// Name is what `kith login whatsapp <name>` takes.
@@ -43,8 +46,10 @@ type Adapter struct {
 
 	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
 	onRoomsChanged func()
-	// onCached hears each message cached (see OnCached).
-	onCached func(domain.Message)
+	// onCached hears each message cached, onChanged each room whose cached messages
+	// changed otherwise (a history chunk) — see OnCached.
+	onCached  func(domain.Message)
+	onChanged func(domain.RoomID)
 
 	mu sync.Mutex
 	// clients are the linked accounts' connections, by digits.
@@ -60,6 +65,10 @@ type Adapter struct {
 	listing sync.Mutex
 	// heard is when each room last got a message, so a listing fetched earlier keeps it.
 	heard map[domain.RoomID]time.Time
+	// positions are the WhatsApp rooms' read positions, by time; nil until first needed.
+	positions map[domain.RoomID]time.Time
+	// typing is who is typing in each room now (see typing.go).
+	typing map[domain.RoomID][]string
 	// run is Start's context: an account paired later runs until it ends too.
 	run     context.Context //nolint:containedctx // events arrive with no context: their work lives as long as Start's
 	started bool
@@ -87,6 +96,7 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		pairing:   map[string]bool{},
 		sent:      map[string]types.MessageID{},
 		heard:     map[domain.RoomID]time.Time{},
+		typing:    map[domain.RoomID][]string{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
@@ -98,9 +108,11 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 // before Start.
 func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
 
-// OnCached sets who hears each message the adapter caches (word completion). Set
-// before Start.
-func (a *Adapter) OnCached(cached func(domain.Message)) { a.onCached = cached }
+// OnCached sets who hears each message the adapter caches, and each room whose
+// cached messages changed otherwise (word completion). Set before Start.
+func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
+	a.onCached, a.onChanged = cached, changed
+}
 
 // accountsNow is the configured accounts (UseAccounts replaces them).
 func (a *Adapter) accountsNow() []Account {
@@ -170,6 +182,12 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		a.refreshLater(account, client)
 	case *events.Message:
 		a.onMessage(a.lifetime(), account, client, e)
+	case *events.HistorySync:
+		a.onHistory(a.lifetime(), account, client, e)
+	case *events.Receipt:
+		a.onReceipt(a.lifetime(), account, e)
+	case *events.ChatPresence:
+		a.onTyping(a.lifetime(), account, client, e)
 	case *events.LoggedOut:
 		a.log.Warn("the phone unlinked kith; run `kith login whatsapp "+account.Name+"` again",
 			"account", account.Name, "reason", e.Reason.String())
@@ -404,9 +422,6 @@ func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	return out, nil
 }
 
-// CachedUnread is nothing yet: WhatsApp's unread state comes with its messages.
-func (a *Adapter) CachedUnread(context.Context) ([]domain.Unread, error) { return nil, nil }
-
 // CanonicalParent: WhatsApp rooms sit in no space.
 func (a *Adapter) CanonicalParent(context.Context, domain.RoomID) (domain.SpaceID, error) {
 	return "", nil
@@ -505,14 +520,6 @@ func (a *Adapter) RoomEncryption(_ context.Context, roomIDs []domain.RoomID) (ma
 
 // What comes with messages (4b) is refused until then.
 
-func (a *Adapter) MarkRead(context.Context, domain.RoomID, domain.EventID, bool) error {
-	return errNotYet("send read receipts")
-}
-
-func (a *Adapter) MarkRoomsRead(context.Context, []domain.RoomID, bool) (domain.ReadResult, error) {
-	return domain.ReadResult{}, errNotYet("send read receipts")
-}
-
 func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error {
 	return errNotYet("mark a chat unread")
 }
@@ -534,8 +541,6 @@ func (a *Adapter) FetchEvent(context.Context, domain.RoomID, domain.EventID) (do
 func (a *Adapter) Redact(context.Context, domain.RoomID, domain.EventID, string) error {
 	return errNotYet("delete messages")
 }
-
-func (a *Adapter) SendTyping(context.Context, domain.RoomID, bool, time.Duration) error { return nil }
 
 func (a *Adapter) SendFile(context.Context, domain.RoomID, string, string) error {
 	return errNotYet("send files")
