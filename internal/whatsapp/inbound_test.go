@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waHistorySync"
+	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
@@ -39,7 +42,7 @@ func TestADirectChatBeginsWithItsFirstMessage(t *testing.T) {
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	var heard []domain.EventID
-	a.OnCached(func(m domain.Message) { heard = append(heard, m.ID) })
+	a.OnCached(func(m domain.Message) { heard = append(heard, m.ID) }, nil)
 
 	a.onMessage(ctx, account, client, danaWrites("3EB0A", "hello"))
 
@@ -136,7 +139,11 @@ func TestNoMessageIsSweptWithItsRoom(t *testing.T) {
 				world.Unlock()
 			}
 			sent = append(sent, room)
-			wg.Go(func() { a.onMessage(ctx, account, client, e) })
+			if rng.IntN(3) == 0 {
+				wg.Go(func() { a.onHistory(ctx, account, client, historyOf(e)) }) // a history chunk
+			} else {
+				wg.Go(func() { a.onMessage(ctx, account, client, e) })
+			}
 			if rng.IntN(2) == 0 {
 				rooms, fetched := listing()
 				wg.Go(func() { _ = a.saveListing(ctx, account, rooms, nil, fetched) })
@@ -149,6 +156,20 @@ func TestNoMessageIsSweptWithItsRoom(t *testing.T) {
 			}
 		}
 	}
+}
+
+// historyOf is a live message as a history chunk carries it.
+func historyOf(e *events.Message) *events.HistorySync {
+	key := &waCommon.MessageKey{RemoteJID: new(e.Info.Chat.String()), FromMe: new(e.Info.IsFromMe), ID: new(e.Info.ID)}
+	if e.Info.IsGroup {
+		key.Participant = new(e.Info.Sender.String())
+	}
+	return &events.HistorySync{Data: &waHistorySync.HistorySync{Conversations: []*waHistorySync.Conversation{{
+		ID: new(e.Info.Chat.String()),
+		Messages: []*waHistorySync.HistorySyncMsg{{Message: &waWeb.WebMessageInfo{
+			Key: key, Message: e.Message, MessageTimestamp: new(uint64(e.Info.Timestamp.Unix())),
+		}}},
+	}}}}
 }
 
 // Sending refuses what it cannot do, and an account that is not connected.

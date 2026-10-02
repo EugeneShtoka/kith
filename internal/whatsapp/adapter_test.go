@@ -84,7 +84,6 @@ func TestWhatComesLaterIsRefused(t *testing.T) {
 	ctx := context.Background()
 	a, _, _ := offline(t)
 	for name, err := range map[string]error{
-		"MarkRead": a.MarkRead(ctx, waRoom, "e", false),
 		"Redact":   a.Redact(ctx, waRoom, "e", ""),
 		"SendFile": a.SendFile(ctx, waRoom, "/f", ""),
 		"React":    a.SendReaction(ctx, waRoom, "e", "👍"),

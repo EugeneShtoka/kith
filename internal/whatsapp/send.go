@@ -134,15 +134,11 @@ func (a *Adapter) quote(ctx context.Context, account string, roomID domain.RoomI
 	if target.Network != domain.ProtocolWhatsApp || target.Account != account {
 		return nil
 	}
-	original, found, err := a.cache.Message(ctx, roomID, replyTo)
+	original, found, err := a.cache.MessageByID(ctx, roomID, replyTo)
 	if err != nil || !found {
 		return nil
 	}
-	from, err := a.cache.SenderOf(ctx, roomID, replyTo)
-	if err != nil {
-		return nil
-	}
-	sender, err := types.ParseJID(domain.ParseID(from).Native)
+	sender, err := types.ParseJID(domain.ParseID(original.Sender).Native)
 	if err != nil {
 		return nil
 	}

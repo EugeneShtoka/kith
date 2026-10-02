@@ -127,7 +127,6 @@ func TestTheQuietAnswers(t *testing.T) {
 	}
 	for name, err := range map[string]error{
 		"MarkRoomUnread": a.MarkRoomUnread(ctx, waRoom, true),
-		"MarkRoomsRead":  second(a.MarkRoomsRead(ctx, []domain.RoomID{waRoom}, false)),
 		"MessageHistory": third(a.MessageHistory(ctx, waRoom, "e")),
 		"FetchEvent":     second(a.FetchEvent(ctx, waRoom, "e")),
 		"LoadImage":      second(a.LoadImage(ctx, waRoom, "e")),
