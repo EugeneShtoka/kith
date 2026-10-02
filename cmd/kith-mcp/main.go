@@ -63,7 +63,7 @@ func main() {
 }
 
 func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile string) error {
-	cfg, user, err := loadAccount(log, configPath, profile)
+	cfg, user, storage, err := loadAccount(log, configPath, profile)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 		return fmt.Errorf("log level: %w", err)
 	}
 	level.Set(resolved)
-	socket, err := daemon.SocketPath(user)
+	socket, err := daemon.SocketPath(storage)
 	if err != nil {
 		return fmt.Errorf("finding the daemon's socket: %w", err)
 	}
@@ -91,14 +91,10 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 		log:      log,
 	}
 	// Without a ledger the read tools still work; send_message refuses.
-	if path, ledgerErr := agent.DefaultPath(user); ledgerErr == nil {
-		if ledger, openErr := agent.Open(path); openErr == nil {
-			server.ledger = ledger
-		} else {
-			log.Error("no agent ledger; send_message will refuse", "err", openErr)
-		}
+	if ledger, openErr := agent.Open(storage.LedgerPath()); openErr == nil {
+		server.ledger = ledger
 	} else {
-		log.Error("no agent ledger; send_message will refuse", "err", ledgerErr)
+		log.Error("no agent ledger; send_message will refuse", "err", openErr)
 	}
 	// Concurrently, so the handshake does not wait on the cache reads.
 	go warnAboutScope(log, server.backend, cfg)
@@ -118,33 +114,37 @@ func warnAboutScope(log *slog.Logger, places setup.AgentPlaces, cfg config.Confi
 const scopeCheckTimeout = 5 * time.Second
 
 // loadAccount loads and validates the config for the selected profile.
-func loadAccount(log *slog.Logger, configPath, profile string) (config.Config, string, error) {
+func loadAccount(log *slog.Logger, configPath, profile string) (config.Config, string, domain.Storage, error) {
 	path := configPath
 	if path == "" {
 		resolved, err := config.Path()
 		if err != nil {
-			return config.Config{}, "", fmt.Errorf("finding the config: %w", err)
+			return config.Config{}, "", domain.Storage{}, fmt.Errorf("finding the config: %w", err)
 		}
 		path = resolved
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		return config.Config{}, "", fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, "", domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 	if warning := config.ModeWarning(path); warning != "" {
 		log.Warn(warning)
 	}
 	cfg, err = cfg.Profile(profile)
 	if err != nil {
-		return config.Config{}, "", fmt.Errorf("choosing the profile: %w", err)
+		return config.Config{}, "", domain.Storage{}, fmt.Errorf("choosing the profile: %w", err)
 	}
 	if cfg.User == "" {
-		return config.Config{}, "", errors.New("no account in the config — run `kith login` first")
+		return config.Config{}, "", domain.Storage{}, errors.New("no account in the config — run `kith login` first")
 	}
-	if err := setup.Validate(cfg); err != nil {
-		return config.Config{}, "", fmt.Errorf("reading %s: %w", path, err)
+	if err = setup.Validate(cfg); err != nil {
+		return config.Config{}, "", domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
 	}
-	return cfg, cfg.User, nil
+	storage, err := setup.StorageFor(cfg, path, profile)
+	if err != nil {
+		return config.Config{}, "", domain.Storage{}, err
+	}
+	return cfg, cfg.User, storage, nil
 }
 
 // reader is the read half of what this server asks the daemon.

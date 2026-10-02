@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/adrg/xdg"
 	"github.com/gofrs/flock"
 )
 
@@ -59,15 +58,6 @@ const (
 
 // Ledger is one account's record, at a path.
 type Ledger struct{ path string }
-
-// DefaultPath is where one account's ledger lives.
-func DefaultPath(user string) (string, error) {
-	path, err := xdg.StateFile(fmt.Sprintf("kith/agent-sends-%s.jsonl", domain.AccountKey(user)))
-	if err != nil {
-		return "", fmt.Errorf("agent: resolve ledger path: %w", err)
-	}
-	return path, nil
-}
 
 // Open is the ledger at path, with its directory made.
 func Open(path string) (*Ledger, error) {

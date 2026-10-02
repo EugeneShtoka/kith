@@ -143,7 +143,7 @@ itself.
 
 | Flag | Meaning |
 | --- | --- |
-| `--config path` | Config file to read. The daemon re-reads this same path when a client asks it to reload. |
+| `--config path` | Config file to read. The daemon re-reads this same path when a client asks it to reload. A config other than the default one gets its own daemon: its files are wherever its `[storage]` says, named by its instance, and kith starts that daemon itself (`kithd --config path`) rather than through the systemd unit, which knows only the default config. |
 | `--profile name` | Which `[[profile]]` account to serve. The default is the first one. |
 | `--log-level level` | How much to log: `debug`, `info`, `warn` or `error`. Overrides `KITH_LOG_LEVEL` and `[log] level`. |
 | `-v` | Short for `--log-level debug`. |

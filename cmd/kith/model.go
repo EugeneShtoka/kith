@@ -6,21 +6,17 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
-
-	"github.com/adrg/xdg"
 
 	"github.com/EugeneShtoka/kith/internal/llamacpp"
 	"github.com/EugeneShtoka/kith/internal/llamacpp/models"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// modelDir holds installed weights; internal/setup points the daemon at the same place.
-func modelDir() string { return filepath.Join(xdg.DataHome, "kith", "models") }
-
-// addModel fetches one model and reports what it did.
-func addModel(tag string) error {
-	dir := modelDir()
+// addModel fetches one model into kith's data directory, where internal/setup points
+// the daemon (setup.ModelDir), and reports what it did.
+func addModel(data, tag string) error {
+	dir := setup.ModelDir(data)
 	if tag == "list" || tag == "?" {
 		listModels(dir)
 		return nil

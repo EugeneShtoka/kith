@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adrg/xdg"
-
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/llamacpp"
 	"github.com/EugeneShtoka/kith/internal/llamacpp/models"
@@ -50,7 +48,7 @@ func weightsOf(path string) weightsStamp {
 }
 
 // modelDir is where installed weights live.
-func modelDir() string { return filepath.Join(xdg.DataHome, "kith", "models") }
+func (s *Service) modelDir() string { return filepath.Join(s.spell.home(), "models") }
 
 // UseCompletionModel wires the engine, or turns it off (startup and reload). A reload
 // that changes nothing (the same settings, the same weights file) keeps the running
@@ -181,7 +179,7 @@ func shortModelName(path string) string {
 // InstallModel fetches the weights (unless already present) and points the running
 // layer at them, so no restart is needed.
 func (s *Service) InstallModel(ctx context.Context, tag string) error {
-	dir := modelDir()
+	dir := s.modelDir()
 	path, ok := models.Installed(dir, tag)
 	if !ok {
 		if _, err := llamacpp.Install(ctx, llamacpp.DefaultClient(), tag, dir); err != nil {

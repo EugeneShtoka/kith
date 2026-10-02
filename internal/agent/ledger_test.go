@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/agent"
-	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 func ledger(t *testing.T) *agent.Ledger {
@@ -151,27 +150,6 @@ func TestWritableReportsABlockedLedger(t *testing.T) {
 	}
 	if err := blocked.Writable(); err == nil {
 		t.Error("a directory in the ledger's place reported writable")
-	}
-}
-
-// The path is keyed on the account, like the cache, the socket and the scheduled queue —
-// two accounts on one machine are two records.
-func TestPathIsPerAccount(t *testing.T) {
-	t.Parallel()
-
-	first, err := agent.DefaultPath("@one:example.org")
-	if err != nil {
-		t.Fatalf("path: %v", err)
-	}
-	second, err := agent.DefaultPath("@two:example.org")
-	if err != nil {
-		t.Fatalf("path: %v", err)
-	}
-	if first == second {
-		t.Fatalf("both accounts resolved to %s", first)
-	}
-	if !strings.Contains(first, domain.AccountKey("@one:example.org")) {
-		t.Errorf("path = %s, want it keyed on the account", first)
 	}
 }
 

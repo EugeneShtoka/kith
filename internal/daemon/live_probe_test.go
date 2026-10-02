@@ -7,11 +7,13 @@ package daemon_test
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/adrg/xdg"
 )
 
 func TestLiveDaemon(t *testing.T) {
@@ -239,7 +241,8 @@ func localOffset(t time.Time) int {
 // which half was missing.
 func attachLive(t *testing.T, ctx context.Context, user string) (*daemon.Remote, string) {
 	t.Helper()
-	socket, err := daemon.SocketPath(user)
+	// A live install from before instances: the instance is the account's hash.
+	socket, err := daemon.SocketPath(domain.Storage{Instance: domain.AccountKey(user), RuntimeDir: filepath.Join(xdg.RuntimeDir, "kith")})
 	if err != nil {
 		t.Fatalf("SocketPath: %v", err)
 	}

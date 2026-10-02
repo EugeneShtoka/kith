@@ -373,6 +373,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/setup"
             # The theme as data only: every binary links setup, and only the TUI draws.
             - "github.com/EugeneShtoka/kith/internal/themespec"
+            # Storage's defaults are the XDG directories.
+            - "github.com/adrg/xdg"
 
         notify-is-pure:
           files:

@@ -914,6 +914,33 @@ target = "auto"
 [whatsapp]
 enabled = false
 
+# Where this kith keeps its files. Each directory, when empty, is the usual place:
+# data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,
+#                                    dictionaries and models
+# state_dir   $XDG_STATE_HOME/kith   the session file (when the keyring cannot hold
+#                                    it), the assistant's ledger, the send-later
+#                                    queue, logs
+# cache_dir   $XDG_CACHE_HOME/kith   pictures ([display.media] cache_dir overrides)
+# runtime_dir $XDG_RUNTIME_DIR/kith  the daemon's socket and lock
+# A "~" at the start is your home directory.
+#
+# `instance` names this config's files inside them, so several configs (a test one
+# beside your own, say) can share the directories without meeting. kith chooses it
+# the first time it runs and writes it here; an install from before kept its files
+# under a name made from the Matrix account, and goes on using that. Change it only
+# with the files: with another name, kith starts over.
+#
+# `keyring_service` is the name its secrets (the session, the encryption key, API
+# keys) are kept under in the OS keyring. A config with its own instance keeps its
+# own session there whatever this says.
+[storage]
+instance = ""
+data_dir = ""
+state_dir = ""
+cache_dir = ""
+runtime_dir = ""
+keyring_service = "kith"
+
 # Your own commands: `/zoom` runs the executable `zoom` in `dir`, and its stdout lands
 # in the composer for you to send or not. A non-zero exit, timeout or empty output
 # leaves the composer untouched and says why. Built-ins of the same name win.

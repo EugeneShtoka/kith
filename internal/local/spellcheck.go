@@ -74,6 +74,23 @@ type spellcheck struct {
 	freqs string
 	// log is the backend's logger (see UseLogger); nil is silent.
 	log *slog.Logger
+	// data is kith's data directory ([storage] data_dir); empty is the default one.
+	data string
+}
+
+// home is kith's data directory, where dictionaries and word counts are installed.
+func (s *spellcheck) home() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.homeLocked()
+}
+
+// homeLocked is home with mu held.
+func (s *spellcheck) homeLocked() string {
+	if s.data != "" {
+		return s.data
+	}
+	return filepath.Join(xdg.DataHome, "kith")
 }
 
 // logger is s.log or a silent one. Caller holds mu.
@@ -89,7 +106,7 @@ func (s *spellcheck) lookIn() []string {
 	if len(s.dirs) > 0 {
 		return s.dirs
 	}
-	return searchPaths()
+	return spell.SearchPaths(s.homeLocked())
 }
 
 // personalDic is where "add to dictionary" writes.
@@ -102,7 +119,7 @@ func (s *spellcheck) freqDir() string {
 	if s.freqs != "" {
 		return s.freqs
 	}
-	return spell.FreqDir(filepath.Join(xdg.DataHome, "kith"))
+	return spell.FreqDir(s.homeLocked())
 }
 
 // UseSpell sets the spelling settings. Wired at startup.

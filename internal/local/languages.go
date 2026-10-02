@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/adrg/xdg"
-
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/spell"
 )
@@ -17,15 +15,12 @@ import (
 // rather than asked. Lives here (cache, filesystem, network), not in the TUI.
 
 // dictionaryDir is where fetched dictionaries land (searched first by spell.SearchPaths).
-func dictionaryDir() string { return filepath.Join(xdg.DataHome, "kith", "hunspell") }
-
-// searchPaths is where dictionaries are looked for.
-func searchPaths() []string { return spell.SearchPaths(filepath.Join(xdg.DataHome, "kith")) }
+func (s *Service) dictionaryDir() string { return filepath.Join(s.spell.home(), "hunspell") }
 
 // DetectLanguages counts the cached corpus and returns the dictionaries worth
 // installing, already filtered to installable and not yet installed.
 func (s *Service) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, error) {
-	avail, _ := spell.Look("", nil, searchPaths())
+	avail, _ := spell.Look("", nil, spell.SearchPaths(s.spell.home()))
 	if avail.Engine.Path == "" {
 		// No engine: the fix is a package manager, so explain and offer nothing.
 		return domain.SpellSuggestion{Why: avail.Why(spell.Distro())}, nil
@@ -118,7 +113,7 @@ func (s *Service) InstallFrequencies(ctx context.Context, tag string) error {
 // InstallDictionary fetches one dictionary, verifying it against the pinned hash.
 func (s *Service) InstallDictionary(ctx context.Context, tag string) error {
 	client := &http.Client{Timeout: 5 * time.Minute}
-	if _, err := spell.Install(ctx, client, tag, dictionaryDir()); err != nil {
+	if _, err := spell.Install(ctx, client, tag, s.dictionaryDir()); err != nil {
 		return fmt.Errorf("local: install dictionary %s: %w", tag, err)
 	}
 	return nil

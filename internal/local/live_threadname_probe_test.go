@@ -105,7 +105,7 @@ func TestLiveThreadNames(t *testing.T) {
 	backend := local.New(cache, nil)
 	key := ""
 	if !dry {
-		key, _ = session.Secret(assist.KeyRef)
+		key, _ = session.Secret("kith", assist.KeyRef)
 	}
 	backend.UseModel(local.ModelSettings{
 		Endpoint: endpoint,
