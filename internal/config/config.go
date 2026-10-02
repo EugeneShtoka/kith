@@ -28,8 +28,8 @@ var defaultConfigTOML string
 // name and a shell argument both take without quoting or escaping.
 var profileName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-// ErrIncomplete is returned by Validate when a required field is missing.
-var ErrIncomplete = errors.New("config: homeserver and user are required")
+// ErrIncomplete is returned by Validate when the config names no network to use.
+var ErrIncomplete = errors.New("config: no network to use — set homeserver and user for Matrix, or enable [whatsapp]")
 
 // Config is kith's user configuration, one field per top-level key or table.
 type Config struct {
@@ -141,8 +141,13 @@ func Load(path string) (Config, error) {
 	return cfg, nil
 }
 
+// HasMatrix reports whether the (profile-resolved) config names a Matrix account.
+func (c Config) HasMatrix() bool { return c.Homeserver != "" && c.User != "" }
+
 // RequireAccount reports whether the config names an account this binary can act as: a
-// homeserver and a user, or `[[profile]]` blocks that each supply their own.
+// Matrix homeserver and user, `[[profile]]` blocks that each supply their own, or an
+// enabled [whatsapp]. Matrix is optional; half of it (a homeserver without a user, or
+// the reverse) is refused.
 func (c Config) RequireAccount() error {
 	// A profile supplies the account, so a file that has profiles is complete without a
 	// top-level one — and which profile is not this function's business (see Profile,
@@ -163,7 +168,10 @@ func (c Config) RequireAccount() error {
 		}
 		return nil
 	}
-	if c.Homeserver == "" || c.User == "" {
+	if (c.Homeserver == "") != (c.User == "") {
+		return errors.New("config: Matrix needs both homeserver and user (or neither, to use only [whatsapp])")
+	}
+	if !c.HasMatrix() && !c.WhatsApp.Enabled {
 		return ErrIncomplete
 	}
 	return nil

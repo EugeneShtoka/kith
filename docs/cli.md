@@ -25,12 +25,17 @@ the daemon (starting it if needed) and opens the interface.
 kith login [--profile name]
 ```
 
-Logs in with your password and stores the session in the OS keyring. It is the one
-command that needs no daemon, because the daemon has no terminal to prompt on.
+Logs in to Matrix with your password. kith reads the password, starts the daemon if
+it isn't running, and hands the password to it over its socket. The daemon logs in,
+stores the session in the OS keyring and starts Matrix on it at once.
 
-- The password is read from the terminal with echo off. It is never shown, and never
-  written to disk. Standard input must be a terminal.
+- The password is read from the terminal with echo off. It is never shown, never
+  written to disk, and never on a command line. Standard input must be a terminal.
 - `homeserver` and `user` must be set in the config, or in the chosen `[[profile]]`.
+  The daemon logs in as the account its own config names. If it was started before
+  the config had one, restart it first.
+- If the daemon already runs Matrix on a session, the new one is saved and used from
+  the daemon's next start; the running session is never replaced.
 - Each login creates a new Matrix device. Logging in again on the same machine
   replaces the stored session with a new device, and that device needs its room keys
   restored before it can read old encrypted history (see
@@ -144,8 +149,9 @@ kithd [--config path] [--profile name] [--log-level level] [-v] [--log-target ta
 
 The daemon. It runs in the foreground and logs to stderr, which the journal captures
 under systemd. Started by `kith` without systemd, it logs to the journal itself,
-or to `--log-file` when there is none. It needs a session stored by `kith login`, because it can't log in
-itself.
+or to `--log-file` when there is none. It runs logged in to nothing too: a network
+with no session waits for `kith login` (or `kith login whatsapp`), which logs it in
+through the daemon and starts it without a restart.
 
 | Flag | Meaning |
 | --- | --- |
@@ -166,8 +172,10 @@ Behavior worth knowing:
 - **An unreachable homeserver doesn't stop it.** It serves cached history, logs
   `cannot reach the homeserver; serving cached history and connecting when it is back`,
   and retries with a backoff capped at 30 seconds.
-- **A rejected session does.** An invalid or revoked token exits with status 1:
-  `saved session for … is unusable (run kith login again)`.
+- **Neither does a rejected session.** An invalid or revoked token leaves Matrix logged
+  out, with the reason in the daemon's status and log, and the daemon waits for
+  `kith login`. (A token rejected later, after the homeserver was first unreachable,
+  needs a restart after the login.)
 - **Optional parts fail soft.** A cache that can't be opened, encryption that can't be
   enabled (for example, with no keyring) or scheduled messages that can't be set up
   each log one `level=ERROR` line, and the daemon carries on without that part.
@@ -177,7 +185,7 @@ Behavior worth knowing:
 | Status | When |
 | --- | --- |
 | `0` | Clean shutdown, or another daemon already holds the lock. |
-| `1` | A fatal error: no config or no `user`, an invalid config, no saved session, a rejected session, a socket that can't be opened, or a sync loop that died. |
+| `1` | A fatal error: no config, an invalid config (one naming no network at all), no network that could be set up, or a socket that can't be opened. |
 
 ## kith-mcp
 

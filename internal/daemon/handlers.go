@@ -421,6 +421,17 @@ func (s *server) PairWhatsApp(
 	return sendFrame(st, &v1.PairWhatsAppResponse{Event: &v1.PairWhatsAppResponse_Linked{Linked: linked}})
 }
 
+// errMatrixOff refuses a Matrix login while the config names no Matrix account.
+var errMatrixOff = fmt.Errorf("%w: the config kithd runs with sets no homeserver and user", api.ErrNetworkOff)
+
+func (s *server) LoginMatrix(ctx context.Context, r *req[v1.LoginMatrixRequest]) (*resp[v1.LoginMatrixResponse], error) {
+	if s.Matrix == nil {
+		return nil, rpcErr(errMatrixOff)
+	}
+	in, err := s.Matrix.LoginMatrix(ctx, r.Msg.GetPassword())
+	return reply(&v1.LoginMatrixResponse{UserId: in.UserID, DeviceId: in.DeviceID, Started: in.Started}, err)
+}
+
 func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {
 	sat, err := s.seat.take(ctx, r.Msg.GetClient(), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
 	if errors.Is(err, api.ErrSeatTaken) {
@@ -561,7 +572,30 @@ func (s *server) Status(_ context.Context, _ *req[v1.StatusRequest]) (*resp[v1.S
 	if !syncedAt.IsZero() {
 		out.SyncedAt = timestamppb.New(syncedAt)
 	}
+	for _, n := range s.State.Networks() {
+		row := &v1.NetworkStatus{Network: n.Network, Account: n.Account, Phase: phaseToProto(n.Phase), Detail: n.Detail}
+		if !n.At.IsZero() {
+			row.OnlineAt = timestamppb.New(n.At)
+		}
+		out.Networks = append(out.Networks, row)
+	}
 	return connect.NewResponse(out), nil
+}
+
+// phaseToProto is a Phase on the wire.
+func phaseToProto(p Phase) v1.NetworkPhase {
+	switch p {
+	case PhaseLoggedOut:
+		return v1.NetworkPhase_NETWORK_PHASE_LOGGED_OUT
+	case PhaseConnecting:
+		return v1.NetworkPhase_NETWORK_PHASE_CONNECTING
+	case PhaseOnline:
+		return v1.NetworkPhase_NETWORK_PHASE_ONLINE
+	case PhaseFailed:
+		return v1.NetworkPhase_NETWORK_PHASE_FAILED
+	default:
+		return v1.NetworkPhase_NETWORK_PHASE_UNSPECIFIED
+	}
 }
 
 func (s *server) ClearCache(ctx context.Context, _ *req[v1.ClearCacheRequest]) (*resp[v1.ClearCacheResponse], error) {

@@ -27,7 +27,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
-	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
 	"github.com/EugeneShtoka/kith/internal/tui"
@@ -137,6 +136,12 @@ func attach(ctx context.Context, configPath, profile string, timeout time.Durati
 	} else if !found {
 		return attached{cfg: cfg}, fmt.Errorf("no saved session for %s; run `kith login` first", cfg.User)
 	}
+	return reach(ctx, path, cfg, storage, profile, timeout)
+}
+
+// reach attaches to (or starts) the daemon for a loaded config, logged in or not:
+// what the login commands do, as the daemon is what logs a network in.
+func reach(ctx context.Context, path string, cfg config.Config, storage domain.Storage, profile string, timeout time.Duration) (attached, error) {
 	// The packaged units serve only the default config in the default directories;
 	// any other gets a unit of its own, naming the config.
 	launch := daemon.Launch{ConfigPath: path, Profile: profile, OwnConfig: !isDefaultConfig(path) || !inDefaultDirs(storage)}
@@ -148,6 +153,20 @@ func attach(ctx context.Context, configPath, profile string, timeout time.Durati
 		cfg.Display.Media.CacheDir = storage.MediaDir() // [storage] cache_dir
 	}
 	return attached{path: path, cfg: cfg, storage: storage, backend: backend, note: note}, nil
+}
+
+// reachForLogin loads the config and reaches its daemon; backend is nil when a
+// first-run default config was just written.
+func reachForLogin(ctx context.Context, configPath, profile string) (attached, error) {
+	path, cfg, ready, err := loadConfig(configPath, profile)
+	if err != nil || !ready {
+		return attached{cfg: cfg}, err
+	}
+	storage, err := setup.StorageFor(cfg, path, profile)
+	if err != nil {
+		return attached{cfg: cfg}, err
+	}
+	return reach(ctx, path, cfg, storage, profile, readyTimeout)
 }
 
 // isDefaultConfig reports whether path is the config file kith reads by default,
@@ -310,8 +329,9 @@ func openLogTo(d logging.Destination) (*slog.Logger, func()) {
 	}
 }
 
-// runLogin performs a password login and stores the session in the OS keyring for the
-// daemon to resume from. The password is never written to disk.
+// runLogin logs the config's Matrix user in through the daemon, starting it if need
+// be: the daemon saves the session in the OS keyring and starts Matrix on it. The
+// password is never written to disk or argv.
 func runLogin(args []string) error {
 	if len(args) > 0 && args[0] == "whatsapp" {
 		return runWhatsAppLogin(args[1:])
@@ -323,32 +343,40 @@ func runLogin(args []string) error {
 		return fmt.Errorf("parse login flags: %w", err)
 	}
 
-	path, cfg, ready, err := loadConfig(*configPath, *profile)
+	_, cfg, ready, err := loadConfig(*configPath, *profile)
 	if err != nil || !ready {
 		return err
 	}
-	if cfg.Homeserver == "" || cfg.User == "" {
-		return errors.New("set `homeserver` and `user` in the config before logging in")
+	if !cfg.HasMatrix() {
+		return errors.New("set `homeserver` and `user` in the config to log in to Matrix " +
+			"(for WhatsApp, run `kith login whatsapp`)")
 	}
-
 	password, err := readSecret(fmt.Sprintf("Password for %s", cfg.User))
 	if err != nil {
 		return err
 	}
-	// A bare client: building the daemon's stores here would be double ownership.
-	sess, err := matrix.New(nil).Login(context.Background(), cfg.Homeserver, cfg.User, password)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	at, err := reachForLogin(ctx, *configPath, *profile)
+	if err != nil || at.backend == nil {
+		return err
+	}
+	defer at.backend.Stop()
+	in, err := at.backend.LoginMatrix(ctx, password)
+	if errors.Is(err, api.ErrNetworkOff) {
+		return errors.New("kithd was started before the config named a Matrix account; " +
+			"restart it (`systemctl --user restart kithd`, or stop it and run kith) and log in again")
+	}
 	if err != nil {
 		return fmt.Errorf("login: %w", err)
 	}
-	storage, err := setup.StorageFor(cfg, path, *profile)
-	if err != nil {
-		return err
+	if in.Started {
+		fmt.Printf("kith: logged in as %s (device %s); Matrix is syncing now.\n", in.UserID, in.DeviceID)
+	} else {
+		fmt.Printf("kith: logged in as %s (device %s). kithd was already running Matrix on an older "+
+			"session, so it uses this one from its next start.\n", in.UserID, in.DeviceID)
 	}
-	if err := session.Save(session.StoreFor(storage, cfg.User), sess, cfg.AllowTokenFile); err != nil {
-		return fmt.Errorf("save session: %w", err)
-	}
-	fmt.Printf("kith: logged in as %s (device %s); start the daemon with `kithd` or `systemctl --user start kithd`\n",
-		cfg.User, sess.DeviceID)
 	return nil
 }
 

@@ -46,6 +46,8 @@ type Adapter struct {
 
 	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
 	onRoomsChanged func()
+	// onLink hears an account's connection change (see OnLink).
+	onLink func(Account, Link, string)
 	// onCached hears each message cached, onChanged each room whose cached messages
 	// changed otherwise (a history chunk) — see OnCached.
 	onCached  func(domain.Message)
@@ -110,6 +112,44 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 // before Start.
 func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
 
+// Link is a configured account's connection.
+type Link int
+
+const (
+	// Unlinked has no linked device: never paired, or unlinked by the phone.
+	Unlinked Link = iota + 1
+	// Connecting is linked and reaching WhatsApp.
+	Connecting
+	// Connected is linked and connected.
+	Connected
+)
+
+// OnLink sets who hears an account's connection change, with what to tell a person
+// about it (empty when nothing). Set before Start.
+func (a *Adapter) OnLink(changed func(account Account, link Link, detail string)) { a.onLink = changed }
+
+// link tells the listener an account's connection changed.
+func (a *Adapter) link(account Account, link Link, detail string) {
+	if a.onLink != nil {
+		a.onLink(account, link, detail)
+	}
+}
+
+// Linked is every configured account that has a linked device: those Start connects.
+func (a *Adapter) Linked(ctx context.Context) ([]Account, error) {
+	var linked []Account
+	for _, account := range a.accountsNow() {
+		device, err := a.store.device(ctx, account.Digits)
+		if err != nil {
+			return nil, err
+		}
+		if device != nil {
+			linked = append(linked, account)
+		}
+	}
+	return linked, nil
+}
+
 // OnCached sets who hears each message the adapter caches, and each room whose
 // cached messages changed otherwise (word completion). Set before Start.
 func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
@@ -150,7 +190,9 @@ func (a *Adapter) connectLinked(ctx context.Context, account Account) error {
 		return err
 	}
 	if device == nil {
-		a.log.Info("not linked yet; run `kith login whatsapp " + account.Name + "`")
+		hint := "not linked yet; run `kith login whatsapp " + account.Name + "`"
+		a.log.Info(hint, "account", account.Name)
+		a.link(account, Unlinked, hint)
 		return nil
 	}
 	a.connect(account, whatsmeow.NewClient(device, newLogger(a.log, account.Name)))
@@ -169,19 +211,35 @@ func (a *Adapter) connect(account Account, client *whatsmeow.Client) {
 	a.mu.Unlock()
 	client.AddEventHandler(func(evt any) { a.handle(account, client, evt) })
 	if client.IsConnected() {
+		// Just paired: its Connected event came before this handler.
+		a.link(account, Connected, "")
 		a.refreshLater(account, client)
 		return
 	}
+	a.link(account, Connecting, "")
 	if err := client.Connect(); err != nil {
 		a.log.Warn("connect failed", "account", account.Name, "err", err)
+		a.link(account, Connecting, "connect failed: "+err.Error())
 	}
 }
 
 // handle is one account's event.
 func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 	switch e := evt.(type) {
-	case *events.Connected, *events.JoinedGroup, *events.GroupInfo:
+	case *events.Connected:
+		a.link(account, Connected, "")
 		a.refreshLater(account, client)
+	case *events.JoinedGroup, *events.GroupInfo:
+		a.refreshLater(account, client)
+	case *events.Disconnected:
+		// Only a client still in use reconnects: one unlinked or dropped from the
+		// config is gone, and says so already.
+		a.mu.Lock()
+		current := a.clients[account.Digits] == client
+		a.mu.Unlock()
+		if current {
+			a.link(account, Connecting, "disconnected; reconnecting")
+		}
 	case *events.Message:
 		a.onMessage(a.lifetime(), account, client, e)
 	case *events.HistorySync:
@@ -196,6 +254,7 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		a.mu.Lock()
 		delete(a.clients, account.Digits)
 		a.mu.Unlock()
+		a.link(account, Unlinked, "the phone unlinked kith; run `kith login whatsapp "+account.Name+"` again")
 	}
 }
 

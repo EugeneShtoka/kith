@@ -794,6 +794,48 @@ message StatusResponse {
   google.protobuf.Timestamp synced_at = 2;
   // last_error is the sync loop's last failure, empty when there has been none.
   string last_error = 3;
+  // networks is each network account the daemon serves, logged in or not.
+  repeated NetworkStatus networks = 4;
+}
+
+// NetworkPhase is where one network account is.
+enum NetworkPhase {
+  NETWORK_PHASE_UNSPECIFIED = 0;
+  // No session: never logged in, rejected, or unlinked by the phone.
+  NETWORK_PHASE_LOGGED_OUT = 1;
+  // A session, reaching the network.
+  NETWORK_PHASE_CONNECTING = 2;
+  // Synced: its rooms in the cache are current.
+  NETWORK_PHASE_ONLINE = 3;
+  // Stopped with an error.
+  NETWORK_PHASE_FAILED = 4;
+}
+
+// NetworkStatus is one network account as the daemon sees it.
+message NetworkStatus {
+  // The network's name: "Matrix", "WhatsApp".
+  string network = 1;
+  // The MXID, or the [[whatsapp.account]] name.
+  string account = 2;
+  NetworkPhase phase = 3;
+  // Why it is logged out or failed, or what it waits for.
+  string detail = 4;
+  // When it last went online; unset before.
+  google.protobuf.Timestamp online_at = 5;
+}
+
+message LoginMatrixRequest {
+  // The password for the config's Matrix user, typed by a human. The homeserver and
+  // user are the daemon's own config's, never the client's.
+  string password = 1;
+}
+
+message LoginMatrixResponse {
+  string user_id = 1;
+  string device_id = 2;
+  // started is true when Matrix started on this session at once; false when it was
+  // saved for the daemon's next start (Matrix was already running).
+  bool started = 3;
 }
 
 message ClearCacheRequest {}
@@ -1207,6 +1249,10 @@ service BackendService {
   // linked device: the stream carries the code to type on the phone, then the
   // account's ID once the phone accepts it. A failure ends the stream with an error.
   rpc PairWhatsApp(PairWhatsAppRequest) returns (stream PairWhatsAppResponse);
+  // LoginMatrix logs the config's Matrix user in with a password, saves the session
+  // and starts Matrix on it. A failure (a wrong password, Matrix not configured) is
+  // an error.
+  rpc LoginMatrix(LoginMatrixRequest) returns (LoginMatrixResponse);
   // RoomsWith finds the rooms a set of people are **all** in, most recently active
   // first.
   rpc RoomsWith(RoomsWithRequest) returns (RoomsWithResponse);

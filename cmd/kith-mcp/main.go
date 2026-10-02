@@ -134,9 +134,6 @@ func loadAccount(log *slog.Logger, configPath, profile string) (config.Config, s
 	if err != nil {
 		return config.Config{}, "", domain.Storage{}, fmt.Errorf("choosing the profile: %w", err)
 	}
-	if cfg.User == "" {
-		return config.Config{}, "", domain.Storage{}, errors.New("no account in the config — run `kith login` first")
-	}
 	if err = setup.Validate(cfg); err != nil {
 		return config.Config{}, "", domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
 	}

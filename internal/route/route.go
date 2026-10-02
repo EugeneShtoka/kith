@@ -1,7 +1,7 @@
 // Package route serves the chat networks as one: a call about a room goes to the
 // adapter for that room's network, a list is every adapter's, and a stream carries
-// every adapter's events. Matrix is always there; it alone has spaces, membership,
-// threads, device verification and key backup.
+// every adapter's events. Matrix is optional, like every network; it alone has
+// spaces, membership, threads, device verification and key backup.
 package route
 
 import (
@@ -70,18 +70,27 @@ type Matrix interface {
 	api.Threads
 	api.Verification
 	api.Keys
-	Attached() <-chan bool
+	// LoggedIn reports whether it has a session: until then the router treats it as
+	// off. It turns true once, before anything reaches it.
+	LoggedIn() bool
 	// ThreadParticipant reports whether we sent a thread's root or any reply in it.
 	ThreadParticipant(ctx context.Context, roomID domain.RoomID, root domain.EventID) bool
 }
 
 // Router is every network served as one. Build it with New.
 type Router struct {
+	// matrix is nil when Matrix is not configured.
 	matrix Matrix
 	// others are the networks besides Matrix, by the network their IDs name.
 	others map[domain.Protocol]Adapter
-	// all is Matrix then the others in a fixed order, for lists and streams.
+	// all is Matrix (when configured) then the others in a fixed order: every adapter
+	// started, stopped and streamed from, logged in or not.
 	all []Adapter
+
+	// noInvites and noVerifications stand in for Matrix's streams when it is not
+	// configured: nothing is sent on them, and Stop closes them.
+	noInvites       chan []domain.Room
+	noVerifications chan domain.Verification
 
 	// done ends the merged streams' pumps when the router stops, so a reader that
 	// went away cannot leave one blocked on a send.
@@ -95,15 +104,22 @@ type Router struct {
 	reactions   <-chan domain.ReactionUpdate
 }
 
-// New routes Matrix and others (keyed by network; Matrix may not be among them).
+// New routes Matrix (nil when not configured) and others (keyed by network; Matrix
+// may not be among them). Some network is required.
 func New(matrix Matrix, others map[domain.Protocol]Adapter) (*Router, error) {
-	if matrix == nil {
-		return nil, errors.New("route: Matrix is required")
-	}
 	if _, twice := others[domain.ProtocolMatrix]; twice {
 		return nil, errors.New("route: Matrix is given twice")
 	}
-	r := &Router{matrix: matrix, others: others, all: []Adapter{matrix}, done: make(chan struct{})}
+	if matrix == nil && len(others) == 0 {
+		return nil, errors.New("route: no network")
+	}
+	r := &Router{
+		matrix: matrix, others: others, done: make(chan struct{}),
+		noInvites: make(chan []domain.Room), noVerifications: make(chan domain.Verification),
+	}
+	if matrix != nil {
+		r.all = append(r.all, matrix)
+	}
 	networks := make([]domain.Protocol, 0, len(others))
 	for network := range others {
 		networks = append(networks, network)
@@ -119,6 +135,9 @@ func New(matrix Matrix, others map[domain.Protocol]Adapter) (*Router, error) {
 func (r *Router) adapterFor(id string) (Adapter, error) {
 	network := domain.NetworkOf(id)
 	if network == domain.ProtocolMatrix {
+		if !r.matrixOn() {
+			return nil, fmt.Errorf("%w (%s)", errMatrixOff, id)
+		}
 		return r.matrix, nil
 	}
 	if a, ok := r.others[network]; ok {
@@ -151,14 +170,23 @@ func doOnRoom(r *Router, roomID domain.RoomID, call func(Adapter) error) error {
 	return err
 }
 
-// gather is every adapter's answer, concatenated in order. One adapter failing fails
-// the whole read: a partial list would read as complete.
+// live is every adapter that may be asked: all but a Matrix with no session.
+func (r *Router) live() []Adapter {
+	if r.matrix == nil || r.matrix.LoggedIn() {
+		return r.all
+	}
+	return r.all[1:]
+}
+
+// gather is every live adapter's answer, concatenated in order. One adapter failing
+// fails the whole read: a partial list would read as complete.
 func gather[T any](r *Router, read func(Adapter) ([]T, error)) ([]T, error) {
-	if len(r.all) == 1 {
-		return read(r.all[0])
+	live := r.live()
+	if len(live) == 1 {
+		return read(live[0])
 	}
 	var out []T
-	for _, a := range r.all {
+	for _, a := range live {
 		got, err := read(a)
 		if err != nil {
 			return nil, err
@@ -206,17 +234,23 @@ func (r *Router) Stop() {
 			a.Stop()
 		}
 		close(r.done)
+		close(r.noInvites)
+		close(r.noVerifications)
 	})
 }
 
-// Account is the Matrix account: the one the daemon, its cache and its socket are
-// named after.
-func (r *Router) Account() string { return r.matrix.Account() }
+// Account is the Matrix account, "" without one.
+func (r *Router) Account() string {
+	if !r.matrixOn() {
+		return ""
+	}
+	return r.matrix.Account()
+}
 
 // Me is every ID on every network that is this person.
 func (r *Router) Me() []string {
 	var me []string
-	for _, a := range r.all {
+	for _, a := range r.live() {
 		for _, id := range a.Me() {
 			if !slices.Contains(me, id) {
 				me = append(me, id)
