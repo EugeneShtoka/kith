@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,14 +39,26 @@ func load(t *testing.T, path string) config.Config {
 	return cfg
 }
 
-// With nothing configured, files go where they always have, and the instance chosen
-// is kept in the config: the next run finds the same files.
-func TestStorageDefaultsAndAKeptInstance(t *testing.T) {
+// unchanged fails when reading storage wrote the config: the daemon runs with it
+// read-only, so working out where the files are must never need to write it.
+func unchanged(t *testing.T, path string, before []byte) {
+	t.Helper()
+	if after, err := os.ReadFile(path); err != nil || !bytes.Equal(after, before) {
+		t.Errorf("StorageFor changed the config:\n%s", after)
+	}
+}
+
+// With nothing configured, files go where they always have. The instance is derived
+// from the config file without writing it, the same on every read (by the daemon or
+// a client), and a client may record it, which keeps it when the file moves.
+func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n")
+	before, _ := os.ReadFile(path)
 	first, err := setup.StorageFor(load(t, path), path, "")
 	if err != nil {
 		t.Fatal(err)
 	}
+	unchanged(t, path, before)
 	if first.DataDir != filepath.Join(root, "data_home", "kith") || first.RuntimeDir != filepath.Join(root, "runtime_dir", "kith") ||
 		first.KeyringService != "kith" || first.Instance == "" {
 		t.Errorf("defaults = %+v", first)
@@ -55,12 +68,45 @@ func TestStorageDefaultsAndAKeptInstance(t *testing.T) {
 	}
 	second, err := setup.StorageFor(load(t, path), path, "")
 	if err != nil || second.Instance != first.Instance {
-		t.Errorf("the next run = (%+v, %v), want the instance kept (%s)", second, err, first.Instance)
+		t.Errorf("the next read = (%+v, %v), want the same instance (%s)", second, err, first.Instance)
+	}
+
+	// Through a symlink, as the daemon may be given it, the same file is the same instance.
+	link := filepath.Join(root, "link.toml")
+	if err := os.Symlink(path, link); err != nil {
+		t.Fatal(err)
+	}
+	if via, err := setup.StorageFor(load(t, link), link, ""); err != nil || via.Instance != first.Instance {
+		t.Errorf("through a symlink = (%q, %v), want %q", via.Instance, err, first.Instance)
+	}
+
+	// Another file, same directories: its own instance.
+	other := filepath.Join(root, "other.toml")
+	if err := os.WriteFile(other, before, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if theirs, err := setup.StorageFor(load(t, other), other, ""); err != nil || theirs.Instance == first.Instance {
+		t.Errorf("another config file = (%q, %v), want an instance of its own", theirs.Instance, err)
+	}
+
+	// Recorded, the instance moves with the file.
+	if err := setup.RememberInstance(load(t, path), path); err != nil {
+		t.Fatal(err)
+	}
+	if got := load(t, path).Storage.Instance; got != first.Instance {
+		t.Fatalf("recorded instance = %q, want %q", got, first.Instance)
+	}
+	moved := filepath.Join(root, "moved.toml")
+	if err := os.Rename(path, moved); err != nil {
+		t.Fatal(err)
+	}
+	if after, err := setup.StorageFor(load(t, moved), moved, ""); err != nil || after.Instance != first.Instance {
+		t.Errorf("after moving the recorded config = (%q, %v), want %q", after.Instance, err, first.Instance)
 	}
 }
 
 // An install from before instances keeps its files: its instance is the name they
-// were kept under, written into the config.
+// were kept under, found without writing the config, and recorded by a client.
 func TestAnInstallFromBeforeKeepsItsFiles(t *testing.T) {
 	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n")
 	legacy := domain.AccountKey("@ada:x")
@@ -71,12 +117,34 @@ func TestAnInstallFromBeforeKeepsItsFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "cache-"+legacy+".db"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	before, _ := os.ReadFile(path)
 	storage, err := setup.StorageFor(load(t, path), path, "")
 	if err != nil || storage.Instance != legacy || storage.CachePath() != filepath.Join(dir, "cache-"+legacy+".db") {
 		t.Fatalf("storage = (%+v, %v), want the existing files", storage, err)
 	}
+	unchanged(t, path, before)
+	if err := setup.RememberInstance(load(t, path), path); err != nil {
+		t.Fatal(err)
+	}
 	if got := load(t, path).Storage.Instance; got != legacy {
 		t.Errorf("config instance = %q, want %q recorded", got, legacy)
+	}
+}
+
+// A config that cannot be written is still served: reading storage never needs to
+// write it (the daemon under systemd sees the home directory read-only).
+func TestAReadOnlyConfigIsServed(t *testing.T) {
+	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n")
+	if err := os.Chmod(root, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(root, 0o700) })
+	storage, err := setup.StorageFor(load(t, path), path, "")
+	if err != nil || storage.Instance == "" {
+		t.Errorf("StorageFor on a read-only config = (%+v, %v), want an instance", storage, err)
+	}
+	if err := setup.RememberInstance(load(t, path), path); err == nil {
+		t.Error("recording into a read-only directory reported success")
 	}
 }
 

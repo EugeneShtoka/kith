@@ -141,6 +141,9 @@ func loadAccount(log *slog.Logger, configPath, profile string) (config.Config, s
 	if err != nil {
 		return config.Config{}, "", domain.Storage{}, err
 	}
+	if rerr := setup.RememberInstance(cfg, path); rerr != nil {
+		log.Debug("storage.instance not recorded; it is derived from the config's path", "err", rerr)
+	}
 	return cfg, cfg.User, storage, nil
 }
 
