@@ -155,6 +155,9 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 // image or a video goes as one, audio as audio, anything else as a document under
 // its name.
 func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
+	if err := a.mayPost(roomID); err != nil {
+		return err
+	}
 	id := domain.ParseID(string(roomID))
 	chat, err := types.ParseJID(id.Native)
 	if err != nil {

@@ -17,6 +17,7 @@ type arrived struct {
 	source   *mediaSource // how to load its attachment; nil when it has none
 	chat     types.JID    // the other person, for a direct chat; the group otherwise
 	group    bool
+	channel  bool // posted in a channel: the channel is its sender
 	fromMe   bool
 	pushName string
 }
@@ -35,13 +36,22 @@ func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeo
 	if !ok {
 		return arrived{}, false
 	}
+	channelPost := chat.Server == types.NewsletterServer
 	msg.SenderName = a.names(client)(ctx, from)
+	if channelPost {
+		if ch, ok := a.channelOf(room); ok {
+			msg.SenderName = ch.name
+		}
+	}
 	if msg.SenderName == "" && !e.Info.IsFromMe {
 		msg.SenderName = e.Info.PushName
 	}
 	media, source := attachment(e.Message)
 	msg.Media = media
-	return arrived{msg: msg, source: source, chat: chat, group: e.Info.IsGroup, fromMe: e.Info.IsFromMe, pushName: e.Info.PushName}, true
+	return arrived{
+		msg: msg, source: source, chat: chat, group: e.Info.IsGroup, channel: channelPost,
+		fromMe: e.Info.IsFromMe, pushName: e.Info.PushName,
+	}, true
 }
 
 // onMessage caches a message an account received, or sent from another of its
@@ -70,10 +80,10 @@ func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsm
 }
 
 // ensureRoom makes the room a message belongs in one of the account's: a direct chat
-// named after the person (or name, history's), a group joined. It reports a group
-// that was not one of its rooms before. Caller holds listing.
+// named after the person (or name, history's), a group or channel joined. It reports
+// a group or channel that was not one of its rooms before. Caller holds listing.
 func (a *Adapter) ensureRoom(ctx context.Context, account Account, client *whatsmeow.Client, in arrived, name string) bool {
-	if !in.group {
+	if !in.group && !in.channel {
 		// A push name is the sender's own: it names the chat only when they sent it.
 		if name == "" && !in.fromMe {
 			name = in.pushName
