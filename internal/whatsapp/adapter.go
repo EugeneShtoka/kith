@@ -288,33 +288,53 @@ func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *w
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: %s's groups: %w", account.Name, err)
 	}
-	rooms, members := groupRooms(ctx, account.Digits, groups, a.names(client))
-	if err := a.saveListing(ctx, account, rooms, members, fetched); err != nil {
+	spaces, chats := communities(ctx, account.Digits, groups, func(ctx context.Context, jid types.JID) string {
+		info, err := client.GetGroupInfo(ctx, jid)
+		if err != nil {
+			a.log.Debug("read a community's name failed", "account", account.Name, "err", err)
+			return ""
+		}
+		return info.Name
+	})
+	rooms, members := groupRooms(ctx, account.Digits, chats, a.names(client))
+	if err := a.saveListing(ctx, account, groupListing{rooms: rooms, members: members, spaces: spaces}, fetched); err != nil {
 		return nil, err
 	}
 	return rooms, nil
 }
 
-// saveListing writes an account's groups, with their members, over its cached rooms.
+// groupListing is what one account's group listing caches: its groups as rooms, with their
+// members, and its communities as spaces.
+type groupListing struct {
+	rooms   []domain.Room
+	members map[domain.RoomID][]domain.Member
+	spaces  []domain.Space
+}
+
+// saveListing writes an account's groups, with their members, over its cached rooms,
+// and its communities over its cached spaces.
 // What the sweep must not take is kept in the snapshot: the account's direct chats
 // (the listing names groups only), and any room a message arrived in since the
 // listing was fetched (a group just joined, a chat just begun) — either would lose
 // its history otherwise.
-func (a *Adapter) saveListing(ctx context.Context, account Account, rooms []domain.Room, members map[domain.RoomID][]domain.Member, fetched time.Time) error {
+func (a *Adapter) saveListing(ctx context.Context, account Account, l groupListing, fetched time.Time) error {
 	if a.cache == nil {
 		return nil
 	}
 	a.listing.Lock()
 	defer a.listing.Unlock()
 	owner := domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits)
-	kept, err := a.keptRooms(ctx, owner, rooms, fetched)
+	kept, err := a.keptRooms(ctx, owner, l.rooms, fetched)
 	if err != nil {
 		return err
 	}
-	if err := a.cache.SaveRooms(ctx, owner, append(slices.Clone(rooms), kept...)); err != nil {
+	if err := a.cache.SaveRooms(ctx, owner, append(slices.Clone(l.rooms), kept...)); err != nil {
 		return fmt.Errorf("whatsapp: cache %s's rooms: %w", account.Name, err)
 	}
-	for id, list := range members {
+	if err := a.cache.SaveSpaces(ctx, owner, l.spaces); err != nil {
+		return fmt.Errorf("whatsapp: cache %s's communities: %w", account.Name, err)
+	}
+	for id, list := range l.members {
 		if err := a.cache.SaveMembers(ctx, id, list); err != nil {
 			return fmt.Errorf("whatsapp: cache members of %s: %w", id, err)
 		}
@@ -483,9 +503,9 @@ func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	return out, nil
 }
 
-// CanonicalParent: WhatsApp rooms sit in no space.
-func (a *Adapter) CanonicalParent(context.Context, domain.RoomID) (domain.SpaceID, error) {
-	return "", nil
+// CanonicalParent is the community a WhatsApp room is in, "" for one in none.
+func (a *Adapter) CanonicalParent(ctx context.Context, roomID domain.RoomID) (domain.SpaceID, error) {
+	return a.communityOf(ctx, roomID)
 }
 
 // StarMessage bookmarks a message; WhatsApp's star is not synced, so it is kith's own.

@@ -15,7 +15,7 @@ func TestASpaceCanListAChildTheRoomTableHasNotSeenYet(t *testing.T) {
 	cache, ctx := openTemp(t), context.Background()
 
 	// The spaces refresh landing first: a space with children, and no rooms written.
-	err := cache.SaveSpaces(ctx, []domain.Space{{
+	err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{
 		ID:       "!work:x",
 		Name:     "Work",
 		Children: []domain.RoomID{"!notyet:x", "!alsonotyet:x"},

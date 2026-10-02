@@ -81,7 +81,7 @@ func TestAListingSweepsOnlyWhatItShould(t *testing.T) {
 	left := domain.RoomID("whatsapp:" + ownDigits + "/1203LEFT@g.us")
 	joined := domain.RoomID("whatsapp:" + ownDigits + "/1203NEW@g.us")
 	kept := domain.RoomID("whatsapp:" + ownDigits + "/1203KEPT@g.us")
-	if err := a.saveListing(ctx, account, []domain.Room{{ID: left}, {ID: kept}}, nil, time.Now()); err != nil {
+	if err := a.saveListing(ctx, account, groupListing{rooms: []domain.Room{{ID: left}, {ID: kept}}}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	a.onMessage(ctx, account, client, danaWrites("3EB0B", "hi"))
@@ -92,7 +92,7 @@ func TestAListingSweepsOnlyWhatItShould(t *testing.T) {
 	newGroup.Info.Chat, newGroup.Info.IsGroup = types.NewJID("1203NEW", types.GroupServer), true
 	a.onMessage(ctx, account, client, newGroup)
 
-	if err := a.saveListing(ctx, account, []domain.Room{{ID: kept}}, nil, fetched); err != nil {
+	if err := a.saveListing(ctx, account, groupListing{rooms: []domain.Room{{ID: kept}}}, fetched); err != nil {
 		t.Fatal(err)
 	}
 	rooms, _ := a.Rooms(ctx)
@@ -146,7 +146,7 @@ func TestNoMessageIsSweptWithItsRoom(t *testing.T) {
 			}
 			if rng.IntN(2) == 0 {
 				rooms, fetched := listing()
-				wg.Go(func() { _ = a.saveListing(ctx, account, rooms, nil, fetched) })
+				wg.Go(func() { _ = a.saveListing(ctx, account, groupListing{rooms: rooms}, fetched) })
 			}
 		}
 		wg.Wait()
@@ -233,10 +233,10 @@ func TestMentionCandidatesLeadWithWhoSpoke(t *testing.T) {
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	group := domain.RoomID("whatsapp:" + ownDigits + "/1203@g.us")
-	if err := a.saveListing(ctx, account, []domain.Room{{ID: group}}, map[domain.RoomID][]domain.Member{group: {
+	if err := a.saveListing(ctx, account, groupListing{rooms: []domain.Room{{ID: group}}, members: map[domain.RoomID][]domain.Member{group: {
 		{UserID: "whatsapp:111@s.whatsapp.net", DisplayName: "Aaron"},
 		{UserID: "whatsapp:" + danaPhone + "@s.whatsapp.net", DisplayName: "Dana"},
-	}}, time.Now()); err != nil {
+	}}}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	e := danaWrites("3EB0R", "hi all")

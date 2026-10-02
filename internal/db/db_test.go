@@ -83,7 +83,7 @@ func TestSpacesRoundTrip(t *testing.T) {
 		{ID: "!work:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
 		{ID: "!fun:x", Name: "Friends"},
 	}
-	if err := cache.SaveSpaces(ctx, spaces); err != nil {
+	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, spaces); err != nil {
 		t.Fatalf("SaveSpaces() error = %v", err)
 	}
 
@@ -495,7 +495,7 @@ func TestClearEmptiesEverything(t *testing.T) {
 	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
-	if err := cache.SaveSpaces(ctx, []domain.Space{{ID: "!s:x", Name: "Work", Children: []domain.RoomID{"!a:x"}}}); err != nil {
+	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{ID: "!s:x", Name: "Work", Children: []domain.RoomID{"!a:x"}}}); err != nil {
 		t.Fatalf("SaveSpaces() error = %v", err)
 	}
 	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{{ID: "$1", RoomID: "!a:x", Body: "hi"}}); err != nil {

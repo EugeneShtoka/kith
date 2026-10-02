@@ -17,7 +17,9 @@ type fake struct {
 	account string
 	me      []string
 	rooms   []domain.Room
-	fail    error // every call fails with this, when set
+	// spaces is what a network with spaces of its own lists (see spacedFake).
+	spaces []domain.Space
+	fail   error // every call fails with this, when set
 	// failMarking refuses MarkRoomsRead outright (nothing attempted).
 	failMarking error
 	// failEach and skipEach make MarkRoomsRead attempt every room but report the
@@ -226,11 +228,11 @@ func (m *fakeMatrix) only(call string) {
 
 func (m *fakeMatrix) Spaces(context.Context) ([]domain.Space, error) {
 	m.only("Spaces")
-	return nil, nil
+	return m.spaces, m.fail
 }
 func (m *fakeMatrix) RefreshSpaces(context.Context) ([]domain.Space, error) {
 	m.only("RefreshSpaces")
-	return nil, nil
+	return m.spaces, m.fail
 }
 
 func (m *fakeMatrix) AddToSpace(context.Context, domain.SpaceID, domain.RoomID) error {
@@ -350,3 +352,10 @@ func (m *fakeMatrix) calls() []string {
 	defer m.mu.Unlock()
 	return append([]string(nil), m.matrixCalls...)
 }
+
+// spacedFake is a network with spaces of its own beside Matrix's (WhatsApp's
+// communities); a plain fake has none.
+type spacedFake struct{ *fake }
+
+func (f spacedFake) Spaces(context.Context) ([]domain.Space, error)        { return f.spaces, f.fail }
+func (f spacedFake) RefreshSpaces(context.Context) ([]domain.Space, error) { return f.spaces, f.fail }

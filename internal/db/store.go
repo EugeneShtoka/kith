@@ -309,16 +309,20 @@ func (c *Cache) loadChildren(ctx context.Context, spaces []domain.Space, index m
 
 type spaceChild struct{ space, room string }
 
-// SaveSpaces replaces the cached spaces and their child mappings in one
-// transaction.
-func (c *Cache) SaveSpaces(ctx context.Context, spaces []domain.Space) error {
-	return c.inTx(ctx, func(tx *sql.Tx) error {
-		// Children first (they reference spaces); fixed statements, no interpolation.
-		if _, err := tx.ExecContext(ctx, "DELETE FROM space_children"); err != nil {
-			return fmt.Errorf("db: clear space_children: %w", err)
+// SaveSpaces replaces owner's cached spaces and their child mappings in one
+// transaction, leaving every other network's (and account's) spaces alone. A space
+// owner does not own is refused.
+func (c *Cache) SaveSpaces(ctx context.Context, owner domain.RoomOwner, spaces []domain.Space) error {
+	for i := range spaces {
+		if !owner.Owns(domain.RoomID(spaces[i].ID)) {
+			return fmt.Errorf("db: space %s is not among %q's", spaces[i].ID, owner)
 		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM spaces"); err != nil {
-			return fmt.Errorf("db: clear spaces: %w", err)
+	}
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		// Children go with their space (ON DELETE CASCADE); fixed statements, the
+		// owner bound as an ID prefix as SaveRooms binds it.
+		if _, err := tx.ExecContext(ctx, "DELETE FROM spaces WHERE substr(id, 1, ?) = ?", len(owner), string(owner)); err != nil {
+			return fmt.Errorf("db: clear %q's spaces: %w", owner, err)
 		}
 		space, err := tx.PrepareContext(ctx, "INSERT INTO spaces(id, name, bridge, keeper) VALUES(?, ?, ?, ?)")
 		if err != nil {

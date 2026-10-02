@@ -14,7 +14,7 @@ func TestSpaceIDsAreWhatTheRoomListSiftsAgainst(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	if err := cache.SaveSpaces(ctx, []domain.Space{
+	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{
 		{ID: "!work:x", Name: "Work", Children: []domain.RoomID{"!chat:x"}},
 	}); err != nil {
 		t.Fatalf("SaveSpaces() error = %v", err)

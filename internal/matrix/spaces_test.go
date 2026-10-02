@@ -149,7 +149,7 @@ func TestRefreshRoomsDropsCachedSpaces(t *testing.T) {
 
 	ctx := context.Background()
 	cache := testCache(t)
-	if saveErr := cache.SaveSpaces(ctx, []domain.Space{{ID: "!work:x", Name: "Work"}}); saveErr != nil {
+	if saveErr := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{ID: "!work:x", Name: "Work"}}); saveErr != nil {
 		t.Fatalf("SaveSpaces: %v", saveErr)
 	}
 

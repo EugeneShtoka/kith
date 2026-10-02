@@ -18,11 +18,21 @@ func (b *InProc) Spaces(ctx context.Context) ([]domain.Space, error) {
 	if b.cache == nil {
 		return b.RefreshSpaces(ctx)
 	}
-	spaces, err := b.cache.Spaces(ctx)
+	spaces, err := b.matrixSpaces(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("matrix: read cached spaces: %w", err)
 	}
 	return spaces, nil
+}
+
+// matrixSpaces is the cached Matrix spaces: the cache holds every network's, and the
+// router adds the others' itself.
+func (b *InProc) matrixSpaces(ctx context.Context) ([]domain.Space, error) {
+	spaces, err := b.cache.Spaces(ctx)
+	if err != nil {
+		return nil, err //nolint:wrapcheck // each caller says what it was reading for
+	}
+	return slices.DeleteFunc(spaces, func(sp domain.Space) bool { return !domain.MatrixRooms.Owns(domain.RoomID(sp.ID)) }), nil
 }
 
 // RefreshSpaces fetches the joined spaces with their direct child rooms (sub-spaces
@@ -75,7 +85,7 @@ func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	}
 	domain.SortSpaces(spaces)
 	if b.cache != nil {
-		if err := b.cache.SaveSpaces(ctx, spaces); err != nil {
+		if err := b.cache.SaveSpaces(ctx, domain.MatrixRooms, spaces); err != nil {
 			return nil, fmt.Errorf("matrix: cache spaces: %w", err)
 		}
 		// Original is derived from canonical parents, so it is computed on read, not stored.
@@ -106,7 +116,7 @@ func (b *InProc) knownSpaces(ctx context.Context) map[domain.SpaceID]domain.Spac
 	if b.cache == nil {
 		return out
 	}
-	cached, err := b.cache.Spaces(ctx)
+	cached, err := b.matrixSpaces(ctx)
 	b.warnIf(ctx, err, "read cached spaces")
 	for i := range cached {
 		out[cached[i].ID] = cached[i]
@@ -282,7 +292,7 @@ func (b *InProc) spacesHolding(ctx context.Context, roomID domain.RoomID) []doma
 	if b.cache == nil {
 		return nil
 	}
-	spaces, err := b.cache.Spaces(ctx)
+	spaces, err := b.matrixSpaces(ctx)
 	if err != nil {
 		b.warnIf(ctx, err, "read cached spaces", "room", roomID)
 		return nil

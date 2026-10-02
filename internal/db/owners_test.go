@@ -165,3 +165,54 @@ func TestJoiningARoomKeepsWhatIsKnown(t *testing.T) {
 		t.Error("Matrix joined a WhatsApp room")
 	}
 }
+
+// Any interleaving of every network's space refreshes: each writer's latest snapshot
+// is exactly its spaces, children and all; nobody else's is touched.
+func TestEachNetworksSpacesKeepToThemselves(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for seed := range uint64(30) {
+		rng := rand.New(rand.NewPCG(seed, 4))
+		cache := openTemp(t)
+		ws := writers(4, 4)
+		latest := map[domain.RoomOwner][]domain.Space{}
+		for range 10 {
+			w := ws[rng.IntN(len(ws))]
+			var snapshot []domain.Space
+			for i, id := range w.pool {
+				if rng.IntN(2) == 0 {
+					snapshot = append(snapshot, domain.Space{
+						ID: domain.SpaceID(id), Name: fmt.Sprint("s", i), Children: []domain.RoomID{domain.RoomID(fmt.Sprint(id, "-child"))},
+					})
+				}
+			}
+			if err := cache.SaveSpaces(ctx, w.owner, snapshot); err != nil {
+				t.Fatalf("seed %d: SaveSpaces(%q): %v", seed, w.owner, err)
+			}
+			latest[w.owner] = snapshot
+		}
+		got, err := cache.Spaces(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		have := map[domain.SpaceID]domain.Space{}
+		for _, s := range got {
+			have[s.ID] = s
+		}
+		want := 0
+		for _, snapshot := range latest {
+			for _, s := range snapshot {
+				want++
+				if g, ok := have[s.ID]; !ok || len(g.Children) != 1 || g.Children[0] != s.Children[0] {
+					t.Fatalf("seed %d: space %s = %+v, want %+v", seed, s.ID, g, s)
+				}
+			}
+		}
+		if len(have) != want {
+			t.Fatalf("seed %d: %d spaces cached, the writers' latest hold %d", seed, len(have), want)
+		}
+	}
+	if err := openTemp(t).SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{ID: "whatsapp:359/1203@g.us"}}); err == nil {
+		t.Error("Matrix saved a WhatsApp space")
+	}
+}

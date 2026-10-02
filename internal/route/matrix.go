@@ -50,23 +50,20 @@ func onMatrixRoom(r *Router, roomID domain.RoomID, call func(Matrix) error) erro
 	return doOnMatrix(r, call)
 }
 
-// Spaces is Matrix's cached space hierarchy.
-func (r *Router) Spaces(ctx context.Context) ([]domain.Space, error) {
-	return matrixList(r, func(m Matrix) ([]domain.Space, error) { return m.Spaces(ctx) })
-}
-
-// RefreshSpaces refetches the space hierarchy.
-func (r *Router) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
-	return matrixList(r, func(m Matrix) ([]domain.Space, error) { return m.RefreshSpaces(ctx) })
-}
-
-// AddToSpace files a Matrix room into a space.
+// AddToSpace files a Matrix room into a Matrix space. Another network's space (a
+// WhatsApp community) is its admins' to fill.
 func (r *Router) AddToSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
+	if err := matrixRoom(domain.RoomID(spaceID)); err != nil {
+		return err
+	}
 	return onMatrixRoom(r, roomID, func(m Matrix) error { return m.AddToSpace(ctx, spaceID, roomID) })
 }
 
-// RemoveFromSpace takes a Matrix room out of a space.
+// RemoveFromSpace takes a Matrix room out of a Matrix space.
 func (r *Router) RemoveFromSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
+	if err := matrixRoom(domain.RoomID(spaceID)); err != nil {
+		return err
+	}
 	return onMatrixRoom(r, roomID, func(m Matrix) error { return m.RemoveFromSpace(ctx, spaceID, roomID) })
 }
 

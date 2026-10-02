@@ -101,3 +101,40 @@ func (r *Router) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]do
 func (r *Router) MentionCandidates(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
 	return onRoom(r, roomID, func(a Adapter) ([]domain.Member, error) { return a.MentionCandidates(ctx, roomID, limit) })
 }
+
+// spaceSource is a network with spaces of its own beside Matrix's: WhatsApp's
+// communities.
+type spaceSource interface {
+	Spaces(ctx context.Context) ([]domain.Space, error)
+	RefreshSpaces(ctx context.Context) ([]domain.Space, error)
+}
+
+// Spaces is every network's cached spaces: Matrix's hierarchy and the others'
+// (WhatsApp communities), sorted by name.
+func (r *Router) Spaces(ctx context.Context) ([]domain.Space, error) {
+	return r.allSpaces(func(s spaceSource) ([]domain.Space, error) { return s.Spaces(ctx) })
+}
+
+// RefreshSpaces refetches every network's spaces.
+func (r *Router) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
+	return r.allSpaces(func(s spaceSource) ([]domain.Space, error) { return s.RefreshSpaces(ctx) })
+}
+
+// allSpaces is read over every live network that has spaces; one failing fails the
+// read, as gather does: a partial hierarchy would read as complete.
+func (r *Router) allSpaces(read func(spaceSource) ([]domain.Space, error)) ([]domain.Space, error) {
+	var out []domain.Space
+	for _, a := range r.live() {
+		source, ok := a.(spaceSource)
+		if !ok {
+			continue
+		}
+		got, err := read(source)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, got...)
+	}
+	domain.SortSpaces(out)
+	return out, nil
+}
