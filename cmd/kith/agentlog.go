@@ -65,7 +65,7 @@ func agentLogLine(entry agent.Entry) string {
 func warnAboutAgentScope(ctx context.Context, places setup.AgentPlaces, cfg config.Config) {
 	ctx, cancel := context.WithTimeout(ctx, agentScopeTimeout)
 	defer cancel()
-	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg.Display), cfg.Agent) {
+	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg), cfg.Agent) {
 		fmt.Fprintln(os.Stderr, "kith: warning:", warning)
 	}
 }

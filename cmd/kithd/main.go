@@ -238,7 +238,7 @@ func settleLevel(log *slog.Logger, level *slog.LevelVar, flagLevel, configured s
 func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.AgentPlaces, cfg config.Config) {
 	ctx, cancel := context.WithTimeout(ctx, agentScopeTimeout)
 	defer cancel()
-	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg.Display), cfg.Agent) {
+	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg), cfg.Agent) {
 		log.Warn("agent scope: " + warning)
 	}
 }
@@ -372,7 +372,7 @@ func configure(log *slog.Logger, backend served, cfg config.Config, storage doma
 	backend.UseDataDir(storage.DataDir)
 	backend.UseModel(modelSettings(log, cfg, storage.KeyringService))
 	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, storage.DataDir))
-	backend.UsePlaces(setup.PlacesOf(cfg.Display))
+	backend.UsePlaces(setup.PlacesOf(cfg))
 	if backend.matrix != nil {
 		backend.matrix.KeepDeleted(cfg.Display.Deleted.Keep())
 		backend.matrix.UseIdentities(context.Background(), identityGroups(cfg))
@@ -525,7 +525,7 @@ func reloader(
 		if backend.matrix != nil {
 			backend.matrix.UseIdentities(ctx, identityGroups(reloaded))
 		}
-		backend.UsePlaces(setup.PlacesOf(reloaded.Display))
+		backend.UsePlaces(setup.PlacesOf(reloaded))
 		if backend.whatsapp != nil && reloaded.WhatsApp.Enabled {
 			backend.whatsapp.UseAccounts(ctx, whatsAppAccounts(reloaded))
 		}

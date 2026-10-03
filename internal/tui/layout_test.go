@@ -531,8 +531,8 @@ func TestTheListFollowsTheSpaceAndTheTimelineDoesNot(t *testing.T) {
 		{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!a:x", "!b:x"}},
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
 	}})
-	if got := m.spacesOf("!a:x"); len(got) == 0 || got[0] != "Friends" {
-		t.Fatalf("precondition: spacesOf = %v, want Friends first", got)
+	if got := m.homesOf("!a:x"); len(got) == 0 || got[0] != "Friends" {
+		t.Fatalf("precondition: homesOf = %v, want Friends first", got)
 	}
 
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")

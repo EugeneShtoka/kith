@@ -211,8 +211,8 @@ func (m Model) toggleFirstNameOnly() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	if !isSpaceGroup(entry.key) {
-		m = m.say("name rules apply to spaces, not to " + entry.label)
+	if !isSpaceGroup(entry.key) && !isTagGroup(entry.key) {
+		m = m.say("name rules apply to spaces and tags, not to " + entry.label)
 		return m, nil
 	}
 	display := m.prefs.display

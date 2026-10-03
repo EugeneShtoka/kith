@@ -42,6 +42,7 @@ window = "168h"
 | `!abc:example.org` | That room, by ID |
 | `room:<name>` | The room shown under that name |
 | `space:<name>` | Every room in that space |
+| `tag:<name>` | Every room that tag holds (its state words match nothing here) |
 | `protocol:<network>` | Every room on that network, e.g. `protocol:Google Messages` |
 | `dm` / `group` | Every direct message, or every room that is not one |
 

@@ -15,6 +15,7 @@ type RoomFacts struct {
 	Direct   bool
 	Protocol Protocol // the network, from the bridge that owns its space
 	Pinned   bool
+	Tags     []string // names of the [[tag]]s holding it, judged as a place (TagSet.Of)
 }
 
 // Places is what a room's facts depend on besides the room itself: the names the
@@ -24,8 +25,9 @@ type RoomFacts struct {
 // entry means the same room everywhere.
 type Places struct {
 	Names    map[RoomID]string // [[display.name]], by room
-	Priority []string          // space_priority
+	Priority []string          // [display] priority: spaces and tag:<name>s
 	Pinned   Pinned
+	Tags     TagSet
 }
 
 // Facts is room as a list entry matches it. holders are the spaces holding it, in
@@ -52,8 +54,10 @@ func (p Places) Facts(room Room, holders []Space) RoomFacts {
 	if len(names) > 0 {
 		facts.Spaces = OrderSpaces(names, p.Priority)
 	}
-	// Last: pin entries match on the facts above, and cannot themselves say `pinned`.
+	// Then pins: pin entries match on the facts above, and cannot themselves say `pinned`.
 	facts.Pinned = p.Pinned.Pins(facts)
+	// Last: a tag's rule may say `pinned`.
+	facts.Tags = p.Tags.Of(facts)
 	return facts
 }
 
@@ -102,7 +106,7 @@ func ParseEntry(entry string) (EntryKind, bool) {
 		return EntryInvalid, false
 	case strings.EqualFold(entry, entryDirect), strings.EqualFold(entry, entryGroup),
 		strings.EqualFold(entry, entryPinned),
-		hasPrefixFold(entry, entrySpace), hasPrefixFold(entry, entryProtocol):
+		hasPrefixFold(entry, entrySpace), hasPrefixFold(entry, entryProtocol), hasPrefixFold(entry, termTag):
 		return EntryClass, true
 	case hasPrefixFold(entry, entryRoom), strings.HasPrefix(entry, roomSigil), IsRoomID(entry):
 		return EntryRoom, true
@@ -128,7 +132,7 @@ func ValidateEntries(what string, entries []string) error {
 	for _, entry := range entries {
 		if _, ok := ParseEntry(entry); !ok {
 			return fmt.Errorf("%s: %q names nothing — write a room ID (!abc:server), "+
-				"room:<name>, space:<name>, protocol:<network>, dm, group or pinned", what, entry)
+				"room:<name>, space:<name>, tag:<name>, protocol:<network>, dm, group or pinned", what, entry)
 		}
 	}
 	return nil
@@ -164,6 +168,9 @@ func (f RoomFacts) Match(entry string) (EntryKind, bool) {
 		return kind, false
 	case hasPrefixFold(entry, entryProtocol):
 		return kind, strings.EqualFold(f.Protocol.String(), strings.TrimSpace(entry[len(entryProtocol):]))
+	case hasPrefixFold(entry, termTag):
+		want, _ := TagOf(entry)
+		return kind, slices.ContainsFunc(f.Tags, func(tag string) bool { return strings.EqualFold(tag, want) })
 	case hasPrefixFold(entry, entryRoom):
 		// `room:` takes the displayed name or the ID.
 		entry = strings.TrimSpace(entry[len(entryRoom):])

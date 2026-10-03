@@ -7,6 +7,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // gatedRooms serves a room list that can be swapped, and can hold a read mid-flight.
@@ -101,5 +102,35 @@ func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 	if got.Name != "Daily" || got.Protocol != domain.ProtocolWhatsApp || !got.Pinned ||
 		len(got.Spaces) != 2 || got.Spaces[0] != "Telegram" {
 		t.Errorf("facts = %+v, want Daily, WhatsApp (the first bridge), pinned, Telegram first", got)
+	}
+}
+
+// The notifier knows a room's tags: a rule can name tag:<name>, and {space} is the
+// first home by priority, a tag reading by its name. A reload brings the config's
+// tags and priority.
+func TestTheNotifierKnowsTags(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	src := &spaced{gatedRooms: gatedRooms{rooms: []domain.Room{{ID: "!mom:x", Name: "Mom", IsDirect: true}}},
+		spaces: []domain.Space{{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!mom:x"}}}}
+	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
+	cfg.Display.Priority = []string{"tag:Family", "Work"}
+	n, err := NewNotifications(cfg, src, "@me:x", func(config.Notifications) notify.Notifier { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts := n.scope.Facts(ctx, "!mom:x")
+	if !facts.Names("tag:Family") {
+		t.Fatalf("facts = %+v, want the room's tag known", facts)
+	}
+	if got := n.scope.Home(facts); got != "Family" {
+		t.Errorf("{space} = %q, want the tag that ranks first, by its name", got)
+	}
+	cfg.Display.Priority = []string{"Work"}
+	if err := n.Reload(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if got := n.scope.Home(n.scope.Facts(ctx, "!mom:x")); got != "Work" {
+		t.Errorf("{space} after a reload ranking Work first = %q", got)
 	}
 }

@@ -66,8 +66,8 @@ In the rail:
 | `m` | Mark every unread room in the group read (asks first) |
 | `B` | Bind a key sequence that jumps to this group |
 
-These write to your config for you (renaming, name rules and notification rules are
-for spaces; a tag is named in its `[[tag]]`). To arrange the rail by hand, use `[display.rail]`: `order` takes group keys (`home`, `dms`, `unread`, `invites`, `drafts`, `pinned`, `spam`, `archived`, a space's name, or `tag:<name>`), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing.
+These write to your config for you (a tag is renamed in its `[[tag]]`, not with `a`;
+name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` takes group keys (`home`, `dms`, `unread`, `invites`, `drafts`, `pinned`, `spam`, `archived`, a space's name, or `tag:<name>`), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing.
 
 ```toml
 [display.rail]
@@ -123,6 +123,18 @@ A tag can also change how its rooms behave elsewhere (each off unless set):
 
 Exclusivity decides where a room shows, not what rules match: `tag:Family` in
 another rule still matches a room Family claims.
+
+A tag is also a place: `tag:Family` works wherever a room, space or network can be
+named, in notification rules, do-not-disturb, `[agent.read]`, `[assist]`, spam lists
+and the rest. As a place a tag is judged on the room alone, so its state words match
+nothing there (`not unread` matches everything). Tagging a room that way widens what
+names the tag: a room you pick into a tag `[agent.read]` lists becomes readable to the
+assistant.
+
+A room's tags are homes beside its spaces. `[display] priority` ranks both (spaces by
+name, tags as `tag:<name>`), and the first decides which name rule applies, the
+`{space}` of a notification and a download's folder. Name rules and notification rules
+can be set on a tag row from the rail (`F`, `b`) as on a space.
 
 ## The room list
 

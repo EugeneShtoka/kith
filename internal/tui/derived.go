@@ -87,7 +87,12 @@ func placeFingerprint(f domain.RoomFacts) uint64 {
 	}
 	h = fnvMix(h, f.Protocol.String())
 	h = fnvMix(h, strconv.FormatBool(f.Direct))
-	return fnvMix(h, strconv.FormatBool(f.Pinned))
+	h = fnvMix(h, strconv.FormatBool(f.Pinned))
+	// The tags holding it: a home that picks name rules (homesOf).
+	for _, tag := range f.Tags {
+		h = fnvMix(h, tag)
+	}
+	return h
 }
 
 // keyFor is the identity of everything derivedCache's answers depend on.

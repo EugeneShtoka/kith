@@ -117,9 +117,10 @@ func TestTagProblemsAreSaid(t *testing.T) {
 	}
 }
 
-// A tag's row is not a space's: it is not renamed from the rail (its name is what
-// everything refers to it by), and name and notification rules are not aimed at it.
-func TestATagRowIsNotASpace(t *testing.T) {
+// A tag's row is not a space's, but it is a home: it is not renamed from the rail
+// (its name is what everything refers to it by), while name and notification rules
+// can be aimed at it, as tag:<name>.
+func TestATagRowIsAHomeNotASpace(t *testing.T) {
 	t.Parallel()
 	if isSpaceGroup("tag:Family") || !isTagGroup("tag:Family") || isTagGroup("Work") || !isSpaceGroup("Work") || isSpaceGroup("home") {
 		t.Fatal("rail keys misclassified")
@@ -130,12 +131,12 @@ func TestATagRowIsNotASpace(t *testing.T) {
 	if next.aimedAt.renamingGroup != "" || !strings.Contains(next.status(), "[[tag]]") {
 		t.Errorf("renaming a tag row: renaming %q, status %q; want it refused, pointing at [[tag]]", next.aimedAt.renamingGroup, next.status())
 	}
-	for name, try := range map[string]func(Model) Model{
-		"first names only": func(m Model) Model { n, _ := m.toggleFirstNameOnly(); return n },
-		"a rule":           func(m Model) Model { n, _ := m.openRuleForGroup(); return n },
-	} {
-		if got := try(m).status(); !strings.Contains(got, "not to Family") {
-			t.Errorf("%s on a tag row: status %q, want it refused", name, got)
-		}
+	named, _ := m.toggleFirstNameOnly()
+	if !slices.ContainsFunc(named.prefs.display.SpaceRules, func(r config.SpaceRule) bool { return r.Space == "tag:Family" }) {
+		t.Errorf("first names only on a tag row: rules %+v, want one for tag:Family", named.prefs.display.SpaceRules)
+	}
+	ruled, _ := m.openRuleForGroup()
+	if len(ruled.aimedAt.ruleScopes) != 1 || ruled.aimedAt.ruleScopes[0].match != "tag:Family" {
+		t.Errorf("a rule on a tag row: scopes %+v, want tag:Family", ruled.aimedAt.ruleScopes)
 	}
 }

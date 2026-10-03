@@ -33,7 +33,8 @@ type Display struct {
 	Unread        string        `toml:"unread"`         // UnreadSources; empty is "messages"
 	Archived      []string      `toml:"archived"`       // place vocabulary
 	Pinned        []string      `toml:"pinned"`         // place vocabulary
-	SpacePriority []string      `toml:"space_priority"` // space names, most preferred first
+	SpacePriority []string      `toml:"space_priority"` // the older name of Priority, read while it is empty
+	Priority      []string      `toml:"priority"`       // space names and tag:<name>s, most preferred first
 	BaseSpaces    []string      `toml:"base_spaces"`
 	Rooms         Rooms         `toml:"rooms"`
 	Rail          Rail          `toml:"rail"`
@@ -361,4 +362,13 @@ func (t Threads) RowMark() string {
 		return mark
 	}
 	return defaultThreadRowMark
+}
+
+// Ranking is [display] priority: spaces and tags, most preferred first. space_priority
+// is its older name, read while priority is empty.
+func (d Display) Ranking() []string {
+	if len(d.Priority) > 0 {
+		return d.Priority
+	}
+	return d.SpacePriority
 }

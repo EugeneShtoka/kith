@@ -312,8 +312,8 @@ func (m Model) placeOf(msg domain.Message) domain.DownloadPlace {
 	}
 	if room, ok := m.roomByID(msg.RoomID); ok {
 		place.Room = m.roomLabel(room)
-		if spaces := m.spacesOf(room.ID); len(spaces) > 0 {
-			place.Space = spaces[0]
+		if homes := m.homesOf(room.ID); len(homes) > 0 {
+			place.Space = homes[0]
 		}
 	}
 	return place

@@ -174,10 +174,13 @@ func (m Model) muteTargets() []muteTarget {
 		})
 	}
 	if inRoom {
-		for _, space := range m.spacesOf(room.ID) {
-			shown := isolate(space)
+		for _, home := range m.homesOf(room.ID) {
+			shown, kind := isolate(domain.HomeLabel(home)), "space"
+			if isTagGroup(home) {
+				kind = "tag"
+			}
 			targets = append(targets, muteTarget{
-				kind: "space", match: domain.SpaceEntry(space), label: shown, what: "everything in " + shown,
+				kind: kind, match: homeEntry(home), label: shown, what: "everything in " + shown,
 			})
 		}
 	}
