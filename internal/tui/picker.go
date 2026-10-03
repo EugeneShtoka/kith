@@ -23,6 +23,8 @@ type pickerWalk struct {
 	setting string
 	// speedScopes is where a voice-note speed may be remembered, by picker row.
 	speedScopes []ruleTarget
+	// tag is where the tag editor is (tageditor.go).
+	tag tagEditing
 }
 
 // pickerMode is whether keystrokes move the cursor or narrow the list.
@@ -62,6 +64,9 @@ const (
 	pickerCompletionModel
 	pickerNewRoom
 	pickerJump // the switcher; see jump.go
+	pickerTags
+	pickerTagEdit
+	pickerTagEntries
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -95,12 +100,15 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerMuteScope:       {title: "Mute sound for what?"},
 	pickerDNDFor:          {title: "For how long?"},
 	pickerThread:          {title: "Threads in this room"},
-	pickerRoomSpaces:      {title: "Which spaces hold this room?", modal: true, multi: true},
+	pickerRoomSpaces:      {title: "Which spaces and tags hold this room?", modal: true, multi: true},
 	pickerDictionaries:    {title: "Install spelling dictionaries for what you write?", modal: true, multi: true},
 	pickerFrequencies:     {title: "Install word counts, so typos that are also words get caught?", modal: true, multi: true},
 	pickerCompletionModel: {title: "Install the completion model, to run on this machine?", modal: true, multi: true},
 	pickerNewRoom:         {title: "Create what?"},
 	pickerJump:            {title: "Go to"},
+	pickerTags:            {title: "Tags"},
+	pickerTagEdit:         {}, // titled with the tag
+	pickerTagEntries:      {}, // titled with the tag and the list
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the
@@ -436,6 +444,12 @@ func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
 		return m.chooseDNDFor(item.value)
 	case pickerNewRoom:
 		return m.chooseNewRoomKind(item.value)
+	case pickerTags:
+		return m.chooseTag(item.value)
+	case pickerTagEdit:
+		return m.chooseTagRow(item.value)
+	case pickerTagEntries:
+		return m.chooseTagEntry(item.value)
 	case pickerNone:
 		return m, nil
 	default:

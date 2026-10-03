@@ -129,6 +129,17 @@ A tag can also change how its rooms behave elsewhere (each off unless set):
 | `first = true` | At the top of the rail, unless `[display.rail] order` places it. |
 | `count_in_label = true` | The row says how many rooms it holds. |
 
+**Editing tags in the app.** Settings (`,`) → **Tags…** lists your tags and makes a new
+one. A tag's page shows its name, rule, picked and excluded rooms, every property as
+an on/off row, and which other tags take rooms out of its row (the exclusive ones, and
+the space-exclusive ones). The rule and the room lists are edited an entry at a time:
+choose an entry to change it (empty removes it), or the last row to add one. Renaming
+a tag renames it everywhere it is named — `tag:<name>` in rules, place lists, the rail
+order and priority, and its name in the rail's `hidden` and `hide_when_empty`.
+Deleting it asks first and takes it out of the rail's lists and priority; while a rule
+or a list elsewhere still names it, the delete is refused and the status line says
+where.
+
 Exclusivity decides where a room shows, not what rules match: `tag:Family` in
 another rule still matches a room Family claims.
 
@@ -401,7 +412,7 @@ Who else is typing is shown on the rule above the composer. `[display] typing = 
 
 ## Settings
 
-`,` opens the settings screen: the everyday preferences, each showing its current value — notifications, sounds, quiet hours, whether rooms open ready to type, which key sends, name width, what badges count, image display, verification-code detection, emoji set, skin tone and reaction ranking. Choosing a row toggles it, offers its choices or asks for a value. Changes are written back to your config file, keeping your values; the first time, a `.bak` copy is left beside it. Everything else is in [Configuration](configuration.md).
+`,` opens the settings screen: the everyday preferences, each showing its current value — notifications, sounds, quiet hours, whether rooms open ready to type, which key sends, name width, what badges count, image display, verification-code detection, emoji set, skin tone, reaction ranking, and your tags. Choosing a row toggles it, offers its choices or asks for a value. Changes are written back to your config file, keeping your values; the first time, a `.bak` copy is left beside it. Everything else is in [Configuration](configuration.md).
 
 ## Help
 

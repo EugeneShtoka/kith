@@ -24,6 +24,8 @@ const (
 	pendingBan
 	// pendingJoinPlace: a room a followed link named that this account is not in.
 	pendingJoinPlace
+	// pendingDeleteTag: a [[tag]], by name (group).
+	pendingDeleteTag
 )
 
 // confirmState is the pending action and its targets, captured with the question so a
@@ -131,6 +133,8 @@ func (m Model) confirmPrompt() string {
 		return "ban " + m.confirm.personName + "? they cannot come back until unbanned"
 	case pendingJoinPlace:
 		return "join " + m.confirm.address + "? you are not in that room"
+	case pendingDeleteTag:
+		return "delete the tag " + isolate(m.confirm.group) + "? its rooms stay where else they are"
 	case pendingNone:
 		return ""
 	}
@@ -166,6 +170,8 @@ func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 		return m, m.memberCmd(pending.roomID, pending.person, memberBan, "")
 	case pendingJoinPlace:
 		return m.joinPlace(pending)
+	case pendingDeleteTag:
+		return m.deleteTag(pending.group)
 	case pendingNone:
 		return m, nil
 	}
