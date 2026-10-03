@@ -253,7 +253,8 @@ notify = false
 # Only the tags written here exist. The ones below are a starting point, not built
 # in: change their rules, rename them, or delete them. A room goes into a tag, or out
 # of one, from the filing picker (`S`) or with `/tag <name>`; that edits the tag's
-# picked and excluded lists here.
+# picked and excluded lists here. The picker's New tag row, or `/tag` with a name no
+# tag has, makes the tag with the room in it.
 
 [[tag]]
 name = "DMs"

@@ -22,6 +22,9 @@ type tagEditing struct {
 	tag   string // the tag's name; "" while creating one
 	list  string // tagRule, tagPicked or tagExcluded
 	entry int    // the entry a prompt edits; -1 adds one
+	// fileRoom is the room a tag being created from the filing picker goes on; ""
+	// when it is created from settings.
+	fileRoom domain.RoomID
 }
 
 // The editor's rows that are not properties.
@@ -326,18 +329,55 @@ func (m Model) submitTagEntry(input string) (Model, tea.Cmd) {
 func (m Model) submitTagName(input string) (Model, tea.Cmd) {
 	name, from := strings.TrimSpace(input), m.choosing.tag.tag
 	switch {
+	case name == "" && m.choosing.tag.fileRoom != "":
+		m.choosing.tag = tagEditing{}
+		return m, nil
 	case name == "" && from == "":
 		return m.tagsOpen(), nil
 	case name == "" || name == from:
 		return m.tagOpen(from), nil
+	case from == "" && m.choosing.tag.fileRoom != "":
+		room, ok := m.roomByID(m.choosing.tag.fileRoom)
+		m.choosing.tag = tagEditing{}
+		if !ok {
+			return m, nil
+		}
+		return m.fileInNewTag(name, room)
 	case from == "":
-		cfg := m.conf.base.Clone()
-		cfg.Tags = append(cfg.Tags, config.Tag{Name: name})
-		return m.applyTagConfig(cfg, name, "made the tag "+isolate(name)+" — put rooms in it with S, or give it a rule")
+		next, cmd := m.createTag(name, "made the tag "+isolate(name)+" — put rooms in it with S, or give it a rule")
+		return next.tagOpen(name), cmd
 	default:
 		return m.applyTagConfig(setup.RenameTag(m.conf.base, from, name), name,
 			"renamed "+isolate(from)+" to "+isolate(name)+", everywhere it is named")
 	}
+}
+
+// createTag adds an empty tag named name (no rule: it holds the rooms put in it) and
+// applies the config. A config that refuses it says why on the status line, and the
+// tag is then absent.
+func (m Model) createTag(name, done string) (Model, tea.Cmd) {
+	cfg := m.conf.base.Clone()
+	cfg.Tags = append(cfg.Tags, config.Tag{Name: name})
+	return m.applyConfig(cfg, "", done)
+}
+
+// fileInNewTag puts room in the tag named name, making the tag first when there is
+// none: the filing picker's New tag row and /tag with a new name.
+func (m Model) fileInNewTag(name string, room domain.Room) (Model, tea.Cmd) {
+	var made tea.Cmd
+	if _, ok := m.unreadView().tags.Index(name); !ok {
+		m, made = m.createTag(name, "made the tag "+isolate(name))
+	}
+	i, ok := m.unreadView().tags.Index(name)
+	if !ok {
+		return m, made // refused: the reason is on the status line
+	}
+	view := m.unreadView()
+	if view.tagsOf(room).in[i] {
+		return m.say(m.roomName(room) + " is already in " + isolate(view.tags.At(i).Name)), made
+	}
+	next, filed := m.fileTags(room, []tagFiling{{tag: i, label: view.tags.At(i).Name, in: true}})
+	return next, tea.Batch(made, filed)
 }
 
 // deleteTag removes the tag, and it from the rail's lists and priority; a rule still

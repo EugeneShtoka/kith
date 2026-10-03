@@ -26,9 +26,8 @@ func (m Model) openSpacePicker() (Model, tea.Cmd) {
 	if !ok {
 		return m.say("nothing in [display] filing_spaces matches a space you are in"), nil
 	}
-	if len(items) == 0 {
-		return m.say("no spaces or tags to file " + m.roomName(room) + " into"), nil
-	}
+	// Last: a tag made here, from its name, with the room in it (tageditor.go).
+	items = append(items, pickerItem{label: "New tag", value: tagNew, match: "new tag"})
 	m.aimedAt.space = room.ID
 	m.picker = newCheckedPicker(pickerRoomSpaces, items, checked)
 	return m, nil
@@ -86,11 +85,26 @@ func (m Model) spaceForGroup(g group) (domain.Space, bool) {
 func (m Model) applyRoomSpaces(values []string) (Model, tea.Cmd) {
 	room := m.aimedAt.space
 	rows := m.picker.all // read before closePicker zeroes it
+	// The New tag row, ticked or under the cursor, asks for its name once the rest
+	// is filed.
+	at, _ := m.picker.selected()
+	newTag := at.value == tagNew || slices.Contains(values, tagNew)
 	m.aimedAt.space = ""
 	m = m.closePicker()
 	if room == "" {
 		return m, nil
 	}
+	next, cmd := m.fileAsTicked(room, rows, values, !newTag)
+	if newTag {
+		next.choosing.tag = tagEditing{fileRoom: room}
+		next = next.openPrompt(promptTagName)
+	}
+	return next, cmd
+}
+
+// fileAsTicked files room into and out of the picker's rows as their ticks say;
+// sayNoChange reports a gesture that changed nothing.
+func (m Model) fileAsTicked(room domain.RoomID, rows []pickerItem, values []string, sayNoChange bool) (Model, tea.Cmd) {
 	want := make(map[domain.SpaceID]bool, len(values))
 	for _, v := range values {
 		want[domain.SpaceID(v)] = true
@@ -110,7 +124,7 @@ func (m Model) applyRoomSpaces(values []string) (Model, tea.Cmd) {
 		}
 	}
 	if len(changes) == 0 {
-		if !tagged {
+		if !tagged && sayNoChange {
 			return m.say("no change"), nil
 		}
 		return m, tagCmd
