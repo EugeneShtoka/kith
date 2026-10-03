@@ -349,7 +349,9 @@ func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *w
 	a.listedAt[account.Digits] = time.Now()
 	a.mu.Unlock()
 	a.fetchChannelHistory(ctx, account, client, channelList)
-	return rooms, nil
+	// The listing names groups and channels only; the account's rooms are those and
+	// its direct chats, which the cache kept.
+	return a.accountRooms(ctx, account, func(domain.RoomID) bool { return true })
 }
 
 // groupListing is what one account's group listing caches: its groups as rooms, with their
@@ -536,22 +538,44 @@ func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
 	}), nil
 }
 
-// RefreshRooms refetches every linked account's groups.
+// RefreshRooms refetches every linked account's groups. An account WhatsApp will not
+// list right now (a connection just dropped, a rate limit) answers from the cache, so
+// one account's trouble does not empty the others' rooms; only when every account
+// failed is it an error.
 func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	var out []domain.Room
-	for _, c := range a.connected() {
+	var errs []error
+	connected := a.connected()
+	for _, c := range connected {
 		rooms, err := a.refreshAccount(ctx, c.account, c.client, true)
 		if err != nil {
-			return nil, err
+			a.log.Warn("refresh rooms failed; answering from the cache", "account", c.account.Name, "err", err)
+			errs = append(errs, err)
+			if rooms, err = a.accountRooms(ctx, c.account, func(domain.RoomID) bool { return true }); err != nil {
+				return nil, err
+			}
 		}
 		out = append(out, rooms...)
+	}
+	if len(connected) > 0 && len(errs) == len(connected) {
+		return nil, errors.Join(errs...)
 	}
 	return out, nil
 }
 
-// CanonicalParent is the community a WhatsApp room is in, "" for one in none.
+// CanonicalParent is the community a WhatsApp room is in, else its account's space;
+// "" for a room of no configured account, which has no space.
 func (a *Adapter) CanonicalParent(ctx context.Context, roomID domain.RoomID) (domain.SpaceID, error) {
-	return a.communityOf(ctx, roomID)
+	community, err := a.communityOf(ctx, roomID)
+	if err != nil || community != "" {
+		return community, err
+	}
+	id := domain.ParseID(string(roomID))
+	if id.Network != domain.ProtocolWhatsApp ||
+		!slices.ContainsFunc(a.accountsNow(), func(acc Account) bool { return acc.Digits == id.Account }) {
+		return "", nil
+	}
+	return accountSpaceID(id.Account), nil
 }
 
 // StarMessage bookmarks a message; WhatsApp's star is not synced, so it is kith's own.

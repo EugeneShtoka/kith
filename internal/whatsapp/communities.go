@@ -75,8 +75,56 @@ func (a *Adapter) whatsAppSpaces(ctx context.Context) ([]domain.Space, error) {
 	return spaces, nil
 }
 
-// Spaces is the WhatsApp communities, from the cache.
-func (a *Adapter) Spaces(ctx context.Context) ([]domain.Space, error) { return a.whatsAppSpaces(ctx) }
+// Spaces is the WhatsApp communities, from the cache, then a space per account holding
+// all its rooms, as a Slack workspace holds its.
+func (a *Adapter) Spaces(ctx context.Context) ([]domain.Space, error) {
+	spaces, err := a.whatsAppSpaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	accounts, err := a.accountSpaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return append(spaces, accounts...), nil
+}
+
+// accountSpaceID is the space an account is: its own number within its rooms' prefix.
+func accountSpaceID(digits string) domain.SpaceID {
+	return domain.SpaceID(domain.NativeID(domain.ProtocolWhatsApp, digits, digits))
+}
+
+// accountSpaces is a space per configured account with cached rooms, named after the
+// account, its children every room it sees. Derived on read, not stored: a chat
+// begun or a group joined is in it at once.
+func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
+	if a.cache == nil {
+		return nil, nil
+	}
+	rooms, err := a.Rooms(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var spaces []domain.Space
+	for _, account := range a.accountsNow() {
+		owner := domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits)
+		var children []domain.RoomID
+		for i := range rooms {
+			if owner.Owns(rooms[i].ID) {
+				children = append(children, rooms[i].ID)
+			}
+		}
+		if len(children) == 0 {
+			continue
+		}
+		spaces = append(spaces, domain.Space{
+			ID: accountSpaceID(account.Digits), Name: "WhatsApp " + account.Name, Children: children,
+			// The home of every room no community claims.
+			Bridge: domain.ProtocolWhatsApp, Original: true,
+		})
+	}
+	return spaces, nil
+}
 
 // RefreshSpaces refetches every connected account's groups, which carry its
 // communities (one listing writes both), then answers from the cache. A client asks
@@ -86,7 +134,7 @@ func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	if _, err := a.RefreshRooms(ctx); err != nil {
 		return nil, err
 	}
-	return a.whatsAppSpaces(ctx)
+	return a.Spaces(ctx)
 }
 
 // communityOf is the community a WhatsApp room is in, "" when none.
