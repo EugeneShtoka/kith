@@ -340,6 +340,15 @@ func (s served) whatsAppLink() api.WhatsAppLink {
 	return s.whatsapp
 }
 
+// slackSignIn is what signs Slack in: nil, not a nil adapter, when [slack] is off, so
+// the handler can tell.
+func (s served) slackSignIn() api.SlackSignIn {
+	if s.slack == nil {
+		return nil
+	}
+	return s.slack
+}
+
 // matrixLogin is what logs Matrix in: nil, not a nil adapter, when the config names
 // no Matrix account, so the handler can tell.
 func (s served) matrixLogin() api.MatrixLogin {
@@ -499,6 +508,7 @@ func serve(
 		Scheduler:     scheduler,
 		WhatsApp:      backend.whatsAppLink(),
 		Matrix:        backend.matrixLogin(),
+		Slack:         backend.slackSignIn(),
 		Log:           log,
 		Reload:        reloader(configPath, relevel, cutoff, backend, w.notifications),
 	})
@@ -605,6 +615,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		})
 	}
 	if sl := backend.slack; sl != nil {
+		sl.OnRoomsChanged(notifications.InvalidateScope)
 		sl.OnSession(func(account slack.Account, s slack.Session, detail string) {
 			state.Report(slackStatus(account, s, detail), time.Now())
 		})
@@ -651,6 +662,15 @@ func expected(ctx context.Context, log *slog.Logger, backend served) []daemon.Ne
 		}
 		for _, account := range linked {
 			out = append(out, whatsAppStatus(account, whatsapp.Connecting, ""))
+		}
+	}
+	if sl := backend.slack; sl != nil {
+		signed, err := sl.SignedIn()
+		if err != nil {
+			log.Warn("read which Slack accounts are signed in failed", "err", err)
+		}
+		for _, account := range signed {
+			out = append(out, slackStatus(account, slack.Connecting, ""))
 		}
 	}
 	return out

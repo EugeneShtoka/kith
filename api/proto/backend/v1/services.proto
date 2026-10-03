@@ -831,6 +831,21 @@ message SelvesResponse {
   repeated string ids = 1;
 }
 
+message SignInSlackRequest {
+  // The [[slack.account]] name, as the config says it.
+  string account = 1;
+  // The workspace's session as the browser holds it: the xoxc token and the `d`
+  // cookie it is only good together with.
+  string token = 2;
+  string cookie = 3;
+}
+
+message SignInSlackResponse {
+  // The workspace and the person signed in, by name.
+  string workspace = 1;
+  string user = 2;
+}
+
 message LoginMatrixRequest {
   // The password for the config's Matrix user, typed by a human. The homeserver and
   // user are the daemon's own config's, never the client's.
@@ -1260,6 +1275,10 @@ service BackendService {
   // and starts Matrix on it. A failure (a wrong password, Matrix not configured) is
   // an error.
   rpc LoginMatrix(LoginMatrixRequest) returns (LoginMatrixResponse);
+  // SignInSlack takes a session for one configured [[slack.account]], checks it with
+  // Slack, keeps it and connects the workspace. A failure (a session Slack refuses,
+  // another workspace's, Slack not enabled) is an error.
+  rpc SignInSlack(SignInSlackRequest) returns (SignInSlackResponse);
   // RoomsWith finds the rooms a set of people are **all** in, most recently active
   // first.
   rpc RoomsWith(RoomsWithRequest) returns (RoomsWithResponse);

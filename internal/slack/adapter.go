@@ -7,6 +7,7 @@ package slack
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"sync"
@@ -54,11 +55,23 @@ type Adapter struct {
 
 	// onSession hears an account's state change (see OnSession).
 	onSession func(Account, Session, string)
+	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
+	onRoomsChanged func()
 
 	mu       sync.Mutex
 	accounts []Account
-	started  bool
-	stopped  bool
+	// workspaces are the signed-in accounts' connections, by account name.
+	workspaces map[string]*workspace
+	// signIns counts each account's sign-ins, so a connection begun on an older
+	// session never replaces a newer one (see adopt).
+	signIns map[string]int
+	started bool
+	stopped bool
+	// run is Start's context: an account added later is connected for as long.
+	run context.Context //nolint:containedctx // reloads arrive with no context of their own to outlive
+
+	// refreshing serializes listings, so an older one is never written over a newer.
+	refreshing sync.Mutex
 
 	streamMu  sync.RWMutex
 	closed    bool
@@ -76,10 +89,12 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 	}
 	return &Adapter{
 		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "slack"),
-		messages:  make(chan domain.Message, streamBuffer),
-		activity:  make(chan domain.Activity, streamBuffer),
-		unread:    make(chan domain.Unread, streamBuffer),
-		reactions: make(chan domain.ReactionUpdate, streamBuffer),
+		workspaces: map[string]*workspace{},
+		signIns:    map[string]int{},
+		messages:   make(chan domain.Message, streamBuffer),
+		activity:   make(chan domain.Activity, streamBuffer),
+		unread:     make(chan domain.Unread, streamBuffer),
+		reactions:  make(chan domain.ReactionUpdate, streamBuffer),
 	}
 }
 
@@ -88,6 +103,10 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 func (a *Adapter) OnSession(changed func(account Account, session Session, detail string)) {
 	a.onSession = changed
 }
+
+// OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
+// before Start.
+func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
 
 // session reports an account's state.
 func (a *Adapter) session(account Account, s Session, detail string) {
@@ -104,21 +123,47 @@ func (a *Adapter) accountsNow() []Account {
 }
 
 // UseAccounts takes the configured accounts after the config is re-read: an account
-// added says whether it is signed in, as one configured at Start does.
+// added is connected if signed in, as one configured at Start is; one removed is let
+// go.
 func (a *Adapter) UseAccounts(accounts []Account) {
 	a.mu.Lock()
 	known := a.accounts
 	a.accounts = slices.Clone(accounts)
-	started := a.started && !a.stopped
+	for name := range a.workspaces {
+		if !slices.ContainsFunc(accounts, func(k Account) bool { return k.Name == name }) {
+			delete(a.workspaces, name)
+		}
+	}
+	started, ctx := a.started && !a.stopped, a.run
 	a.mu.Unlock()
 	if !started {
 		return
 	}
 	for _, account := range accounts {
 		if !slices.ContainsFunc(known, func(k Account) bool { return k.Name == account.Name }) {
-			a.announce(account)
+			a.announce(ctx, account)
 		}
 	}
+}
+
+// SignedIn is the configured accounts that have credentials kept. An account whose
+// credentials are unusable is not one (its status says why); a store that cannot be
+// read is an error.
+func (a *Adapter) SignedIn() ([]Account, error) {
+	var signed []Account
+	for _, account := range a.accountsNow() {
+		_, ok, err := loadCredentials(a.secrets, account.Name)
+		if errors.Is(err, errUnusable) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			signed = append(signed, account)
+		}
+	}
+	return signed, nil
 }
 
 // Start reports each account's state and runs until ctx ends or Stop is called.
@@ -128,17 +173,18 @@ func (a *Adapter) Start(ctx context.Context) error {
 		a.mu.Unlock()
 		return errStartedTwice
 	}
-	a.started = true
+	a.started, a.run = true, ctx
 	a.mu.Unlock()
 	for _, account := range a.accountsNow() {
-		a.announce(account)
+		a.announce(ctx, account)
 	}
 	<-ctx.Done()
 	return ctx.Err() //nolint:wrapcheck // our own shutdown, as the other adapters'
 }
 
-// announce says whether an account is signed in, and how to sign in when it is not.
-func (a *Adapter) announce(account Account) {
+// announce connects an account that is signed in, and says how to sign in when it is
+// not.
+func (a *Adapter) announce(ctx context.Context, account Account) {
 	creds, ok, err := loadCredentials(a.secrets, account.Name)
 	switch {
 	case err != nil:
@@ -150,7 +196,7 @@ func (a *Adapter) announce(account Account) {
 		a.session(account, SignedOut, hint)
 	default:
 		a.log.Info("signed in", "account", account.Name, "team", creds.Team, "user", creds.User)
-		a.session(account, Connecting, "")
+		go a.connect(ctx, account, creds)
 	}
 }
 
@@ -184,17 +230,73 @@ func (a *Adapter) Unread() <-chan domain.Unread { return a.unread }
 // Reactions is reactions as they change.
 func (a *Adapter) Reactions() <-chan domain.ReactionUpdate { return a.reactions }
 
-// Me is every Slack ID that is this person: none until a workspace is connected.
-func (a *Adapter) Me() []string { return nil }
+// Me is every Slack ID that is this person: one per connected workspace.
+func (a *Adapter) Me() []string {
+	var me []string
+	for _, w := range a.connected() {
+		me = append(me, personID(w.creds.Team, w.creds.User))
+	}
+	slices.Sort(me)
+	return me
+}
 
 // RewindSync has nothing to refill before a workspace is connected.
 func (a *Adapter) RewindSync(context.Context) error { return nil }
 
-// Rooms is the Slack rooms in the cache: none before a workspace is connected.
-func (a *Adapter) Rooms(context.Context) ([]domain.Room, error) { return nil, nil }
+// Rooms is the Slack rooms in the cache.
+func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
+	if a.cache == nil {
+		return nil, nil
+	}
+	rooms, err := a.cache.Rooms(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("slack: read cached rooms: %w", err)
+	}
+	return slices.DeleteFunc(rooms, func(r domain.Room) bool {
+		return domain.NetworkOf(string(r.ID)) != domain.ProtocolSlack
+	}), nil
+}
 
-// RefreshRooms lists the workspaces' rooms: none before one is connected.
-func (a *Adapter) RefreshRooms(context.Context) ([]domain.Room, error) { return nil, nil }
+// RefreshRooms lists every connected workspace's conversations again.
+func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
+	var out []domain.Room
+	for _, w := range a.connected() {
+		rooms, err := a.list(ctx, w)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rooms...)
+	}
+	return out, nil
+}
+
+// Spaces is the workspaces, each the space of its rooms, from the cache.
+func (a *Adapter) Spaces(ctx context.Context) ([]domain.Space, error) {
+	if a.cache == nil {
+		return nil, nil
+	}
+	spaces, err := a.cache.Spaces(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("slack: read cached workspaces: %w", err)
+	}
+	spaces = slices.DeleteFunc(spaces, func(s domain.Space) bool {
+		return domain.NetworkOf(string(s.ID)) != domain.ProtocolSlack
+	})
+	// Not stored (Matrix derives it on read too): a workspace is its rooms' home.
+	for i := range spaces {
+		spaces[i].Original = true
+	}
+	return spaces, nil
+}
+
+// RefreshSpaces lists the workspaces again (one listing writes rooms and space), then
+// answers from the cache.
+func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
+	if _, err := a.RefreshRooms(ctx); err != nil {
+		return nil, err
+	}
+	return a.Spaces(ctx)
+}
 
 // CachedUnread is the Slack rooms' unread counts: none before a workspace is connected.
 func (a *Adapter) CachedUnread(context.Context) ([]domain.Unread, error) { return nil, nil }
@@ -220,9 +322,13 @@ func (a *Adapter) StarMessage(context.Context, domain.RoomID, domain.EventID, bo
 // MarkSpam needs a connected workspace.
 func (a *Adapter) MarkSpam(context.Context, domain.SpamVerdict) error { return errNetworkOff }
 
-// CanonicalParent: a Slack room's home is its workspace, said by the listing.
-func (a *Adapter) CanonicalParent(context.Context, domain.RoomID) (domain.SpaceID, error) {
-	return "", nil
+// CanonicalParent is a Slack room's workspace.
+func (a *Adapter) CanonicalParent(_ context.Context, roomID domain.RoomID) (domain.SpaceID, error) {
+	id := domain.ParseID(string(roomID))
+	if id.Network != domain.ProtocolSlack || id.Account == "" {
+		return "", nil
+	}
+	return workspaceSpaceID(id.Account), nil
 }
 
 // MessageHistory needs a connected workspace.

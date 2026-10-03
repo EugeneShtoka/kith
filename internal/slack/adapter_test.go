@@ -72,25 +72,20 @@ func (s *sessions) of(name string) (Session, string) {
 	return s.seen[name], s.said[name]
 }
 
-// Starting says of each account whether it is signed in: one with credentials is
-// connecting, one without is told how to sign in, and one whose credentials cannot be
-// read says so.
-func TestStartSaysWhoIsSignedIn(t *testing.T) {
+// Starting says of an account that is not signed in how to sign in, and of one whose
+// credentials cannot be used, why. (One signed in is connected: that reaches Slack.)
+func TestStartSaysWhoIsSignedOut(t *testing.T) {
 	t.Parallel()
 	secrets := &memSecrets{values: map[string]string{}}
-	signedIn(t, secrets, "work")
 	secrets.values[credentialsRef("broken")] = "{not json"
 	heard := &sessions{seen: map[string]Session{}, said: map[string]string{}}
-	a := New(nil, secrets, []Account{{Name: "work", Workspace: "acme"}, {Name: "club", Workspace: "chess"}, {Name: "broken", Workspace: "x"}}, nil)
+	a := New(nil, secrets, []Account{{Name: "club", Workspace: "chess"}, {Name: "broken", Workspace: "x"}}, nil)
 	a.OnSession(heard.hear)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() { done <- a.Start(ctx) }()
 
 	waitFor(t, func() bool { s, _ := heard.of("broken"); return s != 0 })
-	if s, _ := heard.of("work"); s != Connecting {
-		t.Errorf("work = %v, want Connecting", s)
-	}
 	if s, said := heard.of("club"); s != SignedOut || !strings.Contains(said, "kith login slack club") {
 		t.Errorf("club = %v %q, want SignedOut and how to sign in", s, said)
 	}
@@ -99,7 +94,7 @@ func TestStartSaysWhoIsSignedIn(t *testing.T) {
 	}
 
 	// An account added to the config later is announced too.
-	a.UseAccounts([]Account{{Name: "work", Workspace: "acme"}, {Name: "new", Workspace: "fresh"}})
+	a.UseAccounts([]Account{{Name: "club", Workspace: "chess"}, {Name: "new", Workspace: "fresh"}})
 	if s, _ := heard.of("new"); s != SignedOut {
 		t.Errorf("an added account = %v, want SignedOut", s)
 	}
@@ -114,6 +109,23 @@ func TestStartSaysWhoIsSignedIn(t *testing.T) {
 	a.Stop() // twice is harmless
 	if _, open := <-a.Messages(); open {
 		t.Error("the streams stay open after Stop")
+	}
+}
+
+// SignedIn is the accounts with usable credentials: one with unusable ones is not, and
+// does not hide the others; a store that cannot be read is an error.
+func TestSignedInIsTheAccountsWithUsableCredentials(t *testing.T) {
+	t.Parallel()
+	secrets := &memSecrets{values: map[string]string{}}
+	signedIn(t, secrets, "work")
+	secrets.values[credentialsRef("broken")] = "{not json"
+	a := New(nil, secrets, []Account{{Name: "work"}, {Name: "club"}, {Name: "broken"}}, nil)
+	if signed, err := a.SignedIn(); err != nil || len(signed) != 1 || signed[0].Name != "work" {
+		t.Errorf("SignedIn = %v, %v; want work alone", signed, err)
+	}
+	secrets.fail = errors.New("locked")
+	if _, err := a.SignedIn(); err == nil {
+		t.Error("SignedIn hid an unreadable store")
 	}
 }
 

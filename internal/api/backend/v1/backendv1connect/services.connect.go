@@ -195,6 +195,9 @@ const (
 	// BackendServiceLoginMatrixProcedure is the fully-qualified name of the BackendService's
 	// LoginMatrix RPC.
 	BackendServiceLoginMatrixProcedure = "/backend.v1.BackendService/LoginMatrix"
+	// BackendServiceSignInSlackProcedure is the fully-qualified name of the BackendService's
+	// SignInSlack RPC.
+	BackendServiceSignInSlackProcedure = "/backend.v1.BackendService/SignInSlack"
 	// BackendServiceRoomsWithProcedure is the fully-qualified name of the BackendService's RoomsWith
 	// RPC.
 	BackendServiceRoomsWithProcedure = "/backend.v1.BackendService/RoomsWith"
@@ -444,6 +447,10 @@ type BackendServiceClient interface {
 	// and starts Matrix on it. A failure (a wrong password, Matrix not configured) is
 	// an error.
 	LoginMatrix(context.Context, *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error)
+	// SignInSlack takes a session for one configured [[slack.account]], checks it with
+	// Slack, keeps it and connects the workspace. A failure (a session Slack refuses,
+	// another workspace's, Slack not enabled) is an error.
+	SignInSlack(context.Context, *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -902,6 +909,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("LoginMatrix")),
 			connect.WithClientOptions(opts...),
 		),
+		signInSlack: connect.NewClient[v1.SignInSlackRequest, v1.SignInSlackResponse](
+			httpClient,
+			baseURL+BackendServiceSignInSlackProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SignInSlack")),
+			connect.WithClientOptions(opts...),
+		),
 		roomsWith: connect.NewClient[v1.RoomsWithRequest, v1.RoomsWithResponse](
 			httpClient,
 			baseURL+BackendServiceRoomsWithProcedure,
@@ -1176,6 +1189,7 @@ type backendServiceClient struct {
 	seat                  *connect.Client[v1.SeatRequest, v1.SeatResponse]
 	pairWhatsApp          *connect.Client[v1.PairWhatsAppRequest, v1.PairWhatsAppResponse]
 	loginMatrix           *connect.Client[v1.LoginMatrixRequest, v1.LoginMatrixResponse]
+	signInSlack           *connect.Client[v1.SignInSlackRequest, v1.SignInSlackResponse]
 	roomsWith             *connect.Client[v1.RoomsWithRequest, v1.RoomsWithResponse]
 	roomEncryption        *connect.Client[v1.RoomEncryptionRequest, v1.RoomEncryptionResponse]
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
@@ -1508,6 +1522,11 @@ func (c *backendServiceClient) LoginMatrix(ctx context.Context, req *connect.Req
 	return c.loginMatrix.CallUnary(ctx, req)
 }
 
+// SignInSlack calls backend.v1.BackendService.SignInSlack.
+func (c *backendServiceClient) SignInSlack(ctx context.Context, req *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error) {
+	return c.signInSlack.CallUnary(ctx, req)
+}
+
 // RoomsWith calls backend.v1.BackendService.RoomsWith.
 func (c *backendServiceClient) RoomsWith(ctx context.Context, req *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {
 	return c.roomsWith.CallUnary(ctx, req)
@@ -1833,6 +1852,10 @@ type BackendServiceHandler interface {
 	// and starts Matrix on it. A failure (a wrong password, Matrix not configured) is
 	// an error.
 	LoginMatrix(context.Context, *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error)
+	// SignInSlack takes a session for one configured [[slack.account]], checks it with
+	// Slack, keeps it and connects the workspace. A failure (a session Slack refuses,
+	// another workspace's, Slack not enabled) is an error.
+	SignInSlack(context.Context, *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -2287,6 +2310,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("LoginMatrix")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceSignInSlackHandler := connect.NewUnaryHandler(
+		BackendServiceSignInSlackProcedure,
+		svc.SignInSlack,
+		connect.WithSchema(backendServiceMethods.ByName("SignInSlack")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceRoomsWithHandler := connect.NewUnaryHandler(
 		BackendServiceRoomsWithProcedure,
 		svc.RoomsWith,
@@ -2617,6 +2646,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServicePairWhatsAppHandler.ServeHTTP(w, r)
 		case BackendServiceLoginMatrixProcedure:
 			backendServiceLoginMatrixHandler.ServeHTTP(w, r)
+		case BackendServiceSignInSlackProcedure:
+			backendServiceSignInSlackHandler.ServeHTTP(w, r)
 		case BackendServiceRoomsWithProcedure:
 			backendServiceRoomsWithHandler.ServeHTTP(w, r)
 		case BackendServiceRoomEncryptionProcedure:
@@ -2930,6 +2961,10 @@ func (UnimplementedBackendServiceHandler) PairWhatsApp(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) LoginMatrix(context.Context, *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.LoginMatrix is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SignInSlack(context.Context, *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SignInSlack is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {

@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -43,4 +44,26 @@ func SlackAccounts(s config.Slack) error {
 		names[account.Name], workspaces[workspace] = true, true
 	}
 	return nil
+}
+
+// ErrNoSlackAccount: `kith login slack` was given a name no account has.
+var ErrNoSlackAccount = errors.New("no such [[slack.account]]")
+
+// SlackAccount is the account `kith login slack [name]` means: the one named, or the
+// only one when there is just one.
+func SlackAccount(s config.Slack, name string) (config.SlackAccount, error) {
+	if name == "" && len(s.Accounts) == 1 {
+		return s.Accounts[0], nil
+	}
+	known := make([]string, 0, len(s.Accounts))
+	for _, account := range s.Accounts {
+		if account.Name == name {
+			return account, nil
+		}
+		known = append(known, account.Name)
+	}
+	if name == "" {
+		return config.SlackAccount{}, fmt.Errorf("%w: say which, one of %v", ErrNoSlackAccount, known)
+	}
+	return config.SlackAccount{}, fmt.Errorf("%w named %q (configured: %v)", ErrNoSlackAccount, name, known)
 }
