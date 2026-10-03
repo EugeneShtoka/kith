@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -94,5 +95,21 @@ func TestStorageDirsAreMade(t *testing.T) {
 	}
 	if _, err := db.Open(context.Background(), storage.CachePath()); err != nil {
 		t.Errorf("the cache does not open in a made directory: %v", err)
+	}
+}
+
+// A cache that will not open stops the daemon, naming the file: there is no daemon
+// without one.
+func TestACacheThatWillNotOpenIsAnError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// A directory where the file should be: SQLite cannot open it.
+	path := filepath.Join(dir, "cache.db")
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cache, err := openCache(context.Background(), slog.New(slog.DiscardHandler), path, "")
+	if err == nil || cache != nil || !strings.Contains(err.Error(), path) {
+		t.Errorf("openCache(a directory) = (%v, %v), want an error naming it", cache, err)
 	}
 }
