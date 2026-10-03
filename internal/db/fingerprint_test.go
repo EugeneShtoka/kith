@@ -16,6 +16,7 @@ var migrationFingerprints = []struct {
 	sha     string // first 12 hex of sha256 over the statement, whitespace collapsed
 }{
 	{2, "draft_threads: the thread a draft is written into", "2a951409973f"},
+	{3, "quoted_messages: what a reply quotes, when the original is not cached", "227cafbf0452"},
 }
 
 func fingerprint(stmt string) string {

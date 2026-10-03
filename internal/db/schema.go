@@ -297,6 +297,14 @@ CREATE TABLE sender_slots (
 	PRIMARY KEY (room_id, group_key)
 ) STRICT, WITHOUT ROWID;
 
+CREATE TABLE quoted_messages (
+	room_id  TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	event_id TEXT NOT NULL,
+	sender   TEXT NOT NULL DEFAULT '',
+	body     TEXT NOT NULL DEFAULT '',
+	PRIMARY KEY (room_id, event_id)
+) STRICT, WITHOUT ROWID;
+
 CREATE TABLE reaction_refusals (
 	protocol TEXT    NOT NULL,
 	emoji    TEXT    NOT NULL,
@@ -315,6 +323,14 @@ var migrations = []string{
 	`CREATE TABLE IF NOT EXISTS draft_threads (
 	room_id     TEXT NOT NULL PRIMARY KEY REFERENCES drafts(room_id) ON DELETE CASCADE,
 	thread_root TEXT NOT NULL
+) STRICT, WITHOUT ROWID;`,
+	// v3: what a reply quotes, for a quoted message the cache does not hold.
+	`CREATE TABLE IF NOT EXISTS quoted_messages (
+	room_id  TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	event_id TEXT NOT NULL,
+	sender   TEXT NOT NULL DEFAULT '',
+	body     TEXT NOT NULL DEFAULT '',
+	PRIMARY KEY (room_id, event_id)
 ) STRICT, WITHOUT ROWID;`,
 }
 

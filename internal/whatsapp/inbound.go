@@ -17,7 +17,8 @@ type arrived struct {
 	source   *mediaSource // how to load its attachment; nil when it has none
 	chat     types.JID    // the other person, for a direct chat; the group otherwise
 	group    bool
-	channel  bool // posted in a channel: the channel is its sender
+	channel  bool   // posted in a channel: the channel is its sender
+	quoted   *quote // what it quotes, when a reply
 	fromMe   bool
 	pushName string
 }
@@ -50,6 +51,7 @@ func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeo
 	msg.Media = media
 	return arrived{
 		msg: msg, source: source, chat: chat, group: e.Info.IsGroup, channel: channelPost,
+		quoted: quotedBy(ctx, account.Digits, e.Message, lookup),
 		fromMe: e.Info.IsFromMe, pushName: e.Info.PushName,
 	}, true
 }
@@ -70,6 +72,7 @@ func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsm
 			newGroup = a.ensureRoom(ctx, account, client, in, "")
 		})
 		a.keepSource(ctx, in.msg, in.source)
+		a.keepQuote(ctx, in.msg.RoomID, in.quoted)
 		if newGroup {
 			a.refreshLater(account, client) // for its name and members
 		}
