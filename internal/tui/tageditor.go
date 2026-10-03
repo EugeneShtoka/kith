@@ -32,7 +32,7 @@ const (
 	tagExcluded = "excluded"
 	tagClaimed  = "claimed"
 	tagDelete   = "delete"
-	tagNew      = "\x00new" // the list's "New tag…" row; no tag can be named this
+	tagNew      = "\x00new" // the list's "New tag" row; no tag can be named this
 	tagAdd      = "add"
 )
 
@@ -65,7 +65,7 @@ func (m Model) tagsOpen() Model {
 	for _, t := range tags {
 		items = append(items, pickerItem{label: isolate(t.Name), detail: tagSummary(t), value: t.Name, match: t.Name})
 	}
-	items = append(items, pickerItem{label: "New tag…", value: tagNew, match: "new tag"})
+	items = append(items, pickerItem{label: "New tag", value: tagNew, match: "new tag"})
 	m.choosing.tag = tagEditing{}
 	m.picker = newPicker(pickerTags, items)
 	return m
@@ -251,7 +251,7 @@ func (m Model) tagEntriesOpen(name, list string) Model {
 		}
 		items = append(items, pickerItem{label: label, detail: e, value: fmt.Sprint(i), match: label + " " + e})
 	}
-	add := map[string]string{tagRule: "Add a term…", tagPicked: "Add a room…", tagExcluded: "Exclude a room…"}[list]
+	add := map[string]string{tagRule: "Add a term", tagPicked: "Add a room", tagExcluded: "Exclude a room"}[list]
 	items = append(items, pickerItem{label: add, value: tagAdd, match: add})
 	m.choosing.tag = tagEditing{tag: m.conf.base.Tags[at].Name, list: list}
 	spec := pickerSpecs[pickerTagEntries]

@@ -129,7 +129,7 @@ A tag can also change how its rooms behave elsewhere (each off unless set):
 | `first = true` | At the top of the rail, unless `[display.rail] order` places it. |
 | `count_in_label = true` | The row says how many rooms it holds. |
 
-**Editing tags in the app.** Settings (`,`) → **Tags…** lists your tags and makes a new
+**Editing tags in the app.** Settings (`,`) → **Tags** lists your tags and makes a new
 one. A tag's page shows its name, rule, picked and excluded rooms, every property as
 an on/off row, and which other tags take rooms out of its row (the exclusive ones, and
 the space-exclusive ones). The rule and the room lists are edited an entry at a time:

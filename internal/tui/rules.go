@@ -52,11 +52,11 @@ var rulePresets = []rulePreset{
 		apply:  func(r *config.Rule) { r.Ring = "none" },
 	},
 	{
-		key: "sound", label: "Give it its own sound…",
+		key: "sound", label: "Give it its own sound",
 		detail: "asks for a file",
 	},
 	{
-		key: "name", label: "Name this rule…",
+		key: "name", label: "Name this rule",
 		detail: "so the status line can say which rule silenced you",
 	},
 	{

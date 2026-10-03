@@ -240,13 +240,13 @@ var settingsList = []setting{
 		set:  func(c *config.Config, _ string) error { c.Notifications.Desktop = !c.Notifications.Desktop; return nil },
 	},
 	{
-		key: "notifications.rules", label: "Notification rules…",
+		key: "notifications.rules", label: "Notification rules",
 		show: func(c config.Config) string { return ruleCountNote(len(c.Notifications.Rules)) },
 		kind: settingOpen,
 		open: Model.openRuleList,
 	},
 	{
-		key: "tags", label: "Tags…",
+		key: "tags", label: "Tags",
 		show: func(c config.Config) string { return showCount(len(c.Tags), "none") },
 		kind: settingOpen,
 		open: Model.openTags,

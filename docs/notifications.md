@@ -255,7 +255,7 @@ sound_command = ""   # fallback player, e.g. "pw-play" or "paplay"
 - The **status line** names the rule behind the current state, using the rule's `name` when it has one. That is why a `name` is worth adding.
 - **`W`** (or `/why` in the composer) opens **"Why is it quiet?"** for the room you are looking at, or the open thread. It lists every rule in force from least to most specific, including mutes and their time left, marks the rule that decides with `← decides`, and gives the result, for example "mention notifies, silently". It also counts the rules that depend on who sends the message, because those cannot be evaluated without an actual message.
 - If notifications are switched off, or the room is in [Spam](spam.md), the overlay says so first and then shows the rules that would apply otherwise.
-- **`,` → "Notification rules…"** lists every rule in your config with room IDs and MXIDs replaced by the names you know them by.
+- **`,` → "Notification rules"** lists every rule in your config with room IDs and MXIDs replaced by the names you know them by.
 
 ## Editing rules from the UI
 
@@ -275,8 +275,8 @@ Then pick a preset. The one already in effect is marked:
 | Only when I'm mentioned | `show = "mention"` |
 | Mute — never notify | `show = "none"` |
 | Seen but not heard | `ring = "none"` |
-| Give it its own sound… | `sound = "<path>"` (an empty path removes it) |
-| Name this rule… | `name = "<text>"` |
+| Give it its own sound | `sound = "<path>"` (an empty path removes it) |
+| Name this rule | `name = "<text>"` |
 | Remove the rule | Deletes it, so the less specific rules apply again |
 
 There is one rule per target, and each preset adds to it. Anything more complex, such as a `when` window or a `thread` clause, belongs in the config file.

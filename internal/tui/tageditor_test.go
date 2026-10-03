@@ -12,7 +12,7 @@ import (
 func editingTag(t *testing.T, name string) (Model, string) {
 	t.Helper()
 	m, path := opened(t, config.Notifications{})
-	m = pickLabel(t, m, "Tags…")
+	m = pickLabel(t, m, "Tags")
 	if m.picker.kind != pickerTags {
 		t.Fatalf("Tags… opened picker %v", m.picker.kind)
 	}
@@ -111,7 +111,7 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 func TestMakingATag(t *testing.T) {
 	t.Parallel()
 	m, _ := opened(t, config.Notifications{})
-	m = pickLabel(t, m, "Tags…")
+	m = pickLabel(t, m, "Tags")
 	m = pickLabel(t, m, "New tag")
 	m = typeIn(t, m, "Family")
 	if m.configTag("Family") < 0 || m.choosing.tag.tag != "Family" || m.picker.kind != pickerTagEdit {
