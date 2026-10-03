@@ -64,6 +64,7 @@ func (a *Adapter) recordHistory(ctx context.Context, account Account, client *wh
 	}
 	for i := range msgs {
 		a.keepSource(ctx, msgs[i].msg, msgs[i].source)
+		a.keepQuote(ctx, room, msgs[i].quoted)
 	}
 	a.placeRead(ctx, room, readFromHistory(batch, unread))
 	if a.onChanged != nil {

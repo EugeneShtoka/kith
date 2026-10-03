@@ -262,8 +262,10 @@ Since then:
 
 - v2 (`draft_threads`): the thread a draft is written into, a row only for a draft
   in one.
+- v3 (`quoted_messages`): the sender and words a reply quotes (WhatsApp sends them
+  with the reply), shown when the quoted message itself is not cached.
 
-so a current cache is at version 2.
+so a current cache is at version 3.
 
 ### Indexes need no migration
 
