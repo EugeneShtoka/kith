@@ -244,6 +244,22 @@ notify = false
 # whose rules depend on each other in a cycle are reported at startup, and their
 # references to each other match nothing.
 #
+# Properties (all off unless set):
+#   counts_unread = false   its rooms count as read everywhere else: no badge, not
+#                           `unread`/`mention` to other tags, skipped by mark-all-read
+#   exclusive       = true  its rooms show under it alone: no other tag, no All, DMs,
+#                           Unread, Drafts or Pinned (their spaces keep them); of two,
+#                           the first configured wins
+#   space_exclusive = true  its rooms leave the spaces you made and other tags; the
+#                           spaces they belong to (a bridge's, a community, their
+#                           canonical home) keep them
+#   sticky          = true  the open room stays listed until you move off it
+#   hide_when_empty = true  no rail row while it holds nothing
+#   first           = true  at the top of the rail, unless the order places it
+#   count_in_label  = true  the row says how many rooms it holds
+# Exclusivity decides where a room shows, not what rules match: `tag:<name>` still
+# matches a room another tag claims.
+#
 #   [[tag]]
 #   name     = "Family"
 #   rule     = ["dm", "space:Family", "not room:Bank"]

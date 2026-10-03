@@ -32,7 +32,23 @@ func (m Model) renderRail(h int) string {
 // railRow renders one rail entry: marker, label, and the group's unread count.
 func (m Model) railRow(g group, selected, active bool, inner int) string {
 	badge, highlight := m.groupBadge(g)
-	return m.listRow(rowLabel{name: g.label}, badge, highlight, inner, selected, active)
+	label := rowLabel{name: g.label}
+	if g.countInLabel {
+		label.trail = fmt.Sprintf("(%d)", m.groupSize(g)) // survives a long label's truncation
+	}
+	return m.listRow(label, badge, highlight, inner, selected, active)
+}
+
+// groupSize is how many rooms a rail group holds.
+func (m Model) groupSize(g group) int {
+	view := m.unreadView()
+	n := 0
+	for i := range m.rooms.all {
+		if g.admits(view, m.rooms.all[i]) {
+			n++
+		}
+	}
+	return n
 }
 
 // listRow lays out one rail or room-list row across the pane's interior: marker, label
