@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -382,7 +383,16 @@ func TestAWrapperEngineThatNeverSpeaksStillTimesOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	began := time.Now()
-	if _, err := start(context.Background(), script, []string{"-a"}, nil); err == nil {
+	// A parallel test's fork can hold the script's write descriptor until it execs:
+	// "text file busy" is that, not the engine, so it is tried again.
+	var err error
+	for range 50 {
+		if _, err = start(context.Background(), script, []string{"-a"}, nil); !errors.Is(err, syscall.ETXTBSY) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err == nil {
 		t.Fatal("start succeeded without a banner")
 	}
 	if took := time.Since(began); took > bannerTimeout+2*time.Second {
