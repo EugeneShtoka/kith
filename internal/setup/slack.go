@@ -9,20 +9,35 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// workspaceName is a Slack workspace's address: the part before ".slack.com".
-var workspaceName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+var (
+	// workspaceName is a Slack workspace's address: the part before ".slack.com".
+	workspaceName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	// slackTeamID is a workspace's ID, as app.slack.com links carry it.
+	slackTeamID = regexp.MustCompile(`^T[A-Z0-9]{8,}$`)
+	// clientLink is a link into the Slack web client: app.slack.com/client/<team>/….
+	clientLink = regexp.MustCompile(`app\.slack\.com/client/(T[A-Z0-9]{8,})(?:/|$)`)
+)
 
-// SlackWorkspace is an account's workspace address as Slack writes it, from what the
-// config may say: "acme", "acme.slack.com" or "https://acme.slack.com/".
+// SlackWorkspace is an account's workspace as Slack writes it, from what the config
+// may say: its address ("acme", "acme.slack.com", "https://acme.slack.com/"), or its
+// team ID ("T0123456789", or any app.slack.com/client/T0123456789/… link).
 func SlackWorkspace(account config.SlackAccount) string {
-	w := strings.ToLower(strings.TrimSpace(account.Workspace))
+	raw := strings.TrimSpace(account.Workspace)
+	if m := clientLink.FindStringSubmatch(raw); m != nil {
+		return m[1]
+	}
+	if slackTeamID.MatchString(raw) {
+		return raw
+	}
+	w := strings.ToLower(raw)
 	w = strings.TrimPrefix(strings.TrimPrefix(w, "https://"), "http://")
 	w = strings.TrimSuffix(w, "/")
 	return strings.TrimSuffix(w, ".slack.com")
 }
 
 // SlackAccounts refuses [[slack.account]]s kith could not tell apart or sign in to:
-// a missing or repeated name, a workspace that is no Slack address, one listed twice.
+// a missing or repeated name, a workspace that is no Slack address or ID, one listed
+// twice.
 func SlackAccounts(s config.Slack) error {
 	names, workspaces := map[string]bool{}, map[string]bool{}
 	for i, account := range s.Accounts {
@@ -31,9 +46,9 @@ func SlackAccounts(s config.Slack) error {
 			return fmt.Errorf("%s: name is empty — `kith login slack <name>` needs one", where)
 		}
 		workspace := SlackWorkspace(account)
-		if !workspaceName.MatchString(workspace) {
-			return fmt.Errorf("%s (%s): workspace %q is not a Slack address — write it as in acme.slack.com, or just acme",
-				where, account.Name, account.Workspace)
+		if !workspaceName.MatchString(workspace) && !slackTeamID.MatchString(workspace) {
+			return fmt.Errorf("%s (%s): workspace %q is not a Slack workspace — write its address (acme, "+
+				"for acme.slack.com) or its ID (the T… in an app.slack.com/client/ link)", where, account.Name, account.Workspace)
 		}
 		if names[account.Name] {
 			return fmt.Errorf("%s: name %q is used twice", where, account.Name)

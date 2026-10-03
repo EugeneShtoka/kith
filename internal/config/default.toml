@@ -993,7 +993,9 @@ enabled = false
 # with no Matrix bridge and nothing for the workspace's admins to approve. Off unless
 # `enabled = true`. Each [[slack.account]] is one workspace: `name` is what
 # `kith login slack <name>` takes, and `workspace` its address ("acme" or
-# "acme.slack.com"). Several workspaces may be signed in at once.
+# "acme.slack.com") or its ID: the T… in a link from the web client,
+# app.slack.com/client/T…/…, which may be pasted whole. Several workspaces may be
+# signed in at once.
 #
 # Sign in here or through a bridge, not both: both at once show every channel twice.
 # Some workspaces' policies forbid clients Slack did not make; signing out of Slack

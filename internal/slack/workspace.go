@@ -55,7 +55,7 @@ func (a *Adapter) SignInSlack(ctx context.Context, name, token, cookie string) (
 	if err != nil {
 		return api.SlackSignedIn{}, fmt.Errorf("slack: check the session: %w", err)
 	}
-	if err := sameWorkspace(account, who.URL); err != nil {
+	if err := sameWorkspace(account, who.URL, who.TeamID); err != nil {
 		return api.SlackSignedIn{}, err
 	}
 	creds.Team, creds.User = who.TeamID, who.UserID
