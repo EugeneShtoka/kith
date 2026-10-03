@@ -89,3 +89,41 @@ func TestRefreshingAChatsMembersListsNothing(t *testing.T) {
 		t.Error("a member refresh counted as a listing")
 	}
 }
+
+// One account WhatsApp will not list (here: never connected) answers from the cache,
+// direct chats included, and does not take the other account's rooms with it.
+func TestOneAccountsFailedListingKeepsEveryAccountsRooms(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const ilDigits = "972000000009"
+	bg, il := Account{Name: "bg", Digits: ownDigits}, Account{Name: "il", Digits: ilDigits}
+	a, cache, store := offline(t, bg, il)
+	bgGroup := roomID(ownDigits, types.NewJID("1203", types.GroupServer))
+	bgDM := roomID(ownDigits, pn(danaPhone))
+	ilDM := roomID(ilDigits, pn(danaPhone))
+	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ownDigits), []domain.Room{{ID: bgGroup}, {ID: bgDM, IsDirect: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ilDigits), []domain.Room{{ID: ilDM, IsDirect: true}}); err != nil {
+		t.Fatal(err)
+	}
+	a.clients[ownDigits] = linkedClient(t, store, ownDigits)
+	a.clients[ilDigits] = linkedClient(t, store, ilDigits)
+	a.mu.Lock()
+	a.listedAt[ownDigits] = time.Now() // bg answers from the cache; il's listing fails
+	a.mu.Unlock()
+
+	rooms, err := a.RefreshRooms(ctx)
+	if err != nil {
+		t.Fatalf("RefreshRooms with one account failing: %v", err)
+	}
+	got := map[domain.RoomID]bool{}
+	for _, r := range rooms {
+		got[r.ID] = true
+	}
+	for _, want := range []domain.RoomID{bgGroup, bgDM, ilDM} {
+		if !got[want] {
+			t.Errorf("RefreshRooms = %v, missing %s", rooms, want)
+		}
+	}
+}

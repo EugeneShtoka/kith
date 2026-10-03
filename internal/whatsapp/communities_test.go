@@ -55,7 +55,8 @@ func TestCommunitiesAreSpacesOfTheirGroups(t *testing.T) {
 }
 
 // A listing's communities are cached with its groups, per account: another account's
-// stay, and Matrix's are none of WhatsApp's. A room's community is its canonical parent.
+// stay, and Matrix's are none of WhatsApp's. An account with rooms is a space too,
+// after the communities. A room's community is its canonical parent, else its account.
 func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -84,8 +85,9 @@ func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 		}
 		return out
 	}
-	if got := ids(); !slices.Equal(got, []domain.SpaceID{building.ID, theirs.ID}) {
-		t.Errorf("Spaces = %v, want both accounts' communities and no Matrix space", got)
+	bgSpace := accountSpaceID(ownDigits) // il has no rooms, so no space
+	if got := ids(); !slices.Equal(got, []domain.SpaceID{building.ID, theirs.ID, bgSpace}) {
+		t.Errorf("Spaces = %v, want both accounts' communities, bg's own space and no Matrix space", got)
 	}
 	if spaces, _ := a.Spaces(ctx); !spaces[0].Managed() {
 		t.Error("a cached community reads back as a space to file rooms into")
@@ -98,10 +100,54 @@ func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 	if err := a.saveListing(ctx, bg, groupListing{rooms: []domain.Room{{ID: room}}}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if got := ids(); !slices.Equal(got, []domain.SpaceID{theirs.ID}) {
-		t.Errorf("after bg's community went = %v, want il's alone", got)
+	if got := ids(); !slices.Equal(got, []domain.SpaceID{theirs.ID, bgSpace}) {
+		t.Errorf("after bg's community went = %v, want il's and bg's own space", got)
 	}
-	if parent, _ := a.CanonicalParent(ctx, room); parent != "" {
-		t.Errorf("CanonicalParent after leaving = %q, want none", parent)
+	if parent, _ := a.CanonicalParent(ctx, room); parent != bgSpace {
+		t.Errorf("CanonicalParent after leaving = %q, want the account's space", parent)
+	}
+}
+
+// Each account with rooms is a space named after it holding every room it sees —
+// groups and direct chats, not another account's.
+func TestAnAccountIsTheSpaceOfItsRooms(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const ilDigits = "972000000009"
+	bg, il := Account{Name: "bg", Digits: ownDigits}, Account{Name: "il", Digits: ilDigits}
+	a, cache, _ := offline(t, bg, il)
+	bgGroup, bgDM := roomID(ownDigits, group("1203")), roomID(ownDigits, pn(danaPhone))
+	ilDM := roomID(ilDigits, pn(danaPhone))
+	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ownDigits), []domain.Room{{ID: bgGroup}, {ID: bgDM, IsDirect: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ilDigits), []domain.Room{{ID: ilDM, IsDirect: true}}); err != nil {
+		t.Fatal(err)
+	}
+	spaces, err := a.Spaces(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[domain.SpaceID]struct {
+		name     string
+		children []domain.RoomID
+	}{
+		accountSpaceID(ownDigits): {"WhatsApp bg", []domain.RoomID{bgGroup, bgDM}},
+		accountSpaceID(ilDigits):  {"WhatsApp il", []domain.RoomID{ilDM}},
+	}
+	if len(spaces) != len(want) {
+		t.Fatalf("Spaces = %v, want one per account", spaces)
+	}
+	for _, s := range spaces {
+		w, ok := want[s.ID]
+		got := slices.Clone(s.Children)
+		slices.Sort(got)
+		slices.Sort(w.children)
+		if !ok || s.Name != w.name || !slices.Equal(got, w.children) || !s.Managed() {
+			t.Errorf("space %+v, want %q holding %v, the rooms' home", s, w.name, w.children)
+		}
+	}
+	if parent, err := a.CanonicalParent(ctx, bgDM); err != nil || parent != accountSpaceID(ownDigits) {
+		t.Errorf("CanonicalParent of a direct chat = (%q, %v), want bg's space", parent, err)
 	}
 }
