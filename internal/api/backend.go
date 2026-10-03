@@ -326,6 +326,20 @@ type WhatsAppLink interface {
 	PairWhatsApp(ctx context.Context, account string, code func(string) error) (string, error)
 }
 
+// SlackSignIn signs Slack workspaces in. Only the daemon signs in, because it keeps
+// the session and connects on it; `kith login slack` asks it.
+type SlackSignIn interface {
+	// SignInSlack takes a session for the named [[slack.account]]: its token and `d`
+	// cookie, from a browser signed in to the workspace. Slack checks them, and they
+	// must be the account's workspace. ErrNetworkOff when Slack is not enabled.
+	SignInSlack(ctx context.Context, account, token, cookie string) (SlackSignedIn, error)
+}
+
+// SlackSignedIn is who and where a Slack sign-in landed, by name.
+type SlackSignedIn struct {
+	Workspace, User string
+}
+
 // MatrixLogin logs Matrix in. Only the daemon logs in, because it owns the session
 // and starts Matrix on it; `kith login` asks it.
 type MatrixLogin interface {

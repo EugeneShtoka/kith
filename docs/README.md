@@ -28,6 +28,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 | [Commands](commands.md) | Built-in `/` and `:` commands, and writing your own as executable scripts |
 | [MCP server](mcp.md) | Connecting an AI assistant with `kith-mcp`: tools, read scope, the write policy and the audit ledger |
 | [WhatsApp](whatsapp.md) | Linking WhatsApp directly: setup, several accounts, without Matrix, what works, the risks |
+| [Slack](slack.md) | Signing in to Slack workspaces directly: setup, several workspaces, what you see, the risks |
 | [Encryption](encryption.md) | End-to-end encryption, device verification, key backup, key export and import, what is stored where |
 
 ## Reference

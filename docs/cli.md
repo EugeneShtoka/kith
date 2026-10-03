@@ -14,6 +14,7 @@ the binaries and exits.
 kith [flags]
 kith login [--config path] [--profile name]
 kith login whatsapp [--config path] [--profile name] [account]
+kith login slack [--config path] [--profile name] [account]
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -68,6 +69,27 @@ instead". Once the phone accepts, the account's groups appear in kith.
   is only one.
 - An account already linked is refused: unlink kith on the phone first.
 - A code typed on another number's phone is refused, and that link removed.
+
+### kith login slack
+
+```sh
+kith login slack [account]
+```
+
+Signs one `[[slack.account]]` in. kith uses the session a browser signed in to the
+workspace holds: the command says where to copy its token (a line to paste into the
+browser console) and its `d` cookie (the browser's cookie storage), reads both without
+echoing them, and has the daemon check them with Slack, keep them in the system keyring
+and connect. The workspace's channels then appear in kith. See [Slack](slack.md).
+
+- `[slack] enabled = true` must be set, and kithd running with it (turning Slack on
+  takes a kithd restart).
+- An account added to the config needs no restart: this command has kithd re-read the
+  config first.
+- `account` is the `name` of a `[[slack.account]]`; it can be left out when there is
+  only one.
+- A session for another workspace than the account's `workspace` is refused.
+- Signing in again replaces the session kept for the account.
 
 ### General flags
 
@@ -151,7 +173,7 @@ kithd [--config path] [--profile name] [--log-level level] [-v] [--log-target ta
 The daemon. It runs in the foreground and logs to stderr, which the journal captures
 under systemd. Started by `kith` without systemd, it logs to the journal itself,
 or to `--log-file` when there is none. It runs logged in to nothing too: a network
-with no session waits for `kith login` (or `kith login whatsapp`), which logs it in
+with no session waits for `kith login` (or `kith login whatsapp`, `kith login slack`), which logs it in
 through the daemon and starts it without a restart.
 
 | Flag | Meaning |

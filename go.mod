@@ -38,6 +38,8 @@ require (
 	modernc.org/sqlite v1.59.0
 )
 
+require github.com/gorilla/websocket v1.5.3 // indirect
+
 require (
 	4d63.com/gocheckcompilerdirectives v1.4.0 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
@@ -208,6 +210,7 @@ require (
 	github.com/securego/gosec/v2 v2.28.0 // indirect
 	github.com/sirupsen/logrus v1.10.1 // indirect
 	github.com/sivchari/containedctx v1.0.3 // indirect
+	github.com/slack-go/slack v0.24.0
 	github.com/sonatard/noctx v0.5.1 // indirect
 	github.com/sourcegraph/go-diff v0.8.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
@@ -269,3 +272,5 @@ require (
 )
 
 replace charm.land/bubbletea/v2 => github.com/EugeneShtoka/bubbletea/v2 v2.0.10-idlegate.1
+
+replace github.com/slack-go/slack => github.com/beeper/slackgo v0.0.0-20260925001310-ea62f6cbc997

@@ -61,3 +61,15 @@ func loadCredentials(secrets Secrets, account string) (Credentials, bool, error)
 	}
 	return c, true, nil
 }
+
+// saveCredentials keeps an account's credentials.
+func saveCredentials(secrets Secrets, account string, c Credentials) error {
+	if err := c.valid(); err != nil {
+		return err
+	}
+	blob, err := json.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("slack: encode the credentials: %w", err)
+	}
+	return secrets.StoreSecret(credentialsRef(account), string(blob)) //nolint:wrapcheck // the store says why
+}

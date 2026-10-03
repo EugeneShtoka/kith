@@ -46,6 +46,9 @@ type Daemon struct {
 	// Matrix logs Matrix in; nil when Matrix is not configured, and the login
 	// handler then refuses with ErrNetworkOff.
 	Matrix api.MatrixLogin
+	// Slack signs Slack workspaces in; nil when [slack] is off, and the sign-in
+	// handler then refuses with ErrNetworkOff.
+	Slack api.SlackSignIn
 	// Log receives every failed call, with the procedure and the reason, so a
 	// failure a client only counted still reaches the journal. nil logs nothing.
 	Log *slog.Logger

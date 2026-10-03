@@ -432,6 +432,17 @@ func (s *server) LoginMatrix(ctx context.Context, r *req[v1.LoginMatrixRequest])
 	return reply(&v1.LoginMatrixResponse{UserId: in.UserID, DeviceId: in.DeviceID, Started: in.Started}, err)
 }
 
+// errSlackOff refuses a Slack sign-in while [slack] is off.
+var errSlackOff = fmt.Errorf("%w: [slack] is not enabled in the config kithd runs with", api.ErrNetworkOff)
+
+func (s *server) SignInSlack(ctx context.Context, r *req[v1.SignInSlackRequest]) (*resp[v1.SignInSlackResponse], error) {
+	if s.Slack == nil {
+		return nil, rpcErr(errSlackOff)
+	}
+	in, err := s.Slack.SignInSlack(ctx, r.Msg.GetAccount(), r.Msg.GetToken(), r.Msg.GetCookie())
+	return reply(&v1.SignInSlackResponse{Workspace: in.Workspace, User: in.User}, err)
+}
+
 func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {
 	sat, err := s.seat.take(ctx, r.Msg.GetClient(), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
 	if errors.Is(err, api.ErrSeatTaken) {
