@@ -83,7 +83,7 @@ wrong `[section]` header) stops startup with a list of the unknown keys.
 You rarely need to open the file. Inside kith:
 
 - `,` opens the settings screen. It lists the preferences with their current values,
-  and you change them in place. **Tags…** there edits your [tags](usage.md#tags).
+  and you change them in place. **Tags** there edits your [tags](usage.md#tags).
 - `a` on a room, space, rail group, thread or person gives it your own name.
 - `b` on a message, room or space writes a notification rule for it.
 - `W` shows every notification rule in force for the current room, in order, and marks
