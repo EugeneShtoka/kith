@@ -98,7 +98,7 @@ func TestArchivedRoomKeepsItsRowAndLeavesTheTotals(t *testing.T) {
 }
 
 // /tag is a toggle and says which way it went, because nothing else on screen changes
-// enough to tell.
+// enough to tell; a new name makes the tag.
 func TestTagCommandTogglesAndReportsWhichWay(t *testing.T) {
 	t.Parallel()
 
@@ -127,8 +127,13 @@ func TestTagCommandTogglesAndReportsWhichWay(t *testing.T) {
 	if !strings.Contains(m.status(), "Alpha is out of Archived") {
 		t.Errorf("status = %q, want it to say the room came out", m.status())
 	}
-	if m, _ = m.toggleTag("Nope", roomByName(t, m, "!a:x")); !strings.Contains(m.status(), "no tag is named Nope") {
-		t.Errorf("status = %q, want an unknown tag said", m.status())
+	// A name no tag has makes the tag, with the room in it.
+	m, _ = m.toggleTag("Later", roomByName(t, m, "!a:x"))
+	if got := m.conf.base.Tags[tagIndex(t, m, "Later")].Picked; len(got) != 1 || got[0] != "!a:x" {
+		t.Errorf("after /tag Later the new tag picks %v, want the room's ID", got)
+	}
+	if !strings.Contains(m.status(), "Alpha is in Later") {
+		t.Errorf("status = %q, want it to say the room went in", m.status())
 	}
 }
 

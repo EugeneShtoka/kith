@@ -293,11 +293,11 @@ func TestFilingSpacesLeavesUnlistedSpacesAlone(t *testing.T) {
 	}
 }
 
-// spaceRows is the filing picker's space rows, without its tag rows.
+// spaceRows is the filing picker's space rows, without its tag rows and New tag.
 func spaceRows(items []pickerItem) []pickerItem {
 	var out []pickerItem
 	for _, item := range items {
-		if !isTagGroup(item.value) {
+		if !isTagGroup(item.value) && item.value != tagNew {
 			out = append(out, item)
 		}
 	}

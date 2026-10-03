@@ -170,7 +170,7 @@ var slashCommands = []slashCommand{
 	},
 	{
 		name: "/tag", arg: "[name]", argOptional: true,
-		summary: "put this room in a tag, or take it out — no name picks among your spaces and tags",
+		summary: "put this room in a tag, or take it out — a new name makes the tag; no name picks among your spaces and tags",
 		run:     func(m Model, arg string, room domain.Room) (Model, tea.Cmd) { return m.toggleTag(arg, room) },
 	},
 	{

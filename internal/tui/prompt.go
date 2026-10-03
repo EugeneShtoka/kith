@@ -259,6 +259,10 @@ func (m Model) cancelPrompt() (Model, tea.Cmd) {
 		m.aimedAt.binding = domain.JumpTarget{}
 		return m, nil
 	case promptTagName:
+		if m.choosing.tag.fileRoom != "" { // from the filing picker: back to the room
+			m.choosing.tag = tagEditing{}
+			return m, nil
+		}
 		if m.choosing.tag.tag == "" {
 			return m.tagsOpen(), nil
 		}

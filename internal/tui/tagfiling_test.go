@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -93,5 +94,50 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 				t.Fatalf("%s: the written config reads back as %v, the running one says %v", where, got[room.ID], after[room.ID])
 			}
 		}
+	}
+}
+
+// The filing picker's last row makes a tag: enter on it asks the name (the settings
+// prompt), and the new tag holds the room. Escaping the name leaves everything as it
+// was and opens nothing else.
+func TestTheFilingPickerMakesANewTagWithTheRoomInIt(t *testing.T) {
+	t.Parallel()
+	open := func(t *testing.T) Model {
+		t.Helper()
+		m := counting(t, config.Display{})
+		m.focus = paneRooms
+		m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
+		m, _ = m.selectRoom(roomByName(t, m, "!a:x"))
+		m, _ = m.openSpacePicker()
+		last := len(m.picker.items) - 1
+		if last < 0 || m.picker.items[last].value != tagNew {
+			t.Fatalf("filing rows = %v, want New tag last", m.picker.items)
+		}
+		m.picker.cursor = last
+		m, _ = m.acceptPick()
+		if m.picker.active() || m.prompt.kind != promptTagName {
+			t.Fatalf("enter on New tag: picker open %v, prompt %v; want the tag name asked", m.picker.active(), m.prompt.kind)
+		}
+		return m
+	}
+
+	m := open(t)
+	tags := len(m.conf.base.Tags)
+	m.prompt.input = "Later"
+	m, _ = m.submitPrompt()
+	if got := m.conf.base.Tags[tagIndex(t, m, "Later")].Picked; len(got) != 1 || got[0] != "!a:x" {
+		t.Errorf("the new tag picks %v, want the room's ID", got)
+	}
+	if len(m.conf.base.Tags) != tags+1 {
+		t.Errorf("%d tags, want one more than %d", len(m.conf.base.Tags), tags)
+	}
+	if !strings.Contains(m.status(), "Alpha is in Later") {
+		t.Errorf("status = %q, want it to say the room went in", m.status())
+	}
+
+	m = open(t)
+	m, _ = m.cancelPrompt()
+	if len(m.conf.base.Tags) != tags || m.picker.active() {
+		t.Errorf("after escaping the name: %d tags (want %d), a picker open %v", len(m.conf.base.Tags), tags, m.picker.active())
 	}
 }

@@ -142,7 +142,8 @@ func (m Model) fileInTags(roomID domain.RoomID, rows []pickerItem, want map[doma
 }
 
 // toggleTag is /tag: the named tag takes the room if it does not hold it, and lets it
-// go if it does; with no name, the filing picker opens.
+// go if it does; a name no tag has makes that tag with the room in it. With no name,
+// the filing picker opens.
 func (m Model) toggleTag(name string, room domain.Room) (Model, tea.Cmd) {
 	m.compose.input, m.compose.drafted = "", nil
 	if strings.TrimSpace(name) == "" {
@@ -154,7 +155,7 @@ func (m Model) toggleTag(name string, room domain.Room) (Model, tea.Cmd) {
 	view := m.unreadView()
 	i, ok := view.tags.Index(name)
 	if !ok {
-		return m.say("no tag is named " + strings.TrimSpace(name) + " — a [[tag]] in the config makes one"), nil
+		return m.fileInNewTag(strings.TrimSpace(name), room)
 	}
 	label := view.tags.At(i).Name
 	return m.fileTags(room, []tagFiling{{tag: i, label: label, in: !view.tagsOf(room).in[i]}})
