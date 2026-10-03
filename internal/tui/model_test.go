@@ -1708,7 +1708,7 @@ func TestViewFrame(t *testing.T) {
 	if !view.AltScreen {
 		t.Error("view should use the alt screen")
 	}
-	for _, want := range []string{"SPACES", "Alpha", "Bravo"} {
+	for _, want := range []string{"Spaces", "Alpha", "Bravo"} {
 		if !strings.Contains(view.Content, want) {
 			t.Errorf("frame view missing %q", want)
 		}
