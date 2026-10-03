@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"time"
 
@@ -37,7 +38,19 @@ var ErrNoAccount = errors.New("slack: no such [[slack.account]]")
 // clientFor is a Slack client with a workspace's session: the token, and the cookie
 // it is only good together with.
 func clientFor(c Credentials) *slackgo.Client {
-	return slackgo.New(c.Token, slackgo.OptionCookie("d", c.Cookie))
+	return slackgo.New(c.Token, slackgo.OptionCookie("d", cookieValue(c.Cookie)))
+}
+
+// cookieValue is the `d` cookie decoded. A browser shows it URL-encoded ("%2B", "%2F")
+// and slackgo.OptionCookie encodes what it is given, so the copied value would reach
+// Slack encoded twice and be refused. PathUnescape, not QueryUnescape: the decoded
+// value has '+' in it, which must stay a '+'. A value that does not decode is left as
+// it was.
+func cookieValue(cookie string) string {
+	if v, err := url.PathUnescape(cookie); err == nil {
+		return v
+	}
+	return cookie
 }
 
 // SignInSlack takes a session for the named account (its token and `d` cookie, from a
