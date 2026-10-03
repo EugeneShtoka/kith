@@ -27,6 +27,10 @@ type railState struct {
 	// is (a tag is asked about every room on every draw).
 	tags      domain.TagSet
 	roomFacts map[domain.RoomID]domain.RoomFacts
+	// tagsRev counts the tags applied, for tagMemo's key; tagMemo is shared by the
+	// Model's copies (see tagged.go).
+	tagsRev uint64
+	tagMemo *tagMemo
 }
 
 // at is the group the cursor is on, bounds-checked because sync can rebuild the groups

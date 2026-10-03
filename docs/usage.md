@@ -109,6 +109,21 @@ the config is read, and their references to each other match nothing; the rest o
 the config still works. `hidden = true` keeps a tag out of the rail. An archived room
 leaves its tags, as it leaves every group but its space.
 
+A tag can also change how its rooms behave elsewhere (each off unless set):
+
+| Property | What it does |
+| --- | --- |
+| `counts_unread = false` | Its rooms count as read everywhere else: no badge, not `unread` or `mention` to other tags' rules, skipped by mark-all-read. The tag itself still sees them as they are. |
+| `exclusive = true` | Its rooms show under it alone: in no other tag, and not in All, DMs, Unread, Drafts or Pinned. Their spaces keep them. Of two exclusive tags holding a room, the first configured wins. |
+| `space_exclusive = true` | Its rooms leave the spaces you made and the other tags. The spaces they belong to (a bridge's space, a community, the Matrix space that is their home) keep them, so they stay findable where they live. |
+| `sticky = true` | The open room stays listed until you move off it, as in Unread. |
+| `hide_when_empty = true` | No rail row while it holds nothing. |
+| `first = true` | At the top of the rail, unless `[display.rail] order` places it. |
+| `count_in_label = true` | The row says how many rooms it holds. |
+
+Exclusivity decides where a room shows, not what rules match: `tag:Family` in
+another rule still matches a room Family claims.
+
 ## The room list
 
 Walking the list with `j`/`k` previews each room's timeline beside it; `enter` (or `l`) opens it. Each row carries what is waiting:

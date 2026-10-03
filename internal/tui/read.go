@@ -94,35 +94,13 @@ type unreadView struct {
 	// resolving display names per call made the room list visibly slow.
 	archivedRooms map[domain.RoomID]bool
 	// tags and the facts they judge rooms by (precomputed, as archivedRooms), and the
-	// drafts the `draft` state word reads.
+	// drafts the `draft` state word reads; tagMemo keeps what they make of each room
+	// (tagged.go), tagsRev says which tags it was made with.
 	tags      domain.TagSet
+	tagsRev   uint64
+	tagMemo   *tagMemo
 	roomFacts map[domain.RoomID]domain.RoomFacts
 	drafts    map[domain.RoomID]draft
-}
-
-// state is what a room is right now, for a tag rule's state words.
-func (v unreadView) state(room domain.Room) domain.RoomState {
-	_, highlights := v.count(room)
-	_, draft := v.drafts[room.ID]
-	return domain.RoomState{
-		Unread:  v.counts[room.ID].HasUnread(v.local),
-		Mention: highlights > 0,
-		Draft:   draft,
-		Spam:    v.isSpam(room),
-		Invite:  room.IsInvite(),
-	}
-}
-
-// inTag reports whether the named tag holds a room.
-func (v unreadView) inTag(name string, room domain.Room) bool {
-	facts, ok := v.roomFacts[room.ID]
-	if !ok {
-		if v.facts == nil {
-			return false
-		}
-		facts = v.facts(room) // a room arrived since the last refresh: the slow way, once
-	}
-	return v.tags.Has(name, facts, v.state(room))
 }
 
 // keepsArchived reports whether space keeps showing an archived room: the room names
@@ -166,18 +144,18 @@ func (v unreadView) count(room domain.Room) (count, highlights int) {
 }
 
 // tallies reports whether a room counts toward group badges, the Unread group and
-// group mark-read. Invitations, archived and spam rooms do not.
+// group mark-read. Invitations, archived, spam and silenced rooms do not.
 func (v unreadView) tallies(room domain.Room) bool {
-	if room.IsInvite() || v.isArchived(room) || v.isSpam(room) {
+	if room.IsInvite() || v.isArchived(room) || v.isSpam(room) || v.silenced(room) {
 		return false
 	}
 	// HasUnread, not a count: a marked room is unread with nothing to count.
 	return v.counts[room.ID].HasUnread(v.local)
 }
 
-// marked reports a hand-set unread flag; archiving wins over it.
+// marked reports a hand-set unread flag; archiving and silence win over it.
 func (v unreadView) marked(room domain.Room) bool {
-	return v.counts[room.ID].Marked && !v.isArchived(room)
+	return v.counts[room.ID].Marked && !v.isArchived(room) && !v.silenced(room)
 }
 
 // refreshPlaces recomputes the archived and spam sets and the rooms' facts, which
@@ -226,6 +204,8 @@ func (m Model) unreadView() unreadView {
 		caught:        m.rail.caught,
 		spamRooms:     m.rail.spamRooms,
 		tags:          m.rail.tags,
+		tagsRev:       m.rail.tagsRev,
+		tagMemo:       m.rail.tagMemo,
 		roomFacts:     m.rail.roomFacts,
 		drafts:        m.drafts,
 	}

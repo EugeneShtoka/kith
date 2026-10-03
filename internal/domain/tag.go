@@ -17,6 +17,21 @@ type Tag struct {
 	Picked   []string // room entries: a room ID, or room:<name>
 	Excluded []string // room entries
 	Hidden   bool     // no rail row; the tag still works wherever a place is named
+
+	// Silent: the rooms it holds count as read everywhere else — no badge, not
+	// `unread` or `mention` to another tag's rule, skipped by mark-all-read
+	// (counts_unread = false).
+	Silent bool
+	// Exclusive: a room this tag holds shows under it and under no other tag or
+	// built-in row (its spaces are SpaceExclusive's).
+	Exclusive bool
+	// SpaceExclusive: a room this tag holds leaves the spaces a person made and other
+	// tags; the spaces it belongs to (Space.Managed) keep it.
+	SpaceExclusive bool
+	Sticky         bool // the open room stays listed until you move off it
+	HideWhenEmpty  bool // no rail row while it holds nothing
+	First          bool // at the top of the rail, unless the rail order places it
+	CountInLabel   bool // its row's label says how many rooms it holds
 }
 
 // RoomState is what a room is right now, for a rule's state words.
@@ -260,6 +275,17 @@ func (s TagSet) Tags() []Tag {
 		out[i] = s.tags[i].tag
 	}
 	return out
+}
+
+// Len is how many tags there are; At is the i-th, in configured order.
+func (s TagSet) Len() int { return len(s.tags) }
+
+// At is the i-th tag, in configured order.
+func (s TagSet) At(i int) Tag { return s.tags[i].tag }
+
+// HasAt is Has for the i-th tag.
+func (s TagSet) HasAt(i int, facts RoomFacts, state RoomState) bool {
+	return s.has(i, facts, state, map[int]bool{})
 }
 
 // Has reports whether the named tag holds a room with these facts and this state. A

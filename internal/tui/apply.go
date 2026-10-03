@@ -85,6 +85,10 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.prefs.external.focus = cfg.Clipboard.FocusCommand
 	m.prefs.codes.rules, m.prefs.codes.scope = derived.codeRules, derived.codeScope
 	m.rail.tags = derived.tags
+	m.rail.tagsRev++
+	if m.rail.tagMemo == nil {
+		m.rail.tagMemo = &tagMemo{}
+	}
 	if len(derived.tagWarnings) > 0 {
 		said := strings.Join(derived.tagWarnings, "; ")
 		if m.log != nil {

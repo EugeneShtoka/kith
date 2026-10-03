@@ -69,7 +69,7 @@ func TestTagRowsHoldWhatTheirRulesSay(t *testing.T) {
 	if admitsRoom(m, busy, "!a:x") {
 		t.Fatal("Busy holds a read room")
 	}
-	m.unread["!a:x"] = domain.Unread{Messages: 2, Counted: true}
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Messages: 2, Counted: true}})
 	if !admitsRoom(m, busy, "!a:x") {
 		t.Error("Busy does not follow a room becoming unread")
 	}

@@ -7,7 +7,8 @@ import "maps"
 // keeps. So Model's maps are copy-on-write (these helpers), and state shared on
 // purpose lives behind a pointer (derivedCache). Nothing may hold a map across
 // Updates expecting to see later writes: rail groups are judged by the view they are
-// handed (group.admits). TestNoValueReceiverWritesAMap holds the rule.
+// handed (group.admits), and what the tags make of each room is memoized by these
+// maps' identity (tagged.go). TestNoValueReceiverWritesAMap holds the rule.
 
 // withEntry returns a copy of src with k set to v.
 func withEntry[K comparable, V any](src map[K]V, k K, v V) map[K]V {

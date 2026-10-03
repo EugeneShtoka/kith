@@ -55,6 +55,10 @@ type group struct {
 	admits func(unreadView, domain.Room) bool
 	// sepAfter draws a divider row beneath this group (a separator token in the rail order).
 	sepAfter bool
+	// sticky keeps the open room listed until you move off it; first puts the row at
+	// the top unless the rail order places it; countInLabel adds how many rooms it
+	// holds to the label; hideWhenEmpty drops the row while it holds nothing.
+	sticky, first, countInLabel, hideWhenEmpty bool
 }
 
 // railGroups builds the rail — All, DMs, Unread, one group per space, then the
@@ -73,20 +77,21 @@ func railGroups(
 	groups := []group{
 		{key: homeGroupKey, label: builtInLabels[homeGroupKey], admits: func(v unreadView, r domain.Room) bool { return !v.isArchived(r) }},
 		{key: dmsGroupKey, label: builtInLabels[dmsGroupKey], admits: func(v unreadView, r domain.Room) bool { return r.IsDirect && !v.isArchived(r) }},
-		{key: unreadGroupKey, label: builtInLabels[unreadGroupKey], admits: unreadView.tallies},
+		{key: unreadGroupKey, label: builtInLabels[unreadGroupKey], admits: unreadView.tallies, sticky: true},
 	}
 	for _, s := range spaces {
 		children := make(map[domain.RoomID]bool, len(s.Children))
 		for _, id := range s.Children {
 			children[id] = true
 		}
-		name, spaceID, bridge := s.DisplayName(), s.ID, s.Bridge
-		// An archived room stays in the space it lives in, so it is never unfindable.
+		name, spaceID, bridge, managed := s.DisplayName(), s.ID, s.Bridge, s.Managed()
+		// An archived room stays in the space it lives in, so it is never unfindable;
+		// a space-exclusive tag takes a room out of the spaces a person made only.
 		groups = append(groups, group{
 			key:   name,
 			label: name,
 			admits: func(v unreadView, r domain.Room) bool {
-				if !children[r.ID] {
+				if !children[r.ID] || (!managed && v.leavesMadeSpaces(r)) {
 					return false
 				}
 				return !v.isArchived(r) || v.keepsArchived(r, spaceID, name, bridge)
@@ -106,15 +111,32 @@ func railGroups(
 		})
 	}
 	inOnePlace(groups)
+	claimedByTags(groups)
 	if invites > 0 {
 		groups = append([]group{{
 			key:    inviteGroupKey,
 			label:  fmt.Sprintf("%s (%d)", builtInLabels[inviteGroupKey], invites),
 			admits: func(_ unreadView, r domain.Room) bool { return r.IsInvite() },
+			first:  true,
 		}}, groups...)
 	}
 	groups = applyRailConfig(groups, cfg, names, view, rooms)
-	return withoutTrailingSeparator(promoteInvites(groups, cfg))
+	return withoutTrailingSeparator(promoteFirst(groups, cfg))
+}
+
+// claimedByTags takes a room an exclusive tag shows out of the rail's own rows that
+// hold rooms by kind (All, DMs, Unread, Drafts, Pinned); Invites, Spam and Archived
+// keep theirs, as their own exclusivity already does.
+func claimedByTags(groups []group) {
+	for i := range groups {
+		switch groups[i].key {
+		case homeGroupKey, dmsGroupKey, unreadGroupKey, draftsGroupKey, pinnedGroupKey:
+		default:
+			continue
+		}
+		inner := groups[i].admits
+		groups[i].admits = func(v unreadView, r domain.Room) bool { return !v.claimed(r) && inner(v, r) }
+	}
 }
 
 // inOnePlace makes invitations and spam exclusive: every group but Invites excludes
@@ -220,22 +242,20 @@ func isTagGroup(key string) bool {
 // own rows nor a tag. A space's key is its name.
 func isSpaceGroup(key string) bool { return !config.BuiltInGroup(key) && !isTagGroup(key) }
 
-// tagGroups is a rail row per tag not hidden, in configured order. An archived room
-// leaves them as it leaves every group but its space.
+// tagGroups is a rail row per tag not hidden, in configured order, with the tag's
+// properties (see unreadView.showsInTag for who it lists).
 func tagGroups(view unreadView) []group {
-	tags := view.tags.Tags()
-	groups := make([]group, 0, len(tags))
-	for _, t := range tags {
+	groups := make([]group, 0, view.tags.Len())
+	for i := range view.tags.Len() {
+		t := view.tags.At(i)
 		if t.Hidden {
 			continue
 		}
-		name := t.Name
 		groups = append(groups, group{
-			key:   tagGroupKey(name),
-			label: name,
-			admits: func(v unreadView, r domain.Room) bool {
-				return !v.isArchived(r) && v.inTag(name, r)
-			},
+			key:    tagGroupKey(t.Name),
+			label:  t.Name,
+			admits: func(v unreadView, r domain.Room) bool { return v.showsInTag(i, r) },
+			sticky: t.Sticky, first: t.First, countInLabel: t.CountInLabel, hideWhenEmpty: t.HideWhenEmpty,
 		})
 	}
 	return groups
@@ -275,21 +295,22 @@ func pinnedGroup(view unreadView) []group {
 	}}
 }
 
-// promoteInvites moves Invites to the front unless the order places it explicitly:
-// applyRailConfig demotes unnamed groups, which would bury pending invitations.
-func promoteInvites(groups []group, cfg config.Rail) []group {
-	if len(groups) == 0 || groups[0].key == inviteGroupKey {
+// promoteFirst moves the rows marked first (Invites; a tag with `first`) to the top,
+// in their order, unless the rail order places them: applyRailConfig demotes unnamed
+// groups, which would bury pending invitations.
+func promoteFirst(groups []group, cfg config.Rail) []group {
+	var front, rest []group
+	for _, g := range groups {
+		if g.first && !containsKey(cfg.Order, g.key) {
+			front = append(front, g)
+		} else {
+			rest = append(rest, g)
+		}
+	}
+	if len(front) == 0 {
 		return groups
 	}
-	if containsKey(cfg.Order, inviteGroupKey) {
-		return groups // the user said where it goes
-	}
-	at := slices.IndexFunc(groups, func(g group) bool { return g.key == inviteGroupKey })
-	if at < 0 {
-		return groups
-	}
-	moved := append([]group{groups[at]}, groups[:at]...)
-	return append(moved, groups[at+1:]...)
+	return append(front, rest...)
 }
 
 // applyRailConfig renames, hides, then reorders groups per config; hiding everything
@@ -307,6 +328,12 @@ func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName
 	hidden := make(map[string]bool, len(cfg.Hidden))
 	for _, k := range cfg.Hidden {
 		hidden[k] = true
+	}
+	// A tag with hide_when_empty, as if listed in [display.rail] hide_when_empty.
+	for _, g := range groups {
+		if g.hideWhenEmpty && !hidden[g.key] && !anyRoomIn(g, view, rooms) {
+			hidden[g.key] = true
+		}
 	}
 	// hide_when_empty drops a group whose filter matches no room.
 	for _, name := range cfg.HideWhenEmpty {
@@ -3296,7 +3323,7 @@ func (m Model) filteredRooms() []domain.Room {
 	if !ok {
 		return nil
 	}
-	pinned := g.key == unreadGroupKey && m.openRoom != ""
+	pinned := g.sticky && m.openRoom != ""
 	view := m.unreadView()
 	out := make([]domain.Room, 0, len(m.rooms.all))
 	// Indexed: domain.Room is large enough that a range copy trips gocritic.
