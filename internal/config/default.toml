@@ -232,8 +232,28 @@ notify = false
 #
 # `in`/`except` take the place vocabulary (see `archived`).
 
-# Rail layout, by group key: "unread", "home", "dms", "archived", a space's name. "-"
-# draws a divider after the preceding group; "*" stands for every group not named.
+# Tags: your own groupings of rooms, across networks, shown in the rail with the
+# spaces; a room can carry several. A tag holds the rooms its rule matches, plus the
+# rooms `picked`, minus the rooms `excluded` (each a room ID or room:<name>; excluded
+# wins over picked). A rule is a list of terms: a room matches when some term matches
+# and no `not` term does (a rule of `not` terms alone needs none; an empty rule holds
+# only picked rooms). Terms: `*` (every room), the place words (room:<name>,
+# space:<name>, protocol:<network>, dm, group, pinned), the state words (unread,
+# mention, draft, spam, invite) and tag:<name> (another tag's rooms). `hidden = true`
+# keeps a tag out of the rail. In the rail order below a tag is `tag:<name>`. Tags
+# whose rules depend on each other in a cycle are reported at startup, and their
+# references to each other match nothing.
+#
+#   [[tag]]
+#   name     = "Family"
+#   rule     = ["dm", "space:Family", "not room:Bank"]
+#   picked   = ["!abc:example.org"]
+#   excluded = []
+#   hidden   = false
+
+# Rail layout, by group key: "unread", "home", "dms", "archived", a space's name,
+# tag:<name>. "-" draws a divider after the preceding group; "*" stands for every
+# group not named.
 # Unlisted groups (with no "*") follow in default order.
 #
 #   order = ["unread", "-", "Work", "Friends", "-", "*", "-", "archived"]

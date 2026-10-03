@@ -93,6 +93,36 @@ type unreadView struct {
 	// archivedRooms is the archive precomputed: asked thousands of times per frame,
 	// resolving display names per call made the room list visibly slow.
 	archivedRooms map[domain.RoomID]bool
+	// tags and the facts they judge rooms by (precomputed, as archivedRooms), and the
+	// drafts the `draft` state word reads.
+	tags      domain.TagSet
+	roomFacts map[domain.RoomID]domain.RoomFacts
+	drafts    map[domain.RoomID]draft
+}
+
+// state is what a room is right now, for a tag rule's state words.
+func (v unreadView) state(room domain.Room) domain.RoomState {
+	_, highlights := v.count(room)
+	_, draft := v.drafts[room.ID]
+	return domain.RoomState{
+		Unread:  v.counts[room.ID].HasUnread(v.local),
+		Mention: highlights > 0,
+		Draft:   draft,
+		Spam:    v.isSpam(room),
+		Invite:  room.IsInvite(),
+	}
+}
+
+// inTag reports whether the named tag holds a room.
+func (v unreadView) inTag(name string, room domain.Room) bool {
+	facts, ok := v.roomFacts[room.ID]
+	if !ok {
+		if v.facts == nil {
+			return false
+		}
+		facts = v.facts(room) // a room arrived since the last refresh: the slow way, once
+	}
+	return v.tags.Has(name, facts, v.state(room))
 }
 
 // keepsArchived reports whether space keeps showing an archived room: the room names
@@ -150,8 +180,19 @@ func (v unreadView) marked(room domain.Room) bool {
 	return v.counts[room.ID].Marked && !v.isArchived(room)
 }
 
-// refreshPlaces recomputes the archived and spam sets, which share their inputs.
-func (m Model) refreshPlaces() Model { return m.refreshArchived().refreshSpam() }
+// refreshPlaces recomputes the archived and spam sets and the rooms' facts, which
+// share their inputs.
+func (m Model) refreshPlaces() Model { return m.refreshFacts().refreshArchived().refreshSpam() }
+
+// refreshFacts recomputes every room's facts, as a new map (see refreshArchived).
+func (m Model) refreshFacts() Model {
+	facts := make(map[domain.RoomID]domain.RoomFacts, len(m.rooms.all))
+	for i := range m.rooms.all {
+		facts[m.rooms.all[i].ID] = m.factsFor(m.rooms.all[i])
+	}
+	m.rail.roomFacts = facts
+	return m
+}
 
 // refreshArchived recomputes which rooms the archive covers, as a new set: the rail's
 // groups read it through the view they are handed (group.admits), so none holds an
@@ -184,6 +225,9 @@ func (m Model) unreadView() unreadView {
 		spam:          m.rail.spam,
 		caught:        m.rail.caught,
 		spamRooms:     m.rail.spamRooms,
+		tags:          m.rail.tags,
+		roomFacts:     m.rail.roomFacts,
+		drafts:        m.drafts,
 	}
 }
 

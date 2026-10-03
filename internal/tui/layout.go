@@ -75,6 +75,11 @@ func (m Model) renameGroup() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	if isTagGroup(entry.key) {
+		// A tag's name is what everything refers to it by: change it in its [[tag]].
+		m = m.say("a tag is named in its [[tag]] block: " + isolate(entry.label))
+		return m, nil
+	}
 	m.aimedAt.renamingGroup = entry.key
 	m = m.openPromptWith(promptGroupName, entry.label)
 	return m, nil
@@ -206,7 +211,7 @@ func (m Model) toggleFirstNameOnly() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	if config.BuiltInGroup(entry.key) {
+	if !isSpaceGroup(entry.key) {
 		m = m.say("name rules apply to spaces, not to " + entry.label)
 		return m, nil
 	}

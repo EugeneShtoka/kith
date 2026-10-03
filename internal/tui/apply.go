@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -83,6 +84,14 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.prefs.external.open = cfg.Clipboard.OpenCommandOrDefault()
 	m.prefs.external.focus = cfg.Clipboard.FocusCommand
 	m.prefs.codes.rules, m.prefs.codes.scope = derived.codeRules, derived.codeScope
+	m.rail.tags = derived.tags
+	if len(derived.tagWarnings) > 0 {
+		said := strings.Join(derived.tagWarnings, "; ")
+		if m.log != nil {
+			m.log.Warn("[[tag]]: " + said)
+		}
+		m = m.say(said)
+	}
 	return m
 }
 
@@ -108,6 +117,9 @@ type derivations struct {
 	codeRules   domain.CodeRules
 	codeScope   domain.CodeScope
 	palette     theme.Palette
+	// tags are the [[tag]]s, and tagWarnings the cycles among them (said, not fatal).
+	tags        domain.TagSet
+	tagWarnings []string
 }
 
 // derive resolves a config into what the model reads, or returns the first error.
@@ -148,7 +160,13 @@ func derive(cfg config.Config) (derivations, error) {
 	if err != nil {
 		return derivations{}, fmt.Errorf("display.theme: %w", err)
 	}
+	tags, tagWarnings, err := setup.Tags(cfg)
+	if err != nil {
+		return derivations{}, err
+	}
 	return derivations{
+		tags:        tags,
+		tagWarnings: tagWarnings,
 		palette:     palette,
 		rules:       rules,
 		unreadLocal: source != config.UnreadNotifications,

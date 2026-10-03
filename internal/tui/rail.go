@@ -23,6 +23,10 @@ type railState struct {
 	spamRooms map[domain.RoomID]bool
 	// baseSpaces: [display] base_spaces — spaces that keep showing archived rooms.
 	baseSpaces []string
+	// tags: the [[tag]]s. roomFacts is every room's facts, precomputed as the archive
+	// is (a tag is asked about every room on every draw).
+	tags      domain.TagSet
+	roomFacts map[domain.RoomID]domain.RoomFacts
 }
 
 // at is the group the cursor is on, bounds-checked because sync can rebuild the groups

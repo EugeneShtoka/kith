@@ -128,6 +128,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[display.emoji]` | Emoji set size (`curated`, `standard`, `complete`) and your own shortcodes. | [composer.md](composer.md) |
 | `[display.tracked]` | Words highlighted wherever they are said and listed by `/tracked`, optionally with notifications. | [search.md](search.md) |
 | `[display.rail]` | Order, dividers and visibility of the spaces rail. | [usage.md](usage.md) |
+| `[[tag]]` | Your own groupings of rooms in the rail, by rule, picked and excluded rooms. | [usage.md](usage.md#tags) |
 | `[display.rooms]` | The room list's sort chain, globally and per rail group. | [usage.md](usage.md) |
 | `[display.deleted]` | Whether deleted messages show as placeholders, and whether their content is kept in the cache. | [usage.md](usage.md) |
 | `[display.media]` | Images (placeholder chip or inline), viewer, video player, download folder and layout, the media cache. | [usage.md](usage.md) |

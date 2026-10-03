@@ -180,7 +180,7 @@ func (m Model) groupHolding(room domain.Room) int {
 		return m.rail.cursor
 	}
 	for i := range m.rail.groups {
-		if !config.BuiltInGroup(m.rail.groups[i].key) && m.rail.groups[i].admits(view, room) {
+		if isSpaceGroup(m.rail.groups[i].key) && m.rail.groups[i].admits(view, room) {
 			return i
 		}
 	}
