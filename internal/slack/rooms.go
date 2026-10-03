@@ -110,9 +110,17 @@ func dmPartners(conversations []slackgo.Channel) []string {
 // errOtherWorkspace is a sign-in that belongs to a workspace the account does not name.
 var errOtherWorkspace = errors.New("those credentials sign in to another workspace")
 
-// sameWorkspace checks a sign-in is to the account's workspace: Slack's answer names
-// the workspace by its address ("https://acme.slack.com/").
-func sameWorkspace(account Account, signedInURL string) error {
+// sameWorkspace checks a sign-in is to the account's workspace, which the account
+// names by its team ID ("T0123456789") or its address ("acme"): Slack's answer carries
+// both, the address as "https://acme.slack.com/".
+func sameWorkspace(account Account, signedInURL, team string) error {
+	if strings.HasPrefix(account.Workspace, "T") && strings.ToUpper(account.Workspace) == account.Workspace {
+		if team != account.Workspace {
+			return fmt.Errorf("%w: %s, not %s as [[slack.account]] %q says — sign in to that workspace, "+
+				"or change its workspace", errOtherWorkspace, team, account.Workspace, account.Name)
+		}
+		return nil
+	}
 	u, err := url.Parse(signedInURL)
 	if err != nil || u.Host == "" {
 		return fmt.Errorf("slack answered with no workspace address (%q)", signedInURL)

@@ -19,6 +19,10 @@ func TestSlackAccountsAreNamedAndDistinct(t *testing.T) {
 		"one":             {[]config.SlackAccount{ok}, true},
 		"full address":    {[]config.SlackAccount{{Name: "work", Workspace: "https://Acme-Co.slack.com/"}}, true},
 		"two":             {[]config.SlackAccount{ok, {Name: "club", Workspace: "chess-club.slack.com"}}, true},
+		"team ID":         {[]config.SlackAccount{{Name: "work", Workspace: "T0000000AAA"}}, true},
+		"client link":     {[]config.SlackAccount{{Name: "work", Workspace: "https://app.slack.com/client/T0000000AAA/D0000000BBB"}}, true},
+		"lower-case ID":   {[]config.SlackAccount{{Name: "work", Workspace: "t0000000aaa"}}, true}, // reads as an address
+		"bad link":        {[]config.SlackAccount{{Name: "work", Workspace: "https://app.slack.com/client/"}}, false},
 		"no name":         {[]config.SlackAccount{{Workspace: "acme"}}, false},
 		"no workspace":    {[]config.SlackAccount{{Name: "work"}}, false},
 		"not an address":  {[]config.SlackAccount{{Name: "work", Workspace: "Acme Inc"}}, false},
@@ -30,8 +34,15 @@ func TestSlackAccountsAreNamedAndDistinct(t *testing.T) {
 			t.Errorf("%s: SlackAccounts = %v, want valid=%v", name, err, tc.valid)
 		}
 	}
-	if got := setup.SlackWorkspace(config.SlackAccount{Workspace: " https://Acme.slack.com/ "}); got != "acme" {
-		t.Errorf("SlackWorkspace = %q, want acme", got)
+	for in, want := range map[string]string{
+		"\thttps://Acme.slack.com/\n": "acme",
+		"T0000000AAA":                 "T0000000AAA",
+		"https://app.slack.com/client/T0000000AAA/D000000BBB": "T0000000AAA",
+		"app.slack.com/client/T0000000AAA":                    "T0000000AAA",
+	} {
+		if got := setup.SlackWorkspace(config.SlackAccount{Workspace: in}); got != want {
+			t.Errorf("SlackWorkspace(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 

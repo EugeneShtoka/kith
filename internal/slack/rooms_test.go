@@ -95,14 +95,21 @@ func TestUserNames(t *testing.T) {
 func TestASignInMustBeToTheAccountsWorkspace(t *testing.T) {
 	t.Parallel()
 	account := Account{Name: "work", Workspace: "acme"}
-	if err := sameWorkspace(account, "https://Acme.slack.com/"); err != nil {
+	if err := sameWorkspace(account, "https://Acme.slack.com/", "T0000000AAA"); err != nil {
 		t.Errorf("the workspace itself: %v", err)
 	}
-	if err := sameWorkspace(account, "https://other.slack.com/"); !errors.Is(err, errOtherWorkspace) {
+	if err := sameWorkspace(account, "https://other.slack.com/", "T0000000AAA"); !errors.Is(err, errOtherWorkspace) {
 		t.Errorf("another workspace: %v", err)
 	}
-	if err := sameWorkspace(account, ""); err == nil {
+	if err := sameWorkspace(account, "", "T0000000AAA"); err == nil {
 		t.Error("no address was accepted")
+	}
+	byID := Account{Name: "work", Workspace: "T0000000AAA"}
+	if err := sameWorkspace(byID, "https://acme.slack.com/", "T0000000AAA"); err != nil {
+		t.Errorf("the workspace, by ID: %v", err)
+	}
+	if err := sameWorkspace(byID, "https://acme.slack.com/", "T0000000BBB"); !errors.Is(err, errOtherWorkspace) {
+		t.Errorf("another workspace, by ID: %v", err)
 	}
 }
 

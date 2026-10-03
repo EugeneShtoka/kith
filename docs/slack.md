@@ -32,6 +32,10 @@ name = "work"         # what `kith login slack` takes
 workspace = "acme"    # acme.slack.com; the full address works too
 ```
 
+`workspace` can also be the workspace's ID, the `T…` in a link from the Slack web
+client (`https://app.slack.com/client/T0123456789/…`); paste the whole link if that
+is what you have.
+
 Then sign in:
 
 ```sh
