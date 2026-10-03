@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -37,7 +38,8 @@ func (f *filer) RemoveFromSpace(_ context.Context, spaceID domain.SpaceID, roomI
 func filing(t *testing.T) (Model, *filer) {
 	t.Helper()
 	f := &filer{}
-	m := update(t, starterNew(f, config.Display{}), roomsMsg{rooms: []domain.Room{
+	// Work and Friends ranked first, so the picker opens on them.
+	m := update(t, starterNew(f, config.Display{Priority: []string{"Work", "Friends"}}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!b:x", Name: "Bravo"},
 	}})
@@ -189,6 +191,7 @@ func TestTheFilingListFollowsTheRail(t *testing.T) {
 
 	m, _ := filing(t)
 	// Reorder and rename the way the rail config does, then rebuild the rail.
+	m.prefs.display.Priority = nil
 	m.prefs.display.Rail.Order = []string{"Friends", "Work"}
 	m.prefs.display.Names = []config.DisplayName{{Target: config.NameTargetSpace + "Friends", Name: "Mates"}}
 	m.rail.groups = railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), m.rooms.all)
@@ -299,4 +302,22 @@ func spaceRows(items []pickerItem) []pickerItem {
 		}
 	}
 	return out
+}
+
+// The rows are in [display] priority, spaces and tags alike, then in the rail's order.
+func TestTheFilingListFollowsThePriority(t *testing.T) {
+	t.Parallel()
+
+	m, _ := filing(t)
+	m.prefs.display.Priority = []string{"tag:Pinned", "Friends"}
+	m, _ = press(t, m, keyText("S"))
+	var got []string
+	for _, item := range m.picker.all {
+		got = append(got, m.filingKey(item))
+	}
+	// Drafts is empty, so out of the rail: it follows what the rail shows.
+	want := []string{"tag:Pinned", "Friends", homeGroupKey, dmsGroupKey, unreadGroupKey, "Work", draftsGroupKey}
+	if len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
+		t.Errorf("rows = %v, want %v first: priority, then the rail", got, want)
+	}
 }

@@ -139,10 +139,16 @@ nothing there (`not unread` matches everything). Tagging a room that way widens 
 names the tag: a room you pick into a tag `[agent.read]` lists becomes readable to the
 assistant.
 
-A tag `[display] priority` names is a home beside the room's spaces. The list ranks
-both (spaces by name, tags as `tag:<name>`), and the first decides which name rule
-applies, the `{space}` of a notification and a download's folder. A tag it does not
-name is no home, so All does not become the home of every room in no space. Name rules and notification rules
+A room's tags are homes beside its spaces. `[display] priority` ranks both (spaces
+by name, tags as `tag:<name>`), and the first decides which name rule applies, the
+`{space}` of a notification and a download's folder. What it does not name follows:
+spaces first, then tags in the order they are written. Keep a tag that holds every
+room, such as All, last — the starter config writes it last — so it is a room's home
+only when the room has no other: otherwise every room in no space would take its
+name.
+
+The filing picker (`S`) lists your spaces and tags in the same order: what
+`priority` names first, then the rest as the rail shows them. Name rules and notification rules
 can be set on a tag row from the rail (`F`, `b`) as on a space.
 
 ## The room list

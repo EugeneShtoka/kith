@@ -652,7 +652,7 @@ func (m Model) ownSpace(roomID domain.RoomID) string {
 // the room list uses it, so a space-scoped column is uniform with that space.
 func (m Model) listedSpace(roomID domain.RoomID) string {
 	if here := m.rail.key(); here != "" {
-		for _, space := range m.homesOf(roomID) {
+		for _, space := range m.placeHomes(roomID) {
 			if space == here {
 				return space
 			}

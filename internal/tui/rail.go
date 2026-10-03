@@ -16,10 +16,12 @@ type railState struct {
 	spam      domain.Spam
 	caught    map[domain.RoomID]domain.SpamVerdict
 	spamRooms map[domain.RoomID]bool
-	// tags: the [[tag]]s. roomFacts is every room's facts, precomputed as the archive
-	// is (a tag is asked about every room on every draw).
+	// tags: the [[tag]]s. roomFacts is every room's facts, precomputed (a tag is asked
+	// about every room on every draw); spanning is the tags (as tag:<name>, lower-cased)
+	// holding every room in it, derived with it.
 	tags      domain.TagSet
 	roomFacts map[domain.RoomID]domain.RoomFacts
+	spanning  map[string]bool
 	// tagsRev counts the tags applied, for tagMemo's key; tagMemo is shared by the
 	// Model's copies (see tagged.go).
 	tagsRev uint64
