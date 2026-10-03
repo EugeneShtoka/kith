@@ -319,7 +319,8 @@ Every successful login creates a **new Matrix device**. Log in once per machine 
 leave it. If you log in again, the new device can't read encrypted history until you
 [give it the room keys](#set-up-encryption-keys).
 
-For WhatsApp, run `kith login whatsapp` instead (or as well): it shows a pairing code
+For WhatsApp (see [WhatsApp](whatsapp.md) first, for the risks), run
+`kith login whatsapp` instead (or as well): it shows a pairing code
 to type on the phone, under WhatsApp → Linked devices → Link a device → "Link with
 phone number instead". `kith` opens whatever is logged in; an account that is not
 says so on the status line, with the command that logs it in. A WhatsApp community

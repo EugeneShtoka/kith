@@ -27,6 +27,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 | [Assist](assist.md) | The local completion model and the optional remote model: `/summary`, `:todo`, thread names, privacy scoping |
 | [Commands](commands.md) | Built-in `/` and `:` commands, and writing your own as executable scripts |
 | [MCP server](mcp.md) | Connecting an AI assistant with `kith-mcp`: tools, read scope, the write policy and the audit ledger |
+| [WhatsApp](whatsapp.md) | Linking WhatsApp directly: setup, several accounts, without Matrix, what works, the risks |
 | [Encryption](encryption.md) | End-to-end encryption, device verification, key backup, key export and import, what is stored where |
 
 ## Reference
