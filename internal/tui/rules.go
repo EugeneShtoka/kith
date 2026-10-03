@@ -82,7 +82,7 @@ func (m Model) openRuleForSender() (Model, tea.Cmd) {
 		{match: "", sender: msg.Sender, what: who + ", anywhere"},
 		{match: string(room.ID), what: "everyone in " + m.roomName(room)},
 	}
-	for _, home := range m.homesOf(room.ID) {
+	for _, home := range m.placeHomes(room.ID) {
 		entry, shown := homeEntry(home), isolate(domain.HomeLabel(home))
 		m.aimedAt.ruleScopes = append(m.aimedAt.ruleScopes,
 			ruleTarget{match: entry, sender: msg.Sender, what: who + " in " + shown},
@@ -99,7 +99,7 @@ func (m Model) openRuleForRoom() (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.aimedAt.ruleScopes = []ruleTarget{{match: string(room.ID), what: m.roomName(room)}}
-	for _, home := range m.homesOf(room.ID) {
+	for _, home := range m.placeHomes(room.ID) {
 		m.aimedAt.ruleScopes = append(m.aimedAt.ruleScopes, ruleTarget{match: homeEntry(home), what: "everything in " + domain.HomeLabel(home)})
 	}
 	m.picker = newPicker(pickerRuleScope, ruleScopeItems(m.aimedAt.ruleScopes))

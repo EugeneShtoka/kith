@@ -2845,6 +2845,17 @@ func (m Model) homesOf(roomID domain.RoomID) []string {
 	return domain.Homes(m.rooms.spaceNames(roomID), m.rail.roomFacts[roomID].Tags, m.prefs.display.Priority)
 }
 
+// spans reports whether a home holds every room — a tag of everything, as All: the
+// same place as everywhere, so no scope offers it and a rail row of it does not decide
+// a room's name rules.
+func (m Model) spans(home string) bool { return m.rail.spanning[strings.ToLower(home)] }
+
+// placeHomes is homesOf without the homes spanning every room, for offering scopes
+// and for the rail row's say in name rules.
+func (m Model) placeHomes(roomID domain.RoomID) []string {
+	return slices.DeleteFunc(m.homesOf(roomID), m.spans)
+}
+
 // homeEntry is a home as a place entry: a tag is one already, a space is space:<name>.
 func homeEntry(home string) string {
 	if _, ok := domain.TagOf(home); ok {

@@ -15,7 +15,8 @@ func TestATagIsAHomeForRules(t *testing.T) {
 	cfg.Display.Priority = []string{"tag:Family", "Friends"}
 	cfg.Display.SpaceRules = []config.SpaceRule{{Space: "tag:Family", FirstNameOnly: true}}
 	dm := domain.Room{ID: "!a:x", Name: "Michael Livingston", Members: []string{"Michael Livingston"}, IsDirect: true}
-	m := update(t, configured(cfg), roomsMsg{rooms: []domain.Room{dm}})
+	other := domain.Room{ID: "!o:x", Name: "Other"} // so Family does not hold every room
+	m := update(t, configured(cfg), roomsMsg{rooms: []domain.Room{dm, other}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!a:x"}}}})
 
 	if got := m.homesOf("!a:x"); len(got) != 2 || got[0] != "tag:Family" || got[1] != "Friends" {

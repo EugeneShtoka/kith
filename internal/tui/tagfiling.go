@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -20,11 +21,68 @@ type tagFiling struct {
 	in    bool
 }
 
-// appendTagRows adds a row per tag to the filing picker: the rail's tags in the
-// rail's order under its names, then those it does not show. A row is ticked when the
-// tag holds the room now.
-func (m Model) appendTagRows(items []pickerItem, checked map[string]bool, room domain.Room) []pickerItem {
+// filingRows is the filing picker's rows, spaces and tags, ticked where they hold the
+// room: in [display] priority, then as the rail orders them (tags it does not show
+// last). A [display] filing_spaces list keeps its spaces in its written order, before
+// the tags; false when it names no space at all.
+func (m Model) filingRows(room domain.Room) ([]pickerItem, map[string]bool, bool) {
+	spaces, checked := m.fileableSpaces(room.ID)
+	tags := m.tagRows(checked, room)
+	if len(m.prefs.display.FilingSpaces) > 0 {
+		if len(spaces) == 0 {
+			return nil, nil, false
+		}
+		return append(spaces, m.byPriority(tags)...), checked, true
+	}
+	rows := slices.Concat(spaces, tags)
+	position := func(item pickerItem) int {
+		key := m.filingKey(item)
+		if at := slices.IndexFunc(m.rail.groups, func(g group) bool { return g.key == key }); at >= 0 {
+			return at
+		}
+		return len(m.rail.groups)
+	}
+	slices.SortStableFunc(rows, func(a, b pickerItem) int { return position(a) - position(b) })
+	return m.byPriority(rows), checked, true
+}
+
+// filingKey is a filing row as [display] priority and the rail name it: a space by
+// its name, a tag as tag:<name>.
+func (m Model) filingKey(item pickerItem) string {
+	if isTagGroup(item.value) {
+		return item.value
+	}
+	if space, ok := m.spaceByID(domain.SpaceID(item.value)); ok {
+		return space.DisplayName()
+	}
+	return item.value
+}
+
+// byPriority reorders rows by [display] priority, keeping the order of the rest.
+func (m Model) byPriority(rows []pickerItem) []pickerItem {
+	keys := make([]string, len(rows))
+	for i := range rows {
+		keys[i] = m.filingKey(rows[i])
+	}
+	out := make([]pickerItem, 0, len(rows))
+	used := make([]bool, len(rows))
+	for _, key := range domain.OrderSpaces(keys, m.prefs.display.Priority) {
+		for i := range rows {
+			if !used[i] && keys[i] == key {
+				used[i] = true
+				out = append(out, rows[i])
+				break
+			}
+		}
+	}
+	return out
+}
+
+// tagRows is a filing row per tag: the rail's tags in the rail's order under its
+// names, then those it does not show, each ticked when the tag holds the room now.
+func (m Model) tagRows(checked map[string]bool, room domain.Room) []pickerItem {
 	view := m.unreadView()
+	var items []pickerItem
 	if view.tags.Len() == 0 {
 		return items
 	}

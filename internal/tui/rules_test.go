@@ -457,11 +457,11 @@ func TestHomesOfSpaces(t *testing.T) {
 		{ID: "!e:x", Name: "Everything", Children: []domain.RoomID{"!standup:x", "!other:x"}},
 		{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!other:x"}},
 	}})
-	got := m.homesOf("!standup:x")
+	got := m.placeHomes("!standup:x")
 	if strings.Join(got, ",") != "Work,Everything" {
 		t.Errorf("homesOf = %v, want both spaces containing it", got)
 	}
-	if len(m.homesOf("!nowhere:x")) != 0 {
+	if len(m.placeHomes("!nowhere:x")) != 0 {
 		t.Error("a room in no space should have none")
 	}
 }

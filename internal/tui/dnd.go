@@ -174,7 +174,7 @@ func (m Model) muteTargets() []muteTarget {
 		})
 	}
 	if inRoom {
-		for _, home := range m.homesOf(room.ID) {
+		for _, home := range m.placeHomes(room.ID) {
 			shown, kind := isolate(domain.HomeLabel(home)), "space"
 			if isTagGroup(home) {
 				kind = "tag"

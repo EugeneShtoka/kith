@@ -22,11 +22,10 @@ func (m Model) openSpacePicker() (Model, tea.Cmd) {
 	if !ok || room.IsInvite() {
 		return m, nil
 	}
-	items, checked := m.fileableSpaces(room.ID)
-	if len(items) == 0 && len(m.prefs.display.FilingSpaces) > 0 {
+	items, checked, ok := m.filingRows(room)
+	if !ok {
 		return m.say("nothing in [display] filing_spaces matches a space you are in"), nil
 	}
-	items = m.appendTagRows(items, checked, room)
 	if len(items) == 0 {
 		return m.say("no spaces or tags to file " + m.roomName(room) + " into"), nil
 	}

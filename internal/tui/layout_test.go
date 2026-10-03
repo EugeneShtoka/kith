@@ -162,7 +162,7 @@ func TestMoveGroupCarriesTheCursor(t *testing.T) {
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
 
 	m, _ = press(t, m, keyCode('K'))
-	if got := railKeys(m); strings.Join(got, ",") != "tag:All,tag:DMs,Work,tag:Unread,Friends" {
+	if got := railKeys(m); strings.Join(got, ",") != "tag:DMs,tag:Unread,Work,tag:All,Friends" {
 		t.Fatalf("after one move: %v", got)
 	}
 	if m.rail.groups[m.rail.cursor].key != "Work" {
@@ -170,12 +170,12 @@ func TestMoveGroupCarriesTheCursor(t *testing.T) {
 	}
 	// A second press moves the same group again rather than undoing the first.
 	m, _ = press(t, m, keyCode('K'))
-	if got := railKeys(m); strings.Join(got, ",") != "tag:All,Work,tag:DMs,tag:Unread,Friends" {
+	if got := railKeys(m); strings.Join(got, ",") != "tag:DMs,Work,tag:Unread,tag:All,Friends" {
 		t.Errorf("after two moves: %v", got)
 	}
 	// And down again.
 	m, _ = press(t, m, keyCode('J'))
-	if got := railKeys(m); strings.Join(got, ",") != "tag:All,tag:DMs,Work,tag:Unread,Friends" {
+	if got := railKeys(m); strings.Join(got, ",") != "tag:DMs,tag:Unread,Work,tag:All,Friends" {
 		t.Errorf("after moving back down: %v", got)
 	}
 }

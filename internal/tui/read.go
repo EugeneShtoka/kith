@@ -121,10 +121,21 @@ func (m Model) refreshPlaces() Model { return m.refreshFacts().refreshSpam() }
 // refreshFacts recomputes every room's facts, as a new map (see refreshArchived).
 func (m Model) refreshFacts() Model {
 	facts := make(map[domain.RoomID]domain.RoomFacts, len(m.rooms.all))
+	held := map[string]int{}
 	for i := range m.rooms.all {
-		facts[m.rooms.all[i].ID] = m.factsFor(m.rooms.all[i])
+		f := m.factsFor(m.rooms.all[i])
+		facts[m.rooms.all[i].ID] = f
+		for _, tag := range f.Tags {
+			held[strings.ToLower(domain.TagEntry(tag))]++
+		}
 	}
-	m.rail.roomFacts = facts
+	spanning := map[string]bool{}
+	for home, n := range held {
+		if n == len(m.rooms.all) {
+			spanning[home] = true
+		}
+	}
+	m.rail.roomFacts, m.rail.spanning = facts, spanning
 	return m
 }
 
