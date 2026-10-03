@@ -564,15 +564,16 @@ func TestTheModelScopeKnowsYourNamesAndPins(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := New(cache, nil)
-	s.UsePlaces(domain.Places{
-		Names:  map[domain.RoomID]string{"!r:x": "Daily"},
-		Pinned: domain.Pinned{Entries: []string{"room:Daily"}},
-	})
+	tags, _, err := domain.NewTagSet([]domain.Tag{{Name: "Pinned", Picked: []string{"room:Daily"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.UsePlaces(domain.Places{Names: map[domain.RoomID]string{"!r:x": "Daily"}, Tags: tags})
 	for _, c := range []struct {
 		only string
 		room domain.RoomID
 		want bool
-	}{{"room:Daily", "!r:x", true}, {"room:Standup", "!r:x", false}, {"pinned", "!r:x", true}, {"pinned", "!o:x", false}} {
+	}{{"room:Daily", "!r:x", true}, {"room:Standup", "!r:x", false}, {"tag:Pinned", "!r:x", true}, {"tag:Pinned", "!o:x", false}} {
 		settings := ModelSettings{Endpoint: "http://model", Scope: domain.ModelScope{Only: []string{c.only}, Encrypted: true}}
 		permit, err := s.permitModel(ctx, c.room, settings)
 		if err != nil || permit.Allowed != c.want {

@@ -153,7 +153,7 @@ func inThread(t *testing.T, b api.Backend) Model {
 // how a test says "this is a Slack room".
 func inRoom(t *testing.T, b api.Backend, page domain.TimelinePage) Model {
 	t.Helper()
-	m := sized(t, update(t, New(context.Background(), b, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := sized(t, update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 	}}))
 	next, _ := m.selectRoom(m.filteredRooms()[0])
@@ -1001,7 +1001,7 @@ func (b *threadListBackend) ListThreads(_ context.Context, roomID domain.RoomID)
 // with the list rather than with the timeline.
 func inRoomList(t *testing.T, b api.Backend) Model {
 	t.Helper()
-	m := sized(t, update(t, New(context.Background(), b, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := sized(t, update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!b:x", Name: "Bravo"},
 	}}))

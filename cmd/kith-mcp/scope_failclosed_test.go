@@ -65,19 +65,30 @@ func scopeRooms() *fake {
 	}
 }
 
-// scopePlaces are the names, space order and pins the fixture is read with: a room
-// called something of your own, an unnamed room named, and a pin by that name.
+// scopePlaces are the names, space order and tags the fixture is read with: a room
+// called something of your own, an unnamed room named, and a tag picking by that name.
 var scopePlaces = domain.Places{
 	Names:    map[domain.RoomID]string{"!loose:x": "Lounge", "!anon:x": "Quiet"},
 	Priority: []string{"Telegram", "WhatsApp"},
-	Pinned:   domain.Pinned{Entries: []string{"room:Lounge", "!work:x", "space:Telegram"}},
+	Tags:     pinnedTag(),
+}
+
+// pinnedTag picks two rooms, one by your name for it, and takes in a space.
+func pinnedTag() domain.TagSet {
+	tags, _, err := domain.NewTagSet([]domain.Tag{{
+		Name: "Pinned", Rule: []string{"space:Telegram"}, Picked: []string{"room:Lounge", "!work:x"},
+	}})
+	if err != nil {
+		panic(err)
+	}
+	return tags
 }
 
 // scopeEntries is every entry kind, each naming at least one fixture room.
 var scopeEntries = []string{
 	"space:Work", "space:WhatsApp", "space:Telegram", "protocol:matrix", "protocol:whatsapp",
 	"protocol:telegram", "room:Standup", "room:Lounge", "room:Quiet", "!wa:x", "dm", "group",
-	"pinned", string(nativeGroup),
+	"tag:Pinned", string(nativeGroup),
 }
 
 func someEntries(rng *rand.Rand) []string {
@@ -167,8 +178,8 @@ func TestNamesAndPinsAdmitWhatTheyName(t *testing.T) {
 		want  bool
 	}{
 		{"room:Lounge", "!loose:x", true}, {"room:Loose", "!loose:x", false},
-		{"room:Quiet", "!anon:x", true}, {"pinned", "!loose:x", true}, {"pinned", "!work:x", true},
-		{"pinned", "!wa:x", false}, {"protocol:whatsapp", "!both:x", true}, {"protocol:telegram", "!both:x", false},
+		{"room:Quiet", "!anon:x", true}, {"tag:Pinned", "!loose:x", true}, {"tag:Pinned", "!work:x", true},
+		{"tag:Pinned", "!wa:x", false}, {"protocol:whatsapp", "!both:x", true}, {"protocol:telegram", "!both:x", false},
 	} {
 		s := newServer(f, domain.ModelScope{Only: []string{c.entry}})
 		s.places = scopePlaces
@@ -249,16 +260,16 @@ func TestAScopeNamingNoPlaceIgnoresTheSpaces(t *testing.T) {
 	}
 }
 
-// A pin can name a space, so `except = ["pinned"]` cannot be decided while the spaces
-// are unreadable: the room is refused, not taken for unpinned.
+// A tag's rule can name a space, so `except = ["tag:Pinned"]` cannot be decided while
+// the spaces are unreadable: the room is refused, not taken for outside the tag.
 func TestAPinNamingASpaceIsNotGuessed(t *testing.T) {
 	t.Parallel()
 	f := scopeRooms()
 	both := f.rooms[slices.IndexFunc(f.rooms, func(r domain.Room) bool { return r.ID == "!both:x" })]
-	s := newServer(f, domain.ModelScope{Only: []string{"room:Relay"}, Except: []string{"pinned"}})
+	s := newServer(f, domain.ModelScope{Only: []string{"room:Relay"}, Except: []string{"tag:Pinned"}})
 	s.backend = failing{spaces: true, fake: scopeRooms()}
-	s.places = scopePlaces // pins space:Telegram, which holds !both:x
+	s.places = scopePlaces // Pinned takes space:Telegram, which holds !both:x
 	if err := s.allowed(withCallMemo(context.Background()), both); err == nil {
-		t.Error("a room pinned by its space was shared while the spaces could not be read")
+		t.Error("a room tagged by its space was shared while the spaces could not be read")
 	}
 }

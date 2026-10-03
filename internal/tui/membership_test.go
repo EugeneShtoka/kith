@@ -98,8 +98,8 @@ func TestInvitesGetTheirOwnGroup(t *testing.T) {
 	if m.rail.groups[0].key != inviteGroupKey {
 		t.Fatalf("groups = %v, want invites first", groupKeys(m.rail.groups))
 	}
-	if m.rail.groups[0].label != "Invites (2)" {
-		t.Errorf("label = %q, want Invites (2)", m.rail.groups[0].label)
+	if row := m.railRow(m.rail.groups[0], false, false, 30); !strings.Contains(row, "Invites (2)") {
+		t.Errorf("row = %q, want Invites (2)", row)
 	}
 	// Every other group excludes them.
 	for i, g := range m.rail.groups {
@@ -169,7 +169,7 @@ func TestAcceptInviteJoins(t *testing.T) {
 	t.Parallel()
 
 	b := &membershipBackend{}
-	m := withInvites(t, sized(t, update(t, New(context.Background(), b, config.Display{}),
+	m := withInvites(t, sized(t, update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})),
 		invited("!i1:x", "Design Review", "@alice:x"))
 	m = onInvite(t, m)
@@ -192,7 +192,7 @@ func TestRejectInviteConfirmsFirst(t *testing.T) {
 	t.Parallel()
 
 	b := &membershipBackend{}
-	base := withInvites(t, sized(t, update(t, New(context.Background(), b, config.Display{}),
+	base := withInvites(t, sized(t, update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})),
 		invited("!i1:x", "Design Review", "@alice:x"))
 
@@ -235,7 +235,7 @@ func TestLeaveConfirmsAndOnlyAppliesToJoinedRooms(t *testing.T) {
 	t.Parallel()
 
 	b := &membershipBackend{}
-	m := withInvites(t, sized(t, update(t, New(context.Background(), b, config.Display{}),
+	m := withInvites(t, sized(t, update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})),
 		invited("!i1:x", "Invited", "@alice:x"))
 
@@ -247,7 +247,7 @@ func TestLeaveConfirmsAndOnlyAppliesToJoinedRooms(t *testing.T) {
 	}
 	// And accept is inert on a joined room.
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	joined, _ := m.selectRoom(m.filteredRooms()[0])
 	jm := joined
 	jm2, cmd := press(t, jm, keyText("y"))
@@ -304,7 +304,7 @@ func TestJoinPrompt(t *testing.T) {
 	t.Parallel()
 
 	b := &membershipBackend{}
-	m := sized(t, update(t, New(context.Background(), b, config.Display{}),
+	m := sized(t, update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
 	m.focus = paneRooms
 
@@ -428,28 +428,30 @@ func TestInvitesGroupPlacement(t *testing.T) {
 	t.Parallel()
 
 	spaces := []domain.Space{{ID: "!w:x", Name: "Work"}}
+	view := starterView(t, unreadView{})
+	rooms := []domain.Room{invited("!i:x", "Invited", "@alice:x")}
 
 	// The user never mentioned invites: it is promoted to the front even though
 	// applyRailConfig demotes unlisted groups.
 	unaware := railGroups(spaces, config.Rail{
-		Order:  []string{"unread", "Work"},
-		Hidden: []string{"home", "dms"},
-	}, nil, unreadView{}, 1, nil, nil)
+		Order:  []string{unreadGroupKey, "Work"},
+		Hidden: []string{homeGroupKey, dmsGroupKey},
+	}, nil, view, rooms)
 	if got := groupKeys(unaware); got[0] != inviteGroupKey {
 		t.Errorf("groups = %v, want invites first", got)
 	}
 
 	// The user placed it: left where they put it.
 	aware := railGroups(spaces, config.Rail{
-		Order:  []string{"unread", inviteGroupKey, "Work"},
-		Hidden: []string{"home", "dms"},
-	}, nil, unreadView{}, 1, nil, nil)
+		Order:  []string{unreadGroupKey, inviteGroupKey, "Work"},
+		Hidden: []string{homeGroupKey, dmsGroupKey},
+	}, nil, view, rooms)
 	if got := groupKeys(aware); got[1] != inviteGroupKey {
 		t.Errorf("groups = %v, want invites where the config put it", got)
 	}
 
 	// Hiding it works like any other group.
-	hidden := railGroups(spaces, config.Rail{Hidden: []string{inviteGroupKey}}, nil, unreadView{}, 1, nil, nil)
+	hidden := railGroups(spaces, config.Rail{Hidden: []string{inviteGroupKey}}, nil, view, rooms)
 	for _, k := range groupKeys(hidden) {
 		if k == inviteGroupKey {
 			t.Error("a hidden invites group should not appear")

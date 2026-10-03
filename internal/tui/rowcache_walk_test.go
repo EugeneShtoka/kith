@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -54,7 +53,7 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 		SpaceRules: []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
 		Tracked:    config.Tracked{Rules: []config.TrackedRule{{Words: []string{"word3"}, In: []string{"room:Alpha"}}}},
 	}
-	m := update(t, New(context.Background(), &quoteBackend{}, display),
+	m := update(t, starterNew(&quoteBackend{}, display),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
@@ -197,7 +196,7 @@ func walkMessages() []domain.Message {
 // must redraw the rows around a picture, not keep them as they were cached.
 func TestPictureRowsFollowTheFocus(t *testing.T) {
 	t.Parallel()
-	m := update(t, New(context.Background(), &quoteBackend{}, config.Display{Media: config.Media{Mode: "inline"}}),
+	m := update(t, starterNew(&quoteBackend{}, config.Display{Media: config.Media{Mode: "inline"}}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})

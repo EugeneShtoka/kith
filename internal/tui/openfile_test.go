@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -17,7 +16,7 @@ func TestTheOpenKeyDispatchesOnWhatIsAttached(t *testing.T) {
 	t.Parallel()
 
 	withMedia := func(kind domain.MediaType) Model {
-		m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, config.Display{})))
+		m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{})))
 		next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 		m = next
 		m = m.setMessages([]domain.Message{{

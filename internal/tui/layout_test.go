@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -17,12 +16,12 @@ import (
 func laidOut(t *testing.T, display config.Display) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	base := config.Config{Homeserver: "https://x", User: "@me:x", Display: display}
+	base := config.Config{Homeserver: "https://x", User: "@me:x", Display: display, Tags: starter(t).Tags}
 	base.Keys.FillDefaults()
 	if err := config.Save(path, base); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
-	m := update(t, New(context.Background(), apitest.Nop{}, display),
+	m := update(t, New(t.Context(), apitest.Nop{}, display).WithConfigFile("", base),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
@@ -163,7 +162,7 @@ func TestMoveGroupCarriesTheCursor(t *testing.T) {
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
 
 	m, _ = press(t, m, keyCode('K'))
-	if got := railKeys(m); strings.Join(got, ",") != "home,dms,Work,unread,Friends" {
+	if got := railKeys(m); strings.Join(got, ",") != "tag:All,tag:DMs,Work,tag:Unread,Friends" {
 		t.Fatalf("after one move: %v", got)
 	}
 	if m.rail.groups[m.rail.cursor].key != "Work" {
@@ -171,12 +170,12 @@ func TestMoveGroupCarriesTheCursor(t *testing.T) {
 	}
 	// A second press moves the same group again rather than undoing the first.
 	m, _ = press(t, m, keyCode('K'))
-	if got := railKeys(m); strings.Join(got, ",") != "home,Work,dms,unread,Friends" {
+	if got := railKeys(m); strings.Join(got, ",") != "tag:All,Work,tag:DMs,tag:Unread,Friends" {
 		t.Errorf("after two moves: %v", got)
 	}
 	// And down again.
 	m, _ = press(t, m, keyCode('J'))
-	if got := railKeys(m); strings.Join(got, ",") != "home,dms,Work,unread,Friends" {
+	if got := railKeys(m); strings.Join(got, ",") != "tag:All,tag:DMs,Work,tag:Unread,Friends" {
 		t.Errorf("after moving back down: %v", got)
 	}
 }
@@ -241,7 +240,7 @@ func TestMoveGroupPreservesSeparators(t *testing.T) {
 	t.Parallel()
 
 	m, _ := laidOut(t, config.Display{Rail: config.Rail{
-		Order: []string{"home", "dms", "-", "Work", "Friends"},
+		Order: []string{homeGroupKey, dmsGroupKey, "-", "Work", "Friends"},
 	}})
 	m.focus = paneRail
 	sepAfterKey := func(mm Model) string {
@@ -252,21 +251,21 @@ func TestMoveGroupPreservesSeparators(t *testing.T) {
 		}
 		return ""
 	}
-	if sepAfterKey(m) != "dms" {
+	if sepAfterKey(m) != dmsGroupKey {
 		t.Fatalf("fixture: separator after %q", sepAfterKey(m))
 	}
 	// The fixture's order lists four groups, so the unlisted `unread` follows them.
-	if got := strings.Join(railKeys(m), ","); got != "home,dms,Work,Friends,unread" {
+	if got := strings.Join(railKeys(m), ","); got != "tag:All,tag:DMs,Work,Friends,tag:Unread" {
 		t.Fatalf("fixture rail = %s", got)
 	}
 	// Move Work above the separator.
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
 	m, _ = press(t, m, keyCode('K'))
-	if got := strings.Join(railKeys(m), ","); got != "home,Work,dms,Friends,unread" {
+	if got := strings.Join(railKeys(m), ","); got != "tag:All,Work,tag:DMs,Friends,tag:Unread" {
 		t.Errorf("order = %s", got)
 	}
 	// The divider is still after dms, not attached to what moved.
-	if got := sepAfterKey(m); got != "dms" {
+	if got := sepAfterKey(m); got != dmsGroupKey {
 		t.Errorf("separator now after %q, want it to stay after dms", got)
 	}
 }
@@ -278,14 +277,14 @@ func TestHideAndShowGroup(t *testing.T) {
 
 	m, path := laidOut(t, config.Display{})
 	m.focus = paneRail
-	m.rail.cursor = indexOfGroup(m.rail.groups, "dms")
+	m.rail.cursor = indexOfGroup(m.rail.groups, dmsGroupKey)
 
 	m, cmd := press(t, m, keyCode('H'))
 	if cmd == nil {
 		t.Fatal("hiding should save")
 	}
 	runCmd(t, cmd)
-	if indexOfGroupExact(m.rail.groups, "dms") >= 0 {
+	if indexOfGroupExact(m.rail.groups, dmsGroupKey) >= 0 {
 		t.Errorf("dms is still in the rail: %v", railKeys(m))
 	}
 	// The message says how to undo it, because otherwise nothing does.
@@ -305,7 +304,7 @@ func TestHideAndShowGroup(t *testing.T) {
 	if m.picker.kind != pickerHidden {
 		t.Fatalf("S should offer the hidden groups, got %v", m.picker.kind)
 	}
-	if len(m.picker.items) != 1 || m.picker.items[0].value != "dms" {
+	if len(m.picker.items) != 1 || m.picker.items[0].value != dmsGroupKey {
 		t.Errorf("picker items = %+v", m.picker.items)
 	}
 	// The label is shown, not just the key — a hidden group is not in m.groups, so its
@@ -317,7 +316,7 @@ func TestHideAndShowGroup(t *testing.T) {
 	if cmd != nil {
 		runCmd(t, cmd)
 	}
-	if indexOfGroupExact(m.rail.groups, "dms") < 0 {
+	if indexOfGroupExact(m.rail.groups, dmsGroupKey) < 0 {
 		t.Errorf("dms did not come back: %v", railKeys(m))
 	}
 	if len(m.prefs.display.Rail.Hidden) != 0 {
@@ -346,7 +345,7 @@ func TestCannotHideTheLastGroup(t *testing.T) {
 	t.Parallel()
 
 	m, _ := laidOut(t, config.Display{Rail: config.Rail{
-		Hidden: []string{"dms", "unread", "Work", "Friends"},
+		Hidden: []string{dmsGroupKey, unreadGroupKey, "Work", "Friends"},
 	}})
 	m.focus = paneRail
 	if len(m.rail.groups) != 1 {
@@ -459,24 +458,17 @@ func TestToggleFirstNameOnly(t *testing.T) {
 	}
 }
 
-// The rule reshapes names *within a space*, so it has nowhere to apply on the synthetic
-// groups — and says so rather than writing a rule that does nothing.
-func TestFirstNameOnlyNeedsASpace(t *testing.T) {
+// A tag's row takes a name rule as a space's does, written against tag:<name>.
+func TestFirstNameOnlyOnATag(t *testing.T) {
 	t.Parallel()
 
 	m, _ := laidOut(t, config.Display{})
 	m.focus = paneRail
-	for _, key := range []string{"home", "dms", "unread"} {
+	for _, key := range []string{homeGroupKey, dmsGroupKey, unreadGroupKey} {
 		m.rail.cursor = indexOfGroup(m.rail.groups, key)
-		next, cmd := press(t, m, keyCode('F'))
-		if untimed(t, cmd) != nil {
-			t.Errorf("%s should not get a space rule", key)
-		}
-		if len(next.prefs.display.SpaceRules) != 0 {
-			t.Errorf("%s created %+v", key, next.prefs.display.SpaceRules)
-		}
-		if !strings.Contains(next.status(), "spaces") {
-			t.Errorf("%s: status = %q, should explain", key, next.status())
+		next, _ := press(t, m, keyCode('F'))
+		if rules := next.prefs.display.SpaceRules; len(rules) != 1 || rules[0].Space != key || !rules[0].FirstNameOnly {
+			t.Errorf("%s created %+v, want first names only for the tag", key, rules)
 		}
 	}
 }
@@ -558,7 +550,7 @@ func TestASpanningGroupLeavesTheRoomsOwnSpaceToDecide(t *testing.T) {
 	m, _ := laidOut(t, config.Display{
 		SpaceRules: []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
 	})
-	for _, key := range []string{"home", "dms", "unread"} {
+	for _, key := range []string{homeGroupKey, dmsGroupKey, unreadGroupKey} {
 		m.rail.cursor = indexOfGroup(m.rail.groups, key)
 		if m.listedSpace("!a:x") != "Work" {
 			t.Errorf("on %q, Alpha lost its own space", key)

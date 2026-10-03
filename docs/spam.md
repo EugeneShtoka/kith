@@ -2,7 +2,7 @@
 
 Spam in kith is a place, not a mute. A room in Spam **leaves the group it was in**: it disappears from the rail's other groups, from every unread total and from notifications. It stays open, readable, searchable and answerable. kith never leaves the Matrix room, and nobody else in the room can tell.
 
-This differs from archiving. An archived room stays in its space and only stops counting toward unread totals. Spam means the conversation should not have arrived at all.
+This differs from archiving (the starter config's Archived tag). An archived room stays in the space it belongs to and only stops counting toward unread totals. Spam means the conversation should not have arrived at all.
 
 ## Marking a room by hand
 

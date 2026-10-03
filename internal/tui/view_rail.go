@@ -169,8 +169,8 @@ const (
 	draftMark    = "✎"
 )
 
-// unreadBadge is a room's unread marker and whether it highlights the user. Archived
-// rooms show "·N" untinted; a room marked unread with nothing new shows a bare "●".
+// unreadBadge is a room's unread marker and whether it highlights the user. Rooms a
+// silent tag holds show "·N" untinted; a room marked unread with nothing new shows a bare "●".
 func (m Model) unreadBadge(room domain.Room) (badge string, highlight bool) {
 	view := m.unreadView()
 	n, highlights := view.count(room)
@@ -180,7 +180,7 @@ func (m Model) unreadBadge(room domain.Room) (badge string, highlight bool) {
 		}
 		return "", false
 	}
-	if view.isArchived(room) {
+	if view.silenced(room) {
 		return fmt.Sprintf("·%d", n), false
 	}
 	return fmt.Sprintf("●%d", n), highlights > 0

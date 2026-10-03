@@ -68,10 +68,8 @@
   i                invite someone to this room
   U                lift a ban on this room
   n                create a room or a space
-  S                file this room into a space, or take it out of one
-  A                archive / un-archive: keep the room, stop it counting
+  S                file this room into a space or a tag, or take it out of one
   D                read this room right to left, left to right, or as configured
-  P                pin / unpin: follow this conversation, and let it through a silence
   !                spam / not spam: move this conversation out of the way, or back
   >                go to the room that replaced this one
 
@@ -246,11 +244,10 @@
   /topic                         what this room is for, in full — the same reader `gt` opens
   /why                           why this room does or does not notify you — the whole rule chain
   /unread                        mark this room unread — read, and still needs you
-  /pin                           follow this conversation — it joins Pinned and can be let through a silence
+  /tag [name]                    put this room in a tag, or take it out — no name picks among your spaces and tags
   /caught                        what the spam filters catch here — tab widens it
   /spam                          move this conversation into Spam, or take it out — out of the counts, still readable
   /direction                     read this room right to left, then left to right, then as [display.direction] says
-  /archive                       stop this room counting toward anything unread — it stays readable
   /invite <@user:server>         invite somebody to the room you are writing in
   /leave                         leave the room you are writing in (asks first)
   //text            sends a literal leading slash

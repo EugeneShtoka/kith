@@ -37,16 +37,15 @@ type scopeIndex struct {
 	aliases map[domain.RoomID]string
 	// priority ranks spaces; {space} in a notification is the first.
 	priority []string
-	// rooms are the indexed rooms' facts, pins left out: pins change without a
+	// rooms are the indexed rooms' facts, tags left out: tags change without a
 	// rebuild, so they are applied as a room is looked up.
 	rooms   map[domain.RoomID]domain.RoomFacts
 	builtAt time.Time
 	// missed records rooms a rebuild did not find, and when (see scopeRetry).
 	missed map[domain.RoomID]time.Time
 	// gen counts config changes; a rebuild (done unlocked) that raced one is discarded.
-	gen    uint64
-	pinned domain.Pinned
-	// tags are judged per lookup, as pins are: a tag's rule may say `pinned`.
+	gen uint64
+	// tags are judged per lookup, so a reload of them needs no rebuild.
 	tags domain.TagSet
 }
 
@@ -62,14 +61,6 @@ func (x *scopeIndex) SetAliases(aliases []config.DisplayName) {
 	x.aliases = roomAliases(aliases)
 	x.builtAt, x.missed = time.Time{}, nil
 	x.gen++
-}
-
-// SetPinned replaces the pinned list, so rules naming `pinned` can match. No index
-// drop: pinning is computed per lookup.
-func (x *scopeIndex) SetPinned(entries []string) {
-	x.mu.Lock()
-	defer x.mu.Unlock()
-	x.pinned = domain.Pinned{Entries: entries}
 }
 
 // SetTags replaces the tags, so rules naming tag:<name> can match. No index drop:
@@ -137,22 +128,20 @@ func (x *scopeIndex) Facts(ctx context.Context, roomID domain.RoomID) domain.Roo
 	return x.factsFrom(roomID, facts)
 }
 
-// factsFrom is one indexed room as the rule vocabulary takes it, with today's pins.
+// factsFrom is one indexed room as the rule vocabulary takes it, with today's tags.
 func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts domain.RoomFacts) domain.RoomFacts {
 	if facts.ID == "" {
 		facts = domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
 	}
-	pinned, tags := x.pinsAndTags()
-	facts.Pinned = pinned.Pins(facts)
-	facts.Tags = tags.Of(facts) // last: a tag's rule may say `pinned`
+	facts.Tags = x.tagSet().Of(facts)
 	return facts
 }
 
-// pinsAndTags is the pinned list and the tags, read under the lock.
-func (x *scopeIndex) pinsAndTags() (domain.Pinned, domain.TagSet) {
+// tagSet is the tags, read under the lock.
+func (x *scopeIndex) tagSet() domain.TagSet {
 	x.mu.Lock()
 	defer x.mu.Unlock()
-	return x.pinned, x.tags
+	return x.tags
 }
 
 // Direct reports whether a room is a direct message.

@@ -570,7 +570,7 @@ func (w *draftWorld) exit() {
 func (w *draftWorld) nextRun() {
 	w.note("— next run —")
 	w.quit, w.leaving = false, false
-	w.m, w.cmds, w.msgs = New(context.Background(), w.store, config.Display{}), nil, nil
+	w.m, w.cmds, w.msgs = starterNew(w.store, config.Display{}), nil, nil
 	w.enqueue(w.m.loadDraftsCmd())
 	w.update(roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
 	w.m = sized(w.t, w.m) // the rooms opened the first one, as at a cold start

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,12 +22,12 @@ import (
 func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	base := config.Config{Homeserver: "https://x", User: "@me:x", Notifications: notifs}
+	base := config.Config{Homeserver: "https://x", User: "@me:x", Notifications: notifs, Tags: starter(t).Tags}
 	base.Keys.FillDefaults()
 	if err := config.Save(path, base); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
-	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}),
+	m := update(t, starterNew(apitest.Nop{}, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!standup:x", Name: "Standup"}}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!standup:x"}},
@@ -167,20 +166,17 @@ func TestRuleFromRailSkipsTheScope(t *testing.T) {
 	}
 }
 
-// A synthetic group is not a place a rule can name.
-func TestRuleNotOfferedForSyntheticGroups(t *testing.T) {
+// A tag's row is a place a rule can name, as tag:<name>.
+func TestRuleOfferedForTagRows(t *testing.T) {
 	t.Parallel()
 
 	m, _ := ruling(t, config.Notifications{})
 	m.focus = paneRail
-	for _, key := range []string{"home", "dms", "unread"} {
+	for _, key := range []string{homeGroupKey, dmsGroupKey, unreadGroupKey} {
 		m.rail.cursor = indexOfGroup(m.rail.groups, key)
 		next, _ := press(t, m, keyText("b"))
-		if next.picker.active() {
-			t.Errorf("%s should not offer a rule", key)
-		}
-		if !strings.Contains(next.status(), "spaces, tags and rooms") {
-			t.Errorf("%s: status = %q, should explain", key, next.status())
+		if !next.picker.active() || next.aimedAt.rule.match != key {
+			t.Errorf("%s: aimed at %q, want a rule for the tag", key, next.aimedAt.rule.match)
 		}
 	}
 }

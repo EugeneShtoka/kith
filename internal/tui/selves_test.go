@@ -71,7 +71,7 @@ func TestWithoutMatrixTheWhatsAppAccountIsMe(t *testing.T) {
 func TestSelvesAreAskedWhenAnAccountAppears(t *testing.T) {
 	t.Parallel()
 	asks := 0
-	m := New(context.Background(), selvesBackend{Nop: apitest.Nop{}, ids: []string{ownWhatsApp}, asks: &asks}, config.Display{})
+	m := starterNew(selvesBackend{Nop: apitest.Nop{}, ids: []string{ownWhatsApp}, asks: &asks}, config.Display{})
 	matrixRooms := []domain.Room{{ID: "!a:x"}, {ID: "!b:x"}}
 	withWhatsApp := append(slices.Clone(matrixRooms), domain.Room{ID: "whatsapp:359880000001/1203@g.us"})
 

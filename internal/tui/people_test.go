@@ -49,13 +49,13 @@ func (w *warden) MentionCandidates(context.Context, domain.RoomID, int) ([]domai
 func warding(t *testing.T) (Model, *warden) {
 	t.Helper()
 	w := &warden{}
-	m := update(t, New(context.Background(), w, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(w, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 	}})
 	m = sized(t, m.clearStatus())
 	m.me = "@me:x"
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
 	// The people list is built from the members the room-open load fetches, so a test

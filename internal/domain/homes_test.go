@@ -31,13 +31,17 @@ func TestATagIsAPlace(t *testing.T) {
 	}
 }
 
-// A room's homes are its spaces and tags in the person's priority; a tag and a space
-// of one name stay apart; a tag reads by its name.
+// A room's homes are its spaces, and the tags the person's priority names, in that
+// priority; a tag priority does not name is no home; a tag and a space of one name stay
+// apart; a tag reads by its name.
 func TestHomesFollowThePriority(t *testing.T) {
 	t.Parallel()
 	got := Homes([]string{"Work", "Family"}, []string{"Family", "Busy"}, []string{"tag:Family", "Work"})
-	if want := []string{"tag:Family", "Work", "Family", "tag:Busy"}; !slices.Equal(got, want) {
+	if want := []string{"tag:Family", "Work", "Family"}; !slices.Equal(got, want) {
 		t.Errorf("Homes = %v, want %v", got, want)
+	}
+	if got := Homes(nil, []string{"All", "DMs"}, []string{"Work"}); len(got) != 0 {
+		t.Errorf("Homes = %v for tags priority does not name, want none", got)
 	}
 	if HomeLabel("tag:Family") != "Family" || HomeLabel("Work") != "Work" {
 		t.Error("HomeLabel does not read a tag by its name")

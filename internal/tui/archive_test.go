@@ -19,7 +19,7 @@ import (
 // messages sit there unread — and Bravo is an ordinary noisy one.
 func counting(t *testing.T, display config.Display) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), &bulkReader{}, display), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!b:x", Name: "Bravo"},
 	}})
@@ -59,11 +59,29 @@ func TestBadgeCountsUnreadMessagesNotNotifications(t *testing.T) {
 	}
 }
 
-// Archiving keeps the room and removes it from the totals.
+// picking is m with these rooms in the named tag's picked list, applied as the
+// filing picker applies it.
+func picking(t *testing.T, m Model, tag string, rooms ...string) Model {
+	t.Helper()
+	cfg := m.conf.base.Clone()
+	found := false
+	for i := range cfg.Tags {
+		if cfg.Tags[i].Name == tag {
+			cfg.Tags[i].Picked, found = rooms, true
+		}
+	}
+	if !found {
+		t.Fatalf("no tag %q in the config", tag)
+	}
+	next, _ := m.applyConfig(cfg, "", "")
+	return next.clearStatus()
+}
+
+// The starter's Archived tag keeps the room and takes it out of the totals.
 func TestArchivedRoomKeepsItsRowAndLeavesTheTotals(t *testing.T) {
 	t.Parallel()
 
-	m := counting(t, config.Display{Archived: []string{"!a:x"}})
+	m := picking(t, counting(t, config.Display{}), "Archived", "!a:x")
 	badge, highlight := m.unreadBadge(roomByName(t, m, "!a:x"))
 	if badge != "·3" || highlight {
 		t.Errorf("archived room badge = %q (highlight %v), want ·3 unhighlighted", badge, highlight)
@@ -74,67 +92,74 @@ func TestArchivedRoomKeepsItsRowAndLeavesTheTotals(t *testing.T) {
 	if n, _ := m.groupUnread(work); n != 2 {
 		t.Errorf("Work group total = %d, want 2 — the archived room's three excluded", n)
 	}
-	if rooms := m.unreadIn(m.rail.groups[indexOfGroup(m.rail.groups, "unread")]); len(rooms) != 1 || rooms[0] != "!b:x" {
+	if rooms := m.unreadIn(m.rail.groups[indexOfGroup(m.rail.groups, unreadGroupKey)]); len(rooms) != 1 || rooms[0] != "!b:x" {
 		t.Errorf("Unread group = %v, want just the unarchived room", rooms)
 	}
 }
 
-// The key is a toggle and says which way it went, because nothing else on screen
-// changes enough to tell: an archived room keeps its row, its name and its place.
-func TestArchiveKeyTogglesAndReportsWhichWay(t *testing.T) {
+// /tag is a toggle and says which way it went, because nothing else on screen changes
+// enough to tell.
+func TestTagCommandTogglesAndReportsWhichWay(t *testing.T) {
 	t.Parallel()
 
 	m := counting(t, config.Display{})
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
-	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
-	m = next
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
+	m, _ = m.selectRoom(roomByName(t, m, "!a:x"))
 
-	m, _ = press(t, m, keyText("A"))
-	if !m.rail.archive.Lists("!a:x") {
-		t.Fatalf("after A the archive is %v, want the room's ID", m.rail.archive.Entries)
+	m, _ = m.toggleTag("archived", roomByName(t, m, "!a:x"))
+	if got := m.conf.base.Tags[tagIndex(t, m, "Archived")].Picked; len(got) != 1 || got[0] != "!a:x" {
+		t.Fatalf("after /tag Archived the tag picks %v, want the room's ID", got)
 	}
-	if !strings.Contains(m.status(), "archived Alpha") {
-		t.Errorf("status = %q, want it to say the room was archived", m.status())
+	if !strings.Contains(m.status(), "Alpha is in Archived") {
+		t.Errorf("status = %q, want it to say the room went in", m.status())
 	}
-
-	// Archiving took the room out of the All group, which is what archiving does, so
-	// the selection moved to its neighbor rather than staying on a row that is no
-	// longer there.
+	// Archived is exclusive, so the room left All, and the selection moved to its
+	// neighbor rather than staying on a row that is no longer there.
 	if m.openRoom == "!a:x" {
 		t.Fatal("the open room is one the list no longer holds")
 	}
-	m.rail.cursor = indexOfGroup(m.rail.groups, archivedGroupKey)
-	next, _ = m.selectRoom(roomByName(t, m, "!a:x"))
-	m = next
 
-	m, _ = press(t, m, keyText("A"))
-	if m.rail.archive.Has() {
-		t.Errorf("after A in the Archived group the archive is %v, want empty", m.rail.archive.Entries)
+	m, _ = m.toggleTag("Archived", roomByName(t, m, "!a:x"))
+	if got := m.conf.base.Tags[tagIndex(t, m, "Archived")]; len(got.Picked) != 0 || len(got.Excluded) != 0 {
+		t.Errorf("after /tag Archived again the tag is %+v, want it to say nothing about the room", got)
 	}
-	if !strings.Contains(m.status(), "un-archived Alpha") {
-		t.Errorf("status = %q, want it to say the room counts again", m.status())
+	if !strings.Contains(m.status(), "Alpha is out of Archived") {
+		t.Errorf("status = %q, want it to say the room came out", m.status())
+	}
+	if m, _ = m.toggleTag("Nope", roomByName(t, m, "!a:x")); !strings.Contains(m.status(), "no tag is named Nope") {
+		t.Errorf("status = %q, want an unknown tag said", m.status())
 	}
 }
 
-// A room archived because an entry names its *space* cannot be un-archived by one
-// keystroke — removing the space would un-archive its siblings too — so the key says
-// what is actually true instead of appearing not to work.
-func TestArchiveKeyRefusesToUndoASpaceEntry(t *testing.T) {
+func tagIndex(t *testing.T, m Model, name string) int {
+	t.Helper()
+	for i := range m.conf.base.Tags {
+		if m.conf.base.Tags[i].Name == name {
+			return i
+		}
+	}
+	t.Fatalf("no tag %q", name)
+	return -1
+}
+
+// A room a tag holds by its rule is taken out by excluding that room alone: the rule
+// keeps its other rooms.
+func TestTakingARoomOutOfARuleExcludesOnlyIt(t *testing.T) {
 	t.Parallel()
 
-	m := counting(t, config.Display{Archived: []string{"space:Work"}})
-	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
-	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
-	m = next
+	m := counting(t, config.Display{})
+	cfg := m.conf.base.Clone()
+	cfg.Tags = append(cfg.Tags, config.Tag{Name: "Job", Rule: []string{"space:Work"}})
+	m, _ = m.applyConfig(cfg, "", "")
 
-	m, _ = press(t, m, keyText("A"))
-	if len(m.rail.archive.Entries) != 1 || m.rail.archive.Entries[0] != "space:Work" {
-		t.Errorf("archive = %v, want the space entry untouched", m.rail.archive.Entries)
+	m, _ = m.toggleTag("Job", roomByName(t, m, "!a:x"))
+	job := m.conf.base.Tags[tagIndex(t, m, "Job")]
+	if len(job.Rule) != 1 || len(job.Excluded) != 1 || job.Excluded[0] != "!a:x" {
+		t.Errorf("Job = %+v, want its rule kept and Alpha excluded", job)
 	}
-	if !strings.Contains(m.status(), "space") {
-		t.Errorf("status = %q, want it to name the space entry as the reason", m.status())
+	if got := roomsIn(t, m, "tag:Job"); len(got) != 1 || got[0] != "!b:x" {
+		t.Errorf("Job holds %v, want Bravo alone", got)
 	}
 }
 
@@ -142,7 +167,7 @@ func TestArchiveKeyRefusesToUndoASpaceEntry(t *testing.T) {
 // carries lives there) and one filed by hand.
 func spaced(t *testing.T, display config.Display) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), &bulkReader{}, display), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!b:x", Name: "Bravo"},
 	}})
@@ -179,11 +204,12 @@ func roomsIn(t *testing.T, m Model, key string) []domain.RoomID {
 	return ids
 }
 
-// Archiving files a room out of everything: the spaces you filed it into, All, and DMs.
+// Archived (space_exclusive) takes a room out of the spaces you filed it into, All
+// and DMs; the space it belongs to keeps it.
 func TestArchivedRoomLeavesEverythingButItsOwnSpace(t *testing.T) {
 	t.Parallel()
 
-	m := spaced(t, config.Display{Archived: []string{"!a:x"}})
+	m := picking(t, spaced(t, config.Display{}), "Archived", "!a:x")
 	// The canonical parent as the daemon would resolve it: the space the bridge put the
 	// room in when it created the portal.
 	m = update(t, m, parentsMsg{parents: map[domain.RoomID]domain.SpaceID{"!a:x": "!wa:x"}})
@@ -194,7 +220,7 @@ func TestArchivedRoomLeavesEverythingButItsOwnSpace(t *testing.T) {
 	if got := roomsIn(t, m, "WhatsApp UK"); len(got) != 2 {
 		t.Errorf("WhatsApp UK = %v, want both rooms — this is where the archived one lives", got)
 	}
-	if got := roomsIn(t, m, "home"); len(got) != 1 || got[0] != "!b:x" {
+	if got := roomsIn(t, m, homeGroupKey); len(got) != 1 || got[0] != "!b:x" {
 		t.Errorf("All = %v, want the archived room gone from it too", got)
 	}
 	if got := roomsIn(t, m, archivedGroupKey); len(got) != 1 || got[0] != "!a:x" {
@@ -208,8 +234,8 @@ func TestArchivedRoomLeavesEverythingButItsOwnSpace(t *testing.T) {
 func TestArchivedRoomWithNoKnownParentIsOnlyInTheArchivedGroup(t *testing.T) {
 	t.Parallel()
 
-	m := spaced(t, config.Display{Archived: []string{"!a:x"}})
-	for _, key := range []string{"home", "Work", "WhatsApp UK"} {
+	m := picking(t, spaced(t, config.Display{}), "Archived", "!a:x")
+	for _, key := range []string{homeGroupKey, "Work", "WhatsApp UK"} {
 		if got := roomsIn(t, m, key); len(got) != 1 || got[0] != "!b:x" {
 			t.Errorf("%s = %v, want only the unarchived room", key, got)
 		}
@@ -219,8 +245,8 @@ func TestArchivedRoomWithNoKnownParentIsOnlyInTheArchivedGroup(t *testing.T) {
 	}
 }
 
-// The archived group is conditional, like the invitations group: with nothing filed
-// away the rail is exactly what it was before the feature existed.
+// The starter's Archived row hides while empty: with nothing filed away the rail does
+// not show it, and it appears the moment a room goes in, without a restart.
 func TestArchivedGroupExistsOnlyWhileSomethingIsArchived(t *testing.T) {
 	t.Parallel()
 
@@ -228,30 +254,9 @@ func TestArchivedGroupExistsOnlyWhileSomethingIsArchived(t *testing.T) {
 	if hasGroup(quiet.rail.groups, archivedGroupKey) {
 		t.Errorf("rail = %v, want no archived group with nothing archived", groupKeys(quiet.rail.groups))
 	}
-
-	// And it appears the moment the key is pressed, without a restart.
-	quiet.focus = paneRooms
-	quiet.rail.cursor = indexOfGroup(quiet.rail.groups, "home")
-	next, _ := quiet.selectRoom(roomByName(t, quiet, "!a:x"))
-	m := next
-	m, _ = press(t, m, keyText("A"))
+	m, _ := quiet.toggleTag("Archived", roomByName(t, quiet, "!a:x"))
 	if !hasGroup(m.rail.groups, archivedGroupKey) {
 		t.Errorf("rail = %v, want an archived group after archiving", groupKeys(m.rail.groups))
-	}
-}
-
-// base_spaces is the manual override, for a hierarchy that does not describe itself: a
-// space named there keeps its archived rooms whatever Matrix says about where they
-// live.
-func TestNamedBaseSpacesKeepTheirArchivedRooms(t *testing.T) {
-	t.Parallel()
-
-	m := spaced(t, config.Display{Archived: []string{"!a:x"}, BaseSpaces: []string{"work"}})
-	if got := roomsIn(t, m, "Work"); len(got) != 2 {
-		t.Errorf("Work = %v, want both rooms — it was named a base space (and case should not matter)", got)
-	}
-	if got := roomsIn(t, m, "WhatsApp UK"); len(got) != 1 || got[0] != "!b:x" {
-		t.Errorf("WhatsApp UK = %v, want only the unarchived room until its parent is resolved", got)
 	}
 }
 
@@ -277,15 +282,15 @@ func (p *parentAsker) askedRooms() []domain.RoomID {
 	return append([]domain.RoomID(nil), p.asked...)
 }
 
-// Only archived rooms are asked about, and each only once: resolving where a room lives
-// costs the daemon room state, and asking for all of them would turn a rail rebuild
-// into a hierarchy walk.
+// Only rooms a space-exclusive tag holds are asked about, and each only once:
+// resolving where a room lives costs the daemon room state, and asking for all of them
+// would turn a rail rebuild into a hierarchy walk.
 func TestParentsAreResolvedOnlyForArchivedRooms(t *testing.T) {
 	t.Parallel()
 
 	asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{"!a:x": "!wa:x"}}
-	m := update(t, New(context.Background(), asker, config.Display{Archived: []string{"!a:x"}}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+	m := picking(t, starterNew(asker, config.Display{}), "Archived", "!a:x")
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "!wa:x", Name: "WhatsApp UK", Children: []domain.RoomID{"!a:x", "!b:x"}},
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
@@ -315,7 +320,8 @@ func TestParentsAreResolvedOnlyForArchivedRooms(t *testing.T) {
 	}
 }
 
-// Pinning is additive: a pinned room is in Pinned **and** in its own space.
+// The starter's Pinned tag is additive: a pinned room is in Pinned **and** in its own
+// space.
 func TestPinnedGroupIsAdditive(t *testing.T) {
 	t.Parallel()
 
@@ -323,24 +329,19 @@ func TestPinnedGroupIsAdditive(t *testing.T) {
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
 	}})
-	display := m.prefs.display
-	display.Pinned = []string{"!a:x"}
-	next, _ := m.applyDisplay(display, "")
-	m = next
+	m = picking(t, m, "Pinned", "!a:x")
 
-	inPinned := m.rail.groups[indexOfGroup(m.rail.groups, "Pinned")]
-	if !inPinned.admits(m.unreadView(), domain.Room{ID: "!a:x"}) {
-		t.Error("the pinned room is not in Pinned")
+	if got := roomsIn(t, m, pinnedGroupKey); len(got) != 1 || got[0] != "!a:x" {
+		t.Errorf("Pinned = %v, want the pinned room", got)
 	}
-	work := m.rail.groups[indexOfGroup(m.rail.groups, "Work")]
-	if !work.admits(m.unreadView(), domain.Room{ID: "!a:x"}) {
+	if got := roomsIn(t, m, "Work"); len(got) != 1 || got[0] != "!a:x" {
 		t.Error("pinning took the room out of its own space; it is a hand-raise, not a move")
 	}
 }
 
-// `pinned` is a place a rule can name, and it ranks as a class — which is what lets a
+// A tag is a place a rule can name, and it ranks as a class — which is what lets a
 // pinned room through a do-not-disturb without any pierce concept at all.
-func TestPinnedIsNarrowerThanGlobalSilence(t *testing.T) {
+func TestATagIsNarrowerThanGlobalSilence(t *testing.T) {
 	t.Parallel()
 
 	none, all := notify.LevelNone, notify.LevelAll
@@ -348,9 +349,9 @@ func TestPinnedIsNarrowerThanGlobalSilence(t *testing.T) {
 		// Do-not-disturb: global scope, temporary, the newer statement.
 		{Name: "dnd", Show: &none, Temp: true},
 		// And the standing rule that says pinned conversations still reach you.
-		{Name: "pinned", Match: "pinned", Show: &all},
+		{Name: "pinned", Match: "tag:Pinned", Show: &all},
 	}
-	pinned := setup.Place{Room: domain.RoomFacts{ID: "!a:x", Pinned: true}}
+	pinned := setup.Place{Room: domain.RoomFacts{ID: "!a:x", Tags: []string{"Pinned"}}}
 	got := notify.Resolve(rules, notify.Scope{Room: pinned}, time.Now())
 	if got.Show != notify.LevelAll {
 		t.Errorf("a pinned room was silenced by a global DND; the rule naming it is narrower")

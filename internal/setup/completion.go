@@ -129,12 +129,11 @@ func NameTargets(cfg config.Display) error {
 		case domain.IsRoomID(target):
 		case strings.HasPrefix(target, config.NameTargetRoom),
 			strings.HasPrefix(target, config.NameTargetSpace),
-			strings.HasPrefix(target, config.NameTargetGroup),
 			strings.HasPrefix(target, config.NameTargetThread):
 		default:
 			return fmt.Errorf(
-				"display.name: %q is not a thing that can be named — write room:, space:, "+
-					"group: or thread: in front of it, or give a room's !id",
+				"display.name: %q is not a thing that can be named — write room:, space: or "+
+					"thread: in front of it, or give a room's !id (a tag is named in its [[tag]])",
 				target)
 		}
 	}

@@ -102,7 +102,7 @@ func wrong(text, word string, suggestions ...string) domain.Misspelling {
 // spellComposing is a model in insert mode with a backend that answers spelling.
 func spellComposing(t *testing.T, b *spellBackend) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])

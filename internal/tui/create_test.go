@@ -27,7 +27,7 @@ func (b *builder) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.Roo
 func building(t *testing.T) (Model, *builder) {
 	t.Helper()
 	b := &builder{id: "!new:x"}
-	m := update(t, New(context.Background(), b, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
@@ -35,7 +35,7 @@ func building(t *testing.T) (Model, *builder) {
 	}})
 	m = sized(t, m.clearStatus())
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	return m, b
 }
 

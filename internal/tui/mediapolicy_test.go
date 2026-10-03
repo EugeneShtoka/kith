@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -20,7 +19,7 @@ func TestARoomCanRefuseToFetchPicturesUnasked(t *testing.T) {
 		Mode:  "inline",
 		Rules: []config.MediaRule{{Match: "!a:x", Auto: new(false)}},
 	}}
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m.focus = paneTimeline
 	m = update(t, m, oneImage())
 	if len(m.pics.imageLoading) != 0 {
@@ -122,7 +121,7 @@ func TestViewingCarriesTheRoomsCachingRule(t *testing.T) {
 		Mode:  "inline",
 		Rules: []config.MediaRule{{Match: "!a:x", Cache: new(false)}},
 	}}
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m.focus = paneTimeline
 	m = update(t, m, oneImage())
 	jobs, _ := m.gallery("")
@@ -183,7 +182,7 @@ func TestConfiguredPictureSizeWins(t *testing.T) {
 	t.Parallel()
 
 	disp := config.Display{Media: config.Media{Mode: "inline", MaxHeight: 5, MaxWidth: 11}}
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m = update(t, m, tea.WindowSizeMsg{Width: 200, Height: 60})
 	if got := m.imageMaxHeight(); got != 5 {
 		t.Errorf("max_height = %d, want the configured 5", got)
@@ -213,7 +212,7 @@ func TestConfiguredViewerIsTakenAsWritten(t *testing.T) {
 	t.Parallel()
 
 	disp := config.Display{Media: config.Media{Viewer: "sh -c true"}}
-	m := New(context.Background(), apitest.Nop{}, disp)
+	m := starterNew(apitest.Nop{}, disp)
 	got, err := m.viewerCommand()
 	if err != nil {
 		t.Fatalf("viewerCommand: %v", err)

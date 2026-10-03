@@ -113,7 +113,7 @@ A misspelled level, window or thread value is an error at startup, and on reload
 | `space:Work` | Every room in that space |
 | `protocol:WhatsApp` | Every room on that network |
 | `dm` / `group` | Every direct message, or every room that is not one |
-| `pinned` | Every room in the Pinned group |
+| `tag:Pinned` | Every room that tag holds, judged on the room alone (its state words match nothing here) |
 
 A bare word that is not a room ID (such as `"Work"`) is **refused at startup**, with an error that names the entry. Room IDs are awkward to type, so it is usually easier to write rules [from the UI](#editing-rules-from-the-ui).
 
@@ -122,7 +122,7 @@ A bare word that is not a room ID (such as `"Work"`) is **refused at startup**, 
 **More constraints beat fewer. When two rules have the same number of constraints, the one naming the narrower place wins.** From least to most specific:
 
 1. The account-wide rule (no `match`, no `sender`)
-2. A space, a network, `dm`, `group` or `pinned`
+2. A space, a network, a tag, `dm` or `group`
 3. A person anywhere (`sender` only)
 4. One room
 5. A person within a space or class of rooms
@@ -180,17 +180,17 @@ match  = "!busy:example.org"
 thread = "participating"
 show   = "all"
 
-# Every WhatsApp chat, and pinned rooms through any silence.
+# Every WhatsApp chat, and the rooms in your Pinned tag through any silence.
 [[notifications.rule]]
 match = "protocol:WhatsApp"
 show  = "all"
 
 [[notifications.rule]]
-match = "pinned"
+match = "tag:Pinned"
 show  = "all"
 ```
 
-The last rule turns pinning into a one-key way to let a conversation through tonight's quiet hours: `P` in the room list pins or unpins the room under the cursor.
+The last rule turns the Pinned tag into a quick way to let a conversation through tonight's quiet hours: `/tag Pinned` (or `S`) puts the room in it or takes it out.
 
 ## Quiet hours
 
@@ -222,7 +222,7 @@ Both keys work in every mode, including while you type. `:dnd` opens the same ch
 
 **Either key, pressed while anything is muted, lifts every mute at once.** Muting the same target again replaces the old mute, so "an hour" followed by "four hours" leaves one mute with the later deadline.
 
-A mute is a rule with a deadline, and it ranks like any other rule. An account-wide mute is the broadest rule there is, so narrower rules (a room, a person, `pinned`) still get through it. A mute on one room beats that room's own rule in the file.
+A mute is a rule with a deadline, and it ranks like any other rule. An account-wide mute is the broadest rule there is, so narrower rules (a room, a person, a tag) still get through it. A mute on one room beats that room's own rule in the file.
 
 Do-not-disturb lives in `kithd`, so every attached terminal sees the same state. **A daemon restart clears it.** A mute that survived a restart could leave you unreachable without knowing why. The status line shows a countdown for an account-wide mute and a count for scoped ones.
 

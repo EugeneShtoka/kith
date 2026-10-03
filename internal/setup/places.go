@@ -19,7 +19,6 @@ func PlaceEntries(cfg config.Config) error {
 	lists := map[string][]string{
 		"codes.include":         cfg.Codes.Include,
 		"codes.exclude":         cfg.Codes.Exclude,
-		"display.archived":      cfg.Display.Archived,
 		"display.direction.rtl": cfg.Display.Direction.RTL,
 		"display.direction.ltr": cfg.Display.Direction.LTR,
 		"agent.read.rooms":      cfg.Agent.Read.Rooms,
@@ -55,7 +54,7 @@ func PlaceEntries(cfg config.Config) error {
 			return fmt.Errorf("setup: display.direction: %q is in both rtl and ltr", entry)
 		}
 	}
-	return scopeEntries(cfg)
+	return nil
 }
 
 // knownTags refuses a tag:<name> entry that names no [[tag]].
@@ -67,26 +66,6 @@ func knownTags(cfg config.Config, what string, entries []string) error {
 		}
 		if !slices.ContainsFunc(cfg.Tags, func(t config.Tag) bool { return strings.EqualFold(strings.TrimSpace(t.Name), name) }) {
 			return fmt.Errorf("setup: %s: %q names no [[tag]]", what, entry)
-		}
-	}
-	return nil
-}
-
-// scopeEntries refuses what cannot bound an assistant's reach. `pinned` changes each
-// time a room is pinned in the client, and kith-mcp reads the config once: a pinned list
-// there would be out of date by the next pin.
-func scopeEntries(cfg config.Config) error {
-	scopes := map[string][]string{
-		"agent.read.rooms": cfg.Agent.Read.Rooms, "agent.read.except": cfg.Agent.Read.Except,
-		"agent.write.rooms": cfg.Agent.Write.Rooms, "agent.write.except": cfg.Agent.Write.Except,
-		"agent.write.send": cfg.Agent.Write.Send,
-		"assist.rooms":     cfg.Assist.Rooms, "assist.except": cfg.Assist.Except,
-	}
-	for what, entries := range scopes {
-		for _, entry := range entries {
-			if domain.IsPinnedEntry(entry) {
-				return fmt.Errorf("setup: %s: %q moves each time you pin a room, so it cannot bound what an assistant reaches: name the rooms or spaces instead", what, entry)
-			}
 		}
 	}
 	return nil

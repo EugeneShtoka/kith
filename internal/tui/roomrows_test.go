@@ -16,7 +16,7 @@ var mark = config.Threads{}.RowMark()
 // withThreadRows opens a room list where Alpha has two unread threads.
 func withThreadRows(t *testing.T, display config.Display) Model {
 	t.Helper()
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, display)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, display)))
 	return update(t, m, unreadUpdateMsg{u: domain.Unread{
 		RoomID: "!a:x", Counted: true, Messages: 3,
 		Threads: []domain.ThreadUnread{
@@ -94,7 +94,7 @@ func TestMarkingAThreadReadFromItsRow(t *testing.T) {
 	t.Parallel()
 
 	b := &readBackend{}
-	m := sized(t, withRooms(t, New(context.Background(), b, config.Display{})))
+	m := sized(t, withRooms(t, starterNew(b, config.Display{})))
 	m = update(t, m, unreadUpdateMsg{u: domain.Unread{
 		RoomID: "!a:x", Counted: true, Messages: 2,
 		Threads: []domain.ThreadUnread{{Root: "$one", Unread: 2, Latest: "$l1", Title: "ship it"}},

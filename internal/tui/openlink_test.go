@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/apitest"
@@ -24,7 +23,7 @@ func TestOpeningALinkReportsAnOpenerThatFails(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.opener, func(t *testing.T) {
 			t.Parallel()
-			m := New(context.Background(), apitest.Nop{}, config.Display{})
+			m := starterNew(apitest.Nop{}, config.Display{})
 			m.prefs.external.open = c.opener
 
 			opened, ok := m.openLinkCmd("https://example.org")().(openedMsg)

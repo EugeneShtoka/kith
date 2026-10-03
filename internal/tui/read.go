@@ -75,24 +75,16 @@ func (m Model) askMarkGroupRead() (Model, tea.Cmd) {
 // filter and gesture goes through it so they cannot disagree. It is built from the
 // Model each time it is asked for (see group.admits), so it is never stale.
 type unreadView struct {
-	counts   map[domain.RoomID]domain.Unread
-	local    bool
-	archived domain.Archive
-	// pinned rooms get their own rail group as well as their spaces.
-	pinned domain.Pinned
-	// base names spaces that keep showing their archived rooms ([display] base_spaces).
-	base []string
+	counts map[domain.RoomID]domain.Unread
+	local  bool
 	// parents maps a room to its canonical parent space, as resolved by the daemon.
 	parents map[domain.RoomID]domain.SpaceID
-	// facts builds archivedRooms; it does not answer isArchived (too slow per call).
+	// facts is the slow way to a room's facts (roomFacts holds them precomputed).
 	facts func(domain.Room) domain.RoomFacts
 	// spamRooms is the union of the hand-written lists and what the filters caught.
 	spam      domain.Spam
 	caught    map[domain.RoomID]domain.SpamVerdict
 	spamRooms map[domain.RoomID]bool
-	// archivedRooms is the archive precomputed: asked thousands of times per frame,
-	// resolving display names per call made the room list visibly slow.
-	archivedRooms map[domain.RoomID]bool
 	// tags and the facts they judge rooms by (precomputed, as archivedRooms), and the
 	// drafts the `draft` state word reads; tagMemo keeps what they make of each room
 	// (tagged.go), tagsRev says which tags it was made with.
@@ -103,64 +95,28 @@ type unreadView struct {
 	drafts    map[domain.RoomID]draft
 }
 
-// keepsArchived reports whether space keeps showing an archived room: the room names
-// it as canonical parent; or, naming no parent, the space is a bridge's (mautrix sets
-// no m.space.parent on portals); or it is listed in base_spaces. A hand-made space
-// you filed the room into stops showing it.
-func (v unreadView) keepsArchived(room domain.Room, space domain.SpaceID, name string, bridge domain.Protocol) bool {
-	if parent, known := v.parents[room.ID]; known && parent != "" {
-		return parent == space
-	}
-	if bridge != "" && bridge != domain.ProtocolMatrix {
-		return true
-	}
-	for _, entry := range v.base {
-		if strings.EqualFold(strings.TrimSpace(entry), name) {
-			return true
-		}
-	}
-	return false
-}
-
-// isArchived reports whether this room's unread has been told to stop counting.
-func (v unreadView) isArchived(room domain.Room) bool {
-	if !v.archived.Has() {
-		return false
-	}
-	return v.archivedRooms[room.ID]
-}
-
-// resolveArchived is the slow answer, computed once per room when the inputs change.
-func (v unreadView) resolveArchived(room domain.Room) bool {
-	if !v.archived.Has() || v.facts == nil {
-		return false
-	}
-	return v.archived.Archived(v.facts(room))
-}
-
 // count is one room's own numbers, archived or not.
 func (v unreadView) count(room domain.Room) (count, highlights int) {
 	return v.counts[room.ID].Count(v.local)
 }
 
-// tallies reports whether a room counts toward group badges, the Unread group and
-// group mark-read. Invitations, archived, spam and silenced rooms do not.
+// tallies reports whether a room counts toward group badges and group mark-read.
+// Invitations, spam and rooms a silent tag holds do not.
 func (v unreadView) tallies(room domain.Room) bool {
-	if room.IsInvite() || v.isArchived(room) || v.isSpam(room) || v.silenced(room) {
+	if room.IsInvite() || v.isSpam(room) || v.silenced(room) {
 		return false
 	}
 	// HasUnread, not a count: a marked room is unread with nothing to count.
 	return v.counts[room.ID].HasUnread(v.local)
 }
 
-// marked reports a hand-set unread flag; archiving and silence win over it.
+// marked reports a hand-set unread flag; a silent tag wins over it.
 func (v unreadView) marked(room domain.Room) bool {
-	return v.counts[room.ID].Marked && !v.isArchived(room) && !v.silenced(room)
+	return v.counts[room.ID].Marked && !v.silenced(room)
 }
 
-// refreshPlaces recomputes the archived and spam sets and the rooms' facts, which
-// share their inputs.
-func (m Model) refreshPlaces() Model { return m.refreshFacts().refreshArchived().refreshSpam() }
+// refreshPlaces recomputes the rooms' facts and the spam set, which share their inputs.
+func (m Model) refreshPlaces() Model { return m.refreshFacts().refreshSpam() }
 
 // refreshFacts recomputes every room's facts, as a new map (see refreshArchived).
 func (m Model) refreshFacts() Model {
@@ -172,42 +128,21 @@ func (m Model) refreshFacts() Model {
 	return m
 }
 
-// refreshArchived recomputes which rooms the archive covers, as a new set: the rail's
-// groups read it through the view they are handed (group.admits), so none holds an
-// old one.
-func (m Model) refreshArchived() Model {
-	archived := map[domain.RoomID]bool{}
-	if m.rail.archive.Has() {
-		view := m.unreadView()
-		for i := range m.rooms.all {
-			if view.resolveArchived(m.rooms.all[i]) {
-				archived[m.rooms.all[i].ID] = true
-			}
-		}
-	}
-	m.rail.archivedRooms = archived
-	return m
-}
-
 // unreadView builds the view from the running configuration.
 func (m Model) unreadView() unreadView {
 	return unreadView{
-		counts:        m.unread,
-		local:         m.prefs.unreadLocal,
-		archived:      m.rail.archive,
-		pinned:        m.rail.pinned,
-		base:          m.rail.baseSpaces,
-		parents:       m.parents,
-		facts:         m.factsFor,
-		archivedRooms: m.rail.archivedRooms,
-		spam:          m.rail.spam,
-		caught:        m.rail.caught,
-		spamRooms:     m.rail.spamRooms,
-		tags:          m.rail.tags,
-		tagsRev:       m.rail.tagsRev,
-		tagMemo:       m.rail.tagMemo,
-		roomFacts:     m.rail.roomFacts,
-		drafts:        m.drafts,
+		counts:    m.unread,
+		local:     m.prefs.unreadLocal,
+		parents:   m.parents,
+		facts:     m.factsFor,
+		spam:      m.rail.spam,
+		caught:    m.rail.caught,
+		spamRooms: m.rail.spamRooms,
+		tags:      m.rail.tags,
+		tagsRev:   m.rail.tagsRev,
+		tagMemo:   m.rail.tagMemo,
+		roomFacts: m.rail.roomFacts,
+		drafts:    m.drafts,
 	}
 }
 
@@ -292,45 +227,22 @@ func roomsPhrase(n int) string {
 	return fmt.Sprintf("%d rooms", n)
 }
 
-// toggleArchive archives or un-archives the selected room by ID and writes the config.
-// A room archived by an entry naming its space cannot be undone here.
-func (m Model) toggleArchive() (Model, tea.Cmd) {
-	room, ok := m.currentRoom()
-	if !ok || room.IsInvite() {
-		return m, nil
-	}
-	name := m.roomName(room)
-	id := string(room.ID)
-	if m.unreadView().isArchived(room) && !m.rail.archive.Lists(id) {
-		m = m.say(name + " is archived by an entry naming its space — edit [display] archived")
-		return m, nil
-	}
-	archiving := !m.rail.archive.Lists(id)
-	display := m.prefs.display
-	display.Archived = m.rail.archive.With(id, archiving).Entries
-	done := "un-archived " + name + " — it counts again"
-	if archiving {
-		done = "archived " + name + " — still readable, no longer counted"
-	}
-	return m.applyDisplay(display, done)
-}
-
-// An archived room stays visible in its canonical parent space (m.space.parent with
-// canonical: true), resolved lazily and only for archived rooms.
+// A room a space-exclusive tag holds stays visible in its canonical parent space
+// (m.space.parent with canonical: true), resolved lazily and only for those rooms.
 
 // parentsMsg carries canonical parents resolved for the rooms that needed them.
 type parentsMsg struct {
 	parents map[domain.RoomID]domain.SpaceID
 }
 
-// resolveParentsCmd asks the daemon where not-yet-known archived rooms live; nil
-// when there is nothing to ask.
+// resolveParentsCmd asks the daemon where not-yet-known rooms that leave the spaces
+// you made live; nil when there is nothing to ask.
 func (m Model) resolveParentsCmd() tea.Cmd {
 	view := m.unreadView()
 	var want []domain.RoomID
 	for i := range m.rooms.all {
 		room := m.rooms.all[i]
-		if !view.isArchived(room) {
+		if !view.leavesMadeSpaces(room) {
 			continue
 		}
 		if _, known := m.parents[room.ID]; !known {
@@ -363,26 +275,4 @@ func (m Model) handleParents(msg parentsMsg) (Model, tea.Cmd) {
 	maps.Copy(parents, msg.parents)
 	m.parents = parents
 	return m, nil
-}
-
-// togglePin follows or unfollows the selected room by ID and writes the config.
-// A room pinned by an entry naming its space cannot be undone here.
-func (m Model) togglePin() (Model, tea.Cmd) {
-	room, ok := m.currentRoom()
-	if !ok || room.IsInvite() {
-		return m, nil
-	}
-	name, id := m.roomName(room), string(room.ID)
-	if m.rail.pinned.Pins(m.factsFor(room)) && !m.rail.pinned.Lists(id) {
-		m = m.say(name + " is pinned by an entry naming its space — edit [display] pinned")
-		return m, nil
-	}
-	pinning := !m.rail.pinned.Lists(id)
-	display := m.prefs.display
-	display.Pinned = m.rail.pinned.With(id, pinning).Entries
-	done := "unpinned " + name
-	if pinning {
-		done = "pinned " + name + " — it is in Pinned as well as its own space"
-	}
-	return m.applyDisplay(display, done)
 }

@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +17,7 @@ import (
 // somewhere to jump *from* and the rail has to move to follow it.
 func jumping(t *testing.T) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!dana:x", Name: "Dana Levi", IsDirect: true},
 		{ID: "!ops:x", Name: "Ops"},
@@ -122,7 +121,7 @@ func TestJumpStaysInTheGroupThatAlreadyHolds(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t)
-	m.rail.cursor = indexOfGroup(m.rail.groups, "dms")
+	m.rail.cursor = indexOfGroup(m.rail.groups, dmsGroupKey)
 	next, _ := press(t, m, jumpKey())
 	next = typeFilter(t, next, "dana")
 	after, _ := press(t, next, tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -130,7 +129,7 @@ func TestJumpStaysInTheGroupThatAlreadyHolds(t *testing.T) {
 	if after.openRoom != "!dana:x" {
 		t.Fatalf("open room = %q, want the DM", after.openRoom)
 	}
-	if got := after.rail.groups[after.rail.cursor].key; got != "dms" {
+	if got := after.rail.groups[after.rail.cursor].key; got != dmsGroupKey {
 		t.Errorf("rail moved to %q, want to stay in DMs", got)
 	}
 }
@@ -401,7 +400,7 @@ func TestHelpShowsJumpBindings(t *testing.T) {
 // three networks, so three DMs carry one name.
 func namesakes(t *testing.T) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!wa-dana:x", Name: "Dana Levi", IsDirect: true},
 		{ID: "!dana:x", Name: "Dana Levi", IsDirect: true},
 		{ID: "!slack-dana:x", Name: "Dana Levi", IsDirect: true},

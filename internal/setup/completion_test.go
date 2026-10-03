@@ -43,7 +43,7 @@ func TestANameTargetHasToSayWhatItNames(t *testing.T) {
 
 	for _, target := range []string{
 		"!abc:example.org", config.NameTargetRoom + "Standup",
-		config.NameTargetSpace + "Work", config.NameTargetGroup + "unread",
+		config.NameTargetSpace + "Work",
 		config.NameTargetThread + "$evt",
 	} {
 		if err := NameTargets(config.Display{

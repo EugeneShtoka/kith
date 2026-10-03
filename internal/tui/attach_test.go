@@ -50,7 +50,7 @@ func (b *sendingBackend) LoadImage(context.Context, domain.RoomID, domain.EventI
 func attaching(t *testing.T) (Model, *sendingBackend) {
 	t.Helper()
 	backend := &sendingBackend{}
-	m := sized(t, withRooms(t, New(context.Background(), backend, config.Display{})))
+	m := sized(t, withRooms(t, starterNew(backend, config.Display{})))
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
 	m.focus, m.compose.insertMode = paneTimeline, false

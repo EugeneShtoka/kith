@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 // and one ordinary room to prove the marks and refusals are not universal.
 func upgraded(t *testing.T) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!old:x", Name: "Old", Replacement: "!new:x"},
 		{ID: "!new:x", Name: "New"},
 		{ID: "!plain:x", Name: "Plain"},

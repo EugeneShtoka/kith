@@ -81,34 +81,14 @@ send_typing = true
 #                   homeserver counts it (a muted room badges nothing)
 unread = "messages"
 
-# Places whose unread stops counting: no rail badge, not in Unread, skipped by a
-# group-wide mark-read, still fully readable and writable. Entries use the place
-# vocabulary every list here takes: a room ID bare, `room:<name>`, `space:<name>`,
-# `tag:<name>`, `protocol:<network>`, `dm`, `group`. `A` in the room list toggles the room under the
-# cursor. An archived room leaves every group but the space it lives in, and an
-# "Archived" rail group appears while anything is archived.
-# archived = ["!noisy:example.org", "space:Bots"]
-
-# Conversations you are following: shown in a "Pinned" rail group as well as where
-# they live (`P` in the room list, `/pin`). `pinned` is also a place a notification
-# rule can name, and such a rule is narrower than do-not-disturb, so it gets through:
-#
-#   [[notifications.rule]]
-#   match = "pinned"
-#   show  = "all"
-# pinned = ["!standup:example.org"]
+# The place vocabulary, which every list of places in this file takes: a room ID bare,
+# `room:<name>`, `space:<name>`, `tag:<name>`, `protocol:<network>`, `dm`, `group`.
 
 # Preference order when one home must be chosen for a room in several spaces or tags:
 # the {space} of a notification, the download folder, which [[display.space_rule]]
 # applies, which place rule counts as the room's space. Spaces by name, tags as
-# tag:<name>; unlisted ones follow. space_priority is its older name, read while
-# priority is empty.
+# tag:<name>; unlisted spaces follow. A tag is a home only when listed here.
 # priority = ["tag:Family", "Work", "Friends"]
-# space_priority = ["Work", "Friends"]
-
-# The space a room lives in is its `m.space.parent` (canonical). Spaces listed here
-# also keep showing their archived rooms.
-# base_spaces = ["Work"]
 
 # Open a room in the composer rather than the message cursor (one esc away).
 open_in_insert_mode = true
@@ -144,9 +124,7 @@ row_numbers = false
 #
 #   !abcdef:example.org   a room, by ID
 #   room:Team Standup     a room, by the name this client shows for it
-#   space:Work            a space (and its rail row)
-#   group:unread          a built-in rail row: home, dms, unread, archived, invites,
-#                         drafts, pinned, spam
+#   space:Work            a space (and its rail row); a tag is named in its [[tag]]
 #   thread:$abcdef:…      a thread, by its root event (default label: a snippet of it)
 #
 # A bare word that is not a room ID is refused at startup.
@@ -234,7 +212,7 @@ notify = false
 #   from   = ["@dana:example.org"]   # only these senders; absent = anybody
 #   notify = true                    # overrides the switch above for these words
 #
-# `in`/`except` take the place vocabulary (see `archived`).
+# `in`/`except` take the place vocabulary (see [display]).
 
 # Tags: your own groupings of rooms, across networks, shown in the rail with the
 # spaces; a room can carry several. A tag holds the rooms its rule matches, plus the
@@ -242,7 +220,7 @@ notify = false
 # wins over picked). A rule is a list of terms: a room matches when some term matches
 # and no `not` term does (a rule of `not` terms alone needs none; an empty rule holds
 # only picked rooms). Terms: `*` (every room), the place words (room:<name>,
-# space:<name>, protocol:<network>, dm, group, pinned), the state words (unread,
+# space:<name>, protocol:<network>, dm, group), the state words (unread,
 # mention, draft, spam, invite) and tag:<name> (another tag's rooms). `hidden = true`
 # keeps a tag out of the rail. In the rail order below a tag is `tag:<name>`. Tags
 # whose rules depend on each other in a cycle are reported at startup, and their
@@ -251,9 +229,8 @@ notify = false
 # Properties (all off unless set):
 #   counts_unread = false   its rooms count as read everywhere else: no badge, not
 #                           `unread`/`mention` to other tags, skipped by mark-all-read
-#   exclusive       = true  its rooms show under it alone: no other tag, no All, DMs,
-#                           Unread, Drafts or Pinned (their spaces keep them); of two,
-#                           the first configured wins
+#   exclusive       = true  its rooms show under it alone, under no other tag (their
+#                           spaces keep them); of two, the first configured wins
 #   space_exclusive = true  its rooms leave the spaces you made and other tags; the
 #                           spaces they belong to (a bridge's, a community, their
 #                           canonical home) keep them
@@ -270,22 +247,74 @@ notify = false
 #   picked   = ["!abc:example.org"]
 #   excluded = []
 #   hidden   = false
+#
+# Only the tags written here exist. The ones below are a starting point, not built
+# in: change their rules, rename them, or delete them. A room goes into a tag, or out
+# of one, from the filing picker (`S`) or with `/tag <name>`; that edits the tag's
+# picked and excluded lists here.
 
-# Rail layout, by group key: "unread", "home", "dms", "archived", a space's name,
-# tag:<name>. "-" draws a divider after the preceding group; "*" stands for every
-# group not named.
-# Unlisted groups (with no "*") follow in default order.
+# Every room. Its rooms are also in their spaces; Archived and Spam take theirs out.
+[[tag]]
+name = "All"
+rule = ["*"]
+
+[[tag]]
+name = "DMs"
+rule = ["dm"]
+
+# Sticky: the room you opened stays listed while you read it.
+[[tag]]
+name   = "Unread"
+rule   = ["unread"]
+sticky = true
+
+[[tag]]
+name            = "Drafts"
+rule            = ["draft"]
+hide_when_empty = true
+
+# No rule: only the rooms you put in it.
+[[tag]]
+name            = "Pinned"
+hide_when_empty = true
+
+# Rooms kept but quiet: no badge, not Unread, out of every other tag and of the spaces
+# you made (the space a room belongs to keeps it).
+[[tag]]
+name            = "Archived"
+counts_unread   = false
+exclusive       = true
+space_exclusive = true
+hide_when_empty = true
+
+[[tag]]
+name            = "Spam"
+rule            = ["spam"]
+exclusive       = true
+hide_when_empty = true
+
+# At the top of the rail, saying how many are waiting.
+[[tag]]
+name            = "Invites"
+rule            = ["invite"]
+exclusive       = true
+first           = true
+count_in_label  = true
+hide_when_empty = true
+
+# Rail layout, by group key: a space's name, tag:<name>. "-" draws a divider after the
+# preceding group; "*" stands for every group not named. Unlisted groups (with no "*")
+# follow in default order. A tag marked `first` goes to the top unless named here.
 #
-#   order = ["unread", "-", "Work", "Friends", "-", "*", "-", "archived"]
-#
-# Rename rows with [[display.name]] (target = "group:home" / "space:Work").
+# Rename a space's row with [[display.name]] (target = "space:Work").
 [display.rail]
-order  = []
-# Groups hidden while they hold nothing (key or label, case-insensitive). Invites,
-# Archived and Drafts already behave this way.
+order = ["tag:All", "tag:DMs", "tag:Unread", "tag:Drafts", "tag:Pinned", "-", "*", "-", "tag:Archived", "tag:Spam"]
+# Rows hidden while they hold nothing (key or label, case-insensitive); a tag can say
+# so itself (hide_when_empty).
 #
-#   hide_when_empty = ["unread", "dms"]
+#   hide_when_empty = ["Work"]
 hide_when_empty = []
+# Rows never shown (key or label); a tag can say so itself (hidden).
 hidden = []
 
 # Deleted messages, set separately for yours (every account in your identity) and
@@ -427,7 +456,7 @@ max_in_room_list = 5
 # against the sender column on the right, then the name and the time. `auto` guesses
 # each room from its newest messages when it opens (one vote per message, links left
 # out; more than half right to left wins) and keeps that until you leave the room.
-# `rtl` and `ltr` set places by hand (the place vocabulary, see `archived`): the
+# `rtl` and `ltr` set places by hand (the place vocabulary, see [display]): the
 # narrowest entry wins, a room over its space, and wins over the guess. `D` in the
 # room list (or /direction) cycles the room under the cursor: right to left, left to
 # right, back to this section's say.
@@ -496,7 +525,7 @@ sound_command = ""
 #
 #   name    shown when the status line says which rule silenced you
 #   match   one place: a room ID, room:<name>, space:<name>, tag:<name>,
-#           protocol:<network>, dm, group or pinned; empty = anywhere. A bare word
+#           protocol:<network>, dm or group; empty = anywhere. A bare word
 #           is refused.
 #   sender  one person's MXID; empty = anyone
 #   when    a daily window, "22:00-08:00"; absent = always
@@ -1153,22 +1182,17 @@ mark_unread    = "M"       # mark this room unread, or clear the mark
 # An upgraded room is marked "→".
 go_replacement = ">"       # go to the room that replaced this one
 # Tick with space, apply with enter.
-spaces         = "S"       # file this room into a space, or take it out of one
+spaces         = "S"       # file this room into a space or a tag, or take it out of one
 # Filed into the selected space. Encryption is chosen here.
 new            = "n"       # create a room or a space
 # Prompts for an @user:server.
 invite         = "i"       # invite someone to this room
 unban          = "U"       # lift a ban on this room
 view_media     = "v"       # open this room's pictures in an image viewer, newest first
-# See [display] archived.
-archive        = "A"       # archive / un-archive: keep the room, stop it counting
 # read this room right to left, left to right, or as configured
 # Cycles the room's own entry in [display.direction]; the timeline mirrors, names on the
 # right.
 direction      = "D"
-# pin / unpin: follow this conversation, and let it through a silence
-# See [display] pinned.
-pin            = "P"
 # spam / not spam: move this conversation out of the way, or back
 # See [spam].
 spam           = "!"

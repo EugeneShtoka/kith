@@ -33,7 +33,6 @@ var rowReads = map[string]string{
 	"rooms.byID":                 "derivedKey.place (placeFingerprint of the open room's facts)",
 	"rooms.spaceNames":           "derivedKey.place",
 	"rooms.spaces":               "derivedKey.place",
-	"rail.pinned":                "derivedKey.place (Pinned); pins are set with the config",
 	"rail.roomFacts":             "derivedKey.place (the open room's facts, its tags included, recomputed from the same inputs)",
 	"rail.tags":                  "derivedKey.place (Tags in the facts); tags are set with the config, which bumps conf.rev",
 	"openRoom":                   "derivedKey.room",

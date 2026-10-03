@@ -42,7 +42,7 @@ func (s *slotStore) SaveSenderSlots(_ context.Context, roomID domain.RoomID, slo
 // colorSession opens a room, loads msgs, reads the colors, then leaves (which saves).
 func colorSession(t *testing.T, backend *slotStore, msgs []domain.Message) (Model, map[string]color.Color) {
 	t.Helper()
-	m := sized(t, update(t, New(context.Background(), backend, config.Display{}),
+	m := sized(t, update(t, starterNew(backend, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!z:x", Name: "Zulu"}}}))
 
 	next, cmd := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
@@ -96,7 +96,7 @@ func TestStoredSlotsOverrideALocalGuess(t *testing.T) {
 	backend := newSlotStore()
 	backend.saved["!a:x"] = map[string]int{"@bob:x": 5}
 
-	m := sized(t, update(t, New(context.Background(), backend, config.Display{}),
+	m := sized(t, update(t, starterNew(backend, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
 	next, cmd := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
@@ -122,7 +122,7 @@ func TestStoredSlotsOverrideALocalGuess(t *testing.T) {
 // A late answer for a room already left must not color the room now open.
 func TestLateSlotsForAnotherRoomAreDropped(t *testing.T) {
 	backend := newSlotStore()
-	m := sized(t, update(t, New(context.Background(), backend, config.Display{}),
+	m := sized(t, update(t, starterNew(backend, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
 	m.openRoom = "!a:x"
 	m.derived.slotsRoom = "!a:x"

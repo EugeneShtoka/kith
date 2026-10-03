@@ -14,19 +14,17 @@ type RoomFacts struct {
 	Spaces   []string // names of the spaces holding it
 	Direct   bool
 	Protocol Protocol // the network, from the bridge that owns its space
-	Pinned   bool
 	Tags     []string // names of the [[tag]]s holding it, judged as a place (TagSet.Of)
 }
 
 // Places is what a room's facts depend on besides the room itself: the names the
-// person gave rooms, the order they put spaces in, and what they pinned. Every place
+// person gave rooms, the order they put spaces and tags in, and the tags. Every place
 // that decides by RoomFacts — notification rules, the assistant's and the agent's
 // scopes, codes, tracked words, the archive — builds them through Facts, so a list
 // entry means the same room everywhere.
 type Places struct {
 	Names    map[RoomID]string // [[display.name]], by room
 	Priority []string          // [display] priority: spaces and tag:<name>s
-	Pinned   Pinned
 	Tags     TagSet
 }
 
@@ -54,9 +52,7 @@ func (p Places) Facts(room Room, holders []Space) RoomFacts {
 	if len(names) > 0 {
 		facts.Spaces = OrderSpaces(names, p.Priority)
 	}
-	// Then pins: pin entries match on the facts above, and cannot themselves say `pinned`.
-	facts.Pinned = p.Pinned.Pins(facts)
-	// Last: a tag's rule may say `pinned`.
+	// Last: a tag's rule matches on the facts above.
 	facts.Tags = p.Tags.Of(facts)
 	return facts
 }
@@ -79,7 +75,8 @@ const (
 	entryProtocol = "protocol:"
 	entryDirect   = "dm"
 	entryGroup    = "group"
-	entryPinned   = "pinned"
+	// entryPinned was a word of its own; pinned rooms are a tag now (see ValidateEntries).
+	entryPinned = "pinned"
 	// roomSigil marks a Matrix room ID, which is a complete entry on its own; so is
 	// any other network's room ID (IsRoomID).
 	roomSigil = "!"
@@ -105,7 +102,6 @@ func ParseEntry(entry string) (EntryKind, bool) {
 	case entry == "":
 		return EntryInvalid, false
 	case strings.EqualFold(entry, entryDirect), strings.EqualFold(entry, entryGroup),
-		strings.EqualFold(entry, entryPinned),
 		hasPrefixFold(entry, entrySpace), hasPrefixFold(entry, entryProtocol), hasPrefixFold(entry, termTag):
 		return EntryClass, true
 	case hasPrefixFold(entry, entryRoom), strings.HasPrefix(entry, roomSigil), IsRoomID(entry):
@@ -130,17 +126,15 @@ func SpaceOf(entry string) (string, bool) {
 // ValidateEntries reports the first entry that declares no kind.
 func ValidateEntries(what string, entries []string) error {
 	for _, entry := range entries {
+		if strings.EqualFold(strings.TrimSpace(entry), entryPinned) {
+			return fmt.Errorf("%s: %q is a tag now: write tag:Pinned (or your pinned tag's name)", what, entry)
+		}
 		if _, ok := ParseEntry(entry); !ok {
 			return fmt.Errorf("%s: %q names nothing — write a room ID (!abc:server), "+
-				"room:<name>, space:<name>, tag:<name>, protocol:<network>, dm, group or pinned", what, entry)
+				"room:<name>, space:<name>, tag:<name>, protocol:<network>, dm or group", what, entry)
 		}
 	}
 	return nil
-}
-
-// IsPinnedEntry reports whether entry is the `pinned` class.
-func IsPinnedEntry(entry string) bool {
-	return strings.EqualFold(strings.TrimSpace(entry), entryPinned)
 }
 
 // Match reports whether one entry describes this room, and how broadly it reaches.
@@ -155,9 +149,6 @@ func (f RoomFacts) Match(entry string) (EntryKind, bool) {
 		return kind, f.Direct
 	case strings.EqualFold(entry, entryGroup):
 		return kind, !f.Direct
-	case strings.EqualFold(entry, entryPinned):
-		// A class, so a `pinned` rule is narrower than global do-not-disturb.
-		return kind, f.Pinned
 	case hasPrefixFold(entry, entrySpace):
 		want := strings.TrimSpace(entry[len(entrySpace):])
 		for _, space := range f.Spaces {

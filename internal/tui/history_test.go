@@ -36,7 +36,7 @@ func (b *historyBackend) MessageHistory(
 // browsing puts the cursor on a message in a room, with a backend that can answer.
 func browsing(t *testing.T, b *historyBackend, msg domain.Message) Model {
 	t.Helper()
-	m := sized(t, update(t, New(context.Background(), b, config.Display{}),
+	m := sized(t, update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
@@ -389,7 +389,7 @@ func TestTheHistoryViewClosesOnTheQuitBindingOnly(t *testing.T) {
 	keys := config.DefaultKeys()
 	keys.Quit = "ctrl+q"
 	keys.Nav.Down = "q"
-	m := New(context.Background(), apitest.Nop{}, config.Display{}).WithKeys(keys)
+	m := starterNew(apitest.Nop{}, config.Display{}).WithKeys(keys)
 	m = sized(t, withRooms(t, m))
 	m.focus = paneTimeline
 	m.history = historyState{open: true}

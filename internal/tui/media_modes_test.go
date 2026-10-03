@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -109,7 +108,7 @@ func inlineModel(t *testing.T) Model {
 	t.Helper()
 
 	disp := config.Display{Media: config.Media{Mode: "inline"}}
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m.focus = paneTimeline
 	return m
 }

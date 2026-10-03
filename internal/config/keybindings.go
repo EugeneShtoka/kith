@@ -120,9 +120,7 @@ type RoomsKeys struct {
 	BindJump      string `toml:"bind_jump"`
 	Spaces        string `toml:"spaces"`
 	MarkUnread    string `toml:"mark_unread"`
-	Archive       string `toml:"archive"`
 	Direction     string `toml:"direction"`
-	Pin           string `toml:"pin"`
 	Spam          string `toml:"spam"`
 	GoReplacement string `toml:"go_replacement"`
 	RenameThread  string `toml:"rename_thread"`

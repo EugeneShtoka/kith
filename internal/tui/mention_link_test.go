@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -79,7 +78,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, tc.disp)))
+			m := sized(t, withRooms(t, starterNew(apitest.Nop{}, tc.disp)))
 			msg := tc.msg
 			msg.ID, msg.RoomID, msg.Sender, msg.Timestamp = "$1", "!a:x", "@bob:x", at(1)
 			m = loadPage(t, m, []domain.Message{msg})
@@ -91,7 +90,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 	}
 
 	// Off means no link escapes at all.
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, config.Display{Hyperlinks: new(false)})))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Hyperlinks: new(false)})))
 	m = loadPage(t, m, []domain.Message{{
 		ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Timestamp: at(1),
 		Body: "שאל את Dana על זה", Mentions: dana,

@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"image/color"
 	"testing"
 
@@ -15,7 +14,7 @@ import (
 func editingWith(t *testing.T, mine domain.Message, members ...domain.Member) (Model, *sendingBackend) {
 	t.Helper()
 	backend := &sendingBackend{}
-	m := update(t, New(context.Background(), backend, config.Display{}),
+	m := update(t, starterNew(backend, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m.me = "@me:x"

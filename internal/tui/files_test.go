@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -22,7 +21,7 @@ func fileHit(room domain.RoomID, event domain.EventID, name, file, caption strin
 func browsingFiles(t *testing.T, hits ...domain.SearchHit) (Model, *searchBackend) {
 	t.Helper()
 	backend := &searchBackend{hits: hits}
-	m := update(t, sized(t, New(context.Background(), backend, config.Display{})),
+	m := update(t, sized(t, starterNew(backend, config.Display{})),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
@@ -217,7 +216,7 @@ func TestSearchRowCapsTheRoomLabelBeforeReordering(t *testing.T) {
 	backend := &searchBackend{hits: []domain.SearchHit{
 		fileHit("!a:x", "$1", "dana", "image.jpg", "image.jpg", 1),
 	}}
-	m := update(t, sized(t, New(context.Background(), backend, config.Display{})),
+	m := update(t, sized(t, starterNew(backend, config.Display{})),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: room}, {ID: "!b:x", Name: "Bravo"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next

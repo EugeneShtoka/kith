@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 // space, which the user also filed into a space of their own.
 func portalRooms(t *testing.T) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!chat:x", Name: "Someone"},
 		{ID: "!other:x", Name: "Someone Else"},
 	}})
@@ -52,10 +51,7 @@ func TestArchivingKeepsARoomInItsBridgeSpaceAndOnlyItsBridgeSpace(t *testing.T) 
 	t.Parallel()
 
 	m := portalRooms(t)
-	display := m.prefs.display
-	display.Archived = []string{"!chat:x"}
-	next, _ := m.applyDisplay(display, "archived")
-	m = next
+	m, _ = m.toggleTag("Archived", roomByName(t, m, "!chat:x"))
 
 	if !inGroup(t, m, "WhatsApp BG", "!chat:x") {
 		t.Error("an archived portal left its bridge's space — the only space it ever lived in")
@@ -66,11 +62,11 @@ func TestArchivingKeepsARoomInItsBridgeSpaceAndOnlyItsBridgeSpace(t *testing.T) 
 		t.Error("an archived room is still in a space it was filed into by hand")
 	}
 	// All still excludes it: the clutter archiving removes.
-	if inGroup(t, m, "home", "!chat:x") {
+	if inGroup(t, m, homeGroupKey, "!chat:x") {
 		t.Error("an archived room is still in All")
 	}
 	// The room next to it is untouched by any of this.
-	if !inGroup(t, m, "home", "!other:x") {
+	if !inGroup(t, m, homeGroupKey, "!other:x") {
 		t.Error("archiving one room removed another from All")
 	}
 }
@@ -82,21 +78,18 @@ func TestArchivingTheOpenRoomMovesTheCursorToItsNeighbor(t *testing.T) {
 
 	m := counting(t, config.Display{})
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 
 	// Alpha is first, Bravo second.
 	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
 	m = next
-	display := m.prefs.display
-	display.Archived = []string{"!a:x"}
-	next, _ = m.applyDisplay(display, "archived Alpha")
-	m = next
+	m, _ = m.toggleTag("Archived", roomByName(t, m, "!a:x"))
 
 	if m.openRoom != "!b:x" {
 		t.Errorf("open room = %q, want !b:x — the room after the one that left", m.openRoom)
 	}
 	// And what you did survives the move it caused.
-	if !strings.Contains(m.status(), "archived Alpha") {
+	if !strings.Contains(m.status(), "Alpha is in Archived") {
 		t.Errorf("status = %q, want the archive message to outlive the navigation", m.status())
 	}
 }
@@ -108,14 +101,11 @@ func TestArchivingTheLastRoomMovesTheCursorBackwards(t *testing.T) {
 
 	m := counting(t, config.Display{})
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 
 	next, _ := m.selectRoom(roomByName(t, m, "!b:x"))
 	m = next
-	display := m.prefs.display
-	display.Archived = []string{"!b:x"}
-	next, _ = m.applyDisplay(display, "archived Bravo")
-	m = next
+	m, _ = m.toggleTag("Archived", roomByName(t, m, "!b:x"))
 
 	if m.openRoom != "!a:x" {
 		t.Errorf("open room = %q, want !a:x — there is no next room, so the previous one", m.openRoom)
@@ -128,7 +118,7 @@ func TestAnUnrelatedSettingsChangeLeavesTheCursorAlone(t *testing.T) {
 
 	m := counting(t, config.Display{})
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	next, _ := m.selectRoom(roomByName(t, m, "!b:x"))
 	m = next
 
@@ -174,7 +164,7 @@ func TestARoomLeavingAltogetherAlsoHandsOverToItsNeighbor(t *testing.T) {
 
 	m := counting(t, config.Display{})
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	next, _ := m.selectRoom(roomByName(t, m, "!b:x"))
 	m = next
 
@@ -190,7 +180,7 @@ func TestARoomLeavingAltogetherAlsoHandsOverToItsNeighbor(t *testing.T) {
 func TestAColdStartStillLandsOnTheFirstRoom(t *testing.T) {
 	t.Parallel()
 
-	m := sized(t, New(context.Background(), apitest.Nop{}, config.Display{}))
+	m := sized(t, starterNew(apitest.Nop{}, config.Display{}))
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"},
 	}})

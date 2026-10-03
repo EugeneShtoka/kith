@@ -19,7 +19,7 @@ func TestRailCursorLookupIsBoundsChecked(t *testing.T) {
 		t.Errorf("empty rail: key=%q label=%q, want both empty", empty.key(), empty.label())
 	}
 
-	r := railState{groups: []group{{key: "home", label: "All"}, {key: "dms", label: "DMs"}}}
+	r := railState{groups: []group{{key: homeGroupKey, label: "All"}, {key: dmsGroupKey, label: "DMs"}}}
 	for _, cursor := range []int{-1, 2, 99} {
 		r.cursor = cursor
 		if _, ok := r.at(); ok {
@@ -32,10 +32,10 @@ func TestRailCursorLookupIsBoundsChecked(t *testing.T) {
 
 	r.cursor = 1
 	g, ok := r.at()
-	if !ok || g.key != "dms" {
+	if !ok || g.key != dmsGroupKey {
 		t.Errorf("at() = %+v ok=%v, want the DMs group", g, ok)
 	}
-	if r.key() != "dms" || r.label() != "DMs" {
+	if r.key() != dmsGroupKey || r.label() != "DMs" {
 		t.Errorf("key=%q label=%q, want dms/DMs", r.key(), r.label())
 	}
 }
@@ -67,7 +67,8 @@ func TestNoDividerUnderTheLastGroup(t *testing.T) {
 	rooms := []domain.Room{{ID: "!a:x", Name: "Alpha"}}
 	cfg := config.Rail{Order: []string{"*", "-", archivedGroupKey}}
 
-	groups := railGroups(spaces, cfg, nil, unreadView{counts: map[domain.RoomID]domain.Unread{}}, 0, rooms, nil)
+	view := starterView(t, unreadView{counts: map[domain.RoomID]domain.Unread{}})
+	groups := railGroups(spaces, cfg, nil, view, rooms)
 	last := groups[len(groups)-1]
 	if last.key == archivedGroupKey {
 		t.Fatal("nothing was archived, so the archived group should not exist")
@@ -76,8 +77,8 @@ func TestNoDividerUnderTheLastGroup(t *testing.T) {
 		t.Errorf("a divider is drawn under %q, the last group", last.label)
 	}
 	// A divider in the middle is untouched: it has something under it.
-	mid := config.Rail{Order: []string{"unread", "-", "*"}}
-	groups = railGroups(spaces, mid, nil, unreadView{counts: map[domain.RoomID]domain.Unread{}}, 0, rooms, nil)
+	mid := config.Rail{Order: []string{unreadGroupKey, "-", "*"}}
+	groups = railGroups(spaces, mid, nil, view, rooms)
 	if !groups[0].sepAfter {
 		t.Error("the divider after the first group was dropped too")
 	}

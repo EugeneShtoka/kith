@@ -20,7 +20,7 @@ func TestARoomsFactsAreReadOneWay(t *testing.T) {
 	places := domain.Places{
 		Names:    map[domain.RoomID]string{"!r:x": "Daily"},
 		Priority: []string{"Telegram"},
-		Pinned:   domain.Pinned{Entries: []string{"room:Daily"}},
+		Tags:     tagSet(t, domain.Tag{Name: "Pinned", Picked: []string{"room:Daily"}}),
 	}
 	got := places.Facts(room, holders)
 	if got.Name != "Daily" {
@@ -32,22 +32,22 @@ func TestARoomsFactsAreReadOneWay(t *testing.T) {
 	if got.Protocol != domain.ProtocolWhatsApp {
 		t.Errorf("Protocol = %q, want the first bridge holding it", got.Protocol)
 	}
-	if !got.Pinned {
-		t.Error("a pin by your name for the room did not pin it")
+	if !slices.Equal(got.Tags, []string{"Pinned"}) {
+		t.Errorf("Tags = %v: a tag picking the room by your name for it did not hold it", got.Tags)
 	}
 
 	plain := domain.Places{}.Facts(domain.Room{ID: "!anon:x"}, nil)
-	if plain.Name != "!anon:x" || plain.Protocol != domain.ProtocolMatrix || plain.Pinned || plain.Spaces != nil {
+	if plain.Name != "!anon:x" || plain.Protocol != domain.ProtocolMatrix || plain.Tags != nil || plain.Spaces != nil {
 		t.Errorf("an unnamed room in no space = %+v", plain)
 	}
 	native := domain.Places{}.Facts(domain.Room{ID: "whatsapp:359/1203@g.us", Name: "Choir"}, nil)
 	if native.Protocol != domain.ProtocolWhatsApp {
 		t.Errorf("a native room's network = %q", native.Protocol)
 	}
-	// A pin naming a space pins what it holds.
-	bySpace := domain.Places{Pinned: domain.Pinned{Entries: []string{"space:Work"}}}.Facts(room, holders)
-	if !bySpace.Pinned {
-		t.Error("a pinned space did not pin its room")
+	// A tag whose rule names a space holds what the space holds.
+	bySpace := domain.Places{Tags: tagSet(t, domain.Tag{Name: "Work", Rule: []string{"space:Work"}})}.Facts(room, holders)
+	if !slices.Equal(bySpace.Tags, []string{"Work"}) {
+		t.Errorf("Tags = %v: a tag naming a space did not hold its room", bySpace.Tags)
 	}
 }
 
@@ -64,13 +64,22 @@ func TestHoldersAreTheSpacesHoldingTheRoom(t *testing.T) {
 	}
 }
 
-// pinned is decided by the space hierarchy as much as space: is.
-func TestPinnedNeedsThePlaces(t *testing.T) {
+// A tag is decided by the space hierarchy as much as space: is.
+func TestTagsNeedThePlaces(t *testing.T) {
 	t.Parallel()
-	if !(domain.ModelScope{Except: []string{"pinned"}}).NeedsPlaces() {
-		t.Error("pinned does not need the spaces read, but a pin may name a space")
+	if !(domain.ModelScope{Except: []string{"tag:Pinned"}}).NeedsPlaces() {
+		t.Error("a tag does not need the spaces read, but its rule may name a space")
 	}
 	if (domain.ModelScope{Only: []string{"room:Daily", "dm"}}).NeedsPlaces() {
 		t.Error("room and dm entries need no spaces")
 	}
+}
+
+func tagSet(t *testing.T, tags ...domain.Tag) domain.TagSet {
+	t.Helper()
+	set, _, err := domain.NewTagSet(tags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return set
 }

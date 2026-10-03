@@ -36,7 +36,7 @@ func (b *refusingBackend) RecordReactionRefusal(_ context.Context, protocol, emo
 
 func bridged(t *testing.T, b *refusingBackend) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Chat"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(m.filteredRooms()[0])

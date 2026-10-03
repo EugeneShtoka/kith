@@ -118,6 +118,19 @@ func WriteDefaultIfMissing(path string) (created bool, err error) {
 // Annotated is the fully-documented default config — every option with its prose.
 func Annotated() string { return defaultConfigTOML }
 
+// removedKeys are settings kith once read, each with what replaced it, so an old config
+// says what to write instead of only that something is unknown.
+var removedKeys = map[string]string{
+	"display.archived": "archived rooms are a tag now — a [[tag]] named Archived with " +
+		"counts_unread = false, exclusive and space_exclusive, the rooms in its picked list (see the starter config)",
+	"display.pinned": "pinned rooms are a tag now — a [[tag]] named Pinned, the rooms in its " +
+		"picked list; a place that said `pinned` says tag:Pinned",
+	"display.space_priority": "it is [display] priority",
+	"display.base_spaces":    "a space a room belongs to keeps it; one you made is left by a space_exclusive tag",
+	"keys.rooms.archive":     "a room goes into a tag from the filing picker, or with /tag <name>",
+	"keys.rooms.pin":         "a room goes into a tag from the filing picker, or with /tag <name>",
+}
+
 // Load reads the TOML config at path, refusing keys nothing reads (a misplaced or
 // misspelled setting would otherwise look configured while doing nothing).
 func Load(path string) (Config, error) {
@@ -129,6 +142,9 @@ func Load(path string) (Config, error) {
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
 		keys := make([]string, 0, len(undecoded))
 		for _, key := range undecoded {
+			if hint, ok := removedKeys[key.String()]; ok {
+				return Config{}, fmt.Errorf("config: %s: %s is gone: %s", path, key, hint)
+			}
 			keys = append(keys, key.String())
 		}
 		return Config{}, fmt.Errorf("config: %s: unknown keys: %s", path, strings.Join(keys, ", "))

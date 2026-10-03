@@ -20,7 +20,7 @@ A search covers one of three scopes, and the current one is always named in the 
 | Scope | Covers |
 | --- | --- |
 | Room | The open room |
-| Group | Every room in the rail group you are looking at — a space, or All, DMs, Unread, Pinned, Drafts, Archived, Spam |
+| Group | Every room in the rail group you are looking at — a space or a tag |
 | Everywhere | Every room in the cache |
 
 Where you start depends on the pane you ask from, read left to right:

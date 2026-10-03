@@ -61,12 +61,13 @@ func (m Model) jumpRoomItem(view unreadView, room domain.Room, unread int) picke
 		// The room ID is matchable but not shown, to reach same-named rooms exactly.
 		match: m.roomLabel(room) + " " + strings.Join(room.Members, " ") + " " + string(room.ID),
 	}
-	item.detail = jumpDetail(room, unread, view.isArchived(room))
+	item.detail = jumpDetail(room, unread, view.ownerName(room))
 	return item
 }
 
-// jumpDetail says what a row is: invitation or unread count, then DM or archived.
-func jumpDetail(room domain.Room, unread int, archived bool) string {
+// jumpDetail says what a row is: invitation or unread count, then DM or the exclusive
+// tag it shows under.
+func jumpDetail(room domain.Room, unread int, owner string) string {
 	parts := make([]string, 0, 2)
 	switch {
 	case room.IsInvite():
@@ -77,8 +78,8 @@ func jumpDetail(room domain.Room, unread int, archived bool) string {
 	switch {
 	case room.IsDirect:
 		parts = append(parts, "DM")
-	case archived:
-		parts = append(parts, "archived")
+	case owner != "":
+		parts = append(parts, owner)
 	}
 	return strings.Join(parts, " · ")
 }

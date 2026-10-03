@@ -70,7 +70,7 @@ func TestFailedVerifyControlReleasesTheKeyboard(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			m := sized(t, withRooms(t, New(context.Background(), failingVerify{}, config.Display{})))
+			m := sized(t, withRooms(t, starterNew(failingVerify{}, config.Display{})))
 			m = update(t, m, verifyMsg{v: domain.Verification{
 				Kind: domain.VerificationRequested, TxnID: "t1", From: "@me:x", Device: "DEV",
 			}})

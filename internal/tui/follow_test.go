@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -171,7 +170,7 @@ func TestConfirmingAJoinJoinsWhatTheLinkNamed(t *testing.T) {
 	t.Parallel()
 
 	b := &membershipBackend{}
-	m := withRooms(t, sized(t, New(context.Background(), b, config.Display{})))
+	m := withRooms(t, sized(t, starterNew(b, config.Display{})))
 	m.confirm = confirmState{action: pendingJoinPlace, address: "#book-club:example.org", via: []string{"one.org"}}
 
 	next, cmd := m.resolveConfirm(true)

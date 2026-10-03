@@ -32,7 +32,7 @@ func (s *receiptSpy) MarkRoomsRead(_ context.Context, ids []domain.RoomID, priva
 
 func readingRoom(t *testing.T, spy *receiptSpy, display config.Display) Model {
 	t.Helper()
-	m := sized(t, update(t, New(context.Background(), spy, display),
+	m := sized(t, update(t, starterNew(spy, display),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
 	m.conf.base.Display = display
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
@@ -165,7 +165,7 @@ func TestReceiptRuleOverridesTheGlobal(t *testing.T) {
 func TestBulkMarkReadSplitsByPolicy(t *testing.T) {
 	spy := &receiptSpy{}
 	off := false
-	m := sized(t, update(t, New(context.Background(), spy, config.Display{
+	m := sized(t, update(t, starterNew(spy, config.Display{
 		ReadRules: []config.ReadRule{{Match: "!quiet:x", Send: &off}},
 	}), roomsMsg{rooms: []domain.Room{
 		{ID: "!loud:x", Name: "Loud"}, {ID: "!quiet:x", Name: "Quiet"},

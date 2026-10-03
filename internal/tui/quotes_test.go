@@ -17,7 +17,7 @@ import (
 // Update so the triggered fetch actually runs.
 func quoting(t *testing.T, backend *quoteBackend) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), backend, config.Display{}),
+	m := update(t, starterNew(backend, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})

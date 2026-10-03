@@ -37,7 +37,7 @@ func TestSpamIsAMoveNotATag(t *testing.T) {
 	if !spam.admits(m.unreadView(), domain.Room{ID: "!a:x", Name: "Alpha"}) {
 		t.Error("the Spam group does not hold the room that was marked")
 	}
-	for _, key := range []string{"home", "Work"} {
+	for _, key := range []string{homeGroupKey, "Work"} {
 		g, found := findGroup(m.rail.groups, key)
 		if !found {
 			t.Fatalf("no %q group", key)
@@ -47,7 +47,7 @@ func TestSpamIsAMoveNotATag(t *testing.T) {
 		}
 	}
 	// And nothing else moved with it.
-	home, _ := findGroup(m.rail.groups, "home")
+	home, _ := findGroup(m.rail.groups, homeGroupKey)
 	if !home.admits(m.unreadView(), domain.Room{ID: "!ops:x", Name: "Ops"}) {
 		t.Error("a room nobody marked went missing from All")
 	}

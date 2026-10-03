@@ -123,7 +123,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | Section | Purpose | More |
 | --- | --- | --- |
 | *(top level)* | The account (`homeserver`, `user`) or `[[profile]]` blocks, `allow_token_file`, `terminal`. | [getting-started.md](getting-started.md) |
-| `[display]` | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, archived and pinned rooms, name rules, identities, your own names for things, and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
+| `[display]` | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
 | `[display.theme]` | The color palette: a preset plus per-role overrides. | [Themes](#themes) |
 | `[display.emoji]` | Emoji set size (`curated`, `standard`, `complete`) and your own shortcodes. | [composer.md](composer.md) |
 | `[display.tracked]` | Words highlighted wherever they are said and listed by `/tracked`, optionally with notifications. | [search.md](search.md) |
@@ -154,20 +154,22 @@ Some sections take repeatable blocks for per-place overrides. They name places i
 of three ways.
 
 **The place vocabulary** is used by `[[notifications.rule]] match`,
-`[[display.tracked.rule]] in` / `except`, and the room lists `display.archived`,
-`[codes] include` / `exclude`, `[spam] rooms` / `except`, `[assist] rooms` / `except` and
+`[[display.tracked.rule]] in` / `except`, and the room lists `[codes] include` /
+`exclude`, `[spam] rooms` / `except`, `[assist] rooms` / `except` and
 `[agent.read]` / `[agent.write]`. An entry is:
 
 - a bare room ID (`!abc:example.org`);
 - `room:<name>`, `space:<name>`, `tag:<name>` or `protocol:<network>` (a tag is
   judged on the room alone: its state words match nothing as a place);
-- `dm`, `group` or `pinned`.
+- `dm` or `group`.
 
 A bare word that isn't a room ID is refused at startup, because an entry that could mean
-three things is a typo that never matches. `pinned` is refused in `[assist]` and
-`[agent.*]` lists: it changes each time you pin a room, so it cannot bound what an
-assistant reaches. Name the rooms or spaces instead. An empty list means every place everywhere
+three things is a typo that never matches. An empty list means every place everywhere
 except `[agent.read] rooms`, where it means none.
+
+`kith-mcp` reads the config when it starts, so a room you put in a tag, or take out of
+one, reaches an `[agent.*]` list naming that tag the next time it starts — as does any
+other edit to those lists.
 
 **A room ID or a space's name, as written**, is what `match` takes in
 `[[display.read_rule]]`, `[[display.media.rule]]` and `[[display.threads.rule]]`: for
@@ -176,8 +178,8 @@ startup.
 
 **Their own keys:**
 
-- `[[display.name]]` names its `target`: a room ID, `room:<name>`, `space:<name>`,
-  `group:<rail row>` or `thread:<root event ID>`;
+- `[[display.name]]` names its `target`: a room ID, `room:<name>`, `space:<name>` or
+  `thread:<root event ID>` (a tag is named in its `[[tag]]`);
 - `[[display.rooms.rule]]` names a rail `group`;
 - `[[display.identity]]` lists `ids` (user IDs, on any network);
 - `[[spam.filter]]` matches `words` and `from`.
@@ -265,16 +267,28 @@ max_height = 12
 
 ### Archive noisy rooms, pin the ones that matter today
 
-Archived rooms stop counting towards unread badges but stay readable. Pinned rooms
-also appear in a Pinned rail group, as well as where they already live:
+Archived and Pinned are tags the starter config writes. Archived rooms stop counting
+towards unread badges but stay readable; pinned rooms also appear in a Pinned rail
+group, as well as where they already live:
 
 ```toml
-[display]
-archived = ["space:Bots", "!announcements:example.org"]
-pinned   = ["!standup:example.org"]
+[[tag]]
+name            = "Archived"
+rule            = ["space:Bots"]
+picked          = ["!announcements:example.org"]
+counts_unread   = false
+exclusive       = true
+space_exclusive = true
+hide_when_empty = true
+
+[[tag]]
+name            = "Pinned"
+picked          = ["!standup:example.org"]
+hide_when_empty = true
 ```
 
-In the room list, `A` and `P` write these entries for the room under the cursor.
+In the room list, `S` (or `/tag Archived` in the composer) puts the room under the
+cursor in a tag or takes it out, writing `picked` or `excluded` for you.
 
 ### Sort the room list
 

@@ -29,7 +29,7 @@ func (b *completeBackend) CompleteWord(_ context.Context, req domain.CompleteReq
 func completing(t *testing.T, candidates ...domain.WordCandidate) (Model, *completeBackend) {
 	t.Helper()
 	b := &completeBackend{candidates: candidates}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
@@ -340,7 +340,7 @@ func (b *modelBackend) ModelTask(_ context.Context, req domain.ModelRequest) (do
 func modeling(t *testing.T, result domain.ModelResult) (Model, *modelBackend) {
 	t.Helper()
 	b := &modelBackend{result: result}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])

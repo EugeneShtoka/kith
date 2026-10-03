@@ -17,7 +17,7 @@ func TestTagPlacesMustNameATag(t *testing.T) {
 	for name, set := range map[string]func(*config.Config){
 		"a notification rule": func(c *config.Config) { c.Notifications.Rules = []config.Rule{{Match: "tag:Nope"}} },
 		"agent read":          func(c *config.Config) { c.Agent.Read.Rooms = []string{"tag:Nope"} },
-		"the archive":         func(c *config.Config) { c.Display.Archived = []string{"tag:Nope"} },
+		"codes":               func(c *config.Config) { c.Codes.Include = []string{"tag:Nope"} },
 	} {
 		cfg := base
 		set(&cfg)
@@ -33,18 +33,12 @@ func TestTagPlacesMustNameATag(t *testing.T) {
 	}
 }
 
-// Every scope's places carry the tags, and the priority: [display] priority, else
-// space_priority, its older name.
+// Every scope's places carry the tags, and [display] priority.
 func TestPlacesCarryTagsAndPriority(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
-	cfg.Display.SpacePriority = []string{"Old"}
-	places := PlacesOf(cfg)
-	if !slices.Equal(places.Priority, []string{"Old"}) {
-		t.Errorf("priority = %v, want space_priority while priority is empty", places.Priority)
-	}
 	cfg.Display.Priority = []string{"tag:Family", "Work"}
-	places = PlacesOf(cfg)
+	places := PlacesOf(cfg)
 	if !slices.Equal(places.Priority, []string{"tag:Family", "Work"}) {
 		t.Errorf("priority = %v, want [display] priority", places.Priority)
 	}
