@@ -32,6 +32,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/schedule"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
+	"github.com/EugeneShtoka/kith/internal/slack"
 	"github.com/EugeneShtoka/kith/internal/whatsapp"
 )
 
@@ -258,6 +259,8 @@ type served struct {
 	// whatsapp and its store are nil unless [whatsapp] is enabled and the store opened.
 	whatsapp      *whatsapp.Adapter
 	whatsappStore *whatsapp.Store
+	// slack is nil unless [slack] is enabled.
+	slack *slack.Adapter
 }
 
 var _ api.Backend = served{}
@@ -281,6 +284,10 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	if wa != nil {
 		others[domain.ProtocolWhatsApp] = wa
 	}
+	sl := openSlack(cache, log, cfg, storage)
+	if sl != nil {
+		others[domain.ProtocolSlack] = sl
+	}
 	router, err := route.New(asMatrix, others)
 	if err != nil {
 		closeWhatsAppStore(log, waStore)
@@ -295,7 +302,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 		wa.OnCached(service.MessageCached, service.RoomChanged)
 	}
 	return served{
-		Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore,
+		Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore, slack: sl,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),
 	}, nil
 }
@@ -529,6 +536,9 @@ func reloader(
 		if backend.whatsapp != nil && reloaded.WhatsApp.Enabled {
 			backend.whatsapp.UseAccounts(ctx, whatsAppAccounts(reloaded))
 		}
+		if backend.slack != nil && reloaded.Slack.Enabled {
+			backend.slack.UseAccounts(slackAccounts(reloaded))
+		}
 		return notifications.Reload(reloaded)
 	}
 }
@@ -592,6 +602,11 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		wa.OnRoomsChanged(notifications.InvalidateScope)
 		wa.OnLink(func(account whatsapp.Account, link whatsapp.Link, detail string) {
 			state.Report(whatsAppStatus(account, link, detail), time.Now())
+		})
+	}
+	if sl := backend.slack; sl != nil {
+		sl.OnSession(func(account slack.Account, s slack.Session, detail string) {
+			state.Report(slackStatus(account, s, detail), time.Now())
 		})
 	}
 	return &workers{

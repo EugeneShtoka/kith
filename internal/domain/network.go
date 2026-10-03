@@ -10,17 +10,23 @@ import "strings"
 //	whatsapp:<account>/<chat>   a room: one chat as one account sees it
 //	whatsapp:<account>/<msg>    an event in that room
 //	whatsapp:<person>           a person, whichever account sees them
+//	slack:<team>/<channel>      a channel, DM or group DM in one workspace
+//	slack:<team>/<channel>/<ts> a message in it (a ts is unique only per channel)
+//	slack:<team>.<user>         a person (a Slack user ID is unique only per workspace)
 //
 // Rooms and events name the account because one person may run several accounts on a
 // network: a group both are in is two rooms (each sends through its own account), and
 // the same message reaches both with the same native ID. A person does not, because a
 // person's network ID is the same whoever is looking, and that is what lets the same
 // contact fold into one identity across accounts. <account> is the account's own
-// stable ID on that network (for WhatsApp, its phone number's digits), never a label
-// from the config, so renaming a label strands nothing.
+// stable ID on that network (for WhatsApp, its phone number's digits; for Slack, the
+// workspace's team ID), never a label from the config, so renaming a label strands
+// nothing.
 
 // accountSep ends the account part. It never occurs in a native ID that kith keeps
-// (a WhatsApp JID has '@', '.', and ':' for a device, never '/').
+// (a WhatsApp JID has '@', '.', and ':' for a device, never '/'; a Slack team, channel
+// or user ID is letters and digits), except as Slack's own channel/ts separator, after
+// the account part.
 const accountSep = "/"
 
 // native is what kith knows about one network that it reaches directly.
@@ -46,6 +52,14 @@ var natives = map[string]native{
 			}
 			return user
 		},
+	},
+	"slack": {
+		protocol: ProtocolSlack,
+		// A channel ID is letters and digits ("C…", "G…", "D…"); a message is
+		// "<channel>/<ts>".
+		isRoom: func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
+		// A person is "<team>.<user>": neither part reads as a name.
+		shortName: func(string) string { return "" },
 	},
 }
 

@@ -1,5 +1,5 @@
 # kith configuration, with every option documented at its default. Set homeserver
-# and user for Matrix, or enable [whatsapp], or both; the rest is optional. The file holds no secrets: the password
+# and user for Matrix, or enable [whatsapp] or [slack], or several; the rest is optional. The file holds no secrets: the password
 # is prompted for on first login and the access token lives in the OS keyring.
 #
 # Press "," in kith for the settings screen, and "a"/"b" on a person, room or group
@@ -987,6 +987,25 @@ target = "auto"
 #   name = "personal"
 #   phone = "+359 88 000 0000"
 [whatsapp]
+enabled = false
+
+# Slack, linked directly: kith signs in to a workspace as the Slack web client does,
+# with no Matrix bridge and nothing for the workspace's admins to approve. Off unless
+# `enabled = true`. Each [[slack.account]] is one workspace: `name` is what
+# `kith login slack <name>` takes, and `workspace` its address ("acme" or
+# "acme.slack.com"). Several workspaces may be signed in at once.
+#
+# Sign in here or through a bridge, not both: both at once show every channel twice.
+# Some workspaces' policies forbid clients Slack did not make; signing out of Slack
+# in the browser you took the login from ends kith's session too.
+#
+#   [slack]
+#   enabled = true
+#
+#   [[slack.account]]
+#   name = "work"
+#   workspace = "acme"
+[slack]
 enabled = false
 
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
