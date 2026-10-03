@@ -75,8 +75,6 @@ const (
 	entryProtocol = "protocol:"
 	entryDirect   = "dm"
 	entryGroup    = "group"
-	// entryPinned was a word of its own; pinned rooms are a tag now (see ValidateEntries).
-	entryPinned = "pinned"
 	// roomSigil marks a Matrix room ID, which is a complete entry on its own; so is
 	// any other network's room ID (IsRoomID).
 	roomSigil = "!"
@@ -126,9 +124,6 @@ func SpaceOf(entry string) (string, bool) {
 // ValidateEntries reports the first entry that declares no kind.
 func ValidateEntries(what string, entries []string) error {
 	for _, entry := range entries {
-		if strings.EqualFold(strings.TrimSpace(entry), entryPinned) {
-			return fmt.Errorf("%s: %q is a tag now: write tag:Pinned (or your pinned tag's name)", what, entry)
-		}
 		if _, ok := ParseEntry(entry); !ok {
 			return fmt.Errorf("%s: %q names nothing — write a room ID (!abc:server), "+
 				"room:<name>, space:<name>, tag:<name>, protocol:<network>, dm or group", what, entry)

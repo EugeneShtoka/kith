@@ -174,21 +174,6 @@ func TestResolvedWarningsFallBackToStatic(t *testing.T) {
 	}
 }
 
-// `pinned` is a tag now: every list refuses the word, saying what to write instead.
-func TestPinnedIsATagNow(t *testing.T) {
-	t.Parallel()
-	for name, cfg := range map[string]config.Config{
-		"agent.read.except": {Agent: config.Agent{Read: config.AgentRead{Rooms: []string{"group"}, Except: []string{" Pinned "}}}},
-		"agent.write.rooms": {Agent: config.Agent{Write: config.AgentWrite{Rooms: []string{"pinned"}}}},
-		"assist.except":     {Assist: config.Assist{Except: []string{"pinned"}}},
-		"codes.include":     {Codes: config.Codes{Include: []string{"pinned"}}},
-	} {
-		if err := setup.PlaceEntries(cfg); err == nil || !strings.Contains(err.Error(), name) || !strings.Contains(err.Error(), "tag:Pinned") {
-			t.Errorf("%s: pinned = %v, want refused with tag:Pinned", name, err)
-		}
-	}
-}
-
 // A room whose ID names its network is on that network, though no bridge space holds
 // it; a bare one in no space is Matrix.
 func TestFactsOfANativeRoom(t *testing.T) {
