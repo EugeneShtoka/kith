@@ -26,7 +26,7 @@ func (m Model) renderRail(h int) string {
 			lines = append(lines, m.theme.Muted.Render(railDivider(w)))
 		}
 	}
-	return m.framePane("SPACES", windowRows(lines, cursorRow, paneBodyRows(h)), w, h, active)
+	return m.framePane("Spaces", windowRows(lines, cursorRow, paneBodyRows(h)), w, h, active)
 }
 
 // railRow renders one rail entry: marker, label, and the group's unread count.
