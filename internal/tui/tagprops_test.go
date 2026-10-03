@@ -40,6 +40,8 @@ func TestASilentTagsRoomsCountAsRead(t *testing.T) {
 		{Name: "Quiet", Rule: []string{"room:Alpha"}, CountsUnread: &off},
 		{Name: "Busy", Rule: []string{"unread"}},
 		{Name: "Pings", Rule: []string{"mention"}, CountsUnread: &off},
+		{Name: "Unread", Rule: []string{"unread"}},
+		{Name: "All", Rule: []string{"*"}},
 	}})
 	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Messages: 3, Counted: true}})
 	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!c:x", Messages: 1, Counted: true}})
@@ -61,14 +63,16 @@ func TestASilentTagsRoomsCountAsRead(t *testing.T) {
 	}
 }
 
-// An exclusive tag shows its rooms alone: no other tag, none of the rail's own rows
-// by kind; its spaces keep them. Of two exclusive tags, the first configured wins.
+// An exclusive tag shows its rooms alone, under no other tag; its spaces keep them.
+// Of two exclusive tags, the first configured wins.
 func TestAnExclusiveTagShowsItsRoomsAlone(t *testing.T) {
 	t.Parallel()
 	m := propsModel(t, config.Config{Tags: []config.Tag{
 		{Name: "Fam", Rule: []string{"dm", "room:Alpha"}, Exclusive: true},
 		{Name: "Later", Rule: []string{"room:Alpha"}, Exclusive: true},
 		{Name: "Every", Rule: []string{"*"}},
+		{Name: "All", Rule: []string{"*"}},
+		{Name: "DMs", Rule: []string{"dm"}},
 	}})
 	for _, tc := range []struct {
 		key  string
@@ -88,12 +92,14 @@ func TestAnExclusiveTagShowsItsRoomsAlone(t *testing.T) {
 }
 
 // A space-exclusive tag takes its rooms out of the spaces a person made and out of
-// other tags; the spaces they belong to (a bridge's) keep them, and so does All.
+// other tags; the spaces they belong to (a bridge's) keep them, and so does another
+// space-exclusive tag holding them.
 func TestASpaceExclusiveTagKeepsRoomsWhereTheyBelong(t *testing.T) {
 	t.Parallel()
 	m := propsModel(t, config.Config{Tags: []config.Tag{
 		{Name: "Out", Picked: []string{"!a:x"}, SpaceExclusive: true},
 		{Name: "Every", Rule: []string{"*"}},
+		{Name: "Also", Rule: []string{"room:Alpha"}, SpaceExclusive: true},
 	}})
 	for _, tc := range []struct {
 		key  string
@@ -104,7 +110,7 @@ func TestASpaceExclusiveTagKeepsRoomsWhereTheyBelong(t *testing.T) {
 		{"Made", "!a:x", false}, {"Made", "!c:x", true},
 		{"Bridge", "!a:x", true},
 		{"tag:Every", "!a:x", false}, {"tag:Every", "!c:x", true},
-		{homeGroupKey, "!a:x", true},
+		{"tag:Also", "!a:x", true},
 	} {
 		if got := rowHolds(t, m, tc.key, tc.room); got != tc.want {
 			t.Errorf("%s holds %s = %t, want %t", tc.key, tc.room, got, tc.want)
@@ -141,15 +147,15 @@ func TestTagRowProperties(t *testing.T) {
 		t.Error("a sticky tag dropped the open room once it was read")
 	}
 
-	cfg.Display.Rail.Order = []string{homeGroupKey, "tag:Top"}
-	if m = propsModel(t, cfg); m.rail.groups[0].key != homeGroupKey {
+	cfg.Display.Rail.Order = []string{"Made", "tag:Top"}
+	if m = propsModel(t, cfg); m.rail.groups[0].key != "Made" {
 		t.Errorf("first row = %q with the order placing Top second, want the order kept", m.rail.groups[0].key)
 	}
 }
 
 // Over random rooms, spaces, tags, properties and state changes: a room an exclusive
-// tag claims shows under that tag alone and in none of the rail's rows by kind; every
-// room shows somewhere unless a hidden exclusive tag claims it; a space-exclusive tag
+// tag claims shows under that tag alone; with a tag of every room, every room shows
+// somewhere unless hidden tags claim it; a space-exclusive tag
 // never takes a room out of a space it belongs to; a silenced room never counts as
 // unread; and the per-room memo always answers as a fresh computation would.
 func TestTagPropertiesOverRandomConfigs(t *testing.T) {
@@ -186,6 +192,7 @@ func TestTagPropertiesOverRandomConfigs(t *testing.T) {
 			}
 			tags = append(tags, tag)
 		}
+		tags = append(tags, config.Tag{Name: "Every", Rule: []string{"*"}})
 		m := update(t, configured(config.Config{Tags: tags}), roomsMsg{rooms: rooms})
 		m = update(t, m, spacesMsg{spaces: []domain.Space{
 			{ID: "!made:x", Name: "Made", Children: made},
@@ -209,7 +216,6 @@ func TestTagPropertiesOverRandomConfigs(t *testing.T) {
 func checkTagInvariants(t *testing.T, where string, m Model, tags []config.Tag) {
 	t.Helper()
 	view := m.unreadView()
-	byKind := []string{homeGroupKey, dmsGroupKey, unreadGroupKey, draftsGroupKey, pinnedGroupKey}
 	for i := range m.rooms.all {
 		room := m.rooms.all[i]
 		fresh := view.computeTags(room)
@@ -225,7 +231,7 @@ func checkTagInvariants(t *testing.T, where string, m Model, tags []config.Tag) 
 		if fresh.owner >= 0 {
 			owner := tagGroupKey(tags[fresh.owner].Name)
 			for _, key := range shows {
-				if (isTagGroup(key) && key != owner) || slices.Contains(byKind, key) {
+				if isTagGroup(key) && key != owner {
 					t.Fatalf("%s: %s is claimed by %s but shows in %s (%v)", where, room.ID, owner, key, shows)
 				}
 			}
@@ -233,7 +239,8 @@ func checkTagInvariants(t *testing.T, where string, m Model, tags []config.Tag) 
 				continue // claimed into a hidden tag: the person's choice
 			}
 		}
-		if len(shows) == 0 && !view.isArchived(room) {
+		strippedIntoHidden := len(fresh.spaceExcl) > 0 && !slices.ContainsFunc(fresh.spaceExcl, func(i int) bool { return !tags[i].Hidden })
+		if len(shows) == 0 && !strippedIntoHidden {
 			t.Fatalf("%s: %s shows nowhere (tags %+v)", where, room.ID, fresh)
 		}
 		at := slices.IndexFunc(m.rooms.spaces, func(s domain.Space) bool { return s.ID == "!bridge:x" })

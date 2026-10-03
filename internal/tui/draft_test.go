@@ -188,22 +188,22 @@ func TestHideWhenEmptyDropsAGroupHoldingNothing(t *testing.T) {
 	t.Parallel()
 
 	rooms := []domain.Room{{ID: "!a:x", Name: "Alpha"}}
-	view := unreadView{counts: map[domain.RoomID]domain.Unread{}}
+	view := starterView(t, unreadView{counts: map[domain.RoomID]domain.Unread{}})
 
-	groups := railGroups(nil, config.Rail{HideWhenEmpty: []string{"unread"}}, nil, view, 0, rooms, nil)
-	if _, ok := findGroup(groups, "unread"); ok {
+	groups := railGroups(nil, config.Rail{HideWhenEmpty: []string{unreadGroupKey}}, nil, view, rooms)
+	if _, ok := findGroup(groups, unreadGroupKey); ok {
 		t.Error("an empty Unread group survived hide_when_empty")
 	}
-	view.counts["!a:x"] = domain.Unread{Notifications: 2}
-	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{"unread"}}, nil, view, 0, rooms, nil)
-	if _, ok := findGroup(groups, "unread"); !ok {
+	view.counts = map[domain.RoomID]domain.Unread{"!a:x": {Notifications: 2, Messages: 2, Counted: true}}
+	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{unreadGroupKey}}, nil, view, rooms)
+	if _, ok := findGroup(groups, unreadGroupKey); !ok {
 		t.Error("Unread stayed hidden with something unread in it")
 	}
-	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{"DMs"}}, nil, view, 0, rooms, nil)
-	if _, ok := findGroup(groups, "dms"); ok {
+	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{"DMs"}}, nil, view, rooms)
+	if _, ok := findGroup(groups, dmsGroupKey); ok {
 		t.Error("hide_when_empty did not match a group by its displayed label")
 	}
-	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{"nonsense"}}, nil, view, 0, rooms, nil)
+	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{"nonsense"}}, nil, view, rooms)
 	if len(groups) < 3 {
 		t.Errorf("groups = %v, want the rail untouched by an unmatched name", groupKeys(groups))
 	}
@@ -324,7 +324,7 @@ func (b *draftBackend) Drafts(context.Context) ([]domain.StoredDraft, error) { r
 func drafting(t *testing.T, held ...domain.StoredDraft) (Model, *draftBackend) {
 	t.Helper()
 	b := &draftBackend{load: held}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
@@ -566,7 +566,7 @@ func (draftFailer) ReplaceDraft(context.Context, domain.StoredDraft, domain.Stor
 // recovery is said too.
 func TestDraftSaveFailuresAreSaidOnceAndRecoverySaid(t *testing.T) {
 	t.Parallel()
-	m := sized(t, New(context.Background(), draftFailer{}, config.Display{}))
+	m := sized(t, starterNew(draftFailer{}, config.Display{}))
 
 	saved, ok := m.saveDraftCmd("!a:x", draft{input: "half a thought"}.stored("!a:x"))().(draftSavedMsg)
 	if !ok || saved.err == nil {

@@ -30,12 +30,8 @@ type Display struct {
 	Identities    []Identity    `toml:"identity"`
 	Names         []DisplayName `toml:"name"`
 	RoomNameRules *bool         `toml:"room_name_rules"`
-	Unread        string        `toml:"unread"`         // UnreadSources; empty is "messages"
-	Archived      []string      `toml:"archived"`       // place vocabulary
-	Pinned        []string      `toml:"pinned"`         // place vocabulary
-	SpacePriority []string      `toml:"space_priority"` // the older name of Priority, read while it is empty
-	Priority      []string      `toml:"priority"`       // space names and tag:<name>s, most preferred first
-	BaseSpaces    []string      `toml:"base_spaces"`
+	Unread        string        `toml:"unread"`   // UnreadSources; empty is "messages"
+	Priority      []string      `toml:"priority"` // space names and tag:<name>s, most preferred first
 	Rooms         Rooms         `toml:"rooms"`
 	Rail          Rail          `toml:"rail"`
 	Media         Media         `toml:"media"`
@@ -185,41 +181,12 @@ type DisplayName struct {
 const (
 	NameTargetRoom   = "room:"
 	NameTargetSpace  = "space:"
-	NameTargetGroup  = "group:"
 	NameTargetThread = "thread:"
 )
 
-// The rail's own rows, by key.
-const (
-	GroupHome     = "home"
-	GroupDMs      = "dms"
-	GroupUnread   = "unread"
-	GroupInvites  = "invites"
-	GroupArchived = "archived"
-	GroupDrafts   = "drafts"
-	GroupPinned   = "pinned"
-	GroupSpam     = "spam"
-)
-
-// builtInGroups is the set behind BuiltInGroup. A map rather than a switch so that
-// adding a row is one line in one place, and so the TUI's test can walk it.
-var builtInGroups = map[string]bool{
-	GroupHome: true, GroupDMs: true, GroupUnread: true, GroupInvites: true,
-	GroupArchived: true, GroupDrafts: true, GroupPinned: true, GroupSpam: true,
-}
-
-// BuiltInGroup reports whether a rail key names one of the client's own rows rather
-// than a Matrix space.
-func BuiltInGroup(key string) bool { return builtInGroups[key] }
-
-// GroupTarget is how a rail row is named in the one list: a built-in row by its key
-// under `group:`, a space by its own name under `space:`.
-func GroupTarget(key string) string {
-	if BuiltInGroup(key) {
-		return NameTargetGroup + key
-	}
-	return NameTargetSpace + key
-}
+// GroupTarget is how a space's rail row is named in the one list: by its own name
+// under `space:`. A tag is named in its [[tag]].
+func GroupTarget(key string) string { return NameTargetSpace + key }
 
 // NameFor is the name given to one target, or empty.
 func (d Display) NameFor(target string) string {
@@ -251,7 +218,7 @@ func isBareRoomID(target string) bool {
 	if target == "" {
 		return false
 	}
-	for _, prefix := range []string{NameTargetRoom, NameTargetSpace, NameTargetGroup, NameTargetThread} {
+	for _, prefix := range []string{NameTargetRoom, NameTargetSpace, NameTargetThread} {
 		if strings.HasPrefix(target, prefix) {
 			return false
 		}
@@ -362,13 +329,4 @@ func (t Threads) RowMark() string {
 		return mark
 	}
 	return defaultThreadRowMark
-}
-
-// Ranking is [display] priority: spaces and tags, most preferred first. space_priority
-// is its older name, read while priority is empty.
-func (d Display) Ranking() []string {
-	if len(d.Priority) > 0 {
-		return d.Priority
-	}
-	return d.SpacePriority
 }

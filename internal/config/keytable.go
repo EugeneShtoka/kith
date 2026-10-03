@@ -133,22 +133,18 @@ leave to joined rooms; leave and reject ask first.`,
 			// ">" for forward: the replacement is the same conversation, later.
 			{path: "rooms.go_replacement", def: ">", doc: "go to the room that replaced this one",
 				note: `An upgraded room is marked "→".`},
-			{path: "rooms.spaces", def: "S", doc: "file this room into a space, or take it out of one",
+			{path: "rooms.spaces", def: "S", doc: "file this room into a space or a tag, or take it out of one",
 				note: "Tick with space, apply with enter."},
 			{path: "rooms.new", def: "n", doc: "create a room or a space",
 				note: "Filed into the selected space. Encryption is chosen here."},
 			{path: "rooms.invite", def: "i", doc: "invite someone to this room", note: "Prompts for an @user:server."},
 			{path: "rooms.unban", def: "U", doc: "lift a ban on this room"},
 			{path: "rooms.view_media", def: "v", doc: "open this room's pictures in an image viewer, newest first"},
-			{path: "rooms.archive", def: "A", doc: "archive / un-archive: keep the room, stop it counting",
-				note: "See [display] archived."},
 			{path: "rooms.direction", def: "D", doc: "read this room right to left, left to right, or as configured",
 				note: "Cycles the room's own entry in [display.direction]; the timeline mirrors, names on the right."},
 			// `P` beside `A`: the two are opposites — stop counting this, keep this in
 			// front of me — and a capital for each, since both edit the config rather than
 			// moving a cursor.
-			{path: "rooms.pin", def: "P", doc: "pin / unpin: follow this conversation, and let it through a silence",
-				note: "See [display] pinned."},
 			// "!" for "report spam", the gesture every mail client has spelled that way for
 			// twenty years — and the only punctuation in this scope, because unlike its
 			// neighbors it is not a filing decision but a verdict.

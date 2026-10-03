@@ -28,13 +28,12 @@ Both open a completion list as you type, showing each command's arguments and it
 | `/why` | Why this room does or does not notify you | `W` |
 | `/caught` | What the spam filters catch here | |
 | `/spam` | Move this room into Spam, or take it out | `!` |
-| `/archive` | Stop this room counting as unread | `A` |
 | `/unread` | Mark this room unread | `M` |
-| `/pin` | Pin this conversation | `P` |
+| `/tag [name]` | Put this room in a tag, or take it out; with no name, pick among your spaces and tags | `S` with no name |
 | `/invite <@user:server>` | Invite someone to this room | |
 | `/leave` | Leave this room (asks first) | |
 
-Keys that belong to the room list (`!`, `A`, `M`, `P`) are shown there; the others work from the timeline.
+Keys that belong to the room list (`!`, `M`, `S`) are shown there; the others work from the timeline.
 
 A few rules apply to every `/` command:
 

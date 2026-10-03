@@ -306,18 +306,18 @@ func TestOurOwnMessageNeverPromotes(t *testing.T) {
 	}
 }
 
-// A pinned room is one a rule can name — the documented way to let one conversation
-// through a silence — and the fact has to exist on the side that decides.
-func TestAPinnedRoomIsAPlaceARuleCanName(t *testing.T) {
+// A room a tag picked is one a rule can name — the documented way to let one
+// conversation through a silence — and the fact has to exist on the side that decides.
+func TestAPickedRoomIsAPlaceARuleCanName(t *testing.T) {
 	t.Parallel()
 
 	cfg := notifsOn("none")
-	cfg.Display.Pinned = []string{chatNamEntry}
-	cfg.Notifications.Rules = []config.Rule{{Match: "pinned", Show: "all"}}
+	cfg.Tags = []config.Tag{{Name: "Pinned", Picked: []string{chatNamEntry}}}
+	cfg.Notifications.Rules = []config.Rule{{Match: "tag:Pinned", Show: "all"}}
 	n, rec, _ := notifier(t, cfg)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "standup in five")); !notified {
-		t.Fatal("a rule naming `pinned` did not reach a pinned room")
+		t.Fatal("a rule naming tag:Pinned did not reach a room the tag picked")
 	}
 	if len(rec.all()) != 1 {
 		t.Errorf("delivered %d, want the one that was let through", len(rec.all()))

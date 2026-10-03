@@ -6,7 +6,7 @@ import (
 )
 
 // PlacesOf is what the config says about rooms beyond the rooms themselves: the names
-// given them, the priority of spaces and tags, the pins, the tags. Every scope reads
+// given them, the priority of spaces and tags, the tags. Every scope reads
 // a room's facts with these (domain.Places.Facts). The config is validated already: a
 // tag that will not parse leaves the tags out.
 func PlacesOf(cfg config.Config) domain.Places {
@@ -18,8 +18,7 @@ func PlacesOf(cfg config.Config) domain.Places {
 	tags, _, _ := Tags(cfg)
 	return domain.Places{
 		Names:    names,
-		Priority: display.Ranking(),
-		Pinned:   domain.Pinned{Entries: display.Pinned},
+		Priority: display.Priority,
 		Tags:     tags,
 	}
 }

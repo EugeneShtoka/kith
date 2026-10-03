@@ -47,7 +47,7 @@ func TestTheWholeLoadPathDrawsAPicture(t *testing.T) {
 				t.Fatalf("cache: %v", err)
 			}
 			disp := config.Display{Media: config.Media{Mode: "inline", Detail: detail}}
-			m := sized(t, withRooms(t, New(context.Background(), photoBackend{}, disp).WithCache(cache)))
+			m := sized(t, withRooms(t, starterNew(photoBackend{}, disp).WithCache(cache)))
 			m.focus = paneTimeline
 
 			mdl, cmd := asModel(m.Update(timelineMsg{roomID: "!a:x", page: domain.TimelinePage{

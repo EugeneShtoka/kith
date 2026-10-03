@@ -102,7 +102,7 @@ func parseTerm(raw string, known map[string]bool) (term, error) {
 	default:
 		if _, ok := ParseEntry(s); !ok {
 			return term{}, fmt.Errorf("%q names nothing — write *, a state word (%s), tag:<name>, "+
-				"a room ID, room:<name>, space:<name>, protocol:<network>, dm, group or pinned, "+
+				"a room ID, room:<name>, space:<name>, protocol:<network>, dm or group, "+
 				"each optionally after `not`", raw, strings.Join(stateWordList(), ", "))
 		}
 		t.place = s
@@ -289,6 +289,12 @@ func (s TagSet) Of(facts RoomFacts) []string {
 	return names
 }
 
+// Index is the position of the named tag (case-insensitive); false when none is.
+func (s TagSet) Index(name string) (int, bool) {
+	i, ok := s.byName[strings.ToLower(strings.TrimSpace(name))]
+	return i, ok
+}
+
 // Len is how many tags there are; At is the i-th, in configured order.
 func (s TagSet) Len() int { return len(s.tags) }
 
@@ -348,4 +354,45 @@ func (s TagSet) has(i int, facts RoomFacts, state RoomState, asking map[int]bool
 		return false
 	}
 	return len(c.positive) == 0 || slices.ContainsFunc(c.positive, matches)
+}
+
+// Filed is tag i's picked and excluded lists once the room with these facts is put in
+// it (in) or taken out: every entry naming the room is dropped from both, then the
+// room's ID is picked only if the rule (in this state) would leave it out, or excluded
+// only if the rule would hold it — so the lists say no more than the choice needs. An
+// entry dropped that also named other rooms (a room:<name> two rooms share) is
+// replaced by their IDs, so no other room changes. others is every room an entry may
+// name.
+func (s TagSet) Filed(i int, facts RoomFacts, state RoomState, in bool, others []RoomFacts) (picked, excluded []string) {
+	c := s.tags[i]
+	picked = refiled(c.picked, facts, others)
+	excluded = refiled(c.excluded, facts, others)
+	bare := s
+	bare.tags = slices.Clone(s.tags)
+	bare.tags[i].picked, bare.tags[i].excluded = nil, nil
+	switch rule := bare.has(i, facts, state, map[int]bool{}); {
+	case in && !rule:
+		picked = append(picked, facts.ID)
+	case !in && rule:
+		excluded = append(excluded, facts.ID)
+	}
+	return picked, excluded
+}
+
+// refiled is entries without those naming the room, each dropped one replaced by the
+// IDs of the other rooms it named.
+func refiled(entries []string, facts RoomFacts, others []RoomFacts) []string {
+	var out []string
+	for _, entry := range entries {
+		if !facts.Names(entry) {
+			out = append(out, entry)
+			continue
+		}
+		for _, o := range others {
+			if o.ID != facts.ID && o.Names(entry) && !slices.Contains(out, o.ID) {
+				out = append(out, o.ID)
+			}
+		}
+	}
+	return out
 }

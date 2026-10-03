@@ -34,7 +34,7 @@ func (b *bulkReader) MarkRoomsRead(_ context.Context, roomIDs []domain.RoomID, _
 func reading(t *testing.T) (Model, *bulkReader) {
 	t.Helper()
 	b := &bulkReader{result: domain.ReadResult{Marked: 1}}
-	m := update(t, New(context.Background(), b, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!b:x", Name: "Bravo"},
 		{ID: "!c:x", Name: "Cyan"},
@@ -56,7 +56,7 @@ func TestMarkRoomReadFromTheRoomList(t *testing.T) {
 
 	m, b := reading(t)
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
 
@@ -144,7 +144,7 @@ func TestMarkGroupReadCanBeDeclined(t *testing.T) {
 
 	m, b := reading(t)
 	m.focus = paneRail
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 
 	m, _ = press(t, m, keyText("m"))
 	if !m.confirm.active() {
@@ -166,7 +166,7 @@ func TestMarkGroupReadWithNothingUnread(t *testing.T) {
 	m, b := reading(t)
 	m.unread = map[domain.RoomID]domain.Unread{}
 	m.focus = paneRail
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 
 	m, cmd := press(t, m, keyText("m"))
 	if m.confirm.active() || untimed(t, cmd) != nil {
@@ -186,7 +186,7 @@ func TestMarkGroupReadOverTheUnreadGroup(t *testing.T) {
 
 	m, _ := reading(t)
 	m.focus = paneRail
-	m.rail.cursor = indexOfGroup(m.rail.groups, "unread")
+	m.rail.cursor = indexOfGroup(m.rail.groups, unreadGroupKey)
 
 	m, _ = press(t, m, keyText("m"))
 	want := []domain.RoomID{"!a:x", "!c:x"}
@@ -245,7 +245,7 @@ func TestMarkReadDoesNotClearBadgesLocally(t *testing.T) {
 	m, b := reading(t)
 	b.result = domain.ReadResult{Failed: 1}
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
 
@@ -275,7 +275,7 @@ func (mk *marker) MarkRoomUnread(_ context.Context, roomID domain.RoomID, unread
 func marking(t *testing.T) (Model, *marker) {
 	t.Helper()
 	mk := &marker{}
-	m := update(t, New(context.Background(), mk, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(mk, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!b:x", Name: "Bravo"},
 	}})
@@ -283,7 +283,7 @@ func marking(t *testing.T) (Model, *marker) {
 	m = m.clearStatus()
 	m = sized(t, m)
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	return m, mk
 }
 

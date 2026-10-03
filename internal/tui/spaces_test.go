@@ -37,7 +37,7 @@ func (f *filer) RemoveFromSpace(_ context.Context, spaceID domain.SpaceID, roomI
 func filing(t *testing.T) (Model, *filer) {
 	t.Helper()
 	f := &filer{}
-	m := update(t, New(context.Background(), f, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(f, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!b:x", Name: "Bravo"},
 	}})
@@ -51,7 +51,7 @@ func filing(t *testing.T) (Model, *filer) {
 	}})
 	m = sized(t, m.clearStatus())
 	m.focus = paneRooms
-	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
 	return m, f
@@ -191,11 +191,11 @@ func TestTheFilingListFollowsTheRail(t *testing.T) {
 	// Reorder and rename the way the rail config does, then rebuild the rail.
 	m.prefs.display.Rail.Order = []string{"Friends", "Work"}
 	m.prefs.display.Names = []config.DisplayName{{Target: config.NameTargetSpace + "Friends", Name: "Mates"}}
-	m.rail.groups = railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), 0, nil, nil)
+	m.rail.groups = railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), m.rooms.all)
 
 	m, _ = press(t, m, keyText("S"))
 	var got []string
-	for _, item := range m.picker.all {
+	for _, item := range spaceRows(m.picker.all) {
 		got = append(got, item.label)
 	}
 	if len(got) != 2 || got[0] != "Mates" || got[1] != "Work" {
@@ -231,7 +231,7 @@ func TestFilingSpacesNamesTheList(t *testing.T) {
 	m, _ = press(t, m, keyText("S"))
 
 	var got []string
-	for _, item := range m.picker.all {
+	for _, item := range spaceRows(m.picker.all) {
 		got = append(got, item.value)
 	}
 	if len(got) != 2 || got[0] != "!f:x" || got[1] != "!w:x" {
@@ -246,8 +246,8 @@ func TestFilingSpacesOverridesTheJudgment(t *testing.T) {
 	m, _ := filing(t)
 	m.prefs.display.FilingSpaces = []string{"WhatsApp"}
 	m, _ = press(t, m, keyText("S"))
-	if len(m.picker.all) != 1 || m.picker.all[0].value != "!wa:x" {
-		t.Errorf("rows = %+v, want the named bridge space", m.picker.all)
+	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != "!wa:x" {
+		t.Errorf("rows = %+v, want the named bridge space", rows)
 	}
 }
 
@@ -258,8 +258,8 @@ func TestFilingSpacesSkipsWhatItCannotFind(t *testing.T) {
 	m, _ := filing(t)
 	m.prefs.display.FilingSpaces = []string{"Gone", "Work"}
 	m, _ = press(t, m, keyText("S"))
-	if len(m.picker.all) != 1 || m.picker.all[0].value != "!w:x" {
-		t.Errorf("rows = %+v, want just Work", m.picker.all)
+	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != "!w:x" {
+		t.Errorf("rows = %+v, want just Work", rows)
 	}
 
 	m2, _ := filing(t)
@@ -288,4 +288,15 @@ func TestFilingSpacesLeavesUnlistedSpacesAlone(t *testing.T) {
 	if f.removed {
 		t.Errorf("removed Alpha from %q, which the list never offered", f.removedFrom)
 	}
+}
+
+// spaceRows is the filing picker's space rows, without its tag rows.
+func spaceRows(items []pickerItem) []pickerItem {
+	var out []pickerItem
+	for _, item := range items {
+		if !isTagGroup(item.value) {
+			out = append(out, item)
+		}
+	}
+	return out
 }

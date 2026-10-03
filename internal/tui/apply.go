@@ -42,11 +42,8 @@ func (m Model) applyConfig(cfg config.Config, focusGroup, done string) (Model, t
 	m = m.applyMedia(cfg.Display.Media)
 	// Set before the rail is rebuilt: a group's Unread filter captures unreadView.
 	m.prefs.unreadLocal = derived.unreadLocal
-	m.rail.archive = domain.Archive{Entries: cfg.Display.Archived}
-	m.rail.pinned = domain.Pinned{Entries: cfg.Display.Pinned}
 	m.rail.spam = setup.SpamPlaces(cfg.Spam)
 	m = m.refreshPlaces()
-	m.rail.baseSpaces = cfg.Display.BaseSpaces
 	// A room set by hand, or auto turned on or off, applies to the open room now.
 	m = m.resettleLayout()
 	m.glyphs.skin = derived.tone
@@ -60,8 +57,7 @@ func (m Model) applyConfig(cfg config.Config, focusGroup, done string) (Model, t
 			focusGroup = entry.key
 		}
 	}
-	m.rail.groups = railGroups(m.rooms.spaces, cfg.Display.Rail, cfg.Display.Names, m.unreadView(),
-		len(m.rooms.invites), m.rooms.all, m.drafts)
+	m.rail.groups = railGroups(m.rooms.spaces, cfg.Display.Rail, cfg.Display.Names, m.unreadView(), m.rooms.all)
 	if at := indexOfGroup(m.rail.groups, focusGroup); at >= 0 && at < len(m.rail.groups) {
 		m.rail.cursor = at
 	}

@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -613,7 +612,7 @@ func TestMultiLineSend(t *testing.T) {
 	t.Parallel()
 
 	b := &recordingReply{}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])

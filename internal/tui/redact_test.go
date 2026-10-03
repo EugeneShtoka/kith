@@ -28,7 +28,7 @@ func (b *redactBackend) Redact(_ context.Context, room domain.RoomID, event doma
 // deleting opens a room holding one of our messages and one of somebody else's.
 func deleting(t *testing.T, backend *redactBackend) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), backend, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(backend, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 	}})
 	m = sized(t, m)
@@ -135,7 +135,7 @@ func TestRedactingADeletedMessageSaysSo(t *testing.T) {
 func editing(t *testing.T, body string) (Model, *sendingBackend) {
 	t.Helper()
 	backend := &sendingBackend{}
-	m := update(t, New(context.Background(), backend, config.Display{}),
+	m := update(t, starterNew(backend, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m.me = "@me:x"

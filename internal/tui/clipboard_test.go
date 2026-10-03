@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -16,7 +15,7 @@ import (
 // yanking returns a model at the message cursor over the given messages, newest last.
 func yanking(t *testing.T, bodies ...domain.Message) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}),
+	m := update(t, starterNew(apitest.Nop{}, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})

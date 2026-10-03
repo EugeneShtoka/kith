@@ -5,24 +5,17 @@ import (
 )
 
 // railState is the space rail: its groups, the cursor, and everything that decides
-// which rooms a group admits and how they sort. archivedRooms and spamRooms are
-// derived (see refreshPlaces); set their inputs without refreshing and they go stale.
+// which rooms a group admits and how they sort. roomFacts and spamRooms are derived
+// (see refreshPlaces); set their inputs without refreshing and they go stale.
 type railState struct {
 	groups []group
 	cursor int
 	rules  []domain.RoomListRule       // per-group room-list overrides
 	chains map[string][]domain.SortKey // this session's sort changes, by group key
-	// archive: [display] archived — places whose unread stops counting.
-	archive domain.Archive
-	// pinned: [display] pinned — rooms shown in Pinned as well as their spaces.
-	pinned        domain.Pinned
-	archivedRooms map[domain.RoomID]bool
 	// spam: [spam] rooms/except. caught: rooms the daemon's filters promoted.
 	spam      domain.Spam
 	caught    map[domain.RoomID]domain.SpamVerdict
 	spamRooms map[domain.RoomID]bool
-	// baseSpaces: [display] base_spaces — spaces that keep showing archived rooms.
-	baseSpaces []string
 	// tags: the [[tag]]s. roomFacts is every room's facts, precomputed as the archive
 	// is (a tag is asked about every room on every draw).
 	tags      domain.TagSet

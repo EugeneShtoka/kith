@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -237,4 +238,29 @@ func modelTags(tags []Tag) func(int, RoomFacts) bool {
 		return false
 	}
 	return eval
+}
+
+// Filing writes no more than the choice needs: a room the rule holds is not picked, one
+// it leaves out is not excluded; an entry naming the room goes, and one that also
+// named another room leaves that room's ID in its place.
+func TestFiledWritesOnlyWhatTheChoiceNeeds(t *testing.T) {
+	t.Parallel()
+	twin := RoomFacts{ID: "!twin:x", Name: "Standup"}
+	set := mustTags(t,
+		Tag{Name: "Work", Rule: []string{"space:Work"}, Excluded: []string{"room:Standup"}},
+		Tag{Name: "Pins", Picked: []string{"!mom:x"}},
+	)
+	others := []RoomFacts{momDM, workGrp, botsGrp, twin}
+	picked, excluded := set.Filed(0, workGrp, RoomState{}, true, others)
+	if len(picked) != 0 || !slices.Equal(excluded, []string{"!twin:x"}) {
+		t.Errorf("into Work = %v / %v, want nothing picked (the rule holds it) and the twin still excluded", picked, excluded)
+	}
+	picked, excluded = set.Filed(1, momDM, RoomState{}, false, others)
+	if len(picked) != 0 || len(excluded) != 0 {
+		t.Errorf("out of Pins = %v / %v, want both empty (the rule never held it)", picked, excluded)
+	}
+	picked, excluded = set.Filed(0, botsGrp, RoomState{}, false, others)
+	if !slices.Equal(excluded, []string{"room:Standup", "!bots:x"}) || len(picked) != 0 {
+		t.Errorf("out of Work = %v / %v, want Bots excluded by ID", picked, excluded)
+	}
 }

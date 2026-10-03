@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -84,7 +83,7 @@ func voice(id domain.EventID) domain.Message {
 func playing(t *testing.T, disp config.Display) (Model, *fakeSession) {
 	t.Helper()
 
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m.focus = paneTimeline
 	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{voice("$v")}}})
 	session := &fakeSession{st: audio.State{Duration: 34 * time.Second, Position: 5 * time.Second, Speed: 1}}

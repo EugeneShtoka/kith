@@ -69,7 +69,7 @@ func sharing(t *testing.T) (Model, *sharedDrafts) {
 	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{
 		"!a:x": {RoomID: "!a:x", Body: "hi", Updated: time.UnixMilli(1000)},
 	}}
-	m := update(t, New(context.Background(), store, config.Display{}),
+	m := update(t, starterNew(store, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
@@ -324,7 +324,7 @@ func TestAnAdditionCrossingAnEditSurvivesItsCancel(t *testing.T) {
 func TestADraftStartedOnBothSidesKeepsBothWhole(t *testing.T) {
 	t.Parallel()
 	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{}}
-	m := update(t, New(context.Background(), store, config.Display{}),
+	m := update(t, starterNew(store, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(m.filteredRooms()[0])
@@ -345,7 +345,7 @@ func TestVisitingADraftKeepsWhoWroteIt(t *testing.T) {
 	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{
 		"!a:x": {RoomID: "!a:x", Body: "from claude", Author: "claude-code", Updated: time.UnixMilli(1000)},
 	}}
-	m := update(t, New(context.Background(), store, config.Display{}),
+	m := update(t, starterNew(store, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(m.filteredRooms()[0])

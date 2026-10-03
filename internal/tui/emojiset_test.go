@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"reflect"
 	"slices"
 	"strings"
@@ -217,13 +216,13 @@ func TestNonEmojiUsageNeverReachesThePalette(t *testing.T) {
 	}
 }
 
-// The "nearby" rung is the room's first space by [display] space_priority, and does
+// The "nearby" rung is the room's first space by [display] priority, and does
 // not depend on the rail cursor.
 func TestSpaceRungIsTheRoomsPrioritySpace(t *testing.T) {
 	t.Parallel()
 
-	m := New(context.Background(), apitest.Nop{}, config.Display{
-		SpacePriority: []string{"Friends"},
+	m := starterNew(apitest.Nop{}, config.Display{
+		Priority: []string{"Friends"},
 	})
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},

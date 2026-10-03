@@ -55,7 +55,7 @@ func hit(room domain.RoomID, event domain.EventID, name, snippet string, agoHour
 func searching(t *testing.T, global bool, hits ...domain.SearchHit) (Model, *searchBackend) {
 	t.Helper()
 	b := &searchBackend{hits: hits}
-	m := update(t, New(context.Background(), b, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!b:x", Name: "Bravo", IsDirect: true},
 	}})
@@ -520,7 +520,7 @@ func TestSearchErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
 	b := &searchBackend{err: errTest}
-	m := sized(t, update(t, New(context.Background(), b, config.Display{}),
+	m := sized(t, update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next

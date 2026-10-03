@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -14,7 +13,7 @@ import (
 func naming(t *testing.T, reply string) (Model, *modelBackend) {
 	t.Helper()
 	b := &modelBackend{result: domain.ModelResult{Text: reply}}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m.conf.base.Assist.Endpoint = "https://example.invalid/v1/chat/completions"
@@ -131,7 +130,7 @@ func TestThreadsAreNamedWhenTheTimelineLands(t *testing.T) {
 	t.Parallel()
 
 	b := &modelBackend{result: domain.ModelResult{Text: "Rolling back the migration"}}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])

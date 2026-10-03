@@ -137,9 +137,7 @@ const (
 	actKick
 	actBan
 	actSpaces
-	actArchive
 	actDirection
-	actPin
 	actSpam
 	actGoReplacement
 	actOpenThread
@@ -400,9 +398,7 @@ var keyActions = []keyAction{
 	{scopeRooms, actUnban, "rooms.unban"},
 	{scopeRooms, actNewRoom, "rooms.new"},
 	{scopeRooms, actSpaces, "rooms.spaces"},
-	{scopeRooms, actArchive, "rooms.archive"},
 	{scopeRooms, actDirection, "rooms.direction"},
-	{scopeRooms, actPin, "rooms.pin"},
 	{scopeRooms, actSpam, "rooms.spam"},
 	{scopeRooms, actGoReplacement, "rooms.go_replacement"},
 

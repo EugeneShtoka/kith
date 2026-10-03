@@ -174,27 +174,6 @@ func TestResolvedWarningsFallBackToStatic(t *testing.T) {
 	}
 }
 
-// `pinned` moves with every pin in the client, and kith-mcp reads the config once, so
-// it cannot bound what an assistant reaches: every assistant list refuses it, and a
-// list elsewhere (codes) still takes it.
-func TestPinnedCannotBoundAnAssistant(t *testing.T) {
-	t.Parallel()
-	for name, cfg := range map[string]config.Config{
-		"agent.read.except":  {Agent: config.Agent{Read: config.AgentRead{Rooms: []string{"group"}, Except: []string{" Pinned "}}}},
-		"agent.write.rooms":  {Agent: config.Agent{Write: config.AgentWrite{Rooms: []string{"pinned"}}}},
-		"agent.write.send":   {Agent: config.Agent{Write: config.AgentWrite{Send: []string{"pinned"}}}},
-		"assist.except":      {Assist: config.Assist{Except: []string{"pinned"}}},
-		"agent.write.except": {Agent: config.Agent{Write: config.AgentWrite{Except: []string{"pinned"}}}},
-	} {
-		if err := setup.PlaceEntries(cfg); err == nil || !strings.Contains(err.Error(), name) {
-			t.Errorf("%s: pinned was accepted (%v)", name, err)
-		}
-	}
-	if err := setup.PlaceEntries(config.Config{Codes: config.Codes{Include: []string{"pinned"}}}); err != nil {
-		t.Errorf("codes.include refused pinned: %v", err)
-	}
-}
-
 // A room whose ID names its network is on that network, though no bridge space holds
 // it; a bare one in no space is Matrix.
 func TestFactsOfANativeRoom(t *testing.T) {

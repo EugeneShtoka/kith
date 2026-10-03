@@ -48,7 +48,7 @@ func composing(t *testing.T, members ...domain.Member) (Model, *memberBackend) {
 func composingWith(t *testing.T, display config.Display, members ...domain.Member) (Model, *memberBackend) {
 	t.Helper()
 	b := &memberBackend{members: members}
-	m := update(t, New(context.Background(), b, display),
+	m := update(t, starterNew(b, display),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
@@ -462,7 +462,7 @@ func TestMembersLoadOnRoomOpen(t *testing.T) {
 	t.Parallel()
 
 	b := &memberBackend{members: people}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, cmd := m.selectRoom(m.filteredRooms()[0])

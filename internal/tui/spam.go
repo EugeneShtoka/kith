@@ -9,27 +9,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// Spam is a move, not a tag: every other group's filter excludes a spam room (as it
-// does an invitation), so a caught conversation is in exactly one place. Downstream it
-// reuses Archive's plumbing: out of unread totals, badges and group-wide mark-read.
-
-// spamGroupKey is the rail key of the synthetic, conditional Spam group.
-const spamGroupKey = "spam"
-
-// spamGroup is the Spam group, or nothing when nothing is caught — an always-present
-// empty group would invite checking a place meant not to need checking.
-func spamGroup(view unreadView) []group {
-	if !view.anySpam() {
-		return nil
-	}
-	return []group{{key: spamGroupKey, label: builtInLabels[spamGroupKey], admits: unreadView.isSpam}}
-}
+// Spam is a move, not a tag: no space lists a spam room (as none lists an
+// invitation), and a Spam tag (rule `spam`, exclusive) gives them a row of their own.
+// Out of unread totals, badges and group-wide mark-read.
 
 // isSpam reports whether a room has been moved to Spam, by a list or by a rule.
 func (v unreadView) isSpam(room domain.Room) bool { return v.spamRooms[room.ID] }
-
-// anySpam reports whether anything is in Spam at all.
-func (v unreadView) anySpam() bool { return len(v.spamRooms) > 0 }
 
 // verdict is why a room is in Spam (which rule, which filter); empty for a room that is
 // not.

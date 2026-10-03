@@ -36,7 +36,7 @@ func manyMessages(n int) []domain.Message {
 }
 
 func newModel() Model {
-	return New(context.Background(), apitest.Nop{}, config.Display{})
+	return starterNew(apitest.Nop{}, config.Display{})
 }
 
 // press feeds a key into Update and returns the new Model.
@@ -433,8 +433,8 @@ func TestSpacesErrorKeepsSyntheticRail(t *testing.T) {
 	t.Parallel()
 
 	m := update(t, newModel(), spacesMsg{err: context.Canceled})
-	if len(m.rail.groups) != 3 {
-		t.Errorf("groups after spaces error = %d, want 3 synthetic entries (Home, DMs, Unread)", len(m.rail.groups))
+	if keys := groupKeys(m.rail.groups); len(keys) == 0 || keys[0] != homeGroupKey {
+		t.Errorf("groups after spaces error = %v, want the starter tags", keys)
 	}
 }
 
@@ -450,44 +450,46 @@ func TestRailConfig(t *testing.T) {
 		return out
 	}
 
-	// Default: home (labeled All), dms, unread, then spaces in order.
-	def := railGroups(spaces, config.Rail{}, nil, unreadView{}, 0, nil, nil)
-	if got := strings.Join(keys(def), ","); got != "home,dms,unread,Work,Friends" {
+	three := threeTags(t)
+
+	// Default: the tags in order, then the spaces in theirs.
+	def := railGroups(spaces, config.Rail{}, nil, three, nil)
+	if got := strings.Join(keys(def), ","); got != "tag:All,tag:DMs,tag:Unread,Work,Friends" {
 		t.Errorf("default order = %q", got)
 	}
 	if def[0].label != "All" {
-		t.Errorf("home default label = %q, want All", def[0].label)
+		t.Errorf("a tag's label = %q, want its name", def[0].label)
 	}
 
 	// Rename changes only the label, not the key.
-	ren := railGroups(spaces, config.Rail{}, []config.DisplayName{{Target: config.NameTargetGroup + "home", Name: "Everything"}}, unreadView{}, 0, nil, nil)
-	if ren[0].key != "home" || ren[0].label != "Everything" {
-		t.Errorf("renamed home = %+v, want key home / label Everything", ren[0])
+	ren := railGroups(spaces, config.Rail{}, []config.DisplayName{{Target: config.NameTargetSpace + "Work", Name: "Job"}}, three, nil)
+	if ren[3].key != "Work" || ren[3].label != "Job" {
+		t.Errorf("renamed Work = %+v, want key Work / label Job", ren[3])
 	}
 
 	// Hidden removes a group; listed order comes first, unlisted follow.
 	ord := railGroups(spaces, config.Rail{
-		Order:  []string{"Work", "dms"},
-		Hidden: []string{"home"},
-	}, nil, unreadView{}, 0, nil, nil)
-	if got := strings.Join(keys(ord), ","); got != "Work,dms,unread,Friends" {
-		t.Errorf("ordered+hidden = %q, want Work,dms,unread,Friends", got)
+		Order:  []string{"Work", "tag:DMs"},
+		Hidden: []string{"tag:All"},
+	}, nil, three, nil)
+	if got := strings.Join(keys(ord), ","); got != "Work,tag:DMs,tag:Unread,Friends" {
+		t.Errorf("ordered+hidden = %q, want Work,tag:DMs,tag:Unread,Friends", got)
 	}
 
-	// Hiding every group falls back to keeping home so the rail is never empty.
-	guard := railGroups(spaces, config.Rail{Hidden: []string{"home", "dms", "unread", "Work", "Friends"}}, nil, unreadView{}, 0, nil, nil)
-	if len(guard) != 1 || guard[0].key != "home" {
-		t.Errorf("hide-all guard = %+v, want [home]", keys(guard))
+	// Hiding every group keeps the first, so the rail is never empty.
+	guard := railGroups(spaces, config.Rail{Hidden: []string{"tag:All", "tag:DMs", "tag:Unread", "Work", "Friends"}}, nil, three, nil)
+	if len(guard) != 1 {
+		t.Errorf("hide-all guard = %+v, want one row", keys(guard))
 	}
 
-	// A dash token draws a divider after the preceding group; unlisted unread follows.
-	sep := railGroups(spaces, config.Rail{Order: []string{"home", "dms", "-", "Work", "Friends"}}, nil, unreadView{}, 0, nil, nil)
-	if got := strings.Join(keys(sep), ","); got != "home,dms,Work,Friends,unread" {
-		t.Errorf("separator order = %q, want home,dms,Work,Friends,unread", got)
+	// A dash token draws a divider after the preceding group; unlisted Unread follows.
+	sep := railGroups(spaces, config.Rail{Order: []string{"tag:All", "tag:DMs", "-", "Work", "Friends"}}, nil, three, nil)
+	if got := strings.Join(keys(sep), ","); got != "tag:All,tag:DMs,Work,Friends,tag:Unread" {
+		t.Errorf("separator order = %q, want tag:All,tag:DMs,Work,Friends,tag:Unread", got)
 	}
 	for _, g := range sep {
-		if (g.key == "dms") != g.sepAfter {
-			t.Errorf("sepAfter on %q = %v, want divider only after dms", g.key, g.sepAfter)
+		if (g.key == "tag:DMs") != g.sepAfter {
+			t.Errorf("sepAfter on %q = %v, want divider only after DMs", g.key, g.sepAfter)
 		}
 	}
 }
@@ -504,27 +506,28 @@ func TestRailWildcardPlacesTheUnnamed(t *testing.T) {
 		}
 		return strings.Join(out, ",")
 	}
+	three := threeTags(t)
 
-	tail := railGroups(spaces, config.Rail{Order: []string{"unread", "*", "dms"}}, nil, unreadView{}, 0, nil, nil)
-	if got := keys(tail); got != "unread,home,Work,Friends,dms" {
-		t.Errorf("wildcard order = %q, want unread,home,Work,Friends,dms", got)
+	tail := railGroups(spaces, config.Rail{Order: []string{"tag:Unread", "*", "tag:DMs"}}, nil, three, nil)
+	if got := keys(tail); got != "tag:Unread,tag:All,Work,Friends,tag:DMs" {
+		t.Errorf("wildcard order = %q, want tag:Unread,tag:All,Work,Friends,tag:DMs", got)
 	}
 
 	// Dividers around the wildcard fall where written.
-	div := railGroups(spaces, config.Rail{Order: []string{"unread", "-", "*", "-", "dms"}}, nil, unreadView{}, 0, nil, nil)
+	div := railGroups(spaces, config.Rail{Order: []string{"tag:Unread", "-", "*", "-", "tag:DMs"}}, nil, three, nil)
 	for _, g := range div {
-		want := g.key == "unread" || g.key == "Friends" // the last of the wildcard block
+		want := g.key == "tag:Unread" || g.key == "Friends" // the last of the wildcard block
 		if g.sepAfter != want {
 			t.Errorf("sepAfter on %q = %v, want %v", g.key, g.sepAfter, want)
 		}
 	}
 
-	twice := railGroups(spaces, config.Rail{Order: []string{"*", "*"}}, nil, unreadView{}, 0, nil, nil)
-	if got := keys(twice); got != "home,dms,unread,Work,Friends" {
+	twice := railGroups(spaces, config.Rail{Order: []string{"*", "*"}}, nil, three, nil)
+	if got := keys(twice); got != "tag:All,tag:DMs,tag:Unread,Work,Friends" {
 		t.Errorf("two wildcards = %q, want the default order once", got)
 	}
-	none := railGroups(spaces, config.Rail{Order: []string{"Work"}}, nil, unreadView{}, 0, nil, nil)
-	if got := keys(none); got != "Work,home,dms,unread,Friends" {
+	none := railGroups(spaces, config.Rail{Order: []string{"tag:DMs"}}, nil, three, nil)
+	if got := keys(none); got != "tag:DMs,tag:All,tag:Unread,Work,Friends" {
 		t.Errorf("no wildcard = %q, want the unnamed appended as before", got)
 	}
 }
@@ -629,7 +632,7 @@ func TestRoomOpensInInsertMode(t *testing.T) {
 
 	// And the knob turns it off.
 	off := false
-	opt := sized(t, withRooms(t, New(context.Background(), apitest.Nop{},
+	opt := sized(t, withRooms(t, starterNew(apitest.Nop{},
 		config.Display{OpenInInsert: &off})))
 	opt, _ = press(t, opt, keyCode(tea.KeyEnter))
 	opt, _ = press(t, opt, keyCode(tea.KeyEnter))
@@ -1180,7 +1183,7 @@ func TestReactFlowTargetsSelectedMessage(t *testing.T) {
 	t.Parallel()
 
 	rb := &recordingReact{}
-	m := sized(t, withRooms(t, New(context.Background(), rb, config.Display{})))
+	m := sized(t, withRooms(t, starterNew(rb, config.Display{})))
 	m = loadPage(t, m, []domain.Message{
 		msgAt("$1", "one", 1),
 		msgAt("$2", "two", 2),
@@ -1214,7 +1217,7 @@ func TestReactPaletteAndShortcodes(t *testing.T) {
 
 	newModelWith := func() (*recordingReact, Model) {
 		rb := &recordingReact{}
-		m := sized(t, withRooms(t, New(context.Background(), rb, config.Display{})))
+		m := sized(t, withRooms(t, starterNew(rb, config.Display{})))
 		m = loadPage(t, m, []domain.Message{msgAt("$1", "hi", 1)})
 		m.focus = paneTimeline
 		return rb, m
@@ -1278,7 +1281,7 @@ func TestFrequentPaletteApplied(t *testing.T) {
 func TestStaticScopeAndCustomStatic(t *testing.T) {
 	t.Parallel()
 
-	m := New(context.Background(), apitest.Nop{}, config.Display{
+	m := starterNew(apitest.Nop{}, config.Display{
 		Reactions: config.Reactions{Scope: "static", Static: []string{"✅", "🚀"}},
 	})
 	if m.glyphs.scope != "static" {
@@ -1379,7 +1382,7 @@ func TestReplyFlowTargetsSelectedMessage(t *testing.T) {
 	t.Parallel()
 
 	rb := &recordingReply{}
-	m := sized(t, withRooms(t, New(context.Background(), rb, config.Display{})))
+	m := sized(t, withRooms(t, starterNew(rb, config.Display{})))
 	m = loadPage(t, m, []domain.Message{
 		msgAt("$1", "one", 1),
 		msgAt("$2", "two", 2),
@@ -1548,7 +1551,7 @@ func TestUncaptionedAttachmentDrawsOneChip(t *testing.T) {
 func TestInlineModeTriggersLoadAndRenders(t *testing.T) {
 	t.Parallel()
 
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, config.Display{Media: config.Media{Mode: "inline"}})))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Media: config.Media{Mode: "inline"}})))
 	m.focus = paneTimeline // pictures are only fetched once a room is open
 	m = loadPage(t, m, []domain.Message{{
 		ID: "$1", RoomID: "!a:x", Sender: "@a:x", Timestamp: at(1),
@@ -1573,7 +1576,7 @@ func TestPlaceholderModeDoesNotLoad(t *testing.T) {
 	t.Parallel()
 
 	disp := config.Display{Media: config.Media{Mode: "placeholder"}}
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m = loadPage(t, m, []domain.Message{{
 		ID: "$1", RoomID: "!a:x", Sender: "@a:x", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "cat.jpg", Width: 4, Height: 4},
@@ -1609,7 +1612,7 @@ func TestMentionRendersResolvedName(t *testing.T) {
 
 	// An identity alias: mentions of @alice:x collapse to "Ally".
 	disp := config.Display{Identities: []config.Identity{{Alias: "Ally", IDs: []string{"@alice:x"}}}}
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m = loadPage(t, m, []domain.Message{{
 		ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "hey Alice Smith, hi", Timestamp: at(1),
 		Mentions: []domain.Mention{{UserID: "@alice:x", Name: "Alice Smith"}},
@@ -1880,19 +1883,19 @@ func TestRoomName(t *testing.T) {
 	titled := domain.Room{ID: "!t:x", Name: "Beer & Escape", Members: []string{"Rowan Blackwood", "Piper Nightingale"}}
 
 	// A configured alias wins verbatim, over the space name rules.
-	m := New(context.Background(), apitest.Nop{}, config.Display{
+	m := starterNew(apitest.Nop{}, config.Display{
 		Names:         []config.DisplayName{{Target: "!dm:x", Name: "Mom"}},
-		SpaceRules:    []config.SpaceRule{{Space: "home", FirstNameOnly: true}},
+		SpaceRules:    []config.SpaceRule{{Space: homeGroupKey, FirstNameOnly: true}},
 		MaxNameLength: 8,
 	})
-	m = sized(t, withRooms(t, m)) // current rail group key is "home"
+	m = sized(t, withRooms(t, m)) // current rail group key is homeGroupKey
 	if got := m.roomName(single); got != "Mom" {
 		t.Errorf("aliased room = %q, want Mom", got)
 	}
 
 	// A first-name-only space shortens people-named rooms and leaves titles alone; the
 	// rule names the space the rooms are in.
-	m = New(context.Background(), apitest.Nop{}, config.Display{
+	m = starterNew(apitest.Nop{}, config.Display{
 		SpaceRules: []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
 	})
 	m = sized(t, withRooms(t, m))
@@ -1927,7 +1930,7 @@ func TestRoomName(t *testing.T) {
 		Name:    "Rowan Blackwood, Piper Nightingale, Quinn Foster",
 		Members: []string{"Rowan Blackwood", "Piper Nightingale", "Quinn Foster"},
 	}
-	m = New(context.Background(), apitest.Nop{}, config.Display{
+	m = starterNew(apitest.Nop{}, config.Display{
 		SpaceRules:    []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
 		MaxNameLength: 8,
 	})
@@ -1940,8 +1943,8 @@ func TestRoomName(t *testing.T) {
 	}
 
 	off := false
-	m = New(context.Background(), apitest.Nop{}, config.Display{
-		SpaceRules:    []config.SpaceRule{{Space: "home", FirstNameOnly: true}},
+	m = starterNew(apitest.Nop{}, config.Display{
+		SpaceRules:    []config.SpaceRule{{Space: homeGroupKey, FirstNameOnly: true}},
 		RoomNameRules: &off,
 	})
 	m = sized(t, withRooms(t, m))
@@ -2233,7 +2236,7 @@ func TestRailBadgesSumTheGroupsRooms(t *testing.T) {
 		key           string
 		notifications int
 	}{
-		{"home", 5}, {"dms", 2}, {"unread", 5}, {"Work", 5}, {"Quiet", 0},
+		{homeGroupKey, 5}, {dmsGroupKey, 2}, {unreadGroupKey, 5}, {"Work", 5}, {"Quiet", 0},
 	} {
 		g, ok := findGroup(m.rail.groups, tc.key)
 		if !ok {
@@ -2308,7 +2311,7 @@ func TestUnreadGroupFilters(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Notifications: 1}})
 	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!b:x", Notifications: 2}})
-	m = enterGroup(t, m, "unread")
+	m = enterGroup(t, m, unreadGroupKey)
 	if fr := m.filteredRooms(); len(fr) != 2 {
 		t.Fatalf("Unread group = %+v, want both rooms", fr)
 	}
@@ -2354,7 +2357,7 @@ func TestMarkReadDedupes(t *testing.T) {
 	t.Parallel()
 
 	rb := &recordingBackend{}
-	m := update(t, New(context.Background(), rb, config.Display{}),
+	m := update(t, starterNew(rb, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m.unread["!a:x"] = domain.Unread{RoomID: "!a:x", Notifications: 3}
 	m = m.setMessages([]domain.Message{{ID: "$e1", RoomID: "!a:x"}})
@@ -2503,7 +2506,7 @@ func TestAFailedReceiptIsSaidAndRetried(t *testing.T) {
 	t.Parallel()
 
 	rb := &receiptRefuser{refuse: 1}
-	m := update(t, New(context.Background(), rb, config.Display{}),
+	m := update(t, starterNew(rb, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = m.setMessages([]domain.Message{{ID: "$e1", RoomID: "!a:x"}})
 

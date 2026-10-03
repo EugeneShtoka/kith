@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 
@@ -89,7 +90,7 @@ type spaced struct {
 func (s *spaced) Spaces(context.Context) ([]domain.Space, error) { return s.spaces, nil }
 
 // The notifier reads a room as every other scope does: by the name you gave it, its
-// spaces in your order, the first bridge holding it, and your pins.
+// spaces in your order, the first bridge holding it, and the tags holding it.
 func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 	t.Parallel()
 	src := &spaced{gatedRooms: gatedRooms{rooms: []domain.Room{{ID: "!r:x", Name: "Standup"}}}, spaces: []domain.Space{
@@ -97,11 +98,15 @@ func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 		{ID: "!tg:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{"!r:x"}},
 	}}
 	x := newScopeIndex(src, []config.DisplayName{{Target: "!r:x", Name: "Daily"}}, []string{"Telegram"})
-	x.SetPinned([]string{"room:Daily"})
+	tags, _, err := domain.NewTagSet([]domain.Tag{{Name: "Pinned", Picked: []string{"room:Daily"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	x.SetTags(tags)
 	got := x.Facts(context.Background(), "!r:x")
-	if got.Name != "Daily" || got.Protocol != domain.ProtocolWhatsApp || !got.Pinned ||
+	if got.Name != "Daily" || got.Protocol != domain.ProtocolWhatsApp || !slices.Equal(got.Tags, []string{"Pinned"}) ||
 		len(got.Spaces) != 2 || got.Spaces[0] != "Telegram" {
-		t.Errorf("facts = %+v, want Daily, WhatsApp (the first bridge), pinned, Telegram first", got)
+		t.Errorf("facts = %+v, want Daily, WhatsApp (the first bridge), tag Pinned, Telegram first", got)
 	}
 }
 

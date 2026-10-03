@@ -57,7 +57,7 @@ func pickedEmoji(m Model) []string {
 func composingEmoji(t *testing.T, frequent ...string) (Model, *emojiBackend) {
 	t.Helper()
 	b := &emojiBackend{frequent: frequent}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
@@ -427,7 +427,7 @@ func TestComposeAndReactionRankingsAreSeparate(t *testing.T) {
 	t.Parallel()
 
 	b := &emojiBackend{frequent: []string{"🚀"}}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, cmd := m.selectRoom(m.filteredRooms()[0])
@@ -457,7 +457,7 @@ func TestBothCompletionSourcesInOneMessage(t *testing.T) {
 	t.Parallel()
 
 	b := &memberBackend{members: []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}}
-	m := update(t, New(context.Background(), b, config.Display{}),
+	m := update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])

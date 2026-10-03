@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -162,7 +161,7 @@ func writesFirstArg(fun ast.Expr) bool {
 // called on as it was: the keymap's maps are copied before they are written.
 func TestWithConfigFileLeavesItsReceiversKeymapAlone(t *testing.T) {
 	t.Parallel()
-	before := New(context.Background(), apitest.Nop{}, config.Display{}).WithKeys(config.DefaultKeys())
+	before := starterNew(apitest.Nop{}, config.Display{}).WithKeys(config.DefaultKeys())
 	prefixes, scripts := len(before.keys.prefixes), len(before.keys.scripts)
 	cfg := config.Config{}
 	cfg.Commands.Scripts = []config.Script{{Name: "deploy", Keys: "f9 f10"}}

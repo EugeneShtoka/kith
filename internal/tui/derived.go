@@ -76,8 +76,8 @@ func unreadFingerprint(u domain.Unread) uint64 {
 }
 
 // placeFingerprint is an FNV-1a hash of the open room as its messages' rows read it:
-// its label, its spaces (the first sets the sender-name rule), its network and whether
-// it is pinned (tracked words can be scoped by any of them). Space membership and room
+// its label, its spaces (the first sets the sender-name rule), its network, whether it
+// is a DM, and the tags holding it (tracked words can be scoped by any of them). Space membership and room
 // names change without any message changing.
 func placeFingerprint(f domain.RoomFacts) uint64 {
 	h := fnvMix(fnvOffset, f.ID)
@@ -87,7 +87,6 @@ func placeFingerprint(f domain.RoomFacts) uint64 {
 	}
 	h = fnvMix(h, f.Protocol.String())
 	h = fnvMix(h, strconv.FormatBool(f.Direct))
-	h = fnvMix(h, strconv.FormatBool(f.Pinned))
 	// The tags holding it: a home that picks name rules (homesOf).
 	for _, tag := range f.Tags {
 		h = fnvMix(h, tag)

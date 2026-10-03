@@ -2,7 +2,6 @@ package tui
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,12 +27,12 @@ var aliasPeople = []domain.Member{
 func aliasing(t *testing.T, display config.Display) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	base := config.Config{Homeserver: "https://x", User: "@me:x", Display: display}
+	base := config.Config{Homeserver: "https://x", User: "@me:x", Display: display, Tags: starter(t).Tags}
 	base.Keys.FillDefaults()
 	if err := config.Save(path, base); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
-	m := update(t, New(context.Background(), apitest.Nop{}, display),
+	m := update(t, starterNew(apitest.Nop{}, display),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m).WithConfigFile(path, base)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
@@ -347,7 +346,7 @@ func TestPeoplePickerIsModal(t *testing.T) {
 func TestAliasWithoutConfigPath(t *testing.T) {
 	t.Parallel()
 
-	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}),
+	m := update(t, starterNew(apitest.Nop{}, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m) // no WithConfigFile
 	next, _ := m.selectRoom(m.filteredRooms()[0])

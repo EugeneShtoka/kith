@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +20,7 @@ import (
 func ordering(t *testing.T, rooms config.Rooms) Model {
 	display := config.Display{Rooms: rooms}
 	t.Helper()
-	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(apitest.Nop{}, display), roomsMsg{rooms: []domain.Room{
 		{ID: "!alpha:x", Name: "Alpha"},
 		{ID: "!bravo:x", Name: "Bravo"},
 		{ID: "!charlie:x", Name: "Charlie"},

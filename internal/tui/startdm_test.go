@@ -12,7 +12,7 @@ import (
 
 func switcher(t *testing.T) Model {
 	t.Helper()
-	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "!work:x", Name: "Work"},
 	}})
 	return sized(t, m.clearStatus())
@@ -92,7 +92,7 @@ func TestStartingADMCreatesAnEncryptedUnnamedRoomForOnePerson(t *testing.T) {
 	t.Parallel()
 
 	spy := &createSpy{}
-	m := sized(t, update(t, New(context.Background(), spy, config.Display{}), roomsMsg{}))
+	m := sized(t, update(t, starterNew(spy, config.Display{}), roomsMsg{}))
 	m.dmCandidates = []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}
 
 	next, cmd := m.acceptJump("dm:@dana:x")

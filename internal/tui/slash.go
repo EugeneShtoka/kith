@@ -169,11 +169,9 @@ var slashCommands = []slashCommand{
 		run:      consuming(Model.toggleRoomUnread),
 	},
 	{
-		name:     "/pin",
-		keyScope: scopeRooms,
-		keyAct:   actPin,
-		summary:  "follow this conversation — it joins Pinned and can be let through a silence",
-		run:      consuming(Model.togglePin),
+		name: "/tag", arg: "[name]", argOptional: true,
+		summary: "put this room in a tag, or take it out — no name picks among your spaces and tags",
+		run:     func(m Model, arg string, room domain.Room) (Model, tea.Cmd) { return m.toggleTag(arg, room) },
 	},
 	{
 		name:    "/caught",
@@ -193,13 +191,6 @@ var slashCommands = []slashCommand{
 		keyAct:   actDirection,
 		summary:  "read this room right to left, then left to right, then as [display.direction] says",
 		run:      consuming(Model.cycleDirection),
-	},
-	{
-		name:     "/archive",
-		keyScope: scopeRooms,
-		keyAct:   actArchive,
-		summary:  "stop this room counting toward anything unread — it stays readable",
-		run:      consuming(Model.toggleArchive),
 	},
 	{
 		name: "/invite", arg: "<@user:server>",

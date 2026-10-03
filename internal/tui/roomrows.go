@@ -68,9 +68,9 @@ func (m Model) roomRows() []roomRow {
 		if mode == config.ThreadsNever {
 			continue
 		}
-		// Archived rooms list no threads; muted ones do (muting silences notifications,
-		// not messages).
-		if rooms[i].IsInvite() || view.isArchived(rooms[i]) {
+		// Rooms a silent tag holds list no threads; muted ones do (muting silences
+		// notifications, not messages).
+		if rooms[i].IsInvite() || view.silenced(rooms[i]) {
 			continue
 		}
 		rows = m.appendThreadRows(rows, rooms[i], mode)

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"reflect"
+	"slices"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -29,9 +30,9 @@ type tagMemo struct {
 
 // tagKey identifies the inputs: the tags (by revision) and each map by identity.
 type tagKey struct {
-	tagsRev                              uint64
-	unread, drafts, facts, spam, archive uintptr
-	local                                bool
+	tagsRev                     uint64
+	unread, drafts, facts, spam uintptr
+	local                       bool
 }
 
 // identity is a map's identity; nil is 0.
@@ -47,7 +48,7 @@ func (v unreadView) tagKey() tagKey {
 	return tagKey{
 		tagsRev: v.tagsRev,
 		unread:  identity(v.counts), drafts: identity(v.drafts), facts: identity(v.roomFacts),
-		spam: identity(v.spamRooms), archive: identity(v.archivedRooms),
+		spam:  identity(v.spamRooms),
 		local: v.local,
 	}
 }
@@ -74,13 +75,10 @@ func (v unreadView) tagsOf(room domain.Room) roomTags {
 }
 
 // computeTags judges every tag on one room. Silence is judged on the room's own
-// state; every other tag then sees a silenced (or archived) room as read, so a silent
+// state; every other tag then sees a silenced room as read, so a silent
 // tag never feeds back on itself.
 func (v unreadView) computeTags(room domain.Room) roomTags {
-	facts, ok := v.roomFacts[room.ID]
-	if !ok && v.facts != nil {
-		facts = v.facts(room) // arrived since the last refresh: the slow way, once
-	}
+	facts := v.factsOf(room)
 	raw := v.rawState(room)
 	n := v.tags.Len()
 	out := roomTags{in: make([]bool, n), owner: -1}
@@ -91,7 +89,7 @@ func (v unreadView) computeTags(room domain.Room) roomTags {
 		}
 	}
 	seen := raw
-	if out.silenced || v.isArchived(room) {
+	if out.silenced {
 		seen.Unread, seen.Mention = false, false
 	}
 	for i := range n {
@@ -112,6 +110,25 @@ func (v unreadView) computeTags(room domain.Room) roomTags {
 	return out
 }
 
+// factsOf is what a place entry can match about room.
+func (v unreadView) factsOf(room domain.Room) domain.RoomFacts {
+	facts, ok := v.roomFacts[room.ID]
+	if !ok && v.facts != nil {
+		facts = v.facts(room) // arrived since the last refresh: the slow way, once
+	}
+	return facts
+}
+
+// tagState is the state tag i judges room in, as computeTags judges it: the room's
+// own for a silent tag; read, for any other, while a silent tag holds the room.
+func (v unreadView) tagState(i int, room domain.Room) domain.RoomState {
+	state := v.rawState(room)
+	if !v.tags.At(i).Silent && v.silenced(room) {
+		state.Unread, state.Mention = false, false
+	}
+	return state
+}
+
 // rawState is what a room is right now, before any tag silences it.
 func (v unreadView) rawState(room domain.Room) domain.RoomState {
 	_, highlights := v.count(room)
@@ -125,13 +142,10 @@ func (v unreadView) rawState(room domain.Room) domain.RoomState {
 	}
 }
 
-// showsInTag reports whether tag i's rail row lists room: the tag holds it, it is not
-// archived, and no other tag claims it — an exclusive tag holding it shows it alone,
-// and a space-exclusive one takes it out of every other tag.
+// showsInTag reports whether tag i's rail row lists room: the tag holds it and no
+// other tag claims it — an exclusive tag holding it shows it alone, and a
+// space-exclusive one takes it out of every tag that is not space-exclusive too.
 func (v unreadView) showsInTag(i int, room domain.Room) bool {
-	if v.isArchived(room) {
-		return false
-	}
 	t := v.tagsOf(room)
 	if !t.in[i] {
 		return false
@@ -139,17 +153,16 @@ func (v unreadView) showsInTag(i int, room domain.Room) bool {
 	if t.owner >= 0 {
 		return t.owner == i
 	}
-	for _, j := range t.spaceExcl {
-		if j != i {
-			return false
-		}
-	}
-	return true
+	return len(t.spaceExcl) == 0 || slices.Contains(t.spaceExcl, i)
 }
 
-// claimed reports whether an exclusive tag shows room, taking it out of the rail's
-// own rows (Invites, Spam and Archived keep theirs).
-func (v unreadView) claimed(room domain.Room) bool { return v.tagsOf(room).owner >= 0 }
+// ownerName is the name of the exclusive tag room shows under; "" for none.
+func (v unreadView) ownerName(room domain.Room) string {
+	if owner := v.tagsOf(room).owner; owner >= 0 {
+		return v.tags.At(owner).Name
+	}
+	return ""
+}
 
 // leavesMadeSpaces reports whether a space-exclusive tag holds room, taking it out of
 // the spaces a person made.

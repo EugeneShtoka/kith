@@ -95,9 +95,7 @@ The room list, the middle pane. Consulted before `[keys.nav]`. `accept` and `rej
 | `invite` | `i` | Invite someone to this room |
 | `unban` | `U` | Lift a ban on this room |
 | `new` | `n` | Create a room or a space |
-| `spaces` | `S` | File this room into a space, or take it out of one |
-| `archive` | `A` | Archive / un-archive: keep the room, stop it counting |
-| `pin` | `P` | Pin / unpin: follow this conversation, and let it through a silence |
+| `spaces` | `S` | File this room into a space or a tag, or take it out of one |
 | `spam` | `!` | Spam / not spam: move this conversation out of the way, or back |
 | `go_replacement` | `>` | Go to the room that replaced this one |
 

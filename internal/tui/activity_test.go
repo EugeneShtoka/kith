@@ -73,7 +73,7 @@ func TestTypingNoticeIsSentOnceWhileTyping(t *testing.T) {
 	t.Parallel()
 
 	tp := &typer{}
-	m := sized(t, withRooms(t, New(context.Background(), tp, config.Display{})))
+	m := sized(t, withRooms(t, starterNew(tp, config.Display{})))
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
 	m.focus = paneTimeline
@@ -104,7 +104,7 @@ func TestDeletingTheDraftStopsTheNotice(t *testing.T) {
 	t.Parallel()
 
 	tp := &typer{}
-	m := sized(t, withRooms(t, New(context.Background(), tp, config.Display{})))
+	m := sized(t, withRooms(t, starterNew(tp, config.Display{})))
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
 	m.focus = paneTimeline
@@ -128,7 +128,7 @@ func TestTypingSettingsAreTwoSwitches(t *testing.T) {
 	t.Parallel()
 
 	off := false
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, config.Display{Typing: &off})))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Typing: &off})))
 	m.openRoom = "!a:x"
 	m = update(t, m, activityMsg{a: domain.Activity{RoomID: "!a:x", Typing: []string{"@alice:x"}}})
 	if got := m.typingNote(); got != "" {
@@ -136,7 +136,7 @@ func TestTypingSettingsAreTwoSwitches(t *testing.T) {
 	}
 
 	tp := &typer{}
-	quiet := sized(t, withRooms(t, New(context.Background(), tp, config.Display{SendTyping: &off})))
+	quiet := sized(t, withRooms(t, starterNew(tp, config.Display{SendTyping: &off})))
 	next, _ := quiet.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	quiet = next
 	quiet.focus = paneTimeline
@@ -168,7 +168,7 @@ func TestEditsAndCommandOutputStopTheNotice(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			tp := &typer{}
-			m := sized(t, withRooms(t, New(context.Background(), tp, config.Display{})))
+			m := sized(t, withRooms(t, starterNew(tp, config.Display{})))
 			next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 			m = next
 			m.focus, m.compose.insertMode = paneTimeline, true

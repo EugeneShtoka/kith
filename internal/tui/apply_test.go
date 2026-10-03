@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -20,7 +19,7 @@ func TestNewDerivesWhatApplyConfigDerives(t *testing.T) {
 	}
 
 	fresh, _ := attaching(t)
-	fresh = New(context.Background(), fresh.backend, display)
+	fresh = starterNew(fresh.backend, display)
 
 	// The same display, arriving as a settings change instead of at startup.
 	changed, _ := attaching(t)

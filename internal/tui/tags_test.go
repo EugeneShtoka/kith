@@ -78,19 +78,14 @@ func TestTagRowsHoldWhatTheirRulesSay(t *testing.T) {
 	}
 }
 
-// A tag is placed by the rail order like any row; an archived room leaves it, as it
-// leaves every row but its space's.
-func TestTagRowsTakeTheRailOrderAndLoseArchivedRooms(t *testing.T) {
+// A tag is placed by the rail order like any row.
+func TestTagRowsTakeTheRailOrder(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
 	cfg.Display.Rail.Order = []string{"tag:Family", "*"}
-	cfg.Display.Archived = []string{"!b:x"}
 	m := taggedModel(t, cfg)
 	if got := m.rail.groups[0].key; got != "tag:Family" {
 		t.Errorf("first row = %q, want the tag the order names first", got)
-	}
-	if admitsRoom(m, railRow(t, m, "tag:Family"), "!b:x") {
-		t.Error("an archived room is still in a tag")
 	}
 }
 
@@ -122,7 +117,7 @@ func TestTagProblemsAreSaid(t *testing.T) {
 // can be aimed at it, as tag:<name>.
 func TestATagRowIsAHomeNotASpace(t *testing.T) {
 	t.Parallel()
-	if isSpaceGroup("tag:Family") || !isTagGroup("tag:Family") || isTagGroup("Work") || !isSpaceGroup("Work") || isSpaceGroup("home") {
+	if isSpaceGroup("tag:Family") || !isTagGroup("tag:Family") || isTagGroup("Work") || !isSpaceGroup("Work") || isSpaceGroup(fallbackGroupKey) {
 		t.Fatal("rail keys misclassified")
 	}
 	m := taggedModel(t, config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}})

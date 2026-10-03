@@ -199,8 +199,11 @@ func (m Model) groupLabelFor(key string) string {
 	if label := m.prefs.display.NameFor(config.GroupTarget(key)); label != "" {
 		return label
 	}
-	if label, ok := builtInLabels[key]; ok {
-		return label
+	if name, ok := domain.TagOf(key); ok {
+		return name
+	}
+	if key == fallbackGroupKey {
+		return fallbackGroup().label
 	}
 	return key // a space's key is its name
 }

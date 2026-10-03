@@ -61,103 +61,65 @@ type group struct {
 	sticky, first, countInLabel, hideWhenEmpty bool
 }
 
-// railGroups builds the rail — All, DMs, Unread, one group per space, then the
-// conditional groups — and applies the user's rail config.
+// railGroups builds the rail — a row per tag, then a group per space — and applies the
+// user's rail config. There are no rows of the client's own: All, Unread, Archived and
+// the rest are tags the config defines. A rail with nothing to show gets one All row,
+// so the room list is never out of reach.
 func railGroups(
 	spaces []domain.Space,
 	cfg config.Rail,
 	// names are the user's display names for rooms, threads and rail rows.
 	names []config.DisplayName,
 	view unreadView,
-	invites int,
 	rooms []domain.Room,
-	drafts map[domain.RoomID]draft,
 ) []group {
-	// Archived rooms are absent from every group but Archived and the space they live in.
-	groups := []group{
-		{key: homeGroupKey, label: builtInLabels[homeGroupKey], admits: func(v unreadView, r domain.Room) bool { return !v.isArchived(r) }},
-		{key: dmsGroupKey, label: builtInLabels[dmsGroupKey], admits: func(v unreadView, r domain.Room) bool { return r.IsDirect && !v.isArchived(r) }},
-		{key: unreadGroupKey, label: builtInLabels[unreadGroupKey], admits: unreadView.tallies, sticky: true},
-	}
+	groups := tagGroups(view)
 	for _, s := range spaces {
 		children := make(map[domain.RoomID]bool, len(s.Children))
 		for _, id := range s.Children {
 			children[id] = true
 		}
-		name, spaceID, bridge, managed := s.DisplayName(), s.ID, s.Bridge, s.Managed()
-		// An archived room stays in the space it lives in, so it is never unfindable;
-		// a space-exclusive tag takes a room out of the spaces a person made only.
+		name, spaceID := s.DisplayName(), s.ID
+		// A space a bridge keeps (a network's own grouping, a community) is where its
+		// rooms belong; a space a person made is not.
+		belongs := s.Keeper != "" || s.Bridge.IsBridged()
 		groups = append(groups, group{
 			key:   name,
 			label: name,
 			admits: func(v unreadView, r domain.Room) bool {
-				if !children[r.ID] || (!managed && v.leavesMadeSpaces(r)) {
+				// An invitation and spam are not in any space until dealt with.
+				if !children[r.ID] || r.IsInvite() || v.isSpam(r) {
 					return false
 				}
-				return !v.isArchived(r) || v.keepsArchived(r, spaceID, name, bridge)
+				// A space-exclusive tag keeps a room only where it belongs: a bridge's
+				// space, or its own canonical home.
+				return !v.leavesMadeSpaces(r) || belongs || v.parents[r.ID] == spaceID
 			},
 		})
 	}
-	groups = append(groups, tagGroups(view)...)
-	// Drafts holds stashed drafts only, so the room being typed in does not flicker in and out.
-	groups = append(groups, draftsGroup(drafts)...)
-	groups = append(groups, pinnedGroup(view)...)
-	groups = append(groups, spamGroup(view)...)
-	if view.archived.Has() {
-		groups = append(groups, group{
-			key:    archivedGroupKey,
-			label:  builtInLabels[archivedGroupKey],
-			admits: unreadView.isArchived,
-		})
-	}
-	inOnePlace(groups)
-	claimedByTags(groups)
-	if invites > 0 {
-		groups = append([]group{{
-			key:    inviteGroupKey,
-			label:  fmt.Sprintf("%s (%d)", builtInLabels[inviteGroupKey], invites),
-			admits: func(_ unreadView, r domain.Room) bool { return r.IsInvite() },
-			first:  true,
-		}}, groups...)
+	if len(groups) == 0 {
+		groups = []group{fallbackGroup()}
 	}
 	groups = applyRailConfig(groups, cfg, names, view, rooms)
 	return withoutTrailingSeparator(promoteFirst(groups, cfg))
 }
 
-// claimedByTags takes a room an exclusive tag shows out of the rail's own rows that
-// hold rooms by kind (All, DMs, Unread, Drafts, Pinned); Invites, Spam and Archived
-// keep theirs, as their own exclusivity already does.
-func claimedByTags(groups []group) {
-	for i := range groups {
-		switch groups[i].key {
-		case homeGroupKey, dmsGroupKey, unreadGroupKey, draftsGroupKey, pinnedGroupKey:
-		default:
-			continue
-		}
-		inner := groups[i].admits
-		groups[i].admits = func(v unreadView, r domain.Room) bool { return !v.claimed(r) && inner(v, r) }
-	}
-}
+// fallbackGroupKey is the rail key of the one row a rail with no spaces and no tags
+// gets.
+const fallbackGroupKey = "*all"
 
-// inOnePlace makes invitations and spam exclusive: every group but Invites excludes
-// an invite, and every group but Spam excludes spam.
-func inOnePlace(groups []group) {
-	for i := range groups {
-		inner, key := groups[i].admits, groups[i].key
-		groups[i].admits = func(v unreadView, r domain.Room) bool {
-			if r.IsInvite() {
-				return false
-			}
-			if key != spamGroupKey && v.isSpam(r) {
-				return false
-			}
-			return inner(v, r)
-		}
+// fallbackGroup is every room but invitations and spam: what a config with no tags
+// and an account with no spaces still needs to reach its rooms.
+func fallbackGroup() group {
+	return group{
+		key:    fallbackGroupKey,
+		label:  "All",
+		admits: func(v unreadView, r domain.Room) bool { return !r.IsInvite() && !v.isSpam(r) },
 	}
 }
 
 // withoutTrailingSeparator drops a divider under the last group, e.g. from
-// `["*", "-", "archived"]` on a day nothing is archived.
+// `["*", "-", "tag:Archived"]` on a day nothing is archived.
 func withoutTrailingSeparator(groups []group) []group {
 	if n := len(groups); n > 0 && groups[n-1].sepAfter {
 		groups[n-1].sepAfter = false
@@ -165,35 +127,10 @@ func withoutTrailingSeparator(groups []group) []group {
 	return groups
 }
 
-// Rail keys of the built-in rows. They live in internal/config because they are
-// written to disk (name targets, rail order, hide_when_empty).
-const (
-	homeGroupKey     = config.GroupHome
-	dmsGroupKey      = config.GroupDMs
-	unreadGroupKey   = config.GroupUnread
-	inviteGroupKey   = config.GroupInvites
-	archivedGroupKey = config.GroupArchived
-	draftsGroupKey   = config.GroupDrafts
-	pinnedGroupKey   = config.GroupPinned
-)
-
-// builtInLabels is each built-in row's label before any rename; Invites gets its count appended.
-var builtInLabels = map[string]string{
-	homeGroupKey:     "All",
-	dmsGroupKey:      "DMs",
-	unreadGroupKey:   "Unread",
-	inviteGroupKey:   "Invites",
-	archivedGroupKey: "Archived",
-	draftsGroupKey:   "Drafts",
-	pinnedGroupKey:   "Pinned",
-	spamGroupKey:     "Spam",
-}
-
 // rebuiltRail rebuilds the rail from the model's state, keeping the cursor on the same group.
 func (m Model) rebuiltRail() Model {
 	prevKey := m.rail.key()
-	m.rail.groups = railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(),
-		len(m.rooms.invites), m.rooms.all, m.drafts)
+	m.rail.groups = railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), m.rooms.all)
 	m.rail.cursor = indexOfGroup(m.rail.groups, prevKey)
 	return m
 }
@@ -210,25 +147,6 @@ func startupPrefs(display config.Display, unreadLocal bool) prefsState {
 	}
 }
 
-// startupRailGroups is the rail New starts with, before any refresh.
-func startupRailGroups(
-	display config.Display,
-	unread map[domain.RoomID]domain.Unread,
-	unreadLocal bool,
-	archived domain.Archive,
-	baseSpaces []string,
-	parents map[domain.RoomID]domain.SpaceID,
-) []group {
-	return railGroups(nil, display.Rail, display.Names, unreadView{
-		counts: unread, local: unreadLocal, archived: archived,
-		pinned: domain.Pinned{Entries: display.Pinned},
-		base:   baseSpaces, parents: parents,
-		// facts must not be nil: isArchived would answer no to everything, listing
-		// archived rooms under Unread until the hierarchy arrives and rebuilds the rail.
-		facts: startupFacts(display),
-	}, 0, nil, nil)
-}
-
 // tagGroupKey is a tag's rail key: `tag:<name>`, as the rail order names it.
 func tagGroupKey(name string) string { return domain.TagEntry(name) }
 
@@ -238,9 +156,9 @@ func isTagGroup(key string) bool {
 	return ok
 }
 
-// isSpaceGroup reports whether a rail key is a space's: neither one of the rail's
-// own rows nor a tag. A space's key is its name.
-func isSpaceGroup(key string) bool { return !config.BuiltInGroup(key) && !isTagGroup(key) }
+// isSpaceGroup reports whether a rail key is a space's: neither a tag nor the
+// fallback row. A space's key is its name.
+func isSpaceGroup(key string) bool { return key != fallbackGroupKey && !isTagGroup(key) }
 
 // tagGroups is a rail row per tag not hidden, in configured order, with the tag's
 // properties (see unreadView.showsInTag for who it lists).
@@ -261,41 +179,7 @@ func tagGroups(view unreadView) []group {
 	return groups
 }
 
-// draftsGroup is the rooms holding an unsent message, or nothing when none do.
-func draftsGroup(drafts map[domain.RoomID]draft) []group {
-	if len(drafts) == 0 {
-		return nil
-	}
-	held := make(map[domain.RoomID]bool, len(drafts))
-	for id := range drafts {
-		held[id] = true
-	}
-	return []group{{
-		key:    draftsGroupKey,
-		label:  builtInLabels[draftsGroupKey],
-		admits: func(_ unreadView, r domain.Room) bool { return held[r.ID] },
-	}}
-}
-
-// pinnedGroup is the pinned conversations, or nothing when none are. Additive: a
-// pinned room also stays in its own space.
-func pinnedGroup(view unreadView) []group {
-	if !view.pinned.Has() {
-		return nil
-	}
-	return []group{{
-		key:   pinnedGroupKey,
-		label: builtInLabels[pinnedGroupKey],
-		admits: func(v unreadView, r domain.Room) bool {
-			if v.facts == nil {
-				return false
-			}
-			return v.pinned.Pins(v.facts(r))
-		},
-	}}
-}
-
-// promoteFirst moves the rows marked first (Invites; a tag with `first`) to the top,
+// promoteFirst moves the rows marked first (a tag with `first`, as Invites) to the top,
 // in their order, unless the rail order places them: applyRailConfig demotes unnamed
 // groups, which would bury pending invitations.
 func promoteFirst(groups []group, cfg config.Rail) []group {
@@ -355,9 +239,6 @@ func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName
 		kept = append(kept, g)
 	}
 	if len(kept) == 0 { // never leave the rail empty
-		if home, ok := findGroup(groups, homeGroupKey); ok {
-			return []group{home}
-		}
 		return groups[:1]
 	}
 	if len(cfg.Order) == 0 {
@@ -788,8 +669,6 @@ func New(ctx context.Context, backend api.Backend, display config.Display) Model
 	// Validated at startup; an error here means a config built in code.
 	source, _ := setup.UnreadSource(display.Unread)
 	unreadLocal := source != config.UnreadNotifications
-	archived := domain.Archive{Entries: display.Archived}
-	baseSpaces := display.BaseSpaces
 	parents := make(map[domain.RoomID]domain.SpaceID)
 	// Naming and media are set by applyNaming/applyMedia below, the path every settings change uses.
 	m := Model{
@@ -824,13 +703,9 @@ func New(ctx context.Context, backend api.Backend, display config.Display) Model
 		frames:   &frameClock{},
 		receipts: receiptState{policy: readSettingsFrom(display)},
 		parents:  parents,
-		rail: railState{
-			archive:    archived,
-			pinned:     domain.Pinned{Entries: display.Pinned},
-			baseSpaces: baseSpaces,
-			groups:     startupRailGroups(display, unread, unreadLocal, archived, baseSpaces, parents),
-		},
-		st: statusState{standing: "loading rooms…"},
+		// Tags arrive with the config (WithConfigFile): until then, the fallback row.
+		rail: railState{groups: []group{fallbackGroup()}, tagMemo: &tagMemo{}},
+		st:   statusState{standing: "loading rooms…"},
 	}
 	m = m.applyNaming(display)
 	return m.applyMedia(display.Media)
@@ -843,13 +718,6 @@ func startupEmoji(display config.Display) (static []string, tone string, tier st
 	tone, _ = setup.SkinTone(display.SkinTone)
 	tier, _ = setup.EmojiTier(display.Emoji.Set)
 	return toneEach(static, tone), tone, tier
-}
-
-// startupFacts resolves a room's archive-matching facts before the space hierarchy
-// exists: no spaces, so space entries match once the rail is rebuilt.
-func startupFacts(display config.Display) func(domain.Room) domain.RoomFacts {
-	places := domain.Places{Names: buildRoomAliases(display.Names)}
-	return func(room domain.Room) domain.RoomFacts { return places.Facts(room, nil) }
 }
 
 // startupMediaMode resolves how attachments are drawn; an invalid mode (only possible
@@ -1685,12 +1553,8 @@ func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openUnban())
 	case actNewRoom:
 		return answered(m.openNewRoom())
-	case actArchive:
-		return answered(m.toggleArchive())
 	case actDirection:
 		return answered(m.cycleDirection())
-	case actPin:
-		return answered(m.togglePin())
 	case actSpam:
 		return answered(m.toggleSpam())
 	case actGoReplacement:
@@ -2913,7 +2777,8 @@ func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 	// Script bindings live in [[commands.script]], not [keys], so bind them onto the
 	// existing keymap rather than rebuilding it.
 	next.keys = next.keys.withScripts(cfg.Commands.Scripts)
-	return next
+	// The rail is the spaces and the tags; New had no tags to build it from.
+	return next.rebuiltRail()
 }
 
 // handleConfigSaved reports a failed write; on success it asks the daemon to re-read
@@ -2977,7 +2842,7 @@ func (m Model) dropImages() Model {
 // the first is the one that picks name rules, place rules and a download's folder.
 // Tags are judged as places are (domain.TagSet.Of), as the daemon judges them.
 func (m Model) homesOf(roomID domain.RoomID) []string {
-	return domain.Homes(m.rooms.spaceNames(roomID), m.rail.roomFacts[roomID].Tags, m.prefs.display.Ranking())
+	return domain.Homes(m.rooms.spaceNames(roomID), m.rail.roomFacts[roomID].Tags, m.prefs.display.Priority)
 }
 
 // homeEntry is a home as a place entry: a tag is one already, a space is space:<name>.

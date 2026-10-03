@@ -23,7 +23,7 @@ Roughly:
 
 Three panes, left to right:
 
-1. **The spaces rail** — your spaces and a few built-in groups. The group under the cursor decides what the room list shows.
+1. **The spaces rail** — your spaces and your tags. The group under the cursor decides what the room list shows.
 2. **The room list** — the rooms in that group, with unread badges, and threads with unread replies listed beneath their room.
 3. **The timeline and composer** — the open room's messages, a message cursor to act on them, and the composer at the bottom.
 
@@ -39,20 +39,22 @@ While you are typing, letters are text. Only keys that cannot type anything — 
 
 ## The spaces rail
 
-The rail lists every Matrix space you have joined, plus built-in groups:
+The rail lists every Matrix space you have joined and every [tag](#tags) in your
+config. Nothing in it is built in: a first run writes these tags into the config as a
+starting point, which you can change, rename or delete like any other:
 
-| Group | Holds | When it appears |
+| Tag | Holds | When it appears |
 | --- | --- | --- |
-| Invites (N) | Rooms you are invited to | While there is an invitation; shown first |
-| All | Every room except archived ones | Always |
-| DMs | Direct messages | Always |
-| Unread | Rooms with something unread | Always |
-| *your spaces* | The rooms in each space | Always |
-| *your tags* | What each `[[tag]]` holds (see [Tags](#tags)) | Unless the tag is `hidden` |
-| Drafts | Rooms where you left an unsent message | While there is one |
-| Pinned | Conversations you pinned with `P` | While something is pinned |
-| Spam | Conversations moved to Spam | While something is there — see [Spam](spam.md) |
-| Archived | Rooms you archived with `A` | While something is archived |
+| Invites (N) | Rooms you are invited to (`invite`) | While there is an invitation; shown first |
+| All | Every room (`*`) | Always |
+| DMs | Direct messages (`dm`) | Always |
+| Unread | Rooms with something unread (`unread`) | Always |
+| Drafts | Rooms where you left an unsent message (`draft`) | While there is one |
+| Pinned | The rooms you put in it | While it holds something |
+| Spam | Conversations moved to Spam (`spam`) — see [Spam](spam.md) | While something is there |
+| Archived | The rooms you put in it: they stop counting and leave everything but the space they belong to | While it holds something |
+
+Your spaces sit between Pinned and Archived. Invitations and spam are in no space.
 
 In the rail:
 
@@ -67,12 +69,12 @@ In the rail:
 | `B` | Bind a key sequence that jumps to this group |
 
 These write to your config for you (a tag is renamed in its `[[tag]]`, not with `a`;
-name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` takes group keys (`home`, `dms`, `unread`, `invites`, `drafts`, `pinned`, `spam`, `archived`, a space's name, or `tag:<name>`), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing.
+name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` takes a space's name or a tag as `tag:<name>`, with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing. Without an `order`, tags come first, then spaces.
 
 ```toml
 [display.rail]
-order = ["unread", "-", "Work", "Friends", "-", "*", "-", "archived"]
-hide_when_empty = ["unread"]
+order = ["tag:Unread", "-", "Work", "Friends", "-", "*", "-", "tag:Archived"]
+hide_when_empty = ["tag:Unread"]
 ```
 
 ### Tags
@@ -99,23 +101,29 @@ rooms. The terms are:
 
 - `*`: every room;
 - the place words: a room ID, `room:<name>`, `space:<name>`, `protocol:<network>`,
-  `dm`, `group`, `pinned`;
+  `dm`, `group`;
 - the state words: `unread`, `mention`, `draft`, `spam`, `invite`, which follow
   the room as it changes;
 - `tag:<name>`: another tag's rooms.
 
 Two tags whose rules name each other, directly or through others, are reported when
 the config is read, and their references to each other match nothing; the rest of
-the config still works. `hidden = true` keeps a tag out of the rail. An archived room
-leaves its tags, as it leaves every group but its space.
+the config still works. `hidden = true` keeps a tag out of the rail.
+
+`S` on a room opens the filing picker: your spaces, then your tags, the ones holding
+the room ticked. Ticking a tag puts the room in it, unticking takes it out; `/tag
+<name>` does the same for one tag from the composer, and `/tag` alone opens the
+picker. Either way kith writes the tag's `picked` or `excluded` list, whichever says it
+with less: a room the rule already holds is not picked, and one it does not hold is
+not excluded.
 
 A tag can also change how its rooms behave elsewhere (each off unless set):
 
 | Property | What it does |
 | --- | --- |
 | `counts_unread = false` | Its rooms count as read everywhere else: no badge, not `unread` or `mention` to other tags' rules, skipped by mark-all-read. The tag itself still sees them as they are. |
-| `exclusive = true` | Its rooms show under it alone: in no other tag, and not in All, DMs, Unread, Drafts or Pinned. Their spaces keep them. Of two exclusive tags holding a room, the first configured wins. |
-| `space_exclusive = true` | Its rooms leave the spaces you made and the other tags. The spaces they belong to (a bridge's space, a community, the Matrix space that is their home) keep them, so they stay findable where they live. |
+| `exclusive = true` | Its rooms show under it alone, in no other tag. Their spaces keep them. Of two exclusive tags holding a room, the first configured wins. |
+| `space_exclusive = true` | Its rooms leave the spaces you made and the tags that are not space-exclusive. The spaces they belong to (a bridge's space, a community, the Matrix space that is their home) keep them, so they stay findable where they live. |
 | `sticky = true` | The open room stays listed until you move off it, as in Unread. |
 | `hide_when_empty = true` | No rail row while it holds nothing. |
 | `first = true` | At the top of the rail, unless `[display.rail] order` places it. |
@@ -131,9 +139,10 @@ nothing there (`not unread` matches everything). Tagging a room that way widens 
 names the tag: a room you pick into a tag `[agent.read]` lists becomes readable to the
 assistant.
 
-A room's tags are homes beside its spaces. `[display] priority` ranks both (spaces by
-name, tags as `tag:<name>`), and the first decides which name rule applies, the
-`{space}` of a notification and a download's folder. Name rules and notification rules
+A tag `[display] priority` names is a home beside the room's spaces. The list ranks
+both (spaces by name, tags as `tag:<name>`), and the first decides which name rule
+applies, the `{space}` of a notification and a download's folder. A tag it does not
+name is no home, so All does not become the home of every room in no space. Name rules and notification rules
 can be set on a tag row from the rail (`F`, `b`) as on a space.
 
 ## The room list
@@ -143,7 +152,7 @@ Walking the list with `j`/`k` previews each room's timeline beside it; `enter` (
 | Mark | Meaning |
 | --- | --- |
 | `3` | Unread count; drawn in the alert color when something unread names you |
-| `·3` | Unread in an archived room — shown, but not counted anywhere else |
+| `·3` | Unread in a room a `counts_unread = false` tag holds (Archived, in the starter config) — shown, but not counted anywhere else |
 | `✎` | You have an unsent draft here |
 | `→` | The room was upgraded; `>` goes to its replacement |
 | `✉` | An invitation: `y` accepts, `d` declines (asks first) |
@@ -184,8 +193,8 @@ A thread's summary sits at its root in the timeline, which may be far up the scr
 - **Opening** a room reads it. **Selecting** it in the list does not, unless you set `[display] read_delay` to a number of seconds to rest on it (`0` reads everything the cursor touches; `-1`, the default, never).
 - `m` in the room list marks a room read without opening it; `m` in the rail marks the whole group.
 - `M` marks a room you have read as still needing you, and clears that mark. It is the homeserver's marked-unread flag, so it shows on your other clients; reading the room clears it too. `/unread` does the same from the composer.
-- `A` **archives** a room: it stays readable and writable, but stops counting toward any badge, leaves every group except its own space and Archived, and is skipped by group-wide mark-read. `/archive` from the composer, or list places in `[display] archived`.
-- `P` **pins** a conversation: it appears in Pinned as well as where it lives, and `pinned` becomes a place a notification rule can name — a way to let one conversation through do-not-disturb. See [Notifications](notifications.md).
+- **Archiving** a room is putting it in the starter config's Archived tag (`S`, or `/tag Archived`): it stays readable and writable, but stops counting toward any badge, leaves every group except the space it belongs to and Archived, and is skipped by group-wide mark-read.
+- **Pinning** is putting it in the Pinned tag: it appears there as well as where it lives, and `tag:Pinned` is a place a notification rule can name — a way to let one conversation through do-not-disturb. See [Notifications](notifications.md).
 - `!` moves a conversation to **Spam** and back. See [Spam](spam.md).
 
 **Read receipts.** `[display] send_receipts = false` stops announcing your read position to others; the client then sends a private receipt, so your badges still clear everywhere on your account. Both `send_receipts` and `read_delay` can be set per room, space or person:
@@ -378,7 +387,7 @@ Who else is typing is shown on the rule above the composer. `[display] typing = 
 
 ## The command line and composer commands
 
-`:` opens the command line for client-wide commands (`:go`, `:join`, `:mentions`, `:files`, `:starred`, `:threads`, `:scheduled`, `:dnd`, `:verify`, `:settings`, `:help`, …). Commands typed in the composer with `/` act on the room you are writing in (`/me`, `/upload`, `/search`, `/pin`, `/archive`, `/leave`, …), and your own scripts become `/` commands too. Both complete as you type. See [Commands](commands.md).
+`:` opens the command line for client-wide commands (`:go`, `:join`, `:mentions`, `:files`, `:starred`, `:threads`, `:scheduled`, `:dnd`, `:verify`, `:settings`, `:help`, …). Commands typed in the composer with `/` act on the room you are writing in (`/me`, `/upload`, `/search`, `/tag`, `/leave`, …), and your own scripts become `/` commands too. Both complete as you type. See [Commands](commands.md).
 
 ## Notifications and silence
 

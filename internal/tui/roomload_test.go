@@ -36,7 +36,7 @@ func scrolling(t *testing.T, backend *countingBackend) Model {
 			Name: "Room " + string(rune('A'+i)),
 		}
 	}
-	m := update(t, sized(t, New(context.Background(), backend, config.Display{})), roomsMsg{rooms: rooms})
+	m := update(t, sized(t, starterNew(backend, config.Display{})), roomsMsg{rooms: rooms})
 	m.focus = paneRooms
 	return m.clearStatus()
 }

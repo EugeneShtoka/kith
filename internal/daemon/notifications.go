@@ -114,7 +114,7 @@ type Sinks func(config.Notifications) notify.Notifier
 // own messages never notify. A config that will not parse is refused.
 func NewNotifications(cfg config.Config, src scopeSource, me string, sinks Sinks) (*Notifications, error) {
 	n := &Notifications{
-		scope: newScopeIndex(src, cfg.Display.Names, cfg.Display.Ranking()),
+		scope: newScopeIndex(src, cfg.Display.Names, cfg.Display.Priority),
 		sinks: sinks,
 		me:    me,
 	}
@@ -156,8 +156,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	}
 
 	n.scope.SetAliases(cfg.Display.Names)
-	n.scope.SetSpacePriority(cfg.Display.Ranking())
-	n.scope.SetPinned(cfg.Display.Pinned)
+	n.scope.SetSpacePriority(cfg.Display.Priority)
 	// Validated already (Reload refuses a config that will not parse).
 	tags, _, _ := setup.Tags(cfg)
 	n.scope.SetTags(tags)

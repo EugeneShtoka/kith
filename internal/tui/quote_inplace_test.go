@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -19,7 +18,7 @@ func TestAQuotedThreadReplyShowsItsEdit(t *testing.T) {
 		{ID: "$inner", RoomID: "!a:x", Sender: "@dana:x", Body: "the old words", ThreadRoot: "$root", Timestamp: ts(1)},
 		{ID: "$answer", RoomID: "!a:x", Sender: "@me:x", Body: "about that", ReplyTo: "$inner", Timestamp: ts(2)},
 	}
-	m := update(t, New(context.Background(), &quoteBackend{}, config.Display{}),
+	m := update(t, starterNew(&quoteBackend{}, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})

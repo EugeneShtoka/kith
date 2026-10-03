@@ -107,8 +107,9 @@ Releases are signed and ship with build attestations and an SBOM.
 
 ## And everything else you expect
 
-- A spaces rail with synthetic **All / DMs / Unread / Drafts** groups, plus Invites,
-  Pinned, Spam and Archived when they apply; a room-list sort you define as a chain
+- A spaces rail with your own **tags** beside your spaces — groupings by rule or by
+  hand, across networks (All, DMs, Unread, Drafts, Pinned, Spam and Archived are tags
+  a first run writes for you); a room-list sort you define as a chain
 - Threads, replies, reactions (frequency-ranked), edits, deletions, stickers, stars,
   and an edit/deletion history view
 - Images drawn in text, a voice-note player bar (mpv or VLC) with speed remembered per

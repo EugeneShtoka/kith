@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -17,7 +16,7 @@ import (
 // directed is a model in !a:x under [display.direction] dir, its page loaded.
 func directed(t *testing.T, dir config.Direction, msgs []domain.Message) Model {
 	t.Helper()
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, config.Display{Direction: dir})))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Direction: dir})))
 	return loadPage(t, m, msgs)
 }
 

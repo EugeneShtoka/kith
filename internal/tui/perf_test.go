@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -231,19 +230,25 @@ func benchRealisticRoomList() Model {
 		}
 	}
 	display := config.Display{
-		Archived: archived,
 		// The name rules this account runs with: every room label goes through
 		// shortening as well as bidi.
 		SpaceRules: []config.SpaceRule{{Space: "Space 0", FirstNameOnly: true}},
 	}
-	m := New(context.Background(), apitest.Nop{}, display)
+	m := starterNew(apitest.Nop{}, display)
+	cfg := m.conf.base.Clone()
+	for i := range cfg.Tags {
+		if cfg.Tags[i].Name == "Archived" {
+			cfg.Tags[i].Picked = archived
+		}
+	}
+	m = m.WithConfigFile("", cfg)
 	m.width, m.height, m.ready = 200, 50, true
 	m.focus = paneRooms
 	m.rooms = m.rooms.withJoined(rooms)
 	m = m.refreshPlaces()
 	m.rooms = m.rooms.withSpaces(spaces) // as the spaces load does
-	m = m.refreshArchived()
-	m.rail.groups = railGroups(spaces, display.Rail, nil, m.unreadView(), 0, nil, nil)
+	m = m.refreshPlaces()
+	m.rail.groups = railGroups(spaces, m.prefs.display.Rail, nil, m.unreadView(), rooms)
 	for _, u := range unread {
 		m.unread[u.RoomID] = u
 	}

@@ -9,11 +9,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Filing a room into a space and back out: one picker of your spaces, those already
-// holding the room ticked, choosing toggles. Both halves are state events the daemon
-// writes (m.space.child, m.space.parent); the rail follows the refreshed hierarchy.
+// Filing a room into a space or a tag and back out: one picker of your spaces and
+// tags, those already holding the room ticked, choosing toggles. A space's halves are
+// state events the daemon writes (m.space.child, m.space.parent), and the rail follows
+// the refreshed hierarchy; a tag's are its picked and excluded lists, in the config
+// (tagfiling.go).
 
-// openSpacePicker offers the spaces for the selected room. The room is captured now, so
+// openSpacePicker offers the spaces and tags for the selected room. The room is captured now, so
 // a re-sort under the open picker cannot redirect the gesture.
 func (m Model) openSpacePicker() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
@@ -21,18 +23,19 @@ func (m Model) openSpacePicker() (Model, tea.Cmd) {
 		return m, nil
 	}
 	items, checked := m.fileableSpaces(room.ID)
+	if len(items) == 0 && len(m.prefs.display.FilingSpaces) > 0 {
+		return m.say("nothing in [display] filing_spaces matches a space you are in"), nil
+	}
+	items = m.appendTagRows(items, checked, room)
 	if len(items) == 0 {
-		if len(m.prefs.display.FilingSpaces) > 0 {
-			return m.say("nothing in [display] filing_spaces matches a space you are in"), nil
-		}
-		return m.say("no spaces to file " + m.roomName(room) + " into"), nil
+		return m.say("no spaces or tags to file " + m.roomName(room) + " into"), nil
 	}
 	m.aimedAt.space = room.ID
 	m.picker = newCheckedPicker(pickerRoomSpaces, items, checked)
 	return m, nil
 }
 
-// fileableSpaces is the picker's rows, in the rail's order under the rail's names.
+// fileableSpaces is the picker's space rows, in the rail's order under the rail's names.
 // Managed spaces (a bridge's, or a room's origin) are left out — they stay browsable
 // but filing into them is meaningless — and hidden spaces are absent because they are
 // not in the rail; memberships there are untouched since the diff covers shown rows only.
@@ -93,8 +96,12 @@ func (m Model) applyRoomSpaces(values []string) (Model, tea.Cmd) {
 	for _, v := range values {
 		want[domain.SpaceID(v)] = true
 	}
+	m, tagged, tagCmd := m.fileInTags(room, rows, want)
 	var changes []spaceChange
 	for _, item := range rows {
+		if isTagGroup(item.value) {
+			continue
+		}
 		space, ok := m.spaceByID(domain.SpaceID(item.value))
 		if !ok {
 			continue
@@ -104,11 +111,14 @@ func (m Model) applyRoomSpaces(values []string) (Model, tea.Cmd) {
 		}
 	}
 	if len(changes) == 0 {
-		return m.say("no change"), nil
+		if !tagged {
+			return m.say("no change"), nil
+		}
+		return m, tagCmd
 	}
 	name := m.roomNameOf(room)
 	m = m.doing("filing " + name + "…")
-	return m, m.fileRoomCmd(room, name, changes)
+	return m, tea.Batch(tagCmd, m.fileRoomCmd(room, name, changes))
 }
 
 // handleSpaceFiled reports the whole gesture in one line and, if anything landed,

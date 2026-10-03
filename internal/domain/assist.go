@@ -51,12 +51,12 @@ type ModelScope struct {
 func (s ModelScope) NeedsPlaces() bool { return NamesAPlace(s.Only) || NamesAPlace(s.Except) }
 
 // NamesAPlace reports whether a list has an entry whose answer depends on the space
-// hierarchy: space: and protocol:, and pinned, since a pin may name a space.
+// hierarchy: space: and protocol:, and tag:, since a tag's rule may name a space.
 func NamesAPlace(list []string) bool {
 	return slices.ContainsFunc(list, func(entry string) bool {
 		entry = strings.TrimSpace(entry)
 		return hasPrefixFold(entry, entrySpace) || hasPrefixFold(entry, entryProtocol) ||
-			strings.EqualFold(entry, entryPinned)
+			hasPrefixFold(entry, termTag)
 	})
 }
 

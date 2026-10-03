@@ -139,9 +139,9 @@ func TestSaveRoundTripsEveryShape(t *testing.T) {
 	cfg.Display.ColorMessages = true                                                                 // bool in a table
 	cfg.Display.OpenInInsert = &no                                                                   // *bool, set false
 	cfg.Display.RoomNameRules = &yes                                                                 // *bool, set true
-	cfg.Display.Rail.Order = []string{"unread", "-"}                                                 // []string in a table
-	cfg.Display.Rail.Hidden = []string{"home"}                                                       //
-	cfg.Display.Names = []DisplayName{{Target: NameTargetGroup + "home", Name: "All"}}               // one list
+	cfg.Display.Rail.Order = []string{"tag:Unread", "-"}                                             // []string in a table
+	cfg.Display.Rail.Hidden = []string{"tag:All"}                                                    //
+	cfg.Display.Names = []DisplayName{{Target: NameTargetSpace + "Work", Name: "Job"}}               // one list
 	cfg.Display.Media.Mode = "inline"                                                                // string in a nested table
 	cfg.Display.Media.MaxHeight = 12                                                                 //
 	cfg.Display.Reactions.Static = []string{"👍", "🎉"}                                                // non-ASCII array
@@ -432,7 +432,7 @@ func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 	short.Complete.Sources = []string{"history", "frequency"}
 	long := cfg
 	for i := range 30 {
-		long.Display.Archived = append(long.Display.Archived,
+		long.Display.Priority = append(long.Display.Priority,
 			fmt.Sprintf("!room%02daaaaaaaaaaaaaaaaaa:example.org", i))
 	}
 
@@ -457,7 +457,7 @@ func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: the written config does not load: %v", name, err)
 		}
-		if len(round.Display.Archived) != len(tc.cfg.Display.Archived) ||
+		if len(round.Display.Priority) != len(tc.cfg.Display.Priority) ||
 			len(round.Complete.Sources) != len(tc.cfg.Complete.Sources) {
 			t.Errorf("%s: round trip lost entries", name)
 		}
