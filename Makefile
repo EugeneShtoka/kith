@@ -112,7 +112,7 @@ fix:
 # Go modules, and the one npm tree the gates run (markdownlint-cli2's lock).
 vuln:
 	$(GOVULN) ./...
-	cd tools/markdownlint && npm audit --audit-level=low --omit=dev
+	scripts/npm-audit.sh
 
 # Regenerate api/proto codegen (needs buf). Output is committed.
 proto:
