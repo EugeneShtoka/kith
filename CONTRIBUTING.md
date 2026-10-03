@@ -125,7 +125,7 @@ calls a tool directly instead of through its target. In order:
 | `cross` | every package builds for linux, darwin, freebsd and windows on amd64 and arm64 (`CROSS_TARGETS`) |
 | `lint` | `golangci-lint run`, including the depguard layer rules |
 | `fmt-check` | `golangci-lint fmt --diff` (gofmt + goimports), non-mutating |
-| `vuln` | `govulncheck ./...`, and `npm audit` of markdownlint's lock |
+| `vuln` | `govulncheck ./...`, and `npm audit` of markdownlint's lock (`scripts/npm-audit.sh`: an advisory with no fixed release can be allowed in `tools/markdownlint/audit-allow.json`, with a reason and an expiry date) |
 | `secrets` | gitleaks over the committed history **and** the working tree |
 | `pin-check` | every GitHub Actions `uses:` is pinned to a commit SHA |
 | `unit-check` | the plain and templated systemd units configure the same sandbox |

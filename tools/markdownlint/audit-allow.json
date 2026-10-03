@@ -1,0 +1,8 @@
+[
+  {
+    "advisory": "GHSA-vfj7-8cjw-p6xm",
+    "package": "braces",
+    "until": "2026-11-03",
+    "why": "Stack-exhaustion DoS on deeply nested brace patterns; every braces release (<=3.0.3) is affected and none is fixed yet. braces runs only inside markdownlint-cli2 at dev time, on the repo's own glob patterns: nothing untrusted reaches it. Drop this entry when a fixed release lands; it expires so it cannot linger."
+  }
+]
