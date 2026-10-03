@@ -35,6 +35,10 @@ func TestIDsSayTheirNetworkAndAccount(t *testing.T) {
 		"whatsapp message":    {"whatsapp:" + waAccount + "/" + waMessage, domain.ID{Network: domain.ProtocolWhatsApp, Account: waAccount, Native: waMessage}, false, false, ""},
 		"whatsapp phone user": {"whatsapp:" + waPhone, domain.ID{Network: domain.ProtocolWhatsApp, Native: waPhone}, false, true, "+972500000002"},
 		"whatsapp lid user":   {"whatsapp:" + waLID, domain.ID{Network: domain.ProtocolWhatsApp, Native: waLID}, false, true, "100000000000003"},
+		"slack channel":       {"slack:T0000000001/C0000000002", domain.ID{Network: domain.ProtocolSlack, Account: "T0000000001", Native: "C0000000002"}, true, false, ""},
+		"slack dm":            {"slack:T0000000001/D0000000004", domain.ID{Network: domain.ProtocolSlack, Account: "T0000000001", Native: "D0000000004"}, true, false, ""},
+		"slack message":       {"slack:T0000000001/C0000000002/1700000000.000100", domain.ID{Network: domain.ProtocolSlack, Account: "T0000000001", Native: "C0000000002/1700000000.000100"}, false, false, ""},
+		"slack user":          {"slack:T0000000001.U0000000003", domain.ID{Network: domain.ProtocolSlack, Native: "T0000000001.U0000000003"}, false, true, ""},
 		// Not a network kith reaches: a word with a colon is Matrix's, and names nothing.
 		"unknown prefix": {"room:Standup", domain.ID{Network: domain.ProtocolMatrix, Native: "room:Standup"}, false, false, "room"},
 		"empty":          {"", domain.ID{Network: domain.ProtocolMatrix}, false, false, ""},
@@ -143,6 +147,12 @@ func TestNativeIDsRoundTrip(t *testing.T) {
 	for _, native := range []string{waGroup, waPhone, waLID, waMessage} {
 		id := domain.NativeID(domain.ProtocolWhatsApp, waAccount, native)
 		if got := domain.ParseID(id); got != (domain.ID{Network: domain.ProtocolWhatsApp, Account: waAccount, Native: native}) {
+			t.Errorf("ParseID(NativeID(%q)) = %+v", native, got)
+		}
+	}
+	for _, native := range []string{"C0000000002", "C0000000002/1700000000.000100"} {
+		id := domain.NativeID(domain.ProtocolSlack, "T0000000001", native)
+		if got := domain.ParseID(id); got != (domain.ID{Network: domain.ProtocolSlack, Account: "T0000000001", Native: native}) {
 			t.Errorf("ParseID(NativeID(%q)) = %+v", native, got)
 		}
 	}
