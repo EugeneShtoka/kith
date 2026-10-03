@@ -27,12 +27,23 @@ type KeyBackup struct {
 	log   func(level slog.Level, line string)
 	// said is the last line reported, so a lasting condition is logged once.
 	said string
+	// soon asks for a sweep before the timer's (see Soon).
+	soon chan struct{}
 }
 
 // NewKeyBackup returns a sweeper over b, reporting through log: problems at warn,
 // progress at info.
 func NewKeyBackup(b backupBackend, log func(level slog.Level, line string)) *KeyBackup {
-	return &KeyBackup{b: b, every: backupSweep, log: log}
+	return &KeyBackup{b: b, every: backupSweep, log: log, soon: make(chan struct{}, 1)}
+}
+
+// Soon asks for a sweep now rather than at the next interval: the account just
+// logged in, after the startup sweep found nothing to back up. It never blocks.
+func (k *KeyBackup) Soon() {
+	select {
+	case k.soon <- struct{}{}:
+	default: // one is already asked for
+	}
 }
 
 // Run sweeps once at startup (keys received while stopped are in no backup) and
@@ -46,6 +57,8 @@ func (k *KeyBackup) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			k.pass(ctx)
+		case <-k.soon:
 			k.pass(ctx)
 		}
 	}

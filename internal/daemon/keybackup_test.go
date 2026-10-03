@@ -174,3 +174,33 @@ func TestKeyBackupReportsAFailure(t *testing.T) {
 		t.Errorf("lines = %q, want one carrying the failure", got)
 	}
 }
+
+// An account that logs in after the startup sweep (which found nothing to back up)
+// is swept at once, not an interval later; asking twice before it runs is one sweep.
+func TestKeyBackupSweepsSoonWhenAsked(t *testing.T) {
+	t.Parallel()
+	c := &backupCounter{}
+	k := NewKeyBackup(c, func(slog.Level, string) {})
+	k.every = time.Hour
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { k.Run(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for c.count() < 1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	k.Soon()
+	k.Soon()
+	for c.count() < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if got := c.count(); got != 2 && got != 3 {
+		t.Errorf("passes = %d, want the startup one and the asked one (two asks may coalesce)", got)
+	}
+	if got := c.count(); got < 2 {
+		t.Errorf("passes = %d, want a sweep soon after asking", got)
+	}
+}

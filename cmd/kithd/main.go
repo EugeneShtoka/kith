@@ -566,7 +566,13 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	if m := backend.matrix; m != nil {
 		m.OnRoomsChanged(refresher.Changed)
 		// Logged in after the startup refresh: refresh again, now with Matrix.
-		m.onLoggedIn = refresher.Changed
+		m.onLoggedIn = func() {
+			refresher.Changed()
+			// The startup sweep ran before the session took: back up what it missed.
+			if backups != nil {
+				backups.Soon()
+			}
+		}
 		m.report = func(phase daemon.Phase, detail string) {
 			state.Report(matrixStatus(m, phase, detail), time.Now())
 		}
