@@ -177,16 +177,17 @@ Behavior worth knowing:
   out, with the reason in the daemon's status and log, and the daemon waits for
   `kith login`. (A token rejected later, after the homeserver was first unreachable,
   needs a restart after the login.)
-- **Optional parts fail soft.** A cache that can't be opened, encryption that can't be
-  enabled (for example, with no keyring) or scheduled messages that can't be set up
-  each log one `level=ERROR` line, and the daemon carries on without that part.
+- **Optional parts fail soft.** Encryption that can't be enabled (for example, with no
+  keyring) or scheduled messages that can't be set up each log one `level=ERROR` line,
+  and the daemon carries on without that part. The cache is not optional: one that
+  can't be opened stops the daemon, naming the file and why.
 - **It shuts down cleanly on `SIGINT` and `SIGTERM`.** It stops accepting clients,
   waits for its workers, and removes its socket.
 
 | Status | When |
 | --- | --- |
 | `0` | Clean shutdown, or another daemon already holds the lock. |
-| `1` | A fatal error: no config, an invalid config (one naming no network at all), no network that could be set up, or a socket that can't be opened. |
+| `1` | A fatal error: no config, an invalid config (one naming no network at all), no network that could be set up, a cache or a socket that can't be opened. |
 
 ## kith-mcp
 

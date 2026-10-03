@@ -261,11 +261,12 @@ anyway.
 Switching back and forth between two builds with different schemas rebuilds the
 cache on each switch. That's slow, but nothing is corrupted.
 
-### "cache disabled: …"
+### "open the cache …: …"
 
 The daemon couldn't open its cache file (for example, a permissions problem or a full
-disk). It keeps running without the cache, so the room list isn't instant and search
-has nothing to search. Fix the cause shown in the message and restart the daemon.
+disk), and it does not run without one: every network writes into it and every client
+reads from it. Fix the cause shown in the message. Under systemd the daemon retries
+every few seconds by itself; otherwise start it again.
 
 ## Encryption
 

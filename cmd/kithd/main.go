@@ -172,7 +172,10 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		return err
 	}
 
-	cache := openCache(ctx, log, storage.CachePath(), cfg.User)
+	cache, err := openCache(ctx, log, storage.CachePath(), cfg.User)
+	if err != nil {
+		return err
+	}
 	backend, err := newServed(ctx, cache, log, cfg, storage, saved)
 	if err != nil {
 		closeCache(log, cache)
@@ -690,18 +693,20 @@ func makeStorageDirs(storage domain.Storage) error {
 
 // openCache opens the instance's cache, or returns nil with a warning: without it the
 // backend falls through to the network.
-func openCache(ctx context.Context, log *slog.Logger, path, user string) *db.Cache {
+func openCache(ctx context.Context, log *slog.Logger, path, user string) (*db.Cache, error) {
 	cache, err := db.Open(ctx, path)
 	if err != nil {
-		log.Error("cache disabled", "path", path, "err", err)
-		return nil
+		// Every network writes into it and every client reads from it: there is no
+		// daemon without it. A unit retries every few seconds, so fixing the cause
+		// (disk space, permissions) is enough.
+		return nil, fmt.Errorf("open the cache %s (free disk space or fix its permissions): %w", path, err)
 	}
 	cache.UseLogger(log)
 	cache.UseAccount(user)
 	if asideErr := cache.AsideFailed(); asideErr != nil {
 		log.Warn("the previous cache could not be kept", "err", asideErr)
 	}
-	return cache
+	return cache, nil
 }
 
 // startScheduler starts the send-later queue before Serve, so overdue messages go out
