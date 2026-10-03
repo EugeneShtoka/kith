@@ -159,7 +159,8 @@ of three ways.
 `[agent.read]` / `[agent.write]`. An entry is:
 
 - a bare room ID (`!abc:example.org`);
-- `room:<name>`, `space:<name>` or `protocol:<network>`;
+- `room:<name>`, `space:<name>`, `tag:<name>` or `protocol:<network>` (a tag is
+  judged on the room alone: its state words match nothing as a place);
 - `dm`, `group` or `pinned`.
 
 A bare word that isn't a room ID is refused at startup, because an entry that could mean

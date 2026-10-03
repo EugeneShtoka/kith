@@ -84,7 +84,7 @@ unread = "messages"
 # Places whose unread stops counting: no rail badge, not in Unread, skipped by a
 # group-wide mark-read, still fully readable and writable. Entries use the place
 # vocabulary every list here takes: a room ID bare, `room:<name>`, `space:<name>`,
-# `protocol:<network>`, `dm`, `group`. `A` in the room list toggles the room under the
+# `tag:<name>`, `protocol:<network>`, `dm`, `group`. `A` in the room list toggles the room under the
 # cursor. An archived room leaves every group but the space it lives in, and an
 # "Archived" rail group appears while anything is archived.
 # archived = ["!noisy:example.org", "space:Bots"]
@@ -98,8 +98,12 @@ unread = "messages"
 #   show  = "all"
 # pinned = ["!standup:example.org"]
 
-# Preference order when one space must be chosen for a room in several (the {space}
-# of a notification, the download folder). Unlisted spaces follow alphabetically.
+# Preference order when one home must be chosen for a room in several spaces or tags:
+# the {space} of a notification, the download folder, which [[display.space_rule]]
+# applies, which place rule counts as the room's space. Spaces by name, tags as
+# tag:<name>; unlisted ones follow. space_priority is its older name, read while
+# priority is empty.
+# priority = ["tag:Family", "Work", "Friends"]
 # space_priority = ["Work", "Friends"]
 
 # The space a room lives in is its `m.space.parent` (canonical). Spaces listed here
@@ -491,8 +495,9 @@ sound_command = ""
 # Rules decide what notifies. A rule says where, when, and what gets through:
 #
 #   name    shown when the status line says which rule silenced you
-#   match   one place: a room ID, room:<name>, space:<name>, protocol:<network>,
-#           dm, group or pinned; empty = anywhere. A bare word is refused.
+#   match   one place: a room ID, room:<name>, space:<name>, tag:<name>,
+#           protocol:<network>, dm, group or pinned; empty = anywhere. A bare word
+#           is refused.
 #   sender  one person's MXID; empty = anyone
 #   when    a daily window, "22:00-08:00"; absent = always
 #   thread  any (default) · participating (threads you spoke in) · none (outside

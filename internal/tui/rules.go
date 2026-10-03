@@ -82,8 +82,8 @@ func (m Model) openRuleForSender() (Model, tea.Cmd) {
 		{match: "", sender: msg.Sender, what: who + ", anywhere"},
 		{match: string(room.ID), what: "everyone in " + m.roomName(room)},
 	}
-	for _, space := range m.spacesOf(room.ID) {
-		entry, shown := domain.SpaceEntry(space), isolate(space)
+	for _, home := range m.homesOf(room.ID) {
+		entry, shown := homeEntry(home), isolate(domain.HomeLabel(home))
 		m.aimedAt.ruleScopes = append(m.aimedAt.ruleScopes,
 			ruleTarget{match: entry, sender: msg.Sender, what: who + " in " + shown},
 			ruleTarget{match: entry, what: "everything in " + shown})
@@ -99,8 +99,8 @@ func (m Model) openRuleForRoom() (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.aimedAt.ruleScopes = []ruleTarget{{match: string(room.ID), what: m.roomName(room)}}
-	for _, space := range m.spacesOf(room.ID) {
-		m.aimedAt.ruleScopes = append(m.aimedAt.ruleScopes, ruleTarget{match: domain.SpaceEntry(space), what: "everything in " + space})
+	for _, home := range m.homesOf(room.ID) {
+		m.aimedAt.ruleScopes = append(m.aimedAt.ruleScopes, ruleTarget{match: homeEntry(home), what: "everything in " + domain.HomeLabel(home)})
 	}
 	m.picker = newPicker(pickerRuleScope, ruleScopeItems(m.aimedAt.ruleScopes))
 	return m, nil
@@ -112,12 +112,12 @@ func (m Model) openRuleForGroup() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	if !isSpaceGroup(entry.key) {
-		m = m.say("rules apply to spaces and rooms, not to " + entry.label)
+	if !isSpaceGroup(entry.key) && !isTagGroup(entry.key) {
+		m = m.say("rules apply to spaces, tags and rooms, not to " + entry.label)
 		return m, nil
 	}
-	// The rail key is the bare space name, not yet a place entry.
-	m.aimedAt.ruleScopes = []ruleTarget{{match: domain.SpaceEntry(entry.key), what: "everything in " + entry.label}}
+	// A space's rail key is its bare name, not yet a place entry; a tag's is one.
+	m.aimedAt.ruleScopes = []ruleTarget{{match: homeEntry(entry.key), what: "everything in " + entry.label}}
 	return m.chooseRuleScope(0)
 }
 

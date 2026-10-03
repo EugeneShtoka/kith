@@ -179,7 +179,7 @@ func TestRuleNotOfferedForSyntheticGroups(t *testing.T) {
 		if next.picker.active() {
 			t.Errorf("%s should not offer a rule", key)
 		}
-		if !strings.Contains(next.status(), "spaces and rooms") {
+		if !strings.Contains(next.status(), "spaces, tags and rooms") {
 			t.Errorf("%s: status = %q, should explain", key, next.status())
 		}
 	}
@@ -452,7 +452,7 @@ func TestRuleAppliesWithoutRestart(t *testing.T) {
 }
 
 // A room in several spaces offers each of them.
-func TestSpacesOf(t *testing.T) {
+func TestHomesOfSpaces(t *testing.T) {
 	t.Parallel()
 
 	m, _ := ruling(t, config.Notifications{})
@@ -461,11 +461,11 @@ func TestSpacesOf(t *testing.T) {
 		{ID: "!e:x", Name: "Everything", Children: []domain.RoomID{"!standup:x", "!other:x"}},
 		{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!other:x"}},
 	}})
-	got := m.spacesOf("!standup:x")
+	got := m.homesOf("!standup:x")
 	if strings.Join(got, ",") != "Work,Everything" {
-		t.Errorf("spacesOf = %v, want both spaces containing it", got)
+		t.Errorf("homesOf = %v, want both spaces containing it", got)
 	}
-	if len(m.spacesOf("!nowhere:x")) != 0 {
+	if len(m.homesOf("!nowhere:x")) != 0 {
 		t.Error("a room in no space should have none")
 	}
 }

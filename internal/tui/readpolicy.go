@@ -62,8 +62,8 @@ func (m Model) readPlace(roomID domain.RoomID) domain.DownloadPlace {
 	place := domain.DownloadPlace{RoomID: string(roomID)}
 	if room, ok := m.roomByID(roomID); ok {
 		place.Room = m.roomLabel(room)
-		if spaces := m.spacesOf(room.ID); len(spaces) > 0 {
-			place.Space = spaces[0]
+		if homes := m.homesOf(room.ID); len(homes) > 0 {
+			place.Space = homes[0]
 		}
 	}
 	return place

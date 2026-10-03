@@ -81,7 +81,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 		return err
 	}
 	server := &server{
-		places:   setup.PlacesOf(cfg.Display),
+		places:   setup.PlacesOf(cfg),
 		backend:  daemon.NewRemote(socket),
 		scope:    setup.AgentReadScope(cfg.Agent),
 		write:    setup.AgentWriteScope(cfg.Agent),
@@ -105,7 +105,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 func warnAboutScope(log *slog.Logger, places setup.AgentPlaces, cfg config.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), scopeCheckTimeout)
 	defer cancel()
-	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg.Display), cfg.Agent) {
+	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg), cfg.Agent) {
 		log.Warn("agent scope: " + warning)
 	}
 }

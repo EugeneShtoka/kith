@@ -101,7 +101,7 @@ func (p DownloadPlace) scope() Scope {
 func expandDownloadTemplate(template string, place DownloadPlace, name string) string {
 	stem, ext := splitFileName(name)
 	fields := map[string]string{
-		"{space}":  safeSegment(place.Space, ""),
+		"{space}":  safeSegment(HomeLabel(place.Space), ""),
 		"{room}":   safeSegment(place.Room, ""),
 		"{person}": safeSegment(place.Person, ""),
 		"{sender}": safeSegment(place.Person, ""),

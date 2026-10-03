@@ -641,7 +641,7 @@ func (r nameRule) within(name string, members []string) (string, bool) {
 // ownSpace is the room's first space in the user's priority order. The timeline uses it:
 // which door you came through is not part of the conversation.
 func (m Model) ownSpace(roomID domain.RoomID) string {
-	spaces := m.spacesOf(roomID)
+	spaces := m.homesOf(roomID)
 	if len(spaces) == 0 {
 		return ""
 	}
@@ -652,7 +652,7 @@ func (m Model) ownSpace(roomID domain.RoomID) string {
 // the room list uses it, so a space-scoped column is uniform with that space.
 func (m Model) listedSpace(roomID domain.RoomID) string {
 	if here := m.rail.key(); here != "" {
-		for _, space := range m.spacesOf(roomID) {
+		for _, space := range m.homesOf(roomID) {
 			if space == here {
 				return space
 			}

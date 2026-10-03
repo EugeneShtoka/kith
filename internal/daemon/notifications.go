@@ -114,7 +114,7 @@ type Sinks func(config.Notifications) notify.Notifier
 // own messages never notify. A config that will not parse is refused.
 func NewNotifications(cfg config.Config, src scopeSource, me string, sinks Sinks) (*Notifications, error) {
 	n := &Notifications{
-		scope: newScopeIndex(src, cfg.Display.Names, cfg.Display.SpacePriority),
+		scope: newScopeIndex(src, cfg.Display.Names, cfg.Display.Ranking()),
 		sinks: sinks,
 		me:    me,
 	}
@@ -156,8 +156,11 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	}
 
 	n.scope.SetAliases(cfg.Display.Names)
-	n.scope.SetSpacePriority(cfg.Display.SpacePriority)
+	n.scope.SetSpacePriority(cfg.Display.Ranking())
 	n.scope.SetPinned(cfg.Display.Pinned)
+	// Validated already (Reload refuses a config that will not parse).
+	tags, _, _ := setup.Tags(cfg)
+	n.scope.SetTags(tags)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.notifier, n.limit = rules, notifier, limit
@@ -312,11 +315,8 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 	if sender == "" {
 		sender = msg.Sender
 	}
-	// A room can be in several spaces; {space} is the first.
-	var space string
-	if len(facts.Spaces) > 0 {
-		space = facts.Spaces[0]
-	}
+	// A room can be in several spaces and tags; {space} is the first by priority.
+	space := n.scope.Home(facts)
 	return notify.Notification{
 		Sender: sender,
 		MXID:   msg.Sender,

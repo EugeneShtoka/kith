@@ -277,6 +277,18 @@ func (s TagSet) Tags() []Tag {
 	return out
 }
 
+// Of is the names of the tags holding a room with these facts, judged as a place is:
+// on the room alone, no state (a state word matches nothing, `not` one everything).
+func (s TagSet) Of(facts RoomFacts) []string {
+	var names []string
+	for i := range s.tags {
+		if s.has(i, facts, RoomState{}, map[int]bool{}) {
+			names = append(names, s.tags[i].tag.Name)
+		}
+	}
+	return names
+}
+
 // Len is how many tags there are; At is the i-th, in configured order.
 func (s TagSet) Len() int { return len(s.tags) }
 

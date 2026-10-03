@@ -46,6 +46,8 @@ type scopeIndex struct {
 	// gen counts config changes; a rebuild (done unlocked) that raced one is discarded.
 	gen    uint64
 	pinned domain.Pinned
+	// tags are judged per lookup, as pins are: a tag's rule may say `pinned`.
+	tags domain.TagSet
 }
 
 // newScopeIndex returns an index over src, with no rooms read yet.
@@ -68,6 +70,26 @@ func (x *scopeIndex) SetPinned(entries []string) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	x.pinned = domain.Pinned{Entries: entries}
+}
+
+// SetTags replaces the tags, so rules naming tag:<name> can match. No index drop:
+// tags are judged per lookup.
+func (x *scopeIndex) SetTags(tags domain.TagSet) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	x.tags = tags
+}
+
+// Home is a room's first home — space or tag, by priority — as {space} shows it.
+func (x *scopeIndex) Home(facts domain.RoomFacts) string {
+	x.mu.Lock()
+	priority := x.priority
+	x.mu.Unlock()
+	homes := domain.Homes(facts.Spaces, facts.Tags, priority)
+	if len(homes) == 0 {
+		return ""
+	}
+	return domain.HomeLabel(homes[0])
 }
 
 // SetSpacePriority replaces the space ranking and drops the index.
@@ -120,15 +142,17 @@ func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts domain.RoomFacts) dom
 	if facts.ID == "" {
 		facts = domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
 	}
-	facts.Pinned = x.pins().Pins(facts)
+	pinned, tags := x.pinsAndTags()
+	facts.Pinned = pinned.Pins(facts)
+	facts.Tags = tags.Of(facts) // last: a tag's rule may say `pinned`
 	return facts
 }
 
-// pins is the pinned list, read under the lock.
-func (x *scopeIndex) pins() domain.Pinned {
+// pinsAndTags is the pinned list and the tags, read under the lock.
+func (x *scopeIndex) pinsAndTags() (domain.Pinned, domain.TagSet) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
-	return x.pinned
+	return x.pinned, x.tags
 }
 
 // Direct reports whether a room is a direct message.

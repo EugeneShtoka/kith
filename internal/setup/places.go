@@ -3,6 +3,7 @@ package setup
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -45,6 +46,9 @@ func PlaceEntries(cfg config.Config) error {
 		if err := domain.ValidateEntries(what, entries); err != nil {
 			return fmt.Errorf("setup: %w", err)
 		}
+		if err := knownTags(cfg, what, entries); err != nil {
+			return err
+		}
 	}
 	for _, entry := range cfg.Display.Direction.RTL {
 		if slices.Contains(cfg.Display.Direction.LTR, entry) {
@@ -52,6 +56,20 @@ func PlaceEntries(cfg config.Config) error {
 		}
 	}
 	return scopeEntries(cfg)
+}
+
+// knownTags refuses a tag:<name> entry that names no [[tag]].
+func knownTags(cfg config.Config, what string, entries []string) error {
+	for _, entry := range entries {
+		name, ok := domain.TagOf(entry)
+		if !ok {
+			continue
+		}
+		if !slices.ContainsFunc(cfg.Tags, func(t config.Tag) bool { return strings.EqualFold(strings.TrimSpace(t.Name), name) }) {
+			return fmt.Errorf("setup: %s: %q names no [[tag]]", what, entry)
+		}
+	}
+	return nil
 }
 
 // scopeEntries refuses what cannot bound an assistant's reach. `pinned` changes each

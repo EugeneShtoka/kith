@@ -2858,9 +2858,19 @@ func cappedStatic(configured []string) []string {
 // spaceRoomsFor is the rooms of a room's own space (first by space_priority) — the
 // middle tier of the emoji ranking.
 func (m Model) spaceRoomsFor(roomID domain.RoomID) []domain.RoomID {
-	names := m.spacesOf(roomID)
+	names := m.homesOf(roomID)
 	if len(names) == 0 {
 		return nil
+	}
+	if tag, ok := domain.TagOf(names[0]); ok {
+		var rooms []domain.RoomID
+		for id, facts := range m.rail.roomFacts {
+			if slices.Contains(facts.Tags, tag) {
+				rooms = append(rooms, id)
+			}
+		}
+		slices.Sort(rooms)
+		return rooms
 	}
 	for i := range m.rooms.spaces {
 		if m.rooms.spaces[i].DisplayName() == names[0] {
@@ -2963,9 +2973,19 @@ func (m Model) dropImages() Model {
 	return m
 }
 
-// spacesOf is the names of the spaces a room is in, ordered by space_priority.
-func (m Model) spacesOf(roomID domain.RoomID) []string {
-	return domain.OrderSpaces(m.rooms.spaceNames(roomID), m.prefs.display.SpacePriority)
+// homesOf is a room's spaces and tags (as tag:<name>), ordered by [display] priority:
+// the first is the one that picks name rules, place rules and a download's folder.
+// Tags are judged as places are (domain.TagSet.Of), as the daemon judges them.
+func (m Model) homesOf(roomID domain.RoomID) []string {
+	return domain.Homes(m.rooms.spaceNames(roomID), m.rail.roomFacts[roomID].Tags, m.prefs.display.Ranking())
+}
+
+// homeEntry is a home as a place entry: a tag is one already, a space is space:<name>.
+func homeEntry(home string) string {
+	if _, ok := domain.TagOf(home); ok {
+		return home
+	}
+	return domain.SpaceEntry(home)
 }
 
 // roomByID looks up a joined room by ID.

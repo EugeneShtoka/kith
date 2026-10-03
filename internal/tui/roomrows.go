@@ -90,8 +90,8 @@ func (m Model) threadCap(room domain.Room) int {
 // scopeOfRoom is the room as a place rule sees it: ID and first space.
 func (m Model) scopeOfRoom(room domain.Room) domain.Scope {
 	scope := domain.Scope{RoomID: string(room.ID)}
-	if spaces := m.spacesOf(room.ID); len(spaces) > 0 {
-		scope.Space = spaces[0]
+	if homes := m.homesOf(room.ID); len(homes) > 0 {
+		scope.Space = homes[0]
 	}
 	return scope
 }

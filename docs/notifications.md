@@ -31,7 +31,7 @@ body  = "{body}"                         # default
 
 | Placeholder | Value |
 | --- | --- |
-| `{space}` | The room's space. If the room is in several, the first one by `[display] space_priority` |
+| `{space}` | The room's space, or tag. If it is in several, the first one by `[display] priority` (a tag reads by its name) |
 | `{room}` | The room's name as kith shows it, aliases included |
 | `{sender}` | The sender's display name (their MXID if it cannot be resolved) |
 | `{mxid}` | The sender's Matrix ID |
