@@ -112,7 +112,7 @@ func (m Model) openRuleForGroup() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	if config.BuiltInGroup(entry.key) {
+	if !isSpaceGroup(entry.key) {
 		m = m.say("rules apply to spaces and rooms, not to " + entry.label)
 		return m, nil
 	}

@@ -54,6 +54,7 @@ type Config struct {
 	WhatsApp       WhatsApp      `toml:"whatsapp"`
 	Storage        Storage       `toml:"storage"`
 	Profiles       []Profile     `toml:"profile"`
+	Tags           []Tag         `toml:"tag"`
 }
 
 // Log is `[log]`: how much each binary writes to its log, and where. Level empty is

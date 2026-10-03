@@ -48,6 +48,7 @@ The rail lists every Matrix space you have joined, plus built-in groups:
 | DMs | Direct messages | Always |
 | Unread | Rooms with something unread | Always |
 | *your spaces* | The rooms in each space | Always |
+| *your tags* | What each `[[tag]]` holds (see [Tags](#tags)) | Unless the tag is `hidden` |
 | Drafts | Rooms where you left an unsent message | While there is one |
 | Pinned | Conversations you pinned with `P` | While something is pinned |
 | Spam | Conversations moved to Spam | While something is there — see [Spam](spam.md) |
@@ -65,13 +66,48 @@ In the rail:
 | `m` | Mark every unread room in the group read (asks first) |
 | `B` | Bind a key sequence that jumps to this group |
 
-These write to your config for you. To arrange the rail by hand, use `[display.rail]`: `order` takes group keys (`home`, `dms`, `unread`, `invites`, `drafts`, `pinned`, `spam`, `archived`, or a space's name), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing.
+These write to your config for you (renaming, name rules and notification rules are
+for spaces; a tag is named in its `[[tag]]`). To arrange the rail by hand, use `[display.rail]`: `order` takes group keys (`home`, `dms`, `unread`, `invites`, `drafts`, `pinned`, `spam`, `archived`, a space's name, or `tag:<name>`), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing.
 
 ```toml
 [display.rail]
 order = ["unread", "-", "Work", "Friends", "-", "*", "-", "archived"]
 hide_when_empty = ["unread"]
 ```
+
+### Tags
+
+A tag is your own grouping of rooms, across networks: Family can hold your mother's
+WhatsApp chat and your brother's Matrix DM. A room can carry several tags. Each
+`[[tag]]` holds the rooms its `rule` matches, plus the rooms in `picked`, minus the
+rooms in `excluded` (a room ID or `room:<name>`; excluded wins over picked):
+
+```toml
+[[tag]]
+name     = "Family"
+rule     = ["dm", "space:Family", "not room:Bank"]
+picked   = ["whatsapp:359880000001/972500000002@s.whatsapp.net"]
+
+[[tag]]
+name = "Busy"
+rule = ["unread", "mention", "not tag:Family"]
+```
+
+A room matches a rule when some term matches and no `not` term does; a rule of `not`
+terms alone matches every room they leave, and an empty rule holds only picked
+rooms. The terms are:
+
+- `*`: every room;
+- the place words: a room ID, `room:<name>`, `space:<name>`, `protocol:<network>`,
+  `dm`, `group`, `pinned`;
+- the state words: `unread`, `mention`, `draft`, `spam`, `invite`, which follow
+  the room as it changes;
+- `tag:<name>`: another tag's rooms.
+
+Two tags whose rules name each other, directly or through others, are reported when
+the config is read, and their references to each other match nothing; the rest of
+the config still works. `hidden = true` keeps a tag out of the rail. An archived room
+leaves its tags, as it leaves every group but its space.
 
 ## The room list
 

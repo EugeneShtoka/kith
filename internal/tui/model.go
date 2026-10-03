@@ -93,6 +93,7 @@ func railGroups(
 			},
 		})
 	}
+	groups = append(groups, tagGroups(view)...)
 	// Drafts holds stashed drafts only, so the room being typed in does not flicker in and out.
 	groups = append(groups, draftsGroup(drafts)...)
 	groups = append(groups, pinnedGroup(view)...)
@@ -204,6 +205,40 @@ func startupRailGroups(
 		// archived rooms under Unread until the hierarchy arrives and rebuilds the rail.
 		facts: startupFacts(display),
 	}, 0, nil, nil)
+}
+
+// tagGroupKey is a tag's rail key: `tag:<name>`, as the rail order names it.
+func tagGroupKey(name string) string { return domain.TagEntry(name) }
+
+// isTagGroup reports whether a rail key is a tag's.
+func isTagGroup(key string) bool {
+	_, ok := domain.TagOf(key)
+	return ok
+}
+
+// isSpaceGroup reports whether a rail key is a space's: neither one of the rail's
+// own rows nor a tag. A space's key is its name.
+func isSpaceGroup(key string) bool { return !config.BuiltInGroup(key) && !isTagGroup(key) }
+
+// tagGroups is a rail row per tag not hidden, in configured order. An archived room
+// leaves them as it leaves every group but its space.
+func tagGroups(view unreadView) []group {
+	tags := view.tags.Tags()
+	groups := make([]group, 0, len(tags))
+	for _, t := range tags {
+		if t.Hidden {
+			continue
+		}
+		name := t.Name
+		groups = append(groups, group{
+			key:   tagGroupKey(name),
+			label: name,
+			admits: func(v unreadView, r domain.Room) bool {
+				return !v.isArchived(r) && v.inTag(name, r)
+			},
+		})
+	}
+	return groups
 }
 
 // draftsGroup is the rooms holding an unsent message, or nothing when none do.
