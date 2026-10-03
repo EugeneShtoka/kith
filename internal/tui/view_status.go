@@ -182,7 +182,7 @@ func (m Model) promptHint() string {
 		submit = "walk the results"
 	case promptAlias, promptRoomName, promptGroupName, promptThreadName, promptRuleSound,
 		promptRuleName, promptAttach, promptSetting, promptInvite, promptUnban,
-		promptNewRoom, promptJumpBind, promptCommand, promptNone:
+		promptNewRoom, promptJumpBind, promptCommand, promptTagName, promptTagEntry, promptNone:
 		// "submit" says it for these.
 	}
 	return m.hintLine(

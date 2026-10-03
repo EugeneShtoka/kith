@@ -33,6 +33,8 @@ const (
 	promptNewRoom
 	promptJumpBind
 	promptCommand
+	promptTagName
+	promptTagEntry
 )
 
 // promptState is the open prompt and what has been typed into it.
@@ -91,6 +93,10 @@ func (p promptState) label() string {
 		return "call it: "
 	case promptJumpBind:
 		return "key sequence for it (e.g. g w), empty to unbind: "
+	case promptTagName:
+		return "tag name: "
+	case promptTagEntry:
+		return "entry (empty removes it): "
 	case promptNone:
 		return ""
 	}
@@ -165,7 +171,7 @@ func (m Model) promptChanged(typed string) (Model, tea.Cmd) {
 		return m.promptTyped(typed)
 	case promptJoin, promptAlias, promptRoomName, promptGroupName, promptThreadName,
 		promptRuleSound, promptRuleName, promptAttach, promptSetting, promptInvite,
-		promptUnban, promptNewRoom, promptJumpBind, promptNone:
+		promptUnban, promptNewRoom, promptJumpBind, promptTagName, promptTagEntry, promptNone:
 		return m, nil
 	}
 	return m, nil
@@ -208,6 +214,10 @@ func (m Model) submitPrompt() (Model, tea.Cmd) {
 		return m.submitNewRoom(input)
 	case promptJumpBind:
 		return m.submitJumpBinding(input)
+	case promptTagName:
+		return m.submitTagName(input)
+	case promptTagEntry:
+		return m.submitTagEntry(input)
 	case promptNone:
 		return m, nil
 	}
@@ -248,6 +258,13 @@ func (m Model) cancelPrompt() (Model, tea.Cmd) {
 	case promptJumpBind:
 		m.aimedAt.binding = domain.JumpTarget{}
 		return m, nil
+	case promptTagName:
+		if m.choosing.tag.tag == "" {
+			return m.tagsOpen(), nil
+		}
+		return m.tagOpen(m.choosing.tag.tag), nil
+	case promptTagEntry:
+		return m.tagEntriesOpen(m.choosing.tag.tag, m.choosing.tag.list), nil
 	}
 	return m, nil
 }

@@ -39,6 +39,8 @@ type setting struct {
 	edit func(config.Config) string
 	// set writes a new value; an error is shown to the user.
 	set func(*config.Config, string) error
+	// open is where a settingOpen row leads.
+	open func(Model) (Model, tea.Cmd)
 }
 
 // settingChoiceOption is one allowed value of a choice setting, with what it means.
@@ -241,6 +243,13 @@ var settingsList = []setting{
 		key: "notifications.rules", label: "Notification rules…",
 		show: func(c config.Config) string { return ruleCountNote(len(c.Notifications.Rules)) },
 		kind: settingOpen,
+		open: Model.openRuleList,
+	},
+	{
+		key: "tags", label: "Tags…",
+		show: func(c config.Config) string { return showCount(len(c.Tags), "none") },
+		kind: settingOpen,
+		open: Model.openTags,
 	},
 	{
 		key: "notifications.sound", label: "Notification sound",
@@ -458,7 +467,7 @@ func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 	}
 	switch s.kind {
 	case settingOpen:
-		return m.openRuleList()
+		return s.open(m)
 	case settingToggle:
 		m = m.closePicker()
 		return m.writeSetting(s, "")

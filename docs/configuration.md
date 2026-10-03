@@ -83,7 +83,7 @@ wrong `[section]` header) stops startup with a list of the unknown keys.
 You rarely need to open the file. Inside kith:
 
 - `,` opens the settings screen. It lists the preferences with their current values,
-  and you change them in place.
+  and you change them in place. **Tags…** there edits your [tags](usage.md#tags).
 - `a` on a room, space, rail group, thread or person gives it your own name.
 - `b` on a message, room or space writes a notification rule for it.
 - `W` shows every notification rule in force for the current room, in order, and marks
@@ -91,6 +91,9 @@ You rarely need to open the file. Inside kith:
 
 The `a` and `b` changes need Matrix and room IDs you never see in the UI. That's why
 pointing at the thing in the app is easier than typing it into the file.
+
+A change made in the app is checked as the file is when kith starts. One the file
+would refuse is not applied, and the status line says why.
 
 ### How changes are written back
 

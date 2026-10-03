@@ -124,6 +124,11 @@ type derivations struct {
 
 // derive resolves a config into what the model reads, or returns the first error.
 func derive(cfg config.Config) (derivations, error) {
+	// Everything the loader checks: a change the app applies must be a config that
+	// loads, or the daemon and the next start refuse what was saved.
+	if err := setup.Validate(cfg); err != nil {
+		return derivations{}, err
+	}
 	rules, err := setup.NotificationRules(cfg.Notifications)
 	if err != nil {
 		return derivations{}, err

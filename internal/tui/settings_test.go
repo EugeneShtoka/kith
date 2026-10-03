@@ -431,7 +431,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 
 	// Both in place: it switches on, and reads on.
 	cfg = m.conf.base
-	cfg.Codes.Include = []string{"Bridges"}
+	cfg.Codes.Include = []string{"space:Bridges"}
 	next, _ = m.applyConfig(cfg, "", "")
 	m = next
 	m = m.closePicker()
