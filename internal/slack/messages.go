@@ -143,6 +143,11 @@ func (a *Adapter) learnPeople(ctx context.Context, w *workspace, users []string)
 			w.knowPerson((*found)[i].ID, userName((*found)[i]))
 		}
 	}
+	for _, u := range unknown {
+		if name, ok := slackOwn[u]; ok {
+			w.knowPerson(u, name)
+		}
+	}
 }
 
 // arrived caches one message heard live and hands it to the clients. A conversation

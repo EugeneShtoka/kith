@@ -28,9 +28,10 @@ type workspace struct {
 	creds   Credentials
 	// signIn is the account's sign-in the session is from (Adapter.signIns).
 	signIn int
-	// teamName is the workspace's own name, from sign-in.
-	teamName string
-	client   *slackgo.Client
+	// teamName is the workspace's own name, and handle the person's in it, from
+	// sign-in.
+	teamName, handle string
+	client           *slackgo.Client
 
 	// done closes when the connection is let go: signed in again, removed, stopped.
 	done      chan struct{}
@@ -103,9 +104,10 @@ func (w *workspace) knowChannels(rooms []domain.Room) {
 var ErrNoAccount = errors.New("slack: no such [[slack.account]]")
 
 // clientFor is a Slack client with a workspace's session: the token, and the cookie
-// it is only good together with.
-func clientFor(c Credentials) *slackgo.Client {
-	return slackgo.New(c.Token, slackgo.OptionCookie("d", cookieValue(c.Cookie)))
+// it is only good together with. Its own log goes to the adapter's, without the
+// session (see slackLog).
+func (a *Adapter) clientFor(c Credentials) *slackgo.Client {
+	return slackgo.New(c.Token, slackgo.OptionCookie("d", cookieValue(c.Cookie)), slackgo.OptionLog(slackLog{log: a.log}))
 }
 
 // cookieValue is the `d` cookie decoded. A browser shows it URL-encoded ("%2B", "%2F")
@@ -130,7 +132,7 @@ func (a *Adapter) SignInSlack(ctx context.Context, name, token, cookie string) (
 	}
 	account := a.accountsNow()[i]
 	creds := Credentials{Token: token, Cookie: cookie}
-	client := clientFor(creds)
+	client := a.clientFor(creds)
 	who, err := client.AuthTestContext(ctx)
 	if err != nil {
 		return api.SlackSignedIn{}, fmt.Errorf("slack: check the session: %w", err)
@@ -143,6 +145,7 @@ func (a *Adapter) SignInSlack(ctx context.Context, name, token, cookie string) (
 		return api.SlackSignedIn{}, err
 	}
 	w := newWorkspace(account, creds, who.Team, client, a.newSignIn(account.Name))
+	w.handle = who.User
 	if !a.adopt(w) {
 		return api.SlackSignedIn{}, fmt.Errorf("%w named %q: it left the config while signing in", ErrNoAccount, name)
 	}
@@ -181,7 +184,7 @@ func (a *Adapter) connect(ctx context.Context, account Account, creds Credential
 // connectOnce is one try; false when Slack could not be reached.
 func (a *Adapter) connectOnce(ctx context.Context, account Account, creds Credentials, signIn int) bool {
 	a.session(account, Connecting, "")
-	client := clientFor(creds)
+	client := a.clientFor(creds)
 	who, err := client.AuthTestContext(ctx)
 	if isSignedOut(err) {
 		a.session(account, SignedOut, "Slack ended the session; run `kith login slack "+account.Name+"` again")
@@ -193,6 +196,7 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, creds Creden
 		return ctx.Err() != nil
 	}
 	w := newWorkspace(account, creds, who.Team, client, signIn)
+	w.handle = who.User
 	if !a.adopt(w) {
 		return true // signed in again, or removed, meanwhile
 	}
@@ -295,7 +299,7 @@ func (a *Adapter) list(ctx context.Context, w *workspace) ([]domain.Room, error)
 	for user, name := range names {
 		w.knowPerson(user, name)
 	}
-	l := listed(w.creds.Team, w.teamName, conversations, names)
+	l := listed(w.creds.Team, w.teamName, w.handle, conversations, names)
 	w.knowChannels(l.rooms)
 	if err := a.save(ctx, w, l, fetched); err != nil {
 		return nil, err
