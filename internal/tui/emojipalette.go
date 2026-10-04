@@ -134,7 +134,7 @@ func (m Model) settingDocLines(width int) []string {
 	if !ok {
 		return nil
 	}
-	s, ok := findSetting(item.value)
+	s, ok := m.setting(item.value)
 	if !ok || strings.TrimSpace(s.doc) == "" {
 		return nil
 	}

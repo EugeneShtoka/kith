@@ -38,6 +38,11 @@ var propertyGroups = []propertyGroup{
 	{"display.threads.", "rooms", "display."},
 	{"display.direction.", "rooms", "display."},
 	{"display.open_in_insert_mode", "composer", "display."},
+	{"display.max_name_length", "names", "display."},
+	{"display.room_name_rules", "names", "display."},
+	{"display.identity", "names", "display."},
+	{"display.name", "names", "display."},
+	{"display.space_rule", "names", "display."},
 	{"composer.", "composer", "composer."},
 	{"display.", "display", "display."},
 	{"spell.", "spelling", "spell."},
@@ -111,7 +116,7 @@ func buildSettings(curated []setting) []setting {
 			all = append(all, s)
 		}
 	}
-	return all
+	return append(all, recordTableSettings()...)
 }
 
 // propertySetting is a property's generated row.
@@ -127,18 +132,13 @@ func propertySetting(p config.Property) (setting, bool) {
 		s.kind = settingToggle
 		s.set = func(c *config.Config, _ string) error { return setProperty(c, p, strconv.FormatBool(!boolNow(*c, p))) }
 	case config.PropertyInt, config.PropertyOptionalInt:
-		s.kind = settingNumber
-		if strings.Contains(p.Doc, "-1") {
-			s.least = -1 // a number that says something at -1 ("never", "until dismissed")
-		}
-		s.count = func(c config.Config) int { n, _ := strconv.Atoi(effective(c, p)); return n }
-		s.edit = func(c config.Config) string { return effective(c, p) }
-		s.set = func(c *config.Config, v string) error { return setProperty(c, p, v) }
-		s.help = "a whole number — empty for the default"
+		s = propertyNumber(s, p)
 	case config.PropertyList:
 		s.kind = settingList
 		s.set = func(c *config.Config, v string) error { return setProperty(c, p, v) }
-	case config.PropertyFloat, config.PropertyText:
+		s.entries = func(c config.Config) []string { return listNow(c, p) }
+		s.setEntries = func(c *config.Config, e []string) error { return c.SetList(p.Path, e) }
+	case config.PropertyFloat, config.PropertyOptionalFloat, config.PropertyText:
 		s.kind = settingText
 		s.edit = func(c config.Config) string { v, _, _ := c.Value(p.Path); return v }
 		s.set = func(c *config.Config, v string) error { return setProperty(c, p, v) }
@@ -149,22 +149,26 @@ func propertySetting(p config.Property) (setting, bool) {
 	return s, true
 }
 
+// propertyNumber is s as a number property's row: stepped, typed, stopping at 0 — or
+// at -1 for a number that says something there ("never", "until dismissed").
+func propertyNumber(s setting, p config.Property) setting {
+	s.kind = settingNumber
+	if strings.Contains(p.Doc, "-1") {
+		s.least = -1
+	}
+	s.count = func(c config.Config) int { n, _ := strconv.Atoi(effective(c, p)); return n }
+	s.edit = func(c config.Config) string { return effective(c, p) }
+	s.set = func(c *config.Config, v string) error { return setProperty(c, p, v) }
+	s.help = "a whole number — empty for the default"
+	return s
+}
+
 // listNow is a list property's entries in force: what is set, else default.toml's.
 func listNow(c config.Config, p config.Property) []string {
 	if list := c.List(p.Path); len(list) > 0 {
 		return list
 	}
 	return p.DefaultList()
-}
-
-// propertyOf is the property a row stands for; false for a hand-written row.
-func propertyOf(key string) (config.Property, bool) {
-	for _, p := range config.Properties() {
-		if p.Path == key {
-			return p, true
-		}
-	}
-	return config.Property{}, false
 }
 
 // effective is a property's value as text: what is set, else an optional's default as
@@ -203,7 +207,7 @@ func propertyWords(c config.Config, p config.Property) string {
 			return strings.Join(list, ", ")
 		}
 		return "none"
-	case config.PropertyInt, config.PropertyOptionalInt, config.PropertyFloat, config.PropertyText:
+	case config.PropertyInt, config.PropertyOptionalInt, config.PropertyFloat, config.PropertyOptionalFloat, config.PropertyText:
 	}
 	if v := effective(c, p); v != "" {
 		return v

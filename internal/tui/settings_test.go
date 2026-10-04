@@ -591,7 +591,7 @@ func TestSeveralSettingsChangeInARow(t *testing.T) {
 func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 	t.Parallel()
 	m, path := opened(t, config.Notifications{Enabled: true})
-	m = m.settingsIn("display", "display.max_name_length")
+	m = m.settingsIn("names", "display.max_name_length")
 	for range 15 {
 		m, _ = press(t, m, keyText("+"))
 	}
@@ -629,7 +629,7 @@ func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 	}
 
 	// The least: a width stops at 0, the popup timeout at -1 (until dismissed).
-	m = m.settingsIn("display", "display.max_name_length")
+	m = m.settingsIn("names", "display.max_name_length")
 	for range 12 {
 		m, _ = press(t, m, keyText("-"))
 	}

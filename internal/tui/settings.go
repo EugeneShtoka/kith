@@ -52,6 +52,9 @@ type setting struct {
 	// properties a hand-written row stands for besides its own key, which get no row.
 	doc    string
 	covers []string
+	// entries and setEntries are a settingList's entries in force and how to write them.
+	entries    func(config.Config) []string
+	setEntries func(*config.Config, []string) error
 	// open is where a settingOpen row leads.
 	open func(Model) (Model, tea.Cmd)
 }
@@ -320,7 +323,7 @@ var curatedSettings = []setting{
 		set:  func(c *config.Config, _ string) error { c.Display.ColorMessages = !c.Display.ColorMessages; return nil },
 	},
 	{
-		key: "display.room_name_rules", group: "display", label: "Name rules apply to room names",
+		key: "display.room_name_rules", group: "names", label: "Name rules apply to room names",
 		show: func(c config.Config) string { return onOff(c.Display.ApplyRoomNameRules()) },
 		kind: settingToggle,
 		set: func(c *config.Config, _ string) error {
@@ -329,7 +332,7 @@ var curatedSettings = []setting{
 		},
 	},
 	{
-		key: "display.max_name_length", group: "display", label: "Sender name width",
+		key: "display.max_name_length", group: "names", label: "Sender name width",
 		show:  func(c config.Config) string { return showCount(c.Display.MaxNameLength, "no limit") },
 		kind:  settingNumber,
 		edit:  func(c config.Config) string { return countText(c.Display.MaxNameLength) },
@@ -482,7 +485,8 @@ type settingGroup struct{ key, label string }
 
 var settingGroups = []settingGroup{
 	{"notifications", "Notifications"},
-	{"display", "Names and messages"},
+	{"names", "Names"},
+	{"display", "Messages"},
 	{"rooms", "Rail and room list"},
 	{"composer", "Composer"},
 	{"media", "Images and media"},
@@ -528,7 +532,7 @@ func (m Model) openSettings() (Model, tea.Cmd) { return m.settingsTop(""), nil }
 func (m Model) settingsTop(at string) Model {
 	items := make([]pickerItem, 0, len(settingGroups))
 	for _, g := range settingGroups {
-		rows := groupSettings(g.key)
+		rows := m.groupRows(g.key)
 		detail := fmt.Sprintf("%d settings", len(rows))
 		if len(rows) == 1 {
 			detail = rows[0].show(m.conf.base)
@@ -542,27 +546,41 @@ func (m Model) settingsTop(at string) Model {
 
 // settingsIn shows one group's settings, the cursor on the one keyed at.
 func (m Model) settingsIn(group, at string) Model {
-	rows := groupSettings(group)
+	rows := m.groupRows(group)
 	items := make([]pickerItem, 0, len(rows))
 	for i := range rows {
 		items = append(items, pickerItem{
 			label:  rows[i].label,
-			detail: rows[i].show(m.conf.base),
+			detail: choiceWords(rows[i], rows[i].show(m.conf.base)),
 			value:  rows[i].key,
 			match:  rows[i].label + " " + rows[i].key,
 		})
 	}
 	m.choosing.settingGroup, m.choosing.setting = group, at
 	spec := pickerSpecs[pickerSetting]
-	spec.title = "Settings: " + groupLabel(group)
+	spec.title = "Settings: " + m.settingGroupLabel(group)
 	m.picker = newPickerWith(pickerSetting, spec, items).at(at)
 	return m
+}
+
+// choiceWords is a setting's value as its row shows it: an empty choice by its option's
+// words ("unset"), anything else as it is.
+func choiceWords(s setting, value string) string {
+	if value != "" {
+		return value
+	}
+	for _, c := range s.choices {
+		if c.value == "" {
+			return c.label
+		}
+	}
+	return value
 }
 
 // chooseSettingGroup opens a group; one that is a single row leading somewhere goes
 // straight there.
 func (m Model) chooseSettingGroup(group string) (Model, tea.Cmd) {
-	if rows := groupSettings(group); len(rows) == 1 && rows[0].kind == settingOpen {
+	if rows := m.groupRows(group); len(rows) == 1 && rows[0].kind == settingOpen {
 		m.choosing.settingGroup = group
 		return rows[0].open(m)
 	}
@@ -573,13 +591,16 @@ func (m Model) chooseSettingGroup(group string) (Model, tea.Cmd) {
 // group: a toggle flips in place, a choice returns to it, and a typed value is typed
 // on its row.
 func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
-	s, ok := findSetting(key)
+	s, ok := m.setting(key)
 	if !ok {
 		return m.settingsTop(m.choosing.settingGroup), nil
 	}
 	switch s.kind {
 	case settingOpen:
 		m.choosing.setting = key
+		if s.open == nil { // a record table's row: its records
+			return m.settingsIn(key, ""), nil
+		}
 		return s.open(m)
 	case settingToggle:
 		return m.writeSetting(s, "")
@@ -610,7 +631,7 @@ func (m Model) stepSetting(delta int) (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	s, ok := findSetting(item.value)
+	s, ok := m.setting(item.value)
 	if !ok || s.kind != settingNumber {
 		return m.say("+ and - change numbers; enter changes this one"), nil
 	}
@@ -637,7 +658,7 @@ func settingValueItems(s setting, current string) []pickerItem {
 
 // chooseSettingValue applies a picked value and returns to the group.
 func (m Model) chooseSettingValue(value string) (Model, tea.Cmd) {
-	s, ok := findSetting(m.choosing.setting)
+	s, ok := m.setting(m.choosing.setting)
 	if !ok {
 		return m.settingsTop(m.choosing.settingGroup), nil
 	}
@@ -647,7 +668,7 @@ func (m Model) chooseSettingValue(value string) (Model, tea.Cmd) {
 // submitSetting applies a typed value. One that will not parse stays on the row as
 // typed, the reason on the status line, to be fixed or abandoned with esc.
 func (m Model) submitSetting(value string) (Model, tea.Cmd) {
-	s, ok := findSetting(m.choosing.setting)
+	s, ok := m.setting(m.choosing.setting)
 	if !ok {
 		return m, nil
 	}
@@ -680,6 +701,9 @@ func (m Model) settingsBack() (Model, bool) {
 	case pickerSettingValue, pickerSettingEntries:
 		return m.settingsIn(group, m.choosing.setting), true
 	case pickerSetting:
+		if parent, at, ok := settingsParent(group); ok {
+			return m.settingsIn(parent, at), true
+		}
 		return m.settingsTop(group), true
 	case pickerTags:
 		return m.settingsTop("tags"), true
@@ -697,7 +721,7 @@ func (m Model) settingHelp() string {
 	if m.prompt.kind == promptSettingEntry {
 		return "the entry — empty removes it"
 	}
-	s, ok := findSetting(m.choosing.setting)
+	s, ok := m.setting(m.choosing.setting)
 	if !ok || s.help == "" {
 		return "type the new value"
 	}
