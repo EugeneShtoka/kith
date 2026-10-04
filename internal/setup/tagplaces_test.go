@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -33,16 +34,44 @@ func TestTagPlacesMustNameATag(t *testing.T) {
 	}
 }
 
-// Every scope's places carry the tags, and [display] priority.
+// Every scope's places carry the tags, and the home order: [display] priority, the
+// rail's order, the tags.
 func TestPlacesCarryTagsAndPriority(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
 	cfg.Display.Priority = []string{"tag:Family", "Work"}
 	places := PlacesOf(cfg)
-	if !slices.Equal(places.Priority, []string{"tag:Family", "Work"}) {
-		t.Errorf("priority = %v, want [display] priority", places.Priority)
+	if !slices.Equal(places.Order.Priority, []string{"tag:Family", "Work"}) || !slices.Equal(places.Order.Tags, []string{"family"}) {
+		t.Errorf("home order = %+v, want [display] priority and the tags", places.Order)
 	}
 	if facts := places.Facts(domain.Room{ID: "!mom:x", IsDirect: true}, nil); !facts.Names("tag:Family") {
 		t.Error("a scope's facts do not know the room's tags")
+	}
+}
+
+// The daemon's home order (the config's part, its spaces marked as it reads them) is
+// the client's (built from the config and the spaces at once): the two pick a room's
+// home, and must agree.
+func TestTheHomeOrderIsTheSameBuiltInEitherStep(t *testing.T) {
+	t.Parallel()
+	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}, {Name: "All", Rule: []string{"*"}}}}
+	cfg.Display.Priority = []string{"Work"}
+	cfg.Display.Rail.Order = []string{"tag:Family", "-", "*"}
+	spaces := []domain.Space{
+		{ID: "!w:x", Name: "Work"},
+		{ID: "!tip:x", Name: "TipMaster", Original: true},
+		{ID: "!wa:x", Name: "WhatsApp BG", Bridge: domain.ProtocolWhatsApp},
+	}
+	tags, _, err := Tags(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	daemon := PlacesOf(cfg).Order.WithManaged(spaces)
+	client := domain.NewHomeOrder(cfg.Display.Priority, cfg.Display.Rail.Order, tags, spaces)
+	if !reflect.DeepEqual(daemon, client) {
+		t.Errorf("daemon %+v\nclient %+v", daemon, client)
+	}
+	if !client.Managed["tipmaster"] || !client.Managed["whatsapp bg"] || client.Managed["work"] || !client.Every["all"] {
+		t.Errorf("order = %+v, want TipMaster and WhatsApp BG the network's own, All every room", client)
 	}
 }

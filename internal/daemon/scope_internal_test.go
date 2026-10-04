@@ -43,7 +43,7 @@ func TestInvalidateOvertakesARebuildAlreadyReading(t *testing.T) {
 	t.Parallel()
 
 	src := &gatedRooms{rooms: []domain.Room{{ID: "!a:x", Name: "Old name"}}}
-	x := newScopeIndex(src, nil, nil)
+	x := newScopeIndex(src, nil, domain.HomeOrder{})
 	hold, read := make(chan struct{}), make(chan struct{})
 	src.hold, src.read = hold, read
 
@@ -70,7 +70,7 @@ func TestANativeRoomIsOnItsOwnNetwork(t *testing.T) {
 
 	listed := domain.RoomID("whatsapp:359000000001/120363000000000001@g.us")
 	unlisted := domain.RoomID("whatsapp:359000000001/972500000002@s.whatsapp.net")
-	x := newScopeIndex(&gatedRooms{rooms: []domain.Room{{ID: listed, Name: "Choir"}, {ID: "!a:x"}}}, nil, nil)
+	x := newScopeIndex(&gatedRooms{rooms: []domain.Room{{ID: listed, Name: "Choir"}, {ID: "!a:x"}}}, nil, domain.HomeOrder{})
 	for _, c := range []struct {
 		room domain.RoomID
 		want domain.Protocol
@@ -97,7 +97,7 @@ func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 		{ID: "!wa:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!r:x"}},
 		{ID: "!tg:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{"!r:x"}},
 	}}
-	x := newScopeIndex(src, []config.DisplayName{{Target: "!r:x", Name: "Daily"}}, []string{"Telegram"})
+	x := newScopeIndex(src, []config.DisplayName{{Target: "!r:x", Name: "Daily"}}, domain.HomeOrder{Priority: []string{"Telegram"}})
 	tags, _, err := domain.NewTagSet([]domain.Tag{{Name: "Pinned", Picked: []string{"room:Daily"}}})
 	if err != nil {
 		t.Fatal(err)

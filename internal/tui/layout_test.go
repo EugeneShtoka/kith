@@ -511,9 +511,11 @@ func TestTheListFollowsTheSpaceAndTheTimelineDoesNot(t *testing.T) {
 
 	m, _ := laidOut(t, config.Display{
 		SpaceRules: []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
+		Priority:   []string{"Friends", "Work"},
 	})
-	// A DM named after one person, in Friends *and* Work, ordered so that Friends —
-	// which has no rule — is the room's own space.
+	// A DM named after one person, in Friends *and* Work, ranked so that Friends —
+	// which has no rule — is the room's own space (the DMs tag the rail shows first
+	// would be otherwise).
 	dm := domain.Room{
 		ID: "!a:x", Name: "Michael Livingston",
 		Members: []string{"Michael Livingston"}, IsDirect: true,

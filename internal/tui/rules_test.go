@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -461,7 +462,8 @@ func TestHomesOfSpaces(t *testing.T) {
 		{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!other:x"}},
 	}})
 	got := m.placeHomes("!standup:x")
-	if strings.Join(got, ",") != "Work,Everything" {
+	slices.Sort(got) // which comes first is the home order's business (domain.HomeOrder)
+	if strings.Join(got, ",") != "Everything,Work" {
 		t.Errorf("homesOf = %v, want both spaces containing it", got)
 	}
 	if len(m.placeHomes("!nowhere:x")) != 0 {

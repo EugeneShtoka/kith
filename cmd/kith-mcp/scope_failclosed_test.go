@@ -68,9 +68,9 @@ func scopeRooms() *fake {
 // scopePlaces are the names, space order and tags the fixture is read with: a room
 // called something of your own, an unnamed room named, and a tag picking by that name.
 var scopePlaces = domain.Places{
-	Names:    map[domain.RoomID]string{"!loose:x": "Lounge", "!anon:x": "Quiet"},
-	Priority: []string{"Telegram", "WhatsApp"},
-	Tags:     pinnedTag(),
+	Names: map[domain.RoomID]string{"!loose:x": "Lounge", "!anon:x": "Quiet"},
+	Order: domain.HomeOrder{Priority: []string{"Telegram", "WhatsApp"}},
+	Tags:  pinnedTag(),
 }
 
 // pinnedTag picks two rooms, one by your name for it, and takes in a space.

@@ -22,6 +22,9 @@ type railState struct {
 	tags      domain.TagSet
 	roomFacts map[domain.RoomID]domain.RoomFacts
 	spanning  map[string]bool
+	// homes is the order a room's homes are chosen in, derived with roomFacts from the
+	// config and the spaces (domain.HomeOrder).
+	homes domain.HomeOrder
 	// tagsRev counts the tags applied, for tagMemo's key; tagMemo is shared by the
 	// Model's copies (see tagged.go).
 	tagsRev uint64

@@ -295,6 +295,17 @@ func (s TagSet) Index(name string) (int, bool) {
 	return i, ok
 }
 
+// HoldsEvery reports whether tag i's rule takes every room ("*"): All, the same place
+// as everywhere.
+func (s TagSet) HoldsEvery(i int) bool {
+	for _, t := range s.tags[i].positive {
+		if t.every {
+			return true
+		}
+	}
+	return false
+}
+
 // Len is how many tags there are; At is the i-th, in configured order.
 func (s TagSet) Len() int { return len(s.tags) }
 

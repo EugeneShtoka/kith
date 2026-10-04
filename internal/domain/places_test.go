@@ -18,9 +18,9 @@ func TestARoomsFactsAreReadOneWay(t *testing.T) {
 		{ID: "!tg:x", Name: "Telegram", Bridge: domain.ProtocolTelegram},
 	}
 	places := domain.Places{
-		Names:    map[domain.RoomID]string{"!r:x": "Daily"},
-		Priority: []string{"Telegram"},
-		Tags:     tagSet(t, domain.Tag{Name: "Pinned", Picked: []string{"room:Daily"}}),
+		Names: map[domain.RoomID]string{"!r:x": "Daily"},
+		Order: domain.HomeOrder{Priority: []string{"Telegram"}},
+		Tags:  tagSet(t, domain.Tag{Name: "Pinned", Picked: []string{"room:Daily"}}),
 	}
 	got := places.Facts(room, holders)
 	if got.Name != "Daily" {

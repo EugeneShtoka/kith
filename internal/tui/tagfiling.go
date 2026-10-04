@@ -58,7 +58,8 @@ func (m Model) filingKey(item pickerItem) string {
 	return item.value
 }
 
-// byPriority reorders rows by [display] priority, keeping the order of the rest.
+// byPriority reorders rows by [display] priority, keeping the rest in the rail's
+// order, in which they come.
 func (m Model) byPriority(rows []pickerItem) []pickerItem {
 	keys := make([]string, len(rows))
 	for i := range rows {
