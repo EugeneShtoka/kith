@@ -211,3 +211,17 @@ func (c *Cache) SpokeInThread(ctx context.Context, roomID domain.RoomID, root do
 	}
 	return spoke, nil
 }
+
+// NamedInThread reports whether the thread's root or a reply in it, not deleted,
+// mentions you.
+func (c *Cache) NamedInThread(ctx context.Context, roomID domain.RoomID, root domain.EventID) (bool, error) {
+	var named bool
+	if err := c.db.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM messages
+			 WHERE room_id = ? AND mentioned = 1 AND redacted = 0 AND (thread_root = ? OR event_id = ?))`,
+		string(roomID), string(root), string(root)).Scan(&named); err != nil {
+		return false, fmt.Errorf("db: mentions in thread %s: %w", root, err)
+	}
+	return named, nil
+}

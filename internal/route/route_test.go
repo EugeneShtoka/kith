@@ -574,3 +574,46 @@ func TestSpacesAreEveryNetworks(t *testing.T) {
 		t.Errorf("Spaces with Matrix logged out = (%v, %v), want WhatsApp's alone", got, err)
 	}
 }
+
+// A network with threads of its own is asked about its rooms' threads, and Matrix
+// never is; a network without threads still refuses them.
+func TestThreadsGoToTheRoomsNetwork(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const slackRoomID domain.RoomID = "slack:T1/C1"
+	m, sl, wa := newFakeMatrix(), threadedFake{newFake("slack")}, newFake("whatsapp")
+	r, err := New(m, map[domain.Protocol]Adapter{domain.ProtocolSlack: sl, domain.ProtocolWhatsApp: wa})
+	if err != nil {
+		t.Fatal(err)
+	}
+	threads, err := r.ListThreads(ctx, slackRoomID)
+	if err != nil || len(threads) != 1 || threads[0].RoomID != slackRoomID {
+		t.Errorf("ListThreads on a Slack room = (%v, %v), want Slack's", threads, err)
+	}
+	if _, err := r.ThreadPage(ctx, slackRoomID, "r", "", 10); err != nil {
+		t.Errorf("ThreadPage on a Slack room: %v", err)
+	}
+	if err := r.MarkThreadRead(ctx, slackRoomID, "r", "e", false); err != nil {
+		t.Errorf("MarkThreadRead on a Slack room: %v", err)
+	}
+	if !r.ThreadParticipant(ctx, slackRoomID, "r") {
+		t.Error("ThreadParticipant on a Slack room did not reach Slack")
+	}
+	if seen := sl.seen(); len(seen) != 4 {
+		t.Errorf("Slack heard of %v, want all 4 calls", seen)
+	}
+	if got := m.calls(); len(got) != 0 {
+		t.Errorf("Matrix heard of a Slack room's threads: %v", got)
+	}
+
+	sl.fail = errFake
+	if _, err := r.ListThreads(ctx, slackRoomID); !errors.Is(err, errFake) {
+		t.Errorf("ListThreads with Slack failing = %v, want its failure", err)
+	}
+	if r.ThreadParticipant(ctx, slackRoomID, "r") {
+		t.Error("ThreadParticipant is true with Slack failing")
+	}
+	if _, err := r.ListThreads(ctx, whatsappRoomID); !errors.Is(err, api.ErrNotOnNetwork) {
+		t.Errorf("ListThreads on a WhatsApp room = %v, want ErrNotOnNetwork", err)
+	}
+}

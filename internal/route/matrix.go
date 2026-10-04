@@ -116,36 +116,6 @@ func (r *Router) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	return onMatrixRoom(r, roomID, func(m Matrix) error { return m.LeaveRoom(ctx, roomID) })
 }
 
-// ListThreads is a Matrix room's threads.
-func (r *Router) ListThreads(ctx context.Context, roomID domain.RoomID) ([]domain.Thread, error) {
-	if err := matrixRoom(roomID); err != nil {
-		return nil, err
-	}
-	return onMatrix(r, func(m Matrix) ([]domain.Thread, error) { return m.ListThreads(ctx, roomID) })
-}
-
-// ThreadPage fetches one page of a Matrix thread.
-func (r *Router) ThreadPage(ctx context.Context, roomID domain.RoomID, root domain.EventID, from string, limit int) (domain.TimelinePage, error) {
-	if err := matrixRoom(roomID); err != nil {
-		return domain.TimelinePage{}, err
-	}
-	return onMatrix(r, func(m Matrix) (domain.TimelinePage, error) { return m.ThreadPage(ctx, roomID, root, from, limit) })
-}
-
-// MarkThreadRead sends a threaded receipt.
-func (r *Router) MarkThreadRead(ctx context.Context, roomID domain.RoomID, root, eventID domain.EventID, private bool) error {
-	return onMatrixRoom(r, roomID, func(m Matrix) error { return m.MarkThreadRead(ctx, roomID, root, eventID, private) })
-}
-
-// ThreadParticipant reports whether we took part in a Matrix thread; no other
-// network has threads, so elsewhere (or without Matrix) we did not.
-func (r *Router) ThreadParticipant(ctx context.Context, roomID domain.RoomID, root domain.EventID) bool {
-	if matrixRoom(roomID) != nil || !r.matrixOn() {
-		return false
-	}
-	return r.matrix.ThreadParticipant(ctx, roomID, root)
-}
-
 // Verifications streams device verifications; without Matrix configured, it carries
 // nothing and closes when the router stops.
 func (r *Router) Verifications() <-chan domain.Verification {

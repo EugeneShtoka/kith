@@ -176,6 +176,7 @@ func (a *Adapter) arrived(ctx context.Context, w *workspace, channel string, m *
 		// A room first heard of is read up to just before what made it known.
 		a.placeRead(ctx, msg.RoomID, msg.Timestamp.Add(-time.Millisecond))
 		a.recount(ctx, msg.RoomID)
+		a.wantRestOf(w, channel, m)
 		if joined {
 			go a.relist(context.WithoutCancel(ctx), w)
 		}
@@ -196,6 +197,9 @@ func (a *Adapter) record(ctx context.Context, w *workspace, room domain.RoomID, 
 			save = a.cache.SaveMessagesWithRevisions // an edit keeps what it replaced
 		}
 		err = save(ctx, room, msgs)
+	}
+	if err == nil {
+		a.heardReplies(msgs)
 	}
 	a.listing.Unlock()
 	if err != nil {

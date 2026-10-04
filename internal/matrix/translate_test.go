@@ -156,7 +156,7 @@ func TestTypingIn(t *testing.T) {
 func TestWithThreadsAddsTheirShare(t *testing.T) {
 	t.Parallel()
 
-	got := withThreads(domain.Unread{Messages: 2, Mentions: 1}, []domain.ThreadUnread{
+	got := domain.Unread{Messages: 2, Mentions: 1}.WithThreads([]domain.ThreadUnread{
 		{Root: "$a", Unread: 3, Mentions: 1},
 		{Root: "$b", Unread: 1},
 	})
@@ -174,7 +174,7 @@ func TestWithThreadsAddsTheirShare(t *testing.T) {
 func TestWithThreadsOfNone(t *testing.T) {
 	t.Parallel()
 
-	got := withThreads(domain.Unread{Messages: 2}, nil)
+	got := domain.Unread{Messages: 2}.WithThreads(nil)
 	if got.Messages != 2 || len(got.Threads) != 0 {
 		t.Errorf("got %+v, want the unread state untouched", got)
 	}

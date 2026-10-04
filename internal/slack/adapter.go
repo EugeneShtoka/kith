@@ -90,6 +90,15 @@ type Adapter struct {
 	positions   map[domain.RoomID]time.Time
 	typing      map[domain.RoomID]map[string]*time.Timer
 	reacted     map[domain.EventID]time.Time
+	// threadsAsked is the newest reply each thread was last read up to, or queued to
+	// be; threadQueue is the threads waiting to be read, readingThreads whether they
+	// are being (threads.go). Under mu.
+	threadsAsked   map[domain.EventID]string
+	threadQueue    []threadWant
+	readingThreads bool
+	// repliesCached is when each thread reply was cached, lately (threads.go). Under
+	// mu.
+	repliesCached map[domain.EventID]time.Time
 
 	streamMu  sync.RWMutex
 	closed    bool
@@ -107,15 +116,17 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 	}
 	return &Adapter{
 		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "slack"),
-		workspaces: map[string]*workspace{},
-		signIns:    map[string]int{},
-		heard:      map[domain.RoomID]time.Time{},
-		typing:     map[domain.RoomID]map[string]*time.Timer{},
-		reacted:    map[domain.EventID]time.Time{},
-		messages:   make(chan domain.Message, streamBuffer),
-		activity:   make(chan domain.Activity, streamBuffer),
-		unread:     make(chan domain.Unread, streamBuffer),
-		reactions:  make(chan domain.ReactionUpdate, streamBuffer),
+		workspaces:    map[string]*workspace{},
+		signIns:       map[string]int{},
+		heard:         map[domain.RoomID]time.Time{},
+		typing:        map[domain.RoomID]map[string]*time.Timer{},
+		reacted:       map[domain.EventID]time.Time{},
+		threadsAsked:  map[domain.EventID]string{},
+		repliesCached: map[domain.EventID]time.Time{},
+		messages:      make(chan domain.Message, streamBuffer),
+		activity:      make(chan domain.Activity, streamBuffer),
+		unread:        make(chan domain.Unread, streamBuffer),
+		reactions:     make(chan domain.ReactionUpdate, streamBuffer),
 	}
 }
 
