@@ -248,17 +248,7 @@ func (b *InProc) addThreadCounts(ctx context.Context, u domain.Unread) domain.Un
 		b.warnIf(ctx, err, "count thread unread locally", "room", u.RoomID)
 		return u
 	}
-	return withThreads(u, threads)
-}
-
-// withThreads attaches a room's unread threads and adds them to its totals.
-func withThreads(u domain.Unread, threads []domain.ThreadUnread) domain.Unread {
-	u.Threads = threads
-	for _, t := range threads {
-		u.Messages += t.Unread
-		u.Mentions += t.Mentions
-	}
-	return u
+	return u.WithThreads(threads)
 }
 
 // sameThreadUnread reports whether two thread breakdowns match, order included.

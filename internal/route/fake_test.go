@@ -359,3 +359,22 @@ type spacedFake struct{ *fake }
 
 func (f spacedFake) Spaces(context.Context) ([]domain.Space, error)        { return f.spaces, f.fail }
 func (f spacedFake) RefreshSpaces(context.Context) ([]domain.Space, error) { return f.spaces, f.fail }
+
+// threadedFake is a network with threads beside Matrix's (Slack); a plain fake has none.
+type threadedFake struct{ *fake }
+
+func (f threadedFake) ListThreads(_ context.Context, room domain.RoomID) ([]domain.Thread, error) {
+	return []domain.Thread{{RoomID: room}}, f.touch(room)
+}
+
+func (f threadedFake) ThreadPage(_ context.Context, room domain.RoomID, _ domain.EventID, _ string, _ int) (domain.TimelinePage, error) {
+	return domain.TimelinePage{}, f.touch(room)
+}
+
+func (f threadedFake) MarkThreadRead(_ context.Context, room domain.RoomID, _, _ domain.EventID, _ bool) error {
+	return f.touch(room)
+}
+
+func (f threadedFake) ThreadParticipant(_ context.Context, room domain.RoomID, _ domain.EventID) bool {
+	return f.touch(room) == nil
+}

@@ -4,9 +4,10 @@ kith can sign in to Slack directly, as the Slack web client does: no Matrix brid
 and nothing for the workspace's admins to install or approve. Slack workspaces sit
 beside your other rooms in the same client, or on their own: Matrix is optional.
 
-This is being built in steps. Today kith signs in and lists each workspace's
-channels, direct messages and group DMs; messages, threads, reactions and files come
-next, and this page will say when.
+This is being built in steps. Today kith signs in, lists each workspace's channels,
+direct messages and group DMs, and reads and writes in them: messages, edits and
+deletions, reactions, threads, unread counts and typing. Files and images come next,
+and this page will say when.
 
 ## Before you sign in
 
@@ -80,5 +81,12 @@ daemon re-read the config. Turning `[slack]` on or off takes a restart of kithd.
 - **Channels** are named as in Slack, without the `#`. Private channels are there
   too; archived ones are not.
 - **A DM** is named after the person; **a group DM** after its people's handles.
+- **Threads** read as Matrix threads do: a summary row under the message they hang
+  off, opened to read and answer in. A thread is read from Slack whole, in the
+  background, when kith first sees it has replies it lacks.
+- **A thread counts as unread only if you follow it**, as in Slack: you wrote in it,
+  or it mentions you. Its read position is Slack's, and follows you reading it on
+  another client; reading a thread in kith is kept in kith only, and marking rooms
+  read reads their threads too.
 - The status line says when a workspace is not signed in, or when Slack has ended
   its session.

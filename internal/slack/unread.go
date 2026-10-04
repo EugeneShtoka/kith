@@ -78,7 +78,15 @@ func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 		a.log.Warn("count unread failed", "room", room, "err", err)
 		return
 	}
-	emit(a, a.unread, domain.Unread{RoomID: room, Messages: messages, Mentions: mentions, Counted: counted})
+	u := domain.Unread{RoomID: room, Messages: messages, Mentions: mentions, Counted: counted}
+	if counted {
+		threads, err := a.cache.CountThreadUnread(ctx, a.Me(), room)
+		if err != nil {
+			a.log.Warn("count unread threads failed", "room", room, "err", err)
+		}
+		u = u.WithThreads(a.followed(ctx, room, threads))
+	}
+	emit(a, a.unread, u)
 }
 
 // onMarked moves a conversation's read position to ts, read on this or another client.
@@ -107,9 +115,14 @@ func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	if err != nil {
 		return nil, fmt.Errorf("slack: count unread: %w", err)
 	}
+	threads, err := a.cache.CountThreadUnreadAll(ctx, a.Me())
+	if err != nil {
+		return nil, fmt.Errorf("slack: count unread threads: %w", err)
+	}
 	for i := range rows {
 		if c, ok := counts[rows[i].RoomID]; ok {
 			rows[i].Messages, rows[i].Mentions, rows[i].Counted = c.Messages, c.Mentions, true
+			rows[i] = rows[i].WithThreads(a.followed(ctx, rows[i].RoomID, threads[rows[i].RoomID]))
 		}
 	}
 	return rows, nil
@@ -135,7 +148,8 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 	return nil
 }
 
-// MarkRoomsRead marks each room read up to its newest cached message.
+// MarkRoomsRead marks each room read up to its newest cached message, its threads
+// with it.
 func (a *Adapter) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error) {
 	var result domain.ReadResult
 	if a.cache == nil {
@@ -158,6 +172,10 @@ func (a *Adapter) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, pr
 				result.FirstError = err.Error()
 			}
 			continue
+		}
+		if ts, ok, err := a.cache.MessageTS(ctx, room, event); err == nil && ok {
+			a.readThreadsTo(ctx, room, event, time.UnixMilli(ts))
+			a.recount(ctx, room)
 		}
 		result.Marked++
 	}

@@ -80,12 +80,8 @@ func (a *Adapter) onEvent(ctx context.Context, w *workspace, ev slackgo.RTMEvent
 		a.onReaction(ctx, w, slackgo.ReactionEvent(*e), true)
 	case *slackgo.ReactionRemovedEvent:
 		a.onReaction(ctx, w, slackgo.ReactionEvent(*e), false)
-	case *slackgo.ChannelMarkedEvent:
-		a.onMarked(ctx, w, e.Channel, e.Timestamp)
-	case *slackgo.IMMarkedEvent:
-		a.onMarked(ctx, w, e.Channel, e.Timestamp)
-	case *slackgo.GroupMarkedEvent:
-		a.onMarked(ctx, w, e.Channel, e.Timestamp)
+	case *slackgo.ChannelMarkedEvent, *slackgo.IMMarkedEvent, *slackgo.GroupMarkedEvent:
+		a.onAnyMarked(ctx, w, e)
 	case *slackgo.UserTypingEvent:
 		a.onTyping(w, e)
 	case *slackgo.ConnectedEvent:
@@ -113,8 +109,22 @@ func (a *Adapter) onEvent(ctx context.Context, w *workspace, ev slackgo.RTMEvent
 		*slackgo.GroupJoinedEvent, *slackgo.GroupLeftEvent, *slackgo.GroupRenameEvent,
 		*slackgo.IMCreatedEvent, *slackgo.ChannelArchiveEvent, *slackgo.GroupArchiveEvent:
 		go a.relist(context.WithoutCancel(ctx), w)
+	case *slackgo.UnmarshallingErrorEvent:
+		a.onUnmapped(ctx, w, e.Raw)
 	}
 	return true
+}
+
+// onAnyMarked moves a read position as a channel, a DM or a group DM was read.
+func (a *Adapter) onAnyMarked(ctx context.Context, w *workspace, e any) {
+	switch e := e.(type) {
+	case *slackgo.ChannelMarkedEvent:
+		a.onMarked(ctx, w, e.Channel, e.Timestamp)
+	case *slackgo.IMMarkedEvent:
+		a.onMarked(ctx, w, e.Channel, e.Timestamp)
+	case *slackgo.GroupMarkedEvent:
+		a.onMarked(ctx, w, e.Channel, e.Timestamp)
+	}
 }
 
 // current reports whether w is still its account's connection.

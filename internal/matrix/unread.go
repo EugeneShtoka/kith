@@ -35,7 +35,7 @@ func (b *InProc) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	for i := range u {
 		if l, ok := local[u[i].RoomID]; ok {
 			u[i].Messages, u[i].Mentions, u[i].Counted = l.Messages, l.Mentions, true
-			u[i] = withThreads(u[i], threads[u[i].RoomID])
+			u[i] = u[i].WithThreads(threads[u[i].RoomID])
 		}
 	}
 	return u, nil

@@ -34,6 +34,16 @@ func (u Unread) ThreadCount(root EventID) (count, mentions int) {
 	return 0, 0
 }
 
+// WithThreads is u with its unread threads attached and added to its totals.
+func (u Unread) WithThreads(threads []ThreadUnread) Unread {
+	u.Threads = threads
+	for _, t := range threads {
+		u.Messages += t.Unread
+		u.Mentions += t.Mentions
+	}
+	return u
+}
+
 // Count is what to badge: how much is unread, and how much of that names us.
 func (u Unread) Count(local bool) (count, highlights int) {
 	if local && u.Counted {

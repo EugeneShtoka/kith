@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -11,8 +12,8 @@ import (
 )
 
 // Send posts a text message: Markdown as mrkdwn, mentions as Slack's own; a draft that
-// edits a message replaces it (changes.go). A reply is posted in the thread of the
-// message it answers — Slack has no other kind. The message is cached and streamed
+// edits a message replaces it (changes.go). A draft written in a thread is posted in
+// it; a reply, in the thread of the message it answers — Slack has no other kind. The message is cached and streamed
 // here; Slack's echo of it over the websocket is the same message again.
 func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error {
 	w, channel, err := a.conversation(roomID)
@@ -24,7 +25,7 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 	}
 	text := composed(draft, w.creds.Team)
 	options := []slackgo.MsgOption{slackgo.MsgOptionText(text, false)}
-	thread := a.threadOf(ctx, w, roomID, channel, draft.ReplyTo)
+	thread := a.threadOf(ctx, w, roomID, channel, cmp.Or(draft.ThreadRoot, draft.ReplyTo))
 	if thread != "" {
 		options = append(options, slackgo.MsgOptionTS(thread))
 	}

@@ -345,3 +345,21 @@ func TestAMessageFromYourBridgedAccountIsYourOwn(t *testing.T) {
 		t.Errorf("SpokeInThread = %v, %v; want true for a reply from the puppet", spoke, err)
 	}
 }
+
+// A thread names you while its root or a reply that is not deleted does.
+func TestAThreadNamesYouWhileAMentionStands(t *testing.T) {
+	t.Parallel()
+	cache, ctx := openTemp(t), context.Background()
+	threadRoom(t, cache)
+	for root, want := range map[domain.EventID]bool{"$root": true, "$other": false} {
+		if named, err := cache.NamedInThread(ctx, "!a:x", root); err != nil || named != want {
+			t.Errorf("NamedInThread(%s) = %v, %v; want %v", root, named, err, want)
+		}
+	}
+	if err := cache.MarkRedacted(ctx, "!a:x", "$a2", "@bob:x", "", time.Now(), false); err != nil {
+		t.Fatal(err)
+	}
+	if named, err := cache.NamedInThread(ctx, "!a:x", "$root"); err != nil || named {
+		t.Errorf("NamedInThread after the mention was deleted = %v, %v; want false", named, err)
+	}
+}

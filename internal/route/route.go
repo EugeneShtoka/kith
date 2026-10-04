@@ -65,14 +65,12 @@ type Matrix interface {
 	Adapter
 	api.Spaces
 	api.Membership
-	api.Threads
+	threadSource
 	api.Verification
 	api.Keys
 	// LoggedIn reports whether it has a session: until then the router treats it as
 	// off. It turns true once, before anything reaches it.
 	LoggedIn() bool
-	// ThreadParticipant reports whether we sent a thread's root or any reply in it.
-	ThreadParticipant(ctx context.Context, roomID domain.RoomID, root domain.EventID) bool
 }
 
 // Router is every network served as one. Build it with New.

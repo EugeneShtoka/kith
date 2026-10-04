@@ -52,7 +52,8 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 // it is cached as history: nothing is streamed or notified. The page's reactions are
 // Slack's on the messages it carries, so a cached one the page lacks went while kith
 // was not listening, and goes; but a message whose reactions changed live since the
-// page was fetched keeps the live ones (reactedSince).
+// page was fetched keeps the live ones (reactedSince). A thread hanging off it with
+// replies the cache lacks is queued to be read (threads.go).
 func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, page []slackgo.Message, fetched time.Time) ([]domain.Message, []domain.Reaction) {
 	raw := make([]slackgo.Msg, len(page))
 	for i := range page {
@@ -89,6 +90,11 @@ func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, p
 			a.onChanged(room)
 		}
 		a.settleReactions(ctx, room, settled, reactions)
+		for i := range raw {
+			if a.repliesBehind(ctx, w.creds.Team, channel, &raw[i]) {
+				a.wantThread(w, channel, raw[i].Timestamp, raw[i].LatestReply)
+			}
+		}
 	}
 	return msgs, reactions
 }
