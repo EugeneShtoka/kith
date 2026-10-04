@@ -301,6 +301,9 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	if wa != nil {
 		wa.OnCached(service.MessageCached, service.RoomChanged)
 	}
+	if sl != nil {
+		sl.OnCached(service.MessageCached, service.RoomChanged)
+	}
 	return served{
 		Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore, slack: sl,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),

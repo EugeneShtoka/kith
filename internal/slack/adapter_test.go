@@ -148,7 +148,7 @@ func TestCredentialsMustBeWhole(t *testing.T) {
 }
 
 // Until a workspace is connected, what needs one says the network is off, and the
-// rest is empty.
+// rest is empty: members are the cached ones, and a typing notice is a courtesy.
 func TestNothingIsReachableBeforeAWorkspaceConnects(t *testing.T) {
 	t.Parallel()
 	a := New(nil, &memSecrets{values: map[string]string{}}, nil, nil)
@@ -158,7 +158,6 @@ func TestNothingIsReachableBeforeAWorkspaceConnects(t *testing.T) {
 		"send":     a.Send(ctx, room, domain.Draft{Body: "hi"}),
 		"mark":     a.MarkRead(ctx, room, "", false),
 		"react":    a.SendReaction(ctx, room, "slack:T1/C1/1.2", "👍"),
-		"typing":   a.SendTyping(ctx, room, true, time.Second),
 		"redact":   a.Redact(ctx, room, "slack:T1/C1/1.2", ""),
 		"file":     a.SendFile(ctx, room, "/tmp/x", ""),
 		"unread":   a.MarkRoomUnread(ctx, room, true),
@@ -168,12 +167,17 @@ func TestNothingIsReachableBeforeAWorkspaceConnects(t *testing.T) {
 		"fetch":    func() error { _, err := a.FetchEvent(ctx, room, "slack:T1/C1/1.2"); return err }(),
 		"image":    func() error { _, err := a.LoadImage(ctx, room, "slack:T1/C1/1.2"); return err }(),
 		"history":  func() error { _, _, err := a.MessageHistory(ctx, room, "slack:T1/C1/1.2"); return err }(),
-		"members":  func() error { _, err := a.RefreshMembers(ctx, room); return err }(),
 		"read all": func() error { _, err := a.MarkRoomsRead(ctx, []domain.RoomID{room}, false); return err }(),
 	} {
 		if !errors.Is(err, api.ErrNetworkOff) {
 			t.Errorf("%s = %v, want ErrNetworkOff", name, err)
 		}
+	}
+	if err := a.SendTyping(ctx, room, true, time.Second); err != nil {
+		t.Errorf("typing = %v, want nothing said", err)
+	}
+	if members, err := a.RefreshMembers(ctx, room); err != nil || len(members) != 0 {
+		t.Errorf("RefreshMembers = %v, %v; want the cached ones, none", members, err)
 	}
 	if enc, err := a.RoomEncryption(ctx, []domain.RoomID{room}); err != nil || enc[room] {
 		t.Errorf("RoomEncryption = %v, %v; Slack is not end-to-end encrypted", enc, err)

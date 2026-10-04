@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"sync"
 	"time"
 
 	slackgo "github.com/slack-go/slack"
@@ -30,6 +31,72 @@ type workspace struct {
 	// teamName is the workspace's own name, from sign-in.
 	teamName string
 	client   *slackgo.Client
+
+	// done closes when the connection is let go: signed in again, removed, stopped.
+	done      chan struct{}
+	closeOnce sync.Once
+
+	mu sync.Mutex
+	// people and channels name the workspace's users and conversations by ID, as
+	// far as they are known.
+	people   map[string]string
+	channels map[string]string
+}
+
+// newWorkspace is a connection on a session; client talks to Slack with it.
+func newWorkspace(account Account, creds Credentials, teamName string, client *slackgo.Client, signIn int) *workspace {
+	return &workspace{
+		account: account, creds: creds, teamName: teamName, client: client, signIn: signIn,
+		done: make(chan struct{}), people: map[string]string{}, channels: map[string]string{},
+	}
+}
+
+// close lets the connection go; its live events stop.
+func (w *workspace) close() { w.closeOnce.Do(func() { close(w.done) }) }
+
+// names is how w writes a message's references.
+func (w *workspace) names() names {
+	return names{
+		team: w.creds.Team, me: w.creds.User,
+		user: func(id string) string {
+			w.mu.Lock()
+			defer w.mu.Unlock()
+			return w.people[id]
+		},
+		channel: func(id string) string {
+			w.mu.Lock()
+			defer w.mu.Unlock()
+			return w.channels[id]
+		},
+	}
+}
+
+// unnamed is the users among these w has no name for.
+func (w *workspace) unnamed(users []string) []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return slices.DeleteFunc(slices.Clone(users), func(u string) bool { return w.people[u] != "" })
+}
+
+// knowPerson keeps a user's name.
+func (w *workspace) knowPerson(user, name string) {
+	if name == "" {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.people[user] = name
+}
+
+// knowChannels keeps the listed conversations' names.
+func (w *workspace) knowChannels(rooms []domain.Room) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for i := range rooms {
+		if rooms[i].Name != "" {
+			w.channels[domain.ParseID(string(rooms[i].ID)).Native] = rooms[i].Name
+		}
+	}
 }
 
 // ErrNoAccount is a sign-in for a name no [[slack.account]] has.
@@ -75,13 +142,14 @@ func (a *Adapter) SignInSlack(ctx context.Context, name, token, cookie string) (
 	if err := saveCredentials(a.secrets, account.Name, creds); err != nil {
 		return api.SlackSignedIn{}, err
 	}
-	w := &workspace{account: account, creds: creds, teamName: who.Team, client: client, signIn: a.newSignIn(account.Name)}
+	w := newWorkspace(account, creds, who.Team, client, a.newSignIn(account.Name))
 	if !a.adopt(w) {
 		return api.SlackSignedIn{}, fmt.Errorf("%w named %q: it left the config while signing in", ErrNoAccount, name)
 	}
 	if _, err := a.list(ctx, w); err != nil {
 		a.log.Warn("list the workspace after signing in failed", "account", name, "err", err)
 	}
+	a.goLive(w)
 	return api.SlackSignedIn{Workspace: who.Team, User: who.User}, nil
 }
 
@@ -124,13 +192,14 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, creds Creden
 		a.session(account, Connecting, "Slack cannot be reached: "+err.Error())
 		return ctx.Err() != nil
 	}
-	w := &workspace{account: account, creds: creds, teamName: who.Team, client: client, signIn: signIn}
+	w := newWorkspace(account, creds, who.Team, client, signIn)
 	if !a.adopt(w) {
 		return true // signed in again, or removed, meanwhile
 	}
 	if _, err := a.list(ctx, w); err != nil {
 		a.log.Warn("list the workspace failed", "account", account.Name, "err", err)
 	}
+	a.goLive(w)
 	return true
 }
 
@@ -166,9 +235,12 @@ func (a *Adapter) currentSignIn(account string) int {
 // would replace the newer), or is no longer configured. It reports whether it did.
 func (a *Adapter) adopt(w *workspace) bool {
 	a.mu.Lock()
-	current := w.signIn == a.signIns[w.account.Name] &&
+	current := w.signIn == a.signIns[w.account.Name] && !a.stopped &&
 		slices.ContainsFunc(a.accounts, func(k Account) bool { return k.Name == w.account.Name })
 	if current {
+		if old, ok := a.workspaces[w.account.Name]; ok && old != w {
+			old.close()
+		}
 		a.workspaces[w.account.Name] = w
 	}
 	a.mu.Unlock()
@@ -194,6 +266,7 @@ func (a *Adapter) connected() []*workspace {
 func (a *Adapter) list(ctx context.Context, w *workspace) ([]domain.Room, error) {
 	a.refreshing.Lock()
 	defer a.refreshing.Unlock()
+	fetched := time.Now()
 	var conversations []slackgo.Channel
 	for cursor := ""; ; {
 		page, next, err := w.client.GetConversationsForUserContext(ctx, &slackgo.GetConversationsForUserParameters{
@@ -219,20 +292,33 @@ func (a *Adapter) list(ctx context.Context, w *workspace) ([]domain.Room, error)
 			}
 		}
 	}
+	for user, name := range names {
+		w.knowPerson(user, name)
+	}
 	l := listed(w.creds.Team, w.teamName, conversations, names)
-	if err := a.save(ctx, w, l); err != nil {
+	w.knowChannels(l.rooms)
+	if err := a.save(ctx, w, l, fetched); err != nil {
 		return nil, err
 	}
 	return l.rooms, nil
 }
 
-// save writes a workspace's listing over its cached rooms, space and DM members.
-func (a *Adapter) save(ctx context.Context, w *workspace, l listing) error {
+// save writes a workspace's listing, fetched then, over its cached rooms, space and DM
+// members. A room a message arrived in since the listing was fetched (a channel just
+// joined, a DM just begun) is kept, though the listing does not name it: the sweep
+// would take its history.
+func (a *Adapter) save(ctx context.Context, w *workspace, l listing, fetched time.Time) error {
 	if a.cache == nil {
 		return nil
 	}
+	a.listing.Lock()
+	defer a.listing.Unlock()
 	owner := domain.AccountRooms(domain.ProtocolSlack, w.creds.Team)
-	if err := a.cache.SaveRooms(ctx, owner, l.rooms); err != nil {
+	kept, err := a.keptRooms(ctx, owner, l.rooms, fetched)
+	if err != nil {
+		return err
+	}
+	if err := a.cache.SaveRooms(ctx, owner, append(slices.Clone(l.rooms), kept...)); err != nil {
 		return fmt.Errorf("slack: cache %s's rooms: %w", w.account.Name, err)
 	}
 	if err := a.cache.SaveSpaces(ctx, owner, []domain.Space{l.space}); err != nil {
@@ -247,4 +333,17 @@ func (a *Adapter) save(ctx context.Context, w *workspace, l listing) error {
 		a.onRoomsChanged()
 	}
 	return nil
+}
+
+// keptRooms is an owner's cached rooms a listing fetched then must not sweep: those
+// heard from since. Caller holds listing.
+func (a *Adapter) keptRooms(ctx context.Context, owner domain.RoomOwner, listed []domain.Room, fetched time.Time) ([]domain.Room, error) {
+	rooms, err := a.cache.Rooms(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("slack: read cached rooms: %w", err)
+	}
+	return slices.DeleteFunc(rooms, func(r domain.Room) bool {
+		return !owner.Owns(r.ID) || a.heard[r.ID].Before(fetched) ||
+			slices.ContainsFunc(listed, func(l domain.Room) bool { return l.ID == r.ID })
+	}), nil
 }

@@ -57,6 +57,10 @@ type Adapter struct {
 	onSession func(Account, Session, string)
 	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
 	onRoomsChanged func()
+	// onCached hears each message cached, onChanged each room whose cached messages
+	// changed otherwise (see OnCached).
+	onCached  func(domain.Message)
+	onChanged func(domain.RoomID)
 
 	mu       sync.Mutex
 	accounts []Account
@@ -72,6 +76,11 @@ type Adapter struct {
 
 	// refreshing serializes listings, so an older one is never written over a newer.
 	refreshing sync.Mutex
+	// listing is held while a listing is written and while a message is, so the two
+	// never interleave; heard is when each room last had a message cached (see
+	// keptRooms).
+	listing sync.Mutex
+	heard   map[domain.RoomID]time.Time
 
 	streamMu  sync.RWMutex
 	closed    bool
@@ -91,6 +100,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "slack"),
 		workspaces: map[string]*workspace{},
 		signIns:    map[string]int{},
+		heard:      map[domain.RoomID]time.Time{},
 		messages:   make(chan domain.Message, streamBuffer),
 		activity:   make(chan domain.Activity, streamBuffer),
 		unread:     make(chan domain.Unread, streamBuffer),
@@ -107,6 +117,12 @@ func (a *Adapter) OnSession(changed func(account Account, session Session, detai
 // OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
 // before Start.
 func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
+
+// OnCached sets who hears each message the adapter caches, and each room whose cached
+// messages changed otherwise (word completion). Set before Start.
+func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
+	a.onCached, a.onChanged = cached, changed
+}
 
 // session reports an account's state.
 func (a *Adapter) session(account Account, s Session, detail string) {
@@ -129,8 +145,9 @@ func (a *Adapter) UseAccounts(accounts []Account) {
 	a.mu.Lock()
 	known := a.accounts
 	a.accounts = slices.Clone(accounts)
-	for name := range a.workspaces {
+	for name, w := range a.workspaces {
 		if !slices.ContainsFunc(accounts, func(k Account) bool { return k.Name == name }) {
+			w.close()
 			delete(a.workspaces, name)
 		}
 	}
@@ -208,6 +225,9 @@ func (a *Adapter) Stop() {
 		return
 	}
 	a.stopped = true
+	for _, w := range a.workspaces {
+		w.close()
+	}
 	a.mu.Unlock()
 	a.streamMu.Lock()
 	defer a.streamMu.Unlock()
@@ -336,28 +356,13 @@ func (a *Adapter) MessageHistory(context.Context, domain.RoomID, domain.EventID)
 	return nil, domain.Deletion{}, errNetworkOff
 }
 
-// Timeline needs a connected workspace.
-func (a *Adapter) Timeline(context.Context, domain.RoomID, string, int) (domain.TimelinePage, error) {
-	return domain.TimelinePage{}, errNetworkOff
-}
-
-// FetchEvent needs a connected workspace.
-func (a *Adapter) FetchEvent(context.Context, domain.RoomID, domain.EventID) (domain.Message, error) {
-	return domain.Message{}, errNetworkOff
-}
-
 // Redact needs a connected workspace.
 func (a *Adapter) Redact(context.Context, domain.RoomID, domain.EventID, string) error {
 	return errNetworkOff
 }
 
-// Send needs a connected workspace.
-func (a *Adapter) Send(context.Context, domain.RoomID, domain.Draft) error { return errNetworkOff }
-
-// SendTyping needs a connected workspace.
-func (a *Adapter) SendTyping(context.Context, domain.RoomID, bool, time.Duration) error {
-	return errNetworkOff
-}
+// SendTyping sends nothing yet: a typing notice is a courtesy, so none is no error.
+func (a *Adapter) SendTyping(context.Context, domain.RoomID, bool, time.Duration) error { return nil }
 
 // SendFile needs a connected workspace.
 func (a *Adapter) SendFile(context.Context, domain.RoomID, string, string) error {
@@ -372,21 +377,6 @@ func (a *Adapter) SendReaction(context.Context, domain.RoomID, domain.EventID, s
 // LoadImage needs a connected workspace.
 func (a *Adapter) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error) {
 	return nil, errNetworkOff
-}
-
-// Members is a room's members: none before a workspace is connected.
-func (a *Adapter) Members(context.Context, domain.RoomID, int) ([]domain.Member, error) {
-	return nil, nil
-}
-
-// RefreshMembers needs a connected workspace.
-func (a *Adapter) RefreshMembers(context.Context, domain.RoomID) ([]domain.Member, error) {
-	return nil, errNetworkOff
-}
-
-// MentionCandidates is who may be mentioned: none before a workspace is connected.
-func (a *Adapter) MentionCandidates(context.Context, domain.RoomID, int) ([]domain.Member, error) {
-	return nil, nil
 }
 
 // DirectCandidates is who a DM may be started with: none before a workspace is
