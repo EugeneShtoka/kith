@@ -223,6 +223,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/api"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/emoji"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/slack"
             - "github.com/slack-go/slack"
@@ -366,6 +367,13 @@ linters:
             - "$gostd"
             - "github.com/coreos/go-systemd/v22/journal"
             - "github.com/EugeneShtoka/kith/internal/logging"
+
+        # Emoji by name, shared by the client and the Slack adapter: data alone.
+        emoji-is-a-leaf:
+          files:
+            - "**/internal/emoji/**"
+          allow:
+            - "$gostd"
 
         richtext-is-a-leaf:
           files:
@@ -523,6 +531,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/setup"
             - "github.com/EugeneShtoka/kith/internal/audio"
             - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/emoji"
             - "github.com/EugeneShtoka/kith/internal/filedialog"
             - "github.com/EugeneShtoka/kith/internal/focus"
             - "github.com/EugeneShtoka/kith/internal/logging"

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	emojidata "github.com/EugeneShtoka/kith/internal/emoji"
+
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -46,7 +48,7 @@ func TestCuratedNamesWinCollisions(t *testing.T) {
 	t.Parallel()
 
 	complete := newEmojiSet(emojiComplete, nil)
-	for name, emoji := range emojiShortcodes {
+	for name, emoji := range emojidata.Curated {
 		if got := complete.byName[name]; got != emoji {
 			t.Errorf("%q = %s in the complete set, want the curated %s", name, got, emoji)
 		}

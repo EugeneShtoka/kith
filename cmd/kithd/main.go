@@ -399,6 +399,9 @@ func configure(log *slog.Logger, backend served, cfg config.Config, storage doma
 	if backend.whatsapp != nil {
 		backend.whatsapp.KeepDeleted(cfg.Display.Deleted.Keep())
 	}
+	if backend.slack != nil {
+		backend.slack.KeepDeleted(cfg.Display.Deleted.Keep())
+	}
 }
 
 // identityGroups is each [[display.identity]]'s user IDs.

@@ -122,7 +122,7 @@ proto:
 # Generated tables/manifests below are committed so builds need no network.
 emoji:
 	python3 scripts/gen-emoji.py
-	gofmt -w internal/tui/emoji_generated.go
+	gofmt -w internal/emoji/generated.go
 
 # The [keys] part of internal/config/default.toml, rendered from keySections
 # (internal/config/keytable.go). A config test fails while the file is stale.

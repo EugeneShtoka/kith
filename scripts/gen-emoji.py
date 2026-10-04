@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate internal/tui/emoji_generated.go from Unicode's emoji-test.txt (`make emoji`).
+"""Generate internal/emoji/generated.go from Unicode's emoji-test.txt (`make emoji`).
 
-standardEmoji: single-glyph, fully-qualified, no skin tone (kith applies tones).
-sequenceEmoji: ZWJ sequences and flags — opt-in, since fonts without the ligature draw
+Standard: single-glyph, fully-qualified, no skin tone (kith applies tones).
+Sequences: ZWJ sequences and flags — opt-in, since fonts without the ligature draw
 them wider than measured. Shortcodes come from CLDR names; emoji.go's names win.
 """
 
@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 SOURCE = "https://unicode.org/Public/emoji/latest/emoji-test.txt"
-OUT = Path(__file__).resolve().parent.parent / "internal" / "tui" / "emoji_generated.go"
+OUT = Path(__file__).resolve().parent.parent / "internal" / "emoji" / "generated.go"
 
 TONES = range(0x1F3FB, 0x1F400)
 REGIONAL = range(0x1F1E6, 0x1F200)
@@ -119,22 +119,22 @@ def render(standard, sequence) -> str:
 // Regenerate with `make emoji` after a new Unicode release. The file is committed so
 // that a build needs no network; the script is a development tool.
 
-package tui
+package emoji
 """
     return "\n".join(
         [
             header,
             table(
-                "standardEmoji",
+                "Standard",
                 standard,
-                "// standardEmoji is every fully-qualified single-glyph emoji: no ZWJ sequence, no\n"
+                "// Standard is every fully-qualified single-glyph emoji: no ZWJ sequence, no\n"
                 "// flag, and no pre-applied skin tone (kith applies the tone itself).",
             ),
             "",
             table(
-                "sequenceEmoji",
+                "Sequences",
                 sequence,
-                "// sequenceEmoji is the composed emoji — ZWJ sequences and flags. They are kept\n"
+                "// Sequences is the composed emoji — ZWJ sequences and flags. They are kept\n"
                 "// apart because they are the class fonts disagree about: without the ligature a\n"
                 "// font draws the parts side by side, which is wider than the cell it was measured\n"
                 "// into, and one column out wraps the row.",

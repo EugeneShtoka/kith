@@ -3,11 +3,11 @@
 // Regenerate with `make emoji` after a new Unicode release. The file is committed so
 // that a build needs no network; the script is a development tool.
 
-package tui
+package emoji
 
-// standardEmoji is every fully-qualified single-glyph emoji: no ZWJ sequence, no
+// Standard is every fully-qualified single-glyph emoji: no ZWJ sequence, no
 // flag, and no pre-applied skin tone (kith applies the tone itself).
-var standardEmoji = map[string]string{
+var Standard = map[string]string{
 	"grinning_face":                           "😀",
 	"grinning_face_with_big_eyes":             "😃",
 	"grinning_face_with_smiling_eyes":         "😄",
@@ -1390,11 +1390,11 @@ var standardEmoji = map[string]string{
 	"flag_wales":                               "🏴\U000e0067\U000e0062\U000e0077\U000e006c\U000e0073\U000e007f",
 }
 
-// sequenceEmoji is the composed emoji — ZWJ sequences and flags. They are kept
+// Sequences is the composed emoji — ZWJ sequences and flags. They are kept
 // apart because they are the class fonts disagree about: without the ligature a
 // font draws the parts side by side, which is wider than the cell it was measured
 // into, and one column out wraps the row.
-var sequenceEmoji = map[string]string{
+var Sequences = map[string]string{
 	"face_in_clouds":                      "😶\u200d🌫️",
 	"face_exhaling":                       "😮\u200d💨",
 	"head_shaking_horizontally":           "🙂\u200d↔️",

@@ -82,6 +82,15 @@ type Adapter struct {
 	listing sync.Mutex
 	heard   map[domain.RoomID]time.Time
 
+	// keepDeleted is [display.deleted] keep (KeepDeleted). positions are the rooms'
+	// read positions, loaded on first use (unread.go); typing is who is typing where,
+	// each forgotten when their timer fires (typing.go); reacted is when each message's
+	// reactions last changed live (reactions.go). All under mu.
+	keepDeleted bool
+	positions   map[domain.RoomID]time.Time
+	typing      map[domain.RoomID]map[string]*time.Timer
+	reacted     map[domain.EventID]time.Time
+
 	streamMu  sync.RWMutex
 	closed    bool
 	messages  chan domain.Message
@@ -101,6 +110,8 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		workspaces: map[string]*workspace{},
 		signIns:    map[string]int{},
 		heard:      map[domain.RoomID]time.Time{},
+		typing:     map[domain.RoomID]map[string]*time.Timer{},
+		reacted:    map[domain.EventID]time.Time{},
 		messages:   make(chan domain.Message, streamBuffer),
 		activity:   make(chan domain.Activity, streamBuffer),
 		unread:     make(chan domain.Unread, streamBuffer),
@@ -318,21 +329,11 @@ func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	return a.Spaces(ctx)
 }
 
-// CachedUnread is the Slack rooms' unread counts: none before a workspace is connected.
-func (a *Adapter) CachedUnread(context.Context) ([]domain.Unread, error) { return nil, nil }
+// errNoMarkUnread is marking a Slack conversation unread, which kith does not do yet.
+var errNoMarkUnread = errors.New("slack: marking a conversation unread is not supported yet")
 
-// MarkRead needs a connected workspace.
-func (a *Adapter) MarkRead(context.Context, domain.RoomID, domain.EventID, bool) error {
-	return errNetworkOff
-}
-
-// MarkRoomsRead needs a connected workspace.
-func (a *Adapter) MarkRoomsRead(context.Context, []domain.RoomID, bool) (domain.ReadResult, error) {
-	return domain.ReadResult{}, errNetworkOff
-}
-
-// MarkRoomUnread needs a connected workspace.
-func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error { return errNetworkOff }
+// MarkRoomUnread is not supported yet.
+func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error { return errNoMarkUnread }
 
 // StarMessage needs a connected workspace.
 func (a *Adapter) StarMessage(context.Context, domain.RoomID, domain.EventID, bool) error {
@@ -351,26 +352,8 @@ func (a *Adapter) CanonicalParent(_ context.Context, roomID domain.RoomID) (doma
 	return workspaceSpaceID(id.Account), nil
 }
 
-// MessageHistory needs a connected workspace.
-func (a *Adapter) MessageHistory(context.Context, domain.RoomID, domain.EventID) ([]domain.Revision, domain.Deletion, error) {
-	return nil, domain.Deletion{}, errNetworkOff
-}
-
-// Redact needs a connected workspace.
-func (a *Adapter) Redact(context.Context, domain.RoomID, domain.EventID, string) error {
-	return errNetworkOff
-}
-
-// SendTyping sends nothing yet: a typing notice is a courtesy, so none is no error.
-func (a *Adapter) SendTyping(context.Context, domain.RoomID, bool, time.Duration) error { return nil }
-
 // SendFile needs a connected workspace.
 func (a *Adapter) SendFile(context.Context, domain.RoomID, string, string) error {
-	return errNetworkOff
-}
-
-// SendReaction needs a connected workspace.
-func (a *Adapter) SendReaction(context.Context, domain.RoomID, domain.EventID, string) error {
 	return errNetworkOff
 }
 

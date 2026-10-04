@@ -29,6 +29,9 @@ func (a *Adapter) goLive(w *workspace) {
 // live is one workspace's websocket, reconnected by slack-go as it drops.
 func (a *Adapter) live(ctx context.Context, w *workspace) {
 	rtm := w.client.NewRTM()
+	w.mu.Lock()
+	w.rtm = rtm
+	w.mu.Unlock()
 	go rtm.ManageConnection()
 	defer a.letGo(rtm)
 	for {
@@ -65,7 +68,26 @@ func (a *Adapter) letGo(rtm *slackgo.RTM) {
 func (a *Adapter) onEvent(ctx context.Context, w *workspace, ev slackgo.RTMEvent) bool {
 	switch e := ev.Data.(type) {
 	case *slackgo.MessageEvent:
-		a.arrived(ctx, w, e.Channel, &e.Msg)
+		switch e.SubType {
+		case "message_changed":
+			a.onEdited(ctx, w, e)
+		case "message_deleted":
+			a.onDeleted(ctx, w, e)
+		default:
+			a.arrived(ctx, w, e.Channel, &e.Msg)
+		}
+	case *slackgo.ReactionAddedEvent:
+		a.onReaction(ctx, w, slackgo.ReactionEvent(*e), true)
+	case *slackgo.ReactionRemovedEvent:
+		a.onReaction(ctx, w, slackgo.ReactionEvent(*e), false)
+	case *slackgo.ChannelMarkedEvent:
+		a.onMarked(ctx, w, e.Channel, e.Timestamp)
+	case *slackgo.IMMarkedEvent:
+		a.onMarked(ctx, w, e.Channel, e.Timestamp)
+	case *slackgo.GroupMarkedEvent:
+		a.onMarked(ctx, w, e.Channel, e.Timestamp)
+	case *slackgo.UserTypingEvent:
+		a.onTyping(w, e)
 	case *slackgo.ConnectedEvent:
 		if a.current(w) {
 			a.session(w.account, Connected, "")

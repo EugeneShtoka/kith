@@ -56,7 +56,9 @@ func (a *Adapter) catchUp(ctx context.Context, w *workspace) error {
 	if err != nil {
 		return fmt.Errorf("slack: read the last cached messages: %w", err)
 	}
-	late := behind(w.creds.Team, counts, cached, w.listedNow())
+	listed := w.listedNow()
+	a.readPositions(ctx, w, counts)
+	late := behind(w.creds.Team, counts, cached, listed)
 	a.log.Info("catching up", "account", w.account.Name, "conversations", len(late),
 		"counted", len(counts.Channels)+len(counts.IMs)+len(counts.MpIMs))
 	for _, c := range late {
@@ -67,7 +69,26 @@ func (a *Adapter) catchUp(ctx context.Context, w *workspace) error {
 			a.log.Warn("catch up a conversation failed", "account", w.account.Name, "channel", c, "err", err)
 		}
 	}
+	// A conversation Slack gave no read position for (a quiet one) is read: nothing in
+	// it waits for you.
+	for _, c := range listed {
+		room := roomID(w.creds.Team, c)
+		a.placeRead(ctx, room, time.Now())
+		a.recount(ctx, room)
+	}
 	return nil
+}
+
+// readPositions moves each counted conversation's read position to Slack's last_read.
+func (a *Adapter) readPositions(ctx context.Context, w *workspace, counts *slackgo.ClientCountsResponse) {
+	for _, list := range [][]slackgo.ClientCountsChannel{counts.Channels, counts.IMs, counts.MpIMs} {
+		for _, c := range list {
+			if c.LastRead == "" || tsTime(c.LastRead).IsZero() {
+				continue
+			}
+			a.readTo(ctx, roomID(w.creds.Team, c.ID), messageID(w.creds.Team, c.ID, c.LastRead), tsTime(c.LastRead))
+		}
+	}
 }
 
 // behind is the conversations, of those listed, whose last message is newer than the
@@ -117,6 +138,7 @@ func (a *Adapter) readSince(ctx context.Context, w *workspace, channel string, s
 	cursor := ""
 	for range catchUpPages {
 		var resp *slackgo.GetConversationHistoryResponse
+		fetched := time.Now()
 		err := waitingOut(ctx, func() (err error) {
 			resp, err = w.client.GetConversationHistoryContext(ctx, &slackgo.GetConversationHistoryParameters{
 				ChannelID: channel, Oldest: oldest, Cursor: cursor, Limit: catchUpPage,
@@ -129,7 +151,7 @@ func (a *Adapter) readSince(ctx context.Context, w *workspace, channel string, s
 		if err != nil {
 			return err
 		}
-		a.cachePage(ctx, w, channel, resp.Messages)
+		a.cachePage(ctx, w, channel, resp.Messages, fetched)
 		if cursor = resp.ResponseMetaData.NextCursor; !resp.HasMore || cursor == "" {
 			return nil
 		}

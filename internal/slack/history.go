@@ -26,6 +26,7 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 		return domain.TimelinePage{}, err
 	}
 	var resp *slackgo.GetConversationHistoryResponse
+	fetched := time.Now()
 	err = waitingOut(ctx, func() (err error) {
 		resp, err = w.client.GetConversationHistoryContext(ctx, &slackgo.GetConversationHistoryParameters{
 			ChannelID: channel, Cursor: from, Limit: limit,
@@ -38,7 +39,8 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 	if err != nil {
 		return domain.TimelinePage{}, err
 	}
-	page := domain.TimelinePage{Messages: a.cachePage(ctx, w, channel, resp.Messages)}
+	msgs, reactions := a.cachePage(ctx, w, channel, resp.Messages, fetched)
+	page := domain.TimelinePage{Messages: msgs, Reactions: reactions}
 	if resp.HasMore {
 		page.Next = resp.ResponseMetaData.NextCursor
 	}
@@ -46,9 +48,12 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 }
 
 // cachePage is a page of a conversation's history, as Slack answers it (newest
-// first), oldest first as kith keeps it, its senders named; it is cached as history:
-// nothing is streamed or notified.
-func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, page []slackgo.Message) []domain.Message {
+// first), oldest first as kith keeps it, its senders named, and the reactions on it;
+// it is cached as history: nothing is streamed or notified. The page's reactions are
+// Slack's on the messages it carries, so a cached one the page lacks went while kith
+// was not listening, and goes; but a message whose reactions changed live since the
+// page was fetched keeps the live ones (reactedSince).
+func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, page []slackgo.Message, fetched time.Time) ([]domain.Message, []domain.Reaction) {
 	raw := make([]slackgo.Msg, len(page))
 	for i := range page {
 		raw[i] = page[i].Msg
@@ -56,9 +61,17 @@ func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, p
 	a.learnPeople(ctx, w, people(raw))
 	n := w.names()
 	var msgs []domain.Message
+	var reactions []domain.Reaction
+	settled := map[domain.EventID]bool{} // messages whose reactions this page decides
 	for i := range slices.Backward(raw) {
-		if msg, ok := incoming(channel, &raw[i], n); ok {
-			msgs = append(msgs, msg)
+		msg, ok := incoming(channel, &raw[i], n)
+		if !ok {
+			continue
+		}
+		msgs = append(msgs, msg)
+		if !a.reactedSince(msg.ID, fetched) {
+			settled[msg.ID] = true
+			reactions = append(reactions, messageReactions(w.creds.Team, channel, &raw[i])...)
 		}
 	}
 	room := roomID(w.creds.Team, channel)
@@ -75,8 +88,38 @@ func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, p
 		if _, ok := a.record(ctx, w, room, msgs); ok && a.onChanged != nil {
 			a.onChanged(room)
 		}
+		a.settleReactions(ctx, room, settled, reactions)
 	}
-	return msgs
+	return msgs, reactions
+}
+
+// settleReactions makes the cached reactions on the settled messages the page's: those
+// it lacks are dropped, its own are written.
+func (a *Adapter) settleReactions(ctx context.Context, room domain.RoomID, settled map[domain.EventID]bool, reactions []domain.Reaction) {
+	if len(settled) == 0 {
+		return
+	}
+	keep := make(map[domain.EventID]bool, len(reactions))
+	for _, r := range reactions {
+		keep[r.ID] = true
+	}
+	cachedRs, err := a.cache.Reactions(ctx, room)
+	if err != nil {
+		a.log.Warn("read cached reactions failed", "room", room, "err", err)
+		return
+	}
+	for _, r := range cachedRs {
+		if settled[r.Target] && !keep[r.ID] {
+			if _, _, err := a.cache.DeleteReaction(ctx, r.ID); err != nil {
+				a.log.Warn("drop a reaction taken back failed", "room", room, "err", err)
+			}
+		}
+	}
+	if len(reactions) > 0 {
+		if err := a.cache.SaveReactions(ctx, reactions); err != nil {
+			a.log.Warn("cache reactions failed", "room", room, "err", err)
+		}
+	}
 }
 
 // conversation is the connected workspace a room is in, and its channel ID there.
