@@ -19,12 +19,13 @@ func conversation(id string, set func(*slackgo.Channel)) slackgo.Channel {
 
 // A workspace's conversations become rooms: channels by name, a DM by the person it
 // is with (who is its member; Slackbot by its name, which users.info does not give),
-// a group DM by its people's handles but one's own; archived ones and DMs with
-// deleted people are left out. The workspace is the space holding them all.
+// a group DM by the others in it — their names when Slack said who they are and all
+// are known, else their handles; archived ones and DMs with deleted people are left
+// out. The workspace is the space holding them all.
 func TestAWorkspaceListsAsRoomsInOneSpace(t *testing.T) {
 	t.Parallel()
 	const team = "T0000000001"
-	l := listed(team, "Acme", "sam", []slackgo.Channel{
+	l := listed(team, "Acme", self{user: "U0000000099", handle: "sam"}, []slackgo.Channel{
 		conversation("C0000000002", func(c *slackgo.Channel) { c.Name = "general"; c.Topic.Value = "Company-wide" }),
 		conversation("G0000000003", func(c *slackgo.Channel) { c.Name = "secret-plans"; c.IsPrivate = true }),
 		conversation("D0000000004", func(c *slackgo.Channel) { c.IsIM = true; c.User = "U0000000005" }),
@@ -32,14 +33,19 @@ func TestAWorkspaceListsAsRoomsInOneSpace(t *testing.T) {
 		conversation("C0000000007", func(c *slackgo.Channel) { c.Name = "old"; c.IsArchived = true }),
 		conversation("D0000000008", func(c *slackgo.Channel) { c.IsIM = true; c.User = "U0000000009"; c.IsUserDeleted = true }),
 		conversation("D0000000010", func(c *slackgo.Channel) { c.IsIM = true; c.User = "USLACKBOT" }),
-	}, map[string]string{"U0000000005": "Dana Levi"})
+		conversation("G0000000011", func(c *slackgo.Channel) { c.IsMpIM = true; c.Name = "mpdm-dana--sam--kim-1" }),
+		conversation("G0000000012", func(c *slackgo.Channel) { c.IsMpIM = true; c.Name = "mpdm-dana--sam--zed-1" }),
+	}, map[string][]string{
+		"G0000000011": {"U0000000005", "U0000000099", "U0000000013"},
+		"G0000000012": {"U0000000005", "U0000000099", "U0000000014"},
+	}, map[string]string{"U0000000005": "Dana Levi", "U0000000013": "Kim Park", "USLACKBOT": "Slackbot"})
 
 	byName := map[string]domain.Room{}
 	for _, r := range l.rooms {
 		byName[r.Name] = r
 	}
-	if len(l.rooms) != 5 {
-		t.Fatalf("rooms = %+v, want five (archived and deleted left out)", l.rooms)
+	if len(l.rooms) != 7 {
+		t.Fatalf("rooms = %+v, want seven (archived and deleted left out)", l.rooms)
 	}
 	if r := byName["general"]; r.ID != "slack:T0000000001/C0000000002" || r.Topic != "Company-wide" || r.IsDirect {
 		t.Errorf("channel = %+v", r)
@@ -54,6 +60,13 @@ func TestAWorkspaceListsAsRoomsInOneSpace(t *testing.T) {
 	if _, ok := byName["dana, lee"]; !ok {
 		t.Errorf("group DM not named by the others in it: %+v", l.rooms)
 	}
+	named := byName["Dana Levi, Kim Park"]
+	if m := l.members[named.ID]; named.ID != "slack:T0000000001/G0000000011" || len(m) != 2 || m[1].DisplayName != "Kim Park" {
+		t.Errorf("group DM by its people's names = %+v, members %+v", named, m)
+	}
+	if _, ok := byName["dana, zed"]; !ok {
+		t.Errorf("a group DM with someone unnamed is not named by handles: %+v", l.rooms)
+	}
 	if bot := byName["Slackbot"]; !bot.IsDirect || l.members[bot.ID][0].DisplayName != "Slackbot" {
 		t.Errorf("Slackbot's DM = %+v, %+v", bot, l.members[bot.ID])
 	}
@@ -63,7 +76,7 @@ func TestAWorkspaceListsAsRoomsInOneSpace(t *testing.T) {
 	if l.space.ID != "slack:T0000000001/T0000000001" || l.space.Name != "Acme" || !l.space.Original || l.space.Bridge != domain.ProtocolSlack {
 		t.Errorf("space = %+v", l.space)
 	}
-	if len(l.space.Children) != 5 || !slices.IsSorted(l.space.Children) {
+	if len(l.space.Children) != 7 || !slices.IsSorted(l.space.Children) {
 		t.Errorf("space children = %v", l.space.Children)
 	}
 	for _, r := range l.rooms {

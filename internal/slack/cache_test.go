@@ -48,12 +48,12 @@ func TestAListingIsCachedAsTheWorkspace(t *testing.T) {
 	acme := newWorkspace(work, Credentials{Team: "T1", User: "U1"}, "", nil, 0)
 	chess := newWorkspace(club, Credentials{Team: "T2", User: "U2"}, "", nil, 0)
 	for _, w := range []*workspace{acme, chess} {
-		if err := a.save(ctx, w, listed(w.creds.Team, w.account.Name, "me", conversations("C1", "C2"), map[string]string{"U9": "Dana"}), time.Now()); err != nil {
+		if err := a.save(ctx, w, listed(w.creds.Team, w.account.Name, self{}, conversations("C1", "C2"), nil, map[string]string{"U9": "Dana"}), time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// acme leaves C2: its next listing drops it, and chess keeps its own.
-	if err := a.save(ctx, acme, listed("T1", "work", "me", conversations("C1"), nil), time.Now()); err != nil {
+	if err := a.save(ctx, acme, listed("T1", "work", self{}, conversations("C1"), nil, nil), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	rooms, err := a.Rooms(ctx)

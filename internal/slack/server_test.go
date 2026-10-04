@@ -259,3 +259,29 @@ func TestLiveEvents(t *testing.T) {
 		t.Errorf("sessions = %v, want one SignedOut", sessions)
 	}
 }
+
+// A listing asks who is in each group DM and names it by the others' names, as its
+// messages show them, with them as its members.
+func TestAGroupDMIsNamedByItsPeople(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	f, client := newFakeSlack(t)
+	f.on("users.conversations", func(map[string]string) any {
+		return map[string]any{"ok": true, "channels": []any{
+			map[string]any{"id": "G1", "name": "mpdm-me--dana--sam-1", "is_mpim": true},
+		}}
+	})
+	f.on("conversations.members", func(form map[string]string) any {
+		return map[string]any{"ok": true, "members": []string{"U1", "U2", "U3"}}
+	})
+	a, w := connectedTo(t, client)
+	w.handle = "me"
+	rooms, err := a.list(ctx, w)
+	if err != nil || len(rooms) != 1 || rooms[0].Name != "Dana, Sam" {
+		t.Fatalf("rooms = %+v, %v; want the group DM named Dana, Sam", rooms, err)
+	}
+	members, err := a.Members(ctx, rooms[0].ID, 0)
+	if err != nil || len(members) != 2 {
+		t.Errorf("members = %+v, %v; want Dana and Sam", members, err)
+	}
+}
