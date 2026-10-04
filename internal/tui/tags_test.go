@@ -126,10 +126,6 @@ func TestATagRowIsAHomeNotASpace(t *testing.T) {
 	if next.aimedAt.renamingGroup != "" || !strings.Contains(next.status(), "[[tag]]") {
 		t.Errorf("renaming a tag row: renaming %q, status %q; want it refused, pointing at [[tag]]", next.aimedAt.renamingGroup, next.status())
 	}
-	named, _ := m.toggleFirstNameOnly()
-	if !slices.ContainsFunc(named.prefs.display.SpaceRules, func(r config.SpaceRule) bool { return r.Space == "tag:Family" }) {
-		t.Errorf("first names only on a tag row: rules %+v, want one for tag:Family", named.prefs.display.SpaceRules)
-	}
 	ruled, _ := m.openRuleForGroup()
 	if len(ruled.aimedAt.ruleScopes) != 1 || ruled.aimedAt.ruleScopes[0].match != "tag:Family" {
 		t.Errorf("a rule on a tag row: scopes %+v, want tag:Family", ruled.aimedAt.ruleScopes)

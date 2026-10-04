@@ -129,15 +129,14 @@ type RoomsKeys struct {
 
 // RailKeys rearrange the spaces rail.
 type RailKeys struct {
-	BindJump      string `toml:"bind_jump"`
-	Name          string `toml:"name"`
-	MoveUp        string `toml:"move_up"`
-	MoveDown      string `toml:"move_down"`
-	Hide          string `toml:"hide"`
-	ShowHidden    string `toml:"show_hidden"`
-	FirstNameOnly string `toml:"first_name_only"`
-	NotifyRule    string `toml:"notify_rule"`
-	MarkRead      string `toml:"mark_read"`
+	BindJump   string `toml:"bind_jump"`
+	Name       string `toml:"name"`
+	MoveUp     string `toml:"move_up"`
+	MoveDown   string `toml:"move_down"`
+	Hide       string `toml:"hide"`
+	ShowHidden string `toml:"show_hidden"`
+	NotifyRule string `toml:"notify_rule"`
+	MarkRead   string `toml:"mark_read"`
 }
 
 // SearchKeys open message search and drive its results. Search covers the local

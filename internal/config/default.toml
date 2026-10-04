@@ -108,9 +108,9 @@ row_numbers = false
 # (DMs, bridge rooms) too.
 # room_name_rules = true
 
-# Per-space name rules, matched by the space's rail label. first_name_only shows just
-# the first token of a sender's name. A room in two spaces follows the space selected
-# in the rail, else its first space.
+# Per-place name rules: space is a space's name, or tag:<name> for a tag.
+# first_name_only shows just the first token of a sender's name. A room in two places
+# follows the one selected in the rail in the room list, else its home (see priority).
 # [[display.space_rule]]
 # space = "Friends"
 # first_name_only = true
@@ -1159,17 +1159,16 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 # space appends at the end.
 [keys.rail]
 # A local name; an empty one clears it.
-name            = "a"  # name this group
-move_up         = "K"  # move it up
-move_down       = "J"  # move it down
-hide            = "H"  # hide it from the rail
-show_hidden     = "S"  # bring a hidden group back
-first_name_only = "F"  # first names only in this space
-notify_rule     = "b"  # notification rule for this space
+name        = "a"  # name this group
+move_up     = "K"  # move it up
+move_down   = "J"  # move it down
+hide        = "H"  # hide it from the rail
+show_hidden = "S"  # bring a hidden group back
+notify_rule = "b"  # notification rule for this space
 # Asks first.
-mark_read       = "m"  # mark every unread room in this group read
+mark_read   = "m"  # mark every unread room in this group read
 # Writes a [[keys.jump]] entry.
-bind_jump       = "B"  # give this space a key sequence to reach it by
+bind_jump   = "B"  # give this space a key sequence to reach it by
 
 # Cursor motion, shared by every pane.
 [keys.nav]

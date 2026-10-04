@@ -94,10 +94,6 @@ func TestTheFallbackRowRefusesPlaceRules(t *testing.T) {
 		t.Error("the fallback row does not hold every room")
 	}
 	m.rail.cursor = 0
-	after, _ := m.toggleFirstNameOnly()
-	if len(after.prefs.display.SpaceRules) != 0 || !strings.Contains(after.status(), "not to") {
-		t.Errorf("wrote %v, said %q: want a refusal naming the row", after.prefs.display.SpaceRules, after.status())
-	}
 	afterRule, _ := m.openRuleForGroup()
 	if len(afterRule.aimedAt.ruleScopes) != 0 {
 		t.Error("aimed a notification rule at a row that is not a place")

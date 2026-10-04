@@ -208,50 +208,6 @@ func (m Model) groupLabelFor(key string) string {
 	return key // a space's key is its name
 }
 
-// toggleFirstNameOnly flips the selected space's first-name rule.
-func (m Model) toggleFirstNameOnly() (Model, tea.Cmd) {
-	entry, ok := m.currentGroup()
-	if !ok {
-		return m, nil
-	}
-	if !isSpaceGroup(entry.key) && !isTagGroup(entry.key) {
-		m = m.say("name rules apply to spaces and tags, not to " + entry.label)
-		return m, nil
-	}
-	display := m.prefs.display
-	rules, on := toggleSpaceRule(display.SpaceRules, entry.key)
-	display.SpaceRules = rules
-	state := "off"
-	if on {
-		state = "on"
-	}
-	return m.applyDisplay(display, "first names only in "+entry.label+": "+state)
-}
-
-// toggleSpaceRule flips first_name_only for one space, returning the new rules and
-// whether it is now on. A rule left with nothing on is dropped.
-func toggleSpaceRule(rules []config.SpaceRule, space string) ([]config.SpaceRule, bool) {
-	out := make([]config.SpaceRule, 0, len(rules)+1)
-	found, now := false, false
-	for _, rule := range rules {
-		if rule.Space != space {
-			out = append(out, rule)
-			continue
-		}
-		found = true
-		now = !rule.FirstNameOnly
-		if now {
-			rule.FirstNameOnly = true
-			out = append(out, rule)
-		}
-	}
-	if !found {
-		now = true
-		out = append(out, config.SpaceRule{Space: space, FirstNameOnly: true})
-	}
-	return out, now
-}
-
 // currentGroup is the rail group under the cursor.
 func (m Model) currentGroup() (group, bool) { return m.rail.at() }
 

@@ -41,7 +41,6 @@
   J                move it down
   H                hide it from the rail
   S                bring a hidden group back
-  F                first names only in this space
   b                notification rule for this space
   B                give this space a key sequence to reach it by
   m                mark every unread room in this group read
