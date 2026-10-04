@@ -16,6 +16,14 @@ func (m Model) renderStatus() string {
 			keyed(m.keys.keyHint(scopeConfirm, actNo), "no"),
 		), lineSpec{width: m.width, sentence: true}))
 	}
+	if m.editingSettingRow() {
+		// The value is typed on its row; here, what it may be and the keys.
+		return m.theme.Muted.Render(drawLine(m.hintLine(
+			note(m.settingHelp()),
+			keyed(m.keys.keyHint(scopePrompt, actSubmit), "save"),
+			keyed(m.keys.keyHint(scopePrompt, actCancel), "keep it as it was"),
+		), lineSpec{width: m.width, sentence: true}))
+	}
 	if m.prompt.active() {
 		label, hint := m.prompt.label(), m.promptHint()
 		const gap = "   —   "

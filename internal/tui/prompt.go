@@ -41,6 +41,9 @@ const (
 type promptState struct {
 	kind  promptKind
 	input string
+	// fresh marks a prefilled value not yet touched: drawn selected, it is replaced by
+	// the first text typed and cleared by the first deletion; a caret motion keeps it.
+	fresh bool
 }
 
 // active reports whether a prompt is open and holding the keyboard.
@@ -131,6 +134,10 @@ func (m Model) handlePromptKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 		}
 	}
 	if text := key.Text; text != "" {
+		if m.prompt.fresh {
+			m = m.store(fieldPrompt, newEditor(""))
+		}
+		m.prompt.fresh = false
 		m = m.store(fieldPrompt, m.editorFor(fieldPrompt).insert(text))
 		return m.promptChanged(text)
 	}
@@ -146,6 +153,10 @@ func (m Model) handlePromptKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	}
 	// Editing keys are not rebindable actions.
 	if ed, ok := m.editorFor(fieldPrompt).edit(key, m.keys); ok {
+		if m.prompt.fresh && ed.text != m.prompt.input {
+			ed = newEditor("") // a deletion takes the whole selected value
+		}
+		m.prompt.fresh = false
 		changed := ed.text != m.prompt.input
 		m = m.store(fieldPrompt, ed)
 		if !changed {

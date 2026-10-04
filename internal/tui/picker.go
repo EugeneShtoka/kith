@@ -19,8 +19,10 @@ import (
 type pickerWalk struct {
 	// identity is the identity edit being walked through (picker, then prompt).
 	identity pendingIdentity
-	// setting is the preference being changed while its value is chosen.
-	setting string
+	// setting is the preference being changed while its value is chosen, and
+	// settingGroup the settings group it is listed under (settings.go).
+	setting      string
+	settingGroup string
 	// speedScopes is where a voice-note speed may be remembered, by picker row.
 	speedScopes []ruleTarget
 	// tag is where the tag editor is (tageditor.go).
@@ -51,6 +53,7 @@ const (
 	pickerSpeedScope
 	pickerRuleList
 	pickerRulePreset
+	pickerSettingGroups
 	pickerSetting
 	pickerSettingValue
 	pickerDNDScope
@@ -94,7 +97,8 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerSpeedScope:      {title: "Play at this speed for what?"},
 	pickerRuleList:        {title: "Notification rules"},
 	pickerRulePreset:      {title: "Notify how?"},
-	pickerSetting:         {title: "Settings"},
+	pickerSettingGroups:   {title: "Settings", modal: true},
+	pickerSetting:         {modal: true}, // titled with the group
 	pickerSettingValue:    {title: "Set it to"},
 	pickerDNDScope:        {title: "Do not disturb for what?"},
 	pickerMuteScope:       {title: "Mute sound for what?"},
@@ -143,6 +147,17 @@ type picker struct {
 func (p picker) active() bool { return p.kind != pickerNone }
 
 func (p picker) ticked(value string) bool { return p.checked[value] }
+
+// at puts the cursor on the row whose value is value; on the first row when none is.
+func (p picker) at(value string) picker {
+	for i, item := range p.items {
+		if item.value == value {
+			p.cursor = i
+			break
+		}
+	}
+	return p
+}
 
 // tick flips the row under the cursor of a multi picker.
 func (p picker) tick() picker {
@@ -266,6 +281,9 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		if m.picker.spec.modal && m.picker.mode == pickerFilter {
 			m.picker.mode = pickerNavigate
 		} else if m.picker.filter == "" {
+			if back, ok := m.settingsBack(); ok {
+				return back, nil, true
+			}
 			return m.closePicker(), nil, true
 		}
 		m.picker.filter = ""
@@ -330,7 +348,20 @@ func (p picker) move(act action, perRow, count, page int) (picker, bool) {
 
 // pickerAction applies the people picker's letter actions in navigate mode.
 func (m Model) pickerAction(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
-	if m.picker.mode != pickerNavigate || m.picker.kind != pickerPeople {
+	if m.picker.mode != pickerNavigate {
+		return m, nil, false
+	}
+	if m.picker.kind == pickerSetting {
+		switch m.keys.lookup(key.String(), scopePicker) {
+		case actIncrease:
+			return answered(m.stepSetting(1))
+		case actDecrease:
+			return answered(m.stepSetting(-1))
+		default:
+			return m, nil, false
+		}
+	}
+	if m.picker.kind != pickerPeople {
 		return m, nil, false
 	}
 	switch m.keys.lookup(key.String(), scopePicker) {
@@ -434,6 +465,8 @@ func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
 		return m.chooseSpeedScope(atoiSafe(item.value))
 	case pickerRulePreset:
 		return m.chooseRulePreset(item.value)
+	case pickerSettingGroups:
+		return m.chooseSettingGroup(item.value)
 	case pickerSetting:
 		return m.chooseSetting(item.value)
 	case pickerSettingValue:
@@ -486,10 +519,42 @@ func (m Model) pickerHint() string {
 			keyed(m.keys.keyHint(scopePicker, actClosePick), "cancel"),
 		)
 	}
+	if hints, ok := m.settingsHint(); ok {
+		return hints
+	}
 	return m.hintLine(append([]hint{
 		keyed(m.keys.keyHint(scopePicker, actFilter), "filter"),
 		keyed(m.keys.keyHint(scopeNav, actUp)+"/"+m.keys.keyHint(scopeNav, actDown), "move"),
 		keyed(m.keys.keyHint(scopePicker, actAcceptPick), "choose"),
 		keyed(m.keys.keyHint(scopePicker, actClosePick), "close"),
 	}, rename...)...)
+}
+
+// settingsHint is the legend of a settings level: what enter does on the row under
+// the cursor, the number keys on a number, and esc stepping back. false elsewhere.
+func (m Model) settingsHint() (string, bool) {
+	move := keyed(m.keys.keyHint(scopeNav, actUp)+"/"+m.keys.keyHint(scopeNav, actDown), "move")
+	switch m.picker.kind {
+	case pickerSettingGroups:
+		return m.hintLine(move,
+			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "open"),
+			keyed(m.keys.keyHint(scopePicker, actFilter), "filter"),
+			keyed(m.keys.keyHint(scopePicker, actClosePick), "close")), true
+	case pickerSetting:
+		hints := []hint{move, keyed(m.keys.keyHint(scopePicker, actAcceptPick), "change")}
+		if item, ok := m.picker.selected(); ok {
+			if s, ok := findSetting(item.value); ok && s.kind == settingNumber {
+				hints = append(hints, keyed(m.keys.keyHint(scopePicker, actIncrease)+"/"+m.keys.keyHint(scopePicker, actDecrease), "step"))
+			}
+		}
+		return m.hintLine(append(hints,
+			keyed(m.keys.keyHint(scopePicker, actFilter), "filter"),
+			keyed(m.keys.keyHint(scopePicker, actClosePick), "back"))...), true
+	case pickerSettingValue:
+		return m.hintLine(move,
+			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "set"),
+			keyed(m.keys.keyHint(scopePicker, actClosePick), "back")), true
+	default:
+		return "", false
+	}
 }

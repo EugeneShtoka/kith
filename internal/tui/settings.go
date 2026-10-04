@@ -22,7 +22,8 @@ type settingKind int
 const (
 	settingToggle settingKind = iota // flips immediately
 	settingChoice                    // opens a picker of the allowed values
-	settingText                      // prompts for a typed value
+	settingText                      // typed in place on its row
+	settingNumber                    // typed in place, or stepped with + and -
 	settingOpen                      // leads somewhere rather than holding a value
 )
 
@@ -30,6 +31,8 @@ const (
 type setting struct {
 	key   string
 	label string
+	// group is the settingGroups entry it is listed under.
+	group string
 	// show renders the current value for the row's qualifier.
 	show    func(config.Config) string
 	kind    settingKind
@@ -39,6 +42,11 @@ type setting struct {
 	edit func(config.Config) string
 	// set writes a new value; an error is shown to the user.
 	set func(*config.Config, string) error
+	// count is a settingNumber's value, and least the lowest + and - step to.
+	count func(config.Config) int
+	least int
+	// help says what a typed value may be, while it is typed.
+	help string
 	// open is where a settingOpen row leads.
 	open func(Model) (Model, tea.Cmd)
 }
@@ -200,78 +208,88 @@ func setQuietShow(c *config.Config, v string) error {
 // settingsList is the whole table, in display order.
 var settingsList = []setting{
 	{
-		key: "notifications.enabled", label: "Notifications",
+		key: "notifications.enabled", group: "notifications", label: "Notifications",
 		show: func(c config.Config) string { return onOff(c.Notifications.Enabled) },
 		kind: settingToggle,
 		set:  func(c *config.Config, _ string) error { c.Notifications.Enabled = !c.Notifications.Enabled; return nil },
 	},
 	{
-		key: "notifications.show", label: "Notify me for",
+		key: "notifications.show", group: "notifications", label: "Notify me for",
 		show:    accountShow,
 		kind:    settingChoice,
 		choices: levelChoices,
 		set:     setAccountShow,
 	},
 	{
-		key: "notifications.ring", label: "Play a sound for",
+		key: "notifications.ring", group: "notifications", label: "Play a sound for",
 		show:    accountRing,
 		kind:    settingChoice,
 		choices: ringChoices,
 		set:     setAccountRing,
 	},
 	{
-		key: "notifications.quiet_hours", label: "Quiet hours",
+		key: "notifications.quiet_hours", group: "notifications", label: "Quiet hours",
 		show: func(c config.Config) string { return orDefault(quietWindowText(c), "none") },
 		kind: settingText,
 		edit: quietWindowText,
 		set:  setQuietWindow,
+		help: "a window like 23:00-08:00 — empty for none",
 	},
 	{
-		key: "notifications.quiet_show", label: "During quiet hours, notify for",
+		key: "notifications.quiet_show", group: "notifications", label: "During quiet hours, notify for",
 		show:    quietShow,
 		kind:    settingChoice,
 		choices: levelChoices,
 		set:     setQuietShow,
 	},
 	{
-		key: "notifications.desktop", label: "Desktop popups",
+		key: "notifications.desktop", group: "notifications", label: "Desktop popups",
 		show: func(c config.Config) string { return onOff(c.Notifications.Desktop) },
 		kind: settingToggle,
 		set:  func(c *config.Config, _ string) error { c.Notifications.Desktop = !c.Notifications.Desktop; return nil },
 	},
 	{
-		key: "notifications.rules", label: "Notification rules",
+		key: "notifications.rules", group: "notifications", label: "Notification rules",
 		show: func(c config.Config) string { return ruleCountNote(len(c.Notifications.Rules)) },
 		kind: settingOpen,
 		open: Model.openRuleList,
 	},
 	{
-		key: "tags", label: "Tags",
-		show: func(c config.Config) string { return showCount(len(c.Tags), "none") },
+		key: "tags", group: "tags", label: "Tags",
+		show: func(c config.Config) string {
+			if len(c.Tags) == 0 {
+				return "none"
+			}
+			return strconv.Itoa(len(c.Tags)) + " tags"
+		},
 		kind: settingOpen,
 		open: Model.openTags,
 	},
 	{
-		key: "notifications.sound", label: "Notification sound",
+		key: "notifications.sound", group: "notifications", label: "Notification sound",
 		show: func(c config.Config) string { return orDefault(c.Notifications.Sound, "silent") },
 		kind: settingText,
 		edit: func(c config.Config) string { return c.Notifications.Sound },
 		set:  func(c *config.Config, v string) error { c.Notifications.Sound = v; return nil },
+		help: "a sound file's path — empty for silent",
 	},
 	{
-		key: "notifications.timeout", label: "Popup stays up for",
+		key: "notifications.timeout", group: "notifications", label: "Popup stays up for",
 		show: func(c config.Config) string { return timeoutNote(c.Notifications) },
-		kind: settingText,
+		kind: settingNumber,
 		edit: func(c config.Config) string {
 			if c.Notifications.Timeout == nil {
 				return ""
 			}
 			return strconv.Itoa(*c.Notifications.Timeout)
 		},
-		set: setPopupTimeout,
+		set:   setPopupTimeout,
+		count: popupSeconds,
+		least: -1,
+		help:  "seconds — -1 until dismissed, 0 your desktop's default, empty kith's default",
 	},
 	{
-		key: "display.open_in_insert_mode", label: "Open rooms ready to type",
+		key: "display.open_in_insert_mode", group: "composer", label: "Open rooms ready to type",
 		show: func(c config.Config) string { return onOff(c.Display.OpenInInsertMode()) },
 		kind: settingToggle,
 		set: func(c *config.Config, _ string) error {
@@ -281,19 +299,19 @@ var settingsList = []setting{
 	},
 	{
 		// Send and newline are a pair, so flipping enter writes both.
-		key: "keys.insert.enter", label: "Enter key",
+		key: "keys.insert.enter", group: "composer", label: "Enter key",
 		show: enterKeyShow,
 		kind: settingToggle,
 		set:  toggleEnterKey,
 	},
 	{
-		key: "display.color_messages", label: "Tint message bodies",
+		key: "display.color_messages", group: "display", label: "Tint message bodies",
 		show: func(c config.Config) string { return onOff(c.Display.ColorMessages) },
 		kind: settingToggle,
 		set:  func(c *config.Config, _ string) error { c.Display.ColorMessages = !c.Display.ColorMessages; return nil },
 	},
 	{
-		key: "display.room_name_rules", label: "Name rules apply to room names",
+		key: "display.room_name_rules", group: "display", label: "Name rules apply to room names",
 		show: func(c config.Config) string { return onOff(c.Display.ApplyRoomNameRules()) },
 		kind: settingToggle,
 		set: func(c *config.Config, _ string) error {
@@ -302,14 +320,16 @@ var settingsList = []setting{
 		},
 	},
 	{
-		key: "display.max_name_length", label: "Sender name width",
-		show: func(c config.Config) string { return showCount(c.Display.MaxNameLength, "no limit") },
-		kind: settingText,
-		edit: func(c config.Config) string { return countText(c.Display.MaxNameLength) },
-		set:  func(c *config.Config, v string) error { return setInt(&c.Display.MaxNameLength, v) },
+		key: "display.max_name_length", group: "display", label: "Sender name width",
+		show:  func(c config.Config) string { return showCount(c.Display.MaxNameLength, "no limit") },
+		kind:  settingNumber,
+		edit:  func(c config.Config) string { return countText(c.Display.MaxNameLength) },
+		set:   func(c *config.Config, v string) error { return setInt(&c.Display.MaxNameLength, v) },
+		count: func(c config.Config) int { return c.Display.MaxNameLength },
+		help:  "columns — 0 or empty for no limit",
 	},
 	{
-		key: "display.unread", label: "Unread badges count",
+		key: "display.unread", group: "display", label: "Unread badges count",
 		show: func(c config.Config) string { return orDefault(c.Display.Unread, config.UnreadMessages) },
 		kind: settingChoice,
 		choices: []settingChoiceOption{
@@ -320,7 +340,7 @@ var settingsList = []setting{
 		set: func(c *config.Config, v string) error { c.Display.Unread = v; return nil },
 	},
 	{
-		key: "display.media.mode", label: "Images",
+		key: "display.media.mode", group: "media", label: "Images",
 		show: func(c config.Config) string {
 			return orDefault(c.Display.Media.Mode, config.MediaPlaceholder)
 		},
@@ -329,21 +349,24 @@ var settingsList = []setting{
 		set:     func(c *config.Config, v string) error { c.Display.Media.Mode = v; return nil },
 	},
 	{
-		key: "display.media.max_height", label: "Inline image height",
-		show: func(c config.Config) string { return showCount(c.Display.Media.MaxHeight, "default") },
-		kind: settingText,
-		edit: func(c config.Config) string { return countText(c.Display.Media.MaxHeight) },
-		set:  func(c *config.Config, v string) error { return setInt(&c.Display.Media.MaxHeight, v) },
+		key: "display.media.max_height", group: "media", label: "Inline image height",
+		show:  func(c config.Config) string { return showCount(c.Display.Media.MaxHeight, "default") },
+		kind:  settingNumber,
+		edit:  func(c config.Config) string { return countText(c.Display.Media.MaxHeight) },
+		set:   func(c *config.Config, v string) error { return setInt(&c.Display.Media.MaxHeight, v) },
+		count: func(c config.Config) int { return c.Display.Media.MaxHeight },
+		help:  "rows — 0 or empty for the default",
 	},
 	{
-		key: "codes.length", label: "Code length",
+		key: "codes.length", group: "codes", label: "Code length",
 		show: func(c config.Config) string { return showRange(c.Codes.Min(), c.Codes.Max()) },
 		kind: settingText,
 		edit: func(c config.Config) string { return showRange(c.Codes.Min(), c.Codes.Max()) },
 		set:  setCodeLength,
+		help: "a range like 4-8, or 6 for exactly six — empty for the default",
 	},
 	{
-		key: "codes.letters", label: "Codes may contain letters",
+		key: "codes.letters", group: "codes", label: "Codes may contain letters",
 		show: func(c config.Config) string { return onOff(c.Codes.LettersAllowed()) },
 		kind: settingToggle,
 		set: func(c *config.Config, _ string) error {
@@ -352,13 +375,13 @@ var settingsList = []setting{
 		},
 	},
 	{
-		key: "codes.digits", label: "Codes may contain digits",
+		key: "codes.digits", group: "codes", label: "Codes may contain digits",
 		show: func(c config.Config) string { return onOff(c.Codes.DigitsAllowed()) },
 		kind: settingToggle,
 		set:  func(c *config.Config, _ string) error { c.Codes.Digits = flipped(c.Codes.DigitsAllowed()); return nil },
 	},
 	{
-		key: "codes.require_digit", label: "Codes must contain a digit",
+		key: "codes.require_digit", group: "codes", label: "Codes must contain a digit",
 		show: func(c config.Config) string { return onOff(c.Codes.DigitRequired()) },
 		kind: settingToggle,
 		set: func(c *config.Config, _ string) error {
@@ -369,7 +392,7 @@ var settingsList = []setting{
 	{
 		// Turning it on refuses unless [clipboard] command and [codes] include are
 		// set, rather than reading "on" while doing nothing.
-		key: "clipboard.auto_copy", label: "Auto-copy codes as they arrive",
+		key: "clipboard.auto_copy", group: "codes", label: "Auto-copy codes as they arrive",
 		show: func(c config.Config) string { return onOff(c.Clipboard.AutoCopy) },
 		kind: settingToggle,
 		set: func(c *config.Config, _ string) error {
@@ -387,14 +410,15 @@ var settingsList = []setting{
 		},
 	},
 	{
-		key: "codes.symbols", label: "Other characters in a code",
+		key: "codes.symbols", group: "codes", label: "Other characters in a code",
 		show: func(c config.Config) string { return orDefault(c.Codes.Symbols, "none") },
 		kind: settingText,
 		edit: func(c config.Config) string { return c.Codes.Symbols },
 		set:  func(c *config.Config, v string) error { c.Codes.Symbols = v; return nil },
+		help: "the characters, written together — empty for none",
 	},
 	{
-		key: "display.emoji.set", label: "Emoji set",
+		key: "display.emoji.set", group: "emoji", label: "Emoji set",
 		show: func(c config.Config) string { return orDefault(c.Display.Emoji.Set, emojiCurated) },
 		kind: settingChoice,
 		choices: []settingChoiceOption{
@@ -405,14 +429,14 @@ var settingsList = []setting{
 		set: func(c *config.Config, v string) error { c.Display.Emoji.Set = v; return nil },
 	},
 	{
-		key: "display.skin_tone", label: "Emoji skin tone",
+		key: "display.skin_tone", group: "emoji", label: "Emoji skin tone",
 		show:    func(c config.Config) string { return orDefault(c.Display.SkinTone, "none") },
 		kind:    settingChoice,
 		choices: skinToneChoices(),
 		set:     func(c *config.Config, v string) error { c.Display.SkinTone = v; return nil },
 	},
 	{
-		key: "display.reactions.scope", label: "React palette ranking",
+		key: "display.reactions.scope", group: "emoji", label: "React palette ranking",
 		show: func(c config.Config) string { return orDefault(c.Display.Reactions.Scope, "room") },
 		kind: settingChoice,
 		choices: []settingChoiceOption{
@@ -439,49 +463,137 @@ func skinToneChoices() []settingChoiceOption {
 	return out
 }
 
-// openSettings offers the plain preferences, each showing what it is currently set to.
-func (m Model) openSettings() (Model, tea.Cmd) {
-	m.picker = newPicker(pickerSetting, m.settingItems())
-	return m, nil
+// The settings screen is two levels: the groups, then one group's settings. A change
+// is applied and saved at once and the group stays open on the same row, its value
+// updated, so several can be changed in a row; esc steps back a level.
+
+// settingGroup is one entry of the first level.
+type settingGroup struct{ key, label string }
+
+var settingGroups = []settingGroup{
+	{"notifications", "Notifications"},
+	{"display", "Names and messages"},
+	{"composer", "Composer"},
+	{"media", "Images"},
+	{"emoji", "Emoji and reactions"},
+	{"codes", "Codes"},
+	{"tags", "Tags"},
 }
 
-// settingItems renders the table, current values included.
-func (m Model) settingItems() []pickerItem {
-	items := make([]pickerItem, 0, len(settingsList))
-	for _, s := range settingsList {
+// groupSettings is the settings listed under a group, in settingsList order.
+func groupSettings(group string) []setting {
+	var out []setting
+	for i := range settingsList {
+		if settingsList[i].group == group {
+			out = append(out, settingsList[i])
+		}
+	}
+	return out
+}
+
+// groupLabel is a group's words, or its key when it has none.
+func groupLabel(group string) string {
+	for _, g := range settingGroups {
+		if g.key == group {
+			return g.label
+		}
+	}
+	return group
+}
+
+// openSettings opens the first level.
+func (m Model) openSettings() (Model, tea.Cmd) { return m.settingsTop(""), nil }
+
+// settingsTop shows the groups, the cursor on the one named at. A group holding one
+// row that leads somewhere (Tags) is that row.
+func (m Model) settingsTop(at string) Model {
+	items := make([]pickerItem, 0, len(settingGroups))
+	for _, g := range settingGroups {
+		rows := groupSettings(g.key)
+		detail := fmt.Sprintf("%d settings", len(rows))
+		if len(rows) == 1 {
+			detail = rows[0].show(m.conf.base)
+		}
+		items = append(items, pickerItem{label: g.label, detail: detail, value: g.key, match: g.label})
+	}
+	m.choosing.setting, m.choosing.settingGroup = "", ""
+	m.picker = newPicker(pickerSettingGroups, items).at(at)
+	return m
+}
+
+// settingsIn shows one group's settings, the cursor on the one keyed at.
+func (m Model) settingsIn(group, at string) Model {
+	rows := groupSettings(group)
+	items := make([]pickerItem, 0, len(rows))
+	for i := range rows {
 		items = append(items, pickerItem{
-			label:  s.label,
-			detail: s.show(m.conf.base),
-			value:  s.key,
-			match:  s.label + " " + s.key,
+			label:  rows[i].label,
+			detail: rows[i].show(m.conf.base),
+			value:  rows[i].key,
+			match:  rows[i].label + " " + rows[i].key,
 		})
 	}
-	return items
+	m.choosing.settingGroup, m.choosing.setting = group, at
+	spec := pickerSpecs[pickerSetting]
+	spec.title = "Settings: " + groupLabel(group)
+	m.picker = newPickerWith(pickerSetting, spec, items).at(at)
+	return m
 }
 
-// chooseSetting acts on a chosen setting according to its kind.
+// chooseSettingGroup opens a group; one that is a single row leading somewhere goes
+// straight there.
+func (m Model) chooseSettingGroup(group string) (Model, tea.Cmd) {
+	if rows := groupSettings(group); len(rows) == 1 && rows[0].kind == settingOpen {
+		m.choosing.settingGroup = group
+		return rows[0].open(m)
+	}
+	return m.settingsIn(group, ""), nil
+}
+
+// chooseSetting acts on a chosen setting according to its kind. Nothing closes the
+// group: a toggle flips in place, a choice returns to it, and a typed value is typed
+// on its row.
 func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 	s, ok := findSetting(key)
 	if !ok {
-		return m.closePicker(), nil
+		return m.settingsTop(m.choosing.settingGroup), nil
 	}
 	switch s.kind {
 	case settingOpen:
+		m.choosing.setting = key
 		return s.open(m)
 	case settingToggle:
-		m = m.closePicker()
 		return m.writeSetting(s, "")
 	case settingChoice:
 		m.choosing.setting = key
-		m.picker = newPicker(pickerSettingValue, settingValueItems(s, s.show(m.conf.base)))
+		m.picker = newPicker(pickerSettingValue, settingValueItems(s, s.show(m.conf.base))).at(s.show(m.conf.base))
 		return m, nil
-	case settingText:
-		m.choosing.setting = key
-		m = m.closePicker()
-		m = m.openPromptWith(promptSetting, editText(s, m.conf.base))
+	case settingText, settingNumber:
+		return m.editSettingInPlace(s, editText(s, m.conf.base)), nil
+	}
+	return m, nil
+}
+
+// editSettingInPlace types a setting's value on its own row, starting from text, held
+// selected so the first key typed replaces it.
+func (m Model) editSettingInPlace(s setting, text string) Model {
+	m = m.settingsIn(s.group, s.key)
+	m = m.openPromptWith(promptSetting, text)
+	m.prompt.fresh = text != ""
+	return m
+}
+
+// stepSetting moves the number under the cursor by delta, no lower than its least.
+func (m Model) stepSetting(delta int) (Model, tea.Cmd) {
+	item, ok := m.picker.selected()
+	if !ok {
 		return m, nil
 	}
-	return m.closePicker(), nil
+	s, ok := findSetting(item.value)
+	if !ok || s.kind != settingNumber {
+		return m.say("+ and - change numbers; enter changes this one"), nil
+	}
+	return m.writeSetting(s, strconv.Itoa(max(s.count(m.conf.base)+delta, s.least)))
 }
 
 // settingValueItems lists a choice setting's values, marking the current one.
@@ -502,41 +614,86 @@ func settingValueItems(s setting, current string) []pickerItem {
 	return items
 }
 
-// chooseSettingValue applies a picked value.
+// chooseSettingValue applies a picked value and returns to the group.
 func (m Model) chooseSettingValue(value string) (Model, tea.Cmd) {
 	s, ok := findSetting(m.choosing.setting)
-	m = m.closePicker()
 	if !ok {
-		return m, nil
+		return m.settingsTop(m.choosing.settingGroup), nil
 	}
 	return m.writeSetting(s, value)
 }
 
-// submitSetting applies a typed value.
+// submitSetting applies a typed value. One that will not parse stays on the row as
+// typed, the reason on the status line, to be fixed or abandoned with esc.
 func (m Model) submitSetting(value string) (Model, tea.Cmd) {
 	s, ok := findSetting(m.choosing.setting)
 	if !ok {
 		return m, nil
 	}
+	cfg := m.conf.base.Clone()
+	if err := s.set(&cfg, strings.TrimSpace(value)); err != nil {
+		m = m.editSettingInPlace(s, value)
+		m.prompt.fresh = false
+		return m.sayErr(s.label, err), nil
+	}
 	return m.writeSetting(s, strings.TrimSpace(value))
 }
 
-// writeSetting applies one setting and saves; a value that will not parse changes nothing.
+// writeSetting applies one setting, saves, and shows its group again on its row; a
+// value that will not parse changes nothing.
 func (m Model) writeSetting(s setting, value string) (Model, tea.Cmd) {
-	m.choosing.setting = ""
 	cfg := m.conf.base.Clone()
 	if err := s.set(&cfg, value); err != nil {
-		m = m.sayErr(s.label, err)
-		return m, nil
+		return m.settingsIn(s.group, s.key).sayErr(s.label, err), nil
 	}
-	return m.applyConfig(cfg, "", s.label+": "+s.show(cfg))
+	next, cmd := m.applyConfig(cfg, "", s.label+": "+s.show(cfg))
+	return next.settingsIn(s.group, s.key), cmd
+}
+
+// settingsBack is esc in a settings picker: a level up, or false when it closes. A
+// setting's value picker returns to its group, a group to the groups, and the tag
+// editor's levels to the one above.
+func (m Model) settingsBack() (Model, bool) {
+	group := m.choosing.settingGroup
+	switch m.picker.kind {
+	case pickerSettingValue:
+		return m.settingsIn(group, m.choosing.setting), true
+	case pickerSetting:
+		return m.settingsTop(group), true
+	case pickerTags:
+		return m.settingsTop("tags"), true
+	case pickerTagEdit:
+		return m.tagsOpen(), true
+	case pickerTagEntries:
+		return m.tagOpen(m.choosing.tag.tag), true
+	default:
+		return m, false
+	}
+}
+
+// settingHelp is what the setting being typed may be.
+func (m Model) settingHelp() string {
+	s, ok := findSetting(m.choosing.setting)
+	if !ok || s.help == "" {
+		return "type the new value"
+	}
+	return s.help
+}
+
+// popupSeconds is the popup timeout as + and - step it: -1 until dismissed, 0 the
+// desktop's default, else seconds.
+func popupSeconds(c config.Config) int {
+	if t := c.Notifications.Timeout; t != nil && *t <= 0 {
+		return *t
+	}
+	return int(c.Notifications.PopupTimeout().Seconds())
 }
 
 // findSetting looks a setting up by key.
 func findSetting(key string) (setting, bool) {
-	for _, s := range settingsList {
-		if s.key == key {
-			return s, true
+	for i := range settingsList {
+		if settingsList[i].key == key {
+			return settingsList[i], true
 		}
 	}
 	return setting{}, false

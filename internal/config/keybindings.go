@@ -295,14 +295,16 @@ type ComposerKeys struct {
 // PickerKeys apply while a chooser overlay is open — the people list, the identity
 // list, the color swatches, the link list.
 type PickerKeys struct {
-	Filter string `toml:"filter"`
-	Name   string `toml:"name"`
-	Kick   string `toml:"kick"`
-	Ban    string `toml:"ban"`
-	Rename string `toml:"rename"`
-	Toggle string `toml:"toggle"`
-	Accept string `toml:"accept"`
-	Close  string `toml:"close"`
+	Filter   string `toml:"filter"`
+	Name     string `toml:"name"`
+	Kick     string `toml:"kick"`
+	Ban      string `toml:"ban"`
+	Rename   string `toml:"rename"`
+	Toggle   string `toml:"toggle"`
+	Increase string `toml:"increase"`
+	Decrease string `toml:"decrease"`
+	Accept   string `toml:"accept"`
+	Close    string `toml:"close"`
 }
 
 // SortKeys choose the room list's order.

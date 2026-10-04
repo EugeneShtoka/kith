@@ -26,8 +26,8 @@ var keySections = []keySection{
 	{
 		intro: `Keybindings. Each value is a comma-separated list ("k,up"); names are what the
 terminal reports ("enter", "esc", "tab", "shift+tab", "ctrl+u", "pgup"); the comma
-key is "comma". A space separates the steps of a sequence ("s u"); "gg" is also a
-sequence. ` + "`?`" + ` shows the live bindings.
+key is "comma", and the minus key "minus". A space separates the steps of a
+sequence ("s u"); "gg" is also a sequence. ` + "`?`" + ` shows the live bindings.
 
 Groups are per mode, and the more specific group wins ([keys.timeline] over
 [keys.nav]). While typing, any key that produces text types it. Omit a key to keep
@@ -373,6 +373,8 @@ navigate mode; ` + "`filter`" + ` switches to typing.`,
 			{path: "picker.filter", def: "i", doc: "start typing to narrow the list"},
 			{path: "picker.name", def: "a", doc: "name the person under the cursor"},
 			{path: "picker.toggle", def: "space", doc: "tick the row under the cursor (in a list of checkboxes)"},
+			{path: "picker.increase", def: "+", doc: "raise the number under the cursor", note: "In settings."},
+			{path: "picker.decrease", def: "minus", doc: "lower the number under the cursor", note: "In settings."},
 			{path: "picker.kick", def: "r", doc: "remove the person under the cursor from this room", note: "Asks first."},
 			{path: "picker.ban", def: "b", doc: "ban the person under the cursor from this room", note: "Asks first."},
 			{path: "picker.rename", def: "alt+r", doc: "name the thread under the cursor", note: "In the thread list."},

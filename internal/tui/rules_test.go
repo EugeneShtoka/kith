@@ -94,6 +94,9 @@ func notifies(t *testing.T, m Model, msg domain.Message) bool {
 // pickLabel filters the open picker to a label and accepts it, running the command.
 func pickLabel(t *testing.T, m Model, substr string) Model {
 	t.Helper()
+	if m.picker.spec.modal && m.picker.mode == pickerNavigate {
+		m, _ = press(t, m, keyText("i")) // a modal picker filters after its filter key
+	}
 	for _, r := range substr {
 		m, _ = press(t, m, keyText(string(r)))
 	}

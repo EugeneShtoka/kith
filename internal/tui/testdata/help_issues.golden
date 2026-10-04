@@ -166,6 +166,8 @@
   b                ban the person under the cursor from this room
   alt+r            name the thread under the cursor
   space            tick the row under the cursor (in a list of checkboxes)
+  +                raise the number under the cursor
+  -                lower the number under the cursor
   enter, tab       choose the item under the cursor, or apply the ticked ones
   esc              stop typing, then close
 
