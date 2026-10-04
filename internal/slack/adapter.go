@@ -363,16 +363,6 @@ func (a *Adapter) CanonicalParent(_ context.Context, roomID domain.RoomID) (doma
 	return workspaceSpaceID(id.Account), nil
 }
 
-// SendFile needs a connected workspace.
-func (a *Adapter) SendFile(context.Context, domain.RoomID, string, string) error {
-	return errNetworkOff
-}
-
-// LoadImage needs a connected workspace.
-func (a *Adapter) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error) {
-	return nil, errNetworkOff
-}
-
 // DirectCandidates is who a DM may be started with: none before a workspace is
 // connected.
 func (a *Adapter) DirectCandidates(context.Context, int) ([]domain.Member, error) { return nil, nil }

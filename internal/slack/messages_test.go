@@ -42,7 +42,22 @@ func TestWhatPeopleWroteIsShown(t *testing.T) {
 		{"emote", slackgo.Msg{SubType: "me_message", User: "U2", Text: "waves", Timestamp: "1.2"}, true,
 			func(m domain.Message) bool { return m.Emote }, "an emote"},
 		{"file", slackgo.Msg{SubType: "file_share", User: "U2", Text: "look", Timestamp: "1.3", Files: []slackgo.File{{Name: "a.png"}}}, true,
-			func(m domain.Message) bool { return m.Body == "look\n[file] a.png" }, "its words, then the file"},
+			func(m domain.Message) bool { return m.Body == "look\n[file] a.png" && m.Media == nil }, "its words, then a file it cannot load, named"},
+		{"image", slackgo.Msg{SubType: "file_share", User: "U2", Timestamp: "1.31", Files: []slackgo.File{{
+			ID: "F1", Name: "a.png", Mimetype: "image/png", Size: 2048, OriginalW: 640, OriginalH: 480, URLPrivate: "https://files.slack.com/files-pri/T1-F1/a.png"}}}, true,
+			func(m domain.Message) bool {
+				return m.Body == "a.png" && m.Media != nil && m.Media.Type == domain.MediaImage &&
+					m.Media.Name == "a.png" && m.Media.Width == 640 && m.Media.Height == 480 && m.Media.Size == 2048
+			}, "the image as its attachment, its name for no caption"},
+		{"files", slackgo.Msg{SubType: "file_share", User: "U2", Text: "both", Timestamp: "1.32", Files: []slackgo.File{
+			{ID: "F2", Name: "doc", IsExternal: true, URLPrivate: "https://drive.example/doc"},
+			{ID: "F3", Name: "b.pdf", Mimetype: "application/pdf", URLPrivate: "https://files.slack.com/files-pri/T1-F3/b.pdf"}}}, true,
+			func(m domain.Message) bool {
+				return m.Body == "both\n[file] doc" && m.Media != nil && m.Media.Type == domain.MediaFile && m.Media.Name == "b.pdf"
+			}, "the first file kith can load attached, another service's named"},
+		{"deleted file", slackgo.Msg{SubType: "file_share", User: "U2", Timestamp: "1.33", Files: []slackgo.File{
+			{ID: "F4", Name: "gone.png", Mode: "tombstone", URLPrivate: "https://files.slack.com/files-pri/T1-F4/gone.png"}}}, true,
+			func(m domain.Message) bool { return m.Body == "[file] gone.png" && m.Media == nil }, "a deleted file named, not attached"},
 		{"attachments", slackgo.Msg{SubType: "bot_message", BotID: "B1", Timestamp: "1.4", Attachments: []slackgo.Attachment{{Fallback: "build passed"}}}, true,
 			func(m domain.Message) bool { return m.Body == "build passed" }, "the attachment's words"},
 		{"reply", slackgo.Msg{User: "U2", Text: "in thread", Timestamp: "2.0", ThreadTimestamp: "1.0"}, true,
