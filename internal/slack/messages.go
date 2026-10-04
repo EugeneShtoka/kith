@@ -42,11 +42,7 @@ func incoming(channel string, m *slackgo.Msg, n names) (domain.Message, bool) {
 	if !shown[m.SubType] || m.Timestamp == "" || m.Hidden {
 		return domain.Message{}, false
 	}
-	text := m.Text
-	if text == "" {
-		text = attachmentText(m.Attachments)
-	}
-	r := render(text, n)
+	r := render(messageText(m), n)
 	body := r.body
 	for i := range m.Files {
 		body = strings.TrimSpace(body + "\n" + labeled("file", cmpOr(m.Files[i].Title, m.Files[i].Name)))
@@ -86,6 +82,18 @@ func incoming(channel string, m *slackgo.Msg, n names) (domain.Message, bool) {
 	return out, true
 }
 
+// messageText is what a message says, as mrkdwn: its text, else its blocks (an app's
+// or bot's post), else its attachments' fallbacks.
+func messageText(m *slackgo.Msg) string {
+	if m.Text != "" {
+		return m.Text
+	}
+	if t := blockText(m.Blocks); t != "" {
+		return t
+	}
+	return attachmentText(m.Attachments)
+}
+
 // attachmentText is what a message made only of attachments (a bot's, a link
 // unfurled) says: each one's fallback text.
 func attachmentText(attachments []slackgo.Attachment) string {
@@ -119,7 +127,7 @@ func people(msgs []slackgo.Msg) []string {
 	}
 	for i := range msgs {
 		add(msgs[i].User)
-		for _, m := range userRefs.FindAllStringSubmatch(msgs[i].Text, -1) {
+		for _, m := range userRefs.FindAllStringSubmatch(messageText(&msgs[i]), -1) {
 			add(m[1])
 		}
 	}
