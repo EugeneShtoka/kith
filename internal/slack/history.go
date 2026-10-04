@@ -38,27 +38,36 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 	if err != nil {
 		return domain.TimelinePage{}, err
 	}
-	raw := make([]slackgo.Msg, len(resp.Messages))
-	for i := range resp.Messages {
-		raw[i] = resp.Messages[i].Msg
-	}
-	a.learnPeople(ctx, w, people(raw))
-	n := w.names()
-	var page domain.TimelinePage
-	for i := range slices.Backward(raw) {
-		if msg, ok := incoming(channel, &raw[i], n); ok {
-			page.Messages = append(page.Messages, msg)
-		}
-	}
+	page := domain.TimelinePage{Messages: a.cachePage(ctx, w, channel, resp.Messages)}
 	if resp.HasMore {
 		page.Next = resp.ResponseMetaData.NextCursor
 	}
-	if a.cache != nil && len(page.Messages) > 0 {
-		if _, ok := a.record(ctx, w, roomID, page.Messages); ok && a.onChanged != nil {
-			a.onChanged(roomID)
+	return page, nil
+}
+
+// cachePage is a page of a conversation's history, as Slack answers it (newest
+// first), oldest first as kith keeps it, its senders named; it is cached as history:
+// nothing is streamed or notified.
+func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, page []slackgo.Message) []domain.Message {
+	raw := make([]slackgo.Msg, len(page))
+	for i := range page {
+		raw[i] = page[i].Msg
+	}
+	a.learnPeople(ctx, w, people(raw))
+	n := w.names()
+	var msgs []domain.Message
+	for i := range slices.Backward(raw) {
+		if msg, ok := incoming(channel, &raw[i], n); ok {
+			msgs = append(msgs, msg)
 		}
 	}
-	return page, nil
+	room := roomID(w.creds.Team, channel)
+	if a.cache != nil && len(msgs) > 0 {
+		if _, ok := a.record(ctx, w, room, msgs); ok && a.onChanged != nil {
+			a.onChanged(room)
+		}
+	}
+	return msgs
 }
 
 // conversation is the connected workspace a room is in, and its channel ID there.

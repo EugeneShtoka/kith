@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"slices"
 	"sync"
@@ -36,12 +37,15 @@ type workspace struct {
 	// done closes when the connection is let go: signed in again, removed, stopped.
 	done      chan struct{}
 	closeOnce sync.Once
+	// catching is held while the workspace is caught up (see catchUp).
+	catching sync.Mutex
 
 	mu sync.Mutex
 	// people and channels name the workspace's users and conversations by ID, as
-	// far as they are known.
+	// far as they are known; joined is the conversations the last listing named.
 	people   map[string]string
 	channels map[string]string
+	joined   map[string]bool
 }
 
 // newWorkspace is a connection on a session; client talks to Slack with it.
@@ -91,15 +95,25 @@ func (w *workspace) knowPerson(user, name string) {
 	w.people[user] = name
 }
 
-// knowChannels keeps the listed conversations' names.
+// knowChannels keeps the listed conversations, and their names.
 func (w *workspace) knowChannels(rooms []domain.Room) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.joined = make(map[string]bool, len(rooms))
 	for i := range rooms {
+		id := domain.ParseID(string(rooms[i].ID)).Native
+		w.joined[id] = true
 		if rooms[i].Name != "" {
-			w.channels[domain.ParseID(string(rooms[i].ID)).Native] = rooms[i].Name
+			w.channels[id] = rooms[i].Name
 		}
 	}
+}
+
+// listedNow is the conversations the last listing named, in order.
+func (w *workspace) listedNow() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return slices.Sorted(maps.Keys(w.joined))
 }
 
 // ErrNoAccount is a sign-in for a name no [[slack.account]] has.
