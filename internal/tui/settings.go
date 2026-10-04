@@ -24,6 +24,7 @@ const (
 	settingChoice                    // opens a picker of the allowed values
 	settingText                      // typed in place on its row
 	settingNumber                    // typed in place, or stepped with + and -
+	settingList                      // a list of entries, edited one at a time
 	settingOpen                      // leads somewhere rather than holding a value
 )
 
@@ -47,6 +48,10 @@ type setting struct {
 	least int
 	// help says what a typed value may be, while it is typed.
 	help string
+	// doc is what default.toml says of it, shown beneath the list; covers is the
+	// properties a hand-written row stands for besides its own key, which get no row.
+	doc    string
+	covers []string
 	// open is where a settingOpen row leads.
 	open func(Model) (Model, tea.Cmd)
 }
@@ -205,8 +210,12 @@ func setQuietShow(c *config.Config, v string) error {
 	return nil
 }
 
-// settingsList is the whole table, in display order.
-var settingsList = []setting{
+// settingsList is every row, in display order: curatedSettings, then one per property
+// they do not cover (settingsgen.go).
+var settingsList = buildSettings(curatedSettings)
+
+// curatedSettings are the rows written by hand: a setting that is more than its key.
+var curatedSettings = []setting{
 	{
 		key: "notifications.enabled", group: "notifications", label: "Notifications",
 		show: func(c config.Config) string { return onOff(c.Notifications.Enabled) },
@@ -359,11 +368,12 @@ var settingsList = []setting{
 	},
 	{
 		key: "codes.length", group: "codes", label: "Code length",
-		show: func(c config.Config) string { return showRange(c.Codes.Min(), c.Codes.Max()) },
-		kind: settingText,
-		edit: func(c config.Config) string { return showRange(c.Codes.Min(), c.Codes.Max()) },
-		set:  setCodeLength,
-		help: "a range like 4-8, or 6 for exactly six — empty for the default",
+		show:   func(c config.Config) string { return showRange(c.Codes.Min(), c.Codes.Max()) },
+		kind:   settingText,
+		edit:   func(c config.Config) string { return showRange(c.Codes.Min(), c.Codes.Max()) },
+		set:    setCodeLength,
+		covers: []string{"codes.min_length", "codes.max_length"},
+		help:   "a range like 4-8, or 6 for exactly six — empty for the default",
 	},
 	{
 		key: "codes.letters", group: "codes", label: "Codes may contain letters",
@@ -473,10 +483,19 @@ type settingGroup struct{ key, label string }
 var settingGroups = []settingGroup{
 	{"notifications", "Notifications"},
 	{"display", "Names and messages"},
+	{"rooms", "Rail and room list"},
 	{"composer", "Composer"},
-	{"media", "Images"},
+	{"media", "Images and media"},
 	{"emoji", "Emoji and reactions"},
-	{"codes", "Codes"},
+	{"look", "Look"},
+	{"spelling", "Spelling"},
+	{"completion", "Completion"},
+	{"assist", "Assistant"},
+	{"codes", "Codes and clipboard"},
+	{"spam", "Spam"},
+	{"agent", "AI agent access"},
+	{"networks", "Accounts and networks"},
+	{"advanced", "Commands, logs and schedule"},
 	{"tags", "Tags"},
 }
 
@@ -570,6 +589,8 @@ func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 		return m, nil
 	case settingText, settingNumber:
 		return m.editSettingInPlace(s, editText(s, m.conf.base)), nil
+	case settingList:
+		return m.settingEntriesOpen(s.key, ""), nil
 	}
 	return m, nil
 }
@@ -656,7 +677,7 @@ func (m Model) writeSetting(s setting, value string) (Model, tea.Cmd) {
 func (m Model) settingsBack() (Model, bool) {
 	group := m.choosing.settingGroup
 	switch m.picker.kind {
-	case pickerSettingValue:
+	case pickerSettingValue, pickerSettingEntries:
 		return m.settingsIn(group, m.choosing.setting), true
 	case pickerSetting:
 		return m.settingsTop(group), true
@@ -673,6 +694,9 @@ func (m Model) settingsBack() (Model, bool) {
 
 // settingHelp is what the setting being typed may be.
 func (m Model) settingHelp() string {
+	if m.prompt.kind == promptSettingEntry {
+		return "the entry — empty removes it"
+	}
 	s, ok := findSetting(m.choosing.setting)
 	if !ok || s.help == "" {
 		return "type the new value"

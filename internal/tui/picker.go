@@ -23,6 +23,8 @@ type pickerWalk struct {
 	// settingGroup the settings group it is listed under (settings.go).
 	setting      string
 	settingGroup string
+	// settingEntry is the entry of a list setting being typed; -1 adds one.
+	settingEntry int
 	// speedScopes is where a voice-note speed may be remembered, by picker row.
 	speedScopes []ruleTarget
 	// tag is where the tag editor is (tageditor.go).
@@ -55,6 +57,7 @@ const (
 	pickerSettingGroups
 	pickerSetting
 	pickerSettingValue
+	pickerSettingEntries
 	pickerDNDScope
 	pickerMuteScope
 	pickerDNDFor
@@ -97,6 +100,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerRulePreset:      {title: "Notify how?"},
 	pickerSettingGroups:   {title: "Settings", modal: true},
 	pickerSetting:         {modal: true}, // titled with the group
+	pickerSettingEntries:  {modal: true}, // titled with the setting
 	pickerSettingValue:    {title: "Set it to"},
 	pickerDNDScope:        {title: "Do not disturb for what?"},
 	pickerMuteScope:       {title: "Mute sound for what?"},
@@ -359,6 +363,16 @@ func (m Model) pickerAction(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 			return m, nil, false
 		}
 	}
+	if m.picker.kind == pickerSettingEntries {
+		switch m.keys.lookup(key.String(), scopePicker) {
+		case actMoveEntryUp:
+			return answered(m.moveSettingEntry(-1))
+		case actMoveEntryDown:
+			return answered(m.moveSettingEntry(1))
+		default:
+			return m, nil, false
+		}
+	}
 	if m.picker.kind != pickerPeople {
 		return m, nil, false
 	}
@@ -467,6 +481,8 @@ func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
 		return m.chooseSetting(item.value)
 	case pickerSettingValue:
 		return m.chooseSettingValue(item.value)
+	case pickerSettingEntries:
+		return m.chooseSettingEntry(item.value)
 	case pickerDNDScope, pickerMuteScope:
 		return m.chooseDNDScope(atoiSafe(item.value))
 	case pickerDNDFor:
@@ -549,6 +565,11 @@ func (m Model) settingsHint() (string, bool) {
 	case pickerSettingValue:
 		return m.hintLine(move,
 			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "set"),
+			keyed(m.keys.keyHint(scopePicker, actClosePick), "back")), true
+	case pickerSettingEntries:
+		return m.hintLine(move,
+			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "edit"),
+			keyed(m.keys.keyHint(scopePicker, actMoveEntryUp)+"/"+m.keys.keyHint(scopePicker, actMoveEntryDown), "move it"),
 			keyed(m.keys.keyHint(scopePicker, actClosePick), "back")), true
 	default:
 		return "", false

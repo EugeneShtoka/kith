@@ -83,22 +83,84 @@ func (m Model) pickerLines(width, rows int) []string {
 	if len(m.picker.items) == 0 {
 		return padTo(out, rows)
 	}
-	body := max(rows-len(out), 1)
+	doc := m.settingDocLines(width)
+	body := max(rows-len(out)-len(doc), 1)
 	if m.picker.spec.grid {
 		return padTo(append(out, m.gridRows(body, width)...), rows)
 	}
-	return padTo(append(out, m.listRows(body, width)...), rows)
+	out = padTo(append(out, m.listRows(body, width)...), rows-len(doc))
+	for _, line := range doc {
+		out = append(out, m.theme.Muted.Render(line))
+	}
+	return out
+}
+
+// docParagraphs is default.toml's text as paragraphs to wrap: its prose lines joined
+// (the file wraps them for itself), an indented line (a table of values, an example)
+// kept as written, a blank line a break.
+func docParagraphs(doc string) []string {
+	var out []string
+	prose := false
+	for line := range strings.SplitSeq(doc, "\n") {
+		switch {
+		case strings.TrimSpace(line) == "":
+			prose = false
+		case strings.HasPrefix(line, " "):
+			out, prose = append(out, line), false
+		case prose:
+			out[len(out)-1] += " " + line
+		default:
+			out, prose = append(out, line), true
+		}
+	}
+	return out
+}
+
+// The setting's text beneath the list takes the rows the list leaves, at least
+// settingDocLeast and at most settingDocMost.
+const (
+	settingDocLeast = 6
+	settingDocMost  = 20
+)
+
+// settingDocLines is what default.toml says of the setting under the cursor, wrapped
+// to width under a blank line; none outside a settings group or for a setting with
+// nothing written about it.
+func (m Model) settingDocLines(width int) []string {
+	if m.picker.kind != pickerSetting {
+		return nil
+	}
+	item, ok := m.picker.selected()
+	if !ok {
+		return nil
+	}
+	s, ok := findSetting(item.value)
+	if !ok || strings.TrimSpace(s.doc) == "" {
+		return nil
+	}
+	lines := []string{""}
+	for _, para := range docParagraphs(s.doc) {
+		lines = append(lines, drawBlock(para, blockSpec{width: width})...)
+	}
+	room := min(max(m.msgAreaRows()-len(m.picker.items)-1, settingDocLeast), settingDocMost)
+	if len(lines) > room {
+		lines = append(lines[:room-1], "…")
+	}
+	return lines
 }
 
 // pickerBody is how many item rows the open picker shows: the message area, less its
 // header (as pickerLines lays it out).
 func (m Model) pickerBody() int {
-	rows := m.msgAreaRows()
+	rows := m.msgAreaRows() - len(m.settingDocLines(m.pickerWidth()))
 	if m.pickerHeader() != "" {
 		rows--
 	}
 	return max(rows, 1)
 }
+
+// pickerWidth is the width a picker's rows are drawn in: the timeline pane's interior.
+func (m Model) pickerWidth() int { return max(m.width-railWidth-roomsWidth-paneBorder, 1) }
 
 // gridRows lays the items out in columns, keeping the cursor's row on screen.
 func (m Model) gridRows(body, width int) []string {
@@ -181,16 +243,22 @@ func (m Model) listRows(body, width int) []string {
 	return out
 }
 
-// editingSettingRow reports whether the selected settings row is being typed in.
+// editingSettingRow reports whether the selected settings row (a setting, or an entry
+// of a list setting) is being typed in.
 func (m Model) editingSettingRow() bool {
-	return m.picker.kind == pickerSetting && m.prompt.kind == promptSetting
+	return (m.picker.kind == pickerSetting && m.prompt.kind == promptSetting) ||
+		(m.picker.kind == pickerSettingEntries && m.prompt.kind == promptSettingEntry)
 }
 
 // editedRow is a settings row whose value is being typed: the label, then the value
 // with the caret, drawn selected while untouched (the first key typed replaces it).
 func (m Model) editedRow(lead, label string, width int) string {
+	sep := " : "
+	if m.picker.kind == pickerSettingEntries {
+		label, sep = "", "" // an entry is its value: the row is the editor alone
+	}
 	line := m.theme.Row(true, true).Render(clamp(lead+drawLine(label, lineSpec{width: max(width-ansi.StringWidth(lead), 1), sentence: true}), width))
-	room := width - ansi.StringWidth(line) - 3
+	room := width - ansi.StringWidth(line) - len(sep)
 	if room < 1 {
 		return line
 	}
@@ -198,7 +266,7 @@ func (m Model) editedRow(lead, label string, width int) string {
 	if m.prompt.fresh {
 		value = lipgloss.NewStyle().Reverse(true).Render(m.prompt.input) + caretMark
 	}
-	return line + " : " + value
+	return line + sep + value
 }
 
 // pickerHeader is what a picker has to say that its rows cannot, or "": for a list,

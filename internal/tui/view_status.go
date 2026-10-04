@@ -190,7 +190,7 @@ func (m Model) promptHint() string {
 		promptTracked, promptCaught:
 		submit = "walk the results"
 	case promptAlias, promptRoomName, promptGroupName, promptThreadName, promptRuleSound,
-		promptRuleName, promptAttach, promptSetting, promptInvite, promptUnban,
+		promptRuleName, promptAttach, promptSetting, promptSettingEntry, promptInvite, promptUnban,
 		promptNewRoom, promptJumpBind, promptCommand, promptTagName, promptTagEntry, promptNone:
 		// "submit" says it for these.
 	}
