@@ -263,14 +263,15 @@ func (m Model) groupNamed(name string) (string, bool) {
 	return "", false
 }
 
-// Writing a binding from inside the app: :shortcut (and /shortcut, for the room written
-// in) binds a room or the space or tag selected in the rail. A room is recorded by ID,
-// which the UI never shows, so it is bound from where it is open.
+// Writing a binding from inside the app: :shortcut binds what you are on — the space
+// or tag selected in the rail when the rail has the focus, else the room — and tab in
+// its prompt switches to the other, as tab switches a search's scope. /shortcut is the
+// same from the composer, starting on the room written in. A room is recorded by ID,
+// which the UI never shows, so it is bound from where it is.
 
 // bindShortcut is :shortcut and /shortcut: keys becomes the sequence that reaches the
-// first place it can bind — room, else the open room, else the rail's space or tag.
-// With no keys it asks, prefilled with the one the place has, and tab moves the
-// prompt to the next place.
+// place in focus (bindingTargets). With no keys it asks, prefilled with the one the
+// place has, and tab moves the prompt to the other place.
 func (m Model) bindShortcut(keys string, room *domain.Room) (Model, tea.Cmd) {
 	m.compose.input, m.compose.drafted = "", nil
 	targets := m.bindingTargets(room)
@@ -285,23 +286,32 @@ func (m Model) bindShortcut(keys string, room *domain.Room) (Model, tea.Cmd) {
 	return m.submitJumpBinding(keys)
 }
 
-// bindingTargets are the places a shortcut can be bound to here, in the order tab
-// cycles them: the room (else the open one), then the space or tag selected in the
-// rail.
+// bindingTargets are the places a shortcut can be bound to here, the one in focus
+// first: the space or tag selected in the rail when the rail has the focus, else the
+// room — room when given (the one written in), the one under the room list's cursor,
+// or the open one.
 func (m Model) bindingTargets(room *domain.Room) []domain.JumpTarget {
-	var targets []domain.JumpTarget
+	if room == nil && m.focus == paneRooms {
+		if row, ok := m.selectedRow(); ok {
+			room = &row.room
+		}
+	}
 	if room == nil {
 		if open, ok := m.currentRoom(); ok {
 			room = &open
 		}
 	}
+	var roomTarget, placeTarget []domain.JumpTarget
 	if room != nil && !room.IsInvite() {
-		targets = append(targets, domain.JumpTarget{Kind: domain.JumpRoom, Name: string(room.ID)})
+		roomTarget = []domain.JumpTarget{{Kind: domain.JumpRoom, Name: string(room.ID)}}
 	}
 	if entry, ok := m.currentGroup(); ok && (isSpaceGroup(entry.key) || isTagGroup(entry.key)) {
-		targets = append(targets, domain.JumpTarget{Kind: domain.JumpSpace, Name: entry.key})
+		placeTarget = []domain.JumpTarget{{Kind: domain.JumpSpace, Name: entry.key}}
 	}
-	return targets
+	if m.focus == paneRail {
+		return append(placeTarget, roomTarget...)
+	}
+	return append(roomTarget, placeTarget...)
 }
 
 // cycleBindingTarget is tab in the shortcut prompt: the next place, the prompt holding

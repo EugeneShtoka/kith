@@ -93,7 +93,7 @@ var commands = []command{
 	},
 	{
 		name: "shortcut", arg: "[keys]", argOptional: true,
-		summary: "a key sequence that goes to the open room (\"g w\"); none asks — {search.scope} there moves to the rail's space or tag",
+		summary: "a key sequence that goes to what you are on (\"g w\") — the rail's space or tag, or the room; none asks, and {search.scope} there switches between the two",
 		run:     func(m Model, arg string) (Model, tea.Cmd) { return m.bindShortcut(arg, nil) },
 	},
 	{
