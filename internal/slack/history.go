@@ -62,6 +62,15 @@ func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, p
 		}
 	}
 	room := roomID(w.creds.Team, channel)
+	if len(msgs) < len(raw) {
+		var dropped []string
+		for i := range raw {
+			if _, ok := incoming(channel, &raw[i], n); !ok {
+				dropped = append(dropped, "subtype="+raw[i].SubType)
+			}
+		}
+		a.log.Debug("history: messages not shown", "room", room, "fetched", len(raw), "kept", len(msgs), "dropped", dropped)
+	}
 	if a.cache != nil && len(msgs) > 0 {
 		if _, ok := a.record(ctx, w, room, msgs); ok && a.onChanged != nil {
 			a.onChanged(room)
