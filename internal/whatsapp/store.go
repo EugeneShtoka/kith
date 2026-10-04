@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"sync"
 
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -26,8 +27,18 @@ type Store struct {
 	container *sqlstore.Container
 }
 
+// askFullHistory asks, of every phone linked from now on, for all the history it
+// holds rather than a recent slice of each chat (what WhatsApp Web is sent). A phone
+// sends history once, when a device is linked, so a device linked before this asked
+// keeps the slice it was sent until it is linked anew. whatsmeow sends one set of
+// device properties for every device, so this is set once, before any linking.
+var askFullHistory = sync.OnceFunc(func() {
+	store.DeviceProps.RequireFullSync = new(true)
+})
+
 // OpenStore opens (creating and migrating) the store at path.
 func OpenStore(ctx context.Context, path string, log waLog.Logger) (*Store, error) {
+	askFullHistory()
 	dsn := (&url.URL{Scheme: "file", Opaque: path, RawQuery: url.Values{
 		"_pragma": {"foreign_keys(1)", "journal_mode(WAL)", "busy_timeout(5000)"},
 	}.Encode()}).String()
