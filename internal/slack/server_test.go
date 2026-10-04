@@ -348,3 +348,131 @@ func TestCatchingUpReadsOnlyWhatIsNewer(t *testing.T) {
 		t.Errorf("caught up twice, asked again: %v", got)
 	}
 }
+
+// Our reaction goes out by Slack's name and is cached; the same again takes it back.
+// An edit goes out by chat.update and shows; a deletion goes out by chat.delete.
+func TestReactingEditingAndDeleting(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	f, client := newFakeSlack(t)
+	ok := func(map[string]string) any { return map[string]any{"ok": true} }
+	f.on("reactions.add", ok)
+	f.on("reactions.remove", ok)
+	f.on("chat.update", func(map[string]string) any { return map[string]any{"ok": true, "channel": "C1", "ts": "5.0"} })
+	f.on("chat.delete", func(map[string]string) any { return map[string]any{"ok": true, "channel": "C1", "ts": "5.0"} })
+	a, _ := connectedTo(t, client)
+	room, target := roomID("T1", "C1"), messageID("T1", "C1", "5.0")
+	if err := a.cache.SaveMessages(ctx, room, []domain.Message{{ID: target, RoomID: room, Sender: "slack:T1.U1", Body: "first", Timestamp: tsTime("5.0")}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := a.SendReaction(ctx, room, target, "👍"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.calls("reactions.add"); len(got) != 1 || got[0]["name"] != "+1" || got[0]["timestamp"] != "5.0" {
+		t.Errorf("reactions.add asked %v", got)
+	}
+	if rs, _ := a.cache.Reactions(ctx, room); len(rs) != 1 || rs[0].Key != "👍" {
+		t.Errorf("cached reactions %+v", rs)
+	}
+	if err := a.SendReaction(ctx, room, target, "👍"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.calls("reactions.remove"); len(got) != 1 {
+		t.Errorf("the same reaction again did not take it back: %v", got)
+	}
+	if rs, _ := a.cache.Reactions(ctx, room); len(rs) != 0 {
+		t.Errorf("after taking it back: %+v", rs)
+	}
+
+	if err := a.Send(ctx, room, domain.Draft{Body: "**second**", Edits: target}); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.calls("chat.update"); len(got) != 1 || got[0]["text"] != "*second*" || got[0]["ts"] != "5.0" {
+		t.Errorf("chat.update asked %v", got)
+	}
+	if m, _, _ := a.cache.MessageByID(ctx, room, target); m.Body != "second" || !m.Edited {
+		t.Errorf("after editing: %+v", m)
+	}
+	if err := a.Redact(ctx, room, target, ""); err != nil {
+		t.Fatal(err)
+	}
+	if m, _, _ := a.cache.MessageByID(ctx, room, target); !m.Redacted {
+		t.Errorf("after deleting: %+v", m)
+	}
+}
+
+// Unread counts what came after Slack's last_read (and after our own newest message,
+// which reads what came before it); a read on another client moves it; marking read
+// here tells Slack.
+func TestUnreadFollowsSlacksReadPosition(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	f, client := newFakeSlack(t)
+	f.on("client.counts", func(map[string]string) any {
+		return map[string]any{"ok": true, "channels": []any{map[string]any{"id": "C1", "latest": "4.000000", "last_read": "2.000000"}}}
+	})
+	f.on("conversations.history", func(map[string]string) any {
+		return map[string]any{"ok": true, "messages": []any{
+			msgJSON("U2", "4.0", "four"), msgJSON("U2", "3.0", "three"), msgJSON("U2", "2.0", "two"), msgJSON("U1", "1.5", "mine"),
+		}}
+	})
+	f.on("conversations.mark", func(map[string]string) any { return map[string]any{"ok": true} })
+	a, w := connectedTo(t, client)
+	w.knowChannels([]domain.Room{{ID: roomID("T1", "C1")}})
+	if err := a.catchUp(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	unread := func() domain.Unread {
+		rows, err := a.CachedUnread(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, u := range rows {
+			if u.RoomID == roomID("T1", "C1") {
+				return u
+			}
+		}
+		return domain.Unread{}
+	}
+	if u := unread(); u.Messages != 2 {
+		t.Errorf("unread = %+v, want two (three and four; two was read)", u)
+	}
+	a.onEvent(ctx, w, slackgo.RTMEvent{Data: &slackgo.ChannelMarkedEvent{Channel: "C1", Timestamp: "3.0"}})
+	if u := unread(); u.Messages != 1 {
+		t.Errorf("after a read on another client: %+v, want one", u)
+	}
+	if err := a.MarkRead(ctx, roomID("T1", "C1"), messageID("T1", "C1", "4.0"), false); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.calls("conversations.mark"); len(got) != 1 || got[0]["ts"] != "4.0" {
+		t.Errorf("conversations.mark asked %v", got)
+	}
+	if u := unread(); u.Messages != 0 {
+		t.Errorf("after marking read: %+v", u)
+	}
+}
+
+// Who is typing is streamed when it changes, never ourselves; a typist whose notices
+// stop is forgotten.
+func TestTyping(t *testing.T) {
+	t.Parallel()
+	a, _ := cached(t, Account{Name: "work", Workspace: "acme"})
+	w := liveWorkspace(t, a)
+	a.onTyping(w, &slackgo.UserTypingEvent{User: "U1", Channel: "C1"}) // ourselves
+	a.onTyping(w, &slackgo.UserTypingEvent{User: "U2", Channel: "C1"})
+	a.onTyping(w, &slackgo.UserTypingEvent{User: "U2", Channel: "C1"}) // still typing: nothing new
+	got := <-a.Activity()
+	if got.RoomID != roomID("T1", "C1") || len(got.Typing) != 1 || got.Typing[0] != "slack:T1.U2" {
+		t.Errorf("activity = %+v, want U2 typing", got)
+	}
+	select {
+	case more := <-a.Activity():
+		t.Errorf("a second notice streamed %+v", more)
+	default:
+	}
+	a.stoppedTyping(roomID("T1", "C1"), "slack:T1.U2")
+	if gone := <-a.Activity(); len(gone.Typing) != 0 {
+		t.Errorf("after the notices stopped: %+v", gone)
+	}
+}

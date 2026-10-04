@@ -34,6 +34,10 @@ type workspace struct {
 	teamName, handle string
 	client           *slackgo.Client
 
+	// rtm is the live websocket, set while live runs (under mu): typing notices go out
+	// on it.
+	rtm *slackgo.RTM
+
 	// done closes when the connection is let go: signed in again, removed, stopped.
 	done      chan struct{}
 	closeOnce sync.Once

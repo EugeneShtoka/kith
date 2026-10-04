@@ -160,18 +160,25 @@ func TestNothingIsReachableBeforeAWorkspaceConnects(t *testing.T) {
 		"react":    a.SendReaction(ctx, room, "slack:T1/C1/1.2", "👍"),
 		"redact":   a.Redact(ctx, room, "slack:T1/C1/1.2", ""),
 		"file":     a.SendFile(ctx, room, "/tmp/x", ""),
-		"unread":   a.MarkRoomUnread(ctx, room, true),
 		"star":     a.StarMessage(ctx, room, "slack:T1/C1/1.2", true),
 		"spam":     a.MarkSpam(ctx, domain.SpamVerdict{Room: room}),
 		"timeline": func() error { _, err := a.Timeline(ctx, room, "", 10); return err }(),
 		"fetch":    func() error { _, err := a.FetchEvent(ctx, room, "slack:T1/C1/1.2"); return err }(),
 		"image":    func() error { _, err := a.LoadImage(ctx, room, "slack:T1/C1/1.2"); return err }(),
-		"history":  func() error { _, _, err := a.MessageHistory(ctx, room, "slack:T1/C1/1.2"); return err }(),
-		"read all": func() error { _, err := a.MarkRoomsRead(ctx, []domain.RoomID{room}, false); return err }(),
 	} {
 		if !errors.Is(err, api.ErrNetworkOff) {
 			t.Errorf("%s = %v, want ErrNetworkOff", name, err)
 		}
+	}
+	// What the cache answers needs no workspace: nothing to mark here, no versions kept.
+	if res, err := a.MarkRoomsRead(ctx, []domain.RoomID{room}, false); err != nil || res.Skipped != 1 {
+		t.Errorf("MarkRoomsRead offline = %+v, %v; want it skipped", res, err)
+	}
+	if revs, _, err := a.MessageHistory(ctx, room, "slack:T1/C1/1.2"); err != nil || len(revs) != 0 {
+		t.Errorf("MessageHistory offline = %v, %v", revs, err)
+	}
+	if err := a.MarkRoomUnread(ctx, room, true); !errors.Is(err, errNoMarkUnread) {
+		t.Errorf("MarkRoomUnread = %v, want it said to be unsupported", err)
 	}
 	if err := a.SendTyping(ctx, room, true, time.Second); err != nil {
 		t.Errorf("typing = %v, want nothing said", err)

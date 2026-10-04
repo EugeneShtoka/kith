@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	emojidata "github.com/EugeneShtoka/kith/internal/emoji"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/apitest"
@@ -98,10 +100,10 @@ func typeAll(t *testing.T, m Model, text string) Model {
 func TestEmojiMapIsConsistent(t *testing.T) {
 	t.Parallel()
 
-	if len(emojiShortcodes) < 300 {
-		t.Errorf("only %d shortcodes", len(emojiShortcodes))
+	if len(emojidata.Curated) < 300 {
+		t.Errorf("only %d shortcodes", len(emojidata.Curated))
 	}
-	for name, emoji := range emojiShortcodes {
+	for name, emoji := range emojidata.Curated {
 		if name == "" || emoji == "" {
 			t.Errorf("blank entry: %q → %q", name, emoji)
 		}
@@ -122,7 +124,7 @@ func TestEmojiMapIsConsistent(t *testing.T) {
 		}
 		seen[emoji] = true
 	}
-	for _, emoji := range emojiShortcodes {
+	for _, emoji := range emojidata.Curated {
 		if !seen[emoji] {
 			t.Errorf("%q is in the map but not in the browse list", emoji)
 		}

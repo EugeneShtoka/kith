@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	emojidata "github.com/EugeneShtoka/kith/internal/emoji"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -435,9 +437,9 @@ var curatedSettings = []setting{
 		show: func(c config.Config) string { return orDefault(c.Display.Emoji.Set, emojiCurated) },
 		kind: settingChoice,
 		choices: []settingChoiceOption{
-			{emojiCurated, emojiCurated, fmt.Sprintf("%d hand-picked, browsable end to end", len(emojiShortcodes))},
-			{emojiStandard, emojiStandard, fmt.Sprintf("+%d single-glyph emoji from Unicode", len(standardEmoji))},
-			{emojiComplete, emojiComplete, fmt.Sprintf("+%d composed: families, professions, flags", len(sequenceEmoji))},
+			{emojiCurated, emojiCurated, fmt.Sprintf("%d hand-picked, browsable end to end", len(emojidata.Curated))},
+			{emojiStandard, emojiStandard, fmt.Sprintf("+%d single-glyph emoji from Unicode", len(emojidata.Standard))},
+			{emojiComplete, emojiComplete, fmt.Sprintf("+%d composed: families, professions, flags", len(emojidata.Sequences))},
 		},
 		set: func(c *config.Config, v string) error { c.Display.Emoji.Set = v; return nil },
 	},

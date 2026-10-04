@@ -173,6 +173,9 @@ func (a *Adapter) arrived(ctx context.Context, w *workspace, channel string, m *
 			return
 		}
 		a.heardOf(msg)
+		// A room first heard of is read up to just before what made it known.
+		a.placeRead(ctx, msg.RoomID, msg.Timestamp.Add(-time.Millisecond))
+		a.recount(ctx, msg.RoomID)
 		if joined {
 			go a.relist(context.WithoutCancel(ctx), w)
 		}
@@ -188,7 +191,11 @@ func (a *Adapter) record(ctx context.Context, w *workspace, room domain.RoomID, 
 	a.heard[room] = time.Now()
 	n, err := a.cache.JoinRooms(ctx, domain.AccountRooms(domain.ProtocolSlack, w.creds.Team), []domain.RoomID{room})
 	if err == nil {
-		err = a.cache.SaveMessages(ctx, room, msgs)
+		save := a.cache.SaveMessages
+		if a.keepsDeleted() {
+			save = a.cache.SaveMessagesWithRevisions // an edit keeps what it replaced
+		}
+		err = save(ctx, room, msgs)
 	}
 	a.listing.Unlock()
 	if err != nil {
