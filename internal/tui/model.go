@@ -2842,7 +2842,7 @@ func (m Model) dropImages() Model {
 // the first is the one that picks name rules, place rules and a download's folder.
 // Tags are judged as places are (domain.TagSet.Of), as the daemon judges them.
 func (m Model) homesOf(roomID domain.RoomID) []string {
-	return domain.Homes(m.rooms.spaceNames(roomID), m.rail.roomFacts[roomID].Tags, m.prefs.display.Priority)
+	return domain.Homes(m.rooms.spaceNames(roomID), m.rail.roomFacts[roomID].Tags, m.rail.homes)
 }
 
 // spans reports whether a home holds every room — a tag of everything, as All: the

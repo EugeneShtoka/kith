@@ -35,8 +35,10 @@ type scopeIndex struct {
 
 	mu      sync.Mutex
 	aliases map[domain.RoomID]string
-	// priority ranks spaces; {space} in a notification is the first.
-	priority []string
+	// order ranks a room's homes; {space} in a notification is the first. base is the
+	// config's part of it, and order base with the network's own spaces the last
+	// rebuild read marked.
+	base, order domain.HomeOrder
 	// rooms are the indexed rooms' facts, tags left out: tags change without a
 	// rebuild, so they are applied as a room is looked up.
 	rooms   map[domain.RoomID]domain.RoomFacts
@@ -50,8 +52,8 @@ type scopeIndex struct {
 }
 
 // newScopeIndex returns an index over src, with no rooms read yet.
-func newScopeIndex(src scopeSource, aliases []config.DisplayName, priority []string) *scopeIndex {
-	return &scopeIndex{src: src, aliases: roomAliases(aliases), priority: priority}
+func newScopeIndex(src scopeSource, aliases []config.DisplayName, order domain.HomeOrder) *scopeIndex {
+	return &scopeIndex{src: src, aliases: roomAliases(aliases), base: order, order: order}
 }
 
 // SetAliases replaces the configured room names and drops the index.
@@ -71,23 +73,23 @@ func (x *scopeIndex) SetTags(tags domain.TagSet) {
 	x.tags = tags
 }
 
-// Home is a room's first home — space or tag, by priority — as {space} shows it.
+// Home is a room's first home — space or tag, in home order — as {space} shows it.
 func (x *scopeIndex) Home(facts domain.RoomFacts) string {
 	x.mu.Lock()
-	priority := x.priority
+	order := x.order
 	x.mu.Unlock()
-	homes := domain.Homes(facts.Spaces, facts.Tags, priority)
+	homes := domain.Homes(facts.Spaces, facts.Tags, order)
 	if len(homes) == 0 {
 		return ""
 	}
 	return domain.HomeLabel(homes[0])
 }
 
-// SetSpacePriority replaces the space ranking and drops the index.
-func (x *scopeIndex) SetSpacePriority(priority []string) {
+// SetHomeOrder replaces the config's part of the home order and drops the index.
+func (x *scopeIndex) SetHomeOrder(order domain.HomeOrder) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
-	x.priority = priority
+	x.base, x.order = order, order
 	x.builtAt, x.missed = time.Time{}, nil
 	x.gen++
 }
@@ -169,10 +171,10 @@ func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.R
 		x.mu.Unlock()
 		return facts, ok
 	}
-	src, aliases, priority, gen := x.src, x.aliases, x.priority, x.gen
+	src, aliases, base, gen := x.src, x.aliases, x.base, x.gen
 	x.mu.Unlock()
 
-	index, err := buildIndex(ctx, src, aliases, priority)
+	index, order, err := buildIndex(ctx, src, aliases, base)
 
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -182,7 +184,7 @@ func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.R
 	}
 	current := gen == x.gen
 	if err == nil && current {
-		x.rooms, x.builtAt, x.missed = index, time.Now(), nil
+		x.rooms, x.order, x.builtAt, x.missed = index, order, time.Now(), nil
 	}
 	facts, ok = x.rooms[roomID]
 	// A miss is only believed from a read nothing has overtaken.
@@ -195,34 +197,36 @@ func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.R
 	return facts, ok
 }
 
-// buildIndex reads the room list and space hierarchy into a fresh index. A free
-// function, so it provably touches nothing the mutex guards.
+// buildIndex reads the room list and space hierarchy into a fresh index, and the home
+// order with the network's own spaces among them marked. A free function, so it
+// provably touches nothing the mutex guards.
 func buildIndex(
 	ctx context.Context,
 	src scopeSource,
 	aliases map[domain.RoomID]string,
-	priority []string,
-) (map[domain.RoomID]domain.RoomFacts, error) {
+	base domain.HomeOrder,
+) (map[domain.RoomID]domain.RoomFacts, domain.HomeOrder, error) {
 	rooms, err := src.Rooms(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("scope: read rooms: %w", err)
+		return nil, base, fmt.Errorf("scope: read rooms: %w", err)
 	}
 	spaces, err := src.Spaces(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("scope: read spaces: %w", err)
+		return nil, base, fmt.Errorf("scope: read spaces: %w", err)
 	}
+	order := base.WithManaged(spaces)
 	holders := make(map[domain.RoomID][]domain.Space, len(rooms))
 	for i := range spaces {
 		for _, child := range spaces[i].Children {
 			holders[child] = append(holders[child], spaces[i])
 		}
 	}
-	places := domain.Places{Names: aliases, Priority: priority}
+	places := domain.Places{Names: aliases, Order: order}
 	index := make(map[domain.RoomID]domain.RoomFacts, len(rooms))
 	for i := range rooms {
 		index[rooms[i].ID] = places.Facts(rooms[i], holders[rooms[i].ID])
 	}
-	return index, nil
+	return index, order, nil
 }
 
 // roomAliases indexes the configured room names by room ID.

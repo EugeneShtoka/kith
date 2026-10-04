@@ -23,9 +23,9 @@ type RoomFacts struct {
 // scopes, codes, tracked words, the archive — builds them through Facts, so a list
 // entry means the same room everywhere.
 type Places struct {
-	Names    map[RoomID]string // [[display.name]], by room
-	Priority []string          // [display] priority: spaces and tag:<name>s
-	Tags     TagSet
+	Names map[RoomID]string // [[display.name]], by room
+	Order HomeOrder         // how a room's spaces (and homes) are ranked
+	Tags  TagSet
 }
 
 // Facts is room as a list entry matches it. holders are the spaces holding it, in
@@ -50,7 +50,7 @@ func (p Places) Facts(room Room, holders []Space) RoomFacts {
 		}
 	}
 	if len(names) > 0 {
-		facts.Spaces = OrderSpaces(names, p.Priority)
+		facts.Spaces = p.Order.WithManaged(holders).Sort(names)
 	}
 	// Last: a tag's rule matches on the facts above.
 	facts.Tags = p.Tags.Of(facts)

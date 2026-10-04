@@ -114,7 +114,7 @@ type Sinks func(config.Notifications) notify.Notifier
 // own messages never notify. A config that will not parse is refused.
 func NewNotifications(cfg config.Config, src scopeSource, me string, sinks Sinks) (*Notifications, error) {
 	n := &Notifications{
-		scope: newScopeIndex(src, cfg.Display.Names, cfg.Display.Priority),
+		scope: newScopeIndex(src, cfg.Display.Names, homeOrderOf(cfg)),
 		sinks: sinks,
 		me:    me,
 	}
@@ -156,7 +156,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	}
 
 	n.scope.SetAliases(cfg.Display.Names)
-	n.scope.SetSpacePriority(cfg.Display.Priority)
+	n.scope.SetHomeOrder(homeOrderOf(cfg))
 	// Validated already (Reload refuses a config that will not parse).
 	tags, _, _ := setup.Tags(cfg)
 	n.scope.SetTags(tags)
@@ -359,3 +359,7 @@ func (n *Notifications) Run(ctx context.Context, s *Streams) {
 		}
 	}
 }
+
+// homeOrderOf is the config's part of the home order (setup.PlacesOf's); the spaces'
+// part is added as the index reads them.
+func homeOrderOf(cfg config.Config) domain.HomeOrder { return setup.PlacesOf(cfg).Order }

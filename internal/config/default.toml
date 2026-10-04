@@ -87,9 +87,11 @@ unread = "messages"
 # Preference order when one home must be chosen for a room in several spaces or tags:
 # the {space} of a notification, the download folder, which [[display.space_rule]]
 # applies, which place rule counts as the room's space. Spaces by name, tags as
-# tag:<name>. What it does not name follows: spaces, then tags in the order they are
-# written. Keep a tag holding every room (All) last, or a room in no space gets it as
-# its home.
+# tag:<name>. What it does not name follows the rail's order ([display.rail]); what
+# the rail does not name either goes where its "*" is: tags in the order they are
+# written, then spaces you made, then a network's own (a bridge's, a WhatsApp
+# account's, a Slack workspace's). A tag of every room (All) is a room's home only
+# when nothing else is.
 # priority = ["tag:Family", "Work", "Friends"]
 
 # Open a room in the composer rather than the message cursor (one esc away).
@@ -301,8 +303,8 @@ count_in_label  = true
 hide_when_empty = true
 
 # Every room. Its rooms are also in their spaces; Archived and Spam take theirs out.
-# Written last: a tag [display] priority does not name ranks by its place here, so
-# All is a room's home (its {space}, its download folder) only when nothing else is.
+# A tag of every room is a room's home (its {space}, its download folder) only when
+# nothing else is.
 [[tag]]
 name = "All"
 rule = ["*"]
