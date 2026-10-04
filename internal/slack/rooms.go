@@ -44,14 +44,21 @@ func userName(u slackgo.User) string {
 }
 
 // groupDMName is a group DM's name from Slack's own for it, "mpdm-dana--sam--lee-1":
-// the handles of the people in it.
-func groupDMName(name string) string {
+// the handles of the people in it but the person's own, self.
+func groupDMName(name, self string) string {
 	name = strings.TrimPrefix(name, "mpdm-")
 	if i := strings.LastIndex(name, "-"); i > 0 {
 		name = name[:i] // the trailing counter
 	}
-	return strings.Join(strings.Split(name, "--"), ", ")
+	handles := strings.Split(name, "--")
+	if others := slices.DeleteFunc(slices.Clone(handles), func(h string) bool { return h == self }); len(others) > 0 {
+		handles = others
+	}
+	return strings.Join(handles, ", ")
 }
+
+// slackOwn names Slack's own senders, which users.info does not answer for.
+var slackOwn = map[string]string{"USLACKBOT": "Slackbot", "USLACK": "Slack"}
 
 // listing is what one workspace's listing caches.
 type listing struct {
@@ -62,8 +69,8 @@ type listing struct {
 
 // listed turns a workspace's conversations into rooms, with a DM's other person as
 // its member, and the workspace into the space holding them. names is what is known
-// of the people DMs are with, by user ID.
-func listed(team, teamName string, conversations []slackgo.Channel, names map[string]string) listing {
+// of the people DMs are with, by user ID; self is the person's own handle.
+func listed(team, teamName, self string, conversations []slackgo.Channel, names map[string]string) listing {
 	l := listing{
 		members: map[domain.RoomID][]domain.Member{},
 		space: domain.Space{
@@ -81,10 +88,10 @@ func listed(team, teamName string, conversations []slackgo.Channel, names map[st
 		switch {
 		case c.IsIM:
 			room.IsDirect = true
-			room.Name = names[c.User]
-			l.members[room.ID] = []domain.Member{{UserID: personID(team, c.User), DisplayName: names[c.User]}}
+			room.Name = cmpOr(names[c.User], slackOwn[c.User])
+			l.members[room.ID] = []domain.Member{{UserID: personID(team, c.User), DisplayName: room.Name}}
 		case c.IsMpIM:
-			room.Name = groupDMName(c.Name)
+			room.Name = groupDMName(c.Name, self)
 		default:
 			room.Name = c.Name
 		}

@@ -65,7 +65,7 @@ func listingRace(t *testing.T, rng *rand.Rand) {
 			for _, c := range l.joined {
 				convs = append(convs, conversation(c, func(ch *slackgo.Channel) { ch.Name = c }))
 			}
-			if err := a.save(ctx, w, listed("T1", "Acme", convs, nil), l.at); err != nil {
+			if err := a.save(ctx, w, listed("T1", "Acme", "me", convs, nil), l.at); err != nil {
 				t.Fatal(err)
 			}
 			checkAfterListing(ctx, t, a, l, lastHeard, sent, channels)
