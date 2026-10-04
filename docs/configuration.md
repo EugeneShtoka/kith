@@ -82,8 +82,24 @@ wrong `[section]` header) stops startup with a list of the unknown keys.
 
 You rarely need to open the file. Inside kith:
 
-- `,` opens the settings screen. It lists the preferences with their current values,
-  and you change them in place. **Tags** there edits your [tags](usage.md#tags).
+- `,` opens the settings screen: every setting in the file, in groups (Notifications,
+  Names, Messages, Rail and room list, …, Keys, Tags). `enter` opens a group; under
+  the list is what this page's reference says about the setting under the cursor.
+  - A change is saved at once and you stay on its row, so several can change in a row;
+    `esc` steps back a level.
+  - On/off flips with `enter`. A number steps with `+` and `-`, or `enter` types it on
+    its row (the current value selected, so typing replaces it). Text is typed the
+    same way.
+  - A list (priority, the rail's order, include lists) opens its entries: `enter`
+    edits one on its row (emptied, it is removed), the last row adds one, and `K`/`J`
+    move the entry under the cursor.
+  - A list of records (read rules, media rules, people, names you gave, spam filters,
+    scripts, accounts, jump shortcuts) opens its records, each one's fields set as
+    above; *Add one* is typed as its first field, *Remove this one* takes it out.
+  - **Names** has a first-names-only switch for every space and tag. **Keys** has
+    every binding by table, typed as the file writes them (`k,up`; empty restores the
+    default, `-` binds nothing); a binding that would clash is refused with the reason.
+  - **Tags** edits your [tags](usage.md#tags).
 - `a` on a room, space, rail group, thread or person gives it your own name.
 - `b` on a message, room or space writes a notification rule for it.
 - `/why` shows every notification rule in force for the current room, in order, and

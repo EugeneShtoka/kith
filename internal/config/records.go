@@ -78,6 +78,10 @@ func paragraphAround(needle string) string {
 func walkTables(typ reflect.Type, path []string, found func(string, reflect.Type)) {
 	for f := range typ.Fields() {
 		name := tomlName(f)
+		if len(path) == 0 && name == "keys" {
+			found("keys.jump", reflect.TypeFor[Jump]()) // the keys' one list of records
+			continue
+		}
 		if name == "" || (len(path) == 0 && slices.Contains(notProperties, name)) {
 			continue
 		}
