@@ -90,14 +90,7 @@ func (m Model) renderTimeline(w, h int) string {
 		title = threadMark + " " + m.threadTitle()
 	}
 
-	// The day in view goes in the title, since date separators scroll away.
-	if day := m.stickyDay(); day != "" {
-		title += "  " + day
-	}
-	// The topic goes last and yields first.
-	if topic := m.topicSuffix(title, inner); topic != "" {
-		title += topic
-	}
+	title = m.decoratedTitle(title, inner)
 
 	// Body layout: the message area, then a divider, then the composer. The
 	// message-area height matches msgAreaRows so scroll math and rendering agree.
@@ -532,4 +525,20 @@ func sameDay(a, b time.Time) bool {
 	ay, am, ad := a.Date()
 	by, bm, bd := b.Date()
 	return ay == by && am == bm && ad == bd
+}
+
+// decoratedTitle is the timeline pane's title around the room or thread named title:
+// the day in view (date separators scroll away), then the topic, which yields first.
+// A chooser with a title says what it is choosing instead, over the room it covers.
+func (m Model) decoratedTitle(title string, inner int) string {
+	if m.picker.active() && m.picker.spec.title != "" {
+		return m.picker.spec.title
+	}
+	if day := m.stickyDay(); day != "" {
+		title += "  " + day
+	}
+	if topic := m.topicSuffix(title, inner); topic != "" {
+		title += topic
+	}
+	return title
 }

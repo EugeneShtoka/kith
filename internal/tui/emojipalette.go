@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -171,9 +172,33 @@ func (m Model) listRows(body, width int) []string {
 		if m.picker.spec.multi {
 			lead += checkbox(m.picker.ticked(item.value)) + " "
 		}
+		if selected && m.editingSettingRow() {
+			out = append(out, m.editedRow(lead, item.label, width))
+			continue
+		}
 		out = append(out, m.labeledRow(lead, item.label, item.detail, selected, width))
 	}
 	return out
+}
+
+// editingSettingRow reports whether the selected settings row is being typed in.
+func (m Model) editingSettingRow() bool {
+	return m.picker.kind == pickerSetting && m.prompt.kind == promptSetting
+}
+
+// editedRow is a settings row whose value is being typed: the label, then the value
+// with the caret, drawn selected while untouched (the first key typed replaces it).
+func (m Model) editedRow(lead, label string, width int) string {
+	line := m.theme.Row(true, true).Render(clamp(lead+drawLine(label, lineSpec{width: max(width-ansi.StringWidth(lead), 1), sentence: true}), width))
+	room := width - ansi.StringWidth(line) - 3
+	if room < 1 {
+		return line
+	}
+	value := editedLine(m.editorFor(fieldPrompt), room, m.typingField() == fieldPrompt)
+	if m.prompt.fresh {
+		value = lipgloss.NewStyle().Reverse(true).Render(m.prompt.input) + caretMark
+	}
+	return line + " : " + value
 }
 
 // pickerHeader is what a picker has to say that its rows cannot, or "": for a list,

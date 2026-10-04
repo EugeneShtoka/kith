@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,10 +19,28 @@ func opened(t *testing.T, notifs config.Notifications) (Model, string) {
 	t.Helper()
 	m, path := ruling(t, notifs)
 	m, _ = press(t, m, keyText(","))
-	if m.picker.kind != pickerSetting {
+	if m.picker.kind != pickerSettingGroups {
 		t.Fatalf("\",\" should open the settings, got picker %v", m.picker.kind)
 	}
 	return m, path
+}
+
+// toSetting picks the first setting whose label or key holds substr (as the old flat
+// list's filter did): its group is opened, then the row chosen in it. In a value
+// picker it picks a value.
+func toSetting(t *testing.T, m Model, substr string) Model {
+	t.Helper()
+	if m.picker.kind != pickerSettingGroups && m.picker.kind != pickerSetting {
+		return pickLabel(t, m, substr)
+	}
+	for i := range settingsList {
+		s := &settingsList[i]
+		if strings.Contains(strings.ToLower(s.label+" "+s.key), strings.ToLower(substr)) {
+			return pickLabel(t, m.settingsIn(s.group, ""), substr)
+		}
+	}
+	t.Fatalf("no setting matches %q", substr)
+	return m
 }
 
 // typeIn types into an open prompt and submits, running the resulting command.
@@ -39,15 +58,27 @@ func typeIn(t *testing.T, m Model, text string) Model {
 	return m
 }
 
-// rowFor finds a settings row by its label.
+// rowFor finds a row by its label in the open picker, else a setting's row as its
+// group shows it (a group's row may share a setting's label: Notifications).
 func rowFor(t *testing.T, m Model, label string) pickerItem {
 	t.Helper()
 	for _, item := range m.picker.items {
-		if item.label == label {
+		if item.label == label && m.picker.kind != pickerSettingGroups {
 			return item
 		}
 	}
-	t.Fatalf("no row labeled %q in %+v", label, m.picker.items)
+	for i := range settingsList {
+		s := &settingsList[i]
+		if s.label != label {
+			continue
+		}
+		for _, item := range m.settingsIn(s.group, "").picker.items {
+			if item.label == label {
+				return item
+			}
+		}
+	}
+	t.Fatalf("no row labeled %q", label)
 	return pickerItem{}
 }
 
@@ -83,11 +114,11 @@ func TestSettingChoiceChangesTheDecision(t *testing.T) {
 		t.Fatal("mention-only should not notify for ordinary chat")
 	}
 
-	m = pickLabel(t, m, "notify") // the row: Notify me for
+	m = toSetting(t, m, "notify") // the row: Notify me for
 	if m.picker.kind != pickerSettingValue {
 		t.Fatalf("a choice setting should offer its values, got %v", m.picker.kind)
 	}
-	m = pickLabel(t, m, "all")
+	m = toSetting(t, m, "all")
 
 	if !notifies(t, m, chat) {
 		t.Error("on=all should notify for ordinary chat, live")
@@ -114,7 +145,7 @@ func TestSettingChoiceMarksTheCurrentValue(t *testing.T) {
 		{"react", "room"},
 	} {
 		m, _ := opened(t, config.Notifications{Enabled: true})
-		m = pickLabel(t, m, tc.row)
+		m = toSetting(t, m, tc.row)
 		marked := ""
 		for _, item := range m.picker.items {
 			if strings.HasPrefix(item.detail, "current") {
@@ -135,12 +166,13 @@ func TestSettingToggleTakesEffectImmediately(t *testing.T) {
 	if !m.prefs.openInsert {
 		t.Fatal("rooms open in insert mode by default")
 	}
-	m = pickLabel(t, m, "ready") // Open rooms ready to type
+	m = toSetting(t, m, "ready") // Open rooms ready to type
 	if m.prefs.openInsert {
 		t.Error("the toggle did not reach the live model")
 	}
-	if m.picker.active() {
-		t.Error("a toggle has nothing more to ask; the picker should close")
+	// The group stays open on the row, showing the new value.
+	if item, ok := m.picker.selected(); m.picker.kind != pickerSetting || !ok || item.label != "Open rooms ready to type" || item.detail != "off" {
+		t.Errorf("after the toggle: picker %v on %+v, want the group on the row reading off", m.picker.kind, item)
 	}
 	reloaded, err := config.Load(path)
 	if err != nil {
@@ -160,7 +192,7 @@ func TestSettingRejectsAValueThatWillNotParse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m = pickLabel(t, m, "width") // Sender name width
+	m = toSetting(t, m, "width") // Sender name width
 	m = typeIn(t, m, "wide")
 	if !strings.Contains(m.status(), "not a number") {
 		t.Errorf("status = %q, should say what was wrong", m.status())
@@ -182,7 +214,7 @@ func TestSettingNumberIsAppliedAndSaved(t *testing.T) {
 	t.Parallel()
 
 	m, path := opened(t, config.Notifications{Enabled: true})
-	m = pickLabel(t, m, "width")
+	m = toSetting(t, m, "width")
 	m = typeIn(t, m, "24")
 	if m.conf.base.Display.MaxNameLength != 24 {
 		t.Errorf("width = %d, want 24", m.conf.base.Display.MaxNameLength)
@@ -201,7 +233,7 @@ func TestSettingQuietHoursUseTheRuleParser(t *testing.T) {
 	t.Parallel()
 
 	m, path := opened(t, config.Notifications{Enabled: true})
-	m = pickLabel(t, m, "quiet")
+	m = toSetting(t, m, "quiet")
 	m = typeIn(t, m, "22:00-08:00")
 	reloaded, err := config.Load(path)
 	if err != nil {
@@ -216,7 +248,7 @@ func TestSettingQuietHoursUseTheRuleParser(t *testing.T) {
 
 	// A time that is not a time is refused, with the parser's own complaint.
 	m, _ = press(t, m, keyText(","))
-	m = pickLabel(t, m, "quiet")
+	m = toSetting(t, m, "quiet")
 	m = typeIn(t, m, "22-08")
 	if !strings.Contains(m.status(), "HH:MM") {
 		t.Errorf("status = %q, should carry the parser's complaint", m.status())
@@ -236,7 +268,7 @@ func TestSettingQuietHoursCanBeCleared(t *testing.T) {
 	if rowFor(t, m, "Quiet hours").detail != "22:00-08:00" {
 		t.Fatalf("row = %q", rowFor(t, m, "Quiet hours").detail)
 	}
-	m = pickLabel(t, m, "quiet")
+	m = toSetting(t, m, "quiet")
 	if m.prompt.input != "22:00-08:00" {
 		t.Errorf("the prompt starts with %q, want the range so it can be edited", m.prompt.input)
 	}
@@ -256,7 +288,7 @@ func TestASettingLeavesThePreviousConfigUntouched(t *testing.T) {
 		{Name: "work", Match: "space:Work", Show: "all"},
 	}})
 	before := m.conf.base // what an in-flight save holds
-	m = pickLabel(t, m, "quiet")
+	m = toSetting(t, m, "quiet")
 	m = typeIn(t, m, "")
 	if rules := m.conf.base.Notifications.Rules; len(rules) != 1 || rules[0].Name != "work" {
 		t.Fatalf("rules = %+v, want only the work rule", rules)
@@ -274,7 +306,7 @@ func TestSettingCodeShape(t *testing.T) {
 	if got := rowFor(t, m, "Code length").detail; got != "4-8" {
 		t.Errorf("length shows %q, want 4-8", got)
 	}
-	m = pickLabel(t, m, "codes.leng")
+	m = toSetting(t, m, "codes.leng")
 	if m.prompt.input != "4-8" {
 		t.Errorf("prompt starts with %q, want the range", m.prompt.input)
 	}
@@ -302,7 +334,7 @@ func TestSettingCodeShapeRefusesTheImpossible(t *testing.T) {
 
 	// Digits off while a digit is still required: refused, and it says which.
 	before := m.prefs.codes.rules
-	m = pickLabel(t, m, "codes.d")
+	m = toSetting(t, m, "codes.d")
 	if !strings.Contains(m.status(), "require_digit") {
 		t.Errorf("status = %q, should name the setting in the way", m.status())
 	}
@@ -312,12 +344,12 @@ func TestSettingCodeShapeRefusesTheImpossible(t *testing.T) {
 
 	// Drop the requirement first, and the same toggle is then fine.
 	m, _ = press(t, m, keyText(","))
-	m = pickLabel(t, m, "codes.r")
+	m = toSetting(t, m, "codes.r")
 	if m.prefs.codes.rules.RequireDigit {
 		t.Fatalf("rules = %+v, want the digit requirement off", m.prefs.codes.rules)
 	}
 	m, _ = press(t, m, keyText(","))
-	m = pickLabel(t, m, "codes.d")
+	m = toSetting(t, m, "codes.d")
 	if m.prefs.codes.rules.Digits {
 		t.Fatalf("rules = %+v, want digits off", m.prefs.codes.rules)
 	}
@@ -325,7 +357,7 @@ func TestSettingCodeShapeRefusesTheImpossible(t *testing.T) {
 	// Now letters are the only characters left, so turning them off too is refused.
 	m, _ = press(t, m, keyText(","))
 	before = m.prefs.codes.rules
-	m = pickLabel(t, m, "codes.let")
+	m = toSetting(t, m, "codes.let")
 	if !strings.Contains(m.status(), "could not apply") {
 		t.Errorf("status = %q, should refuse a shape that matches nothing", m.status())
 	}
@@ -379,13 +411,19 @@ func TestSettingsTableIsWellFormed(t *testing.T) {
 			if len(s.choices) != 0 || s.edit != nil {
 				t.Errorf("%s leads somewhere; it should hold no value of its own", s.key)
 			}
-		case settingToggle, settingText:
+		case settingToggle, settingText, settingNumber:
 			if len(s.choices) != 0 {
 				t.Errorf("%s has choices but is not a choice setting", s.key)
 			}
 		}
+		if (s.kind == settingNumber) != (s.count != nil) {
+			t.Errorf("%s: a number setting, and only one, says its number", s.key)
+		}
+		if !slices.ContainsFunc(settingGroups, func(g settingGroup) bool { return g.key == s.group }) {
+			t.Errorf("%s is in group %q, which settingGroups does not list", s.key, s.group)
+		}
 		// What the prompt offers for editing must be accepted back.
-		if s.kind == settingText {
+		if s.kind == settingText || s.kind == settingNumber {
 			round := cfg
 			if err := s.set(&round, editText(s, cfg)); err != nil {
 				t.Errorf("%s cannot re-accept its own %q: %v", s.key, editText(s, cfg), err)
@@ -406,7 +444,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 	}
 
 	// No clipboard command: refused, and the status says which piece is missing.
-	m = pickLabel(t, m, "Auto-copy")
+	m = toSetting(t, m, "Auto-copy")
 	if m.conf.base.Clipboard.AutoCopy {
 		t.Error("the toggle should have refused, not switched on into doing nothing")
 	}
@@ -421,7 +459,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 	m = next
 	m = m.closePicker()
 	m, _ = press(t, m, keyText(","))
-	m = pickLabel(t, m, "Auto-copy")
+	m = toSetting(t, m, "Auto-copy")
 	if m.conf.base.Clipboard.AutoCopy {
 		t.Error("nowhere named means everywhere; the toggle should still refuse")
 	}
@@ -436,7 +474,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 	m = next
 	m = m.closePicker()
 	m, _ = press(t, m, keyText(","))
-	m = pickLabel(t, m, "Auto-copy")
+	m = toSetting(t, m, "Auto-copy")
 	if !m.conf.base.Clipboard.AutoCopy {
 		t.Fatal("with both prerequisites met the toggle should switch it on")
 	}
@@ -447,7 +485,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 	}
 
 	// And off again, unconditionally — turning something off never needs prerequisites.
-	m = pickLabel(t, m, "Auto-copy")
+	m = toSetting(t, m, "Auto-copy")
 	if m.conf.base.Clipboard.AutoCopy {
 		t.Error("the toggle should switch it back off")
 	}
@@ -516,5 +554,151 @@ func TestPopupTimeoutRowTakesTheNegative(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "-1") {
 		t.Errorf("error = %q, want it to name -1 as the way to say until-dismissed", err)
+	}
+}
+
+// Settings are two levels, and a change keeps you where you are: several settings of
+// a group change in a row, each row showing its new value.
+func TestSeveralSettingsChangeInARow(t *testing.T) {
+	t.Parallel()
+	m, path := opened(t, config.Notifications{Enabled: true})
+	m = pickLabel(t, m, "Codes")
+	if m.picker.kind != pickerSetting || m.choosing.settingGroup != "codes" {
+		t.Fatalf("choosing Codes opened picker %v on %q", m.picker.kind, m.choosing.settingGroup)
+	}
+	m = pickLabel(t, m, "must contain a digit")
+	m = pickLabel(t, m, "may contain digits")
+	if m.picker.kind != pickerSetting || m.choosing.settingGroup != "codes" {
+		t.Fatalf("after two changes: picker %v in %q, want still in Codes", m.picker.kind, m.choosing.settingGroup)
+	}
+	if got := rowFor(t, m, "Codes must contain a digit").detail; got != "off" {
+		t.Errorf("require digit reads %q, want off", got)
+	}
+	if got := rowFor(t, m, "Codes may contain digits").detail; got != "off" {
+		t.Errorf("digits read %q, want off", got)
+	}
+	reloaded, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Codes.DigitRequired() || reloaded.Codes.DigitsAllowed() {
+		t.Errorf("saved codes = %+v, want both changes", reloaded.Codes)
+	}
+}
+
+// A number steps with + and - on its row, saved, never below its least; enter types
+// it in place, the current value selected so what is typed replaces it.
+func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
+	t.Parallel()
+	m, path := opened(t, config.Notifications{Enabled: true})
+	m = m.settingsIn("display", "display.max_name_length")
+	for range 15 {
+		m, _ = press(t, m, keyText("+"))
+	}
+	if got := m.conf.base.Display.MaxNameLength; got != 15 {
+		t.Fatalf("width after 15 presses of + = %d", got)
+	}
+	m, _ = press(t, m, keyText("-"))
+	if got := rowFor(t, m, "Sender name width").detail; got != "14" {
+		t.Errorf("the row reads %q after -, want 14", got)
+	}
+
+	// Enter: typed on the row, 14 selected; 8 replaces it.
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !m.editingSettingRow() || !m.prompt.fresh || m.prompt.input != "14" {
+		t.Fatalf("enter on a number: editing %v, fresh %v, input %q; want 14 selected on its row", m.editingSettingRow(), m.prompt.fresh, m.prompt.input)
+	}
+	if view := stripStyles(m.View().Content); !strings.Contains(view, "Sender name width : 14") {
+		t.Errorf("the row does not show the value being typed:\n%s", view)
+	}
+	m, _ = press(t, m, keyText("8"))
+	next, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = deliver(t, next, cmd)
+	if got := m.conf.base.Display.MaxNameLength; got != 8 {
+		t.Errorf("width = %d, want 8 (typing replaces the selected value)", got)
+	}
+	if item, _ := m.picker.selected(); m.picker.kind != pickerSetting || item.value != "display.max_name_length" {
+		t.Errorf("after saving: picker %v on %q, want the group on the row", m.picker.kind, item.value)
+	}
+	reloaded, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Display.MaxNameLength != 8 {
+		t.Errorf("saved width = %d, want 8", reloaded.Display.MaxNameLength)
+	}
+
+	// The least: a width stops at 0, the popup timeout at -1 (until dismissed).
+	m = m.settingsIn("display", "display.max_name_length")
+	for range 12 {
+		m, _ = press(t, m, keyText("-"))
+	}
+	if got := m.conf.base.Display.MaxNameLength; got != 0 {
+		t.Errorf("width stepped down to %d, want it to stop at 0", got)
+	}
+	m = m.settingsIn("notifications", "notifications.timeout")
+	for range 40 {
+		m, _ = press(t, m, keyText("-"))
+	}
+	if got := m.conf.base.Notifications.Timeout; got == nil || *got != -1 {
+		t.Errorf("timeout stepped down to %v, want it to stop at -1", got)
+	}
+	// + on a row that is not a number says so and changes nothing.
+	m = m.settingsIn("display", "display.color_messages")
+	before := m.conf.base.Display.ColorMessages
+	m, _ = press(t, m, keyText("+"))
+	if m.conf.base.Display.ColorMessages != before || !strings.Contains(m.status(), "numbers") {
+		t.Errorf("+ on a toggle: changed %v, status %q", m.conf.base.Display.ColorMessages != before, m.status())
+	}
+}
+
+// A typed value that will not parse stays on its row as typed, to be fixed.
+func TestARefusedValueStaysToBeFixed(t *testing.T) {
+	t.Parallel()
+	m, _ := opened(t, config.Notifications{Enabled: true})
+	m = toSetting(t, m, "width")
+	m = typeIn(t, m, "wide")
+	if !m.editingSettingRow() || m.prompt.input != "wide" || m.prompt.fresh {
+		t.Errorf("after a refused value: editing %v, input %q, fresh %v; want it kept, not selected", m.editingSettingRow(), m.prompt.input, m.prompt.fresh)
+	}
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.prompt.active() || m.picker.kind != pickerSetting {
+		t.Errorf("esc while typing: prompt %v, picker %v; want the row as it was, the group open", m.prompt.active(), m.picker.kind)
+	}
+}
+
+// esc steps back a level: a value list to its group, a group to the groups, the
+// groups closed; the tag editor's levels to the one above, then to the groups.
+func TestEscStepsBackALevel(t *testing.T) {
+	t.Parallel()
+	esc := func(m Model) Model {
+		m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+		return m
+	}
+	m, _ := opened(t, config.Notifications{Enabled: true})
+	m = toSetting(t, m, "Images")
+	if m.picker.kind != pickerSettingValue {
+		t.Fatalf("Images opened %v, want its values", m.picker.kind)
+	}
+	if m = esc(m); m.picker.kind != pickerSetting || m.choosing.setting != "display.media.mode" {
+		t.Errorf("esc from values: picker %v on %q, want the group on the row", m.picker.kind, m.choosing.setting)
+	}
+	if m = esc(m); m.picker.kind != pickerSettingGroups {
+		t.Errorf("esc from a group: picker %v, want the groups", m.picker.kind)
+	} else if item, _ := m.picker.selected(); item.value != "media" {
+		t.Errorf("back on the groups at %q, want the group left", item.value)
+	}
+	if m = esc(m); m.picker.active() {
+		t.Errorf("esc from the groups left picker %v open", m.picker.kind)
+	}
+
+	m, _ = opened(t, config.Notifications{})
+	m = pickLabel(t, m, "Tags")
+	m = pickLabel(t, m, "Pinned")
+	if m = esc(m); m.picker.kind != pickerTags {
+		t.Errorf("esc from a tag: picker %v, want the tags", m.picker.kind)
+	}
+	if m = esc(m); m.picker.kind != pickerSettingGroups {
+		t.Errorf("esc from the tags: picker %v, want the groups", m.picker.kind)
 	}
 }

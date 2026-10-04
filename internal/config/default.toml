@@ -1101,8 +1101,8 @@ timeout = 15
 # ─────────────────────────────────────────────────────────────────────────────
 # Keybindings. Each value is a comma-separated list ("k,up"); names are what the
 # terminal reports ("enter", "esc", "tab", "shift+tab", "ctrl+u", "pgup"); the comma
-# key is "comma". A space separates the steps of a sequence ("s u"); "gg" is also a
-# sequence. `?` shows the live bindings.
+# key is "comma", and the minus key "minus". A space separates the steps of a
+# sequence ("s u"); "gg" is also a sequence. `?` shows the live bindings.
 #
 # Groups are per mode, and the more specific group wins ([keys.timeline] over
 # [keys.nav]). While typing, any key that produces text types it. Omit a key to keep
@@ -1411,17 +1411,21 @@ cut           = "ctrl+x"  # cut the whole draft to the clipboard
 # Chooser overlays (people, identities, colors). One with letter actions starts in
 # navigate mode; `filter` switches to typing.
 [keys.picker]
-filter = "i"          # start typing to narrow the list
-name   = "a"          # name the person under the cursor
-toggle = "space"      # tick the row under the cursor (in a list of checkboxes)
+filter   = "i"          # start typing to narrow the list
+name     = "a"          # name the person under the cursor
+toggle   = "space"      # tick the row under the cursor (in a list of checkboxes)
+# In settings.
+increase = "+"          # raise the number under the cursor
+# In settings.
+decrease = "minus"      # lower the number under the cursor
 # Asks first.
-kick   = "r"          # remove the person under the cursor from this room
+kick     = "r"          # remove the person under the cursor from this room
 # Asks first.
-ban    = "b"          # ban the person under the cursor from this room
+ban      = "b"          # ban the person under the cursor from this room
 # In the thread list.
-rename = "alt+r"      # name the thread under the cursor
-accept = "enter,tab"  # choose the item under the cursor, or apply the ticked ones
-close  = "esc"        # stop typing, then close
+rename   = "alt+r"      # name the thread under the cursor
+accept   = "enter,tab"  # choose the item under the cursor, or apply the ticked ones
+close    = "esc"        # stop typing, then close
 
 # The react prompt. A pick key reacts with that palette position, while nothing is typed.
 [keys.react]

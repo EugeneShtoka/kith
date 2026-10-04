@@ -93,6 +93,8 @@ const (
 	// because the thread list is always filtering, so a letter there is text.
 	actRenameThread
 	actTogglePick
+	actIncrease // the number under the cursor up (settings)
+	actDecrease // and down
 	actAcceptPick
 	actClosePick
 	actName
@@ -470,6 +472,8 @@ var keyActions = []keyAction{
 	{scopePicker, actBan, "picker.ban"},
 	{scopePicker, actRenameThread, "picker.rename"},
 	{scopePicker, actTogglePick, "picker.toggle"},
+	{scopePicker, actIncrease, "picker.increase"},
+	{scopePicker, actDecrease, "picker.decrease"},
 	{scopePicker, actAcceptPick, "picker.accept"},
 	{scopePicker, actClosePick, "picker.close"},
 
@@ -957,7 +961,8 @@ func validKey(name string) bool {
 	return false
 }
 
-// splitKeys parses a comma-separated binding list, dropping blanks. The name "comma"
+// splitKeys parses a comma-separated binding list, dropping blanks. The name "minus"
+// is the - key ("-" alone binds nothing); the name "comma"
 // stands for "," since the separator cannot be written otherwise.
 func splitKeys(list string) []string {
 	parts := strings.Split(list, ",")
@@ -967,6 +972,8 @@ func splitKeys(list string) []string {
 		case "":
 		case "comma":
 			keys = append(keys, ",")
+		case "minus":
+			keys = append(keys, "-")
 		default:
 			keys = append(keys, normalizeSequence(key))
 		}
