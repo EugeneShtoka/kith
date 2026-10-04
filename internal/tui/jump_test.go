@@ -682,6 +682,7 @@ func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
 	m = next
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Infra")
+	m.focus = paneTimeline // the room has the focus
 
 	m, _ = m.runCommandLine("shortcut")
 	if m.prompt.kind != promptJumpBind || !strings.Contains(stripStyles(m.renderStatus()), "shortcut for Alpha") {
@@ -715,5 +716,45 @@ func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 	round, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	if !strings.Contains(stripStyles(round.renderStatus()), "shortcut for Alpha") {
 		t.Errorf("tab twice: %q, want back on the room", stripStyles(round.renderStatus()))
+	}
+}
+
+// :shortcut starts on what has the focus, as a search's scope does: the rail's space
+// or tag from the rail, the room from the room list (the one under its cursor, here
+// Infra's Ops, not the open Alpha) or the timeline (the open one); tab switches to the
+// other.
+func TestShortcutStartsOnWhatHasTheFocus(t *testing.T) {
+	t.Parallel()
+
+	m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{})
+	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
+	m = next
+	m.rail.cursor = indexOfGroup(m.rail.groups, "Infra")
+	status := func(m Model) string { return stripStyles(m.renderStatus()) }
+
+	m.focus = paneRail
+	fromRail, _ := m.runCommandLine("shortcut")
+	if !strings.Contains(status(fromRail), "shortcut for Infra") || !strings.Contains(status(fromRail), "tab: Alpha") {
+		t.Errorf("from the rail: %q, want the space first and tab to the room", status(fromRail))
+	}
+	switched, _ := press(t, fromRail, tea.KeyPressMsg{Code: tea.KeyTab})
+	if !strings.Contains(status(switched), "shortcut for Alpha") {
+		t.Errorf("tab from the space: %q, want the room", status(switched))
+	}
+
+	m.focus = paneRooms
+	if fromList, _ := m.runCommandLine("shortcut"); !strings.Contains(status(fromList), "shortcut for Ops") {
+		t.Errorf("from the room list: %q, want the room under its cursor", status(fromList))
+	}
+	m.focus = paneTimeline
+	if fromTimeline, _ := m.runCommandLine("shortcut"); !strings.Contains(status(fromTimeline), "shortcut for Alpha") {
+		t.Errorf("from the timeline: %q, want the open room", status(fromTimeline))
+	}
+	m.focus = paneRail
+	if bound, _ := m.runCommandLine("shortcut g i"); func() bool {
+		target, ok := bound.keys.jumpFor("g i")
+		return !ok || target.Kind != domain.JumpSpace || target.Name != "Infra"
+	}() {
+		t.Error(":shortcut g i from the rail did not bind the space")
 	}
 }
