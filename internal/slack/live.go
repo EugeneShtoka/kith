@@ -69,6 +69,7 @@ func (a *Adapter) onEvent(ctx context.Context, w *workspace, ev slackgo.RTMEvent
 	case *slackgo.ConnectedEvent:
 		if a.current(w) {
 			a.session(w.account, Connected, "")
+			a.goCatchUp(ctx, w) // what was said while not connected
 		}
 	case *slackgo.ConnectionErrorEvent:
 		a.log.Warn("Slack's websocket dropped", "account", w.account.Name, "err", e.ErrorObj)

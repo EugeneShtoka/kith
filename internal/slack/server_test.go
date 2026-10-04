@@ -3,11 +3,13 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	slackgo "github.com/slack-go/slack"
 
@@ -283,5 +285,66 @@ func TestAGroupDMIsNamedByItsPeople(t *testing.T) {
 	members, err := a.Members(ctx, rooms[0].ID, 0)
 	if err != nil || len(members) != 2 {
 		t.Errorf("members = %+v, %v; want Dana and Sam", members, err)
+	}
+}
+
+// Catching up reads each listed conversation Slack says has newer messages than the
+// cache, from where the cache left off (all its recent ones when none are cached), so
+// every conversation's last message is known; one up to date is not asked again, nor
+// one not listed. One Slack does not count (a quiet DM) is read once, while nothing of
+// it is cached.
+func TestCatchingUpReadsOnlyWhatIsNewer(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	f, client := newFakeSlack(t)
+	f.on("client.counts", func(map[string]string) any {
+		return map[string]any{"ok": true,
+			"channels": []any{
+				map[string]any{"id": "C1", "latest": "5.000000"}, // behind: cached up to 2.0
+				map[string]any{"id": "C3", "latest": "1.000500"}, // up to date, to the millisecond
+				map[string]any{"id": "C4", "latest": "9.000000"}, // not listed
+			},
+			"ims": []any{map[string]any{"id": "D2", "latest": "3.000000"}}, // nothing cached
+		}
+	})
+	f.on("conversations.history", func(form map[string]string) any {
+		switch form["channel"] {
+		case "C1":
+			return map[string]any{"ok": true, "messages": []any{msgJSON("U2", "5.0", "new"), msgJSON("U2", "4.0", "newer")}}
+		default:
+			return map[string]any{"ok": true, "messages": []any{msgJSON("U3", "3.0", "hi")}}
+		}
+	})
+	a, w := connectedTo(t, client)
+	w.knowChannels([]domain.Room{{ID: roomID("T1", "C1")}, {ID: roomID("T1", "D2")}, {ID: roomID("T1", "C3")}, {ID: roomID("T1", "D5")}})
+	for channel, ts := range map[string]string{"C1": "2.0", "C3": "1.0"} {
+		room := roomID("T1", channel)
+		if err := a.cache.SaveMessages(ctx, room, []domain.Message{{ID: messageID("T1", channel, ts), RoomID: room, Body: "old", Timestamp: tsTime(ts)}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.catchUp(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	asked := map[string]string{}
+	for _, form := range f.calls("conversations.history") {
+		asked[form["channel"]] = form["oldest"]
+	}
+	if want := map[string]string{"C1": "2.000000", "D2": "", "D5": ""}; !maps.Equal(asked, want) {
+		t.Errorf("history asked of %v (channel → oldest), want %v", asked, want)
+	}
+	last, err := a.cache.LastMessages(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !last[roomID("T1", "C1")].Equal(time.Unix(5, 0)) || !last[roomID("T1", "D2")].Equal(time.Unix(3, 0)) {
+		t.Errorf("last messages = %v; want C1 at 5, D2 at 3", last)
+	}
+	again := len(f.calls("conversations.history"))
+	if err := a.catchUp(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.calls("conversations.history")[again:]; len(got) != 0 {
+		t.Errorf("caught up twice, asked again: %v", got)
 	}
 }
