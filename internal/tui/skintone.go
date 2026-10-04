@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/richtext"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Skin tone: [display] skin_tone applies a Fitzpatrick modifier (👍 → 👍🏻) wherever
@@ -37,6 +39,46 @@ const modifierRunes = "\U0001F3FB\U0001F3FC\U0001F3FD\U0001F3FE\U0001F3FF"
 
 // presentationSelector is U+FE0F, which a toned sequence omits.
 const presentationSelector = "️"
+
+// presented is text as the terminal draws it: a toned text-presentation emoji (☝🏼,
+// as senders write it) is drawn two wide but measures one, which paints every row
+// after it a column off; U+FE0F between base and tone makes both agree (as emojiCell
+// does in the picker). spans, byte offsets into text, move with what is inserted.
+func presented(text string, spans []richtext.Span) (string, []richtext.Span) {
+	if !strings.ContainsAny(text, modifierRunes) {
+		return text, spans
+	}
+	var b strings.Builder
+	var at []int // where each selector went, in text's offsets
+	prev := rune(-1)
+	for i, r := range text {
+		if strings.ContainsRune(modifierRunes, r) && prev >= 0 && string(prev) != presentationSelector &&
+			ansi.StringWidth(string(prev)) == 1 {
+			b.WriteString(presentationSelector)
+			at = append(at, i)
+		}
+		b.WriteRune(r)
+		prev = r
+	}
+	if len(at) == 0 {
+		return text, spans
+	}
+	shift := func(offset int, through bool) int {
+		n := 0
+		for _, i := range at {
+			if i < offset || (through && i == offset) {
+				n++
+			}
+		}
+		return offset + n*len(presentationSelector)
+	}
+	moved := make([]richtext.Span, len(spans))
+	for i, s := range spans {
+		s.Start, s.End = shift(s.Start, true), shift(s.End, false)
+		moved[i] = s
+	}
+	return b.String(), moved
+}
 
 // withoutTone removes any tone modifier but keeps U+FE0F — the spelling the shortcode
 // tables are keyed on (❤️). Emoji from history may carry a tone, so lookups start here.

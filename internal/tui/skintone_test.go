@@ -7,6 +7,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
@@ -151,5 +153,58 @@ func TestNoFrameLineOverflowsWithAnyEmojiSelected(t *testing.T) {
 					item.detail, row, got, m.width)
 			}
 		}
+	}
+}
+
+// A toned text-presentation emoji in a message (☝🏼, as senders write it) is drawn
+// two wide but measured one, which painted every row after it a column off; it is
+// spelled with U+FE0F, as the terminal draws it, and formatting moves with it.
+func TestTonedEmojiInTextMeasureAsDrawn(t *testing.T) {
+	t.Parallel()
+	const pointing = "☝\U0001F3FC"
+	got, spans := presented("me! "+pointing+" *b*", []richtext.Span{
+		{Start: 0, End: 2, Bold: true},    // before it
+		{Start: 4, End: 11, Italic: true}, // around it
+		{Start: 12, End: 15, Code: true},  // after it
+	})
+	if want := "me! ☝" + presentationSelector + "\U0001F3FC *b*"; got != want {
+		t.Fatalf("presented = %+q, want %+q", got, want)
+	}
+	if w := ansi.StringWidth("☝" + presentationSelector + "\U0001F3FC"); w != 2 {
+		t.Errorf("the spelled emoji measures %d, want 2", w)
+	}
+	words := []string{"me", "☝" + presentationSelector + "\U0001F3FC", "*b*"}
+	for i, s := range spans {
+		if got[s.Start:s.End] != words[i] {
+			t.Errorf("span %d covers %q, want %q", i, got[s.Start:s.End], words[i])
+		}
+	}
+	for _, unchanged := range []string{"👍\U0001F3FC", "☝" + presentationSelector + "\U0001F3FC", "no emoji", "🏼 alone"} {
+		if got, _ := presented(unchanged, nil); got != unchanged {
+			t.Errorf("presented(%+q) = %+q, want it as it was", unchanged, got)
+		}
+	}
+}
+
+// Nothing the timeline draws measures other than as drawn: no toned emoji in a body
+// or a reply's quote is left measuring one column.
+func TestTheTimelineDrawsNoTonedEmojiAColumnShort(t *testing.T) {
+	t.Parallel()
+	m, _ := attaching(t)
+	m = update(t, m, cachedTimelineMsg{roomID: "!a:x", messages: []domain.Message{
+		{ID: "$1", RoomID: "!a:x", Sender: "@ann:x", Body: "count me in! ☝\U0001F3FC"},
+		{ID: "$2", RoomID: "!a:x", Sender: "@cy:x", Body: "in between, so the reply quotes"},
+		{ID: "$3", RoomID: "!a:x", Sender: "@bo:x", Body: "same ✌\U0001F3FF", ReplyTo: "$1"},
+	}})
+	view := m.View().Content
+	if !strings.Contains(view, "count me in") {
+		t.Fatal("the message is not drawn")
+	}
+	prev := rune(-1)
+	for _, r := range view {
+		if strings.ContainsRune(modifierRunes, r) && prev >= 0 && string(prev) != presentationSelector && ansi.StringWidth(string(prev)) == 1 {
+			t.Errorf("%+q then a tone is drawn two wide but measures one", prev)
+		}
+		prev = r
 	}
 }
