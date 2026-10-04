@@ -500,6 +500,7 @@ var settingGroups = []settingGroup{
 	{"agent", "AI agent access"},
 	{"networks", "Accounts and networks"},
 	{"advanced", "Commands, logs and schedule"},
+	{"keys", "Keys"},
 	{"tags", "Tags"},
 }
 
@@ -598,7 +599,7 @@ func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 	switch s.kind {
 	case settingOpen:
 		m.choosing.setting = key
-		if s.open == nil { // a record table's row: its records
+		if s.open == nil { // a record table's or key table's row: its rows
 			return m.settingsIn(key, ""), nil
 		}
 		return s.open(m)

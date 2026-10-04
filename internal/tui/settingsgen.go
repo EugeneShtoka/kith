@@ -60,6 +60,7 @@ var propertyGroups = []propertyGroup{
 	{"commands.", "advanced", ""},
 	{"log.", "advanced", ""},
 	{"schedule.", "advanced", ""},
+	{"keys.", "keys", "keys."},
 }
 
 // placeProperty is where a property is listed and what it is called there; false for
@@ -116,7 +117,8 @@ func buildSettings(curated []setting) []setting {
 			all = append(all, s)
 		}
 	}
-	return append(all, recordTableSettings()...)
+	all = append(all, recordTableSettings()...)
+	return append(all, keyTableSettings()...)
 }
 
 // propertySetting is a property's generated row.

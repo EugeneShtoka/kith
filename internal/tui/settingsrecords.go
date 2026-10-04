@@ -42,6 +42,7 @@ var recordTableLabels = map[string]string{
 	"commands.script":      "Scripts",
 	"whatsapp.account":     "WhatsApp accounts",
 	"slack.account":        "Slack accounts",
+	"keys.jump":            "Jump shortcuts",
 }
 
 // recordTableSettings are the rows leading to the record tables, one per labeled
@@ -80,6 +81,11 @@ func (m Model) groupRows(group string) []setting {
 	switch {
 	case group == "names":
 		return append(m.placeNameRows(), groupSettings(group)...)
+	case strings.HasPrefix(group, keysPrefix):
+		if t, ok := keyTableOf(group); ok {
+			return keyBindingRows(t)
+		}
+		return nil
 	case strings.HasPrefix(group, recordPrefix):
 		t, ok := recordTable(group)
 		if !ok {
@@ -107,6 +113,9 @@ func (m Model) setting(key string) (setting, bool) {
 // settingsParent is where esc goes from a group: a record to its table, a table to the
 // group it is listed in, any other group to the groups.
 func settingsParent(group string) (parent, at string, ok bool) {
+	if strings.HasPrefix(group, keysPrefix) {
+		return "keys", group, true
+	}
 	if !strings.HasPrefix(group, recordPrefix) {
 		return "", group, false
 	}
@@ -124,6 +133,9 @@ func settingsParent(group string) (parent, at string, ok bool) {
 
 // settingGroupLabel is a group's words, made ones included.
 func (m Model) settingGroupLabel(group string) string {
+	if t, ok := keyTableOf(group); ok && strings.HasPrefix(group, keysPrefix) {
+		return "Keys · " + keyTableLabel(t.Name)
+	}
 	if !strings.HasPrefix(group, recordPrefix) {
 		return groupLabel(group)
 	}

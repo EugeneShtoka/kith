@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 )
 
 // Jump is one chord and where it goes.
@@ -414,4 +415,44 @@ func fillStringDefaults(target, defaults reflect.Value) {
 			fillStringDefaults(field, fallback)
 		}
 	}
+}
+
+// KeyTable is one [keys.*] table as the settings screen lists it: its name ("" is
+// [keys] itself), its prose, and its bindings in order.
+type KeyTable struct {
+	Name, Intro string
+	Bindings    []KeyBindingDoc
+}
+
+// KeyBindingDoc is one binding: its path ("timeline.reply"), its default, what it does,
+// and default.toml's further note on it.
+type KeyBindingDoc struct {
+	Path, Default, Doc, Note string
+}
+
+// KeyTables is every key table, in default.toml's order.
+func KeyTables() []KeyTable {
+	out := make([]KeyTable, 0, len(keySections))
+	for _, section := range keySections {
+		t := KeyTable{Name: section.table, Intro: section.intro}
+		for _, b := range section.binds {
+			t.Bindings = append(t.Bindings, KeyBindingDoc{Path: b.path, Default: b.def, Doc: b.doc, Note: b.note})
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+// SetBinding writes the binding at path; "" restores its default.
+func (k *Keys) SetBinding(path, value string) error {
+	index, ok := keyFields[path]
+	if !ok {
+		return fmt.Errorf("config: no key binding %q", path)
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value, _ = DefaultKeys().Binding(path)
+	}
+	reflect.ValueOf(k).Elem().FieldByIndex(index).SetString(value)
+	return nil
 }
