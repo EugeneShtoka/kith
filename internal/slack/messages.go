@@ -43,9 +43,20 @@ func incoming(channel string, m *slackgo.Msg, n names) (domain.Message, bool) {
 		return domain.Message{}, false
 	}
 	r := render(messageText(m), n)
-	body := r.body
+	body, named := r.body, false
+	// The first file kith can load is the attachment; any other is named under the text.
+	shown := firstLoadable(m.Files)
 	for i := range m.Files {
-		body = strings.TrimSpace(body + "\n" + labeled("file", cmpOr(m.Files[i].Title, m.Files[i].Name)))
+		if i != shown {
+			body, named = strings.TrimSpace(body+"\n"+labeled("file", cmpOr(m.Files[i].Title, m.Files[i].Name))), true
+		}
+	}
+	var media *domain.Media
+	if shown >= 0 {
+		media = fileMedia(&m.Files[shown])
+		if body == "" {
+			body = media.Name // a file with no words: its name, which reads as no caption
+		}
 	}
 	if body == "" {
 		return domain.Message{}, false
@@ -58,9 +69,10 @@ func incoming(channel string, m *slackgo.Msg, n names) (domain.Message, bool) {
 		Emote:     m.SubType == "me_message",
 		Mentions:  r.mentions,
 		Mentioned: r.mentioned && m.User != n.me,
+		Media:     media,
 	}
-	if len(m.Files) == 0 {
-		out.Format = r.format // a file's label is not in the formatting's words
+	if !named && body == r.body {
+		out.Format = r.format // a file's label or name is not in the formatting's words
 	}
 	switch {
 	case m.User != "":
@@ -172,6 +184,7 @@ func (a *Adapter) arrived(ctx context.Context, w *workspace, channel string, m *
 		if !ok {
 			return
 		}
+		a.keepFile(ctx, msg, m)
 		a.heardOf(msg)
 		// A room first heard of is read up to just before what made it known.
 		a.placeRead(ctx, msg.RoomID, msg.Timestamp.Add(-time.Millisecond))

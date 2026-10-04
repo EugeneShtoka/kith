@@ -62,6 +62,7 @@ func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, p
 	a.learnPeople(ctx, w, people(raw))
 	n := w.names()
 	var msgs []domain.Message
+	var sources []*slackgo.Msg // each of msgs' own, for its file
 	var reactions []domain.Reaction
 	settled := map[domain.EventID]bool{} // messages whose reactions this page decides
 	for i := range slices.Backward(raw) {
@@ -69,7 +70,7 @@ func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, p
 		if !ok {
 			continue
 		}
-		msgs = append(msgs, msg)
+		msgs, sources = append(msgs, msg), append(sources, &raw[i])
 		if !a.reactedSince(msg.ID, fetched) {
 			settled[msg.ID] = true
 			reactions = append(reactions, messageReactions(w.creds.Team, channel, &raw[i])...)
@@ -77,17 +78,16 @@ func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, p
 	}
 	room := roomID(w.creds.Team, channel)
 	if len(msgs) < len(raw) {
-		var dropped []string
-		for i := range raw {
-			if _, ok := incoming(channel, &raw[i], n); !ok {
-				dropped = append(dropped, "subtype="+raw[i].SubType)
-			}
-		}
-		a.log.Debug("history: messages not shown", "room", room, "fetched", len(raw), "kept", len(msgs), "dropped", dropped)
+		a.logDropped(room, channel, raw, n, len(msgs))
 	}
 	if a.cache != nil && len(msgs) > 0 {
-		if _, ok := a.record(ctx, w, room, msgs); ok && a.onChanged != nil {
-			a.onChanged(room)
+		if _, ok := a.record(ctx, w, room, msgs); ok {
+			for i := range msgs {
+				a.keepFile(ctx, msgs[i], sources[i])
+			}
+			if a.onChanged != nil {
+				a.onChanged(room)
+			}
 		}
 		a.settleReactions(ctx, room, settled, reactions)
 		for i := range raw {
@@ -126,6 +126,17 @@ func (a *Adapter) settleReactions(ctx context.Context, room domain.RoomID, settl
 			a.log.Warn("cache reactions failed", "room", room, "err", err)
 		}
 	}
+}
+
+// logDropped says which of a page's messages are not shown, by subtype.
+func (a *Adapter) logDropped(room domain.RoomID, channel string, raw []slackgo.Msg, n names, kept int) {
+	var dropped []string
+	for i := range raw {
+		if _, ok := incoming(channel, &raw[i], n); !ok {
+			dropped = append(dropped, "subtype="+raw[i].SubType)
+		}
+	}
+	a.log.Debug("history: messages not shown", "room", room, "fetched", len(raw), "kept", kept, "dropped", dropped)
 }
 
 // conversation is the connected workspace a room is in, and its channel ID there.

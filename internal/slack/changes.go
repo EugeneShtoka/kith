@@ -46,8 +46,11 @@ func (a *Adapter) onEdited(ctx context.Context, w *workspace, e *slackgo.Message
 	msg.Edited = true
 	msg.RevisionID = messageID(w.creds.Team, e.Channel, e.Timestamp) // the change's own ts
 	if a.cache != nil {
-		if _, ok := a.record(ctx, w, msg.RoomID, []domain.Message{msg}); ok && a.onChanged != nil {
-			a.onChanged(msg.RoomID)
+		if _, ok := a.record(ctx, w, msg.RoomID, []domain.Message{msg}); ok {
+			a.keepFile(ctx, msg, sub) // a file deleted from the message takes its source
+			if a.onChanged != nil {
+				a.onChanged(msg.RoomID)
+			}
 		}
 	}
 	emit(a, a.messages, msg)

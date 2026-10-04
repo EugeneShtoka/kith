@@ -24,7 +24,7 @@ type fakeSlack struct {
 	limited map[string]int // how many more times a method answers 429 first
 }
 
-func newFakeSlack(t *testing.T) (*fakeSlack, *slackgo.Client) {
+func newFakeSlack(t *testing.T, options ...slackgo.Option) (*fakeSlack, *slackgo.Client) {
 	t.Helper()
 	f := &fakeSlack{methods: map[string]func(map[string]string) any{}, asked: map[string][]map[string]string{}, limited: map[string]int{}}
 	f.methods["users.info"] = func(form map[string]string) any {
@@ -60,7 +60,7 @@ func newFakeSlack(t *testing.T) (*fakeSlack, *slackgo.Client) {
 		_ = json.NewEncoder(rw).Encode(answer(form))
 	}))
 	t.Cleanup(srv.Close)
-	return f, slackgo.New("xoxc-test", slackgo.OptionAPIURL(srv.URL+"/api/"))
+	return f, slackgo.New("xoxc-test", append([]slackgo.Option{slackgo.OptionAPIURL(srv.URL + "/api/")}, options...)...)
 }
 
 func (f *fakeSlack) on(method string, answer func(form map[string]string) any) {
