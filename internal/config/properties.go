@@ -31,6 +31,7 @@ const (
 	PropertyInt
 	PropertyOptionalInt
 	PropertyFloat
+	PropertyOptionalFloat
 	PropertyText
 	// PropertyList is a list of text entries.
 	PropertyList
@@ -107,6 +108,8 @@ func kindOf(t reflect.Type) (PropertyKind, bool) {
 		return PropertyOptionalInt, true
 	case t.Kind() == reflect.Float64:
 		return PropertyFloat, true
+	case t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Float64:
+		return PropertyOptionalFloat, true
 	case t.Kind() == reflect.String:
 		return PropertyText, true
 	case t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.String:
@@ -143,18 +146,24 @@ func (c Config) Value(path string) (text string, set, ok bool) {
 	if !ok || !isProperty(path) {
 		return "", false, false
 	}
+	text, set = valueText(v)
+	return text, set, true
+}
+
+// valueText is a property field's value as text, and whether it is set.
+func valueText(v reflect.Value) (text string, set bool) {
 	switch v.Kind() {
 	case reflect.Pointer:
 		if v.IsNil() {
-			return "", false, true
+			return "", false
 		}
-		return fmt.Sprint(v.Elem().Interface()), true, true
+		return fmt.Sprint(v.Elem().Interface()), true
 	case reflect.Slice:
-		return strings.Join(v.Interface().([]string), ", "), v.Len() > 0, true //nolint:forcetypeassert // kindOf admits []string alone
+		return strings.Join(v.Interface().([]string), ", "), v.Len() > 0 //nolint:forcetypeassert // kindOf admits []string alone
 	case reflect.Float64:
-		return strconv.FormatFloat(v.Float(), 'f', -1, 64), !v.IsZero(), true
+		return strconv.FormatFloat(v.Float(), 'f', -1, 64), !v.IsZero()
 	default:
-		return fmt.Sprint(v.Interface()), !v.IsZero(), true
+		return fmt.Sprint(v.Interface()), !v.IsZero()
 	}
 }
 
@@ -174,6 +183,11 @@ func (c *Config) SetValue(path, text string) error {
 	if !ok || !isProperty(path) {
 		return fmt.Errorf("config: %s is not a setting", path)
 	}
+	return setText(v, text)
+}
+
+// setText parses text into a property field by its kind; "" zeroes it.
+func setText(v reflect.Value, text string) error {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		v.SetZero()
@@ -192,12 +206,12 @@ func (c *Config) SetValue(path, text string) error {
 			return fmt.Errorf("%q is not a whole number", text)
 		}
 		setScalar(v, reflect.ValueOf(n))
-	case PropertyFloat:
+	case PropertyFloat, PropertyOptionalFloat:
 		f, err := strconv.ParseFloat(text, 64)
 		if err != nil {
 			return fmt.Errorf("%q is not a number", text)
 		}
-		v.SetFloat(f)
+		setScalar(v, reflect.ValueOf(f))
 	case PropertyText:
 		v.SetString(text)
 	case PropertyList:
@@ -209,7 +223,7 @@ func (c *Config) SetValue(path, text string) error {
 		}
 		v.Set(reflect.ValueOf(entries))
 	default:
-		return fmt.Errorf("config: %s is not a setting", path)
+		return fmt.Errorf("config: %s is not a setting", v.Type())
 	}
 	return nil
 }
@@ -250,7 +264,7 @@ var (
 	// tableLine is a [table] header; an [[array]] (live or commented) ends the keys of
 	// the table before it.
 	tableLine = regexp.MustCompile(`^\[([a-z_.]+)\]\s*(#.*)?$`)
-	arrayLine = regexp.MustCompile(`^(?:# ?)?\[\[`)
+	arrayLine = regexp.MustCompile(`^(?:# ?)?\[\[([a-z_.]+)\]\]`)
 	// keyLine is `key = value`, or `# key = value` for a default left commented out;
 	// an example inside a comment is indented further ("#   key = …") and is no key.
 	keyLine = regexp.MustCompile(`^(?:# ?)?([a-z_0-9]+)\s*=\s*(.*)$`)
@@ -288,7 +302,8 @@ type docReader struct {
 	headers map[string][]string // each table's header comment, for keys it lists but never writes
 
 	table           string
-	inArray         bool     // inside an [[array]] block, whose keys are no properties
+	inArray         bool     // inside an [[array]] block, whose keys are its records' fields
+	array           string   // that block's table
 	exampleArray    bool     // …a commented one, which ends at the next blank line
 	header, own     []string // the table header's comment; the comment since the last key
 	para            []string // the comment opening the paragraph
@@ -309,13 +324,21 @@ func (r *docReader) line(line string) {
 		}
 	case arrayLine.MatchString(line):
 		r.inArray, r.exampleArray = true, strings.HasPrefix(line, "#")
+		r.array = arrayLine.FindStringSubmatch(line)[1]
+		if _, ok := r.docs[r.array]; !ok && len(r.own) > 0 {
+			r.docs[r.array] = doc{text: joinDoc(r.own)} // the table's text, above its first record
+		}
 		r.own, r.para, r.headerParagraph = nil, nil, false
 	case tableLine.MatchString(line):
 		r.table = tableLine.FindStringSubmatch(line)[1]
 		r.inArray, r.exampleArray, r.header, r.headerParagraph = false, false, r.own, true
 		r.headers[r.table], r.own, r.para = r.own, nil, nil
 	default:
-		if m := keyLine.FindStringSubmatch(line); m != nil && !r.inArray && isValue(m[2]) {
+		if m := keyLine.FindStringSubmatch(line); len(m) > 2 && isValue(m[2]) {
+			if r.inArray {
+				r.field(m[1], m[2])
+				return
+			}
 			r.key(m[1], m[2], strings.HasPrefix(line, "#"))
 			return
 		}
@@ -326,6 +349,21 @@ func (r *docReader) line(line string) {
 			}
 		}
 	}
+}
+
+// field records a field of a record table from its example: its trailing comment, else
+// the comment above it; the first example of a field that says something wins.
+func (r *docReader) field(name, rest string) {
+	path := r.array + "." + name
+	_, trailing := splitTrailing(rest)
+	text := trailing
+	if text == "" {
+		text = joinDoc(r.own)
+	}
+	if d, seen := r.docs[path]; !seen || (d.text == "" && text != "") {
+		r.docs[path] = doc{text: text}
+	}
+	r.own = nil
 }
 
 // listLine gathers a list written over several lines, to its closing bracket.

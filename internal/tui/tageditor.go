@@ -34,6 +34,7 @@ const (
 	tagPicked   = "picked"
 	tagExcluded = "excluded"
 	tagClaimed  = "claimed"
+	tagFirst    = "first_names" // its rooms' senders by first name ([[display.space_rule]])
 	tagDelete   = "delete"
 	tagNew      = "\x00new" // the list's "New tag" row; no tag can be named this
 	tagAdd      = "add"
@@ -128,6 +129,7 @@ func (m Model) tagOpen(name string) Model {
 		{label: "Picked", detail: m.entriesWords(t.Picked), value: tagPicked},
 		{label: "Excluded", detail: m.entriesWords(t.Excluded), value: tagExcluded},
 		{label: "Counts as unread", detail: onOff(t.Counts()), value: countsUnreadKey},
+		{label: "First names only", detail: onOff(firstNamesIn(m.conf.base, domain.TagEntry(t.Name))), value: tagFirst},
 	}
 	for _, p := range tagProperties {
 		items = append(items, pickerItem{label: p.label, detail: onOff(*p.field(&t)), value: p.key})
@@ -204,6 +206,12 @@ func (m Model) chooseTagRow(value string) (Model, tea.Cmd) {
 	case tagDelete:
 		m.confirm = confirmState{action: pendingDeleteTag, group: name}
 		return m, nil
+	case tagFirst:
+		place := domain.TagEntry(name)
+		now := !firstNamesIn(m.conf.base, place)
+		cfg := m.conf.base.Clone()
+		cfg.Display.SpaceRules = withFirstNames(cfg.Display.SpaceRules, place, now)
+		return m.applyTagConfig(cfg, name, isolate(name)+": first names only: "+onOff(now))
 	case countsUnreadKey:
 		now := !m.conf.base.Tags[m.configTag(name)].Counts()
 		return m.editTag(name, func(t *config.Tag) {

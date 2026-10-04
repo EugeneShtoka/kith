@@ -555,7 +555,7 @@ func (m Model) settingsHint() (string, bool) {
 	case pickerSetting:
 		hints := []hint{move, keyed(m.keys.keyHint(scopePicker, actAcceptPick), "change")}
 		if item, ok := m.picker.selected(); ok {
-			if s, ok := findSetting(item.value); ok && s.kind == settingNumber {
+			if s, ok := m.setting(item.value); ok && s.kind == settingNumber {
 				hints = append(hints, keyed(m.keys.keyHint(scopePicker, actIncrease)+"/"+m.keys.keyHint(scopePicker, actDecrease), "step"))
 			}
 		}

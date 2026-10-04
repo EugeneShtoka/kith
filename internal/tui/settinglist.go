@@ -17,7 +17,7 @@ const settingAdd = "\x00add"
 
 // settingEntriesOpen shows a list setting's entries, the cursor on the row valued at.
 func (m Model) settingEntriesOpen(key, at string) Model {
-	s, ok := findSetting(key)
+	s, ok := m.setting(key)
 	if !ok {
 		return m.settingsTop(m.choosing.settingGroup)
 	}
@@ -26,10 +26,10 @@ func (m Model) settingEntriesOpen(key, at string) Model {
 	for i, e := range entries {
 		items = append(items, pickerItem{label: e, value: strconv.Itoa(i), match: e})
 	}
-	items = append(items, pickerItem{label: "Add an entry", value: settingAdd, match: "add"})
+	items = append(items, pickerItem{label: "Add an entry", value: settingAdd, match: "Add an entry"})
 	m.choosing.setting, m.choosing.settingGroup = key, s.group
 	spec := pickerSpecs[pickerSettingEntries]
-	spec.title = "Settings: " + groupLabel(s.group) + " · " + s.label
+	spec.title = "Settings: " + m.settingGroupLabel(s.group) + " · " + s.label
 	m.picker = newPickerWith(pickerSettingEntries, spec, items).at(at)
 	return m
 }
@@ -37,10 +37,10 @@ func (m Model) settingEntriesOpen(key, at string) Model {
 // settingEntries is a list setting's entries in force: what the config sets, else
 // default.toml's, so changing one entry of a default list starts from all of it.
 func (m Model) settingEntries(key string) []string {
-	if p, ok := propertyOf(key); ok {
-		return listNow(m.conf.base, p)
+	if s, ok := m.setting(key); ok && s.entries != nil {
+		return s.entries(m.conf.base)
 	}
-	return m.conf.base.List(key)
+	return nil
 }
 
 // chooseSettingEntry types the entry under the cursor on its row, or a new one on the
@@ -108,12 +108,15 @@ func (m Model) moveSettingEntry(delta int) (Model, tea.Cmd) {
 // cursor on the row valued at; a config that refuses them says why and changes
 // nothing.
 func (m Model) writeSettingList(key string, entries []string, at string) (Model, tea.Cmd) {
-	s, ok := findSetting(key)
+	s, ok := m.setting(key)
 	if !ok {
 		return m, nil
 	}
 	cfg := m.conf.base.Clone()
-	if err := cfg.SetList(key, entries); err != nil {
+	if s.setEntries == nil {
+		return m, nil
+	}
+	if err := s.setEntries(&cfg, entries); err != nil {
 		return m.settingEntriesOpen(key, at).sayErr(s.label, err), nil
 	}
 	next, cmd := m.applyConfig(cfg, s.label+": "+s.show(cfg))
