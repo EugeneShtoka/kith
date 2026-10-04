@@ -152,3 +152,25 @@ func TestARefusalIsShownAsWritten(t *testing.T) {
 		t.Errorf("status = %q, want the refusal's own words", got)
 	}
 }
+
+// /unban lifts a ban in the room written in: with the person named it goes straight
+// out (it is not asked first, as invite is not); with nobody named it asks who.
+func TestUnbanIsACommand(t *testing.T) {
+	t.Parallel()
+
+	m, w := warding(t)
+	room, _ := m.currentRoom()
+	handled, next, cmd := m.composerCommand("/unban @dana:x", room)
+	if !handled {
+		t.Fatal("/unban was not taken as a command")
+	}
+	_ = deliver(t, next, cmd)
+	if w.unbanned != "@dana:x" {
+		t.Errorf("unbanned %q, want @dana:x", w.unbanned)
+	}
+
+	_, asked, _ := m.composerCommand("/unban", room)
+	if asked.prompt.kind != promptUnban || asked.aimedAt.member != room.ID {
+		t.Errorf("/unban alone: prompt %v aimed at %q, want the unban prompt for %s", asked.prompt.kind, asked.aimedAt.member, room.ID)
+	}
+}

@@ -194,7 +194,7 @@ func (m Model) fileTags(room domain.Room, filings []tagFiling) (Model, tea.Cmd) 
 		said = append(said, "out of "+strings.Join(outOf, ", "))
 	}
 	was := m.roomCursor()
-	next, cmd := m.applyConfig(cfg, "", m.roomName(room)+" is "+strings.Join(said, ", and "))
+	next, cmd := m.applyConfig(cfg, m.roomName(room)+" is "+strings.Join(said, ", and "))
 	moved, move := next.keepCursorNearby(was)
 	return moved, tea.Batch(cmd, move)
 }

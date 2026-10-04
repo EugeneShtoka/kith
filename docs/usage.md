@@ -61,12 +61,11 @@ In the rail:
 | Key | Does |
 | --- | --- |
 | `a` | Give the group a name only you see (empty clears it) |
-| `K` / `J` | Move it up / down |
-| `H` / `S` | Hide it / bring a hidden group back |
-| `F` | Toggle first-names-only for senders in this space |
 | `b` | Set a notification rule for the whole space — see [Notifications](notifications.md) |
 | `m` | Mark every unread room in the group read (asks first) |
-| `B` | Bind a key sequence that jumps to this group |
+
+The rail's order and hidden rows are `[display.rail]` (`order`, `hidden`); a space's or
+tag's first-names-only rule is a `[[display.space_rule]]`.
 
 These write to your config for you (a tag is renamed in its `[[tag]]`, not with `a`;
 name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` takes a space's name or a tag as `tag:<name>`, with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing. Without an `order`, tags come first, then spaces.
@@ -171,7 +170,7 @@ Walking the list with `j`/`k` previews each room's timeline beside it; `enter` (
 | `3` | Unread count; drawn in the alert color when something unread names you |
 | `·3` | Unread in a room a `counts_unread = false` tag holds (Archived, in the starter config) — shown, but not counted anywhere else |
 | `✎` | You have an unsent draft here |
-| `→` | The room was upgraded; `>` goes to its replacement |
+| `→` | The room was upgraded; `/replacement` goes to its replacement |
 | `✉` | An invitation: `y` accepts, `d` declines (asks first) |
 
 What a badge counts is `[display] unread`: `messages` (the default) counts unread messages from the local cache; `notifications` uses the homeserver's count of what your push rules would have notified.
@@ -236,7 +235,7 @@ The **switcher** works from anywhere, mid-sentence included; your draft stays wi
 
 **Back and forward** record every room you actually open, however you got there — the switcher, a jump, a search hit, a link. Previewing rooms by walking the list is not recorded, and neither are overlays. Two keys to alternate between conversations is the answer to wanting two rooms on screen at once.
 
-**Jump bindings** are for the handful of rooms you open every day. Press `B` on a room in the room list or a group in the rail, then type a sequence such as `g w`. It is saved as a `[[keys.jump]]` entry; rooms are recorded by ID, so a sequence means exactly one conversation even when the same person is reachable under one name over several bridges. `?` lists every jump resolved to the place it leads to. Leave the prompt empty to remove the binding. Sequences that collide with a built-in key are refused — see [Keybindings](keybindings.md#places-and-commands).
+**Jump bindings** are for the handful of rooms you open every day. Run `:shortcut` (or `/shortcut` in the composer) and type a sequence such as `g w`; it binds the open room, and `tab` in the prompt moves it to the space or tag selected in the rail. `:shortcut g w` binds at once. It is saved as a `[[keys.jump]]` entry; rooms are recorded by ID, so a sequence means exactly one conversation even when the same person is reachable under one name over several bridges. `?` lists every jump resolved to the place it leads to. Leave the prompt empty to remove the binding. Sequences that collide with a built-in key are refused — see [Keybindings](keybindings.md#places-and-commands).
 
 ## The timeline
 
@@ -256,7 +255,7 @@ The timeline shows the open room with a **message cursor** (`▸`) that starts o
 
 A rule with the date separates each day. **Right-to-left and mixed-direction text** (Hebrew, Arabic, and either mixed with English) is laid out in the right order, including names, mentions and formatting.
 
-**A room that reads right to left can be mirrored**: the name and the time move to the right. Each message keeps its own direction: Hebrew or Arabic words sit against the name, English ones read from the left edge, and a message's quote, reactions and pictures go with it. What has no words of its own reads as the room does: "(deleted)", a file without a caption, a message of only links or emoji, and one that is only a bridge's English header ("↷ Forwarded" on a forwarded file, "Sent an album with 2 images:"). Set places by hand in `[display.direction]` (`rtl = ["space:Friends"]`, `ltr = [...]`, the place vocabulary; the narrowest entry wins), or turn on `auto = true` to guess each room from its newest messages when it opens. The guess is kept until you leave the room, so it never flips while you read. `D` in the room list, or `/direction`, cycles the room under the cursor: right to left, left to right, back to what the section says.
+**A room that reads right to left can be mirrored**: the name and the time move to the right. Each message keeps its own direction: Hebrew or Arabic words sit against the name, English ones read from the left edge, and a message's quote, reactions and pictures go with it. What has no words of its own reads as the room does: "(deleted)", a file without a caption, a message of only links or emoji, and one that is only a bridge's English header ("↷ Forwarded" on a forwarded file, "Sent an album with 2 images:"). Set places by hand in `[display.direction]` (`rtl = ["space:Friends"]`, `ltr = [...]`, the place vocabulary; the narrowest entry wins), or turn on `auto = true` to guess each room from its newest messages when it opens. The guess is kept until you leave the room, so it never flips while you read. `/direction` cycles the room you are writing in: right to left, left to right, back to what the section says.
 
 An upgraded room continues into the room it replaced: scrolling off the top of the new room carries on into the old one.
 
@@ -374,7 +373,7 @@ Names you give are local — only you see them — and live in your config.
 
 - `a` on a message names its **sender**: pick an existing person to merge this account into (for example the same contact over several bridges), or a new one, then a color. This writes a `[[display.identity]]`.
 - `a` on a room or rail group gives it a name of your own (`[[display.name]]`); `alt+r` names a thread.
-- `F` in the rail shows first names only in that space (`[[display.space_rule]]`).
+- `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag).
 - `[display] max_name_length` caps the sender column; `color_messages = true` tints message bodies in the sender's color.
 
 Every sender keeps a stable color across restarts.
@@ -387,14 +386,11 @@ In the room list:
 | --- | --- |
 | `p` | The people in this room — the only place a Matrix ID is browsable. In it: `a` name, `r` remove, `b` ban (both ask), `i` to start filtering |
 | `i` | Invite someone by Matrix ID (`/invite` from the composer) |
-| `U` | Lift a ban, by Matrix ID |
 | `J` | Join a room by ID or alias (`:join` from the command line) |
 | `L` | Leave the selected room (asks first; `/leave` from the composer) |
-| `n` | Create a room or a space |
 | `S` | File the room into spaces or take it out: `space` ticks, `enter` applies |
-| `>` | Go to the room that replaced an upgraded one |
 
-`n` offers four kinds: a private encrypted room, a private unencrypted room (for bridges and bots that cannot read encrypted rooms), a public room, and a space. A room created while a space is selected in the rail is filed into that space. Encryption is decided here — a room is encrypted from its first event or not at all.
+`/unban @user:server` lifts a ban, `/replacement` goes to the room that replaced an upgraded one, and `:new` creates a room or a space. It offers four kinds: a private encrypted room, a private unencrypted room (for bridges and bots that cannot read encrypted rooms), a public room, and a space. A room created while a space is selected in the rail is filed into that space. Encryption is decided here — a room is encrypted from its first event or not at all.
 
 Management actions check your power level first, so a refusal names the level you would need. Filing writes both sides of the relationship (the space's child and the room's parent), so the room is filed for every client. `[display] filing_spaces` controls which spaces `S` offers.
 
@@ -408,7 +404,7 @@ Who else is typing is shown on the rule above the composer. `[display] typing = 
 
 ## Notifications and silence
 
-`ctrl+n` turns on do-not-disturb and `alt+n` mutes only the sound; each asks what to silence and for how long, and either key turns it all back off. `W` (or `/why`) explains why the open room did or did not notify you. Rules, quiet hours and sounds are in [Notifications](notifications.md).
+`ctrl+n` turns on do-not-disturb and `alt+n` mutes only the sound; each asks what to silence and for how long, and either key turns it all back off. `/why` explains why the open room did or did not notify you. Rules, quiet hours and sounds are in [Notifications](notifications.md).
 
 ## Settings
 

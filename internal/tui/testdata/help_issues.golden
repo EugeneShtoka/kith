@@ -15,7 +15,6 @@
   q                quit
   ,                settings, showing what each is set to
   :                command line — global commands, as / is for this room
-  W                why is it quiet — every rule in force for this room
   /                search this room
   ctrl+f           search every room
   @                every message that names you, newest first
@@ -37,12 +36,7 @@
 
 [1;38;2;102;135;153mSpaces rail[m
   a                name this group
-  K                move it up
-  J                move it down
-  H                hide it from the rail
-  S                bring a hidden group back
   b                notification rule for this space
-  B                give this space a key sequence to reach it by
   m                mark every unread room in this group read
 
 [1;38;2;102;135;153mRoom list[m
@@ -61,16 +55,11 @@
   b                notification rule for this room
   (unbound)        join a room by ID or alias
   L                leave the selected room
-  B                give this room a key sequence to reach it by
   m                mark this room read without opening it
   M                mark this room unread, or clear the mark
   i                invite someone to this room
-  U                lift a ban on this room
-  n                create a room or a space
   S                file this room into a space or a tag, or take it out of one
-  D                read this room right to left, left to right, or as configured
   !                spam / not spam: move this conversation out of the way, or back
-  >                go to the room that replaced this one
 
 [1;38;2;102;135;153mTimeline — message cursor[m
   i                compose a message
@@ -249,7 +238,10 @@
   /caught                        what the spam filters catch here — tab widens it
   /spam                          move this conversation into Spam, or take it out — out of the counts, still readable
   /direction                     read this room right to left, then left to right, then as [display.direction] says
+  /shortcut [keys]               a key sequence that goes to this room ("g w"); none asks — tab there binds the rail's space instead
+  /replacement                   go to the room that replaced this one, after an upgrade
   /invite <@user:server>         invite somebody to the room you are writing in
+  /unban [@user:server]          lift a ban in the room you are writing in; none asks who
   /leave                         leave the room you are writing in (asks first)
   //text            sends a literal leading slash
   anything else starting with a slash is a message that starts with a slash

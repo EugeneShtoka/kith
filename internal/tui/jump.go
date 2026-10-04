@@ -263,30 +263,74 @@ func (m Model) groupNamed(name string) (string, bool) {
 	return "", false
 }
 
-// Writing a binding from inside the app: `s` on a room or rail group records the place
-// under the cursor, since a room target is an ID the UI never shows.
+// Writing a binding from inside the app: :shortcut (and /shortcut, for the room written
+// in) binds a room or the space or tag selected in the rail. A room is recorded by ID,
+// which the UI never shows, so it is bound from where it is open.
 
-// askRoomBinding asks for the sequence to reach the room under the room list's
-// cursor by.
-func (m Model) askRoomBinding() (Model, tea.Cmd) {
-	if row, ok := m.selectedRow(); ok && row.isThread() {
-		return m.say("a thread has no shortcut of its own — bind its room"), nil
+// bindShortcut is :shortcut and /shortcut: keys becomes the sequence that reaches the
+// first place it can bind — room, else the open room, else the rail's space or tag.
+// With no keys it asks, prefilled with the one the place has, and tab moves the
+// prompt to the next place.
+func (m Model) bindShortcut(keys string, room *domain.Room) (Model, tea.Cmd) {
+	m.compose.input, m.compose.drafted = "", nil
+	targets := m.bindingTargets(room)
+	if len(targets) == 0 {
+		return m.say("nothing to bind a shortcut to — open a room, or select a space or tag"), nil
 	}
-	room, ok := m.currentRoom()
-	if !ok {
-		return m, nil
+	m.aimedAt.bindings = targets
+	if strings.TrimSpace(keys) == "" {
+		return m.askBinding(targets[0])
 	}
-	return m.askBinding(domain.JumpTarget{Kind: domain.JumpRoom, Name: string(room.ID)})
+	m.aimedAt.binding = targets[0]
+	return m.submitJumpBinding(keys)
 }
 
-// askSpaceBinding asks for the sequence to reach the rail group under the cursor by;
-// spaces are recorded by name.
-func (m Model) askSpaceBinding() (Model, tea.Cmd) {
-	entry, ok := m.currentGroup()
-	if !ok {
-		return m, nil
+// bindingTargets are the places a shortcut can be bound to here, in the order tab
+// cycles them: the room (else the open one), then the space or tag selected in the
+// rail.
+func (m Model) bindingTargets(room *domain.Room) []domain.JumpTarget {
+	var targets []domain.JumpTarget
+	if room == nil {
+		if open, ok := m.currentRoom(); ok {
+			room = &open
+		}
 	}
-	return m.askBinding(domain.JumpTarget{Kind: domain.JumpSpace, Name: entry.key})
+	if room != nil && !room.IsInvite() {
+		targets = append(targets, domain.JumpTarget{Kind: domain.JumpRoom, Name: string(room.ID)})
+	}
+	if entry, ok := m.currentGroup(); ok && (isSpaceGroup(entry.key) || isTagGroup(entry.key)) {
+		targets = append(targets, domain.JumpTarget{Kind: domain.JumpSpace, Name: entry.key})
+	}
+	return targets
+}
+
+// cycleBindingTarget is tab in the shortcut prompt: the next place, the prompt holding
+// the sequence it has.
+func (m Model) cycleBindingTarget() (Model, tea.Cmd) {
+	if next, ok := m.nextBindingTarget(); ok {
+		return m.askBinding(next)
+	}
+	return m, nil
+}
+
+// nextBindingTarget is the place tab moves the shortcut prompt to; false when there
+// is no other.
+func (m Model) nextBindingTarget() (domain.JumpTarget, bool) {
+	targets := m.aimedAt.bindings
+	if len(targets) < 2 {
+		return domain.JumpTarget{}, false
+	}
+	for i, t := range targets {
+		if t == m.aimedAt.binding {
+			return targets[(i+1)%len(targets)], true
+		}
+	}
+	return targets[0], true
+}
+
+// bindingLabel is the shortcut prompt's lead, naming the place it binds.
+func (m Model) bindingLabel() string {
+	return "shortcut for " + m.targetName(m.aimedAt.binding) + " (empty unbinds): "
 }
 
 // askBinding opens the prompt for a place, prefilled with its current sequence.
@@ -323,7 +367,7 @@ func (m Model) samePlace(a, b domain.JumpTarget) bool {
 // submitJumpBinding writes what was typed; an empty sequence unbinds the place.
 func (m Model) submitJumpBinding(input string) (Model, tea.Cmd) {
 	target := m.aimedAt.binding
-	m.aimedAt.binding = domain.JumpTarget{}
+	m.aimedAt.binding, m.aimedAt.bindings = domain.JumpTarget{}, nil
 	if target.Kind == domain.JumpNone {
 		return m, nil
 	}
@@ -362,7 +406,7 @@ func (m Model) applyJumps(jumps config.Jumps, done string) (Model, tea.Cmd) {
 		jumps = nil
 	}
 	cfg.Keys.Jump = jumps
-	return m.applyConfig(cfg, "", done)
+	return m.applyConfig(cfg, done)
 }
 
 // targetName is what the status line calls a target: its local name.

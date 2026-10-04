@@ -27,7 +27,6 @@ const (
 	actJumpBack
 	actJumpForward
 	// actBindJump gives the room or space under the cursor a [keys.jump] sequence.
-	actBindJump
 	actFocusNext
 	actFocusPrev
 	actToggleDND
@@ -110,14 +109,9 @@ const (
 	actTopic
 	actStar
 	actHistory
-	actMoveUp
-	actMoveDown
-	actHide
-	actShowHidden
 	actNotifyRule
 	actSettings
 	actCommand
-	actWhy
 	// actRedraw clears and redraws the screen, removing cells left behind when the
 	// terminal laid text out differently than measured.
 	actRedraw
@@ -132,15 +126,11 @@ const (
 	actMarkRead
 	actMarkUnread
 	actInvite
-	actUnban
-	actNewRoom
 	// actKick and actBan act on the person under a picker's cursor.
 	actKick
 	actBan
 	actSpaces
-	actDirection
 	actSpam
-	actGoReplacement
 	actOpenThread
 	actStartThread
 	actListThreads
@@ -348,7 +338,6 @@ var keyActions = []keyAction{
 	{scopeCommand, actQuit, "quit"},
 	{scopeCommand, actSettings, "settings"},
 	{scopeCommand, actCommand, "command"},
-	{scopeCommand, actWhy, "why"},
 	{scopeCommand, actSearchRoom, "search.room"},
 	{scopeCommand, actSearchAll, "search.all"},
 	{scopeCommand, actMentions, "search.mentions"},
@@ -373,12 +362,7 @@ var keyActions = []keyAction{
 	{scopeNav, actScrollNewest, "nav.scroll_newest"},
 
 	{scopeRail, actName, "rail.name"},
-	{scopeRail, actMoveUp, "rail.move_up"},
-	{scopeRail, actMoveDown, "rail.move_down"},
-	{scopeRail, actHide, "rail.hide"},
-	{scopeRail, actShowHidden, "rail.show_hidden"},
 	{scopeRail, actNotifyRule, "rail.notify_rule"},
-	{scopeRail, actBindJump, "rail.bind_jump"},
 	{scopeRail, actMarkRead, "rail.mark_read"},
 
 	{scopeRooms, actAccept, "rooms.accept"},
@@ -391,16 +375,11 @@ var keyActions = []keyAction{
 	{scopeRooms, actNotifyRule, "rooms.notify_rule"},
 	{scopeRooms, actJoin, "rooms.join"},
 	{scopeRooms, actLeave, "rooms.leave"},
-	{scopeRooms, actBindJump, "rooms.bind_jump"},
 	{scopeRooms, actMarkRead, "rooms.mark_read"},
 	{scopeRooms, actMarkUnread, "rooms.mark_unread"},
 	{scopeRooms, actInvite, "rooms.invite"},
-	{scopeRooms, actUnban, "rooms.unban"},
-	{scopeRooms, actNewRoom, "rooms.new"},
 	{scopeRooms, actSpaces, "rooms.spaces"},
-	{scopeRooms, actDirection, "rooms.direction"},
 	{scopeRooms, actSpam, "rooms.spam"},
-	{scopeRooms, actGoReplacement, "rooms.go_replacement"},
 
 	{scopeTimeline, actInsert, "timeline.insert"},
 	{scopeTimeline, actOpenEmoji, "emoji.open"},

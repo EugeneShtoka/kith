@@ -22,10 +22,16 @@ func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 	}
 	clientWide := map[string]bool{
 		"verify": true, "todo": true, "help": true,
-		"settings": true, "dnd": true, "join": true, "go": true,
+		"settings": true, "dnd": true, "join": true, "go": true, "new": true,
 	}
+	// both act on the room written in as /, and on the open room or the rail's place
+	// as : (tab moves between them).
+	both := map[string]bool{"shortcut": true}
 	want := map[string]bool{}
 	for name := range lists {
+		want[name] = true
+	}
+	for name := range both {
 		want[name] = true
 	}
 	for name := range clientWide {
@@ -59,6 +65,11 @@ func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 	for name := range lists {
 		if !slashNames[name] {
 			t.Errorf(":%s opens a list and has no /%s — a list command has both forms", name, name)
+		}
+	}
+	for name := range both {
+		if !slashNames[name] {
+			t.Errorf(":%s has no /%s, which it is the room-free half of", name, name)
 		}
 	}
 	for name := range clientWide {
@@ -162,9 +173,10 @@ func TestCommandMenuIsDrawnBelowTheComposer(t *testing.T) {
 	m, _ = press(t, m, keyText(":"))
 
 	lines := strings.Split(stripStyles(m.View().Content), "\n")
+	first := m.completion.candidates[0].text
 	menu, composer := -1, -1
 	for i, line := range lines {
-		if strings.Contains(line, "scheduled") {
+		if strings.Contains(line, first) {
 			menu = i
 		}
 		if strings.Contains(line, "NORMAL") {

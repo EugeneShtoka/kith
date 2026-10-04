@@ -1125,7 +1125,6 @@ paste        = "ctrl+v"        # paste the terminal's clipboard, from anywhere
 help         = "?"             # this help
 settings     = "comma"         # settings, showing what each is set to
 command      = ":"             # command line — global commands, as / is for this room
-why          = "W"             # why is it quiet — every rule in force for this room
 focus_next   = "tab"           # next pane
 focus_prev   = "shift+tab"     # previous pane
 # Works while typing too, as do the pane, redraw and jump keys.
@@ -1138,8 +1137,9 @@ jump_to      = "ctrl+k"        # go to a room, person or space
 jump_back    = "ctrl+o"        # back to the room you jumped from
 jump_forward = "ctrl+i,alt+o"  # forward again
 
-# Key sequences bound to places. Write them from the app with `B` on a room or rail
-# row. Targets:
+# Key sequences bound to places. Write them from the app with :shortcut (tab moves
+# between the open room and the rail's space), or /shortcut for the room written in.
+# Targets:
 #
 #   room:<!id:server>  a room, by ID (names are ambiguous across bridges)
 #   space:<space>      a rail group, by name
@@ -1155,20 +1155,13 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 #   chord  = "g d"
 #   target = "room:!dana:example.org"
 
-# The rail. The first move writes the whole order out, after which a newly joined
-# space appends at the end.
+# The rail. Its order and hidden rows are [display.rail]'s.
 [keys.rail]
 # A local name; an empty one clears it.
 name        = "a"  # name this group
-move_up     = "K"  # move it up
-move_down   = "J"  # move it down
-hide        = "H"  # hide it from the rail
-show_hidden = "S"  # bring a hidden group back
 notify_rule = "b"  # notification rule for this space
 # Asks first.
 mark_read   = "m"  # mark every unread room in this group read
-# Writes a [[keys.jump]] entry.
-bind_jump   = "B"  # give this space a key sequence to reach it by
 
 # Cursor motion, shared by every pane.
 [keys.nav]
@@ -1193,39 +1186,28 @@ scroll_newest  = "end"            # jump to the latest
 # The room list. Consulted before [keys.nav]. accept/reject apply to invitations,
 # leave to joined rooms; leave and reject ask first.
 [keys.rooms]
-join           = "J"       # join a room by ID or alias
-leave          = "L"       # leave the selected room
-accept         = "y"       # accept the selected invitation
-reject         = "d"       # reject the selected invitation
-people         = "p"       # list the people in this room
+join          = "J"       # join a room by ID or alias
+leave         = "L"       # leave the selected room
+accept        = "y"       # accept the selected invitation
+reject        = "d"       # reject the selected invitation
+people        = "p"       # list the people in this room
 # A local name; an empty one clears it.
-name           = "a"       # name this room
-notify_rule    = "b"       # notification rule for this room
-mark_read      = "m"       # mark this room read without opening it
-# Writes a [[keys.jump]] entry; an empty sequence at the prompt unbinds it.
-bind_jump      = "B"       # give this room a key sequence to reach it by
+name          = "a"       # name this room
+notify_rule   = "b"       # notification rule for this room
+mark_read     = "m"       # mark this room read without opening it
 # MSC2867, synced to your other clients.
-mark_unread    = "M"       # mark this room unread, or clear the mark
-# An upgraded room is marked "→".
-go_replacement = ">"       # go to the room that replaced this one
+mark_unread   = "M"       # mark this room unread, or clear the mark
 # Tick with space, apply with enter.
-spaces         = "S"       # file this room into a space or a tag, or take it out of one
-# Filed into the selected space. Encryption is chosen here.
-new            = "n"       # create a room or a space
+spaces        = "S"       # file this room into a space or a tag, or take it out of one
 # Prompts for an @user:server.
-invite         = "i"       # invite someone to this room
-unban          = "U"       # lift a ban on this room
-view_media     = "v"       # open this room's pictures in an image viewer, newest first
-# read this room right to left, left to right, or as configured
-# Cycles the room's own entry in [display.direction]; the timeline mirrors, names on the
-# right.
-direction      = "D"
+invite        = "i"       # invite someone to this room
+view_media    = "v"       # open this room's pictures in an image viewer, newest first
 # spam / not spam: move this conversation out of the way, or back
 # See [spam].
-spam           = "!"
+spam          = "!"
 # An empty name clears it.
-rename_thread  = "alt+r"   # name the thread under the cursor
-list_threads   = "ctrl+t"  # list the threads in the room under the cursor
+rename_thread = "alt+r"   # name the thread under the cursor
+list_threads  = "ctrl+t"  # list the threads in the room under the cursor
 
 # Room list sorting for the current group, this session only ([display.rooms] holds
 # the defaults). A bare `s` is deliberately unbound so these sequences work.

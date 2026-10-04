@@ -87,7 +87,7 @@ func (m Model) applySpam(spam domain.Spam, done string) (Model, tea.Cmd) {
 	was := m.roomCursor()
 	cfg := m.conf.base.Clone()
 	cfg.Spam.Rooms, cfg.Spam.Except = spam.Entries, spam.Except
-	mdl, cmd := m.applyConfig(cfg, "", done)
+	mdl, cmd := m.applyConfig(cfg, done)
 	moved, move := mdl.keepCursorNearby(was)
 	return moved, tea.Batch(cmd, move)
 }

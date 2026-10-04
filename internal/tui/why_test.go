@@ -67,14 +67,15 @@ func TestWhyExplainsAMute(t *testing.T) {
 	}
 }
 
-// The overlay opens on its key and closes on any key.
+// The overlay opens from /why and closes on any key.
 func TestWhyOverlayOpensAndCloses(t *testing.T) {
 	t.Parallel()
 
 	m, _ := silencing(t)
-	m, _ = press(t, m, keyText("W"))
+	room, _ := m.currentRoom()
+	_, m, _ = m.composerCommand("/why", room)
 	if !m.reader.showing(readerWhy) {
-		t.Fatal("W should open the explanation")
+		t.Fatal("/why should open the explanation")
 	}
 	m, _ = press(t, m, keyText("j"))
 	if m.reader.showing(readerWhy) {

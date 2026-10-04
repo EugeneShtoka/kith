@@ -70,7 +70,7 @@ func TestCacheInvalidatedByConfigReload(t *testing.T) {
 	}
 	cfg := m.conf.base.Clone()
 	cfg.Display.Identities = []config.Identity{{Alias: "Robert", IDs: []string{"@bob:x"}}}
-	next, _ := m.applyConfig(cfg, "", "")
+	next, _ := m.applyConfig(cfg, "")
 	m = next
 	if got := strings.Join(m.layoutRows(), "\n"); !strings.Contains(got, "Robert") {
 		t.Errorf("the reloaded alias was not drawn:\n%s", got)

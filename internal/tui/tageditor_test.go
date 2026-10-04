@@ -31,7 +31,7 @@ func TestRenamingATagFromTheEditor(t *testing.T) {
 	cfg := m.conf.base.Clone()
 	cfg.Notifications.Rules = append(cfg.Notifications.Rules, config.Rule{Match: "tag:Pinned", Show: "all"})
 	cfg.Display.Rail.Order = []string{"tag:Pinned", "*"}
-	m, _ = m.applyConfig(cfg, "", "")
+	m, _ = m.applyConfig(cfg, "")
 	m = m.tagOpen("Pinned")
 
 	m = pickLabel(t, m, "Name")
@@ -141,7 +141,7 @@ func TestDeletingATagFromTheEditor(t *testing.T) {
 
 	cfg := m.conf.base.Clone()
 	cfg.Notifications.Rules = append(cfg.Notifications.Rules, config.Rule{Match: "tag:Drafts", Show: "all"})
-	m, _ = m.applyConfig(cfg, "", "")
+	m, _ = m.applyConfig(cfg, "")
 	m.confirm = confirmState{action: pendingDeleteTag, group: "Drafts"}
 	m, _ = m.resolveConfirm(true)
 	if m.configTag("Drafts") < 0 || !strings.Contains(m.status(), "tag:Drafts") {

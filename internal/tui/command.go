@@ -92,6 +92,15 @@ var commands = []command{
 		},
 	},
 	{
+		name: "shortcut", arg: "[keys]", argOptional: true,
+		summary: "a key sequence that goes to the open room (\"g w\"); none asks — {search.scope} there moves to the rail's space or tag",
+		run:     func(m Model, arg string) (Model, tea.Cmd) { return m.bindShortcut(arg, nil) },
+	},
+	{
+		name: "new", summary: "create a room or a space — in the space selected in the rail",
+		run: noArg(Model.openNewRoom),
+	},
+	{
 		name: "settings", keyScope: scopeCommand, keyAct: actSettings,
 		summary: "the settings screen — the same one the key opens",
 		run:     noArg(Model.openSettings),

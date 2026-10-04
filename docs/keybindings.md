@@ -36,22 +36,15 @@ Client-wide keys. The ones marked *anywhere* work while you are typing too, so t
 | `quit` | `q` | Quit | not while typing |
 | `settings` | `,` (written `comma`) | Settings screen, each row showing its current value | not while typing |
 | `command` | `:` | Command line — client-wide commands (`/` commands act on the open room) | not while typing |
-| `why` | `W` | Explain why the open room is quiet: every notification rule in force | not while typing |
 
 ### `[keys.rail]`
 
-The spaces rail, the left pane. Reordering, hiding and naming are written back to `[display.rail]` and `[[display.name]]` for you — see [Usage](usage.md#the-spaces-rail).
+The spaces rail, the left pane. Naming is written back to `[[display.name]]` for you; the order and hidden rows are `[display.rail]` — see [Usage](usage.md#the-spaces-rail).
 
 | Action | Default | What it does |
 | --- | --- | --- |
 | `name` | `a` | Name this group |
-| `move_up` | `K` | Move it up |
-| `move_down` | `J` | Move it down |
-| `hide` | `H` | Hide it from the rail |
-| `show_hidden` | `S` | Bring a hidden group back |
-| `first_name_only` | `F` | First names only in this space |
 | `notify_rule` | `b` | Notification rule for this space |
-| `bind_jump` | `B` | Give this space a key sequence to reach it by |
 | `mark_read` | `m` | Mark every unread room in this group read |
 
 ### `[keys.nav]`
@@ -89,15 +82,11 @@ The room list, the middle pane. Consulted before `[keys.nav]`. `accept` and `rej
 | `notify_rule` | `b` | Notification rule for this room |
 | `join` | `J` | Join a room by ID or alias |
 | `leave` | `L` | Leave the selected room |
-| `bind_jump` | `B` | Give this room a key sequence to reach it by |
 | `mark_read` | `m` | Mark this room read without opening it |
 | `mark_unread` | `M` | Mark this room unread, or clear the mark |
 | `invite` | `i` | Invite someone to this room |
-| `unban` | `U` | Lift a ban on this room |
-| `new` | `n` | Create a room or a space |
 | `spaces` | `S` | File this room into a space or a tag, or take it out of one |
 | `spam` | `!` | Spam / not spam: move this conversation out of the way, or back |
-| `go_replacement` | `>` | Go to the room that replaced this one |
 
 ### `[keys.sort]`
 
@@ -368,7 +357,7 @@ The same key may mean different things in different scopes — `a` names a group
 
 Two kinds of binding carry a payload instead of naming an action.
 
-- **`[[keys.jump]]`** binds a sequence to a place: `target = "room:!abcdef:example.org"` or `target = "space:Work"` (a rail group by name — a space, or All, DMs, Unread). You rarely write these by hand: press `B` on a room in the room list or on a group in the rail and type a sequence; the room is recorded by its ID. `?` lists every jump resolved to the name of the place it leads to. See [Usage](usage.md#jumping-around).
+- **`[[keys.jump]]`** binds a sequence to a place: `target = "room:!abcdef:example.org"` or `target = "space:Work"` (a rail group by name — a space, or All, DMs, Unread). You rarely write these by hand: run `:shortcut` and type a sequence — it binds the open room, recorded by its ID, and `tab` moves it to the space or tag selected in the rail. `?` lists every jump resolved to the name of the place it leads to. See [Usage](usage.md#jumping-around).
 - **`keys` on a `[[commands.script]]`** runs one of your own commands. See [Commands](commands.md).
 
 Both are resolved only where keys are commands (never while typing), and both are **refused** when they collide with a built-in binding — already bound, the start of a longer binding, or blocked by a shorter one. To give a built-in key to a jump or a script, unbind the action with `"-"` first. A chord bound twice in `[[keys.jump]]` is refused at startup.

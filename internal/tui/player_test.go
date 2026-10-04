@@ -204,8 +204,8 @@ func TestPlayerKeysAreGivenBack(t *testing.T) {
 
 	m, _ := playing(t, config.Display{})
 	m.focus = paneRail
-	if act := m.keys.lookup("S", m.withPlayerScope(scopeRail, scopeNav, scopeCommand)...); act != actShowHidden {
-		t.Fatalf("the rail's own S should still work while a note plays, got %v", act)
+	if act := m.keys.lookup("m", m.withPlayerScope(scopeRail, scopeNav, scopeCommand)...); act != actMarkRead {
+		t.Fatalf("the rail's own m should still work while a note plays, got %v", act)
 	}
 	m, _ = press(t, m, keyCode('P'))
 	if act := m.keys.lookup("space", m.withPlayerScope(scopeRail, scopeNav, scopeCommand)...); act == actPlayPause {

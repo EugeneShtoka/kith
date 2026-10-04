@@ -359,6 +359,8 @@ type overlayTarget struct {
 	member domain.RoomID
 	// binding is the place an open jump-binding prompt is for.
 	binding domain.JumpTarget
+	// bindings are the places the shortcut prompt's tab cycles binding among.
+	bindings []domain.JumpTarget
 	// space is the room an open space picker was opened for.
 	space domain.RoomID
 	// The targets of the three rename prompts.
@@ -1465,8 +1467,6 @@ func (m Model) commandAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openSettings())
 	case actCommand:
 		return answered(m.openCommandLine())
-	case actWhy:
-		return answered(m.openWhy())
 	case actSearchRoom:
 		return answered(m.openSearch(false))
 	case actSearchAll:
@@ -1488,20 +1488,10 @@ func (m Model) handleRailKey(press string) (Model, tea.Cmd) {
 	switch act {
 	case actName:
 		return m.renameGroup()
-	case actMoveUp:
-		return m.moveGroup(-1)
-	case actMoveDown:
-		return m.moveGroup(1)
-	case actHide:
-		return m.hideGroup()
-	case actShowHidden:
-		return m.showHiddenGroups()
 	case actNotifyRule:
 		return m.openRuleForGroup()
 	case actMarkRead:
 		return m.askMarkGroupRead()
-	case actBindJump:
-		return m.askSpaceBinding()
 	case actUp:
 		if next, moved := m.rail.moved(-m.take()); moved {
 			m.rail = next
@@ -1547,18 +1537,8 @@ func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openSpacePicker())
 	case actInvite:
 		return answered(m.openInvite())
-	case actUnban:
-		return answered(m.openUnban())
-	case actNewRoom:
-		return answered(m.openNewRoom())
-	case actDirection:
-		return answered(m.cycleDirection())
 	case actSpam:
 		return answered(m.toggleSpam())
-	case actGoReplacement:
-		return answered(m.goToReplacement())
-	case actBindJump:
-		return answered(m.askRoomBinding())
 	}
 	return m, nil, false
 }
@@ -2464,8 +2444,7 @@ func (m Model) submit() (Model, tea.Cmd) {
 func (m Model) sendComposed(room domain.Room, body string, emote bool) (Model, tea.Cmd) {
 	// An upgraded room refuses sends; say where to go and keep the draft.
 	if room.Replacement != "" {
-		return m.say("this room was replaced — " +
-			m.keys.keyHint(scopeRooms, actGoReplacement) + " in the room list goes to the room that continues it"), nil
+		return m.say("this room was replaced — /replacement goes to the room that continues it"), nil
 	}
 	// An open thread receives the message; otherwise the room does.
 	draft := domain.Draft{

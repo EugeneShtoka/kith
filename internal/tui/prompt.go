@@ -150,6 +150,9 @@ func (m Model) handlePromptKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 		if m.search.active {
 			return m.cycleSearchScope()
 		}
+		if m.prompt.kind == promptJumpBind {
+			return m.cycleBindingTarget()
+		}
 	}
 	// Editing keys are not rebindable actions.
 	if ed, ok := m.editorFor(fieldPrompt).edit(key, m.keys); ok {
@@ -267,7 +270,7 @@ func (m Model) cancelPrompt() (Model, tea.Cmd) {
 		m.aimedAt.creating = domain.NewRoom{}
 		return m, nil
 	case promptJumpBind:
-		m.aimedAt.binding = domain.JumpTarget{}
+		m.aimedAt.binding, m.aimedAt.bindings = domain.JumpTarget{}, nil
 		return m, nil
 	case promptTagName:
 		if m.choosing.tag.fileRoom != "" { // from the filing picker: back to the room

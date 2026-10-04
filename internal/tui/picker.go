@@ -48,7 +48,6 @@ const (
 	pickerIdentity
 	pickerColor
 	pickerContext // which link/code in a message to act on; see context.go
-	pickerHidden
 	pickerRuleScope
 	pickerSpeedScope
 	pickerRuleList
@@ -92,7 +91,6 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerColor:           {title: "Color"},
 	pickerContext:         {}, // title supplied at the call site
 	pickerScheduled:       {title: "Scheduled — choose one to cancel"},
-	pickerHidden:          {title: "Show which group again?"},
 	pickerRuleScope:       {title: "Notifications for what?"},
 	pickerSpeedScope:      {title: "Play at this speed for what?"},
 	pickerRuleList:        {title: "Notification rules"},
@@ -457,8 +455,6 @@ func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
 		return m.chooseIdentity(item.value)
 	case pickerColor:
 		return m.chooseColor(item.value)
-	case pickerHidden:
-		return m.unhideGroup(item.value)
 	case pickerRuleScope, pickerRuleList:
 		return m.chooseRuleScope(atoiSafe(item.value))
 	case pickerSpeedScope:

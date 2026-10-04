@@ -86,8 +86,8 @@ You rarely need to open the file. Inside kith:
   and you change them in place. **Tags** there edits your [tags](usage.md#tags).
 - `a` on a room, space, rail group, thread or person gives it your own name.
 - `b` on a message, room or space writes a notification rule for it.
-- `W` shows every notification rule in force for the current room, in order, and marks
-  the one that decided.
+- `/why` shows every notification rule in force for the current room, in order, and
+  marks the one that decided.
 
 The `a` and `b` changes need Matrix and room IDs you never see in the UI. That's why
 pointing at the thing in the app is easier than typing it into the file.

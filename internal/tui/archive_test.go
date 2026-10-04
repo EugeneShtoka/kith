@@ -73,7 +73,7 @@ func picking(t *testing.T, m Model, tag string, rooms ...string) Model {
 	if !found {
 		t.Fatalf("no tag %q in the config", tag)
 	}
-	next, _ := m.applyConfig(cfg, "", "")
+	next, _ := m.applyConfig(cfg, "")
 	return next.clearStatus()
 }
 
@@ -156,7 +156,7 @@ func TestTakingARoomOutOfARuleExcludesOnlyIt(t *testing.T) {
 	m := counting(t, config.Display{})
 	cfg := m.conf.base.Clone()
 	cfg.Tags = append(cfg.Tags, config.Tag{Name: "Job", Rule: []string{"space:Work"}})
-	m, _ = m.applyConfig(cfg, "", "")
+	m, _ = m.applyConfig(cfg, "")
 
 	m, _ = m.toggleTag("Job", roomByName(t, m, "!a:x"))
 	job := m.conf.base.Tags[tagIndex(t, m, "Job")]

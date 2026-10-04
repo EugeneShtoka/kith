@@ -17,7 +17,7 @@ import (
 // reads from it, keeps the rail cursor on focusGroup (empty = wherever it was), reports
 // done on the status line, and writes the file. Every in-app setting change funnels
 // through here so no derived structure is left stale.
-func (m Model) applyConfig(cfg config.Config, focusGroup, done string) (Model, tea.Cmd) {
+func (m Model) applyConfig(cfg config.Config, done string) (Model, tea.Cmd) {
 	// Rules are derived only to validate them; the daemon resolves them itself.
 	derived, err := derive(cfg)
 	if err != nil {
@@ -52,10 +52,9 @@ func (m Model) applyConfig(cfg config.Config, focusGroup, done string) (Model, t
 	m.glyphs.palette = m.toneAll(m.glyphs.palette)
 
 	// Keep the rail cursor on a group by key rather than by position.
-	if focusGroup == "" {
-		if entry, ok := m.currentGroup(); ok {
-			focusGroup = entry.key
-		}
+	focusGroup := ""
+	if entry, ok := m.currentGroup(); ok {
+		focusGroup = entry.key
 	}
 	m.rail.groups = railGroups(m.rooms.spaces, cfg.Display.Rail, cfg.Display.Names, m.unreadView(), m.rooms.all)
 	if at := indexOfGroup(m.rail.groups, focusGroup); at >= 0 && at < len(m.rail.groups) {
@@ -190,7 +189,7 @@ func (m Model) applyDisplay(display config.Display, done string) (Model, tea.Cmd
 	was := m.roomCursor()
 	cfg := m.conf.base.Clone()
 	cfg.Display = display
-	next, cmd := m.applyConfig(cfg, "", done)
+	next, cmd := m.applyConfig(cfg, done)
 	moved, move := next.keepCursorNearby(was)
 	return moved, tea.Batch(cmd, move)
 }
@@ -238,19 +237,11 @@ func selectableNear(rows []roomRow, from int) (roomRow, bool) {
 	return roomRow{}, false
 }
 
-// applyRailFocused changes the display settings and puts the rail cursor on the named
-// group, so a move carries the cursor with the thing moved.
-func (m Model) applyRailFocused(display config.Display, focus, done string) (Model, tea.Cmd) {
-	cfg := m.conf.base.Clone()
-	cfg.Display = display
-	return m.applyConfig(cfg, focus, done)
-}
-
 // applyNotifications changes the notification settings and applies them.
 func (m Model) applyNotifications(notifs config.Notifications, done string) (Model, tea.Cmd) {
 	cfg := m.conf.base.Clone()
 	cfg.Notifications = notifs
-	return m.applyConfig(cfg, "", done)
+	return m.applyConfig(cfg, done)
 }
 
 // paletteOf resolves a display config's colors, falling back to the default palette
