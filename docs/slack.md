@@ -22,7 +22,13 @@ and this page will say when.
 
 ## Setting up
 
-In the config:
+The quickest way is inside kith: `:login slack` asks for the workspace (its address,
+or a link from the web client pasted whole) and a name, then for the token and the
+`d` cookie, explaining where each is and drawing them as dots. It writes the account
+into the config with Slack turned on, restarts the daemon if Slack was off, and signs
+in. A workspace set up already is offered to sign in again.
+
+By hand, in the config:
 
 ```toml
 [slack]

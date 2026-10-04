@@ -72,6 +72,8 @@ const (
 	pickerTags
 	pickerTagEdit
 	pickerTagEntries
+	pickerLoginNetwork // :login's networks; see login.go
+	pickerLoginAccount
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -115,6 +117,8 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerTags:            {title: "Tags"},
 	pickerTagEdit:         {}, // titled with the tag
 	pickerTagEntries:      {}, // titled with the tag and the list
+	pickerLoginNetwork:    {title: "Sign in to what?"},
+	pickerLoginAccount:    {}, // titled with the network
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the
@@ -495,6 +499,10 @@ func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
 		return m.chooseTagRow(item.value)
 	case pickerTagEntries:
 		return m.chooseTagEntry(item.value)
+	case pickerLoginNetwork:
+		return m.chooseLoginNetwork(item.value)
+	case pickerLoginAccount:
+		return m.chooseLoginAccount(item.value)
 	case pickerNone:
 		return m, nil
 	default:

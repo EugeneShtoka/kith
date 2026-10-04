@@ -32,6 +32,9 @@ type RunOptions struct {
 	Follow string
 	// Notice is the status line's standing text at start ("" for none): what is logged out.
 	Notice string
+	// RestartDaemon restarts the daemon and returns once it answers again: :login
+	// turning on a network the daemon was started without. nil when it cannot.
+	RestartDaemon func(ctx context.Context) error
 }
 
 // Run starts the Bubble Tea program bound to ctx and blocks until it exits.
@@ -54,7 +57,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 		WithNotifications(opts.Notifications).
 		WithSchedules(opts.Schedules).
 		WithConfigFile(opts.ConfigPath, cfg).
-		WithCache(cache)
+		WithCache(cache).
+		WithRestart(opts.RestartDaemon)
 	if cacheErr != nil {
 		model = model.sayErr("no media cache", cacheErr)
 	}

@@ -111,6 +111,8 @@ func (m Model) renderTimeline(w, h int) string {
 	case m.picker.active():
 		// A chooser takes the message area but leaves the composer visible.
 		lines = append(lines, m.pickerLines(inner, rows)...)
+	case m.login.stage != loginOff:
+		lines = append(lines, m.loginLines(inner, rows)...)
 	default:
 		// The popup covers the oldest visible messages, not the newest.
 		lines = append(lines, m.messageLines(rows-len(popup), inner)...)
@@ -533,6 +535,9 @@ func sameDay(a, b time.Time) bool {
 func (m Model) decoratedTitle(title string, inner int) string {
 	if m.picker.active() && m.picker.spec.title != "" {
 		return m.picker.spec.title
+	}
+	if m.login.stage != loginOff && !m.picker.active() {
+		return m.loginTitle()
 	}
 	if day := m.stickyDay(); day != "" {
 		title += "  " + day

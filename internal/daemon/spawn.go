@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -207,4 +208,54 @@ func unitEnabled(ctx context.Context, unit string) bool {
 func trimOutput(out []byte) string {
 	line, _, _ := strings.Cut(string(out), "\n")
 	return strings.TrimSpace(line)
+}
+
+// ErrNoRestart is a daemon this client cannot restart: one systemd does not run (no
+// user session, or one started by hand).
+var ErrNoRestart = errors.New("daemon: kithd is not run by systemd here, so it cannot be restarted from kith — stop it and start kith again")
+
+// Restart restarts the instance's daemon through systemd, which runs it, and waits
+// until it answers again — listening, not necessarily synced: what a login needs.
+// A network turned on in the config (or Matrix set up) starts only with the daemon.
+func Restart(ctx context.Context, storage domain.Storage, launch Launch, timeout time.Duration) error {
+	socket, err := SocketPath(storage)
+	if err != nil {
+		return err
+	}
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return ErrNoRestart
+	}
+	unit := launch.unitName(storage)
+	restartCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), spawnTimeout)
+	defer cancel()
+	// #nosec G204 -- unit is unitFor(profile) or ownUnitName(instance), each
+	// restricted to [A-Za-z0-9._-] — no shell, no separators.
+	if err := exec.CommandContext(restartCtx, "systemctl", "--user", "is-active", "--quiet", unit).Run(); err != nil {
+		return ErrNoRestart // not running under it: a restart would start a second daemon
+	}
+	// #nosec G204 -- as above.
+	if out, err := exec.CommandContext(restartCtx, "systemctl", "--user", "restart", unit).CombinedOutput(); err != nil {
+		return fmt.Errorf("daemon: restart %s: %w (%s)", unit, err, trimOutput(out))
+	}
+	return waitListening(ctx, NewRemote(socket), timeout)
+}
+
+// waitListening polls Status until the daemon answers at all, ctx ends, or timeout
+// expires.
+func waitListening(ctx context.Context, r *Remote, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		_, _, err := statusProbe(ctx, r)
+		if err == nil {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("daemon: kithd did not answer within %s of restarting: %w", timeout, err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err() //nolint:wrapcheck // the caller's own
+		case <-time.After(readyPoll):
+		}
+	}
 }
