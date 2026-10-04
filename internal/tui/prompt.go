@@ -28,6 +28,7 @@ const (
 	promptRuleName
 	promptAttach
 	promptSetting
+	promptSettingEntry
 	promptInvite
 	promptUnban
 	promptNewRoom
@@ -88,6 +89,8 @@ func (p promptState) label() string {
 		return "send file (path, or path | caption): "
 	case promptSetting:
 		return "set to: "
+	case promptSettingEntry:
+		return "entry: "
 	case promptInvite:
 		return "invite (@user:server): "
 	case promptUnban:
@@ -184,7 +187,7 @@ func (m Model) promptChanged(typed string) (Model, tea.Cmd) {
 		// The command table narrows as you type; enter takes its first row.
 		return m.promptTyped(typed)
 	case promptJoin, promptAlias, promptRoomName, promptGroupName, promptThreadName,
-		promptRuleSound, promptRuleName, promptAttach, promptSetting, promptInvite,
+		promptRuleSound, promptRuleName, promptAttach, promptSetting, promptSettingEntry, promptInvite,
 		promptUnban, promptNewRoom, promptJumpBind, promptTagName, promptTagEntry, promptNone:
 		return m, nil
 	}
@@ -218,8 +221,8 @@ func (m Model) submitPrompt() (Model, tea.Cmd) {
 		return m.submitRuleName(input)
 	case promptAttach:
 		return m.submitAttach(input)
-	case promptSetting:
-		return m.submitSetting(input)
+	case promptSetting, promptSettingEntry:
+		return m.submitSettingPrompt(kind, input)
 	case promptInvite:
 		return m.submitInvite(input)
 	case promptUnban:
@@ -228,14 +231,30 @@ func (m Model) submitPrompt() (Model, tea.Cmd) {
 		return m.submitNewRoom(input)
 	case promptJumpBind:
 		return m.submitJumpBinding(input)
-	case promptTagName:
-		return m.submitTagName(input)
-	case promptTagEntry:
-		return m.submitTagEntry(input)
+	case promptTagName, promptTagEntry:
+		return m.submitTagPrompt(kind, input)
 	case promptNone:
 		return m, nil
 	}
 	return m, nil
+}
+
+// submitSettingPrompt is a value typed on a settings row: a setting's, or an entry of
+// a list setting.
+func (m Model) submitSettingPrompt(kind promptKind, input string) (Model, tea.Cmd) {
+	if kind == promptSettingEntry {
+		return m.submitSettingEntry(input)
+	}
+	return m.submitSetting(input)
+}
+
+// submitTagPrompt is a value typed in the tag editor: a tag's name, or an entry of one
+// of its lists.
+func (m Model) submitTagPrompt(kind promptKind, input string) (Model, tea.Cmd) {
+	if kind == promptTagEntry {
+		return m.submitTagEntry(input)
+	}
+	return m.submitTagName(input)
 }
 
 // cancelPrompt abandons the prompt, undoing whatever it had started to show.
@@ -257,9 +276,8 @@ func (m Model) cancelPrompt() (Model, tea.Cmd) {
 	case promptRuleSound, promptRuleName:
 		m.aimedAt.rule, m.aimedAt.ruleScopes = ruleTarget{}, nil
 		return m, nil
-	case promptSetting:
-		m.choosing.setting = ""
-		return m, nil
+	case promptSetting, promptSettingEntry:
+		return m, nil // the row is as it was; its list stays open
 	case promptAttach, promptJoin, promptCommand, promptNone:
 		// Nothing captured. (The completion popup takes the first esc itself.)
 		return m, nil

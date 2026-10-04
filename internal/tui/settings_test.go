@@ -411,7 +411,7 @@ func TestSettingsTableIsWellFormed(t *testing.T) {
 			if len(s.choices) != 0 || s.edit != nil {
 				t.Errorf("%s leads somewhere; it should hold no value of its own", s.key)
 			}
-		case settingToggle, settingText, settingNumber:
+		case settingToggle, settingText, settingNumber, settingList:
 			if len(s.choices) != 0 {
 				t.Errorf("%s has choices but is not a choice setting", s.key)
 			}

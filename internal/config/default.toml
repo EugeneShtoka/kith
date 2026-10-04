@@ -55,6 +55,7 @@ color_messages = false
 # (display name, case-insensitive, or room ID) makes this the whole list, in order.
 #
 #   filing_spaces = ["Work", "Friends", "!w1kIQdLjYDUj7wgUis:example.org"]
+filing_spaces = []
 
 # The wheel scrolls the pane under the pointer; clicks do nothing. While on, the
 # terminal's own drag-to-select needs shift held.
@@ -881,6 +882,7 @@ stop = []
 system = ""
 prompt = ""
 model = ""
+budget = 0  # tokens of context; 0 uses [assist] budget
 max_tokens = 800
 temperature = 0.0
 reasoning_effort = "low"
@@ -891,6 +893,7 @@ stop = []
 system = ""
 prompt = ""
 model = ""
+budget = 0  # tokens of context; 0 uses [assist] budget
 max_tokens = 24
 temperature = 0.0
 reasoning_effort = "low"
@@ -924,7 +927,11 @@ stop = []
 #   rooms = ["space:Work"], except = ["room:HR"]    Work without HR
 #   rooms = ["dm", "group"], except = ["dm"]        everything but DMs
 #   encrypted = false                               never an encrypted room
-#
+[agent.read]
+rooms = []
+except = []
+encrypted = false
+
 # [agent.write] — narrowed by reading: it may write only where it may read, and send
 # only where it may write. rooms/except read like [assist]'s (both empty: everywhere
 # it may read). `encrypted` must also be on to write into encrypted rooms. `send` lists
@@ -937,11 +944,6 @@ stop = []
 # A write entry that reading rules out is warned about at startup. `cooldown` makes a
 # second message to the same room within the window a draft instead ("0" disables).
 # Everything written is logged; `kith --agent-log` prints it.
-[agent.read]
-rooms = []
-except = []
-encrypted = false
-
 [agent.write]
 rooms = []
 except = []
@@ -1394,21 +1396,25 @@ cut           = "ctrl+x"  # cut the whole draft to the clipboard
 # Chooser overlays (people, identities, colors). One with letter actions starts in
 # navigate mode; `filter` switches to typing.
 [keys.picker]
-filter   = "i"          # start typing to narrow the list
-name     = "a"          # name the person under the cursor
-toggle   = "space"      # tick the row under the cursor (in a list of checkboxes)
+filter    = "i"          # start typing to narrow the list
+name      = "a"          # name the person under the cursor
+toggle    = "space"      # tick the row under the cursor (in a list of checkboxes)
 # In settings.
-increase = "+"          # raise the number under the cursor
+increase  = "+"          # raise the number under the cursor
 # In settings.
-decrease = "minus"      # lower the number under the cursor
+decrease  = "minus"      # lower the number under the cursor
+# In a settings list.
+move_up   = "K"          # move the entry under the cursor up
+# In a settings list.
+move_down = "J"          # move the entry under the cursor down
 # Asks first.
-kick     = "r"          # remove the person under the cursor from this room
+kick      = "r"          # remove the person under the cursor from this room
 # Asks first.
-ban      = "b"          # ban the person under the cursor from this room
+ban       = "b"          # ban the person under the cursor from this room
 # In the thread list.
-rename   = "alt+r"      # name the thread under the cursor
-accept   = "enter,tab"  # choose the item under the cursor, or apply the ticked ones
-close    = "esc"        # stop typing, then close
+rename    = "alt+r"      # name the thread under the cursor
+accept    = "enter,tab"  # choose the item under the cursor, or apply the ticked ones
+close     = "esc"        # stop typing, then close
 
 # The react prompt. A pick key reacts with that palette position, while nothing is typed.
 [keys.react]

@@ -92,8 +92,10 @@ const (
 	// because the thread list is always filtering, so a letter there is text.
 	actRenameThread
 	actTogglePick
-	actIncrease // the number under the cursor up (settings)
-	actDecrease // and down
+	actIncrease      // the number under the cursor up (settings)
+	actDecrease      // and down
+	actMoveEntryUp   // the entry under the cursor up a place (a settings list)
+	actMoveEntryDown // and down
 	actAcceptPick
 	actClosePick
 	actName
@@ -451,6 +453,8 @@ var keyActions = []keyAction{
 	{scopePicker, actTogglePick, "picker.toggle"},
 	{scopePicker, actIncrease, "picker.increase"},
 	{scopePicker, actDecrease, "picker.decrease"},
+	{scopePicker, actMoveEntryUp, "picker.move_up"},
+	{scopePicker, actMoveEntryDown, "picker.move_down"},
 	{scopePicker, actAcceptPick, "picker.accept"},
 	{scopePicker, actClosePick, "picker.close"},
 
