@@ -67,10 +67,14 @@ type listing struct {
 	space   domain.Space
 }
 
-// listed turns a workspace's conversations into rooms, with a DM's other person as
-// its member, and the workspace into the space holding them. names is what is known
-// of the people DMs are with, by user ID; self is the person's own handle.
-func listed(team, teamName, self string, conversations []slackgo.Channel, names map[string]string) listing {
+// self is the person signed in: their user ID and handle in the workspace.
+type self struct{ user, handle string }
+
+// listed turns a workspace's conversations into rooms, with a DM's other people as its
+// members, and the workspace into the space holding them. groups is who is in each
+// group DM, by its ID, as far as Slack said; names is what is known of the people,
+// by user ID.
+func listed(team, teamName string, me self, conversations []slackgo.Channel, groups map[string][]string, names map[string]string) listing {
 	l := listing{
 		members: map[domain.RoomID][]domain.Member{},
 		space: domain.Space{
@@ -91,7 +95,20 @@ func listed(team, teamName, self string, conversations []slackgo.Channel, names 
 			room.Name = cmpOr(names[c.User], slackOwn[c.User])
 			l.members[room.ID] = []domain.Member{{UserID: personID(team, c.User), DisplayName: room.Name}}
 		case c.IsMpIM:
-			room.Name = groupDMName(c.Name, self)
+			room.Name = groupDMName(c.Name, me.handle)
+			if others := slices.DeleteFunc(slices.Clone(groups[c.ID]), func(u string) bool { return u == me.user }); len(others) > 0 {
+				var people []string
+				members := make([]domain.Member, 0, len(others))
+				for _, u := range others {
+					people = append(people, names[u])
+					members = append(members, domain.Member{UserID: personID(team, u), DisplayName: names[u]})
+				}
+				// By the names its messages show; by handles while one is unknown.
+				if !slices.Contains(people, "") {
+					room.Name = strings.Join(people, ", ")
+				}
+				l.members[room.ID] = members
+			}
 		default:
 			room.Name = c.Name
 		}
@@ -101,6 +118,17 @@ func listed(team, teamName, self string, conversations []slackgo.Channel, names 
 	domain.SortRooms(l.rooms)
 	slices.Sort(l.space.Children)
 	return l
+}
+
+// groupDMs is a workspace's group DMs, by ID.
+func groupDMs(conversations []slackgo.Channel) []string {
+	var ids []string
+	for i := range conversations {
+		if conversations[i].IsMpIM {
+			ids = append(ids, conversations[i].ID)
+		}
+	}
+	return ids
 }
 
 // dmPartners is the people a workspace's DMs are with.

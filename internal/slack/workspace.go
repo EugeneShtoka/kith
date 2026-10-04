@@ -72,11 +72,13 @@ func (w *workspace) names() names {
 	}
 }
 
-// unnamed is the users among these w has no name for.
+// unnamed is the users among these w has no name for, each once.
 func (w *workspace) unnamed(users []string) []string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return slices.DeleteFunc(slices.Clone(users), func(u string) bool { return w.people[u] != "" })
+	unknown := slices.DeleteFunc(slices.Clone(users), func(u string) bool { return w.people[u] != "" })
+	slices.Sort(unknown)
+	return slices.Compact(unknown)
 }
 
 // knowPerson keeps a user's name.
@@ -284,27 +286,45 @@ func (a *Adapter) list(ctx context.Context, w *workspace) ([]domain.Room, error)
 			break
 		}
 	}
+	// Unnamed DMs still list, under their IDs or handles, rather than none at all.
+	groups := a.groupMembers(ctx, w, groupDMs(conversations))
+	people := dmPartners(conversations)
+	for _, members := range groups {
+		people = append(people, members...)
+	}
+	a.learnPeople(ctx, w, people)
 	names := map[string]string{}
-	if partners := dmPartners(conversations); len(partners) > 0 {
-		users, err := w.client.GetUsersInfoContext(ctx, partners...)
-		if err != nil {
-			// Unnamed DMs still list, under their IDs, rather than none at all.
-			a.log.Warn("read the DM partners' names failed", "account", w.account.Name, "err", err)
-		} else {
-			for i := range *users {
-				names[(*users)[i].ID] = userName((*users)[i])
-			}
-		}
+	for _, u := range people {
+		names[u] = w.names().user(u)
 	}
-	for user, name := range names {
-		w.knowPerson(user, name)
-	}
-	l := listed(w.creds.Team, w.teamName, w.handle, conversations, names)
+	l := listed(w.creds.Team, w.teamName, self{user: w.creds.User, handle: w.handle}, conversations, groups, names)
 	w.knowChannels(l.rooms)
 	if err := a.save(ctx, w, l, fetched); err != nil {
 		return nil, err
 	}
 	return l.rooms, nil
+}
+
+// groupMembers asks Slack who is in each group DM. One it cannot say is left out, and
+// that group DM named by handles.
+func (a *Adapter) groupMembers(ctx context.Context, w *workspace, ids []string) map[string][]string {
+	groups := make(map[string][]string, len(ids))
+	for _, id := range ids {
+		var members []string
+		err := waitingOut(ctx, func() (err error) {
+			members, _, err = w.client.GetUsersInConversationContext(ctx, &slackgo.GetUsersInConversationParameters{ChannelID: id, Limit: membersPage})
+			if err != nil {
+				return fmt.Errorf("slack: members of %s: %w", id, err)
+			}
+			return nil
+		})
+		if err != nil {
+			a.log.Warn("read a group DM's members failed", "account", w.account.Name, "err", err)
+			continue
+		}
+		groups[id] = members
+	}
+	return groups
 }
 
 // save writes a workspace's listing, fetched then, over its cached rooms, space and DM
