@@ -419,60 +419,6 @@ func TestRenameGroup(t *testing.T) {
 	}
 }
 
-// The first-name rule is a two-state toggle, so it is a keystroke rather than a picker.
-func TestToggleFirstNameOnly(t *testing.T) {
-	t.Parallel()
-
-	m, path := laidOut(t, config.Display{})
-	m.focus = paneRail
-	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
-
-	m, cmd := press(t, m, keyCode('F'))
-	if cmd != nil {
-		runCmd(t, cmd)
-	}
-	if len(m.prefs.display.SpaceRules) != 1 || !m.prefs.display.SpaceRules[0].FirstNameOnly {
-		t.Fatalf("rules = %+v, want it on for Work", m.prefs.display.SpaceRules)
-	}
-	if m.prefs.display.SpaceRules[0].Space != "Work" {
-		t.Errorf("rule is for %q, want the group key", m.prefs.display.SpaceRules[0].Space)
-	}
-	if !strings.Contains(m.status(), "on") {
-		t.Errorf("status = %q, should say which way it went", m.status())
-	}
-	reloaded, err := config.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(reloaded.Display.SpaceRules) != 1 {
-		t.Error("the rule did not persist")
-	}
-
-	// Off again, and the inert entry is dropped rather than kept as false.
-	m, cmd = press(t, m, keyCode('F'))
-	if cmd != nil {
-		runCmd(t, cmd)
-	}
-	if len(m.prefs.display.SpaceRules) != 0 {
-		t.Errorf("rules = %+v, want the entry removed when switched off", m.prefs.display.SpaceRules)
-	}
-}
-
-// A tag's row takes a name rule as a space's does, written against tag:<name>.
-func TestFirstNameOnlyOnATag(t *testing.T) {
-	t.Parallel()
-
-	m, _ := laidOut(t, config.Display{})
-	m.focus = paneRail
-	for _, key := range []string{homeGroupKey, dmsGroupKey, unreadGroupKey} {
-		m.rail.cursor = indexOfGroup(m.rail.groups, key)
-		next, _ := press(t, m, keyCode('F'))
-		if rules := next.prefs.display.SpaceRules; len(rules) != 1 || rules[0].Space != key || !rules[0].FirstNameOnly {
-			t.Errorf("%s created %+v, want first names only for the tag", key, rules)
-		}
-	}
-}
-
 // Layout edits do not apply to an invitation: it is a decision, not a room to rename.
 func TestRenameIgnoresInvites(t *testing.T) {
 	t.Parallel()

@@ -114,7 +114,6 @@ const (
 	actMoveDown
 	actHide
 	actShowHidden
-	actFirstNameOnly
 	actNotifyRule
 	actSettings
 	actCommand
@@ -378,7 +377,6 @@ var keyActions = []keyAction{
 	{scopeRail, actMoveDown, "rail.move_down"},
 	{scopeRail, actHide, "rail.hide"},
 	{scopeRail, actShowHidden, "rail.show_hidden"},
-	{scopeRail, actFirstNameOnly, "rail.first_name_only"},
 	{scopeRail, actNotifyRule, "rail.notify_rule"},
 	{scopeRail, actBindJump, "rail.bind_jump"},
 	{scopeRail, actMarkRead, "rail.mark_read"},

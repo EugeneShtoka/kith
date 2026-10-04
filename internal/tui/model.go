@@ -1496,8 +1496,6 @@ func (m Model) handleRailKey(press string) (Model, tea.Cmd) {
 		return m.hideGroup()
 	case actShowHidden:
 		return m.showHiddenGroups()
-	case actFirstNameOnly:
-		return m.toggleFirstNameOnly()
 	case actNotifyRule:
 		return m.openRuleForGroup()
 	case actMarkRead:
