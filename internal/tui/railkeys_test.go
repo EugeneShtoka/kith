@@ -58,26 +58,15 @@ func TestEveryRailKeyIsClassified(t *testing.T) {
 	}
 }
 
-// Every row's label is the one the rail shows, also asked for by key (a hidden row
-// once offered itself back by its key).
+// No row labels itself with its key.
 func TestEveryRowHasItsLabel(t *testing.T) {
 	t.Parallel()
 
 	m := starterRail(t)
 	for _, g := range m.rail.groups {
-		want := g.label
-		if g.countInLabel {
-			continue // the count is the row's, not the name's
-		}
-		if got := m.groupLabelFor(g.key); got != want {
-			t.Errorf("groupLabelFor(%q) = %q, want %q", g.key, got, want)
-		}
 		if strings.HasPrefix(g.label, "tag:") {
 			t.Errorf("row %q labels itself %q — the key leaking into the UI", g.key, g.label)
 		}
-	}
-	if got := (Model{}).groupLabelFor(fallbackGroupKey); got != "All" {
-		t.Errorf("the fallback row's label = %q, want All", got)
 	}
 }
 

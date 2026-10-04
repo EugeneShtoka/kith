@@ -43,18 +43,19 @@ func TestAReplacedRoomIsMarkedInTheRoomList(t *testing.T) {
 	}
 }
 
-// The key is the way out of a dead room, and the replacement is normally a room the
-// server already brought this account into — so the common case must open it
+// /replacement is the way out of a dead room, and the replacement is normally a room
+// the server already brought this account into — so the common case must open it
 // directly rather than ask to join a room we are in.
 func TestGoingToTheReplacementOpensARoomWeAreAlreadyIn(t *testing.T) {
 	t.Parallel()
 
 	m := upgraded(t)
 	m = m.selectRoomForTest(t, "!old:x")
+	room, _ := m.roomByID("!old:x")
 
-	next, _, handled := m.roomStandingAction(actGoReplacement)
+	handled, next, _ := m.composerCommand("/replacement", room)
 	if !handled {
-		t.Fatal("actGoReplacement was not handled in the room list")
+		t.Fatal("/replacement was not taken as a command")
 	}
 	got := next
 	if got.openRoom != "!new:x" {
@@ -62,15 +63,16 @@ func TestGoingToTheReplacementOpensARoomWeAreAlreadyIn(t *testing.T) {
 	}
 }
 
-// A room that was never upgraded still answers. The key is bound in every room, and
-// silence is indistinguishable from a key that did not register.
+// A room that was never upgraded still answers: silence is indistinguishable from a
+// command that did nothing.
 func TestGoingToTheReplacementOfAnOrdinaryRoomSaysThereIsNone(t *testing.T) {
 	t.Parallel()
 
 	m := upgraded(t)
 	m = m.selectRoomForTest(t, "!plain:x")
+	room, _ := m.roomByID("!plain:x")
 
-	next, _, _ := m.roomStandingAction(actGoReplacement)
+	_, next, _ := m.composerCommand("/replacement", room)
 	got := next
 	if got.openRoom == "!new:x" {
 		t.Fatal("an ordinary room jumped to somebody else's replacement")
@@ -99,10 +101,9 @@ func TestSendingInAReplacedRoomExplainsAndKeepsTheDraft(t *testing.T) {
 	if !strings.Contains(got.st.event, "replaced") {
 		t.Errorf("status = %q, want it to say the room was replaced", got.st.event)
 	}
-	// The key that gets you out is named, because "this room was replaced" alone
-	// leaves you in it.
-	if hint := got.keys.keyHint(scopeRooms, actGoReplacement); hint == "" || !strings.Contains(got.st.event, hint) {
-		t.Errorf("status = %q, want it to name the key (%q)", got.st.event, hint)
+	// The way out is named, because "this room was replaced" alone leaves you in it.
+	if !strings.Contains(got.st.event, "/replacement") {
+		t.Errorf("status = %q, want it to name /replacement", got.st.event)
 	}
 }
 

@@ -152,7 +152,7 @@ func (m Model) declineFrequencies(tags []string) (Model, tea.Cmd) {
 	cfg := m.conf.base.Clone()
 	cfg.Spell.FrequenciesDeclined = append(
 		append([]string(nil), cfg.Spell.FrequenciesDeclined...), tags...)
-	return m.applyConfig(cfg, "", "")
+	return m.applyConfig(cfg, "")
 }
 
 // installFrequencies fetches the ticked lists off the event loop, reporting once.
@@ -208,7 +208,7 @@ func (m Model) declineDictionaries(tags []string) (Model, tea.Cmd) {
 	}
 	cfg := m.conf.base.Clone()
 	cfg.Spell.Declined = append(append([]string(nil), cfg.Spell.Declined...), tags...)
-	return m.applyConfig(cfg, "", "")
+	return m.applyConfig(cfg, "")
 }
 
 // installDictionaries fetches the ticked ones off the event loop, reporting once.

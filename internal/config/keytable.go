@@ -46,7 +46,6 @@ reported in ` + "`?`" + ` and falls back to its default.`,
 			{path: "help", def: "?", doc: "this help"},
 			{path: "settings", def: "comma", doc: "settings, showing what each is set to"},
 			{path: "command", def: ":", doc: "command line — global commands, as / is for this room"},
-			{path: "why", def: "W", doc: "why is it quiet — every rule in force for this room"},
 			{path: "focus_next", def: "tab", doc: "next pane"},
 			{path: "focus_prev", def: "shift+tab", doc: "previous pane"},
 			{path: "toggle_dnd", def: "ctrl+n", doc: "do not disturb on/off",
@@ -58,8 +57,9 @@ reported in ` + "`?`" + ` and falls back to its default.`,
 				note: "ctrl+i equals tab except on terminals with the Kitty keyboard protocol, hence alt+o."},
 			{path: "jump_forward", def: "ctrl+i,alt+o", doc: "forward again"},
 		},
-		outro: `Key sequences bound to places. Write them from the app with ` + "`B`" + ` on a room or rail
-row. Targets:
+		outro: `Key sequences bound to places. Write them from the app with :shortcut (tab moves
+between the open room and the rail's space), or /shortcut for the room written in.
+Targets:
 
   room:<!id:server>  a room, by ID (names are ambiguous across bridges)
   space:<space>      a rail group, by name
@@ -77,18 +77,11 @@ row. Targets:
 	},
 	{
 		table: "rail",
-		intro: `The rail. The first move writes the whole order out, after which a newly joined
-space appends at the end.`,
+		intro: `The rail. Its order and hidden rows are [display.rail]'s.`,
 		binds: []keyBinding{
 			{path: "rail.name", def: "a", doc: "name this group", note: "A local name; an empty one clears it."},
-			{path: "rail.move_up", def: "K", doc: "move it up"},
-			{path: "rail.move_down", def: "J", doc: "move it down"},
-			{path: "rail.hide", def: "H", doc: "hide it from the rail"},
-			{path: "rail.show_hidden", def: "S", doc: "bring a hidden group back"},
 			{path: "rail.notify_rule", def: "b", doc: "notification rule for this space"},
 			{path: "rail.mark_read", def: "m", doc: "mark every unread room in this group read", note: "Asks first."},
-			{path: "rail.bind_jump", def: "B", doc: "give this space a key sequence to reach it by",
-				note: "Writes a [[keys.jump]] entry."},
 		},
 	},
 	{
@@ -125,22 +118,12 @@ leave to joined rooms; leave and reject ask first.`,
 			{path: "rooms.name", def: "a", doc: "name this room", note: "A local name; an empty one clears it."},
 			{path: "rooms.notify_rule", def: "b", doc: "notification rule for this room"},
 			{path: "rooms.mark_read", def: "m", doc: "mark this room read without opening it"},
-			{path: "rooms.bind_jump", def: "B", doc: "give this room a key sequence to reach it by",
-				note: "Writes a [[keys.jump]] entry; an empty sequence at the prompt unbinds it."},
 			{path: "rooms.mark_unread", def: "M", doc: "mark this room unread, or clear the mark",
 				note: "MSC2867, synced to your other clients."},
-			// ">" for forward: the replacement is the same conversation, later.
-			{path: "rooms.go_replacement", def: ">", doc: "go to the room that replaced this one",
-				note: `An upgraded room is marked "→".`},
 			{path: "rooms.spaces", def: "S", doc: "file this room into a space or a tag, or take it out of one",
 				note: "Tick with space, apply with enter."},
-			{path: "rooms.new", def: "n", doc: "create a room or a space",
-				note: "Filed into the selected space. Encryption is chosen here."},
 			{path: "rooms.invite", def: "i", doc: "invite someone to this room", note: "Prompts for an @user:server."},
-			{path: "rooms.unban", def: "U", doc: "lift a ban on this room"},
 			{path: "rooms.view_media", def: "v", doc: "open this room's pictures in an image viewer, newest first"},
-			{path: "rooms.direction", def: "D", doc: "read this room right to left, left to right, or as configured",
-				note: "Cycles the room's own entry in [display.direction]; the timeline mirrors, names on the right."},
 			// `P` beside `A`: the two are opposites — stop counting this, keep this in
 			// front of me — and a capital for each, since both edit the config rather than
 			// moving a cursor.

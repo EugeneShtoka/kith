@@ -52,7 +52,6 @@ type Keys struct {
 	Help        string         `toml:"help"`
 	Command     string         `toml:"command"`
 	Settings    string         `toml:"settings"`
-	Why         string         `toml:"why"`
 	Redraw      string         `toml:"redraw"`
 	FocusNext   string         `toml:"focus_next"`
 	FocusPrev   string         `toml:"focus_prev"`
@@ -105,36 +104,26 @@ type EditKeys struct {
 
 // RoomsKeys are the room list's own actions.
 type RoomsKeys struct {
-	Join          string `toml:"join"`
-	Leave         string `toml:"leave"`
-	Accept        string `toml:"accept"`
-	Reject        string `toml:"reject"`
-	People        string `toml:"people"`
-	ViewMedia     string `toml:"view_media"`
-	Name          string `toml:"name"`
-	NotifyRule    string `toml:"notify_rule"`
-	MarkRead      string `toml:"mark_read"`
-	New           string `toml:"new"`
-	Invite        string `toml:"invite"`
-	Unban         string `toml:"unban"`
-	BindJump      string `toml:"bind_jump"`
-	Spaces        string `toml:"spaces"`
-	MarkUnread    string `toml:"mark_unread"`
-	Direction     string `toml:"direction"`
-	Spam          string `toml:"spam"`
-	GoReplacement string `toml:"go_replacement"`
-	RenameThread  string `toml:"rename_thread"`
-	ListThreads   string `toml:"list_threads"`
+	Join         string `toml:"join"`
+	Leave        string `toml:"leave"`
+	Accept       string `toml:"accept"`
+	Reject       string `toml:"reject"`
+	People       string `toml:"people"`
+	ViewMedia    string `toml:"view_media"`
+	Name         string `toml:"name"`
+	NotifyRule   string `toml:"notify_rule"`
+	MarkRead     string `toml:"mark_read"`
+	Invite       string `toml:"invite"`
+	Spaces       string `toml:"spaces"`
+	MarkUnread   string `toml:"mark_unread"`
+	Spam         string `toml:"spam"`
+	RenameThread string `toml:"rename_thread"`
+	ListThreads  string `toml:"list_threads"`
 }
 
 // RailKeys rearrange the spaces rail.
 type RailKeys struct {
-	BindJump   string `toml:"bind_jump"`
 	Name       string `toml:"name"`
-	MoveUp     string `toml:"move_up"`
-	MoveDown   string `toml:"move_down"`
-	Hide       string `toml:"hide"`
-	ShowHidden string `toml:"show_hidden"`
 	NotifyRule string `toml:"notify_rule"`
 	MarkRead   string `toml:"mark_read"`
 }

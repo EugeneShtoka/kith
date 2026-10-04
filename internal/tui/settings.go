@@ -646,7 +646,7 @@ func (m Model) writeSetting(s setting, value string) (Model, tea.Cmd) {
 	if err := s.set(&cfg, value); err != nil {
 		return m.settingsIn(s.group, s.key).sayErr(s.label, err), nil
 	}
-	next, cmd := m.applyConfig(cfg, "", s.label+": "+s.show(cfg))
+	next, cmd := m.applyConfig(cfg, s.label+": "+s.show(cfg))
 	return next.settingsIn(s.group, s.key), cmd
 }
 

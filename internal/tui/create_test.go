@@ -44,9 +44,9 @@ func TestNewRoomOffersWholeAnswers(t *testing.T) {
 	t.Parallel()
 
 	m, _ := building(t)
-	m, _ = press(t, m, keyText("n"))
+	m, _ = m.runCommandLine("new")
 	if !m.picker.active() {
-		t.Fatal("n opened no picker")
+		t.Fatal(":new opened no picker")
 	}
 	if len(m.picker.items) != 4 {
 		t.Errorf("offered %d kinds, want 4", len(m.picker.items))
@@ -61,7 +61,7 @@ func TestCreatingAnEncryptedRoomAndASpace(t *testing.T) {
 	t.Parallel()
 
 	m, b := building(t)
-	m, _ = press(t, m, keyText("n"))
+	m, _ = m.runCommandLine("new")
 	next, _ := m.chooseNewRoomKind("private")
 	m = next
 	if !m.prompt.active() {
@@ -75,7 +75,7 @@ func TestCreatingAnEncryptedRoomAndASpace(t *testing.T) {
 	}
 
 	m2, b2 := building(t)
-	m2, _ = press(t, m2, keyText("n"))
+	m2, _ = m2.runCommandLine("new")
 	next, _ = m2.chooseNewRoomKind("space")
 	m2 = next
 	next, cmd = m2.submitNewRoom("Side projects")
@@ -92,7 +92,7 @@ func TestANewRoomLandsInTheSelectedSpace(t *testing.T) {
 
 	m, b := building(t)
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
-	m, _ = press(t, m, keyText("n"))
+	m, _ = m.runCommandLine("new")
 	next, _ := m.chooseNewRoomKind("private")
 	m = next
 	next, cmd := m.submitNewRoom("Standup")
@@ -104,7 +104,7 @@ func TestANewRoomLandsInTheSelectedSpace(t *testing.T) {
 
 	m2, b2 := building(t)
 	m2.rail.cursor = indexOfGroup(m2.rail.groups, "Work")
-	m2, _ = press(t, m2, keyText("n"))
+	m2, _ = m2.runCommandLine("new")
 	next, _ = m2.chooseNewRoomKind("space")
 	m2 = next
 	next, cmd = m2.submitNewRoom("Nested")
@@ -121,7 +121,7 @@ func TestAPartialCreationSaysBothHalves(t *testing.T) {
 
 	m, b := building(t)
 	b.err = errors.New("created it, but could not file it into the space")
-	m, _ = press(t, m, keyText("n"))
+	m, _ = m.runCommandLine("new")
 	next, _ := m.chooseNewRoomKind("private")
 	m = next
 	next, cmd := m.submitNewRoom("Plans")
@@ -138,7 +138,7 @@ func TestAnEmptyNameCreatesNothing(t *testing.T) {
 	t.Parallel()
 
 	m, b := building(t)
-	m, _ = press(t, m, keyText("n"))
+	m, _ = m.runCommandLine("new")
 	next, _ := m.chooseNewRoomKind("private")
 	m = next
 	if _, cmd := m.submitNewRoom("   "); cmd != nil {

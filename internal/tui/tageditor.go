@@ -235,7 +235,7 @@ func (m Model) editTag(name string, change func(*config.Tag), done string) (Mode
 
 // applyTagConfig applies cfg and reopens the editor on the tag now named name.
 func (m Model) applyTagConfig(cfg config.Config, name, done string) (Model, tea.Cmd) {
-	next, cmd := m.applyConfig(cfg, "", done)
+	next, cmd := m.applyConfig(cfg, done)
 	return next.tagOpen(name), cmd
 }
 
@@ -320,7 +320,7 @@ func (m Model) submitTagEntry(input string) (Model, tea.Cmd) {
 	default:
 		(*entries)[editing.entry], done = input, "set "+input
 	}
-	next, cmd := m.applyConfig(cfg, "", isolate(editing.tag)+" "+editing.list+": "+done)
+	next, cmd := m.applyConfig(cfg, isolate(editing.tag)+" "+editing.list+": "+done)
 	return next.tagEntriesOpen(editing.tag, editing.list), cmd
 }
 
@@ -358,7 +358,7 @@ func (m Model) submitTagName(input string) (Model, tea.Cmd) {
 func (m Model) createTag(name, done string) (Model, tea.Cmd) {
 	cfg := m.conf.base.Clone()
 	cfg.Tags = append(cfg.Tags, config.Tag{Name: name})
-	return m.applyConfig(cfg, "", done)
+	return m.applyConfig(cfg, done)
 }
 
 // fileInNewTag puts room in the tag named name, making the tag first when there is
@@ -383,7 +383,7 @@ func (m Model) fileInNewTag(name string, room domain.Room) (Model, tea.Cmd) {
 // deleteTag removes the tag, and it from the rail's lists and priority; a rule still
 // naming it refuses the change, saying where.
 func (m Model) deleteTag(name string) (Model, tea.Cmd) {
-	next, cmd := m.applyConfig(setup.DeleteTag(m.conf.base, name), "", "deleted the tag "+isolate(name))
+	next, cmd := m.applyConfig(setup.DeleteTag(m.conf.base, name), "deleted the tag "+isolate(name))
 	if next.configTag(name) >= 0 {
 		return next.tagOpen(name), cmd // refused: the reason is on the status line
 	}

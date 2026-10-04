@@ -455,7 +455,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 	// A command but nowhere named: still refused, and now for the other reason.
 	cfg := m.conf.base.Clone()
 	cfg.Clipboard.Command = "wl-copy"
-	next, _ := m.applyConfig(cfg, "", "")
+	next, _ := m.applyConfig(cfg, "")
 	m = next
 	m = m.closePicker()
 	m, _ = press(t, m, keyText(","))
@@ -470,7 +470,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 	// Both in place: it switches on, and reads on.
 	cfg = m.conf.base
 	cfg.Codes.Include = []string{"space:Bridges"}
-	next, _ = m.applyConfig(cfg, "", "")
+	next, _ = m.applyConfig(cfg, "")
 	m = next
 	m = m.closePicker()
 	m, _ = press(t, m, keyText(","))

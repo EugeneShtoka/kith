@@ -155,11 +155,9 @@ var slashCommands = []slashCommand{
 		run:      consuming(Model.openTopic),
 	},
 	{
-		name:     "/why",
-		keyScope: scopeCommand,
-		keyAct:   actWhy,
-		summary:  "why this room does or does not notify you — the whole rule chain",
-		run:      consuming(Model.openWhy),
+		name:    "/why",
+		summary: "why this room does or does not notify you — the whole rule chain",
+		run:     consuming(Model.openWhy),
 	},
 	{
 		name:     "/unread",
@@ -186,11 +184,19 @@ var slashCommands = []slashCommand{
 		run:      consuming(Model.toggleSpam),
 	},
 	{
-		name:     "/direction",
-		keyScope: scopeRooms,
-		keyAct:   actDirection,
-		summary:  "read this room right to left, then left to right, then as [display.direction] says",
-		run:      consuming(Model.cycleDirection),
+		name:    "/direction",
+		summary: "read this room right to left, then left to right, then as [display.direction] says",
+		run:     consuming(Model.cycleDirection),
+	},
+	{
+		name: "/shortcut", arg: "[keys]", argOptional: true,
+		summary: "a key sequence that goes to this room (\"g w\"); none asks — {search.scope} there binds the rail's space instead",
+		run:     func(m Model, arg string, room domain.Room) (Model, tea.Cmd) { return m.bindShortcut(arg, &room) },
+	},
+	{
+		name:    "/replacement",
+		summary: "go to the room that replaced this one, after an upgrade",
+		run:     func(m Model, _ string, room domain.Room) (Model, tea.Cmd) { return m.goToReplacement(room) },
 	},
 	{
 		name: "/invite", arg: "<@user:server>",
@@ -199,6 +205,18 @@ var slashCommands = []slashCommand{
 			// Captured now: the room list re-sorts as messages arrive.
 			m.aimedAt.member = room.ID
 			return m.submitInvite(arg)
+		},
+	},
+	{
+		name: "/unban", arg: "[@user:server]", argOptional: true,
+		summary: "lift a ban in the room you are writing in; none asks who",
+		run: func(m Model, arg string, room domain.Room) (Model, tea.Cmd) {
+			m.compose.input, m.compose.drafted = "", nil
+			m.aimedAt.member = room.ID
+			if strings.TrimSpace(arg) == "" {
+				return m.openPrompt(promptUnban), nil
+			}
+			return m.submitUnban(arg)
 		},
 	},
 	{

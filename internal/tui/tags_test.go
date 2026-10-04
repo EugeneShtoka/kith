@@ -103,7 +103,7 @@ func TestTagProblemsAreSaid(t *testing.T) {
 
 	bad := m.conf.base.Clone()
 	bad.Tags = append(bad.Tags, config.Tag{Name: "C", Rule: []string{"unred"}})
-	next, _ := m.applyConfig(bad, "", "applied")
+	next, _ := m.applyConfig(bad, "applied")
 	if got := next.status(); !strings.Contains(got, "could not apply") {
 		t.Errorf("status = %q, want the bad tag refused", got)
 	}

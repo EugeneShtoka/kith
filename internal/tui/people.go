@@ -14,9 +14,6 @@ import (
 // openInvite asks who to invite to the room under the cursor.
 func (m Model) openInvite() (Model, tea.Cmd) { return m.openMemberPrompt(promptInvite) }
 
-// openUnban asks who to unban; nothing this client holds knows the banned.
-func (m Model) openUnban() (Model, tea.Cmd) { return m.openMemberPrompt(promptUnban) }
-
 func (m Model) openMemberPrompt(kind promptKind) (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok || room.IsInvite() {

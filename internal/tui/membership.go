@@ -247,14 +247,10 @@ func (m Model) handleConfirmKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// goToReplacement leaves an upgraded (tombstoned) room for its replacement, joining it
-// only if the server has not already.
-func (m Model) goToReplacement() (Model, tea.Cmd) {
-	row, ok := m.selectedRow()
-	if !ok {
-		return m, nil
-	}
-	room := row.room
+// goToReplacement is /replacement: it leaves an upgraded (tombstoned) room for its
+// replacement, joining it only if the server has not already.
+func (m Model) goToReplacement(room domain.Room) (Model, tea.Cmd) {
+	m.compose.input, m.compose.drafted = "", nil
 	if room.Replacement == "" {
 		return m.say("this room has not been replaced"), nil
 	}

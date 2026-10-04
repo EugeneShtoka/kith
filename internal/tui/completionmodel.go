@@ -83,7 +83,7 @@ func (m Model) acceptModelOffer(tags []string) (Model, tea.Cmd) {
 		// Only the explicit "not this one" is written down.
 		cfg := m.conf.base.Clone()
 		cfg.Complete.Model.Declined = true
-		return m.applyConfig(cfg, "", "")
+		return m.applyConfig(cfg, "")
 	}
 	return m.installModel(tags)
 }

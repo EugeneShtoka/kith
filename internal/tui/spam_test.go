@@ -19,7 +19,7 @@ func spamming(t *testing.T, spam config.Spam) Model {
 	m := jumping(t)
 	cfg := m.conf.base.Clone()
 	cfg.Spam = spam
-	next, _ := m.applyConfig(cfg, "", "")
+	next, _ := m.applyConfig(cfg, "")
 	out := next
 	return out.clearStatus()
 }

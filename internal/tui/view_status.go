@@ -26,6 +26,9 @@ func (m Model) renderStatus() string {
 	}
 	if m.prompt.active() {
 		label, hint := m.prompt.label(), m.promptHint()
+		if m.prompt.kind == promptJumpBind {
+			label = m.bindingLabel()
+		}
 		const gap = "   —   "
 		room := m.width - ansi.StringWidth(label) - ansi.StringWidth(hint) - len(gap)
 		return m.theme.Muted.Render(clamp(
@@ -100,7 +103,6 @@ func (m Model) hints() string {
 			keyed(m.keys.keyHint(scopeNav, actOpen), "open"),
 			keyed(m.keys.keyHint(scopeRooms, actListThreads), "threads"),
 			keyed(m.keys.keyHint(scopeRooms, actMarkRead), "mark read"),
-			keyed(m.keys.keyHint(scopeRooms, actBindJump), "shortcut"),
 			keyed(m.keys.keyHint(scopeRooms, actJoin), "join"),
 			keyed(m.keys.keyHint(scopeRooms, actLeave), "leave"),
 			keyed(m.keys.keyHint(scopeCommand, actHelp), "help"),
@@ -111,7 +113,6 @@ func (m Model) hints() string {
 		nav,
 		keyed(m.keys.keyHint(scopeNav, actOpen), "open"),
 		keyed(m.keys.keyHint(scopeRail, actMarkRead), "mark read"),
-		keyed(m.keys.keyHint(scopeRail, actBindJump), "shortcut"),
 		keyed(m.keys.keyHint(scopeGlobal, actJumpTo), "go to"),
 		keyed(m.keys.keyHint(scopeCommand, actSettings), "settings"),
 		keyed(m.keys.keyHint(scopeCommand, actHelp), "help"),
@@ -193,10 +194,14 @@ func (m Model) promptHint() string {
 		promptNewRoom, promptJumpBind, promptCommand, promptTagName, promptTagEntry, promptNone:
 		// "submit" says it for these.
 	}
-	return m.hintLine(
+	hints := []hint{
 		keyed(m.keys.keyHint(scopePrompt, actSubmit), submit),
 		keyed(m.keys.keyHint(scopePrompt, actCancel), "cancel"),
-	)
+	}
+	if next, ok := m.nextBindingTarget(); ok && m.prompt.kind == promptJumpBind {
+		hints = append(hints, keyed(m.keys.keyHint(scopePrompt, actSearchScope), m.targetName(next)))
+	}
+	return m.hintLine(hints...)
 }
 
 // hint is one entry in the status legend: the key(s) to press and what they do.

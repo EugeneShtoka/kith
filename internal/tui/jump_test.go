@@ -424,9 +424,9 @@ func TestNamesakesAreToldApartByID(t *testing.T) {
 	next, _ := m.selectRoom(rooms[1])
 	m = next
 
-	m, _ = press(t, m, keyText("B"))
+	_, m, _ = m.composerCommand("/shortcut", rooms[1])
 	if m.prompt.kind != promptJumpBind {
-		t.Fatalf("s opened prompt %d, want the binding prompt", m.prompt.kind)
+		t.Fatalf("/shortcut opened prompt %d, want the binding prompt", m.prompt.kind)
 	}
 	m = typePrompt(t, m, "g d")
 	after, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -436,7 +436,7 @@ func TestNamesakesAreToldApartByID(t *testing.T) {
 		t.Fatalf("g d was not bound: %+v", after.keys.jumps)
 	}
 	if target.Kind != domain.JumpRoom || target.Name != string(want) {
-		t.Errorf("bound %+v, want the ID of the room under the cursor (%s)", target, want)
+		t.Errorf("bound %+v, want the ID of the room written in (%s)", target, want)
 	}
 
 	// And it is on its way to the file, so it survives a restart.
@@ -452,39 +452,6 @@ func TestNamesakesAreToldApartByID(t *testing.T) {
 	}
 }
 
-// The rail's half of the gesture: a space is recorded by name, which stays readable in
-// the file and survives a rail rename, since the group's key is matched too.
-func TestBindASpaceFromTheRail(t *testing.T) {
-	t.Parallel()
-
-	m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{})
-	m.focus = paneRail
-	m.rail.cursor = indexOfGroup(m.rail.groups, "Infra")
-	m, _ = press(t, m, keyText("B"))
-	if m.prompt.kind != promptJumpBind {
-		t.Fatalf("s in the rail opened prompt %d, want the binding prompt", m.prompt.kind)
-	}
-	m = typePrompt(t, m, "g i")
-	after, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	target, ok := after.keys.jumpFor("g i")
-	if !ok {
-		t.Fatalf("g i was not bound: %+v", after.keys.jumps)
-	}
-	if target.Kind != domain.JumpSpace || target.Name != "Infra" {
-		t.Errorf("bound %+v, want space:Infra", target)
-	}
-	// The key works from the moment it is written: applyConfig rebuilds the keymap in
-	// the same frame that writes the file.
-	moved := after.clearStatus()
-	moved.rail.cursor = indexOfGroup(moved.rail.groups, "Work")
-	moved, _ = press(t, moved, keyText("g"))
-	jumped, _ := press(t, moved, keyText("i"))
-	if got := jumped.rail.groups[jumped.rail.cursor].key; got != "Infra" {
-		t.Errorf("the new binding took us to %q", got)
-	}
-}
-
 // The prompt opens prefilled with whatever already points at the place, and an empty
 // sequence removes it — the only spelling of "not any more" a one-line prompt has.
 func TestBindPromptPrefillsTheExistingSequence(t *testing.T) {
@@ -497,7 +464,7 @@ func TestBindPromptPrefillsTheExistingSequence(t *testing.T) {
 	next, _ := m.selectRoom(roomByName(t, m, "!dana:x"))
 	m = next
 
-	m, _ = press(t, m, keyText("B"))
+	_, m, _ = m.composerCommand("/shortcut", roomByName(t, m, "!dana:x"))
 	// Spelled the way the help overlay spells it — "gd", not "g d" — since that is what
 	// the user reads everywhere else, and it is accepted back either way.
 	if got := m.editorFor(fieldPrompt).text; got != "gd" {
@@ -528,11 +495,7 @@ func TestBindRefusesACollidingSequence(t *testing.T) {
 	} {
 		t.Run(tc.typed, func(t *testing.T) {
 			m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{})
-			m.focus = paneRail
-			m.rail.cursor = indexOfGroup(m.rail.groups, "Infra")
-			m, _ = press(t, m, keyText("B"))
-			m = typePrompt(t, m, tc.typed)
-			after, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+			_, after, _ := m.composerCommand("/shortcut "+tc.typed, roomByName(t, m, "!a:x"))
 
 			if len(after.keys.jumps) != 0 {
 				t.Errorf("bound %+v anyway", after.keys.jumps)
@@ -541,34 +504,6 @@ func TestBindRefusesACollidingSequence(t *testing.T) {
 				t.Errorf("status = %q, want it to explain %q", after.status(), tc.want)
 			}
 		})
-	}
-}
-
-// A thread row has no shortcut of its own: a jump opens a room, and binding the room
-// around the thread would answer a question nobody asked.
-func TestThreadRowHasNoShortcut(t *testing.T) {
-	t.Parallel()
-
-	m := update(t, jumping(t), unreadUpdateMsg{u: domain.Unread{
-		RoomID: "!a:x", Counted: true, Messages: 2,
-		Threads: []domain.ThreadUnread{{Root: "$root", Unread: 2, Latest: "$r2", Title: "ship it"}},
-	}})
-	m.focus = paneRooms
-	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
-	m = next
-	next, _ = m.stepRow(1)
-	m = next
-	row, ok := m.selectedRow()
-	if !ok || !row.isThread() {
-		t.Fatalf("the cursor is not on a thread row: %+v", row)
-	}
-
-	after, _ := press(t, m, keyText("B"))
-	if after.prompt.active() {
-		t.Error("a thread row opened the binding prompt")
-	}
-	if !strings.Contains(after.status(), "thread") {
-		t.Errorf("status = %q, want it to say why", after.status())
 	}
 }
 
@@ -734,5 +669,51 @@ func TestOverlaysAreNotPlaces(t *testing.T) {
 			t.Errorf("%s then esc left back=%v anchor=%s, want them untouched",
 				open.String(), closed.jumps.back, closed.jumps.anchor)
 		}
+	}
+}
+
+// :shortcut binds the open room, or — tab in its prompt — the space or tag selected in
+// the rail; the prompt says which, and holds that place's sequence. A space is
+// recorded by name, and the key works at once.
+func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
+	t.Parallel()
+
+	m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{})
+	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
+	m = next
+	m.rail.cursor = indexOfGroup(m.rail.groups, "Infra")
+
+	m, _ = m.runCommandLine("shortcut")
+	if m.prompt.kind != promptJumpBind || !strings.Contains(stripStyles(m.renderStatus()), "shortcut for Alpha") {
+		t.Fatalf(":shortcut: prompt %v, status %q; want the open room's prompt", m.prompt.kind, stripStyles(m.renderStatus()))
+	}
+	if !strings.Contains(stripStyles(m.renderStatus()), "tab: Infra") {
+		t.Errorf("status %q does not say tab moves to the rail's space", stripStyles(m.renderStatus()))
+	}
+	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+	if !strings.Contains(stripStyles(m.renderStatus()), "shortcut for Infra") {
+		t.Fatalf("after tab: %q, want the rail's space", stripStyles(m.renderStatus()))
+	}
+	m = typePrompt(t, m, "g i")
+	after, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if target, ok := after.keys.jumpFor("g i"); !ok || target.Kind != domain.JumpSpace || target.Name != "Infra" {
+		t.Fatalf("g i is bound to %+v (%v), want space Infra", target, ok)
+	}
+	moved := after.clearStatus()
+	moved.rail.cursor = indexOfGroup(moved.rail.groups, "Work")
+	moved, _ = press(t, moved, keyText("g"))
+	jumped, _ := press(t, moved, keyText("i"))
+	if got := jumped.rail.groups[jumped.rail.cursor].key; got != "Infra" {
+		t.Errorf("the new binding took us to %q", got)
+	}
+
+	// Typed whole, it binds the first place at once; tab back round comes to the room.
+	bound, _ := m.runCommandLine("shortcut g a")
+	if target, ok := bound.keys.jumpFor("g a"); !ok || target.Kind != domain.JumpRoom || target.Name != "!a:x" {
+		t.Errorf(":shortcut g a bound %+v (%v), want the open room", target, ok)
+	}
+	round, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+	if !strings.Contains(stripStyles(round.renderStatus()), "shortcut for Alpha") {
+		t.Errorf("tab twice: %q, want back on the room", stripStyles(round.renderStatus()))
 	}
 }

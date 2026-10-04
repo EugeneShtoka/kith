@@ -511,7 +511,7 @@ func (m Model) chooseSpeedScope(index int) (Model, tea.Cmd) {
 		cfg.Display.Media.Rules = withSpeedRule(cfg.Display.Media.Rules, target, speed)
 	}
 	m = m.closePicker()
-	return m.applyConfig(cfg, "", fmt.Sprintf("%s plays at %s", target.what, audio.FormatSpeed(speed)))
+	return m.applyConfig(cfg, fmt.Sprintf("%s plays at %s", target.what, audio.FormatSpeed(speed)))
 }
 
 // withSpeedRule sets the speed on the rule naming this place, adding one if none.
