@@ -30,11 +30,11 @@ func TestAnOlderSessionNeverReplacesANewerOne(t *testing.T) {
 				i := rng.IntN(len(pending))
 				gen := pending[i]
 				pending = append(pending[:i], pending[i+1:]...)
-				if a.adopt(&workspace{account: account, signIn: gen}) {
+				if a.adopt(newWorkspace(account, Credentials{}, "", nil, gen)) {
 					newest = max(newest, gen)
 				}
 			case 2: // signed in afresh
-				w := &workspace{account: account, signIn: a.newSignIn(account.Name)}
+				w := newWorkspace(account, Credentials{}, "", nil, a.newSignIn(account.Name))
 				if a.adopt(w) {
 					newest = w.signIn
 				}

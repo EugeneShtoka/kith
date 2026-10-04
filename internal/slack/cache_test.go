@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	slackgo "github.com/slack-go/slack"
 
@@ -44,15 +45,15 @@ func TestAListingIsCachedAsTheWorkspace(t *testing.T) {
 		}
 		return append(out, conversation("D9", func(c *slackgo.Channel) { c.IsIM = true; c.User = "U9" }))
 	}
-	acme := &workspace{account: work, creds: Credentials{Team: "T1", User: "U1"}}
-	chess := &workspace{account: club, creds: Credentials{Team: "T2", User: "U2"}}
+	acme := newWorkspace(work, Credentials{Team: "T1", User: "U1"}, "", nil, 0)
+	chess := newWorkspace(club, Credentials{Team: "T2", User: "U2"}, "", nil, 0)
 	for _, w := range []*workspace{acme, chess} {
-		if err := a.save(ctx, w, listed(w.creds.Team, w.account.Name, conversations("C1", "C2"), map[string]string{"U9": "Dana"})); err != nil {
+		if err := a.save(ctx, w, listed(w.creds.Team, w.account.Name, conversations("C1", "C2"), map[string]string{"U9": "Dana"}), time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// acme leaves C2: its next listing drops it, and chess keeps its own.
-	if err := a.save(ctx, acme, listed("T1", "work", conversations("C1"), nil)); err != nil {
+	if err := a.save(ctx, acme, listed("T1", "work", conversations("C1"), nil), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	rooms, err := a.Rooms(ctx)
@@ -94,7 +95,7 @@ func TestAListingIsCachedAsTheWorkspace(t *testing.T) {
 	}
 
 	// Me is the person in each connected workspace.
-	if !a.adopt(&workspace{account: work, creds: acme.creds}) || !a.adopt(&workspace{account: club, creds: chess.creds}) {
+	if !a.adopt(newWorkspace(work, acme.creds, "", nil, 0)) || !a.adopt(newWorkspace(club, chess.creds, "", nil, 0)) {
 		t.Fatal("adopt refused a current connection")
 	}
 	if me := a.Me(); !slices.Equal(me, []string{"slack:T1.U1", "slack:T2.U2"}) {

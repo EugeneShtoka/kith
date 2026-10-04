@@ -223,6 +223,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/api"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/slack"
             - "github.com/slack-go/slack"
 
