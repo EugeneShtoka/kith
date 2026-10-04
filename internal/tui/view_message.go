@@ -105,7 +105,7 @@ func (m Model) replyPreview(msg domain.Message, derived *derivedCache, nameW, wi
 	if tgt.Redacted {
 		body = redactedBody
 	}
-	body = strings.Join(strings.Fields(body), " ")
+	body, _ = presented(strings.Join(strings.Fields(body), " "), nil)
 	// The quoted sender in their hue; marker and snippet dim.
 	name := lipgloss.NewStyle().Foreground(colors[tgt.Sender]).Bold(true).Render(displayName(m.processedName(tgt)))
 	if m.mirrored() && m.bodyDir(msg) == bidi.RightToLeft {
@@ -326,16 +326,21 @@ func (m Model) mirroredMessageRows(msg domain.Message, drawn []string, dir bidi.
 
 // messageBody is the text a message shows, its mention spans, and its formatting spans.
 // Mentions are resolved before wrapping since resolved names change the length.
+// Toned emoji are spelled as the terminal draws them (presented) before anything
+// measures the text.
 func (m Model) messageBody(msg domain.Message, colors map[string]color.Color) (string, []mentionSpan, []richtext.Span) {
 	if text, spans, ok := m.formattedBody(msg); ok {
 		resolved, mentions := m.resolveMentions(text, msg.Mentions, colors, msg.RoomID)
 		if resolved != text {
 			// Resolved names shift every mark, so the sender's formatting is dropped.
+			resolved, _ = presented(resolved, nil)
 			return resolved, mentions, bareLinkSpans(resolved, nil)
 		}
+		text, spans = presented(text, spans)
 		return text, mentions, append(spans, bareLinkSpans(text, spans)...)
 	}
 	body, mentions := m.plainBody(msg, colors)
+	body, _ = presented(body, nil)
 	return body, mentions, bareLinkSpans(body, nil)
 }
 
