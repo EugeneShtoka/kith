@@ -26,3 +26,26 @@ func (r *Remote) SignInSlack(ctx context.Context, account, token, cookie string)
 	}
 	return api.SlackSignedIn{Workspace: resp.GetWorkspace(), User: resp.GetUser()}, nil
 }
+
+// SendTelegramCode asks the daemon to have Telegram send a login code
+// (api.TelegramLogin). The app's hash travels in the request body over the 0600
+// socket, never on argv.
+func (r *Remote) SendTelegramCode(ctx context.Context, account string, app api.TelegramApp) (api.TelegramCodeSent, error) {
+	resp, err := call(ctx, "send a Telegram login code", r.c.SendTelegramCode,
+		&v1.SendTelegramCodeRequest{Account: account, ApiId: int32(app.ID), ApiHash: app.Hash}) //nolint:gosec // an api_id is a small positive number
+	if err != nil {
+		return api.TelegramCodeSent{}, err
+	}
+	return api.TelegramCodeSent{Via: resp.GetVia()}, nil
+}
+
+// SignInTelegram asks the daemon to finish a Telegram login (api.TelegramLogin). The
+// code and password travel in the request body over the 0600 socket.
+func (r *Remote) SignInTelegram(ctx context.Context, account, code, password string) (api.TelegramSignedIn, error) {
+	resp, err := call(ctx, "log in to Telegram", r.c.SignInTelegram,
+		&v1.SignInTelegramRequest{Account: account, Code: code, Password: password})
+	if err != nil {
+		return api.TelegramSignedIn{}, err
+	}
+	return api.TelegramSignedIn{Name: resp.GetName(), ID: resp.GetId()}, nil
+}

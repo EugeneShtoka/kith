@@ -128,6 +128,20 @@ signed. The job also refuses a tag whose commit is not on `main`.
 `kith-git` computes its version from git, so it needs a push only when
 `packaging/arch/PKGBUILD` itself changes.
 
+### kith's own Telegram app
+
+Telegram logins go through an app registered at my.telegram.org. A login may name its
+own; one that names none uses kith's, which is built into `kithd` from the secrets
+`TELEGRAM_API_ID` and `TELEGRAM_API_HASH` (the release passes them to GoReleaser,
+whose `kithd` build sets them with `-ldflags -X`; `make build-daemon` takes the same
+variables from the environment). Without them the release has no app of its own, and
+every Telegram login must name one. They are not secret from anyone holding a binary
+(`strings` finds them); the secrets only keep them off GitHub.
+
+1. At <https://my.telegram.org> → API development tools, create an app for kith.
+2. Add its api_id and api_hash as the repository secrets `TELEGRAM_API_ID` and
+   `TELEGRAM_API_HASH`.
+
 ### Homebrew tap
 
 1. Create the public repository `EugeneShtoka/homebrew-tap`. The `homebrew-` prefix

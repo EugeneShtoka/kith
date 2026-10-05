@@ -35,6 +35,7 @@ type loginNetwork struct {
 var loginNetworks = []loginNetwork{
 	{"whatsapp", "WhatsApp", "a phone number, linked as one of its devices"},
 	{"slack", "Slack", "a workspace, signed in with your browser's session"},
+	{"telegram", "Telegram", "a phone number, logged in with a code Telegram sends"},
 	{"matrix", "Matrix", "an account on a homeserver"},
 }
 
@@ -64,12 +65,18 @@ const (
 	fieldHomeserver = "homeserver"
 	fieldUser       = "user"
 	fieldPassword   = "password"
+	fieldAppID      = "api_id"
+	fieldAppHash    = "api_hash"
+	fieldCode       = "code"
+	fieldTwoStep    = "two-step"
 )
 
 // loginField is one thing a sign-in asks for.
 type loginField struct {
 	key, label string
 	secret     bool
+	// optional takes an empty answer.
+	optional bool
 }
 
 // loginState is the sign-in under way.
@@ -87,6 +94,9 @@ type loginState struct {
 	code, note string
 	cancel     context.CancelFunc
 	events     <-chan loginEvent
+	// answer takes the field the daemon's sign-in asked for midway (a code Telegram
+	// sent), while it waits; nil for the fields asked up front.
+	answer chan<- string
 }
 
 // field is the field being asked for.
@@ -97,9 +107,13 @@ func (l loginState) field() (loginField, bool) {
 	return l.fields[l.at], true
 }
 
-// loginEvent is news from the sign-in under way: a pairing code, a step, or the end.
+// loginEvent is news from the sign-in under way: a pairing code, a step, a question,
+// or the end.
 type loginEvent struct {
 	code, note string
+	// ask is a field to answer now, the sign-in waiting; its answer goes to answer.
+	ask    *loginField
+	answer chan<- string
 	// done ends the sign-in: what it did, or err.
 	done  string
 	err   error
@@ -133,7 +147,7 @@ func (m Model) chooseLoginNetwork(key string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	i := slices.IndexFunc(loginNetworks, func(n loginNetwork) bool { return n.key == key })
 	if i < 0 {
-		return m.say("no network is called " + key + " — whatsapp, slack or matrix"), nil
+		return m.say("no network is called " + key + " — whatsapp, slack, telegram or matrix"), nil
 	}
 	network, cfg := loginNetworks[i], m.conf.base
 	if network.key == "matrix" {
@@ -171,6 +185,10 @@ func loginAccounts(cfg config.Config, network string) [][2]string {
 	case "slack":
 		for _, a := range cfg.Slack.Accounts {
 			out = append(out, [2]string{a.Name, a.Workspace})
+		}
+	case "telegram":
+		for _, a := range cfg.Telegram.Accounts {
+			out = append(out, [2]string{a.Name, a.Phone})
 		}
 	}
 	return out
@@ -215,6 +233,10 @@ func loginFields(network string, known bool) []loginField {
 			{key: fieldToken, label: "token (xoxc-…)", secret: true},
 			{key: fieldCookie, label: "cookie d (xoxd-…)", secret: true},
 		}
+	case network == "telegram" && known:
+		return telegramAppFields() // the code is asked once Telegram sent it
+	case network == "telegram":
+		return append([]loginField{{key: fieldPhone, label: "phone"}, {key: fieldName, label: "call it"}}, telegramAppFields()...)
 	case known: // Matrix, set up
 		return []loginField{{key: fieldPassword, label: "password", secret: true}}
 	default:
@@ -222,6 +244,14 @@ func loginFields(network string, known bool) []loginField {
 			{key: fieldHomeserver, label: "homeserver"}, {key: fieldUser, label: "Matrix ID"},
 			{key: fieldPassword, label: "password", secret: true},
 		}
+	}
+}
+
+// telegramAppFields is the app a Telegram login goes through: empty for kith's own.
+func telegramAppFields() []loginField {
+	return []loginField{
+		{key: fieldAppID, label: "api_id", optional: true},
+		{key: fieldAppHash, label: "api_hash", secret: true},
 	}
 }
 
@@ -248,8 +278,11 @@ func (m Model) loginSuggestion(f loginField) string {
 	switch f.key {
 	case fieldName:
 		names := accountNames(cfg, m.login.network.key)
-		if m.login.network.key == "whatsapp" {
+		switch m.login.network.key {
+		case "whatsapp":
 			return setup.WhatsAppName(config.WhatsAppAccount{Phone: v[fieldPhone]}.Digits(), names)
+		case "telegram":
+			return setup.TelegramName(config.TelegramAccount{Phone: v[fieldPhone]}.Digits(), names)
 		}
 		return setup.SlackName(v[fieldWorkspace], names)
 	case fieldHomeserver:
@@ -282,6 +315,15 @@ func (m Model) submitLogin(input string) (Model, tea.Cmd) {
 	values[f.key] = value
 	m.login.values = values
 	m.login.at++
+	if m.login.answer != nil {
+		// The sign-in asked for it, and waits: it has it now (its buffer holds one).
+		m.login.answer <- value
+		m.login.answer, m.login.stage, m.login.note = nil, loginWorking, "logging in…"
+		return m, nil
+	}
+	if f.key == fieldAppID && value == "" {
+		m.login.at++ // kith's own app: no hash to ask for
+	}
 	if m.login.at < len(m.login.fields) {
 		return m.askLoginField(""), nil
 	}
@@ -294,11 +336,19 @@ var matrixID = regexp.MustCompile(`^@[^:\s]+:\S+$`)
 // checkLoginField is an answer as it is kept, or why it is refused.
 func (m Model) checkLoginField(f loginField, input string) (string, error) {
 	if input == "" {
+		if f.optional {
+			return "", nil
+		}
 		return "", errors.New(f.label + " is needed")
 	}
 	switch f.key {
 	case fieldPhone:
-		return checkPhone(m.conf.base, input)
+		return checkPhone(m.conf.base, m.login.network.key, input)
+	case fieldAppID:
+		_, err := setup.TelegramAppID(input)
+		return input, err
+	case fieldAppHash:
+		return input, setup.CheckTelegramAppHash(input)
 	case fieldName:
 		return checkName(m.conf.base, m.login.network.key, input)
 	case fieldWorkspace:
@@ -315,15 +365,16 @@ func (m Model) checkLoginField(f loginField, input string) (string, error) {
 	return input, nil
 }
 
-// checkPhone is an international number no account has, kept with its "+".
-func checkPhone(cfg config.Config, input string) (string, error) {
+// checkPhone is an international number no account of the network has, kept with
+// its "+".
+func checkPhone(cfg config.Config, network, input string) (string, error) {
 	digits := config.WhatsAppAccount{Phone: input}.Digits()
 	if err := setup.CheckPhone(digits); err != nil {
 		return "", err
 	}
-	for _, a := range cfg.WhatsApp.Accounts {
-		if a.Digits() == digits {
-			return "", fmt.Errorf("that number is the account %s already — :login whatsapp and choose it to link it again", a.Name)
+	for _, a := range loginAccounts(cfg, network) {
+		if (config.WhatsAppAccount{Phone: a[1]}).Digits() == digits {
+			return "", fmt.Errorf("that number is the account %s already — :login %s and choose it to sign in again", a[0], network)
 		}
 	}
 	if !strings.HasPrefix(input, "+") {
@@ -450,6 +501,11 @@ func (m Model) loginConfig() (config.Config, bool) {
 			cfg.Slack.Accounts = append(cfg.Slack.Accounts, config.SlackAccount{Name: v[fieldName], Workspace: v[fieldWorkspace]})
 		}
 		return cfg, !before.Slack.Enabled || len(cfg.Slack.Accounts) != len(before.Slack.Accounts)
+	case "telegram":
+		if m.login.fresh {
+			cfg.Telegram.Accounts = append(cfg.Telegram.Accounts, config.TelegramAccount{Name: v[fieldName], Phone: v[fieldPhone]})
+		}
+		return cfg, len(cfg.Telegram.Accounts) != len(before.Telegram.Accounts)
 	default:
 		if m.login.fresh {
 			cfg.Homeserver, cfg.User = v[fieldHomeserver], v[fieldUser]
@@ -466,6 +522,8 @@ func loginApplied(cfg config.Config, l loginState) bool {
 		return cfg.WhatsApp.Enabled && slices.ContainsFunc(cfg.WhatsApp.Accounts, func(a config.WhatsAppAccount) bool { return a.Name == name })
 	case "slack":
 		return cfg.Slack.Enabled && slices.ContainsFunc(cfg.Slack.Accounts, func(a config.SlackAccount) bool { return a.Name == name })
+	case "telegram":
+		return slices.ContainsFunc(cfg.Telegram.Accounts, func(a config.TelegramAccount) bool { return a.Name == name })
 	default:
 		return cfg.HasMatrix()
 	}
@@ -543,6 +601,12 @@ func (m Model) loginSignIn() func(context.Context, func(loginEvent)) (string, bo
 			}
 			signed, err := in.SignInSlack(ctx, account, v[fieldToken], v[fieldCookie])
 			return "signed in to " + signed.Workspace + " as " + signed.User, false, err //nolint:wrapcheck // the daemon's own words
+		case "telegram":
+			in, ok := backend.(api.TelegramLogin)
+			if !ok {
+				return "", false, errNoLogin
+			}
+			return telegramSignIn(ctx, in, account, v, send)
 		default:
 			in, ok := backend.(api.MatrixLogin)
 			if !ok {
@@ -552,6 +616,47 @@ func (m Model) loginSignIn() func(context.Context, func(loginEvent)) (string, bo
 			return "logged in to Matrix as " + logged.UserID, err == nil && !logged.Started, err //nolint:wrapcheck // the daemon's own words
 		}
 	}
+}
+
+// telegramSignIn has Telegram send the account a code, asks for it, and logs in with
+// it, asking for the two-step verification password when the account has one; a
+// wrong code or password is asked for again.
+func telegramSignIn(
+	ctx context.Context, in api.TelegramLogin, account string, v map[string]string, send func(loginEvent),
+) (string, bool, error) {
+	id, _ := setup.TelegramAppID(v[fieldAppID]) // checked as typed; empty is kith's own
+	sent, err := in.SendTelegramCode(ctx, account, api.TelegramApp{ID: id, Hash: v[fieldAppHash]})
+	if err != nil {
+		return "", false, err //nolint:wrapcheck // the daemon's own words
+	}
+	ask := func(f loginField, note string) (string, error) {
+		answer := make(chan string, 1)
+		send(loginEvent{ask: &f, answer: answer, note: note})
+		select {
+		case value := <-answer:
+			return value, nil
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	codeField := loginField{key: fieldCode, label: "code"}
+	code, err := ask(codeField, "Telegram sent a code to "+sent.Via)
+	var password string
+	for err == nil {
+		var signed api.TelegramSignedIn
+		signed, err = in.SignInTelegram(ctx, account, code, password)
+		switch {
+		case err == nil:
+			return "logged in to Telegram as " + signed.Name + " — its chats arrive over the next minutes", false, nil
+		case errors.Is(err, api.ErrBadCode):
+			code, err = ask(codeField, "that is not the code Telegram sent; try again")
+		case errors.Is(err, api.ErrPasswordNeeded):
+			password, err = ask(loginField{key: fieldTwoStep, label: "password", secret: true}, "the account has two-step verification")
+		case errors.Is(err, api.ErrBadPassword):
+			password, err = ask(loginField{key: fieldTwoStep, label: "password", secret: true}, "that is not the password; try again")
+		}
+	}
+	return "", false, err
 }
 
 // errNoLogin is a kith not attached to a daemon, which is what signs in.
@@ -564,6 +669,9 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 		return m, nil // canceled meanwhile
 	}
 	e := msg.event
+	if e.ask != nil {
+		return m.askMidway(*e.ask, e.answer, e.note), listen(m.ctx, m.login.events, wrapLogin)
+	}
 	if !e.final {
 		if e.code != "" {
 			m.login.code = e.code
@@ -585,6 +693,21 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 		return m.sayErr("could not sign in to "+label, e.err), nil
 	}
 	return m.say(e.done), tea.Batch(m.refreshRoomsCmd(), m.refreshSpacesCmd())
+}
+
+// askMidway opens the prompt for a field the sign-in asks for while it waits: a field
+// asked before (a code tried again) is asked in its place, its old answer forgotten.
+func (m Model) askMidway(f loginField, answer chan<- string, note string) Model {
+	i := slices.IndexFunc(m.login.fields, func(k loginField) bool { return k.key == f.key })
+	if i < 0 {
+		m.login.fields = append(slices.Clone(m.login.fields), f)
+		i = len(m.login.fields) - 1
+	}
+	values := maps.Clone(m.login.values)
+	delete(values, f.key)
+	m.login.values, m.login.at, m.login.stage, m.login.answer = values, i, loginAsking, answer
+	m.login.fields = m.login.fields[:i+1] // what came after it is asked again
+	return m.askLoginField("").say(note)
 }
 
 // loginTitle is the timeline pane's title while signing in.
@@ -649,13 +772,26 @@ func (m Model) loginHelp(f loginField) string {
 		}
 	}
 	session := setup.SlackSession(workspace)
+	if help, ok := telegramHelp(f.key); ok {
+		return help
+	}
 	switch f.key {
 	case fieldPhone:
+		if m.login.network.key == "telegram" {
+			return "The Telegram account's phone number, with its country code: +44 7700 900123.\n\n" +
+				"Telegram sends a code to it — to the Telegram app where the account is logged in, else by " +
+				"SMS — and tells the account's other sessions about the new login."
+		}
 		return "The WhatsApp account's phone number, with its country code: +44 7700 900123.\n\n" +
 			"kith becomes one of the phone's linked devices, as WhatsApp Web is. The phone must come " +
 			"online every couple of weeks, or WhatsApp unlinks it. Linking asks the phone for all the " +
 			"history it holds; it arrives over the minutes after."
 	case fieldName:
+		if m.login.network.key == "telegram" {
+			return "What kith calls this account: its chats are the space “Telegram <name>” in the rail, " +
+				"and `kith login telegram <name>` logs it in again. Suggested from the number's country; " +
+				"enter keeps it."
+		}
 		if m.login.network.key == "whatsapp" {
 			return "What kith calls this account: its rooms are the space “WhatsApp <name>” in the rail, " +
 				"and `kith login whatsapp <name>` links it again. Suggested from the number's country; " +
@@ -688,6 +824,24 @@ func (m Model) loginHelp(f loginField) string {
 		return help
 	}
 	return ""
+}
+
+// telegramHelp is what a field only Telegram asks for is, and where to find it.
+func telegramHelp(key string) (string, bool) {
+	switch key {
+	case fieldAppID:
+		return setup.TelegramAppSteps + "\n\nLeave it empty to log in through kith's own app, when this " +
+			"build carries one. Your own is safer: Telegram may limit an app many people share.", true
+	case fieldAppHash:
+		return "The app's api_hash, from the same page: 32 letters and digits.", true
+	case fieldCode:
+		return "The code Telegram sent. It reaches the Telegram app where the account is logged in, as a " +
+			"message from Telegram, or comes by SMS. Never give it to anyone.", true
+	case fieldTwoStep:
+		return "The account's two-step verification password (Telegram → Settings → Privacy and Security). " +
+			"It is checked by Telegram and not kept.", true
+	}
+	return "", false
 }
 
 // loginPromptLabel is the status line's label for the field being typed.

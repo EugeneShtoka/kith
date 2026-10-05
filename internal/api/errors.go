@@ -31,8 +31,14 @@ var (
 	ErrSessionRejected = errors.New("matrix: the homeserver rejected the saved session")
 	// ErrUnreachable: the homeserver could not be reached; says nothing about the session.
 	ErrUnreachable = errors.New("matrix: cannot reach the homeserver")
-	// ErrBadPassword: the homeserver rejected the account password during UIA.
-	ErrBadPassword = errors.New("matrix: the account password is not correct")
+	// ErrBadPassword: the homeserver rejected the account password during UIA, or
+	// Telegram the account's two-step verification password.
+	ErrBadPassword = errors.New("the account password is not correct")
+	// ErrPasswordNeeded: the Telegram account has two-step verification on, and
+	// signing in needs its password too.
+	ErrPasswordNeeded = errors.New("telegram: this account has a two-step verification password; give it too")
+	// ErrBadCode: the login code is not the one Telegram sent; another may be tried.
+	ErrBadCode = errors.New("telegram: that is not the code Telegram sent")
 	// ErrEditsRemain: the message was deleted but some earlier versions (separate
 	// m.replace events) could not be. The deletion itself succeeded.
 	ErrEditsRemain = errors.New("matrix: the message is deleted, but earlier versions of it could not be removed")

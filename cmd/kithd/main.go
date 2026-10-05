@@ -359,6 +359,15 @@ func (s served) slackSignIn() api.SlackSignIn {
 	return s.slack
 }
 
+// telegramLogin is what logs Telegram in: nil, not a nil adapter, when the daemon runs
+// no Telegram account, so the handler can tell.
+func (s served) telegramLogin() api.TelegramLogin {
+	if s.telegram == nil {
+		return nil
+	}
+	return s.telegram
+}
+
 // matrixLogin is what logs Matrix in: nil, not a nil adapter, when the config names
 // no Matrix account, so the handler can tell.
 func (s served) matrixLogin() api.MatrixLogin {
@@ -522,6 +531,7 @@ func serve(
 		WhatsApp:      backend.whatsAppLink(),
 		Matrix:        backend.matrixLogin(),
 		Slack:         backend.slackSignIn(),
+		Telegram:      backend.telegramLogin(),
 		Log:           log,
 		Reload:        reloader(configPath, relevel, cutoff, backend, w.notifications),
 	})
@@ -692,6 +702,15 @@ func expected(ctx context.Context, log *slog.Logger, backend served) []daemon.Ne
 		}
 		for _, account := range signed {
 			out = append(out, slackStatus(account, slack.Connecting, ""))
+		}
+	}
+	if tg := backend.telegram; tg != nil {
+		in, err := tg.LoggedIn()
+		if err != nil {
+			log.Warn("read which Telegram accounts are logged in failed", "err", err)
+		}
+		for _, account := range in {
+			out = append(out, telegramStatus(account, telegram.Connecting, ""))
 		}
 	}
 	return out

@@ -60,8 +60,13 @@ build: build-tui build-daemon build-mcp
 build-tui:
 	$(GOBUILD) -o kith ./cmd/kith/
 
+# kith's own Telegram app, from the environment (CI: secrets), never the repository:
+# the shell expands them, so make does not echo the hash. Unset, the build has none.
+TELEGRAM_X := -X github.com/EugeneShtoka/kith/internal/telegram.builtinID=$${TELEGRAM_API_ID:-} \
+	-X github.com/EugeneShtoka/kith/internal/telegram.builtinHash=$${TELEGRAM_API_HASH:-}
+
 build-daemon:
-	$(GOBUILD) -o kithd ./cmd/kithd/
+	$(GOBUILD) -ldflags "$(TELEGRAM_X)" -o kithd ./cmd/kithd/
 
 build-mcp:
 	$(GOBUILD) -o kith-mcp ./cmd/kith-mcp/

@@ -198,6 +198,12 @@ const (
 	// BackendServiceSignInSlackProcedure is the fully-qualified name of the BackendService's
 	// SignInSlack RPC.
 	BackendServiceSignInSlackProcedure = "/backend.v1.BackendService/SignInSlack"
+	// BackendServiceSendTelegramCodeProcedure is the fully-qualified name of the BackendService's
+	// SendTelegramCode RPC.
+	BackendServiceSendTelegramCodeProcedure = "/backend.v1.BackendService/SendTelegramCode"
+	// BackendServiceSignInTelegramProcedure is the fully-qualified name of the BackendService's
+	// SignInTelegram RPC.
+	BackendServiceSignInTelegramProcedure = "/backend.v1.BackendService/SignInTelegram"
 	// BackendServiceRoomsWithProcedure is the fully-qualified name of the BackendService's RoomsWith
 	// RPC.
 	BackendServiceRoomsWithProcedure = "/backend.v1.BackendService/RoomsWith"
@@ -451,6 +457,14 @@ type BackendServiceClient interface {
 	// Slack, keeps it and connects the workspace. A failure (a session Slack refuses,
 	// another workspace's, Slack not enabled) is an error.
 	SignInSlack(context.Context, *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error)
+	// SendTelegramCode has Telegram send one configured [[telegram.account]] a login
+	// code, starting its login over. A failure (no Telegram account runs, no app to log
+	// in through, a number Telegram refuses) is an error.
+	SendTelegramCode(context.Context, *connect.Request[v1.SendTelegramCodeRequest]) (*connect.Response[v1.SendTelegramCodeResponse], error)
+	// SignInTelegram finishes that login with the code, and the two-step verification
+	// password once one is asked for (the password-needed sentinel); it keeps the
+	// session and connects the account.
+	SignInTelegram(context.Context, *connect.Request[v1.SignInTelegramRequest]) (*connect.Response[v1.SignInTelegramResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -915,6 +929,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("SignInSlack")),
 			connect.WithClientOptions(opts...),
 		),
+		sendTelegramCode: connect.NewClient[v1.SendTelegramCodeRequest, v1.SendTelegramCodeResponse](
+			httpClient,
+			baseURL+BackendServiceSendTelegramCodeProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SendTelegramCode")),
+			connect.WithClientOptions(opts...),
+		),
+		signInTelegram: connect.NewClient[v1.SignInTelegramRequest, v1.SignInTelegramResponse](
+			httpClient,
+			baseURL+BackendServiceSignInTelegramProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SignInTelegram")),
+			connect.WithClientOptions(opts...),
+		),
 		roomsWith: connect.NewClient[v1.RoomsWithRequest, v1.RoomsWithResponse](
 			httpClient,
 			baseURL+BackendServiceRoomsWithProcedure,
@@ -1190,6 +1216,8 @@ type backendServiceClient struct {
 	pairWhatsApp          *connect.Client[v1.PairWhatsAppRequest, v1.PairWhatsAppResponse]
 	loginMatrix           *connect.Client[v1.LoginMatrixRequest, v1.LoginMatrixResponse]
 	signInSlack           *connect.Client[v1.SignInSlackRequest, v1.SignInSlackResponse]
+	sendTelegramCode      *connect.Client[v1.SendTelegramCodeRequest, v1.SendTelegramCodeResponse]
+	signInTelegram        *connect.Client[v1.SignInTelegramRequest, v1.SignInTelegramResponse]
 	roomsWith             *connect.Client[v1.RoomsWithRequest, v1.RoomsWithResponse]
 	roomEncryption        *connect.Client[v1.RoomEncryptionRequest, v1.RoomEncryptionResponse]
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
@@ -1527,6 +1555,16 @@ func (c *backendServiceClient) SignInSlack(ctx context.Context, req *connect.Req
 	return c.signInSlack.CallUnary(ctx, req)
 }
 
+// SendTelegramCode calls backend.v1.BackendService.SendTelegramCode.
+func (c *backendServiceClient) SendTelegramCode(ctx context.Context, req *connect.Request[v1.SendTelegramCodeRequest]) (*connect.Response[v1.SendTelegramCodeResponse], error) {
+	return c.sendTelegramCode.CallUnary(ctx, req)
+}
+
+// SignInTelegram calls backend.v1.BackendService.SignInTelegram.
+func (c *backendServiceClient) SignInTelegram(ctx context.Context, req *connect.Request[v1.SignInTelegramRequest]) (*connect.Response[v1.SignInTelegramResponse], error) {
+	return c.signInTelegram.CallUnary(ctx, req)
+}
+
 // RoomsWith calls backend.v1.BackendService.RoomsWith.
 func (c *backendServiceClient) RoomsWith(ctx context.Context, req *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {
 	return c.roomsWith.CallUnary(ctx, req)
@@ -1856,6 +1894,14 @@ type BackendServiceHandler interface {
 	// Slack, keeps it and connects the workspace. A failure (a session Slack refuses,
 	// another workspace's, Slack not enabled) is an error.
 	SignInSlack(context.Context, *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error)
+	// SendTelegramCode has Telegram send one configured [[telegram.account]] a login
+	// code, starting its login over. A failure (no Telegram account runs, no app to log
+	// in through, a number Telegram refuses) is an error.
+	SendTelegramCode(context.Context, *connect.Request[v1.SendTelegramCodeRequest]) (*connect.Response[v1.SendTelegramCodeResponse], error)
+	// SignInTelegram finishes that login with the code, and the two-step verification
+	// password once one is asked for (the password-needed sentinel); it keeps the
+	// session and connects the account.
+	SignInTelegram(context.Context, *connect.Request[v1.SignInTelegramRequest]) (*connect.Response[v1.SignInTelegramResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -2316,6 +2362,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("SignInSlack")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceSendTelegramCodeHandler := connect.NewUnaryHandler(
+		BackendServiceSendTelegramCodeProcedure,
+		svc.SendTelegramCode,
+		connect.WithSchema(backendServiceMethods.ByName("SendTelegramCode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceSignInTelegramHandler := connect.NewUnaryHandler(
+		BackendServiceSignInTelegramProcedure,
+		svc.SignInTelegram,
+		connect.WithSchema(backendServiceMethods.ByName("SignInTelegram")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceRoomsWithHandler := connect.NewUnaryHandler(
 		BackendServiceRoomsWithProcedure,
 		svc.RoomsWith,
@@ -2648,6 +2706,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceLoginMatrixHandler.ServeHTTP(w, r)
 		case BackendServiceSignInSlackProcedure:
 			backendServiceSignInSlackHandler.ServeHTTP(w, r)
+		case BackendServiceSendTelegramCodeProcedure:
+			backendServiceSendTelegramCodeHandler.ServeHTTP(w, r)
+		case BackendServiceSignInTelegramProcedure:
+			backendServiceSignInTelegramHandler.ServeHTTP(w, r)
 		case BackendServiceRoomsWithProcedure:
 			backendServiceRoomsWithHandler.ServeHTTP(w, r)
 		case BackendServiceRoomEncryptionProcedure:
@@ -2965,6 +3027,14 @@ func (UnimplementedBackendServiceHandler) LoginMatrix(context.Context, *connect.
 
 func (UnimplementedBackendServiceHandler) SignInSlack(context.Context, *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SignInSlack is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SendTelegramCode(context.Context, *connect.Request[v1.SendTelegramCodeRequest]) (*connect.Response[v1.SendTelegramCodeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SendTelegramCode is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SignInTelegram(context.Context, *connect.Request[v1.SignInTelegramRequest]) (*connect.Response[v1.SignInTelegramResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SignInTelegram is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {

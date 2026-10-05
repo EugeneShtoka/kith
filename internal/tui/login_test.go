@@ -27,6 +27,10 @@ type signingIn struct {
 	slack    [][3]string
 	matrix   []string
 	started  bool // whether LoginMatrix starts the session live
+	// telegram is each code sent: the account and its app; tried is each answer.
+	telegram []string
+	tried    [][2]string
+	twoStep  bool // the Telegram account has a password ("right")
 }
 
 func (s *signingIn) restart(context.Context) error {
@@ -76,6 +80,31 @@ func (s *signingIn) LoginMatrix(_ context.Context, password string) (api.MatrixL
 	return api.MatrixLoggedIn{UserID: "@me:example.org", Started: s.started}, nil
 }
 
+func (s *signingIn) SendTelegramCode(_ context.Context, account string, app api.TelegramApp) (api.TelegramCodeSent, error) {
+	if s.isOff() {
+		return api.TelegramCodeSent{}, fmt.Errorf("daemon: send a Telegram login code: %w", api.ErrNetworkOff)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.telegram = append(s.telegram, fmt.Sprintf("%s %d %s", account, app.ID, app.Hash))
+	return api.TelegramCodeSent{Via: "your Telegram app"}, nil
+}
+
+func (s *signingIn) SignInTelegram(_ context.Context, _, code, password string) (api.TelegramSignedIn, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tried = append(s.tried, [2]string{code, password})
+	switch {
+	case code != "12345":
+		return api.TelegramSignedIn{}, fmt.Errorf("daemon: %w", api.ErrBadCode)
+	case s.twoStep && password == "":
+		return api.TelegramSignedIn{}, fmt.Errorf("daemon: %w", api.ErrPasswordNeeded)
+	case s.twoStep && password != "right":
+		return api.TelegramSignedIn{}, fmt.Errorf("daemon: %w", api.ErrBadPassword)
+	}
+	return api.TelegramSignedIn{Name: "Dana Lee", ID: "telegram:42"}, nil
+}
+
 // loggingIn is a model over d with cfg, wide enough to draw its status line.
 func loggingIn(t *testing.T, d *signingIn, change func(*config.Config)) Model {
 	t.Helper()
@@ -106,6 +135,13 @@ func answer(t *testing.T, m Model, input string) (Model, tea.Cmd) {
 // line's timer) is dropped.
 func signIn(t *testing.T, m Model, cmd tea.Cmd) (Model, []string) {
 	t.Helper()
+	return signInAnswering(t, m, cmd, nil)
+}
+
+// signInAnswering is signIn answering what the sign-in asks midway from answers, by
+// field, in turn, and returns the codes shown.
+func signInAnswering(t *testing.T, m Model, cmd tea.Cmd, answers map[string][]string) (Model, []string) {
+	t.Helper()
 	var codes []string
 	queue := []tea.Cmd{cmd}
 	for steps := 0; len(queue) > 0; steps++ {
@@ -135,6 +171,14 @@ func signIn(t *testing.T, m Model, cmd tea.Cmd) (Model, []string) {
 				codes = append(codes, m.login.code)
 			}
 			queue = append(queue, more)
+			if f, ok := m.login.field(); ok && m.login.answer != nil {
+				if len(answers[f.key]) == 0 {
+					t.Fatalf("asked %q midway, with no answer left (status %q)", f.key, m.status())
+				}
+				var input string
+				input, answers[f.key] = answers[f.key][0], answers[f.key][1:]
+				m, _ = answer(t, m, input)
+			}
 		}
 	}
 	return m, codes
@@ -309,5 +353,91 @@ func TestLoginWithoutARestartSaysWhy(t *testing.T) {
 	m, _ = signIn(t, m, cmd)
 	if m.login.stage != loginOff || !strings.Contains(m.status(), "could not sign in to WhatsApp") {
 		t.Errorf("stage %v, status %q; want the failure said", m.login.stage, m.status())
+	}
+}
+
+// A new Telegram account: the number, a name from its country, the app (empty: kith's
+// own, so no hash is asked); written into the config, the daemon restarted to run
+// Telegram, the code sent and asked for — a wrong one again — then the two-step
+// password, a wrong one again too.
+func TestLoginSetsUpTelegramAndAsksForTheCodeMidway(t *testing.T) {
+	t.Parallel()
+	d := &signingIn{off: true, twoStep: true}
+	m := loggingIn(t, d, nil)
+
+	m, _ = m.openLogin("telegram")
+	m, _ = answer(t, m, "+44 7700 900123")
+	if m.prompt.input != "gb" {
+		t.Errorf("name suggested %q, want gb from the country", m.prompt.input)
+	}
+	m, _ = m.submitPrompt()
+	if f, _ := m.login.field(); f.key != fieldAppID || !strings.Contains(strings.Join(m.loginLines(140, 40), "\n"), "my.telegram.org") {
+		t.Fatalf("asked %q, want the api_id with where to get it", f.key)
+	}
+	m, cmd := answer(t, m, "")
+	if m.login.stage != loginWorking {
+		t.Fatalf("an empty api_id asked on (%v): kith's own app needs no hash", m.login.stage)
+	}
+	if got := m.conf.base.Telegram.Accounts; len(got) != 1 || got[0] != (config.TelegramAccount{Name: "gb", Phone: "+44 7700 900123"}) {
+		t.Fatalf("[[telegram.account]] = %+v, want gb", got)
+	}
+	m, _ = signInAnswering(t, m, cmd, map[string][]string{fieldCode: {"11111", "12345"}, fieldTwoStep: {"wrong", "right"}})
+	if d.restarts != 1 || !slices.Equal(d.telegram, []string{"gb 0 "}) {
+		t.Errorf("restarts %d, codes sent %q; want a restart, then gb's code through kith's app", d.restarts, d.telegram)
+	}
+	want := [][2]string{{"11111", ""}, {"12345", ""}, {"12345", "wrong"}, {"12345", "right"}}
+	if !slices.Equal(d.tried, want) {
+		t.Errorf("answers %q, want %q", d.tried, want)
+	}
+	if m.login.stage != loginOff || !strings.Contains(m.status(), "logged in to Telegram as Dana Lee") {
+		t.Errorf("after: stage %v, status %q; want done and said", m.login.stage, m.status())
+	}
+}
+
+// One's own app: its hash is checked as typed and reaches the daemon; canceling while
+// the code is asked for ends the login.
+func TestLoginTelegramWithOwnAppAndCancelMidway(t *testing.T) {
+	t.Parallel()
+	d := &signingIn{}
+	m := loggingIn(t, d, func(c *config.Config) {
+		c.Telegram.Accounts = []config.TelegramAccount{{Name: "home", Phone: "+44 7700 900123"}}
+	})
+	m, _ = m.openLogin("telegram")
+	m, _ = m.chooseLoginAccount("home")
+	m, _ = answer(t, m, "12345")
+	m, _ = answer(t, m, "not-a-hash")
+	if f, _ := m.login.field(); f.key != fieldAppHash || !strings.Contains(m.status(), "32") {
+		t.Fatalf("a bad hash: field %q, status %q; want it refused", f.key, m.status())
+	}
+	m, cmd := answer(t, m, "0123456789abcdef0123456789abcdef")
+	// Run until the code is asked for, then cancel.
+	for range 20 {
+		if m.login.answer != nil {
+			break
+		}
+		msg := cmd()
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					if lm, ok := c().(loginMsg); ok {
+						m, cmd = asModel(m.Update(lm))
+					}
+				}
+			}
+			continue
+		}
+		if lm, ok := msg.(loginMsg); ok {
+			m, cmd = asModel(m.Update(lm))
+		}
+	}
+	if f, ok := m.login.field(); !ok || f.key != fieldCode || !strings.Contains(m.status(), "your Telegram app") {
+		t.Fatalf("asked %q (status %q), want the code, saying where it went", f.key, m.status())
+	}
+	if len(d.telegram) != 1 || d.telegram[0] != "home 12345 0123456789abcdef0123456789abcdef" {
+		t.Errorf("codes sent %q, want home's through its own app", d.telegram)
+	}
+	m, _ = m.cancelPrompt()
+	if m.login.stage != loginOff {
+		t.Errorf("stage %v after cancel, want off", m.login.stage)
 	}
 }

@@ -50,6 +50,9 @@ builds:
       - -X github.com/EugeneShtoka/kith/internal/buildinfo.Version={{.Version}}
       - -X github.com/EugeneShtoka/kith/internal/buildinfo.Commit={{.ShortCommit}}
       - -X github.com/EugeneShtoka/kith/internal/buildinfo.Date={{.Date}}
+      # kith's own Telegram app, from the release's secrets; empty without them.
+      - -X github.com/EugeneShtoka/kith/internal/telegram.builtinID={{ index .Env "TELEGRAM_API_ID" }}
+      - -X github.com/EugeneShtoka/kith/internal/telegram.builtinHash={{ index .Env "TELEGRAM_API_HASH" }}
     goos: [linux, darwin, freebsd] # windows: see the WINDOWS slot at the end of builds
     goarch: [amd64, arm64]
 
