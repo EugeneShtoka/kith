@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gotd/td/session"
@@ -140,7 +141,7 @@ func isHash(s string) bool {
 func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.LoginTalk, dial dialer) (api.LoginEnd, error) {
 	ctx, gen := a.beginLogin(ctx, account)
 	defer a.endLogin(account.Name, gen)
-	storage := &session.StorageMemory{}
+	storage := newLoginSession()
 	client := dial(app, storage)
 	var end api.LoginEnd
 	err := client.Run(ctx, func(ctx context.Context) error {
@@ -180,8 +181,8 @@ func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.
 				return err
 			default:
 				creds := Credentials{App: app, User: user.ID}
-				if creds.Session, err = storage.Bytes(nil); err != nil {
-					return fmt.Errorf("telegram: read the session: %w", err)
+				if creds.Session, err = storage.saved(ctx); err != nil {
+					return err
 				}
 				if err := a.keepLogin(account, gen, creds); err != nil {
 					return err
@@ -341,4 +342,38 @@ func userName(u *tg.User) string {
 		name = "@" + u.Username
 	}
 	return name
+}
+
+// loginSession is a login's session, in memory until the login keeps it. gotd stores
+// it once the connection's setup is done, which runs beside the login's own calls: a
+// sign-in can finish first, so the login waits for it.
+type loginSession struct {
+	session.StorageMemory
+	stored chan struct{}
+	once   sync.Once
+}
+
+func newLoginSession() *loginSession { return &loginSession{stored: make(chan struct{})} }
+
+// StoreSession keeps data, and says it was stored.
+func (s *loginSession) StoreSession(ctx context.Context, data []byte) error {
+	if err := s.StorageMemory.StoreSession(ctx, data); err != nil {
+		return err //nolint:wrapcheck // gotd's own storage
+	}
+	s.once.Do(func() { close(s.stored) })
+	return nil
+}
+
+// saved is the session once gotd has stored it.
+func (s *loginSession) saved(ctx context.Context) ([]byte, error) {
+	select {
+	case <-s.stored:
+	case <-ctx.Done():
+		return nil, fmt.Errorf("telegram: the session was never stored: %w", ctx.Err())
+	}
+	data, err := s.Bytes(nil)
+	if err != nil {
+		return nil, fmt.Errorf("telegram: read the session: %w", err)
+	}
+	return data, nil
 }

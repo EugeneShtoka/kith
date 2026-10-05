@@ -290,3 +290,34 @@ func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 		t.Errorf("home = %v %q, want logged out saying how to log in", s, said)
 	}
 }
+
+// A login keeps its session only once gotd has stored it, however late that comes
+// beside the sign-in: read before, it would be empty.
+func TestALoginWaitsForItsSessionToBeStored(t *testing.T) {
+	t.Parallel()
+	s := newLoginSession()
+	got := make(chan []byte, 1)
+	go func() {
+		data, err := s.saved(t.Context())
+		if err != nil {
+			t.Error(err)
+		}
+		got <- data
+	}()
+	select {
+	case <-got:
+		t.Fatal("the session was read before it was stored")
+	case <-time.After(20 * time.Millisecond):
+	}
+	if err := s.StoreSession(t.Context(), []byte(`{"Version":1,"Data":{"DC":2}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if data := <-got; len(data) == 0 {
+		t.Error("the stored session read back empty")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := newLoginSession().saved(ctx); err == nil {
+		t.Error("a session never stored was read")
+	}
+}
