@@ -299,6 +299,9 @@ func run(configPath, profile string, jobs startup) error {
 	notice := ""
 	if rows, nerr := backend.Networks(ctx); nerr == nil {
 		notice = loggedOutNotice(rows)
+		if len(rows) == 0 {
+			notice = "no account yet — :login sets one up"
+		}
 	} else {
 		log.Warn("read which networks are logged in failed", "err", nerr)
 	}
@@ -436,9 +439,7 @@ func loadConfig(configPath, profile string) (path string, cfg config.Config, rea
 	if created, cerr := config.WriteDefaultIfMissing(path); cerr != nil {
 		return "", config.Config{}, false, fmt.Errorf("write default config: %w", cerr)
 	} else if created {
-		fmt.Printf("kith: wrote a default config to %s\n"+
-			"Edit it — set `homeserver` and `user` — then run `kith login`.\n", path)
-		return path, config.Config{}, false, nil
+		fmt.Printf("kith: wrote a default config to %s; set an account up inside kith with :login.\n", path)
 	}
 	cfg, err = config.Load(path)
 	if err != nil {

@@ -101,13 +101,11 @@ type Router struct {
 }
 
 // New routes Matrix (nil when not configured) and others (keyed by network; Matrix
-// may not be among them). Some network is required.
+// may not be among them). None at all is a daemon with no account yet: it answers with
+// nothing until :login sets one up (and restarts it).
 func New(matrix Matrix, others map[domain.Protocol]Adapter) (*Router, error) {
 	if _, twice := others[domain.ProtocolMatrix]; twice {
 		return nil, errors.New("route: Matrix is given twice")
-	}
-	if matrix == nil && len(others) == 0 {
-		return nil, errors.New("route: no network")
 	}
 	r := &Router{
 		matrix: matrix, others: others, done: make(chan struct{}),
@@ -211,6 +209,10 @@ func (r *Router) byNetwork(rooms []domain.RoomID) (map[Adapter][]domain.RoomID, 
 // Start runs every adapter until ctx ends, and returns when all have, with what
 // each ended with.
 func (r *Router) Start(ctx context.Context) error {
+	if len(r.all) == 0 {
+		<-ctx.Done() // no network: the daemon still runs, for :login to reach
+		return nil
+	}
 	if len(r.all) == 1 {
 		return r.all[0].Start(ctx)
 	}

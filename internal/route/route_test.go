@@ -225,12 +225,29 @@ func TestARewindReachesEveryNetwork(t *testing.T) {
 	}
 }
 
-// New refuses what would leave a room with no adapter or two; Matrix itself is
-// optional.
-func TestNewRefusesNoNetworkOrADoubledMatrix(t *testing.T) {
+// New refuses a room two adapters would answer for; Matrix itself is optional, and so
+// is every network: with none, the daemon runs empty until :login sets one up — Start
+// waits for the end, and lists are empty.
+func TestNewRefusesADoubledMatrixAndRunsWithNoNetwork(t *testing.T) {
 	t.Parallel()
-	if _, err := New(nil, nil); err == nil {
-		t.Error("New with no network succeeded")
+	empty, err := New(nil, nil)
+	if err != nil {
+		t.Fatalf("New with no network = %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan error, 1)
+	go func() { started <- empty.Start(ctx) }()
+	select {
+	case err := <-started:
+		t.Fatalf("Start with no network returned at once (%v), want it running until the end", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	cancel()
+	if err := <-started; err != nil {
+		t.Errorf("Start with no network ended with %v", err)
+	}
+	if rooms, err := empty.Rooms(context.Background()); err != nil || len(rooms) != 0 {
+		t.Errorf("Rooms with no network = (%v, %v), want none", rooms, err)
 	}
 	if _, err := New(nil, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: newFake("whatsapp")}); err != nil {
 		t.Errorf("New with WhatsApp alone = %v", err)
