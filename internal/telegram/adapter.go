@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
@@ -44,7 +45,15 @@ const (
 type Adapter struct {
 	cache   *db.Cache
 	secrets Secrets
-	log     *slog.Logger
+	// store keeps the accounts' updates positions and access hashes; nil keeps them in
+	// memory (a store that would not open).
+	store *Store
+	log   *slog.Logger
+
+	// onCached hears each message cached, onChanged each room whose cached messages
+	// changed otherwise (see OnCached).
+	onCached  func(domain.Message)
+	onChanged func(domain.RoomID)
 
 	// onStatus hears an account's state change (see OnStatus); onRoomsChanged an
 	// account's rooms being rewritten in the cache (OnRoomsChanged).
@@ -70,6 +79,10 @@ type Adapter struct {
 
 	// refreshing serializes listings, so an older one is never written over a newer.
 	refreshing sync.Mutex
+	// listing is held while a listing is written and while a message is, so the two
+	// never interleave; heard is when each room last had a message cached (keptRooms).
+	listing sync.Mutex
+	heard   map[domain.RoomID]time.Time
 
 	// keeping serializes writing credentials with checking that their login is still
 	// the latest (keepLogin).
@@ -83,14 +96,15 @@ type Adapter struct {
 	reactions chan domain.ReactionUpdate
 }
 
-// New is the adapter for accounts, their credentials in secrets, writing into cache.
-// log may be nil.
-func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger) *Adapter {
+// New is the adapter for accounts, their credentials in secrets, their updates
+// positions in store (nil: in memory), writing into cache. log may be nil.
+func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log *slog.Logger) *Adapter {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
 	return &Adapter{
-		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "telegram"),
+		cache: cache, secrets: secrets, store: store, accounts: slices.Clone(accounts), log: log.With("network", "telegram"),
+		heard:     map[domain.RoomID]time.Time{},
 		signIns:   map[string]int{},
 		logins:    map[string]*login{},
 		conns:     map[string]*conn{},
@@ -104,6 +118,12 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 
 // Network is Telegram.
 func (a *Adapter) Network() domain.Protocol { return domain.ProtocolTelegram }
+
+// OnCached sets who hears each message the adapter caches, and each room whose cached
+// messages changed otherwise (word completion). Set before Start.
+func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
+	a.onCached, a.onChanged = cached, changed
+}
 
 // OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
 // before Start.

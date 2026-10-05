@@ -71,10 +71,12 @@ var (
 		route.Adapter
 		route.RoomLister
 		route.Homes
+		route.History
 		route.People
 		route.Encryption
 		route.SpaceLister
 		configChecker
 		roomsRewriter
+		cacheWriter
 	} = (*telegram.Adapter)(nil)
 )

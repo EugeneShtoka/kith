@@ -52,6 +52,20 @@ var implemented = map[string]string{
 	"Configure":             "libsignal logger.Loggable",
 	"LoadSession":           "gotd session.Storage",
 	"StoreSession":          "gotd session.Storage",
+	"GetState":              "gotd updates.StateStorage",
+	"SetState":              "gotd updates.StateStorage",
+	"SetPts":                "gotd updates.StateStorage",
+	"SetQts":                "gotd updates.StateStorage",
+	"SetDate":               "gotd updates.StateStorage",
+	"SetSeq":                "gotd updates.StateStorage",
+	"SetDateSeq":            "gotd updates.StateStorage",
+	"GetChannelPts":         "gotd updates.StateStorage",
+	"SetChannelPts":         "gotd updates.StateStorage",
+	"ForEachChannels":       "gotd updates.StateStorage",
+	"SetChannelAccessHash":  "gotd updates.ChannelAccessHasher",
+	"GetChannelAccessHash":  "gotd updates.ChannelAccessHasher",
+	"SetUserAccessHash":     "gotd updates.UserAccessHasher",
+	"GetUserAccessHash":     "gotd updates.UserAccessHasher",
 }
 
 func main() {

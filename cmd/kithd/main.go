@@ -33,7 +33,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/schedule"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
-	"github.com/EugeneShtoka/kith/internal/whatsapp"
 )
 
 // agentScopeTimeout bounds the startup warning's cache reads.
@@ -255,9 +254,8 @@ type served struct {
 	dataDir, schedulePath string
 	// networks is every network built (openNetworks), Matrix among them when there.
 	networks []network
-	// whatsappStore is WhatsApp's session store, closed with the backend; nil when
-	// it would not open.
-	whatsappStore *whatsapp.Store
+	// stores are the networks' own stores, closed with the backend.
+	stores []store
 }
 
 var _ api.Backend = served{}
@@ -265,7 +263,7 @@ var _ api.Backend = served{}
 // newServed builds the networks (openNetworks), the router over them and the service
 // over one cache, the service hearing what each network caches.
 func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage) served {
-	networks, mx, whatsappStore := openNetworks(ctx, cache, log, cfg, storage)
+	networks, mx, stores := openNetworks(ctx, cache, log, cfg, storage)
 	adapters := make(map[domain.Protocol]route.Adapter, len(networks))
 	for _, n := range networks {
 		adapters[n.Network()] = n
@@ -281,7 +279,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 		}
 	}
 	return served{
-		Router: router, Service: service, matrix: mx, networks: networks, whatsappStore: whatsappStore,
+		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),
 	}
 }
@@ -295,20 +293,14 @@ func (s served) loginLeaders() []api.LoginLeader {
 	return leaders
 }
 
-// Close stops the local engines and closes the WhatsApp store (after Stop, which
-// disconnected its accounts).
+// Close stops the local engines and closes the networks' stores (after Stop, which
+// disconnected their accounts), logging a failure.
 func (s served) Close(log *slog.Logger) {
 	s.Service.Close()
-	closeWhatsAppStore(log, s.whatsappStore)
-}
-
-// closeWhatsAppStore closes the WhatsApp store (nil: there was none), logging a failure.
-func closeWhatsAppStore(log *slog.Logger, store *whatsapp.Store) {
-	if store == nil {
-		return
-	}
-	if err := store.Close(); err != nil {
-		log.Warn("close the WhatsApp store failed", "err", err)
+	for _, st := range s.stores {
+		if err := st.Close(); err != nil {
+			log.Warn("close a network's store failed", "network", st.name, "err", err)
+		}
 	}
 }
 

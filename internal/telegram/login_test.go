@@ -92,6 +92,11 @@ func newFakeTelegram(t *testing.T) *fakeTelegram {
 		}
 		return &tg.AuthAuthorization{User: f.user}, nil
 	})
+	// Every connection asks where its updates are: nothing has happened yet.
+	var state tg.UpdatesGetStateRequest
+	answer(tg.UpdatesGetStateRequestTypeID, &state, func() (bin.Encoder, *tgerr.Error) {
+		return &tg.UpdatesState{Pts: 1, Date: int(time.Now().Unix()), Seq: 1}, nil
+	})
 	var users tg.UsersGetUsersRequest
 	answer(tg.UsersGetUsersRequestTypeID, &users, func() (bin.Encoder, *tgerr.Error) {
 		f.mu.Lock()
@@ -118,10 +123,10 @@ func newFakeTelegram(t *testing.T) *fakeTelegram {
 }
 
 // dial is a client of the fake Telegram.
-func (f *fakeTelegram) dial(app App, storage session.Storage) *telegram.Client {
+func (f *fakeTelegram) dial(app App, storage session.Storage, handler telegram.UpdateHandler) *telegram.Client {
 	return telegram.NewClient(app.ID, app.Hash, telegram.Options{
 		PublicKeys: f.cluster.Keys(), Resolver: f.cluster.Resolver(), DCList: f.cluster.List(),
-		SessionStorage: storage,
+		SessionStorage: storage, UpdateHandler: handler,
 	})
 }
 
@@ -241,7 +246,7 @@ func TestALoginAsksForAnAppUntilOneWillDo(t *testing.T) {
 // in under its name.
 func TestANewAccountIsSetUpFirst(t *testing.T) {
 	t.Parallel()
-	a := New(nil, &memSecrets{values: map[string]string{}}, []Account{work}, nil)
+	a := New(nil, &memSecrets{values: map[string]string{}}, nil, []Account{work}, nil)
 	talk := &apitest.Talk{Answers: map[string][]string{
 		"phone": {"+1 202 555 0100", "+44 7700 900000"}, "name": {""},
 		"api_id": {"x"}, "api_hash": {""},
@@ -283,7 +288,7 @@ func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 	gen := a.signIns[home.Name]
 	a.conns[home.Name].cancel()
 	a.mu.Unlock()
-	if done := a.connectOnce(ctx, home, gen, f.dial(creds.App, &keptSession{a: a, account: home, gen: gen, creds: creds})); !done {
+	if done := a.connectOnce(ctx, home, gen, f.dial(creds.App, &keptSession{a: a, account: home, gen: gen, creds: creds}, a.liveFor(home).manager), a.liveFor(home)); !done {
 		t.Fatal("an ended session is tried again")
 	}
 	if s, said := heard.of("home"); s != LoggedOut || said == "" {

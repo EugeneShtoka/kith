@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log/slog"
 
 	"github.com/EugeneShtoka/kith/internal/api"
@@ -71,29 +72,42 @@ func (s served) checkConfig(ctx context.Context, cfg config.Config) error {
 	return nil
 }
 
+// store is a network's own store, closed with the backend.
+type store struct {
+	name string
+	io.Closer
+}
+
 // openNetworks builds every network kithd links, over one cache and this instance's
 // keyring, each running whatever accounts the config gives it (Matrix, the one it
-// names). whatsappStore is
-// WhatsApp's session store, for Close; nil when it would not open (WhatsApp is then
-// left out, logged, rather than the daemon down with it).
+// names). stores are the networks' own, for Close. WhatsApp's store is its sessions:
+// one that will not open leaves WhatsApp out, logged, rather than the daemon down with
+// it. Telegram's keeps only updates positions: without it they are kept in memory.
 func openNetworks(
 	ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage,
-) (networks []network, mx *matrix.Adapter, whatsappStore *whatsapp.Store) {
+) (networks []network, mx *matrix.Adapter, stores []store) {
 	mx = matrix.NewAdapter(cache, log, matrix.Place{
 		CryptoPath: storage.CryptoPath(),
 		Keys:       func(user string) session.Store { return session.StoreFor(storage, user) },
 	})
 	networks = append(networks, mx)
-	if store, err := whatsapp.OpenStore(ctx, storage.WhatsAppPath(), whatsapp.NewStoreLogger(log)); err != nil {
+	if wa, err := whatsapp.OpenStore(ctx, storage.WhatsAppPath(), whatsapp.NewStoreLogger(log)); err != nil {
 		log.Error("WhatsApp is off: its store will not open", "path", storage.WhatsAppPath(), "err", err)
 	} else {
-		whatsappStore = store
-		networks = append(networks, whatsapp.New(cache, store, nil, log))
+		stores = append(stores, store{name: "WhatsApp", Closer: wa})
+		networks = append(networks, whatsapp.New(cache, wa, nil, log))
 	}
 	secrets := keyringSecrets{service: storage.KeyringService, scope: storage.Instance}
-	networks = append(networks, slack.New(cache, secrets, nil, log), telegram.New(cache, secrets, nil, log))
+	tg, err := telegram.OpenStore(ctx, storage.TelegramPath())
+	if err != nil {
+		log.Warn("Telegram's store will not open; its updates positions are kept in memory", "path", storage.TelegramPath(), "err", err)
+		tg = nil
+	} else {
+		stores = append(stores, store{name: "Telegram", Closer: tg})
+	}
+	networks = append(networks, slack.New(cache, secrets, nil, log), telegram.New(cache, secrets, tg, nil, log))
 	for _, n := range networks {
 		n.UseConfig(ctx, cfg)
 	}
-	return networks, mx, whatsappStore
+	return networks, mx, stores
 }

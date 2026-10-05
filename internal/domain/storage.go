@@ -24,6 +24,10 @@ func (s Storage) CryptoPath() string { return s.store("crypto") }
 // WhatsAppPath is the WhatsApp session store (every linked account's device keys).
 func (s Storage) WhatsAppPath() string { return s.store("whatsapp") }
 
+// TelegramPath is the Telegram store: the accounts' updates positions and access
+// hashes (the sessions are in the keyring).
+func (s Storage) TelegramPath() string { return s.store("telegram") }
+
 func (s Storage) store(kind string) string {
 	return filepath.Join(s.DataDir, kind+"-"+s.Instance+".db")
 }

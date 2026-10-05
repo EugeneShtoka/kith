@@ -1,11 +1,15 @@
 # Telegram
 
 kith logs in to Telegram directly, as a Telegram client of its own, with no Matrix
-bridge. **This is being built**: an account can be set up and logged in, and its
-chats are rooms in kith — private chats (the chat with yourself is Saved Messages),
-groups, supergroups and channels, in a space named after the account ("Telegram home"). Their messages
-arrive in the next releases (the plan: `notes/design-telegram.md`). Chats in
-Telegram's Archived folder are listed too, not yet filed under kith's Archived tag.
+bridge. **This is being built**: an account can be set up and logged in; its chats
+are rooms in kith — private chats (the chat with yourself is Saved Messages),
+groups, supergroups and channels, in a space named after the account ("Telegram
+home") — and their messages arrive, live and as you scroll back, with their
+formatting. Messages sent while kith was not running arrive when it connects again.
+Sending, edits, reactions and media come in the next releases (the plan:
+`notes/design-telegram.md`); attachments read as a label for now ("[photo] …").
+Chats in Telegram's Archived folder are listed too, not yet filed under kith's
+Archived tag.
 
 ## Before you start
 
