@@ -34,8 +34,8 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 	if len(entities) > 0 {
 		req.SetEntities(entities)
 	}
-	if reply, ok := messageNumber(roomID, draft.ReplyTo); ok {
-		req.SetReplyTo(&tg.InputReplyToMessage{ReplyToMsgID: reply})
+	if to, ok := replyTo(roomID, draft); ok {
+		req.SetReplyTo(to)
 	}
 	res, err := ch.conn.client.API().MessagesSendMessage(ctx, req)
 	if err != nil {
@@ -54,6 +54,9 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 	}
 	if _, ok := messageNumber(roomID, draft.ReplyTo); ok {
 		sent.ReplyTo = draft.ReplyTo
+	}
+	if _, ok := messageNumber(roomID, draft.ThreadRoot); ok {
+		sent.ThreadRoot = draft.ThreadRoot
 	}
 	return a.arrived(ctx, ch.conn.account, ch.conn.user, sent)
 }
@@ -97,6 +100,23 @@ func peerEntities(res tg.UpdatesClass) peer.Entities {
 		return peer.EntitiesFromResult(r)
 	}
 	return peer.Entities{}
+}
+
+// replyTo is where a draft goes in its chat: the message it replies to, in the forum
+// topic it is written into (the topic's own message when it replies to none); false
+// for neither.
+func replyTo(roomID domain.RoomID, draft domain.Draft) (*tg.InputReplyToMessage, bool) {
+	reply, replies := messageNumber(roomID, draft.ReplyTo)
+	topic, inTopic := messageNumber(roomID, draft.ThreadRoot)
+	switch {
+	case inTopic && replies:
+		return &tg.InputReplyToMessage{ReplyToMsgID: reply, TopMsgID: topic}, true
+	case inTopic:
+		return &tg.InputReplyToMessage{ReplyToMsgID: topic, TopMsgID: topic}, true
+	case replies:
+		return &tg.InputReplyToMessage{ReplyToMsgID: reply}, true
+	}
+	return nil, false
 }
 
 // randomID is a send's random ID: the transaction's hash, so a retried send is the same
