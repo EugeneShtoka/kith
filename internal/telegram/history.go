@@ -152,7 +152,26 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 	if !ok || err != nil {
 		return domain.Message{}, fmt.Errorf("telegram: %s is no message of %s", eventID, roomID)
 	}
+	m, ent, err := a.fetchRaw(ctx, ch, id)
+	if err != nil {
+		return domain.Message{}, fmt.Errorf("telegram: fetch %s: %w", eventID, err)
+	}
+	if msg, ok := incoming(ch.conn.user, m, ent); ok && msg.ID == eventID {
+		if _, err := a.record(ctx, ch.conn.user, roomID, []domain.Message{msg}); err != nil {
+			a.log.Warn("cache a fetched message failed", "room", roomID, "err", err)
+		}
+		return msg, nil
+	}
+	return domain.Message{}, fmt.Errorf("telegram: %s is gone", eventID)
+}
+
+// errGone is a message Telegram no longer has.
+var errGone = errors.New("telegram: the message is gone")
+
+// fetchRaw is message id of a chat as Telegram gives it now, and what it names.
+func (a *Adapter) fetchRaw(ctx context.Context, ch chat, id int) (tg.MessageClass, peer.Entities, error) {
 	var res tg.MessagesMessagesClass
+	var err error
 	if channel, ok := ch.peer.(*tg.InputPeerChannel); ok {
 		res, err = ch.conn.client.API().ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
 			Channel: &tg.InputChannel{ChannelID: channel.ChannelID, AccessHash: channel.AccessHash},
@@ -162,16 +181,13 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 		res, err = ch.conn.client.API().MessagesGetMessages(ctx, []tg.InputMessageClass{&tg.InputMessageID{ID: id}})
 	}
 	if err != nil {
-		return domain.Message{}, fmt.Errorf("telegram: fetch %s: %w", eventID, err)
+		return nil, peer.Entities{}, err //nolint:wrapcheck // the caller names the message
 	}
 	raw, ent, _ := messagesOf(res)
 	for _, m := range raw {
-		if msg, ok := incoming(ch.conn.user, m, ent); ok && msg.ID == eventID {
-			if _, err := a.record(ctx, ch.conn.user, roomID, []domain.Message{msg}); err != nil {
-				a.log.Warn("cache a fetched message failed", "room", roomID, "err", err)
-			}
-			return msg, nil
+		if msg, ok := m.(*tg.Message); ok && msg.ID == id && samePeer(msg.PeerID, ch.id) {
+			return m, ent, nil
 		}
 	}
-	return domain.Message{}, fmt.Errorf("telegram: %s is gone", eventID)
+	return nil, peer.Entities{}, errGone
 }

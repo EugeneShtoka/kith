@@ -240,7 +240,7 @@ func TestThePositionNeverPassesAnUncachedMessage(t *testing.T) {
 // A message is shown from whom it came: the account for its own, the person in a
 // private chat, the member who wrote in a group, a channel posting as itself; a reply
 // points at its original in the same chat; an attachment reads as its label before
-// the caption; a service message is not shown.
+// the caption when kith cannot show it; a service message is not shown.
 func TestMessagesAreShownAsTelegramSendsThem(t *testing.T) {
 	t.Parallel()
 	ent := peer.NewEntities(
@@ -260,7 +260,8 @@ func TestMessagesAreShownAsTelegramSendsThem(t *testing.T) {
 		"group":         {&tg.Message{ID: 3, PeerID: &tg.PeerChat{ChatID: 11}, FromID: &tg.PeerUser{UserID: 8}, Message: "all", Date: now}, "telegram:8", "Sam", "all", ""},
 		"channel post":  {&tg.Message{ID: 4, PeerID: &tg.PeerChannel{ChannelID: 21}, Message: "news", Date: now}, "telegram:-1000000000021", "News", "news", ""},
 		"reply":         {&tg.Message{ID: 5, PeerID: &tg.PeerUser{UserID: 7}, Message: "yes", Date: now, ReplyTo: &tg.MessageReplyHeader{ReplyToMsgID: 2}}, "telegram:7", "Dana", "yes", "telegram:42/7/2"},
-		"photo caption": {&tg.Message{ID: 6, PeerID: &tg.PeerUser{UserID: 7}, Message: "look", Date: now, Media: &tg.MessageMediaPhoto{}}, "telegram:7", "Dana", "[photo] look", ""},
+		"photo caption": {&tg.Message{ID: 6, PeerID: &tg.PeerUser{UserID: 7}, Message: "look", Date: now, Media: &tg.MessageMediaPhoto{}}, "telegram:7", "Dana", "[photo] look", ""}, // a photo gone
+		"location":      {&tg.Message{ID: 7, PeerID: &tg.PeerUser{UserID: 7}, Message: "here", Date: now, Media: &tg.MessageMediaGeo{}}, "telegram:7", "Dana", "[location] here", ""},
 	} {
 		got, ok := incoming(42, c.msg, ent)
 		if !ok || got.Sender != c.sender || got.SenderName != c.name || got.Body != c.body || got.ReplyTo != c.reply {
