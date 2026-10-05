@@ -1,5 +1,6 @@
-# kith configuration, with every option documented at its default. Set homeserver
-# and user for Matrix, or enable [whatsapp] or [slack], or several; the rest is optional. The file holds no secrets: the password
+# kith configuration, with every option documented at its default. No account is
+# needed here: `:login` inside kith sets one up — Matrix (homeserver and user below),
+# [whatsapp] or [slack] — and writes it in. The file holds no secrets: the password
 # is prompted for on first login and the access token lives in the OS keyring.
 #
 # Press "," in kith for the settings screen, and "a"/"b" on a person, room or group

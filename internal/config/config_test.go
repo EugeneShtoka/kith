@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,11 +20,11 @@ func TestRequireAccount(t *testing.T) {
 		"complete":              {Config{Homeserver: "https://x", User: "@a:x"}, false},
 		"missing homeserver":    {Config{User: "@a:x"}, true},
 		"missing user":          {Config{Homeserver: "https://x"}, true},
-		"empty":                 {Config{}, true},
+		"empty":                 {Config{}, false},
 		"whatsapp only":         {Config{WhatsApp: WhatsApp{Enabled: true}}, false},
 		"whatsapp and matrix":   {Config{Homeserver: "https://x", User: "@a:x", WhatsApp: WhatsApp{Enabled: true}}, false},
 		"whatsapp, half matrix": {Config{User: "@a:x", WhatsApp: WhatsApp{Enabled: true}}, true},
-		"whatsapp disabled":     {Config{WhatsApp: WhatsApp{Accounts: []WhatsAppAccount{{Name: "a", Phone: "+1"}}}}, true},
+		"whatsapp disabled":     {Config{WhatsApp: WhatsApp{Accounts: []WhatsAppAccount{{Name: "a", Phone: "+1"}}}}, false},
 		"profile":               {Config{Profiles: []Profile{{Name: "work", Homeserver: "https://x", User: "@me:x"}}}, false},
 		"profile no name":       {Config{Profiles: []Profile{{Homeserver: "https://x", User: "@me:x"}}}, true},
 		"profile no user":       {Config{Profiles: []Profile{{Name: "work", Homeserver: "https://x"}}}, true},
@@ -36,8 +35,8 @@ func TestRequireAccount(t *testing.T) {
 			t.Errorf("%s: RequireAccount() = %v, wantErr %v", name, err, tc.wantErr)
 		}
 	}
-	if err := (Config{}).RequireAccount(); !errors.Is(err, ErrIncomplete) {
-		t.Errorf("empty config = %v, want ErrIncomplete", err)
+	if err := (Config{}).RequireAccount(); err != nil {
+		t.Errorf("a config with no account = %v, want it whole: :login sets one up", err)
 	}
 }
 
@@ -98,8 +97,8 @@ func TestLoadErrors(t *testing.T) {
 	if err := os.WriteFile(path, []byte("allow_token_file = true\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(path); !errors.Is(err, ErrIncomplete) {
-		t.Errorf("incomplete config = %v, want ErrIncomplete", err)
+	if _, err := Load(path); err != nil {
+		t.Errorf("a config with no account = %v, want it loaded", err)
 	}
 }
 

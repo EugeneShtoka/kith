@@ -283,14 +283,17 @@ module by version. Build from a clone instead.
 
 ### 1. Create the config
 
-Run `kith` once. Because no config exists yet, it writes a fully documented default
-file and exits:
+Run `kith`. Because no config exists yet, it writes a fully documented default file
+and starts with no account:
 
 ```text
 $ kith
-kith: wrote a default config to /home/alice/.config/kith/config.toml
-Edit it — set `homeserver` and `user` — then run `kith login`.
+kith: wrote a default config to /home/alice/.config/kith/config.toml; set an account up inside kith with :login.
 ```
+
+Inside it, `:login` sets an account up and signs it in — Matrix, WhatsApp or Slack —
+asking for what each needs and explaining where to find it. The rest of this section
+is the same done by hand.
 
 Open the file and fill in the two fields at the top for Matrix (to use kith only for
 WhatsApp, leave them empty and enable `[whatsapp]` instead):
