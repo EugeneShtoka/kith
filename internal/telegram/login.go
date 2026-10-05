@@ -34,6 +34,12 @@ var (
 	errSuperseded = errors.New("telegram: another login of this account began meanwhile")
 	// errNeedCode is an answer with no code, before the code was taken.
 	errNeedCode = errors.New("telegram: the code Telegram sent is needed")
+	// errPasswordNeeded is an account with two-step verification on: signing in
+	// needs its password too.
+	errPasswordNeeded = errors.New("telegram: this account has a two-step verification password; give it too")
+	// errBadCode is a login code that is not the one Telegram sent; another may be
+	// tried.
+	errBadCode = errors.New("telegram: that is not the code Telegram sent")
 )
 
 // login is an account's login under way: which of its logins it is (see
@@ -169,11 +175,11 @@ func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.
 			}
 			user, err := a.signIn(ctx, client, phone, sent.PhoneCodeHash, got["code"], got["password"], &codeTaken)
 			switch {
-			case errors.Is(err, api.ErrBadCode):
+			case errors.Is(err, errBadCode):
 				note = "that is not the code Telegram sent; try again"
 			case errors.Is(err, errNeedCode):
 				note = "the code Telegram sent is needed"
-			case errors.Is(err, api.ErrPasswordNeeded):
+			case errors.Is(err, errPasswordNeeded):
 				note = "the account has two-step verification"
 			case errors.Is(err, api.ErrBadPassword):
 				note = "that is not the password; try again"
@@ -241,7 +247,7 @@ func (a *Adapter) signIn(
 		}
 	}
 	if password == "" {
-		return nil, api.ErrPasswordNeeded
+		return nil, errPasswordNeeded
 	}
 	in, err := client.Auth().Password(ctx, password)
 	if errors.Is(err, auth.ErrPasswordInvalid) {
@@ -318,7 +324,7 @@ func describeSignIn(err error) error {
 	var signUp *auth.SignUpRequired
 	switch {
 	case tgerr.Is(err, "PHONE_CODE_INVALID", "PHONE_CODE_EMPTY"):
-		return api.ErrBadCode
+		return errBadCode
 	case tgerr.Is(err, "PHONE_CODE_EXPIRED"):
 		return fmt.Errorf("telegram: the code expired; have another sent: %w", err)
 	case errors.As(err, &signUp):

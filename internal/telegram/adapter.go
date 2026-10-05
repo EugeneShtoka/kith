@@ -112,9 +112,20 @@ func (a *Adapter) session(account Account, phase domain.AccountPhase, detail str
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
 	accounts := make([]Account, 0, len(cfg.Telegram.Accounts))
 	for _, account := range cfg.Telegram.Accounts {
-		accounts = append(accounts, Account{Name: account.Name, Digits: account.Digits()})
+		accounts = append(accounts, Account{Name: account.Name, Digits: domain.PhoneDigits(account.Phone)})
 	}
 	a.useAccounts(accounts)
+}
+
+// CheckConfig refuses [[telegram.account]]s kith could not tell apart or log in as: a
+// missing or repeated name, no international number, a number listed twice. It asks
+// nothing of Telegram.
+func (a *Adapter) CheckConfig(_ context.Context, cfg config.Config) error {
+	records := make([]domain.AccountRecord, 0, len(cfg.Telegram.Accounts))
+	for _, account := range cfg.Telegram.Accounts {
+		records = append(records, domain.PhoneAccount(account.Name, account.Phone))
+	}
+	return domain.CheckAccounts(cfg.Telegram.Table(), records) //nolint:wrapcheck // names the record itself
 }
 
 // accountsNow is the configured accounts (useAccounts replaces them).

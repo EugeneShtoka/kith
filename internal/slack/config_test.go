@@ -1,13 +1,15 @@
-package setup_test
+package slack
 
 import (
+	"context"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
-	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-func TestSlackAccountsAreNamedAndDistinct(t *testing.T) {
+// A Slack account needs a name and a workspace kith can sign in to, written as its
+// address or ID in any of the ways Slack shows it, neither repeated.
+func TestCheckConfigRefusesAccountsItCannotTellApart(t *testing.T) {
 	t.Parallel()
 	ok := config.SlackAccount{Name: "work", Workspace: "acme"}
 	for name, tc := range map[string]struct {
@@ -28,9 +30,9 @@ func TestSlackAccountsAreNamedAndDistinct(t *testing.T) {
 		"name twice":      {[]config.SlackAccount{ok, {Name: "work", Workspace: "other"}}, false},
 		"workspace twice": {[]config.SlackAccount{ok, {Name: "again", Workspace: "ACME.slack.com"}}, false},
 	} {
-		err := setup.SlackAccounts(config.Slack{Accounts: tc.accounts})
+		err := (&Adapter{}).CheckConfig(context.Background(), config.Config{Slack: config.Slack{Accounts: tc.accounts}})
 		if (err == nil) != tc.valid {
-			t.Errorf("%s: SlackAccounts = %v, want valid=%v", name, err, tc.valid)
+			t.Errorf("%s: CheckConfig = %v, want valid=%v", name, err, tc.valid)
 		}
 	}
 	for in, want := range map[string]string{
@@ -39,8 +41,8 @@ func TestSlackAccountsAreNamedAndDistinct(t *testing.T) {
 		"https://app.slack.com/client/T0000000AAA/D000000BBB": "T0000000AAA",
 		"app.slack.com/client/T0000000AAA":                    "T0000000AAA",
 	} {
-		if got := (config.SlackAccount{Workspace: in}).Address(); got != want {
-			t.Errorf("Address(%q) = %q, want %q", in, got, want)
+		if got := addressOf(in); got != want {
+			t.Errorf("addressOf(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

@@ -97,8 +97,8 @@ var commands = []command{
 		run:     func(m Model, arg string) (Model, tea.Cmd) { return m.bindShortcut(arg, nil) },
 	},
 	{
-		name: "login", arg: "[whatsapp|slack|matrix]", argOptional: true,
-		summary: "set up an account and sign it in — WhatsApp, Slack or Matrix; one set up already signs in again",
+		name: "login", arg: "[network]", argOptional: true,
+		summary: "set up an account on a network and sign it in; none offers the networks, and one set up already signs in again",
 		run:     Model.openLogin,
 	},
 	{

@@ -290,6 +290,9 @@ const (
 	// BackendServiceReloadConfigProcedure is the fully-qualified name of the BackendService's
 	// ReloadConfig RPC.
 	BackendServiceReloadConfigProcedure = "/backend.v1.BackendService/ReloadConfig"
+	// BackendServiceCheckConfigProcedure is the fully-qualified name of the BackendService's
+	// CheckConfig RPC.
+	BackendServiceCheckConfigProcedure = "/backend.v1.BackendService/CheckConfig"
 	// BackendServiceScheduleProcedure is the fully-qualified name of the BackendService's Schedule RPC.
 	BackendServiceScheduleProcedure = "/backend.v1.BackendService/Schedule"
 	// BackendServiceScheduledMessagesProcedure is the fully-qualified name of the BackendService's
@@ -537,6 +540,9 @@ type BackendServiceClient interface {
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
 	ReloadConfig(context.Context, *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error)
+	// CheckConfig answers whether the daemon would run with this configuration, every
+	// network judging its own section, before a client writes it. It changes nothing.
+	CheckConfig(context.Context, *connect.Request[v1.CheckConfigRequest]) (*connect.Response[v1.CheckConfigResponse], error)
 	// Schedule
 	// Schedule queues a message.
 	Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error)
@@ -1115,6 +1121,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("ReloadConfig")),
 			connect.WithClientOptions(opts...),
 		),
+		checkConfig: connect.NewClient[v1.CheckConfigRequest, v1.CheckConfigResponse](
+			httpClient,
+			baseURL+BackendServiceCheckConfigProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("CheckConfig")),
+			connect.WithClientOptions(opts...),
+		),
 		schedule: connect.NewClient[v1.ScheduleRequest, v1.ScheduleResponse](
 			httpClient,
 			baseURL+BackendServiceScheduleProcedure,
@@ -1231,6 +1243,7 @@ type backendServiceClient struct {
 	clearDND              *connect.Client[v1.ClearDNDRequest, v1.ClearDNDResponse]
 	dND                   *connect.Client[v1.DNDRequest, v1.DNDResponse]
 	reloadConfig          *connect.Client[v1.ReloadConfigRequest, v1.ReloadConfigResponse]
+	checkConfig           *connect.Client[v1.CheckConfigRequest, v1.CheckConfigResponse]
 	schedule              *connect.Client[v1.ScheduleRequest, v1.ScheduleResponse]
 	scheduledMessages     *connect.Client[v1.ScheduledMessagesRequest, v1.ScheduledMessagesResponse]
 	cancelScheduled       *connect.Client[v1.CancelScheduledRequest, v1.CancelScheduledResponse]
@@ -1701,6 +1714,11 @@ func (c *backendServiceClient) ReloadConfig(ctx context.Context, req *connect.Re
 	return c.reloadConfig.CallUnary(ctx, req)
 }
 
+// CheckConfig calls backend.v1.BackendService.CheckConfig.
+func (c *backendServiceClient) CheckConfig(ctx context.Context, req *connect.Request[v1.CheckConfigRequest]) (*connect.Response[v1.CheckConfigResponse], error) {
+	return c.checkConfig.CallUnary(ctx, req)
+}
+
 // Schedule calls backend.v1.BackendService.Schedule.
 func (c *backendServiceClient) Schedule(ctx context.Context, req *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error) {
 	return c.schedule.CallUnary(ctx, req)
@@ -1953,6 +1971,9 @@ type BackendServiceHandler interface {
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
 	ReloadConfig(context.Context, *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error)
+	// CheckConfig answers whether the daemon would run with this configuration, every
+	// network judging its own section, before a client writes it. It changes nothing.
+	CheckConfig(context.Context, *connect.Request[v1.CheckConfigRequest]) (*connect.Response[v1.CheckConfigResponse], error)
 	// Schedule
 	// Schedule queues a message.
 	Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error)
@@ -2527,6 +2548,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("ReloadConfig")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceCheckConfigHandler := connect.NewUnaryHandler(
+		BackendServiceCheckConfigProcedure,
+		svc.CheckConfig,
+		connect.WithSchema(backendServiceMethods.ByName("CheckConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceScheduleHandler := connect.NewUnaryHandler(
 		BackendServiceScheduleProcedure,
 		svc.Schedule,
@@ -2733,6 +2760,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceDNDHandler.ServeHTTP(w, r)
 		case BackendServiceReloadConfigProcedure:
 			backendServiceReloadConfigHandler.ServeHTTP(w, r)
+		case BackendServiceCheckConfigProcedure:
+			backendServiceCheckConfigHandler.ServeHTTP(w, r)
 		case BackendServiceScheduleProcedure:
 			backendServiceScheduleHandler.ServeHTTP(w, r)
 		case BackendServiceScheduledMessagesProcedure:
@@ -3118,6 +3147,10 @@ func (UnimplementedBackendServiceHandler) DND(context.Context, *connect.Request[
 
 func (UnimplementedBackendServiceHandler) ReloadConfig(context.Context, *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ReloadConfig is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) CheckConfig(context.Context, *connect.Request[v1.CheckConfigRequest]) (*connect.Response[v1.CheckConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.CheckConfig is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error) {

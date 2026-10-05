@@ -1115,6 +1115,13 @@ message ReloadConfigRequest {}
 
 message ReloadConfigResponse {}
 
+message CheckConfigRequest {
+  // The whole configuration file as the client would write it.
+  string config = 1;
+}
+
+message CheckConfigResponse {}
+
 // ── Schedule ──
 
 // ScheduledMessage is one pending send.
@@ -1403,6 +1410,9 @@ service BackendService {
   // returns the parse error if it will not load — leaving the running configuration
   // untouched.
   rpc ReloadConfig(ReloadConfigRequest) returns (ReloadConfigResponse);
+  // CheckConfig answers whether the daemon would run with this configuration, every
+  // network judging its own section, before a client writes it. It changes nothing.
+  rpc CheckConfig(CheckConfigRequest) returns (CheckConfigResponse);
   // Schedule
   // Schedule queues a message.
   rpc Schedule(ScheduleRequest) returns (ScheduleResponse);

@@ -16,8 +16,12 @@ func Save(path string, cfg Config) error {
 	if err := backupOnce(path); err != nil {
 		return err
 	}
-	body := header + encodeDiff(reflect.ValueOf(cfg), reflect.ValueOf(omittedBaseline()), nil)
-	return writeAtomic(path, body)
+	return writeAtomic(path, Encode(cfg))
+}
+
+// Encode is cfg as Save writes it: the settings that differ from the defaults.
+func Encode(cfg Config) string {
+	return header + encodeDiff(reflect.ValueOf(cfg), reflect.ValueOf(omittedBaseline()), nil)
 }
 
 // header explains what the file now is.

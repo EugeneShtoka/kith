@@ -120,17 +120,30 @@ func Annotated() string { return defaultConfigTOML }
 // Load reads the TOML config at path, refusing keys nothing reads (a misplaced or
 // misspelled setting would otherwise look configured while doing nothing).
 func Load(path string) (Config, error) {
-	var cfg Config
-	meta, err := toml.DecodeFile(path, &cfg)
+	body, err := os.ReadFile(path) //nolint:gosec // G304: the config file the user named
 	if err != nil {
-		return Config{}, fmt.Errorf("config: decode %s: %w", path, err)
+		return Config{}, fmt.Errorf("config: read %s: %w", path, err)
+	}
+	return decode(path, string(body))
+}
+
+// Decode reads a config from its text as Load reads the file: what a client sends
+// the daemon to check before writing it (Encode).
+func Decode(text string) (Config, error) { return decode("the sent config", text) }
+
+// decode is Load and Decode's reading; source names the text in errors.
+func decode(source, text string) (Config, error) {
+	var cfg Config
+	meta, err := toml.Decode(text, &cfg)
+	if err != nil {
+		return Config{}, fmt.Errorf("config: decode %s: %w", source, err)
 	}
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
 		keys := make([]string, 0, len(undecoded))
 		for _, key := range undecoded {
 			keys = append(keys, key.String())
 		}
-		return Config{}, fmt.Errorf("config: %s: unknown keys: %s", path, strings.Join(keys, ", "))
+		return Config{}, fmt.Errorf("config: %s: unknown keys: %s", source, strings.Join(keys, ", "))
 	}
 	// TOML leaves every unmentioned field zero, so an action the file never heard of
 	// would end up with no key at all.

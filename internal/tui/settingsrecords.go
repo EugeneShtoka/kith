@@ -28,9 +28,10 @@ const (
 	recordRemove = "#remove"
 )
 
-// recordTableLabels name the record tables in settings; a table not named here has no
-// row (the Names group's switches stand for display.space_rule).
-var recordTableLabels = map[string]string{
+// recordTableLabels name the record tables in settings, every network's accounts
+// among them; a table not named here has no row (the Names group's switches stand for
+// display.space_rule).
+var recordTableLabels = withNetworkTables(map[string]string{
 	"display.identity":     "People (accounts shown as one)",
 	"display.name":         "Names you gave",
 	"display.read_rule":    "Read rules",
@@ -40,10 +41,15 @@ var recordTableLabels = map[string]string{
 	"display.media.rule":   "Media per place",
 	"spam.filter":          "Spam filters",
 	"commands.script":      "Scripts",
-	"whatsapp.account":     "WhatsApp accounts",
-	"slack.account":        "Slack accounts",
-	"telegram.account":     "Telegram accounts",
 	"keys.jump":            "Jump shortcuts",
+})
+
+// withNetworkTables adds each network's accounts table to labels.
+func withNetworkTables(labels map[string]string) map[string]string {
+	for _, n := range (config.Config{}).Networks() {
+		labels[n.Table()] = n.Network() + " accounts"
+	}
+	return labels
 }
 
 // recordTableSettings are the rows leading to the record tables, one per labeled

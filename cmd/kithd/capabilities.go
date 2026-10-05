@@ -48,6 +48,7 @@ var (
 		route.Media
 		route.Encryption
 		route.SpaceLister
+		configChecker
 	} = (*whatsapp.Adapter)(nil)
 
 	_ interface {
@@ -62,10 +63,12 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.Threads
+		configChecker
 	} = (*slack.Adapter)(nil)
 
 	_ interface {
 		route.Adapter
 		route.Encryption
+		configChecker
 	} = (*telegram.Adapter)(nil)
 )

@@ -17,6 +17,7 @@ import (
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
 	pc "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
@@ -42,6 +43,10 @@ type (
 // Reload re-reads the daemon's configuration and applies it, or returns the
 // error that stopped it having changed nothing.
 type Reload func(ctx context.Context) error
+
+// CheckConfig says whether the daemon would run with cfg, changing nothing: the
+// error is what the user must fix.
+type CheckConfig func(ctx context.Context, cfg config.Config) error
 
 func roomID(id string) domain.RoomID   { return domain.RoomID(id) }
 func eventID(id string) domain.EventID { return domain.EventID(id) }
@@ -749,6 +754,22 @@ func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	return connect.NewResponse(&v1.ReloadConfigResponse{}), nil
+}
+
+// CheckConfig reports a config the daemon would refuse as InvalidArgument, as
+// ReloadConfig does: it is the caller's input.
+func (s *server) CheckConfig(ctx context.Context, r *req[v1.CheckConfigRequest]) (*resp[v1.CheckConfigResponse], error) {
+	if s.Daemon.CheckConfig == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("daemon: this daemon cannot check a config"))
+	}
+	cfg, err := config.Decode(r.Msg.GetConfig())
+	if err == nil {
+		err = s.Daemon.CheckConfig(ctx, cfg)
+	}
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return connect.NewResponse(&v1.CheckConfigResponse{}), nil
 }
 
 // ── Schedule ──

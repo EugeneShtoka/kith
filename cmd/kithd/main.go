@@ -185,6 +185,11 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 			closeCache(log, cache)
 		}
 	}()
+	// The networks check their own sections, so only once they are built; nothing
+	// has started yet.
+	if cerr := backend.checkConfig(ctx, cfg); cerr != nil {
+		return cerr
+	}
 	configure(log, backend, cfg, storage)
 
 	warnAboutAgentScope(ctx, log, backend, cfg)
@@ -439,6 +444,7 @@ func serve(
 		Logins:        daemon.NewLogins(ctx, backend.loginLeaders),
 		Log:           log,
 		Reload:        reloader(configPath, relevel, cutoff, backend, w.notifications),
+		CheckConfig:   backend.checkConfig,
 	})
 	// Cancel (not backend.Stop) and join: a sync still decrypting needs the store, and
 	// when Serve failed the parent ctx is still live.
@@ -463,6 +469,10 @@ func reloader(
 		reloaded, lerr := config.Load(configPath)
 		if lerr != nil {
 			return fmt.Errorf("load config: %w", lerr)
+		}
+		// All or nothing: a config kithd would not start with changes nothing.
+		if err := backend.checkConfig(ctx, reloaded); err != nil {
+			return err
 		}
 		relevel(reloaded.Log.Level)
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
