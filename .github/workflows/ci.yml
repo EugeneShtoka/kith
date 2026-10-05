@@ -45,8 +45,10 @@ jobs:
       - name: Test and coverage gate
         run: make coverage-check COVERPROFILE=coverage.out
 
-  # Compile-only: the release targets plus windows (built, not released).
+  # Compile-only: the release targets plus windows (built, not released). Only for a
+  # release (release.yml calls this workflow on the tag); a PR builds for linux alone.
   cross-compile:
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -204,9 +206,10 @@ jobs:
 
   # The single required check for branch protection.
   ci-ok:
-    # always(): a skipped required check counts as passed on GitHub.
+    # always(): a skipped required check counts as passed on GitHub. cross-compile is
+    # not here: it runs on tags alone, and a release needs this whole workflow to pass.
     if: always()
-    needs: [build-and-test, cross-compile, repo-checks, release-config, lint, vuln, secrets, proto, docs, nix]
+    needs: [build-and-test, repo-checks, release-config, lint, vuln, secrets, proto, docs, nix]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

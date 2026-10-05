@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Pre-push checks — the last line of defense before commits leave your machine.
-# Blocks the push if any commit being pushed contains a secret, then runs every CI
-# gate (make check CHECK_STRICT=1: CI's toolchain and tools, and nothing skipped), so a
-# push does not fail in CI for something this machine could have said.
+# Blocks the push if any commit being pushed contains a secret, then runs the quick
+# gate (make quick: tests from the cache without the race detector, no cross builds,
+# no vulnerability scan; about a minute). CI runs every gate on the PR. Pushing a tag,
+# or KITH_FULL_CHECK=1, runs every CI gate here (make check CHECK_STRICT=1) instead.
 #
 # Harder to skip by accident than the pre-commit hook: even if a bad commit was
 # made with --no-verify or before the hooks were enabled, this still fires.
@@ -14,10 +15,18 @@ set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
-# The CI gates, after the secret scan passes (each exit below runs this first).
+# git feeds ref updates on stdin: <local ref> <local oid> <remote ref> <remote oid>.
+updates=$(cat)
+
+# The gates, after the secret scan passes (each exit below runs this first): every CI
+# gate for a tag (a release), the quick ones otherwise.
 gates() {
-	if ! make -s check CHECK_STRICT=1; then
-		echo "pre-push: make check failed (above) — CI would fail the same way." >&2
+	local target=quick
+	if [ -n "${KITH_FULL_CHECK:-}" ] || grep -q ' refs/tags/' <<<"$updates"; then
+		target=check
+	fi
+	if ! make -s "$target" CHECK_STRICT=1; then
+		echo "pre-push: make $target failed (above) — CI would fail the same way." >&2
 		exit 1
 	fi
 }
@@ -47,7 +56,6 @@ pattern='-----BEGIN [A-Z ]*PRIVATE KEY-----|-----BEGIN OPENSSH PRIVATE KEY-----|
 zero=0000000000000000000000000000000000000000
 status=0
 
-# git feeds ref updates on stdin: <local ref> <local oid> <remote ref> <remote oid>
 while read -r _local_ref local_oid _remote_ref remote_oid; do
 	[ "$local_oid" = "$zero" ] && continue # branch deletion — nothing to scan
 	if [ "$remote_oid" = "$zero" ]; then
@@ -64,7 +72,7 @@ while read -r _local_ref local_oid _remote_ref remote_oid; do
 		echo "$hits" >&2
 		status=1
 	fi
-done
+done <<<"$updates"
 
 if [ "$status" -ne 0 ]; then
 	echo "Rotate/scrub before pushing, or bypass with --no-verify if it is a false positive." >&2

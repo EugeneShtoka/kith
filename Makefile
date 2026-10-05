@@ -2,7 +2,7 @@
 	daemon-status daemon-logs daemon-restart daemon-stop \
 	test lint fmt fmt-check fix vuln secrets pin-check unit-check arch-check mod-check release-check \
 	proto-check docs-check nix-check hooks check coverage coverage-check tools pins-outdated \
-	compile cross ci-parity ensure-tools vet script-check \
+	compile cross ci-parity ensure-tools vet script-check quick test-quick arch-quick \
 	proto emoji dict-manifest freq-manifest model-manifest keys-doc
 
 # goolm = mautrix's pure-Go E2EE (no libolm/cgo). Also set in .golangci.yml,
@@ -86,6 +86,11 @@ endif
 # -count=1: never serve cached results. The profile feeds coverage-check.
 test:
 	go test -race -count=1 -coverprofile=$(COVERPROFILE) ./...
+
+# The pre-push gate's tests: no race detector, and from Go's test cache, so a package
+# whose code and tests did not change is not run again. CI runs `test`.
+test-quick:
+	go test ./...
 
 # --allow-serial-runners: a second concurrent run waits for the first instead of
 # failing with "parallel golangci-lint is running".
@@ -207,11 +212,14 @@ script-check:
 
 # Every package must be named by a depguard rule, and no function may be reachable only
 # from tests: tests build their own fixtures, and code no binary runs is not code.
-arch-check:
-	bash scripts/depguard-coverage-check.sh
-	bash scripts/deps-check.sh
+arch-check: arch-quick
 	@out=$$(CGO_ENABLED=0 go tool deadcode -tags=goolm ./cmd/...) || exit 1; \
 	if [ -n "$$out" ]; then echo "$$out"; echo "arch-check: functions only tests reach (move them into a _test.go file, or delete them)"; exit 1; fi
+
+# arch-check without deadcode's whole-program analysis (most of its time).
+arch-quick:
+	bash scripts/depguard-coverage-check.sh
+	bash scripts/deps-check.sh
 	go run scripts/testonly.go
 
 # The plain and templated units must configure the same sandbox.
@@ -249,6 +257,12 @@ coverage:
 # Floors in scripts/coverage-gate.sh; reuses the profile from `test`.
 coverage-check: test
 	bash scripts/coverage-gate.sh $(COVERPROFILE); status=$$?; rm -f $(COVERPROFILE); exit $$status
+
+# The pre-push gate: what this machine can say in about a minute. The race detector and
+# the coverage floors, cross builds, the vulnerability scan, deadcode, the Nix flake and
+# the release config are CI's (`check`); pushing a tag runs them here too.
+quick: mod-check compile test-quick lint fmt-check secrets pin-check unit-check arch-quick \
+	ci-parity script-check proto-check docs-check
 
 # Every CI gate, with CI's tools (ci-parity-check.sh holds the two lists equal).
 # Non-mutating. CHECK_STRICT=1 also fails what would be skipped here.
