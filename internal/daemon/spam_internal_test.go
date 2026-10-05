@@ -45,7 +45,8 @@ func TestTheCaughtMemoIsReReadFromTheCache(t *testing.T) {
 	store := &spamStoreStub{}
 	store.set(domain.SpamVerdict{Room: "!a:x", Rule: domain.SpamFirstMessage, Filter: "crypto"})
 	clock := time.Date(2026, 9, 25, 9, 0, 0, 0, time.UTC)
-	w := newSpamWatch(store, "@me:x")
+	w := newSpamWatch(store)
+	w.mine = func(sender string) bool { return sender == "@me:x" }
 	w.now = func() time.Time { return clock }
 
 	ctx := context.Background()
@@ -80,7 +81,7 @@ func (*failingSpamStore) SpamRooms(context.Context) ([]domain.SpamVerdict, error
 func TestSpamStoreFailuresAreLogged(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
-	w := newSpamWatch(&failingSpamStore{}, "@me:x")
+	w := newSpamWatch(&failingSpamStore{})
 	w.log = slog.New(slog.NewTextHandler(&out, nil))
 
 	w.seed(context.Background())

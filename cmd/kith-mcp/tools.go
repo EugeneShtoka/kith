@@ -277,7 +277,7 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 		Name:    msg.SenderName,
 		Sent:    msg.Timestamp.Format(time.RFC3339),
 		Body:    msg.Body,
-		Mine:    msg.Sender != "" && (msg.Sender == s.user || slices.Contains(s.selves, msg.Sender)),
+		Mine:    msg.Sender != "" && slices.Contains(s.selves, msg.Sender),
 		Thread:  string(msg.ThreadRoot),
 		ReplyTo: string(msg.ReplyTo),
 	}

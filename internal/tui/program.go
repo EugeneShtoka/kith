@@ -24,8 +24,6 @@ type RunOptions struct {
 	Config        config.Config
 	// ConfigPath is where in-app setting changes are written.
 	ConfigPath string
-	// Me is the logged-in MXID.
-	Me string
 	// Log is the client's log (a file: the terminal is the program's).
 	Log *slog.Logger
 	// Follow is a matrix URI to open at start, or "".
@@ -75,7 +73,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if err != nil {
 		return err
 	}
-	model = model.WithRules(rules, opts.Me, cfg.Notifications.Enabled)
+	model = model.WithRules(rules, cfg.Notifications.Enabled)
 	// The frame rate is the client's cost at rest; see config.Display.FPS.
 	program := tea.NewProgram(model, tea.WithContext(ctx), tea.WithFPS(cfg.Display.FrameRate()))
 	final, err := program.Run()

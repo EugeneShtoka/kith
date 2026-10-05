@@ -708,13 +708,15 @@ func TestErasingADeletionTakesItsVersions(t *testing.T) {
 }
 
 // A trim takes others' reactions to what it trims with it. It keeps our own (reaction
-// emoji are ranked from them), reactions to kept messages, and reactions whose target
-// was never cached (it may be paged in later).
+// emoji are ranked from them) from every ID that is us — the Matrix account, a bridge
+// posting as us, a network's own account — reactions to kept messages, and reactions
+// whose target was never cached (it may be paged in later).
 func TestTrimTakesOthersReactionsToTrimmedMessages(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	cache.UseAccount("@me:x")
+	native := domain.NativePerson(domain.ProtocolWhatsApp, "447700900001@s.whatsapp.net")
+	cache.UseSelves(func() []string { return []string{"", "@me:x", "@whatsapp_447700900001:x", native} })
 
 	// Exactly at the cap: nothing is trimmed until one more arrives.
 	msgs := make([]domain.Message, messagesPerRoom)
@@ -729,6 +731,8 @@ func TestTrimTakesOthersReactionsToTrimmedMessages(t *testing.T) {
 	reactions := []domain.Reaction{
 		{ID: "$theirs-old", RoomID: "!a:x", Target: oldest, Sender: "@bob:x", Key: "👍"},
 		{ID: "$mine-old", RoomID: "!a:x", Target: oldest, Sender: "@me:x", Key: "🎉"},
+		{ID: "$bridged-old", RoomID: "!a:x", Target: oldest, Sender: "@whatsapp_447700900001:x", Key: "🎉"},
+		{ID: "$native-old", RoomID: "!a:x", Target: oldest, Sender: native, Key: "🎉"},
 		{ID: "$theirs-new", RoomID: "!a:x", Target: newest, Sender: "@bob:x", Key: "👍"},
 		{ID: "$theirs-uncached", RoomID: "!a:x", Target: "$never-seen", Sender: "@bob:x", Key: "👍"},
 	}
@@ -750,11 +754,40 @@ func TestTrimTakesOthersReactionsToTrimmedMessages(t *testing.T) {
 		kept[r.ID] = true
 	}
 	for id, want := range map[domain.EventID]bool{
-		"$theirs-old": false, "$mine-old": true, "$theirs-new": true, "$theirs-uncached": true,
+		"$theirs-old": false, "$mine-old": true, "$bridged-old": true, "$native-old": true,
+		"$theirs-new": true, "$theirs-uncached": true,
 	} {
 		if kept[id] != want {
 			t.Errorf("%s kept = %v, want %v", id, kept[id], want)
 		}
+	}
+}
+
+// A trim that does not know who we are — no network logged in, only the empty ID —
+// keeps every reaction, rather than take ours with the others'.
+func TestTrimWithoutSelvesKeepsEveryReaction(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := openTemp(t)
+	cache.UseSelves(func() []string { return []string{""} })
+	msgs := make([]domain.Message, messagesPerRoom+1)
+	for i := range msgs {
+		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("$%04d", i)), RoomID: "!a:x", Body: "m",
+			Timestamp: time.UnixMilli(int64(i) * 1000)}
+	}
+	if err := cache.SaveMessages(ctx, "!a:x", msgs[:messagesPerRoom]); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.SaveReactions(ctx, []domain.Reaction{
+		{ID: "$r", RoomID: "!a:x", Target: msgs[0].ID, Sender: "@me:x", Key: "🎉"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.SaveMessages(ctx, "!a:x", msgs[messagesPerRoom:]); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := cache.Reactions(ctx, "!a:x"); err != nil || len(got) != 1 {
+		t.Errorf("reactions = (%v, %v), want the one kept", got, err)
 	}
 }
 

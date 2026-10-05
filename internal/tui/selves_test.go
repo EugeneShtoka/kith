@@ -27,10 +27,10 @@ func (b selvesBackend) Selves(context.Context) ([]string, error) {
 
 const ownWhatsApp = "whatsapp:44880000001@s.whatsapp.net"
 
-// Every ID the daemon names is this person, beside the Matrix account; nobody is "".
+// Every ID the daemon names is this person, on every network; nobody is "".
 func TestIsMeIsEveryAccount(t *testing.T) {
 	t.Parallel()
-	m := newModel().WithRules(nil, "@me:x", false)
+	m := newModel()
 	m, _ = m.handleSelves(selvesMsg{ids: []string{"@me:x", ownWhatsApp}})
 	for _, id := range []string{"@me:x", ownWhatsApp} {
 		if !m.isMe(id) || !m.fromMe(id) {
@@ -140,5 +140,42 @@ func TestNoRoomAsksNothing(t *testing.T) {
 	m := newModel()
 	if m.loadTimelineCmd("", "") != nil || m.refreshMembersCmd("") != nil {
 		t.Error("a load was issued for no room")
+	}
+}
+
+// A script's $KITH_USER is you on the room's own network: the Matrix account in a
+// Matrix room, your first WhatsApp number in a WhatsApp one, nobody where you have no
+// account.
+func TestSelfInIsYouOnTheRoomsNetwork(t *testing.T) {
+	t.Parallel()
+	m := newModel()
+	m.selves = []string{"", "@me:x", "@whatsapp_44880000001:x", ownWhatsApp, "whatsapp:44880000002@s.whatsapp.net"}
+	for room, want := range map[domain.RoomID]string{
+		"!a:x": "@me:x",
+		domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, "44880000002", "120363000000000001@g.us")): ownWhatsApp,
+		domain.RoomID(domain.NativeID(domain.ProtocolTelegram, "1000001", "-1000002")):                    "",
+	} {
+		if got := m.selfIn(room); got != want {
+			t.Errorf("selfIn(%s) = %q, want %q", room, got, want)
+		}
+	}
+}
+
+// Someone grouped by [[display.identity]] with any of your IDs is you, a WhatsApp
+// number's as much as the Matrix account's; nobody is you through an identity of
+// someone else's.
+func TestAnIdentityWithAnyOfYourIDsIsYou(t *testing.T) {
+	t.Parallel()
+	m := newModel()
+	m.selves = []string{ownWhatsApp}
+	m.prefs.identities = buildIdentities([]config.Identity{
+		{Alias: "me", IDs: []string{ownWhatsApp, "@whatsapp_44880000001:x"}},
+		{Alias: "dana", IDs: []string{"@dana:x", "whatsapp:44880000009@s.whatsapp.net"}},
+	})
+	if !m.fromMe("@whatsapp_44880000001:x") {
+		t.Error("your bridged puppet, grouped with your WhatsApp number, is not you")
+	}
+	if m.fromMe("whatsapp:44880000009@s.whatsapp.net") || m.fromMe("@dana:x") {
+		t.Error("someone else's identity is you")
 	}
 }

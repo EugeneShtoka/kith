@@ -37,7 +37,7 @@ type fake struct {
 	encryptionAsked [][]domain.RoomID
 	// withAsked records the IDs find_rooms_with resolved.
 	withAsked []string
-	// selves is who the daemon says this person is.
+	// selves is who the daemon says this person is; nil is @me:x.
 	selves []string
 
 	// sendErr and queueErr drive the send → queue → draft ladder.
@@ -99,7 +99,12 @@ func (f *fake) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (
 }
 
 func (f *fake) Rooms(context.Context) ([]domain.Room, error) { return f.rooms, nil }
-func (f *fake) Selves(context.Context) ([]string, error)     { return f.selves, nil }
+func (f *fake) Selves(context.Context) ([]string, error) {
+	if f.selves == nil {
+		return []string{"@me:x"}, nil
+	}
+	return f.selves, nil
+}
 func (f *fake) Spaces(context.Context) ([]domain.Space, error) {
 	f.spacesCalls++
 	return f.spaces, nil
@@ -231,7 +236,7 @@ var (
 )
 
 func newServer(f *fake, scope domain.ModelScope) *server {
-	return &server{backend: f, scope: scope, user: "@me:x"}
+	return &server{backend: f, scope: scope}
 }
 
 // call runs one tool and returns the JSON it produced, decoded.
@@ -482,15 +487,13 @@ func TestReadRoomMarksYourOwnMessages(t *testing.T) {
 	}
 }
 
-// Without Matrix, what the daemon says is this person marks the messages: a WhatsApp
-// account's own are its own.
+// What the daemon says is this person marks the messages, whatever the network.
 func TestReadRoomMarksTheDaemonsSelvesMine(t *testing.T) {
 	t.Parallel()
 
 	f := twoRooms()
 	f.selves = []string{"@dana:x"}
 	s := newServer(f, shareAllEncrypted)
-	s.user = ""
 	out := call(t, s, "read_room", map[string]any{"room": "Standup"})
 	msgs, _ := out["messages"].([]any)
 	if len(msgs) != 2 {

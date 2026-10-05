@@ -533,10 +533,7 @@ type Model struct {
 	// st is the status line's left slot, written only via say/doing/clearStatus so events expire.
 	st statusState
 
-	// me is our own MXID ("" without Matrix), and selves every ID the daemon says is
-	// this person (see isMe). Notifications are the daemon's; the TUI keeps the rules
-	// only to describe them.
-	me     string
+	// selves is every ID the daemon says is this person, on every network (see isMe).
 	selves []string
 	// roomAccounts is each network account the room list has had rooms from (see
 	// selvesAfterRooms); nil before the first list.
@@ -2813,10 +2810,9 @@ func (m Model) WithNotifications(n Notifications) Model {
 	return m
 }
 
-// WithRules sets the notification rules to describe (the badge) and our MXID. Delivery is the daemon's.
-func (m Model) WithRules(rules []notify.Rule, me string, on bool) Model {
+// WithRules sets the notification rules to describe (the badge). Delivery is the daemon's.
+func (m Model) WithRules(rules []notify.Rule, on bool) Model {
 	m.notifications.rules = rules
-	m.me = me
 	m.notifications.on = on
 	return m
 }

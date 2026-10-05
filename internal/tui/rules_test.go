@@ -40,7 +40,7 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	if err != nil {
 		t.Fatalf("rules: %v", err)
 	}
-	m = m.WithRules(rules, "@me:x", true)
+	m = m.WithRules(rules, true)
 	next, _ := m.selectRoom(domain.Room{ID: "!standup:x", Name: "Standup"})
 	m = next
 	m = update(t, m, timelineMsg{roomID: "!standup:x", page: domain.TimelinePage{Messages: []domain.Message{

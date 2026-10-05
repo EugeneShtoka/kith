@@ -17,7 +17,7 @@ func editingWith(t *testing.T, mine domain.Message, members ...domain.Member) (M
 	m := update(t, starterNew(backend, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
-	m.me = "@me:x"
+	m.selves = []string{"@me:x"}
 	m, _ = m.selectRoom(m.filteredRooms()[0])
 	mine.ID, mine.RoomID, mine.Sender, mine.Timestamp = "$mine", "!a:x", "@me:x", at(1)
 	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{mine}}})

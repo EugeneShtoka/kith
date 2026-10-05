@@ -25,7 +25,7 @@ func newWriter(t *testing.T, f *fake, scope domain.ModelScope, send []string) *s
 		t.Fatalf("opening the ledger: %v", err)
 	}
 	return &server{
-		backend: f, scope: scope, user: "@me:x",
+		backend: f, scope: scope,
 		send: send, cooldown: time.Minute, ledger: ledger, client: "test-client",
 	}
 }
@@ -573,7 +573,7 @@ func TestTwoSessionsShareOneCooldown(t *testing.T) {
 		}
 		return &server{
 			backend: gatedSend{fake: scopeRooms(), arrived: arrived, release: release},
-			scope:   shareAllEncrypted, user: "@me:x", send: []string{"group"},
+			scope:   shareAllEncrypted, send: []string{"group"},
 			cooldown: time.Hour, ledger: ledger, client: "test",
 		}
 	}

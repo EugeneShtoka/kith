@@ -32,7 +32,7 @@ func deleting(t *testing.T, backend *redactBackend) Model {
 		{ID: "!a:x", Name: "Alpha"},
 	}})
 	m = sized(t, m)
-	m.me = "@me:x"
+	m.selves = []string{"@me:x"}
 	m, _ = m.selectRoom(m.filteredRooms()[0])
 	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
 		{ID: "$theirs", RoomID: "!a:x", Sender: "@dana:x", Body: "hers", Timestamp: at(1)},
@@ -138,7 +138,7 @@ func editing(t *testing.T, body string) (Model, *sendingBackend) {
 	m := update(t, starterNew(backend, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
-	m.me = "@me:x"
+	m.selves = []string{"@me:x"}
 	m, _ = m.selectRoom(m.filteredRooms()[0])
 	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
 		{ID: "$mine", RoomID: "!a:x", Sender: "@me:x", Body: body, Timestamp: at(1)},

@@ -39,8 +39,7 @@ type Notifications struct {
 	// own `notify` may override (see domain.TrackedNotifies).
 	tracked       []domain.TrackedRule
 	trackedNotify bool
-	me            string
-	// selves are the other IDs that are this person, asked per message (see UseSelves).
+	// selves are the IDs that are this person, asked per message (see UseSelves).
 	selves func() []string
 	// spam has its own lock and outlives reloads: a caught room stays caught.
 	spam *spamWatch
@@ -48,10 +47,11 @@ type Notifications struct {
 	log *slog.Logger
 }
 
-// UseSelves sets every ID that is this person beside me: identities a bridge posts
-// as, each network's own accounts (a WhatsApp number linked later included, hence a
-// function). Their messages are ours: they never notify, and they make a room a
-// conversation for the spam rules. Call before Run.
+// UseSelves sets every ID that is this person, on every network: each network's own
+// accounts and the IDs a bridge posts as for them (an account logging in later
+// included, hence a function). Their messages are ours: they never notify, and they
+// make a room a conversation for the spam rules. Without it nobody is. Call before
+// Run.
 func (n *Notifications) UseSelves(selves func() []string) {
 	n.selves = selves
 	if n.spam != nil {
@@ -61,13 +61,7 @@ func (n *Notifications) UseSelves(selves func() []string) {
 
 // isMine reports whether a sender is this person.
 func (n *Notifications) isMine(sender string) bool {
-	if sender == "" {
-		return false
-	}
-	if sender == n.me {
-		return true
-	}
-	return n.selves != nil && slices.Contains(n.selves(), sender)
+	return sender != "" && n.selves != nil && slices.Contains(n.selves(), sender)
 }
 
 // UseLogger sets where failed deliveries, copies and cache reads are logged. Call
@@ -110,17 +104,16 @@ func (n *Notifications) tracksAWordIn(msg domain.Message, room domain.RoomFacts)
 // daemon). Reload rebuilds them, so the builder outlives any one set.
 type Sinks func(config.Notifications) notify.Notifier
 
-// NewNotifications builds the notifier from cfg. me is the logged-in MXID, so our
-// own messages never notify. A config that will not parse is refused.
-func NewNotifications(cfg config.Config, src scopeSource, me string, sinks Sinks) (*Notifications, error) {
+// NewNotifications builds the notifier from cfg; UseSelves says whose messages are
+// ours. A config that will not parse is refused.
+func NewNotifications(cfg config.Config, src scopeSource, sinks Sinks) (*Notifications, error) {
 	n := &Notifications{
 		scope: newScopeIndex(src, cfg.Display.Names, homeOrderOf(cfg)),
 		sinks: sinks,
-		me:    me,
 	}
 	// A source without spam storage leaves the spam feature off.
 	if store, ok := src.(spamStore); ok {
-		n.spam = newSpamWatch(store, me)
+		n.spam = newSpamWatch(store)
 	}
 	if err := n.Reload(cfg); err != nil {
 		return nil, err

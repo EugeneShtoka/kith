@@ -19,14 +19,30 @@ type Cache struct {
 	asideErr error
 	// log hears rows the cache had to read around (see UseLogger); nil is silent.
 	log *slog.Logger
-	// account is whose cache this is (see UseAccount); "" until set.
-	account string
+	// selves is who this person is (see UseSelves); nil until set.
+	selves func() []string
 }
 
-// UseAccount names the account whose cache this is, so a trim keeps its own reactions:
-// they are what reaction emoji are ranked from. Call before use; without it a trim
-// prunes no reactions at all.
-func (c *Cache) UseAccount(me string) { c.account = me }
+// UseSelves sets who this person is: every ID on every network that is them (each
+// network's own accounts, and the IDs bridges post as for them), so a trim keeps
+// their reactions: they are what reaction emoji are ranked from. It is asked at each
+// write, before its transaction. Call before use; without it a trim prunes no
+// reactions at all.
+func (c *Cache) UseSelves(selves func() []string) { c.selves = selves }
+
+// mine is every ID UseSelves says is this person, the empty one left out.
+func (c *Cache) mine() []string {
+	if c.selves == nil {
+		return nil
+	}
+	var mine []string
+	for _, id := range c.selves() {
+		if id != "" {
+			mine = append(mine, id)
+		}
+	}
+	return mine
+}
 
 // UseLogger sets where the cache reports a row it could only partly read (the rest
 // is still returned). Call before use; nil keeps the silent default.

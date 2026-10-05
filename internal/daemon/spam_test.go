@@ -96,10 +96,11 @@ func spamConfig(spam config.Spam) config.Config {
 func spamNotifier(t *testing.T, cfg config.Config, src *spamBackend) (*daemon.Notifications, *recorder) {
 	t.Helper()
 	rec := &recorder{}
-	n, err := daemon.NewNotifications(cfg, src, me, func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	n.UseSelves(func() []string { return []string{me} })
 	n.Synced(time.Now())
 	n.Synced(time.Now())
 	return n, rec

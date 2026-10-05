@@ -63,7 +63,7 @@ func main() {
 }
 
 func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile string) error {
-	cfg, user, storage, err := loadAccount(log, configPath, profile)
+	cfg, storage, err := loadAccount(log, configPath, profile)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,6 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 		backend:  daemon.NewRemote(socket),
 		scope:    setup.AgentReadScope(cfg.Agent),
 		write:    setup.AgentWriteScope(cfg.Agent),
-		user:     user,
 		send:     cfg.Agent.Write.Send,
 		cooldown: cooldown,
 		log:      log,
@@ -114,37 +113,37 @@ func warnAboutScope(log *slog.Logger, places setup.AgentPlaces, cfg config.Confi
 const scopeCheckTimeout = 5 * time.Second
 
 // loadAccount loads and validates the config for the selected profile.
-func loadAccount(log *slog.Logger, configPath, profile string) (config.Config, string, domain.Storage, error) {
+func loadAccount(log *slog.Logger, configPath, profile string) (config.Config, domain.Storage, error) {
 	path := configPath
 	if path == "" {
 		resolved, err := config.Path()
 		if err != nil {
-			return config.Config{}, "", domain.Storage{}, fmt.Errorf("finding the config: %w", err)
+			return config.Config{}, domain.Storage{}, fmt.Errorf("finding the config: %w", err)
 		}
 		path = resolved
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		return config.Config{}, "", domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 	if warning := config.ModeWarning(path); warning != "" {
 		log.Warn(warning)
 	}
 	cfg, err = cfg.Profile(profile)
 	if err != nil {
-		return config.Config{}, "", domain.Storage{}, fmt.Errorf("choosing the profile: %w", err)
+		return config.Config{}, domain.Storage{}, fmt.Errorf("choosing the profile: %w", err)
 	}
 	if err = setup.Validate(cfg); err != nil {
-		return config.Config{}, "", domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 	storage, err := setup.StorageFor(cfg, path, profile)
 	if err != nil {
-		return config.Config{}, "", domain.Storage{}, err
+		return config.Config{}, domain.Storage{}, err
 	}
 	if rerr := setup.RememberInstance(cfg, path); rerr != nil {
 		log.Debug("storage.instance not recorded; it is derived from the config's path", "err", rerr)
 	}
-	return cfg, cfg.User, storage, nil
+	return cfg, storage, nil
 }
 
 // reader is the read half of what this server asks the daemon.
@@ -182,9 +181,8 @@ type server struct {
 	scope domain.ModelScope
 	// write is `[agent.write]` rooms/except/encrypted, asked only inside scope.
 	write domain.ModelScope
-	// user is the config's Matrix account ("" without one); selves every ID the daemon
-	// says is this person, asked at each tool call (an account may log in meanwhile).
-	user   string
+	// selves is every ID the daemon says is this person, on every network, asked at
+	// each tool call (an account may log in meanwhile).
 	selves []string
 	// send is `[agent.write] send`: rooms posted to rather than drafted into.
 	send []string
