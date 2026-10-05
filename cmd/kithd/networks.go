@@ -8,6 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/route"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
@@ -77,13 +78,13 @@ func (s served) checkConfig(ctx context.Context, cfg config.Config) error {
 // left out, logged, rather than the daemon down with it).
 func openNetworks(
 	ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage, saved domain.Session,
-) (networks []network, matrix *matrixAdapter, whatsappStore *whatsapp.Store) {
+) (networks []network, mx *matrix.Adapter, whatsappStore *whatsapp.Store) {
 	if cfg.HasMatrix() {
-		matrix = newMatrixAdapter(cache, log, matrixAccount{
-			homeserver: cfg.Homeserver, user: cfg.User, allowTokenFile: cfg.AllowTokenFile,
-			crypto: cryptoPlace{path: storage.CryptoPath(), keys: session.StoreFor(storage, cfg.User)},
+		mx = matrix.NewAdapter(cache, log, matrix.Account{
+			Homeserver: cfg.Homeserver, User: cfg.User, AllowTokenFile: cfg.AllowTokenFile,
+			Crypto: matrix.CryptoPlace{Path: storage.CryptoPath(), Keys: session.StoreFor(storage, cfg.User)},
 		}, saved)
-		networks = append(networks, matrix)
+		networks = append(networks, mx)
 	}
 	if store, err := whatsapp.OpenStore(ctx, storage.WhatsAppPath(), whatsapp.NewStoreLogger(log)); err != nil {
 		log.Error("WhatsApp is off: its store will not open", "path", storage.WhatsAppPath(), "err", err)
@@ -96,5 +97,5 @@ func openNetworks(
 	for _, n := range networks {
 		n.UseConfig(ctx, cfg)
 	}
-	return networks, matrix, whatsappStore
+	return networks, mx, whatsappStore
 }

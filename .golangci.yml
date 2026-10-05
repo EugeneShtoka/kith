@@ -144,7 +144,7 @@ linters:
             - "github.com/adrg/xdg"
             - "modernc.org/sqlite"
 
-        # The Matrix adapter. Only the daemon links it.
+        # The Matrix adapter: its session, login and sync. Only the daemon links it.
         matrix-is-the-adapter:
           files:
             - "**/internal/matrix/**"
@@ -152,10 +152,12 @@ linters:
           allow:
             - "$gostd"
             - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/matrix"
             - "github.com/EugeneShtoka/kith/internal/richtext"
+            - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/rs/zerolog"
             - "github.com/yuin/goldmark"
             - "go.mau.fi/util"

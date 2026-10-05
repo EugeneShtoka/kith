@@ -13,6 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/matrix"
 )
 
 // servedFor builds the daemon's backend for cfg in a fresh instance.
@@ -42,7 +43,7 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 	if backend.matrix != nil {
 		t.Error("a Matrix adapter without a Matrix account in the config")
 	}
-	if _, ok := backend.loginLeaders()[0].(matrixSetup); !ok {
+	if _, ok := backend.loginLeaders()[0].(matrix.Setup); !ok {
 		t.Error("no way to set Matrix up without a Matrix account")
 	}
 	ctx := context.Background()
