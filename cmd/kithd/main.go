@@ -78,7 +78,7 @@ func main() {
 		storage, err = setup.StorageFor(cfg, path, *profile)
 	}
 	if err == nil {
-		err = run(log, level, *logLevel, cfg, path, storage)
+		err = run(log, level, *logLevel, cfg, configFile{path: path, profile: *profile}, storage)
 	}
 	if err != nil {
 		log.Error("kithd stopped", "err", err)
@@ -131,8 +131,8 @@ func newLogger(d daemonLog) (*slog.Logger, func()) {
 
 // run takes the single-instance lock, resumes the stored session
 // and serves until SIGINT/SIGTERM (systemd stops units with SIGTERM).
-func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Config, path string, storage domain.Storage) error {
-	if warning := config.ModeWarning(path); warning != "" {
+func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Config, file configFile, storage domain.Storage) error {
+	if warning := config.ModeWarning(file.path); warning != "" {
 		log.Warn(warning)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -165,16 +165,15 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		}
 	}()
 
-	saved, err := prepareInstance(cfg, storage)
-	if err != nil {
-		return err
+	if derr := makeStorageDirs(storage); derr != nil {
+		return derr
 	}
 
 	cache, err := openCache(ctx, log, storage.CachePath())
 	if err != nil {
 		return err
 	}
-	backend := newServed(ctx, cache, log, cfg, storage, saved)
+	backend := newServed(ctx, cache, log, cfg, storage)
 	// Registered before configure, so what it starts is stopped on every return.
 	defer func() {
 		if !handlersLive {
@@ -192,7 +191,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 
 	warnAboutAgentScope(ctx, log, backend, cfg)
 
-	err = serve(ctx, log, relevel, lock, backend, cfg, path)
+	err = serve(ctx, log, relevel, lock, backend, cfg, file)
 	if handlersLive = errors.Is(err, daemon.ErrHandlersRunning); handlersLive {
 		log.Error("leaving the stores open: handlers were still running at exit", "err", err)
 	}
@@ -246,8 +245,8 @@ func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.Age
 // that reaches a network, and the local service for what the cache and the engines
 // answer. A method both offered would make it ambiguous and fail to compile, so none
 // is served twice. matrix is the Matrix adapter itself, for what only kithd does
-// with it (the session, encryption, the sync callbacks); nil when the config names
-// no Matrix account.
+// with it (the sync callbacks, key backup); built whether or not the config names
+// its account.
 type served struct {
 	*route.Router
 	*local.Service
@@ -265,8 +264,8 @@ var _ api.Backend = served{}
 
 // newServed builds the networks (openNetworks), the router over them and the service
 // over one cache, the service hearing what each network caches.
-func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage, saved domain.Session) served {
-	networks, mx, whatsappStore := openNetworks(ctx, cache, log, cfg, storage, saved)
+func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage) served {
+	networks, mx, whatsappStore := openNetworks(ctx, cache, log, cfg, storage)
 	adapters := make(map[domain.Protocol]route.Adapter, len(networks))
 	for _, n := range networks {
 		adapters[n.Network()] = n
@@ -287,13 +286,9 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	}
 }
 
-// loginLeaders is every network's login, and, with no Matrix account in the config,
-// Matrix's setting up.
+// loginLeaders is every network's login.
 func (s served) loginLeaders() []api.LoginLeader {
-	leaders := make([]api.LoginLeader, 0, len(s.networks)+1)
-	if s.matrix == nil {
-		leaders = append(leaders, matrix.Setup{})
-	}
+	leaders := make([]api.LoginLeader, 0, len(s.networks))
 	for _, n := range s.networks {
 		leaders = append(leaders, n)
 	}
@@ -386,7 +381,7 @@ func serve(
 	lock *daemon.Lock,
 	backend served,
 	cfg config.Config,
-	configPath string,
+	file configFile,
 ) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
@@ -409,9 +404,7 @@ func serve(
 	wg.Go(func() { w.streams.Run(ctx, backend) })
 	wg.Go(func() { w.notifications.Run(ctx, w.streams) })
 	wg.Go(func() { w.refresher.Run(ctx) })
-	if w.backups != nil {
-		wg.Go(func() { w.backups.Run(ctx) })
-	}
+	wg.Go(func() { w.backups.Run(ctx) })
 	wg.Go(func() {
 		syncErr = connectAndSync(ctx, backend.Router)
 		if syncErr != nil {
@@ -434,7 +427,7 @@ func serve(
 		Scheduler:     scheduler,
 		Logins:        daemon.NewLogins(ctx, backend.loginLeaders),
 		Log:           log,
-		Reload:        reloader(configPath, relevel, cutoff, backend, w.notifications),
+		Reload:        reloader(file, relevel, cutoff, backend, w.notifications),
 		CheckConfig:   backend.checkConfig,
 	})
 	// Cancel (not backend.Stop) and join: a sync still decrypting needs the store, and
@@ -446,7 +439,7 @@ func serve(
 
 // reloader re-reads the file the daemon was started with, never a client payload.
 func reloader(
-	configPath string,
+	file configFile,
 	relevel func(string),
 	cutoff *atomic.Int64,
 	backend served,
@@ -457,7 +450,7 @@ func reloader(
 	return func(ctx context.Context) error {
 		one.Lock()
 		defer one.Unlock()
-		reloaded, lerr := config.Load(configPath)
+		reloaded, lerr := file.read()
 		if lerr != nil {
 			return fmt.Errorf("load config: %w", lerr)
 		}
@@ -520,26 +513,22 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 			r.OnRoomsStale(refresher.Changed)
 		}
 	}
-	var backups *daemon.KeyBackup
-	if m := backend.matrix; m != nil {
-		// Logged in after the startup refresh: refresh again, now with Matrix.
-		m.OnLoggedIn(func() {
-			refresher.Changed()
-			// The startup sweep ran before the session took: back up what it missed.
-			if backups != nil {
-				backups.Soon()
-			}
-		})
-		// A sync is the account online as of the sync's own time, and the catch-up
-		// that notifications wait for.
-		m.OnSynced(func(t time.Time) {
-			state.Report(daemon.StatusOf(m.Online()), t)
-			notifications.Synced(t)
-		})
-		backups = daemon.NewKeyBackup(m, func(level slog.Level, line string) {
-			log.Log(context.Background(), level, "key backup: "+line, "op", "key backup")
-		})
-	}
+	m := backend.matrix
+	backups := daemon.NewKeyBackup(m, func(level slog.Level, line string) {
+		log.Log(context.Background(), level, "key backup: "+line, "op", "key backup")
+	})
+	// Logged in after the startup refresh: refresh again, now with Matrix, and back up
+	// what the startup sweep missed while it had no session.
+	m.OnLoggedIn(func() {
+		refresher.Changed()
+		backups.Soon()
+	})
+	// A sync is the account online as of the sync's own time, and the catch-up that
+	// notifications wait for.
+	m.OnSynced(func(t time.Time) {
+		state.Report(daemon.StatusOf(m.Online()), t)
+		notifications.Synced(t)
+	})
 	return &workers{
 		notifications: notifications,
 		refresher:     refresher,
@@ -566,6 +555,23 @@ func expected(ctx context.Context, log *slog.Logger, backend served) []daemon.Ne
 	return out
 }
 
+// configFile is the config kithd serves: its path, and the [[profile]] it runs as.
+type configFile struct{ path, profile string }
+
+// read is the file as kithd runs it: re-read, with its profile selected, so a reload
+// sees the account a start does.
+func (f configFile) read() (config.Config, error) {
+	cfg, err := config.Load(f.path)
+	if err != nil {
+		return config.Config{}, fmt.Errorf("load config: %w", err)
+	}
+	cfg, err = cfg.Profile(f.profile)
+	if err != nil {
+		return config.Config{}, fmt.Errorf("select profile: %w", err)
+	}
+	return cfg, nil
+}
+
 // loadConfig reads and validates the config for the account to serve, returning the
 // path too: ReloadConfig re-reads the same file.
 func loadConfig(configPath, profile string) (config.Config, string, error) {
@@ -589,19 +595,6 @@ func loadConfig(configPath, profile string) (config.Config, string, error) {
 		return config.Config{}, "", err
 	}
 	return cfg, path, nil
-}
-
-// prepareInstance makes the instance's directories and reads the saved Matrix session
-// (zero when there is none, or no Matrix). No session is no error: the daemon serves
-// what it has, and `kith login` starts Matrix through it.
-func prepareInstance(cfg config.Config, storage domain.Storage) (domain.Session, error) {
-	if err := makeStorageDirs(storage); err != nil {
-		return domain.Session{}, err
-	}
-	if !cfg.HasMatrix() {
-		return domain.Session{}, nil
-	}
-	return matrix.SavedSession(cfg, session.StoreFor(storage, cfg.User)) //nolint:wrapcheck // says what it loaded
 }
 
 // makeStorageDirs creates the instance's directories, private to this user: the

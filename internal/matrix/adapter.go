@@ -15,15 +15,22 @@ import (
 	"github.com/EugeneShtoka/kith/internal/session"
 )
 
-// Account is the config's Matrix account and where its secrets are kept.
-type Account struct {
-	Homeserver, User string
-	AllowTokenFile   bool
-	Crypto           CryptoPlace
+// Place is where this instance keeps a Matrix account's secrets: the encryption
+// store's path, and the keyring entries for a user.
+type Place struct {
+	CryptoPath string
+	Keys       func(user string) session.Store
 }
 
-// CryptoPlace is where the Matrix encryption store and its key are kept.
-type CryptoPlace struct {
+// account is the config's Matrix account and where its secrets are kept.
+type account struct {
+	Homeserver, User string
+	AllowTokenFile   bool
+	Crypto           cryptoPlace
+}
+
+// cryptoPlace is where the Matrix encryption store and its key are kept.
+type cryptoPlace struct {
 	Path string
 	Keys session.Store
 }
@@ -41,14 +48,16 @@ const (
 	running
 )
 
-// Adapter is the Matrix adapter as the router starts it. It may start with no
-// session, or one the homeserver rejects: Start then waits for passwordLogin, and the
-// router treats Matrix as off until LoggedIn. What is left of connecting once the
-// homeserver answers belongs to its Start, and holds up no other network.
+// Adapter is the Matrix adapter as the router starts it. It is built with no account:
+// the config gives it one (UseConfig, at start or when re-read), and Start waits for
+// it. It may then have no session, or one the homeserver rejects: Start waits for
+// passwordLogin, and the router treats Matrix as off until LoggedIn. What is left of
+// connecting once the homeserver answers belongs to its Start, and holds up no other
+// network.
 type Adapter struct {
 	*InProc
-	log     *slog.Logger
-	account Account
+	log   *slog.Logger
+	place Place
 
 	// onStatus hears each phase change (the daemon's per-network status); onLoggedIn
 	// hears the session taking, so what was skipped while logged out is caught up.
@@ -60,13 +69,19 @@ type Adapter struct {
 	// anything reaches the adapter through the router.
 	loggedIn atomic.Bool
 
-	saved domain.Session // the session to try first; zero when there is none
-
 	// logins runs one login at a time: the session saved last is the newest login's.
 	logins sync.Mutex
 
-	mu    sync.Mutex
-	phase sessionPhase
+	mu sync.Mutex
+	// account is the config's, once it named one; accounted is closed then. It is
+	// taken once: the encryption store opens for one user, so another takes a restart.
+	account   account
+	accounted chan struct{}
+	// saved is the session to try first; zero when there is none. userLog is log
+	// naming the account. log itself never changes, so it is read unlocked.
+	saved   domain.Session
+	userLog *slog.Logger
+	phase   sessionPhase
 	// pending is the session a login handed over, until Start takes it; wake says
 	// one was (it holds at most one signal).
 	pending *domain.Session
@@ -76,21 +91,59 @@ type Adapter struct {
 	settled chan struct{}
 }
 
-// NewAdapter is the adapter for account over cache, starting from saved (zero
-// when there is no saved session).
-func NewAdapter(cache *db.Cache, log *slog.Logger, account Account, saved domain.Session) *Adapter {
-	log = log.With("user", account.User)
+// NewAdapter is the adapter over cache, its secrets kept at place. It has no account
+// until UseConfig gives it one.
+func NewAdapter(cache *db.Cache, log *slog.Logger, place Place) *Adapter {
 	m := &Adapter{
-		InProc: New(cache), log: log, account: account,
+		InProc: New(cache), log: log, place: place,
 		onStatus: func(domain.AccountStatus) {}, onLoggedIn: func() {},
-		saved: saved, wake: make(chan struct{}, 1),
+		accounted: make(chan struct{}), wake: make(chan struct{}, 1),
 	}
 	m.phase = awaitingLogin
+	m.UseLogger(log)
+	return m
+}
+
+// accountNow is the account, zero before the config named one.
+func (m *Adapter) accountNow() account {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.account
+}
+
+// takeAccount takes the config's account, with the session saved for it, unless one
+// was taken already: then a different one waits for a restart, said in the log.
+func (m *Adapter) takeAccount(cfg config.Config) {
+	have := m.accountNow()
+	switch {
+	case have.User != "" && (have.User != cfg.User || have.Homeserver != cfg.Homeserver):
+		m.log.Warn("the config names another Matrix account; kithd runs it from its next start",
+			"running", have.User, "config", cfg.User)
+		return
+	case have.User != "" || !cfg.HasMatrix():
+		return
+	}
+	keys := m.place.Keys(cfg.User)
+	saved, err := SavedSession(cfg, keys)
+	if err != nil {
+		m.log.Warn("read the saved Matrix session failed; waiting for a login", "user", cfg.User, "err", err)
+	}
+	log := m.log.With("user", cfg.User)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.account.User != "" {
+		return // taken meanwhile by a re-read racing this one
+	}
+	m.account = account{
+		Homeserver: cfg.Homeserver, User: cfg.User, AllowTokenFile: cfg.AllowTokenFile,
+		Crypto: cryptoPlace{Path: m.place.CryptoPath, Keys: keys},
+	}
+	m.saved, m.userLog = saved, log
+	m.UseLogger(log)
 	if saved.AccessToken != "" {
 		m.enterResuming()
 	}
-	m.UseLogger(log)
-	return m
+	close(m.accounted)
 }
 
 // Network is Matrix.
@@ -108,7 +161,7 @@ func (m *Adapter) Online() domain.AccountStatus { return m.status(domain.Account
 
 // status is the account in phase, saying detail.
 func (m *Adapter) status(phase domain.AccountPhase, detail string) domain.AccountStatus {
-	return domain.AccountStatus{Network: domain.ProtocolMatrix, Account: m.account.User, Phase: phase, Detail: detail}
+	return domain.AccountStatus{Network: domain.ProtocolMatrix, Account: m.accountNow().User, Phase: phase, Detail: detail}
 }
 
 // report tells the listener the account's phase changed.
@@ -116,11 +169,13 @@ func (m *Adapter) report(phase domain.AccountPhase, detail string) {
 	m.onStatus(m.status(phase, detail))
 }
 
-// UseConfig takes [display.deleted] keep and the identities, at start and each time
-// the config is re-read. The account itself is the daemon's to change (a restart).
+// UseConfig takes the account, [display.deleted] keep and the identities, at start and
+// each time the config is re-read. An account set up while kithd runs starts at once;
+// one changed waits for a restart (takeAccount).
 func (m *Adapter) UseConfig(ctx context.Context, cfg config.Config) {
 	m.KeepDeleted(cfg.Display.Deleted.Keep())
 	m.UseIdentities(ctx, identityGroups(cfg))
+	m.takeAccount(cfg)
 }
 
 // identityGroups is each [[display.identity]]'s user IDs.
@@ -134,6 +189,8 @@ func identityGroups(cfg config.Config) [][]string {
 
 // SavedSessions is the account when a session was saved: Start resumes it.
 func (m *Adapter) SavedSessions(context.Context) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.saved.AccessToken == "" {
 		return nil, nil
 	}
@@ -144,12 +201,20 @@ func (m *Adapter) SavedSessions(context.Context) ([]string, error) {
 func (m *Adapter) LoggedIn() bool { return m.loggedIn.Load() }
 
 // hint is what to do to log Matrix in.
-const loginHint = "run `kith login`"
+const loginHint = ":login matrix in kith, or run `kith login`"
 
-// Start tries the saved session, else waits for a login; then finishes connecting
-// and runs the sync loop. A rejected session waits for a login again. It blocks.
+// Start waits for the config to name the account, then tries the saved session, else
+// waits for a login; then finishes connecting and runs the sync loop. A rejected
+// session waits for a login again. It blocks.
 func (m *Adapter) Start(ctx context.Context) error {
-	next := m.saved
+	select {
+	case <-m.accounted:
+	case <-ctx.Done():
+		return nil // shut down with no account
+	}
+	m.mu.Lock()
+	next, acc, log := m.saved, m.account, m.userLog
+	m.mu.Unlock()
 	for {
 		if next.AccessToken == "" {
 			m.report(domain.AccountLoggedOut, "no saved session; "+loginHint)
@@ -159,9 +224,9 @@ func (m *Adapter) Start(ctx context.Context) error {
 			}
 		}
 		m.report(domain.AccountConnecting, "resuming the session")
-		prepare, err := resumeSession(ctx, m.log, m.InProc, m.account.Crypto, next)
+		prepare, err := resumeSession(ctx, log, m.InProc, acc.Crypto, next)
 		if errors.Is(err, api.ErrSessionRejected) {
-			m.log.Warn("the saved Matrix session was rejected; waiting for `kith login`", "err", err)
+			log.Warn("the saved Matrix session was rejected; waiting for `kith login`", "err", err)
 			m.report(domain.AccountLoggedOut, "the homeserver rejected the session; "+loginHint)
 			m.settle(awaitingLogin)
 			next = domain.Session{}

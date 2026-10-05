@@ -29,7 +29,7 @@ func SavedSession(cfg config.Config, keys session.Store) (domain.Session, error)
 // to do, nil when the homeserver answered. A rejected session is
 // api.ErrSessionRejected, and leaves the crypto store unopened.
 func resumeSession(
-	ctx context.Context, log *slog.Logger, backend *InProc, crypto CryptoPlace, saved domain.Session,
+	ctx context.Context, log *slog.Logger, backend *InProc, crypto cryptoPlace, saved domain.Session,
 ) (prepare func(context.Context) error, err error) {
 	rerr := backend.Resume(ctx, saved)
 	if rerr == nil || errors.Is(rerr, api.ErrUnreachable) {

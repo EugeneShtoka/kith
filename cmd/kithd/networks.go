@@ -72,20 +72,18 @@ func (s served) checkConfig(ctx context.Context, cfg config.Config) error {
 }
 
 // openNetworks builds every network kithd links, over one cache and this instance's
-// keyring: Matrix when the config names its account (starting from saved), the rest
-// always, each running whatever accounts the config gives it. whatsappStore is
+// keyring, each running whatever accounts the config gives it (Matrix, the one it
+// names). whatsappStore is
 // WhatsApp's session store, for Close; nil when it would not open (WhatsApp is then
 // left out, logged, rather than the daemon down with it).
 func openNetworks(
-	ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage, saved domain.Session,
+	ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage,
 ) (networks []network, mx *matrix.Adapter, whatsappStore *whatsapp.Store) {
-	if cfg.HasMatrix() {
-		mx = matrix.NewAdapter(cache, log, matrix.Account{
-			Homeserver: cfg.Homeserver, User: cfg.User, AllowTokenFile: cfg.AllowTokenFile,
-			Crypto: matrix.CryptoPlace{Path: storage.CryptoPath(), Keys: session.StoreFor(storage, cfg.User)},
-		}, saved)
-		networks = append(networks, mx)
-	}
+	mx = matrix.NewAdapter(cache, log, matrix.Place{
+		CryptoPath: storage.CryptoPath(),
+		Keys:       func(user string) session.Store { return session.StoreFor(storage, user) },
+	})
+	networks = append(networks, mx)
 	if store, err := whatsapp.OpenStore(ctx, storage.WhatsAppPath(), whatsapp.NewStoreLogger(log)); err != nil {
 		log.Error("WhatsApp is off: its store will not open", "path", storage.WhatsAppPath(), "err", err)
 	} else {
