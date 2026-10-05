@@ -27,6 +27,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/local"
 	"github.com/EugeneShtoka/kith/internal/logging"
+	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/modelsetup"
 	"github.com/EugeneShtoka/kith/internal/route"
 	"github.com/EugeneShtoka/kith/internal/schedule"
@@ -253,7 +254,7 @@ func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.Age
 type served struct {
 	*route.Router
 	*local.Service
-	matrix *matrixAdapter
+	matrix *matrix.Adapter
 	// dataDir and schedulePath are this instance's ([storage]).
 	dataDir, schedulePath string
 	// networks is every network built (openNetworks), Matrix among them when there.
@@ -268,7 +269,7 @@ var _ api.Backend = served{}
 // newServed builds the networks (openNetworks), the router over them and the service
 // over one cache, the service hearing what each network caches.
 func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage, saved domain.Session) served {
-	networks, matrix, whatsappStore := openNetworks(ctx, cache, log, cfg, storage, saved)
+	networks, mx, whatsappStore := openNetworks(ctx, cache, log, cfg, storage, saved)
 	adapters := make(map[domain.Protocol]route.Adapter, len(networks))
 	for _, n := range networks {
 		adapters[n.Network()] = n
@@ -282,7 +283,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 		}
 	}
 	return served{
-		Router: router, Service: service, matrix: matrix, networks: networks, whatsappStore: whatsappStore,
+		Router: router, Service: service, matrix: mx, networks: networks, whatsappStore: whatsappStore,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),
 	}
 }
@@ -292,7 +293,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 func (s served) loginLeaders() []api.LoginLeader {
 	leaders := make([]api.LoginLeader, 0, len(s.networks)+1)
 	if s.matrix == nil {
-		leaders = append(leaders, matrixSetup{})
+		leaders = append(leaders, matrix.Setup{})
 	}
 	for _, n := range s.networks {
 		leaders = append(leaders, n)
@@ -317,8 +318,8 @@ func closeWhatsAppStore(log *slog.Logger, store *whatsapp.Store) {
 	}
 }
 
-// configure applies the config to the backend; internal/matrix and internal/local
-// read no config themselves.
+// configure applies the config to the backend; internal/local reads no config
+// itself.
 func configure(log *slog.Logger, backend served, cfg config.Config, storage domain.Storage) {
 	backend.UseSpell(local.SpellSettings{
 		Enabled:      cfg.Spell.SpellEnabled(),
@@ -331,15 +332,6 @@ func configure(log *slog.Logger, backend served, cfg config.Config, storage doma
 	backend.UseModel(modelSettings(log, cfg, storage.KeyringService))
 	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, storage.DataDir))
 	backend.UsePlaces(setup.PlacesOf(cfg))
-}
-
-// identityGroups is each [[display.identity]]'s user IDs.
-func identityGroups(cfg config.Config) [][]string {
-	groups := make([][]string, 0, len(cfg.Display.Identities))
-	for _, ident := range cfg.Display.Identities {
-		groups = append(groups, ident.IDs)
-	}
-	return groups
 }
 
 // modelSettings translates `[assist]` and `[complete.model]` and reads the API key. A
@@ -380,7 +372,7 @@ func modelSettings(log *slog.Logger, cfg config.Config, keyring string) local.Mo
 // connectAndSync runs every network: each finishes its own connecting, then syncs.
 // SyncFault drops errors caused by our own shutdown, so a clean stop exits 0.
 func connectAndSync(ctx context.Context, router *route.Router) error {
-	if err := daemon.SyncFault(ctx, router.Start(ctx)); err != nil {
+	if err := domain.SyncFault(ctx, router.Start(ctx)); err != nil {
 		return fmt.Errorf("networks: %w", err)
 	}
 	return nil
@@ -532,17 +524,17 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	var backups *daemon.KeyBackup
 	if m := backend.matrix; m != nil {
 		// Logged in after the startup refresh: refresh again, now with Matrix.
-		m.onLoggedIn = func() {
+		m.OnLoggedIn(func() {
 			refresher.Changed()
 			// The startup sweep ran before the session took: back up what it missed.
 			if backups != nil {
 				backups.Soon()
 			}
-		}
+		})
 		// A sync is the account online as of the sync's own time, and the catch-up
 		// that notifications wait for.
 		m.OnSynced(func(t time.Time) {
-			state.Report(daemon.StatusOf(m.status(daemon.PhaseOnline, "")), t)
+			state.Report(daemon.StatusOf(m.Online()), t)
 			notifications.Synced(t)
 		})
 		backups = daemon.NewKeyBackup(m, func(level slog.Level, line string) {
@@ -610,7 +602,7 @@ func prepareInstance(cfg config.Config, storage domain.Storage) (domain.Session,
 	if !cfg.HasMatrix() {
 		return domain.Session{}, nil
 	}
-	return savedSession(cfg, session.StoreFor(storage, cfg.User))
+	return matrix.SavedSession(cfg, session.StoreFor(storage, cfg.User)) //nolint:wrapcheck // says what it loaded
 }
 
 // makeStorageDirs creates the instance's directories, private to this user: the

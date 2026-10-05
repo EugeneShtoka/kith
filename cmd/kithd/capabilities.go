@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/route"
 	"github.com/EugeneShtoka/kith/internal/slack"
 	"github.com/EugeneShtoka/kith/internal/telegram"
@@ -33,7 +34,7 @@ var (
 		api.Membership
 		api.Verification
 		api.Keys
-	} = (*matrixAdapter)(nil)
+	} = (*matrix.Adapter)(nil)
 
 	_ interface {
 		route.Adapter

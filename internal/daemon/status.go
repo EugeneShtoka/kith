@@ -1,8 +1,6 @@
 package daemon
 
 import (
-	"context"
-	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -136,13 +134,4 @@ func (s *State) Snapshot() (ready bool, syncedAt time.Time, lastErr string) {
 		ready = !s.failed && len(s.expected) == 0
 	}
 	return ready, s.syncedAt, s.lastErr
-}
-
-// SyncFault returns nil when err (from api.Backend.Start) is just our own
-// shutdown, so a clean stop does not exit non-zero or clear readiness.
-func SyncFault(ctx context.Context, err error) error {
-	if err == nil || ctx.Err() != nil || errors.Is(err, context.Canceled) {
-		return nil //nolint:nilerr // discarding the error is the point: our own shutdown is not a fault
-	}
-	return err
 }

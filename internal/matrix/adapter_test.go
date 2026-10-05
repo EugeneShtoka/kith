@@ -1,4 +1,4 @@
-package main
+package matrix
 
 import (
 	"context"
@@ -18,7 +18,6 @@ import (
 
 	"github.com/zalando/go-keyring"
 
-	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/session"
@@ -78,7 +77,7 @@ func (h *homeserver) serve(w http.ResponseWriter, r *http.Request) {
 // phases records what the adapter reported, in order.
 type phases struct {
 	mu  sync.Mutex
-	got []daemon.Phase
+	got []domain.AccountPhase
 }
 
 func (p *phases) add(s domain.AccountStatus) {
@@ -87,7 +86,7 @@ func (p *phases) add(s domain.AccountStatus) {
 	p.got = append(p.got, s.Phase)
 }
 
-func (p *phases) last() daemon.Phase {
+func (p *phases) last() domain.AccountPhase {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if len(p.got) == 0 {
@@ -98,7 +97,7 @@ func (p *phases) last() daemon.Phase {
 
 // testAdapter is a Matrix adapter for the fake homeserver, its secrets in the mock
 // keyring under a service of its own, starting from saved.
-func testAdapter(t *testing.T, hs *homeserver, saved domain.Session) (*matrixAdapter, *phases, session.Store) {
+func testAdapter(t *testing.T, hs *homeserver, saved domain.Session) (*Adapter, *phases, session.Store) {
 	t.Helper()
 	dir := t.TempDir()
 	keys := session.Store{Service: "kith-test-" + filepath.Base(dir), Account: "@me:x", File: filepath.Join(dir, "session.toml")}
@@ -107,9 +106,9 @@ func testAdapter(t *testing.T, hs *homeserver, saved domain.Session) (*matrixAda
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cache.Close() })
-	m := newMatrixAdapter(cache, slog.New(slog.DiscardHandler), matrixAccount{
-		homeserver: hs.URL, user: "@me:x", allowTokenFile: true,
-		crypto: cryptoPlace{path: filepath.Join(dir, "crypto.db"), keys: keys},
+	m := NewAdapter(cache, slog.New(slog.DiscardHandler), Account{
+		Homeserver: hs.URL, User: "@me:x", AllowTokenFile: true,
+		Crypto: CryptoPlace{Path: filepath.Join(dir, "crypto.db"), Keys: keys},
 	}, saved)
 	p := &phases{}
 	m.OnStatus(p.add)
@@ -152,13 +151,13 @@ func TestMatrixWaitsForALoginAndStartsOnIt(t *testing.T) {
 				m.Stop()
 			}()
 
-			waitUntil(t, "logged out", func() bool { return p.last() == daemon.PhaseLoggedOut })
+			waitUntil(t, "logged out", func() bool { return p.last() == domain.AccountLoggedOut })
 			if m.LoggedIn() {
 				t.Fatal("LoggedIn before any usable session")
 			}
-			in, err := m.LoginMatrix(ctx, "secret")
+			in, err := m.passwordLogin(ctx, "secret")
 			if err != nil || !in.Started || in.UserID != "@me:x" {
-				t.Fatalf("LoginMatrix = (%+v, %v), want started as @me:x", in, err)
+				t.Fatalf("passwordLogin = (%+v, %v), want started as @me:x", in, err)
 			}
 			waitUntil(t, "logged in", m.LoggedIn)
 			if stored, found, err := session.Load(keys, true); err != nil || !found || stored.DeviceID != in.DeviceID {
@@ -183,14 +182,14 @@ func TestALoginWhileRunningIsKeptForTheNextStart(t *testing.T) {
 		m.Stop()
 	}()
 
-	first, err := m.LoginMatrix(ctx, "secret")
+	first, err := m.passwordLogin(ctx, "secret")
 	if err != nil || !first.Started {
-		t.Fatalf("first LoginMatrix = (%+v, %v), want started", first, err)
+		t.Fatalf("first passwordLogin = (%+v, %v), want started", first, err)
 	}
 	waitUntil(t, "logged in", m.LoggedIn)
-	second, err := m.LoginMatrix(ctx, "secret")
+	second, err := m.passwordLogin(ctx, "secret")
 	if err != nil || second.Started {
-		t.Fatalf("second LoginMatrix = (%+v, %v), want saved, not started", second, err)
+		t.Fatalf("second passwordLogin = (%+v, %v), want saved, not started", second, err)
 	}
 	if got := m.Account(); got != "@me:x" {
 		t.Errorf("Account = %q after a second login, want the running one's", got)
@@ -221,9 +220,9 @@ func TestLoginsAtAnyMomentStartMatrixOnce(t *testing.T) {
 		var wg sync.WaitGroup
 		login := func() {
 			defer wg.Done()
-			in, err := m.LoginMatrix(ctx, "secret")
+			in, err := m.passwordLogin(ctx, "secret")
 			if err != nil {
-				t.Errorf("seed %d: LoginMatrix = %v", seed, err)
+				t.Errorf("seed %d: passwordLogin = %v", seed, err)
 				return
 			}
 			if in.Started {
@@ -260,7 +259,7 @@ func TestMatrixLoggedOutStopsCleanly(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- m.Start(ctx) }()
-	waitUntil(t, "logged out", func() bool { return p.last() == daemon.PhaseLoggedOut })
+	waitUntil(t, "logged out", func() bool { return p.last() == domain.AccountLoggedOut })
 	cancel()
 	if err := <-done; err != nil {
 		t.Errorf("Start = %v after shutdown while logged out, want nil", err)
