@@ -1,0 +1,385 @@
+package telegram
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/telegram/message/peer"
+	"github.com/gotd/td/tg"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
+)
+
+// An account's dialogs are its rooms: private chats (the chat with oneself is Saved
+// Messages), basic groups, supergroups and broadcast channels. A chat left, a basic
+// group moved to a supergroup, and one the account was removed from are left out;
+// secret chats never reach this client at all. The account itself is one space
+// holding its rooms (accountSpaces).
+
+// dialogsPage is how many dialogs one messages.getDialogs page asks for.
+const dialogsPage = 100
+
+// channelMark is what a channel's or supergroup's ID is marked with, as the Bot API
+// writes it (-100…): users, basic groups and channels have overlapping IDs.
+const channelMark = 1_000_000_000_000
+
+// roomID is a Telegram chat as one account sees it, by its marked peer ID.
+func roomID(self, peer int64) domain.RoomID {
+	return domain.RoomID(domain.NativeID(domain.ProtocolTelegram, strconv.FormatInt(self, 10), strconv.FormatInt(peer, 10)))
+}
+
+// accountSpaceID is the space an account is.
+func accountSpaceID(self int64) domain.SpaceID {
+	return domain.SpaceID(domain.NativeID(domain.ProtocolTelegram, strconv.FormatInt(self, 10), "account"))
+}
+
+// accessHashes are what an account's later calls need to name a user or a channel to
+// Telegram, by ID, as its dialogs revealed them.
+type accessHashes struct {
+	users, channels map[int64]int64
+}
+
+// listing is what one account's dialogs come to.
+type listing struct {
+	rooms   []domain.Room
+	members map[domain.RoomID][]domain.Member
+	hashes  accessHashes
+}
+
+// dialog is one of an account's dialogs: its peer, as calls name it, and the users,
+// chats and channels its page carried.
+type dialog struct {
+	peer     tg.InputPeerClass
+	entities peer.Entities
+}
+
+// listed turns an account's dialogs into rooms, a private chat's other person its
+// member, and keeps the access hashes they carry. self is the account's own user ID.
+func listed(self int64, elems []dialog) listing {
+	l := listing{
+		members: map[domain.RoomID][]domain.Member{},
+		hashes:  accessHashes{users: map[int64]int64{}, channels: map[int64]int64{}},
+	}
+	for _, e := range elems {
+		room, member, ok := l.room(self, e)
+		if !ok {
+			continue
+		}
+		l.rooms = append(l.rooms, room)
+		if member != nil {
+			l.members[room.ID] = []domain.Member{*member}
+		}
+	}
+	domain.SortRooms(l.rooms)
+	return l
+}
+
+// room is one dialog as a room, and the person a private chat is with; ok false for
+// one left out.
+func (l *listing) room(self int64, e dialog) (domain.Room, *domain.Member, bool) {
+	room := domain.Room{Membership: domain.MembershipJoin}
+	switch p := e.peer.(type) {
+	case *tg.InputPeerSelf:
+		room.ID, room.Name, room.IsDirect = roomID(self, self), "Saved Messages", true
+		return room, nil, true
+	case *tg.InputPeerUser:
+		if p.UserID == self {
+			room.ID, room.Name, room.IsDirect = roomID(self, self), "Saved Messages", true
+			return room, nil, true
+		}
+		u, ok := e.entities.User(p.UserID)
+		if !ok {
+			return room, nil, false
+		}
+		l.hashes.users[p.UserID] = p.AccessHash
+		room.ID, room.Name, room.IsDirect = roomID(self, p.UserID), personName(u), true
+		return room, &domain.Member{UserID: personID(p.UserID), DisplayName: room.Name}, true
+	case *tg.InputPeerChat:
+		c, ok := e.entities.Chat(p.ChatID)
+		if !ok || c.Left || c.Deactivated || c.MigratedTo != nil {
+			return room, nil, false
+		}
+		room.ID, room.Name = roomID(self, -p.ChatID), c.Title
+		return room, nil, true
+	case *tg.InputPeerChannel:
+		c, ok := e.entities.Channel(p.ChannelID)
+		if !ok || c.Left {
+			return room, nil, false
+		}
+		l.hashes.channels[p.ChannelID] = p.AccessHash
+		room.ID, room.Name = roomID(self, -(channelMark+p.ChannelID)), c.Title
+		return room, nil, true
+	}
+	return room, nil, false
+}
+
+// personName is a user as a person reads them; a deleted account says so.
+func personName(u *tg.User) string {
+	if u.Deleted {
+		return "Deleted Account"
+	}
+	if name := strings.TrimSpace(userName(u)); name != "" {
+		return name
+	}
+	if phone := u.Phone; phone != "" {
+		return "+" + phone
+	}
+	return strconv.FormatInt(u.ID, 10)
+}
+
+// errNotListed is a listing of an account not connected, or overtaken meanwhile.
+var errNotListed = errors.New("telegram: the account is not connected")
+
+// list reads an account's dialogs through client, all of them, and writes them over
+// its cached rooms: one listing at a time, so an older one never lands over a newer.
+func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64, client *telegram.Client) ([]domain.Room, error) {
+	a.refreshing.Lock()
+	defer a.refreshing.Unlock()
+	elems, err := readDialogs(ctx, client.API())
+	if err != nil {
+		return nil, fmt.Errorf("telegram: list %s's chats: %w", account.Name, err)
+	}
+	l := listed(self, elems)
+	if !a.keepHashes(account, gen, l.hashes) {
+		return nil, errNotListed
+	}
+	if err := a.save(ctx, self, l); err != nil {
+		return nil, err
+	}
+	return l.rooms, nil
+}
+
+// folders are the dialog folders an account's chats are in: the main list, and Archived.
+var folders = []int{0, 1}
+
+// readDialogs reads every dialog of an account, folder by folder, page by page. Not
+// gotd's iterator: it asks again after the last page, one request more each listing.
+func readDialogs(ctx context.Context, api *tg.Client) ([]dialog, error) {
+	var out []dialog
+	for _, folder := range folders {
+		req := &tg.MessagesGetDialogsRequest{OffsetPeer: &tg.InputPeerEmpty{}, Limit: dialogsPage}
+		req.SetFolderID(folder)
+		for {
+			res, err := api.MessagesGetDialogs(ctx, req)
+			if err != nil {
+				return nil, err //nolint:wrapcheck // list wraps it, naming the account
+			}
+			page, last, err := dialogPage(res)
+			if err != nil {
+				return nil, err
+			}
+			for _, d := range page.dialogs {
+				if input, err := page.entities.ExtractPeer(d.Peer); err == nil {
+					out = append(out, dialog{peer: input, entities: page.entities})
+				}
+			}
+			if last || len(page.dialogs) == 0 {
+				break
+			}
+			if !page.next(req) {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// page is one messages.getDialogs answer: its dialogs, the top message of each, and
+// the users, chats and channels they name.
+type page struct {
+	dialogs  []*tg.Dialog
+	messages tg.MessageClassArray
+	entities peer.Entities
+}
+
+// dialogPage is an answer as a page, and whether it is the last.
+func dialogPage(res tg.MessagesDialogsClass) (page, bool, error) {
+	var p page
+	var all []tg.DialogClass
+	last := false
+	switch r := res.(type) {
+	case *tg.MessagesDialogs: // every dialog at once
+		all, p.messages, p.entities, last = r.Dialogs, r.Messages, peer.EntitiesFromResult(r), true
+	case *tg.MessagesDialogsSlice:
+		all, p.messages, p.entities = r.Dialogs, r.Messages, peer.EntitiesFromResult(r)
+		last = len(r.Dialogs) < dialogsPage
+	default:
+		return p, false, fmt.Errorf("telegram: unexpected dialogs answer %T", res)
+	}
+	for _, d := range all {
+		if dlg, ok := d.(*tg.Dialog); ok { // not a folder's own entry
+			p.dialogs = append(p.dialogs, dlg)
+		}
+	}
+	return p, last, nil
+}
+
+// next sets req to the page after p: from its last dialog, and that dialog's top
+// message. false when it cannot say where that is.
+func (p page) next(req *tg.MessagesGetDialogsRequest) bool {
+	last := p.dialogs[len(p.dialogs)-1]
+	input, err := p.entities.ExtractPeer(last.Peer)
+	if err != nil {
+		return false
+	}
+	req.OffsetPeer, req.OffsetID, req.OffsetDate = input, last.TopMessage, 0
+	for _, m := range p.messages {
+		if m.GetID() == last.TopMessage {
+			if msg, ok := m.AsNotEmpty(); ok {
+				req.OffsetDate = msg.GetDate()
+			}
+		}
+	}
+	return true
+}
+
+// keepHashes keeps a listing's access hashes on the account's connection from login
+// gen, unless a newer login replaced it.
+func (a *Adapter) keepHashes(account Account, gen int, hashes accessHashes) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	c := a.conns[account.Name]
+	if c == nil || c.gen != gen {
+		return false
+	}
+	c.hashes = hashes
+	return true
+}
+
+// save writes a listing over the account's cached rooms, and the people of its private
+// chats.
+func (a *Adapter) save(ctx context.Context, self int64, l listing) error {
+	if a.cache == nil {
+		return nil
+	}
+	owner := domain.AccountRooms(domain.ProtocolTelegram, strconv.FormatInt(self, 10))
+	if err := a.cache.SaveRooms(ctx, owner, l.rooms); err != nil {
+		return fmt.Errorf("telegram: cache the chats: %w", err)
+	}
+	for id, members := range l.members {
+		if err := a.cache.SaveMembers(ctx, id, members); err != nil {
+			return fmt.Errorf("telegram: cache the people of %s: %w", id, err)
+		}
+	}
+	if a.onRoomsChanged != nil {
+		a.onRoomsChanged()
+	}
+	return nil
+}
+
+// Rooms is the Telegram rooms in the cache, whichever account sees them.
+func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
+	if a.cache == nil {
+		return nil, nil
+	}
+	rooms, err := a.cache.Rooms(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("telegram: read cached rooms: %w", err)
+	}
+	return slices.DeleteFunc(rooms, func(r domain.Room) bool {
+		return domain.NetworkOf(string(r.ID)) != domain.ProtocolTelegram
+	}), nil
+}
+
+// RefreshRooms lists every connected account's dialogs again.
+func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
+	var out []domain.Room
+	for _, c := range a.connected() {
+		rooms, err := a.list(ctx, c.account, c.gen, c.user, c.client)
+		if errors.Is(err, errNotListed) {
+			continue // replaced while listing: its successor lists itself
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rooms...)
+	}
+	return out, nil
+}
+
+// CachedUnread is the Telegram rooms' unread counts: kept from the next PR on.
+func (a *Adapter) CachedUnread(context.Context) ([]domain.Unread, error) { return nil, nil }
+
+// accountSpaces is a space per configured account kith has logged in, named after the
+// account, its children every room it sees. Derived on read, not stored: a chat begun
+// is in it at once.
+func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
+	rooms, err := a.Rooms(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var spaces []domain.Space
+	for _, account := range a.accountsNow() {
+		self, ok := a.selfOf(account)
+		if !ok {
+			continue
+		}
+		owner := domain.AccountRooms(domain.ProtocolTelegram, strconv.FormatInt(self, 10))
+		var children []domain.RoomID
+		for i := range rooms {
+			if owner.Owns(rooms[i].ID) {
+				children = append(children, rooms[i].ID)
+			}
+		}
+		spaces = append(spaces, domain.Space{
+			ID: accountSpaceID(self), Name: "Telegram " + account.Name, Children: children,
+			// Every chat's home: it is where the room belongs, not a space to file into.
+			Bridge: domain.ProtocolTelegram, Original: true,
+		})
+	}
+	return spaces, nil
+}
+
+// Spaces is each logged-in account's space.
+func (a *Adapter) Spaces(ctx context.Context) ([]domain.Space, error) { return a.accountSpaces(ctx) }
+
+// RefreshSpaces lists the accounts' dialogs again, then answers from the cache.
+func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
+	if _, err := a.RefreshRooms(ctx); err != nil {
+		return nil, err
+	}
+	return a.accountSpaces(ctx)
+}
+
+// CanonicalParent is a Telegram room's account space.
+func (a *Adapter) CanonicalParent(_ context.Context, id domain.RoomID) (domain.SpaceID, error) {
+	parsed := domain.ParseID(string(id))
+	if parsed.Network != domain.ProtocolTelegram {
+		return "", nil
+	}
+	self, err := strconv.ParseInt(parsed.Account, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("telegram: %s names no account: %w", id, err)
+	}
+	return accountSpaceID(self), nil
+}
+
+// Members is a room's members, from the cache: a private chat's other person.
+func (a *Adapter) Members(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
+	if a.cache == nil {
+		return nil, nil
+	}
+	members, err := a.cache.Members(ctx, roomID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("telegram: read the people of %s: %w", roomID, err)
+	}
+	return members, nil
+}
+
+// RefreshMembers is the members known: groups' come with their messages.
+func (a *Adapter) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]domain.Member, error) {
+	return a.Members(ctx, roomID, 0)
+}
+
+// MentionCandidates is who may be mentioned in a room: its members known.
+func (a *Adapter) MentionCandidates(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
+	return a.Members(ctx, roomID, limit)
+}
+
+// DirectCandidates is who a private chat may be begun with: none yet.
+func (a *Adapter) DirectCandidates(context.Context, int) ([]domain.Member, error) { return nil, nil }

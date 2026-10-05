@@ -69,7 +69,12 @@ var (
 
 	_ interface {
 		route.Adapter
+		route.RoomLister
+		route.Homes
+		route.People
 		route.Encryption
+		route.SpaceLister
 		configChecker
+		roomsRewriter
 	} = (*telegram.Adapter)(nil)
 )
