@@ -48,8 +48,8 @@ for again.
 `account` is the account's `name` in the config; it can be left out when the network
 has one. With none, the command sets a new one up first: it asks what the network
 needs (a number, a workspace, a homeserver and Matrix ID) and a name, and writes the
-account into the config. Setting Matrix up asks for a kithd restart before the
-password. Logging in again replaces the session kept for the account; one begun while
+account into the config; the daemon takes it at once, with no restart. Logging in
+again replaces the session kept for the account; one begun while
 another of the same account is under way ends the first. `:login` inside kith does the
 same, network by network.
 
@@ -157,6 +157,10 @@ Behavior worth knowing:
 - **An unreachable homeserver doesn't stop it.** It serves cached history, logs
   `cannot reach the homeserver; serving cached history and connecting when it is back`,
   and retries with a backoff capped at 30 seconds.
+- **No Matrix account doesn't stop it.** The daemon runs Matrix with none until one is
+  set up (`:login matrix`, or `homeserver` and `user` written into the config and
+  `kith login`), and starts it then. Another account written over a running one waits
+  for a restart: Matrix's encryption store belongs to one account.
 - **Neither does a rejected session.** An invalid or revoked token leaves Matrix logged
   out, with the reason in the daemon's status and log, and the daemon waits for
   `kith login`. (A token rejected later, after the homeserver was first unreachable,

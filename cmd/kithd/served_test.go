@@ -2,31 +2,49 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/matrix"
+	"github.com/EugeneShtoka/kith/internal/notify"
+	"github.com/EugeneShtoka/kith/internal/session"
+	"github.com/zalando/go-keyring"
 )
 
-// servedFor builds the daemon's backend for cfg in a fresh instance.
+// TestMain keeps the tests off the system keyring: it refuses everything, so a Matrix
+// session lives in the file fallback (allow_token_file).
+func TestMain(m *testing.M) {
+	keyring.MockInitWithError(errors.New("no secret service in tests"))
+	os.Exit(m.Run())
+}
+
+// servedFor builds the daemon's backend for cfg in a fresh instance, a Matrix session
+// saved for it when saved has one.
 func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 	t.Helper()
 	dir := t.TempDir()
 	storage := domain.Storage{Instance: "test", DataDir: dir, StateDir: dir, CacheDir: dir, RuntimeDir: dir, KeyringService: "kith-test"}
+	if saved.AccessToken != "" {
+		if err := session.Save(session.StoreFor(storage, cfg.User), saved, true); err != nil {
+			t.Fatal(err)
+		}
+	}
 	cache, err := db.Open(context.Background(), storage.CachePath())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cache.Close() })
-	backend := newServed(context.Background(), cache, slog.New(slog.DiscardHandler), cfg, storage, saved)
+	backend := newServed(context.Background(), cache, slog.New(slog.DiscardHandler), cfg, storage)
 	t.Cleanup(func() {
 		backend.Stop()
 		backend.Close(slog.New(slog.DiscardHandler))
@@ -34,17 +52,15 @@ func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 	return backend
 }
 
-// A config with WhatsApp alone serves without Matrix: nothing to log Matrix in to,
-// Matrix's lists empty, and nothing to wait for while no account is linked.
+// A config with WhatsApp alone serves without a Matrix account: Matrix is there to set
+// one up, with no account to list, its lists empty, and nothing to wait for while no
+// account is linked.
 func TestADaemonWithoutMatrixServes(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}}}
 	backend := servedFor(t, cfg, domain.Session{})
-	if backend.matrix != nil {
-		t.Error("a Matrix adapter without a Matrix account in the config")
-	}
-	if _, ok := backend.loginLeaders()[0].(matrix.Setup); !ok {
-		t.Error("no way to set Matrix up without a Matrix account")
+	if n := backend.matrix.LoginNetwork(); len(n.Accounts) != 0 || backend.matrix.LoggedIn() {
+		t.Errorf("Matrix without an account in the config = %+v, logged in %v; want no account", n, backend.matrix.LoggedIn())
 	}
 	ctx := context.Background()
 	if _, err := backend.Rooms(ctx); err != nil {
@@ -58,9 +74,9 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 	}
 }
 
-// Every network but Matrix is built whatever the config holds, so a first account
-// needs no restart: an empty config runs WhatsApp, Slack and Telegram with nothing
-// to do, and has the daemon wait for nothing.
+// Every network is built whatever the config holds, so a first account needs no
+// restart: an empty config runs each with nothing to do, and has the daemon wait for
+// nothing.
 func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	t.Parallel()
 	backend := servedFor(t, config.Config{}, domain.Session{})
@@ -68,7 +84,7 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	for _, n := range backend.networks {
 		got = append(got, n.Network())
 	}
-	want := []domain.Protocol{domain.ProtocolWhatsApp, domain.ProtocolSlack, domain.ProtocolTelegram}
+	want := []domain.Protocol{domain.ProtocolMatrix, domain.ProtocolWhatsApp, domain.ProtocolSlack, domain.ProtocolTelegram}
 	if !slices.Equal(got, want) {
 		t.Errorf("networks = %v, want %v", got, want)
 	}
@@ -77,7 +93,7 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 		logins = append(logins, l.LoginNetwork().Network)
 	}
 	if want := []string{"matrix", "whatsapp", "slack", "telegram"}; !slices.Equal(logins, want) {
-		t.Errorf("logins = %v, want %v (Matrix set up, the others logged in)", logins, want)
+		t.Errorf("logins = %v, want %v", logins, want)
 	}
 	if got := expected(context.Background(), slog.New(slog.DiscardHandler), backend); len(got) != 0 {
 		t.Errorf("expected = %v with no account, want nothing to wait for", got)
@@ -88,11 +104,11 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 // for it only when one was saved.
 func TestMatrixIsWaitedForOnlyWithASavedSession(t *testing.T) {
 	t.Parallel()
-	cfg := config.Config{Homeserver: "https://matrix.invalid", User: "@me:x"}
+	cfg := config.Config{Homeserver: "https://matrix.invalid", User: "@me:x", AllowTokenFile: true}
 	ctx := context.Background()
 
 	none := servedFor(t, cfg, domain.Session{})
-	if none.matrix == nil || none.loginLeaders()[0] != api.LoginLeader(none.matrix) || none.matrix.LoggedIn() {
+	if none.loginLeaders()[0] != api.LoginLeader(none.matrix) || none.matrix.LoggedIn() {
 		t.Fatal("want a Matrix adapter, logged out, that can be logged in")
 	}
 	if got := expected(ctx, slog.New(slog.DiscardHandler), none); len(got) != 0 {
@@ -168,8 +184,33 @@ func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 			t.Fatal(err)
 		}
 		relevel := func(string) { t.Errorf("%s: a refused re-read changed the log level", n.Network()) }
-		if err := reloader(path, relevel, nil, backend, nil)(ctx); err == nil {
+		if err := reloader(configFile{path: path}, relevel, nil, backend, nil)(ctx); err == nil {
 			t.Errorf("%s: the re-read took a config its network refuses", n.Network())
 		}
+	}
+}
+
+// A re-read selects the profile kithd runs as: Matrix, set up in the file while kithd
+// ran with no account, takes that profile's account — not another's, and not none.
+func TestAReReadTakesTheProfilesMatrixAccount(t *testing.T) {
+	t.Parallel()
+	backend := servedFor(t, config.Config{}, domain.Session{})
+	path := filepath.Join(t.TempDir(), "config.toml")
+	cfg := config.Config{AllowTokenFile: true, Profiles: []config.Profile{
+		{Name: "home", Homeserver: "https://home.invalid", User: "@me:home.invalid"},
+		{Name: "work", Homeserver: "https://work.invalid", User: "@me:work.invalid"},
+	}}
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	notifications, err := daemon.NewNotifications(config.Config{}, backend, func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reloader(configFile{path: path, profile: "work"}, func(string) {}, &atomic.Int64{}, backend, notifications)(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := backend.matrix.LoginNetwork().Accounts; len(got) != 1 || got[0].Name != "@me:work.invalid" {
+		t.Errorf("Matrix accounts after the re-read = %v, want the work profile's", got)
 	}
 }
