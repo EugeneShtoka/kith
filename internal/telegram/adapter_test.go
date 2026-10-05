@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -148,23 +147,12 @@ func TestAnAddedAccountIsAnnounced(t *testing.T) {
 	eventually(t, func() bool { s, _ := heard.of("work"); return s == LoggedOut }, "work, added, said nothing")
 }
 
-// Until an account is connected, what needs Telegram says the network is off, and
-// what the cache answers is empty.
-func TestNothingIsReachableBeforeAnAccountConnects(t *testing.T) {
+// Telegram rooms are not end-to-end encrypted.
+func TestTelegramRoomsAreNotEncrypted(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	a := New(nil, &memSecrets{values: map[string]string{}}, []Account{home}, nil)
 	room := domain.RoomID("telegram:42/-1001")
-	if err := a.Send(ctx, room, domain.Draft{}); !errors.Is(err, api.ErrNetworkOff) {
-		t.Errorf("Send = %v, want network off", err)
-	}
-	if _, err := a.LoadImage(ctx, room, "telegram:42/-1001/7"); !errors.Is(err, api.ErrNetworkOff) {
-		t.Errorf("LoadImage = %v, want network off", err)
-	}
-	if rooms, err := a.Rooms(ctx); err != nil || len(rooms) != 0 {
-		t.Errorf("Rooms = (%v, %v), want none", rooms, err)
-	}
-	if enc, err := a.RoomEncryption(ctx, []domain.RoomID{room}); err != nil || enc[room] {
+	if enc, err := a.RoomEncryption(t.Context(), []domain.RoomID{room}); err != nil || enc[room] {
 		t.Errorf("RoomEncryption = (%v, %v), want not encrypted", enc, err)
 	}
 }

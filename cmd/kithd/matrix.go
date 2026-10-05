@@ -95,7 +95,7 @@ func newMatrixAdapter(cache *db.Cache, log *slog.Logger, account matrixAccount, 
 	return m
 }
 
-// LoggedIn reports whether Matrix has a session the router may use (route.Matrix).
+// LoggedIn reports whether Matrix has a session the router may use (route.Session).
 func (m *matrixAdapter) LoggedIn() bool { return m.loggedIn.Load() }
 
 // hint is what to do to log Matrix in.

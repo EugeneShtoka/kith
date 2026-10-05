@@ -10,18 +10,13 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
-	"time"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // streamBuffer bounds each stream, as the other adapters' do.
 const streamBuffer = 64
-
-// errNetworkOff is an account that is not signed in or not connected.
-var errNetworkOff = api.ErrNetworkOff
 
 // errStartedTwice guards Start, which runs once.
 var errStartedTwice = errors.New("telegram: started twice")
@@ -270,107 +265,8 @@ func (a *Adapter) Me() []string {
 	return me
 }
 
-// RewindSync has nothing to refill before an account is connected.
-func (a *Adapter) RewindSync(context.Context) error { return nil }
-
-// Rooms is the Telegram rooms in the cache: none before an account is connected.
-func (a *Adapter) Rooms(context.Context) ([]domain.Room, error) { return nil, nil }
-
-// RefreshRooms lists the accounts' rooms: none before one is connected.
-func (a *Adapter) RefreshRooms(context.Context) ([]domain.Room, error) { return nil, nil }
-
-// CachedUnread is the Telegram rooms' unread counts: none before an account is connected.
-func (a *Adapter) CachedUnread(context.Context) ([]domain.Unread, error) { return nil, nil }
-
-// MarkRead needs a connected account.
-func (a *Adapter) MarkRead(context.Context, domain.RoomID, domain.EventID, bool) error {
-	return errNetworkOff
-}
-
-// MarkRoomsRead needs a connected account.
-func (a *Adapter) MarkRoomsRead(context.Context, []domain.RoomID, bool) (domain.ReadResult, error) {
-	return domain.ReadResult{}, errNetworkOff
-}
-
-// MarkRoomUnread needs a connected account.
-func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error { return errNetworkOff }
-
-// StarMessage needs a connected account.
-func (a *Adapter) StarMessage(context.Context, domain.RoomID, domain.EventID, bool) error {
-	return errNetworkOff
-}
-
-// MarkSpam needs a connected account.
-func (a *Adapter) MarkSpam(context.Context, domain.SpamVerdict) error { return errNetworkOff }
-
-// CanonicalParent: a Telegram room's home is its account's space, from the listing on.
-func (a *Adapter) CanonicalParent(context.Context, domain.RoomID) (domain.SpaceID, error) {
-	return "", nil
-}
-
-// MessageHistory needs a connected account.
-func (a *Adapter) MessageHistory(context.Context, domain.RoomID, domain.EventID) ([]domain.Revision, domain.Deletion, error) {
-	return nil, domain.Deletion{}, errNetworkOff
-}
-
-// Timeline needs a connected account.
-func (a *Adapter) Timeline(context.Context, domain.RoomID, string, int) (domain.TimelinePage, error) {
-	return domain.TimelinePage{}, errNetworkOff
-}
-
-// FetchEvent needs a connected account.
-func (a *Adapter) FetchEvent(context.Context, domain.RoomID, domain.EventID) (domain.Message, error) {
-	return domain.Message{}, errNetworkOff
-}
-
-// Redact needs a connected account.
-func (a *Adapter) Redact(context.Context, domain.RoomID, domain.EventID, string) error {
-	return errNetworkOff
-}
-
-// Send needs a connected account.
-func (a *Adapter) Send(context.Context, domain.RoomID, domain.Draft) error { return errNetworkOff }
-
-// SendTyping needs a connected account.
-func (a *Adapter) SendTyping(context.Context, domain.RoomID, bool, time.Duration) error {
-	return errNetworkOff
-}
-
-// SendFile needs a connected account.
-func (a *Adapter) SendFile(context.Context, domain.RoomID, string, string) error {
-	return errNetworkOff
-}
-
-// SendReaction needs a connected account.
-func (a *Adapter) SendReaction(context.Context, domain.RoomID, domain.EventID, string) error {
-	return errNetworkOff
-}
-
-// LoadImage needs a connected account.
-func (a *Adapter) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error) {
-	return nil, errNetworkOff
-}
-
-// Members is a room's members: none before an account is connected.
-func (a *Adapter) Members(context.Context, domain.RoomID, int) ([]domain.Member, error) {
-	return nil, nil
-}
-
-// RefreshMembers needs a connected account.
-func (a *Adapter) RefreshMembers(context.Context, domain.RoomID) ([]domain.Member, error) {
-	return nil, errNetworkOff
-}
-
-// MentionCandidates is who may be mentioned: none before an account is connected.
-func (a *Adapter) MentionCandidates(context.Context, domain.RoomID, int) ([]domain.Member, error) {
-	return nil, nil
-}
-
-// DirectCandidates is who a DM may be started with: none before an account is
-// connected.
-func (a *Adapter) DirectCandidates(context.Context, int) ([]domain.Member, error) { return nil, nil }
-
-// RoomEncryption: Telegram rooms are not end-to-end encrypted.
+// RoomEncryption: Telegram rooms are not end-to-end encrypted (secret chats, which
+// are, are not shown).
 func (a *Adapter) RoomEncryption(_ context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {
 	out := make(map[domain.RoomID]bool, len(roomIDs))
 	for _, id := range roomIDs {

@@ -23,10 +23,7 @@ const (
 func twoNetworks(t *testing.T) (*Router, *fakeMatrix, *fake) {
 	t.Helper()
 	m, wa := newFakeMatrix(), newFake("whatsapp")
-	r, err := New(m, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: wa})
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := routed(m, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: wa})
 	return r, m, wa
 }
 
@@ -91,10 +88,7 @@ func TestARoomOnANetworkNotConnectedIsRefused(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	m := newFakeMatrix()
-	r, err := New(m, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := routed(m, nil)
 	for name, err := range perRoomCalls(ctx, r, whatsappRoomID) {
 		if !errors.Is(err, api.ErrNetworkOff) {
 			t.Errorf("%s = %v, want ErrNetworkOff", name, err)
@@ -190,10 +184,7 @@ func TestListsAreEveryNetworksAndFailTogether(t *testing.T) {
 func TestOneNetworkIsPassedThrough(t *testing.T) {
 	t.Parallel()
 	m := newFakeMatrix()
-	r, err := New(m, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := routed(m, nil)
 	if r.Messages() != (<-chan domain.Message)(m.messages) || r.Unread() != (<-chan domain.Unread)(m.unread) ||
 		r.Reactions() != (<-chan domain.ReactionUpdate)(m.reactions) || r.Activity() != (<-chan domain.Activity)(m.activity) {
 		t.Error("a lone network's streams were wrapped")
@@ -225,15 +216,11 @@ func TestARewindReachesEveryNetwork(t *testing.T) {
 	}
 }
 
-// New refuses a room two adapters would answer for; Matrix itself is optional, and so
-// is every network: with none, the daemon runs empty until :login sets one up — Start
+// Every network is optional, Matrix too: with none, the daemon runs empty until :login sets one up — Start
 // waits for the end, and lists are empty.
-func TestNewRefusesADoubledMatrixAndRunsWithNoNetwork(t *testing.T) {
+func TestNewRunsWithNoNetwork(t *testing.T) {
 	t.Parallel()
-	empty, err := New(nil, nil)
-	if err != nil {
-		t.Fatalf("New with no network = %v", err)
-	}
+	empty := New(nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	started := make(chan error, 1)
 	go func() { started <- empty.Start(ctx) }()
@@ -249,21 +236,18 @@ func TestNewRefusesADoubledMatrixAndRunsWithNoNetwork(t *testing.T) {
 	if rooms, err := empty.Rooms(context.Background()); err != nil || len(rooms) != 0 {
 		t.Errorf("Rooms with no network = (%v, %v), want none", rooms, err)
 	}
-	if _, err := New(nil, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: newFake("whatsapp")}); err != nil {
-		t.Errorf("New with WhatsApp alone = %v", err)
-	}
-	if _, err := New(newFakeMatrix(), map[domain.Protocol]Adapter{domain.ProtocolMatrix: newFake("m2")}); err == nil {
-		t.Error("New with Matrix twice succeeded")
-	}
 }
 
-// randomRooms is a set of rooms spread over Matrix, WhatsApp and a network with no
-// adapter (a second WhatsApp account's rooms count as WhatsApp's).
+// randomRooms is a set of rooms spread over Matrix, WhatsApp (when connected), Telegram
+// (a bare adapter, when there) and a network with no adapter (a second WhatsApp
+// account's rooms count as WhatsApp's).
 func randomRooms(rng *rand.Rand) []domain.RoomID {
 	n := rng.IntN(12)
 	out := make([]domain.RoomID, 0, n)
 	for i := range n {
-		switch rng.IntN(3) {
+		switch rng.IntN(4) {
+		case 3:
+			out = append(out, domain.RoomID(fmt.Sprintf("telegram:42/-100%d", i)))
 		case 0:
 			out = append(out, domain.RoomID(fmt.Sprintf("!r%d:x", i)))
 		case 1:
@@ -289,10 +273,10 @@ func TestMarkingRoomsReadAccountsForEveryRoom(t *testing.T) {
 		if connected {
 			others[domain.ProtocolWhatsApp] = wa
 		}
-		r, err := New(m, others)
-		if err != nil {
-			t.Fatal(err)
+		if rng.IntN(2) == 0 {
+			others[domain.ProtocolTelegram] = bare{newFake("telegram")}
 		}
+		r := routed(m, others)
 		if rng.IntN(3) == 0 {
 			m.failMarking = errFake
 		}
@@ -338,7 +322,8 @@ func TestMarkingRoomsReadAccountsForEveryRoom(t *testing.T) {
 }
 
 // Encryption over any mix of networks: every room gets an answer, from its own
-// network only, and a room no network can answer for reads as encrypted.
+// network only, and a room no network can answer for — none connected, or one that
+// does not say — reads as encrypted.
 func TestEncryptionIsAskedOfEachRoomsNetwork(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -350,10 +335,10 @@ func TestEncryptionIsAskedOfEachRoomsNetwork(t *testing.T) {
 		if connected {
 			others[domain.ProtocolWhatsApp] = wa
 		}
-		r, err := New(m, others)
-		if err != nil {
-			t.Fatal(err)
+		if rng.IntN(2) == 0 {
+			others[domain.ProtocolTelegram] = bare{newFake("telegram")}
 		}
+		r := routed(m, others)
 		rooms := randomRooms(rng)
 		got, err := r.RoomEncryption(ctx, rooms)
 		where := fmt.Sprintf("seed %d (whatsapp connected %v, rooms %v)", seed, connected, rooms)
@@ -367,6 +352,9 @@ func TestEncryptionIsAskedOfEachRoomsNetwork(t *testing.T) {
 			}
 			if domain.NetworkOf(string(room)) == domain.ProtocolWhatsApp && !connected && !encrypted {
 				t.Fatalf("%s: %s, on no connected network, reads as not encrypted", where, room)
+			}
+			if domain.NetworkOf(string(room)) == domain.ProtocolTelegram && !encrypted {
+				t.Fatalf("%s: %s, on a network that does not say, reads as not encrypted", where, room)
 			}
 		}
 		for _, room := range m.asked {
@@ -390,7 +378,7 @@ func withoutMatrix(t *testing.T) map[string]func() (*Router, *fakeMatrix, *fake)
 	build := func(configured, whatsapp bool) func() (*Router, *fakeMatrix, *fake) {
 		return func() (*Router, *fakeMatrix, *fake) {
 			var m *fakeMatrix
-			var matrix Matrix
+			var matrix *fakeMatrix
 			if configured {
 				m = newFakeMatrix()
 				m.loggedOut.Store(true)
@@ -406,10 +394,7 @@ func withoutMatrix(t *testing.T) map[string]func() (*Router, *fakeMatrix, *fake)
 				wa.rooms = []domain.Room{{ID: whatsappRoomID}}
 				others[domain.ProtocolWhatsApp] = wa
 			}
-			r, err := New(matrix, others)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r := routed(matrix, others)
 			return r, m, wa
 		}
 	}
@@ -557,10 +542,7 @@ func TestSpacesAreEveryNetworks(t *testing.T) {
 	m.spaces = []domain.Space{{ID: "!work:x", Name: "Work"}}
 	community := domain.SpaceID("whatsapp:44881234567/120363@g.us")
 	wa.spaces = []domain.Space{{ID: community, Name: "Building", Bridge: domain.ProtocolWhatsApp}}
-	r, err := New(m, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: wa})
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := routed(m, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: wa})
 	for name, read := range map[string]func(context.Context) ([]domain.Space, error){"Spaces": r.Spaces, "RefreshSpaces": r.RefreshSpaces} {
 		got, err := read(ctx)
 		if err != nil || len(got) != 2 || got[0].Name != "Building" || got[1].Name != "Work" {
@@ -599,10 +581,7 @@ func TestThreadsGoToTheRoomsNetwork(t *testing.T) {
 	ctx := context.Background()
 	const slackRoomID domain.RoomID = "slack:T1/C1"
 	m, sl, wa := newFakeMatrix(), threadedFake{newFake("slack")}, newFake("whatsapp")
-	r, err := New(m, map[domain.Protocol]Adapter{domain.ProtocolSlack: sl, domain.ProtocolWhatsApp: wa})
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := routed(m, map[domain.Protocol]Adapter{domain.ProtocolSlack: sl, domain.ProtocolWhatsApp: wa})
 	threads, err := r.ListThreads(ctx, slackRoomID)
 	if err != nil || len(threads) != 1 || threads[0].RoomID != slackRoomID {
 		t.Errorf("ListThreads on a Slack room = (%v, %v), want Slack's", threads, err)
@@ -632,5 +611,38 @@ func TestThreadsGoToTheRoomsNetwork(t *testing.T) {
 	}
 	if _, err := r.ListThreads(ctx, whatsappRoomID); !errors.Is(err, api.ErrNotOnNetwork) {
 		t.Errorf("ListThreads on a WhatsApp room = %v, want ErrNotOnNetwork", err)
+	}
+}
+
+// A network lacking a capability refuses what needs it, as not on that network, and
+// is left out of what it cannot list; a room it serves names no parent, and its
+// threads were never taken part in.
+func TestANetworkWithoutACapabilityRefusesWhatNeedsIt(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	m := newFakeMatrix()
+	m.rooms = []domain.Room{{ID: matrixRoomID}}
+	r := routed(m, map[domain.Protocol]Adapter{domain.ProtocolTelegram: bare{newFake("telegram")}})
+	room := domain.RoomID("telegram:42/-1001")
+	for name, err := range map[string]error{
+		"send":    r.Send(ctx, room, domain.Draft{Body: "hi"}),
+		"mark":    r.MarkRead(ctx, room, "", false),
+		"star":    r.StarMessage(ctx, room, "telegram:42/-1001/7", true),
+		"members": func() error { _, err := r.Members(ctx, room, 5); return err }(),
+		"threads": func() error { _, err := r.ListThreads(ctx, room); return err }(),
+		"invite":  r.InviteUser(ctx, room, "telegram:7"),
+	} {
+		if !errors.Is(err, api.ErrNotOnNetwork) {
+			t.Errorf("%s in a Telegram room = %v, want not on that network", name, err)
+		}
+	}
+	if parent, err := r.CanonicalParent(ctx, room); parent != "" || err != nil {
+		t.Errorf("CanonicalParent = (%q, %v), want none", parent, err)
+	}
+	if r.ThreadParticipant(ctx, room, "telegram:42/-1001/7") {
+		t.Error("took part in a thread of a network without threads")
+	}
+	if rooms, err := r.Rooms(ctx); err != nil || len(rooms) != 1 || rooms[0].ID != matrixRoomID {
+		t.Errorf("Rooms = (%v, %v), want Matrix's alone", rooms, err)
 	}
 }

@@ -521,9 +521,6 @@ func selfOf(client *whatsmeow.Client) self {
 	return own
 }
 
-// RewindSync has nothing to rewind: WhatsApp sends history once, when linking.
-func (a *Adapter) RewindSync(context.Context) error { return nil }
-
 // Rooms is every WhatsApp room in the cache, whichever account sees it.
 func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
 	if a.cache == nil {

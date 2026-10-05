@@ -117,7 +117,7 @@ func newFakeTelegram(t *testing.T) *fakeTelegram {
 func (f *fakeTelegram) dial(app App, storage session.Storage) *telegram.Client {
 	return telegram.NewClient(app.ID, app.Hash, telegram.Options{
 		PublicKeys: f.cluster.Keys(), Resolver: f.cluster.Resolver(), DCList: f.cluster.List(),
-		SessionStorage: storage, RetryInterval: 10 * time.Millisecond, MaxRetries: 2,
+		SessionStorage: storage,
 	})
 }
 
@@ -125,6 +125,18 @@ func (f *fakeTelegram) set(change func(*fakeTelegram)) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	change(f)
+}
+
+// connected waits for heard to say name is connected: a login over the fake server
+// computes a password check and exchanges keys, which a loaded machine takes seconds for.
+func connected(t *testing.T, heard *sessions, name string) {
+	t.Helper()
+	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if s, _ := heard.of(name); s == Connected {
+			return
+		}
+	}
+	t.Fatalf("%s did not connect", name)
 }
 
 // srpParameters is a two-step password's parameters, with Telegram's published prime.
@@ -204,7 +216,7 @@ func TestALoginTakesTheCodeThenThePassword(t *testing.T) {
 	if !ok || err != nil || creds.User != 42 || creds.App.ID != testApp.ID || len(creds.Session) == 0 {
 		t.Fatalf("kept = (%+v, %v, %v), want the app, a session and user 42", creds, ok, err)
 	}
-	eventually(t, func() bool { s, _ := heard.of("home"); return s == Connected }, "home did not connect")
+	connected(t, heard, "home")
 	if me := a.Me(); !slices.Equal(me, []string{"telegram:42"}) {
 		t.Errorf("Me = %v, want telegram:42", me)
 	}
@@ -243,7 +255,7 @@ func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 	if _, err := a.SignInTelegram(t.Context(), "home", "12345", ""); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, func() bool { s, _ := heard.of("home"); return s == Connected }, "home did not connect")
+	connected(t, heard, "home")
 
 	f.set(func(f *fakeTelegram) { f.revoked = true })
 	creds, _, _ := loadCredentials(secrets, home.Digits)

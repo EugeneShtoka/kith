@@ -282,9 +282,6 @@ func (a *Adapter) Me() []string {
 	return me
 }
 
-// RewindSync has nothing to refill before a workspace is connected.
-func (a *Adapter) RewindSync(context.Context) error { return nil }
-
 // Rooms is the Slack rooms in the cache.
 func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
 	if a.cache == nil {
@@ -345,14 +342,6 @@ var errNoMarkUnread = errors.New("slack: marking a conversation unread is not su
 
 // MarkRoomUnread is not supported yet.
 func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error { return errNoMarkUnread }
-
-// StarMessage needs a connected workspace.
-func (a *Adapter) StarMessage(context.Context, domain.RoomID, domain.EventID, bool) error {
-	return errNetworkOff
-}
-
-// MarkSpam needs a connected workspace.
-func (a *Adapter) MarkSpam(context.Context, domain.SpamVerdict) error { return errNetworkOff }
 
 // CanonicalParent is a Slack room's workspace.
 func (a *Adapter) CanonicalParent(_ context.Context, roomID domain.RoomID) (domain.SpaceID, error) {
