@@ -30,6 +30,7 @@ type conn struct {
 	// said who it is; hashes what its last listing revealed (rooms.go).
 	user   int64
 	client *telegram.Client
+	live   *live
 	hashes accessHashes
 }
 
@@ -78,7 +79,7 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 		if err != nil {
 			return err //nolint:wrapcheck // read by kind below
 		}
-		if !a.adopt(account, gen, self.ID, client) {
+		if !a.adopt(account, gen, self.ID, client, live) {
 			return nil
 		}
 		a.log.Info("connected", "account", account.Name, "user", self.ID)
@@ -103,14 +104,14 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 
 // adopt records whom the account's connection from login gen is, unless a newer login
 // replaced it. It reports whether it did.
-func (a *Adapter) adopt(account Account, gen int, user int64, client *telegram.Client) bool {
+func (a *Adapter) adopt(account Account, gen int, user int64, client *telegram.Client, l *live) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	c := a.conns[account.Name]
 	if c == nil || c.gen != gen {
 		return false
 	}
-	c.user, c.client = user, client
+	c.user, c.client, c.live = user, client, l
 	a.selves[account.Name] = user
 	return true
 }
@@ -141,7 +142,7 @@ func (a *Adapter) disown(account Account, gen int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if c := a.conns[account.Name]; c != nil && c.gen == gen {
-		c.user, c.client = 0, nil
+		c.user, c.client, c.live = 0, nil, nil
 	}
 }
 

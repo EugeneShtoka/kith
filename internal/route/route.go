@@ -73,12 +73,24 @@ type (
 		FetchEvent(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, error)
 		MessageHistory(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, domain.Deletion, error)
 	}
-	// Sender is writing into a room.
+	// Sender posts a message into a room.
 	Sender interface {
 		Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error
+	}
+	// Typist says one is typing.
+	Typist interface {
 		SendTyping(ctx context.Context, roomID domain.RoomID, typing bool, timeout time.Duration) error
+	}
+	// Uploader posts a file.
+	Uploader interface {
 		SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error
+	}
+	// Reactor reacts to a message.
+	Reactor interface {
 		SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error
+	}
+	// Redactor deletes a message.
+	Redactor interface {
 		Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error
 	}
 	// People is who is in a room, and whom a message may reach.

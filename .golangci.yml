@@ -155,11 +155,11 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/markdown"
             - "github.com/EugeneShtoka/kith/internal/matrix"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/rs/zerolog"
-            - "github.com/yuin/goldmark"
             - "go.mau.fi/util"
             - "golang.org/x/image"
             - "maunium.net/go/mautrix"
@@ -227,6 +227,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/markdown"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/telegram"
             - "github.com/gotd/log"
@@ -397,6 +398,16 @@ linters:
             - "**/internal/emoji/**"
           allow:
             - "$gostd"
+
+        # What the composer types, rendered to HTML: one renderer for every network
+        # that sends formatting. Daemon-side (mautrix's extensions), not the TUI's.
+        markdown-renders:
+          files:
+            - "**/internal/markdown/**"
+          allow:
+            - "$gostd"
+            - "github.com/yuin/goldmark"
+            - "maunium.net/go/mautrix/format"
 
         richtext-is-a-leaf:
           files:
