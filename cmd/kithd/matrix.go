@@ -53,10 +53,10 @@ type matrixAdapter struct {
 	log     *slog.Logger
 	account matrixAccount
 
-	// report hears each phase change (the daemon's per-network status); onLoggedIn
+	// onStatus hears each phase change (the daemon's per-network status); onLoggedIn
 	// hears the session taking, so what was skipped while logged out is caught up.
 	// Set before Start.
-	report     func(phase daemon.Phase, detail string)
+	onStatus   func(domain.AccountStatus)
 	onLoggedIn func()
 
 	// loggedIn turns true once the crypto store is open on a session, before
@@ -84,7 +84,7 @@ type matrixAdapter struct {
 func newMatrixAdapter(cache *db.Cache, log *slog.Logger, account matrixAccount, saved domain.Session) *matrixAdapter {
 	m := &matrixAdapter{
 		InProc: matrix.New(cache), log: log, account: account,
-		report: func(daemon.Phase, string) {}, onLoggedIn: func() {},
+		onStatus: func(domain.AccountStatus) {}, onLoggedIn: func() {},
 		saved: saved, wake: make(chan struct{}, 1),
 	}
 	m.phase = awaitingLogin
@@ -93,6 +93,37 @@ func newMatrixAdapter(cache *db.Cache, log *slog.Logger, account matrixAccount, 
 	}
 	m.UseLogger(log)
 	return m
+}
+
+// Network is Matrix.
+func (m *matrixAdapter) Network() domain.Protocol { return domain.ProtocolMatrix }
+
+// OnStatus sets who hears the account's phase change. Set before Start.
+func (m *matrixAdapter) OnStatus(changed func(domain.AccountStatus)) { m.onStatus = changed }
+
+// status is the account in phase, saying detail.
+func (m *matrixAdapter) status(phase daemon.Phase, detail string) domain.AccountStatus {
+	return domain.AccountStatus{Network: domain.ProtocolMatrix, Account: m.account.user, Phase: phase, Detail: detail}
+}
+
+// report tells the listener the account's phase changed.
+func (m *matrixAdapter) report(phase daemon.Phase, detail string) {
+	m.onStatus(m.status(phase, detail))
+}
+
+// UseConfig takes [display.deleted] keep and the identities, at start and each time
+// the config is re-read. The account itself is the daemon's to change (a restart).
+func (m *matrixAdapter) UseConfig(ctx context.Context, cfg config.Config) {
+	m.KeepDeleted(cfg.Display.Deleted.Keep())
+	m.UseIdentities(ctx, identityGroups(cfg))
+}
+
+// SavedSessions is the account when a session was saved: Start resumes it.
+func (m *matrixAdapter) SavedSessions(context.Context) ([]string, error) {
+	if m.saved.AccessToken == "" {
+		return nil, nil
+	}
+	return []string{m.account.user}, nil
 }
 
 // LoggedIn reports whether Matrix has a session the router may use (route.Session).

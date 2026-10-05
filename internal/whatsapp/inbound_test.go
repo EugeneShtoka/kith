@@ -256,7 +256,7 @@ func TestAccountsChangeWithoutARestart(t *testing.T) {
 	home, work := Account{Name: "home", Digits: ownDigits}, Account{Name: "work", Digits: "1500000099"}
 	a, _, store := offline(t, home, work)
 	a.clients[ownDigits] = linkedClient(t, store, ownDigits)
-	a.UseAccounts(ctx, []Account{work})
+	a.useAccounts(ctx, []Account{work})
 	if got := a.connected(); len(got) != 0 {
 		t.Errorf("connected after home was removed = %v", got)
 	}

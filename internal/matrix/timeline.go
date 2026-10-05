@@ -26,7 +26,7 @@ func (b *InProc) cacheMessages(ctx context.Context, roomID domain.RoomID, msgs [
 		return
 	}
 	save := b.cache.SaveMessages
-	if b.keepDeleted {
+	if b.keepDeleted.Load() {
 		save = b.cache.SaveMessagesWithRevisions
 	}
 	b.warnIf(ctx, save(ctx, roomID, msgs), "cache messages", "room", roomID, "count", len(msgs))
@@ -202,7 +202,7 @@ func (b *InProc) MessageHistory(
 	}
 	fetched, deletion := b.fetchRevisions(ctx, roomID, eventID)
 	// Cache fetched versions only when this account keeps history.
-	if b.keepDeleted && b.cache != nil && len(fetched) > 0 {
+	if b.keepDeleted.Load() && b.cache != nil && len(fetched) > 0 {
 		b.warnIf(ctx, b.cache.SaveRevisionsFor(ctx, roomID, eventID, fetched), "cache fetched revisions", "room", roomID, "event", eventID)
 	}
 	return mergeRevisions(kept, fetched), deletion, nil

@@ -61,8 +61,7 @@ the code WhatsApp gives, and waits (up to ten minutes) while you type the code o
 phone under Settings → Linked devices → Link a device → "Link with phone number
 instead". Once the phone accepts, the account's groups appear in kith.
 
-- `[whatsapp] enabled = true` must be set, and kithd running with it (turning
-  WhatsApp on takes a kithd restart).
+- The account must be in the config (`:login whatsapp` in kith writes it).
 - An account added to the config needs no restart: this command has kithd re-read
   the config first. Removing one disconnects it on the next re-read; its chats stay
   in kith, readable.
@@ -83,8 +82,7 @@ browser console) and its `d` cookie (the browser's cookie storage), reads both w
 echoing them, and has the daemon check them with Slack, keep them in the system keyring
 and connect. The workspace's channels then appear in kith. See [Slack](slack.md).
 
-- `[slack] enabled = true` must be set, and kithd running with it (turning Slack on
-  takes a kithd restart).
+- The account must be in the config (`:login slack` in kith writes it).
 - An account added to the config needs no restart: this command has kithd re-read the
   config first.
 - `account` is the `name` of a `[[slack.account]]`; it can be left out when there is
@@ -106,9 +104,7 @@ logged in or by SMS; the command reads it, and the account's two-step verificati
 password when it has one. A wrong code or password is asked for again. kithd keeps
 the session in the system keyring and connects. See [Telegram](telegram.md).
 
-- kithd must be running with a `[[telegram.account]]` in its config (Telegram starts
-  with the first account; adding the first one takes a kithd restart, `:login telegram`
-  does it itself).
+- The account must be in the config (`:login telegram` in kith writes it).
 - `account` is the `name` of a `[[telegram.account]]`; it can be left out when there
   is only one.
 - Logging in again replaces the session kept for the account; one begun while another

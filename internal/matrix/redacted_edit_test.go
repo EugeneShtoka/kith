@@ -54,7 +54,7 @@ func TestADeletedEditRevertsTheMessage(t *testing.T) {
 				}
 				b.client = client
 			}
-			b.keepDeleted = tc.keep
+			b.keepDeleted.Store(tc.keep)
 			b.out.open()
 			save := b.cache.SaveMessages
 			if tc.keep {

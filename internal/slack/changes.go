@@ -15,10 +15,10 @@ import (
 // edit only when it is newer than the version it shows, so an older copy (a history
 // page read before the edit) never undoes it.
 
-// KeepDeleted sets [display.deleted] keep: whether a deleted message's words stay in
+// keepDeletedIf sets [display.deleted] keep: whether a deleted message's words stay in
 // the cache, and an edited one's earlier versions. Called at startup, as the other
 // adapters' is.
-func (a *Adapter) KeepDeleted(keep bool) {
+func (a *Adapter) keepDeletedIf(keep bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.keepDeleted = keep

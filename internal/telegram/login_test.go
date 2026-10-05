@@ -259,10 +259,12 @@ func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 
 	f.set(func(f *fakeTelegram) { f.revoked = true })
 	creds, _, _ := loadCredentials(secrets, home.Digits)
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
+	// The login's own connection ends first, so only this one speaks for home.
 	a.mu.Lock()
 	gen := a.signIns[home.Name]
+	a.conns[home.Name].cancel()
 	a.mu.Unlock()
 	if done := a.connectOnce(ctx, home, gen, f.dial(creds.App, &keptSession{a: a, account: home, gen: gen, creds: creds})); !done {
 		t.Fatal("an ended session is tried again")

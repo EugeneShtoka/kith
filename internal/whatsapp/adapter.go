@@ -46,8 +46,8 @@ type Adapter struct {
 
 	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
 	onRoomsChanged func()
-	// onLink hears an account's connection change (see OnLink).
-	onLink func(Account, Link, string)
+	// onStatus hears an account's connection change (see OnStatus).
+	onStatus func(domain.AccountStatus)
 	// onCached hears each message cached, onChanged each room whose cached messages
 	// changed otherwise (a history chunk) — see OnCached.
 	onCached  func(domain.Message)
@@ -78,7 +78,7 @@ type Adapter struct {
 	// with a listing waiting for listingEvery to pass (see refreshLater).
 	listedAt map[string]time.Time
 	trailing map[string]bool
-	// keepDeleted is [display.deleted] keep (see KeepDeleted).
+	// keepDeleted is [display.deleted] keep (see UseConfig).
 	keepDeleted bool
 	// run is Start's context: an account paired later runs until it ends too.
 	run     context.Context //nolint:containedctx // events arrive with no context: their work lives as long as Start's
@@ -122,39 +122,41 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 // before Start.
 func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
 
-// Link is a configured account's connection.
-type Link int
-
+// A configured account's connection, as every network's account says it.
 const (
 	// Unlinked has no linked device: never paired, or unlinked by the phone.
-	Unlinked Link = iota + 1
+	Unlinked = domain.AccountLoggedOut
 	// Connecting is linked and reaching WhatsApp.
-	Connecting
+	Connecting = domain.AccountConnecting
 	// Connected is linked and connected.
-	Connected
+	Connected = domain.AccountOnline
 )
 
-// OnLink sets who hears an account's connection change, with what to tell a person
+// Network is WhatsApp.
+func (a *Adapter) Network() domain.Protocol { return domain.ProtocolWhatsApp }
+
+// OnStatus sets who hears an account's connection change, with what to tell a person
 // about it (empty when nothing). Set before Start.
-func (a *Adapter) OnLink(changed func(account Account, link Link, detail string)) { a.onLink = changed }
+func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
 
 // link tells the listener an account's connection changed.
-func (a *Adapter) link(account Account, link Link, detail string) {
-	if a.onLink != nil {
-		a.onLink(account, link, detail)
+func (a *Adapter) link(account Account, phase domain.AccountPhase, detail string) {
+	if a.onStatus != nil {
+		a.onStatus(domain.AccountStatus{Network: domain.ProtocolWhatsApp, Account: account.Name, Phase: phase, Detail: detail})
 	}
 }
 
-// Linked is every configured account that has a linked device: those Start connects.
-func (a *Adapter) Linked(ctx context.Context) ([]Account, error) {
-	var linked []Account
+// SavedSessions is every configured account that has a linked device, by name: those
+// Start connects.
+func (a *Adapter) SavedSessions(ctx context.Context) ([]string, error) {
+	var linked []string
 	for _, account := range a.accountsNow() {
 		device, err := a.store.device(ctx, account.Digits)
 		if err != nil {
 			return nil, err
 		}
 		if device != nil {
-			linked = append(linked, account)
+			linked = append(linked, account.Name)
 		}
 	}
 	return linked, nil
@@ -166,7 +168,7 @@ func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.Room
 	a.onCached, a.onChanged = cached, changed
 }
 
-// accountsNow is the configured accounts (UseAccounts replaces them).
+// accountsNow is the configured accounts (useAccounts replaces them).
 func (a *Adapter) accountsNow() []Account {
 	a.mu.Lock()
 	defer a.mu.Unlock()

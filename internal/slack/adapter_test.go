@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -56,17 +58,17 @@ func signedIn(t *testing.T, secrets *memSecrets, account string) {
 // sessions records each account's reported state.
 type sessions struct {
 	mu   sync.Mutex
-	seen map[string]Session
+	seen map[string]domain.AccountPhase
 	said map[string]string
 }
 
-func (s *sessions) hear(account Account, state Session, detail string) {
+func (s *sessions) hear(status domain.AccountStatus) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.seen[account.Name], s.said[account.Name] = state, detail
+	s.seen[status.Account], s.said[status.Account] = status.Phase, status.Detail
 }
 
-func (s *sessions) of(name string) (Session, string) {
+func (s *sessions) of(name string) (domain.AccountPhase, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.seen[name], s.said[name]
@@ -78,9 +80,9 @@ func TestStartSaysWhoIsSignedOut(t *testing.T) {
 	t.Parallel()
 	secrets := &memSecrets{values: map[string]string{}}
 	secrets.values[credentialsRef("broken")] = "{not json"
-	heard := &sessions{seen: map[string]Session{}, said: map[string]string{}}
+	heard := &sessions{seen: map[string]domain.AccountPhase{}, said: map[string]string{}}
 	a := New(nil, secrets, []Account{{Name: "club", Workspace: "chess"}, {Name: "broken", Workspace: "x"}}, nil)
-	a.OnSession(heard.hear)
+	a.OnStatus(heard.hear)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() { done <- a.Start(ctx) }()
@@ -94,7 +96,7 @@ func TestStartSaysWhoIsSignedOut(t *testing.T) {
 	}
 
 	// An account added to the config later is announced too.
-	a.UseAccounts([]Account{{Name: "club", Workspace: "chess"}, {Name: "new", Workspace: "fresh"}})
+	a.useAccounts([]Account{{Name: "club", Workspace: "chess"}, {Name: "new", Workspace: "fresh"}})
 	if s, _ := heard.of("new"); s != SignedOut {
 		t.Errorf("an added account = %v, want SignedOut", s)
 	}
@@ -120,12 +122,12 @@ func TestSignedInIsTheAccountsWithUsableCredentials(t *testing.T) {
 	signedIn(t, secrets, "work")
 	secrets.values[credentialsRef("broken")] = "{not json"
 	a := New(nil, secrets, []Account{{Name: "work"}, {Name: "club"}, {Name: "broken"}}, nil)
-	if signed, err := a.SignedIn(); err != nil || len(signed) != 1 || signed[0].Name != "work" {
-		t.Errorf("SignedIn = %v, %v; want work alone", signed, err)
+	if signed, err := a.SavedSessions(t.Context()); err != nil || !slices.Equal(signed, []string{"work"}) {
+		t.Errorf("SavedSessions = %v, %v; want work alone", signed, err)
 	}
 	secrets.fail = errors.New("locked")
-	if _, err := a.SignedIn(); err == nil {
-		t.Error("SignedIn hid an unreadable store")
+	if _, err := a.SavedSessions(t.Context()); err == nil {
+		t.Error("SavedSessions hid an unreadable store")
 	}
 }
 
@@ -197,5 +199,21 @@ func waitFor(t *testing.T, cond func() bool) {
 			t.Fatal("timed out")
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// UseConfig reads [[slack.account]], each workspace as Slack writes it, and
+// [display.deleted] keep.
+func TestUseConfigReadsTheSlackSection(t *testing.T) {
+	t.Parallel()
+	a := New(nil, &memSecrets{values: map[string]string{}}, nil, nil)
+	cfg := config.Config{Slack: config.Slack{Accounts: []config.SlackAccount{{Name: "work", Workspace: "https://Acme.slack.com/"}}}}
+	cfg.Display.Deleted.KeepDeleted = true
+	a.UseConfig(t.Context(), cfg)
+	if got := a.accountsNow(); len(got) != 1 || got[0] != (Account{Name: "work", Workspace: "acme"}) {
+		t.Errorf("accounts = %+v, want work at acme", got)
+	}
+	if !a.keepsDeleted() {
+		t.Error("[display.deleted] keep not taken")
 	}
 }

@@ -253,87 +253,45 @@ type served struct {
 	matrix *matrixAdapter
 	// dataDir and schedulePath are this instance's ([storage]).
 	dataDir, schedulePath string
-	// whatsapp and its store are nil unless [whatsapp] is enabled and the store opened.
-	whatsapp      *whatsapp.Adapter
+	// networks is every network built (openNetworks), Matrix among them when there.
+	networks []network
+	// whatsappStore is WhatsApp's session store, closed with the backend; nil when
+	// it would not open.
 	whatsappStore *whatsapp.Store
-	// slack is nil unless [slack] is enabled.
-	slack *slack.Adapter
-	// telegram is nil unless the config has a [[telegram.account]].
+	// whatsapp, slack and telegram are those networks, for their logins.
+	whatsapp *whatsapp.Adapter
+	slack    *slack.Adapter
 	telegram *telegram.Adapter
 }
 
 var _ api.Backend = served{}
 
-// newServed builds the adapters (Matrix when the config names an account, starting
-// from saved), the router over them and the service over one cache, the service
-// hearing what each adapter caches.
+// newServed builds the networks (openNetworks), the router over them and the service
+// over one cache, the service hearing what each network caches.
 func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage, saved domain.Session) served {
-	// A nil *matrixAdapter in the map would be a Matrix that is there.
-	var adapter *matrixAdapter
-	adapters := map[domain.Protocol]route.Adapter{}
-	if cfg.HasMatrix() {
-		adapter = newMatrixAdapter(cache, log, matrixAccount{
-			homeserver: cfg.Homeserver, user: cfg.User, allowTokenFile: cfg.AllowTokenFile,
-			crypto: cryptoPlace{path: storage.CryptoPath(), keys: session.StoreFor(storage, cfg.User)},
-		}, saved)
-		adapters[domain.ProtocolMatrix] = adapter
-	}
-	wa, waStore := openWhatsApp(ctx, cache, log, cfg, storage.WhatsAppPath())
-	if wa != nil {
-		adapters[domain.ProtocolWhatsApp] = wa
-	}
-	sl := openSlack(cache, log, cfg, storage)
-	if sl != nil {
-		adapters[domain.ProtocolSlack] = sl
-	}
-	tg := openTelegram(cache, log, cfg, storage)
-	if tg != nil {
-		adapters[domain.ProtocolTelegram] = tg
+	networks, matrix, whatsappStore := openNetworks(ctx, cache, log, cfg, storage, saved)
+	adapters := make(map[domain.Protocol]route.Adapter, len(networks))
+	for _, n := range networks {
+		adapters[n.Network()] = n
 	}
 	router := route.New(adapters)
 	service := local.New(cache, router)
 	service.UseLogger(log)
-	if adapter != nil {
-		adapter.OnCached(service.MessageCached, service.RoomChanged)
-	}
-	if wa != nil {
-		wa.OnCached(service.MessageCached, service.RoomChanged)
-	}
-	if sl != nil {
-		sl.OnCached(service.MessageCached, service.RoomChanged)
+	for _, n := range networks {
+		if w, ok := n.(cacheWriter); ok {
+			w.OnCached(service.MessageCached, service.RoomChanged)
+		}
 	}
 	return served{
-		Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore, slack: sl, telegram: tg,
-		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),
+		Router: router, Service: service, matrix: matrix, networks: networks, whatsappStore: whatsappStore,
+		whatsapp: networkOf[*whatsapp.Adapter](networks), slack: networkOf[*slack.Adapter](networks),
+		telegram: networkOf[*telegram.Adapter](networks),
+		dataDir:  storage.DataDir, schedulePath: storage.SchedulePath(),
 	}
 }
 
-// openWhatsApp is the WhatsApp adapter when [whatsapp] is enabled, over its session
-// store. A store that will not open leaves WhatsApp off, logged, rather than Matrix
-// down with it.
-func openWhatsApp(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, path string) (*whatsapp.Adapter, *whatsapp.Store) {
-	if !cfg.WhatsApp.Enabled {
-		return nil, nil
-	}
-	store, err := whatsapp.OpenStore(ctx, path, whatsapp.NewStoreLogger(log))
-	if err != nil {
-		log.Error("WhatsApp is off: its store will not open", "path", path, "err", err)
-		return nil, nil
-	}
-	return whatsapp.New(cache, store, whatsAppAccounts(cfg), log), store
-}
-
-// whatsAppAccounts is [[whatsapp.account]] as the adapter takes it.
-func whatsAppAccounts(cfg config.Config) []whatsapp.Account {
-	accounts := make([]whatsapp.Account, 0, len(cfg.WhatsApp.Accounts))
-	for _, a := range cfg.WhatsApp.Accounts {
-		accounts = append(accounts, whatsapp.Account{Name: a.Name, Digits: a.Digits()})
-	}
-	return accounts
-}
-
-// whatsAppLink is what pairs WhatsApp accounts: nil, not a nil adapter, when WhatsApp
-// is off, so the handler can tell.
+// whatsAppLink is what pairs WhatsApp accounts: nil, not a nil adapter, when its store
+// would not open, so the handler can tell.
 func (s served) whatsAppLink() api.WhatsAppLink {
 	if s.whatsapp == nil {
 		return nil
@@ -341,8 +299,7 @@ func (s served) whatsAppLink() api.WhatsAppLink {
 	return s.whatsapp
 }
 
-// slackSignIn is what signs Slack in: nil, not a nil adapter, when [slack] is off, so
-// the handler can tell.
+// slackSignIn is what signs Slack in (nil, not a nil adapter, were it not built).
 func (s served) slackSignIn() api.SlackSignIn {
 	if s.slack == nil {
 		return nil
@@ -350,8 +307,7 @@ func (s served) slackSignIn() api.SlackSignIn {
 	return s.slack
 }
 
-// telegramLogin is what logs Telegram in: nil, not a nil adapter, when the daemon runs
-// no Telegram account, so the handler can tell.
+// telegramLogin is what logs Telegram in (nil, not a nil adapter, were it not built).
 func (s served) telegramLogin() api.TelegramLogin {
 	if s.telegram == nil {
 		return nil
@@ -399,16 +355,6 @@ func configure(log *slog.Logger, backend served, cfg config.Config, storage doma
 	backend.UseModel(modelSettings(log, cfg, storage.KeyringService))
 	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, storage.DataDir))
 	backend.UsePlaces(setup.PlacesOf(cfg))
-	if backend.matrix != nil {
-		backend.matrix.KeepDeleted(cfg.Display.Deleted.Keep())
-		backend.matrix.UseIdentities(context.Background(), identityGroups(cfg))
-	}
-	if backend.whatsapp != nil {
-		backend.whatsapp.KeepDeleted(cfg.Display.Deleted.Keep())
-	}
-	if backend.slack != nil {
-		backend.slack.KeepDeleted(cfg.Display.Deleted.Keep())
-	}
 }
 
 // identityGroups is each [[display.identity]]'s user IDs.
@@ -553,18 +499,9 @@ func reloader(
 		relevel(reloaded.Log.Level)
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
 		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, backend.dataDir))
-		if backend.matrix != nil {
-			backend.matrix.UseIdentities(ctx, identityGroups(reloaded))
-		}
 		backend.UsePlaces(setup.PlacesOf(reloaded))
-		if backend.whatsapp != nil && reloaded.WhatsApp.Enabled {
-			backend.whatsapp.UseAccounts(ctx, whatsAppAccounts(reloaded))
-		}
-		if backend.slack != nil && reloaded.Slack.Enabled {
-			backend.slack.UseAccounts(slackAccounts(reloaded))
-		}
-		if backend.telegram != nil {
-			backend.telegram.UseAccounts(telegramAccounts(reloaded))
+		for _, n := range backend.networks {
+			n.UseConfig(ctx, reloaded)
 		}
 		return notifications.Reload(reloaded)
 	}
@@ -602,9 +539,20 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	// Readiness is "what the daemon started with has synced", not "socket open": a
 	// cold cache looks like no rooms (see serve's Expect).
 	state := daemon.NewState()
+	for _, n := range backend.networks {
+		n.OnStatus(func(s domain.AccountStatus) { state.Report(daemon.StatusOf(s), time.Now()) })
+		// A network that rewrites its own rooms needs the scope read again; one whose
+		// rooms went stale needs the refresher, which refreshes every network (so not
+		// for the first kind: its own refresh would set it off again).
+		if r, ok := n.(roomsRewriter); ok {
+			r.OnRoomsChanged(notifications.InvalidateScope)
+		}
+		if r, ok := n.(roomsStaler); ok {
+			r.OnRoomsStale(refresher.Changed)
+		}
+	}
 	var backups *daemon.KeyBackup
 	if m := backend.matrix; m != nil {
-		m.OnRoomsChanged(refresher.Changed)
 		// Logged in after the startup refresh: refresh again, now with Matrix.
 		m.onLoggedIn = func() {
 			refresher.Changed()
@@ -613,33 +561,14 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 				backups.Soon()
 			}
 		}
-		m.report = func(phase daemon.Phase, detail string) {
-			state.Report(matrixStatus(m, phase, detail), time.Now())
-		}
+		// A sync is the account online as of the sync's own time, and the catch-up
+		// that notifications wait for.
 		m.OnSynced(func(t time.Time) {
-			state.Report(matrixStatus(m, daemon.PhaseOnline, ""), t)
+			state.Report(daemon.StatusOf(m.status(daemon.PhaseOnline, "")), t)
 			notifications.Synced(t)
 		})
 		backups = daemon.NewKeyBackup(m, func(level slog.Level, line string) {
 			log.Log(context.Background(), level, "key backup: "+line, "op", "key backup")
-		})
-	}
-	if wa := backend.whatsapp; wa != nil {
-		// Not the refresher: it refreshes every network, WhatsApp's own refresh included.
-		wa.OnRoomsChanged(notifications.InvalidateScope)
-		wa.OnLink(func(account whatsapp.Account, link whatsapp.Link, detail string) {
-			state.Report(whatsAppStatus(account, link, detail), time.Now())
-		})
-	}
-	if sl := backend.slack; sl != nil {
-		sl.OnRoomsChanged(notifications.InvalidateScope)
-		sl.OnSession(func(account slack.Account, s slack.Session, detail string) {
-			state.Report(slackStatus(account, s, detail), time.Now())
-		})
-	}
-	if tg := backend.telegram; tg != nil {
-		tg.OnSession(func(account telegram.Account, s telegram.Session, detail string) {
-			state.Report(telegramStatus(account, s, detail), time.Now())
 		})
 	}
 	return &workers{
@@ -651,57 +580,18 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	}, nil
 }
 
-// matrixStatus is the Matrix account's row in the daemon's status.
-func matrixStatus(m *matrixAdapter, phase daemon.Phase, detail string) daemon.NetworkStatus {
-	return daemon.NetworkStatus{Network: string(domain.ProtocolMatrix), Account: m.account.user, Phase: phase, Detail: detail}
-}
-
-// whatsAppStatus is a WhatsApp account's row in the daemon's status.
-func whatsAppStatus(account whatsapp.Account, link whatsapp.Link, detail string) daemon.NetworkStatus {
-	phase := daemon.PhaseLoggedOut
-	switch link {
-	case whatsapp.Connecting:
-		phase = daemon.PhaseConnecting
-	case whatsapp.Connected:
-		phase = daemon.PhaseOnline
-	case whatsapp.Unlinked:
-	}
-	return daemon.NetworkStatus{Network: string(domain.ProtocolWhatsApp), Account: account.Name, Phase: phase, Detail: detail}
-}
-
 // expected is every account the daemon starts with a session, for State.Expect: the
-// Matrix account when a session was saved, and each linked WhatsApp account. One that
-// cannot be read is not waited for.
+// ones each network will resume. A network whose sessions cannot be read is not
+// waited for.
 func expected(ctx context.Context, log *slog.Logger, backend served) []daemon.NetworkStatus {
 	var out []daemon.NetworkStatus
-	if m := backend.matrix; m != nil && m.saved.AccessToken != "" {
-		out = append(out, matrixStatus(m, daemon.PhaseConnecting, ""))
-	}
-	if wa := backend.whatsapp; wa != nil {
-		linked, err := wa.Linked(ctx)
+	for _, n := range backend.networks {
+		accounts, err := n.SavedSessions(ctx)
 		if err != nil {
-			log.Warn("read which WhatsApp accounts are linked failed", "err", err)
+			log.Warn("read which accounts are logged in failed", "network", n.Network(), "err", err)
 		}
-		for _, account := range linked {
-			out = append(out, whatsAppStatus(account, whatsapp.Connecting, ""))
-		}
-	}
-	if sl := backend.slack; sl != nil {
-		signed, err := sl.SignedIn()
-		if err != nil {
-			log.Warn("read which Slack accounts are signed in failed", "err", err)
-		}
-		for _, account := range signed {
-			out = append(out, slackStatus(account, slack.Connecting, ""))
-		}
-	}
-	if tg := backend.telegram; tg != nil {
-		in, err := tg.LoggedIn()
-		if err != nil {
-			log.Warn("read which Telegram accounts are logged in failed", "err", err)
-		}
-		for _, account := range in {
-			out = append(out, telegramStatus(account, telegram.Connecting, ""))
+		for _, account := range accounts {
+			out = append(out, daemon.StatusOf(domain.AccountStatus{Network: n.Network(), Account: account, Phase: daemon.PhaseConnecting}))
 		}
 	}
 	return out

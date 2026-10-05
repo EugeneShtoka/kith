@@ -1,9 +1,23 @@
 package config
 
+import (
+	"regexp"
+	"strings"
+)
+
+var (
+	// slackTeamID is a workspace's ID, as app.slack.com links carry it.
+	slackTeamID = regexp.MustCompile(`^T[A-Z0-9]{8,}$`)
+	// slackClientLink is a link into the Slack web client: app.slack.com/client/<team>/….
+	slackClientLink = regexp.MustCompile(`app\.slack\.com/client/(T[A-Z0-9]{8,})(?:/|$)`)
+)
+
+// IsSlackTeamID reports whether workspace is a team ID (T…) rather than an address.
+func IsSlackTeamID(workspace string) bool { return slackTeamID.MatchString(workspace) }
+
 // Slack is [slack]: kith's own link to Slack workspaces, as the Slack web client is,
-// with no Matrix bridge. Off unless enabled.
+// with no Matrix bridge. It runs when it has an account.
 type Slack struct {
-	Enabled  bool           `toml:"enabled"`
 	Accounts []SlackAccount `toml:"account"`
 }
 
@@ -14,4 +28,21 @@ type Slack struct {
 type SlackAccount struct {
 	Name      string `toml:"name"`
 	Workspace string `toml:"workspace"`
+}
+
+// Address is the account's workspace as Slack writes it, from what the config may
+// say: its address ("acme", "acme.slack.com", "https://acme.slack.com/"), or its team
+// ID ("T0123456789", or any app.slack.com/client/T0123456789/… link).
+func (a SlackAccount) Address() string {
+	raw := strings.TrimSpace(a.Workspace)
+	if m := slackClientLink.FindStringSubmatch(raw); m != nil {
+		return m[1]
+	}
+	if IsSlackTeamID(raw) {
+		return raw
+	}
+	w := strings.ToLower(raw)
+	w = strings.TrimPrefix(strings.TrimPrefix(w, "https://"), "http://")
+	w = strings.TrimSuffix(w, "/")
+	return strings.TrimSuffix(w, ".slack.com")
 }

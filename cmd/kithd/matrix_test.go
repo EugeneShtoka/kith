@@ -81,10 +81,10 @@ type phases struct {
 	got []daemon.Phase
 }
 
-func (p *phases) add(phase daemon.Phase, _ string) {
+func (p *phases) add(s domain.AccountStatus) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.got = append(p.got, phase)
+	p.got = append(p.got, s.Phase)
 }
 
 func (p *phases) last() daemon.Phase {
@@ -112,7 +112,7 @@ func testAdapter(t *testing.T, hs *homeserver, saved domain.Session) (*matrixAda
 		crypto: cryptoPlace{path: filepath.Join(dir, "crypto.db"), keys: keys},
 	}, saved)
 	p := &phases{}
-	m.report = p.add
+	m.OnStatus(p.add)
 	return m, p, keys
 }
 

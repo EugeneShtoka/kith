@@ -40,8 +40,8 @@ func TestSlackAccountsAreNamedAndDistinct(t *testing.T) {
 		"https://app.slack.com/client/T0000000AAA/D000000BBB": "T0000000AAA",
 		"app.slack.com/client/T0000000AAA":                    "T0000000AAA",
 	} {
-		if got := setup.SlackWorkspace(config.SlackAccount{Workspace: in}); got != want {
-			t.Errorf("SlackWorkspace(%q) = %q, want %q", in, got, want)
+		if got := (config.SlackAccount{Workspace: in}).Address(); got != want {
+			t.Errorf("Address(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

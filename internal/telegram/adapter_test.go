@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -55,17 +56,17 @@ func loggedIn(t *testing.T, secrets *memSecrets, digits string) {
 // sessions records each account's reported state.
 type sessions struct {
 	mu   sync.Mutex
-	seen map[string]Session
+	seen map[string]domain.AccountPhase
 	said map[string]string
 }
 
-func (s *sessions) hear(account Account, state Session, detail string) {
+func (s *sessions) hear(status domain.AccountStatus) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.seen[account.Name], s.said[account.Name] = state, detail
+	s.seen[status.Account], s.said[status.Account] = status.Phase, status.Detail
 }
 
-func (s *sessions) of(name string) (Session, string) {
+func (s *sessions) of(name string) (domain.AccountPhase, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.seen[name], s.said[name]
@@ -75,9 +76,9 @@ func (s *sessions) of(name string) (Session, string) {
 // stops it with the test.
 func started(t *testing.T, secrets Secrets, accounts ...Account) (*Adapter, *sessions) {
 	t.Helper()
-	heard := &sessions{seen: map[string]Session{}, said: map[string]string{}}
+	heard := &sessions{seen: map[string]domain.AccountPhase{}, said: map[string]string{}}
 	a := New(nil, secrets, accounts, nil)
-	a.OnSession(heard.hear)
+	a.OnStatus(heard.hear)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- a.Start(ctx) }()
@@ -143,7 +144,7 @@ func TestAnAddedAccountIsAnnounced(t *testing.T) {
 	t.Parallel()
 	a, heard := started(t, &memSecrets{values: map[string]string{}}, home)
 	eventually(t, func() bool { s, _ := heard.of("home"); return s != 0 }, "home said nothing")
-	a.UseAccounts([]Account{home, work})
+	a.useAccounts([]Account{home, work})
 	eventually(t, func() bool { s, _ := heard.of("work"); return s == LoggedOut }, "work, added, said nothing")
 }
 
@@ -154,5 +155,15 @@ func TestTelegramRoomsAreNotEncrypted(t *testing.T) {
 	room := domain.RoomID("telegram:42/-1001")
 	if enc, err := a.RoomEncryption(t.Context(), []domain.RoomID{room}); err != nil || enc[room] {
 		t.Errorf("RoomEncryption = (%v, %v), want not encrypted", enc, err)
+	}
+}
+
+// UseConfig reads [[telegram.account]], each number as its digits.
+func TestUseConfigReadsTheTelegramSection(t *testing.T) {
+	t.Parallel()
+	a := New(nil, &memSecrets{values: map[string]string{}}, nil, nil)
+	a.UseConfig(t.Context(), config.Config{Telegram: config.Telegram{Accounts: []config.TelegramAccount{{Name: "home", Phone: "+44 7700 900000"}}}})
+	if got := a.accountsNow(); len(got) != 1 || got[0] != home {
+		t.Errorf("accounts = %+v, want home", got)
 	}
 }

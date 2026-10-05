@@ -228,9 +228,9 @@ func TestLiveEvents(t *testing.T) {
 		return map[string]any{"ok": true, "channels": []any{map[string]any{"id": "C9", "name": "new", "is_channel": true}}}
 	})
 	a, w := connectedTo(t, client)
-	var sessions []Session
+	var sessions []domain.AccountPhase
 	var mu sync.Mutex
-	a.OnSession(func(_ Account, s Session, _ string) { mu.Lock(); sessions = append(sessions, s); mu.Unlock() })
+	a.OnStatus(func(s domain.AccountStatus) { mu.Lock(); sessions = append(sessions, s.Phase); mu.Unlock() })
 
 	ev := &slackgo.MessageEvent{Msg: slackgo.Msg{Channel: "C9", User: "U2", Text: "hello", Timestamp: "7.0"}}
 	if !a.onEvent(ctx, w, slackgo.RTMEvent{Type: "message", Data: ev}) {

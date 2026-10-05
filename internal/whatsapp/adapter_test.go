@@ -10,6 +10,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -151,5 +152,21 @@ func isClosed[T any](ch <-chan T) bool {
 		return !ok
 	default:
 		return false
+	}
+}
+
+// UseConfig reads [[whatsapp.account]], each number as its digits, and
+// [display.deleted] keep.
+func TestUseConfigReadsTheWhatsAppSection(t *testing.T) {
+	t.Parallel()
+	a, _, _ := offline(t)
+	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}}}
+	cfg.Display.Deleted.KeepDeleted = true
+	a.UseConfig(t.Context(), cfg)
+	if got := a.accountsNow(); len(got) != 1 || got[0] != (Account{Name: "home", Digits: "447700900001"}) {
+		t.Errorf("accounts = %+v, want home", got)
+	}
+	if !a.keepsDeleted() {
+		t.Error("[display.deleted] keep not taken")
 	}
 }

@@ -65,15 +65,15 @@ func TestOnlyTheLatestLoginKeepsCredentials(t *testing.T) {
 				configured = !configured
 				trace = append(trace, fmt.Sprintf("configured %v", configured))
 				if configured {
-					a.UseAccounts([]Account{home})
+					a.useAccounts([]Account{home})
 				} else {
-					a.UseAccounts(nil)
+					a.useAccounts(nil)
 				}
 				continue
 			case 4:
 				// The same number under another name: not the account that logged in.
 				trace = append(trace, "renamed")
-				a.UseAccounts([]Account{{Name: "other", Digits: home.Digits}})
+				a.useAccounts([]Account{{Name: "other", Digits: home.Digits}})
 				configured = false
 				continue
 			}
