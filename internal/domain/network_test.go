@@ -39,6 +39,11 @@ func TestIDsSayTheirNetworkAndAccount(t *testing.T) {
 		"slack dm":            {"slack:T0000000001/D0000000004", domain.ID{Network: domain.ProtocolSlack, Account: "T0000000001", Native: "D0000000004"}, true, false, ""},
 		"slack message":       {"slack:T0000000001/C0000000002/1700000000.000100", domain.ID{Network: domain.ProtocolSlack, Account: "T0000000001", Native: "C0000000002/1700000000.000100"}, false, false, ""},
 		"slack user":          {"slack:T0000000001.U0000000003", domain.ID{Network: domain.ProtocolSlack, Native: "T0000000001.U0000000003"}, false, true, ""},
+		"telegram chat":       {"telegram:111/222", domain.ID{Network: domain.ProtocolTelegram, Account: "111", Native: "222"}, true, false, ""},
+		"telegram group":      {"telegram:111/-333", domain.ID{Network: domain.ProtocolTelegram, Account: "111", Native: "-333"}, true, false, ""},
+		"telegram channel":    {"telegram:111/-1004444", domain.ID{Network: domain.ProtocolTelegram, Account: "111", Native: "-1004444"}, true, false, ""},
+		"telegram message":    {"telegram:111/-1004444/55", domain.ID{Network: domain.ProtocolTelegram, Account: "111", Native: "-1004444/55"}, false, false, ""},
+		"telegram user":       {"telegram:222", domain.ID{Network: domain.ProtocolTelegram, Native: "222"}, false, true, ""},
 		// Not a network kith reaches: a word with a colon is Matrix's, and names nothing.
 		"unknown prefix": {"room:Standup", domain.ID{Network: domain.ProtocolMatrix, Native: "room:Standup"}, false, false, "room"},
 		"empty":          {"", domain.ID{Network: domain.ProtocolMatrix}, false, false, ""},

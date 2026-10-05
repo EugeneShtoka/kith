@@ -33,6 +33,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
 	"github.com/EugeneShtoka/kith/internal/slack"
+	"github.com/EugeneShtoka/kith/internal/telegram"
 	"github.com/EugeneShtoka/kith/internal/whatsapp"
 )
 
@@ -261,6 +262,8 @@ type served struct {
 	whatsappStore *whatsapp.Store
 	// slack is nil unless [slack] is enabled.
 	slack *slack.Adapter
+	// telegram is nil unless the config has a [[telegram.account]].
+	telegram *telegram.Adapter
 }
 
 var _ api.Backend = served{}
@@ -288,6 +291,10 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	if sl != nil {
 		others[domain.ProtocolSlack] = sl
 	}
+	tg := openTelegram(cache, log, cfg, storage)
+	if tg != nil {
+		others[domain.ProtocolTelegram] = tg
+	}
 	router, err := route.New(asMatrix, others)
 	if err != nil {
 		closeWhatsAppStore(log, waStore)
@@ -305,7 +312,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 		sl.OnCached(service.MessageCached, service.RoomChanged)
 	}
 	return served{
-		Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore, slack: sl,
+		Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore, slack: sl, telegram: tg,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),
 	}, nil
 }
@@ -555,6 +562,9 @@ func reloader(
 		if backend.slack != nil && reloaded.Slack.Enabled {
 			backend.slack.UseAccounts(slackAccounts(reloaded))
 		}
+		if backend.telegram != nil {
+			backend.telegram.UseAccounts(telegramAccounts(reloaded))
+		}
 		return notifications.Reload(reloaded)
 	}
 }
@@ -624,6 +634,11 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		sl.OnRoomsChanged(notifications.InvalidateScope)
 		sl.OnSession(func(account slack.Account, s slack.Session, detail string) {
 			state.Report(slackStatus(account, s, detail), time.Now())
+		})
+	}
+	if tg := backend.telegram; tg != nil {
+		tg.OnSession(func(account telegram.Account, s telegram.Session, detail string) {
+			state.Report(telegramStatus(account, s, detail), time.Now())
 		})
 	}
 	return &workers{

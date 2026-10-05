@@ -42,6 +42,7 @@ var recordTableLabels = map[string]string{
 	"commands.script":      "Scripts",
 	"whatsapp.account":     "WhatsApp accounts",
 	"slack.account":        "Slack accounts",
+	"telegram.account":     "Telegram accounts",
 	"keys.jump":            "Jump shortcuts",
 }
 

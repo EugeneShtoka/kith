@@ -50,6 +50,7 @@ type Config struct {
 	Log            Log           `toml:"log"`
 	WhatsApp       WhatsApp      `toml:"whatsapp"`
 	Slack          Slack         `toml:"slack"`
+	Telegram       Telegram      `toml:"telegram"`
 	Storage        Storage       `toml:"storage"`
 	Profiles       []Profile     `toml:"profile"`
 	Tags           []Tag         `toml:"tag"`

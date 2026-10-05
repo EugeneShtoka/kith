@@ -57,6 +57,7 @@ var propertyGroups = []propertyGroup{
 	{"allow_token_file", "networks", ""},
 	{"whatsapp.", "networks", ""},
 	{"slack.", "networks", ""},
+	{"telegram.", "networks", ""},
 	{"commands.", "advanced", ""},
 	{"log.", "advanced", ""},
 	{"schedule.", "advanced", ""},
