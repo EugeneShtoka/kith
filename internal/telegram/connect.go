@@ -22,11 +22,15 @@ const (
 
 // conn is a logged-in account's connection.
 type conn struct {
+	account Account
 	// gen is the login it runs on (see Adapter.signIns).
 	gen    int
 	cancel context.CancelFunc
-	// user is the account's own user ID, once Telegram said who it is.
-	user int64
+	// user is the account's own user ID, and client its connection, once Telegram
+	// said who it is; hashes what its last listing revealed (rooms.go).
+	user   int64
+	client *telegram.Client
+	hashes accessHashes
 }
 
 // connectAs connects account on creds, from its login gen, replacing the connection
@@ -42,7 +46,8 @@ func (a *Adapter) connectAs(account Account, creds Credentials, gen int, dial di
 	if old := a.conns[account.Name]; old != nil {
 		old.cancel()
 	}
-	a.conns[account.Name] = &conn{gen: gen, cancel: cancel}
+	a.conns[account.Name] = &conn{account: account, gen: gen, cancel: cancel}
+	a.selves[account.Name] = creds.User
 	a.mu.Unlock()
 	go a.connect(ctx, account, creds, gen, dial)
 }
@@ -72,10 +77,13 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 		if err != nil {
 			return err //nolint:wrapcheck // read by kind below
 		}
-		if !a.adopt(account, gen, self.ID) {
+		if !a.adopt(account, gen, self.ID, client) {
 			return nil
 		}
 		a.log.Info("connected", "account", account.Name, "user", self.ID)
+		if _, err := a.list(ctx, account, gen, self.ID, client); err != nil && ctx.Err() == nil {
+			a.log.Warn("list the chats failed", "account", account.Name, "err", err)
+		}
 		a.session(account, Connected, "")
 		<-ctx.Done()
 		return nil
@@ -96,15 +104,37 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 
 // adopt records whom the account's connection from login gen is, unless a newer login
 // replaced it. It reports whether it did.
-func (a *Adapter) adopt(account Account, gen int, user int64) bool {
+func (a *Adapter) adopt(account Account, gen int, user int64, client *telegram.Client) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	c := a.conns[account.Name]
 	if c == nil || c.gen != gen {
 		return false
 	}
-	c.user = user
+	c.user, c.client = user, client
+	a.selves[account.Name] = user
 	return true
+}
+
+// connected is the connections Telegram has said whom they are, as they stand.
+func (a *Adapter) connected() []conn {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	var out []conn
+	for _, c := range a.conns {
+		if c.user != 0 {
+			out = append(out, *c)
+		}
+	}
+	return out
+}
+
+// selfOf is an account's own user ID, once a login or a kept session said it.
+func (a *Adapter) selfOf(account Account) (int64, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	self, ok := a.selves[account.Name]
+	return self, ok && self != 0
 }
 
 // disown forgets whom the connection from login gen is: it is not connected now.
@@ -112,7 +142,7 @@ func (a *Adapter) disown(account Account, gen int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if c := a.conns[account.Name]; c != nil && c.gen == gen {
-		c.user = 0
+		c.user, c.client = 0, nil
 	}
 }
 

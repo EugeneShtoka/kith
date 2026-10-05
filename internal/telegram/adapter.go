@@ -46,8 +46,10 @@ type Adapter struct {
 	secrets Secrets
 	log     *slog.Logger
 
-	// onStatus hears an account's state change (see OnStatus).
-	onStatus func(domain.AccountStatus)
+	// onStatus hears an account's state change (see OnStatus); onRoomsChanged an
+	// account's rooms being rewritten in the cache (OnRoomsChanged).
+	onStatus       func(domain.AccountStatus)
+	onRoomsChanged func()
 
 	mu       sync.Mutex
 	accounts []Account
@@ -56,12 +58,18 @@ type Adapter struct {
 	signIns map[string]int
 	// logins are the logins under way, conns the logged-in accounts' connections, by
 	// account name.
-	logins  map[string]*login
-	conns   map[string]*conn
+	logins map[string]*login
+	conns  map[string]*conn
+	// selves is each account's own user ID, by name, once known: its rooms' account
+	// part, kept when its connection is not.
+	selves  map[string]int64
 	started bool
 	stopped bool
 	// run is Start's context: logins and connections last as long.
 	run context.Context //nolint:containedctx // RPCs and reloads arrive with no context of their own to outlive
+
+	// refreshing serializes listings, so an older one is never written over a newer.
+	refreshing sync.Mutex
 
 	// keeping serializes writing credentials with checking that their login is still
 	// the latest (keepLogin).
@@ -86,6 +94,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		signIns:   map[string]int{},
 		logins:    map[string]*login{},
 		conns:     map[string]*conn{},
+		selves:    map[string]int64{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
@@ -95,6 +104,10 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 
 // Network is Telegram.
 func (a *Adapter) Network() domain.Protocol { return domain.ProtocolTelegram }
+
+// OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
+// before Start.
+func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
 
 // OnStatus sets who hears an account's state change, with what to tell a person
 // about it (empty when nothing). Set before Start.
