@@ -45,12 +45,16 @@ jobs:
       - name: Test and coverage gate
         run: make coverage-check COVERPROFILE=coverage.out
 
-  # Compile-only: the release targets plus windows (built, not released). Only for a
-  # release (release.yml calls this workflow on the tag); a PR builds for linux alone.
-  cross-compile:
+  # What a release ships, built only for one (release.yml calls this workflow on the
+  # tag; a PR builds for linux alone): every CROSS_TARGETS platform, compile-only (the
+  # release targets plus windows, built, not released), and the Nix flake (flake.lock
+  # and vendorHash current; see nix-check in the Makefile). vendorHash changes with
+  # every package newly imported, not only with go.mod, so a PR does not wait on it;
+  # the weekly workflow builds the flake too, so a stale hash shows within a week.
+  release-builds:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -62,6 +66,13 @@ jobs:
 
       - name: Build every CROSS_TARGETS platform
         run: make cross
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      - name: Build the Nix flake
+        env:
+          REQUIRE_NIX: "1"
+        run: make nix-check
 
   # Repo guards: pins, unit parity, the layer map, and this file against `make check`.
   repo-checks:
@@ -189,27 +200,12 @@ jobs:
       - name: Lint Markdown
         run: make docs-check
 
-  # The flake builds (flake.lock and vendorHash current); see nix-check in the Makefile.
-  nix:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
-
-      - name: Build the Nix flake
-        env:
-          REQUIRE_NIX: "1"
-        run: make nix-check
-
   # The single required check for branch protection.
   ci-ok:
-    # always(): a skipped required check counts as passed on GitHub. cross-compile is
+    # always(): a skipped required check counts as passed on GitHub. release-builds is
     # not here: it runs on tags alone, and a release needs this whole workflow to pass.
     if: always()
-    needs: [build-and-test, repo-checks, release-config, lint, vuln, secrets, proto, docs, nix]
+    needs: [build-and-test, repo-checks, release-config, lint, vuln, secrets, proto, docs]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

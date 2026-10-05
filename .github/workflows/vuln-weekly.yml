@@ -2,7 +2,9 @@ name: Weekly vulnerability scan
 
 # A new advisory against mautrix, x/net or the standard library lands whether or not
 # anyone pushes; this finds it within a week instead of at the next commit. The same
-# run checks the tools the workflows pin by hand, which Dependabot never bumps.
+# run checks the tools the workflows pin by hand, which Dependabot never bumps, and
+# builds the Nix flake, which CI builds only for a release: a vendorHash gone stale
+# shows here, not first at the release.
 on:
   schedule:
     - cron: "17 6 * * 1" # Mondays, 06:17 UTC
@@ -48,3 +50,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/pinned-tools.sh
+
+  # The flake builds (flake.lock and vendorHash current). A failure prints the hash
+  # packaging/nix/package.nix needs.
+  nix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      - name: Build the Nix flake
+        env:
+          REQUIRE_NIX: "1"
+        run: make nix-check
