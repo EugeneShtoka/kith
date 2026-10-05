@@ -50,6 +50,8 @@ var implemented = map[string]string{
 	"Infof":                 "waLog.Logger",
 	"Debugf":                "waLog.Logger",
 	"Configure":             "libsignal logger.Loggable",
+	"LoadSession":           "gotd session.Storage",
+	"StoreSession":          "gotd session.Storage",
 }
 
 func main() {

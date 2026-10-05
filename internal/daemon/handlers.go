@@ -443,6 +443,26 @@ func (s *server) SignInSlack(ctx context.Context, r *req[v1.SignInSlackRequest])
 	return reply(&v1.SignInSlackResponse{Workspace: in.Workspace, User: in.User}, err)
 }
 
+// errTelegramOff refuses a Telegram login while the daemon runs no Telegram account.
+var errTelegramOff = fmt.Errorf("%w: the config kithd runs with has no [[telegram.account]]", api.ErrNetworkOff)
+
+func (s *server) SendTelegramCode(ctx context.Context, r *req[v1.SendTelegramCodeRequest]) (*resp[v1.SendTelegramCodeResponse], error) {
+	if s.Telegram == nil {
+		return nil, rpcErr(errTelegramOff)
+	}
+	app := api.TelegramApp{ID: int(r.Msg.GetApiId()), Hash: r.Msg.GetApiHash()}
+	sent, err := s.Telegram.SendTelegramCode(ctx, r.Msg.GetAccount(), app)
+	return reply(&v1.SendTelegramCodeResponse{Via: sent.Via}, err)
+}
+
+func (s *server) SignInTelegram(ctx context.Context, r *req[v1.SignInTelegramRequest]) (*resp[v1.SignInTelegramResponse], error) {
+	if s.Telegram == nil {
+		return nil, rpcErr(errTelegramOff)
+	}
+	in, err := s.Telegram.SignInTelegram(ctx, r.Msg.GetAccount(), r.Msg.GetCode(), r.Msg.GetPassword())
+	return reply(&v1.SignInTelegramResponse{Name: in.Name, Id: in.ID}, err)
+}
+
 func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {
 	sat, err := s.seat.take(ctx, r.Msg.GetClient(), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
 	if errors.Is(err, api.ErrSeatTaken) {

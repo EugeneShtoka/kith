@@ -60,3 +60,18 @@ func loadCredentials(secrets Secrets, digits string) (Credentials, bool, error) 
 	}
 	return c, true, nil
 }
+
+// saveCredentials keeps an account's credentials, by its number.
+func saveCredentials(secrets Secrets, digits string, c Credentials) error {
+	if err := c.valid(); err != nil {
+		return err
+	}
+	blob, err := json.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("telegram: encode +%s's credentials: %w", digits, err)
+	}
+	if err := secrets.StoreSecret(credentialsRef(digits), string(blob)); err != nil {
+		return fmt.Errorf("telegram: keep +%s's credentials: %w", digits, err)
+	}
+	return nil
+}

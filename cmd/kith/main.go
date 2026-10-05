@@ -383,6 +383,9 @@ func runLogin(args []string) error {
 	if len(args) > 0 && args[0] == "slack" {
 		return runSlackLogin(args[1:])
 	}
+	if len(args) > 0 && args[0] == "telegram" {
+		return runTelegramLogin(args[1:])
+	}
 	fs := flag.NewFlagSet("login", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
 	profile := fs.String("profile", "", "which [[profile]] account to log in (default: the first one)")
@@ -396,7 +399,7 @@ func runLogin(args []string) error {
 	}
 	if !cfg.HasMatrix() {
 		return errors.New("set `homeserver` and `user` in the config to log in to Matrix " +
-			"(for WhatsApp, run `kith login whatsapp`; for Slack, `kith login slack`)")
+			"(for WhatsApp, run `kith login whatsapp`; for Slack, `kith login slack`; for Telegram, `kith login telegram`)")
 	}
 	password, err := readSecret(fmt.Sprintf("Password for %s", cfg.User))
 	if err != nil {

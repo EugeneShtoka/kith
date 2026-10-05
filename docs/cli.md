@@ -15,6 +15,7 @@ kith [flags]
 kith login [--config path] [--profile name]
 kith login whatsapp [--config path] [--profile name] [account]
 kith login slack [--config path] [--profile name] [account]
+kith login telegram [--config path] [--profile name] [account]
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -90,6 +91,28 @@ and connect. The workspace's channels then appear in kith. See [Slack](slack.md)
   only one.
 - A session for another workspace than the account's `workspace` is refused.
 - Signing in again replaces the session kept for the account.
+
+### kith login telegram
+
+```sh
+kith login telegram [account]
+```
+
+Logs one `[[telegram.account]]` in. It asks first for the app to log in through: your
+own app's `api_id` and `api_hash` (from my.telegram.org → API development tools; the
+hash is read without echoing), or nothing, for kith's own app when the build carries
+one. kithd then has Telegram send a code, to the Telegram app where the account is
+logged in or by SMS; the command reads it, and the account's two-step verification
+password when it has one. A wrong code or password is asked for again. kithd keeps
+the session in the system keyring and connects. See [Telegram](telegram.md).
+
+- kithd must be running with a `[[telegram.account]]` in its config (Telegram starts
+  with the first account; adding the first one takes a kithd restart, `:login telegram`
+  does it itself).
+- `account` is the `name` of a `[[telegram.account]]`; it can be left out when there
+  is only one.
+- Logging in again replaces the session kept for the account; one begun while another
+  is under way ends the first.
 
 ### General flags
 
@@ -173,7 +196,7 @@ kithd [--config path] [--profile name] [--log-level level] [-v] [--log-target ta
 The daemon. It runs in the foreground and logs to stderr, which the journal captures
 under systemd. Started by `kith` without systemd, it logs to the journal itself,
 or to `--log-file` when there is none. It runs logged in to nothing too: a network
-with no session waits for `kith login` (or `kith login whatsapp`, `kith login slack`), which logs it in
+with no session waits for `kith login` (or `kith login whatsapp`, `kith login slack`, `kith login telegram`), which logs it in
 through the daemon and starts it without a restart.
 
 | Flag | Meaning |

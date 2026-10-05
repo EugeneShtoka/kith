@@ -340,6 +340,40 @@ type SlackSignedIn struct {
 	Workspace, User string
 }
 
+// TelegramLogin logs Telegram accounts in. Only the daemon logs in, because it keeps
+// the session and connects on it; `kith login telegram` asks it. Logging in is two
+// calls, since Telegram sends its code only once it has the number: the code is asked
+// for, then given.
+type TelegramLogin interface {
+	// SendTelegramCode has Telegram send the named [[telegram.account]] a login code,
+	// through app (the zero App: kith's own, when this build carries one), and says
+	// where it went. It starts the account's login over, ending one under way.
+	// ErrNetworkOff when the daemon runs no Telegram account.
+	SendTelegramCode(ctx context.Context, account string, app TelegramApp) (TelegramCodeSent, error)
+	// SignInTelegram finishes the account's login with the code Telegram sent, and its
+	// two-step verification password when it has one: ErrPasswordNeeded asks for it,
+	// and the call is made again with it. A wrong code or password can be tried again.
+	SignInTelegram(ctx context.Context, account, code, password string) (TelegramSignedIn, error)
+}
+
+// TelegramApp is the app a Telegram login goes through: an api_id and api_hash from
+// my.telegram.org. The zero App is kith's own.
+type TelegramApp struct {
+	ID   int
+	Hash string
+}
+
+// TelegramCodeSent is where Telegram sent a login code: "the Telegram app", "SMS", …
+type TelegramCodeSent struct {
+	Via string
+}
+
+// TelegramSignedIn is whom a Telegram login landed as: a name, and the account's
+// person ID.
+type TelegramSignedIn struct {
+	Name, ID string
+}
+
 // MatrixLogin logs Matrix in. Only the daemon logs in, because it owns the session
 // and starts Matrix on it; `kith login` asks it.
 type MatrixLogin interface {

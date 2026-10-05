@@ -57,8 +57,21 @@ type Adapter struct {
 
 	mu       sync.Mutex
 	accounts []Account
-	started  bool
-	stopped  bool
+	// signIns counts each account's logins, so neither a login nor a connection begun
+	// on an older one ever replaces a newer one's credentials or connection.
+	signIns map[string]int
+	// logins are the logins under way, conns the logged-in accounts' connections, by
+	// account name.
+	logins  map[string]*login
+	conns   map[string]*conn
+	started bool
+	stopped bool
+	// run is Start's context: logins and connections last as long.
+	run context.Context //nolint:containedctx // RPCs and reloads arrive with no context of their own to outlive
+
+	// keeping serializes writing credentials with checking that their login is still
+	// the latest (keepLogin).
+	keeping sync.Mutex
 
 	streamMu  sync.RWMutex
 	closed    bool
@@ -76,6 +89,9 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 	}
 	return &Adapter{
 		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "telegram"),
+		signIns:   map[string]int{},
+		logins:    map[string]*login{},
+		conns:     map[string]*conn{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
@@ -103,12 +119,38 @@ func (a *Adapter) accountsNow() []Account {
 	return slices.Clone(a.accounts)
 }
 
+// runContext is what logins and connections run under: Start's context, once it ran.
+func (a *Adapter) runContext() context.Context {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.run == nil {
+		return context.Background()
+	}
+	return a.run
+}
+
 // UseAccounts takes the configured accounts after the config is re-read: an account
-// added says whether it is logged in, as one configured at Start does.
+// added is connected if logged in, as one configured at Start is; one removed is let
+// go, with its login under way.
 func (a *Adapter) UseAccounts(accounts []Account) {
 	a.mu.Lock()
 	known := a.accounts
 	a.accounts = slices.Clone(accounts)
+	kept := func(name string) bool {
+		return slices.ContainsFunc(accounts, func(k Account) bool { return k.Name == name })
+	}
+	for name, c := range a.conns {
+		if !kept(name) {
+			c.cancel()
+			delete(a.conns, name)
+		}
+	}
+	for name, l := range a.logins {
+		if !kept(name) {
+			l.cancel()
+			delete(a.logins, name)
+		}
+	}
 	started := a.started && !a.stopped
 	a.mu.Unlock()
 	if !started {
@@ -128,7 +170,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 		a.mu.Unlock()
 		return errStartedTwice
 	}
-	a.started = true
+	a.started, a.run = true, ctx
 	a.mu.Unlock()
 	for _, account := range a.accountsNow() {
 		a.announce(account)
@@ -137,7 +179,28 @@ func (a *Adapter) Start(ctx context.Context) error {
 	return ctx.Err() //nolint:wrapcheck // our own shutdown, as the other adapters'
 }
 
-// announce says whether an account is logged in, and how to log in when it is not.
+// LoggedIn is the configured accounts that have credentials kept. An account whose
+// credentials are unusable is not one (its status says why); a store that cannot be
+// read is an error.
+func (a *Adapter) LoggedIn() ([]Account, error) {
+	var in []Account
+	for _, account := range a.accountsNow() {
+		_, ok, err := loadCredentials(a.secrets, account.Digits)
+		if errors.Is(err, errUnusable) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			in = append(in, account)
+		}
+	}
+	return in, nil
+}
+
+// announce connects an account that is logged in, and says how to log in when it is
+// not.
 func (a *Adapter) announce(account Account) {
 	creds, ok, err := loadCredentials(a.secrets, account.Digits)
 	switch {
@@ -145,12 +208,15 @@ func (a *Adapter) announce(account Account) {
 		a.log.Warn("read the Telegram credentials failed", "account", account.Name, "err", err)
 		a.session(account, LoggedOut, "its credentials could not be read: "+err.Error())
 	case !ok:
-		hint := "not logged in; :login telegram in kith, or `kith login telegram " + account.Name + "`"
+		hint := "not logged in; " + loginHint(account)
 		a.log.Info(hint, "account", account.Name)
 		a.session(account, LoggedOut, hint)
 	default:
 		a.log.Info("logged in", "account", account.Name, "user", creds.User)
-		a.session(account, Connecting, "")
+		a.mu.Lock()
+		gen := a.signIns[account.Name]
+		a.mu.Unlock()
+		a.connectAs(account, creds, gen, a.newClient)
 	}
 }
 
@@ -162,6 +228,12 @@ func (a *Adapter) Stop() {
 		return
 	}
 	a.stopped = true
+	for _, c := range a.conns {
+		c.cancel()
+	}
+	for _, l := range a.logins {
+		l.cancel()
+	}
 	a.mu.Unlock()
 	a.streamMu.Lock()
 	defer a.streamMu.Unlock()
@@ -184,8 +256,19 @@ func (a *Adapter) Unread() <-chan domain.Unread { return a.unread }
 // Reactions is reactions as they change.
 func (a *Adapter) Reactions() <-chan domain.ReactionUpdate { return a.reactions }
 
-// Me is every Telegram ID that is this person: none until an account is connected.
-func (a *Adapter) Me() []string { return nil }
+// Me is every Telegram ID that is this person: one per connected account.
+func (a *Adapter) Me() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	var me []string
+	for _, c := range a.conns {
+		if c.user != 0 {
+			me = append(me, personID(c.user))
+		}
+	}
+	slices.Sort(me)
+	return me
+}
 
 // RewindSync has nothing to refill before an account is connected.
 func (a *Adapter) RewindSync(context.Context) error { return nil }

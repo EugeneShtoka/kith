@@ -114,6 +114,7 @@ func TestStartSaysWhoIsLoggedIn(t *testing.T) {
 	loggedIn(t, secrets, home.Digits)
 	_, heard := started(t, secrets, home, work)
 	eventually(t, func() bool { s, _ := heard.of("work"); return s != 0 }, "work said nothing")
+	eventually(t, func() bool { s, _ := heard.of("home"); return s != 0 }, "home said nothing")
 	if s, _ := heard.of("home"); s != Connecting {
 		t.Errorf("home = %v, want connecting", s)
 	}

@@ -846,6 +846,33 @@ message SignInSlackResponse {
   string user = 2;
 }
 
+message SendTelegramCodeRequest {
+  // The [[telegram.account]] name, as the config says it.
+  string account = 1;
+  // The app the login goes through, from my.telegram.org; both unset for kith's own.
+  int32 api_id = 2;
+  string api_hash = 3;
+}
+
+message SendTelegramCodeResponse {
+  // Where the code went: "the Telegram app", "SMS", …
+  string via = 1;
+}
+
+message SignInTelegramRequest {
+  // The [[telegram.account]] name, as the config says it.
+  string account = 1;
+  // The code Telegram sent, and the two-step verification password when asked for.
+  string code = 2;
+  string password = 3;
+}
+
+message SignInTelegramResponse {
+  // Whom the login landed as: a name, and the account's person ID.
+  string name = 1;
+  string id = 2;
+}
+
 message LoginMatrixRequest {
   // The password for the config's Matrix user, typed by a human. The homeserver and
   // user are the daemon's own config's, never the client's.
@@ -1279,6 +1306,14 @@ service BackendService {
   // Slack, keeps it and connects the workspace. A failure (a session Slack refuses,
   // another workspace's, Slack not enabled) is an error.
   rpc SignInSlack(SignInSlackRequest) returns (SignInSlackResponse);
+  // SendTelegramCode has Telegram send one configured [[telegram.account]] a login
+  // code, starting its login over. A failure (no Telegram account runs, no app to log
+  // in through, a number Telegram refuses) is an error.
+  rpc SendTelegramCode(SendTelegramCodeRequest) returns (SendTelegramCodeResponse);
+  // SignInTelegram finishes that login with the code, and the two-step verification
+  // password once one is asked for (the password-needed sentinel); it keeps the
+  // session and connects the account.
+  rpc SignInTelegram(SignInTelegramRequest) returns (SignInTelegramResponse);
   // RoomsWith finds the rooms a set of people are **all** in, most recently active
   // first.
   rpc RoomsWith(RoomsWithRequest) returns (RoomsWithResponse);

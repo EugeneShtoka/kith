@@ -49,6 +49,9 @@ type Daemon struct {
 	// Slack signs Slack workspaces in; nil when [slack] is off, and the sign-in
 	// handler then refuses with ErrNetworkOff.
 	Slack api.SlackSignIn
+	// Telegram logs Telegram accounts in; nil when the daemon runs none, and the login
+	// handlers then refuse with ErrNetworkOff.
+	Telegram api.TelegramLogin
 	// Log receives every failed call, with the procedure and the reason, so a
 	// failure a client only counted still reaches the journal. nil logs nothing.
 	Log *slog.Logger

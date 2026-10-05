@@ -291,7 +291,8 @@ $ kith
 kith: wrote a default config to /home/alice/.config/kith/config.toml; set an account up inside kith with :login.
 ```
 
-Inside it, `:login` sets an account up and signs it in — Matrix, WhatsApp or Slack —
+Inside it, `:login` sets an account up and signs it in — Matrix, WhatsApp, Slack or
+Telegram —
 asking for what each needs and explaining where to find it. The rest of this section
 is the same done by hand.
 
