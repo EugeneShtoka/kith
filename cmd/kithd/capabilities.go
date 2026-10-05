@@ -87,9 +87,11 @@ var (
 		route.History
 		route.Sender
 		route.Typist
+		route.Uploader
 		route.Reactor
 		route.Redactor
 		route.People
+		route.Media
 		route.Encryption
 		route.SpaceLister
 		configChecker

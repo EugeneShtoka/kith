@@ -54,7 +54,14 @@ func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Messag
 		Timestamp: time.Unix(int64(m.Date), 0), Mentioned: m.Mentioned,
 	}
 	if m.Media != nil {
-		if label := mediaLabel(m.Media); label != "" {
+		media, label := attachment(m.Media)
+		switch {
+		case media != nil:
+			out.Media = media
+			if body == "" && media.Type == domain.MediaFile {
+				out.Body = media.Name // a file sent bare reads as its name
+			}
+		case label != "":
 			out.Body, out.Format = labeled(label, body, format)
 		}
 	}

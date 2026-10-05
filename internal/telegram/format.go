@@ -146,50 +146,6 @@ func nested(text string, marks []mark) string {
 	return out.String()
 }
 
-// mediaLabel is what a message's attachment reads as until media come: its kind, and
-// a file's name.
-func mediaLabel(media tg.MessageMediaClass) string {
-	switch m := media.(type) {
-	case *tg.MessageMediaPhoto:
-		return "[photo]"
-	case *tg.MessageMediaDocument:
-		doc, ok := m.Document.(*tg.Document)
-		if !ok {
-			return "[file]"
-		}
-		for _, attr := range doc.Attributes {
-			switch a := attr.(type) {
-			case *tg.DocumentAttributeAudio:
-				if a.Voice {
-					return "[voice message]"
-				}
-				return "[audio]"
-			case *tg.DocumentAttributeVideo:
-				if a.RoundMessage {
-					return "[video message]"
-				}
-				return "[video]"
-			case *tg.DocumentAttributeSticker:
-				return "[sticker] " + a.Alt
-			case *tg.DocumentAttributeFilename:
-				return "[file] " + a.FileName
-			}
-		}
-		return "[file]"
-	case *tg.MessageMediaGeo, *tg.MessageMediaGeoLive, *tg.MessageMediaVenue:
-		return "[location]"
-	case *tg.MessageMediaContact:
-		return "[contact] " + strings.TrimSpace(m.FirstName+" "+m.LastName)
-	case *tg.MessageMediaPoll:
-		return "[poll] " + m.Poll.Question.Text
-	case *tg.MessageMediaWebPage:
-		return "" // a link preview: the text has the link
-	case *tg.MessageMediaDice:
-		return "[dice] " + m.Emoticon + " " + strconv.Itoa(m.Value)
-	}
-	return "[attachment]"
-}
-
 // outgoing is a draft as Telegram sends it: the text, its entities, and the
 // formatting kith shows it with. Markdown is rendered (unless the draft is plain) and
 // flattened to text and spans, each span an entity at UTF-16 offsets; each person the
