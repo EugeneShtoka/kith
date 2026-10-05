@@ -39,6 +39,14 @@ message MarkRoomUnreadRequest {
 
 message MarkRoomUnreadResponse {}
 
+// Archiving a chat on its network.
+message SetRoomArchivedRequest {
+  string room_id = 1;
+  bool archived = 2; // false unarchives
+}
+
+message SetRoomArchivedResponse {}
+
 // Starring a message.
 message StarMessageRequest {
   string room_id = 1;
@@ -812,6 +820,11 @@ message FollowResponse {
   bool delivered = 1;
 }
 
+message RoomsChangedRequest {}
+
+// RoomsChangedResponse says a network rewrote its rooms; the client reads them again.
+message RoomsChangedResponse {}
+
 message FollowStreamRequest {}
 
 message FollowStreamResponse {
@@ -1189,6 +1202,10 @@ service BackendService {
   // MarkRoomUnread sets or clears m.marked_unread on a room, which every client on the
   // account then sees.
   rpc MarkRoomUnread(MarkRoomUnreadRequest) returns (MarkRoomUnreadResponse);
+  // SetRoomArchived archives or unarchives a chat on its own network (Telegram's
+  // Archived folder, WhatsApp's archive), which every client of the account then sees.
+  // A network with no archive of its own refuses it.
+  rpc SetRoomArchived(SetRoomArchivedRequest) returns (SetRoomArchivedResponse);
   // StarMessage adds or removes one message's private bookmark.
   rpc StarMessage(StarMessageRequest) returns (StarMessageResponse);
   // StarredIn lists the starred messages of one room, from the cache.
@@ -1348,6 +1365,9 @@ service BackendService {
   rpc Follow(FollowRequest) returns (FollowResponse);
   // FollowStream is the receiving end, held open by the TUI.
   rpc FollowStream(FollowStreamRequest) returns (stream FollowStreamResponse);
+  // RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
+  // renamed, archived on another device), so the client reads its room list again.
+  rpc RoomsChanged(RoomsChangedRequest) returns (stream RoomsChangedResponse);
   // Verification
   // Verifications streams verification steps (request, SAS, done, canceled).
   rpc Verifications(VerificationsRequest) returns (stream VerificationsResponse);

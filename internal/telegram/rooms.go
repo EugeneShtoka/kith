@@ -50,6 +50,8 @@ type listing struct {
 	rooms   []domain.Room
 	members map[domain.RoomID][]domain.Member
 	hashes  accessHashes
+	// archived is, for each listed room, whether it is in Telegram's Archived folder.
+	archived map[domain.RoomID]bool
 }
 
 // dialog is one of an account's dialogs: its peer, as calls name it, its latest
@@ -68,13 +70,19 @@ type dialog struct {
 // member, and keeps the access hashes they carry. self is the account's own user ID.
 func listed(self int64, elems []dialog) listing {
 	l := listing{
-		members: map[domain.RoomID][]domain.Member{},
-		hashes:  accessHashes{users: map[int64]int64{}, channels: map[int64]int64{}},
+		members:  map[domain.RoomID][]domain.Member{},
+		archived: map[domain.RoomID]bool{},
+		hashes:   accessHashes{users: map[int64]int64{}, channels: map[int64]int64{}},
 	}
 	for _, e := range elems {
 		room, member, ok := l.room(self, e)
 		if !ok {
 			continue
+		}
+		if e.info != nil {
+			folder, _ := e.info.GetFolderID()
+			room.Archived = folder == archiveFolder
+			l.archived[room.ID] = room.Archived
 		}
 		l.rooms = append(l.rooms, room)
 		if member != nil {
@@ -163,8 +171,11 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	return l.rooms, nil
 }
 
+// archiveFolder is Telegram's Archived folder; 0 is the main list.
+const archiveFolder = 1
+
 // folders are the dialog folders an account's chats are in: the main list, and Archived.
-var folders = []int{0, 1}
+var folders = []int{0, archiveFolder}
 
 // readDialogs reads every dialog of an account, folder by folder, page by page. Not
 // gotd's iterator: it asks again after the last page, one request more each listing.
@@ -294,6 +305,9 @@ func (a *Adapter) save(ctx context.Context, self int64, l listing, fetched time.
 	}
 	if err := a.cache.SaveRooms(ctx, owner, append(slices.Clone(l.rooms), kept...)); err != nil {
 		return fmt.Errorf("telegram: cache the chats: %w", err)
+	}
+	if err := a.cache.SetArchived(ctx, a.listedArchive(l.archived, fetched)); err != nil {
+		return fmt.Errorf("telegram: cache which chats are archived: %w", err)
 	}
 	for id, members := range l.members {
 		if err := a.cache.SaveMembers(ctx, id, members); err != nil {

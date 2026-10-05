@@ -16,9 +16,11 @@ func PlacesOf(cfg config.Config) domain.Places {
 		names[domain.RoomID(room)] = name
 	}
 	tags, _, _ := Tags(cfg)
+	archives, _ := Archives(cfg, tags)
 	return domain.Places{
-		Names: names,
-		Order: domain.NewHomeOrder(display.Priority, display.Rail.Order, tags, nil),
-		Tags:  tags,
+		Names:    names,
+		Order:    domain.NewHomeOrder(display.Priority, display.Rail.Order, tags, nil),
+		Tags:     tags,
+		Archives: archives,
 	}
 }

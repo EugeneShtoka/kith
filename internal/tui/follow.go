@@ -166,6 +166,25 @@ func (m Model) listenFollowCmd() tea.Cmd {
 		func(uri string) tea.Msg { return followMsg{uri: uri} })
 }
 
+// roomsSource is a backend that says when a network rewrote its rooms. Optional, as
+// followSource is.
+type roomsSource interface {
+	RoomsChanged() <-chan struct{}
+}
+
+// listenRoomsCmd waits for a network to rewrite its rooms; nil for backends without
+// the stream.
+func (m Model) listenRoomsCmd() tea.Cmd {
+	source, ok := m.backend.(roomsSource)
+	if !ok {
+		return nil
+	}
+	return listen(m.ctx, source.RoomsChanged(), func(struct{}) tea.Msg { return roomsChangedMsg{} })
+}
+
+// roomsChangedMsg is a network having rewritten its rooms.
+type roomsChangedMsg struct{}
+
 // followMsg is a link the desktop handed to this client.
 type followMsg struct{ uri string }
 

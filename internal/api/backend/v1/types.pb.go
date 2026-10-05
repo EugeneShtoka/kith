@@ -153,7 +153,10 @@ type Room struct {
 	Replacement string `protobuf:"bytes,7,opt,name=replacement,proto3" json:"replacement,omitempty"`
 	// Topic is m.room.topic — the room's one-line description, and on a bridged room the
 	// group description carried across by the bridge.
-	Topic         string `protobuf:"bytes,8,opt,name=topic,proto3" json:"topic,omitempty"`
+	Topic string `protobuf:"bytes,8,opt,name=topic,proto3" json:"topic,omitempty"`
+	// Archived is the network's own archive holding the room (Telegram's Archived
+	// folder, WhatsApp's archived chats); kith's archive tag follows it where configured.
+	Archived      bool `protobuf:"varint,9,opt,name=archived,proto3" json:"archived,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -242,6 +245,13 @@ func (x *Room) GetTopic() string {
 		return x.Topic
 	}
 	return ""
+}
+
+func (x *Room) GetArchived() bool {
+	if x != nil {
+		return x.Archived
+	}
+	return false
 }
 
 // Mention is one @-mention within a message (domain.Mention).
@@ -2043,7 +2053,7 @@ var File_backend_v1_types_proto protoreflect.FileDescriptor
 const file_backend_v1_types_proto_rawDesc = "" +
 	"\n" +
 	"\x16backend/v1/types.proto\x12\n" +
-	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd8\x01\n" +
+	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf4\x01\n" +
 	"\x04Room\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
@@ -2055,7 +2065,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\n" +
 	"invited_by\x18\x06 \x01(\tR\tinvitedBy\x12 \n" +
 	"\vreplacement\x18\a \x01(\tR\vreplacement\x12\x14\n" +
-	"\x05topic\x18\b \x01(\tR\x05topic\"O\n" +
+	"\x05topic\x18\b \x01(\tR\x05topic\x12\x1a\n" +
+	"\barchived\x18\t \x01(\bR\barchived\"O\n" +
 	"\aMention\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +

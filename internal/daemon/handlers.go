@@ -77,6 +77,10 @@ func (s *server) LastMessages(ctx context.Context, _ *req[v1.LastMessagesRequest
 	return reply(&v1.LastMessagesResponse{At: at}, err)
 }
 
+func (s *server) SetRoomArchived(ctx context.Context, r *req[v1.SetRoomArchivedRequest]) (*resp[v1.SetRoomArchivedResponse], error) {
+	return reply(&v1.SetRoomArchivedResponse{}, s.Backend.SetRoomArchived(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetArchived()))
+}
+
 func (s *server) MarkRoomUnread(ctx context.Context, r *req[v1.MarkRoomUnreadRequest]) (*resp[v1.MarkRoomUnreadResponse], error) {
 	return reply(&v1.MarkRoomUnreadResponse{}, s.Backend.MarkRoomUnread(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetUnread()))
 }
@@ -529,6 +533,10 @@ func (s *server) Follow(_ context.Context, r *req[v1.FollowRequest]) (*resp[v1.F
 	uri := r.Msg.GetUri()
 	delivered := s.Streams.Follow(uri) || s.seat.keepLink(uri)
 	return connect.NewResponse(&v1.FollowResponse{Delivered: delivered}), nil
+}
+
+func (s *server) RoomsChanged(ctx context.Context, _ *req[v1.RoomsChangedRequest], st *connect.ServerStream[v1.RoomsChangedResponse]) error {
+	return serveStream(ctx, s.Streams.rooms, st, func(struct{}) *v1.RoomsChangedResponse { return &v1.RoomsChangedResponse{} })
 }
 
 func (s *server) FollowStream(ctx context.Context, _ *req[v1.FollowStreamRequest], st *connect.ServerStream[v1.FollowStreamResponse]) error {

@@ -47,8 +47,12 @@ type scopeIndex struct {
 	missed map[domain.RoomID]time.Time
 	// gen counts config changes; a rebuild (done unlocked) that raced one is discarded.
 	gen uint64
-	// tags are judged per lookup, so a reload of them needs no rebuild.
-	tags domain.TagSet
+	// tags are judged per lookup, so a reload of them needs no rebuild; so is each
+	// network's archive (archives, the tag each followed one is), over the rooms the
+	// last rebuild read as archived by their network.
+	tags     domain.TagSet
+	archives map[domain.Protocol]string
+	archived map[domain.RoomID]bool
 }
 
 // newScopeIndex returns an index over src, with no rooms read yet.
@@ -71,6 +75,14 @@ func (x *scopeIndex) SetTags(tags domain.TagSet) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	x.tags = tags
+}
+
+// SetArchives replaces the tag each followed network's archive is. No index drop:
+// it is judged per lookup.
+func (x *scopeIndex) SetArchives(archives map[domain.Protocol]string) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	x.archives = archives
 }
 
 // Home is a room's first home — space or tag, in home order — as {space} shows it.
@@ -135,15 +147,14 @@ func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts domain.RoomFacts) dom
 	if facts.ID == "" {
 		facts = domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
 	}
-	facts.Tags = x.tagSet().Of(facts)
-	return facts
-}
-
-// tagSet is the tags, read under the lock.
-func (x *scopeIndex) tagSet() domain.TagSet {
 	x.mu.Lock()
-	defer x.mu.Unlock()
-	return x.tags
+	tags := x.tags
+	if x.archived[roomID] {
+		facts.ArchivedIn = x.archives[facts.Protocol]
+	}
+	x.mu.Unlock()
+	facts.Tags = tags.Of(facts)
+	return facts
 }
 
 // Direct reports whether a room is a direct message.
@@ -174,7 +185,7 @@ func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.R
 	src, aliases, base, gen := x.src, x.aliases, x.base, x.gen
 	x.mu.Unlock()
 
-	index, order, err := buildIndex(ctx, src, aliases, base)
+	index, archived, order, err := buildIndex(ctx, src, aliases, base)
 
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -184,7 +195,7 @@ func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.R
 	}
 	current := gen == x.gen
 	if err == nil && current {
-		x.rooms, x.order, x.builtAt, x.missed = index, order, time.Now(), nil
+		x.rooms, x.archived, x.order, x.builtAt, x.missed = index, archived, order, time.Now(), nil
 	}
 	facts, ok = x.rooms[roomID]
 	// A miss is only believed from a read nothing has overtaken.
@@ -197,22 +208,22 @@ func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.R
 	return facts, ok
 }
 
-// buildIndex reads the room list and space hierarchy into a fresh index, and the home
-// order with the network's own spaces among them marked. A free function, so it
+// buildIndex reads the room list and space hierarchy into a fresh index, the rooms
+// their network archived, and the home order with the network's own spaces among them marked. A free function, so it
 // provably touches nothing the mutex guards.
 func buildIndex(
 	ctx context.Context,
 	src scopeSource,
 	aliases map[domain.RoomID]string,
 	base domain.HomeOrder,
-) (map[domain.RoomID]domain.RoomFacts, domain.HomeOrder, error) {
+) (map[domain.RoomID]domain.RoomFacts, map[domain.RoomID]bool, domain.HomeOrder, error) {
 	rooms, err := src.Rooms(ctx)
 	if err != nil {
-		return nil, base, fmt.Errorf("scope: read rooms: %w", err)
+		return nil, nil, base, fmt.Errorf("scope: read rooms: %w", err)
 	}
 	spaces, err := src.Spaces(ctx)
 	if err != nil {
-		return nil, base, fmt.Errorf("scope: read spaces: %w", err)
+		return nil, nil, base, fmt.Errorf("scope: read spaces: %w", err)
 	}
 	order := base.WithManaged(spaces)
 	holders := make(map[domain.RoomID][]domain.Space, len(rooms))
@@ -223,10 +234,14 @@ func buildIndex(
 	}
 	places := domain.Places{Names: aliases, Order: order}
 	index := make(map[domain.RoomID]domain.RoomFacts, len(rooms))
+	archived := map[domain.RoomID]bool{}
 	for i := range rooms {
 		index[rooms[i].ID] = places.Facts(rooms[i], holders[rooms[i].ID])
+		if rooms[i].Archived {
+			archived[rooms[i].ID] = true
+		}
 	}
-	return index, order, nil
+	return index, archived, order, nil
 }
 
 // roomAliases indexes the configured room names by room ID.

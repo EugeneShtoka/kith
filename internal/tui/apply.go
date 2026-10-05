@@ -136,6 +136,7 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.prefs.external.focus = cfg.Clipboard.FocusCommand
 	m.prefs.codes.rules, m.prefs.codes.scope = derived.codeRules, derived.codeScope
 	m.rail.tags = derived.tags
+	m.rail.archives, m.rail.mirrored = derived.archives, derived.mirrored
 	m.rail.tagsRev++
 	if m.rail.tagMemo == nil {
 		m.rail.tagMemo = &tagMemo{}
@@ -175,6 +176,10 @@ type derivations struct {
 	// tags are the [[tag]]s, and tagWarnings the cycles among them (said, not fatal).
 	tags        domain.TagSet
 	tagWarnings []string
+	// archives is the tag each followed network's archive is; mirrored the networks
+	// whose archive kith's filing changes (fileTags).
+	archives map[domain.Protocol]string
+	mirrored map[domain.Protocol]string
 }
 
 // derive resolves a config into what the model reads, or returns the first error.
@@ -224,9 +229,12 @@ func derive(cfg config.Config) (derivations, error) {
 	if err != nil {
 		return derivations{}, err
 	}
+	archives, err := setup.Archives(cfg, tags) // validated above: never fails here
 	return derivations{
 		tags:        tags,
 		tagWarnings: tagWarnings,
+		archives:    archives,
+		mirrored:    setup.Mirrored(cfg, tags),
 		palette:     palette,
 		rules:       rules,
 		unreadLocal: source != config.UnreadNotifications,
@@ -236,7 +244,7 @@ func derive(cfg config.Config) (derivations, error) {
 		emoji:       newEmojiSet(tier, cfg.Display.Emoji.Extra),
 		codeRules:   codeRules,
 		codeScope:   codeScope,
-	}, nil
+	}, err
 }
 
 // applyDisplay changes the display settings and applies them.

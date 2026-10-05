@@ -101,6 +101,9 @@ func (l *live) changes(d tg.UpdateDispatcher) {
 			}
 		})
 	})
+	d.OnFolderPeers(func(ctx context.Context, _ tg.Entities, u *tg.UpdateFolderPeers) error {
+		return l.with(func(self int64) { l.a.folderPeers(ctx, self, u.FolderPeers) })
+	})
 	l.typing(d)
 }
 

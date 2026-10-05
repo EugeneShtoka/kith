@@ -19,6 +19,7 @@ func RoomToProto(r domain.Room) *v1.Room {
 		InvitedBy:   r.InvitedBy,
 		Replacement: string(r.Replacement),
 		Topic:       r.Topic,
+		Archived:    r.Archived,
 	}
 }
 
@@ -146,6 +147,7 @@ func ProtoToRoom(pb *v1.Room) domain.Room {
 		InvitedBy:   pb.GetInvitedBy(),
 		Replacement: domain.RoomID(pb.GetReplacement()),
 		Topic:       pb.GetTopic(),
+		Archived:    pb.GetArchived(),
 	}
 }
 

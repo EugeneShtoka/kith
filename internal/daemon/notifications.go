@@ -153,6 +153,8 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	// Validated already (Reload refuses a config that will not parse).
 	tags, _, _ := setup.Tags(cfg)
 	n.scope.SetTags(tags)
+	archives, _ := setup.Archives(cfg, tags)
+	n.scope.SetArchives(archives)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.notifier, n.limit = rules, notifier, limit

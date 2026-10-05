@@ -33,6 +33,8 @@ type Remote struct {
 	// follows carries links handed over by a second kith process; not part of
 	// api.Backend.
 	follows *stream[string]
+	// rooms says a network rewrote its rooms (RoomsChanged); not part of api.Backend.
+	rooms *stream[struct{}]
 	// attached reports losing and regaining the daemon (see Attached).
 	attached *stream[bool]
 	// client names this Remote to the daemon for its whole life. seated is set once
@@ -72,6 +74,7 @@ func newRemote(hc *http.Client) *Remote {
 		verifications: newStream[domain.Verification](),
 		activity:      newStream[domain.Activity](),
 		follows:       newStream[string](),
+		rooms:         newStream[struct{}](),
 		attached:      newStream[bool](),
 		client:        rand.Text(),
 		lost:          make(chan struct{}),

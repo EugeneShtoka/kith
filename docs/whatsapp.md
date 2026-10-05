@@ -67,6 +67,7 @@ command that links it.
 | Edits, deletions, reactions | both ways |
 | Photos, files, voice messages | shown and sent |
 | Read state and typing | both ways; marking read on the phone clears kith's count |
+| Archive | a chat archived on the phone is in kith's Archived tag; archiving in kith archives it on the phone when `[whatsapp.archive] mirror` is on ([configuration.md](configuration.md#follow-a-networks-own-archive)) |
 | Communities | a space holding its groups; what is in it is the admins' to decide, so kith does not offer to file rooms into it |
 | Channels you follow | rooms; the latest posts are fetched the first time; only a channel's admins post |
 

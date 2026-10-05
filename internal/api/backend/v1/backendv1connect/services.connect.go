@@ -46,6 +46,9 @@ const (
 	// BackendServiceMarkRoomUnreadProcedure is the fully-qualified name of the BackendService's
 	// MarkRoomUnread RPC.
 	BackendServiceMarkRoomUnreadProcedure = "/backend.v1.BackendService/MarkRoomUnread"
+	// BackendServiceSetRoomArchivedProcedure is the fully-qualified name of the BackendService's
+	// SetRoomArchived RPC.
+	BackendServiceSetRoomArchivedProcedure = "/backend.v1.BackendService/SetRoomArchived"
 	// BackendServiceStarMessageProcedure is the fully-qualified name of the BackendService's
 	// StarMessage RPC.
 	BackendServiceStarMessageProcedure = "/backend.v1.BackendService/StarMessage"
@@ -223,6 +226,9 @@ const (
 	// BackendServiceFollowStreamProcedure is the fully-qualified name of the BackendService's
 	// FollowStream RPC.
 	BackendServiceFollowStreamProcedure = "/backend.v1.BackendService/FollowStream"
+	// BackendServiceRoomsChangedProcedure is the fully-qualified name of the BackendService's
+	// RoomsChanged RPC.
+	BackendServiceRoomsChangedProcedure = "/backend.v1.BackendService/RoomsChanged"
 	// BackendServiceVerificationsProcedure is the fully-qualified name of the BackendService's
 	// Verifications RPC.
 	BackendServiceVerificationsProcedure = "/backend.v1.BackendService/Verifications"
@@ -319,6 +325,10 @@ type BackendServiceClient interface {
 	// MarkRoomUnread sets or clears m.marked_unread on a room, which every client on the
 	// account then sees.
 	MarkRoomUnread(context.Context, *connect.Request[v1.MarkRoomUnreadRequest]) (*connect.Response[v1.MarkRoomUnreadResponse], error)
+	// SetRoomArchived archives or unarchives a chat on its own network (Telegram's
+	// Archived folder, WhatsApp's archive), which every client of the account then sees.
+	// A network with no archive of its own refuses it.
+	SetRoomArchived(context.Context, *connect.Request[v1.SetRoomArchivedRequest]) (*connect.Response[v1.SetRoomArchivedResponse], error)
 	// StarMessage adds or removes one message's private bookmark.
 	StarMessage(context.Context, *connect.Request[v1.StarMessageRequest]) (*connect.Response[v1.StarMessageResponse], error)
 	// StarredIn lists the starred messages of one room, from the cache.
@@ -478,6 +488,9 @@ type BackendServiceClient interface {
 	Follow(context.Context, *connect.Request[v1.FollowRequest]) (*connect.Response[v1.FollowResponse], error)
 	// FollowStream is the receiving end, held open by the TUI.
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest]) (*connect.ServerStreamForClient[v1.FollowStreamResponse], error)
+	// RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
+	// renamed, archived on another device), so the client reads its room list again.
+	RoomsChanged(context.Context, *connect.Request[v1.RoomsChangedRequest]) (*connect.ServerStreamForClient[v1.RoomsChangedResponse], error)
 	// Verification
 	// Verifications streams verification steps (request, SAS, done, canceled).
 	Verifications(context.Context, *connect.Request[v1.VerificationsRequest]) (*connect.ServerStreamForClient[v1.VerificationsResponse], error)
@@ -591,6 +604,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceMarkRoomUnreadProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("MarkRoomUnread")),
+			connect.WithClientOptions(opts...),
+		),
+		setRoomArchived: connect.NewClient[v1.SetRoomArchivedRequest, v1.SetRoomArchivedResponse](
+			httpClient,
+			baseURL+BackendServiceSetRoomArchivedProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SetRoomArchived")),
 			connect.WithClientOptions(opts...),
 		),
 		starMessage: connect.NewClient[v1.StarMessageRequest, v1.StarMessageResponse](
@@ -977,6 +996,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("FollowStream")),
 			connect.WithClientOptions(opts...),
 		),
+		roomsChanged: connect.NewClient[v1.RoomsChangedRequest, v1.RoomsChangedResponse](
+			httpClient,
+			baseURL+BackendServiceRoomsChangedProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RoomsChanged")),
+			connect.WithClientOptions(opts...),
+		),
 		verifications: connect.NewClient[v1.VerificationsRequest, v1.VerificationsResponse](
 			httpClient,
 			baseURL+BackendServiceVerificationsProcedure,
@@ -1155,6 +1180,7 @@ type backendServiceClient struct {
 	markRead              *connect.Client[v1.MarkReadRequest, v1.MarkReadResponse]
 	markRoomsRead         *connect.Client[v1.MarkRoomsReadRequest, v1.MarkRoomsReadResponse]
 	markRoomUnread        *connect.Client[v1.MarkRoomUnreadRequest, v1.MarkRoomUnreadResponse]
+	setRoomArchived       *connect.Client[v1.SetRoomArchivedRequest, v1.SetRoomArchivedResponse]
 	starMessage           *connect.Client[v1.StarMessageRequest, v1.StarMessageResponse]
 	starredIn             *connect.Client[v1.StarredInRequest, v1.StarredInResponse]
 	canonicalParent       *connect.Client[v1.CanonicalParentRequest, v1.CanonicalParentResponse]
@@ -1219,6 +1245,7 @@ type backendServiceClient struct {
 	activityStream        *connect.Client[v1.ActivityStreamRequest, v1.ActivityStreamResponse]
 	follow                *connect.Client[v1.FollowRequest, v1.FollowResponse]
 	followStream          *connect.Client[v1.FollowStreamRequest, v1.FollowStreamResponse]
+	roomsChanged          *connect.Client[v1.RoomsChangedRequest, v1.RoomsChangedResponse]
 	verifications         *connect.Client[v1.VerificationsRequest, v1.VerificationsResponse]
 	startVerification     *connect.Client[v1.StartVerificationRequest, v1.StartVerificationResponse]
 	acceptVerification    *connect.Client[v1.AcceptVerificationRequest, v1.AcceptVerificationResponse]
@@ -1272,6 +1299,11 @@ func (c *backendServiceClient) MarkRoomsRead(ctx context.Context, req *connect.R
 // MarkRoomUnread calls backend.v1.BackendService.MarkRoomUnread.
 func (c *backendServiceClient) MarkRoomUnread(ctx context.Context, req *connect.Request[v1.MarkRoomUnreadRequest]) (*connect.Response[v1.MarkRoomUnreadResponse], error) {
 	return c.markRoomUnread.CallUnary(ctx, req)
+}
+
+// SetRoomArchived calls backend.v1.BackendService.SetRoomArchived.
+func (c *backendServiceClient) SetRoomArchived(ctx context.Context, req *connect.Request[v1.SetRoomArchivedRequest]) (*connect.Response[v1.SetRoomArchivedResponse], error) {
+	return c.setRoomArchived.CallUnary(ctx, req)
 }
 
 // StarMessage calls backend.v1.BackendService.StarMessage.
@@ -1594,6 +1626,11 @@ func (c *backendServiceClient) FollowStream(ctx context.Context, req *connect.Re
 	return c.followStream.CallServerStream(ctx, req)
 }
 
+// RoomsChanged calls backend.v1.BackendService.RoomsChanged.
+func (c *backendServiceClient) RoomsChanged(ctx context.Context, req *connect.Request[v1.RoomsChangedRequest]) (*connect.ServerStreamForClient[v1.RoomsChangedResponse], error) {
+	return c.roomsChanged.CallServerStream(ctx, req)
+}
+
 // Verifications calls backend.v1.BackendService.Verifications.
 func (c *backendServiceClient) Verifications(ctx context.Context, req *connect.Request[v1.VerificationsRequest]) (*connect.ServerStreamForClient[v1.VerificationsResponse], error) {
 	return c.verifications.CallServerStream(ctx, req)
@@ -1750,6 +1787,10 @@ type BackendServiceHandler interface {
 	// MarkRoomUnread sets or clears m.marked_unread on a room, which every client on the
 	// account then sees.
 	MarkRoomUnread(context.Context, *connect.Request[v1.MarkRoomUnreadRequest]) (*connect.Response[v1.MarkRoomUnreadResponse], error)
+	// SetRoomArchived archives or unarchives a chat on its own network (Telegram's
+	// Archived folder, WhatsApp's archive), which every client of the account then sees.
+	// A network with no archive of its own refuses it.
+	SetRoomArchived(context.Context, *connect.Request[v1.SetRoomArchivedRequest]) (*connect.Response[v1.SetRoomArchivedResponse], error)
 	// StarMessage adds or removes one message's private bookmark.
 	StarMessage(context.Context, *connect.Request[v1.StarMessageRequest]) (*connect.Response[v1.StarMessageResponse], error)
 	// StarredIn lists the starred messages of one room, from the cache.
@@ -1909,6 +1950,9 @@ type BackendServiceHandler interface {
 	Follow(context.Context, *connect.Request[v1.FollowRequest]) (*connect.Response[v1.FollowResponse], error)
 	// FollowStream is the receiving end, held open by the TUI.
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest], *connect.ServerStream[v1.FollowStreamResponse]) error
+	// RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
+	// renamed, archived on another device), so the client reads its room list again.
+	RoomsChanged(context.Context, *connect.Request[v1.RoomsChangedRequest], *connect.ServerStream[v1.RoomsChangedResponse]) error
 	// Verification
 	// Verifications streams verification steps (request, SAS, done, canceled).
 	Verifications(context.Context, *connect.Request[v1.VerificationsRequest], *connect.ServerStream[v1.VerificationsResponse]) error
@@ -2018,6 +2062,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceMarkRoomUnreadProcedure,
 		svc.MarkRoomUnread,
 		connect.WithSchema(backendServiceMethods.ByName("MarkRoomUnread")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceSetRoomArchivedHandler := connect.NewUnaryHandler(
+		BackendServiceSetRoomArchivedProcedure,
+		svc.SetRoomArchived,
+		connect.WithSchema(backendServiceMethods.ByName("SetRoomArchived")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceStarMessageHandler := connect.NewUnaryHandler(
@@ -2404,6 +2454,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("FollowStream")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceRoomsChangedHandler := connect.NewServerStreamHandler(
+		BackendServiceRoomsChangedProcedure,
+		svc.RoomsChanged,
+		connect.WithSchema(backendServiceMethods.ByName("RoomsChanged")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceVerificationsHandler := connect.NewServerStreamHandler(
 		BackendServiceVerificationsProcedure,
 		svc.Verifications,
@@ -2584,6 +2640,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceMarkRoomsReadHandler.ServeHTTP(w, r)
 		case BackendServiceMarkRoomUnreadProcedure:
 			backendServiceMarkRoomUnreadHandler.ServeHTTP(w, r)
+		case BackendServiceSetRoomArchivedProcedure:
+			backendServiceSetRoomArchivedHandler.ServeHTTP(w, r)
 		case BackendServiceStarMessageProcedure:
 			backendServiceStarMessageHandler.ServeHTTP(w, r)
 		case BackendServiceStarredInProcedure:
@@ -2712,6 +2770,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceFollowHandler.ServeHTTP(w, r)
 		case BackendServiceFollowStreamProcedure:
 			backendServiceFollowStreamHandler.ServeHTTP(w, r)
+		case BackendServiceRoomsChangedProcedure:
+			backendServiceRoomsChangedHandler.ServeHTTP(w, r)
 		case BackendServiceVerificationsProcedure:
 			backendServiceVerificationsHandler.ServeHTTP(w, r)
 		case BackendServiceStartVerificationProcedure:
@@ -2795,6 +2855,10 @@ func (UnimplementedBackendServiceHandler) MarkRoomsRead(context.Context, *connec
 
 func (UnimplementedBackendServiceHandler) MarkRoomUnread(context.Context, *connect.Request[v1.MarkRoomUnreadRequest]) (*connect.Response[v1.MarkRoomUnreadResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MarkRoomUnread is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SetRoomArchived(context.Context, *connect.Request[v1.SetRoomArchivedRequest]) (*connect.Response[v1.SetRoomArchivedResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SetRoomArchived is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) StarMessage(context.Context, *connect.Request[v1.StarMessageRequest]) (*connect.Response[v1.StarMessageResponse], error) {
@@ -3051,6 +3115,10 @@ func (UnimplementedBackendServiceHandler) Follow(context.Context, *connect.Reque
 
 func (UnimplementedBackendServiceHandler) FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest], *connect.ServerStream[v1.FollowStreamResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FollowStream is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RoomsChanged(context.Context, *connect.Request[v1.RoomsChangedRequest], *connect.ServerStream[v1.RoomsChangedResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RoomsChanged is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Verifications(context.Context, *connect.Request[v1.VerificationsRequest], *connect.ServerStream[v1.VerificationsResponse]) error {

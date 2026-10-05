@@ -57,6 +57,11 @@ func (r *Remote) MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unrea
 	return err
 }
 
+func (r *Remote) SetRoomArchived(ctx context.Context, roomID domain.RoomID, archived bool) error {
+	_, err := call(ctx, "archive", r.c.SetRoomArchived, &v1.SetRoomArchivedRequest{RoomId: string(roomID), Archived: archived})
+	return err
+}
+
 func (r *Remote) StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error {
 	_, err := call(ctx, "star message", r.c.StarMessage,
 		&v1.StarMessageRequest{RoomId: string(roomID), EventId: string(eventID), Starred: starred})

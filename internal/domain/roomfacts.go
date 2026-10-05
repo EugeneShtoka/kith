@@ -15,6 +15,9 @@ type RoomFacts struct {
 	Direct   bool
 	Protocol Protocol // the network, from the bridge that owns its space
 	Tags     []string // names of the [[tag]]s holding it, judged as a place (TagSet.Of)
+	// ArchivedIn is the tag its network's archive puts it in: the network archived it
+	// and kith follows that network's archive (Places.Archives). "" otherwise.
+	ArchivedIn string
 }
 
 // Places is what a room's facts depend on besides the room itself: the names the
@@ -26,6 +29,8 @@ type Places struct {
 	Names map[RoomID]string // [[display.name]], by room
 	Order HomeOrder         // how a room's spaces (and homes) are ranked
 	Tags  TagSet
+	// Archives is, per network whose archive kith follows, the tag that archive is.
+	Archives map[Protocol]string
 }
 
 // Facts is room as a list entry matches it. holders are the spaces holding it, in
@@ -51,6 +56,9 @@ func (p Places) Facts(room Room, holders []Space) RoomFacts {
 	}
 	if len(names) > 0 {
 		facts.Spaces = p.Order.WithManaged(holders).Sort(names)
+	}
+	if room.Archived {
+		facts.ArchivedIn = p.Archives[NetworkOf(string(room.ID))]
 	}
 	// Last: a tag's rule matches on the facts above.
 	facts.Tags = p.Tags.Of(facts)

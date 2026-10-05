@@ -36,17 +36,19 @@ func (c *Cache) Rooms(ctx context.Context) ([]domain.Room, error) {
 func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room, error) {
 	return collect(ctx, c.db, "rooms",
 		`SELECT r.id, r.name, r.is_direct, r.invited_by, r.heroes,
-		        COALESCE(t.topic, ''), COALESCE(u.replacement, '')
+		        COALESCE(t.topic, ''), COALESCE(u.replacement, ''), a.room_id IS NOT NULL
 		   FROM rooms r
 		   LEFT JOIN room_topics   t ON t.room_id = r.id
 		   LEFT JOIN room_upgrades u ON u.room_id = r.id
+		   LEFT JOIN room_archived a ON a.room_id = r.id
 		  WHERE r.membership = ?`,
 		func(rows *sql.Rows) (domain.Room, error) {
 			var (
 				id, name, invitedBy, heroes, topic, replacement string
 				isDirect                                        int
+				archived                                        bool
 			)
-			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement); err != nil {
+			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived); err != nil {
 				return domain.Room{}, err
 			}
 			room := domain.Room{
@@ -57,6 +59,7 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 				InvitedBy:   invitedBy,
 				Membership:  membershipFrom(membership),
 				Replacement: domain.RoomID(replacement),
+				Archived:    archived,
 			}
 			if heroes != "" {
 				if err := json.Unmarshal([]byte(heroes), &room.Members); err != nil {
@@ -78,6 +81,30 @@ func registerRoom(ctx context.Context, exec execer, roomID domain.RoomID) error 
 		return fmt.Errorf("db: register room %s: %w", roomID, err)
 	}
 	return nil
+}
+
+// SetArchived keeps which of rooms the network archived. A room the cache does not
+// hold yet is registered (registerRoom), as a message's is: a network may say a chat
+// is archived before anything lists it (WhatsApp's first sync).
+func (c *Cache) SetArchived(ctx context.Context, rooms map[domain.RoomID]bool) error {
+	if len(rooms) == 0 {
+		return nil
+	}
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		for id, archived := range rooms {
+			query := `DELETE FROM room_archived WHERE room_id = ?`
+			if archived {
+				if err := registerRoom(ctx, tx, id); err != nil {
+					return err
+				}
+				query = `INSERT INTO room_archived(room_id) VALUES(?) ON CONFLICT(room_id) DO NOTHING`
+			}
+			if _, err := tx.ExecContext(ctx, query, string(id)); err != nil {
+				return fmt.Errorf("db: keep %s archived=%v: %w", id, archived, err)
+			}
+		}
+		return nil
+	})
 }
 
 // execer is satisfied by *sql.DB and *sql.Tx.

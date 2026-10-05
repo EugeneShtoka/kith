@@ -21,6 +21,9 @@ message Room {
   // Topic is m.room.topic — the room's one-line description, and on a bridged room the
   // group description carried across by the bridge.
   string topic = 8;
+  // Archived is the network's own archive holding the room (Telegram's Archived
+  // folder, WhatsApp's archived chats); kith's archive tag follows it where configured.
+  bool archived = 9;
 }
 
 // Mention is one @-mention within a message (domain.Mention).

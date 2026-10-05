@@ -4,6 +4,7 @@ package config
 // instead of a Matrix bridge. It runs when it has an account.
 type WhatsApp struct {
 	Accounts []WhatsAppAccount `toml:"account"`
+	Archive  NetworkArchive    `toml:"archive"`
 }
 
 // WhatsAppAccount is one [[whatsapp.account]]: a phone number kith links to, under a

@@ -45,6 +45,7 @@ var (
 		route.RoomLister
 		route.Homes
 		route.ReadState
+		route.Archiver
 		route.Stars
 		route.SpamReports
 		route.History
@@ -84,6 +85,7 @@ var (
 		route.RoomLister
 		route.Homes
 		route.ReadState
+		route.Archiver
 		route.History
 		route.Sender
 		route.Typist

@@ -21,7 +21,11 @@ type railState struct {
 	// holding every room in it, derived with it.
 	tags      domain.TagSet
 	roomFacts map[domain.RoomID]domain.RoomFacts
-	spanning  map[string]bool
+	// archives is the tag each followed network's archive is (domain.Places), and
+	// mirrored the networks whose archive filing in kith changes too.
+	archives map[domain.Protocol]string
+	mirrored map[domain.Protocol]string
+	spanning map[string]bool
 	// homes is the order a room's homes are chosen in, derived with roomFacts from the
 	// config and the spaces (domain.HomeOrder).
 	homes domain.HomeOrder

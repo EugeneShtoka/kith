@@ -21,6 +21,11 @@ func (r *Router) MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unrea
 	return doOnRoom(r, roomID, "read state", func(c ReadState) error { return c.MarkRoomUnread(ctx, roomID, unread) })
 }
 
+// SetRoomArchived archives or unarchives a chat on its network.
+func (r *Router) SetRoomArchived(ctx context.Context, roomID domain.RoomID, archived bool) error {
+	return doOnRoom(r, roomID, "archive", func(c Archiver) error { return c.SetArchived(ctx, roomID, archived) })
+}
+
 // StarMessage adds or removes a bookmark.
 func (r *Router) StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error {
 	return doOnRoom(r, roomID, "bookmarks", func(c Stars) error { return c.StarMessage(ctx, roomID, eventID, starred) })

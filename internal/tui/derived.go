@@ -87,10 +87,12 @@ func placeFingerprint(f domain.RoomFacts) uint64 {
 	}
 	h = fnvMix(h, f.Protocol.String())
 	h = fnvMix(h, strconv.FormatBool(f.Direct))
-	// The tags holding it: a home that picks name rules (homesOf).
+	// The tags holding it: a home that picks name rules (homesOf); and the one its
+	// network's archive puts it in, which decides some of them.
 	for _, tag := range f.Tags {
 		h = fnvMix(h, tag)
 	}
+	h = fnvMix(h, f.ArchivedIn)
 	return h
 }
 

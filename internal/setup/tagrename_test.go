@@ -119,3 +119,48 @@ func TestDeletingATag(t *testing.T) {
 		t.Errorf("error %v does not say what names it", err)
 	}
 }
+
+// A network's archive goes with its tag: renamed with it (the default name too), and
+// let go when it is deleted.
+func TestANetworksArchiveGoesWithItsTag(t *testing.T) {
+	t.Parallel()
+	var cfg config.Config
+	cfg.Tags = []config.Tag{{Name: "Archived"}, {Name: "Old"}}
+	cfg.WhatsApp.Archive.Tag = "Old"
+	renamed := RenameTag(cfg, "archived", "Shelf")
+	if renamed.Telegram.Archive.TagName() != "Shelf" || renamed.WhatsApp.Archive.TagName() != "Old" {
+		t.Errorf("after renaming Archived: telegram %q, whatsapp %q", renamed.Telegram.Archive.TagName(), renamed.WhatsApp.Archive.TagName())
+	}
+	deleted := DeleteTag(cfg, "Old")
+	if deleted.WhatsApp.Archive.Tag != "" {
+		t.Errorf("after deleting Old, WhatsApp's archive is %q", deleted.WhatsApp.Archive.Tag)
+	}
+}
+
+// Each followed network's archive is the tag it names; a tag named that does not
+// exist is refused, the default name with no such tag follows nothing, and a network
+// not followed is left out.
+func TestArchivesAreTheTagsTheyName(t *testing.T) {
+	t.Parallel()
+	var cfg config.Config
+	cfg.Tags = []config.Tag{{Name: "Old"}}
+	off := false
+	cfg.Telegram.Archive.Tag = "old"
+	cfg.WhatsApp.Archive.Follow = &off
+	tags, _, err := Tags(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Archives(cfg, tags)
+	if err != nil || len(got) != 1 || got[domain.ProtocolTelegram] != "old" {
+		t.Errorf("archives = %v, %v", got, err)
+	}
+	cfg.WhatsApp.Archive.Follow = nil // the default "Archived", which no tag is
+	if got, err := Archives(cfg, tags); err != nil || len(got) != 1 {
+		t.Errorf("with the default name and no such tag: %v, %v", got, err)
+	}
+	cfg.WhatsApp.Archive.Tag = "Shelf"
+	if _, err := Archives(cfg, tags); err == nil {
+		t.Error("a tag that does not exist was taken")
+	}
+}

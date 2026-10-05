@@ -260,6 +260,8 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		a.onReceipt(a.lifetime(), account, e)
 	case *events.ChatPresence:
 		a.onTyping(a.lifetime(), account, client, e)
+	case *events.Archive:
+		a.onArchive(a.lifetime(), account, e)
 	case *events.LoggedOut:
 		a.log.Warn("the phone unlinked kith; run `kith login whatsapp "+account.Name+"` again",
 			"account", account.Name, "reason", e.Reason.String())
