@@ -1016,6 +1016,21 @@ enabled = false
 [slack]
 enabled = false
 
+# Telegram, linked directly: kith logs in to the account as a Telegram client of its
+# own, with no Matrix bridge. It runs when it has an account; `:login telegram` inside
+# kith sets one up. Each [[telegram.account]] is one phone number: `name` is what
+# `kith login telegram <name>` takes. Logging in asks first for an app's api_id and
+# api_hash (my.telegram.org → API development tools), kept with the session in the
+# system keyring; a build that carries kith's own app uses it when they are left
+# empty.
+#
+# Log in here or through a bridge, not both: both at once show every chat twice.
+# Telegram tells your other sessions about the new login.
+#
+#   [[telegram.account]]
+#   name = "personal"
+#   phone = "+359 88 000 0000"
+
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
 # data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,
 #                                    dictionaries and models

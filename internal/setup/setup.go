@@ -50,6 +50,7 @@ func Validate(cfg config.Config) error {
 		errOf(LogTarget(cfg.Log)),
 		WhatsAppAccounts(cfg.WhatsApp),
 		SlackAccounts(cfg.Slack),
+		TelegramAccounts(cfg.Telegram),
 		tagsCheck(cfg),
 	} {
 		if err != nil {

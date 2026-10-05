@@ -211,6 +211,19 @@ linters:
             - "google.golang.org/protobuf"
             - "modernc.org/sqlite"
 
+        # The Telegram adapter. Only the daemon links it; its credentials reach it
+        # through an interface the daemon backs with the keyring.
+        telegram-is-the-adapter:
+          files:
+            - "**/internal/telegram/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/telegram"
+
         # The Slack adapter: the only package that imports slack-go (Beeper's fork, see
         # go.mod). Only the daemon links it; its credentials reach it through an
         # interface the daemon backs with the keyring.
@@ -491,6 +504,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/EugeneShtoka/kith/internal/setup"
             - "github.com/EugeneShtoka/kith/internal/slack"
+            - "github.com/EugeneShtoka/kith/internal/telegram"
             - "github.com/EugeneShtoka/kith/internal/whatsapp"
             - "github.com/adrg/xdg"
 
