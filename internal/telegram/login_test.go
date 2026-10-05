@@ -3,8 +3,10 @@ package telegram
 import (
 	"context"
 	"errors"
+	"maps"
 	"math/big"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +21,8 @@ import (
 	"github.com/gotd/td/transport"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/apitest"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // fakeTelegram is Telegram's login, served by gotd's in-process MTProto server: one
@@ -162,55 +166,42 @@ func srpParameters() *tg.AccountPassword {
 	return pwd
 }
 
-var testApp = api.TelegramApp{ID: 1, Hash: "0123456789abcdef0123456789abcdef"}
+var testApp = App{ID: 1, Hash: "0123456789abcdef0123456789abcdef"}
 
-// loginOf runs an adapter for home over secrets and has the fake send home a code.
-func loginOf(t *testing.T, f *fakeTelegram, secrets *memSecrets) (*Adapter, *sessions) {
+// logIn runs an adapter for home over secrets, and home's login over the fake,
+// answering from answers.
+func logIn(t *testing.T, f *fakeTelegram, secrets *memSecrets, answers map[string][]string) (*Adapter, *sessions, *apitest.Talk, api.LoginEnd, error) {
 	t.Helper()
 	a, heard := started(t, secrets, home)
-	app, err := appFor(testApp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sent, err := a.beginLogin(t.Context(), home, app, f.dial)
-	if err != nil || sent.Via != "your Telegram app" {
-		t.Fatalf("code sent = (%+v, %v), want to the app", sent, err)
-	}
-	return a, heard
+	talk := &apitest.Talk{Answers: answers}
+	end, err := a.login(t.Context(), home, testApp, talk, f.dial)
+	return a, heard, talk, end, err
 }
 
-// A login takes the code, then — the account having two-step verification — asks
-// for the password; a wrong code or password is tried again. Signed in, the
-// credentials are kept and the account connects as itself.
+// A login asks for the code, then — the account having two-step verification — the
+// password; a missing or wrong code or password is asked for again, saying why.
+// Signed in, the credentials are kept and the account connects as itself.
 func TestALoginTakesTheCodeThenThePassword(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
 	f.set(func(f *fakeTelegram) { f.password, f.rejectPasswords = true, 1 })
 	secrets := &memSecrets{values: map[string]string{}}
-	a, heard := loginOf(t, f, secrets)
-	ctx := t.Context()
-
-	steps := []struct {
-		code, password string
-		want           error
-	}{
-		{"", "", errNeedCode},
-		{"11111", "", api.ErrBadCode},
-		{"12345", "", api.ErrPasswordNeeded},
-		{"12345", "", api.ErrPasswordNeeded}, // the code is taken; a password is still due
-		{"", "wrong", api.ErrBadPassword},
+	a, heard, talk, end, err := logIn(t, f, secrets, map[string][]string{
+		"code":     {"", "11111", "12345"},
+		"password": {"wrong", "right"},
+	})
+	if err != nil || end.Done != "logged in to Telegram as Dana Lee — its chats arrive over the next minutes" {
+		t.Fatalf("login = (%+v, %v)", end, err)
 	}
-	for _, step := range steps {
-		if _, err := a.SignInTelegram(ctx, "home", step.code, step.password); !errors.Is(err, step.want) {
-			t.Fatalf("answer %+v = %v, want %v", step, err, step.want)
-		}
+	asked, notes := talk.Asked, talk.Notes
+	if want := []string{"code", "code", "code", "password", "password"}; !slices.Equal(asked, want) {
+		t.Errorf("asked %v, want %v", asked, want)
 	}
-	if _, ok, _ := loadCredentials(secrets, home.Digits); ok {
-		t.Fatal("credentials kept before the login finished")
-	}
-	in, err := a.SignInTelegram(ctx, "home", "", "right")
-	if err != nil || in.Name != "Dana Lee" || in.ID != "telegram:42" {
-		t.Fatalf("signed in = (%+v, %v), want Dana Lee, telegram:42", in, err)
+	wantNotes := []string{"Telegram sent a code to your Telegram app", "the code Telegram sent is needed",
+		"that is not the code Telegram sent; try again", "the account has two-step verification",
+		"that is not the password; try again"}
+	if !slices.Equal(notes, wantNotes) {
+		t.Errorf("notes %q, want %q", notes, wantNotes)
 	}
 	creds, ok, err := loadCredentials(secrets, home.Digits)
 	if !ok || err != nil || creds.User != 42 || creds.App.ID != testApp.ID || len(creds.Session) == 0 {
@@ -220,29 +211,55 @@ func TestALoginTakesTheCodeThenThePassword(t *testing.T) {
 	if me := a.Me(); !slices.Equal(me, []string{"telegram:42"}) {
 		t.Errorf("Me = %v, want telegram:42", me)
 	}
-	if _, err := a.SignInTelegram(ctx, "home", "12345", ""); !errors.Is(err, errNoLogin) {
-		t.Errorf("an answer after the login ended = %v, want no login under way", err)
+}
+
+// A login asks for an app until one will do: half an app, a malformed one, or none in
+// a build without kith's own, is asked for again.
+func TestALoginAsksForAnAppUntilOneWillDo(t *testing.T) {
+	t.Parallel()
+	answers := map[string][]string{
+		"api_id":   {"5", "x", "7"},
+		"api_hash": {"", "0123456789abcdef0123456789abcdef", "0123456789abcdef0123456789abcdef"},
+	}
+	talk := &apitest.Talk{Answers: answers}
+	app, err := askApp(t.Context(), talk)
+	if err != nil || app != (App{ID: 7, Hash: "0123456789abcdef0123456789abcdef"}) {
+		t.Fatalf("app = (%+v, %v), want the third", app, err)
+	}
+	if notes := talk.Notes; len(notes) != 2 {
+		t.Errorf("notes %q, want two refusals", notes)
+	}
+	if _, ok := BuiltIn(); !ok {
+		talk := &apitest.Talk{Answers: map[string][]string{"api_id": {""}, "api_hash": {""}}}
+		if _, err := askApp(t.Context(), talk); !errors.Is(err, apitest.ErrNoAnswer) {
+			t.Errorf("no app in a build without one = %v, want asked again", err)
+		}
 	}
 }
 
-// An answer with no login under way, or for no configured account, is refused; and a
-// login needs an app.
-func TestALoginNeedsItsCodeSentAndAnApp(t *testing.T) {
+// A new account is asked for by number and name, written into the config, and logged
+// in under its name.
+func TestANewAccountIsSetUpFirst(t *testing.T) {
 	t.Parallel()
-	a, _ := started(t, &memSecrets{values: map[string]string{}}, home)
-	if _, err := a.SignInTelegram(t.Context(), "home", "12345", ""); !errors.Is(err, errNoLogin) {
-		t.Errorf("an answer before the code = %v, want no login under way", err)
+	a := New(nil, &memSecrets{values: map[string]string{}}, []Account{work}, nil)
+	talk := &apitest.Talk{Answers: map[string][]string{
+		"phone": {"+1 202 555 0100", "+44 7700 900000"}, "name": {""},
+		"api_id": {"x"}, "api_hash": {""},
+	}}
+	talk.OnConfigure = func(r api.LoginRecord) error {
+		a.useAccounts([]Account{work, {Name: r.Values["name"], Digits: domain.PhoneDigits(r.Values["phone"])}})
+		return nil
 	}
-	if _, err := a.SendTelegramCode(t.Context(), "nobody", testApp); !errors.Is(err, ErrNoAccount) {
-		t.Errorf("a code for nobody = %v, want no such account", err)
+	_, err := a.Login(t.Context(), "", talk)
+	if !errors.Is(err, apitest.ErrNoAnswer) {
+		t.Fatalf("login = %v, want it to reach the app's second ask", err)
 	}
-	if _, err := a.SendTelegramCode(t.Context(), "home", api.TelegramApp{ID: 5}); !errors.Is(err, errHalfApp) {
-		t.Errorf("an api_id without its hash = %v, want refused", err)
+	if len(talk.Written) != 1 || talk.Written[0].Table != "telegram.account" ||
+		!maps.Equal(talk.Written[0].Values, map[string]string{"name": "gb", "phone": "+44 7700 900000"}) || talk.Account != "gb" {
+		t.Errorf("written %+v, named %q; want gb at +44 7700 900000", talk.Written, talk.Account)
 	}
-	if _, ok := BuiltIn(); !ok {
-		if _, err := a.SendTelegramCode(t.Context(), "home", api.TelegramApp{}); !errors.Is(err, errNoBuiltIn) {
-			t.Errorf("no app in a build without one = %v, want refused", err)
-		}
+	if notes := talk.Notes; len(notes) == 0 || !strings.Contains(notes[0], "work") {
+		t.Errorf("notes %q, want work's number refused", notes)
 	}
 }
 
@@ -251,8 +268,8 @@ func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
 	secrets := &memSecrets{values: map[string]string{}}
-	a, heard := loginOf(t, f, secrets)
-	if _, err := a.SignInTelegram(t.Context(), "home", "12345", ""); err != nil {
+	a, heard, _, _, err := logIn(t, f, secrets, map[string][]string{"code": {"12345"}})
+	if err != nil {
 		t.Fatal(err)
 	}
 	connected(t, heard, "home")
@@ -271,5 +288,36 @@ func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 	}
 	if s, said := heard.of("home"); s != LoggedOut || said == "" {
 		t.Errorf("home = %v %q, want logged out saying how to log in", s, said)
+	}
+}
+
+// A login keeps its session only once gotd has stored it, however late that comes
+// beside the sign-in: read before, it would be empty.
+func TestALoginWaitsForItsSessionToBeStored(t *testing.T) {
+	t.Parallel()
+	s := newLoginSession()
+	got := make(chan []byte, 1)
+	go func() {
+		data, err := s.saved(t.Context())
+		if err != nil {
+			t.Error(err)
+		}
+		got <- data
+	}()
+	select {
+	case <-got:
+		t.Fatal("the session was read before it was stored")
+	case <-time.After(20 * time.Millisecond):
+	}
+	if err := s.StoreSession(t.Context(), []byte(`{"Version":1,"Data":{"DC":2}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if data := <-got; len(data) == 0 {
+		t.Error("the stored session read back empty")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := newLoginSession().saved(ctx); err == nil {
+		t.Error("a session never stored was read")
 	}
 }

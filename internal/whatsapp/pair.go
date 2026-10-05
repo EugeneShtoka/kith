@@ -20,10 +20,9 @@ var errNoAccount = errors.New("whatsapp: no such [[whatsapp.account]]")
 // phone with two kith devices.
 var errAlreadyLinked = errors.New("whatsapp: already linked (unlink kith on the phone, under Linked devices, to link it anew)")
 
-// PairWhatsApp links one configured account as a new linked device (api.WhatsAppLink).
-// code hears the code to type on the phone; the account then runs as if it had been
-// linked at startup.
-func (a *Adapter) PairWhatsApp(ctx context.Context, name string, code func(string) error) (string, error) {
+// pair links one configured account as a new linked device. code hears the code to
+// type on the phone; the account then runs as if it had been linked at startup.
+func (a *Adapter) pair(ctx context.Context, name string, code func(string) error) (string, error) {
 	accounts := a.accountsNow()
 	i := slices.IndexFunc(accounts, func(acc Account) bool { return acc.Name == name })
 	if i < 0 {

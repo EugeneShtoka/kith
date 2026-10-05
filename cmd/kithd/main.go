@@ -32,8 +32,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/schedule"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
-	"github.com/EugeneShtoka/kith/internal/slack"
-	"github.com/EugeneShtoka/kith/internal/telegram"
 	"github.com/EugeneShtoka/kith/internal/whatsapp"
 )
 
@@ -258,10 +256,6 @@ type served struct {
 	// whatsappStore is WhatsApp's session store, closed with the backend; nil when
 	// it would not open.
 	whatsappStore *whatsapp.Store
-	// whatsapp, slack and telegram are those networks, for their logins.
-	whatsapp *whatsapp.Adapter
-	slack    *slack.Adapter
-	telegram *telegram.Adapter
 }
 
 var _ api.Backend = served{}
@@ -284,44 +278,21 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	}
 	return served{
 		Router: router, Service: service, matrix: matrix, networks: networks, whatsappStore: whatsappStore,
-		whatsapp: networkOf[*whatsapp.Adapter](networks), slack: networkOf[*slack.Adapter](networks),
-		telegram: networkOf[*telegram.Adapter](networks),
-		dataDir:  storage.DataDir, schedulePath: storage.SchedulePath(),
+		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),
 	}
 }
 
-// whatsAppLink is what pairs WhatsApp accounts: nil, not a nil adapter, when its store
-// would not open, so the handler can tell.
-func (s served) whatsAppLink() api.WhatsAppLink {
-	if s.whatsapp == nil {
-		return nil
-	}
-	return s.whatsapp
-}
-
-// slackSignIn is what signs Slack in (nil, not a nil adapter, were it not built).
-func (s served) slackSignIn() api.SlackSignIn {
-	if s.slack == nil {
-		return nil
-	}
-	return s.slack
-}
-
-// telegramLogin is what logs Telegram in (nil, not a nil adapter, were it not built).
-func (s served) telegramLogin() api.TelegramLogin {
-	if s.telegram == nil {
-		return nil
-	}
-	return s.telegram
-}
-
-// matrixLogin is what logs Matrix in: nil, not a nil adapter, when the config names
-// no Matrix account, so the handler can tell.
-func (s served) matrixLogin() api.MatrixLogin {
+// loginLeaders is every network's login, and, with no Matrix account in the config,
+// Matrix's setting up.
+func (s served) loginLeaders() []api.LoginLeader {
+	leaders := make([]api.LoginLeader, 0, len(s.networks)+1)
 	if s.matrix == nil {
-		return nil
+		leaders = append(leaders, matrixSetup{})
 	}
-	return s.matrix
+	for _, n := range s.networks {
+		leaders = append(leaders, n)
+	}
+	return leaders
 }
 
 // Close stops the local engines and closes the WhatsApp store (after Stop, which
@@ -465,10 +436,7 @@ func serve(
 		State:         w.state,
 		Notifications: w.notifications,
 		Scheduler:     scheduler,
-		WhatsApp:      backend.whatsAppLink(),
-		Matrix:        backend.matrixLogin(),
-		Slack:         backend.slackSignIn(),
-		Telegram:      backend.telegramLogin(),
+		Logins:        daemon.NewLogins(ctx, backend.loginLeaders),
 		Log:           log,
 		Reload:        reloader(configPath, relevel, cutoff, backend, w.notifications),
 	})

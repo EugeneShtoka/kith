@@ -1,7 +1,6 @@
 package setup_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -42,24 +41,6 @@ func TestSlackAccountsAreNamedAndDistinct(t *testing.T) {
 	} {
 		if got := (config.SlackAccount{Workspace: in}).Address(); got != want {
 			t.Errorf("Address(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
-func TestSlackLoginPicksTheNamedOrOnlyAccount(t *testing.T) {
-	t.Parallel()
-	work := config.SlackAccount{Name: "work", Workspace: "acme"}
-	club := config.SlackAccount{Name: "club", Workspace: "chess-club"}
-	if got, err := setup.SlackAccount(config.Slack{Accounts: []config.SlackAccount{work}}, ""); err != nil || got != work {
-		t.Errorf("the only account, unnamed = (%v, %v)", got, err)
-	}
-	both := config.Slack{Accounts: []config.SlackAccount{work, club}}
-	if got, err := setup.SlackAccount(both, "club"); err != nil || got != club {
-		t.Errorf("named = (%v, %v)", got, err)
-	}
-	for _, name := range []string{"", "nope"} {
-		if _, err := setup.SlackAccount(both, name); !errors.Is(err, setup.ErrNoSlackAccount) {
-			t.Errorf("%q: %v, want ErrNoSlackAccount", name, err)
 		}
 	}
 }

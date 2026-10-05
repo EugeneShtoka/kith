@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -38,8 +39,11 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}}}
 	backend := servedFor(t, cfg, domain.Session{})
-	if backend.matrix != nil || backend.matrixLogin() != nil {
+	if backend.matrix != nil {
 		t.Error("a Matrix adapter without a Matrix account in the config")
+	}
+	if _, ok := backend.loginLeaders()[0].(matrixSetup); !ok {
+		t.Error("no way to set Matrix up without a Matrix account")
 	}
 	ctx := context.Background()
 	if _, err := backend.Rooms(ctx); err != nil {
@@ -67,8 +71,12 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("networks = %v, want %v", got, want)
 	}
-	if backend.whatsAppLink() == nil || backend.slackSignIn() == nil || backend.telegramLogin() == nil {
-		t.Error("a network built without accounts cannot log one in")
+	var logins []string
+	for _, l := range backend.loginLeaders() {
+		logins = append(logins, l.LoginNetwork().Network)
+	}
+	if want := []string{"matrix", "whatsapp", "slack", "telegram"}; !slices.Equal(logins, want) {
+		t.Errorf("logins = %v, want %v (Matrix set up, the others logged in)", logins, want)
 	}
 	if got := expected(context.Background(), slog.New(slog.DiscardHandler), backend); len(got) != 0 {
 		t.Errorf("expected = %v with no account, want nothing to wait for", got)
@@ -83,7 +91,7 @@ func TestMatrixIsWaitedForOnlyWithASavedSession(t *testing.T) {
 	ctx := context.Background()
 
 	none := servedFor(t, cfg, domain.Session{})
-	if none.matrix == nil || none.matrixLogin() == nil || none.matrix.LoggedIn() {
+	if none.matrix == nil || none.loginLeaders()[0] != api.LoginLeader(none.matrix) || none.matrix.LoggedIn() {
 		t.Fatal("want a Matrix adapter, logged out, that can be logged in")
 	}
 	if got := expected(ctx, slog.New(slog.DiscardHandler), none); len(got) != 0 {

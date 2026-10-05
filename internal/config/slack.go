@@ -1,11 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
 
 var (
+	// slackAddress is a Slack workspace's address: the part before ".slack.com".
+	slackAddress = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	// slackTeamID is a workspace's ID, as app.slack.com links carry it.
 	slackTeamID = regexp.MustCompile(`^T[A-Z0-9]{8,}$`)
 	// slackClientLink is a link into the Slack web client: app.slack.com/client/<team>/….
@@ -45,4 +48,13 @@ func (a SlackAccount) Address() string {
 	w = strings.TrimPrefix(strings.TrimPrefix(w, "https://"), "http://")
 	w = strings.TrimSuffix(w, "/")
 	return strings.TrimSuffix(w, ".slack.com")
+}
+
+// CheckSlackAddress refuses what is no workspace address or ID (Address's result).
+func CheckSlackAddress(address string) error {
+	if !slackAddress.MatchString(address) && !IsSlackTeamID(address) {
+		return fmt.Errorf("%q is not a Slack workspace — write its address (acme, for acme.slack.com), "+
+			"or paste a link from the web client (app.slack.com/client/T…)", address)
+	}
+	return nil
 }

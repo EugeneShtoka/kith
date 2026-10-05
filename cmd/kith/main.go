@@ -373,63 +373,6 @@ func openLogTo(d logging.Destination) (*slog.Logger, func()) {
 	}
 }
 
-// runLogin logs the config's Matrix user in through the daemon, starting it if need
-// be: the daemon saves the session in the OS keyring and starts Matrix on it. The
-// password is never written to disk or argv.
-func runLogin(args []string) error {
-	if len(args) > 0 && args[0] == "whatsapp" {
-		return runWhatsAppLogin(args[1:])
-	}
-	if len(args) > 0 && args[0] == "slack" {
-		return runSlackLogin(args[1:])
-	}
-	if len(args) > 0 && args[0] == "telegram" {
-		return runTelegramLogin(args[1:])
-	}
-	fs := flag.NewFlagSet("login", flag.ExitOnError)
-	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
-	profile := fs.String("profile", "", "which [[profile]] account to log in (default: the first one)")
-	if err := fs.Parse(args); err != nil {
-		return fmt.Errorf("parse login flags: %w", err)
-	}
-
-	_, cfg, ready, err := loadConfig(*configPath, *profile)
-	if err != nil || !ready {
-		return err
-	}
-	if !cfg.HasMatrix() {
-		return errors.New("set `homeserver` and `user` in the config to log in to Matrix " +
-			"(for WhatsApp, run `kith login whatsapp`; for Slack, `kith login slack`; for Telegram, `kith login telegram`)")
-	}
-	password, err := readSecret(fmt.Sprintf("Password for %s", cfg.User))
-	if err != nil {
-		return err
-	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	at, err := reachForLogin(ctx, *configPath, *profile)
-	if err != nil || at.backend == nil {
-		return err
-	}
-	defer at.backend.Stop()
-	in, err := at.backend.LoginMatrix(ctx, password)
-	if errors.Is(err, api.ErrNetworkOff) {
-		return errors.New("kithd was started before the config named a Matrix account; " +
-			"restart it (`systemctl --user restart kithd`, or stop it and run kith) and log in again")
-	}
-	if err != nil {
-		return fmt.Errorf("login: %w", err)
-	}
-	if in.Started {
-		fmt.Printf("kith: logged in as %s (device %s); Matrix is syncing now.\n", in.UserID, in.DeviceID)
-	} else {
-		fmt.Printf("kith: logged in as %s (device %s). kithd was already running Matrix on an older "+
-			"session, so it uses this one from its next start.\n", in.UserID, in.DeviceID)
-	}
-	return nil
-}
-
 // loadConfig resolves, loads, selects the profile and validates the config. On first
 // run it writes a documented default and returns ready=false.
 func loadConfig(configPath, profile string) (path string, cfg config.Config, ready bool, err error) {
@@ -532,6 +475,15 @@ func printRecoveryKey(made domain.KeyBackup) {
 
 // readSecret reads one hidden line from an interactive terminal.
 func readSecret(prompt string) (string, error) {
+	secret, err := readSecretOrEmpty(prompt)
+	if err == nil && secret == "" {
+		return "", errors.New("empty input")
+	}
+	return secret, err
+}
+
+// readSecretOrEmpty is readSecret taking an empty answer.
+func readSecretOrEmpty(prompt string) (string, error) {
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
 		return "", errors.New("stdin is not a terminal; run kith interactively to enter secrets")
@@ -542,11 +494,7 @@ func readSecret(prompt string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read secret: %w", err)
 	}
-	secret := strings.TrimRight(string(raw), "\r\n")
-	if secret == "" {
-		return "", errors.New("empty input")
-	}
-	return secret, nil
+	return strings.TrimRight(string(raw), "\r\n"), nil
 }
 
 // exportRoomKeys writes this device's room keys, encrypted with a passphrase, to path.

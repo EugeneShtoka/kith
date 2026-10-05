@@ -3,8 +3,6 @@ package telegram
 import (
 	"errors"
 	"strconv"
-
-	"github.com/EugeneShtoka/kith/internal/api"
 )
 
 // App is a Telegram app as my.telegram.org registers one: every client identifies as
@@ -39,12 +37,11 @@ var (
 )
 
 // appFor is the app a login goes through: the one given, else kith's own.
-func appFor(given api.TelegramApp) (App, error) {
-	app := App{ID: given.ID, Hash: given.Hash}
+func appFor(app App) (App, error) {
 	switch {
 	case app.Valid():
 		return app, nil
-	case given.ID != 0 || given.Hash != "":
+	case app.ID != 0 || app.Hash != "":
 		return App{}, errHalfApp
 	}
 	if builtin, ok := BuiltIn(); ok {

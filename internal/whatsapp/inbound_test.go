@@ -263,7 +263,7 @@ func TestAccountsChangeWithoutARestart(t *testing.T) {
 	if got := a.accountsNow(); len(got) != 1 || got[0] != work {
 		t.Errorf("accounts = %v", got)
 	}
-	if _, err := a.PairWhatsApp(ctx, "home", func(string) error { return nil }); !errors.Is(err, errNoAccount) {
+	if _, err := a.pair(ctx, "home", func(string) error { return nil }); !errors.Is(err, errNoAccount) {
 		t.Errorf("pairing a removed account = %v", err)
 	}
 }

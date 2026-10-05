@@ -978,8 +978,8 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleConfigSaved(msg))
 	case configReloadedMsg:
 		return answered(m.handleConfigReloaded(msg))
-	case loginMsg:
-		return answered(m.handleLoginMsg(msg))
+	case loginMsg, loginNetworksMsg:
+		return answered(m.handleLogin(msg))
 	case dndMsg:
 		return answered(m.handleDND(msg))
 	case markedReadMsg:

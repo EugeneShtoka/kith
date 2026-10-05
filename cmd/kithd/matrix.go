@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -221,17 +224,17 @@ func (m *matrixAdapter) run(ctx context.Context, prepare func(context.Context) e
 // LoginMatrix logs the config's user in with password and saves the session
 // (api.MatrixLogin). A Matrix waiting for one starts on it at once; one already
 // running keeps its session, and the new one is used from the next start.
-func (m *matrixAdapter) LoginMatrix(ctx context.Context, password string) (api.MatrixLoggedIn, error) {
+func (m *matrixAdapter) LoginMatrix(ctx context.Context, password string) (matrixLoggedIn, error) {
 	m.logins.Lock()
 	defer m.logins.Unlock()
 	sess, err := matrix.New(nil).Login(ctx, m.account.homeserver, m.account.user, password)
 	if err != nil {
-		return api.MatrixLoggedIn{}, fmt.Errorf("log in as %s: %w", m.account.user, err)
+		return matrixLoggedIn{}, fmt.Errorf("log in as %s: %w", m.account.user, err)
 	}
 	if err = session.Save(m.account.crypto.keys, sess, m.account.allowTokenFile); err != nil {
-		return api.MatrixLoggedIn{}, fmt.Errorf("save session: %w", err)
+		return matrixLoggedIn{}, fmt.Errorf("save session: %w", err)
 	}
-	out := api.MatrixLoggedIn{UserID: sess.UserID, DeviceID: sess.DeviceID}
+	out := matrixLoggedIn{UserID: sess.UserID, DeviceID: sess.DeviceID}
 	started, err := m.handOver(ctx, sess)
 	if err != nil {
 		return out, err
@@ -239,6 +242,109 @@ func (m *matrixAdapter) LoginMatrix(ctx context.Context, password string) (api.M
 	out.Started = started
 	m.log.Info("logged in to Matrix", "device", sess.DeviceID, "started", out.Started)
 	return out, nil
+}
+
+// matrixLoggedIn is a Matrix login's outcome: Started when Matrix started on the
+// session at once, false when it was saved for the daemon's next start.
+type matrixLoggedIn struct {
+	UserID, DeviceID string
+	Started          bool
+}
+
+// LoginNetwork is Matrix as a login lists it: the config's account.
+func (m *matrixAdapter) LoginNetwork() api.LoginNetwork {
+	return api.LoginNetwork{
+		Network: "matrix", Label: "Matrix", Detail: "an account on a homeserver",
+		Accounts: []api.LoginAccount{{Name: m.account.user, Detail: m.account.homeserver}},
+	}
+}
+
+// Login logs the config's account in with its password, asked again when refused. A
+// session the running daemon cannot start on (its store opened already) starts with
+// the next one.
+func (m *matrixAdapter) Login(ctx context.Context, account string, talk api.LoginTalk) (api.LoginEnd, error) {
+	if account != m.account.user {
+		return api.LoginEnd{}, fmt.Errorf("%w: this daemon runs Matrix as %s; another account is a [[profile]] "+
+			"(`kith login --profile <name>`)", api.ErrNotOnNetwork, m.account.user)
+	}
+	note := ""
+	for {
+		got, err := talk.Ask(ctx, note, api.LoginField{Key: "password", Label: "password", Secret: true,
+			Help: "The password of " + m.account.user + ". kith logs in as a new session and keeps that session " +
+				"in the system keyring, not the password."})
+		if err != nil {
+			return api.LoginEnd{}, err
+		}
+		in, err := m.LoginMatrix(ctx, got["password"])
+		if err != nil {
+			if ctx.Err() != nil {
+				return api.LoginEnd{}, err
+			}
+			note = err.Error()
+			continue
+		}
+		return api.LoginEnd{Done: "logged in to Matrix as " + in.UserID, Restart: !in.Started}, nil
+	}
+}
+
+// matrixSetup sets a Matrix account up in a config that names none: its homeserver
+// and user are written, and the daemon restarted to run Matrix, whose encryption
+// store opens at start; the login then goes on there.
+type matrixSetup struct{}
+
+var matrixIDShape = regexp.MustCompile(`^@[^:\s]+:\S+$`)
+
+// LoginNetwork is Matrix, with no account yet.
+func (matrixSetup) LoginNetwork() api.LoginNetwork {
+	return api.LoginNetwork{Network: "matrix", Label: "Matrix", Detail: "an account on a homeserver"}
+}
+
+// Login asks for the homeserver and the Matrix ID, and has them written.
+func (matrixSetup) Login(ctx context.Context, _ string, talk api.LoginTalk) (api.LoginEnd, error) {
+	var homeserver, note string
+	for {
+		got, err := talk.Ask(ctx, note, api.LoginField{Key: "homeserver", Label: "homeserver", Value: "https://matrix.org",
+			Help: "Your homeserver's address: https://matrix.org for an account there, or your own server's — what " +
+				"follows the colon in your Matrix ID (@you:matrix.org)."})
+		if err != nil {
+			return api.LoginEnd{}, err
+		}
+		homeserver, note = strings.TrimSpace(got["homeserver"]), ""
+		if !strings.Contains(homeserver, "://") {
+			homeserver = "https://" + homeserver
+		}
+		if u, err := url.Parse(homeserver); err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+			note = "write the homeserver's address, as https://matrix.org"
+			continue
+		}
+		homeserver = strings.TrimSuffix(homeserver, "/")
+		break
+	}
+	var user string
+	for {
+		got, err := talk.Ask(ctx, note, api.LoginField{Key: "user", Label: "Matrix ID",
+			Help: "Your Matrix ID: @you:matrix.org. The name alone is taken as on this homeserver."})
+		if err != nil {
+			return api.LoginEnd{}, err
+		}
+		user = strings.TrimSpace(got["user"])
+		if !strings.Contains(user, ":") {
+			host := ""
+			if u, err := url.Parse(homeserver); err == nil {
+				host = u.Hostname()
+			}
+			user = "@" + strings.TrimPrefix(user, "@") + ":" + host
+		}
+		if matrixIDShape.MatchString(user) {
+			break
+		}
+		note = "write your Matrix ID, as @you:matrix.org"
+	}
+	if err := talk.Configure(ctx, api.LoginRecord{Values: map[string]string{"homeserver": homeserver, "user": user}}); err != nil {
+		return api.LoginEnd{}, err
+	}
+	talk.Named(user)
+	return api.LoginEnd{Done: "set Matrix up as " + user, Restart: true}, nil
 }
 
 // handOver gives a waiting adapter the session, reporting whether it took it. One

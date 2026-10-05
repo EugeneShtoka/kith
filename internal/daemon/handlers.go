@@ -403,64 +403,38 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 
 // Seat gives the caller the seat and keeps it for as long as the stream is open, or
 // says who has it (see api.Seat).
-// errWhatsAppOff refuses pairing while [whatsapp] is not enabled.
-var errWhatsAppOff = fmt.Errorf("%w: [whatsapp] enabled is not set in the config kithd runs with", api.ErrNetworkOff)
+// errNoLogins refuses a login of a daemon that runs none.
+var errNoLogins = fmt.Errorf("%w: this daemon logs nothing in", api.ErrNetworkOff)
 
-func (s *server) PairWhatsApp(
-	ctx context.Context, r *req[v1.PairWhatsAppRequest], st *connect.ServerStream[v1.PairWhatsAppResponse],
-) error {
-	if s.WhatsApp == nil {
-		return rpcErr(errWhatsAppOff)
+func (s *server) LoginNetworks(ctx context.Context, _ *req[v1.LoginNetworksRequest]) (*resp[v1.LoginNetworksResponse], error) {
+	if s.Logins == nil {
+		return reply(&v1.LoginNetworksResponse{}, nil)
 	}
-	linked, err := s.WhatsApp.PairWhatsApp(ctx, r.Msg.GetAccount(), func(code string) error {
-		return sendFrame(st, &v1.PairWhatsAppResponse{Event: &v1.PairWhatsAppResponse_Code{Code: code}})
-	})
-	if err != nil {
-		return rpcErr(err)
-	}
-	return sendFrame(st, &v1.PairWhatsAppResponse{Event: &v1.PairWhatsAppResponse_Linked{Linked: linked}})
+	networks, err := s.Logins.LoginNetworks(ctx)
+	return reply(&v1.LoginNetworksResponse{Networks: loginNetworksToProto(networks)}, err)
 }
 
-// errMatrixOff refuses a Matrix login while the config names no Matrix account.
-var errMatrixOff = fmt.Errorf("%w: the config kithd runs with sets no homeserver and user", api.ErrNetworkOff)
-
-func (s *server) LoginMatrix(ctx context.Context, r *req[v1.LoginMatrixRequest]) (*resp[v1.LoginMatrixResponse], error) {
-	if s.Matrix == nil {
-		return nil, rpcErr(errMatrixOff)
+func (s *server) BeginLogin(ctx context.Context, r *req[v1.BeginLoginRequest]) (*resp[v1.BeginLoginResponse], error) {
+	if s.Logins == nil {
+		return nil, rpcErr(errNoLogins)
 	}
-	in, err := s.Matrix.LoginMatrix(ctx, r.Msg.GetPassword())
-	return reply(&v1.LoginMatrixResponse{UserId: in.UserID, DeviceId: in.DeviceID, Started: in.Started}, err)
+	step, err := s.Logins.BeginLogin(ctx, r.Msg.GetNetwork(), r.Msg.GetAccount())
+	return reply(&v1.BeginLoginResponse{Step: loginStepToProto(step)}, err)
 }
 
-// errSlackOff refuses a Slack sign-in while [slack] is off.
-var errSlackOff = fmt.Errorf("%w: [slack] is not enabled in the config kithd runs with", api.ErrNetworkOff)
-
-func (s *server) SignInSlack(ctx context.Context, r *req[v1.SignInSlackRequest]) (*resp[v1.SignInSlackResponse], error) {
-	if s.Slack == nil {
-		return nil, rpcErr(errSlackOff)
+func (s *server) AnswerLogin(ctx context.Context, r *req[v1.AnswerLoginRequest]) (*resp[v1.AnswerLoginResponse], error) {
+	if s.Logins == nil {
+		return nil, rpcErr(errNoLogins)
 	}
-	in, err := s.Slack.SignInSlack(ctx, r.Msg.GetAccount(), r.Msg.GetToken(), r.Msg.GetCookie())
-	return reply(&v1.SignInSlackResponse{Workspace: in.Workspace, User: in.User}, err)
+	step, err := s.Logins.AnswerLogin(ctx, r.Msg.GetLogin(), r.Msg.GetValues())
+	return reply(&v1.AnswerLoginResponse{Step: loginStepToProto(step)}, err)
 }
 
-// errTelegramOff refuses a Telegram login while the daemon runs no Telegram account.
-var errTelegramOff = fmt.Errorf("%w: the config kithd runs with has no [[telegram.account]]", api.ErrNetworkOff)
-
-func (s *server) SendTelegramCode(ctx context.Context, r *req[v1.SendTelegramCodeRequest]) (*resp[v1.SendTelegramCodeResponse], error) {
-	if s.Telegram == nil {
-		return nil, rpcErr(errTelegramOff)
+func (s *server) CancelLogin(ctx context.Context, r *req[v1.CancelLoginRequest]) (*resp[v1.CancelLoginResponse], error) {
+	if s.Logins == nil {
+		return reply(&v1.CancelLoginResponse{}, nil)
 	}
-	app := api.TelegramApp{ID: int(r.Msg.GetApiId()), Hash: r.Msg.GetApiHash()}
-	sent, err := s.Telegram.SendTelegramCode(ctx, r.Msg.GetAccount(), app)
-	return reply(&v1.SendTelegramCodeResponse{Via: sent.Via}, err)
-}
-
-func (s *server) SignInTelegram(ctx context.Context, r *req[v1.SignInTelegramRequest]) (*resp[v1.SignInTelegramResponse], error) {
-	if s.Telegram == nil {
-		return nil, rpcErr(errTelegramOff)
-	}
-	in, err := s.Telegram.SignInTelegram(ctx, r.Msg.GetAccount(), r.Msg.GetCode(), r.Msg.GetPassword())
-	return reply(&v1.SignInTelegramResponse{Name: in.Name, Id: in.ID}, err)
+	return reply(&v1.CancelLoginResponse{}, s.Logins.CancelLogin(ctx, r.Msg.GetLogin()))
 }
 
 func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {

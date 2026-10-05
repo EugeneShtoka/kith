@@ -596,6 +596,11 @@ linters:
         - .WithMessagef(
         - .WithStack(
         - .Scan(
+        # A login's talk fails only when the login ends (canceled, or timed out):
+        # its error is the context's, and every network's login hands it back as is.
+        - api.LoginTalk).
+        - .NumberedAccount(
+        - .AskName(
       # setup's errors already name the config section at fault.
       ignore-package-globs:
         - github.com/EugeneShtoka/kith/internal/setup
