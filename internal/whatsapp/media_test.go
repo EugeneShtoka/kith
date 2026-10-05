@@ -47,6 +47,20 @@ func TestAPhotoIsKeptToLoadLater(t *testing.T) {
 	}
 }
 
+// A recorded voice note is called one; a shared audio file stays nameless (the chip
+// says "audio"), and both are something to play.
+func TestAVoiceNoteIsCalledOne(t *testing.T) {
+	t.Parallel()
+	note, _ := attachment(&waE2E.Message{AudioMessage: &waE2E.AudioMessage{Mimetype: new("audio/ogg; codecs=opus"), PTT: new(true)}})
+	if !note.IsAudio() || note.Name != domain.VoiceMessage {
+		t.Errorf("a voice note = %+v", note)
+	}
+	song, _ := attachment(&waE2E.Message{AudioMessage: &waE2E.AudioMessage{Mimetype: new("audio/mpeg")}})
+	if !song.IsAudio() || song.Name != "" {
+		t.Errorf("an audio file = %+v", song)
+	}
+}
+
 // A photo arrives with its attachment and how to load it; loading needs the account
 // connected, and a message with nothing to load says so.
 func TestAPhotoArrivesLoadable(t *testing.T) {
