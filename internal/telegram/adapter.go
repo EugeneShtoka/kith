@@ -69,6 +69,8 @@ type Adapter struct {
 	// account name.
 	logins map[string]*login
 	conns  map[string]*conn
+	// keepDeleted is [display.deleted] keep (keepDeletedIf).
+	keepDeleted bool
 	// selves is each account's own user ID, by name, once known: its rooms' account
 	// part, kept when its connection is not.
 	selves  map[string]int64
@@ -83,6 +85,18 @@ type Adapter struct {
 	// never interleave; heard is when each room last had a message cached (keptRooms).
 	listing sync.Mutex
 	heard   map[domain.RoomID]time.Time
+
+	// unreadMu serializes changing a room's unread with keeping it; unreadState is
+	// each room's as Telegram counts it (loaded from the cache on first use), unreadAt
+	// when it last changed live (see changeUnread).
+	unreadMu    sync.Mutex
+	unreadState map[domain.RoomID]domain.Unread
+	unreadAt    map[domain.RoomID]time.Time
+
+	// reacted is when each message's reactions last changed live (see cachePage);
+	// typing who is typing where, each forgotten when their timer fires (typing.go).
+	reacted map[domain.EventID]time.Time
+	typing  map[domain.RoomID]map[string]*time.Timer
 
 	// keeping serializes writing credentials with checking that their login is still
 	// the latest (keepLogin).
@@ -105,6 +119,9 @@ func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log
 	return &Adapter{
 		cache: cache, secrets: secrets, store: store, accounts: slices.Clone(accounts), log: log.With("network", "telegram"),
 		heard:     map[domain.RoomID]time.Time{},
+		unreadAt:  map[domain.RoomID]time.Time{},
+		reacted:   map[domain.EventID]time.Time{},
+		typing:    map[domain.RoomID]map[string]*time.Timer{},
 		signIns:   map[string]int{},
 		logins:    map[string]*login{},
 		conns:     map[string]*conn{},
@@ -148,6 +165,7 @@ func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
 		accounts = append(accounts, Account{Name: account.Name, Digits: domain.PhoneDigits(account.Phone)})
 	}
 	a.useAccounts(accounts)
+	a.keepDeletedIf(cfg.Display.Deleted.Keep())
 }
 
 // CheckConfig refuses [[telegram.account]]s kith could not tell apart or log in as: a

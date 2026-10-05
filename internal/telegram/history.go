@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/tg"
@@ -91,6 +92,7 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 			return domain.TimelinePage{}, fmt.Errorf("telegram: %q is no place in %s's history", from, roomID)
 		}
 	}
+	read := time.Now()
 	res, err := ch.conn.client.API().MessagesGetHistory(ctx, req)
 	if err != nil {
 		return domain.TimelinePage{}, fmt.Errorf("telegram: history of %s: %w", roomID, err)
@@ -100,6 +102,7 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 		return domain.TimelinePage{}, nil
 	}
 	msgs := a.cachePage(ctx, ch, raw, ent)
+	a.pageReactions(ctx, ch.conn.user, raw, read)
 	page := domain.TimelinePage{Messages: msgs}
 	if len(raw) == limit && len(raw) > 0 {
 		page.Next = strconv.Itoa(raw[len(raw)-1].GetID()) // the oldest: Telegram answers newest first
@@ -171,9 +174,4 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 		}
 	}
 	return domain.Message{}, fmt.Errorf("telegram: %s is gone", eventID)
-}
-
-// MessageHistory is a message's versions: none kept yet (edits come next).
-func (a *Adapter) MessageHistory(context.Context, domain.RoomID, domain.EventID) ([]domain.Revision, domain.Deletion, error) {
-	return nil, domain.Deletion{}, nil
 }

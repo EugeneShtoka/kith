@@ -855,3 +855,26 @@ func (c *Cache) messagesFrom(
 		ORDER BY m.ts_ms ASC, m.event_id ASC LIMIT ?`,
 		scanMessage(roomID), string(roomID), at, string(event), n)
 }
+
+// MessagesEndingIn is each cached message in owner's rooms whose ID is its room's, a
+// "/", and one of tails: the room and the ID, for a network whose deletions name a
+// message by a number unique across an account's rooms rather than by its room.
+func (c *Cache) MessagesEndingIn(ctx context.Context, owner domain.RoomOwner, tails []string) ([]domain.Message, error) {
+	if len(tails) == 0 || owner == "" {
+		return nil, nil
+	}
+	args := []any{string(owner)}
+	for _, tail := range tails {
+		args = append(args, tail)
+	}
+	return collect(ctx, c.db, "messages by their ending", `
+		SELECT room_id, event_id FROM messages
+		 WHERE substr(room_id, 1, length(?1)) = ?1
+		   AND substr(event_id, 1, length(room_id) + 1) = room_id || '/'
+		   AND substr(event_id, length(room_id) + 2) IN (`+placeholders(len(tails))+`)`,
+		func(rows *sql.Rows) (domain.Message, error) {
+			var room, event string
+			err := rows.Scan(&room, &event)
+			return domain.Message{RoomID: domain.RoomID(room), ID: domain.EventID(event)}, err
+		}, args...)
+}

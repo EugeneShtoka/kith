@@ -299,10 +299,9 @@ func TestHistoryIsReadPageByPage(t *testing.T) {
 		}
 		return s.SendResult(r, res)
 	})
-	a, cache := loggedInWithStore(t, f, openStore(t))
-	a.mu.Lock()
-	a.conns[home.Name].hashes.users[7] = dana.AccessHash
-	a.mu.Unlock()
+	st := openStore(t)
+	knowDana(t, st)
+	a, cache := loggedInWithStore(t, f, st)
 	room := domain.RoomID("telegram:42/7")
 	page, err := a.Timeline(t.Context(), room, "", 4)
 	if err != nil || len(page.Messages) != 4 || page.Messages[0].ID != "telegram:42/7/7" || page.Next != "7" {
@@ -384,5 +383,13 @@ func TestAListingNeverSweepsARoomHeardSinceItWasFetched(t *testing.T) {
 			}
 			time.Sleep(time.Microsecond)
 		}
+	}
+}
+
+// knowDana keeps Dana's access hash in st, as an update revealing her would.
+func knowDana(t *testing.T, st *Store) {
+	t.Helper()
+	if err := st.SetUserAccessHash(t.Context(), 42, dana.ID, dana.AccessHash); err != nil {
+		t.Fatal(err)
 	}
 }

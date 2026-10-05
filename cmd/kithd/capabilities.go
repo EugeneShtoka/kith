@@ -83,8 +83,12 @@ var (
 		route.Adapter
 		route.RoomLister
 		route.Homes
+		route.ReadState
 		route.History
 		route.Sender
+		route.Typist
+		route.Reactor
+		route.Redactor
 		route.People
 		route.Encryption
 		route.SpaceLister

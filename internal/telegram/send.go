@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/tg"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -22,20 +22,14 @@ import (
 // The message is cached and handed to the clients here; Telegram's answer goes to the
 // account's updates, which keep their position in step with it.
 func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error {
-	if draft.Edits != "" {
-		return fmt.Errorf("%w: editing a Telegram message comes in a later release", api.ErrNotOnNetwork)
-	}
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
 		return err
 	}
-	text, entities, format := outgoing(draft, func(user int64) (int64, bool) {
-		p, perr := a.inputPeer(ctx, ch.conn, user)
-		if u, ok := p.(*tg.InputPeerUser); ok && perr == nil {
-			return u.AccessHash, true
-		}
-		return 0, false
-	})
+	if draft.Edits != "" {
+		return a.edit(ctx, ch, roomID, draft)
+	}
+	text, entities, format := outgoing(draft, a.userHash(ctx, ch.conn))
 	req := &tg.MessagesSendMessageRequest{Peer: ch.peer, Message: text, RandomID: randomID(draft.TxnID)}
 	if len(entities) > 0 {
 		req.SetEntities(entities)
@@ -62,6 +56,47 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 		sent.ReplyTo = draft.ReplyTo
 	}
 	return a.arrived(ctx, ch.conn.account, ch.conn.user, sent)
+}
+
+// userHash is how a draft names people to Telegram over connection c: by the access
+// hash a listing or an update revealed.
+func (a *Adapter) userHash(ctx context.Context, c conn) func(user int64) (int64, bool) {
+	return func(user int64) (int64, bool) {
+		p, err := a.inputPeer(ctx, c, user)
+		if u, ok := p.(*tg.InputPeerUser); ok && err == nil {
+			return u.AccessHash, true
+		}
+		return 0, false
+	}
+}
+
+// updatedMessages are the messages an answer's updates carry, new or edited.
+func updatedMessages(res tg.UpdatesClass) []tg.MessageClass {
+	var out []tg.MessageClass
+	for _, u := range updatesIn(res) {
+		switch u := u.(type) {
+		case *tg.UpdateNewMessage:
+			out = append(out, u.Message)
+		case *tg.UpdateNewChannelMessage:
+			out = append(out, u.Message)
+		case *tg.UpdateEditMessage:
+			out = append(out, u.Message)
+		case *tg.UpdateEditChannelMessage:
+			out = append(out, u.Message)
+		}
+	}
+	return out
+}
+
+// peerEntities are the users and chats an answer's updates name.
+func peerEntities(res tg.UpdatesClass) peer.Entities {
+	switch r := res.(type) {
+	case *tg.Updates:
+		return peer.EntitiesFromResult(r)
+	case *tg.UpdatesCombined:
+		return peer.EntitiesFromResult(r)
+	}
+	return peer.Entities{}
 }
 
 // randomID is a send's random ID: the transaction's hash, so a retried send is the same
