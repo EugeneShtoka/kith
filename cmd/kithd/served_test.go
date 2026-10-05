@@ -38,7 +38,7 @@ func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 // Matrix's lists empty, and nothing to wait for while no account is linked.
 func TestADaemonWithoutMatrixServes(t *testing.T) {
 	t.Parallel()
-	cfg := config.Config{WhatsApp: config.WhatsApp{Enabled: true, Accounts: []config.WhatsAppAccount{{Name: "bg", Phone: "+359 88 000 0001"}}}}
+	cfg := config.Config{WhatsApp: config.WhatsApp{Enabled: true, Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}}}
 	backend := servedFor(t, cfg, domain.Session{})
 	if backend.matrix != nil || backend.matrixLogin() != nil {
 		t.Error("a Matrix adapter without a Matrix account in the config")

@@ -16,7 +16,7 @@ import (
 func TestAListingIsNotRepeatedTooSoon(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, _ := offline(t, account)
 	room := roomID(ownDigits, types.NewJID("1203", types.GroupServer))
 	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ownDigits), []domain.Room{{ID: room, Name: "Family"}}); err != nil {
@@ -52,7 +52,7 @@ func TestAListingIsNotRepeatedTooSoon(t *testing.T) {
 func TestARefusedChannelListingKeepsTheChannels(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits) // never connected: every query fails
 	weather := roomID(ownDigits, newsletter("1201"))
@@ -76,7 +76,7 @@ func TestARefusedChannelListingKeepsTheChannels(t *testing.T) {
 func TestRefreshingAChatsMembersListsNothing(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, _ := offline(t, account)
 	if err := cache.SaveMembers(ctx, danaChat, []domain.Member{{UserID: "whatsapp:" + danaPhone + "@s.whatsapp.net", DisplayName: "Dana"}}); err != nil {
 		t.Fatal(err)
@@ -95,22 +95,22 @@ func TestRefreshingAChatsMembersListsNothing(t *testing.T) {
 func TestOneAccountsFailedListingKeepsEveryAccountsRooms(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	const ilDigits = "972000000009"
-	bg, il := Account{Name: "bg", Digits: ownDigits}, Account{Name: "il", Digits: ilDigits}
-	a, cache, store := offline(t, bg, il)
-	bgGroup := roomID(ownDigits, types.NewJID("1203", types.GroupServer))
-	bgDM := roomID(ownDigits, pn(danaPhone))
-	ilDM := roomID(ilDigits, pn(danaPhone))
-	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ownDigits), []domain.Room{{ID: bgGroup}, {ID: bgDM, IsDirect: true}}); err != nil {
+	const workDigits = "1000000009"
+	home, work := Account{Name: "home", Digits: ownDigits}, Account{Name: "work", Digits: workDigits}
+	a, cache, store := offline(t, home, work)
+	homeGroup := roomID(ownDigits, types.NewJID("1203", types.GroupServer))
+	homeDM := roomID(ownDigits, pn(danaPhone))
+	workDM := roomID(workDigits, pn(danaPhone))
+	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ownDigits), []domain.Room{{ID: homeGroup}, {ID: homeDM, IsDirect: true}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ilDigits), []domain.Room{{ID: ilDM, IsDirect: true}}); err != nil {
+	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, workDigits), []domain.Room{{ID: workDM, IsDirect: true}}); err != nil {
 		t.Fatal(err)
 	}
 	a.clients[ownDigits] = linkedClient(t, store, ownDigits)
-	a.clients[ilDigits] = linkedClient(t, store, ilDigits)
+	a.clients[workDigits] = linkedClient(t, store, workDigits)
 	a.mu.Lock()
-	a.listedAt[ownDigits] = time.Now() // bg answers from the cache; il's listing fails
+	a.listedAt[ownDigits] = time.Now() // home answers from the cache; work's listing fails
 	a.mu.Unlock()
 
 	rooms, err := a.RefreshRooms(ctx)
@@ -121,7 +121,7 @@ func TestOneAccountsFailedListingKeepsEveryAccountsRooms(t *testing.T) {
 	for _, r := range rooms {
 		got[r.ID] = true
 	}
-	for _, want := range []domain.RoomID{bgGroup, bgDM, ilDM} {
+	for _, want := range []domain.RoomID{homeGroup, homeDM, workDM} {
 		if !got[want] {
 			t.Errorf("RefreshRooms = %v, missing %s", rooms, want)
 		}

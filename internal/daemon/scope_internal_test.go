@@ -68,8 +68,8 @@ func TestInvalidateOvertakesARebuildAlreadyReading(t *testing.T) {
 func TestANativeRoomIsOnItsOwnNetwork(t *testing.T) {
 	t.Parallel()
 
-	listed := domain.RoomID("whatsapp:359000000001/120363000000000001@g.us")
-	unlisted := domain.RoomID("whatsapp:359000000001/972500000002@s.whatsapp.net")
+	listed := domain.RoomID("whatsapp:44000000001/120363000000000001@g.us")
+	unlisted := domain.RoomID("whatsapp:44000000001/1500000002@s.whatsapp.net")
 	x := newScopeIndex(&gatedRooms{rooms: []domain.Room{{ID: listed, Name: "Choir"}, {ID: "!a:x"}}}, nil, domain.HomeOrder{})
 	for _, c := range []struct {
 		room domain.RoomID

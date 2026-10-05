@@ -15,7 +15,7 @@ func TestInstanceSuffixedBridgeBots(t *testing.T) {
 		"@whatsappbot_bg:example.org":       domain.ProtocolWhatsApp,
 		"@whatsappbot_il:example.org":       domain.ProtocolWhatsApp,
 		"@whatsapp_bg_44770123:example.org": domain.ProtocolWhatsApp,
-		"@whatsapp_il_97250123:example.org": domain.ProtocolWhatsApp,
+		"@whatsapp_work_150123:example.org": domain.ProtocolWhatsApp,
 		"@linkedinbot:example.org":          domain.ProtocolLinkedIn,
 		"@slackbot:example.org":             domain.ProtocolSlack,
 		"@telegrambot:example.org":          domain.ProtocolTelegram,

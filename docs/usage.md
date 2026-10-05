@@ -87,7 +87,7 @@ rooms in `excluded` (a room ID or `room:<name>`; excluded wins over picked):
 [[tag]]
 name     = "Family"
 rule     = ["dm", "space:Family", "not room:Bank"]
-picked   = ["whatsapp:359880000001/972500000002@s.whatsapp.net"]
+picked   = ["whatsapp:44880000001/1500000002@s.whatsapp.net"]
 
 [[tag]]
 name = "Busy"

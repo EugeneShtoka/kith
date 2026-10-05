@@ -242,9 +242,9 @@ func TestRowNeverFills(t *testing.T) {
 	for _, tc := range []struct{ selected, focused bool }{
 		{true, true}, {true, false}, {false, true}, {false, false},
 	} {
-		if bg := th.Row(tc.selected, tc.focused).GetBackground(); bg != unset {
+		if home := th.Row(tc.selected, tc.focused).GetBackground(); home != unset {
 			t.Errorf("Row(%v, %v) has background %v; overlay rows are foreground-only",
-				tc.selected, tc.focused, bg)
+				tc.selected, tc.focused, home)
 		}
 	}
 	if th.Row(true, true).GetForeground() == th.Row(false, false).GetForeground() {

@@ -80,7 +80,7 @@ func CheckSlackWorkspace(workspace string) error {
 // CheckPhone refuses what is no international number: 7 to 15 digits.
 func CheckPhone(digits string) error {
 	if len(digits) < 7 || len(digits) > 15 {
-		return errors.New("write the number with its country code, as +359 88 123 4567")
+		return errors.New("write the number with its country code, as +44 7700 900123")
 	}
 	return nil
 }
@@ -98,7 +98,7 @@ func FreeName(base string, taken []string) string {
 }
 
 // WhatsAppName suggests a name for the account with these digits: its country's code
-// ("bg" for +359), else "wa" and its last four digits.
+// ("gb" for +44), else "wa" and its last four digits.
 func WhatsAppName(digits string, taken []string) string {
 	if country := PhoneCountry(digits); country != "" {
 		return FreeName(country, taken)

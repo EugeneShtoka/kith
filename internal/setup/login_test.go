@@ -20,15 +20,14 @@ func TestASlackSessionHasBothHalves(t *testing.T) {
 func TestSuggestedNames(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ got, want string }{
-		{WhatsAppName("359884650326", nil), "bg"},
-		{WhatsAppName("972545347450", []string{"bg"}), "il"},
 		{WhatsAppName("447700900123", nil), "gb"},
-		{WhatsAppName("12025550123", nil), "us"},
+		{WhatsAppName("12025550147", []string{"gb"}), "us"},
+		{WhatsAppName("4915200000000", nil), "de"},
 		{WhatsAppName("79161234567", nil), "ru"},
-		{WhatsAppName("359888000000", []string{"bg", "bg2"}), "bg3"},
+		{WhatsAppName("447700900000", []string{"gb", "gb2"}), "gb3"},
 		{WhatsAppName("8881234567", nil), "wa4567"}, // +888 is no country's
 		{SlackName("acme", nil), "acme"},
-		{SlackName("T01K2D5TCAC", []string{"work"}), "work2"},
+		{SlackName("T0123456789", []string{"work"}), "work2"},
 	} {
 		if c.got != c.want {
 			t.Errorf("suggested %q, want %q", c.got, c.want)

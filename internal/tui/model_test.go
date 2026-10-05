@@ -1853,11 +1853,11 @@ func TestNameProcessing(t *testing.T) {
 	}
 	// An alias supplies the name and the space rule still shapes it.
 	m.prefs.identities = map[string]resolvedIdentity{"@p:x": {alias: "Dana Levi"}}
-	if got := m.processedName(domain.Message{RoomID: "!a:x", Sender: "@p:x", SenderName: "+972500000"}); got != "Dana" {
+	if got := m.processedName(domain.Message{RoomID: "!a:x", Sender: "@p:x", SenderName: "+1500000"}); got != "Dana" {
 		t.Errorf("aliased name = %q, want the space rule applied to it too", got)
 	}
 	// The same answer from the pill path, which is the point of their sharing one.
-	if got := m.processedMentionName("@p:x", "+972500000", "!a:x"); got != "Dana" {
+	if got := m.processedMentionName("@p:x", "+1500000", "!a:x"); got != "Dana" {
 		t.Errorf("aliased mention = %q, want Dana", got)
 	}
 
@@ -1867,7 +1867,7 @@ func TestNameProcessing(t *testing.T) {
 	if got := m.processedName(inWork); got != "Rowan Blackwood" {
 		t.Errorf("no rule = %q, want full name", got)
 	}
-	if got := m.processedName(domain.Message{RoomID: "!a:x", Sender: "@p:x", SenderName: "+972500000"}); got != "Dana Levi" {
+	if got := m.processedName(domain.Message{RoomID: "!a:x", Sender: "@p:x", SenderName: "+1500000"}); got != "Dana Levi" {
 		t.Errorf("aliased name with no rule = %q, want it whole", got)
 	}
 }

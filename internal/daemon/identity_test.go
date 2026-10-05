@@ -45,12 +45,12 @@ func serveIdentity(t *testing.T, b selvesBackend, state *daemon.State) *daemon.R
 // daemon.
 func TestSelvesAndNetworksCrossTheSocket(t *testing.T) {
 	t.Parallel()
-	ids := []string{"@me:x", "whatsapp:359880000001@s.whatsapp.net"}
+	ids := []string{"@me:x", "whatsapp:44880000001@s.whatsapp.net"}
 	state := daemon.NewState()
 	online := time.Unix(1_700_000_000, 0)
 	rows := []daemon.NetworkStatus{
 		{Network: "Matrix", Account: "@me:x", Phase: daemon.PhaseLoggedOut, Detail: "no saved session; run `kith login`"},
-		{Network: "WhatsApp", Account: "bg", Phase: daemon.PhaseOnline},
+		{Network: "WhatsApp", Account: "home", Phase: daemon.PhaseOnline},
 	}
 	for _, row := range rows {
 		state.Report(row, online)

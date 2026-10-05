@@ -25,7 +25,7 @@ func (b selvesBackend) Selves(context.Context) ([]string, error) {
 	return b.ids, nil
 }
 
-const ownWhatsApp = "whatsapp:359880000001@s.whatsapp.net"
+const ownWhatsApp = "whatsapp:44880000001@s.whatsapp.net"
 
 // Every ID the daemon names is this person, beside the Matrix account; nobody is "".
 func TestIsMeIsEveryAccount(t *testing.T) {
@@ -37,7 +37,7 @@ func TestIsMeIsEveryAccount(t *testing.T) {
 			t.Errorf("isMe(%q) = false", id)
 		}
 	}
-	for _, id := range []string{"", "@dana:x", "whatsapp:359880000002@s.whatsapp.net"} {
+	for _, id := range []string{"", "@dana:x", "whatsapp:44880000002@s.whatsapp.net"} {
 		if m.isMe(id) {
 			t.Errorf("isMe(%q) = true", id)
 		}
@@ -59,8 +59,8 @@ func TestWithoutMatrixTheWhatsAppAccountIsMe(t *testing.T) {
 	t.Parallel()
 	m := newModel()
 	m, _ = m.handleSelves(selvesMsg{ids: []string{ownWhatsApp}})
-	m = m.setMessages([]domain.Message{{ID: "whatsapp:359880000001/A", Sender: ownWhatsApp, Body: "hi"}})
-	if !m.isMe(ownWhatsApp) || !m.spokeInThread("whatsapp:359880000001/A") {
+	m = m.setMessages([]domain.Message{{ID: "whatsapp:44880000001/A", Sender: ownWhatsApp, Body: "hi"}})
+	if !m.isMe(ownWhatsApp) || !m.spokeInThread("whatsapp:44880000001/A") {
 		t.Error("the WhatsApp account's own message is not counted as its own")
 	}
 }
@@ -73,7 +73,7 @@ func TestSelvesAreAskedWhenAnAccountAppears(t *testing.T) {
 	asks := 0
 	m := starterNew(selvesBackend{Nop: apitest.Nop{}, ids: []string{ownWhatsApp}, asks: &asks}, config.Display{})
 	matrixRooms := []domain.Room{{ID: "!a:x"}, {ID: "!b:x"}}
-	withWhatsApp := append(slices.Clone(matrixRooms), domain.Room{ID: "whatsapp:359880000001/1203@g.us"})
+	withWhatsApp := append(slices.Clone(matrixRooms), domain.Room{ID: "whatsapp:44880000001/1203@g.us"})
 
 	steps := []struct {
 		rooms []domain.Room
@@ -116,7 +116,7 @@ func TestTheDerivedKeyCoversSelves(t *testing.T) {
 // that was open still takes its status with it.
 func TestTheLoggedOutNoticeOutlivesAnEmptyStart(t *testing.T) {
 	t.Parallel()
-	notice := "WhatsApp bg is logged out: not linked yet; run `kith login whatsapp bg`"
+	notice := "WhatsApp home is logged out: not linked yet; run `kith login whatsapp home`"
 	m := newModel().doing(notice)
 	m, _ = m.handleCachedInvites(invitesMsg{})
 	m, _ = m.handleRoomsThenOffer(roomsMsg{})

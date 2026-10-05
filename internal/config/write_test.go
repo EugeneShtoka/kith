@@ -468,7 +468,7 @@ func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 func TestRoomNamesTakesEveryRoomID(t *testing.T) {
 	t.Parallel()
 
-	native := "whatsapp:359000000001/120363000000000001@g.us"
+	native := "whatsapp:44000000001/120363000000000001@g.us"
 	d := Display{Names: []DisplayName{
 		{Target: "!a:x", Name: "A"}, {Target: native, Name: "Choir"},
 		{Target: NameTargetSpace + "Work", Name: "W"}, {Target: NameTargetThread + "$e", Name: "T"},

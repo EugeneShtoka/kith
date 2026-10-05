@@ -25,7 +25,7 @@ func (p *pairer) PairWhatsApp(_ context.Context, account string, code func(strin
 	if p.fail != nil {
 		return "", p.fail
 	}
-	return "whatsapp:359000000001@s.whatsapp.net", nil
+	return "whatsapp:44000000001@s.whatsapp.net", nil
 }
 
 // servePairing is a daemon whose WhatsApp link is link (nil: WhatsApp off).
@@ -59,14 +59,14 @@ func TestPairingCarriesTheCodeThenTheAccount(t *testing.T) {
 	p := &pairer{}
 	remote := servePairing(t, p)
 	var codes []string
-	linked, err := remote.PairWhatsApp(context.Background(), "bg", func(code string) error {
+	linked, err := remote.PairWhatsApp(context.Background(), "home", func(code string) error {
 		codes = append(codes, code)
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("PairWhatsApp: %v", err)
 	}
-	if p.account != "bg" || len(codes) != 1 || codes[0] != "ABCD-EFGH" || linked != "whatsapp:359000000001@s.whatsapp.net" {
+	if p.account != "home" || len(codes) != 1 || codes[0] != "ABCD-EFGH" || linked != "whatsapp:44000000001@s.whatsapp.net" {
 		t.Errorf("account %q, codes %v, linked %q", p.account, codes, linked)
 	}
 }
@@ -75,11 +75,11 @@ func TestPairingCarriesTheCodeThenTheAccount(t *testing.T) {
 func TestPairingFailuresCrossTheSocket(t *testing.T) {
 	t.Parallel()
 	refused := errors.New("the phone refused")
-	if _, err := servePairing(t, &pairer{fail: refused}).PairWhatsApp(context.Background(), "bg",
+	if _, err := servePairing(t, &pairer{fail: refused}).PairWhatsApp(context.Background(), "home",
 		func(string) error { return nil }); err == nil {
 		t.Error("a refusal came back as success")
 	}
-	if _, err := servePairing(t, nil).PairWhatsApp(context.Background(), "bg",
+	if _, err := servePairing(t, nil).PairWhatsApp(context.Background(), "home",
 		func(string) error { t.Error("a code with WhatsApp off"); return nil }); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("WhatsApp off = %v, want ErrNetworkOff", err)
 	}

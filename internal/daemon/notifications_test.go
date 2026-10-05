@@ -740,7 +740,7 @@ func TestAnUnknownRoomIsOnlyAskedAboutOnce(t *testing.T) {
 func TestYourOtherIDsNeverNotifyYou(t *testing.T) {
 	t.Parallel()
 	n, _, _ := notifier(t, notifsOn("all"))
-	const whatsapp = "whatsapp:359000000001@s.whatsapp.net"
+	const whatsapp = "whatsapp:44000000001@s.whatsapp.net"
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, whatsapp, "from my phone")); !ok {
 		t.Fatal("before UseSelves the number is a stranger's, and should notify")
 	}

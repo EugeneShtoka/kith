@@ -373,10 +373,10 @@ func TestModelContextQuotesEveryAccountAsYou(t *testing.T) {
 	t.Parallel()
 	msgs := []Message{
 		{Sender: "@me:x", Body: "from Matrix"},
-		{Sender: "whatsapp:359880000001@s.whatsapp.net", Body: "from WhatsApp"},
+		{Sender: "whatsapp:44880000001@s.whatsapp.net", Body: "from WhatsApp"},
 		{Sender: "@dana:x", SenderName: "Dana", Body: "hi"},
 	}
-	got := ModelContext(msgs, []string{"@me:x", "whatsapp:359880000001@s.whatsapp.net"}, 1000)
+	got := ModelContext(msgs, []string{"@me:x", "whatsapp:44880000001@s.whatsapp.net"}, 1000)
 	want := []string{"You: from Matrix", "You: from WhatsApp", "Dana: hi"}
 	if !slices.Equal(got, want) {
 		t.Errorf("ModelContext = %q, want %q", got, want)

@@ -40,7 +40,7 @@ func TestARoomsFactsAreReadOneWay(t *testing.T) {
 	if plain.Name != "!anon:x" || plain.Protocol != domain.ProtocolMatrix || plain.Tags != nil || plain.Spaces != nil {
 		t.Errorf("an unnamed room in no space = %+v", plain)
 	}
-	native := domain.Places{}.Facts(domain.Room{ID: "whatsapp:359/1203@g.us", Name: "Choir"}, nil)
+	native := domain.Places{}.Facts(domain.Room{ID: "whatsapp:44/1203@g.us", Name: "Choir"}, nil)
 	if native.Protocol != domain.ProtocolWhatsApp {
 		t.Errorf("a native room's network = %q", native.Protocol)
 	}

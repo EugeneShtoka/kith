@@ -10,7 +10,7 @@ import (
 )
 
 // waMe is this person's WhatsApp account, as the daemon names it.
-const waMe = "whatsapp:359880000001@s.whatsapp.net"
+const waMe = "whatsapp:44880000001@s.whatsapp.net"
 
 // A reaction from any of this person's accounts counts toward their emoji: on
 // WhatsApp alone, and beside Matrix.
@@ -19,10 +19,10 @@ func TestEmojiScoresCountEveryAccountsReactions(t *testing.T) {
 	ctx := context.Background()
 	for name, me := range map[string][]string{"WhatsApp alone": {waMe}, "Matrix and WhatsApp": {"@me:x", waMe}} {
 		s := backendAs(t, me...)
-		room := domain.RoomID("whatsapp:359880000001/1203@g.us")
+		room := domain.RoomID("whatsapp:44880000001/1203@g.us")
 		if err := s.cache.SaveReactions(ctx, []domain.Reaction{
 			{ID: "r1", RoomID: room, Target: "m1", Sender: waMe, Key: "🎉"},
-			{ID: "r2", RoomID: room, Target: "m1", Sender: "whatsapp:359880000002@s.whatsapp.net", Key: "👀"},
+			{ID: "r2", RoomID: room, Target: "m1", Sender: "whatsapp:44880000002@s.whatsapp.net", Key: "👀"},
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,7 @@ func TestAccountNameFromAnyAccount(t *testing.T) {
 	if got := wa.accountName(ctx); got != "you" {
 		t.Errorf("WhatsApp with no name cached = %q, want you", got)
 	}
-	if err := wa.cache.SaveMembers(ctx, "whatsapp:359880000001/1203@g.us", []domain.Member{{UserID: waMe, DisplayName: "Ada Lovelace"}}); err != nil {
+	if err := wa.cache.SaveMembers(ctx, "whatsapp:44880000001/1203@g.us", []domain.Member{{UserID: waMe, DisplayName: "Ada Lovelace"}}); err != nil {
 		t.Fatal(err)
 	}
 	if got := wa.accountName(ctx); got != "Ada Lovelace" {
@@ -57,7 +57,7 @@ func TestAccountNameFromAnyAccount(t *testing.T) {
 	if got := both.accountName(ctx); got != "ada" {
 		t.Errorf("Matrix and WhatsApp, no names = %q, want the Matrix localpart", got)
 	}
-	if err := both.cache.SaveMembers(ctx, "whatsapp:359880000001/1203@g.us", []domain.Member{{UserID: waMe, DisplayName: "Ada Lovelace"}}); err != nil {
+	if err := both.cache.SaveMembers(ctx, "whatsapp:44880000001/1203@g.us", []domain.Member{{UserID: waMe, DisplayName: "Ada Lovelace"}}); err != nil {
 		t.Fatal(err)
 	}
 	if got := both.accountName(ctx); got != "Ada Lovelace" {
@@ -75,13 +75,13 @@ func TestCompletionWeighsEveryAccountsWordsAsOwn(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := backendAs(t, "@me:x", waMe)
-	far := domain.RoomID("whatsapp:359880000001/1203@g.us")
+	far := domain.RoomID("whatsapp:44880000001/1203@g.us")
 	if err := s.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	at := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
 	cached := []domain.Message{
-		{ID: "m1", RoomID: far, Sender: "whatsapp:359880000002@s.whatsapp.net", Body: "zzalpha", Timestamp: at},
+		{ID: "m1", RoomID: far, Sender: "whatsapp:44880000002@s.whatsapp.net", Body: "zzalpha", Timestamp: at},
 		{ID: "m2", RoomID: far, Sender: waMe, Body: "zzbeta", Timestamp: at.Add(time.Minute)},
 	}
 	if err := s.cache.SaveMessages(ctx, far, cached); err != nil {
@@ -104,7 +104,7 @@ func TestCompletionWeighsEveryAccountsWordsAsOwn(t *testing.T) {
 		t.Errorf("from the cache = %v, want this person's zzbeta first", got)
 	}
 	for i, m := range []domain.Message{
-		{ID: "m3", RoomID: far, Sender: "whatsapp:359880000002@s.whatsapp.net", Body: "zzdelta"},
+		{ID: "m3", RoomID: far, Sender: "whatsapp:44880000002@s.whatsapp.net", Body: "zzdelta"},
 		{ID: "m4", RoomID: far, Sender: waMe, Body: "zzgamma"},
 	} {
 		m.Timestamp = at.Add(time.Duration(2+i) * time.Minute)

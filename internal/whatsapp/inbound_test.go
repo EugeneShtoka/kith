@@ -38,7 +38,7 @@ var danaChat = domain.RoomID("whatsapp:" + ownDigits + "/" + danaPhone + "@s.wha
 func TestADirectChatBeginsWithItsFirstMessage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	var heard []domain.EventID
@@ -75,7 +75,7 @@ func TestADirectChatBeginsWithItsFirstMessage(t *testing.T) {
 func TestAListingSweepsOnlyWhatItShould(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	left := domain.RoomID("whatsapp:" + ownDigits + "/1203LEFT@g.us")
@@ -116,7 +116,7 @@ func TestNoMessageIsSweptWithItsRoom(t *testing.T) {
 	ctx := context.Background()
 	for seed := range uint64(60) {
 		rng := rand.New(rand.NewPCG(seed, 9))
-		account := Account{Name: "bg", Digits: ownDigits}
+		account := Account{Name: "home", Digits: ownDigits}
 		a, cache, store := offline(t, account)
 		client := linkedClient(t, store, ownDigits)
 		var world sync.Mutex
@@ -176,7 +176,7 @@ func historyOf(e *events.Message) *events.HistorySync {
 func TestSendRefusesWhatItCannot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	a, _, _ := offline(t, Account{Name: "bg", Digits: ownDigits})
+	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
 	if err := a.Send(ctx, danaChat, domain.Draft{Body: "x"}); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("sending with nothing connected = %v, want ErrNetworkOff", err)
 	}
@@ -187,7 +187,7 @@ func TestSendRefusesWhatItCannot(t *testing.T) {
 func TestAnOutgoingMessageAsWhatsAppTakesIt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	a, cache, store := offline(t, Account{Name: "bg", Digits: ownDigits})
+	a, cache, store := offline(t, Account{Name: "home", Digits: ownDigits})
 	client := linkedClient(t, store, ownDigits)
 	draft := domain.Draft{Body: "Dana Levi, see this", Mentions: []domain.Mention{
 		{UserID: "whatsapp:" + danaPhone + "@s.whatsapp.net", Name: "Dana Levi"},
@@ -229,7 +229,7 @@ func TestAnOutgoingMessageAsWhatsAppTakesIt(t *testing.T) {
 func TestMentionCandidatesLeadWithWhoSpoke(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	group := domain.RoomID("whatsapp:" + ownDigits + "/1203@g.us")
@@ -253,17 +253,17 @@ func TestMentionCandidatesLeadWithWhoSpoke(t *testing.T) {
 func TestAccountsChangeWithoutARestart(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	bg, il := Account{Name: "bg", Digits: ownDigits}, Account{Name: "il", Digits: "972500000099"}
-	a, _, store := offline(t, bg, il)
+	home, work := Account{Name: "home", Digits: ownDigits}, Account{Name: "work", Digits: "1500000099"}
+	a, _, store := offline(t, home, work)
 	a.clients[ownDigits] = linkedClient(t, store, ownDigits)
-	a.UseAccounts(ctx, []Account{il})
+	a.UseAccounts(ctx, []Account{work})
 	if got := a.connected(); len(got) != 0 {
-		t.Errorf("connected after bg was removed = %v", got)
+		t.Errorf("connected after home was removed = %v", got)
 	}
-	if got := a.accountsNow(); len(got) != 1 || got[0] != il {
+	if got := a.accountsNow(); len(got) != 1 || got[0] != work {
 		t.Errorf("accounts = %v", got)
 	}
-	if _, err := a.PairWhatsApp(ctx, "bg", func(string) error { return nil }); !errors.Is(err, errNoAccount) {
+	if _, err := a.PairWhatsApp(ctx, "home", func(string) error { return nil }); !errors.Is(err, errNoAccount) {
 		t.Errorf("pairing a removed account = %v", err)
 	}
 }

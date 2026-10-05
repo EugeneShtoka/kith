@@ -29,7 +29,7 @@ enabled = true
 
 [[whatsapp.account]]
 name = "personal"            # what `kith login whatsapp` takes
-phone = "+359 88 000 0000"   # international; "+" and spaces are fine
+phone = "+44 7700 900000"   # international; "+" and spaces are fine
 ```
 
 Then link:

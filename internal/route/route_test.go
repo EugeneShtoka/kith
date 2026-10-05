@@ -16,7 +16,7 @@ import (
 // Two networks' rooms, as their IDs name them.
 const (
 	matrixRoomID   domain.RoomID = "!a:x"
-	whatsappRoomID domain.RoomID = "whatsapp:359881234567/120363@g.us"
+	whatsappRoomID domain.RoomID = "whatsapp:44881234567/120363@g.us"
 )
 
 // twoNetworks routes a Matrix fake and a WhatsApp fake.
@@ -206,8 +206,8 @@ func TestMeIsEveryNetworksSelf(t *testing.T) {
 	t.Parallel()
 	r, m, wa := twoNetworks(t)
 	m.me = []string{"@me:x", "@whatsapp_me:x"}
-	wa.me = []string{"whatsapp:359881234567@s.whatsapp.net", "@me:x"}
-	if got := r.Me(); !slices.Equal(got, []string{"@me:x", "@whatsapp_me:x", "whatsapp:359881234567@s.whatsapp.net"}) {
+	wa.me = []string{"whatsapp:44881234567@s.whatsapp.net", "@me:x"}
+	if got := r.Me(); !slices.Equal(got, []string{"@me:x", "@whatsapp_me:x", "whatsapp:44881234567@s.whatsapp.net"}) {
 		t.Errorf("Me = %v", got)
 	}
 }
@@ -267,9 +267,9 @@ func randomRooms(rng *rand.Rand) []domain.RoomID {
 		case 0:
 			out = append(out, domain.RoomID(fmt.Sprintf("!r%d:x", i)))
 		case 1:
-			out = append(out, domain.RoomID(fmt.Sprintf("whatsapp:359881234567/%d@g.us", i)))
+			out = append(out, domain.RoomID(fmt.Sprintf("whatsapp:44881234567/%d@g.us", i)))
 		default:
-			out = append(out, domain.RoomID(fmt.Sprintf("whatsapp:972501234567/%d@g.us", i)))
+			out = append(out, domain.RoomID(fmt.Sprintf("whatsapp:1501234567/%d@g.us", i)))
 		}
 	}
 	return out
@@ -555,7 +555,7 @@ func TestSpacesAreEveryNetworks(t *testing.T) {
 	ctx := context.Background()
 	m, wa := newFakeMatrix(), spacedFake{newFake("whatsapp")}
 	m.spaces = []domain.Space{{ID: "!work:x", Name: "Work"}}
-	community := domain.SpaceID("whatsapp:359881234567/120363@g.us")
+	community := domain.SpaceID("whatsapp:44881234567/120363@g.us")
 	wa.spaces = []domain.Space{{ID: community, Name: "Building", Bridge: domain.ProtocolWhatsApp}}
 	r, err := New(m, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: wa})
 	if err != nil {

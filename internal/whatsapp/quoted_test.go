@@ -28,7 +28,7 @@ func danaReplies(id, text, quotedID string, quoted *waE2E.Message) *events.Messa
 func TestAReplyKeepsWhatItQuotes(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 
