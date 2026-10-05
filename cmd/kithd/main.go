@@ -178,11 +178,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	if err != nil {
 		return err
 	}
-	backend, err := newServed(ctx, cache, log, cfg, storage, saved)
-	if err != nil {
-		closeCache(log, cache)
-		return err
-	}
+	backend := newServed(ctx, cache, log, cfg, storage, saved)
 	// Registered before configure, so what it starts is stopped on every return.
 	defer func() {
 		if !handlersLive {
@@ -271,35 +267,30 @@ var _ api.Backend = served{}
 // newServed builds the adapters (Matrix when the config names an account, starting
 // from saved), the router over them and the service over one cache, the service
 // hearing what each adapter caches.
-func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage, saved domain.Session) (served, error) {
-	// A nil *matrixAdapter in the interface would be a Matrix that is there.
+func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage, saved domain.Session) served {
+	// A nil *matrixAdapter in the map would be a Matrix that is there.
 	var adapter *matrixAdapter
-	var asMatrix route.Matrix
+	adapters := map[domain.Protocol]route.Adapter{}
 	if cfg.HasMatrix() {
 		adapter = newMatrixAdapter(cache, log, matrixAccount{
 			homeserver: cfg.Homeserver, user: cfg.User, allowTokenFile: cfg.AllowTokenFile,
 			crypto: cryptoPlace{path: storage.CryptoPath(), keys: session.StoreFor(storage, cfg.User)},
 		}, saved)
-		asMatrix = adapter
+		adapters[domain.ProtocolMatrix] = adapter
 	}
-	others := map[domain.Protocol]route.Adapter{}
 	wa, waStore := openWhatsApp(ctx, cache, log, cfg, storage.WhatsAppPath())
 	if wa != nil {
-		others[domain.ProtocolWhatsApp] = wa
+		adapters[domain.ProtocolWhatsApp] = wa
 	}
 	sl := openSlack(cache, log, cfg, storage)
 	if sl != nil {
-		others[domain.ProtocolSlack] = sl
+		adapters[domain.ProtocolSlack] = sl
 	}
 	tg := openTelegram(cache, log, cfg, storage)
 	if tg != nil {
-		others[domain.ProtocolTelegram] = tg
+		adapters[domain.ProtocolTelegram] = tg
 	}
-	router, err := route.New(asMatrix, others)
-	if err != nil {
-		closeWhatsAppStore(log, waStore)
-		return served{}, fmt.Errorf("route the networks: %w", err)
-	}
+	router := route.New(adapters)
 	service := local.New(cache, router)
 	service.UseLogger(log)
 	if adapter != nil {
@@ -314,7 +305,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	return served{
 		Router: router, Service: service, matrix: adapter, whatsapp: wa, whatsappStore: waStore, slack: sl, telegram: tg,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),
-	}, nil
+	}
 }
 
 // openWhatsApp is the WhatsApp adapter when [whatsapp] is enabled, over its session

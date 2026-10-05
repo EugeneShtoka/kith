@@ -3,6 +3,7 @@ package route
 import (
 	"context"
 	"errors"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -378,3 +379,27 @@ func (f threadedFake) MarkThreadRead(_ context.Context, room domain.RoomID, _, _
 func (f threadedFake) ThreadParticipant(_ context.Context, room domain.RoomID, _ domain.EventID) bool {
 	return f.touch(room) == nil
 }
+
+// routed is a router over matrix (nil: none) and others.
+func routed(matrix *fakeMatrix, others map[domain.Protocol]Adapter) *Router {
+	adapters := maps.Clone(others)
+	if adapters == nil {
+		adapters = map[domain.Protocol]Adapter{}
+	}
+	if matrix != nil {
+		adapters[domain.ProtocolMatrix] = matrix
+	}
+	return New(adapters)
+}
+
+// bare is a network with no capability beyond running and streaming, as a new
+// adapter is before it does anything else.
+type bare struct{ f *fake }
+
+func (b bare) Start(ctx context.Context) error         { return b.f.Start(ctx) }
+func (b bare) Stop()                                   { b.f.Stop() }
+func (b bare) Messages() <-chan domain.Message         { return b.f.messages }
+func (b bare) Activity() <-chan domain.Activity        { return b.f.activity }
+func (b bare) Unread() <-chan domain.Unread            { return b.f.unread }
+func (b bare) Reactions() <-chan domain.ReactionUpdate { return b.f.reactions }
+func (b bare) Me() []string                            { return b.f.me }

@@ -1,0 +1,71 @@
+package main
+
+import (
+	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/route"
+	"github.com/EugeneShtoka/kith/internal/slack"
+	"github.com/EugeneShtoka/kith/internal/telegram"
+	"github.com/EugeneShtoka/kith/internal/whatsapp"
+)
+
+// What each network can do, said where it is wired. The router asks an adapter for a
+// capability when a call needs it, so a method whose signature drifted would silently
+// make the network refuse that call; these make it a build error instead. A
+// capability a network gains is added here.
+var (
+	_ interface {
+		route.Adapter
+		route.Session
+		route.Resync
+		route.RoomLister
+		route.Homes
+		route.ReadState
+		route.Stars
+		route.SpamReports
+		route.History
+		route.Sender
+		route.People
+		route.Media
+		route.Encryption
+		route.SpaceLister
+		route.SpaceEditor
+		route.Threads
+		api.Membership
+		api.Verification
+		api.Keys
+	} = (*matrixAdapter)(nil)
+
+	_ interface {
+		route.Adapter
+		route.RoomLister
+		route.Homes
+		route.ReadState
+		route.Stars
+		route.SpamReports
+		route.History
+		route.Sender
+		route.People
+		route.Media
+		route.Encryption
+		route.SpaceLister
+	} = (*whatsapp.Adapter)(nil)
+
+	_ interface {
+		route.Adapter
+		route.RoomLister
+		route.Homes
+		route.ReadState
+		route.History
+		route.Sender
+		route.People
+		route.Media
+		route.Encryption
+		route.SpaceLister
+		route.Threads
+	} = (*slack.Adapter)(nil)
+
+	_ interface {
+		route.Adapter
+		route.Encryption
+	} = (*telegram.Adapter)(nil)
+)

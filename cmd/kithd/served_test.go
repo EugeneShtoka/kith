@@ -23,10 +23,7 @@ func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cache.Close() })
-	backend, err := newServed(context.Background(), cache, slog.New(slog.DiscardHandler), cfg, storage, saved)
-	if err != nil {
-		t.Fatal(err)
-	}
+	backend := newServed(context.Background(), cache, slog.New(slog.DiscardHandler), cfg, storage, saved)
 	t.Cleanup(func() {
 		backend.Stop()
 		backend.Close(slog.New(slog.DiscardHandler))
