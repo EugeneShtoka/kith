@@ -39,7 +39,7 @@ Also optional: Python 3 with [pyte](https://github.com/selectel/pyte) for
 ## First-time setup
 
 ```sh
-make hooks   # point core.hooksPath at .githooks (secrets + fmt + vet on commit, make check on push)
+make hooks   # point core.hooksPath at .githooks (secrets + fmt + vet on commit, make quick on push)
 make tools   # install the pinned tools and print every version the gates use
 ```
 
@@ -47,8 +47,9 @@ Git does not clone hooks, so `make hooks` is opt-in per checkout. The pre-commit
 scans staged changes for secrets, then, when Go files are staged, runs the format check
 and `go vet` on the staged snapshot (not the working tree, so unstaged edits can neither
 hide nor cause a failure). The pre-push hook scans history for secrets, then runs `make
-check CHECK_STRICT=1`: every CI gate, so a push does not fail in CI for something the
-machine could have said. `--no-verify` skips a hook.
+quick` (below): the gates that answer in about a minute. Pushing a tag, or
+`KITH_FULL_CHECK=1 git push`, runs `make check CHECK_STRICT=1` instead, every CI gate.
+`--no-verify` skips a hook.
 
 ## The `goolm` build tag
 
@@ -139,6 +140,11 @@ calls a tool directly instead of through its target. In order:
 Nothing is skipped for want of a tool. The one gate that can be skipped is the history
 secret scan, when the tree is not the root of its own git repository; `CHECK_STRICT=1`
 (the pre-push hook, and CI) makes that a failure too.
+
+`make quick`, the pre-push gate, is the same list less what costs minutes: tests run
+without `-race` and from Go's test cache (`test-quick`), with no coverage floors;
+`arch-quick` is `arch-check` without `deadcode`; and `cross`, `vuln`, `release-check` and
+`nix-check` are left to CI. In CI, `cross` runs only for a release tag.
 
 `govulncheck` also runs weekly on its own (`.github/workflows/vuln-weekly.yml`), so a new
 advisory is found even when nobody pushes.
