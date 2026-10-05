@@ -20,8 +20,8 @@ type writer struct {
 // prefix sloppy by one character would reach the other's rooms.
 func writers(sizes ...int) []writer {
 	matrix := writer{owner: domain.MatrixRooms}
-	a := writer{owner: domain.AccountRooms(domain.ProtocolWhatsApp, "359")}
-	b := writer{owner: domain.AccountRooms(domain.ProtocolWhatsApp, "3590")}
+	a := writer{owner: domain.AccountRooms(domain.ProtocolWhatsApp, "44")}
+	b := writer{owner: domain.AccountRooms(domain.ProtocolWhatsApp, "440")}
 	for i := range sizes[0] {
 		id := fmt.Sprintf("!r%d:x", i)
 		if i%3 == 0 {
@@ -30,8 +30,8 @@ func writers(sizes ...int) []writer {
 		matrix.pool = append(matrix.pool, domain.RoomID(id))
 	}
 	for i := range sizes[1] {
-		a.pool = append(a.pool, domain.RoomID(fmt.Sprintf("whatsapp:359/1203%d@g.us", i)))
-		b.pool = append(b.pool, domain.RoomID(fmt.Sprintf("whatsapp:3590/1203%d@g.us", i)))
+		a.pool = append(a.pool, domain.RoomID(fmt.Sprintf("whatsapp:44/1203%d@g.us", i)))
+		b.pool = append(b.pool, domain.RoomID(fmt.Sprintf("whatsapp:440/1203%d@g.us", i)))
 	}
 	return []writer{matrix, a, b}
 }
@@ -100,7 +100,7 @@ func TestEachNetworksRefreshKeepsToItsOwnRooms(t *testing.T) {
 func TestARoomOfAnotherWriterIsRefused(t *testing.T) {
 	t.Parallel()
 	cache := openTemp(t)
-	whatsapp := domain.RoomID("whatsapp:359/1203@g.us")
+	whatsapp := domain.RoomID("whatsapp:44/1203@g.us")
 	err := cache.SaveRooms(context.Background(), domain.MatrixRooms, []domain.Room{{ID: "!a:x"}, {ID: whatsapp}})
 	if err == nil || !strings.Contains(err.Error(), string(whatsapp)) {
 		t.Fatalf("SaveRooms(Matrix, a WhatsApp room) = %v, want it refused, naming the room", err)
@@ -115,9 +115,9 @@ func TestAddingARoomSweepsNothing(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	owner := domain.AccountRooms(domain.ProtocolWhatsApp, "359")
-	group := domain.RoomID("whatsapp:359/1203@g.us")
-	dm := domain.RoomID("whatsapp:359/972500000002@s.whatsapp.net")
+	owner := domain.AccountRooms(domain.ProtocolWhatsApp, "44")
+	group := domain.RoomID("whatsapp:44/1203@g.us")
+	dm := domain.RoomID("whatsapp:44/1500000002@s.whatsapp.net")
 	if err := cache.SaveRooms(ctx, owner, []domain.Room{{ID: group}}); err != nil {
 		t.Fatal(err)
 	}
@@ -139,13 +139,13 @@ func TestJoiningARoomKeepsWhatIsKnown(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	owner := domain.AccountRooms(domain.ProtocolWhatsApp, "359")
-	named := domain.RoomID("whatsapp:359/1203@g.us")
-	heard := domain.RoomID("whatsapp:359/1204@g.us")
+	owner := domain.AccountRooms(domain.ProtocolWhatsApp, "44")
+	named := domain.RoomID("whatsapp:44/1203@g.us")
+	heard := domain.RoomID("whatsapp:44/1204@g.us")
 	if err := cache.SaveRooms(ctx, owner, []domain.Room{{ID: named, Name: "Choir"}}); err != nil {
 		t.Fatal(err)
 	}
-	mustSave(t, cache, heard, domain.Message{ID: "whatsapp:359/3EB0", RoomID: heard, Body: "hi"})
+	mustSave(t, cache, heard, domain.Message{ID: "whatsapp:44/3EB0", RoomID: heard, Body: "hi"})
 	n, err := cache.JoinRooms(ctx, owner, []domain.RoomID{named, heard})
 	if err != nil || n != 1 {
 		t.Fatalf("JoinRooms = (%d, %v), want only the placeholder newly joined", n, err)
@@ -212,7 +212,7 @@ func TestEachNetworksSpacesKeepToThemselves(t *testing.T) {
 			t.Fatalf("seed %d: %d spaces cached, the writers' latest hold %d", seed, len(have), want)
 		}
 	}
-	if err := openTemp(t).SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{ID: "whatsapp:359/1203@g.us"}}); err == nil {
+	if err := openTemp(t).SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{ID: "whatsapp:44/1203@g.us"}}); err == nil {
 		t.Error("Matrix saved a WhatsApp space")
 	}
 }

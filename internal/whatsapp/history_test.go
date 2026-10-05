@@ -54,7 +54,7 @@ func historyFrom(unread uint32) *events.HistorySync {
 func TestHistoryIsCachedQuietly(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	a.clients[ownDigits] = client
@@ -90,7 +90,7 @@ func TestHistoryIsCachedQuietly(t *testing.T) {
 func TestUnreadFollowsMessagesAndReads(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, _, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	a.clients[ownDigits] = client
@@ -172,7 +172,7 @@ func TestUnreadFollowsMessagesAndReads(t *testing.T) {
 func TestTypingIsWhoIsTypingNow(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, _, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	typing := func(sender types.JID, state types.ChatPresence) {
@@ -210,7 +210,7 @@ func TestTypingIsWhoIsTypingNow(t *testing.T) {
 func TestReadingNeedsAConnection(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	a, _, _ := offline(t, Account{Name: "bg", Digits: ownDigits})
+	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
 	if err := a.MarkRead(ctx, danaChat, "whatsapp:"+ownDigits+"/3EB0", false); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("MarkRead with nothing connected = %v", err)
 	}

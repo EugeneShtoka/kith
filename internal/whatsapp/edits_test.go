@@ -30,7 +30,7 @@ func TestAnEditFoldsOntoItsMessage(t *testing.T) {
 	t.Parallel()
 	for _, keep := range []bool{false, true} {
 		ctx := context.Background()
-		account := Account{Name: "bg", Digits: ownDigits}
+		account := Account{Name: "home", Digits: ownDigits}
 		a, cache, store := offline(t, account)
 		a.KeepDeleted(keep)
 		client := linkedClient(t, store, ownDigits)
@@ -56,7 +56,7 @@ func TestADeletionAsYouAskedItKept(t *testing.T) {
 	t.Parallel()
 	for _, keep := range []bool{false, true} {
 		ctx := context.Background()
-		account := Account{Name: "bg", Digits: ownDigits}
+		account := Account{Name: "home", Digits: ownDigits}
 		a, cache, store := offline(t, account)
 		a.KeepDeleted(keep)
 		client := linkedClient(t, store, ownDigits)
@@ -81,7 +81,7 @@ func TestADeletionAsYouAskedItKept(t *testing.T) {
 func TestAReactionReplacesTheLast(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	react := func(id, emoji string) {
@@ -124,7 +124,7 @@ func TestAReactionReplacesTheLast(t *testing.T) {
 func TestChangesNeedAConnection(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	a, cache, _ := offline(t, Account{Name: "bg", Digits: ownDigits})
+	a, cache, _ := offline(t, Account{Name: "home", Digits: ownDigits})
 	msg := domain.EventID("whatsapp:" + ownDigits + "/3EB0X")
 	for name, err := range map[string]error{
 		"Redact":       a.Redact(ctx, danaChat, msg, ""),

@@ -651,7 +651,7 @@ func (m Model) loginHelp(f loginField) string {
 	session := setup.SlackSession(workspace)
 	switch f.key {
 	case fieldPhone:
-		return "The WhatsApp account's phone number, with its country code: +359 88 123 4567.\n\n" +
+		return "The WhatsApp account's phone number, with its country code: +44 7700 900123.\n\n" +
 			"kith becomes one of the phone's linked devices, as WhatsApp Web is. The phone must come " +
 			"online every couple of weeks, or WhatsApp unlinks it. Linking asks the phone for all the " +
 			"history it holds; it arrives over the minutes after."

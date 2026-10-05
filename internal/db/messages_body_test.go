@@ -16,7 +16,7 @@ func TestEachMessageBodyReadsEveryBodyOnceAcrossPages(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	const waMe = "whatsapp:359880000001@s.whatsapp.net"
+	const waMe = "whatsapp:44880000001@s.whatsapp.net"
 	const perRoom = 1500 // three rooms: more than two pages, under the per-room cap
 	want := map[string]bool{}
 	for r := range 3 {

@@ -54,7 +54,7 @@ func TestGuessLayoutVotesPerMessage(t *testing.T) {
 		{"mostly Hebrew", []string{"שלום לכולם", "מה נשמע", "ok"}, LayoutRTL},
 		{"a long English message is one vote", []string{"שלום", "מה קורה", "So far this session started rather uneventful, nothing compelling"}, LayoutRTL},
 		{"half is not most", []string{"שלום", "hello"}, LayoutLTR},
-		{"a link is not English", []string{"https://www.ynet.co.il/news/article/rk8rapu5gx החבר", "שלום"}, LayoutRTL},
+		{"a link is not English", []string{"https://www.example.com/news/article/1 החבר", "שלום"}, LayoutRTL},
 		{"Arabic", []string{"مرحبا", "كيف حالك"}, LayoutRTL},
 		{"Russian is left to right", []string{"Чтобы продать что-то", "привет"}, LayoutLTR},
 	} {

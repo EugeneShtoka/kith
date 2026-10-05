@@ -49,7 +49,7 @@ func filing(t *testing.T) (Model, *filer) {
 		// A bridge's own space, marked by the bridge bot being in it (not by its name).
 		{ID: "!wa:x", Name: "WhatsApp", Keeper: "@whatsappbot_bg:x", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!b:x"}},
 		// An origin space: a room names it as canonical parent.
-		{ID: "!tip:x", Name: "TipMaster", Original: true, Children: []domain.RoomID{"!b:x"}},
+		{ID: "!tip:x", Name: "Acme", Original: true, Children: []domain.RoomID{"!b:x"}},
 	}})
 	m = sized(t, m.clearStatus())
 	m.focus = paneRooms
@@ -172,7 +172,7 @@ func TestManagedSpacesAreNotOffered(t *testing.T) {
 	t.Parallel()
 
 	m, _ := filing(t)
-	for _, name := range []string{"WhatsApp", "TipMaster"} {
+	for _, name := range []string{"WhatsApp", "Acme"} {
 		if indexOfGroup(m.rail.groups, name) < 0 {
 			t.Errorf("%s should still be in the rail", name)
 		}

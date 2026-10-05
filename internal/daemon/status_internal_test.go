@@ -36,8 +36,8 @@ func TestStateReadinessFollowsTheExpectedAccounts(t *testing.T) {
 	t.Parallel()
 	accounts := []NetworkStatus{
 		{Network: "matrix", Account: "@me:x"},
-		{Network: "whatsapp", Account: "bg"},
-		{Network: "whatsapp", Account: "il"},
+		{Network: "whatsapp", Account: "home"},
+		{Network: "whatsapp", Account: "work"},
 	}
 	phases := []Phase{PhaseLoggedOut, PhaseConnecting, PhaseOnline, PhaseFailed}
 	for seed := range uint64(300) {
@@ -119,7 +119,7 @@ func TestStatusCarriesTheNetworks(t *testing.T) {
 	state := NewState()
 	online := time.Unix(1_700_000_000, 0)
 	state.Report(NetworkStatus{Network: "matrix", Account: "@me:x", Phase: PhaseLoggedOut, Detail: "run `kith login`"}, online)
-	state.Report(NetworkStatus{Network: "whatsapp", Account: "bg", Phase: PhaseOnline}, online)
+	state.Report(NetworkStatus{Network: "whatsapp", Account: "home", Phase: PhaseOnline}, online)
 	resp, err := (&server{Daemon: &Daemon{State: state}}).Status(context.Background(), connect.NewRequest(&v1.StatusRequest{}))
 	if err != nil {
 		t.Fatal(err)

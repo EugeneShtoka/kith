@@ -9,9 +9,9 @@ import (
 // Invented IDs in WhatsApp's shapes: an account, a group, a phone chat, a LID chat, a
 // message.
 const (
-	waAccount = "359000000001"
+	waAccount = "44000000001"
 	waGroup   = "120363000000000001@g.us"
-	waPhone   = "972500000002@s.whatsapp.net"
+	waPhone   = "1500000002@s.whatsapp.net"
 	waLID     = "100000000000003@lid"
 	waMessage = "3EB0C0FFEE0000000001"
 )
@@ -33,7 +33,7 @@ func TestIDsSayTheirNetworkAndAccount(t *testing.T) {
 		"whatsapp group":      {"whatsapp:" + waAccount + "/" + waGroup, domain.ID{Network: domain.ProtocolWhatsApp, Account: waAccount, Native: waGroup}, true, false, ""},
 		"whatsapp dm":         {"whatsapp:" + waAccount + "/" + waPhone, domain.ID{Network: domain.ProtocolWhatsApp, Account: waAccount, Native: waPhone}, true, false, ""},
 		"whatsapp message":    {"whatsapp:" + waAccount + "/" + waMessage, domain.ID{Network: domain.ProtocolWhatsApp, Account: waAccount, Native: waMessage}, false, false, ""},
-		"whatsapp phone user": {"whatsapp:" + waPhone, domain.ID{Network: domain.ProtocolWhatsApp, Native: waPhone}, false, true, "+972500000002"},
+		"whatsapp phone user": {"whatsapp:" + waPhone, domain.ID{Network: domain.ProtocolWhatsApp, Native: waPhone}, false, true, "+1500000002"},
 		"whatsapp lid user":   {"whatsapp:" + waLID, domain.ID{Network: domain.ProtocolWhatsApp, Native: waLID}, false, true, "100000000000003"},
 		"slack channel":       {"slack:T0000000001/C0000000002", domain.ID{Network: domain.ProtocolSlack, Account: "T0000000001", Native: "C0000000002"}, true, false, ""},
 		"slack dm":            {"slack:T0000000001/D0000000004", domain.ID{Network: domain.ProtocolSlack, Account: "T0000000001", Native: "D0000000004"}, true, false, ""},
@@ -76,7 +76,7 @@ func TestNativeIDsKeepAccountsApart(t *testing.T) {
 
 	for _, native := range []string{waGroup, waMessage} {
 		a := domain.ParseID("whatsapp:" + waAccount + "/" + native)
-		b := domain.ParseID("whatsapp:972500000009/" + native)
+		b := domain.ParseID("whatsapp:1500000009/" + native)
 		if a.Native != b.Native || a.Account == b.Account {
 			t.Errorf("%s from two accounts: %+v and %+v", native, a, b)
 		}
@@ -107,10 +107,10 @@ func TestANativeMemberHasAReadableName(t *testing.T) {
 	t.Parallel()
 
 	m := domain.Member{UserID: "whatsapp:" + waPhone}
-	if got := m.Name(); got != "+972500000002" {
+	if got := m.Name(); got != "+1500000002" {
 		t.Errorf("Name() = %q", got)
 	}
-	if m.Matches("+9725") == 0 {
+	if m.Matches("+15") == 0 {
 		t.Error("a member should answer to the start of their number")
 	}
 }
@@ -131,7 +131,7 @@ func TestANativeRoomIDIsAnEntry(t *testing.T) {
 	if !facts.Names(room) {
 		t.Errorf("%q should name its own room", room)
 	}
-	other := domain.RoomFacts{ID: "whatsapp:972500000009/" + waGroup}
+	other := domain.RoomFacts{ID: "whatsapp:1500000009/" + waGroup}
 	if other.Names(room) {
 		t.Errorf("%q names the other account's view of the group too", room)
 	}
@@ -169,13 +169,13 @@ func TestNativeIDsRoundTrip(t *testing.T) {
 // when one account's digits begin another's.
 func TestEachWriterOwnsOnlyItsRooms(t *testing.T) {
 	t.Parallel()
-	a := domain.AccountRooms(domain.ProtocolWhatsApp, "359")
-	b := domain.AccountRooms(domain.ProtocolWhatsApp, "3590")
+	a := domain.AccountRooms(domain.ProtocolWhatsApp, "44")
+	b := domain.AccountRooms(domain.ProtocolWhatsApp, "440")
 	rooms := map[domain.RoomID]domain.RoomOwner{
-		"!abc:example.org":                        domain.MatrixRooms,
-		"!v12opaque":                              domain.MatrixRooms,
-		domain.RoomID("whatsapp:359/" + waGroup):  a,
-		domain.RoomID("whatsapp:3590/" + waGroup): b,
+		"!abc:example.org":                       domain.MatrixRooms,
+		"!v12opaque":                             domain.MatrixRooms,
+		domain.RoomID("whatsapp:44/" + waGroup):  a,
+		domain.RoomID("whatsapp:440/" + waGroup): b,
 	}
 	for room, owner := range rooms {
 		for _, o := range []domain.RoomOwner{domain.MatrixRooms, a, b} {

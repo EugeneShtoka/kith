@@ -36,8 +36,8 @@ func (f failing) RoomEncryption(ctx context.Context, rooms []domain.RoomID) (map
 // Rooms on a network kith reaches directly: in no space, their network named by their
 // IDs alone (invented numbers).
 const (
-	nativeGroup domain.RoomID = "whatsapp:359000000001/120363000000000001@g.us"
-	nativeDM    domain.RoomID = "whatsapp:359000000001/972500000002@s.whatsapp.net"
+	nativeGroup domain.RoomID = "whatsapp:44000000001/120363000000000001@g.us"
+	nativeDM    domain.RoomID = "whatsapp:44000000001/1500000002@s.whatsapp.net"
 )
 
 // scopeRooms covers every kind of place a scope entry can name: a plain room in a

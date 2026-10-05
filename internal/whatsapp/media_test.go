@@ -52,7 +52,7 @@ func TestAPhotoIsKeptToLoadLater(t *testing.T) {
 func TestAPhotoArrivesLoadable(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	e := danaWrites("3EB0P", "")
@@ -111,7 +111,7 @@ func TestAFileGoesOutAsWhatItIs(t *testing.T) {
 	if err := os.WriteFile(path, png, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	a, _, _ := offline(t, Account{Name: "bg", Digits: ownDigits})
+	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
 	if err := a.SendFile(context.Background(), danaChat, path, ""); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("sending a file with nothing connected = %v", err)
 	}

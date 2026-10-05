@@ -62,7 +62,7 @@ func TestARoomsHomeFollowsTheRulesInAnyOrder(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(500) {
 		rng := rand.New(rand.NewPCG(seed, 11))
-		spaceNames := []string{"Work", "Friends", "Family", "TipMaster", "WhatsApp BG"}
+		spaceNames := []string{"Work", "Friends", "Family", "Acme", "WhatsApp Home"}
 		var spaces []Space
 		for _, name := range spaceNames {
 			s := Space{ID: SpaceID("!" + name), Name: name}

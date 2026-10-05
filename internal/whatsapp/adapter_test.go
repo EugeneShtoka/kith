@@ -98,10 +98,10 @@ func TestWhatComesLaterIsRefused(t *testing.T) {
 func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	a, _, store := offline(t, Account{Name: "bg", Digits: ownDigits})
+	a, _, store := offline(t, Account{Name: "home", Digits: ownDigits})
 	never := func(string) error { t.Error("a code was asked for"); return nil }
 
-	if _, err := a.PairWhatsApp(ctx, "il", never); !errors.Is(err, errNoAccount) {
+	if _, err := a.PairWhatsApp(ctx, "work", never); !errors.Is(err, errNoAccount) {
 		t.Errorf("an unknown account = %v, want errNoAccount", err)
 	}
 	device := store.container.NewDevice()
@@ -113,7 +113,7 @@ func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	if err := store.container.PutDevice(ctx, device); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.PairWhatsApp(ctx, "bg", never); !errors.Is(err, errAlreadyLinked) {
+	if _, err := a.PairWhatsApp(ctx, "home", never); !errors.Is(err, errAlreadyLinked) {
 		t.Errorf("a linked account = %v, want errAlreadyLinked", err)
 	}
 	// While one pairing runs, a second for the same account is refused before it
@@ -121,7 +121,7 @@ func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	if !a.beginPairing(a.accounts[0]) {
 		t.Fatal("a free account could not be claimed")
 	}
-	if _, err := a.PairWhatsApp(ctx, "bg", never); !errors.Is(err, errPairing) {
+	if _, err := a.PairWhatsApp(ctx, "home", never); !errors.Is(err, errPairing) {
 		t.Errorf("a second pairing at once = %v, want errPairing", err)
 	}
 	a.endPairing(a.accounts[0])

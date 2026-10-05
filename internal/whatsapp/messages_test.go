@@ -21,7 +21,7 @@ func TestAPersonIsTheirPhoneNumberWhenKnown(t *testing.T) {
 	ctx := context.Background()
 	known := func(_ context.Context, l types.JID) types.JID {
 		if l == lid(samLID) {
-			return pn("972500000004")
+			return pn("1500000004")
 		}
 		return types.EmptyJID
 	}
@@ -30,7 +30,7 @@ func TestAPersonIsTheirPhoneNumberWhenKnown(t *testing.T) {
 	}{
 		{pn(danaPhone), types.EmptyJID, pn(danaPhone)},
 		{lid(danaLID), pn(danaPhone), pn(danaPhone)},
-		{lid(samLID), types.EmptyJID, pn("972500000004")},
+		{lid(samLID), types.EmptyJID, pn("1500000004")},
 		{lid("100000000000099"), types.EmptyJID, lid("100000000000099")},
 	} {
 		if got := person(ctx, c.jid, c.alt, known); got != c.want {

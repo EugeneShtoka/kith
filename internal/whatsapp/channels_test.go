@@ -50,17 +50,17 @@ func TestChannelsAreRooms(t *testing.T) {
 func TestOnlyAChannelsAdminsPost(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	bg, il := Account{Name: "bg", Digits: ownDigits}, Account{Name: "il", Digits: "972500000001"}
-	a, _, _ := offline(t, bg, il)
-	_, bgKnown := channelRooms(bg.Digits, []*types.NewsletterMetadata{
+	home, work := Account{Name: "home", Digits: ownDigits}, Account{Name: "work", Digits: "1500000001"}
+	a, _, _ := offline(t, home, work)
+	_, homeKnown := channelRooms(home.Digits, []*types.NewsletterMetadata{
 		followed("1201", "Weather", types.NewsletterRoleSubscriber), followed("1202", "Mine", types.NewsletterRoleAdmin),
 	})
-	a.useChannels(bg, bgKnown)
-	_, ilKnown := channelRooms(il.Digits, []*types.NewsletterMetadata{followed("1301", "Theirs", types.NewsletterRoleOwner)})
-	a.useChannels(il, ilKnown)
+	a.useChannels(home, homeKnown)
+	_, workKnown := channelRooms(work.Digits, []*types.NewsletterMetadata{followed("1301", "Theirs", types.NewsletterRoleOwner)})
+	a.useChannels(work, workKnown)
 
-	weather, mine := roomID(bg.Digits, newsletter("1201")), roomID(bg.Digits, newsletter("1202"))
-	unknown := roomID(bg.Digits, newsletter("1299"))
+	weather, mine := roomID(home.Digits, newsletter("1201")), roomID(home.Digits, newsletter("1202"))
+	unknown := roomID(home.Digits, newsletter("1299"))
 	for name, err := range map[string]error{
 		"Send as a follower":     a.Send(ctx, weather, domain.Draft{Body: "hi"}),
 		"SendFile as a follower": a.SendFile(ctx, weather, "/nonexistent", ""),
@@ -76,18 +76,18 @@ func TestOnlyAChannelsAdminsPost(t *testing.T) {
 	if err := a.mayPost(mine); err != nil {
 		t.Errorf("an admin may not post: %v", err)
 	}
-	if err := a.mayPost(roomID(il.Digits, newsletter("1301"))); err != nil {
-		t.Errorf("il's own channel, after bg's listing: %v", err)
+	if err := a.mayPost(roomID(work.Digits, newsletter("1301"))); err != nil {
+		t.Errorf("work's own channel, after home's listing: %v", err)
 	}
 
-	// bg's next listing no longer has Mine: posting there is refused again.
-	_, bgKnown = channelRooms(bg.Digits, []*types.NewsletterMetadata{followed("1201", "Weather", "")})
-	a.useChannels(bg, bgKnown)
+	// home's next listing no longer has Mine: posting there is refused again.
+	_, homeKnown = channelRooms(home.Digits, []*types.NewsletterMetadata{followed("1201", "Weather", "")})
+	a.useChannels(home, homeKnown)
 	if err := a.mayPost(mine); !errors.Is(err, api.ErrNoPower) {
 		t.Errorf("a channel dropped from the listing = %v, want refused", err)
 	}
-	if err := a.mayPost(roomID(il.Digits, newsletter("1301"))); err != nil {
-		t.Errorf("il's channel after bg's second listing: %v", err)
+	if err := a.mayPost(roomID(work.Digits, newsletter("1301"))); err != nil {
+		t.Errorf("work's channel after home's second listing: %v", err)
 	}
 }
 
@@ -96,7 +96,7 @@ func TestOnlyAChannelsAdminsPost(t *testing.T) {
 func TestAChannelPostIsTheChannels(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	jid := newsletter("1201")

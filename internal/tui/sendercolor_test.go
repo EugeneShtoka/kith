@@ -81,6 +81,6 @@ func sameColor(a, b color.Color) bool {
 		return a == b
 	}
 	ar, ag, ab, aa := a.RGBA()
-	br, bg, bb, ba := b.RGBA()
-	return ar == br && ag == bg && ab == bb && aa == ba
+	br, home, bb, ba := b.RGBA()
+	return ar == br && ag == home && ab == bb && aa == ba
 }

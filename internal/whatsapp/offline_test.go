@@ -36,7 +36,7 @@ func linkedClient(t *testing.T, store *Store, digits string) *whatsmeow.Client {
 // Start with nothing linked yet waits for the end and connects nothing.
 func TestStartWithNothingLinkedWaits(t *testing.T) {
 	t.Parallel()
-	a, _, _ := offline(t, Account{Name: "bg", Digits: ownDigits})
+	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- a.Start(ctx) }()
@@ -58,7 +58,7 @@ func TestStartWithNothingLinkedWaits(t *testing.T) {
 func TestALinkedAccountIsMeUntilThePhoneUnlinksIt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, _, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
 	a.clients[ownDigits] = client

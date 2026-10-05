@@ -12,8 +12,8 @@ import (
 
 // Invented numbers in WhatsApp's shapes.
 const (
-	ownDigits = "359000000001"
-	danaPhone = "972500000002"
+	ownDigits = "44000000001"
+	danaPhone = "1500000002"
 	danaLID   = "100000000000003"
 	samLID    = "100000000000004"
 )

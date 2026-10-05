@@ -53,7 +53,7 @@ func (s *signingIn) PairWhatsApp(_ context.Context, account string, code func(st
 	if err := code("ABCD-1234"); err != nil {
 		return "", err
 	}
-	return "+359884650326", nil
+	return "+447700900123", nil
 }
 
 func (s *signingIn) SignInSlack(_ context.Context, account, token, cookie string) (api.SlackSignedIn, error) {
@@ -63,7 +63,7 @@ func (s *signingIn) SignInSlack(_ context.Context, account, token, cookie string
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.slack = append(s.slack, [3]string{account, token, cookie})
-	return api.SlackSignedIn{Workspace: "TipMaster", User: "eshtoka"}, nil
+	return api.SlackSignedIn{Workspace: "Acme", User: "dana"}, nil
 }
 
 func (s *signingIn) LoginMatrix(_ context.Context, password string) (api.MatrixLoggedIn, error) {
@@ -159,27 +159,27 @@ func TestLoginSetsUpWhatsAppAndLinksIt(t *testing.T) {
 	if !strings.Contains(strings.Join(m.loginLines(100, 30), "\n"), "country code") {
 		t.Error("the pane does not say what the phone number is")
 	}
-	m, _ = answer(t, m, "+359 88 465 0326")
-	if m.prompt.input != "bg" || !m.prompt.fresh {
-		t.Fatalf("name suggested %q (fresh %v), want bg from the country", m.prompt.input, m.prompt.fresh)
+	m, _ = answer(t, m, "+44 7700 900123")
+	if m.prompt.input != "gb" || !m.prompt.fresh {
+		t.Fatalf("name suggested %q (fresh %v), want gb from the country", m.prompt.input, m.prompt.fresh)
 	}
 	m, cmd := m.submitPrompt() // enter keeps the suggestion
 	if m.login.stage != loginWorking {
 		t.Fatalf("stage %v after the last field, want the daemon at work (status %q)", m.login.stage, m.status())
 	}
 	got := m.conf.base.WhatsApp
-	if !got.Enabled || len(got.Accounts) != 1 || got.Accounts[0] != (config.WhatsAppAccount{Name: "bg", Phone: "+359 88 465 0326"}) {
-		t.Fatalf("[whatsapp] = %+v, want it on with bg", got)
+	if !got.Enabled || len(got.Accounts) != 1 || got.Accounts[0] != (config.WhatsAppAccount{Name: "gb", Phone: "+44 7700 900123"}) {
+		t.Fatalf("[whatsapp] = %+v, want it on with gb", got)
 	}
 
 	m, codes := signIn(t, m, cmd)
-	if d.restarts != 1 || len(d.paired) != 1 || d.paired[0] != "bg" {
-		t.Errorf("restarts %d, paired %v; want one restart, then bg linked", d.restarts, d.paired)
+	if d.restarts != 1 || len(d.paired) != 1 || d.paired[0] != "gb" {
+		t.Errorf("restarts %d, paired %v; want one restart, then gb linked", d.restarts, d.paired)
 	}
 	if len(codes) != 1 || codes[0] != "ABCD-1234" {
 		t.Errorf("codes shown %v, want the pairing code", codes)
 	}
-	if m.login.stage != loginOff || !strings.Contains(m.status(), "linked WhatsApp bg") {
+	if m.login.stage != loginOff || !strings.Contains(m.status(), "linked WhatsApp gb") {
 		t.Errorf("after: stage %v, status %q; want done and said", m.login.stage, m.status())
 	}
 }
@@ -193,12 +193,12 @@ func TestLoginSetsUpSlackWithASessionTypedAsDots(t *testing.T) {
 	m := loggingIn(t, d, func(c *config.Config) { c.Slack.Enabled = true })
 
 	m, _ = m.openLogin("slack")
-	m, _ = answer(t, m, "https://app.slack.com/client/T01K2D5TCAC/C0123")
+	m, _ = answer(t, m, "https://app.slack.com/client/T0123456789/C0123")
 	if m.prompt.input != "work" {
 		t.Errorf("name suggested %q, want work for a workspace named by its ID", m.prompt.input)
 	}
 	m, _ = m.submitPrompt()
-	if help := strings.Join(m.loginLines(140, 40), "\n"); !strings.Contains(help, `teams["T01K2D5TCAC"].token`) {
+	if help := strings.Join(m.loginLines(140, 40), "\n"); !strings.Contains(help, `teams["T0123456789"].token`) {
 		t.Errorf("the token's help does not give the console line for the workspace:\n%s", help)
 	}
 
@@ -212,8 +212,8 @@ func TestLoginSetsUpSlackWithASessionTypedAsDots(t *testing.T) {
 	}
 	m, _ = answer(t, m, "xoxc-token")
 	m, cmd := answer(t, m, "xoxd-a%2Bb")
-	if got := m.conf.base.Slack.Accounts; len(got) != 1 || got[0] != (config.SlackAccount{Name: "work", Workspace: "T01K2D5TCAC"}) {
-		t.Fatalf("[[slack.account]] = %+v, want work in T01K2D5TCAC", got)
+	if got := m.conf.base.Slack.Accounts; len(got) != 1 || got[0] != (config.SlackAccount{Name: "work", Workspace: "T0123456789"}) {
+		t.Fatalf("[[slack.account]] = %+v, want work in T0123456789", got)
 	}
 	m, _ = signIn(t, m, cmd)
 	if len(d.slack) != 1 || d.slack[0] != [3]string{"work", "xoxc-token", "xoxd-a%2Bb"} {
@@ -222,7 +222,7 @@ func TestLoginSetsUpSlackWithASessionTypedAsDots(t *testing.T) {
 	if d.restarts != 0 {
 		t.Errorf("restarted %d times for a network that was on", d.restarts)
 	}
-	if !strings.Contains(m.status(), "signed in to TipMaster") {
+	if !strings.Contains(m.status(), "signed in to Acme") {
 		t.Errorf("status = %q", m.status())
 	}
 	for _, line := range m.loginLines(100, 30) {
@@ -239,28 +239,28 @@ func TestLoginAgainOrCancel(t *testing.T) {
 	d := &signingIn{}
 	m := loggingIn(t, d, func(c *config.Config) {
 		c.WhatsApp.Enabled = true
-		c.WhatsApp.Accounts = []config.WhatsAppAccount{{Name: "il", Phone: "+972 54 534 7450"}}
+		c.WhatsApp.Accounts = []config.WhatsAppAccount{{Name: "work", Phone: "+1 202 555 0147"}}
 	})
 	before := m.conf.base
 
 	m, _ = m.openLogin("whatsapp")
 	if m.picker.kind != pickerLoginAccount || len(m.picker.items) != 2 || m.picker.items[1].value != loginNew {
-		t.Fatalf("picker = %+v, want il and a new account", m.picker.items)
+		t.Fatalf("picker = %+v, want work and a new account", m.picker.items)
 	}
-	m, cmd := m.chooseLoginAccount("il")
+	m, cmd := m.chooseLoginAccount("work")
 	if m.login.stage != loginWorking {
-		t.Fatalf("stage %v, want il linking at once", m.login.stage)
+		t.Fatalf("stage %v, want work linking at once", m.login.stage)
 	}
 	m, _ = signIn(t, m, cmd)
-	if len(d.paired) != 1 || d.paired[0] != "il" || len(m.conf.base.WhatsApp.Accounts) != 1 {
-		t.Errorf("paired %v, accounts %v; want il linked and nothing added", d.paired, m.conf.base.WhatsApp.Accounts)
+	if len(d.paired) != 1 || d.paired[0] != "work" || len(m.conf.base.WhatsApp.Accounts) != 1 {
+		t.Errorf("paired %v, accounts %v; want work linked and nothing added", d.paired, m.conf.base.WhatsApp.Accounts)
 	}
 
 	m, _ = m.openLogin("whatsapp")
 	m, _ = m.chooseLoginAccount(loginNew)
-	m, _ = answer(t, m, "+972 54 534 7450")
-	if !strings.Contains(m.status(), "the account il already") {
-		t.Errorf("status = %q, want the number refused as il's", m.status())
+	m, _ = answer(t, m, "+1 202 555 0147")
+	if !strings.Contains(m.status(), "the account work already") {
+		t.Errorf("status = %q, want the number refused as work's", m.status())
 	}
 	m, _ = m.cancelPrompt()
 	if m.login.stage != loginOff || len(m.conf.base.WhatsApp.Accounts) != len(before.WhatsApp.Accounts) {
@@ -304,7 +304,7 @@ func TestLoginWithoutARestartSaysWhy(t *testing.T) {
 	d := &signingIn{off: true}
 	m := loggingIn(t, d, nil).WithRestart(nil)
 	m, _ = m.openLogin("whatsapp")
-	m, _ = answer(t, m, "+359 88 465 0326")
+	m, _ = answer(t, m, "+44 7700 900123")
 	m, cmd := m.submitPrompt()
 	m, _ = signIn(t, m, cmd)
 	if m.login.stage != loginOff || !strings.Contains(m.status(), "could not sign in to WhatsApp") {

@@ -159,7 +159,7 @@ func TestRecentBodies(t *testing.T) {
 		body   string
 	}{
 		{"!a:x", "@me:x", "first"}, {"!b:x", "@dana:x", "second"}, {"!a:x", "@dana:x", "third"},
-		{"!a:x", "@me:x", "taken back"}, {"!b:x", "whatsapp:359880000001@s.whatsapp.net", "fourth"},
+		{"!a:x", "@me:x", "taken back"}, {"!b:x", "whatsapp:44880000001@s.whatsapp.net", "fourth"},
 	} {
 		if err := cache.SaveMessages(ctx, m.room, []domain.Message{{ID: domain.EventID(fmt.Sprintf("$%d", i)),
 			RoomID: m.room, Sender: m.sender, Body: m.body, Timestamp: time.Unix(int64(1_700_000_000+i), 0)}}); err != nil {
@@ -181,7 +181,7 @@ func TestRecentBodies(t *testing.T) {
 		{"bounded", domain.EveryRoom(), nil, 2, []string{"fourth", "third"}},
 		{"one room", domain.TheseRooms([]domain.RoomID{"!a:x"}), nil, 10, []string{"third", "first"}},
 		{"one sender", domain.EveryRoom(), []string{"@me:x"}, 10, []string{"first"}},
-		{"one person on two networks", domain.EveryRoom(), []string{"@me:x", "whatsapp:359880000001@s.whatsapp.net"}, 10, []string{"fourth", "first"}},
+		{"one person on two networks", domain.EveryRoom(), []string{"@me:x", "whatsapp:44880000001@s.whatsapp.net"}, 10, []string{"fourth", "first"}},
 		{"none asked for", domain.EveryRoom(), nil, 0, nil},
 		{"no rooms named", domain.TheseRooms(nil), nil, 10, nil},
 	}

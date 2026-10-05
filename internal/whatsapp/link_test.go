@@ -31,12 +31,12 @@ func (l *links) all() []string {
 // Linked is the configured accounts with a device, the ones the daemon waits for.
 func TestLinkedIsTheAccountsWithADevice(t *testing.T) {
 	t.Parallel()
-	bg, il := Account{Name: "bg", Digits: ownDigits}, Account{Name: "il", Digits: "972500000001"}
-	a, _, store := offline(t, bg, il)
+	home, work := Account{Name: "home", Digits: ownDigits}, Account{Name: "work", Digits: "1500000001"}
+	a, _, store := offline(t, home, work)
 	linkedClient(t, store, ownDigits)
 	got, err := a.Linked(context.Background())
-	if err != nil || len(got) != 1 || got[0] != bg {
-		t.Errorf("Linked = (%v, %v), want bg alone", got, err)
+	if err != nil || len(got) != 1 || got[0] != home {
+		t.Errorf("Linked = (%v, %v), want home alone", got, err)
 	}
 }
 
@@ -45,7 +45,7 @@ func TestLinkedIsTheAccountsWithADevice(t *testing.T) {
 // config says it is not linked yet. A client already replaced says nothing.
 func TestAnAccountReportsItsLink(t *testing.T) {
 	t.Parallel()
-	account := Account{Name: "bg", Digits: ownDigits}
+	account := Account{Name: "home", Digits: ownDigits}
 	a, _, store := offline(t, account)
 	l := &links{}
 	a.OnLink(l.add)
@@ -59,7 +59,7 @@ func TestAnAccountReportsItsLink(t *testing.T) {
 			t.Fatal("Start reported nothing")
 		}
 	}
-	if got := l.all()[0]; !strings.HasPrefix(got, "bg unlinked ") || !strings.Contains(got, "kith login whatsapp bg") {
+	if got := l.all()[0]; !strings.HasPrefix(got, "home unlinked ") || !strings.Contains(got, "kith login whatsapp home") {
 		t.Errorf("at Start = %q, want unlinked with how to link it", got)
 	}
 
@@ -72,12 +72,12 @@ func TestAnAccountReportsItsLink(t *testing.T) {
 	stale := linkedClient(t, store, ownDigits)
 	a.handle(account, stale, &events.Disconnected{})
 	a.handle(account, client, &events.LoggedOut{})
-	a.UseAccounts(ctx, []Account{{Name: "il", Digits: "972500000001"}})
+	a.UseAccounts(ctx, []Account{{Name: "work", Digits: "1500000001"}})
 
 	got := l.all()[1:]
 	want := []string{
-		"bg connected ", "bg connecting disconnected; reconnecting", "bg unlinked the phone unlinked kith",
-		"bg unlinked no longer in the config", "il unlinked not linked yet",
+		"home connected ", "home connecting disconnected; reconnecting", "home unlinked the phone unlinked kith",
+		"home unlinked no longer in the config", "work unlinked not linked yet",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("reports = %q, want %q", got, want)

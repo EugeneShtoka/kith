@@ -22,7 +22,7 @@ func mustTags(t *testing.T, tags ...Tag) TagSet {
 
 var (
 	momDM   = RoomFacts{ID: "!mom:x", Name: "Mom", Direct: true, Protocol: ProtocolMatrix}
-	workGrp = RoomFacts{ID: "whatsapp:359/1@g.us", Name: "Standup", Spaces: []string{"Work"}, Protocol: ProtocolWhatsApp}
+	workGrp = RoomFacts{ID: "whatsapp:44/1@g.us", Name: "Standup", Spaces: []string{"Work"}, Protocol: ProtocolWhatsApp}
 	botsGrp = RoomFacts{ID: "!bots:x", Name: "Bots", Spaces: []string{"Work"}, Protocol: ProtocolMatrix}
 )
 

@@ -59,8 +59,8 @@ func TestTheHomeOrderIsTheSameBuiltInEitherStep(t *testing.T) {
 	cfg.Display.Rail.Order = []string{"tag:Family", "-", "*"}
 	spaces := []domain.Space{
 		{ID: "!w:x", Name: "Work"},
-		{ID: "!tip:x", Name: "TipMaster", Original: true},
-		{ID: "!wa:x", Name: "WhatsApp BG", Bridge: domain.ProtocolWhatsApp},
+		{ID: "!tip:x", Name: "Acme", Original: true},
+		{ID: "!wa:x", Name: "WhatsApp Home", Bridge: domain.ProtocolWhatsApp},
 	}
 	tags, _, err := Tags(cfg)
 	if err != nil {
@@ -71,7 +71,7 @@ func TestTheHomeOrderIsTheSameBuiltInEitherStep(t *testing.T) {
 	if !reflect.DeepEqual(daemon, client) {
 		t.Errorf("daemon %+v\nclient %+v", daemon, client)
 	}
-	if !client.Managed["tipmaster"] || !client.Managed["whatsapp bg"] || client.Managed["work"] || !client.Every["all"] {
-		t.Errorf("order = %+v, want TipMaster and WhatsApp BG the network's own, All every room", client)
+	if !client.Managed["acme"] || !client.Managed["whatsapp home"] || client.Managed["work"] || !client.Every["all"] {
+		t.Errorf("order = %+v, want Acme and WhatsApp Home the network's own, All every room", client)
 	}
 }
