@@ -142,6 +142,15 @@ func (x *scopeIndex) Facts(ctx context.Context, roomID domain.RoomID) domain.Roo
 	return x.factsFrom(roomID, facts)
 }
 
+// Known is the room as the index holds it now, with today's tags, never rebuilding it;
+// a room it does not hold is its ID and network alone.
+func (x *scopeIndex) Known(roomID domain.RoomID) domain.RoomFacts {
+	x.mu.Lock()
+	facts := x.rooms[roomID]
+	x.mu.Unlock()
+	return x.factsFrom(roomID, facts)
+}
+
 // factsFrom is one indexed room as the rule vocabulary takes it, with today's tags.
 func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts domain.RoomFacts) domain.RoomFacts {
 	if facts.ID == "" {

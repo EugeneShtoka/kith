@@ -305,3 +305,25 @@ func TestANetworksArchiveHoldsARoomInItsTag(t *testing.T) {
 		t.Errorf("into Archived = %v / %v, want nothing written", picked, out)
 	}
 }
+
+// What a room keeps is the narrowest rule naming it — one room over a tag, a space or
+// a network; among equals the later — else the setting everywhere.
+func TestARoomKeepsWhatItsNarrowestRuleSays(t *testing.T) {
+	t.Parallel()
+	room := RoomFacts{ID: "telegram:42/7", Name: "Dana", Spaces: []string{"Family"}, Tags: []string{"Archived"}, Protocol: ProtocolTelegram, Direct: true}
+	for _, c := range []struct {
+		rules []KeepRule
+		want  int
+	}{
+		{nil, -1},
+		{[]KeepRule{{"tag:Archived", 500}}, 500},
+		{[]KeepRule{{"tag:Archived", 500}, {"space:Family", 50}}, 50},         // equals: the later
+		{[]KeepRule{{"room:Dana", 10}, {"tag:Archived", 500}}, 10},            // one room over a set
+		{[]KeepRule{{"telegram:42/7", -1}, {"protocol:telegram", 100}}, -1},   // by ID, keeping all
+		{[]KeepRule{{"tag:Work", 5}, {"space:Work", 5}, {"!other:x", 5}}, -1}, // none name it
+	} {
+		if got := MessagesKept(-1, c.rules, room); got != c.want {
+			t.Errorf("rules %v: keeps %d, want %d", c.rules, got, c.want)
+		}
+	}
+}

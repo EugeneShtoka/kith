@@ -80,7 +80,7 @@ holds data but appears in neither list until the next refresh promotes it.
 
 | table | holds |
 | --- | --- |
-| `messages` | the timeline: sender, resolved name, body, timestamp, reply and thread links, and flags (`redacted`, `edited`, `mentioned`, `emote`). Bounded to the newest `messagesPerRoom` (2000) per room. |
+| `messages` | the timeline: sender, resolved name, body, timestamp, reply and thread links, and flags (`redacted`, `edited`, `mentioned`, `emote`). Every message is kept unless `[storage] messages_per_room` or a `[[storage.rule]]` caps a room; then its newest that many (UseKeep). |
 | `message_html` | the formatting, in kith's markup (the sanitized HTML subset of `internal/richtext`, which each network's formatting converts into), only for messages that carry formatting |
 | `message_media` | the attachment: kind, name, MIME type, size, dimensions, and how to fetch it: for Matrix the `mxc` URI and the encrypted-file JSON, for WhatsApp `{"whatsapp": kind, "proto": …}` (the message's media part, with its keys) in `file_json` |
 | `message_redaction` | who deleted a message and why, which outlives the content |

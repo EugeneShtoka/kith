@@ -50,6 +50,7 @@ func Validate(cfg config.Config) error {
 		errOf(LogTarget(cfg.Log)),
 		tagsCheck(cfg),
 		archivesCheck(cfg),
+		keepCheck(cfg),
 	} {
 		if err != nil {
 			return err

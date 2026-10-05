@@ -12,16 +12,14 @@ import (
 
 // Each chat's history is read back in the background once an account connects, so
 // what kith holds is not only what was opened: newest chats first, a page at a time,
-// to the chat's beginning or as deep as the cache keeps a room. Telegram limits how
+// to the chat's beginning or as deep as the cache keeps that room ([storage]
+// messages_per_room and its rules; every message by default). Telegram limits how
 // fast an account may ask (FLOOD_WAIT); the reading waits as long as it is told, and
 // keeps its place in the store, so a restart carries on where it stopped.
 
 const (
 	// backfillPage is how many messages a page asks for: Telegram's most.
 	backfillPage = 100
-	// backfillDepth is how far back a chat is read: the newest 2,000 messages, what the
-	// cache keeps of a room.
-	backfillDepth = 2000
 	// backfillPause is the rest between pages, so reading back never crowds out what
 	// the person is doing.
 	backfillPause = time.Second
@@ -68,7 +66,8 @@ func (a *Adapter) backfillRoom(ctx context.Context, self int64, room domain.Room
 			return err
 		}
 		fetched += len(page.Messages)
-		next, done = page.Next, page.Next == "" || fetched >= backfillDepth
+		depth := a.cache.MessagesKept(room) // asked each page: a reload may change it
+		next, done = page.Next, page.Next == "" || (depth >= 0 && fetched >= depth)
 		if err := a.store.keepBackfill(ctx, self, string(room), next, fetched, done); err != nil {
 			return err
 		}

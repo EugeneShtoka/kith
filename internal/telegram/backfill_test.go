@@ -92,7 +92,7 @@ func TestEachChatIsReadBackToItsBeginning(t *testing.T) {
 }
 
 // A chat whose reading stopped carries on from its place, and stops as deep as the
-// cache keeps a room; asked to wait, it waits and asks again.
+// cache keeps that room; asked to wait, it waits and asks again.
 func TestReadingBackCarriesOnWhereItStopped(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -100,9 +100,10 @@ func TestReadingBackCarriesOnWhereItStopped(t *testing.T) {
 	g := &groupHistory{sizes: map[int64]int{11: 5000}, floods: 1}
 	g.serve(f)
 	st := openStore(t)
-	a, _ := loggedInWithStore(t, f, st)
+	a, cache := loggedInWithStore(t, f, st)
 	ctx, room := t.Context(), roomID(42, -11)
-	if err := st.keepBackfill(ctx, 42, string(room), "3001", backfillDepth-50, false); err != nil {
+	cache.UseKeep(func(domain.RoomID) int { return 2000 })
+	if err := st.keepBackfill(ctx, 42, string(room), "3001", 1950, false); err != nil {
 		t.Fatal(err)
 	}
 	began := time.Now()
@@ -113,7 +114,7 @@ func TestReadingBackCarriesOnWhereItStopped(t *testing.T) {
 	if waited := time.Since(began); waited < time.Second {
 		t.Errorf("asked again after %v, before the second Telegram asked for", waited)
 	}
-	if _, fetched, done, _ := st.backfilled(ctx, 42, string(room)); !done || fetched != backfillDepth+50 {
+	if _, fetched, done, _ := st.backfilled(ctx, 42, string(room)); !done || fetched != 2050 {
 		t.Errorf("progress: %d read, done %v", fetched, done)
 	}
 }

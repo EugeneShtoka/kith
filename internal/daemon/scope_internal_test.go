@@ -168,3 +168,30 @@ func TestANetworksArchiveIsJudgedAsThePlace(t *testing.T) {
 		t.Errorf("after following nothing, Telegram's chat is in %v", got)
 	}
 }
+
+// What the cache keeps of a room follows [storage] by the room's place — a tag here —
+// read from the index as it stands: asked before the index holds the room, it answers
+// by the room's ID and network alone rather than read the cache (the cache asks
+// mid-write); once the index holds it, the tag's rule applies.
+func TestTheCacheKeepsWhatTheRoomsPlaceSays(t *testing.T) {
+	t.Parallel()
+	small, all := 50, -1
+	cfg := config.Config{
+		Tags: []config.Tag{{Name: "Archived", Picked: []string{"room:Dana"}}}, // by name: the index knows it
+		Storage: config.Storage{MessagesPerRoom: &all, Rules: []config.StorageRule{
+			{Match: "tag:Archived", Messages: &small},
+		}},
+	}
+	src := &gatedRooms{rooms: []domain.Room{{ID: "telegram:42/7", Name: "Dana"}, {ID: "telegram:42/8", Name: "Sam"}}}
+	n, err := NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := n.MessagesKept("telegram:42/7"); got != -1 {
+		t.Errorf("before the index holds it: keeps %d, want -1 (no rebuild mid-write)", got)
+	}
+	n.scope.Facts(context.Background(), "telegram:42/7") // the index built, as a message's notification does
+	if got, other := n.MessagesKept("telegram:42/7"), n.MessagesKept("telegram:42/8"); got != 50 || other != -1 {
+		t.Errorf("keeps %d in the archived room (want 50) and %d in the other (want -1)", got, other)
+	}
+}

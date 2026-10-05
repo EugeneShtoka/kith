@@ -1072,6 +1072,23 @@ state_dir = ""
 cache_dir = ""
 runtime_dir = ""
 keyring_service = "kith"
+# How many messages the cache keeps of each room, the newest; -1 keeps every one
+# (search, the assistant and scrolling back work offline over all of it). Rules below
+# set a place's own number.
+messages_per_room = -1
+
+# Per-place numbers. `match` names the place as any place list does: a room ID,
+# room:<name>, space:<name>, tag:<name>, protocol:<network>, dm or group. One room
+# beats a set of them; among equals, the later rule wins. A smaller number takes
+# effect as the room's next messages arrive.
+#
+# [[storage.rule]]
+# match    = "tag:Archived"
+# messages = 500
+#
+# [[storage.rule]]
+# match    = "protocol:telegram"
+# messages = 5000
 
 # Your own commands: `/zoom` runs the executable `zoom` in `dir`, and its stdout lands
 # in the composer for you to send or not. A non-zero exit, timeout or empty output

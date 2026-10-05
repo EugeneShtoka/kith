@@ -10,6 +10,8 @@ import (
 	"net/url"
 
 	_ "modernc.org/sqlite" // registers the pure-Go "sqlite" driver
+
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // Cache is a handle to the on-disk client cache.
@@ -21,6 +23,21 @@ type Cache struct {
 	log *slog.Logger
 	// selves is who this person is (see UseSelves); nil until set.
 	selves func() []string
+	// keep is how many messages a room keeps (see UseKeep); nil keeps every one.
+	keep func(domain.RoomID) int
+}
+
+// UseKeep sets how many messages each room keeps, the newest; a negative answer keeps
+// them all. It is asked at each write, before its transaction, so it must not write
+// to the cache. Call before use; without it every message is kept.
+func (c *Cache) UseKeep(keep func(domain.RoomID) int) { c.keep = keep }
+
+// MessagesKept is how many messages a room keeps; negative is every one.
+func (c *Cache) MessagesKept(roomID domain.RoomID) int {
+	if c.keep == nil {
+		return -1
+	}
+	return c.keep(roomID)
 }
 
 // UseSelves sets who this person is: every ID on every network that is them (each

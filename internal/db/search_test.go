@@ -294,7 +294,7 @@ func TestSearchIndexFollowsMessageChanges(t *testing.T) {
 	}
 }
 
-// The trim that caps a room at messagesPerRoom deletes rows, which must also
+// The trim that caps a room at testKeep deletes rows, which must also
 // leave the index — otherwise search would offer hits it can no longer jump to.
 func TestSearchIndexFollowsTrim(t *testing.T) {
 	t.Parallel()
@@ -302,8 +302,9 @@ func TestSearchIndexFollowsTrim(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	msgs := make([]domainMessage, 0, messagesPerRoom+5)
-	for i := range messagesPerRoom + 5 {
+	cache.UseKeep(func(domain.RoomID) int { return testKeep })
+	msgs := make([]domainMessage, 0, testKeep+5)
+	for i := range testKeep + 5 {
 		msgs = append(msgs, domainMessage{
 			ID:        domainEventID(fmt.Sprintf("$%d", i)),
 			RoomID:    "!r:x",
@@ -316,12 +317,12 @@ func TestSearchIndexFollowsTrim(t *testing.T) {
 		t.Fatalf("SaveMessages: %v", err)
 	}
 	// The five oldest were trimmed, so their text must be gone from the index.
-	hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch("tangerine", time.Now()), Rooms: domain.EveryRoom(), Limit: messagesPerRoom + 10})
+	hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch("tangerine", time.Now()), Rooms: domain.EveryRoom(), Limit: testKeep + 10})
 	if err != nil {
 		t.Fatalf("SearchMessages: %v", err)
 	}
-	if len(hits) != messagesPerRoom {
-		t.Errorf("index holds %d trimmed-table rows, want %d", len(hits), messagesPerRoom)
+	if len(hits) != testKeep {
+		t.Errorf("index holds %d trimmed-table rows, want %d", len(hits), testKeep)
 	}
 	for _, h := range hits {
 		if h.EventID == "$0" || h.EventID == "$4" {

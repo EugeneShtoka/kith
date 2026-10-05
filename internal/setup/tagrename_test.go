@@ -254,3 +254,25 @@ func TestCombinedTagsKeepTheirRules(t *testing.T) {
 		t.Errorf("references: Quiet %v, rail %v, archive %q", got.Tags[1].Rule, got.Display.Rail.Order, got.Telegram.Archive.Tag)
 	}
 }
+
+// [storage]'s numbers are -1 (every message) or at least one, and a rule names a place.
+func TestStorageRulesAreChecked(t *testing.T) {
+	t.Parallel()
+	n := func(v int) *int { return &v }
+	for name, c := range map[string]struct {
+		st config.Storage
+		ok bool
+	}{
+		"default":        {config.Storage{}, true},
+		"a number":       {config.Storage{MessagesPerRoom: n(500)}, true},
+		"zero":           {config.Storage{MessagesPerRoom: n(0)}, false},
+		"a rule":         {config.Storage{Rules: []config.StorageRule{{Match: "tag:Archived", Messages: n(10)}}}, true},
+		"a rule of zero": {config.Storage{Rules: []config.StorageRule{{Match: "tag:Archived", Messages: n(0)}}}, false},
+		"no number":      {config.Storage{Rules: []config.StorageRule{{Match: "tag:Archived"}}}, false},
+		"no place":       {config.Storage{Rules: []config.StorageRule{{Match: "", Messages: n(10)}}}, false},
+	} {
+		if _, _, err := KeepRules(c.st); (err == nil) != c.ok {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

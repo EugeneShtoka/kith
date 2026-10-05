@@ -472,9 +472,10 @@ func TestMessagesTrimToLimit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
+	cache.UseKeep(func(domain.RoomID) int { return testKeep })
 
 	// Write more than the per-room cap; only the newest survive.
-	msgs := make([]domain.Message, messagesPerRoom+20)
+	msgs := make([]domain.Message, testKeep+20)
 	for i := range msgs {
 		msgs[i] = domain.Message{
 			ID:        domain.EventID(fmt.Sprintf("$%04d", i)),
@@ -486,9 +487,9 @@ func TestMessagesTrimToLimit(t *testing.T) {
 	if err := cache.SaveMessages(ctx, "!a:x", msgs); err != nil {
 		t.Fatalf("SaveMessages() error = %v", err)
 	}
-	got, _ := cache.Messages(ctx, "!a:x", messagesPerRoom+100)
-	if len(got) != messagesPerRoom {
-		t.Fatalf("cached count = %d, want trimmed to %d", len(got), messagesPerRoom)
+	got, _ := cache.Messages(ctx, "!a:x", testKeep+100)
+	if len(got) != testKeep {
+		t.Fatalf("cached count = %d, want trimmed to %d", len(got), testKeep)
 	}
 	// The oldest kept message is the (20th) — everything older was trimmed.
 	if got[0].ID != domain.EventID(fmt.Sprintf("$%04d", 20)) {
@@ -715,11 +716,12 @@ func TestTrimTakesOthersReactionsToTrimmedMessages(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
+	cache.UseKeep(func(domain.RoomID) int { return testKeep })
 	native := domain.NativePerson(domain.ProtocolWhatsApp, "447700900001@s.whatsapp.net")
 	cache.UseSelves(func() []string { return []string{"", "@me:x", "@whatsapp_447700900001:x", native} })
 
 	// Exactly at the cap: nothing is trimmed until one more arrives.
-	msgs := make([]domain.Message, messagesPerRoom)
+	msgs := make([]domain.Message, testKeep)
 	for i := range msgs {
 		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("$%04d", i)), RoomID: "!a:x", Body: "m",
 			Timestamp: time.UnixMilli(int64(i) * 1000)}
@@ -769,13 +771,14 @@ func TestTrimWithoutSelvesKeepsEveryReaction(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
+	cache.UseKeep(func(domain.RoomID) int { return testKeep })
 	cache.UseSelves(func() []string { return []string{""} })
-	msgs := make([]domain.Message, messagesPerRoom+1)
+	msgs := make([]domain.Message, testKeep+1)
 	for i := range msgs {
 		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("$%04d", i)), RoomID: "!a:x", Body: "m",
 			Timestamp: time.UnixMilli(int64(i) * 1000)}
 	}
-	if err := cache.SaveMessages(ctx, "!a:x", msgs[:messagesPerRoom]); err != nil {
+	if err := cache.SaveMessages(ctx, "!a:x", msgs[:testKeep]); err != nil {
 		t.Fatal(err)
 	}
 	if err := cache.SaveReactions(ctx, []domain.Reaction{
@@ -783,7 +786,7 @@ func TestTrimWithoutSelvesKeepsEveryReaction(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SaveMessages(ctx, "!a:x", msgs[messagesPerRoom:]); err != nil {
+	if err := cache.SaveMessages(ctx, "!a:x", msgs[testKeep:]); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := cache.Reactions(ctx, "!a:x"); err != nil || len(got) != 1 {
@@ -862,5 +865,47 @@ func TestFormattingWithoutMarkupIsRefused(t *testing.T) {
 	got, _, err := cache.Message(ctx, "!a:x", "$1")
 	if err != nil || got.Format.Markup() != "<b>hi</b>" {
 		t.Errorf("after the refusals the stored formatting is %q, %v", got.Format.Markup(), err)
+	}
+}
+
+// testKeep is the per-room cap the trimming tests install.
+const testKeep = 2000
+
+// With no cap installed every message is kept; a room's own cap trims it alone, and a
+// negative one keeps all.
+func TestEachRoomKeepsWhatItsCapSays(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := openTemp(t)
+	save := func(room domain.RoomID, n int) {
+		msgs := make([]domain.Message, n)
+		for i := range msgs {
+			msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("%s/%04d", room, i)), RoomID: room, Body: "m", Timestamp: time.UnixMilli(int64(i) * 1000)}
+		}
+		if err := cache.SaveMessages(ctx, room, msgs); err != nil {
+			t.Fatal(err)
+		}
+	}
+	count := func(room domain.RoomID) int {
+		got, err := cache.Messages(ctx, room, 10000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(got)
+	}
+	save("!all:x", 2500)
+	if n := count("!all:x"); n != 2500 {
+		t.Errorf("with no cap, kept %d of 2500", n)
+	}
+	cache.UseKeep(func(room domain.RoomID) int {
+		if room == "!small:x" {
+			return 10
+		}
+		return -1
+	})
+	save("!small:x", 30)
+	save("!all:x", 1)
+	if small, all := count("!small:x"), count("!all:x"); small != 10 || all != 2500 {
+		t.Errorf("kept %d in the capped room (want 10) and %d in the other (want 2500)", small, all)
 	}
 }

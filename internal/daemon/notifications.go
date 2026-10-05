@@ -28,13 +28,16 @@ type Notifications struct {
 	// limiter has its own lock and outlives any one config.
 	limiter notify.Limiter
 
-	mu       sync.Mutex
-	limit    notify.Limit
-	rules    []notify.Rule
-	notifier notify.Notifier
-	temps    notify.Temps
-	autocopy domain.AutoCopy
-	clip     clipboard
+	mu sync.Mutex
+	// keep and keepRules are [storage] messages_per_room and its rules (MessagesKept).
+	keep      int
+	keepRules []domain.KeepRule
+	limit     notify.Limit
+	rules     []notify.Rule
+	notifier  notify.Notifier
+	temps     notify.Temps
+	autocopy  domain.AutoCopy
+	clip      clipboard
 	// tracked is the word list as rules; trackedNotify the global switch a rule's
 	// own `notify` may override (see domain.TrackedNotifies).
 	tracked       []domain.TrackedRule
@@ -129,6 +132,10 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+	keep, keepRules, err := setup.KeepRules(cfg.Storage)
+	if err != nil {
+		return err
+	}
 	limit, err := setup.NotificationLimit(cfg.Notifications)
 	if err != nil {
 		return err
@@ -158,6 +165,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.notifier, n.limit = rules, notifier, limit
+	n.keep, n.keepRules = keep, keepRules
 	n.autocopy, n.clip = autocopy, clipboard{command: cfg.Clipboard.Command}
 	n.tracked, n.trackedNotify = setup.TrackedRules(cfg.Display.Tracked), cfg.Display.Tracked.Notify
 	return nil
@@ -206,6 +214,20 @@ func (n *Notifications) caughtUp() bool { return n.syncs.Load() > 1 }
 
 // InvalidateScope drops the room/space index, e.g. after a refresh has landed.
 func (n *Notifications) InvalidateScope() { n.scope.Invalidate() }
+
+// MessagesKept is how many messages the cache keeps of a room ([storage]), negative
+// for every one. The cache asks it at each write, so it reads the room's place from
+// the index as it stands, never rebuilding it (which would read the cache): a room the
+// index does not hold yet is judged by its ID and network alone.
+func (n *Notifications) MessagesKept(roomID domain.RoomID) int {
+	n.mu.Lock()
+	keep, rules := n.keep, n.keepRules
+	n.mu.Unlock()
+	if len(rules) == 0 {
+		return keep
+	}
+	return domain.MessagesKept(keep, rules, n.scope.Known(roomID))
+}
 
 // Deliver acts on one incoming message: it captures a verification code if
 // configured, then raises a notification if one is earned, and reports it.

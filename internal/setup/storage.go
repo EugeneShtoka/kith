@@ -3,6 +3,7 @@ package setup
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -166,4 +167,30 @@ func dirOr(configured, xdgDir string) string {
 		}
 	}
 	return filepath.Clean(configured)
+}
+
+// KeepRules is [storage] messages_per_room and its [[storage.rule]]s, checked: a count
+// is negative (every message) or at least one, and a rule's match is a place entry.
+func KeepRules(st config.Storage) (int, []domain.KeepRule, error) {
+	base := st.MessagesKept()
+	if base == 0 {
+		return 0, nil, errors.New("config: [storage] messages_per_room: 0 would keep nothing; -1 keeps every message")
+	}
+	rules := make([]domain.KeepRule, 0, len(st.Rules))
+	for i, r := range st.Rules {
+		if _, ok := domain.ParseEntry(r.Match); !ok {
+			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d: match %q is no place — a room ID, room:<name>, space:<name>, tag:<name>, protocol:<network>, dm or group", i+1, r.Match)
+		}
+		if r.Messages == nil || *r.Messages == 0 {
+			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d (%s): messages is unset or 0; -1 keeps every message", i+1, r.Match)
+		}
+		rules = append(rules, domain.KeepRule{Match: r.Match, Messages: *r.Messages})
+	}
+	return base, rules, nil
+}
+
+// keepCheck is KeepRules for Validate.
+func keepCheck(cfg config.Config) error {
+	_, _, err := KeepRules(cfg.Storage)
+	return err
 }
