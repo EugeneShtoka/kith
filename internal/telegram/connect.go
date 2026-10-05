@@ -83,9 +83,11 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 			return nil
 		}
 		a.log.Info("connected", "account", account.Name, "user", self.ID)
-		if _, err := a.list(ctx, account, gen, self.ID, client); err != nil && ctx.Err() == nil {
+		rooms, err := a.list(ctx, account, gen, self.ID, client)
+		if err != nil && ctx.Err() == nil {
 			a.log.Warn("list the chats failed", "account", account.Name, "err", err)
 		}
+		go a.backfill(ctx, account, self.ID, rooms) // ends with the connection
 		return live.run(ctx, client, self.ID, func() { a.session(account, Connected, "") })
 	})
 	a.disown(account, gen)

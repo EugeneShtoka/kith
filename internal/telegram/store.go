@@ -16,7 +16,8 @@ import (
 
 // The Telegram store keeps, per logged-in account (by its own user ID), where its
 // updates are up to — the state gotd's updates manager recovers gaps from, after
-// downtime too — and the access hashes calls name users and channels by. None of it
+// downtime too — the access hashes calls name users and channels by, and how far
+// each chat's history has been read back (backfill.go). None of it
 // is secret (the session is in the keyring), and only the daemon opens it.
 //
 // An update's position is kept only once the messages it carries are cached: gotd
@@ -42,7 +43,12 @@ CREATE TABLE IF NOT EXISTS user_hashes (
 	user INTEGER NOT NULL, target INTEGER NOT NULL, hash INTEGER NOT NULL,
 	PRIMARY KEY (user, target)
 );
-PRAGMA user_version = 1;
+CREATE TABLE IF NOT EXISTS backfill (
+	user INTEGER NOT NULL, room TEXT NOT NULL,
+	next TEXT NOT NULL, fetched INTEGER NOT NULL, done INTEGER NOT NULL,
+	PRIMARY KEY (user, room)
+);
+PRAGMA user_version = 2;
 `
 
 // Store is the Telegram store. Build it with OpenStore.
@@ -264,4 +270,29 @@ func (s *Store) hash(ctx context.Context, query string, user, id int64) (int64, 
 		return 0, false, fmt.Errorf("telegram: read an access hash: %w", err)
 	}
 	return hash, true, nil
+}
+
+// backfilled is how far a chat's history has been read back for user: where the next
+// page starts ("" for the newest), how many messages were read, and whether it is
+// done (the chat's beginning, or as deep as kith keeps). A chat never read is zero.
+func (s *Store) backfilled(ctx context.Context, user int64, room string) (next string, fetched int, done bool, err error) {
+	err = s.db.QueryRowContext(ctx, `SELECT next, fetched, done FROM backfill WHERE user = ? AND room = ?`, user, room).
+		Scan(&next, &fetched, &done)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", 0, false, nil
+	}
+	if err != nil {
+		return "", 0, false, fmt.Errorf("telegram: read how far %s was read back: %w", room, err)
+	}
+	return next, fetched, done, nil
+}
+
+// keepBackfill keeps how far a chat's history has been read back for user.
+func (s *Store) keepBackfill(ctx context.Context, user int64, room, next string, fetched int, done bool) error {
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO backfill (user, room, next, fetched, done) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (user, room) DO UPDATE SET next = excluded.next, fetched = excluded.fetched, done = excluded.done`,
+		user, room, next, fetched, done); err != nil {
+		return fmt.Errorf("telegram: keep how far %s was read back: %w", room, err)
+	}
+	return nil
 }

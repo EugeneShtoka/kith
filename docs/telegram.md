@@ -5,7 +5,10 @@ bridge. **This is being built**: an account can be set up and logged in; its cha
 are rooms in kith — private chats (the chat with yourself is Saved Messages),
 groups, supergroups and channels, in a space named after the account ("Telegram
 home") — and their messages arrive, live and as you scroll back, with their
-formatting. Messages sent while kith was not running arrive when it connects again.
+formatting. Messages sent while kith was not running arrive when it connects again,
+and each chat's history is read back in the background once an account connects
+(the chat last spoken in first, to its beginning or its newest 2,000 messages, at
+the pace Telegram allows), so search and the assistant see more than was opened.
 You can write in them: Markdown as Telegram's formatting, mentions, replies. Edits
 and deletions show, both ways (an edited message's earlier versions, and a deleted
 one's words, are kept only under `[display.deleted] keep`); so do reactions (in a
