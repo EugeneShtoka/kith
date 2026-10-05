@@ -39,7 +39,7 @@ func TestOnlyTheLatestLoginKeepsCredentials(t *testing.T) {
 	for seed := range uint64(300) {
 		rng := rand.New(rand.NewPCG(seed, 7))
 		secrets := &memSecrets{values: map[string]string{}}
-		a := New(nil, secrets, []Account{home}, nil)
+		a := New(nil, secrets, nil, []Account{home}, nil)
 		latest, configured, want := 0, true, ""
 		var trace []string
 		for step := range 40 {
@@ -102,7 +102,7 @@ func TestAStaleRenewalNeverOutlastsANewerLogin(t *testing.T) {
 	t.Parallel()
 	for round := range 200 {
 		secrets := &memSecrets{values: map[string]string{}}
-		a := New(nil, slowSecrets{secrets}, []Account{home}, nil)
+		a := New(nil, slowSecrets{secrets}, nil, []Account{home}, nil)
 		old := bump(a, home)
 		var wg sync.WaitGroup
 		start := make(chan struct{})

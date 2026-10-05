@@ -77,7 +77,7 @@ func (s *sessions) of(name string) (domain.AccountPhase, string) {
 func started(t *testing.T, secrets Secrets, accounts ...Account) (*Adapter, *sessions) {
 	t.Helper()
 	heard := &sessions{seen: map[string]domain.AccountPhase{}, said: map[string]string{}}
-	a := New(nil, secrets, accounts, nil)
+	a := New(nil, secrets, nil, accounts, nil)
 	a.OnStatus(heard.hear)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -151,7 +151,7 @@ func TestAnAddedAccountIsAnnounced(t *testing.T) {
 // Telegram rooms are not end-to-end encrypted.
 func TestTelegramRoomsAreNotEncrypted(t *testing.T) {
 	t.Parallel()
-	a := New(nil, &memSecrets{values: map[string]string{}}, []Account{home}, nil)
+	a := New(nil, &memSecrets{values: map[string]string{}}, nil, []Account{home}, nil)
 	room := domain.RoomID("telegram:42/-1001")
 	if enc, err := a.RoomEncryption(t.Context(), []domain.RoomID{room}); err != nil || enc[room] {
 		t.Errorf("RoomEncryption = (%v, %v), want not encrypted", enc, err)
@@ -161,7 +161,7 @@ func TestTelegramRoomsAreNotEncrypted(t *testing.T) {
 // UseConfig reads [[telegram.account]], each number as its digits.
 func TestUseConfigReadsTheTelegramSection(t *testing.T) {
 	t.Parallel()
-	a := New(nil, &memSecrets{values: map[string]string{}}, nil, nil)
+	a := New(nil, &memSecrets{values: map[string]string{}}, nil, nil, nil)
 	a.UseConfig(t.Context(), config.Config{Telegram: config.Telegram{Accounts: []config.TelegramAccount{{Name: "home", Phone: "+44 7700 900000"}}}})
 	if got := a.accountsNow(); len(got) != 1 || got[0] != home {
 		t.Errorf("accounts = %+v, want home", got)

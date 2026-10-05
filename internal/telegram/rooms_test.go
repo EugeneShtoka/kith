@@ -109,7 +109,7 @@ func cachedAdapter(t *testing.T, secrets *memSecrets) (*Adapter, *db.Cache) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cache.Close() })
-	return New(cache, secrets, []Account{home}, nil), cache
+	return New(cache, secrets, nil, []Account{home}, nil), cache
 }
 
 // cachedNames is the Telegram rooms in the cache, by name.
@@ -250,7 +250,7 @@ func TestManyChatsAreReadPageByPage(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
-	client := f.dial(testApp, newLoginSession())
+	client := f.dial(testApp, newLoginSession(), nil)
 	var got []dialog
 	err := client.Run(ctx, func(ctx context.Context) error {
 		var err error

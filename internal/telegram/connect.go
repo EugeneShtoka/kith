@@ -57,7 +57,8 @@ func (a *Adapter) connectAs(account Account, creds Credentials, gen int, dial di
 func (a *Adapter) connect(ctx context.Context, account Account, creds Credentials, gen int, dial dialer) {
 	for wait := firstRetry; ; wait = min(2*wait, lastRetry) {
 		storage := &keptSession{a: a, account: account, gen: gen, creds: creds}
-		if a.connectOnce(ctx, account, gen, dial(creds.App, storage)) {
+		live := a.liveFor(account)
+		if a.connectOnce(ctx, account, gen, dial(creds.App, storage, live.manager), live) {
 			return
 		}
 		select {
@@ -70,7 +71,7 @@ func (a *Adapter) connect(ctx context.Context, account Account, creds Credential
 
 // connectOnce runs one connection until it ends; true when trying again would not
 // help (it was ended, or Telegram ended the session).
-func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, client *telegram.Client) bool {
+func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, client *telegram.Client, live *live) bool {
 	a.session(account, Connecting, "")
 	err := client.Run(ctx, func(ctx context.Context) error {
 		self, err := client.Self(ctx)
@@ -84,9 +85,7 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 		if _, err := a.list(ctx, account, gen, self.ID, client); err != nil && ctx.Err() == nil {
 			a.log.Warn("list the chats failed", "account", account.Name, "err", err)
 		}
-		a.session(account, Connected, "")
-		<-ctx.Done()
-		return nil
+		return live.run(ctx, client, self.ID, func() { a.session(account, Connected, "") })
 	})
 	a.disown(account, gen)
 	switch {

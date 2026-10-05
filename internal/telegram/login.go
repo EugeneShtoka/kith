@@ -148,7 +148,7 @@ func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.
 	ctx, gen := a.beginLogin(ctx, account)
 	defer a.endLogin(account.Name, gen)
 	storage := newLoginSession()
-	client := dial(app, storage)
+	client := dial(app, storage, nil)
 	var end api.LoginEnd
 	err := client.Run(ctx, func(ctx context.Context) error {
 		phone := "+" + account.Digits

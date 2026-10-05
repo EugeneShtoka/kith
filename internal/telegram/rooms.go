@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/message/peer"
@@ -51,10 +52,12 @@ type listing struct {
 	hashes  accessHashes
 }
 
-// dialog is one of an account's dialogs: its peer, as calls name it, and the users,
-// chats and channels its page carried.
+// dialog is one of an account's dialogs: its peer, as calls name it, its latest
+// message (nil when the page did not carry it), and the users, chats and channels its
+// page carried.
 type dialog struct {
 	peer     tg.InputPeerClass
+	top      tg.MessageClass
 	entities peer.Entities
 }
 
@@ -140,6 +143,7 @@ var errNotListed = errors.New("telegram: the account is not connected")
 func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64, client *telegram.Client) ([]domain.Room, error) {
 	a.refreshing.Lock()
 	defer a.refreshing.Unlock()
+	fetched := time.Now()
 	elems, err := readDialogs(ctx, client.API())
 	if err != nil {
 		return nil, fmt.Errorf("telegram: list %s's chats: %w", account.Name, err)
@@ -148,9 +152,10 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	if !a.keepHashes(account, gen, l.hashes) {
 		return nil, errNotListed
 	}
-	if err := a.save(ctx, self, l); err != nil {
+	if err := a.save(ctx, self, l, fetched); err != nil {
 		return nil, err
 	}
+	a.cacheTops(ctx, self, elems, l.rooms)
 	return l.rooms, nil
 }
 
@@ -175,7 +180,7 @@ func readDialogs(ctx context.Context, api *tg.Client) ([]dialog, error) {
 			}
 			for _, d := range page.dialogs {
 				if input, err := page.entities.ExtractPeer(d.Peer); err == nil {
-					out = append(out, dialog{peer: input, entities: page.entities})
+					out = append(out, dialog{peer: input, top: page.top(d), entities: page.entities})
 				}
 			}
 			if last || len(page.dialogs) == 0 {
@@ -219,6 +224,23 @@ func dialogPage(res tg.MessagesDialogsClass) (page, bool, error) {
 	return p, last, nil
 }
 
+// top is a dialog's latest message, as its page carried it.
+func (p page) top(d *tg.Dialog) tg.MessageClass {
+	chat, ok := markedPeer(d.Peer)
+	if !ok {
+		return nil
+	}
+	for _, m := range p.messages {
+		if m.GetID() != d.TopMessage {
+			continue
+		}
+		if msg, ok := m.AsNotEmpty(); ok && samePeer(msg.GetPeerID(), chat) {
+			return m
+		}
+	}
+	return nil
+}
+
 // next sets req to the page after p: from its last dialog, and that dialog's top
 // message. false when it cannot say where that is.
 func (p page) next(req *tg.MessagesGetDialogsRequest) bool {
@@ -251,14 +273,22 @@ func (a *Adapter) keepHashes(account Account, gen int, hashes accessHashes) bool
 	return true
 }
 
-// save writes a listing over the account's cached rooms, and the people of its private
-// chats.
-func (a *Adapter) save(ctx context.Context, self int64, l listing) error {
+// save writes a listing, fetched then, over the account's cached rooms, and the
+// people of its private chats. A room a message arrived in since the listing was
+// fetched (a chat just begun) is kept, though the listing does not name it: the sweep
+// would take its history.
+func (a *Adapter) save(ctx context.Context, self int64, l listing, fetched time.Time) error {
 	if a.cache == nil {
 		return nil
 	}
+	a.listing.Lock()
+	defer a.listing.Unlock()
 	owner := domain.AccountRooms(domain.ProtocolTelegram, strconv.FormatInt(self, 10))
-	if err := a.cache.SaveRooms(ctx, owner, l.rooms); err != nil {
+	kept, err := a.keptRooms(ctx, owner, l.rooms, fetched)
+	if err != nil {
+		return err
+	}
+	if err := a.cache.SaveRooms(ctx, owner, append(slices.Clone(l.rooms), kept...)); err != nil {
 		return fmt.Errorf("telegram: cache the chats: %w", err)
 	}
 	for id, members := range l.members {
@@ -270,6 +300,40 @@ func (a *Adapter) save(ctx context.Context, self int64, l listing) error {
 		a.onRoomsChanged()
 	}
 	return nil
+}
+
+// keptRooms is an owner's cached rooms a listing fetched then must not sweep: those
+// heard from since. Caller holds listing.
+func (a *Adapter) keptRooms(ctx context.Context, owner domain.RoomOwner, listed []domain.Room, fetched time.Time) ([]domain.Room, error) {
+	rooms, err := a.cache.Rooms(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("telegram: read cached rooms: %w", err)
+	}
+	return slices.DeleteFunc(rooms, func(r domain.Room) bool {
+		return !owner.Owns(r.ID) || a.heard[r.ID].Before(fetched) ||
+			slices.ContainsFunc(listed, func(l domain.Room) bool { return l.ID == r.ID })
+	}), nil
+}
+
+// cacheTops caches each listed chat's latest message, as the listing carried it: a
+// chat shows its last message before it is opened. It is history: nothing is
+// streamed or notified.
+func (a *Adapter) cacheTops(ctx context.Context, self int64, elems []dialog, listed []domain.Room) {
+	if a.cache == nil {
+		return
+	}
+	for _, e := range elems {
+		if e.top == nil {
+			continue
+		}
+		msg, ok := incoming(self, e.top, e.entities)
+		if !ok || !slices.ContainsFunc(listed, func(r domain.Room) bool { return r.ID == msg.RoomID }) {
+			continue
+		}
+		if err := a.cache.SaveMessages(ctx, msg.RoomID, []domain.Message{msg}); err != nil {
+			a.log.Warn("cache a chat's latest message failed", "room", msg.RoomID, "err", err)
+		}
+	}
 }
 
 // Rooms is the Telegram rooms in the cache, whichever account sees them.
