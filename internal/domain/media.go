@@ -10,6 +10,10 @@ const (
 	MediaFile  MediaType = "file"  // m.file (and anything else with an attachment)
 )
 
+// VoiceMessage is the name of a recorded voice note, which carries no file name of its
+// own; a Matrix bridge writes the same words into the body.
+const VoiceMessage = "voice message"
+
 // Media is the display metadata for a message's attachment: enough to render a
 // placeholder chip and to size an inline/preview render.
 type Media struct {

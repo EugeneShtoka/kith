@@ -56,6 +56,10 @@ func fileMedia(f *slackgo.File) *domain.Media {
 	case "audio":
 		media.Type = domain.MediaAudio
 	}
+	// A clip recorded in Slack: a voice message, whatever container it came in.
+	if f.SubType == "slack_audio" {
+		media.Type, media.Name = domain.MediaAudio, domain.VoiceMessage
+	}
 	return &media
 }
 

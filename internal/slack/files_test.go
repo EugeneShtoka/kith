@@ -186,3 +186,21 @@ func TestAFileHeardLiveLoadsUntilAnEditShowsItGone(t *testing.T) {
 		t.Errorf("files host asked %d times, want once", n)
 	}
 }
+
+// A clip recorded in Slack is a voice message to play, even in a video container; an
+// uploaded audio file keeps its name.
+func TestAnAudioClipIsAVoiceMessage(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		file slackgo.File
+		name string
+	}{
+		{slackgo.File{Name: "audio_message.m4a", Mimetype: "audio/mp4", SubType: "slack_audio"}, domain.VoiceMessage},
+		{slackgo.File{Name: "clip.mp4", Mimetype: "video/mp4", SubType: "slack_audio"}, domain.VoiceMessage},
+		{slackgo.File{Name: "song.mp3", Mimetype: "audio/mpeg"}, "song.mp3"},
+	} {
+		if got := fileMedia(&tc.file); !got.IsAudio() || got.Name != tc.name {
+			t.Errorf("%s = %+v, want audio named %q", tc.file.Name, got, tc.name)
+		}
+	}
+}

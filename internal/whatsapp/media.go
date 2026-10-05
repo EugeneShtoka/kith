@@ -63,6 +63,9 @@ func attachment(msg *waE2E.Message) (*domain.Media, *mediaSource) {
 	case msg.GetAudioMessage() != nil:
 		m := msg.GetAudioMessage()
 		media = domain.Media{Type: domain.MediaAudio, Mime: m.GetMimetype(), Size: bytesOf(m.GetFileLength())}
+		if m.GetPTT() {
+			media.Name = domain.VoiceMessage
+		}
 		part, kind = m, kindAudio
 	case msg.GetDocumentMessage() != nil:
 		m := msg.GetDocumentMessage()
