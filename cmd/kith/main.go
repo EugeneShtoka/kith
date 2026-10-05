@@ -295,7 +295,7 @@ func run(configPath, profile string, jobs startup) error {
 		return err
 	}
 	defer closeLog()
-	log.Info("kith started", "user", cfg.User, "version", buildinfo.String("kith"))
+	log.Info("kith started", "version", buildinfo.String("kith"))
 	notice := ""
 	if rows, nerr := backend.Networks(ctx); nerr == nil {
 		notice = loggedOutNotice(rows)
@@ -307,7 +307,7 @@ func run(configPath, profile string, jobs startup) error {
 	}
 	if err := tui.Run(ctx, tui.RunOptions{
 		Backend: backend, Notifications: backend, Schedules: backend,
-		Config: cfg, ConfigPath: path, Me: cfg.User, Log: log, Follow: jobs.follow, Notice: notice,
+		Config: cfg, ConfigPath: path, Log: log, Follow: jobs.follow, Notice: notice,
 		RestartDaemon: func(ctx context.Context) error {
 			return daemon.Restart(ctx, at.storage, at.launch, readyTimeout)
 		},

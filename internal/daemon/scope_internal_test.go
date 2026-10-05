@@ -120,7 +120,7 @@ func TestTheNotifierKnowsTags(t *testing.T) {
 		spaces: []domain.Space{{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!mom:x"}}}}
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
 	cfg.Display.Priority = []string{"tag:Family", "Work"}
-	n, err := NewNotifications(cfg, src, "@me:x", func(config.Notifications) notify.Notifier { return nil })
+	n, err := NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}

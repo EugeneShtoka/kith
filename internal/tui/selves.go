@@ -28,24 +28,33 @@ func (m Model) handleSelves(msg selvesMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// isMe reports whether id is this person: the Matrix account kith runs as, or any ID
-// the daemon says is theirs (their identities, their WhatsApp accounts).
+// isMe reports whether id is this person: any ID the daemon says is theirs, on any
+// network (each network's own accounts, the IDs a bridge posts as for them).
 func (m Model) isMe(id string) bool {
-	return id != "" && (id == m.me || slices.Contains(m.selves, id))
+	return id != "" && slices.Contains(m.selves, id)
 }
 
-// selfIDs is every ID isMe accepts, the Matrix account first.
+// selfIDs is every ID isMe accepts, in the daemon's order.
 func (m Model) selfIDs() []string {
-	ids := make([]string, 0, len(m.selves)+1)
-	if m.me != "" {
-		ids = append(ids, m.me)
-	}
+	ids := make([]string, 0, len(m.selves))
 	for _, id := range m.selves {
 		if id != "" && !slices.Contains(ids, id) {
 			ids = append(ids, id)
 		}
 	}
 	return ids
+}
+
+// selfIn is this person's ID on room's network, the first the daemon lists when they
+// have several there; "" when none.
+func (m Model) selfIn(room domain.RoomID) string {
+	network := domain.NetworkOf(string(room))
+	for _, id := range m.selfIDs() {
+		if domain.NetworkOf(id) == network {
+			return id
+		}
+	}
+	return ""
 }
 
 // selvesAfterRooms asks again who this person is when rooms arrive from a network

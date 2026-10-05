@@ -82,7 +82,7 @@ func silencing(t *testing.T) (Model, *fakeNotifications) {
 	daemon := &fakeNotifications{}
 	m := sized(t, withRooms(t, newModel())).
 		WithNotifications(daemon).
-		WithRules([]notify.Rule{{Name: "all rooms", Show: new(notify.LevelAll)}}, "@me:x", true)
+		WithRules([]notify.Rule{{Name: "all rooms", Show: new(notify.LevelAll)}}, true)
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
 	}})

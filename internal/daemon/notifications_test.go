@@ -110,10 +110,11 @@ func notifier(t *testing.T, cfg config.Config) (*daemon.Notifications, *recorder
 	t.Helper()
 
 	src, rec := world(), &recorder{}
-	n, err := daemon.NewNotifications(cfg, src, me, func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	n.UseSelves(func() []string { return []string{me} })
 	// Two sync responses: the daemon is past its catch-up batch, so a message arriving now
 	// arrived now.
 	n.Synced(time.Now())
@@ -309,7 +310,7 @@ func TestNewNotificationsRefusesABadConfig(t *testing.T) {
 		"show":        notifsOn("everything"),
 		"rate_window": badWindow,
 	} {
-		_, err := daemon.NewNotifications(cfg, world(), me, func(config.Notifications) notify.Notifier { return notify.Nop{} })
+		_, err := daemon.NewNotifications(cfg, world(), func(config.Notifications) notify.Notifier { return notify.Nop{} })
 		if err == nil || !strings.Contains(err.Error(), key) {
 			t.Errorf("NewNotifications() = %v, want a refusal naming %s", err, key)
 		}
@@ -466,11 +467,12 @@ func TestCatchUpDoesNotNotify(t *testing.T) {
 	t.Parallel()
 
 	src, rec := world(), &recorder{}
-	n, err := daemon.NewNotifications(notifsOn("all"), src, me,
+	n, err := daemon.NewNotifications(notifsOn("all"), src,
 		func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	n.UseSelves(func() []string { return []string{me} })
 
 	// Before any sync at all.
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "overnight")); ok {
@@ -608,10 +610,11 @@ func TestAThreadRuleAsksWhetherWeAreInTheConversation(t *testing.T) {
 	)
 	src, rec := world(), &recorder{}
 	src.inThreads = map[domain.EventID]bool{"$mine": true}
-	n, err := daemon.NewNotifications(cfg, src, me, func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	n.UseSelves(func() []string { return []string{me} })
 	n.Synced(time.Now())
 	n.Synced(time.Now())
 

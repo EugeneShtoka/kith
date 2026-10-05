@@ -79,6 +79,7 @@ type Adapter struct {
 // NewAdapter is the adapter for account over cache, starting from saved (zero
 // when there is no saved session).
 func NewAdapter(cache *db.Cache, log *slog.Logger, account Account, saved domain.Session) *Adapter {
+	log = log.With("user", account.User)
 	m := &Adapter{
 		InProc: New(cache), log: log, account: account,
 		onStatus: func(domain.AccountStatus) {}, onLoggedIn: func() {},

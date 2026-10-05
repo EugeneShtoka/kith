@@ -106,7 +106,7 @@ func (m Model) userCommandCmd(name, path, arg string, room domain.Room) tea.Cmd 
 		commandEnvPrefix+"ARG="+arg,
 		commandEnvPrefix+"ROOM_ID="+string(room.ID),
 		commandEnvPrefix+"ROOM="+m.roomLabel(room),
-		commandEnvPrefix+"USER="+m.me,
+		commandEnvPrefix+"USER="+m.selfIn(room.ID),
 	)
 	env = append(env, m.scriptEnv()...)
 	// Built here, on the loop: the goroutine must not read the model.

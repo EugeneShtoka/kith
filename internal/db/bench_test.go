@@ -50,7 +50,7 @@ func seedBench(b *testing.B) (*Cache, []domain.RoomID) {
 		b.Fatal(err)
 	}
 	b.Cleanup(func() { _ = cache.Close() })
-	cache.UseAccount(benchMe)
+	cache.UseSelves(func() []string { return []string{benchMe} })
 
 	words := benchWords()
 	rng := rand.New(rand.NewPCG(7, 11))

@@ -53,7 +53,7 @@ func warding(t *testing.T) (Model, *warden) {
 		{ID: "!a:x", Name: "Alpha"},
 	}})
 	m = sized(t, m.clearStatus())
-	m.me = "@me:x"
+	m.selves = []string{"@me:x"}
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})

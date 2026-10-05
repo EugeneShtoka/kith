@@ -98,7 +98,7 @@ func runDaemon(t *testing.T, path string, b api.Backend) *daemonRun {
 	ctx, cancel := context.WithCancel(context.Background())
 	streams := daemon.NewStreams()
 	notifications, err := daemon.NewNotifications(
-		config.Config{Notifications: config.Notifications{Enabled: false}}, scopeOnly{b}, me,
+		config.Config{Notifications: config.Notifications{Enabled: false}}, scopeOnly{b},
 		func(config.Notifications) notify.Notifier { return notify.Nop{} })
 	if err != nil {
 		cancel()

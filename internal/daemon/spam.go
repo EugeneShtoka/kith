@@ -27,9 +27,8 @@ type spamWatch struct {
 	store spamStore
 	// log hears reads and writes that failed; nil is silent. Set before use.
 	log *slog.Logger
-	// me: have you ever written here separates a conversation from a broadcast.
-	me string
-	// mine, when set, is who else is this person (Notifications.UseSelves).
+	// mine, when set, is whether a sender is this person (Notifications.UseSelves):
+	// have you ever written here separates a conversation from a broadcast.
 	mine func(sender string) bool
 
 	mu     sync.Mutex
@@ -49,10 +48,9 @@ type spamWatch struct {
 	established map[domain.RoomID]bool
 }
 
-func newSpamWatch(store spamStore, me string) *spamWatch {
+func newSpamWatch(store spamStore) *spamWatch {
 	return &spamWatch{
 		store:       store,
-		me:          me,
 		stored:      map[domain.RoomID]bool{},
 		released:    map[domain.RoomID]bool{},
 		recorded:    map[domain.RoomID]bool{},
@@ -160,7 +158,7 @@ func (w *spamWatch) history(ctx context.Context, msg domain.Message) (roomHistor
 		if msgs[i].IsUpdate() {
 			continue
 		}
-		if w.mine != nil && w.mine(msgs[i].Sender) || msgs[i].Sender == w.me && w.me != "" {
+		if w.mine != nil && w.mine(msgs[i].Sender) {
 			out.mine = true
 		}
 		if msgs[i].ID != msg.ID {

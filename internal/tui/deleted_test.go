@@ -15,7 +15,7 @@ func deletedRoom(t *testing.T, deleted config.Deleted) Model {
 	t.Helper()
 	m := sized(t, newModel())
 	m.prefs.display.Deleted = deleted
-	m.me = "@me:x"
+	m.selves = []string{"@me:x"}
 	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next

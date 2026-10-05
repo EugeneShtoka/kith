@@ -137,7 +137,7 @@ func TestACacheThatWillNotOpenIsAnError(t *testing.T) {
 	if err := os.Mkdir(path, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	cache, err := openCache(context.Background(), slog.New(slog.DiscardHandler), path, "")
+	cache, err := openCache(context.Background(), slog.New(slog.DiscardHandler), path)
 	if err == nil || cache != nil || !strings.Contains(err.Error(), path) {
 		t.Errorf("openCache(a directory) = (%v, %v), want an error naming it", cache, err)
 	}

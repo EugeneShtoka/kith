@@ -80,7 +80,7 @@ func benchMessages(n int) []domain.Message {
 func benchTimelineModel(n int) Model {
 	m := newModel()
 	m.width, m.height, m.ready = 200, 50, true
-	m.me = "@alice:example.org"
+	m.selves = []string{"@alice:example.org"}
 	m.openRoom = "!bench:example.org"
 	m.rooms = m.rooms.withJoined([]domain.Room{{ID: "!bench:example.org", Name: "Bench"}})
 	m = m.setMessages(benchMessages(n))

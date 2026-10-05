@@ -44,7 +44,7 @@ func (m Model) openIdentityFor(mxid, name string) (Model, tea.Cmd) {
 	if mxid == "" {
 		return m, nil
 	}
-	if mxid == m.me {
+	if m.isMe(mxid) {
 		// Naming yourself is allowed; just say who it is.
 		m = m.say("that's you")
 	}

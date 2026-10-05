@@ -190,7 +190,6 @@ var derivedReads = map[string]string{
 	"prefs.display":     "derivedKey.cfg",
 	"prefs.identities":  "derivedKey.cfg",
 	"theme":             "derivedKey.cfg",
-	"me":                "none needed: set once (WithRules) before the program starts",
 	"selves":            "derivedKey.selves",
 }
 

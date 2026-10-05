@@ -141,9 +141,6 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	// shutdown that is stuck.
 	context.AfterFunc(ctx, stop)
 
-	if cfg.HasMatrix() {
-		log = log.With("user", cfg.User)
-	}
 	relevel, err := settleLevel(log, level, flagLevel, cfg.Log.Level)
 	if err != nil {
 		return err
@@ -173,7 +170,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		return err
 	}
 
-	cache, err := openCache(ctx, log, storage.CachePath(), cfg.User)
+	cache, err := openCache(ctx, log, storage.CachePath())
 	if err != nil {
 		return err
 	}
@@ -275,6 +272,8 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 		adapters[n.Network()] = n
 	}
 	router := route.New(adapters)
+	// Before any network starts writing: whose reactions a trim keeps.
+	cache.UseSelves(router.Me)
 	service := local.New(cache, router)
 	service.UseLogger(log)
 	for _, n := range networks {
@@ -494,7 +493,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	sinks := setup.NotifierSinks(func(sink string, err error) {
 		log.Warn("notification delivery failed", "sink", sink, "err", err)
 	})
-	notifications, err := daemon.NewNotifications(cfg, backend, cfg.User, sinks)
+	notifications, err := daemon.NewNotifications(cfg, backend, sinks)
 	if err != nil {
 		return nil, fmt.Errorf("notifications: %w", err)
 	}
@@ -619,7 +618,7 @@ func makeStorageDirs(storage domain.Storage) error {
 
 // openCache opens the instance's cache, or returns nil with a warning: without it the
 // backend falls through to the network.
-func openCache(ctx context.Context, log *slog.Logger, path, user string) (*db.Cache, error) {
+func openCache(ctx context.Context, log *slog.Logger, path string) (*db.Cache, error) {
 	cache, err := db.Open(ctx, path)
 	if err != nil {
 		// Every network writes into it and every client reads from it: there is no
@@ -628,7 +627,6 @@ func openCache(ctx context.Context, log *slog.Logger, path, user string) (*db.Ca
 		return nil, fmt.Errorf("open the cache %s (free disk space or fix its permissions): %w", path, err)
 	}
 	cache.UseLogger(log)
-	cache.UseAccount(user)
 	if asideErr := cache.AsideFailed(); asideErr != nil {
 		log.Warn("the previous cache could not be kept", "err", asideErr)
 	}

@@ -387,6 +387,7 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 	if keep {
 		revisions = revisionsOf(msgs)
 	}
+	mine := c.mine() // outside the transaction: the networks answer it under their own locks
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		if err := registerRoom(ctx, tx, roomID); err != nil {
 			return err
@@ -432,7 +433,7 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 		if err := writeRevisions(ctx, tx, roomID, revisions); err != nil {
 			return err
 		}
-		return c.trim(ctx, tx, roomID)
+		return c.trim(ctx, tx, roomID, mine)
 	})
 }
 
@@ -468,7 +469,7 @@ func saveMessage(ctx context.Context, tx *sql.Tx, stmt *sql.Stmt, roomID domain.
 // table that grew without bound. Our own stay, since reaction emoji are ranked from
 // them, and a reaction whose target was never cached is not touched (it may be paged
 // in later).
-func (c *Cache) trim(ctx context.Context, tx *sql.Tx, roomID domain.RoomID) error {
+func (c *Cache) trim(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, mine []string) error {
 	var cutoff sql.NullInt64
 	found, err := optional(tx.QueryRowContext(ctx,
 		`SELECT ts_ms FROM messages WHERE room_id = ? ORDER BY ts_ms DESC LIMIT 1 OFFSET ?`,
@@ -479,12 +480,15 @@ func (c *Cache) trim(ctx context.Context, tx *sql.Tx, roomID domain.RoomID) erro
 	if !found || !cutoff.Valid {
 		return nil
 	}
-	if c.account != "" {
-		if _, err := tx.ExecContext(ctx, `
+	if len(mine) > 0 {
+		in, args := inIDs([]any{string(roomID)}, mine)
+		args = append(args, string(roomID), cutoff.Int64)
+		// #nosec G202 -- inIDs emits only placeholders or a bound json_each.
+		query := `
 			DELETE FROM reactions
-			WHERE room_id = ? AND sender <> ?
-			  AND target_event IN (SELECT event_id FROM messages WHERE room_id = ? AND ts_ms < ?)`,
-			string(roomID), c.account, string(roomID), cutoff.Int64); err != nil {
+			WHERE room_id = ? AND sender NOT` + in + `
+			  AND target_event IN (SELECT event_id FROM messages WHERE room_id = ? AND ts_ms < ?)`
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
 			return fmt.Errorf("db: trim reactions: %w", err)
 		}
 	}

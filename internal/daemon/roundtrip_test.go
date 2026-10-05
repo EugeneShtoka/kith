@@ -91,11 +91,12 @@ func serve(t *testing.T, b api.Backend) *harness {
 	ctx, cancel := context.WithCancel(context.Background())
 	streams := daemon.NewStreams()
 	state := daemon.NewState()
-	notifications, err := daemon.NewNotifications(notifsOn("all"), scopeOnly{b}, me,
+	notifications, err := daemon.NewNotifications(notifsOn("all"), scopeOnly{b},
 		func(config.Notifications) notify.Notifier { return notify.Nop{} })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	notifications.UseSelves(func() []string { return []string{me} })
 	notifications.Synced(time.Now()) // past the catch-up batch, so a message notifies
 	notifications.Synced(time.Now())
 	reload := &reloadStub{}

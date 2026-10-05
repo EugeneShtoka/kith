@@ -37,9 +37,8 @@ func (m Model) hiddenDeletion(msg domain.Message, mine, others bool) bool {
 	return others
 }
 
-// fromMe reports whether a sender is you: any of your accounts (isMe), or one
-// grouped with the Matrix one by [[display.identity]] (e.g. a bridged puppet of your
-// phone).
+// fromMe reports whether a sender is you: any of your IDs (isMe), or one grouped with
+// any of them by [[display.identity]] (e.g. a bridged puppet of your phone).
 func (m Model) fromMe(sender string) bool {
 	if sender == "" {
 		return false
@@ -47,12 +46,16 @@ func (m Model) fromMe(sender string) bool {
 	if m.isMe(sender) {
 		return true
 	}
-	me, ok := m.prefs.identities[m.me]
-	if !ok || me.alias == "" {
+	them, ok := m.prefs.identities[sender]
+	if !ok || them.alias == "" {
 		return false
 	}
-	them, ok := m.prefs.identities[sender]
-	return ok && them.alias == me.alias
+	for _, self := range m.selfIDs() {
+		if me, ok := m.prefs.identities[self]; ok && me.alias == them.alias {
+			return true
+		}
+	}
+	return false
 }
 
 // deletedBody is the placeholder a deleted message draws: "(deleted)", or who removed

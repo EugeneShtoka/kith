@@ -98,7 +98,7 @@ There is **no shell anywhere in the chain**. kith runs the file directly, with w
 | `$KITH_ARG` | The same |
 | `$KITH_ROOM_ID` | The ID of the room you are writing in |
 | `$KITH_ROOM` | That room's name as kith shows it |
-| `$KITH_USER` | Your own Matrix ID |
+| `$KITH_USER` | Your own ID on that room's network (the first, if you have two accounts there) |
 | stdin | A JSON object holding whatever context the script declared (see below); `{}` when it declared none |
 
 The script also inherits kith's own environment.
