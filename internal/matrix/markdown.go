@@ -5,34 +5,23 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/format"
-	"maunium.net/go/mautrix/format/mdext"
 	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/markdown"
 )
 
 // Outgoing Markdown: bridges translate formatted_body, so without HTML a message
 // arrives with its asterisks intact. mautrix's renderer is used (what its bridges
 // use). HTML in the source is escaped, never passed through.
 
-// renderer is CommonMark (as Element's composer), not chat-app conventions
-// (`*x*` is italic, `__x__` bold). No single-tilde strikethrough: it would mangle
-// `~/path` and "~5". Spoilers are on (goldmark parses code before inline extensions,
-// so `a || b` in code is safe). Tables are off: no bridge or network renders them.
-var renderer = goldmark.New(
-	goldmark.WithExtensions(extension.Strikethrough, mdext.EscapeHTML, mdext.Spoiler),
-	format.HTMLOptions,
-)
-
 // renderBody renders a typed body to HTML, "" when it has no formatting and no
 // mentions. Mentions are written into the Markdown source as links before a single
 // render; substituting into the HTML afterwards could rewrite inside href attributes.
 func renderBody(body string, mentions []domain.Mention) string {
-	content := format.RenderMarkdownCustom(withMentionLinks(body, mentions), renderer)
+	content := format.RenderMarkdownCustom(withMentionLinks(body, mentions), markdown.Renderer)
 	if content.Format != event.FormatHTML {
 		// Plain text: mautrix round-trips its HTML to decide this.
 		return ""

@@ -6,10 +6,12 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/gotd/td/tg"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/markdown"
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
@@ -186,4 +188,137 @@ func mediaLabel(media tg.MessageMediaClass) string {
 		return "[dice] " + m.Emoticon + " " + strconv.Itoa(m.Value)
 	}
 	return "[attachment]"
+}
+
+// outgoing is a draft as Telegram sends it: the text, its entities, and the
+// formatting kith shows it with. Markdown is rendered (unless the draft is plain) and
+// flattened to text and spans, each span an entity at UTF-16 offsets; each person the
+// draft names (by the name typed, longest first, first unclaimed occurrence) is a
+// name entity, when their access hash is known (else their name stays text).
+func outgoing(draft domain.Draft, hash func(user int64) (int64, bool)) (string, []tg.MessageEntityClass, richtext.Formatted) {
+	text, format := draft.Body, richtext.Formatted{}
+	if !draft.Plain {
+		if rendered, err := markdown.HTML(draft.Body); err == nil {
+			// No formatting: the body goes as typed, as Matrix's does.
+			if f := richtext.FromMarkup(richtext.Sanitize(rendered)); !f.IsZero() && f.Text() != "" {
+				text, format = f.Text(), f
+			}
+		}
+	}
+	units := utf16Units(text)
+	var entities []tg.MessageEntityClass
+	for _, s := range format.Spans() {
+		entities = append(entities, spanEntities(s, units)...)
+	}
+	claimed := make([]bool, len(text))
+	for _, m := range longestFirst(draft.LiveMentions()) {
+		user, ok := personUser(m.UserID)
+		if !ok {
+			continue
+		}
+		accessHash, ok := hash(user)
+		if !ok {
+			continue
+		}
+		at := unclaimed(text, m.Name, claimed)
+		if at < 0 {
+			continue
+		}
+		for i := at; i < at+len(m.Name); i++ {
+			claimed[i] = true
+		}
+		entities = append(entities, &tg.InputMessageEntityMentionName{
+			Offset: units[at], Length: units[at+len(m.Name)] - units[at],
+			UserID: &tg.InputUser{UserID: user, AccessHash: accessHash},
+		})
+	}
+	return text, entities, format
+}
+
+// utf16Units maps each byte offset of text (and one past its end) to its UTF-16
+// offset, which is what Telegram counts in.
+func utf16Units(text string) []int {
+	units := make([]int, len(text)+1)
+	n := 0
+	for i, r := range text {
+		units[i] = n
+		n += utf16.RuneLen(r)
+		for j := i + 1; j < i+utf8.RuneLen(r) && j < len(text); j++ {
+			units[j] = n
+		}
+	}
+	units[len(text)] = n
+	return units
+}
+
+// spanEntities is a span as Telegram's entities, one per emphasis it carries.
+func spanEntities(s richtext.Span, units []int) []tg.MessageEntityClass {
+	if s.Empty() || s.End > len(units)-1 {
+		return nil
+	}
+	off, n := units[s.Start], units[s.End]-units[s.Start]
+	var out []tg.MessageEntityClass
+	if s.Bold || s.Heading {
+		out = append(out, &tg.MessageEntityBold{Offset: off, Length: n})
+	}
+	if s.Italic {
+		out = append(out, &tg.MessageEntityItalic{Offset: off, Length: n})
+	}
+	if s.Underline {
+		out = append(out, &tg.MessageEntityUnderline{Offset: off, Length: n})
+	}
+	if s.Strike {
+		out = append(out, &tg.MessageEntityStrike{Offset: off, Length: n})
+	}
+	if s.Code {
+		out = append(out, &tg.MessageEntityCode{Offset: off, Length: n})
+	}
+	if s.Spoiler {
+		out = append(out, &tg.MessageEntitySpoiler{Offset: off, Length: n})
+	}
+	if s.Quote {
+		out = append(out, &tg.MessageEntityBlockquote{Offset: off, Length: n})
+	}
+	if s.Link && s.Href != "" {
+		out = append(out, &tg.MessageEntityTextURL{Offset: off, Length: n, URL: s.Href})
+	}
+	return out
+}
+
+// longestFirst orders mentions longest name first, so "Dan" cannot claim the "Dan"
+// inside "Daniel".
+func longestFirst(mentions []domain.Mention) []domain.Mention {
+	ordered := slices.Clone(mentions)
+	slices.SortStableFunc(ordered, func(a, b domain.Mention) int { return len(b.Name) - len(a.Name) })
+	return ordered
+}
+
+// unclaimed is the first occurrence of name in text no earlier mention claimed; -1
+// when there is none.
+func unclaimed(text, name string, claimed []bool) int {
+	if name == "" {
+		return -1
+	}
+	for from := 0; from <= len(text)-len(name); {
+		at := strings.Index(text[from:], name)
+		if at < 0 {
+			return -1
+		}
+		at += from
+		if !slices.Contains(claimed[at:at+len(name)], true) {
+			return at
+		}
+		from = at + 1
+	}
+	return -1
+}
+
+// personUser is the Telegram user behind a person ID.
+func personUser(person string) (int64, bool) {
+	id := domain.ParseID(person)
+	if id.Network != domain.ProtocolTelegram || id.Account != "" {
+		return 0, false
+	}
+	user, err := strconv.ParseInt(id.Native, 10, 64)
+	return user, err == nil && user > 0
 }

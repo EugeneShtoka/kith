@@ -66,7 +66,7 @@ func (r *Router) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID d
 
 // Redact deletes a message.
 func (r *Router) Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error {
-	return doOnRoom(r, roomID, "deleting", func(c Sender) error { return c.Redact(ctx, roomID, eventID, reason) })
+	return doOnRoom(r, roomID, "deleting", func(c Redactor) error { return c.Redact(ctx, roomID, eventID, reason) })
 }
 
 // Send posts a message.
@@ -76,17 +76,17 @@ func (r *Router) Send(ctx context.Context, roomID domain.RoomID, draft domain.Dr
 
 // SendTyping sets or clears the typing notice.
 func (r *Router) SendTyping(ctx context.Context, roomID domain.RoomID, typing bool, timeout time.Duration) error {
-	return doOnRoom(r, roomID, "typing", func(c Sender) error { return c.SendTyping(ctx, roomID, typing, timeout) })
+	return doOnRoom(r, roomID, "typing", func(c Typist) error { return c.SendTyping(ctx, roomID, typing, timeout) })
 }
 
 // SendFile posts a file.
 func (r *Router) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
-	return doOnRoom(r, roomID, "files", func(c Sender) error { return c.SendFile(ctx, roomID, path, caption) })
+	return doOnRoom(r, roomID, "files", func(c Uploader) error { return c.SendFile(ctx, roomID, path, caption) })
 }
 
 // SendReaction reacts to a message.
 func (r *Router) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {
-	return doOnRoom(r, roomID, "reactions", func(c Sender) error { return c.SendReaction(ctx, roomID, target, key) })
+	return doOnRoom(r, roomID, "reactions", func(c Reactor) error { return c.SendReaction(ctx, roomID, target, key) })
 }
 
 // LoadImage is a message's media bytes.

@@ -25,6 +25,10 @@ var (
 		route.SpamReports
 		route.History
 		route.Sender
+		route.Typist
+		route.Uploader
+		route.Reactor
+		route.Redactor
 		route.People
 		route.Media
 		route.Encryption
@@ -45,6 +49,10 @@ var (
 		route.SpamReports
 		route.History
 		route.Sender
+		route.Typist
+		route.Uploader
+		route.Reactor
+		route.Redactor
 		route.People
 		route.Media
 		route.Encryption
@@ -59,6 +67,10 @@ var (
 		route.ReadState
 		route.History
 		route.Sender
+		route.Typist
+		route.Uploader
+		route.Reactor
+		route.Redactor
 		route.People
 		route.Media
 		route.Encryption
@@ -72,6 +84,7 @@ var (
 		route.RoomLister
 		route.Homes
 		route.History
+		route.Sender
 		route.People
 		route.Encryption
 		route.SpaceLister
