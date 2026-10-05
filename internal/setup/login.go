@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/EugeneShtoka/kith/internal/config"
 )
 
 // What signing in to a network says and checks, shared by `kith login …` and the
@@ -41,7 +43,7 @@ const SlackSessionWarning = "Both are a session: whoever has them can read and w
 
 // IsSlackTeamID reports whether a workspace is named by its team ID ("T0123456789")
 // rather than its address, which SlackWorkspace lower-cases.
-func IsSlackTeamID(workspace string) bool { return slackTeamID.MatchString(workspace) }
+func IsSlackTeamID(workspace string) bool { return config.IsSlackTeamID(workspace) }
 
 // CheckSlackToken catches a token that is not one (the cookie pasted instead, say)
 // before Slack is asked.
@@ -70,7 +72,7 @@ func CheckSlackSession(token, cookie string) error {
 
 // CheckSlackWorkspace refuses what is no workspace address, ID or link.
 func CheckSlackWorkspace(workspace string) error {
-	if !workspaceName.MatchString(workspace) && !slackTeamID.MatchString(workspace) {
+	if !workspaceName.MatchString(workspace) && !config.IsSlackTeamID(workspace) {
 		return fmt.Errorf("%q is not a Slack workspace — write its address (acme, for acme.slack.com), "+
 			"or paste a link from the web client (app.slack.com/client/T…)", workspace)
 	}

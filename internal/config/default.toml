@@ -1,6 +1,6 @@
 # kith configuration, with every option documented at its default. No account is
 # needed here: `:login` inside kith sets one up — Matrix (homeserver and user below),
-# [whatsapp] or [slack] — and writes it in. The file holds no secrets: the password
+# WhatsApp, Slack or Telegram — and writes it in. The file holds no secrets: the password
 # is prompted for on first login and the access token lives in the OS keyring.
 #
 # Press "," in kith for the settings screen, and "a"/"b" on a person, room or group
@@ -10,8 +10,8 @@
 #
 # Unknown keys are refused at startup.
 
-# Your homeserver's base URL and full Matrix ID. Leave both empty to use only
-# [whatsapp] (below); one of the two networks is required.
+# Your homeserver's base URL and full Matrix ID. Leave both empty to use only the
+# other networks (below).
 homeserver = ""
 user       = ""
 
@@ -975,8 +975,8 @@ level = "info"
 target = "auto"
 
 # WhatsApp, linked directly: kith becomes one of the phone's linked devices, with no
-# Matrix bridge in between. Off unless `enabled = true`. Each [[whatsapp.account]] is
-# one phone number: `name` is what `kith login whatsapp <name>` takes (it shows a
+# Matrix bridge in between. It runs when it has an account; `:login whatsapp` inside
+# kith sets one up. Each [[whatsapp.account]] is one phone number: `name` is what `kith login whatsapp <name>` takes (it shows a
 # code to type on the phone), and `phone` is the number, international ("+" and
 # spaces are fine). Several accounts may be linked at once; a group two of them are
 # in shows as two rooms, one per account.
@@ -986,18 +986,14 @@ target = "auto"
 # sometimes, banned for using one. The phone has to come online every two weeks or
 # so, or WhatsApp unlinks its devices.
 #
-#   [whatsapp]
-#   enabled = true
-#
 #   [[whatsapp.account]]
 #   name = "personal"
 #   phone = "+44 7700 900000"
-[whatsapp]
-enabled = false
 
 # Slack, linked directly: kith signs in to a workspace as the Slack web client does,
-# with no Matrix bridge and nothing for the workspace's admins to approve. Off unless
-# `enabled = true`. Each [[slack.account]] is one workspace: `name` is what
+# with no Matrix bridge and nothing for the workspace's admins to approve. It runs
+# when it has an account; `:login slack` inside kith sets one up. Each
+# [[slack.account]] is one workspace: `name` is what
 # `kith login slack <name>` takes, and `workspace` its address ("acme" or
 # "acme.slack.com") or its ID: the T… in a link from the web client,
 # app.slack.com/client/T…/…, which may be pasted whole. Several workspaces may be
@@ -1007,14 +1003,9 @@ enabled = false
 # Some workspaces' policies forbid clients Slack did not make; signing out of Slack
 # in the browser you took the login from ends kith's session too.
 #
-#   [slack]
-#   enabled = true
-#
 #   [[slack.account]]
 #   name = "work"
 #   workspace = "acme"
-[slack]
-enabled = false
 
 # Telegram, linked directly: kith logs in to the account as a Telegram client of its
 # own, with no Matrix bridge. It runs when it has an account; `:login telegram` inside

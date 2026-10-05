@@ -70,10 +70,6 @@ func runTelegramLogin(args []string) error {
 		return fmt.Errorf("have kithd re-read the config: %w", err)
 	}
 	sent, err := at.backend.SendTelegramCode(ctx, account.Name, app)
-	if errors.Is(err, api.ErrNetworkOff) {
-		return errors.New("kithd was started before the config had a [[telegram.account]]; restart it " +
-			"(`systemctl --user restart kithd`, or stop it and run kith) and log in again")
-	}
 	if err != nil {
 		return fmt.Errorf("log in to Telegram %s: %w", account.Name, err)
 	}

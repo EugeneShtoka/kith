@@ -200,7 +200,7 @@ a bad value stops them with a message that names the key. Common ones:
 
 | Message | Fix |
 | --- | --- |
-| `config: no network to use` | Fill in `homeserver` and `user` at the top of the file (or define `[[profile]]` blocks) for Matrix, or set `enabled = true` under `[whatsapp]`, or both. |
+| `config: no network to use` | Fill in `homeserver` and `user` at the top of the file (or define `[[profile]]` blocks) for Matrix, or add an account for another network (`:login` inside kith), or both. |
 | `config: Matrix needs both homeserver and user` | Only one of the two is set. Set both, or empty both to use only WhatsApp. |
 | `config: the account is set both at the top level and in [[profile]] blocks` | Keep the account in one place. |
 | `config: no profile called "x" (have personal, work)` | Check the `--profile` spelling. |

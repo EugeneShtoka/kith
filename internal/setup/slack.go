@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 )
@@ -12,28 +11,7 @@ import (
 var (
 	// workspaceName is a Slack workspace's address: the part before ".slack.com".
 	workspaceName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
-	// slackTeamID is a workspace's ID, as app.slack.com links carry it.
-	slackTeamID = regexp.MustCompile(`^T[A-Z0-9]{8,}$`)
-	// clientLink is a link into the Slack web client: app.slack.com/client/<team>/….
-	clientLink = regexp.MustCompile(`app\.slack\.com/client/(T[A-Z0-9]{8,})(?:/|$)`)
 )
-
-// SlackWorkspace is an account's workspace as Slack writes it, from what the config
-// may say: its address ("acme", "acme.slack.com", "https://acme.slack.com/"), or its
-// team ID ("T0123456789", or any app.slack.com/client/T0123456789/… link).
-func SlackWorkspace(account config.SlackAccount) string {
-	raw := strings.TrimSpace(account.Workspace)
-	if m := clientLink.FindStringSubmatch(raw); m != nil {
-		return m[1]
-	}
-	if slackTeamID.MatchString(raw) {
-		return raw
-	}
-	w := strings.ToLower(raw)
-	w = strings.TrimPrefix(strings.TrimPrefix(w, "https://"), "http://")
-	w = strings.TrimSuffix(w, "/")
-	return strings.TrimSuffix(w, ".slack.com")
-}
 
 // SlackAccounts refuses [[slack.account]]s kith could not tell apart or sign in to:
 // a missing or repeated name, a workspace that is no Slack address or ID, one listed
@@ -45,8 +23,8 @@ func SlackAccounts(s config.Slack) error {
 		if account.Name == "" {
 			return fmt.Errorf("%s: name is empty — `kith login slack <name>` needs one", where)
 		}
-		workspace := SlackWorkspace(account)
-		if !workspaceName.MatchString(workspace) && !slackTeamID.MatchString(workspace) {
+		workspace := account.Address()
+		if !workspaceName.MatchString(workspace) && !config.IsSlackTeamID(workspace) {
 			return fmt.Errorf("%s (%s): workspace %q is not a Slack workspace — write its address (acme, "+
 				"for acme.slack.com) or its ID (the T… in an app.slack.com/client/ link)", where, account.Name, account.Workspace)
 		}

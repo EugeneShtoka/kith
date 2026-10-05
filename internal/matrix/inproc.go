@@ -39,9 +39,9 @@ type InProc struct {
 	logger *slog.Logger
 	// onSynced, when set, is called with each sync response's arrival time. Set before Start.
 	onSynced func(time.Time)
-	// onRoomsChanged, when set, is called when a sync changes the room list, a room
+	// onRoomsStale, when set, is called when a sync changes the room list, a room
 	// name or the space hierarchy. Set before Start.
-	onRoomsChanged func()
+	onRoomsStale func()
 
 	// machineMu guards the crypto machine EnableEncryption publishes. A degraded start
 	// runs EnableEncryption on a worker goroutine while RPCs are already being served.
@@ -97,8 +97,9 @@ type InProc struct {
 		rooms map[domain.RoomID]domain.Room
 	}
 
-	// keepDeleted is [display.deleted] keep: whether deleted messages' text stays cached.
-	keepDeleted bool
+	// keepDeleted is [display.deleted] keep: whether deleted messages' text stays
+	// cached. Atomic: a re-read config sets it while the sync loop reads it.
+	keepDeleted atomic.Bool
 	// onCached and onChanged, when set, hear a message being cached and a room's
 	// cached messages changing otherwise (an edit's deletion, a redaction). Set
 	// before Start.
@@ -131,8 +132,8 @@ func toCache(b *InProc, op string, write func(*db.Cache) error) error {
 	return nil
 }
 
-// KeepDeleted sets [display.deleted] keep. Called once at startup.
-func (b *InProc) KeepDeleted(keep bool) { b.keepDeleted = keep }
+// KeepDeleted sets [display.deleted] keep, at startup and when the config is re-read.
+func (b *InProc) KeepDeleted(keep bool) { b.keepDeleted.Store(keep) }
 
 // New returns an InProc backend ready to Login. cache may be nil: reads then fall
 // through to the network.
@@ -343,7 +344,7 @@ func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 		shownOn, isEdit, serr := b.cache.EditShownBy(ctx, roomID, target)
 		b.warnIf(ctx, serr, "find the message a deleted edit shows on", "room", roomID, "event", target)
 		b.warnIf(ctx, b.cache.MarkRedacted(ctx, roomID, target, string(evt.Sender), redactionReason(evt),
-			time.UnixMilli(evt.Timestamp), b.keepDeleted),
+			time.UnixMilli(evt.Timestamp), b.keepDeleted.Load()),
 			"cache redaction", "room", roomID, "event", target)
 		b.changed(roomID)
 		b.recount(ctx, roomID)
@@ -359,7 +360,7 @@ func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 		// The redaction's time, i.e. when it was deleted.
 		RedactedAt: eventTime(evt.Timestamp),
 	}
-	if b.keepDeleted && b.cache != nil {
+	if b.keepDeleted.Load() && b.cache != nil {
 		kept, ok, kerr := b.cache.Message(ctx, roomID, target)
 		b.warnIf(ctx, kerr, "read the kept copy of a deleted message", "room", roomID, "event", target)
 		if ok {
@@ -437,8 +438,8 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 		b.onSynced(time.Now())
 	}
 	// Reported, not acted on: refreshing is a network call on the sync goroutine.
-	if b.onRoomsChanged != nil && roomsChanged(resp, b.client.UserID) {
-		b.onRoomsChanged()
+	if b.onRoomsStale != nil && roomsChanged(resp, b.client.UserID) {
+		b.onRoomsStale()
 	}
 	b.syncInvites(ctx, resp, since)
 	// Receipts still held from earlier syncs are not arriving on their own.
@@ -540,10 +541,10 @@ func (b *InProc) resetSyncPosition(ctx context.Context) error {
 // Call before Start; it runs on the sync goroutine and must not block.
 func (b *InProc) OnSynced(fn func(time.Time)) { b.onSynced = fn }
 
-// OnRoomsChanged registers a callback for syncs that change the room list, names,
+// OnRoomsStale registers a callback for syncs that change the room list, names,
 // spaces or m.direct, since only RefreshRooms/RefreshSpaces write those caches.
 // Call before Start; it runs on the sync goroutine and must not block.
-func (b *InProc) OnRoomsChanged(fn func()) { b.onRoomsChanged = fn }
+func (b *InProc) OnRoomsStale(fn func()) { b.onRoomsStale = fn }
 
 // receiptType picks m.read.private when private: our position moves for this
 // account's clients without the room seeing it.

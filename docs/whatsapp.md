@@ -17,16 +17,14 @@ Matrix rooms in the same client, or on their own: Matrix is optional.
 ## Setting up
 
 The quickest way is inside kith: `:login whatsapp` asks for the number and a name
-(suggested from the number's country), writes the account into the config with
-WhatsApp turned on, restarts the daemon if WhatsApp was off, and shows the pairing
-code to type on the phone. An account set up already is offered to link again.
+(suggested from the number's country), writes the account into the config, and
+shows the pairing code to type on the phone. An account set up already is offered to link again.
 
 By hand, in the config:
 
-```toml
-[whatsapp]
-enabled = true
+WhatsApp runs when the config has an account; there is no switch to turn on.
 
+```toml
 [[whatsapp.account]]
 name = "personal"            # what `kith login whatsapp` takes
 phone = "+44 7700 900000"   # international; "+" and spaces are fine
@@ -44,8 +42,8 @@ number instead**, and type the code. The command says when the phone accepted.
 Groups and channels appear at once; history arrives over the next minutes. With one
 account, the name can be left out.
 
-`enabled` takes a restart of the daemon to change. Accounts can be added, removed and
-linked while it runs: `kith login whatsapp` makes the daemon re-read the config first.
+Accounts can be added, removed and linked while the daemon runs: `kith login whatsapp`
+makes it re-read the config first.
 
 ### Several accounts
 

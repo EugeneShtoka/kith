@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -29,16 +30,14 @@ type Account struct {
 	Digits string
 }
 
-// Session is a configured account's state.
-type Session int
-
+// A configured account's state, as every network's account says it.
 const (
 	// LoggedOut has no credentials: never logged in, or logged out by Telegram.
-	LoggedOut Session = iota + 1
+	LoggedOut = domain.AccountLoggedOut
 	// Connecting is logged in and reaching Telegram.
-	Connecting
+	Connecting = domain.AccountConnecting
 	// Connected is logged in and connected.
-	Connected
+	Connected = domain.AccountOnline
 )
 
 // Adapter is every configured Telegram account. Build it with New.
@@ -47,8 +46,8 @@ type Adapter struct {
 	secrets Secrets
 	log     *slog.Logger
 
-	// onSession hears an account's state change (see OnSession).
-	onSession func(Account, Session, string)
+	// onStatus hears an account's state change (see OnStatus).
+	onStatus func(domain.AccountStatus)
 
 	mu       sync.Mutex
 	accounts []Account
@@ -94,20 +93,31 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 	}
 }
 
-// OnSession sets who hears an account's state change, with what to tell a person
+// Network is Telegram.
+func (a *Adapter) Network() domain.Protocol { return domain.ProtocolTelegram }
+
+// OnStatus sets who hears an account's state change, with what to tell a person
 // about it (empty when nothing). Set before Start.
-func (a *Adapter) OnSession(changed func(account Account, session Session, detail string)) {
-	a.onSession = changed
-}
+func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
 
 // session reports an account's state.
-func (a *Adapter) session(account Account, s Session, detail string) {
-	if a.onSession != nil {
-		a.onSession(account, s, detail)
+func (a *Adapter) session(account Account, phase domain.AccountPhase, detail string) {
+	if a.onStatus != nil {
+		a.onStatus(domain.AccountStatus{Network: domain.ProtocolTelegram, Account: account.Name, Phase: phase, Detail: detail})
 	}
 }
 
-// accountsNow is the configured accounts (UseAccounts replaces them).
+// UseConfig takes [[telegram.account]], at start and each time the config is re-read
+// (see useAccounts).
+func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
+	accounts := make([]Account, 0, len(cfg.Telegram.Accounts))
+	for _, account := range cfg.Telegram.Accounts {
+		accounts = append(accounts, Account{Name: account.Name, Digits: account.Digits()})
+	}
+	a.useAccounts(accounts)
+}
+
+// accountsNow is the configured accounts (useAccounts replaces them).
 func (a *Adapter) accountsNow() []Account {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -124,10 +134,10 @@ func (a *Adapter) runContext() context.Context {
 	return a.run
 }
 
-// UseAccounts takes the configured accounts after the config is re-read: an account
-// added is connected if logged in, as one configured at Start is; one removed is let
-// go, with its login under way.
-func (a *Adapter) UseAccounts(accounts []Account) {
+// useAccounts takes the configured accounts: before Start, the ones it starts with;
+// after, an account added is connected if logged in, as one configured at Start is,
+// and one removed is let go, with its login under way.
+func (a *Adapter) useAccounts(accounts []Account) {
 	a.mu.Lock()
 	known := a.accounts
 	a.accounts = slices.Clone(accounts)
@@ -174,11 +184,11 @@ func (a *Adapter) Start(ctx context.Context) error {
 	return ctx.Err() //nolint:wrapcheck // our own shutdown, as the other adapters'
 }
 
-// LoggedIn is the configured accounts that have credentials kept. An account whose
-// credentials are unusable is not one (its status says why); a store that cannot be
-// read is an error.
-func (a *Adapter) LoggedIn() ([]Account, error) {
-	var in []Account
+// SavedSessions is the configured accounts that have credentials kept, by name: what
+// Start connects. An account whose credentials are unusable is not one (its status
+// says why); a store that cannot be read is an error.
+func (a *Adapter) SavedSessions(context.Context) ([]string, error) {
+	var in []string
 	for _, account := range a.accountsNow() {
 		_, ok, err := loadCredentials(a.secrets, account.Digits)
 		if errors.Is(err, errUnusable) {
@@ -188,7 +198,7 @@ func (a *Adapter) LoggedIn() ([]Account, error) {
 			return nil, err
 		}
 		if ok {
-			in = append(in, account)
+			in = append(in, account.Name)
 		}
 	}
 	return in, nil

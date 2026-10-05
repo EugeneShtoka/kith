@@ -2,11 +2,13 @@ package whatsapp
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -16,10 +18,10 @@ type links struct {
 	got []string // "name link detail"
 }
 
-func (l *links) add(account Account, link Link, detail string) {
+func (l *links) add(s domain.AccountStatus) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.got = append(l.got, account.Name+" "+[]string{"?", "unlinked", "connecting", "connected"}[link]+" "+detail)
+	l.got = append(l.got, s.Account+" "+[]string{"?", "unlinked", "connecting", "connected"}[s.Phase]+" "+s.Detail)
 }
 
 func (l *links) all() []string {
@@ -28,15 +30,15 @@ func (l *links) all() []string {
 	return append([]string(nil), l.got...)
 }
 
-// Linked is the configured accounts with a device, the ones the daemon waits for.
+// SavedSessions is the configured accounts with a device, the ones the daemon waits for.
 func TestLinkedIsTheAccountsWithADevice(t *testing.T) {
 	t.Parallel()
 	home, work := Account{Name: "home", Digits: ownDigits}, Account{Name: "work", Digits: "1500000001"}
 	a, _, store := offline(t, home, work)
 	linkedClient(t, store, ownDigits)
-	got, err := a.Linked(context.Background())
-	if err != nil || len(got) != 1 || got[0] != home {
-		t.Errorf("Linked = (%v, %v), want home alone", got, err)
+	got, err := a.SavedSessions(context.Background())
+	if err != nil || !slices.Equal(got, []string{home.Name}) {
+		t.Errorf("SavedSessions = (%v, %v), want home alone", got, err)
 	}
 }
 
@@ -48,7 +50,7 @@ func TestAnAccountReportsItsLink(t *testing.T) {
 	account := Account{Name: "home", Digits: ownDigits}
 	a, _, store := offline(t, account)
 	l := &links{}
-	a.OnLink(l.add)
+	a.OnStatus(l.add)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -72,7 +74,7 @@ func TestAnAccountReportsItsLink(t *testing.T) {
 	stale := linkedClient(t, store, ownDigits)
 	a.handle(account, stale, &events.Disconnected{})
 	a.handle(account, client, &events.LoggedOut{})
-	a.UseAccounts(ctx, []Account{{Name: "work", Digits: "1500000001"}})
+	a.useAccounts(ctx, []Account{{Name: "work", Digits: "1500000001"}})
 
 	got := l.all()[1:]
 	want := []string{

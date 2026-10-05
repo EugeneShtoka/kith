@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
@@ -33,15 +32,14 @@ func runSlackLogin(args []string) error {
 	if err != nil || !ready {
 		return err
 	}
-	if !cfg.Slack.Enabled {
-		return errors.New("set `enabled = true` under [slack] in the config, and restart kithd, first " +
-			"(turning Slack on takes a restart; adding an account to it does not)")
+	if len(cfg.Slack.Accounts) == 0 {
+		return errors.New("add a [[slack.account]] (name, workspace) to the config first, or run :login slack in kith")
 	}
 	account, err := setup.SlackAccount(cfg.Slack, fs.Arg(0))
 	if err != nil {
 		return fmt.Errorf("kith login slack: %w", err)
 	}
-	token, cookie, err := readSlackSession(account.Name, setup.SlackWorkspace(account))
+	token, cookie, err := readSlackSession(account.Name, account.Address())
 	if err != nil {
 		return err
 	}
@@ -64,10 +62,6 @@ func runSlackLogin(args []string) error {
 		return fmt.Errorf("have kithd re-read the config: %w", err)
 	}
 	in, err := at.backend.SignInSlack(ctx, account.Name, token, cookie)
-	if errors.Is(err, api.ErrNetworkOff) {
-		return errors.New("kithd was started before [slack] was enabled; restart it " +
-			"(`systemctl --user restart kithd`, or stop it and run kith) and sign in again")
-	}
 	if err != nil {
 		return fmt.Errorf("sign in to Slack %s: %w", account.Name, err)
 	}

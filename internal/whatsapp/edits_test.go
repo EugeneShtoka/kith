@@ -32,7 +32,7 @@ func TestAnEditFoldsOntoItsMessage(t *testing.T) {
 		ctx := context.Background()
 		account := Account{Name: "home", Digits: ownDigits}
 		a, cache, store := offline(t, account)
-		a.KeepDeleted(keep)
+		a.keepDeletedIf(keep)
 		client := linkedClient(t, store, ownDigits)
 		a.onMessage(ctx, account, client, danaWrites("3EB0E", "the plna"))
 		a.onMessage(ctx, account, client, danaChanges("3EB0E2", &waE2E.Message{ProtocolMessage: &waE2E.ProtocolMessage{
@@ -58,7 +58,7 @@ func TestADeletionAsYouAskedItKept(t *testing.T) {
 		ctx := context.Background()
 		account := Account{Name: "home", Digits: ownDigits}
 		a, cache, store := offline(t, account)
-		a.KeepDeleted(keep)
+		a.keepDeletedIf(keep)
 		client := linkedClient(t, store, ownDigits)
 		a.onMessage(ctx, account, client, danaWrites("3EB0D", "oops"))
 		<-a.Messages()

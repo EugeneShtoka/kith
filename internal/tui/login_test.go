@@ -185,8 +185,8 @@ func signInAnswering(t *testing.T, m Model, cmd tea.Cmd, answers map[string][]st
 }
 
 // A new WhatsApp account: the number, a name suggested from its country, written into
-// the config with WhatsApp turned on; the daemon, started without WhatsApp, is
-// restarted and links it, showing the pairing code.
+// the config; a daemon that answers the network is off is restarted, and links it,
+// showing the pairing code.
 func TestLoginSetsUpWhatsAppAndLinksIt(t *testing.T) {
 	t.Parallel()
 	d := &signingIn{off: true}
@@ -212,8 +212,8 @@ func TestLoginSetsUpWhatsAppAndLinksIt(t *testing.T) {
 		t.Fatalf("stage %v after the last field, want the daemon at work (status %q)", m.login.stage, m.status())
 	}
 	got := m.conf.base.WhatsApp
-	if !got.Enabled || len(got.Accounts) != 1 || got.Accounts[0] != (config.WhatsAppAccount{Name: "gb", Phone: "+44 7700 900123"}) {
-		t.Fatalf("[whatsapp] = %+v, want it on with gb", got)
+	if len(got.Accounts) != 1 || got.Accounts[0] != (config.WhatsAppAccount{Name: "gb", Phone: "+44 7700 900123"}) {
+		t.Fatalf("[whatsapp] = %+v, want gb", got)
 	}
 
 	m, codes := signIn(t, m, cmd)
@@ -234,7 +234,7 @@ func TestLoginSetsUpWhatsAppAndLinksIt(t *testing.T) {
 func TestLoginSetsUpSlackWithASessionTypedAsDots(t *testing.T) {
 	t.Parallel()
 	d := &signingIn{}
-	m := loggingIn(t, d, func(c *config.Config) { c.Slack.Enabled = true })
+	m := loggingIn(t, d, nil)
 
 	m, _ = m.openLogin("slack")
 	m, _ = answer(t, m, "https://app.slack.com/client/T0123456789/C0123")
@@ -282,7 +282,6 @@ func TestLoginAgainOrCancel(t *testing.T) {
 	t.Parallel()
 	d := &signingIn{}
 	m := loggingIn(t, d, func(c *config.Config) {
-		c.WhatsApp.Enabled = true
 		c.WhatsApp.Accounts = []config.WhatsAppAccount{{Name: "work", Phone: "+1 202 555 0147"}}
 	})
 	before := m.conf.base

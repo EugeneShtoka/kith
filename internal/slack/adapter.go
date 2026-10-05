@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -35,16 +36,14 @@ type Account struct {
 	Workspace string
 }
 
-// Session is a configured account's state.
-type Session int
-
+// A configured account's state, as every network's account says it.
 const (
 	// SignedOut has no credentials: never signed in, or signed out by Slack.
-	SignedOut Session = iota + 1
+	SignedOut = domain.AccountLoggedOut
 	// Connecting is signed in and reaching Slack.
-	Connecting
+	Connecting = domain.AccountConnecting
 	// Connected is signed in and connected.
-	Connected
+	Connected = domain.AccountOnline
 )
 
 // Adapter is every configured Slack account. Build it with New.
@@ -53,8 +52,8 @@ type Adapter struct {
 	secrets Secrets
 	log     *slog.Logger
 
-	// onSession hears an account's state change (see OnSession).
-	onSession func(Account, Session, string)
+	// onStatus hears an account's state change (see OnStatus).
+	onStatus func(domain.AccountStatus)
 	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
 	onRoomsChanged func()
 	// onCached hears each message cached, onChanged each room whose cached messages
@@ -130,10 +129,22 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 	}
 }
 
-// OnSession sets who hears an account's state change, with what to tell a person
+// Network is Slack.
+func (a *Adapter) Network() domain.Protocol { return domain.ProtocolSlack }
+
+// OnStatus sets who hears an account's state change, with what to tell a person
 // about it (empty when nothing). Set before Start.
-func (a *Adapter) OnSession(changed func(account Account, session Session, detail string)) {
-	a.onSession = changed
+func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
+
+// UseConfig takes [[slack.account]] and [display.deleted] keep, at start and each
+// time the config is re-read (see useAccounts).
+func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
+	a.keepDeletedIf(cfg.Display.Deleted.Keep())
+	accounts := make([]Account, 0, len(cfg.Slack.Accounts))
+	for _, account := range cfg.Slack.Accounts {
+		accounts = append(accounts, Account{Name: account.Name, Workspace: account.Address()})
+	}
+	a.useAccounts(accounts)
 }
 
 // OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
@@ -147,23 +158,23 @@ func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.Room
 }
 
 // session reports an account's state.
-func (a *Adapter) session(account Account, s Session, detail string) {
-	if a.onSession != nil {
-		a.onSession(account, s, detail)
+func (a *Adapter) session(account Account, phase domain.AccountPhase, detail string) {
+	if a.onStatus != nil {
+		a.onStatus(domain.AccountStatus{Network: domain.ProtocolSlack, Account: account.Name, Phase: phase, Detail: detail})
 	}
 }
 
-// accountsNow is the configured accounts (UseAccounts replaces them).
+// accountsNow is the configured accounts (useAccounts replaces them).
 func (a *Adapter) accountsNow() []Account {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return slices.Clone(a.accounts)
 }
 
-// UseAccounts takes the configured accounts after the config is re-read: an account
-// added is connected if signed in, as one configured at Start is; one removed is let
-// go.
-func (a *Adapter) UseAccounts(accounts []Account) {
+// useAccounts takes the configured accounts: before Start, the ones it starts with;
+// after, an account added is connected if signed in, as one configured at Start is,
+// and one removed is let go.
+func (a *Adapter) useAccounts(accounts []Account) {
 	a.mu.Lock()
 	known := a.accounts
 	a.accounts = slices.Clone(accounts)
@@ -185,11 +196,11 @@ func (a *Adapter) UseAccounts(accounts []Account) {
 	}
 }
 
-// SignedIn is the configured accounts that have credentials kept. An account whose
-// credentials are unusable is not one (its status says why); a store that cannot be
-// read is an error.
-func (a *Adapter) SignedIn() ([]Account, error) {
-	var signed []Account
+// SavedSessions is the configured accounts that have credentials kept, by name: what
+// Start connects. An account whose credentials are unusable is not one (its status
+// says why); a store that cannot be read is an error.
+func (a *Adapter) SavedSessions(context.Context) ([]string, error) {
+	var signed []string
 	for _, account := range a.accountsNow() {
 		_, ok, err := loadCredentials(a.secrets, account.Name)
 		if errors.Is(err, errUnusable) {
@@ -199,7 +210,7 @@ func (a *Adapter) SignedIn() ([]Account, error) {
 			return nil, err
 		}
 		if ok {
-			signed = append(signed, account)
+			signed = append(signed, account.Name)
 		}
 	}
 	return signed, nil

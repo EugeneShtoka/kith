@@ -3,9 +3,8 @@ package config
 import "strings"
 
 // WhatsApp is [whatsapp]: kith's own link to WhatsApp, as a linked device, beside or
-// instead of a Matrix bridge. Off unless enabled.
+// instead of a Matrix bridge. It runs when it has an account.
 type WhatsApp struct {
-	Enabled  bool              `toml:"enabled"`
 	Accounts []WhatsAppAccount `toml:"account"`
 }
 

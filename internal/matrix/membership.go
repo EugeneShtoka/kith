@@ -101,7 +101,7 @@ func (b *InProc) Redact(ctx context.Context, roomID domain.RoomID, eventID domai
 // copy of the text. Skipped when [display.deleted] keep. Runs after the deletion,
 // and its failure (ErrEditsRemain) does not undo it.
 func (b *InProc) redactEdits(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error {
-	if b.keepDeleted {
+	if b.keepDeleted.Load() {
 		return nil
 	}
 	resp, err := b.client.GetRelations(ctx, id.RoomID(roomID), id.EventID(eventID), &mautrix.ReqGetRelations{

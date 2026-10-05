@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -35,7 +36,7 @@ func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 // Matrix's lists empty, and nothing to wait for while no account is linked.
 func TestADaemonWithoutMatrixServes(t *testing.T) {
 	t.Parallel()
-	cfg := config.Config{WhatsApp: config.WhatsApp{Enabled: true, Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}}}
+	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}}}
 	backend := servedFor(t, cfg, domain.Session{})
 	if backend.matrix != nil || backend.matrixLogin() != nil {
 		t.Error("a Matrix adapter without a Matrix account in the config")
@@ -49,6 +50,28 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 	}
 	if got := expected(ctx, slog.New(slog.DiscardHandler), backend); len(got) != 0 {
 		t.Errorf("expected = %v with nothing linked, want nothing to wait for", got)
+	}
+}
+
+// Every network but Matrix is built whatever the config holds, so a first account
+// needs no restart: an empty config runs WhatsApp, Slack and Telegram with nothing
+// to do, and has the daemon wait for nothing.
+func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
+	t.Parallel()
+	backend := servedFor(t, config.Config{}, domain.Session{})
+	var got []domain.Protocol
+	for _, n := range backend.networks {
+		got = append(got, n.Network())
+	}
+	want := []domain.Protocol{domain.ProtocolWhatsApp, domain.ProtocolSlack, domain.ProtocolTelegram}
+	if !slices.Equal(got, want) {
+		t.Errorf("networks = %v, want %v", got, want)
+	}
+	if backend.whatsAppLink() == nil || backend.slackSignIn() == nil || backend.telegramLogin() == nil {
+		t.Error("a network built without accounts cannot log one in")
+	}
+	if got := expected(context.Background(), slog.New(slog.DiscardHandler), backend); len(got) != 0 {
+		t.Errorf("expected = %v with no account, want nothing to wait for", got)
 	}
 }
 

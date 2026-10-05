@@ -32,9 +32,8 @@ func runWhatsAppLogin(args []string) error {
 	if err != nil || !ready {
 		return err
 	}
-	if !cfg.WhatsApp.Enabled {
-		return errors.New("set `enabled = true` under [whatsapp] in the config, and restart kithd, first " +
-			"(turning WhatsApp on takes a restart; adding an account to it does not)")
+	if len(cfg.WhatsApp.Accounts) == 0 {
+		return errors.New("add a [[whatsapp.account]] (name, phone) to the config first, or run :login whatsapp in kith")
 	}
 	account, err := setup.WhatsAppAccount(cfg.WhatsApp, fs.Arg(0))
 	if err != nil {

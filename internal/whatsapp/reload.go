@@ -3,13 +3,27 @@ package whatsapp
 import (
 	"context"
 	"slices"
+
+	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// UseAccounts takes a changed [[whatsapp.account]] list without a restart: an account
-// added that is already linked connects, one added that is not can be paired at once,
-// and one removed is disconnected. A removed account's rooms stay in the cache,
-// readable; unlinking it is the phone's to do.
-func (a *Adapter) UseAccounts(ctx context.Context, accounts []Account) {
+// UseConfig takes [[whatsapp.account]] and [display.deleted] keep, at start and each
+// time the config is re-read (see useAccounts).
+func (a *Adapter) UseConfig(ctx context.Context, cfg config.Config) {
+	a.keepDeletedIf(cfg.Display.Deleted.Keep())
+	accounts := make([]Account, 0, len(cfg.WhatsApp.Accounts))
+	for _, account := range cfg.WhatsApp.Accounts {
+		accounts = append(accounts, Account{Name: account.Name, Digits: account.Digits()})
+	}
+	a.useAccounts(ctx, accounts)
+}
+
+// useAccounts takes the [[whatsapp.account]] list: before Start, the ones it starts
+// with; after, without a restart, an account added that is already linked connects,
+// one added that is not can be paired at once, and one removed is disconnected. A
+// removed account's rooms stay in the cache, readable; unlinking it is the phone's to
+// do.
+func (a *Adapter) useAccounts(ctx context.Context, accounts []Account) {
 	a.mu.Lock()
 	previous := a.accounts
 	a.accounts = slices.Clone(accounts)

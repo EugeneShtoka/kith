@@ -13,9 +13,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// KeepDeleted sets [display.deleted] keep: whether a deleted message's words stay in
+// keepDeletedIf sets [display.deleted] keep: whether a deleted message's words stay in
 // the cache. Called at startup, as Matrix's is.
-func (a *Adapter) KeepDeleted(keep bool) {
+func (a *Adapter) keepDeletedIf(keep bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.keepDeleted = keep

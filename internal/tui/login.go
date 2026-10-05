@@ -396,12 +396,12 @@ func checkName(cfg config.Config, network, input string) (string, error) {
 
 // checkWorkspace is a Slack workspace no account has, as Slack writes it.
 func checkWorkspace(cfg config.Config, input string) (string, error) {
-	workspace := setup.SlackWorkspace(config.SlackAccount{Workspace: input})
+	workspace := config.SlackAccount{Workspace: input}.Address()
 	if err := setup.CheckSlackWorkspace(workspace); err != nil {
 		return "", err
 	}
 	for _, a := range cfg.Slack.Accounts {
-		if setup.SlackWorkspace(a) == workspace {
+		if a.Address() == workspace {
 			return "", fmt.Errorf("that workspace is the account %s already — :login slack and choose it to sign in again", a.Name)
 		}
 	}
@@ -483,24 +483,22 @@ func (m Model) finishLogin() (Model, tea.Cmd) {
 
 func wrapLogin(e loginEvent) tea.Msg { return loginMsg{event: e, ok: true} }
 
-// loginConfig is the config with the account set up and its network turned on;
+// loginConfig is the config with the account set up;
 // changed is false when it was so already.
 func (m Model) loginConfig() (config.Config, bool) {
 	cfg, v := m.conf.base.Clone(), m.login.values
 	before := m.conf.base
 	switch m.login.network.key {
 	case "whatsapp":
-		cfg.WhatsApp.Enabled = true
 		if m.login.fresh {
 			cfg.WhatsApp.Accounts = append(cfg.WhatsApp.Accounts, config.WhatsAppAccount{Name: v[fieldName], Phone: v[fieldPhone]})
 		}
-		return cfg, !before.WhatsApp.Enabled || len(cfg.WhatsApp.Accounts) != len(before.WhatsApp.Accounts)
+		return cfg, len(cfg.WhatsApp.Accounts) != len(before.WhatsApp.Accounts)
 	case "slack":
-		cfg.Slack.Enabled = true
 		if m.login.fresh {
 			cfg.Slack.Accounts = append(cfg.Slack.Accounts, config.SlackAccount{Name: v[fieldName], Workspace: v[fieldWorkspace]})
 		}
-		return cfg, !before.Slack.Enabled || len(cfg.Slack.Accounts) != len(before.Slack.Accounts)
+		return cfg, len(cfg.Slack.Accounts) != len(before.Slack.Accounts)
 	case "telegram":
 		if m.login.fresh {
 			cfg.Telegram.Accounts = append(cfg.Telegram.Accounts, config.TelegramAccount{Name: v[fieldName], Phone: v[fieldPhone]})
@@ -519,9 +517,9 @@ func loginApplied(cfg config.Config, l loginState) bool {
 	name := l.account
 	switch l.network.key {
 	case "whatsapp":
-		return cfg.WhatsApp.Enabled && slices.ContainsFunc(cfg.WhatsApp.Accounts, func(a config.WhatsAppAccount) bool { return a.Name == name })
+		return slices.ContainsFunc(cfg.WhatsApp.Accounts, func(a config.WhatsAppAccount) bool { return a.Name == name })
 	case "slack":
-		return cfg.Slack.Enabled && slices.ContainsFunc(cfg.Slack.Accounts, func(a config.SlackAccount) bool { return a.Name == name })
+		return slices.ContainsFunc(cfg.Slack.Accounts, func(a config.SlackAccount) bool { return a.Name == name })
 	case "telegram":
 		return slices.ContainsFunc(cfg.Telegram.Accounts, func(a config.TelegramAccount) bool { return a.Name == name })
 	default:
@@ -768,7 +766,7 @@ func (m Model) loginHelp(f loginField) string {
 	workspace := v[fieldWorkspace]
 	for _, a := range m.conf.base.Slack.Accounts {
 		if a.Name == m.login.account {
-			workspace = setup.SlackWorkspace(a)
+			workspace = a.Address()
 		}
 	}
 	session := setup.SlackSession(workspace)

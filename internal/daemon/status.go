@@ -6,20 +6,19 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // Phase is where one network account is: what a client shows beside it.
-type Phase int
+type Phase = domain.AccountPhase
 
+// The phases, as domain names them.
 const (
-	// PhaseLoggedOut has no session (never logged in, rejected, or unlinked).
-	PhaseLoggedOut Phase = iota + 1
-	// PhaseConnecting has a session and is reaching its network.
-	PhaseConnecting
-	// PhaseOnline has synced: its rooms in the cache are current.
-	PhaseOnline
-	// PhaseFailed stopped with an error.
-	PhaseFailed
+	PhaseLoggedOut  = domain.AccountLoggedOut
+	PhaseConnecting = domain.AccountConnecting
+	PhaseOnline     = domain.AccountOnline
+	PhaseFailed     = domain.AccountFailed
 )
 
 // NetworkStatus is one network account as the daemon sees it.
@@ -29,6 +28,11 @@ type NetworkStatus struct {
 	Phase   Phase
 	Detail  string    // why it is logged out or failed, or what it waits for
 	At      time.Time // when it last went online (zero before)
+}
+
+// StatusOf is an adapter's report as the daemon keeps it.
+func StatusOf(s domain.AccountStatus) NetworkStatus {
+	return NetworkStatus{Network: string(s.Network), Account: s.Account, Phase: s.Phase, Detail: s.Detail}
 }
 
 // key is what a network account is known by.

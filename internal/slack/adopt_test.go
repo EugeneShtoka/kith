@@ -39,10 +39,10 @@ func TestAnOlderSessionNeverReplacesANewerOne(t *testing.T) {
 					newest = w.signIn
 				}
 			case 3: // removed from the config
-				a.UseAccounts(nil)
+				a.useAccounts(nil)
 				configured = false
 			default: // back in it
-				a.UseAccounts([]Account{account})
+				a.useAccounts([]Account{account})
 				configured = true
 			}
 			where := fmt.Sprintf("seed %d step %d", seed, step)
