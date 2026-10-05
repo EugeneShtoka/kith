@@ -4,6 +4,7 @@ package config
 // Matrix bridge. It runs when it has an account.
 type Telegram struct {
 	Accounts []TelegramAccount `toml:"account"`
+	Archive  NetworkArchive    `toml:"archive"`
 }
 
 // TelegramAccount is one [[telegram.account]]: a phone number kith logs in as, under a

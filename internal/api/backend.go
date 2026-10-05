@@ -73,6 +73,9 @@ type Rooms interface {
 	MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error)
 	// MarkRoomUnread sets or clears MSC2867 m.marked_unread (room account data).
 	MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unread bool) error
+	// SetRoomArchived archives or unarchives a chat on its own network; a network with
+	// no archive of its own refuses it.
+	SetRoomArchived(ctx context.Context, roomID domain.RoomID, archived bool) error
 	// StarMessage adds or removes a private bookmark stored in room account data.
 	StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error
 	// StarredIn returns a room's starred messages, newest star first (cache read).

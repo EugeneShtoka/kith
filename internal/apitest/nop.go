@@ -32,6 +32,7 @@ func (Nop) MarkRoomsRead(_ context.Context, roomIDs []domain.RoomID, _ bool) (do
 }
 func (Nop) SendTyping(context.Context, domain.RoomID, bool, time.Duration) error       { return nil }
 func (Nop) MarkRoomUnread(context.Context, domain.RoomID, bool) error                  { return nil }
+func (Nop) SetRoomArchived(context.Context, domain.RoomID, bool) error                 { return nil }
 func (Nop) StarMessage(context.Context, domain.RoomID, domain.EventID, bool) error     { return nil }
 func (Nop) StarredIn(context.Context, domain.RoomID) ([]domain.EventID, error)         { return nil, nil }
 func (Nop) SpamRooms(context.Context) ([]domain.SpamVerdict, error)                    { return nil, nil }

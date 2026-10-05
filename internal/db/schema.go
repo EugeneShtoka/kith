@@ -91,6 +91,13 @@ CREATE TABLE room_parents (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX room_parents_by_space ON room_parents(space_id) WHERE space_id <> '';
 
+-- Chats the network itself archived (Telegram's Archived folder, WhatsApp's archive).
+-- Its own table, written only by that network (SetArchived), so no listing's whole-list
+-- rewrite blanks it.
+CREATE TABLE room_archived (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
 -- Tombstone/predecessor links. Its own table because SaveRooms is a whole-list
 -- snapshot that would blank extra rooms columns. checked_ms records that we looked.
 CREATE TABLE room_upgrades (
@@ -331,6 +338,10 @@ var migrations = []string{
 	sender   TEXT NOT NULL DEFAULT '',
 	body     TEXT NOT NULL DEFAULT '',
 	PRIMARY KEY (room_id, event_id)
+) STRICT, WITHOUT ROWID;`,
+	// v4: chats the network archived.
+	`CREATE TABLE IF NOT EXISTS room_archived (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;`,
 }
 

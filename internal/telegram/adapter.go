@@ -85,6 +85,8 @@ type Adapter struct {
 	// never interleave; heard is when each room last had a message cached (keptRooms).
 	listing sync.Mutex
 	heard   map[domain.RoomID]time.Time
+	// moved is when each chat last moved between folders live (listedArchive).
+	moved map[domain.RoomID]time.Time
 
 	// unreadMu serializes changing a room's unread with keeping it; unreadState is
 	// each room's as Telegram counts it (loaded from the cache on first use), unreadAt
@@ -120,6 +122,7 @@ func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log
 		cache: cache, secrets: secrets, store: store, accounts: slices.Clone(accounts), log: log.With("network", "telegram"),
 		heard:     map[domain.RoomID]time.Time{},
 		unreadAt:  map[domain.RoomID]time.Time{},
+		moved:     map[domain.RoomID]time.Time{},
 		reacted:   map[domain.EventID]time.Time{},
 		typing:    map[domain.RoomID]map[string]*time.Timer{},
 		signIns:   map[string]int{},

@@ -59,6 +59,11 @@ type (
 		MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error)
 		MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unread bool) error
 	}
+	// Archiver is a network with an archive of its own (Telegram's Archived folder,
+	// WhatsApp's archived chats).
+	Archiver interface {
+		SetArchived(ctx context.Context, roomID domain.RoomID, archived bool) error
+	}
 	// Stars is bookmarks.
 	Stars interface {
 		StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error

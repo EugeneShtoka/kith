@@ -990,6 +990,18 @@ target = "auto"
 #   name = "personal"
 #   phone = "+44 7700 900000"
 
+# How WhatsApp's own archive and kith's archive tag go together. With both on, WhatsApp
+# decides: the tag shows what WhatsApp has archived.
+[whatsapp.archive]
+# A chat archived on WhatsApp is in the tag, and in no other place kith files it.
+# Taking it out in kith (with mirror off) keeps it out here only.
+follow = true
+# Putting a chat into the tag in kith, or taking it out, archives or unarchives it on
+# WhatsApp too, on every device. Off by default: it changes your account, not just kith.
+mirror = false
+# Which [[tag]] the archive is.
+tag = "Archived"
+
 # Slack, linked directly: kith signs in to a workspace as the Slack web client does,
 # with no Matrix bridge and nothing for the workspace's admins to approve. It runs
 # when it has an account; `:login slack` inside kith sets one up. Each
@@ -1021,6 +1033,18 @@ target = "auto"
 #   [[telegram.account]]
 #   name = "personal"
 #   phone = "+359 88 000 0000"
+
+# How Telegram's own archive and kith's archive tag go together. With both on, Telegram
+# decides: the tag shows what Telegram has archived.
+[telegram.archive]
+# A chat archived on Telegram is in the tag, and in no other place kith files it.
+# Taking it out in kith (with mirror off) keeps it out here only.
+follow = true
+# Putting a chat into the tag in kith, or taking it out, archives or unarchives it on
+# Telegram too, on every device. Off by default: it changes your account, not just kith.
+mirror = false
+# Which [[tag]] the archive is.
+tag = "Archived"
 
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
 # data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,

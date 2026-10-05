@@ -14,8 +14,9 @@ marked unread on another device, and who is typing. Attachments are shown and se
 photos, files, voice notes (which the player plays), audio, video, GIFs and still
 stickers; an animated sticker, a location, a contact or a poll reads as a label
 ("[location] …"), and a custom emoji reaction as `:custom_emoji:`.
-Chats in Telegram's Archived folder are listed too, not yet filed under kith's
-Archived tag.
+Chats in Telegram's Archived folder are in kith's Archived tag, and archiving a chat
+in kith can move it there too: see `[telegram.archive]` in
+[configuration.md](configuration.md#follow-a-networks-own-archive).
 
 ## Before you start
 

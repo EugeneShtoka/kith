@@ -164,7 +164,13 @@ func (m Model) toggleTag(name string, room domain.Room) (Model, tea.Cmd) {
 
 // fileTags writes the filings into the config's tags and applies it, keeping the
 // cursor near the room, which may have left the row it was in.
+//
+// Filing a room into a network's archive tag, or out, archives or unarchives it on the
+// network too where that network is mirrored. Where kith also follows that network's
+// archive, the network decides: the room is judged as the network will hold it, so the
+// lists only lose what contradicts that (fileArchive).
 func (m Model) fileTags(room domain.Room, filings []tagFiling) (Model, tea.Cmd) {
+	m, room, archive := m.fileArchive(room, filings)
 	view := m.unreadView()
 	facts := view.factsOf(room)
 	others := make([]domain.RoomFacts, 0, len(m.rooms.all))
@@ -196,5 +202,73 @@ func (m Model) fileTags(room domain.Room, filings []tagFiling) (Model, tea.Cmd) 
 	was := m.roomCursor()
 	next, cmd := m.applyConfig(cfg, m.roomName(room)+" is "+strings.Join(said, ", and "))
 	moved, move := next.keepCursorNearby(was)
-	return moved, tea.Batch(cmd, move)
+	return moved, tea.Batch(cmd, move, archive)
+}
+
+// fileArchive is the network side of filing room: the call that archives or
+// unarchives it on its network when the filings move it into or out of that network's
+// mirrored archive tag, and, where the archive is also followed, the room already
+// held as the network will hold it (put right by the room list if the call fails).
+func (m Model) fileArchive(room domain.Room, filings []tagFiling) (Model, domain.Room, tea.Cmd) {
+	network := domain.NetworkOf(string(room.ID))
+	mirrored := m.rail.mirrored[network]
+	if mirrored == "" {
+		return m, room, nil
+	}
+	if current, ok := m.roomByID(room.ID); ok {
+		room = current // as the list holds it now: an earlier filing may have moved it
+	}
+	view := m.unreadView()
+	for _, f := range filings {
+		if !strings.EqualFold(view.tags.At(f.tag).Name, mirrored) {
+			continue
+		}
+		if strings.EqualFold(m.rail.archives[network], mirrored) && room.Archived != f.in {
+			room.Archived = f.in
+			m = m.withArchived(room.ID, f.in)
+		}
+		return m, room, m.setArchivedCmd(room.ID, f.in, m.roomName(room))
+	}
+	return m, room, nil
+}
+
+// withArchived is m with the joined room id held as archived by its network, or not.
+func (m Model) withArchived(id domain.RoomID, archived bool) Model {
+	joined := slices.Clone(m.rooms.joined)
+	for i := range joined {
+		if joined[i].ID == id {
+			joined[i].Archived = archived
+		}
+	}
+	m.rooms = m.rooms.withJoined(joined)
+	return m.refreshPlaces()
+}
+
+// archivedMsg is the outcome of archiving a room on its network, or unarchiving it.
+type archivedMsg struct {
+	label    string
+	archived bool
+	err      error
+}
+
+// setArchivedCmd archives a room on its network, or unarchives it.
+func (m Model) setArchivedCmd(roomID domain.RoomID, archived bool, label string) tea.Cmd {
+	ctx, backend := m.ctx, m.backend
+	return func() tea.Msg {
+		return archivedMsg{label: label, archived: archived, err: backend.SetRoomArchived(ctx, roomID, archived)}
+	}
+}
+
+// handleArchived says a failed archive call, and reads the room list again so the
+// room shows where its network holds it. A call that went through needs nothing: the
+// network's rooms changing brings the list.
+func (m Model) handleArchived(msg archivedMsg) (Model, tea.Cmd) {
+	if msg.err == nil {
+		return m, nil
+	}
+	verb := "unarchive "
+	if msg.archived {
+		verb = "archive "
+	}
+	return m.sayErr("could not "+verb+msg.label+" on its network", msg.err), m.loadRoomsCmd()
 }

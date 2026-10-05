@@ -35,6 +35,9 @@ type Room struct {
 	InvitedBy  string // MXID of the inviter, for an invite
 	// Replacement is the m.room.tombstone replacement_room, if upgraded.
 	Replacement RoomID
+	// Archived is the network's own archive holding it: Telegram's Archived folder,
+	// WhatsApp's archived chats. kith's tag follows it where configured (Places).
+	Archived bool
 }
 
 // IsInvite reports whether this is a pending invitation rather than a room we have

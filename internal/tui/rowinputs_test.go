@@ -36,6 +36,7 @@ var rowReads = map[string]string{
 	"rail.roomFacts":             "derivedKey.place (the open room's facts, its tags included, recomputed from the same inputs)",
 	"rail.homes":                 "derivedKey.cfg (priority, rail order, tags) and derivedKey.place (the spaces' own-network flags order the facts' Spaces, which placeFingerprint hashes in order)",
 	"rail.tags":                  "derivedKey.place (Tags in the facts); tags are set with the config, which bumps conf.rev",
+	"rail.archives":              "derivedKey.place (ArchivedIn and the Tags it puts the room in); set with the config, which bumps conf.rev",
 	"openRoom":                   "derivedKey.room",
 	"timeline.layout.room":       "derivedKey.rtl (mirrored)",
 	"timeline.layout.rtl":        "derivedKey.rtl (mirrored)",

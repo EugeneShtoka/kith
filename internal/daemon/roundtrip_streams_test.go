@@ -132,3 +132,24 @@ func TestTwoClientsBothSeeEveryMessage(t *testing.T) {
 		t.Errorf("second client got %+v, want %+v", got, want)
 	}
 }
+
+// A network rewriting its rooms reaches every attached client, which reads its room
+// list again.
+func TestRoomsChangedReachesTheClient(t *testing.T) {
+	t.Parallel()
+	r, h := attach(t, &fakeBackend{Nop: apitest.Nop{}})
+	go func() { _ = r.Start(context.Background()) }()
+	h.waitAttached(1)
+	deadline := time.Now().Add(settle)
+	for {
+		h.streams.RoomsChanged()
+		select {
+		case <-r.RoomsChanged():
+			return
+		case <-time.After(20 * time.Millisecond): // its stream may not be open yet
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("RoomsChanged() never arrived")
+		}
+	}
+}

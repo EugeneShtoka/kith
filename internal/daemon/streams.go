@@ -21,6 +21,10 @@ type Streams struct {
 	// channel (an RPC feeds it; see Follow), so Run does not pump it and Attached
 	// does not count it.
 	follows *hub[string]
+	// rooms tells attached clients a network rewrote its rooms (a chat begun, renamed,
+	// archived on the phone), so they read the list again. Fed by RoomsChanged, not a
+	// backend channel, like follows.
+	rooms *hub[struct{}]
 }
 
 // NewStreams returns Streams with nothing attached. Subscribing before Run is safe.
@@ -33,6 +37,7 @@ func NewStreams() *Streams {
 		verifications: newHub[domain.Verification](),
 		activity:      newHub[domain.Activity](),
 		follows:       newHub[string](),
+		rooms:         newHub[struct{}](),
 	}
 }
 
@@ -47,7 +52,8 @@ func (s *Streams) Run(ctx context.Context, b api.Backend) {
 	wg.Go(func() { s.verifications.pump(ctx, b.Verifications()) })
 	wg.Go(func() { s.activity.pump(ctx, b.Activity()) })
 	wg.Wait()
-	s.follows.end() // no backend channel ends it otherwise
+	s.follows.end() // no backend channel ends these otherwise
+	s.rooms.end()
 }
 
 // notifierBuffer is the in-process consumer's queue. Its delivery can be slow (a desktop
@@ -76,6 +82,9 @@ func (s *Streams) Attached() int {
 		s.verifications.subscribers(),
 	)
 }
+
+// RoomsChanged tells every attached client that a network rewrote its rooms.
+func (s *Streams) RoomsChanged() { s.rooms.broadcast(struct{}{}) }
 
 // Follow hands a URI to every attached client and reports whether there was one;
 // `kith --open` starts a terminal when there was not.

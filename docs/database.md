@@ -264,8 +264,11 @@ Since then:
   in one.
 - v3 (`quoted_messages`): the sender and words a reply quotes (WhatsApp sends them
   with the reply), shown when the quoted message itself is not cached.
+- v4 (`room_archived`): the chats a network archived itself (Telegram's Archived
+  folder, WhatsApp's archive), a row only for one archived; written only by that
+  network, so a listing's rewrite of its rooms never blanks it.
 
-so a current cache is at version 3.
+so a current cache is at version 4.
 
 ### Indexes need no migration
 

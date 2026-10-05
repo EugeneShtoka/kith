@@ -199,6 +199,10 @@ func (r *Remote) attach(ctx context.Context, detach context.CancelFunc) error {
 				})
 		},
 		func(ctx context.Context) error {
+			return pumpStream(ctx, "rooms", r.rooms, r.c.RoomsChanged, &v1.RoomsChangedRequest{},
+				func(*v1.RoomsChangedResponse) (struct{}, bool) { return struct{}{}, true })
+		},
+		func(ctx context.Context) error {
 			return pumpStream(ctx, "follows", r.follows, r.c.FollowStream, &v1.FollowStreamRequest{},
 				func(f *v1.FollowStreamResponse) (string, bool) {
 					return f.GetUri(), f.GetUri() != ""
@@ -278,6 +282,9 @@ func (r *Remote) Verifications() <-chan domain.Verification { return r.verificat
 // Follows streams matrix URIs handed over by `kith --open`.
 func (r *Remote) Follows() <-chan string { return r.follows.ch }
 
+// RoomsChanged says a network rewrote its rooms: read the list again.
+func (r *Remote) RoomsChanged() <-chan struct{} { return r.rooms.ch }
+
 type armState int
 
 const (
@@ -325,4 +332,5 @@ func (r *Remote) closeStreams() {
 	r.activity.done()
 	r.attached.done()
 	r.follows.done()
+	r.rooms.done()
 }

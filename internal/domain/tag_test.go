@@ -264,3 +264,44 @@ func TestFiledWritesOnlyWhatTheChoiceNeeds(t *testing.T) {
 		t.Errorf("out of Work = %v / %v, want Bots excluded by ID", picked, excluded)
 	}
 }
+
+// A network's archive puts a room in the tag kith follows it with, and in no other:
+// only when that network is followed, never past an exclusion (kith's own word
+// against it), and a tag naming the archive tag holds it too. Taking it out in kith
+// excludes it; putting it back needs nothing written.
+func TestANetworksArchiveHoldsARoomInItsTag(t *testing.T) {
+	t.Parallel()
+	set := mustTags(t,
+		Tag{Name: "Archived"},
+		Tag{Name: "Old"},
+		Tag{Name: "Quiet", Rule: []string{"tag:Archived"}},
+		Tag{Name: "Kept", Excluded: []string{"telegram:42/9"}},
+	)
+	places := Places{Tags: set, Archives: map[Protocol]string{ProtocolTelegram: "archived"}}
+	facts := func(id string, archived bool) RoomFacts {
+		return places.Facts(Room{ID: RoomID(id), Name: id, Archived: archived}, nil)
+	}
+	for _, c := range []struct {
+		facts RoomFacts
+		tags  []string
+	}{
+		{facts("telegram:42/7", true), []string{"Archived", "Quiet"}},
+		{facts("telegram:42/7", false), nil},
+		{facts("whatsapp:44/1@s.whatsapp.net", true), nil}, // WhatsApp's archive not followed
+	} {
+		if !slices.Equal(c.facts.Tags, c.tags) {
+			t.Errorf("%s (archived=%q): tags %v, want %v", c.facts.ID, c.facts.ArchivedIn, c.facts.Tags, c.tags)
+		}
+	}
+	excluded := mustTags(t, Tag{Name: "Archived", Excluded: []string{"telegram:42/7"}})
+	if got := (Places{Tags: excluded, Archives: places.Archives}).Facts(Room{ID: "telegram:42/7", Archived: true}, nil); len(got.Tags) != 0 {
+		t.Errorf("an excluded room archived on the network is in %v", got.Tags)
+	}
+	archived := facts("telegram:42/7", true)
+	if picked, out := set.Filed(0, archived, RoomState{}, false, nil); len(picked) != 0 || !slices.Equal(out, []string{"telegram:42/7"}) {
+		t.Errorf("out of Archived = %v / %v, want it excluded", picked, out)
+	}
+	if picked, out := set.Filed(0, archived, RoomState{}, true, nil); len(picked) != 0 || len(out) != 0 {
+		t.Errorf("into Archived = %v / %v, want nothing written", picked, out)
+	}
+}

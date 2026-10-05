@@ -36,6 +36,11 @@ func RenameTag(cfg config.Config, from, to string) config.Config {
 	}
 	rename(out.Display.Rail.Hidden)
 	rename(out.Display.Rail.HideWhenEmpty)
+	for _, archive := range out.Archives() {
+		if sameTag(archive.TagName(), from) {
+			archive.Tag = to // the archive goes with its tag, default name or not
+		}
+	}
 	return out
 }
 
@@ -55,6 +60,11 @@ func DeleteTag(cfg config.Config, name string) config.Config {
 		tag, ok := domain.TagOf(entry)
 		return ok && sameTag(tag, name)
 	})
+	for _, archive := range out.Archives() {
+		if sameTag(archive.Tag, name) {
+			archive.Tag = "" // a network's archive then follows no tag (the default, if any)
+		}
+	}
 	return out
 }
 

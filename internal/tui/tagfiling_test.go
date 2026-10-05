@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -21,10 +22,11 @@ func memberships(m Model) map[domain.RoomID][]bool {
 	return out
 }
 
-// Over random tags, rooms sharing names, entries naming rooms by name, silent tags
-// and unread state: /tag puts the room in the tag or takes it out — it holds it
-// exactly when it did not before — and no other room's tags change. The written
-// config reads back to the same answer.
+// Over random tags, rooms sharing names, entries naming rooms by name, silent tags,
+// unread state, and Telegram chats its archive holds, followed and mirrored into a tag
+// or not: /tag puts the room in the tag or takes it out — it holds it exactly when it
+// did not before — and no other room's tags change. The written config, over the rooms
+// as the network then holds them, reads back to the same answer.
 func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 	t.Parallel()
 	names := []string{"A", "B", "C"}
@@ -35,7 +37,11 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 		var made []domain.RoomID
 		for i := range 2 + rng.IntN(5) {
 			id := domain.RoomID(fmt.Sprintf("!r%d:x", i))
-			rooms = append(rooms, domain.Room{ID: id, Name: names[rng.IntN(len(names))], IsDirect: rng.IntN(3) == 0})
+			archived := false
+			if rng.IntN(2) == 0 { // a Telegram chat, maybe in its archive
+				id, archived = domain.RoomID(fmt.Sprintf("telegram:42/-%d", i+1)), rng.IntN(2) == 0
+			}
+			rooms = append(rooms, domain.Room{ID: id, Name: names[rng.IntN(len(names))], IsDirect: rng.IntN(3) == 0, Archived: archived})
 			if rng.IntN(2) == 0 {
 				made = append(made, id)
 			}
@@ -65,7 +71,10 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 			}
 			tags = append(tags, tag)
 		}
-		m := update(t, configured(config.Config{Tags: tags}), roomsMsg{rooms: rooms})
+		cfg := config.Config{Tags: tags}
+		follow := rng.IntN(2) == 0
+		cfg.Telegram.Archive = config.NetworkArchive{Follow: &follow, Mirror: rng.IntN(2) == 0, Tag: tags[rng.IntN(len(tags))].Name}
+		m := update(t, configured(cfg), roomsMsg{rooms: rooms})
 		m = update(t, m, spacesMsg{spaces: []domain.Space{{ID: "!made:x", Name: "Made", Children: made}}})
 		for _, r := range rooms {
 			if rng.IntN(2) == 0 {
@@ -76,9 +85,35 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 			room := rooms[rng.IntN(len(rooms))]
 			tag := rng.IntN(len(tags))
 			before := memberships(m)
+			_, _, archiveCmd := m.fileArchive(room, []tagFiling{{tag: tag, in: !before[room.ID][tag]}})
 			m, _ = m.toggleTag(tags[tag].Name, room)
 			after := memberships(m)
 			where := fmt.Sprintf("seed %d step %d: /tag T%d on %s (%s)", seed, step, tag, room.ID, room.Name)
+			archive := cfg.Telegram.Archive
+			if domain.NetworkOf(string(room.ID)) == domain.ProtocolTelegram && archive.Mirror && strings.EqualFold(archive.Tag, tags[tag].Name) {
+				if archiveCmd == nil {
+					t.Fatalf("%s: the archive tag is mirrored, and Telegram was not asked", where)
+				}
+				// The rule alone (no lists, no archive) decides whether the lists must say
+				// anything of the room: Telegram decides the rest.
+				filed, view := m.conf.base.Tags[tag], m.unreadView()
+				facts := view.factsOf(room)
+				bare := make([]domain.Tag, len(m.conf.base.Tags))
+				for i, c := range m.conf.base.Tags {
+					bare[i] = domain.Tag{Name: c.Name, Rule: c.Rule}
+				}
+				ruleOnly, _, err := domain.NewTagSet(bare)
+				if err != nil {
+					t.Fatal(err)
+				}
+				plain := facts
+				plain.ArchivedIn = ""
+				byRule := ruleOnly.HasAt(tag, plain, view.tagState(tag, room))
+				picked, excluded := slices.ContainsFunc(filed.Picked, facts.Names), slices.ContainsFunc(filed.Excluded, facts.Names)
+				if follow && (picked || (excluded && !byRule)) {
+					t.Fatalf("%s: Telegram decides its archive, and the tag's lists say more of the room than its rule needs: %+v", where, filed)
+				}
+			}
 			if after[room.ID][tag] == before[room.ID][tag] {
 				t.Fatalf("%s: held = %t before and after; tags %+v", where, before[room.ID][tag], m.conf.base.Tags)
 			}
@@ -87,7 +122,7 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 					t.Fatalf("%s: %s changed tags %v → %v; tags %+v", where, id, was, after[id], m.conf.base.Tags)
 				}
 			}
-			reread := update(t, configured(m.conf.base.Clone()), roomsMsg{rooms: rooms})
+			reread := update(t, configured(m.conf.base.Clone()), roomsMsg{rooms: m.rooms.joined})
 			reread = update(t, reread, spacesMsg{spaces: m.rooms.spaces})
 			reread.unread = m.unread
 			if got := memberships(reread); !slices.Equal(got[room.ID], after[room.ID]) {
@@ -139,5 +174,24 @@ func TestTheFilingPickerMakesANewTagWithTheRoomInIt(t *testing.T) {
 	m, _ = m.cancelPrompt()
 	if len(m.conf.base.Tags) != tags || m.picker.active() {
 		t.Errorf("after escaping the name: %d tags (want %d), a picker open %v", len(m.conf.base.Tags), tags, m.picker.active())
+	}
+}
+
+// A chat its network would not archive says so, and the room list is read again, so
+// the room shows where its network holds it; one archived needs nothing more (the
+// network's rooms changing brings the list). A network rewriting its rooms is read
+// again too.
+func TestAnArchiveRefusedPutsTheRoomBack(t *testing.T) {
+	t.Parallel()
+	m := configured(config.Config{Tags: []config.Tag{{Name: "Archived"}}})
+	next, cmd := m.handleArchived(archivedMsg{label: "Dana", archived: true, err: errors.New("FLOOD_WAIT")})
+	if !strings.Contains(next.status(), "could not archive Dana") || cmd == nil {
+		t.Errorf("status %q, reread %v", next.status(), cmd != nil)
+	}
+	if _, cmd := m.handleArchived(archivedMsg{label: "Dana", archived: true}); cmd != nil {
+		t.Error("an archive that went through read the list again")
+	}
+	if _, cmd := m.Update(roomsChangedMsg{}); cmd == nil {
+		t.Error("a network's rooms changing was not read again")
 	}
 }

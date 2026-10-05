@@ -339,6 +339,9 @@ func (s TagSet) has(i int, facts RoomFacts, state RoomState, asking map[int]bool
 	if slices.ContainsFunc(c.picked, facts.Names) {
 		return true
 	}
+	if facts.ArchivedIn != "" && strings.EqualFold(facts.ArchivedIn, strings.TrimSpace(c.tag.Name)) {
+		return true // the network archived it, and this tag is that archive
+	}
 	if len(c.positive) == 0 && len(c.negated) == 0 {
 		return false
 	}

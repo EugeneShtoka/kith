@@ -139,3 +139,32 @@ func TestTheNotifierKnowsTags(t *testing.T) {
 		t.Errorf("{space} after a reload ranking Work first = %q", got)
 	}
 }
+
+// A room its network archived is in the tag that archive is, as the TUI files it:
+// notification rules and the agent's scope naming the tag see it there, a network not
+// followed puts nothing anywhere, and an archive changed in the config needs no reread.
+func TestANetworksArchiveIsJudgedAsThePlace(t *testing.T) {
+	t.Parallel()
+	src := &gatedRooms{rooms: []domain.Room{
+		{ID: "telegram:42/7", Name: "Dana", Archived: true},
+		{ID: "whatsapp:44/1@g.us", Name: "Group", Archived: true},
+	}}
+	x := newScopeIndex(src, nil, domain.HomeOrder{})
+	tags, _, err := domain.NewTagSet([]domain.Tag{{Name: "Archived"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	x.SetTags(tags)
+	x.SetArchives(map[domain.Protocol]string{domain.ProtocolTelegram: "Archived"})
+	ctx := context.Background()
+	if got := x.Facts(ctx, "telegram:42/7").Tags; !slices.Equal(got, []string{"Archived"}) {
+		t.Errorf("Telegram's archived chat is in %v", got)
+	}
+	if got := x.Facts(ctx, "whatsapp:44/1@g.us").Tags; len(got) != 0 {
+		t.Errorf("WhatsApp's archived chat, not followed, is in %v", got)
+	}
+	x.SetArchives(nil)
+	if got := x.Facts(ctx, "telegram:42/7").Tags; len(got) != 0 {
+		t.Errorf("after following nothing, Telegram's chat is in %v", got)
+	}
+}

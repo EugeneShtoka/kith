@@ -309,6 +309,30 @@ hide_when_empty = true
 In the room list, `S` (or `/tag Archived` in the composer) puts the room under the
 cursor in a tag or takes it out, writing `picked` or `excluded` for you.
 
+### Follow a network's own archive
+
+Telegram and WhatsApp each have an archive of their own (Telegram's Archived folder,
+WhatsApp's archived chats), which every device on the account shares. kith can go
+along with it, per network, in either direction:
+
+```toml
+[telegram.archive]
+follow = true       # a chat archived on Telegram is in the tag (the default)
+mirror = true       # filing a chat into the tag in kith archives it on Telegram
+tag    = "Archived" # which [[tag]] the archive is
+
+[whatsapp.archive]
+follow = true
+mirror = false      # the default: kith's archive stays kith's own
+```
+
+With `follow` on, a chat the network archived is in the tag without any `picked`
+entry, and leaves it when unarchived there. With `mirror` on, `S` or `/tag Archived`
+on one of that network's chats archives or unarchives it on the network too, on every
+device; with both on the network decides, so kith writes nothing to the tag's lists
+for it. With `follow` off, the network's archive is ignored; with `mirror` off, kith's
+filing stays in kith (taking a followed chat out writes `excluded`, as for any rule).
+
 ### Sort the room list
 
 ```toml

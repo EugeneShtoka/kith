@@ -493,13 +493,18 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	// Readiness is "what the daemon started with has synced", not "socket open": a
 	// cold cache looks like no rooms (see serve's Expect).
 	state := daemon.NewState()
+	streams := daemon.NewStreams()
 	for _, n := range backend.networks {
 		n.OnStatus(func(s domain.AccountStatus) { state.Report(daemon.StatusOf(s), time.Now()) })
-		// A network that rewrites its own rooms needs the scope read again; one whose
+		// A network that rewrites its own rooms needs the scope read again, and the
+		// clients their room list; one whose
 		// rooms went stale needs the refresher, which refreshes every network (so not
 		// for the first kind: its own refresh would set it off again).
 		if r, ok := n.(roomsRewriter); ok {
-			r.OnRoomsChanged(notifications.InvalidateScope)
+			r.OnRoomsChanged(func() {
+				notifications.InvalidateScope()
+				streams.RoomsChanged() // attached clients read their room list again
+			})
 		}
 		if r, ok := n.(roomsStaler); ok {
 			r.OnRoomsStale(refresher.Changed)
@@ -525,7 +530,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		notifications: notifications,
 		refresher:     refresher,
 		state:         state,
-		streams:       daemon.NewStreams(),
+		streams:       streams,
 		backups:       backups,
 	}, nil
 }
