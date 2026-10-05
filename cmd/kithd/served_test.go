@@ -141,3 +141,34 @@ func TestACacheThatWillNotOpenIsAnError(t *testing.T) {
 		t.Errorf("openCache(a directory) = (%v, %v), want an error naming it", cache, err)
 	}
 }
+
+// Each network judges its own section: an account with only a name, in any network's
+// table, is refused naming that table, at start and when the file is re-read, and the
+// re-read then changes nothing.
+func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
+	t.Parallel()
+	backend := servedFor(t, config.Config{}, domain.Session{})
+	ctx := context.Background()
+	if err := backend.checkConfig(ctx, config.Config{}); err != nil {
+		t.Fatalf("an empty config: %v", err)
+	}
+	for _, n := range (config.Config{}).Networks() {
+		var cfg config.Config
+		if err := cfg.Write(n.Table(), map[string]string{"name": "half"}); err != nil {
+			t.Fatal(err)
+		}
+		err := backend.checkConfig(ctx, cfg)
+		if err == nil || !strings.Contains(err.Error(), n.Table()) {
+			t.Errorf("%s: checkConfig = %v, want it refused naming %s", n.Network(), err, n.Table())
+		}
+
+		path := filepath.Join(t.TempDir(), "config.toml")
+		if err := config.Save(path, cfg); err != nil {
+			t.Fatal(err)
+		}
+		relevel := func(string) { t.Errorf("%s: a refused re-read changed the log level", n.Network()) }
+		if err := reloader(path, relevel, nil, backend, nil)(ctx); err == nil {
+			t.Errorf("%s: the re-read took a config its network refuses", n.Network())
+		}
+	}
+}

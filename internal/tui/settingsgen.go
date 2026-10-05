@@ -18,8 +18,9 @@ import (
 type propertyGroup struct{ prefix, group, base string }
 
 // propertyGroups is matched in order: the first prefix a path starts with wins, so the
-// narrow ones come first.
-var propertyGroups = []propertyGroup{
+// narrow ones come first. Every network's section is in networks (networkGroups: no
+// other prefix overlaps one, so where they stand does not matter).
+var propertyGroups = append([]propertyGroup{
 	{"notifications.", "notifications", "notifications."},
 	{"display.media.", "media", "display.media."},
 	{"display.theme.", "look", "display.theme."},
@@ -55,13 +56,20 @@ var propertyGroups = []propertyGroup{
 	{"homeserver", "networks", ""},
 	{"user", "networks", ""},
 	{"allow_token_file", "networks", ""},
-	{"whatsapp.", "networks", ""},
-	{"slack.", "networks", ""},
-	{"telegram.", "networks", ""},
 	{"commands.", "advanced", ""},
 	{"log.", "advanced", ""},
 	{"schedule.", "advanced", ""},
 	{"keys.", "keys", "keys."},
+}, networkGroups()...)
+
+// networkGroups places each network's section in networks.
+func networkGroups() []propertyGroup {
+	var out []propertyGroup
+	for _, n := range (config.Config{}).Networks() {
+		section, _, _ := strings.Cut(n.Table(), ".")
+		out = append(out, propertyGroup{section + ".", "networks", ""})
+	}
+	return out
 }
 
 // placeProperty is where a property is listed and what it is called there; false for

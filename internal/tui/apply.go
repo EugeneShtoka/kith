@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"reflect"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -17,6 +20,11 @@ import (
 // reads from it, keeps the rail cursor on focusGroup (empty = wherever it was), reports
 // done on the status line, and writes the file. Every in-app setting change funnels
 // through here so no derived structure is left stale.
+//
+// A change to a network's accounts is the network's to judge, and only kithd links
+// the networks: it is applied once kithd has said it would run with it
+// (configCheckedMsg), unless another change was applied meanwhile, which it would
+// undo (it was made over the config before that one).
 func (m Model) applyConfig(cfg config.Config, done string) (Model, tea.Cmd) {
 	// Rules are derived only to validate them; the daemon resolves them itself.
 	derived, err := derive(cfg)
@@ -24,7 +32,55 @@ func (m Model) applyConfig(cfg config.Config, done string) (Model, tea.Cmd) {
 		m = m.sayErr("could not apply", err)
 		return m, nil
 	}
+	checker, ok := m.backend.(configChecker)
+	if !ok || !networksChanged(m.conf.base, cfg) {
+		return m.applyDerived(cfg, derived, done)
+	}
+	app, over := m.ctx, m.conf.applied
+	return m, func() tea.Msg {
+		ctx, cancel := context.WithTimeout(app, configCheckTimeout)
+		defer cancel()
+		return configCheckedMsg{cfg: cfg, derived: derived, done: done, over: over, err: checker.CheckConfig(ctx, cfg)}
+	}
+}
 
+// configChecker is a daemon that says whether it would run with a config.
+type configChecker interface {
+	CheckConfig(ctx context.Context, cfg config.Config) error
+}
+
+// configCheckTimeout bounds kithd's answer: a network may ask its own servers.
+const configCheckTimeout = 15 * time.Second
+
+// configCheckedMsg is kithd's verdict on a change applyConfig held back.
+type configCheckedMsg struct {
+	cfg     config.Config
+	derived derivations
+	done    string
+	// over is how many changes had been applied when it was made (configState.applied).
+	over uint64
+	err  error
+}
+
+// handleConfigChecked applies the held change, or says why kithd refused it.
+func (m Model) handleConfigChecked(msg configCheckedMsg) (Model, tea.Cmd) {
+	if msg.err != nil {
+		return m.sayErr("could not apply", msg.err), nil
+	}
+	if msg.over != m.conf.applied {
+		return m.say("not applied: another change landed while kithd checked this one — make it again"), nil
+	}
+	return m.applyDerived(msg.cfg, msg.derived, msg.done)
+}
+
+// networksChanged reports whether any network's section differs between two configs.
+func networksChanged(was, now config.Config) bool {
+	return !reflect.DeepEqual(was.Networks(), now.Networks())
+}
+
+// applyDerived makes cfg, already checked and derived, the running configuration.
+func (m Model) applyDerived(cfg config.Config, derived derivations, done string) (Model, tea.Cmd) {
+	m.conf.applied++
 	m = m.applyIntegrations(cfg, derived)
 	m.prefs.display = cfg.Display
 	m.keys = keymapFor(cfg)

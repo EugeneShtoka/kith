@@ -436,6 +436,9 @@ type configState struct {
 	base   config.Config
 	// rev counts live config reloads, which also invalidate derived answers.
 	rev uint64
+	// applied counts the changes applied, so one kithd was still checking can tell
+	// whether it would land over a newer one (applyConfig).
+	applied uint64
 }
 
 // Model is the root Bubble Tea model driving the three-pane frame.
@@ -974,10 +977,8 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleMemberChanged(msg))
 	case roomCreatedMsg:
 		return answered(m.handleRoomCreated(msg))
-	case configSavedMsg:
-		return answered(m.handleConfigSaved(msg))
-	case configReloadedMsg:
-		return answered(m.handleConfigReloaded(msg))
+	case configCheckedMsg, configSavedMsg, configReloadedMsg:
+		return answered(m.handleConfigNews(msg))
 	case loginMsg, loginNetworksMsg:
 		return answered(m.handleLogin(msg))
 	case dndMsg:
@@ -2763,6 +2764,19 @@ func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 	next.keys = next.keys.withScripts(cfg.Commands.Scripts)
 	// The rail is the spaces and the tags; New had no tags to build it from.
 	return next.rebuiltRail()
+}
+
+// handleConfigNews is news of a change: kithd's verdict on one held back, its save,
+// the daemon's re-read.
+func (m Model) handleConfigNews(msg tea.Msg) (Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case configCheckedMsg:
+		return m.handleConfigChecked(msg)
+	case configSavedMsg:
+		return m.handleConfigSaved(msg)
+	}
+	reloaded, _ := msg.(configReloadedMsg)
+	return m.handleConfigReloaded(reloaded)
 }
 
 // handleConfigSaved reports a failed write; on success it asks the daemon to re-read

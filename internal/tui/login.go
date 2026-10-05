@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -397,10 +396,15 @@ func (m Model) writeLoginRecord(rec api.LoginRecord) (Model, tea.Cmd, func() err
 	if err := cfg.Write(rec.Table, rec.Values); err != nil {
 		return m, nil, func() error { return fmt.Errorf("set the account up: %w", err) }
 	}
-	next, applied := m.applyConfig(cfg, "set up "+m.login.network.Label+" "+m.login.account)
-	if !reflect.DeepEqual(next.conf.base, cfg) {
-		return next, applied, func() error { return errors.New("the config refused the new account (the status line says why)") }
+	// Not held for kithd's check (applyConfig): the record is the network's own, and
+	// kithd judges it again when it re-reads the file.
+	derived, err := derive(cfg)
+	if err != nil {
+		return m.sayErr("could not apply", err), nil, func() error {
+			return errors.New("the config refused the new account (the status line says why)")
+		}
 	}
+	next, applied := m.applyDerived(cfg, derived, "set up "+m.login.network.Label+" "+m.login.account)
 	// Saved here too, under a newer generation, so the daemon re-reads it next; the
 	// older save applyConfig queued is then skipped.
 	gen, writer, path := next.conf.writer.take(), next.conf.writer, next.conf.path

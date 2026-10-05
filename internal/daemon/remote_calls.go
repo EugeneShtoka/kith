@@ -7,6 +7,7 @@ import (
 
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	pc "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
@@ -577,6 +578,13 @@ func (r *Remote) DND(ctx context.Context) (notify.Temps, error) {
 // if it will not load.
 func (r *Remote) ReloadConfig(ctx context.Context) error {
 	_, err := call(ctx, "reload config", r.c.ReloadConfig, &v1.ReloadConfigRequest{})
+	return err
+}
+
+// CheckConfig asks the daemon whether it would run with cfg, before it is written:
+// the error is what to fix.
+func (r *Remote) CheckConfig(ctx context.Context, cfg config.Config) error {
+	_, err := call(ctx, "check config", r.c.CheckConfig, &v1.CheckConfigRequest{Config: config.Encode(cfg)})
 	return err
 }
 

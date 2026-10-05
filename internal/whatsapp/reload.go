@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // UseConfig takes [[whatsapp.account]] and [display.deleted] keep, at start and each
@@ -13,9 +14,20 @@ func (a *Adapter) UseConfig(ctx context.Context, cfg config.Config) {
 	a.keepDeletedIf(cfg.Display.Deleted.Keep())
 	accounts := make([]Account, 0, len(cfg.WhatsApp.Accounts))
 	for _, account := range cfg.WhatsApp.Accounts {
-		accounts = append(accounts, Account{Name: account.Name, Digits: account.Digits()})
+		accounts = append(accounts, Account{Name: account.Name, Digits: domain.PhoneDigits(account.Phone)})
 	}
 	a.useAccounts(ctx, accounts)
+}
+
+// CheckConfig refuses [[whatsapp.account]]s kith could not tell apart or link: a
+// missing or repeated name, no international number, a number listed twice. It asks
+// nothing of WhatsApp.
+func (a *Adapter) CheckConfig(_ context.Context, cfg config.Config) error {
+	records := make([]domain.AccountRecord, 0, len(cfg.WhatsApp.Accounts))
+	for _, account := range cfg.WhatsApp.Accounts {
+		records = append(records, domain.PhoneAccount(account.Name, account.Phone))
+	}
+	return domain.CheckAccounts(cfg.WhatsApp.Table(), records) //nolint:wrapcheck // names the record itself
 }
 
 // useAccounts takes the [[whatsapp.account]] list: before Start, the ones it starts

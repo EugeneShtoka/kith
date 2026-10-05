@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/api"
-	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -86,8 +85,8 @@ func (a *Adapter) setUp(ctx context.Context, talk api.LoginTalk) (string, error)
 		if err != nil {
 			return "", err
 		}
-		address = config.SlackAccount{Workspace: got["workspace"]}.Address()
-		if err := config.CheckSlackAddress(address); err != nil {
+		address = addressOf(got["workspace"])
+		if err := checkAddress(address); err != nil {
 			note = err.Error()
 			continue
 		}
@@ -102,7 +101,7 @@ func (a *Adapter) setUp(ctx context.Context, talk api.LoginTalk) (string, error)
 		taken = append(taken, acc.Name)
 	}
 	suggested := address
-	if config.IsSlackTeamID(address) {
+	if isTeamID(address) {
 		suggested = "work" // an ID says nothing
 	}
 	name, err := api.AskName(ctx, talk, domain.FreeName(suggested, taken), taken,
@@ -130,7 +129,7 @@ func sessionHelp(workspace string) session {
 		where: workspace + ".slack.com", open: "https://" + workspace + ".slack.com",
 		token: `Object.values(JSON.parse(localStorage.localConfig_v2).teams).find(t => t.url.includes("//` + workspace + `.")).token`,
 	}
-	if config.IsSlackTeamID(workspace) {
+	if isTeamID(workspace) {
 		h.where, h.open = "workspace "+workspace, "https://app.slack.com/client/"+workspace
 		h.token = `JSON.parse(localStorage.localConfig_v2).teams["` + workspace + `"].token`
 	}

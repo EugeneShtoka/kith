@@ -48,9 +48,6 @@ func Validate(cfg config.Config) error {
 		errOf(AgentCooldown(cfg.Agent)),
 		errOf(LogLevel(cfg.Log)),
 		errOf(LogTarget(cfg.Log)),
-		WhatsAppAccounts(cfg.WhatsApp),
-		SlackAccounts(cfg.Slack),
-		TelegramAccounts(cfg.Telegram),
 		tagsCheck(cfg),
 	} {
 		if err != nil {

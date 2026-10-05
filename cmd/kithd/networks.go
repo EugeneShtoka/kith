@@ -10,6 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/route"
 	"github.com/EugeneShtoka/kith/internal/session"
+	"github.com/EugeneShtoka/kith/internal/setup"
 	"github.com/EugeneShtoka/kith/internal/slack"
 	"github.com/EugeneShtoka/kith/internal/telegram"
 	"github.com/EugeneShtoka/kith/internal/whatsapp"
@@ -43,10 +44,31 @@ type (
 	}
 	// roomsRewriter rewrites its rooms in the cache itself (its own listing).
 	roomsRewriter interface{ OnRoomsChanged(changed func()) }
+	// configChecker says whether its part of the config is right, before kithd runs
+	// it (at start, at each re-read, and when a client asks before saving).
+	configChecker interface {
+		CheckConfig(ctx context.Context, cfg config.Config) error
+	}
 	// roomsStaler learns of room changes the cache does not have until it is
 	// refreshed (Matrix's sync).
 	roomsStaler interface{ OnRoomsStale(stale func()) }
 )
+
+// checkConfig refuses a config kithd would not run: one setup refuses, or one a
+// network refuses its part of.
+func (s served) checkConfig(ctx context.Context, cfg config.Config) error {
+	if err := setup.Validate(cfg); err != nil {
+		return err
+	}
+	for _, n := range s.networks {
+		if c, ok := n.(configChecker); ok {
+			if err := c.CheckConfig(ctx, cfg); err != nil {
+				return err //nolint:wrapcheck // names the record itself
+			}
+		}
+	}
+	return nil
+}
 
 // openNetworks builds every network kithd links, over one cache and this instance's
 // keyring: Matrix when the config names its account (starting from saved), the rest

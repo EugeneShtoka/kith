@@ -142,7 +142,7 @@ func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
 	a.keepDeletedIf(cfg.Display.Deleted.Keep())
 	accounts := make([]Account, 0, len(cfg.Slack.Accounts))
 	for _, account := range cfg.Slack.Accounts {
-		accounts = append(accounts, Account{Name: account.Name, Workspace: account.Address()})
+		accounts = append(accounts, Account{Name: account.Name, Workspace: addressOf(account.Workspace)})
 	}
 	a.useAccounts(accounts)
 }
