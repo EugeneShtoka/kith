@@ -660,20 +660,90 @@ message SeatResponse {
   }
 }
 
-message PairWhatsAppRequest {
-  // The [[whatsapp.account]] name, as the config says it.
-  string account = 1;
+message LoginField {
+  // Key names the answer; label is what the prompt says.
+  string key = 1;
+  string label = 2;
+  // What it is and where to find it, as paragraphs.
+  string help = 3;
+  // A likely answer, offered to keep.
+  string value = 4;
+  // Drawn as dots and read without echo.
+  bool secret = 5;
+  // An empty answer is taken.
+  bool optional = 6;
 }
 
-message PairWhatsAppResponse {
-  oneof event {
-    // The code to type on the phone (WhatsApp → Linked devices → Link a device →
-    // Link with phone number instead).
-    string code = 1;
-    // The phone accepted: the account's person ID. The stream ends after it.
-    string linked = 2;
-  }
+message LoginRecord {
+  // The record table ("whatsapp.account"); empty: values are top-level key paths.
+  string table = 1;
+  map<string, string> values = 2;
 }
+
+// LoginStep is where a login is. Exactly one of ask, code, configure, restart and
+// done says what to do; note may go with any of them.
+message LoginStep {
+  // The conversation, for AnswerLogin and CancelLogin.
+  string login = 1;
+  // The account it is about, once known.
+  string account = 2;
+  // What just happened: why an answer was refused, where a code went.
+  string note = 3;
+  repeated LoginField ask = 4;
+  // A code to show until the next step.
+  string code = 5;
+  // A new account to write into the config, then answer with no values.
+  LoginRecord configure = 6;
+  // The login ended: the daemon must restart, then the login begin again.
+  bool restart = 7;
+  // The login ended: what it did.
+  string done = 8;
+}
+
+message LoginAccount {
+  string name = 1;
+  string detail = 2;
+}
+
+message LoginNetwork {
+  // What BeginLogin takes ("whatsapp"), its name, and what logging in takes.
+  string network = 1;
+  string label = 2;
+  string detail = 3;
+  repeated LoginAccount accounts = 4;
+}
+
+message LoginNetworksRequest {}
+
+message LoginNetworksResponse {
+  repeated LoginNetwork networks = 1;
+}
+
+message BeginLoginRequest {
+  string network = 1;
+  // The account's name; empty sets a new one up.
+  string account = 2;
+}
+
+message BeginLoginResponse {
+  LoginStep step = 1;
+}
+
+message AnswerLoginRequest {
+  string login = 1;
+  // The answers, by field key; none for a code shown or a record written.
+  map<string, string> values = 2;
+}
+
+message AnswerLoginResponse {
+  LoginStep step = 1;
+}
+
+message CancelLoginRequest {
+  string login = 1;
+}
+
+message CancelLoginResponse {}
 
 message DraftsResponse {
   repeated StoredDraft drafts = 1;
@@ -829,62 +899,6 @@ message SelvesRequest {}
 message SelvesResponse {
   // Every ID that is this person, on every network served.
   repeated string ids = 1;
-}
-
-message SignInSlackRequest {
-  // The [[slack.account]] name, as the config says it.
-  string account = 1;
-  // The workspace's session as the browser holds it: the xoxc token and the `d`
-  // cookie it is only good together with.
-  string token = 2;
-  string cookie = 3;
-}
-
-message SignInSlackResponse {
-  // The workspace and the person signed in, by name.
-  string workspace = 1;
-  string user = 2;
-}
-
-message SendTelegramCodeRequest {
-  // The [[telegram.account]] name, as the config says it.
-  string account = 1;
-  // The app the login goes through, from my.telegram.org; both unset for kith's own.
-  int32 api_id = 2;
-  string api_hash = 3;
-}
-
-message SendTelegramCodeResponse {
-  // Where the code went: "the Telegram app", "SMS", …
-  string via = 1;
-}
-
-message SignInTelegramRequest {
-  // The [[telegram.account]] name, as the config says it.
-  string account = 1;
-  // The code Telegram sent, and the two-step verification password when asked for.
-  string code = 2;
-  string password = 3;
-}
-
-message SignInTelegramResponse {
-  // Whom the login landed as: a name, and the account's person ID.
-  string name = 1;
-  string id = 2;
-}
-
-message LoginMatrixRequest {
-  // The password for the config's Matrix user, typed by a human. The homeserver and
-  // user are the daemon's own config's, never the client's.
-  string password = 1;
-}
-
-message LoginMatrixResponse {
-  string user_id = 1;
-  string device_id = 2;
-  // started is true when Matrix started on this session at once; false when it was
-  // saved for the daemon's next start (Matrix was already running).
-  bool started = 3;
 }
 
 message ClearCacheRequest {}
@@ -1294,26 +1308,17 @@ service BackendService {
   // none). Opening the stream asks for it; keeping it open keeps it, and a window
   // that closes or dies frees it. See SeatRequest.force and SeatResponse.
   rpc Seat(SeatRequest) returns (stream SeatResponse);
-  // PairWhatsApp links one configured [[whatsapp.account]] to kith as a WhatsApp
-  // linked device: the stream carries the code to type on the phone, then the
-  // account's ID once the phone accepts it. A failure ends the stream with an error.
-  rpc PairWhatsApp(PairWhatsAppRequest) returns (stream PairWhatsAppResponse);
-  // LoginMatrix logs the config's Matrix user in with a password, saves the session
-  // and starts Matrix on it. A failure (a wrong password, Matrix not configured) is
-  // an error.
-  rpc LoginMatrix(LoginMatrixRequest) returns (LoginMatrixResponse);
-  // SignInSlack takes a session for one configured [[slack.account]], checks it with
-  // Slack, keeps it and connects the workspace. A failure (a session Slack refuses,
-  // another workspace's, Slack not enabled) is an error.
-  rpc SignInSlack(SignInSlackRequest) returns (SignInSlackResponse);
-  // SendTelegramCode has Telegram send one configured [[telegram.account]] a login
-  // code, starting its login over. A failure (no Telegram account runs, no app to log
-  // in through, a number Telegram refuses) is an error.
-  rpc SendTelegramCode(SendTelegramCodeRequest) returns (SendTelegramCodeResponse);
-  // SignInTelegram finishes that login with the code, and the two-step verification
-  // password once one is asked for (the password-needed sentinel); it keeps the
-  // session and connects the account.
-  rpc SignInTelegram(SignInTelegramRequest) returns (SignInTelegramResponse);
+  // LoginNetworks is every network the daemon can log in to, with its accounts.
+  rpc LoginNetworks(LoginNetworksRequest) returns (LoginNetworksResponse);
+  // BeginLogin starts logging an account in (none: setting a new one up), ending any
+  // login of it under way. The network leads the conversation: each step says what
+  // to ask, show or write, and AnswerLogin answers it, until one says it is done.
+  // Only the daemon logs in: it keeps the sessions, and starts a network on one.
+  rpc BeginLogin(BeginLoginRequest) returns (BeginLoginResponse);
+  // AnswerLogin answers a login's step and is the next. A failure ends the login.
+  rpc AnswerLogin(AnswerLoginRequest) returns (AnswerLoginResponse);
+  // CancelLogin ends a login.
+  rpc CancelLogin(CancelLoginRequest) returns (CancelLoginResponse);
   // RoomsWith finds the rooms a set of people are **all** in, most recently active
   // first.
   rpc RoomsWith(RoomsWithRequest) returns (RoomsWithResponse);

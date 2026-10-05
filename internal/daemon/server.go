@@ -40,18 +40,8 @@ type Daemon struct {
 	// Scheduler is nil when the queue path could not be resolved; its handlers
 	// then refuse.
 	Scheduler *Scheduler
-	// WhatsApp pairs WhatsApp accounts; nil when [whatsapp] is off, and the pairing
-	// handler then refuses with ErrNetworkOff.
-	WhatsApp api.WhatsAppLink
-	// Matrix logs Matrix in; nil when Matrix is not configured, and the login
-	// handler then refuses with ErrNetworkOff.
-	Matrix api.MatrixLogin
-	// Slack signs Slack workspaces in; nil when [slack] is off, and the sign-in
-	// handler then refuses with ErrNetworkOff.
-	Slack api.SlackSignIn
-	// Telegram logs Telegram accounts in; nil when the daemon runs none, and the login
-	// handlers then refuse with ErrNetworkOff.
-	Telegram api.TelegramLogin
+	// Logins logs network accounts in; nil refuses every login with ErrNetworkOff.
+	Logins api.Logins
 	// Log receives every failed call, with the procedure and the reason, so a
 	// failure a client only counted still reaches the journal. nil logs nothing.
 	Log *slog.Logger

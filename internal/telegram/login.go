@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gotd/td/session"
@@ -18,22 +19,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Logging in is a conversation: the number is given, Telegram sends a code, the code
-// is given, and the password when the account has two-step verification on. The
-// daemon hears its parts in separate calls (the code exists only once it was sent),
-// so each login runs in a goroutine of its own, on a connection of its own, and the
-// calls hand it their answers one at a time.
-
-// loginTimeout bounds a login from its code being sent to its last answer; Telegram's
-// codes expire sooner.
-const loginTimeout = 15 * time.Minute
+// Logging in is a conversation (api.LoginTalk): the number is given, Telegram sends a
+// code, the code is given, and the password when the account has two-step
+// verification on. It runs on a connection of its own, which the session it signs in
+// with is taken from.
 
 // ErrNoAccount is a login for a name no [[telegram.account]] has.
 var ErrNoAccount = errors.New("telegram: no such [[telegram.account]]")
 
 var (
-	// errNoLogin is an answer with no login under way to take it.
-	errNoLogin = errors.New("telegram: no login is under way for this account; have the code sent first")
 	// errSuperseded is a login overtaken by a newer one of the same account, or by its
 	// leaving the config.
 	errSuperseded = errors.New("telegram: another login of this account began meanwhile")
@@ -41,34 +35,11 @@ var (
 	errNeedCode = errors.New("telegram: the code Telegram sent is needed")
 )
 
-// login is an account's login under way.
+// login is an account's login under way: which of its logins it is (see
+// Adapter.signIns), and how to end it.
 type login struct {
-	// gen is which of the account's logins this is (see Adapter.newSignIn).
-	gen     int
-	answers chan loginAnswer
-	// ended is closed when the conversation ends: no answer is taken after.
-	ended  <-chan struct{}
+	gen    int
 	cancel context.CancelFunc
-	// turn lets one answer at a time be heard.
-	turn chan struct{}
-}
-
-// loginAnswer is one call's answer, and where its outcome goes. reply holds one, so
-// the conversation never waits on a caller that left.
-type loginAnswer struct {
-	code, password string
-	reply          chan loginReply
-}
-
-type loginReply struct {
-	in  api.TelegramSignedIn
-	err error
-}
-
-// codeSent is how the conversation's first step went.
-type codeSent struct {
-	via string
-	err error
 }
 
 // account is the configured account called name.
@@ -81,141 +52,184 @@ func (a *Adapter) account(name string) (Account, error) {
 	return accounts[i], nil
 }
 
-// SendTelegramCode starts the named account's login over: Telegram sends it a code,
-// through app (the zero App: kith's own).
-func (a *Adapter) SendTelegramCode(ctx context.Context, name string, given api.TelegramApp) (api.TelegramCodeSent, error) {
-	account, err := a.account(name)
-	if err != nil {
-		return api.TelegramCodeSent{}, err
+// LoginNetwork is Telegram as a login lists it, with its accounts and their numbers.
+func (a *Adapter) LoginNetwork() api.LoginNetwork {
+	n := api.LoginNetwork{Network: "telegram", Label: "Telegram", Detail: "a phone number, logged in with a code Telegram sends"}
+	for _, account := range a.accountsNow() {
+		n.Accounts = append(n.Accounts, api.LoginAccount{Name: account.Name, Detail: "+" + account.Digits})
 	}
-	app, err := appFor(given)
-	if err != nil {
-		return api.TelegramCodeSent{}, err
-	}
-	return a.beginLogin(ctx, account, app, a.newClient)
+	return n
 }
 
-// beginLogin runs a login of account through dial until the code is sent; the rest
-// of it waits for SignInTelegram.
-func (a *Adapter) beginLogin(ctx context.Context, account Account, app App, dial dialer) (api.TelegramCodeSent, error) {
+// Login logs account in, setting it up first when it is new (""): the app to log in
+// through, then the code Telegram sends, then the two-step password when the account
+// has one. A wrong answer is asked for again.
+func (a *Adapter) Login(ctx context.Context, name string, talk api.LoginTalk) (api.LoginEnd, error) {
+	if name == "" {
+		var err error
+		name, err = api.NumberedAccount(ctx, talk, "telegram.account", "tg", a.LoginNetwork().Accounts,
+			"The Telegram account's phone number, with its country code: +44 7700 900123.\n\n"+
+				"Telegram sends a code to it — to the Telegram app where the account is logged in, else by "+
+				"SMS — and tells the account's other sessions about the new login.",
+			"What kith calls this account: its chats are the space “Telegram <name>” in the rail, "+
+				"and `kith login telegram <name>` logs it in again. Suggested from the number's country; "+
+				"enter keeps it.")
+		if err != nil {
+			return api.LoginEnd{}, err
+		}
+	}
+	account, err := a.account(name)
+	if err != nil {
+		return api.LoginEnd{}, err
+	}
+	app, err := askApp(ctx, talk)
+	if err != nil {
+		return api.LoginEnd{}, err
+	}
+	return a.login(ctx, account, app, talk, a.newClient)
+}
+
+// askApp asks for the app to log in through until one will do: one's own, or, left
+// empty, kith's own when this build carries one.
+func askApp(ctx context.Context, talk api.LoginTalk) (App, error) {
+	note := ""
+	for {
+		got, err := talk.Ask(ctx, note,
+			api.LoginField{Key: "api_id", Label: "api_id", Optional: true, Help: appSteps + "\n\nLeave both empty to " +
+				"log in through kith's own app, when this build carries one. Your own is safer: Telegram may limit " +
+				"an app many people share."},
+			api.LoginField{Key: "api_hash", Label: "api_hash", Optional: true, Secret: true,
+				Help: "The app's api_hash, from the same page: 32 letters and digits."})
+		if err != nil {
+			return App{}, err
+		}
+		given := App{Hash: strings.TrimSpace(got["api_hash"])}
+		if raw := strings.TrimSpace(got["api_id"]); raw != "" {
+			if given.ID, err = strconv.Atoi(raw); err != nil || given.ID <= 0 {
+				note = "an api_id is a number, as my.telegram.org shows it"
+				continue
+			}
+		}
+		if given.Hash != "" && !isHash(given.Hash) {
+			note = "an api_hash is 32 letters and digits (0-9, a-f), as my.telegram.org shows it"
+			continue
+		}
+		app, err := appFor(given)
+		if err != nil {
+			note = err.Error()
+			continue
+		}
+		return app, nil
+	}
+}
+
+// appSteps is where a Telegram app's api_id and api_hash come from.
+const appSteps = "Every Telegram client logs in as an app. Make your own at https://my.telegram.org: " +
+	"log in with the account's number, open API development tools, and fill in the form (any title " +
+	"and short name; platform Desktop). It shows the app's api_id, a number, and its api_hash. " +
+	"They are kept with the session in the system keyring, never in the config."
+
+// isHash reports whether s is an api_hash: 32 hexadecimal digits.
+func isHash(s string) bool {
+	return len(s) == 32 && strings.Trim(strings.ToLower(s), "0123456789abcdef") == ""
+}
+
+// login logs account in through dial and app, ending any login of it under way: the
+// code is asked for once Telegram sent it, and the password when one is needed.
+// Signed in, the credentials are kept and the account connects.
+func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.LoginTalk, dial dialer) (api.LoginEnd, error) {
+	ctx, gen := a.beginLogin(ctx, account)
+	defer a.endLogin(account.Name, gen)
 	storage := &session.StorageMemory{}
 	client := dial(app, storage)
-	run, cancel := context.WithTimeout(a.runContext(), loginTimeout)
-	l := &login{answers: make(chan loginAnswer), ended: run.Done(), cancel: cancel, turn: make(chan struct{}, 1)}
+	var end api.LoginEnd
+	err := client.Run(ctx, func(ctx context.Context) error {
+		phone := "+" + account.Digits
+		code, err := client.Auth().SendCode(ctx, phone, auth.SendCodeOptions{})
+		if err != nil {
+			return describeSendCode(err)
+		}
+		sent, ok := code.(*tg.AuthSentCode)
+		if !ok {
+			return errors.New("telegram: logged in without a code, which kith does not ask for")
+		}
+		note, codeTaken := "Telegram sent a code to "+codeVia(sent.Type), false
+		for {
+			field := api.LoginField{Key: "code", Label: "code", Help: "The code Telegram sent. It reaches the Telegram " +
+				"app where the account is logged in, as a message from Telegram, or comes by SMS. Never give it to anyone."}
+			if codeTaken {
+				field = api.LoginField{Key: "password", Label: "password", Secret: true, Help: "The account's two-step " +
+					"verification password (Telegram → Settings → Privacy and Security). It is checked by Telegram " +
+					"and not kept."}
+			}
+			got, err := talk.Ask(ctx, note, field)
+			if err != nil {
+				return err
+			}
+			user, err := a.signIn(ctx, client, phone, sent.PhoneCodeHash, got["code"], got["password"], &codeTaken)
+			switch {
+			case errors.Is(err, api.ErrBadCode):
+				note = "that is not the code Telegram sent; try again"
+			case errors.Is(err, errNeedCode):
+				note = "the code Telegram sent is needed"
+			case errors.Is(err, api.ErrPasswordNeeded):
+				note = "the account has two-step verification"
+			case errors.Is(err, api.ErrBadPassword):
+				note = "that is not the password; try again"
+			case err != nil:
+				return err
+			default:
+				creds := Credentials{App: app, User: user.ID}
+				if creds.Session, err = storage.Bytes(nil); err != nil {
+					return fmt.Errorf("telegram: read the session: %w", err)
+				}
+				if err := a.keepLogin(account, gen, creds); err != nil {
+					return err
+				}
+				a.connectAs(account, creds, gen, dial)
+				end.Done = "logged in to Telegram as " + userName(user) + " — its chats arrive over the next minutes"
+				return nil
+			}
+		}
+	})
+	return end, err //nolint:wrapcheck // its own words, or the login's end
+}
+
+// beginLogin makes a login of account the latest, ending one under way, and is its
+// context and generation.
+func (a *Adapter) beginLogin(ctx context.Context, account Account) (context.Context, int) {
+	ctx, cancel := context.WithCancel(ctx)
 	a.mu.Lock()
+	defer a.mu.Unlock()
 	if old := a.logins[account.Name]; old != nil {
 		old.cancel()
 	}
 	a.signIns[account.Name]++
-	l.gen = a.signIns[account.Name]
-	a.logins[account.Name] = l
-	a.mu.Unlock()
-
-	sent := make(chan codeSent, 1)
-	go func() {
-		defer a.endLogin(account.Name, l)
-		err := client.Run(run, func(ctx context.Context) error {
-			return a.converse(ctx, account, app, client, storage, l, sent, dial)
-		})
-		if err != nil && run.Err() == nil {
-			a.log.Info("a login ended", "account", account.Name, "err", err)
-		}
-		// The code's fate untold: the connection itself failed.
-		select {
-		case sent <- codeSent{err: fmt.Errorf("telegram: reach Telegram: %w", cmpErr(err, run.Err()))}:
-		default:
-		}
-	}()
-	select {
-	case s := <-sent:
-		if s.err != nil {
-			return api.TelegramCodeSent{}, s.err
-		}
-		return api.TelegramCodeSent{Via: s.via}, nil
-	case <-ctx.Done():
-		a.endLogin(account.Name, l)
-		return api.TelegramCodeSent{}, ctx.Err() //nolint:wrapcheck // the caller's own
-	}
+	gen := a.signIns[account.Name]
+	a.logins[account.Name] = &login{gen: gen, cancel: cancel}
+	return ctx, gen
 }
 
-// cmpErr is err, or alt when err is nil.
-func cmpErr(err, alt error) error {
-	if err != nil {
-		return err
-	}
-	if alt != nil {
-		return alt
-	}
-	return errors.New("the connection closed")
-}
-
-// endLogin cancels l and forgets it, unless a newer login replaced it.
-func (a *Adapter) endLogin(name string, l *login) {
-	l.cancel()
+// endLogin forgets a login, unless a newer one replaced it.
+func (a *Adapter) endLogin(name string, gen int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.logins[name] == l {
+	if l := a.logins[name]; l != nil && l.gen == gen {
+		l.cancel()
 		delete(a.logins, name)
-	}
-}
-
-// converse is the login over a connected client: the code sent, then answers taken
-// until one signs in, one fails for good, or the login ends.
-func (a *Adapter) converse(
-	ctx context.Context, account Account, app App, client *telegram.Client, storage *session.StorageMemory,
-	l *login, sent chan<- codeSent, dial dialer,
-) error {
-	phone := "+" + account.Digits
-	code, err := client.Auth().SendCode(ctx, phone, auth.SendCodeOptions{})
-	if err != nil {
-		sent <- codeSent{err: describeSendCode(err)}
-		return nil
-	}
-	pending, ok := code.(*tg.AuthSentCode)
-	if !ok {
-		sent <- codeSent{err: errors.New("telegram: logged in without a code, which kith does not ask for")}
-		return nil
-	}
-	sent <- codeSent{via: codeVia(pending.Type)}
-	codeTaken := false
-	for {
-		var answer loginAnswer
-		select {
-		case <-ctx.Done():
-			return ctx.Err() //nolint:wrapcheck // the login's own end
-		case answer = <-l.answers:
-		}
-		user, err := a.signIn(ctx, client, phone, pending.PhoneCodeHash, answer, &codeTaken)
-		if err == nil {
-			creds := Credentials{App: app, User: user.ID}
-			creds.Session, err = storage.Bytes(nil)
-			if err == nil {
-				err = a.keepLogin(account, l.gen, creds)
-			}
-			if err == nil {
-				answer.reply <- loginReply{in: api.TelegramSignedIn{Name: userName(user), ID: personID(user.ID)}}
-				a.connectAs(account, creds, l.gen, dial)
-				return nil
-			}
-		}
-		answer.reply <- loginReply{err: err}
-		if !errors.Is(err, api.ErrBadCode) && !errors.Is(err, api.ErrPasswordNeeded) && !errors.Is(err, api.ErrBadPassword) &&
-			!errors.Is(err, errNeedCode) {
-			return nil
-		}
 	}
 }
 
 // signIn tries one answer: the code, then the password once Telegram asked for one
 // (codeTaken). The user is whom it signed in as.
 func (a *Adapter) signIn(
-	ctx context.Context, client *telegram.Client, phone, hash string, answer loginAnswer, codeTaken *bool,
+	ctx context.Context, client *telegram.Client, phone, hash, code, password string, codeTaken *bool,
 ) (*tg.User, error) {
 	if !*codeTaken {
-		if answer.code == "" {
+		if code == "" {
 			return nil, errNeedCode
 		}
-		in, err := client.Auth().SignIn(ctx, phone, answer.code, hash)
+		in, err := client.Auth().SignIn(ctx, phone, code, hash)
 		switch {
 		case errors.Is(err, auth.ErrPasswordAuthNeeded):
 			*codeTaken = true
@@ -225,10 +239,10 @@ func (a *Adapter) signIn(
 			return signedInAs(in)
 		}
 	}
-	if answer.password == "" {
+	if password == "" {
 		return nil, api.ErrPasswordNeeded
 	}
-	in, err := client.Auth().Password(ctx, answer.password)
+	in, err := client.Auth().Password(ctx, password)
 	if errors.Is(err, auth.ErrPasswordInvalid) {
 		return nil, fmt.Errorf("telegram: %w", api.ErrBadPassword)
 	}
@@ -245,39 +259,6 @@ func signedInAs(in *tg.AuthAuthorization) (*tg.User, error) {
 		return nil, errors.New("telegram: signed in, but Telegram did not say as whom")
 	}
 	return user, nil
-}
-
-// SignInTelegram hands the named account's login its answer: the code, and the
-// password when one was asked for.
-func (a *Adapter) SignInTelegram(ctx context.Context, name, code, password string) (api.TelegramSignedIn, error) {
-	a.mu.Lock()
-	l := a.logins[name]
-	a.mu.Unlock()
-	if l == nil {
-		return api.TelegramSignedIn{}, errNoLogin
-	}
-	select {
-	case l.turn <- struct{}{}:
-		defer func() { <-l.turn }()
-	case <-l.ended:
-		return api.TelegramSignedIn{}, errNoLogin
-	case <-ctx.Done():
-		return api.TelegramSignedIn{}, ctx.Err() //nolint:wrapcheck // the caller's own
-	}
-	answer := loginAnswer{code: code, password: password, reply: make(chan loginReply, 1)}
-	select {
-	case l.answers <- answer:
-	case <-l.ended:
-		return api.TelegramSignedIn{}, errNoLogin
-	case <-ctx.Done():
-		return api.TelegramSignedIn{}, ctx.Err() //nolint:wrapcheck // the caller's own
-	}
-	select {
-	case r := <-answer.reply:
-		return r.in, r.err
-	case <-ctx.Done():
-		return api.TelegramSignedIn{}, ctx.Err() //nolint:wrapcheck // the caller's own
-	}
 }
 
 // keepLogin keeps a login's credentials, unless a newer login of the account began

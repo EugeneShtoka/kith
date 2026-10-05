@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/url"
-	"regexp"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -16,108 +15,80 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/api"
-	"github.com/EugeneShtoka/kith/internal/config"
-	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// :login sets an account up and signs it in, inside kith: choose the network, then
-// answer what it needs — a phone number, a workspace, a homeserver — each explained in
-// the timeline pane while it is typed on the status line, secrets drawn as dots. The
-// account is written to the config as any setting is, the daemon re-reads it, and the
-// daemon signs in (`kith login …` does the same from a shell). A network the daemon was
-// started without is turned on by restarting it, which the flow does itself.
-
-// loginNetwork is a network :login can set up.
-type loginNetwork struct {
-	key, label, detail string
-}
-
-var loginNetworks = []loginNetwork{
-	{"whatsapp", "WhatsApp", "a phone number, linked as one of its devices"},
-	{"slack", "Slack", "a workspace, signed in with your browser's session"},
-	{"telegram", "Telegram", "a phone number, logged in with a code Telegram sends"},
-	{"matrix", "Matrix", "an account on a homeserver"},
-}
+// :login sets an account up and signs it in, inside kith. The daemon lists the
+// networks, and each network leads its own login (api.Logins): every step says what
+// to ask, show or write, and this draws it — a field typed on the status line with its
+// help in the timeline pane, secrets as dots; a code to type elsewhere; a new account
+// written into the config as any setting is. Nothing here knows a network.
 
 // loginNew is the account picker's row for setting up another account.
 const loginNew = "\x00new"
 
-// pairingTimeout bounds waiting for the phone to take a pairing code, as `kith login
-// whatsapp` does.
-const pairingTimeout = 10 * time.Minute
+// loginTimeout bounds a sign-in: a code to arrive and be typed, a phone to accept one.
+const loginTimeout = 15 * time.Minute
 
 // loginStage is where a sign-in is.
 type loginStage int
 
 const (
 	loginOff     loginStage = iota
-	loginAsking             // a field's prompt is open
-	loginWorking            // saving, restarting, signing in: the daemon is at work
+	loginAsking             // a step's field is being typed
+	loginWorking            // the daemon is at work: signing in, waiting for a phone
 )
-
-// The fields a network asks for, by key.
-const (
-	fieldPhone      = "phone"
-	fieldName       = "name"
-	fieldWorkspace  = "workspace"
-	fieldToken      = "token"
-	fieldCookie     = "cookie"
-	fieldHomeserver = "homeserver"
-	fieldUser       = "user"
-	fieldPassword   = "password"
-	fieldAppID      = "api_id"
-	fieldAppHash    = "api_hash"
-	fieldCode       = "code"
-	fieldTwoStep    = "two-step"
-)
-
-// loginField is one thing a sign-in asks for.
-type loginField struct {
-	key, label string
-	secret     bool
-	// optional takes an empty answer.
-	optional bool
-}
 
 // loginState is the sign-in under way.
 type loginState struct {
-	stage   loginStage
-	network loginNetwork
-	// account is the name of the account being signed in: set up already, or named in
-	// this flow; fresh says it is being set up.
+	stage loginStage
+	// network is the network being signed in to; account the account, once known.
+	network api.LoginNetwork
 	account string
-	fresh   bool
-	fields  []loginField
-	at      int
-	values  map[string]string
-	// code is the WhatsApp pairing code to type on the phone; note what is happening.
+	// networks are the daemon's, for the account picker that follows the network's.
+	networks []api.LoginNetwork
+	// fields are the step's, at the one being typed; values the answers so far, and
+	// answered every answer given in this sign-in, drawn above the field.
+	fields   []api.LoginField
+	at       int
+	values   map[string]string
+	answered []answeredField
+	// code is a code to type elsewhere; note what the network said last.
 	code, note string
 	cancel     context.CancelFunc
 	events     <-chan loginEvent
-	// answer takes the field the daemon's sign-in asked for midway (a code Telegram
-	// sent), while it waits; nil for the fields asked up front.
-	answer chan<- string
+	// answer takes the step's answers while the sign-in waits for them.
+	answer chan<- map[string]string
 }
 
-// field is the field being asked for.
-func (l loginState) field() (loginField, bool) {
+// answeredField is an answer as the pane shows it: a secret as dots.
+type answeredField struct {
+	label, shown string
+}
+
+// field is the field being typed.
+func (l loginState) field() (api.LoginField, bool) {
 	if l.stage != loginAsking || l.at >= len(l.fields) {
-		return loginField{}, false
+		return api.LoginField{}, false
 	}
 	return l.fields[l.at], true
 }
 
-// loginEvent is news from the sign-in under way: a pairing code, a step, a question,
-// or the end.
+// loginEvent is news from the sign-in under way: a step to answer, a code, a record to
+// write, a note, or the end.
 type loginEvent struct {
-	code, note string
-	// ask is a field to answer now, the sign-in waiting; its answer goes to answer.
-	ask    *loginField
-	answer chan<- string
-	// done ends the sign-in: what it did, or err.
+	// ask is fields to answer; their answers go to answer.
+	ask    []api.LoginField
+	answer chan<- map[string]string
+	// write is a new account to write into the config; written hears how to save it.
+	write   *api.LoginRecord
+	written chan<- func() error
+	code    string
+	note    string
+	account string
+	// final ends the sign-in: done says what it did, or err why it failed.
+	final bool
 	done  string
 	err   error
-	final bool
 }
 
 type loginMsg struct {
@@ -125,313 +96,364 @@ type loginMsg struct {
 	ok    bool // false: the events ended (canceled)
 }
 
-// openLogin is :login: the networks, or straight to the one named.
+func wrapLogin(e loginEvent) tea.Msg { return loginMsg{event: e, ok: true} }
+
+// loginNetworksMsg is the daemon's networks, for :login's picker; pick is the one
+// named on the command line, if any.
+type loginNetworksMsg struct {
+	networks []api.LoginNetwork
+	pick     string
+	err      error
+}
+
+// errNoLogin is a kith not attached to a daemon, which is what signs in.
+var errNoLogin = errors.New("this kith is not attached to kithd, which signs in")
+
+// openLogin is :login: the daemon's networks, or straight to the one named.
 func (m Model) openLogin(arg string) (Model, tea.Cmd) {
 	if m.login.stage != loginOff {
 		return m.say("a sign-in is under way — finish it, or cancel it with " + m.keys.keyHint(scopePrompt, actCancel)), nil
 	}
-	if arg = strings.ToLower(strings.TrimSpace(arg)); arg != "" {
-		return m.chooseLoginNetwork(arg)
+	logins, ok := m.backend.(api.Logins)
+	if !ok {
+		return m.sayErr("could not sign in", errNoLogin), nil
 	}
-	items := make([]pickerItem, 0, len(loginNetworks))
-	for _, n := range loginNetworks {
-		items = append(items, pickerItem{label: n.label, detail: n.detail, value: n.key, match: n.label})
+	ctx, pick := m.ctx, strings.ToLower(strings.TrimSpace(arg))
+	return m, func() tea.Msg {
+		networks, err := logins.LoginNetworks(ctx)
+		return loginNetworksMsg{networks: networks, pick: pick, err: err}
+	}
+}
+
+// handleLogin is a sign-in's news: the networks to offer, or a step of one under way.
+func (m Model) handleLogin(msg tea.Msg) (Model, tea.Cmd) {
+	if networks, ok := msg.(loginNetworksMsg); ok {
+		return m.handleLoginNetworks(networks)
+	}
+	news, _ := msg.(loginMsg)
+	return m.handleLoginMsg(news)
+}
+
+// handleLoginNetworks offers the networks, or goes on with the one named.
+func (m Model) handleLoginNetworks(msg loginNetworksMsg) (Model, tea.Cmd) {
+	if msg.err != nil {
+		return m.sayErr("could not list the networks", msg.err), nil
+	}
+	m.login.networks = msg.networks
+	if msg.pick != "" {
+		return m.chooseLoginNetwork(msg.pick)
+	}
+	items := make([]pickerItem, 0, len(msg.networks))
+	for _, n := range msg.networks {
+		items = append(items, pickerItem{label: n.Label, detail: n.Detail, value: n.Network, match: n.Label})
 	}
 	m.picker = newPicker(pickerLoginNetwork, items)
 	return m, nil
 }
 
 // chooseLoginNetwork offers the network's accounts to sign in again, and a new one;
-// with none set up, it asks for the new one at once.
+// with none set up, it sets the new one up at once.
 func (m Model) chooseLoginNetwork(key string) (Model, tea.Cmd) {
 	m = m.closePicker()
-	i := slices.IndexFunc(loginNetworks, func(n loginNetwork) bool { return n.key == key })
+	i := slices.IndexFunc(m.login.networks, func(n api.LoginNetwork) bool { return n.Network == key })
 	if i < 0 {
-		return m.say("no network is called " + key + " — whatsapp, slack, telegram or matrix"), nil
+		known := make([]string, 0, len(m.login.networks))
+		for _, n := range m.login.networks {
+			known = append(known, n.Network)
+		}
+		return m.say("no network is called " + key + " — " + strings.Join(known, ", ")), nil
 	}
-	network, cfg := loginNetworks[i], m.conf.base
-	if network.key == "matrix" {
-		if len(cfg.Profiles) > 0 {
-			return m.say("this config's Matrix accounts are [[profile]]s — log one in with `kith login --profile <name>`"), nil
-		}
-		if cfg.HasMatrix() {
-			return m.startLogin(network, cfg.User)
-		}
+	network := m.login.networks[i]
+	m.login.network = network
+	if len(network.Accounts) == 0 {
 		return m.startLogin(network, "")
 	}
-	var items []pickerItem
-	for _, a := range loginAccounts(cfg, network.key) {
-		items = append(items, pickerItem{label: a[0], detail: a[1], value: a[0], match: a[0] + " " + a[1]})
-	}
-	if len(items) == 0 {
-		return m.startLogin(network, "")
+	items := make([]pickerItem, 0, len(network.Accounts)+1)
+	for _, a := range network.Accounts {
+		items = append(items, pickerItem{label: a.Name, detail: a.Detail, value: a.Name, match: a.Name + " " + a.Detail})
 	}
 	items = append(items, pickerItem{label: "New account", detail: "set up another", value: loginNew, match: "new account"})
 	spec := pickerSpecs[pickerLoginAccount]
-	spec.title = network.label + ": sign in which account?"
+	spec.title = network.Label + ": sign in which account?"
 	m.picker = newPickerWith(pickerLoginAccount, spec, items)
-	m.login.network = network // the account picker's answer is about it
 	return m, nil
-}
-
-// loginAccounts is a network's accounts set up already: name and what it is.
-func loginAccounts(cfg config.Config, network string) [][2]string {
-	var out [][2]string
-	switch network {
-	case "whatsapp":
-		for _, a := range cfg.WhatsApp.Accounts {
-			out = append(out, [2]string{a.Name, a.Phone})
-		}
-	case "slack":
-		for _, a := range cfg.Slack.Accounts {
-			out = append(out, [2]string{a.Name, a.Workspace})
-		}
-	case "telegram":
-		for _, a := range cfg.Telegram.Accounts {
-			out = append(out, [2]string{a.Name, a.Phone})
-		}
-	}
-	return out
 }
 
 // chooseLoginAccount signs an account in again, or sets up a new one.
 func (m Model) chooseLoginAccount(value string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	if value == loginNew {
-		return m.startLogin(m.login.network, "")
+		value = ""
 	}
 	return m.startLogin(m.login.network, value)
 }
 
-// startLogin asks for what signing account in takes ("" for a new account: what
-// setting it up takes, too).
-func (m Model) startLogin(network loginNetwork, account string) (Model, tea.Cmd) {
-	m.login = loginState{stage: loginAsking, network: network, account: account, fresh: account == "",
-		fields: loginFields(network.key, account != ""), values: map[string]string{}}
-	if len(m.login.fields) == 0 {
-		return m.finishLogin()
+// startLogin has the daemon begin signing account in ("" sets a new one up); the
+// network's steps arrive as events.
+func (m Model) startLogin(network api.LoginNetwork, account string) (Model, tea.Cmd) {
+	logins, ok := m.backend.(api.Logins)
+	if !ok {
+		return m.sayErr("could not sign in", errNoLogin), nil
 	}
-	return m.askLoginField(""), nil
+	ctx, cancel := context.WithTimeout(m.ctx, loginTimeout)
+	events := make(chan loginEvent, 4)
+	m.login = loginState{
+		stage: loginWorking, network: network, account: account, networks: m.login.networks,
+		note: "signing in…", cancel: cancel, events: events,
+	}
+	// The daemon re-reads the config when asked; a backend that cannot has none to read.
+	reload, _ := m.backend.(configReloader)
+	work := loginWork(logins, reload, m.link.restart, network.Network, account)
+	start := func() tea.Msg {
+		go work(ctx, events)
+		return nil
+	}
+	return m, tea.Batch(start, listen(ctx, events, wrapLogin))
 }
 
-// loginFields is what a network asks for: to set an account up and sign it in, or,
-// for one set up already, to sign it in.
-func loginFields(network string, known bool) []loginField {
+// configReloader is a daemon that re-reads the config when asked.
+type configReloader interface {
+	ReloadConfig(ctx context.Context) error
+}
+
+// loginWork leads the client's side of a sign-in, off the update loop: it begins
+// the login and answers each step — asking the model for answers, or to write a new
+// account (then has the daemon re-read the config) — until the network says it is
+// done. A step that needs the daemon restarted restarts it, once, and begins again.
+// Everything goes to events, which it closes.
+func loginWork(
+	logins api.Logins, reload configReloader, restart func(context.Context) error, network, account string,
+) func(context.Context, chan<- loginEvent) {
+	return func(ctx context.Context, events chan<- loginEvent) {
+		defer close(events)
+		r := &loginRun{logins: logins, reload: reload, restart: restart, network: network, account: account, events: events}
+		defer r.cancelIfLeft(ctx)
+		step, err := logins.BeginLogin(ctx, network, account)
+		for err == nil {
+			var done bool
+			if step, done, err = r.answer(ctx, step); done {
+				return
+			}
+		}
+		if ctx.Err() == nil {
+			r.login = "" // the login ended there
+		}
+		r.send(ctx, loginEvent{final: true, err: err})
+	}
+}
+
+// loginRun is one sign-in's client side, as loginWork leads it.
+type loginRun struct {
+	logins           api.Logins
+	reload           configReloader
+	restart          func(context.Context) error
+	network, account string
+	events           chan<- loginEvent
+	// login is the daemon's login under way, for canceling it; restarted says the
+	// daemon was restarted once already.
+	login     string
+	restarted bool
+}
+
+// send hands the model e; false when the sign-in was canceled first.
+func (r *loginRun) send(ctx context.Context, e loginEvent) bool {
+	select {
+	case r.events <- e:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// cancelIfLeft ends the daemon's login when this side was canceled, past ctx.
+func (r *loginRun) cancelIfLeft(ctx context.Context) {
+	if r.login == "" || ctx.Err() == nil {
+		return
+	}
+	stop, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	_ = r.logins.CancelLogin(stop, r.login)
+}
+
+// answer does what step asks and is the next one; done when the sign-in ended
+// (said, or canceled).
+func (r *loginRun) answer(ctx context.Context, step api.LoginStep) (api.LoginStep, bool, error) {
+	r.login, r.account = step.Login, cmp.Or(step.Account, r.account)
 	switch {
-	case network == "whatsapp" && known:
-		return nil // the phone is asked, by its pairing code
-	case network == "whatsapp":
-		return []loginField{{key: fieldPhone, label: "phone"}, {key: fieldName, label: "call it"}}
-	case network == "slack" && known:
-		return []loginField{
-			{key: fieldToken, label: "token (xoxc-…)", secret: true},
-			{key: fieldCookie, label: "cookie d (xoxd-…)", secret: true},
+	case step.Restart:
+		if r.restarted || r.restart == nil {
+			return step, false, fmt.Errorf("%s: restart kithd, then sign in again", cmp.Or(step.Done, "kithd must restart"))
 		}
-	case network == "slack":
-		return []loginField{
-			{key: fieldWorkspace, label: "workspace"}, {key: fieldName, label: "call it"},
-			{key: fieldToken, label: "token (xoxc-…)", secret: true},
-			{key: fieldCookie, label: "cookie d (xoxd-…)", secret: true},
+		r.restarted, r.login = true, ""
+		r.send(ctx, loginEvent{note: cmp.Or(step.Done, "set up") + "; restarting kithd…", account: r.account})
+		if err := r.restart(ctx); err != nil {
+			return step, false, err
 		}
-	case network == "telegram" && known:
-		return telegramAppFields() // the code is asked once Telegram sent it
-	case network == "telegram":
-		return append([]loginField{{key: fieldPhone, label: "phone"}, {key: fieldName, label: "call it"}}, telegramAppFields()...)
-	case known: // Matrix, set up
-		return []loginField{{key: fieldPassword, label: "password", secret: true}}
-	default:
-		return []loginField{
-			{key: fieldHomeserver, label: "homeserver"}, {key: fieldUser, label: "Matrix ID"},
-			{key: fieldPassword, label: "password", secret: true},
-		}
+		next, err := r.logins.BeginLogin(ctx, r.network, r.account)
+		return next, false, err //nolint:wrapcheck // the daemon's own words
+	case step.Done != "":
+		r.login = ""
+		r.send(ctx, loginEvent{final: true, done: step.Done})
+		return step, true, nil
+	case step.Code != "":
+		r.send(ctx, loginEvent{code: step.Code, note: step.Note, account: r.account})
+		next, err := r.logins.AnswerLogin(ctx, r.login, nil)
+		return next, false, err //nolint:wrapcheck // the daemon's own words
+	case step.Configure != nil:
+		next, err := writeAndGoOn(ctx, r.logins, r.reload, step, func(e loginEvent) bool { return r.send(ctx, e) })
+		return next, ctx.Err() != nil, err
+	}
+	answer := make(chan map[string]string, 1)
+	if !r.send(ctx, loginEvent{ask: step.Ask, answer: answer, note: step.Note, account: r.account}) {
+		return step, true, nil
+	}
+	select {
+	case values := <-answer:
+		next, err := r.logins.AnswerLogin(ctx, r.login, values)
+		return next, false, err //nolint:wrapcheck // the daemon's own words
+	case <-ctx.Done():
+		return step, true, nil
 	}
 }
 
-// telegramAppFields is the app a Telegram login goes through: empty for kith's own.
-func telegramAppFields() []loginField {
-	return []loginField{
-		{key: fieldAppID, label: "api_id", optional: true},
-		{key: fieldAppHash, label: "api_hash", secret: true},
+// writeAndGoOn has the model write the step's new account into the config, the
+// daemon re-read it, and the login go on.
+func writeAndGoOn(
+	ctx context.Context, logins api.Logins, reload configReloader, step api.LoginStep, send func(loginEvent) bool,
+) (api.LoginStep, error) {
+	written := make(chan func() error, 1)
+	if !send(loginEvent{write: step.Configure, written: written, account: step.Account}) {
+		return api.LoginStep{}, ctx.Err() //nolint:wrapcheck // canceled
+	}
+	var save func() error
+	select {
+	case save = <-written:
+	case <-ctx.Done():
+		return api.LoginStep{}, ctx.Err() //nolint:wrapcheck // canceled
+	}
+	if err := save(); err != nil {
+		return api.LoginStep{}, err
+	}
+	if reload != nil {
+		// The daemon reads the config only when asked: the account is new to it.
+		if err := reload.ReloadConfig(ctx); err != nil {
+			return api.LoginStep{}, fmt.Errorf("have kithd re-read the config: %w", err)
+		}
+	}
+	return logins.AnswerLogin(ctx, step.Login, nil) //nolint:wrapcheck // the daemon's own words
+}
+
+// handleLoginMsg is news from the sign-in: a step to answer, a record to write, a
+// code or a note to show, or, at the end, what it did, the rooms and spaces read
+// again to show what it brought.
+func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
+	if m.login.stage == loginOff || !msg.ok {
+		return m, nil // canceled meanwhile
+	}
+	e := msg.event
+	m.login.account = cmp.Or(e.account, m.login.account)
+	if e.note != "" {
+		m.login.note = e.note
+	}
+	next := listen(m.ctx, m.login.events, wrapLogin)
+	switch {
+	case e.final:
+		label := m.login.network.Label
+		if m.login.cancel != nil {
+			m.login.cancel()
+		}
+		m.login = loginState{}
+		if e.err != nil {
+			if errors.Is(e.err, context.Canceled) {
+				return m, nil
+			}
+			return m.sayErr("could not sign in to "+label, e.err), nil
+		}
+		return m.say(e.done), tea.Batch(m.refreshRoomsCmd(), m.refreshSpacesCmd())
+	case e.write != nil:
+		var applied tea.Cmd
+		var save func() error
+		m, applied, save = m.writeLoginRecord(*e.write)
+		e.written <- save
+		return m, tea.Batch(applied, next)
+	case e.ask != nil:
+		m.login.stage, m.login.fields, m.login.at, m.login.values, m.login.answer = loginAsking, e.ask, 0, map[string]string{}, e.answer
+		m.login.code = ""
+		m = m.askLoginField()
+		if e.note != "" {
+			m = m.say(e.note)
+		}
+		return m, next
+	case e.code != "":
+		m.login.code = e.code
+	}
+	return m, next
+}
+
+// writeLoginRecord writes a new account into the config as a setting is, and is how
+// to save it; refused (applyConfig said why), saving fails.
+func (m Model) writeLoginRecord(rec api.LoginRecord) (Model, tea.Cmd, func() error) {
+	cfg := m.conf.base.Clone()
+	if err := cfg.Write(rec.Table, rec.Values); err != nil {
+		return m, nil, func() error { return fmt.Errorf("set the account up: %w", err) }
+	}
+	next, applied := m.applyConfig(cfg, "set up "+m.login.network.Label+" "+m.login.account)
+	if !reflect.DeepEqual(next.conf.base, cfg) {
+		return next, applied, func() error { return errors.New("the config refused the new account (the status line says why)") }
+	}
+	// Saved here too, under a newer generation, so the daemon re-reads it next; the
+	// older save applyConfig queued is then skipped.
+	gen, writer, path := next.conf.writer.take(), next.conf.writer, next.conf.path
+	return next, applied, func() error {
+		if path == "" {
+			return nil
+		}
+		if err := writer.save(gen, path, cfg); err != nil {
+			return fmt.Errorf("save the config: %w", err)
+		}
+		return nil
 	}
 }
 
-// askLoginField opens the prompt for the field under way: typed is what was there (a
-// refused answer, to fix), else the field's suggestion, selected so typing replaces it.
-func (m Model) askLoginField(typed string) Model {
+// askLoginField opens the prompt for the field being typed, with its suggestion,
+// selected so typing replaces it.
+func (m Model) askLoginField() Model {
 	f, ok := m.login.field()
 	if !ok {
 		return m
 	}
-	if typed != "" {
-		return m.openPromptWith(promptLogin, typed)
-	}
-	suggested := m.loginSuggestion(f)
-	m = m.openPromptWith(promptLogin, suggested)
-	m.prompt.fresh = suggested != ""
+	m = m.openPromptWith(promptLogin, f.Value)
+	m.prompt.fresh = f.Value != ""
 	return m
 }
 
-// loginSuggestion is a field's likely answer: a name from what was answered before
-// it, the usual homeserver.
-func (m Model) loginSuggestion(f loginField) string {
-	v, cfg := m.login.values, m.conf.base
-	switch f.key {
-	case fieldName:
-		names := accountNames(cfg, m.login.network.key)
-		switch m.login.network.key {
-		case "whatsapp":
-			return setup.WhatsAppName(config.WhatsAppAccount{Phone: v[fieldPhone]}.Digits(), names)
-		case "telegram":
-			return setup.TelegramName(config.TelegramAccount{Phone: v[fieldPhone]}.Digits(), names)
-		}
-		return setup.SlackName(v[fieldWorkspace], names)
-	case fieldHomeserver:
-		return "https://matrix.org"
-	}
-	return ""
-}
-
-// accountNames is the names a network's accounts have.
-func accountNames(cfg config.Config, network string) []string {
-	var names []string
-	for _, a := range loginAccounts(cfg, network) {
-		names = append(names, a[0])
-	}
-	return names
-}
-
-// submitLogin takes the field's answer: refused, the prompt reopens on it, saying
-// why; taken, the next field is asked, or the sign-in begins.
+// submitLogin takes the field's answer: a required one left empty is asked again;
+// the last of a step's fields sends them all.
 func (m Model) submitLogin(input string) (Model, tea.Cmd) {
 	f, ok := m.login.field()
 	if !ok {
 		return m, nil
 	}
-	value, err := m.checkLoginField(f, strings.TrimSpace(input))
-	if err != nil {
-		return m.askLoginField(input).say(err.Error()), nil
+	value := strings.TrimSpace(input)
+	if value == "" && !f.Optional {
+		return m.askLoginField().say(f.Label + " is needed"), nil
 	}
 	values := maps.Clone(m.login.values) // copies of the model share the map
-	values[f.key] = value
+	values[f.Key] = value
 	m.login.values = values
+	shown := value
+	if f.Secret {
+		shown = strings.Repeat("•", min(utf8.RuneCountInString(value), 12))
+	}
+	m.login.answered = append(slices.Clone(m.login.answered), answeredField{label: f.Label, shown: shown})
 	m.login.at++
-	if m.login.answer != nil {
-		// The sign-in asked for it, and waits: it has it now (its buffer holds one).
-		m.login.answer <- value
-		m.login.answer, m.login.stage, m.login.note = nil, loginWorking, "logging in…"
-		return m, nil
-	}
-	if f.key == fieldAppID && value == "" {
-		m.login.at++ // kith's own app: no hash to ask for
-	}
 	if m.login.at < len(m.login.fields) {
-		return m.askLoginField(""), nil
+		return m.askLoginField(), nil
 	}
-	return m.finishLogin()
-}
-
-// matrixID is a full Matrix user ID.
-var matrixID = regexp.MustCompile(`^@[^:\s]+:\S+$`)
-
-// checkLoginField is an answer as it is kept, or why it is refused.
-func (m Model) checkLoginField(f loginField, input string) (string, error) {
-	if input == "" {
-		if f.optional {
-			return "", nil
-		}
-		return "", errors.New(f.label + " is needed")
-	}
-	switch f.key {
-	case fieldPhone:
-		return checkPhone(m.conf.base, m.login.network.key, input)
-	case fieldAppID:
-		_, err := setup.TelegramAppID(input)
-		return input, err
-	case fieldAppHash:
-		return input, setup.CheckTelegramAppHash(input)
-	case fieldName:
-		return checkName(m.conf.base, m.login.network.key, input)
-	case fieldWorkspace:
-		return checkWorkspace(m.conf.base, input)
-	case fieldToken:
-		return input, setup.CheckSlackToken(input)
-	case fieldCookie:
-		return input, setup.CheckSlackCookie(input)
-	case fieldHomeserver:
-		return checkHomeserver(input)
-	case fieldUser:
-		return checkMatrixID(input, m.login.values[fieldHomeserver])
-	}
-	return input, nil
-}
-
-// checkPhone is an international number no account of the network has, kept with
-// its "+".
-func checkPhone(cfg config.Config, network, input string) (string, error) {
-	digits := config.WhatsAppAccount{Phone: input}.Digits()
-	if err := setup.CheckPhone(digits); err != nil {
-		return "", err
-	}
-	for _, a := range loginAccounts(cfg, network) {
-		if (config.WhatsAppAccount{Phone: a[1]}).Digits() == digits {
-			return "", fmt.Errorf("that number is the account %s already — :login %s and choose it to sign in again", a[0], network)
-		}
-	}
-	if !strings.HasPrefix(input, "+") {
-		input = "+" + input
-	}
-	return input, nil
-}
-
-// checkName is one word no account of the network has.
-func checkName(cfg config.Config, network, input string) (string, error) {
-	if strings.ContainsFunc(input, func(r rune) bool { return r == ' ' || r == '\t' }) {
-		return "", errors.New("a name is one word: `kith login " + network + " <name>` takes it")
-	}
-	if slices.Contains(accountNames(cfg, network), input) {
-		return "", fmt.Errorf("an account is called %s already", input)
-	}
-	return input, nil
-}
-
-// checkWorkspace is a Slack workspace no account has, as Slack writes it.
-func checkWorkspace(cfg config.Config, input string) (string, error) {
-	workspace := config.SlackAccount{Workspace: input}.Address()
-	if err := setup.CheckSlackWorkspace(workspace); err != nil {
-		return "", err
-	}
-	for _, a := range cfg.Slack.Accounts {
-		if a.Address() == workspace {
-			return "", fmt.Errorf("that workspace is the account %s already — :login slack and choose it to sign in again", a.Name)
-		}
-	}
-	return workspace, nil
-}
-
-// checkHomeserver is a homeserver's address, https:// when none is said.
-func checkHomeserver(input string) (string, error) {
-	if !strings.Contains(input, "://") {
-		input = "https://" + input
-	}
-	if u, err := url.Parse(input); err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
-		return "", errors.New("write the homeserver's address, as https://matrix.org")
-	}
-	return strings.TrimSuffix(input, "/"), nil
-}
-
-// checkMatrixID is a full Matrix ID; a name alone is taken as on the homeserver.
-func checkMatrixID(input, homeserver string) (string, error) {
-	if !strings.Contains(input, ":") {
-		host := ""
-		if u, err := url.Parse(homeserver); err == nil {
-			host = u.Hostname()
-		}
-		input = "@" + strings.TrimPrefix(input, "@") + ":" + host
-	}
-	if !matrixID.MatchString(input) {
-		return "", errors.New("write your Matrix ID, as @you:matrix.org")
-	}
-	return input, nil
+	// The sign-in waits for them; its buffer holds one.
+	m.login.answer <- values
+	m.login.stage, m.login.answer, m.login.note = loginWorking, nil, "signing in…"
+	return m, nil
 }
 
 // cancelLogin abandons the sign-in: a prompt closed, or the daemon's work canceled.
@@ -452,271 +474,12 @@ func (m Model) handleLoginKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// finishLogin writes a new account into the config, applies it, and sets the daemon
-// to signing it in.
-func (m Model) finishLogin() (Model, tea.Cmd) {
-	if m.login.fresh {
-		m.login.account = cmp.Or(m.login.values[fieldName], m.login.values[fieldUser])
-	}
-	cfg, changed := m.loginConfig()
-	var applied tea.Cmd
-	var gen uint64
-	if changed {
-		next, cmd := m.applyConfig(cfg, "set up "+m.login.network.label+" "+m.login.account)
-		if !loginApplied(next.conf.base, m.login) {
-			next.login = loginState{} // refused: applyConfig said why
-			return next, cmd
-		}
-		m, applied, gen = next, cmd, next.conf.writer.take()
-	}
-	m.login.stage, m.login.note = loginWorking, "signing in…"
-	ctx, cancel := context.WithTimeout(m.ctx, pairingTimeout)
-	events := make(chan loginEvent, 4)
-	m.login.cancel, m.login.events = cancel, events
-	work := m.loginWork(cfg, changed, gen)
-	start := func() tea.Msg {
-		go work(ctx, events)
-		return nil
-	}
-	return m, tea.Batch(applied, start, listen(ctx, events, wrapLogin))
-}
-
-func wrapLogin(e loginEvent) tea.Msg { return loginMsg{event: e, ok: true} }
-
-// loginConfig is the config with the account set up;
-// changed is false when it was so already.
-func (m Model) loginConfig() (config.Config, bool) {
-	cfg, v := m.conf.base.Clone(), m.login.values
-	before := m.conf.base
-	switch m.login.network.key {
-	case "whatsapp":
-		if m.login.fresh {
-			cfg.WhatsApp.Accounts = append(cfg.WhatsApp.Accounts, config.WhatsAppAccount{Name: v[fieldName], Phone: v[fieldPhone]})
-		}
-		return cfg, len(cfg.WhatsApp.Accounts) != len(before.WhatsApp.Accounts)
-	case "slack":
-		if m.login.fresh {
-			cfg.Slack.Accounts = append(cfg.Slack.Accounts, config.SlackAccount{Name: v[fieldName], Workspace: v[fieldWorkspace]})
-		}
-		return cfg, len(cfg.Slack.Accounts) != len(before.Slack.Accounts)
-	case "telegram":
-		if m.login.fresh {
-			cfg.Telegram.Accounts = append(cfg.Telegram.Accounts, config.TelegramAccount{Name: v[fieldName], Phone: v[fieldPhone]})
-		}
-		return cfg, len(cfg.Telegram.Accounts) != len(before.Telegram.Accounts)
-	default:
-		if m.login.fresh {
-			cfg.Homeserver, cfg.User = v[fieldHomeserver], v[fieldUser]
-		}
-		return cfg, cfg.Homeserver != before.Homeserver || cfg.User != before.User
-	}
-}
-
-// loginApplied reports whether the config now holds the account being signed in.
-func loginApplied(cfg config.Config, l loginState) bool {
-	name := l.account
-	switch l.network.key {
-	case "whatsapp":
-		return slices.ContainsFunc(cfg.WhatsApp.Accounts, func(a config.WhatsAppAccount) bool { return a.Name == name })
-	case "slack":
-		return slices.ContainsFunc(cfg.Slack.Accounts, func(a config.SlackAccount) bool { return a.Name == name })
-	case "telegram":
-		return slices.ContainsFunc(cfg.Telegram.Accounts, func(a config.TelegramAccount) bool { return a.Name == name })
-	default:
-		return cfg.HasMatrix()
-	}
-}
-
-// loginWork is the sign-in, run off the update loop: the config written (when it
-// changed) and re-read by the daemon, then the network's sign-in; a daemon started
-// without the network is restarted, once, and asked again. Everything it learns goes
-// to events, which it closes.
-func (m Model) loginWork(cfg config.Config, changed bool, gen uint64) func(context.Context, chan<- loginEvent) {
-	path, writer, reload, restart := m.conf.path, m.conf.writer, m.notifications.backend, m.link.restart
-	signIn := m.loginSignIn()
-	label := m.login.network.label
-	return func(ctx context.Context, events chan<- loginEvent) {
-		defer close(events)
-		send := func(e loginEvent) {
-			select {
-			case events <- e:
-			case <-ctx.Done():
-			}
-		}
-		end := func(done string, err error) { send(loginEvent{done: done, err: err, final: true}) }
-		if changed && path != "" {
-			if err := writer.save(gen, path, cfg); err != nil {
-				end("", fmt.Errorf("save the config: %w", err))
-				return
-			}
-		}
-		if reload != nil {
-			// The daemon reads the config only when asked: the account is new to it.
-			if err := reload.ReloadConfig(ctx); err != nil {
-				end("", fmt.Errorf("have kithd re-read the config: %w", err))
-				return
-			}
-		}
-		done, again, err := signIn(ctx, send)
-		if errors.Is(err, api.ErrNetworkOff) && restart != nil {
-			// The daemon was started without the network: it starts with the daemon.
-			send(loginEvent{note: "restarting kithd to turn " + label + " on…"})
-			if err = restart(ctx); err == nil {
-				send(loginEvent{note: "signing in…"})
-				done, again, err = signIn(ctx, send)
-			}
-		}
-		if err == nil && again && restart != nil {
-			// Matrix logged in on a daemon that cannot start it live (its encryption
-			// store opened already): the session starts with the daemon.
-			send(loginEvent{note: "restarting kithd to start " + label + "…"})
-			err = restart(ctx)
-		}
-		end(done, err)
-	}
-}
-
-// loginSignIn is the network's sign-in through the daemon: what it did, whether the
-// daemon must restart to use it, or why it failed. send hears its news.
-func (m Model) loginSignIn() func(context.Context, func(loginEvent)) (string, bool, error) {
-	backend, v, account, network := m.backend, m.login.values, m.login.account, m.login.network.key
-	return func(ctx context.Context, send func(loginEvent)) (string, bool, error) {
-		switch network {
-		case "whatsapp":
-			link, ok := backend.(api.WhatsAppLink)
-			if !ok {
-				return "", false, errNoLogin
-			}
-			linked, err := link.PairWhatsApp(ctx, account, func(code string) error {
-				send(loginEvent{code: code, note: "waiting for the phone…"})
-				return nil
-			})
-			return "linked WhatsApp " + account + " as " + linked + " — its chats arrive over the next minutes", false, err //nolint:wrapcheck // the daemon's own words
-		case "slack":
-			in, ok := backend.(api.SlackSignIn)
-			if !ok {
-				return "", false, errNoLogin
-			}
-			signed, err := in.SignInSlack(ctx, account, v[fieldToken], v[fieldCookie])
-			return "signed in to " + signed.Workspace + " as " + signed.User, false, err //nolint:wrapcheck // the daemon's own words
-		case "telegram":
-			in, ok := backend.(api.TelegramLogin)
-			if !ok {
-				return "", false, errNoLogin
-			}
-			return telegramSignIn(ctx, in, account, v, send)
-		default:
-			in, ok := backend.(api.MatrixLogin)
-			if !ok {
-				return "", false, errNoLogin
-			}
-			logged, err := in.LoginMatrix(ctx, v[fieldPassword])
-			return "logged in to Matrix as " + logged.UserID, err == nil && !logged.Started, err //nolint:wrapcheck // the daemon's own words
-		}
-	}
-}
-
-// telegramSignIn has Telegram send the account a code, asks for it, and logs in with
-// it, asking for the two-step verification password when the account has one; a
-// wrong code or password is asked for again.
-func telegramSignIn(
-	ctx context.Context, in api.TelegramLogin, account string, v map[string]string, send func(loginEvent),
-) (string, bool, error) {
-	id, _ := setup.TelegramAppID(v[fieldAppID]) // checked as typed; empty is kith's own
-	sent, err := in.SendTelegramCode(ctx, account, api.TelegramApp{ID: id, Hash: v[fieldAppHash]})
-	if err != nil {
-		return "", false, err //nolint:wrapcheck // the daemon's own words
-	}
-	ask := func(f loginField, note string) (string, error) {
-		answer := make(chan string, 1)
-		send(loginEvent{ask: &f, answer: answer, note: note})
-		select {
-		case value := <-answer:
-			return value, nil
-		case <-ctx.Done():
-			return "", ctx.Err()
-		}
-	}
-	codeField := loginField{key: fieldCode, label: "code"}
-	code, err := ask(codeField, "Telegram sent a code to "+sent.Via)
-	var password string
-	for err == nil {
-		var signed api.TelegramSignedIn
-		signed, err = in.SignInTelegram(ctx, account, code, password)
-		switch {
-		case err == nil:
-			return "logged in to Telegram as " + signed.Name + " — its chats arrive over the next minutes", false, nil
-		case errors.Is(err, api.ErrBadCode):
-			code, err = ask(codeField, "that is not the code Telegram sent; try again")
-		case errors.Is(err, api.ErrPasswordNeeded):
-			password, err = ask(loginField{key: fieldTwoStep, label: "password", secret: true}, "the account has two-step verification")
-		case errors.Is(err, api.ErrBadPassword):
-			password, err = ask(loginField{key: fieldTwoStep, label: "password", secret: true}, "that is not the password; try again")
-		}
-	}
-	return "", false, err
-}
-
-// errNoLogin is a kith not attached to a daemon, which is what signs in.
-var errNoLogin = errors.New("this kith is not attached to kithd, which signs in")
-
-// handleLoginMsg is news from the sign-in: shown in the pane, or, at the end, said on
-// the status line, the rooms and spaces read again to show what it brought.
-func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
-	if m.login.stage != loginWorking || !msg.ok {
-		return m, nil // canceled meanwhile
-	}
-	e := msg.event
-	if e.ask != nil {
-		return m.askMidway(*e.ask, e.answer, e.note), listen(m.ctx, m.login.events, wrapLogin)
-	}
-	if !e.final {
-		if e.code != "" {
-			m.login.code = e.code
-		}
-		if e.note != "" {
-			m.login.note = e.note
-		}
-		return m, listen(m.ctx, m.login.events, wrapLogin)
-	}
-	label := m.login.network.label
-	if m.login.cancel != nil {
-		m.login.cancel()
-	}
-	m.login = loginState{}
-	if e.err != nil {
-		if errors.Is(e.err, context.Canceled) {
-			return m, nil
-		}
-		return m.sayErr("could not sign in to "+label, e.err), nil
-	}
-	return m.say(e.done), tea.Batch(m.refreshRoomsCmd(), m.refreshSpacesCmd())
-}
-
-// askMidway opens the prompt for a field the sign-in asks for while it waits: a field
-// asked before (a code tried again) is asked in its place, its old answer forgotten.
-func (m Model) askMidway(f loginField, answer chan<- string, note string) Model {
-	i := slices.IndexFunc(m.login.fields, func(k loginField) bool { return k.key == f.key })
-	if i < 0 {
-		m.login.fields = append(slices.Clone(m.login.fields), f)
-		i = len(m.login.fields) - 1
-	}
-	values := maps.Clone(m.login.values)
-	delete(values, f.key)
-	m.login.values, m.login.at, m.login.stage, m.login.answer = values, i, loginAsking, answer
-	m.login.fields = m.login.fields[:i+1] // what came after it is asked again
-	return m.askLoginField("").say(note)
-}
-
 // loginTitle is the timeline pane's title while signing in.
 func (m Model) loginTitle() string {
-	what := m.login.network.label
-	if name := cmp.Or(m.login.account, m.login.values[fieldName]); name != "" && m.login.network.key != "matrix" {
-		what += " " + name
-	} else if m.login.fresh && m.login.stage == loginAsking {
-		what += " — a new account"
+	if m.login.account == "" {
+		return "Sign in: " + m.login.network.Label + " — a new account"
 	}
-	return "Sign in: " + what
+	return "Sign in: " + m.login.network.Label + " " + m.login.account
 }
 
 // loginLines is the timeline pane while signing in: what was answered, then the field
@@ -729,25 +492,22 @@ func (m Model) loginLines(width, rows int) []string {
 		}
 	}
 	lines = append(lines, "")
-	for _, f := range m.login.fields[:min(m.login.at, len(m.login.fields))] {
-		shown := m.login.values[f.key]
-		if f.secret {
-			shown = strings.Repeat("•", min(utf8.RuneCountInString(shown), 12))
-		}
-		lines = append(lines, m.theme.Muted.Render(fmt.Sprintf("%-12s", f.label))+" "+shown)
+	for _, a := range m.login.answered {
+		lines = append(lines, m.theme.Muted.Render(fmt.Sprintf("%-12s", a.label))+" "+a.shown)
 	}
 	if len(lines) > 1 {
 		lines = append(lines, "")
 	}
 	if f, ok := m.login.field(); ok {
-		block(m.loginHelp(f))
-		lines = append(lines, "", m.theme.Muted.Render(fmt.Sprintf("%d of %d", m.login.at+1, len(m.login.fields))))
-	} else {
-		lines = append(lines, m.login.note)
-		if m.login.code != "" {
-			lines = append(lines, "", "    "+m.theme.TitleActive.Render(m.login.code), "")
-			block(setup.WhatsAppLinkSteps)
+		block(f.Help)
+		if len(m.login.fields) > 1 {
+			lines = append(lines, "", m.theme.Muted.Render(fmt.Sprintf("%d of %d", m.login.at+1, len(m.login.fields))))
 		}
+	} else {
+		if m.login.code != "" {
+			lines = append(lines, "    "+m.theme.TitleActive.Render(m.login.code), "")
+		}
+		block(m.login.note)
 		lines = append(lines, "", m.theme.Muted.Render(m.keys.keyHint(scopePrompt, actCancel)+" cancels"))
 	}
 	if len(lines) > rows {
@@ -759,93 +519,10 @@ func (m Model) loginLines(width, rows int) []string {
 	return lines
 }
 
-// loginHelp is what a field is and how to find it, as paragraphs (an indented line
-// is kept as written).
-func (m Model) loginHelp(f loginField) string {
-	v := m.login.values
-	workspace := v[fieldWorkspace]
-	for _, a := range m.conf.base.Slack.Accounts {
-		if a.Name == m.login.account {
-			workspace = a.Address()
-		}
-	}
-	session := setup.SlackSession(workspace)
-	if help, ok := telegramHelp(f.key); ok {
-		return help
-	}
-	switch f.key {
-	case fieldPhone:
-		if m.login.network.key == "telegram" {
-			return "The Telegram account's phone number, with its country code: +44 7700 900123.\n\n" +
-				"Telegram sends a code to it — to the Telegram app where the account is logged in, else by " +
-				"SMS — and tells the account's other sessions about the new login."
-		}
-		return "The WhatsApp account's phone number, with its country code: +44 7700 900123.\n\n" +
-			"kith becomes one of the phone's linked devices, as WhatsApp Web is. The phone must come " +
-			"online every couple of weeks, or WhatsApp unlinks it. Linking asks the phone for all the " +
-			"history it holds; it arrives over the minutes after."
-	case fieldName:
-		if m.login.network.key == "telegram" {
-			return "What kith calls this account: its chats are the space “Telegram <name>” in the rail, " +
-				"and `kith login telegram <name>` logs it in again. Suggested from the number's country; " +
-				"enter keeps it."
-		}
-		if m.login.network.key == "whatsapp" {
-			return "What kith calls this account: its rooms are the space “WhatsApp <name>” in the rail, " +
-				"and `kith login whatsapp <name>` links it again. Suggested from the number's country; " +
-				"enter keeps it."
-		}
-		return "What kith calls this workspace: `kith login slack <name>` signs it in again. " +
-			"Suggested from its address; enter keeps it."
-	case fieldWorkspace:
-		return "The workspace: its address — acme, for acme.slack.com — or, with Slack open in a " +
-			"browser, the link in its address bar (https://app.slack.com/client/T…/…), pasted whole."
-	case fieldToken:
-		return "kith signs in with the session your browser holds. In a browser signed in to " +
-			session.Where + ", open " + session.Open + ", then the developer tools (F12) → Console, " +
-			"and paste this line; it prints the token, which starts with xoxc-:\n\n    " + session.Token +
-			"\n\n" + setup.SlackSessionWarning
-	case fieldCookie:
-		return "In the same developer tools: " + session.Cookie + ", which starts with xoxd-. " +
-			"Copied as it shows or decoded, either works.\n\n" + setup.SlackSessionWarning
-	case fieldHomeserver:
-		return "Your homeserver's address: https://matrix.org for an account there, or your own " +
-			"server's — what follows the colon in your Matrix ID (@you:matrix.org)."
-	case fieldUser:
-		return "Your Matrix ID: @you:matrix.org. The name alone is taken as on this homeserver."
-	case fieldPassword:
-		help := "The account's password. kith logs in as a new session and keeps that session in the " +
-			"system keyring, not the password."
-		if m.login.fresh {
-			help += "\n\nSetting Matrix up restarts kithd, which takes a few seconds."
-		}
-		return help
-	}
-	return ""
-}
-
-// telegramHelp is what a field only Telegram asks for is, and where to find it.
-func telegramHelp(key string) (string, bool) {
-	switch key {
-	case fieldAppID:
-		return setup.TelegramAppSteps + "\n\nLeave it empty to log in through kith's own app, when this " +
-			"build carries one. Your own is safer: Telegram may limit an app many people share.", true
-	case fieldAppHash:
-		return "The app's api_hash, from the same page: 32 letters and digits.", true
-	case fieldCode:
-		return "The code Telegram sent. It reaches the Telegram app where the account is logged in, as a " +
-			"message from Telegram, or comes by SMS. Never give it to anyone.", true
-	case fieldTwoStep:
-		return "The account's two-step verification password (Telegram → Settings → Privacy and Security). " +
-			"It is checked by Telegram and not kept.", true
-	}
-	return "", false
-}
-
 // loginPromptLabel is the status line's label for the field being typed.
 func (m Model) loginPromptLabel() string {
 	if f, ok := m.login.field(); ok {
-		return f.label + ": "
+		return f.Label + ": "
 	}
 	return ""
 }
@@ -853,7 +530,7 @@ func (m Model) loginPromptLabel() string {
 // loginSecret reports whether the field being typed is drawn as dots.
 func (m Model) loginSecret() bool {
 	f, ok := m.login.field()
-	return ok && f.secret && m.prompt.kind == promptLogin
+	return ok && f.Secret && m.prompt.kind == promptLogin
 }
 
 // masked is an editor drawn as dots, the caret where it was.

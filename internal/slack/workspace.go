@@ -12,7 +12,6 @@ import (
 
 	slackgo "github.com/slack-go/slack"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -142,38 +141,41 @@ func cookieValue(cookie string) string {
 	return cookie
 }
 
-// SignInSlack takes a session for the named account (its token and `d` cookie, from a
+// landing is who and where a sign-in landed, by name.
+type landing struct{ workspace, user string }
+
+// signIn takes a session for the named account (its token and `d` cookie, from a
 // browser signed in to the workspace), checks it with Slack and against the
 // workspace the account names, keeps it, and connects the account.
-func (a *Adapter) SignInSlack(ctx context.Context, name, token, cookie string) (api.SlackSignedIn, error) {
+func (a *Adapter) signIn(ctx context.Context, name, token, cookie string) (landing, error) {
 	i := slices.IndexFunc(a.accountsNow(), func(acc Account) bool { return acc.Name == name })
 	if i < 0 {
-		return api.SlackSignedIn{}, fmt.Errorf("%w named %q", ErrNoAccount, name)
+		return landing{}, fmt.Errorf("%w named %q", ErrNoAccount, name)
 	}
 	account := a.accountsNow()[i]
 	creds := Credentials{Token: token, Cookie: cookie}
 	client := a.clientFor(creds)
 	who, err := client.AuthTestContext(ctx)
 	if err != nil {
-		return api.SlackSignedIn{}, fmt.Errorf("slack: check the session: %w", err)
+		return landing{}, fmt.Errorf("slack: check the session: %w", err)
 	}
 	if err := sameWorkspace(account, who.URL, who.TeamID); err != nil {
-		return api.SlackSignedIn{}, err
+		return landing{}, err
 	}
 	creds.Team, creds.User = who.TeamID, who.UserID
 	if err := saveCredentials(a.secrets, account.Name, creds); err != nil {
-		return api.SlackSignedIn{}, err
+		return landing{}, err
 	}
 	w := newWorkspace(account, creds, who.Team, client, a.newSignIn(account.Name))
 	w.handle = who.User
 	if !a.adopt(w) {
-		return api.SlackSignedIn{}, fmt.Errorf("%w named %q: it left the config while signing in", ErrNoAccount, name)
+		return landing{}, fmt.Errorf("%w named %q: it left the config while signing in", ErrNoAccount, name)
 	}
 	if _, err := a.list(ctx, w); err != nil {
 		a.log.Warn("list the workspace after signing in failed", "account", name, "err", err)
 	}
 	a.goLive(w)
-	return api.SlackSignedIn{Workspace: who.Team, User: who.User}, nil
+	return landing{workspace: who.Team, user: who.User}, nil
 }
 
 // Retrying a workspace Slack cannot be reached for: from firstRetry, doubling to

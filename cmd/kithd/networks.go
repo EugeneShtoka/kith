@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -30,6 +31,8 @@ type network interface {
 	// SavedSessions is the accounts with a session kept, by name: Start connects them,
 	// and the daemon is ready once each has said where it is.
 	SavedSessions(ctx context.Context) ([]string, error)
+	// Every network leads its own login.
+	api.LoginLeader
 }
 
 // Hooks a network may have.
@@ -72,15 +75,4 @@ func openNetworks(
 		n.UseConfig(ctx, cfg)
 	}
 	return networks, matrix, whatsappStore
-}
-
-// networkOf is the network among networks that is a T; nil when none is.
-func networkOf[T network](networks []network) T {
-	for _, n := range networks {
-		if t, ok := n.(T); ok {
-			return t
-		}
-	}
-	var none T
-	return none
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -215,5 +217,33 @@ func TestUseConfigReadsTheSlackSection(t *testing.T) {
 	}
 	if !a.keepsDeleted() {
 		t.Error("[display.deleted] keep not taken")
+	}
+}
+
+// A new workspace is asked for until it is one (a web-client link is taken as its
+// ID), named ("work" for an ID, which says nothing), and written into the config;
+// then the session is asked for, a half pasted in the wrong field asked again.
+func TestANewWorkspaceIsSetUpThenItsSessionAsked(t *testing.T) {
+	t.Parallel()
+	a := New(nil, &memSecrets{values: map[string]string{}}, []Account{{Name: "club", Workspace: "chess"}}, nil)
+	talk := &apitest.Talk{Answers: map[string][]string{
+		"workspace": {"not a workspace!", "chess", "https://app.slack.com/client/T0123456789/C1"},
+		"name":      {""},
+		"token":     {"xoxd-pasted-here"},
+		"cookie":    {"xoxd-cookie"},
+	}}
+	talk.OnConfigure = func(r api.LoginRecord) error {
+		a.useAccounts([]Account{{Name: "club", Workspace: "chess"}, {Name: r.Values["name"], Workspace: r.Values["workspace"]}})
+		return nil
+	}
+	if _, err := a.Login(t.Context(), "", talk); !errors.Is(err, apitest.ErrNoAnswer) {
+		t.Fatalf("login = %v, want it to reach the session's second ask", err)
+	}
+	if len(talk.Written) != 1 || !maps.Equal(talk.Written[0].Values, map[string]string{"name": "work", "workspace": "T0123456789"}) {
+		t.Errorf("written %+v, want work in T0123456789", talk.Written)
+	}
+	notes := talk.Notes
+	if len(notes) != 3 || !strings.Contains(notes[1], "club") || !strings.Contains(notes[2], "xoxc-") {
+		t.Errorf("notes %q, want a bad workspace, club's, and the token's prefix", notes)
 	}
 }

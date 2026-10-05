@@ -1,7 +1,6 @@
 package setup_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -27,24 +26,6 @@ func TestWhatsAppAccountsAreNamedAndDistinct(t *testing.T) {
 		err := setup.WhatsAppAccounts(config.WhatsApp{Accounts: tc.accounts})
 		if (err == nil) != tc.valid {
 			t.Errorf("%s: WhatsAppAccounts = %v, want valid=%v", name, err, tc.valid)
-		}
-	}
-}
-
-func TestLoginPicksTheNamedOrOnlyAccount(t *testing.T) {
-	t.Parallel()
-	home := config.WhatsAppAccount{Name: "home", Phone: "+44880000001"}
-	work := config.WhatsAppAccount{Name: "work", Phone: "+1500000002"}
-	if got, err := setup.WhatsAppAccount(config.WhatsApp{Accounts: []config.WhatsAppAccount{home}}, ""); err != nil || got != home {
-		t.Errorf("the only account, unnamed = (%v, %v)", got, err)
-	}
-	both := config.WhatsApp{Accounts: []config.WhatsAppAccount{home, work}}
-	if got, err := setup.WhatsAppAccount(both, "work"); err != nil || got != work {
-		t.Errorf("named = (%v, %v)", got, err)
-	}
-	for _, name := range []string{"", "us"} {
-		if _, err := setup.WhatsAppAccount(both, name); !errors.Is(err, setup.ErrNoWhatsAppAccount) {
-			t.Errorf("%q among two = %v, want ErrNoWhatsAppAccount", name, err)
 		}
 	}
 }

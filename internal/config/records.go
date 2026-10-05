@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -220,5 +221,33 @@ func (c *Config) ownTable(path string) error {
 	if !t.IsNil() {
 		t.Set(deepCopy(t))
 	}
+	return nil
+}
+
+// Write sets what a login asks to have written: a new record of table with values by
+// field, or, with no table, values by key path. Nothing is changed when any of it is
+// refused.
+func (c *Config) Write(table string, values map[string]string) error {
+	next := c.Clone()
+	keys := slices.Sorted(maps.Keys(values))
+	if table == "" {
+		for _, key := range keys {
+			if err := next.SetValue(key, values[key]); err != nil {
+				return err
+			}
+		}
+		*c = next
+		return nil
+	}
+	i, err := next.AddRecord(table)
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		if err := next.SetRecordValue(table, i, key, values[key]); err != nil {
+			return err
+		}
+	}
+	*c = next
 	return nil
 }

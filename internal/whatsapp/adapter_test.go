@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"context"
 	"errors"
+	"maps"
 	"path/filepath"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -102,7 +104,7 @@ func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	a, _, store := offline(t, Account{Name: "home", Digits: ownDigits})
 	never := func(string) error { t.Error("a code was asked for"); return nil }
 
-	if _, err := a.PairWhatsApp(ctx, "work", never); !errors.Is(err, errNoAccount) {
+	if _, err := a.pair(ctx, "work", never); !errors.Is(err, errNoAccount) {
 		t.Errorf("an unknown account = %v, want errNoAccount", err)
 	}
 	device := store.container.NewDevice()
@@ -114,7 +116,7 @@ func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	if err := store.container.PutDevice(ctx, device); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.PairWhatsApp(ctx, "home", never); !errors.Is(err, errAlreadyLinked) {
+	if _, err := a.pair(ctx, "home", never); !errors.Is(err, errAlreadyLinked) {
 		t.Errorf("a linked account = %v, want errAlreadyLinked", err)
 	}
 	// While one pairing runs, a second for the same account is refused before it
@@ -122,7 +124,7 @@ func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	if !a.beginPairing(a.accounts[0]) {
 		t.Fatal("a free account could not be claimed")
 	}
-	if _, err := a.PairWhatsApp(ctx, "home", never); !errors.Is(err, errPairing) {
+	if _, err := a.pair(ctx, "home", never); !errors.Is(err, errPairing) {
 		t.Errorf("a second pairing at once = %v, want errPairing", err)
 	}
 	a.endPairing(a.accounts[0])
@@ -168,5 +170,26 @@ func TestUseConfigReadsTheWhatsAppSection(t *testing.T) {
 	}
 	if !a.keepsDeleted() {
 		t.Error("[display.deleted] keep not taken")
+	}
+}
+
+// A new account is asked for by number and name and written into the config before
+// it is linked.
+func TestANewAccountIsSetUpBeforeLinking(t *testing.T) {
+	t.Parallel()
+	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
+	talk := &apitest.Talk{Answers: map[string][]string{"phone": {"+" + ownDigits, "+1 202 555 0100"}, "name": {"home", "work"}}}
+	ctx, cancel := context.WithCancel(t.Context())
+	talk.OnConfigure = func(api.LoginRecord) error {
+		cancel() // linking needs WhatsApp: the setting up is what is tried here
+		return nil
+	}
+	_, _ = a.Login(ctx, "", talk)
+	if len(talk.Written) != 1 || talk.Written[0].Table != "whatsapp.account" ||
+		!maps.Equal(talk.Written[0].Values, map[string]string{"name": "work", "phone": "+1 202 555 0100"}) {
+		t.Errorf("written %+v, want work at +1 202 555 0100", talk.Written)
+	}
+	if notes := talk.Notes; len(notes) != 2 {
+		t.Errorf("notes %q, want home's number and home's name refused", notes)
 	}
 }

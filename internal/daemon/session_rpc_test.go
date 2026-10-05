@@ -10,17 +10,16 @@ import (
 
 // The daemon owns its session. A socket RPC that resumes or logs out would replace
 // the client its sync loop, refresher and handlers share, with no lock between them.
-// LoginMatrix alone may log in to Matrix: it hands a session only to a Matrix that has
-// none, and saves it for the next start otherwise (cmd/kithd's matrix_test.go holds it
-// to that). SignInSlack replaces one workspace's connection whole, under the adapter's
-// lock, and nothing holds a workspace's client but that connection. SignInTelegram
-// finishes a login whose connection replaces the account's, by login generation under
-// the adapter's lock, and nothing else holds that client. A new sign-in RPC
-// needs the same care, and a place in allowed.
+// A login goes through BeginLogin and AnswerLogin, which hand each network its own
+// login (api.LoginLeader): a network replaces an account's session itself, under its
+// own lock (Matrix only on a Matrix that has none, saving it for the next start
+// otherwise; the others by login generation), and nothing else holds that client.
+// LoginNetworks only lists. A new RPC named for a session needs the same care, and a
+// place in allowed.
 func TestTheSocketCannotReplaceTheSession(t *testing.T) {
 	t.Parallel()
 
-	allowed := map[string]bool{"LoginMatrix": true, "SignInSlack": true, "SignInTelegram": true}
+	allowed := map[string]bool{"LoginNetworks": true}
 	handler := reflect.TypeFor[backendv1connect.BackendServiceHandler]()
 	for method := range handler.Methods() {
 		name := method.Name

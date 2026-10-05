@@ -189,21 +189,18 @@ const (
 	BackendServiceDraftsProcedure = "/backend.v1.BackendService/Drafts"
 	// BackendServiceSeatProcedure is the fully-qualified name of the BackendService's Seat RPC.
 	BackendServiceSeatProcedure = "/backend.v1.BackendService/Seat"
-	// BackendServicePairWhatsAppProcedure is the fully-qualified name of the BackendService's
-	// PairWhatsApp RPC.
-	BackendServicePairWhatsAppProcedure = "/backend.v1.BackendService/PairWhatsApp"
-	// BackendServiceLoginMatrixProcedure is the fully-qualified name of the BackendService's
-	// LoginMatrix RPC.
-	BackendServiceLoginMatrixProcedure = "/backend.v1.BackendService/LoginMatrix"
-	// BackendServiceSignInSlackProcedure is the fully-qualified name of the BackendService's
-	// SignInSlack RPC.
-	BackendServiceSignInSlackProcedure = "/backend.v1.BackendService/SignInSlack"
-	// BackendServiceSendTelegramCodeProcedure is the fully-qualified name of the BackendService's
-	// SendTelegramCode RPC.
-	BackendServiceSendTelegramCodeProcedure = "/backend.v1.BackendService/SendTelegramCode"
-	// BackendServiceSignInTelegramProcedure is the fully-qualified name of the BackendService's
-	// SignInTelegram RPC.
-	BackendServiceSignInTelegramProcedure = "/backend.v1.BackendService/SignInTelegram"
+	// BackendServiceLoginNetworksProcedure is the fully-qualified name of the BackendService's
+	// LoginNetworks RPC.
+	BackendServiceLoginNetworksProcedure = "/backend.v1.BackendService/LoginNetworks"
+	// BackendServiceBeginLoginProcedure is the fully-qualified name of the BackendService's BeginLogin
+	// RPC.
+	BackendServiceBeginLoginProcedure = "/backend.v1.BackendService/BeginLogin"
+	// BackendServiceAnswerLoginProcedure is the fully-qualified name of the BackendService's
+	// AnswerLogin RPC.
+	BackendServiceAnswerLoginProcedure = "/backend.v1.BackendService/AnswerLogin"
+	// BackendServiceCancelLoginProcedure is the fully-qualified name of the BackendService's
+	// CancelLogin RPC.
+	BackendServiceCancelLoginProcedure = "/backend.v1.BackendService/CancelLogin"
 	// BackendServiceRoomsWithProcedure is the fully-qualified name of the BackendService's RoomsWith
 	// RPC.
 	BackendServiceRoomsWithProcedure = "/backend.v1.BackendService/RoomsWith"
@@ -445,26 +442,17 @@ type BackendServiceClient interface {
 	// none). Opening the stream asks for it; keeping it open keeps it, and a window
 	// that closes or dies frees it. See SeatRequest.force and SeatResponse.
 	Seat(context.Context, *connect.Request[v1.SeatRequest]) (*connect.ServerStreamForClient[v1.SeatResponse], error)
-	// PairWhatsApp links one configured [[whatsapp.account]] to kith as a WhatsApp
-	// linked device: the stream carries the code to type on the phone, then the
-	// account's ID once the phone accepts it. A failure ends the stream with an error.
-	PairWhatsApp(context.Context, *connect.Request[v1.PairWhatsAppRequest]) (*connect.ServerStreamForClient[v1.PairWhatsAppResponse], error)
-	// LoginMatrix logs the config's Matrix user in with a password, saves the session
-	// and starts Matrix on it. A failure (a wrong password, Matrix not configured) is
-	// an error.
-	LoginMatrix(context.Context, *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error)
-	// SignInSlack takes a session for one configured [[slack.account]], checks it with
-	// Slack, keeps it and connects the workspace. A failure (a session Slack refuses,
-	// another workspace's, Slack not enabled) is an error.
-	SignInSlack(context.Context, *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error)
-	// SendTelegramCode has Telegram send one configured [[telegram.account]] a login
-	// code, starting its login over. A failure (no Telegram account runs, no app to log
-	// in through, a number Telegram refuses) is an error.
-	SendTelegramCode(context.Context, *connect.Request[v1.SendTelegramCodeRequest]) (*connect.Response[v1.SendTelegramCodeResponse], error)
-	// SignInTelegram finishes that login with the code, and the two-step verification
-	// password once one is asked for (the password-needed sentinel); it keeps the
-	// session and connects the account.
-	SignInTelegram(context.Context, *connect.Request[v1.SignInTelegramRequest]) (*connect.Response[v1.SignInTelegramResponse], error)
+	// LoginNetworks is every network the daemon can log in to, with its accounts.
+	LoginNetworks(context.Context, *connect.Request[v1.LoginNetworksRequest]) (*connect.Response[v1.LoginNetworksResponse], error)
+	// BeginLogin starts logging an account in (none: setting a new one up), ending any
+	// login of it under way. The network leads the conversation: each step says what
+	// to ask, show or write, and AnswerLogin answers it, until one says it is done.
+	// Only the daemon logs in: it keeps the sessions, and starts a network on one.
+	BeginLogin(context.Context, *connect.Request[v1.BeginLoginRequest]) (*connect.Response[v1.BeginLoginResponse], error)
+	// AnswerLogin answers a login's step and is the next. A failure ends the login.
+	AnswerLogin(context.Context, *connect.Request[v1.AnswerLoginRequest]) (*connect.Response[v1.AnswerLoginResponse], error)
+	// CancelLogin ends a login.
+	CancelLogin(context.Context, *connect.Request[v1.CancelLoginRequest]) (*connect.Response[v1.CancelLoginResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -911,34 +899,28 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("Seat")),
 			connect.WithClientOptions(opts...),
 		),
-		pairWhatsApp: connect.NewClient[v1.PairWhatsAppRequest, v1.PairWhatsAppResponse](
+		loginNetworks: connect.NewClient[v1.LoginNetworksRequest, v1.LoginNetworksResponse](
 			httpClient,
-			baseURL+BackendServicePairWhatsAppProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("PairWhatsApp")),
+			baseURL+BackendServiceLoginNetworksProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("LoginNetworks")),
 			connect.WithClientOptions(opts...),
 		),
-		loginMatrix: connect.NewClient[v1.LoginMatrixRequest, v1.LoginMatrixResponse](
+		beginLogin: connect.NewClient[v1.BeginLoginRequest, v1.BeginLoginResponse](
 			httpClient,
-			baseURL+BackendServiceLoginMatrixProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("LoginMatrix")),
+			baseURL+BackendServiceBeginLoginProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("BeginLogin")),
 			connect.WithClientOptions(opts...),
 		),
-		signInSlack: connect.NewClient[v1.SignInSlackRequest, v1.SignInSlackResponse](
+		answerLogin: connect.NewClient[v1.AnswerLoginRequest, v1.AnswerLoginResponse](
 			httpClient,
-			baseURL+BackendServiceSignInSlackProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("SignInSlack")),
+			baseURL+BackendServiceAnswerLoginProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("AnswerLogin")),
 			connect.WithClientOptions(opts...),
 		),
-		sendTelegramCode: connect.NewClient[v1.SendTelegramCodeRequest, v1.SendTelegramCodeResponse](
+		cancelLogin: connect.NewClient[v1.CancelLoginRequest, v1.CancelLoginResponse](
 			httpClient,
-			baseURL+BackendServiceSendTelegramCodeProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("SendTelegramCode")),
-			connect.WithClientOptions(opts...),
-		),
-		signInTelegram: connect.NewClient[v1.SignInTelegramRequest, v1.SignInTelegramResponse](
-			httpClient,
-			baseURL+BackendServiceSignInTelegramProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("SignInTelegram")),
+			baseURL+BackendServiceCancelLoginProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("CancelLogin")),
 			connect.WithClientOptions(opts...),
 		),
 		roomsWith: connect.NewClient[v1.RoomsWithRequest, v1.RoomsWithResponse](
@@ -1213,11 +1195,10 @@ type backendServiceClient struct {
 	replaceDraft          *connect.Client[v1.ReplaceDraftRequest, v1.ReplaceDraftResponse]
 	drafts                *connect.Client[v1.DraftsRequest, v1.DraftsResponse]
 	seat                  *connect.Client[v1.SeatRequest, v1.SeatResponse]
-	pairWhatsApp          *connect.Client[v1.PairWhatsAppRequest, v1.PairWhatsAppResponse]
-	loginMatrix           *connect.Client[v1.LoginMatrixRequest, v1.LoginMatrixResponse]
-	signInSlack           *connect.Client[v1.SignInSlackRequest, v1.SignInSlackResponse]
-	sendTelegramCode      *connect.Client[v1.SendTelegramCodeRequest, v1.SendTelegramCodeResponse]
-	signInTelegram        *connect.Client[v1.SignInTelegramRequest, v1.SignInTelegramResponse]
+	loginNetworks         *connect.Client[v1.LoginNetworksRequest, v1.LoginNetworksResponse]
+	beginLogin            *connect.Client[v1.BeginLoginRequest, v1.BeginLoginResponse]
+	answerLogin           *connect.Client[v1.AnswerLoginRequest, v1.AnswerLoginResponse]
+	cancelLogin           *connect.Client[v1.CancelLoginRequest, v1.CancelLoginResponse]
 	roomsWith             *connect.Client[v1.RoomsWithRequest, v1.RoomsWithResponse]
 	roomEncryption        *connect.Client[v1.RoomEncryptionRequest, v1.RoomEncryptionResponse]
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
@@ -1540,29 +1521,24 @@ func (c *backendServiceClient) Seat(ctx context.Context, req *connect.Request[v1
 	return c.seat.CallServerStream(ctx, req)
 }
 
-// PairWhatsApp calls backend.v1.BackendService.PairWhatsApp.
-func (c *backendServiceClient) PairWhatsApp(ctx context.Context, req *connect.Request[v1.PairWhatsAppRequest]) (*connect.ServerStreamForClient[v1.PairWhatsAppResponse], error) {
-	return c.pairWhatsApp.CallServerStream(ctx, req)
+// LoginNetworks calls backend.v1.BackendService.LoginNetworks.
+func (c *backendServiceClient) LoginNetworks(ctx context.Context, req *connect.Request[v1.LoginNetworksRequest]) (*connect.Response[v1.LoginNetworksResponse], error) {
+	return c.loginNetworks.CallUnary(ctx, req)
 }
 
-// LoginMatrix calls backend.v1.BackendService.LoginMatrix.
-func (c *backendServiceClient) LoginMatrix(ctx context.Context, req *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error) {
-	return c.loginMatrix.CallUnary(ctx, req)
+// BeginLogin calls backend.v1.BackendService.BeginLogin.
+func (c *backendServiceClient) BeginLogin(ctx context.Context, req *connect.Request[v1.BeginLoginRequest]) (*connect.Response[v1.BeginLoginResponse], error) {
+	return c.beginLogin.CallUnary(ctx, req)
 }
 
-// SignInSlack calls backend.v1.BackendService.SignInSlack.
-func (c *backendServiceClient) SignInSlack(ctx context.Context, req *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error) {
-	return c.signInSlack.CallUnary(ctx, req)
+// AnswerLogin calls backend.v1.BackendService.AnswerLogin.
+func (c *backendServiceClient) AnswerLogin(ctx context.Context, req *connect.Request[v1.AnswerLoginRequest]) (*connect.Response[v1.AnswerLoginResponse], error) {
+	return c.answerLogin.CallUnary(ctx, req)
 }
 
-// SendTelegramCode calls backend.v1.BackendService.SendTelegramCode.
-func (c *backendServiceClient) SendTelegramCode(ctx context.Context, req *connect.Request[v1.SendTelegramCodeRequest]) (*connect.Response[v1.SendTelegramCodeResponse], error) {
-	return c.sendTelegramCode.CallUnary(ctx, req)
-}
-
-// SignInTelegram calls backend.v1.BackendService.SignInTelegram.
-func (c *backendServiceClient) SignInTelegram(ctx context.Context, req *connect.Request[v1.SignInTelegramRequest]) (*connect.Response[v1.SignInTelegramResponse], error) {
-	return c.signInTelegram.CallUnary(ctx, req)
+// CancelLogin calls backend.v1.BackendService.CancelLogin.
+func (c *backendServiceClient) CancelLogin(ctx context.Context, req *connect.Request[v1.CancelLoginRequest]) (*connect.Response[v1.CancelLoginResponse], error) {
+	return c.cancelLogin.CallUnary(ctx, req)
 }
 
 // RoomsWith calls backend.v1.BackendService.RoomsWith.
@@ -1882,26 +1858,17 @@ type BackendServiceHandler interface {
 	// none). Opening the stream asks for it; keeping it open keeps it, and a window
 	// that closes or dies frees it. See SeatRequest.force and SeatResponse.
 	Seat(context.Context, *connect.Request[v1.SeatRequest], *connect.ServerStream[v1.SeatResponse]) error
-	// PairWhatsApp links one configured [[whatsapp.account]] to kith as a WhatsApp
-	// linked device: the stream carries the code to type on the phone, then the
-	// account's ID once the phone accepts it. A failure ends the stream with an error.
-	PairWhatsApp(context.Context, *connect.Request[v1.PairWhatsAppRequest], *connect.ServerStream[v1.PairWhatsAppResponse]) error
-	// LoginMatrix logs the config's Matrix user in with a password, saves the session
-	// and starts Matrix on it. A failure (a wrong password, Matrix not configured) is
-	// an error.
-	LoginMatrix(context.Context, *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error)
-	// SignInSlack takes a session for one configured [[slack.account]], checks it with
-	// Slack, keeps it and connects the workspace. A failure (a session Slack refuses,
-	// another workspace's, Slack not enabled) is an error.
-	SignInSlack(context.Context, *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error)
-	// SendTelegramCode has Telegram send one configured [[telegram.account]] a login
-	// code, starting its login over. A failure (no Telegram account runs, no app to log
-	// in through, a number Telegram refuses) is an error.
-	SendTelegramCode(context.Context, *connect.Request[v1.SendTelegramCodeRequest]) (*connect.Response[v1.SendTelegramCodeResponse], error)
-	// SignInTelegram finishes that login with the code, and the two-step verification
-	// password once one is asked for (the password-needed sentinel); it keeps the
-	// session and connects the account.
-	SignInTelegram(context.Context, *connect.Request[v1.SignInTelegramRequest]) (*connect.Response[v1.SignInTelegramResponse], error)
+	// LoginNetworks is every network the daemon can log in to, with its accounts.
+	LoginNetworks(context.Context, *connect.Request[v1.LoginNetworksRequest]) (*connect.Response[v1.LoginNetworksResponse], error)
+	// BeginLogin starts logging an account in (none: setting a new one up), ending any
+	// login of it under way. The network leads the conversation: each step says what
+	// to ask, show or write, and AnswerLogin answers it, until one says it is done.
+	// Only the daemon logs in: it keeps the sessions, and starts a network on one.
+	BeginLogin(context.Context, *connect.Request[v1.BeginLoginRequest]) (*connect.Response[v1.BeginLoginResponse], error)
+	// AnswerLogin answers a login's step and is the next. A failure ends the login.
+	AnswerLogin(context.Context, *connect.Request[v1.AnswerLoginRequest]) (*connect.Response[v1.AnswerLoginResponse], error)
+	// CancelLogin ends a login.
+	CancelLogin(context.Context, *connect.Request[v1.CancelLoginRequest]) (*connect.Response[v1.CancelLoginResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -2344,34 +2311,28 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("Seat")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServicePairWhatsAppHandler := connect.NewServerStreamHandler(
-		BackendServicePairWhatsAppProcedure,
-		svc.PairWhatsApp,
-		connect.WithSchema(backendServiceMethods.ByName("PairWhatsApp")),
+	backendServiceLoginNetworksHandler := connect.NewUnaryHandler(
+		BackendServiceLoginNetworksProcedure,
+		svc.LoginNetworks,
+		connect.WithSchema(backendServiceMethods.ByName("LoginNetworks")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServiceLoginMatrixHandler := connect.NewUnaryHandler(
-		BackendServiceLoginMatrixProcedure,
-		svc.LoginMatrix,
-		connect.WithSchema(backendServiceMethods.ByName("LoginMatrix")),
+	backendServiceBeginLoginHandler := connect.NewUnaryHandler(
+		BackendServiceBeginLoginProcedure,
+		svc.BeginLogin,
+		connect.WithSchema(backendServiceMethods.ByName("BeginLogin")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServiceSignInSlackHandler := connect.NewUnaryHandler(
-		BackendServiceSignInSlackProcedure,
-		svc.SignInSlack,
-		connect.WithSchema(backendServiceMethods.ByName("SignInSlack")),
+	backendServiceAnswerLoginHandler := connect.NewUnaryHandler(
+		BackendServiceAnswerLoginProcedure,
+		svc.AnswerLogin,
+		connect.WithSchema(backendServiceMethods.ByName("AnswerLogin")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServiceSendTelegramCodeHandler := connect.NewUnaryHandler(
-		BackendServiceSendTelegramCodeProcedure,
-		svc.SendTelegramCode,
-		connect.WithSchema(backendServiceMethods.ByName("SendTelegramCode")),
-		connect.WithHandlerOptions(opts...),
-	)
-	backendServiceSignInTelegramHandler := connect.NewUnaryHandler(
-		BackendServiceSignInTelegramProcedure,
-		svc.SignInTelegram,
-		connect.WithSchema(backendServiceMethods.ByName("SignInTelegram")),
+	backendServiceCancelLoginHandler := connect.NewUnaryHandler(
+		BackendServiceCancelLoginProcedure,
+		svc.CancelLogin,
+		connect.WithSchema(backendServiceMethods.ByName("CancelLogin")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceRoomsWithHandler := connect.NewUnaryHandler(
@@ -2700,16 +2661,14 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceDraftsHandler.ServeHTTP(w, r)
 		case BackendServiceSeatProcedure:
 			backendServiceSeatHandler.ServeHTTP(w, r)
-		case BackendServicePairWhatsAppProcedure:
-			backendServicePairWhatsAppHandler.ServeHTTP(w, r)
-		case BackendServiceLoginMatrixProcedure:
-			backendServiceLoginMatrixHandler.ServeHTTP(w, r)
-		case BackendServiceSignInSlackProcedure:
-			backendServiceSignInSlackHandler.ServeHTTP(w, r)
-		case BackendServiceSendTelegramCodeProcedure:
-			backendServiceSendTelegramCodeHandler.ServeHTTP(w, r)
-		case BackendServiceSignInTelegramProcedure:
-			backendServiceSignInTelegramHandler.ServeHTTP(w, r)
+		case BackendServiceLoginNetworksProcedure:
+			backendServiceLoginNetworksHandler.ServeHTTP(w, r)
+		case BackendServiceBeginLoginProcedure:
+			backendServiceBeginLoginHandler.ServeHTTP(w, r)
+		case BackendServiceAnswerLoginProcedure:
+			backendServiceAnswerLoginHandler.ServeHTTP(w, r)
+		case BackendServiceCancelLoginProcedure:
+			backendServiceCancelLoginHandler.ServeHTTP(w, r)
 		case BackendServiceRoomsWithProcedure:
 			backendServiceRoomsWithHandler.ServeHTTP(w, r)
 		case BackendServiceRoomEncryptionProcedure:
@@ -3017,24 +2976,20 @@ func (UnimplementedBackendServiceHandler) Seat(context.Context, *connect.Request
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Seat is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) PairWhatsApp(context.Context, *connect.Request[v1.PairWhatsAppRequest], *connect.ServerStream[v1.PairWhatsAppResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PairWhatsApp is not implemented"))
+func (UnimplementedBackendServiceHandler) LoginNetworks(context.Context, *connect.Request[v1.LoginNetworksRequest]) (*connect.Response[v1.LoginNetworksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.LoginNetworks is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) LoginMatrix(context.Context, *connect.Request[v1.LoginMatrixRequest]) (*connect.Response[v1.LoginMatrixResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.LoginMatrix is not implemented"))
+func (UnimplementedBackendServiceHandler) BeginLogin(context.Context, *connect.Request[v1.BeginLoginRequest]) (*connect.Response[v1.BeginLoginResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.BeginLogin is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) SignInSlack(context.Context, *connect.Request[v1.SignInSlackRequest]) (*connect.Response[v1.SignInSlackResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SignInSlack is not implemented"))
+func (UnimplementedBackendServiceHandler) AnswerLogin(context.Context, *connect.Request[v1.AnswerLoginRequest]) (*connect.Response[v1.AnswerLoginResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.AnswerLogin is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) SendTelegramCode(context.Context, *connect.Request[v1.SendTelegramCodeRequest]) (*connect.Response[v1.SendTelegramCodeResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SendTelegramCode is not implemented"))
-}
-
-func (UnimplementedBackendServiceHandler) SignInTelegram(context.Context, *connect.Request[v1.SignInTelegramRequest]) (*connect.Response[v1.SignInTelegramResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SignInTelegram is not implemented"))
+func (UnimplementedBackendServiceHandler) CancelLogin(context.Context, *connect.Request[v1.CancelLoginRequest]) (*connect.Response[v1.CancelLoginResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.CancelLogin is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {

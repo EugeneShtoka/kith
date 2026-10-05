@@ -12,10 +12,7 @@ the binaries and exits.
 
 ```text
 kith [flags]
-kith login [--config path] [--profile name]
-kith login whatsapp [--config path] [--profile name] [account]
-kith login slack [--config path] [--profile name] [account]
-kith login telegram [--config path] [--profile name] [account]
+kith login [--config path] [--profile name] [network [account]]
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -25,90 +22,36 @@ not logged in is named on the status line, with the command that logs it in.
 ### kith login
 
 ```sh
-kith login [--profile name]
+kith login [network [account]]
 ```
 
-Logs in to Matrix with your password. kith reads the password, starts the daemon if
-it isn't running, and hands the password to it over its socket. The daemon logs in,
-stores the session in the OS keyring and starts Matrix on it at once.
+Logs an account in through the daemon, starting it if need be: `matrix` (the default),
+`whatsapp`, `slack` or `telegram`. Each network leads its own login, and the command
+draws what it asks, with what each answer is and where to find it; a secret (a
+password, a session, an api_hash) is read without echo, and a wrong answer is asked
+for again.
 
-- The password is read from the terminal with echo off. It is never shown, never
-  written to disk, and never on a command line. Standard input must be a terminal.
-- `homeserver` and `user` must be set in the config, or in the chosen `[[profile]]`.
-  The daemon logs in as the account its own config names. If it was started before
-  the config had one, restart it first.
-- If the daemon already runs Matrix on a session, the new one is saved and used from
-  the daemon's next start; the running session is never replaced.
-- Each login creates a new Matrix device. Logging in again on the same machine
-  replaces the stored session with a new device, and that device needs its room keys
-  restored before it can read old encrypted history (see
-  [encryption.md](encryption.md)).
+- WhatsApp shows a code to type on the phone, under Settings → Linked devices → Link
+  a device → "Link with phone number instead", and waits (up to fifteen minutes) for
+  the phone to accept it. See [WhatsApp](whatsapp.md).
+- Slack asks for the session a browser signed in to the workspace holds: its token
+  (a line to paste into the browser console prints it) and its `d` cookie. See
+  [Slack](slack.md).
+- Telegram asks for the app to log in through (your own api_id and api_hash, or none
+  for kith's own when the build carries one), then the code Telegram sends, then the
+  two-step verification password when the account has one. See [Telegram](telegram.md).
+- Matrix asks for the password of the config's user. kith logs in as a new session
+  and keeps it in the system keyring, never the password. Every login is a new
+  Matrix device: log in once per machine. When kithd already runs Matrix on another
+  session, the new one is used from its next start.
 
-| Flag | Meaning |
-| --- | --- |
-| `--config path` | Config file to read. |
-| `--profile name` | Which `[[profile]]` account to log in. The default is the first one. |
-
-### kith login whatsapp
-
-```sh
-kith login whatsapp [account]
-```
-
-Links one `[[whatsapp.account]]` to kith as one of that phone's linked devices. The
-daemon owns the WhatsApp store, so it does the pairing: this command asks it, prints
-the code WhatsApp gives, and waits (up to ten minutes) while you type the code on the
-phone under Settings → Linked devices → Link a device → "Link with phone number
-instead". Once the phone accepts, the account's groups appear in kith.
-
-- The account must be in the config (`:login whatsapp` in kith writes it).
-- An account added to the config needs no restart: this command has kithd re-read
-  the config first. Removing one disconnects it on the next re-read; its chats stay
-  in kith, readable.
-- `account` is the `name` of a `[[whatsapp.account]]`; it can be left out when there
-  is only one.
-- An account already linked is refused: unlink kith on the phone first.
-- A code typed on another number's phone is refused, and that link removed.
-
-### kith login slack
-
-```sh
-kith login slack [account]
-```
-
-Signs one `[[slack.account]]` in. kith uses the session a browser signed in to the
-workspace holds: the command says where to copy its token (a line to paste into the
-browser console) and its `d` cookie (the browser's cookie storage), reads both without
-echoing them, and has the daemon check them with Slack, keep them in the system keyring
-and connect. The workspace's channels then appear in kith. See [Slack](slack.md).
-
-- The account must be in the config (`:login slack` in kith writes it).
-- An account added to the config needs no restart: this command has kithd re-read the
-  config first.
-- `account` is the `name` of a `[[slack.account]]`; it can be left out when there is
-  only one.
-- A session for another workspace than the account's `workspace` is refused.
-- Signing in again replaces the session kept for the account.
-
-### kith login telegram
-
-```sh
-kith login telegram [account]
-```
-
-Logs one `[[telegram.account]]` in. It asks first for the app to log in through: your
-own app's `api_id` and `api_hash` (from my.telegram.org → API development tools; the
-hash is read without echoing), or nothing, for kith's own app when the build carries
-one. kithd then has Telegram send a code, to the Telegram app where the account is
-logged in or by SMS; the command reads it, and the account's two-step verification
-password when it has one. A wrong code or password is asked for again. kithd keeps
-the session in the system keyring and connects. See [Telegram](telegram.md).
-
-- The account must be in the config (`:login telegram` in kith writes it).
-- `account` is the `name` of a `[[telegram.account]]`; it can be left out when there
-  is only one.
-- Logging in again replaces the session kept for the account; one begun while another
-  is under way ends the first.
+`account` is the account's `name` in the config; it can be left out when the network
+has one. With none, the command sets a new one up first: it asks what the network
+needs (a number, a workspace, a homeserver and Matrix ID) and a name, and writes the
+account into the config. Setting Matrix up asks for a kithd restart before the
+password. Logging in again replaces the session kept for the account; one begun while
+another of the same account is under way ends the first. `:login` inside kith does the
+same, network by network.
 
 ### General flags
 

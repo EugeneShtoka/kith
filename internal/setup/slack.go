@@ -1,16 +1,9 @@
 package setup
 
 import (
-	"errors"
 	"fmt"
-	"regexp"
 
 	"github.com/EugeneShtoka/kith/internal/config"
-)
-
-var (
-	// workspaceName is a Slack workspace's address: the part before ".slack.com".
-	workspaceName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 )
 
 // SlackAccounts refuses [[slack.account]]s kith could not tell apart or sign in to:
@@ -24,7 +17,7 @@ func SlackAccounts(s config.Slack) error {
 			return fmt.Errorf("%s: name is empty — `kith login slack <name>` needs one", where)
 		}
 		workspace := account.Address()
-		if !workspaceName.MatchString(workspace) && !config.IsSlackTeamID(workspace) {
+		if config.CheckSlackAddress(workspace) != nil {
 			return fmt.Errorf("%s (%s): workspace %q is not a Slack workspace — write its address (acme, "+
 				"for acme.slack.com) or its ID (the T… in an app.slack.com/client/ link)", where, account.Name, account.Workspace)
 		}
@@ -37,26 +30,4 @@ func SlackAccounts(s config.Slack) error {
 		names[account.Name], workspaces[workspace] = true, true
 	}
 	return nil
-}
-
-// ErrNoSlackAccount: `kith login slack` was given a name no account has.
-var ErrNoSlackAccount = errors.New("no such [[slack.account]]")
-
-// SlackAccount is the account `kith login slack [name]` means: the one named, or the
-// only one when there is just one.
-func SlackAccount(s config.Slack, name string) (config.SlackAccount, error) {
-	if name == "" && len(s.Accounts) == 1 {
-		return s.Accounts[0], nil
-	}
-	known := make([]string, 0, len(s.Accounts))
-	for _, account := range s.Accounts {
-		if account.Name == name {
-			return account, nil
-		}
-		known = append(known, account.Name)
-	}
-	if name == "" {
-		return config.SlackAccount{}, fmt.Errorf("%w: say which, one of %v", ErrNoSlackAccount, known)
-	}
-	return config.SlackAccount{}, fmt.Errorf("%w named %q (configured: %v)", ErrNoSlackAccount, name, known)
 }
