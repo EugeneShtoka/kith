@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
@@ -79,12 +78,7 @@ func runSlackLogin(args []string) error {
 // readSlackSession says where to copy a workspace's session from, and reads its token
 // and cookie without echoing them. workspace is its address, or its team ID.
 func readSlackSession(name, workspace string) (token, cookie string, err error) {
-	where, open := workspace+".slack.com", "https://"+workspace+".slack.com"
-	find := `Object.values(JSON.parse(localStorage.localConfig_v2).teams).find(t => t.url.includes("//` + workspace + `.")).token`
-	if isTeamID(workspace) {
-		where, open = "workspace "+workspace, "https://app.slack.com/client/"+workspace
-		find = `JSON.parse(localStorage.localConfig_v2).teams["` + workspace + `"].token`
-	}
+	help := setup.SlackSession(workspace)
 	fmt.Printf(`Signing in to Slack %s (%s).
 
 kith signs in with the session your browser holds. In a browser signed in to it,
@@ -93,13 +87,11 @@ open %s, then the developer tools (F12):
   1. Console — paste this line; it prints the token, which starts with xoxc-:
      %s
 
-  2. Application (Storage in Firefox) → Cookies → https://app.slack.com — copy the
-     value of the cookie named d, which starts with xoxd-.
+  2. %s, which starts with xoxd-.
 
-Both are a session: whoever has them can read and write as you. kith keeps them in
-the system keyring. Signing out of Slack in that browser ends this session too.
+%s
 
-`, name, where, open, find)
+`, name, help.Where, help.Open, help.Token, help.Cookie, setup.SlackSessionWarning)
 	token, err = readSecret("Token (xoxc-…)")
 	if err != nil {
 		return "", "", err
@@ -108,22 +100,5 @@ the system keyring. Signing out of Slack in that browser ends this session too.
 	if err != nil {
 		return "", "", err
 	}
-	return token, cookie, checkSlackSession(token, cookie)
-}
-
-// isTeamID reports whether a workspace is named by its team ID ("T0123456789") rather
-// than its address, which setup.SlackWorkspace lower-cases.
-func isTeamID(workspace string) bool {
-	return strings.HasPrefix(workspace, "T") && strings.ToUpper(workspace) == workspace
-}
-
-// checkSlackSession catches the two halves swapped or mistyped before Slack is asked.
-func checkSlackSession(token, cookie string) error {
-	if !strings.HasPrefix(token, "xoxc-") {
-		return errors.New("the token starts with xoxc- — copy it from the console line above")
-	}
-	if !strings.HasPrefix(cookie, "xoxd-") {
-		return errors.New("the cookie d starts with xoxd- — copy its value from the cookies of https://app.slack.com")
-	}
-	return nil
+	return token, cookie, setup.CheckSlackSession(token, cookie)
 }

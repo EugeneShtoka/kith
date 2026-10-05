@@ -116,6 +116,7 @@ type attached struct {
 	path    string
 	cfg     config.Config
 	storage domain.Storage
+	launch  daemon.Launch // how its daemon is started, and so restarted
 	backend *daemon.Remote
 	note    string
 }
@@ -175,7 +176,7 @@ func reach(ctx context.Context, path string, cfg config.Config, storage domain.S
 	if cfg.Display.Media.CacheDir == "" {
 		cfg.Display.Media.CacheDir = storage.MediaDir() // [storage] cache_dir
 	}
-	return attached{path: path, cfg: cfg, storage: storage, backend: backend, note: note}, nil
+	return attached{path: path, cfg: cfg, storage: storage, launch: launch, backend: backend, note: note}, nil
 }
 
 // reachForLogin loads the config and reaches its daemon; backend is nil when a
@@ -304,6 +305,9 @@ func run(configPath, profile string, jobs startup) error {
 	if err := tui.Run(ctx, tui.RunOptions{
 		Backend: backend, Notifications: backend, Schedules: backend,
 		Config: cfg, ConfigPath: path, Me: cfg.User, Log: log, Follow: jobs.follow, Notice: notice,
+		RestartDaemon: func(ctx context.Context) error {
+			return daemon.Restart(ctx, at.storage, at.launch, readyTimeout)
+		},
 	}); errors.Is(err, tui.ErrOpenedElsewhere) {
 		log.Info("kith closed: opened in another window")
 		fmt.Fprintln(os.Stderr, "kith: opened in another window")

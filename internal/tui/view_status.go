@@ -26,13 +26,20 @@ func (m Model) renderStatus() string {
 	}
 	if m.prompt.active() {
 		label, hint := m.prompt.label(), m.promptHint()
-		if m.prompt.kind == promptJumpBind {
+		switch m.prompt.kind { //nolint:exhaustive // two prompts label themselves
+		case promptJumpBind:
 			label = m.bindingLabel()
+		case promptLogin:
+			label = m.loginPromptLabel()
+		}
+		typed := m.editorFor(fieldPrompt)
+		if m.loginSecret() {
+			typed = masked(typed) // a password or session: dots, never the text
 		}
 		const gap = "   —   "
 		room := m.width - ansi.StringWidth(label) - ansi.StringWidth(hint) - len(gap)
 		return m.theme.Muted.Render(clamp(
-			label+editedLine(m.editorFor(fieldPrompt), room, m.typingField() == fieldPrompt)+gap+hint,
+			label+editedLine(typed, room, m.typingField() == fieldPrompt)+gap+hint,
 			m.width))
 	}
 
@@ -193,6 +200,11 @@ func (m Model) promptHint() string {
 		promptRuleName, promptAttach, promptSetting, promptSettingEntry, promptInvite, promptUnban,
 		promptNewRoom, promptJumpBind, promptCommand, promptTagName, promptTagEntry, promptNone:
 		// "submit" says it for these.
+	case promptLogin:
+		submit = "next"
+		if m.login.at == len(m.login.fields)-1 {
+			submit = "sign in"
+		}
 	}
 	hints := []hint{
 		keyed(m.keys.keyHint(scopePrompt, actSubmit), submit),

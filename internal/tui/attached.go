@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -12,6 +14,8 @@ type linkState struct {
 	ended bool
 	// seatLost: another window took the daemon's seat, and this one is quitting.
 	seatLost bool
+	// restart restarts the daemon and returns once it answers (RunOptions.RestartDaemon).
+	restart func(context.Context) error
 }
 
 // handleAttached shows the daemon connection state and, on reconnect, re-reads the

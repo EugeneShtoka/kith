@@ -36,6 +36,7 @@ const (
 	promptCommand
 	promptTagName
 	promptTagEntry
+	promptLogin // a :login field; its label and help are the field's (login.go)
 )
 
 // promptState is the open prompt and what has been typed into it.
@@ -103,8 +104,8 @@ func (p promptState) label() string {
 		return "tag name: "
 	case promptTagEntry:
 		return "entry (empty removes it): "
-	case promptNone:
-		return ""
+	case promptLogin, promptNone:
+		return "" // a login field's label is the field's (loginPromptLabel)
 	}
 	return ""
 }
@@ -188,7 +189,7 @@ func (m Model) promptChanged(typed string) (Model, tea.Cmd) {
 		return m.promptTyped(typed)
 	case promptJoin, promptAlias, promptRoomName, promptGroupName, promptThreadName,
 		promptRuleSound, promptRuleName, promptAttach, promptSetting, promptSettingEntry, promptInvite,
-		promptUnban, promptNewRoom, promptJumpBind, promptTagName, promptTagEntry, promptNone:
+		promptUnban, promptNewRoom, promptJumpBind, promptTagName, promptTagEntry, promptLogin, promptNone:
 		return m, nil
 	}
 	return m, nil
@@ -233,6 +234,8 @@ func (m Model) submitPrompt() (Model, tea.Cmd) {
 		return m.submitJumpBinding(input)
 	case promptTagName, promptTagEntry:
 		return m.submitTagPrompt(kind, input)
+	case promptLogin:
+		return m.submitLogin(input)
 	case promptNone:
 		return m, nil
 	}
@@ -301,6 +304,8 @@ func (m Model) cancelPrompt() (Model, tea.Cmd) {
 		return m.tagOpen(m.choosing.tag.tag), nil
 	case promptTagEntry:
 		return m.tagEntriesOpen(m.choosing.tag.tag, m.choosing.tag.list), nil
+	case promptLogin:
+		return m.cancelLogin(), nil
 	}
 	return m, nil
 }

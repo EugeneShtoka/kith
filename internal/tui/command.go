@@ -97,6 +97,11 @@ var commands = []command{
 		run:     func(m Model, arg string) (Model, tea.Cmd) { return m.bindShortcut(arg, nil) },
 	},
 	{
+		name: "login", arg: "[whatsapp|slack|matrix]", argOptional: true,
+		summary: "set up an account and sign it in — WhatsApp, Slack or Matrix; one set up already signs in again",
+		run:     Model.openLogin,
+	},
+	{
 		name: "new", summary: "create a room or a space — in the space selected in the rail",
 		run: noArg(Model.openNewRoom),
 	},

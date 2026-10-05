@@ -16,7 +16,12 @@ Matrix rooms in the same client, or on their own: Matrix is optional.
 
 ## Setting up
 
-In the config:
+The quickest way is inside kith: `:login whatsapp` asks for the number and a name
+(suggested from the number's country), writes the account into the config with
+WhatsApp turned on, restarts the daemon if WhatsApp was off, and shows the pairing
+code to type on the phone. An account set up already is offered to link again.
+
+By hand, in the config:
 
 ```toml
 [whatsapp]

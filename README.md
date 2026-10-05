@@ -143,6 +143,9 @@ make deploy      # from a clone: enable and start the daemon under systemd
 kith           # attach and go
 ```
 
+Inside kith, `:login` sets up and signs in an account — WhatsApp, Slack or Matrix —
+asking for what each needs and explaining where to find it.
+
 If no daemon is running, `kith` starts one itself and tells you. Press `?` inside
 the client for every keybinding, and `,` for settings.
 

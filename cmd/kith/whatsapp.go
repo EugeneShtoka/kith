@@ -62,9 +62,7 @@ func runWhatsAppLogin(args []string) error {
 	}
 	fmt.Printf("Linking WhatsApp %s (%s)…\n", account.Name, account.Phone)
 	linked, err := backend.PairWhatsApp(ctx, account.Name, func(code string) error {
-		fmt.Printf("\n    %s\n\n", code)
-		fmt.Println("On the phone: WhatsApp → Settings → Linked devices → Link a device →")
-		fmt.Println("“Link with phone number instead”, and type the code above.")
+		fmt.Printf("\n    %s\n\n%s\n", code, setup.WhatsAppLinkSteps)
 		return nil
 	})
 	if err != nil {

@@ -546,6 +546,8 @@ type Model struct {
 
 	// verify holds the in-progress device-verification overlay, if any.
 	verify verifyState
+	// login is the :login sign-in under way. See login.go.
+	login loginState
 
 	// entering is a just-created room to open as soon as a refresh lists it.
 	entering domain.RoomID
@@ -976,6 +978,8 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleConfigSaved(msg))
 	case configReloadedMsg:
 		return answered(m.handleConfigReloaded(msg))
+	case loginMsg:
+		return answered(m.handleLoginMsg(msg))
 	case dndMsg:
 		return answered(m.handleDND(msg))
 	case markedReadMsg:
@@ -1369,6 +1373,9 @@ func (m Model) handleCapturedKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		return answered(m.handleConfirmKey(key))
 	case m.prompt.active():
 		return answered(m.handlePromptKey(key))
+	// While the daemon signs in, the pane is the sign-in's; the cancel key cancels it.
+	case m.login.stage == loginWorking:
+		return answered(m.handleLoginKey(key))
 	}
 	return m, nil, false
 }
@@ -2771,6 +2778,13 @@ func (m Model) handleConfigSaved(msg configSavedMsg) (Model, tea.Cmd) {
 // handleConfigReloaded reports a config the daemon refused, which leaves it running the old one.
 func (m Model) handleConfigReloaded(msg configReloadedMsg) (Model, tea.Cmd) {
 	return m.sayFailure("saved, but kithd refused it: ", msg.err), nil
+}
+
+// WithRestart wires in restarting the daemon, for :login to turn a network on; nil
+// when this kith cannot.
+func (m Model) WithRestart(restart func(context.Context) error) Model {
+	m.link.restart = restart
+	return m
 }
 
 // WithSchedules wires in the send-later queue.
