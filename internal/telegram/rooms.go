@@ -59,6 +59,9 @@ type dialog struct {
 	peer     tg.InputPeerClass
 	top      tg.MessageClass
 	entities peer.Entities
+	// info is the dialog as Telegram listed it (its unread counts, how far it was
+	// read); nil when unknown.
+	info *tg.Dialog
 }
 
 // listed turns an account's dialogs into rooms, a private chat's other person its
@@ -156,6 +159,7 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 		return nil, err
 	}
 	a.cacheTops(ctx, self, elems, l.rooms)
+	a.listedUnread(ctx, self, elems, l.rooms, fetched)
 	return l.rooms, nil
 }
 
@@ -180,7 +184,7 @@ func readDialogs(ctx context.Context, api *tg.Client) ([]dialog, error) {
 			}
 			for _, d := range page.dialogs {
 				if input, err := page.entities.ExtractPeer(d.Peer); err == nil {
-					out = append(out, dialog{peer: input, top: page.top(d), entities: page.entities})
+					out = append(out, dialog{peer: input, top: page.top(d), entities: page.entities, info: d})
 				}
 			}
 			if last || len(page.dialogs) == 0 {
@@ -365,9 +369,6 @@ func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	}
 	return out, nil
 }
-
-// CachedUnread is the Telegram rooms' unread counts: kept from the next PR on.
-func (a *Adapter) CachedUnread(context.Context) ([]domain.Unread, error) { return nil, nil }
 
 // accountSpaces is a space per configured account kith has logged in, named after the
 // account, its children every room it sees. Derived on read, not stored: a chat begun

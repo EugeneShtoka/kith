@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -161,5 +162,38 @@ func TestNewestTSCoversMessagesAndEdits(t *testing.T) {
 	}
 	if ts, err := cache.NewestTS(ctx, "!a:x"); err != nil || ts != base.Add(time.Minute).UnixMilli() {
 		t.Errorf("NewestTS = %d, %v; want $b's", ts, err)
+	}
+}
+
+// A message found by its ending is one of the owner's, whole tail matched: not
+// another account's, not one whose number only ends the same.
+func TestMessagesAreFoundByTheirEnding(t *testing.T) {
+	t.Parallel()
+	c := openTemp(t)
+	ctx := t.Context()
+	for room, ids := range map[domain.RoomID][]string{
+		"telegram:42/7":  {"5", "15"},
+		"telegram:42/-3": {"6"},
+		"telegram:43/7":  {"5"},
+	} {
+		var msgs []domain.Message
+		for _, id := range ids {
+			msgs = append(msgs, domain.Message{ID: domain.EventID(string(room) + "/" + id), RoomID: room, Body: "m", Timestamp: time.Now()})
+		}
+		if err := c.SaveMessages(ctx, room, msgs); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := c.MessagesEndingIn(ctx, domain.AccountRooms(domain.ProtocolTelegram, "42"), []string{"5", "6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, m := range got {
+		ids = append(ids, string(m.RoomID)+" "+string(m.ID))
+	}
+	slices.Sort(ids)
+	if !slices.Equal(ids, []string{"telegram:42/-3 telegram:42/-3/6", "telegram:42/7 telegram:42/7/5"}) {
+		t.Errorf("found %v", ids)
 	}
 }

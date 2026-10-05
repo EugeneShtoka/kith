@@ -6,9 +6,13 @@ are rooms in kith — private chats (the chat with yourself is Saved Messages),
 groups, supergroups and channels, in a space named after the account ("Telegram
 home") — and their messages arrive, live and as you scroll back, with their
 formatting. Messages sent while kith was not running arrive when it connects again.
-You can write in them: Markdown as Telegram's formatting, mentions, replies. Edits,
-reactions and media come in the next releases (the plan:
-`notes/design-telegram.md`); attachments read as a label for now ("[photo] …").
+You can write in them: Markdown as Telegram's formatting, mentions, replies. Edits
+and deletions show, both ways (an edited message's earlier versions, and a deleted
+one's words, are kept only under `[display.deleted] keep`); so do reactions (in a
+channel, Telegram counts them without saying who), unread counts, a chat read or
+marked unread on another device, and who is typing. Media come in the next releases
+(the plan: `notes/design-telegram.md`); attachments read as a label for now
+("[photo] …"), and a custom emoji reaction as `:custom_emoji:`.
 Chats in Telegram's Archived folder are listed too, not yet filed under kith's
 Archived tag.
 

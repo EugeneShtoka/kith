@@ -1,7 +1,6 @@
 package telegram
 
 import (
-	"errors"
 	"reflect"
 	"sync"
 	"testing"
@@ -10,7 +9,6 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgtest"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -49,7 +47,7 @@ func TestDraftsAreSentWithEntities(t *testing.T) {
 
 // A message sent goes to the chat as Telegram's request — its entities, the message
 // it replies to, a random ID the same for the same draft sent again — and is cached and
-// handed to the clients under the ID Telegram gave it. An edit is refused, for now.
+// handed to the clients under the ID Telegram gave it.
 func TestASentMessageIsCachedUnderItsID(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -66,10 +64,9 @@ func TestASentMessageIsCachedUnderItsID(t *testing.T) {
 		mu.Unlock()
 		return s.SendResult(r, &tg.UpdateShortSentMessage{ID: 77, Date: int(time.Now().Unix()), Pts: 2, PtsCount: 1})
 	})
-	a, cache := loggedInWithStore(t, f, openStore(t))
-	a.mu.Lock()
-	a.conns[home.Name].hashes.users[7] = dana.AccessHash
-	a.mu.Unlock()
+	st := openStore(t)
+	knowDana(t, st)
+	a, cache := loggedInWithStore(t, f, st)
 	room := domain.RoomID("telegram:42/7")
 	draft := domain.Draft{Body: "**yes**", ReplyTo: "telegram:42/7/5", TxnID: "t1"}
 	if err := a.Send(t.Context(), room, draft); err != nil {
@@ -99,8 +96,5 @@ func TestASentMessageIsCachedUnderItsID(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Error("the sent message was not heard")
-	}
-	if err := a.Send(t.Context(), room, domain.Draft{Body: "fix", Edits: "telegram:42/7/77"}); !errors.Is(err, api.ErrNotOnNetwork) {
-		t.Errorf("an edit = %v, want refused for now", err)
 	}
 }

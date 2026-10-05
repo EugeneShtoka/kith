@@ -58,6 +58,11 @@ func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Messag
 			out.Body, out.Format = labeled(label, body, format)
 		}
 	}
+	if m.EditDate != 0 && !m.EditHide {
+		// Each edit is a version: the cache shows the newest, whichever order they come.
+		out.Edited, out.EditedAt = true, time.Unix(int64(m.EditDate), 0)
+		out.RevisionID = domain.EventID(string(out.ID) + "@" + strconv.Itoa(m.EditDate))
+	}
 	out.Sender, out.SenderName = sender(self, chat, m, ent)
 	if reply, ok := m.ReplyTo.(*tg.MessageReplyHeader); ok && reply.ReplyToMsgID != 0 {
 		if other, ok := reply.GetReplyToPeerID(); !ok || samePeer(other, chat) {
@@ -133,17 +138,35 @@ func (a *Adapter) record(ctx context.Context, self int64, room domain.RoomID, ms
 	if err != nil {
 		return false, fmt.Errorf("telegram: join %s: %w", room, err)
 	}
-	if err := a.cache.SaveMessages(ctx, room, msgs); err != nil {
+	save := a.cache.SaveMessages
+	if a.keepsDeleted() {
+		save = a.cache.SaveMessagesWithRevisions // an edit keeps what it replaced
+	}
+	if err := save(ctx, room, msgs); err != nil {
 		return false, fmt.Errorf("telegram: cache %d messages of %s: %w", len(msgs), room, err)
 	}
 	return n > 0, nil
 }
 
-// arrived caches a message heard live and hands it to the clients. A chat the cache
-// did not know (one just begun) is made one of the account's rooms, and the listing
-// asked again for its name. A message that could not be cached holds the account's
-// updates position (Store.hold), so it is asked for again.
+// arrived caches a message heard live and hands it to the clients, and counts it
+// unread (Telegram does). A chat the cache did not know (one just begun) is made one
+// of the account's rooms, and the listing asked again for its name. A message that
+// could not be cached holds the account's updates position (Store.hold), so it is
+// asked for again.
 func (a *Adapter) arrived(ctx context.Context, account Account, self int64, msg domain.Message) error {
+	if err := a.heardLive(ctx, account, self, msg); err != nil {
+		return err
+	}
+	if a.onCached != nil {
+		a.onCached(msg)
+	}
+	a.counted(ctx, msg, msg.Sender == personID(self))
+	emit(a, a.messages, msg)
+	return nil
+}
+
+// heardLive caches a message or a version of one heard live (see arrived).
+func (a *Adapter) heardLive(ctx context.Context, account Account, self int64, msg domain.Message) error {
 	joined, err := a.record(ctx, self, msg.RoomID, []domain.Message{msg})
 	if err != nil {
 		if a.store != nil {
@@ -152,13 +175,9 @@ func (a *Adapter) arrived(ctx context.Context, account Account, self int64, msg 
 		a.log.Warn("cache a message failed; it is asked for again on reconnecting", "account", account.Name, "err", err)
 		return err
 	}
-	if a.onCached != nil {
-		a.onCached(msg)
-	}
 	if joined {
 		go a.relist(context.WithoutCancel(ctx), account)
 	}
-	emit(a, a.messages, msg)
 	return nil
 }
 
