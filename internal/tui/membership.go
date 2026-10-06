@@ -26,6 +26,9 @@ const (
 	pendingJoinPlace
 	// pendingDeleteTag: a [[tag]], by name (group).
 	pendingDeleteTag
+	// pendingCombineTags: a tag (group) renamed to another's name (address), folded
+	// into it.
+	pendingCombineTags
 )
 
 // confirmState is the pending action and its targets, captured with the question so a
@@ -135,6 +138,9 @@ func (m Model) confirmPrompt() string {
 		return "join " + m.confirm.address + "? you are not in that room"
 	case pendingDeleteTag:
 		return "delete the tag " + isolate(m.confirm.group) + "? its rooms stay where else they are"
+	case pendingCombineTags:
+		return "a tag " + isolate(m.confirm.address) + " exists: combine " + isolate(m.confirm.group) +
+			" into it? it holds both tags' rooms and keeps its own settings"
 	case pendingNone:
 		return ""
 	}
@@ -172,6 +178,8 @@ func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 		return m.joinPlace(pending)
 	case pendingDeleteTag:
 		return m.deleteTag(pending.group)
+	case pendingCombineTags:
+		return m.combineTags(pending.group, pending.address)
 	case pendingNone:
 		return m, nil
 	}
