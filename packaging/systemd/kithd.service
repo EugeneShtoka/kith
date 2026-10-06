@@ -19,7 +19,7 @@ Type=simple
 ExecStart=%h/.local/bin/kithd
 # ReadWritePaths= must exist before the namespace is built (else NAMESPACE/226).
 # "+" runs this outside the sandbox; UMask= still applies.
-ExecStartPre=+mkdir -p %h/.local/share/kith %h/.local/state/kith %h/.cache/kith
+ExecStartPre=+mkdir -p %h/.local/share/kith %h/.local/state/kith %h/.cache/kith %E/kith
 
 # A second instance exits 0 (lock held), which must not be retried.
 Restart=on-failure
@@ -34,7 +34,8 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 # state/ holds the scheduled-message queue.
-ReadWritePaths=%h/.local/share/kith %h/.local/state/kith %h/.cache/kith %t/kith
+# %E/kith holds the config file, which kithd writes (it is the file's one writer).
+ReadWritePaths=%h/.local/share/kith %h/.local/state/kith %h/.cache/kith %t/kith %E/kith
 
 RuntimeDirectory=kith
 # Shared by every profile's unit: removing it on stop would pull other daemons' sockets.

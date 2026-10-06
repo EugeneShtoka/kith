@@ -109,7 +109,10 @@ func (s *server) ApplyGroupings(ctx context.Context, r *req[v1.ApplyGroupingsReq
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
 	}
 	written, err := s.Config.Write(ctx, snap.Revision, cfg, s.Daemon.CheckConfig, s.Reload)
+	_, failed := errors.AsType[unwritable](err)
 	switch {
+	case failed:
+		return nil, rpcErr(err) // the daemon's failure, in its own words
 	case errors.Is(err, api.ErrConfigMoved):
 		cerr := connect.NewError(connect.CodeAborted, err)
 		cerr.Meta().Set(sentinelHeader, "config-moved")
