@@ -44,8 +44,12 @@ type Message struct {
 	ThreadRoot EventID // the m.thread root, if in a thread
 	// Mentioned marks a message mentioning the logged-in user (m.mentions or a pill).
 	Mentioned bool
-	Emote     bool   // m.emote (`/me`)
-	Media     *Media // attachment metadata, or nil
+	Emote     bool // m.emote (`/me`)
+	// Placeholder marks a bridge's stand-in for a message it could not read yet (a
+	// WhatsApp message it failed to decrypt), which it replaces with the message by an
+	// edit when it can: not news itself, while the edit that replaces it is.
+	Placeholder bool
+	Media       *Media // attachment metadata, or nil
 	// Mentions are the formatted-body pills, so the timeline can color those names.
 	Mentions []Mention
 }
@@ -253,6 +257,10 @@ func combine(a, b Message) Message {
 		// timeline draws Format over Body, so a kept Format would show the old words.
 		a.Body, a.Format = b.Body, b.Format
 		a.EditedAt, a.RevisionID = b.EditTime(), b.RevisionID
+		if b.Media != nil { // an edit may bring the attachment (a bridge's placeholder replaced)
+			a.Media = b.Media
+		}
+		a.Placeholder = false // replaced: the message it stood in for
 	case a.Body == "" && b.Body != "":
 		// Its formatting comes with it: Format is drawn over Body.
 		a.Body = b.Body

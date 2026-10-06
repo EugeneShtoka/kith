@@ -557,7 +557,10 @@ type Message struct {
 	// replaces the body and edit whatever their times (domain.Message.Reverted).
 	Reverted bool `protobuf:"varint,21,opt,name=reverted,proto3" json:"reverted,omitempty"`
 	// The formatting drawn over body, unset when the message is plain.
-	Format        *Formatted `protobuf:"bytes,22,opt,name=format,proto3" json:"format,omitempty"`
+	Format *Formatted `protobuf:"bytes,22,opt,name=format,proto3" json:"format,omitempty"`
+	// Placeholder marks a bridge's stand-in for a message it could not read yet, which
+	// it replaces by an edit (domain.Message.Placeholder).
+	Placeholder   bool `protobuf:"varint,23,opt,name=placeholder,proto3" json:"placeholder,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -737,6 +740,13 @@ func (x *Message) GetFormat() *Formatted {
 		return x.Format
 	}
 	return nil
+}
+
+func (x *Message) GetPlaceholder() bool {
+	if x != nil {
+		return x.Placeholder
+	}
+	return false
 }
 
 // Formatted is formatting as it draws (richtext.Formatted): the text, and the
@@ -2085,7 +2095,7 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x06format\x18\x05 \x01(\v2\x15.backend.v1.FormattedR\x06formatJ\x04\b\x03\x10\x04R\x04html\";\n" +
 	"\bActivity\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x16\n" +
-	"\x06typing\x18\x02 \x03(\tR\x06typing\"\xd3\x05\n" +
+	"\x06typing\x18\x02 \x03(\tR\x06typing\"\xf5\x05\n" +
 	"\aMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x16\n" +
@@ -2112,7 +2122,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\vrevision_id\x18\x14 \x01(\tR\n" +
 	"revisionId\x12\x1a\n" +
 	"\breverted\x18\x15 \x01(\bR\breverted\x12-\n" +
-	"\x06format\x18\x16 \x01(\v2\x15.backend.v1.FormattedR\x06formatJ\x04\b\x0f\x10\x10R\x04html\"G\n" +
+	"\x06format\x18\x16 \x01(\v2\x15.backend.v1.FormattedR\x06format\x12 \n" +
+	"\vplaceholder\x18\x17 \x01(\bR\vplaceholderJ\x04\b\x0f\x10\x10R\x04html\"G\n" +
 	"\tFormatted\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x12&\n" +
 	"\x05spans\x18\x02 \x03(\v2\x10.backend.v1.SpanR\x05spans\"\xae\x02\n" +

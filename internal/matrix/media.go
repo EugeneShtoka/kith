@@ -15,11 +15,21 @@ func (b *InProc) saveMediaSource(ctx context.Context, roomID domain.RoomID, evt 
 	if b.cache == nil {
 		return
 	}
-	mxc, fileJSON := mediaSource(evt.Content.AsMessage())
+	content := evt.Content.AsMessage()
+	target := domain.EventID(evt.ID)
+	if replaced := content.RelatesTo.GetReplaceID(); replaced != "" {
+		if content.NewContent == nil {
+			return
+		}
+		// An edit bringing an attachment: its source is the replaced message's, which
+		// is the one the timeline shows.
+		content, target = content.NewContent, domain.EventID(replaced)
+	}
+	mxc, fileJSON := mediaSource(content)
 	if mxc == "" {
 		return
 	}
-	b.warnIf(ctx, b.cache.SaveMediaSource(ctx, domain.EventID(evt.ID), roomID, mxc, fileJSON), "cache media source", "room", roomID, "event", evt.ID)
+	b.warnIf(ctx, b.cache.SaveMediaSource(ctx, target, roomID, mxc, fileJSON), "cache media source", "room", roomID, "event", target)
 }
 
 // LoadImage downloads (and decrypts) a message's attachment. It caches nothing: the

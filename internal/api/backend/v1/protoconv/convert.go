@@ -124,6 +124,7 @@ func MessageToProto(m domain.Message) *v1.Message {
 		Mentions:         MentionsToProto(m.Mentions),
 		ThreadRoot:       string(m.ThreadRoot),
 		Emote:            m.Emote,
+		Placeholder:      m.Placeholder,
 	}
 }
 
@@ -205,6 +206,7 @@ func ProtoToMessage(pb *v1.Message) domain.Message {
 		Mentions:       ProtoToMentions(pb.GetMentions()),
 		ThreadRoot:     domain.EventID(pb.GetThreadRoot()),
 		Emote:          pb.GetEmote(),
+		Placeholder:    pb.GetPlaceholder(),
 	}
 }
 
