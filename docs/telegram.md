@@ -21,6 +21,16 @@ Chats in Telegram's Archived folder are in kith's Archived tag, and archiving a 
 in kith can move it there too: see `[telegram.archive]` in
 [configuration.md](configuration.md#follow-a-networks-own-archive).
 
+Your folders can be copied into tags, once, when you ask: setting an account up
+offers it, and `:import` (or `kith import telegram [account]`) does it again later.
+Each folder becomes the tag of its name, holding the chats it holds now (its filters
+— contacts, groups, channels, bots, archived — applied at the copy; whether a chat is
+read or muted is not copied, and the copy says so). A tag that exists already shows
+what the copy would change among that account's chats only — another network's or
+account's chats in the tag are never touched — and you choose: take Telegram's, merge
+(add only), or keep kith's. Nothing syncs afterwards; to rename a tag, rename it in
+kith.
+
 ## Before you start
 
 - **Log in here or through a Matrix bridge, not both.** Both at once show every chat

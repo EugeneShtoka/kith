@@ -357,7 +357,7 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 	next := listen(m.ctx, m.login.events, wrapLogin)
 	switch {
 	case e.final:
-		label := m.login.network.Label
+		label, network, account := m.login.network.Label, m.login.network, m.login.account
 		if m.login.cancel != nil {
 			m.login.cancel()
 		}
@@ -368,7 +368,8 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 			}
 			return m.sayErr("could not sign in to "+label, e.err), nil
 		}
-		return m.say(e.done), tea.Batch(m.refreshRoomsCmd(), m.refreshSpacesCmd())
+		next, offer := m.say(e.done).offerImport(network, account)
+		return next, tea.Batch(m.refreshRoomsCmd(), m.refreshSpacesCmd(), offer)
 	case e.write != nil:
 		var applied tea.Cmd
 		var save func() error

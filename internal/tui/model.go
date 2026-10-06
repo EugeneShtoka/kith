@@ -549,6 +549,8 @@ type Model struct {
 	verify verifyState
 	// login is the :login sign-in under way. See login.go.
 	login loginState
+	// imports is an :import under way (imports.go).
+	imports importState
 
 	// entering is a just-created room to open as soon as a refresh lists it.
 	entering domain.RoomID
@@ -977,8 +979,8 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleRoomCreated(msg))
 	case configCheckedMsg, configSavedMsg, configNewsMsg:
 		return answered(m.handleConfigNews(msg))
-	case loginMsg, loginNetworksMsg:
-		return answered(m.handleLogin(msg))
+	case loginMsg, loginNetworksMsg, importNetworksMsg, importPreviewMsg, importedMsg:
+		return answered(m.handleAccounts(msg))
 	case dndMsg:
 		return answered(m.handleDND(msg))
 	case markedReadMsg:

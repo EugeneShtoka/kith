@@ -81,6 +81,49 @@ func (r *Remote) UpdateConfig(ctx context.Context, base string, cfg config.Confi
 	return res.GetRevision(), nil
 }
 
+// PreviewGroupings is what copying each of an account's groupings (Telegram's folders)
+// into the tag of its name would change, among that account's rooms.
+func (r *Remote) PreviewGroupings(ctx context.Context, network, account string) ([]domain.GroupingDiff, error) {
+	res, err := call(ctx, "read the folders", r.c.PreviewGroupings, &v1.PreviewGroupingsRequest{Network: network, Account: account})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.GroupingDiff, 0, len(res.GetGroupings()))
+	for _, g := range res.GetGroupings() {
+		out = append(out, domain.GroupingDiff{
+			Grouping: domain.Grouping{Name: g.GetName(), Rooms: roomIDs(g.GetRooms()), Left: g.GetLeft()},
+			Exists:   g.GetExists(), Add: roomIDs(g.GetAdd()), Remove: roomIDs(g.GetRemove()),
+		})
+	}
+	return out, nil
+}
+
+// ApplyGroupings copies an account's groupings into tags as chosen (by grouping name;
+// absent keeps the tag).
+func (r *Remote) ApplyGroupings(ctx context.Context, network, account string, choices map[string]domain.GroupingChoice) error {
+	wire := make(map[string]v1.GroupingChoice, len(choices))
+	for name, c := range choices {
+		switch c {
+		case domain.MergeIn:
+			wire[name] = v1.GroupingChoice_GROUPING_CHOICE_MERGE_IN
+		case domain.TakeNetworks:
+			wire[name] = v1.GroupingChoice_GROUPING_CHOICE_TAKE_NETWORKS
+		case domain.KeepTags:
+		}
+	}
+	_, err := call(ctx, "copy the folders", r.c.ApplyGroupings, &v1.ApplyGroupingsRequest{Network: network, Account: account, Choices: wire})
+	return err
+}
+
+// roomIDs is IDs as rooms.
+func roomIDs(ids []string) []domain.RoomID {
+	out := make([]domain.RoomID, len(ids))
+	for i, id := range ids {
+		out[i] = domain.RoomID(id)
+	}
+	return out
+}
+
 func (r *Remote) SetRoomArchived(ctx context.Context, roomID domain.RoomID, archived bool) error {
 	_, err := call(ctx, "archive", r.c.SetRoomArchived, &v1.SetRoomArchivedRequest{RoomId: string(roomID), Archived: archived})
 	return err

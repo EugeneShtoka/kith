@@ -128,6 +128,11 @@ A tag can also change how its rooms behave elsewhere (each off unless set):
 | `first = true` | At the top of the rail, unless `[display.rail] order` places it. |
 | `count_in_label = true` | The row says how many rooms it holds. |
 
+**Copying folders.** `:import` copies an account's folders (Telegram's) into tags,
+once: the folder list shows each one with what it would do — a new tag, or how an
+existing tag would change among that account's chats — and you choose per tag before
+**Copy**. Setting an account up offers the same.
+
 **Editing tags in the app.** Settings (`,`) → **Tags** lists your tags and makes a new
 one. A tag's page shows its name, rule, picked and excluded rooms, every property as
 an on/off row, and which other tags take rooms out of its row (the exclusive ones, and

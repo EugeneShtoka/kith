@@ -102,6 +102,10 @@ var commands = []command{
 		run:     Model.openLogin,
 	},
 	{
+		name: "import", summary: "copy an account's folders (Telegram's) into tags, once, choosing per tag what changes",
+		run: Model.openImport,
+	},
+	{
 		name: "new", summary: "create a room or a space — in the space selected in the rail",
 		run: noArg(Model.openNewRoom),
 	},

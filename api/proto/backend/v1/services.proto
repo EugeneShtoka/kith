@@ -1135,6 +1135,41 @@ message CheckConfigRequest {
 
 message CheckConfigResponse {}
 
+// GroupingChoice is what to do with one grouping's tag (domain.GroupingChoice).
+enum GroupingChoice {
+  GROUPING_CHOICE_UNSPECIFIED = 0; // keep the tag as it is
+  GROUPING_CHOICE_MERGE_IN = 1; // add the grouping's rooms, take none away
+  GROUPING_CHOICE_TAKE_NETWORKS = 2; // the account's rooms in the tag become the grouping's
+}
+
+// GroupingDiff is what copying one grouping (a Telegram folder) into its tag would
+// change, among one account's rooms.
+message GroupingDiff {
+  string name = 1;
+  repeated string rooms = 2; // the grouping's rooms
+  repeated string left = 3; // what a copy cannot keep, in words
+  bool exists = 4; // a tag has its name already
+  repeated string add = 5;
+  repeated string remove = 6;
+}
+
+message PreviewGroupingsRequest {
+  string network = 1;
+  string account = 2;
+}
+
+message PreviewGroupingsResponse {
+  repeated GroupingDiff groupings = 1;
+}
+
+message ApplyGroupingsRequest {
+  string network = 1;
+  string account = 2;
+  map<string, GroupingChoice> choices = 3; // by grouping name; absent keeps the tag
+}
+
+message ApplyGroupingsResponse {}
+
 message GetConfigRequest {}
 
 // GetConfigResponse is the configuration the daemon runs with, and the revision of the
@@ -1464,6 +1499,12 @@ service BackendService {
   rpc CheckConfig(CheckConfigRequest) returns (CheckConfigResponse);
   // GetConfig is the configuration the daemon runs with, and its file's revision.
   rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  // PreviewGroupings is what copying each of an account's groupings (Telegram's
+  // folders) into the tag of its name would change, among that account's rooms.
+  rpc PreviewGroupings(PreviewGroupingsRequest) returns (PreviewGroupingsResponse);
+  // ApplyGroupings copies them as chosen, per tag, into the config (as UpdateConfig
+  // writes it), judged on the groupings and the config as they are when it runs.
+  rpc ApplyGroupings(ApplyGroupingsRequest) returns (ApplyGroupingsResponse);
   // UpdateConfig writes the configuration file — the daemon is its one writer — if it
   // is still at base_revision and the daemon would run with the change, then puts it in
   // force and tells every client (ConfigChanged).

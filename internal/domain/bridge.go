@@ -36,6 +36,21 @@ const (
 	ProtocolTwitter    Protocol = "Twitter"
 )
 
+// ProtocolNamed is the network named name, as its name or its lower-case token
+// ("telegram"); false for none.
+func ProtocolNamed(name string) (Protocol, bool) {
+	for _, p := range []Protocol{
+		ProtocolMatrix, ProtocolWhatsApp, ProtocolTelegram, ProtocolSignal, ProtocolSlack, ProtocolDiscord,
+		ProtocolMessenger, ProtocolInstagram, ProtocolLinkedIn, ProtocolGMessages, ProtocolGoogleChat,
+		ProtocolIMessage, ProtocolTwitter,
+	} {
+		if strings.EqualFold(p.String(), strings.TrimSpace(name)) {
+			return p, true
+		}
+	}
+	return "", false
+}
+
 // bridges maps a bridge's localpart token to the network it fronts.
 var bridges = map[string]Protocol{
 	"whatsapp":   ProtocolWhatsApp,

@@ -35,9 +35,20 @@ import (
 // readyTimeout covers a login and a first /sync against a possibly slow homeserver.
 const readyTimeout = 60 * time.Second
 
+// subcommands are `kith <name> …`, each with its own flags.
+var subcommands = map[string]func([]string) error{"login": runLogin, "import": runImport}
+
+// firstArg is the command line's first argument, "" without one.
+func firstArg() string {
+	if len(os.Args) > 1 {
+		return os.Args[1]
+	}
+	return ""
+}
+
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "login" {
-		exitOn(runLogin(os.Args[2:]))
+	if run, ok := subcommands[firstArg()]; ok {
+		exitOn(run(os.Args[2:]))
 		return
 	}
 
