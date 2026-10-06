@@ -755,3 +755,33 @@ func TestYourOtherIDsNeverNotifyYou(t *testing.T) {
 		t.Error("someone else stopped notifying")
 	}
 }
+
+// A bridge's placeholder (a message it could not decrypt yet) is not announced; the
+// edit that replaces it is, as the message it now is; an ordinary edit is not.
+func TestAPlaceholderIsAnnouncedOnceItIsReplaced(t *testing.T) {
+	t.Parallel()
+	n, rec, _ := notifier(t, notifsOn("all"))
+	ctx := context.Background()
+	stand := msg(chatRm, alice, "Decrypting message from WhatsApp failed")
+	stand.ID, stand.Placeholder = "$stand", true
+	if _, got := n.Deliver(ctx, stand); got {
+		t.Error("the placeholder was announced")
+	}
+	replaced := msg(chatRm, alice, "look at this")
+	replaced.ID, replaced.Edited, replaced.RevisionID = "$stand", true, "$edit"
+	replaced.Media = &domain.Media{Type: domain.MediaImage, Name: "image.jpg"}
+	if _, got := n.Deliver(ctx, replaced); !got {
+		t.Error("the message replacing the placeholder was not announced")
+	}
+	if _, got := n.Deliver(ctx, replaced); got {
+		t.Error("a second edit of it was announced too")
+	}
+	edit := msg(chatRm, alice, "fixed a typo")
+	edit.ID, edit.Edited, edit.RevisionID = "$other", true, "$edit2"
+	if _, got := n.Deliver(ctx, edit); got {
+		t.Error("an ordinary edit was announced")
+	}
+	if got := rec.all(); len(got) != 1 || !strings.Contains(got[0].Body, "look at this") {
+		t.Errorf("announced %+v, want the replacement alone", got)
+	}
+}

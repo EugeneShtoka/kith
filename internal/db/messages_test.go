@@ -197,3 +197,28 @@ func TestMessagesAreFoundByTheirEnding(t *testing.T) {
 		t.Errorf("found %v", ids)
 	}
 }
+
+// A placeholder replaced by an edit bringing a picture shows the picture; an older
+// edit arriving after it, with another, does not replace it.
+func TestAnEditBringsItsPictureOnlyWhereItCounts(t *testing.T) {
+	t.Parallel()
+	cache, ctx := openTemp(t), context.Background()
+	const room = domain.RoomID("!r:x")
+	save := func(m domain.Message) {
+		if err := cache.SaveMessages(ctx, room, []domain.Message{m}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save(domain.Message{ID: "$stand", RoomID: room, Sender: "@b:x", Body: "Decrypting message from WhatsApp failed", Timestamp: time.UnixMilli(1000), Placeholder: true})
+	newer := domain.Message{ID: "$stand", RoomID: room, Sender: "@b:x", Body: "look", Timestamp: time.UnixMilli(3000),
+		Edited: true, EditedAt: time.UnixMilli(3000), RevisionID: "$e2", Media: &domain.Media{Type: domain.MediaImage, Name: "new.jpg"}}
+	older := newer
+	older.EditedAt, older.Timestamp, older.RevisionID, older.Body = time.UnixMilli(2000), time.UnixMilli(2000), "$e1", "old"
+	older.Media = &domain.Media{Type: domain.MediaImage, Name: "old.jpg"}
+	save(newer)
+	save(older)
+	got, ok, err := cache.MessageByID(ctx, room, "$stand")
+	if err != nil || !ok || got.Body != "look" || got.Media == nil || got.Media.Name != "new.jpg" {
+		t.Errorf("the message = (%+v, media %+v, %v)", got, got.Media, err)
+	}
+}

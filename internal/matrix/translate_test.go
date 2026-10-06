@@ -206,3 +206,35 @@ func TestSameThreadUnread(t *testing.T) {
 		t.Error("two rooms with no threads differ")
 	}
 }
+
+// A bridge's placeholder — a WhatsApp message it could not decrypt yet, sent as a
+// notice — is marked so; the edit that replaces it with the picture brings the
+// picture, under the placeholder's ID, with or without a caption.
+func TestAnEditReplacingAPlaceholderBringsItsPicture(t *testing.T) {
+	t.Parallel()
+	notice := &event.Event{
+		ID: eventID("$stand"), RoomID: roomID("!r:x"), Sender: userID("@whatsapp_bg_1:x"), Timestamp: 1000,
+		Type:    event.EventMessage,
+		Content: event.Content{Parsed: &event.MessageEventContent{MsgType: event.MsgNotice, Body: "Decrypting message from WhatsApp failed"}, Raw: map[string]any{"fi.mau.whatsapp.undecryptable": true}},
+	}
+	if msg, ok := toDomainMessage(notice); !ok || !msg.Placeholder {
+		t.Errorf("the placeholder = (%+v, %v), want it marked", msg, ok)
+	}
+	for name, caption := range map[string]string{"captioned": "look at this", "bare": ""} {
+		edit := evt("$edit", "!r:x", "@whatsapp_bg_1:x", 2000, &event.MessageEventContent{
+			MsgType: event.MsgImage, Body: "* " + caption,
+			RelatesTo: &event.RelatesTo{Type: event.RelReplace, EventID: eventID("$stand")},
+			NewContent: &event.MessageEventContent{
+				MsgType: event.MsgImage, Body: caption, FileName: "image.jpg", URL: "mxc://x/pic",
+				Info: &event.FileInfo{MimeType: "image/jpeg", Width: 1008, Height: 216, Size: 17431},
+			},
+		})
+		msg, ok := toDomainMessage(edit)
+		if !ok || msg.ID != "$stand" || !msg.Edited || msg.Body != caption || !msg.Media.IsImage() || msg.Media.Name != "image.jpg" {
+			t.Errorf("%s: the replacing edit = (%+v, %v)", name, msg, ok)
+		}
+		if mxc, _ := mediaSource(edit.Content.AsMessage().NewContent); mxc != "mxc://x/pic" {
+			t.Errorf("%s: the picture's source = %q", name, mxc)
+		}
+	}
+}
