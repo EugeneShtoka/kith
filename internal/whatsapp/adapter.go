@@ -243,6 +243,7 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 	case *events.Connected:
 		a.link(account, Connected, "")
 		a.refreshLater(account, client)
+		a.renameLater(account, client) // chats saved before their names were known
 	case *events.JoinedGroup, *events.GroupInfo:
 		a.refreshLater(account, client)
 	case *events.Disconnected:
