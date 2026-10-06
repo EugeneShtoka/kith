@@ -2,6 +2,7 @@ package daemon_test
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -9,15 +10,19 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/daemon"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // selvesBackend says who this person is.
 type selvesBackend struct {
 	apitest.Nop
-	ids []string
+	ids  []string
+	book domain.PhoneBook
 }
 
 func (b selvesBackend) Selves(context.Context) ([]string, error) { return b.ids, nil }
+
+func (b selvesBackend) PhoneBook(context.Context) (domain.PhoneBook, error) { return b.book, nil }
 
 // serveIdentity is a daemon over b with state.
 func serveIdentity(t *testing.T, b selvesBackend, state *daemon.State) *daemon.Remote {
@@ -70,5 +75,15 @@ func TestSelvesAndNetworksCrossTheSocket(t *testing.T) {
 			got[i].Detail != rows[i].Detail || !got[i].At.Equal(rows[i].At) {
 			t.Errorf("row %d = %+v, want %+v", i, got[i], rows[i])
 		}
+	}
+}
+
+// The phone book crosses the socket whole: every number's name.
+func TestThePhoneBookCrossesTheSocket(t *testing.T) {
+	t.Parallel()
+	book := domain.PhoneBook{"15550100001": "Dana", "15550100002": "Eli"}
+	remote := serveIdentity(t, selvesBackend{book: book}, daemon.NewState())
+	if got, err := remote.PhoneBook(context.Background()); err != nil || !maps.Equal(got, book) {
+		t.Errorf("PhoneBook = (%v, %v), want %v", got, err, book)
 	}
 }

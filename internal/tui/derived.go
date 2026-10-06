@@ -40,6 +40,8 @@ type derivedKey struct {
 	// selves fingerprints who this person is (isMe), which grows as accounts log in
 	// and decides which rows are drawn as one's own.
 	selves uint64
+	// phones is the phone book's revision: a sender shown as a number is named by it.
+	phones uint64
 }
 
 // fnvOffset and fnvMix are FNV-1a over strings, each followed by a separator so "1","23"
@@ -106,6 +108,7 @@ func (m Model) keyFor() derivedKey {
 		unread: unreadFingerprint(m.unread[m.openRoom]),
 		rtl:    m.mirrored(),
 		selves: selvesFingerprint(m.selves),
+		phones: m.phones.rev,
 	}
 	if room, ok := m.roomByID(m.openRoom); ok {
 		k.place = placeFingerprint(m.factsFor(room))

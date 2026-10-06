@@ -328,9 +328,9 @@ func (m Model) personOf(member domain.Member) (person, name string) {
 		if ident.alias != "" {
 			return ident.key, ident.alias
 		}
-		return ident.key, member.Name()
+		return ident.key, m.memberName(member)
 	}
-	return member.UserID, member.Name()
+	return member.UserID, m.memberName(member)
 }
 
 // selectedCandidate is the row under the cursor.

@@ -47,6 +47,8 @@ type Notifications struct {
 	trackedNotify bool
 	// selves are the IDs that are this person, asked per message (see UseSelves).
 	selves func() []string
+	// phones reads the phone book (UsePhoneBook); nil names nobody by number.
+	phones func(context.Context) (domain.PhoneBook, error)
 	// spam has its own lock and outlives reloads: a caught room stays caught.
 	spam *spamWatch
 	// log hears what Deliver cannot return (see UseLogger); nil is silent.
@@ -63,6 +65,34 @@ func (n *Notifications) UseSelves(selves func() []string) {
 	if n.spam != nil {
 		n.spam.mine = n.isMine
 	}
+}
+
+// UsePhoneBook sets where a sender or room shown only as a number is named from
+// (domain.PhoneBook). Call before Run.
+func (n *Notifications) UsePhoneBook(phones func(context.Context) (domain.PhoneBook, error)) {
+	n.phones = phones
+}
+
+// byNumber is label, or the phone book's name for it when label is only a number.
+func (n *Notifications) byNumber(ctx context.Context, book *domain.PhoneBook, label string) string {
+	if n.phones == nil {
+		return label
+	}
+	if _, isNumber := domain.PhoneIn(label); !isNumber {
+		return label
+	}
+	if *book == nil {
+		read, err := n.phones(ctx)
+		if err != nil {
+			n.log.Warn("read the phone book", "err", err)
+			return label
+		}
+		*book = read
+	}
+	if name, ok := book.Named(label); ok {
+		return name
+	}
+	return label
 }
 
 // isMine reports whether a sender is this person.
@@ -369,10 +399,11 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 	}
 	// A room can be in several spaces and tags; {space} is the first by priority.
 	space := n.scope.Home(facts)
+	var book domain.PhoneBook // read once, and only for a label that is a number
 	return notify.Notification{
-		Sender: sender,
+		Sender: n.byNumber(ctx, &book, sender),
 		MXID:   msg.Sender,
-		Room:   facts.Name,
+		Room:   n.byNumber(ctx, &book, facts.Name),
 		Space:  space,
 		// NotifyBody: what the sender covered up stays covered.
 		Body:     truncateRunes(msg.NotifyBody(), notifyBodyRunes),

@@ -914,6 +914,13 @@ message SelvesResponse {
   repeated string ids = 1;
 }
 
+message PhoneBookRequest {}
+
+message PhoneBookResponse {
+  // Each number's name, by its international digits.
+  map<string, string> names = 1;
+}
+
 message ClearCacheRequest {}
 
 message ClearCacheResponse {}
@@ -1450,6 +1457,9 @@ service BackendService {
   // Selves is every ID that is this person, on every network served; it grows as
   // accounts log in.
   rpc Selves(SelvesRequest) returns (SelvesResponse);
+  // PhoneBook is the best name for every number any account or bridge knows, so a
+  // person shown as a bare number anywhere is named.
+  rpc PhoneBook(PhoneBookRequest) returns (PhoneBookResponse);
   // ClearCache empties the local cache.
   rpc ClearCache(ClearCacheRequest) returns (ClearCacheResponse);
   // RestoreKeyBackup imports the server-side room-key backup, so encrypted history from

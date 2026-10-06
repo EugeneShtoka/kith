@@ -621,6 +621,11 @@ func (s *server) Selves(ctx context.Context, _ *req[v1.SelvesRequest]) (*resp[v1
 	return reply(&v1.SelvesResponse{Ids: ids}, err)
 }
 
+func (s *server) PhoneBook(ctx context.Context, _ *req[v1.PhoneBookRequest]) (*resp[v1.PhoneBookResponse], error) {
+	book, err := s.Backend.PhoneBook(ctx)
+	return reply(&v1.PhoneBookResponse{Names: book}, err)
+}
+
 // protoToPhase is a wire phase as a Phase; one this build does not know is 0.
 func protoToPhase(p v1.NetworkPhase) Phase {
 	switch p {

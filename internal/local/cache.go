@@ -45,6 +45,13 @@ func (s *Service) SearchMessages(ctx context.Context, req domain.SearchRequest) 
 	return hits, nil
 }
 
+// PhoneBook is the best name for every number the cache knows (nil without a cache).
+func (s *Service) PhoneBook(ctx context.Context) (domain.PhoneBook, error) {
+	return fromCache(s, "read the phone book", func(c *db.Cache) (domain.PhoneBook, error) {
+		return c.PhoneBook(ctx)
+	})
+}
+
 // RoomsWith finds rooms all these people are in, from the cache.
 func (s *Service) RoomsWith(ctx context.Context, userIDs []string, rooms domain.RoomSet, limit int) ([]domain.Room, error) {
 	return fromCache(s, "rooms with", func(c *db.Cache) ([]domain.Room, error) {

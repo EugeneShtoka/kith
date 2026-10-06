@@ -549,6 +549,14 @@ func (r *Remote) Selves(ctx context.Context) ([]string, error) {
 	return resp.GetIds(), nil
 }
 
+func (r *Remote) PhoneBook(ctx context.Context) (domain.PhoneBook, error) {
+	resp, err := call(ctx, "read the phone book", r.c.PhoneBook, &v1.PhoneBookRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetNames(), nil
+}
+
 func (r *Remote) ClearCache(ctx context.Context) error {
 	_, err := call(ctx, "clear cache", r.c.ClearCache, &v1.ClearCacheRequest{})
 	return err
