@@ -168,6 +168,9 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	}
 	a.cacheTops(ctx, self, elems, l.rooms)
 	a.listedUnread(ctx, self, elems, l.rooms, fetched)
+	for _, e := range elems {
+		a.listTopics(ctx, client.API(), self, e)
+	}
 	return l.rooms, nil
 }
 

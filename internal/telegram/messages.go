@@ -39,6 +39,9 @@ func markedPeer(p tg.PeerClass) (int64, bool) {
 // incoming is a Telegram message as kith shows it, its sender named from ent; ok false
 // for one kith does not show (a service message: someone joined, a title changed).
 func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Message, bool) {
+	if svc, ok := msg.(*tg.MessageService); ok {
+		return topicCreated(self, svc, ent)
+	}
 	m, ok := msg.(*tg.Message)
 	if !ok {
 		return domain.Message{}, false
@@ -72,7 +75,15 @@ func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Messag
 	}
 	out.Sender, out.SenderName = sender(self, chat, m, ent)
 	if reply, ok := m.ReplyTo.(*tg.MessageReplyHeader); ok && reply.ReplyToMsgID != 0 {
-		if other, ok := reply.GetReplyToPeerID(); !ok || samePeer(other, chat) {
+		topic := 0
+		if reply.ForumTopic { // in a forum's topic: the topic's thread (topics.go)
+			topic = reply.ReplyToMsgID
+			if top, ok := reply.GetReplyToTopID(); ok && top != 0 {
+				topic = top
+			}
+			out.ThreadRoot = messageID(self, chat, topic)
+		}
+		if other, ok := reply.GetReplyToPeerID(); reply.ReplyToMsgID != topic && (!ok || samePeer(other, chat)) {
 			out.ReplyTo = messageID(self, chat, reply.ReplyToMsgID)
 		}
 	}

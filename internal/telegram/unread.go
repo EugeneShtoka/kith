@@ -190,6 +190,13 @@ func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 		return
 	}
 	u.Messages, u.Mentions, u.Counted = messages, mentions, counted
+	if counted { // a forum's topics count with it, as Telegram counts them
+		threads, err := a.cache.CountThreadUnread(ctx, a.Me(), room)
+		if err != nil {
+			a.log.Warn("count unread topics failed", "room", room, "err", err)
+		}
+		u = u.WithThreads(threads)
+	}
 	emit(a, a.unread, u)
 }
 
@@ -209,9 +216,14 @@ func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	if err != nil {
 		return nil, fmt.Errorf("telegram: count unread: %w", err)
 	}
+	threads, err := a.cache.CountThreadUnreadAll(ctx, a.Me())
+	if err != nil {
+		return nil, fmt.Errorf("telegram: count unread topics: %w", err)
+	}
 	for i := range rows {
 		if c, ok := counts[rows[i].RoomID]; ok {
 			rows[i].Messages, rows[i].Mentions, rows[i].Counted = c.Messages, c.Mentions, true
+			rows[i] = rows[i].WithThreads(threads[rows[i].RoomID])
 		}
 	}
 	return rows, nil

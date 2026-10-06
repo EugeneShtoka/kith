@@ -84,7 +84,12 @@ func (l *live) changes(d tg.UpdateDispatcher) {
 	})
 	d.OnReadHistoryInbox(func(ctx context.Context, _ tg.Entities, u *tg.UpdateReadHistoryInbox) error {
 		return l.with(func(self int64) {
-			if chat, ok := markedPeer(u.Peer); ok && u.TopMsgID == 0 { // a topic's own read comes with topics
+			chat, ok := markedPeer(u.Peer)
+			switch {
+			case !ok:
+			case u.TopMsgID != 0: // one topic of a forum
+				l.a.readTopic(ctx, self, chat, u.TopMsgID, u.MaxID)
+			default:
 				l.a.readInbox(ctx, self, chat, u.MaxID, u.StillUnreadCount)
 			}
 		})
