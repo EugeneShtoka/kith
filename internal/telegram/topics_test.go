@@ -169,3 +169,31 @@ func TestAForumsTopicsAreListedReadAndCounted(t *testing.T) {
 		t.Error("a topic we neither began nor wrote in is ours")
 	}
 }
+
+// A topic's root is the service message that began it: fetched, it is the thread's
+// root with the topic's title, as a listing caches it, not a message that is gone.
+func TestATopicsRootIsFetched(t *testing.T) {
+	t.Parallel()
+	f := newFakeTelegram(t)
+	f.serveUpdates(&updatesOf{pts: 1})
+	d := f.cluster.Dispatch(2, "dc2")
+	channel := &tg.Channel{ID: forum, AccessHash: 310, Title: "Hikers", Forum: true, Megagroup: true, Photo: &tg.ChatPhotoEmpty{}}
+	at := &tg.PeerChannel{ChannelID: forum}
+	d.HandleFunc(tg.ChannelsGetMessagesRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
+		return s.SendResult(r, &tg.MessagesChannelMessages{Messages: []tg.MessageClass{
+			&tg.MessageService{ID: 10, PeerID: at, FromID: &tg.PeerUser{UserID: 7}, Date: 1010, Action: &tg.MessageActionTopicCreate{Title: "Trips"}},
+		}, Count: 1, Chats: []tg.ChatClass{channel}, Users: []tg.UserClass{dana}})
+	})
+	st := openStore(t)
+	if err := st.SetChannelAccessHash(t.Context(), 42, forum, channel.AccessHash); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := loggedInWithStore(t, f, st)
+	got, err := a.FetchEvent(t.Context(), forumRoom, fmsg(10))
+	if err != nil || got.ID != fmsg(10) || got.Body != "Trips" {
+		t.Fatalf("FetchEvent = %+v, %v; want the topic's root, titled Trips", got, err)
+	}
+	if _, err := a.LoadImage(t.Context(), forumRoom, fmsg(10)); err == nil {
+		t.Error("a topic's root downloaded an attachment")
+	}
+}

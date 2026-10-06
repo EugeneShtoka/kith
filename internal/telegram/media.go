@@ -170,7 +170,10 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 	if err != nil {
 		return nil, fmt.Errorf("telegram: fetch %s: %w", eventID, err)
 	}
-	msg, _ := m.(*tg.Message)
+	msg, ok := m.(*tg.Message)
+	if !ok {
+		return nil, fmt.Errorf("telegram: %s has no attachment kith can load", eventID)
+	}
 	loc, ok := fileLocation(msg.Media)
 	if !ok {
 		return nil, fmt.Errorf("telegram: %s has no attachment kith can load", eventID)
