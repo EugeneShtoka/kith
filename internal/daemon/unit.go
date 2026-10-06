@@ -59,7 +59,8 @@ func underTmp(p string) bool {
 }
 
 // ownUnit is the unit for a config other than the default one: kithd started with
-// that config (and profile), allowed to write only that config's directories, under
+// that config (and profile), allowed to write only that config's directories (the
+// config file's own among them), under
 // the same sandbox as packaging/systemd/kithd.service (kept equal by a test).
 func ownUnit(storage domain.Storage, kithd string, launch Launch) (string, error) {
 	words := make(map[string]string, 6)
@@ -78,7 +79,13 @@ func ownUnit(storage domain.Storage, kithd string, launch Launch) (string, error
 	if launch.Profile != "" {
 		start += " --profile " + launch.Profile
 	}
-	dirs := strings.Join([]string{words["data"], words["state"], words["cache"], words["runtime"]}, " ")
+	// The config's directory too: kithd is the config file's one writer, and writes it
+	// atomically, beside itself.
+	configDir, err := unitPath(filepath.Dir(launch.ConfigPath))
+	if err != nil {
+		return "", err
+	}
+	dirs := strings.Join([]string{words["data"], words["state"], words["cache"], words["runtime"], configDir}, " ")
 
 	return fmt.Sprintf(ownUnitTemplate, words["config"], start, dirs, dirs), nil
 }

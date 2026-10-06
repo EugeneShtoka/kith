@@ -81,7 +81,7 @@ func TestOwnUnitServesItsConfig(t *testing.T) {
 	if got, want := values(unit, "ExecStart"), []string{"/opt/kith/kithd", "--config", "/home/u/sb/config.toml", "--profile", "work"}; !slices.Equal(got, want) {
 		t.Errorf("ExecStart = %q, want %q", got, want)
 	}
-	dirs := []string{storage.DataDir, storage.StateDir, storage.CacheDir, storage.RuntimeDir}
+	dirs := []string{storage.DataDir, storage.StateDir, storage.CacheDir, storage.RuntimeDir, "/home/u/sb"}
 	if got := values(unit, "ReadWritePaths"); !slices.Equal(got, dirs) {
 		t.Errorf("ReadWritePaths = %q, want exactly %q", got, dirs)
 	}

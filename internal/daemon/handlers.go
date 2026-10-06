@@ -795,7 +795,10 @@ func (s *server) UpdateConfig(ctx context.Context, r *req[v1.UpdateConfigRequest
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	snap, err := s.Config.Write(ctx, r.Msg.GetBaseRevision(), cfg, s.Daemon.CheckConfig, s.Reload)
+	_, failed := errors.AsType[unwritable](err)
 	switch {
+	case failed:
+		return nil, rpcErr(err) // the daemon's failure, in its own words
 	case errors.Is(err, api.ErrConfigMoved):
 		cerr := connect.NewError(connect.CodeAborted, err)
 		cerr.Meta().Set(sentinelHeader, "config-moved") // errors.Is holds on the client

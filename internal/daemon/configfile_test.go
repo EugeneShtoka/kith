@@ -115,3 +115,20 @@ func TestWritersOnOneRevisionAreWrittenOnce(t *testing.T) {
 		}
 	}
 }
+
+// A config the daemon cannot write (its directory read-only) is said as the daemon's
+// own failure, and changes nothing.
+func TestAConfigThatCannotBeWrittenSaysSo(t *testing.T) {
+	t.Parallel()
+	f := configAt(t, "homeserver = \"https://x\"\nuser = \"@me:x\"\n", "")
+	read, _ := f.Read()
+	dir := filepath.Dir(f.path)
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	_, err := f.Write(context.Background(), read.Revision, read.Config, nil, nil)
+	if _, ok := errors.AsType[unwritable](err); !ok {
+		t.Errorf("writing into a read-only directory = %v, want it said as the daemon's failure", err)
+	}
+}

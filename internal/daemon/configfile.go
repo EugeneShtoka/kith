@@ -16,6 +16,13 @@ import (
 // file's contents, so a hand edit made meanwhile refuses a change made on the file
 // before it, rather than being written over.
 
+// unwritable is a config the daemon would run with but could not write: its own
+// failure (a read-only file system), not the client's input.
+type unwritable struct{ err error }
+
+func (u unwritable) Error() string { return "daemon: write the config: " + u.err.Error() }
+func (u unwritable) Unwrap() error { return u.err }
+
 // ConfigFile is the config file the daemon serves: its path and the [[profile]] it
 // runs as. Build it with NewConfigFile.
 type ConfigFile struct {
@@ -77,7 +84,7 @@ func (f *ConfigFile) Write(ctx context.Context, base string, cfg config.Config, 
 		}
 	}
 	if err := config.Save(f.path, written); err != nil {
-		return config.Snapshot{}, err //nolint:wrapcheck // config's errors name the file
+		return config.Snapshot{}, unwritable{err}
 	}
 	if apply != nil {
 		if err := apply(ctx); err != nil {
