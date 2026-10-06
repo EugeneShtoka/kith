@@ -209,6 +209,7 @@ func TestTheFilingPickerLeavesOutTagsTheirRuleFills(t *testing.T) {
 		{Name: "Invites", Rule: []string{"invite"}},
 		{Name: "Spam", Rule: []string{"spam"}},
 		{Name: "Quiet", Rule: []string{"not unread"}},
+		{Name: "Wanted", Rule: []string{"not spam"}},
 		{Name: "Pinned"},
 		{Name: "Archived"},
 		{Name: "Work", Rule: []string{"space:Work"}},
@@ -225,7 +226,7 @@ func TestTheFilingPickerLeavesOutTagsTheirRuleFills(t *testing.T) {
 		}
 	}
 	slices.Sort(offered)
-	if want := []string{"Archived", "Close", "Pinned", "Work"}; !slices.Equal(offered, want) {
+	if want := []string{"Archived", "Close", "Pinned", "Spam", "Wanted", "Work"}; !slices.Equal(offered, want) {
 		t.Errorf("offered %v, want %v", offered, want)
 	}
 }
