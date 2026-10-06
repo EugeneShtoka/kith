@@ -216,7 +216,8 @@ func TestTrimDropsTombstonesItNoLongerNeeds(t *testing.T) {
 	if err := cache.MarkRedacted(ctx, room, "$new", "@mod:x", "", time.UnixMilli(1e12), false); err != nil {
 		t.Fatal(err)
 	}
-	msgs := make([]domain.Message, messagesPerRoom+1)
+	cache.UseKeep(func(domain.RoomID) int { return testKeep })
+	msgs := make([]domain.Message, testKeep+1)
 	for i := range msgs {
 		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("$%d", i)), Sender: "@a:x",
 			Body: "x", Timestamp: time.UnixMilli(int64(10_000 + i))}

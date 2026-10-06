@@ -12,4 +12,24 @@ type Storage struct {
 	CacheDir       string `toml:"cache_dir"`
 	RuntimeDir     string `toml:"runtime_dir"`
 	KeyringService string `toml:"keyring_service"`
+	// MessagesPerRoom is how many messages a room keeps, the newest; nil or negative
+	// keeps every one. Rules narrow it per room, space or tag.
+	MessagesPerRoom *int          `toml:"messages_per_room"`
+	Rules           []StorageRule `toml:"rule"`
+}
+
+// StorageRule is one [[storage.rule]]: what one place keeps instead.
+type StorageRule struct {
+	// Match names the place as every place list does: a room ID, room:<name>,
+	// space:<name>, tag:<name>, protocol:<network>, dm or group.
+	Match    string `toml:"match"`
+	Messages *int   `toml:"messages"` // negative keeps every one
+}
+
+// MessagesKept is messages_per_room: negative (every one) when unset.
+func (s Storage) MessagesKept() int {
+	if s.MessagesPerRoom == nil {
+		return -1
+	}
+	return *s.MessagesPerRoom
 }

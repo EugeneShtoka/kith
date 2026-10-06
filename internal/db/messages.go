@@ -11,9 +11,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// messagesPerRoom bounds the messages kept per room; SaveMessages trims to it.
-const messagesPerRoom = 2000
-
 // Messages returns up to limit of a room's newest cached messages, oldest first.
 func (c *Cache) Messages(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Message, error) {
 	msgs, err := collect(ctx, c.db, "messages",
@@ -368,7 +365,7 @@ func (c *Cache) Revisions(ctx context.Context, roomID domain.RoomID, eventID dom
 }
 
 // SaveMessages upserts messages (skipping ones without an event ID) and trims the
-// room to messagesPerRoom, in one transaction. A redacted copy (the server strips
+// room to what it keeps (UseKeep), in one transaction. A redacted copy (the server strips
 // content) forgets what the cache held, as MarkRedacted without keep does.
 func (c *Cache) SaveMessages(ctx context.Context, roomID domain.RoomID, msgs []domain.Message) error {
 	return c.saveMessages(ctx, roomID, msgs, false)
@@ -388,6 +385,7 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 		revisions = revisionsOf(msgs)
 	}
 	mine := c.mine() // outside the transaction: the networks answer it under their own locks
+	limit := c.MessagesKept(roomID)
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		if err := registerRoom(ctx, tx, roomID); err != nil {
 			return err
@@ -433,7 +431,7 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 		if err := writeRevisions(ctx, tx, roomID, revisions); err != nil {
 			return err
 		}
-		return c.trim(ctx, tx, roomID, mine)
+		return c.trim(ctx, tx, roomID, mine, limit)
 	})
 }
 
@@ -463,17 +461,20 @@ func saveMessage(ctx context.Context, tx *sql.Tx, stmt *sql.Stmt, roomID domain.
 	return saveExtras(ctx, tx, roomID, m, apply, keep)
 }
 
-// trim keeps a room's newest messagesPerRoom by a timestamp cutoff (one index seek; no
-// cutoff under the cap). Messages sharing the boundary timestamp are all kept. Others'
+// trim keeps a room's newest limit messages by a timestamp cutoff (one index seek; no
+// cutoff under the cap, none at all for a negative limit, which keeps every one). Messages sharing the boundary timestamp are all kept. Others'
 // reactions to what is trimmed go with it: nothing shows them, and they were the one
 // table that grew without bound. Our own stay, since reaction emoji are ranked from
 // them, and a reaction whose target was never cached is not touched (it may be paged
 // in later).
-func (c *Cache) trim(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, mine []string) error {
+func (c *Cache) trim(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, mine []string, limit int) error {
+	if limit < 0 {
+		return nil
+	}
 	var cutoff sql.NullInt64
 	found, err := optional(tx.QueryRowContext(ctx,
 		`SELECT ts_ms FROM messages WHERE room_id = ? ORDER BY ts_ms DESC LIMIT 1 OFFSET ?`,
-		string(roomID), messagesPerRoom-1).Scan(&cutoff))
+		string(roomID), max(limit-1, 0)).Scan(&cutoff))
 	if err != nil {
 		return fmt.Errorf("db: trim cutoff: %w", err)
 	}

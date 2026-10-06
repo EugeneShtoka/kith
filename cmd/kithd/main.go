@@ -256,6 +256,9 @@ type served struct {
 	networks []network
 	// stores are the networks' own stores, closed with the backend.
 	stores []store
+	// cache is the cache every network writes, told how much of each room to keep
+	// once the notifications' place index exists (newWorkers).
+	cache *db.Cache
 }
 
 var _ api.Backend = served{}
@@ -280,7 +283,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	}
 	return served{
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
-		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(),
+		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), cache: cache,
 	}
 }
 
@@ -488,6 +491,11 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	}
 	notifications.UseLogger(log)
 	notifications.UseSelves(backend.Me)
+	// Before any network starts writing: how much of each room the cache keeps follows
+	// [storage], judged by the room's place, and every reload.
+	if backend.cache != nil {
+		backend.cache.UseKeep(notifications.MessagesKept)
+	}
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)
 
