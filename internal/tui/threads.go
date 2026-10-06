@@ -317,9 +317,10 @@ func (m Model) threadNamed(root domain.EventID, title string) string {
 // knownTitle is the open room's thread's title as the daemon last gave it: in the
 // room's thread list, or its unread threads.
 func (m Model) knownTitle(root domain.EventID) string {
-	for _, t := range m.rows.known[m.openRoom] {
-		if t.Root == root && t.Title != "" {
-			return t.Title
+	known := m.rows.known[m.openRoom]
+	for i := range known {
+		if known[i].Root == root && known[i].Title != "" {
+			return known[i].Title
 		}
 	}
 	for _, t := range m.unread[m.openRoom].Threads {
