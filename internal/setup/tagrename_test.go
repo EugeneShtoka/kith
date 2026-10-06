@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"reflect"
 	"slices"
@@ -162,5 +163,94 @@ func TestArchivesAreTheTagsTheyName(t *testing.T) {
 	cfg.WhatsApp.Archive.Tag = "Shelf"
 	if _, err := Archives(cfg, tags); err == nil {
 		t.Error("a tag that does not exist was taken")
+	}
+}
+
+// Over random rooms (names shared), tags with rules (`not` terms, references between
+// them), picks and exclusions by ID or by name, and unread state: combining B into A
+// leaves A holding exactly what A or B held, no room more or less.
+func TestCombiningTagsHoldsExactlyWhatEitherHeld(t *testing.T) {
+	t.Parallel()
+	names := []string{"Mom", "Standup", "Dana"}
+	terms := []string{"*", "dm", "group", "unread", "space:Work", "room:Mom", "not dm", "not unread", "not room:Dana", "tag:C", "tag:B", "tag:A"}
+	for seed := range uint64(3000) {
+		rng := rand.New(rand.NewPCG(seed, 41)) // #nosec G404 -- reproducible
+		var rooms []domain.RoomFacts
+		state := map[string]domain.RoomState{}
+		for i := range 2 + rng.IntN(5) {
+			r := domain.RoomFacts{ID: fmt.Sprintf("!r%d:x", i), Name: names[rng.IntN(len(names))], Direct: rng.IntN(2) == 0}
+			if rng.IntN(2) == 0 {
+				r.Spaces = []string{"Work"}
+			}
+			rooms = append(rooms, r)
+			state[r.ID] = domain.RoomState{Unread: rng.IntN(2) == 0}
+		}
+		entry := func() string {
+			if rng.IntN(2) == 0 {
+				return "room:" + names[rng.IntN(len(names))]
+			}
+			return rooms[rng.IntN(len(rooms))].ID
+		}
+		var cfg config.Config
+		for _, name := range []string{"A", "B", "C"} {
+			tag := config.Tag{Name: name}
+			for range rng.IntN(3) {
+				if term := terms[rng.IntN(len(terms))]; term != "tag:"+name {
+					tag.Rule = append(tag.Rule, term)
+				}
+			}
+			for range rng.IntN(3) {
+				tag.Picked = append(tag.Picked, entry())
+			}
+			for range rng.IntN(3) {
+				tag.Excluded = append(tag.Excluded, entry())
+			}
+			cfg.Tags = append(cfg.Tags, tag)
+		}
+		set, _, err := Tags(cfg)
+		if err != nil {
+			continue // a cycle the rules made: not this test's subject
+		}
+		held := func(tags domain.TagSet) func(string, domain.RoomFacts) bool {
+			return func(name string, r domain.RoomFacts) bool {
+				i, ok := tags.Index(name)
+				return ok && tags.HasAt(i, r, state[r.ID])
+			}
+		}
+		before := held(set)
+		combined := CombineTags(cfg, "B", "A", rooms, before)
+		after, _, err := Tags(combined)
+		if err != nil {
+			t.Fatalf("seed %d: the combined config does not load: %v\n%+v", seed, err, combined.Tags)
+		}
+		now := held(after)
+		for _, r := range rooms {
+			if want := before("A", r) || before("B", r); now("A", r) != want {
+				t.Fatalf("seed %d: %s (%s) held %v after, %v before (A %v, B %v)\nbefore %+v\nafter  %+v",
+					seed, r.ID, r.Name, now("A", r), want, before("A", r), before("B", r), cfg.Tags, combined.Tags)
+			}
+		}
+	}
+}
+
+// Combined, two tags without `not` terms keep a rule: the two joined, a reference of
+// one to the other dropped (the tag would name itself), and every reference elsewhere —
+// another tag's rule, the rail, a network's archive — naming the combined tag.
+func TestCombinedTagsKeepTheirRules(t *testing.T) {
+	t.Parallel()
+	var cfg config.Config
+	cfg.Tags = []config.Tag{
+		{Name: "Friends", Rule: []string{"space:Work", "tag:Mates"}, Exclusive: true},
+		{Name: "Mates", Rule: []string{"dm"}, Picked: []string{"!x:y"}},
+		{Name: "Quiet", Rule: []string{"tag:Mates"}},
+	}
+	cfg.Display.Rail.Order = []string{"tag:Mates", "tag:Friends"}
+	cfg.Telegram.Archive.Tag = "Mates"
+	got := CombineTags(cfg, "mates", "Friends", nil, func(string, domain.RoomFacts) bool { return false })
+	if len(got.Tags) != 2 || !slices.Equal(got.Tags[0].Rule, []string{"space:Work", "dm"}) || !slices.Equal(got.Tags[0].Picked, []string{"!x:y"}) || !got.Tags[0].Exclusive {
+		t.Errorf("combined = %+v", got.Tags)
+	}
+	if !slices.Equal(got.Tags[1].Rule, []string{"tag:Friends"}) || !slices.Equal(got.Display.Rail.Order, []string{"tag:Friends"}) || got.Telegram.Archive.Tag != "Friends" {
+		t.Errorf("references: Quiet %v, rail %v, archive %q", got.Tags[1].Rule, got.Display.Rail.Order, got.Telegram.Archive.Tag)
 	}
 }

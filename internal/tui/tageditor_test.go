@@ -165,3 +165,33 @@ func TestTheEditorSaysWhatAlsoExcludes(t *testing.T) {
 		t.Errorf("Spam also excludes %q, want the exclusive tags before it alone", row.detail)
 	}
 }
+
+// Renaming a tag to another tag's name asks first; saying yes folds it into that tag,
+// which holds both tags' rooms; saying no changes nothing.
+func TestRenamingATagOntoAnotherAsksToCombine(t *testing.T) {
+	t.Parallel()
+	m, _ := editingTag(t, "Pinned")
+	cfg := m.conf.base.Clone()
+	cfg.Tags = append(cfg.Tags, config.Tag{Name: "Saved", Picked: []string{"!s:x"}})
+	pinned := m.configTag("Pinned")
+	cfg.Tags[pinned].Picked = []string{"!p:x"}
+	m, _ = m.applyConfig(cfg, "")
+	m = m.tagOpen("Pinned")
+
+	m = pickLabel(t, m, "Name")
+	m = typeIn(t, m, "saved")
+	if m.confirm.action != pendingCombineTags || !strings.Contains(m.confirmPrompt(), "combine") {
+		t.Fatalf("renaming onto Saved: confirm %v, prompt %q", m.confirm.action, m.confirmPrompt())
+	}
+	declined, _ := m.resolveConfirm(false)
+	if declined.configTag("Pinned") < 0 || declined.configTag("Saved") < 0 {
+		t.Error("saying no changed the tags")
+	}
+	m, _ = m.resolveConfirm(true)
+	if m.configTag("Pinned") >= 0 {
+		t.Fatalf("tags = %+v, want Pinned folded into Saved", m.conf.base.Tags)
+	}
+	if got := m.conf.base.Tags[m.configTag("Saved")].Picked; !slices.Equal(got, []string{"!s:x", "!p:x"}) {
+		t.Errorf("Saved picks %v, want both tags' rooms", got)
+	}
+}

@@ -116,3 +116,109 @@ func rewriteStrings(v reflect.Value, f func(string) string) {
 	default:
 	}
 }
+
+// CombineTags is cfg with the tag named from folded into the tag named into (both
+// exist; case-insensitive): what renaming from to into's name means. The combined tag
+// holds exactly what either held — held says whether a tag holds a room now, among
+// rooms, every room an entry may name — and keeps into's settings. Where either rule
+// has a `not` term, which would start filtering the other tag's rooms, both are
+// replaced by the rooms they hold, picked by ID; otherwise the rules are joined, the
+// lists joined, and an exclusion dropped where the other tag holds the room — unless a
+// reference moved onto the combined tag would close a cycle through it, when it holds
+// the rooms instead too. Every
+// reference to from (rules, place lists, rail, priority, a network's archive) names
+// into after, with what that leaves twice, or a tag naming itself, dropped.
+func CombineTags(cfg config.Config, from, into string, rooms []domain.RoomFacts, held func(tag string, room domain.RoomFacts) bool) config.Config {
+	out := cfg.Clone()
+	fi := slices.IndexFunc(out.Tags, func(t config.Tag) bool { return sameTag(t.Name, from) })
+	ii := slices.IndexFunc(out.Tags, func(t config.Tag) bool { return sameTag(t.Name, into) })
+	if fi < 0 || ii < 0 || fi == ii {
+		return out
+	}
+	a, b := out.Tags[ii], out.Tags[fi]
+	exact := a
+	exact.Rule, exact.Excluded, exact.Picked = nil, nil, nil
+	for _, r := range rooms {
+		if held(a.Name, r) || held(b.Name, r) {
+			exact.Picked = append(exact.Picked, r.ID)
+		}
+	}
+	if hasNot(a.Rule) || hasNot(b.Rule) {
+		return combined(out, fi, ii, from, exact)
+	}
+	a.Rule = joined(a.Rule, b.Rule)
+	a.Picked = joined(a.Picked, b.Picked)
+	a.Excluded = joined(unheld(a.Excluded, b.Name, rooms, held), unheld(b.Excluded, a.Name, rooms, held))
+	joinedRules := combined(out, fi, ii, from, a)
+	// A reference moved onto the combined tag can close a cycle through it (A names C,
+	// C named B), whose references then match nothing: the rooms it holds instead.
+	if _, warnings, err := Tags(joinedRules); err != nil || len(warnings) > 0 {
+		if _, before, _ := Tags(cfg); len(warnings) > len(before) || err != nil {
+			return combined(out, fi, ii, from, exact)
+		}
+	}
+	out = joinedRules
+	return out
+}
+
+// combined is out with tag fi gone, tag ii made merged, and every reference to from
+// moved onto it — what is then listed twice, or a tag naming itself, dropped.
+func combined(out config.Config, fi, ii int, from string, merged config.Tag) config.Config {
+	out = out.Clone()
+	out.Tags[ii] = merged
+	out.Tags = slices.Delete(out.Tags, fi, fi+1)
+	out = RenameTag(out, from, merged.Name) // no tag is called from now: only references move
+	for i := range out.Tags {
+		if sameTag(out.Tags[i].Name, merged.Name) {
+			out.Tags[i].Rule = slices.DeleteFunc(out.Tags[i].Rule, func(term string) bool {
+				name, ok := domain.TagOf(strings.TrimPrefix(strings.TrimSpace(term), "not "))
+				return ok && sameTag(name, merged.Name)
+			})
+		}
+	}
+	out.Display.Rail.Order = joined(out.Display.Rail.Order)
+	out.Display.Rail.Hidden = joined(out.Display.Rail.Hidden)
+	out.Display.Rail.HideWhenEmpty = joined(out.Display.Rail.HideWhenEmpty)
+	out.Display.Priority = joined(out.Display.Priority)
+	return out
+}
+
+// hasNot reports whether a rule has a `not` term.
+func hasNot(rule []string) bool {
+	return slices.ContainsFunc(rule, func(term string) bool {
+		t := strings.TrimSpace(term)
+		return len(t) > len("not ") && strings.EqualFold(t[:len("not ")], "not ")
+	})
+}
+
+// joined is the lists' entries in order, each once (case-insensitive).
+func joined(lists ...[]string) []string {
+	var out []string
+	for _, list := range lists {
+		for _, e := range list {
+			if !slices.ContainsFunc(out, func(o string) bool { return strings.EqualFold(strings.TrimSpace(o), strings.TrimSpace(e)) }) {
+				out = append(out, e)
+			}
+		}
+	}
+	return out
+}
+
+// unheld is the exclusions less the rooms the tag other holds: an entry naming one of
+// those is dropped, and replaced by the IDs of the rooms it named that other does not
+// hold (a room:<name> two rooms share), so those stay out.
+func unheld(excluded []string, other string, rooms []domain.RoomFacts, held func(string, domain.RoomFacts) bool) []string {
+	var out []string
+	for _, entry := range excluded {
+		if !slices.ContainsFunc(rooms, func(r domain.RoomFacts) bool { return r.Names(entry) && held(other, r) }) {
+			out = append(out, entry)
+			continue
+		}
+		for _, r := range rooms {
+			if r.Names(entry) && !held(other, r) {
+				out = append(out, r.ID)
+			}
+		}
+	}
+	return out
+}

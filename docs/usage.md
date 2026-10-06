@@ -135,6 +135,11 @@ the space-exclusive ones). The rule and the room lists are edited an entry at a 
 choose an entry to change it (empty removes it), or the last row to add one. Renaming
 a tag renames it everywhere it is named — `tag:<name>` in rules, place lists, the rail
 order and priority, and its name in the rail's `hidden` and `hide_when_empty`.
+Renaming it to another tag's name asks whether to combine the two: the other tag then
+holds every room either held and keeps its own settings, and everything that named
+the renamed tag names it. Their rules are joined, unless one has a `not` term (which
+would start filtering the other's rooms) or the join would make tags name each other
+in a circle; then the combined tag holds the rooms both held, picked one by one.
 Deleting it asks first and takes it out of the rail's lists and priority; while a rule
 or a list elsewhere still names it, the delete is refused and the status line says
 where.

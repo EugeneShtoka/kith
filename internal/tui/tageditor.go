@@ -354,10 +354,31 @@ func (m Model) submitTagName(input string) (Model, tea.Cmd) {
 	case from == "":
 		next, cmd := m.createTag(name, "made the tag "+isolate(name)+" — put rooms in it with S, or give it a rule")
 		return next.tagOpen(name), cmd
-	default:
-		return m.applyTagConfig(setup.RenameTag(m.conf.base, from, name), name,
-			"renamed "+isolate(from)+" to "+isolate(name)+", everywhere it is named")
 	}
+	if at := m.configTag(name); at >= 0 && !strings.EqualFold(strings.TrimSpace(from), name) {
+		// The name is another tag's: renaming to it is combining the two, once asked.
+		m.confirm = confirmState{action: pendingCombineTags, group: from, address: m.conf.base.Tags[at].Name}
+		return m, nil
+	}
+	return m.applyTagConfig(setup.RenameTag(m.conf.base, from, name), name,
+		"renamed "+isolate(from)+" to "+isolate(name)+", everywhere it is named")
+}
+
+// combineTags folds the tag from into the tag into, as the tags hold rooms now.
+func (m Model) combineTags(from, into string) (Model, tea.Cmd) {
+	view := m.unreadView()
+	rooms := make([]domain.RoomFacts, 0, len(m.rooms.all))
+	byID := make(map[string]domain.Room, len(m.rooms.all))
+	for i := range m.rooms.all {
+		rooms = append(rooms, view.factsOf(m.rooms.all[i]))
+		byID[string(m.rooms.all[i].ID)] = m.rooms.all[i]
+	}
+	held := func(tag string, facts domain.RoomFacts) bool {
+		i, ok := view.tags.Index(tag)
+		return ok && view.tagsOf(byID[facts.ID]).in[i]
+	}
+	return m.applyTagConfig(setup.CombineTags(m.conf.base, from, into, rooms, held), into,
+		"combined "+isolate(from)+" into "+isolate(into))
 }
 
 // createTag adds an empty tag named name (no rule: it holds the rooms put in it) and
