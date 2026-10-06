@@ -185,8 +185,15 @@ func (a *Adapter) fetchRaw(ctx context.Context, ch chat, id int) (tg.MessageClas
 	}
 	raw, ent, _ := messagesOf(res)
 	for _, m := range raw {
-		if msg, ok := m.(*tg.Message); ok && msg.ID == id && samePeer(msg.PeerID, ch.id) {
-			return m, ent, nil
+		switch msg := m.(type) {
+		case *tg.Message:
+			if msg.ID == id && samePeer(msg.PeerID, ch.id) {
+				return m, ent, nil
+			}
+		case *tg.MessageService: // a topic's start, its thread's root
+			if msg.ID == id && samePeer(msg.PeerID, ch.id) {
+				return m, ent, nil
+			}
 		}
 	}
 	return nil, peer.Entities{}, errGone

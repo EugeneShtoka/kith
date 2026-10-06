@@ -154,7 +154,7 @@ func textSurfaces() []textSurface {
 			return m.framePane(threadMark+" "+m.threadTitle(), nil, 100, 4, true)
 		}},
 		{name: "thread picker", draw: func(t *testing.T, m Model, text string) string {
-			m.picker = newPicker(pickerThread, m.threadItems())
+			m = listedThreads(t, m)
 			return strings.Join(m.pickerLines(60, 4), "\n")
 		}},
 		// The daemon-backed thread lists: one room (the room left out of the label) and
@@ -176,7 +176,8 @@ func textSurfaces() []textSurface {
 			return strings.Join(next.pickerLines(80, 4), "\n")
 		}},
 		{name: "no threads in the room", draw: func(t *testing.T, m Model, text string) string {
-			next, _ := m.handleScopeThreads(scopeThreadsMsg{only: m.fixtureRoom(t)})
+			// The fixture's timeline has a thread, which the open room's list takes in.
+			next, _ := m.setMessages(nil).handleScopeThreads(scopeThreadsMsg{only: m.fixtureRoom(t)})
 			return next.renderStatus()
 		}},
 		// A rule's scope is a sentence of ours around names: a person's alias, a space.

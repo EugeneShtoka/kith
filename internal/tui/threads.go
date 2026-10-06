@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"sort"
@@ -291,8 +292,14 @@ func (m Model) hasAttachments() bool { return m.derivedFor().hasMedia }
 const threadTitleWidth = 40
 
 // threadName is what a thread is called everywhere: its `[display] thread_alias`,
-// else a snippet of its root, else a placeholder when the root is not loaded.
+// else a snippet of its root, else the title the daemon gave it (a forum topic's,
+// whose root is older than the timeline), else a placeholder.
 func (m Model) threadName(root domain.EventID) string {
+	return m.threadNamed(root, m.knownTitle(root))
+}
+
+// threadNamed is threadName with the daemon's title for the thread at hand.
+func (m Model) threadNamed(root domain.EventID, title string) string {
 	if alias, ok := m.prefs.threadAliases[root]; ok {
 		return alias
 	}
@@ -301,7 +308,26 @@ func (m Model) threadName(root domain.EventID) string {
 			return snippet
 		}
 	}
+	if title = flatten(title); title != "" {
+		return title
+	}
 	return "an older thread"
+}
+
+// knownTitle is the open room's thread's title as the daemon last gave it: in the
+// room's thread list, or its unread threads.
+func (m Model) knownTitle(root domain.EventID) string {
+	for _, t := range m.rows.known[m.openRoom] {
+		if t.Root == root && t.Title != "" {
+			return t.Title
+		}
+	}
+	for _, t := range m.unread[m.openRoom].Threads {
+		if t.Root == root && t.Title != "" {
+			return t.Title
+		}
+	}
+	return ""
 }
 
 // threadTitle is the thread view's breadcrumb: the room, then the conversation.
@@ -384,32 +410,21 @@ func (m Model) renameSelectedThread() (Model, tea.Cmd) {
 	return m.renameThread(domain.EventID(item.value))
 }
 
-// listThreads opens the picker over every thread in the open room.
+// listThreads opens the picker over every thread in the open room, as the daemon
+// lists them: the timeline holds only the newest messages, which miss old threads (a
+// forum's topics) and their roots.
 func (m Model) listThreads() (Model, tea.Cmd) {
-	items := m.threadItems()
-	if len(items) == 0 {
-		return m.say("no threads in this room yet — start one with " + m.keys.keyHint(scopeTimeline, actStartThread)), nil
+	if m.openRoom == "" {
+		return m, nil
 	}
-	m.picker = newPicker(pickerThread, items)
-	return m, repaint()
-}
-
-// threadItems is the room's threads as picker rows, newest activity first,
-// matchable by name and by newest sender.
-func (m Model) threadItems() []pickerItem {
-	_, threads := domain.CollapseThreads(m.timeline.messages)
-	items := make([]pickerItem, 0, len(threads))
-	for i := range slices.Backward(threads) {
-		items = append(items, m.threadItem(threads[i], threads[i].RoomID, nil))
-	}
-	return items
+	return m.doing("looking for threads…"), m.scopeThreadsCmd([]domain.RoomID{m.openRoom})
 }
 
 // threadItem is one thread as a picker row, matchable by name and by newest sender.
 // A non-nil in leads the row with that room's name, for a list across rooms. The name
 // is isolated either way: the picker draws labels as a sentence of ours (LTR).
 func (m Model) threadItem(t domain.Thread, roomID domain.RoomID, in *domain.Room) pickerItem {
-	name := m.threadName(t.Root)
+	name := m.threadNamed(t.Root, cmp.Or(t.Title, m.knownTitle(t.Root)))
 	sender := m.personIn(roomID, t.LatestSender, t.LatestSenderName)
 	item := pickerItem{
 		label:  isolate(name),
@@ -510,6 +525,18 @@ type scopeThread struct {
 	thread domain.Thread
 }
 
+// withTimelineThreads adds to the daemon's threads of the open room those its
+// timeline holds that the daemon did not list yet (one just begun).
+func (m Model) withTimelineThreads(listed []scopeThread, room domain.Room) []scopeThread {
+	_, threads := domain.CollapseThreads(m.timeline.messages)
+	for i := range threads {
+		if !slices.ContainsFunc(listed, func(s scopeThread) bool { return s.thread.Root == threads[i].Root }) {
+			listed = append(listed, scopeThread{room: room, thread: threads[i]})
+		}
+	}
+	return listed
+}
+
 // scopeThreadsCmd asks for each room's threads in turn (local cached calls, capped,
 // so sequential is fine).
 func (m Model) scopeThreadsCmd(rooms []domain.RoomID) tea.Cmd {
@@ -546,9 +573,13 @@ func (m Model) handleScopeThreads(msg scopeThreadsMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("could not list threads", msg.err), nil
 	}
+	if msg.only.ID != "" && msg.only.ID == m.openRoom {
+		msg.threads = m.withTimelineThreads(msg.threads, msg.only)
+	}
 	if len(msg.threads) == 0 {
 		if msg.only.ID != "" {
-			return m.say("no threads in " + m.roomName(msg.only)), nil
+			return m.say("no threads in " + m.roomName(msg.only) + " yet — start one with " +
+				m.keys.keyHint(scopeTimeline, actStartThread)), nil
 		}
 		return m.say("no threads in scope"), nil
 	}

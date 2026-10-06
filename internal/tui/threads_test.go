@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -688,14 +689,22 @@ func TestNamingAThread(t *testing.T) {
 	}
 }
 
+// listedThreads opens the open room's thread picker, the daemon answering.
+func listedThreads(t *testing.T, m Model) Model {
+	t.Helper()
+	next, cmd := m.listThreads()
+	if cmd == nil {
+		t.Fatal("listing the threads asked the daemon nothing")
+	}
+	return update(t, next, cmd())
+}
+
 // The picker lists the room's conversations, newest activity first — the way back to
 // a thread that has been read, which is otherwise nowhere.
 func TestThePickerListsTheRoomsThreads(t *testing.T) {
 	t.Parallel()
 
-	m := inThread(t, apitest.Nop{})
-	next, _ := m.listThreads()
-	m = next
+	m := listedThreads(t, inThread(t, apitest.Nop{}))
 
 	if m.picker.kind != pickerThread {
 		t.Fatalf("picker = %v, want the thread picker", m.picker.kind)
@@ -711,7 +720,7 @@ func TestThePickerListsTheRoomsThreads(t *testing.T) {
 		t.Errorf("detail = %q, want the size and who last spoke", items[0].detail)
 	}
 
-	next, _ = m.acceptPick()
+	next, _ := m.acceptPick()
 	m = next
 	if m.thread.root != "$root" {
 		t.Errorf("thread root = %q, want the chosen conversation open", m.thread.root)
@@ -729,13 +738,12 @@ func TestThePickerSaysWhenThereAreNoThreads(t *testing.T) {
 	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
 		{ID: "$one", RoomID: "!a:x", Sender: "@alice:x", Body: "just a message", Timestamp: at(1)},
 	}}})
-	next, _ := m.listThreads()
-	m = next
+	m = listedThreads(t, m)
 
 	if m.picker.active() {
 		t.Error("a room with no threads should not open a picker")
 	}
-	if !strings.Contains(m.status(), "no threads in this room yet") {
+	if !strings.Contains(m.status(), "no threads in") || !strings.Contains(m.status(), "start one with") {
 		t.Errorf("status = %q, want it to say there are none", m.status())
 	}
 }
@@ -1135,7 +1143,7 @@ func TestTheThreadListShortensNamesByTheSpaceRule(t *testing.T) {
 		{ID: "$r1", RoomID: "!a:x", Sender: "@noa:x", SenderName: "Noa Katz", Body: "on it", Timestamp: at(2), ThreadRoot: "$root"},
 	}}})
 
-	items := m.threadItems()
+	items := listedThreads(t, m).picker.items
 	if len(items) != 1 {
 		t.Fatalf("thread items = %d, want the one thread", len(items))
 	}
@@ -1151,5 +1159,22 @@ func TestTheThreadListShortensNamesByTheSpaceRule(t *testing.T) {
 		RoomID: "!a:x", Root: "$root", Count: 1, LatestSender: "@noa:x", LatestSenderName: "Noa Katz",
 	}, 12, 60); strings.Contains(row, "Katz") {
 		t.Errorf("thread summary row = %q, want the first-name rule applied", row)
+	}
+}
+
+// A forum's topics begin long before the timeline does: the thread menu lists them
+// as the daemon does, each by its title.
+func TestATopicOlderThanTheTimelineIsNamedByItsTitle(t *testing.T) {
+	t.Parallel()
+	b := &threadListBackend{threads: map[domain.RoomID][]domain.Thread{"!a:x": {
+		{RoomID: "!a:x", Root: "$topic", Title: "Flea market", Count: 40, LatestAt: at(9)},
+	}}}
+	m := listedThreads(t, inThread(t, b))
+	i := slices.IndexFunc(m.picker.items, func(p pickerItem) bool { return p.value == "$topic" })
+	if i < 0 || m.picker.items[i].label != isolate("Flea market") {
+		t.Fatalf("items = %+v, want the topic named by its title", m.picker.items)
+	}
+	if !slices.ContainsFunc(m.picker.items, func(p pickerItem) bool { return p.value == "$root" }) {
+		t.Error("the thread the timeline holds was left out")
 	}
 }
