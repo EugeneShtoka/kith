@@ -404,15 +404,11 @@ func (m Model) writeLoginRecord(rec api.LoginRecord) (Model, tea.Cmd, func() err
 			return errors.New("the config refused the new account (the status line says why)")
 		}
 	}
-	next, applied := m.applyDerived(cfg, derived, "set up "+m.login.network.Label+" "+m.login.account)
-	// Saved here too, under a newer generation, so the daemon re-reads it next; the
-	// older save applyConfig queued is then skipped.
-	gen, writer, path := next.conf.writer.take(), next.conf.writer, next.conf.path
+	next, applied := m.runDerived(cfg, derived, "set up "+m.login.network.Label+" "+m.login.account)
+	// Saved by the login itself, which waits for the daemon to have it before going on.
+	gen, writer, app := next.conf.writer.take(), next.conf.writer, m.ctx
 	return next, applied, func() error {
-		if path == "" {
-			return nil
-		}
-		if err := writer.save(gen, path, cfg); err != nil {
+		if err := writer.save(app, gen, cfg); err != nil && !errors.Is(err, errNoConfigStore) {
 			return fmt.Errorf("save the config: %w", err)
 		}
 		return nil

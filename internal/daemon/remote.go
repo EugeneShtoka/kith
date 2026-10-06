@@ -11,6 +11,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -35,6 +36,9 @@ type Remote struct {
 	follows *stream[string]
 	// rooms says a network rewrote its rooms (RoomsChanged); not part of api.Backend.
 	rooms *stream[struct{}]
+	// configs is the configuration after each change (ConfigChanges); not part of
+	// api.Backend.
+	configs *stream[config.Snapshot]
 	// attached reports losing and regaining the daemon (see Attached).
 	attached *stream[bool]
 	// client names this Remote to the daemon for its whole life. seated is set once
@@ -75,6 +79,7 @@ func newRemote(hc *http.Client) *Remote {
 		activity:      newStream[domain.Activity](),
 		follows:       newStream[string](),
 		rooms:         newStream[struct{}](),
+		configs:       newStream[config.Snapshot](),
 		attached:      newStream[bool](),
 		client:        rand.Text(),
 		lost:          make(chan struct{}),

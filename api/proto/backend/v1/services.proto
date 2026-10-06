@@ -1135,6 +1135,35 @@ message CheckConfigRequest {
 
 message CheckConfigResponse {}
 
+message GetConfigRequest {}
+
+// GetConfigResponse is the configuration the daemon runs with, and the revision of the
+// file it came from.
+message GetConfigResponse {
+  string config = 1; // the configuration as the daemon serves it (its profile applied)
+  string revision = 2;
+}
+
+message UpdateConfigRequest {
+  // The revision the change was made on: a file changed since (another window, a hand
+  // edit) refuses it with ABORTED, and the client reads the config again.
+  string base_revision = 1;
+  // The whole configuration as the client would have it.
+  string config = 2;
+}
+
+message UpdateConfigResponse {
+  string revision = 1;
+}
+
+message ConfigChangedRequest {}
+
+// ConfigChangedResponse is the configuration after a change, however made.
+message ConfigChangedResponse {
+  string config = 1;
+  string revision = 2;
+}
+
 // ── Schedule ──
 
 // ScheduledMessage is one pending send.
@@ -1433,6 +1462,15 @@ service BackendService {
   // CheckConfig answers whether the daemon would run with this configuration, every
   // network judging its own section, before a client writes it. It changes nothing.
   rpc CheckConfig(CheckConfigRequest) returns (CheckConfigResponse);
+  // GetConfig is the configuration the daemon runs with, and its file's revision.
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  // UpdateConfig writes the configuration file — the daemon is its one writer — if it
+  // is still at base_revision and the daemon would run with the change, then puts it in
+  // force and tells every client (ConfigChanged).
+  rpc UpdateConfig(UpdateConfigRequest) returns (UpdateConfigResponse);
+  // ConfigChanged streams the configuration each time it changes: written through
+  // UpdateConfig, or re-read after a hand edit (ReloadConfig).
+  rpc ConfigChanged(ConfigChangedRequest) returns (stream ConfigChangedResponse);
   // Schedule
   // Schedule queues a message.
   rpc Schedule(ScheduleRequest) returns (ScheduleResponse);

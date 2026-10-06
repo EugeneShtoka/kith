@@ -761,7 +761,57 @@ func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest
 	if err := s.Reload(ctx); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
+	if s.Config != nil { // a hand edit: every client hears it, as a written change
+		if snap, err := s.Config.Read(); err == nil {
+			s.Streams.Configured(snap)
+		}
+	}
 	return connect.NewResponse(&v1.ReloadConfigResponse{}), nil
+}
+
+var errNoConfigFile = errors.New("daemon: this daemon was started without a config file")
+
+// GetConfig is the configuration in force and its file's revision.
+func (s *server) GetConfig(context.Context, *req[v1.GetConfigRequest]) (*resp[v1.GetConfigResponse], error) {
+	if s.Config == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errNoConfigFile)
+	}
+	snap, err := s.Config.Read()
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	return connect.NewResponse(&v1.GetConfigResponse{Config: config.Encode(snap.Config), Revision: snap.Revision}), nil
+}
+
+// UpdateConfig writes a client's configuration, refusing one made on an older file
+// (ABORTED: read it again) or one the daemon would not run with (INVALID_ARGUMENT: the
+// message is what to fix), and tells every client the result.
+func (s *server) UpdateConfig(ctx context.Context, r *req[v1.UpdateConfigRequest]) (*resp[v1.UpdateConfigResponse], error) {
+	if s.Config == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errNoConfigFile)
+	}
+	cfg, err := config.Decode(r.Msg.GetConfig())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	snap, err := s.Config.Write(ctx, r.Msg.GetBaseRevision(), cfg, s.Daemon.CheckConfig, s.Reload)
+	switch {
+	case errors.Is(err, api.ErrConfigMoved):
+		cerr := connect.NewError(connect.CodeAborted, err)
+		cerr.Meta().Set(sentinelHeader, "config-moved") // errors.Is holds on the client
+		return nil, cerr
+	case err != nil:
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	s.Streams.Configured(snap)
+	return connect.NewResponse(&v1.UpdateConfigResponse{Revision: snap.Revision}), nil
+}
+
+// ConfigChanged streams the configuration after each change.
+func (s *server) ConfigChanged(ctx context.Context, _ *req[v1.ConfigChangedRequest], st *connect.ServerStream[v1.ConfigChangedResponse]) error {
+	return serveStream(ctx, s.Streams.configs, st, func(snap config.Snapshot) *v1.ConfigChangedResponse {
+		return &v1.ConfigChangedResponse{Config: config.Encode(snap.Config), Revision: snap.Revision}
+	})
 }
 
 // CheckConfig reports a config the daemon would refuse as InvalidArgument, as

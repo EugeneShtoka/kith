@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -25,6 +26,8 @@ type Streams struct {
 	// archived on the phone), so they read the list again. Fed by RoomsChanged, not a
 	// backend channel, like follows.
 	rooms *hub[struct{}]
+	// configs carries the configuration after each change (Configured), like follows.
+	configs *hub[config.Snapshot]
 }
 
 // NewStreams returns Streams with nothing attached. Subscribing before Run is safe.
@@ -38,6 +41,7 @@ func NewStreams() *Streams {
 		activity:      newHub[domain.Activity](),
 		follows:       newHub[string](),
 		rooms:         newHub[struct{}](),
+		configs:       newHub[config.Snapshot](),
 	}
 }
 
@@ -54,6 +58,7 @@ func (s *Streams) Run(ctx context.Context, b api.Backend) {
 	wg.Wait()
 	s.follows.end() // no backend channel ends these otherwise
 	s.rooms.end()
+	s.configs.end()
 }
 
 // notifierBuffer is the in-process consumer's queue. Its delivery can be slow (a desktop
@@ -82,6 +87,9 @@ func (s *Streams) Attached() int {
 		s.verifications.subscribers(),
 	)
 }
+
+// Configured tells every attached client the configuration after a change.
+func (s *Streams) Configured(snap config.Snapshot) { s.configs.broadcast(snap) }
 
 // RoomsChanged tells every attached client that a network rewrote its rooms.
 func (s *Streams) RoomsChanged() { s.rooms.broadcast(struct{}{}) }

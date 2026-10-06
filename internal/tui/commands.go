@@ -982,36 +982,54 @@ func (m Model) recordEmojiCmd(emoji string) tea.Cmd {
 	})
 }
 
-// errNoConfigPath: the app was started without a config path, so a change can be
+// errNoConfigStore: no daemon keeps the config file for this client, so a change can be
 // applied but not saved.
-var errNoConfigPath = errors.New("no config file to write to")
+var errNoConfigStore = errors.New("no daemon to keep the config file")
+
+// configStore is the daemon, the config file's one writer: a change is made on the
+// revision it was read at, and every client hears each change. Optional, as
+// followSource is: api.Backend does not carry the config.
+type configStore interface {
+	GetConfig(ctx context.Context) (config.Snapshot, error)
+	UpdateConfig(ctx context.Context, base string, cfg config.Config) (string, error)
+	ConfigChanges() <-chan config.Snapshot
+}
 
 // configSavedMsg reports the outcome of writing the config back.
 type configSavedMsg struct{ err error }
 
-// saveConfigFileCmd writes a whole configuration back (assembled by applyConfig). Its
-// place in line is taken now, on the event loop, so snapshots land in the order the
-// changes were made.
+// saveConfigFileCmd has the daemon write a whole configuration (assembled by
+// applyConfig). Its place in line is taken now, on the event loop, so snapshots land
+// in the order the changes were made.
 func (m Model) saveConfigFileCmd(cfg config.Config) tea.Cmd {
-	path, writer := m.conf.path, m.conf.writer
+	ctx, writer := m.ctx, m.conf.writer
 	gen := writer.take()
-	return func() tea.Msg {
-		if path == "" {
-			return configSavedMsg{err: errNoConfigPath}
-		}
-		return configSavedMsg{err: writer.save(gen, path, cfg)}
-	}
+	return func() tea.Msg { return configSavedMsg{err: writer.save(ctx, gen, cfg)} }
 }
 
-// configWriter orders whole-file saves. Each runs on its own goroutine, so without it
-// an older snapshot can land after a newer one and silently undo a setting.
+// configWriter orders whole-config saves, each on the revision the last one left.
+// Each runs on its own goroutine, so without it an older snapshot could land after a
+// newer one and silently undo a setting. It also knows which revisions it wrote, so
+// the echo of its own save is not taken for news.
 type configWriter struct {
+	store configStore
+
 	mu      sync.Mutex
 	taken   uint64 // the last place in line handed out
-	written uint64 // the newest snapshot on disk
+	written uint64 // the newest snapshot saved
+	rev     string // the revision the next save is made on
+	ours    map[string]bool
 }
 
-// take is the next place in line. Nil-safe: without a writer, saves are unordered.
+// storeOf is the daemon the writer saves through; nil without one.
+func (w *configWriter) storeOf() configStore {
+	if w == nil {
+		return nil
+	}
+	return w.store
+}
+
+// take is the next place in line. Nil-safe: without a writer, nothing is saved.
 func (w *configWriter) take() uint64 {
 	if w == nil {
 		return 0
@@ -1022,18 +1040,45 @@ func (w *configWriter) take() uint64 {
 	return w.taken
 }
 
-// save writes cfg unless a newer snapshot is already on disk.
-func (w *configWriter) save(gen uint64, path string, cfg config.Config) error {
-	if w == nil {
-		return config.Save(path, cfg) //nolint:wrapcheck // config's errors name the file
+// save has the daemon write cfg, unless a newer snapshot is saved already. Held
+// throughout, so saves go one at a time, each on the revision the last left.
+func (w *configWriter) save(ctx context.Context, gen uint64, cfg config.Config) error {
+	if w == nil || w.store == nil {
+		return errNoConfigStore
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if gen <= w.written {
 		return nil
 	}
-	w.written = gen
-	return config.Save(path, cfg) //nolint:wrapcheck // config's errors name the file
+	rev, err := w.store.UpdateConfig(ctx, w.rev, cfg)
+	if err != nil {
+		return err //nolint:wrapcheck // the daemon's own words
+	}
+	w.written, w.rev = gen, rev
+	if w.ours == nil {
+		w.ours = map[string]bool{}
+	}
+	w.ours[rev] = true
+	return nil
+}
+
+// adopt makes rev, read from the daemon, the revision the next save is made on. news
+// is false for one this writer saved itself. A change made elsewhere supersedes the
+// saves still in line, which were made over the config before it and would undo it:
+// dropped reports whether there were any.
+func (w *configWriter) adopt(rev string) (news, dropped bool) {
+	if w == nil {
+		return false, false
+	}
+	w.mu.Lock() // waits out a save in flight, whose revision this may be
+	defer w.mu.Unlock()
+	if w.ours[rev] {
+		return false, false
+	}
+	dropped = w.taken > w.written
+	w.rev, w.written = rev, w.taken
+	return true, dropped
 }
 
 // dndMsg is the daemon's answer to anything touching do-not-disturb: the whole set in
@@ -1091,21 +1136,6 @@ func (m Model) setDNDCmd(rule notify.Rule, target muteTarget) tea.Cmd {
 // clearAllDNDCmd lifts every entry.
 func (m Model) clearAllDNDCmd() tea.Cmd {
 	return m.dndCmd("do not disturb off", Notifications.ClearAllDND)
-}
-
-// configReloadedMsg reports a config the daemon refused.
-type configReloadedMsg struct{ err error }
-
-// reloadConfigCmd asks the daemon to re-read the file we just wrote. The error comes
-// back because a silent failure would stop notifications unnoticed.
-func (m Model) reloadConfigCmd() tea.Cmd {
-	ctx, notifications := m.ctx, m.notifications.backend
-	return func() tea.Msg {
-		if notifications == nil {
-			return nil // no daemon attached; nothing reads the file but us
-		}
-		return configReloadedMsg{err: notifications.ReloadConfig(ctx)}
-	}
 }
 
 // openedMsg reports a failed attempt to open a link.

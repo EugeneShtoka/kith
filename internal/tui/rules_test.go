@@ -33,7 +33,7 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!standup:x"}},
 	}})
-	m = sized(t, m).WithConfigFile(path, base)
+	m = sized(t, m).WithConfigFile(path, base).keptIn()
 	// Install the rules the same way startup does, so the status line describes the
 	// real ones rather than a hand-assembled set.
 	rules, err := setup.NotificationRules(notifs)

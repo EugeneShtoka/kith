@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"os"
@@ -321,4 +323,20 @@ func writeAtomic(path, body string) error {
 		return fmt.Errorf("config: publish %s: %w", path, err)
 	}
 	return nil
+}
+
+// Snapshot is a configuration and the revision of the file it was read from.
+type Snapshot struct {
+	Config   Config
+	Revision string
+}
+
+// Revision names a config file's contents: two files have the same revision only when
+// they are byte for byte the same, so a hand edit is a change too. A missing file is "".
+func Revision(data []byte) string {
+	if data == nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:8])
 }

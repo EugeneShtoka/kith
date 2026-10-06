@@ -34,7 +34,7 @@ func aliasing(t *testing.T, display config.Display) (Model, string) {
 	}
 	m := update(t, starterNew(apitest.Nop{}, display),
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
-	m = sized(t, m).WithConfigFile(path, base)
+	m = sized(t, m).WithConfigFile(path, base).keptIn()
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	m = update(t, m, membersMsg{roomID: "!a:x", members: aliasPeople})

@@ -28,7 +28,7 @@ func (m Model) handleAttached(msg attachedMsg) (Model, tea.Cmd) {
 	}
 	m = m.say("daemon back — catching up")
 	cmds := []tea.Cmd{m.listenAttachedCmd(), m.loadRoomsCmd(), m.loadUnreadCmd(),
-		m.loadInvitesCmd(), m.lastMessagesCmd()}
+		m.loadInvitesCmd(), m.lastMessagesCmd(), m.readConfigCmd(false)}
 	if m.openRoom != "" {
 		cmds = append(cmds, m.loadRoomCmd(m.openRoom))
 	}

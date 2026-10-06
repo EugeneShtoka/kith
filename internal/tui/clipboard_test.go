@@ -210,7 +210,7 @@ func TestClipboardConfigReachesTheModel(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.Config{Clipboard: config.Clipboard{OpenCommand: "my-browser", Command: "wl-copy"}}
-	m := yanking(t, msgWith("$1", "text")).WithConfigFile("/tmp/x.toml", cfg)
+	m := yanking(t, msgWith("$1", "text")).WithConfigFile("/tmp/x.toml", cfg).keptIn()
 	if m.prefs.external.open != "my-browser" || m.prefs.external.clipboard != "wl-copy" {
 		t.Errorf("external.open = %q, external.clipboard = %q", m.prefs.external.open, m.prefs.external.clipboard)
 	}
