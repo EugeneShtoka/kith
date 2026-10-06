@@ -248,7 +248,9 @@ func TestManyChatsAreReadPageByPage(t *testing.T) {
 		}
 		return s.SendResult(r, res)
 	})
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	// The fake's handshake is slow under -race with the package's other tests running
+	// beside it; the deadline only bounds a hang.
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	client := f.dial(testApp, newLoginSession(), nil)
 	var got []dialog
