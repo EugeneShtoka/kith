@@ -133,10 +133,12 @@ func (a *Adapter) record(ctx context.Context, account Account, msg domain.Messag
 // knowDirectChat records a direct chat as a room named after the person, with them as
 // its member, the first time it is seen and whenever their name may have changed.
 func (a *Adapter) knowDirectChat(ctx context.Context, account Account, client *whatsmeow.Client, room domain.RoomID, peer types.JID, fallback string) {
-	name := a.names(client)(ctx, peer)
-	if name == "" {
-		name = fallback
-	}
+	a.nameDirectChat(ctx, account, room, peer, chatName(ctx, a.names(client), selfOf(client), peer, fallback))
+}
+
+// nameDirectChat records a direct chat under name, with the person as its member.
+// Caller holds listing.
+func (a *Adapter) nameDirectChat(ctx context.Context, account Account, room domain.RoomID, peer types.JID, name string) {
 	owner := domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits)
 	chat := domain.Room{ID: room, Name: name, IsDirect: true}
 	if name != "" {

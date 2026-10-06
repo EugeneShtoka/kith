@@ -78,6 +78,8 @@ type Adapter struct {
 	// with a listing waiting for listingEvery to pass (see refreshLater).
 	listedAt map[string]time.Time
 	trailing map[string]bool
+	// renames names direct chats again when names arrive (names.go).
+	renames renamer
 	// keepDeleted is [display.deleted] keep (see UseConfig).
 	keepDeleted bool
 	// run is Start's context: an account paired later runs until it ends too.
@@ -262,6 +264,8 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		a.onTyping(a.lifetime(), account, client, e)
 	case *events.Archive:
 		a.onArchive(a.lifetime(), account, e)
+	case *events.Contact, *events.PushName, *events.BusinessName:
+		a.renameLater(account, client) // names arrive after the history: name the chats again
 	case *events.LoggedOut:
 		a.log.Warn("the phone unlinked kith; run `kith login whatsapp "+account.Name+"` again",
 			"account", account.Name, "reason", e.Reason.String())
