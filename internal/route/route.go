@@ -64,6 +64,13 @@ type (
 	Archiver interface {
 		SetArchived(ctx context.Context, roomID domain.RoomID, archived bool) error
 	}
+	// Groupings is a network whose people group their chats themselves (Telegram's
+	// folders), copied into tags when asked.
+	Groupings interface {
+		// Groupings is one account's groupings as they are now, and the rooms that
+		// account sees (what a copy may change in a tag).
+		Groupings(ctx context.Context, account string) (domain.RoomOwner, []domain.Grouping, error)
+	}
 	// Stars is bookmarks.
 	Stars interface {
 		StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error

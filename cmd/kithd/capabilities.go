@@ -86,6 +86,7 @@ var (
 		route.Homes
 		route.ReadState
 		route.Archiver
+		route.Groupings
 		route.History
 		route.Sender
 		route.Typist

@@ -133,6 +133,9 @@ func (l cliLogin) run(ctx context.Context, network, account string) error {
 			return nil
 		case step.Done != "":
 			fmt.Println("kith: " + step.Done + ".")
+			if g, ok := l.backend.(groupings); ok && step.Account != "" {
+				return askImport(ctx, g, l.in, network, step.Account, true) // offered, once
+			}
 			return nil
 		case step.Code != "":
 			fmt.Printf("\n    %s\n\n", step.Code)

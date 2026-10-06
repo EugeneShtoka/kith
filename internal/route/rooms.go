@@ -3,6 +3,7 @@ package route
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
@@ -134,4 +135,18 @@ func (r *Router) allSpaces(read func(SpaceLister) ([]domain.Space, error)) ([]do
 	}
 	domain.SortSpaces(out)
 	return out, nil
+}
+
+// Groupings is one account's groupings on a network that has them (Telegram's
+// folders), and the rooms that account sees.
+func (r *Router) Groupings(ctx context.Context, network domain.Protocol, account string) (domain.RoomOwner, []domain.Grouping, error) {
+	a, ok := r.adapters[network]
+	if !ok || !on(a) {
+		return "", nil, fmt.Errorf("%w: %s", api.ErrNetworkOff, network)
+	}
+	g, ok := a.(Groupings)
+	if !ok {
+		return "", nil, fmt.Errorf("%w: groupings on %s", api.ErrNotOnNetwork, network)
+	}
+	return g.Groupings(ctx, account)
 }

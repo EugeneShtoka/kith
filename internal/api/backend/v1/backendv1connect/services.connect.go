@@ -302,6 +302,12 @@ const (
 	// BackendServiceGetConfigProcedure is the fully-qualified name of the BackendService's GetConfig
 	// RPC.
 	BackendServiceGetConfigProcedure = "/backend.v1.BackendService/GetConfig"
+	// BackendServicePreviewGroupingsProcedure is the fully-qualified name of the BackendService's
+	// PreviewGroupings RPC.
+	BackendServicePreviewGroupingsProcedure = "/backend.v1.BackendService/PreviewGroupings"
+	// BackendServiceApplyGroupingsProcedure is the fully-qualified name of the BackendService's
+	// ApplyGroupings RPC.
+	BackendServiceApplyGroupingsProcedure = "/backend.v1.BackendService/ApplyGroupings"
 	// BackendServiceUpdateConfigProcedure is the fully-qualified name of the BackendService's
 	// UpdateConfig RPC.
 	BackendServiceUpdateConfigProcedure = "/backend.v1.BackendService/UpdateConfig"
@@ -567,6 +573,12 @@ type BackendServiceClient interface {
 	CheckConfig(context.Context, *connect.Request[v1.CheckConfigRequest]) (*connect.Response[v1.CheckConfigResponse], error)
 	// GetConfig is the configuration the daemon runs with, and its file's revision.
 	GetConfig(context.Context, *connect.Request[v1.GetConfigRequest]) (*connect.Response[v1.GetConfigResponse], error)
+	// PreviewGroupings is what copying each of an account's groupings (Telegram's
+	// folders) into the tag of its name would change, among that account's rooms.
+	PreviewGroupings(context.Context, *connect.Request[v1.PreviewGroupingsRequest]) (*connect.Response[v1.PreviewGroupingsResponse], error)
+	// ApplyGroupings copies them as chosen, per tag, into the config (as UpdateConfig
+	// writes it), judged on the groupings and the config as they are when it runs.
+	ApplyGroupings(context.Context, *connect.Request[v1.ApplyGroupingsRequest]) (*connect.Response[v1.ApplyGroupingsResponse], error)
 	// UpdateConfig writes the configuration file — the daemon is its one writer — if it
 	// is still at base_revision and the daemon would run with the change, then puts it in
 	// force and tells every client (ConfigChanged).
@@ -1176,6 +1188,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("GetConfig")),
 			connect.WithClientOptions(opts...),
 		),
+		previewGroupings: connect.NewClient[v1.PreviewGroupingsRequest, v1.PreviewGroupingsResponse](
+			httpClient,
+			baseURL+BackendServicePreviewGroupingsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PreviewGroupings")),
+			connect.WithClientOptions(opts...),
+		),
+		applyGroupings: connect.NewClient[v1.ApplyGroupingsRequest, v1.ApplyGroupingsResponse](
+			httpClient,
+			baseURL+BackendServiceApplyGroupingsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ApplyGroupings")),
+			connect.WithClientOptions(opts...),
+		),
 		updateConfig: connect.NewClient[v1.UpdateConfigRequest, v1.UpdateConfigResponse](
 			httpClient,
 			baseURL+BackendServiceUpdateConfigProcedure,
@@ -1308,6 +1332,8 @@ type backendServiceClient struct {
 	reloadConfig          *connect.Client[v1.ReloadConfigRequest, v1.ReloadConfigResponse]
 	checkConfig           *connect.Client[v1.CheckConfigRequest, v1.CheckConfigResponse]
 	getConfig             *connect.Client[v1.GetConfigRequest, v1.GetConfigResponse]
+	previewGroupings      *connect.Client[v1.PreviewGroupingsRequest, v1.PreviewGroupingsResponse]
+	applyGroupings        *connect.Client[v1.ApplyGroupingsRequest, v1.ApplyGroupingsResponse]
 	updateConfig          *connect.Client[v1.UpdateConfigRequest, v1.UpdateConfigResponse]
 	configChanged         *connect.Client[v1.ConfigChangedRequest, v1.ConfigChangedResponse]
 	schedule              *connect.Client[v1.ScheduleRequest, v1.ScheduleResponse]
@@ -1800,6 +1826,16 @@ func (c *backendServiceClient) GetConfig(ctx context.Context, req *connect.Reque
 	return c.getConfig.CallUnary(ctx, req)
 }
 
+// PreviewGroupings calls backend.v1.BackendService.PreviewGroupings.
+func (c *backendServiceClient) PreviewGroupings(ctx context.Context, req *connect.Request[v1.PreviewGroupingsRequest]) (*connect.Response[v1.PreviewGroupingsResponse], error) {
+	return c.previewGroupings.CallUnary(ctx, req)
+}
+
+// ApplyGroupings calls backend.v1.BackendService.ApplyGroupings.
+func (c *backendServiceClient) ApplyGroupings(ctx context.Context, req *connect.Request[v1.ApplyGroupingsRequest]) (*connect.Response[v1.ApplyGroupingsResponse], error) {
+	return c.applyGroupings.CallUnary(ctx, req)
+}
+
 // UpdateConfig calls backend.v1.BackendService.UpdateConfig.
 func (c *backendServiceClient) UpdateConfig(ctx context.Context, req *connect.Request[v1.UpdateConfigRequest]) (*connect.Response[v1.UpdateConfigResponse], error) {
 	return c.updateConfig.CallUnary(ctx, req)
@@ -2074,6 +2110,12 @@ type BackendServiceHandler interface {
 	CheckConfig(context.Context, *connect.Request[v1.CheckConfigRequest]) (*connect.Response[v1.CheckConfigResponse], error)
 	// GetConfig is the configuration the daemon runs with, and its file's revision.
 	GetConfig(context.Context, *connect.Request[v1.GetConfigRequest]) (*connect.Response[v1.GetConfigResponse], error)
+	// PreviewGroupings is what copying each of an account's groupings (Telegram's
+	// folders) into the tag of its name would change, among that account's rooms.
+	PreviewGroupings(context.Context, *connect.Request[v1.PreviewGroupingsRequest]) (*connect.Response[v1.PreviewGroupingsResponse], error)
+	// ApplyGroupings copies them as chosen, per tag, into the config (as UpdateConfig
+	// writes it), judged on the groupings and the config as they are when it runs.
+	ApplyGroupings(context.Context, *connect.Request[v1.ApplyGroupingsRequest]) (*connect.Response[v1.ApplyGroupingsResponse], error)
 	// UpdateConfig writes the configuration file — the daemon is its one writer — if it
 	// is still at base_revision and the daemon would run with the change, then puts it in
 	// force and tells every client (ConfigChanged).
@@ -2679,6 +2721,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("GetConfig")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServicePreviewGroupingsHandler := connect.NewUnaryHandler(
+		BackendServicePreviewGroupingsProcedure,
+		svc.PreviewGroupings,
+		connect.WithSchema(backendServiceMethods.ByName("PreviewGroupings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceApplyGroupingsHandler := connect.NewUnaryHandler(
+		BackendServiceApplyGroupingsProcedure,
+		svc.ApplyGroupings,
+		connect.WithSchema(backendServiceMethods.ByName("ApplyGroupings")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceUpdateConfigHandler := connect.NewUnaryHandler(
 		BackendServiceUpdateConfigProcedure,
 		svc.UpdateConfig,
@@ -2905,6 +2959,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceCheckConfigHandler.ServeHTTP(w, r)
 		case BackendServiceGetConfigProcedure:
 			backendServiceGetConfigHandler.ServeHTTP(w, r)
+		case BackendServicePreviewGroupingsProcedure:
+			backendServicePreviewGroupingsHandler.ServeHTTP(w, r)
+		case BackendServiceApplyGroupingsProcedure:
+			backendServiceApplyGroupingsHandler.ServeHTTP(w, r)
 		case BackendServiceUpdateConfigProcedure:
 			backendServiceUpdateConfigHandler.ServeHTTP(w, r)
 		case BackendServiceConfigChangedProcedure:
@@ -3310,6 +3368,14 @@ func (UnimplementedBackendServiceHandler) CheckConfig(context.Context, *connect.
 
 func (UnimplementedBackendServiceHandler) GetConfig(context.Context, *connect.Request[v1.GetConfigRequest]) (*connect.Response[v1.GetConfigResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.GetConfig is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PreviewGroupings(context.Context, *connect.Request[v1.PreviewGroupingsRequest]) (*connect.Response[v1.PreviewGroupingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PreviewGroupings is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ApplyGroupings(context.Context, *connect.Request[v1.ApplyGroupingsRequest]) (*connect.Response[v1.ApplyGroupingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ApplyGroupings is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) UpdateConfig(context.Context, *connect.Request[v1.UpdateConfigRequest]) (*connect.Response[v1.UpdateConfigResponse], error) {
