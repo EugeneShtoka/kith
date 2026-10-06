@@ -97,6 +97,9 @@ message Message {
   bool reverted = 21;
   // The formatting drawn over body, unset when the message is plain.
   Formatted format = 22;
+  // Placeholder marks a bridge's stand-in for a message it could not read yet, which
+  // it replaces by an edit (domain.Message.Placeholder).
+  bool placeholder = 23;
 }
 
 // Formatted is formatting as it draws (richtext.Formatted): the text, and the

@@ -107,10 +107,17 @@ func toDomainMessage(evt *event.Event) (domain.Message, bool) {
 	// An edit (m.replace) folds onto its target, carrying the replacement body.
 	if target := content.RelatesTo.GetReplaceID(); target != "" {
 		body := editBody(content)
-		if body == "" {
+		// The replacement may bring an attachment the original lacked: a bridge's
+		// placeholder replaced by the picture it could not read at first.
+		var media *domain.Media
+		if content.NewContent != nil {
+			media = buildMedia(evt.Type, content.NewContent)
+		}
+		if body == "" && media == nil {
 			return domain.Message{}, false
 		}
 		return domain.Message{
+			Media:  media,
 			ID:     domain.EventID(target),
 			RoomID: domain.RoomID(evt.RoomID),
 			Sender: string(evt.Sender),
@@ -164,8 +171,20 @@ func toDomainMessage(evt *event.Event) (domain.Message, bool) {
 		// Sanitized at ingest (untrusted HTML).
 		Format: formatting(content),
 		// m.notice stays text; an emote is an action, not speech.
-		Emote: content.MsgType == event.MsgEmote,
+		Emote:       content.MsgType == event.MsgEmote,
+		Placeholder: isPlaceholder(evt),
 	}, true
+}
+
+// isPlaceholder reports whether a bridge sent evt in place of a message it could not
+// read yet (mautrix's fi.mau.<network>.undecryptable), to replace it by an edit.
+func isPlaceholder(evt *event.Event) bool {
+	for key, value := range evt.Content.Raw {
+		if strings.HasPrefix(key, "fi.mau.") && strings.HasSuffix(key, ".undecryptable") && value == true {
+			return true
+		}
+	}
+	return false
 }
 
 // editBody is an m.replace's new text: m.new_content, else the spec's "* " fallback.

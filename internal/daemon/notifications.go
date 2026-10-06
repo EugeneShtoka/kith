@@ -29,6 +29,9 @@ type Notifications struct {
 	limiter notify.Limiter
 
 	mu sync.Mutex
+	// standIns are bridge placeholders not announced, by message, and when: the edit
+	// that replaces one is announced instead (placeholderSpan).
+	standIns map[domain.EventID]time.Time
 	// keep and keepRules are [storage] messages_per_room and its rules (MessagesKept).
 	keep      int
 	keepRules []domain.KeepRule
@@ -241,6 +244,10 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	mine := n.isMine(msg.Sender)
 
 	n.captureCode(ctx, msg, mine)
+	var news bool
+	if msg, news = n.instead(msg, now); !news {
+		return notify.Notification{}, false
+	}
 
 	// Spam is a place, not a policy: a room in it never notifies. Asked after code
 	// capture, and it promotes the room as a side effect.
@@ -258,6 +265,35 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	}
 	n.notify(alert)
 	return alert, true
+}
+
+// placeholderSpan is how long a bridge's placeholder waits for the edit that replaces
+// it to be announced in its place.
+const placeholderSpan = 10 * time.Minute
+
+// instead is what a message announces: nothing for a bridge's placeholder (a message
+// it could not read yet), which is kept a while; and, for the edit replacing one, the
+// message it now is, as new. news is false for a placeholder.
+func (n *Notifications) instead(msg domain.Message, now time.Time) (domain.Message, bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for id, at := range n.standIns {
+		if now.Sub(at) > placeholderSpan {
+			delete(n.standIns, id)
+		}
+	}
+	if msg.Placeholder && !msg.IsUpdate() {
+		if n.standIns == nil {
+			n.standIns = map[domain.EventID]time.Time{}
+		}
+		n.standIns[msg.ID] = now
+		return msg, false
+	}
+	if _, held := n.standIns[msg.ID]; held && msg.Edited && !msg.Redacted {
+		delete(n.standIns, msg.ID)
+		msg.Edited, msg.EditedAt, msg.RevisionID = false, time.Time{}, ""
+	}
+	return msg, true
 }
 
 // rated applies the per-room burst limit. Past the burst messages are counted, not

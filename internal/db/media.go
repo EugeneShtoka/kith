@@ -87,8 +87,12 @@ func saveExtras(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain
 			return err
 		}
 	}
-	if err := saveMedia(ctx, tx, roomID, m); err != nil {
-		return err
+	// An edit's attachment counts only where the edit does: an older one arriving
+	// late must not replace a newer one's.
+	if isEdit := m.RevisionID != "" && m.RevisionID != m.ID; !isEdit || apply {
+		if err := saveMedia(ctx, tx, roomID, m); err != nil {
+			return err
+		}
 	}
 	return saveHTML(ctx, tx, roomID, m, apply)
 }
