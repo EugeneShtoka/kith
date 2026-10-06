@@ -195,3 +195,37 @@ func TestAnArchiveRefusedPutsTheRoomBack(t *testing.T) {
 		t.Error("a network's rooms changing was not read again")
 	}
 }
+
+// The filing picker offers the tags a room is filed into by hand — none, or a rule
+// naming a place — and not those their rule fills by what a room is: Unread, DMs,
+// Drafts, Invites, Spam, All.
+func TestTheFilingPickerLeavesOutTagsTheirRuleFills(t *testing.T) {
+	t.Parallel()
+	cfg := config.Config{Tags: []config.Tag{
+		{Name: "All", Rule: []string{"*"}},
+		{Name: "DMs", Rule: []string{"dm"}},
+		{Name: "Unread", Rule: []string{"unread"}},
+		{Name: "Drafts", Rule: []string{"draft"}},
+		{Name: "Invites", Rule: []string{"invite"}},
+		{Name: "Spam", Rule: []string{"spam"}},
+		{Name: "Quiet", Rule: []string{"not unread"}},
+		{Name: "Pinned"},
+		{Name: "Archived"},
+		{Name: "Work", Rule: []string{"space:Work"}},
+		{Name: "Close", Rule: []string{"dm", "tag:Pinned"}},
+	}}
+	m := update(t, configured(cfg), roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "A"}}})
+	m.focus = paneRooms
+	m, _ = m.openSpacePicker()
+	var offered []string
+	for _, item := range m.picker.all {
+		if isTagGroup(item.value) {
+			name, _ := domain.TagOf(item.value)
+			offered = append(offered, name)
+		}
+	}
+	slices.Sort(offered)
+	if want := []string{"Archived", "Close", "Pinned", "Work"}; !slices.Equal(offered, want) {
+		t.Errorf("offered %v, want %v", offered, want)
+	}
+}
