@@ -975,7 +975,7 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleMemberChanged(msg))
 	case roomCreatedMsg:
 		return answered(m.handleRoomCreated(msg))
-	case configCheckedMsg, configSavedMsg, configReloadedMsg, configNewsMsg:
+	case configCheckedMsg, configSavedMsg, configNewsMsg:
 		return answered(m.handleConfigNews(msg))
 	case loginMsg, loginNetworksMsg:
 		return answered(m.handleLogin(msg))
@@ -2783,11 +2783,9 @@ func (m Model) handleConfigNews(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleConfigChecked(msg)
 	case configSavedMsg:
 		return m.handleConfigSaved(msg)
-	case configNewsMsg:
-		return m.handleConfigNewsMsg(msg)
 	}
-	reloaded, _ := msg.(configReloadedMsg)
-	return m.handleConfigReloaded(reloaded)
+	news, _ := msg.(configNewsMsg)
+	return m.handleConfigNewsMsg(news)
 }
 
 // handleConfigSaved reports a save the daemon would not make. One made on a file that
@@ -2858,11 +2856,6 @@ func (m Model) handleConfigNewsMsg(msg configNewsMsg) (Model, tea.Cmd) {
 	}
 	next, cmd := m.adoptConfig(msg.snap.Config, note)
 	return next, tea.Batch(cmd, again)
-}
-
-// handleConfigReloaded reports a config the daemon refused, which leaves it running the old one.
-func (m Model) handleConfigReloaded(msg configReloadedMsg) (Model, tea.Cmd) {
-	return m.sayFailure("saved, but kithd refused it: ", msg.err), nil
 }
 
 // WithRestart wires in restarting the daemon, for :login to turn a network on; nil

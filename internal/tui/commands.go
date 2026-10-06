@@ -1138,21 +1138,6 @@ func (m Model) clearAllDNDCmd() tea.Cmd {
 	return m.dndCmd("do not disturb off", Notifications.ClearAllDND)
 }
 
-// configReloadedMsg reports a config the daemon refused.
-type configReloadedMsg struct{ err error }
-
-// reloadConfigCmd asks the daemon to re-read the file we just wrote. The error comes
-// back because a silent failure would stop notifications unnoticed.
-func (m Model) reloadConfigCmd() tea.Cmd {
-	ctx, notifications := m.ctx, m.notifications.backend
-	return func() tea.Msg {
-		if notifications == nil {
-			return nil // no daemon attached; nothing reads the file but us
-		}
-		return configReloadedMsg{err: notifications.ReloadConfig(ctx)}
-	}
-}
-
 // openedMsg reports a failed attempt to open a link.
 type openedMsg struct{ err error }
 

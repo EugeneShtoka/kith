@@ -18,11 +18,9 @@ import (
 // fakeNotifications stands in for the daemon's notification state, one temporary
 // rule per named thing.
 type fakeNotifications struct {
-	mu      sync.Mutex
-	temps   notify.Temps
-	reloads int
-	setErr  error
-	relErr  error
+	mu     sync.Mutex
+	temps  notify.Temps
+	setErr error
 }
 
 func (f *fakeNotifications) SetDND(_ context.Context, rule notify.Rule) (notify.Temps, error) {
@@ -55,23 +53,12 @@ func (f *fakeNotifications) DND(context.Context) (notify.Temps, error) {
 	return f.temps, nil
 }
 
-func (f *fakeNotifications) ReloadConfig(context.Context) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.reloads++
-	return f.relErr
-}
+func (f *fakeNotifications) ReloadConfig(context.Context) error { return nil }
 
 func (f *fakeNotifications) held() notify.Temps {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append(notify.Temps(nil), f.temps...)
-}
-
-func (f *fakeNotifications) reloadCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.reloads
 }
 
 // silencing gives a model attached to a fake daemon, in Alpha (in the Work space)
@@ -319,32 +306,6 @@ func TestDNDWithoutADaemon(t *testing.T) {
 	}
 	if m.picker.active() {
 		t.Error("there is nothing to ask about with no daemon to ask")
-	}
-}
-
-// Saving a setting asks the daemon to reload the config.
-func TestSavingASettingAsksTheDaemonToReload(t *testing.T) {
-	t.Parallel()
-
-	m, daemon := silencing(t)
-	m = drain(t, m, m.reloadConfigCmd())
-	if daemon.reloadCount() != 1 {
-		t.Fatalf("the daemon was asked to reload %d times, want 1", daemon.reloadCount())
-	}
-	if m.status() != "" {
-		t.Errorf("status = %q, want silence on a successful reload", m.status())
-	}
-}
-
-// A config the daemon refused is reported.
-func TestARefusedReloadIsReported(t *testing.T) {
-	t.Parallel()
-
-	m, daemon := silencing(t)
-	daemon.relErr = errors.New(`notifications.on: unknown level "mentions"`)
-	m = drain(t, m, m.reloadConfigCmd())
-	if !strings.Contains(m.status(), "refused it") || !strings.Contains(m.status(), "mentions") {
-		t.Errorf("status = %q, should say the daemon refused it and why", m.status())
 	}
 }
 
