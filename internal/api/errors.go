@@ -50,4 +50,7 @@ var (
 	// ErrNotOnNetwork: the room's network has no such thing (spaces, threads,
 	// moderation are Matrix's).
 	ErrNotOnNetwork = errors.New("daemon: that room's network cannot do this")
+	// ErrConfigMoved is a change to the config file made on a revision that is no
+	// longer on disk (another window, a hand edit): read it again and change that.
+	ErrConfigMoved = errors.New("daemon: the configuration changed meanwhile; read it again")
 )

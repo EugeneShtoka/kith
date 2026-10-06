@@ -78,8 +78,15 @@ func networksChanged(was, now config.Config) bool {
 	return !reflect.DeepEqual(was.Networks(), now.Networks())
 }
 
-// applyDerived makes cfg, already checked and derived, the running configuration.
+// applyDerived makes cfg, already checked and derived, the running configuration,
+// and has the daemon save it.
 func (m Model) applyDerived(cfg config.Config, derived derivations, done string) (Model, tea.Cmd) {
+	next, cmd := m.runDerived(cfg, derived, done)
+	return next, tea.Batch(next.saveConfigFileCmd(cfg), cmd)
+}
+
+// runDerived makes cfg, already checked and derived, the running configuration.
+func (m Model) runDerived(cfg config.Config, derived derivations, done string) (Model, tea.Cmd) {
 	m.conf.applied++
 	m = m.applyIntegrations(cfg, derived)
 	m.prefs.display = cfg.Display
@@ -123,7 +130,18 @@ func (m Model) applyDerived(cfg config.Config, derived derivations, done string)
 
 	m = m.say(done)
 	// A just-archived room needs its parent space resolved to be filed in the rail.
-	return m, tea.Batch(m.saveConfigFileCmd(cfg), m.resolveParentsCmd())
+	return m, m.resolveParentsCmd()
+}
+
+// adoptConfig makes a configuration changed elsewhere (another window, a hand edit,
+// the daemon itself) the running one, without saving it back: it is the file already.
+// note is what the status line says.
+func (m Model) adoptConfig(cfg config.Config, note string) (Model, tea.Cmd) {
+	derived, err := derive(cfg)
+	if err != nil {
+		return m.sayErr("the configuration changed elsewhere, and this window cannot run it", err), nil
+	}
+	return m.runDerived(cfg, derived, note)
 }
 
 // applyIntegrations sets what is read off the config directly rather than derived.

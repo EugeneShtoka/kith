@@ -80,7 +80,7 @@ func (scopeOnly) ThreadParticipant(context.Context, domain.RoomID, domain.EventI
 
 // serve starts a daemon on a temporary socket, pumping b's channels into its
 // fan-out. The server is shut down, and its exit checked, when the test ends.
-func serve(t *testing.T, b api.Backend) *harness {
+func serve(t *testing.T, b api.Backend, with ...func(*daemon.Daemon)) *harness {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "kithd.sock")
@@ -103,12 +103,14 @@ func serve(t *testing.T, b api.Backend) *harness {
 	pumped := make(chan struct{})
 	go func() { defer close(pumped); streams.Run(ctx, b) }()
 	served := make(chan error, 1)
-	go func() {
-		served <- daemon.Serve(ctx, ln, &daemon.Daemon{
-			Backend: b, Streams: streams, State: state,
-			Notifications: notifications, Reload: reload.fn,
-		})
-	}()
+	d := &daemon.Daemon{
+		Backend: b, Streams: streams, State: state,
+		Notifications: notifications, Reload: reload.fn,
+	}
+	for _, f := range with {
+		f(d)
+	}
+	go func() { served <- daemon.Serve(ctx, ln, d) }()
 	t.Cleanup(func() {
 		cancel()
 		if err := <-served; err != nil {

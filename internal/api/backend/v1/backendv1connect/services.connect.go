@@ -299,6 +299,15 @@ const (
 	// BackendServiceCheckConfigProcedure is the fully-qualified name of the BackendService's
 	// CheckConfig RPC.
 	BackendServiceCheckConfigProcedure = "/backend.v1.BackendService/CheckConfig"
+	// BackendServiceGetConfigProcedure is the fully-qualified name of the BackendService's GetConfig
+	// RPC.
+	BackendServiceGetConfigProcedure = "/backend.v1.BackendService/GetConfig"
+	// BackendServiceUpdateConfigProcedure is the fully-qualified name of the BackendService's
+	// UpdateConfig RPC.
+	BackendServiceUpdateConfigProcedure = "/backend.v1.BackendService/UpdateConfig"
+	// BackendServiceConfigChangedProcedure is the fully-qualified name of the BackendService's
+	// ConfigChanged RPC.
+	BackendServiceConfigChangedProcedure = "/backend.v1.BackendService/ConfigChanged"
 	// BackendServiceScheduleProcedure is the fully-qualified name of the BackendService's Schedule RPC.
 	BackendServiceScheduleProcedure = "/backend.v1.BackendService/Schedule"
 	// BackendServiceScheduledMessagesProcedure is the fully-qualified name of the BackendService's
@@ -556,6 +565,15 @@ type BackendServiceClient interface {
 	// CheckConfig answers whether the daemon would run with this configuration, every
 	// network judging its own section, before a client writes it. It changes nothing.
 	CheckConfig(context.Context, *connect.Request[v1.CheckConfigRequest]) (*connect.Response[v1.CheckConfigResponse], error)
+	// GetConfig is the configuration the daemon runs with, and its file's revision.
+	GetConfig(context.Context, *connect.Request[v1.GetConfigRequest]) (*connect.Response[v1.GetConfigResponse], error)
+	// UpdateConfig writes the configuration file — the daemon is its one writer — if it
+	// is still at base_revision and the daemon would run with the change, then puts it in
+	// force and tells every client (ConfigChanged).
+	UpdateConfig(context.Context, *connect.Request[v1.UpdateConfigRequest]) (*connect.Response[v1.UpdateConfigResponse], error)
+	// ConfigChanged streams the configuration each time it changes: written through
+	// UpdateConfig, or re-read after a hand edit (ReloadConfig).
+	ConfigChanged(context.Context, *connect.Request[v1.ConfigChangedRequest]) (*connect.ServerStreamForClient[v1.ConfigChangedResponse], error)
 	// Schedule
 	// Schedule queues a message.
 	Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error)
@@ -1152,6 +1170,24 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("CheckConfig")),
 			connect.WithClientOptions(opts...),
 		),
+		getConfig: connect.NewClient[v1.GetConfigRequest, v1.GetConfigResponse](
+			httpClient,
+			baseURL+BackendServiceGetConfigProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("GetConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		updateConfig: connect.NewClient[v1.UpdateConfigRequest, v1.UpdateConfigResponse](
+			httpClient,
+			baseURL+BackendServiceUpdateConfigProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("UpdateConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		configChanged: connect.NewClient[v1.ConfigChangedRequest, v1.ConfigChangedResponse](
+			httpClient,
+			baseURL+BackendServiceConfigChangedProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ConfigChanged")),
+			connect.WithClientOptions(opts...),
+		),
 		schedule: connect.NewClient[v1.ScheduleRequest, v1.ScheduleResponse](
 			httpClient,
 			baseURL+BackendServiceScheduleProcedure,
@@ -1271,6 +1307,9 @@ type backendServiceClient struct {
 	dND                   *connect.Client[v1.DNDRequest, v1.DNDResponse]
 	reloadConfig          *connect.Client[v1.ReloadConfigRequest, v1.ReloadConfigResponse]
 	checkConfig           *connect.Client[v1.CheckConfigRequest, v1.CheckConfigResponse]
+	getConfig             *connect.Client[v1.GetConfigRequest, v1.GetConfigResponse]
+	updateConfig          *connect.Client[v1.UpdateConfigRequest, v1.UpdateConfigResponse]
+	configChanged         *connect.Client[v1.ConfigChangedRequest, v1.ConfigChangedResponse]
 	schedule              *connect.Client[v1.ScheduleRequest, v1.ScheduleResponse]
 	scheduledMessages     *connect.Client[v1.ScheduledMessagesRequest, v1.ScheduledMessagesResponse]
 	cancelScheduled       *connect.Client[v1.CancelScheduledRequest, v1.CancelScheduledResponse]
@@ -1756,6 +1795,21 @@ func (c *backendServiceClient) CheckConfig(ctx context.Context, req *connect.Req
 	return c.checkConfig.CallUnary(ctx, req)
 }
 
+// GetConfig calls backend.v1.BackendService.GetConfig.
+func (c *backendServiceClient) GetConfig(ctx context.Context, req *connect.Request[v1.GetConfigRequest]) (*connect.Response[v1.GetConfigResponse], error) {
+	return c.getConfig.CallUnary(ctx, req)
+}
+
+// UpdateConfig calls backend.v1.BackendService.UpdateConfig.
+func (c *backendServiceClient) UpdateConfig(ctx context.Context, req *connect.Request[v1.UpdateConfigRequest]) (*connect.Response[v1.UpdateConfigResponse], error) {
+	return c.updateConfig.CallUnary(ctx, req)
+}
+
+// ConfigChanged calls backend.v1.BackendService.ConfigChanged.
+func (c *backendServiceClient) ConfigChanged(ctx context.Context, req *connect.Request[v1.ConfigChangedRequest]) (*connect.ServerStreamForClient[v1.ConfigChangedResponse], error) {
+	return c.configChanged.CallServerStream(ctx, req)
+}
+
 // Schedule calls backend.v1.BackendService.Schedule.
 func (c *backendServiceClient) Schedule(ctx context.Context, req *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error) {
 	return c.schedule.CallUnary(ctx, req)
@@ -2018,6 +2072,15 @@ type BackendServiceHandler interface {
 	// CheckConfig answers whether the daemon would run with this configuration, every
 	// network judging its own section, before a client writes it. It changes nothing.
 	CheckConfig(context.Context, *connect.Request[v1.CheckConfigRequest]) (*connect.Response[v1.CheckConfigResponse], error)
+	// GetConfig is the configuration the daemon runs with, and its file's revision.
+	GetConfig(context.Context, *connect.Request[v1.GetConfigRequest]) (*connect.Response[v1.GetConfigResponse], error)
+	// UpdateConfig writes the configuration file — the daemon is its one writer — if it
+	// is still at base_revision and the daemon would run with the change, then puts it in
+	// force and tells every client (ConfigChanged).
+	UpdateConfig(context.Context, *connect.Request[v1.UpdateConfigRequest]) (*connect.Response[v1.UpdateConfigResponse], error)
+	// ConfigChanged streams the configuration each time it changes: written through
+	// UpdateConfig, or re-read after a hand edit (ReloadConfig).
+	ConfigChanged(context.Context, *connect.Request[v1.ConfigChangedRequest], *connect.ServerStream[v1.ConfigChangedResponse]) error
 	// Schedule
 	// Schedule queues a message.
 	Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error)
@@ -2610,6 +2673,24 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("CheckConfig")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceGetConfigHandler := connect.NewUnaryHandler(
+		BackendServiceGetConfigProcedure,
+		svc.GetConfig,
+		connect.WithSchema(backendServiceMethods.ByName("GetConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceUpdateConfigHandler := connect.NewUnaryHandler(
+		BackendServiceUpdateConfigProcedure,
+		svc.UpdateConfig,
+		connect.WithSchema(backendServiceMethods.ByName("UpdateConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceConfigChangedHandler := connect.NewServerStreamHandler(
+		BackendServiceConfigChangedProcedure,
+		svc.ConfigChanged,
+		connect.WithSchema(backendServiceMethods.ByName("ConfigChanged")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceScheduleHandler := connect.NewUnaryHandler(
 		BackendServiceScheduleProcedure,
 		svc.Schedule,
@@ -2822,6 +2903,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceReloadConfigHandler.ServeHTTP(w, r)
 		case BackendServiceCheckConfigProcedure:
 			backendServiceCheckConfigHandler.ServeHTTP(w, r)
+		case BackendServiceGetConfigProcedure:
+			backendServiceGetConfigHandler.ServeHTTP(w, r)
+		case BackendServiceUpdateConfigProcedure:
+			backendServiceUpdateConfigHandler.ServeHTTP(w, r)
+		case BackendServiceConfigChangedProcedure:
+			backendServiceConfigChangedHandler.ServeHTTP(w, r)
 		case BackendServiceScheduleProcedure:
 			backendServiceScheduleHandler.ServeHTTP(w, r)
 		case BackendServiceScheduledMessagesProcedure:
@@ -3219,6 +3306,18 @@ func (UnimplementedBackendServiceHandler) ReloadConfig(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) CheckConfig(context.Context, *connect.Request[v1.CheckConfigRequest]) (*connect.Response[v1.CheckConfigResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.CheckConfig is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) GetConfig(context.Context, *connect.Request[v1.GetConfigRequest]) (*connect.Response[v1.GetConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.GetConfig is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) UpdateConfig(context.Context, *connect.Request[v1.UpdateConfigRequest]) (*connect.Response[v1.UpdateConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.UpdateConfig is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ConfigChanged(context.Context, *connect.Request[v1.ConfigChangedRequest], *connect.ServerStream[v1.ConfigChangedResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ConfigChanged is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error) {

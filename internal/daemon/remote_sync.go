@@ -10,6 +10,7 @@ import (
 
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	pc "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -154,6 +155,15 @@ func (r *Remote) say(attached bool) {
 // still marks its room.
 func (r *Remote) Attached() <-chan bool { return r.attached.ch }
 
+// configPump is the configuration's stream, each change decoded as the file is.
+func (r *Remote) configPump(ctx context.Context) error {
+	return pumpStream(ctx, "config", r.configs, r.c.ConfigChanged, &v1.ConfigChangedRequest{},
+		func(f *v1.ConfigChangedResponse) (config.Snapshot, bool) {
+			cfg, err := config.Decode(f.GetConfig())
+			return config.Snapshot{Config: cfg, Revision: f.GetRevision()}, err == nil
+		})
+}
+
 // attach runs one pump per stream until they have all ended. The first to end
 // detaches the rest: they share one connection, so one ending means this client
 // is no longer served. Channels are not closed here.
@@ -209,6 +219,7 @@ func (r *Remote) attach(ctx context.Context, detach context.CancelFunc) error {
 				})
 		},
 	}
+	pumps = append(pumps, r.configPump)
 	errs := make([]error, len(pumps))
 	var wg sync.WaitGroup
 	for i, pump := range pumps {
@@ -282,6 +293,9 @@ func (r *Remote) Verifications() <-chan domain.Verification { return r.verificat
 // Follows streams matrix URIs handed over by `kith --open`.
 func (r *Remote) Follows() <-chan string { return r.follows.ch }
 
+// ConfigChanges is the configuration after each change, however made.
+func (r *Remote) ConfigChanges() <-chan config.Snapshot { return r.configs.ch }
+
 // RoomsChanged says a network rewrote its rooms: read the list again.
 func (r *Remote) RoomsChanged() <-chan struct{} { return r.rooms.ch }
 
@@ -333,4 +347,5 @@ func (r *Remote) closeStreams() {
 	r.attached.done()
 	r.follows.done()
 	r.rooms.done()
+	r.configs.done()
 }

@@ -421,6 +421,7 @@ func serve(
 		Log:           log,
 		Reload:        reloader(file, relevel, cutoff, backend, w.notifications),
 		CheckConfig:   backend.checkConfig,
+		Config:        daemon.NewConfigFile(file.path, file.profile),
 	})
 	// Cancel (not backend.Stop) and join: a sync still decrypting needs the store, and
 	// when Serve failed the parent ctx is still live.

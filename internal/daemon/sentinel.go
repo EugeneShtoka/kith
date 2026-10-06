@@ -36,6 +36,7 @@ var sentinels = map[string]error{
 	"seat-taken":        api.ErrSeatTaken,
 	"network-off":       api.ErrNetworkOff,
 	"not-on-network":    api.ErrNotOnNetwork,
+	"config-moved":      api.ErrConfigMoved,
 }
 
 // sentinelOrder is the order sentinels are tried in, so an error wrapping two is

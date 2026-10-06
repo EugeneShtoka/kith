@@ -39,6 +39,9 @@ type Daemon struct {
 	Reload Reload
 	// CheckConfig judges a config a client means to write; nil refuses the call.
 	CheckConfig CheckConfig
+	// Config is the config file, which only the daemon writes; nil refuses GetConfig
+	// and UpdateConfig.
+	Config *ConfigFile
 	// Scheduler is nil when the queue path could not be resolved; its handlers
 	// then refuse.
 	Scheduler *Scheduler

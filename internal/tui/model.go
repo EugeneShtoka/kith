@@ -10,6 +10,7 @@ import (
 	"image/color"
 	"log/slog"
 	"maps"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -874,7 +875,7 @@ func (m Model) Init() tea.Cmd {
 		m.loadUnreadCmd(), m.loadInvitesCmd(),
 		m.startSyncCmd(), m.listenCmd(), m.listenVerifyCmd(), m.listenUnreadCmd(),
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
-		m.listenFollowCmd(), m.listenSeatCmd(), m.listenRoomsCmd(),
+		m.listenFollowCmd(), m.listenSeatCmd(), m.listenRoomsCmd(), m.listenConfigCmd(),
 		m.loadDraftsCmd(),
 		m.loadSpamCmd(),
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
@@ -974,7 +975,7 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleMemberChanged(msg))
 	case roomCreatedMsg:
 		return answered(m.handleRoomCreated(msg))
-	case configCheckedMsg, configSavedMsg, configReloadedMsg:
+	case configCheckedMsg, configSavedMsg, configReloadedMsg, configNewsMsg:
 		return answered(m.handleConfigNews(msg))
 	case loginMsg, loginNetworksMsg:
 		return answered(m.handleLogin(msg))
@@ -2748,11 +2749,18 @@ func (m Model) helpKey() string {
 	return "the key bound to keys.help"
 }
 
-// WithConfigFile sets where settings are written back and applies the config's
-// integrations. Without a path, changes apply but are not saved.
+// WithConfigFile applies the config read from path at start, and its integrations.
+// Changes are saved by the daemon, the file's one writer, made on the revision read
+// here; without a daemon to keep it, they apply but are not saved.
 func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 	m.conf.path = path
 	m.conf.writer = &configWriter{}
+	if store, ok := m.backend.(configStore); ok {
+		m.conf.writer.store = store
+		if data, err := os.ReadFile(path); err == nil { //nolint:gosec // G304: the config file the user named
+			m.conf.writer.rev = config.Revision(data)
+		}
+	}
 	// main validates first; an error here means a config built in code, so fall back to defaults whole.
 	derived, err := derive(cfg)
 	if err != nil {
@@ -2775,19 +2783,81 @@ func (m Model) handleConfigNews(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleConfigChecked(msg)
 	case configSavedMsg:
 		return m.handleConfigSaved(msg)
+	case configNewsMsg:
+		return m.handleConfigNewsMsg(msg)
 	}
 	reloaded, _ := msg.(configReloadedMsg)
 	return m.handleConfigReloaded(reloaded)
 }
 
-// handleConfigSaved reports a failed write; on success it asks the daemon to re-read
-// the file, since the daemon makes the notification decisions.
+// handleConfigSaved reports a save the daemon would not make. One made on a file that
+// changed meanwhile is overtaken: the file as it is now is read and run instead. A
+// save that went through needs nothing: the daemon has put it in force.
 func (m Model) handleConfigSaved(msg configSavedMsg) (Model, tea.Cmd) {
-	if msg.err != nil {
-		m = m.sayErr("setting applied but not saved", msg.err)
+	switch {
+	case msg.err == nil:
 		return m, nil
+	case errors.Is(msg.err, api.ErrConfigMoved):
+		return m, m.readConfigCmd(true)
 	}
-	return m, m.reloadConfigCmd()
+	return m.sayErr("setting applied but not saved", msg.err), nil
+}
+
+// configNewsMsg is the configuration as the daemon has it now: changed elsewhere
+// (listened for), or read again after a save it refused as made on an older file
+// (overtaken).
+type configNewsMsg struct {
+	snap      config.Snapshot
+	overtaken bool
+	listened  bool
+	err       error
+}
+
+// listenConfigCmd waits for the next change to the configuration; nil without a
+// daemon keeping it.
+func (m Model) listenConfigCmd() tea.Cmd {
+	store := m.conf.writer.storeOf()
+	if store == nil {
+		return nil
+	}
+	return listen(m.ctx, store.ConfigChanges(), func(snap config.Snapshot) tea.Msg {
+		return configNewsMsg{snap: snap, listened: true}
+	})
+}
+
+// readConfigCmd reads the configuration from the daemon; overtaken when a save was
+// refused for being made on an older file.
+func (m Model) readConfigCmd(overtaken bool) tea.Cmd {
+	store, ctx := m.conf.writer.storeOf(), m.ctx
+	if store == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		snap, err := store.GetConfig(ctx)
+		return configNewsMsg{snap: snap, overtaken: overtaken, err: err}
+	}
+}
+
+// handleConfigNewsMsg runs a configuration changed elsewhere — unless it is the echo
+// of this window's own save — saying which changes of this window it overtook.
+func (m Model) handleConfigNewsMsg(msg configNewsMsg) (Model, tea.Cmd) {
+	var again tea.Cmd
+	if msg.listened {
+		again = m.listenConfigCmd()
+	}
+	if msg.err != nil {
+		return m.sayErr("could not read the configuration", msg.err), again
+	}
+	news, dropped := m.conf.writer.adopt(msg.snap.Revision)
+	if !news {
+		return m, again
+	}
+	note := "the configuration changed elsewhere"
+	if msg.overtaken || dropped {
+		note += "; your last change was not saved — make it again"
+	}
+	next, cmd := m.adoptConfig(msg.snap.Config, note)
+	return next, tea.Batch(cmd, again)
 }
 
 // handleConfigReloaded reports a config the daemon refused, which leaves it running the old one.

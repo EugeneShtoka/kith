@@ -15,7 +15,7 @@ func TestAnOlderConfigSaveNeverLandsLast(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "config.toml")
 	base := config.Config{Homeserver: "https://x", User: "@me:x"}
-	m := starterNew(apitest.Nop{}, config.Display{}).WithConfigFile(path, base)
+	m := starterNew(apitest.Nop{}, config.Display{}).WithConfigFile(path, base).keptIn()
 
 	older, newer := base, base
 	older.Notifications.Enabled = false

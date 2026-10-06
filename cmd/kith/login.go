@@ -109,7 +109,8 @@ func loginAccount(ctx context.Context, logins api.Logins, network, named string)
 type cliLogin struct {
 	backend interface {
 		api.Logins
-		ReloadConfig(ctx context.Context) error
+		GetConfig(ctx context.Context) (config.Snapshot, error)
+		UpdateConfig(ctx context.Context, base string, cfg config.Config) (string, error)
 	}
 	in   *bufio.Reader
 	path string
@@ -180,23 +181,32 @@ func (l cliLogin) ask(fields []api.LoginField) (map[string]string, error) {
 	return values, nil
 }
 
-// write puts a new account into the config file and has the daemon re-read it.
+// configTries is how often a write is made again on a config that changed under it.
+const configTries = 3
+
+// write has the daemon, the config file's writer, put a new account into it. A file
+// changed meanwhile (a window saving a setting) is read again and the account put into
+// that.
 func (l cliLogin) write(ctx context.Context, rec api.LoginRecord) error {
-	cfg, err := config.Load(l.path)
-	if err != nil {
-		return fmt.Errorf("read the config: %w", err)
+	for try := 1; ; try++ {
+		snap, err := l.backend.GetConfig(ctx)
+		if err != nil {
+			return fmt.Errorf("read the config: %w", err)
+		}
+		cfg := snap.Config
+		if werr := cfg.Write(rec.Table, rec.Values); werr != nil {
+			return fmt.Errorf("set the account up: %w", werr)
+		}
+		_, err = l.backend.UpdateConfig(ctx, snap.Revision, cfg)
+		if errors.Is(err, api.ErrConfigMoved) && try < configTries {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("save the config: %w", err)
+		}
+		fmt.Println("kith: wrote the account into " + l.path + ".")
+		return nil
 	}
-	if err := cfg.Write(rec.Table, rec.Values); err != nil {
-		return fmt.Errorf("set the account up: %w", err)
-	}
-	if err := config.Save(l.path, cfg); err != nil {
-		return fmt.Errorf("save the config: %w", err)
-	}
-	fmt.Println("kith: wrote the account into " + l.path + ".")
-	if err := l.backend.ReloadConfig(ctx); err != nil {
-		return fmt.Errorf("have kithd re-read the config: %w", err)
-	}
-	return nil
 }
 
 // readLine reads one line typed after prompt, as typed (it is not a secret).

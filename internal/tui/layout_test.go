@@ -27,7 +27,7 @@ func laidOut(t *testing.T, display config.Display) (Model, string) {
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
 		{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!b:x"}},
 	}})
-	m = sized(t, m).WithConfigFile(path, base)
+	m = sized(t, m).WithConfigFile(path, base).keptIn()
 	m = m.clearStatus()
 	return m, path
 }

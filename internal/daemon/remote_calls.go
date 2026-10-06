@@ -57,6 +57,30 @@ func (r *Remote) MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unrea
 	return err
 }
 
+// GetConfig is the configuration the daemon runs with, and its file's revision.
+func (r *Remote) GetConfig(ctx context.Context) (config.Snapshot, error) {
+	res, err := call(ctx, "read the config", r.c.GetConfig, &v1.GetConfigRequest{})
+	if err != nil {
+		return config.Snapshot{}, err
+	}
+	cfg, err := config.Decode(res.GetConfig())
+	if err != nil {
+		return config.Snapshot{}, callErr("read the config", err)
+	}
+	return config.Snapshot{Config: cfg, Revision: res.GetRevision()}, nil
+}
+
+// UpdateConfig has the daemon write cfg, made on revision base, and returns the new
+// revision; api.ErrConfigMoved when the file changed since.
+func (r *Remote) UpdateConfig(ctx context.Context, base string, cfg config.Config) (string, error) {
+	res, err := call(ctx, "save the config", r.c.UpdateConfig,
+		&v1.UpdateConfigRequest{BaseRevision: base, Config: config.Encode(cfg)})
+	if err != nil {
+		return "", err
+	}
+	return res.GetRevision(), nil
+}
+
 func (r *Remote) SetRoomArchived(ctx context.Context, roomID domain.RoomID, archived bool) error {
 	_, err := call(ctx, "archive", r.c.SetRoomArchived, &v1.SetRoomArchivedRequest{RoomId: string(roomID), Archived: archived})
 	return err

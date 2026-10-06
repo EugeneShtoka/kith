@@ -2,11 +2,16 @@ package daemon_test
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/apitest"
+	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -151,5 +156,49 @@ func TestRoomsChangedReachesTheClient(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatal("RoomsChanged() never arrived")
 		}
+	}
+}
+
+// A window's change to the config is written by the daemon and reaches every other
+// window; one made on a file that changed since comes back as ErrConfigMoved.
+func TestAConfigChangeReachesEveryWindow(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("homeserver = \"https://x\"\nuser = \"@me:x\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h := serve(t, &fakeBackend{Nop: apitest.Nop{}}, func(d *daemon.Daemon) { d.Config = daemon.NewConfigFile(path, "") })
+	saving, watching := h.client(), h.client()
+	go func() { _ = watching.Start(context.Background()) }()
+	h.waitAttached(1)
+	ctx := t.Context()
+	read, err := saving.GetConfig(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := read.Config.Clone()
+	changed.Display.FPS = 42
+	deadline := time.Now().Add(settle)
+	var rev string
+	for { // the watching window's stream may not be open yet: save until it hears one
+		rev, err = saving.UpdateConfig(ctx, read.Revision, changed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case snap := <-watching.ConfigChanges():
+			if snap.Config.Display.FPS != 42 || snap.Revision != rev {
+				t.Errorf("heard %d at %s, want 42 at %s", snap.Config.Display.FPS, snap.Revision, rev)
+			}
+			if _, err := saving.UpdateConfig(ctx, read.Revision, changed); !errors.Is(err, api.ErrConfigMoved) {
+				t.Errorf("a save on the older revision = %v, want ErrConfigMoved", err)
+			}
+			return
+		case <-time.After(20 * time.Millisecond):
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the change never reached the other window")
+		}
+		read.Revision = rev
 	}
 }

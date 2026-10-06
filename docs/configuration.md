@@ -123,8 +123,14 @@ A change made in the app is saved to `config.toml` right away:
   The inline documentation is always available from `kith --print-config`.
 - **The first rewrite leaves `config.toml.bak`** beside the file, holding what you
   wrote by hand. Later saves never overwrite it.
-- After saving, kith asks the daemon to re-read the file, so notification changes
-  apply at once. If the daemon rejects the new file, the status line says so.
+- **`kithd` is the one writer.** A window hands its change to the daemon, which
+  checks it would run with it (a refused change is never written, and the status line
+  says why), writes the file, puts it in force, and tells every open window, which
+  shows it at once. `kith login` writes new accounts the same way.
+- **A change is made on the file as it was read.** If the file changed meanwhile, in
+  another window or by hand, the change is refused rather than written over it: the
+  window takes the file as it is now and says your last change was not saved, so you
+  can make it again.
 
 When you edit the file by hand, restart `kith` to pick up the change. Settings the
 daemon acts on (notifications, spelling, the assistant, deletion handling) take effect
