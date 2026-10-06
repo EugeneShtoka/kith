@@ -88,22 +88,22 @@ func TestAnAccountNamesTheNumbersItKnows(t *testing.T) {
 	account := Account{Name: "home", Digits: ownDigits}
 	a, cache, store := offline(t, account)
 	client := linkedClient(t, store, ownDigits)
-	pn := func(user string) types.JID { return types.NewJID(user, types.DefaultUserServer) }
+	phone := func(user string) types.JID { return types.NewJID(user, types.DefaultUserServer) }
 	// whatsmeow stores the first name, then the full name.
-	if err := client.Store.Contacts.PutContactName(ctx, pn("447700900111"), "Dana", "Dana Lee"); err != nil {
+	if err := client.Store.Contacts.PutContactName(ctx, phone("447700900111"), "Dana", "Dana Lee"); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := client.Store.Contacts.PutPushName(ctx, pn("447700900111"), "dana!"); err != nil {
+	if _, _, err := client.Store.Contacts.PutPushName(ctx, phone("447700900111"), "dana!"); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := client.Store.Contacts.PutPushName(ctx, pn("447700900222"), "Alex"); err != nil {
+	if _, _, err := client.Store.Contacts.PutPushName(ctx, phone("447700900222"), "Alex"); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := client.Store.Contacts.PutBusinessName(ctx, pn("447700900333"), "Kim's Bakery"); err != nil {
+	if _, _, err := client.Store.Contacts.PutBusinessName(ctx, phone("447700900333"), "Kim's Bakery"); err != nil {
 		t.Fatal(err)
 	}
 	lid, unmapped := types.NewJID("100000000000001", types.HiddenUserServer), types.NewJID("100000000000002", types.HiddenUserServer)
-	if err := client.Store.LIDs.PutLIDMapping(ctx, lid, pn("447700900444")); err != nil {
+	if err := client.Store.LIDs.PutLIDMapping(ctx, lid, phone("447700900444")); err != nil {
 		t.Fatal(err)
 	}
 	if err := client.Store.Contacts.PutContactName(ctx, lid, "Sam Hidden", ""); err != nil {

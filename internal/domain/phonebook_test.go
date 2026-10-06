@@ -31,12 +31,12 @@ func TestALabelIsANumberOnlyWhenItIsNothingElse(t *testing.T) {
 func TestABridgesTagComesOffAName(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]string{
-		"Dana Levi (WA)":      "Dana Levi",
-		"Dana (SIG)":          "Dana",
-		"Dana (Internations)": "Dana (Internations)",
-		"Dana (wa)":           "Dana (wa)",
-		"Dana":                "Dana",
-		"(WA)":                "(WA)",
+		"Dana Levi (WA)": "Dana Levi",
+		"Dana (SIG)":     "Dana",
+		"Dana (Acme)":    "Dana (Acme)",
+		"Dana (wa)":      "Dana (wa)",
+		"Dana":           "Dana",
+		"(WA)":           "(WA)",
 	} {
 		if got := WithoutBridgeTag(name); got != want {
 			t.Errorf("WithoutBridgeTag(%q) = %q, want %q", name, got, want)

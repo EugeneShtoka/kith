@@ -49,10 +49,10 @@ func (c *Cache) PhoneBook(ctx context.Context) (domain.PhoneBook, error) {
 	saved, err := collect(ctx, c.db, "phone names", "SELECT source, phone, name, rank FROM phone_names",
 		func(rows *sql.Rows) (known, error) {
 			var k known
-			var rank int
-			err := rows.Scan(&k.source, &k.Phone, &k.Name, &rank)
-			k.Rank = domain.NameRank(rank)
-			return k, err
+			if err := rows.Scan(&k.source, &k.Phone, &k.Name, (*int)(&k.Rank)); err != nil {
+				return k, err
+			}
+			return k, nil
 		})
 	if err != nil {
 		return nil, err
@@ -62,8 +62,7 @@ func (c *Cache) PhoneBook(ctx context.Context) (domain.PhoneBook, error) {
 		  WHERE display_name <> '' AND (user_id LIKE '@whatsapp%' OR user_id LIKE 'whatsapp:%')`,
 		func(rows *sql.Rows) (domain.Member, error) {
 			var m domain.Member
-			err := rows.Scan(&m.UserID, &m.DisplayName)
-			return m, err
+			return m, rows.Scan(&m.UserID, &m.DisplayName)
 		})
 	if err != nil {
 		return nil, err
