@@ -4,6 +4,7 @@
 package tui
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -56,6 +57,9 @@ type group struct {
 	admits func(unreadView, domain.Room) bool
 	// sepAfter draws a divider row beneath this group (a separator token in the rail order).
 	sepAfter bool
+	// forum is the room a forum's row is for: the room list is that room, then every
+	// one of its topics, read or not.
+	forum domain.RoomID
 	// sticky keeps the open room listed until you move off it; first puts the row at
 	// the top unless the rail order places it; countInLabel adds how many rooms it
 	// holds to the label; hideWhenEmpty drops the row while it holds nothing.
@@ -98,12 +102,48 @@ func railGroups(
 			},
 		})
 	}
+	groups = append(groups, forumGroups(rooms, names)...)
 	if len(groups) == 0 {
 		groups = []group{fallbackGroup()}
 	}
 	groups = applyRailConfig(groups, cfg, names, view, rooms)
 	return withoutTrailingSeparator(promoteFirst(groups, cfg))
 }
+
+// forumGroups is a rail row per forum, after the spaces: a forum's topics are rooms
+// of a kind, and one fully read would otherwise be listed nowhere. Its label is the
+// room's, as [[display.name]] gives it.
+func forumGroups(rooms []domain.Room, names []config.DisplayName) []group {
+	display := config.Display{Names: names}
+	var groups []group
+	for _, r := range rooms {
+		if !r.Forum || r.IsInvite() {
+			continue
+		}
+		id := r.ID
+		groups = append(groups, group{
+			key:   forumGroupKey(r.DisplayName()),
+			label: cmp.Or(display.NameFor(string(id)), r.DisplayName()),
+			// Spam, and a tag that takes its rooms out of the spaces (Archived), take the
+			// forum's row away with it.
+			admits: func(v unreadView, x domain.Room) bool {
+				return x.ID == id && !v.isSpam(x) && !v.leavesMadeSpaces(x)
+			},
+			forum:         id,
+			hideWhenEmpty: true,
+		})
+	}
+	return groups
+}
+
+// forumGroupKey is a forum's rail key: `room:<name>`, as the rail order names it.
+func forumGroupKey(name string) string { return forumKeyPrefix + name }
+
+// forumKeyPrefix begins a forum's rail key.
+const forumKeyPrefix = "room:"
+
+// isForumGroup reports whether a rail key is a forum's.
+func isForumGroup(key string) bool { return strings.HasPrefix(key, forumKeyPrefix) }
 
 // fallbackGroupKey is the rail key of the one row a rail with no spaces and no tags
 // gets.
@@ -157,9 +197,11 @@ func isTagGroup(key string) bool {
 	return ok
 }
 
-// isSpaceGroup reports whether a rail key is a space's: neither a tag nor the
+// isSpaceGroup reports whether a rail key is a space's: neither a tag, a forum nor the
 // fallback row. A space's key is its name.
-func isSpaceGroup(key string) bool { return key != fallbackGroupKey && !isTagGroup(key) }
+func isSpaceGroup(key string) bool {
+	return key != fallbackGroupKey && !isTagGroup(key) && !isForumGroup(key)
+}
 
 // tagGroups is a rail row per tag not hidden, in configured order, with the tag's
 // properties (see unreadView.showsInTag for who it lists).
@@ -2292,7 +2334,12 @@ func (m Model) selectGroup() (Model, tea.Cmd) {
 	if len(fr) == 0 {
 		return m.clearRoom()
 	}
-	return m.selectRoom(fr[0])
+	next, cmd := m.selectRoom(fr[0])
+	// A forum's row lists every topic: ask for them now, not once the room loads.
+	if g, ok := m.currentGroup(); ok && g.forum != "" {
+		cmd = tea.Batch(cmd, m.roomThreadsCmd(g.forum))
+	}
+	return next, cmd
 }
 
 // leavingFor settles what must be read before the open room changes: the unread
@@ -2390,7 +2437,8 @@ func (m Model) loadRoomCmd(roomID domain.RoomID) tea.Cmd {
 	if _, ranked := m.glyphs.orders[roomID]; !ranked {
 		cmds = append(cmds, m.emojiScoresCmd(roomID, domain.EmojiReaction), m.emojiScoresCmd(roomID, domain.EmojiComposed))
 	}
-	if m.prefs.display.Threads.Mode() == config.ThreadsAll {
+	// A forum's row lists every topic, read or not: what ListThreads answers.
+	if room, _ := m.roomByID(roomID); m.prefs.display.Threads.Mode() == config.ThreadsAll || room.Forum {
 		cmds = append(cmds, m.roomThreadsCmd(roomID))
 	}
 	return tea.Batch(append(cmds, m.listThreadsCmd())...)
@@ -2564,7 +2612,8 @@ func (m Model) handleRooms(msg roomsMsg) (Model, tea.Cmd) {
 	// The cursor before the change, so a removed room hands selection to a neighbor.
 	was := m.roomCursor()
 	m.rooms = m.rooms.withJoined(msg.rooms)
-	m = m.refreshPlaces()
+	// The rail follows the rooms: a forum's row, a tag hidden while it holds none.
+	m = m.refreshPlaces().rebuiltRail()
 	// Archived rooms need their parent space; asked only for archived rooms.
 	parents := m.resolveParentsCmd()
 	if mdl, cmd, entered := m.enterPending(); entered {

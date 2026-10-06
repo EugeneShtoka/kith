@@ -52,6 +52,8 @@ type listing struct {
 	hashes  accessHashes
 	// archived is, for each listed room, whether it is in Telegram's Archived folder.
 	archived map[domain.RoomID]bool
+	// forums is, for each listed room, whether it is made of topics.
+	forums map[domain.RoomID]bool
 }
 
 // dialog is one of an account's dialogs: its peer, as calls name it, its latest
@@ -72,6 +74,7 @@ func listed(self int64, elems []dialog) listing {
 	l := listing{
 		members:  map[domain.RoomID][]domain.Member{},
 		archived: map[domain.RoomID]bool{},
+		forums:   map[domain.RoomID]bool{},
 		hashes:   accessHashes{users: map[int64]int64{}, channels: map[int64]int64{}},
 	}
 	for _, e := range elems {
@@ -84,6 +87,7 @@ func listed(self int64, elems []dialog) listing {
 			room.Archived = folder == archiveFolder
 			l.archived[room.ID] = room.Archived
 		}
+		l.forums[room.ID] = room.Forum
 		l.rooms = append(l.rooms, room)
 		if member != nil {
 			l.members[room.ID] = []domain.Member{*member}
@@ -126,7 +130,7 @@ func (l *listing) room(self int64, e dialog) (domain.Room, *domain.Member, bool)
 			return room, nil, false
 		}
 		l.hashes.channels[p.ChannelID] = p.AccessHash
-		room.ID, room.Name = roomID(self, -(channelMark+p.ChannelID)), c.Title
+		room.ID, room.Name, room.Forum = roomID(self, -(channelMark+p.ChannelID)), c.Title, c.Forum
 		return room, nil, true
 	}
 	return room, nil, false
@@ -311,6 +315,9 @@ func (a *Adapter) save(ctx context.Context, self int64, l listing, fetched time.
 	}
 	if err := a.cache.SetArchived(ctx, a.listedArchive(l.archived, fetched)); err != nil {
 		return fmt.Errorf("telegram: cache which chats are archived: %w", err)
+	}
+	if err := a.cache.SetForums(ctx, l.forums); err != nil {
+		return fmt.Errorf("telegram: cache which chats are forums: %w", err)
 	}
 	for id, members := range l.members {
 		if err := a.cache.SaveMembers(ctx, id, members); err != nil {

@@ -197,3 +197,49 @@ func TestATopicsRootIsFetched(t *testing.T) {
 		t.Error("a topic's root downloaded an attachment")
 	}
 }
+
+// A supergroup with topics is listed as a forum, and cached so: a plain group or
+// channel is not, and a group that drops its topics is a forum no more.
+func TestAListingSaysWhichChatsAreForums(t *testing.T) {
+	t.Parallel()
+	channels := func(forum bool) map[int64]*tg.Channel {
+		return map[int64]*tg.Channel{
+			31: {ID: 31, AccessHash: 310, Title: "Hikers", Forum: forum, Megagroup: true},
+			32: {ID: 32, AccessHash: 320, Title: "News", Broadcast: true},
+		}
+	}
+	dialogs := func(forum bool) []dialog {
+		ent := peer.NewEntities(nil, map[int64]*tg.Chat{11: {ID: 11, Title: "Old"}}, channels(forum))
+		return []dialog{
+			{peer: &tg.InputPeerChannel{ChannelID: 31, AccessHash: 310}, entities: ent},
+			{peer: &tg.InputPeerChannel{ChannelID: 32, AccessHash: 320}, entities: ent},
+			{peer: &tg.InputPeerChat{ChatID: 11}, entities: ent},
+		}
+	}
+	a, cache := cachedAdapter(t, &memSecrets{values: map[string]string{}})
+	forums := func() []domain.RoomID {
+		rooms, err := cache.Rooms(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []domain.RoomID
+		for i := range rooms {
+			if rooms[i].Forum {
+				out = append(out, rooms[i].ID)
+			}
+		}
+		return out
+	}
+	if err := a.save(t.Context(), 42, listed(42, dialogs(true)), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got := forums(); !slices.Equal(got, []domain.RoomID{forumRoom}) {
+		t.Errorf("forums = %v, want the supergroup with topics", got)
+	}
+	if err := a.save(t.Context(), 42, listed(42, dialogs(false)), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got := forums(); len(got) != 0 {
+		t.Errorf("forums = %v after the group dropped its topics", got)
+	}
+}

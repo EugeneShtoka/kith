@@ -98,6 +98,12 @@ CREATE TABLE room_archived (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
+-- Rooms made of topics (Telegram's forums). Its own table, written only by that
+-- network's listing (SetForums), as room_archived is.
+CREATE TABLE room_forums (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
 -- Tombstone/predecessor links. Its own table because SaveRooms is a whole-list
 -- snapshot that would blank extra rooms columns. checked_ms records that we looked.
 CREATE TABLE room_upgrades (
@@ -341,6 +347,10 @@ var migrations = []string{
 ) STRICT, WITHOUT ROWID;`,
 	// v4: chats the network archived.
 	`CREATE TABLE IF NOT EXISTS room_archived (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;`,
+	// v5: rooms made of topics.
+	`CREATE TABLE IF NOT EXISTS room_forums (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;`,
 }

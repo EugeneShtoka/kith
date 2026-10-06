@@ -36,19 +36,21 @@ func (c *Cache) Rooms(ctx context.Context) ([]domain.Room, error) {
 func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room, error) {
 	return collect(ctx, c.db, "rooms",
 		`SELECT r.id, r.name, r.is_direct, r.invited_by, r.heroes,
-		        COALESCE(t.topic, ''), COALESCE(u.replacement, ''), a.room_id IS NOT NULL
+		        COALESCE(t.topic, ''), COALESCE(u.replacement, ''), a.room_id IS NOT NULL,
+		        f.room_id IS NOT NULL
 		   FROM rooms r
 		   LEFT JOIN room_topics   t ON t.room_id = r.id
 		   LEFT JOIN room_upgrades u ON u.room_id = r.id
 		   LEFT JOIN room_archived a ON a.room_id = r.id
+		   LEFT JOIN room_forums   f ON f.room_id = r.id
 		  WHERE r.membership = ?`,
 		func(rows *sql.Rows) (domain.Room, error) {
 			var (
 				id, name, invitedBy, heroes, topic, replacement string
 				isDirect                                        int
-				archived                                        bool
+				archived, forum                                 bool
 			)
-			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived); err != nil {
+			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived, &forum); err != nil {
 				return domain.Room{}, err
 			}
 			room := domain.Room{
@@ -60,6 +62,7 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 				Membership:  membershipFrom(membership),
 				Replacement: domain.RoomID(replacement),
 				Archived:    archived,
+				Forum:       forum,
 			}
 			if heroes != "" {
 				if err := json.Unmarshal([]byte(heroes), &room.Members); err != nil {
@@ -101,6 +104,28 @@ func (c *Cache) SetArchived(ctx context.Context, rooms map[domain.RoomID]bool) e
 			}
 			if _, err := tx.ExecContext(ctx, query, string(id)); err != nil {
 				return fmt.Errorf("db: keep %s archived=%v: %w", id, archived, err)
+			}
+		}
+		return nil
+	})
+}
+
+// SetForums keeps which of rooms are made of topics, as a network's listing says.
+func (c *Cache) SetForums(ctx context.Context, rooms map[domain.RoomID]bool) error {
+	if len(rooms) == 0 {
+		return nil
+	}
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		for id, forum := range rooms {
+			query := `DELETE FROM room_forums WHERE room_id = ?`
+			if forum {
+				if err := registerRoom(ctx, tx, id); err != nil {
+					return err
+				}
+				query = `INSERT INTO room_forums(room_id) VALUES(?) ON CONFLICT(room_id) DO NOTHING`
+			}
+			if _, err := tx.ExecContext(ctx, query, string(id)); err != nil {
+				return fmt.Errorf("db: keep %s forum=%v: %w", id, forum, err)
 			}
 		}
 		return nil

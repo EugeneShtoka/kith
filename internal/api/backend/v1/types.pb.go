@@ -156,7 +156,9 @@ type Room struct {
 	Topic string `protobuf:"bytes,8,opt,name=topic,proto3" json:"topic,omitempty"`
 	// Archived is the network's own archive holding the room (Telegram's Archived
 	// folder, WhatsApp's archived chats); kith's archive tag follows it where configured.
-	Archived      bool `protobuf:"varint,9,opt,name=archived,proto3" json:"archived,omitempty"`
+	Archived bool `protobuf:"varint,9,opt,name=archived,proto3" json:"archived,omitempty"`
+	// Forum is a room made of topics (Telegram's forums), listed in the rail.
+	Forum         bool `protobuf:"varint,10,opt,name=forum,proto3" json:"forum,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -250,6 +252,13 @@ func (x *Room) GetTopic() string {
 func (x *Room) GetArchived() bool {
 	if x != nil {
 		return x.Archived
+	}
+	return false
+}
+
+func (x *Room) GetForum() bool {
+	if x != nil {
+		return x.Forum
 	}
 	return false
 }
@@ -2063,7 +2072,7 @@ var File_backend_v1_types_proto protoreflect.FileDescriptor
 const file_backend_v1_types_proto_rawDesc = "" +
 	"\n" +
 	"\x16backend/v1/types.proto\x12\n" +
-	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf4\x01\n" +
+	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8a\x02\n" +
 	"\x04Room\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
@@ -2076,7 +2085,9 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"invited_by\x18\x06 \x01(\tR\tinvitedBy\x12 \n" +
 	"\vreplacement\x18\a \x01(\tR\vreplacement\x12\x14\n" +
 	"\x05topic\x18\b \x01(\tR\x05topic\x12\x1a\n" +
-	"\barchived\x18\t \x01(\bR\barchived\"O\n" +
+	"\barchived\x18\t \x01(\bR\barchived\x12\x14\n" +
+	"\x05forum\x18\n" +
+	" \x01(\bR\x05forum\"O\n" +
 	"\aMention\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +
