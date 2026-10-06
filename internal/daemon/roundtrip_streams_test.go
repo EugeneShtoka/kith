@@ -178,6 +178,7 @@ func TestAConfigChangeReachesEveryWindow(t *testing.T) {
 	}
 	changed := read.Config.Clone()
 	changed.Display.FPS = 42
+	original := read.Revision // the file before any save: older than whatever lands
 	deadline := time.Now().Add(settle)
 	var rev string
 	for { // the watching window's stream may not be open yet: save until it hears one
@@ -190,7 +191,7 @@ func TestAConfigChangeReachesEveryWindow(t *testing.T) {
 			if snap.Config.Display.FPS != 42 || snap.Revision != rev {
 				t.Errorf("heard %d at %s, want 42 at %s", snap.Config.Display.FPS, snap.Revision, rev)
 			}
-			if _, err := saving.UpdateConfig(ctx, read.Revision, changed); !errors.Is(err, api.ErrConfigMoved) {
+			if _, err := saving.UpdateConfig(ctx, original, changed); !errors.Is(err, api.ErrConfigMoved) {
 				t.Errorf("a save on the older revision = %v, want ErrConfigMoved", err)
 			}
 			return
