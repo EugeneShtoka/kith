@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -476,5 +477,46 @@ func TestRoomNamesTakesEveryRoomID(t *testing.T) {
 	got := d.RoomNames()
 	if len(got) != 2 || got["!a:x"] != "A" || got[native] != "Choir" {
 		t.Errorf("RoomNames() = %v", got)
+	}
+}
+
+// A config that never mentions the tags, or the rail's order, has the starter's, as a
+// first run's does; writing it back leaves them out (they are the default), and a
+// config whose tags were all deleted is written as `tag = []`, which stays empty.
+func TestAConfigWithoutTagsHasTheStartersAndDeletingThemSticks(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("homeserver = \"https://x\"\nuser = \"@me:x\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, tag := range cfg.Tags {
+		names = append(names, tag.Name)
+	}
+	if !slices.Contains(names, "Unread") || !slices.Contains(names, "DMs") || !slices.Contains(names, "All") || len(cfg.Display.Rail.Order) == 0 {
+		t.Fatalf("tags %v, rail order %v: want the starter's", names, cfg.Display.Rail.Order)
+	}
+	if serr := Save(path, cfg); serr != nil {
+		t.Fatal(serr)
+	}
+	body, _ := os.ReadFile(path)
+	if strings.Contains(string(body), "[[tag]]") || strings.Contains(string(body), "order") {
+		t.Errorf("the starter's tags were written out:\n%s", body)
+	}
+	cfg.Tags = nil
+	if serr := Save(path, cfg); serr != nil {
+		t.Fatal(serr)
+	}
+	body, _ = os.ReadFile(path)
+	again, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "tag = []") || len(again.Tags) != 0 {
+		t.Errorf("after deleting every tag: %d tags back\n%s", len(again.Tags), body)
 	}
 }

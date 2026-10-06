@@ -127,6 +127,16 @@ func Load(path string) (Config, error) {
 	return decode(path, string(body))
 }
 
+// starter is the tags and the rail's order the starter config (written on first run)
+// has, fresh each call: what a config that never mentions them gets.
+func starter() Config {
+	var cfg Config
+	if _, err := toml.Decode(defaultConfigTOML, &cfg); err != nil {
+		panic("config: the starter config does not decode: " + err.Error()) // a build that cannot happen
+	}
+	return Config{Tags: cfg.Tags, Display: Display{Rail: Rail{Order: cfg.Display.Rail.Order}}}
+}
+
 // Decode reads a config from its text as Load reads the file: what a client sends
 // the daemon to check before writing it (Encode).
 func Decode(text string) (Config, error) { return decode("the sent config", text) }
@@ -148,6 +158,20 @@ func decode(source, text string) (Config, error) {
 	// TOML leaves every unmentioned field zero, so an action the file never heard of
 	// would end up with no key at all.
 	cfg.Keys.FillDefaults()
+	// A file that never mentions the tags, or the rail's order, has the starter's: a
+	// hand-written config gets them as a first run's does. `tag = []` has none.
+	switch {
+	case !meta.IsDefined("tag"):
+		cfg.Tags = starter().Tags
+	case len(cfg.Tags) == 0:
+		cfg.Tags = nil // `tag = []`: none, as a config built with none has
+	}
+	switch {
+	case !meta.IsDefined("display", "rail", "order"):
+		cfg.Display.Rail.Order = starter().Display.Rail.Order
+	case len(cfg.Display.Rail.Order) == 0:
+		cfg.Display.Rail.Order = nil // `order = []`, as for the tags
+	}
 	if err := cfg.RequireAccount(); err != nil {
 		return Config{}, err
 	}

@@ -44,6 +44,8 @@ const header = `# kith configuration — written by kith.
 func omittedBaseline() Config {
 	var cfg Config
 	cfg.Keys.FillDefaults()
+	start := starter()
+	cfg.Tags, cfg.Display.Rail.Order = start.Tags, start.Display.Rail.Order
 	return cfg
 }
 
@@ -92,6 +94,11 @@ func splitDiff(value, defaults reflect.Value, prefix []string) (string, string) 
 		case got.Kind() == reflect.Struct:
 			tables.WriteString(encodeTable(got, want, append(prefix, name)))
 		case got.Kind() == reflect.Slice && got.Type().Elem().Kind() == reflect.Struct:
+			if got.Len() == 0 && want.Len() > 0 {
+				// Emptied: written as [], or the baseline's would come back on the next load.
+				fmt.Fprintf(&values, "%s = []\n", name)
+				continue
+			}
 			tables.WriteString(encodeStructSlice(got, want, append(prefix, name)))
 		case got.Kind() == reflect.Slice:
 			if literal, ok := arrayLiteral(got, want); ok {
