@@ -116,7 +116,8 @@ func railGroups(
 func forumGroups(rooms []domain.Room, names []config.DisplayName) []group {
 	display := config.Display{Names: names}
 	var groups []group
-	for _, r := range rooms {
+	for i := range rooms {
+		r := &rooms[i]
 		if !r.Forum || r.IsInvite() {
 			continue
 		}
