@@ -292,7 +292,11 @@ max_height = 12
 
 ### Archive noisy rooms, pin the ones that matter today
 
-Archived and Pinned are tags the starter config writes. Archived rooms stop counting
+Archived and Pinned are tags the starter config writes. A config that never mentions
+`[[tag]]` has the starter's tags (All, DMs, Unread, Drafts, Pinned, Archived, Spam,
+Invites), and one without `[display.rail] order` the starter's order, so a config you
+wrote by hand gets them too; `tag = []` means no tags at all, and is what kith writes
+when you delete the last one. Archived rooms stop counting
 towards unread badges but stay readable; pinned rooms also appear in a Pinned rail
 group, as well as where they already live:
 
