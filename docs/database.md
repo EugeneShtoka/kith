@@ -267,8 +267,10 @@ Since then:
 - v4 (`room_archived`): the chats a network archived itself (Telegram's Archived
   folder, WhatsApp's archive), a row only for one archived; written only by that
   network, so a listing's rewrite of its rooms never blanks it.
+- v5 (`room_forums`): the rooms made of topics (Telegram's forums), a row only for
+  one; written only by that network's listing.
 
-so a current cache is at version 4.
+so a current cache is at version 5.
 
 ### Indexes need no migration
 

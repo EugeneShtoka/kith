@@ -20,6 +20,7 @@ func RoomToProto(r domain.Room) *v1.Room {
 		Replacement: string(r.Replacement),
 		Topic:       r.Topic,
 		Archived:    r.Archived,
+		Forum:       r.Forum,
 	}
 }
 
@@ -149,6 +150,7 @@ func ProtoToRoom(pb *v1.Room) domain.Room {
 		Replacement: domain.RoomID(pb.GetReplacement()),
 		Topic:       pb.GetTopic(),
 		Archived:    pb.GetArchived(),
+		Forum:       pb.GetForum(),
 	}
 }
 

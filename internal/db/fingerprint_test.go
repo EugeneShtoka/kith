@@ -18,6 +18,7 @@ var migrationFingerprints = []struct {
 	{2, "draft_threads: the thread a draft is written into", "2a951409973f"},
 	{3, "quoted_messages: what a reply quotes, when the original is not cached", "227cafbf0452"},
 	{4, "room_archived: chats the network archived", "4ac51b166e07"},
+	{5, "room_forums: rooms made of topics", "bf42226a5158"},
 }
 
 func fingerprint(stmt string) string {

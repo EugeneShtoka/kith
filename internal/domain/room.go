@@ -38,6 +38,9 @@ type Room struct {
 	// Archived is the network's own archive holding it: Telegram's Archived folder,
 	// WhatsApp's archived chats. kith's tag follows it where configured (Places).
 	Archived bool
+	// Forum is a room made of topics (Telegram's forums): standing, named threads, each
+	// reached from the rail as a room is from a space.
+	Forum bool
 }
 
 // IsInvite reports whether this is a pending invitation rather than a room we have
