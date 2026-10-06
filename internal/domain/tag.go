@@ -295,6 +295,29 @@ func (s TagSet) Index(name string) (int, bool) {
 	return i, ok
 }
 
+// Automatic reports whether tag i is filled by its rule alone: it has one, and none of
+// its terms names a place (a room, a space, a network, another tag) — only what a room
+// is (unread, a draft, an invitation, a DM) or every room. Filing a room into such a
+// tag by hand is no choice anyone makes (Unread, DMs, All).
+func (s TagSet) Automatic(i int) bool {
+	c := s.tags[i]
+	if len(c.positive) == 0 && len(c.negated) == 0 {
+		return false
+	}
+	for _, t := range slices.Concat(c.positive, c.negated) {
+		if t.tag != "" || (t.place != "" && !isKind(t.place)) {
+			return false
+		}
+	}
+	return true
+}
+
+// isKind reports whether a place entry is a kind of room (dm, group), not a place.
+func isKind(entry string) bool {
+	entry = strings.TrimSpace(entry)
+	return strings.EqualFold(entry, entryDirect) || strings.EqualFold(entry, entryGroup)
+}
+
 // HoldsEvery reports whether tag i's rule takes every room ("*"): All, the same place
 // as everywhere.
 func (s TagSet) HoldsEvery(i int) bool {

@@ -315,8 +315,8 @@ func TestTheFilingListFollowsThePriority(t *testing.T) {
 	for _, item := range m.picker.all {
 		got = append(got, m.filingKey(item))
 	}
-	// Drafts is empty, so out of the rail: it follows what the rail shows.
-	want := []string{"tag:Pinned", "Friends", homeGroupKey, dmsGroupKey, unreadGroupKey, "Work", draftsGroupKey}
+	// All, DMs, Unread and Drafts are filled by their rules: not offered at all.
+	want := []string{"tag:Pinned", "Friends", "Work", "tag:Archived"}
 	if len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
 		t.Errorf("rows = %v, want %v first: priority, then the rail", got, want)
 	}

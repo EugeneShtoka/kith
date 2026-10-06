@@ -79,8 +79,9 @@ func (m Model) byPriority(rows []pickerItem) []pickerItem {
 	return out
 }
 
-// tagRows is a filing row per tag: the rail's tags in the rail's order under its
-// names, then those it does not show, each ticked when the tag holds the room now.
+// tagRows is a filing row per tag a room is filed into by hand — not one its rule
+// fills (TagSet.Automatic) —: the rail's tags in the rail's order under its names,
+// then those it does not show, each ticked when the tag holds the room now.
 func (m Model) tagRows(checked map[string]bool, room domain.Room) []pickerItem {
 	view := m.unreadView()
 	var items []pickerItem
@@ -91,6 +92,9 @@ func (m Model) tagRows(checked map[string]bool, room domain.Room) []pickerItem {
 	listed := make(map[int]bool, view.tags.Len())
 	add := func(i int, label string) {
 		listed[i] = true
+		if view.tags.Automatic(i) {
+			return // filled by its rule (Unread, DMs, All…): not a place to file a room
+		}
 		key := tagGroupKey(view.tags.At(i).Name)
 		if held[i] {
 			checked[key] = true
