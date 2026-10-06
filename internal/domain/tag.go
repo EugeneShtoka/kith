@@ -59,6 +59,11 @@ var stateWords = map[string]func(RoomState) bool{
 	"invite":  func(s RoomState) bool { return s.Invite },
 }
 
+// judgedWords are the state words that are someone's judgement of a room, not a fact
+// about it: a network's spam filter is wrong at times, and a room is put in or kept
+// out of its tag by hand.
+var judgedWords = map[string]bool{"spam": true}
+
 // TagEntry spells a tag as a place: `tag:<name>`.
 func TagEntry(name string) string { return termTag + name }
 
@@ -73,11 +78,12 @@ func TagOf(entry string) (string, bool) {
 
 // term is one rule term, parsed: what it names and whether it is negated.
 type term struct {
-	not   bool
-	every bool
-	tag   string               // a tag's name, lower-cased
-	state func(RoomState) bool // a state word
-	place string               // a place entry (RoomFacts.Names)
+	not    bool
+	every  bool
+	tag    string               // a tag's name, lower-cased
+	state  func(RoomState) bool // a state word
+	judged bool                 // the state word is a judgement (judgedWords)
+	place  string               // a place entry (RoomFacts.Names)
 }
 
 // parseTerm reads one rule term; known is the tags that exist, lower-cased.
@@ -92,7 +98,7 @@ func parseTerm(raw string, known map[string]bool) (term, error) {
 	case s == termEvery:
 		t.every = true
 	case stateWords[lower] != nil:
-		t.state = stateWords[lower]
+		t.state, t.judged = stateWords[lower], judgedWords[lower]
 	case hasPrefixFold(s, termTag):
 		name, _ := TagOf(s)
 		if !known[strings.ToLower(name)] {
@@ -298,14 +304,15 @@ func (s TagSet) Index(name string) (int, bool) {
 // Automatic reports whether tag i is filled by its rule alone: it has one, and none of
 // its terms names a place (a room, a space, a network, another tag) — only what a room
 // is (unread, a draft, an invitation, a DM) or every room. Filing a room into such a
-// tag by hand is no choice anyone makes (Unread, DMs, All).
+// tag by hand is no choice anyone makes (Unread, DMs, All). A judged word (spam) is
+// not automatic: its judgement is corrected by hand.
 func (s TagSet) Automatic(i int) bool {
 	c := s.tags[i]
 	if len(c.positive) == 0 && len(c.negated) == 0 {
 		return false
 	}
 	for _, t := range slices.Concat(c.positive, c.negated) {
-		if t.tag != "" || (t.place != "" && !isKind(t.place)) {
+		if t.tag != "" || t.judged || (t.place != "" && !isKind(t.place)) {
 			return false
 		}
 	}
