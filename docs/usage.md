@@ -56,11 +56,11 @@ starting point, which you can change, rename or delete like any other:
 
 Your spaces sit between Pinned and Archived. Invitations and spam are in no space.
 
-A forum (a Telegram group with topics) also has a row of its own, after the spaces:
-its room list is the forum, then every topic, read or not. In its space the forum
-lists only its unread topics, so this row is the way back to one you have read. In
-`[display.rail] order` it is `room:<name>`; it leaves the rail while the forum is in
-Spam or Archived.
+A forum (a Telegram group with topics) has a row of its own, after the spaces, and
+like a space it is listed only there: its room list is the forum, then every topic,
+read or not. In `[display.rail] order` it is `room:<name>`. While the forum is in Spam
+or Archived its row goes, and it is listed there as a room instead. A topic is part of
+its forum: it cannot be filed into a tag on its own, so file the forum from its row.
 
 In the rail:
 
