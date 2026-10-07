@@ -19,7 +19,7 @@ import (
 
 // messageID is a message of a chat as one account sees it.
 func messageID(self, peerID int64, id int) domain.EventID {
-	return domain.EventID(string(roomID(self, peerID)) + "/" + strconv.Itoa(id))
+	return inRoom(roomID(self, peerID), id)
 }
 
 // markedPeer is a peer's marked ID: a user's, a basic group's negated, a channel's
@@ -39,9 +39,6 @@ func markedPeer(p tg.PeerClass) (int64, bool) {
 // incoming is a Telegram message as kith shows it, its sender named from ent; ok false
 // for one kith does not show (a service message: someone joined, a title changed).
 func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Message, bool) {
-	if svc, ok := msg.(*tg.MessageService); ok {
-		return topicCreated(self, svc, ent)
-	}
 	m, ok := msg.(*tg.Message)
 	if !ok {
 		return domain.Message{}, false
@@ -50,9 +47,11 @@ func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Messag
 	if !ok {
 		return domain.Message{}, false
 	}
+	topic := topicOf(m)
+	room := chatRoom(self, chat, topic)
 	body, format, mentions := formatted(m.Message, m.Entities)
 	out := domain.Message{
-		ID: messageID(self, chat, m.ID), RoomID: roomID(self, chat),
+		ID: inRoom(room, m.ID), RoomID: room,
 		Body: body, Format: format, Mentions: mentions,
 		Timestamp: time.Unix(int64(m.Date), 0), Mentioned: m.Mentioned,
 	}
@@ -74,21 +73,33 @@ func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Messag
 		out.RevisionID = domain.EventID(string(out.ID) + "@" + strconv.Itoa(m.EditDate))
 	}
 	out.Sender, out.SenderName = sender(self, chat, m, ent)
-	if reply, ok := m.ReplyTo.(*tg.MessageReplyHeader); ok && reply.ReplyToMsgID != 0 {
-		topic := 0
-		if reply.ForumTopic { // in a forum's topic: the topic's thread (topics.go)
-			topic = reply.ReplyToMsgID
-			if top, ok := reply.GetReplyToTopID(); ok && top != 0 {
-				topic = top
-			}
-			out.ThreadRoot = messageID(self, chat, topic)
-		}
-		if other, ok := reply.GetReplyToPeerID(); reply.ReplyToMsgID != topic && (!ok || samePeer(other, chat)) {
-			out.ReplyTo = messageID(self, chat, reply.ReplyToMsgID)
+	// A reply within the room; one to the message that began its topic is no reply, only
+	// the topic's (topics.go).
+	if reply, ok := m.ReplyTo.(*tg.MessageReplyHeader); ok && reply.ReplyToMsgID != 0 && reply.ReplyToMsgID != topic {
+		if other, ok := reply.GetReplyToPeerID(); !ok || samePeer(other, chat) {
+			out.ReplyTo = inRoom(room, reply.ReplyToMsgID)
 		}
 	}
 	return out, true
 }
+
+// topicOf is the forum topic a message is in: the message that began it, as its
+// reply header names it; 0 for a message in no topic, or in General (the forum's own
+// room, topic 1).
+func topicOf(m *tg.Message) int {
+	reply, ok := m.ReplyTo.(*tg.MessageReplyHeader)
+	if !ok || !reply.ForumTopic {
+		return 0
+	}
+	topic := reply.ReplyToMsgID
+	if top, ok := reply.GetReplyToTopID(); ok && top != 0 {
+		topic = top
+	}
+	return topicNumber(topic)
+}
+
+// generalTopic is a forum's General topic, the forum's own room.
+const generalTopic = 1
 
 // labeled is an attachment's label before its caption, the caption's formatting kept.
 func labeled(label, caption string, format richtext.Formatted) (string, richtext.Formatted) {

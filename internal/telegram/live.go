@@ -78,24 +78,23 @@ func (l *live) changes(d tg.UpdateDispatcher) {
 	d.OnMessageReactions(func(ctx context.Context, _ tg.Entities, u *tg.UpdateMessageReactions) error {
 		return l.with(func(self int64) {
 			if chat, ok := markedPeer(u.Peer); ok {
-				l.a.reactionsChanged(ctx, roomID(self, chat), messageID(self, chat, u.MsgID), messageReactions(self, chat, u.MsgID, u.Reactions))
+				room := chatRoom(self, chat, topicNumber(u.TopMsgID))
+				l.a.reactionsChanged(ctx, room, inRoom(room, u.MsgID), messageReactions(room, u.MsgID, u.Reactions))
 			}
 		})
 	})
 	d.OnReadHistoryInbox(func(ctx context.Context, _ tg.Entities, u *tg.UpdateReadHistoryInbox) error {
 		return l.with(func(self int64) {
 			chat, ok := markedPeer(u.Peer)
-			switch {
-			case !ok:
-			case u.TopMsgID != 0: // one topic of a forum
-				l.a.readTopic(ctx, self, chat, u.TopMsgID, u.MaxID)
-			default:
-				l.a.readInbox(ctx, self, chat, u.MaxID, u.StillUnreadCount)
+			if ok { // a chat, or one topic of a forum (TopMsgID)
+				l.a.readInbox(ctx, chatRoom(self, chat, topicNumber(u.TopMsgID)), u.MaxID, u.StillUnreadCount)
 			}
 		})
 	})
 	d.OnReadChannelInbox(func(ctx context.Context, _ tg.Entities, u *tg.UpdateReadChannelInbox) error {
-		return l.with(func(self int64) { l.a.readInbox(ctx, self, -(channelMark + u.ChannelID), u.MaxID, u.StillUnreadCount) })
+		return l.with(func(self int64) {
+			l.a.readInbox(ctx, roomID(self, -(channelMark+u.ChannelID)), u.MaxID, u.StillUnreadCount)
+		})
 	})
 	d.OnDialogUnreadMark(func(ctx context.Context, _ tg.Entities, u *tg.UpdateDialogUnreadMark) error {
 		return l.with(func(self int64) {
@@ -115,19 +114,19 @@ func (l *live) changes(d tg.UpdateDispatcher) {
 // typing hands who is typing where to the adapter.
 func (l *live) typing(d tg.UpdateDispatcher) {
 	d.OnUserTyping(func(_ context.Context, _ tg.Entities, u *tg.UpdateUserTyping) error {
-		return l.with(func(self int64) { l.a.typingNotice(self, u.UserID, u.UserID, u.Action) })
+		return l.with(func(self int64) { l.a.typingNotice(self, u.UserID, 0, u.UserID, u.Action) })
 	})
 	d.OnChatUserTyping(func(_ context.Context, _ tg.Entities, u *tg.UpdateChatUserTyping) error {
 		return l.with(func(self int64) {
 			if who, ok := markedPeer(u.FromID); ok {
-				l.a.typingNotice(self, -u.ChatID, who, u.Action)
+				l.a.typingNotice(self, -u.ChatID, 0, who, u.Action)
 			}
 		})
 	})
 	d.OnChannelUserTyping(func(_ context.Context, _ tg.Entities, u *tg.UpdateChannelUserTyping) error {
 		return l.with(func(self int64) {
-			if who, ok := markedPeer(u.FromID); ok && u.TopMsgID == 0 {
-				l.a.typingNotice(self, -(channelMark + u.ChannelID), who, u.Action)
+			if who, ok := markedPeer(u.FromID); ok {
+				l.a.typingNotice(self, -(channelMark + u.ChannelID), topicNumber(u.TopMsgID), who, u.Action)
 			}
 		})
 	})
@@ -158,8 +157,7 @@ func (l *live) edit(ctx context.Context, e tg.Entities, m tg.MessageClass) error
 	}
 	if raw, ok := m.(*tg.Message); ok {
 		if rs, ok := raw.GetReactions(); ok {
-			chat, _ := markedPeer(raw.PeerID)
-			l.a.reactionsChanged(ctx, msg.RoomID, msg.ID, messageReactions(self, chat, raw.ID, rs))
+			l.a.reactionsChanged(ctx, msg.RoomID, msg.ID, messageReactions(msg.RoomID, raw.ID, rs))
 		}
 	}
 	return nil

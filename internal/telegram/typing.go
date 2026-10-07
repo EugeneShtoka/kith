@@ -15,12 +15,13 @@ import (
 // forgotten typingFor after their last notice otherwise, as Telegram's clients do.
 const typingFor = 6 * time.Second
 
-// typingNotice is someone's notice in a chat: typing, or stopped.
-func (a *Adapter) typingNotice(self, chat, who int64, action tg.SendMessageActionClass) {
+// typingNotice is someone's notice in a chat, or in one forum topic of it: typing, or
+// stopped.
+func (a *Adapter) typingNotice(self, chat int64, topic int, who int64, action tg.SendMessageActionClass) {
 	if who == 0 || who == self {
 		return
 	}
-	room, person := roomID(self, chat), personID(who)
+	room, person := chatRoom(self, chat, topic), personID(who)
 	if _, stopped := action.(*tg.SendMessageCancelAction); stopped {
 		a.stoppedTyping(room, person)
 		return
@@ -78,7 +79,11 @@ func (a *Adapter) SendTyping(ctx context.Context, roomID domain.RoomID, typing b
 	if !typing {
 		action = &tg.SendMessageCancelAction{}
 	}
-	if _, err := ch.conn.client.API().MessagesSetTyping(ctx, &tg.MessagesSetTypingRequest{Peer: ch.peer, Action: action}); err != nil {
+	req := &tg.MessagesSetTypingRequest{Peer: ch.peer, Action: action}
+	if ch.topic != 0 {
+		req.SetTopMsgID(ch.topic)
+	}
+	if _, err := ch.conn.client.API().MessagesSetTyping(ctx, req); err != nil {
 		a.log.Debug("send typing failed", "room", roomID, "err", err)
 	}
 	return nil

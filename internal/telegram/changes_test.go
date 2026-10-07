@@ -352,7 +352,7 @@ func TestAHistoryPageNeverUndoesALiveReaction(t *testing.T) {
 			switch rng.IntN(3) {
 			case 0: // a live change
 				server = rng.IntN(4)
-				a.reactionsChanged(ctx, room, "telegram:42/7/5", messageReactions(42, 7, 5, reacted(map[string]int{"👍": server}, nil)))
+				a.reactionsChanged(ctx, room, "telegram:42/7/5", messageReactions(roomID(42, 7), 5, reacted(map[string]int{"👍": server}, nil)))
 				shown, heardAt = server, time.Now()
 			case 1: // a page read
 				pending = append(pending, read{server, time.Now()})
@@ -402,7 +402,7 @@ func TestAListingNeverUndoesAnUnreadChangeHeardSince(t *testing.T) {
 				shown, heardAt = server, time.Now()
 			case 1: // read elsewhere
 				server = rng.IntN(server + 1)
-				a.readInbox(ctx, 42, -11, step, server)
+				a.readInbox(ctx, roomID(42, -11), step, server)
 				shown, heardAt = server, time.Now()
 			case 2: // a listing fetched
 				pending = append(pending, fetched{server, time.Now()})
@@ -444,7 +444,7 @@ func TestConcurrentArrivalsAreEachCounted(t *testing.T) {
 // says it, and the rest of a count as no one's.
 func TestReactionsAreOnePerPerson(t *testing.T) {
 	t.Parallel()
-	rs := messageReactions(42, -11, 5, reacted(map[string]int{"👍": 3, "❤": 1}, map[string][]int64{"👍": {7}}, "❤"))
+	rs := messageReactions(roomID(42, -11), 5, reacted(map[string]int{"👍": 3, "❤": 1}, map[string][]int64{"👍": {7}}, "❤"))
 	var got []string
 	for _, r := range rs {
 		got = append(got, r.Key+" "+r.Sender)
@@ -463,16 +463,16 @@ func TestATypistIsForgotten(t *testing.T) {
 	t.Parallel()
 	a, _ := cachedAdapter(t, &memSecrets{values: map[string]string{}})
 	room := domain.RoomID("telegram:42/-11")
-	a.typingNotice(42, -11, 7, &tg.SendMessageTypingAction{})
-	a.typingNotice(42, -11, 42, &tg.SendMessageTypingAction{}) // ourselves: not shown
+	a.typingNotice(42, -11, 0, 7, &tg.SendMessageTypingAction{})
+	a.typingNotice(42, -11, 0, 42, &tg.SendMessageTypingAction{}) // ourselves: not shown
 	if act := <-a.Activity(); act.RoomID != room || !slices.Equal(act.Typing, []string{"telegram:7"}) {
 		t.Errorf("typing %+v", act)
 	}
-	a.typingNotice(42, -11, 7, &tg.SendMessageCancelAction{})
+	a.typingNotice(42, -11, 0, 7, &tg.SendMessageCancelAction{})
 	if act := <-a.Activity(); len(act.Typing) != 0 {
 		t.Errorf("after canceling, typing %+v", act)
 	}
-	a.typingNotice(42, -11, 7, &tg.SendMessageRecordAudioAction{})
+	a.typingNotice(42, -11, 0, 7, &tg.SendMessageRecordAudioAction{})
 	<-a.Activity()
 	select {
 	case act := <-a.Activity():

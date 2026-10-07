@@ -157,7 +157,8 @@ type Room struct {
 	// Archived is the network's own archive holding the room (Telegram's Archived
 	// folder, WhatsApp's archived chats); kith's archive tag follows it where configured.
 	Archived bool `protobuf:"varint,9,opt,name=archived,proto3" json:"archived,omitempty"`
-	// Forum is a room made of topics (Telegram's forums), listed in the rail.
+	// Forum marks a forum's own room (Telegram's General topic); the forum is a space
+	// of its topics' rooms.
 	Forum         bool `protobuf:"varint,10,opt,name=forum,proto3" json:"forum,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

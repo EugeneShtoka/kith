@@ -34,6 +34,34 @@ func roomID(self, peer int64) domain.RoomID {
 	return domain.RoomID(domain.NativeID(domain.ProtocolTelegram, strconv.FormatInt(self, 10), strconv.FormatInt(peer, 10)))
 }
 
+// topicSep joins a forum's chat and one of its topics in the topic's room ID.
+const topicSep = "~"
+
+// topicRoomID is one topic of a forum as a room: the forum's chat, then the topic's
+// number (the message that began it). The General topic is the forum's own room.
+func topicRoomID(self, peer int64, topic int) domain.RoomID {
+	return domain.RoomID(string(roomID(self, peer)) + topicSep + strconv.Itoa(topic))
+}
+
+// chatRoom is the room a message of chat is in: its topic's, for one in a topic of a
+// forum (topic not 0), else the chat's own.
+func chatRoom(self, peer int64, topic int) domain.RoomID {
+	if topic != 0 {
+		return topicRoomID(self, peer, topic)
+	}
+	return roomID(self, peer)
+}
+
+// inRoom is message id of the room it is in.
+func inRoom(room domain.RoomID, id int) domain.EventID {
+	return domain.EventID(string(room) + "/" + strconv.Itoa(id))
+}
+
+// forumSpaceID is a forum as a space: its topics are its rooms.
+func forumSpaceID(self, peer int64) domain.SpaceID {
+	return domain.SpaceID(domain.NativeID(domain.ProtocolTelegram, strconv.FormatInt(self, 10), "forum"+strconv.FormatInt(peer, 10)))
+}
+
 // accountSpaceID is the space an account is.
 func accountSpaceID(self int64) domain.SpaceID {
 	return domain.SpaceID(domain.NativeID(domain.ProtocolTelegram, strconv.FormatInt(self, 10), "account"))
@@ -196,15 +224,53 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	if !a.keepHashes(account, gen, l.hashes) {
 		return nil, errNotListed
 	}
+	// A forum's topics are rooms of the account, so they are listed with it: saving
+	// sweeps the rooms a listing does not name.
+	topics := map[int64]forumListing{}
+	for _, e := range elems {
+		if !isForum(e) {
+			continue
+		}
+		forum := -(channelMark + e.peer.(*tg.InputPeerChannel).ChannelID)
+		got, err := forumTopics(ctx, client.API(), e.peer)
+		if err != nil {
+			// The topics the cache holds stay, until a listing can read them again.
+			a.log.Warn("list a forum's topics failed", "room", roomID(self, forum), "err", err)
+			l.rooms = append(l.rooms, a.cachedTopicRooms(ctx, roomID(self, forum))...)
+			continue
+		}
+		topics[forum] = got
+		l.rooms = append(l.rooms, topicRooms(self, forum, got.topics)...)
+	}
 	if err := a.save(ctx, self, l, fetched); err != nil {
 		return nil, err
 	}
 	a.cacheTops(ctx, self, elems, l.rooms)
 	a.listedUnread(ctx, self, elems, l.rooms, fetched)
-	for _, e := range elems {
-		a.listTopics(ctx, client.API(), self, e)
+	for forum, got := range topics {
+		a.forgetForumThreads(ctx, self, forum, got.topics)
+		a.cacheTopicTops(ctx, self, got)
+		a.listedTopicsUnread(ctx, self, forum, got.topics, fetched)
 	}
 	return l.rooms, nil
+}
+
+// cachedTopicRooms is the rooms the cache holds of a forum's topics.
+func (a *Adapter) cachedTopicRooms(ctx context.Context, forum domain.RoomID) []domain.Room {
+	if a.cache == nil {
+		return nil
+	}
+	rooms, err := a.cache.Rooms(ctx)
+	if err != nil {
+		return nil
+	}
+	var out []domain.Room
+	for i := range rooms {
+		if in, ok := forumOf(rooms[i].ID); ok && in == forum {
+			out = append(out, rooms[i])
+		}
+	}
+	return out
 }
 
 // archiveFolder is Telegram's Archived folder; 0 is the main list.
@@ -427,12 +493,32 @@ func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 }
 
 // accountSpaces is a space per configured account kith has logged in, named after the
-// account, its children every room it sees. Derived on read, not stored: a chat begun
-// is in it at once.
+// account, its children every room it sees but a forum's; and a space per forum, its
+// children the forum's own room (General) and its topics'. Derived on read, not
+// stored: a chat begun is in it at once.
 func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 	rooms, err := a.Rooms(ctx)
 	if err != nil {
 		return nil, err
+	}
+	forums := map[domain.RoomID]*domain.Space{}
+	var order []domain.RoomID
+	for i := range rooms {
+		if !rooms[i].Forum {
+			continue
+		}
+		parsed := domain.ParseID(string(rooms[i].ID))
+		self, err1 := strconv.ParseInt(parsed.Account, 10, 64)
+		chat, err2 := strconv.ParseInt(parsed.Native, 10, 64)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		forums[rooms[i].ID] = &domain.Space{
+			ID: forumSpaceID(self, chat), Name: rooms[i].DisplayName(), Children: []domain.RoomID{rooms[i].ID},
+			// Its rooms' home, as the account's space is the other chats'.
+			Bridge: domain.ProtocolTelegram, Original: true,
+		}
+		order = append(order, rooms[i].ID)
 	}
 	var spaces []domain.Space
 	for _, account := range a.accountsNow() {
@@ -443,7 +529,11 @@ func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 		owner := domain.AccountRooms(domain.ProtocolTelegram, strconv.FormatInt(self, 10))
 		var children []domain.RoomID
 		for i := range rooms {
-			if owner.Owns(rooms[i].ID) {
+			switch forum, inTopic := forumOf(rooms[i].ID); {
+			case !owner.Owns(rooms[i].ID), forums[rooms[i].ID] != nil:
+			case inTopic && forums[forum] != nil:
+				forums[forum].Children = append(forums[forum].Children, rooms[i].ID)
+			default:
 				children = append(children, rooms[i].ID)
 			}
 		}
@@ -452,6 +542,9 @@ func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 			// Every chat's home: it is where the room belongs, not a space to file into.
 			Bridge: domain.ProtocolTelegram, Original: true,
 		})
+	}
+	for _, id := range order {
+		spaces = append(spaces, *forums[id])
 	}
 	return spaces, nil
 }
@@ -467,8 +560,9 @@ func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	return a.accountSpaces(ctx)
 }
 
-// CanonicalParent is a Telegram room's account space.
-func (a *Adapter) CanonicalParent(_ context.Context, id domain.RoomID) (domain.SpaceID, error) {
+// CanonicalParent is a Telegram room's account space; a forum's room's (General's or a
+// topic's), the forum's.
+func (a *Adapter) CanonicalParent(ctx context.Context, id domain.RoomID) (domain.SpaceID, error) {
 	parsed := domain.ParseID(string(id))
 	if parsed.Network != domain.ProtocolTelegram {
 		return "", nil
@@ -477,7 +571,25 @@ func (a *Adapter) CanonicalParent(_ context.Context, id domain.RoomID) (domain.S
 	if err != nil {
 		return "", fmt.Errorf("telegram: %s names no account: %w", id, err)
 	}
+	forum, inTopic := forumOf(id)
+	if !inTopic {
+		forum = id
+	}
+	if inTopic || a.isForumRoom(ctx, forum) {
+		if chat, err := strconv.ParseInt(domain.ParseID(string(forum)).Native, 10, 64); err == nil {
+			return forumSpaceID(self, chat), nil
+		}
+	}
 	return accountSpaceID(self), nil
+}
+
+// isForumRoom reports whether the cache holds room as a forum's own.
+func (a *Adapter) isForumRoom(ctx context.Context, room domain.RoomID) bool {
+	rooms, err := a.Rooms(ctx)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(rooms, func(r domain.Room) bool { return r.ID == room && r.Forum })
 }
 
 // Members is a room's members, from the cache: a private chat's other person.

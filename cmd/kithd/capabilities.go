@@ -97,7 +97,6 @@ var (
 		route.Media
 		route.Encryption
 		route.SpaceLister
-		route.Threads
 		configChecker
 		roomsRewriter
 		cacheWriter

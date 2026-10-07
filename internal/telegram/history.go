@@ -22,20 +22,31 @@ import (
 // errNoPeer is a chat whose access hash no listing or update has revealed yet.
 var errNoPeer = errors.New("telegram: that chat is not known to its account yet")
 
-// chat is a room's account connection and the peer that names it to Telegram.
+// chat is a room's account connection and the peer that names it to Telegram, and the
+// forum topic the room is (0 for a chat's own room).
 type chat struct {
-	conn conn
-	peer tg.InputPeerClass
-	id   int64 // marked
+	conn  conn
+	peer  tg.InputPeerClass
+	id    int64 // marked
+	topic int
 }
+
+// room is the room the chat is.
+func (c chat) room() domain.RoomID { return chatRoom(c.conn.user, c.id, c.topic) }
 
 // chatOf is roomID's account connection and peer, ErrNetworkOff when the account is not
 // connected.
 func (a *Adapter) chatOf(ctx context.Context, roomID domain.RoomID) (chat, error) {
 	parsed := domain.ParseID(string(roomID))
+	native, topicPart, inTopic := strings.Cut(parsed.Native, topicSep)
 	self, err1 := strconv.ParseInt(parsed.Account, 10, 64)
-	id, err2 := strconv.ParseInt(parsed.Native, 10, 64)
-	if parsed.Network != domain.ProtocolTelegram || err1 != nil || err2 != nil || strings.Contains(parsed.Native, "/") {
+	id, err2 := strconv.ParseInt(native, 10, 64)
+	topic, err3 := 0, error(nil)
+	if inTopic {
+		topic, err3 = strconv.Atoi(topicPart)
+	}
+	if parsed.Network != domain.ProtocolTelegram || err1 != nil || err2 != nil || err3 != nil ||
+		strings.Contains(parsed.Native, "/") || (inTopic && topic <= 0) {
 		return chat{}, fmt.Errorf("telegram: %s is no Telegram chat", roomID)
 	}
 	i := slices.IndexFunc(a.connected(), func(c conn) bool { return c.user == self })
@@ -47,7 +58,7 @@ func (a *Adapter) chatOf(ctx context.Context, roomID domain.RoomID) (chat, error
 	if err != nil {
 		return chat{}, err
 	}
-	return chat{conn: c, peer: p, id: id}, nil
+	return chat{conn: c, peer: p, id: id, topic: topic}, nil
 }
 
 // inputPeer is how calls name the chat with marked ID id, on connection c: by the
@@ -86,16 +97,10 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 	if err != nil {
 		return domain.TimelinePage{}, err
 	}
-	req := &tg.MessagesGetHistoryRequest{Peer: ch.peer, Limit: limit}
-	if from != "" {
-		if req.OffsetID, err = strconv.Atoi(from); err != nil {
-			return domain.TimelinePage{}, fmt.Errorf("telegram: %q is no place in %s's history", from, roomID)
-		}
-	}
 	read := time.Now()
-	res, err := ch.conn.client.API().MessagesGetHistory(ctx, req)
+	res, err := a.historyPage(ctx, ch, from, limit)
 	if err != nil {
-		return domain.TimelinePage{}, fmt.Errorf("telegram: history of %s: %w", roomID, err)
+		return domain.TimelinePage{}, err
 	}
 	raw, ent, ok := messagesOf(res)
 	if !ok {
@@ -108,6 +113,26 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 		page.Next = strconv.Itoa(raw[len(raw)-1].GetID()) // the oldest: Telegram answers newest first
 	}
 	return page, nil
+}
+
+// historyPage is a page of a room's history as Telegram answers it, newest first: a
+// chat's, or a forum topic's (topicReplies).
+func (a *Adapter) historyPage(ctx context.Context, ch chat, from string, limit int) (tg.MessagesMessagesClass, error) {
+	if ch.topic != 0 {
+		return a.topicReplies(ctx, ch, from, limit)
+	}
+	req := &tg.MessagesGetHistoryRequest{Peer: ch.peer, Limit: limit}
+	if from != "" {
+		var err error
+		if req.OffsetID, err = strconv.Atoi(from); err != nil {
+			return nil, fmt.Errorf("telegram: %q is no place in %s's history", from, ch.room())
+		}
+	}
+	res, err := ch.conn.client.API().MessagesGetHistory(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("telegram: history of %s: %w", ch.room(), err)
+	}
+	return res, nil
 }
 
 // messagesOf is a messages answer's messages, newest first, and what they name.
@@ -128,7 +153,7 @@ func messagesOf(res tg.MessagesMessagesClass) ([]tg.MessageClass, peer.Entities,
 func (a *Adapter) cachePage(ctx context.Context, ch chat, raw []tg.MessageClass, ent peer.Entities) []domain.Message {
 	var msgs []domain.Message
 	for _, m := range slices.Backward(raw) {
-		if msg, ok := incoming(ch.conn.user, m, ent); ok && msg.RoomID == roomID(ch.conn.user, ch.id) {
+		if msg, ok := incoming(ch.conn.user, m, ent); ok && msg.RoomID == ch.room() {
 			msgs = append(msgs, msg)
 		}
 	}
@@ -185,15 +210,8 @@ func (a *Adapter) fetchRaw(ctx context.Context, ch chat, id int) (tg.MessageClas
 	}
 	raw, ent, _ := messagesOf(res)
 	for _, m := range raw {
-		switch msg := m.(type) {
-		case *tg.Message:
-			if msg.ID == id && samePeer(msg.PeerID, ch.id) {
-				return m, ent, nil
-			}
-		case *tg.MessageService: // a topic's start, its thread's root
-			if msg.ID == id && samePeer(msg.PeerID, ch.id) {
-				return m, ent, nil
-			}
+		if msg, ok := m.(*tg.Message); ok && msg.ID == id && samePeer(msg.PeerID, ch.id) {
+			return m, ent, nil
 		}
 	}
 	return nil, peer.Entities{}, errGone

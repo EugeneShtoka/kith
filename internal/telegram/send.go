@@ -34,7 +34,7 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 	if len(entities) > 0 {
 		req.SetEntities(entities)
 	}
-	if to, ok := replyTo(roomID, draft); ok {
+	if to, ok := replyTo(ch, draft); ok {
 		req.SetReplyTo(to)
 	}
 	res, err := ch.conn.client.API().MessagesSendMessage(ctx, req)
@@ -49,14 +49,11 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 		return nil // sent; it arrives through the updates
 	}
 	sent := domain.Message{
-		ID: messageID(ch.conn.user, ch.id, id), RoomID: roomID, Sender: personID(ch.conn.user),
+		ID: inRoom(roomID, id), RoomID: roomID, Sender: personID(ch.conn.user),
 		Body: text, Format: format, Mentions: draft.LiveMentions(), Timestamp: date,
 	}
 	if _, ok := messageNumber(roomID, draft.ReplyTo); ok {
 		sent.ReplyTo = draft.ReplyTo
-	}
-	if _, ok := messageNumber(roomID, draft.ThreadRoot); ok {
-		sent.ThreadRoot = draft.ThreadRoot
 	}
 	return a.arrived(ctx, ch.conn.account, ch.conn.user, sent)
 }
@@ -103,16 +100,15 @@ func peerEntities(res tg.UpdatesClass) peer.Entities {
 }
 
 // replyTo is where a draft goes in its chat: the message it replies to, in the forum
-// topic it is written into (the topic's own message when it replies to none); false
-// for neither.
-func replyTo(roomID domain.RoomID, draft domain.Draft) (*tg.InputReplyToMessage, bool) {
-	reply, replies := messageNumber(roomID, draft.ReplyTo)
-	topic, inTopic := messageNumber(roomID, draft.ThreadRoot)
+// topic its room is (the topic's own message when it replies to none); false for
+// neither.
+func replyTo(ch chat, draft domain.Draft) (*tg.InputReplyToMessage, bool) {
+	reply, replies := messageNumber(ch.room(), draft.ReplyTo)
 	switch {
-	case inTopic && replies:
-		return &tg.InputReplyToMessage{ReplyToMsgID: reply, TopMsgID: topic}, true
-	case inTopic:
-		return &tg.InputReplyToMessage{ReplyToMsgID: topic, TopMsgID: topic}, true
+	case ch.topic != 0 && replies:
+		return &tg.InputReplyToMessage{ReplyToMsgID: reply, TopMsgID: ch.topic}, true
+	case ch.topic != 0:
+		return &tg.InputReplyToMessage{ReplyToMsgID: ch.topic, TopMsgID: ch.topic}, true
 	case replies:
 		return &tg.InputReplyToMessage{ReplyToMsgID: reply}, true
 	}
