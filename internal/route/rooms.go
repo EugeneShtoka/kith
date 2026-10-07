@@ -90,6 +90,11 @@ func (r *Router) SendFile(ctx context.Context, roomID domain.RoomID, path, capti
 	return doOnRoom(r, roomID, "files", func(c Uploader) error { return c.SendFile(ctx, roomID, path, caption) })
 }
 
+// VotePoll votes in a message's poll.
+func (r *Router) VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error {
+	return doOnRoom(r, roomID, "polls", func(c Voter) error { return c.VotePoll(ctx, roomID, eventID, options) })
+}
+
 // SendReaction reacts to a message.
 func (r *Router) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {
 	return doOnRoom(r, roomID, "reactions", func(c Reactor) error { return c.SendReaction(ctx, roomID, target, key) })

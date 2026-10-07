@@ -71,8 +71,10 @@ func (n Nop) Unread() <-chan domain.Unread                                { retu
 func (Nop) CachedReactions(context.Context, domain.RoomID) ([]domain.Reaction, error) {
 	return nil, nil
 }
-func (n Nop) Reactions() <-chan domain.ReactionUpdate                                  { return n.Reacts }
-func (Nop) SendReaction(context.Context, domain.RoomID, domain.EventID, string) error  { return nil }
+func (n Nop) Reactions() <-chan domain.ReactionUpdate                                 { return n.Reacts }
+func (Nop) SendReaction(context.Context, domain.RoomID, domain.EventID, string) error { return nil }
+
+func (Nop) VotePoll(context.Context, domain.RoomID, domain.EventID, []string) error    { return nil }
 func (Nop) RecordEmoji(context.Context, domain.EmojiKind, domain.RoomID, string) error { return nil }
 func (Nop) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error)   { return nil, nil }
 func (Nop) Start(context.Context) error                                                { return nil }

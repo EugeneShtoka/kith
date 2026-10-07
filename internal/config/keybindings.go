@@ -201,6 +201,7 @@ type TimelineKeys struct {
 	Download       string `toml:"download"`
 	SaveAs         string `toml:"save_as"`
 	ViewMedia      string `toml:"view_media"`
+	Vote           string `toml:"vote"`
 	Play           string `toml:"play"`
 	OpenThread     string `toml:"open_thread"`
 	StartThread    string `toml:"start_thread"`

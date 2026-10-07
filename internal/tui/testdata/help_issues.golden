@@ -79,6 +79,7 @@
   s                save this message's attachment
   S                save it somewhere else — opens a folder picker
   v                open this picture and the ones before it in an image viewer
+  P                vote in this message's poll, or take the vote back
   p                play this voice note, or watch this video
   r                reply to the selected message
   enter            go to the message this answers

@@ -398,6 +398,8 @@ func (m Model) plainBody(msg domain.Message, colors map[string]color.Color) (str
 		return m.deletedBody(msg) + " " + isolate(msg.Body), nil
 	case msg.Redacted:
 		return m.deletedBody(msg), nil
+	case msg.Poll != nil:
+		return pollBody(msg.Poll), nil
 	case msg.Emote:
 		// The IRC marker without the name, which has its own column. Mention spans name
 		// people rather than offsets, so the prefix does not disturb them.

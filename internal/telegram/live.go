@@ -105,6 +105,9 @@ func (l *live) changes(d tg.UpdateDispatcher) {
 			}
 		})
 	})
+	d.OnMessagePoll(func(ctx context.Context, _ tg.Entities, u *tg.UpdateMessagePoll) error {
+		return l.with(func(self int64) { l.a.pollUpdated(ctx, self, u) })
+	})
 	d.OnFolderPeers(func(ctx context.Context, _ tg.Entities, u *tg.UpdateFolderPeers) error {
 		return l.with(func(self int64) { l.a.folderPeers(ctx, self, u.FolderPeers) })
 	})

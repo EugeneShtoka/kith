@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"time"
@@ -153,6 +154,7 @@ func forgetContent(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventI
 		"UPDATE messages SET body = '' WHERE room_id = ? AND event_id = ?",
 		"DELETE FROM message_html WHERE room_id = ? AND event_id = ?",
 		"DELETE FROM message_media WHERE room_id = ? AND event_id = ?",
+		"DELETE FROM message_polls WHERE room_id = ? AND event_id = ?",
 		"DELETE FROM message_revisions WHERE room_id = ? AND event_id = ?",
 	} {
 		if _, err := tx.ExecContext(ctx, stmt, string(roomID), string(eventID)); err != nil {
@@ -733,12 +735,14 @@ func (c *Cache) Message(ctx context.Context, roomID domain.RoomID, eventID domai
 // messageSelect is every message read: the row plus its optional side tables.
 const messageSelect = `SELECT m.event_id, m.sender, m.sender_name, m.body, m.ts_ms, m.redacted, m.edited,
 	        m.reply_to, m.mentioned, m.thread_root, m.emote,
-	        d.kind, d.name, d.mime, d.width, d.height, d.size, h.html, r.by, r.reason, e.ts_ms, e.revision_id
+	        d.kind, d.name, d.mime, d.width, d.height, d.size, h.html, r.by, r.reason, e.ts_ms, e.revision_id,
+	        p.poll
 	   FROM messages m
 	   LEFT JOIN message_media d ON d.room_id = m.room_id AND d.event_id = m.event_id
 	   LEFT JOIN message_html  h ON h.room_id = m.room_id AND h.event_id = m.event_id
 	   LEFT JOIN message_redaction r ON r.room_id = m.room_id AND r.event_id = m.event_id
-	   LEFT JOIN message_edit e ON e.room_id = m.room_id AND e.event_id = m.event_id`
+	   LEFT JOIN message_edit e ON e.room_id = m.room_id AND e.event_id = m.event_id
+	   LEFT JOIN message_polls p ON p.room_id = m.room_id AND p.event_id = m.event_id`
 
 // scanMessage reads one row of messageSelect into a message for the given room.
 func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
@@ -751,12 +755,12 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 			width, height, mediaSize                               sql.NullInt64
 			formatted, redactedBy, redactReason                    sql.NullString
 			editedMS                                               sql.NullInt64
-			revision                                               sql.NullString
+			revision, poll                                         sql.NullString
 		)
 		if err := rows.Scan(&eventID, &sender, &senderName, &body, &tsMS, &redacted, &edited,
 			&replyTo, &mentioned, &threadRoot, &emote,
 			&kind, &name, &mime, &width, &height, &mediaSize, &formatted,
-			&redactedBy, &redactReason, &editedMS, &revision); err != nil {
+			&redactedBy, &redactReason, &editedMS, &revision, &poll); err != nil {
 			return domain.Message{}, err
 		}
 		msg := domain.Message{
@@ -788,6 +792,12 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 				Width:  int(width.Int64),
 				Height: int(height.Int64),
 				Size:   int(mediaSize.Int64),
+			}
+		}
+		if poll.Valid && poll.String != "" {
+			var p domain.Poll
+			if err := json.Unmarshal([]byte(poll.String), &p); err == nil {
+				msg.Poll = &p
 			}
 		}
 		return msg, nil

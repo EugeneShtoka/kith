@@ -245,6 +245,11 @@ func (s *server) Reactions(ctx context.Context, _ *req[v1.ReactionsRequest], st 
 	})
 }
 
+func (s *server) VotePoll(ctx context.Context, r *req[v1.VotePollRequest]) (*resp[v1.VotePollResponse], error) {
+	err := s.Backend.VotePoll(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()), r.Msg.GetOptions())
+	return reply(&v1.VotePollResponse{}, err)
+}
+
 func (s *server) SendReaction(ctx context.Context, r *req[v1.SendReactionRequest]) (*resp[v1.SendReactionResponse], error) {
 	err := s.Backend.SendReaction(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetTarget()), r.Msg.GetKey())
 	return reply(&v1.SendReactionResponse{}, err)

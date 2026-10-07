@@ -286,6 +286,7 @@ On the message cursor:
 | `x` | Delete the message (asks first). Somebody else's needs the room's redact power level |
 | `*` | Star or unstar — a private bookmark. `/starred` lists them; see [Search](search.md#lists-that-use-the-results-pane) |
 | `H` | History: every version the message had, and its deletion — who, why and when |
+| `P` | Vote in the message's poll (several answers where it takes them), or take the vote back |
 | `yy` | Copy the text |
 | `yc` | Copy the verification code in it (shown in the legend only when there is one) |
 | `z o` | Uncover a spoiler (or a kept deletion); again to cover it |

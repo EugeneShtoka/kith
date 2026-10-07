@@ -1344,6 +1344,7 @@ download        = "s"       # save this message's attachment
 save_as         = "S"       # save it somewhere else — opens a folder picker
 # open this picture and the ones before it in an image viewer
 view_media      = "v"
+vote            = "P"       # vote in this message's poll, or take the vote back
 play            = "p"       # play this voice note, or watch this video
 open_thread     = "t"       # open the thread this message is in (back closes it)
 start_thread    = "T"       # start a thread on this message

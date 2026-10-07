@@ -229,6 +229,7 @@ group; timeline: the open room); ` + "`scope`" + ` cycles room → group → eve
 			{path: "timeline.save_as", def: "S", doc: "save it somewhere else — opens a folder picker",
 				note: "The desktop's chooser (XDG portal), falling back to the download directory."},
 			{path: "timeline.view_media", def: "v", doc: "open this picture and the ones before it in an image viewer"},
+			{path: "timeline.vote", def: "P", doc: "vote in this message's poll, or take the vote back"},
 			{path: "timeline.play", def: "p", doc: "play this voice note, or watch this video"},
 			{path: "timeline.open_thread", def: "t", doc: "open the thread this message is in (back closes it)"},
 			{path: "timeline.start_thread", def: "T", doc: "start a thread on this message"},

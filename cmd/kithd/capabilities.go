@@ -98,6 +98,7 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.Leaver
+		route.Voter
 		configChecker
 		roomsRewriter
 		cacheWriter

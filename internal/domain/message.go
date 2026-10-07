@@ -50,6 +50,7 @@ type Message struct {
 	// edit when it can: not news itself, while the edit that replaces it is.
 	Placeholder bool
 	Media       *Media // attachment metadata, or nil
+	Poll        *Poll  // the poll the message asks, or nil
 	// Mentions are the formatted-body pills, so the timeline can color those names.
 	Mentions []Mention
 }
@@ -240,6 +241,10 @@ func combine(a, b Message) Message {
 	a.ThreadRoot = cmp.Or(a.ThreadRoot, b.ThreadRoot)
 	if a.Media == nil {
 		a.Media = b.Media
+	}
+	// A poll's later copy says how the votes stand now.
+	if b.Poll != nil {
+		a.Poll = b.Poll
 	}
 	if a.Mentions == nil {
 		a.Mentions = b.Mentions
