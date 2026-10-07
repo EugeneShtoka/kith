@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -94,6 +95,22 @@ func TestArchivedRoomKeepsItsRowAndLeavesTheTotals(t *testing.T) {
 	}
 	if rooms := m.unreadIn(m.rail.groups[indexOfGroup(m.rail.groups, unreadGroupKey)]); len(rooms) != 1 || rooms[0] != "!b:x" {
 		t.Errorf("Unread group = %v, want just the unarchived room", rooms)
+	}
+}
+
+// A space whose only unread room is archived is marked read, not refused as having
+// nothing unread: the room stays in its own network's space, and its row says it has.
+func TestMarkingASpaceReadReadsItsArchivedRooms(t *testing.T) {
+	t.Parallel()
+	m := picking(t, counting(t, config.Display{}), "Archived", "!a:x")
+	m = update(t, m, spacesMsg{spaces: []domain.Space{
+		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}, Bridge: domain.ProtocolTelegram},
+	}})
+	m.unread["!b:x"] = domain.Unread{RoomID: "!b:x"}
+	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
+	m, _ = m.askMarkGroupRead()
+	if m.confirm.action != pendingMarkGroupRead || !slices.Equal(m.confirm.rooms, []domain.RoomID{"!a:x"}) {
+		t.Errorf("confirm = %+v, status %q; want to mark the archived room read", m.confirm, m.status())
 	}
 }
 
