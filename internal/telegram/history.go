@@ -181,9 +181,10 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 	if err != nil {
 		return domain.Message{}, fmt.Errorf("telegram: fetch %s: %w", eventID, err)
 	}
-	if msg, ok := incoming(ch.conn.user, m, ent); ok && msg.ID == eventID {
-		if _, err := a.record(ctx, ch.conn.user, roomID, []domain.Message{msg}); err != nil {
-			a.log.Warn("cache a fetched message failed", "room", roomID, "err", err)
+	// The message as it is, in its own room: a quote may be of another topic's.
+	if msg, ok := incoming(ch.conn.user, m, ent); ok {
+		if _, err := a.record(ctx, ch.conn.user, msg.RoomID, []domain.Message{msg}); err != nil {
+			a.log.Warn("cache a fetched message failed", "room", msg.RoomID, "err", err)
 		}
 		return msg, nil
 	}

@@ -2,10 +2,13 @@ package telegram
 
 import (
 	"context"
+	"log/slog"
 	"math/rand/v2"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -256,7 +259,7 @@ func TestManyChatsAreReadPageByPage(t *testing.T) {
 	var got []dialog
 	err := client.Run(ctx, func(ctx context.Context) error {
 		var err error
-		got, err = readDialogs(ctx, client.API())
+		got, err = readDialogs(ctx, client.API(), slog.New(slog.DiscardHandler))
 		return err
 	})
 	if err != nil || len(got) != total {
@@ -286,5 +289,83 @@ func TestAReplacedConnectionsListingIsDropped(t *testing.T) {
 	}
 	if rooms, _ := cache.Rooms(t.Context()); len(rooms) != 0 {
 		t.Errorf("cached %v", rooms)
+	}
+}
+
+// A folder is read until it has as many dialogs as Telegram counts in it: a page that
+// holds fewer than asked for is not its last, as Telegram answers short pages while
+// more follow. Every chat after such a page would otherwise be swept from the cache.
+func TestShortPagesStillListEveryChat(t *testing.T) {
+	t.Parallel()
+	f := newFakeTelegram(t)
+	chats := make([]*tg.Chat, 7)
+	for i := range chats {
+		chats[i] = &tg.Chat{ID: int64(11 + i), Title: "chat " + strconv.Itoa(i), Photo: &tg.ChatPhotoEmpty{}}
+	}
+	a, _ := loggedInWithStore(t, f, openStore(t))
+	// After logging in, whose own listing is empty.
+	f.cluster.Dispatch(2, "dc2").HandleFunc(tg.MessagesGetDialogsRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
+		var req tg.MessagesGetDialogsRequest
+		if err := req.Decode(r.Buf); err != nil {
+			return err
+		}
+		res := &tg.MessagesDialogsSlice{Users: []tg.UserClass{f.user}}
+		if folder, _ := req.GetFolderID(); folder != 0 {
+			return s.SendResult(r, res)
+		}
+		res.Count = len(chats)
+		// Three at a time, after the chat the request names: fewer than the hundred
+		// asked for, while more follow.
+		from := 0
+		if p, ok := req.OffsetPeer.(*tg.InputPeerChat); ok {
+			from = int(p.ChatID-11) + 1
+		}
+		for i := from; i < len(chats) && i < from+3; i++ {
+			res.Dialogs = append(res.Dialogs, &tg.Dialog{Peer: &tg.PeerChat{ChatID: chats[i].ID}, TopMessage: 100 + i})
+			res.Chats = append(res.Chats, chats[i])
+			res.Messages = append(res.Messages, &tg.Message{ID: 100 + i, PeerID: &tg.PeerChat{ChatID: chats[i].ID}, Date: 5000 - i})
+		}
+		return s.SendResult(r, res)
+	})
+	rooms, err := a.RefreshRooms(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rooms) != len(chats) {
+		t.Errorf("listed %d chats, want all %d", len(rooms), len(chats))
+	}
+}
+
+// A server that pages oddly, answering the same page whatever the offset, ends the
+// folder once a page brings no chat not already read: the listing does not loop.
+func TestARepeatedPageEndsTheListing(t *testing.T) {
+	t.Parallel()
+	f := newFakeTelegram(t)
+	a, _ := loggedInWithStore(t, f, openStore(t))
+	chat := &tg.Chat{ID: 11, Title: "only", Photo: &tg.ChatPhotoEmpty{}}
+	var asked atomic.Int32
+	f.cluster.Dispatch(2, "dc2").HandleFunc(tg.MessagesGetDialogsRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
+		var req tg.MessagesGetDialogsRequest
+		if err := req.Decode(r.Buf); err != nil {
+			return err
+		}
+		if folder, _ := req.GetFolderID(); folder != 0 {
+			return s.SendResult(r, &tg.MessagesDialogsSlice{Users: []tg.UserClass{f.user}})
+		}
+		asked.Add(1)
+		return s.SendResult(r, &tg.MessagesDialogsSlice{
+			Count: 50, Dialogs: []tg.DialogClass{&tg.Dialog{Peer: &tg.PeerChat{ChatID: 11}, TopMessage: 1}},
+			Chats: []tg.ChatClass{chat}, Users: []tg.UserClass{f.user},
+			Messages: []tg.MessageClass{&tg.Message{ID: 1, PeerID: &tg.PeerChat{ChatID: 11}, Date: 5000}},
+		})
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	rooms, err := a.RefreshRooms(ctx)
+	if err != nil || len(rooms) != 1 {
+		t.Fatalf("RefreshRooms = %d rooms, %v", len(rooms), err)
+	}
+	if n := asked.Load(); n != 2 { // the page, then the same page again, which ends it
+		t.Errorf("asked for the main folder's dialogs %d times, want 2", n)
 	}
 }

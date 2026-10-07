@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -216,7 +217,7 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	a.refreshing.Lock()
 	defer a.refreshing.Unlock()
 	fetched := time.Now()
-	elems, err := readDialogs(ctx, client.API())
+	elems, err := readDialogs(ctx, client.API(), a.log.With("account", account.Name))
 	if err != nil {
 		return nil, fmt.Errorf("telegram: list %s's chats: %w", account.Name, err)
 	}
@@ -245,6 +246,7 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	if err := a.save(ctx, self, l, fetched); err != nil {
 		return nil, err
 	}
+	a.settleFollowed(ctx, self, elems)
 	a.cacheTops(ctx, self, elems, l.rooms)
 	a.listedUnread(ctx, self, elems, l.rooms, fetched)
 	for forum, got := range topics {
@@ -281,32 +283,43 @@ var folders = []int{0, archiveFolder}
 
 // readDialogs reads every dialog of an account, folder by folder, page by page. Not
 // gotd's iterator: it asks again after the last page, one request more each listing.
-func readDialogs(ctx context.Context, api *tg.Client) ([]dialog, error) {
+//
+// A page may hold fewer dialogs than asked for while more follow, so a folder is read
+// until it has as many as Telegram counts in it; a page that brings none not already
+// read ends it too, so a server that pages oddly cannot loop.
+func readDialogs(ctx context.Context, api *tg.Client, log *slog.Logger) ([]dialog, error) {
 	var out []dialog
 	for _, folder := range folders {
 		req := &tg.MessagesGetDialogsRequest{OffsetPeer: &tg.InputPeerEmpty{}, Limit: dialogsPage}
 		req.SetFolderID(folder)
+		seen, total := map[int64]bool{}, 0
 		for {
 			res, err := api.MessagesGetDialogs(ctx, req)
 			if err != nil {
 				return nil, err //nolint:wrapcheck // list wraps it, naming the account
 			}
-			page, last, err := dialogPage(res)
+			page, count, err := dialogPage(res)
 			if err != nil {
 				return nil, err
 			}
+			total = count
+			fresh := 0
 			for _, d := range page.dialogs {
+				chat, ok := markedPeer(d.Peer)
+				if !ok || seen[chat] {
+					continue
+				}
+				seen[chat] = true
+				fresh++
 				if input, err := page.entities.ExtractPeer(d.Peer); err == nil {
 					out = append(out, dialog{peer: input, top: page.top(d), entities: page.entities, info: d})
 				}
 			}
-			if last || len(page.dialogs) == 0 {
-				break
-			}
-			if !page.next(req) {
+			if fresh == 0 || len(seen) >= total || !page.next(req) {
 				break
 			}
 		}
+		log.Info("listed a folder's chats", "folder", folder, "read", len(seen), "telegram_counts", total)
 	}
 	return out, nil
 }
@@ -319,26 +332,26 @@ type page struct {
 	entities peer.Entities
 }
 
-// dialogPage is an answer as a page, and whether it is the last.
-func dialogPage(res tg.MessagesDialogsClass) (page, bool, error) {
+// dialogPage is an answer as a page, and how many dialogs the folder holds in all.
+func dialogPage(res tg.MessagesDialogsClass) (page, int, error) {
 	var p page
 	var all []tg.DialogClass
-	last := false
+	total := 0
 	switch r := res.(type) {
 	case *tg.MessagesDialogs: // every dialog at once
-		all, p.messages, p.entities, last = r.Dialogs, r.Messages, peer.EntitiesFromResult(r), true
-	case *tg.MessagesDialogsSlice:
 		all, p.messages, p.entities = r.Dialogs, r.Messages, peer.EntitiesFromResult(r)
-		last = len(r.Dialogs) < dialogsPage
+		total = len(r.Dialogs)
+	case *tg.MessagesDialogsSlice:
+		all, p.messages, p.entities, total = r.Dialogs, r.Messages, peer.EntitiesFromResult(r), r.Count
 	default:
-		return p, false, fmt.Errorf("telegram: unexpected dialogs answer %T", res)
+		return p, 0, fmt.Errorf("telegram: unexpected dialogs answer %T", res)
 	}
 	for _, d := range all {
 		if dlg, ok := d.(*tg.Dialog); ok { // not a folder's own entry
 			p.dialogs = append(p.dialogs, dlg)
 		}
 	}
-	return p, last, nil
+	return p, total, nil
 }
 
 // top is a dialog's latest message, as its page carried it.

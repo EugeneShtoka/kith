@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"strconv"
@@ -183,7 +184,9 @@ func (a *Adapter) record(ctx context.Context, self int64, room domain.RoomID, ms
 // could not be cached holds the account's updates position (Store.hold), so it is
 // asked for again.
 func (a *Adapter) arrived(ctx context.Context, account Account, self int64, msg domain.Message) error {
-	if err := a.heardLive(ctx, account, self, msg); err != nil {
+	if err := a.heardLive(ctx, account, self, msg); errors.Is(err, errNotOurs) {
+		return nil
+	} else if err != nil {
 		return err
 	}
 	if a.onCached != nil {
@@ -196,6 +199,9 @@ func (a *Adapter) arrived(ctx context.Context, account Account, self int64, msg 
 
 // heardLive caches a message or a version of one heard live (see arrived).
 func (a *Adapter) heardLive(ctx context.Context, account Account, self int64, msg domain.Message) error {
+	if a.notOurs(self, msg.RoomID) {
+		return errNotOurs // a channel left, still followed (following.go)
+	}
 	joined, err := a.record(ctx, self, msg.RoomID, []domain.Message{msg})
 	if err != nil {
 		if a.store != nil {

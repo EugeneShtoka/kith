@@ -35,7 +35,7 @@ func (a *Adapter) Groupings(ctx context.Context, account string) (domain.RoomOwn
 	if err != nil {
 		return "", nil, fmt.Errorf("telegram: %s's folders: %w", account, err)
 	}
-	elems, err := readDialogs(ctx, c.client.API())
+	elems, err := readDialogs(ctx, c.client.API(), a.log)
 	if err != nil {
 		return "", nil, fmt.Errorf("telegram: %s's chats: %w", account, err)
 	}

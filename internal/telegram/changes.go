@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -34,7 +35,9 @@ func (a *Adapter) keepsDeleted() bool {
 // edited folds a version of a message onto it and hands it to the clients; one that
 // could not be cached holds the position, as a new message does.
 func (a *Adapter) edited(ctx context.Context, account Account, self int64, msg domain.Message) error {
-	if err := a.heardLive(ctx, account, self, msg); err != nil {
+	if err := a.heardLive(ctx, account, self, msg); errors.Is(err, errNotOurs) {
+		return nil
+	} else if err != nil {
 		return err
 	}
 	if a.onChanged != nil {
