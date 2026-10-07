@@ -22,6 +22,9 @@ func (m Model) openSpacePicker() (Model, tea.Cmd) {
 	if !ok || room.IsInvite() {
 		return m, nil
 	}
+	if m.onTopic(room) {
+		return m.say(topicNotFiled), nil
+	}
 	items, checked, ok := m.filingRows(room)
 	if !ok {
 		return m.say("nothing in [display] filing_spaces matches a space you are in"), nil

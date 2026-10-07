@@ -139,10 +139,15 @@ func (m Model) threadsUnder(room domain.Room, mode string) []domain.ThreadUnread
 		listed[t.Root] = true
 	}
 	// The open thread and the cursor's thread keep their rows once read, so a row
-	// does not vanish from under the cursor.
+	// does not vanish from under the cursor; one the full list carries keeps its own
+	// place there (pinned, it would jump to here, and stepping down would never pass it).
+	known := m.rows.known[room.ID]
+	if mode != config.ThreadsAll {
+		known = nil
+	}
 	if room.ID == m.openRoom {
 		for _, root := range []domain.EventID{m.thread.root, m.rows.cursor} {
-			if root == "" || listed[root] {
+			if root == "" || listed[root] || slices.ContainsFunc(known, func(t domain.Thread) bool { return t.Root == root }) {
 				continue
 			}
 			if pinned, ok := m.pinnedThreadRow(root); ok {
@@ -154,7 +159,6 @@ func (m Model) threadsUnder(room domain.Room, mode string) []domain.ThreadUnread
 	if mode != config.ThreadsAll {
 		return out
 	}
-	known := m.rows.known[room.ID]
 	for i := range known {
 		if listed[known[i].Root] {
 			continue

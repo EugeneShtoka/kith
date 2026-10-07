@@ -102,6 +102,11 @@ func railGroups(
 			},
 		})
 	}
+	// A forum is listed on its own row, as a space is, not as a room of any other.
+	for i := range groups {
+		admits := groups[i].admits
+		groups[i].admits = func(v unreadView, r domain.Room) bool { return !forumRow(v, r) && admits(v, r) }
+	}
 	groups = append(groups, forumGroups(rooms, names)...)
 	if len(groups) == 0 {
 		groups = []group{fallbackGroup()}
@@ -123,18 +128,21 @@ func forumGroups(rooms []domain.Room, names []config.DisplayName) []group {
 		}
 		id := r.ID
 		groups = append(groups, group{
-			key:   forumGroupKey(r.DisplayName()),
-			label: cmp.Or(display.NameFor(string(id)), r.DisplayName()),
-			// Spam, and a tag that takes its rooms out of the spaces (Archived), take the
-			// forum's row away with it.
-			admits: func(v unreadView, x domain.Room) bool {
-				return x.ID == id && !v.isSpam(x) && !v.leavesMadeSpaces(x)
-			},
+			key:           forumGroupKey(r.DisplayName()),
+			label:         cmp.Or(display.NameFor(string(id)), r.DisplayName()),
+			admits:        func(v unreadView, x domain.Room) bool { return x.ID == id && forumRow(v, x) },
 			forum:         id,
 			hideWhenEmpty: true,
 		})
 	}
 	return groups
+}
+
+// forumRow reports whether a room is listed on a forum's own row, and so on no other.
+// Spam, and a tag that takes its rooms out of the spaces (Archived), take the row away:
+// the forum is then listed where they put it, as a room.
+func forumRow(v unreadView, r domain.Room) bool {
+	return r.Forum && !r.IsInvite() && !v.isSpam(r) && !v.leavesMadeSpaces(r)
 }
 
 // forumGroupKey is a forum's rail key: `room:<name>`, as the rail order names it.
