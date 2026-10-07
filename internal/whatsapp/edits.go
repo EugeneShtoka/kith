@@ -35,6 +35,10 @@ func (a *Adapter) onChange(ctx context.Context, account Account, client *whatsme
 		a.onReaction(ctx, account, client, e, r)
 		return true
 	}
+	if vote := e.Message.GetPollUpdateMessage(); vote != nil {
+		a.onPollVote(ctx, account, client, e, vote)
+		return true
+	}
 	pm := e.Message.GetProtocolMessage()
 	if pm == nil {
 		return false

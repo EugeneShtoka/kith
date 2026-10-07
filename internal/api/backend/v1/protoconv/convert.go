@@ -3,6 +3,9 @@
 package protoconv
 
 import (
+	"maps"
+	"slices"
+
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/richtext"
@@ -39,9 +42,13 @@ func PollToProto(p *domain.Poll) *v1.Poll {
 	for i, o := range p.Options {
 		options[i] = &v1.PollOption{Id: o.ID, Text: o.Text, Votes: int64(o.Votes), Mine: o.Mine}
 	}
+	var ballots []*v1.Ballot
+	for _, voter := range slices.Sorted(maps.Keys(p.Ballots)) {
+		ballots = append(ballots, &v1.Ballot{Voter: voter, Options: p.Ballots[voter]})
+	}
 	return &v1.Poll{
 		Id: p.ID, Question: p.Question, Options: options,
-		Multiple: p.Multiple, Closed: p.Closed, Quiz: p.Quiz, Voters: int64(p.Voters),
+		Multiple: p.Multiple, Closed: p.Closed, Quiz: p.Quiz, Voters: int64(p.Voters), Ballots: ballots,
 	}
 }
 
@@ -54,9 +61,16 @@ func ProtoToPoll(pb *v1.Poll) *domain.Poll {
 	for i, o := range pb.GetOptions() {
 		options[i] = domain.PollOption{ID: o.GetId(), Text: o.GetText(), Votes: int(o.GetVotes()), Mine: o.GetMine()}
 	}
+	var ballots map[string][]string
+	for _, b := range pb.GetBallots() {
+		if ballots == nil {
+			ballots = map[string][]string{}
+		}
+		ballots[b.GetVoter()] = b.GetOptions()
+	}
 	return &domain.Poll{
 		ID: pb.GetId(), Question: pb.GetQuestion(), Options: options,
-		Multiple: pb.GetMultiple(), Closed: pb.GetClosed(), Quiz: pb.GetQuiz(), Voters: int(pb.GetVoters()),
+		Multiple: pb.GetMultiple(), Closed: pb.GetClosed(), Quiz: pb.GetQuiz(), Voters: int(pb.GetVoters()), Ballots: ballots,
 	}
 }
 
