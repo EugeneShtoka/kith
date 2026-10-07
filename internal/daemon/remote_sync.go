@@ -60,13 +60,19 @@ func reattachDelay(attempt int) time.Duration {
 // the daemon goes away. Each attempt gets its own context because the first
 // stream to end cancels the rest.
 //
-// Only a client that has never attached may give up, after firstAttachTries.
+// Only a client that has never reached a daemon may give up, after firstAttachTries.
 // This must be a flag, not the attempt count: a count spent by ordinary restarts
-// once left long-lived clients permanently stream-less.
+// once left long-lived clients permanently stream-less. And it is set when a daemon
+// answers, before the streams open, not when an attachment ends cleanly: one ended by
+// a crash ends in an error, and a client attached for hours then gave up two seconds
+// into the restart.
 func (r *Remote) hold(ctx context.Context) error {
 	everAttached := false
 	attempt := 0
 	for {
+		if !everAttached && r.daemonAnswers(ctx) {
+			everAttached = true
+		}
 		attemptCtx, endAttempt := context.WithCancel(ctx)
 		began := time.Now()
 		err := r.attach(attemptCtx, endAttempt)
