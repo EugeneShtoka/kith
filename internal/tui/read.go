@@ -100,8 +100,8 @@ func (v unreadView) count(room domain.Room) (count, highlights int) {
 	return v.counts[room.ID].Count(v.local)
 }
 
-// tallies reports whether a room counts toward group badges and group mark-read.
-// Invitations, spam and rooms a silent tag holds do not.
+// tallies reports whether a room counts toward group badges. Invitations, spam and
+// rooms a silent tag holds do not.
 func (v unreadView) tallies(room domain.Room) bool {
 	if room.IsInvite() || v.isSpam(room) || v.silenced(room) {
 		return false
@@ -158,13 +158,15 @@ func (m Model) unreadView() unreadView {
 	}
 }
 
-// unreadIn lists the rooms of a rail group that have something unread.
+// unreadIn lists the rooms of a rail group that have something unread, for marking
+// them read: a room a silent tag holds (Archived) too. It leaves the group's total,
+// but its row still shows what is unread, and marking the group read reads it.
 func (m Model) unreadIn(g group) []domain.RoomID {
 	view := m.unreadView()
 	var ids []domain.RoomID
 	for i := range m.rooms.all {
 		room := m.rooms.all[i]
-		if !g.admits(view, room) || !view.tallies(room) {
+		if !g.admits(view, room) || room.IsInvite() || view.isSpam(room) || !view.counts[room.ID].HasUnread(view.local) {
 			continue
 		}
 		ids = append(ids, room.ID)
