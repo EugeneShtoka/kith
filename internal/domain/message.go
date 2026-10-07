@@ -239,13 +239,8 @@ func combine(a, b Message) Message {
 	a.ReplyTo = cmp.Or(a.ReplyTo, b.ReplyTo)
 	// Never clear a thread root: an edit arrives with an empty relation.
 	a.ThreadRoot = cmp.Or(a.ThreadRoot, b.ThreadRoot)
-	if a.Media == nil {
-		a.Media = b.Media
-	}
-	// A poll's later copy says how the votes stand now.
-	if b.Poll != nil {
-		a.Poll = b.Poll
-	}
+	// A missing attachment is filled; a poll's later copy says how the votes stand now.
+	a.Media, a.Poll = cmp.Or(a.Media, b.Media), cmp.Or(b.Poll, a.Poll)
 	if a.Mentions == nil {
 		a.Mentions = b.Mentions
 	}

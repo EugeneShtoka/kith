@@ -88,7 +88,8 @@ func (a *Adapter) pollUpdated(ctx context.Context, self int64, u *tg.UpdateMessa
 		}
 		targets = found
 	}
-	for _, msg := range targets {
+	for i := range targets {
+		msg := &targets[i]
 		poll := *msg.Poll
 		poll.Options = append([]domain.PollOption(nil), msg.Poll.Options...)
 		if p, ok := u.GetPoll(); ok {
@@ -118,8 +119,8 @@ func (a *Adapter) VotePoll(ctx context.Context, roomID domain.RoomID, eventID do
 	}
 	chosen := make([][]byte, 0, len(options))
 	for _, o := range options {
-		option, err := base64.RawURLEncoding.DecodeString(o)
-		if err != nil {
+		option, derr := base64.RawURLEncoding.DecodeString(o)
+		if derr != nil {
 			return fmt.Errorf("telegram: %q is no answer of the poll", o)
 		}
 		chosen = append(chosen, option)

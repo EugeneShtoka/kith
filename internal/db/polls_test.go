@@ -28,8 +28,8 @@ func TestAPollIsKeptWithItsMessage(t *testing.T) {
 	}
 
 	poll.Options[1].Votes, poll.Options[1].Mine = 2, true
-	if err := c.SetPoll(ctx, room, "telegram:42/-11/5", poll); err != nil {
-		t.Fatal(err)
+	if serr := c.SetPoll(ctx, room, "telegram:42/-11/5", poll); serr != nil {
+		t.Fatal(serr)
 	}
 	found, err := c.PollsByID(ctx, domain.AccountRooms(domain.ProtocolTelegram, "42"), "777")
 	if err != nil || len(found) != 1 || found[0].ID != "telegram:42/-11/5" || !found[0].Poll.Options[1].Mine {
