@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gotd/td/tg"
@@ -188,10 +189,60 @@ func (a *Adapter) SendReaction(ctx context.Context, roomID domain.RoomID, target
 	}
 	for _, u := range updatesIn(res) {
 		if r, ok := u.(*tg.UpdateMessageReactions); ok && r.MsgID == id && samePeer(r.Peer, ch.id) {
-			a.reactionsChanged(ctx, roomID, target, messageReactions(roomID, id, r.Reactions))
+			rs := messageReactions(roomID, id, r.Reactions)
+			a.sentReactions(target, rs)
+			a.reactionsChanged(ctx, roomID, target, rs)
 		}
 	}
 	return nil
+}
+
+// heardReactions keeps a message's reactions as an update says them, unless the
+// update is a send of ours answered again (ownEcho).
+func (a *Adapter) heardReactions(ctx context.Context, room domain.RoomID, target domain.EventID, rs []domain.Reaction) {
+	if a.ownEcho(target, rs) {
+		return // applied when it was sent
+	}
+	a.reactionsChanged(ctx, room, target, rs)
+}
+
+// echoFor is how long a reaction of ours applied on sending is waited for as an echo.
+const echoFor = time.Minute
+
+// sentReactions remembers reactions applied as a send's answer said them: the same
+// answer comes again through the updates, perhaps after a later send's, and must not
+// put back what that one changed.
+func (a *Adapter) sentReactions(target domain.EventID, rs []domain.Reaction) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	now := time.Now()
+	for k, at := range a.echoes {
+		if now.Sub(at) > echoFor {
+			delete(a.echoes, k)
+		}
+	}
+	a.echoes[reactionState(target, rs)] = now
+}
+
+// ownEcho reports whether reactions heard are a send's answer applied already, and
+// forgets it: heard once more, they are someone's.
+func (a *Adapter) ownEcho(target domain.EventID, rs []domain.Reaction) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	k := reactionState(target, rs)
+	at, ok := a.echoes[k]
+	delete(a.echoes, k)
+	return ok && time.Since(at) <= echoFor
+}
+
+// reactionState names a message's reactions whole: the message and every reaction.
+func reactionState(target domain.EventID, rs []domain.Reaction) string {
+	ids := make([]string, len(rs))
+	for i := range rs {
+		ids[i] = string(rs[i].ID)
+	}
+	slices.Sort(ids)
+	return string(target) + "\x00" + strings.Join(ids, "\x00")
 }
 
 // react sets our reactions on message id to keys.

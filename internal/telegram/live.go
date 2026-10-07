@@ -79,7 +79,7 @@ func (l *live) changes(d tg.UpdateDispatcher) {
 		return l.with(func(self int64) {
 			if chat, ok := markedPeer(u.Peer); ok {
 				room := chatRoom(self, chat, topicNumber(u.TopMsgID))
-				l.a.reactionsChanged(ctx, room, inRoom(room, u.MsgID), messageReactions(room, u.MsgID, u.Reactions))
+				l.a.heardReactions(ctx, room, inRoom(room, u.MsgID), messageReactions(room, u.MsgID, u.Reactions))
 			}
 		})
 	})
