@@ -59,6 +59,10 @@ type (
 		MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error)
 		MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unread bool) error
 	}
+	// Leaver is a network whose rooms can be left (or an invitation to one declined).
+	Leaver interface {
+		LeaveRoom(ctx context.Context, roomID domain.RoomID) error
+	}
 	// Archiver is a network with an archive of its own (Telegram's Archived folder,
 	// WhatsApp's archived chats).
 	Archiver interface {

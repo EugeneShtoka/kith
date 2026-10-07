@@ -27,3 +27,15 @@ func (c *Cache) ForgetThreads(ctx context.Context, room domain.RoomID, roots []d
 		return nil
 	})
 }
+
+// ForgetRooms drops rooms from the cache, with everything kept of them: rooms left.
+func (c *Cache) ForgetRooms(ctx context.Context, rooms []domain.RoomID) error {
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		for _, room := range rooms {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM rooms WHERE id = ?", string(room)); err != nil {
+				return fmt.Errorf("db: forget %s: %w", room, err)
+			}
+		}
+		return nil
+	})
+}

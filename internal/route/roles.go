@@ -83,7 +83,7 @@ func (r *Router) UnbanUser(ctx context.Context, roomID domain.RoomID, userID str
 
 // LeaveRoom leaves a room or rejects an invite.
 func (r *Router) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
-	return doOnRoom(r, roomID, "leaving", func(c api.Membership) error { return c.LeaveRoom(ctx, roomID) })
+	return doOnRoom(r, roomID, "leaving", func(c Leaver) error { return c.LeaveRoom(ctx, roomID) })
 }
 
 // StartVerification asks this account's other devices to verify this one.
