@@ -99,6 +99,8 @@ type Adapter struct {
 	// typing who is typing where, each forgotten when their timer fires (typing.go).
 	reacted map[domain.EventID]time.Time
 	typing  map[domain.RoomID]map[string]*time.Timer
+	// notMember is, per account, the channels it is no longer in (following.go).
+	notMember map[int64]map[int64]bool
 
 	// keeping serializes writing credentials with checking that their login is still
 	// the latest (keepLogin).
@@ -124,6 +126,7 @@ func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log
 		unreadAt:  map[domain.RoomID]time.Time{},
 		moved:     map[domain.RoomID]time.Time{},
 		reacted:   map[domain.EventID]time.Time{},
+		notMember: map[int64]map[int64]bool{},
 		typing:    map[domain.RoomID]map[string]*time.Timer{},
 		signIns:   map[string]int{},
 		logins:    map[string]*login{},

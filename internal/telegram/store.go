@@ -204,6 +204,12 @@ func (s *Store) ForEachChannels(ctx context.Context, user int64, f func(ctx cont
 	return nil
 }
 
+// ForgetChannel stops keeping where a channel's updates are up to, for user: the
+// account is no longer in it, and is not to follow it on connecting again.
+func (s *Store) ForgetChannel(ctx context.Context, user, channel int64) error {
+	return s.exec(ctx, user, `DELETE FROM channel_pts WHERE user = ? AND channel = ?`, user, channel)
+}
+
 // position is where one channel's updates are up to.
 type position struct {
 	channel int64

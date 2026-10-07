@@ -246,6 +246,7 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	if err := a.save(ctx, self, l, fetched); err != nil {
 		return nil, err
 	}
+	a.settleFollowed(ctx, self, elems)
 	a.cacheTops(ctx, self, elems, l.rooms)
 	a.listedUnread(ctx, self, elems, l.rooms, fetched)
 	for forum, got := range topics {
