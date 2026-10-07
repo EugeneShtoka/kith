@@ -56,6 +56,7 @@ var propertyGroups = append([]propertyGroup{
 	{"homeserver", "networks", ""},
 	{"user", "networks", ""},
 	{"allow_token_file", "networks", ""},
+	{"bridge_contacts", "networks", ""},
 	{"commands.", "advanced", ""},
 	{"log.", "advanced", ""},
 	{"schedule.", "advanced", ""},
