@@ -70,11 +70,13 @@ func (a *Adapter) renameLater(account Account, client *whatsmeow.Client) {
 }
 
 // renameChats names the account's cached direct chats as the store knows the people
-// now, changing only those whose name changed.
+// now, changing only those whose name changed, and gives the phone book what the
+// account knows its people's numbers by.
 func (a *Adapter) renameChats(ctx context.Context, account Account, client *whatsmeow.Client) {
 	if a.cache == nil {
 		return
 	}
+	a.keepNumberNames(ctx, account, client)
 	rooms, err := a.cache.Rooms(ctx)
 	if err != nil {
 		a.log.Warn("read the chats to name failed", "account", account.Name, "err", err)
@@ -105,3 +107,48 @@ func (a *Adapter) renameChats(ctx context.Context, account Account, client *what
 		a.onRoomsChanged()
 	}
 }
+
+// keepNumberNames gives the phone book every name the account knows a number by: the
+// address book's (saved), else the person's own or their business's (chosen). A
+// contact WhatsApp knows by LID is put under its number when the store knows that.
+func (a *Adapter) keepNumberNames(ctx context.Context, account Account, client *whatsmeow.Client) {
+	contacts, err := client.Store.Contacts.GetAllContacts(ctx)
+	if err != nil {
+		a.log.Warn("read the contacts failed", "account", account.Name, "err", err)
+		return
+	}
+	names := make([]domain.NumberName, 0, len(contacts))
+	for jid, c := range contacts {
+		phone := a.phoneOf(ctx, client, jid)
+		if phone == "" {
+			continue
+		}
+		if saved := cmpOr(c.FullName, c.FirstName); saved != "" {
+			names = append(names, domain.NumberName{Phone: phone, Name: saved, Rank: domain.RankSaved})
+		} else if chosen := cmpOr(c.PushName, c.BusinessName); chosen != "" {
+			names = append(names, domain.NumberName{Phone: phone, Name: chosen, Rank: domain.RankChosen})
+		}
+	}
+	if err := a.cache.SetNumberNames(ctx, numberSource(account), names); err != nil {
+		a.log.Warn("keep the contacts' names failed", "account", account.Name, "err", err)
+	}
+}
+
+// phoneOf is a contact's number as international digits; empty for one with none
+// known (a LID the store has no number for, a group).
+func (a *Adapter) phoneOf(ctx context.Context, client *whatsmeow.Client, jid types.JID) string {
+	if jid.Server == types.HiddenUserServer {
+		pn, err := client.Store.LIDs.GetPNForLID(ctx, jid)
+		if err != nil || pn.IsEmpty() {
+			return ""
+		}
+		jid = pn
+	}
+	if jid.Server != types.DefaultUserServer {
+		return ""
+	}
+	return jid.User
+}
+
+// numberSource is the phone book's source for an account's names.
+func numberSource(account Account) string { return "whatsapp:" + account.Digits }

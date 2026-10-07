@@ -204,15 +204,16 @@ func (m Model) openPeopleForRoom() (Model, tea.Cmd) {
 func (m Model) peopleItems() []pickerItem {
 	items := make([]pickerItem, 0, len(m.timeline.members))
 	for _, member := range m.timeline.members {
-		label := isolate(member.Name())
+		name := m.memberName(member)
+		label := isolate(name)
 		if ident, ok := m.prefs.identities[member.UserID]; ok && ident.alias != "" {
-			label = isolate(ident.alias) + "  (" + isolate(member.Name()) + ")"
+			label = isolate(ident.alias) + "  (" + isolate(name) + ")"
 		}
 		items = append(items, pickerItem{
 			label:  label,
 			detail: member.UserID,
 			value:  member.UserID,
-			match:  member.Name() + " " + domain.ShortName(member.UserID),
+			match:  name + " " + member.Name() + " " + domain.ShortName(member.UserID),
 		})
 	}
 	return items

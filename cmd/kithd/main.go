@@ -491,6 +491,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	}
 	notifications.UseLogger(log)
 	notifications.UseSelves(backend.Me)
+	notifications.UsePhoneBook(backend.PhoneBook)
 	// Before any network starts writing: how much of each room the cache keeps follows
 	// [storage], judged by the room's place, and every reload.
 	if backend.cache != nil {

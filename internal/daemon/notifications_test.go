@@ -785,3 +785,36 @@ func TestAPlaceholderIsAnnouncedOnceItIsReplaced(t *testing.T) {
 		t.Errorf("announced %+v, want the replacement alone", got)
 	}
 }
+
+// A sender and a room shown only as a number are named from the phone book; a name
+// that is more than a number is kept.
+func TestANotificationNamesANumberFromThePhoneBook(t *testing.T) {
+	t.Parallel()
+	n, rec, src := notifier(t, notifsOn("all"))
+	src.mu.Lock()
+	src.rooms = append(src.rooms, domain.Room{ID: "!num:example.org", Name: "+15550100001 (WA)", IsDirect: true})
+	src.mu.Unlock()
+	n.InvalidateScope()
+	n.UsePhoneBook(func(context.Context) (domain.PhoneBook, error) {
+		return domain.PhoneBook{"15550100001": "Dana", "15550100002": "Eli"}, nil
+	})
+	for _, c := range []struct {
+		room          domain.RoomID
+		shown         string
+		sender, title string
+	}{
+		{"!num:example.org", "+1 555 010 0001 (WA)", "Dana", "Dana"},
+		{chatRm, "+15550100002", "Eli", chatNam},
+		{chatRm, "Alice", "Alice", chatNam},
+	} {
+		m := msg(c.room, "@whatsapp_15550100009:example.org", "hi")
+		m.SenderName = c.shown
+		if _, ok := n.Deliver(context.Background(), m); !ok {
+			t.Fatalf("%q in %s did not notify", c.shown, c.room)
+		}
+		sent := rec.all()
+		if got := sent[len(sent)-1]; got.Sender != c.sender || got.Room != c.title {
+			t.Errorf("%q in %s: sender %q, room %q; want %q, %q", c.shown, c.room, got.Sender, got.Room, c.sender, c.title)
+		}
+	}
+}

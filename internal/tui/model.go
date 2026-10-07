@@ -579,6 +579,8 @@ type Model struct {
 
 	// selves is every ID the daemon says is this person, on every network (see isMe).
 	selves []string
+	// phones is the daemon's phone book (phonebook.go): names for people shown as numbers.
+	phones phoneState
 	// roomAccounts is each network account the room list has had rooms from (see
 	// selvesAfterRooms); nil before the first list.
 	roomAccounts []string
@@ -851,7 +853,7 @@ func (m Model) labeled(room domain.Room, rule nameRule) string {
 	if alias, ok := m.prefs.roomAliases[room.ID]; ok {
 		return alias
 	}
-	name := room.DisplayName()
+	name := m.byNumber(room.DisplayName())
 	if short, ok := rule.within(name, room.Members); ok {
 		return short
 	}
@@ -1231,7 +1233,7 @@ func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
 	next, cmd := m.handleRooms(msg)
 	next, offer := next.maybeOfferDictionaries()
 	next, selves := next.selvesAfterRooms(msg.rooms)
-	return next, tea.Batch(cmd, offer, selves)
+	return next, tea.Batch(cmd, offer, selves, next.phoneBookCmd())
 }
 
 // handleSideMsg handles account-wide loads, verification, and reactions and images
@@ -1240,6 +1242,8 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case directCandidatesMsg:
 		return answered(m.handleDirectCandidates(msg))
+	case phoneBookMsg:
+		return answered(m.handlePhoneBook(msg))
 	case selvesMsg:
 		return answered(m.handleSelves(msg))
 	case searchSendersMsg:

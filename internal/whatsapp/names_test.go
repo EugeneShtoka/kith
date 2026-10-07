@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"context"
+	"maps"
 	"testing"
 
 	"go.mau.fi/whatsmeow/types"
@@ -75,5 +76,58 @@ func TestNamesArrivingLaterNameTheChats(t *testing.T) {
 		if got[id] != name {
 			t.Errorf("%s is %q, want %q", id, got[id], name)
 		}
+	}
+}
+
+// An account gives the phone book every name it knows a number by: the address book's
+// as saved, else the person's own or their business's as chosen; a contact known by
+// LID under its number when the store has one, and none without.
+func TestAnAccountNamesTheNumbersItKnows(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	account := Account{Name: "home", Digits: ownDigits}
+	a, cache, store := offline(t, account)
+	client := linkedClient(t, store, ownDigits)
+	phone := func(user string) types.JID { return types.NewJID(user, types.DefaultUserServer) }
+	// whatsmeow stores the first name, then the full name.
+	if err := client.Store.Contacts.PutContactName(ctx, phone("447700900111"), "Dana", "Dana Lee"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := client.Store.Contacts.PutPushName(ctx, phone("447700900111"), "dana!"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := client.Store.Contacts.PutPushName(ctx, phone("447700900222"), "Alex"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := client.Store.Contacts.PutBusinessName(ctx, phone("447700900333"), "Kim's Bakery"); err != nil {
+		t.Fatal(err)
+	}
+	lid, unmapped := types.NewJID("100000000000001", types.HiddenUserServer), types.NewJID("100000000000002", types.HiddenUserServer)
+	if err := client.Store.LIDs.PutLIDMapping(ctx, lid, phone("447700900444")); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Store.Contacts.PutContactName(ctx, lid, "Sam Hidden", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Store.Contacts.PutContactName(ctx, unmapped, "Nobody's Number", ""); err != nil {
+		t.Fatal(err)
+	}
+	// A bridge names Alex too: an address book would outrank it, Alex's own name does not.
+	if err := cache.SaveMembers(ctx, "!dm:x", []domain.Member{
+		{UserID: "@whatsapp_447700900222:x", DisplayName: "Alex Bridged (WA)"},
+		{UserID: "@whatsapp_447700900111:x", DisplayName: "Dana Bridged (WA)"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	a.renameChats(ctx, account, client)
+	book, err := cache.PhoneBook(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := domain.PhoneBook{
+		"447700900111": "Dana Lee", "447700900222": "Alex Bridged", "447700900333": "Kim's Bakery", "447700900444": "Sam Hidden",
+	}
+	if !maps.Equal(book, want) {
+		t.Errorf("book = %v, want %v", book, want)
 	}
 }

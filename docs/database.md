@@ -269,8 +269,12 @@ Since then:
   network, so a listing's rewrite of its rooms never blanks it.
 - v5 (`room_forums`): the rooms made of topics (Telegram's forums), a row only for
   one; written only by that network's listing.
+- v6 (`phone_names`): the names each account knows numbers by (a WhatsApp account's
+  address book and its contacts' own names, Telegram users whose number it knows),
+  each account's rows replaced whole when it reads them again. A label that is only
+  a number takes the best of these, on any network or account.
 
-so a current cache is at version 5.
+so a current cache is at version 6.
 
 ### Indexes need no migration
 

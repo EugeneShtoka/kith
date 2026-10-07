@@ -38,6 +38,7 @@ var rowReads = map[string]string{
 	"rail.tags":                  "derivedKey.place (Tags in the facts); tags are set with the config, which bumps conf.rev",
 	"rail.archives":              "derivedKey.place (ArchivedIn and the Tags it puts the room in); set with the config, which bumps conf.rev",
 	"openRoom":                   "derivedKey.room",
+	"phones.book":                "derivedKey.phones (its revision moves with the book)",
 	"timeline.layout.room":       "derivedKey.rtl (mirrored)",
 	"timeline.layout.rtl":        "derivedKey.rtl (mirrored)",
 	// Set only by applyConfig, which bumps conf.rev (derivedKey.cfg).
@@ -192,6 +193,7 @@ var derivedReads = map[string]string{
 	"prefs.identities":  "derivedKey.cfg",
 	"theme":             "derivedKey.cfg",
 	"selves":            "derivedKey.selves",
+	"phones.book":       "derivedKey.phones (its revision moves with the book)",
 }
 
 // TestTheDerivedCacheReadsOnlyKeyedState walks computeDerived's calls and reads, as

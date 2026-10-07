@@ -587,7 +587,7 @@ func (m Model) processedName(msg domain.Message) string {
 	if id, ok := m.prefs.identities[msg.Sender]; ok && id.alias != "" {
 		return m.shapedName(id.alias, msg.RoomID)
 	}
-	return m.shapedName(senderLabel(msg), msg.RoomID)
+	return m.shapedName(m.byNumber(senderLabel(msg)), msg.RoomID)
 }
 
 // shapedName applies the room's space name rules to a name, aliases included: an alias

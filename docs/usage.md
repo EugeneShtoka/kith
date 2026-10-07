@@ -392,6 +392,14 @@ Names you give are local — only you see them — and live in your config.
 - `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag).
 - `[display] max_name_length` caps the sender column; `color_messages = true` tints message bodies in the sender's color.
 
+Someone a network shows only as a number ("+972 54-…", "+359… (WA)") is named
+from what your other accounts know that number by: a name saved in a phone's address
+book (a WhatsApp account's contacts, your Telegram contacts) first, then the name a
+bridge gives the person, then the name they chose for themselves (a WhatsApp push
+name, a Telegram profile). It works across networks and accounts: a person saved on
+one WhatsApp account, or known on Telegram, is named on another account or through a
+bridge. Your own names above come first.
+
 Every sender keeps a stable color across restarts.
 
 ### Membership and management

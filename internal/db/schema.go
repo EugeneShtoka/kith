@@ -104,6 +104,17 @@ CREATE TABLE room_forums (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
+-- The names an account knows numbers by (its address book, its contacts' profiles),
+-- each source's rows replaced whole when it reads them again (SetNumberNames). The
+-- names bridges give are read from room_members instead (PhoneBook).
+CREATE TABLE phone_names (
+	source TEXT    NOT NULL,
+	phone  TEXT    NOT NULL,
+	name   TEXT    NOT NULL,
+	rank   INTEGER NOT NULL,
+	PRIMARY KEY (source, phone)
+) STRICT, WITHOUT ROWID;
+
 -- Tombstone/predecessor links. Its own table because SaveRooms is a whole-list
 -- snapshot that would blank extra rooms columns. checked_ms records that we looked.
 CREATE TABLE room_upgrades (
@@ -352,6 +363,14 @@ var migrations = []string{
 	// v5: rooms made of topics.
 	`CREATE TABLE IF NOT EXISTS room_forums (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;`,
+	// v6: the names accounts know numbers by.
+	`CREATE TABLE IF NOT EXISTS phone_names (
+	source TEXT    NOT NULL,
+	phone  TEXT    NOT NULL,
+	name   TEXT    NOT NULL,
+	rank   INTEGER NOT NULL,
+	PRIMARY KEY (source, phone)
 ) STRICT, WITHOUT ROWID;`,
 }
 
