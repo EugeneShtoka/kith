@@ -19,11 +19,7 @@ func (m Model) openFile(msg domain.Message) (Model, tea.Cmd) {
 	if name == "" {
 		name = "the file"
 	}
-	job := mediaJob{
-		roomID: msg.RoomID, eventID: msg.ID,
-		name: msg.Media.Name, mime: msg.Media.Mime,
-		cache: m.mediaPolicy(msg).Cache,
-	}
+	job := m.jobFor(msg)
 	return m.doing("opening " + isolate(name) + "…"), m.openFileCmd(opener, job, name)
 }
 

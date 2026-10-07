@@ -99,6 +99,9 @@ func (m Model) historyLines(width, height int) []string {
 	if end := m.deletionLine(); end != "" {
 		lines = append(lines, "", end)
 	}
+	if att := m.historyAttachment(width); att != "" {
+		lines = append(lines, "", att)
+	}
 	return window(lines, m.history.scroll, height)
 }
 
@@ -141,6 +144,38 @@ func (m Model) deletionLine() string {
 		when = "  " + at.Local().Format("2006-01-02 15:04:05") + "  "
 	}
 	return m.theme.Title.Render("  ✕" + when + said)
+}
+
+// historyAttachment is what the message had attached, and the key that shows it: the
+// only place a deleted message's attachment is shown.
+func (m Model) historyAttachment(width int) string {
+	if m.history.msg.Media == nil {
+		return ""
+	}
+	line := "  📎 " + mediaChip(m.history.msg.Media) + "  ·  " + m.keys.keyHint(scopeTimeline, actViewMedia) + " opens it"
+	return m.theme.Muted.Render(drawLine(line, lineSpec{width: max(width-1, 1), sentence: true}))
+}
+
+// viewHistoryMedia opens the attachment of the message whose history is open, a
+// deleted message's included: a picture in the viewer, alone and at full size; a
+// video in the player; anything else with the desktop's handler.
+func (m Model) viewHistoryMedia() (Model, tea.Cmd) {
+	msg := m.history.msg
+	switch {
+	case msg.Media == nil:
+		return m.say("nothing was attached to this message"), nil
+	case msg.Media.IsImage():
+		viewer, err := m.viewerCommand()
+		if err != nil {
+			return m.say(err.Error()), nil
+		}
+		configured := strings.TrimSpace(m.prefs.display.Media.Viewer) != ""
+		return m.doing("opening the picture…"), m.viewMediaCmd(viewer, configured, []mediaJob{m.jobFor(msg)}, 0)
+	case msg.Media.IsVideo():
+		return m.playVideo(msg)
+	default:
+		return m.openFile(msg)
+	}
 }
 
 // deletedMessage folds in the remover the history fetch learned about.
@@ -206,6 +241,9 @@ func (m Model) handleHistoryKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	act := m.keys.lookup(press, scopeNav)
 	if act == actBack {
 		return m.closeHistory()
+	}
+	if m.keys.lookup(press, scopeTimeline) == actViewMedia {
+		return m.viewHistoryMedia()
 	}
 	if delta, ok := navDelta(act, m.take(), max(m.height-1, 1), historyScrollAll); ok {
 		return m.scrollHistory(delta)

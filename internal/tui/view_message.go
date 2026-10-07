@@ -31,12 +31,13 @@ const (
 func (m Model) hangingRows(msg domain.Message, threads []domain.Thread, nameW, width int) []string {
 	var rows []string
 	dir := m.bodyDir(msg)
-	// A captioned attachment's chip hangs beneath the caption.
-	if msg.Media != nil && msg.Caption() != "" {
+	// A captioned attachment's chip hangs beneath the caption. A deleted message's
+	// attachment shows nowhere but in its history (history.go).
+	if msg.Media != nil && msg.Caption() != "" && !msg.Redacted {
 		rows = append(rows, m.underBody(m.theme.Faint.Render(drawLine(mediaChip(msg.Media),
 			lineSpec{width: width - bodyColumn(nameW), sentence: true})), dir, nameW, width))
 	}
-	if m.showsPictures() && msg.Media.IsImage() {
+	if m.showsPictures() && msg.Media.IsImage() && !msg.Redacted {
 		for _, r := range m.pics.rowsFor(msg.ID) {
 			rows = append(rows, m.underBody(r, dir, nameW, width))
 		}
