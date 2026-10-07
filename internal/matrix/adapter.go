@@ -89,6 +89,8 @@ type Adapter struct {
 	// settled is closed when a resuming phase ends; a login waits on it to learn
 	// whether its session is wanted.
 	settled chan struct{}
+	// contacts is the bridges whose contact lists name numbers (bridgecontacts.go).
+	contacts bridgeContacts
 }
 
 // NewAdapter is the adapter over cache, its secrets kept at place. It has no account
@@ -98,6 +100,7 @@ func NewAdapter(cache *db.Cache, log *slog.Logger, place Place) *Adapter {
 		InProc: New(cache), log: log, place: place,
 		onStatus: func(domain.AccountStatus) {}, onLoggedIn: func() {},
 		accounted: make(chan struct{}), wake: make(chan struct{}, 1),
+		contacts: bridgeContacts{changed: make(chan struct{}, 1)},
 	}
 	m.phase = awaitingLogin
 	m.UseLogger(log)
@@ -175,6 +178,7 @@ func (m *Adapter) report(phase domain.AccountPhase, detail string) {
 func (m *Adapter) UseConfig(ctx context.Context, cfg config.Config) {
 	m.KeepDeleted(cfg.Display.Deleted.Keep())
 	m.UseIdentities(ctx, identityGroups(cfg))
+	m.useBridgeContacts(cfg.BridgeContacts)
 	m.takeAccount(cfg)
 }
 
@@ -241,6 +245,7 @@ func (m *Adapter) Start(ctx context.Context) error {
 		m.loggedIn.Store(true)
 		m.settle(running)
 		m.onLoggedIn()
+		go m.followBridgeContacts(ctx)
 		return m.run(ctx, prepare)
 	}
 }

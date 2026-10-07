@@ -400,6 +400,12 @@ name, a Telegram profile). It works across networks and accounts: a person saved
 one WhatsApp account, or known on Telegram, is named on another account or through a
 bridge. Your own names above come first.
 
+A bridge also knows the whole address book of each account logged into it. List the
+bridges' provisioning URLs in `bridge_contacts` and kith reads those contact lists too,
+with your Matrix login, every few hours: a contact saved on any of your bridged
+accounts is named everywhere, whether or not they ever wrote to that account. Only
+URLs on your homeserver's own host are asked, since the request carries your login.
+
 Every sender keeps a stable color across restarts.
 
 ### Membership and management

@@ -30,9 +30,12 @@ var profileName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // Config is kith's user configuration, one field per top-level key or table.
 type Config struct {
-	Homeserver     string        `toml:"homeserver"`
-	User           string        `toml:"user"`
-	AllowTokenFile bool          `toml:"allow_token_file"`
+	Homeserver     string `toml:"homeserver"`
+	User           string `toml:"user"`
+	AllowTokenFile bool   `toml:"allow_token_file"`
+	// BridgeContacts is each bridge's provisioning API base URL whose contact lists
+	// name people a network shows only by number (domain.PhoneBook).
+	BridgeContacts []string      `toml:"bridge_contacts"`
 	Terminal       string        `toml:"terminal"` // what `kith --open` starts; empty detects one
 	Display        Display       `toml:"display"`
 	Notifications  Notifications `toml:"notifications"`

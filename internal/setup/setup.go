@@ -5,6 +5,7 @@ package setup
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/audio"
@@ -51,9 +52,21 @@ func Validate(cfg config.Config) error {
 		tagsCheck(cfg),
 		archivesCheck(cfg),
 		keepCheck(cfg),
+		BridgeContacts(cfg.BridgeContacts),
 	} {
 		if err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// BridgeContacts refuses an entry that is no http(s) URL with a host.
+func BridgeContacts(bases []string) error {
+	for _, base := range bases {
+		u, err := url.Parse(base)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+			return fmt.Errorf("bridge_contacts: %q is no bridge's provisioning URL (write https://host/path)", base)
 		}
 	}
 	return nil

@@ -91,3 +91,31 @@ func (c *Cache) PhoneBook(ctx context.Context) (domain.PhoneBook, error) {
 	}
 	return book, nil
 }
+
+// NumberNameSources is every source beginning with prefix that names numbers.
+func (c *Cache) NumberNameSources(ctx context.Context, prefix string) ([]string, error) {
+	return collect(ctx, c.db, "phone name sources",
+		"SELECT DISTINCT source FROM phone_names WHERE substr(source, 1, length(?)) = ?",
+		func(rows *sql.Rows) (string, error) {
+			var s string
+			return s, rows.Scan(&s)
+		}, prefix, prefix)
+}
+
+// ForgetNumberNames drops what every source beginning with prefix knew, but those in
+// keep: an account or bridge no longer read takes its names with it.
+func (c *Cache) ForgetNumberNames(ctx context.Context, prefix string, keep []string) error {
+	sources, err := c.NumberNameSources(ctx, prefix)
+	if err != nil {
+		return err
+	}
+	for _, s := range sources {
+		if slices.Contains(keep, s) {
+			continue
+		}
+		if _, err := c.db.ExecContext(ctx, "DELETE FROM phone_names WHERE source = ?", s); err != nil {
+			return fmt.Errorf("db: forget the numbers %s named: %w", s, err)
+		}
+	}
+	return nil
+}

@@ -34,6 +34,19 @@ user       = ""
 # instead of refusing to store it.
 # allow_token_file = true
 
+# Bridges whose contact lists name people a network shows only by number: each
+# bridge's provisioning API, as your server exposes it (a mautrix bridge answers at
+# /_matrix/provision on its own port; put it behind a path of your homeserver). kith
+# asks with your Matrix login, every few hours, for the contacts of each of your
+# logins there, and a number in any of them is named everywhere, as a phone's address
+# book does.
+#
+#   bridge_contacts = [
+#     "https://matrix.example.org/_matrix/provision/whatsapp-home",
+#     "https://matrix.example.org/_matrix/provision/whatsapp-work",
+#   ]
+bridge_contacts = []
+
 # What `kith --open` (the desktop's `matrix:` handler) starts when no client is
 # running: a new tab in an open terminal where possible, else a new window. Empty
 # picks the first found of wezterm, kitty, konsole, gnome-terminal, foot, alacritty,
