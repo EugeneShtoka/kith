@@ -5,8 +5,11 @@ package daemon_test
 import (
 	"context"
 	"errors"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -253,5 +256,94 @@ func TestStreamsThatEndAtOnceBackOff(t *testing.T) {
 	// reattached about nine times.
 	if reattached > 4 {
 		t.Errorf("reattached %d times in 2.5s, want the backoff to climb", reattached)
+	}
+}
+
+// cutProxy forwards a socket path to a daemon's, and can cut every connection at once,
+// the way a crashed daemon leaves its clients: streams end in an error, not cleanly.
+type cutProxy struct {
+	ln    net.Listener
+	mu    sync.Mutex
+	conns []net.Conn
+}
+
+func newCutProxy(t *testing.T, path, target string) *cutProxy {
+	t.Helper()
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatalf("listen %s: %v", path, err)
+	}
+	p := &cutProxy{ln: ln}
+	go func() {
+		for {
+			in, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			out, err := net.Dial("unix", target)
+			if err != nil {
+				_ = in.Close()
+				continue
+			}
+			p.mu.Lock()
+			p.conns = append(p.conns, in, out)
+			p.mu.Unlock()
+			go func() { _, _ = io.Copy(out, in); _ = out.Close() }()
+			go func() { _, _ = io.Copy(in, out); _ = in.Close() }()
+		}
+	}()
+	t.Cleanup(p.cut)
+	return p
+}
+
+// cut closes the listener and every connection, abruptly.
+func (p *cutProxy) cut() {
+	_ = p.ln.Close()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, c := range p.conns {
+		_ = c.Close()
+	}
+	p.conns = nil
+}
+
+// A client that was attached and loses its daemon to a crash — the streams end in an
+// error — keeps trying for as long as the daemon is gone, however long the restart
+// takes: only a client that never reached a daemon gives up.
+func TestAClientAttachedOnceOutlastsACrashAndASlowRestart(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path, inner := filepath.Join(dir, "kithd.sock"), filepath.Join(dir, "inner.sock")
+	feed := make(chan domain.Message, 4)
+	backend := apitest.Nop{Msgs: feed}
+
+	first := runDaemon(t, inner, backend)
+	proxy := newCutProxy(t, path, inner)
+	client := daemon.NewRemote(path)
+	ended := make(chan error, 1)
+	go func() { ended <- client.Start(context.Background()) }()
+	t.Cleanup(client.Stop)
+	first.waitAttached(t, 1)
+	feed <- domain.Message{ID: "$before", RoomID: "!r:x", Body: "before the crash"}
+	if got := nextMessage(t, client.Messages()); got.ID != "$before" {
+		t.Fatalf("first message = %+v, want $before", got)
+	}
+
+	proxy.cut()
+	first.stop(t)
+	_ = os.Remove(path)
+	// Down for longer than a client that never attached waits before giving up.
+	select {
+	case err := <-ended:
+		t.Fatalf("the client gave up while the daemon was down (err=%v)", err)
+	case <-time.After(3 * time.Second):
+	}
+
+	second := runDaemon(t, path, backend)
+	second.waitAttached(t, 1)
+	feed <- domain.Message{ID: "$after", RoomID: "!r:x", Body: "after the restart"}
+	if got := nextMessage(t, client.Messages()); got.ID != "$after" {
+		t.Fatalf("message after the restart = %+v, want $after", got)
 	}
 }
