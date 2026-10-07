@@ -19,8 +19,10 @@ every other topic a room of its own, named by its title, with its own history, u
 count and read position, read, written in, filed into tags and archived on its own.
 Attachments are shown and sent:
 photos, files, voice notes (which the player plays), audio, video, GIFs and still
-stickers; an animated sticker, a location, a contact or a poll reads as a label
-("[location] …"), and a custom emoji reaction as `:custom_emoji:`.
+stickers; an animated sticker, a location or a contact reads as a label
+("[location] …"), and a custom emoji reaction as `:custom_emoji:`. A poll shows its
+answers and how the votes stand, live, your own vote marked; `P` votes, several answers
+where the poll takes them, or takes the vote back.
 Chats in Telegram's Archived folder are in kith's Archived tag, and archiving a chat
 in kith can move it there too: see `[telegram.archive]` in
 [configuration.md](configuration.md#follow-a-networks-own-archive).

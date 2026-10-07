@@ -50,6 +50,7 @@ type Message struct {
 	// edit when it can: not news itself, while the edit that replaces it is.
 	Placeholder bool
 	Media       *Media // attachment metadata, or nil
+	Poll        *Poll  // the poll the message asks, or nil
 	// Mentions are the formatted-body pills, so the timeline can color those names.
 	Mentions []Mention
 }
@@ -238,9 +239,8 @@ func combine(a, b Message) Message {
 	a.ReplyTo = cmp.Or(a.ReplyTo, b.ReplyTo)
 	// Never clear a thread root: an edit arrives with an empty relation.
 	a.ThreadRoot = cmp.Or(a.ThreadRoot, b.ThreadRoot)
-	if a.Media == nil {
-		a.Media = b.Media
-	}
+	// A missing attachment is filled; a poll's later copy says how the votes stand now.
+	a.Media, a.Poll = cmp.Or(a.Media, b.Media), cmp.Or(b.Poll, a.Poll)
 	if a.Mentions == nil {
 		a.Mentions = b.Mentions
 	}

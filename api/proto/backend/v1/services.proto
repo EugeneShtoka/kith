@@ -292,6 +292,15 @@ message SendReactionRequest {
 
 message SendReactionResponse {}
 
+message VotePollRequest {
+  string room_id = 1;
+  string event_id = 2;
+  // The answers chosen, by their IDs; none takes the vote back.
+  repeated string options = 3;
+}
+
+message VotePollResponse {}
+
 // A reaction a bridged network would not accept, learned by observation — see
 // domain.ReactionRefusal.
 message ReactionRefusal {
@@ -1342,6 +1351,8 @@ service BackendService {
   rpc Reactions(ReactionsRequest) returns (stream ReactionsResponse);
   // SendReaction posts an m.reaction annotating a message.
   rpc SendReaction(SendReactionRequest) returns (SendReactionResponse);
+  // VotePoll votes in a message's poll; no options takes the vote back.
+  rpc VotePoll(VotePollRequest) returns (VotePollResponse);
   // ReactionRefusals returns what has been learned about the emoji bridged networks
   // refuse as reactions.
   rpc ReactionRefusals(ReactionRefusalsRequest) returns (ReactionRefusalsResponse);

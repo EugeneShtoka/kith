@@ -64,6 +64,8 @@ const (
 	pickerScheduled // pending scheduled messages; choosing one cancels it
 	pickerThread
 	pickerRoomSpaces
+	pickerVote      // one answer of a poll
+	pickerVoteMulti // any answers of a poll that takes several
 	pickerDictionaries
 	pickerFrequencies
 	pickerCompletionModel
@@ -112,6 +114,8 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerDNDFor:          {title: "For how long?"},
 	pickerThread:          {title: "Threads in this room"},
 	pickerRoomSpaces:      {title: "Which spaces and tags hold this room?", modal: true, multi: true},
+	pickerVote:            {modal: true},              // titled with the question
+	pickerVoteMulti:       {modal: true, multi: true}, // titled with the question
 	pickerDictionaries:    {title: "Install spelling dictionaries for what you write?", modal: true, multi: true},
 	pickerFrequencies:     {title: "Install word counts, so typos that are also words get caught?", modal: true, multi: true},
 	pickerCompletionModel: {title: "Install the completion model, to run on this machine?", modal: true, multi: true},
@@ -437,6 +441,8 @@ func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
 	switch m.picker.kind {
 	case pickerRoomSpaces:
 		return m.applyRoomSpaces(values)
+	case pickerVoteMulti:
+		return m.castVote(values)
 	case pickerDictionaries:
 		return m.acceptDictionaryOffer(values)
 	case pickerFrequencies:
@@ -454,6 +460,11 @@ func (m Model) acceptConversationPick(item pickerItem) (Model, tea.Cmd, bool) {
 	switch m.picker.kind {
 	case pickerReaction:
 		return answered(m.reactWithPicked(item.value))
+	case pickerVote:
+		if item.value == voteTakeBack {
+			return answered(m.castVote(nil))
+		}
+		return answered(m.castVote([]string{item.value}))
 	case pickerEmoji:
 		return answered(m.insertPickedEmoji(item.value))
 	case pickerPeople:

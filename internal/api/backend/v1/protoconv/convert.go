@@ -30,6 +30,36 @@ func RoomsToProto(rooms []domain.Room) []*v1.Room {
 }
 
 // MediaToProto converts attachment metadata; nil means no attachment.
+// PollToProto is a message's poll on the wire; nil for none.
+func PollToProto(p *domain.Poll) *v1.Poll {
+	if p == nil {
+		return nil
+	}
+	options := make([]*v1.PollOption, len(p.Options))
+	for i, o := range p.Options {
+		options[i] = &v1.PollOption{Id: o.ID, Text: o.Text, Votes: int64(o.Votes), Mine: o.Mine}
+	}
+	return &v1.Poll{
+		Id: p.ID, Question: p.Question, Options: options,
+		Multiple: p.Multiple, Closed: p.Closed, Quiz: p.Quiz, Voters: int64(p.Voters),
+	}
+}
+
+// ProtoToPoll is the inverse of PollToProto.
+func ProtoToPoll(pb *v1.Poll) *domain.Poll {
+	if pb == nil {
+		return nil
+	}
+	options := make([]domain.PollOption, len(pb.GetOptions()))
+	for i, o := range pb.GetOptions() {
+		options[i] = domain.PollOption{ID: o.GetId(), Text: o.GetText(), Votes: int(o.GetVotes()), Mine: o.GetMine()}
+	}
+	return &domain.Poll{
+		ID: pb.GetId(), Question: pb.GetQuestion(), Options: options,
+		Multiple: pb.GetMultiple(), Closed: pb.GetClosed(), Quiz: pb.GetQuiz(), Voters: int(pb.GetVoters()),
+	}
+}
+
 func MediaToProto(m *domain.Media) *v1.Media {
 	if m == nil {
 		return nil
@@ -126,6 +156,7 @@ func MessageToProto(m domain.Message) *v1.Message {
 		ThreadRoot:       string(m.ThreadRoot),
 		Emote:            m.Emote,
 		Placeholder:      m.Placeholder,
+		Poll:             PollToProto(m.Poll),
 	}
 }
 
@@ -209,6 +240,7 @@ func ProtoToMessage(pb *v1.Message) domain.Message {
 		ThreadRoot:     domain.EventID(pb.GetThreadRoot()),
 		Emote:          pb.GetEmote(),
 		Placeholder:    pb.GetPlaceholder(),
+		Poll:           ProtoToPoll(pb.GetPoll()),
 	}
 }
 

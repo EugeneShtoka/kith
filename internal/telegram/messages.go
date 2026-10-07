@@ -56,7 +56,10 @@ func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Messag
 		Body: body, Format: format, Mentions: mentions,
 		Timestamp: time.Unix(int64(m.Date), 0), Mentioned: m.Mentioned,
 	}
-	if m.Media != nil {
+	if poll, ok := m.Media.(*tg.MessageMediaPoll); ok {
+		out.Poll = pollOf(&poll.Poll, &poll.Results)
+		out.Body, out.Format = out.Poll.Summary(), richtext.Formatted{}
+	} else if m.Media != nil {
 		media, label := attachment(m.Media)
 		switch {
 		case media != nil:

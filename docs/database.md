@@ -274,7 +274,10 @@ Since then:
   each account's rows replaced whole when it reads them again. A label that is only
   a number takes the best of these, on any network or account.
 
-so a current cache is at version 6.
+- v7 (`message_polls`): a message's poll, its question, answers and how the votes
+  stand, as JSON, rewritten whole as the results change.
+
+so a current cache is at version 7.
 
 ### Indexes need no migration
 

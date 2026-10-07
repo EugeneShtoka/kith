@@ -105,6 +105,10 @@ type (
 	Reactor interface {
 		SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error
 	}
+	// Voter votes in a message's poll.
+	Voter interface {
+		VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error
+	}
 	// Redactor deletes a message.
 	Redactor interface {
 		Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error

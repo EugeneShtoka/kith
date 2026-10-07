@@ -371,6 +371,8 @@ type overlayTarget struct {
 	// ruleScopes are the scopes offered for a notification rule, rule the one chosen.
 	ruleScopes []ruleTarget
 	rule       ruleTarget
+	// vote is the message whose poll an open vote picker is for.
+	vote domain.Message
 }
 
 // timelineState is the open room's loaded timeline and what the reader has done in
@@ -1238,6 +1240,8 @@ func (m Model) handleContentMsg(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleTimeline(msg)
 	case cachedTimelineMsg:
 		return m.handleCachedTimeline(msg)
+	case votedMsg:
+		return m.handleVoted(msg)
 	case fetchedQuoteMsg:
 		return m.handleFetchedQuote(msg)
 	case fetchedEventMsg:
@@ -1798,6 +1802,8 @@ func (m Model) messageAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.toggleStar())
 	case actHistory:
 		return answered(m.openHistory())
+	case actVote:
+		return answered(m.openVote())
 	case actDownload:
 		return answered(m.download())
 	case actViewMedia:

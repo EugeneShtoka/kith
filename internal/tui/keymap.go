@@ -125,6 +125,7 @@ const (
 	actDownload
 	actSaveAs
 	actViewMedia
+	actVote
 	actMarkRead
 	actMarkUnread
 	actInvite
@@ -400,6 +401,7 @@ var keyActions = []keyAction{
 	{scopeTimeline, actDownload, "timeline.download"},
 	{scopeTimeline, actSaveAs, "timeline.save_as"},
 	{scopeTimeline, actViewMedia, "timeline.view_media"},
+	{scopeTimeline, actVote, "timeline.vote"},
 	{scopeTimeline, actPlay, "timeline.play"},
 	{scopeTimeline, actReply, "timeline.reply"},
 	{scopeTimeline, actGoReply, "timeline.go_reply"},

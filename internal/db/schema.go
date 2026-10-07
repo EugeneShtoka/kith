@@ -108,6 +108,15 @@ CREATE TABLE room_forums (
 -- The names an account knows numbers by (its address book, its contacts' profiles),
 -- each source's rows replaced whole when it reads them again (SetNumberNames). The
 -- names bridges give are read from room_members instead (PhoneBook).
+-- A message's poll, as JSON (domain.Poll): its question, answers and how the votes
+-- stand, rewritten whole as results change (SetPoll).
+CREATE TABLE message_polls (
+	room_id  TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	event_id TEXT NOT NULL,
+	poll     TEXT NOT NULL,
+	PRIMARY KEY (room_id, event_id)
+) STRICT, WITHOUT ROWID;
+
 CREATE TABLE phone_names (
 	source TEXT    NOT NULL,
 	phone  TEXT    NOT NULL,
@@ -372,6 +381,13 @@ var migrations = []string{
 	name   TEXT    NOT NULL,
 	rank   INTEGER NOT NULL,
 	PRIMARY KEY (source, phone)
+) STRICT, WITHOUT ROWID;`,
+	// v7: messages' polls.
+	`CREATE TABLE IF NOT EXISTS message_polls (
+	room_id  TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	event_id TEXT NOT NULL,
+	poll     TEXT NOT NULL,
+	PRIMARY KEY (room_id, event_id)
 ) STRICT, WITHOUT ROWID;`,
 }
 
