@@ -47,7 +47,7 @@ func (f *fakeBridges) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for id, state := range f.logins[bridge] {
 			logins = append(logins, map[string]any{"id": id, "state": map[string]any{"state_event": state}})
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"logins": logins})
+		reply(w, map[string]any{"logins": logins})
 	case "v3/contacts":
 		login := r.URL.Query().Get("login_id")
 		f.listed = append(f.listed, bridge+"/"+login)
@@ -55,10 +55,20 @@ func (f *fakeBridges) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"errcode":"M_FORBIDDEN","error":"You must be logged in to list contacts"}`, http.StatusForbidden)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"contacts": f.contacts[bridge+"/"+r.URL.Query().Get("login_id")]})
+		reply(w, map[string]any{"contacts": f.contacts[bridge+"/"+login]})
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// reply writes v as the bridge's JSON answer.
+func reply(w http.ResponseWriter, v map[string]any) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, _ = w.Write(body)
 }
 
 func contact(name string, ids ...string) map[string]any {

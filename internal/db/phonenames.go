@@ -62,7 +62,10 @@ func (c *Cache) PhoneBook(ctx context.Context) (domain.PhoneBook, error) {
 		  WHERE display_name <> '' AND (user_id LIKE '@whatsapp%' OR user_id LIKE 'whatsapp:%')`,
 		func(rows *sql.Rows) (domain.Member, error) {
 			var m domain.Member
-			return m, rows.Scan(&m.UserID, &m.DisplayName)
+			if scanErr := rows.Scan(&m.UserID, &m.DisplayName); scanErr != nil {
+				return m, scanErr
+			}
+			return m, nil
 		})
 	if err != nil {
 		return nil, err
@@ -98,7 +101,8 @@ func (c *Cache) NumberNameSources(ctx context.Context, prefix string) ([]string,
 		"SELECT DISTINCT source FROM phone_names WHERE substr(source, 1, length(?)) = ?",
 		func(rows *sql.Rows) (string, error) {
 			var s string
-			return s, rows.Scan(&s)
+			err := rows.Scan(&s)
+			return s, err
 		}, prefix, prefix)
 }
 
