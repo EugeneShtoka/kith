@@ -186,6 +186,9 @@ func (m Model) handleAttachSent(msg attachSentMsg) (Model, tea.Cmd) {
 
 // download saves the selected message's attachment where the settings say it goes.
 func (m Model) download() (Model, tea.Cmd) {
+	if msg, ok := m.selectedMessage(); ok && msg.Redacted && msg.Media != nil {
+		return m.say(m.deletedMediaNote()), nil
+	}
 	msg, target, ok := m.downloadTarget()
 	if !ok {
 		m = m.say(noAttachmentNote(msg))

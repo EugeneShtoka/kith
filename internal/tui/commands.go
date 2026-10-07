@@ -441,6 +441,17 @@ type mediaJob struct {
 	name, mime string
 	// cache says whether this room's attachments may be written to disk.
 	cache bool
+	// deleted is a deleted message's attachment: kept apart (media.Cache.SetAside).
+	deleted bool
+}
+
+// jobFor is a message's attachment as a fetch, viewing or playing it.
+func (m Model) jobFor(msg domain.Message) mediaJob {
+	return mediaJob{
+		roomID: msg.RoomID, eventID: msg.ID,
+		name: msg.Media.Name, mime: msg.Media.Mime,
+		cache: m.mediaPolicy(msg).Cache, deleted: msg.Redacted,
+	}
 }
 
 // loadImageCmd fetches, decodes and draws a message's image off the event loop,

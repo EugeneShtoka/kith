@@ -307,7 +307,9 @@ others = "show"   # or "hide"
 keep   = false    # true keeps what a deleted message said, in this machine's cache
 ```
 
-`keep` is off by default: when a deletion arrives, the words, formatting and attachment are erased from the cache. With it on, `z o` reveals what the message said, and `H` shows every edit as it was received. A deleted message that a thread hangs off is always shown.
+`keep` is off by default: when a deletion arrives, the words, formatting and attachment are erased from the cache, the attachment's file in the media cache included. With it on, `z o` reveals what the message said, and `H` shows every edit as it was received. A deleted message that a thread hangs off is always shown.
+
+A deleted message's attachment is never drawn in the timeline, offered in the room's pictures, or saved from there. With `keep` on, its file moves to the media cache's `deleted/` folder (kept out of the cache's size limit, since it may not be fetchable again); `H` lists it, and `v` in that view opens it at full size.
 
 ## Threads
 

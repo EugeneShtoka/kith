@@ -6,6 +6,8 @@ import (
 	"image/color"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/media"
@@ -29,6 +31,49 @@ type mediaState struct {
 	// room change.
 	imageRows    map[domain.EventID][]string
 	imageLoading map[domain.EventID]bool
+	// aside is the deleted messages whose attachments were set aside (setAsideDeleted).
+	aside map[domain.EventID]bool
+}
+
+// setAsideDeleted moves the attachments of the loaded messages deleted since into the
+// media cache's deleted/ folder (media.Cache.SetAside), once each, off the loop: what
+// a deleted message had attached is kept apart, and shown only from its history.
+// Without [display.deleted] keep, a deletion erases the message, its attachment's
+// bytes in this cache included (media.Cache.Forget).
+func (m Model) setAsideDeleted() (Model, tea.Cmd) {
+	if m.pics.cache == nil {
+		return m, nil
+	}
+	keep := m.prefs.display.Deleted.Keep()
+	var jobs []mediaJob
+	for i := range m.timeline.messages {
+		msg := m.timeline.messages[i]
+		if !msg.Redacted || msg.ID == "" || m.pics.aside[msg.ID] || (keep && msg.Media == nil) {
+			continue
+		}
+		m.pics.aside = withEntry(m.pics.aside, msg.ID, true)
+		job := mediaJob{roomID: msg.RoomID, eventID: msg.ID, deleted: true}
+		if msg.Media != nil {
+			job = m.jobFor(msg)
+		}
+		jobs = append(jobs, job)
+	}
+	if len(jobs) == 0 {
+		return m, nil
+	}
+	cache, log := m.pics.cache, m.log
+	return m, func() tea.Msg {
+		for _, job := range jobs {
+			if !keep {
+				cache.Forget(job.eventID)
+				continue
+			}
+			if _, err := cache.SetAside(job.eventID, job.name, job.mime); err != nil {
+				log.Warn("set a deleted attachment aside failed", "event", job.eventID, "err", err)
+			}
+		}
+		return nil
+	}
 }
 
 // withNoImages forgets every picture drawn so far, keeping the settings.

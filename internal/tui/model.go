@@ -911,6 +911,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, c)
 	next, c = next.loadQuotes()
 	cmds = append(cmds, c)
+	next, c = next.setAsideDeleted()
+	cmds = append(cmds, c)
 	if next.pics.graphics != graphicsNone {
 		next, c = next.loadInlineImages()
 		cmds = append(cmds, c)
@@ -2990,7 +2992,8 @@ func (m Model) loadInlineImages() (Model, tea.Cmd) {
 	shown := m.shownMessages()
 	for i := range shown {
 		msg := shown[i]
-		if msg.ID == "" || !msg.Media.IsImage() {
+		// A deleted message's picture is not drawn: its history shows it (history.go).
+		if msg.ID == "" || !msg.Media.IsImage() || msg.Redacted {
 			continue
 		}
 		if m.pics.settled(msg.ID) {

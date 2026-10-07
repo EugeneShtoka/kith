@@ -141,7 +141,7 @@ func (m Model) play() (Model, tea.Cmd) {
 	job := mediaJob{
 		roomID: msg.RoomID, eventID: msg.ID,
 		name: msg.Media.Name, mime: msg.Media.Mime,
-		cache: policy.Cache,
+		cache: policy.Cache, deleted: msg.Redacted,
 	}
 	mdl, pulse := m.armPulse()
 	return mdl, tea.Batch(mdl.playAudioCmd(command, job, policy.Speed), pulse)

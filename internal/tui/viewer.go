@@ -48,6 +48,8 @@ type mediaViewedMsg struct {
 func (m Model) viewMedia() (Model, tea.Cmd) {
 	msg, standing := m.selectedMessage()
 	switch {
+	case standing && m.focus == paneTimeline && msg.Redacted && msg.Media != nil:
+		return m.say(m.deletedMediaNote()), nil
 	case !standing || m.focus != paneTimeline || msg.Media.IsImage():
 		// A picture, or no message cursor: open the room's gallery.
 	case msg.Media.IsAudio():
@@ -84,17 +86,14 @@ func (m Model) gallery(from domain.EventID) (jobs []mediaJob, start int) {
 	start = -1
 	for i := range m.timeline.messages {
 		msg := m.timeline.messages[i]
-		if msg.ID == "" || !msg.Media.IsImage() {
+		// Deleted pictures are not the room's: each is viewed from its history.
+		if msg.ID == "" || !msg.Media.IsImage() || msg.Redacted {
 			continue
 		}
 		if msg.ID == from {
 			start = len(pictures)
 		}
-		pictures = append(pictures, mediaJob{
-			roomID: msg.RoomID, eventID: msg.ID,
-			name: msg.Media.Name, mime: msg.Media.Mime,
-			cache: m.mediaPolicy(msg).Cache,
-		})
+		pictures = append(pictures, m.jobFor(msg))
 	}
 	if start < 0 {
 		start = len(pictures) - 1
@@ -265,6 +264,9 @@ func ensureOnDisk(
 	fetch func(context.Context, domain.RoomID, domain.EventID) ([]byte, error),
 	job mediaJob,
 ) string {
+	if job.deleted {
+		return ensureAside(ctx, cache, fetch, job)
+	}
 	path := cache.Path(job.eventID, job.name, job.mime)
 	if path == "" {
 		return ""
@@ -280,6 +282,38 @@ func ensureOnDisk(
 		return ""
 	}
 	written, err := cache.Write(job.eventID, job.name, job.mime, data)
+	if err != nil {
+		return ""
+	}
+	return written
+}
+
+// deletedMediaNote says where a deleted message's attachment is seen: its history.
+func (m Model) deletedMediaNote() string {
+	return "this message was deleted — " + m.keys.keyHint(scopeTimeline, actHistory) +
+		" opens its history, and " + m.keys.keyHint(scopeTimeline, actViewMedia) + " there shows what it had attached"
+}
+
+// ensureAside is ensureOnDisk for a deleted message's attachment: kept in the cache's
+// deleted/ folder, moved there if the cache held it, else fetched there.
+func ensureAside(
+	ctx context.Context,
+	cache *media.Cache,
+	fetch func(context.Context, domain.RoomID, domain.EventID) ([]byte, error),
+	job mediaJob,
+) string {
+	path, err := cache.SetAside(job.eventID, job.name, job.mime)
+	if err != nil || path == "" {
+		return ""
+	}
+	if _, ok := cache.ReadAside(job.eventID, job.name, job.mime); ok {
+		return path
+	}
+	data, err := fetch(ctx, job.roomID, job.eventID)
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	written, err := cache.WriteAside(job.eventID, job.name, job.mime, data)
 	if err != nil {
 		return ""
 	}
