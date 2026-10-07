@@ -17,8 +17,8 @@ func TestADeletedAttachmentIsSetAside(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.PutRender("$gone", 10, 5, []byte("drawn")); err != nil {
-		t.Fatal(err)
+	if perr := c.PutRender("$gone", 10, 5, []byte("drawn")); err != nil {
+		t.Fatal(perr)
 	}
 	aside, err := c.SetAside("$gone", "cat.jpg", "image/jpeg")
 	if err != nil {
