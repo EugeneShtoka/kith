@@ -44,10 +44,29 @@ func (a *Adapter) edited(ctx context.Context, account Account, self int64, msg d
 	return nil
 }
 
-// deletedIn marks messages of one chat deleted, by number.
+// deletedIn marks messages of one chat deleted, by number: in the chat's room, or in
+// whichever of its forum topics' rooms the cache holds them.
 func (a *Adapter) deletedIn(ctx context.Context, self, chat int64, ids []int) {
+	own := roomID(self, chat)
 	for _, id := range ids {
-		a.markDeleted(ctx, roomID(self, chat), messageID(self, chat, id), time.Now())
+		a.markDeleted(ctx, own, messageID(self, chat, id), time.Now())
+	}
+	if a.cache == nil || len(ids) == 0 {
+		return
+	}
+	tails := make([]string, len(ids))
+	for i, id := range ids {
+		tails[i] = strconv.Itoa(id)
+	}
+	found, err := a.cache.MessagesEndingIn(ctx, domain.AccountRooms(domain.ProtocolTelegram, strconv.FormatInt(self, 10)), tails)
+	if err != nil {
+		a.log.Warn("find deleted messages failed", "err", err)
+		return
+	}
+	for i := range found {
+		if forum, inTopic := forumOf(found[i].RoomID); inTopic && forum == own {
+			a.markDeleted(ctx, found[i].RoomID, found[i].ID, time.Now())
+		}
 	}
 }
 

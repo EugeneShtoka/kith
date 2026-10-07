@@ -104,11 +104,12 @@ func (a *Adapter) readTime(ctx context.Context, room domain.RoomID, event domain
 	return ts
 }
 
-// readInbox moves a chat's read position to message max, read on this or another
-// client, still unread being what Telegram counts after it. A position on a message
-// the cache does not hold is placed once Telegram has given it (placeRead).
-func (a *Adapter) readInbox(ctx context.Context, self, chat int64, max, still int) {
-	room, event := roomID(self, chat), messageID(self, chat, max)
+// readInbox moves a room's read position to message max, read on this or another
+// client, still unread being what Telegram counts after it: a chat's, or a forum
+// topic's. A position on a message the cache does not hold is placed once Telegram has
+// given it (placeRead).
+func (a *Adapter) readInbox(ctx context.Context, room domain.RoomID, max, still int) {
+	event := inRoom(room, max)
 	ts := a.readTime(ctx, room, event)
 	a.changeUnread(ctx, room, time.Time{}, func(u *domain.Unread) int64 {
 		u.ReadEvent, u.Notifications = event, still
@@ -190,13 +191,6 @@ func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 		return
 	}
 	u.Messages, u.Mentions, u.Counted = messages, mentions, counted
-	if counted { // a forum's topics count with it, as Telegram counts them
-		threads, err := a.cache.CountThreadUnread(ctx, a.Me(), room)
-		if err != nil {
-			a.log.Warn("count unread topics failed", "room", room, "err", err)
-		}
-		u = u.WithThreads(threads)
-	}
 	emit(a, a.unread, u)
 }
 
@@ -216,14 +210,9 @@ func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	if err != nil {
 		return nil, fmt.Errorf("telegram: count unread: %w", err)
 	}
-	threads, err := a.cache.CountThreadUnreadAll(ctx, a.Me())
-	if err != nil {
-		return nil, fmt.Errorf("telegram: count unread topics: %w", err)
-	}
 	for i := range rows {
 		if c, ok := counts[rows[i].RoomID]; ok {
 			rows[i].Messages, rows[i].Mentions, rows[i].Counted = c.Messages, c.Mentions, true
-			rows[i] = rows[i].WithThreads(threads[rows[i].RoomID])
 		}
 	}
 	return rows, nil
@@ -241,11 +230,16 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 	if !ok {
 		return fmt.Errorf("telegram: %s is no message of %s", eventID, roomID)
 	}
-	if channel, ok := ch.peer.(*tg.InputPeerChannel); ok {
+	switch channel, isChannel := ch.peer.(*tg.InputPeerChannel); {
+	case ch.topic != 0: // a forum's topic is read as its own
+		_, err = ch.conn.client.API().MessagesReadDiscussion(ctx, &tg.MessagesReadDiscussionRequest{
+			Peer: ch.peer, MsgID: ch.topic, ReadMaxID: id,
+		})
+	case isChannel:
 		_, err = ch.conn.client.API().ChannelsReadHistory(ctx, &tg.ChannelsReadHistoryRequest{
 			Channel: &tg.InputChannel{ChannelID: channel.ChannelID, AccessHash: channel.AccessHash}, MaxID: id,
 		})
-	} else {
+	default:
 		_, err = ch.conn.client.API().MessagesReadHistory(ctx, &tg.MessagesReadHistoryRequest{Peer: ch.peer, MaxID: id})
 	}
 	if err != nil {

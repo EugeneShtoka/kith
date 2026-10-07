@@ -4,7 +4,6 @@
 package tui
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -57,9 +56,6 @@ type group struct {
 	admits func(unreadView, domain.Room) bool
 	// sepAfter draws a divider row beneath this group (a separator token in the rail order).
 	sepAfter bool
-	// forum is the room a forum's row is for: the room list is that room, then every
-	// one of its topics, read or not.
-	forum domain.RoomID
 	// sticky keeps the open room listed until you move off it; first puts the row at
 	// the top unless the rail order places it; countInLabel adds how many rooms it
 	// holds to the label; hideWhenEmpty drops the row while it holds nothing.
@@ -102,57 +98,12 @@ func railGroups(
 			},
 		})
 	}
-	// A forum is listed on its own row, as a space is, not as a room of any other.
-	for i := range groups {
-		admits := groups[i].admits
-		groups[i].admits = func(v unreadView, r domain.Room) bool { return !forumRow(v, r) && admits(v, r) }
-	}
-	groups = append(groups, forumGroups(rooms, names)...)
 	if len(groups) == 0 {
 		groups = []group{fallbackGroup()}
 	}
 	groups = applyRailConfig(groups, cfg, names, view, rooms)
 	return withoutTrailingSeparator(promoteFirst(groups, cfg))
 }
-
-// forumGroups is a rail row per forum, after the spaces: a forum's topics are rooms
-// of a kind, and one fully read would otherwise be listed nowhere. Its label is the
-// room's, as [[display.name]] gives it.
-func forumGroups(rooms []domain.Room, names []config.DisplayName) []group {
-	display := config.Display{Names: names}
-	var groups []group
-	for i := range rooms {
-		r := &rooms[i]
-		if !r.Forum || r.IsInvite() {
-			continue
-		}
-		id := r.ID
-		groups = append(groups, group{
-			key:           forumGroupKey(r.DisplayName()),
-			label:         cmp.Or(display.NameFor(string(id)), r.DisplayName()),
-			admits:        func(v unreadView, x domain.Room) bool { return x.ID == id && forumRow(v, x) },
-			forum:         id,
-			hideWhenEmpty: true,
-		})
-	}
-	return groups
-}
-
-// forumRow reports whether a room is listed on a forum's own row, and so on no other.
-// Spam, and a tag that takes its rooms out of the spaces (Archived), take the row away:
-// the forum is then listed where they put it, as a room.
-func forumRow(v unreadView, r domain.Room) bool {
-	return r.Forum && !r.IsInvite() && !v.isSpam(r) && !v.leavesMadeSpaces(r)
-}
-
-// forumGroupKey is a forum's rail key: `room:<name>`, as the rail order names it.
-func forumGroupKey(name string) string { return forumKeyPrefix + name }
-
-// forumKeyPrefix begins a forum's rail key.
-const forumKeyPrefix = "room:"
-
-// isForumGroup reports whether a rail key is a forum's.
-func isForumGroup(key string) bool { return strings.HasPrefix(key, forumKeyPrefix) }
 
 // fallbackGroupKey is the rail key of the one row a rail with no spaces and no tags
 // gets.
@@ -206,11 +157,9 @@ func isTagGroup(key string) bool {
 	return ok
 }
 
-// isSpaceGroup reports whether a rail key is a space's: neither a tag, a forum nor the
+// isSpaceGroup reports whether a rail key is a space's: neither a tag nor the
 // fallback row. A space's key is its name.
-func isSpaceGroup(key string) bool {
-	return key != fallbackGroupKey && !isTagGroup(key) && !isForumGroup(key)
-}
+func isSpaceGroup(key string) bool { return key != fallbackGroupKey && !isTagGroup(key) }
 
 // tagGroups is a rail row per tag not hidden, in configured order, with the tag's
 // properties (see unreadView.showsInTag for who it lists).
@@ -2347,12 +2296,7 @@ func (m Model) selectGroup() (Model, tea.Cmd) {
 	if len(fr) == 0 {
 		return m.clearRoom()
 	}
-	next, cmd := m.selectRoom(fr[0])
-	// A forum's row lists every topic: ask for them now, not once the room loads.
-	if g, ok := m.currentGroup(); ok && g.forum != "" {
-		cmd = tea.Batch(cmd, m.roomThreadsCmd(g.forum))
-	}
-	return next, cmd
+	return m.selectRoom(fr[0])
 }
 
 // leavingFor settles what must be read before the open room changes: the unread
@@ -2450,8 +2394,7 @@ func (m Model) loadRoomCmd(roomID domain.RoomID) tea.Cmd {
 	if _, ranked := m.glyphs.orders[roomID]; !ranked {
 		cmds = append(cmds, m.emojiScoresCmd(roomID, domain.EmojiReaction), m.emojiScoresCmd(roomID, domain.EmojiComposed))
 	}
-	// A forum's row lists every topic, read or not: what ListThreads answers.
-	if room, _ := m.roomByID(roomID); m.prefs.display.Threads.Mode() == config.ThreadsAll || room.Forum {
+	if m.prefs.display.Threads.Mode() == config.ThreadsAll {
 		cmds = append(cmds, m.roomThreadsCmd(roomID))
 	}
 	return tea.Batch(append(cmds, m.listThreadsCmd())...)

@@ -14,23 +14,6 @@ import (
 // putting a room in or out rewrites those two lists (domain.TagSet.Filed) in the
 // config, and the rail follows the applied config.
 
-// topicNotFiled says why a forum's topic is not filed: tags hold rooms, and filing the
-// topic would file the whole forum.
-const topicNotFiled = "a topic is part of its forum and cannot be filed on its own — file the forum from its own row"
-
-// onTopic reports whether what is aimed at is one of a forum's topics, not the forum:
-// a topic row under the room-list cursor, or a topic open in the timeline.
-func (m Model) onTopic(room domain.Room) bool {
-	if !room.Forum {
-		return false
-	}
-	if m.focus == paneRooms {
-		row, ok := m.selectedRow()
-		return ok && row.isThread()
-	}
-	return m.thread.open()
-}
-
 // tagFiling is one tag a room goes into (in) or out of.
 type tagFiling struct {
 	tag   int // index in the tag set
@@ -173,9 +156,6 @@ func (m Model) toggleTag(name string, room domain.Room) (Model, tea.Cmd) {
 	}
 	if room.ID == "" || room.IsInvite() {
 		return m.say("open a room to tag it"), nil
-	}
-	if m.onTopic(room) {
-		return m.say(topicNotFiled), nil
 	}
 	view := m.unreadView()
 	i, ok := view.tags.Index(name)

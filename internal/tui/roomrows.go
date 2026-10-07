@@ -60,9 +60,6 @@ func (m Model) roomRows() []roomRow {
 		return m.frameRows
 	}
 	rooms := m.filteredRooms()
-	if g, ok := m.currentGroup(); ok && g.forum != "" {
-		return m.forumRows(rooms)
-	}
 	rows := make([]roomRow, 0, len(rooms))
 	mode := m.prefs.display.Threads.Mode()
 	view := m.unreadView()
@@ -77,19 +74,6 @@ func (m Model) roomRows() []roomRow {
 			continue
 		}
 		rows = m.appendThreadRows(rows, rooms[i], mode)
-	}
-	return rows
-}
-
-// forumRows is a forum's row in the rail as the room list: the forum (its General
-// timeline), then every topic, unread ones first, uncapped.
-func (m Model) forumRows(rooms []domain.Room) []roomRow {
-	rows := make([]roomRow, 0, len(rooms))
-	for i := range rooms {
-		rows = append(rows, roomRow{room: rooms[i]})
-		for _, t := range m.threadsUnder(rooms[i], config.ThreadsAll) {
-			rows = append(rows, roomRow{room: rooms[i], thread: t})
-		}
 	}
 	return rows
 }

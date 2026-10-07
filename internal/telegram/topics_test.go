@@ -18,36 +18,46 @@ const forum = int64(31)
 
 var forumRoom = roomID(42, -(channelMark + forum))
 
-// fmsg is message id of the forum, as kith names it.
+// fmsg is message id of the forum's own room (General), as kith names it.
 func fmsg(id int) domain.EventID { return messageID(42, -(channelMark + forum), id) }
 
-// A message in a topic is in that topic's thread: posted to the topic, or replying to
-// one of its messages. A topic's first message is the thread's root, its title the
-// root's words. A reply outside a forum stays a plain reply; other service messages
-// are not shown.
-func TestTopicsAreThreads(t *testing.T) {
+// tripsRoom is the forum's topic 10, Trips, as a room; tmsg is message id in it.
+var tripsRoom = topicRoomID(42, -(channelMark + forum), 10)
+
+func tmsg(id int) domain.EventID { return inRoom(tripsRoom, id) }
+
+// A message in a forum's topic is in the topic's room, posted to the topic or replying
+// to one of its messages; one in General is the forum's own room's. A reply outside a
+// forum stays a plain reply, and the message that began a topic, which only says its
+// title, is not shown: the title is the room's name.
+func TestTopicsAreRooms(t *testing.T) {
 	t.Parallel()
 	ent := peer.NewEntities(map[int64]*tg.User{7: dana}, nil, nil)
 	at := &tg.PeerChannel{ChannelID: forum}
 	now := int(time.Now().Unix())
+	general := &tg.MessageReplyHeader{ForumTopic: true, ReplyToMsgID: 5}
+	general.SetReplyToTopID(generalTopic)
 	for name, c := range map[string]struct {
-		msg          tg.MessageClass
-		body         string
-		thread, repl domain.EventID
-		shown        bool
+		msg         tg.MessageClass
+		room        domain.RoomID
+		id, replyTo domain.EventID
+		shown       bool
 	}{
 		"topic begun": {&tg.MessageService{ID: 10, PeerID: at, FromID: &tg.PeerUser{UserID: 7}, Date: now,
-			Action: &tg.MessageActionTopicCreate{Title: "Trips"}}, "Trips", "", "", true},
+			Action: &tg.MessageActionTopicCreate{Title: "Trips"}}, "", "", "", false},
 		"in the topic": {&tg.Message{ID: 11, PeerID: at, Message: "where to?", Date: now,
-			ReplyTo: &tg.MessageReplyHeader{ForumTopic: true, ReplyToMsgID: 10}}, "where to?", fmsg(10), "", true},
+			ReplyTo: &tg.MessageReplyHeader{ForumTopic: true, ReplyToMsgID: 10}}, tripsRoom, tmsg(11), "", true},
 		"a reply in it": {&tg.Message{ID: 12, PeerID: at, Message: "Rila", Date: now,
-			ReplyTo: replyInTopic(11, 10)}, "Rila", fmsg(10), fmsg(11), true},
-		"general": {&tg.Message{ID: 13, PeerID: at, Message: "hi", Date: now,
-			ReplyTo: &tg.MessageReplyHeader{ReplyToMsgID: 11}}, "hi", "", fmsg(11), true},
-		"someone joined": {&tg.MessageService{ID: 14, PeerID: at, Date: now, Action: &tg.MessageActionChatJoinedByLink{}}, "", "", "", false},
+			ReplyTo: replyInTopic(11, 10)}, tripsRoom, tmsg(12), tmsg(11), true},
+		"general": {&tg.Message{ID: 13, PeerID: at, Message: "hi", Date: now}, forumRoom, fmsg(13), "", true},
+		"a reply in general": {&tg.Message{ID: 14, PeerID: at, Message: "yes", Date: now, ReplyTo: general},
+			forumRoom, fmsg(14), fmsg(5), true},
+		"a plain reply": {&tg.Message{ID: 15, PeerID: at, Message: "ok", Date: now,
+			ReplyTo: &tg.MessageReplyHeader{ReplyToMsgID: 13}}, forumRoom, fmsg(15), fmsg(13), true},
+		"someone joined": {&tg.MessageService{ID: 16, PeerID: at, Date: now, Action: &tg.MessageActionChatJoinedByLink{}}, "", "", "", false},
 	} {
 		got, ok := incoming(42, c.msg, ent)
-		if ok != c.shown || (ok && (got.Body != c.body || got.ThreadRoot != c.thread || got.ReplyTo != c.repl)) {
+		if ok != c.shown || (ok && (got.RoomID != c.room || got.ID != c.id || got.ReplyTo != c.replyTo || got.ThreadRoot != "")) {
 			t.Errorf("%s: (%+v, %v)", name, got, ok)
 		}
 	}
@@ -60,59 +70,73 @@ func replyInTopic(reply, topic int) *tg.MessageReplyHeader {
 	return h
 }
 
-// A draft written in a topic goes into it, replying to a message there or to none; a
-// reply outside a forum goes as a plain reply.
+// A draft written in a topic's room goes into the topic, replying to a message there or
+// to none; one in a chat's own room goes as a plain reply, or as none.
 func TestADraftGoesIntoItsTopic(t *testing.T) {
 	t.Parallel()
+	inTrips := chat{conn: conn{user: 42}, id: -(channelMark + forum), topic: 10}
+	inForum := chat{conn: conn{user: 42}, id: -(channelMark + forum)}
 	for name, c := range map[string]struct {
+		ch         chat
 		draft      domain.Draft
 		reply, top int
 		replies    bool
 	}{
-		"into a topic":   {domain.Draft{ThreadRoot: fmsg(10)}, 10, 10, true},
-		"a reply in one": {domain.Draft{ThreadRoot: fmsg(10), ReplyTo: fmsg(11)}, 11, 10, true},
-		"a plain reply":  {domain.Draft{ReplyTo: fmsg(11)}, 11, 0, true},
-		"neither":        {domain.Draft{}, 0, 0, false},
+		"into a topic":   {inTrips, domain.Draft{}, 10, 10, true},
+		"a reply in one": {inTrips, domain.Draft{ReplyTo: tmsg(11)}, 11, 10, true},
+		"a plain reply":  {inForum, domain.Draft{ReplyTo: fmsg(11)}, 11, 0, true},
+		"neither":        {inForum, domain.Draft{}, 0, 0, false},
 	} {
-		to, ok := replyTo(forumRoom, c.draft)
+		to, ok := replyTo(c.ch, c.draft)
 		if ok != c.replies || (ok && (to.ReplyToMsgID != c.reply || to.TopMsgID != c.top)) {
 			t.Errorf("%s: (%+v, %v)", name, to, ok)
 		}
 	}
 }
 
-// A forum's topics are listed as its threads, each where it was read up to; a topic's
-// messages are paged from Telegram; what is unread in a topic counts in the room's
-// badge, and marking the topic read clears it, on Telegram too.
-func TestAForumsTopicsAreListedReadAndCounted(t *testing.T) {
+// A forum is a space of rooms: its own (General) and one per topic, each named after
+// it, out of the account's space. A listing caches each topic's latest message in its
+// room and counts its unread as Telegram does; marking a topic's room read reads the
+// topic on Telegram; its history is the topic's. What was cached of the topics while
+// they were threads of the forum's room is dropped.
+func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
 	f.serveUpdates(&updatesOf{pts: 1})
 	d := f.cluster.Dispatch(2, "dc2")
 	channel := &tg.Channel{ID: forum, AccessHash: 310, Title: "Hikers", Forum: true, Megagroup: true, Photo: &tg.ChatPhotoEmpty{}}
 	at := &tg.PeerChannel{ChannelID: forum}
-	topic := func(id int, title string, read int) tg.ForumTopicClass {
-		return &tg.ForumTopic{ID: id, Title: title, Date: 1000 + id, TopMessage: 12, ReadInboxMaxID: read, Peer: at, FromID: &tg.PeerUser{UserID: 7}, NotifySettings: tg.PeerNotifySettings{}}
+	inTrips := func(id, reply int, words string) *tg.Message {
+		return &tg.Message{ID: id, PeerID: at, FromID: &tg.PeerUser{UserID: 7}, Message: words, Date: 2000 + id, ReplyTo: replyInTopic(reply, 10)}
 	}
 	d.HandleFunc(tg.MessagesGetForumTopicsRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
-		return s.SendResult(r, &tg.MessagesForumTopics{Topics: []tg.ForumTopicClass{topic(1, "General", 0), topic(10, "Trips", 11)}, Chats: []tg.ChatClass{channel}})
+		topic := func(id int, title string, top, read, unread, mentions int) tg.ForumTopicClass {
+			return &tg.ForumTopic{ID: id, Title: title, Date: 1000 + id, TopMessage: top, ReadInboxMaxID: read,
+				UnreadCount: unread, UnreadMentionsCount: mentions, Peer: at, FromID: &tg.PeerUser{UserID: 7}, NotifySettings: tg.PeerNotifySettings{}}
+		}
+		return s.SendResult(r, &tg.MessagesForumTopics{
+			Topics:   []tg.ForumTopicClass{topic(1, "General", 20, 18, 2, 0), topic(10, "Trips", 13, 11, 3, 1)},
+			Messages: []tg.MessageClass{inTrips(13, 12, "Rila"), &tg.Message{ID: 20, PeerID: at, Message: "hi all", Date: 2020}},
+			Chats:    []tg.ChatClass{channel}, Users: []tg.UserClass{dana}, Count: 2,
+		})
 	})
 	d.HandleFunc(tg.MessagesGetRepliesRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
-		var msgs []tg.MessageClass
-		for _, id := range []int{12, 11} { // newest first
-			msgs = append(msgs, &tg.Message{ID: id, PeerID: at, Message: "m", Date: 2000 + id, ReplyTo: &tg.MessageReplyHeader{ForumTopic: true, ReplyToMsgID: 10}})
+		var req tg.MessagesGetRepliesRequest
+		if err := req.Decode(r.Buf); err != nil || req.MsgID != 10 {
+			return s.SendResult(r, &tg.MessagesChannelMessages{})
 		}
-		return s.SendResult(r, &tg.MessagesChannelMessages{Messages: msgs, Count: 2, Chats: []tg.ChatClass{channel}})
+		return s.SendResult(r, &tg.MessagesChannelMessages{Messages: []tg.MessageClass{inTrips(12, 11, "Rila"), inTrips(11, 10, "where to?")},
+			Count: 2, Chats: []tg.ChatClass{channel}, Users: []tg.UserClass{dana}})
 	})
 	var mu sync.Mutex
-	var readTo []int
+	var discussed []int
 	d.HandleFunc(tg.MessagesReadDiscussionRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
 		var req tg.MessagesReadDiscussionRequest
 		if err := req.Decode(r.Buf); err != nil {
 			return err
 		}
 		mu.Lock()
-		readTo = append(readTo, req.MsgID, req.ReadMaxID)
+		discussed = append(discussed, req.MsgID, req.ReadMaxID)
 		mu.Unlock()
 		return s.SendResult(r, &tg.BoolTrue{})
 	})
@@ -121,81 +145,98 @@ func TestAForumsTopicsAreListedReadAndCounted(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, cache := loggedInWithStore(t, f, st)
-	ctx := t.Context()
-	ent := peer.NewEntities(nil, nil, map[int64]*tg.Channel{forum: channel})
-	a.listTopics(ctx, a.connected()[0].client.API(), 42, dialog{peer: &tg.InputPeerChannel{ChannelID: forum, AccessHash: 310}, entities: ent})
-	// The room was read after the topics were begun and before the topic's messages,
-	// so those count once paged (a topic begun since would count as one new thing).
-	a.changeUnread(ctx, forumRoom, time.Time{}, func(u *domain.Unread) int64 {
-		u.ReadEvent = fmsg(9)
-		return time.Unix(1500, 0).UnixMilli()
+	// The account's dialogs: the forum (after logging in, whose own listing is empty).
+	d.HandleFunc(tg.MessagesGetDialogsRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
+		var req tg.MessagesGetDialogsRequest
+		if err := req.Decode(r.Buf); err != nil {
+			return err
+		}
+		res := &tg.MessagesDialogs{Users: []tg.UserClass{f.user, dana}}
+		if folder, _ := req.GetFolderID(); folder == 0 {
+			res.Dialogs = []tg.DialogClass{&tg.Dialog{Peer: at, TopMessage: 20, UnreadCount: 9}}
+			res.Chats = []tg.ChatClass{channel}
+		}
+		return s.SendResult(r, res)
 	})
-	if _, err := a.ThreadPage(ctx, forumRoom, fmsg(10), "", 20); err != nil {
+	ctx := t.Context()
+	// As the forum's topics were cached while they were threads of its room.
+	if err := cache.SaveMessages(ctx, forumRoom, []domain.Message{
+		{ID: fmsg(10), RoomID: forumRoom, Body: "Trips", Timestamp: time.Unix(1010, 0)},
+		{ID: fmsg(11), RoomID: forumRoom, Body: "where to?", ThreadRoot: fmsg(10), Timestamp: time.Unix(2011, 0)},
+		{ID: fmsg(19), RoomID: forumRoom, Body: "general talk", Timestamp: time.Unix(2019, 0)},
+	}); err != nil {
 		t.Fatal(err)
 	}
-	a.listTopics(ctx, a.connected()[0].client.API(), 42, dialog{peer: &tg.InputPeerChannel{ChannelID: forum, AccessHash: 310}, entities: ent})
 
-	if _, held, _ := cache.MessageByID(ctx, forumRoom, fmsg(1)); held {
-		t.Error("the General topic was made a thread: it is the room's own timeline")
+	rooms, err := a.RefreshRooms(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	threads, err := a.ListThreads(ctx, forumRoom)
-	if err != nil || len(threads) != 1 || threads[0].Root != fmsg(10) || threads[0].Title != "Trips" || threads[0].Count != 2 || threads[0].Unread != 1 {
-		t.Fatalf("threads = %+v, %v; want Trips, its two messages, the one after where it was read", threads, err)
+	names := map[domain.RoomID]string{}
+	for i := range rooms {
+		names[rooms[i].ID] = rooms[i].Name
 	}
-	unread := func() domain.Unread {
-		rows, _ := a.CachedUnread(ctx)
-		for _, u := range rows {
-			if u.RoomID == forumRoom {
-				return u
+	if names[forumRoom] != "Hikers" || names[tripsRoom] != "Trips" || len(names) != 2 {
+		t.Fatalf("rooms = %v, want the forum's own and its topic's", names)
+	}
+	spaces, err := a.Spaces(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range spaces {
+		switch s.ID {
+		case forumSpaceID(42, -(channelMark + forum)):
+			if s.Name != "Hikers" || !slices.Equal(s.Children, []domain.RoomID{forumRoom, tripsRoom}) {
+				t.Errorf("forum space = %+v", s)
+			}
+		case accountSpaceID(42):
+			if len(s.Children) != 0 {
+				t.Errorf("the account's space holds %v, want none of the forum's rooms", s.Children)
 			}
 		}
-		return domain.Unread{}
 	}
-	if got := unread(); got.Messages != 1 || !slices.ContainsFunc(got.Threads, func(t domain.ThreadUnread) bool { return t.Root == fmsg(10) }) {
-		t.Errorf("the room's unread = %+v, want the topic's one message", got)
+	if len(spaces) != 2 {
+		t.Errorf("spaces = %+v, want the account's and the forum's", spaces)
 	}
-	if err := a.MarkThreadRead(ctx, forumRoom, fmsg(10), fmsg(12), false); err != nil {
-		t.Fatal(err)
+	if home, _ := a.CanonicalParent(ctx, tripsRoom); home != forumSpaceID(42, -(channelMark+forum)) {
+		t.Errorf("the topic's home = %q, want the forum", home)
+	}
+
+	unread := map[domain.RoomID]domain.Unread{}
+	rows, _ := a.CachedUnread(ctx)
+	for _, u := range rows {
+		unread[u.RoomID] = u
+	}
+	if u := unread[tripsRoom]; u.Notifications != 3 || u.Highlights != 1 || u.ReadEvent != tmsg(11) {
+		t.Errorf("Trips' unread = %+v, want Telegram's 3, one mention, read to 11", u)
+	}
+	if u := unread[forumRoom]; u.Notifications != 2 {
+		t.Errorf("General's unread = %+v, want its own 2, not the forum's 9", u)
+	}
+	if _, held, _ := cache.MessageByID(ctx, tripsRoom, tmsg(13)); !held {
+		t.Error("the topic's latest message is not cached in its room")
+	}
+	for _, gone := range []domain.EventID{fmsg(10), fmsg(11)} {
+		if _, held, _ := cache.MessageByID(ctx, forumRoom, gone); held {
+			t.Errorf("%s, of the topic as a thread, is still in the forum's room", gone)
+		}
+	}
+	if _, held, _ := cache.MessageByID(ctx, forumRoom, fmsg(19)); !held {
+		t.Error("General's own message was dropped with the threads")
+	}
+
+	page, err := a.Timeline(ctx, tripsRoom, "", 20)
+	if err != nil || len(page.Messages) != 2 || page.Messages[0].ID != tmsg(11) || page.Messages[1].ReplyTo != tmsg(11) {
+		t.Fatalf("Trips' history = %+v, %v", page.Messages, err)
+	}
+	if result, err := a.MarkRoomsRead(ctx, []domain.RoomID{tripsRoom}, false); err != nil || result.Marked != 1 {
+		t.Fatalf("MarkRoomsRead = %+v, %v", result, err)
 	}
 	mu.Lock()
-	if !slices.Equal(readTo, []int{10, 12}) {
-		t.Errorf("read on Telegram %v", readTo)
+	if !slices.Equal(discussed, []int{10, 13}) {
+		t.Errorf("read on Telegram: %v, want topic 10 up to 13", discussed)
 	}
 	mu.Unlock()
-	if got := unread(); got.Messages != 0 {
-		t.Errorf("after reading the topic, the room's unread = %+v", got)
-	}
-	if a.ThreadParticipant(ctx, forumRoom, fmsg(10)) {
-		t.Error("a topic we neither began nor wrote in is ours")
-	}
-}
-
-// A topic's root is the service message that began it: fetched, it is the thread's
-// root with the topic's title, as a listing caches it, not a message that is gone.
-func TestATopicsRootIsFetched(t *testing.T) {
-	t.Parallel()
-	f := newFakeTelegram(t)
-	f.serveUpdates(&updatesOf{pts: 1})
-	d := f.cluster.Dispatch(2, "dc2")
-	channel := &tg.Channel{ID: forum, AccessHash: 310, Title: "Hikers", Forum: true, Megagroup: true, Photo: &tg.ChatPhotoEmpty{}}
-	at := &tg.PeerChannel{ChannelID: forum}
-	d.HandleFunc(tg.ChannelsGetMessagesRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
-		return s.SendResult(r, &tg.MessagesChannelMessages{Messages: []tg.MessageClass{
-			&tg.MessageService{ID: 10, PeerID: at, FromID: &tg.PeerUser{UserID: 7}, Date: 1010, Action: &tg.MessageActionTopicCreate{Title: "Trips"}},
-		}, Count: 1, Chats: []tg.ChatClass{channel}, Users: []tg.UserClass{dana}})
-	})
-	st := openStore(t)
-	if err := st.SetChannelAccessHash(t.Context(), 42, forum, channel.AccessHash); err != nil {
-		t.Fatal(err)
-	}
-	a, _ := loggedInWithStore(t, f, st)
-	got, err := a.FetchEvent(t.Context(), forumRoom, fmsg(10))
-	if err != nil || got.ID != fmsg(10) || got.Body != "Trips" {
-		t.Fatalf("FetchEvent = %+v, %v; want the topic's root, titled Trips", got, err)
-	}
-	if _, err := a.LoadImage(t.Context(), forumRoom, fmsg(10)); err == nil {
-		t.Error("a topic's root downloaded an attachment")
-	}
 }
 
 // A supergroup with topics is listed as a forum, and cached so: a plain group or
@@ -241,5 +282,38 @@ func TestAListingSaysWhichChatsAreForums(t *testing.T) {
 	}
 	if got := forums(); len(got) != 0 {
 		t.Errorf("forums = %v after the group dropped its topics", got)
+	}
+}
+
+// A message deleted in a forum, named only by number, is found in whichever topic's
+// room holds it; someone typing in a topic types in its room.
+func TestDeletionsAndTypingFindTheirTopic(t *testing.T) {
+	t.Parallel()
+	a, cache := cachedAdapter(t, &memSecrets{values: map[string]string{}})
+	ctx := t.Context()
+	chat := -(channelMark + forum)
+	if err := cache.SaveMessages(ctx, tripsRoom, []domain.Message{{ID: tmsg(12), RoomID: tripsRoom, Body: "Rila", Timestamp: time.Unix(2012, 0)}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.SaveMessages(ctx, forumRoom, []domain.Message{{ID: fmsg(13), RoomID: forumRoom, Body: "hi", Timestamp: time.Unix(2013, 0)}}); err != nil {
+		t.Fatal(err)
+	}
+	a.deletedIn(ctx, 42, chat, []int{12, 13})
+	for room, id := range map[domain.RoomID]domain.EventID{tripsRoom: tmsg(12), forumRoom: fmsg(13)} {
+		if got, _, _ := cache.MessageByID(ctx, room, id); !got.Redacted {
+			t.Errorf("%s was not marked deleted", id)
+		}
+	}
+
+	a.typingNotice(42, chat, 10, 7, &tg.SendMessageTypingAction{})
+	for {
+		act := <-a.Activity()
+		if len(act.Typing) == 0 {
+			continue // the deletions' notices
+		}
+		if act.RoomID != tripsRoom {
+			t.Errorf("typing in %s, want the topic's room", act.RoomID)
+		}
+		break
 	}
 }

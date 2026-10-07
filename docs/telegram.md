@@ -13,10 +13,11 @@ You can write in them: Markdown as Telegram's formatting, mentions, replies. Edi
 and deletions show, both ways (an edited message's earlier versions, and a deleted
 one's words, are kept only under `[display.deleted] keep`); so do reactions (in a
 channel, Telegram counts them without saying who), unread counts, a chat read or
-marked unread on another device, and who is typing. A forum's topics are threads:
-the General topic is the room's own timeline, each other topic a thread named by its
-title (in the room list and the thread picker), read, written in and counted on its
-own. A forum also has a row in the rail listing all its topics, read or not. Attachments are shown and sent:
+marked unread on another device, and who is typing. A forum (a group with topics) is
+a space, as a Matrix bridge shows it: the General topic is the forum's own room, and
+every other topic a room of its own, named by its title, with its own history, unread
+count and read position, read, written in, filed into tags and archived on its own.
+Attachments are shown and sent:
 photos, files, voice notes (which the player plays), audio, video, GIFs and still
 stickers; an animated sticker, a location, a contact or a poll reads as a label
 ("[location] …"), and a custom emoji reaction as `:custom_emoji:`.

@@ -46,8 +46,9 @@ func reactionID(target domain.EventID, who, key string) domain.EventID {
 
 // messageReactions are the reactions a message carries, as kith keeps them: one per
 // person named, the account's own among them, and the rest of each count as no one.
-func messageReactions(self, chat int64, msgID int, rs tg.MessageReactions) []domain.Reaction {
-	room, target := roomID(self, chat), messageID(self, chat, msgID)
+func messageReactions(room domain.RoomID, msgID int, rs tg.MessageReactions) []domain.Reaction {
+	target := inRoom(room, msgID)
+	self, _ := strconv.ParseInt(domain.ParseID(string(room)).Account, 10, 64) // whose room it is
 	var out []domain.Reaction
 	named := map[string]int{}
 	add := func(who int64, key string) {
@@ -142,7 +143,8 @@ func (a *Adapter) pageReactions(ctx context.Context, self int64, raw []tg.Messag
 		if !ok {
 			continue
 		}
-		target := messageID(self, chat, msg.ID)
+		room := chatRoom(self, chat, topicOf(msg))
+		target := inRoom(room, msg.ID)
 		a.mu.Lock()
 		changed := a.reacted[target]
 		a.mu.Unlock()
@@ -150,7 +152,7 @@ func (a *Adapter) pageReactions(ctx context.Context, self int64, raw []tg.Messag
 			continue
 		}
 		// None said is none: a page carries every reaction its messages have.
-		a.replaceReactions(ctx, roomID(self, chat), target, messageReactions(self, chat, msg.ID, msg.Reactions), false)
+		a.replaceReactions(ctx, room, target, messageReactions(room, msg.ID, msg.Reactions), false)
 	}
 }
 
@@ -186,7 +188,7 @@ func (a *Adapter) SendReaction(ctx context.Context, roomID domain.RoomID, target
 	}
 	for _, u := range updatesIn(res) {
 		if r, ok := u.(*tg.UpdateMessageReactions); ok && r.MsgID == id && samePeer(r.Peer, ch.id) {
-			a.reactionsChanged(ctx, roomID, target, messageReactions(ch.conn.user, ch.id, id, r.Reactions))
+			a.reactionsChanged(ctx, roomID, target, messageReactions(roomID, id, r.Reactions))
 		}
 	}
 	return nil

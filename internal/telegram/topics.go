@@ -3,7 +3,9 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gotd/td/telegram/message/peer"
@@ -12,184 +14,158 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A forum's topics are kith's threads. A topic is numbered by the message that began
-// it (the service message saying its title), which is the thread's root, its words
-// the topic's title; a message in a topic names the topic in its reply header. The
-// General topic is the room's own timeline. Each topic is read as far as its own
-// read position says, the room's as the floor beneath them, and a forum's badge counts
-// every topic, as Telegram's does.
+// A forum is a space, and each of its topics a room in it: a topic's messages are its
+// room's, read, counted and filed as any room's are. The General topic is the forum's
+// own room. A topic is numbered by the message that began it, which a message in the
+// topic names in its reply header (topicOf); that message itself only says the topic's
+// title, which is its room's name.
 
-// topicsPage is how many topics one listing of a forum asks for.
-const topicsPage = 100
+// topicsPage is how many topics one ask for a forum's topics gets; topicsPages bounds
+// how many pages are read.
+const (
+	topicsPage  = 100
+	topicsPages = 20
+)
 
-// topicCreated is the message that began a topic, as its thread's root: its title;
-// ok false for any other service message (someone joined, a title changed).
-func topicCreated(self int64, svc *tg.MessageService, ent peer.Entities) (domain.Message, bool) {
-	created, ok := svc.Action.(*tg.MessageActionTopicCreate)
-	if !ok {
-		return domain.Message{}, false
-	}
-	chat, ok := markedPeer(svc.PeerID)
-	if !ok {
-		return domain.Message{}, false
-	}
-	root := domain.Message{
-		ID: messageID(self, chat, svc.ID), RoomID: roomID(self, chat),
-		Body: created.Title, Timestamp: time.Unix(int64(svc.Date), 0),
-	}
-	if from, ok := svc.FromID.(*tg.PeerUser); ok {
-		root.Sender = personID(from.UserID)
-		if u, ok := ent.User(from.UserID); ok {
-			root.SenderName = personName(u)
-		}
-	}
-	return root, true
-}
-
-// listTopics caches a forum's topics, each as its thread's root, and where each was
-// read up to. A forum whose topics could not be read keeps what it had.
-func (a *Adapter) listTopics(ctx context.Context, client *tg.Client, self int64, e dialog) {
+// isForum reports whether a dialog is a forum.
+func isForum(e dialog) bool {
 	channel, ok := e.peer.(*tg.InputPeerChannel)
-	if !ok || a.cache == nil {
-		return
-	}
-	if c, ok := e.entities.Channel(channel.ChannelID); !ok || !c.Forum {
-		return
-	}
-	chat := -(channelMark + channel.ChannelID)
-	res, err := client.MessagesGetForumTopics(ctx, &tg.MessagesGetForumTopicsRequest{Peer: e.peer, Limit: topicsPage})
-	if err != nil {
-		a.log.Warn("list a forum's topics failed", "room", roomID(self, chat), "err", err)
-		return
-	}
-	room := roomID(self, chat)
-	var roots []domain.Message
-	var reads []*tg.ForumTopic
-	for _, t := range res.Topics {
-		topic, ok := t.(*tg.ForumTopic)
-		if !ok || topic.ID == 1 { // General is the room's own timeline
-			continue
-		}
-		roots = append(roots, domain.Message{
-			ID: messageID(self, chat, topic.ID), RoomID: room, Body: topic.Title,
-			Timestamp: time.Unix(int64(topic.Date), 0),
-		})
-		reads = append(reads, topic)
-	}
-	if len(roots) == 0 {
-		return
-	}
-	if _, err := a.record(ctx, self, room, roots); err != nil {
-		a.log.Warn("cache a forum's topics failed", "room", room, "err", err)
-		return
-	}
-	for _, topic := range reads {
-		if topic.ReadInboxMaxID > 0 {
-			a.topicRead(ctx, room, messageID(self, chat, topic.ID), messageID(self, chat, topic.ReadInboxMaxID))
-		}
-	}
-	a.recount(ctx, room)
-}
-
-// topicRead moves a topic's read position to event, when the cache holds it (else the
-// room's floor counts for it).
-func (a *Adapter) topicRead(ctx context.Context, room domain.RoomID, root, event domain.EventID) {
-	ts := a.readTime(ctx, room, event)
-	if ts == 0 {
-		return
-	}
-	if err := a.cache.SaveThreadRead(ctx, room, root, event, ts); err != nil {
-		a.log.Warn("save a topic's read position failed", "room", room, "err", err)
-	}
-}
-
-// readTopic is a topic read up to max, on this or another client.
-func (a *Adapter) readTopic(ctx context.Context, self, chat int64, topic, max int) {
-	if a.cache == nil {
-		return
-	}
-	room := roomID(self, chat)
-	a.topicRead(ctx, room, messageID(self, chat, topic), messageID(self, chat, max))
-	a.recount(ctx, room)
-}
-
-// ListThreads is a forum's topics as the cache holds them, newest activity first, each
-// with what is unread in it.
-func (a *Adapter) ListThreads(ctx context.Context, roomID domain.RoomID) ([]domain.Thread, error) {
-	if a.cache == nil {
-		return nil, nil
-	}
-	threads, err := a.cache.Threads(ctx, a.Me(), roomID)
-	if err != nil {
-		return nil, fmt.Errorf("telegram: topics of %s: %w", roomID, err)
-	}
-	unread, err := a.cache.CountThreadUnread(ctx, a.Me(), roomID)
-	if err != nil {
-		return nil, fmt.Errorf("telegram: count unread topics of %s: %w", roomID, err)
-	}
-	return domain.WithUnread(threads, domain.Unread{Threads: unread}), nil
-}
-
-// ThreadPage is a page of a topic's messages, oldest first, from where from left off
-// ("" for the newest); Next continues it.
-func (a *Adapter) ThreadPage(ctx context.Context, roomID domain.RoomID, root domain.EventID, from string, limit int) (domain.TimelinePage, error) {
-	ch, err := a.chatOf(ctx, roomID)
-	if err != nil {
-		return domain.TimelinePage{}, err
-	}
-	topic, ok := messageNumber(roomID, root)
 	if !ok {
-		return domain.TimelinePage{}, fmt.Errorf("telegram: %s is no topic of %s", root, roomID)
-	}
-	req := &tg.MessagesGetRepliesRequest{Peer: ch.peer, MsgID: topic, Limit: limit}
-	if from != "" {
-		if req.OffsetID, err = strconv.Atoi(from); err != nil {
-			return domain.TimelinePage{}, fmt.Errorf("telegram: %q is no place in %s", from, root)
-		}
-	}
-	read := time.Now()
-	res, err := ch.conn.client.API().MessagesGetReplies(ctx, req)
-	if err != nil {
-		return domain.TimelinePage{}, fmt.Errorf("telegram: topic %s of %s: %w", root, roomID, err)
-	}
-	raw, ent, ok := messagesOf(res)
-	if !ok {
-		return domain.TimelinePage{}, nil
-	}
-	msgs := a.cachePage(ctx, ch, raw, ent)
-	a.pageReactions(ctx, ch.conn.user, raw, read)
-	page := domain.TimelinePage{Messages: msgs}
-	if len(raw) == limit && len(raw) > 0 {
-		page.Next = strconv.Itoa(raw[len(raw)-1].GetID())
-	}
-	return page, nil
-}
-
-// MarkThreadRead marks a topic read up to eventID, on Telegram and here.
-func (a *Adapter) MarkThreadRead(ctx context.Context, roomID domain.RoomID, root, eventID domain.EventID, _ bool) error {
-	ch, err := a.chatOf(ctx, roomID)
-	if err != nil {
-		return err
-	}
-	topic, ok1 := messageNumber(roomID, root)
-	id, ok2 := messageNumber(roomID, eventID)
-	if !ok1 || !ok2 {
-		return fmt.Errorf("telegram: %s in %s is no message of %s", eventID, root, roomID)
-	}
-	if _, err := ch.conn.client.API().MessagesReadDiscussion(ctx, &tg.MessagesReadDiscussionRequest{
-		Peer: ch.peer, MsgID: topic, ReadMaxID: id,
-	}); err != nil {
-		return fmt.Errorf("telegram: mark topic %s read: %w", root, err)
-	}
-	a.readTopic(ctx, ch.conn.user, ch.id, topic, id)
-	return nil
-}
-
-// ThreadParticipant reports whether we began a topic or wrote in it.
-func (a *Adapter) ThreadParticipant(ctx context.Context, roomID domain.RoomID, root domain.EventID) bool {
-	if a.cache == nil {
 		return false
 	}
-	spoke, err := a.cache.SpokeInThread(ctx, roomID, root, a.Me())
-	return err == nil && spoke
+	c, ok := e.entities.Channel(channel.ChannelID)
+	return ok && c.Forum
+}
+
+// forumListing is a forum's topics, the latest message in each, and whom they name.
+type forumListing struct {
+	topics []*tg.ForumTopic
+	tops   []tg.MessageClass
+	ent    peer.Entities
+}
+
+// forumTopics is every topic of a forum, page by page.
+func forumTopics(ctx context.Context, client *tg.Client, forum tg.InputPeerClass) (forumListing, error) {
+	out := forumListing{ent: peer.NewEntities(map[int64]*tg.User{}, map[int64]*tg.Chat{}, map[int64]*tg.Channel{})}
+	req := &tg.MessagesGetForumTopicsRequest{Peer: forum, Limit: topicsPage}
+	for range topicsPages {
+		res, err := client.MessagesGetForumTopics(ctx, req)
+		if err != nil {
+			return forumListing{}, err //nolint:wrapcheck // the listing names the forum
+		}
+		out.tops = append(out.tops, res.Messages...)
+		page := peer.EntitiesFromResult(res)
+		maps.Copy(out.ent.Users(), page.Users())
+		maps.Copy(out.ent.Chats(), page.Chats())
+		maps.Copy(out.ent.Channels(), page.Channels())
+		var last *tg.ForumTopic
+		for _, t := range res.Topics {
+			if topic, ok := t.(*tg.ForumTopic); ok {
+				out.topics = append(out.topics, topic)
+				last = topic
+			}
+		}
+		if len(res.Topics) < topicsPage || last == nil {
+			break
+		}
+		req.OffsetDate, req.OffsetID, req.OffsetTopic = last.Date, last.TopMessage, last.ID
+	}
+	return out, nil
+}
+
+// topicRooms is a forum's topics as rooms; General is the forum's own room, listed
+// with the forum.
+func topicRooms(self, forum int64, topics []*tg.ForumTopic) []domain.Room {
+	var out []domain.Room
+	for _, t := range topics {
+		if t.ID == generalTopic {
+			continue
+		}
+		out = append(out, domain.Room{ID: topicRoomID(self, forum, t.ID), Name: t.Title, Membership: domain.MembershipJoin})
+	}
+	return out
+}
+
+// cacheTopicTops caches the latest message of each topic, in its room: the room list
+// shows it, and marking the forum read reads every topic up to it.
+func (a *Adapter) cacheTopicTops(ctx context.Context, self int64, f forumListing) {
+	if a.cache == nil {
+		return
+	}
+	for _, m := range f.tops {
+		msg, ok := incoming(self, m, f.ent)
+		if !ok {
+			continue
+		}
+		if err := a.cache.SaveMessages(ctx, msg.RoomID, []domain.Message{msg}); err != nil {
+			a.log.Warn("cache a topic's latest message failed", "room", msg.RoomID, "err", err)
+		}
+	}
+}
+
+// listedTopicsUnread keeps what a listing fetched then says of each topic's unread:
+// General's is the forum's own room's.
+func (a *Adapter) listedTopicsUnread(ctx context.Context, self, forum int64, topics []*tg.ForumTopic, fetched time.Time) {
+	for _, t := range topics {
+		room := chatRoom(self, forum, topicNumber(t.ID))
+		event := domain.EventID("")
+		if t.ReadInboxMaxID > 0 {
+			event = inRoom(room, t.ReadInboxMaxID)
+		}
+		ts := a.readTime(ctx, room, event)
+		a.changeUnread(ctx, room, fetched, func(u *domain.Unread) int64 {
+			u.Notifications, u.Highlights = t.UnreadCount, t.UnreadMentionsCount
+			if event != "" {
+				u.ReadEvent = event
+			}
+			return ts
+		})
+	}
+}
+
+// forgetForumThreads drops what was cached of a forum's topics while they were kept as
+// threads of its room: they are refetched into their own rooms.
+func (a *Adapter) forgetForumThreads(ctx context.Context, self, forum int64, topics []*tg.ForumTopic) {
+	if a.cache == nil {
+		return
+	}
+	room := roomID(self, forum)
+	roots := make([]domain.EventID, 0, len(topics))
+	for _, t := range topics {
+		roots = append(roots, inRoom(room, t.ID))
+	}
+	if err := a.cache.ForgetThreads(ctx, room, roots); err != nil {
+		a.log.Warn("forget a forum's old threads failed", "room", room, "err", err)
+	}
+}
+
+// topicReplies is a page of a topic's messages: Telegram keeps a topic as the replies
+// to the message that began it.
+func (a *Adapter) topicReplies(ctx context.Context, ch chat, from string, limit int) (tg.MessagesMessagesClass, error) {
+	req := &tg.MessagesGetRepliesRequest{Peer: ch.peer, MsgID: ch.topic, Limit: limit}
+	if from != "" {
+		var err error
+		if req.OffsetID, err = strconv.Atoi(from); err != nil {
+			return nil, fmt.Errorf("telegram: %q is no place in %s", from, ch.room())
+		}
+	}
+	res, err := ch.conn.client.API().MessagesGetReplies(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("telegram: topic %s: %w", ch.room(), err)
+	}
+	return res, nil
+}
+
+// topicNumber is a topic as a room names it: 0 for General, which is the forum's own.
+func topicNumber(topic int) int {
+	if topic == generalTopic {
+		return 0
+	}
+	return topic
+}
+
+// forumOf is the forum a topic's room is in, and whether it is one.
+func forumOf(room domain.RoomID) (domain.RoomID, bool) {
+	forum, _, ok := strings.Cut(string(room), topicSep)
+	return domain.RoomID(forum), ok
 }

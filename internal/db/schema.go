@@ -98,8 +98,9 @@ CREATE TABLE room_archived (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
--- Rooms made of topics (Telegram's forums). Its own table, written only by that
--- network's listing (SetForums), as room_archived is.
+-- Forums' own rooms (Telegram's General topics: the forum is a space of its topics'
+-- rooms). Its own table, written only by that network's listing (SetForums), as
+-- room_archived is.
 CREATE TABLE room_forums (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
