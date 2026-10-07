@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"maps"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -80,9 +81,7 @@ func (a *Adapter) cast(ctx context.Context, client *whatsmeow.Client, room domai
 		answers = chosenOptions(&poll, hashes)
 	}
 	ballots := make(map[string][]string, len(poll.Ballots)+1)
-	for v, chosen := range poll.Ballots {
-		ballots[v] = chosen
-	}
+	maps.Copy(ballots, poll.Ballots)
 	if len(answers) == 0 {
 		delete(ballots, voter)
 	} else {

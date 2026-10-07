@@ -8,7 +8,6 @@ import (
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -24,8 +23,8 @@ func hash(answer string) []byte {
 func TestAPollCountsEachVotersLastVote(t *testing.T) {
 	t.Parallel()
 	created := &waE2E.Message{PollCreationMessageV3: &waE2E.PollCreationMessage{
-		Name: proto.String("Hike when?"), SelectableOptionsCount: proto.Uint32(1),
-		Options: []*waE2E.PollCreationMessage_Option{{OptionName: proto.String("Saturday")}, {OptionName: proto.String("Sunday")}},
+		Name: new("Hike when?"), SelectableOptionsCount: new(uint32(1)),
+		Options: []*waE2E.PollCreationMessage_Option{{OptionName: new("Saturday")}, {OptionName: new("Sunday")}},
 	}}
 	p := pollOf(created)
 	if p == nil || p.Question != "Hike when?" || p.Multiple || len(p.Options) != 2 || p.Options[1].ID != "Sunday" {
