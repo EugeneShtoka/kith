@@ -1,6 +1,7 @@
 package notify_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -210,20 +211,74 @@ func TestShowNoneNeedsNoRingToBeSilent(t *testing.T) {
 	}
 }
 
-// The specificity ladder, pinned: more constraints beat fewer, and among equals the
-// narrower place wins — with the account-wide rule at the bottom of it.
-func TestSpecificityOrder(t *testing.T) {
-	t.Parallel()
-
+// specificityLadder is every kind of rule matching one message, least specific first:
+// more constraints beat fewer, and among one constraint a person beats a room beats a
+// space, with the account-wide rule at the bottom.
+func specificityLadder() (notify.Scope, []notify.Rule) {
 	scope := notify.Scope{Room: place{room: "!room:x", class: "space:Work"}, Sender: "@alice:x"}
-	ladder := []notify.Rule{
+	return scope, []notify.Rule{
 		{Name: "global"},
 		{Name: "space", Match: "space:Work"},
-		{Name: "person", Sender: "@alice:x"},
 		{Name: "room", Match: "!room:x"},
+		{Name: "person", Sender: "@alice:x"},
 		{Name: "space+person", Match: "space:Work", Sender: "@alice:x"},
 		{Name: "room+person", Match: "!room:x", Sender: "@alice:x"},
 	}
+}
+
+// Every rung of the ladder beats every rung below it, whichever comes first in the
+// file: each pair, both ways round.
+func TestEveryRungBeatsTheOnesBelow(t *testing.T) {
+	t.Parallel()
+	scope, ladder := specificityLadder()
+	for hi := range ladder {
+		for lo := range hi {
+			for _, rules := range [][]notify.Rule{{ladder[lo], ladder[hi]}, {ladder[hi], ladder[lo]}} {
+				rules = slices.Clone(rules)
+				for i := range rules {
+					rules[i].Show = new(notify.LevelAll)
+				}
+				if got := notify.Resolve(rules, scope, clock(12, 0)).ShowBy.Name; got != ladder[hi].Name {
+					t.Errorf("%s against %s: %s won, want %s", ladder[hi].Name, ladder[lo].Name, got, ladder[hi].Name)
+				}
+			}
+		}
+	}
+}
+
+// A rule about a person holds wherever they are: a bot muted is muted in a room let
+// through whole, and someone always let through gets through a room muted whole.
+func TestAPersonsRuleHoldsInAnyRoom(t *testing.T) {
+	t.Parallel()
+	room := place{room: "!group:x"}
+	bot := []notify.Rule{
+		{Name: "the group", Match: "!group:x", Show: new(notify.LevelAll)},
+		{Name: "the bot", Sender: "@bot:x", Show: new(notify.LevelNone)},
+	}
+	if notify.Resolve(bot, notify.Scope{Room: room, Sender: "@bot:x"}, clock(12, 0)).Decide(plain).Notify {
+		t.Error("the muted bot notified in a room set to show everything")
+	}
+	if !notify.Resolve(bot, notify.Scope{Room: room, Sender: "@dana:x"}, clock(12, 0)).Decide(plain).Notify {
+		t.Error("someone else in that room did not notify")
+	}
+	partner := []notify.Rule{
+		{Name: "the group", Match: "!group:x", Show: new(notify.LevelNone)},
+		{Name: "partner", Sender: "@sam:x", Show: new(notify.LevelAll)},
+	}
+	if !notify.Resolve(partner, notify.Scope{Room: room, Sender: "@sam:x"}, clock(12, 0)).Decide(plain).Notify {
+		t.Error("someone always let through was silenced by a muted room")
+	}
+	if notify.Resolve(partner, notify.Scope{Room: room, Sender: "@dana:x"}, clock(12, 0)).Decide(plain).Notify {
+		t.Error("the muted room let someone else through")
+	}
+}
+
+// The specificity ladder, pinned whole: the most specific rule has the last word, and
+// the chain starts at the account-wide rule.
+func TestSpecificityOrder(t *testing.T) {
+	t.Parallel()
+
+	scope, ladder := specificityLadder()
 	// Each rung sets Show to a distinct level so the winner is identifiable; they are
 	// fed in ladder order and then in reverse, because a resolution that depended on
 	// input order would pass the first and fail the second.

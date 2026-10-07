@@ -122,13 +122,16 @@ func (r Rule) Names(match, sender string) bool {
 	return r.Match == match && r.Sender == sender
 }
 
-// Specificity is how narrowly a rule matched, and it decides which rule wins.
+// Specificity is how narrowly a rule matched, and it decides which rule wins. A rule
+// about a person beats one about a room: it says what you want of them wherever they
+// are, muted or always let through, while a room's rule is about the room at large. A
+// rule naming both is narrower than either.
 const (
 	noMatch = iota
 	matchGlobal
 	matchSpace
-	matchSender
 	matchRoom
+	matchSender
 	matchSpaceSender
 	matchRoomSender
 )
