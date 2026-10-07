@@ -549,8 +549,9 @@ sound_command = ""
 # rules are layered on top of it; a rule with no `match` and no `sender` (like
 # "everything" below) sets the account-wide level.
 #
-# Which rule wins: more constraints beat fewer, and among equals the narrower place
-# wins (room > person > space > nothing). Then a mute you just pressed beats a rule
+# Which rule wins: more constraints beat fewer, and among equals a person beats a room
+# beats a space (person > room > space > nothing): a person's rule holds wherever they
+# are, muted or let through. Then a mute you just pressed beats a rule
 # here, and later in the file wins. So a rule naming a room, space or person gets
 # through quiet hours and do-not-disturb on its own. `W` in the app shows every rule in
 # force for the open room; `b` on a message, room or space writes one.

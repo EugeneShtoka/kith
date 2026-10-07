@@ -119,14 +119,16 @@ A bare word that is not a room ID (such as `"Work"`) is **refused at startup**, 
 
 ### Which rule wins
 
-**More constraints beat fewer. When two rules have the same number of constraints, the one naming the narrower place wins.** From least to most specific:
+**More constraints beat fewer. Among rules with one constraint, a person beats a room, and a room beats a space.** A rule about a person says what you want of them wherever they are: a bot you muted stays muted in a room set to show everything, and someone you always want to hear from gets through a room you muted. From least to most specific:
 
 1. The account-wide rule (no `match`, no `sender`)
 2. A space, a network, a tag, `dm` or `group`
-3. A person anywhere (`sender` only)
-4. One room
+3. One room
+4. A person anywhere (`sender` only)
 5. A person within a space or class of rooms
 6. A person in one room
+
+To silence a room for everyone, people with their own rules included, write a rule for that person in that room (6).
 
 If two rules land on the same level, a rule with a `thread` clause beats one without. After that, a do-not-disturb mute you just set beats a rule in the file. Among rules still tied, the one later in the file wins.
 
