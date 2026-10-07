@@ -18,6 +18,7 @@ func (a *Adapter) newClient(app App, storage session.Storage, updates telegram.U
 		SessionStorage: storage,
 		UpdateHandler:  updates,
 		Logger:         gotdLog{log: a.log},
+		Middlewares:    []telegram.Middleware{waitOutFloods()},
 		// What Telegram lists under the person's active sessions.
 		Device: telegram.DeviceConfig{DeviceModel: "kith", SystemVersion: runtime.GOOS, AppVersion: "kith"},
 	})
