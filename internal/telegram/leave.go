@@ -49,8 +49,9 @@ func (a *Adapter) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 		return nil
 	}
 	gone := []domain.RoomID{roomID}
-	for _, r := range a.cachedTopicRooms(ctx, roomID) {
-		gone = append(gone, r.ID)
+	topics := a.cachedTopicRooms(ctx, roomID)
+	for i := range topics {
+		gone = append(gone, topics[i].ID)
 	}
 	if err := a.cache.ForgetRooms(ctx, gone); err != nil {
 		a.log.Warn("forget the rooms left failed", "room", roomID, "err", err)
