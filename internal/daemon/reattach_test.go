@@ -269,7 +269,7 @@ type cutProxy struct {
 
 func newCutProxy(t *testing.T, path, target string) *cutProxy {
 	t.Helper()
-	ln, err := net.Listen("unix", path)
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", path)
 	if err != nil {
 		t.Fatalf("listen %s: %v", path, err)
 	}
@@ -280,7 +280,7 @@ func newCutProxy(t *testing.T, path, target string) *cutProxy {
 			if err != nil {
 				return
 			}
-			out, err := net.Dial("unix", target)
+			out, err := (&net.Dialer{}).DialContext(context.Background(), "unix", target)
 			if err != nil {
 				_ = in.Close()
 				continue
