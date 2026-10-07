@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"log/slog"
 	"math/rand/v2"
 	"path/filepath"
 	"slices"
@@ -258,7 +259,7 @@ func TestManyChatsAreReadPageByPage(t *testing.T) {
 	var got []dialog
 	err := client.Run(ctx, func(ctx context.Context) error {
 		var err error
-		got, err = readDialogs(ctx, client.API())
+		got, err = readDialogs(ctx, client.API(), slog.New(slog.DiscardHandler))
 		return err
 	})
 	if err != nil || len(got) != total {

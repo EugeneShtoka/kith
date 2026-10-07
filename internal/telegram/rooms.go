@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -216,7 +217,7 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	a.refreshing.Lock()
 	defer a.refreshing.Unlock()
 	fetched := time.Now()
-	elems, err := readDialogs(ctx, client.API())
+	elems, err := readDialogs(ctx, client.API(), a.log.With("account", account.Name))
 	if err != nil {
 		return nil, fmt.Errorf("telegram: list %s's chats: %w", account.Name, err)
 	}
@@ -285,21 +286,22 @@ var folders = []int{0, archiveFolder}
 // A page may hold fewer dialogs than asked for while more follow, so a folder is read
 // until it has as many as Telegram counts in it; a page that brings none not already
 // read ends it too, so a server that pages oddly cannot loop.
-func readDialogs(ctx context.Context, api *tg.Client) ([]dialog, error) {
+func readDialogs(ctx context.Context, api *tg.Client, log *slog.Logger) ([]dialog, error) {
 	var out []dialog
 	for _, folder := range folders {
 		req := &tg.MessagesGetDialogsRequest{OffsetPeer: &tg.InputPeerEmpty{}, Limit: dialogsPage}
 		req.SetFolderID(folder)
-		seen := map[int64]bool{}
+		seen, total := map[int64]bool{}, 0
 		for {
 			res, err := api.MessagesGetDialogs(ctx, req)
 			if err != nil {
 				return nil, err //nolint:wrapcheck // list wraps it, naming the account
 			}
-			page, total, err := dialogPage(res)
+			page, count, err := dialogPage(res)
 			if err != nil {
 				return nil, err
 			}
+			total = count
 			fresh := 0
 			for _, d := range page.dialogs {
 				chat, ok := markedPeer(d.Peer)
@@ -316,6 +318,7 @@ func readDialogs(ctx context.Context, api *tg.Client) ([]dialog, error) {
 				break
 			}
 		}
+		log.Info("listed a folder's chats", "folder", folder, "read", len(seen), "telegram_counts", total)
 	}
 	return out, nil
 }
