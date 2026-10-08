@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/richtext"
@@ -40,20 +41,26 @@ const modifierRunes = "\U0001F3FB\U0001F3FC\U0001F3FD\U0001F3FE\U0001F3FF"
 // presentationSelector is U+FE0F, which a toned sequence omits.
 const presentationSelector = "️"
 
-// presented is text as the terminal draws it: a toned text-presentation emoji (☝🏼,
-// as senders write it) is drawn two wide but measures one, which paints every row
-// after it a column off; U+FE0F between base and tone makes both agree (as emojiCell
-// does in the picker). spans, byte offsets into text, move with what is inserted.
+// zeroWidthJoiner joins emoji into one (❤‍🔥, 🤷‍♀); scripts join letters with it too.
+const zeroWidthJoiner = '\u200d'
+
+// presented is text as the terminal draws it: an emoji sequence that begins with a
+// text-presentation symbol and omits U+FE0F — toned (☝🏼, as senders write it) or
+// joined (❤‍🔥, as Telegram sends the reaction) — is drawn two wide but measures one,
+// which paints every row after it a column off; U+FE0F after the symbol makes both
+// agree (as emojiCell does in the picker). Only a symbol gets it: a letter before a
+// joiner is a script's, not an emoji's. spans, byte offsets into text, move with what
+// is inserted.
 func presented(text string, spans []richtext.Span) (string, []richtext.Span) {
-	if !strings.ContainsAny(text, modifierRunes) {
+	if !strings.ContainsAny(text, modifierRunes+string(zeroWidthJoiner)) {
 		return text, spans
 	}
 	var b strings.Builder
 	var at []int // where each selector went, in text's offsets
 	prev := rune(-1)
 	for i, r := range text {
-		if strings.ContainsRune(modifierRunes, r) && prev >= 0 && string(prev) != presentationSelector &&
-			ansi.StringWidth(string(prev)) == 1 {
+		if (strings.ContainsRune(modifierRunes, r) || r == zeroWidthJoiner && unicode.Is(unicode.So, prev)) &&
+			prev >= 0 && string(prev) != presentationSelector && ansi.StringWidth(string(prev)) == 1 {
 			b.WriteString(presentationSelector)
 			at = append(at, i)
 		}

@@ -179,8 +179,9 @@ func (m Model) gridRows(body, width int) []string {
 	return out
 }
 
-// emojiCell is a glyph as drawn (display only): text-presentation emoji (‼ ✂ ⚠ ❤ …)
-// get U+FE0F so they measure two columns, as the terminal draws them.
+// emojiCell is a glyph as drawn (display only): text-presentation emoji (‼ ✂ ⚠ ❤ …),
+// alone or beginning a sequence, get U+FE0F so they measure two columns, as the
+// terminal draws them.
 func emojiCell(glyph string) string {
 	if ansi.StringWidth(glyph) == 2 {
 		return glyph
@@ -193,6 +194,8 @@ func emojiCell(glyph string) string {
 	if len([]rune(glyph)) == 1 {
 		return glyph + presentationSelector
 	}
+	// A joined sequence begun by a text-presentation symbol (❤‍🔥) the same.
+	glyph, _ = presented(glyph, nil)
 	return glyph
 }
 
