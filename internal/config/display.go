@@ -7,37 +7,42 @@ import (
 
 // Display is [display]: how the timeline, room list and rail are drawn.
 type Display struct {
-	MaxNameLength int           `toml:"max_name_length"` // sender-name width cap; 0 no limit
-	Emoji         Emoji         `toml:"emoji"`
-	SkinTone      string        `toml:"skin_tone"`      // SkinToneNames; empty is "none"
-	ColorMessages bool          `toml:"color_messages"` // tint bodies in the sender's color
-	FPS           int           `toml:"fps"`            // repaint cap, MinFPS-MaxFPS; 0 DefaultFPS
-	OpenInInsert  *bool         `toml:"open_in_insert_mode"`
-	RowNumbers    bool          `toml:"row_numbers"`
-	Mouse         *bool         `toml:"mouse"`
-	UnreadLine    *bool         `toml:"unread_line"`
-	Hyperlinks    *bool         `toml:"hyperlinks"` // OSC 8
-	Theme         Theme         `toml:"theme"`
-	Tracked       Tracked       `toml:"tracked"`
-	Typing        *bool         `toml:"typing"`
-	SendTyping    *bool         `toml:"send_typing"`
-	SendReceipts  *bool         `toml:"send_receipts"`
-	ReadDelay     *int          `toml:"read_delay"` // seconds; nil or -1 never, 0 at once
-	ReadRules     []ReadRule    `toml:"read_rule"`
-	FilingSpaces  []string      `toml:"filing_spaces"`
-	SpaceRules    []SpaceRule   `toml:"space_rule"`
-	Deleted       Deleted       `toml:"deleted"`
-	Identities    []Identity    `toml:"identity"`
-	Names         []DisplayName `toml:"name"`
-	RoomNameRules *bool         `toml:"room_name_rules"`
-	Unread        string        `toml:"unread"`   // UnreadSources; empty is "messages"
-	Priority      []string      `toml:"priority"` // space names and tag:<name>s, most preferred first
-	Rooms         Rooms         `toml:"rooms"`
-	Rail          Rail          `toml:"rail"`
-	Media         Media         `toml:"media"`
-	Reactions     Reactions     `toml:"reactions"`
-	Threads       Threads       `toml:"threads"`
-	Direction     Direction     `toml:"direction"`
+	MaxNameLength int    `toml:"max_name_length"` // sender-name width cap; 0 no limit
+	Emoji         Emoji  `toml:"emoji"`
+	SkinTone      string `toml:"skin_tone"` // SkinToneNames; empty is "none"
+	// TimeFormat is a domain.TimeStyles name; the dates are domain date patterns.
+	// Empty is the default.
+	TimeFormat      string        `toml:"time_format"`
+	LongDateFormat  string        `toml:"long_date_format"`
+	ShortDateFormat string        `toml:"short_date_format"`
+	ColorMessages   bool          `toml:"color_messages"` // tint bodies in the sender's color
+	FPS             int           `toml:"fps"`            // repaint cap, MinFPS-MaxFPS; 0 DefaultFPS
+	OpenInInsert    *bool         `toml:"open_in_insert_mode"`
+	RowNumbers      bool          `toml:"row_numbers"`
+	Mouse           *bool         `toml:"mouse"`
+	UnreadLine      *bool         `toml:"unread_line"`
+	Hyperlinks      *bool         `toml:"hyperlinks"` // OSC 8
+	Theme           Theme         `toml:"theme"`
+	Tracked         Tracked       `toml:"tracked"`
+	Typing          *bool         `toml:"typing"`
+	SendTyping      *bool         `toml:"send_typing"`
+	SendReceipts    *bool         `toml:"send_receipts"`
+	ReadDelay       *int          `toml:"read_delay"` // seconds; nil or -1 never, 0 at once
+	ReadRules       []ReadRule    `toml:"read_rule"`
+	FilingSpaces    []string      `toml:"filing_spaces"`
+	SpaceRules      []SpaceRule   `toml:"space_rule"`
+	Deleted         Deleted       `toml:"deleted"`
+	Identities      []Identity    `toml:"identity"`
+	Names           []DisplayName `toml:"name"`
+	RoomNameRules   *bool         `toml:"room_name_rules"`
+	Unread          string        `toml:"unread"`   // UnreadSources; empty is "messages"
+	Priority        []string      `toml:"priority"` // space names and tag:<name>s, most preferred first
+	Rooms           Rooms         `toml:"rooms"`
+	Rail            Rail          `toml:"rail"`
+	Media           Media         `toml:"media"`
+	Reactions       Reactions     `toml:"reactions"`
+	Threads         Threads       `toml:"threads"`
+	Direction       Direction     `toml:"direction"`
 }
 
 // Direction is [display.direction]: which rooms read right to left, the sender column

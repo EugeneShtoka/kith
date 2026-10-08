@@ -61,6 +61,27 @@ max_name_length = 15
 # dark.
 skin_tone = "none"
 
+# How times and dates are written, everywhere kith shows one to you (desktop
+# notifications included; what scripts and assistants are handed stays RFC 3339).
+#
+# time_format is one of: 24h (14:30), 12h (2:30 PM), 12h-lower (2:30pm),
+# zh (下午2:30), ja (午後2:30), ko (오후 2:30).
+#
+# The dates are patterns: runs of Y, M and D are filled in, anything else is written
+# as it stands, so any separators and order work.
+#
+#   YYYY 2026   YY 26
+#   M    10     MM 10   MMM Oct   MMMM October
+#   D    8      DD 08   DDD Thu   DDDD Thursday
+#
+#   "DD.MM.YYYY"  "MM/DD/YY"  "DDDD, D MMMM YYYY"  "YYYY年M月D日"
+#
+# long_date_format heads each day in a timeline; short_date_format is the date in
+# lists (search results, edit history) and in notifications.
+time_format = "24h"
+long_date_format = "DDD, DD MMM YYYY"
+short_date_format = "YYYY-MM-DD"
+
 # Tint each message body in its sender's color (not just the name).
 color_messages = false
 
@@ -493,7 +514,7 @@ auto = false
 # `desktop` posts a freedesktop (D-Bus) notification. `command` runs once per
 # notification with the fields in its environment, never interpolated, so a message
 # cannot inject shell code: $KITH_TITLE and $KITH_BODY (rendered), plus $KITH_SENDER,
-# $KITH_MXID, $KITH_ROOM, $KITH_SPACE, $KITH_MESSAGE, $KITH_PROTOCOL, $KITH_DATE, $KITH_TIME.
+# $KITH_MXID, $KITH_ROOM, $KITH_SPACE, $KITH_MESSAGE, $KITH_PROTOCOL, $KITH_DATE and $KITH_TIME (ISO always, for scripts).
 #
 # `title` and `body` are templates over:
 #
@@ -504,8 +525,8 @@ auto = false
 #   {room}      the room's displayed name
 #   {body}      the message text
 #   {protocol}  the sender's network (WhatsApp, Telegram, …; "Matrix" for native)
-#   {date}      local date, 2026-08-21
-#   {time}      local time, 14:05
+#   {date}      local date, as [display] short_date_format writes it
+#   {time}      local time, as [display] time_format writes it
 #
 # Omit a template for the default shown; "-" means deliberately empty.
 [notifications]

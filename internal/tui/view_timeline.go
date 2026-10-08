@@ -217,11 +217,11 @@ func (m Model) stickyDay() string {
 	rows := m.msgAreaRows()
 	if msg, ok := m.selectedMessage(); ok && !msg.Timestamp.IsZero() {
 		if from, to, found := m.selectionRows(); found && to > m.timeline.scroll && from < m.timeline.scroll+rows {
-			return dayLabel(msg.Timestamp)
+			return dayLabel(msg.Timestamp, m.prefs.clock)
 		}
 	}
 	if msg, ok := m.messageAtRow(m.timeline.scroll + rows - 1); ok && !msg.Timestamp.IsZero() {
-		return dayLabel(msg.Timestamp)
+		return dayLabel(msg.Timestamp, m.prefs.clock)
 	}
 	return ""
 }
@@ -468,7 +468,7 @@ func (m Model) renderRows(w walk, i int, selected bool) []string {
 // dividerRow renders a centered date divider ("──── Today ────") spanning the
 // content width.
 func (m Model) dividerRow(t time.Time, width int) string {
-	return m.ruleRow(dayLabel(t), width, m.theme.Muted)
+	return m.ruleRow(dayLabel(t, m.prefs.clock), width, m.theme.Muted)
 }
 
 // unreadRow is the line above the first unread message, in the badge color. It carries
@@ -476,7 +476,7 @@ func (m Model) dividerRow(t time.Time, width int) string {
 func (m Model) unreadRow(t time.Time, width int, withDate bool) string {
 	label := "new"
 	if withDate {
-		label = "new · " + dayLabel(t)
+		label = "new · " + dayLabel(t, m.prefs.clock)
 	}
 	return m.ruleRow(label, width, lipgloss.NewStyle().Foreground(m.theme.Palette.Badge))
 }
@@ -510,8 +510,8 @@ func dayKey(t time.Time) string {
 	return t.Format("2006-01-02")
 }
 
-// dayLabel is the human divider label: "Today", "Yesterday", or a full date.
-func dayLabel(t time.Time) string {
+// dayLabel is the human divider label: "Today", "Yesterday", or the long date.
+func dayLabel(t time.Time, clock domain.Clock) string {
 	now := time.Now()
 	switch {
 	case sameDay(t, now):
@@ -519,7 +519,7 @@ func dayLabel(t time.Time) string {
 	case sameDay(t, now.AddDate(0, 0, -1)):
 		return "Yesterday"
 	default:
-		return t.Format("Mon, 02 Jan 2006")
+		return clock.LongDate(t)
 	}
 }
 

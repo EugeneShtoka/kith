@@ -230,5 +230,5 @@ func (m Model) scheduleComposed(room domain.Room, kind, arg string) (Model, tea.
 	if msg.ReplyTo != "" {
 		where += ", as a reply"
 	}
-	return m, m.scheduleCmd(msg, fmt.Sprintf("queued for %s — %s", at.Format("Mon 15:04"), where))
+	return m, m.scheduleCmd(msg, fmt.Sprintf("queued for %s — %s", at.Format("Mon")+" "+m.prefs.clock.Time(at), where))
 }

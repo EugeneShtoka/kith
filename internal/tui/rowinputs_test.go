@@ -27,6 +27,7 @@ var rowReads = map[string]string{
 	"quotes.known":       "rowInputs.quoted",
 	"focus":              "rowInputs.pictures (showsPictures)",
 	"pics.graphics":      "rowInputs.pictures (showsPictures); set with the config (apply.go), which bumps conf.rev",
+	"prefs.clock":        "derivedKey.cfg: the time format, set only with the config (apply.go), which bumps conf.rev",
 	// derivedKey, for the whole timeline.
 	"timeline.messages":          "derivedKey.rev: the loaded messages, set only through setMessages (a quoted reply read in place)",
 	"timeline.opened.unreadFrom": "derivedKey.room: set only when a room opens",

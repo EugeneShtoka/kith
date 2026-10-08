@@ -818,3 +818,40 @@ func TestANotificationNamesANumberFromThePhoneBook(t *testing.T) {
 		}
 	}
 }
+
+// A notification's {date} and {time} are written as [display] says, and follow a
+// reload; a pattern that cannot be read is refused, naming its key.
+func TestNotificationsWriteTheChosenClock(t *testing.T) {
+	t.Parallel()
+
+	cfg := notifsOn("all")
+	cfg.Display.TimeFormat, cfg.Display.ShortDateFormat = "12h", "DD.MM.YYYY"
+	n, rec, _ := notifier(t, cfg)
+	m := msg(chatRm, alice, "stand-up in five")
+	m.Timestamp = time.Date(2026, 8, 21, 14, 5, 0, 0, time.Local)
+	n.Deliver(context.Background(), m)
+
+	cfg.Display.TimeFormat, cfg.Display.ShortDateFormat = "24h", "MM/DD/YY"
+	if err := n.Reload(cfg); err != nil {
+		t.Fatal(err)
+	}
+	m.ID = "$2"
+	n.Deliver(context.Background(), m)
+
+	sent := rec.all()
+	if len(sent) != 2 {
+		t.Fatalf("%d notifications, want 2", len(sent))
+	}
+	for i, want := range [][2]string{{"21.08.2026", "2:05 PM"}, {"08/21/26", "14:05"}} {
+		if sent[i].Date != want[0] || sent[i].Time != want[1] {
+			t.Errorf("notification %d wrote %q %q, want %q %q", i, sent[i].Date, sent[i].Time, want[0], want[1])
+		}
+	}
+
+	bad := notifsOn("all")
+	bad.Display.LongDateFormat = "YYY"
+	if _, err := daemon.NewNotifications(bad, world(), func(config.Notifications) notify.Notifier { return notify.Nop{} }); err == nil ||
+		!strings.Contains(err.Error(), "long_date_format") {
+		t.Errorf("NewNotifications() = %v, want a refusal naming long_date_format", err)
+	}
+}

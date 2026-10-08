@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -17,13 +18,10 @@ import (
 )
 
 const (
-	// timeFormat is a row's time, and timestampWidth the column it fills.
-	timeFormat     = "15:04"
-	timestampWidth = len(timeFormat)
-	redactedBody   = "(deleted)"
-	editedMarker   = "(edited)"
-	starMarker     = "★"
-	emoteMarker    = "*"
+	redactedBody = "(deleted)"
+	editedMarker = "(edited)"
+	starMarker   = "★"
+	emoteMarker  = "*"
 )
 
 // hangingRows are drawn beneath a message and part of its span: caption chip, picture,
@@ -35,7 +33,7 @@ func (m Model) hangingRows(msg domain.Message, threads []domain.Thread, nameW, w
 	// attachment shows nowhere but in its history (history.go).
 	if msg.Media != nil && msg.Caption() != "" && !msg.Redacted {
 		rows = append(rows, m.underBody(m.theme.Faint.Render(drawLine(mediaChip(msg.Media),
-			lineSpec{width: width - bodyColumn(nameW), sentence: true})), dir, nameW, width))
+			lineSpec{width: width - m.bodyColumn(nameW), sentence: true})), dir, nameW, width))
 	}
 	if m.showsPictures() && msg.Media.IsImage() && !msg.Redacted {
 		for _, r := range m.pics.rowsFor(msg.ID) {
@@ -57,9 +55,9 @@ func (m Model) hangingRows(msg domain.Message, threads []domain.Thread, nameW, w
 func (m Model) underBody(row string, dir bidi.Direction, nameW, width int) string {
 	switch {
 	case !m.mirrored():
-		return strings.Repeat(" ", bodyColumn(nameW)) + row
+		return strings.Repeat(" ", m.bodyColumn(nameW)) + row
 	case dir == bidi.RightToLeft:
-		return padStart(row, width-bodyColumn(nameW))
+		return padStart(row, width-m.bodyColumn(nameW))
 	default:
 		return row
 	}
@@ -96,7 +94,7 @@ func (m Model) replyPreview(msg domain.Message, derived *derivedCache, nameW, wi
 		return ""
 	}
 	faint := m.theme.Faint
-	avail := max(width-bodyColumn(nameW), 1)
+	avail := max(width-m.bodyColumn(nameW), 1)
 	tgt, ok := m.quotedTarget(derived, msg.ReplyTo)
 	if !ok {
 		// Not loaded yet; quotes.go fetches it.
@@ -198,13 +196,24 @@ func (m Model) senderColorMap() map[string]color.Color {
 }
 
 // bodyColumn is where a row's body starts: the time, a space, the name column, a space.
-func bodyColumn(nameW int) int { return timestampWidth + 1 + nameW + 1 }
+func (m Model) bodyColumn(nameW int) int { return m.timeWidth() + 1 + nameW + 1 }
+
+// timeWidth is the time column's width: the widest time of day the clock writes.
+func (m Model) timeWidth() int { return m.prefs.clock.TimeWidth() }
+
+// rowTime is a row's time, in the time column, or the column blank for none.
+func (m Model) rowTime(t time.Time) string {
+	if t.IsZero() {
+		return strings.Repeat(" ", m.timeWidth())
+	}
+	return m.theme.Muted.Render(m.prefs.clock.PaddedTime(t))
+}
 
 // messageRows renders one message: the first row carries the timestamp and fixed-width
 // sender column, continuation rows align under the body, blank lines are dropped.
 func (m Model) messageRows(msg domain.Message, width, nameW int, colors map[string]color.Color, selected bool, preview string) []string {
 	c := colors[msg.Sender]
-	prefixW := bodyColumn(nameW)
+	prefixW := m.bodyColumn(nameW)
 	bodyW := max(width-prefixW, 1)
 	body, mentions, marks := m.messageBody(msg, colors)
 	style := m.richStyleFor(msg, body, mentions, c)
@@ -556,10 +565,7 @@ func (m Model) senderCells(msg domain.Message, nameW int, c color.Color, selecte
 		// Reverse video marks the cursor without shifting columns.
 		nameStyle = nameStyle.Reverse(true)
 	}
-	ts = strings.Repeat(" ", timestampWidth)
-	if !msg.Timestamp.IsZero() {
-		ts = m.theme.Muted.Render(msg.Timestamp.Format(timeFormat))
-	}
+	ts = m.rowTime(msg.Timestamp)
 	if m.mirrored() {
 		return ts, pad + nameStyle.Render(label)
 	}

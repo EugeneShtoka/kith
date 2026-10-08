@@ -35,6 +35,10 @@ type Notification struct {
 	// Sent is when the message was sent, rendered by {date} and {time} in the local
 	// timezone.
 	Sent time.Time
+	// Date and Time are Sent as the person has times written ([display] formats),
+	// for {date} and {time}; empty writes ISO. A hook's KITH_DATE and KITH_TIME are
+	// ISO always: scripts parse them.
+	Date, Time string
 	// Sound is a file to play alongside this notification: the global default from
 	// [notifications] sound, or whatever the matching rule replaced it with.
 	Sound string
@@ -58,6 +62,15 @@ const (
 	timeLayout = "15:04"
 )
 
+// isoSent is Sent's local date and time in ISO, "" for none.
+func (n Notification) isoSent() (date, clock string) {
+	if n.Sent.IsZero() {
+		return "", ""
+	}
+	local := n.Sent.Local()
+	return local.Format(dateLayout), local.Format(timeLayout)
+}
+
 // placeholderRe matches a template field. Unknown names are left alone rather than
 // blanked: "{tomorrow}" in a title is text somebody meant to be there.
 var placeholderRe = regexp.MustCompile(`\{[a-z]+\}`)
@@ -65,10 +78,12 @@ var placeholderRe = regexp.MustCompile(`\{[a-z]+\}`)
 // Render expands the placeholders in tpl — {space} {sender} {mxid} {room} {body}
 // {protocol} {date} {time} — against n.
 func (n Notification) Render(tpl string) string {
-	var date, clock string
-	if !n.Sent.IsZero() {
-		local := n.Sent.Local()
-		date, clock = local.Format(dateLayout), local.Format(timeLayout)
+	date, clock := n.isoSent()
+	if n.Date != "" {
+		date = n.Date
+	}
+	if n.Time != "" {
+		clock = n.Time
 	}
 	fields := map[string]string{
 		"{space}":    n.Space,
@@ -325,6 +340,7 @@ type commandSink struct {
 
 // Notify spawns the configured command with the notification in its environment.
 func (c commandSink) Notify(n Notification) {
+	date, clock := n.isoSent()
 	env := append(os.Environ(),
 		"KITH_TITLE="+n.Render(c.tpl.Title),
 		"KITH_BODY="+n.Render(c.tpl.Body),
@@ -334,8 +350,8 @@ func (c commandSink) Notify(n Notification) {
 		"KITH_SPACE="+n.Space,
 		"KITH_MESSAGE="+n.Body,
 		"KITH_PROTOCOL="+n.Protocol,
-		"KITH_DATE="+n.Render("{date}"),
-		"KITH_TIME="+n.Render("{time}"),
+		"KITH_DATE="+date,
+		"KITH_TIME="+clock,
 	)
 	// A hook that fails says so (its exit status, never the message).
 	c.run.start("command", "notification command", c.report, func(ctx context.Context) *exec.Cmd {

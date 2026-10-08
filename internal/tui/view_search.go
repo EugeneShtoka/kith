@@ -40,7 +40,7 @@ func (m Model) searchLines(width, rows int) []string {
 // searchRow renders one hit. The excerpt is flattened to a single line — a message
 // body can contain newlines, and a results list is only legible one row per result.
 func (m Model) searchRow(hit domain.SearchHit, selected bool, width int) string {
-	when := hit.Timestamp.Local().Format("2006-01-02 15:04")
+	when := m.prefs.clock.ShortDate(hit.Timestamp) + " " + m.prefs.clock.Time(hit.Timestamp)
 	who := hit.SenderName
 	if who == "" {
 		who = hit.Sender
