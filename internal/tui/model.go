@@ -138,7 +138,9 @@ func (m Model) rebuiltRail() Model {
 
 // startupPrefs is the settings New starts with, before a config is applied.
 func startupPrefs(display config.Display, unreadLocal bool) prefsState {
+	clock, _ := setup.Clock(display) // validated at startup; the zero Clock is the default
 	return prefsState{
+		clock:       clock,
 		display:     display,
 		identities:  buildIdentities(display.Identities),
 		openInsert:  display.OpenInInsertMode(),
@@ -420,6 +422,9 @@ type prefsState struct {
 	// unreadLocal counts unread messages (the daemon's count) rather than notifying ones.
 	// See domain.Unread.Count.
 	unreadLocal bool
+	// clock is how times and dates are written ([display] time_format and the date
+	// formats).
+	clock domain.Clock
 	// codes is what counts as a verification code and where to look. See codes.go.
 	codes codeSettings
 	// external is the [clipboard] commands for copying and opening links. See externalCommands.
@@ -3026,7 +3031,7 @@ func (m Model) loadInlineImages() (Model, tea.Cmd) {
 
 // imageTargetWidth is an inline picture's width in cells: the body column, or the configured cap if narrower.
 func (m Model) imageTargetWidth() int {
-	w := m.contentWidth() - (timestampWidth + 1 + m.nameColWidth() + 1)
+	w := m.contentWidth() - m.bodyColumn(m.nameColWidth())
 	if capped := m.prefs.display.Media.MaxWidth; capped > 0 && capped < w {
 		w = capped
 	}

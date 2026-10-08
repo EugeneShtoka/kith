@@ -29,6 +29,7 @@ func Validate(cfg config.Config) error {
 		errOf(CodeRules(cfg.Codes)),
 		errOf(SpamRules(cfg.Spam)),
 		errOf(SkinTone(d.SkinTone)),
+		errOf(Clock(d)),
 		errOf(EmojiTier(d.Emoji.Set)),
 		FrameRate(d.FPS),
 		errOf(MediaMode(d.Media.Mode)),
@@ -191,6 +192,20 @@ func SkinTone(name string) (string, error) {
 	}
 	modifier, _ := config.SkinToneModifier(tone) // oneOf already proved it is one
 	return modifier, nil
+}
+
+// Clock resolves how times and dates are written.
+func Clock(d config.Display) (domain.Clock, error) {
+	for _, p := range [][2]string{{"display.long_date_format", d.LongDateFormat}, {"display.short_date_format", d.ShortDateFormat}} {
+		if _, err := domain.ParseDatePattern(p[1]); err != nil {
+			return domain.Clock{}, fmt.Errorf("%s: %w", p[0], err)
+		}
+	}
+	c, err := domain.ParseClock(d.TimeFormat, d.LongDateFormat, d.ShortDateFormat)
+	if err != nil {
+		return domain.Clock{}, fmt.Errorf("display.time_format: %w", err)
+	}
+	return c, nil
 }
 
 // ThreadListing resolves which of a room's threads are listed beneath it.

@@ -148,7 +148,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | Section | Purpose | More |
 | --- | --- | --- |
 | *(top level)* | The account (`homeserver`, `user`) or `[[profile]]` blocks, `allow_token_file`, `terminal`. | [getting-started.md](getting-started.md) |
-| `[display]` | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
+| `[display]` | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
 | `[display.theme]` | The color palette: a preset plus per-role overrides. | [Themes](#themes) |
 | `[display.emoji]` | Emoji set size (`curated`, `standard`, `complete`) and your own shortcodes. | [composer.md](composer.md) |
 | `[display.tracked]` | Words highlighted wherever they are said and listed by `/tracked`, optionally with notifications. | [search.md](search.md) |

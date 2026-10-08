@@ -51,7 +51,7 @@ func TestUnreadLineReplacesTheDateDivider(t *testing.T) {
 	if !strings.Contains(row, "new") {
 		t.Errorf("rule = %q, want the unread line to win", row)
 	}
-	if !strings.Contains(row, dayLabel(w.msgs[i].Timestamp)) {
+	if !strings.Contains(row, dayLabel(w.msgs[i].Timestamp, domain.Clock{})) {
 		t.Errorf("rule = %q, want it to carry the date it displaced", row)
 	}
 }

@@ -38,6 +38,7 @@ type Notifications struct {
 	limit     notify.Limit
 	rules     []notify.Rule
 	notifier  notify.Notifier
+	clock     domain.Clock // how a notification writes its {date} and {time}
 	temps     notify.Temps
 	autocopy  domain.AutoCopy
 	clip      clipboard
@@ -181,6 +182,10 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+	clock, err := setup.Clock(cfg.Display)
+	if err != nil {
+		return err
+	}
 	notifier := n.sinks(cfg.Notifications)
 
 	// Not a reset: a room caught yesterday stays caught through a reload.
@@ -197,7 +202,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.scope.SetArchives(archives)
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.rules, n.notifier, n.limit = rules, notifier, limit
+	n.rules, n.notifier, n.limit, n.clock = rules, notifier, limit, clock
 	n.keep, n.keepRules = keep, keepRules
 	n.autocopy, n.clip = autocopy, clipboard{command: cfg.Clipboard.Command}
 	n.tracked, n.trackedNotify = setup.TrackedRules(cfg.Display.Tracked), cfg.Display.Tracked.Notify
@@ -364,8 +369,11 @@ func newMessages(held int) string {
 // notify hands an alert to the sinks that are configured right now.
 func (n *Notifications) notify(alert notify.Notification) {
 	n.mu.Lock()
-	notifier := n.notifier
+	notifier, clock := n.notifier, n.clock
 	n.mu.Unlock()
+	if !alert.Sent.IsZero() {
+		alert.Date, alert.Time = clock.ShortDate(alert.Sent), clock.Time(alert.Sent)
+	}
 	notifier.Notify(alert)
 }
 

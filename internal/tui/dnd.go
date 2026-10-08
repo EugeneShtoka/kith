@@ -213,18 +213,18 @@ func (m Model) chooseDNDScope(index int) (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.notifications.target = target
-	m.picker = newPicker(pickerDNDFor, dndDurationItems())
+	m.picker = newPicker(pickerDNDFor, dndDurationItems(m.prefs.clock))
 	return m, nil
 }
 
 // dndDurationItems lists the lengths, each with the clock time it ends at.
-func dndDurationItems() []pickerItem {
+func dndDurationItems(clock domain.Clock) []pickerItem {
 	now := time.Now()
 	items := make([]pickerItem, 0, len(dndDurations))
 	for _, d := range dndDurations {
 		detail := "no end"
 		if d.span > 0 {
-			detail = "until " + now.Add(d.span).Format("15:04")
+			detail = "until " + clock.Time(now.Add(d.span))
 		}
 		items = append(items, pickerItem{label: d.label, detail: detail, value: d.key, match: d.label})
 	}
@@ -366,7 +366,7 @@ func remainingNote(r notify.Rule, now time.Time) string {
 }
 
 // mutedNote names what was silenced, once the daemon has confirmed it.
-func mutedNote(target muteTarget, temps notify.Temps) string {
+func mutedNote(target muteTarget, temps notify.Temps, clock domain.Clock) string {
 	for i := range temps {
 		rule := &temps[i]
 		if !rule.Names(target.match, target.sender) {
@@ -377,7 +377,7 @@ func mutedNote(target muteTarget, temps notify.Temps) string {
 			note = "sound off: " + target.what
 		}
 		if !rule.Until.IsZero() {
-			note += " until " + rule.Until.Format("15:04")
+			note += " until " + clock.Time(rule.Until)
 		}
 		return note
 	}

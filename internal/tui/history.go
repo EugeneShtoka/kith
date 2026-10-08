@@ -110,7 +110,7 @@ func (m Model) historyLines(width, height int) []string {
 func (m Model) versionLines(width int) []string {
 	lines := make([]string, 0, len(m.history.revs)*3)
 	for i, rev := range m.history.revs {
-		head := "  " + strconv.Itoa(i+1) + "  " + rev.At.Local().Format("2006-01-02 15:04:05") + "  "
+		head := "  " + strconv.Itoa(i+1) + "  " + m.prefs.clock.ShortDate(rev.At) + " " + m.prefs.clock.TimeSeconds(rev.At) + "  "
 		if i == 0 {
 			head += "sent"
 		} else {
@@ -141,7 +141,7 @@ func (m Model) deletionLine() string {
 	said = drawSentence(said)
 	when := "  ·  "
 	if at := m.deletionTime(); !at.IsZero() {
-		when = "  " + at.Local().Format("2006-01-02 15:04:05") + "  "
+		when = "  " + m.prefs.clock.ShortDate(at) + " " + m.prefs.clock.TimeSeconds(at) + "  "
 	}
 	return m.theme.Title.Render("  ✕" + when + said)
 }

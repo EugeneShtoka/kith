@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/notify"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
@@ -444,6 +445,13 @@ var curatedSettings = []setting{
 		set: func(c *config.Config, v string) error { c.Display.Emoji.Set = v; return nil },
 	},
 	{
+		key: "display.time_format", group: "look", label: "Time format",
+		show:    func(c config.Config) string { return orDefault(c.Display.TimeFormat, domain.DefaultTimeStyle) },
+		kind:    settingChoice,
+		choices: timeStyleChoices(),
+		set:     func(c *config.Config, v string) error { c.Display.TimeFormat = v; return nil },
+	},
+	{
 		key: "display.skin_tone", group: "emoji", label: "Emoji skin tone",
 		show:    func(c config.Config) string { return orDefault(c.Display.SkinTone, "none") },
 		kind:    settingChoice,
@@ -465,6 +473,16 @@ var curatedSettings = []setting{
 }
 
 // skinToneChoices lists the tones with a sample of each.
+// timeStyleChoices is every time style, each with how 14:30 looks in it.
+func timeStyleChoices() []settingChoiceOption {
+	styles := domain.TimeStyles()
+	out := make([]settingChoiceOption, 0, len(styles))
+	for _, s := range styles {
+		out = append(out, settingChoiceOption{s[0], s[0], s[1]})
+	}
+	return out
+}
+
 func skinToneChoices() []settingChoiceOption {
 	names := skinToneNames()
 	out := make([]settingChoiceOption, 0, len(names))

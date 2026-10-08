@@ -93,6 +93,7 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m.keys = keymapFor(cfg)
 	m.theme = theme.New(derived.palette)
 	m.prefs.identities = buildIdentities(cfg.Display.Identities)
+	m.prefs.clock = derived.clock
 	m.receipts.policy = readSettingsFrom(cfg.Display)
 	// Invalidates the timeline's cached colors, name column and rows.
 	m.conf.rev++
@@ -185,6 +186,7 @@ type derivations struct {
 	// unreadLocal: badges count cached unread messages rather than notifications.
 	unreadLocal bool
 	tone        string
+	clock       domain.Clock
 	media       string
 	detail      string
 	emoji       emojiSet
@@ -215,6 +217,7 @@ func derive(cfg config.Config) (derivations, error) {
 	if err != nil {
 		return derivations{}, err
 	}
+	clock, _ := setup.Clock(cfg.Display) // checked by Validate above
 	tier, err := setup.EmojiTier(cfg.Display.Emoji.Set)
 	if err != nil {
 		return derivations{}, err
@@ -257,6 +260,7 @@ func derive(cfg config.Config) (derivations, error) {
 		rules:       rules,
 		unreadLocal: source != config.UnreadNotifications,
 		tone:        tone,
+		clock:       clock,
 		media:       media,
 		detail:      detail,
 		emoji:       newEmojiSet(tier, cfg.Display.Emoji.Extra),

@@ -1131,7 +1131,7 @@ func (m Model) readDNDCmd() tea.Cmd { return m.dndCmd("", Notifications.DND) }
 
 // setDNDCmd puts one temporary rule in force; target names it in the confirmation.
 func (m Model) setDNDCmd(rule notify.Rule, target muteTarget) tea.Cmd {
-	ctx, notifications := m.ctx, m.notifications.backend
+	ctx, notifications, clock := m.ctx, m.notifications.backend, m.prefs.clock
 	return func() tea.Msg {
 		if notifications == nil {
 			return dndMsg{err: errNoDaemon}
@@ -1140,7 +1140,7 @@ func (m Model) setDNDCmd(rule notify.Rule, target muteTarget) tea.Cmd {
 		if err != nil {
 			return dndMsg{err: err}
 		}
-		return dndMsg{temps: temps, note: mutedNote(target, temps)}
+		return dndMsg{temps: temps, note: mutedNote(target, temps, clock)}
 	}
 }
 

@@ -37,7 +37,7 @@ body  = "{body}"                         # default
 | `{mxid}` | The sender's Matrix ID |
 | `{body}` | The message text, cut to 140 characters |
 | `{protocol}` | The network the sender is on, taken from their MXID: `WhatsApp`, `Telegram`, `Signal`, `Slack`, `Matrix`, … |
-| `{date}`, `{time}` | When it was sent, in local time (`2006-01-02`, `15:04`) |
+| `{date}`, `{time}` | When it was sent, in local time, as `[display] short_date_format` and `time_format` write it (by default `2026-08-21`, `14:05`) |
 
 If a field is empty, one separator next to it is dropped too. A room in no space reads `Room · Sender`, not `· Room · Sender`. Unknown `{words}` are left as they are. Set a template to `"-"` to make it deliberately empty.
 
@@ -52,7 +52,7 @@ If a field is empty, one separator next to it is dropped too. A room in no space
 | `KITH_TITLE`, `KITH_BODY` | The rendered title and body templates |
 | `KITH_SENDER`, `KITH_MXID`, `KITH_ROOM`, `KITH_SPACE`, `KITH_PROTOCOL` | The raw fields |
 | `KITH_MESSAGE` | The message text |
-| `KITH_DATE`, `KITH_TIME` | The send time |
+| `KITH_DATE`, `KITH_TIME` | The send time, always ISO (`2026-08-21`, `14:05`) whatever `[display]` says, so a script can parse it |
 
 ```toml
 [notifications]

@@ -367,10 +367,7 @@ func (m Model) threadRow(t domain.Thread, nameW, width int) string {
 	if name := m.personIn(t.RoomID, t.LatestSender, t.LatestSenderName); name != "" {
 		label += " · " + name
 	}
-	ts := strings.Repeat(" ", timestampWidth)
-	if !t.LatestAt.IsZero() {
-		ts = m.theme.Muted.Render(t.LatestAt.Format(timeFormat))
-	}
+	ts := m.rowTime(t.LatestAt)
 	body := m.theme.Faint.Render(emojiCell(threadMark) + " " + drawSentence(label))
 	// The unread badge matches the room list's, and is not faint.
 	if t.Unread > 0 {
@@ -378,7 +375,7 @@ func (m Model) threadRow(t domain.Thread, nameW, width int) string {
 	}
 	if m.mirrored() {
 		// Our sentence stays left to right, flushed against the time on the right.
-		return padStart(body, width-bodyColumn(nameW)) + strings.Repeat(" ", nameW+2) + ts
+		return padStart(body, width-m.bodyColumn(nameW)) + strings.Repeat(" ", nameW+2) + ts
 	}
 	row := ts + " " + strings.Repeat(" ", nameW+1) + body
 	return truncateDrawn(row, width)
@@ -429,7 +426,7 @@ func (m Model) threadItem(t domain.Thread, roomID domain.RoomID, in *domain.Room
 	sender := m.personIn(roomID, t.LatestSender, t.LatestSenderName)
 	item := pickerItem{
 		label:  isolate(name),
-		detail: threadDetail(t, sender),
+		detail: threadDetail(t, sender, m.prefs.clock),
 		value:  string(t.Root),
 		match:  name + " " + sender,
 	}
@@ -441,10 +438,10 @@ func (m Model) threadItem(t domain.Thread, roomID domain.RoomID, in *domain.Room
 }
 
 // threadDetail is a thread row's qualifier: size, last activity, last sender.
-func threadDetail(t domain.Thread, sender string) string {
+func threadDetail(t domain.Thread, sender string, clock domain.Clock) string {
 	detail := repliesLabel(t.Count)
 	if !t.LatestAt.IsZero() {
-		detail += " · " + t.LatestAt.Format("15:04")
+		detail += " · " + clock.Time(t.LatestAt)
 	}
 	if sender != "" {
 		detail += " · " + sender

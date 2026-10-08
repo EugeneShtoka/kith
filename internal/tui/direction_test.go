@@ -50,13 +50,13 @@ func TestARightToLeftRoomIsMirrored(t *testing.T) {
 	for i := range msgs {
 		rows := rowsOf(m, msgs, i)
 		first := ansi.Strip(rows[0])
-		if !strings.HasSuffix(first, " dana "+msgs[i].Timestamp.Format(timeFormat)) {
+		if !strings.HasSuffix(first, " dana "+domain.Clock{}.Time(msgs[i].Timestamp)) {
 			t.Errorf("message %d: first row %q does not end in the name and the time", i, first)
 		}
 		if w := ansi.StringWidth(rows[0]); w != 80 {
 			t.Errorf("message %d: first row is %d wide, want the full 80", i, w)
 		}
-		body := strings.TrimSuffix(first, " dana "+msgs[i].Timestamp.Format(timeFormat))
+		body := strings.TrimSuffix(first, " dana "+domain.Clock{}.Time(msgs[i].Timestamp))
 		rtl := paragraphDir(msgs[i].Body) == bidi.RightToLeft
 		if against := strings.TrimRight(body, " ") == body; rtl != against {
 			t.Errorf("message %d (right to left %v): the text %q, want it against the name only when right to left", i, rtl, body)
@@ -67,7 +67,7 @@ func TestARightToLeftRoomIsMirrored(t *testing.T) {
 	}
 
 	ltr := directed(t, config.Direction{}, msgs)
-	if first := ansi.Strip(rowsOf(ltr, msgs, 0)[0]); !strings.HasPrefix(first, msgs[0].Timestamp.Format(timeFormat)+" dana") {
+	if first := ansi.Strip(rowsOf(ltr, msgs, 0)[0]); !strings.HasPrefix(first, domain.Clock{}.Time(msgs[0].Timestamp)+" dana") {
 		t.Errorf("left to right: first row %q does not lead with the time and the name", first)
 	}
 }
@@ -90,7 +90,7 @@ func TestAMirroredRoomMirrorsWhatHangsOnAMessage(t *testing.T) {
 	for i := range rows {
 		plain[i] = strings.TrimRight(ansi.Strip(rows[i]), " ")
 	}
-	bodyEdge := w.width - bodyColumn(w.nameW)
+	bodyEdge := w.width - m.bodyColumn(w.nameW)
 	if !strings.Contains(plain[0], ": dana ↩") && !strings.Contains(plain[0], ":dana ↩") {
 		t.Errorf("the quote %q is not read from the right (marker, name, quote)", plain[0])
 	}
@@ -203,7 +203,7 @@ func TestAMarkNeverPushesARowPastItsColumn(t *testing.T) {
 		{"left to right, Hebrew", config.Direction{}, "ש"},
 	} {
 		m := directed(t, c.dir, said("hi"))
-		bodyW := 80 - bodyColumn(m.nameColWidth())
+		bodyW := 80 - m.bodyColumn(m.nameColWidth())
 		msg := said(fullLine(c.letter, bodyW))[0]
 		msg.Edited = true
 		rows := m.messageRows(msg, 80, m.nameColWidth(), m.senderColorMap(), false, "")
@@ -242,7 +242,7 @@ func TestAPlaceholderFollowsTheRoom(t *testing.T) {
 	// A bridge's header alone is not the sender's words either; words after it are.
 	for i, against := range []bool{true, true, false, true, true, false, true, true, false} {
 		first := ansi.Strip(rowsOf(m, msgs, i)[0])
-		body := strings.TrimSuffix(first, " dana "+msgs[i].Timestamp.Format(timeFormat))
+		body := strings.TrimSuffix(first, " dana "+domain.Clock{}.Time(msgs[i].Timestamp))
 		if got := strings.TrimRight(body, " ") == body; got != against {
 			t.Errorf("message %d: %q, want it against the name %v", i, body, against)
 		}
