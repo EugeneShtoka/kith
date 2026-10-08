@@ -561,7 +561,7 @@ func (s *server) shapeHits(ctx context.Context, hits []domain.SearchHit) []hitVi
 		}
 		out = append(out, hitView{
 			Room: string(hits[i].RoomID), RoomName: room.DisplayName(), EventID: string(hits[i].EventID),
-			Sender: hits[i].Sender, Name: hits[i].SenderName,
+			Sender: hits[i].Sender, Name: s.people.Name(hits[i].Sender, hits[i].SenderName),
 			Sent:    hits[i].Timestamp.Format(time.RFC3339),
 			Snippet: unmark.Replace(hits[i].Snippet),
 		})

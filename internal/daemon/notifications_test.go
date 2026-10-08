@@ -855,3 +855,38 @@ func TestNotificationsWriteTheChosenClock(t *testing.T) {
 		t.Errorf("NewNotifications() = %v, want a refusal naming long_date_format", err)
 	}
 }
+
+// A notification names people as the timeline does: the person's alias for the
+// sender, the phone book's name for a WhatsApp mention, first names only where the
+// space says so (the sender, the mention and a direct chat's label alike).
+func TestNotificationsNamePeopleAsTheTimelineDoes(t *testing.T) {
+	t.Parallel()
+	const dana = "whatsapp:15550100001@s.whatsapp.net"
+	cfg := notifsOn("all")
+	cfg.Display.Identities = []config.Identity{{Alias: "Alice Cooper", IDs: []string{alice}}}
+	n, rec, _ := notifier(t, cfg)
+	n.UsePhoneBook(func(context.Context) (domain.PhoneBook, error) {
+		return domain.PhoneBook{"15550100001": "Dana Levi"}, nil
+	})
+	m := msg(chatRm, alice, "@100000000000005 can you look?")
+	m.SenderName = "alice"
+	m.Mentions = []domain.Mention{{UserID: dana, Name: "@100000000000005"}}
+	n.Deliver(context.Background(), m)
+
+	cfg.Display.SpaceRules = []config.SpaceRule{{Space: space, FirstNameOnly: true}}
+	if err := n.Reload(cfg); err != nil {
+		t.Fatal(err)
+	}
+	m.ID = "$2"
+	n.Deliver(context.Background(), m)
+
+	sent := rec.all()
+	if len(sent) != 2 {
+		t.Fatalf("%d notifications, want 2", len(sent))
+	}
+	for i, want := range [][2]string{{"Alice Cooper", "@Dana Levi can you look?"}, {"Alice", "@Dana can you look?"}} {
+		if sent[i].Sender != want[0] || sent[i].Body != want[1] {
+			t.Errorf("notification %d: %q said %q, want %q saying %q", i, sent[i].Sender, sent[i].Body, want[0], want[1])
+		}
+	}
+}

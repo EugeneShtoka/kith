@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
 // tool is one entry of tools/list, plus what runs it.
@@ -112,6 +113,11 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 	} else {
 		s.logger().Warn("ask who this person is failed; messages are marked mine by the Matrix account alone", "err", err)
 	}
+	book, err := s.backend.PhoneBook(ctx)
+	if err != nil {
+		s.logger().Warn("read the phone book failed; people are named as their networks name them", "err", err)
+	}
+	s.people = setup.PeopleOf(s.aliases, book)
 	result, err := t.run(s, ctx, raw)
 	if err != nil {
 		// The assistant reads the reason; the log keeps it for the person. Tool
@@ -271,12 +277,14 @@ type messageView struct {
 }
 
 func (s *server) view(msg domain.Message, withRoom bool) messageView {
+	// Mentions name who they mention as everyone else is named here.
+	body, _ := domain.ResolveMentions(msg.Body, msg.Mentions, func(user, words string) string { return s.people.Name(user, words) })
 	out := messageView{
 		EventID: string(msg.ID),
 		Sender:  msg.Sender,
-		Name:    msg.SenderName,
+		Name:    s.people.Name(msg.Sender, msg.SenderName),
 		Sent:    msg.Timestamp.Format(time.RFC3339),
-		Body:    msg.Body,
+		Body:    body,
 		Mine:    msg.Sender != "" && slices.Contains(s.selves, msg.Sender),
 		Thread:  string(msg.ThreadRoot),
 		ReplyTo: string(msg.ReplyTo),

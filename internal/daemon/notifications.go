@@ -39,9 +39,14 @@ type Notifications struct {
 	rules     []notify.Rule
 	notifier  notify.Notifier
 	clock     domain.Clock // how a notification writes its {date} and {time}
-	temps     notify.Temps
-	autocopy  domain.AutoCopy
-	clip      clipboard
+	// aliases are the person's names for people, firstNames the spaces whose names
+	// are first names only, and roomRules whether a direct chat's label is shaped too.
+	aliases    map[string]string
+	firstNames map[string]bool
+	roomRules  bool
+	temps      notify.Temps
+	autocopy   domain.AutoCopy
+	clip       clipboard
 	// tracked is the word list as rules; trackedNotify the global switch a rule's
 	// own `notify` may override (see domain.TrackedNotifies).
 	tracked       []domain.TrackedRule
@@ -94,6 +99,40 @@ func (n *Notifications) byNumber(ctx context.Context, book *domain.PhoneBook, la
 		return name
 	}
 	return label
+}
+
+// namer names people as the timeline does: the person's alias for them, the name the
+// network gave, the phone book's name for their number (domain.People), first names
+// only where space's rule says so.
+func (n *Notifications) namer(ctx context.Context, book *domain.PhoneBook, space string) func(user, known string) string {
+	n.mu.Lock()
+	aliases, first := n.aliases, n.firstNamesLocked(space)
+	n.mu.Unlock()
+	return func(user, known string) string {
+		if *book == nil && n.phones != nil {
+			if read, err := n.phones(ctx); err == nil {
+				*book = read
+			} else {
+				n.log.Warn("read the phone book", "err", err)
+			}
+		}
+		name := setup.PeopleOf(aliases, *book).Name(user, known)
+		if first {
+			name = domain.FirstName(name)
+		}
+		return name
+	}
+}
+
+// firstNamesIn reports whether space's names are first names only.
+func (n *Notifications) firstNamesIn(space string) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.firstNamesLocked(space)
+}
+
+func (n *Notifications) firstNamesLocked(space string) bool {
+	return space != "" && n.firstNames[space]
 }
 
 // isMine reports whether a sender is this person.
@@ -203,6 +242,8 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.notifier, n.limit, n.clock = rules, notifier, limit, clock
+	n.aliases, n.firstNames = setup.Aliases(cfg.Display.Identities), setup.FirstNameSpaces(cfg.Display)
+	n.roomRules = cfg.Display.ApplyRoomNameRules()
 	n.keep, n.keepRules = keep, keepRules
 	n.autocopy, n.clip = autocopy, clipboard{command: cfg.Clipboard.Command}
 	n.tracked, n.trackedNotify = setup.TrackedRules(cfg.Display.Tracked), cfg.Display.Tracked.Notify
@@ -401,20 +442,22 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 	if !outcome.Notify {
 		return notify.Notification{}, false
 	}
-	sender := msg.SenderName
-	if sender == "" {
-		sender = msg.Sender
-	}
 	// A room can be in several spaces and tags; {space} is the first by priority.
 	space := n.scope.Home(facts)
 	var book domain.PhoneBook // read once, and only for a label that is a number
+	name := n.namer(ctx, &book, space)
+	room := n.byNumber(ctx, &book, facts.Name)
+	if n.roomRules && facts.Direct && n.firstNamesIn(space) {
+		room = domain.FirstName(room)
+	}
+	// NotifyBody: what the sender covered up stays covered.
+	body, _ := domain.ResolveMentions(msg.NotifyBody(), msg.Mentions, name)
 	return notify.Notification{
-		Sender: n.byNumber(ctx, &book, sender),
-		MXID:   msg.Sender,
-		Room:   n.byNumber(ctx, &book, facts.Name),
-		Space:  space,
-		// NotifyBody: what the sender covered up stays covered.
-		Body:     truncateRunes(msg.NotifyBody(), notifyBodyRunes),
+		Sender:   name(msg.Sender, msg.SenderName),
+		MXID:     msg.Sender,
+		Room:     room,
+		Space:    space,
+		Body:     truncateRunes(body, notifyBodyRunes),
 		Protocol: domain.ProtocolOf(msg.Sender).String(),
 		Sent:     msg.Timestamp,
 		Sound:    outcome.Sound,

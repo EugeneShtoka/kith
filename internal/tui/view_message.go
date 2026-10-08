@@ -461,45 +461,53 @@ func (m Model) resolveMentions(body string, mentions []domain.Mention, colors ma
 	if len(mentions) == 0 {
 		return body, nil
 	}
-	spans := make([]mentionSpan, 0, len(mentions))
-	for _, mn := range mentions {
+	body, drawn := domain.ResolveMentions(body, mentions, func(userID, words string) string {
+		return m.mentionedName(userID, words, roomID)
+	})
+	spans := make([]mentionSpan, 0, len(drawn))
+	for i, mn := range drawn {
 		if mn.Name == "" {
 			continue
-		}
-		resolved := m.processedMentionName(mn.UserID, mn.Name, roomID)
-		if resolved != mn.Name {
-			body = strings.Replace(body, mn.Name, resolved, 1)
 		}
 		c, ok := colors[mn.UserID]
 		if !ok {
 			c = m.theme.Palette.Accent
 		}
-		spans = append(spans, mentionSpan{name: resolved, c: c, uri: mn.URI()})
+		spans = append(spans, mentionSpan{name: mn.Name, c: c, uri: mentions[i].URI()})
 	}
 	sort.Slice(spans, func(i, j int) bool { return len(spans[i].name) > len(spans[j].name) })
 	return body, spans
 }
 
-// processedMentionName resolves a mentioned user's name like a sender label (alias,
-// then shapedName), so pills and the sender column agree. A mention whose text is
-// only a number (WhatsApp writes "@" and the person's number or LID) is drawn with
-// the name that person is known by now, as their messages are.
-func (m Model) processedMentionName(userID, pillName string, roomID domain.RoomID) string {
-	if numberMention(pillName) {
-		return "@" + m.knownName(userID, roomID)
+// mentionedName is the name a mention of userID is drawn with: who they are to this
+// person now (domain.People: an alias, the room's member name, the name on their
+// latest loaded message, the words the mention was written in, the phone book's name
+// for their number), shaped by the room's space rule as the sender column is. So a
+// name learned or changed later reaches every mention already drawn.
+func (m Model) mentionedName(userID, words string, roomID domain.RoomID) string {
+	member, sent := "", ""
+	for i := range m.timeline.members {
+		if m.timeline.members[i].UserID == userID {
+			member = m.timeline.members[i].DisplayName
+			break
+		}
 	}
-	name := pillName
-	if id, ok := m.prefs.identities[userID]; ok && id.alias != "" {
-		name = id.alias
+	for i := range slices.Backward(m.timeline.messages) {
+		if m.timeline.messages[i].Sender == userID && m.timeline.messages[i].SenderName != "" {
+			sent = m.timeline.messages[i].SenderName
+			break
+		}
 	}
-	return m.shapedName(name, roomID)
+	return m.shapedName(m.people().Name(userID, member, sent, words), roomID)
 }
 
-// numberMention reports whether a mention's text is "@" and digits only.
-func numberMention(text string) bool {
-	digits, ok := strings.CutPrefix(text, "@")
-	return ok && digits != "" && strings.Trim(digits, "0123456789") == ""
+// people is who this person knows people as: their aliases and the phone book.
+func (m Model) people() domain.People {
+	return domain.People{Alias: m.aliasOf, Book: m.phones.book}
 }
+
+// aliasOf is the person's own name for userID, "" for none.
+func (m Model) aliasOf(userID string) string { return m.prefs.identities[userID].alias }
 
 // styleMentions renders seg with each mentioned name in its color (bold) and the
 // rest in base, matching non-overlapping first occurrences. seg must be free of

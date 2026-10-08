@@ -65,7 +65,7 @@ func (m Model) deletedBody(msg domain.Message) string {
 		return redactedBody
 	}
 	// Name and reason isolated so an RTL reason cannot reorder the sentence.
-	who := isolate(m.processedMentionName(msg.RedactedBy, localpart(msg.RedactedBy), msg.RoomID))
+	who := isolate(m.mentionedName(msg.RedactedBy, localpart(msg.RedactedBy), msg.RoomID))
 	if msg.RedactedReason == "" {
 		return "(deleted by " + who + ")"
 	}

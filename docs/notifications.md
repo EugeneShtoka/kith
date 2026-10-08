@@ -33,9 +33,9 @@ body  = "{body}"                         # default
 | --- | --- |
 | `{space}` | The room's space, or tag. If it is in several, the first one by `[display] priority` (a tag reads by its name) |
 | `{room}` | The room's name as kith shows it, aliases included |
-| `{sender}` | The sender's display name (their MXID if it cannot be resolved) |
+| `{sender}` | The sender as the timeline names them: your alias for them, their display name, or the phone book's name for their number, first name only where the space's rule says so (their ID if nothing names them) |
 | `{mxid}` | The sender's Matrix ID |
-| `{body}` | The message text, cut to 140 characters |
+| `{body}` | The message text, cut to 140 characters, a mention written with the name of the person it mentions as `{sender}` is |
 | `{protocol}` | The network the sender is on, taken from their MXID: `WhatsApp`, `Telegram`, `Signal`, `Slack`, `Matrix`, … |
 | `{date}`, `{time}` | When it was sent, in local time, as `[display] short_date_format` and `time_format` write it (by default `2026-08-21`, `14:05`) |
 
