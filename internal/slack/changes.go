@@ -2,6 +2,7 @@ package slack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -45,15 +46,45 @@ func (a *Adapter) onEdited(ctx context.Context, w *workspace, e *slackgo.Message
 	}
 	msg.Edited = true
 	msg.RevisionID = messageID(w.creds.Team, e.Channel, e.Timestamp) // the change's own ts
+	rows := fileRows(msg, sub)
 	if a.cache != nil {
-		if _, ok := a.record(ctx, w, msg.RoomID, []domain.Message{msg}); ok {
+		if _, ok := a.record(ctx, w, msg.RoomID, append([]domain.Message{msg}, rows...)); ok {
 			a.keepFile(ctx, msg, sub) // a file deleted from the message takes its source
+			for i := range rows {
+				a.keepFile(ctx, rows[i], sub)
+			}
 			if a.onChanged != nil {
 				a.onChanged(msg.RoomID)
 			}
 		}
 	}
+	// A file taken out of the message goes as a deleted message would.
+	if e.PreviousMessage != nil {
+		for _, gone := range goneRows(msg, e.PreviousMessage, sub) {
+			a.markDeleted(ctx, msg.RoomID, gone, msg.Sender, tsTime(e.Timestamp))
+		}
+	}
 	emit(a, a.messages, msg)
+	for i := range rows {
+		emit(a, a.messages, rows[i])
+	}
+}
+
+// goneRows is the rows of the files was had that now no longer has.
+func goneRows(msg domain.Message, was, now *slackgo.Msg) []domain.EventID {
+	still := map[domain.EventID]bool{}
+	rows := fileRows(msg, now)
+	for i := range rows {
+		still[rows[i].ID] = true
+	}
+	var gone []domain.EventID
+	before := fileRows(msg, was)
+	for i := range before {
+		if !still[before[i].ID] {
+			gone = append(gone, before[i].ID)
+		}
+	}
+	return gone
 }
 
 // onDeleted marks a message deleted live, keeping its words only under [display.deleted]
@@ -66,7 +97,15 @@ func (a *Adapter) onDeleted(ctx context.Context, w *workspace, e *slackgo.Messag
 	if e.PreviousMessage != nil && e.PreviousMessage.User != "" {
 		by = personID(w.creds.Team, e.PreviousMessage.User)
 	}
-	a.markDeleted(ctx, roomID(w.creds.Team, e.Channel), messageID(w.creds.Team, e.Channel, e.DeletedTimestamp), by, tsTime(e.Timestamp))
+	room, id := roomID(w.creds.Team, e.Channel), messageID(w.creds.Team, e.Channel, e.DeletedTimestamp)
+	a.markDeleted(ctx, room, id, by, tsTime(e.Timestamp))
+	// Its files' rows go with it.
+	if e.PreviousMessage != nil {
+		rows := fileRows(domain.Message{ID: id, RoomID: room}, e.PreviousMessage)
+		for i := range rows {
+			a.markDeleted(ctx, room, rows[i].ID, by, tsTime(e.Timestamp))
+		}
+	}
 }
 
 // markDeleted marks a message deleted in the cache and tells the clients.
@@ -96,6 +135,9 @@ func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID doma
 	if err != nil {
 		return err
 	}
+	if isFileRow(eventID) {
+		return errors.New("slack: a file is part of the message it came with: delete that message")
+	}
 	in, ts, ok := cutLast(domain.ParseID(string(eventID)).Native)
 	if !ok || in != channel {
 		return fmt.Errorf("slack: %s is not a message of %s", eventID, roomID)
@@ -110,6 +152,9 @@ func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID doma
 // edit sends draft as the new version of the message it edits, and folds it in here
 // (Slack's echo of it is the same version again).
 func (a *Adapter) edit(ctx context.Context, w *workspace, roomID domain.RoomID, channel string, draft domain.Draft) error {
+	if isFileRow(draft.Edits) {
+		return errors.New("slack: a file has no words of its own to edit: edit the message it came with")
+	}
 	in, ts, ok := cutLast(domain.ParseID(string(draft.Edits)).Native)
 	if !ok || in != channel {
 		return fmt.Errorf("slack: %s is not a message of %s", draft.Edits, roomID)

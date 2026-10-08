@@ -44,10 +44,11 @@ func incoming(channel string, m *slackgo.Msg, n names) (domain.Message, bool) {
 	}
 	r := render(messageText(m), n)
 	body, named := r.body, false
-	// The first file kith can load is the attachment; any other is named under the text.
+	// The first file kith can load is the attachment, any other it can load a row of
+	// its own (fileRows), and one it cannot is named under the text.
 	shown := firstLoadable(m.Files)
 	for i := range m.Files {
-		if i != shown {
+		if i != shown && !loadable(&m.Files[i]) {
 			body, named = strings.TrimSpace(body+"\n"+labeled("file", cmpOr(m.Files[i].Title, m.Files[i].Name))), true
 		}
 	}
@@ -179,12 +180,15 @@ func (a *Adapter) arrived(ctx context.Context, w *workspace, channel string, m *
 	if !ok {
 		return
 	}
+	all := append([]domain.Message{msg}, fileRows(msg, m)...)
 	if a.cache != nil {
-		joined, ok := a.record(ctx, w, msg.RoomID, []domain.Message{msg})
+		joined, ok := a.record(ctx, w, msg.RoomID, all)
 		if !ok {
 			return
 		}
-		a.keepFile(ctx, msg, m)
+		for i := range all {
+			a.keepFile(ctx, all[i], m)
+		}
 		a.heardOf(msg)
 		// A room first heard of is read up to just before what made it known.
 		a.placeRead(ctx, msg.RoomID, msg.Timestamp.Add(-time.Millisecond))
@@ -194,7 +198,9 @@ func (a *Adapter) arrived(ctx context.Context, w *workspace, channel string, m *
 			go a.relist(context.WithoutCancel(ctx), w)
 		}
 	}
-	emit(a, a.messages, msg)
+	for i := range all {
+		emit(a, a.messages, all[i])
+	}
 }
 
 // record caches messages of one room, the room made one of the account's first, where

@@ -78,6 +78,7 @@ func (a *Adapter) threadOf(ctx context.Context, w *workspace, roomID domain.Room
 
 // cutLast splits a message's native ID, "C…/ts", into its conversation and ts.
 func cutLast(native string) (channel, ts string, ok bool) {
+	native, _, _ = strings.Cut(native, fileSep) // a file's row is its message
 	for i := len(native) - 1; i >= 0; i-- {
 		if native[i] == '/' {
 			return native[:i], native[i+1:], i > 0 && i < len(native)-1

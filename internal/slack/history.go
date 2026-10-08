@@ -65,20 +65,26 @@ func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, p
 	var sources []*slackgo.Msg // each of msgs' own, for its file
 	var reactions []domain.Reaction
 	settled := map[domain.EventID]bool{} // messages whose reactions this page decides
+	kept := 0                            // messages, without their files' rows
 	for i := range slices.Backward(raw) {
 		msg, ok := incoming(channel, &raw[i], n)
 		if !ok {
 			continue
 		}
+		kept++
 		msgs, sources = append(msgs, msg), append(sources, &raw[i])
+		rows := fileRows(msg, &raw[i])
+		for j := range rows {
+			msgs, sources = append(msgs, rows[j]), append(sources, &raw[i])
+		}
 		if !a.reactedSince(msg.ID, fetched) {
 			settled[msg.ID] = true
 			reactions = append(reactions, messageReactions(w.creds.Team, channel, &raw[i])...)
 		}
 	}
 	room := roomID(w.creds.Team, channel)
-	if len(msgs) < len(raw) {
-		a.logDropped(room, channel, raw, n, len(msgs))
+	if kept < len(raw) {
+		a.logDropped(room, channel, raw, n, kept)
 	}
 	if a.cache != nil && len(msgs) > 0 {
 		if _, ok := a.record(ctx, w, room, msgs); ok {

@@ -93,3 +93,22 @@ func (c *Cache) AddMentions(ctx context.Context, roomID domain.RoomID, eventID d
 		return saveMentions(ctx, tx, roomID, &domain.Message{ID: eventID, Mentions: mentions})
 	})
 }
+
+// MessagesNamingFiles is the messages in owner's rooms that carry a file and name
+// others in their text ("[file] name"): cached before a network's further files were
+// rows of their own (Slack's). Room, ID and thread only.
+func (c *Cache) MessagesNamingFiles(ctx context.Context, owner domain.RoomOwner) ([]domain.Message, error) {
+	if owner == "" {
+		return nil, nil
+	}
+	return collect(ctx, c.db, "messages naming files", `
+		SELECT m.room_id, m.event_id, m.thread_root FROM messages m
+		  JOIN message_media d ON d.room_id = m.room_id AND d.event_id = m.event_id
+		 WHERE substr(m.room_id, 1, length(?1)) = ?1 AND m.redacted = 0
+		   AND d.file_json <> '' AND instr(m.body, '[file] ') > 0`,
+		func(rows *sql.Rows) (domain.Message, error) {
+			var room, event, thread string
+			err := rows.Scan(&room, &event, &thread)
+			return domain.Message{RoomID: domain.RoomID(room), ID: domain.EventID(event), ThreadRoot: domain.EventID(thread)}, err
+		}, string(owner))
+}

@@ -4,10 +4,12 @@ kith can sign in to Slack directly, as the Slack web client does: no Matrix brid
 and nothing for the workspace's admins to install or approve. Slack workspaces sit
 beside your other rooms in the same client, or on their own: Matrix is optional.
 
-This is being built in steps. Today kith signs in, lists each workspace's channels,
-direct messages and group DMs, and reads and writes in them: messages, edits and
-deletions, reactions, threads, unread counts and typing. Files and images come next,
-and this page will say when.
+kith signs in, lists each workspace's channels, direct messages and group DMs, and
+reads and writes in them: messages, edits and deletions, reactions, threads, unread
+counts and typing, and files and images both ways. Every file a message carries is
+one to open and save: the first is the message's attachment, each other a row of its
+own just under it. A link to a document Slack does not hold (Google Drive, say) is
+named in the text.
 
 ## Before you sign in
 

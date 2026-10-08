@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
 	slackgo "github.com/slack-go/slack"
 
@@ -17,8 +19,55 @@ import (
 // A Slack file is fetched from its url_private with the workspace's session (the token
 // and the d cookie), so its ID and URL are what kith keeps to load it later: in the
 // media table's file_json, as {"slack": fileID, "url": url}. A message carries one
-// attachment; a Slack message with several files shows the first one kith can load,
-// and names the rest.
+// attachment, so a Slack message with several files is its first file kith can load,
+// and each other one a row of its own under it (fileRows): the same sender, time and
+// thread, the file's name for its words. One kith cannot load is named in the text.
+
+// fileSep joins a file's row ID to its message's: "<message>#<file ID>". Slack has no
+// message of its own for it, so what is done to the row (a reaction, a reply, a read)
+// is done to its message (cutLast reads only the message's part).
+const fileSep = "#"
+
+// fileRowID is the row of one of a message's further files.
+func fileRowID(message domain.EventID, fileID string) domain.EventID {
+	return message + fileSep + domain.EventID(fileID)
+}
+
+// isFileRow reports whether id is a further file's row rather than a message.
+func isFileRow(id domain.EventID) bool { return strings.Contains(string(id), fileSep) }
+
+// fileRows is a row for each of m's files after the one msg carries, each kith can
+// load, ordered as the message lists them.
+func fileRows(msg domain.Message, m *slackgo.Msg) []domain.Message {
+	shown := firstLoadable(m.Files)
+	var out []domain.Message
+	for i := range m.Files {
+		if i == shown || !loadable(&m.Files[i]) {
+			continue
+		}
+		media := fileMedia(&m.Files[i])
+		out = append(out, domain.Message{
+			ID: fileRowID(msg.ID, m.Files[i].ID), RoomID: msg.RoomID,
+			Sender: msg.Sender, SenderName: msg.SenderName, Body: media.Name, Media: media,
+			Timestamp: msg.Timestamp, ThreadRoot: msg.ThreadRoot, Seq: int64(len(out) + 1),
+		})
+	}
+	return out
+}
+
+// fileOf is the file a row of fileRows carries, among m's.
+func fileOf(row domain.EventID, m *slackgo.Msg) *slackgo.File {
+	_, id, ok := strings.Cut(string(row), fileSep)
+	if !ok {
+		return nil
+	}
+	for i := range m.Files {
+		if m.Files[i].ID == id {
+			return &m.Files[i]
+		}
+	}
+	return nil
+}
 
 // fileSource is how a Slack file is kept for loading.
 type fileSource struct {
@@ -64,15 +113,22 @@ func fileMedia(f *slackgo.File) *domain.Media {
 }
 
 // keepFile records how to load a cached message's attachment, the first file of m
-// kith can load; a message whose files are all gone (deleted since) loses its source,
-// so loading it says so rather than asking Slack for what it no longer has.
+// kith can load (for a file's row, its file); a message whose files are all gone
+// (deleted since) loses its source, so loading it says so rather than asking Slack
+// for what it no longer has.
 func (a *Adapter) keepFile(ctx context.Context, msg domain.Message, m *slackgo.Msg) {
 	if a.cache == nil || len(m.Files) == 0 {
 		return
 	}
+	var file *slackgo.File
+	if isFileRow(msg.ID) {
+		file = fileOf(msg.ID, m)
+	} else if i := firstLoadable(m.Files); i >= 0 {
+		file = &m.Files[i]
+	}
 	encoded := ""
-	if i := firstLoadable(m.Files); i >= 0 {
-		raw, err := json.Marshal(fileSource{ID: m.Files[i].ID, URL: fileURL(&m.Files[i])})
+	if file != nil {
+		raw, err := json.Marshal(fileSource{ID: file.ID, URL: fileURL(file)})
 		if err != nil {
 			return
 		}
@@ -139,4 +195,56 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, capt
 		return fmt.Errorf("slack: send %s to %s: %w", filepath.Base(path), roomID, err)
 	}
 	return nil
+}
+
+// refetchFileMessages reads again the messages cached before a message's further
+// files were rows of their own, which named them in their text, so each file becomes
+// one to open and save.
+func (a *Adapter) refetchFileMessages(ctx context.Context, w *workspace) {
+	if a.cache == nil {
+		return
+	}
+	stale, err := a.cache.MessagesNamingFiles(ctx, domain.AccountRooms(domain.ProtocolSlack, w.creds.Team))
+	if err != nil {
+		a.log.Warn("read the messages naming files failed", "account", w.account.Name, "err", err)
+		return
+	}
+	for i := range stale {
+		channel, ts, ok := cutLast(domain.ParseID(string(stale[i].ID)).Native)
+		if !ok {
+			continue
+		}
+		var page []slackgo.Message
+		err := waitingOut(ctx, func() error {
+			var err error
+			if _, root, isReply := cutLast(domain.ParseID(string(stale[i].ThreadRoot)).Native); isReply {
+				var resp *slackgo.GetConversationHistoryResponse
+				if resp, err = w.client.GetConversationRepliesContext(ctx, &slackgo.GetConversationRepliesParameters{
+					GetConversationHistoryParameters: slackgo.GetConversationHistoryParameters{
+						ChannelID: channel, Latest: ts, Oldest: ts, Inclusive: true, Limit: 1,
+					},
+					Timestamp: root,
+				}); err == nil {
+					page = resp.Messages
+				}
+			} else {
+				var resp *slackgo.GetConversationHistoryResponse
+				if resp, err = w.client.GetConversationHistoryContext(ctx, &slackgo.GetConversationHistoryParameters{
+					ChannelID: channel, Latest: ts, Oldest: ts, Inclusive: true, Limit: 1,
+				}); err == nil {
+					page = resp.Messages
+				}
+			}
+			if err != nil {
+				return fmt.Errorf("slack: read %s again: %w", stale[i].ID, err) // %w: waitingOut reads a rate limit through it
+			}
+			return nil
+		})
+		if err != nil {
+			a.log.Warn("read a message's files again failed", "account", w.account.Name, "err", err)
+			continue
+		}
+		page = slices.DeleteFunc(page, func(m slackgo.Message) bool { return m.Timestamp != ts })
+		a.cachePage(ctx, w, channel, page, time.Now())
+	}
 }
