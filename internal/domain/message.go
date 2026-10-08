@@ -2,6 +2,7 @@ package domain
 
 import (
 	"cmp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -181,8 +182,7 @@ func (m Message) Caption() string {
 }
 
 // MergeMessages returns the union of two message slices, de-duplicated by event ID (an
-// empty ID never collides) and ordered oldest→newest by timestamp with the event ID as
-// a stable tiebreaker.
+// empty ID never collides) and in timeline order (CompareMessages).
 func MergeMessages(existing, incoming []Message) []Message {
 	merged := make([]Message, 0, len(existing)+len(incoming))
 	index := make(map[EventID]int, len(existing)+len(incoming))
@@ -201,13 +201,18 @@ func MergeMessages(existing, incoming []Message) []Message {
 			merged = append(merged, row)
 		}
 	}
-	sort.SliceStable(merged, func(i, j int) bool {
-		if !merged[i].Timestamp.Equal(merged[j].Timestamp) {
-			return merged[i].Timestamp.Before(merged[j].Timestamp)
-		}
-		return merged[i].ID < merged[j].ID
-	})
+	slices.SortStableFunc(merged, CompareMessages)
 	return merged
+}
+
+// CompareMessages is timeline order: by time, then by ID, the shorter first. A
+// network that numbers a room's messages (Telegram) gives them whole seconds and IDs
+// that are the room's then the number, so within one second the shorter ID is the
+// earlier and, at one length, text order is numeric order; by the text alone, message
+// 100 came before 99. Other networks' IDs only make the order the same every time.
+// The cache orders its queries the same way.
+func CompareMessages(a, b Message) int {
+	return cmp.Or(a.Timestamp.Compare(b.Timestamp), cmp.Compare(len(a.ID), len(b.ID)), strings.Compare(string(a.ID), string(b.ID)))
 }
 
 // combine folds a duplicate copy b onto the first-seen copy a, keeping the richest

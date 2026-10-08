@@ -15,7 +15,7 @@ import (
 // Messages returns up to limit of a room's newest cached messages, oldest first.
 func (c *Cache) Messages(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Message, error) {
 	msgs, err := collect(ctx, c.db, "messages",
-		messageSelect+` WHERE m.room_id = ? ORDER BY m.ts_ms DESC, m.event_id DESC LIMIT ?`,
+		messageSelect+` WHERE m.room_id = ? ORDER BY`+newestFirstIn+` LIMIT ?`,
 		scanMessage(roomID), string(roomID), limit)
 	if err != nil {
 		return nil, err
@@ -573,7 +573,7 @@ func (c *Cache) LatestEvents(ctx context.Context, roomIDs []domain.RoomID) (map[
 		return latest, nil
 	}
 	stmt, err := c.db.PrepareContext(ctx,
-		"SELECT event_id FROM messages WHERE room_id = ? ORDER BY ts_ms DESC, event_id DESC LIMIT 1")
+		"SELECT event_id FROM messages m WHERE room_id = ? ORDER BY"+newestFirstIn+" LIMIT 1")
 	if err != nil {
 		return nil, fmt.Errorf("db: prepare latest event: %w", err)
 	}
@@ -611,7 +611,7 @@ func (c *Cache) ThreadMessages(
 	ctx context.Context, roomID domain.RoomID, root domain.EventID, limit int,
 ) ([]domain.Message, error) {
 	replies, err := collect(ctx, c.db, "thread messages",
-		messageSelect+` WHERE m.room_id = ? AND m.thread_root = ? ORDER BY m.ts_ms DESC, m.event_id DESC LIMIT ?`,
+		messageSelect+` WHERE m.room_id = ? AND m.thread_root = ? ORDER BY`+newestFirstIn+` LIMIT ?`,
 		scanMessage(roomID), string(roomID), string(root), limit)
 	if err != nil {
 		return nil, err
@@ -632,7 +632,7 @@ func (c *Cache) ThreadMessages(
 func (c *Cache) LatestInThread(ctx context.Context, roomID domain.RoomID, root domain.EventID) (domain.EventID, error) {
 	var eventID string
 	if _, err := optional(c.db.QueryRowContext(ctx,
-		"SELECT event_id FROM messages WHERE room_id = ? AND thread_root = ? ORDER BY ts_ms DESC, event_id DESC LIMIT 1",
+		"SELECT event_id FROM messages m WHERE room_id = ? AND thread_root = ? ORDER BY"+newestFirstIn+" LIMIT 1",
 		string(roomID), string(root)).Scan(&eventID)); err != nil {
 		return "", fmt.Errorf("db: latest in thread %s: %w", root, err)
 	}
@@ -840,9 +840,9 @@ func (c *Cache) MessagesAround(
 	return append(older, newer...), nil
 }
 
-// messagesBefore is the n messages before (at, event) in timeline order (time, then
-// event ID, as domain.MergeMessages sorts), oldest first. The pair, not the time
-// alone: a bridged burst shares one time.
+// messagesBefore is the n messages before (at, event) in timeline order
+// (domain.CompareMessages), oldest first. The place, not the time alone: a bridged
+// burst shares one time.
 func (c *Cache) messagesBefore(
 	ctx context.Context, roomID domain.RoomID, at int64, event domain.EventID, n int,
 ) ([]domain.Message, error) {
@@ -850,9 +850,9 @@ func (c *Cache) messagesBefore(
 		return nil, nil
 	}
 	msgs, err := collect(ctx, c.db, "messages before", messageSelect+`
-		WHERE m.room_id = ? AND (m.ts_ms, m.event_id) < (?, ?)
-		ORDER BY m.ts_ms DESC, m.event_id DESC LIMIT ?`,
-		scanMessage(roomID), string(roomID), at, string(event), n)
+		WHERE m.room_id = ? AND (m.ts_ms, length(m.event_id), m.event_id) < (?, length(?), ?)
+		ORDER BY`+newestFirstIn+` LIMIT ?`,
+		scanMessage(roomID), string(roomID), at, string(event), string(event), n)
 	slices.Reverse(msgs)
 	return msgs, err
 }
@@ -862,9 +862,9 @@ func (c *Cache) messagesFrom(
 	ctx context.Context, roomID domain.RoomID, at int64, event domain.EventID, n int,
 ) ([]domain.Message, error) {
 	return collect(ctx, c.db, "messages from", messageSelect+`
-		WHERE m.room_id = ? AND (m.ts_ms, m.event_id) >= (?, ?)
-		ORDER BY m.ts_ms ASC, m.event_id ASC LIMIT ?`,
-		scanMessage(roomID), string(roomID), at, string(event), n)
+		WHERE m.room_id = ? AND (m.ts_ms, length(m.event_id), m.event_id) >= (?, length(?), ?)
+		ORDER BY m.ts_ms ASC, length(m.event_id) ASC, m.event_id ASC LIMIT ?`,
+		scanMessage(roomID), string(roomID), at, string(event), string(event), n)
 }
 
 // MessagesEndingIn is each cached message in owner's rooms whose ID is its room's, a
