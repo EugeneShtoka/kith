@@ -14,6 +14,8 @@ import (
 
 // fake answers reads from fixtures and records writes.
 type fake struct {
+	// book is the phone book the daemon gives.
+	book     domain.PhoneBook
 	rooms    []domain.Room
 	spaces   []domain.Space
 	unread   []domain.Unread
@@ -98,7 +100,9 @@ func (f *fake) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (
 	return true, nil
 }
 
-func (f *fake) Rooms(context.Context) ([]domain.Room, error) { return f.rooms, nil }
+func (f *fake) Rooms(context.Context) ([]domain.Room, error)        { return f.rooms, nil }
+func (f *fake) PhoneBook(context.Context) (domain.PhoneBook, error) { return f.book, nil }
+
 func (f *fake) Selves(context.Context) ([]string, error) {
 	if f.selves == nil {
 		return []string{"@me:x"}, nil
@@ -823,4 +827,29 @@ func listsRoom(answer map[string]any, id string) bool {
 		}
 	}
 	return false
+}
+
+// An assistant reads people by the names this person knows them by: their alias for
+// a sender, the phone book's name for a WhatsApp mention, whole, with no first-name
+// rule (a model reading a first name alone in a group loses who it was).
+func TestAnAssistantReadsPeopleByTheirWholeNames(t *testing.T) {
+	t.Parallel()
+	f := twoRooms()
+	f.book = domain.PhoneBook{"15550100001": "Dana Levi"}
+	f.messages["!open:x"] = []domain.Message{{
+		ID: "$m", Sender: "@dana:x", SenderName: "Dana", Body: "@100000000000005 can you look?", Timestamp: time.Unix(1_700_000_000, 0),
+		Mentions: []domain.Mention{{UserID: "whatsapp:15550100001@s.whatsapp.net", Name: "@100000000000005"}},
+	}}
+	s := newServer(f, shareAll)
+	s.aliases = map[string]string{"@dana:x": "Dana Cohen"}
+
+	out := call(t, s, "read_room", map[string]any{"room": "Standup"})
+	msgs, _ := out["messages"].([]any)
+	if len(msgs) != 1 {
+		t.Fatalf("read_room returned %d messages, want 1", len(msgs))
+	}
+	got, _ := msgs[0].(map[string]any)
+	if got["sender_name"] != "Dana Cohen" || got["body"] != "@Dana Levi can you look?" {
+		t.Errorf("the assistant read %q saying %q, want Dana Cohen saying \"@Dana Levi can you look?\"", got["sender_name"], got["body"])
+	}
 }

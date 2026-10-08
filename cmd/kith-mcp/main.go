@@ -86,6 +86,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 		scope:    setup.AgentReadScope(cfg.Agent),
 		write:    setup.AgentWriteScope(cfg.Agent),
 		send:     cfg.Agent.Write.Send,
+		aliases:  setup.Aliases(cfg.Display.Identities),
 		cooldown: cooldown,
 		log:      log,
 	}
@@ -158,6 +159,7 @@ type reader interface {
 	MessagesAround(ctx context.Context, roomID domain.RoomID, event domain.EventID, before, after int) ([]domain.Message, error)
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	Selves(ctx context.Context) ([]string, error)
+	PhoneBook(ctx context.Context) (domain.PhoneBook, error)
 }
 
 // writer is everything this binary can change. Nothing here can edit or delete.
@@ -184,6 +186,11 @@ type server struct {
 	// selves is every ID the daemon says is this person, on every network, asked at
 	// each tool call (an account may log in meanwhile).
 	selves []string
+	// aliases are the person's own names for people ([[display.identity]]), and people
+	// names everyone with them and the phone book, asked at each tool call. An
+	// assistant gets whole names: no first-name rule, no width.
+	aliases map[string]string
+	people  domain.People
 	// send is `[agent.write] send`: rooms posted to rather than drafted into.
 	send []string
 	// cooldown is how long a room rests after a message goes out to it.

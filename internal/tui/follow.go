@@ -54,7 +54,7 @@ func (m Model) placeLabel(place domain.Place) (label, detail string) {
 	switch place.Kind {
 	case domain.PlaceNone:
 	case domain.PlacePerson:
-		return m.processedMentionName(place.User, localpart(place.User), m.openRoom), "person"
+		return m.mentionedName(place.User, localpart(place.User), m.openRoom), "person"
 	case domain.PlaceRoom, domain.PlaceEvent:
 		kind := "room"
 		if place.Kind == domain.PlaceEvent {
@@ -86,7 +86,7 @@ func (m Model) goToPlace(place domain.Place) (Model, tea.Cmd) {
 // is no name for them.
 func (m Model) goToPerson(user string) (Model, tea.Cmd) {
 	next, cmd := m.openJump()
-	name := next.processedMentionName(user, "", next.openRoom)
+	name := next.mentionedName(user, "", next.openRoom)
 	if name == "" {
 		name = user
 	}
