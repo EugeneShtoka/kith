@@ -17,6 +17,33 @@ type Poll struct {
 	Multiple, Closed, Quiz bool
 	// Voters is how many have voted, when the network says.
 	Voters int
+	// Ballots is each voter's answers by ID, where the network tells votes one by one
+	// (WhatsApp): the votes are counted from them (Retally).
+	Ballots map[string][]string `json:",omitempty"`
+}
+
+// Retally counts the votes from the ballots: each answer's votes, how many voted, and
+// whether this person (any of selves) chose it.
+func (p *Poll) Retally(selves func(voter string) bool) {
+	count := map[string]int{}
+	mine := map[string]bool{}
+	voters := 0
+	for voter, chosen := range p.Ballots {
+		if len(chosen) == 0 {
+			continue
+		}
+		voters++
+		for _, id := range chosen {
+			count[id]++
+			if selves(voter) {
+				mine[id] = true
+			}
+		}
+	}
+	for i := range p.Options {
+		p.Options[i].Votes, p.Options[i].Mine = count[p.Options[i].ID], mine[p.Options[i].ID]
+	}
+	p.Voters = voters
 }
 
 // PollOption is one answer of a poll.

@@ -115,6 +115,14 @@ message Poll {
   bool closed = 5;
   bool quiz = 6;
   int64 voters = 7;
+  // Each voter's answers, where the network tells votes one by one.
+  repeated Ballot ballots = 8;
+}
+
+// Ballot is one voter's answers in a poll.
+message Ballot {
+  string voter = 1;
+  repeated string options = 2;
 }
 
 // PollOption is one answer of a poll.

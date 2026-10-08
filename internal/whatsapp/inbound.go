@@ -49,6 +49,9 @@ func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeo
 	}
 	media, source := attachment(e.Message)
 	msg.Media = media
+	if poll := pollOf(e.Message); poll != nil {
+		msg.Poll, msg.Body = poll, poll.Summary()
+	}
 	return arrived{
 		msg: msg, source: source, chat: chat, group: e.Info.IsGroup, channel: channelPost,
 		quoted: quotedBy(ctx, account.Digits, e.Message, lookup),

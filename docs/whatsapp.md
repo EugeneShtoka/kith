@@ -72,8 +72,11 @@ command that links it.
 | Channels you follow | rooms; the latest posts are fetched the first time; only a channel's admins post |
 
 Not yet: reacting to channel posts and sending channel read receipts (kith keeps
-read state there for itself), calls, status updates, polls beyond showing their
-question, disappearing-message settings.
+read state there for itself), calls, status updates, votes cast before kith was
+linked (a poll counts the votes it hears from then on), disappearing-message settings.
+
+A poll shows its answers and how the votes stand as they arrive, your own marked; `P`
+votes, or takes the vote back.
 
 ## Unlinking
 

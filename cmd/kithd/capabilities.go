@@ -53,6 +53,7 @@ var (
 		route.Typist
 		route.Uploader
 		route.Reactor
+		route.Voter
 		route.Redactor
 		route.People
 		route.Media
