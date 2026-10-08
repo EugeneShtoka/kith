@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/rivo/uniseg"
 	"golang.org/x/term"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -114,25 +115,36 @@ func runText(text string) error {
 		return err
 	}
 	want := ansi.StringWidth(text)
-	fmt.Printf("whole line: measured=%d drawn=%d\n", want, drawn)
 
+	// Character by character as the eye reads them: a flag is two regional indicators,
+	// and an emoji joined of several (❤️‍🔥) is one, which no single rune shows.
 	bad := 0
-	for _, r := range text {
-		glyph := string(r)
-		d, perr := probe(tty, glyph)
+	for g := uniseg.NewGraphemes(text); g.Next(); {
+		cluster := g.Str()
+		d, perr := probe(tty, cluster)
 		if perr != nil {
 			return perr
 		}
-		if w := ansi.StringWidth(glyph); d != w {
+		if w := ansi.StringWidth(cluster); d != w {
 			bad++
-			fmt.Printf("mismatch U+%04X %q measured=%d drawn=%d\n", r, glyph, w, d)
+			fmt.Printf("mismatch %s %q measured=%d drawn=%d\n", codepoints(cluster), cluster, w, d)
 		}
 	}
-	fmt.Printf("%d rune(s) disagree with the terminal\n", bad)
+	// Last, so it is what stays on screen.
+	fmt.Printf("%d character(s) disagree with the terminal; whole line: measured=%d drawn=%d\n", bad, want, drawn)
 	if bad > 0 || drawn != want {
 		return errors.New("this text would break the layout")
 	}
 	return nil
+}
+
+// codepoints spells a character's runes, U+… each.
+func codepoints(cluster string) string {
+	parts := make([]string, 0, len(cluster))
+	for _, r := range cluster {
+		parts = append(parts, fmt.Sprintf("U+%04X", r))
+	}
+	return strings.Join(parts, " ")
 }
 
 // openRaw opens /dev/tty in raw mode (the cursor report arrives as unechoed input).
