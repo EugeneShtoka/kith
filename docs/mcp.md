@@ -85,7 +85,7 @@ Eight tools: seven read, one writes. A room argument accepts a room ID or the ro
 | `read_around` | `room` (required), `event` (required, an event ID), `before` (default 5, max 50), `after` (default 10, max 50) | The conversation around one message |
 | `unread_summary` | `limit` (default 20, max 100) | Rooms with unread messages, and how many |
 
-Each message carries `event_id`, `sender`, `sender_name`, `sent` (RFC 3339) and `body`, plus `mine: true` on your own messages, `thread` (the root's event ID) on a message in a thread, and `reply_to` on a reply. A deleted message has the body `(deleted)`. People are named as you know them: `sender_name`, and every person a mention in `body` names, is your alias for them, their display name, or the phone book's name for their number, always whole (a space's first-name rule is for the screen, not for the assistant).
+Each message carries `event_id`, `sender`, `sender_name`, `sent` (RFC 3339) and `body`, plus `mine: true` on your own messages, `thread` (the root's event ID) on a message in a thread, and `reply_to` on a reply. A deleted message has the body `(deleted)`. People are named as you know them: `sender_name`, and every person a mention in `body` names, is your alias for them, a name you saved for them on any account, their display name now, or the name they chose, always whole (a space's first-name rule is for the screen, not for the assistant).
 
 Search matches terms, not meaning. The tool description tells the assistant to retry with the words someone would actually have typed, in their own language, and to use `read_around` on a hit to see the full exchange.
 

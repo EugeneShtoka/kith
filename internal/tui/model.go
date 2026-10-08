@@ -143,6 +143,7 @@ func startupPrefs(display config.Display, unreadLocal bool) prefsState {
 		clock:       clock,
 		display:     display,
 		identities:  buildIdentities(display.Identities),
+		aliases:     setup.Aliases(display.Identities),
 		openInsert:  display.OpenInInsertMode(),
 		unreadLocal: unreadLocal,
 		// A working default even with no config.
@@ -415,6 +416,9 @@ type prefsState struct {
 	display config.Display
 	// identities maps each merged MXID to its resolved person, from display.Identities.
 	identities map[string]resolvedIdentity
+	// aliases is each identity's alias by every ID it names and the numbers they are
+	// (setup.Aliases), so an alias reaches a person's linked accounts.
+	aliases map[string]string
 	// roomAliases maps a room ID to its configured display name.
 	roomAliases map[domain.RoomID]string
 	// threadAliases maps a thread root to its given name (a thread's default label is a snippet).
@@ -545,8 +549,8 @@ type Model struct {
 
 	// selves is every ID the daemon says is this person, on every network (see isMe).
 	selves []string
-	// phones is the daemon's phone book (phonebook.go): names for people shown as numbers.
-	phones phoneState
+	// dir is the daemon's directory (directory.go): who people are, on every network.
+	dir directoryState
 	// roomAccounts is each network account the room list has had rooms from (see
 	// selvesAfterRooms); nil before the first list.
 	roomAccounts []string
@@ -1201,7 +1205,7 @@ func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
 	next, cmd := m.handleRooms(msg)
 	next, offer := next.maybeOfferDictionaries()
 	next, selves := next.selvesAfterRooms(msg.rooms)
-	return next, tea.Batch(cmd, offer, selves, next.phoneBookCmd())
+	return next, tea.Batch(cmd, offer, selves, next.directoryCmd())
 }
 
 // handleSideMsg handles account-wide loads, verification, and reactions and images
@@ -1210,8 +1214,8 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case directCandidatesMsg:
 		return answered(m.handleDirectCandidates(msg))
-	case phoneBookMsg:
-		return answered(m.handlePhoneBook(msg))
+	case directoryMsg:
+		return answered(m.handleDirectory(msg))
 	case selvesMsg:
 		return answered(m.handleSelves(msg))
 	case searchSendersMsg:

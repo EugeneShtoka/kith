@@ -555,12 +555,12 @@ func (r *Remote) Selves(ctx context.Context) ([]string, error) {
 	return resp.GetIds(), nil
 }
 
-func (r *Remote) PhoneBook(ctx context.Context) (domain.PhoneBook, error) {
-	resp, err := call(ctx, "read the phone book", r.c.PhoneBook, &v1.PhoneBookRequest{})
+func (r *Remote) Directory(ctx context.Context) (domain.Directory, error) {
+	resp, err := call(ctx, "read the directory", r.c.Directory, &v1.DirectoryRequest{})
 	if err != nil {
-		return nil, err
+		return domain.Directory{}, err
 	}
-	return resp.GetNames(), nil
+	return pc.ProtoToDirectory(resp), nil
 }
 
 func (r *Remote) ClearCache(ctx context.Context) error {

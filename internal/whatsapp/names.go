@@ -118,19 +118,19 @@ func (a *Adapter) keepNumberNames(ctx context.Context, account Account, client *
 		a.log.Warn("read the contacts failed", "account", account.Name, "err", err)
 		return
 	}
-	names := make([]domain.NumberName, 0, len(contacts))
+	names := make([]domain.PersonName, 0, len(contacts))
 	for jid, c := range contacts {
 		phone := a.phoneOf(ctx, client, jid)
 		if phone == "" {
 			continue
 		}
 		if saved := cmpOr(c.FullName, c.FirstName); saved != "" {
-			names = append(names, domain.NumberName{Phone: phone, Name: saved, Rank: domain.RankSaved})
+			names = append(names, domain.PersonName{ID: domain.PhoneID(phone), Name: saved, Rank: domain.RankSaved})
 		} else if chosen := cmpOr(c.PushName, c.BusinessName); chosen != "" {
-			names = append(names, domain.NumberName{Phone: phone, Name: chosen, Rank: domain.RankChosen})
+			names = append(names, domain.PersonName{ID: domain.PhoneID(phone), Name: chosen, Rank: domain.RankChosen})
 		}
 	}
-	if err := a.cache.SetNumberNames(ctx, numberSource(account), names); err != nil {
+	if err := a.cache.SetPeople(ctx, numberSource(account), names, nil); err != nil {
 		a.log.Warn("keep the contacts' names failed", "account", account.Name, "err", err)
 	}
 }

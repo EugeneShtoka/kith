@@ -53,6 +53,8 @@ type workspace struct {
 	people   map[string]string
 	channels map[string]string
 	joined   map[string]bool
+	// phones is each user's number, where their profile writes it internationally.
+	phones map[string]string
 }
 
 // newWorkspace is a connection on a session; client talks to Slack with it.
@@ -93,6 +95,32 @@ func (w *workspace) unnamed(users []string) []string {
 }
 
 // knowPerson keeps a user's name.
+// knowPhone keeps a user's number, from their profile.
+func (w *workspace) knowPhone(user, digits string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.phones == nil {
+		w.phones = map[string]string{}
+	}
+	w.phones[user] = digits
+}
+
+// directory is who the workspace's known users are, for the directory: each by their
+// ID under the name they chose, linked to their number where their profile gives one.
+func (w *workspace) directory() ([]domain.PersonName, []domain.PersonLink) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	names := make([]domain.PersonName, 0, len(w.people))
+	for user, name := range w.people {
+		names = append(names, domain.PersonName{ID: personID(w.creds.Team, user), Name: name, Rank: domain.RankChosen})
+	}
+	links := make([]domain.PersonLink, 0, len(w.phones))
+	for user, digits := range w.phones {
+		links = append(links, domain.PersonLink{ID: personID(w.creds.Team, user), Other: domain.PhoneID(digits)})
+	}
+	return names, links
+}
+
 func (w *workspace) knowPerson(user, name string) {
 	if name == "" {
 		return

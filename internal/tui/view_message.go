@@ -504,11 +504,16 @@ func (m Model) mentionedName(userID string, roomID domain.RoomID, known ...strin
 
 // people is who this person knows people as: their aliases and the phone book.
 func (m Model) people() domain.People {
-	return domain.People{Alias: m.aliasOf, Book: m.phones.book}
+	return domain.People{Alias: m.aliasOf, Dir: m.dir.dir}
 }
 
 // aliasOf is the person's own name for userID, "" for none.
-func (m Model) aliasOf(userID string) string { return m.prefs.identities[userID].alias }
+func (m Model) aliasOf(userID string) string {
+	if alias := m.prefs.aliases[userID]; alias != "" {
+		return alias
+	}
+	return m.prefs.identities[userID].alias
+}
 
 // styleMentions renders seg with each mentioned name in its color (bold) and the
 // rest in base, matching non-overlapping first occurrences. seg must be free of

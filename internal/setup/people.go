@@ -6,7 +6,9 @@ import (
 )
 
 // Aliases is the person's own name for each user ID their [[display.identity]] blocks
-// name, for domain.People.Alias; an identity with no alias names nobody.
+// name, for domain.People.Alias; an identity with no alias names nobody. An ID that is
+// a number (a WhatsApp ID) names the number too, so the alias reaches every account
+// the directory links to it.
 func Aliases(ids []config.Identity) map[string]string {
 	out := map[string]string{}
 	for _, id := range ids {
@@ -15,6 +17,9 @@ func Aliases(ids []config.Identity) map[string]string {
 		}
 		for _, user := range id.IDs {
 			out[user] = id.Alias
+			if digits := domain.PhoneOf(user); digits != "" {
+				out[domain.PhoneID(digits)] = id.Alias
+			}
 		}
 	}
 	return out
@@ -31,7 +36,7 @@ func FirstNameSpaces(d config.Display) map[string]bool {
 	return out
 }
 
-// PeopleOf is People with these aliases and phone book.
-func PeopleOf(aliases map[string]string, book domain.PhoneBook) domain.People {
-	return domain.People{Alias: func(user string) string { return aliases[user] }, Book: book}
+// PeopleOf is People with these aliases and directory.
+func PeopleOf(aliases map[string]string, dir domain.Directory) domain.People {
+	return domain.People{Alias: func(user string) string { return aliases[user] }, Dir: dir}
 }

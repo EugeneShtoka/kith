@@ -159,7 +159,7 @@ type reader interface {
 	MessagesAround(ctx context.Context, roomID domain.RoomID, event domain.EventID, before, after int) ([]domain.Message, error)
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	Selves(ctx context.Context) ([]string, error)
-	PhoneBook(ctx context.Context) (domain.PhoneBook, error)
+	Directory(ctx context.Context) (domain.Directory, error)
 }
 
 // writer is everything this binary can change. Nothing here can edit or delete.
@@ -187,7 +187,7 @@ type server struct {
 	// each tool call (an account may log in meanwhile).
 	selves []string
 	// aliases are the person's own names for people ([[display.identity]]), and people
-	// names everyone with them and the phone book, asked at each tool call. An
+	// names everyone with them and the directory, asked at each tool call. An
 	// assistant gets whole names: no first-name rule, no width.
 	aliases map[string]string
 	people  domain.People

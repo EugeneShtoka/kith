@@ -93,6 +93,7 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m.keys = keymapFor(cfg)
 	m.theme = theme.New(derived.palette)
 	m.prefs.identities = buildIdentities(cfg.Display.Identities)
+	m.prefs.aliases = setup.Aliases(cfg.Display.Identities)
 	m.prefs.clock = derived.clock
 	m.receipts.policy = readSettingsFrom(cfg.Display)
 	// Invalidates the timeline's cached colors, name column and rows.

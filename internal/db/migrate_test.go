@@ -462,9 +462,20 @@ func TestMigratedTablesAreSpelledLikeTheBase(t *testing.T) {
 	real := append([]string(nil), migrations...)
 
 	created := regexp.MustCompile(`(?i)CREATE\s+(?:VIRTUAL\s+)?TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)`)
+	// A table a later migration drops (a removal is a new DROP migration) is meant to
+	// be missing from the base.
+	dropped := map[string]bool{}
+	for _, stmt := range real {
+		for _, match := range regexp.MustCompile(`(?i)DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)`).FindAllStringSubmatch(stmt, -1) {
+			dropped[match[1]] = true
+		}
+	}
 	for _, stmt := range real {
 		for _, match := range created.FindAllStringSubmatch(stmt, -1) {
 			table := match[1]
+			if dropped[table] {
+				continue
+			}
 			t.Run(table, func(t *testing.T) {
 				fresh := storedSQL(t, openTemp(t), table)
 				if fresh == "" {

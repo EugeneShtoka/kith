@@ -9,20 +9,29 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// bookBackend answers with a phone book.
+// bookBackend answers with a directory.
 type bookBackend struct {
 	apitest.Nop
-	book domain.PhoneBook
+	dir domain.Directory
 }
 
-func (b bookBackend) PhoneBook(context.Context) (domain.PhoneBook, error) { return b.book, nil }
+func (b bookBackend) Directory(context.Context) (domain.Directory, error) { return b.dir, nil }
+
+// numbersNamed is a directory naming each number as one address book saved it.
+func numbersNamed(names map[string]string) domain.Directory {
+	var rows []domain.PersonName
+	for digits, name := range names {
+		rows = append(rows, domain.PersonName{Source: "phone", ID: domain.PhoneID(digits), Name: name, Rank: domain.RankSaved})
+	}
+	return domain.NewDirectory(rows, nil)
+}
 
 // A room, a sender and a member a network shows only as a number are named from the
-// phone book, read with the room list; your own names come first, and a label that is
+// directory, read with the room list; your own names come first, and a label that is
 // more than a number is left alone.
-func TestANumberIsNamedFromThePhoneBook(t *testing.T) {
+func TestANumberIsNamedFromTheDirectory(t *testing.T) {
 	t.Parallel()
-	b := bookBackend{book: domain.PhoneBook{"15550100001": "Dana", "15550100002": "Eli", "15550100003": "Fay"}}
+	b := bookBackend{dir: numbersNamed(map[string]string{"15550100001": "Dana", "15550100002": "Eli", "15550100003": "Fay"})}
 	display := config.Display{
 		Names:      []config.DisplayName{{Target: "!e:x", Name: "Eli (mine)"}},
 		Identities: []config.Identity{{Alias: "Fay (mine)", IDs: []string{"@whatsapp_15550100003:x"}}},
@@ -33,9 +42,9 @@ func TestANumberIsNamedFromThePhoneBook(t *testing.T) {
 		{ID: "!e:x", Name: "+15550100002", IsDirect: true},
 		{ID: "!g:x", Name: "Dana +15550100001"},
 	}}))
-	read, ok := msgOf[phoneBookMsg](t, cmd)
+	read, ok := msgOf[directoryMsg](t, cmd)
 	if !ok {
-		t.Fatal("a room list read no phone book")
+		t.Fatal("a room list read no directory")
 	}
 	m = update(t, m, read)
 

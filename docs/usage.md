@@ -392,13 +392,18 @@ Names you give are local — only you see them — and live in your config.
 - `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag).
 - `[display] max_name_length` caps the sender column; `color_messages = true` tints message bodies in the sender's color.
 
-Someone a network shows only as a number ("+972 54-…", "+359… (WA)") is named
-from what your other accounts know that number by: a name saved in a phone's address
-book (a WhatsApp account's contacts, your Telegram contacts) first, then the name a
-bridge gives the person, then the name they chose for themselves (a WhatsApp push
-name, a Telegram profile). It works across networks and accounts: a person saved on
-one WhatsApp account, or known on Telegram, is named on another account or through a
-bridge. Your own names above come first.
+kith keeps one directory of the people it knows, on every network and account. A
+person is known by their number and by their ID on each network; where a network
+says two are the same person (a Telegram user and the number Telegram shows for them,
+a Slack profile's phone), or an ID is a number (a WhatsApp ID, a bridge's puppet),
+they are one person. A person is named by the best name any account gives them: a
+name saved in an address book (a WhatsApp account's contacts, your Telegram contacts)
+first, then the name a bridge gives them, then their display name where you see them,
+then the name they chose for themselves (a WhatsApp push name, a Telegram or Slack
+profile). So a contact saved on one account names them on every network, someone a
+network shows only as a number ("+972 54-…", "+359… (WA)") is named, and a name you
+give someone with `a` reaches their linked accounts too. Your own names above come
+first.
 
 A bridge also knows the whole address book of each account logged into it. List the
 bridges' provisioning URLs in `bridge_contacts` and kith reads those contact lists too,

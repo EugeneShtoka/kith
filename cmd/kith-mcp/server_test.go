@@ -14,8 +14,8 @@ import (
 
 // fake answers reads from fixtures and records writes.
 type fake struct {
-	// book is the phone book the daemon gives.
-	book     domain.PhoneBook
+	// dir is the directory the daemon gives.
+	dir      domain.Directory
 	rooms    []domain.Room
 	spaces   []domain.Space
 	unread   []domain.Unread
@@ -101,7 +101,7 @@ func (f *fake) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (
 }
 
 func (f *fake) Rooms(context.Context) ([]domain.Room, error)        { return f.rooms, nil }
-func (f *fake) PhoneBook(context.Context) (domain.PhoneBook, error) { return f.book, nil }
+func (f *fake) Directory(context.Context) (domain.Directory, error) { return f.dir, nil }
 
 func (f *fake) Selves(context.Context) ([]string, error) {
 	if f.selves == nil {
@@ -835,7 +835,7 @@ func listsRoom(answer map[string]any, id string) bool {
 func TestAnAssistantReadsPeopleByTheirWholeNames(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
-	f.book = domain.PhoneBook{"15550100001": "Dana Levi"}
+	f.dir = domain.NewDirectory([]domain.PersonName{{Source: "phone", ID: domain.PhoneID("15550100001"), Name: "Dana Levi"}}, nil)
 	f.messages["!open:x"] = []domain.Message{{
 		ID: "$m", Sender: "@dana:x", SenderName: "Dana", Body: "@100000000000005 can you look?", Timestamp: time.Unix(1_700_000_000, 0),
 		Mentions: []domain.Mention{{UserID: "whatsapp:15550100001@s.whatsapp.net", Name: "@100000000000005"}},

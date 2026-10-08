@@ -45,10 +45,10 @@ func (s *Service) SearchMessages(ctx context.Context, req domain.SearchRequest) 
 	return hits, nil
 }
 
-// PhoneBook is the best name for every number the cache knows (nil without a cache).
-func (s *Service) PhoneBook(ctx context.Context) (domain.PhoneBook, error) {
-	return fromCache(s, "read the phone book", func(c *db.Cache) (domain.PhoneBook, error) {
-		return c.PhoneBook(ctx)
+// Directory is who people are, as the cache knows (empty without a cache).
+func (s *Service) Directory(ctx context.Context) (domain.Directory, error) {
+	return fromCache(s, "read the directory", func(c *db.Cache) (domain.Directory, error) {
+		return c.Directory(ctx)
 	})
 }
 

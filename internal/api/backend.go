@@ -42,9 +42,9 @@ type Identity interface {
 	// identities, and each linked WhatsApp account's phone number and LID. It grows as
 	// accounts log in, so a client asks again when the room list changes.
 	Selves(ctx context.Context) ([]string, error)
-	// PhoneBook is the best name for every number any account or bridge knows
-	// (domain.PhoneBook): a person a network shows only by number is named by it.
-	PhoneBook(ctx context.Context) (domain.PhoneBook, error)
+	// Directory is who people are (domain.Directory): every name any account or bridge
+	// gives a person's number or network ID, and which of them are one person.
+	Directory(ctx context.Context) (domain.Directory, error)
 }
 
 // Sync is the /sync loop and the streams it feeds.

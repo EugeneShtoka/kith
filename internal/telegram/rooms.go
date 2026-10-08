@@ -83,9 +83,10 @@ type listing struct {
 	archived map[domain.RoomID]bool
 	// forums is, for each listed room, whether it is made of topics.
 	forums map[domain.RoomID]bool
-	// numbers is the names of the people the listing names whose number Telegram
-	// shows, for the phone book.
-	numbers []domain.NumberName
+	// people and links are who the listing's users are, for the directory: each by
+	// their ID, linked to their number where Telegram shows it.
+	people []domain.PersonName
+	links  []domain.PersonLink
 }
 
 // dialog is one of an account's dialogs: its peer, as calls name it, its latest
@@ -126,21 +127,29 @@ func listed(self int64, elems []dialog) listing {
 		}
 	}
 	domain.SortRooms(l.rooms)
-	l.numbers = numberNames(self, elems)
+	l.people, l.links = peopleOf(self, elems)
 	return l
 }
 
-// numberNames is every person the dialogs' pages carried whose number Telegram shows:
-// a contact by the name you saved, anyone else by their own.
-func numberNames(self int64, elems []dialog) []domain.NumberName {
+// peopleOf is every person the dialogs' pages carried, for the directory: each by
+// their ID, a contact by the name you saved and anyone else by their own, and linked
+// to their number where Telegram shows it, so a name saved for the number on another
+// account or network names them here, and theirs names the number there. Nobody
+// deleted, nor yourself.
+func peopleOf(self int64, elems []dialog) ([]domain.PersonName, []domain.PersonLink) {
 	seen := map[int64]bool{}
-	var out []domain.NumberName
+	var names []domain.PersonName
+	var links []domain.PersonLink
 	for _, e := range elems {
 		for id, u := range e.entities.Users() {
-			if seen[id] || id == self || u.Phone == "" || u.Deleted {
+			if seen[id] || id == self || u.Deleted {
 				continue
 			}
 			seen[id] = true
+			person := personID(id)
+			if u.Phone != "" {
+				links = append(links, domain.PersonLink{ID: person, Other: domain.PhoneID(domain.PhoneDigits(u.Phone))})
+			}
 			name := strings.TrimSpace(userName(u))
 			if name == "" {
 				continue
@@ -149,10 +158,10 @@ func numberNames(self int64, elems []dialog) []domain.NumberName {
 			if u.Contact {
 				rank = domain.RankSaved
 			}
-			out = append(out, domain.NumberName{Phone: domain.PhoneDigits(u.Phone), Name: name, Rank: rank})
+			names = append(names, domain.PersonName{ID: person, Name: name, Rank: rank})
 		}
 	}
-	return out
+	return names, links
 }
 
 // room is one dialog as a room, and the person a private chat is with; ok false for
@@ -427,8 +436,8 @@ func (a *Adapter) save(ctx context.Context, self int64, l listing, fetched time.
 	if err := a.cache.SetForums(ctx, l.forums); err != nil {
 		return fmt.Errorf("telegram: cache which chats are forums: %w", err)
 	}
-	if err := a.cache.SetNumberNames(ctx, "telegram:"+strconv.FormatInt(self, 10), l.numbers); err != nil {
-		return fmt.Errorf("telegram: cache the names of numbers: %w", err)
+	if err := a.cache.SetPeople(ctx, "telegram:"+strconv.FormatInt(self, 10), l.people, l.links); err != nil {
+		return fmt.Errorf("telegram: cache who people are: %w", err)
 	}
 	for id, members := range l.members {
 		if err := a.cache.SaveMembers(ctx, id, members); err != nil {

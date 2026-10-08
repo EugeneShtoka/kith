@@ -2,7 +2,6 @@ package daemon_test
 
 import (
 	"context"
-	"maps"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -16,13 +15,22 @@ import (
 // selvesBackend says who this person is.
 type selvesBackend struct {
 	apitest.Nop
-	ids  []string
-	book domain.PhoneBook
+	ids []string
+	dir domain.Directory
 }
 
 func (b selvesBackend) Selves(context.Context) ([]string, error) { return b.ids, nil }
 
-func (b selvesBackend) PhoneBook(context.Context) (domain.PhoneBook, error) { return b.book, nil }
+func (b selvesBackend) Directory(context.Context) (domain.Directory, error) { return b.dir, nil }
+
+// numbersNamed is a directory naming each number as one address book saved it.
+func numbersNamed(names map[string]string) domain.Directory {
+	var rows []domain.PersonName
+	for digits, name := range names {
+		rows = append(rows, domain.PersonName{Source: "phone", ID: domain.PhoneID(digits), Name: name, Rank: domain.RankSaved})
+	}
+	return domain.NewDirectory(rows, nil)
+}
 
 // serveIdentity is a daemon over b with state.
 func serveIdentity(t *testing.T, b selvesBackend, state *daemon.State) *daemon.Remote {
@@ -78,12 +86,20 @@ func TestSelvesAndNetworksCrossTheSocket(t *testing.T) {
 	}
 }
 
-// The phone book crosses the socket whole: every number's name.
-func TestThePhoneBookCrossesTheSocket(t *testing.T) {
+// The directory crosses the socket whole: every name, rank and link, so a client
+// names people as the daemon would.
+func TestTheDirectoryCrossesTheSocket(t *testing.T) {
 	t.Parallel()
-	book := domain.PhoneBook{"15550100001": "Dana", "15550100002": "Eli"}
-	remote := serveIdentity(t, selvesBackend{book: book}, daemon.NewState())
-	if got, err := remote.PhoneBook(context.Background()); err != nil || !maps.Equal(got, book) {
-		t.Errorf("PhoneBook = (%v, %v), want %v", got, err, book)
+	dir := domain.NewDirectory([]domain.PersonName{
+		{Source: "whatsapp:1", ID: domain.PhoneID("15550100001"), Name: "Dana", Rank: domain.RankSaved},
+		{Source: "telegram:2", ID: "telegram:7", Name: "Eli", Rank: domain.RankChosen},
+	}, []domain.PersonLink{{Source: "telegram:2", ID: "telegram:7", Other: domain.PhoneID("15550100002")}})
+	remote := serveIdentity(t, selvesBackend{dir: dir}, daemon.NewState())
+	got, err := remote.Directory(context.Background())
+	if err != nil || !got.Equal(dir) {
+		t.Fatalf("Directory = (%v, %v), want %v", got.Names(), err, dir.Names())
+	}
+	if eli, _ := got.Named("+15550100002"); eli != "Eli" {
+		t.Errorf("Eli's number is named %q across the socket, want Eli by the link", eli)
 	}
 }

@@ -786,17 +786,17 @@ func TestAPlaceholderIsAnnouncedOnceItIsReplaced(t *testing.T) {
 	}
 }
 
-// A sender and a room shown only as a number are named from the phone book; a name
+// A sender and a room shown only as a number are named from the directory; a name
 // that is more than a number is kept.
-func TestANotificationNamesANumberFromThePhoneBook(t *testing.T) {
+func TestANotificationNamesANumberFromTheDirectory(t *testing.T) {
 	t.Parallel()
 	n, rec, src := notifier(t, notifsOn("all"))
 	src.mu.Lock()
 	src.rooms = append(src.rooms, domain.Room{ID: "!num:example.org", Name: "+15550100001 (WA)", IsDirect: true})
 	src.mu.Unlock()
 	n.InvalidateScope()
-	n.UsePhoneBook(func(context.Context) (domain.PhoneBook, error) {
-		return domain.PhoneBook{"15550100001": "Dana", "15550100002": "Eli"}, nil
+	n.UseDirectory(func(context.Context) (domain.Directory, error) {
+		return numbersNamed(map[string]string{"15550100001": "Dana", "15550100002": "Eli"}), nil
 	})
 	for _, c := range []struct {
 		room          domain.RoomID
@@ -865,8 +865,8 @@ func TestNotificationsNamePeopleAsTheTimelineDoes(t *testing.T) {
 	cfg := notifsOn("all")
 	cfg.Display.Identities = []config.Identity{{Alias: "Alice Cooper", IDs: []string{alice}}}
 	n, rec, _ := notifier(t, cfg)
-	n.UsePhoneBook(func(context.Context) (domain.PhoneBook, error) {
-		return domain.PhoneBook{"15550100001": "Dana Levi"}, nil
+	n.UseDirectory(func(context.Context) (domain.Directory, error) {
+		return numbersNamed(map[string]string{"15550100001": "Dana Levi"}), nil
 	})
 	m := msg(chatRm, alice, "@100000000000005 can you look?")
 	m.SenderName = "alice"

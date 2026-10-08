@@ -92,7 +92,7 @@ var _ api.Backend = Nop{}
 
 func (Nop) Selves(context.Context) ([]string, error) { return nil, nil }
 
-func (Nop) PhoneBook(context.Context) (domain.PhoneBook, error) { return nil, nil }
+func (Nop) Directory(context.Context) (domain.Directory, error) { return domain.Directory{}, nil }
 
 func (Nop) CachedInvites(context.Context) ([]domain.Room, error) { return nil, nil }
 func (n Nop) Invites() <-chan []domain.Room                      { return n.Invs }

@@ -34,7 +34,7 @@ type Config struct {
 	User           string `toml:"user"`
 	AllowTokenFile bool   `toml:"allow_token_file"`
 	// BridgeContacts is each bridge's provisioning API base URL whose contact lists
-	// name people a network shows only by number (domain.PhoneBook).
+	// name people a network shows only by number (domain.Directory).
 	BridgeContacts []string      `toml:"bridge_contacts"`
 	Terminal       string        `toml:"terminal"` // what `kith --open` starts; empty detects one
 	Display        Display       `toml:"display"`

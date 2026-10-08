@@ -105,9 +105,6 @@ CREATE TABLE room_forums (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
--- The names an account knows numbers by (its address book, its contacts' profiles),
--- each source's rows replaced whole when it reads them again (SetNumberNames). The
--- names bridges give are read from room_members instead (PhoneBook).
 -- A message's poll, as JSON (domain.Poll): its question, answers and how the votes
 -- stand, rewritten whole as results change (SetPoll).
 CREATE TABLE message_polls (
@@ -117,12 +114,24 @@ CREATE TABLE message_polls (
 	PRIMARY KEY (room_id, event_id)
 ) STRICT, WITHOUT ROWID;
 
-CREATE TABLE phone_names (
+-- Who people are (domain.Directory): what each source (an account, a bridge login)
+-- calls an identifier (a number as tel:<digits>, or a person's ID on a network), and
+-- which identifiers it says are one person, each source's rows replaced whole when it
+-- reads them again (SetPeople). The names bridges give their puppets are read from
+-- room_members instead (Directory).
+CREATE TABLE person_names (
 	source TEXT    NOT NULL,
-	phone  TEXT    NOT NULL,
+	id     TEXT    NOT NULL,
 	name   TEXT    NOT NULL,
 	rank   INTEGER NOT NULL,
-	PRIMARY KEY (source, phone)
+	PRIMARY KEY (source, id)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE person_links (
+	source TEXT NOT NULL,
+	id     TEXT NOT NULL,
+	other  TEXT NOT NULL,
+	PRIMARY KEY (source, id, other)
 ) STRICT, WITHOUT ROWID;
 
 -- Tombstone/predecessor links. Its own table because SaveRooms is a whole-list
@@ -428,6 +437,22 @@ var migrations = []string{
 	PRIMARY KEY (room_id, event_id, user_id),
 	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;`,
+	// v10: names by any identifier, not only numbers, and links between them.
+	`CREATE TABLE IF NOT EXISTS person_names (
+	source TEXT    NOT NULL,
+	id     TEXT    NOT NULL,
+	name   TEXT    NOT NULL,
+	rank   INTEGER NOT NULL,
+	PRIMARY KEY (source, id)
+) STRICT, WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS person_links (
+	source TEXT NOT NULL,
+	id     TEXT NOT NULL,
+	other  TEXT NOT NULL,
+	PRIMARY KEY (source, id, other)
+) STRICT, WITHOUT ROWID;
+INSERT OR IGNORE INTO person_names(source, id, name, rank) SELECT source, 'tel:' || phone, name, rank FROM phone_names;
+DROP TABLE phone_names;`,
 }
 
 // ensureIndexes makes the file's explicit indexes exactly baseSchema's: a missing one

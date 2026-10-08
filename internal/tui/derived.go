@@ -111,7 +111,7 @@ func (m Model) keyFor() derivedKey {
 		unread:  unreadFingerprint(m.unread[m.openRoom]),
 		rtl:     m.mirrored(),
 		selves:  selvesFingerprint(m.selves),
-		phones:  m.phones.rev,
+		phones:  m.dir.rev,
 		members: m.timeline.membersRev,
 	}
 	if room, ok := m.roomByID(m.openRoom); ok {
