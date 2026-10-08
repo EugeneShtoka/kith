@@ -85,7 +85,7 @@ type listing struct {
 	forums map[domain.RoomID]bool
 	// numbers is the names of the people the listing names whose number Telegram
 	// shows, for the phone book.
-	numbers []domain.NumberName
+	numbers []domain.PersonName
 }
 
 // dialog is one of an account's dialogs: its peer, as calls name it, its latest
@@ -132,9 +132,9 @@ func listed(self int64, elems []dialog) listing {
 
 // numberNames is every person the dialogs' pages carried whose number Telegram shows:
 // a contact by the name you saved, anyone else by their own.
-func numberNames(self int64, elems []dialog) []domain.NumberName {
+func numberNames(self int64, elems []dialog) []domain.PersonName {
 	seen := map[int64]bool{}
-	var out []domain.NumberName
+	var out []domain.PersonName
 	for _, e := range elems {
 		for id, u := range e.entities.Users() {
 			if seen[id] || id == self || u.Phone == "" || u.Deleted {
@@ -149,7 +149,7 @@ func numberNames(self int64, elems []dialog) []domain.NumberName {
 			if u.Contact {
 				rank = domain.RankSaved
 			}
-			out = append(out, domain.NumberName{Phone: domain.PhoneDigits(u.Phone), Name: name, Rank: rank})
+			out = append(out, domain.PersonName{ID: domain.PhoneID(domain.PhoneDigits(u.Phone)), Name: name, Rank: rank})
 		}
 	}
 	return out
@@ -427,7 +427,7 @@ func (a *Adapter) save(ctx context.Context, self int64, l listing, fetched time.
 	if err := a.cache.SetForums(ctx, l.forums); err != nil {
 		return fmt.Errorf("telegram: cache which chats are forums: %w", err)
 	}
-	if err := a.cache.SetNumberNames(ctx, "telegram:"+strconv.FormatInt(self, 10), l.numbers); err != nil {
+	if err := a.cache.SetPeople(ctx, "telegram:"+strconv.FormatInt(self, 10), l.numbers, nil); err != nil {
 		return fmt.Errorf("telegram: cache the names of numbers: %w", err)
 	}
 	for id, members := range l.members {

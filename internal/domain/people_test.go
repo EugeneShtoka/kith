@@ -11,7 +11,7 @@ func TestPeopleAreNamedByWhatThePersonKnows(t *testing.T) {
 	t.Parallel()
 	p := People{
 		Alias: func(user string) string { return map[string]string{"telegram:7": "Vanya"}[user] },
-		Book:  PhoneBook{"15550100001": "Dana Levi"},
+		Dir:   NewDirectory([]PersonName{{Source: "phone", ID: PhoneID("15550100001"), Name: "Dana Levi", Rank: RankSaved}}, nil),
 	}
 	for _, tc := range []struct {
 		user  string

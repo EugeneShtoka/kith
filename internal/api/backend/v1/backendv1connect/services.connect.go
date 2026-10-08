@@ -250,9 +250,9 @@ const (
 	BackendServiceStatusProcedure = "/backend.v1.BackendService/Status"
 	// BackendServiceSelvesProcedure is the fully-qualified name of the BackendService's Selves RPC.
 	BackendServiceSelvesProcedure = "/backend.v1.BackendService/Selves"
-	// BackendServicePhoneBookProcedure is the fully-qualified name of the BackendService's PhoneBook
+	// BackendServiceDirectoryProcedure is the fully-qualified name of the BackendService's Directory
 	// RPC.
-	BackendServicePhoneBookProcedure = "/backend.v1.BackendService/PhoneBook"
+	BackendServiceDirectoryProcedure = "/backend.v1.BackendService/Directory"
 	// BackendServiceClearCacheProcedure is the fully-qualified name of the BackendService's ClearCache
 	// RPC.
 	BackendServiceClearCacheProcedure = "/backend.v1.BackendService/ClearCache"
@@ -531,9 +531,10 @@ type BackendServiceClient interface {
 	// Selves is every ID that is this person, on every network served; it grows as
 	// accounts log in.
 	Selves(context.Context, *connect.Request[v1.SelvesRequest]) (*connect.Response[v1.SelvesResponse], error)
-	// PhoneBook is the best name for every number any account or bridge knows, so a
-	// person shown as a bare number anywhere is named.
-	PhoneBook(context.Context, *connect.Request[v1.PhoneBookRequest]) (*connect.Response[v1.PhoneBookResponse], error)
+	// Directory is who people are: every name any account or bridge gives an identifier
+	// a person is known by (a number, a network ID), and which identifiers are one
+	// person, so a person is named alike on every network.
+	Directory(context.Context, *connect.Request[v1.DirectoryRequest]) (*connect.Response[v1.DirectoryResponse], error)
 	// ClearCache empties the local cache.
 	ClearCache(context.Context, *connect.Request[v1.ClearCacheRequest]) (*connect.Response[v1.ClearCacheResponse], error)
 	// RestoreKeyBackup imports the server-side room-key backup, so encrypted history from
@@ -1090,10 +1091,10 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("Selves")),
 			connect.WithClientOptions(opts...),
 		),
-		phoneBook: connect.NewClient[v1.PhoneBookRequest, v1.PhoneBookResponse](
+		directory: connect.NewClient[v1.DirectoryRequest, v1.DirectoryResponse](
 			httpClient,
-			baseURL+BackendServicePhoneBookProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("PhoneBook")),
+			baseURL+BackendServiceDirectoryProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Directory")),
 			connect.WithClientOptions(opts...),
 		),
 		clearCache: connect.NewClient[v1.ClearCacheRequest, v1.ClearCacheResponse](
@@ -1336,7 +1337,7 @@ type backendServiceClient struct {
 	cancelVerification    *connect.Client[v1.CancelVerificationRequest, v1.CancelVerificationResponse]
 	status                *connect.Client[v1.StatusRequest, v1.StatusResponse]
 	selves                *connect.Client[v1.SelvesRequest, v1.SelvesResponse]
-	phoneBook             *connect.Client[v1.PhoneBookRequest, v1.PhoneBookResponse]
+	directory             *connect.Client[v1.DirectoryRequest, v1.DirectoryResponse]
 	clearCache            *connect.Client[v1.ClearCacheRequest, v1.ClearCacheResponse]
 	restoreKeyBackup      *connect.Client[v1.RestoreKeyBackupRequest, v1.RestoreKeyBackupResponse]
 	exportRoomKeys        *connect.Client[v1.ExportRoomKeysRequest, v1.ExportRoomKeysResponse]
@@ -1760,9 +1761,9 @@ func (c *backendServiceClient) Selves(ctx context.Context, req *connect.Request[
 	return c.selves.CallUnary(ctx, req)
 }
 
-// PhoneBook calls backend.v1.BackendService.PhoneBook.
-func (c *backendServiceClient) PhoneBook(ctx context.Context, req *connect.Request[v1.PhoneBookRequest]) (*connect.Response[v1.PhoneBookResponse], error) {
-	return c.phoneBook.CallUnary(ctx, req)
+// Directory calls backend.v1.BackendService.Directory.
+func (c *backendServiceClient) Directory(ctx context.Context, req *connect.Request[v1.DirectoryRequest]) (*connect.Response[v1.DirectoryResponse], error) {
+	return c.directory.CallUnary(ctx, req)
 }
 
 // ClearCache calls backend.v1.BackendService.ClearCache.
@@ -2097,9 +2098,10 @@ type BackendServiceHandler interface {
 	// Selves is every ID that is this person, on every network served; it grows as
 	// accounts log in.
 	Selves(context.Context, *connect.Request[v1.SelvesRequest]) (*connect.Response[v1.SelvesResponse], error)
-	// PhoneBook is the best name for every number any account or bridge knows, so a
-	// person shown as a bare number anywhere is named.
-	PhoneBook(context.Context, *connect.Request[v1.PhoneBookRequest]) (*connect.Response[v1.PhoneBookResponse], error)
+	// Directory is who people are: every name any account or bridge gives an identifier
+	// a person is known by (a number, a network ID), and which identifiers are one
+	// person, so a person is named alike on every network.
+	Directory(context.Context, *connect.Request[v1.DirectoryRequest]) (*connect.Response[v1.DirectoryResponse], error)
 	// ClearCache empties the local cache.
 	ClearCache(context.Context, *connect.Request[v1.ClearCacheRequest]) (*connect.Response[v1.ClearCacheResponse], error)
 	// RestoreKeyBackup imports the server-side room-key backup, so encrypted history from
@@ -2652,10 +2654,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("Selves")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServicePhoneBookHandler := connect.NewUnaryHandler(
-		BackendServicePhoneBookProcedure,
-		svc.PhoneBook,
-		connect.WithSchema(backendServiceMethods.ByName("PhoneBook")),
+	backendServiceDirectoryHandler := connect.NewUnaryHandler(
+		BackendServiceDirectoryProcedure,
+		svc.Directory,
+		connect.WithSchema(backendServiceMethods.ByName("Directory")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceClearCacheHandler := connect.NewUnaryHandler(
@@ -2974,8 +2976,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceStatusHandler.ServeHTTP(w, r)
 		case BackendServiceSelvesProcedure:
 			backendServiceSelvesHandler.ServeHTTP(w, r)
-		case BackendServicePhoneBookProcedure:
-			backendServicePhoneBookHandler.ServeHTTP(w, r)
+		case BackendServiceDirectoryProcedure:
+			backendServiceDirectoryHandler.ServeHTTP(w, r)
 		case BackendServiceClearCacheProcedure:
 			backendServiceClearCacheHandler.ServeHTTP(w, r)
 		case BackendServiceRestoreKeyBackupProcedure:
@@ -3353,8 +3355,8 @@ func (UnimplementedBackendServiceHandler) Selves(context.Context, *connect.Reque
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Selves is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) PhoneBook(context.Context, *connect.Request[v1.PhoneBookRequest]) (*connect.Response[v1.PhoneBookResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PhoneBook is not implemented"))
+func (UnimplementedBackendServiceHandler) Directory(context.Context, *connect.Request[v1.DirectoryRequest]) (*connect.Response[v1.DirectoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Directory is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) ClearCache(context.Context, *connect.Request[v1.ClearCacheRequest]) (*connect.Response[v1.ClearCacheResponse], error) {

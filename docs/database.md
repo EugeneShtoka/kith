@@ -84,6 +84,8 @@ holds data but appears in neither list until the next refresh promotes it.
 | `message_html` | the formatting, in kith's markup (the sanitized HTML subset of `internal/richtext`, which each network's formatting converts into), only for messages that carry formatting |
 | `message_media` | the attachment: kind, name, MIME type, size, dimensions, and how to fetch it: for Matrix the `mxc` URI and the encrypted-file JSON, for WhatsApp `{"whatsapp": kind, "proto": …}` (the message's media part, with its keys) in `file_json` |
 | `message_redaction` | who deleted a message and why, which outlives the content |
+| `person_names` | what each source (an account, a bridge login) calls an identifier: a number as `tel:<digits>`, or a person's ID on a network, ranked saved < bridged < chosen |
+| `person_links` | identifiers a source says are one person (a Telegram user and their number) |
 | `message_mentions` | the people a message mentions (`domain.Mention`), each with the text that names them in the body |
 | `message_order` | a message's place among those sharing its time (`domain.Message.Seq`), only for a network that gives one; timelines order by time, then this, then the event ID |
 | `message_edit` | the edit a message's body and formatting come from (its event ID and send time), so an older edit delivered later never replaces a newer one |
@@ -273,8 +275,8 @@ Since then:
   one; written only by that network's listing.
 - v6 (`phone_names`): the names each account knows numbers by (a WhatsApp account's
   address book and its contacts' own names, Telegram users whose number it knows),
-  each account's rows replaced whole when it reads them again. A label that is only
-  a number takes the best of these, on any network or account.
+  each account's rows replaced whole when it reads them again. Moved into
+  `person_names` by v10.
 
 - v7 (`message_polls`): a message's poll, its question, answers and how the votes
   stand, as JSON, rewritten whole as the results change.
@@ -285,8 +287,13 @@ Since then:
 - v9 (`message_mentions`): the people a message mentions and the text naming each
   in its body, so a mention written only as a number (WhatsApp's) is drawn with the
   name the person is known by, after a restart as well.
+- v10 (`person_names`): with `person_links`, names by any identifier a person is known by
+  (a number as `tel:<digits>`, or their ID on a network) and which identifiers a
+  source says are one person; `phone_names` moved in as `tel:` names and dropped.
+  Together they are the directory: a person is named by the best name any source
+  gives any of their identifiers.
 
-so a current cache is at version 9.
+so a current cache is at version 10.
 
 ### Indexes need no migration
 

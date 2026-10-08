@@ -336,3 +336,20 @@ message TempRule {
   // until is when it lapses.
   google.protobuf.Timestamp until = 6;
 }
+
+// PersonName is what one source calls an identifier (domain.PersonName).
+message PersonName {
+  string source = 1;
+  // A number as tel:<digits>, or a person's ID on a network.
+  string id = 2;
+  string name = 3;
+  // domain.NameRank: saved, bridged, chosen; lower is trusted more.
+  int32 rank = 4;
+}
+
+// PersonLink is one source saying two identifiers are one person (domain.PersonLink).
+message PersonLink {
+  string source = 1;
+  string id = 2;
+  string other = 3;
+}

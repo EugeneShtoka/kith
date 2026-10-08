@@ -81,7 +81,7 @@ func (b *InProc) readBridgeContacts(ctx context.Context, bases []string) {
 		if err != nil {
 			b.warnIf(ctx, err, "read a bridge's contacts", "bridge", base)
 			// A bridge that could not be read keeps what it gave last.
-			had, herr := b.cache.NumberNameSources(ctx, bridgeSourcePrefix+base+"#")
+			had, herr := b.cache.PeopleSources(ctx, bridgeSourcePrefix+base+"#")
 			b.warnIf(ctx, herr, "read which logins a bridge named numbers for", "bridge", base)
 			kept = append(kept, had...)
 			continue
@@ -89,7 +89,7 @@ func (b *InProc) readBridgeContacts(ctx context.Context, bases []string) {
 		kept = append(kept, sources...)
 		read = true
 	}
-	if err := b.cache.ForgetNumberNames(ctx, bridgeSourcePrefix, kept); err != nil {
+	if err := b.cache.ForgetPeople(ctx, bridgeSourcePrefix, kept); err != nil {
 		b.warnIf(ctx, err, "forget the contacts of bridges no longer read")
 	}
 	if read && b.onRoomsStale != nil {
@@ -142,18 +142,18 @@ func (b *InProc) readBridge(ctx context.Context, base string) ([]string, error) 
 			b.warnIf(ctx, err, "read a login's contacts", "bridge", base)
 			continue
 		}
-		var names []domain.NumberName
+		var names []domain.PersonName
 		for _, c := range list.Contacts {
 			if _, isNumber := domain.PhoneIn(c.Name); c.Name == "" || isNumber {
 				continue
 			}
 			for _, id := range c.Identifiers {
 				if m := telNumber.FindStringSubmatch(id); m != nil {
-					names = append(names, domain.NumberName{Phone: m[1], Name: c.Name, Rank: domain.RankSaved})
+					names = append(names, domain.PersonName{ID: domain.PhoneID(m[1]), Name: c.Name, Rank: domain.RankSaved})
 				}
 			}
 		}
-		if err := b.cache.SetNumberNames(ctx, source, names); err != nil {
+		if err := b.cache.SetPeople(ctx, source, names, nil); err != nil {
 			b.warnIf(ctx, err, "keep a login's contacts", "bridge", base)
 		}
 	}

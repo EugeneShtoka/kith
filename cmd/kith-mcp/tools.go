@@ -113,11 +113,11 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 	} else {
 		s.logger().Warn("ask who this person is failed; messages are marked mine by the Matrix account alone", "err", err)
 	}
-	book, err := s.backend.PhoneBook(ctx)
+	dir, err := s.backend.Directory(ctx)
 	if err != nil {
-		s.logger().Warn("read the phone book failed; people are named as their networks name them", "err", err)
+		s.logger().Warn("read the directory failed; people are named as their networks name them", "err", err)
 	}
-	s.people = setup.PeopleOf(s.aliases, book)
+	s.people = setup.PeopleOf(s.aliases, dir)
 	result, err := t.run(s, ctx, raw)
 	if err != nil {
 		// The assistant reads the reason; the log keeps it for the person. Tool

@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"maps"
+	"strconv"
 	"testing"
 	"time"
 
@@ -29,27 +30,38 @@ func TestAListingNamesTheNumbersItShows(t *testing.T) {
 	if err := a.save(t.Context(), 42, listed(42, dialogs), time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SetNumberNames(t.Context(), "whatsapp:111", []domain.NumberName{
-		{Phone: "15550100002", Name: "Eli Saved", Rank: domain.RankSaved},
-	}); err != nil {
+	if err := cache.SetPeople(t.Context(), "whatsapp:111", []domain.PersonName{
+		{ID: domain.PhoneID("15550100002"), Name: "Eli Saved", Rank: domain.RankSaved},
+	}, nil); err != nil {
 		t.Fatal(err)
 	}
 	// A bridge's name for Dana yields to the name saved in Telegram's contacts.
 	if err := cache.SaveMembers(t.Context(), "!dm:x", []domain.Member{{UserID: "@whatsapp_15550100001:x", DisplayName: "Dana Bridged (WA)"}}); err != nil {
 		t.Fatal(err)
 	}
-	book, err := cache.PhoneBook(t.Context())
-	if err != nil {
-		t.Fatal(err)
+	// book is the names the directory gives the numbers 15550100001-9, the named ones.
+	book := func() map[string]string {
+		dir, err := cache.Directory(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]string{}
+		for n := 1; n <= 9; n++ {
+			number := "1555010000" + strconv.Itoa(n)
+			if name, ok := dir.Named("+" + number); ok {
+				got[number] = name
+			}
+		}
+		return got
 	}
 	// Eli's own Telegram name yields to the name a WhatsApp address book saved.
-	if want := (domain.PhoneBook{"15550100001": "Dana Saved", "15550100002": "Eli Saved"}); !maps.Equal(book, want) {
-		t.Errorf("book = %v, want %v", book, want)
+	if want := (map[string]string{"15550100001": "Dana Saved", "15550100002": "Eli Saved"}); !maps.Equal(book(), want) {
+		t.Errorf("book = %v, want %v", book(), want)
 	}
 	if err := a.save(t.Context(), 42, listed(42, nil), time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if book, _ = cache.PhoneBook(t.Context()); book["15550100001"] != "Dana Bridged" {
-		t.Errorf("after a listing without Dana, the bridge's name is all that is left: %v", book)
+	if got := book(); got["15550100001"] != "Dana Bridged" {
+		t.Errorf("after a listing without Dana, the bridge's name is all that is left: %v", got)
 	}
 }

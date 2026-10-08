@@ -2,7 +2,6 @@ package whatsapp
 
 import (
 	"context"
-	"maps"
 	"testing"
 
 	"go.mau.fi/whatsmeow/types"
@@ -120,14 +119,16 @@ func TestAnAccountNamesTheNumbersItKnows(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.renameChats(ctx, account, client)
-	book, err := cache.PhoneBook(ctx)
+	dir, err := cache.Directory(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := domain.PhoneBook{
+	for number, want := range map[string]string{
 		"447700900111": "Dana Lee", "447700900222": "Alex Bridged", "447700900333": "Kim's Bakery", "447700900444": "Sam Hidden",
-	}
-	if !maps.Equal(book, want) {
-		t.Errorf("book = %v, want %v", book, want)
+		"100000000000002": "", // a LID with no number names no number
+	} {
+		if got, _ := dir.Named("+" + number); got != want {
+			t.Errorf("+%s is named %q, want %q", number, got, want)
+		}
 	}
 }

@@ -5,42 +5,61 @@ import (
 )
 
 // People names a person the way everything kith shows does, from what this person
-// has told it: their own alias for someone first, then a name the network gave
-// (a member's, a sender's, the words a mention was written in), then what the phone
-// book calls their number, then the number. A surface applies its own shaping after
-// (the timeline's first-name rule); People never shortens.
+// has told it: their own alias for any of the person's identifiers first, then a name
+// they saved (an address book, a bridge's contact), then a name the network gives now
+// (a member's, a sender's, the words a mention was written in), then the name the
+// person chose for themselves, then their number. A surface applies its own shaping
+// after (the timeline's first-name rule); People never shortens.
 type People struct {
 	// Alias is the person's own name for someone ([[display.identity]]), "" for none.
 	Alias func(userID string) string
-	// Book names a person a network shows only by number.
-	Book PhoneBook
+	// Dir is who people are (Directory): their names, their numbers, their accounts.
+	Dir Directory
 }
 
-// Name is userID's name, from known: names the network gave, best first. A known name
-// that is only a number is looked up in the phone book, and kept only when nothing
-// better is known.
+// Name is userID's name, from known: names the network gives now, best first. A known
+// name that is only a number is looked up in the directory, and kept only when
+// nothing better is known.
 func (p People) Name(userID string, known ...string) string {
 	if p.Alias != nil {
-		if alias := strings.TrimSpace(p.Alias(userID)); alias != "" {
-			return alias
+		for _, id := range p.Dir.Identifiers(userID) {
+			if alias := strings.TrimSpace(p.Alias(id)); alias != "" {
+				return alias
+			}
 		}
 	}
+	listed, rank, inDir := p.Dir.Name(userID)
+	if inDir && rank <= RankBridged {
+		return listed
+	}
 	number := ""
-	for _, k := range append(known, ShortName(userID)) {
+	pick := func(k string) (string, bool) {
 		k = strings.TrimSpace(k)
 		if k == "" {
-			continue
+			return "", false
 		}
-		if name, ok := p.Book.Named(k); ok {
-			return name
+		if name, ok := p.Dir.Named(k); ok {
+			return name, true
 		}
 		if _, isNumber := PhoneIn(k); isNumber || digitsOnly(k) {
 			if number == "" && !digitsOnly(k) {
 				number = k // a number written as one, not an ID's bare digits
 			}
-			continue
+			return "", false
 		}
-		return k
+		return k, true
+	}
+	for _, k := range known {
+		if name, ok := pick(k); ok {
+			return name
+		}
+	}
+	if inDir {
+		return listed
+	}
+	// The ID's own short form (a localpart, a number) only when nothing names them.
+	if name, ok := pick(ShortName(userID)); ok {
+		return name
 	}
 	if number != "" {
 		return number

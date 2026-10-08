@@ -3,6 +3,7 @@ package matrix
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -11,8 +12,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-
-	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // fakeBridges is a homeserver's host with bridges' provisioning APIs under it, each
@@ -110,16 +109,24 @@ func TestABridgesContactListNamesNumbers(t *testing.T) {
 	stale := 0
 	b.onRoomsStale = func() { stale++ }
 	a, bb, off := srv.URL+"/_matrix/provision/wa-a", srv.URL+"/_matrix/provision/wa-b", elsewhere.URL+"/_matrix/provision/wa-a"
-	book := func() domain.PhoneBook {
-		got, err := b.cache.PhoneBook(ctx)
+	// book is the names the directory gives the test's numbers, the named ones only.
+	book := func() map[string]string {
+		dir, err := b.cache.Directory(ctx)
 		if err != nil {
 			t.Fatal(err)
+		}
+		got := map[string]string{}
+		for n := 1; n <= 5; n++ {
+			number := fmt.Sprintf("1555010000%d", n)
+			if name, ok := dir.Named("+" + number); ok {
+				got[number] = name
+			}
 		}
 		return got
 	}
 
 	b.readBridgeContacts(ctx, []string{a, bb, off})
-	if want := (domain.PhoneBook{"15550100001": "Dana", "15550100003": "Eli", "15550100004": "Fay"}); !maps.Equal(book(), want) {
+	if want := (map[string]string{"15550100001": "Dana", "15550100003": "Eli", "15550100004": "Fay"}); !maps.Equal(book(), want) {
 		t.Fatalf("book = %v, want %v", book(), want)
 	}
 	if stale == 0 {

@@ -626,9 +626,9 @@ func (s *server) Selves(ctx context.Context, _ *req[v1.SelvesRequest]) (*resp[v1
 	return reply(&v1.SelvesResponse{Ids: ids}, err)
 }
 
-func (s *server) PhoneBook(ctx context.Context, _ *req[v1.PhoneBookRequest]) (*resp[v1.PhoneBookResponse], error) {
-	book, err := s.Backend.PhoneBook(ctx)
-	return reply(&v1.PhoneBookResponse{Names: book}, err)
+func (s *server) Directory(ctx context.Context, _ *req[v1.DirectoryRequest]) (*resp[v1.DirectoryResponse], error) {
+	dir, err := s.Backend.Directory(ctx)
+	return reply(pc.DirectoryToProto(dir), err)
 }
 
 // protoToPhase is a wire phase as a Phase; one this build does not know is 0.

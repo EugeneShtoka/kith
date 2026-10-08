@@ -2328,6 +2328,138 @@ func (x *TempRule) GetUntil() *timestamppb.Timestamp {
 	return nil
 }
 
+// PersonName is what one source calls an identifier (domain.PersonName).
+type PersonName struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Source string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	// A number as tel:<digits>, or a person's ID on a network.
+	Id   string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	// domain.NameRank: saved, bridged, chosen; lower is trusted more.
+	Rank          int32 `protobuf:"varint,4,opt,name=rank,proto3" json:"rank,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PersonName) Reset() {
+	*x = PersonName{}
+	mi := &file_backend_v1_types_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PersonName) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PersonName) ProtoMessage() {}
+
+func (x *PersonName) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_types_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PersonName.ProtoReflect.Descriptor instead.
+func (*PersonName) Descriptor() ([]byte, []int) {
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *PersonName) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *PersonName) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PersonName) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PersonName) GetRank() int32 {
+	if x != nil {
+		return x.Rank
+	}
+	return 0
+}
+
+// PersonLink is one source saying two identifiers are one person (domain.PersonLink).
+type PersonLink struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Source        string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	Other         string                 `protobuf:"bytes,3,opt,name=other,proto3" json:"other,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PersonLink) Reset() {
+	*x = PersonLink{}
+	mi := &file_backend_v1_types_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PersonLink) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PersonLink) ProtoMessage() {}
+
+func (x *PersonLink) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_types_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PersonLink.ProtoReflect.Descriptor instead.
+func (*PersonLink) Descriptor() ([]byte, []int) {
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *PersonLink) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *PersonLink) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PersonLink) GetOther() string {
+	if x != nil {
+		return x.Other
+	}
+	return ""
+}
+
 var File_backend_v1_types_proto protoreflect.FileDescriptor
 
 const file_backend_v1_types_proto_rawDesc = "" +
@@ -2531,7 +2663,18 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x06sender\x18\x03 \x01(\tR\x06sender\x12%\n" +
 	"\x04show\x18\x04 \x01(\x0e2\x11.backend.v1.LevelR\x04show\x12%\n" +
 	"\x04ring\x18\x05 \x01(\x0e2\x11.backend.v1.LevelR\x04ring\x120\n" +
-	"\x05until\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x05until*\xcd\x01\n" +
+	"\x05until\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x05until\"\\\n" +
+	"\n" +
+	"PersonName\x12\x16\n" +
+	"\x06source\x18\x01 \x01(\tR\x06source\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x12\n" +
+	"\x04rank\x18\x04 \x01(\x05R\x04rank\"J\n" +
+	"\n" +
+	"PersonLink\x12\x16\n" +
+	"\x06source\x18\x01 \x01(\tR\x06source\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
+	"\x05other\x18\x03 \x01(\tR\x05other*\xcd\x01\n" +
 	"\x10VerificationKind\x12!\n" +
 	"\x1dVERIFICATION_KIND_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bVERIFICATION_KIND_REQUESTED\x10\x01\x12\x19\n" +
@@ -2560,7 +2703,7 @@ func file_backend_v1_types_proto_rawDescGZIP() []byte {
 }
 
 var file_backend_v1_types_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_backend_v1_types_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_backend_v1_types_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_backend_v1_types_proto_goTypes = []any{
 	(VerificationKind)(0),         // 0: backend.v1.VerificationKind
 	(Level)(0),                    // 1: backend.v1.Level
@@ -2588,12 +2731,14 @@ var file_backend_v1_types_proto_goTypes = []any{
 	(*SASEmoji)(nil),              // 23: backend.v1.SASEmoji
 	(*Verification)(nil),          // 24: backend.v1.Verification
 	(*TempRule)(nil),              // 25: backend.v1.TempRule
-	(*timestamppb.Timestamp)(nil), // 26: google.protobuf.Timestamp
+	(*PersonName)(nil),            // 26: backend.v1.PersonName
+	(*PersonLink)(nil),            // 27: backend.v1.PersonLink
+	(*timestamppb.Timestamp)(nil), // 28: google.protobuf.Timestamp
 }
 var file_backend_v1_types_proto_depIdxs = []int32{
-	26, // 0: backend.v1.Revision.at:type_name -> google.protobuf.Timestamp
+	28, // 0: backend.v1.Revision.at:type_name -> google.protobuf.Timestamp
 	11, // 1: backend.v1.Revision.format:type_name -> backend.v1.Formatted
-	26, // 2: backend.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
+	28, // 2: backend.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
 	4,  // 3: backend.v1.Message.media:type_name -> backend.v1.Media
 	3,  // 4: backend.v1.Message.mentions:type_name -> backend.v1.Mention
 	11, // 5: backend.v1.Message.format:type_name -> backend.v1.Formatted
@@ -2602,19 +2747,19 @@ var file_backend_v1_types_proto_depIdxs = []int32{
 	9,  // 8: backend.v1.Poll.ballots:type_name -> backend.v1.Ballot
 	12, // 9: backend.v1.Formatted.spans:type_name -> backend.v1.Span
 	15, // 10: backend.v1.Unread.threads:type_name -> backend.v1.ThreadUnread
-	26, // 11: backend.v1.ThreadUnread.latest_at:type_name -> google.protobuf.Timestamp
-	26, // 12: backend.v1.Thread.latest_at:type_name -> google.protobuf.Timestamp
+	28, // 11: backend.v1.ThreadUnread.latest_at:type_name -> google.protobuf.Timestamp
+	28, // 12: backend.v1.Thread.latest_at:type_name -> google.protobuf.Timestamp
 	17, // 13: backend.v1.ReactionUpdate.reaction:type_name -> backend.v1.Reaction
 	7,  // 14: backend.v1.TimelinePage.messages:type_name -> backend.v1.Message
 	17, // 15: backend.v1.TimelinePage.reactions:type_name -> backend.v1.Reaction
 	3,  // 16: backend.v1.Draft.mentions:type_name -> backend.v1.Mention
-	26, // 17: backend.v1.SearchHit.timestamp:type_name -> google.protobuf.Timestamp
+	28, // 17: backend.v1.SearchHit.timestamp:type_name -> google.protobuf.Timestamp
 	3,  // 18: backend.v1.SearchHit.mentions:type_name -> backend.v1.Mention
 	0,  // 19: backend.v1.Verification.kind:type_name -> backend.v1.VerificationKind
 	23, // 20: backend.v1.Verification.emojis:type_name -> backend.v1.SASEmoji
 	1,  // 21: backend.v1.TempRule.show:type_name -> backend.v1.Level
 	1,  // 22: backend.v1.TempRule.ring:type_name -> backend.v1.Level
-	26, // 23: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
+	28, // 23: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
 	24, // [24:24] is the sub-list for method output_type
 	24, // [24:24] is the sub-list for method input_type
 	24, // [24:24] is the sub-list for extension type_name
@@ -2633,7 +2778,7 @@ func file_backend_v1_types_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backend_v1_types_proto_rawDesc), len(file_backend_v1_types_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   24,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

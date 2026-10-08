@@ -55,8 +55,8 @@ type Notifications struct {
 	trackedNotify bool
 	// selves are the IDs that are this person, asked per message (see UseSelves).
 	selves func() []string
-	// phones reads the phone book (UsePhoneBook); nil names nobody by number.
-	phones func(context.Context) (domain.PhoneBook, error)
+	// people reads the directory (UseDirectory); nil knows nobody.
+	people func(context.Context) (domain.Directory, error)
 	// spam has its own lock and outlives reloads: a caught room stays caught.
 	spam *spamWatch
 	// log hears what Deliver cannot return (see UseLogger); nil is silent.
@@ -93,50 +93,51 @@ func (n *Notifications) memberName(ctx context.Context, room domain.RoomID, user
 	return name
 }
 
-// UsePhoneBook sets where a sender or room shown only as a number is named from
-// (domain.PhoneBook). Call before Run.
-func (n *Notifications) UsePhoneBook(phones func(context.Context) (domain.PhoneBook, error)) {
-	n.phones = phones
+// UseDirectory sets where people are named from (domain.Directory): their names on
+// every account and network, and their numbers. Call before Run.
+func (n *Notifications) UseDirectory(people func(context.Context) (domain.Directory, error)) {
+	n.people = people
 }
 
-// byNumber is label, or the phone book's name for it when label is only a number.
-func (n *Notifications) byNumber(ctx context.Context, book *domain.PhoneBook, label string) string {
-	if n.phones == nil {
-		return label
+// lazyDirectory is the directory, read the first time a notification needs it.
+type lazyDirectory struct {
+	dir  domain.Directory
+	read bool
+}
+
+// directory is the directory, read once per notification.
+func (n *Notifications) directory(ctx context.Context, once *lazyDirectory) domain.Directory {
+	if !once.read && n.people != nil {
+		once.read = true
+		dir, err := n.people(ctx)
+		if err != nil {
+			n.log.Warn("read the directory", "err", err)
+		}
+		once.dir = dir
 	}
+	return once.dir
+}
+
+// byNumber is label, or the directory's name for it when label is only a number.
+func (n *Notifications) byNumber(ctx context.Context, once *lazyDirectory, label string) string {
 	if _, isNumber := domain.PhoneIn(label); !isNumber {
 		return label
 	}
-	if *book == nil {
-		read, err := n.phones(ctx)
-		if err != nil {
-			n.log.Warn("read the phone book", "err", err)
-			return label
-		}
-		*book = read
-	}
-	if name, ok := book.Named(label); ok {
+	if name, ok := n.directory(ctx, once).Named(label); ok {
 		return name
 	}
 	return label
 }
 
 // namer names people as the timeline does: the person's alias for them, the name the
-// network gave, the phone book's name for their number (domain.People), first names
+// network gave, the directory's name for them (domain.People), first names
 // only where space's rule says so.
-func (n *Notifications) namer(ctx context.Context, book *domain.PhoneBook, space string) func(user string, known ...string) string {
+func (n *Notifications) namer(ctx context.Context, once *lazyDirectory, space string) func(user string, known ...string) string {
 	n.mu.Lock()
 	aliases, first := n.aliases, n.firstNamesLocked(space)
 	n.mu.Unlock()
 	return func(user string, known ...string) string {
-		if *book == nil && n.phones != nil {
-			if read, err := n.phones(ctx); err == nil {
-				*book = read
-			} else {
-				n.log.Warn("read the phone book", "err", err)
-			}
-		}
-		name := setup.PeopleOf(aliases, *book).Name(user, known...)
+		name := setup.PeopleOf(aliases, n.directory(ctx, once)).Name(user, known...)
 		if first {
 			name = domain.FirstName(name)
 		}
@@ -464,9 +465,9 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 	}
 	// A room can be in several spaces and tags; {space} is the first by priority.
 	space := n.scope.Home(facts)
-	var book domain.PhoneBook // read once, and only for a label that is a number
-	name := n.namer(ctx, &book, space)
-	room := n.byNumber(ctx, &book, facts.Name)
+	var once lazyDirectory // read once, and only when someone is to be named
+	name := n.namer(ctx, &once, space)
+	room := n.byNumber(ctx, &once, facts.Name)
 	if n.roomRules && facts.Direct && n.firstNamesIn(space) {
 		room = domain.FirstName(room)
 	}

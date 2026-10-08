@@ -7,11 +7,10 @@ import (
 
 // A person shown as a bare number on one network or account is often named on
 // another: saved in one phone's address book, named by a bridge, or naming themselves
-// on Telegram. The phone book gathers every name a number is known by, from every
-// account and bridge, and a label that is only a number takes the best of them. The
-// number is the person's international digits, as every network writes it.
+// on Telegram. The directory (directory.go) gathers every name a person is known by;
+// a number is the person's international digits, as every network writes it.
 
-// NameRank is how much a name for a number is trusted; lower ranks first.
+// NameRank is how much a name for a person is trusted; lower ranks first.
 type NameRank int
 
 const (
@@ -24,27 +23,6 @@ const (
 	// business name, a Telegram profile that is not your contact.
 	RankChosen
 )
-
-// NumberName is one name a number is known by, and how much it is trusted.
-type NumberName struct {
-	Phone string // international digits
-	Name  string
-	Rank  NameRank
-}
-
-// PhoneBook is the best name for each number, by its digits.
-type PhoneBook map[string]string
-
-// Named is the book's name for a label that is only a number ("+972 54-123-4567",
-// "+359881234567 (WA)"); false for any other label, or a number it has no name for.
-func (b PhoneBook) Named(label string) (string, bool) {
-	digits, ok := PhoneIn(label)
-	if !ok {
-		return "", false
-	}
-	name, ok := b[digits]
-	return name, ok && name != ""
-}
 
 // PhoneIn is the digits of a label that is only an international number, as networks
 // write one for a person they have no name for: "+", digits, and spaces, dashes,

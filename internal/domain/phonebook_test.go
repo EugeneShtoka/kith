@@ -68,10 +68,11 @@ func TestAPersonsNumberIsReadFromTheirID(t *testing.T) {
 	}
 }
 
-// The book names a label that is only a number it knows; any other label is not its.
-func TestTheBookNamesOnlyANumberItKnows(t *testing.T) {
+// The directory names a label that is only a number it knows; any other label is not
+// its.
+func TestTheDirectoryNamesOnlyANumberItKnows(t *testing.T) {
 	t.Parallel()
-	book := PhoneBook{"15550100123": "Dana"}
+	book := NewDirectory([]PersonName{{Source: "s", ID: PhoneID("15550100123"), Name: "Dana"}}, nil)
 	for label, want := range map[string]string{
 		"+1 555 010 0123":   "Dana",
 		"+15550100123 (WA)": "Dana",
