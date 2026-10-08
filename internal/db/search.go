@@ -57,8 +57,15 @@ func searchQuery(req domain.SearchRequest) (string, []any, bool) {
 		append(args, req.Limit, domain.HighlightStart, domain.HighlightEnd, snippetTokens, match), true
 }
 
-// newestFirst is a search's order, the event ID breaking a tie.
-const newestFirst = " ORDER BY m.ts_ms DESC, m.event_id DESC"
+// newestFirst is a search's order: newestFirstIn across rooms.
+const newestFirst = " ORDER BY" + newestFirstIn
+
+// newestFirstIn is the timeline's order (domain.CompareMessages) reversed, for a query
+// over messages m. A network that numbers a room's messages (Telegram) gives them
+// whole seconds and IDs that are the room's then the number, so within one second the
+// shorter ID is the earlier and, at one length, text order is numeric order: by the
+// ID's text alone, message 100 came before 99.
+const newestFirstIn = " m.ts_ms DESC, length(m.event_id) DESC, m.event_id DESC"
 
 // searchWhere is the conditions a request puts on m (and mm), each opening with AND,
 // with their values appended to args; false when they can match nothing.
