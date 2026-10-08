@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -31,4 +32,64 @@ func saveOrder(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.
 		return fmt.Errorf("db: keep the order of %s: %w", m.ID, err)
 	}
 	return nil
+}
+
+// saveMentions keeps whom m mentions, when it mentions anyone. A copy without its
+// mentions (an edit's echo) leaves those kept.
+func saveMentions(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message) error {
+	for _, mn := range m.Mentions {
+		if mn.UserID == "" {
+			continue // a room mention: drawn from the body as it is
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO message_mentions(room_id, event_id, user_id, name) VALUES(?, ?, ?, ?)
+			ON CONFLICT(room_id, event_id, user_id) DO UPDATE SET name = excluded.name`,
+			string(roomID), string(m.ID), mn.UserID, mn.Name); err != nil {
+			return fmt.Errorf("db: keep the mentions of %s: %w", m.ID, err)
+		}
+	}
+	return nil
+}
+
+// scanMentions reads messageSelect's mentions column: a JSON array of [user, name].
+func scanMentions(column string) []domain.Mention {
+	var pairs [][2]string
+	if json.Unmarshal([]byte(column), &pairs) != nil || len(pairs) == 0 {
+		return nil
+	}
+	out := make([]domain.Mention, len(pairs))
+	for i, p := range pairs {
+		out[i] = domain.Mention{UserID: p[0], Name: p[1]}
+	}
+	return out
+}
+
+// UnlistedNumberMentions is the messages in owner's rooms whose text has an "@" and a
+// digit but that list no one as mentioned: cached before mentions were kept, by a
+// network that writes a mention as "@" and a number (WhatsApp). Body and room only.
+func (c *Cache) UnlistedNumberMentions(ctx context.Context, owner domain.RoomOwner) ([]domain.Message, error) {
+	if owner == "" {
+		return nil, nil
+	}
+	return collect(ctx, c.db, "unlisted number mentions", `
+		SELECT m.room_id, m.event_id, m.body FROM messages m
+		 WHERE substr(m.room_id, 1, length(?1)) = ?1 AND m.body GLOB '*@[0-9]*'
+		   AND NOT EXISTS (SELECT 1 FROM message_mentions x WHERE x.room_id = m.room_id AND x.event_id = m.event_id)`,
+		func(rows *sql.Rows) (domain.Message, error) {
+			var room, event, body string
+			err := rows.Scan(&room, &event, &body)
+			return domain.Message{RoomID: domain.RoomID(room), ID: domain.EventID(event), Body: body}, err
+		}, string(owner))
+}
+
+// AddMentions keeps who a cached message mentions; a message no longer cached is
+// left alone.
+func (c *Cache) AddMentions(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, mentions []domain.Mention) error {
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		var cached int
+		if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM messages WHERE room_id = ? AND event_id = ?",
+			string(roomID), string(eventID)).Scan(&cached); err != nil || cached == 0 {
+			return err
+		}
+		return saveMentions(ctx, tx, roomID, &domain.Message{ID: eventID, Mentions: mentions})
+	})
 }

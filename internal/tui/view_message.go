@@ -481,13 +481,24 @@ func (m Model) resolveMentions(body string, mentions []domain.Mention, colors ma
 }
 
 // processedMentionName resolves a mentioned user's name like a sender label (alias,
-// then shapedName), so pills and the sender column agree.
+// then shapedName), so pills and the sender column agree. A mention whose text is
+// only a number (WhatsApp writes "@" and the person's number or LID) is drawn with
+// the name that person is known by now, as their messages are.
 func (m Model) processedMentionName(userID, pillName string, roomID domain.RoomID) string {
+	if numberMention(pillName) {
+		return "@" + m.knownName(userID, roomID)
+	}
 	name := pillName
 	if id, ok := m.prefs.identities[userID]; ok && id.alias != "" {
 		name = id.alias
 	}
 	return m.shapedName(name, roomID)
+}
+
+// numberMention reports whether a mention's text is "@" and digits only.
+func numberMention(text string) bool {
+	digits, ok := strings.CutPrefix(text, "@")
+	return ok && digits != "" && strings.Trim(digits, "0123456789") == ""
 }
 
 // styleMentions renders seg with each mentioned name in its color (bold) and the

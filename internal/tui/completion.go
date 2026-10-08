@@ -480,6 +480,7 @@ func (m Model) handleMembers(msg membersMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.timeline.members = msg.members
+	m.timeline.membersRev++
 	return m.refreshCandidates(), nil
 }
 
