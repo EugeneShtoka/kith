@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.mau.fi/whatsmeow"
@@ -52,6 +53,9 @@ type Adapter struct {
 	// changed otherwise (a history chunk) — see OnCached.
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
+
+	// arrived is the last live message's place (see arrival).
+	arrived atomic.Int64
 
 	mu sync.Mutex
 	// clients are the linked accounts' connections, by digits.

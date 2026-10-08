@@ -736,13 +736,14 @@ func (c *Cache) Message(ctx context.Context, roomID domain.RoomID, eventID domai
 const messageSelect = `SELECT m.event_id, m.sender, m.sender_name, m.body, m.ts_ms, m.redacted, m.edited,
 	        m.reply_to, m.mentioned, m.thread_root, m.emote,
 	        d.kind, d.name, d.mime, d.width, d.height, d.size, h.html, r.by, r.reason, e.ts_ms, e.revision_id,
-	        p.poll
+	        p.poll, COALESCE(o.seq, 0)
 	   FROM messages m
 	   LEFT JOIN message_media d ON d.room_id = m.room_id AND d.event_id = m.event_id
 	   LEFT JOIN message_html  h ON h.room_id = m.room_id AND h.event_id = m.event_id
 	   LEFT JOIN message_redaction r ON r.room_id = m.room_id AND r.event_id = m.event_id
 	   LEFT JOIN message_edit e ON e.room_id = m.room_id AND e.event_id = m.event_id
-	   LEFT JOIN message_polls p ON p.room_id = m.room_id AND p.event_id = m.event_id`
+	   LEFT JOIN message_polls p ON p.room_id = m.room_id AND p.event_id = m.event_id
+	   LEFT JOIN message_order o ON o.room_id = m.room_id AND o.event_id = m.event_id`
 
 // scanMessage reads one row of messageSelect into a message for the given room.
 func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
@@ -756,11 +757,12 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 			formatted, redactedBy, redactReason                    sql.NullString
 			editedMS                                               sql.NullInt64
 			revision, poll                                         sql.NullString
+			seq                                                    int64
 		)
 		if err := rows.Scan(&eventID, &sender, &senderName, &body, &tsMS, &redacted, &edited,
 			&replyTo, &mentioned, &threadRoot, &emote,
 			&kind, &name, &mime, &width, &height, &mediaSize, &formatted,
-			&redactedBy, &redactReason, &editedMS, &revision, &poll); err != nil {
+			&redactedBy, &redactReason, &editedMS, &revision, &poll, &seq); err != nil {
 			return domain.Message{}, err
 		}
 		msg := domain.Message{
@@ -778,6 +780,7 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 			Emote:      emote,
 			Format:     richtext.FromMarkup(formatted.String),
 			RedactedBy: redactedBy.String, RedactedReason: redactReason.String,
+			Seq: seq,
 		}
 		if editedMS.Valid {
 			msg.EditedAt = time.UnixMilli(editedMS.Int64)
@@ -818,10 +821,10 @@ func (c *Cache) MessagesAround(
 	if after < 0 {
 		after = 0
 	}
-	var at int64
+	var at, seq int64
 	found, err := optional(c.db.QueryRowContext(ctx,
-		`SELECT ts_ms FROM messages WHERE room_id = ? AND event_id = ?`,
-		string(roomID), string(event)).Scan(&at))
+		`SELECT m.ts_ms, `+seqOf+` FROM messages m WHERE m.room_id = ? AND m.event_id = ?`,
+		string(roomID), string(event)).Scan(&at, &seq))
 	if err != nil {
 		return nil, fmt.Errorf("db: find %s: %w", event, err)
 	}
@@ -829,11 +832,11 @@ func (c *Cache) MessagesAround(
 		return nil, nil // "not cached" is an answer, not a failure
 	}
 
-	older, err := c.messagesBefore(ctx, roomID, at, event, before)
+	older, err := c.messagesBefore(ctx, roomID, at, seq, event, before)
 	if err != nil {
 		return nil, err
 	}
-	newer, err := c.messagesFrom(ctx, roomID, at, event, after+1)
+	newer, err := c.messagesFrom(ctx, roomID, at, seq, event, after+1)
 	if err != nil {
 		return nil, err
 	}
@@ -844,27 +847,28 @@ func (c *Cache) MessagesAround(
 // (domain.CompareMessages), oldest first. The place, not the time alone: a bridged
 // burst shares one time.
 func (c *Cache) messagesBefore(
-	ctx context.Context, roomID domain.RoomID, at int64, event domain.EventID, n int,
+	ctx context.Context, roomID domain.RoomID, at, seq int64, event domain.EventID, n int,
 ) ([]domain.Message, error) {
 	if n == 0 {
 		return nil, nil
 	}
 	msgs, err := collect(ctx, c.db, "messages before", messageSelect+`
-		WHERE m.room_id = ? AND (m.ts_ms, length(m.event_id), m.event_id) < (?, length(?), ?)
+		WHERE m.room_id = ? AND (m.ts_ms, `+seqOf+`, length(m.event_id), m.event_id) < (?, ?, length(?), ?)
 		ORDER BY`+newestFirstIn+` LIMIT ?`,
-		scanMessage(roomID), string(roomID), at, string(event), string(event), n)
+		scanMessage(roomID), string(roomID), at, seq, string(event), string(event), n)
 	slices.Reverse(msgs)
 	return msgs, err
 }
 
-// messagesFrom is (at, event) and the messages after it, n in all, oldest first.
+// messagesFrom is the message at (at, seq, event) and the ones after it, n in all,
+// oldest first.
 func (c *Cache) messagesFrom(
-	ctx context.Context, roomID domain.RoomID, at int64, event domain.EventID, n int,
+	ctx context.Context, roomID domain.RoomID, at, seq int64, event domain.EventID, n int,
 ) ([]domain.Message, error) {
 	return collect(ctx, c.db, "messages from", messageSelect+`
-		WHERE m.room_id = ? AND (m.ts_ms, length(m.event_id), m.event_id) >= (?, length(?), ?)
-		ORDER BY m.ts_ms ASC, length(m.event_id) ASC, m.event_id ASC LIMIT ?`,
-		scanMessage(roomID), string(roomID), at, string(event), string(event), n)
+		WHERE m.room_id = ? AND (m.ts_ms, `+seqOf+`, length(m.event_id), m.event_id) >= (?, ?, length(?), ?)
+		ORDER BY m.ts_ms ASC, `+seqOf+` ASC, length(m.event_id) ASC, m.event_id ASC LIMIT ?`,
+		scanMessage(roomID), string(roomID), at, seq, string(event), string(event), n)
 }
 
 // MessagesEndingIn is each cached message in owner's rooms whose ID is its room's, a

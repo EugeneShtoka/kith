@@ -52,6 +52,11 @@ type Message struct {
 	Placeholder bool
 	Media       *Media // attachment metadata, or nil
 	Poll        *Poll  // the poll the message asks, or nil
+	// Seq orders messages that share a Timestamp, the larger the later; 0 when the
+	// network says nothing finer than the time. A network whose times are whole
+	// seconds and whose IDs carry no order (WhatsApp) sets it from its own sequence
+	// or from when the message arrived.
+	Seq int64
 	// Mentions are the formatted-body pills, so the timeline can color those names.
 	Mentions []Mention
 }
@@ -205,14 +210,16 @@ func MergeMessages(existing, incoming []Message) []Message {
 	return merged
 }
 
-// CompareMessages is timeline order: by time, then by ID, the shorter first. A
+// CompareMessages is timeline order: by time, then by Seq, then by ID, the shorter
+// first. A
 // network that numbers a room's messages (Telegram) gives them whole seconds and IDs
 // that are the room's then the number, so within one second the shorter ID is the
 // earlier and, at one length, text order is numeric order; by the text alone, message
 // 100 came before 99. Other networks' IDs only make the order the same every time.
 // The cache orders its queries the same way.
 func CompareMessages(a, b Message) int {
-	return cmp.Or(a.Timestamp.Compare(b.Timestamp), cmp.Compare(len(a.ID), len(b.ID)), strings.Compare(string(a.ID), string(b.ID)))
+	return cmp.Or(a.Timestamp.Compare(b.Timestamp), cmp.Compare(a.Seq, b.Seq),
+		cmp.Compare(len(a.ID), len(b.ID)), strings.Compare(string(a.ID), string(b.ID)))
 }
 
 // combine folds a duplicate copy b onto the first-seen copy a, keeping the richest
@@ -246,6 +253,7 @@ func combine(a, b Message) Message {
 	a.ThreadRoot = cmp.Or(a.ThreadRoot, b.ThreadRoot)
 	// A missing attachment is filled; a poll's later copy says how the votes stand now.
 	a.Media, a.Poll = cmp.Or(a.Media, b.Media), cmp.Or(b.Poll, a.Poll)
+	a.Seq = cmp.Or(a.Seq, b.Seq) // the first place a message was given keeps it
 	if a.Mentions == nil {
 		a.Mentions = b.Mentions
 	}

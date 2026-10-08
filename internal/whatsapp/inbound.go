@@ -69,6 +69,7 @@ func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsm
 	if !ok {
 		return
 	}
+	in.msg.Seq = a.arrival()
 	if a.cache != nil {
 		newGroup := false
 		a.record(ctx, account, in.msg, func() {
@@ -83,6 +84,21 @@ func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsm
 		a.recount(ctx, in.msg.RoomID)
 	}
 	emit(a, a.messages, in.msg)
+}
+
+// arrival is a live message's place among those sharing its second: WhatsApp gives
+// whole seconds and IDs that carry no order, and delivers a chat's messages in the
+// order they were sent, so the order they arrive in is theirs. Nanoseconds, so a
+// place given after a restart still comes after one given before, and each greater
+// than the last.
+func (a *Adapter) arrival() int64 {
+	for {
+		last := a.arrived.Load()
+		next := max(time.Now().UnixNano(), last+1)
+		if a.arrived.CompareAndSwap(last, next) {
+			return next
+		}
+	}
 }
 
 // ensureRoom makes the room a message belongs in one of the account's: a direct chat

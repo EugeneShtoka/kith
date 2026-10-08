@@ -104,6 +104,9 @@ message Message {
   // it replaces by an edit (domain.Message.Placeholder).
   bool placeholder = 23;
   Poll poll = 24; // unset when the message asks no poll
+  // Orders messages sharing a time, the larger the later; 0 for none
+  // (domain.Message.Seq).
+  int64 seq = 25;
 }
 
 // Poll is a question a message asks (domain.Poll).

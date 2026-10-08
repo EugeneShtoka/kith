@@ -84,6 +84,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | `message_html` | the formatting, in kith's markup (the sanitized HTML subset of `internal/richtext`, which each network's formatting converts into), only for messages that carry formatting |
 | `message_media` | the attachment: kind, name, MIME type, size, dimensions, and how to fetch it: for Matrix the `mxc` URI and the encrypted-file JSON, for WhatsApp `{"whatsapp": kind, "proto": …}` (the message's media part, with its keys) in `file_json` |
 | `message_redaction` | who deleted a message and why, which outlives the content |
+| `message_order` | a message's place among those sharing its time (`domain.Message.Seq`), only for a network that gives one; timelines order by time, then this, then the event ID |
 | `message_edit` | the edit a message's body and formatting come from (its event ID and send time), so an older edit delivered later never replaces a newer one |
 | `message_tombstone` | a redaction whose message was not cached yet (who, why, when): a copy arriving later, such as an edit, which servers do not redact, is saved as deleted. Spent when applied, and trimmed with the room |
 | `message_revisions` | every version of an edited message, keyed by the event that carried it |
@@ -276,8 +277,12 @@ Since then:
 
 - v7 (`message_polls`): a message's poll, its question, answers and how the votes
   stand, as JSON, rewritten whole as the results change.
+- v8 (`message_order`): a message's place among those sharing its time, for a
+  network whose times are whole seconds and whose IDs carry no order (WhatsApp:
+  its history's own sequence, or when a live message arrived). A row only for a
+  message given one; the first given stays.
 
-so a current cache is at version 7.
+so a current cache is at version 8.
 
 ### Indexes need no migration
 

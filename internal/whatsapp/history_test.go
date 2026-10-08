@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -219,5 +220,54 @@ func TestReadingNeedsAConnection(t *testing.T) {
 	}
 	if err := a.SendTyping(ctx, danaChat, true, time.Second); err != nil {
 		t.Errorf("SendTyping with nothing connected = %v", err)
+	}
+}
+
+// WhatsApp gives whole seconds and IDs that carry no order. History is ordered by
+// its own sequence (msgOrderID, sent newest first), live messages by when they
+// arrive: a burst in one second reads back as it was sent, whatever its IDs.
+func TestMessagesInOneSecondKeepTheOrderTheyWereSent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	account := Account{Name: "home", Digits: ownDigits}
+	a, cache, store := offline(t, account)
+	client := linkedClient(t, store, ownDigits)
+	a.clients[ownDigits] = client
+
+	// IDs sorting against the order, in history's newest-first order.
+	sent := []struct {
+		id    string
+		order uint64
+	}{{"3EB0A3", 30}, {"3EB0B2", 20}, {"3EB0C1", 10}}
+	var msgs []*waHistorySync.HistorySyncMsg
+	for _, s := range sent {
+		msgs = append(msgs, &waHistorySync.HistorySyncMsg{MsgOrderID: new(s.order), Message: &waWeb.WebMessageInfo{
+			Key:              &waCommon.MessageKey{RemoteJID: new(pn(danaPhone).String()), FromMe: new(false), ID: new(s.id)},
+			Message:          &waE2E.Message{Conversation: new(s.id)},
+			MessageTimestamp: new(uint64(1700000000)),
+		}})
+	}
+	a.onHistory(ctx, account, client, &events.HistorySync{Data: &waHistorySync.HistorySync{
+		Conversations: []*waHistorySync.Conversation{{ID: new(pn(danaPhone).String()), Messages: msgs}},
+	}})
+
+	// Live, in one second, with IDs sorting against the order again.
+	second := time.Now().Truncate(time.Second)
+	for _, id := range []string{"3EB0Z", "3EB0Y", "3EB0X"} {
+		e := danaWrites(id, id)
+		e.Info.Timestamp = second
+		a.onMessage(ctx, account, client, e)
+	}
+
+	got, err := cache.Messages(ctx, danaChat, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bodies []string
+	for _, m := range got {
+		bodies = append(bodies, m.Body)
+	}
+	if want := []string{"3EB0C1", "3EB0B2", "3EB0A3", "3EB0Z", "3EB0Y", "3EB0X"}; !slices.Equal(bodies, want) {
+		t.Errorf("order = %v, want %v", bodies, want)
 	}
 }
