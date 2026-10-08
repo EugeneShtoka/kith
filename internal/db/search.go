@@ -28,8 +28,8 @@ func searchQuery(req domain.SearchRequest) (string, []any, bool) {
 		}
 		// The body stands in for the snippet so the scan keeps one shape.
 		return `
-		SELECT m.room_id, m.event_id, m.sender, m.sender_name, m.ts_ms, m.body,
-		       COALESCE(mm.name, ''), m.body
+		SELECT m.room_id, m.event_id, m.sender, ` + senderNow + `, m.ts_ms, m.body,
+		       COALESCE(mm.name, ''), m.body, ` + mentionsNow + `
 		` + plainFrom(req.Filter) + " WHERE m.redacted = 0" + where + newestFirst + " LIMIT ?", append(args, req.Limit), true
 	}
 	where, args, ok := searchWhere(req, []any{match})
@@ -49,8 +49,8 @@ func searchQuery(req domain.SearchRequest) (string, []any, bool) {
 		  SELECT rowid AS id, snippet(messages_fts, 0, ?, ?, '…', ?) AS snippet
 		    FROM messages_fts
 		   WHERE messages_fts MATCH ? AND +rowid IN (SELECT id FROM page))
-		SELECT m.room_id, m.event_id, m.sender, m.sender_name, m.ts_ms,
-		       e.snippet, COALESCE(mm.name, ''), m.body
+		SELECT m.room_id, m.event_id, m.sender, ` + senderNow + `, m.ts_ms,
+		       e.snippet, COALESCE(mm.name, ''), m.body, ` + mentionsNow + `
 		  FROM excerpt e
 		  CROSS JOIN messages m ON m.rowid = e.id
 		  LEFT JOIN message_media mm ON mm.room_id = m.room_id AND mm.event_id = m.event_id` + newestFirst,
@@ -160,8 +160,10 @@ func (c *Cache) SearchMessages(ctx context.Context, req domain.SearchRequest) ([
 				ts   int64
 				body string
 			)
+			var mentions string
 			err := rows.Scan(&hit.RoomID, &hit.EventID, &hit.Sender, &hit.SenderName, &ts,
-				&hit.Snippet, &hit.FileName, &body)
+				&hit.Snippet, &hit.FileName, &body, &mentions)
+			hit.Mentions = scanMentions(mentions)
 			hit.Timestamp = time.UnixMilli(ts)
 			if tracked {
 				if found := words.Find(body); len(found) > 0 {

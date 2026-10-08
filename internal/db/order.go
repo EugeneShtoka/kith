@@ -50,17 +50,46 @@ func saveMentions(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *doma
 	return nil
 }
 
-// scanMentions reads messageSelect's mentions column: a JSON array of [user, name].
+// senderNow is m's sender as named in its room now (their member name), else as the
+// message named them when it came: a name may have changed since.
+const senderNow = `COALESCE(NULLIF((SELECT rm.display_name FROM room_members rm
+	 WHERE rm.room_id = m.room_id AND rm.user_id = m.sender), ''), m.sender_name)`
+
+// mentionsNow is the people m mentions, a JSON array of [user, words, name now]: the
+// words the mention was written in, and the person's member name in the room now
+// (domain.Mention.Known), "" when the cache has none.
+const mentionsNow = `(SELECT json_group_array(json_array(x.user_id, x.name,
+	   COALESCE((SELECT rm.display_name FROM room_members rm WHERE rm.room_id = x.room_id AND rm.user_id = x.user_id), '')))
+	  FROM message_mentions x WHERE x.room_id = m.room_id AND x.event_id = m.event_id)`
+
+// scanMentions reads a mentionsNow column.
 func scanMentions(column string) []domain.Mention {
-	var pairs [][2]string
-	if json.Unmarshal([]byte(column), &pairs) != nil || len(pairs) == 0 {
+	var rows [][]string
+	if json.Unmarshal([]byte(column), &rows) != nil || len(rows) == 0 {
 		return nil
 	}
-	out := make([]domain.Mention, len(pairs))
-	for i, p := range pairs {
-		out[i] = domain.Mention{UserID: p[0], Name: p[1]}
+	out := make([]domain.Mention, 0, len(rows))
+	for _, r := range rows {
+		if len(r) < 2 {
+			continue
+		}
+		mn := domain.Mention{UserID: r[0], Name: r[1]}
+		if len(r) > 2 {
+			mn.Known = r[2]
+		}
+		out = append(out, mn)
 	}
 	return out
+}
+
+// RoomMemberName is user's member name in room now, "" when the cache has none.
+func (c *Cache) RoomMemberName(ctx context.Context, room domain.RoomID, user string) (string, error) {
+	var name string
+	if _, err := optional(c.db.QueryRowContext(ctx,
+		"SELECT display_name FROM room_members WHERE room_id = ? AND user_id = ?", string(room), user).Scan(&name)); err != nil {
+		return "", fmt.Errorf("db: the name of %s in %s: %w", user, room, err)
+	}
+	return name, nil
 }
 
 // UnlistedNumberMentions is the messages in owner's rooms whose text has an "@" and a

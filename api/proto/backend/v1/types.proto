@@ -35,6 +35,8 @@ message Mention {
   string user_id = 1;
   string name = 2;
   string room_id = 3;
+  // The person's name in the room now, as the cache knows it (domain.Mention.Known).
+  string known = 4;
 }
 
 // Media is a message attachment's display metadata (domain.Media).
@@ -277,6 +279,8 @@ message SearchHit {
   // kind — the entry as configured rather than the text that matched it, because the
   // list groups by what the user wrote.
   string word = 8;
+  // The people the message mentions (domain.SearchHit.Mentions).
+  repeated Mention mentions = 9;
 }
 
 // SASEmoji is one emoji of a short authentication string (domain.SASEmoji).

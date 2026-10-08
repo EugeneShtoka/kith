@@ -278,7 +278,9 @@ type messageView struct {
 
 func (s *server) view(msg domain.Message, withRoom bool) messageView {
 	// Mentions name who they mention as everyone else is named here.
-	body, _ := domain.ResolveMentions(msg.Body, msg.Mentions, func(user, words string) string { return s.people.Name(user, words) })
+	body, _ := domain.ResolveMentions(msg.Body, msg.Mentions, func(mn domain.Mention, words string) string {
+		return s.people.Name(mn.UserID, mn.Known, words)
+	})
 	out := messageView{
 		EventID: string(msg.ID),
 		Sender:  msg.Sender,

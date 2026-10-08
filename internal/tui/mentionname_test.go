@@ -61,11 +61,44 @@ func TestEveryMentionIsDrawnWithTheNameKnownNow(t *testing.T) {
 		t.Errorf("the mentions are not drawn with the names known now:\n%s", view)
 	}
 
-	if got := m.mentionedName("telegram:7", "Ivan Petrov", "!a:x"); got != "Vanya Sokolov" {
+	if got := m.mentionedName("telegram:7", "!a:x", "Ivan Petrov"); got != "Vanya Sokolov" {
 		t.Fatalf("mentionedName = %q", got)
 	}
 	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: m.ownSpace("!a:x"), FirstNameOnly: true}}
-	if got := m.mentionedName("telegram:7", "Ivan Petrov", "!a:x"); got != "Vanya" {
+	if got := m.mentionedName("telegram:7", "!a:x", "Ivan Petrov"); got != "Vanya" {
 		t.Errorf("in a first-names space the mention = %q, want Vanya", got)
+	}
+}
+
+// A search result names its sender and the people its excerpt mentions as the
+// timeline would: the person's alias, the name the room knows them by now.
+func TestASearchResultNamesPeopleAsTheTimelineDoes(t *testing.T) {
+	t.Parallel()
+	m := withRooms(t, newModel())
+	m = update(t, m, tea.WindowSizeMsg{Width: 140, Height: 20})
+	m.prefs.identities = map[string]resolvedIdentity{"slack:T1/U1": {alias: "Annie"}}
+	row := ansi.Strip(m.searchRow(domain.SearchHit{
+		RoomID: "!a:x", EventID: "$1", Sender: "slack:T1/U1", SenderName: "Ann", Timestamp: at(1),
+		Snippet:  "@Bo Old, standup moved",
+		Mentions: []domain.Mention{{UserID: "slack:T1/U2", Name: "@Bo Old", Known: "Bo New"}},
+	}, false, 140))
+	if !strings.Contains(row, "Annie") || !strings.Contains(row, "@Bo New, standup moved") {
+		t.Errorf("search row = %q, want Annie and \"@Bo New, standup moved\"", row)
+	}
+}
+
+// A message read from the cache carries the name the room knows a mentioned person by
+// now (Mention.Known); the timeline draws it even before the member list is loaded.
+func TestAMentionIsDrawnWithTheNameTheCacheKnowsNow(t *testing.T) {
+	t.Parallel()
+	m := withRooms(t, newModel())
+	m = update(t, m, tea.WindowSizeMsg{Width: 120, Height: 20})
+	m.openRoom = "!a:x"
+	m = settled(update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
+		ID: "$1", RoomID: "!a:x", Sender: "@maya:x", SenderName: "Maya", Body: "@Bo Old, standup moved", Timestamp: at(1),
+		Mentions: []domain.Mention{{UserID: "slack:T1/U2", Name: "@Bo Old", Known: "Bo New"}},
+	}}}}))
+	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "@Bo New, standup moved") {
+		t.Errorf("the mention is not drawn with the name the cache knows now:\n%s", view)
 	}
 }

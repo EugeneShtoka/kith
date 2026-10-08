@@ -67,6 +67,10 @@ type Mention struct {
 	UserID string
 	RoomID string
 	Name   string
+	// Known is the person's name in the room now, as the cache knows it (their member
+	// name there), filled in when the message is read and never kept: the name may
+	// have changed since the words of Name were written.
+	Known string
 }
 
 // Target is what this mention links to: an MXID or a room ID.

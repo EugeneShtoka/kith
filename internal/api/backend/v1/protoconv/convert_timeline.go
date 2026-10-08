@@ -122,6 +122,7 @@ func SearchHitToProto(h domain.SearchHit) *v1.SearchHit {
 		Snippet:    h.Snippet,
 		FileName:   h.FileName,
 		Word:       h.Word,
+		Mentions:   MentionsToProto(h.Mentions),
 	}
 }
 
@@ -144,6 +145,7 @@ func ProtoToSearchHit(pb *v1.SearchHit) domain.SearchHit {
 		Snippet:    pb.GetSnippet(),
 		FileName:   pb.GetFileName(),
 		Word:       pb.GetWord(),
+		Mentions:   ProtoToMentions(pb.GetMentions()),
 	}
 }
 
