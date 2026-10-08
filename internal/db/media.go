@@ -70,6 +70,10 @@ func saveMedia(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, msg *domai
 // shows (apply), its attachment and formatting, and for a redacted copy, who deleted
 // it and, unless keep, forgetting what was cached.
 func saveExtras(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message, apply, keep bool) error {
+	// A deleted message keeps its place.
+	if err := saveOrder(ctx, tx, roomID, m); err != nil {
+		return err
+	}
 	if m.Redacted {
 		if err := recordRedaction(ctx, tx, roomID, m.ID, m.RedactedBy, m.RedactedReason); err != nil {
 			return err

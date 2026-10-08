@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"context"
+	"math"
 	"slices"
 	"time"
 
@@ -31,6 +32,10 @@ func (a *Adapter) onHistory(ctx context.Context, account Account, client *whatsm
 				continue
 			}
 			if in, ok := a.convert(ctx, account, client, evt); ok {
+				// History's own order: WhatsApp Web resumes a chunk at the last
+				// message's msgOrderID and skips those at or above it, so it grows
+				// with the conversation, newest highest.
+				in.msg.Seq = int64(min(hm.GetMsgOrderID(), math.MaxInt64))
 				byRoom[in.msg.RoomID] = append(byRoom[in.msg.RoomID], in)
 			}
 		}
@@ -48,7 +53,7 @@ func (a *Adapter) onHistory(ctx context.Context, account Account, client *whatsm
 // conversation's, as history gives it ("" for none), and unread how many of its
 // newest messages are unread.
 func (a *Adapter) recordHistory(ctx context.Context, account Account, client *whatsmeow.Client, room domain.RoomID, msgs []arrived, name string, unread int) {
-	slices.SortFunc(msgs, func(x, y arrived) int { return x.msg.Timestamp.Compare(y.msg.Timestamp) })
+	slices.SortStableFunc(msgs, func(x, y arrived) int { return domain.CompareMessages(x.msg, y.msg) })
 	batch := make([]domain.Message, len(msgs))
 	for i := range msgs {
 		batch[i] = msgs[i].msg

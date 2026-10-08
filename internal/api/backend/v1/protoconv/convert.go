@@ -171,6 +171,7 @@ func MessageToProto(m domain.Message) *v1.Message {
 		Emote:            m.Emote,
 		Placeholder:      m.Placeholder,
 		Poll:             PollToProto(m.Poll),
+		Seq:              m.Seq,
 	}
 }
 
@@ -255,6 +256,7 @@ func ProtoToMessage(pb *v1.Message) domain.Message {
 		Emote:          pb.GetEmote(),
 		Placeholder:    pb.GetPlaceholder(),
 		Poll:           ProtoToPoll(pb.GetPoll()),
+		Seq:            pb.GetSeq(),
 	}
 }
 

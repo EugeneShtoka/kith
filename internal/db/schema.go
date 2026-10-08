@@ -172,6 +172,17 @@ CREATE TABLE message_media (
 	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
+-- A message's place among those sharing its time (domain.Message.Seq), for a
+-- network whose times are whole seconds and whose IDs carry no order. Only messages
+-- given one have a row.
+CREATE TABLE message_order (
+	room_id  TEXT    NOT NULL,
+	event_id TEXT    NOT NULL,
+	seq      INTEGER NOT NULL,
+	PRIMARY KEY (room_id, event_id),
+	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
 CREATE TABLE message_redaction (
 	room_id  TEXT NOT NULL,
 	event_id TEXT NOT NULL,
@@ -388,6 +399,14 @@ var migrations = []string{
 	event_id TEXT NOT NULL,
 	poll     TEXT NOT NULL,
 	PRIMARY KEY (room_id, event_id)
+) STRICT, WITHOUT ROWID;`,
+	// v8: messages' places among those sharing their time.
+	`CREATE TABLE IF NOT EXISTS message_order (
+	room_id  TEXT    NOT NULL,
+	event_id TEXT    NOT NULL,
+	seq      INTEGER NOT NULL,
+	PRIMARY KEY (room_id, event_id),
+	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;`,
 }
 
