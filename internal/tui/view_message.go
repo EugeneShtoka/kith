@@ -461,8 +461,8 @@ func (m Model) resolveMentions(body string, mentions []domain.Mention, colors ma
 	if len(mentions) == 0 {
 		return body, nil
 	}
-	body, drawn := domain.ResolveMentions(body, mentions, func(userID, words string) string {
-		return m.mentionedName(userID, words, roomID)
+	body, drawn := domain.ResolveMentions(body, mentions, func(mn domain.Mention, words string) string {
+		return m.mentionedName(mn.UserID, roomID, mn.Known, words)
 	})
 	spans := make([]mentionSpan, 0, len(drawn))
 	for i, mn := range drawn {
@@ -480,11 +480,12 @@ func (m Model) resolveMentions(body string, mentions []domain.Mention, colors ma
 }
 
 // mentionedName is the name a mention of userID is drawn with: who they are to this
-// person now (domain.People: an alias, the room's member name, the name on their
-// latest loaded message, the words the mention was written in, the phone book's name
-// for their number), shaped by the room's space rule as the sender column is. So a
-// name learned or changed later reaches every mention already drawn.
-func (m Model) mentionedName(userID, words string, roomID domain.RoomID) string {
+// person now (domain.People: an alias, the open room's member name, then known — the
+// cache's name for them, the words the mention was written in — then the name on
+// their latest loaded message, the phone book's name for their number), shaped by
+// the room's space rule as the sender column is. So a name learned or changed later
+// reaches every mention already drawn.
+func (m Model) mentionedName(userID string, roomID domain.RoomID, known ...string) string {
 	member, sent := "", ""
 	for i := range m.timeline.members {
 		if m.timeline.members[i].UserID == userID {
@@ -498,7 +499,7 @@ func (m Model) mentionedName(userID, words string, roomID domain.RoomID) string 
 			break
 		}
 	}
-	return m.shapedName(m.people().Name(userID, member, sent, words), roomID)
+	return m.shapedName(m.people().Name(userID, append(append([]string{member}, known...), sent)...), roomID)
 }
 
 // people is who this person knows people as: their aliases and the phone book.

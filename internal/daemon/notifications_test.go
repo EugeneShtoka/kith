@@ -890,3 +890,26 @@ func TestNotificationsNamePeopleAsTheTimelineDoes(t *testing.T) {
 		}
 	}
 }
+
+// A Slack mention is written in the name the person had when it was sent; the
+// notification names them, and its sender, as the room's member list names them now.
+func TestANotificationNamesPeopleAsTheRoomNamesThemNow(t *testing.T) {
+	t.Parallel()
+	n, rec, _ := notifier(t, notifsOn("all"))
+	now := map[string]string{alice: "Alice Renamed", "slack:T1/U2": "Bo New"}
+	n.UseMemberNames(func(_ context.Context, room domain.RoomID, user string) (string, error) {
+		if room != chatRm {
+			t.Errorf("a member name asked of %s, want the message's room", room)
+		}
+		return now[user], nil
+	})
+	m := msg(chatRm, alice, "@Bo Old, standup moved")
+	m.SenderName = "Alice"
+	m.Mentions = []domain.Mention{{UserID: "slack:T1/U2", Name: "@Bo Old"}}
+	n.Deliver(context.Background(), m)
+
+	sent := rec.all()
+	if len(sent) != 1 || sent[0].Sender != "Alice Renamed" || sent[0].Body != "@Bo New, standup moved" {
+		t.Fatalf("sent %+v, want Alice Renamed saying \"@Bo New, standup moved\"", sent)
+	}
+}

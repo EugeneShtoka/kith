@@ -39,9 +39,9 @@ func TestMentionsAreRewrittenInOnePass(t *testing.T) {
 	t.Parallel()
 	names := map[string]string{"a": "Bo Bo", "b": "Cy", "c": "Dana", "d": ""}
 	var asked []string
-	name := func(user, words string) string {
-		asked = append(asked, user+"="+words)
-		return names[user]
+	name := func(m Mention, words string) string {
+		asked = append(asked, m.UserID+"="+words)
+		return names[m.UserID]
 	}
 	body := "@123456 and Bo and Bo, ask Ana and @Zed; #general"
 	mentions := []Mention{

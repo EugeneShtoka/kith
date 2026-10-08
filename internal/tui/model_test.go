@@ -1860,7 +1860,7 @@ func TestNameProcessing(t *testing.T) {
 		t.Errorf("aliased name = %q, want the space rule applied to it too", got)
 	}
 	// The same answer from the pill path, which is the point of their sharing one.
-	if got := m.mentionedName("@p:x", "+1500000", "!a:x"); got != "Dana" {
+	if got := m.mentionedName("@p:x", "!a:x", "+1500000"); got != "Dana" {
 		t.Errorf("aliased mention = %q, want Dana", got)
 	}
 

@@ -91,7 +91,7 @@ func MediaToProto(m *domain.Media) *v1.Media {
 // MentionsToProto converts @-mentions, preserving order.
 func MentionsToProto(ms []domain.Mention) []*v1.Mention {
 	return mapSlice(ms, func(m domain.Mention) *v1.Mention {
-		return &v1.Mention{UserId: m.UserID, Name: m.Name, RoomId: m.RoomID}
+		return &v1.Mention{UserId: m.UserID, Name: m.Name, RoomId: m.RoomID, Known: m.Known}
 	})
 }
 
@@ -223,7 +223,7 @@ func ProtoToMedia(pb *v1.Media) *domain.Media {
 // ProtoToMentions converts @-mentions back.
 func ProtoToMentions(pb []*v1.Mention) []domain.Mention {
 	return mapSlice(pb, func(m *v1.Mention) domain.Mention {
-		return domain.Mention{UserID: m.GetUserId(), Name: m.GetName(), RoomID: m.GetRoomId()}
+		return domain.Mention{UserID: m.GetUserId(), Name: m.GetName(), RoomID: m.GetRoomId(), Known: m.GetKnown()}
 	})
 }
 

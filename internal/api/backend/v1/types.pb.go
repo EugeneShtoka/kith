@@ -268,9 +268,11 @@ func (x *Room) GetForum() bool {
 type Mention struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Exactly one of user_id and room_id is set.
-	UserId        string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	RoomId        string `protobuf:"bytes,3,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name   string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	RoomId string `protobuf:"bytes,3,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// The person's name in the room now, as the cache knows it (domain.Mention.Known).
+	Known         string `protobuf:"bytes,4,opt,name=known,proto3" json:"known,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -322,6 +324,13 @@ func (x *Mention) GetName() string {
 func (x *Mention) GetRoomId() string {
 	if x != nil {
 		return x.RoomId
+	}
+	return ""
+}
+
+func (x *Mention) GetKnown() string {
+	if x != nil {
+		return x.Known
 	}
 	return ""
 }
@@ -1981,7 +1990,9 @@ type SearchHit struct {
 	// The tracked entry this hit matched, for the tracked list and empty for every other
 	// kind — the entry as configured rather than the text that matched it, because the
 	// list groups by what the user wrote.
-	Word          string `protobuf:"bytes,8,opt,name=word,proto3" json:"word,omitempty"`
+	Word string `protobuf:"bytes,8,opt,name=word,proto3" json:"word,omitempty"`
+	// The people the message mentions (domain.SearchHit.Mentions).
+	Mentions      []*Mention `protobuf:"bytes,9,rep,name=mentions,proto3" json:"mentions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2070,6 +2081,13 @@ func (x *SearchHit) GetWord() string {
 		return x.Word
 	}
 	return ""
+}
+
+func (x *SearchHit) GetMentions() []*Mention {
+	if x != nil {
+		return x.Mentions
+	}
+	return nil
 }
 
 // SASEmoji is one emoji of a short authentication string (domain.SASEmoji).
@@ -2330,11 +2348,12 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x05topic\x18\b \x01(\tR\x05topic\x12\x1a\n" +
 	"\barchived\x18\t \x01(\bR\barchived\x12\x14\n" +
 	"\x05forum\x18\n" +
-	" \x01(\bR\x05forum\"O\n" +
+	" \x01(\bR\x05forum\"e\n" +
 	"\aMention\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +
-	"\aroom_id\x18\x03 \x01(\tR\x06roomId\"\x85\x01\n" +
+	"\aroom_id\x18\x03 \x01(\tR\x06roomId\x12\x14\n" +
+	"\x05known\x18\x04 \x01(\tR\x05known\"\x85\x01\n" +
 	"\x05Media\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -2483,7 +2502,7 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x05plain\x18\b \x01(\bR\x05plain\"D\n" +
 	"\x06Member\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
-	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\"\xfd\x01\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\"\xae\x02\n" +
 	"\tSearchHit\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x16\n" +
@@ -2493,7 +2512,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x18\n" +
 	"\asnippet\x18\x06 \x01(\tR\asnippet\x12\x1b\n" +
 	"\tfile_name\x18\a \x01(\tR\bfileName\x12\x12\n" +
-	"\x04word\x18\b \x01(\tR\x04word\"4\n" +
+	"\x04word\x18\b \x01(\tR\x04word\x12/\n" +
+	"\bmentions\x18\t \x03(\v2\x13.backend.v1.MentionR\bmentions\"4\n" +
 	"\bSASEmoji\x12\x14\n" +
 	"\x05glyph\x18\x01 \x01(\tR\x05glyph\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"\xe5\x01\n" +
@@ -2589,16 +2609,17 @@ var file_backend_v1_types_proto_depIdxs = []int32{
 	17, // 15: backend.v1.TimelinePage.reactions:type_name -> backend.v1.Reaction
 	3,  // 16: backend.v1.Draft.mentions:type_name -> backend.v1.Mention
 	26, // 17: backend.v1.SearchHit.timestamp:type_name -> google.protobuf.Timestamp
-	0,  // 18: backend.v1.Verification.kind:type_name -> backend.v1.VerificationKind
-	23, // 19: backend.v1.Verification.emojis:type_name -> backend.v1.SASEmoji
-	1,  // 20: backend.v1.TempRule.show:type_name -> backend.v1.Level
-	1,  // 21: backend.v1.TempRule.ring:type_name -> backend.v1.Level
-	26, // 22: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	3,  // 18: backend.v1.SearchHit.mentions:type_name -> backend.v1.Mention
+	0,  // 19: backend.v1.Verification.kind:type_name -> backend.v1.VerificationKind
+	23, // 20: backend.v1.Verification.emojis:type_name -> backend.v1.SASEmoji
+	1,  // 21: backend.v1.TempRule.show:type_name -> backend.v1.Level
+	1,  // 22: backend.v1.TempRule.ring:type_name -> backend.v1.Level
+	26, // 23: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_backend_v1_types_proto_init() }

@@ -495,6 +495,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	// Before any network starts writing: how much of each room the cache keeps follows
 	// [storage], judged by the room's place, and every reload.
 	if backend.cache != nil {
+		notifications.UseMemberNames(backend.cache.RoomMemberName)
 		backend.cache.UseKeep(notifications.MessagesKept)
 	}
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)

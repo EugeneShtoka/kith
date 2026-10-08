@@ -559,11 +559,15 @@ func (s *server) shapeHits(ctx context.Context, hits []domain.SearchHit) []hitVi
 		if !known || s.allowed(ctx, room) != nil {
 			continue
 		}
+		// Markers off first, so a mention's words are whole to be found.
+		snippet, _ := domain.ResolveMentions(unmark.Replace(hits[i].Snippet), hits[i].Mentions, func(mn domain.Mention, words string) string {
+			return s.people.Name(mn.UserID, mn.Known, words)
+		})
 		out = append(out, hitView{
 			Room: string(hits[i].RoomID), RoomName: room.DisplayName(), EventID: string(hits[i].EventID),
 			Sender: hits[i].Sender, Name: s.people.Name(hits[i].Sender, hits[i].SenderName),
 			Sent:    hits[i].Timestamp.Format(time.RFC3339),
-			Snippet: unmark.Replace(hits[i].Snippet),
+			Snippet: snippet,
 		})
 	}
 	return out

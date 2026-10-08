@@ -19,8 +19,10 @@ import (
 // whether or not a TUI is attached. It holds no per-client state on purpose.
 // Config-derived state behind mu is replaced wholesale by Reload.
 type Notifications struct {
-	scope *scopeIndex
-	sinks Sinks
+	// members reads a person's name in a room now (UseMemberNames); nil knows none.
+	members func(ctx context.Context, room domain.RoomID, user string) (string, error)
+	scope   *scopeIndex
+	sinks   Sinks
 
 	// syncs counts sync responses processed; see caughtUp.
 	syncs atomic.Int64
@@ -73,6 +75,24 @@ func (n *Notifications) UseSelves(selves func() []string) {
 	}
 }
 
+// UseMemberNames sets where a person's name in a room now is read from (the cache's
+// member list): a name given in a message may have changed since. Call before Run.
+func (n *Notifications) UseMemberNames(names func(ctx context.Context, room domain.RoomID, user string) (string, error)) {
+	n.members = names
+}
+
+// memberName is user's name in room now, "" when unknown.
+func (n *Notifications) memberName(ctx context.Context, room domain.RoomID, user string) string {
+	if n.members == nil || user == "" {
+		return ""
+	}
+	name, err := n.members(ctx, room, user)
+	if err != nil {
+		n.log.Warn("read a member's name", "err", err)
+	}
+	return name
+}
+
 // UsePhoneBook sets where a sender or room shown only as a number is named from
 // (domain.PhoneBook). Call before Run.
 func (n *Notifications) UsePhoneBook(phones func(context.Context) (domain.PhoneBook, error)) {
@@ -104,11 +124,11 @@ func (n *Notifications) byNumber(ctx context.Context, book *domain.PhoneBook, la
 // namer names people as the timeline does: the person's alias for them, the name the
 // network gave, the phone book's name for their number (domain.People), first names
 // only where space's rule says so.
-func (n *Notifications) namer(ctx context.Context, book *domain.PhoneBook, space string) func(user, known string) string {
+func (n *Notifications) namer(ctx context.Context, book *domain.PhoneBook, space string) func(user string, known ...string) string {
 	n.mu.Lock()
 	aliases, first := n.aliases, n.firstNamesLocked(space)
 	n.mu.Unlock()
-	return func(user, known string) string {
+	return func(user string, known ...string) string {
 		if *book == nil && n.phones != nil {
 			if read, err := n.phones(ctx); err == nil {
 				*book = read
@@ -116,7 +136,7 @@ func (n *Notifications) namer(ctx context.Context, book *domain.PhoneBook, space
 				n.log.Warn("read the phone book", "err", err)
 			}
 		}
-		name := setup.PeopleOf(aliases, *book).Name(user, known)
+		name := setup.PeopleOf(aliases, *book).Name(user, known...)
 		if first {
 			name = domain.FirstName(name)
 		}
@@ -451,9 +471,11 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 		room = domain.FirstName(room)
 	}
 	// NotifyBody: what the sender covered up stays covered.
-	body, _ := domain.ResolveMentions(msg.NotifyBody(), msg.Mentions, name)
+	body, _ := domain.ResolveMentions(msg.NotifyBody(), msg.Mentions, func(mn domain.Mention, words string) string {
+		return name(mn.UserID, n.memberName(ctx, msg.RoomID, mn.UserID), words)
+	})
 	return notify.Notification{
-		Sender:   name(msg.Sender, msg.SenderName),
+		Sender:   name(msg.Sender, n.memberName(ctx, msg.RoomID, msg.Sender), msg.SenderName),
 		MXID:     msg.Sender,
 		Room:     room,
 		Space:    space,

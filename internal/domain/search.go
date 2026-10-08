@@ -21,6 +21,9 @@ type SearchHit struct {
 	// FileName is the attachment's name when the message carries one, and empty
 	// otherwise.
 	FileName string
+	// Mentions are the people the message mentions, each with the name the cache knows
+	// them by now (Mention.Known), so a snippet names them as the timeline would.
+	Mentions []Mention
 }
 
 // HighlightStart and HighlightEnd bracket the matched terms inside a SearchHit's

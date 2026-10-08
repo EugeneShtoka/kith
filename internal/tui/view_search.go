@@ -41,10 +41,8 @@ func (m Model) searchLines(width, rows int) []string {
 // body can contain newlines, and a results list is only legible one row per result.
 func (m Model) searchRow(hit domain.SearchHit, selected bool, width int) string {
 	when := m.prefs.clock.ShortDate(hit.Timestamp) + " " + m.prefs.clock.Time(hit.Timestamp)
-	who := hit.SenderName
-	if who == "" {
-		who = hit.Sender
-	}
+	// Named as the timeline names people, the excerpt's mentions too.
+	who := m.mentionedName(hit.Sender, hit.RoomID, hit.SenderName)
 	// Cut before reordering (see nameCell), so RTL names keep their beginning.
 	prefix := cursor(selected) + when + "  " + nameCell(who, searchNameWidth)
 	if m.search.global() {
@@ -56,7 +54,10 @@ func (m Model) searchRow(hit domain.SearchHit, selected bool, width int) string 
 	// it, so the selection and the match emphasis compose instead of fighting.
 	row := m.theme.Row(selected, m.focus == paneTimeline).Render(clamp(prefix+"  ", width))
 	room := width - ansi.StringWidth(row)
-	excerpt := flatten(hit.Snippet)
+	snippet, _ := domain.ResolveMentions(hit.Snippet, hit.Mentions, func(mn domain.Mention, words string) string {
+		return m.mentionedName(mn.UserID, hit.RoomID, mn.Known, words)
+	})
+	excerpt := flatten(snippet)
 
 	// The file list leads with the file name; elsewhere the words are the answer. Name
 	// and caption are drawn separately so an ASCII name cannot make a Hebrew caption LTR.

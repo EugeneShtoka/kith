@@ -58,11 +58,12 @@ func FirstName(name string) string {
 
 // ResolveMentions is body with each person a mention names written as name says,
 // keeping the "@" a mention was written with, in one pass: a name containing another
-// mention's words cannot be rewritten twice. name is given the person and the words
-// the mention was written in, without the "@" (nothing when they are only an ID's
-// digits, as WhatsApp writes them). The mentions returned name what body now says.
-// A room mention, or one whose words body does not hold, is left as it was.
-func ResolveMentions(body string, mentions []Mention, name func(userID, words string) string) (string, []Mention) {
+// mention's words cannot be rewritten twice. name is given the mention (its Known
+// name among them) and the words it was written in, without the "@" (nothing when
+// they are only an ID's digits, as WhatsApp writes them). The mentions returned name
+// what body now says. A room mention, or one whose words body does not hold, is left
+// as it was.
+func ResolveMentions(body string, mentions []Mention, name func(m Mention, words string) string) (string, []Mention) {
 	if len(mentions) == 0 {
 		return body, mentions
 	}
@@ -87,7 +88,7 @@ func ResolveMentions(body string, mentions []Mention, name func(userID, words st
 		if digitsOnly(words) {
 			words = ""
 		}
-		drawn := strings.TrimSpace(name(mn.UserID, words))
+		drawn := strings.TrimSpace(name(mn, words))
 		if drawn == "" {
 			continue
 		}
