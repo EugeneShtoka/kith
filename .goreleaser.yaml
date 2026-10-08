@@ -151,7 +151,7 @@ nfpms:
     homepage: https://github.com/EugeneShtoka/kith
     maintainer: Eugene Shtoka <eugene@cloud-surf.com>
     description: |-
-      Terminal Matrix client with a background sync daemon.
+      Terminal chat client for Matrix, WhatsApp, Telegram and Slack, with a background sync daemon.
       kith is the client, kithd the daemon that owns the session (sync, cache,
       end-to-end encryption, notifications) and kith-mcp an MCP server for AI
       assistants. Pure Go, no cgo: E2EE via mautrix goolm.
@@ -237,7 +237,7 @@ nfpms:
       archlinux:
         conflicts: [kith-bin, kith-git]
     rpm:
-      summary: Terminal Matrix client with a background sync daemon
+      summary: Terminal chat client for Matrix, WhatsApp, Telegram and Slack, with a background sync daemon
     # deb and rpm run their post-install script on upgrades too; pacman and apk have
     # a separate hook for it, and the note's "restart the daemon" line is for exactly
     # that case.
@@ -260,7 +260,7 @@ aurs:
   - name: kith-bin
     ids: [default]
     homepage: https://github.com/EugeneShtoka/kith
-    description: Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server (prebuilt)
+    description: Terminal chat client for Matrix, WhatsApp, Telegram and Slack, with a sync daemon, pure-Go E2EE and an MCP server (prebuilt)
     maintainers: ["Eugene Shtoka <eugene at cloud-surf dot com>"]
     license: AGPL-3.0-or-later
     private_key: '{{ envOrDefault "AUR_SSH_PRIVATE_KEY" "" }}'
@@ -297,7 +297,7 @@ aurs:
 aur_sources:
   - name: kith
     homepage: https://github.com/EugeneShtoka/kith
-    description: Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server
+    description: Terminal chat client for Matrix, WhatsApp, Telegram and Slack, with a sync daemon, pure-Go E2EE and an MCP server
     maintainers: ["Eugene Shtoka <eugene at cloud-surf dot com>"]
     license: AGPL-3.0-or-later
     private_key: '{{ envOrDefault "AUR_SSH_PRIVATE_KEY" "" }}'
@@ -350,7 +350,7 @@ homebrew_casks:
     ids: [default]
     binaries: [kith, kithd, kith-mcp]
     homepage: https://github.com/EugeneShtoka/kith
-    description: Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server
+    description: Terminal chat client for Matrix, WhatsApp, Telegram and Slack, with a sync daemon, pure-Go E2EE and an MCP server
     license: AGPL-3.0-or-later
     # No url.verified: deprecated since goreleaser v2.18.1, as Homebrew now verifies
     # the download URL by default.

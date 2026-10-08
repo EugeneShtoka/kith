@@ -14,8 +14,9 @@ and submit changes. For how the code is laid out, read
   `GOTOOLCHAIN=local make …` opts out, for offline work.
 - **Node.js 20 or newer with npm**, for `docs-check` (markdownlint) and `vuln` (npm
   audit of markdownlint's lock).
-- **A Matrix account and homeserver** to run the client end to end. Use a test
-  account if you can: the client's diagnostics drive a real session.
+- **An account on a network kith speaks** (Matrix, WhatsApp, Telegram or Slack) to
+  run the client end to end. Use a test account if you can: the client's
+  diagnostics drive a real session.
 - **Linux with a user systemd** for `make deploy`. Building and testing need nothing
   beyond Go.
 

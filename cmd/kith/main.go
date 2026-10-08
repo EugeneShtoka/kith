@@ -1,4 +1,4 @@
-// Command kith is a terminal UI Matrix client.
+// Command kith is a terminal UI chat client for Matrix, WhatsApp, Telegram and Slack.
 //
 // It holds no Matrix session and runs no sync: the kithd daemon owns those and this
 // process talks to it over a unix socket (see ARCHITECTURE.md). There is deliberately

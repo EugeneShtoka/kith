@@ -27,7 +27,7 @@ let
 in
 {
   options.programs.kith = {
-    enable = lib.mkEnableOption "kith, a terminal Matrix client, and its systemd user units";
+    enable = lib.mkEnableOption "kith, a terminal chat client, and its systemd user units";
     package = lib.mkOption {
       type = lib.types.package;
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;

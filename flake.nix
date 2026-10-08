@@ -1,5 +1,5 @@
 {
-  description = "kith: terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server";
+  description = "kith: terminal chat client for Matrix, WhatsApp, Telegram and Slack, with a sync daemon, pure-Go E2EE and an MCP server";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 

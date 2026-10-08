@@ -21,14 +21,17 @@ released, we're happy to credit reporters who wish to be named.
 
 ## Scope and things to keep in mind
 
-kith is a local, single-user Matrix client. Because it holds credentials and
-end-to-end-encryption key material, a few areas are especially
+kith is a local, single-user chat client for Matrix, WhatsApp, Telegram and Slack.
+Because it holds every account's credentials and end-to-end-encryption key material, a few areas are especially
 security-relevant — please flag anything in these areas:
 
 - **Access token & credentials at rest.** The client stores a Matrix access
   token (and device ID) in the OS keyring, or in a `0600` file only when
-  `allow_token_file` is set. Report any path that leaks it, logs it, or
-  writes it with overly-permissive file modes.
+  `allow_token_file` is set. A Telegram session and a Slack token and cookie are
+  kept in the keyring too. A WhatsApp link — its device keys and Signal sessions —
+  is a `0600` SQLite file in the data directory that only the daemon opens: whoever
+  has it reads and sends as that account. Report any path that leaks any of these,
+  logs them, or writes them with overly-permissive file modes.
 - **E2EE key material.** The Olm/Megolm crypto store (device keys, session keys,
   cross-signing keys) and the keyring-held pickle key that encrypts it are
   sensitive. Report anything that could exfiltrate them, weaken verification, or
@@ -42,8 +45,8 @@ security-relevant — please flag anything in these areas:
   optional model features send message context to a configured endpoint, within the
   rooms `[assist]` allows. Report anything that sends or reveals more than that
   configuration permits.
-- **Homeserver trust & TLS.** Report any case where the client would talk to a
-  homeserver over an unvalidated TLS connection, or follow a redirect/`.well-known`
+- **Server trust & TLS.** Report any case where the client would talk to a
+  homeserver, or any network's servers, over an unvalidated TLS connection, or follow a redirect/`.well-known`
   discovery to an unexpected host without the user's intent.
 - **Untrusted event content.** Message bodies, room names, and member display
   names are attacker-controllable. Report any rendering path where such content

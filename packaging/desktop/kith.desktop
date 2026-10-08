@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=kith
-GenericName=Matrix client
-Comment=A terminal Matrix client
+GenericName=Chat client
+Comment=A terminal chat client for Matrix, WhatsApp, Telegram and Slack
 # Hands matrix: URIs to the running kith over the daemon socket.
 Exec=kith --open %u
 Terminal=false
