@@ -1,6 +1,6 @@
-// Package domain holds kith's pure Matrix vocabulary: value types and the logic over
-// them (display-name resolution, sorting) with no I/O, no Matrix SDK, and no TUI
-// framework.
+// Package domain holds kith's pure chat vocabulary, shared by every network: value
+// types and the logic over them (display-name resolution, sorting) with no I/O, no
+// network SDK, and no TUI framework.
 package domain
 
 import (

@@ -1,8 +1,8 @@
 # Architecture
 
-> **Status (2026-09-24):** this describes the architecture as built, not a target.
-> Three binaries exist and run: `kithd` holds the session, the SQLite cache, the
-> crypto store and the sync loop; `kith` renders and sends over a unix socket;
+> **Status (2026-10-08):** this describes the architecture as built, not a target.
+> Three binaries exist and run: `kithd` holds every network's sessions, the SQLite
+> cache, the crypto stores and the sync loops; `kith` renders and sends over a unix socket;
 > `kith-mcp` is a Model Context Protocol server over the same socket. Every package in
 > the layer diagram below is present.
 >
@@ -12,29 +12,42 @@
 
 ## Overview
 
-kith is a terminal client for [Matrix](https://matrix.org), built on the
-[Bubble Tea](https://github.com/charmbracelet/bubbletea) Elm-architecture framework
-(v2 / `charm.land`). [`mautrix-go`](https://github.com/mautrix/go) is the protocol
-engine: sync, the Client-Server API, and **pure-Go end-to-end encryption** through
-its goolm implementation. There is no libolm and no cgo, so every binary builds with
-`CGO_ENABLED=0` and cross-compiles cleanly. SQLite, through the pure-Go
-`modernc.org/sqlite` driver, is the local cache.
+kith is a terminal chat client for [Matrix](https://matrix.org), WhatsApp, Telegram
+and Slack, built on the [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+Elm-architecture framework (v2 / `charm.land`). Each network is an **adapter** that
+speaks to it as a client of its own: [`mautrix-go`](https://github.com/mautrix/go)
+for Matrix (sync, the Client-Server API, and **pure-Go end-to-end encryption**
+through its goolm implementation), [`whatsmeow`](https://github.com/tulir/whatsmeow)
+for WhatsApp (a linked device), [`gotd`](https://github.com/gotd/td) for Telegram and
+the web client's API for Slack. No network is required, Matrix included. There is no
+libolm and no cgo, so every binary builds with `CGO_ENABLED=0` and cross-compiles
+cleanly. SQLite, through the pure-Go `modernc.org/sqlite` driver, is the one local
+cache every adapter writes into.
 
-**A Matrix client is already a client, but it still wants a daemon.** The
-homeserver is the server, so the protocol needs no companion process. The user
-does: a notification from a process that runs only while you are looking at it is
-nearly pointless. So the sync loop, the local cache, the E2EE crypto store **and the
-notification decision** live in an always-on `kithd`, and the TUI is a thin client
-over a unix socket.
+The adapters are not switched on by network anywhere. `internal/route` serves them as
+one `api.Backend`: a call about a room goes to its network's adapter, a list is every
+adapter's, a stream merges every adapter's. What a network can do is a set of small
+capability interfaces it implements (history, sending, reactions, leaving, polls…),
+declared together in `cmd/kithd/capabilities.go`; one a network lacks is an answer the
+router gives, not a branch in the UI. `internal/local` answers what needs no network
+at all from the cache: drafts, search, emoji memory, the assistant.
+
+**A chat client is already a client, but it still wants a daemon.** Each network's
+server is the server, so no protocol needs a companion process. The user does: a
+notification from a process that runs only while you are looking at it is nearly
+pointless, and a WhatsApp linked device or a Telegram session only hears what
+happens while it is connected. So the connections, the local cache, the crypto
+stores **and the notification decision** live in an always-on `kithd`, and the TUI
+is a thin client over a unix socket.
 
 That makes the wire contract real. It lives in `api/proto/backend/v1`: one Connect
 service carrying every `api.Backend` method, plus the calls that are facts about *this
-daemon* rather than about Matrix (notifications, the send queue, status). See
+daemon* rather than about any network (notifications, the send queue, status). See
 [The wire](#the-wire).
 
-There is no in-process fallback. Two processes can never share one Matrix device's
-crypto state, so a single owner is enforced by an exclusive `flock` taken before
-any store is opened.
+There is no in-process fallback. Two processes can never share one device's keys
+(Matrix's olm/megolm state, WhatsApp's Signal sessions), so a single owner is
+enforced by an exclusive `flock` taken before any store is opened.
 
 The daemon holds **no per-client state**, which is what makes attach and detach
 trivial and a crashed TUI harmless. Do-not-disturb looks like an exception and is
@@ -65,13 +78,27 @@ internal/daemon     → both sides of the kithd wire (Connect over a unix socket
         │              the notification decision, do-not-disturb, the send queue
 internal/setup      → config → running structures, shared by every binary
 internal/modelsetup → config → the daemon's model layer (prompts, completion server)
-internal/matrix     → infrastructure adapter over mautrix-go (sync, send, crypto,
-        │              spelling and completion on the daemon side)
+internal/route      → every network served as one api.Backend: routes a call by the
+        │              room's network, lists and merges streams across adapters
+internal/local      → what the daemon answers from its own stores, on any network:
+        │              drafts, search, emoji memory, spelling, completion, models
+internal/matrix     → the Matrix adapter, over mautrix-go (sync, send, crypto,
+        │              verification, key backup, bridge contact lists)
+internal/whatsapp   → the WhatsApp adapter, over whatsmeow: each account a linked
+        │              device; the only importer of whatsmeow
+internal/telegram   → the Telegram adapter, over gotd: each account a phone number
+        │              it logs in as (forums as spaces, their topics as rooms)
+internal/slack      → the Slack adapter: each account a workspace, signed in as the
+        │              web client is
+internal/markdown   → the composer's Markdown to HTML, for every network that sends
+        │              formatting
 internal/db         → SQLite cache (rooms, timeline, account-data mirrors) + schema
-internal/domain     → pure Matrix types + logic (no SDK, no I/O, no Bubble Tea)
+internal/domain     → pure chat types + logic, shared by every network (no SDK,
+        │              no I/O, no Bubble Tea)
 internal/notify     → the notification decision (pure) + its delivery sinks
 internal/schedule   → the durable queue behind messages written now, sent later
-internal/session    → the access token and pickle key, in the OS keyring
+internal/session    → the Matrix access token and pickle key, in the OS keyring
+internal/emoji      → emoji by name: the curated set and every Unicode name, generated
 internal/agent      → the append-only ledger of what an assistant sent through kith-mcp
 internal/media      → the attachment cache: originals on disk, drawn rows beside them
 internal/richtext   → the one table of which formatting this client understands,
@@ -235,14 +262,17 @@ Two conventions run through the interface:
 
 ### Implementations
 
-- **`InProc`** (`internal/matrix`) is the real backend. It wraps a
-  `*mautrix.Client` (with its `OlmMachine` for E2EE), the SQLite cache, and the
-  on-disk stores. Only `kithd` builds it, and only one process at a time.
+- **The served backend** (`cmd/kithd`) is the real one: `internal/route`'s router
+  over every network's adapter, with `internal/local`'s service beside it over the
+  one cache. The Matrix adapter is `InProc` (`internal/matrix`), wrapping a
+  `*mautrix.Client` (with its `OlmMachine` for E2EE) and its on-disk stores; the
+  WhatsApp, Telegram and Slack adapters wrap their own clients and stores. Only
+  `kithd` builds them, and only one process at a time.
 - **`Remote`** (`internal/daemon`) is the thin client the TUI runs against: no
-  database, no Matrix client, no crypto store. Each method is a Connect call over
+  database, no network connection, no crypto store. Each method is a Connect call over
   the daemon's unix socket, and each stream is a subscription re-exposed as the same
-  Go channel `InProc` hands out, so nothing above `api.Backend` can tell the two
-  apart. The daemon reads each of `InProc`'s channels exactly once and **fans out**
+  Go channel the served backend hands out, so nothing above `api.Backend` can tell
+  the two apart. The daemon reads each of the served backend's channels exactly once and **fans out**
   to every subscriber, because a channel receive removes the value and there is more
   than one consumer: each attached client, and the daemon's own notifier. `Remote`
   also carries the surfaces that are *not* part of `api.Backend`, because there is no
@@ -254,11 +284,12 @@ Two conventions run through the interface:
 
 ## Sync model
 
-The Matrix `/sync` long-poll runs in one goroutine inside the daemon. `InProc`
-publishes on six channels, and `internal/daemon`'s `Streams` drains each with one
-reader and copies every value, without blocking, to each subscriber. A client
+Each network's connection runs inside the daemon: the Matrix `/sync` long-poll in one
+goroutine, and WhatsApp's, Telegram's and Slack's own event connections. Each adapter
+publishes on the same streams, `internal/route` merges them into one set of six
+channels, and `internal/daemon`'s `Streams` drains each with one reader and copies every value, without blocking, to each subscriber. A client
 attaches and detaches without racing for a shared channel. Events reach the UI only
-as value messages on the Bubble Tea loop; the sync goroutine never touches a model.
+as value messages on the Bubble Tea loop; no network's goroutine ever touches a model.
 
 **Six streams, and the differences between them are deliberate:**
 
@@ -388,39 +419,49 @@ composer**, with focus moving between panes.
 > are how this is checked against a real terminal (see
 > [CONTRIBUTING.md](CONTRIBUTING.md#diagnostics-that-a-test-cannot-replace)).
 
-## One account per daemon (multi-tenancy)
+## One instance per daemon (multi-tenancy)
 
-Two accounts on one machine are **two daemons that share nothing**. Every
-per-account resource is keyed by the first 8 bytes of `sha256(MXID)`, hex-encoded
-(`domain.AccountKey`), and there is no account column anywhere:
+One daemon serves every account its config has, on every network: several WhatsApp
+numbers, Telegram accounts and Slack workspaces, and a Matrix account, share its one
+cache, so search, mentions and the room list span all of them. What is kept apart is
+the **instance**: two configs (a test one beside your own, say), or two `[[profile]]`
+blocks, are **two daemons that share nothing**. Every per-instance file is named by the
+instance ID, `[storage] instance`, which kith chooses on first run and writes into the
+config (a profile's is the base ID plus its name; an install from before instances
+kept its files under `domain.AccountKey`, the first 8 bytes of `sha256(MXID)`
+hex-encoded, and goes on using that). There is no instance column anywhere:
 
-| resource | path | derived in |
+| resource | path (default directories) | derived in |
 | --- | --- | --- |
-| message cache | `$XDG_DATA_HOME/kith/cache-<hash>.db` | `db.DefaultPath` |
-| crypto store | `$XDG_DATA_HOME/kith/crypto-<hash>.db` | `db.CryptoPath` |
-| socket | `$XDG_RUNTIME_DIR/kith/<hash>.sock` | `daemon.SocketPath` |
-| exclusive lock | the socket path with `.lock` | `daemon.LockPath` |
-| scheduled messages | `$XDG_STATE_HOME/kith/scheduled-<hash>.toml` | `schedule` |
-| assistant ledger | `$XDG_STATE_HOME/kith/agent-sends-<hash>.jsonl` | `agent` |
-| access token, pickle key | OS keyring, service `kith`, account = the MXID | `session` |
+| message cache, every network | `$XDG_DATA_HOME/kith/cache-<instance>.db` | `domain.Storage` |
+| Matrix crypto store | `$XDG_DATA_HOME/kith/crypto-<instance>.db` | `domain.Storage` |
+| WhatsApp devices and Signal sessions | `$XDG_DATA_HOME/kith/whatsapp-<instance>.db` | `domain.Storage` |
+| Telegram update positions | `$XDG_DATA_HOME/kith/telegram-<instance>.db` | `domain.Storage` |
+| socket | `$XDG_RUNTIME_DIR/kith/<instance>.sock` | `domain.Storage` |
+| exclusive lock | `$XDG_RUNTIME_DIR/kith/<instance>.lock` | `domain.Storage` |
+| scheduled messages | `$XDG_STATE_HOME/kith/scheduled-<instance>.toml` | `domain.Storage` |
+| assistant ledger | `$XDG_STATE_HOME/kith/agent-sends-<instance>.jsonl` | `domain.Storage` |
+| Matrix access token, pickle key | OS keyring, service `keyring_service`, account = the instance | `session` |
+| Telegram session, Slack token and cookie | OS keyring, under each account | their adapters |
 | service | `kithd@<profile>.service` → `--profile <profile>` | `packaging/systemd` |
 | **notifications, DND** | the daemon's own state | per daemon |
 | **search, mentions, unread, threads, colours, emoji ranking** | that cache | per cache |
 
 So the isolation is structural rather than enforced: search and the mentions list
-are SQL against *one* account's SQLite file, reached over *one* socket, and no query
-could see another account's rows because no table holds them. The paths use the
-hash rather than the MXID so a listing of a world-readable runtime directory does
-not disclose who is logged in.
+are SQL against *one* instance's SQLite file, reached over *one* socket, and no query
+could see another instance's rows because no table holds them. The file names carry
+the instance ID rather than an account name, so a listing of a world-readable runtime
+directory does not disclose who is logged in.
 
 Two consequences, both deliberate:
 
-- **There is no cross-account view.** The TUI holds a single `api.Backend`, so the
-  room list, the switcher, search and mentions are one account's. A unified inbox
-  would be a fan-out `Backend` dialing N sockets and merging: a real feature, not a
+- **There is no cross-instance view.** The TUI holds a single `api.Backend`, so the
+  room list, the switcher, search and mentions are one instance's (every network's
+  accounts in it, but not another instance's). Seeing two instances at once would be
+  a fan-out `Backend` dialing N sockets and merging: a real feature, not a
   configuration.
-- **Silence is per account.** Do-not-disturb writes a temporary rule in the daemon
-  you are attached to, so it quiets that account and not the other. The rules
+- **Silence is per instance.** Do-not-disturb writes a temporary rule in the daemon
+  you are attached to, so it quiets that instance and not the other. The rules
   *file* is shared (a profile carries only the account); the runtime state of having
   been silenced is not.
 

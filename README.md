@@ -1,17 +1,20 @@
 # kith
 
-**A keyboard-driven [Matrix](https://matrix.org) client for the terminal — with a daemon
-that keeps working when the terminal is closed.**
+**A keyboard-driven chat client for the terminal — Matrix, WhatsApp, Telegram and Slack
+side by side, with a daemon that keeps working when the terminal is closed.**
 
 [![CI](https://github.com/EugeneShtoka/kith/actions/workflows/ci.yml/badge.svg)](https://github.com/EugeneShtoka/kith/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go)](go.mod)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 
-kith is a full daily-driver Matrix client: end-to-end encryption, spaces, threads,
-reactions, media and voice notes, in a three-pane terminal UI (spaces rail · room
-list · timeline). What sets it apart is what happens around the chat window — an
-always-on daemon, an offline index of everything you have received, and a local
-rules engine that decides what deserves your attention.
+kith is a daily-driver chat client for the terminal. It is a full
+[Matrix](https://matrix.org) client — end-to-end encryption, spaces, threads,
+reactions, media and voice notes — and it links **WhatsApp**, **Telegram** and
+**Slack** directly, as a client of each network, with no bridge in between. Matrix
+is optional: use any of them alone or all together, in one three-pane terminal UI
+(spaces rail · room list · timeline). What sets it apart is what happens around the
+chat window — an always-on daemon, an offline index of everything you have received
+on every network, and a local rules engine that decides what deserves your attention.
 
 > **Status: early, usable.** kith is used every day, but it is pre-1.0: expect rough
 > edges and configuration changes between releases. Linux is the primary platform;
@@ -19,10 +22,20 @@ rules engine that decides what deserves your attention.
 
 ## Highlights
 
+### Every network in one place
+
+WhatsApp chats, Telegram groups and channels, Slack workspaces and Matrix rooms sit in
+the same room list, are searched by the same index and answer to the same notification
+and spam rules. A person is one person across them: a name saved for a number on one
+account names that number wherever it appears, and your own tags group rooms across
+networks. A Telegram forum is a space, its topics rooms of their own. Each network has
+its page: [WhatsApp](docs/whatsapp.md) · [Telegram](docs/telegram.md) (being built) ·
+[Slack](docs/slack.md) (being built).
+
 ### It keeps working when the terminal is closed
 
-`kithd` owns the Matrix session, the sync loop, the local cache and the crypto
-store. The TUI is a thin client that attaches over a unix socket. Close it and
+`kithd` owns every account's session, the sync, the local cache and the crypto
+stores. The TUI is a thin client that attaches over a unix socket. Close it and
 notifications still arrive, failed sends are retried, scheduled messages go out on
 time, and (if you opt in) verification codes are copied to your clipboard — with
 nothing open.
@@ -31,8 +44,8 @@ nothing open.
 ### Search everything, offline, instantly
 
 Every message — encrypted ones included, once decrypted — lands in a local SQLite
-cache with a full-text index. Search the room, the group you are in or the whole
-account, filter with `from:alice since:7d until:2026-08-31`, and
+cache with a full-text index. Search the room, the group you are in or every
+network at once, filter with `from:alice since:7d until:2026-08-31`, and
 jump straight into the conversation at the hit. The same index gives you a list of
 every message that **mentions you** (`@`) and every message with a **file** (`gf`) —
 including ones you have already read — plus your starred messages and a watch list
@@ -98,8 +111,10 @@ clipboard. Bind one to a key if you like. No shell in the chain, and a timeout.
 
 ### Pure Go, single binaries, real encryption
 
-Full end-to-end encryption via [mautrix-go](https://github.com/mautrix/go)'s pure-Go
-crypto and a pure-Go SQLite driver: `CGO_ENABLED=0`, no libolm, clean cross-compiles.
+Full Matrix end-to-end encryption via [mautrix-go](https://github.com/mautrix/go)'s
+pure-Go crypto; WhatsApp through [whatsmeow](https://github.com/tulir/whatsmeow) and
+Telegram through [gotd](https://github.com/gotd/td), both pure Go as well; a pure-Go
+SQLite driver: `CGO_ENABLED=0`, no libolm, clean cross-compiles.
 Interactive SAS verification, server-side key backup that the daemon keeps filled,
 and key export/import in the standard format, interoperable with other clients.
 Releases are signed and ship with build attestations and an SBOM.
@@ -121,7 +136,7 @@ Releases are signed and ship with build attestations and an SBOM.
   `gl` to follow a Matrix link without leaving the client
 - Fully configurable keybindings with generated help (a bad keymap never stops the
   client from starting), themes, multiple accounts
-- Starts and serves cached history even when the homeserver is down
+- Starts and serves cached history even when a network is unreachable
 - `matrix:` / `matrix.to` link handling from the desktop
 
 ## Quick start
@@ -137,14 +152,15 @@ Install a package, or build from source:
 | From source (Go 1.26.3+) | `git clone https://github.com/EugeneShtoka/kith && cd kith && make install` |
 
 ```sh
-kith login     # prompts for the password; only the access token is kept, in the OS keyring
 make deploy      # from a clone: enable and start the daemon under systemd
                  # (a package: systemctl --user enable --now kithd)
-kith           # attach and go
+kith             # attach and go
 ```
 
-Inside kith, `:login` sets up and signs in an account — WhatsApp, Slack or Matrix —
-asking for what each needs and explaining where to find it.
+Inside kith, `:login` sets up and signs in an account — Matrix, WhatsApp, Telegram or
+Slack — asking for what each needs and explaining where to find it. A Matrix account
+can also be signed in from the shell with `kith login`, which prompts for the password
+and keeps only the access token, in the OS keyring.
 
 If no daemon is running, `kith` starts one itself and tells you. Press `?` inside
 the client for every keybinding, and `,` for settings.
@@ -157,6 +173,7 @@ Full walkthrough, per platform, with profiles and encryption setup:
 | | |
 | --- | --- |
 | **Using kith** | [Getting started](docs/getting-started.md) · [Using the client](docs/usage.md) · [Keybindings](docs/keybindings.md) · [Search](docs/search.md) |
+| **Networks** | [WhatsApp](docs/whatsapp.md) · [Telegram](docs/telegram.md) · [Slack](docs/slack.md) · [Matrix encryption](docs/encryption.md) |
 | **Features** | [Notifications](docs/notifications.md) · [Spam](docs/spam.md) · [Composer](docs/composer.md) · [Assist (LLM)](docs/assist.md) · [Commands](docs/commands.md) · [MCP server](docs/mcp.md) · [Encryption](docs/encryption.md) |
 | **Reference** | [Configuration](docs/configuration.md) · [Command line](docs/cli.md) · [Troubleshooting](docs/troubleshooting.md) |
 | **Project** | [Architecture](ARCHITECTURE.md) · [Database](docs/database.md) · [Roadmap](docs/roadmap.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) |
@@ -168,10 +185,11 @@ The complete, annotated configuration reference is built in:
 
 - **Elm architecture** on [Bubble Tea](https://github.com/charmbracelet/bubbletea) v2.
 - **Enforced layer boundaries** — the UI depends only on an `api.Backend` interface,
-  never on the Matrix SDK; `depguard` fails the build if a boundary is crossed.
+  never on any network's SDK; each network is an adapter behind small capability
+  interfaces, and `depguard` fails the build if a boundary is crossed.
 - **One owner for the crypto state** — the daemon takes an exclusive lock before
-  opening any store, because two processes sharing one device's olm/megolm state
-  corrupt it. There is deliberately no in-process fallback.
+  opening any store, because two processes sharing one device's keys (Matrix's
+  olm/megolm, WhatsApp's Signal sessions) corrupt them. There is deliberately no in-process fallback.
 - **Tested and gated** — race-tested, coverage floors, lint, vulnerability and secret
   scanning, and architecture checks on every push. `make check` runs them locally.
 

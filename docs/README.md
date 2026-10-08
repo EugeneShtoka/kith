@@ -1,7 +1,8 @@
 # kith documentation
 
-kith is a terminal Matrix client made of three programs: `kithd`, a daemon that
-owns your session, cache and encryption keys; `kith`, the terminal UI that attaches
+kith is a terminal chat client for Matrix, WhatsApp, Telegram and Slack, made of three
+programs: `kithd`, a daemon that owns every account's session, the cache and the
+encryption keys; `kith`, the terminal UI that attaches
 to it; and `kith-mcp`, a Model Context Protocol server that lets an AI assistant read
 (and, under your policy, write) through the same daemon.
 

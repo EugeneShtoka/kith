@@ -57,7 +57,7 @@ buildGoModule {
     '';
 
   meta = {
-    description = "Terminal Matrix client with a sync daemon, pure-Go E2EE and an MCP server";
+    description = "Terminal chat client for Matrix, WhatsApp, Telegram and Slack, with a sync daemon, pure-Go E2EE and an MCP server";
     homepage = "https://github.com/EugeneShtoka/kith";
     license = lib.licenses.agpl3Plus;
     mainProgram = "kith";
