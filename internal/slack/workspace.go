@@ -42,6 +42,10 @@ type workspace struct {
 	closeOnce sync.Once
 	// catching is held while the workspace is caught up (see catchUp).
 	catching sync.Mutex
+	// filesReread is set once refetchFileMessages has run in this daemon: a message
+	// naming a file kith cannot load (a link, a deleted one) is read again once a run,
+	// not on every reconnect.
+	filesReread sync.Once
 
 	mu sync.Mutex
 	// people and channels name the workspace's users and conversations by ID, as

@@ -33,6 +33,7 @@ func (a *Adapter) goCatchUp(ctx context.Context, w *workspace) {
 		if err := a.catchUp(ctx, w); err != nil {
 			a.log.Warn("catch up failed", "account", w.account.Name, "err", err)
 		}
+		w.filesReread.Do(func() { a.refetchFileMessages(ctx, w) })
 	}()
 }
 
