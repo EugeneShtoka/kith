@@ -12,9 +12,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A listing gives the phone book the people whose number Telegram shows: a contact by
-// the name you saved, anyone else by their own, and nobody without a number, deleted,
-// or yourself. A listing read again replaces what the account knew.
+// A listing gives the directory every user it carries, by their ID: a contact by the
+// name you saved, anyone else by their own, and linked to their number where
+// Telegram shows it; nobody deleted, nor yourself. A listing read again replaces what
+// the account knew.
 func TestAListingNamesTheNumbersItShows(t *testing.T) {
 	t.Parallel()
 	users := map[int64]*tg.User{
@@ -57,6 +58,18 @@ func TestAListingNamesTheNumbersItShows(t *testing.T) {
 	// Eli's own Telegram name yields to the name a WhatsApp address book saved.
 	if want := (map[string]string{"15550100001": "Dana Saved", "15550100002": "Eli Saved"}); !maps.Equal(book(), want) {
 		t.Errorf("book = %v, want %v", book(), want)
+	}
+	// Each user is named by their ID too, a number or none: the one without a number
+	// by their own name, Eli's ID by the name a WhatsApp address book saved for the
+	// number Telegram links it to.
+	dir, err := cache.Directory(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{personID(9): "No Number", personID(8): "Eli Saved", personID(7): "Dana Saved", personID(10): "", personID(42): ""} {
+		if got, _, _ := dir.Name(id); got != want {
+			t.Errorf("%s is %q, want %q", id, got, want)
+		}
 	}
 	if err := a.save(t.Context(), 42, listed(42, nil), time.Now()); err != nil {
 		t.Fatal(err)

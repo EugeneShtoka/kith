@@ -162,12 +162,29 @@ func (a *Adapter) learnPeople(ctx context.Context, w *workspace, users []string)
 		}
 		for i := range *found {
 			w.knowPerson((*found)[i].ID, userName((*found)[i]))
+			if digits, ok := domain.PhoneIn((*found)[i].Profile.Phone); ok {
+				w.knowPhone((*found)[i].ID, digits)
+			}
 		}
 	}
 	for _, u := range unknown {
 		if name, ok := slackOwn[u]; ok {
 			w.knowPerson(u, name)
 		}
+	}
+	if len(unknown) > 0 {
+		a.keepPeople(ctx, w)
+	}
+}
+
+// keepPeople gives the directory who the workspace's known users are.
+func (a *Adapter) keepPeople(ctx context.Context, w *workspace) {
+	if a.cache == nil {
+		return
+	}
+	names, links := w.directory()
+	if err := a.cache.SetPeople(ctx, "slack:"+w.creds.Team, names, links); err != nil {
+		a.log.Warn("keep who people are failed", "account", w.account.Name, "err", err)
 	}
 }
 
