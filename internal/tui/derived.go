@@ -42,6 +42,9 @@ type derivedKey struct {
 	selves uint64
 	// phones is the phone book's revision: a sender shown as a number is named by it.
 	phones uint64
+	// members is the member list's revision: it names a person a mention writes only
+	// as a number (knownName), and arrives after the messages.
+	members uint64
 }
 
 // fnvOffset and fnvMix are FNV-1a over strings, each followed by a separator so "1","23"
@@ -101,14 +104,15 @@ func placeFingerprint(f domain.RoomFacts) uint64 {
 // keyFor is the identity of everything derivedCache's answers depend on.
 func (m Model) keyFor() derivedKey {
 	k := derivedKey{
-		room:   m.openRoom,
-		thread: m.thread.root,
-		rev:    m.timeline.rev,
-		cfg:    m.conf.rev,
-		unread: unreadFingerprint(m.unread[m.openRoom]),
-		rtl:    m.mirrored(),
-		selves: selvesFingerprint(m.selves),
-		phones: m.phones.rev,
+		room:    m.openRoom,
+		thread:  m.thread.root,
+		rev:     m.timeline.rev,
+		cfg:     m.conf.rev,
+		unread:  unreadFingerprint(m.unread[m.openRoom]),
+		rtl:     m.mirrored(),
+		selves:  selvesFingerprint(m.selves),
+		phones:  m.phones.rev,
+		members: m.timeline.membersRev,
 	}
 	if room, ok := m.roomByID(m.openRoom); ok {
 		k.place = placeFingerprint(m.factsFor(room))

@@ -183,6 +183,17 @@ CREATE TABLE message_order (
 	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
+-- The people a message mentions (domain.Mention): who, and the text that names them
+-- in the body, which a client draws with the name they are known by.
+CREATE TABLE message_mentions (
+	room_id  TEXT NOT NULL,
+	event_id TEXT NOT NULL,
+	user_id  TEXT NOT NULL,
+	name     TEXT NOT NULL,
+	PRIMARY KEY (room_id, event_id, user_id),
+	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
 CREATE TABLE message_redaction (
 	room_id  TEXT NOT NULL,
 	event_id TEXT NOT NULL,
@@ -406,6 +417,15 @@ var migrations = []string{
 	event_id TEXT    NOT NULL,
 	seq      INTEGER NOT NULL,
 	PRIMARY KEY (room_id, event_id),
+	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;`,
+	// v9: the people messages mention.
+	`CREATE TABLE IF NOT EXISTS message_mentions (
+	room_id  TEXT NOT NULL,
+	event_id TEXT NOT NULL,
+	user_id  TEXT NOT NULL,
+	name     TEXT NOT NULL,
+	PRIMARY KEY (room_id, event_id, user_id),
 	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;`,
 }

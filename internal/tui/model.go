@@ -395,6 +395,8 @@ type timelineState struct {
 	revealed map[domain.EventID]bool
 	// members is the room's ranked mention candidates.
 	members []domain.Member
+	// membersRev moves whenever members is replaced (the timeline cache's key).
+	membersRev uint64
 	// opened is what was true of the room when it was opened. See openedRoom.
 	opened openedRoom
 	// hist is where the room pane sits in the conversation's history.
@@ -2355,6 +2357,7 @@ func (m Model) selectRoom(room domain.Room) (Model, tea.Cmd) {
 	// Whether resting on a room reads it is the read policy's call.
 	m, focusRead := m.armFocusRead()
 	m.timeline.members = nil
+	m.timeline.membersRev++
 	// Restore this room's draft; rebuild the rail since the Drafts set changed.
 	var aimed tea.Cmd
 	if leaving {

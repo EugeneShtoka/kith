@@ -66,6 +66,7 @@ func (a *Adapter) renameLater(account Account, client *whatsmeow.Client) {
 		delete(a.renames.pending, account.Digits)
 		a.renames.mu.Unlock()
 		a.renameChats(a.lifetime(), account, client)
+		a.listOldMentions(a.lifetime(), account, client)
 	})
 }
 

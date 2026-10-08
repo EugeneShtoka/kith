@@ -58,20 +58,26 @@ func (m Model) typingNote() string {
 	}
 }
 
-// personName resolves an MXID to a display name: identity alias, then the room's
-// member list, then the newest loaded message they sent, then their localpart.
+// personName resolves an MXID to a display name, isolated for a sentence (knownName).
 func (m Model) personName(mxid string) string {
+	return isolate(m.knownName(mxid, m.openRoom))
+}
+
+// knownName is the label someone has in room, as the sender column would write it:
+// identity alias, then the open room's member list, then the newest loaded message
+// they sent, then their localpart or number (and the phone book's name for it).
+func (m Model) knownName(mxid string, room domain.RoomID) string {
 	for i := range m.timeline.members {
 		if m.timeline.members[i].UserID == mxid && m.timeline.members[i].DisplayName != "" {
-			return m.personIn(m.openRoom, mxid, m.timeline.members[i].DisplayName)
+			return m.processedName(domain.Message{RoomID: room, Sender: mxid, SenderName: m.timeline.members[i].DisplayName})
 		}
 	}
 	for i := range slices.Backward(m.timeline.messages) {
 		if m.timeline.messages[i].Sender == mxid && m.timeline.messages[i].SenderName != "" {
-			return m.senderName(m.timeline.messages[i])
+			return m.processedName(m.timeline.messages[i])
 		}
 	}
-	return m.personIn(m.openRoom, mxid, "")
+	return m.processedName(domain.Message{RoomID: room, Sender: mxid})
 }
 
 // The refresh must be comfortably shorter than the homeserver timeout or the indicator

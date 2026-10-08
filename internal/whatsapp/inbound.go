@@ -38,6 +38,13 @@ func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeo
 		return arrived{}, false
 	}
 	channelPost := chat.Server == types.NewsletterServer
+	// A mention names a LID, as its text does; the person is their number, as a
+	// sender is, so it is drawn with the name the number is known by.
+	for i := range msg.Mentions {
+		if jid, err := types.ParseJID(domain.ParseID(msg.Mentions[i].UserID).Native); err == nil {
+			msg.Mentions[i].UserID = domain.NativePerson(domain.ProtocolWhatsApp, person(ctx, jid, types.EmptyJID, lookup).String())
+		}
+	}
 	msg.SenderName = a.names(client)(ctx, from)
 	if channelPost {
 		if ch, ok := a.channelOf(room); ok {

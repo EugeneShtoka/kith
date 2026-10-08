@@ -101,6 +101,9 @@ func saveExtras(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain
 	if err := savePoll(ctx, tx, roomID, m.ID, m.Poll); err != nil {
 		return err
 	}
+	if err := saveMentions(ctx, tx, roomID, m); err != nil {
+		return err
+	}
 	return saveHTML(ctx, tx, roomID, m, apply)
 }
 

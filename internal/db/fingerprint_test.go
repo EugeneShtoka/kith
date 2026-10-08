@@ -22,6 +22,7 @@ var migrationFingerprints = []struct {
 	{6, "phone_names: the names accounts know numbers by", "ce6ec69e96b0"},
 	{7, "message_polls: messages' polls", "4f80008f627c"},
 	{8, "message_order: messages' places among those sharing their time", "8da39a288478"},
+	{9, "message_mentions: the people messages mention", "2fe42c55b9cb"},
 }
 
 func fingerprint(stmt string) string {

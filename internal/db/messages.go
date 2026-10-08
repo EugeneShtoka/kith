@@ -736,7 +736,9 @@ func (c *Cache) Message(ctx context.Context, roomID domain.RoomID, eventID domai
 const messageSelect = `SELECT m.event_id, m.sender, m.sender_name, m.body, m.ts_ms, m.redacted, m.edited,
 	        m.reply_to, m.mentioned, m.thread_root, m.emote,
 	        d.kind, d.name, d.mime, d.width, d.height, d.size, h.html, r.by, r.reason, e.ts_ms, e.revision_id,
-	        p.poll, COALESCE(o.seq, 0)
+	        p.poll, COALESCE(o.seq, 0),
+	        (SELECT json_group_array(json_array(x.user_id, x.name)) FROM message_mentions x
+	          WHERE x.room_id = m.room_id AND x.event_id = m.event_id)
 	   FROM messages m
 	   LEFT JOIN message_media d ON d.room_id = m.room_id AND d.event_id = m.event_id
 	   LEFT JOIN message_html  h ON h.room_id = m.room_id AND h.event_id = m.event_id
@@ -758,11 +760,12 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 			editedMS                                               sql.NullInt64
 			revision, poll                                         sql.NullString
 			seq                                                    int64
+			mentions                                               string
 		)
 		if err := rows.Scan(&eventID, &sender, &senderName, &body, &tsMS, &redacted, &edited,
 			&replyTo, &mentioned, &threadRoot, &emote,
 			&kind, &name, &mime, &width, &height, &mediaSize, &formatted,
-			&redactedBy, &redactReason, &editedMS, &revision, &poll, &seq); err != nil {
+			&redactedBy, &redactReason, &editedMS, &revision, &poll, &seq, &mentions); err != nil {
 			return domain.Message{}, err
 		}
 		msg := domain.Message{
@@ -782,6 +785,7 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 			RedactedBy: redactedBy.String, RedactedReason: redactReason.String,
 			Seq: seq,
 		}
+		msg.Mentions = scanMentions(mentions)
 		if editedMS.Valid {
 			msg.EditedAt = time.UnixMilli(editedMS.Int64)
 		}
