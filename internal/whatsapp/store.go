@@ -78,3 +78,26 @@ func (s *Store) device(ctx context.Context, digits string) (*store.Device, error
 	}
 	return nil, nil
 }
+
+// LIDNumbers is every LID whose number the store knows, as WhatsApp sent them (in
+// history, with contacts, beside a message's sender): each LID's digits to its
+// number's. It is the whole of whatsmeow's map, for every linked account.
+func (s *Store) LIDNumbers(ctx context.Context) (map[string]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT lid, pn FROM whatsmeow_lid_map")
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: read the LIDs' numbers: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]string{}
+	for rows.Next() {
+		var lid, pn string
+		if err := rows.Scan(&lid, &pn); err != nil {
+			return nil, fmt.Errorf("whatsapp: read a LID's number: %w", err)
+		}
+		out[lid] = pn
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("whatsapp: read the LIDs' numbers: %w", err)
+	}
+	return out, nil
+}

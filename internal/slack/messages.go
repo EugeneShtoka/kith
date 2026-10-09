@@ -161,10 +161,7 @@ func (a *Adapter) learnPeople(ctx context.Context, w *workspace, users []string)
 			return
 		}
 		for i := range *found {
-			w.knowPerson((*found)[i].ID, userName((*found)[i]))
-			if digits, ok := domain.PhoneIn((*found)[i].Profile.Phone); ok {
-				w.knowPhone((*found)[i].ID, digits)
-			}
+			w.knowUser(&(*found)[i])
 		}
 	}
 	for _, u := range unknown {
@@ -175,6 +172,26 @@ func (a *Adapter) learnPeople(ctx context.Context, w *workspace, users []string)
 	if len(unknown) > 0 {
 		a.keepPeople(ctx, w)
 	}
+}
+
+// usersPerPage is one users.list page: Slack's largest.
+const usersPerPage = 200
+
+// listEveryone reads every member of the workspace, for the directory: a person is
+// named before they are seen in a message, and on every network their number links
+// them to. Slack's rate limit is waited out page by page.
+func (a *Adapter) listEveryone(ctx context.Context, w *workspace) {
+	users, err := w.client.GetUsersContext(ctx, slackgo.GetUsersOptionLimit(usersPerPage))
+	if err != nil {
+		a.log.Warn("list the workspace's members failed", "account", w.account.Name, "err", err)
+		return
+	}
+	for i := range users {
+		if !users[i].Deleted {
+			w.knowUser(&users[i])
+		}
+	}
+	a.keepPeople(ctx, w)
 }
 
 // keepPeople gives the directory who the workspace's known users are.

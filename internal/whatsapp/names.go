@@ -130,7 +130,7 @@ func (a *Adapter) keepNumberNames(ctx context.Context, account Account, client *
 			names = append(names, domain.PersonName{ID: domain.PhoneID(phone), Name: chosen, Rank: domain.RankChosen})
 		}
 	}
-	if err := a.cache.SetPeople(ctx, numberSource(account), names, nil); err != nil {
+	if err := a.cache.SetPeople(ctx, numberSource(account), names, a.lidLinks(ctx, account)); err != nil {
 		a.log.Warn("keep the contacts' names failed", "account", account.Name, "err", err)
 	}
 }
@@ -152,4 +152,26 @@ func (a *Adapter) phoneOf(ctx context.Context, client *whatsmeow.Client, jid typ
 }
 
 // numberSource is the phone book's source for an account's names.
+// lidLinks is every LID the store knows the number of, as links in the directory: a
+// person cached under their LID before WhatsApp said whose it is (a message, a member)
+// is named by the number's name all the same.
+func (a *Adapter) lidLinks(ctx context.Context, account Account) []domain.PersonLink {
+	if a.store == nil {
+		return nil
+	}
+	numbers, err := a.store.LIDNumbers(ctx)
+	if err != nil {
+		a.log.Warn("read the LIDs' numbers failed", "account", account.Name, "err", err)
+		return nil
+	}
+	links := make([]domain.PersonLink, 0, len(numbers))
+	for lid, pn := range numbers {
+		links = append(links, domain.PersonLink{
+			ID:    domain.NativePerson(domain.ProtocolWhatsApp, types.NewJID(lid, types.HiddenUserServer).String()),
+			Other: domain.PhoneID(pn),
+		})
+	}
+	return links
+}
+
 func numberSource(account Account) string { return "whatsapp:" + account.Digits }
