@@ -94,7 +94,7 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 | Parameter | Meaning |
 | --- | --- |
 | `room` | The room's ID or name |
-| `text` | The message, exactly as it should appear; nothing is added to it |
+| `text` | The message, exactly as it should appear; nothing is added to it. A long dash (— or ―) is written as an en dash (–), whether the message is sent or drafted |
 | `thread` | Optional: write into this thread, named by its root or any message in it |
 | `reply_to` | Optional: the event ID of the message this answers. A reply to a message in a thread goes into that thread |
 

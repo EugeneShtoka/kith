@@ -237,7 +237,7 @@ var tools = []tool{
 			"To answer inside a thread, pass the thread (read_room with thread shows it).",
 		schema: schema(map[string]any{
 			"room": str("the room's ID, or its name as shown in the client"),
-			"text": str("the message, exactly as it should appear"),
+			"text": str("the message, exactly as it should appear, except that a long dash (—) is written as an en dash (–)"),
 			"thread": str("optional: write into this thread — its root's event ID, or any message's in it " +
 				"(a message's \"thread\" field). Without it the message goes to the room's main timeline"),
 			"reply_to": str("optional: the event ID of the message this answers. A message in a thread " +
