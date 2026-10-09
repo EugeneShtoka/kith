@@ -8,7 +8,7 @@ and submit changes. For how the code is laid out, read
 ## Prerequisites
 
 - **Go 1.26.3 or newer** to start `make`. Every gate then runs on exactly go.mod's
-  `toolchain` line (go1.26.8), which CI and the release build with too: the Makefile
+  `toolchain` line (go1.26.9), which CI and the release build with too: the Makefile
   sets `GOTOOLCHAIN` to it (downloaded once) and `GOENV=off`, so neither a newer local
   go nor a user `go env` setting (a `GOEXPERIMENT`, say) changes what is checked.
   `GOTOOLCHAIN=local make …` opts out, for offline work.
