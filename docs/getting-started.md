@@ -23,7 +23,7 @@ corrupt it, so exactly one process, the daemon, owns it.
   builds are published for. Linux gets the most: systemd units, desktop notifications
   and the file chooser are Linux (D-Bus) features.
 - **Go 1.26.3 or newer**, only if you build from source. `go.mod` pins toolchain
-  1.26.8, and with the default `GOTOOLCHAIN=auto` the go command downloads it for you.
+  1.26.9, and with the default `GOTOOLCHAIN=auto` the go command downloads it for you.
 - **A terminal with truecolor support.** Any modern terminal emulator works.
 - **An OS secret store**, to hold the access token and the key that encrypts the
   crypto store at rest. On Linux that means a Secret Service provider (GNOME Keyring,
