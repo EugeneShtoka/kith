@@ -404,9 +404,10 @@ Names you give are local — only you see them — and live in your config.
 
 - `a` on a message names its **sender**: pick an existing person to merge this account into (for example the same contact over several bridges), or a new one, then a color. This writes a `[[display.identity]]`.
 - `a` on a room or rail group gives it a name of your own (`[[display.name]]`); `alt+r` names a thread.
-- `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag), and with `network_colors = true` names each room in its room list in its network's color.
+- `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag).
+- `[display] network_colors = true` names each room in every room list in its network's color; a place's `[[display.space_rule]] network_colors = true` or `false` overrides that for its own room list.
 - `[display.rail] network_colors = true` colors a rail row whose rooms are all on one network the same way.
-- `[display.network_colors]` sets those colors (`#rrggbb`, a named color, or `"none"`); unset, WhatsApp is teal, Telegram blue, Slack magenta. A bridged Matrix room counts as its bridge's network. Both switches are in settings too (`,`, under look).
+- `[display.theme.networks]` sets those colors (`#rrggbb`, a named color, or `"none"`). Unset, each network has its own, apart from the theme's text, accent, badge and alert colors: WhatsApp teal, Telegram blue, Slack magenta, Messenger and Instagram (Meta) orchid, LinkedIn periwinkle, Google Messages (SMS) coral. A bridged Matrix room counts as its bridge's network. All of it is in settings (`,`): under look, the switch everywhere, each space's and tag's choice (as everywhere, on, off) and each network's color; under rooms, the rail's switch.
 - `[display] max_name_length` caps the sender column; `color_messages = true` tints message bodies in the sender's color.
 
 kith keeps one directory of the people it knows, on every network and account. A

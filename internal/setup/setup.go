@@ -39,7 +39,7 @@ func Validate(cfg config.Config) error {
 		errOf(UnreadSource(d.Unread)),
 		RoomList(d.Rooms),
 		themeCheck(d.Theme),
-		NetworkColors(d.NetworkColors),
+		NetworkColors(d.Theme.Networks),
 		errOf(ThreadListing(d.Threads.InRoomList)),
 		AudioPlayback(d.Media),
 		errOf(NotificationLimit(cfg.Notifications)),
@@ -92,7 +92,7 @@ func NetworkColors(n config.NetworkColors) error {
 		if _, ok := themespec.Color(value); ok || value == "" || strings.EqualFold(strings.TrimSpace(value), "none") {
 			continue
 		}
-		return fmt.Errorf("display.network_colors.%s: %q is no color (write #rrggbb, one of %s, or \"none\")",
+		return fmt.Errorf("display.theme.networks.%s: %q is no color (write #rrggbb, one of %s, or \"none\")",
 			key, value, strings.Join(themespec.ColorNames(), ", "))
 	}
 	return nil

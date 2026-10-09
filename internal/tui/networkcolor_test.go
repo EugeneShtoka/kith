@@ -62,9 +62,9 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 		{ID: "!plain:x", Name: "Plain"},
 	}
 	display := config.Display{
-		SpaceRules:    []config.SpaceRule{{Space: "Mixed", NetworkColors: true}},
-		NetworkColors: config.NetworkColors{Telegram: "orange", Matrix: "none"},
-		Rail:          config.Rail{NetworkColors: true},
+		SpaceRules: []config.SpaceRule{{Space: "Mixed", NetworkColors: new(true)}, {Space: "Only WhatsApp", NetworkColors: new(false)}},
+		Theme:      config.Theme{Networks: config.NetworkColors{Telegram: "orange", Matrix: "none"}},
+		Rail:       config.Rail{NetworkColors: true},
 	}
 	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: rooms})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
@@ -101,6 +101,16 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 			t.Errorf("in Quiet, which does not ask, %s is colored", rooms[i].Name)
 		}
 	}
+	// Everywhere: a place with no rule of its own follows, one that says off does not.
+	everywhere := m
+	everywhere.prefs.display.NetworkColors = true
+	if g := got(everywhere, rooms[1]); g != color("orange") {
+		t.Errorf("with every room list asking, Quiet's %s = %v, want orange", rooms[1].Name, g)
+	}
+	everywhere.rail.cursor = indexOfGroup(everywhere.rail.groups, "Only WhatsApp")
+	if g := got(everywhere, rooms[0]); g != "" {
+		t.Errorf("Only WhatsApp says off, yet %s is colored", rooms[0].Name)
+	}
 	networks := map[string]domain.Protocol{}
 	for _, g := range m.rail.groups {
 		networks[g.key] = g.network
@@ -122,23 +132,29 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 	}
 }
 
-// A place's two switches share its [[display.space_rule]]: turning one keeps the
-// other, and the rule goes only when neither is on.
+// A place's two settings share its [[display.space_rule]]: setting one keeps the
+// other, and the rule goes only when neither is set. Network colors set off is set: it
+// overrides [display] network_colors.
 func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 	t.Parallel()
 	rules := []config.SpaceRule{{Space: "Other", FirstNameOnly: true}}
 	rules = withFirstNames(rules, "Friends", true)
-	rules = withNetworkColors(rules, "friends", true) // the place, in any case
+	rules = withNetworkColors(rules, "friends", new(true)) // the place, in any case
 	c := config.Config{Display: config.Display{SpaceRules: rules}}
-	if !firstNamesIn(c, "Friends") || !networkColorsIn(c, "Friends") || len(rules) != 2 {
+	if !firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn("Friends") || len(rules) != 2 {
 		t.Fatalf("both on: %+v", rules)
 	}
 	rules = withFirstNames(rules, "Friends", false)
 	c.Display.SpaceRules = rules
-	if firstNamesIn(c, "Friends") || !networkColorsIn(c, "Friends") {
+	if firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn("Friends") {
 		t.Fatalf("first names off took the colors with it: %+v", rules)
 	}
-	rules = withNetworkColors(rules, "Friends", false)
+	rules = withNetworkColors(rules, "Friends", new(false))
+	c.Display.SpaceRules, c.Display.NetworkColors = rules, true
+	if c.Display.NetworkColorsIn("Friends") || len(rules) != 2 {
+		t.Fatalf("off is not kept against [display] network_colors: %+v", rules)
+	}
+	rules = withNetworkColors(rules, "Friends", nil)
 	if len(rules) != 1 || rules[0].Space != "Other" || !rules[0].FirstNameOnly {
 		t.Fatalf("both off: %+v, want only Other's rule", rules)
 	}

@@ -313,9 +313,9 @@ func (m Model) placeNameRows() []setting {
 	return rows
 }
 
-// placeColorRows are a network-colors switch for every space and tag on the rail: its
-// room list names each room in its network's color ([[display.space_rule]],
-// [display.network_colors]).
+// placeColorRows are a network-colors choice for every space and tag on the rail: its
+// room list names each room in its network's color as everywhere ([display]
+// network_colors), or on or off whatever that says ([[display.space_rule]]).
 func (m Model) placeColorRows() []setting {
 	var rows []setting
 	for _, g := range m.rail.groups {
@@ -324,17 +324,38 @@ func (m Model) placeColorRows() []setting {
 		}
 		place := g.key
 		rows = append(rows, setting{
-			key: colorsPrefix + place, group: "look", kind: settingToggle,
-			label: "Network colors in " + g.label,
-			doc:   "Rooms in this " + placeWord(place) + "'s room list are named in their network's color, as [display.network_colors] sets: a bridged room in its bridge's network's.",
-			show:  func(c config.Config) string { return onOff(networkColorsIn(c, place)) },
-			set: func(c *config.Config, _ string) error {
-				c.Display.SpaceRules = withNetworkColors(c.Display.SpaceRules, place, !networkColorsIn(*c, place))
+			key: colorsPrefix + place, group: "look", kind: settingChoice,
+			label:   "Network colors in " + g.label,
+			doc:     "Rooms in this " + placeWord(place) + "'s room list are named in their network's color, as [display.theme.networks] sets: a bridged room in its bridge's network's. As everywhere follows [display] network_colors.",
+			choices: placeColorChoices,
+			show:    func(c config.Config) string { return placeColorsShown(c, place) },
+			set: func(c *config.Config, value string) error {
+				c.Display.SpaceRules = withNetworkColors(c.Display.SpaceRules, place, placeColorValues[value])
 				return nil
 			},
 		})
 	}
 	return rows
+}
+
+// placeColorChoices are a place's network-colors choices, and placeColorValues what
+// each writes: nil follows [display] network_colors.
+var (
+	placeColorChoices = []settingChoiceOption{
+		{"everywhere", "as everywhere", "as [display] network_colors says"},
+		{"on", "on", "named in their networks' colors whatever [display] network_colors says"},
+		{"off", "off", "in the row's own color whatever [display] network_colors says"},
+	}
+	placeColorValues = map[string]*bool{"everywhere": nil, "on": new(true), "off": new(false)}
+)
+
+// placeColorsShown is a place's network-colors choice: its own, or as everywhere and
+// what that is.
+func placeColorsShown(c config.Config, place string) string {
+	if r, ok := c.Display.SpaceRule(place); ok && r.NetworkColors != nil {
+		return onOff(*r.NetworkColors)
+	}
+	return "as everywhere (" + onOff(c.Display.NetworkColors) + ")"
 }
 
 // isHomeTag reports whether a tag (tag:<name>) holds some room as a place, and not
@@ -375,13 +396,14 @@ func withFirstNames(rules []config.SpaceRule, place string, on bool) []config.Sp
 	return withSpaceRule(rules, place, func(r *config.SpaceRule) { r.FirstNameOnly = on })
 }
 
-// withNetworkColors is rules with place's network-colors switch set to on.
-func withNetworkColors(rules []config.SpaceRule, place string, on bool) []config.SpaceRule {
+// withNetworkColors is rules with place's network-colors choice set to on: nil follows
+// [display] network_colors.
+func withNetworkColors(rules []config.SpaceRule, place string, on *bool) []config.SpaceRule {
 	return withSpaceRule(rules, place, func(r *config.SpaceRule) { r.NetworkColors = on })
 }
 
 // withSpaceRule is rules with place's rule changed by change, the rest of it kept; a
-// rule left setting nothing is dropped, so the file keeps only what is on.
+// rule left setting nothing is dropped, so the file keeps only what is set.
 func withSpaceRule(rules []config.SpaceRule, place string, change func(*config.SpaceRule)) []config.SpaceRule {
 	rule := config.SpaceRule{Space: place}
 	out := make([]config.SpaceRule, 0, len(rules)+1)
@@ -397,15 +419,4 @@ func withSpaceRule(rules []config.SpaceRule, place string, change func(*config.S
 		out = append(out, rule)
 	}
 	return out
-}
-
-// networkColorsIn reports whether place (a space's name, or tag:<name>) names its rooms
-// in their networks' colors.
-func networkColorsIn(c config.Config, place string) bool {
-	for _, r := range c.Display.SpaceRules {
-		if strings.EqualFold(r.Space, place) {
-			return r.NetworkColors
-		}
-	}
-	return false
 }
