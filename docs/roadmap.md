@@ -11,7 +11,6 @@ For what already exists, see the [documentation index](README.md).
 - A `logout` command that revokes the session on the homeserver and removes it from the keyring.
 - Listing this account's other sessions, and renaming or signing out old ones.
 - Verifying another person (in-room SAS verification); today only self-verification of your own sessions is supported.
-- One view across several accounts: a unified room list, search and mentions over more than one daemon.
 
 ## Rooms and people
 
