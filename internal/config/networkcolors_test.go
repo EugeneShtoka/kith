@@ -20,3 +20,20 @@ func TestANetworksColor(t *testing.T) {
 		t.Errorf("Slack unset = %q, want magenta", got)
 	}
 }
+
+// The networks with a color by default each have their own, but Meta's two, which
+// share one.
+func TestNetworksDefaultColorsAreApart(t *testing.T) {
+	t.Parallel()
+	seen := map[string]string{}
+	for network, color := range defaultNetworkColors {
+		if other, ok := seen[color]; ok && !meta(network, other) {
+			t.Errorf("%s and %s are both %s", network, other, color)
+		}
+		seen[color] = network
+	}
+}
+
+func meta(a, b string) bool {
+	return (a == "messenger" && b == "instagram") || (a == "instagram" && b == "messenger")
+}
