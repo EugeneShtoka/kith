@@ -1247,6 +1247,8 @@ name        = "a"  # name this group
 notify_rule = "b"  # notification rule for this space
 # Asks first.
 mark_read   = "m"  # mark every unread room in this group read
+# Asks first. A Telegram forum is left with all its topics.
+leave       = "L"  # leave this space, or delete this tag
 
 # Cursor motion, shared by every pane.
 [keys.nav]

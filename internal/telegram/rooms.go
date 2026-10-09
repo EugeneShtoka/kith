@@ -539,6 +539,8 @@ func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 			ID: forumSpaceID(self, chat), Name: rooms[i].DisplayName(), Children: []domain.RoomID{rooms[i].ID},
 			// Its rooms' home, as the account's space is the other chats'.
 			Bridge: domain.ProtocolTelegram, Original: true,
+			// Leaving the forum's chat leaves every topic (LeaveRoom).
+			LeaveBy: rooms[i].ID,
 		}
 		order = append(order, rooms[i].ID)
 	}
