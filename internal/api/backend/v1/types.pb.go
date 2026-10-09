@@ -1218,7 +1218,9 @@ type Space struct {
 	Original bool `protobuf:"varint,5,opt,name=original,proto3" json:"original,omitempty"`
 	// keeper is somebody other than you who is inside this space and inside your rooms at
 	// large — a bridge, from the outside.
-	Keeper        string `protobuf:"bytes,6,opt,name=keeper,proto3" json:"keeper,omitempty"`
+	Keeper string `protobuf:"bytes,6,opt,name=keeper,proto3" json:"keeper,omitempty"`
+	// The room whose leaving leaves the space and its rooms (domain.Space.LeaveBy).
+	LeaveBy       string `protobuf:"bytes,7,opt,name=leave_by,json=leaveBy,proto3" json:"leave_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1291,6 +1293,13 @@ func (x *Space) GetOriginal() bool {
 func (x *Space) GetKeeper() string {
 	if x != nil {
 		return x.Keeper
+	}
+	return ""
+}
+
+func (x *Space) GetLeaveBy() string {
+	if x != nil {
+		return x.LeaveBy
 	}
 	return ""
 }
@@ -2566,14 +2575,15 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	" \x01(\bR\aheading\x12\x18\n" +
 	"\aspoiler\x18\v \x01(\bR\aspoiler\x12\x16\n" +
 	"\x06reason\x18\f \x01(\tR\x06reason\x12\x12\n" +
-	"\x04href\x18\r \x01(\tR\x04href\"\x93\x01\n" +
+	"\x04href\x18\r \x01(\tR\x04href\"\xae\x01\n" +
 	"\x05Space\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
 	"\bchildren\x18\x03 \x03(\tR\bchildren\x12\x16\n" +
 	"\x06bridge\x18\x04 \x01(\tR\x06bridge\x12\x1a\n" +
 	"\boriginal\x18\x05 \x01(\bR\boriginal\x12\x16\n" +
-	"\x06keeper\x18\x06 \x01(\tR\x06keeper\"\xa4\x02\n" +
+	"\x06keeper\x18\x06 \x01(\tR\x06keeper\x12\x19\n" +
+	"\bleave_by\x18\a \x01(\tR\aleaveBy\"\xa4\x02\n" +
 	"\x06Unread\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12$\n" +
 	"\rnotifications\x18\x02 \x01(\x03R\rnotifications\x12\x1e\n" +

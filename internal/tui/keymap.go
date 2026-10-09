@@ -367,6 +367,7 @@ var keyActions = []keyAction{
 	{scopeRail, actName, "rail.name"},
 	{scopeRail, actNotifyRule, "rail.notify_rule"},
 	{scopeRail, actMarkRead, "rail.mark_read"},
+	{scopeRail, actLeave, "rail.leave"},
 
 	{scopeRooms, actAccept, "rooms.accept"},
 	{scopeRooms, actReject, "rooms.reject"},
