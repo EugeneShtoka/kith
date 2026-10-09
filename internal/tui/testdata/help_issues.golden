@@ -249,7 +249,7 @@
   /replacement                   go to the room that replaced this one, after an upgrade
   /invite <@user:server>         invite somebody to the room you are writing in
   /unban [@user:server]          lift a ban in the room you are writing in; none asks who
-  /leave                         leave the room you are writing in (asks first)
+  /leave                         leave the room you are writing in, or delete a private chat that cannot be left (asks first)
   //text            sends a literal leading slash
   anything else starting with a slash is a message that starts with a slash
 

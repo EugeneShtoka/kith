@@ -33,6 +33,11 @@ const (
 	pendingLeaveSpaceRooms
 	pendingLeaveSharedRoom
 	pendingLeaveSpaceItself
+	// pendingDeleteForThem and pendingDeleteChat: the questions of deleting a chat that
+	// cannot be left (room), for its other person too (forEveryone) or not
+	// (deletechat.go).
+	pendingDeleteForThem
+	pendingDeleteChat
 	// pendingCombineTags: a tag (group) renamed to another's name (address), folded
 	// into it.
 	pendingCombineTags
@@ -58,6 +63,8 @@ type confirmState struct {
 	via     []string
 	// leaving is a space being left, over several questions.
 	leaving spaceLeave
+	// forEveryone: a chat being deleted goes for its other person too.
+	forEveryone bool
 }
 
 // active reports whether a confirmation is outstanding.
@@ -114,6 +121,9 @@ func (m Model) askLeave() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok || room.IsInvite() {
 		return m, nil
+	}
+	if room.Deleting != domain.ChatLeft {
+		return m.askDeleteChat(room), nil
 	}
 	m.confirm = confirmState{action: pendingLeave, room: room}
 	return m, nil
@@ -201,6 +211,8 @@ func (m Model) confirmPrompt() string {
 			" into it? it holds both tags' rooms and keeps its own settings"
 	case pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingLeaveSpaceItself:
 		return m.leaveSpacePrompt(m.confirm)
+	case pendingDeleteForThem, pendingDeleteChat:
+		return m.deleteChatPrompt(m.confirm)
 	case pendingNone:
 		return ""
 	}
@@ -212,7 +224,7 @@ func (m Model) confirmPrompt() string {
 func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 	pending := m.confirm
 	m.confirm = confirmState{}
-	if next, answered := m.answerSpaceStep(pending, yes); answered {
+	if next, answered := m.answerEarlierStep(pending, yes); answered {
 		return next, nil
 	}
 	if !yes {
@@ -234,12 +246,8 @@ func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 		return m, m.markRoomsReadCmd(pending.rooms, pending.group)
 	case pendingRedact:
 		return m.redact(pending)
-	case pendingKick:
-		m = m.doing("removing " + pending.personName + "…")
-		return m, m.memberCmd(pending.roomID, pending.person, memberKick, "")
-	case pendingBan:
-		m = m.doing("banning " + pending.personName + "…")
-		return m, m.memberCmd(pending.roomID, pending.person, memberBan, "")
+	case pendingKick, pendingBan:
+		return m.removeMember(pending)
 	case pendingJoinPlace:
 		return m.joinPlace(pending)
 	case pendingDeleteTag:
@@ -248,7 +256,9 @@ func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 		return m.combineTags(pending.group, pending.address)
 	case pendingLeaveSpaceItself:
 		return m.leaveSpace(pending.leaving)
-	case pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingNone:
+	case pendingDeleteChat:
+		return m.deleteChat(pending)
+	case pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingDeleteForThem, pendingNone:
 		return m, nil
 	}
 	return m, nil
@@ -286,16 +296,24 @@ func (m Model) handleJoined(msg joinedMsg) (Model, tea.Cmd) {
 
 // handleLeft reports a leave (or rejection) and drops the room locally at once.
 func (m Model) handleLeft(msg leftMsg) (Model, tea.Cmd) {
+	if msg.err != nil && msg.deleted {
+		return m.sayErr("delete failed", msg.err), nil
+	}
 	if msg.err != nil {
 		m = m.sayErr("leave failed", msg.err)
 		return m, nil
 	}
-	m = m.say("left")
 	m.rooms = m.rooms.without(msg.roomID)
 	for _, also := range msg.also {
 		m.rooms = m.rooms.without(also)
 	}
 	next, cmd := m.handleInvites(m.rooms.invites)
+	// Said last: the open room may have gone, and opening the next one says so.
+	if msg.deleted {
+		next = next.say("deleted")
+	} else {
+		next = next.say("left")
+	}
 	if msg.space {
 		// The space went with its room: the rail loses its row.
 		return next, tea.Batch(cmd, next.refreshRoomsCmd(), next.refreshSpacesCmd())
@@ -348,4 +366,14 @@ func (m Model) goToReplacement(room domain.Room) (Model, tea.Cmd) {
 		return m.selectRoom(replacement)
 	}
 	return m.say("joining the room that replaced this one…"), m.joinRoomCmd(string(room.Replacement))
+}
+
+// removeMember removes or bans the person a confirmation was about.
+func (m Model) removeMember(c confirmState) (Model, tea.Cmd) {
+	if c.action == pendingBan {
+		m = m.doing("banning " + c.personName + "…")
+		return m, m.memberCmd(c.roomID, c.person, memberBan, "")
+	}
+	m = m.doing("removing " + c.personName + "…")
+	return m, m.memberCmd(c.roomID, c.person, memberKick, "")
 }

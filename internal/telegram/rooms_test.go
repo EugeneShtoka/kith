@@ -50,6 +50,13 @@ func TestDialogsAreRooms(t *testing.T) {
 		if r.IsDirect != (r.ID == "telegram:42/7" || r.ID == "telegram:42/8" || r.ID == "telegram:42/42") {
 			t.Errorf("%s: direct %v", r.ID, r.IsDirect)
 		}
+		// A private chat is deleted, for both or for you (your saved messages), not left.
+		wantDeleting := map[domain.RoomID]domain.ChatDeleting{
+			"telegram:42/7": domain.ChatDeletedForEither, "telegram:42/8": domain.ChatDeletedForEither, "telegram:42/42": domain.ChatDeletedForMe,
+		}[r.ID]
+		if r.Deleting != wantDeleting {
+			t.Errorf("%s: deleted %v, want %v", r.ID, r.Deleting, wantDeleting)
+		}
 	}
 	want := map[domain.RoomID]string{
 		"telegram:42/7": "Dana Lee", "telegram:42/8": "Deleted Account", "telegram:42/42": "Saved Messages",

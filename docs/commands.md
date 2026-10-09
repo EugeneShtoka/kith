@@ -32,7 +32,7 @@ Both open a completion list as you type, showing each command's arguments and it
 | `/unread` | Mark this room unread | `M` |
 | `/tag [name]` | Put this room in a tag, or take it out; with no name, pick among your spaces and tags | `S` with no name |
 | `/invite <@user:server>` | Invite someone to this room | |
-| `/leave` | Leave this room (asks first) | |
+| `/leave` | Leave this room, or delete a private chat its network cannot leave (asks first) | |
 
 Keys that belong to the room list (`!`, `M`, `S`) are shown there; the others work from the timeline.
 

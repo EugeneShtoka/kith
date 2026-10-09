@@ -206,6 +206,12 @@ func (r *Remote) JoinRoom(ctx context.Context, roomIDOrAlias string, via []strin
 	return domain.RoomID(resp.GetRoomId()), err
 }
 
+// DeleteChat deletes a chat that cannot be left.
+func (r *Remote) DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryone bool) error {
+	_, err := call(ctx, "delete chat", r.c.DeleteChat, &v1.DeleteChatRequest{RoomId: string(roomID), ForEveryone: forEveryone})
+	return err
+}
+
 func (r *Remote) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	_, err := call(ctx, "leave room", r.c.LeaveRoom, &v1.LeaveRoomRequest{RoomId: string(roomID)})
 	return err

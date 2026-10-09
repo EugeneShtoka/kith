@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 func (m Model) renderStatus() string {
@@ -111,13 +113,17 @@ func (m Model) hints() string {
 				keyed(m.keys.keyHint(scopeCommand, actHelp), "help"),
 			)
 		}
+		leave := "leave"
+		if room, ok := m.currentRoom(); ok && room.Deleting != domain.ChatLeft {
+			leave = "delete chat" // its network cannot leave it
+		}
 		return m.hintLine(
 			nav,
 			keyed(m.keys.keyHint(scopeNav, actOpen), "open"),
 			keyed(m.keys.keyHint(scopeRooms, actListThreads), "threads"),
 			keyed(m.keys.keyHint(scopeRooms, actMarkRead), "mark read"),
 			keyed(m.keys.keyHint(scopeRooms, actJoin), "join"),
-			keyed(m.keys.keyHint(scopeRooms, actLeave), "leave"),
+			keyed(m.keys.keyHint(scopeRooms, actLeave), leave),
 			keyed(m.keys.keyHint(scopeCommand, actHelp), "help"),
 		)
 	}

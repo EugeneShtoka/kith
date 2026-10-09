@@ -59,6 +59,7 @@ var (
 		route.Media
 		route.Encryption
 		route.SpaceLister
+		route.Leaver
 		configChecker
 	} = (*whatsapp.Adapter)(nil)
 
@@ -99,6 +100,7 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.Leaver
+		route.ChatDeleter
 		route.Voter
 		configChecker
 		roomsRewriter

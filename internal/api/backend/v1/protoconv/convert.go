@@ -24,6 +24,7 @@ func RoomToProto(r domain.Room) *v1.Room {
 		Topic:       r.Topic,
 		Archived:    r.Archived,
 		Forum:       r.Forum,
+		Deleting:    chatDeletings[r.Deleting],
 	}
 }
 
@@ -197,6 +198,7 @@ func ProtoToRoom(pb *v1.Room) domain.Room {
 		Topic:       pb.GetTopic(),
 		Archived:    pb.GetArchived(),
 		Forum:       pb.GetForum(),
+		Deleting:    protoToChatDeleting(pb.GetDeleting()),
 	}
 }
 
@@ -263,4 +265,19 @@ func ProtoToMessage(pb *v1.Message) domain.Message {
 // ProtoToMessages converts a message list back.
 func ProtoToMessages(pb []*v1.Message) []domain.Message {
 	return mapSlice(pb, ProtoToMessage)
+}
+
+var chatDeletings = map[domain.ChatDeleting]v1.ChatDeleting{
+	domain.ChatDeletedForMe:     v1.ChatDeleting_CHAT_DELETING_FOR_ME,
+	domain.ChatDeletedForEither: v1.ChatDeleting_CHAT_DELETING_FOR_EITHER,
+}
+
+// protoToChatDeleting converts how a chat is deleted back; anything unknown is left.
+func protoToChatDeleting(pb v1.ChatDeleting) domain.ChatDeleting {
+	for deleting, wire := range chatDeletings {
+		if wire == pb {
+			return deleting
+		}
+	}
+	return domain.ChatLeft
 }

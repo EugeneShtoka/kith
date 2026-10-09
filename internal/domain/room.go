@@ -41,7 +41,24 @@ type Room struct {
 	// Forum marks a forum's own room (Telegram's General topic): the forum is a space,
 	// and each of its other topics a room in it.
 	Forum bool
+	// Deleting is whether the room is put away by deleting it rather than leaving it
+	// (a private chat on a network that cannot leave one), and for whom.
+	Deleting ChatDeleting
 }
+
+// ChatDeleting is how a chat that cannot be left is deleted instead.
+type ChatDeleting int
+
+// The ways a chat is put away.
+const (
+	// ChatLeft: the room is left, not deleted (a group, a Matrix room).
+	ChatLeft ChatDeleting = iota
+	// ChatDeletedForMe: the chat is deleted for you only (your own saved messages).
+	ChatDeletedForMe
+	// ChatDeletedForEither: the chat is deleted for you, and, if you say so, for the
+	// other person too (a Telegram private chat).
+	ChatDeletedForEither
+)
 
 // IsInvite reports whether this is a pending invitation rather than a room we have
 // joined.

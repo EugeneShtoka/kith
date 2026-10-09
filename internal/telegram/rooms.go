@@ -121,6 +121,7 @@ func listed(self int64, elems []dialog) listing {
 			l.archived[room.ID] = room.Archived
 		}
 		l.forums[room.ID] = room.Forum
+		room.Deleting = deletingOf(room.ID)
 		l.rooms = append(l.rooms, room)
 		if member != nil {
 			l.members[room.ID] = []domain.Member{*member}
@@ -493,9 +494,9 @@ func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
 	if err != nil {
 		return nil, fmt.Errorf("telegram: read cached rooms: %w", err)
 	}
-	return slices.DeleteFunc(rooms, func(r domain.Room) bool {
+	return withDeleting(slices.DeleteFunc(rooms, func(r domain.Room) bool {
 		return domain.NetworkOf(string(r.ID)) != domain.ProtocolTelegram
-	}), nil
+	})), nil
 }
 
 // RefreshRooms lists every connected account's dialogs again.

@@ -478,6 +478,14 @@ message LeaveRoomRequest {
 
 message LeaveRoomResponse {}
 
+message DeleteChatRequest {
+  string room_id = 1;
+  // for_everyone deletes it for the other person too.
+  bool for_everyone = 2;
+}
+
+message DeleteChatResponse {}
+
 // Making a room or a space (domain.NewRoom).
 message CreateRoomRequest {
   string name = 1;
@@ -1396,6 +1404,9 @@ service BackendService {
   rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse);
   // LeaveRoom leaves a room.
   rpc LeaveRoom(LeaveRoomRequest) returns (LeaveRoomResponse);
+  // DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
+  // and, with for_everyone, for the other person too.
+  rpc DeleteChat(DeleteChatRequest) returns (DeleteChatResponse);
   // Deciding who else is in a room.
   rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
   rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
