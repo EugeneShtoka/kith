@@ -48,14 +48,14 @@ func hikePoll() domain.Poll {
 func TestAPollDrawsItsAnswersAndTheVote(t *testing.T) {
 	t.Parallel()
 	p := hikePoll()
-	body := pollBody(&p)
+	body := pollBody(&p, func(v string) string { return v })
 	for _, want := range []string{"📊 Hike when?", "● Saturday — 3 votes · 75%", "○ Sunday — 1 vote · 25%"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("poll body lacks %q:\n%s", want, body)
 		}
 	}
 	p.Multiple = true
-	if !strings.Contains(pollBody(&p), "(choose any)") {
+	if !strings.Contains(pollBody(&p, func(v string) string { return v }), "(choose any)") {
 		t.Error("a poll taking several answers does not say so")
 	}
 }
@@ -107,5 +107,28 @@ func TestVotingInAPoll(t *testing.T) {
 	m, _ = m.openVote()
 	if m.picker.active() || !strings.Contains(m.status(), "closed") {
 		t.Errorf("a closed poll: picker %v, said %q", m.picker.active(), m.status())
+	}
+}
+
+// Where the network tells each vote, every answer names who chose it on the line under
+// it: this person as "you", others as the sender column would; an answer nobody chose,
+// or a poll told only as counts, adds no line.
+func TestAPollNamesWhoChoseEachAnswer(t *testing.T) {
+	t.Parallel()
+	p := hikePoll()
+	p.Options = append(p.Options, domain.PollOption{ID: "mon", Text: "Monday"})
+	p.Ballots = map[string][]string{"@me:x": {"sat"}, "@eli:x": {"sat", "sun"}}
+	m := withPoll(t, &voteBackend{}, p)
+	m.selves = []string{"@me:x"}
+	msg, _ := m.selectedMessage()
+	body, _ := m.plainBody(msg, nil)
+	lines := strings.Split(stripIsolates(body), "\n")
+	want := []string{"📊 Hike when?", "● Saturday — 3 votes · 75%", "  you, eli", "○ Sunday — 1 vote · 25%", "  eli", "○ Monday — 0 votes · 0%"}
+	if !slices.Equal(lines, want) {
+		t.Errorf("poll body:\n%q\nwant\n%q", lines, want)
+	}
+	p.Ballots = nil
+	if got := pollBody(&p, m.voterName("!a:x")); strings.Count(got, "\n") != len(p.Options) {
+		t.Errorf("a poll told as counts names voters:\n%s", got)
 	}
 }

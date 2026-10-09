@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,15 +10,17 @@ import (
 )
 
 // A message's poll draws as its question and an answer per line, with how many chose
-// each and which this person did; the vote key (P) picks answers, several where the
+// each and which this person did, and under each answer who chose it where the network
+// tells votes one by one; the vote key (P) picks answers, several where the
 // poll takes them, or takes the vote back. The network's new results come back as the
 // message's poll changing.
 
 // voteTakeBack is the vote picker's row that takes a vote back.
 const voteTakeBack = "\x00take back"
 
-// pollBody is a poll as the lines of its message: the question, then each answer.
-func pollBody(p *domain.Poll) string {
+// pollBody is a poll as the lines of its message: the question, then each answer and
+// under it who chose it, each voter as name writes them.
+func pollBody(p *domain.Poll, name func(voter string) string) string {
 	var b strings.Builder
 	b.WriteString("📊 " + p.Question)
 	switch {
@@ -32,8 +35,47 @@ func pollBody(p *domain.Poll) string {
 			mark = "●"
 		}
 		b.WriteString("\n" + mark + " " + o.Text + " — " + p.Tally(o))
+		if who := chosenBy(p, o.ID, name); len(who) > 0 {
+			b.WriteString("\n  " + strings.Join(who, ", "))
+		}
 	}
 	return b.String()
+}
+
+// chosenBy is who chose an answer, by name: "you" first, then sorted; none where the
+// network only tells the counts.
+func chosenBy(p *domain.Poll, option string, name func(voter string) string) []string {
+	var who []string
+	for voter, chosen := range p.Ballots {
+		if slices.Contains(chosen, option) {
+			who = append(who, name(voter))
+		}
+	}
+	slices.SortFunc(who, func(a, b string) int {
+		switch {
+		case a == b:
+			return 0
+		case a == voterYou:
+			return -1
+		case b == voterYou:
+			return 1
+		}
+		return strings.Compare(a, b)
+	})
+	return who
+}
+
+// voterYou is how a poll names this person among its voters.
+const voterYou = "you"
+
+// voterName is how a poll in room names a voter: "you", or as the sender column would.
+func (m Model) voterName(room domain.RoomID) func(voter string) string {
+	return func(voter string) string {
+		if m.isMe(voter) {
+			return voterYou
+		}
+		return isolate(m.knownName(voter, room))
+	}
 }
 
 // votedMsg is the outcome of a vote.
