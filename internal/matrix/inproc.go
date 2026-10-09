@@ -42,6 +42,9 @@ type InProc struct {
 	// onRoomsStale, when set, is called when a sync changes the room list, a room
 	// name or the space hierarchy. Set before Start.
 	onRoomsStale func()
+	// left is when each room was left from here, so a room list asked for before the
+	// leave (a refresh already under way) does not bring it back (RefreshRooms).
+	left leftRooms
 
 	// machineMu guards the crypto machine EnableEncryption publishes. A degraded start
 	// runs EnableEncryption on a worker goroutine while RPCs are already being served.
