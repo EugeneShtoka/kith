@@ -17,6 +17,7 @@ func SpaceToProto(s domain.Space) *v1.Space {
 		Bridge:   string(s.Bridge),
 		Original: s.Original,
 		Keeper:   s.Keeper,
+		LeaveBy:  string(s.LeaveBy),
 	}
 }
 
@@ -37,6 +38,7 @@ func ProtoToSpace(pb *v1.Space) domain.Space {
 		Bridge:   domain.Protocol(pb.GetBridge()),
 		Original: pb.GetOriginal(),
 		Keeper:   pb.GetKeeper(),
+		LeaveBy:  domain.RoomID(pb.GetLeaveBy()),
 	}
 }
 

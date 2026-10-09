@@ -1527,6 +1527,8 @@ func (m Model) handleRailKey(press string) (Model, tea.Cmd) {
 		return m.openRuleForGroup()
 	case actMarkRead:
 		return m.askMarkGroupRead()
+	case actLeave:
+		return m.askLeaveGroup()
 	case actUp:
 		if next, moved := m.rail.moved(-m.take()); moved {
 			m.rail = next

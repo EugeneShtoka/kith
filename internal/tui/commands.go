@@ -87,7 +87,10 @@ type joinedMsg struct {
 
 type leftMsg struct {
 	roomID domain.RoomID
-	err    error
+	// also are rooms that went with it (a forum's topics), and space that a space did.
+	also  []domain.RoomID
+	space bool
+	err   error
 }
 
 // membersMsg carries a room's ranked mention candidates.
@@ -392,6 +395,14 @@ func (m Model) joinRoomCmd(target string, via ...string) tea.Cmd {
 	return func() tea.Msg {
 		roomID, err := backend.JoinRoom(ctx, target, via)
 		return joinedMsg{roomID: roomID, err: err}
+	}
+}
+
+// leaveSpaceCmd leaves the room a space is left by; its rooms go with it.
+func (m Model) leaveSpaceCmd(roomID domain.RoomID, rooms []domain.RoomID) tea.Cmd {
+	ctx, backend := m.ctx, m.backend
+	return func() tea.Msg {
+		return leftMsg{roomID: roomID, also: rooms, space: true, err: backend.LeaveRoom(ctx, roomID)}
 	}
 }
 
