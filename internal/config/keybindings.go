@@ -127,6 +127,7 @@ type RailKeys struct {
 	Name       string `toml:"name"`
 	NotifyRule string `toml:"notify_rule"`
 	MarkRead   string `toml:"mark_read"`
+	Leave      string `toml:"leave"`
 }
 
 // SearchKeys open message search and drive its results. Search covers the local

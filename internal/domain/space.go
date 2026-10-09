@@ -24,6 +24,10 @@ type Space struct {
 	// Original marks a space that at least one room names as its canonical parent — the
 	// space that room came from, as opposed to one it was also filed into.
 	Original bool
+	// LeaveBy is the room whose leaving leaves the space and all of its rooms with it (a
+	// Telegram forum's chat: its topics go with it); "" for a space that is not left so
+	// (an account's own space, a space of separate memberships).
+	LeaveBy RoomID
 }
 
 // KeeperReach is how many of your rooms a space's other member has to be inside before
