@@ -296,7 +296,12 @@ Since then:
   one that is: a Matrix space on its own, a WhatsApp community with its groups. A
   bridge's own space for an account has none: leaving it would be signing out.
 
-so a current cache is at version 11.
+- v12 (`room_networks`): the network behind a room another network keeps for it (a
+  Matrix room a bridge keeps, by its `m.bridge` state), read once per room and kept: a
+  room never changes network. A room read and found to be no bridge's keeps `Matrix`,
+  so a room with no row is one not read yet.
+
+so a current cache is at version 12.
 
 ### Indexes need no migration
 

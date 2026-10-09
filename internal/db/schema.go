@@ -82,6 +82,14 @@ CREATE TABLE space_children (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX space_children_in_order ON space_children(space_id, position);
 
+-- The network behind a room another network keeps for it (domain.Room.Network): a
+-- Matrix room a bridge keeps, by its bridge. Read once and kept: a room never changes
+-- network (KeepRoomNetworks).
+CREATE TABLE room_networks (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	network TEXT NOT NULL
+) STRICT, WITHOUT ROWID;
+
 -- How a space is left (domain.Space.Leaving), a row only for one that is.
 CREATE TABLE space_leaving (
 	space_id TEXT    NOT NULL PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
@@ -463,6 +471,11 @@ DROP TABLE phone_names;`,
 	`CREATE TABLE IF NOT EXISTS space_leaving (
 	space_id TEXT    NOT NULL PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
 	leaving  INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;`,
+	// v12: the network behind a bridged room.
+	`CREATE TABLE IF NOT EXISTS room_networks (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	network TEXT NOT NULL
 ) STRICT, WITHOUT ROWID;`,
 }
 
