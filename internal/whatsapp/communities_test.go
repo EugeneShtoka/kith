@@ -2,12 +2,14 @@ package whatsapp
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
 
 	"go.mau.fi/whatsmeow/types"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -92,6 +94,10 @@ func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 	if spaces, _ := a.Spaces(ctx); !spaces[0].Managed() {
 		t.Error("a cached community reads back as a space to file rooms into")
 	}
+	// A community is left with its groups; an account's own space is not left.
+	if spaces, _ := a.Spaces(ctx); spaces[0].Leaving != domain.LeftWithRooms || spaces[2].Leaving != domain.NotLeft {
+		t.Errorf("leaving a community %v, the account's space %v", spaces[0].Leaving, spaces[2].Leaving)
+	}
 	if parent, err := a.CanonicalParent(ctx, room); err != nil || parent != building.ID {
 		t.Errorf("CanonicalParent = (%q, %v), want the community", parent, err)
 	}
@@ -149,5 +155,19 @@ func TestAnAccountIsTheSpaceOfItsRooms(t *testing.T) {
 	}
 	if parent, err := a.CanonicalParent(ctx, homeDM); err != nil || parent != accountSpaceID(ownDigits) {
 		t.Errorf("CanonicalParent of a direct chat = (%q, %v), want home's space", parent, err)
+	}
+}
+
+// A private chat is not left on WhatsApp, and a group is left only through its
+// account's connection.
+func TestOnlyAGroupIsLeft(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
+	if err := a.LeaveRoom(ctx, roomID(ownDigits, pn(danaPhone))); !errors.Is(err, api.ErrNotOnNetwork) {
+		t.Errorf("leaving a private chat: %v, want refused as not on the network", err)
+	}
+	if err := a.LeaveRoom(ctx, roomID(ownDigits, group("1203"))); !errors.Is(err, errNetworkOff) {
+		t.Errorf("leaving a group offline: %v, want the network off", err)
 	}
 }

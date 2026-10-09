@@ -1247,7 +1247,9 @@ name        = "a"  # name this group
 notify_rule = "b"  # notification rule for this space
 # Asks first.
 mark_read   = "m"  # mark every unread room in this group read
-# Asks first. A Telegram forum is left with all its topics.
+# Asks first. A Telegram forum is left with all its topics, a WhatsApp community with
+# all its groups; leaving a Matrix space asks which of its rooms go too. An account's
+# own space is not left.
 leave       = "L"  # leave this space, or delete this tag
 
 # Cursor motion, shared by every pane.
@@ -1524,8 +1526,12 @@ cancel = "esc"    # close the prompt
 
 # Confirmations of destructive actions.
 [keys.confirm]
-yes = "y"      # go ahead
-no  = "n,esc"  # never mind
+yes     = "y"      # go ahead
+no      = "n,esc"  # never mind
+# Leaving a space: every room also in another space goes too.
+yes_all = "Y"      # yes, and to each question like it
+# Leaving a space: every room also in another space stays.
+no_all  = "N"      # no, and to each question like it
 
 # The device-verification overlay.
 [keys.verify]

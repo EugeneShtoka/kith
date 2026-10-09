@@ -177,6 +177,16 @@ message Space {
   string keeper = 6;
   // The room whose leaving leaves the space and its rooms (domain.Space.LeaveBy).
   string leave_by = 7;
+  // How the space is left from the rail (domain.Space.Leaving).
+  SpaceLeaving leaving = 8;
+}
+
+// SpaceLeaving is how a space is left (domain.SpaceLeaving).
+enum SpaceLeaving {
+  SPACE_LEAVING_UNSPECIFIED = 0; // not left: an account's own space
+  SPACE_LEAVING_BY_ROOM = 1;
+  SPACE_LEAVING_WITH_ROOMS = 2;
+  SPACE_LEAVING_ALONE = 3;
 }
 
 // Unread is one room's unread state (domain.Unread).

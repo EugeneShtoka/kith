@@ -195,6 +195,8 @@
 [1;38;2;102;135;153mConfirming[m
   y                go ahead
   n, esc           never mind
+  Y                yes, and to each question like it
+  N                no, and to each question like it
 
 [1;38;2;102;135;153mDevice verification[m
   y                accept / confirm the emoji match

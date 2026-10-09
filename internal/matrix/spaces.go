@@ -32,7 +32,21 @@ func (b *InProc) matrixSpaces(ctx context.Context) ([]domain.Space, error) {
 	if err != nil {
 		return nil, err //nolint:wrapcheck // each caller says what it was reading for
 	}
-	return slices.DeleteFunc(spaces, func(sp domain.Space) bool { return !domain.MatrixRooms.Owns(domain.RoomID(sp.ID)) }), nil
+	spaces = slices.DeleteFunc(spaces, func(sp domain.Space) bool { return !domain.MatrixRooms.Owns(domain.RoomID(sp.ID)) })
+	for i := range spaces {
+		spaces[i].Leaving = leavingOf(spaces[i])
+	}
+	return spaces, nil
+}
+
+// leavingOf is how a Matrix space is left: on its own, its rooms each a membership of
+// their own, unless it is a bridge's view of an account (a bridge keeps it and no room
+// calls it home), which only signing out of the bridge leaves.
+func leavingOf(s domain.Space) domain.SpaceLeaving {
+	if s.Keeper != "" && !s.Original {
+		return domain.NotLeft
+	}
+	return domain.LeftAlone
 }
 
 // RefreshSpaces fetches the joined spaces with their direct child rooms (sub-spaces
@@ -94,6 +108,9 @@ func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 				spaces[i].Original = origins[spaces[i].ID]
 			}
 		}
+	}
+	for i := range spaces {
+		spaces[i].Leaving = leavingOf(spaces[i])
 	}
 	return spaces, nil
 }

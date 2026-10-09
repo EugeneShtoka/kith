@@ -69,6 +69,8 @@ const (
 	actSubmit
 	actYes
 	actNo
+	actYesAll
+	actNoAll
 	actSearchRoom
 	actSearchAll
 	actMentions
@@ -509,6 +511,8 @@ var keyActions = []keyAction{
 
 	{scopeConfirm, actYes, "confirm.yes"},
 	{scopeConfirm, actNo, "confirm.no"},
+	{scopeConfirm, actYesAll, "confirm.yes_all"},
+	{scopeConfirm, actNoAll, "confirm.no_all"},
 
 	{scopeVerify, actConfirm, "verify.confirm"},
 	{scopeVerify, actCancel, "verify.cancel"},

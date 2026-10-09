@@ -145,8 +145,10 @@ type SearchKeys struct {
 
 // ConfirmKeys answer a destructive action's confirmation.
 type ConfirmKeys struct {
-	Yes string `toml:"yes"`
-	No  string `toml:"no"`
+	Yes    string `toml:"yes"`
+	No     string `toml:"no"`
+	YesAll string `toml:"yes_all"`
+	NoAll  string `toml:"no_all"`
 }
 
 // PromptKeys drive a one-line text prompt. Anything not bound here types itself,

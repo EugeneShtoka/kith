@@ -186,12 +186,14 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 	for _, s := range spaces {
 		switch s.ID {
 		case forumSpaceID(42, -(channelMark + forum)):
-			if s.Name != "Hikers" || !slices.Equal(s.Children, []domain.RoomID{forumRoom, tripsRoom}) {
+			// Left by leaving its chat, General, which takes the topics with it.
+			if s.Name != "Hikers" || !slices.Equal(s.Children, []domain.RoomID{forumRoom, tripsRoom}) ||
+				s.Leaving != domain.LeftByRoom || s.LeaveBy != forumRoom {
 				t.Errorf("forum space = %+v", s)
 			}
 		case accountSpaceID(42):
-			if len(s.Children) != 0 {
-				t.Errorf("the account's space holds %v, want none of the forum's rooms", s.Children)
+			if len(s.Children) != 0 || s.Leavable() {
+				t.Errorf("the account's space holds %v (leaving %v), want none of the forum's rooms, not left", s.Children, s.Leaving)
 			}
 		}
 	}

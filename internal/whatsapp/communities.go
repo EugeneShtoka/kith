@@ -68,9 +68,11 @@ func (a *Adapter) whatsAppSpaces(ctx context.Context) ([]domain.Space, error) {
 	spaces = slices.DeleteFunc(spaces, func(s domain.Space) bool {
 		return domain.NetworkOf(string(s.ID)) != domain.ProtocolWhatsApp
 	})
-	// Not stored (Matrix derives it on read too): every community is its groups' home.
+	// Not stored (Matrix derives it on read too): every community is its groups' home,
+	// and is left with them (LeaveRoom).
 	for i := range spaces {
 		spaces[i].Original = true
+		spaces[i].Leaving = domain.LeftWithRooms
 	}
 	return spaces, nil
 }

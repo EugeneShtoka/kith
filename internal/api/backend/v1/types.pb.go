@@ -22,6 +22,59 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// SpaceLeaving is how a space is left (domain.SpaceLeaving).
+type SpaceLeaving int32
+
+const (
+	SpaceLeaving_SPACE_LEAVING_UNSPECIFIED SpaceLeaving = 0 // not left: an account's own space
+	SpaceLeaving_SPACE_LEAVING_BY_ROOM     SpaceLeaving = 1
+	SpaceLeaving_SPACE_LEAVING_WITH_ROOMS  SpaceLeaving = 2
+	SpaceLeaving_SPACE_LEAVING_ALONE       SpaceLeaving = 3
+)
+
+// Enum value maps for SpaceLeaving.
+var (
+	SpaceLeaving_name = map[int32]string{
+		0: "SPACE_LEAVING_UNSPECIFIED",
+		1: "SPACE_LEAVING_BY_ROOM",
+		2: "SPACE_LEAVING_WITH_ROOMS",
+		3: "SPACE_LEAVING_ALONE",
+	}
+	SpaceLeaving_value = map[string]int32{
+		"SPACE_LEAVING_UNSPECIFIED": 0,
+		"SPACE_LEAVING_BY_ROOM":     1,
+		"SPACE_LEAVING_WITH_ROOMS":  2,
+		"SPACE_LEAVING_ALONE":       3,
+	}
+)
+
+func (x SpaceLeaving) Enum() *SpaceLeaving {
+	p := new(SpaceLeaving)
+	*p = x
+	return p
+}
+
+func (x SpaceLeaving) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SpaceLeaving) Descriptor() protoreflect.EnumDescriptor {
+	return file_backend_v1_types_proto_enumTypes[0].Descriptor()
+}
+
+func (SpaceLeaving) Type() protoreflect.EnumType {
+	return &file_backend_v1_types_proto_enumTypes[0]
+}
+
+func (x SpaceLeaving) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SpaceLeaving.Descriptor instead.
+func (SpaceLeaving) EnumDescriptor() ([]byte, []int) {
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{0}
+}
+
 // VerificationKind is the stage of a verification flow a step represents
 // (domain.VerificationKind).
 type VerificationKind int32
@@ -66,11 +119,11 @@ func (x VerificationKind) String() string {
 }
 
 func (VerificationKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_backend_v1_types_proto_enumTypes[0].Descriptor()
+	return file_backend_v1_types_proto_enumTypes[1].Descriptor()
 }
 
 func (VerificationKind) Type() protoreflect.EnumType {
-	return &file_backend_v1_types_proto_enumTypes[0]
+	return &file_backend_v1_types_proto_enumTypes[1]
 }
 
 func (x VerificationKind) Number() protoreflect.EnumNumber {
@@ -79,7 +132,7 @@ func (x VerificationKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use VerificationKind.Descriptor instead.
 func (VerificationKind) EnumDescriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{0}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{1}
 }
 
 // Level is the bar a message clears to earn something (notify.Level).
@@ -122,11 +175,11 @@ func (x Level) String() string {
 }
 
 func (Level) Descriptor() protoreflect.EnumDescriptor {
-	return file_backend_v1_types_proto_enumTypes[1].Descriptor()
+	return file_backend_v1_types_proto_enumTypes[2].Descriptor()
 }
 
 func (Level) Type() protoreflect.EnumType {
-	return &file_backend_v1_types_proto_enumTypes[1]
+	return &file_backend_v1_types_proto_enumTypes[2]
 }
 
 func (x Level) Number() protoreflect.EnumNumber {
@@ -135,7 +188,7 @@ func (x Level) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Level.Descriptor instead.
 func (Level) EnumDescriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{1}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{2}
 }
 
 // Room is a Matrix room we are in or have been invited to (domain.Room).
@@ -1220,7 +1273,9 @@ type Space struct {
 	// large — a bridge, from the outside.
 	Keeper string `protobuf:"bytes,6,opt,name=keeper,proto3" json:"keeper,omitempty"`
 	// The room whose leaving leaves the space and its rooms (domain.Space.LeaveBy).
-	LeaveBy       string `protobuf:"bytes,7,opt,name=leave_by,json=leaveBy,proto3" json:"leave_by,omitempty"`
+	LeaveBy string `protobuf:"bytes,7,opt,name=leave_by,json=leaveBy,proto3" json:"leave_by,omitempty"`
+	// How the space is left from the rail (domain.Space.Leaving).
+	Leaving       SpaceLeaving `protobuf:"varint,8,opt,name=leaving,proto3,enum=backend.v1.SpaceLeaving" json:"leaving,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1302,6 +1357,13 @@ func (x *Space) GetLeaveBy() string {
 		return x.LeaveBy
 	}
 	return ""
+}
+
+func (x *Space) GetLeaving() SpaceLeaving {
+	if x != nil {
+		return x.Leaving
+	}
+	return SpaceLeaving_SPACE_LEAVING_UNSPECIFIED
 }
 
 // Unread is one room's unread state (domain.Unread).
@@ -2575,7 +2637,7 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	" \x01(\bR\aheading\x12\x18\n" +
 	"\aspoiler\x18\v \x01(\bR\aspoiler\x12\x16\n" +
 	"\x06reason\x18\f \x01(\tR\x06reason\x12\x12\n" +
-	"\x04href\x18\r \x01(\tR\x04href\"\xae\x01\n" +
+	"\x04href\x18\r \x01(\tR\x04href\"\xe2\x01\n" +
 	"\x05Space\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -2583,7 +2645,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x06bridge\x18\x04 \x01(\tR\x06bridge\x12\x1a\n" +
 	"\boriginal\x18\x05 \x01(\bR\boriginal\x12\x16\n" +
 	"\x06keeper\x18\x06 \x01(\tR\x06keeper\x12\x19\n" +
-	"\bleave_by\x18\a \x01(\tR\aleaveBy\"\xa4\x02\n" +
+	"\bleave_by\x18\a \x01(\tR\aleaveBy\x122\n" +
+	"\aleaving\x18\b \x01(\x0e2\x18.backend.v1.SpaceLeavingR\aleaving\"\xa4\x02\n" +
 	"\x06Unread\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12$\n" +
 	"\rnotifications\x18\x02 \x01(\x03R\rnotifications\x12\x1e\n" +
@@ -2684,7 +2747,12 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"PersonLink\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
-	"\x05other\x18\x03 \x01(\tR\x05other*\xcd\x01\n" +
+	"\x05other\x18\x03 \x01(\tR\x05other*\x7f\n" +
+	"\fSpaceLeaving\x12\x1d\n" +
+	"\x19SPACE_LEAVING_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15SPACE_LEAVING_BY_ROOM\x10\x01\x12\x1c\n" +
+	"\x18SPACE_LEAVING_WITH_ROOMS\x10\x02\x12\x17\n" +
+	"\x13SPACE_LEAVING_ALONE\x10\x03*\xcd\x01\n" +
 	"\x10VerificationKind\x12!\n" +
 	"\x1dVERIFICATION_KIND_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bVERIFICATION_KIND_REQUESTED\x10\x01\x12\x19\n" +
@@ -2712,69 +2780,71 @@ func file_backend_v1_types_proto_rawDescGZIP() []byte {
 	return file_backend_v1_types_proto_rawDescData
 }
 
-var file_backend_v1_types_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_backend_v1_types_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_backend_v1_types_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_backend_v1_types_proto_goTypes = []any{
-	(VerificationKind)(0),         // 0: backend.v1.VerificationKind
-	(Level)(0),                    // 1: backend.v1.Level
-	(*Room)(nil),                  // 2: backend.v1.Room
-	(*Mention)(nil),               // 3: backend.v1.Mention
-	(*Media)(nil),                 // 4: backend.v1.Media
-	(*Revision)(nil),              // 5: backend.v1.Revision
-	(*Activity)(nil),              // 6: backend.v1.Activity
-	(*Message)(nil),               // 7: backend.v1.Message
-	(*Poll)(nil),                  // 8: backend.v1.Poll
-	(*Ballot)(nil),                // 9: backend.v1.Ballot
-	(*PollOption)(nil),            // 10: backend.v1.PollOption
-	(*Formatted)(nil),             // 11: backend.v1.Formatted
-	(*Span)(nil),                  // 12: backend.v1.Span
-	(*Space)(nil),                 // 13: backend.v1.Space
-	(*Unread)(nil),                // 14: backend.v1.Unread
-	(*ThreadUnread)(nil),          // 15: backend.v1.ThreadUnread
-	(*Thread)(nil),                // 16: backend.v1.Thread
-	(*Reaction)(nil),              // 17: backend.v1.Reaction
-	(*ReactionUpdate)(nil),        // 18: backend.v1.ReactionUpdate
-	(*TimelinePage)(nil),          // 19: backend.v1.TimelinePage
-	(*Draft)(nil),                 // 20: backend.v1.Draft
-	(*Member)(nil),                // 21: backend.v1.Member
-	(*SearchHit)(nil),             // 22: backend.v1.SearchHit
-	(*SASEmoji)(nil),              // 23: backend.v1.SASEmoji
-	(*Verification)(nil),          // 24: backend.v1.Verification
-	(*TempRule)(nil),              // 25: backend.v1.TempRule
-	(*PersonName)(nil),            // 26: backend.v1.PersonName
-	(*PersonLink)(nil),            // 27: backend.v1.PersonLink
-	(*timestamppb.Timestamp)(nil), // 28: google.protobuf.Timestamp
+	(SpaceLeaving)(0),             // 0: backend.v1.SpaceLeaving
+	(VerificationKind)(0),         // 1: backend.v1.VerificationKind
+	(Level)(0),                    // 2: backend.v1.Level
+	(*Room)(nil),                  // 3: backend.v1.Room
+	(*Mention)(nil),               // 4: backend.v1.Mention
+	(*Media)(nil),                 // 5: backend.v1.Media
+	(*Revision)(nil),              // 6: backend.v1.Revision
+	(*Activity)(nil),              // 7: backend.v1.Activity
+	(*Message)(nil),               // 8: backend.v1.Message
+	(*Poll)(nil),                  // 9: backend.v1.Poll
+	(*Ballot)(nil),                // 10: backend.v1.Ballot
+	(*PollOption)(nil),            // 11: backend.v1.PollOption
+	(*Formatted)(nil),             // 12: backend.v1.Formatted
+	(*Span)(nil),                  // 13: backend.v1.Span
+	(*Space)(nil),                 // 14: backend.v1.Space
+	(*Unread)(nil),                // 15: backend.v1.Unread
+	(*ThreadUnread)(nil),          // 16: backend.v1.ThreadUnread
+	(*Thread)(nil),                // 17: backend.v1.Thread
+	(*Reaction)(nil),              // 18: backend.v1.Reaction
+	(*ReactionUpdate)(nil),        // 19: backend.v1.ReactionUpdate
+	(*TimelinePage)(nil),          // 20: backend.v1.TimelinePage
+	(*Draft)(nil),                 // 21: backend.v1.Draft
+	(*Member)(nil),                // 22: backend.v1.Member
+	(*SearchHit)(nil),             // 23: backend.v1.SearchHit
+	(*SASEmoji)(nil),              // 24: backend.v1.SASEmoji
+	(*Verification)(nil),          // 25: backend.v1.Verification
+	(*TempRule)(nil),              // 26: backend.v1.TempRule
+	(*PersonName)(nil),            // 27: backend.v1.PersonName
+	(*PersonLink)(nil),            // 28: backend.v1.PersonLink
+	(*timestamppb.Timestamp)(nil), // 29: google.protobuf.Timestamp
 }
 var file_backend_v1_types_proto_depIdxs = []int32{
-	28, // 0: backend.v1.Revision.at:type_name -> google.protobuf.Timestamp
-	11, // 1: backend.v1.Revision.format:type_name -> backend.v1.Formatted
-	28, // 2: backend.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
-	4,  // 3: backend.v1.Message.media:type_name -> backend.v1.Media
-	3,  // 4: backend.v1.Message.mentions:type_name -> backend.v1.Mention
-	11, // 5: backend.v1.Message.format:type_name -> backend.v1.Formatted
-	8,  // 6: backend.v1.Message.poll:type_name -> backend.v1.Poll
-	10, // 7: backend.v1.Poll.options:type_name -> backend.v1.PollOption
-	9,  // 8: backend.v1.Poll.ballots:type_name -> backend.v1.Ballot
-	12, // 9: backend.v1.Formatted.spans:type_name -> backend.v1.Span
-	15, // 10: backend.v1.Unread.threads:type_name -> backend.v1.ThreadUnread
-	28, // 11: backend.v1.ThreadUnread.latest_at:type_name -> google.protobuf.Timestamp
-	28, // 12: backend.v1.Thread.latest_at:type_name -> google.protobuf.Timestamp
-	17, // 13: backend.v1.ReactionUpdate.reaction:type_name -> backend.v1.Reaction
-	7,  // 14: backend.v1.TimelinePage.messages:type_name -> backend.v1.Message
-	17, // 15: backend.v1.TimelinePage.reactions:type_name -> backend.v1.Reaction
-	3,  // 16: backend.v1.Draft.mentions:type_name -> backend.v1.Mention
-	28, // 17: backend.v1.SearchHit.timestamp:type_name -> google.protobuf.Timestamp
-	3,  // 18: backend.v1.SearchHit.mentions:type_name -> backend.v1.Mention
-	0,  // 19: backend.v1.Verification.kind:type_name -> backend.v1.VerificationKind
-	23, // 20: backend.v1.Verification.emojis:type_name -> backend.v1.SASEmoji
-	1,  // 21: backend.v1.TempRule.show:type_name -> backend.v1.Level
-	1,  // 22: backend.v1.TempRule.ring:type_name -> backend.v1.Level
-	28, // 23: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
-	24, // [24:24] is the sub-list for method output_type
-	24, // [24:24] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	29, // 0: backend.v1.Revision.at:type_name -> google.protobuf.Timestamp
+	12, // 1: backend.v1.Revision.format:type_name -> backend.v1.Formatted
+	29, // 2: backend.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
+	5,  // 3: backend.v1.Message.media:type_name -> backend.v1.Media
+	4,  // 4: backend.v1.Message.mentions:type_name -> backend.v1.Mention
+	12, // 5: backend.v1.Message.format:type_name -> backend.v1.Formatted
+	9,  // 6: backend.v1.Message.poll:type_name -> backend.v1.Poll
+	11, // 7: backend.v1.Poll.options:type_name -> backend.v1.PollOption
+	10, // 8: backend.v1.Poll.ballots:type_name -> backend.v1.Ballot
+	13, // 9: backend.v1.Formatted.spans:type_name -> backend.v1.Span
+	0,  // 10: backend.v1.Space.leaving:type_name -> backend.v1.SpaceLeaving
+	16, // 11: backend.v1.Unread.threads:type_name -> backend.v1.ThreadUnread
+	29, // 12: backend.v1.ThreadUnread.latest_at:type_name -> google.protobuf.Timestamp
+	29, // 13: backend.v1.Thread.latest_at:type_name -> google.protobuf.Timestamp
+	18, // 14: backend.v1.ReactionUpdate.reaction:type_name -> backend.v1.Reaction
+	8,  // 15: backend.v1.TimelinePage.messages:type_name -> backend.v1.Message
+	18, // 16: backend.v1.TimelinePage.reactions:type_name -> backend.v1.Reaction
+	4,  // 17: backend.v1.Draft.mentions:type_name -> backend.v1.Mention
+	29, // 18: backend.v1.SearchHit.timestamp:type_name -> google.protobuf.Timestamp
+	4,  // 19: backend.v1.SearchHit.mentions:type_name -> backend.v1.Mention
+	1,  // 20: backend.v1.Verification.kind:type_name -> backend.v1.VerificationKind
+	24, // 21: backend.v1.Verification.emojis:type_name -> backend.v1.SASEmoji
+	2,  // 22: backend.v1.TempRule.show:type_name -> backend.v1.Level
+	2,  // 23: backend.v1.TempRule.ring:type_name -> backend.v1.Level
+	29, // 24: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
+	25, // [25:25] is the sub-list for method output_type
+	25, // [25:25] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_backend_v1_types_proto_init() }
@@ -2787,7 +2857,7 @@ func file_backend_v1_types_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backend_v1_types_proto_rawDesc), len(file_backend_v1_types_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   0,

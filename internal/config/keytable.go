@@ -82,7 +82,7 @@ Targets:
 			{path: "rail.name", def: "a", doc: "name this group", note: "A local name; an empty one clears it."},
 			{path: "rail.notify_rule", def: "b", doc: "notification rule for this space"},
 			{path: "rail.mark_read", def: "m", doc: "mark every unread room in this group read", note: "Asks first."},
-			{path: "rail.leave", def: "L", doc: "leave this space, or delete this tag", note: "Asks first. A Telegram forum is left with all its topics."},
+			{path: "rail.leave", def: "L", doc: "leave this space, or delete this tag", note: "Asks first. A Telegram forum is left with all its topics, a WhatsApp community with all its groups; leaving a Matrix space asks which of its rooms go too. An account's own space is not left."},
 		},
 	},
 	{
@@ -400,6 +400,8 @@ navigate mode; ` + "`filter`" + ` switches to typing.`,
 		binds: []keyBinding{
 			{path: "confirm.yes", def: "y", doc: "go ahead"},
 			{path: "confirm.no", def: "n,esc", doc: "never mind"},
+			{path: "confirm.yes_all", def: "Y", doc: "yes, and to each question like it", note: "Leaving a space: every room also in another space goes too."},
+			{path: "confirm.no_all", def: "N", doc: "no, and to each question like it", note: "Leaving a space: every room also in another space stays."},
 		},
 	},
 	{

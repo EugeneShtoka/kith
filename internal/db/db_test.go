@@ -909,3 +909,27 @@ func TestEachRoomKeepsWhatItsCapSays(t *testing.T) {
 		t.Errorf("kept %d in the capped room (want 10) and %d in the other (want 2500)", small, all)
 	}
 }
+
+// A space left is forgotten as a room is: its row and its children go, and the other
+// spaces stay.
+func TestForgettingASpace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := openTemp(t)
+	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{
+		{ID: "!work:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
+		{ID: "!fun:x", Name: "Friends", Children: []domain.RoomID{"!a:x"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.ForgetRooms(ctx, []domain.RoomID{"!work:x"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := cache.Spaces(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "!fun:x" || len(got[0].Children) != 1 {
+		t.Errorf("Spaces after forgetting Work = %+v, want Friends alone with its room", got)
+	}
+}

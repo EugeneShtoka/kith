@@ -1192,8 +1192,8 @@ func (m Model) handleRoomListMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleInviteUpdate(msg))
 	case joinedMsg:
 		return answered(m.handleJoined(msg))
-	case leftMsg:
-		return answered(m.handleLeft(msg))
+	case leftMsg, spaceLeftMsg:
+		return answered(m.handleLeaving(msg))
 	default:
 		return m, nil, false
 	}
