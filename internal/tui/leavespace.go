@@ -16,8 +16,8 @@ import (
 // membership of its own, and so is each of its rooms: whether its rooms go too is asked,
 // then, for each of them also in another space, whether that one goes (or every such
 // room, either way), and last whether to leave the space itself. Nothing is left until
-// that last yes. A bridged room left is left on its network too (the bridge passes the
-// leave on), which the last question says.
+// that last yes. A bridged room is left on its network too only if its bridge passes
+// a leave on, which the last question says.
 
 // spaceLeave is a space being left, gathered over its questions.
 type spaceLeave struct {
@@ -145,8 +145,9 @@ func (m Model) leaveSpacePrompt(c confirmState) string {
 	}
 }
 
-// bridgedNote says which rooms being left are bridged ones, which the bridge leaves on
-// their network too.
+// bridgedNote says which rooms being left are bridged ones. A bridge leaves them on
+// their network only when it is set to (mautrix's bridge_matrix_leave, off by
+// default), which kith cannot see, so it says so rather than promise it.
 func (m Model) bridgedNote(rooms []domain.RoomID) string {
 	by := map[domain.Protocol]int{}
 	var networks []domain.Protocol
@@ -171,7 +172,8 @@ func (m Model) bridgedNote(rooms []domain.RoomID) string {
 	for _, n := range networks {
 		parts = append(parts, fmt.Sprintf("%d on %s", by[n], n))
 	}
-	return " bridged rooms are left on their network too: " + strings.Join(parts, ", ")
+	return " bridged: " + strings.Join(parts, ", ") +
+		", left there too only if the bridge passes a leave on (bridge_matrix_leave)"
 }
 
 // spaceLeftMsg reports leaving a space and the rooms that went with it.

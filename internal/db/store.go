@@ -307,15 +307,19 @@ func sweepRooms(ctx context.Context, tx *sql.Tx, rooms []domain.Room, membership
 
 // Spaces returns the cached spaces with their child rooms, sorted for display.
 func (c *Cache) Spaces(ctx context.Context) ([]domain.Space, error) {
-	spaces, err := collect(ctx, c.db, "spaces", "SELECT id, name, bridge, keeper FROM spaces",
+	spaces, err := collect(ctx, c.db, "spaces",
+		`SELECT s.id, s.name, s.bridge, s.keeper, coalesce(l.leaving, 0)
+		 FROM spaces s LEFT JOIN space_leaving l ON l.space_id = s.id`,
 		func(rows *sql.Rows) (domain.Space, error) {
 			var id, name, bridge, keeper string
-			err := rows.Scan(&id, &name, &bridge, &keeper)
+			var leaving int
+			err := rows.Scan(&id, &name, &bridge, &keeper, &leaving)
 			return domain.Space{
-				ID:     domain.SpaceID(id),
-				Name:   name,
-				Bridge: domain.Protocol(bridge),
-				Keeper: keeper,
+				ID:      domain.SpaceID(id),
+				Name:    name,
+				Bridge:  domain.Protocol(bridge),
+				Keeper:  keeper,
+				Leaving: domain.SpaceLeaving(leaving),
 			}, err
 		})
 	if err != nil {
@@ -386,18 +390,32 @@ func (c *Cache) SaveSpaces(ctx context.Context, owner domain.RoomOwner, spaces [
 			return fmt.Errorf("db: prepare space-child insert: %w", err)
 		}
 		defer func() { _ = child.Close() }()
-		for _, s := range spaces {
-			if _, err := space.ExecContext(ctx, string(s.ID), s.Name, string(s.Bridge), s.Keeper); err != nil {
-				return fmt.Errorf("db: insert space %s: %w", s.ID, err)
-			}
-			for pos, roomID := range s.Children {
-				if _, err := child.ExecContext(ctx, string(s.ID), string(roomID), pos); err != nil {
-					return fmt.Errorf("db: insert space child %s/%s: %w", s.ID, roomID, err)
-				}
+		for i := range spaces {
+			if err := saveSpace(ctx, tx, space, child, spaces[i]); err != nil {
+				return err
 			}
 		}
 		return nil
 	})
+}
+
+// saveSpace writes one space, how it is left, and its children, by the prepared
+// statements of SaveSpaces' transaction.
+func saveSpace(ctx context.Context, tx *sql.Tx, space, child *sql.Stmt, s domain.Space) error {
+	if _, err := space.ExecContext(ctx, string(s.ID), s.Name, string(s.Bridge), s.Keeper); err != nil {
+		return fmt.Errorf("db: insert space %s: %w", s.ID, err)
+	}
+	if s.Leavable() {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO space_leaving(space_id, leaving) VALUES(?, ?)", string(s.ID), int(s.Leaving)); err != nil {
+			return fmt.Errorf("db: keep how space %s is left: %w", s.ID, err)
+		}
+	}
+	for pos, roomID := range s.Children {
+		if _, err := child.ExecContext(ctx, string(s.ID), string(roomID), pos); err != nil {
+			return fmt.Errorf("db: insert space child %s/%s: %w", s.ID, roomID, err)
+		}
+	}
+	return nil
 }
 
 func boolToInt(b bool) int {

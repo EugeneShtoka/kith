@@ -82,6 +82,12 @@ CREATE TABLE space_children (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX space_children_in_order ON space_children(space_id, position);
 
+-- How a space is left (domain.Space.Leaving), a row only for one that is.
+CREATE TABLE space_leaving (
+	space_id TEXT    NOT NULL PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
+	leaving  INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;
+
 -- space_id is not a foreign key: '' records "no canonical parent" (so it is not
 -- re-asked), and SQLite exempts only NULL from FK checks.
 CREATE TABLE room_parents (
@@ -453,6 +459,11 @@ CREATE TABLE IF NOT EXISTS person_links (
 ) STRICT, WITHOUT ROWID;
 INSERT OR IGNORE INTO person_names(source, id, name, rank) SELECT source, 'tel:' || phone, name, rank FROM phone_names;
 DROP TABLE phone_names;`,
+	// v11: how a space is left.
+	`CREATE TABLE IF NOT EXISTS space_leaving (
+	space_id TEXT    NOT NULL PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
+	leaving  INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;`,
 }
 
 // ensureIndexes makes the file's explicit indexes exactly baseSchema's: a missing one

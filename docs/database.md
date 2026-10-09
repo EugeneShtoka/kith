@@ -292,8 +292,11 @@ Since then:
   source says are one person; `phone_names` moved in as `tel:` names and dropped.
   Together they are the directory: a person is named by the best name any source
   gives any of their identifiers.
+- v11 (`space_leaving`): how a space is left, as its network says, a row only for
+  one that is: a Matrix space on its own, a WhatsApp community with its groups. A
+  bridge's own space for an account has none: leaving it would be signing out.
 
-so a current cache is at version 10.
+so a current cache is at version 11.
 
 ### Indexes need no migration
 
