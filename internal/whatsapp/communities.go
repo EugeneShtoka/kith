@@ -121,8 +121,8 @@ func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 		}
 		spaces = append(spaces, domain.Space{
 			ID: accountSpaceID(account.Digits), Name: "WhatsApp " + account.Name, Children: children,
-			// The home of every room no community claims.
-			Bridge: domain.ProtocolWhatsApp, Original: true,
+			// The home of every room no community claims; left by unlinking (SignOut).
+			Bridge: domain.ProtocolWhatsApp, Original: true, Leaving: domain.LeftBySigningOut,
 		})
 	}
 	return spaces, nil

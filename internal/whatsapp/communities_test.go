@@ -94,8 +94,8 @@ func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 	if spaces, _ := a.Spaces(ctx); !spaces[0].Managed() {
 		t.Error("a cached community reads back as a space to file rooms into")
 	}
-	// A community is left with its groups; an account's own space is not left.
-	if spaces, _ := a.Spaces(ctx); spaces[0].Leaving != domain.LeftWithRooms || spaces[2].Leaving != domain.NotLeft {
+	// A community is left with its groups; an account's own space by unlinking it.
+	if spaces, _ := a.Spaces(ctx); spaces[0].Leaving != domain.LeftWithRooms || spaces[2].Leaving != domain.LeftBySigningOut {
 		t.Errorf("leaving a community %v, the account's space %v", spaces[0].Leaving, spaces[2].Leaving)
 	}
 	if parent, err := a.CanonicalParent(ctx, room); err != nil || parent != building.ID {
@@ -169,5 +169,18 @@ func TestOnlyAGroupIsLeft(t *testing.T) {
 	}
 	if err := a.LeaveRoom(ctx, roomID(ownDigits, group("1203"))); !errors.Is(err, errNetworkOff) {
 		t.Errorf("leaving a group offline: %v, want the network off", err)
+	}
+}
+
+// An account is unlinked only through its connection, and only its own space is one.
+func TestOnlyAConnectedAccountIsSignedOut(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
+	if err := a.SignOut(ctx, accountSpaceID("1500000009"), false); !errors.Is(err, api.ErrNotOnNetwork) {
+		t.Errorf("signing out a space no account is: %v, want refused", err)
+	}
+	if err := a.SignOut(ctx, accountSpaceID(ownDigits), false); !errors.Is(err, errNetworkOff) {
+		t.Errorf("signing out an account offline: %v, want the network off", err)
 	}
 }

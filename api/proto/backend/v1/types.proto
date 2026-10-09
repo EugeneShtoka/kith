@@ -192,10 +192,11 @@ message Space {
 
 // SpaceLeaving is how a space is left (domain.SpaceLeaving).
 enum SpaceLeaving {
-  SPACE_LEAVING_UNSPECIFIED = 0; // not left: an account's own space
+  SPACE_LEAVING_UNSPECIFIED = 0; // not left: a bridge's own space for an account
   SPACE_LEAVING_BY_ROOM = 1;
   SPACE_LEAVING_WITH_ROOMS = 2;
   SPACE_LEAVING_ALONE = 3;
+  SPACE_LEAVING_BY_SIGNING_OUT = 4;
 }
 
 // Unread is one room's unread state (domain.Unread).

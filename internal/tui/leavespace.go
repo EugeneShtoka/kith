@@ -54,6 +54,8 @@ func (m Model) answerEarlierStep(c confirmState, yes bool) (Model, bool) {
 		return m.answerSharedRoom(c.leaving, yes, false), true
 	case pendingDeleteForThem:
 		return m.answerDeleteForThem(c, yes), true
+	case pendingSignOutForget:
+		return m.answerSignOutForget(c, yes), true
 	}
 	return m, false
 }
@@ -213,10 +215,13 @@ func (m Model) leaveSpaceAndRoomsCmd(l spaceLeave) tea.Cmd {
 	}
 }
 
-// handleLeaving reports a room, or a space, left.
+// handleLeaving reports a room or a space left, or an account signed out.
 func (m Model) handleLeaving(msg tea.Msg) (Model, tea.Cmd) {
-	if space, ok := msg.(spaceLeftMsg); ok {
-		return m.handleSpaceLeft(space)
+	switch msg := msg.(type) {
+	case spaceLeftMsg:
+		return m.handleSpaceLeft(msg)
+	case signedOutMsg:
+		return m.handleSignedOut(msg)
 	}
 	left, _ := msg.(leftMsg)
 	return m.handleLeft(left)

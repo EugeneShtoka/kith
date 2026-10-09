@@ -25,7 +25,7 @@ func (l leaver) LeaveRoom(_ context.Context, room domain.RoomID) error {
 
 // L on the rail: a Telegram forum, after asking, is left by leaving its chat, and goes
 // from the list with its topics; a tag, after asking, is deleted; any other space says
-// it is not left from here (that would be signing out).
+// it is not left from here (a bridge's own space for an account).
 func TestLeavingFromTheRail(t *testing.T) {
 	t.Parallel()
 	var left []domain.RoomID
@@ -65,7 +65,7 @@ func TestLeavingFromTheRail(t *testing.T) {
 
 	m.confirm = confirmState{} // answered above, on the copy that went on
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Telegram home")
-	if got := pressKey(t, m, "L"); got.confirm.action != pendingNone || !strings.Contains(got.status(), "signing out") {
+	if got := pressKey(t, m, "L"); got.confirm.action != pendingNone || !strings.Contains(got.status(), "only the bridge signs out") {
 		t.Errorf("L on an account's space: confirm %v, status %q", got.confirm.action, got.status())
 	}
 

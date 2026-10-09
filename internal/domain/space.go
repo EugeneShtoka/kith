@@ -36,8 +36,8 @@ type SpaceLeaving int
 
 // The ways a space is left.
 const (
-	// NotLeft: an account's own space (leaving it would be signing out), or a bridge's
-	// view of one.
+	// NotLeft: a bridge's own space for an account, whose signing out is the
+	// bridge's to do.
 	NotLeft SpaceLeaving = iota
 	// LeftByRoom: leaving one room (LeaveBy) leaves the space and its rooms (a Telegram
 	// forum).
@@ -48,6 +48,9 @@ const (
 	// LeftAlone: the space is a membership of its own, and so is each room inside it,
 	// which may stay (a Matrix space).
 	LeftAlone
+	// LeftBySigningOut: the space is an account's own (a Telegram or WhatsApp account,
+	// a Slack workspace), left by signing the account out.
+	LeftBySigningOut
 )
 
 // Leavable reports whether the space can be left at all.

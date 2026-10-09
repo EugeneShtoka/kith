@@ -212,6 +212,12 @@ func (r *Remote) DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryo
 	return err
 }
 
+// SignOut signs out the account whose own space it is.
+func (r *Remote) SignOut(ctx context.Context, space domain.SpaceID, forget bool) error {
+	_, err := call(ctx, "sign out", r.c.SignOut, &v1.SignOutRequest{SpaceId: string(space), Forget: forget})
+	return err
+}
+
 func (r *Remote) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	_, err := call(ctx, "leave room", r.c.LeaveRoom, &v1.LeaveRoomRequest{RoomId: string(roomID)})
 	return err

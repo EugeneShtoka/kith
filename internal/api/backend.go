@@ -213,6 +213,11 @@ type Ending interface {
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
 	// and, with forEveryone, for the other person too.
 	DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryone bool) error
+	// SignOut signs out the account whose own space it is (domain.LeftBySigningOut):
+	// the session ends on the network, its connection stops and its kept session is
+	// deleted; with forget, its rooms and their history go from the cache too. The
+	// account stays configured, and logging in signs it back in.
+	SignOut(ctx context.Context, space domain.SpaceID, forget bool) error
 }
 
 // Search is search over the local cache and the lookups beside it.

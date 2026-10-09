@@ -67,6 +67,10 @@ type (
 	ChatDeleter interface {
 		DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryone bool) error
 	}
+	// SignOuter is a network whose accounts can be signed out from kith.
+	SignOuter interface {
+		SignOut(ctx context.Context, space domain.SpaceID, forget bool) error
+	}
 	// Archiver is a network with an archive of its own (Telegram's Archived folder,
 	// WhatsApp's archived chats).
 	Archiver interface {

@@ -76,10 +76,11 @@ func (ChatDeleting) EnumDescriptor() ([]byte, []int) {
 type SpaceLeaving int32
 
 const (
-	SpaceLeaving_SPACE_LEAVING_UNSPECIFIED SpaceLeaving = 0 // not left: an account's own space
-	SpaceLeaving_SPACE_LEAVING_BY_ROOM     SpaceLeaving = 1
-	SpaceLeaving_SPACE_LEAVING_WITH_ROOMS  SpaceLeaving = 2
-	SpaceLeaving_SPACE_LEAVING_ALONE       SpaceLeaving = 3
+	SpaceLeaving_SPACE_LEAVING_UNSPECIFIED    SpaceLeaving = 0 // not left: a bridge's own space for an account
+	SpaceLeaving_SPACE_LEAVING_BY_ROOM        SpaceLeaving = 1
+	SpaceLeaving_SPACE_LEAVING_WITH_ROOMS     SpaceLeaving = 2
+	SpaceLeaving_SPACE_LEAVING_ALONE          SpaceLeaving = 3
+	SpaceLeaving_SPACE_LEAVING_BY_SIGNING_OUT SpaceLeaving = 4
 )
 
 // Enum value maps for SpaceLeaving.
@@ -89,12 +90,14 @@ var (
 		1: "SPACE_LEAVING_BY_ROOM",
 		2: "SPACE_LEAVING_WITH_ROOMS",
 		3: "SPACE_LEAVING_ALONE",
+		4: "SPACE_LEAVING_BY_SIGNING_OUT",
 	}
 	SpaceLeaving_value = map[string]int32{
-		"SPACE_LEAVING_UNSPECIFIED": 0,
-		"SPACE_LEAVING_BY_ROOM":     1,
-		"SPACE_LEAVING_WITH_ROOMS":  2,
-		"SPACE_LEAVING_ALONE":       3,
+		"SPACE_LEAVING_UNSPECIFIED":    0,
+		"SPACE_LEAVING_BY_ROOM":        1,
+		"SPACE_LEAVING_WITH_ROOMS":     2,
+		"SPACE_LEAVING_ALONE":          3,
+		"SPACE_LEAVING_BY_SIGNING_OUT": 4,
 	}
 )
 
@@ -2811,12 +2814,13 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\fChatDeleting\x12\x1d\n" +
 	"\x19CHAT_DELETING_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CHAT_DELETING_FOR_ME\x10\x01\x12\x1c\n" +
-	"\x18CHAT_DELETING_FOR_EITHER\x10\x02*\x7f\n" +
+	"\x18CHAT_DELETING_FOR_EITHER\x10\x02*\xa1\x01\n" +
 	"\fSpaceLeaving\x12\x1d\n" +
 	"\x19SPACE_LEAVING_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SPACE_LEAVING_BY_ROOM\x10\x01\x12\x1c\n" +
 	"\x18SPACE_LEAVING_WITH_ROOMS\x10\x02\x12\x17\n" +
-	"\x13SPACE_LEAVING_ALONE\x10\x03*\xcd\x01\n" +
+	"\x13SPACE_LEAVING_ALONE\x10\x03\x12 \n" +
+	"\x1cSPACE_LEAVING_BY_SIGNING_OUT\x10\x04*\xcd\x01\n" +
 	"\x10VerificationKind\x12!\n" +
 	"\x1dVERIFICATION_KIND_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bVERIFICATION_KIND_REQUESTED\x10\x01\x12\x19\n" +

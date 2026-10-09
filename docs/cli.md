@@ -53,6 +53,15 @@ again replaces the session kept for the account; one begun while
 another of the same account is under way ends the first. `:login` inside kith does the
 same, network by network.
 
+Signing out is done inside kith: `L` on an account's own space in the rail (a Telegram
+or WhatsApp account, a Slack workspace) ends its session on the network, as the
+network's own "sign out" or "unlink device" does, and deletes the session kith kept.
+It asks first whether the account's rooms and their history go from kith too (no keeps
+them, readable), then whether to sign out. The account stays in the config, so logging
+in signs it back in. It needs the account connected: the network is told through the
+session. A bridge's own space for an account is not signed out from kith; that is
+the bridge's to do.
+
 ### General flags
 
 | Flag | Meaning |

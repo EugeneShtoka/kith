@@ -350,6 +350,11 @@ func (s *server) DeleteChat(ctx context.Context, r *req[v1.DeleteChatRequest]) (
 	return reply(&v1.DeleteChatResponse{}, err)
 }
 
+func (s *server) SignOut(ctx context.Context, r *req[v1.SignOutRequest]) (*resp[v1.SignOutResponse], error) {
+	err := s.Backend.SignOut(ctx, domain.SpaceID(r.Msg.GetSpaceId()), r.Msg.GetForget())
+	return reply(&v1.SignOutResponse{}, err)
+}
+
 func (s *server) LeaveRoom(ctx context.Context, r *req[v1.LeaveRoomRequest]) (*resp[v1.LeaveRoomResponse], error) {
 	return reply(&v1.LeaveRoomResponse{}, s.Backend.LeaveRoom(ctx, roomID(r.Msg.GetRoomId())))
 }

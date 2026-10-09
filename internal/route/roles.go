@@ -91,6 +91,11 @@ func (r *Router) DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryo
 	return doOnRoom(r, roomID, "deleting chats", func(c ChatDeleter) error { return c.DeleteChat(ctx, roomID, forEveryone) })
 }
 
+// SignOut signs out the account whose own space it is.
+func (r *Router) SignOut(ctx context.Context, space domain.SpaceID, forget bool) error {
+	return doOnRoom(r, domain.RoomID(space), "signing out", func(c SignOuter) error { return c.SignOut(ctx, space, forget) })
+}
+
 // StartVerification asks this account's other devices to verify this one.
 func (r *Router) StartVerification(ctx context.Context) (string, error) {
 	c, err := sole[api.Verification](r, "device verification")

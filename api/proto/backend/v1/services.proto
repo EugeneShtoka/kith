@@ -486,6 +486,15 @@ message DeleteChatRequest {
 
 message DeleteChatResponse {}
 
+message SignOutRequest {
+  // space_id is the account's own space (domain.LeftBySigningOut).
+  string space_id = 1;
+  // forget drops the account's rooms and their history from the cache too.
+  bool forget = 2;
+}
+
+message SignOutResponse {}
+
 // Making a room or a space (domain.NewRoom).
 message CreateRoomRequest {
   string name = 1;
@@ -1407,6 +1416,10 @@ service BackendService {
   // DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
   // and, with for_everyone, for the other person too.
   rpc DeleteChat(DeleteChatRequest) returns (DeleteChatResponse);
+  // SignOut signs out the account whose own space space_id is: the session ends on
+  // the network, its connection stops, and its kept session is deleted. The account
+  // stays configured; logging in signs it back in.
+  rpc SignOut(SignOutRequest) returns (SignOutResponse);
   // Deciding who else is in a room.
   rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
   rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
