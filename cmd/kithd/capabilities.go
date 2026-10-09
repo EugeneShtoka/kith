@@ -60,6 +60,7 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.Leaver
+		route.SignOuter
 		configChecker
 	} = (*whatsapp.Adapter)(nil)
 
@@ -79,6 +80,7 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.Threads
+		route.SignOuter
 		configChecker
 	} = (*slack.Adapter)(nil)
 
@@ -101,6 +103,7 @@ var (
 		route.SpaceLister
 		route.Leaver
 		route.ChatDeleter
+		route.SignOuter
 		route.Voter
 		configChecker
 		roomsRewriter

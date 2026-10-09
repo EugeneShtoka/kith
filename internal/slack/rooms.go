@@ -80,7 +80,8 @@ func listed(team, teamName string, me self, conversations []slackgo.Channel, gro
 		space: domain.Space{
 			ID: workspaceSpaceID(team), Name: teamName, Bridge: domain.ProtocolSlack,
 			// Every channel's home: it is where the room belongs, not a space to file into.
-			Original: true,
+			// Left by signing the account out (SignOut).
+			Original: true, Leaving: domain.LeftBySigningOut,
 		},
 	}
 	for i := range conversations {

@@ -82,7 +82,7 @@ Targets:
 			{path: "rail.name", def: "a", doc: "name this group", note: "A local name; an empty one clears it."},
 			{path: "rail.notify_rule", def: "b", doc: "notification rule for this space"},
 			{path: "rail.mark_read", def: "m", doc: "mark every unread room in this group read", note: "Asks first."},
-			{path: "rail.leave", def: "L", doc: "leave this space, or delete this tag", note: "Asks first. A Telegram forum is left with all its topics, a WhatsApp community with all its groups; leaving a Matrix space asks which of its rooms go too. An account's own space is not left."},
+			{path: "rail.leave", def: "L", doc: "leave this space, or delete this tag", note: "Asks first. A Telegram forum is left with all its topics, a WhatsApp community with all its groups; leaving a Matrix space asks which of its rooms go too; an account's own space signs it out."},
 		},
 	},
 	{

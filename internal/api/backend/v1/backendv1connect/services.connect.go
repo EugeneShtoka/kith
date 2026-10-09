@@ -171,6 +171,8 @@ const (
 	// BackendServiceDeleteChatProcedure is the fully-qualified name of the BackendService's DeleteChat
 	// RPC.
 	BackendServiceDeleteChatProcedure = "/backend.v1.BackendService/DeleteChat"
+	// BackendServiceSignOutProcedure is the fully-qualified name of the BackendService's SignOut RPC.
+	BackendServiceSignOutProcedure = "/backend.v1.BackendService/SignOut"
 	// BackendServiceCreateRoomProcedure is the fully-qualified name of the BackendService's CreateRoom
 	// RPC.
 	BackendServiceCreateRoomProcedure = "/backend.v1.BackendService/CreateRoom"
@@ -463,6 +465,10 @@ type BackendServiceClient interface {
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
 	// and, with for_everyone, for the other person too.
 	DeleteChat(context.Context, *connect.Request[v1.DeleteChatRequest]) (*connect.Response[v1.DeleteChatResponse], error)
+	// SignOut signs out the account whose own space space_id is: the session ends on
+	// the network, its connection stops, and its kept session is deleted. The account
+	// stays configured; logging in signs it back in.
+	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// Deciding who else is in a room.
 	CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error)
 	InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error)
@@ -923,6 +929,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("DeleteChat")),
 			connect.WithClientOptions(opts...),
 		),
+		signOut: connect.NewClient[v1.SignOutRequest, v1.SignOutResponse](
+			httpClient,
+			baseURL+BackendServiceSignOutProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SignOut")),
+			connect.WithClientOptions(opts...),
+		),
 		createRoom: connect.NewClient[v1.CreateRoomRequest, v1.CreateRoomResponse](
 			httpClient,
 			baseURL+BackendServiceCreateRoomProcedure,
@@ -1320,6 +1332,7 @@ type backendServiceClient struct {
 	joinRoom              *connect.Client[v1.JoinRoomRequest, v1.JoinRoomResponse]
 	leaveRoom             *connect.Client[v1.LeaveRoomRequest, v1.LeaveRoomResponse]
 	deleteChat            *connect.Client[v1.DeleteChatRequest, v1.DeleteChatResponse]
+	signOut               *connect.Client[v1.SignOutRequest, v1.SignOutResponse]
 	createRoom            *connect.Client[v1.CreateRoomRequest, v1.CreateRoomResponse]
 	inviteUser            *connect.Client[v1.InviteUserRequest, v1.InviteUserResponse]
 	kickUser              *connect.Client[v1.KickUserRequest, v1.KickUserResponse]
@@ -1627,6 +1640,11 @@ func (c *backendServiceClient) LeaveRoom(ctx context.Context, req *connect.Reque
 // DeleteChat calls backend.v1.BackendService.DeleteChat.
 func (c *backendServiceClient) DeleteChat(ctx context.Context, req *connect.Request[v1.DeleteChatRequest]) (*connect.Response[v1.DeleteChatResponse], error) {
 	return c.deleteChat.CallUnary(ctx, req)
+}
+
+// SignOut calls backend.v1.BackendService.SignOut.
+func (c *backendServiceClient) SignOut(ctx context.Context, req *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error) {
+	return c.signOut.CallUnary(ctx, req)
 }
 
 // CreateRoom calls backend.v1.BackendService.CreateRoom.
@@ -2045,6 +2063,10 @@ type BackendServiceHandler interface {
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
 	// and, with for_everyone, for the other person too.
 	DeleteChat(context.Context, *connect.Request[v1.DeleteChatRequest]) (*connect.Response[v1.DeleteChatResponse], error)
+	// SignOut signs out the account whose own space space_id is: the session ends on
+	// the network, its connection stops, and its kept session is deleted. The account
+	// stays configured; logging in signs it back in.
+	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// Deciding who else is in a room.
 	CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error)
 	InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error)
@@ -2501,6 +2523,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("DeleteChat")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceSignOutHandler := connect.NewUnaryHandler(
+		BackendServiceSignOutProcedure,
+		svc.SignOut,
+		connect.WithSchema(backendServiceMethods.ByName("SignOut")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceCreateRoomHandler := connect.NewUnaryHandler(
 		BackendServiceCreateRoomProcedure,
 		svc.CreateRoom,
@@ -2945,6 +2973,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceLeaveRoomHandler.ServeHTTP(w, r)
 		case BackendServiceDeleteChatProcedure:
 			backendServiceDeleteChatHandler.ServeHTTP(w, r)
+		case BackendServiceSignOutProcedure:
+			backendServiceSignOutHandler.ServeHTTP(w, r)
 		case BackendServiceCreateRoomProcedure:
 			backendServiceCreateRoomHandler.ServeHTTP(w, r)
 		case BackendServiceInviteUserProcedure:
@@ -3266,6 +3296,10 @@ func (UnimplementedBackendServiceHandler) LeaveRoom(context.Context, *connect.Re
 
 func (UnimplementedBackendServiceHandler) DeleteChat(context.Context, *connect.Request[v1.DeleteChatRequest]) (*connect.Response[v1.DeleteChatResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.DeleteChat is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SignOut is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error) {

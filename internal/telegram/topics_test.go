@@ -192,8 +192,8 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 				t.Errorf("forum space = %+v", s)
 			}
 		case accountSpaceID(42):
-			if len(s.Children) != 0 || s.Leavable() {
-				t.Errorf("the account's space holds %v (leaving %v), want none of the forum's rooms, not left", s.Children, s.Leaving)
+			if len(s.Children) != 0 || s.Leaving != domain.LeftBySigningOut {
+				t.Errorf("the account's space holds %v (leaving %v), want none of the forum's rooms, left by signing out", s.Children, s.Leaving)
 			}
 		}
 	}

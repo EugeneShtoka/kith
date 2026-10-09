@@ -98,8 +98,8 @@ func (c spaceCase) sharedRooms() map[domain.RoomID]bool {
 // whether its rooms go, then about each one also in another space (naming that space,
 // not an account's own), yes and no to all answering the rest; what goes is left, the
 // space last, and a room the network refuses neither stops the others nor the space,
-// and is named; a bridged room going is said to leave its network too; an account's
-// own space is not left.
+// and is named; a bridged room going is said to be left on its network only if its
+// bridge passes leaves on; a bridge's own space for an account is not left.
 func TestLeavingASpaceFromTheRail(t *testing.T) {
 	t.Parallel()
 	r := rand.New(rand.NewPCG(11, 23))
@@ -115,8 +115,8 @@ func TestLeavingASpaceFromTheRail(t *testing.T) {
 		}
 		m = pressKey(t, m, "L")
 		if c.target.Leaving == domain.NotLeft {
-			if m.confirm.active() || !strings.Contains(m.status(), "signing out") {
-				t.Fatalf("case %d: an account's space: confirm %v, status %q", i, m.confirm.action, m.status())
+			if m.confirm.active() || !strings.Contains(m.status(), "only the bridge signs out") {
+				t.Fatalf("case %d: a bridge's account space: confirm %v, status %q", i, m.confirm.action, m.status())
 			}
 			continue
 		}

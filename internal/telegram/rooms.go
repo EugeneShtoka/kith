@@ -565,7 +565,8 @@ func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 		spaces = append(spaces, domain.Space{
 			ID: accountSpaceID(self), Name: "Telegram " + account.Name, Children: children,
 			// Every chat's home: it is where the room belongs, not a space to file into.
-			Bridge: domain.ProtocolTelegram, Original: true,
+			// Left by signing the account out (SignOut).
+			Bridge: domain.ProtocolTelegram, Original: true, Leaving: domain.LeftBySigningOut,
 		})
 	}
 	for _, id := range order {

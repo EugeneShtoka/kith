@@ -38,6 +38,10 @@ const (
 	// (deletechat.go).
 	pendingDeleteForThem
 	pendingDeleteChat
+	// pendingSignOutForget and pendingSignOut: the questions of signing out the account
+	// a space is (leaving.space), forgetting its rooms (forEveryone) or not (signout.go).
+	pendingSignOutForget
+	pendingSignOut
 	// pendingCombineTags: a tag (group) renamed to another's name (address), folded
 	// into it.
 	pendingCombineTags
@@ -63,7 +67,8 @@ type confirmState struct {
 	via     []string
 	// leaving is a space being left, over several questions.
 	leaving spaceLeave
-	// forEveryone: a chat being deleted goes for its other person too.
+	// forEveryone: a chat being deleted goes for its other person too; an account being
+	// signed out takes its rooms with it.
 	forEveryone bool
 }
 
@@ -131,8 +136,8 @@ func (m Model) askLeave() (Model, tea.Cmd) {
 
 // askLeaveGroup is the rail's leave: a tag is deleted, a space that one room carries
 // (a Telegram forum) is left with that room, a space left with its rooms or on its own
-// as leavespace.go asks, each after asking. An account's own space, which would be
-// signing out, is not left from here, and says so.
+// as leavespace.go asks, and an account's own space signs it out (signout.go), each
+// after asking. A bridge's own space for an account is not left from here, and says so.
 func (m Model) askLeaveGroup() (Model, tea.Cmd) {
 	entry, ok := m.currentGroup()
 	if !ok {
@@ -148,6 +153,8 @@ func (m Model) askLeaveGroup() (Model, tea.Cmd) {
 		return m, nil
 	case space.Leaving == domain.LeftWithRooms, space.Leaving == domain.LeftAlone:
 		return m.askLeaveSpaceWith(space), nil
+	case space.Leaving == domain.LeftBySigningOut:
+		return m.askSignOut(space), nil
 	case space.Leaving == domain.LeftByRoom && space.LeaveBy != "":
 		room, known := m.roomByID(space.LeaveBy)
 		if !known {
@@ -157,7 +164,7 @@ func (m Model) askLeaveGroup() (Model, tea.Cmd) {
 		return m, nil
 	default:
 		return m.say("leaving " + isolate(space.DisplayName()) +
-			" from the rail is not something kith does: it is an account's own space, and leaving it would be signing out"), nil
+			" from the rail is not something kith does: it is a bridge's own space for an account, which only the bridge signs out"), nil
 	}
 }
 
@@ -213,6 +220,8 @@ func (m Model) confirmPrompt() string {
 		return m.leaveSpacePrompt(m.confirm)
 	case pendingDeleteForThem, pendingDeleteChat:
 		return m.deleteChatPrompt(m.confirm)
+	case pendingSignOutForget, pendingSignOut:
+		return m.signOutPrompt(m.confirm)
 	case pendingNone:
 		return ""
 	}
@@ -258,7 +267,9 @@ func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 		return m.leaveSpace(pending.leaving)
 	case pendingDeleteChat:
 		return m.deleteChat(pending)
-	case pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingDeleteForThem, pendingNone:
+	case pendingSignOut:
+		return m.signOut(pending)
+	case pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingDeleteForThem, pendingSignOutForget, pendingNone:
 		return m, nil
 	}
 	return m, nil

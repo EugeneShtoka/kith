@@ -1251,8 +1251,8 @@ notify_rule = "b"  # notification rule for this space
 # Asks first.
 mark_read   = "m"  # mark every unread room in this group read
 # Asks first. A Telegram forum is left with all its topics, a WhatsApp community with
-# all its groups; leaving a Matrix space asks which of its rooms go too. An account's
-# own space is not left.
+# all its groups; leaving a Matrix space asks which of its rooms go too; an account's
+# own space signs it out.
 leave       = "L"  # leave this space, or delete this tag
 
 # Cursor motion, shared by every pane.

@@ -14,12 +14,15 @@ import (
 // login (api.LoginLeader): a network replaces an account's session itself, under its
 // own lock (Matrix only on a Matrix that has none, saving it for the next start
 // otherwise; the others by login generation), and nothing else holds that client.
-// LoginNetworks only lists. A new RPC named for a session needs the same care, and a
-// place in allowed.
+// LoginNetworks only lists. SignOut is a network's own, as a login is: each ends one
+// account's session under that account's login generation, so no connection or login
+// begun before it keeps the session or connects again, and Matrix, whose session the
+// daemon shares, has none (the router refuses it). A new RPC named for a session needs
+// the same care, and a place in allowed.
 func TestTheSocketCannotReplaceTheSession(t *testing.T) {
 	t.Parallel()
 
-	allowed := map[string]bool{"LoginNetworks": true}
+	allowed := map[string]bool{"LoginNetworks": true, "SignOut": true}
 	handler := reflect.TypeFor[backendv1connect.BackendServiceHandler]()
 	for method := range handler.Methods() {
 		name := method.Name
