@@ -213,7 +213,18 @@ sort  = ["drafts", "unread", "name"]
 
 A room that was unread when you opened it keeps its place while you read it, so the row under the cursor never slides away.
 
-### Threads in the room list
+#### Exporting a conversation
+
+`/export` in a room's composer writes the room to a Markdown file in your downloads
+directory (`[display.media] download_dir`), named after the room and the day:
+everything the cache holds, oldest first, or the span you give it, as `/summary`
+reads one (`7d`, `yesterday`, `2026-09-18`, `500` for the last 500 messages). With a
+thread open it writes just the thread. Each day has a heading; each message its time
+and sender (named as you know them, in full), the message it replies to, its words with
+their formatting, its attachment and its reactions; a thread's replies sit under the
+message that began it. A file already there is never overwritten.
+
+## Threads in the room list
 
 A thread's summary sits at its root in the timeline, which may be far up the scrollback. So threads with unread replies are also listed as rows beneath their room. `enter` on one opens the thread, `m` marks that thread read without opening it, and `alt+r` names it. `[display.threads] in_room_list` chooses `unread` (default), `all` or `never`, and `max_in_room_list` caps the rows (default 5).
 

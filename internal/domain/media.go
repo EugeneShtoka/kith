@@ -1,5 +1,7 @@
 package domain
 
+import "fmt"
+
 // MediaType is the kind of attachment a media message carries.
 type MediaType string
 
@@ -86,4 +88,16 @@ func narrowestMediaRule(rules []MediaRule, place DownloadPlace) (MediaRule, bool
 		return MediaRule{}, false
 	}
 	return rules[at], true
+}
+
+// HumanSize is a byte count as a person reads it: "1.2 MB", "340 KB", "12 B".
+func HumanSize(n int) string {
+	switch {
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.0f KB", float64(n)/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }
