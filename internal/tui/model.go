@@ -60,6 +60,9 @@ type group struct {
 	// the top unless the rail order places it; countInLabel adds how many rooms it
 	// holds to the label; hideWhenEmpty drops the row while it holds nothing.
 	sticky, first, countInLabel, hideWhenEmpty bool
+	// network is the one network every room it holds is on, "" for rooms on several
+	// or none; worked out by rebuiltRail only while the rail colors by network.
+	network domain.Protocol
 }
 
 // railGroups builds the rail — a row per tag, then a group per space — and applies the
@@ -133,6 +136,9 @@ func (m Model) rebuiltRail() Model {
 	prevKey := m.rail.key()
 	m.rail.groups = railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), m.rooms.all)
 	m.rail.cursor = indexOfGroup(m.rail.groups, prevKey)
+	if m.prefs.display.Rail.NetworkColors {
+		m.rail.groups = m.withNetworks(m.rail.groups)
+	}
 	return m
 }
 

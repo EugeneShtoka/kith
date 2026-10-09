@@ -5,7 +5,9 @@ package setup
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/audio"
@@ -37,6 +39,7 @@ func Validate(cfg config.Config) error {
 		errOf(UnreadSource(d.Unread)),
 		RoomList(d.Rooms),
 		themeCheck(d.Theme),
+		NetworkColors(d.NetworkColors),
 		errOf(ThreadListing(d.Threads.InRoomList)),
 		AudioPlayback(d.Media),
 		errOf(NotificationLimit(cfg.Notifications)),
@@ -76,6 +79,21 @@ func BridgeContacts(bases []string) error {
 func themeCheck(t config.Theme) error {
 	if _, err := themespec.Resolve(t.Preset, t.Overrides()); err != nil {
 		return fmt.Errorf("display.theme: %w", err)
+	}
+	return nil
+}
+
+// NetworkColors refuses a network color that is no color: "#rrggbb", a named color,
+// or "none", or empty for the default.
+func NetworkColors(n config.NetworkColors) error {
+	keys := slices.Sorted(maps.Keys(n.Set()))
+	for _, key := range keys {
+		value := n.Set()[key]
+		if _, ok := themespec.Color(value); ok || value == "" || strings.EqualFold(strings.TrimSpace(value), "none") {
+			continue
+		}
+		return fmt.Errorf("display.network_colors.%s: %q is no color (write #rrggbb, one of %s, or \"none\")",
+			key, value, strings.Join(themespec.ColorNames(), ", "))
 	}
 	return nil
 }
