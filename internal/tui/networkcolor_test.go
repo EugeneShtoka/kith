@@ -90,7 +90,7 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 		return strings.Join([]string{string(rune(r)), string(rune(g)), string(rune(b))}, ",")
 	}
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Mixed")
-	for i, want := range []string{color("green"), color("orange"), color("magenta"), ""} {
+	for i, want := range []string{color("teal"), color("orange"), color("magenta"), ""} {
 		if g := got(m, rooms[i]); g != want {
 			t.Errorf("in Mixed, %s's color = %v, want %v", rooms[i].Name, g, want)
 		}
@@ -108,12 +108,12 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 	// Drawn: the rail row of a one-network space is in its color while the rail asks,
 	// and in the row's own when it does not.
 	only := m.rail.groups[indexOfGroup(m.rail.groups, "Only WhatsApp")]
-	if row := m.railRow(only, false, false, 20); !strings.Contains(row, "38;2;58;217;0") {
-		t.Errorf("Only WhatsApp's rail row is not green: %q", row)
+	if row := m.railRow(only, false, false, 20); !strings.Contains(row, "38;2;29;233;182") {
+		t.Errorf("Only WhatsApp's rail row is not teal: %q", row)
 	}
 	off := m
 	off.prefs.display.Rail.NetworkColors = false
-	if row := off.railRow(only, false, false, 20); strings.Contains(row, "38;2;58;217;0") {
+	if row := off.railRow(only, false, false, 20); strings.Contains(row, "38;2;29;233;182") {
 		t.Errorf("with the rail not asking, Only WhatsApp's row is green: %q", row)
 	}
 	if networks["Only WhatsApp"] != domain.ProtocolWhatsApp || networks["Workspace"] != domain.ProtocolSlack ||

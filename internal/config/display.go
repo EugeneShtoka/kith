@@ -194,7 +194,7 @@ type NetworkColors struct {
 }
 
 // defaultNetworkColors are the colors of the networks with one when unset.
-var defaultNetworkColors = map[string]string{"whatsapp": "green", "telegram": "blue", "slack": "magenta"}
+var defaultNetworkColors = map[string]string{"whatsapp": "teal", "telegram": "blue", "slack": "magenta"}
 
 // byKey is each network's color as set, by its key (its name, lower case, words
 // joined by "_").

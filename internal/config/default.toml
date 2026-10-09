@@ -232,11 +232,11 @@ preset = "cobalt2"
 
 # The color each network's rooms are named in, where a place asks for it
 # ([[display.space_rule]] network_colors) or the rail does ([display.rail]
-# network_colors): #rgb/#rrggbb or a named color (red, green, yellow, blue, magenta,
-# cyan, orange, white), or "none". Unset: whatsapp green, telegram blue, slack
+# network_colors): #rgb/#rrggbb or a named color (red, green, teal, yellow, blue, magenta,
+# cyan, orange, white), or "none". Unset: whatsapp teal, telegram blue, slack
 # magenta, the rest none. A bad color stops startup.
 [display.network_colors]
-# whatsapp        = "green"
+# whatsapp        = "teal"
 # telegram        = "blue"
 # slack           = "magenta"
 # signal          = ""
