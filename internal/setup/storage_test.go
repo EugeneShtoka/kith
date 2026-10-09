@@ -200,3 +200,24 @@ func TestProfilesHaveTheirOwnInstance(t *testing.T) {
 		t.Errorf("a profile with files from before = %q, want %q", got, legacy)
 	}
 }
+
+// /export writes into export_dir: by default the exports folder beside kith's data, a
+// "~" path expanded, and a relative one refused, naming the key.
+func TestTheExportFolder(t *testing.T) {
+	t.Parallel()
+	var cfg config.Config
+	cfg.Storage.DataDir = "/data/kith-x"
+	dirs, err := setup.StorageDirs(cfg)
+	if err != nil || dirs.ExportDir != "/data/kith-x/exports" {
+		t.Errorf("default = %q, %v; want the exports folder beside the data", dirs.ExportDir, err)
+	}
+	cfg.Storage.ExportDir = "~/Documents/ChatHistory"
+	home, _ := os.UserHomeDir()
+	if dirs, err = setup.StorageDirs(cfg); err != nil || dirs.ExportDir != filepath.Join(home, "Documents", "ChatHistory") {
+		t.Errorf("~ path = %q, %v", dirs.ExportDir, err)
+	}
+	cfg.Storage.ExportDir = "Documents/ChatHistory"
+	if _, err = setup.StorageDirs(cfg); err == nil || !strings.Contains(err.Error(), "export_dir") {
+		t.Errorf("a relative export_dir = %v, want it refused naming the key", err)
+	}
+}

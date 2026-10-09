@@ -1117,6 +1117,8 @@ func (m Model) handleAttachmentMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleFolderChosen(msg))
 	case attachSentMsg:
 		return answered(m.handleAttachSent(msg))
+	case exportedMsg:
+		return answered(m.handleExported(msg))
 	case downloadedMsg:
 		return answered(m.handleDownloaded(msg))
 	case mediaViewedMsg:

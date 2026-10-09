@@ -153,21 +153,9 @@ func mediaChip(md *domain.Media) string {
 		parts = append(parts, fmt.Sprintf("%d×%d", md.Width, md.Height))
 	}
 	if md.Size > 0 {
-		parts = append(parts, humanSize(md.Size))
+		parts = append(parts, domain.HumanSize(md.Size))
 	}
 	return icon + " " + strings.Join(parts, " · ")
-}
-
-// humanSize formats a byte count as a compact human-readable string.
-func humanSize(n int) string {
-	switch {
-	case n >= 1<<20:
-		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
-	case n >= 1<<10:
-		return fmt.Sprintf("%.0f KB", float64(n)/(1<<10))
-	default:
-		return fmt.Sprintf("%d B", n)
-	}
 }
 
 // reactionRow renders reactions as "key count" chips under the body column, or "".
