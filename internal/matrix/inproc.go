@@ -45,6 +45,9 @@ type InProc struct {
 	// left is when each room was left from here, so a room list asked for before the
 	// leave (a refresh already under way) does not bring it back (RefreshRooms).
 	left leftRooms
+	// networks is reading, in the background, the network behind each room not read
+	// yet (networks.go).
+	networks roomNetworks
 
 	// machineMu guards the crypto machine EnableEncryption publishes. A degraded start
 	// runs EnableEncryption on a worker goroutine while RPCs are already being served.
@@ -269,6 +272,8 @@ func (b *InProc) Start(ctx context.Context) error {
 	syncer.OnEventType(event.EventReaction, b.onReaction)
 	syncer.OnEventType(event.StateMember, b.onMember)
 	syncer.OnSync(b.onSync)
+	// The rooms the cache holds whose network was not read yet are read once synced.
+	b.wantNetworks()
 	// Handlers are registered on syncer itself; the wrapper only adds logging.
 	b.client.Syncer = &failingSyncer{DefaultSyncer: syncer, b: b}
 	if err := b.syncUntilDone(ctx); err != nil {
@@ -440,6 +445,7 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 	if b.onSynced != nil {
 		b.onSynced(time.Now())
 	}
+	b.readNetworksIfWanted(ctx)
 	// Reported, not acted on: refreshing is a network call on the sync goroutine.
 	if b.onRoomsStale != nil && roomsChanged(resp, b.client.UserID) {
 		b.onRoomsStale()
