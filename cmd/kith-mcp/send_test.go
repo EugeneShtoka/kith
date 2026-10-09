@@ -190,6 +190,61 @@ func TestDraftIsAppendedNotOverwritten(t *testing.T) {
 	}
 }
 
+// Whatever happens to the words, they reach the backend with short dashes: a long dash
+// is an en dash, and hyphens and en dashes stay. A draft the person already had keeps
+// their dashes as they typed them.
+func TestLongDashesAreWrittenShort(t *testing.T) {
+	t.Parallel()
+
+	const text, want = "soon \u2014 or later \u2015 well-ish \u2013 ok", "soon \u2013 or later \u2013 well-ish \u2013 ok"
+	mine := "mine \u2014 as typed"
+	cases := []struct {
+		name    string
+		send    []string
+		fail    bool
+		drafted string
+		outcome string
+		wrote   func(*fake) string
+	}{
+		{"sent", []string{"space:Work"}, false, "", agent.Sent, func(f *fake) string {
+			return strings.TrimPrefix(f.sent[0].Body, "!open:x ") // The fake stamps the room.
+		}},
+		{"queued", []string{"space:Work"}, true, "", agent.Queued, func(f *fake) string { return f.queued[0].Body }},
+		{"drafted", nil, false, "", agent.Drafted, func(f *fake) string { return f.drafts["!open:x"].Body }},
+		{"appended", nil, false, mine, agent.Drafted, func(f *fake) string {
+			return strings.TrimPrefix(f.drafts["!open:x"].Body, mine+"\n\n")
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := twoRooms()
+			if c.fail {
+				f.sendErr = errNoServer
+			}
+			if c.drafted != "" {
+				f.drafts = map[domain.RoomID]domain.StoredDraft{"!open:x": {RoomID: "!open:x", Body: c.drafted}}
+			}
+			s := newWriter(t, f, shareAll, c.send)
+			out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": text})
+
+			if out["action"] != c.outcome {
+				t.Fatalf("action = %v, want %q", out["action"], c.outcome)
+			}
+			if got := c.wrote(f); got != want {
+				t.Errorf("wrote %q, want %q", got, want)
+			}
+			if c.drafted != "" && !strings.HasPrefix(f.drafts["!open:x"].Body, mine+"\n\n") {
+				t.Errorf("their draft changed: %q", f.drafts["!open:x"].Body)
+			}
+			if ledger := entries(t, s); len(ledger) != 1 || ledger[0].Text != want {
+				t.Errorf("ledger = %+v, want what was written", ledger)
+			}
+		})
+	}
+}
+
 // An edit in progress is the case the rule allows a refusal for: there is no safe merge
 // into somebody's correction of a message the room has already read.
 func TestEditInProgressIsRefused(t *testing.T) {

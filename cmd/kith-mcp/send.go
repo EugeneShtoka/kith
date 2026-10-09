@@ -37,13 +37,19 @@ var errElsewhere = errors.New("that room's composer already holds a draft aimed 
 	"thread, the main timeline, or another message to answer), so nothing was added to it. Tell them; " +
 	"it can go in once that draft is sent or cleared")
 
+// shortDashes writes the long dashes, the em dash and the horizontal bar, as an en
+// dash. Hyphens and en dashes are left as they are.
+var shortDashes = strings.NewReplacer("\u2014", "\u2013", "\u2015", "\u2013")
+
 // sendMessage is the tool.
 func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, error) {
 	in, err := args[writeArgs](raw)
 	if err != nil {
 		return nil, err
 	}
-	text := strings.TrimSpace(in.Text)
+	// Every outcome (sent, queued, drafted, refused) is of these words, so no path
+	// writes a long dash.
+	text := shortDashes.Replace(strings.TrimSpace(in.Text))
 	if text == "" {
 		return nil, errors.New("send_message needs something to say")
 	}
