@@ -95,6 +95,15 @@ func (w *workspace) unnamed(users []string) []string {
 }
 
 // knowPerson keeps a user's name.
+// knowUser keeps a user's name and, where their profile writes it internationally,
+// their number.
+func (w *workspace) knowUser(u *slackgo.User) {
+	w.knowPerson(u.ID, userName(*u))
+	if digits, ok := domain.PhoneIn(u.Profile.Phone); ok {
+		w.knowPhone(u.ID, digits)
+	}
+}
+
 // knowPhone keeps a user's number, from their profile.
 func (w *workspace) knowPhone(user, digits string) {
 	w.mu.Lock()

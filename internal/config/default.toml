@@ -1089,6 +1089,8 @@ tag = "Archived"
 #                                    queue, logs
 # cache_dir   $XDG_CACHE_HOME/kith   pictures ([display.media] cache_dir overrides)
 # runtime_dir $XDG_RUNTIME_DIR/kith  the daemon's socket and lock
+# export_dir  <data_dir>/exports     where /export writes a conversation, when you
+#                                    name no folder of your own
 # A "~" at the start is your home directory.
 #
 # `instance` names this config's files inside them, so several configs (a test one
@@ -1106,6 +1108,7 @@ data_dir = ""
 state_dir = ""
 cache_dir = ""
 runtime_dir = ""
+export_dir = ""
 keyring_service = "kith"
 # How many messages the cache keeps of each room, the newest; -1 keeps every one
 # (search, the assistant and scrolling back work offline over all of it). Rules below

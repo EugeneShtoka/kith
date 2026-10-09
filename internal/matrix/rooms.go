@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"maunium.net/go/mautrix"
@@ -32,6 +33,7 @@ func (b *InProc) Rooms(ctx context.Context) ([]domain.Room, error) {
 // RefreshRooms fetches joined rooms with their names, DM flags and member names,
 // caches and returns them. Members are reused from the cache for known rooms.
 func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
+	asked := time.Now()
 	resp, err := b.client.JoinedRooms(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("matrix: joined rooms: %w", err)
@@ -44,7 +46,7 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	spaces := b.cachedSpaceIDs(ctx)
 	joined := make([]id.RoomID, 0, len(resp.JoinedRooms))
 	for _, roomID := range resp.JoinedRooms {
-		if !spaces[domain.RoomID(roomID)] {
+		if !spaces[domain.RoomID(roomID)] && !b.left.since(domain.RoomID(roomID), asked) {
 			joined = append(joined, roomID)
 		}
 	}

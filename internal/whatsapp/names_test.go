@@ -131,4 +131,14 @@ func TestAnAccountNamesTheNumbersItKnows(t *testing.T) {
 			t.Errorf("+%s is named %q, want %q", number, got, want)
 		}
 	}
+	// Someone cached under their LID is named by the number WhatsApp maps it to; a LID
+	// without a number is nobody the directory knows.
+	for id, want := range map[string]string{
+		"whatsapp:" + lid.String():      "Sam Hidden",
+		"whatsapp:" + unmapped.String(): "",
+	} {
+		if got, _, _ := dir.Name(id); got != want {
+			t.Errorf("%s is %q, want %q", id, got, want)
+		}
+	}
 }
