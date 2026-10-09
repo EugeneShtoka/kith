@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sync"
+	"time"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -38,12 +40,55 @@ func (b *InProc) JoinRoom(ctx context.Context, roomIDOrAlias string, via []strin
 	return domain.RoomID(resp.RoomID), nil
 }
 
-// LeaveRoom leaves a room; rejecting an invitation is the same call.
+// LeaveRoom leaves a room; rejecting an invitation is the same call. The room goes from
+// the cache at once, not when a sync says so: a room list read before then would
+// bring it back.
 func (b *InProc) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	if _, err := b.client.LeaveRoom(ctx, id.RoomID(roomID)); err != nil {
 		return fmt.Errorf("matrix: leave %s: %w", roomID, err)
 	}
+	b.left.mark(roomID, time.Now())
+	if b.cache != nil {
+		if err := b.cache.ForgetRooms(ctx, []domain.RoomID{roomID}); err != nil {
+			b.warnIf(ctx, err, "forget a room left", "room", roomID)
+		}
+	}
+	if b.onRoomsStale != nil {
+		b.onRoomsStale()
+	}
 	return nil
+}
+
+// leftRooms is when rooms were left from here.
+type leftRooms struct {
+	mu sync.Mutex
+	at map[domain.RoomID]time.Time
+}
+
+// leftKept is how long a leave is remembered: longer than any refresh takes.
+const leftKept = 10 * time.Minute
+
+func (l *leftRooms) mark(room domain.RoomID, at time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.at == nil {
+		l.at = map[domain.RoomID]time.Time{}
+	}
+	for r, when := range l.at {
+		if at.Sub(when) > leftKept {
+			delete(l.at, r)
+		}
+	}
+	l.at[room] = at
+}
+
+// since reports whether room was left after since: a room list asked for before then
+// still names it.
+func (l *leftRooms) since(room domain.RoomID, since time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	when, ok := l.at[room]
+	return ok && !when.Before(since)
 }
 
 // seedInvites primes the invite set from the cache, so the first sync publishes only
