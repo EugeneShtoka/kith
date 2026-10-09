@@ -18,7 +18,7 @@ Both open a completion list as you type, showing each command's arguments and it
 | `/in <delay> <message>` | Send after a delay, e.g. `/in 2h see you then` | |
 | `/scheduled` | What is queued to go out in this room; `enter` cancels one | |
 | `/summary [span]` | Summarize the room since you last read it, or over a span (needs [assist](assist.md)) | |
-| `/export [span]` | Write the room, or the open thread, to a Markdown file in your downloads: all the cache holds, or a span (`7d`, `yesterday`, `2026-09-18`, `500` for the last 500 messages) | |
+| `/export [span] [place]` | Write the room, or the open thread, to a Markdown file: all the cache holds, or a span (`7d`, `yesterday`, `2026-09-18`, `500` for the last 500 messages); into `[storage] export_dir`, or the folder or `.md` file you name (`~/Documents/ChatHistory`, `~/Documents/ChatHistory/friends-backup.md`) | |
 | `/search [terms]` | Search this room; `tab` widens the scope | `/` |
 | `/mentions` | Messages in this room that name you | `@` |
 | `/files` | Messages in this room with a file | `gf` |

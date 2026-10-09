@@ -60,7 +60,11 @@ func StorageDirs(cfg config.Config) (domain.Storage, error) {
 		RuntimeDir:     dirOr(s.RuntimeDir, xdg.RuntimeDir),
 		KeyringService: s.KeyringService,
 	}
-	for key, dir := range map[string]string{"data_dir": s.DataDir, "state_dir": s.StateDir, "cache_dir": s.CacheDir, "runtime_dir": s.RuntimeDir} {
+	storage.ExportDir = filepath.Join(storage.DataDir, "exports")
+	if s.ExportDir != "" {
+		storage.ExportDir = dirOr(s.ExportDir, "")
+	}
+	for key, dir := range map[string]string{"data_dir": s.DataDir, "state_dir": s.StateDir, "cache_dir": s.CacheDir, "runtime_dir": s.RuntimeDir, "export_dir": s.ExportDir} {
 		if dir != "" && dir != "~" && !strings.HasPrefix(dir, "~/") && !filepath.IsAbs(dir) {
 			return domain.Storage{}, fmt.Errorf("storage.%s %q: give a full path (or one starting with ~/)", key, dir)
 		}

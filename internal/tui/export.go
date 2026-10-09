@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -10,11 +11,13 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// /export writes the open room, or the open thread, to a Markdown file in the
-// downloads directory (domain.ExportMarkdown): all of what the cache holds, or the
-// span asked for, as /summary reads one ("7d", "yesterday", "2026-09-18", 500).
+// /export writes the open room, or the open thread, to a Markdown file
+// (domain.ExportMarkdown): all of what the cache holds, or the span asked for, as
+// /summary reads one ("7d", "yesterday", "2026-09-18", 500). It goes into
+// [storage] export_dir, or where the person says: a folder, or a file ending in .md.
 // People are named as you know them, whole; times as you have them written.
 
 // exportPage is how many cached messages one read back fetches.
@@ -29,11 +32,12 @@ type exportedMsg struct {
 
 // openExport starts an export of room, or of its open thread.
 func (m Model) openExport(room domain.Room, arg string) (Model, tea.Cmd) {
-	span, err := domain.ParseSummarySpan(arg, time.Now())
+	spanArg, where := splitExportArg(arg)
+	span, err := domain.ParseSummarySpan(spanArg, time.Now())
 	if err != nil {
 		return m.sayErr("/export", err), nil
 	}
-	dir, err := m.downloadDir()
+	dir, file, err := m.exportTarget(where)
 	if err != nil {
 		return m.sayErr("/export", err), nil
 	}
@@ -65,7 +69,11 @@ func (m Model) openExport(room domain.Room, arg string) (Model, tea.Cmd) {
 			return exportedMsg{err: err}
 		}
 		md := domain.ExportMarkdown(of, msgs, reactions, people.Name, clock)
-		path, err := writeDownload(dir, exportFileName(of), []byte(md))
+		name := file
+		if name == "" {
+			name = exportFileName(of)
+		}
+		path, err := writeDownload(dir, name, []byte(md))
 		return exportedMsg{path: path, count: len(msgs), err: err}
 	}
 }
@@ -98,6 +106,40 @@ func cachedHistory(ctx context.Context, backend api.Backend, room domain.RoomID,
 		msgs = append(page, msgs...)
 	}
 	return msgs, nil
+}
+
+// splitExportArg is /export's argument as a span and a place: the place is the first
+// word that is a path ("~/…", "/…", "./…") to the end, so a folder may have spaces in
+// its name, and the span is what comes before it.
+func splitExportArg(arg string) (span, where string) {
+	words := strings.Fields(arg)
+	for i, w := range words {
+		at := strings.Index(arg, w) // a word of arg's own, so it is there
+		if at >= 0 && (strings.HasPrefix(w, "~") || strings.HasPrefix(w, "/") || strings.HasPrefix(w, ".")) {
+			return strings.Join(words[:i], " "), strings.TrimSpace(arg[at:])
+		}
+	}
+	return strings.Join(words, " "), ""
+}
+
+// exportTarget is the folder an export goes into, and its file name when the person
+// gave one (a path ending in .md); with no place given, [storage] export_dir.
+func (m Model) exportTarget(where string) (dir, file string, err error) {
+	if where == "" {
+		dirs, derr := setup.StorageDirs(m.conf.base)
+		if derr != nil {
+			return "", "", derr
+		}
+		return dirs.ExportDir, "", nil
+	}
+	path, err := expandHome(where)
+	if err != nil {
+		return "", "", err
+	}
+	if strings.EqualFold(filepath.Ext(path), ".md") {
+		return filepath.Dir(path), filepath.Base(path), nil
+	}
+	return path, "", nil
 }
 
 // spanSaid is " in <span>" for a span asked for, "" for none.

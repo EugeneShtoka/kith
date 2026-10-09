@@ -12,6 +12,7 @@ type Storage struct {
 	StateDir       string // session file, agent ledger, send-later queue, logs
 	CacheDir       string // media
 	RuntimeDir     string // socket and lock
+	ExportDir      string // where /export writes, when given no folder
 	KeyringService string
 }
 

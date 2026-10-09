@@ -223,7 +223,7 @@
 [1;38;2;102;135;153mTyped into the composer[m
   /me <what you are doing>       send as an emote — “* you wave” rather than “you: waves”
   /summary [2h | 7d | yesterday | 2026-09-18 | 50] what this room has been saying — since you last read it, or over the span you name
-  /export [7d | yesterday | 2026-09-18 | 500] write this room, or the open thread, to a Markdown file in your downloads — all the cache holds, or the span you name
+  /export [7d | yesterday | 2026-09-18 | 500] [~/folder | ~/folder/name.md] write this room, or the open thread, to a Markdown file — all the cache holds, or the span you name; into export_dir, or the folder or file you give
   /plain <message>               send it exactly as typed — no Markdown, no rendering
   /upload <path[ | caption]>     send a file, with words under it if you add them
   /at <time> <message>           send it later today — /at 09:00 good morning

@@ -215,14 +215,18 @@ A room that was unread when you opened it keeps its place while you read it, so 
 
 #### Exporting a conversation
 
-`/export` in a room's composer writes the room to a Markdown file in your downloads
-directory (`[display.media] download_dir`), named after the room and the day:
-everything the cache holds, oldest first, or the span you give it, as `/summary`
-reads one (`7d`, `yesterday`, `2026-09-18`, `500` for the last 500 messages). With a
-thread open it writes just the thread. Each day has a heading; each message its time
-and sender (named as you know them, in full), the message it replies to, its words with
-their formatting, its attachment and its reactions; a thread's replies sit under the
-message that began it. A file already there is never overwritten.
+`/export` in a room's composer writes the room to a Markdown file: everything the
+cache holds, oldest first, or the span you give it, as `/summary` reads one (`7d`,
+`yesterday`, `2026-09-18`, `500` for the last 500 messages). With a thread open it
+writes just the thread. It goes into `[storage] export_dir` (an `exports` folder
+beside kith's data unless you set one), named after the room and the day, or where
+you say after the span: a folder, `/export ~/Documents/ChatHistory`, or a file,
+`/export 7d ~/Documents/ChatHistory/friends-backup.md`. A missing folder is made,
+and a file already there is never overwritten: the export takes the next free name.
+
+Each day has a heading; each message its time and sender (named as you know them, in
+full), the message it replies to, its words with their formatting, its attachment
+and its reactions; a thread's replies sit under the message that began it.
 
 ## Threads in the room list
 

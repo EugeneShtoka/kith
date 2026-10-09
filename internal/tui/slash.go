@@ -60,8 +60,8 @@ var slashCommands = []slashCommand{
 		},
 	},
 	{
-		name: "/export", arg: "[7d | yesterday | 2026-09-18 | 500]", argOptional: true,
-		summary: "write this room, or the open thread, to a Markdown file in your downloads — all the cache holds, or the span you name",
+		name: "/export", arg: "[7d | yesterday | 2026-09-18 | 500] [~/folder | ~/folder/name.md]", argOptional: true,
+		summary: "write this room, or the open thread, to a Markdown file — all the cache holds, or the span you name; into export_dir, or the folder or file you give",
 		run: func(m Model, arg string, room domain.Room) (Model, tea.Cmd) {
 			m.compose.input, m.compose.drafted = "", nil
 			return m.openExport(room, arg)

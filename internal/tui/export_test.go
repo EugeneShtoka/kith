@@ -35,7 +35,7 @@ func (b cachedRoomBackend) MessagesAround(_ context.Context, _ domain.RoomID, ev
 	return nil, nil
 }
 
-// /export writes all the cache holds of a room to a Markdown file in the downloads,
+// /export writes all the cache holds of a room to a Markdown file in export_dir,
 // read back past its first page, oldest first; a span stops the reading early; an open
 // thread exports just the thread; and a second export never overwrites the first.
 func TestExportWritesTheRoomToAFile(t *testing.T) {
@@ -48,7 +48,8 @@ func TestExportWritesTheRoomToAFile(t *testing.T) {
 	}
 	all[4].ThreadRoot = "$four"
 	b := cachedRoomBackend{all: all, newest: 2, around: &around}
-	m := New(context.Background(), b, domainDisplayWithDownloads(dir))
+	m := New(context.Background(), b, config.Display{})
+	m.conf.base.Storage.ExportDir = dir
 	m = withRooms(t, m)
 	room, _ := m.roomByID("!a:x")
 
@@ -89,13 +90,45 @@ func TestExportWritesTheRoomToAFile(t *testing.T) {
 
 	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
 	if len(files) != 3 {
-		t.Errorf("%d files in the downloads, want one per export: %v", len(files), files)
+		t.Errorf("%d files in export_dir, want one per export: %v", len(files), files)
 	}
 }
 
-// domainDisplayWithDownloads is a display config saving into dir.
-func domainDisplayWithDownloads(dir string) config.Display {
-	var d config.Display
-	d.Media.DownloadDir = dir
-	return d
+// A place after the span sends the export there: a folder (made if missing, spaces in
+// its name and all), or a file when it ends in .md; a name already taken is not
+// written over.
+func TestExportGoesWhereItIsSent(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	around := 0
+	all := []domain.Message{{ID: "$1", RoomID: "!a:x", Sender: "@maya:x", SenderName: "Maya", Body: "hello", Timestamp: at(60)}}
+	m := New(context.Background(), cachedRoomBackend{all: all, newest: 1, around: &around}, config.Display{})
+	m.conf.base.Storage.ExportDir = filepath.Join(home, "default")
+	m = withRooms(t, m)
+	room, _ := m.roomByID("!a:x")
+	export := func(arg string) string {
+		t.Helper()
+		_, cmd := m.openExport(room, arg)
+		msg, ok := msgOf[exportedMsg](t, cmd)
+		if !ok || msg.err != nil {
+			t.Fatalf("export %q: %+v", arg, msg)
+		}
+		return msg.path
+	}
+	folder := filepath.Join(home, "Chat History")
+	file := filepath.Join(home, "backups", "friends-backup.md")
+	for _, tc := range []struct{ arg, wantDir, wantName string }{
+		{"", filepath.Join(home, "default"), "Alpha "},
+		{folder, folder, "Alpha "},
+		{"500 " + file, filepath.Dir(file), "friends-backup.md"},
+		{file, filepath.Dir(file), "friends-backup (2).md"},
+	} {
+		got := export(tc.arg)
+		if filepath.Dir(got) != tc.wantDir || !strings.HasPrefix(filepath.Base(got), tc.wantName) {
+			t.Errorf("/export %s wrote %s, want %s/%s…", tc.arg, got, tc.wantDir, tc.wantName)
+		}
+	}
+	if span, where := splitExportArg("2026-09-18 ~/Chat History/x.md"); span != "2026-09-18" || where != "~/Chat History/x.md" {
+		t.Errorf("split = %q, %q", span, where)
+	}
 }

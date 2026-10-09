@@ -11,6 +11,7 @@ type Storage struct {
 	StateDir       string `toml:"state_dir"`
 	CacheDir       string `toml:"cache_dir"`
 	RuntimeDir     string `toml:"runtime_dir"`
+	ExportDir      string `toml:"export_dir"` // where /export writes; empty is <data_dir>/exports
 	KeyringService string `toml:"keyring_service"`
 	// MessagesPerRoom is how many messages a room keeps, the newest; nil or negative
 	// keeps every one. Rules narrow it per room, space or tag.
