@@ -407,7 +407,7 @@ Names you give are local — only you see them — and live in your config.
   A private chat is named after the person in it, so naming one names them too, wherever they are shown, while the room's own name is still that person's name and nobody else but you is in it. A name given with `a` on their message wins.
 - `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag), and with `network_colors = true` names each room in its room list in its network's color.
 - `[display.rail] network_colors = true` colors a rail row whose rooms are all on one network the same way.
-- `[display.network_colors]` sets those colors (`#rrggbb`, a named color, or `"none"`); unset, WhatsApp is green, Telegram blue, Slack magenta. A bridged Matrix room counts as its bridge's network. Both switches are in settings too (`,`, under look).
+- `[display.network_colors]` sets those colors (`#rrggbb`, a named color, or `"none"`); unset, WhatsApp is teal, Telegram blue, Slack magenta. A bridged Matrix room counts as its bridge's network. Both switches are in settings too (`,`, under look).
 - `[display] max_name_length` caps the sender column; `color_messages = true` tints message bodies in the sender's color.
 
 kith keeps one directory of the people it knows, on every network and account. A

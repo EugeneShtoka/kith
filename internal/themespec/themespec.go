@@ -169,6 +169,7 @@ func roleOf(c *Colors, role string) (*string, bool) {
 var namedColors = map[string]string{
 	"red":     "#ff628c", // dark_pink: cobalt2's readable red, not its error #FF0000
 	"green":   "#3ad900",
+	"teal":    "#1de9b6", // WhatsApp's teal, apart from the green cobalt2 writes text in
 	"yellow":  "#ffc600",
 	"blue":    "#00aaff",
 	"magenta": "#967efb", // purple
