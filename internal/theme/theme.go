@@ -1,15 +1,16 @@
 // Package theme is kith's visual palette and the lipgloss styles built from it.
-// It imports nothing internal.
+// It imports nothing internal but themespec, the palette and its colors as data.
 package theme
 
 import (
 	"fmt"
 	"image/color"
 	"math"
-	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/EugeneShtoka/kith/internal/themespec"
 )
 
 // Palette holds the nine colors a theme is made of, one per role.
@@ -187,40 +188,11 @@ func hueOf(c color.Color) float64 {
 // ParseColor reads a color from a config string: a "#rrggbb" hex value or one of
 // a few common names. ok is false for an empty or unrecognized value.
 func ParseColor(s string) (color.Color, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
+	hex, ok := themespec.Color(s)
+	if !ok {
 		return nil, false
 	}
-	if hex, ok := namedColors[strings.ToLower(s)]; ok {
-		s = hex
-	}
-	if len(s) == 7 && s[0] == '#' && isHex(s[1:]) {
-		return lipgloss.Color(s), true
-	}
-	return nil, false
-}
-
-func isHex(s string) bool {
-	for _, r := range s {
-		switch {
-		case r >= '0' && r <= '9', r >= 'a' && r <= 'f', r >= 'A' && r <= 'F':
-		default:
-			return false
-		}
-	}
-	return true
-}
-
-// namedColors maps friendly config names to hex.
-var namedColors = map[string]string{
-	"red":     "#ff628c", // dark_pink: cobalt2's readable red, not its error #FF0000
-	"green":   "#3ad900",
-	"yellow":  "#ffc600",
-	"blue":    "#00aaff",
-	"magenta": "#967efb", // purple
-	"cyan":    "#80fcff", // light_blue
-	"orange":  "#ff9d00", // light_orange
-	"white":   "#deebfe", // light_purple: cobalt2's near-white
+	return lipgloss.Color(hex), true
 }
 
 // hslColor converts HSL (h in degrees, s/l in [0,1]) to a hex color.

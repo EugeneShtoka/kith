@@ -144,12 +144,15 @@ row_numbers = false
 # (DMs, bridge rooms) too.
 # room_name_rules = true
 
-# Per-place name rules: space is a space's name, or tag:<name> for a tag.
+# Per-place rules: space is a space's name, or tag:<name> for a tag.
 # first_name_only shows just the first token of a sender's name. A room in two places
 # follows the one selected in the rail in the room list, else its home (see priority).
+# network_colors names each room in this place's room list in its network's color
+# ([display.network_colors]).
 # [[display.space_rule]]
 # space = "Friends"
 # first_name_only = true
+# network_colors = true
 
 # Merge several accounts into one person with a shared alias and/or fixed color
 # (#rrggbb or a named color). Both are optional. An alias chooses which name to show;
@@ -226,6 +229,26 @@ preset = "cobalt2"
 # badge_alert     = "#ff628c"  # unread counts that mention you
 # selected_bg     = "#185294"  # the row under the cursor, focused pane
 # selected_dim_bg = "#0d3a58"  # the same row when the pane is not focused
+
+# The color each network's rooms are named in, where a place asks for it
+# ([[display.space_rule]] network_colors) or the rail does ([display.rail]
+# network_colors): #rgb/#rrggbb or a named color (red, green, yellow, blue, magenta,
+# cyan, orange, white), or "none". Unset: whatsapp green, telegram blue, slack
+# magenta, the rest none. A bad color stops startup.
+[display.network_colors]
+# whatsapp        = "green"
+# telegram        = "blue"
+# slack           = "magenta"
+# signal          = ""
+# discord         = ""
+# messenger       = ""
+# instagram       = ""
+# linkedin        = ""
+# google_messages = ""
+# google_chat     = ""
+# imessage        = ""
+# twitter         = ""
+# matrix          = ""
 
 # Words marked wherever they are said, and listed by `/tracked` or `:tracked`. Each
 # entry sets its own width with `*`:
@@ -359,6 +382,9 @@ order = ["tag:All", "tag:DMs", "tag:Unread", "tag:Drafts", "tag:Pinned", "-", "*
 hide_when_empty = []
 # Rows never shown (key or label); a tag can say so itself (hidden).
 hidden = []
+# Name a space or tag whose rooms are all on one network in that network's color
+# ([display.network_colors]).
+network_colors = false
 
 # Deleted messages, set separately for yours (every account in your identity) and
 # everybody else's:

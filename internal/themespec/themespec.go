@@ -8,6 +8,7 @@ package themespec
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -162,4 +163,50 @@ func roleOf(c *Colors, role string) (*string, bool) {
 		return &c.SelectedDimBG, true
 	}
 	return nil, false
+}
+
+// namedColors maps friendly config names to hex.
+var namedColors = map[string]string{
+	"red":     "#ff628c", // dark_pink: cobalt2's readable red, not its error #FF0000
+	"green":   "#3ad900",
+	"yellow":  "#ffc600",
+	"blue":    "#00aaff",
+	"magenta": "#967efb", // purple
+	"cyan":    "#80fcff", // light_blue
+	"orange":  "#ff9d00", // light_orange
+	"white":   "#deebfe", // light_purple: cobalt2's near-white
+}
+
+// Color is a color a config writes, as "#rrggbb": that value, or one of namedColors
+// by name (any case). ok is false for an empty or unrecognized value.
+func Color(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if hex, ok := namedColors[strings.ToLower(s)]; ok {
+		return hex, true
+	}
+	if len(s) == 7 && s[0] == '#' && isHex(s[1:]) {
+		return s, true
+	}
+	return "", false
+}
+
+// ColorNames is the names Color knows, sorted.
+func ColorNames() []string {
+	names := make([]string, 0, len(namedColors))
+	for name := range namedColors {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+func isHex(s string) bool {
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'f', r >= 'A' && r <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -33,6 +34,9 @@ func (m Model) renderRail(h int) string {
 func (m Model) railRow(g group, selected, active bool, inner int) string {
 	badge, highlight := m.groupBadge(g)
 	label := rowLabel{name: g.label}
+	if m.prefs.display.Rail.NetworkColors {
+		label.color = m.networkColor(g.network)
+	}
 	if g.countInLabel {
 		label.trail = fmt.Sprintf("(%d)", m.groupSize(g)) // survives a long label's truncation
 	}
@@ -69,6 +73,9 @@ func (m Model) listRow(label rowLabel, badge string, highlight bool, inner int, 
 	room := ansi.StringWidth(lead) + ansi.StringWidth(trail)
 	// One column between name and count, so a long name never abuts its own badge.
 	space := inner - ansi.StringWidth(badge) - 1
+	if label.color != nil {
+		return marker + m.coloredRow(label, badge, highlight, inner, space, selected, active)
+	}
 	if badge == "" || space < 1 {
 		return marker + style.Width(inner).Render(lead+nameCell(label.name, inner-room)+trail)
 	}
@@ -78,6 +85,34 @@ func (m Model) listRow(label rowLabel, badge string, highlight bool, inner int, 
 		m.theme.OnPaneRow(m.theme.Badge(highlight), selected, active).Render(badge)
 }
 
+// coloredRow is listRow's row past the marker for a name drawn in its own color: the
+// same layout, the name a segment of its own on the row's fill.
+func (m Model) coloredRow(label rowLabel, badge string, highlight bool, inner, space int, selected, active bool) string {
+	style := m.theme.PaneRow(selected, active)
+	lead, trail := label.lead, label.trail
+	if lead != "" {
+		lead += " "
+	}
+	if trail != "" {
+		trail = " " + trail
+	}
+	// As listRow lays it out: with a badge, the name gets space and one column parts it
+	// from the count; without, the name fills the row.
+	width, nameWidth := inner, inner
+	if badge != "" && space >= 1 {
+		width, nameWidth = space+1, space
+	} else {
+		badge = ""
+	}
+	name := nameCell(label.name, nameWidth-ansi.StringWidth(lead)-ansi.StringWidth(trail))
+	pad := strings.Repeat(" ", max(width-ansi.StringWidth(lead+name+trail), 0))
+	row := style.Render(lead) + style.Foreground(label.color).Render(name) + style.Render(trail+pad)
+	if badge == "" {
+		return row
+	}
+	return row + m.theme.OnPaneRow(m.theme.Badge(highlight), selected, active).Render(badge)
+}
+
 // rowLabel is what a list row says: lead is an affordance that stays on the visual
 // left, name is the logical name (drawn by listRow via nameCell), and trail follows the
 // name and survives truncation.
@@ -85,6 +120,8 @@ type rowLabel struct {
 	lead  string
 	name  string
 	trail string
+	// color draws the name in a color of its own (its network's), nil for the row's.
+	color color.Color
 }
 
 // groupBadge is a rail group's summed unread count ("" when none) and whether any of it
@@ -144,7 +181,7 @@ func (m Model) roomListLine(r roomRow, inner int, selected, active bool) string 
 		return m.listRow(rowLabel{lead: m.prefs.display.Threads.RowMark(), name: m.threadRowLabel(r.thread)},
 			badge, r.thread.Mentions > 0, inner, selected, active)
 	}
-	label := rowLabel{name: m.roomLabelHere(r.room)}
+	label := rowLabel{name: m.roomLabelHere(r.room), color: m.roomNameColor(r.room)}
 	switch {
 	case r.room.IsInvite():
 		// Marked, so an invitation never reads as a room you can just open.

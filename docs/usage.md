@@ -404,7 +404,9 @@ Names you give are local — only you see them — and live in your config.
 
 - `a` on a message names its **sender**: pick an existing person to merge this account into (for example the same contact over several bridges), or a new one, then a color. This writes a `[[display.identity]]`.
 - `a` on a room or rail group gives it a name of your own (`[[display.name]]`); `alt+r` names a thread.
-- `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag).
+- `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag), and with `network_colors = true` names each room in its room list in its network's color.
+- `[display.rail] network_colors = true` colors a rail row whose rooms are all on one network the same way.
+- `[display.network_colors]` sets those colors (`#rrggbb`, a named color, or `"none"`); unset, WhatsApp is green, Telegram blue, Slack magenta. A bridged Matrix room counts as its bridge's network. Both switches are in settings too (`,`, under look).
 - `[display] max_name_length` caps the sender column; `color_messages = true` tints message bodies in the sender's color.
 
 kith keeps one directory of the people it knows, on every network and account. A

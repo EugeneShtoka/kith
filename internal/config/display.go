@@ -23,6 +23,7 @@ type Display struct {
 	UnreadLine      *bool         `toml:"unread_line"`
 	Hyperlinks      *bool         `toml:"hyperlinks"` // OSC 8
 	Theme           Theme         `toml:"theme"`
+	NetworkColors   NetworkColors `toml:"network_colors"`
 	Tracked         Tracked       `toml:"tracked"`
 	Typing          *bool         `toml:"typing"`
 	SendTyping      *bool         `toml:"send_typing"`
@@ -165,7 +166,65 @@ type TrackedRule struct {
 type SpaceRule struct {
 	Space         string `toml:"space"` // the space's rail label
 	FirstNameOnly bool   `toml:"first_name_only"`
+	// NetworkColors names each room in the room list in its network's color.
+	NetworkColors bool `toml:"network_colors"`
 }
+
+// Empty reports whether the rule sets nothing, so the file need not keep it.
+func (r SpaceRule) Empty() bool { return !r.FirstNameOnly && !r.NetworkColors }
+
+// NetworkColors is [display.network_colors]: the color each network's rooms are named
+// in, where a place or the rail asks for it (SpaceRule.NetworkColors,
+// Rail.NetworkColors): #rgb/#rrggbb or a named color; "" is the default, "none" no
+// color.
+type NetworkColors struct {
+	WhatsApp       string `toml:"whatsapp"`
+	Telegram       string `toml:"telegram"`
+	Slack          string `toml:"slack"`
+	Signal         string `toml:"signal"`
+	Discord        string `toml:"discord"`
+	Messenger      string `toml:"messenger"`
+	Instagram      string `toml:"instagram"`
+	LinkedIn       string `toml:"linkedin"`
+	GoogleMessages string `toml:"google_messages"`
+	GoogleChat     string `toml:"google_chat"`
+	IMessage       string `toml:"imessage"`
+	Twitter        string `toml:"twitter"`
+	Matrix         string `toml:"matrix"`
+}
+
+// defaultNetworkColors are the colors of the networks with one when unset.
+var defaultNetworkColors = map[string]string{"whatsapp": "green", "telegram": "blue", "slack": "magenta"}
+
+// byKey is each network's color as set, by its key (its name, lower case, words
+// joined by "_").
+func (n NetworkColors) byKey() map[string]string {
+	return map[string]string{
+		"whatsapp": n.WhatsApp, "telegram": n.Telegram, "slack": n.Slack, "signal": n.Signal,
+		"discord": n.Discord, "messenger": n.Messenger, "instagram": n.Instagram, "linkedin": n.LinkedIn,
+		"google_messages": n.GoogleMessages, "google_chat": n.GoogleChat, "imessage": n.IMessage,
+		"twitter": n.Twitter, "matrix": n.Matrix,
+	}
+}
+
+// For is the color a network's rooms are named in, by its name ("WhatsApp", "Google
+// Messages"): as set, else its default; "" for none.
+func (n NetworkColors) For(network string) string {
+	key := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(network)), " ", "_")
+	color, known := n.byKey()[key]
+	switch {
+	case !known:
+		return ""
+	case color == "":
+		return defaultNetworkColors[key]
+	case strings.EqualFold(color, "none"):
+		return ""
+	}
+	return color
+}
+
+// Set is each network's color as written, by key, for checking.
+func (n NetworkColors) Set() map[string]string { return n.byKey() }
 
 // Identity is one [[display.identity]]: several accounts, on any networks, shown as one
 // person.
@@ -265,6 +324,9 @@ type Rail struct {
 	Order         []string `toml:"order"`
 	Hidden        []string `toml:"hidden"`
 	HideWhenEmpty []string `toml:"hide_when_empty"`
+	// NetworkColors names a space or tag whose rooms are all on one network in that
+	// network's color ([display.network_colors]).
+	NetworkColors bool `toml:"network_colors"`
 }
 
 // Rooms is [display.rooms]: the room list's sort chain, globally and per rail group.

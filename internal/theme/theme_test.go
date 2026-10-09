@@ -1,6 +1,8 @@
 package theme
 
 import (
+	"github.com/EugeneShtoka/kith/internal/themespec"
+
 	"image/color"
 	"math"
 	"testing"
@@ -204,7 +206,7 @@ func TestParseColor(t *testing.T) {
 func TestEveryNamedColorParses(t *testing.T) {
 	t.Parallel()
 
-	for name := range namedColors {
+	for _, name := range themespec.ColorNames() {
 		if _, ok := ParseColor(name); !ok {
 			t.Errorf("named color %q does not parse", name)
 		}
