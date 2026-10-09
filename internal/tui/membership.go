@@ -130,6 +130,10 @@ func (m Model) askLeave() (Model, tea.Cmd) {
 	if room.Deleting != domain.ChatLeft {
 		return m.askDeleteChat(room), nil
 	}
+	if forum, whole := m.wholeChatOf(room.ID); whole {
+		return m.say(m.roomName(room) + " is part of " + forum + ", which is left only whole: " +
+			"leaving it would leave all of " + forum + " (L on it in the rail does that)"), nil
+	}
 	m.confirm = confirmState{action: pendingLeave, room: room}
 	return m, nil
 }
@@ -151,7 +155,7 @@ func (m Model) askLeaveGroup() (Model, tea.Cmd) {
 	switch {
 	case !ok:
 		return m, nil
-	case space.Leaving == domain.LeftWithRooms, space.Leaving == domain.LeftAlone:
+	case space.Leaving == domain.LeftWithRooms, space.Leaving == domain.LeftWhole, space.Leaving == domain.LeftAlone:
 		return m.askLeaveSpaceWith(space), nil
 	case space.Leaving == domain.LeftBySigningOut:
 		return m.askSignOut(space), nil

@@ -197,6 +197,7 @@ enum SpaceLeaving {
   SPACE_LEAVING_WITH_ROOMS = 2;
   SPACE_LEAVING_ALONE = 3;
   SPACE_LEAVING_BY_SIGNING_OUT = 4;
+  SPACE_LEAVING_WHOLE = 5;
 }
 
 // Unread is one room's unread state (domain.Unread).

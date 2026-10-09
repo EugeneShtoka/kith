@@ -25,14 +25,15 @@ type spaceLeave struct {
 	// rooms go with the space; shared are rooms also in another space, still to ask about.
 	rooms  []domain.RoomID
 	shared []domain.RoomID
-	// asked is how many shared rooms have been asked about.
-	asked int
+	// asked is how many shared rooms have been asked about; kept, how many rooms stay
+	// because they are part of another chat left only whole (a forum's topics).
+	asked, kept int
 }
 
 // askLeaveSpaceWith opens the questions for a space left on its own or with its rooms.
 func (m Model) askLeaveSpaceWith(space domain.Space) Model {
 	l := spaceLeave{space: space}
-	if space.Leaving == domain.LeftWithRooms {
+	if space.Leaving == domain.LeftWithRooms || space.Leaving == domain.LeftWhole {
 		l.rooms = slices.Clone(space.Children)
 		return m.nextSpaceQuestion(l)
 	}
@@ -71,6 +72,10 @@ func (m Model) leaveSpace(l spaceLeave) (Model, tea.Cmd) {
 func (m Model) answerSpaceRooms(l spaceLeave, yes bool) Model {
 	if yes {
 		for _, room := range l.space.Children {
+			if _, whole := m.wholeChatOf(room); whole {
+				l.kept++ // leaving it would leave all of its forum
+				continue
+			}
 			if len(m.otherSpacesOf(room, l.space.ID)) > 0 {
 				l.shared = append(l.shared, room)
 			} else {
@@ -122,6 +127,18 @@ func (m Model) otherSpacesOf(room domain.RoomID, except domain.SpaceID) []string
 	return names
 }
 
+// wholeChatOf is the name of a space whose rooms are parts of one chat with it (a
+// forum: domain.Space.Whole) and that holds room: such a room is left only with all
+// of it.
+func (m Model) wholeChatOf(room domain.RoomID) (string, bool) {
+	for _, s := range m.rooms.spaces {
+		if s.Whole() && slices.Contains(s.Children, room) {
+			return isolate(s.DisplayName()), true
+		}
+	}
+	return "", false
+}
+
 // spaceRoomName is a room of a space being left, by the name the room list gives it.
 func (m Model) spaceRoomName(id domain.RoomID) string {
 	if room, ok := m.roomByID(id); ok {
@@ -145,6 +162,9 @@ func (m Model) leaveSpacePrompt(c confirmState) string {
 		q := "leave " + name
 		if len(l.rooms) > 0 {
 			q += " and " + roomsPhrase(len(l.rooms)) + " in it"
+		}
+		if l.kept > 0 {
+			q += "; " + roomsPhrase(l.kept) + " of forums stay, left only with the whole forum"
 		}
 		return q + "?" + m.bridgedNote(l.rooms)
 	}

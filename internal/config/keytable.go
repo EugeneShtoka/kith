@@ -112,7 +112,7 @@ Targets:
 leave to joined rooms; leave and reject ask first.`,
 		binds: []keyBinding{
 			{path: "rooms.join", def: "J", doc: "join a room by ID or alias"},
-			{path: "rooms.leave", def: "L", doc: "leave the selected room"},
+			{path: "rooms.leave", def: "L", doc: "leave the selected room", note: "Asks first. A private chat its network cannot leave is deleted instead; a room of a forum is left only with the whole forum, from the rail."},
 			{path: "rooms.accept", def: "y", doc: "accept the selected invitation"},
 			{path: "rooms.reject", def: "d", doc: "reject the selected invitation"},
 			{path: "rooms.people", def: "p", doc: "list the people in this room"},
