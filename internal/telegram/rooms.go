@@ -540,7 +540,7 @@ func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 			// Its rooms' home, as the account's space is the other chats'.
 			Bridge: domain.ProtocolTelegram, Original: true,
 			// Leaving the forum's chat leaves every topic (LeaveRoom).
-			LeaveBy: rooms[i].ID,
+			Leaving: domain.LeftByRoom, LeaveBy: rooms[i].ID,
 		}
 		order = append(order, rooms[i].ID)
 	}

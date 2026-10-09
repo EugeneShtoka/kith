@@ -28,6 +28,11 @@ const (
 	pendingDeleteTag
 	// pendingLeaveSpace: a space (group) left by leaving one room (room), its rooms with it.
 	pendingLeaveSpace
+	// pendingLeaveSpaceRooms, pendingLeaveSharedRoom and pendingLeaveSpaceItself: the
+	// questions of leaving a space (leaving) on its own or with its rooms (leavespace.go).
+	pendingLeaveSpaceRooms
+	pendingLeaveSharedRoom
+	pendingLeaveSpaceItself
 	// pendingCombineTags: a tag (group) renamed to another's name (address), folded
 	// into it.
 	pendingCombineTags
@@ -51,6 +56,8 @@ type confirmState struct {
 	// address and via: the room a followed link named (alias or ID) and its servers.
 	address string
 	via     []string
+	// leaving is a space being left, over several questions.
+	leaving spaceLeave
 }
 
 // active reports whether a confirmation is outstanding.
@@ -113,9 +120,9 @@ func (m Model) askLeave() (Model, tea.Cmd) {
 }
 
 // askLeaveGroup is the rail's leave: a tag is deleted, a space that one room carries
-// (a Telegram forum) is left with that room, each after asking. Any other space (an
-// account's own, which would be signing out; one of separate memberships) is not left
-// from here yet, and says so.
+// (a Telegram forum) is left with that room, a space left with its rooms or on its own
+// as leavespace.go asks, each after asking. An account's own space, which would be
+// signing out, is not left from here, and says so.
 func (m Model) askLeaveGroup() (Model, tea.Cmd) {
 	entry, ok := m.currentGroup()
 	if !ok {
@@ -129,7 +136,9 @@ func (m Model) askLeaveGroup() (Model, tea.Cmd) {
 	switch {
 	case !ok:
 		return m, nil
-	case space.LeaveBy != "":
+	case space.Leaving == domain.LeftWithRooms, space.Leaving == domain.LeftAlone:
+		return m.askLeaveSpaceWith(space), nil
+	case space.Leaving == domain.LeftByRoom && space.LeaveBy != "":
 		room, known := m.roomByID(space.LeaveBy)
 		if !known {
 			room = domain.Room{ID: space.LeaveBy, Name: space.DisplayName()}
@@ -138,7 +147,7 @@ func (m Model) askLeaveGroup() (Model, tea.Cmd) {
 		return m, nil
 	default:
 		return m.say("leaving " + isolate(space.DisplayName()) +
-			" from the rail is not something kith does yet (an account's own space would be signing out)"), nil
+			" from the rail is not something kith does: it is an account's own space, and leaving it would be signing out"), nil
 	}
 }
 
@@ -190,6 +199,8 @@ func (m Model) confirmPrompt() string {
 	case pendingCombineTags:
 		return "a tag " + isolate(m.confirm.address) + " exists: combine " + isolate(m.confirm.group) +
 			" into it? it holds both tags' rooms and keeps its own settings"
+	case pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingLeaveSpaceItself:
+		return m.leaveSpacePrompt(m.confirm)
 	case pendingNone:
 		return ""
 	}
@@ -201,6 +212,9 @@ func (m Model) confirmPrompt() string {
 func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 	pending := m.confirm
 	m.confirm = confirmState{}
+	if next, answered := m.answerSpaceStep(pending, yes); answered {
+		return next, nil
+	}
 	if !yes {
 		m = m.say("canceled")
 		return m, nil
@@ -232,7 +246,9 @@ func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 		return m.deleteTag(pending.group)
 	case pendingCombineTags:
 		return m.combineTags(pending.group, pending.address)
-	case pendingNone:
+	case pendingLeaveSpaceItself:
+		return m.leaveSpace(pending.leaving)
+	case pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingNone:
 		return m, nil
 	}
 	return m, nil
@@ -310,6 +326,13 @@ func (m Model) handleConfirmKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.resolveConfirm(true)
 	case actNo:
 		return m.resolveConfirm(false)
+	case actYesAll, actNoAll:
+		// Only a room also in another space is asked about with its like.
+		if m.confirm.action == pendingLeaveSharedRoom {
+			pending := m.confirm
+			m.confirm = confirmState{}
+			return m.answerSharedRoom(pending.leaving, m.keys.lookup(key.String(), scopeConfirm) == actYesAll, true), nil
+		}
 	}
 	return m, nil
 }

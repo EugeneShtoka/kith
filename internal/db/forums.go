@@ -28,12 +28,16 @@ func (c *Cache) ForgetThreads(ctx context.Context, room domain.RoomID, roots []d
 	})
 }
 
-// ForgetRooms drops rooms from the cache, with everything kept of them: rooms left.
+// ForgetRooms drops rooms from the cache, with everything kept of them: rooms left. A
+// space is a room too (a Matrix space, a WhatsApp community), and goes as one.
 func (c *Cache) ForgetRooms(ctx context.Context, rooms []domain.RoomID) error {
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		for _, room := range rooms {
 			if _, err := tx.ExecContext(ctx, "DELETE FROM rooms WHERE id = ?", string(room)); err != nil {
 				return fmt.Errorf("db: forget %s: %w", room, err)
+			}
+			if _, err := tx.ExecContext(ctx, "DELETE FROM spaces WHERE id = ?", string(room)); err != nil {
+				return fmt.Errorf("db: forget the space %s: %w", room, err)
 			}
 		}
 		return nil

@@ -18,7 +18,24 @@ func SpaceToProto(s domain.Space) *v1.Space {
 		Original: s.Original,
 		Keeper:   s.Keeper,
 		LeaveBy:  string(s.LeaveBy),
+		Leaving:  spaceLeavings[s.Leaving],
 	}
+}
+
+var spaceLeavings = map[domain.SpaceLeaving]v1.SpaceLeaving{
+	domain.LeftByRoom:    v1.SpaceLeaving_SPACE_LEAVING_BY_ROOM,
+	domain.LeftWithRooms: v1.SpaceLeaving_SPACE_LEAVING_WITH_ROOMS,
+	domain.LeftAlone:     v1.SpaceLeaving_SPACE_LEAVING_ALONE,
+}
+
+// protoToSpaceLeaving converts how a space is left back; anything unknown is not left.
+func protoToSpaceLeaving(pb v1.SpaceLeaving) domain.SpaceLeaving {
+	for leaving, wire := range spaceLeavings {
+		if wire == pb {
+			return leaving
+		}
+	}
+	return domain.NotLeft
 }
 
 // SpacesToProto converts a space list.
@@ -39,6 +56,7 @@ func ProtoToSpace(pb *v1.Space) domain.Space {
 		Original: pb.GetOriginal(),
 		Keeper:   pb.GetKeeper(),
 		LeaveBy:  domain.RoomID(pb.GetLeaveBy()),
+		Leaving:  protoToSpaceLeaving(pb.GetLeaving()),
 	}
 }
 

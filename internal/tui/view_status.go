@@ -10,11 +10,17 @@ import (
 func (m Model) renderStatus() string {
 	// A question or prompt owns the whole row.
 	if m.confirm.active() {
-		return m.theme.Muted.Render(drawLine(m.hintLine(
+		hints := []hint{
 			note(m.confirmPrompt()),
 			keyed(m.keys.keyHint(scopeConfirm, actYes), "yes"),
 			keyed(m.keys.keyHint(scopeConfirm, actNo), "no"),
-		), lineSpec{width: m.width, sentence: true}))
+		}
+		if m.confirm.action == pendingLeaveSharedRoom {
+			hints = append(hints,
+				keyed(m.keys.keyHint(scopeConfirm, actYesAll), "yes to each room also elsewhere"),
+				keyed(m.keys.keyHint(scopeConfirm, actNoAll), "no to each"))
+		}
+		return m.theme.Muted.Render(drawLine(m.hintLine(hints...), lineSpec{width: m.width, sentence: true}))
 	}
 	if m.editingSettingRow() {
 		// The value is typed on its row; here, what it may be and the keys.

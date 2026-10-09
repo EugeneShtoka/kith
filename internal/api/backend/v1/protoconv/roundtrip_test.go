@@ -177,6 +177,11 @@ func fill(t *testing.T, v reflect.Value, path string) {
 		v.Set(reflect.ValueOf(domain.VerificationSAS))
 		return
 	}
+	// Nor is 7 a way to leave a space, which reads back as not leaving it.
+	if v.Type() == reflect.TypeFor[domain.SpaceLeaving]() {
+		v.Set(reflect.ValueOf(domain.LeftAlone))
+		return
+	}
 
 	// Formatting is built only by its constructors. It crosses the wire as it draws,
 	// so it is made from two filled spans; its markup stays in the daemon by design.

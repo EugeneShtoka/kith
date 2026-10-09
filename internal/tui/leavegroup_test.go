@@ -25,7 +25,7 @@ func (l leaver) LeaveRoom(_ context.Context, room domain.RoomID) error {
 
 // L on the rail: a Telegram forum, after asking, is left by leaving its chat, and goes
 // from the list with its topics; a tag, after asking, is deleted; any other space says
-// it is not left from here.
+// it is not left from here (that would be signing out).
 func TestLeavingFromTheRail(t *testing.T) {
 	t.Parallel()
 	var left []domain.RoomID
@@ -37,7 +37,8 @@ func TestLeavingFromTheRail(t *testing.T) {
 	}})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "telegram:1/account", Name: "Telegram home", Children: []domain.RoomID{"telegram:1/42"}, Bridge: domain.ProtocolTelegram},
-		{ID: "telegram:1/forum100", Name: "Baking", Bridge: domain.ProtocolTelegram, LeaveBy: "telegram:1/-100",
+		{ID: "telegram:1/forum100", Name: "Baking", Bridge: domain.ProtocolTelegram,
+			Leaving: domain.LeftByRoom, LeaveBy: "telegram:1/-100",
 			Children: []domain.RoomID{"telegram:1/-100", "telegram:1/-100~7", "telegram:1/-100~8"}},
 	}}))
 	m.focus = paneRail
@@ -64,7 +65,7 @@ func TestLeavingFromTheRail(t *testing.T) {
 
 	m.confirm = confirmState{} // answered above, on the copy that went on
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Telegram home")
-	if got := pressKey(t, m, "L"); got.confirm.action != pendingNone || !strings.Contains(got.status(), "not something kith does yet") {
+	if got := pressKey(t, m, "L"); got.confirm.action != pendingNone || !strings.Contains(got.status(), "signing out") {
 		t.Errorf("L on an account's space: confirm %v, status %q", got.confirm.action, got.status())
 	}
 
