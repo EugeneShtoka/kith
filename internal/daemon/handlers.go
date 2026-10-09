@@ -345,6 +345,11 @@ func (s *server) JoinRoom(ctx context.Context, r *req[v1.JoinRoomRequest]) (*res
 	return reply(&v1.JoinRoomResponse{RoomId: string(id)}, err)
 }
 
+func (s *server) DeleteChat(ctx context.Context, r *req[v1.DeleteChatRequest]) (*resp[v1.DeleteChatResponse], error) {
+	err := s.Backend.DeleteChat(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetForEveryone())
+	return reply(&v1.DeleteChatResponse{}, err)
+}
+
 func (s *server) LeaveRoom(ctx context.Context, r *req[v1.LeaveRoomRequest]) (*resp[v1.LeaveRoomResponse], error) {
 	return reply(&v1.LeaveRoomResponse{}, s.Backend.LeaveRoom(ctx, roomID(r.Msg.GetRoomId())))
 }

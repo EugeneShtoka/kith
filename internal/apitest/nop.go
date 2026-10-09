@@ -100,6 +100,7 @@ func (Nop) JoinRoom(_ context.Context, roomIDOrAlias string, _ []string) (domain
 	return domain.RoomID(roomIDOrAlias), nil
 }
 func (Nop) LeaveRoom(context.Context, domain.RoomID) error                      { return nil }
+func (Nop) DeleteChat(context.Context, domain.RoomID, bool) error               { return nil }
 func (Nop) ListThreads(context.Context, domain.RoomID) ([]domain.Thread, error) { return nil, nil }
 func (Nop) ThreadPage(context.Context, domain.RoomID, domain.EventID, string, int) (domain.TimelinePage, error) {
 	return domain.TimelinePage{}, nil

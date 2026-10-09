@@ -63,6 +63,10 @@ type (
 	Leaver interface {
 		LeaveRoom(ctx context.Context, roomID domain.RoomID) error
 	}
+	// ChatDeleter is a network whose private chats are deleted, not left (Telegram's).
+	ChatDeleter interface {
+		DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryone bool) error
+	}
 	// Archiver is a network with an archive of its own (Telegram's Archived folder,
 	// WhatsApp's archived chats).
 	Archiver interface {

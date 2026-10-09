@@ -90,7 +90,9 @@ type leftMsg struct {
 	// also are rooms that went with it (a forum's topics), and space that a space did.
 	also  []domain.RoomID
 	space bool
-	err   error
+	// deleted: a chat deleted, not left.
+	deleted bool
+	err     error
 }
 
 // membersMsg carries a room's ranked mention candidates.

@@ -86,6 +86,11 @@ func (r *Router) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	return doOnRoom(r, roomID, "leaving", func(c Leaver) error { return c.LeaveRoom(ctx, roomID) })
 }
 
+// DeleteChat deletes a chat that cannot be left.
+func (r *Router) DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryone bool) error {
+	return doOnRoom(r, roomID, "deleting chats", func(c ChatDeleter) error { return c.DeleteChat(ctx, roomID, forEveryone) })
+}
+
 // StartVerification asks this account's other devices to verify this one.
 func (r *Router) StartVerification(ctx context.Context) (string, error) {
 	c, err := sole[api.Verification](r, "device verification")

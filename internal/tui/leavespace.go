@@ -43,14 +43,17 @@ func (m Model) askLeaveSpaceWith(space domain.Space) Model {
 	return m
 }
 
-// answerSpaceStep takes an answer to a question before the last one of leaving a space:
-// a no to its rooms, or to one of them, is an answer, not a cancel.
-func (m Model) answerSpaceStep(c confirmState, yes bool) (Model, bool) {
+// answerEarlierStep takes an answer to a question before the last one of leaving a
+// space or deleting a chat: a no there is an answer (keep its rooms, or one of them;
+// delete for you only), not a cancel.
+func (m Model) answerEarlierStep(c confirmState, yes bool) (Model, bool) {
 	switch c.action { //nolint:exhaustive // every other action is answered by resolveConfirm
 	case pendingLeaveSpaceRooms:
 		return m.answerSpaceRooms(c.leaving, yes), true
 	case pendingLeaveSharedRoom:
 		return m.answerSharedRoom(c.leaving, yes, false), true
+	case pendingDeleteForThem:
+		return m.answerDeleteForThem(c, yes), true
 	}
 	return m, false
 }

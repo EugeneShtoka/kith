@@ -27,6 +27,15 @@ message Room {
   // Forum marks a forum's own room (Telegram's General topic); the forum is a space
   // of its topics' rooms.
   bool forum = 10;
+  // How a chat that cannot be left is deleted instead (domain.Room.Deleting).
+  ChatDeleting deleting = 11;
+}
+
+// ChatDeleting is how a chat that cannot be left is deleted (domain.ChatDeleting).
+enum ChatDeleting {
+  CHAT_DELETING_UNSPECIFIED = 0; // left, not deleted
+  CHAT_DELETING_FOR_ME = 1;
+  CHAT_DELETING_FOR_EITHER = 2;
 }
 
 // Mention is one @-mention within a message (domain.Mention).

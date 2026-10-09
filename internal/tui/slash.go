@@ -228,7 +228,7 @@ var slashCommands = []slashCommand{
 		},
 	},
 	{
-		name: "/leave", summary: "leave the room you are writing in (asks first)",
+		name: "/leave", summary: "leave the room you are writing in, or delete a private chat that cannot be left (asks first)",
 		run: func(m Model, _ string, _ domain.Room) (Model, tea.Cmd) {
 			// Irreversible, so through the room list's confirmation.
 			return m.askLeave()

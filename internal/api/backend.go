@@ -26,6 +26,7 @@ type Backend interface {
 	Media
 	Members
 	Membership
+	Ending
 	Search
 	Drafts
 	Threads
@@ -205,6 +206,13 @@ type Membership interface {
 	UnbanUser(ctx context.Context, roomID domain.RoomID, userID string) error
 	// LeaveRoom leaves a room or rejects an invite.
 	LeaveRoom(ctx context.Context, roomID domain.RoomID) error
+}
+
+// Ending puts away for good what is not left as a room is (Membership.LeaveRoom).
+type Ending interface {
+	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
+	// and, with forEveryone, for the other person too.
+	DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryone bool) error
 }
 
 // Search is search over the local cache and the lookups beside it.
