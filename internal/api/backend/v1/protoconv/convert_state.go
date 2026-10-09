@@ -27,6 +27,7 @@ var spaceLeavings = map[domain.SpaceLeaving]v1.SpaceLeaving{
 	domain.LeftWithRooms:    v1.SpaceLeaving_SPACE_LEAVING_WITH_ROOMS,
 	domain.LeftAlone:        v1.SpaceLeaving_SPACE_LEAVING_ALONE,
 	domain.LeftBySigningOut: v1.SpaceLeaving_SPACE_LEAVING_BY_SIGNING_OUT,
+	domain.LeftWhole:        v1.SpaceLeaving_SPACE_LEAVING_WHOLE,
 }
 
 // protoToSpaceLeaving converts how a space is left back; anything unknown is not left.

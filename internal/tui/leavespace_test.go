@@ -48,7 +48,7 @@ func genSpaceCase(r *rand.Rand) spaceCase {
 		bridge = domain.ProtocolWhatsApp
 	}
 	c.target = domain.Space{ID: "!target:x", Name: "Target", Bridge: bridge,
-		Leaving: []domain.SpaceLeaving{domain.LeftAlone, domain.LeftAlone, domain.LeftWithRooms, domain.NotLeft}[r.IntN(4)]}
+		Leaving: []domain.SpaceLeaving{domain.LeftAlone, domain.LeftAlone, domain.LeftAlone, domain.LeftWithRooms, domain.LeftWhole, domain.NotLeft}[r.IntN(6)]}
 	for i := range 1 + r.IntN(6) {
 		id := domain.RoomID(fmt.Sprintf("!r%d:x", i))
 		c.rooms = append(c.rooms, domain.Room{ID: id, Name: fmt.Sprintf("Room %d", i)})
@@ -62,7 +62,7 @@ func genSpaceCase(r *rand.Rand) spaceCase {
 	}
 	for i := range r.IntN(3) {
 		other := domain.Space{ID: domain.SpaceID(fmt.Sprintf("!other%d:x", i)), Name: fmt.Sprintf("Other %d", i),
-			Bridge: domain.ProtocolMatrix, Leaving: []domain.SpaceLeaving{domain.LeftAlone, domain.NotLeft, domain.LeftWithRooms, domain.LeftByRoom}[r.IntN(4)]}
+			Bridge: domain.ProtocolMatrix, Leaving: []domain.SpaceLeaving{domain.LeftAlone, domain.NotLeft, domain.LeftWithRooms, domain.LeftByRoom, domain.LeftWhole}[r.IntN(5)]}
 		for _, id := range c.target.Children {
 			if r.IntN(2) == 0 {
 				other.Children = append(other.Children, id)
@@ -78,11 +78,11 @@ func genSpaceCase(r *rand.Rand) spaceCase {
 
 // sharedRooms is, independently of the TUI, which of the target's rooms are also in a
 // space that could be left itself (an account's own space holds every room: not
-// another place).
+// another place), and wholeRooms which are parts of another forum, left only with it.
 func (c spaceCase) sharedRooms() map[domain.RoomID]bool {
 	shared := map[domain.RoomID]bool{}
 	for _, o := range c.others {
-		if o.Leaving == domain.NotLeft {
+		if o.Leaving == domain.NotLeft || o.Leaving == domain.LeftByRoom || o.Leaving == domain.LeftWhole {
 			continue
 		}
 		for _, id := range o.Children {
@@ -92,11 +92,25 @@ func (c spaceCase) sharedRooms() map[domain.RoomID]bool {
 	return shared
 }
 
+func (c spaceCase) wholeRooms() map[domain.RoomID]bool {
+	whole := map[domain.RoomID]bool{}
+	for _, o := range c.others {
+		if o.Leaving == domain.LeftByRoom || o.Leaving == domain.LeftWhole {
+			for _, id := range o.Children {
+				whole[id] = true
+			}
+		}
+	}
+	return whole
+}
+
 // Leaving a space from the rail, over every kind of space, overlap with other spaces,
 // answer and refusal: nothing is left before the last yes, and a no there leaves
 // nothing; a WhatsApp community asks once and takes all its rooms; a Matrix space asks
 // whether its rooms go, then about each one also in another space (naming that space,
-// not an account's own), yes and no to all answering the rest; what goes is left, the
+// not an account's own), yes and no to all answering the rest, and a room of another
+// forum is kept, left only with all of it, which the last question says; a forum
+// itself goes with all its rooms, asked once; what goes is left, the
 // space last, and a room the network refuses neither stops the others nor the space,
 // and is named; a bridged room going is said to be left on its network only if its
 // bridge passes leaves on; a bridge's own space for an account is not left.
@@ -122,9 +136,10 @@ func TestLeavingASpaceFromTheRail(t *testing.T) {
 		}
 
 		var want []domain.RoomID
-		shared := c.sharedRooms()
+		shared, whole := c.sharedRooms(), c.wholeRooms()
+		kept := 0
 		stray(t, i, r, m)
-		if c.target.Leaving == domain.LeftWithRooms {
+		if c.target.Leaving == domain.LeftWithRooms || c.target.Leaving == domain.LeftWhole {
 			want = slices.Clone(c.target.Children)
 		} else {
 			if m.confirm.action != pendingLeaveSpaceRooms {
@@ -135,6 +150,10 @@ func TestLeavingASpaceFromTheRail(t *testing.T) {
 			var asked []domain.RoomID
 			if roomsToo {
 				for _, id := range c.target.Children {
+					if whole[id] {
+						kept++
+						continue
+					}
 					if shared[id] {
 						asked = append(asked, id)
 					} else {
@@ -154,7 +173,7 @@ func TestLeavingASpaceFromTheRail(t *testing.T) {
 					t.Fatalf("case %d: asked %v %q, want about %s", i, m.confirm.action, m.confirmPrompt(), id)
 				}
 				for _, o := range c.others {
-					in := slices.Contains(o.Children, id) && o.Leaving != domain.NotLeft
+					in := slices.Contains(o.Children, id) && o.Leaving != domain.NotLeft && !whole[id]
 					if strings.Contains(m.confirmPrompt(), o.Name) != in {
 						t.Fatalf("case %d: %q names %s: %v, want %v", i, m.confirmPrompt(), o.Name, !in, in)
 					}
@@ -179,6 +198,9 @@ func TestLeavingASpaceFromTheRail(t *testing.T) {
 			t.Fatalf("case %d: last question %v %q, want whether to leave the space", i, m.confirm.action, m.confirmPrompt())
 		}
 		prompt := m.confirmPrompt()
+		if strings.Contains(prompt, "of forums stay") != (kept > 0) {
+			t.Fatalf("case %d: %q, %d forum rooms kept", i, prompt, kept)
+		}
 		if bridged := c.target.Bridge == domain.ProtocolWhatsApp && len(want) > 0; strings.Contains(prompt, "on WhatsApp") != bridged {
 			t.Fatalf("case %d: %q says bridged rooms leave WhatsApp: %v, want %v", i, prompt, !bridged, bridged)
 		}

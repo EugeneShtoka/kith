@@ -78,3 +78,39 @@ func TestLeavingFromTheRail(t *testing.T) {
 		t.Errorf("L on a tag: confirm %v for %q, want deleting the tag", got.confirm.action, got.confirm.group)
 	}
 }
+
+// L on one room of a forum, bridged or Telegram's own, asks nothing and says it is left
+// only with the whole forum, from the rail; a room of a space whose rooms are left one
+// by one is asked about as ever.
+func TestAForumsRoomIsNotLeftAlone(t *testing.T) {
+	t.Parallel()
+	var left []domain.RoomID
+	m := update(t, New(context.Background(), leaver{left: &left}, config.Display{}), roomsMsg{rooms: []domain.Room{
+		{ID: "!topic:x", Name: "Trips"}, {ID: "telegram:1/-100", Name: "General", Forum: true},
+		{ID: "telegram:1/-100~7", Name: "Recipes"}, {ID: "!plain:x", Name: "Lounge"},
+	}})
+	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
+		{ID: "!forum:x", Name: "Hikers", Bridge: domain.ProtocolTelegram, Leaving: domain.LeftWhole, Children: []domain.RoomID{"!topic:x"}},
+		{ID: "telegram:1/forum100", Name: "Baking", Bridge: domain.ProtocolTelegram, Leaving: domain.LeftByRoom,
+			LeaveBy: "telegram:1/-100", Children: []domain.RoomID{"telegram:1/-100", "telegram:1/-100~7"}},
+		{ID: "!mine:x", Name: "Mine", Bridge: domain.ProtocolMatrix, Leaving: domain.LeftAlone, Children: []domain.RoomID{"!plain:x", "!topic:x"}},
+	}}))
+	for room, forum := range map[domain.RoomID]string{"!topic:x": "Hikers", "telegram:1/-100": "Baking", "telegram:1/-100~7": "Baking", "!plain:x": ""} {
+		r, _ := m.roomByID(room)
+		got, _ := m.selectRoom(r)
+		got.focus = paneRooms
+		got = pressKey(t, got, "L")
+		if forum == "" {
+			if got.confirm.action != pendingLeave {
+				t.Errorf("L on %s asked %v, want whether to leave it", room, got.confirm.action)
+			}
+			continue
+		}
+		if got.confirm.active() || !strings.Contains(got.status(), "part of "+forum) {
+			t.Errorf("L on %s: confirm %v, status %q, want it refused for %s", room, got.confirm.action, got.status(), forum)
+		}
+	}
+	if len(left) > 0 {
+		t.Errorf("left %v", left)
+	}
+}

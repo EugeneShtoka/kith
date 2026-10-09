@@ -153,8 +153,9 @@ func TestALeftSpaceStaysLeft(t *testing.T) {
 
 // How a space is left comes from its state, and the cache keeps it: a space a bridge
 // marks as its own for an account (as m.bridge or as the older half-shot event, by
-// its channel or by its room type) is not left; a space a bridge made for a chat (a
-// forum), a space of your own, and one with bridge state that marks nothing are left
+// its channel or by its room type) is not left; a bridged Telegram forum is left whole
+// with its topics; a bridged Telegram community, another bridge's space named like a
+// forum, a space of your own, and one with bridge state that marks nothing are left
 // on their own. A space whose state cannot be read keeps what the cache knew.
 func TestHowAMatrixSpaceIsLeftComesFromItsState(t *testing.T) {
 	t.Parallel()
@@ -163,19 +164,21 @@ func TestHowAMatrixSpaceIsLeftComesFromItsState(t *testing.T) {
 		return `{"type": "` + kind + `", "state_key": "x", "sender": "@telegrambot:x", "event_id": "$e", "room_id": "!r:x", "content": ` + content + `}`
 	}
 	states := map[string]string{
-		"!account:x": bridgeEvent("m.bridge", `{"bridgebot": "@telegrambot:x", "channel": {"id": "__personal_filtering_space__"}}`),
-		"!older:x":   bridgeEvent("uk.half-shot.bridge", `{"channel": {"id": "c"}, "com.beeper.room_type.v2": "personal_filtering_space"}`),
-		"!forum:x":   bridgeEvent("m.bridge", `{"bridgebot": "@telegrambot:x", "channel": {"id": "channel:1804057518"}}`),
-		"!mine:x":    ``,
-		"!garbled:x": bridgeEvent("m.bridge", `{"channel": "not an object"}`),
-		"!unread:x":  "unreadable",
-		"!unreadA:x": "unreadable",
+		"!account:x":   bridgeEvent("m.bridge", `{"bridgebot": "@telegrambot:x", "channel": {"id": "__personal_filtering_space__"}}`),
+		"!older:x":     bridgeEvent("uk.half-shot.bridge", `{"channel": {"id": "c"}, "com.beeper.room_type.v2": "personal_filtering_space"}`),
+		"!forum:x":     bridgeEvent("m.bridge", `{"bridgebot": "@telegrambot:x", "protocol": {"id": "telegram"}, "channel": {"id": "channel:1804057518:-1"}}`),
+		"!commun:x":    bridgeEvent("m.bridge", `{"bridgebot": "@telegrambot:x", "protocol": {"id": "telegram"}, "channel": {"id": "channel:1804057519"}}`),
+		"!lookalike:x": bridgeEvent("m.bridge", `{"bridgebot": "@slackbot:x", "protocol": {"id": "slackgo"}, "channel": {"id": "channel:5:-1"}}`),
+		"!mine:x":      ``,
+		"!garbled:x":   bridgeEvent("m.bridge", `{"channel": "not an object"}`),
+		"!unread:x":    "unreadable",
+		"!unreadA:x":   "unreadable",
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		switch {
 		case strings.HasSuffix(path, "/joined_rooms"):
-			_, _ = w.Write([]byte(`{"joined_rooms": ["!account:x", "!older:x", "!forum:x", "!mine:x", "!garbled:x", "!unread:x", "!unreadA:x"]}`))
+			_, _ = w.Write([]byte(`{"joined_rooms": ["!account:x", "!older:x", "!forum:x", "!commun:x", "!lookalike:x", "!mine:x", "!garbled:x", "!unread:x", "!unreadA:x"]}`))
 		case strings.Contains(path, "/state/m.room.create"):
 			_, _ = w.Write([]byte(`{"type": "m.space"}`))
 		case strings.HasSuffix(path, "/state"):
@@ -204,7 +207,8 @@ func TestHowAMatrixSpaceIsLeftComesFromItsState(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[domain.SpaceID]domain.SpaceLeaving{
-		"!account:x": domain.NotLeft, "!older:x": domain.NotLeft, "!forum:x": domain.LeftAlone,
+		"!account:x": domain.NotLeft, "!older:x": domain.NotLeft, "!forum:x": domain.LeftWhole,
+		"!commun:x": domain.LeftAlone, "!lookalike:x": domain.LeftAlone,
 		"!mine:x": domain.LeftAlone, "!garbled:x": domain.LeftAlone,
 		"!unread:x": domain.LeftAlone, "!unreadA:x": domain.NotLeft,
 	}

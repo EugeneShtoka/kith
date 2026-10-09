@@ -51,10 +51,18 @@ const (
 	// LeftBySigningOut: the space is an account's own (a Telegram or WhatsApp account,
 	// a Slack workspace), left by signing the account out.
 	LeftBySigningOut
+	// LeftWhole: the space and its rooms are one chat (a bridged Telegram forum and
+	// its topics: the bridge leaves the whole forum for any one of them), left with
+	// every room inside it.
+	LeftWhole
 )
 
 // Leavable reports whether the space can be left at all.
 func (s Space) Leavable() bool { return s.Leaving != NotLeft }
+
+// Whole reports whether the space and its rooms are one chat on the network (a
+// forum and its topics), so a room inside is left only with all of it.
+func (s Space) Whole() bool { return s.Leaving == LeftByRoom || s.Leaving == LeftWhole }
 
 // KeeperReach is how many of your rooms a space's other member has to be inside before
 // it is taken for a bridge rather than a person.

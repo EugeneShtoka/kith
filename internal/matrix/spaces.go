@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"sync"
 	"time"
@@ -223,10 +224,17 @@ func (b *InProc) spaceChildren(ctx context.Context, spaceID id.RoomID, joined, s
 // "personal filtering space"), which holds every room of that login.
 const personalSpace = "__personal_filtering_space__"
 
+// telegramForum is how the Telegram bridge names a forum's own space: its channel,
+// then the topic that is the space (-1). Its topics are the forum's channel too, so
+// the bridge leaves the whole forum for a leave of any one of them; a Telegram
+// community's space ("channel:<id>") holds channels left one by one.
+var telegramForum = regexp.MustCompile(`^channel:-?\d+:-1$`)
+
 // leavingOf is how a Matrix space is left, by its state: on its own, its rooms each a
 // membership of their own, unless a bridge marks it as its own space for an account,
-// which only signing out of the bridge leaves. A space a bridge made for a chat (a
-// forum, a community) is left as any other.
+// which only signing out of the bridge leaves, or it is a bridged Telegram forum, left
+// whole with its topics. Any other space a bridge made for a chat (a community) is
+// left as one of your own.
 func leavingOf(state map[event.Type]map[string]*event.Event) domain.SpaceLeaving {
 	for _, kind := range []event.Type{event.StateBridge, event.StateHalfShotBridge} {
 		for _, evt := range state[kind] {
@@ -234,14 +242,22 @@ func leavingOf(state map[event.Type]map[string]*event.Event) domain.SpaceLeaving
 				continue
 			}
 			var info struct {
+				Protocol struct {
+					ID string `json:"id"`
+				} `json:"protocol"`
 				Channel struct {
 					ID string `json:"id"`
 				} `json:"channel"`
 				RoomType string `json:"com.beeper.room_type.v2"`
 			}
-			if json.Unmarshal(evt.Content.VeryRaw, &info) == nil &&
-				(info.Channel.ID == personalSpace || info.RoomType == "personal_filtering_space") {
+			if json.Unmarshal(evt.Content.VeryRaw, &info) != nil {
+				continue
+			}
+			switch {
+			case info.Channel.ID == personalSpace || info.RoomType == "personal_filtering_space":
 				return domain.NotLeft
+			case info.Protocol.ID == "telegram" && telegramForum.MatchString(info.Channel.ID):
+				return domain.LeftWhole
 			}
 		}
 	}
