@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -148,4 +149,83 @@ func TestALeftSpaceStaysLeft(t *testing.T) {
 	if cached, _ := b.Spaces(ctx); slices.Contains(ids(cached), "!s:x") {
 		t.Errorf("after the refresh the cache lists %v", ids(cached))
 	}
+}
+
+// How a space is left comes from its state, and the cache keeps it: a space a bridge
+// marks as its own for an account (as m.bridge or as the older half-shot event, by
+// its channel or by its room type) is not left; a space a bridge made for a chat (a
+// forum), a space of your own, and one with bridge state that marks nothing are left
+// on their own. A space whose state cannot be read keeps what the cache knew.
+func TestHowAMatrixSpaceIsLeftComesFromItsState(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	bridgeEvent := func(kind, content string) string {
+		return `{"type": "` + kind + `", "state_key": "x", "sender": "@telegrambot:x", "event_id": "$e", "room_id": "!r:x", "content": ` + content + `}`
+	}
+	states := map[string]string{
+		"!account:x": bridgeEvent("m.bridge", `{"bridgebot": "@telegrambot:x", "channel": {"id": "__personal_filtering_space__"}}`),
+		"!older:x":   bridgeEvent("uk.half-shot.bridge", `{"channel": {"id": "c"}, "com.beeper.room_type.v2": "personal_filtering_space"}`),
+		"!forum:x":   bridgeEvent("m.bridge", `{"bridgebot": "@telegrambot:x", "channel": {"id": "channel:1804057518"}}`),
+		"!mine:x":    ``,
+		"!garbled:x": bridgeEvent("m.bridge", `{"channel": "not an object"}`),
+		"!unread:x":  "unreadable",
+		"!unreadA:x": "unreadable",
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case strings.HasSuffix(path, "/joined_rooms"):
+			_, _ = w.Write([]byte(`{"joined_rooms": ["!account:x", "!older:x", "!forum:x", "!mine:x", "!garbled:x", "!unread:x", "!unreadA:x"]}`))
+		case strings.Contains(path, "/state/m.room.create"):
+			_, _ = w.Write([]byte(`{"type": "m.space"}`))
+		case strings.HasSuffix(path, "/state"):
+			for room, state := range states {
+				if strings.Contains(path, "/rooms/"+room+"/") {
+					if state == "unreadable" {
+						http.Error(w, `{"errcode":"M_FORBIDDEN"}`, http.StatusForbidden)
+						return
+					}
+					_, _ = w.Write([]byte("[" + state + "]"))
+					return
+				}
+			}
+			http.Error(w, `{"errcode":"M_NOT_FOUND"}`, http.StatusNotFound)
+		default:
+			http.Error(w, `{"errcode":"M_NOT_FOUND"}`, http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	b := backendWith(t, srv, nil)
+	// What the cache knew of the two it cannot read now.
+	if err := b.cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{
+		{ID: "!unread:x", Name: "Kept", Leaving: domain.LeftAlone},
+		{ID: "!unreadA:x", Name: "Kept account"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := map[domain.SpaceID]domain.SpaceLeaving{
+		"!account:x": domain.NotLeft, "!older:x": domain.NotLeft, "!forum:x": domain.LeftAlone,
+		"!mine:x": domain.LeftAlone, "!garbled:x": domain.LeftAlone,
+		"!unread:x": domain.LeftAlone, "!unreadA:x": domain.NotLeft,
+	}
+	check := func(how string, spaces []domain.Space) {
+		t.Helper()
+		got := map[domain.SpaceID]domain.SpaceLeaving{}
+		for _, s := range spaces {
+			got[s.ID] = s.Leaving
+		}
+		if !maps.Equal(got, want) {
+			t.Errorf("%s: leaving = %v, want %v", how, got, want)
+		}
+	}
+	refreshed, err := b.RefreshSpaces(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("refreshed", refreshed)
+	cached, err := b.Spaces(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("read back from the cache", cached)
 }

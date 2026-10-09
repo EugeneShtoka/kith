@@ -175,22 +175,3 @@ func TestRefreshRoomsDropsCachedSpaces(t *testing.T) {
 		t.Errorf("cached rooms = %+v, want only the chat", cached)
 	}
 }
-
-// A Matrix space is left on its own, unless it is a bridge's view of an account: a
-// bridge keeps it and no room calls it home.
-func TestHowAMatrixSpaceIsLeft(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		space domain.Space
-		want  domain.SpaceLeaving
-	}{
-		{domain.Space{}, domain.LeftAlone},                                         // a person's
-		{domain.Space{Keeper: "@whatsappbot:x"}, domain.NotLeft},                   // a bridge's account view
-		{domain.Space{Keeper: "@whatsappbot:x", Original: true}, domain.LeftAlone}, // a bridged community
-		{domain.Space{Original: true}, domain.LeftAlone},
-	} {
-		if got := leavingOf(tc.space); got != tc.want {
-			t.Errorf("leavingOf(%+v) = %v, want %v", tc.space, got, tc.want)
-		}
-	}
-}

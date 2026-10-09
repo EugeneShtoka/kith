@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sync"
@@ -33,21 +34,7 @@ func (b *InProc) matrixSpaces(ctx context.Context) ([]domain.Space, error) {
 	if err != nil {
 		return nil, err //nolint:wrapcheck // each caller says what it was reading for
 	}
-	spaces = slices.DeleteFunc(spaces, func(sp domain.Space) bool { return !domain.MatrixRooms.Owns(domain.RoomID(sp.ID)) })
-	for i := range spaces {
-		spaces[i].Leaving = leavingOf(spaces[i])
-	}
-	return spaces, nil
-}
-
-// leavingOf is how a Matrix space is left: on its own, its rooms each a membership of
-// their own, unless it is a bridge's view of an account (a bridge keeps it and no room
-// calls it home), which only signing out of the bridge leaves.
-func leavingOf(s domain.Space) domain.SpaceLeaving {
-	if s.Keeper != "" && !s.Original {
-		return domain.NotLeft
-	}
-	return domain.LeftAlone
+	return slices.DeleteFunc(spaces, func(sp domain.Space) bool { return !domain.MatrixRooms.Owns(domain.RoomID(sp.ID)) }), nil
 }
 
 // RefreshSpaces fetches the joined spaces with their direct child rooms (sub-spaces
@@ -114,9 +101,6 @@ func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 				spaces[i].Original = origins[spaces[i].ID]
 			}
 		}
-	}
-	for i := range spaces {
-		spaces[i].Leaving = leavingOf(spaces[i])
 	}
 	return spaces, nil
 }
@@ -227,11 +211,41 @@ func (b *InProc) spaceChildren(ctx context.Context, spaceID id.RoomID, joined, s
 		}
 		space.Children = append(space.Children, domain.RoomID(child))
 	}
+	space.Leaving = leavingOf(state)
 	space.Bridge = spaceOwner(creator, children)
 	space.Keeper = spaceKeeper(state[event.StateMember], string(b.client.UserID), wide)
 	// Sorted: children arrive in map order and downstream compares lists.
 	slices.Sort(space.Children)
 	return space, true
+}
+
+// personalSpace is how a bridge marks its own space for an account (mautrix's
+// "personal filtering space"), which holds every room of that login.
+const personalSpace = "__personal_filtering_space__"
+
+// leavingOf is how a Matrix space is left, by its state: on its own, its rooms each a
+// membership of their own, unless a bridge marks it as its own space for an account,
+// which only signing out of the bridge leaves. A space a bridge made for a chat (a
+// forum, a community) is left as any other.
+func leavingOf(state map[event.Type]map[string]*event.Event) domain.SpaceLeaving {
+	for _, kind := range []event.Type{event.StateBridge, event.StateHalfShotBridge} {
+		for _, evt := range state[kind] {
+			if evt == nil {
+				continue
+			}
+			var info struct {
+				Channel struct {
+					ID string `json:"id"`
+				} `json:"channel"`
+				RoomType string `json:"com.beeper.room_type.v2"`
+			}
+			if json.Unmarshal(evt.Content.VeryRaw, &info) == nil &&
+				(info.Channel.ID == personalSpace || info.RoomType == "personal_filtering_space") {
+				return domain.NotLeft
+			}
+		}
+	}
+	return domain.LeftAlone
 }
 
 // spaceOwner returns the bridge network that owns a space (ProtocolMatrix for a
