@@ -13,7 +13,7 @@ type RoomFacts struct {
 	Name     string
 	Spaces   []string // names of the spaces holding it
 	Direct   bool
-	Protocol Protocol // the network, from the bridge that owns its space
+	Protocol Protocol // the network: its own (Room.Network), else its space's bridge's
 	Tags     []string // names of the [[tag]]s holding it, judged as a place (TagSet.Of)
 	// ArchivedIn is the tag its network's archive puts it in: the network archived it
 	// and kith follows that network's archive (Places.Archives). "" otherwise.
@@ -36,8 +36,8 @@ type Places struct {
 // Facts is room as a list entry matches it. holders are the spaces holding it, in
 // hierarchy order (HoldersOf). The name is the one the person gave the room, else
 // its own display name, never a label shortened for the room list; the spaces are
-// ordered by priority; the network is the first bridged holder's, else the one the
-// room's ID names.
+// ordered by priority; the network is the room's own, once read (Room.Network), else
+// the first bridged holder's, else the one the room's ID names.
 func (p Places) Facts(room Room, holders []Space) RoomFacts {
 	facts := RoomFacts{
 		ID: string(room.ID), Name: room.DisplayName(), Direct: room.IsDirect,
@@ -46,7 +46,10 @@ func (p Places) Facts(room Room, holders []Space) RoomFacts {
 	if name := p.Names[room.ID]; name != "" {
 		facts.Name = name
 	}
-	bridged := false
+	bridged := room.Network != ""
+	if bridged {
+		facts.Protocol = room.Network
+	}
 	names := make([]string, 0, len(holders))
 	for i := range holders {
 		names = append(names, holders[i].DisplayName())

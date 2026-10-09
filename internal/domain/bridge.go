@@ -69,6 +69,23 @@ var bridges = map[string]Protocol{
 	"twitter":    ProtocolTwitter,
 }
 
+// bridgeProtocols names the network behind a bridge by the protocol its m.bridge
+// state says, where that is not one of bridges' tokens.
+var bridgeProtocols = map[string]Protocol{"slackgo": ProtocolSlack}
+
+// BridgedBy is the network a bridge fronts, by its m.bridge state: its bot's
+// network, else its protocol's; "" when neither names one.
+func BridgedBy(bot, protocol string) Protocol {
+	if p := ProtocolOf(bot); p.IsBridged() {
+		return p
+	}
+	protocol = strings.ToLower(strings.TrimSpace(protocol))
+	if p, ok := bridges[protocol]; ok {
+		return p
+	}
+	return bridgeProtocols[protocol]
+}
+
 // ProtocolOf is the network a person is actually on: the one their ID names, or, for a
 // Matrix ID, the one the bridge it belongs to fronts.
 func ProtocolOf(mxid string) Protocol {

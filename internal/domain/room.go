@@ -44,6 +44,9 @@ type Room struct {
 	// Deleting is whether the room is put away by deleting it rather than leaving it
 	// (a private chat on a network that cannot leave one), and for whom.
 	Deleting ChatDeleting
+	// Network is the network behind a room another network keeps for it (a Matrix
+	// room a bridge keeps: the bridge's network); "" when none is known.
+	Network Protocol
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted instead.
