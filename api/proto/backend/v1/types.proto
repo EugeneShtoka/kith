@@ -175,6 +175,8 @@ message Space {
   // keeper is somebody other than you who is inside this space and inside your rooms at
   // large — a bridge, from the outside.
   string keeper = 6;
+  // The room whose leaving leaves the space and its rooms (domain.Space.LeaveBy).
+  string leave_by = 7;
 }
 
 // Unread is one room's unread state (domain.Unread).

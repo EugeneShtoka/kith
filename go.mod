@@ -2,7 +2,7 @@ module github.com/EugeneShtoka/kith
 
 go 1.26.3
 
-toolchain go1.26.8
+toolchain go1.26.9
 
 tool (
 	connectrpc.com/connect/cmd/protoc-gen-connect-go
@@ -32,7 +32,7 @@ require (
 	go.mau.fi/util v0.10.1
 	go.mau.fi/whatsmeow v0.0.0-20260929112325-8b41cfe6d9c4
 	golang.org/x/image v0.46.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/term v0.46.0
 	golang.org/x/text v0.42.0
 	google.golang.org/protobuf v1.36.12

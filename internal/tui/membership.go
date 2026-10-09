@@ -26,6 +26,8 @@ const (
 	pendingJoinPlace
 	// pendingDeleteTag: a [[tag]], by name (group).
 	pendingDeleteTag
+	// pendingLeaveSpace: a space (group) left by leaving one room (room), its rooms with it.
+	pendingLeaveSpace
 	// pendingCombineTags: a tag (group) renamed to another's name (address), folded
 	// into it.
 	pendingCombineTags
@@ -110,6 +112,51 @@ func (m Model) askLeave() (Model, tea.Cmd) {
 	return m, nil
 }
 
+// askLeaveGroup is the rail's leave: a tag is deleted, a space that one room carries
+// (a Telegram forum) is left with that room, each after asking. Any other space (an
+// account's own, which would be signing out; one of separate memberships) is not left
+// from here yet, and says so.
+func (m Model) askLeaveGroup() (Model, tea.Cmd) {
+	entry, ok := m.currentGroup()
+	if !ok {
+		return m, nil
+	}
+	if name, isTag := domain.TagOf(entry.key); isTag {
+		m.confirm = confirmState{action: pendingDeleteTag, group: name}
+		return m, nil
+	}
+	space, ok := m.spaceNamed(entry.key)
+	switch {
+	case !ok:
+		return m, nil
+	case space.LeaveBy != "":
+		room, known := m.roomByID(space.LeaveBy)
+		if !known {
+			room = domain.Room{ID: space.LeaveBy, Name: space.DisplayName()}
+		}
+		m.confirm = confirmState{action: pendingLeaveSpace, room: room, group: space.DisplayName(), rooms: space.Children}
+		return m, nil
+	default:
+		return m.say("leaving " + isolate(space.DisplayName()) +
+			" from the rail is not something kith does yet (an account's own space would be signing out)"), nil
+	}
+}
+
+// spaceNamed is the space a rail row is (its key is the space's name), when exactly one
+// space has that name.
+func (m Model) spaceNamed(name string) (domain.Space, bool) {
+	var found []domain.Space
+	for _, s := range m.rooms.spaces {
+		if s.DisplayName() == name {
+			found = append(found, s)
+		}
+	}
+	if len(found) != 1 {
+		return domain.Space{}, false
+	}
+	return found[0], true
+}
+
 func (m Model) askReject() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok || !room.IsInvite() {
@@ -124,6 +171,8 @@ func (m Model) confirmPrompt() string {
 	switch m.confirm.action {
 	case pendingLeave:
 		return "leave " + m.roomName(m.confirm.room) + "?"
+	case pendingLeaveSpace:
+		return fmt.Sprintf("leave %s and its %s?", isolate(m.confirm.group), roomsPhrase(len(m.confirm.rooms)))
 	case pendingReject:
 		return "reject the invitation to " + m.roomName(m.confirm.room) + "?"
 	case pendingMarkGroupRead:
@@ -160,6 +209,9 @@ func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 	case pendingLeave:
 		m = m.say("leaving " + m.roomName(pending.room) + "…")
 		return m, m.leaveRoomCmd(pending.room.ID)
+	case pendingLeaveSpace:
+		m = m.say("leaving " + isolate(pending.group) + "…")
+		return m, m.leaveSpaceCmd(pending.room.ID, pending.rooms)
 	case pendingReject:
 		m = m.say("rejecting the invitation to " + m.roomName(pending.room) + "…")
 		return m, m.leaveRoomCmd(pending.room.ID)
@@ -224,7 +276,14 @@ func (m Model) handleLeft(msg leftMsg) (Model, tea.Cmd) {
 	}
 	m = m.say("left")
 	m.rooms = m.rooms.without(msg.roomID)
+	for _, also := range msg.also {
+		m.rooms = m.rooms.without(also)
+	}
 	next, cmd := m.handleInvites(m.rooms.invites)
+	if msg.space {
+		// The space went with its room: the rail loses its row.
+		return next, tea.Batch(cmd, next.refreshRoomsCmd(), next.refreshSpacesCmd())
+	}
 	return next, tea.Batch(cmd, next.refreshRoomsCmd())
 }
 
