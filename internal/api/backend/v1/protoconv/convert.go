@@ -25,6 +25,7 @@ func RoomToProto(r domain.Room) *v1.Room {
 		Archived:    r.Archived,
 		Forum:       r.Forum,
 		Deleting:    chatDeletings[r.Deleting],
+		Network:     string(r.Network),
 	}
 }
 
@@ -199,6 +200,7 @@ func ProtoToRoom(pb *v1.Room) domain.Room {
 		Archived:    pb.GetArchived(),
 		Forum:       pb.GetForum(),
 		Deleting:    protoToChatDeleting(pb.GetDeleting()),
+		Network:     domain.Protocol(pb.GetNetwork()),
 	}
 }
 

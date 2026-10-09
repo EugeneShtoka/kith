@@ -68,6 +68,7 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 			Topic:    b.roomTopic(ctx, roomID),
 			IsDirect: isDM,
 			Members:  members,
+			Network:  prev.Network, // read once and kept (networks.go)
 		}
 	})
 	domain.SortRooms(rooms)
@@ -75,6 +76,7 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 		if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
 			return nil, fmt.Errorf("matrix: cache rooms: %w", err)
 		}
+		b.wantNetworks() // a room new to the cache has its network read
 	}
 	return rooms, nil
 }
