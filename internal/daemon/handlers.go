@@ -391,6 +391,8 @@ func (s *server) CreateRoom(ctx context.Context, r *req[v1.CreateRoomRequest]) (
 		Parent:    domain.SpaceID(r.Msg.GetParent()),
 		Invite:    r.Msg.GetInvite(),
 		Direct:    r.Msg.GetDirect(),
+		On:        domain.RoomOwner(r.Msg.GetOn()),
+		Kind:      domain.ChatKind(r.Msg.GetKind()),
 	})
 	if err != nil && id == "" {
 		return nil, rpcErr(err)

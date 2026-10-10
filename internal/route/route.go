@@ -117,6 +117,11 @@ type (
 	Voter interface {
 		VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error
 	}
+	// ChatMaker makes a chat (a group, a forum, a channel, a community) on one of its
+	// accounts, the one spec.On names.
+	ChatMaker interface {
+		CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error)
+	}
 	// PollReader names who chose what in a message's poll.
 	PollReader interface {
 		PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error)

@@ -52,8 +52,13 @@ func (r *Router) JoinRoom(ctx context.Context, roomIDOrAlias string, via []strin
 	})
 }
 
-// CreateRoom makes a room or space, on the network that makes them.
+// CreateRoom makes a room or space on Matrix, or a chat on the account spec.On names.
 func (r *Router) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {
+	if spec.On != "" && spec.On != domain.MatrixRooms {
+		return onRoom(r, domain.RoomID(spec.On), "new chats", func(c ChatMaker) (domain.RoomID, error) {
+			return c.CreateRoom(ctx, spec)
+		})
+	}
 	c, err := sole[api.Membership](r, "new rooms")
 	if err != nil {
 		return "", err

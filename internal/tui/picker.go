@@ -70,7 +70,8 @@ const (
 	pickerFrequencies
 	pickerCompletionModel
 	pickerNewRoom
-	pickerJump // the switcher; see jump.go
+	pickerNewMembers // who is in a chat being made on another network
+	pickerJump       // the switcher; see jump.go
 	pickerTags
 	pickerTagEdit
 	pickerTagEntries
@@ -120,6 +121,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerFrequencies:     {title: "Install word counts, so typos that are also words get caught?", modal: true, multi: true},
 	pickerCompletionModel: {title: "Install the completion model, to run on this machine?", modal: true, multi: true},
 	pickerNewRoom:         {title: "Create what?"},
+	pickerNewMembers:      {modal: true, multi: true}, // titled with the chat's name
 	pickerJump:            {title: "Go to"},
 	pickerTags:            {title: "Tags"},
 	pickerTagEdit:         {},            // titled with the tag
@@ -449,6 +451,8 @@ func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
 	switch m.picker.kind {
 	case pickerRoomSpaces:
 		return m.applyRoomSpaces(values)
+	case pickerNewMembers:
+		return m.createNewChat(values)
 	case pickerVoteMulti:
 		return m.castVote(values)
 	case pickerDictionaries:

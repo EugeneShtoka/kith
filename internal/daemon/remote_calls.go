@@ -234,6 +234,8 @@ func (r *Remote) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.Ro
 		Parent:    string(spec.Parent),
 		Invite:    spec.Invite,
 		Direct:    spec.Direct,
+		On:        string(spec.On),
+		Kind:      v1.ChatKind(spec.Kind), //nolint:gosec // a ChatKind is a small enum
 	})
 	if err != nil {
 		return "", err

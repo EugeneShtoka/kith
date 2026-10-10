@@ -112,7 +112,28 @@ type NewRoom struct {
 	Encrypted bool     // E2EE from creation
 	Public    bool     // anyone may join
 	Parent    SpaceID  // file into this space once created
-	Invite    []string // invited at creation
+	Invite    []string // invited at creation: people's IDs on the network it is made on
 	// Direct sets is_direct and records the room in our m.direct.
 	Direct bool
+	// On is the account it is made on: AccountRooms of a network other than Matrix's,
+	// which makes it as Kind says; empty for Matrix, which reads the fields above.
+	On   RoomOwner
+	Kind ChatKind
 }
+
+// ChatKind is what a chat on a network other than Matrix is made as.
+type ChatKind int
+
+// The kinds of chat a network makes.
+const (
+	// ChatGroup is a group: a Telegram supergroup, a WhatsApp group.
+	ChatGroup ChatKind = iota + 1
+	// ChatForum is a Telegram group with topics.
+	ChatForum
+	// ChatChannel is a Telegram broadcast channel, or a Slack public channel.
+	ChatChannel
+	// ChatPrivateChannel is a Slack private channel.
+	ChatPrivateChannel
+	// ChatCommunity is a WhatsApp community: groups under one parent.
+	ChatCommunity
+)

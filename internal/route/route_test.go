@@ -646,3 +646,37 @@ func TestANetworkWithoutACapabilityRefusesWhatNeedsIt(t *testing.T) {
 		t.Errorf("Rooms = (%v, %v), want Matrix's alone", rooms, err)
 	}
 }
+
+// chatMaker is a network that makes chats, recording what it was asked to make.
+type chatMaker struct {
+	*fake
+	made []domain.NewRoom
+}
+
+func (c *chatMaker) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.RoomID, error) {
+	c.made = append(c.made, spec)
+	return "telegram:42/-1009", nil
+}
+
+// A chat to be made on an account goes to that account's network, not Matrix; a
+// network that makes none refuses it; a room with no account named is Matrix's.
+func TestANewChatGoesToItsAccountsNetwork(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	m, tg := newFakeMatrix(), &chatMaker{fake: newFake("telegram")}
+	r := routed(m, map[domain.Protocol]Adapter{domain.ProtocolTelegram: tg, domain.ProtocolWhatsApp: bare{newFake("whatsapp")}})
+	spec := domain.NewRoom{Name: "Hikers", On: domain.AccountRooms(domain.ProtocolTelegram, "42"), Kind: domain.ChatForum}
+	if id, err := r.CreateRoom(ctx, spec); err != nil || id != "telegram:42/-1009" || len(tg.made) != 1 || tg.made[0].Kind != domain.ChatForum {
+		t.Errorf("CreateRoom on Telegram = (%q, %v), made %+v", id, err, tg.made)
+	}
+	if got := m.calls(); len(got) != 0 {
+		t.Errorf("Matrix heard of a Telegram chat: %v", got)
+	}
+	spec.On = domain.AccountRooms(domain.ProtocolWhatsApp, "15550100001")
+	if _, err := r.CreateRoom(ctx, spec); !errors.Is(err, api.ErrNotOnNetwork) {
+		t.Errorf("CreateRoom on a network that makes none = %v, want not on that network", err)
+	}
+	if _, err := r.CreateRoom(ctx, domain.NewRoom{Name: "Plain"}); err != nil || !slices.Contains(m.calls(), "CreateRoom") {
+		t.Errorf("a room with no account = %v, Matrix calls %v", err, m.calls())
+	}
+}
