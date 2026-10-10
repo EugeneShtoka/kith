@@ -121,7 +121,7 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	if entry, ok := m.currentGroup(); ok {
 		focusGroup = entry.key
 	}
-	m.rail.groups = railGroups(m.rooms.spaces, cfg.Display.Rail, cfg.Display.Names, m.unreadView(), m.rooms.all)
+	m.rail.groups = m.railFromState()
 	if at := indexOfGroup(m.rail.groups, focusGroup); at >= 0 && at < len(m.rail.groups) {
 		m.rail.cursor = at
 	}

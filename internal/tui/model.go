@@ -134,12 +134,20 @@ func withoutTrailingSeparator(groups []group) []group {
 // rebuiltRail rebuilds the rail from the model's state, keeping the cursor on the same group.
 func (m Model) rebuiltRail() Model {
 	prevKey := m.rail.key()
-	m.rail.groups = railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), m.rooms.all)
+	m.rail.groups = m.railFromState()
 	m.rail.cursor = indexOfGroup(m.rail.groups, prevKey)
-	if m.prefs.display.Rail.NetworkColors {
-		m.rail.groups = m.withNetworks(m.rail.groups)
-	}
 	return m
+}
+
+// railFromState is the rail's groups as the model's rooms, spaces and settings make
+// them, each with its one network when the rail colors by it. Every rebuild goes
+// through it, so none drops the colors.
+func (m Model) railFromState() []group {
+	groups := railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), m.rooms.all)
+	if m.prefs.display.Rail.NetworkColors {
+		groups = m.withNetworks(groups)
+	}
+	return groups
 }
 
 // startupPrefs is the settings New starts with, before a config is applied.
