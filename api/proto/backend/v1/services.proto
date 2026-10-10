@@ -516,6 +516,20 @@ message CreateRoomRequest {
   repeated string invite = 6; // brought in as the room is created
   // A one-to-one direct message.
   bool direct = 7;
+  // The account it is made on, as domain.AccountRooms writes it; empty for Matrix.
+  string on = 8;
+  // What it is made as there (domain.ChatKind); unspecified for Matrix.
+  ChatKind kind = 9;
+}
+
+// ChatKind is what a chat on a network other than Matrix is made as (domain.ChatKind).
+enum ChatKind {
+  CHAT_KIND_UNSPECIFIED = 0;
+  CHAT_KIND_GROUP = 1;
+  CHAT_KIND_FORUM = 2;
+  CHAT_KIND_CHANNEL = 3;
+  CHAT_KIND_PRIVATE_CHANNEL = 4;
+  CHAT_KIND_COMMUNITY = 5;
 }
 
 message CreateRoomResponse {
