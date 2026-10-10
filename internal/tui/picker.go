@@ -122,8 +122,8 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerNewRoom:         {title: "Create what?"},
 	pickerJump:            {title: "Go to"},
 	pickerTags:            {title: "Tags"},
-	pickerTagEdit:         {}, // titled with the tag
-	pickerTagEntries:      {}, // titled with the tag and the list
+	pickerTagEdit:         {},            // titled with the tag
+	pickerTagEntries:      {modal: true}, // titled with the tag and the list
 	pickerLoginNetwork:    {title: "Sign in to what?"},
 	pickerLoginAccount:    {}, // titled with the network
 	pickerImportAccount:   {title: "Copy folders from which account?"},
@@ -383,9 +383,17 @@ func (m Model) pickerAction(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 			return answered(m.moveSettingEntry(-1))
 		case actMoveEntryDown:
 			return answered(m.moveSettingEntry(1))
+		case actRemoveEntry:
+			return answered(m.removeSettingEntry())
 		default:
 			return m, nil, false
 		}
+	}
+	if m.picker.kind == pickerTagEntries {
+		if m.keys.lookup(key.String(), scopePicker) == actRemoveEntry {
+			return answered(m.removeTagEntry())
+		}
+		return m, nil, false
 	}
 	if m.picker.kind != pickerPeople {
 		return m, nil, false
@@ -592,7 +600,15 @@ func (m Model) settingsHint() (string, bool) {
 	case pickerSettingEntries:
 		return m.hintLine(move,
 			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "edit"),
+			keyed(m.keys.keyHint(scopePicker, actRemoveEntry), "remove"),
 			keyed(m.keys.keyHint(scopePicker, actMoveEntryUp)+"/"+m.keys.keyHint(scopePicker, actMoveEntryDown), "move it"),
+			keyed(m.keys.keyHint(scopePicker, actFilter), "filter"),
+			keyed(m.keys.keyHint(scopePicker, actClosePick), "back")), true
+	case pickerTagEntries:
+		return m.hintLine(move,
+			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "edit"),
+			keyed(m.keys.keyHint(scopePicker, actRemoveEntry), "remove"),
+			keyed(m.keys.keyHint(scopePicker, actFilter), "filter"),
 			keyed(m.keys.keyHint(scopePicker, actClosePick), "back")), true
 	default:
 		return "", false

@@ -140,7 +140,8 @@ existing tag would change among that account's chats — and you choose per tag 
 one. A tag's page shows its name, rule, picked and excluded rooms, every property as
 an on/off row, and which other tags take rooms out of its row (the exclusive ones, and
 the space-exclusive ones). The rule and the room lists are edited an entry at a time:
-choose an entry to change it (empty removes it), or the last row to add one. Renaming
+choose an entry to change it (empty removes it), `x` removes the entry under the cursor,
+or the last row adds one. Renaming
 a tag renames it everywhere it is named — `tag:<name>` in rules, place lists, the rail
 order and priority, and its name in the rail's `hidden` and `hide_when_empty`.
 Renaming it to another tag's name asks whether to combine the two: the other tag then

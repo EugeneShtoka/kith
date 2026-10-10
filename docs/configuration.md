@@ -91,8 +91,8 @@ You rarely need to open the file. Inside kith:
     its row (the current value selected, so typing replaces it). Text is typed the
     same way.
   - A list (priority, the rail's order, include lists) opens its entries: `enter`
-    edits one on its row (emptied, it is removed), the last row adds one, and `K`/`J`
-    move the entry under the cursor.
+    edits one on its row (emptied, it is removed), `x` removes the entry under the
+    cursor, the last row adds one, and `K`/`J` move the entry under the cursor.
   - A list of records (read rules, media rules, people, names you gave, spam filters,
     scripts, accounts, jump shortcuts) opens its records, each one's fields set as
     above; *Add one* is typed as its first field, *Remove this one* takes it out.

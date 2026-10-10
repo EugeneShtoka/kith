@@ -9,7 +9,8 @@ import (
 
 // A list setting (the rail's order, priority, a list of places) is edited an entry at
 // a time: its entries, then a row to add one. Enter types an entry on its row (an
-// emptied one is removed), K and J move it, and esc goes back to the group. Each change
+// emptied one is removed), x removes it, K and J move it, and esc goes back to the
+// group. Each change
 // is applied and saved at once, as every setting is.
 
 // settingAdd is the entries list's "Add an entry" row; no entry index is spelled so.
@@ -85,6 +86,17 @@ func (m Model) submitSettingEntry(input string) (Model, tea.Cmd) {
 		entries[i], at = input, strconv.Itoa(i)
 	}
 	return m.writeSettingList(key, entries, at)
+}
+
+// removeSettingEntry takes the entry under the cursor out of its list, as emptying it
+// would.
+func (m Model) removeSettingEntry() (Model, tea.Cmd) {
+	item, ok := m.picker.selected()
+	if !ok || item.value == settingAdd {
+		return m, nil
+	}
+	m.choosing.settingEntry = atoiSafe(item.value)
+	return m.submitSettingEntry("")
 }
 
 // moveSettingEntry moves the entry under the cursor by delta, for an ordered list.
