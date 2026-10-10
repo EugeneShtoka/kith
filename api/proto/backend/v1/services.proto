@@ -301,6 +301,17 @@ message VotePollRequest {
 
 message VotePollResponse {}
 
+message PollVotersRequest {
+  string room_id = 1;
+  string event_id = 2;
+}
+
+// PollVotersResponse is who chose what in a poll (domain.PollVoters).
+message PollVotersResponse {
+  repeated PollVoter voters = 1;
+  PollHiding hidden = 2;
+}
+
 // A reaction a bridged network would not accept, learned by observation — see
 // domain.ReactionRefusal.
 message ReactionRefusal {
@@ -1372,6 +1383,8 @@ service BackendService {
   rpc SendReaction(SendReactionRequest) returns (SendReactionResponse);
   // VotePoll votes in a message's poll; no options takes the vote back.
   rpc VotePoll(VotePollRequest) returns (VotePollResponse);
+  // PollVoters is who chose each answer of a message's poll, as its network names them.
+  rpc PollVoters(PollVotersRequest) returns (PollVotersResponse);
   // ReactionRefusals returns what has been learned about the emoji bridged networks
   // refuse as reactions.
   rpc ReactionRefusals(ReactionRefusalsRequest) returns (ReactionRefusalsResponse);

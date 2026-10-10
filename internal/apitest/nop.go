@@ -74,6 +74,9 @@ func (Nop) CachedReactions(context.Context, domain.RoomID) ([]domain.Reaction, e
 func (n Nop) Reactions() <-chan domain.ReactionUpdate                                 { return n.Reacts }
 func (Nop) SendReaction(context.Context, domain.RoomID, domain.EventID, string) error { return nil }
 
+func (Nop) PollVoters(context.Context, domain.RoomID, domain.EventID) (domain.PollVoters, error) {
+	return domain.PollVoters{}, nil
+}
 func (Nop) VotePoll(context.Context, domain.RoomID, domain.EventID, []string) error    { return nil }
 func (Nop) RecordEmoji(context.Context, domain.EmojiKind, domain.RoomID, string) error { return nil }
 func (Nop) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error)   { return nil, nil }

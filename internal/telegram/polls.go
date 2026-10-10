@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -133,4 +135,120 @@ func (a *Adapter) VotePoll(ctx context.Context, roomID domain.RoomID, eventID do
 		_ = ch.conn.live.manager.Handle(ctx, res) // the results come back as an update
 	}
 	return nil
+}
+
+// Who chose what is asked of Telegram page by page, and only of a poll made public:
+// an anonymous one names no one, and a public one may name its voters only to those
+// who have voted. At most pollVotersPages pages are read; the counts still tell the
+// rest.
+const (
+	pollVotersPage  = 50
+	pollVotersPages = 20
+)
+
+// PollVoters is who chose each answer of a message's poll, as Telegram names them.
+func (a *Adapter) PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error) {
+	ch, err := a.chatOf(ctx, roomID)
+	if err != nil {
+		return domain.PollVoters{}, err
+	}
+	id, ok := messageNumber(roomID, eventID)
+	if !ok {
+		return domain.PollVoters{}, fmt.Errorf("telegram: %s is no message of %s", eventID, roomID)
+	}
+	raw, _, err := a.fetchRaw(ctx, ch, id)
+	if err != nil {
+		return domain.PollVoters{}, fmt.Errorf("telegram: read the poll of %s: %w", eventID, err)
+	}
+	var media *tg.MessageMediaPoll
+	if msg, isMsg := raw.(*tg.Message); isMsg {
+		media, _ = msg.Media.(*tg.MessageMediaPoll)
+	}
+	if media == nil {
+		return domain.PollVoters{}, fmt.Errorf("telegram: %s asks no poll", eventID)
+	}
+	if !media.Poll.PublicVoters {
+		return domain.PollVoters{Hidden: domain.PollAnonymous}, nil
+	}
+	return readVotes(ctx, ch, id)
+}
+
+// readVotes asks who chose what in message id's public poll, page by page.
+func readVotes(ctx context.Context, ch chat, id int) (domain.PollVoters, error) {
+	ballots := map[string][]string{}
+	names := map[string]string{}
+	var order []string
+	offset := ""
+	for range pollVotersPages {
+		req := &tg.MessagesGetPollVotesRequest{Peer: ch.peer, ID: id, Limit: pollVotersPage}
+		if offset != "" {
+			req.SetOffset(offset)
+		}
+		list, err := ch.conn.client.API().MessagesGetPollVotes(ctx, req)
+		switch {
+		case tgerr.Is(err, "POLL_VOTE_REQUIRED"):
+			return domain.PollVoters{Hidden: domain.PollVoteFirst}, nil
+		case tgerr.Is(err, "BROADCAST_FORBIDDEN"):
+			return domain.PollVoters{Hidden: domain.PollAnonymous}, nil
+		case err != nil:
+			return domain.PollVoters{}, fmt.Errorf("telegram: read who voted in %s: %w", ch.room(), err)
+		}
+		ent := peer.EntitiesFromResult(list)
+		for _, v := range list.Votes {
+			voter, name, options, ok := peerVote(v, ent)
+			if !ok {
+				continue
+			}
+			if _, seen := ballots[voter]; !seen {
+				order = append(order, voter)
+			}
+			ballots[voter] = append(ballots[voter], options...)
+			names[voter] = name
+		}
+		offset = list.NextOffset
+		if offset == "" {
+			break
+		}
+	}
+	out := domain.PollVoters{Voters: make([]domain.PollVoter, 0, len(order))}
+	for _, voter := range order {
+		out.Voters = append(out.Voters, domain.PollVoter{ID: voter, Name: names[voter], Options: ballots[voter]})
+	}
+	return out, nil
+}
+
+// peerVote is one vote as kith names it: the voter's person ID and name, and the
+// answers chosen. A vote with an answer of the voter's own words names none.
+func peerVote(v tg.MessagePeerVoteClass, ent peer.Entities) (voter, name string, options []string, ok bool) {
+	var from tg.PeerClass
+	switch v := v.(type) {
+	case *tg.MessagePeerVote:
+		from, options = v.Peer, []string{optionID(v.Option)}
+	case *tg.MessagePeerVoteMultiple:
+		from = v.Peer
+		for _, o := range v.Options {
+			options = append(options, optionID(o))
+		}
+	default:
+		return "", "", nil, false
+	}
+	marked, ok := markedPeer(from)
+	if !ok {
+		return "", "", nil, false
+	}
+	switch from := from.(type) {
+	case *tg.PeerUser:
+		if u, found := ent.User(from.UserID); found {
+			name = personName(u)
+		}
+	case *tg.PeerChannel:
+		if c, found := ent.Channel(from.ChannelID); found {
+			name = c.Title
+		}
+	case *tg.PeerChat:
+		if c, found := ent.Chat(from.ChatID); found {
+			name = c.Title
+		}
+	}
+	return personID(marked), name, options, true
 }

@@ -58,4 +58,17 @@ func TestAPollCountsEachVotersLastVote(t *testing.T) {
 	if sat.Votes != 0 || sun.Votes != 2 || !sun.Mine || sat.Mine || got.Poll.Voters != 2 {
 		t.Errorf("tally = %+v, %d voters; want Sunday 2 with mine, Saturday 0", got.Poll.Options, got.Poll.Voters)
 	}
+
+	// Who voted is the ballots kept: Dana's last and this account's; Eli's taken back.
+	voters, err := a.PollVoters(ctx, room, poll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chose := map[string][]string{}
+	for _, v := range voters.Voters {
+		chose[v.ID] = v.Options
+	}
+	if len(chose) != 2 || len(chose[dana]) != 1 || chose[dana][0] != "Sunday" || len(chose[me]) != 1 || chose[me][0] != "Sunday" || voters.Hidden != domain.PollNamed {
+		t.Errorf("voters = %+v, want Dana and you on Sunday", voters)
+	}
 }

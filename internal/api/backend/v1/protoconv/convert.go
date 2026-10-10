@@ -76,6 +76,35 @@ func ProtoToPoll(pb *v1.Poll) *domain.Poll {
 	}
 }
 
+// PollVotersToProto is who chose what in a poll, for the wire.
+func PollVotersToProto(v domain.PollVoters) *v1.PollVotersResponse {
+	voters := make([]*v1.PollVoter, len(v.Voters))
+	for i, voter := range v.Voters {
+		voters[i] = &v1.PollVoter{Id: voter.ID, Name: voter.Name, Options: voter.Options}
+	}
+	return &v1.PollVotersResponse{Voters: voters, Hidden: pollHidings[v.Hidden]}
+}
+
+// ProtoToPollVoters is the inverse of PollVotersToProto.
+func ProtoToPollVoters(pb *v1.PollVotersResponse) domain.PollVoters {
+	out := domain.PollVoters{Hidden: domain.PollNamed}
+	for hiding, wire := range pollHidings {
+		if wire == pb.GetHidden() {
+			out.Hidden = hiding
+		}
+	}
+	for _, voter := range pb.GetVoters() {
+		out.Voters = append(out.Voters, domain.PollVoter{ID: voter.GetId(), Name: voter.GetName(), Options: voter.GetOptions()})
+	}
+	return out
+}
+
+var pollHidings = map[domain.PollHiding]v1.PollHiding{
+	domain.PollNamed:     v1.PollHiding_POLL_HIDING_UNSPECIFIED,
+	domain.PollAnonymous: v1.PollHiding_POLL_HIDING_ANONYMOUS,
+	domain.PollVoteFirst: v1.PollHiding_POLL_HIDING_VOTE_FIRST,
+}
+
 func MediaToProto(m *domain.Media) *v1.Media {
 	if m == nil {
 		return nil

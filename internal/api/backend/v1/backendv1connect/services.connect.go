@@ -123,6 +123,9 @@ const (
 	BackendServiceSendReactionProcedure = "/backend.v1.BackendService/SendReaction"
 	// BackendServiceVotePollProcedure is the fully-qualified name of the BackendService's VotePoll RPC.
 	BackendServiceVotePollProcedure = "/backend.v1.BackendService/VotePoll"
+	// BackendServicePollVotersProcedure is the fully-qualified name of the BackendService's PollVoters
+	// RPC.
+	BackendServicePollVotersProcedure = "/backend.v1.BackendService/PollVoters"
 	// BackendServiceReactionRefusalsProcedure is the fully-qualified name of the BackendService's
 	// ReactionRefusals RPC.
 	BackendServiceReactionRefusalsProcedure = "/backend.v1.BackendService/ReactionRefusals"
@@ -421,6 +424,8 @@ type BackendServiceClient interface {
 	SendReaction(context.Context, *connect.Request[v1.SendReactionRequest]) (*connect.Response[v1.SendReactionResponse], error)
 	// VotePoll votes in a message's poll; no options takes the vote back.
 	VotePoll(context.Context, *connect.Request[v1.VotePollRequest]) (*connect.Response[v1.VotePollResponse], error)
+	// PollVoters is who chose each answer of a message's poll, as its network names them.
+	PollVoters(context.Context, *connect.Request[v1.PollVotersRequest]) (*connect.Response[v1.PollVotersResponse], error)
 	// ReactionRefusals returns what has been learned about the emoji bridged networks
 	// refuse as reactions.
 	ReactionRefusals(context.Context, *connect.Request[v1.ReactionRefusalsRequest]) (*connect.Response[v1.ReactionRefusalsResponse], error)
@@ -825,6 +830,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceVotePollProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("VotePoll")),
+			connect.WithClientOptions(opts...),
+		),
+		pollVoters: connect.NewClient[v1.PollVotersRequest, v1.PollVotersResponse](
+			httpClient,
+			baseURL+BackendServicePollVotersProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PollVoters")),
 			connect.WithClientOptions(opts...),
 		),
 		reactionRefusals: connect.NewClient[v1.ReactionRefusalsRequest, v1.ReactionRefusalsResponse](
@@ -1315,6 +1326,7 @@ type backendServiceClient struct {
 	reactions             *connect.Client[v1.ReactionsRequest, v1.ReactionsResponse]
 	sendReaction          *connect.Client[v1.SendReactionRequest, v1.SendReactionResponse]
 	votePoll              *connect.Client[v1.VotePollRequest, v1.VotePollResponse]
+	pollVoters            *connect.Client[v1.PollVotersRequest, v1.PollVotersResponse]
 	reactionRefusals      *connect.Client[v1.ReactionRefusalsRequest, v1.ReactionRefusalsResponse]
 	recordReactionRefusal *connect.Client[v1.RecordReactionRefusalRequest, v1.RecordReactionRefusalResponse]
 	recordEmoji           *connect.Client[v1.RecordEmojiRequest, v1.RecordEmojiResponse]
@@ -1555,6 +1567,11 @@ func (c *backendServiceClient) SendReaction(ctx context.Context, req *connect.Re
 // VotePoll calls backend.v1.BackendService.VotePoll.
 func (c *backendServiceClient) VotePoll(ctx context.Context, req *connect.Request[v1.VotePollRequest]) (*connect.Response[v1.VotePollResponse], error) {
 	return c.votePoll.CallUnary(ctx, req)
+}
+
+// PollVoters calls backend.v1.BackendService.PollVoters.
+func (c *backendServiceClient) PollVoters(ctx context.Context, req *connect.Request[v1.PollVotersRequest]) (*connect.Response[v1.PollVotersResponse], error) {
+	return c.pollVoters.CallUnary(ctx, req)
 }
 
 // ReactionRefusals calls backend.v1.BackendService.ReactionRefusals.
@@ -2019,6 +2036,8 @@ type BackendServiceHandler interface {
 	SendReaction(context.Context, *connect.Request[v1.SendReactionRequest]) (*connect.Response[v1.SendReactionResponse], error)
 	// VotePoll votes in a message's poll; no options takes the vote back.
 	VotePoll(context.Context, *connect.Request[v1.VotePollRequest]) (*connect.Response[v1.VotePollResponse], error)
+	// PollVoters is who chose each answer of a message's poll, as its network names them.
+	PollVoters(context.Context, *connect.Request[v1.PollVotersRequest]) (*connect.Response[v1.PollVotersResponse], error)
 	// ReactionRefusals returns what has been learned about the emoji bridged networks
 	// refuse as reactions.
 	ReactionRefusals(context.Context, *connect.Request[v1.ReactionRefusalsRequest]) (*connect.Response[v1.ReactionRefusalsResponse], error)
@@ -2419,6 +2438,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceVotePollProcedure,
 		svc.VotePoll,
 		connect.WithSchema(backendServiceMethods.ByName("VotePoll")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServicePollVotersHandler := connect.NewUnaryHandler(
+		BackendServicePollVotersProcedure,
+		svc.PollVoters,
+		connect.WithSchema(backendServiceMethods.ByName("PollVoters")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceReactionRefusalsHandler := connect.NewUnaryHandler(
@@ -2939,6 +2964,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceSendReactionHandler.ServeHTTP(w, r)
 		case BackendServiceVotePollProcedure:
 			backendServiceVotePollHandler.ServeHTTP(w, r)
+		case BackendServicePollVotersProcedure:
+			backendServicePollVotersHandler.ServeHTTP(w, r)
 		case BackendServiceReactionRefusalsProcedure:
 			backendServiceReactionRefusalsHandler.ServeHTTP(w, r)
 		case BackendServiceRecordReactionRefusalProcedure:
@@ -3228,6 +3255,10 @@ func (UnimplementedBackendServiceHandler) SendReaction(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) VotePoll(context.Context, *connect.Request[v1.VotePollRequest]) (*connect.Response[v1.VotePollResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.VotePoll is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PollVoters(context.Context, *connect.Request[v1.PollVotersRequest]) (*connect.Response[v1.PollVotersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PollVoters is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) ReactionRefusals(context.Context, *connect.Request[v1.ReactionRefusalsRequest]) (*connect.Response[v1.ReactionRefusalsResponse], error) {

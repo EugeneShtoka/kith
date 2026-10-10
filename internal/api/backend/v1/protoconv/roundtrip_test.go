@@ -112,6 +112,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"Misspelling", domain.Misspelling{}, func(v any) any {
 			return protoconv.ProtoToMisspellings(protoconv.MisspellingsToProto([]domain.Misspelling{v.(domain.Misspelling)}))[0]
 		}},
+		{"PollVoters", domain.PollVoters{}, func(v any) any {
+			return protoconv.ProtoToPollVoters(protoconv.PollVotersToProto(v.(domain.PollVoters)))
+		}},
 		{"ReactionRefusal", domain.ReactionRefusal{}, func(v any) any {
 			return protoconv.ProtoToReactionRefusals(protoconv.ReactionRefusalsToProto([]domain.ReactionRefusal{v.(domain.ReactionRefusal)}))[0]
 		}},
@@ -180,6 +183,11 @@ func fill(t *testing.T, v reflect.Value, path string) {
 	// Nor is 7 a way to delete a chat, which reads back as leaving it.
 	if v.Type() == reflect.TypeFor[domain.ChatDeleting]() {
 		v.Set(reflect.ValueOf(domain.ChatDeletedForEither))
+		return
+	}
+	// Nor is 7 a reason a poll hides its voters, which reads back as naming them.
+	if v.Type() == reflect.TypeFor[domain.PollHiding]() {
+		v.Set(reflect.ValueOf(domain.PollVoteFirst))
 		return
 	}
 	// Nor is 7 a way to leave a space, which reads back as not leaving it.

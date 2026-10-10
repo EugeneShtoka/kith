@@ -83,7 +83,7 @@ func (m Model) pickerLines(width, rows int) []string {
 	if len(m.picker.items) == 0 {
 		return padTo(out, rows)
 	}
-	doc := m.settingDocLines(width)
+	doc := m.pickerNotes(width)
 	body := max(rows-len(out)-len(doc), 1)
 	if m.picker.spec.grid {
 		return padTo(append(out, m.gridRows(body, width)...), rows)
@@ -123,6 +123,19 @@ const (
 	settingDocMost  = 20
 )
 
+// pickerNotes is what the open picker says beneath its list: the setting's text, or
+// who chose each answer of a poll, at most what the list leaves.
+func (m Model) pickerNotes(width int) []string {
+	if lines := m.settingDocLines(width); lines != nil {
+		return lines
+	}
+	lines := m.voterLines(width)
+	if room := max(m.msgAreaRows()-len(m.picker.items)-1, settingDocLeast); len(lines) > room {
+		lines = append(lines[:room-1], "…")
+	}
+	return lines
+}
+
 // settingDocLines is what default.toml says of the setting under the cursor, wrapped
 // to width under a blank line; none outside a settings group or for a setting with
 // nothing written about it.
@@ -152,7 +165,7 @@ func (m Model) settingDocLines(width int) []string {
 // pickerBody is how many item rows the open picker shows: the message area, less its
 // header (as pickerLines lays it out).
 func (m Model) pickerBody() int {
-	rows := m.msgAreaRows() - len(m.settingDocLines(m.pickerWidth()))
+	rows := m.msgAreaRows() - len(m.pickerNotes(m.pickerWidth()))
 	if m.pickerHeader() != "" {
 		rows--
 	}

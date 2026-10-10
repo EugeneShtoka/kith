@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"maps"
+	"slices"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -126,4 +127,25 @@ func (a *Adapter) VotePoll(ctx context.Context, roomID domain.RoomID, eventID do
 		a.cast(ctx, client, roomID, eventID, domain.NativePerson(domain.ProtocolWhatsApp, own.pn.String()), nil, options)
 	}
 	return nil
+}
+
+// PollVoters is who chose each answer of a poll, from the ballots kept as votes were
+// heard; the client names them as it names the room's people.
+func (a *Adapter) PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error) {
+	if a.cache == nil {
+		return domain.PollVoters{}, nil
+	}
+	msg, held, err := a.cache.MessageByID(ctx, roomID, eventID)
+	switch {
+	case err != nil:
+		return domain.PollVoters{}, fmt.Errorf("whatsapp: read the poll of %s: %w", eventID, err)
+	case !held || msg.Poll == nil:
+		return domain.PollVoters{}, fmt.Errorf("whatsapp: %s asks no poll kith holds", eventID)
+	}
+	out := domain.PollVoters{}
+	// A vote taken back deletes its ballot (cast), so every ballot chose something.
+	for _, voter := range slices.Sorted(maps.Keys(msg.Poll.Ballots)) {
+		out.Voters = append(out.Voters, domain.PollVoter{ID: voter, Options: msg.Poll.Ballots[voter]})
+	}
+	return out, nil
 }

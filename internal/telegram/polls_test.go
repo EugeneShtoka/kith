@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 	"github.com/gotd/td/tgtest"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -100,5 +102,77 @@ func TestAPollIsReadUpdatedAndVotedIn(t *testing.T) {
 			t.Fatalf("after voting: %+v, want Sunday chosen", got)
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// Who voted is read of the poll's message page by page, every answer a voter chose
+// kept, users and channels named as Telegram calls them; an anonymous poll is not
+// asked, and a poll naming its voters only to those who voted says so.
+func TestAPollsVotersAreRead(t *testing.T) {
+	t.Parallel()
+	for name, c := range map[string]struct {
+		public bool
+		denied string
+		want   domain.PollVoters
+	}{
+		"public": {public: true, want: domain.PollVoters{Voters: []domain.PollVoter{
+			{ID: personID(7), Name: "Dana", Options: []string{optionID([]byte{0}), optionID([]byte{1})}},
+			{ID: personID(8), Name: "Eli Stone", Options: []string{optionID([]byte{1})}},
+			{ID: personID(-(channelMark + 30)), Name: "Hiking Club", Options: []string{optionID([]byte{0})}},
+		}}},
+		"anonymous":  {want: domain.PollVoters{Hidden: domain.PollAnonymous}},
+		"vote first": {public: true, denied: "POLL_VOTE_REQUIRED", want: domain.PollVoters{Hidden: domain.PollVoteFirst}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFakeTelegram(t)
+			f.serveUpdates(&updatesOf{pts: 1})
+			d := f.cluster.Dispatch(2, "dc2")
+			poll := hike()
+			poll.Poll.PublicVoters = c.public
+			d.HandleFunc(tg.MessagesGetMessagesRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
+				return s.SendResult(r, &tg.MessagesMessages{Messages: []tg.MessageClass{&tg.Message{
+					ID: 5, PeerID: &tg.PeerChat{ChatID: 11}, Date: 1000, Media: poll, FromID: &tg.PeerUser{UserID: 7},
+				}}, Users: []tg.UserClass{dana}})
+			})
+			var mu sync.Mutex
+			asked := 0
+			d.HandleFunc(tg.MessagesGetPollVotesRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
+				var req tg.MessagesGetPollVotesRequest
+				if err := req.Decode(r.Buf); err != nil {
+					return err
+				}
+				mu.Lock()
+				asked++
+				mu.Unlock()
+				if c.denied != "" {
+					return s.SendErr(r, tgerr.New(403, c.denied))
+				}
+				if req.Offset == "" {
+					return s.SendResult(r, &tg.MessagesVotesList{Count: 3, NextOffset: "page2", Votes: []tg.MessagePeerVoteClass{
+						&tg.MessagePeerVoteMultiple{Peer: &tg.PeerUser{UserID: 7}, Options: [][]byte{{0}, {1}}},
+						&tg.MessagePeerVote{Peer: &tg.PeerUser{UserID: 8}, Option: []byte{1}},
+					}, Users: []tg.UserClass{dana, &tg.User{ID: 8, FirstName: "Eli", LastName: "Stone"}}})
+				}
+				return s.SendResult(r, &tg.MessagesVotesList{Count: 3, Votes: []tg.MessagePeerVoteClass{
+					&tg.MessagePeerVote{Peer: &tg.PeerChannel{ChannelID: 30}, Option: []byte{0}},
+					&tg.MessagePeerVoteInputOption{Peer: &tg.PeerUser{UserID: 9}},
+				}, Chats: []tg.ChatClass{&tg.Channel{ID: 30, AccessHash: 300, Title: "Hiking Club", Photo: &tg.ChatPhotoEmpty{}}}})
+			})
+			a, _ := loggedInWithStore(t, f, openStore(t))
+			room := roomID(42, -11)
+			got, err := a.PollVoters(t.Context(), room, domain.EventID(string(room)+"/5"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, c.want) {
+				t.Errorf("voters = %+v\nwant %+v", got, c.want)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if !c.public && asked != 0 {
+				t.Errorf("an anonymous poll's voters were asked for %d times", asked)
+			}
+		})
 	}
 }

@@ -72,6 +72,56 @@ func (ChatDeleting) EnumDescriptor() ([]byte, []int) {
 	return file_backend_v1_types_proto_rawDescGZIP(), []int{0}
 }
 
+// PollHiding is why a poll's network names none of its voters (domain.PollHiding).
+type PollHiding int32
+
+const (
+	PollHiding_POLL_HIDING_UNSPECIFIED PollHiding = 0 // named
+	PollHiding_POLL_HIDING_ANONYMOUS   PollHiding = 1
+	PollHiding_POLL_HIDING_VOTE_FIRST  PollHiding = 2
+)
+
+// Enum value maps for PollHiding.
+var (
+	PollHiding_name = map[int32]string{
+		0: "POLL_HIDING_UNSPECIFIED",
+		1: "POLL_HIDING_ANONYMOUS",
+		2: "POLL_HIDING_VOTE_FIRST",
+	}
+	PollHiding_value = map[string]int32{
+		"POLL_HIDING_UNSPECIFIED": 0,
+		"POLL_HIDING_ANONYMOUS":   1,
+		"POLL_HIDING_VOTE_FIRST":  2,
+	}
+)
+
+func (x PollHiding) Enum() *PollHiding {
+	p := new(PollHiding)
+	*p = x
+	return p
+}
+
+func (x PollHiding) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PollHiding) Descriptor() protoreflect.EnumDescriptor {
+	return file_backend_v1_types_proto_enumTypes[1].Descriptor()
+}
+
+func (PollHiding) Type() protoreflect.EnumType {
+	return &file_backend_v1_types_proto_enumTypes[1]
+}
+
+func (x PollHiding) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PollHiding.Descriptor instead.
+func (PollHiding) EnumDescriptor() ([]byte, []int) {
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{1}
+}
+
 // SpaceLeaving is how a space is left (domain.SpaceLeaving).
 type SpaceLeaving int32
 
@@ -115,11 +165,11 @@ func (x SpaceLeaving) String() string {
 }
 
 func (SpaceLeaving) Descriptor() protoreflect.EnumDescriptor {
-	return file_backend_v1_types_proto_enumTypes[1].Descriptor()
+	return file_backend_v1_types_proto_enumTypes[2].Descriptor()
 }
 
 func (SpaceLeaving) Type() protoreflect.EnumType {
-	return &file_backend_v1_types_proto_enumTypes[1]
+	return &file_backend_v1_types_proto_enumTypes[2]
 }
 
 func (x SpaceLeaving) Number() protoreflect.EnumNumber {
@@ -128,7 +178,7 @@ func (x SpaceLeaving) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SpaceLeaving.Descriptor instead.
 func (SpaceLeaving) EnumDescriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{1}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{2}
 }
 
 // VerificationKind is the stage of a verification flow a step represents
@@ -175,11 +225,11 @@ func (x VerificationKind) String() string {
 }
 
 func (VerificationKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_backend_v1_types_proto_enumTypes[2].Descriptor()
+	return file_backend_v1_types_proto_enumTypes[3].Descriptor()
 }
 
 func (VerificationKind) Type() protoreflect.EnumType {
-	return &file_backend_v1_types_proto_enumTypes[2]
+	return &file_backend_v1_types_proto_enumTypes[3]
 }
 
 func (x VerificationKind) Number() protoreflect.EnumNumber {
@@ -188,7 +238,7 @@ func (x VerificationKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use VerificationKind.Descriptor instead.
 func (VerificationKind) EnumDescriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{2}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{3}
 }
 
 // Level is the bar a message clears to earn something (notify.Level).
@@ -231,11 +281,11 @@ func (x Level) String() string {
 }
 
 func (Level) Descriptor() protoreflect.EnumDescriptor {
-	return file_backend_v1_types_proto_enumTypes[3].Descriptor()
+	return file_backend_v1_types_proto_enumTypes[4].Descriptor()
 }
 
 func (Level) Type() protoreflect.EnumType {
-	return &file_backend_v1_types_proto_enumTypes[3]
+	return &file_backend_v1_types_proto_enumTypes[4]
 }
 
 func (x Level) Number() protoreflect.EnumNumber {
@@ -244,7 +294,7 @@ func (x Level) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Level.Descriptor instead.
 func (Level) EnumDescriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{3}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{4}
 }
 
 // Room is a Matrix room we are in or have been invited to (domain.Room).
@@ -1068,6 +1118,69 @@ func (x *Ballot) GetOptions() []string {
 	return nil
 }
 
+// PollVoter is one person's vote in a poll (domain.PollVoter).
+type PollVoter struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// What the network calls them; empty where it gives no name.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// The answers they chose, by ID.
+	Options       []string `protobuf:"bytes,3,rep,name=options,proto3" json:"options,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PollVoter) Reset() {
+	*x = PollVoter{}
+	mi := &file_backend_v1_types_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PollVoter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PollVoter) ProtoMessage() {}
+
+func (x *PollVoter) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_types_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PollVoter.ProtoReflect.Descriptor instead.
+func (*PollVoter) Descriptor() ([]byte, []int) {
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *PollVoter) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PollVoter) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PollVoter) GetOptions() []string {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
 // PollOption is one answer of a poll.
 type PollOption struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1081,7 +1194,7 @@ type PollOption struct {
 
 func (x *PollOption) Reset() {
 	*x = PollOption{}
-	mi := &file_backend_v1_types_proto_msgTypes[8]
+	mi := &file_backend_v1_types_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1093,7 +1206,7 @@ func (x *PollOption) String() string {
 func (*PollOption) ProtoMessage() {}
 
 func (x *PollOption) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[8]
+	mi := &file_backend_v1_types_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1106,7 +1219,7 @@ func (x *PollOption) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollOption.ProtoReflect.Descriptor instead.
 func (*PollOption) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{8}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *PollOption) GetId() string {
@@ -1149,7 +1262,7 @@ type Formatted struct {
 
 func (x *Formatted) Reset() {
 	*x = Formatted{}
-	mi := &file_backend_v1_types_proto_msgTypes[9]
+	mi := &file_backend_v1_types_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1161,7 +1274,7 @@ func (x *Formatted) String() string {
 func (*Formatted) ProtoMessage() {}
 
 func (x *Formatted) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[9]
+	mi := &file_backend_v1_types_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1174,7 +1287,7 @@ func (x *Formatted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Formatted.ProtoReflect.Descriptor instead.
 func (*Formatted) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{9}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Formatted) GetText() string {
@@ -1213,7 +1326,7 @@ type Span struct {
 
 func (x *Span) Reset() {
 	*x = Span{}
-	mi := &file_backend_v1_types_proto_msgTypes[10]
+	mi := &file_backend_v1_types_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1225,7 +1338,7 @@ func (x *Span) String() string {
 func (*Span) ProtoMessage() {}
 
 func (x *Span) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[10]
+	mi := &file_backend_v1_types_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1238,7 +1351,7 @@ func (x *Span) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Span.ProtoReflect.Descriptor instead.
 func (*Span) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{10}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Span) GetStart() int64 {
@@ -1356,7 +1469,7 @@ type Space struct {
 
 func (x *Space) Reset() {
 	*x = Space{}
-	mi := &file_backend_v1_types_proto_msgTypes[11]
+	mi := &file_backend_v1_types_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1368,7 +1481,7 @@ func (x *Space) String() string {
 func (*Space) ProtoMessage() {}
 
 func (x *Space) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[11]
+	mi := &file_backend_v1_types_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1381,7 +1494,7 @@ func (x *Space) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Space.ProtoReflect.Descriptor instead.
 func (*Space) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{11}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Space) GetId() string {
@@ -1460,7 +1573,7 @@ type Unread struct {
 
 func (x *Unread) Reset() {
 	*x = Unread{}
-	mi := &file_backend_v1_types_proto_msgTypes[12]
+	mi := &file_backend_v1_types_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1472,7 +1585,7 @@ func (x *Unread) String() string {
 func (*Unread) ProtoMessage() {}
 
 func (x *Unread) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[12]
+	mi := &file_backend_v1_types_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1485,7 +1598,7 @@ func (x *Unread) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Unread.ProtoReflect.Descriptor instead.
 func (*Unread) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{12}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Unread) GetRoomId() string {
@@ -1567,7 +1680,7 @@ type ThreadUnread struct {
 
 func (x *ThreadUnread) Reset() {
 	*x = ThreadUnread{}
-	mi := &file_backend_v1_types_proto_msgTypes[13]
+	mi := &file_backend_v1_types_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1579,7 +1692,7 @@ func (x *ThreadUnread) String() string {
 func (*ThreadUnread) ProtoMessage() {}
 
 func (x *ThreadUnread) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[13]
+	mi := &file_backend_v1_types_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1592,7 +1705,7 @@ func (x *ThreadUnread) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThreadUnread.ProtoReflect.Descriptor instead.
 func (*ThreadUnread) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{13}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ThreadUnread) GetRoot() string {
@@ -1658,7 +1771,7 @@ type Thread struct {
 
 func (x *Thread) Reset() {
 	*x = Thread{}
-	mi := &file_backend_v1_types_proto_msgTypes[14]
+	mi := &file_backend_v1_types_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1670,7 +1783,7 @@ func (x *Thread) String() string {
 func (*Thread) ProtoMessage() {}
 
 func (x *Thread) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[14]
+	mi := &file_backend_v1_types_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1683,7 +1796,7 @@ func (x *Thread) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Thread.ProtoReflect.Descriptor instead.
 func (*Thread) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{14}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Thread) GetRoot() string {
@@ -1784,7 +1897,7 @@ type Reaction struct {
 
 func (x *Reaction) Reset() {
 	*x = Reaction{}
-	mi := &file_backend_v1_types_proto_msgTypes[15]
+	mi := &file_backend_v1_types_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1796,7 +1909,7 @@ func (x *Reaction) String() string {
 func (*Reaction) ProtoMessage() {}
 
 func (x *Reaction) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[15]
+	mi := &file_backend_v1_types_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1809,7 +1922,7 @@ func (x *Reaction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Reaction.ProtoReflect.Descriptor instead.
 func (*Reaction) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{15}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Reaction) GetId() string {
@@ -1858,7 +1971,7 @@ type ReactionUpdate struct {
 
 func (x *ReactionUpdate) Reset() {
 	*x = ReactionUpdate{}
-	mi := &file_backend_v1_types_proto_msgTypes[16]
+	mi := &file_backend_v1_types_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1870,7 +1983,7 @@ func (x *ReactionUpdate) String() string {
 func (*ReactionUpdate) ProtoMessage() {}
 
 func (x *ReactionUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[16]
+	mi := &file_backend_v1_types_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1883,7 +1996,7 @@ func (x *ReactionUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReactionUpdate.ProtoReflect.Descriptor instead.
 func (*ReactionUpdate) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{16}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ReactionUpdate) GetReaction() *Reaction {
@@ -1913,7 +2026,7 @@ type TimelinePage struct {
 
 func (x *TimelinePage) Reset() {
 	*x = TimelinePage{}
-	mi := &file_backend_v1_types_proto_msgTypes[17]
+	mi := &file_backend_v1_types_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1925,7 +2038,7 @@ func (x *TimelinePage) String() string {
 func (*TimelinePage) ProtoMessage() {}
 
 func (x *TimelinePage) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[17]
+	mi := &file_backend_v1_types_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1938,7 +2051,7 @@ func (x *TimelinePage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimelinePage.ProtoReflect.Descriptor instead.
 func (*TimelinePage) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{17}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TimelinePage) GetMessages() []*Message {
@@ -1984,7 +2097,7 @@ type Draft struct {
 
 func (x *Draft) Reset() {
 	*x = Draft{}
-	mi := &file_backend_v1_types_proto_msgTypes[18]
+	mi := &file_backend_v1_types_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1996,7 +2109,7 @@ func (x *Draft) String() string {
 func (*Draft) ProtoMessage() {}
 
 func (x *Draft) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[18]
+	mi := &file_backend_v1_types_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2009,7 +2122,7 @@ func (x *Draft) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Draft.ProtoReflect.Descriptor instead.
 func (*Draft) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{18}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Draft) GetBody() string {
@@ -2079,7 +2192,7 @@ type Member struct {
 
 func (x *Member) Reset() {
 	*x = Member{}
-	mi := &file_backend_v1_types_proto_msgTypes[19]
+	mi := &file_backend_v1_types_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2091,7 +2204,7 @@ func (x *Member) String() string {
 func (*Member) ProtoMessage() {}
 
 func (x *Member) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[19]
+	mi := &file_backend_v1_types_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2104,7 +2217,7 @@ func (x *Member) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Member.ProtoReflect.Descriptor instead.
 func (*Member) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{19}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Member) GetUserId() string {
@@ -2144,7 +2257,7 @@ type SearchHit struct {
 
 func (x *SearchHit) Reset() {
 	*x = SearchHit{}
-	mi := &file_backend_v1_types_proto_msgTypes[20]
+	mi := &file_backend_v1_types_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2156,7 +2269,7 @@ func (x *SearchHit) String() string {
 func (*SearchHit) ProtoMessage() {}
 
 func (x *SearchHit) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[20]
+	mi := &file_backend_v1_types_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2169,7 +2282,7 @@ func (x *SearchHit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchHit.ProtoReflect.Descriptor instead.
 func (*SearchHit) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{20}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *SearchHit) GetRoomId() string {
@@ -2246,7 +2359,7 @@ type SASEmoji struct {
 
 func (x *SASEmoji) Reset() {
 	*x = SASEmoji{}
-	mi := &file_backend_v1_types_proto_msgTypes[21]
+	mi := &file_backend_v1_types_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2258,7 +2371,7 @@ func (x *SASEmoji) String() string {
 func (*SASEmoji) ProtoMessage() {}
 
 func (x *SASEmoji) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[21]
+	mi := &file_backend_v1_types_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2271,7 +2384,7 @@ func (x *SASEmoji) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SASEmoji.ProtoReflect.Descriptor instead.
 func (*SASEmoji) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{21}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SASEmoji) GetGlyph() string {
@@ -2305,7 +2418,7 @@ type Verification struct {
 
 func (x *Verification) Reset() {
 	*x = Verification{}
-	mi := &file_backend_v1_types_proto_msgTypes[22]
+	mi := &file_backend_v1_types_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2317,7 +2430,7 @@ func (x *Verification) String() string {
 func (*Verification) ProtoMessage() {}
 
 func (x *Verification) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[22]
+	mi := &file_backend_v1_types_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2330,7 +2443,7 @@ func (x *Verification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Verification.ProtoReflect.Descriptor instead.
 func (*Verification) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{22}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Verification) GetKind() VerificationKind {
@@ -2403,7 +2516,7 @@ type TempRule struct {
 
 func (x *TempRule) Reset() {
 	*x = TempRule{}
-	mi := &file_backend_v1_types_proto_msgTypes[23]
+	mi := &file_backend_v1_types_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2415,7 +2528,7 @@ func (x *TempRule) String() string {
 func (*TempRule) ProtoMessage() {}
 
 func (x *TempRule) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[23]
+	mi := &file_backend_v1_types_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2428,7 +2541,7 @@ func (x *TempRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TempRule.ProtoReflect.Descriptor instead.
 func (*TempRule) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{23}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *TempRule) GetName() string {
@@ -2488,7 +2601,7 @@ type PersonName struct {
 
 func (x *PersonName) Reset() {
 	*x = PersonName{}
-	mi := &file_backend_v1_types_proto_msgTypes[24]
+	mi := &file_backend_v1_types_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2500,7 +2613,7 @@ func (x *PersonName) String() string {
 func (*PersonName) ProtoMessage() {}
 
 func (x *PersonName) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[24]
+	mi := &file_backend_v1_types_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2513,7 +2626,7 @@ func (x *PersonName) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PersonName.ProtoReflect.Descriptor instead.
 func (*PersonName) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{24}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *PersonName) GetSource() string {
@@ -2556,7 +2669,7 @@ type PersonLink struct {
 
 func (x *PersonLink) Reset() {
 	*x = PersonLink{}
-	mi := &file_backend_v1_types_proto_msgTypes[25]
+	mi := &file_backend_v1_types_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2568,7 +2681,7 @@ func (x *PersonLink) String() string {
 func (*PersonLink) ProtoMessage() {}
 
 func (x *PersonLink) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[25]
+	mi := &file_backend_v1_types_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2581,7 +2694,7 @@ func (x *PersonLink) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PersonLink.ProtoReflect.Descriptor instead.
 func (*PersonLink) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{25}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *PersonLink) GetSource() string {
@@ -2689,7 +2802,11 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\aballots\x18\b \x03(\v2\x12.backend.v1.BallotR\aballots\"8\n" +
 	"\x06Ballot\x12\x14\n" +
 	"\x05voter\x18\x01 \x01(\tR\x05voter\x12\x18\n" +
-	"\aoptions\x18\x02 \x03(\tR\aoptions\"Z\n" +
+	"\aoptions\x18\x02 \x03(\tR\aoptions\"I\n" +
+	"\tPollVoter\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\aoptions\x18\x03 \x03(\tR\aoptions\"Z\n" +
 	"\n" +
 	"PollOption\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -2827,7 +2944,12 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\fChatDeleting\x12\x1d\n" +
 	"\x19CHAT_DELETING_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CHAT_DELETING_FOR_ME\x10\x01\x12\x1c\n" +
-	"\x18CHAT_DELETING_FOR_EITHER\x10\x02*\xba\x01\n" +
+	"\x18CHAT_DELETING_FOR_EITHER\x10\x02*`\n" +
+	"\n" +
+	"PollHiding\x12\x1b\n" +
+	"\x17POLL_HIDING_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15POLL_HIDING_ANONYMOUS\x10\x01\x12\x1a\n" +
+	"\x16POLL_HIDING_VOTE_FIRST\x10\x02*\xba\x01\n" +
 	"\fSpaceLeaving\x12\x1d\n" +
 	"\x19SPACE_LEAVING_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SPACE_LEAVING_BY_ROOM\x10\x01\x12\x1c\n" +
@@ -2862,68 +2984,70 @@ func file_backend_v1_types_proto_rawDescGZIP() []byte {
 	return file_backend_v1_types_proto_rawDescData
 }
 
-var file_backend_v1_types_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_backend_v1_types_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_backend_v1_types_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_backend_v1_types_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_backend_v1_types_proto_goTypes = []any{
 	(ChatDeleting)(0),             // 0: backend.v1.ChatDeleting
-	(SpaceLeaving)(0),             // 1: backend.v1.SpaceLeaving
-	(VerificationKind)(0),         // 2: backend.v1.VerificationKind
-	(Level)(0),                    // 3: backend.v1.Level
-	(*Room)(nil),                  // 4: backend.v1.Room
-	(*Mention)(nil),               // 5: backend.v1.Mention
-	(*Media)(nil),                 // 6: backend.v1.Media
-	(*Revision)(nil),              // 7: backend.v1.Revision
-	(*Activity)(nil),              // 8: backend.v1.Activity
-	(*Message)(nil),               // 9: backend.v1.Message
-	(*Poll)(nil),                  // 10: backend.v1.Poll
-	(*Ballot)(nil),                // 11: backend.v1.Ballot
-	(*PollOption)(nil),            // 12: backend.v1.PollOption
-	(*Formatted)(nil),             // 13: backend.v1.Formatted
-	(*Span)(nil),                  // 14: backend.v1.Span
-	(*Space)(nil),                 // 15: backend.v1.Space
-	(*Unread)(nil),                // 16: backend.v1.Unread
-	(*ThreadUnread)(nil),          // 17: backend.v1.ThreadUnread
-	(*Thread)(nil),                // 18: backend.v1.Thread
-	(*Reaction)(nil),              // 19: backend.v1.Reaction
-	(*ReactionUpdate)(nil),        // 20: backend.v1.ReactionUpdate
-	(*TimelinePage)(nil),          // 21: backend.v1.TimelinePage
-	(*Draft)(nil),                 // 22: backend.v1.Draft
-	(*Member)(nil),                // 23: backend.v1.Member
-	(*SearchHit)(nil),             // 24: backend.v1.SearchHit
-	(*SASEmoji)(nil),              // 25: backend.v1.SASEmoji
-	(*Verification)(nil),          // 26: backend.v1.Verification
-	(*TempRule)(nil),              // 27: backend.v1.TempRule
-	(*PersonName)(nil),            // 28: backend.v1.PersonName
-	(*PersonLink)(nil),            // 29: backend.v1.PersonLink
-	(*timestamppb.Timestamp)(nil), // 30: google.protobuf.Timestamp
+	(PollHiding)(0),               // 1: backend.v1.PollHiding
+	(SpaceLeaving)(0),             // 2: backend.v1.SpaceLeaving
+	(VerificationKind)(0),         // 3: backend.v1.VerificationKind
+	(Level)(0),                    // 4: backend.v1.Level
+	(*Room)(nil),                  // 5: backend.v1.Room
+	(*Mention)(nil),               // 6: backend.v1.Mention
+	(*Media)(nil),                 // 7: backend.v1.Media
+	(*Revision)(nil),              // 8: backend.v1.Revision
+	(*Activity)(nil),              // 9: backend.v1.Activity
+	(*Message)(nil),               // 10: backend.v1.Message
+	(*Poll)(nil),                  // 11: backend.v1.Poll
+	(*Ballot)(nil),                // 12: backend.v1.Ballot
+	(*PollVoter)(nil),             // 13: backend.v1.PollVoter
+	(*PollOption)(nil),            // 14: backend.v1.PollOption
+	(*Formatted)(nil),             // 15: backend.v1.Formatted
+	(*Span)(nil),                  // 16: backend.v1.Span
+	(*Space)(nil),                 // 17: backend.v1.Space
+	(*Unread)(nil),                // 18: backend.v1.Unread
+	(*ThreadUnread)(nil),          // 19: backend.v1.ThreadUnread
+	(*Thread)(nil),                // 20: backend.v1.Thread
+	(*Reaction)(nil),              // 21: backend.v1.Reaction
+	(*ReactionUpdate)(nil),        // 22: backend.v1.ReactionUpdate
+	(*TimelinePage)(nil),          // 23: backend.v1.TimelinePage
+	(*Draft)(nil),                 // 24: backend.v1.Draft
+	(*Member)(nil),                // 25: backend.v1.Member
+	(*SearchHit)(nil),             // 26: backend.v1.SearchHit
+	(*SASEmoji)(nil),              // 27: backend.v1.SASEmoji
+	(*Verification)(nil),          // 28: backend.v1.Verification
+	(*TempRule)(nil),              // 29: backend.v1.TempRule
+	(*PersonName)(nil),            // 30: backend.v1.PersonName
+	(*PersonLink)(nil),            // 31: backend.v1.PersonLink
+	(*timestamppb.Timestamp)(nil), // 32: google.protobuf.Timestamp
 }
 var file_backend_v1_types_proto_depIdxs = []int32{
 	0,  // 0: backend.v1.Room.deleting:type_name -> backend.v1.ChatDeleting
-	30, // 1: backend.v1.Revision.at:type_name -> google.protobuf.Timestamp
-	13, // 2: backend.v1.Revision.format:type_name -> backend.v1.Formatted
-	30, // 3: backend.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
-	6,  // 4: backend.v1.Message.media:type_name -> backend.v1.Media
-	5,  // 5: backend.v1.Message.mentions:type_name -> backend.v1.Mention
-	13, // 6: backend.v1.Message.format:type_name -> backend.v1.Formatted
-	10, // 7: backend.v1.Message.poll:type_name -> backend.v1.Poll
-	12, // 8: backend.v1.Poll.options:type_name -> backend.v1.PollOption
-	11, // 9: backend.v1.Poll.ballots:type_name -> backend.v1.Ballot
-	14, // 10: backend.v1.Formatted.spans:type_name -> backend.v1.Span
-	1,  // 11: backend.v1.Space.leaving:type_name -> backend.v1.SpaceLeaving
-	17, // 12: backend.v1.Unread.threads:type_name -> backend.v1.ThreadUnread
-	30, // 13: backend.v1.ThreadUnread.latest_at:type_name -> google.protobuf.Timestamp
-	30, // 14: backend.v1.Thread.latest_at:type_name -> google.protobuf.Timestamp
-	19, // 15: backend.v1.ReactionUpdate.reaction:type_name -> backend.v1.Reaction
-	9,  // 16: backend.v1.TimelinePage.messages:type_name -> backend.v1.Message
-	19, // 17: backend.v1.TimelinePage.reactions:type_name -> backend.v1.Reaction
-	5,  // 18: backend.v1.Draft.mentions:type_name -> backend.v1.Mention
-	30, // 19: backend.v1.SearchHit.timestamp:type_name -> google.protobuf.Timestamp
-	5,  // 20: backend.v1.SearchHit.mentions:type_name -> backend.v1.Mention
-	2,  // 21: backend.v1.Verification.kind:type_name -> backend.v1.VerificationKind
-	25, // 22: backend.v1.Verification.emojis:type_name -> backend.v1.SASEmoji
-	3,  // 23: backend.v1.TempRule.show:type_name -> backend.v1.Level
-	3,  // 24: backend.v1.TempRule.ring:type_name -> backend.v1.Level
-	30, // 25: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
+	32, // 1: backend.v1.Revision.at:type_name -> google.protobuf.Timestamp
+	15, // 2: backend.v1.Revision.format:type_name -> backend.v1.Formatted
+	32, // 3: backend.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
+	7,  // 4: backend.v1.Message.media:type_name -> backend.v1.Media
+	6,  // 5: backend.v1.Message.mentions:type_name -> backend.v1.Mention
+	15, // 6: backend.v1.Message.format:type_name -> backend.v1.Formatted
+	11, // 7: backend.v1.Message.poll:type_name -> backend.v1.Poll
+	14, // 8: backend.v1.Poll.options:type_name -> backend.v1.PollOption
+	12, // 9: backend.v1.Poll.ballots:type_name -> backend.v1.Ballot
+	16, // 10: backend.v1.Formatted.spans:type_name -> backend.v1.Span
+	2,  // 11: backend.v1.Space.leaving:type_name -> backend.v1.SpaceLeaving
+	19, // 12: backend.v1.Unread.threads:type_name -> backend.v1.ThreadUnread
+	32, // 13: backend.v1.ThreadUnread.latest_at:type_name -> google.protobuf.Timestamp
+	32, // 14: backend.v1.Thread.latest_at:type_name -> google.protobuf.Timestamp
+	21, // 15: backend.v1.ReactionUpdate.reaction:type_name -> backend.v1.Reaction
+	10, // 16: backend.v1.TimelinePage.messages:type_name -> backend.v1.Message
+	21, // 17: backend.v1.TimelinePage.reactions:type_name -> backend.v1.Reaction
+	6,  // 18: backend.v1.Draft.mentions:type_name -> backend.v1.Mention
+	32, // 19: backend.v1.SearchHit.timestamp:type_name -> google.protobuf.Timestamp
+	6,  // 20: backend.v1.SearchHit.mentions:type_name -> backend.v1.Mention
+	3,  // 21: backend.v1.Verification.kind:type_name -> backend.v1.VerificationKind
+	27, // 22: backend.v1.Verification.emojis:type_name -> backend.v1.SASEmoji
+	4,  // 23: backend.v1.TempRule.show:type_name -> backend.v1.Level
+	4,  // 24: backend.v1.TempRule.ring:type_name -> backend.v1.Level
+	32, // 25: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
 	26, // [26:26] is the sub-list for method output_type
 	26, // [26:26] is the sub-list for method input_type
 	26, // [26:26] is the sub-list for extension type_name
@@ -2941,8 +3065,8 @@ func file_backend_v1_types_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backend_v1_types_proto_rawDesc), len(file_backend_v1_types_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   26,
+			NumEnums:      5,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

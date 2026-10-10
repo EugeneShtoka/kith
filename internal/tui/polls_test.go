@@ -7,16 +7,23 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// voteBackend records votes.
+// voteBackend records votes and answers who voted.
 type voteBackend struct {
 	apitest.Nop
-	mu    sync.Mutex
-	votes [][]string
+	mu     sync.Mutex
+	votes  [][]string
+	voters domain.PollVoters
+}
+
+func (b *voteBackend) PollVoters(context.Context, domain.RoomID, domain.EventID) (domain.PollVoters, error) {
+	return b.voters, nil
 }
 
 func (b *voteBackend) VotePoll(_ context.Context, _ domain.RoomID, _ domain.EventID, options []string) error {
@@ -48,21 +55,21 @@ func hikePoll() domain.Poll {
 func TestAPollDrawsItsAnswersAndTheVote(t *testing.T) {
 	t.Parallel()
 	p := hikePoll()
-	body := pollBody(&p, func(v string) string { return v })
+	body := pollBody(&p)
 	for _, want := range []string{"📊 Hike when?", "● Saturday — 3 votes · 75%", "○ Sunday — 1 vote · 25%"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("poll body lacks %q:\n%s", want, body)
 		}
 	}
 	p.Multiple = true
-	if !strings.Contains(pollBody(&p, func(v string) string { return v }), "(choose any)") {
+	if !strings.Contains(pollBody(&p), "(choose any)") {
 		t.Error("a poll taking several answers does not say so")
 	}
 }
 
 // The vote key offers the answers: one is chosen and voted; a voted poll offers taking
 // the vote back; a poll taking several answers votes what is ticked; a closed poll
-// says so and offers nothing.
+// opens to be read, and votes nothing.
 func TestVotingInAPoll(t *testing.T) {
 	t.Parallel()
 	b := &voteBackend{}
@@ -105,30 +112,93 @@ func TestVotingInAPoll(t *testing.T) {
 	closed.Closed = true
 	m = withPoll(t, b, closed)
 	m, _ = m.openVote()
-	if m.picker.active() || !strings.Contains(m.status(), "closed") {
-		t.Errorf("a closed poll: picker %v, said %q", m.picker.active(), m.status())
+	if !m.picker.active() || slices.ContainsFunc(m.picker.all, func(i pickerItem) bool { return i.value == voteTakeBack }) {
+		t.Fatalf("a closed poll: picker %v %+v, want its answers alone", m.picker.active(), m.picker.all)
 	}
+	m, cmd = m.acceptPick()
+	if cmd != nil || !strings.Contains(m.status(), "closed") {
+		t.Errorf("voting in a closed poll: cmd %v, said %q", cmd != nil, m.status())
+	}
+	b.mu.Lock()
+	if len(b.votes) != 3 {
+		t.Errorf("a closed poll took a vote: %q", b.votes)
+	}
+	b.mu.Unlock()
 }
 
-// Where the network tells each vote, every answer names who chose it on the line under
-// it: this person as "you", others as the sender column would; an answer nobody chose,
-// or a poll told only as counts, adds no line.
-func TestAPollNamesWhoChoseEachAnswer(t *testing.T) {
+// The timeline draws a poll's counts alone; the vote key reads who voted and says
+// under the answers who chose each: this person as "you" first, others as the sender
+// column would or, for someone kith does not know, as the network called them, and
+// how many more the network did not name. An answer nobody chose adds nothing.
+func TestThePollPickerNamesWhoChoseEachAnswer(t *testing.T) {
 	t.Parallel()
 	p := hikePoll()
 	p.Options = append(p.Options, domain.PollOption{ID: "mon", Text: "Monday"})
-	p.Ballots = map[string][]string{"@me:x": {"sat"}, "@eli:x": {"sat", "sun"}}
-	m := withPoll(t, &voteBackend{}, p)
+	b := &voteBackend{voters: domain.PollVoters{Voters: []domain.PollVoter{
+		{ID: "@me:x", Options: []string{"sat"}},
+		{ID: "@eli:x", Options: []string{"sat", "sun"}},
+		{ID: "@zoe:x", Name: "Zoe Stranger", Options: []string{"sun"}},
+	}}}
+	p.Options[1].Votes = 2
+	m := withPoll(t, b, p)
 	m.selves = []string{"@me:x"}
 	msg, _ := m.selectedMessage()
-	body, _ := m.plainBody(msg, nil)
-	lines := strings.Split(stripIsolates(body), "\n")
-	want := []string{"📊 Hike when?", "● Saturday — 3 votes · 75%", "  you, eli", "○ Sunday — 1 vote · 25%", "  eli", "○ Monday — 0 votes · 0%"}
-	if !slices.Equal(lines, want) {
-		t.Errorf("poll body:\n%q\nwant\n%q", lines, want)
+	if body, _ := m.plainBody(msg, nil); strings.Count(body, "\n") != len(p.Options) {
+		t.Errorf("the timeline names voters:\n%s", body)
 	}
-	p.Ballots = nil
-	if got := pollBody(&p, m.voterName("!a:x")); strings.Count(got, "\n") != len(p.Options) {
-		t.Errorf("a poll told as counts names voters:\n%s", got)
+
+	m, cmd := m.openVote()
+	if got := notes(m); !slices.Contains(got, "reading who voted…") {
+		t.Errorf("before the answer, notes = %q", got)
 	}
+	read, ok := msgOf[pollVotersMsg](t, cmd)
+	if !ok {
+		t.Fatal("opening the poll read no voters")
+	}
+	m = update(t, m, read)
+	want := []string{"", "Saturday: you, eli, 1 more", "Sunday: Zoe Stranger, eli"}
+	if got := notes(m); !slices.Equal(got, want) {
+		t.Errorf("notes = %q, want %q", got, want)
+	}
+}
+
+// Why no one is named is said; an answer for another poll, or once the picker has
+// closed, is not kept.
+func TestThePollPickerSaysWhyNoOneIsNamed(t *testing.T) {
+	t.Parallel()
+	for hidden, want := range map[domain.PollHiding]string{
+		domain.PollAnonymous: "an anonymous poll: no one who voted is named",
+		domain.PollVoteFirst: "who voted is shown once you have voted",
+	} {
+		m := withPoll(t, &voteBackend{voters: domain.PollVoters{Hidden: hidden}}, hikePoll())
+		m, cmd := m.openVote()
+		read, _ := msgOf[pollVotersMsg](t, cmd)
+		m = update(t, m, read)
+		if got := notes(m); !slices.Contains(got, want) {
+			t.Errorf("hidden %v: notes = %q, want %q", hidden, got, want)
+		}
+	}
+
+	b := &voteBackend{voters: domain.PollVoters{Voters: []domain.PollVoter{{ID: "@eli:x", Options: []string{"sat"}}}}}
+	m := withPoll(t, b, hikePoll())
+	m, cmd := m.openVote()
+	read, _ := msgOf[pollVotersMsg](t, cmd)
+	stale := read
+	stale.event = "$other"
+	if m = update(t, m, stale); m.voters.read {
+		t.Error("an answer for another poll was kept")
+	}
+	m = m.closePicker()
+	if m = update(t, m, read); m.voters.read {
+		t.Error("an answer after the picker closed was kept")
+	}
+}
+
+// notes is what the open picker says beneath its list, plain.
+func notes(m Model) []string {
+	var out []string
+	for _, line := range m.pickerNotes(m.pickerWidth()) {
+		out = append(out, strings.TrimRight(stripIsolates(ansi.Strip(line)), " "))
+	}
+	return out
 }

@@ -583,6 +583,8 @@ type Model struct {
 	sweepArmed bool
 	// aimedAt is what the open overlay is aimed at. See overlayTarget.
 	aimedAt overlayTarget
+	// voters is who chose what in the poll the vote picker is open on (polls.go).
+	voters votersState
 	// schedules queues messages for later; nil without a daemon, where the commands refuse.
 	schedules Schedules
 	// picker is the open chooser overlay; choosing what its answer is for. See pickerWalk.
@@ -1229,6 +1231,8 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDirectory(msg))
 	case selvesMsg:
 		return answered(m.handleSelves(msg))
+	case pollVotersMsg:
+		return answered(m.handlePollVoters(msg))
 	case peerMembersMsg:
 		return answered(m.handlePeerMembers(msg))
 	case searchSendersMsg:
