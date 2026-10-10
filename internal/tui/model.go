@@ -104,7 +104,7 @@ func railGroups(
 	if len(groups) == 0 {
 		groups = []group{fallbackGroup()}
 	}
-	groups = applyRailConfig(groups, cfg, names, view, rooms)
+	groups, cfg.Order = applyRailConfig(groups, cfg, names, view, rooms)
 	return withoutTrailingSeparator(promoteFirst(groups, cfg))
 }
 
@@ -210,8 +210,9 @@ func promoteFirst(groups []group, cfg config.Rail) []group {
 // applyRailConfig renames, hides, then reorders groups per config; hiding everything
 // keeps Home so the rail is never empty. Order: named keys first, a separator token
 // draws a divider after the preceding group, the wildcard stands for every unnamed
-// group, and anything left keeps its default order at the end.
-func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName, view unreadView, rooms []domain.Room) []group {
+// group, and anything left keeps its default order at the end. It returns the order
+// with each entry resolved to the key of the group it names (resolveOrder).
+func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName, view unreadView, rooms []domain.Room) ([]group, []string) {
 	display := config.Display{Names: names}
 	for i := range groups {
 		if label := display.NameFor(config.GroupTarget(groups[i].key)); label != "" {
@@ -248,14 +249,33 @@ func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName
 		byKey[g.key] = g
 		kept = append(kept, g)
 	}
+	order := resolveOrder(groups, cfg.Order)
 	if len(kept) == 0 { // never leave the rail empty
-		return groups[:1]
+		return groups[:1], order
 	}
-	if len(cfg.Order) == 0 {
-		return kept
+	if len(order) == 0 {
+		return kept, order
 	}
 
-	return orderGroups(kept, byKey, cfg.Order)
+	return orderGroups(kept, byKey, order), order
+}
+
+// resolveOrder is the rail order with each entry the key of the group it names: its
+// key as written, else, as hidden and hide_when_empty take one, its key or its label in
+// any case, so "Services" places the tag the rail shows as Services when no space is
+// called that. An entry naming no group, a divider and the wildcard stay as written.
+func resolveOrder(groups []group, order []string) []string {
+	out := make([]string, len(order))
+	for i, tok := range order {
+		out[i] = tok
+		if isSeparator(tok) || isWildcard(tok) || slices.ContainsFunc(groups, func(g group) bool { return g.key == tok }) {
+			continue
+		}
+		if key := matchGroupKey(groups, tok); key != "" {
+			out[i] = key
+		}
+	}
+	return out
 }
 
 // orderGroups emits the kept groups in configured order, unplaced ones last.
@@ -319,7 +339,13 @@ func matchGroupKey(groups []group, name string) string {
 		return ""
 	}
 	for _, g := range groups {
-		if strings.EqualFold(g.key, want) || strings.EqualFold(g.label, want) {
+		if strings.EqualFold(g.key, want) {
+			return g.key
+		}
+	}
+	// Then by what the rail shows, so a space named like a tag's label keeps its name.
+	for _, g := range groups {
+		if strings.EqualFold(g.label, want) {
 			return g.key
 		}
 	}
