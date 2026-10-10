@@ -62,7 +62,7 @@ func TestASentMessageIsCachedUnderItsID(t *testing.T) {
 		mu.Lock()
 		sent = append(sent, req)
 		mu.Unlock()
-		return s.SendResult(r, &tg.UpdateShortSentMessage{ID: 77, Date: int(time.Now().Unix()), Pts: 2, PtsCount: 1})
+		return sendResult(s, r, &tg.UpdateShortSentMessage{ID: 77, Date: int(time.Now().Unix()), Pts: 2, PtsCount: 1})
 	})
 	st := openStore(t)
 	knowDana(t, st)

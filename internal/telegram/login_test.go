@@ -56,7 +56,7 @@ func newFakeTelegram(t *testing.T) *fakeTelegram {
 			if rpcErr != nil {
 				return s.SendErr(req, rpcErr)
 			}
-			return s.SendResult(req, msg)
+			return sendResult(s, req, msg)
 		})
 	}
 	var sendCode tg.AuthSendCodeRequest

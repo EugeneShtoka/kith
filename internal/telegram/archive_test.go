@@ -118,7 +118,7 @@ func TestAChatIsArchivedBothWays(t *testing.T) {
 			folders = append(folders, p.FolderID)
 		}
 		mu.Unlock()
-		return s.SendResult(r, &tg.Updates{Date: int(time.Now().Unix())})
+		return sendResult(s, r, &tg.Updates{Date: int(time.Now().Unix())})
 	})
 	st := openStore(t)
 	knowDana(t, st)

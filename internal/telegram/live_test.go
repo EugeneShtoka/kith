@@ -42,7 +42,7 @@ func (f *fakeTelegram) serveUpdates(u *updatesOf) {
 		u.session = &sess
 		st := &tg.UpdatesState{Pts: u.pts, Date: int(time.Now().Unix()), Seq: 1}
 		u.mu.Unlock()
-		return s.SendResult(r, st)
+		return sendResult(s, r, st)
 	})
 	d.HandleFunc(tg.UpdatesGetDifferenceRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
 		var req tg.UpdatesGetDifferenceRequest
@@ -56,9 +56,9 @@ func (f *fakeTelegram) serveUpdates(u *updatesOf) {
 		u.session = &sess
 		st := tg.UpdatesState{Pts: u.pts, Date: int(time.Now().Unix()), Seq: 1}
 		if req.Pts >= u.pts || len(u.missed) == 0 {
-			return s.SendResult(r, &tg.UpdatesDifferenceEmpty{Date: st.Date, Seq: st.Seq})
+			return sendResult(s, r, &tg.UpdatesDifferenceEmpty{Date: st.Date, Seq: st.Seq})
 		}
-		return s.SendResult(r, &tg.UpdatesDifference{NewMessages: u.missed, Users: []tg.UserClass{dana, f.user}, State: st})
+		return sendResult(s, r, &tg.UpdatesDifference{NewMessages: u.missed, Users: []tg.UserClass{dana, f.user}, State: st})
 	})
 }
 
@@ -72,7 +72,7 @@ func (u *updatesOf) push(t *testing.T, s *tgtest.Server, m *tg.Message, pts int)
 	if sess == nil {
 		t.Fatal("no session asked for its updates")
 	}
-	err := s.Send(t.Context(), *sess, proto.MessageFromServer, &tg.Updates{
+	err := send(t.Context(), s, *sess, proto.MessageFromServer, &tg.Updates{
 		Updates: []tg.UpdateClass{&tg.UpdateNewMessage{Message: m, Pts: pts, PtsCount: 1}},
 		Users:   []tg.UserClass{dana}, Date: int(time.Now().Unix()),
 	})
@@ -298,7 +298,7 @@ func TestHistoryIsReadPageByPage(t *testing.T) {
 		for id := top; id > 0 && id > top-req.Limit; id-- {
 			res.Messages = append(res.Messages, &tg.Message{ID: id, PeerID: &tg.PeerUser{UserID: 7}, Message: "m", Date: 1000 + id})
 		}
-		return s.SendResult(r, res)
+		return sendResult(s, r, res)
 	})
 	st := openStore(t)
 	knowDana(t, st)

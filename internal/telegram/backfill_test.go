@@ -47,7 +47,7 @@ func (g *groupHistory) serve(f *fakeTelegram) {
 		for id := top; id > 0 && id > top-req.Limit; id-- {
 			res.Messages = append(res.Messages, &tg.Message{ID: id, PeerID: &tg.PeerChat{ChatID: chat}, Message: "m", Date: 1000 + id})
 		}
-		return s.SendResult(r, res)
+		return sendResult(s, r, res)
 	})
 }
 

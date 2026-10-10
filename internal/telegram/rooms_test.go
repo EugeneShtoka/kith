@@ -93,19 +93,20 @@ func (f *fakeTelegram) dialogsOf(chats func() []*tg.Chat, delay func() time.Dura
 		}
 
 		res := &tg.MessagesDialogs{Users: []tg.UserClass{f.user}}
-		for _, c := range list {
+		for _, shared := range list {
+			c := *shared                   // a copy: chats() may hand the same chat to answers at once
 			c.Photo = &tg.ChatPhotoEmpty{} // required on the wire
 			res.Dialogs = append(res.Dialogs, &tg.Dialog{Peer: &tg.PeerChat{ChatID: c.ID}})
-			res.Chats = append(res.Chats, c)
+			res.Chats = append(res.Chats, &c)
 		}
 		if delay == nil {
-			return s.SendResult(r, res)
+			return sendResult(s, r, res)
 		}
 		// Answered from aside, after a while: one settled early may arrive late.
 		wait := delay()
 		go func() {
 			time.Sleep(wait)
-			_ = s.SendResult(r, res)
+			_ = sendResult(s, r, res)
 		}()
 		return nil
 	})
@@ -245,7 +246,7 @@ func TestManyChatsAreReadPageByPage(t *testing.T) {
 		mu.Unlock()
 		res := &tg.MessagesDialogsSlice{Count: total, Users: []tg.UserClass{f.user}}
 		if folder, _ := req.GetFolderID(); folder != 0 {
-			return s.SendResult(r, res)
+			return sendResult(s, r, res)
 		}
 		from := 1
 		if p, ok := req.OffsetPeer.(*tg.InputPeerChat); ok {
@@ -256,7 +257,7 @@ func TestManyChatsAreReadPageByPage(t *testing.T) {
 			res.Chats = append(res.Chats, &tg.Chat{ID: int64(id), Title: "c", Photo: &tg.ChatPhotoEmpty{}})
 			res.Messages = append(res.Messages, &tg.Message{ID: 1000 + id, Date: 5000 - id, PeerID: &tg.PeerChat{ChatID: int64(id)}})
 		}
-		return s.SendResult(r, res)
+		return sendResult(s, r, res)
 	})
 	// The fake's handshake is slow under -race with the package's other tests running
 	// beside it; the deadline only bounds a hang.
@@ -318,7 +319,7 @@ func TestShortPagesStillListEveryChat(t *testing.T) {
 		}
 		res := &tg.MessagesDialogsSlice{Users: []tg.UserClass{f.user}}
 		if folder, _ := req.GetFolderID(); folder != 0 {
-			return s.SendResult(r, res)
+			return sendResult(s, r, res)
 		}
 		res.Count = len(chats)
 		// Three at a time, after the chat the request names: fewer than the hundred
@@ -332,7 +333,7 @@ func TestShortPagesStillListEveryChat(t *testing.T) {
 			res.Chats = append(res.Chats, chats[i])
 			res.Messages = append(res.Messages, &tg.Message{ID: 100 + i, PeerID: &tg.PeerChat{ChatID: chats[i].ID}, Date: 5000 - i})
 		}
-		return s.SendResult(r, res)
+		return sendResult(s, r, res)
 	})
 	rooms, err := a.RefreshRooms(t.Context())
 	if err != nil {
@@ -357,10 +358,10 @@ func TestARepeatedPageEndsTheListing(t *testing.T) {
 			return err
 		}
 		if folder, _ := req.GetFolderID(); folder != 0 {
-			return s.SendResult(r, &tg.MessagesDialogsSlice{Users: []tg.UserClass{f.user}})
+			return sendResult(s, r, &tg.MessagesDialogsSlice{Users: []tg.UserClass{f.user}})
 		}
 		asked.Add(1)
-		return s.SendResult(r, &tg.MessagesDialogsSlice{
+		return sendResult(s, r, &tg.MessagesDialogsSlice{
 			Count: 50, Dialogs: []tg.DialogClass{&tg.Dialog{Peer: &tg.PeerChat{ChatID: 11}, TopMessage: 1}},
 			Chats: []tg.ChatClass{chat}, Users: []tg.UserClass{f.user},
 			Messages: []tg.MessageClass{&tg.Message{ID: 1, PeerID: &tg.PeerChat{ChatID: 11}, Date: 5000}},

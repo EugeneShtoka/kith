@@ -31,7 +31,7 @@ func TestSigningOutEndsTheSessionForGood(t *testing.T) {
 		var loggedOut atomic.Int32
 		f.cluster.Dispatch(2, "dc2").HandleFunc(tg.AuthLogOutRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
 			loggedOut.Add(1)
-			return s.SendResult(r, &tg.AuthLoggedOut{})
+			return sendResult(s, r, &tg.AuthLoggedOut{})
 		})
 		secrets := &memSecrets{values: map[string]string{}}
 		a, _ := cachedAdapter(t, secrets)

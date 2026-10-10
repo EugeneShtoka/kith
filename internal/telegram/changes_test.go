@@ -29,7 +29,7 @@ func (u *updatesOf) send(t *testing.T, s *tgtest.Server, pts int, updates ...tg.
 	if sess == nil {
 		t.Fatal("no session asked for its updates")
 	}
-	err := s.Send(t.Context(), *sess, proto.MessageFromServer, &tg.Updates{
+	err := send(t.Context(), s, *sess, proto.MessageFromServer, &tg.Updates{
 		Updates: updates, Users: []tg.UserClass{dana}, Date: int(time.Now().Unix()),
 	})
 	if err != nil {
@@ -162,7 +162,7 @@ func TestChangesMadeHereGoToTelegram(t *testing.T) {
 			mu.Lock()
 			asked = append(asked, what)
 			mu.Unlock()
-			return s.SendResult(r, answer())
+			return sendResult(s, r, answer())
 		})
 	}
 	affected := func() bin.Encoder { return &tg.MessagesAffectedMessages{Pts: 1} }
@@ -215,7 +215,7 @@ func TestChangesMadeHereGoToTelegram(t *testing.T) {
 		for _, k := range keys {
 			counts[k] = 1
 		}
-		return s.SendResult(r, &tg.Updates{Updates: []tg.UpdateClass{&tg.UpdateMessageReactions{
+		return sendResult(s, r, &tg.Updates{Updates: []tg.UpdateClass{&tg.UpdateMessageReactions{
 			Peer: &tg.PeerUser{UserID: 7}, MsgID: 5, Reactions: reacted(counts, nil, keys...),
 		}}})
 	})

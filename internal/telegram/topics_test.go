@@ -114,7 +114,7 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 			return &tg.ForumTopic{ID: id, Title: title, Date: 1000 + id, TopMessage: top, ReadInboxMaxID: read,
 				UnreadCount: unread, UnreadMentionsCount: mentions, Peer: at, FromID: &tg.PeerUser{UserID: 7}, NotifySettings: tg.PeerNotifySettings{}}
 		}
-		return s.SendResult(r, &tg.MessagesForumTopics{
+		return sendResult(s, r, &tg.MessagesForumTopics{
 			Topics:   []tg.ForumTopicClass{topic(1, "General", 20, 18, 2, 0), topic(10, "Trips", 13, 11, 3, 1)},
 			Messages: []tg.MessageClass{inTrips(13, 12, "Rila"), &tg.Message{ID: 20, PeerID: at, Message: "hi all", Date: 2020}},
 			Chats:    []tg.ChatClass{channel}, Users: []tg.UserClass{dana}, Count: 2,
@@ -123,9 +123,9 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 	d.HandleFunc(tg.MessagesGetRepliesRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
 		var req tg.MessagesGetRepliesRequest
 		if err := req.Decode(r.Buf); err != nil || req.MsgID != 10 {
-			return s.SendResult(r, &tg.MessagesChannelMessages{})
+			return sendResult(s, r, &tg.MessagesChannelMessages{})
 		}
-		return s.SendResult(r, &tg.MessagesChannelMessages{Messages: []tg.MessageClass{inTrips(12, 11, "Rila"), inTrips(11, 10, "where to?")},
+		return sendResult(s, r, &tg.MessagesChannelMessages{Messages: []tg.MessageClass{inTrips(12, 11, "Rila"), inTrips(11, 10, "where to?")},
 			Count: 2, Chats: []tg.ChatClass{channel}, Users: []tg.UserClass{dana}})
 	})
 	var mu sync.Mutex
@@ -138,7 +138,7 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 		mu.Lock()
 		discussed = append(discussed, req.MsgID, req.ReadMaxID)
 		mu.Unlock()
-		return s.SendResult(r, &tg.BoolTrue{})
+		return sendResult(s, r, &tg.BoolTrue{})
 	})
 	st := openStore(t)
 	if err := st.SetChannelAccessHash(t.Context(), 42, forum, channel.AccessHash); err != nil {
@@ -156,7 +156,7 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 			res.Dialogs = []tg.DialogClass{&tg.Dialog{Peer: at, TopMessage: 20, UnreadCount: 9}}
 			res.Chats = []tg.ChatClass{channel}
 		}
-		return s.SendResult(r, res)
+		return sendResult(s, r, res)
 	})
 	ctx := t.Context()
 	// As the forum's topics were cached while they were threads of its room.
