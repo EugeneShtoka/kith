@@ -203,3 +203,26 @@ func sgrOf(t *testing.T, c color.Color) string {
 	r, g, b, _ := c.RGBA()
 	return fmt.Sprintf("38;2;%d;%d;%d", r>>8, g>>8, b>>8)
 }
+
+// A config applied from the app (a room renamed, a space added) rebuilds the rail
+// with its networks, so a one-network space keeps its color.
+func TestTheRailKeepsItsColorsWhenTheConfigIsApplied(t *testing.T) {
+	t.Parallel()
+	display := config.Display{Rail: config.Rail{NetworkColors: true}}
+	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: []domain.Room{{ID: "whatsapp:1/g@g.us", Name: "Family"}}})
+	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
+		{ID: "!onlywa:x", Name: "Only WhatsApp", Children: []domain.RoomID{"whatsapp:1/g@g.us"}},
+	}}))
+	network := func(m Model) domain.Protocol {
+		return m.rail.groups[indexOfGroup(m.rail.groups, "Only WhatsApp")].network
+	}
+	if network(m) != domain.ProtocolWhatsApp {
+		t.Fatalf("before: Only WhatsApp's network = %q", network(m))
+	}
+	renamed := m.prefs.display
+	renamed.Names = config.SetName(renamed.Names, "whatsapp:1/g@g.us", "Kin")
+	m, _ = m.applyDisplay(renamed, "")
+	if network(m) != domain.ProtocolWhatsApp {
+		t.Errorf("after a room was renamed, Only WhatsApp's network = %q, want WhatsApp", network(m))
+	}
+}
