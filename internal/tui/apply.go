@@ -131,8 +131,10 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m.notifications.on = cfg.Notifications.Enabled
 
 	m = m.say(done)
+	// A room named or unnamed renames or unnames the person it is named after.
+	m, peers := m.refreshPeers()
 	// A just-archived room needs its parent space resolved to be filed in the rail.
-	return m, m.resolveParentsCmd()
+	return m, tea.Batch(m.resolveParentsCmd(), peers)
 }
 
 // adoptConfig makes a configuration changed elsewhere (another window, a hand edit,

@@ -45,6 +45,8 @@ type derivedKey struct {
 	// members is the member list's revision: it names a person a mention writes only
 	// as a number (knownName), and arrives after the messages.
 	members uint64
+	// peers is the room-named people's revision (peeralias.go).
+	peers uint64
 }
 
 // fnvOffset and fnvMix are FNV-1a over strings, each followed by a separator so "1","23"
@@ -113,6 +115,7 @@ func (m Model) keyFor() derivedKey {
 		selves:  selvesFingerprint(m.selves),
 		phones:  m.dir.rev,
 		members: m.timeline.membersRev,
+		peers:   m.peers.rev,
 	}
 	if room, ok := m.roomByID(m.openRoom); ok {
 		k.place = placeFingerprint(m.factsFor(room))

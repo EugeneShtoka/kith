@@ -110,6 +110,17 @@ func ProtocolOf(mxid string) Protocol {
 	return ProtocolMatrix
 }
 
+// IsBridgeBot reports whether mxid is a bridge's own bot (@telegrambot), not a person
+// the bridge puts in rooms.
+func IsBridgeBot(mxid string) bool {
+	local := strings.TrimPrefix(mxid, "@")
+	if colon := strings.IndexByte(local, ':'); colon >= 0 {
+		local = local[:colon]
+	}
+	_, ok := botProtocol(strings.ToLower(local))
+	return ok
+}
+
 // botProtocol recognizes a bridge's own bot from its localpart: the network's token,
 // then "bot", then optionally an instance name.
 func botProtocol(local string) (Protocol, bool) {

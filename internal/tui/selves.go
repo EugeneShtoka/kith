@@ -25,7 +25,7 @@ func (m Model) handleSelves(msg selvesMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		m.selves = msg.ids
 	}
-	return m, nil
+	return m.withPeerAliases(), nil
 }
 
 // isMe reports whether id is this person: any ID the daemon says is theirs, on any
