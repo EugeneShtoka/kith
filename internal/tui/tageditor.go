@@ -266,7 +266,7 @@ func (m Model) tagEntriesOpen(name, list string) Model {
 	items = append(items, pickerItem{label: add, value: tagAdd, match: add})
 	m.choosing.tag = tagEditing{tag: m.conf.base.Tags[at].Name, list: list}
 	spec := pickerSpecs[pickerTagEntries]
-	spec.title = m.conf.base.Tags[at].Name + ": " + list + " — enter edits, empty removes"
+	spec.title = m.conf.base.Tags[at].Name + ": " + list
 	m.picker = newPickerWith(pickerTagEntries, spec, items)
 	return m
 }
@@ -302,6 +302,17 @@ func (m Model) chooseTagEntry(value string) (Model, tea.Cmd) {
 	}
 	m.choosing.tag.entry = i
 	return m.openPromptWith(promptTagEntry, entries[i]), nil
+}
+
+// removeTagEntry takes the entry under the cursor out of the tag's list, as emptying it
+// would.
+func (m Model) removeTagEntry() (Model, tea.Cmd) {
+	item, ok := m.picker.selected()
+	if !ok || item.value == tagAdd {
+		return m, nil
+	}
+	m.choosing.tag.entry = atoiSafe(item.value)
+	return m.submitTagEntry("")
 }
 
 // submitTagEntry writes the prompt's entry: empty removes the one being edited.

@@ -107,6 +107,23 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	}
 }
 
+// x removes the tag list's entry under the cursor without typing it out.
+func TestXRemovesATagEntry(t *testing.T) {
+	t.Parallel()
+	m, _ := editingTag(t, "Pinned")
+	m = pickLabel(t, m, "Rule")
+	m = pickLabel(t, m, "Add a term")
+	m = typeIn(t, m, "space:Work")
+	m.picker.cursor = 0
+	m, _ = press(t, m, keyText("x"))
+	if got := m.conf.base.Tags[m.configTag("Pinned")].Rule; len(got) != 0 {
+		t.Errorf("rule = %v, want the term removed", got)
+	}
+	if m.picker.kind != pickerTagEntries {
+		t.Errorf("after x: picker %v, want the list back", m.picker.kind)
+	}
+}
+
 // A new tag is made by name and opens in the editor.
 func TestMakingATag(t *testing.T) {
 	t.Parallel()

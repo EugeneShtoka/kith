@@ -1532,6 +1532,8 @@ decrease  = "minus"      # lower the number under the cursor
 move_up   = "K"          # move the entry under the cursor up
 # In a settings list.
 move_down = "J"          # move the entry under the cursor down
+# In a settings or tag list.
+remove    = "x"          # remove the entry under the cursor
 # Asks first.
 kick      = "r"          # remove the person under the cursor from this room
 # Asks first.

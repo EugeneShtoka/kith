@@ -98,6 +98,7 @@ const (
 	actDecrease      // and down
 	actMoveEntryUp   // the entry under the cursor up a place (a settings list)
 	actMoveEntryDown // and down
+	actRemoveEntry   // the entry under the cursor out of its list (a settings or tag list)
 	actAcceptPick
 	actClosePick
 	actName
@@ -460,6 +461,7 @@ var keyActions = []keyAction{
 	{scopePicker, actDecrease, "picker.decrease"},
 	{scopePicker, actMoveEntryUp, "picker.move_up"},
 	{scopePicker, actMoveEntryDown, "picker.move_down"},
+	{scopePicker, actRemoveEntry, "picker.remove"},
 	{scopePicker, actAcceptPick, "picker.accept"},
 	{scopePicker, actClosePick, "picker.close"},
 

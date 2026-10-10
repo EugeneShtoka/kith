@@ -154,3 +154,36 @@ func TestTheSettingsTextIsShownBeneathTheList(t *testing.T) {
 		t.Errorf("the fps row's text is not shown:\n%s", view)
 	}
 }
+
+// x removes the entry under the cursor, saved at once, the cursor staying in place;
+// on the add row it does nothing, and while the list is being filtered it is typed.
+func TestXRemovesAListEntry(t *testing.T) {
+	t.Parallel()
+	m, path := opened(t, config.Notifications{Enabled: true})
+	m = m.settingEntriesOpen("display.rooms.sort", "1") // recent
+	m = pressedThrough(t, m, keyText("x"))
+	if got := m.conf.base.Display.Rooms.Sort; !slices.Equal(got, []string{"unread", "name"}) {
+		t.Fatalf("after x on recent: %v", got)
+	}
+	if item, _ := m.picker.selected(); m.picker.kind != pickerSettingEntries || item.label != "name" {
+		t.Errorf("after x: picker %v on %q, want the list on the next entry", m.picker.kind, item.label)
+	}
+	reloaded, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(reloaded.Display.Rooms.Sort, []string{"unread", "name"}) {
+		t.Errorf("saved %v", reloaded.Display.Rooms.Sort)
+	}
+	m = m.settingEntriesOpen("display.rooms.sort", settingAdd)
+	m, _ = press(t, m, keyText("x"))
+	if got := m.conf.base.Display.Rooms.Sort; len(got) != 2 {
+		t.Errorf("x on the add row: %v", got)
+	}
+	m = m.settingEntriesOpen("display.rooms.sort", "0")
+	m, _ = press(t, m, keyText("i"))
+	m, _ = press(t, m, keyText("x"))
+	if got := m.conf.base.Display.Rooms.Sort; len(got) != 2 || m.picker.filter != "x" {
+		t.Errorf("x while filtering: list %v, filter %q", got, m.picker.filter)
+	}
+}

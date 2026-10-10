@@ -298,6 +298,7 @@ type PickerKeys struct {
 	Decrease string `toml:"decrease"`
 	MoveUp   string `toml:"move_up"`
 	MoveDown string `toml:"move_down"`
+	Remove   string `toml:"remove"`
 	Accept   string `toml:"accept"`
 	Close    string `toml:"close"`
 }

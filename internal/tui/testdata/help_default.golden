@@ -160,6 +160,7 @@
   -                lower the number under the cursor
   K                move the entry under the cursor up
   J                move the entry under the cursor down
+  x                remove the entry under the cursor
   enter, tab       choose the item under the cursor, or apply the ticked ones
   esc              stop typing, then close
 
