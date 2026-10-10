@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -41,6 +42,9 @@ type fake struct {
 	withAsked []string
 	// selves is who the daemon says this person is; nil is @me:x.
 	selves []string
+	// files is each attachment's bytes, by message; loaded the event IDs fetched.
+	files  map[domain.EventID][]byte
+	loaded []domain.EventID
 
 	// sendErr and queueErr drive the send → queue → draft ladder.
 	sendErr  error
@@ -48,6 +52,15 @@ type fake struct {
 	sent     []domain.Draft
 	queued   []domain.ScheduledMessage
 	drafts   map[domain.RoomID]domain.StoredDraft
+}
+
+func (f *fake) LoadImage(_ context.Context, _ domain.RoomID, event domain.EventID) ([]byte, error) {
+	f.loaded = append(f.loaded, event)
+	data, ok := f.files[event]
+	if !ok {
+		return nil, errors.New("no such file")
+	}
+	return data, nil
 }
 
 func (f *fake) Send(_ context.Context, room domain.RoomID, draft domain.Draft) error {

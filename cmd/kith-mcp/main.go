@@ -88,6 +88,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 		send:     cfg.Agent.Write.Send,
 		aliases:  setup.Aliases(cfg.Display.Identities),
 		cooldown: cooldown,
+		files:    storage.AgentFilesDir(),
 		log:      log,
 	}
 	// Without a ledger the read tools still work; send_message refuses.
@@ -160,6 +161,7 @@ type reader interface {
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	Selves(ctx context.Context) ([]string, error)
 	Directory(ctx context.Context) (domain.Directory, error)
+	LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 }
 
 // writer is everything this binary can change. Nothing here can edit or delete.
@@ -205,6 +207,8 @@ type server struct {
 	client string
 	// places are the room names, space order and pins every scope reads a room with.
 	places domain.Places
+	// files is where get_attachment puts a file that is not an image.
+	files string
 	// log is stderr; nil (a test) logs nothing.
 	log *slog.Logger
 }

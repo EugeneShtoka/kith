@@ -125,6 +125,9 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 		s.logger().Warn("tool call failed", "tool", t.name, "err", err)
 		return toolError(err)
 	}
+	if c, ok := result.(toolContent); ok {
+		return map[string]any(c)
+	}
 	return asJSON(result)
 }
 
@@ -218,6 +221,18 @@ var tools = []tool{
 		run: (*server).readAround,
 	},
 	{
+		name: "get_attachment",
+		summary: "Fetch the file a message carries (a message with an \"attachment\" in read_room, " +
+			"read_around or search_messages). An image comes back as the image itself, to look at. " +
+			"Any other file (a document, a voice message, a video) is saved on this machine and its " +
+			"path returned, to open with your own file tools.",
+		schema: schema(map[string]any{
+			"room":  str("the room's ID, or its name as shown in the client"),
+			"event": str("the message's event ID"),
+		}, "room", "event"),
+		run: (*server).getAttachment,
+	},
+	{
 		name: "unread_summary",
 		summary: "What is waiting: the rooms with unread messages, and how many. " +
 			"Use it to answer 'what have I missed'.",
@@ -237,7 +252,7 @@ var tools = []tool{
 			"To answer inside a thread, pass the thread (read_room with thread shows it).",
 		schema: schema(map[string]any{
 			"room": str("the room's ID, or its name as shown in the client"),
-			"text": str("the message, exactly as it should appear, except that a long dash (—) is written as an en dash (–)"),
+			"text": str("the message, exactly as it should appear, except that every long dash (— or –) is written as a hyphen (-)"),
 			"thread": str("optional: write into this thread — its root's event ID, or any message's in it " +
 				"(a message's \"thread\" field). Without it the message goes to the room's main timeline"),
 			"reply_to": str("optional: the event ID of the message this answers. A message in a thread " +
@@ -274,6 +289,23 @@ type messageView struct {
 	// Thread is the root of the thread this message is in; ReplyTo is what it answers.
 	Thread  string `json:"thread,omitempty"`
 	ReplyTo string `json:"reply_to,omitempty"`
+	// Attachment is the file the message carries, which get_attachment fetches.
+	Attachment *attachmentView `json:"attachment,omitempty"`
+}
+
+// attachmentView is what a message's file is, without its bytes.
+type attachmentView struct {
+	Kind string `json:"kind"`
+	Name string `json:"name,omitempty"`
+	Mime string `json:"mime,omitempty"`
+	Size int    `json:"size_bytes,omitempty"`
+}
+
+func attachmentOf(m *domain.Media) *attachmentView {
+	if m == nil {
+		return nil
+	}
+	return &attachmentView{Kind: string(m.Type), Name: m.Name, Mime: m.Mime, Size: m.Size}
 }
 
 func (s *server) view(msg domain.Message, withRoom bool) messageView {
@@ -282,20 +314,21 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 		return s.people.Name(mn.UserID, mn.Known, words)
 	})
 	out := messageView{
-		EventID: string(msg.ID),
-		Sender:  msg.Sender,
-		Name:    s.people.Name(msg.Sender, msg.SenderName),
-		Sent:    msg.Timestamp.Format(time.RFC3339),
-		Body:    body,
-		Mine:    msg.Sender != "" && slices.Contains(s.selves, msg.Sender),
-		Thread:  string(msg.ThreadRoot),
-		ReplyTo: string(msg.ReplyTo),
+		EventID:    string(msg.ID),
+		Sender:     msg.Sender,
+		Name:       s.people.Name(msg.Sender, msg.SenderName),
+		Sent:       msg.Timestamp.Format(time.RFC3339),
+		Body:       body,
+		Mine:       msg.Sender != "" && slices.Contains(s.selves, msg.Sender),
+		Thread:     string(msg.ThreadRoot),
+		ReplyTo:    string(msg.ReplyTo),
+		Attachment: attachmentOf(msg.Media),
 	}
 	if withRoom {
 		out.Room = string(msg.RoomID)
 	}
 	if msg.Redacted {
-		out.Body = "(deleted)"
+		out.Body, out.Attachment = "(deleted)", nil
 	}
 	return out
 }

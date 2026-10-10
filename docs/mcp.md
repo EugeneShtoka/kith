@@ -71,7 +71,7 @@ When a session starts, the server sends the assistant instructions: reading come
 
 ## Tools
 
-Eight tools: seven read, one writes. A room argument accepts a room ID or the room's name as the client shows it. Exact matches win. A partial name that matches several rooms is an error that lists the candidates, so the tool never guesses. Every room and person in an answer carries both an ID and a display name.
+Nine tools: eight read, one writes. A room argument accepts a room ID or the room's name as the client shows it. Exact matches win. A partial name that matches several rooms is an error that lists the candidates, so the tool never guesses. Every room and person in an answer carries both an ID and a display name.
 
 ### Reading
 
@@ -83,9 +83,10 @@ Eight tools: seven read, one writes. A room argument accepts a room ID or the ro
 | `read_room` | `room` (required), `limit` (default 40, max 200), `sender` (optional Matrix ID), `thread` (optional: a thread's root, or any message in it) | The latest messages, oldest first; with `thread`, only that thread |
 | `search_messages` | `query` (required), `room`, `sender`, `since` (RFC 3339), `limit` (default 20, max 100) | Full-text hits across the cache |
 | `read_around` | `room` (required), `event` (required, an event ID), `before` (default 5, max 50), `after` (default 10, max 50) | The conversation around one message |
+| `get_attachment` | `room` (required), `event` (required, an event ID) | The message's file: a PNG, JPEG, GIF or WebP picture as the image itself; any other file saved under kith's cache folder (`agent-files-<instance>`) and returned as its `path`. Files over 20 MB are refused |
 | `unread_summary` | `limit` (default 20, max 100) | Rooms with unread messages, and how many |
 
-Each message carries `event_id`, `sender`, `sender_name`, `sent` (RFC 3339) and `body`, plus `mine: true` on your own messages, `thread` (the root's event ID) on a message in a thread, and `reply_to` on a reply. A deleted message has the body `(deleted)`. People are named as you know them: `sender_name`, and every person a mention in `body` names, is your alias for them, a name you saved for them on any account, their display name now, or the name they chose, always whole (a space's first-name rule is for the screen, not for the assistant).
+Each message carries `event_id`, `sender`, `sender_name`, `sent` (RFC 3339) and `body`, plus `mine: true` on your own messages, `thread` (the root's event ID) on a message in a thread, and `reply_to` on a reply, and `attachment` (`kind`, `name`, `mime`, `size_bytes`) on a message with a file, which `get_attachment` fetches. A deleted message has the body `(deleted)` and no attachment. People are named as you know them: `sender_name`, and every person a mention in `body` names, is your alias for them, a name you saved for them on any account, their display name now, or the name they chose, always whole (a space's first-name rule is for the screen, not for the assistant).
 
 Search matches terms, not meaning. The tool description tells the assistant to retry with the words someone would actually have typed, in their own language, and to use `read_around` on a hit to see the full exchange.
 
@@ -94,7 +95,7 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 | Parameter | Meaning |
 | --- | --- |
 | `room` | The room's ID or name |
-| `text` | The message, exactly as it should appear; nothing is added to it. A long dash (— or ―) is written as an en dash (–), whether the message is sent or drafted |
+| `text` | The message, exactly as it should appear; nothing is added to it. Every dash longer than a hyphen (—, ―, – or ‒) is written as a hyphen (-), whether the message is sent or drafted |
 | `thread` | Optional: write into this thread, named by its root or any message in it |
 | `reply_to` | Optional: the event ID of the message this answers. A reply to a message in a thread goes into that thread |
 

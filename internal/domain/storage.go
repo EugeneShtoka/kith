@@ -43,6 +43,11 @@ func (s Storage) LedgerPath() string {
 	return filepath.Join(s.StateDir, "agent-sends-"+s.Instance+".jsonl")
 }
 
+// AgentFilesDir is where kith-mcp puts the attachments an assistant asks for.
+func (s Storage) AgentFilesDir() string {
+	return filepath.Join(s.CacheDir, "agent-files-"+s.Instance)
+}
+
 // SchedulePath is the send-later queue.
 func (s Storage) SchedulePath() string {
 	return filepath.Join(s.StateDir, "scheduled-"+s.Instance+".toml")
