@@ -30,7 +30,7 @@ func TestAChatIsMadeOnTelegram(t *testing.T) {
 		mu.Lock()
 		made = req
 		mu.Unlock()
-		return s.SendResult(r, &tg.Updates{Date: 1000, Chats: []tg.ChatClass{
+		return sendResult(s, r, &tg.Updates{Date: 1000, Chats: []tg.ChatClass{
 			&tg.Channel{ID: 77, AccessHash: 770, Title: req.Title, Megagroup: true, Forum: true, Photo: &tg.ChatPhotoEmpty{}},
 		}})
 	})
@@ -42,7 +42,7 @@ func TestAChatIsMadeOnTelegram(t *testing.T) {
 		mu.Lock()
 		invited = req.Users
 		mu.Unlock()
-		return s.SendResult(r, &tg.MessagesInvitedUsers{Updates: &tg.Updates{Date: 1000}})
+		return sendResult(s, r, &tg.MessagesInvitedUsers{Updates: &tg.Updates{Date: 1000}})
 	})
 	st := openStore(t)
 	knowDana(t, st)
