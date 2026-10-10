@@ -71,7 +71,7 @@ The rail's order and hidden rows are `[display.rail]` (`order`, `hidden`); a spa
 tag's first-names-only rule is a `[[display.space_rule]]`.
 
 These write to your config for you (a tag is renamed in its `[[tag]]`, not with `a`;
-name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` takes a space's name or a tag as `tag:<name>`, with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing. Without an `order`, tags come first, then spaces.
+name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` takes a space's name or a tag as `tag:<name>` (a bare name no space has means the row the rail shows by that name, a tag's included), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing. Without an `order`, tags come first, then spaces.
 
 ```toml
 [display.rail]

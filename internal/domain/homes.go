@@ -24,17 +24,18 @@ type HomeOrder struct {
 	Rail []string
 	// Tags is every tag's name, in config order.
 	Tags []string
-	// Every is the tags holding every room, and Managed the network's own spaces, by
-	// lower-cased name.
+	// Every is the tags holding every room, Managed the network's own spaces, and
+	// Spaces every space known, by lower-cased name.
 	Every   map[string]bool
 	Managed map[string]bool
+	Spaces  map[string]bool
 }
 
 // NewHomeOrder is the home order the config gives (priority, rail order, tags), with
 // the network's own spaces among spaces marked; spaces may be nil where they are not
 // known yet (Places.Facts marks a room's own from its holders).
 func NewHomeOrder(priority, rail []string, tags TagSet, spaces []Space) HomeOrder {
-	o := HomeOrder{Priority: priority, Rail: rail, Every: map[string]bool{}, Managed: map[string]bool{}}
+	o := HomeOrder{Priority: priority, Rail: rail, Every: map[string]bool{}, Managed: map[string]bool{}, Spaces: map[string]bool{}}
 	for i := range tags.Len() {
 		name := tags.At(i).Name
 		o.Tags = append(o.Tags, strings.ToLower(strings.TrimSpace(name)))
@@ -48,6 +49,14 @@ func NewHomeOrder(priority, rail []string, tags TagSet, spaces []Space) HomeOrde
 // WithManaged is o with the network's own spaces among spaces marked too; o itself
 // is left as it was (its map may be shared).
 func (o HomeOrder) WithManaged(spaces []Space) HomeOrder {
+	if len(spaces) > 0 {
+		known := make(map[string]bool, len(o.Spaces)+len(spaces))
+		maps.Copy(known, o.Spaces)
+		for i := range spaces {
+			known[strings.ToLower(strings.TrimSpace(spaces[i].DisplayName()))] = true
+		}
+		o.Spaces = known
+	}
 	marked := false
 	for i := range spaces {
 		if spaces[i].Managed() || spaces[i].IsBridged() {
@@ -85,10 +94,10 @@ func (o HomeOrder) rank(home string) homeRank {
 	if isTag && o.Every[strings.ToLower(tag)] {
 		return homeRank{tier: 3}
 	}
-	if at := indexFold(o.Priority, key); at >= 0 {
+	if at := o.indexIn(o.Priority, key, tag, isTag); at >= 0 {
 		return homeRank{tier: 0, at: at}
 	}
-	if at := indexFold(o.Rail, key); at >= 0 {
+	if at := o.indexIn(o.Rail, key, tag, isTag); at >= 0 {
 		return homeRank{tier: 1, at: at}
 	}
 	// The rest go where "*" stands, or after the rail when it has none.
@@ -104,6 +113,19 @@ func (o HomeOrder) rank(home string) homeRank {
 	default:
 		return homeRank{tier: 1, at: rest, within: len(o.Tags)}
 	}
+}
+
+// indexIn is where list names a home (lower-cased key): as written, or, for a tag, by
+// its bare name when no space is called that, as the rail reads a bare name.
+func (o HomeOrder) indexIn(list []string, key, tag string, isTag bool) int {
+	if at := indexFold(list, key); at >= 0 || !isTag {
+		return at
+	}
+	bare := strings.ToLower(strings.TrimSpace(tag))
+	if o.Spaces[bare] {
+		return -1
+	}
+	return indexFold(list, bare)
 }
 
 // Sort is homes in this order. Homes that rank alike (two spaces neither priority nor

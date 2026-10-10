@@ -374,9 +374,11 @@ hide_when_empty = true
 name = "All"
 rule = ["*"]
 
-# Rail layout, by group key: a space's name, tag:<name>. "-" draws a divider after the
-# preceding group; "*" stands for every group not named. Unlisted groups (with no "*")
-# follow in default order. A tag marked `first` goes to the top unless named here.
+# Rail layout, by group key: a space's name, tag:<name>. A name that is neither is
+# matched, in any case, to the row the rail shows by that name (a tag's bare name, a
+# renamed space). "-" draws a divider after the preceding group; "*" stands for every
+# group not named. Unlisted groups (with no "*") follow in default order. A tag marked
+# `first` goes to the top unless named here.
 #
 # Rename a space's row with [[display.name]] (target = "space:Work").
 [display.rail]

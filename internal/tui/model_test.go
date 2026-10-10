@@ -2564,3 +2564,30 @@ func TestTheCommandMatchersKnowTheirCommands(t *testing.T) {
 		}
 	}
 }
+
+// An order entry names a group as hidden does: by its key, else by its name on the
+// rail in any case, so a tag's bare name places the tag; a space of that name keeps it.
+func TestRailOrderPlacesATagByItsName(t *testing.T) {
+	t.Parallel()
+	keys := func(gs []group) string {
+		out := make([]string, len(gs))
+		for i, g := range gs {
+			out[i] = g.key
+		}
+		return strings.Join(out, ",")
+	}
+	three := threeTags(t)
+	spaces := []domain.Space{{ID: "!w:x", Name: "Work"}, {ID: "!f:x", Name: "Friends"}}
+	got := railGroups(spaces, config.Rail{Order: []string{"unread", "Work", "-", "*"}}, nil, three, nil)
+	if keys(got) != "tag:Unread,Work,tag:All,tag:DMs,Friends" {
+		t.Errorf("order by a tag's name = %q", keys(got))
+	}
+	if !got[1].sepAfter || got[0].sepAfter {
+		t.Errorf("the divider after Work moved: %+v", got)
+	}
+	spaces = append(spaces, domain.Space{ID: "!d:x", Name: "DMs"})
+	got = railGroups(spaces, config.Rail{Order: []string{"dms", "*"}}, nil, three, nil)
+	if got[0].key != "DMs" {
+		t.Errorf("a space named like a tag: first = %q, want the space", got[0].key)
+	}
+}

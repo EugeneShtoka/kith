@@ -182,3 +182,17 @@ func expectedHome(order HomeOrder, spaces, tags []string, all []Space) string {
 		return strings.Compare(strings.ToLower(a), strings.ToLower(b))
 	})
 }
+
+// A home order names a tag by its bare name, as the rail does, unless a space is
+// called that.
+func TestAHomeOrderNamesATagByItsName(t *testing.T) {
+	t.Parallel()
+	o := HomeOrder{Rail: []string{"Services", "Work"}}
+	if got := Homes([]string{"Work"}, []string{"Services"}, o); got[0] != "tag:Services" {
+		t.Errorf("homes = %q, want the tag the rail names first", got)
+	}
+	o = o.WithManaged([]Space{{ID: "!s:x", Name: "Services"}})
+	if got := Homes([]string{"Work"}, []string{"Services"}, o); got[0] != "Work" {
+		t.Errorf("with a space called Services, homes = %q, want Work first", got)
+	}
+}
