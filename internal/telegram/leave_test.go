@@ -31,13 +31,13 @@ func TestLeavingAForumTakesItsTopicsWithIt(t *testing.T) {
 		mu.Lock()
 		left = append(left, "channel")
 		mu.Unlock()
-		return s.SendResult(r, &tg.Updates{})
+		return sendResult(s, r, &tg.Updates{})
 	})
 	d.HandleFunc(tg.MessagesDeleteChatUserRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
 		mu.Lock()
 		left = append(left, "chat")
 		mu.Unlock()
-		return s.SendResult(r, &tg.Updates{})
+		return sendResult(s, r, &tg.Updates{})
 	})
 	st := openStore(t)
 	if err := st.SetChannelAccessHash(t.Context(), 42, forum, 310); err != nil {
@@ -111,7 +111,7 @@ func TestAPrivateChatIsDeletedNotLeft(t *testing.T) {
 		if parts == 1 {
 			offset = 100 // a long history: one more part to go
 		}
-		return s.SendResult(r, &tg.MessagesAffectedHistory{Offset: offset})
+		return sendResult(s, r, &tg.MessagesAffectedHistory{Offset: offset})
 	})
 	st := openStore(t)
 	if err := st.SetUserAccessHash(t.Context(), 42, 7, 77); err != nil {

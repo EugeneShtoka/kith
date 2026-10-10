@@ -61,7 +61,7 @@ func TestAnAttachmentIsDownloadedByAFreshReference(t *testing.T) {
 	d := f.cluster.Dispatch(2, "dc2")
 	content := bytes.Repeat([]byte("voice"), 100)
 	d.HandleFunc(tg.MessagesGetMessagesRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
-		return s.SendResult(r, &tg.MessagesMessages{Messages: []tg.MessageClass{&tg.Message{
+		return sendResult(s, r, &tg.MessagesMessages{Messages: []tg.MessageClass{&tg.Message{
 			ID: 5, PeerID: &tg.PeerUser{UserID: 7}, Date: 1000,
 			Media: &tg.MessageMediaDocument{Document: &tg.Document{ID: 9, AccessHash: 90, FileReference: []byte("fresh"), MimeType: "audio/ogg", Size: int64(len(content)),
 				Attributes: []tg.DocumentAttributeClass{&tg.DocumentAttributeAudio{Voice: true}}}},
@@ -80,7 +80,7 @@ func TestAnAttachmentIsDownloadedByAFreshReference(t *testing.T) {
 			mu.Unlock()
 		}
 		part := content[min(int(req.Offset), len(content)):min(int(req.Offset)+req.Limit, len(content))]
-		return s.SendResult(r, &tg.UploadFile{Type: &tg.StorageFilePartial{}, Bytes: part, Mtime: 1})
+		return sendResult(s, r, &tg.UploadFile{Type: &tg.StorageFilePartial{}, Bytes: part, Mtime: 1})
 	})
 	st := openStore(t)
 	knowDana(t, st)
@@ -104,7 +104,7 @@ func TestAFileSentGoesAsWhatItIs(t *testing.T) {
 	f.serveUpdates(&updatesOf{pts: 1})
 	d := f.cluster.Dispatch(2, "dc2")
 	d.HandleFunc(tg.UploadSaveFilePartRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
-		return s.SendResult(r, &tg.BoolTrue{})
+		return sendResult(s, r, &tg.BoolTrue{})
 	})
 	var mu sync.Mutex
 	var sent []tg.InputMediaClass
@@ -124,7 +124,7 @@ func TestAFileSentGoesAsWhatItIs(t *testing.T) {
 		if _, ok := req.Media.(*tg.InputMediaUploadedPhoto); ok {
 			media = &tg.MessageMediaPhoto{Photo: &tg.Photo{ID: 2, Sizes: []tg.PhotoSizeClass{&tg.PhotoSize{Type: "x", W: 2, H: 2, Size: 70}}}}
 		}
-		return s.SendResult(r, &tg.Updates{Updates: []tg.UpdateClass{
+		return sendResult(s, r, &tg.Updates{Updates: []tg.UpdateClass{
 			&tg.UpdateMessageID{ID: id, RandomID: req.RandomID},
 			&tg.UpdateNewMessage{Message: &tg.Message{ID: id, Out: true, PeerID: &tg.PeerUser{UserID: 7}, Message: req.Message, Date: int(time.Now().Unix()), Media: media}, Pts: 1 + id - 20, PtsCount: 1},
 		}, Users: []tg.UserClass{dana, f.user}, Date: int(time.Now().Unix())})

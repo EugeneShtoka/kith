@@ -56,7 +56,7 @@ func TestAPollIsReadUpdatedAndVotedIn(t *testing.T) {
 		mu.Lock()
 		voted = req.Options
 		mu.Unlock()
-		return s.SendResult(r, &tg.Updates{Date: 2000, Updates: []tg.UpdateClass{&tg.UpdateMessagePoll{
+		return sendResult(s, r, &tg.Updates{Date: 2000, Updates: []tg.UpdateClass{&tg.UpdateMessagePoll{
 			Peer: &tg.PeerChat{ChatID: 11}, MsgID: 5, PollID: 777,
 			Results: tg.PollResults{TotalVoters: 3, Results: []tg.PollAnswerVoters{{Option: []byte{0}, Voters: 1}, {Option: []byte{1}, Voters: 2, Chosen: true}}},
 		}}})
@@ -131,7 +131,7 @@ func TestAPollsVotersAreRead(t *testing.T) {
 			poll := hike()
 			poll.Poll.PublicVoters = c.public
 			d.HandleFunc(tg.MessagesGetMessagesRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
-				return s.SendResult(r, &tg.MessagesMessages{Messages: []tg.MessageClass{&tg.Message{
+				return sendResult(s, r, &tg.MessagesMessages{Messages: []tg.MessageClass{&tg.Message{
 					ID: 5, PeerID: &tg.PeerChat{ChatID: 11}, Date: 1000, Media: poll, FromID: &tg.PeerUser{UserID: 7},
 				}}, Users: []tg.UserClass{dana}})
 			})
@@ -149,12 +149,12 @@ func TestAPollsVotersAreRead(t *testing.T) {
 					return s.SendErr(r, tgerr.New(403, c.denied))
 				}
 				if req.Offset == "" {
-					return s.SendResult(r, &tg.MessagesVotesList{Count: 3, NextOffset: "page2", Votes: []tg.MessagePeerVoteClass{
+					return sendResult(s, r, &tg.MessagesVotesList{Count: 3, NextOffset: "page2", Votes: []tg.MessagePeerVoteClass{
 						&tg.MessagePeerVoteMultiple{Peer: &tg.PeerUser{UserID: 7}, Options: [][]byte{{0}, {1}}},
 						&tg.MessagePeerVote{Peer: &tg.PeerUser{UserID: 8}, Option: []byte{1}},
 					}, Users: []tg.UserClass{dana, &tg.User{ID: 8, FirstName: "Eli", LastName: "Stone"}}})
 				}
-				return s.SendResult(r, &tg.MessagesVotesList{Count: 3, Votes: []tg.MessagePeerVoteClass{
+				return sendResult(s, r, &tg.MessagesVotesList{Count: 3, Votes: []tg.MessagePeerVoteClass{
 					&tg.MessagePeerVote{Peer: &tg.PeerChannel{ChannelID: 30}, Option: []byte{0}},
 					&tg.MessagePeerVoteInputOption{Peer: &tg.PeerUser{UserID: 9}},
 				}, Chats: []tg.ChatClass{&tg.Channel{ID: 30, AccessHash: 300, Title: "Hiking Club", Photo: &tg.ChatPhotoEmpty{}}}})
