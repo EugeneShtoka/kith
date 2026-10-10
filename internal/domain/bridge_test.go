@@ -82,3 +82,22 @@ func TestRepliesAreThreads(t *testing.T) {
 		}
 	}
 }
+
+// A bridge's own bot is not one of the people it puts in rooms.
+func TestIsBridgeBot(t *testing.T) {
+	t.Parallel()
+	for mxid, want := range map[string]bool{
+		"@telegrambot:x":      true,
+		"@whatsappbot_il:x":   true,
+		"@LinkedInBot:x":      true,
+		"@telegram_123456:x":  false,
+		"@linkedin_abc:x":     false,
+		"@telegrambotanist:x": false,
+		"@alice:x":            false,
+		"":                    false,
+	} {
+		if got := domain.IsBridgeBot(mxid); got != want {
+			t.Errorf("IsBridgeBot(%q) = %v, want %v", mxid, got, want)
+		}
+	}
+}

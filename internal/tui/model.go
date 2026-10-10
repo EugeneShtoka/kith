@@ -557,6 +557,8 @@ type Model struct {
 	selves []string
 	// dir is the daemon's directory (directory.go): who people are, on every network.
 	dir directoryState
+	// peers is who each room you named is named after (peeralias.go).
+	peers peerState
 	// roomAccounts is each network account the room list has had rooms from (see
 	// selvesAfterRooms); nil before the first list.
 	roomAccounts []string
@@ -1213,7 +1215,8 @@ func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
 	next, cmd := m.handleRooms(msg)
 	next, offer := next.maybeOfferDictionaries()
 	next, selves := next.selvesAfterRooms(msg.rooms)
-	return next, tea.Batch(cmd, offer, selves, next.directoryCmd())
+	next, peers := next.refreshPeers()
+	return next, tea.Batch(cmd, offer, selves, next.directoryCmd(), peers)
 }
 
 // handleSideMsg handles account-wide loads, verification, and reactions and images
@@ -1226,6 +1229,8 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDirectory(msg))
 	case selvesMsg:
 		return answered(m.handleSelves(msg))
+	case peerMembersMsg:
+		return answered(m.handlePeerMembers(msg))
 	case searchSendersMsg:
 		return answered(m.handleSearchSenders(msg))
 	case lastMessagesMsg:

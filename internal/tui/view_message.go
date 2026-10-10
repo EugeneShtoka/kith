@@ -495,12 +495,16 @@ func (m Model) people() domain.People {
 	return domain.People{Alias: m.aliasOf, Dir: m.dir.dir}
 }
 
-// aliasOf is the person's own name for userID, "" for none.
+// aliasOf is the person's own name for userID, "" for none: an identity's alias, else
+// the name of a room named after them.
 func (m Model) aliasOf(userID string) string {
 	if alias := m.prefs.aliases[userID]; alias != "" {
 		return alias
 	}
-	return m.prefs.identities[userID].alias
+	if alias := m.prefs.identities[userID].alias; alias != "" {
+		return alias
+	}
+	return m.peers.aliases[userID]
 }
 
 // styleMentions renders seg with each mentioned name in its color (bold) and the
@@ -604,10 +608,14 @@ func (m Model) personIn(room domain.RoomID, sender, name string) string {
 }
 
 // processedName is the sender label after applying the display rules: a merged
-// identity's alias supplies the name when there is one, and shapedName shapes it.
+// identity's alias supplies the name when there is one, else the name of a room named
+// after them (peeralias.go), and shapedName shapes it.
 func (m Model) processedName(msg domain.Message) string {
 	if id, ok := m.prefs.identities[msg.Sender]; ok && id.alias != "" {
 		return m.shapedName(id.alias, msg.RoomID)
+	}
+	if alias := m.peers.aliases[msg.Sender]; alias != "" {
+		return m.shapedName(alias, msg.RoomID)
 	}
 	return m.shapedName(m.byNumber(senderLabel(msg)), msg.RoomID)
 }

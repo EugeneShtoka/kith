@@ -42,6 +42,7 @@ var rowReads = map[string]string{
 	"openRoom":                   "derivedKey.room",
 	"dir.dir":                    "derivedKey.phones (dir.rev moves with the directory)",
 	"selves":                     "derivedKey.selves (a poll names this person \"you\" among its voters)",
+	"peers.aliases":              "derivedKey.peers (peers.rev moves whenever aliases changes)",
 	"timeline.layout.room":       "derivedKey.rtl (mirrored)",
 	"timeline.layout.rtl":        "derivedKey.rtl (mirrored)",
 	// Set only by applyConfig, which bumps conf.rev (derivedKey.cfg).
@@ -198,6 +199,7 @@ var derivedReads = map[string]string{
 	"theme":             "derivedKey.cfg",
 	"selves":            "derivedKey.selves",
 	"dir.dir":           "derivedKey.phones (dir.rev moves with the directory)",
+	"peers.aliases":     "derivedKey.peers (peers.rev moves whenever aliases changes)",
 }
 
 // TestTheDerivedCacheReadsOnlyKeyedState walks computeDerived's calls and reads, as
