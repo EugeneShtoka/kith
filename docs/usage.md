@@ -117,7 +117,10 @@ the room ticked. Ticking a tag puts the room in it, unticking takes it out; `/ta
 <name>` does the same for one tag from the composer, and `/tag` alone opens the
 picker. Either way kith writes the tag's `picked` or `excluded` list, whichever says it
 with less: a room the rule already holds is not picked, and one it does not hold is
-not excluded.
+not excluded. The picker's last rows make something new with the room in it: **New
+tag**, and, on a Matrix room (bridged chats included), **New space**, a Matrix space
+your other clients see too. A room of kith's own WhatsApp or Telegram connection is not
+a Matrix room, so only a tag can hold it.
 
 A tag can also change how its rooms behave elsewhere (each off unless set):
 
