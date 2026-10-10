@@ -176,6 +176,7 @@ func TestParseColor(t *testing.T) {
 		{"#ABCDEF", "#ABCDEF"},
 		{"green", "#3ad900"},
 		{"GREEN", "#3ad900"},
+		{"teal", "#1de9b6"},
 		{" Orange ", "#ff9d00"},
 		{"", ""},
 		{"   ", ""},

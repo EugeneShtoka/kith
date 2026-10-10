@@ -167,14 +167,18 @@ func roleOf(c *Colors, role string) (*string, bool) {
 
 // namedColors maps friendly config names to hex.
 var namedColors = map[string]string{
-	"red":     "#ff628c", // dark_pink: cobalt2's readable red, not its error #FF0000
-	"green":   "#3ad900",
-	"yellow":  "#ffc600",
-	"blue":    "#00aaff",
-	"magenta": "#967efb", // purple
-	"cyan":    "#80fcff", // light_blue
-	"orange":  "#ff9d00", // light_orange
-	"white":   "#deebfe", // light_purple: cobalt2's near-white
+	"red":        "#ff628c", // dark_pink: cobalt2's readable red, not its error #FF0000
+	"green":      "#3ad900",
+	"teal":       "#1de9b6", // WhatsApp's teal, apart from the green cobalt2 writes text in
+	"orchid":     "#e67cff", // Meta's pink-violet
+	"periwinkle": "#9ab8ff", // a light blue, apart from the accent's
+	"coral":      "#ff8a5c", // apart from the alert's pink and the badge's yellow
+	"yellow":     "#ffc600",
+	"blue":       "#00aaff",
+	"magenta":    "#967efb", // purple
+	"cyan":       "#80fcff", // light_blue
+	"orange":     "#ff9d00", // light_orange
+	"white":      "#deebfe", // light_purple: cobalt2's near-white
 }
 
 // Color is a color a config writes, as "#rrggbb": that value, or one of namedColors

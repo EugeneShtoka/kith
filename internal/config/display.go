@@ -12,38 +12,40 @@ type Display struct {
 	SkinTone      string `toml:"skin_tone"` // SkinToneNames; empty is "none"
 	// TimeFormat is a domain.TimeStyles name; the dates are domain date patterns.
 	// Empty is the default.
-	TimeFormat      string        `toml:"time_format"`
-	LongDateFormat  string        `toml:"long_date_format"`
-	ShortDateFormat string        `toml:"short_date_format"`
-	ColorMessages   bool          `toml:"color_messages"` // tint bodies in the sender's color
-	FPS             int           `toml:"fps"`            // repaint cap, MinFPS-MaxFPS; 0 DefaultFPS
-	OpenInInsert    *bool         `toml:"open_in_insert_mode"`
-	RowNumbers      bool          `toml:"row_numbers"`
-	Mouse           *bool         `toml:"mouse"`
-	UnreadLine      *bool         `toml:"unread_line"`
-	Hyperlinks      *bool         `toml:"hyperlinks"` // OSC 8
-	Theme           Theme         `toml:"theme"`
-	NetworkColors   NetworkColors `toml:"network_colors"`
-	Tracked         Tracked       `toml:"tracked"`
-	Typing          *bool         `toml:"typing"`
-	SendTyping      *bool         `toml:"send_typing"`
-	SendReceipts    *bool         `toml:"send_receipts"`
-	ReadDelay       *int          `toml:"read_delay"` // seconds; nil or -1 never, 0 at once
-	ReadRules       []ReadRule    `toml:"read_rule"`
-	FilingSpaces    []string      `toml:"filing_spaces"`
-	SpaceRules      []SpaceRule   `toml:"space_rule"`
-	Deleted         Deleted       `toml:"deleted"`
-	Identities      []Identity    `toml:"identity"`
-	Names           []DisplayName `toml:"name"`
-	RoomNameRules   *bool         `toml:"room_name_rules"`
-	Unread          string        `toml:"unread"`   // UnreadSources; empty is "messages"
-	Priority        []string      `toml:"priority"` // space names and tag:<name>s, most preferred first
-	Rooms           Rooms         `toml:"rooms"`
-	Rail            Rail          `toml:"rail"`
-	Media           Media         `toml:"media"`
-	Reactions       Reactions     `toml:"reactions"`
-	Threads         Threads       `toml:"threads"`
-	Direction       Direction     `toml:"direction"`
+	TimeFormat      string `toml:"time_format"`
+	LongDateFormat  string `toml:"long_date_format"`
+	ShortDateFormat string `toml:"short_date_format"`
+	ColorMessages   bool   `toml:"color_messages"` // tint bodies in the sender's color
+	FPS             int    `toml:"fps"`            // repaint cap, MinFPS-MaxFPS; 0 DefaultFPS
+	OpenInInsert    *bool  `toml:"open_in_insert_mode"`
+	RowNumbers      bool   `toml:"row_numbers"`
+	Mouse           *bool  `toml:"mouse"`
+	UnreadLine      *bool  `toml:"unread_line"`
+	Hyperlinks      *bool  `toml:"hyperlinks"` // OSC 8
+	Theme           Theme  `toml:"theme"`
+	// NetworkColors names each room in every room list in its network's color
+	// (Theme.Networks); a place's [[display.space_rule]] can say otherwise.
+	NetworkColors bool          `toml:"network_colors"`
+	Tracked       Tracked       `toml:"tracked"`
+	Typing        *bool         `toml:"typing"`
+	SendTyping    *bool         `toml:"send_typing"`
+	SendReceipts  *bool         `toml:"send_receipts"`
+	ReadDelay     *int          `toml:"read_delay"` // seconds; nil or -1 never, 0 at once
+	ReadRules     []ReadRule    `toml:"read_rule"`
+	FilingSpaces  []string      `toml:"filing_spaces"`
+	SpaceRules    []SpaceRule   `toml:"space_rule"`
+	Deleted       Deleted       `toml:"deleted"`
+	Identities    []Identity    `toml:"identity"`
+	Names         []DisplayName `toml:"name"`
+	RoomNameRules *bool         `toml:"room_name_rules"`
+	Unread        string        `toml:"unread"`   // UnreadSources; empty is "messages"
+	Priority      []string      `toml:"priority"` // space names and tag:<name>s, most preferred first
+	Rooms         Rooms         `toml:"rooms"`
+	Rail          Rail          `toml:"rail"`
+	Media         Media         `toml:"media"`
+	Reactions     Reactions     `toml:"reactions"`
+	Threads       Threads       `toml:"threads"`
+	Direction     Direction     `toml:"direction"`
 }
 
 // Direction is [display.direction]: which rooms read right to left, the sender column
@@ -128,6 +130,8 @@ type Theme struct {
 	BadgeAlert    string `toml:"badge_alert"`
 	SelectedBG    string `toml:"selected_bg"`
 	SelectedDimBG string `toml:"selected_dim_bg"`
+	// Networks is [display.theme.networks], each network's color.
+	Networks NetworkColors `toml:"networks"`
 }
 
 // Overrides is the theme's per-role colors keyed by their config names, which is what
@@ -166,16 +170,37 @@ type TrackedRule struct {
 type SpaceRule struct {
 	Space         string `toml:"space"` // the space's rail label
 	FirstNameOnly bool   `toml:"first_name_only"`
-	// NetworkColors names each room in the room list in its network's color.
-	NetworkColors bool `toml:"network_colors"`
+	// NetworkColors names each room in this place's room list in its network's color,
+	// or not, whatever Display.NetworkColors says; nil follows it.
+	NetworkColors *bool `toml:"network_colors"`
 }
 
 // Empty reports whether the rule sets nothing, so the file need not keep it.
-func (r SpaceRule) Empty() bool { return !r.FirstNameOnly && !r.NetworkColors }
+func (r SpaceRule) Empty() bool { return !r.FirstNameOnly && r.NetworkColors == nil }
 
-// NetworkColors is [display.network_colors]: the color each network's rooms are named
-// in, where a place or the rail asks for it (SpaceRule.NetworkColors,
-// Rail.NetworkColors): #rgb/#rrggbb or a named color; "" is the default, "none" no
+// SpaceRule is place's [[display.space_rule]] (a space's name, or tag:<name>, in any
+// case), if it has one.
+func (d Display) SpaceRule(place string) (SpaceRule, bool) {
+	for _, r := range d.SpaceRules {
+		if strings.EqualFold(r.Space, place) {
+			return r, true
+		}
+	}
+	return SpaceRule{}, false
+}
+
+// NetworkColorsIn reports whether place's room list names its rooms in their networks'
+// colors: as its rule says, else as NetworkColors does.
+func (d Display) NetworkColorsIn(place string) bool {
+	if r, ok := d.SpaceRule(place); ok && r.NetworkColors != nil {
+		return *r.NetworkColors
+	}
+	return d.NetworkColors
+}
+
+// NetworkColors is [display.theme.networks]: the color each network's rooms are named
+// in, where the room list or the rail asks for it (Display.NetworkColors,
+// SpaceRule.NetworkColors, Rail.NetworkColors): #rrggbb or a named color; "" is the default, "none" no
 // color.
 type NetworkColors struct {
 	WhatsApp       string `toml:"whatsapp"`
@@ -193,8 +218,13 @@ type NetworkColors struct {
 	Matrix         string `toml:"matrix"`
 }
 
-// defaultNetworkColors are the colors of the networks with one when unset.
-var defaultNetworkColors = map[string]string{"whatsapp": "green", "telegram": "blue", "slack": "magenta"}
+// defaultNetworkColors are the colors of the networks with one when unset, each apart
+// from the others and from the theme's text, accent, badge and alert. Meta's two
+// networks share one.
+var defaultNetworkColors = map[string]string{
+	"whatsapp": "teal", "telegram": "blue", "slack": "magenta", "messenger": "orchid",
+	"instagram": "orchid", "linkedin": "periwinkle", "google_messages": "coral",
+}
 
 // byKey is each network's color as set, by its key (its name, lower case, words
 // joined by "_").
@@ -325,7 +355,7 @@ type Rail struct {
 	Hidden        []string `toml:"hidden"`
 	HideWhenEmpty []string `toml:"hide_when_empty"`
 	// NetworkColors names a space or tag whose rooms are all on one network in that
-	// network's color ([display.network_colors]).
+	// network's color ([display.theme.networks]).
 	NetworkColors bool `toml:"network_colors"`
 }
 

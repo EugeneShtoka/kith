@@ -25,6 +25,7 @@ var propertyGroups = append([]propertyGroup{
 	{"display.media.", "media", "display.media."},
 	{"display.theme.", "look", "display.theme."},
 	{"display.fps", "look", "display."},
+	{"display.network_colors", "look", "display."},
 	{"display.mouse", "look", "display."},
 	{"display.hyperlinks", "look", "display."},
 	{"display.row_numbers", "look", "display."},

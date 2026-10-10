@@ -2,14 +2,14 @@ package tui
 
 import (
 	"image/color"
-	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/theme"
 )
 
-// A room's name can be drawn in its network's color ([display.network_colors]): in the
-// room list of a place that asks for it ([[display.space_rule]] network_colors), and,
+// A room's name can be drawn in its network's color ([display.theme.networks]): in the
+// room lists, as [display] network_colors says and a place's [[display.space_rule]]
+// network_colors overrides, and,
 // on the rail, a space or tag whose rooms are all on one network ([display.rail]
 // network_colors). A room's network is its facts' (domain.RoomFacts.Protocol): a
 // bridged Matrix room's is its bridge's.
@@ -19,28 +19,17 @@ func (m Model) networkColor(network domain.Protocol) color.Color {
 	if network == "" {
 		return nil
 	}
-	c, ok := theme.ParseColor(m.prefs.display.NetworkColors.For(network.String()))
+	c, ok := theme.ParseColor(m.prefs.display.Theme.Networks.For(network.String()))
 	if !ok {
 		return nil
 	}
 	return c
 }
 
-// colorsByNetwork reports whether the place a rail key is (a space's name, tag:<name>)
-// names its rooms in their networks' colors.
-func (m Model) colorsByNetwork(place string) bool {
-	for _, r := range m.prefs.display.SpaceRules {
-		if strings.EqualFold(r.Space, place) {
-			return r.NetworkColors
-		}
-	}
-	return false
-}
-
 // roomNameColor is the color a room's name is drawn in in the room list of the place
 // selected on the rail, nil for the row's own.
 func (m Model) roomNameColor(room domain.Room) color.Color {
-	if !m.colorsByNetwork(m.rail.key()) {
+	if !m.prefs.display.NetworkColorsIn(m.rail.key()) {
 		return nil
 	}
 	return m.networkColor(m.unreadView().factsOf(room).Protocol)
