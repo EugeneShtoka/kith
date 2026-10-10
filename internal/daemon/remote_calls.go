@@ -324,6 +324,11 @@ func (r *Remote) CachedReactions(ctx context.Context, roomID domain.RoomID) ([]d
 	return pc.ProtoToReactions(resp.GetReactions()), err
 }
 
+func (r *Remote) PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error) {
+	resp, err := call(ctx, "poll voters", r.c.PollVoters, &v1.PollVotersRequest{RoomId: string(roomID), EventId: string(eventID)})
+	return pc.ProtoToPollVoters(resp), err
+}
+
 func (r *Remote) VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error {
 	_, err := call(ctx, "vote", r.c.VotePoll,
 		&v1.VotePollRequest{RoomId: string(roomID), EventId: string(eventID), Options: options})

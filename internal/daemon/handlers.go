@@ -245,6 +245,11 @@ func (s *server) Reactions(ctx context.Context, _ *req[v1.ReactionsRequest], st 
 	})
 }
 
+func (s *server) PollVoters(ctx context.Context, r *req[v1.PollVotersRequest]) (*resp[v1.PollVotersResponse], error) {
+	voters, err := s.Backend.PollVoters(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()))
+	return reply(pc.PollVotersToProto(voters), err)
+}
+
 func (s *server) VotePoll(ctx context.Context, r *req[v1.VotePollRequest]) (*resp[v1.VotePollResponse], error) {
 	err := s.Backend.VotePoll(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()), r.Msg.GetOptions())
 	return reply(&v1.VotePollResponse{}, err)

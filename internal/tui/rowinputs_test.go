@@ -41,7 +41,6 @@ var rowReads = map[string]string{
 	"rail.archives":              "derivedKey.place (ArchivedIn and the Tags it puts the room in); set with the config, which bumps conf.rev",
 	"openRoom":                   "derivedKey.room",
 	"dir.dir":                    "derivedKey.phones (dir.rev moves with the directory)",
-	"selves":                     "derivedKey.selves (a poll names this person \"you\" among its voters)",
 	"peers.aliases":              "derivedKey.peers (peers.rev moves whenever aliases changes)",
 	"timeline.layout.room":       "derivedKey.rtl (mirrored)",
 	"timeline.layout.rtl":        "derivedKey.rtl (mirrored)",

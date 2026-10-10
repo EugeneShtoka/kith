@@ -117,6 +117,10 @@ type (
 	Voter interface {
 		VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error
 	}
+	// PollReader names who chose what in a message's poll.
+	PollReader interface {
+		PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error)
+	}
 	// Redactor deletes a message.
 	Redactor interface {
 		Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error

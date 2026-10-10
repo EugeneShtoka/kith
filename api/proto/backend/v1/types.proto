@@ -141,6 +141,22 @@ message Ballot {
   repeated string options = 2;
 }
 
+// PollVoter is one person's vote in a poll (domain.PollVoter).
+message PollVoter {
+  string id = 1;
+  // What the network calls them; empty where it gives no name.
+  string name = 2;
+  // The answers they chose, by ID.
+  repeated string options = 3;
+}
+
+// PollHiding is why a poll's network names none of its voters (domain.PollHiding).
+enum PollHiding {
+  POLL_HIDING_UNSPECIFIED = 0; // named
+  POLL_HIDING_ANONYMOUS = 1;
+  POLL_HIDING_VOTE_FIRST = 2;
+}
+
 // PollOption is one answer of a poll.
 message PollOption {
   string id = 1;

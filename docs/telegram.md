@@ -22,7 +22,9 @@ photos, files, voice notes (which the player plays), audio, video, GIFs and stil
 stickers; an animated sticker, a location or a contact reads as a label
 ("[location] …"), and a custom emoji reaction as `:custom_emoji:`. A poll shows its
 answers and how the votes stand, live, your own vote marked; `P` votes, several answers
-where the poll takes them, or takes the vote back.
+where the poll takes them, or takes the vote back, and lists who chose each answer when
+the poll is public (Telegram may name them only once you have voted). A closed poll
+opens in `P` to read.
 Chats in Telegram's Archived folder are in kith's Archived tag, and archiving a chat
 in kith can move it there too: see `[telegram.archive]` in
 [configuration.md](configuration.md#follow-a-networks-own-archive).

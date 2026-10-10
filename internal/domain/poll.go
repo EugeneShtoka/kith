@@ -96,3 +96,31 @@ func (p *Poll) Tally(o PollOption) string {
 	}
 	return strconv.Itoa(o.Votes) + " " + word + " · " + strconv.Itoa(p.Share(o)) + "%"
 }
+
+// PollVoters is who chose what in a poll, as far as its network names them.
+type PollVoters struct {
+	Voters []PollVoter
+	// Hidden is why the network names no one, PollNamed when it names them.
+	Hidden PollHiding
+}
+
+// PollVoter is one person's vote in a poll: who, and the answers they chose by ID.
+type PollVoter struct {
+	ID string
+	// Name is what the network calls them, "" where it gives no name.
+	Name    string
+	Options []string
+}
+
+// PollHiding is why a poll's network names none of its voters.
+type PollHiding int
+
+// The reasons a poll's voters go unnamed.
+const (
+	// PollNamed: the network names them.
+	PollNamed PollHiding = iota
+	// PollAnonymous: the poll was made anonymous.
+	PollAnonymous
+	// PollVoteFirst: the network names them only to those who have voted.
+	PollVoteFirst
+)
