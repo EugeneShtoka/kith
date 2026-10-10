@@ -399,6 +399,8 @@ type roomScrollback struct {
 type overlayTarget struct {
 	// creating is the room being created by the new-room prompt.
 	creating domain.NewRoom
+	// fileInto is the room a space being created from the space picker is to hold.
+	fileInto domain.RoomID
 	// member is the room an open invite or unban prompt aims at.
 	member domain.RoomID
 	// binding is the place an open jump-binding prompt is for.
