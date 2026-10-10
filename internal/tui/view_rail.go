@@ -167,21 +167,23 @@ func (m Model) renderRooms(w, h int) string {
 }
 
 // roomListLine draws one room-list row — a room, a thread under it, or the count of
-// threads the cap left out — all through listRow.
+// threads the cap left out — all through listRow. A thread's rows take their room's
+// color, so a room and its threads read as one.
 func (m Model) roomListLine(r roomRow, inner int, selected, active bool) string {
+	tint := m.roomNameColor(r.room)
 	switch {
 	case r.more > 0:
-		return m.listRow(rowLabel{lead: m.prefs.display.Threads.RowMark(), name: m.moreThreadsLabel(r.more)},
+		return m.listRow(rowLabel{lead: m.prefs.display.Threads.RowMark(), name: m.moreThreadsLabel(r.more), color: tint},
 			"", false, inner, false, active)
 	case r.isThread():
 		badge := ""
 		if r.thread.Unread > 0 {
 			badge = fmt.Sprintf("●%d", r.thread.Unread)
 		}
-		return m.listRow(rowLabel{lead: m.prefs.display.Threads.RowMark(), name: m.threadRowLabel(r.thread)},
+		return m.listRow(rowLabel{lead: m.prefs.display.Threads.RowMark(), name: m.threadRowLabel(r.thread), color: tint},
 			badge, r.thread.Mentions > 0, inner, selected, active)
 	}
-	label := rowLabel{name: m.roomLabelHere(r.room), color: m.roomNameColor(r.room)}
+	label := rowLabel{name: m.roomLabelHere(r.room), color: tint}
 	switch {
 	case r.room.IsInvite():
 		// Marked, so an invitation never reads as a room you can just open.

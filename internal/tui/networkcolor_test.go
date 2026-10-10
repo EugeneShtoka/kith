@@ -2,6 +2,8 @@ package tui
 
 import (
 	"context"
+	"fmt"
+	"image/color"
 	"math/rand/v2"
 	"strings"
 	"testing"
@@ -158,4 +160,46 @@ func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 	if len(rules) != 1 || rules[0].Space != "Other" || !rules[0].FirstNameOnly {
 		t.Fatalf("both off: %+v, want only Other's rule", rules)
 	}
+}
+
+// A room's thread rows, and the row counting the threads left out, are drawn in the
+// room's network color, so a room and its threads read as one; in a place that does
+// not ask, none of them is.
+func TestAThreadRowTakesItsRoomsColor(t *testing.T) {
+	t.Parallel()
+	room := domain.Room{ID: "telegram:1/-11", Name: "Book club"}
+	display := config.Display{
+		NetworkColors: true,
+		Theme:         config.Theme{Networks: config.NetworkColors{Telegram: "orange"}},
+	}
+	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: []domain.Room{room}})
+	m = sized(t, m)
+	orange := sgrOf(t, m.roomNameColor(room))
+	rows := []roomRow{
+		{room: room},
+		{room: room, thread: domain.ThreadUnread{Root: "$root", Unread: 1}},
+		{room: room, more: 3},
+	}
+	for _, r := range rows {
+		if line := m.roomListLine(r, 30, false, true); !strings.Contains(line, orange) {
+			t.Errorf("row %+v is not in its room's color: %q", r, line)
+		}
+	}
+	off := m
+	off.prefs.display.NetworkColors = false
+	for _, r := range rows {
+		if line := off.roomListLine(r, 30, false, true); strings.Contains(line, orange) {
+			t.Errorf("with network colors off, row %+v is colored: %q", r, line)
+		}
+	}
+}
+
+// sgrOf is the truecolor foreground sequence c is drawn with.
+func sgrOf(t *testing.T, c color.Color) string {
+	t.Helper()
+	if c == nil {
+		t.Fatal("no color")
+	}
+	r, g, b, _ := c.RGBA()
+	return fmt.Sprintf("38;2;%d;%d;%d", r>>8, g>>8, b>>8)
 }
