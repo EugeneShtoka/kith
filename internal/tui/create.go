@@ -1,11 +1,14 @@
 package tui
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -76,8 +79,8 @@ func (m Model) chooseNewRoomKind(value string) (Model, tea.Cmd) {
 
 // submitNewRoom creates it.
 func (m Model) submitNewRoom(input string) (Model, tea.Cmd) {
-	spec := m.aimedAt.creating
-	m.aimedAt.creating = domain.NewRoom{}
+	spec, fileInto := m.aimedAt.creating, m.aimedAt.fileInto
+	m.aimedAt.creating, m.aimedAt.fileInto = domain.NewRoom{}, ""
 	spec.Name = strings.TrimSpace(input)
 	if spec.Name == "" {
 		// Nothing typed is a cancel.
@@ -88,7 +91,26 @@ func (m Model) submitNewRoom(input string) (Model, tea.Cmd) {
 		what = "space"
 	}
 	m = m.doing("creating " + what + " " + isolate(spec.Name) + "…")
+	if fileInto != "" {
+		return m, m.createSpaceForCmd(spec, fileInto)
+	}
 	return m, m.createRoomCmd(spec)
+}
+
+// createSpaceForCmd makes a space and then files room into it, reporting both as one
+// creation: a space made but not given the room says so as a later step's failure.
+func (m Model) createSpaceForCmd(spec domain.NewRoom, room domain.RoomID) tea.Cmd {
+	ctx, backend := m.ctx, m.backend
+	return func() tea.Msg {
+		spaceID, err := backend.CreateRoom(ctx, spec)
+		if err != nil {
+			return roomCreatedMsg{name: spec.Name, err: err}
+		}
+		if err := backend.AddToSpace(ctx, domain.SpaceID(spaceID), room); err != nil && !errors.Is(err, api.ErrNoSpaceParent) {
+			return roomCreatedMsg{roomID: spaceID, name: spec.Name, err: fmt.Errorf("the room could not be filed into it: %w", err)}
+		}
+		return roomCreatedMsg{roomID: spaceID, name: spec.Name}
+	}
 }
 
 // handleRoomCreated reports the outcome and refreshes both the room list and the

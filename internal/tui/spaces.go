@@ -26,12 +26,19 @@ func (m Model) openSpacePicker() (Model, tea.Cmd) {
 	if !ok {
 		return m.say("nothing in [display] filing_spaces matches a space you are in"), nil
 	}
-	// Last: a tag made here, from its name, with the room in it (tageditor.go).
+	// Last: a space made here (a Matrix room only: a space holds Matrix rooms), then a
+	// tag, each from its name, with the room in it.
+	if domain.NetworkOf(string(room.ID)) == domain.ProtocolMatrix {
+		items = append(items, pickerItem{label: "New space", value: spaceNew, match: "new space"})
+	}
 	items = append(items, pickerItem{label: "New tag", value: tagNew, match: "new tag"})
 	m.aimedAt.space = room.ID
 	m.picker = newCheckedPicker(pickerRoomSpaces, items, checked)
 	return m, nil
 }
+
+// spaceNew is the space picker's "New space" row; no space ID is spelled so.
+const spaceNew = "\x00new space"
 
 // fileableSpaces is the picker's space rows, in the rail's order under the rail's names.
 // Managed spaces (a bridge's, or a room's origin) are left out — they stay browsable
@@ -85,21 +92,39 @@ func (m Model) spaceForGroup(g group) (domain.Space, bool) {
 func (m Model) applyRoomSpaces(values []string) (Model, tea.Cmd) {
 	room := m.aimedAt.space
 	rows := m.picker.all // read before closePicker zeroes it
-	// The New tag row, ticked or under the cursor, asks for its name once the rest
-	// is filed.
-	at, _ := m.picker.selected()
-	newTag := at.value == tagNew || slices.Contains(values, tagNew)
+	// A New space or New tag row, ticked or under the cursor, asks for its name once
+	// the rest is filed; the one under the cursor wins, then a space.
+	made := madeHere(m.picker, values)
 	m.aimedAt.space = ""
 	m = m.closePicker()
 	if room == "" {
 		return m, nil
 	}
-	next, cmd := m.fileAsTicked(room, rows, values, !newTag)
-	if newTag {
+	next, cmd := m.fileAsTicked(room, rows, values, made == "")
+	switch made {
+	case spaceNew:
+		next.aimedAt.creating = domain.NewRoom{Space: true}
+		next.aimedAt.fileInto = room
+		next = next.openPrompt(promptNewRoom)
+	case tagNew:
 		next.choosing.tag = tagEditing{fileRoom: room}
 		next = next.openPrompt(promptTagName)
 	}
 	return next, cmd
+}
+
+// madeHere is which of the picker's New rows is chosen: the one under the cursor, else
+// a ticked one, a space before a tag; "" for neither.
+func madeHere(p picker, values []string) string {
+	if at, ok := p.selected(); ok && (at.value == spaceNew || at.value == tagNew) {
+		return at.value
+	}
+	for _, row := range []string{spaceNew, tagNew} {
+		if slices.Contains(values, row) {
+			return row
+		}
+	}
+	return ""
 }
 
 // fileAsTicked files room into and out of the picker's rows as their ticks say;
