@@ -190,13 +190,12 @@ func TestDraftIsAppendedNotOverwritten(t *testing.T) {
 	}
 }
 
-// Whatever happens to the words, they reach the backend with short dashes: a long dash
-// is an en dash, and hyphens and en dashes stay. A draft the person already had keeps
-// their dashes as they typed them.
+// Whatever happens to the words, they reach the backend with hyphens for every longer
+// dash, and hyphens stay. A draft the person already had keeps its dashes as typed.
 func TestLongDashesAreWrittenShort(t *testing.T) {
 	t.Parallel()
 
-	const text, want = "soon \u2014 or later \u2015 well-ish \u2013 ok", "soon \u2013 or later \u2013 well-ish \u2013 ok"
+	const text, want = "soon \u2014 or later \u2015 well-ish \u2013 ok \u2012 fine", "soon - or later - well-ish - ok - fine"
 	mine := "mine \u2014 as typed"
 	cases := []struct {
 		name    string
