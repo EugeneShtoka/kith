@@ -25,7 +25,7 @@ const (
 	inviteGroupKey   = "tag:Invites"
 )
 
-// starter is the config a first run writes (default.toml), loaded as kith loads it.
+// starter is the first-run config (default.toml), loaded as kith loads it.
 func starter(t testing.TB) config.Config {
 	t.Helper()
 	cfg, err := starterOnce()
@@ -52,8 +52,8 @@ var starterOnce = sync.OnceValues(func() (config.Config, error) {
 	return config.Load(path)
 })
 
-// starterNew is New as a first run has it: the starter config's tags and rail order
-// applied, display's other settings kept.
+// starterNew is New with the starter config's tags and rail order, display's other
+// settings kept.
 func starterNew(backend api.Backend, display config.Display) Model {
 	cfg, err := starterOnce()
 	if err != nil {

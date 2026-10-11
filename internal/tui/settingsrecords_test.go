@@ -10,8 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Every record table has a row in settings, but the space rules, which the Names
-// group's switches stand for.
+// Every record table has a row, except the space rules, which the Names switches stand for.
 func TestEveryRecordTableHasARow(t *testing.T) {
 	t.Parallel()
 	for _, tb := range config.RecordTables() {
@@ -24,9 +23,8 @@ func TestEveryRecordTableHasARow(t *testing.T) {
 	}
 }
 
-// Names has a first-names switch for every space and tag; switching one writes its
-// rule (a tag's as tag:<name>), switching it back drops it, and the tag editor's
-// switch is the same rule.
+// Switching a place's first names writes its rule (a tag's as tag:<name>), switching
+// back drops it, and the tag editor's switch is the same rule.
 func TestFirstNamesPerPlace(t *testing.T) {
 	t.Parallel()
 	m, path := laidOut(t, config.Display{})
@@ -64,7 +62,6 @@ func TestFirstNamesPerPlace(t *testing.T) {
 		t.Error("switched off, Work's rule is still written")
 	}
 
-	// The tag editor shows and switches the same rule.
 	m = m.tagOpen("DMs")
 	if got := rowFor(t, m, "First names only").detail; got != "on" {
 		t.Errorf("the tag editor reads %q for DMs, want on (set from Names)", got)
@@ -75,9 +72,8 @@ func TestFirstNamesPerPlace(t *testing.T) {
 	}
 }
 
-// A record is added typed as its first field, its fields set as any setting is (a
-// number stepped, an on/off/unset choice, a list an entry at a time), and removed;
-// each change saved; esc walks back record → table → group → groups.
+// A record is added as its first field, edited like any setting, and removed; each
+// change is saved; esc walks back record → table → group → groups.
 func TestRecordsAreEditedInSettings(t *testing.T) {
 	t.Parallel()
 	m, path := opened(t, config.Notifications{Enabled: true})

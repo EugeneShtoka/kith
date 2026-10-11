@@ -8,11 +8,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// The Keys group: a row per key table ([keys.timeline], …), each opening its bindings,
-// and the jump shortcuts ([[keys.jump]], records). A binding is typed in place —
-// comma-separated keys, as the file writes them; empty restores its default, "-" binds
-// nothing — and one that would clash with or shadow another is refused with the
-// keymap's own reason.
+// The Keys group: a row per key table, each opening its bindings, plus the
+// [[keys.jump]] records. A binding is typed in place as comma-separated keys; empty
+// restores the default, "-" binds nothing, and a clash is refused with the keymap's reason.
 
 const keysPrefix = "keys:"
 
@@ -33,8 +31,8 @@ func keyTableKey(name string) string {
 	return keysPrefix + name
 }
 
-// keyTableSettings are the Keys group's rows leading to each table's bindings (each
-// opens as a record table's row does: chooseSetting).
+// keyTableSettings are the rows leading to each table's bindings (opened like a
+// record table's row, see chooseSetting).
 func keyTableSettings() []setting {
 	var out []setting
 	for _, t := range config.KeyTables() {
@@ -47,7 +45,6 @@ func keyTableSettings() []setting {
 	return out
 }
 
-// keyTableLabel is a key table's words.
 func keyTableLabel(name string) string {
 	if label, ok := keyTableLabels[name]; ok {
 		return label
@@ -69,7 +66,6 @@ func keyTableOf(group string) (config.KeyTable, bool) {
 	return config.KeyTable{}, false
 }
 
-// keyBindingRows are a key table's bindings, each typed in place.
 func keyBindingRows(t config.KeyTable) []setting {
 	group := keyTableKey(t.Name)
 	rows := make([]setting, 0, len(t.Bindings))
@@ -92,8 +88,7 @@ func keyBindingRows(t config.KeyTable) []setting {
 	return rows
 }
 
-// spellBinding is a binding as its row reads: as written, "none" for one bound to
-// nothing.
+// spellBinding is a binding as its row reads; "none" when bound to nothing.
 func spellBinding(v string) string {
 	if strings.TrimSpace(v) == unbind || strings.TrimSpace(v) == "" {
 		return "none"
@@ -101,8 +96,8 @@ func spellBinding(v string) string {
 	return v
 }
 
-// setBinding writes a binding, refusing one that brings the keymap a new problem (a
-// clash, a shadowed sequence, a key the terminal never reports): its reason is said.
+// setBinding writes a binding, refusing one that adds a keymap problem (a clash, a
+// shadowed sequence, a key the terminal never reports) with its reason.
 func setBinding(c *config.Config, path, value string) error {
 	before := keymapFor(*c).issues
 	if err := c.Keys.SetBinding(path, value); err != nil {

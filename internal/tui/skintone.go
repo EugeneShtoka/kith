@@ -9,21 +9,19 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Skin tone: [display] skin_tone applies a Fitzpatrick modifier (👍 → 👍🏻) wherever
-// kith offers an emoji — the browser, the `:shortcode:` popup, the reaction palette.
+// [display] skin_tone applies a Fitzpatrick modifier (👍 → 👍🏻) wherever kith offers
+// an emoji: the browser, the `:shortcode:` popup, the reaction palette.
 
-// skinToneModifier is the modifier for a configured tone name ("" if unknown).
 func skinToneModifier(name string) string {
 	mod, _ := config.SkinToneModifier(name)
 	return mod
 }
 
-// skinToneNames is the accepted spellings, in chart order, for the settings screen.
 func skinToneNames() []string { return config.SkinToneNames() }
 
-// toneBases are the palette emoji that accept a modifier (Unicode Emoji_Modifier_Base,
-// narrowed to what kith offers). A list because the stdlib has no emoji properties;
-// a wrong entry draws the modifier as a second glyph (🍎🏻).
+// toneBases are the palette emoji that accept a modifier (Emoji_Modifier_Base, narrowed
+// to what kith offers); the stdlib has no emoji properties. A wrong entry draws the
+// modifier as a second glyph (🍎🏻).
 var toneBases = buildToneBases()
 
 func buildToneBases() map[string]bool {
@@ -35,7 +33,6 @@ func buildToneBases() map[string]bool {
 	return out
 }
 
-// modifierRunes are the five tone modifiers, for recognizing one that is already there.
 const modifierRunes = "\U0001F3FB\U0001F3FC\U0001F3FD\U0001F3FE\U0001F3FF"
 
 // presentationSelector is U+FE0F, which a toned sequence omits.
@@ -44,13 +41,11 @@ const presentationSelector = "️"
 // zeroWidthJoiner joins emoji into one (❤‍🔥, 🤷‍♀); scripts join letters with it too.
 const zeroWidthJoiner = '\u200d'
 
-// presented is text as the terminal draws it: an emoji sequence that begins with a
-// text-presentation symbol and omits U+FE0F — toned (☝🏼, as senders write it) or
-// joined (❤‍🔥, as Telegram sends the reaction) — is drawn two wide but measures one,
-// which paints every row after it a column off; U+FE0F after the symbol makes both
-// agree (as emojiCell does in the picker). Only a symbol gets it: a letter before a
-// joiner is a script's, not an emoji's. spans, byte offsets into text, move with what
-// is inserted.
+// presented spells text as the terminal draws it. An emoji sequence starting with a
+// text-presentation symbol and lacking U+FE0F, toned (☝🏼) or joined (❤‍🔥, Telegram's
+// reaction), draws two wide but measures one, shifting every later row a column; adding
+// U+FE0F after the symbol makes them agree. A letter before a joiner is a script's and
+// is left alone. spans (byte offsets) move with the inserts.
 func presented(text string, spans []richtext.Span) (string, []richtext.Span) {
 	if !strings.ContainsAny(text, modifierRunes+string(zeroWidthJoiner)) {
 		return text, spans
@@ -87,8 +82,8 @@ func presented(text string, spans []richtext.Span) (string, []richtext.Span) {
 	return b.String(), moved
 }
 
-// withoutTone removes any tone modifier but keeps U+FE0F — the spelling the shortcode
-// tables are keyed on (❤️). Emoji from history may carry a tone, so lookups start here.
+// withoutTone removes any tone modifier but keeps U+FE0F, the spelling the shortcode
+// tables are keyed on (❤️). Emoji from history may carry a tone.
 func withoutTone(emoji string) string {
 	for _, mod := range modifierRunes {
 		emoji = strings.ReplaceAll(emoji, string(mod), "")
@@ -96,14 +91,13 @@ func withoutTone(emoji string) string {
 	return emoji
 }
 
-// bareEmoji strips U+FE0F as well: the form a toned sequence is built from, and
-// toneBases' key.
+// bareEmoji also strips U+FE0F: the form a toned sequence is built from, and toneBases' key.
 func bareEmoji(emoji string) string {
 	return strings.ReplaceAll(withoutTone(emoji), presentationSelector, "")
 }
 
-// toned applies tone to emoji when it is a modifier base; idempotent, since the tone
-// replaces any already there (history may return 👍🏻).
+// toned applies tone to emoji when it is a modifier base, replacing any tone already
+// there (history may return 👍🏻).
 func toned(emoji, tone string) string {
 	if tone == "" {
 		return emoji
@@ -115,7 +109,6 @@ func toned(emoji, tone string) string {
 	return bare + tone
 }
 
-// splitTone divides a toned emoji into its base and modifier, or reports false.
 func splitTone(emoji string) (base, modifier string, ok bool) {
 	for _, mod := range modifierRunes {
 		if trimmed, found := strings.CutSuffix(emoji, string(mod)); found && trimmed != "" {
@@ -125,8 +118,8 @@ func splitTone(emoji string) (base, modifier string, ok bool) {
 	return emoji, "", false
 }
 
-// shortcodeFor is an emoji's display name under either spelling (with or without
-// U+FE0F) — looking up only one labeled every toned emoji "::".
+// shortcodeFor looks up an emoji's name under both spellings (with and without
+// U+FE0F); one alone labels toned emoji "::".
 func (m Model) shortcodeFor(emoji string) string {
 	if name := m.glyphs.set.nameOf[withoutTone(emoji)]; name != "" {
 		return name
@@ -134,10 +127,8 @@ func (m Model) shortcodeFor(emoji string) string {
 	return m.glyphs.set.nameOf[bareEmoji(emoji)+presentationSelector]
 }
 
-// tone applies the model's configured skin tone.
 func (m Model) tone(emoji string) string { return toned(emoji, m.glyphs.skin) }
 
-// toneAll applies the model's tone to a list, for the reaction palette.
 func (m Model) toneAll(emojis []string) []string { return toneEach(emojis, m.glyphs.skin) }
 
 // toneEach applies a tone to a list, for callers without a model yet.

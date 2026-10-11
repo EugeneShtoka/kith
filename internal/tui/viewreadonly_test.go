@@ -11,10 +11,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// View only reads. Everything the timeline caches (derived answers, running row
-// totals, rendered rows) is written by Update, so rendering is safe from any goroutine
-// and a frame never decides state. Checked after each step of a session that moves
-// every input the row cache keys on.
+// View only reads: Update writes everything the timeline caches (derived answers, row
+// totals, rendered rows), so rendering is goroutine-safe. Checked after each step of a
+// session that moves every input the row cache keys on.
 func TestViewLeavesTheSharedCacheAlone(t *testing.T) {
 	t.Parallel()
 
@@ -70,8 +69,8 @@ func TestViewLeavesTheSharedCacheAlone(t *testing.T) {
 	}
 }
 
-// A reaction that makes an on-screen message taller is drawn in the same frame, with
-// the rows around it where a fresh layout puts them, not placed by the old heights.
+// A reaction making an on-screen message taller is drawn in the same frame, the rows
+// around it where a fresh layout puts them.
 func TestAHeightChangeOnScreenIsDrawnRightAway(t *testing.T) {
 	t.Parallel()
 
@@ -79,7 +78,7 @@ func TestAHeightChangeOnScreenIsDrawnRightAway(t *testing.T) {
 	next, _ := asModel(m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp}))
 	m = next
 	for n := range 30 {
-		// A message the window shows now, a different one each time.
+		// A message in the window, a different one each time.
 		_, owners := m.layoutWindow(m.timeline.scroll, m.msgAreaRows())
 		var target domain.Message
 		for _, o := range owners {
@@ -112,9 +111,8 @@ func TestAHeightChangeOnScreenIsDrawnRightAway(t *testing.T) {
 	}
 }
 
-// Scrolled up, a message below the window that grows (a reaction, here on several)
-// leaves the rows on screen exactly where they were, and the layout agrees with a fresh
-// one at the scroll it moved to.
+// Scrolled up, a message below the window that grows leaves the visible rows in place,
+// and the layout matches a fresh one at the new scroll.
 func TestAHeightChangeBelowTheWindowKeepsTheViewStill(t *testing.T) {
 	t.Parallel()
 
@@ -151,9 +149,8 @@ func TestAHeightChangeBelowTheWindowKeepsTheViewStill(t *testing.T) {
 	}
 }
 
-// A Model the cache was not primed for (an older copy, from before a message arrived)
-// is drawn on a scratch cache: correctly, and without touching the shared one, which
-// holds the newer message set.
+// A Model the cache wasn't primed for (an older copy) is drawn on a scratch cache,
+// correctly and without touching the shared one.
 func TestViewOfAnOlderCopyLeavesTheSharedCacheAlone(t *testing.T) {
 	t.Parallel()
 

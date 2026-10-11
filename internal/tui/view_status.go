@@ -70,14 +70,14 @@ func (m Model) renderStatus() string {
 		badge = m.silenceBadge()
 	}
 	room := m.width - ansi.StringWidth(badge)
-	// Drawn apart from the legend so an RTL name cannot pull in its leading digits.
+	// Drawn apart from the legend so an RTL name can't pull in its leading digits.
 	drawn := drawLine(left, lineSpec{width: room, sentence: true})
 	return m.theme.Muted.Render(clamp(drawn+"   —   "+m.hints(), room)) + badge
 }
 
-// timelinePosition is where the message cursor sits among the loaded messages —
-// "230/421", and nothing else. It is empty outside the timeline and while an overlay
-// owns the pane, since it would then be describing something not on screen.
+// timelinePosition is the message cursor's place among the loaded messages ("230/421").
+// Empty outside the timeline and under an overlay, where it would describe something
+// not on screen.
 func (m Model) timelinePosition() string {
 	if m.focus != paneTimeline || len(m.timeline.messages) == 0 || m.picker.active() || m.search.active {
 		return ""
@@ -139,9 +139,8 @@ func (m Model) hints() string {
 	)
 }
 
-// timelineHints is the timeline pane's legend, which changes with its mode: the
-// pane is a results list, an emoji grid, a react prompt, a composer or a message
-// browser depending on what you are doing in it.
+// timelineHints is the timeline pane's legend for its mode: results list, emoji grid,
+// react prompt, composer or message browser.
 func (m Model) timelineHints() string {
 	switch {
 	case m.search.active:
@@ -197,9 +196,8 @@ func (m Model) backLabel() string {
 	return "back"
 }
 
-// promptHint is the open prompt's key legend. A search prompt already shows its
-// result count in the pane, so it advertises the keys that leave the prompt rather
-// than one to "run" a search that is running as you type.
+// promptHint is the open prompt's key legend. A search runs as you type, so its legend
+// shows the keys that leave the prompt rather than a "run" key.
 func (m Model) promptHint() string {
 	submit := "submit"
 	switch m.prompt.kind {
@@ -229,17 +227,15 @@ func (m Model) promptHint() string {
 	return m.hintLine(hints...)
 }
 
-// hint is one entry in the status legend: the key(s) to press and what they do.
-// bare marks an entry that never had a key of its own — see note.
+// hint is one legend entry: the key(s) to press and what they do. bare marks an entry
+// with no key of its own (see note).
 type hint struct {
 	keys, what string
 	bare       bool
 }
 
-// keyed is a legend entry for an action: the keys bound to it, and what it does.
 func keyed(keys, what string) hint { return hint{keys: keys, what: what} }
 
-// keyedIf is a legend entry shown only when it applies.
 func keyedIf(when bool, keys, what string) hint {
 	if !when {
 		return hint{}
@@ -247,14 +243,12 @@ func keyedIf(when bool, keys, what string) hint {
 	return keyed(keys, what)
 }
 
-// note is a legend entry with no key, like "type to compose". It is distinct from a
-// keyed entry whose key came back unbound: that one is dropped, this one is shown.
+// note is a legend entry with no key, like "type to compose". Unlike a keyed entry
+// whose key is unbound, which is dropped, it is shown.
 func note(what string) hint { return hint{what: what, bare: true} }
 
-// hintLine joins hints as "key: what · key: what", dropping any whose key came back
-// unbound — the legend never advertises a key that isn't bound, nor names an action
-// with no way to reach it. A "/" left dangling by the unbound half of a pair is
-// trimmed off too.
+// hintLine joins hints as "key: what · key: what", dropping any whose key is unbound,
+// and trims a "/" left dangling by the unbound half of a pair.
 func (m Model) hintLine(hints ...hint) string {
 	parts := make([]string, 0, len(hints))
 	for _, h := range hints {

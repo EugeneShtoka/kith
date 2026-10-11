@@ -11,7 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Every surface that draws somebody's words, fed the same words.
+// Every surface that draws user text, fed the same words.
 
 // textFixtures are the words every surface is given. The English one is the control:
 // it must come out untouched.
@@ -22,19 +22,18 @@ var textFixtures = map[string]string{
 	"latin":  "hello world",
 }
 
-// textSurface is one place somebody's words are drawn.
 type textSurface struct {
 	name string
-	// draw renders text the way the surface does, from a model holding it as a room's
-	// name and topic, a person's name and a message's body.
+	// draw renders text as the surface does, from a model holding it as a room's name and
+	// topic, a person's name and a message body.
 	draw func(t *testing.T, m Model, text string) string
-	// flush is the width a right-to-left row of this surface is flushed to, or zero for
-	// a surface that is a line of ours rather than a column of paragraphs.
+	// flush is the width an RTL row of this surface is flushed to, or zero for a line of
+	// ours rather than a column of paragraphs.
 	flush int
 }
 
-// surfaceRoom is where the fixture lives: a room named and topped with it, one message
-// from a person named with it and saying it, and a threaded reply under that.
+// surfaceRoom is a room named and topped with the fixture, a message from a person
+// named with it and saying it, and a threaded reply.
 func surfaceRoom(t *testing.T, text string) Model {
 	t.Helper()
 	m := sized(t, update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: text, Topic: text}}}))
@@ -79,8 +78,8 @@ func textSurfaces() []textSurface {
 			msg := m.fixtureMessage(t)
 			return m.messagePrefix(msg, 20, m.senderColorMap()[msg.Sender], false)
 		}},
-		// A chip is a line of ours with the file name in it — "📎 <name> · 240 KB" — so it
-		// reads left to right and is not flushed; the name in it is in visual order.
+		// A chip is our line with the file name in it ("📎 <name> · 240 KB"): LTR and not
+		// flushed, the name in visual order.
 		{name: "attachment file name", draw: func(t *testing.T, m Model, text string) string {
 			msg := domain.Message{ID: "$f", RoomID: "!a:x", Sender: "@d:x", Timestamp: at(3),
 				Media: &domain.Media{Type: domain.MediaFile, Name: text}}
@@ -157,9 +156,9 @@ func textSurfaces() []textSurface {
 			m = listedThreads(t, m)
 			return strings.Join(m.pickerLines(60, 4), "\n")
 		}},
-		// The daemon-backed thread lists: one room (the room left out of the label) and
-		// several (each row names its room), plus the empty answer. The latest sender is
-		// someone else, so the thread's name is the only copy of the words on the row.
+		// The daemon-backed thread lists: one room (no room in the label), several (each row
+		// names its room), and empty. The latest sender is someone else, so the thread name is
+		// the only copy of the words on the row.
 		{name: "room thread picker, one room", draw: func(t *testing.T, m Model, text string) string {
 			room := m.fixtureRoom(t)
 			next, _ := m.handleScopeThreads(scopeThreadsMsg{only: room, threads: []scopeThread{{room: room,
@@ -180,7 +179,7 @@ func textSurfaces() []textSurface {
 			next, _ := m.setMessages(nil).handleScopeThreads(scopeThreadsMsg{only: m.fixtureRoom(t)})
 			return next.renderStatus()
 		}},
-		// A rule's scope is a sentence of ours around names: a person's alias, a space.
+		// A rule's scope is our sentence around names: a person's alias, a space.
 		{name: "rule list, person", draw: func(t *testing.T, m Model, text string) string {
 			m.prefs.identities = map[string]resolvedIdentity{"@d:x": {alias: text}}
 			m.conf.base.Notifications.Rules = []config.Rule{{Sender: "@d:x"}}
@@ -283,8 +282,7 @@ func textSurfaces() []textSurface {
 			m.prefs.identities = map[string]resolvedIdentity{"@d:x": {alias: text}}
 			return strings.Join(m.inviteLines(domain.Room{ID: "!i:x", Name: text, InvitedBy: "@d:x"}, 60, 20), "\n")
 		}},
-		// The whole frame, last: whatever a row above missed, a name that reaches the
-		// screen anywhere in the default layout is caught here.
+		// The whole frame, last: catches any name that reaches the screen in the default layout.
 		{name: "whole frame", draw: func(t *testing.T, m Model, text string) string {
 			return m.View().Content
 		}},

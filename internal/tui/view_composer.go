@@ -15,7 +15,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// completionLines renders the completion popup as a plain, height-capped list, or nil.
+// completionLines renders the completion popup as a height-capped list, or nil.
 func (m Model) completionLines(width int) []string {
 	if !m.completion.active || len(m.completion.candidates) == 0 {
 		return nil
@@ -34,8 +34,8 @@ func (m Model) completionLines(width int) []string {
 	return out
 }
 
-// modelOptionLines is one truncated row of numbered continuations, shown only when there
-// are at least two (one is the ghost's job).
+// modelOptionLines is one truncated row of numbered continuations, shown only for two
+// or more (one is the ghost's job).
 func (m Model) modelOptionLines(width int) []string {
 	options := m.modelOptions()
 	if len(options) < 2 {
@@ -52,13 +52,12 @@ func (m Model) modelOptionLines(width int) []string {
 	return []string{clamp(row.String(), width)}
 }
 
-// candidateRow renders one completion popup row.
 func (m Model) candidateRow(row candidate, selected bool, width int) string {
 	return m.labeledRow(cursor(selected), row.label, row.detail, selected, width)
 }
 
-// labeledRow is one row of a list to choose from: a lead, the label, and a dimmed detail
-// when there is room. label and detail are logical and drawn here as sentences.
+// labeledRow is one row of a choice list: a lead, the label, and a dimmed detail when
+// there is room. label and detail are logical, drawn here as sentences.
 func (m Model) labeledRow(lead, label, detail string, selected bool, width int) string {
 	shown := drawLine(label, lineSpec{width: max(width-ansi.StringWidth(lead), 1), sentence: true})
 	line := m.theme.Row(selected, true).Render(clamp(lead+shown, width))
@@ -84,12 +83,11 @@ func (m Model) composerPrefix() (tag, prompt string) {
 		mode = "INSERT"
 	}
 	tag = m.theme.Muted.Render("[" + mode + "] ")
-	// A thread prompt says so.
 	lead := ""
 	if m.thread.open() {
 		lead = "thread "
 	}
-	// Say so while a model endpoint is configured (or refusing) for this room.
+	// Marked while a model endpoint is configured (or refusing) for this room.
 	if marker := m.modelMarker(); marker != "" {
 		tag += m.theme.Muted.Render(marker + " ")
 	}
@@ -100,29 +98,27 @@ func (m Model) composerPrefix() (tag, prompt string) {
 	prompt = m.theme.Prompt.Render(lead + "› ")
 	switch {
 	case m.compose.isEditing():
-		// An edit replaces a message, so the gutter says so.
 		prompt = m.theme.Prompt.Render(lead + "✎ editing › ")
 	case m.compose.replyTo != "":
-		// Composing a reply: name the person you're responding to, in their hue.
+		// A reply names its target in their hue.
 		prompt = m.theme.Prompt.Render(lead+"↪ ") + m.replyLabelStyled() + m.theme.Prompt.Render(" › ")
 	}
 	return tag, prompt
 }
 
-// composerTextWidth is the cells each composer row gets: the interior less the gutter
-// and a caret column reserved on every row, so moving the caret never rewraps.
+// composerTextWidth is the cells per composer row: the interior less the gutter and a
+// caret column reserved on every row, so moving the caret never rewraps.
 func (m Model) composerTextWidth() int {
 	tag, prompt := m.composerPrefix()
 	return max(m.contentWidth()-ansi.StringWidth(tag)-ansi.StringWidth(prompt)-1, 1)
 }
 
 // composerSegments is the message laid out in rows. The renderer and msgAreaRows both
-// read it, so the height the pane reserves and the height it draws cannot disagree.
+// read it, so reserved and drawn height cannot disagree.
 func (m Model) composerSegments() []segment {
 	return wrapSegments(m.compose.input, m.composerTextWidth())
 }
 
-// composerRows is how many rows the composer occupies right now.
 func (m Model) composerRows() int {
 	if m.compose.reacting {
 		return 1 // the react prompt takes the composer's place, and it is one line
@@ -134,15 +130,15 @@ func (m Model) composerRows() int {
 	return max(rows, 1)
 }
 
-// composerLines is the composer: the gutter, then the message wrapped across as many
-// rows as it needs, scrolled to keep the caret visible once it outgrows the cap.
+// composerLines is the gutter, then the message wrapped across as many rows as needed,
+// scrolled to keep the caret visible past the cap.
 func (m Model) composerLines(active bool) []string {
 	if m.compose.reacting {
 		return []string{m.reactLine(active)}
 	}
 	tag, prompt := m.composerPrefix()
 	indent := strings.Repeat(" ", ansi.StringWidth(tag)+ansi.StringWidth(prompt))
-	// The caret's reserved column is drawable — it is only held back from the wrap.
+	// The caret's reserved column is drawable; it is only held back from the wrap.
 	width := m.composerTextWidth() + 1
 
 	e := m.editorFor(fieldComposer)
@@ -174,9 +170,9 @@ func (m Model) composerLines(active bool) []string {
 	return out
 }
 
-// caretRow draws the composer row the caret is on, each side reordered separately with
-// its own underlines. A row that does not fit is drawn plain and windowed, since
-// clipToward would cut ANSI escapes.
+// caretRow draws the caret's row, each side reordered separately with its own
+// underlines. A row that doesn't fit is drawn plain and windowed, since clipToward
+// would cut ANSI escapes.
 func (m Model) caretRow(
 	row string, at int, dir bidi.Direction, marks []domain.Misspelling, width int, ghost string,
 ) string {
@@ -196,7 +192,7 @@ func (m Model) caretRow(
 		width, rtl)
 }
 
-// composerDivider is the rule above the composer, carrying who is typing and how many
+// composerDivider is the rule above the composer, showing who is typing and how many
 // composer rows are scrolled out of sight.
 func (m Model) composerDivider(width int) string {
 	rule := strings.Repeat("─", max(width, 0))
@@ -232,9 +228,8 @@ func (m Model) composerDivider(width int) string {
 	return strings.Repeat("─", left) + note + strings.Repeat("─", width-left-noteW)
 }
 
-// reactLine is the react prompt, which takes over the composer while it is open: an
-// empty prompt shows the quick-pick palette; once you start typing it shows your
-// :shortcode:/emoji.
+// reactLine is the react prompt, which replaces the composer while open: the
+// quick-pick palette when empty, else the typed :shortcode:/emoji.
 func (m Model) reactLine(active bool) string {
 	prompt := m.theme.Prompt.Render("react › ")
 	if m.compose.reactInput == "" {
@@ -246,10 +241,10 @@ func (m Model) reactLine(active bool) string {
 	return prompt + editedLine(m.editorFor(fieldReact), room, active && m.typingField() == fieldReact) + hint
 }
 
-// editedLine is a field being typed into, drawn in reading order with the caret, and
-// windowed around it when too long; showCaret is false where the field is only shown.
-// The two sides of the caret are reordered separately: x/text/bidi gives no caret
-// positions, and splitting costs at most a digit run resolving differently.
+// editedLine draws a field in reading order with the caret, windowed around it when
+// too long; showCaret is false where the field is only shown. The two sides of the
+// caret are reordered separately: x/text/bidi gives no caret positions, and splitting
+// costs at most a digit run resolving differently.
 func editedLine(e editor, width int, showCaret bool) string {
 	dir := paragraphDir(e.text)
 	if !showCaret {
@@ -273,14 +268,14 @@ func caretWindow(before, after string, width int, rtl bool) string {
 	if line := join(before, after, rtl); ansi.StringWidth(line) <= width {
 		return line
 	}
-	// The typed side gets the larger share, after gets up to a third, and whatever one
-	// side does not use goes to the other.
+	// The typed side gets the larger share, after gets up to a third, and what one side
+	// leaves goes to the other.
 	shownBefore := clipToward(before, width-min(ansi.StringWidth(after), width/3), !rtl)
 	shownAfter := clipToward(after, width-ansi.StringWidth(shownBefore), rtl)
 	return join(shownBefore, shownAfter, rtl)
 }
 
-// join puts the two sides of the caret in the order they are read.
+// join puts the two sides of the caret in reading order.
 func join(before, after string, rtl bool) string {
 	if rtl {
 		return after + caretMark + before
@@ -288,9 +283,8 @@ func join(before, after string, rtl bool) string {
 	return before + caretMark + after
 }
 
-// clipToward reduces s to n cells, keeping the end that touches the caret — the tail
-// of a block drawn to the caret's left, the head of one drawn to its right — and
-// marking the end it dropped, so a windowed field cannot be mistaken for a short one.
+// clipToward cuts s to n cells, keeping the end touching the caret, and marks the
+// dropped end so a windowed field isn't mistaken for a short one.
 func clipToward(s string, n int, onLeft bool) string {
 	if onLeft {
 		if kept := tailCells(s, n); ansi.StringWidth(kept) == ansi.StringWidth(s) {
@@ -347,8 +341,7 @@ func tailCells(s string, n int) string {
 	return s
 }
 
-// replyLabelStyled is the "who you're replying to" tag shown in the composer, the
-// person's resolved name drawn in their own hue.
+// replyLabelStyled is the reply target's resolved name, drawn in their hue.
 func (m Model) replyLabelStyled() string {
 	colors := m.senderColorMap()
 	for i := range m.timeline.messages {
@@ -380,9 +373,9 @@ func (m Model) moveComposerRow(delta int) (Model, tea.Cmd) {
 	return m.composerTyped("")
 }
 
-// offsetAtColumn is the byte offset in one display row nearest to column col, always on
-// a grapheme boundary: a row shorter than col ends there, and a wide glyph straddling it
-// is landed before rather than inside.
+// offsetAtColumn is the byte offset in a display row nearest column col, on a
+// grapheme boundary: a short row ends there, and a wide glyph straddling col lands
+// before it.
 func offsetAtColumn(row string, col int) int {
 	used, at, state := 0, 0, -1
 	for rest := row; rest != ""; {

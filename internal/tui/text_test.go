@@ -9,16 +9,16 @@ import (
 	"golang.org/x/text/unicode/bidi"
 )
 
-// The text module's own contract, one property per case. text_surfaces_test.go is the
-// other half: that every surface actually goes through it.
+// The text module's own contract, one property per case; text_surfaces_test.go checks
+// that every surface goes through it.
 
 func TestDrawLineCutsInLogicalOrder(t *testing.T) {
 	t.Parallel()
 
 	const hebrew = "אבגדה וזחטי"
 	got := drawLine(hebrew, lineSpec{width: 5})
-	// The first four letters and the ellipsis, reordered: the ellipsis is where the
-	// missing text went, which in a right-to-left line is the visual left.
+	// The first four letters and the ellipsis, reordered: in an RTL line the ellipsis is
+	// on the visual left, where the missing text went.
 	if want := "…" + reorder("אבגד", bidi.RightToLeft); got != want {
 		t.Errorf("drawLine(hebrew, 5) = %q, want %q", got, want)
 	}
@@ -65,8 +65,8 @@ func TestDrawLineAlignsRightToLeftWhenAsked(t *testing.T) {
 	}
 }
 
-// A sentence of ours keeps its English in order; each isolated name is reordered in
-// its own direction; the marks are gone.
+// Our sentence keeps its English in order; each isolated name is reordered in its own
+// direction; the marks are gone.
 func TestDrawLineLaysOutASentenceLeftToRight(t *testing.T) {
 	t.Parallel()
 
@@ -76,11 +76,11 @@ func TestDrawLineLaysOutASentenceLeftToRight(t *testing.T) {
 	if got := drawLine(logical, lineSpec{}); got != want {
 		t.Errorf("drawLine(sentence) = %q, want %q", got, want)
 	}
-	// Without the isolates, asking for a sentence still keeps the English in order.
+	// Without isolates, a sentence still keeps the English in order.
 	if got := drawLine("everyone in "+room, lineSpec{sentence: true}); got != "everyone in "+reorder(room, bidi.RightToLeft) {
 		t.Errorf("drawLine(bare sentence) = %q", got)
 	}
-	// And a cut inside an isolated name leaves the ellipsis with the name it shortened.
+	// A cut inside an isolated name leaves the ellipsis with the name.
 	cut := drawLine("in "+isolate("אבגדה"), lineSpec{width: 6})
 	if want := "in " + "…" + reorder("אב", bidi.RightToLeft); cut != want {
 		t.Errorf("cut sentence = %q, want %q", cut, want)
@@ -102,7 +102,6 @@ func TestIsolateIsOnlyForRightToLeftAndDoesNotNest(t *testing.T) {
 	}
 }
 
-// Text this program already styled is cut and nothing else.
 func TestDrawLinePassesStyledTextThrough(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +114,7 @@ func TestDrawLinePassesStyledTextThrough(t *testing.T) {
 func TestDrawLineMarksByLogicalOffset(t *testing.T) {
 	t.Parallel()
 
-	// The second word is the match. In a right-to-left line it lands on the visual left.
+	// The second word is the match; in an RTL line it lands on the visual left.
 	text := "שלום עולם"
 	bold := ansi.Style{}.Bold()
 	got := drawLine(text, lineSpec{marks: func(off int) (styleKey, ansi.Style, string) {
@@ -188,14 +187,13 @@ func TestTruncateLogicalKeepsWholeCharacters(t *testing.T) {
 }
 
 // escapedOpen and escapedClose are how %q spells the isolate marks: six printable
-// characters each, which is what would reach the screen.
+// characters each.
 const (
 	escapedOpen  = "\\u2068"
 	escapedClose = "\\u2069"
 )
 
-// A quoted query carries the isolate marks themselves, never an escaped spelling of
-// them: `%q` would have written `\u2068` into the sentence, and drawn it on screen.
+// quoted keeps the isolate marks themselves; `%q` would draw `⁨` on screen.
 func TestQuotedKeepsTheIsolateMarksUnescaped(t *testing.T) {
 	t.Parallel()
 
@@ -210,7 +208,7 @@ func TestQuotedKeepsTheIsolateMarksUnescaped(t *testing.T) {
 		t.Errorf("quoted(latin) = %q", got)
 	}
 
-	// And through a real sentence: the picker's header when nothing matches.
+	// Through a real sentence: the picker's header when nothing matches.
 	m := withPicker(t, listSpec(false), []pickerItem{{label: "Alice", value: "a"}})
 	m.picker.filter = "שלום"
 	m.picker = m.picker.refilter()

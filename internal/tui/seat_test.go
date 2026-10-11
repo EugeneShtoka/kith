@@ -9,8 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A window whose seat another took saves the draft typed and not yet saved, then
-// quits, the way quit does.
+// A window losing its seat saves the unsaved draft, then quits.
 func TestAWindowSteppingAsideSavesItsDraftFirst(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
@@ -49,8 +48,7 @@ func (seatlessDrafts) ReplaceDraft(context.Context, domain.StoredDraft, domain.S
 	return false, api.ErrSeatTaken
 }
 
-// A save refused because another window has the seat is not "maybe written", and the
-// window steps aside as if it had been told.
+// A save refused for the seat is not "maybe written"; the window steps aside.
 func TestASaveRefusedForTheSeatStepsAside(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)

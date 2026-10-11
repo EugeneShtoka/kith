@@ -13,7 +13,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// searchBackend records the queries issued and answers with canned hits.
 type searchBackend struct {
 	apitest.Nop
 	queries  []string
@@ -42,7 +41,6 @@ func (b *searchBackend) SearchMessages(_ context.Context, req domain.SearchReque
 	return b.hits, b.err
 }
 
-// hit builds one search result.
 func hit(room domain.RoomID, event domain.EventID, name, snippet string, agoHours int) domain.SearchHit {
 	return domain.SearchHit{
 		RoomID: room, EventID: event, Sender: "@" + name + ":x", SenderName: name,
@@ -51,7 +49,7 @@ func hit(room domain.RoomID, event domain.EventID, name, snippet string, agoHour
 	}
 }
 
-// searching returns a model with the search prompt open over two rooms, and its backend.
+// searching opens the search prompt over two rooms and returns its backend.
 func searching(t *testing.T, global bool, hits ...domain.SearchHit) (Model, *searchBackend) {
 	t.Helper()
 	b := &searchBackend{hits: hits}
@@ -75,7 +73,6 @@ func searching(t *testing.T, global bool, hits ...domain.SearchHit) (Model, *sea
 	return m, b
 }
 
-// typeQuery feeds text into the prompt a keystroke at a time, running each command.
 func typeQuery(t *testing.T, m Model, text string) Model {
 	t.Helper()
 	for _, r := range text {
@@ -126,7 +123,6 @@ func TestSearchAllIsGlobal(t *testing.T) {
 	}
 }
 
-// With no room open the search opens on the group rather than refusing.
 func TestSearchRoomWithNoRoomOpen(t *testing.T) {
 	t.Parallel()
 
@@ -141,7 +137,6 @@ func TestSearchRoomWithNoRoomOpen(t *testing.T) {
 	}
 }
 
-// Where the key was pressed decides how wide the search starts.
 func TestSearchScopeDefaultsToThePane(t *testing.T) {
 	t.Parallel()
 
@@ -165,7 +160,6 @@ func TestSearchScopeDefaultsToThePane(t *testing.T) {
 	}
 }
 
-// The scope key widens without retyping, and wraps.
 func TestSearchScopeCycles(t *testing.T) {
 	t.Parallel()
 
@@ -184,13 +178,12 @@ func TestSearchScopeCycles(t *testing.T) {
 			t.Fatalf("cycled to %v, want %v", m.search.scope, want)
 		}
 	}
-	// Each cycle re-ran the query rather than making the user retype it.
+	// Each cycle re-ran the query.
 	if len(b.queries) < 4 || b.queries[len(b.queries)-1] != "deploy" {
 		t.Errorf("queries = %v, want the same query re-run on each scope change", b.queries)
 	}
 }
 
-// The scope is in the title, because a mode you cannot see is one you lose track of.
 func TestSearchTitleNamesTheScope(t *testing.T) {
 	t.Parallel()
 
@@ -214,7 +207,6 @@ func TestSearchTitleNamesTheScope(t *testing.T) {
 	}
 }
 
-// One search per character typed.
 func TestSearchRunsAsYouType(t *testing.T) {
 	t.Parallel()
 
@@ -227,7 +219,7 @@ func TestSearchRunsAsYouType(t *testing.T) {
 	if len(m.search.hits) != 1 {
 		t.Errorf("hits = %d, want 1", len(m.search.hits))
 	}
-	// Backspacing to nothing clears the results rather than searching for nothing.
+	// Backspacing to nothing clears the results.
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	before := len(b.queries)
@@ -243,7 +235,6 @@ func TestSearchRunsAsYouType(t *testing.T) {
 	}
 }
 
-// A slow search for an earlier keystroke must not overwrite a later one.
 func TestStaleSearchResultsAreDropped(t *testing.T) {
 	t.Parallel()
 
@@ -256,7 +247,7 @@ func TestStaleSearchResultsAreDropped(t *testing.T) {
 		t.Fatalf("hits = %d, want the current results", len(m.search.hits))
 	}
 
-	// A result for "dep" arriving late is for a query the user has typed past.
+	// A late result for "dep", a query typed past.
 	stale := []domain.SearchHit{
 		hit("!a:x", "$9", "Bob", "stale", 2), hit("!a:x", "$8", "Bob", "stale", 3),
 	}
@@ -271,7 +262,6 @@ func TestStaleSearchResultsAreDropped(t *testing.T) {
 	}
 }
 
-// The arrows walk the results, clamping at both ends.
 func TestSearchResultsAreWalkable(t *testing.T) {
 	t.Parallel()
 
@@ -291,7 +281,6 @@ func TestSearchResultsAreWalkable(t *testing.T) {
 	if m.search.cursor != 0 {
 		t.Errorf("cursor = %d, want the first result", m.search.cursor)
 	}
-	// Up at the top stays put.
 	m, _ = press(t, m, keyText("k"))
 	if m.search.cursor != 0 {
 		t.Errorf("cursor = %d after up at the top, want 0", m.search.cursor)
@@ -301,12 +290,10 @@ func TestSearchResultsAreWalkable(t *testing.T) {
 	if m.search.cursor != 2 {
 		t.Errorf("cursor = %d after two downs, want 2", m.search.cursor)
 	}
-	// Down past the end stays on the last.
 	m, _ = press(t, m, keyText("j"))
 	if m.search.cursor != 2 {
 		t.Errorf("cursor = %d past the end, want the last result", m.search.cursor)
 	}
-	// The ends jump.
 	m, _ = press(t, m, keyText("g"))
 	if m.search.cursor != 2 {
 		t.Errorf("g = %d, want the oldest result", m.search.cursor)
@@ -317,7 +304,6 @@ func TestSearchResultsAreWalkable(t *testing.T) {
 	}
 }
 
-// esc from the prompt and esc from the results both put the conversation back.
 func TestSearchCloses(t *testing.T) {
 	t.Parallel()
 
@@ -339,7 +325,6 @@ func TestSearchCloses(t *testing.T) {
 	}
 }
 
-// The point of the whole feature: a hit becomes a selected message in its room.
 func TestJumpToResultSelectsTheMessage(t *testing.T) {
 	t.Parallel()
 
@@ -377,7 +362,6 @@ func TestJumpToResultSelectsTheMessage(t *testing.T) {
 	}
 }
 
-// A hit trimmed from the cache since the search is reported.
 func TestJumpToUncachedMessageIsReported(t *testing.T) {
 	t.Parallel()
 
@@ -386,7 +370,7 @@ func TestJumpToUncachedMessageIsReported(t *testing.T) {
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	// The cached page arrives without it, and the jump stays pending…
+	// The cached page arrives without it; the jump stays pending…
 	m = update(t, m, cachedTimelineMsg{roomID: "!b:x", messages: []domain.Message{
 		{ID: "$other", RoomID: "!b:x", Sender: "@bob:x", Body: "something else"},
 	}})
@@ -405,7 +389,6 @@ func TestJumpToUncachedMessageIsReported(t *testing.T) {
 	}
 }
 
-// A hit in a room that has since been left cannot be jumped to, and says so.
 func TestJumpToLeftRoom(t *testing.T) {
 	t.Parallel()
 
@@ -418,7 +401,6 @@ func TestJumpToLeftRoom(t *testing.T) {
 	}
 }
 
-// The summary is the answer to the question, so it has to be right at every count.
 func TestSearchSummary(t *testing.T) {
 	t.Parallel()
 
@@ -438,24 +420,23 @@ func TestSearchSummary(t *testing.T) {
 	if got := m.searchSummary(); !strings.Contains(got, "2 matches") {
 		t.Errorf("two-match summary = %q", got)
 	}
-	// A capped result set says so, because the answer is "narrow it", not "scroll".
+	// A capped result set says so: the answer is "narrow it", not "scroll".
 	m.search.hits = make([]domain.SearchHit, searchLimit)
 	if got := m.searchSummary(); !strings.Contains(got, "narrow") {
 		t.Errorf("capped summary = %q, should suggest narrowing", got)
 	}
-	// A failure is reported rather than shown as "no matches".
+	// A failure is reported, not shown as "no matches".
 	m.search.err = errTest
 	if got := m.searchSummary(); !strings.Contains(got, "failed") {
 		t.Errorf("error summary = %q", got)
 	}
-	// And global scope says so.
 	m.search.scope, m.search.err, m.search.hits = searchEverywhere, nil, nil
 	if got := m.searchSummary(); !strings.Contains(got, "all rooms") {
 		t.Errorf("global summary = %q", got)
 	}
 }
 
-// The room is shown only when searching across rooms.
+// The room column shows only when searching across rooms.
 func TestSearchPaneContents(t *testing.T) {
 	t.Parallel()
 
@@ -471,12 +452,10 @@ func TestSearchPaneContents(t *testing.T) {
 			t.Errorf("the results pane should show %q", want)
 		}
 	}
-	// The highlight markers are styling, never text.
 	if strings.ContainsAny(body, domain.HighlightStart+domain.HighlightEnd) {
 		t.Error("highlight markers leaked into the rendered output")
 	}
 
-	// Room-scoped results drop the room column: it would be the same on every row.
 	m2, _ := searching(t, false, hit("!a:x", "$1", "Alice", "x", 1))
 	m2 = typeQuery(t, m2, "x")
 	if strings.Contains(stripStyles(m2.View().Content), "[Alpha]") {
@@ -484,7 +463,6 @@ func TestSearchPaneContents(t *testing.T) {
 	}
 }
 
-// A multi-line message body must not break the one-row-per-result layout.
 func TestSearchExcerptIsOneLine(t *testing.T) {
 	t.Parallel()
 
@@ -501,7 +479,7 @@ func TestSearchExcerptIsOneLine(t *testing.T) {
 	}
 }
 
-// A search prompt types freely: bindings must not swallow characters a query needs.
+// Bindings must not swallow characters a query needs.
 func TestSearchPromptTypesEverything(t *testing.T) {
 	t.Parallel()
 
@@ -515,7 +493,6 @@ func TestSearchPromptTypesEverything(t *testing.T) {
 	}
 }
 
-// A backend failure is surfaced, not swallowed into an empty result set.
 func TestSearchErrorSurfaces(t *testing.T) {
 	t.Parallel()
 

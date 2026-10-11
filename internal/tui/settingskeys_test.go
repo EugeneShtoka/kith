@@ -9,7 +9,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// Every binding of every key table has a row, under its table in Keys.
 func TestEveryBindingHasARow(t *testing.T) {
 	t.Parallel()
 	m, _ := opened(t, config.Notifications{Enabled: true})
@@ -30,8 +29,8 @@ func TestEveryBindingHasARow(t *testing.T) {
 	}
 }
 
-// A binding is typed in place and works at once; one that clashes is refused with the
-// reason and changes nothing; empty restores the default; "-" binds nothing.
+// A binding works at once; a clash is refused with the reason and changes nothing;
+// empty restores the default; "-" binds nothing.
 func TestABindingIsChangedFromSettings(t *testing.T) {
 	t.Parallel()
 	m, path := opened(t, config.Notifications{Enabled: true})
@@ -74,8 +73,8 @@ func TestABindingIsChangedFromSettings(t *testing.T) {
 	}
 }
 
-// The jump shortcuts are records in Keys: listed, and removed from there; esc walks
-// back from a key table to Keys, then to the groups.
+// Jump shortcuts are listed and removed in Keys; esc walks back from a key table to
+// Keys, then to the groups.
 func TestJumpShortcutsAndKeysNavigation(t *testing.T) {
 	t.Parallel()
 	m, _ := opened(t, config.Notifications{Enabled: true})

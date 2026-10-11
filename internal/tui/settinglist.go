@@ -7,13 +7,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// A list setting (the rail's order, priority, a list of places) is edited an entry at
-// a time: its entries, then a row to add one. Enter types an entry on its row (an
-// emptied one is removed), x removes it, K and J move it, and esc goes back to the
-// group. Each change
-// is applied and saved at once, as every setting is.
+// A list setting is edited an entry at a time, with an add row last. Enter edits an
+// entry (emptied = removed), x removes, K/J move, esc goes back. Each change is
+// applied and saved at once.
 
-// settingAdd is the entries list's "Add an entry" row; no entry index is spelled so.
+// settingAdd is the add row's value; no entry index is spelled so.
 const settingAdd = "\x00add"
 
 // settingEntriesOpen shows a list setting's entries, the cursor on the row valued at.
@@ -35,8 +33,8 @@ func (m Model) settingEntriesOpen(key, at string) Model {
 	return m
 }
 
-// settingEntries is a list setting's entries in force: what the config sets, else
-// default.toml's, so changing one entry of a default list starts from all of it.
+// settingEntries is the entries in force: the config's, else default.toml's, so
+// editing one entry of a default list starts from all of it.
 func (m Model) settingEntries(key string) []string {
 	if s, ok := m.setting(key); ok && s.entries != nil {
 		return s.entries(m.conf.base)
@@ -44,8 +42,6 @@ func (m Model) settingEntries(key string) []string {
 	return nil
 }
 
-// chooseSettingEntry types the entry under the cursor on its row, or a new one on the
-// add row.
 func (m Model) chooseSettingEntry(value string) (Model, tea.Cmd) {
 	if value == settingAdd {
 		m.choosing.settingEntry = -1
@@ -62,8 +58,7 @@ func (m Model) chooseSettingEntry(value string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// submitSettingEntry writes the typed entry: a new one is added at the end, an edited
-// one replaced, an emptied one removed.
+// submitSettingEntry adds a new entry at the end, replaces an edited one, removes an emptied one.
 func (m Model) submitSettingEntry(input string) (Model, tea.Cmd) {
 	key, i := m.choosing.setting, m.choosing.settingEntry
 	entries := m.settingEntries(key)
@@ -88,8 +83,6 @@ func (m Model) submitSettingEntry(input string) (Model, tea.Cmd) {
 	return m.writeSettingList(key, entries, at)
 }
 
-// removeSettingEntry takes the entry under the cursor out of its list, as emptying it
-// would.
 func (m Model) removeSettingEntry() (Model, tea.Cmd) {
 	item, ok := m.picker.selected()
 	if !ok || item.value == settingAdd {
@@ -99,7 +92,6 @@ func (m Model) removeSettingEntry() (Model, tea.Cmd) {
 	return m.submitSettingEntry("")
 }
 
-// moveSettingEntry moves the entry under the cursor by delta, for an ordered list.
 func (m Model) moveSettingEntry(delta int) (Model, tea.Cmd) {
 	item, ok := m.picker.selected()
 	if !ok || item.value == settingAdd {
@@ -116,9 +108,8 @@ func (m Model) moveSettingEntry(delta int) (Model, tea.Cmd) {
 	return m.writeSettingList(key, entries, strconv.Itoa(j))
 }
 
-// writeSettingList applies a list setting's new entries and shows them again, the
-// cursor on the row valued at; a config that refuses them says why and changes
-// nothing.
+// writeSettingList applies and shows a list setting's new entries; a refusal says
+// why and changes nothing.
 func (m Model) writeSettingList(key string, entries []string, at string) (Model, tea.Cmd) {
 	s, ok := m.setting(key)
 	if !ok {

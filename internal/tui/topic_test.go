@@ -23,7 +23,6 @@ func topicRoom(t *testing.T, topic string) Model {
 	return m
 }
 
-// The topic rides in the title when there is room for it.
 func TestTopicAppearsInTheTitle(t *testing.T) {
 	t.Parallel()
 
@@ -33,8 +32,7 @@ func TestTopicAppearsInTheTitle(t *testing.T) {
 	}
 }
 
-// It yields rather than truncating the rest: the room and the day answer questions
-// you asked by being here, and a shred of a topic answers none.
+// The topic yields rather than truncating the room and day, which matter more.
 func TestTopicYieldsWhenTheTitleIsLong(t *testing.T) {
 	t.Parallel()
 
@@ -43,15 +41,13 @@ func TestTopicYieldsWhenTheTitleIsLong(t *testing.T) {
 	if got := m.topicSuffix(wide, 100); got != "" {
 		t.Errorf("suffix = %q, want nothing left for a topic", got)
 	}
-	// And nothing at all rather than an ellipsis, which would advertise a keystroke
-	// instead of answering.
+	// Nothing at all rather than an ellipsis.
 	if got := m.topicSuffix(strings.Repeat("x", 80), 100); strings.Contains(got, "standups") {
 		t.Errorf("suffix = %q, want it to yield before it shortens to a word", got)
 	}
 }
 
-// A room without one says nothing, and neither does a thread — a thread has its own
-// subject, and the room's is not it.
+// No topic, and none in a thread: a thread's subject isn't the room's.
 func TestTopicAbsentWhereItWouldMislead(t *testing.T) {
 	t.Parallel()
 
@@ -65,7 +61,7 @@ func TestTopicAbsentWhereItWouldMislead(t *testing.T) {
 	}
 }
 
-// `gt` opens the whole thing; with no topic it says so instead of opening an empty box.
+// `gt` opens the whole topic; with none it says so instead of opening an empty box.
 func TestTopicReaderOpensOnlyWithATopic(t *testing.T) {
 	t.Parallel()
 

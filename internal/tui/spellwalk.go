@@ -15,26 +15,23 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The correction walk: the draft's misspellings one at a time, with suggestions. The
+// The correction walk steps through the draft's misspellings with suggestions. The
 // list is a snapshot (never renumbered while open), later offsets shift with each
 // replacement, and each replacement is one undo step.
 
 // spellWalkRows is how many suggestions the popup lists (keys 1–9).
 const spellWalkRows = 9
 
-// spellWalk is the open correction walk.
 type spellWalk struct {
 	active bool
 	// sendWhenDone is set when a send opened the walk ([spell] check_before_send):
 	// reaching the end posts the message; esc does not.
 	sendWhenDone bool
-	// items are the misspellings being walked, in byte offsets into the draft.
+	// items are the misspellings walked, in byte offsets into the draft.
 	items []domain.Misspelling
-	// at is which one is being asked about.
-	at int
+	at    int
 }
 
-// current is the misspelling the popup is showing, and whether there is one.
 func (w spellWalk) current() (domain.Misspelling, bool) {
 	if !w.active || w.at < 0 || w.at >= len(w.items) {
 		return domain.Misspelling{}, false
@@ -42,8 +39,8 @@ func (w spellWalk) current() (domain.Misspelling, bool) {
 	return w.items[w.at], true
 }
 
-// openSpellWalk starts the walk on the draft as it stands. It walks spell.shown, not
-// composerMarks: asking for the walk says the caret's word is finished too.
+// openSpellWalk walks spell.shown, not composerMarks: asking for the walk says the
+// caret's word is finished too.
 func (m Model) openSpellWalk() (Model, tea.Cmd) {
 	switch {
 	case !m.conf.base.Spell.SpellEnabled():
@@ -58,17 +55,16 @@ func (m Model) openSpellWalk() (Model, tea.Cmd) {
 	return m.startSpellWalk(m.spell.shown, false), nil
 }
 
-// startSpellWalk opens the walk over marks, closing the completion popup (it would
-// otherwise take the walk's keys).
+// startSpellWalk opens the walk over marks, closing the completion popup, which would
+// take its keys.
 func (m Model) startSpellWalk(marks []domain.Misspelling, sendWhenDone bool) Model {
 	m = m.closeCompletion()
 	m.walk = spellWalk{active: true, sendWhenDone: sendWhenDone, items: slices.Clone(marks)}
 	return m
 }
 
-// spellGate is [spell] check_before_send: with something misspelled, the walk opens
-// instead of the send, which resumes at the walk's end. held says the send was taken
-// over.
+// spellGate is [spell] check_before_send: with something misspelled the walk opens
+// instead, and the send resumes at its end. held reports the send was taken over.
 func (m Model) spellGate() (Model, tea.Cmd, bool) {
 	if !m.conf.base.Spell.CheckBeforeSend || !m.conf.base.Spell.SpellEnabled() ||
 		m.spell.off || m.spell.passed || m.walk.active {
@@ -84,7 +80,6 @@ func (m Model) spellGate() (Model, tea.Cmd, bool) {
 	return m.startSpellWalk(m.spell.shown, true), nil, true
 }
 
-// checkBeforeSendCmd asks about the draft immediately, for a held send.
 func (m Model) checkBeforeSendCmd(gen int, text string) tea.Cmd {
 	parent, backend := m.ctx, m.backend
 	rareGates := m.conf.base.Spell.RareBeforeSend
@@ -105,7 +100,6 @@ func (m Model) checkBeforeSendCmd(gen int, text string) tea.Cmd {
 	}
 }
 
-// spellBeforeSendMsg is the answer a held send is waiting on.
 type spellBeforeSendMsg struct {
 	gen   int
 	text  string
@@ -115,7 +109,6 @@ type spellBeforeSendMsg struct {
 	failed bool
 }
 
-// handleSpellBeforeSend decides what the held send does now the answer is in.
 func (m Model) handleSpellBeforeSend(msg spellBeforeSendMsg) (Model, tea.Cmd) {
 	if m.compose.input != msg.text {
 		return m.say("the draft changed while it was being checked — send again"), nil
@@ -132,7 +125,7 @@ func (m Model) handleSpellBeforeSend(msg spellBeforeSendMsg) (Model, tea.Cmd) {
 	return m.startSpellWalk(m.spell.shown, true), checked
 }
 
-// handleSpellWalkKey answers for the walk, which claims every key while it is up.
+// handleSpellWalkKey handles every key while the walk is up.
 func (m Model) handleSpellWalkKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	act := m.keys.lookup(key.String(), scopeSpell)
 	if n, ok := suggestionOf(act); ok {
@@ -152,7 +145,6 @@ func (m Model) handleSpellWalkKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// takeSuggestion replaces the word with the nth suggestion, if there is an nth.
 func (m Model) takeSuggestion(n int) (Model, tea.Cmd) {
 	item, ok := m.walk.current()
 	if !ok {
@@ -165,8 +157,8 @@ func (m Model) takeSuggestion(n int) (Model, tea.Cmd) {
 	return m.replaceMisspelling(item.Suggestions[n-1])
 }
 
-// replaceMisspelling puts with in place of the current word and every later
-// occurrence of it (not skipped earlier ones), then advances.
+// replaceMisspelling replaces the current word and every later occurrence (not
+// skipped earlier ones), then advances.
 func (m Model) replaceMisspelling(with string) (Model, tea.Cmd) {
 	item, ok := m.walk.current()
 	if !ok {
@@ -174,7 +166,7 @@ func (m Model) replaceMisspelling(with string) (Model, tea.Cmd) {
 	}
 	e := m.editorFor(fieldComposer)
 	if item.End > len(e.text) || e.text[item.Start:item.End] != item.Word {
-		// Guard: the range no longer holds its word; replace nothing.
+		// The range no longer holds its word; replace nothing.
 		return m.nextMisspelling()
 	}
 
@@ -211,14 +203,14 @@ func (m Model) replaceMisspelling(with string) (Model, tea.Cmd) {
 	return m.nextMisspelling()
 }
 
-// learnCurrentWord teaches the engine the current word — forever (personal
-// dictionary) or for this engine's lifetime — and advances without waiting.
+// learnCurrentWord teaches the engine the current word, forever (personal dictionary)
+// or for the engine's lifetime, and advances without waiting.
 func (m Model) learnCurrentWord(forever bool) (Model, tea.Cmd) {
 	item, ok := m.walk.current()
 	if !ok {
 		return m.closeSpellWalk(), nil
 	}
-	// The draft did not change, so no check will clear it: drop every occurrence.
+	// The draft didn't change, so no check will clear it: drop every occurrence.
 	m.spell.shown = withoutWord(m.spell.shown, item.Word)
 	backend, word, ctx := m.backend, item.Word, m.ctx
 	teach := func() tea.Msg {
@@ -234,7 +226,6 @@ func (m Model) learnCurrentWord(forever bool) (Model, tea.Cmd) {
 	return next, tea.Batch(teach, after)
 }
 
-// withoutWord drops every range covering the given word.
 func withoutWord(ranges []domain.Misspelling, word string) []domain.Misspelling {
 	out := make([]domain.Misspelling, 0, len(ranges))
 	for _, r := range ranges {
@@ -249,7 +240,6 @@ func withoutWord(ranges []domain.Misspelling, word string) []domain.Misspelling 
 	return out
 }
 
-// spellLearnedMsg is what came of teaching a word.
 type spellLearnedMsg struct {
 	word string
 	err  error
@@ -260,12 +250,11 @@ func (m Model) handleSpellLearned(msg spellLearnedMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		return m, nil
 	}
-	// The word is the user's own typing: logged without it.
+	// The word is the user's typing: not logged.
 	m.logErr(slog.LevelWarn, "add word to dictionary failed", msg.err)
 	return m.say(fmt.Sprintf("%q could not be added to the dictionary", msg.word)), nil
 }
 
-// nextMisspelling moves to the next word, closing the walk when there is none.
 func (m Model) nextMisspelling() (Model, tea.Cmd) {
 	m.walk.at++
 	if m.walk.at < len(m.walk.items) {
@@ -276,25 +265,25 @@ func (m Model) nextMisspelling() (Model, tea.Cmd) {
 	if !sending {
 		return m, nil
 	}
-	// Marked passed so a skipped (still underlined) word does not reopen the walk.
+	// Marked passed so a skipped, still underlined word doesn't reopen the walk.
 	m.spell.passed = true
 	return m.submit()
 }
 
-// closeSpellWalk ends the walk, leaving everything it did not reach underlined.
+// closeSpellWalk ends the walk, leaving what it didn't reach underlined.
 func (m Model) closeSpellWalk() Model {
 	m.walk = spellWalk{}
 	return m
 }
 
-// spellWalkLines renders the popup: the word, the suggestions under the keys that take
-// them (spell.choose_N), and the footer.
+// spellWalkLines renders the popup: the word, the suggestions under their keys
+// (spell.choose_N), and the footer.
 func (m Model) spellWalkLines(width int) []string {
 	item, ok := m.walk.current()
 	if !ok {
 		return nil
 	}
-	// nameCell for its cut-then-reorder, so Hebrew words read correctly.
+	// nameCell cuts then reorders, so Hebrew words read correctly.
 	counter := fmt.Sprintf(" %d/%d", m.walk.at+1, len(m.walk.items))
 	head := m.theme.Title.Render(nameCell(item.Word, max(width-len(counter), 1)))
 	out := []string{head + m.theme.Muted.Render(counter)}
@@ -316,8 +305,8 @@ func (m Model) spellWalkLines(width int) []string {
 	return append(out, m.theme.Muted.Render(clamp(m.spellWalkHelp(), width)))
 }
 
-// spellWalkHelp is the footer, spelled from the keymap. On a rare word "add" means
-// "it's fine" (AllowRareWord).
+// spellWalkHelp is the footer, from the keymap. On a rare word "add" means "it's fine"
+// (AllowRareWord).
 func (m Model) spellWalkHelp() string {
 	add := "add"
 	if item, ok := m.walk.current(); ok && item.Rare {

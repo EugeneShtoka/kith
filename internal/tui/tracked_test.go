@@ -13,8 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A tracked word is marked in a plain message — which is the case that matters, since
-// a line from a bridge carries no formatting at all and those are nearly all of them.
+// Plain messages matter most: bridged lines carry no formatting.
 func TestTrackedWordIsMarkedInAPlainMessage(t *testing.T) {
 	t.Parallel()
 
@@ -33,14 +32,12 @@ func TestTrackedWordIsMarkedInAPlainMessage(t *testing.T) {
 	if !strings.Contains(row, "\x1b[") {
 		t.Error("the row carries no styling at all, so the mark cannot be visible")
 	}
-	// Whatever else it does, it must not change how wide the row is: every scroll
-	// total in the client is computed from this width.
+	// The row width must not change: every scroll total is computed from it.
 	if got, want := ansi.StringWidth(row), ansi.StringWidth(body); got != want {
 		t.Errorf("width = %d, want %d", got, want)
 	}
 }
 
-// Nothing tracked draws nothing — the common case costs one length check.
 func TestNoTrackedWordsNoMarks(t *testing.T) {
 	t.Parallel()
 
@@ -50,8 +47,8 @@ func TestNoTrackedWordsNoMarks(t *testing.T) {
 	}
 }
 
-// A wrapped message narrows its marks to the row that draws them, like the sender's
-// formatting does — the offsets belong to the whole body.
+// A wrapped message narrows its marks to the row that draws them; the offsets are into
+// the whole body.
 func TestTrackedMarksNarrowToTheirRow(t *testing.T) {
 	t.Parallel()
 
@@ -63,8 +60,7 @@ func TestTrackedMarksNarrowToTheirRow(t *testing.T) {
 	if len(style.tracked) != 1 {
 		t.Fatalf("tracked = %+v, want one", style.tracked)
 	}
-	// The second line, rebased: the hit is at an offset inside the whole body, and
-	// the window that draws that line has to see it relative to itself.
+	// The second line, rebased: the window drawing it sees the hit relative to itself.
 	from := strings.Index(body, "the invoice")
 	windowed := style.window(nil, from, len(body))
 	if len(windowed.tracked) != 1 {
@@ -74,14 +70,13 @@ func TestTrackedMarksNarrowToTheirRow(t *testing.T) {
 	if got := line[windowed.tracked[0].start:windowed.tracked[0].end]; got != "invoice" {
 		t.Errorf("rebased range covers %q, want invoice", got)
 	}
-	// And the row before it holds nothing.
+	// The row before it holds nothing.
 	if before := style.window(nil, 0, from); len(before.tracked) != 0 {
 		t.Errorf("first row carries %+v, want no marks", before.tracked)
 	}
 }
 
-// The tracked list groups by the word, and the grouping is the order: every hit for
-// one entry together, newest first inside it.
+// The tracked list groups hits by word, newest first within each.
 func TestTrackedListGroupsByWord(t *testing.T) {
 	t.Parallel()
 
@@ -103,8 +98,7 @@ func TestTrackedListGroupsByWord(t *testing.T) {
 	}
 }
 
-// The word is shown on each row while the list is grouped, and not when it was
-// opened for one word — every row would say the same thing.
+// Each row shows its word while grouped, not when the list was opened for one word.
 func TestTrackedListLabelsOnlyWhenGrouped(t *testing.T) {
 	t.Parallel()
 
@@ -117,8 +111,8 @@ func TestTrackedListLabelsOnlyWhenGrouped(t *testing.T) {
 	}
 }
 
-// The filter carries the word list, because a hit is defined by configuration the
-// cache does not hold — and naming one word narrows the same clause.
+// The filter carries the word list, since hits depend on config the cache lacks;
+// naming one word narrows the same clause.
 func TestTrackedListNarrowsWithItsWords(t *testing.T) {
 	t.Parallel()
 

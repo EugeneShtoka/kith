@@ -7,7 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// `*` toggles both ways, and a successful write does not undo the mark.
+// A successful write doesn't undo the mark.
 func TestStarTogglesBothWays(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +41,6 @@ func TestStarUndoneWhenTheServerRefuses(t *testing.T) {
 	}
 }
 
-// A late star set for a room no longer open is dropped.
 func TestStarSetIgnoredForAnotherRoom(t *testing.T) {
 	t.Parallel()
 

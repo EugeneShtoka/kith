@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// upgraded builds a room list holding a replaced room, the room that replaced it,
-// and one ordinary room to prove the marks and refusals are not universal.
+// upgraded builds a room list with a replaced room, its replacement, and an ordinary
+// room as control.
 func upgraded(t *testing.T) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
@@ -21,9 +21,8 @@ func upgraded(t *testing.T) Model {
 	return sized(t, m.clearStatus())
 }
 
-// A replaced room is the one row in the list that looks completely ordinary and is
-// not: it opens, it scrolls, and every send is refused because the server raised its
-// power levels. The mark is what makes that visible before you type into it.
+// A replaced room looks ordinary but every send is refused (the server raised its power
+// levels); the mark shows that before you type.
 func TestAReplacedRoomIsMarkedInTheRoomList(t *testing.T) {
 	t.Parallel()
 
@@ -43,9 +42,7 @@ func TestAReplacedRoomIsMarkedInTheRoomList(t *testing.T) {
 	}
 }
 
-// /replacement is the way out of a dead room, and the replacement is normally a room
-// the server already brought this account into — so the common case must open it
-// directly rather than ask to join a room we are in.
+// /replacement opens a replacement the account is already in rather than asking to join.
 func TestGoingToTheReplacementOpensARoomWeAreAlreadyIn(t *testing.T) {
 	t.Parallel()
 
@@ -63,8 +60,7 @@ func TestGoingToTheReplacementOpensARoomWeAreAlreadyIn(t *testing.T) {
 	}
 }
 
-// A room that was never upgraded still answers: silence is indistinguishable from a
-// command that did nothing.
+// A never-upgraded room still answers: silence looks like a command that did nothing.
 func TestGoingToTheReplacementOfAnOrdinaryRoomSaysThereIsNone(t *testing.T) {
 	t.Parallel()
 
@@ -82,8 +78,7 @@ func TestGoingToTheReplacementOfAnOrdinaryRoomSaysThereIsNone(t *testing.T) {
 	}
 }
 
-// The homeserver's answer to sending in a replaced room is M_FORBIDDEN, which says
-// nothing about why or where to go.
+// The homeserver answers a send in a replaced room with a bare M_FORBIDDEN.
 func TestSendingInAReplacedRoomExplainsAndKeepsTheDraft(t *testing.T) {
 	t.Parallel()
 
@@ -101,14 +96,13 @@ func TestSendingInAReplacedRoomExplainsAndKeepsTheDraft(t *testing.T) {
 	if !strings.Contains(got.st.event, "replaced") {
 		t.Errorf("status = %q, want it to say the room was replaced", got.st.event)
 	}
-	// The way out is named, because "this room was replaced" alone leaves you in it.
+	// The way out is named.
 	if !strings.Contains(got.st.event, "/replacement") {
 		t.Errorf("status = %q, want it to name /replacement", got.st.event)
 	}
 }
 
-// An ordinary room is unaffected: the guard reads one field, and a guard that fires
-// on the wrong rooms would stop the client sending anything at all.
+// An ordinary room is unaffected; a guard firing on the wrong rooms would stop all sends.
 func TestSendingInAnOrdinaryRoomIsUntouched(t *testing.T) {
 	t.Parallel()
 

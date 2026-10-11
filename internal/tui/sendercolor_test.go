@@ -8,8 +8,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A person's color must not change because somebody else turned up (hues were once
-// assigned by sorted position, so paging in history repainted the room).
 func TestSenderColorsSurviveNewParticipants(t *testing.T) {
 	m := newModel()
 	m.openRoom = "!a:x"
@@ -23,7 +21,7 @@ func TestSenderColorsSurviveNewParticipants(t *testing.T) {
 		t.Fatalf("senders = %d, want 2", len(before))
 	}
 
-	// Someone who sorts before both displaces every index-based slot.
+	// Someone who sorts before both would shift every index-based slot.
 	m = m.setMessages(domain.MergeMessages(m.timeline.messages, []domain.Message{
 		{ID: "$0", RoomID: "!a:x", Sender: "@aaron:x"},
 	}))
@@ -43,7 +41,6 @@ func TestSenderColorsSurviveNewParticipants(t *testing.T) {
 	}
 }
 
-// One room's slots must not leak into another's.
 func TestSenderColorsResetPerRoom(t *testing.T) {
 	m := newModel()
 	m.rooms = m.rooms.withJoined([]domain.Room{{ID: "!a:x", Name: "A"}, {ID: "!b:x", Name: "B"}})
@@ -63,7 +60,6 @@ func TestSenderColorsResetPerRoom(t *testing.T) {
 	}
 }
 
-// The derived cache sees a timeline assigned around setMessages.
 func TestDerivedCacheSeesDirectAssignment(t *testing.T) {
 	m := newModel()
 	m.openRoom = "!a:x"

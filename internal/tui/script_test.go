@@ -14,8 +14,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// withContext is `scripted` plus a declared context and some conversation to take it
-// from: one script, its `[[commands.script]]` block, and three messages in the room.
+// withContext is `scripted` plus a declared context: one script, its
+// `[[commands.script]]` block, and messages in the room.
 func withContext(t *testing.T, name, body string, script config.Script, msgs ...domain.Message) Model {
 	t.Helper()
 	home := t.TempDir()
@@ -36,7 +36,6 @@ func withContext(t *testing.T, name, body string, script config.Script, msgs ...
 	return m
 }
 
-// runTyped types the command and delivers what it produced.
 func runTyped(t *testing.T, m Model, typed string) Model {
 	t.Helper()
 	m = typeInto(t, m, typed)
@@ -44,7 +43,6 @@ func runTyped(t *testing.T, m Model, typed string) Model {
 	return deliver(t, m, cmd)
 }
 
-// The feature in one test: a script asks for the conversation, and gets it.
 func TestAScriptGetsTheHistoryItAskedFor(t *testing.T) {
 	t.Parallel()
 
@@ -70,7 +68,7 @@ func TestAScriptGetsTheHistoryItAskedFor(t *testing.T) {
 	}
 }
 
-// Only what was declared: an undeclared key is absent rather than empty.
+// An undeclared key is absent rather than empty.
 func TestAScriptGetsNothingItDidNotAskFor(t *testing.T) {
 	t.Parallel()
 
@@ -83,8 +81,7 @@ func TestAScriptGetsNothingItDidNotAskFor(t *testing.T) {
 	}
 }
 
-// Security: /proc/<pid>/cmdline is world-readable, so argv carries only the typed
-// argument, never the conversation.
+// /proc/<pid>/cmdline is world-readable, so argv carries only the typed argument.
 func TestTheConversationNeverReachesTheArgv(t *testing.T) {
 	t.Parallel()
 
@@ -103,7 +100,6 @@ func TestTheConversationNeverReachesTheArgv(t *testing.T) {
 	}
 }
 
-// A need with more than one answer is asked before the script runs.
 func TestAScriptAsksWhichLinkBeforeItRuns(t *testing.T) {
 	t.Parallel()
 
@@ -138,7 +134,6 @@ func TestAScriptAsksWhichLinkBeforeItRuns(t *testing.T) {
 	}
 }
 
-// One answer is not a question.
 func TestASingleLinkIsNotAQuestion(t *testing.T) {
 	t.Parallel()
 
@@ -156,7 +151,6 @@ func TestASingleLinkIsNotAQuestion(t *testing.T) {
 	}
 }
 
-// No answer at all is reported as the missing need.
 func TestAScriptThatNeedsALinkAndFindsNoneSaysSo(t *testing.T) {
 	t.Parallel()
 
@@ -179,7 +173,6 @@ func TestAScriptThatNeedsALinkAndFindsNoneSaysSo(t *testing.T) {
 	}
 }
 
-// Where the output goes is config, not a property of the script.
 func TestOutputSinks(t *testing.T) {
 	t.Parallel()
 
@@ -203,7 +196,6 @@ func TestOutputSinks(t *testing.T) {
 	}
 }
 
-// Printing nothing is fine when the output is discarded.
 func TestASilentScriptIsFineWhenItsOutputIsDiscarded(t *testing.T) {
 	t.Parallel()
 
@@ -215,14 +207,13 @@ func TestASilentScriptIsFineWhenItsOutputIsDiscarded(t *testing.T) {
 	}
 }
 
-// A script runs from its bound key.
 func TestAScriptRunsFromItsKey(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "sum", "#!/bin/sh\ncat\n",
 		config.Script{Needs: []string{"history:1"}, Keys: "alt+t"},
 		msgWith("$1", "only this one"))
-	// Out of the composer: script keys never fire while typing.
+	// Script keys never fire while typing.
 	m.focus, m.compose.insertMode = paneTimeline, false
 
 	m, cmd := press(t, m, tea.KeyPressMsg{Code: 't', Mod: tea.ModAlt})
@@ -233,13 +224,11 @@ func TestAScriptRunsFromItsKey(t *testing.T) {
 	}
 }
 
-// A key-bound script still asks its question before running.
 func TestAKeyBoundScriptStillAsks(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "save", "#!/bin/sh\necho \"got $KITH_URL\"\n",
-		// alt+g rather than alt+s: the latter is spell.open_insert, and a built-in
-		// key is refused rather than shadowed — which the test below pins.
+		// Not alt+s: that is spell.open_insert, and shadowing a built-in is refused.
 		config.Script{Needs: []string{"url"}, Keys: "alt+g"},
 		msgWith("$1", "https://one.org and https://two.org"))
 	m.focus, m.compose.insertMode = paneTimeline, false
@@ -254,7 +243,6 @@ func TestAKeyBoundScriptStillAsks(t *testing.T) {
 	}
 }
 
-// A script binding that would shadow a built-in is refused.
 func TestAScriptKeyCannotShadowABuiltIn(t *testing.T) {
 	t.Parallel()
 
@@ -271,7 +259,6 @@ func TestAScriptKeyCannotShadowABuiltIn(t *testing.T) {
 	}
 }
 
-// Two scripts on one sequence are refused.
 func TestTwoScriptsCannotShareAKey(t *testing.T) {
 	t.Parallel()
 
@@ -288,7 +275,6 @@ func TestTwoScriptsCannotShareAKey(t *testing.T) {
 	}
 }
 
-// The help overlay lists script keys in a section of their own.
 func TestTheHelpOverlayListsYourScriptKeys(t *testing.T) {
 	t.Parallel()
 
@@ -306,7 +292,6 @@ func TestTheHelpOverlayListsYourScriptKeys(t *testing.T) {
 	}
 }
 
-// output = "pager" shows a script's report in the reader.
 func TestAScriptCanPrintIntoTheReader(t *testing.T) {
 	t.Parallel()
 
@@ -335,7 +320,6 @@ func TestAScriptCanPrintIntoTheReader(t *testing.T) {
 	}
 }
 
-// Every reader scrolls against its own length, not the help list's.
 func TestEachReaderScrollsAgainstItsOwnLength(t *testing.T) {
 	t.Parallel()
 
@@ -346,7 +330,7 @@ func TestEachReaderScrollsAgainstItsOwnLength(t *testing.T) {
 	if len(m.readerContent()) < 200 {
 		t.Fatalf("the reader's own content is %d lines, want the script's 200", len(m.readerContent()))
 	}
-	// Paging to the end lands on the last screenful of *this* document.
+	// Paging to the end lands on the last screenful of this document.
 	m = m.scrollHelp(10_000)
 	want := len(m.readerContent()) - m.helpRows()
 	if m.reader.scroll != want {
@@ -357,7 +341,6 @@ func TestEachReaderScrollsAgainstItsOwnLength(t *testing.T) {
 	}
 }
 
-// A built-in key (`gX`) can be unbound and rebound to a script.
 func TestTheFocusKeyCanBeReplacedByAScript(t *testing.T) {
 	t.Parallel()
 
@@ -393,7 +376,6 @@ func TestTheFocusKeyCanBeReplacedByAScript(t *testing.T) {
 	}
 }
 
-// The replacement still asks which of two links.
 func TestTheReplacementStillAsksWhichLink(t *testing.T) {
 	t.Parallel()
 
@@ -420,8 +402,7 @@ func TestTheReplacementStillAsksWhichLink(t *testing.T) {
 	}
 }
 
-// A sequence bound to a script completes like any chord (the resolver once ignored
-// scripts and waited for a third key).
+// A sequence bound to a script completes like any chord, without waiting for a third key.
 func TestASequenceBoundToAScriptCompletes(t *testing.T) {
 	t.Parallel()
 

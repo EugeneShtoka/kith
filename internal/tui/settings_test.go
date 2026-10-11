@@ -14,7 +14,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// opened returns a model with the settings screen opened by its key, plus the config path.
+// opened opens the settings screen by its key; it returns the model and config path.
 func opened(t *testing.T, notifs config.Notifications) (Model, string) {
 	t.Helper()
 	m, path := ruling(t, notifs)
@@ -25,9 +25,8 @@ func opened(t *testing.T, notifs config.Notifications) (Model, string) {
 	return m, path
 }
 
-// toSetting picks the first setting whose label or key holds substr (as the old flat
-// list's filter did): its group is opened, then the row chosen in it. In a value
-// picker it picks a value.
+// toSetting opens the group of the first setting whose label or key holds substr and
+// chooses its row. In a value picker it picks a value.
 func toSetting(t *testing.T, m Model, substr string) Model {
 	t.Helper()
 	if m.picker.kind != pickerSettingGroups && m.picker.kind != pickerSetting {
@@ -58,8 +57,8 @@ func typeIn(t *testing.T, m Model, text string) Model {
 	return m
 }
 
-// rowFor finds a row by its label in the open picker, else a setting's row as its
-// group shows it (a group's row may share a setting's label: Notifications).
+// rowFor finds a row by label in the open picker, else a setting's row in its group
+// (a group's row may share a setting's label: Notifications).
 func rowFor(t *testing.T, m Model, label string) pickerItem {
 	t.Helper()
 	for _, item := range m.picker.items {
@@ -82,7 +81,6 @@ func rowFor(t *testing.T, m Model, label string) pickerItem {
 	return pickerItem{}
 }
 
-// Every row shows what the setting is currently set to.
 func TestSettingsShowCurrentValues(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +102,7 @@ func TestSettingsShowCurrentValues(t *testing.T) {
 	}
 }
 
-// Choosing a level is written to the file, the live config and the decision.
+// Choosing a level reaches the file, the live config and the decision.
 func TestSettingChoiceChangesTheDecision(t *testing.T) {
 	t.Parallel()
 
@@ -135,7 +133,6 @@ func TestSettingChoiceChangesTheDecision(t *testing.T) {
 	}
 }
 
-// A choice picker marks the current value.
 func TestSettingChoiceMarksTheCurrentValue(t *testing.T) {
 	t.Parallel()
 
@@ -158,7 +155,6 @@ func TestSettingChoiceMarksTheCurrentValue(t *testing.T) {
 	}
 }
 
-// A toggle takes effect in the running app, not at the next start.
 func TestSettingToggleTakesEffectImmediately(t *testing.T) {
 	t.Parallel()
 
@@ -183,7 +179,6 @@ func TestSettingToggleTakesEffectImmediately(t *testing.T) {
 	}
 }
 
-// A value the parser will not take is reported and changes nothing.
 func TestSettingRejectsAValueThatWillNotParse(t *testing.T) {
 	t.Parallel()
 
@@ -209,7 +204,6 @@ func TestSettingRejectsAValueThatWillNotParse(t *testing.T) {
 	}
 }
 
-// A number typed in is applied and saved.
 func TestSettingNumberIsAppliedAndSaved(t *testing.T) {
 	t.Parallel()
 
@@ -228,7 +222,6 @@ func TestSettingNumberIsAppliedAndSaved(t *testing.T) {
 	}
 }
 
-// Quiet hours are a scheduled rule, validated by the rules' own parser.
 func TestSettingQuietHoursUseTheRuleParser(t *testing.T) {
 	t.Parallel()
 
@@ -246,7 +239,7 @@ func TestSettingQuietHoursUseTheRuleParser(t *testing.T) {
 		t.Error("the live rules have no quiet window")
 	}
 
-	// A time that is not a time is refused, with the parser's own complaint.
+	// A non-time is refused with the parser's own complaint.
 	m, _ = press(t, m, keyText(","))
 	m = toSetting(t, m, "quiet")
 	m = typeIn(t, m, "22-08")
@@ -258,7 +251,7 @@ func TestSettingQuietHoursUseTheRuleParser(t *testing.T) {
 	}
 }
 
-// Quiet hours can be cleared: the prompt opens on the range, and emptying it removes the rule.
+// Emptying the quiet-hours range removes the rule.
 func TestSettingQuietHoursCanBeCleared(t *testing.T) {
 	t.Parallel()
 
@@ -278,8 +271,8 @@ func TestSettingQuietHoursCanBeCleared(t *testing.T) {
 	}
 }
 
-// An edit never writes through to the config it started from: a save of that config
-// may still be encoding it on a command goroutine.
+// An edit never writes through to its starting config: a save may still be encoding
+// it on a command goroutine.
 func TestASettingLeavesThePreviousConfigUntouched(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +291,7 @@ func TestASettingLeavesThePreviousConfigUntouched(t *testing.T) {
 	}
 }
 
-// Code length is one range row; rows are picked by config key since labels share "length".
+// Code length is one range row; rows are picked by key since labels share "length".
 func TestSettingCodeShape(t *testing.T) {
 	t.Parallel()
 
@@ -326,13 +319,12 @@ func TestSettingCodeShape(t *testing.T) {
 	}
 }
 
-// A code shape that could never match is refused when applied, naming what to change.
 func TestSettingCodeShapeRefusesTheImpossible(t *testing.T) {
 	t.Parallel()
 
 	m, _ := opened(t, config.Notifications{Enabled: true})
 
-	// Digits off while a digit is still required: refused, and it says which.
+	// Digits off while a digit is still required: refused, naming which.
 	before := m.prefs.codes.rules
 	m = toSetting(t, m, "codes.d")
 	if !strings.Contains(m.status(), "require_digit") {
@@ -342,7 +334,7 @@ func TestSettingCodeShapeRefusesTheImpossible(t *testing.T) {
 		t.Errorf("rules changed to %+v despite the refusal", m.prefs.codes.rules)
 	}
 
-	// Drop the requirement first, and the same toggle is then fine.
+	// Drop the requirement first, and the same toggle is fine.
 	m, _ = press(t, m, keyText(","))
 	m = toSetting(t, m, "codes.r")
 	if m.prefs.codes.rules.RequireDigit {
@@ -354,7 +346,7 @@ func TestSettingCodeShapeRefusesTheImpossible(t *testing.T) {
 		t.Fatalf("rules = %+v, want digits off", m.prefs.codes.rules)
 	}
 
-	// Now letters are the only characters left, so turning them off too is refused.
+	// With letters the only characters left, turning them off too is refused.
 	m, _ = press(t, m, keyText(","))
 	before = m.prefs.codes.rules
 	m = toSetting(t, m, "codes.let")
@@ -366,7 +358,6 @@ func TestSettingCodeShapeRefusesTheImpossible(t *testing.T) {
 	}
 }
 
-// Every row of the settings table is complete and self-consistent.
 func TestSettingsTableIsWellFormed(t *testing.T) {
 	t.Parallel()
 
@@ -432,7 +423,7 @@ func TestSettingsTableIsWellFormed(t *testing.T) {
 	}
 }
 
-// Auto-copy refuses to turn on without a clipboard command and an include, saying which is missing.
+// Auto-copy refuses to turn on without a clipboard command and an include, naming the missing one.
 func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 	t.Parallel()
 
@@ -443,7 +434,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 		t.Errorf("row shows %q, want off — it ships off", got)
 	}
 
-	// No clipboard command: refused, and the status says which piece is missing.
+	// No clipboard command: refused.
 	m = toSetting(t, m, "Auto-copy")
 	if m.conf.base.Clipboard.AutoCopy {
 		t.Error("the toggle should have refused, not switched on into doing nothing")
@@ -452,7 +443,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 		t.Errorf("status = %q, should name the missing clipboard command", m.status())
 	}
 
-	// A command but nowhere named: still refused, and now for the other reason.
+	// A command but no include: refused for the other reason.
 	cfg := m.conf.base.Clone()
 	cfg.Clipboard.Command = "wl-copy"
 	next, _ := m.applyConfig(cfg, "")
@@ -467,7 +458,6 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 		t.Errorf("status = %q, should name the missing place", m.status())
 	}
 
-	// Both in place: it switches on, and reads on.
 	cfg = m.conf.base
 	cfg.Codes.Include = []string{"space:Bridges"}
 	next, _ = m.applyConfig(cfg, "")
@@ -484,14 +474,13 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 		t.Errorf("row shows %q, want on", got)
 	}
 
-	// And off again, unconditionally — turning something off never needs prerequisites.
+	// Turning off never needs prerequisites.
 	m = toSetting(t, m, "Auto-copy")
 	if m.conf.base.Clipboard.AutoCopy {
 		t.Error("the toggle should switch it back off")
 	}
 }
 
-// The popup timeout row reads its sentinels back in words.
 func TestPopupTimeoutRowReadsBackInWords(t *testing.T) {
 	t.Parallel()
 
@@ -515,7 +504,6 @@ func TestPopupTimeoutRowReadsBackInWords(t *testing.T) {
 	}
 }
 
-// Any negative timeout is normalized to -1.
 func TestPopupTimeoutRowTakesTheNegative(t *testing.T) {
 	t.Parallel()
 
@@ -557,8 +545,7 @@ func TestPopupTimeoutRowTakesTheNegative(t *testing.T) {
 	}
 }
 
-// Settings are two levels, and a change keeps you where you are: several settings of
-// a group change in a row, each row showing its new value.
+// A change keeps the group open, so several settings change in a row.
 func TestSeveralSettingsChangeInARow(t *testing.T) {
 	t.Parallel()
 	m, path := opened(t, config.Notifications{Enabled: true})
@@ -586,8 +573,8 @@ func TestSeveralSettingsChangeInARow(t *testing.T) {
 	}
 }
 
-// A number steps with + and - on its row, saved, never below its least; enter types
-// it in place, the current value selected so what is typed replaces it.
+// A number steps with + and - (saved, never below its least); enter types it in
+// place, the value selected so typing replaces it.
 func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 	t.Parallel()
 	m, path := opened(t, config.Notifications{Enabled: true})
@@ -643,7 +630,7 @@ func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 	if got := m.conf.base.Notifications.Timeout; got == nil || *got != -1 {
 		t.Errorf("timeout stepped down to %v, want it to stop at -1", got)
 	}
-	// + on a row that is not a number says so and changes nothing.
+	// + on a non-number row says so and changes nothing.
 	m = m.settingsIn("display", "display.color_messages")
 	before := m.conf.base.Display.ColorMessages
 	m, _ = press(t, m, keyText("+"))
@@ -652,7 +639,6 @@ func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 	}
 }
 
-// A typed value that will not parse stays on its row as typed, to be fixed.
 func TestARefusedValueStaysToBeFixed(t *testing.T) {
 	t.Parallel()
 	m, _ := opened(t, config.Notifications{Enabled: true})
@@ -667,8 +653,8 @@ func TestARefusedValueStaysToBeFixed(t *testing.T) {
 	}
 }
 
-// esc steps back a level: a value list to its group, a group to the groups, the
-// groups closed; the tag editor's levels to the one above, then to the groups.
+// esc steps back a level: value list → group → groups → closed; the tag editor's
+// levels go up one, then to the groups.
 func TestEscStepsBackALevel(t *testing.T) {
 	t.Parallel()
 	esc := func(m Model) Model {

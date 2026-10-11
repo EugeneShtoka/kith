@@ -8,13 +8,13 @@ import (
 )
 
 // A room's topic (m.room.topic): shown after the title when it fits, in full with
-// `gt`. Read-only by design — setting shared state is not what reading it means.
+// `gt`. Read-only by design.
 
 // topicMinWidth is the least space a truncated topic needs to be worth showing.
 const topicMinWidth = 24
 
-// topicSuffix is the topic, separator included, as it appears after the title, or
-// empty when it does not fit.
+// topicSuffix is the topic with its separator as shown after the title, or empty when
+// it doesn't fit.
 func (m Model) topicSuffix(title string, width int) string {
 	room, ok := m.currentRoom()
 	if !ok || room.Topic == "" || m.thread.open() {
@@ -32,7 +32,6 @@ func (m Model) topicSuffix(title string, width int) string {
 	return sep + isolate(truncateLogical(topic, left))
 }
 
-// topicText is the whole topic for the reader, or empty when the room has none.
 func (m Model) topicText() string {
 	room, ok := m.currentRoom()
 	if !ok {
@@ -41,7 +40,6 @@ func (m Model) topicText() string {
 	return strings.TrimSpace(room.Topic)
 }
 
-// openTopic shows the whole topic in the reader.
 func (m Model) openTopic() (Model, tea.Cmd) {
 	if m.topicText() == "" {
 		return m.say("this room has no topic"), nil
@@ -50,7 +48,6 @@ func (m Model) openTopic() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// topicTitle names the reader after the room.
 func (m Model) topicTitle() string {
 	room, ok := m.currentRoom()
 	if !ok {

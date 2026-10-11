@@ -25,10 +25,9 @@ const (
 	paneBorder = 2
 )
 
-// View renders the three-pane frame with a status line beneath it. It writes nothing
-// shared. For the Model Update returned, the shared cache is final (primeTimeline, and
-// TestViewLeavesTheSharedCacheAlone), so View only reads it; any other Model (an older
-// copy, one built by hand) is laid out on a private scratch cache.
+// View renders the three-pane frame with a status line beneath it, writing nothing
+// shared. For the Model Update returned the shared cache is final (primeTimeline), so
+// View only reads it; any other Model is laid out on a private scratch cache.
 func (m Model) View() tea.View {
 	if m.derived == nil || !m.frames.isPrimed(m.frame) {
 		m.derived = m.derived.scratch()
@@ -58,7 +57,7 @@ func (m Model) View() tea.View {
 }
 
 // takeCaret strips the caret marker from a frame and turns its position into the
-// terminal cursor; a frame without one leaves the cursor hidden.
+// terminal cursor; without one the cursor stays hidden.
 func takeCaret(frame string) (string, *tea.Cursor) {
 	before0, _, ok := strings.Cut(frame, caretMark)
 	if !ok {
@@ -104,8 +103,8 @@ func (m Model) frameView() string {
 	return panes + "\n" + m.renderStatus()
 }
 
-// verifyView renders the interactive device-verification overlay as a centered
-// box: a request prompt, or the SAS emoji to compare with the other device.
+// verifyView renders the device-verification overlay: a request prompt, or the SAS
+// emoji to compare.
 func (m Model) verifyView() string {
 	var b strings.Builder
 	b.WriteString(m.theme.TitleActive.Render("Device verification") + "\n\n")
@@ -132,7 +131,7 @@ func (m Model) verifyView() string {
 			b.WriteString("\n\n[n] cancel")
 			break
 		}
-		// Both are names somebody chose — the account's and the device's.
+		// Both names are user-chosen: the account's and the device's.
 		who := isolate(m.verify.from)
 		if m.verify.device != "" {
 			who += " (" + isolate(m.verify.device) + ")"
@@ -148,7 +147,6 @@ func (m Model) verifyView() string {
 	return m.centeredBox(b.String())
 }
 
-// sasGrid lays the SAS emoji out a few per row, each as its glyph plus name.
 func sasGrid(emojis []domain.SASEmoji) string {
 	const perRow = 4
 	var b strings.Builder
@@ -161,7 +159,6 @@ func sasGrid(emojis []domain.SASEmoji) string {
 	return b.String()
 }
 
-// decimalLine formats the SAS decimal fallback as a space-separated line.
 func decimalLine(decimals []int) string {
 	parts := make([]string, len(decimals))
 	for i, d := range decimals {
@@ -170,8 +167,8 @@ func decimalLine(decimals []int) string {
 	return "decimals: " + strings.Join(parts, " ")
 }
 
-// paneBodyRows is how many content rows a pane of height h shows (less border and
-// header). framePane clips silently past it.
+// paneBodyRows is the content rows a pane of height h shows (less border and header).
+// framePane clips silently past it.
 func paneBodyRows(h int) int {
 	return max(h-3, 1)
 }
@@ -187,10 +184,9 @@ func windowRows(rows []string, cursor, visible int) []string {
 
 func containsKey(keys []string, k string) bool { return slices.Contains(keys, k) }
 
-// framePane draws a titled, bordered pane: a header row, the given body lines,
-// then blank padding to fill the height. Every line is clamped to the interior
-// width so lipgloss never wraps (a wrapped line corrupts the fixed layout), and
-// the accent border/title marks the focused pane.
+// framePane draws a titled, bordered pane: a header, the body, then blank padding.
+// Every line is clamped to the interior width so lipgloss never wraps (which corrupts
+// the layout); the accent border marks the focused pane.
 func (m Model) framePane(title string, lines []string, w, h int, active bool) string {
 	inner := w - paneBorder
 	innerH := h - paneBorder
@@ -211,17 +207,14 @@ func (m Model) framePane(title string, lines []string, w, h int, active bool) st
 	for len(rows) < innerH {
 		rows = append(rows, "")
 	}
-	// lipgloss v2 counts the border within Width/Height, so pass the outer
-	// dimensions; the interior resolves to inner×innerH for the clamped content.
+	// lipgloss v2 counts the border within Width/Height, so pass the outer dimensions.
 	return frame.Width(w).Height(h).Render(strings.Join(rows, "\n"))
 }
 
-// oneLine collapses newlines and tabs so a string occupies one row.
 var oneLine = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ", "\t", " ")
 
-// clamp flattens a (possibly styled) string to a single row and hard-truncates
-// it to w cells without wrapping, so a long or multi-line message can't break
-// the pane geometry.
+// clamp flattens a (possibly styled) string to one row and hard-truncates it to w
+// cells, so long or multi-line text can't break the pane geometry.
 func clamp(s string, w int) string {
 	if w < 1 {
 		w = 1
@@ -229,11 +222,10 @@ func clamp(s string, w int) string {
 	return lipgloss.NewStyle().MaxWidth(w).Render(oneLine.Replace(s))
 }
 
-// cursorWidth is what cursor() renders, marked or not. The column is reserved on every
-// row so selection cannot shift labels sideways as it moves down a list.
+// cursorWidth is what cursor() renders, marked or not; reserved on every row so labels
+// don't shift as the selection moves.
 const cursorWidth = 2
 
-// cursor is the selection marker prefix for a list row.
 func cursor(selected bool) string {
 	if selected {
 		return "▸ "

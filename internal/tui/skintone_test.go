@@ -41,7 +41,7 @@ func TestTonedOnlyAppliesToBases(t *testing.T) {
 	}
 }
 
-// Idempotent: history may return emoji already wearing a tone.
+// History may return emoji already wearing a tone.
 func TestTonedReplacesAnExistingTone(t *testing.T) {
 	t.Parallel()
 
@@ -100,8 +100,8 @@ func TestSkinToneValidation(t *testing.T) {
 	}
 }
 
-// Every grid cell measures two columns, as the terminal draws it; toned
-// text-presentation emoji (☝🏻 ✌🏻 ✍🏻) once measured one and wrapped the row.
+// Every grid cell measures two columns, as the terminal draws it, toned
+// text-presentation emoji (☝🏻 ✌🏻 ✍🏻) included.
 func TestEveryTonedCellIsTwoColumns(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +115,6 @@ func TestEveryTonedCellIsTwoColumns(t *testing.T) {
 	}
 }
 
-// Every toned emoji in the browser keeps its name (not "::").
 func TestEveryTonedEmojiKeepsItsName(t *testing.T) {
 	t.Parallel()
 
@@ -131,8 +130,8 @@ func TestEveryTonedEmojiKeepsItsName(t *testing.T) {
 	}
 }
 
-// Every frame line is exactly the terminal width with each emoji selected in turn
-// (the header shows the selection); one column over wraps and duplicates rows.
+// Every frame line is exactly the terminal width with each emoji selected in turn;
+// one column over wraps and duplicates rows.
 func TestNoFrameLineOverflowsWithAnyEmojiSelected(t *testing.T) {
 	t.Parallel()
 
@@ -157,9 +156,8 @@ func TestNoFrameLineOverflowsWithAnyEmojiSelected(t *testing.T) {
 	}
 }
 
-// A toned text-presentation emoji in a message (☝🏼, as senders write it) is drawn
-// two wide but measured one, which painted every row after it a column off; it is
-// spelled with U+FE0F, as the terminal draws it, and formatting moves with it.
+// A toned text-presentation emoji in a message (☝🏼) is spelled with U+FE0F so it
+// measures as drawn, and formatting spans move with it.
 func TestTonedEmojiInTextMeasureAsDrawn(t *testing.T) {
 	t.Parallel()
 	const pointing = "☝\U0001F3FC"
@@ -187,8 +185,7 @@ func TestTonedEmojiInTextMeasureAsDrawn(t *testing.T) {
 	}
 }
 
-// Nothing the timeline draws measures other than as drawn: no toned emoji in a body
-// or a reply's quote is left measuring one column.
+// No toned emoji in a body or a reply's quote measures one column short.
 func TestTheTimelineDrawsNoTonedEmojiAColumnShort(t *testing.T) {
 	t.Parallel()
 	m, _ := attaching(t)
@@ -210,11 +207,8 @@ func TestTheTimelineDrawsNoTonedEmojiAColumnShort(t *testing.T) {
 	}
 }
 
-// A joined emoji sent without U+FE0F (Telegram's ❤‍🔥 reaction) begins with a
-// text-presentation symbol, so it measured one column while the terminal drew two:
-// the row overflowed and its border wrapped onto the next. Every joined sequence kith
-// knows, stripped of its selectors as a sender may send it, measures two as a reaction
-// chip and in a message.
+// Every known joined sequence, stripped of its selectors as a sender may send it
+// (Telegram's ❤‍🔥), measures two columns as a reaction chip and in a message.
 func TestJoinedEmojiWithoutSelectorMeasureAsDrawn(t *testing.T) {
 	t.Parallel()
 	seen := 0

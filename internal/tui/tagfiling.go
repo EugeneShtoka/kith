@@ -9,12 +9,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Filing a room into a tag and back out, from the filing picker (spaces.go) or /tag.
-// A tag holds what its rule says plus its picked rooms, less its excluded ones, so
-// putting a room in or out rewrites those two lists (domain.TagSet.Filed) in the
-// config, and the rail follows the applied config.
+// Filing a room into or out of a tag, from the filing picker (spaces.go) or /tag. A tag
+// holds what its rule says plus its picked rooms, less its excluded ones, so filing
+// rewrites those lists in the config (domain.TagSet.Filed).
 
-// tagFiling is one tag a room goes into (in) or out of.
 type tagFiling struct {
 	tag   int // index in the tag set
 	label string
@@ -22,9 +20,9 @@ type tagFiling struct {
 }
 
 // filingRows is the filing picker's rows, spaces and tags, ticked where they hold the
-// room: in [display] priority, then as the rail orders them (tags it does not show
-// last). A [display] filing_spaces list keeps its spaces in its written order, before
-// the tags; false when it names no space at all.
+// room, in [display] priority then rail order (unshown tags last). A [display]
+// filing_spaces list keeps its spaces in written order before the tags; false when it
+// names no space.
 func (m Model) filingRows(room domain.Room) ([]pickerItem, map[string]bool, bool) {
 	spaces, checked := m.fileableSpaces(room.ID)
 	tags := m.tagRows(checked, room)
@@ -46,8 +44,7 @@ func (m Model) filingRows(room domain.Room) ([]pickerItem, map[string]bool, bool
 	return m.byPriority(rows), checked, true
 }
 
-// filingKey is a filing row as [display] priority and the rail name it: a space by
-// its name, a tag as tag:<name>.
+// filingKey names a filing row as [display] priority does: a space by name, a tag as tag:<name>.
 func (m Model) filingKey(item pickerItem) string {
 	if isTagGroup(item.value) {
 		return item.value
@@ -58,8 +55,7 @@ func (m Model) filingKey(item pickerItem) string {
 	return item.value
 }
 
-// byPriority reorders rows by [display] priority, keeping the rest in the rail's
-// order, in which they come.
+// byPriority puts rows named in [display] priority first, keeping the rest in order.
 func (m Model) byPriority(rows []pickerItem) []pickerItem {
 	keys := make([]string, len(rows))
 	for i := range rows {
@@ -79,9 +75,8 @@ func (m Model) byPriority(rows []pickerItem) []pickerItem {
 	return out
 }
 
-// tagRows is a filing row per tag a room is filed into by hand — not one its rule
-// fills (TagSet.Automatic) —: the rail's tags in the rail's order under its names,
-// then those it does not show, each ticked when the tag holds the room now.
+// tagRows is a row per tag filed by hand (not rule-filled, see TagSet.Automatic): the
+// rail's tags in its order and names, then unshown ones, ticked where the tag holds the room.
 func (m Model) tagRows(checked map[string]bool, room domain.Room) []pickerItem {
 	view := m.unreadView()
 	var items []pickerItem
@@ -116,8 +111,8 @@ func (m Model) tagRows(checked map[string]bool, room domain.Room) []pickerItem {
 	return items
 }
 
-// fileInTags applies the picker's tag rows: each whose tick differs from whether the
-// tag holds the room now. It reports whether anything changed.
+// fileInTags applies the tag rows whose tick differs from the current state, reporting
+// whether anything changed.
 func (m Model) fileInTags(roomID domain.RoomID, rows []pickerItem, want map[domain.SpaceID]bool) (Model, bool, tea.Cmd) {
 	room, ok := m.roomByID(roomID)
 	if !ok {
@@ -146,9 +141,8 @@ func (m Model) fileInTags(roomID domain.RoomID, rows []pickerItem, want map[doma
 	return next, true, cmd
 }
 
-// toggleTag is /tag: the named tag takes the room if it does not hold it, and lets it
-// go if it does; a name no tag has makes that tag with the room in it. With no name,
-// the filing picker opens.
+// toggleTag is /tag: the named tag takes the room or lets it go; an unknown name makes
+// that tag with the room in it. With no name, the filing picker opens.
 func (m Model) toggleTag(name string, room domain.Room) (Model, tea.Cmd) {
 	m.compose.input, m.compose.drafted = "", nil
 	if strings.TrimSpace(name) == "" {
@@ -167,12 +161,11 @@ func (m Model) toggleTag(name string, room domain.Room) (Model, tea.Cmd) {
 }
 
 // fileTags writes the filings into the config's tags and applies it, keeping the
-// cursor near the room, which may have left the row it was in.
+// cursor near the room.
 //
-// Filing a room into a network's archive tag, or out, archives or unarchives it on the
-// network too where that network is mirrored. Where kith also follows that network's
-// archive, the network decides: the room is judged as the network will hold it, so the
-// lists only lose what contradicts that (fileArchive).
+// Filing into or out of a network's mirrored archive tag also archives or unarchives
+// on the network. Where kith follows that archive, the network decides: the lists only
+// lose what contradicts it (fileArchive).
 func (m Model) fileTags(room domain.Room, filings []tagFiling) (Model, tea.Cmd) {
 	m, room, archive := m.fileArchive(room, filings)
 	view := m.unreadView()
@@ -209,10 +202,9 @@ func (m Model) fileTags(room domain.Room, filings []tagFiling) (Model, tea.Cmd) 
 	return moved, tea.Batch(cmd, move, archive)
 }
 
-// fileArchive is the network side of filing room: the call that archives or
-// unarchives it on its network when the filings move it into or out of that network's
-// mirrored archive tag, and, where the archive is also followed, the room already
-// held as the network will hold it (put right by the room list if the call fails).
+// fileArchive returns the call that archives or unarchives room on its network when
+// the filings cross its mirrored archive tag and, where the archive is followed, the
+// room as the network will hold it (the room list corrects it if the call fails).
 func (m Model) fileArchive(room domain.Room, filings []tagFiling) (Model, domain.Room, tea.Cmd) {
 	network := domain.NetworkOf(string(room.ID))
 	mirrored := m.rail.mirrored[network]
@@ -236,7 +228,7 @@ func (m Model) fileArchive(room domain.Room, filings []tagFiling) (Model, domain
 	return m, room, nil
 }
 
-// withArchived is m with the joined room id held as archived by its network, or not.
+// withArchived marks the joined room id as archived by its network, or not.
 func (m Model) withArchived(id domain.RoomID, archived bool) Model {
 	joined := slices.Clone(m.rooms.joined)
 	for i := range joined {
@@ -248,14 +240,12 @@ func (m Model) withArchived(id domain.RoomID, archived bool) Model {
 	return m.refreshPlaces()
 }
 
-// archivedMsg is the outcome of archiving a room on its network, or unarchiving it.
 type archivedMsg struct {
 	label    string
 	archived bool
 	err      error
 }
 
-// setArchivedCmd archives a room on its network, or unarchives it.
 func (m Model) setArchivedCmd(roomID domain.RoomID, archived bool, label string) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
@@ -263,9 +253,9 @@ func (m Model) setArchivedCmd(roomID domain.RoomID, archived bool, label string)
 	}
 }
 
-// handleArchived says a failed archive call, and reads the room list again so the
-// room shows where its network holds it. A call that went through needs nothing: the
-// network's rooms changing brings the list.
+// handleArchived reports a failed archive call and reloads the room list so the room
+// shows where its network holds it. Success needs nothing: the network's change brings
+// the list.
 func (m Model) handleArchived(msg archivedMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		return m, nil

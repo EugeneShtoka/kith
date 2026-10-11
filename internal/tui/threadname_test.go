@@ -21,15 +21,14 @@ func naming(t *testing.T, reply string) (Model, *modelBackend) {
 	return m, b
 }
 
-// A thread with enough replies and no name gets one, and it is written to the config.
+// A thread with enough replies and no name gets one, written to the config.
 func TestAThreadWithNoNameIsNamed(t *testing.T) {
 	t.Parallel()
 
 	m, b := naming(t, "Rolling back the migration")
 	threads := []domain.Thread{{Root: "$root", RoomID: "!a:x", Count: 4}}
 
-	// Through the real trigger: handleRoomThreads is where a room's thread list arrives
-	// and is what arms this.
+	// The real trigger: handleRoomThreads receives a room's thread list.
 	next, cmd := m.handleRoomThreads(roomThreadsMsg{roomID: "!a:x", threads: threads})
 	if cmd == nil {
 		t.Fatal("no request was made for an unnamed thread")
@@ -42,8 +41,7 @@ func TestAThreadWithNoNameIsNamed(t *testing.T) {
 		t.Errorf("name = %q", msg.name)
 	}
 
-	// It reads the thread, not the room: ReplyTo is how every task here says "the root
-	// of the thread this is about".
+	// It reads the thread, not the room: ReplyTo names the thread root.
 	if len(b.asked) != 1 || b.asked[0].ReplyTo != "$root" {
 		t.Fatalf("asked = %+v, want one request naming the thread root", b.asked)
 	}
@@ -51,7 +49,7 @@ func TestAThreadWithNoNameIsNamed(t *testing.T) {
 		t.Errorf("task = %q, want %q", b.asked[0].Task, domain.ModelThreadName)
 	}
 
-	// And the answer lands in the same list a typed name goes to.
+	// The answer lands where a typed name goes.
 	named, _ := next.handleThreadNamed(msg)
 	if got := named.prefs.threadAliases["$root"]; got != "Rolling back the migration" {
 		t.Errorf("threadAliases = %q, want the generated name", got)
@@ -61,7 +59,7 @@ func TestAThreadWithNoNameIsNamed(t *testing.T) {
 	}
 }
 
-// The gates, each on its own: every one of them means "ask nothing".
+// Each gate alone means "ask nothing".
 func TestTheThreadNamerAsksNothingUnlessItShould(t *testing.T) {
 	t.Parallel()
 
@@ -111,7 +109,7 @@ func TestATypedNameBeatsAGeneratedOne(t *testing.T) {
 	}
 }
 
-// An unusable answer is not written, and does not become a name.
+// An unusable answer is not written.
 func TestAnEmptyAnswerNamesNothing(t *testing.T) {
 	t.Parallel()
 
@@ -125,7 +123,7 @@ func TestAnEmptyAnswerNamesNothing(t *testing.T) {
 	}
 }
 
-// Threads are named when a room's messages land, not when its thread *list* does.
+// Threads are named when a room's messages land, not when its thread list does.
 func TestThreadsAreNamedWhenTheTimelineLands(t *testing.T) {
 	t.Parallel()
 
@@ -137,7 +135,7 @@ func TestThreadsAreNamedWhenTheTimelineLands(t *testing.T) {
 	m = next
 	m.conf.base.Assist.Endpoint = "https://example.invalid/v1/chat/completions"
 	m.conf.base.Assist.NameThreads = true
-	// The room list's thread rows stay off, which is the default and was the gate.
+	// The room list's thread rows stay off (the default).
 	if m.prefs.display.Threads.Mode() == config.ThreadsAll {
 		t.Fatal("the room list is showing all threads; the test is not about the thing it says")
 	}

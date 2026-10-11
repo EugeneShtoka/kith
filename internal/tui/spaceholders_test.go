@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The index answers exactly what a scan of the hierarchy would: the same names, in
-// hierarchy order, once per space, for rooms in several spaces, none, a space listing a
-// child twice, and two spaces sharing a name.
+// The index matches a hierarchy scan: same names, in hierarchy order, once per space,
+// for rooms in several spaces or none, a duplicated child, and two same-named spaces.
 func TestSpaceHoldersMatchAScan(t *testing.T) {
 	t.Parallel()
 	r := rand.New(rand.NewPCG(1, 2))

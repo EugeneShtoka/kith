@@ -12,9 +12,9 @@ import (
 
 // The bidi primitives under text.go; nothing else calls them (forbidigo).
 
-// reorder rewrites logical text into the visual order an LTR grid draws, with base
-// as the paragraph direction (it fixes where neutrals sit). Pure LTR text is
-// returned untouched; glyph shaping is left to the terminal.
+// reorder rewrites logical text into the visual order an LTR grid draws, with base as
+// the paragraph direction (it places neutrals). Pure LTR text is returned untouched;
+// shaping is left to the terminal.
 func reorder(s string, base bidi.Direction) string {
 	texts, levels, _, ok := bidiRuns(s, base)
 	if !ok {
@@ -33,9 +33,8 @@ func reorder(s string, base bidi.Direction) string {
 }
 
 // reorderMapped is reorder plus offs[i], the logical byte offset of the i-th drawn
-// rune — how styles are applied after the reorder. A logical range crossing an
-// RTL/LTR boundary correctly lands as several visual runs. Kept apart from reorder so
-// the hot path allocates no offsets; a test asserts both draw the same string.
+// rune, for styling after the reorder. Kept apart from reorder so the hot path
+// allocates no offsets; a test asserts both draw the same string.
 func reorderMapped(s string, base bidi.Direction) (string, []int) {
 	texts, levels, starts, ok := bidiRuns(s, base)
 	if !ok {
@@ -57,9 +56,9 @@ func reorderMapped(s string, base bidi.Direction) (string, []int) {
 	return b.String(), offs
 }
 
-// bidiRuns splits s into bidi runs in drawn order, with each run's embedding level
-// and logical start. ok is false when there is nothing to do (no RTL, or x/text
-// cannot parse it).
+// bidiRuns splits s into bidi runs in drawn order, with each run's embedding level and
+// logical start. ok is false when there is nothing to do (no RTL, or x/text cannot
+// parse it).
 func bidiRuns(s string, base bidi.Direction) (texts []string, levels, starts []int, ok bool) {
 	if !containsRTL(s) {
 		return nil, nil, nil, false
@@ -73,9 +72,8 @@ func bidiRuns(s string, base bidi.Direction) (texts []string, levels, starts []i
 		return nil, nil, nil, false
 	}
 
-	// x/text/bidi returns runs in logical order with only a direction; rebuild each
-	// level from it and the base (one level of embedding, enough for chat), then
-	// apply rule L2.
+	// x/text/bidi returns logical-order runs with only a direction; rebuild levels from it
+	// and the base (one embedding level is enough for chat), then apply rule L2.
 	baseLevel := 0
 	if base == bidi.RightToLeft {
 		baseLevel = 1
@@ -99,7 +97,6 @@ func bidiRuns(s string, base bidi.Direction) (texts []string, levels, starts []i
 	return texts, levels, starts, true
 }
 
-// runeOffsets is the byte offset of each rune of s, shifted by base.
 func runeOffsets(s string, base int) []int {
 	out := make([]int, 0, utf8.RuneCountInString(s))
 	for i := range s { // ranging a string yields each rune's byte index
@@ -109,8 +106,8 @@ func runeOffsets(s string, base int) []int {
 }
 
 // reverseClusters lays an RTL run out right-to-left by grapheme cluster, not rune
-// (reversing a ZWJ emoji's runes breaks it and its width). Single-rune clusters go
-// through bidi.AppendReverse for bracket mirroring (rule L4).
+// (reversing a ZWJ emoji's runes breaks it). Single-rune clusters go through
+// bidi.AppendReverse for bracket mirroring (rule L4).
 func reverseClusters(s string) string {
 	clusters := make([]string, 0, len(s))
 	g := uniseg.NewGraphemes(s)
@@ -129,8 +126,8 @@ func reverseClusters(s string) string {
 	return b.String()
 }
 
-// reverseClustersMapped is reverseClusters carrying each rune's absolute offset
-// (base is where s began).
+// reverseClustersMapped is reverseClusters carrying each rune's absolute offset (base
+// is where s began).
 func reverseClustersMapped(s string, base int) (string, []int) {
 	type cluster struct {
 		text string
@@ -159,8 +156,7 @@ func reverseClustersMapped(s string, base int) (string, []int) {
 }
 
 // reverseRunsByLevel applies rule L2 in place: from the highest level down to the
-// lowest odd one, reverse each span of runs at that level or higher. The three
-// slices are parallel.
+// lowest odd one, reverse each span of runs at that level or higher. The slices are parallel.
 func reverseRunsByLevel(texts []string, levels, starts []int) {
 	maxLevel, minOdd := 0, int(^uint(0)>>1)
 	for _, l := range levels {
@@ -191,7 +187,6 @@ func reverseRunsByLevel(texts []string, levels, starts []int) {
 	}
 }
 
-// isRTLRune reports whether r belongs to a right-to-left script.
 func isRTLRune(r rune) bool {
 	switch {
 	case r >= 0x0590 && r <= 0x08FF, // Hebrew, Arabic, Syriac, Thaana, NKo, …
@@ -202,7 +197,6 @@ func isRTLRune(r rune) bool {
 	return false
 }
 
-// containsRTL reports whether s has any right-to-left character.
 func containsRTL(s string) bool {
 	for _, r := range s {
 		if isRTLRune(r) {
@@ -212,8 +206,8 @@ func containsRTL(s string) bool {
 	return false
 }
 
-// paragraphDir is one direction for a whole message: RTL if it has any RTL
-// character. Per message, not per line, so wrapped lines do not flip.
+// paragraphDir is RTL if s has any RTL character. Per message, not per line, so
+// wrapped lines don't flip.
 func paragraphDir(s string) bidi.Direction {
 	if containsRTL(s) {
 		return bidi.RightToLeft

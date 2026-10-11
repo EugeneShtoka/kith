@@ -7,29 +7,26 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// The status line's left slot holds a standing line (what the pane is doing, true
-// until it changes) and an event covering it (what just happened, for statusLife).
-// say, doing and clearStatus are the only ways to write it.
+// The status line's left slot holds a standing line (what the pane is doing) and an
+// event covering it for statusLife (what just happened). Only say, doing and
+// clearStatus write it.
 
-// statusLife is how long an event stays on screen.
 const statusLife = 6 * time.Second
 
 // statusSweepGrace lands the sweep just after expiry rather than racing it.
 const statusSweepGrace = 50 * time.Millisecond
 
-// statusState is the slot's contents: the standing line, and the event covering it.
 type statusState struct {
 	standing string
 	event    string
-	// until is when the event stops being news. Zero means there is no event.
+	// until is when the event expires; zero means no event.
 	until time.Time
 }
 
-// statusTickMsg is the sweep.
 type statusTickMsg struct{}
 
-// status is what the slot shows: the event while it is still news, else the
-// standing line. An expired event is never shown, swept or not.
+// status is the event while still news, else the standing line. An expired event is
+// never shown, swept or not.
 func (m Model) status() string {
 	if m.sayingSomething() {
 		return m.st.event
@@ -37,22 +34,19 @@ func (m Model) status() string {
 	return m.st.standing
 }
 
-// sayingSomething reports whether an event is still covering the standing line.
 func (m Model) sayingSomething() bool {
 	return m.st.event != "" && time.Now().Before(m.st.until)
 }
 
-// say reports something that just happened, covering the standing line for
-// statusLife.
+// say reports something that just happened, covering the standing line for statusLife.
 func (m Model) say(text string) Model {
 	m.st.event = text
 	m.st.until = time.Now().Add(statusLife)
 	return m
 }
 
-// sayErr reports a failed action with its reason ("could not mark X read: M_BAD_JSON
-// …") and logs it at warn, since the status line forgets it in seconds. what is the
-// sentence without the reason; nil err says what alone.
+// sayErr reports a failure with its reason ("could not mark X read: M_BAD_JSON …") and
+// logs it at warn, since the status line forgets it in seconds. A nil err says what alone.
 func (m Model) sayErr(what string, err error, attrs ...any) Model {
 	if err == nil {
 		return m.say(what)
@@ -61,8 +55,7 @@ func (m Model) sayErr(what string, err error, attrs ...any) Model {
 	return m.say(what + ": " + err.Error())
 }
 
-// logErr writes a failure to the client's log only (a failure not worth the status
-// line, or already reported there another way).
+// logErr logs a failure without showing it on the status line.
 func (m Model) logErr(level slog.Level, what string, err error, attrs ...any) {
 	if err == nil || m.log == nil {
 		return
@@ -77,14 +70,13 @@ func (m Model) doing(text string) Model {
 	return m
 }
 
-// clearStatus empties the slot.
 func (m Model) clearStatus() Model {
 	m.st = statusState{}
 	return m
 }
 
-// handleStatusTick sweeps an expired event. It does not re-arm; Update arms the
-// next sweep when something new is said.
+// handleStatusTick sweeps an expired event. It doesn't re-arm; Update arms the next
+// sweep when something new is said.
 func (m Model) handleStatusTick() (Model, tea.Cmd) {
 	m.sweepArmed = false
 	if m.st.event != "" && !time.Now().Before(m.st.until) {
@@ -93,8 +85,8 @@ func (m Model) handleStatusTick() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// armStatusSweep schedules the one sweep an event needs, unless one is pending.
-// Called from Update so the dozens of say callers need not know about the timer.
+// armStatusSweep schedules the one sweep an event needs, unless one is pending. Called
+// from Update so say's callers need not know about the timer.
 func (m Model) armStatusSweep() (Model, tea.Cmd) {
 	if m.sweepArmed || m.st.event == "" {
 		return m, nil
@@ -107,7 +99,6 @@ func (m Model) armStatusSweep() (Model, tea.Cmd) {
 	return m, statusSweepCmd(wait)
 }
 
-// statusSweepCmd schedules one sweep after wait.
 func statusSweepCmd(wait time.Duration) tea.Cmd {
 	return tea.Tick(wait, func(time.Time) tea.Msg { return statusTickMsg{} })
 }

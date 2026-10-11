@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// Editing a formatted message in an open thread shows the new words at once, both from
-// the optimistic fold and when the edit comes back from the homeserver.
+// Editing a formatted message in an open thread shows the new words at once, from the
+// optimistic fold and from the homeserver's echo.
 func TestAnEditInAThreadShowsTheNewTextAtOnce(t *testing.T) {
 	t.Parallel()
 

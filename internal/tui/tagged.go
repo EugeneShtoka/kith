@@ -7,14 +7,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// What the tags make of each room: which hold it, whether it is silenced, the
-// exclusive tag it shows under, and the space-exclusive tags that take it out of
-// other groupings. Every rail row asks this about every room on every draw, so it is
-// kept per room in a memo shared by the Model's copies, keyed by the identity of
-// everything it is computed from: the inputs are copy-on-write maps (cow.go), so any
-// change to them is a new map, and a new key.
+// What the tags make of each room: which hold it, whether it is silenced, its
+// exclusive tag, and the space-exclusive tags holding it. Every rail row asks this per
+// room per draw, so it is memoized, keyed by the identity of its copy-on-write inputs
+// (cow.go): any change is a new map and a new key.
 
-// roomTags is what the tags make of one room.
 type roomTags struct {
 	in        []bool // by tag index: the tag holds it
 	silenced  bool   // a silent tag holds it
@@ -22,7 +19,6 @@ type roomTags struct {
 	spaceExcl []int  // the space-exclusive tags holding it
 }
 
-// tagMemo is the per-room answers for one set of inputs.
 type tagMemo struct {
 	key  tagKey
 	byID map[domain.RoomID]roomTags
@@ -53,7 +49,7 @@ func (v unreadView) tagKey() tagKey {
 	}
 }
 
-// tagsOf is what the tags make of room, from the memo when it is current.
+// tagsOf is what the tags make of room, from the memo when current.
 func (v unreadView) tagsOf(room domain.Room) roomTags {
 	if v.tags.Len() == 0 {
 		return roomTags{owner: -1}
@@ -74,9 +70,8 @@ func (v unreadView) tagsOf(room domain.Room) roomTags {
 	return got
 }
 
-// computeTags judges every tag on one room. Silence is judged on the room's own
-// state; every other tag then sees a silenced room as read, so a silent
-// tag never feeds back on itself.
+// computeTags judges every tag on one room. Silence uses the room's own state; other
+// tags see a silenced room as read, so a silent tag never feeds back on itself.
 func (v unreadView) computeTags(room domain.Room) roomTags {
 	facts := v.factsOf(room)
 	raw := v.rawState(room)
@@ -119,8 +114,8 @@ func (v unreadView) factsOf(room domain.Room) domain.RoomFacts {
 	return facts
 }
 
-// tagState is the state tag i judges room in, as computeTags judges it: the room's
-// own for a silent tag; read, for any other, while a silent tag holds the room.
+// tagState is the state tag i judges room in: the room's own for a silent tag, read
+// for any other while a silent tag holds the room.
 func (v unreadView) tagState(i int, room domain.Room) domain.RoomState {
 	state := v.rawState(room)
 	if !v.tags.At(i).Silent && v.silenced(room) {
@@ -129,7 +124,7 @@ func (v unreadView) tagState(i int, room domain.Room) domain.RoomState {
 	return state
 }
 
-// rawState is what a room is right now, before any tag silences it.
+// rawState is the room's state before any tag silences it.
 func (v unreadView) rawState(room domain.Room) domain.RoomState {
 	_, highlights := v.count(room)
 	_, draft := v.drafts[room.ID]
@@ -142,9 +137,9 @@ func (v unreadView) rawState(room domain.Room) domain.RoomState {
 	}
 }
 
-// showsInTag reports whether tag i's rail row lists room: the tag holds it and no
-// other tag claims it — an exclusive tag holding it shows it alone, and a
-// space-exclusive one takes it out of every tag that is not space-exclusive too.
+// showsInTag reports whether tag i's row lists room: the tag holds it and no other
+// claims it (an exclusive tag shows it alone; a space-exclusive one takes it from every
+// non-space-exclusive tag).
 func (v unreadView) showsInTag(i int, room domain.Room) bool {
 	t := v.tagsOf(room)
 	if !t.in[i] {
@@ -165,10 +160,9 @@ func (v unreadView) ownerName(room domain.Room) string {
 }
 
 // leavesMadeSpaces reports whether a space-exclusive tag holds room, taking it out of
-// the spaces a person made.
+// user-made spaces.
 func (v unreadView) leavesMadeSpaces(room domain.Room) bool {
 	return len(v.tagsOf(room).spaceExcl) > 0
 }
 
-// silenced reports whether a silent tag holds room.
 func (v unreadView) silenced(room domain.Room) bool { return v.tagsOf(room).silenced }

@@ -17,23 +17,20 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The composer's half of spelling: when it asks, what it keeps between asking and being
-// answered, and where the marks land on a row that has been bidi-reordered.
+// The composer's half of spelling: when it asks, what it keeps meanwhile, and where
+// marks land on a bidi-reordered row.
 
-// The fixtures below are misspelled on purpose — a spellchecker's tests need something to
-// find, and a correctly spelled word would be testing nothing.
+// The fixtures are misspelled on purpose.
 //
 //nolint:misspell // deliberate: these are the inputs a spellchecker exists to catch
 const (
 	typoReceive = "recieve"
 	typoThe     = "teh"
-	// typoMisspell is the one-suggestion case: a word an engine has exactly one
-	// answer for, which is what autocorrect fires on without looking further.
+	// typoMisspell has exactly one suggestion, which is what autocorrect fires on.
 	typoMisspell = "mispell"
 )
 
-// The drafts they appear in, composed at compile time so each misspelling is written
-// exactly once in the package.
+// The drafts they appear in, composed so each misspelling is written once in the package.
 const (
 	draftTypo     = "I " + typoReceive + " mail"
 	draftFixed    = "I receive mail"
@@ -43,8 +40,7 @@ const (
 	draftBidi     = "שלום " + typoReceive + " עולם"
 )
 
-// spellBackend answers spelling checks with whatever it was told to, and counts how
-// many times it was asked.
+// spellBackend answers spelling checks as told and counts the asks.
 type spellBackend struct {
 	apitest.Nop
 	mu     sync.Mutex
@@ -52,8 +48,7 @@ type spellBackend struct {
 	found  []domain.Misspelling
 	err    error
 	blocks chan struct{}
-	// taught is what the correction walk told it to learn, and learnErr what to answer
-	// when it does.
+	// taught is what the correction walk told it to learn; learnErr is its answer.
 	taught    []learned
 	dismissed []string
 	learnErr  error
@@ -90,7 +85,7 @@ func (b *spellBackend) questions() []string {
 	return append([]string(nil), b.asked...)
 }
 
-// wrong is one misspelling of word in text, found at its first occurrence.
+// wrong is one misspelling of word in text, at its first occurrence.
 func wrong(text, word string, suggestions ...string) domain.Misspelling {
 	at := strings.Index(text, word)
 	if at < 0 {
@@ -111,16 +106,15 @@ func spellComposing(t *testing.T, b *spellBackend) Model {
 	return m.clearStatus()
 }
 
-// Typing arms a check; the check that runs is for the draft as it stands when the
-// debounce expires, not for each of the keystrokes along the way.
+// Typing arms a check for the draft as it stands when the debounce expires, not one
+// per keystroke.
 func TestSpellCheckIsAskedOncePerPause(t *testing.T) {
 	t.Parallel()
 
 	b := &spellBackend{}
 	m := spellComposing(t, b)
-	// The tick is stubbed out for the package (see TestMain), so arming is observed
-	// rather than waited for: every keystroke bumps the generation, and only the tick
-	// carrying the current one asks anything.
+	// The tick is stubbed out for the package (see TestMain), so arming is observed:
+	// every keystroke bumps the generation, and only the current tick asks.
 	m = typeInto(t, m, typoReceive)
 	if m.spell.text != typoReceive {
 		t.Fatalf("the composer thinks the draft is %q", m.spell.text)
@@ -132,7 +126,6 @@ func TestSpellCheckIsAskedOncePerPause(t *testing.T) {
 	if cmd != nil {
 		t.Error("a stale tick asked a question; the keystroke that overtook it armed its own")
 	}
-	// The current one does.
 	fresh, cmd := m.handleSpellTick(spellTickMsg{gen: m.spell.gen})
 	m = fresh
 	if cmd == nil {
@@ -144,8 +137,7 @@ func TestSpellCheckIsAskedOncePerPause(t *testing.T) {
 	}
 }
 
-// An empty composer is not a question. Sending a message clears the draft, and errors
-// found in it would otherwise be drawn against whatever is typed next.
+// Sending clears the draft, and its marks would otherwise be drawn on the next text.
 func TestSendingClearsTheMarks(t *testing.T) {
 	t.Parallel()
 
@@ -164,7 +156,7 @@ func TestSendingClearsTheMarks(t *testing.T) {
 	}
 }
 
-// Nothing to check with ends the feature for the session rather than being reported.
+// Nothing to check with ends the feature for the session, silently.
 func TestNothingToCheckWithStopsTheAsking(t *testing.T) {
 	t.Parallel()
 
@@ -190,8 +182,7 @@ func TestNothingToCheckWithStopsTheAsking(t *testing.T) {
 	}
 }
 
-// The heart of it: an answer about a draft that has since been edited is moved onto
-// the draft as it is, rather than drawn where the words used to be.
+// An answer about an edited draft is shifted onto the draft as it is.
 func TestMarksFollowTheirWordsAcrossAnEdit(t *testing.T) {
 	t.Parallel()
 
@@ -263,8 +254,7 @@ func TestMarksFollowTheirWordsAcrossAnEdit(t *testing.T) {
 			want:  nil,
 		},
 		{
-			// The other half of the same rule: the word is finished, so the mark is
-			// about a whole word again and belongs on screen.
+			// The word is finished, so the mark covers a whole word again.
 			name:  "finishing the word keeps it",
 			from:  "hello wor",
 			to:    "hello wor ",
@@ -279,8 +269,8 @@ func TestMarksFollowTheirWordsAcrossAnEdit(t *testing.T) {
 			want:  []string{"wor"},
 		},
 		{
-			// An apostrophe is inside a word rather than after it, which is why the
-			// boundary test is endsWord and not "is it a letter".
+			// An apostrophe is inside a word, which is why the boundary test is endsWord and not
+			// "is it a letter".
 			name:  "an apostrophe does not finish it",
 			from:  "dont",
 			to:    "dont'",
@@ -307,8 +297,7 @@ func TestMarksFollowTheirWordsAcrossAnEdit(t *testing.T) {
 	}
 }
 
-// An answer computed for an older draft still lands in the right place, because it is
-// shifted the same way an edit shifts what is already drawn.
+// An answer for an older draft is shifted the same way an edit shifts what is drawn.
 func TestAnAnswerAboutAnOlderDraftIsMovedOntoTheNewOne(t *testing.T) {
 	t.Parallel()
 
@@ -335,7 +324,6 @@ func TestAnAnswerAboutAnOlderDraftIsMovedOntoTheNewOne(t *testing.T) {
 	}
 }
 
-// An older answer must not replace a newer one.
 func TestAnOvertakenAnswerIsDropped(t *testing.T) {
 	t.Parallel()
 
@@ -354,7 +342,6 @@ func TestAnOvertakenAnswerIsDropped(t *testing.T) {
 	}
 }
 
-// The word the caret is inside is not marked.
 func TestTheWordBeingTypedIsNotMarked(t *testing.T) {
 	t.Parallel()
 
@@ -370,19 +357,18 @@ func TestTheWordBeingTypedIsNotMarked(t *testing.T) {
 	if got := marked(m); len(got) != 1 || got[0] != typoReceive {
 		t.Errorf("marked %v with the caret in \"mail\", want only the typo", got)
 	}
-	// Moved into the typo, it is that one that goes quiet.
+	// Moved into the typo, that one goes quiet.
 	m = withCaret(m, strings.Index(m.spell.text, typoReceive)+3)
 	if got := marked(m); len(got) != 1 || got[0] != "mail" {
 		t.Errorf("marked %v with the caret in the typo, want only mail", got)
 	}
-	// And out of both, both are drawn.
+	// Out of both, both are drawn.
 	m = withCaret(m, 1)
 	if got := marked(m); len(got) != 2 {
 		t.Errorf("marked %v with the caret between words, want both", got)
 	}
 }
 
-// underline = "none" stops the drawing and not the checking.
 func TestUnderlineNoneDrawsNothingAndStillChecks(t *testing.T) {
 	t.Parallel()
 
@@ -398,8 +384,7 @@ func TestUnderlineNoneDrawsNothingAndStillChecks(t *testing.T) {
 	if m.spell.off {
 		t.Error("underline = none turned checking off; it is the drawing that stops")
 	}
-	// And the questions keep being asked, which is what leaves the correction walk
-	// something to walk.
+	// Checks continue, leaving the correction walk something to walk.
 	next, cmd := m.handleSpellTick(spellTickMsg{gen: m.spell.gen})
 	m = next
 	if cmd == nil {
@@ -411,8 +396,8 @@ func TestUnderlineNoneDrawsNothingAndStillChecks(t *testing.T) {
 	}
 }
 
-// Drawn, with Hebrew around it: the marks land on the English word wherever the bidi
-// reorder put it, and the row still says what was typed.
+// With Hebrew around it, the marks land on the English word wherever the bidi reorder
+// put it, and the row still says what was typed.
 func TestTheComposerUnderlinesInAnRTLLine(t *testing.T) {
 	t.Parallel()
 
@@ -420,7 +405,7 @@ func TestTheComposerUnderlinesInAnRTLLine(t *testing.T) {
 	m := spellComposing(t, b)
 	m = typeInto(t, m, draftBidi)
 	m.spell.shown = []domain.Misspelling{wrong(m.spell.text, typoReceive)}
-	// The caret is at the end of the draft, which is inside no marked word here.
+	// The caret is at the end of the draft, inside no marked word.
 
 	lines := m.composerLines(true)
 	if len(lines) == 0 {
@@ -437,14 +422,13 @@ func TestTheComposerUnderlinesInAnRTLLine(t *testing.T) {
 			t.Errorf("the row lost %q:\n  %q", word, plain)
 		}
 	}
-	// And it is the misspelled word that carries them, in one pair, with nothing of its
-	// Hebrew neighbors caught inside.
+	// The misspelled word carries them in one pair, with none of its Hebrew neighbors inside.
 	if marked := m.theme.SpellMark(ansi.UnderlineCurly, false).Styled(typoReceive); !strings.Contains(row, marked) {
 		t.Errorf("the row does not carry %q:\n  %q", marked, row)
 	}
 }
 
-// A clean draft costs no escapes at all — which is the common case, on every frame.
+// A clean draft, the common case on every frame, costs no escapes.
 func TestACleanComposerRowCarriesNoEscapes(t *testing.T) {
 	t.Parallel()
 
@@ -469,23 +453,21 @@ func marked(m Model) []string {
 	return out
 }
 
-// withCaret puts the composer's caret at a byte offset.
 func withCaret(m Model, at int) Model {
 	e := m.editorFor(fieldComposer)
 	e.at = at
 	return m.store(fieldComposer, e)
 }
 
-// rareHint is a rare-word mark: a word the engine *accepted*, carrying the commoner words
-// the frequency list says might have been meant.
+// rareHint is a rare-word mark: a word the engine accepted, with commoner words the
+// frequency list says might have been meant.
 func rareHint(text, word string, alternatives ...string) domain.Misspelling {
 	m := wrong(text, word, alternatives...)
 	m.Rare = true
 	return m
 }
 
-// The two marks are drawn in one pass and told apart by their style: a misspelling gets
-// the alert-colored curly, a hint the muted dotted.
+// A misspelling gets the alert-colored curly, a hint the muted dotted, in one pass.
 func TestBothMarksAreDrawnEachInItsOwnStyle(t *testing.T) {
 	t.Parallel()
 
@@ -501,8 +483,7 @@ func TestBothMarksAreDrawnEachInItsOwnStyle(t *testing.T) {
 	if len(m.spell.shown) != 2 {
 		t.Fatalf("drawing %+v, want the misspelling and the hint", m.spell.shown)
 	}
-	// The caret sits at the end of the draft, so `mail` is the word being typed and is
-	// left undrawn; the marks themselves are both kept.
+	// The caret is at the end, so `mail` is being typed and left undrawn; both marks are kept.
 	m = typeInto(t, m, " ")
 	m.spell.shown = shiftRanges(b.found, draft, m.spell.text)
 	marks := m.composerMarks()
@@ -520,8 +501,8 @@ func TestBothMarksAreDrawnEachInItsOwnStyle(t *testing.T) {
 	}
 }
 
-// rare_underline = "none" is the retreat position: the detection stays, the second
-// underline goes, and the walk still has the hint when it is opened on purpose.
+// rare_underline = "none" drops the second underline but keeps the detection, so the
+// walk still has the hint.
 func TestRareUnderlineNoneDropsTheMarkAndKeepsTheCheck(t *testing.T) {
 	t.Parallel()
 
@@ -540,13 +521,12 @@ func TestRareUnderlineNoneDropsTheMarkAndKeepsTheCheck(t *testing.T) {
 	if len(marks) != 1 || marks[0].Rare {
 		t.Fatalf("composerMarks = %+v, want only the misspelling", marks)
 	}
-	// Still found, which is what the walk walks.
+	// Still found, for the walk.
 	if len(m.spell.shown) != 2 {
 		t.Errorf("the hint stopped being found: %+v", m.spell.shown)
 	}
 }
 
-// The first hint of a session says what a dotted underline means; no later one does.
 func TestTheFirstHintExplainsItselfOnce(t *testing.T) {
 	t.Parallel()
 
@@ -567,8 +547,7 @@ func TestTheFirstHintExplainsItselfOnce(t *testing.T) {
 	}
 }
 
-// checkedNow runs the armed check and takes its answer, which is three steps every
-// test here would otherwise spell out.
+// checkedNow runs the armed check and takes its answer.
 func checkedNow(t *testing.T, m Model) Model {
 	t.Helper()
 	next, cmd := m.handleSpellTick(spellTickMsg{gen: m.spell.gen})
@@ -585,8 +564,7 @@ func checkedNow(t *testing.T, m Model) Model {
 	return m
 }
 
-// The same guard where it matters most: a hint must never be what stands between
-// somebody and sending their message.
+// A hint must never hold up a send.
 func TestRareHintsDoNotHoldUpASend(t *testing.T) {
 	t.Parallel()
 
@@ -605,7 +583,7 @@ func TestRareHintsDoNotHoldUpASend(t *testing.T) {
 	}
 }
 
-// Typing a word must never underline it, at any point, by any route.
+// Typing a word never underlines it, by any route.
 func TestNothingIsDrawnOnTheWordBeingTyped(t *testing.T) {
 	t.Parallel()
 
@@ -613,15 +591,14 @@ func TestNothingIsDrawnOnTheWordBeingTyped(t *testing.T) {
 	m := spellComposing(t, b)
 	for letter := range strings.SplitSeq(typoReceive, "") {
 		m = typeInto(t, m, letter)
-		// The engine is asked about the draft as it stands and says the half-typed word
-		// is not a word, which is true and useless: it is not a word *yet*.
+		// The engine says the half-typed word is not a word, which is true and useless.
 		b.found = []domain.Misspelling{{Word: m.spell.text, Start: 0, End: len(m.spell.text)}}
 		m = checkedNow(t, m)
 		if marks := m.composerMarks(); len(marks) != 0 {
 			t.Fatalf("typing %q drew %+v", m.spell.text, marks)
 		}
-		// And the keystroke *after* an answer has landed, which is where the mark used
-		// to reappear: the caret moves past the end of a mark that is now a prefix.
+		// The keystroke after an answer lands: the caret moves past the end of a mark that is
+		// now a prefix.
 		m = typeInto(t, m, "x")
 		if marks := m.composerMarks(); len(marks) != 0 {
 			t.Fatalf("the letter after the check drew %+v on %q", marks, m.spell.text)
@@ -629,7 +606,7 @@ func TestNothingIsDrawnOnTheWordBeingTyped(t *testing.T) {
 		m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	}
 
-	// Finish the word and it is marked, because now there is a word to mark.
+	// Finish the word and it is marked.
 	m = typeInto(t, m, " ")
 	b.found = []domain.Misspelling{wrong(m.spell.text, typoReceive, "receive")}
 	m = checkedNow(t, m)

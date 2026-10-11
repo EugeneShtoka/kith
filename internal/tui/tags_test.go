@@ -17,12 +17,11 @@ func taggedModel(t *testing.T, cfg config.Config) Model {
 	return withRooms(t, configured(cfg))
 }
 
-// configured is a model built as the program builds it: display first, then the rest.
+// configured builds a model as the program does: display first, then the rest.
 func configured(cfg config.Config) Model {
 	return New(context.Background(), apitest.Nop{}, cfg.Display).WithConfigFile("", cfg)
 }
 
-// railRow is the rail group with this key.
 func railRow(t *testing.T, m Model, key string) group {
 	t.Helper()
 	g, ok := findGroup(m.rail.groups, key)
@@ -41,8 +40,8 @@ func admitsRoom(m Model, g group, id domain.RoomID) bool {
 	return false
 }
 
-// Each tag not hidden is a rail row, holding what its rule, picks and exclusions say;
-// a state word follows the state as it changes, with nothing rebuilt.
+// Each unhidden tag is a rail row holding what its rule, picks and exclusions say; a
+// state word follows the state with nothing rebuilt.
 func TestTagRowsHoldWhatTheirRulesSay(t *testing.T) {
 	t.Parallel()
 	m := taggedModel(t, config.Config{Tags: []config.Tag{
@@ -78,7 +77,6 @@ func TestTagRowsHoldWhatTheirRulesSay(t *testing.T) {
 	}
 }
 
-// A tag is placed by the rail order like any row.
 func TestTagRowsTakeTheRailOrder(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
@@ -89,8 +87,8 @@ func TestTagRowsTakeTheRailOrder(t *testing.T) {
 	}
 }
 
-// Tags whose rules depend on each other are said on the status line at once; a tag
-// that names nothing is refused, the running config kept.
+// Interdependent tag rules are reported on the status line at once; a tag naming
+// nothing is refused and the running config kept.
 func TestTagProblemsAreSaid(t *testing.T) {
 	t.Parallel()
 	m := configured(config.Config{Tags: []config.Tag{
@@ -112,9 +110,8 @@ func TestTagProblemsAreSaid(t *testing.T) {
 	}
 }
 
-// A tag's row is not a space's, but it is a home: it is not renamed from the rail
-// (its name is what everything refers to it by), while name and notification rules
-// can be aimed at it, as tag:<name>.
+// A tag row is a home, not a space: it can't be renamed from the rail (everything
+// refers to it by name), but name and notification rules can target it as tag:<name>.
 func TestATagRowIsAHomeNotASpace(t *testing.T) {
 	t.Parallel()
 	if isSpaceGroup("tag:Family") || !isTagGroup("tag:Family") || isTagGroup("Work") || !isSpaceGroup("Work") || isSpaceGroup(fallbackGroupKey) {

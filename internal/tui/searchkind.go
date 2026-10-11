@@ -8,20 +8,17 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// searchKind is what the results pane is showing: a word search, or a list that is a
-// search with the question already asked. One stateless empty struct per kind, so an
-// added kind must answer every method, and searchState stays comparable.
+// searchKind is what the results pane shows: a word search, or a list (a search with
+// the question built in). One empty struct per kind keeps searchState comparable.
 type searchKind interface {
-	// name is the first word of the results title.
 	name() string
-	// narrow puts this kind's clause on the filter; a list with no terms is still a
-	// non-empty query.
+	// narrow puts the kind's clause on the filter; a list with no terms is still a query.
 	narrow(f *domain.SearchFilter)
-	// summary is the header line over the results. An empty search is a failed
-	// question; an empty list is a fact.
+	// summary is the header over the results. An empty search is a failed question; an
+	// empty list is a fact.
 	summary(m Model, where string) string
-	// showsFileName reports whether a row carries the attachment name in its own
-	// column, apart from the excerpt so a Latin name cannot flip an RTL caption.
+	// showsFileName reports whether a row shows the attachment name in its own column,
+	// so a Latin name cannot flip an RTL caption.
 	showsFileName() bool
 	// label is a short prefix on a row's excerpt, or "".
 	label(hit domain.SearchHit) string
@@ -29,7 +26,7 @@ type searchKind interface {
 	order(hits []domain.SearchHit)
 }
 
-// countedSummary is the shared "N things <where>, newest first" line for a list.
+// countedSummary is the shared "N things <where>, newest first" line.
 func countedSummary(n int, where, none, one, plural string) string {
 	switch {
 	case n == 0:
@@ -69,7 +66,6 @@ func (wordsList) summary(m Model, where string) string {
 	}
 }
 
-// mentionsList is every message that names you.
 type mentionsList struct{}
 
 func (mentionsList) name() string                  { return "Mentions" }
@@ -89,7 +85,7 @@ func (mentionsList) summary(m Model, where string) string {
 	return countedSummary(len(m.search.hits), where, "nobody has named you", "1 mention", "mentions")
 }
 
-// starredList is every message you bookmarked — the private counterpart of a pin.
+// starredList is every message you bookmarked: the private counterpart of a pin.
 type starredList struct{}
 
 func (starredList) name() string                  { return "Starred" }
@@ -109,11 +105,11 @@ func (starredList) summary(m Model, where string) string {
 	return countedSummary(len(m.search.hits), where, "nothing starred", "1 starred message", "starred")
 }
 
-// trackedList is every message carrying one of your tracked words, grouped by word
-// (the cache stamps each hit with the entry that caught it).
+// trackedList is every message with a tracked word, grouped by the entry that caught
+// it (the cache stamps each hit).
 type trackedList struct {
 	words []string // the configured list, carried because narrow cannot reach config
-	// only is the word `/tracked <word>` named; given, the list stops grouping.
+	// only is the word `/tracked <word>` named; set, the list doesn't group.
 	only string
 }
 
@@ -128,8 +124,8 @@ func (t trackedList) label(hit domain.SearchHit) string {
 	return hit.Word
 }
 
-// order is the grouping: by word, newest first within each. A sort rather than heading
-// rows, so the cursor stays a position in the hits.
+// order groups by word, newest first within each. A sort rather than heading rows,
+// so the cursor stays an index into the hits.
 func (trackedList) order(hits []domain.SearchHit) {
 	sort.SliceStable(hits, func(i, j int) bool {
 		if hits[i].Word != hits[j].Word {
@@ -148,7 +144,6 @@ func (t trackedList) narrow(f *domain.SearchFilter) {
 	f.Words = t.words
 }
 
-// summary counts the hits and, when grouped, how many words they came from.
 func (t trackedList) summary(m Model, where string) string {
 	if m.search.err != nil {
 		return "could not list tracked words: " + m.search.err.Error()
@@ -171,7 +166,6 @@ func (t trackedList) summary(m Model, where string) string {
 	}
 }
 
-// distinct is how many different entries the hits came from.
 func (trackedList) distinct(m Model) int {
 	seen := map[string]bool{}
 	for i := range m.search.hits {
@@ -180,7 +174,6 @@ func (trackedList) distinct(m Model) int {
 	return len(seen)
 }
 
-// filesList is every message carrying an attachment.
 type filesList struct{}
 
 func (filesList) name() string                  { return "Files" }
@@ -200,13 +193,12 @@ func (filesList) summary(m Model, where string) string {
 	return countedSummary(len(m.search.hits), where, "no files", "1 file", "files")
 }
 
-// caughtList previews what the spam filters would catch: the tracked list's query over
-// the filters' words, through the same matcher the daemon uses (domain.Tracked).
+// caughtList previews what the spam filters would catch, through the daemon's matcher
+// (domain.Tracked).
 type caughtList struct {
 	words   []string          // every filter's words, flattened
 	filters map[string]string // word → the filter that owns it, for the row label
-	// senders counts sender-only filters, which a word query cannot show; the summary
-	// says so rather than silently covering less than the rules do.
+	// senders counts sender-only filters, which a word query cannot show; the summary says so.
 	senders int
 }
 
@@ -214,7 +206,6 @@ func (caughtList) name() string             { return "Caught" }
 func (caughtList) showsFileName() bool      { return false }
 func (caughtList) order([]domain.SearchHit) {}
 
-// label names the filter that caught the row.
 func (c caughtList) label(hit domain.SearchHit) string {
 	if name, ok := c.filters[hit.Word]; ok {
 		return name
@@ -257,7 +248,6 @@ func (c caughtList) summary(m Model, where string) string {
 	return caught
 }
 
-// bySender names what the preview leaves out, in the plural it needs.
 func (c caughtList) bySender() string {
 	if c.senders == 1 {
 		return "1 filter catches by sender"

@@ -10,7 +10,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// renderRail is the space rail, railWidth wide and h tall.
 func (m Model) renderRail(h int) string {
 	const w = railWidth
 	active := m.focus == paneRail
@@ -30,7 +29,6 @@ func (m Model) renderRail(h int) string {
 	return m.framePane("Spaces", windowRows(lines, cursorRow, paneBodyRows(h)), w, h, active)
 }
 
-// railRow renders one rail entry: marker, label, and the group's unread count.
 func (m Model) railRow(g group, selected, active bool, inner int) string {
 	badge, highlight := m.groupBadge(g)
 	label := rowLabel{name: g.label}
@@ -43,7 +41,6 @@ func (m Model) railRow(g group, selected, active bool, inner int) string {
 	return m.listRow(label, badge, highlight, inner, selected, active)
 }
 
-// groupSize is how many rooms a rail group holds.
 func (m Model) groupSize(g group) int {
 	view := m.unreadView()
 	n := 0
@@ -55,10 +52,9 @@ func (m Model) groupSize(g group) int {
 	return n
 }
 
-// listRow lays out one rail or room-list row across the pane's interior: marker, label
-// flush left, unread badge right-aligned, with the row style filling the width. The
-// badge keeps its columns and the name is ellipsized instead, so a long name never
-// hides the count.
+// listRow lays out a rail or room-list row: marker, label flush left, unread badge
+// right-aligned, the row style filling the width. The name is ellipsized rather than
+// the badge, so a long name never hides the count.
 func (m Model) listRow(label rowLabel, badge string, highlight bool, inner int, selected, active bool) string {
 	style := m.theme.PaneRow(selected, active)
 	marker := m.theme.Marker(selected, active).Render(cursor(selected))
@@ -71,7 +67,7 @@ func (m Model) listRow(label rowLabel, badge string, highlight bool, inner int, 
 		trail = " " + trail
 	}
 	room := ansi.StringWidth(lead) + ansi.StringWidth(trail)
-	// One column between name and count, so a long name never abuts its own badge.
+	// One column between name and count, so a long name never abuts its badge.
 	space := inner - ansi.StringWidth(badge) - 1
 	if label.color != nil {
 		return marker + m.coloredRow(label, badge, highlight, inner, space, selected, active)
@@ -85,8 +81,8 @@ func (m Model) listRow(label rowLabel, badge string, highlight bool, inner int, 
 		m.theme.OnPaneRow(m.theme.Badge(highlight), selected, active).Render(badge)
 }
 
-// coloredRow is listRow's row past the marker for a name drawn in its own color: the
-// same layout, the name a segment of its own on the row's fill.
+// coloredRow is listRow's row past the marker for a name in its own color: same
+// layout, the name a separate segment on the row's fill.
 func (m Model) coloredRow(label rowLabel, badge string, highlight bool, inner, space int, selected, active bool) string {
 	style := m.theme.PaneRow(selected, active)
 	lead, trail := label.lead, label.trail
@@ -96,8 +92,8 @@ func (m Model) coloredRow(label rowLabel, badge string, highlight bool, inner, s
 	if trail != "" {
 		trail = " " + trail
 	}
-	// As listRow lays it out: with a badge, the name gets space and one column parts it
-	// from the count; without, the name fills the row.
+	// As in listRow: with a badge, the name gets space and one column before the count;
+	// without, it fills the row.
 	width, nameWidth := inner, inner
 	if badge != "" && space >= 1 {
 		width, nameWidth = space+1, space
@@ -113,19 +109,18 @@ func (m Model) coloredRow(label rowLabel, badge string, highlight bool, inner, s
 	return row + m.theme.OnPaneRow(m.theme.Badge(highlight), selected, active).Render(badge)
 }
 
-// rowLabel is what a list row says: lead is an affordance that stays on the visual
-// left, name is the logical name (drawn by listRow via nameCell), and trail follows the
-// name and survives truncation.
+// rowLabel is what a list row says: lead stays on the visual left, name is logical
+// (drawn by listRow via nameCell), and trail follows the name and survives truncation.
 type rowLabel struct {
 	lead  string
 	name  string
 	trail string
-	// color draws the name in a color of its own (its network's), nil for the row's.
+	// color draws the name in its own color (its network's), nil for the row's.
 	color color.Color
 }
 
 // groupBadge is a rail group's summed unread count ("" when none) and whether any of it
-// highlights the user, unrendered so the row can paint it onto its background.
+// highlights the user, unrendered so the row can paint it on its background.
 func (m Model) groupBadge(g group) (badge string, highlight bool) {
 	notifications, highlights := m.groupUnread(g)
 	if notifications == 0 {
@@ -134,8 +129,7 @@ func (m Model) groupBadge(g group) (badge string, highlight bool) {
 	return fmt.Sprintf("●%d", notifications), highlights > 0
 }
 
-// railDivider is a horizontal separator spanning the rail's interior width
-// (pane width minus its two border columns).
+// railDivider spans the rail's interior width (pane width minus its two border columns).
 func railDivider(w int) string {
 	if n := w - paneBorder; n > 0 {
 		return strings.Repeat("─", n)
@@ -166,9 +160,8 @@ func (m Model) renderRooms(w, h int) string {
 	return m.framePane(title, lines, w, h, active)
 }
 
-// roomListLine draws one room-list row — a room, a thread under it, or the count of
-// threads the cap left out — all through listRow. A thread's rows take their room's
-// color, so a room and its threads read as one.
+// roomListLine draws one room-list row (a room, a thread under it, or the count of
+// threads the cap left out) via listRow. Threads take their room's color.
 func (m Model) roomListLine(r roomRow, inner int, selected, active bool) string {
 	tint := m.roomNameColor(r.room)
 	switch {
@@ -192,8 +185,8 @@ func (m Model) roomListLine(r roomRow, inner int, selected, active bool) string 
 		// A replaced room looks ordinary but rejects sends; the mark says it is over.
 		label.lead = replacedMark
 	}
-	// A held draft is marked right after the name, so it neither shifts names nor reads
-	// as part of the badge.
+	// A held draft is marked after the name, so it neither shifts names nor reads as part
+	// of the badge.
 	if m.hasDraft(r.room.ID) {
 		label.trail = draftMark
 	}
@@ -208,8 +201,8 @@ const (
 	draftMark    = "✎"
 )
 
-// unreadBadge is a room's unread marker and whether it highlights the user. Rooms a
-// silent tag holds show "·N" untinted; a room marked unread with nothing new shows a bare "●".
+// unreadBadge is a room's unread marker and whether it highlights the user. Rooms in a
+// silent tag show "·N" untinted; a room marked unread with nothing new shows "●".
 func (m Model) unreadBadge(room domain.Room) (badge string, highlight bool) {
 	view := m.unreadView()
 	n, highlights := view.count(room)

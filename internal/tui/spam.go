@@ -9,15 +9,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// Spam is a move, not a tag: no space lists a spam room (as none lists an
-// invitation), and a Spam tag (rule `spam`, exclusive) gives them a row of their own.
-// Out of unread totals, badges and group-wide mark-read.
+// Spam is a move, not a tag: no space lists a spam room, and a Spam tag (rule `spam`,
+// exclusive) gives them a row. Spam rooms are out of unread totals, badges and
+// group-wide mark-read.
 
-// isSpam reports whether a room has been moved to Spam, by a list or by a rule.
 func (v unreadView) isSpam(room domain.Room) bool { return v.spamRooms[room.ID] }
 
-// verdict is why a room is in Spam (which rule, which filter); empty for a room that is
-// not.
+// verdict is why a room is in Spam (which rule, which filter); empty if it isn't.
 func (v unreadView) verdict(room domain.Room) domain.SpamVerdict {
 	if !v.isSpam(room) {
 		return domain.SpamVerdict{}
@@ -28,8 +26,8 @@ func (v unreadView) verdict(room domain.Room) domain.SpamVerdict {
 	return domain.SpamVerdict{Room: room.ID, Rule: domain.SpamByHand}
 }
 
-// resolveSpam is the slow per-room answer, computed when inputs change. The exemption is
-// asked first and wins: a carve-out a rule could outrank would be only a suggestion.
+// resolveSpam is the slow per-room answer, computed when inputs change. The exemption
+// wins: a carve-out a rule could outrank would be only a suggestion.
 func (v unreadView) resolveSpam(room domain.Room) bool {
 	if v.facts == nil {
 		return false
@@ -44,7 +42,7 @@ func (v unreadView) resolveSpam(room domain.Room) bool {
 	return v.caught[room.ID].Spam()
 }
 
-// refreshSpam recomputes which rooms are in Spam, as a new set (as refreshArchived).
+// refreshSpam recomputes the Spam set as a new map (as refreshArchived).
 func (m Model) refreshSpam() Model {
 	spam := map[domain.RoomID]bool{}
 	if m.rail.spam.Has() || len(m.rail.caught) > 0 {
@@ -59,12 +57,11 @@ func (m Model) refreshSpam() Model {
 	return m
 }
 
-// toggleSpam moves the selected room into Spam or takes it out.
+// toggleSpam moves the selected room into Spam or out.
 //
-// Marking adds the room ID to `[spam] rooms` and drops any exemption. Releasing writes
-// an exemption, not merely a removal: a room caught by a rule (or by a protocol entry)
-// cannot be un-listed, but can always be excused by ID, and no rule can put it back. The
-// release is also written to the room's account data so it leaves Spam on every machine.
+// Marking adds the room to `[spam] rooms` and drops any exemption. Releasing writes an
+// exemption, since a rule-caught room cannot be un-listed but can be excused by ID. The
+// release also goes to the room's account data so it applies on every machine.
 func (m Model) toggleSpam() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok || room.IsInvite() {
@@ -81,8 +78,8 @@ func (m Model) toggleSpam() (Model, tea.Cmd) {
 	return m.applySpam(spam, name+" is in Spam — still readable, out of its space and out of the counts")
 }
 
-// applySpam writes the two lists back to the config (the top-level `[spam]` section,
-// which the daemon also reads) and keeps the cursor near the room that moved.
+// applySpam writes both lists to the top-level `[spam]` section (the daemon reads it
+// too) and keeps the cursor near the moved room.
 func (m Model) applySpam(spam domain.Spam, done string) (Model, tea.Cmd) {
 	was := m.roomCursor()
 	cfg := m.conf.base.Clone()
@@ -92,8 +89,8 @@ func (m Model) applySpam(spam domain.Spam, done string) (Model, tea.Cmd) {
 	return moved, tea.Batch(cmd, move)
 }
 
-// releasedHere drops the rule's verdict before the next poll confirms it. A copy, since
-// an earlier Model value still holds the map.
+// releasedHere drops the rule's verdict before the next poll confirms it; copies the
+// map, since an earlier Model still holds it.
 func (m Model) releasedHere(roomID domain.RoomID) Model {
 	caught := make(map[domain.RoomID]domain.SpamVerdict, len(m.rail.caught))
 	for id, verdict := range m.rail.caught {
@@ -105,8 +102,7 @@ func (m Model) releasedHere(roomID domain.RoomID) Model {
 	return m
 }
 
-// spamReleasedMsg reports writing a release to account data; only failure is reported,
-// since the local exemption already holds.
+// spamReleasedMsg reports only failure; the local exemption already holds.
 type spamReleasedMsg struct{ err error }
 
 func (m Model) releaseSpamCmd(roomID domain.RoomID) tea.Cmd {
@@ -124,7 +120,7 @@ func (m Model) handleSpamReleased(msg spamReleasedMsg) (Model, tea.Cmd) {
 	return m.sayErr("released here, but your other machines were not told", msg.err), nil
 }
 
-// spamReason is why this room is in Spam, in explanation words; empty if it is not.
+// spamReason is why this room is in Spam, in explanation words; empty if it isn't.
 func (m Model) spamReason(room domain.Room) string {
 	verdict := m.unreadView().verdict(room)
 	if !verdict.Spam() {
@@ -133,11 +129,10 @@ func (m Model) spamReason(room domain.Room) string {
 	return verdict.Rule.Reason(verdict.Filter)
 }
 
-// spamLoadedMsg carries the verdicts the daemon has recorded.
 type spamLoadedMsg struct{ caught []domain.SpamVerdict }
 
-// loadSpamCmd reads which rooms the daemon's filters caught; run at startup and on the
-// poll. A read failure means nothing in Spam, not an error.
+// loadSpamCmd reads which rooms the daemon's filters caught, at startup and on the
+// poll. A read failure means nothing in Spam.
 func (m Model) loadSpamCmd() tea.Cmd {
 	ctx, backend, log := m.ctx, m.backend, m.log
 	return func() tea.Msg {
@@ -150,8 +145,8 @@ func (m Model) loadSpamCmd() tea.Cmd {
 	}
 }
 
-// handleSpamLoaded replaces the verdict set wholesale (a verdict is the daemon's; a
-// release from another machine arrives as a non-spam verdict) and rebuilds the rail.
+// handleSpamLoaded replaces the verdicts wholesale (a release from another machine
+// arrives as a non-spam verdict) and rebuilds the rail.
 func (m Model) handleSpamLoaded(msg spamLoadedMsg) (Model, tea.Cmd) {
 	caught := make(map[domain.RoomID]domain.SpamVerdict, len(msg.caught))
 	for i := range msg.caught {
@@ -163,7 +158,7 @@ func (m Model) handleSpamLoaded(msg spamLoadedMsg) (Model, tea.Cmd) {
 	return m.refreshPlaces().rebuiltRail(), nil
 }
 
-// openCaught previews what the spam filters catch over the local index, with the usual
+// openCaught previews what the spam filters catch in the local index, with the usual
 // scope ladder (`/caught` = this room, tab widens, `:caught` = everywhere).
 func (m Model) openCaught() (Model, tea.Cmd) {
 	rules, err := setup.SpamRules(m.conf.base.Spam)

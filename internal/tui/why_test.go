@@ -50,7 +50,6 @@ func TestWhyExplainsTheChain(t *testing.T) {
 	}
 }
 
-// A temporary mute is explained with its remaining time.
 func TestWhyExplainsAMute(t *testing.T) {
 	t.Parallel()
 
@@ -67,7 +66,6 @@ func TestWhyExplainsAMute(t *testing.T) {
 	}
 }
 
-// The overlay opens from /why and closes on any key.
 func TestWhyOverlayOpensAndCloses(t *testing.T) {
 	t.Parallel()
 

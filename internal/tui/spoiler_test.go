@@ -8,7 +8,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// spoilerMsg is a message with a covered run in it.
 func spoilerMsg() domain.Message {
 	return domain.Message{
 		ID: "$1", RoomID: "!a:x", Sender: "@her:x",
@@ -17,7 +16,7 @@ func spoilerMsg() domain.Message {
 	}
 }
 
-// Covered, the words keep their width but are drawn unreadable; revealed, readable.
+// Covered words keep their width but are drawn unreadable.
 func TestASpoilerIsCoveredUntilItIsAskedFor(t *testing.T) {
 	t.Parallel()
 
@@ -39,7 +38,7 @@ func TestASpoilerIsCoveredUntilItIsAskedFor(t *testing.T) {
 	}
 }
 
-// The key toggles, and toggles one message; one with nothing hidden is not revealed.
+// The key toggles one message; one with nothing hidden is not revealed.
 func TestRevealingTogglesOneMessage(t *testing.T) {
 	t.Parallel()
 
@@ -69,8 +68,7 @@ func TestRevealingTogglesOneMessage(t *testing.T) {
 	}
 }
 
-// A kept deletion ([display.deleted] keep) is uncovered by the same key, behind the
-// placeholder.
+// A kept deletion ([display.deleted] keep) is uncovered by the same key.
 func TestAKeptDeletionIsUncoveredByTheSameKey(t *testing.T) {
 	t.Parallel()
 
@@ -89,7 +87,6 @@ func TestAKeptDeletionIsUncoveredByTheSameKey(t *testing.T) {
 	}
 }
 
-// A deletion with nothing kept says so rather than silently doing nothing.
 func TestAnErasedDeletionSaysThereIsNothingToUncover(t *testing.T) {
 	t.Parallel()
 

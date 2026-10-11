@@ -7,19 +7,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// Every property of the config is a settings row (config.Properties): the rows in
-// settingsList written by hand where a setting needs more than its key (quiet hours
-// are a rule; code length is two keys), the rest generated from the property's kind,
-// with default.toml's text for it shown beneath the list.
+// Every config property (config.Properties) has a settings row: hand-written in
+// settingsList where a setting needs more than its key, otherwise generated from the
+// property's kind, with default.toml's text shown beneath the list.
 
-// propertyGroup places the properties under a path prefix in a group; base is what
-// their labels leave off ("display.media." makes display.media.audio.speed "Audio ·
-// speed").
+// propertyGroup puts properties under prefix in group; base is what labels leave off
+// ("display.media." makes display.media.audio.speed "Audio · speed").
 type propertyGroup struct{ prefix, group, base string }
 
-// propertyGroups is matched in order: the first prefix a path starts with wins, so the
-// narrow ones come first. Every network's section is in networks (networkGroups: no
-// other prefix overlaps one, so where they stand does not matter).
+// propertyGroups is matched in order, first prefix wins, so narrow ones come first.
+// Network sections (networkGroups) overlap no other prefix.
 var propertyGroups = append([]propertyGroup{
 	{"notifications.", "notifications", "notifications."},
 	{"display.media.", "media", "display.media."},
@@ -69,7 +66,6 @@ var propertyGroups = append([]propertyGroup{
 	{"keys.", "keys", "keys."},
 }, networkGroups()...)
 
-// networkGroups places each network's section in networks.
 func networkGroups() []propertyGroup {
 	var out []propertyGroup
 	for _, n := range (config.Config{}).Networks() {
@@ -79,8 +75,7 @@ func networkGroups() []propertyGroup {
 	return out
 }
 
-// placeProperty is where a property is listed and what it is called there; false for
-// one no group takes.
+// placeProperty is where a property is listed and its label there; false if no group takes it.
 func placeProperty(path string) (group, label string, ok bool) {
 	for _, g := range propertyGroups {
 		if strings.HasPrefix(path, g.prefix) {
@@ -102,8 +97,8 @@ func propertyLabel(rest string) string {
 	return strings.Join(parts, " · ")
 }
 
-// buildSettings is every row: the hand-written ones, then a generated row for each
-// property none of them covers, each with the property's text.
+// buildSettings is the hand-written rows, then a generated row for each property they
+// don't cover.
 func buildSettings(curated []setting) []setting {
 	docs := map[string]string{}
 	covered := map[string]bool{}
@@ -137,7 +132,6 @@ func buildSettings(curated []setting) []setting {
 	return append(all, keyTableSettings()...)
 }
 
-// propertySetting is a property's generated row.
 func propertySetting(p config.Property) (setting, bool) {
 	group, label, ok := placeProperty(p.Path)
 	if !ok {
@@ -167,8 +161,8 @@ func propertySetting(p config.Property) (setting, bool) {
 	return s, true
 }
 
-// propertyNumber is s as a number property's row: stepped, typed, stopping at 0 — or
-// at -1 for a number that says something there ("never", "until dismissed").
+// propertyNumber makes s a stepped, typed number row stopping at 0, or at -1 for a
+// number that means something there ("never", "until dismissed").
 func propertyNumber(s setting, p config.Property) setting {
 	s.kind = settingNumber
 	if strings.Contains(p.Doc, "-1") {
@@ -189,8 +183,7 @@ func listNow(c config.Config, p config.Property) []string {
 	return p.DefaultList()
 }
 
-// effective is a property's value as text: what is set, else an optional's default as
-// default.toml writes it.
+// effective is a property's value as text: what is set, else an optional's default.
 func effective(c config.Config, p config.Property) string {
 	v, set, _ := c.Value(p.Path)
 	if !set && (p.Kind == config.PropertyOptionalBool || p.Kind == config.PropertyOptionalInt) {
@@ -199,14 +192,13 @@ func effective(c config.Config, p config.Property) string {
 	return v
 }
 
-// boolNow is an on/off property's value in force.
 func boolNow(c config.Config, p config.Property) bool {
 	b, _ := strconv.ParseBool(effective(c, p))
 	return b
 }
 
-// setProperty writes v, unsetting an optional that comes back to its default so the
-// file keeps only what differs.
+// setProperty writes v, unsetting an optional set back to its default so the file
+// keeps only what differs.
 func setProperty(c *config.Config, p config.Property, v string) error {
 	optional := p.Kind == config.PropertyOptionalBool || p.Kind == config.PropertyOptionalInt
 	if optional && strings.TrimSpace(v) == strings.Trim(p.Default, `"`) {
@@ -215,7 +207,6 @@ func setProperty(c *config.Config, p config.Property, v string) error {
 	return c.SetValue(p.Path, v) //nolint:wrapcheck // config's error says what is wrong
 }
 
-// propertyWords is a property's row value: on or off, the number, the text, the list.
 func propertyWords(c config.Config, p config.Property) string {
 	switch p.Kind {
 	case config.PropertyBool, config.PropertyOptionalBool:

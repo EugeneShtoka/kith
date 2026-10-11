@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// With every thread listed under its room, stepping down walks each in turn to the
-// last, read ones too: a read thread under the cursor keeps its place in the list.
+// Stepping down the thread list reaches every thread, read ones too: a read thread
+// under the cursor keeps its place.
 func TestSteppingDownTheThreadListReachesEveryThread(t *testing.T) {
 	t.Parallel()
 	threads := []domain.Thread{
@@ -22,8 +22,7 @@ func TestSteppingDownTheThreadListReachesEveryThread(t *testing.T) {
 	m := sized(t, update(t, starterNew(&threadListBackend{}, display), roomsMsg{rooms: []domain.Room{{ID: "!f:x", Name: "Hikers"}}}))
 	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: "!f:x", Messages: 1, Threads: []domain.ThreadUnread{{Root: "$a", Title: "A", LatestAt: at(9)}}}}})
 	m = update(t, m, roomThreadsMsg{roomID: "!f:x", threads: threads})
-	// The room's timeline holds each thread's start and a reply in it, as an open
-	// room's does.
+	// The timeline holds each thread's start and a reply in it, as an open room's does.
 	var page []domain.Message
 	for i, th := range threads {
 		page = append(page,
@@ -44,8 +43,7 @@ func TestSteppingDownTheThreadListReachesEveryThread(t *testing.T) {
 	}
 }
 
-// A room list that arrives later, a room already open, rebuilds the rail: a tag hidden
-// while it held nothing shows once it holds a room.
+// A later room list rebuilds the rail: a tag hidden while empty shows once it holds a room.
 func TestALaterRoomListRebuildsTheRail(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{

@@ -7,19 +7,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Model-generated thread names. Off unless `[assist] name_threads`; the answer is
-// written to `[[display.name]]` under `thread:<root>`, the same list a typed name
-// goes to, so a typed name wins.
+// Model-generated thread names, off unless `[assist] name_threads`. The answer is
+// written to `[[display.name]]` under `thread:<root>`, where typed names go, so a typed
+// name wins.
 
-// threadNamedMsg is the answer for one thread.
 type threadNamedMsg struct {
 	room domain.RoomID
 	root domain.EventID
 	name string
 }
 
-// nameOpenRoomThreads names the threads in the room on screen, from the timeline's
-// own collapse (independent of any room-list display setting).
+// nameOpenRoomThreads names the open room's threads from the timeline's own collapse
+// (independent of room-list display settings).
 func (m Model) nameOpenRoomThreads() (Model, tea.Cmd) {
 	if m.openRoom == "" {
 		return m, nil
@@ -28,8 +27,7 @@ func (m Model) nameOpenRoomThreads() (Model, tea.Cmd) {
 	return m.nameThreads(m.openRoom, threads)
 }
 
-// nameThreads asks the model to name every thread in a room that has no name yet, and
-// notes each as asked, so it is asked once per session.
+// nameThreads asks the model to name each unnamed thread in a room, once per session.
 func (m Model) nameThreads(roomID domain.RoomID, threads []domain.Thread) (Model, tea.Cmd) {
 	if !m.conf.base.Assist.NameThreads || !m.conf.base.Assist.AssistEnabled() {
 		return m, nil
@@ -38,8 +36,8 @@ func (m Model) nameThreads(roomID domain.RoomID, threads []domain.Thread) (Model
 	var cmds []tea.Cmd
 	for i := range threads {
 		root := threads[i].Root
-		// Skip unnamed-able, already named (the alias is the memo across restarts),
-		// already asked this session, and too short to be worth a name.
+		// Skip unnameable, already named (the alias persists across restarts), already asked
+		// this session, and too short to be worth a name.
 		if root == "" || m.prefs.threadAliases[root] != "" || m.namedThreads[root] || threads[i].Count < after {
 			continue
 		}
@@ -49,8 +47,8 @@ func (m Model) nameThreads(roomID domain.RoomID, threads []domain.Thread) (Model
 	return m, tea.Batch(cmds...)
 }
 
-// nameThreadCmd asks about one thread. Failures and refusals are silent: nobody
-// asked, and the thread keeps its snippet.
+// nameThreadCmd asks about one thread. Failures and refusals are silent: the thread
+// keeps its snippet.
 func (m Model) nameThreadCmd(roomID domain.RoomID, root domain.EventID) tea.Cmd {
 	log := m.log
 	backend, ctx := m.backend, m.ctx
@@ -75,9 +73,8 @@ func (m Model) nameThreadCmd(roomID domain.RoomID, root domain.EventID) tea.Cmd 
 	}
 }
 
-// handleThreadNamed writes one generated name into config.toml (so it is stable
-// across restarts), unless it was named by hand meanwhile. No status line: this is
-// background work.
+// handleThreadNamed writes one generated name to config.toml (stable across restarts)
+// unless it was named by hand meanwhile. Silent: background work.
 func (m Model) handleThreadNamed(msg threadNamedMsg) (Model, tea.Cmd) {
 	if msg.name == "" || msg.root == "" || m.prefs.threadAliases[msg.root] != "" {
 		return m, nil

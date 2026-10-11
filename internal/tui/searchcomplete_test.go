@@ -9,7 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A search prompt with a room's membership loaded, so `from:` has people to offer.
+// completingSearch opens a search prompt with a room's members loaded for `from:`.
 func completingSearch(t *testing.T) Model {
 	t.Helper()
 	m, _ := searching(t, false)
@@ -33,7 +33,6 @@ func typePrompt(t *testing.T, m Model, text string) Model {
 	return m
 }
 
-// `from:` opens the people list the way `@` does in the composer.
 func TestFromOpensTheCompletionPopup(t *testing.T) {
 	m := completingSearch(t)
 	m = typePrompt(t, m, "from:")
@@ -68,13 +67,13 @@ func TestAcceptingFromInsertsTheMXID(t *testing.T) {
 	if m.completion.active {
 		t.Error("the popup should close on accept")
 	}
-	// A search filter is not a mention: nobody is being notified.
+	// A search filter is not a mention.
 	if len(m.compose.drafted) != 0 {
 		t.Errorf("completing a filter drafted a mention: %v", m.compose.drafted)
 	}
 }
 
-// The emoji trigger must not fire on the colon in `from:` — longest trigger wins.
+// The colon in `from:` must not fire the emoji trigger: the longest trigger wins.
 func TestFromDoesNotOpenTheEmojiList(t *testing.T) {
 	m := completingSearch(t)
 	m = typePrompt(t, m, "from:")
@@ -83,7 +82,6 @@ func TestFromDoesNotOpenTheEmojiList(t *testing.T) {
 	}
 }
 
-// The search keeps running underneath the popup.
 func TestSearchRunsWhileCompleting(t *testing.T) {
 	m := completingSearch(t)
 	before := len(m.search.query)
@@ -96,7 +94,7 @@ func TestSearchRunsWhileCompleting(t *testing.T) {
 	}
 }
 
-// Popup keys are its own only while it is open; enter must still submit.
+// The popup owns keys only while open; enter must still submit.
 func TestPromptKeysSurviveTheCompletionPopup(t *testing.T) {
 	m := completingSearch(t)
 	m = typePrompt(t, m, "deploy")
@@ -109,14 +107,13 @@ func TestPromptKeysSurviveTheCompletionPopup(t *testing.T) {
 	}
 }
 
-// esc and enter work at every stage (the popup once swallowed both while closed).
 func TestEscAndEnterAlwaysReachTheSearchPrompt(t *testing.T) {
 	for _, typed := range []string{"", "deploy", "invoice from:dan"} {
 		t.Run("after "+typed, func(t *testing.T) {
 			m := completingSearch(t)
 			m = typePrompt(t, m, typed)
 
-			// With the popup open, enter accepts first — at most two presses.
+			// With the popup open, enter accepts first: at most two presses.
 			submitted, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 			if submitted.prompt.active() {
 				if !m.completion.active {
@@ -147,7 +144,6 @@ func TestEscAndEnterAlwaysReachTheSearchPrompt(t *testing.T) {
 	}
 }
 
-// The popup is drawn over the results pane, where the search is.
 func TestFromPopupIsVisibleOverTheResults(t *testing.T) {
 	m := completingSearch(t)
 	m = typePrompt(t, m, "from:dan")
@@ -166,15 +162,14 @@ func TestFromPopupIsVisibleOverTheResults(t *testing.T) {
 	}
 }
 
-// `from:` offers the scope's senders; the open room's members fill in until they
-// arrive.
+// `from:` offers the scope's senders; the open room's members fill in until they arrive.
 func TestFromOffersTheScopesSendersNotJustTheRoom(t *testing.T) {
 	m := completingSearch(t)
 	m = update(t, m, searchSendersMsg{scope: m.search.scope, senders: []domain.Member{
 		{UserID: "@elsewhere:x", DisplayName: "Elsa Elsewhere"},
 	}})
 
-	// Somebody who has posted in the scope but is in none of this room's membership.
+	// Posted in the scope but not a member of this room.
 	offered := typePrompt(t, m, "from:els")
 	if !offered.completion.active {
 		t.Fatal("a sender from the wider scope was not offered")
@@ -193,7 +188,6 @@ func TestFromOffersTheScopesSendersNotJustTheRoom(t *testing.T) {
 	}
 }
 
-// An answer for a scope cycled past is dropped.
 func TestStaleSendersAreDropped(t *testing.T) {
 	m := completingSearch(t)
 	stale := m.search.scope.next()
@@ -205,7 +199,6 @@ func TestStaleSendersAreDropped(t *testing.T) {
 	}
 }
 
-// Widening the scope re-asks who it reaches.
 func TestCyclingScopeReasksForSenders(t *testing.T) {
 	m, backend := searching(t, false)
 	before := len(backend.senderScopes)

@@ -4,9 +4,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// trackedIn is the tracked-word list in force for this message's room and sender
-// (rules combine by union, see domain.TrackedFor). Asked per message per frame, so
-// the empty case is one length check.
+// trackedIn is the tracked-word list for this message's room and sender (rules combine
+// by union, see domain.TrackedFor). Called per message per frame, so the empty case is
+// one length check.
 func (m Model) trackedIn(msg domain.Message) domain.Tracked {
 	rules := m.prefs.tracked
 	if len(rules) == 0 {

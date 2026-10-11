@@ -16,8 +16,7 @@ import (
 // threadMark leads a thread's summary row.
 const threadMark = "💬"
 
-// threadState is the thread the timeline pane has been taken over by, if any, and
-// how to put the room back.
+// threadState is the thread open in the timeline pane, if any, and how to restore the room.
 type threadState struct {
 	// root is the open thread; empty means the pane is showing the room.
 	root domain.EventID
@@ -26,17 +25,16 @@ type threadState struct {
 	returnScroll int
 	// fetching is set while a root older than the cached window is fetched.
 	fetching bool
-	// A thread pages itself through /relations/{root}/m.thread, so reaching old
-	// replies does not page the whole room back.
+	// A thread pages itself through /relations/{root}/m.thread, so old replies don't page
+	// the whole room back.
 	scrollback
 }
 
-// open reports whether a thread has taken the pane over.
 func (t threadState) open() bool { return t.root != "" }
 
 // threadOf is the thread msg belongs to or would open: its root for a reply, itself
-// for an answered root, else the thread whose summary row hangs off it (how an
-// older thread whose root aged out is reached). Empty for an ordinary message.
+// for an answered root, else the thread whose summary row hangs off it (how an older
+// thread whose root aged out is reached). Empty for an ordinary message.
 func (m Model) threadOf(msg domain.Message) domain.EventID {
 	if root := domain.ThreadRootOf(m.timeline.messages, msg.ID); root != "" {
 		return root
@@ -44,8 +42,8 @@ func (m Model) threadOf(msg domain.Message) domain.EventID {
 	if msg.ID == "" {
 		return ""
 	}
-	// The derived cache's structure: collapsing every loaded message again here cost
-	// half of what a keypress allocated, and the legend asks on every draw.
+	// From the derived cache: re-collapsing here cost half a keypress's allocations, and
+	// the legend asks on every draw.
 	d := m.derivedFor()
 	main, threads := d.main, d.threads
 	// A thread with nothing before it anchors above the first drawn message.
@@ -61,14 +59,13 @@ func (m Model) threadOf(msg domain.Message) domain.EventID {
 	return ""
 }
 
-// hasThread reports whether the selected message is in a conversation, which is
-// what puts the open-thread key in the legend.
+// hasThread reports whether the selected message is in a conversation (shows the
+// open-thread key in the legend).
 func (m Model) hasThread() bool {
 	msg, ok := m.selectedMessage()
 	return ok && m.threadOf(msg) != ""
 }
 
-// openThread takes the pane over with the thread the selected message belongs to.
 func (m Model) openThread() (Model, tea.Cmd) {
 	msg, ok := m.selectedMessage()
 	if !ok {
@@ -82,13 +79,13 @@ func (m Model) openThread() (Model, tea.Cmd) {
 	return m.enterThread(root, msg.ID)
 }
 
-// startReply points the composer at the selected message. A message already in a
-// conversation is answered in it (the thread opens first), so the reply carries
-// the thread relation on the wire. ThreadRootOf rather than threadOf: a message
-// that only anchors an orphaned summary row is not in that thread.
+// startReply points the composer at the selected message. A message in a conversation
+// is answered in it (the thread opens first), so the reply carries the thread
+// relation. ThreadRootOf, not threadOf: a message that only anchors an orphaned
+// summary row is not in that thread.
 //
-// Where the protocol has no reply that is not a thread (Slack), the bridge makes a
-// thread anyway, so answering an unthreaded message starts one here too.
+// Where the protocol has no non-thread reply (Slack), the bridge makes a thread
+// anyway, so answering an unthreaded message starts one here too.
 func (m Model) startReply() (Model, tea.Cmd) {
 	msg, ok := m.selectedMessage()
 	if !ok || msg.ID == "" {
@@ -112,9 +109,9 @@ func (m Model) startReply() (Model, tea.Cmd) {
 	return next, cmd
 }
 
-// startThread opens an empty thread rooted at the selected message with the
-// composer ready; it exists on the server once the first reply is sent. Matrix has
-// no nested threads, so on a message already in one it opens that one.
+// startThread opens an empty thread rooted at the selected message with the composer
+// ready; it exists on the server once the first reply is sent. Matrix has no nested
+// threads, so on a message already in one it opens that one.
 func (m Model) startThread() (Model, tea.Cmd) {
 	msg, ok := m.selectedMessage()
 	if !ok || msg.ID == "" {
@@ -163,7 +160,6 @@ func (m Model) enterThread(root, selected domain.EventID) (Model, tea.Cmd) {
 		tea.Batch(read, m.fetchEventCmd(room.ID, root))
 }
 
-// loadOlderInThread pulls the page of replies before the oldest one loaded.
 func (m Model) loadOlderInThread() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok || m.thread.loading || m.thread.atStart {
@@ -174,8 +170,7 @@ func (m Model) loadOlderInThread() (Model, tea.Cmd) {
 	return m, m.threadPageCmd(room.ID, m.thread.root, m.thread.token)
 }
 
-// handleThreadPage merges a page of a thread's history into m.messages. A page for
-// a thread no longer open is dropped.
+// handleThreadPage merges a page of thread history; a page for a closed thread is dropped.
 func (m Model) handleThreadPage(msg threadPageMsg) (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok || msg.roomID != room.ID || msg.root != m.thread.root {
@@ -194,7 +189,6 @@ func (m Model) handleThreadPage(msg threadPageMsg) (Model, tea.Cmd) {
 	return m.doing(threadHistoryStatus(len(domain.ThreadMessages(m.timeline.messages, m.thread.root)), m.thread.atStart)), nil
 }
 
-// threadHistoryStatus says how much of a thread is loaded.
 func threadHistoryStatus(n int, atStart bool) string {
 	if atStart {
 		return fmt.Sprintf("the whole thread — %d messages", n)
@@ -202,7 +196,7 @@ func threadHistoryStatus(n int, atStart bool) string {
 	return fmt.Sprintf("%d messages in this thread", n)
 }
 
-// closeThread puts the room back, with the cursor on the thread's root.
+// closeThread restores the room, with the cursor on the thread's root.
 func (m Model) closeThread() (Model, tea.Cmd) {
 	root, back, scroll := m.thread.root, m.thread.returnTo, m.thread.returnScroll
 	m.thread = threadState{}
@@ -218,16 +212,15 @@ func (m Model) closeThread() (Model, tea.Cmd) {
 	return m, read
 }
 
-// revealMessage selects a message wherever it is drawn — inside its thread (opening
-// it) or in the main timeline — and scrolls to it. Search hits and reply targets
-// jump through it.
+// revealMessage selects and scrolls to a message wherever it is drawn, opening its
+// thread if needed. Search hits and reply targets jump through it.
 func (m Model) revealMessage(id domain.EventID) (Model, tea.Cmd) {
 	idx := indexOfMessage(m.timeline.messages, id)
 	if idx < 0 {
 		return m, nil
 	}
-	// The conversation it is drawn in, not the relation it carries (a plain reply
-	// into a thread is drawn inside it, see domain.Conversations).
+	// The conversation it is drawn in, not the relation it carries (a plain reply into a
+	// thread is drawn inside it, see domain.Conversations).
 	root := domain.ThreadRootOf(m.timeline.messages, id)
 	if root == id {
 		root = "" // a root is drawn in the room, under its summary row
@@ -243,9 +236,8 @@ func (m Model) revealMessage(id domain.EventID) (Model, tea.Cmd) {
 	return m.scrollToSelection(), read
 }
 
-// resolveThread enters the thread a room-list row asked for once one of its
-// replies is loaded. settled means the live page landed, so a thread still missing
-// never will be.
+// resolveThread enters the thread a room-list row asked for once one of its replies is
+// loaded. settled means the live page landed, so a thread still missing never will be.
 func (m Model) resolveThread(settled bool) (Model, tea.Cmd) {
 	if m.rows.opening == "" {
 		return m, nil
@@ -263,7 +255,6 @@ func (m Model) resolveThread(settled bool) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleFetchedEvent merges a fetched thread root into the timeline.
 func (m Model) handleFetchedEvent(msg fetchedEventMsg) (Model, tea.Cmd) {
 	m.thread.fetching = false
 	room, ok := m.currentRoom()
@@ -277,23 +268,22 @@ func (m Model) handleFetchedEvent(msg fetchedEventMsg) (Model, tea.Cmd) {
 	return m.clearStatus(), nil
 }
 
-// shownMessages is what the timeline pane draws: its messages, with threads drawn as
-// a summary row instead of their replies. Every timeline index means this list, not
-// m.timeline.messages. Cached per message revision (derived.go).
+// shownMessages is what the timeline draws: threads collapsed to a summary row. Every
+// timeline index refers to this list, not m.timeline.messages. Cached per message
+// revision (derived.go).
 func (m Model) shownMessages() []domain.Message {
 	return m.derivedFor().shown
 }
 
-// hasAttachments reports whether anything the pane shows carries a file.
 func (m Model) hasAttachments() bool { return m.derivedFor().hasMedia }
 
 // threadTitleWidth caps the root snippet in the breadcrumb; the root is also the
 // view's first row, so a few words identify it.
 const threadTitleWidth = 40
 
-// threadName is what a thread is called everywhere: its `[display] thread_alias`,
-// else a snippet of its root, else the title the daemon gave it (a forum topic's,
-// whose root is older than the timeline), else a placeholder.
+// threadName is a thread's name everywhere: its `[display] thread_alias`, else a root
+// snippet, else the daemon's title (a forum topic whose root predates the timeline),
+// else a placeholder.
 func (m Model) threadName(root domain.EventID) string {
 	return m.threadNamed(root, m.knownTitle(root))
 }
@@ -314,8 +304,8 @@ func (m Model) threadNamed(root domain.EventID, title string) string {
 	return "an older thread"
 }
 
-// knownTitle is the open room's thread's title as the daemon last gave it: in the
-// room's thread list, or its unread threads.
+// knownTitle is the daemon's last title for an open-room thread, from the room's
+// thread list or its unread threads.
 func (m Model) knownTitle(root domain.EventID) string {
 	known := m.rows.known[m.openRoom]
 	for i := range known {
@@ -345,7 +335,6 @@ func (m Model) threadTitle() string {
 	return room + " ▸ " + name
 }
 
-// repliesLabel is "1 reply" or "N replies".
 func repliesLabel(n int) string {
 	if n == 1 {
 		return "1 reply"
@@ -374,15 +363,15 @@ func (m Model) threadRow(t domain.Thread, nameW, width int) string {
 		body += " " + m.theme.Badge(t.Mentions > 0).Render(fmt.Sprintf("●%d", t.Unread))
 	}
 	if m.mirrored() {
-		// Our sentence stays left to right, flushed against the time on the right.
+		// Our sentence stays LTR, flushed against the time on the right.
 		return padStart(body, width-m.bodyColumn(nameW)) + strings.Repeat(" ", nameW+2) + ts
 	}
 	row := ts + " " + strings.Repeat(" ", nameW+1) + body
 	return truncateDrawn(row, width)
 }
 
-// renameThreadInView names the open thread, else the one the selected message
-// belongs to or would open (the same resolution as openThread).
+// renameThreadInView names the open thread, else the selected message's (resolved as
+// openThread does).
 func (m Model) renameThreadInView() (Model, tea.Cmd) {
 	if m.thread.open() {
 		return m.renameThread(m.thread.root)
@@ -398,7 +387,6 @@ func (m Model) renameThreadInView() (Model, tea.Cmd) {
 	return m.renameThread(root)
 }
 
-// renameSelectedThread names the thread under the cursor in the thread picker.
 func (m Model) renameSelectedThread() (Model, tea.Cmd) {
 	item, ok := m.picker.selected()
 	if !ok {
@@ -408,9 +396,8 @@ func (m Model) renameSelectedThread() (Model, tea.Cmd) {
 	return m.renameThread(domain.EventID(item.value))
 }
 
-// listThreads opens the picker over every thread in the open room, as the daemon
-// lists them: the timeline holds only the newest messages, which miss old threads (a
-// forum's topics) and their roots.
+// listThreads opens the picker over every thread in the open room as the daemon lists
+// them; the timeline holds only recent messages, missing old threads (forum topics).
 func (m Model) listThreads() (Model, tea.Cmd) {
 	if m.openRoom == "" {
 		return m, nil
@@ -418,9 +405,9 @@ func (m Model) listThreads() (Model, tea.Cmd) {
 	return m.doing("looking for threads…"), m.scopeThreadsCmd([]domain.RoomID{m.openRoom})
 }
 
-// threadItem is one thread as a picker row, matchable by name and by newest sender.
-// A non-nil in leads the row with that room's name, for a list across rooms. The name
-// is isolated either way: the picker draws labels as a sentence of ours (LTR).
+// threadItem is one thread as a picker row, matchable by name and newest sender. A
+// non-nil in prefixes that room's name, for cross-room lists. The name is isolated:
+// the picker draws labels as our sentence (LTR).
 func (m Model) threadItem(t domain.Thread, roomID domain.RoomID, in *domain.Room) pickerItem {
 	name := m.threadNamed(t.Root, cmp.Or(t.Title, m.knownTitle(t.Root)))
 	sender := m.personIn(roomID, t.LatestSender, t.LatestSenderName)
@@ -449,9 +436,9 @@ func threadDetail(t domain.Thread, sender string, clock domain.Clock) string {
 	return detail
 }
 
-// openPickedThread enters the thread chosen from the picker: from the timeline's
-// list directly; from the room list via the armed request (openSelectedThread);
-// and in another room by opening that room first and taking it on arrival.
+// openPickedThread enters the chosen thread: directly from the timeline's list; via
+// the armed request from the room list (openSelectedThread); in another room by
+// opening it first and entering on arrival.
 func (m Model) openPickedThread(root domain.EventID, room domain.RoomID) (Model, tea.Cmd) {
 	if room != "" && room != m.openRoom {
 		next, cmd := m.goToRoom(room)
@@ -467,8 +454,8 @@ func (m Model) openPickedThread(root domain.EventID, room domain.RoomID) (Model,
 	return next, tea.Batch(cmd, repaint())
 }
 
-// listRoomThreads lists the threads of the room under the room-list cursor. It asks
-// the daemon: the client holds only that room's preview, which misses old threads.
+// listRoomThreads lists the threads of the room under the room-list cursor, from the
+// daemon: the client holds only that room's preview, which misses old threads.
 func (m Model) listRoomThreads() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok {
@@ -492,8 +479,8 @@ func (m Model) roomsOf(set domain.RoomSet) []domain.RoomID {
 // scopeThreadsCap bounds the per-room fan-out of a scoped `:threads`.
 const scopeThreadsCap = 50
 
-// openThreads lists the threads in scope: the open room from memory, or a wider
-// scope asked of the daemon room by room.
+// openThreads lists the threads in scope: the open room from memory, a wider scope
+// from the daemon room by room.
 func (m Model) openThreads(scoped bool) (Model, tea.Cmd) {
 	rooms := []domain.RoomID{m.openRoom}
 	if scoped {
@@ -509,7 +496,6 @@ func (m Model) openThreads(scoped bool) (Model, tea.Cmd) {
 	return m.doing("looking for threads…"), m.scopeThreadsCmd(rooms)
 }
 
-// scopeThreadsMsg carries the threads of every room asked about.
 type scopeThreadsMsg struct {
 	threads []scopeThread
 	// only is the room asked about when exactly one was; the labels then omit it.
@@ -517,14 +503,13 @@ type scopeThreadsMsg struct {
 	err  error
 }
 
-// scopeThread is one thread and its room.
 type scopeThread struct {
 	room   domain.Room
 	thread domain.Thread
 }
 
-// withTimelineThreads adds to the daemon's threads of the open room those its
-// timeline holds that the daemon did not list yet (one just begun).
+// withTimelineThreads adds the open room's timeline threads the daemon hasn't listed
+// yet (one just begun).
 func (m Model) withTimelineThreads(listed []scopeThread, room domain.Room) []scopeThread {
 	_, threads := domain.CollapseThreads(m.timeline.messages)
 	for i := range threads {
@@ -535,8 +520,8 @@ func (m Model) withTimelineThreads(listed []scopeThread, room domain.Room) []sco
 	return listed
 }
 
-// scopeThreadsCmd asks for each room's threads in turn (local cached calls, capped,
-// so sequential is fine).
+// scopeThreadsCmd asks for each room's threads in turn (cached local calls, capped, so
+// sequential is fine).
 func (m Model) scopeThreadsCmd(rooms []domain.RoomID) tea.Cmd {
 	// Resolved on the event loop: reading m.rooms inside the closure would race.
 	resolved := make([]domain.Room, 0, len(rooms))
@@ -565,8 +550,7 @@ func (m Model) scopeThreadsCmd(rooms []domain.RoomID) tea.Cmd {
 	}
 }
 
-// handleScopeThreads opens the picker over what came back, newest activity first
-// across all rooms.
+// handleScopeThreads opens the picker over the answer, newest activity first across rooms.
 func (m Model) handleScopeThreads(msg scopeThreadsMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("could not list threads", msg.err), nil
@@ -587,7 +571,7 @@ func (m Model) handleScopeThreads(msg scopeThreadsMsg) (Model, tea.Cmd) {
 	})
 	items := make([]pickerItem, 0, len(found))
 	for i := range found {
-		// One room asked about: its name would repeat on every row, so it is left off.
+		// One room: its name would repeat on every row, so it is left off.
 		var in *domain.Room
 		if msg.only.ID == "" {
 			in = &found[i].room

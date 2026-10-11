@@ -14,7 +14,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// filer records which way a room was filed, and where.
 type filer struct {
 	apitest.Nop
 	added       bool
@@ -34,8 +33,7 @@ func (f *filer) RemoveFromSpace(_ context.Context, spaceID domain.SpaceID, roomI
 	return nil
 }
 
-// filing returns a model with two rooms and two spaces (one already holding Alpha),
-// the room list focused on Alpha.
+// filing has two rooms and two spaces (one holding Alpha), the room list on Alpha.
 func filing(t *testing.T) (Model, *filer) {
 	t.Helper()
 	f := &filer{}
@@ -60,7 +58,6 @@ func filing(t *testing.T) (Model, *filer) {
 	return m, f
 }
 
-// The picker is checkboxes, ticked where the room already lives.
 func TestSpacePickerTicksTheSpacesHoldingTheRoom(t *testing.T) {
 	t.Parallel()
 
@@ -78,19 +75,18 @@ func TestSpacePickerTicksTheSpacesHoldingTheRoom(t *testing.T) {
 	if m.picker.ticked("!f:x") {
 		t.Error("Friends does not hold Alpha; its row should be clear")
 	}
-	// Modal: space ticks rather than filtering (space names contain spaces).
+	// Navigate mode: space ticks rather than filtering (names contain spaces).
 	if m.picker.mode != pickerNavigate {
 		t.Error("a set has to start in navigate mode for space to mean anything")
 	}
 }
 
-// Space ticks, enter applies the whole set at once.
 func TestSpaceTicksAndEnterAppliesTheSet(t *testing.T) {
 	t.Parallel()
 
 	m, f := filing(t)
 	m, _ = press(t, m, keyText("S"))
-	// Cursor on Work (ticked) — untick it — then down to Friends and tick that.
+	// Cursor on Work (ticked): untick it, then down to Friends and tick it.
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeySpace})
 	m, _ = press(t, m, keyText("j"))
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeySpace})
@@ -113,7 +109,6 @@ func TestSpaceTicksAndEnterAppliesTheSet(t *testing.T) {
 	}
 }
 
-// An unchanged row is not re-sent.
 func TestApplyingAnUnchangedSetWritesNothing(t *testing.T) {
 	t.Parallel()
 
@@ -132,7 +127,7 @@ func TestApplyingAnUnchangedSetWritesNothing(t *testing.T) {
 	}
 }
 
-// Unticking everything applies (a room can belong to no space).
+// A room can belong to no space.
 func TestUntickingEverythingTakesTheRoomOut(t *testing.T) {
 	t.Parallel()
 
@@ -147,7 +142,6 @@ func TestUntickingEverythingTakesTheRoomOut(t *testing.T) {
 	}
 }
 
-// The room is captured when the picker opens.
 func TestTheSpacePickerRemembersItsRoom(t *testing.T) {
 	t.Parallel()
 
@@ -168,7 +162,6 @@ func TestTheSpacePickerRemembersItsRoom(t *testing.T) {
 	}
 }
 
-// Managed spaces (bridge or origin) stay in the rail but not in the filing list.
 func TestManagedSpacesAreNotOffered(t *testing.T) {
 	t.Parallel()
 
@@ -186,7 +179,6 @@ func TestManagedSpacesAreNotOffered(t *testing.T) {
 	}
 }
 
-// The rows follow the rail's order and names, renames included.
 func TestTheFilingListFollowsTheRail(t *testing.T) {
 	t.Parallel()
 
@@ -207,12 +199,11 @@ func TestTheFilingListFollowsTheRail(t *testing.T) {
 	}
 }
 
-// A space the list did not show must not be unfiled.
 func TestUnofferedSpacesAreLeftAlone(t *testing.T) {
 	t.Parallel()
 
 	m, f := filing(t)
-	// Bravo lives in the bridge's space, which the picker will not show.
+	// Bravo lives in the bridge's space, which the picker won't show.
 	next, _ := m.selectRoom(domain.Room{ID: "!b:x", Name: "Bravo"})
 	m = next
 	m, _ = press(t, m, keyText("S"))
@@ -226,7 +217,6 @@ func TestUnofferedSpacesAreLeftAlone(t *testing.T) {
 	}
 }
 
-// [display] filing_spaces makes the list explicit, in its order.
 func TestFilingSpacesNamesTheList(t *testing.T) {
 	t.Parallel()
 
@@ -243,7 +233,6 @@ func TestFilingSpacesNamesTheList(t *testing.T) {
 	}
 }
 
-// filing_spaces overrides the managed-space judgment.
 func TestFilingSpacesOverridesTheJudgment(t *testing.T) {
 	t.Parallel()
 
@@ -255,7 +244,6 @@ func TestFilingSpacesOverridesTheJudgment(t *testing.T) {
 	}
 }
 
-// Unmatched entries are skipped; a list matching nothing says so.
 func TestFilingSpacesSkipsWhatItCannotFind(t *testing.T) {
 	t.Parallel()
 
@@ -277,7 +265,6 @@ func TestFilingSpacesSkipsWhatItCannotFind(t *testing.T) {
 	}
 }
 
-// A space left out of the list is never touched.
 func TestFilingSpacesLeavesUnlistedSpacesAlone(t *testing.T) {
 	t.Parallel()
 
@@ -294,7 +281,7 @@ func TestFilingSpacesLeavesUnlistedSpacesAlone(t *testing.T) {
 	}
 }
 
-// spaceRows is the filing picker's space rows, without its tag rows and the New rows.
+// spaceRows is the filing picker's space rows, without tag and New rows.
 func spaceRows(items []pickerItem) []pickerItem {
 	var out []pickerItem
 	for _, item := range items {
@@ -305,7 +292,7 @@ func spaceRows(items []pickerItem) []pickerItem {
 	return out
 }
 
-// The rows are in [display] priority, spaces and tags alike, then in the rail's order.
+// Rows follow [display] priority, spaces and tags alike, then the rail's order.
 func TestTheFilingListFollowsThePriority(t *testing.T) {
 	t.Parallel()
 
@@ -316,7 +303,7 @@ func TestTheFilingListFollowsThePriority(t *testing.T) {
 	for _, item := range m.picker.all {
 		got = append(got, m.filingKey(item))
 	}
-	// All, DMs, Unread and Drafts are filled by their rules: not offered at all.
+	// All, DMs, Unread and Drafts are filled by their rules, so not offered.
 	want := []string{"tag:Pinned", "Friends", "Work", "tag:Archived"}
 	if len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
 		t.Errorf("rows = %v, want %v first: priority, then the rail", got, want)
@@ -342,7 +329,7 @@ func (s *spaceMaker) AddToSpace(ctx context.Context, spaceID domain.SpaceID, roo
 	return s.filer.AddToSpace(ctx, spaceID, roomID)
 }
 
-// makingSpaces is a model on a Matrix room and a room of kith's own WhatsApp.
+// makingSpaces is a model on a Matrix room and a kith-native WhatsApp room.
 func makingSpaces(t *testing.T, addErr error) (Model, *spaceMaker) {
 	t.Helper()
 	s := &spaceMaker{addErr: addErr}
@@ -357,9 +344,8 @@ func makingSpaces(t *testing.T, addErr error) (Model, *spaceMaker) {
 	return m, s
 }
 
-// On a Matrix room, S offers New space: it asks the name, makes a space (not nested,
-// unencrypted as every space) and files the room into it. A room of another network's
-// own adapter cannot be in a Matrix space and is not offered one.
+// On a Matrix room, S offers New space: named, unnested, unencrypted, with the room
+// filed in. A room of another network's adapter is not offered one.
 func TestTheSpacePickerMakesASpaceForAMatrixRoom(t *testing.T) {
 	t.Parallel()
 	m, s := makingSpaces(t, nil)

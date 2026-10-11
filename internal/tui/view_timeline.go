@@ -13,8 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// inviteLines renders the decision an invitation asks for: who invited you, and the
-// two answers.
+// inviteLines renders an invitation's decision: who invited you, and the two answers.
 func (m Model) inviteLines(room domain.Room, width, rows int) []string {
 	lines := []string{
 		"",
@@ -52,8 +51,8 @@ func (m Model) inviterLabel(mxid string) string {
 	return label
 }
 
-// inviterName resolves a display name for an inviter we may never have seen post:
-// their configured alias if they have one, else the bare MXID.
+// inviterName names an inviter who may never have posted: their alias if configured,
+// else the bare MXID.
 func (m Model) inviterName(mxid string) string {
 	if ident, ok := m.prefs.identities[mxid]; ok && ident.alias != "" {
 		return ident.alias
@@ -67,8 +66,8 @@ func (m Model) renderTimeline(w, h int) string {
 
 	// Search results, history, an invitation or a thread take the pane over.
 	if m.search.active {
-		// The completion popup is drawn here too: while a search prompt is open the
-		// composer branch below is never reached.
+		// The completion popup is drawn here too: with a search prompt open the composer branch
+		// below is never reached.
 		popup := m.completionLines(inner)
 		lines := m.searchLines(inner, h-paneBorder-len(popup))
 		lines = append(lines, popup...)
@@ -92,8 +91,8 @@ func (m Model) renderTimeline(w, h int) string {
 
 	title = m.decoratedTitle(title, inner)
 
-	// Body layout: the message area, then a divider, then the composer. The
-	// message-area height matches msgAreaRows so scroll math and rendering agree.
+	// Message area, divider, composer. The message-area height matches msgAreaRows so
+	// scroll math and rendering agree.
 	rows := m.msgAreaRows()
 	lines := make([]string, 0, rows+2)
 	// One popup slot: the spell walk, else completion, else the model's continuations.
@@ -104,8 +103,8 @@ func (m Model) renderTimeline(w, h int) string {
 	if len(popup) == 0 {
 		popup = m.modelOptionLines(inner)
 	}
-	// The command line's menu goes below the composer, next to the status-line field it
-	// completes; every other popup belongs beside the caret.
+	// The command line's menu goes below the composer, next to the field it completes;
+	// other popups go beside the caret.
 	belowComposer := m.prompt.kind == promptCommand
 	switch {
 	case m.picker.active():
@@ -129,10 +128,10 @@ func (m Model) renderTimeline(w, h int) string {
 	return m.framePane(title, lines, w, h, active)
 }
 
-// primeTimeline decides the open room's side (settleLayout) and makes, on the Update
-// goroutine, every write to the shared cache the next frame would make: the derived answers (which assign colors), the running row
-// totals and the rendered rows of the window. View then only reads. The window is the
-// whole message area; a popup only shortens what View draws of it.
+// primeTimeline settles the open room's side (settleLayout) and makes, on the Update
+// goroutine, every shared-cache write the next frame needs: derived answers (which
+// assign colors), row totals and the window's rendered rows. View then only reads. The
+// window is the whole message area; a popup only shortens what View draws.
 func (m Model) primeTimeline() Model {
 	// Before anything is drawn: the side is part of the derived key.
 	m = m.settleLayout()
@@ -146,19 +145,18 @@ func (m Model) primeTimeline() Model {
 	_ = m.stickyDay()
 	_, _ = m.layoutWindow(m.timeline.scroll, m.msgAreaRows())
 	if d.drops != drops {
-		// A row changed height (a reaction, a picture) after the totals placed the
-		// window, which dropped them: place it again, so View finds them final.
+		// A row changed height (a reaction, a picture) after the totals placed the window,
+		// dropping them: place it again so View finds them final.
 		_ = m.stickyDay()
 		_, _ = m.layoutWindow(m.timeline.scroll, m.msgAreaRows())
 	}
 	return m
 }
 
-// anchorBelow keeps the rows on screen where they are when a message below them, in
-// the scrolled-past part, grows or shrinks (a reaction, a picture, a thread summary):
-// it re-renders each such message and moves the scroll by the difference, as a live
-// message does. Nothing drew those rows, so nothing else would notice until the view
-// jumped the next time one was drawn.
+// anchorBelow keeps the visible rows still when a scrolled-past message below them
+// changes height (a reaction, a picture, a thread summary): it re-renders each and
+// moves the scroll by the difference, as a live message does. Otherwise the view would
+// jump the next time one was drawn.
 func (m Model) anchorBelow() Model {
 	if m.timeline.scroll <= 0 || m.derived == nil || m.derived.inputsRev == m.derived.anchoredRev {
 		return m
@@ -166,10 +164,9 @@ func (m Model) anchorBelow() Model {
 	d, w := m.walkFor()
 	d.anchoredRev = d.inputsRev
 	delta := 0
-	// suffix[i] is where message i's top edge sits, counted up from the newest row;
-	// wholly below the window while that is at most scroll.
-	// Bounds fixed first: re-rendering a message drops the totals below it, but their
-	// old values are still the ones to compare against.
+	// suffix[i] is where message i's top edge sits, counted up from the newest row; wholly
+	// below the window while that is at most scroll. Bounds are fixed first: re-rendering
+	// drops the totals below, but their old values are the ones to compare against.
 	from, scroll := d.suffixFrom, m.timeline.scroll
 	for i := len(w.msgs) - 1; i >= from && d.suffix[i] <= scroll; i-- {
 		e := &d.rowCache[i]
@@ -184,9 +181,8 @@ func (m Model) anchorBelow() Model {
 }
 
 // keepAnchored applies change with a scrolled-up view held still: the message at the
-// window's bottom edge keeps its place on screen, whatever the change added above or
-// below it. The scroll offset counts rows up from the newest, so the anchor's offset
-// is its running total (suffix), and only the rows below it are measured, not the room.
+// window's bottom edge keeps its screen position. The scroll counts rows up from the
+// newest, so the anchor's offset is its suffix and only rows below it are measured.
 func (m Model) keepAnchored(change func(Model) Model) Model {
 	if m.timeline.scroll <= 0 {
 		return change(m)
@@ -211,8 +207,8 @@ func (m Model) keepAnchored(change func(Model) Model) Model {
 	return m
 }
 
-// stickyDay is the selected message's day while it is on screen, else the day of the
-// topmost visible row (typing scrolls the view while the cursor stays put).
+// stickyDay is the selected message's day while it is on screen, else the topmost
+// visible row's (typing scrolls the view while the cursor stays put).
 func (m Model) stickyDay() string {
 	rows := m.msgAreaRows()
 	if msg, ok := m.selectedMessage(); ok && !msg.Timestamp.IsZero() {
@@ -232,8 +228,8 @@ func (m Model) msgAreaRows() int {
 	return max(m.height-5-m.composerRows(), 1)
 }
 
-// contentWidth is the width message rows wrap to: the timeline pane's interior less
-// the gutter. Shared by layout and scroll math.
+// contentWidth is the width message rows wrap to: the pane interior less the gutter.
+// Shared by layout and scroll math.
 func (m Model) contentWidth() int {
 	return max(m.width-railWidth-roomsWidth-paneBorder-m.gutterWidth(), 1)
 }
@@ -250,9 +246,9 @@ func (m Model) gutterWidth() int {
 // gutterCells is two digits and a space; fixed so scrolling never shifts the text.
 const gutterCells = 3
 
-// messageLines renders exactly rows lines of the timeline ending m.scroll rows back
-// from the newest. A short room pads above, next to the composer; a thread reads from
-// its root, so it pads below.
+// messageLines renders exactly rows lines ending m.scroll rows back from the newest. A
+// short room pads above, next to the composer; a thread reads from its root, so it pads
+// below.
 func (m Model) messageLines(rows, width int) []string {
 	rows = max(rows, 1)
 	visible, owners := m.layoutWindow(m.timeline.scroll, rows)
@@ -269,13 +265,13 @@ func (m Model) messageLines(rows, width int) []string {
 }
 
 // numbered prefixes the row-number gutter. Numbers count messages (what j/k move in),
-// on each message's first row only; the cursor's message is marked "▸".
+// on each message's first row; the cursor's message is marked "▸".
 func (m Model) numbered(rows []string, owners []int, cursor int) []string {
 	if m.gutterWidth() == 0 || len(owners) != len(rows) {
 		return rows
 	}
 	if cursor < 0 {
-		// No cursor: keep the column so the text does not move when one arrives.
+		// No cursor: keep the column so the text doesn't move when one arrives.
 		return m.blankGutter(rows)
 	}
 	out := make([]string, len(rows))
@@ -292,7 +288,6 @@ func (m Model) numbered(rows []string, owners []int, cursor int) []string {
 	return out
 }
 
-// blankGutter is the column with nothing in it, for a pane with no cursor.
 func (m Model) blankGutter(rows []string) []string {
 	out := make([]string, len(rows))
 	pad := strings.Repeat(" ", gutterCells)
@@ -316,8 +311,8 @@ func gutterLabel(distance int) string {
 	return strconv.Itoa(distance)
 }
 
-// walkFor assembles everything a layout needs that does not depend on which rows
-// it is going to draw, and readies the row cache for this width.
+// walkFor assembles the layout inputs that don't depend on which rows are drawn, and
+// readies the row cache for this width.
 func (m Model) walkFor() (*derivedCache, walk) {
 	derived := m.derivedFor()
 	w := m.walkOver(derived)
@@ -326,7 +321,7 @@ func (m Model) walkFor() (*derivedCache, walk) {
 }
 
 // walkOver is the per-frame walk over derived's messages. Name column and colors come
-// from every loaded message (cached per revision), so they do not change as you scroll.
+// from every loaded message (cached per revision), so they don't change as you scroll.
 func (m Model) walkOver(derived *derivedCache) walk {
 	return walk{
 		msgs: derived.shown, derived: derived, byAnchor: derived.byAnchor,
@@ -350,9 +345,9 @@ func (m Model) topAnchorRows(w walk) []string {
 	return rows
 }
 
-// scrollLimit is how far back a scroll to target may go and whether the top of the
-// history is reached: exact once the oldest message is reached, otherwise a lower bound
-// never below target.
+// scrollLimit is how far back a scroll to target may go and whether the history's top
+// is reached: exact once the oldest message is reached, else a lower bound never below
+// target.
 func (m Model) scrollLimit(target, rows int) (limit int, exhausted bool) {
 	derived, w := m.walkFor()
 	if len(w.msgs) == 0 {
@@ -364,10 +359,9 @@ func (m Model) scrollLimit(target, rows int) (limit int, exhausted bool) {
 	return max(total-rows, 0), exhausted
 }
 
-// selectionRows is where the selected message sits, measured in rows up from the
-// newest: the row its bottom rests on, and the row above its top. Its date divider
-// is not included — scrolling to a message should not scroll to the day heading
-// above it.
+// selectionRows is where the selected message sits in rows up from the newest: the row
+// its bottom rests on and the row above its top. Its date divider is excluded, so
+// scrolling to a message doesn't scroll to the day heading.
 func (m Model) selectionRows() (from, to int, ok bool) {
 	derived, w := m.walkFor()
 	i, found := derived.index[m.selectedID()]
@@ -380,8 +374,8 @@ func (m Model) selectionRows() (from, to int, ok bool) {
 	return from, from + len(e.rows), true
 }
 
-// messageAtRow is the message whose rows cover the given offset up from the
-// newest, or false when the timeline is empty.
+// messageAtRow is the message whose rows cover offset (up from the newest), or false
+// when the timeline is empty.
 func (m Model) messageAtRow(offset int) (domain.Message, bool) {
 	derived, w := m.walkFor()
 	if len(w.msgs) == 0 {
@@ -427,16 +421,16 @@ func (m Model) layoutWindow(skip, count int) ([]string, []int) {
 		rows = append(rows, msgRows...)
 		own(len(msgRows), i)
 	}
-	// Trim the parts of the edge messages that fall outside the window: whatever of
-	// the bottom message hangs below the edge, then the window's height from there.
+	// Trim the edge messages to the window: what hangs below the bottom edge, then the
+	// window's height from there.
 	below := skip - derived.suffix[min(last+1, n)]
 	end := len(rows) - max(below, 0)
 	from, to := max(end-count, 0), max(end, 0)
 	return rows[from:to], owners[from:to]
 }
 
-// noOwner marks a row that belongs to no message: a date divider, or a thread summary
-// anchored above the oldest thing loaded.
+// noOwner marks a row belonging to no message: a date divider, or a thread summary
+// anchored above the oldest loaded message.
 const noOwner = -1
 
 // walk is the per-frame state shared by every message's layout.
@@ -455,9 +449,8 @@ type walk struct {
 func (m Model) renderRows(w walk, i int, selected bool) []string {
 	msg := w.msgs[i]
 	preview := ""
-	// A quote of the message directly above is omitted (quote-replying to the last
-	// message is common on bridges). The predecessor is read by index so a tail layout
-	// agrees with the full one.
+	// A quote of the message directly above is omitted (common on bridges). The
+	// predecessor is read by index so a tail layout agrees with the full one.
 	if i == 0 || msg.ReplyTo != w.msgs[i-1].ID {
 		preview = m.replyPreview(msg, w.derived, w.nameW, w.width, w.colors)
 	}
@@ -465,13 +458,12 @@ func (m Model) renderRows(w walk, i int, selected bool) []string {
 	return append(rows, m.hangingRows(msg, w.byAnchor[msg.ID], w.nameW, w.width)...)
 }
 
-// dividerRow renders a centered date divider ("──── Today ────") spanning the
-// content width.
+// dividerRow renders a centered date divider ("──── Today ────") across the content width.
 func (m Model) dividerRow(t time.Time, width int) string {
 	return m.ruleRow(dayLabel(t, m.prefs.clock), width, m.theme.Muted)
 }
 
-// unreadRow is the line above the first unread message, in the badge color. It carries
+// unreadRow is the line above the first unread message, in the badge color, carrying
 // the date when it displaces a date divider.
 func (m Model) unreadRow(t time.Time, width int, withDate bool) string {
 	label := "new"
@@ -481,8 +473,8 @@ func (m Model) unreadRow(t time.Time, width int, withDate bool) string {
 	return m.ruleRow(label, width, lipgloss.NewStyle().Foreground(m.theme.Palette.Badge))
 }
 
-// ruleAboveRow draws whichever rule belongs above a message — the unread line wins,
-// carrying the date it displaced.
+// ruleAboveRow draws the rule above a message; the unread line wins, carrying the date
+// it displaced.
 func (m Model) ruleAboveRow(rule ruleAbove, t time.Time, width int) string {
 	if rule.unread {
 		return m.unreadRow(t, width, rule.date)
@@ -490,7 +482,6 @@ func (m Model) ruleAboveRow(rule ruleAbove, t time.Time, width int) string {
 	return m.dividerRow(t, width)
 }
 
-// ruleRow centers a label in a horizontal rule spanning the content width.
 func (m Model) ruleRow(label string, width int, style lipgloss.Style) string {
 	text := " " + label + " "
 	if tw := ansi.StringWidth(text); tw < width {
@@ -501,8 +492,8 @@ func (m Model) ruleRow(label string, width int, style lipgloss.Style) string {
 	return style.Render(text)
 }
 
-// dayKey is a message's local calendar day, used to detect day boundaries. A
-// zero timestamp yields "" so undated rows (e.g. placeholders) start no divider.
+// dayKey is a message's local calendar day, for detecting day boundaries. A zero
+// timestamp yields "" so undated rows (e.g. placeholders) start no divider.
 func dayKey(t time.Time) string {
 	if t.IsZero() {
 		return ""
@@ -510,7 +501,7 @@ func dayKey(t time.Time) string {
 	return t.Format("2006-01-02")
 }
 
-// dayLabel is the human divider label: "Today", "Yesterday", or the long date.
+// dayLabel is the divider label: "Today", "Yesterday", or the long date.
 func dayLabel(t time.Time, clock domain.Clock) string {
 	now := time.Now()
 	switch {
@@ -529,9 +520,9 @@ func sameDay(a, b time.Time) bool {
 	return ay == by && am == bm && ad == bd
 }
 
-// decoratedTitle is the timeline pane's title around the room or thread named title:
-// the day in view (date separators scroll away), then the topic, which yields first.
-// A chooser with a title says what it is choosing instead, over the room it covers.
+// decoratedTitle is the timeline pane's title around the room or thread name: the day
+// in view (date separators scroll away), then the topic, which yields first. A titled
+// chooser says what it is choosing instead, over the room it covers.
 func (m Model) decoratedTitle(title string, inner int) string {
 	if m.picker.active() && m.picker.spec.title != "" {
 		return m.picker.spec.title

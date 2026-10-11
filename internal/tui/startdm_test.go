@@ -18,7 +18,7 @@ func switcher(t *testing.T) Model {
 	return sized(t, m.clearStatus())
 }
 
-// A person is not a place, and the switcher is a list of places.
+// A person is not a place, so they sort last in the switcher.
 func TestAPersonYouHaveNoRoomWithSortsLastAndSaysWhatItWillDo(t *testing.T) {
 	t.Parallel()
 
@@ -44,14 +44,13 @@ func TestAPersonYouHaveNoRoomWithSortsLastAndSaysWhatItWillDo(t *testing.T) {
 	if items[person].detail != "start a DM" {
 		t.Errorf("detail = %q, want it to say the row creates something", items[person].detail)
 	}
-	// The MXID matches as well as the name: somebody you have never shared a room
-	// with is exactly the person whose display name you may not know.
+	// The MXID matches too: you may not know a stranger's display name.
 	if !strings.Contains(items[person].match, "@dana:x") {
 		t.Errorf("match text = %q, want the MXID in it", items[person].match)
 	}
 }
 
-// The request goes out when the switcher opens, so the answer lands on somebody mid-word.
+// Candidates are requested on open, so they land mid-typing.
 func TestCandidatesArrivingKeepWhatWasTyped(t *testing.T) {
 	t.Parallel()
 
@@ -73,7 +72,6 @@ func TestCandidatesArrivingKeepWhatWasTyped(t *testing.T) {
 	}
 }
 
-// An error here is not said.
 func TestAFailedCandidateLookupIsNotReported(t *testing.T) {
 	t.Parallel()
 
@@ -85,9 +83,8 @@ func TestAFailedCandidateLookupIsNotReported(t *testing.T) {
 	}
 }
 
-// Choosing a person creates an encrypted DM with no name: encryption because it can
-// only be set at creation and there is nobody it could be too soon for, and no name
-// because a DM is named after whoever is in it by every client that draws one.
+// Choosing a person creates an encrypted, unnamed DM: encryption can only be set at
+// creation, and clients name a DM after its members.
 func TestStartingADMCreatesAnEncryptedUnnamedRoomForOnePerson(t *testing.T) {
 	t.Parallel()
 
@@ -115,13 +112,12 @@ func TestStartingADMCreatesAnEncryptedUnnamedRoomForOnePerson(t *testing.T) {
 	if len(spec.Invite) != 1 || spec.Invite[0] != "@dana:x" {
 		t.Errorf("invite = %v, want [@dana:x]", spec.Invite)
 	}
-	// The person's name is what the status line says, since the spec has none.
+	// The status line uses the person's name; the spec has none.
 	if !strings.Contains(got.st.standing, "Dana") {
 		t.Errorf("status = %q, want it to name Dana", got.st.standing)
 	}
 }
 
-// Having picked a person to talk to, the next thing wanted is the conversation.
 func TestTheNewDMOpensOnceTheRefreshListsIt(t *testing.T) {
 	t.Parallel()
 
@@ -132,7 +128,7 @@ func TestTheNewDMOpensOnceTheRefreshListsIt(t *testing.T) {
 		t.Fatalf("entering = %q, want the new room held until it is listed", m.entering)
 	}
 
-	// A refresh that does not have it yet leaves the request standing.
+	// A refresh without it leaves the request standing.
 	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!work:x", Name: "Work"}}})
 	if m.entering != "!dm:x" {
 		t.Error("the request was cleared against a list that could not have held the room")
