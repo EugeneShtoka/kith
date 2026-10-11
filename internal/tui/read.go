@@ -98,10 +98,10 @@ func (v unreadView) count(room domain.Room) (count, highlights int) {
 	return v.counts[room.ID].Count(v.local)
 }
 
-// tallies reports whether a room counts toward group badges. Invitations, spam and
-// rooms a silent tag holds do not.
+// tallies reports whether a room counts toward group badges. Invitations and rooms a
+// silent tag holds do not.
 func (v unreadView) tallies(room domain.Room) bool {
-	if room.IsInvite() || v.isSpam(room) || v.silenced(room) {
+	if room.IsInvite() || v.silenced(room) {
 		return false
 	}
 	// HasUnread, not a count: a marked room is unread with nothing to count.
@@ -162,7 +162,7 @@ func (m Model) unreadIn(g group) []domain.RoomID {
 	var ids []domain.RoomID
 	for i := range m.rooms.all {
 		room := m.rooms.all[i]
-		if !g.admits(view, room) || room.IsInvite() || view.isSpam(room) || !view.counts[room.ID].HasUnread(view.local) {
+		if !g.admits(view, room) || room.IsInvite() || !view.counts[room.ID].HasUnread(view.local) {
 			continue
 		}
 		ids = append(ids, room.ID)
@@ -237,22 +237,23 @@ func roomsPhrase(n int) string {
 	return fmt.Sprintf("%d rooms", n)
 }
 
-// A room a space-exclusive tag holds stays visible in its canonical parent space
-// (m.space.parent with canonical: true), resolved lazily for those rooms only.
+// A room that leaves its spaces but not its origin, or the other way round, needs its
+// canonical parent space (m.space.parent with canonical: true), resolved lazily for
+// those rooms only.
 
 // parentsMsg carries canonical parents resolved for the rooms that needed them.
 type parentsMsg struct {
 	parents map[domain.RoomID]domain.SpaceID
 }
 
-// resolveParentsCmd asks the daemon for canonical parents of not-yet-known rooms that leave
-// your spaces; nil when there is nothing to ask.
+// resolveParentsCmd asks the daemon for canonical parents of not-yet-known rooms whose
+// spaces differ by origin; nil when there is nothing to ask.
 func (m Model) resolveParentsCmd() tea.Cmd {
 	view := m.unreadView()
 	var want []domain.RoomID
 	for i := range m.rooms.all {
 		room := m.rooms.all[i]
-		if !view.leavesMadeSpaces(room) {
+		if leaves := view.tagsOf(room).leaves; leaves.Spaces == leaves.Origin {
 			continue
 		}
 		if _, known := m.parents[room.ID]; !known {

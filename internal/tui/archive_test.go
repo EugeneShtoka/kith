@@ -219,7 +219,7 @@ func roomsIn(t *testing.T, m Model, key string) []domain.RoomID {
 	return ids
 }
 
-// Archived (space_exclusive) removes a room from user-filed spaces, All and DMs; its
+// Archived (exclusive from tags and spaces) removes a room from user-filed spaces, All and DMs; its
 // own space keeps it.
 func TestArchivedRoomLeavesEverythingButItsOwnSpace(t *testing.T) {
 	t.Parallel()
@@ -327,6 +327,47 @@ func TestParentsAreResolvedOnlyForArchivedRooms(t *testing.T) {
 	// A second pass has nothing left to ask.
 	if cmd := m.resolveParentsCmd(); cmd != nil {
 		t.Error("a resolved room was queued for resolution again")
+	}
+}
+
+// A room's canonical home is asked for only when it matters: its tags take it from
+// its spaces or from its origin, not both. Leaving only its origin, the room leaves
+// its home once that is known.
+func TestOnlyOneOfSpacesAndOriginAsksForTheHome(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		exclusive []string
+		asks      bool
+	}{
+		{nil, false},
+		{[]string{"spaces"}, true},
+		{[]string{"origin"}, true},
+		{[]string{"spaces", "origin"}, false},
+	} {
+		asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{"!a:x": "!w:x"}}
+		cfg := config.Config{Tags: []config.Tag{{Name: "Out", Picked: []string{"!a:x"}, Exclusive: tc.exclusive}}}
+		m := New(context.Background(), asker, cfg.Display).WithConfigFile("", cfg)
+		m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+		m = update(t, m, spacesMsg{spaces: []domain.Space{
+			{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
+			{ID: "!f:x", Name: "Filed", Children: []domain.RoomID{"!a:x"}},
+		}})
+		cmd := m.resolveParentsCmd()
+		if (cmd != nil) != tc.asks {
+			t.Errorf("exclusive %v: asks for the home = %t, want %t", tc.exclusive, cmd != nil, tc.asks)
+			continue
+		}
+		if cmd == nil {
+			continue
+		}
+		m = update(t, m, cmd())
+		origin := !slices.Contains(tc.exclusive, "origin")
+		if got := slices.Contains(roomsIn(t, m, "Work"), "!a:x"); got != origin {
+			t.Errorf("exclusive %v: its home Work holds it = %t, want %t", tc.exclusive, got, origin)
+		}
+		if got := slices.Contains(roomsIn(t, m, "Filed"), "!a:x"); got == origin {
+			t.Errorf("exclusive %v: Filed holds it = %t, want %t", tc.exclusive, got, !origin)
+		}
 	}
 }
 

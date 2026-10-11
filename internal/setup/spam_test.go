@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
@@ -29,6 +30,10 @@ func TestSpamRulesRefuseWhatCannotWork(t *testing.T) {
 			config.Spam{Ratio: 1.5},
 			"spam.ratio",
 		},
+		"a move kith does not know": {
+			config.Spam{Filters: []config.SpamFilter{{Name: "crypto", Words: []string{"*bitcoin*"}, Moves: []string{"sometimes"}}}},
+			`"sometimes"`,
+		},
 		"a window that is not a duration": {
 			config.Spam{Window: "one week"},
 			"spam.window",
@@ -48,8 +53,8 @@ func TestSpamRulesRefuseWhatCannotWork(t *testing.T) {
 	}
 }
 
-// Defaults: the two cheap rules on, the one that can move an established room off,
-// and a week's window.
+// Defaults: a filter moves by the two cheap rules, not by the one that can move an
+// established room; the ratio is three in five over a week.
 func TestSpamDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -59,11 +64,11 @@ func TestSpamDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SpamRules: %v", err)
 	}
-	if !rules.FirstMessage || !rules.Direct {
-		t.Errorf("rules = %+v, want the first-message and direct rules on", rules)
+	if want := (domain.SpamMoves{FirstMessage: true, Direct: true}); rules.Filters[0].Moves != want {
+		t.Errorf("moves = %+v, want %+v", rules.Filters[0].Moves, want)
 	}
-	if rules.Ratio != 0 {
-		t.Errorf("ratio = %v, want the rule that moves an established room off by default", rules.Ratio)
+	if rules.Ratio != setup.DefaultSpamRatio {
+		t.Errorf("ratio = %v, want %v", rules.Ratio, setup.DefaultSpamRatio)
 	}
 	if rules.Window != setup.DefaultSpamWindow || rules.Floor != setup.DefaultSpamFloor {
 		t.Errorf("window/floor = %v/%d, want %v/%d",
@@ -96,10 +101,10 @@ func TestASenderIsEnoughForAFilter(t *testing.T) {
 	if rules.Window != 48*time.Hour {
 		t.Errorf("window = %v, want the configured one", rules.Window)
 	}
-	if _, ok := rules.Catches("hello", "@spam:example.org"); !ok {
+	if len(rules.Catching("hello", "@spam:example.org", domain.RoomFacts{})) == 0 {
 		t.Error("a sender-only filter caught nothing from that sender")
 	}
-	if _, ok := rules.Catches("hello", "@dana:example.org"); ok {
+	if len(rules.Catching("hello", "@dana:example.org", domain.RoomFacts{})) > 0 {
 		t.Error("a sender-only filter caught somebody else")
 	}
 }

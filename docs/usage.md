@@ -54,7 +54,8 @@ starting point, which you can change, rename or delete like any other:
 | Spam | Conversations moved to Spam (`spam`) — see [Spam](spam.md) | While something is there |
 | Archived | The rooms you put in it: they stop counting and leave everything but the space they belong to | While it holds something |
 
-Your spaces sit between Pinned and Archived. Invitations and spam are in no space.
+Your spaces sit between Pinned and Archived. Invitations are in no space; spam leaves
+every space because the Spam tag is exclusive from all of them.
 
 A forum (a Telegram group with topics) is a space: its General topic and each other
 topic are its rooms, each read, counted and filed on its own.
@@ -127,8 +128,7 @@ A tag can also change how its rooms behave elsewhere (each off unless set):
 | Property | What it does |
 | --- | --- |
 | `counts_unread = false` | Its rooms count as read everywhere else: no badge, not `unread` or `mention` to other tags' rules, skipped by mark-all-read. The tag itself still sees them as they are. |
-| `exclusive = true` | Its rooms show under it alone, in no other tag. Their spaces keep them. Of two exclusive tags holding a room, the first configured wins. |
-| `space_exclusive = true` | Its rooms leave the spaces you made and the tags that are not space-exclusive. The spaces they belong to (a bridge's space, a community, the Matrix space that is their home) keep them, so they stay findable where they live. |
+| `exclusive = [...]` | Where its rooms leave, any of: `"tags"`, every other tag (of two such tags holding a room, the first configured keeps it); `"spaces"`, the spaces they do not belong to, such as ones you filed them in; `"origin"`, the spaces they belong to (a bridge's space, a community, the Matrix space that is their home). The starter's Archived is `["tags", "spaces"]`, so archived rooms stay findable where they live; Spam is all three. |
 | `sticky = true` | The open room stays listed until you move off it, as in Unread. |
 | `hide_when_empty = true` | No rail row while it holds nothing. |
 | `first = true` | At the top of the rail, unless `[display.rail] order` places it. |
@@ -141,8 +141,8 @@ existing tag would change among that account's chats — and you choose per tag 
 
 **Editing tags in the app.** Settings (`,`) → **Tags** lists your tags and makes a new
 one. A tag's page shows its name, rule, picked and excluded rooms, every property as
-an on/off row, and which other tags take rooms out of its row (the exclusive ones, and
-the space-exclusive ones). The rule and the room lists are edited an entry at a time:
+an on/off row (each word of `exclusive` is its own row), and which other tags take
+rooms out of its row (the ones exclusive from tags). The rule and the room lists are edited an entry at a time:
 choose an entry to change it (empty removes it), `x` removes the entry under the cursor,
 or the last row adds one. Renaming
 a tag renames it everywhere it is named as `tag:<name>`: rules, place lists, the rail's

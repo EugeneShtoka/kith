@@ -18,6 +18,9 @@ func TestTagPlacesMustNameATag(t *testing.T) {
 		"a notification rule": func(c *config.Config) { c.Notifications.Rules = []config.Rule{{Match: "tag:Nope"}} },
 		"agent read":          func(c *config.Config) { c.Agent.Read.Rooms = []string{"tag:Nope"} },
 		"codes":               func(c *config.Config) { c.Codes.Include = []string{"tag:Nope"} },
+		"a spam filter's in": func(c *config.Config) {
+			c.Spam.Filters = []config.SpamFilter{{Name: "x", Words: []string{"w"}, In: []string{"tag:Nope"}}}
+		},
 	} {
 		cfg := base
 		set(&cfg)
@@ -70,5 +73,14 @@ func TestTheHomeOrderIsTheSameBuiltInEitherStep(t *testing.T) {
 	}
 	if !client.Managed["acme"] || !client.Managed["whatsapp home"] || client.Managed["work"] || !client.Every["all"] {
 		t.Errorf("order = %+v, want Acme and WhatsApp Home the network's own, All every room", client)
+	}
+}
+
+// A word exclusive does not know is refused at load.
+func TestExclusiveRefusesAnUnknownWord(t *testing.T) {
+	t.Parallel()
+	cfg := config.Config{Tags: []config.Tag{{Name: "Out", Rule: []string{"dm"}, Exclusive: []string{"rooms"}}}}
+	if _, _, err := Tags(cfg); err == nil || !strings.Contains(err.Error(), `"rooms"`) {
+		t.Errorf("Tags = %v, want exclusive's unknown word refused", err)
 	}
 }

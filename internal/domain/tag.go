@@ -19,16 +19,19 @@ type Tag struct {
 
 	// Silent (counts_unread = false): its rooms count as read everywhere else, for
 	// badges, other tags' rules and mark-all-read.
-	Silent bool
-	// Exclusive: its rooms show under it and no other tag or built-in row.
-	Exclusive bool
-	// SpaceExclusive: its rooms leave other tags and person-made spaces; managed
-	// spaces (Space.Managed) keep them.
-	SpaceExclusive bool
-	Sticky         bool // the open room stays listed until you move off it
-	HideWhenEmpty  bool // no rail row while it holds nothing
-	First          bool // at the top of the rail, unless the rail order places it
-	CountInLabel   bool // its row's label says how many rooms it holds
+	Silent        bool
+	Exclusive     Exclusive
+	Sticky        bool // the open room stays listed until you move off it
+	HideWhenEmpty bool // no rail row while it holds nothing
+	First         bool // at the top of the rail, unless the rail order places it
+	CountInLabel  bool // its row's label says how many rooms it holds
+}
+
+// Exclusive is where a tag takes its rooms from.
+type Exclusive struct {
+	Tags   bool // other tags' rows; of two such tags, the first configured keeps it
+	Spaces bool // spaces it does not belong to
+	Origin bool // the spaces it belongs to: a bridge's, a community, its canonical home
 }
 
 // RoomState is what a room is right now, for a rule's state words.

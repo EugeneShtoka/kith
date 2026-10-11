@@ -317,11 +317,12 @@ notify = false
 # Properties (all off unless set):
 #   counts_unread = false   its rooms count as read everywhere else: no badge, not
 #                           `unread`/`mention` to other tags, skipped by mark-all-read
-#   exclusive       = true  its rooms show under it alone, under no other tag (their
-#                           spaces keep them); of two, the first configured wins
-#   space_exclusive = true  its rooms leave the spaces you made and other tags; the
-#                           spaces they belong to (a bridge's, a community, their
-#                           canonical home) keep them
+#   exclusive = [...]       where its rooms leave, any of:
+#                             "tags"    every other tag; of two such tags, the
+#                                       first configured keeps them
+#                             "spaces"  spaces they do not belong to
+#                             "origin"  the spaces they belong to: a bridge's, a
+#                                       community, their canonical home
 #   sticky          = true  the open room stays listed until you move off it
 #   hide_when_empty = true  no rail row while it holds nothing
 #   first           = true  at the top of the rail, unless the order places it
@@ -367,21 +368,21 @@ hide_when_empty = true
 [[tag]]
 name            = "Archived"
 counts_unread   = false
-exclusive       = true
-space_exclusive = true
+exclusive       = ["tags", "spaces"]
 hide_when_empty = true
 
 [[tag]]
 name            = "Spam"
 rule            = ["spam"]
-exclusive       = true
+counts_unread   = false
+exclusive       = ["tags", "spaces", "origin"]
 hide_when_empty = true
 
 # At the top of the rail, saying how many are waiting.
 [[tag]]
 name            = "Invites"
 rule            = ["invite"]
-exclusive       = true
+exclusive       = ["tags"]
 first           = true
 count_in_label  = true
 hide_when_empty = true
@@ -735,45 +736,53 @@ require_digit = true
 # startup.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Spam: a place, not a mute. A room in Spam leaves its groups, unread totals and
-# notifications while staying readable and answerable; nothing leaves the Matrix room.
+# Spam: a room in Spam stops notifying and stays readable and answerable; nothing
+# leaves the Matrix room. The Spam tag (rule `spam`) decides where else it shows and
+# whether it counts.
 # `!` in the room list moves a room in and out; `/caught` previews what the filters
 # would catch; `/why` in a caught room names the rule and filter.
 #
 # `rooms` is what you put there; `except` outranks everything. Releasing a room writes
 # an exception. Both take the place vocabulary.
 #
-# Nothing fires until a [[spam.filter]] exists. Filters mark messages; these rules
-# promote rooms:
+# Nothing fires until a [[spam.filter]] exists. Filters mark messages; each filter's
+# `moves` says which of these rules its catch moves a room by:
 #
-#   first_message  the room's first message was caught
-#   direct         a message in a DM was caught
-#   ratio/floor/   at least `ratio` of the room's messages over `window` were caught,
-#   window         with at least `floor` messages; ratio = 0 is off
+#   always         any message it catches
+#   first_message  the room's first message
+#   direct         a message in a DM you never wrote in
+#   ratio          at least `ratio` of the room's messages over `window`, with at
+#                  least `floor` of them, were caught by ratio filters
 #
 # Only you demote. A verdict is stored in the room's account data, so it survives a
 # cache rebuild and syncs to your other devices.
 [spam]
 rooms  = []
 except = []
-first_message = true
-direct        = true
-ratio  = 0.0
+ratio  = 0.6
 floor  = 5
 window = "168h"
 
 # Each filter needs a name (it is what `/why` reports). Words take the tracked-word
 # globs (`pay`, `pay*`, `*pay*`, `*pay`); `from` alone catches everything a sender
-# writes. Check with `/caught` before trusting a filter.
+# writes. `in` limits it to places (empty is everywhere); `moves` defaults to
+# ["first_message", "direct"]. Check with `/caught` before trusting a filter.
 #
 # [[spam.filter]]
 # name  = "crypto"
 # words = ["*bitcoin*", "*binance*", "invest*"]
+# moves = ["first_message", "direct", "ratio"]
 #
 # [[spam.filter]]
 # name  = "that number"
 # words = ["*"]
 # from  = "@spammer:example.org"
+#
+# [[spam.filter]]
+# name  = "elections"
+# words = ["vote*"]
+# in    = ["place:SMS"]
+# moves = ["always"]
 
 # Writing in your own editor (`alt+e`, see [keys.composer]). If the editor fails or
 # the file cannot be read back, the draft is left unchanged.

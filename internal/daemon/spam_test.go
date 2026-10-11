@@ -192,7 +192,7 @@ func TestMostOfTheMessagesPromotesAGroup(t *testing.T) {
 
 	src := spamWorld().said(chatRm,
 		"double your bitcoin", "invest with us", "bitcoin bitcoin", "morning")
-	ratio := config.Spam{Ratio: 0.6, Floor: 4}
+	ratio := config.Spam{Ratio: 0.6, Floor: 4, Filters: byRatio}
 	n, _ := spamNotifier(t, spamConfig(ratio), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "invest now")); notified {
@@ -204,12 +204,57 @@ func TestMostOfTheMessagesPromotesAGroup(t *testing.T) {
 	}
 }
 
+// byRatio is the crypto filter moving by the ratio rule alone.
+var byRatio = []config.SpamFilter{{Name: "crypto", Words: []string{"*bitcoin*", "invest*"}, Moves: []string{"ratio"}}}
+
+// A filter that does not move by ratio leaves a mostly-spam group alone.
+func TestOnlyARatioFilterMovesByTheRatio(t *testing.T) {
+	t.Parallel()
+
+	src := spamWorld().said(chatRm,
+		"double your bitcoin", "invest with us", "bitcoin bitcoin", "morning")
+	n, _ := spamNotifier(t, spamConfig(config.Spam{Ratio: 0.6, Floor: 4}), src)
+
+	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "invest now")); !notified {
+		t.Error("a filter without the ratio move promoted a group by its share")
+	}
+	if len(src.verdicts()) != 0 {
+		t.Errorf("recorded %+v, want nothing", src.verdicts())
+	}
+}
+
+// An `always` filter moves an established group on one catch, only in the places it
+// watches; place:<label> names a renamed space as the rail shows it.
+func TestAnAlwaysFilterMovesOnlyWhereItWatches(t *testing.T) {
+	t.Parallel()
+
+	src := spamWorld().said(chatRm, "morning", "standup at ten")
+	src.rooms = append(src.rooms, domain.Room{ID: "!other:example.org", Name: "Other"})
+	src.said("!other:example.org", "morning", "lunch?")
+	cfg := spamConfig(config.Spam{Filters: []config.SpamFilter{
+		{Name: "elections", Words: []string{"vote"}, In: []string{"place:Office"}, Moves: []string{"always"}},
+	}})
+	cfg.Display.Names = []config.DisplayName{{Target: "space:" + space, Name: "Office"}}
+	n, _ := spamNotifier(t, cfg, src)
+
+	if _, notified := n.Deliver(context.Background(), msg("!other:example.org", alice, "vote for us")); !notified {
+		t.Error("a filter caught a message outside the places it watches")
+	}
+	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "vote for us")); notified {
+		t.Error("an always filter left the room it caught in notifying")
+	}
+	marked := src.verdicts()
+	if len(marked) != 1 || marked[0].Room != chatRm || marked[0].Rule != domain.SpamAlways || marked[0].Filter != "elections" {
+		t.Fatalf("verdicts = %+v, want one always promotion of %s", marked, chatRm)
+	}
+}
+
 // Two of three is under the floor.
 func TestTheFloorStopsASmallSample(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld().said(chatRm, "invest with us", "morning")
-	ratio := config.Spam{Ratio: 0.5, Floor: 10}
+	ratio := config.Spam{Ratio: 0.5, Floor: 10, Filters: byRatio}
 	n, _ := spamNotifier(t, spamConfig(ratio), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "invest now")); !notified {

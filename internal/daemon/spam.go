@@ -110,8 +110,8 @@ func (w *spamWatch) spam(ctx context.Context, msg domain.Message, facts domain.R
 func (w *spamWatch) judge(
 	ctx context.Context, msg domain.Message, facts domain.RoomFacts, rules domain.SpamRules,
 ) (domain.SpamVerdict, bool) {
-	filter, caught := rules.Catches(msg.Body, msg.Sender)
-	if !caught {
+	caught := rules.Catching(msg.Body, msg.Sender, facts)
+	if len(caught) == 0 {
 		return domain.SpamVerdict{}, false
 	}
 	// One history read answers every room question the rules ask.
@@ -122,13 +122,13 @@ func (w *spamWatch) judge(
 		return domain.SpamVerdict{}, false
 	}
 	place := domain.SpamCase{
-		Filter: filter.Name, Direct: facts.Direct,
+		Filters: caught, Direct: facts.Direct,
 		First: history.first, Mine: history.mine,
 	}
-	if rules.Ratio > 0 {
-		place.Caught, place.Total = w.window(history.msgs, rules)
+	if place.RatioWanted() {
+		place.Caught, place.Total = w.window(history.msgs, rules, facts)
 	}
-	rule, promoted := rules.Promotes(place)
+	rule, filter, promoted := rules.Promotes(place)
 	if !promoted {
 		return domain.SpamVerdict{}, false
 	}
@@ -181,15 +181,15 @@ func (w *spamWatch) warn(ctx context.Context, msg string, err error, attrs ...an
 	w.log.Log(ctx, levelFor(ctx), msg, append([]any{"err", err}, attrs...)...)
 }
 
-// window counts how much of a room's recent conversation the filters catch.
-func (w *spamWatch) window(msgs []domain.Message, rules domain.SpamRules) (caught, total int) {
+// window counts how much of a room's recent conversation the ratio filters catch.
+func (w *spamWatch) window(msgs []domain.Message, rules domain.SpamRules, room domain.RoomFacts) (caught, total int) {
 	since := time.Now().Add(-rules.Window)
 	for i := range msgs {
 		if msgs[i].IsUpdate() || msgs[i].Timestamp.Before(since) {
 			continue
 		}
 		total++
-		if _, hit := rules.Catches(msgs[i].Body, msgs[i].Sender); hit {
+		if rules.CountsForRatio(msgs[i].Body, msgs[i].Sender, room) {
 			caught++
 		}
 	}

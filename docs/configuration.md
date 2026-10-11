@@ -317,8 +317,7 @@ name            = "Archived"
 rule            = ["space:Bots"]
 picked          = ["!announcements:example.org"]
 counts_unread   = false
-exclusive       = true
-space_exclusive = true
+exclusive       = ["tags", "spaces"]
 hide_when_empty = true
 
 [[tag]]

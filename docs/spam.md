@@ -1,8 +1,21 @@
 # Spam
 
-Spam in kith is a place, not a mute. A room in Spam **leaves the group it was in**: it disappears from the rail's other groups, from every unread total and from notifications. It stays open, readable, searchable and answerable. kith never leaves the Matrix room, and nobody else in the room can tell.
+Spam in kith is a place, not a mute. A room in Spam stops notifying, and the starter's **Spam** tag takes it out of everything else: every other tag, every space (its own included) and every unread total. It stays open, readable, searchable and answerable. kith never leaves the Matrix room, and nobody else in the room can tell.
 
-This differs from archiving (the starter config's Archived tag). An archived room stays in the space it belongs to and only stops counting toward unread totals. Spam means the conversation should not have arrived at all.
+Where else a spam room shows is the Spam tag's own setting, not a rule built into kith:
+
+```toml
+[[tag]]
+name            = "Spam"
+rule            = ["spam"]
+counts_unread   = false                         # out of the unread totals
+exclusive       = ["tags", "spaces", "origin"]  # out of everything else
+hide_when_empty = true
+```
+
+Drop `"origin"` and a spam room stays in the space it belongs to (a bridge's space, its home); drop `counts_unread = false` and it counts again. See [tag properties](usage.md#tags).
+
+This differs from archiving (the starter config's Archived tag, `exclusive = ["tags", "spaces"]`). An archived room stays in the space it belongs to and only stops counting toward unread totals. Spam means the conversation should not have arrived at all.
 
 ## Marking a room by hand
 
@@ -11,7 +24,7 @@ This differs from archiving (the starter config's Archived tag). An archived roo
 | Room list | `!` | Move the room under the cursor into Spam, or take it out |
 | Composer | `/spam` | The same, for the room you are writing in |
 
-A **Spam** group appears in the rail whenever at least one room is in it, and disappears when it is empty. Like other built-in groups, its rail key is `spam`, and you can rename, reorder or hide it in `[display.rail]`.
+The **Spam** tag's row appears in the rail whenever at least one room is in it, and disappears when it is empty (`hide_when_empty`). Its rail key is `tag:Spam`; you can rename, reorder or hide it like any tag.
 
 Marking a room adds its ID to `[spam] rooms`. **Releasing a room writes an exemption**, instead of just removing it from a list, and it writes it in two places:
 
@@ -28,9 +41,7 @@ Marking a room with `!` writes only `[spam] rooms`. The rooms you mark by hand a
 [spam]
 rooms  = []          # rooms you put in Spam
 except = []          # exemptions; these outrank everything
-first_message = true
-direct        = true
-ratio  = 0.0         # 0 = the ratio rule is off
+ratio  = 0.6         # for filters that move by ratio
 floor  = 5
 window = "168h"
 ```
@@ -61,6 +72,12 @@ words = ["*bitcoin*", "*binance*", "invest*"]
 [[spam.filter]]
 name  = "that number"
 from  = "@whatsapp_15550100:example.org"   # everything this sender writes
+
+[[spam.filter]]
+name  = "elections"
+words = ["vote*"]
+in    = ["place:SMS"]   # only messages in the rail row shown as SMS
+moves = ["always"]      # one caught message is enough
 ```
 
 | Key | Meaning |
@@ -68,28 +85,31 @@ from  = "@whatsapp_15550100:example.org"   # everything this sender writes
 | `name` | Required. The filter name appears in answers to "why is this room in Spam?" |
 | `words` | Words to match, with the same globs as tracked words: `pay` matches the whole word, `pay*` words that start with it, `*pay` words that end with it, `*pay*` anywhere. Case is ignored |
 | `from` | Only messages from this MXID. With no words (or only `*`), the filter catches everything they write |
+| `in` | Only messages in these places, in the place vocabulary above. Empty is everywhere |
+| `moves` | Which [promotion rules](#the-promotion-rules) this filter's catch moves a room by: `always`, `first_message`, `direct`, `ratio`. Default `["first_message", "direct"]` |
 
-A filter needs `words`, `from` or both. A filter with neither is refused, because it would catch everything. When several filters match a message, the first one in the file is credited.
+A filter needs `words`, `from` or both. A filter with neither is refused, because it would catch everything. When several filters catch a message, the first one in the file whose moves fire is credited.
 
 ### Preview before you trust a filter
 
-`/caught` in the composer (or `:caught` on the command line) lists the messages your filters catch, searched in the local message index. It uses the same matcher the daemon uses, so the preview and the real catch agree. From a room it starts with that room and `tab` widens the scope. From the rail it starts with everything.
+`/caught` in the composer (or `:caught` on the command line) lists the messages your filters' words catch, searched in the local message index. It ignores `in`, so it can list messages in places a filter does not watch. From a room it starts with that room and `tab` widens the scope. From the rail it starts with everything.
 
 Use it every time you add a word. `invest*` looks harmless, but it also catches "investigated". The preview covers word filters only. Filters that match by sender alone are counted in the summary but not listed.
 
-## The three promotion rules
+## The promotion rules
 
-Filters judge messages. These rules decide when a caught message moves its **room** into Spam. Each rule has its own switch, and they are checked in this order:
+Filters judge messages. These rules decide when a caught message moves its **room** into Spam. Each filter lists the ones it uses in `moves`, and they are checked in this order:
 
-| Rule | Switch | Fires when |
+| Rule | In `moves` | Fires when |
 | --- | --- | --- |
-| First message | `first_message` (default `true`) | The first message in a room is caught. In an established room one spam message is noise. In a new room, the first message is the whole relationship |
-| Direct message | `direct` (default `true`) | A message in a direct message is caught **and you have never written in that DM**. A DM is one person, so a verdict on the message is a verdict on the room. This rule never applies to groups, so one spammer among four hundred members cannot move a group |
-| Mostly spam | `ratio`, `floor`, `window` (off by default) | Within `window`, at least `floor` messages were sent and at least `ratio` of them (0–1) were caught. This is the only rule that can move a room that was fine yesterday, which is why it is off by default |
+| Always | `always` | The filter catches any message. For words that never belong in a place, such as campaign texts arriving over SMS. Pair it with `in`, or one stray word moves a room you care about |
+| First message | `first_message` (default) | The first message in a room is caught. In an established room one spam message is noise. In a new room, the first message is the whole relationship |
+| Direct message | `direct` (default) | A message in a direct message is caught **and you have never written in that DM**. A DM is one person, so a verdict on the message is a verdict on the room. This rule never applies to groups, so one spammer among four hundred members cannot move a group |
+| Mostly spam | `ratio` | Within `window`, at least `floor` messages were sent and at least `ratio` of them (0–1) were caught by filters that move by ratio. It can move a room that was fine yesterday, which is why no filter uses it unless it says so |
 
 ```toml
 [spam]
-ratio  = 0.6      # three messages in five
+ratio  = 0.6      # three messages in five (the default)
 floor  = 5        # fewer than five messages is not evidence
 window = "72h"
 ```
@@ -108,6 +128,7 @@ In a caught room, `W` (or `/why`) starts with the reason and the filter:
 - "the first message in it was caught by a filter (crypto)"
 - "it is a direct message and its message was caught by a filter (crypto)"
 - "most of what is said in it is caught by a filter (crypto)"
+- "a message in it was caught by a filter (elections)"
 
 It then shows the [notification rules](notifications.md#why-was-this-silenced) that would apply once the room is released.
 

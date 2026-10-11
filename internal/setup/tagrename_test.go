@@ -234,14 +234,14 @@ func TestCombinedTagsKeepTheirRules(t *testing.T) {
 	t.Parallel()
 	var cfg config.Config
 	cfg.Tags = []config.Tag{
-		{Name: "Friends", Rule: []string{"space:Work", "tag:Mates"}, Exclusive: true},
+		{Name: "Friends", Rule: []string{"space:Work", "tag:Mates"}, Exclusive: []string{"tags"}},
 		{Name: "Mates", Rule: []string{"dm"}, Picked: []string{"!x:y"}},
 		{Name: "Quiet", Rule: []string{"tag:Mates"}},
 	}
 	cfg.Display.Rail.Order = []string{"tag:Mates", "tag:Friends"}
 	cfg.Telegram.Archive.Tag = "Mates"
 	got := CombineTags(cfg, "mates", "Friends", nil, func(string, domain.RoomFacts) bool { return false })
-	if len(got.Tags) != 2 || !slices.Equal(got.Tags[0].Rule, []string{"space:Work", "dm"}) || !slices.Equal(got.Tags[0].Picked, []string{"!x:y"}) || !got.Tags[0].Exclusive {
+	if len(got.Tags) != 2 || !slices.Equal(got.Tags[0].Rule, []string{"space:Work", "dm"}) || !slices.Equal(got.Tags[0].Picked, []string{"!x:y"}) || !got.Tags[0].ExclusiveFrom("tags") {
 		t.Errorf("combined = %+v", got.Tags)
 	}
 	if !slices.Equal(got.Tags[1].Rule, []string{"tag:Friends"}) || !slices.Equal(got.Display.Rail.Order, []string{"tag:Friends"}) || got.Telegram.Archive.Tag != "Friends" {

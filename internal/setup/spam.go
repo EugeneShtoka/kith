@@ -18,15 +18,12 @@ const DefaultSpamWindow = 7 * 24 * time.Hour
 // DefaultSpamFloor is the minimum message count before the ratio rule applies.
 const DefaultSpamFloor = 5
 
+// DefaultSpamRatio is the ratio rule's default caught share.
+const DefaultSpamRatio = 0.6
+
 // SpamRules validates `[spam]` into domain rules.
 func SpamRules(cfg config.Spam) (domain.SpamRules, error) {
-	out := domain.SpamRules{
-		FirstMessage: cfg.FirstMessageRule(),
-		Direct:       cfg.DirectRule(),
-		Ratio:        cfg.Ratio,
-		Floor:        cfg.Floor,
-		Window:       DefaultSpamWindow,
-	}
+	out := domain.SpamRules{Ratio: cfg.Ratio, Floor: cfg.Floor, Window: DefaultSpamWindow}
 	filters, err := spamFilters(cfg.Filters)
 	if err != nil {
 		return domain.SpamRules{}, err
@@ -35,6 +32,9 @@ func SpamRules(cfg config.Spam) (domain.SpamRules, error) {
 	if out.Ratio < 0 || out.Ratio > 1 {
 		return domain.SpamRules{}, fmt.Errorf(
 			"spam.ratio: %v is not a share between 0 and 1 (0.6 is three messages in five)", out.Ratio)
+	}
+	if out.Ratio == 0 {
+		out.Ratio = DefaultSpamRatio
 	}
 	if out.Floor < 0 {
 		return domain.SpamRules{}, fmt.Errorf("spam.floor: %d is not a number of messages", out.Floor)
@@ -76,11 +76,41 @@ func spamFilters(filters []config.SpamFilter) ([]domain.SpamFilter, error) {
 			return nil, fmt.Errorf("spam.filter[%q]: has neither words nor a sender, "+
 				"so it would catch everything", name)
 		}
+		moves, err := spamMoves(name, filters[i].Moves)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, domain.SpamFilter{
 			Name:  name,
 			Words: domain.Tracked{Words: words},
 			From:  from,
+			In:    filters[i].In,
+			Moves: moves,
 		})
+	}
+	return out, nil
+}
+
+// spamMoves reads a filter's moves; none is config.SpamMovesDefault.
+func spamMoves(filter string, words []string) (domain.SpamMoves, error) {
+	if len(words) == 0 {
+		words = config.SpamMovesDefault
+	}
+	var out domain.SpamMoves
+	for _, word := range words {
+		switch strings.ToLower(strings.TrimSpace(word)) {
+		case config.SpamMoveAlways:
+			out.Always = true
+		case config.SpamMoveFirstMessage:
+			out.FirstMessage = true
+		case config.SpamMoveDirect:
+			out.Direct = true
+		case config.SpamMoveRatio:
+			out.Ratio = true
+		default:
+			return domain.SpamMoves{}, fmt.Errorf("spam.filter[%q]: moves: %q is not one of %s, %s, %s, %s", filter, word,
+				config.SpamMoveAlways, config.SpamMoveFirstMessage, config.SpamMoveDirect, config.SpamMoveRatio)
+		}
 	}
 	return out, nil
 }

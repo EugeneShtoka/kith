@@ -34,6 +34,9 @@ func PlaceEntries(cfg config.Config) error {
 		lists[fmt.Sprintf("tracked.rule[%d].in", i)] = cfg.Display.Tracked.Rules[i].In
 		lists[fmt.Sprintf("tracked.rule[%d].except", i)] = cfg.Display.Tracked.Rules[i].Except
 	}
+	for i := range cfg.Spam.Filters {
+		lists[fmt.Sprintf("spam.filter[%d].in", i)] = cfg.Spam.Filters[i].In
+	}
 	// An empty notification match is the account-wide rule, not a mistyped place.
 	for i := range cfg.Notifications.Rules {
 		if match := cfg.Notifications.Rules[i].Match; match != "" {
