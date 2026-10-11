@@ -11,16 +11,15 @@ import (
 )
 
 // backupSweep is how often room keys are offered to the server-side backup, which
-// mautrix never uploads to on its own. A schedule rather than per key: keys rotate
-// close to per message in a busy room.
+// mautrix never uploads to itself. Timed, not per key: keys rotate nearly per message.
 const backupSweep = 5 * time.Minute
 
 type backupBackend interface {
 	BackupRoomKeys(ctx context.Context) (int, error)
 }
 
-// KeyBackup uploads room keys this device holds into the account's server-side
-// backup, on a timer, for as long as the daemon runs.
+// KeyBackup periodically uploads this device's room keys to the account's server-side
+// backup.
 type KeyBackup struct {
 	b     backupBackend
 	every time.Duration
@@ -31,14 +30,13 @@ type KeyBackup struct {
 	soon chan struct{}
 }
 
-// NewKeyBackup returns a sweeper over b, reporting through log: problems at warn,
-// progress at info.
+// NewKeyBackup returns a sweeper over b, logging problems at warn and progress at info.
 func NewKeyBackup(b backupBackend, log func(level slog.Level, line string)) *KeyBackup {
 	return &KeyBackup{b: b, every: backupSweep, log: log, soon: make(chan struct{}, 1)}
 }
 
-// Soon asks for a sweep now rather than at the next interval: the account just
-// logged in, after the startup sweep found nothing to back up. It never blocks.
+// Soon asks for a sweep now, e.g. after a login that followed an empty startup sweep.
+// It never blocks.
 func (k *KeyBackup) Soon() {
 	select {
 	case k.soon <- struct{}{}:
@@ -46,8 +44,8 @@ func (k *KeyBackup) Soon() {
 	}
 }
 
-// Run sweeps once at startup (keys received while stopped are in no backup) and
-// then every interval, until ctx ends. It blocks.
+// Run sweeps at startup (keys received while stopped are in no backup) and then every
+// interval until ctx ends. It blocks.
 func (k *KeyBackup) Run(ctx context.Context) {
 	k.pass(ctx)
 	ticker := time.NewTicker(k.every)
@@ -64,7 +62,6 @@ func (k *KeyBackup) Run(ctx context.Context) {
 	}
 }
 
-// pass runs one upload and reports what changed.
 func (k *KeyBackup) pass(ctx context.Context) {
 	uploaded, err := k.b.BackupRoomKeys(ctx)
 	switch {
@@ -85,7 +82,7 @@ func (k *KeyBackup) pass(ctx context.Context) {
 	}
 }
 
-// say reports line unless it is the same thing the last pass said.
+// say reports line unless the last pass said the same.
 func (k *KeyBackup) say(line string) {
 	if line == k.said {
 		return

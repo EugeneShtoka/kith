@@ -26,8 +26,7 @@ import (
 // dropped rather than blocking the sync goroutine.
 const messageBuffer = 64
 
-// inviteBuffer bounds the invite-set channel. Each item is the whole current set
-// and any one of them supersedes the last, so a handful is ample.
+// inviteBuffer bounds the invite-set channel; each item is the whole set, so a few suffice.
 const inviteBuffer = 4
 
 // InProc is the real Backend: the mautrix client, its sync loop, the local cache
@@ -42,79 +41,63 @@ type InProc struct {
 	// onRoomsStale, when set, is called when a sync changes the room list, a room
 	// name or the space hierarchy. Set before Start.
 	onRoomsStale func()
-	// left is when each room was left from here, so a room list asked for before the
-	// leave (a refresh already under way) does not bring it back (RefreshRooms).
+	// left is when each room was left here, so an in-flight refresh does not bring it back.
 	left leftRooms
-	// networks is reading, in the background, the network behind each room not read
-	// yet (networks.go).
+	// networks reads each room's network in the background (networks.go).
 	networks roomNetworks
 
-	// machineMu guards the crypto machine EnableEncryption publishes. A degraded start
-	// runs EnableEncryption on a worker goroutine while RPCs are already being served.
-	// RWMutex because decryption is the hot reader; never held across a call that can
-	// take it again.
+	// machineMu guards the crypto machine EnableEncryption publishes, possibly while RPCs
+	// are served (degraded start). Never held across a call that can take it again.
 	machineMu sync.RWMutex
 	crypto    *cryptohelper.CryptoHelper
-	// sendMu orders the client.Crypto write against sends, which mautrix reads it in:
-	// sends hold it for read (see sealed), EnableEncryption for write. Separate from
-	// machineMu because a send holds it across network I/O.
+	// sendMu orders the client.Crypto write against sends that read it (see sealed).
+	// Separate from machineMu because a send holds it across network I/O.
 	sendMu sync.RWMutex
-	// storeMu orders the crypto helper's client.Store swap (helper.Init moves the
-	// sync position into the crypto store) against resetSyncPosition, which a
-	// ClearCache RPC reaches during a degraded start. client.StateStore needs none:
-	// OpenCryptoStore sets it before any RPC is served.
+	// storeMu orders helper.Init's client.Store swap against resetSyncPosition (a
+	// ClearCache RPC during a degraded start).
 	storeMu sync.Mutex
 	// rewind orders ClearCache's rewind against the running sync loop.
 	rewind syncRewind
 	// dispatchMu fences late decryptions out of Stop (see postDecrypt).
 	dispatchMu sync.RWMutex
-	// cryptoDB is the crypto/state store's database, nil until OpenCryptoStore. Stop
-	// closes it, through the helper when there is one.
+	// cryptoDB is the crypto/state store's database, nil until OpenCryptoStore.
 	cryptoDB *dbutil.Database
 	// stopOnce: Stop is reached both from serve's return and from run's defer.
 	stopOnce sync.Once
-	// stopping is set as Stop begins: mautrix's decrypt retries run on goroutines
-	// nothing can join, and one finishing late must not write a closing cache.
+	// stopping is set as Stop begins: unjoinable decrypt retries must not write a closing cache.
 	stopping atomic.Bool
 
-	// out is every stream the client reads (see streams.go).
 	out streams
 
-	// ver is SAS device verification (see verification.go).
 	ver verifyState
 
 	// names memoizes each room's user-ID→display-name map.
 	names memberNameMemo
 
-	// unread is each room's last-known unread state and read time (see unreadbook.go).
 	unread unreadBook
-	// selves are the other MXIDs that are this person (see selves.go).
+	// selves are the other MXIDs that are this person.
 	selves selves
 
-	// held are our receipts waiting for their event; fetches asks the homeserver
-	// about those that never arrive (see receipts.go).
+	// held are our receipts waiting for their event; fetches asks the homeserver for
+	// those that never arrive.
 	held    heldReceipts
 	fetches receiptFetches
 
-	// invites is the current invite set: a sync carries only changed invites, so the
-	// whole set is kept to publish it whole and to suppress no-op republishes.
+	// invites is the whole invite set; a sync carries only changes.
 	invites struct {
 		mu    sync.Mutex
 		rooms map[domain.RoomID]domain.Room
 	}
 
-	// keepDeleted is [display.deleted] keep: whether deleted messages' text stays
-	// cached. Atomic: a re-read config sets it while the sync loop reads it.
+	// keepDeleted is [display.deleted] keep; atomic because a config reload sets it.
 	keepDeleted atomic.Bool
-	// onCached and onChanged, when set, hear a message being cached and a room's
-	// cached messages changing otherwise (an edit's deletion, a redaction). Set
-	// before Start.
+	// onCached and onChanged hear a message cached and a room's messages otherwise
+	// changed (redaction, deleted edit). Set before Start.
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
 }
 
-// fromCache runs a cache read, wrapping its error; without a cache it answers the
-// zero value, since every cache read has the network or an empty state behind it.
+// fromCache runs a cache read, wrapping its error; without a cache it returns the zero value.
 func fromCache[T any](b *InProc, op string, read func(*db.Cache) (T, error)) (T, error) {
 	var zero T
 	if b.cache == nil {
@@ -138,11 +121,10 @@ func toCache(b *InProc, op string, write func(*db.Cache) error) error {
 	return nil
 }
 
-// KeepDeleted sets [display.deleted] keep, at startup and when the config is re-read.
+// KeepDeleted sets [display.deleted] keep.
 func (b *InProc) KeepDeleted(keep bool) { b.keepDeleted.Store(keep) }
 
-// New returns an InProc backend ready to Login. cache may be nil: reads then fall
-// through to the network.
+// New returns an InProc backend ready to Login; a nil cache sends reads to the network.
 func New(cache *db.Cache) *InProc {
 	b := &InProc{
 		client: nil,
@@ -157,10 +139,9 @@ func New(cache *db.Cache) *InProc {
 	return b
 }
 
-// cacheOwesRewind reports whether a cache, as opened, needs a full initial sync: it was
-// rebuilt, or holds no room. Decided here, before anything can write rooms into it
-// (the daemon's startup refresh, a client's RPC). A cache that cannot say is taken as
-// empty: a needless rewind costs one full sync, a missed one the history it lost.
+// cacheOwesRewind reports whether a freshly opened cache (rebuilt or roomless) needs a
+// full initial sync. Decided before anything writes rooms; an error counts as empty,
+// since a needless rewind costs one sync and a missed one loses history.
 func cacheOwesRewind(cache *db.Cache) bool {
 	if cache == nil {
 		return false
@@ -172,8 +153,7 @@ func cacheOwesRewind(cache *db.Cache) bool {
 	return err != nil || !holds
 }
 
-// Login authenticates with a password, stores the credentials on the client,
-// and returns the session the caller persists for later Resume.
+// Login authenticates with a password and returns the session to persist for Resume.
 func (b *InProc) Login(ctx context.Context, homeserver, user, password string) (domain.Session, error) {
 	client, err := mautrix.NewClient(homeserver, "", "")
 	if err != nil {
@@ -198,9 +178,7 @@ func (b *InProc) Login(ctx context.Context, homeserver, user, password string) (
 	}, nil
 }
 
-// Resume rebuilds an authenticated client from a saved session and verifies the
-// token with a /whoami round-trip, so an expired token surfaces here rather
-// than on the first real call.
+// Resume rebuilds a client from a saved session and checks the token with /whoami.
 func (b *InProc) Resume(ctx context.Context, s domain.Session) error {
 	client, err := mautrix.NewClient(s.Homeserver, id.UserID(s.UserID), s.AccessToken)
 	if err != nil {
@@ -209,16 +187,15 @@ func (b *InProc) Resume(ctx context.Context, s domain.Session) error {
 	client.DeviceID = id.DeviceID(s.DeviceID)
 	b.attachLogger(client)
 	err = whoami(ctx, client)
-	// Keep the client unless the token was rejected: the daemon serves from the
-	// cache while offline (see Reachable).
+	// Keep the client unless the token was rejected: offline, the daemon serves from cache.
 	if !errors.Is(err, api.ErrSessionRejected) {
 		b.client = client
 	}
 	return err
 }
 
-// whoami validates the session. A rejected token wants a new login; an unreachable
-// homeserver says nothing about the token and must not cost a new device identity.
+// whoami validates the session. Only a rejected token wants a new login; an unreachable
+// homeserver must not cost a new device identity.
 func whoami(ctx context.Context, client *mautrix.Client) error {
 	_, err := client.Whoami(ctx)
 	switch {
@@ -231,8 +208,8 @@ func whoami(ctx context.Context, client *mautrix.Client) error {
 	}
 }
 
-// Reachable reports whether the homeserver answers, classified like Resume. Unlike
-// Resume it does not replace b.client, so it is safe while serving.
+// Reachable reports whether the homeserver answers, like Resume but without replacing
+// b.client, so it is safe while serving.
 func (b *InProc) Reachable(ctx context.Context) error {
 	if b.client == nil {
 		return api.ErrUnreachable
@@ -240,22 +217,19 @@ func (b *InProc) Reachable(ctx context.Context) error {
 	return whoami(ctx, b.client)
 }
 
-// Start registers the sync handlers and runs the /sync loop until ctx is canceled or
-// Stop is called. It blocks.
-// errStartedTwice refuses a second Start: a backend syncs once (the rewind restarts
-// the loop inside Start, see syncUntilDone).
+// errStartedTwice refuses a second Start; a rewind restarts the loop inside Start.
 var errStartedTwice = errors.New("matrix: Start runs once per backend")
 
+// Start registers the sync handlers and runs the /sync loop until ctx is canceled or
+// Stop is called. It blocks.
 func (b *InProc) Start(ctx context.Context) error {
-	// Closing the streams on return lets listeners see a clean end (see streams.close).
 	defer b.out.close()
 	var syncer *mautrix.DefaultSyncer
 	switch current := b.client.Syncer.(type) {
 	case *mautrix.DefaultSyncer:
 		syncer = current
 	case *failingSyncer:
-		// A second Start would register every handler again (each event handled
-		// twice), on streams the first closed when it returned.
+		// A second Start would double-register handlers on already closed streams.
 		return errStartedTwice
 	default:
 		return fmt.Errorf("matrix: unexpected syncer type %T", b.client.Syncer)
@@ -272,7 +246,6 @@ func (b *InProc) Start(ctx context.Context) error {
 	syncer.OnEventType(event.EventReaction, b.onReaction)
 	syncer.OnEventType(event.StateMember, b.onMember)
 	syncer.OnSync(b.onSync)
-	// The rooms the cache holds whose network was not read yet are read once synced.
 	b.wantNetworks()
 	// Handlers are registered on syncer itself; the wrapper only adds logging.
 	b.client.Syncer = &failingSyncer{DefaultSyncer: syncer, b: b}
@@ -282,9 +255,8 @@ func (b *InProc) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop halts the sync loop and releases resources (verification work, crypto store,
-// spell engine, local model). The caller must first cancel and join the sync loop:
-// StopSync does not wait. Idempotent and safe before Login/Resume.
+// Stop halts the sync loop and releases resources. The caller must first cancel and
+// join the sync loop (StopSync does not wait). Idempotent; safe before Login/Resume.
 func (b *InProc) Stop() {
 	b.stopOnce.Do(func() {
 		b.beginStopping()
@@ -293,11 +265,9 @@ func (b *InProc) Stop() {
 		}
 		// Cancel, join, then close the store: verification goroutines use it.
 		b.ver.stop()
-		// Read-position fetches write the cache; the sync context that bounds them is
-		// already canceled.
+		// Read-position fetches write the cache; their context is already canceled.
 		b.fetches.wg.Wait()
 
-		// A store that fails to close may not have flushed; worth the journal.
 		if helper := b.cryptoHelper(); helper != nil {
 			b.warnIf(context.Background(), helper.Close(), "close the crypto store")
 		} else if b.cryptoDB != nil {
@@ -330,9 +300,8 @@ func (b *InProc) onMessage(ctx context.Context, evt *event.Event) {
 	emit(&b.out, b.out.msgs, msg)
 }
 
-// onRedaction handles a live m.room.redaction: an un-react when the target is a
-// cached reaction, else it flags the cached message and emits a Redacted stub that
-// the client folds onto the displayed row.
+// onRedaction handles a live redaction: an un-react for a cached reaction, else it
+// marks the message redacted and emits a Redacted stub.
 func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 	target := redactionTarget(evt)
 	if target == "" {
@@ -347,8 +316,7 @@ func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 			emit(&b.out, b.out.reactions, domain.ReactionUpdate{Reaction: r, Removed: true})
 			return
 		}
-		// An edit folds onto the message it replaces: learn which one first, since
-		// MarkRedacted takes its words off it.
+		// Find the edit's target before MarkRedacted strips its body.
 		shownOn, isEdit, serr := b.cache.EditShownBy(ctx, roomID, target)
 		b.warnIf(ctx, serr, "find the message a deleted edit shows on", "room", roomID, "event", target)
 		b.warnIf(ctx, b.cache.MarkRedacted(ctx, roomID, target, string(evt.Sender), redactionReason(evt),
@@ -361,11 +329,9 @@ func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 			return
 		}
 	}
-	// The kept words travel with the redaction, so "forget it" reaches the screen too.
 	gone := domain.Message{
 		ID: target, RoomID: roomID, Redacted: true,
 		RedactedBy: string(evt.Sender), RedactedReason: redactionReason(evt),
-		// The redaction's time, i.e. when it was deleted.
 		RedactedAt: eventTime(evt.Timestamp),
 	}
 	if b.keepDeleted.Load() && b.cache != nil {
@@ -378,11 +344,9 @@ func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 	emit(&b.out, b.out.msgs, gone)
 }
 
-// emitReverted sends a message whose shown edit was deleted as the cache now has it,
-// marked to replace what the client shows. When the cache held no older version (it
-// keeps them only under [display.deleted] keep), the message shows nothing; the
-// version before the deleted edit is then asked of the server in the background,
-// cached, and sent again.
+// emitReverted re-sends a message whose shown edit was deleted. Without a cached older
+// version (kept only under [display.deleted] keep) it is fetched in the background,
+// cached and sent again.
 func (b *InProc) emitReverted(ctx context.Context, roomID domain.RoomID, target, deleted domain.EventID) {
 	send := func() (domain.Message, bool) {
 		msg, ok, err := b.cache.MessageByID(ctx, roomID, target)
@@ -398,8 +362,7 @@ func (b *InProc) emitReverted(ctx context.Context, roomID domain.RoomID, target,
 	if !ok || msg.Body != "" || msg.Redacted || b.client == nil {
 		return
 	}
-	// One fetch per deleted edit, and no more at once than the receipt fetches: a
-	// moderator deleting many edits, or a full sync, must not fan out a request each.
+	// One fetch per deleted edit, sharing the receipt fetches' concurrency limit.
 	slots, first := b.fetches.first(fetchKey{room: roomID, event: deleted})
 	if !first {
 		return
@@ -440,7 +403,7 @@ func newestVersionBut(revs []domain.Revision, deleted domain.EventID) (domain.Re
 }
 
 // onSync ingests each joined room's unread counts, receipts, marked-unread, stars,
-// spam verdicts and typing from a sync response, caching and streaming changes.
+// spam verdicts and typing.
 func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since string) bool {
 	if b.onSynced != nil {
 		b.onSynced(time.Now())
@@ -451,23 +414,20 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 		b.onRoomsStale()
 	}
 	b.syncInvites(ctx, resp, since)
-	// Receipts still held from earlier syncs are not arriving on their own.
 	b.fetchHeld(ctx)
 	for roomID, jr := range resp.Rooms.Join {
 		if jr == nil {
 			continue
 		}
-		// One read serves both the room marker and the threads: only together can an
-		// unthreaded receipt (moves both) be told from a "main" one.
+		// Room and thread receipts are read together: only then can an unthreaded
+		// receipt be told from a "main" one.
 		receipts := readReceipts(jr.Ephemeral.Events, b.client.UserID)
 		read, threadsMoved := b.applyReceipts(ctx, domain.RoomID(roomID), receipts)
-		// m.marked_unread; a batch without it says nothing (see markedUnread).
 		var marked *bool
 		if flag, present := markedUnread(jr.AccountData.Events); present {
 			marked = &flag
 		}
-		// A star or spam event type present in the batch is that room's whole set;
-		// absence is silence.
+		// A star or spam event present is the room's whole set; absence means no change.
 		if ids, present := starredFrom(jr.AccountData.Events); present && b.cache != nil {
 			b.warnIf(ctx, b.cache.SetStarred(ctx, domain.RoomID(roomID), ids, time.Now().UnixMilli()), "cache starred messages", "room", roomID)
 		}
@@ -478,20 +438,17 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 		if _, changed := b.mergeUnread(ctx, domain.RoomID(roomID), jr, read, marked); !changed && !threadsMoved {
 			continue
 		}
-		// Receipts moved: recount. This response's messages are dispatched after OnSync,
-		// and onMessage recounts again then.
+		// This response's messages come after OnSync; onMessage recounts again then.
 		b.recountAndEmit(ctx, domain.RoomID(roomID), true)
 	}
 	return true
 }
 
-// OnCached sets who hears each message the backend caches, and each room whose
-// cached messages changed otherwise. Set before Start.
+// OnCached sets the listeners for cached messages and otherwise changed rooms. Set before Start.
 func (b *InProc) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
 	b.onCached, b.onChanged = cached, changed
 }
 
-// changed tells the listener a room's cached messages changed.
 func (b *InProc) changed(roomID domain.RoomID) {
 	if b.onChanged != nil {
 		b.onChanged(roomID)
@@ -501,20 +458,14 @@ func (b *InProc) changed(roomID domain.RoomID) {
 // RewindSync rewinds the sync position so a full initial sync refills an emptied
 // cache.
 func (b *InProc) RewindSync(ctx context.Context) error {
-	// Owed as well as done: before Start, the store rewound now may not be the one it
-	// syncs on (EnableEncryption swaps in the crypto store). On failure the cache stays
-	// empty, so a restart rewinds too.
+	// Also owed: before Start, EnableEncryption may swap in a different store.
 	b.rewind.owe()
 	return b.rewind.request(func() error { return b.resetSyncPosition(ctx) })
 }
 
-// resyncEmptiedCache rewinds to a full initial sync when one is owed: the cache was
-// rebuilt or held no room when the backend was built, or was cleared since. The token
-// lives in the sync store (the crypto store), not the cache, so a cache emptied
-// without the rewind would never get its history back. Emptiness is the durable
-// half: a crash between a rebuild and this, or a rewind that failed, leaves the cache
-// empty, and the next start rewinds again. For a new account there is nothing to
-// lose. A failed rewind stops Start rather than syncing on from the old token.
+// resyncEmptiedCache rewinds to a full initial sync when owed (cache rebuilt, empty or
+// cleared). The token lives in the sync store, not the cache, so an emptied cache needs
+// this to regain history. A failed rewind stops Start rather than syncing on.
 func (b *InProc) resyncEmptiedCache(ctx context.Context) error {
 	if b.cache == nil || !b.rewind.isOwed() {
 		return nil
@@ -526,14 +477,12 @@ func (b *InProc) resyncEmptiedCache(ctx context.Context) error {
 	return nil
 }
 
-// resetSyncPosition rewinds to a full initial sync. The token is in the sync store
-// (the crypto store after EnableEncryption), not this cache.
+// resetSyncPosition clears the sync token in the sync store (the crypto store once encrypted).
 func (b *InProc) resetSyncPosition(ctx context.Context) error {
 	if b.client == nil {
 		return nil
 	}
-	// Held for write: mautrix's crypto store saves the token without a lock of its
-	// own, and the crypto helper's Init swaps client.Store under the same mutex.
+	// mautrix's crypto store saves the token unlocked, and Init swaps client.Store under this.
 	b.storeMu.Lock()
 	defer b.storeMu.Unlock()
 	store := b.client.Store
@@ -546,17 +495,15 @@ func (b *InProc) resetSyncPosition(ctx context.Context) error {
 	return nil
 }
 
-// OnSynced registers a callback with each sync response's arrival time (readiness).
-// Call before Start; it runs on the sync goroutine and must not block.
+// OnSynced registers a callback with each sync response's arrival time. Call before
+// Start; it runs on the sync goroutine and must not block.
 func (b *InProc) OnSynced(fn func(time.Time)) { b.onSynced = fn }
 
-// OnRoomsStale registers a callback for syncs that change the room list, names,
-// spaces or m.direct, since only RefreshRooms/RefreshSpaces write those caches.
-// Call before Start; it runs on the sync goroutine and must not block.
+// OnRoomsStale registers a callback for syncs that change rooms, names, spaces or
+// m.direct. Call before Start; it runs on the sync goroutine and must not block.
 func (b *InProc) OnRoomsStale(fn func()) { b.onRoomsStale = fn }
 
-// receiptType picks m.read.private when private: our position moves for this
-// account's clients without the room seeing it.
+// receiptType picks m.read.private (visible only to this account) when private.
 func receiptType(private bool) event.ReceiptType {
 	if private {
 		return event.ReceiptTypeReadPrivate

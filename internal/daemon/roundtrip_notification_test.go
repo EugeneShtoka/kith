@@ -11,8 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// A scoped, timed mute survives the wire with its scope, its name and its deadline
-// intact, and it silences exactly what it named.
+// A scoped, timed mute keeps its scope, name and deadline across the wire and
+// silences exactly what it named.
 func TestSetDNDRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -41,12 +41,11 @@ func TestSetDNDRoundTrip(t *testing.T) {
 	if !mute.Until.Equal(until) {
 		t.Errorf("Until = %v, want %v", mute.Until, until)
 	}
-	// A deadline that crossed the wire has to read in local time, or a countdown
-	// drawn from it is hours out.
+	// The deadline must read in local time, or a countdown is hours out.
 	if _, offset := mute.Until.Zone(); offset != zoneOffset(until) {
 		t.Errorf("Until came back in the wrong zone: %v", mute.Until)
 	}
-	// And the daemon acts on it: this is not merely stored state.
+	// The daemon acts on it, not merely stores it.
 	if _, ok := h.notifications.Deliver(context.Background(), domain.Message{
 		ID: "$1", RoomID: "!standup:x", Sender: "@alice:x", Body: "hi",
 	}); ok {
@@ -59,14 +58,13 @@ func TestSetDNDRoundTrip(t *testing.T) {
 	}
 }
 
-// zoneOffset is the local zone's offset at t, for comparing what came back.
+// zoneOffset is the local zone's offset at t.
 func zoneOffset(t time.Time) int {
 	_, offset := t.Local().Zone()
 	return offset
 }
 
-// An untimed mute travels with no deadline rather than with the Unix epoch, which
-// would read as a mute that lapsed in 1970.
+// An untimed mute travels with no deadline, not the Unix epoch.
 func TestUntimedDNDRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -83,8 +81,7 @@ func TestUntimedDNDRoundTrip(t *testing.T) {
 	}
 }
 
-// Every method answers with the resulting set, so a client that changed one thing
-// learns the state in the same round trip.
+// Every method answers with the resulting set.
 func TestDNDReadsAndClears(t *testing.T) {
 	t.Parallel()
 
@@ -121,8 +118,8 @@ func TestDNDReadsAndClears(t *testing.T) {
 	}
 }
 
-// The daemon refuses a mute that names nothing (it would read as the whole account) and
-// one whose deadline has already passed (it would silently do nothing).
+// Refused: a mute naming nothing (it would read as the whole account) and one already
+// lapsed.
 func TestSetDNDRefusesBadRules(t *testing.T) {
 	t.Parallel()
 
@@ -137,7 +134,7 @@ func TestSetDNDRefusesBadRules(t *testing.T) {
 	}
 }
 
-// ReloadConfig reaches the daemon, and a config it refuses comes back with the reason.
+// A config the daemon refuses comes back with the reason.
 func TestReloadConfigRoundTrip(t *testing.T) {
 	t.Parallel()
 

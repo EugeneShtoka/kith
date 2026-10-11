@@ -9,20 +9,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// heroes bounds how many member names a group without a name is shown by.
+// heroes bounds how many member names label an unnamed group.
 const heroes = 5
 
-// nameOf is a person's name as this account knows them, "" when it knows none.
+// nameOf is a person's name as the account knows it, "" when unknown.
 type nameOf func(ctx context.Context, person types.JID) string
 
-// roomID is a chat as an account sees it.
 func roomID(account string, chat types.JID) domain.RoomID {
 	return domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, account, chat.ToNonAD().String()))
 }
 
-// personID is a person, whichever account sees them. A participant known by phone
-// number is named by it, so the same contact folds with one seen through a bridge or
-// another account; one WhatsApp shows only by LID is named by that.
+// personID is a participant's account-independent ID: by phone number when known,
+// so they fold across bridges and accounts; else by LID.
 func personID(p types.GroupParticipant) (string, types.JID) {
 	jid := p.JID
 	if !p.PhoneNumber.IsEmpty() {
@@ -32,8 +30,8 @@ func personID(p types.GroupParticipant) (string, types.JID) {
 	return domain.NativePerson(domain.ProtocolWhatsApp, jid.String()), jid
 }
 
-// groupRooms is an account's groups as rooms, with each one's members. Our own
-// account is a member but not a hero: a room is never named after yourself.
+// groupRooms converts groups into rooms and members. The account itself is a member
+// but never a hero.
 func groupRooms(ctx context.Context, account string, groups []*types.GroupInfo, names nameOf) ([]domain.Room, map[domain.RoomID][]domain.Member) {
 	rooms := make([]domain.Room, 0, len(groups))
 	members := make(map[domain.RoomID][]domain.Member, len(groups))
@@ -64,8 +62,7 @@ func groupRooms(ctx context.Context, account string, groups []*types.GroupInfo, 
 	return rooms, members
 }
 
-// contactName is the name a contact goes by: the one saved in the phone's address
-// book, then the one they set themselves, then their business name.
+// contactName is a contact's address book name, else push name, else business name.
 func contactName(c types.ContactInfo) string {
 	for _, name := range []string{c.FullName, c.FirstName, c.PushName, c.BusinessName} {
 		if name != "" {
@@ -75,7 +72,6 @@ func contactName(c types.ContactInfo) string {
 	return ""
 }
 
-// errNotYet refuses what the adapter does not do yet.
 func errNotYet(what string) error {
 	return fmt.Errorf("%w: WhatsApp cannot %s yet", errNotOnWhatsApp, what)
 }

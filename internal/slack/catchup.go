@@ -11,19 +11,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// What was said while kith was not connected is fetched when it connects: Slack's
-// client.counts says when each conversation last had a message, in one call, and a
-// conversation newer than the cache holds is read from where the cache left off. The
-// cache then knows every conversation's last message, which the room list sorts by.
+// On connect, client.counts gives each conversation's latest message time in one call;
+// a conversation newer than the cache is read from where the cache left off, so the
+// room list can sort by last message.
 
-// Catching up reads at most catchUpPages pages of catchUpPage messages a conversation;
-// what is older is fetched when scrolled back to, as any history.
+// Catch-up reads at most catchUpPages pages of catchUpPage messages per conversation;
+// older history loads on scroll.
 const (
 	catchUpPage  = 100
 	catchUpPages = 5
 )
 
-// goCatchUp catches a workspace up, in the background, unless it already is.
+// goCatchUp catches a workspace up in the background unless already running.
 func (a *Adapter) goCatchUp(ctx context.Context, w *workspace) {
 	go func() {
 		if !w.catching.TryLock() {
@@ -38,7 +37,7 @@ func (a *Adapter) goCatchUp(ctx context.Context, w *workspace) {
 	}()
 }
 
-// catchUp caches each of w's conversations' messages newer than the cache holds.
+// catchUp caches each conversation's messages newer than the cache holds.
 func (a *Adapter) catchUp(ctx context.Context, w *workspace) error {
 	if a.cache == nil {
 		return nil
@@ -71,8 +70,7 @@ func (a *Adapter) catchUp(ctx context.Context, w *workspace) error {
 			a.log.Warn("catch up a conversation failed", "account", w.account.Name, "channel", c, "err", err)
 		}
 	}
-	// A conversation Slack gave no read position for (a quiet one) is read: nothing in
-	// it waits for you.
+	// A conversation without a Slack read position (a quiet one) counts as read.
 	for _, c := range listed {
 		room := roomID(w.creds.Team, c)
 		a.placeRead(ctx, room, time.Now())
@@ -93,11 +91,9 @@ func (a *Adapter) readPositions(ctx context.Context, w *workspace, counts *slack
 	}
 }
 
-// behind is the conversations, of those listed, whose last message is newer than the
-// cache's last one in them (a conversation with none cached is behind when it has
-// any), newest first so the most recent are caught up soonest. Slack leaves quiet
-// conversations out of its counts (as its sidebar leaves closed DMs out): one of those
-// with nothing cached comes last, to be read once.
+// behind is the listed conversations whose last message is newer than the cache's
+// (any, if none is cached), newest first. Slack omits quiet conversations from counts;
+// those with nothing cached come last, read once.
 func behind(team string, counts *slackgo.ClientCountsResponse, cached map[domain.RoomID]time.Time, listed []string) []string {
 	type conv struct {
 		id     string
@@ -129,8 +125,8 @@ func behind(team string, counts *slackgo.ClientCountsResponse, cached map[domain
 	return ids
 }
 
-// readSince caches a conversation's messages after since (all its recent ones when
-// since is zero), newest page first.
+// readSince caches a conversation's messages after since (recent ones when zero),
+// newest page first.
 func (a *Adapter) readSince(ctx context.Context, w *workspace, channel string, since time.Time) error {
 	room := roomID(w.creds.Team, channel)
 	oldest := ""

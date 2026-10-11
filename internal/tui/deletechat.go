@@ -7,10 +7,9 @@ import (
 )
 
 // A chat its network cannot leave (a Telegram private chat) is deleted instead, by the
-// same key and /leave: its history goes, for you, and, if you say so first, for the
-// other person too. The last question says which, and nothing is deleted before it.
+// same key and /leave: for you, and optionally for the other person too. The last
+// question says which; nothing is deleted before it.
 
-// askDeleteChat opens the questions for deleting room.
 func (m Model) askDeleteChat(room domain.Room) Model {
 	if room.Deleting == domain.ChatDeletedForEither {
 		m.confirm = confirmState{action: pendingDeleteForThem, room: room}
@@ -20,8 +19,8 @@ func (m Model) askDeleteChat(room domain.Room) Model {
 	return m
 }
 
-// answerDeleteForThem takes whether the other person loses the chat too, and asks last
-// whether to delete it.
+// answerDeleteForThem records whether the other person loses the chat too, then asks
+// to confirm.
 func (m Model) answerDeleteForThem(c confirmState, yes bool) Model {
 	m.confirm = confirmState{action: pendingDeleteChat, room: c.room, forEveryone: yes}
 	return m

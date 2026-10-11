@@ -15,7 +15,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// archivedRooms is which cached rooms are archived.
 func archivedRooms(t *testing.T, cache *db.Cache) []domain.RoomID {
 	t.Helper()
 	rooms, err := cache.Rooms(t.Context())
@@ -32,8 +31,7 @@ func archivedRooms(t *testing.T, cache *db.Cache) []domain.RoomID {
 	return out
 }
 
-// A chat in Telegram's Archived folder is listed as archived; one in the main list,
-// or one whose folder the listing did not say, is not.
+// Only chats in the Archived folder are archived; an unknown folder means not.
 func TestAListingSaysWhichChatsAreArchived(t *testing.T) {
 	t.Parallel()
 	ent := peer.NewEntities(nil, map[int64]*tg.Chat{11: {ID: 11, Title: "Old"}, 12: {ID: 12, Title: "Live"}}, nil)
@@ -48,9 +46,8 @@ func TestAListingSaysWhichChatsAreArchived(t *testing.T) {
 	}
 }
 
-// A listing is fetched, then written: whatever order chats are moved between folders
-// live (here or on another device) and listings are fetched and written in, a listing
-// never writes a chat's older folder over a move heard since it was fetched.
+// A listing never overwrites a live folder move made since it was fetched, for any
+// interleaving.
 func TestAListingNeverUndoesAFolderMoveHeardSince(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(60) {
@@ -58,8 +55,7 @@ func TestAListingNeverUndoesAFolderMoveHeardSince(t *testing.T) {
 		a, cache := cachedAdapter(t, &memSecrets{values: map[string]string{}})
 		ctx, room := t.Context(), domain.RoomID("telegram:42/-11")
 		rooms := []domain.Room{{ID: room, Name: "c", Membership: domain.MembershipJoin}}
-		// Listed once first, as a connected account's chats are: a chat moved before any
-		// listing is a placeholder, not yet a room to show.
+		// List once first: a chat moved before any listing is only a placeholder.
 		if err := a.save(ctx, 42, listing{rooms: rooms, archived: map[domain.RoomID]bool{room: false}}, time.Now()); err != nil {
 			t.Fatal(err)
 		}
@@ -99,8 +95,7 @@ func TestAListingNeverUndoesAFolderMoveHeardSince(t *testing.T) {
 	}
 }
 
-// Archiving here moves the chat into Telegram's Archived folder (and back to the main
-// list); a move on another device arrives and is kept.
+// Archiving here moves the chat on Telegram; a move on another device is applied.
 func TestAChatIsArchivedBothWays(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)

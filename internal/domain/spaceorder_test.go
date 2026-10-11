@@ -5,8 +5,7 @@ import (
 	"testing"
 )
 
-// The ranking is the user's, so two ranked spaces come out in *their* order, not in
-// the room's — which is the whole point: alphabetical is what this exists to escape.
+// Ranked spaces come out in the user's order, not the room's.
 func TestOrderSpacesPutsRankedSpacesFirstInTheRankedOrder(t *testing.T) {
 	t.Parallel()
 
@@ -17,14 +16,13 @@ func TestOrderSpacesPutsRankedSpacesFirstInTheRankedOrder(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("OrderSpaces() = %v, want %v", got, want)
 	}
-	// The input is not disturbed: it is the room's list, and other callers read it.
+	// The input slice is not modified.
 	if spaces[0] != "Colleagues" {
 		t.Errorf("input was reordered in place: %v", spaces)
 	}
 }
 
-// Unranked spaces keep the order they arrived in, so the fallback stays the stable
-// alphabetical one rather than becoming arbitrary.
+// Unranked spaces keep their input order.
 func TestOrderSpacesLeavesTheRestAlone(t *testing.T) {
 	t.Parallel()
 
@@ -47,8 +45,7 @@ func TestOrderSpacesLeavesTheRestAlone(t *testing.T) {
 	}
 }
 
-// A priority list naming a space twice, or naming nothing, must not drop or
-// duplicate a room's spaces: every space in goes exactly once out.
+// Duplicate or blank priority entries never drop or duplicate a space.
 func TestOrderSpacesIsAPermutation(t *testing.T) {
 	t.Parallel()
 

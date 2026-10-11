@@ -7,19 +7,19 @@ import (
 	"github.com/gotd/td/telegram"
 )
 
-// dialer makes a client of Telegram through an app, its session in a storage, its
-// updates handed to a handler (nil: none heard).
+// dialer builds a client for app with session storage and an update handler (nil:
+// none).
 type dialer func(App, session.Storage, telegram.UpdateHandler) *telegram.Client
 
-// newClient is a client of Telegram's own servers through app, its session in
-// storage, its updates handed to updates. It reconnects by itself while it runs.
+// newClient is a dialer for Telegram's production servers; the client reconnects by
+// itself while running.
 func (a *Adapter) newClient(app App, storage session.Storage, updates telegram.UpdateHandler) *telegram.Client {
 	return telegram.NewClient(app.ID, app.Hash, telegram.Options{
 		SessionStorage: storage,
 		UpdateHandler:  updates,
 		Logger:         gotdLog{log: a.log},
 		Middlewares:    []telegram.Middleware{waitOutFloods()},
-		// What Telegram lists under the person's active sessions.
+		// Shown in the person's active sessions list.
 		Device: telegram.DeviceConfig{DeviceModel: "kith", SystemVersion: runtime.GOOS, AppVersion: "kith"},
 	})
 }

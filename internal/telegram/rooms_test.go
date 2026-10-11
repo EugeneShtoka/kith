@@ -21,9 +21,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Each kind of dialog is a room named as Telegram shows it, by its marked peer ID; the
-// chat with oneself is Saved Messages; a private chat's person is its member; a chat
-// left, moved, or the account removed from, is left out; the access hashes are kept.
+// Each dialog kind maps to a room by marked peer ID; self is Saved Messages; a DM's
+// peer is its member; left, migrated and removed chats are skipped; hashes are kept.
 func TestDialogsAreRooms(t *testing.T) {
 	t.Parallel()
 	ent := peer.NewEntities(
@@ -50,7 +49,7 @@ func TestDialogsAreRooms(t *testing.T) {
 		if r.IsDirect != (r.ID == "telegram:42/7" || r.ID == "telegram:42/8" || r.ID == "telegram:42/42") {
 			t.Errorf("%s: direct %v", r.ID, r.IsDirect)
 		}
-		// A private chat is deleted, for both or for you (your saved messages), not left.
+		// A private chat is deleted, not left.
 		wantDeleting := map[domain.RoomID]domain.ChatDeleting{
 			"telegram:42/7": domain.ChatDeletedForEither, "telegram:42/8": domain.ChatDeletedForEither, "telegram:42/42": domain.ChatDeletedForMe,
 		}[r.ID]
@@ -78,8 +77,7 @@ func TestDialogsAreRooms(t *testing.T) {
 	}
 }
 
-// dialogsOf answers messages.getDialogs with chats, as one page, in the main folder;
-// Archived is empty. chats is asked once per listing (for the main folder).
+// dialogsOf answers getDialogs with chats() as one main-folder page; Archived is empty.
 func (f *fakeTelegram) dialogsOf(chats func() []*tg.Chat, delay func() time.Duration) {
 	d := f.cluster.Dispatch(2, "dc2")
 	d.HandleFunc(tg.MessagesGetDialogsRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
@@ -102,7 +100,7 @@ func (f *fakeTelegram) dialogsOf(chats func() []*tg.Chat, delay func() time.Dura
 		if delay == nil {
 			return sendResult(s, r, res)
 		}
-		// Answered from aside, after a while: one settled early may arrive late.
+		// Answered late, so an early request may finish after a later one.
 		wait := delay()
 		go func() {
 			time.Sleep(wait)
@@ -112,7 +110,6 @@ func (f *fakeTelegram) dialogsOf(chats func() []*tg.Chat, delay func() time.Dura
 	})
 }
 
-// cachedAdapter is home's adapter over a fresh cache.
 func cachedAdapter(t *testing.T, secrets *memSecrets) (*Adapter, *db.Cache) {
 	t.Helper()
 	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
@@ -123,7 +120,7 @@ func cachedAdapter(t *testing.T, secrets *memSecrets) (*Adapter, *db.Cache) {
 	return New(cache, secrets, nil, []Account{home}, nil), cache
 }
 
-// cachedNames is the Telegram rooms in the cache, by name.
+// cachedNames is the cached Telegram room names.
 func cachedNames(t *testing.T, a *Adapter) []string {
 	t.Helper()
 	rooms, err := a.Rooms(t.Context())
@@ -138,8 +135,8 @@ func cachedNames(t *testing.T, a *Adapter) []string {
 	return names
 }
 
-// Logged in, an account lists its chats into the cache and is their space, named after
-// it; a chat gone from a later listing goes from the cache.
+// A logged-in account caches its chats under its own space; a later listing sweeps
+// chats it no longer has.
 func TestALoggedInAccountListsItsChats(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -180,9 +177,8 @@ func TestALoggedInAccountListsItsChats(t *testing.T) {
 	}
 }
 
-// Listings racing each other — several refreshes at once while the chats change, each
-// answered after its own delay — never leave an older listing over a newer one: the
-// cache ends as the last listing Telegram answered.
+// Concurrent refreshes with varying delays leave the cache as the last answered
+// listing.
 func TestAnOlderListingNeverLandsOverANewerOne(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -227,8 +223,7 @@ func TestAnOlderListingNeverLandsOverANewerOne(t *testing.T) {
 	}
 }
 
-// More chats than a page holds are read page by page, each page asked for from the
-// last dialog of the one before (its peer, and its top message's ID and date).
+// Dialog pages chain from the previous page's last peer, top message ID and date.
 func TestManyChatsAreReadPageByPage(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -259,8 +254,7 @@ func TestManyChatsAreReadPageByPage(t *testing.T) {
 		}
 		return sendResult(s, r, res)
 	})
-	// The fake's handshake is slow under -race with the package's other tests running
-	// beside it; the deadline only bounds a hang.
+	// Generous: the fake's handshake is slow under -race; this only bounds a hang.
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	client := f.dial(testApp, newLoginSession(), nil)
@@ -284,8 +278,7 @@ func TestManyChatsAreReadPageByPage(t *testing.T) {
 	}
 }
 
-// A listing whose connection a newer login replaced writes nothing: its successor
-// lists for itself.
+// A listing from a replaced connection writes nothing.
 func TestAReplacedConnectionsListingIsDropped(t *testing.T) {
 	t.Parallel()
 	a, cache := cachedAdapter(t, &memSecrets{values: map[string]string{}})
@@ -300,9 +293,8 @@ func TestAReplacedConnectionsListingIsDropped(t *testing.T) {
 	}
 }
 
-// A folder is read until it has as many dialogs as Telegram counts in it: a page that
-// holds fewer than asked for is not its last, as Telegram answers short pages while
-// more follow. Every chat after such a page would otherwise be swept from the cache.
+// Short pages don't end a folder; it is read up to Telegram's count, or later chats
+// would be swept.
 func TestShortPagesStillListEveryChat(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -311,7 +303,7 @@ func TestShortPagesStillListEveryChat(t *testing.T) {
 		chats[i] = &tg.Chat{ID: int64(11 + i), Title: "chat " + strconv.Itoa(i), Photo: &tg.ChatPhotoEmpty{}}
 	}
 	a, _ := loggedInWithStore(t, f, openStore(t))
-	// After logging in, whose own listing is empty.
+	// After login's own (empty) listing.
 	f.cluster.Dispatch(2, "dc2").HandleFunc(tg.MessagesGetDialogsRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
 		var req tg.MessagesGetDialogsRequest
 		if err := req.Decode(r.Buf); err != nil {
@@ -322,8 +314,7 @@ func TestShortPagesStillListEveryChat(t *testing.T) {
 			return sendResult(s, r, res)
 		}
 		res.Count = len(chats)
-		// Three at a time, after the chat the request names: fewer than the hundred
-		// asked for, while more follow.
+		// Short pages of three while more follow.
 		from := 0
 		if p, ok := req.OffsetPeer.(*tg.InputPeerChat); ok {
 			from = int(p.ChatID-11) + 1
@@ -344,8 +335,7 @@ func TestShortPagesStillListEveryChat(t *testing.T) {
 	}
 }
 
-// A server that pages oddly, answering the same page whatever the offset, ends the
-// folder once a page brings no chat not already read: the listing does not loop.
+// A server repeating the same page ends the folder instead of looping.
 func TestARepeatedPageEndsTheListing(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)

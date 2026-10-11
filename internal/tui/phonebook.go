@@ -10,12 +10,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/phonebook"
 )
 
-// A person's card in the phonebook ([phonebook] dir): the file whose identifiers are
-// any of theirs, its fields shown and edited one at a time. `I` opens it on a message's
-// sender, on the person under the cursor in the member list, and on a room with one
-// person in it besides you and the bots. A field is chosen from the keys the folder's
-// cards already use, or named anew. A person with no card gets one at the first field
-// written, named after them, with every identifier kith knows of theirs.
+// A person's card in the phonebook ([phonebook] dir): the file listing any of their
+// identifiers, edited one field at a time. `I` opens it on a message's sender, the member
+// under the cursor, or a room's one other person (bots aside). A person with no card gets one
+// at the first field written, with every identifier kith knows of theirs.
 
 // personState is the card the person picker is open on, and the field being written.
 type personState struct {
@@ -27,8 +25,7 @@ type personState struct {
 	list bool
 }
 
-// The person picker's rows that are not a field, and the key list's new-key row; no
-// key is spelled so.
+// Non-field rows of the person picker and the key list's new-key row; no key is spelled so.
 const (
 	personAdd    = "\x00add"
 	personNewKey = "\x00new"
@@ -66,7 +63,6 @@ func (m Model) openPerson(id, name string) (Model, tea.Cmd) {
 	}
 }
 
-// book is the phonebook the config names.
 func (m Model) book() *phonebook.Book { return phonebook.New(m.prefs.phonebookDir) }
 
 // handlePersonCard opens the picker on a card read.
@@ -79,8 +75,8 @@ func (m Model) handlePersonCard(msg personCardMsg) (Model, tea.Cmd) {
 	return m.showPerson(""), nil
 }
 
-// showPerson lists the card's keys, identifiers first, then a row to add one; the
-// cursor on the row valued at.
+// showPerson lists the card's keys, identifiers first, then an add row, with the cursor on
+// the row valued at.
 func (m Model) showPerson(at string) Model {
 	p := m.aimedAt.person
 	var items []pickerItem
@@ -174,8 +170,8 @@ func (m Model) submitPersonKey(input string) (Model, tea.Cmd) {
 	return m.openPrompt(promptPersonValue), nil
 }
 
-// submitPersonValue writes the field: a comma between values makes a list, nothing
-// removes it. A person with no card gets one first.
+// submitPersonValue writes the field: commas make a list, empty removes it. A person with no
+// card gets one first.
 func (m Model) submitPersonValue(input string) (Model, tea.Cmd) {
 	p := m.aimedAt.person
 	var values []string
@@ -216,8 +212,8 @@ func (m Model) handlePersonWritten(msg personWrittenMsg) (Model, tea.Cmd) {
 // cancelPerson goes back to the card from a prompt about one of its fields.
 func (m Model) cancelPerson() Model { return m.showPerson(m.aimedAt.person.key) }
 
-// personIdentifiers is everything the phonebook may know id's person by: every ID
-// the directory links to theirs and every ID of their identity (domain.CardIdentifiers).
+// personIdentifiers is every ID the phonebook may know id's person by: IDs the directory links
+// to theirs and their identity's IDs (domain.CardIdentifiers).
 func (m Model) personIdentifiers(id string) phonebook.Identifiers {
 	all := m.dir.dir.Identifiers(id)
 	if ident, ok := m.prefs.identities[id]; ok {
@@ -293,8 +289,8 @@ func (m Model) handleRoomPerson(msg roomPersonMsg) (Model, tea.Cmd) {
 	return m.openPerson(peer.UserID, stripIsolates(m.processedName(domain.Message{RoomID: msg.room.ID, Sender: peer.UserID, SenderName: peer.DisplayName})))
 }
 
-// personInView is :person: the selected message's sender from the timeline, else the
-// open room's one person.
+// personInView is :person: the selected message's sender in the timeline, else the open room's
+// one person.
 func (m Model) personInView() (Model, tea.Cmd) {
 	if m.focus == paneTimeline {
 		if _, ok := m.selectedMessage(); ok {

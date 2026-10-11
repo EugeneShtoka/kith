@@ -31,9 +31,8 @@ func (l failingLeaver) LeaveRoom(_ context.Context, room domain.RoomID) error {
 	return nil
 }
 
-// spaceCase is a generated space to leave: its rooms, the other spaces some of them are
-// in too (which may themselves be left, or be an account's own), and which rooms the
-// network refuses to let go.
+// spaceCase is a generated space to leave: its rooms, the other spaces some are also in (which
+// may be leavable or an account's own), and which rooms the network refuses to release.
 type spaceCase struct {
 	target domain.Space
 	others []domain.Space
@@ -76,9 +75,9 @@ func genSpaceCase(r *rand.Rand) spaceCase {
 	return c
 }
 
-// sharedRooms is, independently of the TUI, which of the target's rooms are also in a
-// space that could be left itself (an account's own space holds every room: not
-// another place), and wholeRooms which are parts of another forum, left only with it.
+// sharedRooms computes, independently of the TUI, which of the target's rooms are also in a
+// leavable space (an account's own space does not count); wholeRooms are parts of another
+// forum, left only with it.
 func (c spaceCase) sharedRooms() map[domain.RoomID]bool {
 	shared := map[domain.RoomID]bool{}
 	for _, o := range c.others {
@@ -104,16 +103,15 @@ func (c spaceCase) wholeRooms() map[domain.RoomID]bool {
 	return whole
 }
 
-// Leaving a space from the rail, over every kind of space, overlap with other spaces,
-// answer and refusal: nothing is left before the last yes, and a no there leaves
-// nothing; a WhatsApp community asks once and takes all its rooms; a Matrix space asks
-// whether its rooms go, then about each one also in another space (naming that space,
-// not an account's own), yes and no to all answering the rest, and a room of another
-// forum is kept, left only with all of it, which the last question says; a forum
-// itself goes with all its rooms, asked once; what goes is left, the
-// space last, and a room the network refuses neither stops the others nor the space,
-// and is named; a bridged room going is said to be left on its network only if its
-// bridge passes leaves on; a bridge's own space for an account is not left.
+// Leaving a space from the rail, over every space kind, overlap, answer and refusal:
+//   - nothing is left before the last yes, and a no leaves nothing;
+//   - a WhatsApp community asks once and takes all its rooms; so does a forum;
+//   - a Matrix space asks whether its rooms go, then about each also in another space (named,
+//     unless an account's own), with yes/no to all answering the rest; a room of another forum
+//     is kept, as the last question says;
+//   - rooms are left, the space last; a refused room stops nothing and is named;
+//   - a bridged room is said to be left on its network only if its bridge passes leaves on;
+//   - a bridge's own account space is not left.
 func TestLeavingASpaceFromTheRail(t *testing.T) {
 	t.Parallel()
 	r := rand.New(rand.NewPCG(11, 23))

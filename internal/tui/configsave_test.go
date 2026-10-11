@@ -8,8 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// Two quick changes save two snapshots on two goroutines. Whichever finishes last, the
-// file holds the newer one.
+// Two quick changes save two snapshots on two goroutines; the file ends with the newer.
 func TestAnOlderConfigSaveNeverLandsLast(t *testing.T) {
 	t.Parallel()
 
@@ -23,7 +22,7 @@ func TestAnOlderConfigSaveNeverLandsLast(t *testing.T) {
 	first := m.saveConfigFileCmd(older)
 	second := m.saveConfigFileCmd(newer)
 
-	// The newer save wins the race to the disk; the older one arrives after it.
+	// The newer save finishes first; the older arrives after it.
 	for _, cmd := range []func() any{func() any { return second() }, func() any { return first() }} {
 		if saved, ok := cmd().(configSavedMsg); !ok || saved.err != nil {
 			t.Fatalf("save = %#v, want success", saved)

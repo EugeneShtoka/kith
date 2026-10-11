@@ -14,12 +14,10 @@ import (
 )
 
 // derivedCache holds what the timeline reads from every loaded message (thread
-// structure, sender colors, name-column width) plus the rendered-row cache, per room,
-// recomputed only when the messages change. It is behind a pointer so every Model
-// copy shares it. Update fills it (primeTimeline) and View only reads it
-// (TestViewLeavesTheSharedCacheAlone). View must still not run while Update writes:
-// renderloop_test.go asserts the pinned Bubble Tea fork renders between Updates, on
-// their goroutine, and cmdreach_test.go that no tea.Cmd reaches the cache.
+// structure, sender colors, name-column width) and the rendered-row cache, per room,
+// recomputed only when messages change. Behind a pointer so every Model copy shares
+// it. Update fills it (primeTimeline), View only reads it; View never runs during an
+// Update (renderloop_test.go) and no tea.Cmd reaches it (cmdreach_test.go).
 
 // derivedKey identifies the message set a cached answer was computed from; rev is
 // bumped by setMessages.
@@ -29,28 +27,27 @@ type derivedKey struct {
 	rev    uint64
 	// cfg covers theme and identity settings, which a config reload can change.
 	cfg uint64
-	// unread fingerprints the room's unread state, which thread summary rows draw
-	// and which changes without any message changing. A fingerprint, not a counter:
-	// the unread state has no revision of its own.
+	// unread fingerprints the room's unread state, which thread summary rows draw and
+	// which changes without any message changing. It has no revision of its own.
 	unread uint64
 	// place fingerprints the room's name and spaces (placeFingerprint).
 	place uint64
 	// rtl: the timeline is mirrored (direction.go).
 	rtl bool
-	// selves fingerprints who this person is (isMe), which grows as accounts log in
-	// and decides which rows are drawn as one's own.
+	// selves fingerprints who this person is (isMe); it grows as accounts log in and
+	// decides which rows are drawn as one's own.
 	selves uint64
 	// phones is the phone book's revision: a sender shown as a number is named by it.
 	phones uint64
-	// members is the member list's revision: it names a person a mention writes only
-	// as a number (knownName), and arrives after the messages.
+	// members is the member list's revision: it names a person a mention writes only as
+	// a number (knownName), and arrives after the messages.
 	members uint64
 	// peers is the room-named people's revision (peeralias.go).
 	peers uint64
 }
 
-// fnvOffset and fnvMix are FNV-1a over strings, each followed by a separator so "1","23"
-// cannot hash as "12","3".
+// fnvOffset and fnvPrime are FNV-1a; each string is followed by a separator so
+// "1","23" cannot hash as "12","3".
 const fnvOffset, fnvPrime = uint64(14695981039346656037), uint64(1099511628211)
 
 func fnvMix(h uint64, s string) uint64 {
@@ -69,8 +66,7 @@ func selvesFingerprint(ids []string) uint64 {
 	return h
 }
 
-// unreadFingerprint is an FNV-1a hash of a room's unread state, per-thread counts
-// included.
+// unreadFingerprint is an FNV-1a hash of a room's unread state, per-thread counts included.
 func unreadFingerprint(u domain.Unread) uint64 {
 	h := fnvMix(fnvOffset, strconv.Itoa(u.Notifications))
 	h = fnvMix(h, strconv.Itoa(u.Highlights))
@@ -82,10 +78,9 @@ func unreadFingerprint(u domain.Unread) uint64 {
 	return h
 }
 
-// placeFingerprint is an FNV-1a hash of the open room as its messages' rows read it:
-// its label, its spaces (the first sets the sender-name rule), its network, whether it
-// is a DM, and the tags holding it (tracked words can be scoped by any of them). Space membership and room
-// names change without any message changing.
+// placeFingerprint is an FNV-1a hash of the open room as its rows read it: label,
+// spaces (the first sets the sender-name rule), network, DM-ness, and tags (tracked
+// words can be scoped by any). These change without any message changing.
 func placeFingerprint(f domain.RoomFacts) uint64 {
 	h := fnvMix(fnvOffset, f.ID)
 	h = fnvMix(h, f.Name)
@@ -94,8 +89,7 @@ func placeFingerprint(f domain.RoomFacts) uint64 {
 	}
 	h = fnvMix(h, f.Protocol.String())
 	h = fnvMix(h, strconv.FormatBool(f.Direct))
-	// The tags holding it: a home that picks name rules (homesOf); and the one its
-	// network's archive puts it in, which decides some of them.
+	// Tags: a home that picks name rules (homesOf), and the network archive's tag.
 	for _, tag := range f.Tags {
 		h = fnvMix(h, tag)
 	}
@@ -103,7 +97,7 @@ func placeFingerprint(f domain.RoomFacts) uint64 {
 	return h
 }
 
-// keyFor is the identity of everything derivedCache's answers depend on.
+// keyFor identifies everything derivedCache's answers depend on.
 func (m Model) keyFor() derivedKey {
 	k := derivedKey{
 		room:    m.openRoom,
@@ -135,36 +129,35 @@ type derivedCache struct {
 	shown []domain.Message
 	// hasMedia is whether anything in shown carries a file.
 	hasMedia bool
-	// index is each shown message's position, and loaded each loaded message's in
+	// index is each shown message's position, loaded each loaded message's in
 	// m.timeline.messages (a thread-folded reply is loaded but not shown).
 	index  map[domain.EventID]int
 	loaded map[domain.EventID]int
 	colors map[string]color.Color
 	nameW  int
-	// slots pins each identity group to the hue index it was first given in this
-	// room. Slots are never renumbered, so a newly loaded sender cannot repaint
-	// everyone else mid-scroll.
+	// slots pins each identity group to the hue index first given it in this room. Never
+	// renumbered, so a newly loaded sender cannot repaint everyone mid-scroll.
 	slots     map[string]int
 	slotsRoom domain.RoomID
 	next      int
-	// unsaved are slots assigned when colors were last computed, flushed to the store
-	// by the next Update.
+	// unsaved are slots assigned at the last color pass, flushed to the store by the next
+	// Update.
 	unsaved map[string]int
 
-	// rowCache is one entry per shown message, emptied when the message set, width
-	// or name column changes.
+	// rowCache has one entry per shown message, emptied when the message set, width or
+	// name column changes.
 	rowCache []rowEntry
 	rowWidth int
 	rowNameW int
-	// suffix[i] is how many rows messages [i:] occupy, valid for i >= suffixFrom,
-	// so finding the window costs the same at any scroll depth.
+	// suffix[i] is how many rows messages [i:] occupy, valid for i >= suffixFrom, so
+	// finding the window costs the same at any scroll depth.
 	suffix     []int
 	suffixFrom int
 	// inputsRev counts changes to what rows depend on besides the messages (reactions,
 	// pictures); anchoredRev is the count anchorBelow last looked at.
 	inputsRev, anchoredRev uint64
-	// drops counts dropSuffixAt calls, so a layout can tell that a row it drew changed
-	// height under the totals it was placed by.
+	// drops counts dropSuffixAt calls, so a layout can tell a row it drew changed height
+	// under the totals it was placed by.
 	drops int
 }
 
@@ -191,8 +184,8 @@ func (d *derivedCache) dropSuffixAt(i int) {
 	}
 }
 
-// extendTo walks further back until the running totals cover budget rows, or the
-// oldest loaded message is reached.
+// extendTo walks back until the running totals cover budget rows or reach the oldest
+// loaded message.
 func (m Model) extendTo(w walk, budget int) {
 	m.extendWhile(w, func(d *derivedCache) bool { return d.suffix[d.suffixFrom] < budget })
 }
@@ -232,20 +225,17 @@ func (d *derivedCache) startFor(budget int) int {
 	return lo
 }
 
-// newDerivedCache is the empty cache a Model starts with.
 func newDerivedCache() *derivedCache { return &derivedCache{slots: map[string]int{}} }
 
 // frameClock says which Model the shared cache was last made final for. Shared by
-// every copy (a pointer, like derived); atomic so a stamp is unique even when Updates
-// run concurrently (parallel tests sharing a Model), though the app runs them on one
-// goroutine.
+// every copy (a pointer); atomic so stamps stay unique even with concurrent Updates
+// (parallel tests sharing a Model).
 type frameClock struct {
 	issued, primed atomic.Uint64
 }
 
-// stamp marks the cache as final for the Model Update is about to return, and gives
-// that Model the stamp; primed then names it. Unique per Update, so no other copy of
-// the Model (an older one, a sibling Update's) carries it.
+// stamp marks the cache final for the Model Update is about to return and gives that
+// Model the stamp. Unique per Update, so no other copy carries it.
 func (c *frameClock) stamp() uint64 {
 	n := c.issued.Add(1)
 	c.primed.Store(n)
@@ -267,8 +257,8 @@ func (d *derivedCache) scratch() *derivedCache {
 	return s
 }
 
-// derivedFor returns the cached answers for the current message set, computing
-// them when the set has changed since the last call.
+// derivedFor returns the cached answers for the current message set, recomputing when
+// it changed.
 func (m Model) derivedFor() *derivedCache {
 	d := m.derived
 	if d == nil {
@@ -305,8 +295,8 @@ func (m Model) computeDerived(d *derivedCache) *derivedCache {
 	}
 	d.nameW = 0
 	d.hasMedia = false
-	// A name's width depends only on who, under what name, in which room: measured
-	// once per sender, not once per message.
+	// A name's width depends only on who, under what name, in which room: measured once
+	// per sender.
 	type nameOf struct {
 		sender, name string
 		room         domain.RoomID
@@ -339,11 +329,10 @@ func (m Model) computeDerived(d *derivedCache) *derivedCache {
 // rowEntry is one message's rendered rows, and the inputs they were drawn from.
 type rowEntry struct {
 	rows []string
-	// divider: a date divider belongs above (not in rows, so a message's span
-	// excludes it).
+	// divider: a date divider belongs above (not in rows, so a message's span excludes it).
 	divider bool
-	// unread: the unread line belongs above, replacing the date divider if both
-	// apply (see unreadRow).
+	// unread: the unread line belongs above, replacing the date divider if both apply
+	// (see unreadRow).
 	unread bool
 	valid  bool
 	// height is len(rows) plus any rule above.
@@ -355,15 +344,14 @@ type rowEntry struct {
 
 // rowInputs is everything one message's rows read that can change while the message
 // does not. One comparable struct, so an input is added in one place and compared by
-// ==: a key kept field by field is how three audits found inputs it missed. What the
-// whole timeline reads (theme, width, the room's place) is in derivedKey instead.
-// TestTheRowRendererReadsOnlyKeyedState holds the list against the renderer's reads.
+// ==. Whole-timeline inputs (theme, width, place) are in derivedKey.
+// TestTheRowRendererReadsOnlyKeyedState checks this list against the renderer's reads.
 type rowInputs struct {
-	// reactions fingerprints the chips drawn (key and count), not how many there are:
-	// a swap at the same count must re-render.
+	// reactions fingerprints the chips drawn (key and count): a swap at the same count
+	// must re-render.
 	reactions uint64
-	// images is the picture rows drawn: they are replaced whole, never edited, so the
-	// slice's first element and length name them.
+	// images is the picture rows drawn: replaced whole, never edited, so the slice's
+	// first element and length identify them.
 	images  *string
 	imagesN int
 	threads int
@@ -376,8 +364,8 @@ type rowInputs struct {
 	pictures bool
 }
 
-// ruleAbove is which horizontal rule, if any, belongs above a message; at most one
-// is drawn (see unreadRow).
+// ruleAbove is which horizontal rule, if any, belongs above a message; at most one is
+// drawn (see unreadRow).
 type ruleAbove struct {
 	date   bool
 	unread bool
@@ -387,7 +375,7 @@ type ruleAbove struct {
 func (r ruleAbove) any() bool { return r.date || r.unread }
 
 // entryFor is message i's cached unselected rows, re-rendered if an input moved.
-// Selection never changes height, so the totals stay valid as the cursor moves.
+// Selection never changes height, so totals stay valid as the cursor moves.
 func (m Model) entryFor(w walk, i int) *rowEntry {
 	d := w.derived
 	e := &d.rowCache[i]
@@ -420,8 +408,8 @@ func (m Model) renderEntry(w walk, i int) rowEntry {
 	return e
 }
 
-// rowInputsChanged tells the row cache that a reaction or a picture changed, so the
-// messages scrolled past are checked for it (see anchorBelow).
+// rowInputsChanged tells the row cache a reaction or picture changed, so messages
+// scrolled past are rechecked (see anchorBelow).
 func (m Model) rowInputsChanged() {
 	if m.derived != nil {
 		m.derived.inputsRev++
@@ -458,14 +446,12 @@ func reactionFingerprint(tallies []domain.ReactionTally) uint64 {
 	return h
 }
 
-// current reports whether e was rendered from these inputs.
 func (e *rowEntry) current(want rowInputs) bool { return e.valid && e.in == want }
 
 // heightOf is how many rows message i occupies, its date divider included.
 func (m Model) heightOf(w walk, i int) int { return m.entryFor(w, i).height }
 
-// cachedRows is message i's rows as drawn now: cached, or freshly rendered when
-// selected.
+// cachedRows is message i's rows as drawn now: cached, or freshly rendered when selected.
 func (m Model) cachedRows(w walk, i int) (rows []string, rule ruleAbove) {
 	e := m.entryFor(w, i)
 	above := ruleAbove{date: e.divider, unread: e.unread}
@@ -484,8 +470,8 @@ func (d *derivedCache) at(id domain.EventID) (domain.Message, bool) {
 	return d.shown[i], true
 }
 
-// collapse is the thread structure of the loaded messages, with the daemon's
-// unread counts folded in.
+// collapse is the loaded messages' thread structure with the daemon's unread counts
+// folded in.
 func (m Model) collapse() ([]domain.Message, []domain.Thread) {
 	main, threads := domain.CollapseThreads(m.timeline.messages)
 	room, ok := m.currentRoom()
@@ -496,8 +482,8 @@ func (m Model) collapse() ([]domain.Message, []domain.Thread) {
 	return main, domain.WithUnread(threads, m.unread[room.ID])
 }
 
-// assignColors gives every sender in msgs a color by identity group: a pinned color
-// when configured, else the hue of the group's slot.
+// assignColors colors every sender in msgs by identity group: a pinned color when
+// configured, else the group's slot hue.
 func (m Model) assignColors(d *derivedCache, msgs []domain.Message) map[string]color.Color {
 	group := make(map[string]string)       // MXID → group key
 	pinned := make(map[string]color.Color) // group key → pinned color
@@ -545,14 +531,14 @@ func (m Model) assignColors(d *derivedCache, msgs []domain.Message) map[string]c
 	return out
 }
 
-// adoptSlots takes the slots stored for this room, which win over local ones; next
-// moves past the highest slot seen.
+// adoptSlots takes the room's stored slots, which win over local ones; next moves
+// past the highest seen.
 func (d *derivedCache) adoptSlots(room domain.RoomID, stored map[string]int) bool {
 	if room == "" || len(stored) == 0 {
 		return false
 	}
-	// Claimed rather than required: the answer often arrives before any color was
-	// asked for. The caller has checked this is the open room.
+	// Claimed, not required: the answer often arrives before any color was asked for.
+	// The caller has checked this is the open room.
 	d.claimRoom(room)
 	changed := false
 	for key, slot := range stored {
@@ -578,8 +564,8 @@ func (d *derivedCache) claimRoom(room domain.RoomID) {
 	}
 }
 
-// takeUnsaved returns the slots awaiting a write and forgets them, so a failing
-// store costs color memory rather than an unbounded retry queue.
+// takeUnsaved returns and forgets the slots awaiting a write, so a failing store
+// costs color memory rather than an unbounded retry queue.
 func (d *derivedCache) takeUnsaved() (domain.RoomID, map[string]int) {
 	if len(d.unsaved) == 0 {
 		return "", nil
@@ -589,8 +575,8 @@ func (d *derivedCache) takeUnsaved() (domain.RoomID, map[string]int) {
 	return d.slotsRoom, slots
 }
 
-// hues resolves every slot into a color: pinned ones as configured, the rest spread
-// across the wheel clear of the pinned ones (e.g. the green reserved for "me").
+// hues resolves every slot to a color: pinned ones as configured, the rest spread
+// around the wheel clear of the pinned ones (e.g. the green reserved for "me").
 func (m Model) hues(d *derivedCache, pinned map[string]color.Color) map[string]color.Color {
 	avoid := slices.SortedFunc(maps.Values(pinned), func(a, b color.Color) int {
 		return cmp.Compare(avoidOrderKey(a), avoidOrderKey(b))

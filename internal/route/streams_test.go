@@ -27,8 +27,7 @@ func waitClosed[T any](t *testing.T, what string, ch <-chan T) []T {
 	}
 }
 
-// The merged stream carries every network's events and closes only once every
-// network's has.
+// The merged stream carries every network's events and closes once all have closed.
 func TestTheMergedStreamCarriesEveryNetwork(t *testing.T) {
 	t.Parallel()
 	r, m, wa := twoNetworks(t)
@@ -64,13 +63,12 @@ func TestTheMergedStreamCarriesEveryNetwork(t *testing.T) {
 	}
 }
 
-// Stopping ends the merge even when nobody reads it any more and the networks never
-// close theirs: a pump blocked on a full stream must not outlive the daemon.
+// Stop ends a merge nobody reads even if the networks never close theirs.
 func TestStoppingEndsAMergeNobodyReads(t *testing.T) {
 	t.Parallel()
 	r, m, wa := twoNetworks(t)
 	merged := r.Reactions()
-	// Fill the merged buffer and the networks' own, so the pumps are blocked sending.
+	// Fill the merged and network buffers so the pumps block sending.
 	for range streamBuffer + 8 {
 		select {
 		case m.reactions <- domain.ReactionUpdate{}:
@@ -90,8 +88,8 @@ func TestStoppingEndsAMergeNobodyReads(t *testing.T) {
 	r.Stop() // twice is harmless
 }
 
-// Start runs every network at once: one that blocks does not hold the other back,
-// and each one's ending is reported.
+// Networks start concurrently; a blocking one does not hold back the other, and each
+// ending is reported.
 func TestStartRunsEveryNetworkTogether(t *testing.T) {
 	t.Parallel()
 	r, m, wa := twoNetworks(t)

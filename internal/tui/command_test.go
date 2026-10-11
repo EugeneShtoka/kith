@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// Lists have both a `/` form (this room) and a `:` form (the pane's scope);
-// commands about the session or every room are `:` only; commands acting on the
-// room you write in are `/` only.
+// Lists have a `/` form (this room) and a `:` form (the pane's scope); session and
+// all-room commands are `:` only; commands on the room you write in are `/` only.
 func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 	t.Parallel()
 
@@ -28,8 +27,7 @@ func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 		// A person's, not a room's: their phonebook card.
 		"person": true,
 	}
-	// both act on the room written in as /, and on the open room or the rail's place
-	// as : (tab moves between them).
+	// both act on the room written in as /, and on the open room or the rail's place as :.
 	both := map[string]bool{"shortcut": true}
 	want := map[string]bool{}
 	for name := range lists {
@@ -61,7 +59,7 @@ func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 		t.Errorf(":%s is missing from the command line", name)
 	}
 
-	// Symmetry, so neither table can gain half of a pair unnoticed.
+	// Symmetry, so neither table gains half a pair unnoticed.
 	slashNames := map[string]bool{}
 	for _, cmd := range slashCommands {
 		slashNames[strings.TrimPrefix(cmd.name, "/")] = true
@@ -114,7 +112,7 @@ func TestCommandLineParsing(t *testing.T) {
 	}
 }
 
-// On the command line, accepting a completion runs it — one enter, not two.
+// On the command line, accepting a completion runs it: one enter, not two.
 func TestAcceptingACommandRunsItImmediately(t *testing.T) {
 	t.Parallel()
 
@@ -140,7 +138,7 @@ func TestAcceptingACommandRunsItImmediately(t *testing.T) {
 		t.Errorf("results pane showing %q, want the file list — the command did not run",
 			m.search.showing().name())
 	}
-	// :files opens its own narrowing prompt, so the command line itself is gone.
+	// :files opens its own prompt, replacing the command line.
 	if m.prompt.kind != promptFiles {
 		t.Errorf("prompt = %d, want the file list's own prompt", m.prompt.kind)
 	}
@@ -167,7 +165,7 @@ func TestCommandLineNarrowsAsYouType(t *testing.T) {
 	}
 }
 
-// The command menu is drawn below the composer, beside the status line it completes.
+// The command menu draws below the composer, beside the status line.
 func TestCommandMenuIsDrawnBelowTheComposer(t *testing.T) {
 	t.Parallel()
 
@@ -196,7 +194,7 @@ func TestCommandMenuIsDrawnBelowTheComposer(t *testing.T) {
 	}
 }
 
-// The shortcut shown comes from the live keymap, so a rebind follows.
+// The shortcut shown follows a rebind.
 func TestCommandsShowTheirShortcut(t *testing.T) {
 	t.Parallel()
 

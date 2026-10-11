@@ -6,12 +6,9 @@ import (
 	"time"
 )
 
-// Where a saved attachment goes.
-
-// DownloadPlace is what the template has to work with: everything about the message
-// being saved that a person might want in the path.
+// DownloadPlace is what a download path template can use about the message saved.
 type DownloadPlace struct {
-	// RoomID is what a rule matches on; a displayed name is not a handle.
+	// RoomID is what a rule matches on.
 	RoomID string
 	Space  string
 	Room   string
@@ -26,21 +23,19 @@ type DownloadPlace struct {
 	Sent time.Time
 }
 
-// DownloadTarget is a resolved destination: the directory to create, and the file to
-// write inside it.
+// DownloadTarget is a resolved destination: the directory to create and the file name.
 type DownloadTarget struct {
 	Dir  string
 	Name string
 }
 
-// Path is the whole thing, for saying where a file went.
+// Path is the full file path.
 func (t DownloadTarget) Path() string { return filepath.Join(t.Dir, t.Name) }
 
-// NoTemplate is what a per-place rule writes to mean "no layout here", which an empty
-// string cannot say because empty means "inherit".
+// NoTemplate turns the layout off for a place; an empty template means inherit.
 const NoTemplate = "-"
 
-// ResolveDownload works out where one attachment belongs.
+// ResolveDownload works out where an attachment is saved.
 func ResolveDownload(dir, template string, rules []DownloadRule, place DownloadPlace) DownloadTarget {
 	if rule, ok := narrowestDownloadRule(rules, place); ok {
 		if rule.Dir != "" {
@@ -50,16 +45,14 @@ func ResolveDownload(dir, template string, rules []DownloadRule, place DownloadP
 			template = rule.Template
 		}
 	}
-	// The filename comes off a message a stranger wrote, so only its last element is
-	// taken before anything else looks at it.
+	// The filename is untrusted: keep only its last element.
 	name := safeSegment(filepath.Base(filepath.Clean("/"+place.Name)), "attachment")
 	if strings.TrimSpace(template) == "" || template == NoTemplate {
 		return DownloadTarget{Dir: dir, Name: name}
 	}
 
 	expanded := expandDownloadTemplate(template, place, name)
-	// A template that expands to nothing but empty segments — "{space}/{room}" in a
-	// room that is in no space and has no name — must still save the file somewhere.
+	// A template of only empty fields still saves the file.
 	if expanded == "" {
 		return DownloadTarget{Dir: dir, Name: name}
 	}
@@ -69,7 +62,7 @@ func ResolveDownload(dir, template string, rules []DownloadRule, place DownloadP
 	}
 }
 
-// DownloadRule is one per-place override, in the pure layer's own terms.
+// DownloadRule is one per-place override.
 type DownloadRule struct {
 	// Match is a room ID, a space's name or a thread root; Sender is an MXID.
 	Match  string
@@ -79,8 +72,7 @@ type DownloadRule struct {
 	Template string
 }
 
-// narrowestDownloadRule picks the rule that applies — the most specific one, by the
-// ladder every other per-place setting is resolved with.
+// narrowestDownloadRule picks the most specific matching rule (Narrowest).
 func narrowestDownloadRule(rules []DownloadRule, place DownloadPlace) (DownloadRule, bool) {
 	at, ok := Narrowest(Matches(rules, func(r DownloadRule) Match {
 		return Match{Place: r.Match, Sender: r.Sender}
@@ -91,13 +83,11 @@ func narrowestDownloadRule(rules []DownloadRule, place DownloadPlace) (DownloadR
 	return rules[at], true
 }
 
-// scope is the DownloadPlace as the rule ladder sees it.
 func (p DownloadPlace) scope() Scope {
 	return Scope{RoomID: p.RoomID, Space: p.Space, Thread: p.Thread, Sender: p.Sender}
 }
 
-// expandDownloadTemplate fills the fields in, one safe segment each, and drops the path
-// separators an empty field leaves behind.
+// expandDownloadTemplate fills in fields as safe segments and drops empty segments.
 func expandDownloadTemplate(template string, place DownloadPlace, name string) string {
 	stem, ext := splitFileName(name)
 	fields := map[string]string{
@@ -108,7 +98,7 @@ func expandDownloadTemplate(template string, place DownloadPlace, name string) s
 		"{name}":   safeSegment(stem, "attachment"),
 		"{ext}":    safeExt(ext),
 		"{date}":   place.Sent.Format("2006-01-02"),
-		"{time}":   place.Sent.Format("15-04"), // not HH:MM — a colon is a poor filename
+		"{time}":   place.Sent.Format("15-04"), // no colon in filenames
 	}
 	if place.Sent.IsZero() {
 		fields["{date}"], fields["{time}"] = "", ""
@@ -119,7 +109,6 @@ func expandDownloadTemplate(template string, place DownloadPlace, name string) s
 		for field, value := range fields {
 			segment = strings.ReplaceAll(segment, field, value)
 		}
-		// A separator is meaningful; a segment that expanded to nothing is not.
 		if segment = strings.Trim(segment, " -_"); segment != "" {
 			parts = append(parts, segment)
 		}
@@ -127,16 +116,14 @@ func expandDownloadTemplate(template string, place DownloadPlace, name string) s
 	return filepath.Join(parts...)
 }
 
-// splitFileName divides a filename into the part a template calls {name} and the part it
-// calls {ext}.
+// splitFileName splits a filename into {name} and {ext}.
 func splitFileName(name string) (stem, ext string) {
 	ext = filepath.Ext(name)
 	return strings.TrimSuffix(name, ext), ext
 }
 
-// safeSegment reduces a value to one path segment that cannot traverse anywhere: no
-// separators, no "..", no leading dot to hide the file, and no control characters.
-// fallback is used when nothing survives.
+// safeSegment reduces value to one path segment: no separators, "..", leading dot or
+// control characters. fallback is used when nothing survives.
 func safeSegment(value, fallback string) string {
 	value = strings.Map(func(r rune) rune {
 		switch {
@@ -148,7 +135,6 @@ func safeSegment(value, fallback string) string {
 			return r
 		}
 	}, value)
-	// Any run of dots collapses to one.
 	for strings.Contains(value, "..") {
 		value = strings.ReplaceAll(value, "..", ".")
 	}
@@ -160,8 +146,7 @@ func safeSegment(value, fallback string) string {
 	return value
 }
 
-// safeExt keeps an extension that looks like one and drops anything else, so a
-// "filename" ending in "/.." contributes nothing.
+// safeExt sanitizes an extension; one ending in "/.." yields "".
 func safeExt(ext string) string {
 	if ext == "" {
 		return ""

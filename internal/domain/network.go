@@ -2,10 +2,9 @@ package domain
 
 import "strings"
 
-// IDs say their network. A Matrix ID stays bare, as Matrix writes it ("!room:server",
-// "@user:server", "$event"), so every ID already in the cache, in a config or in a
-// draft keeps meaning what it meant. Any other network's ID carries its network as a
-// prefix, which a Matrix ID can never start with, because Matrix IDs start with a sigil:
+// A Matrix ID stays bare ("!room:server", "@user:server", "$event"). Any other
+// network's ID carries a network prefix, which a Matrix ID (starting with a sigil)
+// never has:
 //
 //	whatsapp:<account>/<chat>   a room: one chat as one account sees it
 //	whatsapp:<account>/<msg>    an event in that room
@@ -18,22 +17,16 @@ import "strings"
 //	telegram:<user>             a person
 //
 // Rooms and events name the account because one person may run several accounts on a
-// network: a group both are in is two rooms (each sends through its own account), and
-// the same message reaches both with the same native ID. A person does not, because a
-// person's network ID is the same whoever is looking, and that is what lets the same
-// contact fold into one identity across accounts. <account> is the account's own
-// stable ID on that network (for WhatsApp, its phone number's digits; for Slack, the
-// workspace's team ID; for Telegram, the account's own user ID), never a label from
-// the config, so renaming a label strands nothing.
+// network, and a shared group is then two rooms with the same native message IDs. A
+// person's ID names no account, so a contact folds into one identity across accounts.
+// <account> is the account's stable network ID (WhatsApp phone digits, Slack team ID,
+// Telegram user ID), never a config label.
 //
-// A Telegram <peer> is "marked" as the Bot API writes it — a user's ID, a basic
-// group's negated, a channel's or supergroup's as -100<id> — since the three kinds'
-// IDs overlap otherwise.
+// A Telegram <peer> is "marked" as in the Bot API (user ID, basic group negated,
+// channel/supergroup -100<id>) because the three kinds' IDs overlap.
 
-// accountSep ends the account part. It never occurs in a native ID that kith keeps
-// (a WhatsApp JID has '@', '.', and ':' for a device, never '/'; a Slack team, channel
-// or user ID is letters and digits; a Telegram ID is digits and a sign), except as
-// Slack's and Telegram's own chat/message separator, after the account part.
+// accountSep ends the account part. No kept native ID contains it, except as Slack's
+// and Telegram's chat/message separator after the account part.
 const accountSep = "/"
 
 // native is what kith knows about one network that it reaches directly.
@@ -171,9 +164,8 @@ func NativePerson(network Protocol, native string) string {
 	return prefixOf(network) + ":" + native
 }
 
-// RoomOwner names the rooms one writer keeps in the cache: Matrix's, or one account's
-// on another network. Each writer reconciles only its own rooms, so one network's
-// refresh can never sweep away another's history.
+// RoomOwner names the rooms one cache writer owns: Matrix's, or one account's. Each
+// writer reconciles only its own rooms, so one network's refresh never sweeps another's.
 type RoomOwner string
 
 // MatrixRooms owns every Matrix room (all Matrix room IDs start with "!").

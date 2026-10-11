@@ -11,12 +11,10 @@ import (
 	"unsafe"
 )
 
-// On Windows the process group is a KILL_ON_JOB_CLOSE job object: terminating it ends
-// every process in it, and since only this daemon holds the handle, the kernel kills
-// the server when the daemon dies (the PR_SET_PDEATHSIG equivalent). There is no
-// graceful stop without a console, so stop is immediate. The process joins the job just
-// after starting; llama-server spawns no children in that window. Plain syscall because
-// this package may import only the standard library.
+// On Windows the group is a KILL_ON_JOB_CLOSE job object: only this daemon holds the
+// handle, so the kernel kills the server when the daemon dies (the PR_SET_PDEATHSIG
+// equivalent). Without a console there is no graceful stop. Plain syscall because this
+// package imports only the standard library.
 
 var (
 	kernel32                    = syscall.NewLazyDLL("kernel32.dll")
@@ -66,8 +64,7 @@ type jobExtendedLimit struct {
 	PeakJobMemoryUsed     uintptr
 }
 
-// tree is the server's job, or nil if none could be made (then only the process is
-// terminated).
+// tree is the server's job; nil if none could be made, then only the process is killed.
 type tree struct{ job *job }
 
 // job is a job handle shared by stop and the reaper; the mutex keeps a closed (and
@@ -85,8 +82,7 @@ func groupAttr() *syscall.SysProcAttr {
 
 // adopt puts the running process into a fresh kill-on-close job.
 func adopt(cmd *exec.Cmd) tree {
-	// Best effort throughout: without the job, the server is still stopped by
-	// stop(); only an orphan of a crashed client could outlive it.
+	// Best effort: without the job, stop() still works; only a crash could orphan it.
 	h, err := newKillOnCloseJob()
 	if err != nil {
 		return tree{}
@@ -136,7 +132,6 @@ func (t tree) release() {
 	}
 }
 
-// errGone is terminate's "there was nothing left to stop".
 var errGone = errors.New("llamacpp: process already gone")
 
 // terminate ends the job, or the process alone when there is no job.
@@ -158,5 +153,5 @@ func (s *server) terminate() error {
 	return nil
 }
 
-// kill is terminate again: on Windows the first stop is already the hard one.
+// kill is terminate: on Windows the first stop is already hard.
 func (s *server) kill() { _ = s.terminate() }

@@ -67,9 +67,8 @@ func TestAPollDrawsItsAnswersAndTheVote(t *testing.T) {
 	}
 }
 
-// The vote key offers the answers: one is chosen and voted; a voted poll offers taking
-// the vote back; a poll taking several answers votes what is ticked; a closed poll
-// opens to be read, and votes nothing.
+// The vote key offers the answers: one is voted; a voted poll offers taking it back; a
+// multi-answer poll votes what is ticked; a closed poll opens read-only.
 func TestVotingInAPoll(t *testing.T) {
 	t.Parallel()
 	b := &voteBackend{}
@@ -126,10 +125,9 @@ func TestVotingInAPoll(t *testing.T) {
 	b.mu.Unlock()
 }
 
-// The timeline draws a poll's counts alone; the vote key reads who voted and says
-// under the answers who chose each: this person as "you" first, others as the sender
-// column would or, for someone kith does not know, as the network called them, and
-// how many more the network did not name. An answer nobody chose adds nothing.
+// The timeline draws counts only; the vote key lists under each answer who chose it: "you"
+// first, others as the sender column would or, if unknown, as the network named them, plus
+// how many more were not named. An answer nobody chose adds nothing.
 func TestThePollPickerNamesWhoChoseEachAnswer(t *testing.T) {
 	t.Parallel()
 	p := hikePoll()
@@ -162,8 +160,8 @@ func TestThePollPickerNamesWhoChoseEachAnswer(t *testing.T) {
 	}
 }
 
-// Why no one is named is said; an answer for another poll, or once the picker has
-// closed, is not kept.
+// Why no one is named is said; an answer for another poll, or after the picker closed, is
+// dropped.
 func TestThePollPickerSaysWhyNoOneIsNamed(t *testing.T) {
 	t.Parallel()
 	for hidden, want := range map[domain.PollHiding]string{

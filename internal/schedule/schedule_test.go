@@ -15,8 +15,6 @@ func tempStore(t *testing.T) *Store {
 	return New(filepath.Join(t.TempDir(), "scheduled.toml"))
 }
 
-// A queue survives the round trip whole: the body, where it goes, the thread it belongs
-// to, and the instant it is due.
 func TestRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -49,7 +47,6 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-// Every account that has never scheduled anything has no file.
 func TestAMissingFileIsAnEmptyQueue(t *testing.T) {
 	t.Parallel()
 
@@ -62,8 +59,6 @@ func TestAMissingFileIsAnEmptyQueue(t *testing.T) {
 	}
 }
 
-// The file is meant to be editable by hand, so one bad timestamp must cost that entry
-// and not the queue — the entries are the one thing here that cannot be fetched again.
 func TestABadEntryIsReportedAndTheRestSurvive(t *testing.T) {
 	t.Parallel()
 
@@ -98,14 +93,13 @@ written = "2026-09-06T09:00:00Z"
 	}
 }
 
-// The queue holds message bodies nobody has sent yet, so the file is owner-only — and
-// stays that way when it is replaced, since Save writes a new file and renames.
+// The file stays owner-only across rewrites.
 func TestTheFileIsOwnerOnly(t *testing.T) {
 	t.Parallel()
 
 	s := tempStore(t)
 	at := time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC)
-	for range 2 { // twice: the mode has to survive a rewrite, not just creation
+	for range 2 { // the mode must survive a rewrite
 		if err := s.Save([]domain.ScheduledMessage{{ID: "a", RoomID: "!a:x", Body: "hi", At: at}}); err != nil {
 			t.Fatalf("Save: %v", err)
 		}
@@ -119,7 +113,6 @@ func TestTheFileIsOwnerOnly(t *testing.T) {
 	}
 }
 
-// Save leaves nothing behind.
 func TestSaveLeavesNoTempFiles(t *testing.T) {
 	t.Parallel()
 
@@ -141,8 +134,7 @@ func TestSaveLeavesNoTempFiles(t *testing.T) {
 	}
 }
 
-// An empty queue is written as an empty file rather than removed, so "nothing scheduled"
-// and "never scheduled anything" both load the same way.
+// An empty queue is written as an empty file, not removed.
 func TestSavingAnEmptyQueue(t *testing.T) {
 	t.Parallel()
 
@@ -159,8 +151,6 @@ func TestSavingAnEmptyQueue(t *testing.T) {
 	}
 }
 
-// A queued message has to come back off disk as the message it was: the reply it answers
-// and the pills written into it, not just the words.
 func TestReplyAndMentionsSurviveTheFile(t *testing.T) {
 	t.Parallel()
 
@@ -190,7 +180,7 @@ func TestReplyAndMentionsSurviveTheFile(t *testing.T) {
 		got[0].Mentions[0].Name != "Dana" {
 		t.Errorf("mentions = %+v, want Dana's pill", got[0].Mentions)
 	}
-	// It is a queue somebody can read and edit, so the keys have to be legible.
+	// The file is hand-editable, so keys must be legible.
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +192,7 @@ func TestReplyAndMentionsSurviveTheFile(t *testing.T) {
 	}
 }
 
-// A hand-written entry without the optional keys loads with no reply and no pills.
+// An entry without the optional keys loads with no reply and no pills.
 func TestAMinimalEntryLoads(t *testing.T) {
 	t.Parallel()
 

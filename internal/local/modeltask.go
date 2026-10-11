@@ -16,15 +16,13 @@ import (
 )
 
 // The model layer: one endpoint, several tasks, and the rails around them. Every
-// decision about whether to ask lives here (and in domain/assist.go): an endpoint
-// must be configured, the room must be opted in (encrypted rooms twice, see
-// domain.AllowModel), a per-minute cap applies, and a dry run shows the exact
-// request without sending it.
+// decision to ask lives here and in domain/assist.go: a configured endpoint, an opted-in
+// room (encrypted rooms twice, see domain.AllowModel), a per-minute cap, and dry runs
+// that show the exact request unsent.
 
-// ModelSettings is the model layer's configuration, translated from the config file
-// by the caller.
+// ModelSettings is the model layer's configuration, translated by the caller.
 type ModelSettings struct {
-	// Endpoint is one OpenAI-compatible chat URL. Empty is off, and is the default.
+	// Endpoint is one OpenAI-compatible chat URL; empty (the default) is off.
 	Endpoint string
 	// Model is the model name; Key the API key (may be empty for a local model).
 	Model string
@@ -52,7 +50,7 @@ type modelLayer struct {
 	mu       sync.Mutex
 	settings ModelSettings
 	client   *llm.Client
-	// recent are the send times within the last minute (a rolling window).
+	// recent are the send times within the last minute.
 	recent []time.Time
 	// now is time.Now, replaced in tests.
 	now func() time.Time
@@ -62,7 +60,7 @@ type modelLayer struct {
 func (s *Service) UseModel(settings ModelSettings) {
 	client, err := llm.New(settings.Endpoint, settings.Model, settings.Key, settings.Timeout)
 	if err != nil {
-		// New's only error is "nothing configured": the layer then refuses with a reason.
+		// New's only error is "nothing configured"; the layer then refuses with a reason.
 		client = nil
 	}
 	s.model.mu.Lock()
@@ -79,8 +77,8 @@ func (s *Service) ModelTask(ctx context.Context, req domain.ModelRequest) (domai
 	client := s.model.client
 	s.model.mu.Unlock()
 
-	// A completion is answered by the local model only (see completionmodel.go); the
-	// endpoint serves the deliberate tasks (summary, todo, rewrite).
+	// Completions are answered only by the local model; the endpoint serves the deliberate
+	// tasks (summary, todo, rewrite).
 	if req.Task == domain.ModelComplete {
 		return s.completeFromModel(ctx, req, settings), nil
 	}
@@ -110,7 +108,7 @@ func (s *Service) ModelTask(ctx context.Context, req domain.ModelRequest) (domai
 		return result, nil
 	}
 
-	// A dry run returns the exact request instead of sending it (for `why`).
+	// A dry run returns the exact request unsent (for `why`).
 	if req.DryRun {
 		result.Text = describeAsk(task, fields)
 		return result, nil
@@ -128,13 +126,13 @@ func (s *Service) ModelTask(ctx context.Context, req domain.ModelRequest) (domai
 	return result, nil
 }
 
-// refuseAsk returns the first reason not to ask, cheapest first; it costs no request.
+// refuseAsk returns the first reason not to ask, cheapest first, costing no request.
 func (s *Service) refuseAsk(ctx context.Context, req domain.ModelRequest, settings ModelSettings) (string, error) {
-	// Room-reading tasks have no draft (and dry runs are exempt from this check).
+	// Room-reading tasks have no draft; dry runs are exempt.
 	if strings.TrimSpace(req.Draft) == "" && !req.DryRun && !readsRooms(req.Task) {
 		return "nothing written to work from", nil
 	}
-	// todo picks its own rooms and checks each (see todoFields).
+	// todo picks its own rooms and checks each.
 	if req.Task == domain.ModelTodo {
 		return "", nil
 	}
@@ -161,15 +159,15 @@ func (s *Service) permitModel(ctx context.Context, roomID domain.RoomID, setting
 		settings.Endpoint, s.roomEncrypted(ctx, roomID)), nil
 }
 
-// errNoPlaces refuses the model opt-in while the cache is off: where a room sits is
-// unknown, and a scope decided on a guess fails open.
+// errNoPlaces refuses the model opt-in while the cache is off: a scope decided on a
+// guess fails open.
 var errNoPlaces = errors.New("local: the cache is off, so which spaces a room is in is unknown")
 
 // roomFacts gathers what a scope entry can match: name, spaces, DM flag, and the
-// network, taken from the owning space's bridge rather than from senders.
+// network taken from the owning space's bridge rather than senders.
 func (s *Service) roomFacts(ctx context.Context, roomID domain.RoomID) (domain.RoomFacts, error) {
 	if s.cache == nil {
-		// No cache, no spaces: guessing "in none" would slip past an except = ["space:…"].
+		// No cache: guessing "in no space" would slip past an except = ["space:..."].
 		return domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}, errNoPlaces
 	}
 	rooms, err := s.cache.Rooms(ctx)
@@ -187,8 +185,8 @@ func (s *Service) roomFacts(ctx context.Context, roomID domain.RoomID) (domain.R
 	return s.placesNow().Facts(room, domain.HoldersOf(roomID, spaces)), nil
 }
 
-// modelFields are the template's values. The context is this room's cached messages
-// only: "help me write here" is not permission to quote elsewhere.
+// modelFields are the template's values. Context is this room's cached messages only:
+// "help me write here" is not permission to quote elsewhere.
 func (s *Service) modelFields(ctx context.Context, req domain.ModelRequest, settings ModelSettings) (map[string]string, string, error) {
 	budget := settings.Budget
 	if override, ok := settings.Budgets[req.Task]; ok && override > 0 {
@@ -225,7 +223,6 @@ func (s *Service) modelFields(ctx context.Context, req domain.ModelRequest, sett
 	return s.promptFields(ctx, req.Draft, strings.Join(quoted, "\n"), language, req.Instruction), note, nil
 }
 
-// promptFields is the template's value map.
 func (s *Service) promptFields(ctx context.Context, draft, context, language, instruction string) map[string]string {
 	return map[string]string{
 		"{draft}":       draft,
@@ -237,9 +234,8 @@ func (s *Service) promptFields(ctx context.Context, draft, context, language, in
 	}
 }
 
-// summarySpan is what a summary reads and a note saying which span it is: an explicit
-// span if asked, else what you missed, else (too little missed, e.g. the room you are
-// looking at) the whole cached tail.
+// summarySpan is what a summary reads, with a note naming the span: an explicit span,
+// else what you missed, else (too little missed) the whole cached tail.
 func (s *Service) summarySpan(
 	ctx context.Context, roomID domain.RoomID, msgs []domain.Message, asked domain.SummarySpan,
 ) ([]domain.Message, string) {
@@ -261,11 +257,11 @@ func (s *Service) summarySpan(
 	return msgs, fmt.Sprintf("%d new since you last read, shown with what came before", len(missed))
 }
 
-// summaryMinSpan is how many unread messages make "what you missed" worth summarizing alone.
+// summaryMinSpan is how many unread messages make "what you missed" enough on its own.
 const summaryMinSpan = 5
 
 // emptyContextRefusal says why there is nothing to work from, or "" to go on, so an
-// empty context never spends a request. Other tasks may legitimately have none.
+// empty context never spends a request.
 func emptyContextRefusal(task, context string) string {
 	if strings.TrimSpace(context) != "" {
 		return ""
@@ -281,7 +277,7 @@ func emptyContextRefusal(task, context string) string {
 	return ""
 }
 
-// threadNameFields is the context for naming one thread: the thread itself.
+// threadNameFields is the context for naming a thread: the thread itself.
 func (s *Service) threadNameFields(
 	ctx context.Context, req domain.ModelRequest, budget int,
 ) (map[string]string, string, error) {
@@ -330,8 +326,7 @@ const summaryContextMessages = 400
 // threadNameMessages bounds naming a thread: the opening says what it is about.
 const threadNameMessages = 20
 
-// modelLanguage names the draft's language, using the spellchecker's detector so the
-// two never disagree.
+// modelLanguage uses the spellchecker's detector so the two never disagree.
 func modelLanguage(draft string) string { return spell.LanguageOf(draft) }
 
 // describeAsk renders a task exactly as it would be sent, for `why`.
@@ -374,9 +369,8 @@ func (l *modelLayer) spend() bool {
 	return true
 }
 
-// todoFields quotes what unread rooms are waiting on, for the todo task. Only rooms
-// with something unread, each checked against the scope as it is chosen, sharing
-// the budget.
+// todoFields quotes what unread rooms are waiting on, each room checked against the
+// scope as chosen, sharing the budget.
 func (s *Service) todoFields(
 	ctx context.Context, req domain.ModelRequest, settings ModelSettings, budget int,
 ) (map[string]string, string, error) {
@@ -430,8 +424,8 @@ func (s *Service) todoFields(
 	return s.promptFields(ctx, "", context, modelLanguage(context), req.Instruction), note, nil
 }
 
-// roomsWithSomethingUnread is the rooms with unread messages (local counts, falling
-// back to the server's when no read position resolves), mentions then volume first.
+// roomsWithSomethingUnread is rooms with unread messages (local counts, else the
+// server's), mentions first, then volume.
 func (s *Service) roomsWithSomethingUnread(ctx context.Context) ([]domain.Unread, error) {
 	counts, err := s.cache.CountUnreadAll(ctx, s.me())
 	if err != nil {
@@ -481,9 +475,8 @@ func (s *Service) namedRoom(ctx context.Context, roomID domain.RoomID) string {
 	return string(roomID)
 }
 
-// accountNames is every way a conversation might address this person (each
-// account's display name, its first word, a Matrix ID's localpart), so the model
-// recognizes you in the text.
+// accountNames is every way a conversation may address this person (display names,
+// their first words, Matrix localparts), so the model recognizes you.
 func (s *Service) accountNames(ctx context.Context) string {
 	seen := map[string]bool{}
 	var names []string
@@ -508,8 +501,8 @@ func (s *Service) accountNames(ctx context.Context) string {
 	return strings.Join(names, ", ")
 }
 
-// accountName is what to call this person in a prompt: the first of their accounts'
-// display names (what the conversation uses), else a Matrix localpart, else "you".
+// accountName is what to call this person in a prompt: the first account display name,
+// else a Matrix localpart, else "you".
 func (s *Service) accountName(ctx context.Context) string {
 	me := s.me()
 	for _, id := range me {

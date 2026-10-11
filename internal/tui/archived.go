@@ -11,12 +11,10 @@ import (
 )
 
 // Archived rooms are those an archive tag holds ([*.archive] tag, "Archived" by
-// default), or that their network archived. A room list shows them or not as [display]
-// show_archived says, a place's [[display.space_rule]] show_archived over it; the
-// archived key flips it for the place in view until kith restarts. The archive's own
-// list always shows them: it is where they are.
+// default) or that their network archived. show_archived ([display], or a place's
+// space_rule) decides whether a list shows them; the archived key flips it for the
+// place in view until restart. An archive's own list always shows them.
 
-// isArchived reports whether room is archived.
 func (m Model) isArchived(view unreadView, room domain.Room) bool {
 	facts := view.factsOf(room)
 	if facts.ArchivedIn != "" {
@@ -25,13 +23,12 @@ func (m Model) isArchived(view unreadView, room domain.Room) bool {
 	return slices.ContainsFunc(facts.Tags, m.isArchiveTag)
 }
 
-// isArchiveTag reports whether a tag, by name, is an archive.
 func (m Model) isArchiveTag(name string) bool {
 	return slices.ContainsFunc(m.rail.archiveTags, func(a string) bool { return strings.EqualFold(a, name) })
 }
 
-// archivedShownIn reports whether place's room list shows archived rooms: always in an
-// archive's own, else as the archived key last left it, else as the config says.
+// archivedShownIn reports whether place's list shows archived rooms: always in an
+// archive, else as the archived key left it, else as configured.
 func (m Model) archivedShownIn(place string) bool {
 	if name, isTag := domain.TagOf(place); isTag && m.isArchiveTag(name) {
 		return true
@@ -42,8 +39,7 @@ func (m Model) archivedShownIn(place string) bool {
 	return m.prefs.display.ShowsArchivedIn(place)
 }
 
-// toggleArchived shows the place in view's archived rooms, or hides them, until kith
-// restarts; an archive's own list always shows them.
+// toggleArchived shows or hides archived rooms in the place in view until restart.
 func (m Model) toggleArchived() (Model, tea.Cmd) {
 	g, ok := m.currentGroup()
 	if !ok {

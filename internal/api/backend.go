@@ -9,13 +9,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Backend is the full client-side surface: every role below. A consumer that needs
-// only a few methods takes a role, or declares its own narrow interface.
+// Backend is the full client-side surface; a consumer that needs a few methods takes
+// a role or declares its own narrow interface.
 //
-// Logging in and resuming a session are not part of it. Only the process that owns
-// the session does that, on matrix.InProc directly: the daemon at startup, and
-// `kith login`. A socket client could otherwise replace the client the daemon
-// syncs with.
+// Login and session resume are deliberately absent: only the session owner (daemon,
+// `kith login`) does that on matrix.InProc, so a socket client cannot replace the
+// client the daemon syncs with.
 type Backend interface {
 	Sync
 	Rooms
@@ -39,12 +38,12 @@ type Backend interface {
 
 // Identity is who this person is on the networks the daemon serves.
 type Identity interface {
-	// Selves is every ID that is this person: the Matrix account and its configured
-	// identities, and each linked WhatsApp account's phone number and LID. It grows as
-	// accounts log in, so a client asks again when the room list changes.
+	// Selves is every ID that is this person (Matrix account, configured identities,
+	// linked WhatsApp numbers and LIDs). It grows as accounts log in; re-ask when the
+	// room list changes.
 	Selves(ctx context.Context) ([]string, error)
-	// Directory is who people are (domain.Directory): every name any account or bridge
-	// gives a person's number or network ID, and which of them are one person.
+	// Directory is every name any account or bridge gives a person's IDs, and which
+	// IDs are one person.
 	Directory(ctx context.Context) (domain.Directory, error)
 }
 
@@ -56,9 +55,9 @@ type Sync interface {
 	Messages() <-chan domain.Message
 	// Activity streams typing and read positions of others; not cached.
 	Activity() <-chan domain.Activity
-	// Attached reports the streams being lost (false) and re-subscribed (true),
-	// i.e. the daemon restarting. On true, clients re-read their caches. Nothing is
-	// sent for the first attachment.
+	// Attached reports the streams lost (false) and re-subscribed (true), i.e. a
+	// daemon restart; on true clients re-read their caches. Not sent for the first
+	// attachment.
 	Attached() <-chan bool
 }
 
@@ -121,8 +120,8 @@ type Timeline interface {
 	Timeline(ctx context.Context, roomID domain.RoomID, from string, limit int) (domain.TimelinePage, error)
 	// FetchEvent fetches one event by ID, e.g. a thread root older than the cache.
 	FetchEvent(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, error)
-	// Redact deletes a message. Redacting others' messages checks the room's
-	// redact level first. The change arrives on the sync stream.
+	// Redact deletes a message, checking the redact level for others' messages. The
+	// change arrives on the sync stream.
 	Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error
 	// Send posts a message; the draft carries text, mentions, reply and thread.
 	Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error
@@ -211,15 +210,14 @@ type Membership interface {
 	LeaveRoom(ctx context.Context, roomID domain.RoomID) error
 }
 
-// Ending puts away for good what is not left as a room is (Membership.LeaveRoom).
+// Ending removes chats and accounts that cannot simply be left (Membership.LeaveRoom).
 type Ending interface {
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
 	// and, with forEveryone, for the other person too.
 	DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryone bool) error
-	// SignOut signs out the account whose own space it is (domain.LeftBySigningOut):
-	// the session ends on the network, its connection stops and its kept session is
-	// deleted; with forget, its rooms and their history go from the cache too. The
-	// account stays configured, and logging in signs it back in.
+	// SignOut ends the session of the account owning space (domain.LeftBySigningOut)
+	// and deletes its kept session; forget also drops its rooms from the cache. The
+	// account stays configured.
 	SignOut(ctx context.Context, space domain.SpaceID, forget bool) error
 }
 
@@ -240,23 +238,20 @@ type Search interface {
 
 // Drafts is the composer's drafts, kept per room.
 type Drafts interface {
-	// ReplaceDraft stores a room's draft (an empty one removes it), but only while the
-	// stored draft is still over, as its writer read it (a zero over: none stored).
-	// saved is false when another writer came between. Every write is conditional:
-	// the TUI and kith-mcp both write drafts, and neither may drop the other's words.
+	// ReplaceDraft stores a room's draft (empty removes it) only while the stored
+	// draft still equals over (zero: none stored); saved is false otherwise. The TUI
+	// and kith-mcp both write drafts, so every write is conditional.
 	ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (saved bool, err error)
 	// Drafts returns every stored draft, newest first.
 	Drafts(ctx context.Context) ([]domain.StoredDraft, error)
 }
 
-// Seat makes one window at a time the daemon's: two windows typing into one draft
-// cannot be merged word for word, and nobody needs two open. Only the daemon's windows
-// take it; kith-mcp and one-shot commands need none.
+// Seat makes one window at a time the daemon's, since two windows typing into one
+// draft cannot be merged. kith-mcp and one-shot commands need no seat.
 type Seat interface {
-	// TakeSeat makes this window the one the daemon serves, for as long as it runs.
-	// Refused with ErrSeatTaken, naming the other window, unless force: that window is
-	// then told to save its drafts and quit, and this call answers once it has (or
-	// has not answered in a few seconds).
+	// TakeSeat makes this window the one the daemon serves. Without force it fails
+	// with ErrSeatTaken naming the holder; with force the holder is told to save and
+	// quit, and this returns once it has (or after a few seconds).
 	TakeSeat(ctx context.Context, force bool, where domain.SeatHolder) error
 	// SeatLost is told when another window takes the seat: save the drafts and quit.
 	SeatLost() <-chan struct{}

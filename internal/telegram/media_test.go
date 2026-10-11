@@ -14,10 +14,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An attachment is shown as what it is: a photo by its largest size, a voice note, a
-// song by its name, a video (a round one, a GIF), a still sticker as an image, an
-// image sent as a file as an image, anything else as a file under its name. What
-// kith cannot draw (an animated sticker, a location) reads as a label.
+// Attachment kinds: photo (largest size), voice, audio, video (round, GIF), still
+// sticker and image file as images, other files by name; unsupported kinds as labels.
 func TestAttachmentsAreShownAsWhatTheyAre(t *testing.T) {
 	t.Parallel()
 	doc := func(mimeType string, attrs ...tg.DocumentAttributeClass) tg.MessageMediaClass {
@@ -52,8 +50,7 @@ func TestAttachmentsAreShownAsWhatTheyAre(t *testing.T) {
 	}
 }
 
-// An attachment is downloaded by the file reference Telegram gives the message now:
-// the message is asked for again, not a reference kept from when it arrived.
+// Downloads refetch the message for a fresh file reference.
 func TestAnAttachmentIsDownloadedByAFreshReference(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -96,8 +93,7 @@ func TestAnAttachmentIsDownloadedByAFreshReference(t *testing.T) {
 	}
 }
 
-// A file sent is uploaded and goes as a photo when it is an image, else as a document
-// under its name; it is cached with its attachment as Telegram answers it.
+// Sent images go as photos, other files as named documents, cached as Telegram answers.
 func TestAFileSentGoesAsWhatItIs(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)

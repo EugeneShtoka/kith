@@ -5,10 +5,9 @@ import (
 	"strings"
 )
 
-// Poll is a question a message asks, the answers to choose among, and how the votes
-// stand as the network last said.
+// Poll is a message's poll and its votes as the network last reported them.
 type Poll struct {
-	// ID is the network's own handle for the poll, which its results updates name.
+	// ID is the network's handle for the poll, named by its results updates.
 	ID       string
 	Question string
 	Options  []PollOption
@@ -17,13 +16,12 @@ type Poll struct {
 	Multiple, Closed, Quiz bool
 	// Voters is how many have voted, when the network says.
 	Voters int
-	// Ballots is each voter's answers by ID, where the network tells votes one by one
-	// (WhatsApp): the votes are counted from them (Retally).
+	// Ballots is each voter's answer IDs, where the network reports individual votes
+	// (WhatsApp); Retally counts them.
 	Ballots map[string][]string `json:",omitempty"`
 }
 
-// Retally counts the votes from the ballots: each answer's votes, how many voted, and
-// whether this person (any of selves) chose it.
+// Retally recounts votes, voters and Mine from Ballots.
 func (p *Poll) Retally(selves func(voter string) bool) {
 	count := map[string]int{}
 	mine := map[string]bool{}
@@ -66,8 +64,7 @@ func (p *Poll) Voted() bool {
 	return false
 }
 
-// Summary is the poll as one line of words: its question and answers, for search,
-// notifications and a quote.
+// Summary is the question and answers on one line, for search, notifications and quotes.
 func (p *Poll) Summary() string {
 	answers := make([]string, len(p.Options))
 	for i, o := range p.Options {

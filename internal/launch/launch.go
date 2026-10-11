@@ -9,28 +9,26 @@ import (
 	"os/exec"
 )
 
-// Terminal is how to start one program in a terminal: the argv that opens a tab in the
-// running instance, and the argv that opens a new window.
+// Terminal holds the argv prefixes that open a program in a new tab of a running
+// instance and in a new window.
 type Terminal struct {
 	Name   string
 	Tab    []string
 	Window []string
 }
 
-// known is the table, in the order it is searched when nothing is configured.
+// known is searched in order when nothing is configured.
 var known = []Terminal{
 	{
 		Name: "wezterm",
-		// `cli spawn` talks to the running GUI over its own socket and exits non-zero
-		// when there is none, which is exactly the signal the fallback wants.
+		// `cli spawn` exits non-zero when no GUI is running, triggering the fallback.
 		Tab:    []string{"wezterm", "cli", "spawn", "--"},
 		Window: []string{"wezterm", "start", "--"},
 	},
 	{
 		Name: "kitty",
-		// `kitten @ launch` needs remote control enabled in kitty.conf; without it this
-		// fails and the window opens instead, which is the right outcome and not worth
-		// a configuration check.
+		// `kitten @ launch` needs remote control in kitty.conf; without it the window
+		// fallback is fine.
 		Tab:    []string{"kitten", "@", "launch", "--type=tab"},
 		Window: []string{"kitty"},
 	},
@@ -41,8 +39,7 @@ var known = []Terminal{
 	},
 	{
 		Name: "gnome-terminal",
-		// gnome-terminal is a client of its own server, so `--tab` reaches the
-		// running window and falls back to making one by itself.
+		// `--tab` reaches the running server and creates a window itself if none.
 		Tab:    []string{"gnome-terminal", "--tab", "--"},
 		Window: []string{"gnome-terminal", "--"},
 	},
@@ -55,19 +52,16 @@ var known = []Terminal{
 // ErrNoTerminal is returned when nothing on this machine can be started.
 var ErrNoTerminal = errors.New("launch: no terminal found")
 
-// Lookup is how a terminal binary is found, replaced in tests. It is a variable
-// rather than a parameter because every caller in this program wants the real one.
+// Lookup finds a terminal binary; replaced in tests.
 var Lookup = exec.LookPath
 
-// start runs one command and waits only long enough to know it started. Replaced in
-// tests, for the same reason Lookup is.
+// start runs a short-lived command and returns its exit status; replaced in tests.
 var start = func(ctx context.Context, argv []string) error {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- argv is this program's own table or the user's own config
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launch: start %s: %w", argv[0], err)
 	}
-	// Waited on rather than left running: a tab command *is* a short-lived client of
-	// the running terminal, and its exit code is the whole signal.
+	// A tab command is a short-lived client; its exit code is the signal.
 	return cmd.Wait()
 }
 
@@ -95,8 +89,8 @@ func Named(name string) (Terminal, bool) {
 	return Terminal{}, false
 }
 
-// Run starts command in a terminal: a tab in a running one if it can, a new window
-// if it cannot. It reports which of the two happened, for the caller to say.
+// Run starts command in a tab of a running terminal, else a new window, and reports
+// which ("tab" or "window").
 func Run(ctx context.Context, term Terminal, command []string) (opened string, err error) {
 	if len(command) == 0 {
 		return "", errors.New("launch: nothing to run")
@@ -118,13 +112,11 @@ func Run(ctx context.Context, term Terminal, command []string) (opened string, e
 // startDetached starts a command and does not wait for it.
 var startDetached = func(ctx context.Context, argv []string) error {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- argv is this program's own table or the user's own config
-	// Cancel is cleared so the terminal outlives the context that started it: the
-	// caller's context ends when the caller exits, which is immediately.
+	// A no-op Cancel lets the terminal outlive the caller's context.
 	cmd.Cancel = func() error { return nil }
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launch: start %s: %w", argv[0], err)
 	}
-	// Released rather than waited on. The process is reparented to init when this one
-	// exits, which is what a launcher is for.
+	// Not waited on: it is reparented to init when this process exits.
 	return nil
 }

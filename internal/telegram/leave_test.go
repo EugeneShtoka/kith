@@ -14,9 +14,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A forum is left on Telegram, and goes from the cache with its topics' rooms; a basic
-// group is left by taking ourselves out; a topic and a private chat cannot be left,
-// and say so.
+// A forum is left with its topic rooms; a basic group by removing ourselves; topics
+// and private chats refuse.
 func TestLeavingAForumTakesItsTopicsWithIt(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -80,9 +79,8 @@ func TestLeavingAForumTakesItsTopicsWithIt(t *testing.T) {
 	}
 }
 
-// A private chat is deleted, not left: in as many parts as Telegram takes, for you,
-// or for both of you when asked, and it goes from the cache; your saved messages are
-// deleted for you only; a group is left, not deleted. Each room says which it is.
+// A private chat is deleted (in parts, for you or both) and dropped from the cache;
+// Saved Messages only for you; groups can't be deleted. Rooms report which applies.
 func TestAPrivateChatIsDeletedNotLeft(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)

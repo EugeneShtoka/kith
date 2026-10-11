@@ -12,15 +12,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// Do-not-disturb, asked for here and held by the daemon so attached terminals agree.
-// A mute says what (room, person, space, account) and for how long; it is a
-// temporary notification rule (internal/notify) writing show = none or ring = none.
+// Do-not-disturb, set here and held by the daemon so attached terminals agree. A mute
+// names what (room, person, space, account) and for how long; it is a temporary
+// notification rule (internal/notify) writing show = none or ring = none.
 
-// Notifications is the daemon's notification state, as much as the client acts on.
+// Notifications is the daemon's notification state, as far as the client acts on it.
 // Declared here because only daemon.Remote implements it.
 type Notifications interface {
-	// SetDND puts one temporary rule in force. Every method returns the whole set
-	// afterwards.
+	// SetDND puts one temporary rule in force. Every method returns the whole set afterwards.
 	SetDND(ctx context.Context, rule notify.Rule) (notify.Temps, error)
 	// ClearDND lifts the rule naming this place and person, ClearAllDND every one.
 	ClearDND(ctx context.Context, match, sender string) (notify.Temps, error)
@@ -62,8 +61,8 @@ var dndDurations = []dndDuration{
 	{key: "off", label: "Until I turn it off", span: 0},
 }
 
-// muteAxis is which half of a notification the pressed key takes away: picker is the
-// scope chooser to open, silence writes the axis into a rule.
+// muteAxis is which half of a notification the key takes away: picker is the scope
+// chooser to open, silence writes the axis into a rule.
 type muteAxis struct {
 	picker  pickerKind
 	silence func(*notify.Rule)
@@ -81,7 +80,7 @@ var (
 	}
 )
 
-// notifyState is what the client knows about notifications, plus the half-finished
+// notifyState is the client's notification state plus the half-finished
 // do-not-disturb flow (scopes, target, axis), started and finished as a unit.
 type notifyState struct {
 	// backend is nil without a daemon, and the keys say so.
@@ -90,8 +89,8 @@ type notifyState struct {
 	on bool
 	// rules are the standing rules, held only to describe the silence in the badge.
 	rules []notify.Rule
-	// temps is the daemon's do-not-disturb rules, cached for the badge; each carries
-	// its own deadline, so the badge lapses correctly between refreshes.
+	// temps is the daemon's do-not-disturb rules, cached for the badge; each carries its
+	// deadline, so the badge lapses correctly between refreshes.
 	temps notify.Temps
 
 	scopes []muteTarget
@@ -125,11 +124,10 @@ func (n notifyState) scopeAt(index int) (muteTarget, bool) {
 	return n.scopes[index], true
 }
 
-// toggleDND and toggleMute are the two keys; the key decides what the mute takes
-// away. Either key, with anything already muted, lifts everything.
+// toggleDND and toggleMute are the two keys; the key decides what the mute takes away.
+// Either key, with anything muted, lifts everything.
 func (m Model) toggleDND() (Model, tea.Cmd) { return m.openMute(hideAxis) }
 
-// toggleMute silences the sound and leaves the popups.
 func (m Model) toggleMute() (Model, tea.Cmd) { return m.openMute(soundAxis) }
 
 // openMute starts the flow for one axis, or lifts what is in force.
@@ -143,7 +141,7 @@ func (m Model) openMute(axis muteAxis) (Model, tea.Cmd) {
 		return m, m.clearAllDNDCmd()
 	}
 	m.notifications = m.notifications.starting(axis, m.muteTargets())
-	// Only the account to choose: go straight to the length.
+	// Only the account to choose: skip to the length.
 	if len(m.notifications.scopes) == 1 {
 		return m.chooseDNDScope(0)
 	}
@@ -189,8 +187,8 @@ func (m Model) muteTargets() []muteTarget {
 	})
 }
 
-// muteScopeItems lists the scopes: short name, kind as qualifier, and both the short
-// and long forms to filter against.
+// muteScopeItems lists the scopes: short name, kind as qualifier, filterable by both
+// short and long forms.
 func muteScopeItems(targets []muteTarget) []pickerItem {
 	items := make([]pickerItem, 0, len(targets))
 	for i, target := range targets {
@@ -247,7 +245,7 @@ func (m Model) chooseDNDFor(key string) (Model, tea.Cmd) {
 		}
 		m = m.say("silencing " + target.what + " " + forHowLong(d))
 		rule := notify.Rule{
-			// Stored, so logical: the label carries isolate marks for drawing.
+			// Stored, so logical: the label has isolate marks for drawing.
 			Name: stripIsolates(target.label), Match: target.match, Sender: target.sender,
 			Temp: true, Until: until,
 		}
@@ -265,8 +263,7 @@ func forHowLong(d dndDuration) string {
 	return "for " + d.label
 }
 
-// handleDND takes the daemon's answer: every call returns the whole set, including
-// other terminals' changes.
+// handleDND takes the daemon's answer: the whole set, including other terminals' changes.
 func (m Model) handleDND(msg dndMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		m = m.sayErr("do not disturb", msg.err)
@@ -280,7 +277,7 @@ func (m Model) handleDND(msg dndMsg) (Model, tea.Cmd) {
 }
 
 // handlePollTick re-reads state changed elsewhere (drafts, spam, mutes) and always
-// reschedules itself, even with no notification backend attached yet.
+// reschedules, even with no notification backend attached yet.
 func (m Model) handlePollTick() (Model, tea.Cmd) {
 	cmds := []tea.Cmd{m.pollTickCmd(), m.loadDraftsCmd(), m.loadSpamCmd()}
 	if m.notifications.attached() {
@@ -289,12 +286,12 @@ func (m Model) handlePollTick() (Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// silenceBadge marks notifications being held back and names what is responsible:
-// notifications off; the account-wide mute with its remaining time; a count of
-// scoped mutes; or the standing rule silencing the open room.
+// silenceBadge marks notifications held back and names why: notifications off, the
+// account-wide mute with time left, a count of scoped mutes, or the standing rule
+// silencing the open room.
 func (m Model) silenceBadge() string {
 	if !m.notifications.on {
-		// A setting rather than a chosen silence, so muted styling, not a badge.
+		// A setting, not a chosen silence: muted styling, not a badge.
 		return m.theme.Muted.Bold(true).Render(" notifications off ")
 	}
 	now := time.Now()
@@ -310,8 +307,8 @@ func (m Model) silenceBadge() string {
 	return ""
 }
 
-// silencedBy names the standing rule silencing the open room, resolved with no
-// sender (person rules cannot be judged without a message).
+// silencedBy names the standing rule silencing the open room, resolved without a
+// sender (person rules need a message).
 func (m Model) silencedBy(now time.Time) (string, bool) {
 	room, ok := m.currentRoom()
 	if !ok {

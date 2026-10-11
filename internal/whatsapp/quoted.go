@@ -9,16 +9,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// quote is what a reply quotes: WhatsApp sends the quoted message's sender and
-// content with every reply, so a reply to a message kith never cached (older than a
-// room keeps, or from before linking) still shows what it answers.
+// quote is what a reply quotes. WhatsApp sends the quoted sender and content with
+// every reply, so replies to uncached messages still show it.
 type quote struct {
 	id     domain.EventID
 	sender string
 	body   string
 }
 
-// quotedBy is what msg, a reply, quotes; nil when it quotes nothing kith can show.
+// quotedBy is what reply msg quotes; nil when nothing showable.
 func quotedBy(ctx context.Context, account string, msg *waE2E.Message, lookup pnOf) *quote {
 	_, info, ok := content(msg)
 	if !ok || info == nil || info.GetStanzaID() == "" || info.GetQuotedMessage() == nil {
@@ -38,7 +37,6 @@ func quotedBy(ctx context.Context, account string, msg *waE2E.Message, lookup pn
 	return q
 }
 
-// keepQuote caches what a reply in room quotes, for FetchEvent.
 func (a *Adapter) keepQuote(ctx context.Context, room domain.RoomID, q *quote) {
 	if q == nil || a.cache == nil {
 		return
@@ -48,7 +46,7 @@ func (a *Adapter) keepQuote(ctx context.Context, room domain.RoomID, q *quote) {
 	}
 }
 
-// quotedMessage is a message WhatsApp keeps no copy of, as a reply quoted it.
+// quotedMessage is a message as a cached reply quoted it.
 func (a *Adapter) quotedMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, bool) {
 	if a.cache == nil {
 		return domain.Message{}, false

@@ -12,8 +12,7 @@ import (
 	"maunium.net/go/mautrix/event"
 )
 
-// Regression: Stop is called twice (serve's return, run's defer) and possibly before
-// Resume; both panicked.
+// Stop may run twice (serve's return, run's defer) and before Resume.
 func TestStopIsIdempotentAndSafeBeforeResume(t *testing.T) {
 	t.Parallel()
 
@@ -23,7 +22,7 @@ func TestStopIsIdempotentAndSafeBeforeResume(t *testing.T) {
 	b.Stop()
 }
 
-// A verification request with no verification helper (Init failed after registering handlers)
+// A verification request with no helper (Init failed after registering handlers)
 // must not crash.
 func TestStartSASWithoutAVerificationHelperIsANoOp(t *testing.T) {
 	t.Parallel()
@@ -31,8 +30,7 @@ func TestStartSASWithoutAVerificationHelperIsANoOp(t *testing.T) {
 	b := New(nil) // verify is nil: Init either failed or never ran
 	b.ver.base = context.Background()
 
-	// A dispatch with no helper would dereference nil on its own goroutine, which
-	// nothing recovers: the test binary would crash here.
+	// A nil dereference on its goroutine would crash the test binary.
 	b.startSAS("t1")
 	b.ver.work.Wait()
 }
@@ -61,12 +59,11 @@ func TestEnableVerificationWithoutCryptoIsReported(t *testing.T) {
 	}
 }
 
-// Stop unblocks and joins verification work (gossipRestore's blocking send) before
-// closing the crypto store.
+// Stop unblocks and joins verification work before closing the crypto store.
 func TestStopUnblocksAndJoinsVerificationWork(t *testing.T) {
 	t.Parallel()
 
-	// Unbuffered: a restore finishing with no UI left to receive it.
+	// Unbuffered: no UI left to receive the restore.
 	b := &InProc{}
 	b.ver.events = make(chan domain.Verification)
 	b.ver.base = context.Background()
@@ -119,8 +116,8 @@ func TestVerificationWorkIsRefusedAfterStop(t *testing.T) {
 	}
 }
 
-// A decrypt retry that finishes after Stop has begun is dropped, not handed to the
-// sync handlers that would write the closing cache.
+// A decrypt retry finishing after Stop has begun is dropped, not dispatched to
+// handlers that would write the closing cache.
 func TestALateDecryptionIsDroppedOnceStopping(t *testing.T) {
 	t.Parallel()
 
@@ -143,8 +140,7 @@ func TestALateDecryptionIsDroppedOnceStopping(t *testing.T) {
 	}
 }
 
-// A decryption already past the stopping check when Stop begins is waited for: the
-// stores it writes close right after Stop returns.
+// A decryption already past the stopping check is waited for by Stop.
 func TestStopWaitsForADispatchInFlight(t *testing.T) {
 	t.Parallel()
 

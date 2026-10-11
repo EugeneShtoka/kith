@@ -4,14 +4,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Only the wheel is handled: clicks are deliberately inert so the pointer never
-// disagrees with the keyboard cursor. It is a setting because mouse reporting disables
-// the terminal's own drag-to-select.
+// Only the wheel is handled; clicks are inert so the pointer never disagrees with the
+// keyboard cursor. Mouse mode is a setting because it disables the terminal's drag-to-select.
 
 // wheelRows is how far one notch moves the timeline; lists move by one row.
 const wheelRows = 3
 
-// mouseMode is what the view asks the terminal for; nothing when the setting is off.
+// mouseMode is what the view asks the terminal for.
 func (m Model) mouseMode() tea.MouseMode {
 	if !m.prefs.display.UseMouse() {
 		return tea.MouseModeNone

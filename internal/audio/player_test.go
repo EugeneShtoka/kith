@@ -294,7 +294,7 @@ func TestFormat(t *testing.T) {
 	}
 }
 
-// A speed reads as a setting, not a measurement: "1.5×", never "1.50×".
+// FormatSpeed drops trailing zeros: "1.5×", never "1.50×".
 func TestFormatSpeed(t *testing.T) {
 	t.Parallel()
 
@@ -344,8 +344,8 @@ func TestTheEndIsFollowedInBothDirections(t *testing.T) {
 	eventually(t, "playback resuming", func(s audio.State) bool { return !s.Done }, session)
 }
 
-// A player that stops reading its socket fails the control after a bound, and the
-// state stays readable meanwhile: the UI reads it every frame.
+// A player that stops reading fails the control after writeTimeout; State stays
+// readable meanwhile.
 func TestAPlayerThatStopsReadingDoesNotHoldTheSession(t *testing.T) {
 	t.Parallel()
 
@@ -385,10 +385,8 @@ func TestAPlayerThatStopsReadingDoesNotHoldTheSession(t *testing.T) {
 	}
 }
 
-// After a control write gives up, the stream may hold half a command, and (for VLC) a
-// question whose answer would be read as the next one's. The session ends there:
-// it reports done, and the next control fails at once instead of waiting out another
-// timeout.
+// After a failed write the session ends: it reports done and the next control fails
+// at once.
 func TestAFailedControlWriteEndsTheSession(t *testing.T) {
 	t.Parallel()
 

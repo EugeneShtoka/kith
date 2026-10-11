@@ -15,14 +15,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/media"
 )
 
-// External viewing. The viewer is always handed a list (the room's pictures), straight
-// from the media cache — nothing is copied to /tmp.
+// The external viewer gets the room's pictures as a list, straight from the media
+// cache; nothing is copied to /tmp.
 
 // viewLimit caps how many pictures one viewing fetches.
 const viewLimit = 200
 
-// viewerCandidates are the image viewers tried, in order, when [display.media] viewer
-// names none, each with the flags that make it fit a picture to its window.
+// viewerCandidates are the image viewers tried in order when [display.media] viewer
+// names none, each with flags to fit a picture to its window.
 var viewerCandidates = [][]string{
 	{"nsxiv", "-s", "f"},
 	{"sxiv", "-s", "f"},
@@ -35,16 +35,15 @@ var viewerCandidates = [][]string{
 	{"ristretto"},
 }
 
-// mediaViewedMsg reports what came of a viewing: how many pictures were opened, and
-// what went wrong if nothing was.
+// mediaViewedMsg reports how many pictures were opened, or the error if none were.
 type mediaViewedMsg struct {
 	count int
 	err   error
 }
 
-// viewMedia opens the attachment under the cursor outside the client: a picture opens
-// the room's gallery, a video a player, anything else the desktop's handler. Voice notes
-// play inside the client, so this points at the play key instead.
+// viewMedia opens the selected attachment outside the client: a picture opens the
+// room's gallery, a video a player, anything else the desktop's handler. Voice notes
+// play inside, so this points at the play key.
 func (m Model) viewMedia() (Model, tea.Cmd) {
 	msg, standing := m.selectedMessage()
 	switch {
@@ -79,14 +78,14 @@ func (m Model) viewMedia() (Model, tea.Cmd) {
 	return m, m.viewMediaCmd(viewer, configured, jobs, start)
 }
 
-// gallery is the room's pictures in the order they were sent, and the index of the one
-// pointed at (the newest when none is). The limit is applied around that picture.
+// gallery is the room's pictures in send order and the index of the target (the newest
+// when none). The limit is applied around it.
 func (m Model) gallery(from domain.EventID) (jobs []mediaJob, start int) {
 	pictures := make([]mediaJob, 0, viewLimit)
 	start = -1
 	for i := range m.timeline.messages {
 		msg := m.timeline.messages[i]
-		// Deleted pictures are not the room's: each is viewed from its history.
+		// Deleted pictures are viewed from their history, not the gallery.
 		if msg.ID == "" || !msg.Media.IsImage() || msg.Redacted {
 			continue
 		}
@@ -153,11 +152,10 @@ func (m Model) viewMediaCmd(viewer []string, configured bool, jobs []mediaJob, s
 	}
 }
 
-// viewerStart makes the viewer open at start. A built-in candidate is told how it
-// understands: by index (nsxiv, sxiv, imv) or by file name (feh). A configured command
-// is run as written — no flag it may not know is added — and is told only through the
-// placeholders it was given ({index}, 1-based; {file}, the path). Anything not told
-// gets the list rotated so start comes first.
+// viewerStart makes the viewer open at start. Built-in candidates are told by index
+// (nsxiv, sxiv, imv) or file name (feh). A configured command runs as written, told
+// only through its placeholders ({index}, 1-based; {file}). Otherwise the list is
+// rotated so start comes first.
 func viewerStart(command []string, configured bool, files []string, start int) ([]string, []string) {
 	if configured {
 		if filled, ok := fillViewerPlaceholders(command, files, start); ok {
@@ -178,8 +176,8 @@ func viewerStart(command []string, configured bool, files []string, start int) (
 	return command, append(append([]string{}, files[start:]...), files[:start]...)
 }
 
-// fillViewerPlaceholders replaces {index} (1-based) and {file} in a configured
-// viewer's arguments with files[start], and reports whether there was any.
+// fillViewerPlaceholders replaces {index} (1-based) and {file} with files[start],
+// reporting whether there were any.
 func fillViewerPlaceholders(command, files []string, start int) ([]string, bool) {
 	if start < 0 || start >= len(files) {
 		start = 0
@@ -208,15 +206,13 @@ func (m Model) playKeyHint() string {
 	return "the play key"
 }
 
-// errNoPictures is what a viewing that fetched nothing has to report.
 var errNoPictures = fmt.Errorf("none of the pictures could be fetched")
 
 // launchGrace is how long an external program is given to fail before it is let go.
 const launchGrace = 500 * time.Millisecond
 
-// launch starts an external program on some files, waits launchGrace to see whether it
-// fails, and then lets go of it. The wait is what catches xdg-open exiting non-zero for a
-// missing association, which would otherwise look like success.
+// launch starts an external program, waits launchGrace for it to fail, then lets go.
+// The wait catches xdg-open exiting non-zero for a missing association.
 func launch(ctx context.Context, command []string, files ...string) error {
 	args := append(append([]string{}, command[1:]...), files...)
 	// #nosec G204,G702 -- command comes from config as a program and flags, never a shell
@@ -237,9 +233,8 @@ func launch(ctx context.Context, command []string, files ...string) error {
 	}
 }
 
-// resolveCommand is the configured program taken as written (an error if missing),
-// else the first candidate found on $PATH. Synchronous on purpose: whether the key does
-// anything must be known before it reports success.
+// resolveCommand is the configured program as written (an error if missing), else the
+// first candidate on $PATH. Synchronous so the key knows it works before reporting success.
 func resolveCommand(configured string, candidates [][]string, missing string) ([]string, error) {
 	if fields := strings.Fields(configured); len(fields) > 0 {
 		if _, err := exec.LookPath(fields[0]); err != nil {
@@ -255,9 +250,8 @@ func resolveCommand(configured string, candidates [][]string, missing string) ([
 	return nil, fmt.Errorf("no %s found; set one in [display.media]", missing)
 }
 
-// ensureOnDisk returns the file a picture lives in, fetching it if needed; "" when it
-// could not be had. A no-cache room's file is still written, just not touched, so Trim
-// reclaims it.
+// ensureOnDisk returns a picture's file, fetching it if needed; "" if unavailable. A
+// no-cache room's file is still written, just not touched, so Trim reclaims it.
 func ensureOnDisk(
 	ctx context.Context,
 	cache *media.Cache,
@@ -288,14 +282,14 @@ func ensureOnDisk(
 	return written
 }
 
-// deletedMediaNote says where a deleted message's attachment is seen: its history.
+// deletedMediaNote says a deleted message's attachment is seen in its history.
 func (m Model) deletedMediaNote() string {
 	return "this message was deleted — " + m.keys.keyHint(scopeTimeline, actHistory) +
 		" opens its history, and " + m.keys.keyHint(scopeTimeline, actViewMedia) + " there shows what it had attached"
 }
 
-// ensureAside is ensureOnDisk for a deleted message's attachment: kept in the cache's
-// deleted/ folder, moved there if the cache held it, else fetched there.
+// ensureAside is ensureOnDisk for a deleted message's attachment, kept in the cache's
+// deleted/ folder: moved there if cached, else fetched there.
 func ensureAside(
 	ctx context.Context,
 	cache *media.Cache,
@@ -320,12 +314,11 @@ func ensureAside(
 	return written
 }
 
-// viewerCommand is the program that shows pictures, as a program and its arguments.
+// viewerCommand is the picture viewer program and its arguments.
 func (m Model) viewerCommand() ([]string, error) {
 	return resolveCommand(m.prefs.display.Media.Viewer, viewerCandidates, "image viewer")
 }
 
-// handleMediaViewed reports how a viewing went.
 func (m Model) handleMediaViewed(msg mediaViewedMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("could not view", msg.err), nil
@@ -333,7 +326,7 @@ func (m Model) handleMediaViewed(msg mediaViewedMsg) (Model, tea.Cmd) {
 	return m.say(fmt.Sprintf("viewing %s", countOf(msg.count, "picture"))), nil
 }
 
-// countOf is "1 picture" or "12 pictures", so a status line does not say "1 pictures".
+// countOf is "1 picture" or "12 pictures".
 func countOf(n int, thing string) string {
 	if n == 1 {
 		return "1 " + thing

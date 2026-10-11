@@ -1,6 +1,5 @@
-// Package models is the catalog of completion models kith can install: what each
-// is, where it comes from and whether it is on disk. Data only: the download and the
-// server that runs a model are in llamacpp.
+// Package models is the catalog of installable completion models and whether each is
+// on disk. Data only; downloading and serving are in llamacpp.
 package models
 
 import (
@@ -53,8 +52,8 @@ func SourceFor(tag string) (Source, bool) {
 // Pin describes where the weights come from, for the confirmation prompt.
 func Pin() (repo, commit, date string) { return modelRepo, modelCommit, modelDate }
 
-// Installed is the path to the weights for a tag, and false when they are missing or
-// the wrong size (a truncated GGUF never becomes healthy).
+// Installed is the path to a tag's weights, or false when missing or the wrong size
+// (a truncated GGUF never becomes healthy).
 func Installed(dir, tag string) (string, bool) {
 	src, ok := modelSources[tag]
 	if !ok {

@@ -17,11 +17,10 @@ func conversation(id string, set func(*slackgo.Channel)) slackgo.Channel {
 	return c
 }
 
-// A workspace's conversations become rooms: channels by name, a DM by the person it
-// is with (who is its member; Slackbot by its name, which users.info does not give),
-// a group DM by the others in it — their names when Slack said who they are and all
-// are known, else their handles; archived ones and DMs with deleted people are left
-// out. The workspace is the space holding them all.
+// Conversations become rooms: channels by name, a DM by its peer (its member; Slackbot
+// by name, which users.info lacks), a group DM by the others' names when all are known,
+// else handles. Archived ones and DMs with deleted users are left out. The workspace is
+// their space.
 func TestAWorkspaceListsAsRoomsInOneSpace(t *testing.T) {
 	t.Parallel()
 	const team = "T0000000001"
@@ -96,7 +95,7 @@ func TestAWorkspaceListsAsRoomsInOneSpace(t *testing.T) {
 	}
 }
 
-// A person reads by the name they chose, else their full name, else their handle.
+// A user reads by display name, else full name, else handle.
 func TestUserNames(t *testing.T) {
 	t.Parallel()
 	u := slackgo.User{Name: "dlevi", RealName: "Dana Levi"}

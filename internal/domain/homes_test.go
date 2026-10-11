@@ -7,8 +7,7 @@ import (
 	"testing"
 )
 
-// A tag is a place: tag:<name> matches the rooms the tag holds, judged on the room
-// alone (a state word matches nothing there), wherever a place entry is read.
+// tag:<name> matches the tag's rooms, judged without state, wherever a place entry is read.
 func TestATagIsAPlace(t *testing.T) {
 	t.Parallel()
 	set := mustTags(t,
@@ -49,9 +48,8 @@ func TestHomesFollowThePriority(t *testing.T) {
 	}
 }
 
-// Over random configs and rooms, a room's first home is the one the rules pick, and
-// the same whatever order its spaces and tags arrive in — the client and the daemon
-// each list them their own way, and must agree:
+// Over random configs, a room's first home follows these rules regardless of input
+// order (client and daemon must agree):
 //
 //  1. what [display] priority names, in its order;
 //  2. then by rail position: a named entry where it stands, everything it does not

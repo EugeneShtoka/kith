@@ -11,14 +11,14 @@ import (
 )
 
 // Rare-word hints (engine accepts, frequency list disagrees), tested through the
-// backend to cover the wiring rather than spell.Rarity itself.
+// backend to cover the wiring.
 
-// rareList: `the` is common, `hte` a real transposition, `rarer` rare with no
-// common neighbor.
+// rareList: `the` common, `hte` a real transposition, `rarer` rare with no common
+// neighbor.
 const rareList = "at 300000\nhte 30\nrarer 4\nthe 500000\n"
 
-// rareBackend wires a stub engine accepting every word, a Latin dictionary, and
-// (if withList) a frequency list.
+// rareBackend wires a stub engine accepting every word, a Latin dictionary, and (if
+// withList) a frequency list.
 func rareBackend(t *testing.T, set SpellSettings, withList bool, extraTags ...string) *Service {
 	t.Helper()
 	dir := stubEngine(t, nil)
@@ -230,8 +230,8 @@ func TestCheckSpellingMarksTheCertainCase(t *testing.T) {
 	}
 }
 
-// Counts are offered only when the check is on, for installed dictionaries, where
-// counts exist and are not yet installed.
+// Counts are offered only when the check is on, for installed dictionaries with counts
+// not yet installed.
 func TestDetectLanguagesOffersCountsForWhatIsInstalled(t *testing.T) {
 	t.Parallel()
 
@@ -291,7 +291,7 @@ func TestInstallFrequenciesReloadsWithoutARestart(t *testing.T) {
 	if found, err := b.CheckSpelling(t.Context(), "at hte end"); err != nil || len(found) != 0 {
 		t.Fatalf("CheckSpelling = %+v, %v; want silence with no list", found, err)
 	}
-	// Stand in for the download, then reload the way the installer does.
+	// Stand in for the download, then reload as the installer does.
 	write(t, filepath.Join(b.spell.freqDir(), "en_US.freq"), rareList)
 	b.spell.reloadRarity()
 
@@ -304,7 +304,7 @@ func TestInstallFrequenciesReloadsWithoutARestart(t *testing.T) {
 	}
 }
 
-// scanned is the dictionary scan the engine makes, as it makes it.
+// scanned is the dictionary scan the engine makes.
 func scanned(s *spellcheck) spell.Availability {
 	s.mu.Lock()
 	defer s.mu.Unlock()

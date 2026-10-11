@@ -8,9 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// window is a pointer helper: a rule's fields are pointers because "unset" has to be
-// distinguishable from "set to none", which is the difference between a rule that
-// leaves an axis alone and one that silences it.
+// window returns a parsed *Window; rule fields are pointers so unset differs from none.
 func window(t *testing.T, start, end string) *notify.Window {
 	t.Helper()
 	w, err := notify.ParseWhen(start + "-" + end)
@@ -92,8 +90,7 @@ func TestQuietHoursIsAScheduledRule(t *testing.T) {
 	}
 }
 
-// What used to need `pierce`: an exception during quiet hours. It is now a narrower
-// rule, resolved by specificity like everything else.
+// An exception during quiet hours is a narrower rule, resolved by specificity.
 func TestNarrowerRulePiercesWithoutAPierce(t *testing.T) {
 	t.Parallel()
 
@@ -143,8 +140,7 @@ func TestGlobalDNDIsTheBlanketAndNarrowRulesSurviveIt(t *testing.T) {
 	}
 }
 
-// ...and muting Alice is *also* sender-scope, so it beats her standing rule by being
-// the newer statement. A mute you just set is never a silent no-op.
+// A temporary mute of the same scope beats the standing rule.
 func TestTemporaryRuleBeatsAStandingOneOfTheSameScope(t *testing.T) {
 	t.Parallel()
 
@@ -181,8 +177,6 @@ func TestRuleOverridesOnlyWhatItSets(t *testing.T) {
 	}
 }
 
-// Ring follows Show unless something pulls them apart, which is what makes two axes
-// cost nothing: a config that never mentions ring behaves exactly as one axis would.
 func TestRingFollowsShowUnlessSet(t *testing.T) {
 	t.Parallel()
 
@@ -196,8 +190,7 @@ func TestRingFollowsShowUnlessSet(t *testing.T) {
 	}
 }
 
-// Show = none is silent by construction: ring is only asked after show passes, which
-// is why ctrl+n writes one field and says nothing about sound.
+// Show = none is silent regardless of Ring: Ring is checked only after Show passes.
 func TestShowNoneNeedsNoRingToBeSilent(t *testing.T) {
 	t.Parallel()
 
@@ -211,9 +204,7 @@ func TestShowNoneNeedsNoRingToBeSilent(t *testing.T) {
 	}
 }
 
-// specificityLadder is every kind of rule matching one message, least specific first:
-// more constraints beat fewer, and among one constraint a person beats a room beats a
-// space, with the account-wide rule at the bottom.
+// specificityLadder is every kind of rule matching one message, least specific first.
 func specificityLadder() (notify.Scope, []notify.Rule) {
 	scope := notify.Scope{Room: place{room: "!room:x", class: "space:Work"}, Sender: "@alice:x"}
 	return scope, []notify.Rule{
@@ -226,8 +217,7 @@ func specificityLadder() (notify.Scope, []notify.Rule) {
 	}
 }
 
-// Every rung of the ladder beats every rung below it, whichever comes first in the
-// file: each pair, both ways round.
+// Every rung beats every rung below it, in either input order.
 func TestEveryRungBeatsTheOnesBelow(t *testing.T) {
 	t.Parallel()
 	scope, ladder := specificityLadder()
@@ -246,8 +236,7 @@ func TestEveryRungBeatsTheOnesBelow(t *testing.T) {
 	}
 }
 
-// A rule about a person holds wherever they are: a bot muted is muted in a room let
-// through whole, and someone always let through gets through a room muted whole.
+// A sender rule beats a room rule in both directions: mute and let through.
 func TestAPersonsRuleHoldsInAnyRoom(t *testing.T) {
 	t.Parallel()
 	room := place{room: "!group:x"}
@@ -273,15 +262,12 @@ func TestAPersonsRuleHoldsInAnyRoom(t *testing.T) {
 	}
 }
 
-// The specificity ladder, pinned whole: the most specific rule has the last word, and
-// the chain starts at the account-wide rule.
+// The most specific rule wins and Applied starts at the account-wide rule.
 func TestSpecificityOrder(t *testing.T) {
 	t.Parallel()
 
 	scope, ladder := specificityLadder()
-	// Each rung sets Show to a distinct level so the winner is identifiable; they are
-	// fed in ladder order and then in reverse, because a resolution that depended on
-	// input order would pass the first and fail the second.
+	// Each rung sets a distinct Show; fed forward and reversed to catch order dependence.
 	for i := range ladder {
 		ladder[i].Show = new(notify.LevelAll)
 	}
@@ -308,9 +294,7 @@ func TestSpecificityOrder(t *testing.T) {
 	}
 }
 
-// A rule that matches nothing here takes no part, and a scope nothing matches leaves
-// the defaults standing — which are silent, because a rule set that says nothing should
-// not invent a notification.
+// A non-matching rule takes no part; with no matches the default is silent.
 func TestNoMatchesIsSilent(t *testing.T) {
 	t.Parallel()
 
@@ -324,7 +308,6 @@ func TestNoMatchesIsSilent(t *testing.T) {
 	}
 }
 
-// Our own message never notifies, whatever the rules say.
 func TestOwnMessageNeverNotifies(t *testing.T) {
 	t.Parallel()
 
@@ -334,8 +317,7 @@ func TestOwnMessageNeverNotifies(t *testing.T) {
 	}
 }
 
-// Temporary rules: replaced by name, lifted by name, and lapsed by their own deadline
-// without anything having to fire.
+// Temporary rules are replaced and lifted by name and lapse at their deadline.
 func TestTempsAddReplacesAndExpires(t *testing.T) {
 	t.Parallel()
 
@@ -360,8 +342,7 @@ func TestTempsAddReplacesAndExpires(t *testing.T) {
 	}
 }
 
-// A lapsed temporary rule stops resolving, with no timer having fired and nothing
-// having been cleaned up.
+// A lapsed temporary rule stops resolving without any cleanup.
 func TestLapsedTempStopsApplying(t *testing.T) {
 	t.Parallel()
 
@@ -379,8 +360,7 @@ func TestLapsedTempStopsApplying(t *testing.T) {
 	}
 }
 
-// The account-wide temporary rule is the one the badge treats differently, so it has
-// to be findable without knowing what else is in force.
+// Global finds the account-wide temporary rule among others.
 func TestTempsGlobal(t *testing.T) {
 	t.Parallel()
 
@@ -400,9 +380,7 @@ func TestTempsGlobal(t *testing.T) {
 	}
 }
 
-// A thread clause narrows *where* a rule applies, and a rule without one is unchanged
-// by this existing at all — which is what makes every config written before it mean
-// exactly what it meant.
+// A thread clause narrows where a rule applies; rules without one are unaffected.
 func TestAThreadClauseNarrowsWhereARuleApplies(t *testing.T) {
 	t.Parallel()
 
@@ -411,8 +389,7 @@ func TestAThreadClauseNarrowsWhereARuleApplies(t *testing.T) {
 		{Name: "threads I am not in", Show: new(notify.LevelNone)},
 		{Name: "threads I am in", Thread: notify.ThreadParticipating, Show: new(notify.LevelAll)},
 	}
-	// The second rule silences the room; the third takes it back for a conversation
-	// this account has spoken in, by being the narrower statement about the same place.
+	// The third rule re-enables threads the user posted in, being narrower than the second.
 	inThread := notify.Scope{Room: place{room: "!a:x"}, Thread: "$root", Participating: true}
 	if got := notify.Resolve(rules, inThread, clock(12, 0)); !got.Decide(plain).Notify {
 		t.Errorf("a thread we are in should notify, silenced by %q", got.ShowBy.Name)
@@ -423,9 +400,7 @@ func TestAThreadClauseNarrowsWhereARuleApplies(t *testing.T) {
 	}
 }
 
-// "none" is the main timeline and nothing else, which is the other half of the same
-// distinction: a rule can speak about the room without speaking about the conversations
-// inside it.
+// Thread "none" matches only the main timeline.
 func TestAThreadClauseOfNoneIsTheMainTimeline(t *testing.T) {
 	t.Parallel()
 
@@ -443,8 +418,7 @@ func TestAThreadClauseOfNoneIsTheMainTimeline(t *testing.T) {
 	}
 }
 
-// A thread clause narrows a rule within its place, and does not move it up the place
-// ladder.
+// A thread clause ranks within its place, not above a narrower place.
 func TestAThreadClauseDoesNotOutrankAPlace(t *testing.T) {
 	t.Parallel()
 
@@ -459,9 +433,7 @@ func TestAThreadClauseDoesNotOutrankAPlace(t *testing.T) {
 	}
 }
 
-// The spellings are refused rather than defaulted, and "any" is the same statement as
-// saying nothing — a rule that widens where the user asked it to narrow is the one
-// mistake a notification setting must not make.
+// Unknown spellings are errors, not defaults; "any" equals unset.
 func TestParseThread(t *testing.T) {
 	t.Parallel()
 

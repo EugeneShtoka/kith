@@ -10,8 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 )
 
-// A sentinel's identity has to survive the socket, and so does the reason behind it when
-// there is one.
+// A sentinel's identity and its reason both survive the socket.
 func TestCallErrKeepsTheReasonBehindASentinel(t *testing.T) {
 	t.Parallel()
 
@@ -28,8 +27,7 @@ func TestCallErrKeepsTheReasonBehindASentinel(t *testing.T) {
 	}
 }
 
-// A sentinel whose message is the whole story is not repeated: "encryption is not
-// enabled: encryption is not enabled" reads like a bug in the client.
+// A self-explanatory sentinel is not repeated ("x: x").
 func TestCallErrDoesNotRepeatASelfExplanatorySentinel(t *testing.T) {
 	t.Parallel()
 
@@ -45,8 +43,8 @@ func TestCallErrDoesNotRepeatASelfExplanatorySentinel(t *testing.T) {
 	}
 }
 
-// A plain backend failure keeps the daemon's reason word for word, without Connect's
-// "internal:" prefix, and is still a *connect.Error underneath.
+// A plain failure keeps the daemon's reason verbatim, without "internal:", and is
+// still a *connect.Error underneath.
 func TestCallErrKeepsAPlainFailuresReason(t *testing.T) {
 	t.Parallel()
 

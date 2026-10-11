@@ -13,7 +13,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// selvesBackend answers who this person is with ids, counting the asks.
 type selvesBackend struct {
 	apitest.Nop
 	ids  []string
@@ -27,7 +26,6 @@ func (b selvesBackend) Selves(context.Context) ([]string, error) {
 
 const ownWhatsApp = "whatsapp:44880000001@s.whatsapp.net"
 
-// Every ID the daemon names is this person, on every network; nobody is "".
 func TestIsMeIsEveryAccount(t *testing.T) {
 	t.Parallel()
 	m := newModel()
@@ -46,15 +44,14 @@ func TestIsMeIsEveryAccount(t *testing.T) {
 		t.Errorf("selfIDs = %v, want the Matrix account first, once", got)
 	}
 
-	// A failed ask keeps who we were.
+	// A failed ask keeps the last IDs.
 	m, _ = m.handleSelves(selvesMsg{err: errors.New("daemon gone")})
 	if !m.isMe(ownWhatsApp) {
 		t.Error("a failed ask forgot the WhatsApp account")
 	}
 }
 
-// Without Matrix, the WhatsApp account alone is this person: its messages are its own,
-// and a thread it spoke in is one it took part in.
+// Without Matrix, the WhatsApp account alone is this person.
 func TestWithoutMatrixTheWhatsAppAccountIsMe(t *testing.T) {
 	t.Parallel()
 	m := newModel()
@@ -65,9 +62,8 @@ func TestWithoutMatrixTheWhatsAppAccountIsMe(t *testing.T) {
 	}
 }
 
-// The room list asks who this person is again only when it brings an account it had
-// no rooms from — a phone just linked — not on every refresh, nor the first time
-// (the ask at startup covers that).
+// Asked again only for an account with no rooms before; not on every refresh, nor on
+// the first list (the startup ask covers it).
 func TestSelvesAreAskedWhenAnAccountAppears(t *testing.T) {
 	t.Parallel()
 	asks := 0
@@ -99,8 +95,7 @@ func TestSelvesAreAskedWhenAnAccountAppears(t *testing.T) {
 	}
 }
 
-// Who this person is is part of the derived cache's key: rows drawn as someone else's
-// must be redrawn once the account behind them turns out to be ours.
+// Rows drawn as someone else's must redraw once their account turns out to be ours.
 func TestTheDerivedKeyCoversSelves(t *testing.T) {
 	t.Parallel()
 	m := newModel()
@@ -111,9 +106,8 @@ func TestTheDerivedKeyCoversSelves(t *testing.T) {
 	}
 }
 
-// With no room open (a WhatsApp account not linked yet: no rooms at all), the startup
-// loads leave the status line's word on what is logged out standing; closing a room
-// that was open still takes its status with it.
+// With no rooms at all, the logged-out notice survives the startup loads; closing a
+// room still clears its status.
 func TestTheLoggedOutNoticeOutlivesAnEmptyStart(t *testing.T) {
 	t.Parallel()
 	notice := "WhatsApp home is logged out: not linked yet; run `kith login whatsapp home`"
@@ -133,8 +127,8 @@ func TestTheLoggedOutNoticeOutlivesAnEmptyStart(t *testing.T) {
 	}
 }
 
-// With no room open (an account with no rooms yet), nothing is asked about a room:
-// a call naming none reached the daemon as a Matrix room and was refused, noisily.
+// With no room open nothing is asked about a room: a call naming none reached the
+// daemon as a Matrix room and was refused.
 func TestNoRoomAsksNothing(t *testing.T) {
 	t.Parallel()
 	m := newModel()
@@ -143,9 +137,7 @@ func TestNoRoomAsksNothing(t *testing.T) {
 	}
 }
 
-// A script's $KITH_USER is you on the room's own network: the Matrix account in a
-// Matrix room, your first WhatsApp number in a WhatsApp one, nobody where you have no
-// account.
+// $KITH_USER is you on the room's network, or nobody where you have no account.
 func TestSelfInIsYouOnTheRoomsNetwork(t *testing.T) {
 	t.Parallel()
 	m := newModel()
@@ -161,9 +153,8 @@ func TestSelfInIsYouOnTheRoomsNetwork(t *testing.T) {
 	}
 }
 
-// Someone grouped by [[display.identity]] with any of your IDs is you, a WhatsApp
-// number's as much as the Matrix account's; nobody is you through an identity of
-// someone else's.
+// Anyone [[display.identity]] groups with any of your IDs is you; nobody is you
+// through someone else's identity.
 func TestAnIdentityWithAnyOfYourIDsIsYou(t *testing.T) {
 	t.Parallel()
 	m := newModel()

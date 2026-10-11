@@ -13,23 +13,21 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// forum is the supergroup with topics the topic tests use: channel 31, its room.
+// forum is the test forum supergroup's room (channel 31).
 const forum = int64(31)
 
 var forumRoom = roomID(42, -(channelMark + forum))
 
-// fmsg is message id of the forum's own room (General), as kith names it.
+// fmsg is message id in the forum's own room (General).
 func fmsg(id int) domain.EventID { return messageID(42, -(channelMark + forum), id) }
 
-// tripsRoom is the forum's topic 10, Trips, as a room; tmsg is message id in it.
+// tripsRoom is topic 10, Trips; tmsg is message id in it.
 var tripsRoom = topicRoomID(42, -(channelMark + forum), 10)
 
 func tmsg(id int) domain.EventID { return inRoom(tripsRoom, id) }
 
-// A message in a forum's topic is in the topic's room, posted to the topic or replying
-// to one of its messages; one in General is the forum's own room's. A reply outside a
-// forum stays a plain reply, and the message that began a topic, which only says its
-// title, is not shown: the title is the room's name.
+// Topic messages land in the topic's room, General's in the forum's room; replies
+// outside a forum stay replies; a topic's creation message is hidden (it's the name).
 func TestTopicsAreRooms(t *testing.T) {
 	t.Parallel()
 	ent := peer.NewEntities(map[int64]*tg.User{7: dana}, nil, nil)
@@ -63,15 +61,14 @@ func TestTopicsAreRooms(t *testing.T) {
 	}
 }
 
-// replyInTopic is a reply header to message reply, in topic.
 func replyInTopic(reply, topic int) *tg.MessageReplyHeader {
 	h := &tg.MessageReplyHeader{ForumTopic: true, ReplyToMsgID: reply}
 	h.SetReplyToTopID(topic)
 	return h
 }
 
-// A draft written in a topic's room goes into the topic, replying to a message there or
-// to none; one in a chat's own room goes as a plain reply, or as none.
+// A draft in a topic room is sent into the topic; in a chat's room, as a plain reply
+// or none.
 func TestADraftGoesIntoItsTopic(t *testing.T) {
 	t.Parallel()
 	inTrips := chat{conn: conn{user: 42}, id: -(channelMark + forum), topic: 10}
@@ -94,11 +91,9 @@ func TestADraftGoesIntoItsTopic(t *testing.T) {
 	}
 }
 
-// A forum is a space of rooms: its own (General) and one per topic, each named after
-// it, out of the account's space. A listing caches each topic's latest message in its
-// room and counts its unread as Telegram does; marking a topic's room read reads the
-// topic on Telegram; its history is the topic's. What was cached of the topics while
-// they were threads of the forum's room is dropped.
+// A forum is its own space (General plus a room per topic). A listing caches each
+// topic's latest message and unread; reading and history act on the topic; topic
+// threads cached on the forum's room are dropped.
 func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -145,7 +140,7 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, cache := loggedInWithStore(t, f, st)
-	// The account's dialogs: the forum (after logging in, whose own listing is empty).
+	// The forum, after login's own (empty) listing.
 	d.HandleFunc(tg.MessagesGetDialogsRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
 		var req tg.MessagesGetDialogsRequest
 		if err := req.Decode(r.Buf); err != nil {
@@ -159,7 +154,7 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 		return sendResult(s, r, res)
 	})
 	ctx := t.Context()
-	// As the forum's topics were cached while they were threads of its room.
+	// Topic messages cached as threads of the forum's room.
 	if err := cache.SaveMessages(ctx, forumRoom, []domain.Message{
 		{ID: fmsg(10), RoomID: forumRoom, Body: "Trips", Timestamp: time.Unix(1010, 0)},
 		{ID: fmsg(11), RoomID: forumRoom, Body: "where to?", ThreadRoot: fmsg(10), Timestamp: time.Unix(2011, 0)},
@@ -186,7 +181,7 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 	for _, s := range spaces {
 		switch s.ID {
 		case forumSpaceID(42, -(channelMark + forum)):
-			// Left by leaving its chat, General, which takes the topics with it.
+			// Left via General's chat, which takes the topics with it.
 			if s.Name != "Hikers" || !slices.Equal(s.Children, []domain.RoomID{forumRoom, tripsRoom}) ||
 				s.Leaving != domain.LeftByRoom || s.LeaveBy != forumRoom {
 				t.Errorf("forum space = %+v", s)
@@ -241,8 +236,7 @@ func TestAForumIsASpaceOfItsTopics(t *testing.T) {
 	mu.Unlock()
 }
 
-// A supergroup with topics is listed as a forum, and cached so: a plain group or
-// channel is not, and a group that drops its topics is a forum no more.
+// Only supergroups with topics are cached as forums; dropping topics clears it.
 func TestAListingSaysWhichChatsAreForums(t *testing.T) {
 	t.Parallel()
 	channels := func(forum bool) map[int64]*tg.Channel {
@@ -287,8 +281,8 @@ func TestAListingSaysWhichChatsAreForums(t *testing.T) {
 	}
 }
 
-// A message deleted in a forum, named only by number, is found in whichever topic's
-// room holds it; someone typing in a topic types in its room.
+// A forum deletion by number finds the topic room holding it; typing in a topic goes
+// to its room.
 func TestDeletionsAndTypingFindTheirTopic(t *testing.T) {
 	t.Parallel()
 	a, cache := cachedAdapter(t, &memSecrets{values: map[string]string{}})

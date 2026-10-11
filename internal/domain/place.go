@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// An address somebody sent you, read into something this client can go to.
+// Matrix addresses (matrix.to links and matrix: URIs) parsed into places.
 
 // PlaceKind is what an address names.
 type PlaceKind int
@@ -30,13 +30,11 @@ type Place struct {
 	Room string
 	// Event is the message, for a place that names one.
 	Event EventID
-	// Via are the servers the sender suggests asking about a room they may know and
-	// yours may not.
+	// Via are the routing servers the link suggests for reaching the room.
 	Via []string
 }
 
-// String is the matrix.to spelling — the one people recognize on sight, and the one
-// worth showing in a picker row or a status line.
+// String is the matrix.to form, without routing servers.
 func (p Place) String() string {
 	switch p.Kind {
 	case PlacePerson:
@@ -51,8 +49,7 @@ func (p Place) String() string {
 	return ""
 }
 
-// URI is the address written so that ParsePlace can read every part of it back, routing
-// servers included.
+// URI is the matrix.to form with routing servers, readable back by ParsePlace.
 func (p Place) URI() string {
 	base := p.String()
 	if base == "" {
@@ -88,8 +85,8 @@ func ParsePlace(uri string) (Place, bool) {
 	}
 }
 
-// parseMatrixTo reads `https://matrix.to/#/<id>[/<event>][?via=…]`, in any case and
-// with or without the `www.` somebody's client may have written.
+// parseMatrixTo reads `https://matrix.to/#/<id>[/<event>][?via=…]`, case-insensitively,
+// with or without `www.`.
 func parseMatrixTo(uri string) (Place, bool) {
 	rest, ok := afterMatrixToHost(uri)
 	if !ok {
@@ -110,8 +107,7 @@ func parseMatrixTo(uri string) (Place, bool) {
 	return placeFor(id, EventID(event), via)
 }
 
-// afterMatrixToHost strips the scheme, the host and the `#/` that every matrix.to link
-// carries, and reports whether this was one at all.
+// afterMatrixToHost strips a matrix.to link's scheme, host and `#/`.
 func afterMatrixToHost(uri string) (string, bool) {
 	for _, prefix := range []string{"https://matrix.to/#/", "https://www.matrix.to/#/",
 		"http://matrix.to/#/", "http://www.matrix.to/#/", "matrix.to/#/", "www.matrix.to/#/"} {
@@ -122,8 +118,7 @@ func afterMatrixToHost(uri string) (string, bool) {
 	return "", false
 }
 
-// parseMatrixURI reads the `matrix:` scheme's own spelling: a type, an id, and
-// optionally `/e/<event>`.
+// parseMatrixURI reads `matrix:<type>/<id>[/e/<event>]`.
 func parseMatrixURI(rest string) (Place, bool) {
 	rest, via := splitVia(rest)
 	kind, tail, ok := strings.Cut(rest, "/")
@@ -145,14 +140,13 @@ func parseMatrixURI(rest string) (Place, bool) {
 	case "roomid":
 		return placeFor("!"+id, eventID(event), via)
 	default:
-		// `e` among them: an event with no room to find it in names nothing.
+		// Including `e`: an event without a room names nothing.
 		return Place{}, false
 	}
 }
 
-// cutEvent splits `<id>/e/<event>` into its two halves, reporting whether the message
-// segment was there at all — so a truncated one ("…/e") is refused rather than read as
-// a room.
+// cutEvent splits `<id>/e/<event>`; hasEvent lets a truncated "…/e" be refused rather
+// than read as a room.
 func cutEvent(tail string) (id, event string, hasEvent bool) {
 	id, rest, ok := strings.Cut(tail, "/e")
 	if !ok {
@@ -161,7 +155,7 @@ func cutEvent(tail string) (id, event string, hasEvent bool) {
 	return id, strings.TrimPrefix(rest, "/"), true
 }
 
-// eventID puts the sigil back on an event the URI scheme wrote without one.
+// eventID restores the "$" sigil that matrix: URIs omit.
 func eventID(event string) EventID {
 	if event == "" {
 		return ""
@@ -169,8 +163,7 @@ func eventID(event string) EventID {
 	return EventID("$" + event)
 }
 
-// placeFor decides which kind of place an id names, by its sigil. A string with no
-// sigil is not an address — it is a word that looks like one.
+// placeFor classifies id by its sigil; without one it is not an address.
 func placeFor(id string, event EventID, via []string) (Place, bool) {
 	switch {
 	case strings.HasPrefix(id, "@"):
@@ -188,9 +181,8 @@ func placeFor(id string, event EventID, via []string) (Place, bool) {
 	}
 }
 
-// splitVia takes the query off the end and returns the `via=` values in the order they
-// were written: they are the servers to ask, and the sender's order is their guess at
-// which is most likely to answer.
+// splitVia cuts off the query and returns the `via=` values in order (the sender's
+// order is their guess at which server answers best).
 func splitVia(rest string) (string, []string) {
 	head, query, ok := strings.Cut(rest, "?")
 	if !ok {
@@ -203,14 +195,13 @@ func splitVia(rest string) (string, []string) {
 	return head, values["via"]
 }
 
-// hasFoldedPrefix is strings.HasPrefix ignoring ASCII case, because a URI's scheme and
-// host are case-insensitive and people paste them as their client wrote them.
+// hasFoldedPrefix is strings.HasPrefix ignoring case; a URI's scheme and host are
+// case-insensitive.
 func hasFoldedPrefix(s, prefix string) bool {
 	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
 }
 
-// PlaceLinks is every address in one message: the ones written in the words, and the
-// ones only the markup knows.
+// PlaceLinks is every address in a message's text and its markup's hrefs, deduplicated.
 func PlaceLinks(body string, hrefs []string) []Place {
 	var out []Place
 	seen := make(map[string]bool)
@@ -235,9 +226,7 @@ func PlaceLinks(body string, hrefs []string) []Place {
 	return out
 }
 
-// isURIBoundary splits prose into the runs that could be a URI: whitespace ends one,
-// and nothing else does — a matrix.to link contains slashes, colons and sigils, and
-// splitting on any of those would cut an address in half.
+// isURIBoundary splits only on whitespace: a link contains slashes, colons and sigils.
 func isURIBoundary(r rune) bool {
 	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
 }

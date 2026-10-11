@@ -18,38 +18,36 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Commands you write yourself: `/zoom` runs `<config dir>/commands/zoom` and its stdout
-// lands in the composer (or another configured sink). Nothing is sent without a
-// keypress unless configured, and a failure leaves the composer as typed. The argument
-// is one argv element (and $KITH_ARG) — there is no shell anywhere in the chain.
+// User commands: `/zoom` runs `<config dir>/commands/zoom` and its stdout lands in the
+// composer (or another configured sink). Nothing is sent without a keypress unless configured;
+// a failure leaves the composer as typed. The argument is one argv element (and $KITH_ARG);
+// no shell is involved.
 
-// commandEnvPrefix is the environment namespace scripts read (shared with the
-// notification command hook).
+// commandEnvPrefix is the environment namespace scripts read (shared with the notification
+// command hook).
 const commandEnvPrefix = "KITH_"
 
-// commandWaitDelay bounds the wait, after killing a command, for anything still
-// writing to close. Together with captureFile it stops a forked grandchild holding
-// stdout (`sleep 30`, a backgrounded browser) from stretching a timeout or a success.
+// commandWaitDelay bounds the wait, after killing a command, for remaining writers to close.
+// With captureFile it stops a forked grandchild holding stdout from stretching a timeout or
+// success.
 const commandWaitDelay = 500 * time.Millisecond
 
 // commandOutputLimit caps what a script can put in the composer.
 const commandOutputLimit = 8 << 10
 
-// commandRanMsg carries a user command's result back into the model.
 type commandRanMsg struct {
 	name string // as typed, "/zoom"
 	// room is where it was typed; the output belongs there even if you moved on.
 	room domain.RoomID
 	out  domain.ScriptOutput // where stdout goes (config.Script.Output)
 	body string              // stdout, trailing newline trimmed
-	// why is what to say when the command produced nothing usable.
+	// why explains a command that produced nothing usable.
 	why       string
 	truncated bool // body hit commandOutputLimit
 }
 
-// userCommand resolves a command name to an executable in the commands directory;
-// false means the body is an ordinary message. The name must be a single path segment
-// — that is the whole sandbox.
+// userCommand resolves a name to an executable in the commands directory; false means an
+// ordinary message. The name must be a single path segment: that is the whole sandbox.
 func (m Model) userCommand(name string) (string, bool) {
 	name = strings.TrimPrefix(name, "/")
 	if name == "" || name != filepath.Base(name) || name == "." || name == ".." {
@@ -60,8 +58,8 @@ func (m Model) userCommand(name string) (string, bool) {
 		return "", false
 	}
 	path := filepath.Join(dir, name)
-	// A stat on the event loop, deliberately: it decides whether submit() sends the
-	// line. The executable bit separates a command from a note in the same folder.
+	// Stat on the event loop deliberately: it decides whether submit() sends the line. The
+	// executable bit separates a command from a note.
 	info, err := os.Stat(path)
 	if err != nil || info.IsDir() || info.Mode().Perm()&0o111 == 0 {
 		return "", false
@@ -69,8 +67,7 @@ func (m Model) userCommand(name string) (string, bool) {
 	return path, true
 }
 
-// commandsDir is where the scripts live: the configured directory, else the one
-// beside the config file.
+// commandsDir is the configured scripts directory, else the one beside the config file.
 func (m Model) commandsDir() (string, error) {
 	if dir := strings.TrimSpace(m.conf.base.Commands.Dir); dir != "" {
 		return expandHome(dir)
@@ -81,8 +78,8 @@ func (m Model) commandsDir() (string, error) {
 	return filepath.Join(filepath.Dir(m.conf.path), "commands"), nil
 }
 
-// runUserCommand starts a command once it has the context it declared (script.go).
-// One at a time: a double enter must not book two meetings.
+// runUserCommand starts a command once it has the context it declared (script.go). One at a
+// time, so a double enter cannot book two meetings.
 func (m Model) runUserCommand(name, path, arg string, room domain.Room) (Model, tea.Cmd) {
 	if m.running != "" {
 		return m.say(m.running + " is still running"), nil
@@ -92,7 +89,6 @@ func (m Model) runUserCommand(name, path, arg string, room domain.Room) (Model, 
 	return m.resolveScript()
 }
 
-// launchScript runs the command now that every need is answered.
 func (m Model) launchScript() (Model, tea.Cmd) {
 	script := m.script
 	m = m.doing(script.name + " …")
@@ -109,7 +105,7 @@ func (m Model) userCommandCmd(name, path, arg string, room domain.Room) tea.Cmd 
 		commandEnvPrefix+"USER="+m.selfIn(room.ID),
 	)
 	env = append(env, m.scriptEnv()...)
-	// Built here, on the loop: the goroutine must not read the model.
+	// Built on the loop: the goroutine must not read the model.
 	payload, payloadErr := m.scriptJSON()
 	out := m.scriptOutput(name)
 	parent := m.ctx
@@ -162,16 +158,15 @@ func (m Model) userCommandCmd(name, path, arg string, room domain.Room) tea.Cmd 
 	}
 }
 
-// captureFile is a temporary file to collect a command's output in, and its cleanup.
-// A file, not a buffer: any other writer becomes a pipe whose EOF waits for every
-// holder, not for the command (see commandWaitDelay).
+// captureFile is a temp file for a command's output, and its cleanup. A file, not a buffer:
+// any other writer becomes a pipe whose EOF waits for every holder (see commandWaitDelay).
 func captureFile() (*os.File, func(), error) {
 	file, err := os.CreateTemp("", "kith-cmd-*")
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not capture the output: %w", err)
 	}
 	return file, func() {
-		// Cleanup of a temp file already read (or abandoned): nothing to report to.
+		// Cleanup of a temp file already read or abandoned; nothing to report.
 		_ = file.Close()
 		_ = os.Remove(file.Name())
 	}, nil
@@ -186,14 +181,13 @@ func readCapture(file *os.File) string {
 	return string(data)
 }
 
-// commandFailure is what to say about a command that exited badly: its own first
-// line of stderr where it wrote one, else something better than the raw error.
+// commandFailure describes a failed command: its first stderr line if any, else something
+// better than the raw error.
 func commandFailure(err error, stderr string) string {
 	if line := strings.TrimSpace(firstLine(stderr)); line != "" {
 		return line
 	}
-	// ENOEXEC almost always means a missing shebang — which a shell hides by
-	// retrying the file as a script, so it works by hand and fails here.
+	// ENOEXEC almost always means a missing shebang, which a shell hides by retrying as a script.
 	if errors.Is(err, syscall.ENOEXEC) {
 		return "cannot run it — does the file start with a #! line, like #!/bin/sh?"
 	}
@@ -203,7 +197,6 @@ func commandFailure(err error, stderr string) string {
 	return err.Error()
 }
 
-// firstLine is s up to its first newline.
 func firstLine(s string) string {
 	if before, _, ok := strings.Cut(s, "\n"); ok {
 		return before
@@ -211,16 +204,15 @@ func firstLine(s string) string {
 	return s
 }
 
-// handleCommandRan routes a command's output to its sink, or says why there is none
-// (leaving the composer as it was).
+// handleCommandRan routes output to its sink, or says why there is none (composer untouched).
 func (m Model) handleCommandRan(msg commandRanMsg) (Model, tea.Cmd) {
 	m.running = ""
 	m.script = pendingScript{}
 	if msg.why != "" {
 		return m.say(msg.name + ": " + msg.why), nil
 	}
-	// Truncated output is never sent, copied or discarded unreviewed: it goes to a
-	// sink that shows it.
+	// Truncated output is never sent, copied or discarded unreviewed: it goes to a sink that shows
+	// it.
 	if msg.truncated && msg.out != domain.OutputPager {
 		return m.composeCommandOutput(msg)
 	}
@@ -240,8 +232,8 @@ func (m Model) handleCommandRan(msg commandRanMsg) (Model, tea.Cmd) {
 	return m.composeCommandOutput(msg)
 }
 
-// doneWithCommand clears the command text from the composer, for sinks that put
-// nothing there, so the next enter does not run it again.
+// doneWithCommand clears the command text for sinks that put nothing in the composer, so the
+// next enter does not rerun it.
 func (m Model) doneWithCommand() Model {
 	m = m.store(fieldComposer, newEditor("").end())
 	m.compose.drafted = nil
@@ -259,8 +251,8 @@ func (m Model) composeCommandOutput(msg commandRanMsg) (Model, tea.Cmd) {
 	return m.doing(said), nil
 }
 
-// sendCommandOutput posts a command's output to the room it was typed in. The
-// composer is emptied and no pending reply or mentions travel with it.
+// sendCommandOutput posts output to the room it was typed in, emptying the composer; no
+// pending reply or mentions go with it.
 func (m Model) sendCommandOutput(msg commandRanMsg) (Model, tea.Cmd) {
 	m.compose.input, m.compose.drafted, m.compose.replyTo = "", nil, ""
 	m = m.say("sending…")

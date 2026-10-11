@@ -7,9 +7,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// unreadRoom is dayRoom with a read position: read to the end of the second day,
-// so the line belongs above the first message of the third — which is also where a
-// date divider belongs, and that overlap is the case worth pinning.
+// unreadRoom is dayRoom read to the end of the second day, so the unread line and a
+// date divider both belong above the third day's first message.
 func unreadRoom(t *testing.T) Model {
 	t.Helper()
 	m := dayRoom(t)
@@ -17,7 +16,6 @@ func unreadRoom(t *testing.T) Model {
 	return m
 }
 
-// The line goes above the first message you had not read, and nowhere else.
 func TestUnreadLineMarksTheFirstUnreadMessage(t *testing.T) {
 	t.Parallel()
 
@@ -32,8 +30,7 @@ func TestUnreadLineMarksTheFirstUnreadMessage(t *testing.T) {
 	}
 }
 
-// One rule, not two. Both belong above $d2m0 — a new day *and* the first unread —
-// and stacking them would put a gap in the conversation where a mark should be.
+// One rule, not two: $d2m0 starts a new day and the unread; stacking both would leave a gap.
 func TestUnreadLineReplacesTheDateDivider(t *testing.T) {
 	t.Parallel()
 
@@ -56,8 +53,6 @@ func TestUnreadLineReplacesTheDateDivider(t *testing.T) {
 	}
 }
 
-// A room read to the end has no line: the last message is the read position, so
-// nothing comes after it.
 func TestUnreadLineAbsentWhenEverythingIsRead(t *testing.T) {
 	t.Parallel()
 
@@ -71,7 +66,7 @@ func TestUnreadLineAbsentWhenEverythingIsRead(t *testing.T) {
 	}
 }
 
-// The switch turns it off without touching anything else — the date dividers stay.
+// Turning it off leaves the date dividers.
 func TestUnreadLineCanBeTurnedOff(t *testing.T) {
 	t.Parallel()
 

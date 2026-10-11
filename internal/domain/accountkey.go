@@ -8,9 +8,8 @@ import (
 // accountKeyBytes is how much of the digest names an account.
 const accountKeyBytes = 8
 
-// AccountKey is the short, stable name a user's own files and sockets are addressed by:
-// their cache, their crypto store, their scheduled-message queue, their daemon's
-// socket.
+// AccountKey is the short stable name of a user's files and sockets (cache, crypto
+// store, scheduled queue, daemon socket).
 func AccountKey(user string) string {
 	sum := sha256.Sum256([]byte(user))
 	return hex.EncodeToString(sum[:accountKeyBytes])

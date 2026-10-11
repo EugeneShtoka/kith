@@ -23,8 +23,8 @@ func (r roster) Members(context.Context, domain.RoomID, int) ([]domain.Member, e
 	return r.members, nil
 }
 
-// carding is a model whose phonebook is a folder holding Eli's card, with a room
-// where Dana (a WhatsApp number) and Eli (a Matrix user) wrote.
+// carding is a model whose phonebook folder holds Eli's card, with a room where Dana (a
+// WhatsApp number) and Eli (a Matrix user) wrote.
 func carding(t *testing.T, members []domain.Member) (Model, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -43,7 +43,7 @@ func carding(t *testing.T, members []domain.Member) (Model, string) {
 	return m, dir
 }
 
-// opened presses I on the selected message and delivers the card read.
+// cardOf presses I on the sender's message and delivers the card read.
 func cardOf(t *testing.T, m Model, sender string) Model {
 	t.Helper()
 	m.timeline.selected = domain.EventID(map[string]string{"dana": "$1", "eli": "$2"}[sender])
@@ -59,9 +59,8 @@ func rows(m Model) []string {
 	return out
 }
 
-// A sender with no card is offered one: a field chosen from the keys the folder's
-// cards use is written on a new card named after them, with their number; the body of
-// another's card is never touched.
+// A sender with no card gets one at the first field: a key chosen from those the folder's
+// cards use, written on a new card with their name and number; other cards are untouched.
 func TestASendersCardIsMadeAtTheFirstField(t *testing.T) {
 	t.Parallel()
 	m, dir := carding(t, nil)
@@ -91,8 +90,8 @@ func TestASendersCardIsMadeAtTheFirstField(t *testing.T) {
 	}
 }
 
-// A card is found by any of the person's IDs; a field is edited in place, a comma
-// making it a list and nothing removing it; a new field is named first.
+// A card is found by any of the person's IDs; a field is edited in place (a comma makes it
+// a list, empty removes it); a new field is named first.
 func TestACardIsEditedAField(t *testing.T) {
 	t.Parallel()
 	m, dir := carding(t, nil)
@@ -124,8 +123,8 @@ func TestACardIsEditedAField(t *testing.T) {
 	}
 }
 
-// From the member list I opens the person under the cursor; in a room with one person
-// besides you and the bots it opens theirs, and in a room of several it says so.
+// From the member list I opens the person under the cursor; in a room with one other person
+// (bots aside) it opens theirs; in a larger room it says so.
 func TestACardOpensFromMembersAndRooms(t *testing.T) {
 	t.Parallel()
 	m, _ := carding(t, []domain.Member{{UserID: "@me:x"}, {UserID: "@whatsappbot:x"}, {UserID: "@eli:x", DisplayName: "Eli"}})
@@ -153,8 +152,8 @@ func TestACardOpensFromMembersAndRooms(t *testing.T) {
 	}
 }
 
-// What the phonebook knows a person by: a number, a Matrix user, a bridged Telegram
-// user, and each network's own ID, every identity ID of theirs included.
+// The phonebook knows a person by a number, a Matrix user, a bridged Telegram user, each
+// network's own ID, and every identity ID of theirs.
 func TestAPersonIsKnownByEveryIDOfTheirs(t *testing.T) {
 	t.Parallel()
 	m := starterNew(apitest.Nop{}, config.Display{Identities: []config.Identity{{Alias: "Dana", IDs: []string{"@dana:x", "@telegram_42:x", "slack:T1.U2"}}}})

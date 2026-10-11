@@ -25,9 +25,7 @@ func TestParseVerdict(t *testing.T) {
 		{"miss with none", []string{"# xyzzy 0"}, false, nil},
 		{"a guess is still a miss",
 			[]string{"? foo 2 0: fool, food"}, false, []string{"fool", "food"}},
-		// The protocol has grown lines over the years, and the two mistakes are not
-		// equally priced: a missed misspelling is invisible, where a spurious
-		// underline on a correct word is what makes people switch a checker off.
+		// Unrecognized lines count as correct.
 		{"an unknown line reads as correct", []string{"% something new"}, true, nil},
 		{"no lines at all reads as correct", nil, true, nil},
 		{"blank lines are skipped", []string{"", "*"}, true, nil},
@@ -62,9 +60,8 @@ func TestSuggestionsInHandlesAMalformedLine(t *testing.T) {
 	}
 }
 
-// The escape is the one trap in a protocol that reads and writes on one channel: a
-// word starting with `*` or `@` would otherwise be a command to add or accept it, and
-// a word containing a newline would make the rest of the draft into commands.
+// The `^` escape keeps a word starting with `*` or `@` from being a command, and a
+// newline from turning the rest of the draft into commands.
 func TestEscapeMakesAWordUnreadableAsACommand(t *testing.T) {
 	t.Parallel()
 

@@ -10,22 +10,17 @@ import (
 
 	"github.com/gotd/td/telegram/updates"
 
-	// The pure-Go SQLite driver the cache already uses.
+	// Pure-Go SQLite driver, as the cache uses.
 	_ "modernc.org/sqlite"
 )
 
-// The Telegram store keeps, per logged-in account (by its own user ID), where its
-// updates are up to — the state gotd's updates manager recovers gaps from, after
-// downtime too — the access hashes calls name users and channels by, and how far
-// each chat's history has been read back (backfill.go). None of it
-// is secret (the session is in the keyring), and only the daemon opens it.
+// The Telegram store keeps, per account user ID, gotd's updates state (for gap
+// recovery), access hashes and backfill progress. Nothing secret; daemon-only.
 //
-// An update's position is kept only once the messages it carries are cached: gotd
-// saves its position even when the handler failed, so an account whose caching failed
-// is held (hold), and its position goes unsaved until it connects anew, which then
-// asks Telegram again from the last position whose messages were cached.
+// gotd saves the updates position even when the handler failed, so an account whose
+// caching failed is held: its position goes unsaved until it reconnects and refetches.
 
-// storeSchema is the store's tables. user_version says which schema a file has.
+// storeSchema is the store's tables; user_version is the schema version.
 const storeSchema = `
 CREATE TABLE IF NOT EXISTS state (
 	user INTEGER PRIMARY KEY,
@@ -56,7 +51,7 @@ type Store struct {
 	db *sql.DB
 
 	mu sync.Mutex
-	// held are the accounts whose updates' position goes unsaved (hold).
+	// held are the accounts whose updates position goes unsaved (hold).
 	held map[int64]bool
 }
 
@@ -91,15 +86,14 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// hold stops saving user's updates position: a message it covers was not cached.
+// hold stops saving user's updates position after a message failed to cache.
 func (s *Store) hold(user int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.held[user] = true
 }
 
-// release saves user's position again: its connection begins anew, from the position
-// last saved.
+// release resumes saving user's position when its connection restarts.
 func (s *Store) release(user int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -124,7 +118,7 @@ func (s *Store) exec(ctx context.Context, user int64, query string, args ...any)
 	return nil
 }
 
-// GetState is where user's updates were up to; found false before its first.
+// GetState is user's updates state; found false before the first.
 func (s *Store) GetState(ctx context.Context, user int64) (updates.State, bool, error) {
 	var st updates.State
 	err := s.db.QueryRowContext(ctx, `SELECT pts, qts, date, seq FROM state WHERE user = ?`, user).
@@ -138,15 +132,14 @@ func (s *Store) GetState(ctx context.Context, user int64) (updates.State, bool, 
 	return st, true, nil
 }
 
-// SetState keeps where user's updates are up to.
+// SetState stores user's updates state.
 func (s *Store) SetState(ctx context.Context, user int64, st updates.State) error {
 	return s.exec(ctx, user, `INSERT INTO state (user, pts, qts, date, seq) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (user) DO UPDATE SET pts = excluded.pts, qts = excluded.qts, date = excluded.date, seq = excluded.seq`,
 		user, st.Pts, st.Qts, st.Date, st.Seq)
 }
 
-// SetPts keeps one part of user's position; with no position yet, there is nothing
-// to update, and gotd sets the whole one first.
+// SetPts updates user's pts; a no-op before SetState, which gotd calls first.
 func (s *Store) SetPts(ctx context.Context, user int64, pts int) error {
 	return s.exec(ctx, user, `UPDATE state SET pts = ? WHERE user = ?`, pts, user)
 }
@@ -171,7 +164,7 @@ func (s *Store) SetDateSeq(ctx context.Context, user int64, date, seq int) error
 	return s.exec(ctx, user, `UPDATE state SET date = ?, seq = ? WHERE user = ?`, date, seq, user)
 }
 
-// GetChannelPts is where a channel's updates were up to, for user.
+// GetChannelPts is a channel's pts, for user.
 func (s *Store) GetChannelPts(ctx context.Context, user, channel int64) (int, bool, error) {
 	var pts int
 	err := s.db.QueryRowContext(ctx, `SELECT pts FROM channel_pts WHERE user = ? AND channel = ?`, user, channel).Scan(&pts)
@@ -184,13 +177,13 @@ func (s *Store) GetChannelPts(ctx context.Context, user, channel int64) (int, bo
 	return pts, true, nil
 }
 
-// SetChannelPts keeps where a channel's updates are up to, for user.
+// SetChannelPts stores a channel's pts, for user.
 func (s *Store) SetChannelPts(ctx context.Context, user, channel int64, pts int) error {
 	return s.exec(ctx, user, `INSERT INTO channel_pts (user, channel, pts) VALUES (?, ?, ?)
 		ON CONFLICT (user, channel) DO UPDATE SET pts = excluded.pts`, user, channel, pts)
 }
 
-// ForEachChannels hands f each channel with a position kept, for user.
+// ForEachChannels calls f for each channel with a stored pts, for user.
 func (s *Store) ForEachChannels(ctx context.Context, user int64, f func(ctx context.Context, channel int64, pts int) error) error {
 	all, err := s.channelPositions(ctx, user)
 	if err != nil {
@@ -204,20 +197,19 @@ func (s *Store) ForEachChannels(ctx context.Context, user int64, f func(ctx cont
 	return nil
 }
 
-// ForgetChannel stops keeping where a channel's updates are up to, for user: the
-// account is no longer in it, and is not to follow it on connecting again.
+// ForgetChannel drops a left channel's pts so it isn't followed on reconnect.
 func (s *Store) ForgetChannel(ctx context.Context, user, channel int64) error {
 	return s.exec(ctx, user, `DELETE FROM channel_pts WHERE user = ? AND channel = ?`, user, channel)
 }
 
-// position is where one channel's updates are up to.
+// position is one channel's pts.
 type position struct {
 	channel int64
 	pts     int
 }
 
-// channelPositions is every channel position kept for user. They are read whole
-// before f runs: f may write to the store, which has one connection.
+// channelPositions is every channel pts for user, read whole because f may write to
+// the single-connection store.
 func (s *Store) channelPositions(ctx context.Context, user int64) ([]position, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT channel, pts FROM channel_pts WHERE user = ?`, user)
 	if err != nil {
@@ -278,9 +270,8 @@ func (s *Store) hash(ctx context.Context, query string, user, id int64) (int64, 
 	return hash, true, nil
 }
 
-// backfilled is how far a chat's history has been read back for user: where the next
-// page starts ("" for the newest), how many messages were read, and whether it is
-// done (the chat's beginning, or as deep as kith keeps). A chat never read is zero.
+// backfilled is a chat's backfill progress: the next page's offset ("" for newest),
+// messages read, and whether done (start of chat or kith's depth limit).
 func (s *Store) backfilled(ctx context.Context, user int64, room string) (next string, fetched int, done bool, err error) {
 	err = s.db.QueryRowContext(ctx, `SELECT next, fetched, done FROM backfill WHERE user = ? AND room = ?`, user, room).
 		Scan(&next, &fetched, &done)
@@ -293,7 +284,7 @@ func (s *Store) backfilled(ctx context.Context, user int64, room string) (next s
 	return next, fetched, done, nil
 }
 
-// keepBackfill keeps how far a chat's history has been read back for user.
+// keepBackfill stores a chat's backfill progress.
 func (s *Store) keepBackfill(ctx context.Context, user int64, room, next string, fetched int, done bool) error {
 	if _, err := s.db.ExecContext(ctx, `INSERT INTO backfill (user, room, next, fetched, done) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (user, room) DO UPDATE SET next = excluded.next, fetched = excluded.fetched, done = excluded.done`,

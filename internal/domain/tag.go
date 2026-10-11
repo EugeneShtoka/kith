@@ -6,9 +6,8 @@ import (
 	"strings"
 )
 
-// A tag is a grouping of rooms the person makes: local, across networks, a room in
-// as many tags as it fits. Its rule says which rooms it holds; picked rooms are in it
-// whatever the rule says, excluded ones out of it whatever it says.
+// A tag is a local, cross-network grouping of rooms; a room may be in many. Its rule
+// decides membership, overridden by picked (in) and excluded (out) rooms.
 
 // Tag is one [[tag]].
 type Tag struct {
@@ -18,15 +17,13 @@ type Tag struct {
 	Excluded []string // room entries
 	Hidden   bool     // no rail row; the tag still works wherever a place is named
 
-	// Silent: the rooms it holds count as read everywhere else — no badge, not
-	// `unread` or `mention` to another tag's rule, skipped by mark-all-read
-	// (counts_unread = false).
+	// Silent (counts_unread = false): its rooms count as read everywhere else, for
+	// badges, other tags' rules and mark-all-read.
 	Silent bool
-	// Exclusive: a room this tag holds shows under it and under no other tag or
-	// built-in row (its spaces are SpaceExclusive's).
+	// Exclusive: its rooms show under it and no other tag or built-in row.
 	Exclusive bool
-	// SpaceExclusive: a room this tag holds leaves the spaces a person made and other
-	// tags; the spaces it belongs to (Space.Managed) keep it.
+	// SpaceExclusive: its rooms leave other tags and person-made spaces; managed
+	// spaces (Space.Managed) keep them.
 	SpaceExclusive bool
 	Sticky         bool // the open room stays listed until you move off it
 	HideWhenEmpty  bool // no rail row while it holds nothing
@@ -59,9 +56,8 @@ var stateWords = map[string]func(RoomState) bool{
 	"invite":  func(s RoomState) bool { return s.Invite },
 }
 
-// judgedWords are the state words that are someone's judgement of a room, not a fact
-// about it: a network's spam filter is wrong at times, and a room is put in or kept
-// out of its tag by hand.
+// judgedWords are state words that are a fallible judgement, not a fact, so the
+// person corrects them by hand.
 var judgedWords = map[string]bool{"spam": true}
 
 // TagEntry spells a tag as a place: `tag:<name>`.
@@ -132,20 +128,16 @@ type compiled struct {
 	picked, excluded  []string
 }
 
-// TagSet is the configured tags, parsed, with the cycles among them broken. Build it
-// with NewTagSet.
+// TagSet is the parsed tags with reference cycles broken. Build it with NewTagSet.
 type TagSet struct {
 	tags   []compiled
 	byName map[string]int // lower-cased name → index
-	// cyclic marks the references that close a cycle (from → to, lower-cased): they
-	// match nothing, so the rest of the config still works.
+	// cyclic marks references inside a cycle (from → to, lower-cased); they match nothing.
 	cyclic map[[2]string]bool
 }
 
-// NewTagSet parses tags. An invalid tag (no name, a duplicate name, a term or room
-// entry that names nothing) is an error; tags whose rules depend on each other in a
-// cycle are not, but each such cycle is reported as a warning, and the references
-// that close it match nothing.
+// NewTagSet parses tags. An invalid tag is an error; a reference cycle is a warning,
+// and the references inside it match nothing.
 func NewTagSet(tags []Tag) (TagSet, []string, error) {
 	set := TagSet{byName: make(map[string]int, len(tags)), cyclic: map[[2]string]bool{}}
 	known := make(map[string]bool, len(tags))
@@ -187,9 +179,8 @@ func NewTagSet(tags []Tag) (TagSet, []string, error) {
 	return set, set.breakCycles(), nil
 }
 
-// breakCycles finds the tags that depend on each other — each strongly connected
-// set of references, a tag naming itself included — marks every reference inside
-// one, and reports each once.
+// breakCycles marks every reference inside each strongly connected component (a
+// self-reference included) and returns one warning per component.
 func (s TagSet) breakCycles() []string {
 	refs := s.references()
 	var warnings []string
@@ -283,8 +274,8 @@ func (s TagSet) Tags() []Tag {
 	return out
 }
 
-// Of is the names of the tags holding a room with these facts, judged as a place is:
-// on the room alone, no state (a state word matches nothing, `not` one everything).
+// Of is the names of the tags holding a room judged as a place, without state (a
+// state word matches nothing, its `not` everything).
 func (s TagSet) Of(facts RoomFacts) []string {
 	var names []string
 	for i := range s.tags {
@@ -301,11 +292,9 @@ func (s TagSet) Index(name string) (int, bool) {
 	return i, ok
 }
 
-// Automatic reports whether tag i is filled by its rule alone: it has one, and none of
-// its terms names a place (a room, a space, a network, another tag) — only what a room
-// is (unread, a draft, an invitation, a DM) or every room. Filing a room into such a
-// tag by hand is no choice anyone makes (Unread, DMs, All). A judged word (spam) is
-// not automatic: its judgement is corrected by hand.
+// Automatic reports whether tag i has a rule naming no place (room, space, network,
+// tag), only state, dm/group or "*" (Unread, DMs, All), so filing by hand makes no
+// sense. A judged word (spam) is not automatic.
 func (s TagSet) Automatic(i int) bool {
 	c := s.tags[i]
 	if len(c.positive) == 0 && len(c.negated) == 0 {
@@ -325,8 +314,7 @@ func isKind(entry string) bool {
 	return strings.EqualFold(entry, entryDirect) || strings.EqualFold(entry, entryGroup)
 }
 
-// HoldsEvery reports whether tag i's rule takes every room ("*"): All, the same place
-// as everywhere.
+// HoldsEvery reports whether tag i's rule takes every room ("*").
 func (s TagSet) HoldsEvery(i int) bool {
 	for _, t := range s.tags[i].positive {
 		if t.every {
@@ -347,10 +335,9 @@ func (s TagSet) HasAt(i int, facts RoomFacts, state RoomState) bool {
 	return s.has(i, facts, state, map[int]bool{})
 }
 
-// Has reports whether the named tag holds a room with these facts and this state. A
-// room excluded by name is out; one picked is in; otherwise the rule decides: no
-// `not` term may match, and some positive term must — or, a rule of `not` terms
-// alone, none is needed. An empty rule holds only picked rooms.
+// Has reports whether the named tag holds a room. Excluded beats picked beats the
+// rule; the rule needs no `not` term to match and some positive term to match
+// (none if it has only `not` terms). An empty rule holds only picked rooms.
 func (s TagSet) Has(name string, facts RoomFacts, state RoomState) bool {
 	i, ok := s.byName[strings.ToLower(strings.TrimSpace(name))]
 	if !ok {
@@ -359,8 +346,7 @@ func (s TagSet) Has(name string, facts RoomFacts, state RoomState) bool {
 	return s.has(i, facts, state, map[int]bool{})
 }
 
-// has judges tag i; asking holds the tags whose answer is being worked out, so a
-// reference the cycle breaking missed can never recurse forever.
+// has judges tag i; asking guards against recursion that cycle breaking missed.
 func (s TagSet) has(i int, facts RoomFacts, state RoomState, asking map[int]bool) bool {
 	c := s.tags[i]
 	if slices.ContainsFunc(c.excluded, facts.Names) {
@@ -400,13 +386,9 @@ func (s TagSet) has(i int, facts RoomFacts, state RoomState, asking map[int]bool
 	return len(c.positive) == 0 || slices.ContainsFunc(c.positive, matches)
 }
 
-// Filed is tag i's picked and excluded lists once the room with these facts is put in
-// it (in) or taken out: every entry naming the room is dropped from both, then the
-// room's ID is picked only if the rule (in this state) would leave it out, or excluded
-// only if the rule would hold it — so the lists say no more than the choice needs. An
-// entry dropped that also named other rooms (a room:<name> two rooms share) is
-// replaced by their IDs, so no other room changes. others is every room an entry may
-// name.
+// Filed is tag i's picked and excluded lists after putting the room in (in) or out.
+// Entries naming the room are dropped; its ID is added only where the rule disagrees.
+// A dropped entry that also named other rooms (of others) is replaced by their IDs.
 func (s TagSet) Filed(i int, facts RoomFacts, state RoomState, in bool, others []RoomFacts) (picked, excluded []string) {
 	c := s.tags[i]
 	picked = refiled(c.picked, facts, others)
@@ -423,8 +405,7 @@ func (s TagSet) Filed(i int, facts RoomFacts, state RoomState, in bool, others [
 	return picked, excluded
 }
 
-// refiled is entries without those naming the room, each dropped one replaced by the
-// IDs of the other rooms it named.
+// refiled drops entries naming the room, replacing each with the other rooms' IDs it named.
 func refiled(entries []string, facts RoomFacts, others []RoomFacts) []string {
 	var out []string
 	for _, entry := range entries {

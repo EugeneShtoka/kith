@@ -13,22 +13,18 @@ import (
 )
 
 // The "why is it quiet?" overlay: the rule chain resolved for the open room (no
-// sender), least specific first, so the badge's answer can be traced. Rules that depend
-// on a sender are counted separately rather than guessed at.
+// sender), least specific first. Sender-dependent rules are counted, not guessed at.
 
-// openWhy shows the chain for the current room.
 func (m Model) openWhy() (Model, tea.Cmd) {
 	m.reader = m.reader.opening(readerWhy)
 	return m, nil
 }
 
-// handleWhyKey closes the overlay on any key.
 func (m Model) handleWhyKey(tea.KeyPressMsg) (Model, tea.Cmd) {
 	m.reader = m.reader.closed()
 	return m, nil
 }
 
-// whyView renders the chain.
 func (m Model) whyView() string {
 	var b strings.Builder
 	b.WriteString(m.theme.TitleActive.Render("Why is it quiet?") + "\n\n")
@@ -42,7 +38,6 @@ func (m Model) whyView() string {
 	return m.centeredBox(b.String())
 }
 
-// whyLines is the explanation, as logical lines.
 func (m Model) whyLines(now time.Time) []string {
 	room, ok := m.currentRoom()
 	if !ok {
@@ -57,8 +52,8 @@ func (m Model) whyLines(now time.Time) []string {
 	rules := notify.Rules(m.notifications.rules, m.notifications.temps)
 	resolved := notify.Resolve(rules, scope, now)
 
-	// Spam is not a rule: a room in it never notifies, so it is answered first, with
-	// why it is there, and the chain shown as what would apply once released.
+	// Spam is not a rule: a room in it never notifies, so that is answered first, with the
+	// chain shown as what applies once released.
 	if reason := m.spamReason(room); reason != "" {
 		return append([]string{
 			m.theme.Muted.Render(drawSentence("for " + m.roomName(room) + ", right now:")), "",
@@ -100,8 +95,8 @@ func (m Model) whyChain(resolved notify.Resolved, scope notify.Scope, now time.T
 	return lines
 }
 
-// whyLine is one rule in the chain: what it is called, when it is awake, what it says,
-// and whether it is the one that had the last word.
+// whyLine is one rule in the chain: its name, when it is active, what it says, and
+// whether it had the last word.
 func whyLine(rule notify.Rule, resolved notify.Resolved, now time.Time) string {
 	parts := []string{ruleName(rule)}
 	if rule.Temp {
@@ -134,7 +129,7 @@ func sameRule(a, b notify.Rule) bool {
 		a.Thread == b.Thread && a.Temp == b.Temp
 }
 
-// spokeInThread reports whether we sent the thread's root or any reply — what
+// spokeInThread reports whether we sent the thread's root or any reply, which is what
 // `thread = "participating"` asks. The daemon answers the same from its cache.
 func (m Model) spokeInThread(root domain.EventID) bool {
 	if root == "" {
@@ -163,8 +158,8 @@ func whyResult(r notify.Resolved) string {
 	}
 }
 
-// senderRules counts the rules that apply here but only for a particular person, and
-// so cannot be resolved without a message from them.
+// senderRules counts the rules that apply here only for a particular sender, which
+// cannot be resolved without a message from them.
 func (m Model) senderRules(scope notify.Scope, now time.Time) int {
 	count := 0
 	rules := notify.Rules(m.notifications.rules, m.notifications.temps)
@@ -183,7 +178,6 @@ func (m Model) senderRules(scope notify.Scope, now time.Time) int {
 	return count
 }
 
-// senderNote says how many rules are waiting on who is writing, in words.
 func senderNote(n int) string {
 	if n == 1 {
 		return "1 more rule here depends on who is writing"

@@ -11,7 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// arrived is one message as kith keeps it, with what its room needs.
+// arrived is a converted message plus what its room needs.
 type arrived struct {
 	msg      domain.Message
 	source   *mediaSource // how to load its attachment; nil when it has none
@@ -23,7 +23,7 @@ type arrived struct {
 	pushName string
 }
 
-// convert is a WhatsApp message as kith keeps it, live or from history alike.
+// convert converts a live or history WhatsApp message.
 func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message) (arrived, bool) {
 	lookup := a.pnLookup(client)
 	own := selfOf(client)
@@ -38,8 +38,7 @@ func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeo
 		return arrived{}, false
 	}
 	channelPost := chat.Server == types.NewsletterServer
-	// A mention names a LID, as its text does; the person is their number, as a
-	// sender is, so it is drawn with the name the number is known by.
+	// Mentions name a LID; map to the number, as senders are, so the name resolves.
 	for i := range msg.Mentions {
 		if jid, err := types.ParseJID(domain.ParseID(msg.Mentions[i].UserID).Native); err == nil {
 			msg.Mentions[i].UserID = domain.NativePerson(domain.ProtocolWhatsApp, person(ctx, jid, types.EmptyJID, lookup).String())
@@ -66,8 +65,7 @@ func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeo
 	}, true
 }
 
-// onMessage caches a message an account received, or sent from another of its
-// devices, and hands it to the clients.
+// onMessage caches a received message (or one sent from another device) and emits it.
 func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message) {
 	if a.onChange(ctx, account, client, e) {
 		return
@@ -93,11 +91,9 @@ func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsm
 	emit(a, a.messages, in.msg)
 }
 
-// arrival is a live message's place among those sharing its second: WhatsApp gives
-// whole seconds and IDs that carry no order, and delivers a chat's messages in the
-// order they were sent, so the order they arrive in is theirs. Nanoseconds, so a
-// place given after a restart still comes after one given before, and each greater
-// than the last.
+// arrival orders live messages within a second: WhatsApp timestamps are whole seconds
+// and IDs are unordered, but delivery is in send order. Strictly increasing
+// nanoseconds, so order also holds across restarts.
 func (a *Adapter) arrival() int64 {
 	for {
 		last := a.arrived.Load()
@@ -108,12 +104,11 @@ func (a *Adapter) arrival() int64 {
 	}
 }
 
-// ensureRoom makes the room a message belongs in one of the account's: a direct chat
-// named after the person (or name, history's), a group or channel joined. It reports
-// a group or channel that was not one of its rooms before. Caller holds listing.
+// ensureRoom makes a message's room one of the account's, reporting a group or
+// channel that was new. Caller holds listing.
 func (a *Adapter) ensureRoom(ctx context.Context, account Account, client *whatsmeow.Client, in arrived, name string) bool {
 	if !in.group && !in.channel {
-		// A push name is the sender's own: it names the chat only when they sent it.
+		// A push name is the sender's, so it names the chat only on their messages.
 		if name == "" && !in.fromMe {
 			name = in.pushName
 		}
@@ -123,9 +118,7 @@ func (a *Adapter) ensureRoom(ctx context.Context, account Account, client *whats
 	return a.joinGroup(ctx, account, in.msg.RoomID)
 }
 
-// joinGroup makes a group a message came to one of the account's rooms, and reports
-// whether it was not before (a group just joined, or one the listing has not caught
-// up with).
+// joinGroup adds a message's group to the account's rooms, reporting whether it was new.
 func (a *Adapter) joinGroup(ctx context.Context, account Account, room domain.RoomID) bool {
 	n, err := a.cache.JoinRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits), []domain.RoomID{room})
 	if err != nil {
@@ -135,8 +128,7 @@ func (a *Adapter) joinGroup(ctx context.Context, account Account, room domain.Ro
 	return n > 0
 }
 
-// record caches a message, with whatever its room needs first, where no listing's
-// sweep can come between the room and the message (see saveListing).
+// record caches a message after its room, under listing so no sweep comes between.
 func (a *Adapter) record(ctx context.Context, account Account, msg domain.Message, room func()) {
 	a.listing.Lock()
 	a.heard[msg.RoomID] = time.Now()
@@ -156,14 +148,12 @@ func (a *Adapter) record(ctx context.Context, account Account, msg domain.Messag
 	}
 }
 
-// knowDirectChat records a direct chat as a room named after the person, with them as
-// its member, the first time it is seen and whenever their name may have changed.
+// knowDirectChat records a direct chat named after the person, with them as member.
 func (a *Adapter) knowDirectChat(ctx context.Context, account Account, client *whatsmeow.Client, room domain.RoomID, peer types.JID, fallback string) {
 	a.nameDirectChat(ctx, account, room, peer, chatName(ctx, a.names(client), selfOf(client), peer, fallback))
 }
 
-// nameDirectChat records a direct chat under name, with the person as its member.
-// Caller holds listing.
+// nameDirectChat records a direct chat under name. Caller holds listing.
 func (a *Adapter) nameDirectChat(ctx context.Context, account Account, room domain.RoomID, peer types.JID, name string) {
 	owner := domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits)
 	chat := domain.Room{ID: room, Name: name, IsDirect: true}
@@ -180,7 +170,7 @@ func (a *Adapter) nameDirectChat(ctx context.Context, account Account, room doma
 	}
 }
 
-// pnLookup finds a LID's phone number in an account's store.
+// pnLookup maps a LID to its phone number via the account's store.
 func (a *Adapter) pnLookup(client *whatsmeow.Client) pnOf {
 	return func(ctx context.Context, lid types.JID) types.JID {
 		pn, err := client.Store.LIDs.GetPNForLID(ctx, lid)

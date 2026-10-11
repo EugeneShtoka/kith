@@ -17,16 +17,15 @@ import (
 // verificationBuffer bounds the verification→UI channel (low-frequency events).
 const verificationBuffer = 8
 
-// verifyState is SAS device verification's share of the backend: the helper once
-// wired, why it is not, the contexts work from its callbacks runs under, and the join
-// Stop waits on. Callbacks spawn goroutines (the helper holds its transaction lock
-// while calling them) that touch the crypto store Stop closes next.
+// verifyState is the backend's SAS verification state. Callbacks spawn goroutines
+// (the helper holds its lock while calling them) that touch the crypto store, so
+// Stop waits for them before closing it.
 type verifyState struct {
-	// mu guards what enableVerification publishes: a degraded start publishes it on a
-	// worker goroutine while RPCs read it.
+	// mu guards what enableVerification publishes: a degraded start publishes it
+	// while RPCs read it.
 	mu     sync.RWMutex
 	helper *verificationhelper.VerificationHelper
-	// err is why helper is nil, when it is (non-fatal, but worth reporting).
+	// err is why helper is nil (non-fatal).
 	err error
 	// base is the app-lifetime context callbacks arrive without; ctx and cancel bound
 	// the work they start.
@@ -42,8 +41,7 @@ type verifyState struct {
 	events chan domain.Verification
 }
 
-// publish makes a wired helper visible, all at once: readers see a complete
-// machine or none.
+// publish makes a wired helper visible atomically.
 func (v *verifyState) publish(base, ctx context.Context, cancel context.CancelFunc, helper *verificationhelper.VerificationHelper) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -57,8 +55,8 @@ func (v *verifyState) setErr(err error) {
 	v.err = err
 }
 
-// stop refuses new work, cancels what runs and waits for it. The two locks are taken
-// one after the other, never nested, so they have no order.
+// stop refuses new work, cancels what runs and waits for it. Its two locks are
+// never nested.
 func (v *verifyState) stop() {
 	v.workMu.Lock()
 	v.stopped = true
@@ -72,9 +70,8 @@ func (v *verifyState) stop() {
 	v.work.Wait()
 }
 
-// enableVerification wires the SAS verification helper into the crypto machine; run
-// before Start (it registers sync handlers). Failure is non-fatal: EnableEncryption
-// keeps it for VerificationUnavailable.
+// enableVerification wires the SAS helper into the crypto machine; run before Start
+// (it registers sync handlers). Failure is non-fatal (see VerificationUnavailable).
 func (b *InProc) enableVerification(ctx context.Context, helper *cryptohelper.CryptoHelper) error {
 	if helper == nil {
 		return api.ErrNoEncryption
@@ -82,8 +79,7 @@ func (b *InProc) enableVerification(ctx context.Context, helper *cryptohelper.Cr
 	verifyCtx, cancel := context.WithCancel(ctx)
 	cb := verifyCallbacks{
 		out: b.ver.events,
-		// The helper calls these holding its transaction lock, so anything re-entering
-		// it or doing slow I/O runs on its own goroutine.
+		// The helper calls these holding its lock: re-entry and slow I/O go to a goroutine.
 		startSAS: b.startSAS,
 		onDone:   func(id.VerificationTransactionID) { b.goVerify(b.gossipRestore) },
 	}
@@ -106,8 +102,7 @@ func (b *InProc) verifier() *verificationhelper.VerificationHelper {
 	return b.ver.helper
 }
 
-// goVerify runs fn on a goroutine Stop waits for, or not at all once Stop has begun
-// (checked under Stop's lock, so Add never races Wait).
+// goVerify runs fn on a goroutine Stop waits for, or not at all once Stop has begun.
 func (b *InProc) goVerify(fn func()) {
 	b.ver.workMu.Lock()
 	if b.ver.stopped {
@@ -123,9 +118,8 @@ func (b *InProc) goVerify(fn func()) {
 	}()
 }
 
-// startSAS drives the SAS exchange on its own goroutine (StartSAS re-enters the
-// helper, which holds its lock here). A failed Init leaves the helper's handlers
-// live with no helper published, so the nil check prevents a panic on a bare goroutine.
+// startSAS runs StartSAS on a goroutine, since it re-enters the locked helper. A
+// failed Init leaves handlers live with no helper published, hence the nil check.
 func (b *InProc) startSAS(txnID id.VerificationTransactionID) {
 	vh := b.verifier()
 	if vh == nil {
@@ -148,12 +142,11 @@ func (b *InProc) VerificationUnavailable() error {
 }
 
 // gossipRestore requests the backup key from the just-verified device and imports
-// the backup, reporting a success to the UI. Failure is silent (--restore-keys remains).
+// the backup. Failure only logs (--restore-keys remains).
 func (b *InProc) gossipRestore() {
 	ctx := b.verifyContext()
 	count, err := b.restoreFromGossip(ctx)
 	if err != nil || count <= 0 {
-		// Verification itself succeeded; only the follow-up key restore did not.
 		b.warnIf(ctx, err, "restore room keys from backup after verification")
 		return
 	}
@@ -180,15 +173,14 @@ func (b *InProc) verifyContext() context.Context {
 	return context.Background()
 }
 
-// StartVerification asks this account's other devices (to-device, to our own user)
-// to verify this one, returning the transaction ID. VerificationReady then drives SAS.
+// StartVerification asks this account's other devices to verify this one and
+// returns the transaction ID; VerificationReady then drives SAS.
 func (b *InProc) StartVerification(ctx context.Context) (string, error) {
 	vh := b.verifier()
 	if vh == nil {
 		return "", api.ErrNoEncryption
 	}
 	if b.client == nil || b.client.UserID == "" {
-		// No session: nobody to ask.
 		return "", api.ErrNoEncryption
 	}
 	txnID, err := vh.StartVerification(ctx, b.client.UserID)
@@ -262,7 +254,6 @@ func (c verifyCallbacks) VerificationCancelled(ctx context.Context, txnID id.Ver
 
 func (c verifyCallbacks) VerificationDone(ctx context.Context, txnID id.VerificationTransactionID, _ event.VerificationMethod) {
 	c.emit(ctx, domain.Verification{Kind: domain.VerificationDone, TxnID: string(txnID)})
-	// A device trusts us now: try to restore history via key gossip.
 	if c.onDone != nil {
 		c.onDone(txnID)
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// withoutTable is schema with one CREATE statement (up to its ending) taken out.
+// withoutTable is schema with one CREATE statement removed.
 func withoutTable(t *testing.T, schema, start, end string) string {
 	t.Helper()
 	i := strings.Index(schema, start)
@@ -45,9 +45,8 @@ func seedCache(t *testing.T, schema string, version int) string {
 	return path
 }
 
-// A cache stamped with the current number but made by older code (the fold kept
-// version 1, so a cache stamped 1 before it lacks message_edit and message_tombstone)
-// is rebuilt, a copy set aside, instead of failing to open.
+// A cache stamped with the current version but an older shape (a pre-fold cache
+// stamped 1 lacks message_edit and message_tombstone) is rebuilt, a copy set aside.
 func TestACacheOfTheCurrentNumberButAnotherShapeIsRebuilt(t *testing.T) {
 	t.Parallel()
 	preFold := withoutTable(t, baseSchema, "CREATE TABLE message_edit (", ") STRICT, WITHOUT ROWID;")
@@ -75,8 +74,7 @@ func TestACacheOfTheCurrentNumberButAnotherShapeIsRebuilt(t *testing.T) {
 	}
 }
 
-// A missing table that no index names is caught by the shape alone: the index
-// reconcile would not notice it.
+// A missing table no index names is caught by the shape check alone.
 func TestAMissingTableWithoutAnIndexIsRebuilt(t *testing.T) {
 	t.Parallel()
 	schema := withoutTable(t, baseSchema, "CREATE TABLE message_tombstone (", ") STRICT, WITHOUT ROWID;")
@@ -93,9 +91,8 @@ func TestAMissingTableWithoutAnIndexIsRebuilt(t *testing.T) {
 	}
 }
 
-// Column order and SQL text are not the shape: a table whose columns sit in another
-// order, or one whose last column was added by a hand ALTER (the live cache's
-// room_unread), opens as it is.
+// Column order and SQL text are not the shape: reordered columns or a column added by
+// hand ALTER (the live cache's room_unread) open as they are.
 func TestTheShapeCheckIgnoresColumnOrderAndText(t *testing.T) {
 	t.Parallel()
 	const marked = "\tmarked        INTEGER NOT NULL DEFAULT 0,\n\tread_ts_ms    INTEGER NOT NULL DEFAULT 0\n"
@@ -119,9 +116,8 @@ func TestTheShapeCheckIgnoresColumnOrderAndText(t *testing.T) {
 	}
 }
 
-// A current, well-shaped cache whose index reconcile fails for a passing reason (another
-// writer holds the lock past busy_timeout, a full disk) is not rebuilt: that would drop
-// what only the cache holds, the drafts first. The error is reported instead.
+// A well-shaped cache whose index reconcile fails transiently (lock held past
+// busy_timeout, full disk) reports the error instead of rebuilding and dropping drafts.
 func TestAFailedIndexReconcileIsAnErrorNotARebuild(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -133,7 +129,7 @@ func TestAFailedIndexReconcileIsAnErrorNotARebuild(t *testing.T) {
 	if _, werr := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: "!a:x", Body: "half a thought", Updated: time.Now()}, domain.StoredDraft{}); werr != nil {
 		t.Fatal(werr)
 	}
-	// An index this binary declares is missing (an older binary, or one just added).
+	// An index this binary declares is missing.
 	if _, derr := cache.db.ExecContext(ctx, "DROP INDEX messages_recent"); derr != nil {
 		t.Fatal(derr)
 	}
@@ -161,7 +157,7 @@ func TestAFailedIndexReconcileIsAnErrorNotARebuild(t *testing.T) {
 			t.Fatal("a passing lock during the index reconcile rebuilt the cache")
 		}
 	}
-	// Either way, the drafts are still there once the lock is gone.
+	// Either way, the drafts survive once the lock is gone.
 	time.Sleep(6 * time.Second)
 	if again == nil {
 		if again, err = Open(ctx, path); err != nil {
@@ -174,9 +170,8 @@ func TestAFailedIndexReconcileIsAnErrorNotARebuild(t *testing.T) {
 	}
 }
 
-// The FTS index is kept by triggers: a cache of the current number and tables but
-// without one (or with an older one) searches stale text with no error, so it is the
-// wrong shape, and is rebuilt.
+// A cache missing an FTS trigger (or with an older one) searches stale text with no
+// error, so it is rebuilt.
 func TestACacheMissingAnFTSTriggerIsRebuilt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

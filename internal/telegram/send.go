@@ -16,11 +16,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Send posts a text message: Markdown as Telegram's entities, the people it names as
-// mentions, a reply as one. Telegram drops a second send with the same random ID, which
-// is derived from the draft's transaction, so sending a draft twice delivers it once.
-// The message is cached and handed to the clients here; Telegram's answer goes to the
-// account's updates, which keep their position in step with it.
+// Send posts a text message with entities, mentions and reply. The random ID comes
+// from the draft's transaction, so Telegram dedups a resend. The message is cached
+// and streamed here; the answer goes through the updates manager to keep pts in step.
 func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -58,8 +56,7 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 	return a.arrived(ctx, ch.conn.account, ch.conn.user, sent)
 }
 
-// userHash is how a draft names people to Telegram over connection c: by the access
-// hash a listing or an update revealed.
+// userHash is a user's access hash on c, from a listing or an update.
 func (a *Adapter) userHash(ctx context.Context, c conn) func(user int64) (int64, bool) {
 	return func(user int64) (int64, bool) {
 		p, err := a.inputPeer(ctx, c, user)
@@ -70,7 +67,7 @@ func (a *Adapter) userHash(ctx context.Context, c conn) func(user int64) (int64,
 	}
 }
 
-// updatedMessages are the messages an answer's updates carry, new or edited.
+// updatedMessages are the new or edited messages in an answer's updates.
 func updatedMessages(res tg.UpdatesClass) []tg.MessageClass {
 	var out []tg.MessageClass
 	for _, u := range updatesIn(res) {
@@ -88,7 +85,7 @@ func updatedMessages(res tg.UpdatesClass) []tg.MessageClass {
 	return out
 }
 
-// peerEntities are the users and chats an answer's updates name.
+// peerEntities are the entities in an answer's updates.
 func peerEntities(res tg.UpdatesClass) peer.Entities {
 	switch r := res.(type) {
 	case *tg.Updates:
@@ -99,9 +96,8 @@ func peerEntities(res tg.UpdatesClass) peer.Entities {
 	return peer.Entities{}
 }
 
-// replyTo is where a draft goes in its chat: the message it replies to, in the forum
-// topic its room is (the topic's own message when it replies to none); false for
-// neither.
+// replyTo is a draft's reply header: its reply target, within its topic (the topic's
+// message when not replying); false for neither.
 func replyTo(ch chat, draft domain.Draft) (*tg.InputReplyToMessage, bool) {
 	reply, replies := messageNumber(ch.room(), draft.ReplyTo)
 	switch {
@@ -115,8 +111,7 @@ func replyTo(ch chat, draft domain.Draft) (*tg.InputReplyToMessage, bool) {
 	return nil, false
 }
 
-// randomID is a send's random ID: the transaction's hash, so a retried send is the same
-// one; random when there is no transaction. Never zero.
+// randomID hashes the transaction so a retry dedups; random without one. Never zero.
 func randomID(txn string) int64 {
 	if txn != "" {
 		h := fnv.New64a()
@@ -130,7 +125,7 @@ func randomID(txn string) int64 {
 	return int64(binary.LittleEndian.Uint64(b[:]) | 1) //nolint:gosec // as above
 }
 
-// messageNumber is event's message ID within roomID; false when it is no message of it.
+// messageNumber is event's message ID in roomID; false if it isn't in that room.
 func messageNumber(roomID domain.RoomID, event domain.EventID) (int, bool) {
 	rest, ok := strings.CutPrefix(string(event), string(roomID)+"/")
 	if !ok {
@@ -140,9 +135,8 @@ func messageNumber(roomID domain.RoomID, event domain.EventID) (int, bool) {
 	return id, err == nil && id > 0
 }
 
-// sentAs is the ID and time Telegram gave the message sent with random ID random: a
-// private chat answers in short, the rest with the update that carries it. 0 when the
-// answer does not say.
+// sentAs is the ID and date Telegram gave the sent message, from a short answer (DMs)
+// or the carrying update; 0 if absent.
 func sentAs(res tg.UpdatesClass, random int64) (int, time.Time) {
 	switch r := res.(type) {
 	case *tg.UpdateShortSentMessage:
@@ -155,7 +149,7 @@ func sentAs(res tg.UpdatesClass, random int64) (int, time.Time) {
 	return 0, time.Time{}
 }
 
-// fromUpdates is the ID the updates gave random's message, and its date.
+// fromUpdates finds random's message ID and date in updates.
 func fromUpdates(updates []tg.UpdateClass, random int64, date int) (int, time.Time) {
 	id := 0
 	for _, u := range updates {

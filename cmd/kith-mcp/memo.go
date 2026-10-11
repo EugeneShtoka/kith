@@ -7,9 +7,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// callMemo holds what one tool call reads from the daemon more than once: the scope
-// check asks for the space list per room, so without it a listing is one RPC per room.
-// Per call, never longer, so a room or space that changes is seen on the next one.
+// callMemo caches what one tool call reads from the daemon repeatedly (the scope check
+// reads spaces per room). Per call only, so changes are seen on the next call.
 type callMemo struct {
 	roomsOnce  sync.Once
 	rooms      []domain.Room
@@ -17,9 +16,8 @@ type callMemo struct {
 	spacesOnce sync.Once
 	spaces     []domain.Space
 	spacesErr  error
-	// plain are rooms the daemon said are not encrypted. Per call: a room can turn
-	// encryption on at any time, and never off, so only "encrypted" outlives a call
-	// (server.crypto).
+	// plain are rooms the daemon said are unencrypted. Per call: encryption can turn on at
+	// any time but never off, so only "encrypted" outlives a call (server.crypto).
 	plainMu sync.Mutex
 	plain   map[domain.RoomID]bool
 }
@@ -30,7 +28,7 @@ func memoOf(ctx context.Context) *callMemo {
 	return m
 }
 
-// isPlain reports a room known unencrypted in this call.
+// isPlain reports whether a room is known unencrypted in this call.
 func (m *callMemo) isPlain(roomID domain.RoomID) bool {
 	if m == nil {
 		return false
@@ -40,7 +38,6 @@ func (m *callMemo) isPlain(roomID domain.RoomID) bool {
 	return m.plain[roomID]
 }
 
-// notePlain remembers, for this call only, that a room is not encrypted.
 func (m *callMemo) notePlain(roomID domain.RoomID) {
 	if m == nil {
 		return
@@ -55,7 +52,6 @@ func (m *callMemo) notePlain(roomID domain.RoomID) {
 
 type memoKey struct{}
 
-// withCallMemo starts the memo for one tool call.
 func withCallMemo(ctx context.Context) context.Context {
 	return context.WithValue(ctx, memoKey{}, &callMemo{})
 }
@@ -73,9 +69,8 @@ func (s *server) rooms(ctx context.Context) ([]domain.Room, error) {
 	return m.rooms, m.roomsErr
 }
 
-// learnEncryption asks, in one call, whether the rooms not known to be encrypted are,
-// so scope checks over a whole listing do not ask room by room. A failure leaves them
-// unknown, and each is asked (and failed closed) on its own.
+// learnEncryption asks in one call about every room not known to be encrypted. A
+// failure leaves them unknown, each then asked (and failed closed) alone.
 func (s *server) learnEncryption(ctx context.Context, rooms []domain.Room) {
 	s.mu.Lock()
 	var unknown []domain.RoomID
@@ -103,8 +98,8 @@ func (s *server) learnEncryption(ctx context.Context, rooms []domain.Room) {
 	}
 }
 
-// noteEncrypted remembers an encrypted room for the process's life: encryption, once
-// on, never goes off.
+// noteEncrypted remembers an encrypted room for the process's life: encryption never
+// turns off.
 func (s *server) noteEncrypted(roomID domain.RoomID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

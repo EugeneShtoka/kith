@@ -2,20 +2,19 @@ package domain
 
 import "strings"
 
-// What order the room list is in.
+// Room list sort order.
 
 // The sort keys. Each is one comparator; a chain applies them in order.
 const (
 	// SortUnread puts the rooms with something unread first.
 	SortUnread = "unread"
-	// SortMentions puts the rooms where something unread *names you* first.
+	// SortMentions puts rooms with an unread mention of you first.
 	SortMentions = "mentions"
-	// SortDrafts puts the rooms holding an unsent message first — where you look when
-	// you come back to a client you left mid-sentence.
+	// SortDrafts puts rooms holding an unsent draft first.
 	SortDrafts = "drafts"
 	// SortRecent is newest activity first.
 	SortRecent = "recent"
-	// SortName is by the name the room is shown under here.
+	// SortName is by the room's displayed name.
 	SortName = "name"
 )
 
@@ -74,13 +73,12 @@ func ParseSortChain(tokens []string) (chain []SortKey, unknown []string) {
 	return chain, unknown
 }
 
-// DefaultRoomChain is what an unconfigured client sorts by: what needs you, then
-// what is happening, then a stable answer for everything else.
+// DefaultRoomChain is the unconfigured chain: unread, recent, name.
 func DefaultRoomChain() []SortKey {
 	return []SortKey{{Key: SortUnread}, {Key: SortRecent}, {Key: SortName}}
 }
 
-// RoomList is what applies to one rail group: the chain its rooms are sorted by.
+// RoomList is the sort chain for one rail group.
 type RoomList struct {
 	Chain []SortKey
 }
@@ -112,8 +110,7 @@ func (l RoomList) WithFront(key string) RoomList {
 	return RoomList{Chain: append([]SortKey{{Key: key}}, rest.Chain...)}
 }
 
-// WithTail replaces the *ordering* end of the chain — every key that orders rooms
-// within a band — keeping the partitions that come before it.
+// WithTail replaces the chain's ordering keys (see orders), keeping its partitions.
 func (l RoomList) WithTail(keys ...string) RoomList {
 	out := make([]SortKey, 0, len(l.Chain)+len(keys))
 	for _, k := range l.Chain {
@@ -127,12 +124,10 @@ func (l RoomList) WithTail(keys ...string) RoomList {
 	return RoomList{Chain: out}
 }
 
-// orders reports whether a key sorts rooms within a band rather than partitioning
-// them into bands. It is what tells WithTail which half of a chain it is replacing.
+// orders reports whether a key sorts rooms within a band rather than partitioning them.
 func orders(key string) bool { return key == SortRecent || key == SortName }
 
-// Label says what the list is doing, for the status line — the whole chain, because
-// a key has just changed part of it and the rest is what makes the result make sense.
+// Label describes the whole chain in words, for the status line.
 func (l RoomList) Label() string {
 	if len(l.Chain) == 0 {
 		return "unsorted"
@@ -147,8 +142,7 @@ func (l RoomList) Label() string {
 	return strings.Join(phrases[:len(phrases)-1], ", ") + ", then " + phrases[len(phrases)-1]
 }
 
-// sortPhrase is one key in words. Reversed keys are spelled as what they *do* rather
-// than as "not": "oldest first" reads, "reverse newest first" does not.
+// sortPhrase is one key in words; reversed keys say what they do ("oldest first").
 func sortPhrase(k SortKey) string {
 	switch k.Key {
 	case SortUnread:
@@ -187,8 +181,7 @@ type RoomListRule struct {
 	Sort []string
 }
 
-// ResolveRoomList works out what applies to one group: the global chain, with the rule
-// naming that group replacing it whole.
+// ResolveRoomList is the global chain, replaced whole by a rule naming the group.
 func ResolveRoomList(chain []string, rules []RoomListRule, group string) RoomList {
 	list := RoomList{Chain: resolveChain(chain)}
 	for _, rule := range rules {

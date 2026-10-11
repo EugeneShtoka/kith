@@ -7,9 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A space is a joined room, so /joined_rooms hands it back with everything else —
-// and it must not reach the room list, where opening one shows an empty timeline
-// under a rail group's own name.
+// /joined_rooms returns spaces too; SpaceIDs lets the room list drop them.
 func TestSpaceIDsAreWhatTheRoomListSiftsAgainst(t *testing.T) {
 	t.Parallel()
 
@@ -25,9 +23,8 @@ func TestSpaceIDsAreWhatTheRoomListSiftsAgainst(t *testing.T) {
 	}
 }
 
-// A network's archive is kept beside its rooms: set and cleared on its word, kept
-// through a listing's rewrite (which says nothing of it), and kept for a room no
-// listing has brought yet, which shows archived once one does.
+// A network's archive flag is set and cleared on its word, survives a listing
+// rewrite, and applies to a room no listing has brought yet.
 func TestTheNetworksArchiveIsKeptBesideItsRooms(t *testing.T) {
 	t.Parallel()
 	c, ctx := openTemp(t), context.Background()

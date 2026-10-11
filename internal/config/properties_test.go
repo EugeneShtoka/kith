@@ -6,8 +6,7 @@ import (
 	"testing"
 )
 
-// Every property is documented in default.toml: the settings screen shows that text,
-// and a key added without it would show nothing.
+// Every property has documentation in default.toml for the settings screen.
 func TestEveryPropertyIsDocumented(t *testing.T) {
 	t.Parallel()
 	props := Properties()
@@ -26,8 +25,8 @@ func TestEveryPropertyIsDocumented(t *testing.T) {
 	}
 }
 
-// default.toml's text reaches the right key: its own comment, its group's, or its
-// line in the table header's list; and an example in the comments is no key.
+// Each key gets its own comment, its group's, or its table-header entry; commented
+// examples are not keys.
 func TestDocsAreReadFromWhereTheyAre(t *testing.T) {
 	t.Parallel()
 	by := map[string]Property{}
@@ -50,9 +49,8 @@ func TestDocsAreReadFromWhereTheyAre(t *testing.T) {
 	}
 }
 
-// Each kind is written and read back; empty unsets an optional and zeroes the rest; a
-// value that is not of the kind is refused; and a write never reaches the config the
-// edited one was cloned from.
+// Each kind round-trips; empty unsets or zeroes; a wrong-kind value is refused; writes
+// never reach a clone's source.
 func TestPropertiesAreSetAndReadBack(t *testing.T) {
 	t.Parallel()
 	var base Config

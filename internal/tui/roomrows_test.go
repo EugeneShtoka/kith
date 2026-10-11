@@ -173,8 +173,8 @@ func TestOpeningAThreadRowOpensTheThread(t *testing.T) {
 	}
 }
 
-// Sending marks the conversation read (focus is the editor while composing, so the
-// incoming-message mark does not fire).
+// Sending marks the conversation read (focus is on the editor, so the incoming-message mark
+// does not fire).
 func TestSendingMarksTheConversationRead(t *testing.T) {
 	t.Parallel()
 
@@ -196,7 +196,7 @@ func TestSendingMarksTheConversationRead(t *testing.T) {
 	}
 }
 
-// ...but only the thread you replied in, not the main timeline.
+// Sending in a thread marks only that thread read.
 func TestSendingInAThreadMarksOnlyThatThread(t *testing.T) {
 	t.Parallel()
 

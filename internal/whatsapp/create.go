@@ -13,14 +13,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A group or a community is made on one account with its members at once: WhatsApp
-// takes them by number, and adds the account itself. A community comes with its
-// announcement group, which the server makes.
+// A group or community is created with its members (by number); WhatsApp adds the
+// account itself, and the server makes a community's announcement group.
 
-// groupNameMost is the longest group name WhatsApp takes, in characters.
+// groupNameMost is WhatsApp's maximum group name length, in characters.
 const groupNameMost = 25
 
-// CreateRoom makes a group or a community on the account spec.On names.
+// CreateRoom creates a group or community on the account spec.On names.
 func (a *Adapter) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {
 	name := strings.TrimSpace(spec.Name)
 	if n := utf8.RuneCountInString(name); n > groupNameMost {
@@ -67,8 +66,7 @@ func (a *Adapter) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.R
 	return room, nil
 }
 
-// personJID is a person's WhatsApp address: a number as the directory writes it, or a
-// WhatsApp ID.
+// personJID parses a directory phone number or a WhatsApp ID into a JID.
 func personJID(person string) (types.JID, bool) {
 	if digits := domain.PhoneOf(person); digits != "" {
 		return types.NewJID(digits, types.DefaultUserServer), true

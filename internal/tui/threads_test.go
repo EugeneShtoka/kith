@@ -15,8 +15,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// threaded is a room whose timeline holds a root, two replies to it, and one unrelated
-// message sent between them — the braid a thread arrived as before the relation was read.
+// threaded is a room timeline with a root, two replies, and an unrelated message
+// between them.
 func threaded() domain.TimelinePage {
 	return domain.TimelinePage{Messages: []domain.Message{
 		{ID: "$root", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "ship the release notes?", Timestamp: at(1)},
@@ -44,8 +44,8 @@ func TestAThreadCollapsesToOneSummaryRow(t *testing.T) {
 	}
 }
 
-// The summary belongs to the root's span, so it is drawn immediately under it —
-// not at the end of the room, and not where the replies used to be.
+// The summary is drawn immediately under its root, not at the end of the room or
+// where the replies were.
 func TestTheSummaryRowSitsUnderItsRoot(t *testing.T) {
 	t.Parallel()
 
@@ -67,8 +67,7 @@ func TestTheSummaryRowSitsUnderItsRoot(t *testing.T) {
 	}
 }
 
-// A thread reply has no row, so the message cursor must not stop on one: j/k walk
-// what is drawn, or the selection disappears mid-room.
+// A thread reply has no row, so j/k must skip it or the selection disappears.
 func TestTheCursorSkipsCollapsedReplies(t *testing.T) {
 	t.Parallel()
 
@@ -84,9 +83,8 @@ func TestTheCursorSkipsCollapsedReplies(t *testing.T) {
 	}
 }
 
-// A thread whose root aged out of the cached window still has to appear: its
-// summary anchors at the newest message before its newest reply, saying what it
-// cannot show rather than showing nothing.
+// A thread whose root aged out of the cached window still appears: its summary anchors
+// at the newest message before its newest reply, saying what it cannot show.
 func TestAnOlderThreadSaysSo(t *testing.T) {
 	t.Parallel()
 
@@ -120,9 +118,8 @@ func TestTheSummaryRowCountsOne(t *testing.T) {
 	}
 }
 
-// threadBackend records the drafts the client asks it to send, which is the only
-// way to see what a composed message actually carried, and answers the one fetch a
-// thread with no loaded root makes.
+// threadBackend records sent drafts (the only way to see what a composed message
+// carried) and answers the fetch for a thread with no loaded root.
 type threadBackend struct {
 	apitest.Nop
 	sent   []domain.Draft
@@ -142,16 +139,14 @@ func (b *threadBackend) FetchEvent(_ context.Context, _ domain.RoomID, eventID d
 	return b.fetch, nil
 }
 
-// inThread opens room !a:x with the braid from threaded() and puts the cursor on
-// the root, ready for the thread keys.
+// inThread opens room !a:x with threaded() and puts the cursor on the root.
 func inThread(t *testing.T, b api.Backend) Model {
 	t.Helper()
 	return inRoom(t, b, threaded())
 }
 
-// inRoom is the same room holding whatever timeline a test needs — the network it
-// is bridged to is read from who is talking in it (roomProtocol), so a fixture is
-// how a test says "this is a Slack room".
+// inRoom is that room with the given timeline; roomProtocol reads the network from
+// who talks in it, so the fixture decides e.g. "a Slack room".
 func inRoom(t *testing.T, b api.Backend, page domain.TimelinePage) Model {
 	t.Helper()
 	m := sized(t, update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
@@ -190,9 +185,7 @@ func TestOpeningAThreadTakesThePaneOver(t *testing.T) {
 	}
 }
 
-// Back climbs out of the thread rather than out of the pane, and puts the cursor
-// on the root — the row the summary is on, which is where the conversation is from
-// the room's side.
+// Back closes the thread before the pane, with the cursor on the root's row.
 func TestBackClosesTheThreadFirst(t *testing.T) {
 	t.Parallel()
 
@@ -216,8 +209,7 @@ func TestBackClosesTheThreadFirst(t *testing.T) {
 	}
 }
 
-// The defect the whole slice exists for: an answer typed in a thread must land in
-// the thread, not in the room's main timeline.
+// An answer typed in a thread lands in the thread, not the room's main timeline.
 func TestSendingInAThreadCarriesTheRoot(t *testing.T) {
 	t.Parallel()
 
@@ -263,8 +255,8 @@ func TestSendingInTheRoomCarriesNoThread(t *testing.T) {
 	}
 }
 
-// r inside a thread answers that message *within* the thread — both pointers, which
-// is what makes it a real reply rather than the chain fallback.
+// r inside a thread answers within the thread, carrying both pointers, so it is a real
+// reply rather than the chain fallback.
 func TestReplyingInsideAThreadKeepsBoth(t *testing.T) {
 	t.Parallel()
 
@@ -294,8 +286,8 @@ func TestReplyingInsideAThreadKeepsBoth(t *testing.T) {
 	}
 }
 
-// T on a message nobody has answered opens an empty thread rooted at it, with the
-// composer ready — nothing exists on the server until that first reply.
+// T on an unanswered message opens an empty thread rooted at it with the composer
+// ready; nothing exists on the server until the first reply.
 func TestStartingAThread(t *testing.T) {
 	t.Parallel()
 
@@ -317,8 +309,8 @@ func TestStartingAThread(t *testing.T) {
 	}
 }
 
-// A thread whose root aged out of the cached window opens anyway: the replies are
-// readable, and the missing first row is fetched rather than left blank.
+// A thread whose root aged out opens anyway; the missing root is fetched rather than
+// left blank.
 func TestOpeningAThreadFetchesAMissingRoot(t *testing.T) {
 	t.Parallel()
 
@@ -327,8 +319,8 @@ func TestOpeningAThreadFetchesAMissingRoot(t *testing.T) {
 	m = update(t, m, incomingMsg{message: domain.Message{
 		ID: "$r9", RoomID: "!a:x", Sender: "@bob:x", Body: "still going", Timestamp: at(9), ThreadRoot: "$gone",
 	}})
-	// The cursor goes on the message the summary row hangs under — the only way in
-	// to a thread whose root the cache has never held.
+	// The cursor goes on the message the summary row hangs under, the only way into a
+	// thread whose root was never cached.
 	m.timeline.selected = "$loose"
 
 	next, cmd := m.openThread()
@@ -352,7 +344,7 @@ func TestOpeningAThreadFetchesAMissingRoot(t *testing.T) {
 	}
 }
 
-// t on a message in no conversation says so instead of inventing one.
+// t on a message in no conversation says so.
 func TestOpeningAThreadWhereThereIsNone(t *testing.T) {
 	t.Parallel()
 
@@ -369,8 +361,7 @@ func TestOpeningAThreadWhereThereIsNone(t *testing.T) {
 	}
 }
 
-// The regression collapsing would otherwise cause: a search hit inside a thread is
-// not drawn in the room, so jumping to it has to open the thread it lives in.
+// A search hit inside a thread is not drawn in the room, so jumping to it opens the thread.
 func TestRevealingAMessageOpensItsThread(t *testing.T) {
 	t.Parallel()
 
@@ -384,14 +375,13 @@ func TestRevealingAMessageOpensItsThread(t *testing.T) {
 	if m.timeline.selected != "$r2" {
 		t.Errorf("selected = %q, want the revealed message", m.timeline.selected)
 	}
-	// And it is actually on screen, which is the half a bare selection would miss.
+	// It is actually on screen, not just selected.
 	if _, spans := m.layoutIndexed(); func() bool { _, ok := spans["$r2"]; return !ok }() {
 		t.Error("the revealed message has no rows in the pane")
 	}
 }
 
-// And back out again: revealing something in the room closes a thread that is in
-// the way, rather than selecting a message the pane is not showing.
+// Revealing a room message closes a thread in the way rather than selecting a hidden row.
 func TestRevealingLeavesAThreadWhenItHasTo(t *testing.T) {
 	t.Parallel()
 
@@ -410,14 +400,14 @@ func TestRevealingLeavesAThreadWhenItHasTo(t *testing.T) {
 	}
 }
 
-// Every client chains its thread replies to the previous message, so quoting all of them
-// doubles the height of the conversation to repeat the row above.
+// Clients chain thread replies to the previous message, so quoting each would double
+// the height to repeat the row above.
 func TestAThreadDropsTheQuoteOfTheRowAbove(t *testing.T) {
 	t.Parallel()
 
 	m := inThread(t, apitest.Nop{})
 	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		// $r3 answers the root, three rows up — not the message before it.
+		// $r3 answers the root, three rows up, not the message before it.
 		{ID: "$r3", RoomID: "!a:x", Sender: "@carol:x", SenderName: "Carol", Body: "back to the top", Timestamp: at(5), ThreadRoot: "$root", ReplyTo: "$root"},
 	}}})
 	// $r2 chains to $r1, the row directly above it.
@@ -431,8 +421,7 @@ func TestAThreadDropsTheQuoteOfTheRowAbove(t *testing.T) {
 
 	opened, _ := m.openThread()
 	m = opened
-	// Styling puts escape sequences between the marker and the name, so the rows are
-	// stripped before they are read as text.
+	// Styling puts escapes between the marker and the name, so rows are stripped first.
 	rows := ansi.Strip(strings.Join(m.layoutRows(), "\n"))
 
 	if strings.Contains(rows, "↪ Bob: on it") {
@@ -443,8 +432,7 @@ func TestAThreadDropsTheQuoteOfTheRowAbove(t *testing.T) {
 	}
 }
 
-// A room is a feed and sits at the bottom; a thread is a conversation with a
-// beginning, so a short one starts at the top instead of floating under a void.
+// A room sits at the bottom like a feed; a short thread starts at the top.
 func TestAShortThreadStartsAtTheTop(t *testing.T) {
 	t.Parallel()
 
@@ -461,8 +449,8 @@ func TestAShortThreadStartsAtTheTop(t *testing.T) {
 	}
 }
 
-// The breadcrumb names the thread; it does not set the root's whole message across
-// the top of the pane, where the root is already the first row.
+// The breadcrumb names the thread rather than repeating the root's whole message,
+// which is already the first row.
 func TestTheBreadcrumbIsALabelNotAParagraph(t *testing.T) {
 	t.Parallel()
 
@@ -504,7 +492,6 @@ func (b *readBackend) MarkThreadRead(_ context.Context, _ domain.RoomID, root, e
 	return nil
 }
 
-// Opening a room reads its main timeline and nothing else.
 func TestReadingARoomDoesNotReadItsThreads(t *testing.T) {
 	t.Parallel()
 
@@ -521,8 +508,8 @@ func TestReadingARoomDoesNotReadItsThreads(t *testing.T) {
 	}
 }
 
-// Opening a thread reads that thread, up to its newest reply — the receipt the
-// room's own never sends, and the only thing that clears the badge on its summary.
+// Opening a thread sends its receipt up to the newest reply; the room's receipt never
+// does, and only this clears its summary badge.
 func TestOpeningAThreadReadsIt(t *testing.T) {
 	t.Parallel()
 
@@ -537,8 +524,7 @@ func TestOpeningAThreadReadsIt(t *testing.T) {
 	}
 }
 
-// A thread the daemon says has unread replies is badged where the summary is, in
-// the room badge's glyph. Without it T4's counts are a number nobody sees.
+// A thread with unread replies is badged on its summary row, in the room badge's glyph.
 func TestAnUnreadThreadIsBadgedOnItsSummaryRow(t *testing.T) {
 	t.Parallel()
 
@@ -555,8 +541,7 @@ func TestAnUnreadThreadIsBadgedOnItsSummaryRow(t *testing.T) {
 	}
 }
 
-// A thread that has been read carries no badge — the row still says a conversation
-// happened, which is what the summary is for.
+// A read thread carries no badge; the row still shows the conversation happened.
 func TestAReadThreadHasNoBadge(t *testing.T) {
 	t.Parallel()
 
@@ -573,8 +558,8 @@ func TestAReadThreadHasNoBadge(t *testing.T) {
 	}
 }
 
-// pagingBackend serves a thread's own scrollback, and records what was asked for so
-// a test can tell the thread's endpoint from the room's.
+// pagingBackend serves a thread's scrollback and records the requests, to tell the
+// thread's endpoint from the room's.
 type pagingBackend struct {
 	apitest.Nop
 	roomPages   []string
@@ -592,7 +577,6 @@ func (b *pagingBackend) ThreadPage(_ context.Context, _ domain.RoomID, root doma
 	return b.page, nil
 }
 
-// Reaching the top of an open thread pages the *thread*, not the room.
 func TestTheTopOfAThreadPagesTheThread(t *testing.T) {
 	t.Parallel()
 
@@ -622,8 +606,7 @@ func TestTheTopOfAThreadPagesTheThread(t *testing.T) {
 	if rows := strings.Join(m.layoutRows(), "\n"); !strings.Contains(rows, "the first answer") {
 		t.Errorf("the fetched reply is not in the thread:\n%s", rows)
 	}
-	// And a page with no next token is the start of the conversation, after which
-	// there is nothing left to ask for.
+	// A page with no next token is the start of the conversation; nothing more is asked.
 	b.page = domain.TimelinePage{}
 	m.thread.loading = false
 	next, cmd = m.scrollToStart()
@@ -634,8 +617,7 @@ func TestTheTopOfAThreadPagesTheThread(t *testing.T) {
 	}
 }
 
-// A room that has been backfilled to its start is at *its* start; a thread inside it may
-// still have older replies.
+// A room backfilled to its start may still have older thread replies.
 func TestAFullyLoadedRoomDoesNotStopAThreadPaging(t *testing.T) {
 	t.Parallel()
 
@@ -654,7 +636,7 @@ func TestAFullyLoadedRoomDoesNotStopAThreadPaging(t *testing.T) {
 	}
 }
 
-// Naming a thread replaces the snippet of its root everywhere the thread is named.
+// A thread's name replaces its root snippet everywhere the thread is named.
 func TestNamingAThread(t *testing.T) {
 	t.Parallel()
 
@@ -679,7 +661,7 @@ func TestNamingAThread(t *testing.T) {
 	if got := m.threadTitle(); !strings.Contains(got, "Release notes") {
 		t.Errorf("breadcrumb = %q, want the name", got)
 	}
-	// And clearing it falls back to the snippet rather than to a blank.
+	// Clearing it falls back to the snippet, not a blank.
 	next, _ = m.renameThread("$root")
 	m = next
 	next, _ = m.submitThreadName("  ")
@@ -699,8 +681,8 @@ func listedThreads(t *testing.T, m Model) Model {
 	return update(t, next, cmd())
 }
 
-// The picker lists the room's conversations, newest activity first — the way back to
-// a thread that has been read, which is otherwise nowhere.
+// The picker lists the room's threads, newest activity first: the only way back to a
+// read thread.
 func TestThePickerListsTheRoomsThreads(t *testing.T) {
 	t.Parallel()
 
@@ -730,7 +712,6 @@ func TestThePickerListsTheRoomsThreads(t *testing.T) {
 	}
 }
 
-// A room with no conversation in it says so rather than opening an empty picker.
 func TestThePickerSaysWhenThereAreNoThreads(t *testing.T) {
 	t.Parallel()
 
@@ -748,7 +729,7 @@ func TestThePickerSaysWhenThereAreNoThreads(t *testing.T) {
 	}
 }
 
-// r on a message that is already in a conversation answers it there.
+// r on a message already in a conversation answers it there.
 func TestReplyingToARootAnswersInsideItsThread(t *testing.T) {
 	t.Parallel()
 
@@ -782,8 +763,8 @@ func TestReplyingToARootAnswersInsideItsThread(t *testing.T) {
 	}
 }
 
-// And nowhere else: a message in no conversation is answered where it is, with no
-// thread invented around it and the pane left alone.
+// A message in no conversation is answered in place, with no thread invented and the
+// pane left alone.
 func TestReplyingToAnOrdinaryMessageStaysInTheRoom(t *testing.T) {
 	t.Parallel()
 
@@ -814,8 +795,7 @@ func TestReplyingToAnOrdinaryMessageStaysInTheRoom(t *testing.T) {
 	}
 }
 
-// The reply a client sent before it knew better: a plain reply to a message a
-// thread has since grown under is drawn in that conversation, not beside it.
+// A plain reply to a message that later grew a thread is drawn in that conversation.
 func TestAPlainReplyIntoAThreadIsDrawnInIt(t *testing.T) {
 	t.Parallel()
 
@@ -836,8 +816,7 @@ func TestAPlainReplyIntoAThreadIsDrawnInIt(t *testing.T) {
 	}
 }
 
-// bridgedToSlack is a room whose participants are the Slack bridge's ghosts, which
-// is where roomProtocol reads the network from.
+// bridgedToSlack is a room of Slack bridge ghosts, from which roomProtocol reads the network.
 func bridgedToSlack() domain.TimelinePage {
 	return domain.TimelinePage{Messages: []domain.Message{
 		{ID: "$root", RoomID: "!a:x", Sender: "@slack_t0team-u0alice:x", SenderName: "Alice", Body: "did you fix it?", Timestamp: at(1)},
@@ -845,9 +824,8 @@ func bridgedToSlack() domain.TimelinePage {
 	}}
 }
 
-// Slack has no reply that is not a thread: the bridge opens one under whatever is
-// answered, so answering here opens it on this side too, and the two windows show
-// the same exchange in the same place.
+// Slack has no non-thread reply: the bridge opens a thread under what is answered, so
+// answering here opens it too and both sides show the same exchange.
 func TestReplyingInASlackRoomStartsTheThreadItWouldBecome(t *testing.T) {
 	t.Parallel()
 
@@ -878,8 +856,8 @@ func TestReplyingInASlackRoomStartsTheThreadItWouldBecome(t *testing.T) {
 	}
 }
 
-// Everywhere else a reply is still a reply. Matrix has both kinds, and turning one
-// into the other would invent a conversation where a quote was meant.
+// Elsewhere a reply stays a reply: Matrix has both kinds, and converting would invent
+// a conversation where a quote was meant.
 func TestReplyingOnMatrixStaysAPlainReply(t *testing.T) {
 	t.Parallel()
 
@@ -894,7 +872,6 @@ func TestReplyingOnMatrixStaysAPlainReply(t *testing.T) {
 	}
 }
 
-// The thread list can name the thread under the cursor, while it is filtering.
 func TestAThreadIsNamedFromTheListWhileFiltering(t *testing.T) {
 	t.Parallel()
 
@@ -908,7 +885,7 @@ func TestAThreadIsNamedFromTheListWhileFiltering(t *testing.T) {
 		t.Fatal("the thread list is not filtering, so this test is not about the thing it says")
 	}
 
-	// A letter goes into the filter, as it must.
+	// A letter goes into the filter.
 	typed, _, _ := m.pickerKey(tea.KeyPressMsg{Code: 'a', Text: "a"})
 	if typed.picker.filter != "a" {
 		t.Errorf("filter = %q, want the letter typed into it", typed.picker.filter)
@@ -972,7 +949,7 @@ func TestAltRNamesAThreadFromEverywhereItIsVisible(t *testing.T) {
 		}
 	})
 
-	// And the claim itself: one key, one action, in every scope that can show a thread.
+	// One key, one action, in every scope that can show a thread.
 	t.Run("the same chord in every scope", func(t *testing.T) {
 		t.Parallel()
 		m := base()
@@ -991,9 +968,8 @@ func TestAltRNamesAThreadFromEverywhereItIsVisible(t *testing.T) {
 	})
 }
 
-// threadListBackend answers ListThreads, which is what the room list's `ctrl+t` asks:
-// standing there the client holds only the cursor room's preview, so the list has to
-// come from the daemon rather than from what is loaded.
+// threadListBackend answers ListThreads for the room list's `ctrl+t`: there the client
+// holds only the cursor room's preview, so the list comes from the daemon.
 type threadListBackend struct {
 	apitest.Nop
 	asked   []domain.RoomID
@@ -1006,7 +982,7 @@ func (b *threadListBackend) ListThreads(_ context.Context, roomID domain.RoomID)
 }
 
 // inRoomList is the room list with two rooms, the cursor on Alpha and the keyboard
-// with the list rather than with the timeline.
+// on the list.
 func inRoomList(t *testing.T, b api.Backend) Model {
 	t.Helper()
 	m := sized(t, update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
@@ -1040,8 +1016,7 @@ func TestListingThreadsFromTheRoomListAsksAboutThatRoom(t *testing.T) {
 		t.Fatalf("picker kind = %v, want the thread list", m.picker.kind)
 	}
 	row := m.picker.all[0]
-	// One room's list does not repeat the room on every row — the prefix is there to
-	// tell conversations in *different* rooms apart.
+	// One room's list doesn't repeat the room on every row; the prefix tells rooms apart.
 	if strings.Contains(row.label, "Alpha") {
 		t.Errorf("label = %q, should not carry the room it is all in", row.label)
 	}
@@ -1050,8 +1025,7 @@ func TestListingThreadsFromTheRoomListAsksAboutThatRoom(t *testing.T) {
 	}
 }
 
-// An empty answer names the room, because "no threads in scope" is a strange thing to
-// be told about the one room you are pointing at.
+// An empty answer names the room, not "no threads in scope".
 func TestAnEmptyThreadListNamesTheRoomItAskedAbout(t *testing.T) {
 	t.Parallel()
 
@@ -1070,9 +1044,8 @@ func TestAnEmptyThreadListNamesTheRoomItAskedAbout(t *testing.T) {
 	}
 }
 
-// Choosing from the room list cannot enter the thread on the spot: the room holds
-// only its cache preview, and the thread view is a filter over messages that are not
-// there yet. The request is armed and taken when the history lands.
+// Choosing from the room list can't enter the thread at once: the room holds only its
+// cache preview. The request is armed and taken when the history lands.
 func TestChoosingAThreadFromTheRoomListWaitsForTheHistory(t *testing.T) {
 	t.Parallel()
 
@@ -1102,7 +1075,7 @@ func TestChoosingAThreadFromTheRoomListWaitsForTheHistory(t *testing.T) {
 }
 
 // A list wider than one room carries the room on every row, so choosing a thread
-// somewhere else opens that room first.
+// elsewhere opens that room first.
 func TestChoosingAThreadInAnotherRoomOpensThatRoom(t *testing.T) {
 	t.Parallel()
 
@@ -1127,8 +1100,7 @@ func TestChoosingAThreadInAnotherRoomOpensThatRoom(t *testing.T) {
 	}
 }
 
-// A thread's label carries the name of whoever answered last, and that name is somebody's
-// — so it obeys the same space rule every other surface does.
+// The last replier's name in a thread label obeys the space rule like every other surface.
 func TestTheThreadListShortensNamesByTheSpaceRule(t *testing.T) {
 	t.Parallel()
 
@@ -1153,8 +1125,7 @@ func TestTheThreadListShortensNamesByTheSpaceRule(t *testing.T) {
 	if !strings.Contains(items[0].detail, "Noa") {
 		t.Errorf("detail = %q, want it to still name who answered", items[0].detail)
 	}
-	// And the summary row the timeline draws for the same thread, which reads the
-	// name the same way.
+	// So does the timeline's summary row for the same thread.
 	if row := m.threadRow(domain.Thread{
 		RoomID: "!a:x", Root: "$root", Count: 1, LatestSender: "@noa:x", LatestSenderName: "Noa Katz",
 	}, 12, 60); strings.Contains(row, "Katz") {
@@ -1162,8 +1133,8 @@ func TestTheThreadListShortensNamesByTheSpaceRule(t *testing.T) {
 	}
 }
 
-// A forum's topics begin long before the timeline does: the thread menu lists them
-// as the daemon does, each by its title.
+// A forum's topics predate the timeline: the thread menu lists them as the daemon
+// does, by title.
 func TestATopicOlderThanTheTimelineIsNamedByItsTitle(t *testing.T) {
 	t.Parallel()
 	b := &threadListBackend{threads: map[domain.RoomID][]domain.Thread{"!a:x": {

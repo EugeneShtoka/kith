@@ -93,9 +93,8 @@ func (fakeCrypto) RequestSession(context.Context, id.RoomID, id.SenderKey, id.Se
 
 func (fakeCrypto) Init(context.Context) error { return nil }
 
-// withSealedStore gives b a state store that has seen both rooms' state, as the crypto
-// helper's store has after a sync: sealedRoom is encrypted, and openRoom is plain (its
-// power levels are known, and it has no encryption event).
+// withSealedStore gives b a state store as after a sync: sealedRoom encrypted,
+// openRoom known and plain.
 func withSealedStore(b *InProc) {
 	store := mautrix.NewMemoryStateStore()
 	// The memory store cannot fail.
@@ -116,8 +115,8 @@ func sampleFile(t *testing.T) string {
 	return path
 }
 
-// With no crypto machine, nothing reaches an encrypted room: mautrix would post it in
-// the clear, and for a file that includes the key that decrypts it.
+// With no crypto machine, nothing reaches an encrypted room: mautrix would send it in
+// the clear, a file's decryption key included.
 func TestNoCryptoRefusesEncryptedRoomsAndSendsToOthers(t *testing.T) {
 	t.Parallel()
 
@@ -206,8 +205,8 @@ func TestSendsRacingEncryptionNeverGoOutInTheClear(t *testing.T) {
 	}
 }
 
-// A reaction is content too: mautrix sends m.reaction in the clear whatever the room,
-// so an encrypted room gets it sealed by the machine, or refused without one.
+// mautrix sends m.reaction in the clear in any room, so an encrypted room gets it
+// sealed by the machine, or refused without one.
 func TestReactionsAreSealedInEncryptedRooms(t *testing.T) {
 	t.Parallel()
 

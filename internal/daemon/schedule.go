@@ -11,15 +11,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Sender is what the scheduler needs from the backend. Scheduling lives in the
-// daemon because nothing else may be running when a message comes due; it also
-// makes the queue single-writer.
+// Sender is what the scheduler needs from the backend. Scheduling lives in the daemon
+// because nothing else may be running when a message comes due, and it keeps the
+// queue single-writer.
 type Sender interface {
 	Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error
 }
 
-// Queue is the durable half, declared here because its store (internal/schedule)
-// reads and writes files, and the wire package every client links must not.
+// Queue is the durable store, declared here so the wire package clients link does not
+// pull in file I/O (internal/schedule).
 type Queue interface {
 	Load() ([]domain.ScheduledMessage, error)
 	Save(queue []domain.ScheduledMessage) error
@@ -36,9 +36,8 @@ type Scheduler struct {
 	now    func() time.Time
 
 	mu sync.Mutex
-	// base is the daemon's context, set by Start and used by every pass and timer.
-	// Never a request context: net/http cancels those when the handler returns,
-	// which once silently disarmed the whole queue.
+	// base is the daemon's context, set by Start. Never a request context: net/http
+	// cancels those when the handler returns, which once silently disarmed the queue.
 	base context.Context //nolint:containedctx // the queue outlives every request that touches it
 	// stopped is set by Stop under mu, which keeps wg.Add off the wrong side of wg.Wait.
 	stopped bool
@@ -46,14 +45,13 @@ type Scheduler struct {
 	wg    sync.WaitGroup
 	queue []domain.ScheduledMessage
 	timer *time.Timer
-	// held: messages already reported as too late, so each is reported once.
+	// held are messages already reported as too late, each reported once.
 	held map[string]bool
-	// failed is the last error reported per message: one line per outage, but a
-	// changed error is news.
+	// failed is the last error reported per message: one line per outage, but a changed
+	// error is news.
 	failed map[string]string
-	// backoff is the wait before retrying after a pass left something unsent (zero
-	// when none). Needed because restored messages are already due, and PlanSchedule's
-	// Next only covers future ones.
+	// backoff is the retry wait after a pass left something unsent (zero when none);
+	// restored messages are already due, and PlanSchedule's Next only covers future ones.
 	backoff time.Duration
 }
 
@@ -71,24 +69,20 @@ func NewScheduler(store Queue, sender Sender, cutoff func() time.Duration, repor
 	return &Scheduler{
 		store: store, sender: sender, cutoff: cutoff, report: report,
 		now: time.Now, held: map[string]bool{},
-		// Replaced by Start; until then a pass has no lifetime to end with.
+		// Replaced by Start.
 		base: context.Background(),
 	}
 }
 
-// Start loads the queue and starts the first pass, which sends what came due while
-// the daemon was down. An unreadable queue is reported and treated as empty.
-//
-// The load is synchronous, so no Add can save over a queue not yet read. The pass is
-// not: an overdue send can take the homeserver's full timeout, and the socket must be
-// serving meanwhile. It needs no join of its own: a pass registers under the lock Stop
-// takes, so Stop either waits for it or it sees stopped and does nothing.
+// Start loads the queue and starts the first pass, sending what came due while the
+// daemon was down; an unreadable queue is reported and treated as empty. The load is
+// synchronous so no Add saves over an unread queue; the pass is not, since an overdue
+// send can take the homeserver's full timeout. Stop joins it via the registration lock.
 func (s *Scheduler) Start(ctx context.Context) {
 	s.load(ctx)
 	go s.pass(ctx)
 }
 
-// load reads the queue from the store.
 func (s *Scheduler) load(ctx context.Context) {
 	queue, err := s.store.Load()
 	if err != nil {
@@ -100,8 +94,8 @@ func (s *Scheduler) load(ctx context.Context) {
 	s.mu.Unlock()
 }
 
-// Stop cancels the pending wake-up and waits for any pass still running, so none
-// reaches a closed SQLite handle. Nil-safe.
+// Stop cancels the pending wake-up and waits for any running pass, so none reaches a
+// closed SQLite handle. Nil-safe.
 func (s *Scheduler) Stop() {
 	if s == nil {
 		return
@@ -117,7 +111,7 @@ func (s *Scheduler) Stop() {
 	s.wg.Wait()
 }
 
-// List is the queue as it stands, soonest first.
+// List is the queue, soonest first.
 func (s *Scheduler) List() []domain.ScheduledMessage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -126,8 +120,8 @@ func (s *Scheduler) List() []domain.ScheduledMessage {
 	return out
 }
 
-// Add queues a message; a past time means "send now". It takes no context on purpose:
-// its caller's request context dies before the message is due.
+// Add queues a message; a past time means "send now". No context on purpose: the
+// caller's request context dies before the message is due.
 func (s *Scheduler) Add(msg domain.ScheduledMessage) error {
 	if msg.RoomID == "" {
 		return fmt.Errorf("daemon: a scheduled message needs a room")
@@ -139,7 +133,7 @@ func (s *Scheduler) Add(msg domain.ScheduledMessage) error {
 	s.queue = append(s.queue, msg)
 	err := s.saveLocked()
 	if err != nil {
-		// Rolled back: the caller is about to be told this failed.
+		// Rolled back: the caller is told this failed.
 		s.queue = withoutID(s.queue, msg.ID)
 	}
 	base := s.base
@@ -168,12 +162,10 @@ func (s *Scheduler) Cancel(id string) error {
 	return nil
 }
 
-// withoutID is the queue with one entry removed.
 func withoutID(queue []domain.ScheduledMessage, id string) []domain.ScheduledMessage {
 	return withoutIDs(queue, map[string]bool{id: true})
 }
 
-// withoutIDs is the queue with a set of entries removed.
 func withoutIDs(queue []domain.ScheduledMessage, ids map[string]bool) []domain.ScheduledMessage {
 	kept := make([]domain.ScheduledMessage, 0, len(queue))
 	for i := range queue {
@@ -184,9 +176,8 @@ func withoutIDs(queue []domain.ScheduledMessage, ids map[string]bool) []domain.S
 	return kept
 }
 
-// saveLocked writes the queue to disk. s.mu must be held, and stays held across the
-// write: snapshotting then writing unlocked lets an older snapshot win and resurrect
-// a message a pass already claimed and sent — a duplicate send.
+// saveLocked writes the queue to disk with s.mu held across the write: writing an
+// unlocked snapshot lets an older one win and resurrect a sent message.
 func (s *Scheduler) saveLocked() error {
 	if err := s.store.Save(slices.Clone(s.queue)); err != nil {
 		return fmt.Errorf("daemon: write the schedule queue: %w", err)
@@ -195,10 +186,9 @@ func (s *Scheduler) saveLocked() error {
 }
 
 // pass sends everything due, reports everything too late, and arms the next wake-up.
-// Startup and the timer both land here.
 func (s *Scheduler) pass(ctx context.Context) {
-	// The only goroutine where a panic in the send path would take the whole daemon
-	// down (net/http already recovers handlers), so cap its cost.
+	// net/http recovers handlers but not this goroutine; a panic here would take the
+	// daemon down.
 	defer func() {
 		if r := recover(); r != nil {
 			s.report(slog.LevelError, fmt.Sprintf("the send queue hit a bug and skipped a pass: %v", r))
@@ -229,9 +219,9 @@ func (s *Scheduler) pass(ctx context.Context) {
 	s.rearm()
 }
 
-// plan registers a pass and plans it, under the lock Stop sets stopped under; false
-// once stopped. The unlock is deferred so a recovered panic cannot leave s.mu held, and
-// the pass is registered last so a panic cannot leave Stop waiting on it.
+// plan registers and plans a pass under the lock Stop sets stopped under; false once
+// stopped. Deferred unlock and late registration keep a recovered panic from leaving
+// s.mu held or Stop waiting.
 func (s *Scheduler) plan() (domain.SchedulePlan, []string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -245,7 +235,7 @@ func (s *Scheduler) plan() (domain.SchedulePlan, []string, bool) {
 		msg := &plan.Held[i]
 		if !s.held[msg.ID] {
 			s.held[msg.ID] = true
-			// IDs and the time only: this line goes to the journal, the text never does.
+			// IDs and time only: this goes to the journal, the text never does.
 			announce = append(announce, fmt.Sprintf(
 				"scheduled message held: %s in %s, due %s (too late to send unasked)",
 				msg.ID, msg.RoomID, msg.At.Format(time.RFC3339)))
@@ -255,8 +245,8 @@ func (s *Scheduler) plan() (domain.SchedulePlan, []string, bool) {
 	return plan, announce, true
 }
 
-// noteFailure records a failed attempt and returns the line to report, or "" when
-// this message already failed the same way and the reader has been told.
+// noteFailure records a failed attempt and returns the line to report, or "" when it
+// already failed the same way.
 func (s *Scheduler) noteFailure(msg domain.ScheduledMessage, err error) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -271,8 +261,8 @@ func (s *Scheduler) noteFailure(msg domain.ScheduledMessage, err error) string {
 	return fmt.Sprintf("message to %s failed, retrying: %v", msg.RoomID, err)
 }
 
-// noteSuccess clears a message's failure record and returns the line saying it
-// finally went, or "" if it never failed.
+// noteSuccess clears a message's failure record and returns the line saying it went,
+// or "" if it never failed.
 func (s *Scheduler) noteSuccess(msg domain.ScheduledMessage) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -299,7 +289,7 @@ func (s *Scheduler) sendAll(ctx context.Context, sending []domain.ScheduledMessa
 			ThreadRoot: msg.ThreadRoot,
 			ReplyTo:    msg.ReplyTo,
 			Mentions:   msg.Mentions,
-			// The same txn ID on every try makes an uncertain retry safe.
+			// The same txn ID on every try makes a retry idempotent.
 			TxnID: msg.TxnID,
 		})
 		if err != nil {
@@ -317,8 +307,8 @@ func (s *Scheduler) sendAll(ctx context.Context, sending []domain.ScheduledMessa
 	return unsent
 }
 
-// setBackoff grows the retry wait after a pass that left something unsent, and drops
-// it after one that did not.
+// setBackoff grows the retry wait after a pass left something unsent, and resets it
+// otherwise.
 func (s *Scheduler) setBackoff(failed bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -332,10 +322,9 @@ func (s *Scheduler) setBackoff(failed bool) {
 	}
 }
 
-// claim removes the messages about to be sent from the queue and saves that *before*
-// the first send, reporting whether the pass may go ahead. Sending first once
-// replayed the whole queue on every start when the state dir was read-only; a crash
-// between write and send loses a message, which beats sending it twice.
+// claim removes the messages about to be sent and saves before the first send,
+// reporting whether the pass may go ahead. Sending first replayed the whole queue on
+// every start with a read-only state dir; losing a message on crash beats sending twice.
 func (s *Scheduler) claim(sending []domain.ScheduledMessage) ([]domain.ScheduledMessage, bool) {
 	s.mu.Lock()
 	// Only what is still queued, under the lock, so exactly one overlapping pass wins.
@@ -353,7 +342,7 @@ func (s *Scheduler) claim(sending []domain.ScheduledMessage) ([]domain.Scheduled
 	}
 	if len(mine) == 0 {
 		s.mu.Unlock()
-		return nil, true // another pass took them; nothing to do and nothing wrong
+		return nil, true // another pass took them
 	}
 
 	s.queue = withoutIDs(s.queue, claimed)
@@ -371,8 +360,8 @@ func (s *Scheduler) claim(sending []domain.ScheduledMessage) ([]domain.Scheduled
 	return mine, true
 }
 
-// restore returns claimed messages that were not sent after all. A failed save here
-// means late, not twice.
+// restore requeues claimed messages that were not sent; a failed save means late,
+// not twice.
 func (s *Scheduler) restore(msgs []domain.ScheduledMessage) {
 	s.mu.Lock()
 	s.queue = append(s.queue, msgs...)
@@ -399,8 +388,8 @@ func (s *Scheduler) rearm() {
 	if !plan.Next.IsZero() {
 		wait, armed = max(plan.Next.Sub(s.now()), 0), true
 	}
-	// A failed message is already due and absent from plan.Next; the retry wait brings
-	// the pass back for it, whichever is sooner.
+	// A failed message is due but absent from plan.Next; the retry wait brings the pass
+	// back for it, whichever is sooner.
 	if s.backoff > 0 && len(plan.Send) > 0 {
 		if !armed || s.backoff < wait {
 			wait, armed = s.backoff, true

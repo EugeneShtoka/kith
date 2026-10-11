@@ -24,11 +24,11 @@ func (b *InProc) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	}
 	// Only Matrix rooms: another network counts its own, by its own receipts.
 	u = slices.DeleteFunc(u, func(x domain.Unread) bool { return !domain.MatrixRooms.Owns(x.RoomID) })
-	// Local counts replace the server's where the count query answers (see domain.Unread.Count).
+	// Local counts replace the server's where available (see domain.Unread.Count).
 	local, err := b.cache.CountUnreadAll(ctx, b.me())
 	if err != nil {
 		b.warnIf(ctx, err, "count unread locally; using the server's counts")
-		return u, nil // counts are an upgrade; the server's numbers still work
+		return u, nil // the server's counts still work
 	}
 	threads, terr := b.cache.CountThreadUnreadAll(ctx, b.me())
 	b.warnIf(ctx, terr, "count thread unread locally")
@@ -41,8 +41,8 @@ func (b *InProc) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	return u, nil
 }
 
-// countLocal fills in a room's locally computed unread counts, threads included.
-// On error Counted stays false, falling back to the server's count.
+// countLocal fills in a room's local unread counts, threads included; on error
+// Counted stays false.
 func (b *InProc) countLocal(ctx context.Context, u domain.Unread) domain.Unread {
 	if b.cache == nil {
 		return u
@@ -56,14 +56,12 @@ func (b *InProc) countLocal(ctx context.Context, u domain.Unread) domain.Unread 
 	return b.addThreadCounts(ctx, u)
 }
 
-// recount recomputes a room's local unread counts and emits them when they moved.
-// Called wherever the inputs change; the query runs outside the lock.
+// recount recomputes a room's local unread counts and emits them if they moved.
 func (b *InProc) recount(ctx context.Context, roomID domain.RoomID) {
 	b.recountAndEmit(ctx, roomID, false)
 }
 
-// recountAndEmit is recount, emitting regardless when always is set (the rest of the
-// room's state moved). Only the counts are written back, onto the current state.
+// recountAndEmit is recount that emits regardless when always is set.
 func (b *InProc) recountAndEmit(ctx context.Context, roomID domain.RoomID, always bool) {
 	if roomID == "" {
 		return
@@ -74,9 +72,8 @@ func (b *InProc) recountAndEmit(ctx context.Context, roomID domain.RoomID, alway
 		}
 		return
 	}
-	// The count runs outside the lock, so another writer (a read position placed by a
-	// background fetch) can move the room meanwhile: then it is counted again, and a
-	// count of the older state is never written over the newer one.
+	// The count runs outside the lock; if another writer moves the room meanwhile it
+	// is counted again, so a stale count never overwrites a newer state.
 	for range recountTries {
 		gen := b.unread.generation(roomID)
 		local := b.countLocal(ctx, domain.Unread{RoomID: roomID})
@@ -84,16 +81,15 @@ func (b *InProc) recountAndEmit(ctx context.Context, roomID domain.RoomID, alway
 			return
 		}
 	}
-	// Still moving after every try: the writers moving it recount it themselves.
+	// Still moving: the writers moving it recount it themselves.
 }
 
 // recountTries bounds how often a recount starts over because the room moved.
 const recountTries = 3
 
-// storeCount writes a room's local counts, taken at generation gen, onto its current
-// state, unless another writer has moved it since (false then). Only the counts are
-// written. It emits them when they moved (or always), under the book's lock: two
-// recounts of one room emit in the order they wrote, so the last one seen is the newest.
+// storeCount writes counts taken at generation gen onto the current state, unless
+// the room moved since (false). It emits under the book's lock, so recounts of one
+// room emit in write order.
 func (b *InProc) storeCount(roomID domain.RoomID, gen uint64, local domain.Unread, always bool) (current bool) {
 	_, _, current = b.unread.updateAt(roomID, gen, func(cur *domain.Unread, _ *int64) bool {
 		changed := cur.Messages != local.Messages || cur.Mentions != local.Mentions ||
@@ -110,7 +106,7 @@ func (b *InProc) storeCount(roomID domain.RoomID, gen uint64, local domain.Unrea
 }
 
 // seedUnread primes the unread book from the cache, so a first sync carrying only a
-// receipt merges onto the persisted counts instead of zeroing them. Best-effort.
+// receipt does not zero the counts. Best effort.
 func (b *InProc) seedUnread(ctx context.Context) {
 	cached, err := b.CachedUnread(ctx)
 	if err != nil {
@@ -128,10 +124,9 @@ func (b *InProc) seedUnread(ctx context.Context) {
 	}
 }
 
-// mergeUnread folds a room's sync delta onto its last-known state, applying each
-// field by presence (an absent section keeps cached values; a zero still updates),
-// and persists a change. read is the newest room receipt (see applyReceipts): it
-// moves the marker forward only, and threaded receipts never move it.
+// mergeUnread folds a room's sync delta onto its state by presence (absent keeps,
+// zero updates) and persists a change. read is the newest room receipt (see
+// applyReceipts) and only moves the marker forward.
 func (b *InProc) mergeUnread(ctx context.Context, roomID domain.RoomID, jr *mautrix.SyncJoinedRoom, read readPos, marked *bool) (domain.Unread, bool) {
 	return b.unread.update(roomID, func(cur *domain.Unread, ts *int64) bool {
 		cur.RoomID = roomID

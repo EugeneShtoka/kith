@@ -17,17 +17,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An account's dialogs are its rooms: private chats (the chat with oneself is Saved
-// Messages), basic groups, supergroups and broadcast channels. A chat left, a basic
-// group moved to a supergroup, and one the account was removed from are left out;
-// secret chats never reach this client at all. The account itself is one space
-// holding its rooms (accountSpaces).
+// An account's dialogs are its rooms: private chats (self is Saved Messages), basic
+// groups, supergroups and channels. Left, migrated and removed-from chats are skipped;
+// secret chats never reach this client. Each account is a space (accountSpaces).
 
-// dialogsPage is how many dialogs one messages.getDialogs page asks for.
 const dialogsPage = 100
 
-// channelMark is what a channel's or supergroup's ID is marked with, as the Bot API
-// writes it (-100…): users, basic groups and channels have overlapping IDs.
+// channelMark marks channel and supergroup IDs as the Bot API does (-100…), since
+// user, chat and channel IDs overlap.
 const channelMark = 1_000_000_000_000
 
 // roomID is a Telegram chat as one account sees it, by its marked peer ID.
@@ -38,14 +35,13 @@ func roomID(self, peer int64) domain.RoomID {
 // topicSep joins a forum's chat and one of its topics in the topic's room ID.
 const topicSep = "~"
 
-// topicRoomID is one topic of a forum as a room: the forum's chat, then the topic's
-// number (the message that began it). The General topic is the forum's own room.
+// topicRoomID is a forum topic's room: the chat's ID plus the topic's ID (its first
+// message). The General topic is the forum's own room.
 func topicRoomID(self, peer int64, topic int) domain.RoomID {
 	return domain.RoomID(string(roomID(self, peer)) + topicSep + strconv.Itoa(topic))
 }
 
-// chatRoom is the room a message of chat is in: its topic's, for one in a topic of a
-// forum (topic not 0), else the chat's own.
+// chatRoom is the topic's room when topic is non-zero, else the chat's.
 func chatRoom(self, peer int64, topic int) domain.RoomID {
 	if topic != 0 {
 		return topicRoomID(self, peer, topic)
@@ -53,7 +49,7 @@ func chatRoom(self, peer int64, topic int) domain.RoomID {
 	return roomID(self, peer)
 }
 
-// inRoom is message id of the room it is in.
+// inRoom is the event ID of message id in room.
 func inRoom(room domain.RoomID, id int) domain.EventID {
 	return domain.EventID(string(room) + "/" + strconv.Itoa(id))
 }
@@ -68,41 +64,34 @@ func accountSpaceID(self int64) domain.SpaceID {
 	return domain.SpaceID(domain.NativeID(domain.ProtocolTelegram, strconv.FormatInt(self, 10), "account"))
 }
 
-// accessHashes are what an account's later calls need to name a user or a channel to
-// Telegram, by ID, as its dialogs revealed them.
+// accessHashes are the user and channel access hashes from the dialogs, by ID.
 type accessHashes struct {
 	users, channels map[int64]int64
 }
 
-// listing is what one account's dialogs come to.
 type listing struct {
-	rooms   []domain.Room
-	members map[domain.RoomID][]domain.Member
-	hashes  accessHashes
-	// archived is, for each listed room, whether it is in Telegram's Archived folder.
+	rooms    []domain.Room
+	members  map[domain.RoomID][]domain.Member
+	hashes   accessHashes
 	archived map[domain.RoomID]bool
-	// forums is, for each listed room, whether it is made of topics.
-	forums map[domain.RoomID]bool
-	// people and links are who the listing's users are, for the directory: each by
-	// their ID, linked to their number where Telegram shows it.
+	forums   map[domain.RoomID]bool
+	// people and links feed the directory; links tie a user to their phone number.
 	people []domain.PersonName
 	links  []domain.PersonLink
 }
 
-// dialog is one of an account's dialogs: its peer, as calls name it, its latest
-// message (nil when the page did not carry it), and the users, chats and channels its
-// page carried.
+// dialog is one dialog with its latest message (nil if the page lacked it) and the
+// entities its page carried.
 type dialog struct {
 	peer     tg.InputPeerClass
 	top      tg.MessageClass
 	entities peer.Entities
-	// info is the dialog as Telegram listed it (its unread counts, how far it was
-	// read); nil when unknown.
+	// info carries unread counts and read position; nil when unknown.
 	info *tg.Dialog
 }
 
-// listed turns an account's dialogs into rooms, a private chat's other person its
-// member, and keeps the access hashes they carry. self is the account's own user ID.
+// listed turns dialogs into rooms (a private chat's peer as its member) and collects
+// access hashes. self is the account's user ID.
 func listed(self int64, elems []dialog) listing {
 	l := listing{
 		members:  map[domain.RoomID][]domain.Member{},
@@ -132,11 +121,8 @@ func listed(self int64, elems []dialog) listing {
 	return l
 }
 
-// peopleOf is every person the dialogs' pages carried, for the directory: each by
-// their ID, a contact by the name you saved and anyone else by their own, and linked
-// to their number where Telegram shows it, so a name saved for the number on another
-// account or network names them here, and theirs names the number there. Nobody
-// deleted, nor yourself.
+// peopleOf is every user the pages carried, for the directory: contacts at saved rank,
+// linked to their phone so names carry across networks. Skips deleted users and self.
 func peopleOf(self int64, elems []dialog) ([]domain.PersonName, []domain.PersonLink) {
 	seen := map[int64]bool{}
 	var names []domain.PersonName
@@ -165,8 +151,7 @@ func peopleOf(self int64, elems []dialog) ([]domain.PersonName, []domain.PersonL
 	return names, links
 }
 
-// room is one dialog as a room, and the person a private chat is with; ok false for
-// one left out.
+// room is one dialog as a room, plus a private chat's peer; false for a skipped dialog.
 func (l *listing) room(self int64, e dialog) (domain.Room, *domain.Member, bool) {
 	room := domain.Room{Membership: domain.MembershipJoin}
 	switch p := e.peer.(type) {
@@ -204,7 +189,7 @@ func (l *listing) room(self int64, e dialog) (domain.Room, *domain.Member, bool)
 	return room, nil, false
 }
 
-// personName is a user as a person reads them; a deleted account says so.
+// personName is a user's display name, falling back to phone then ID.
 func personName(u *tg.User) string {
 	if u.Deleted {
 		return "Deleted Account"
@@ -218,11 +203,11 @@ func personName(u *tg.User) string {
 	return strconv.FormatInt(u.ID, 10)
 }
 
-// errNotListed is a listing of an account not connected, or overtaken meanwhile.
+// errNotListed: the account is not connected, or a newer login replaced it.
 var errNotListed = errors.New("telegram: the account is not connected")
 
-// list reads an account's dialogs through client, all of them, and writes them over
-// its cached rooms: one listing at a time, so an older one never lands over a newer.
+// list reads all of an account's dialogs and writes them over its cached rooms,
+// serialized so an older listing never lands over a newer one.
 func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64, client *telegram.Client) ([]domain.Room, error) {
 	a.refreshing.Lock()
 	defer a.refreshing.Unlock()
@@ -235,8 +220,7 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	if !a.keepHashes(account, gen, l.hashes) {
 		return nil, errNotListed
 	}
-	// A forum's topics are rooms of the account, so they are listed with it: saving
-	// sweeps the rooms a listing does not name.
+	// Topics must be in the listing, or saving sweeps them.
 	topics := map[int64]forumListing{}
 	for _, e := range elems {
 		if !isForum(e) {
@@ -245,7 +229,7 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 		forum := -(channelMark + e.peer.(*tg.InputPeerChannel).ChannelID)
 		got, err := forumTopics(ctx, client.API(), e.peer)
 		if err != nil {
-			// The topics the cache holds stay, until a listing can read them again.
+			// Keep the cached topics until a listing can read them again.
 			a.log.Warn("list a forum's topics failed", "room", roomID(self, forum), "err", err)
 			l.rooms = append(l.rooms, a.cachedTopicRooms(ctx, roomID(self, forum))...)
 			continue
@@ -267,7 +251,7 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	return l.rooms, nil
 }
 
-// cachedTopicRooms is the rooms the cache holds of a forum's topics.
+// cachedTopicRooms is the cached topic rooms of forum.
 func (a *Adapter) cachedTopicRooms(ctx context.Context, forum domain.RoomID) []domain.Room {
 	if a.cache == nil {
 		return nil
@@ -288,15 +272,11 @@ func (a *Adapter) cachedTopicRooms(ctx context.Context, forum domain.RoomID) []d
 // archiveFolder is Telegram's Archived folder; 0 is the main list.
 const archiveFolder = 1
 
-// folders are the dialog folders an account's chats are in: the main list, and Archived.
 var folders = []int{0, archiveFolder}
 
-// readDialogs reads every dialog of an account, folder by folder, page by page. Not
-// gotd's iterator: it asks again after the last page, one request more each listing.
-//
-// A page may hold fewer dialogs than asked for while more follow, so a folder is read
-// until it has as many as Telegram counts in it; a page that brings none not already
-// read ends it too, so a server that pages oddly cannot loop.
+// readDialogs reads every dialog, folder by folder. Not gotd's iterator, which costs
+// an extra request after the last page. A short page doesn't mean the end, so a folder
+// is read until Telegram's count is reached or a page brings nothing new.
 func readDialogs(ctx context.Context, api *tg.Client, log *slog.Logger) ([]dialog, error) {
 	var out []dialog
 	for _, folder := range folders {
@@ -334,15 +314,14 @@ func readDialogs(ctx context.Context, api *tg.Client, log *slog.Logger) ([]dialo
 	return out, nil
 }
 
-// page is one messages.getDialogs answer: its dialogs, the top message of each, and
-// the users, chats and channels they name.
+// page is one messages.getDialogs answer.
 type page struct {
 	dialogs  []*tg.Dialog
 	messages tg.MessageClassArray
 	entities peer.Entities
 }
 
-// dialogPage is an answer as a page, and how many dialogs the folder holds in all.
+// dialogPage is an answer as a page, plus the folder's total dialog count.
 func dialogPage(res tg.MessagesDialogsClass) (page, int, error) {
 	var p page
 	var all []tg.DialogClass
@@ -364,7 +343,7 @@ func dialogPage(res tg.MessagesDialogsClass) (page, int, error) {
 	return p, total, nil
 }
 
-// top is a dialog's latest message, as its page carried it.
+// top is a dialog's latest message from the page.
 func (p page) top(d *tg.Dialog) tg.MessageClass {
 	chat, ok := markedPeer(d.Peer)
 	if !ok {
@@ -381,8 +360,7 @@ func (p page) top(d *tg.Dialog) tg.MessageClass {
 	return nil
 }
 
-// next sets req to the page after p: from its last dialog, and that dialog's top
-// message. false when it cannot say where that is.
+// next points req past p's last dialog; false if that dialog's peer is unresolved.
 func (p page) next(req *tg.MessagesGetDialogsRequest) bool {
 	last := p.dialogs[len(p.dialogs)-1]
 	input, err := p.entities.ExtractPeer(last.Peer)
@@ -400,8 +378,7 @@ func (p page) next(req *tg.MessagesGetDialogsRequest) bool {
 	return true
 }
 
-// keepHashes keeps a listing's access hashes on the account's connection from login
-// gen, unless a newer login replaced it.
+// keepHashes stores hashes on the connection of login gen; false if it was replaced.
 func (a *Adapter) keepHashes(account Account, gen int, hashes accessHashes) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -413,10 +390,8 @@ func (a *Adapter) keepHashes(account Account, gen int, hashes accessHashes) bool
 	return true
 }
 
-// save writes a listing, fetched then, over the account's cached rooms, and the
-// people of its private chats. A room a message arrived in since the listing was
-// fetched (a chat just begun) is kept, though the listing does not name it: the sweep
-// would take its history.
+// save writes a listing over the account's cached rooms. Rooms heard from since
+// fetched (e.g. a chat just begun) are kept so the sweep doesn't drop their history.
 func (a *Adapter) save(ctx context.Context, self int64, l listing, fetched time.Time) error {
 	if a.cache == nil {
 		return nil
@@ -451,8 +426,7 @@ func (a *Adapter) save(ctx context.Context, self int64, l listing, fetched time.
 	return nil
 }
 
-// keptRooms is an owner's cached rooms a listing fetched then must not sweep: those
-// heard from since. Caller holds listing.
+// keptRooms is owner's unlisted rooms heard from since fetched. Caller holds listing.
 func (a *Adapter) keptRooms(ctx context.Context, owner domain.RoomOwner, listed []domain.Room, fetched time.Time) ([]domain.Room, error) {
 	rooms, err := a.cache.Rooms(ctx)
 	if err != nil {
@@ -464,9 +438,8 @@ func (a *Adapter) keptRooms(ctx context.Context, owner domain.RoomOwner, listed 
 	}), nil
 }
 
-// cacheTops caches each listed chat's latest message, as the listing carried it: a
-// chat shows its last message before it is opened. It is history: nothing is
-// streamed or notified.
+// cacheTops caches each listed chat's latest message as history (no stream, no
+// notification), so a chat shows it before being opened.
 func (a *Adapter) cacheTops(ctx context.Context, self int64, elems []dialog, listed []domain.Room) {
 	if a.cache == nil {
 		return
@@ -485,7 +458,7 @@ func (a *Adapter) cacheTops(ctx context.Context, self int64, elems []dialog, lis
 	}
 }
 
-// Rooms is the Telegram rooms in the cache, whichever account sees them.
+// Rooms is the cached Telegram rooms of every account.
 func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
 	if a.cache == nil {
 		return nil, nil
@@ -505,7 +478,7 @@ func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	for _, c := range a.connected() {
 		rooms, err := a.list(ctx, c.account, c.gen, c.user, c.client)
 		if errors.Is(err, errNotListed) {
-			continue // replaced while listing: its successor lists itself
+			continue // replaced; the new connection lists itself
 		}
 		if err != nil {
 			return nil, err
@@ -515,10 +488,8 @@ func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	return out, nil
 }
 
-// accountSpaces is a space per configured account kith has logged in, named after the
-// account, its children every room it sees but a forum's; and a space per forum, its
-// children the forum's own room (General) and its topics'. Derived on read, not
-// stored: a chat begun is in it at once.
+// accountSpaces is a space per logged-in account holding its non-forum rooms, and a
+// space per forum holding General and its topics. Derived on read, not stored.
 func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 	rooms, err := a.Rooms(ctx)
 	if err != nil {
@@ -538,9 +509,8 @@ func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 		}
 		forums[rooms[i].ID] = &domain.Space{
 			ID: forumSpaceID(self, chat), Name: rooms[i].DisplayName(), Children: []domain.RoomID{rooms[i].ID},
-			// Its rooms' home, as the account's space is the other chats'.
 			Bridge: domain.ProtocolTelegram, Original: true,
-			// Leaving the forum's chat leaves every topic (LeaveRoom).
+			// Leaving the forum's chat leaves every topic.
 			Leaving: domain.LeftByRoom, LeaveBy: rooms[i].ID,
 		}
 		order = append(order, rooms[i].ID)
@@ -564,8 +534,7 @@ func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 		}
 		spaces = append(spaces, domain.Space{
 			ID: accountSpaceID(self), Name: "Telegram " + account.Name, Children: children,
-			// Every chat's home: it is where the room belongs, not a space to file into.
-			// Left by signing the account out (SignOut).
+			// The rooms' home, not a space to file into; left by signing out.
 			Bridge: domain.ProtocolTelegram, Original: true, Leaving: domain.LeftBySigningOut,
 		})
 	}
@@ -586,8 +555,7 @@ func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	return a.accountSpaces(ctx)
 }
 
-// CanonicalParent is a Telegram room's account space; a forum's room's (General's or a
-// topic's), the forum's.
+// CanonicalParent is a room's account space, or its forum's space for forum rooms.
 func (a *Adapter) CanonicalParent(ctx context.Context, id domain.RoomID) (domain.SpaceID, error) {
 	parsed := domain.ParseID(string(id))
 	if parsed.Network != domain.ProtocolTelegram {
@@ -618,7 +586,7 @@ func (a *Adapter) isForumRoom(ctx context.Context, room domain.RoomID) bool {
 	return slices.ContainsFunc(rooms, func(r domain.Room) bool { return r.ID == room && r.Forum })
 }
 
-// Members is a room's members, from the cache: a private chat's other person.
+// Members is a room's cached members.
 func (a *Adapter) Members(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
 	if a.cache == nil {
 		return nil, nil
@@ -630,15 +598,15 @@ func (a *Adapter) Members(ctx context.Context, roomID domain.RoomID, limit int) 
 	return members, nil
 }
 
-// RefreshMembers is the members known: groups' come with their messages.
+// RefreshMembers reads the cache; group members arrive with their messages.
 func (a *Adapter) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]domain.Member, error) {
 	return a.Members(ctx, roomID, 0)
 }
 
-// MentionCandidates is who may be mentioned in a room: its members known.
+// MentionCandidates is a room's known members.
 func (a *Adapter) MentionCandidates(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
 	return a.Members(ctx, roomID, limit)
 }
 
-// DirectCandidates is who a private chat may be begun with: none yet.
+// DirectCandidates is not supported yet.
 func (a *Adapter) DirectCandidates(context.Context, int) ([]domain.Member, error) { return nil, nil }

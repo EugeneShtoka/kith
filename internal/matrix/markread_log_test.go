@@ -37,9 +37,8 @@ func (s *syncBuffer) String() string {
 	return s.buf.String()
 }
 
-// The motivating incident: every receipt was refused with M_BAD_JSON, and all anyone
-// saw was a count. The reason must reach both the result and the log, and the
-// request's access token must reach neither.
+// A refused receipt's reason reaches both the result and the log; the access token
+// reaches neither.
 func TestMarkRoomsReadFailureCarriesTheReasonAndLogsIt(t *testing.T) {
 	t.Parallel()
 

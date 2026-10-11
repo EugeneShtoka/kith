@@ -11,14 +11,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/spell"
 )
 
-// Dictionary detection and install: the languages are counted from the cached corpus
-// rather than asked. Lives here (cache, filesystem, network), not in the TUI.
+// Dictionary detection and install: languages are counted from the cached corpus, not
+// asked.
 
 // dictionaryDir is where fetched dictionaries land (searched first by spell.SearchPaths).
 func (s *Service) dictionaryDir() string { return filepath.Join(s.spell.home(), "hunspell") }
 
-// DetectLanguages counts the cached corpus and returns the dictionaries worth
-// installing, already filtered to installable and not yet installed.
+// DetectLanguages counts the cached corpus and returns installable dictionaries not
+// yet installed.
 func (s *Service) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, error) {
 	avail, _ := spell.Look("", nil, spell.SearchPaths(s.spell.home()))
 	if avail.Engine.Path == "" {
@@ -59,8 +59,8 @@ func (s *Service) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, 
 	return out, nil
 }
 
-// frequencyCandidates are the word-count lists worth offering for installed
-// dictionaries; only when the rare-word check is on.
+// frequencyCandidates are word-count lists worth offering for installed dictionaries,
+// only when the rare-word check is on.
 func (s *Service) frequencyCandidates(avail spell.Availability, shares map[string]float64) []domain.FrequencyCandidate {
 	s.spell.mu.Lock()
 	on := s.spell.settings.FlagRare
@@ -95,8 +95,7 @@ func (s *Service) frequencyCandidates(avail spell.Availability, shares map[strin
 	return out
 }
 
-// InstallFrequencies fetches one language's word counts and reloads them, so the
-// rare-word check works without a restart.
+// InstallFrequencies fetches one language's word counts and reloads them, no restart.
 func (s *Service) InstallFrequencies(ctx context.Context, tag string) error {
 	client := &http.Client{Timeout: 10 * time.Minute}
 	s.spell.mu.Lock()

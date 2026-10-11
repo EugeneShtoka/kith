@@ -1,29 +1,21 @@
 package local_test
 
-// An opt-in probe that names real threads from a real cache, to judge name quality by eye.
+// Opt-in probe naming real threads from a copy of a real cache, to judge name quality
+// by eye. Skipped unless KITH_CACHE names a file.
 //
-// It is skipped unless KITH_CACHE names a file, so `make check` never runs it.
-//
-// **Two modes, and the first one sends nothing.**
-//
-//	# What would be sent, assembled from the real cache and not transmitted:
+//	# Dry run: assemble what would be sent, transmit nothing.
 //	KITH_CACHE=~/.local/share/kith/cache-<id>.db \
 //	  go test ./internal/matrix/ -run TestLiveThreadNames -v
 //
-//	# And for real, against a model. A local one sends nothing off the machine:
+//	# Against a model (a local one sends nothing off the machine):
 //	llama-server -m ~/.local/share/kith/models/smollm2-360m.gguf --port 8081 &
 //	KITH_CACHE=~/.local/share/kith/cache-<id>.db \
 //	  KITH_MODEL_ENDPOINT=http://127.0.0.1:8081/v1/chat/completions \
 //	  KITH_MODEL_NAME=smollm2 \
 //	  go test ./internal/matrix/ -run TestLiveThreadNames -v
 //
-// It reads a **copy** of the cache, never the file a running daemon has open.
-//
-// **What it prints.** By default: the name, and the *shape* of what was sent — how many
-// messages, how many characters — but not the conversation. Set KITH_SHOW_PROMPT=1 to print
-// the prompt itself, which is real messages from real rooms and is the thing to be careful
-// with. The dry-run mode exists because you should be able to see exactly what would leave
-// the machine before anything does.
+// It prints names and the prompt's shape (message and character counts), not the
+// conversation; KITH_SHOW_PROMPT=1 prints the prompt, which is real messages.
 
 import (
 	"context"
@@ -43,7 +35,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// liveThreadCount is how many threads to name. Small: each one is a request.
+// liveThreadCount is how many threads to name; each is a request.
 const liveThreadCount = 3
 
 func TestLiveThreadNames(t *testing.T) {
@@ -95,7 +87,7 @@ func TestLiveThreadNames(t *testing.T) {
 	// Sending is opt-in via KITH_SEND, separately from the endpoint.
 	dry := os.Getenv("KITH_SEND") == ""
 	if dry && assist.Endpoint == "" {
-		// The endpoint check runs before the dry-run branch, so give it a placeholder.
+		// The endpoint check precedes the dry-run branch, so give it a placeholder.
 		assist.Endpoint, assist.Model = "https://dry-run.invalid/v1/chat/completions", "dry-run"
 	}
 	if dry {
@@ -120,7 +112,7 @@ func TestLiveThreadNames(t *testing.T) {
 		Budgets:   setup.ModelBudgets(assist, config.CompleteModel{}),
 		Tasks:     modelsetup.ModelTasks(assist),
 		PerMinute: config.DefaultModelPerMinute,
-		// KITH_MODEL_TIMEOUT overrides the (remote-sized) default for local models.
+		// KITH_MODEL_TIMEOUT overrides the remote-sized default for local models.
 		Timeout: probeTimeout(t, assist),
 	})
 
@@ -155,7 +147,7 @@ func TestLiveThreadNames(t *testing.T) {
 	}
 }
 
-// reportPrompt says what would have been sent, in as much detail as was asked for.
+// reportPrompt says what would have been sent, in the detail asked for.
 func reportPrompt(t *testing.T, th liveThread, prompt string) {
 	t.Helper()
 	lines := strings.Count(prompt, "\n") + 1
@@ -170,7 +162,7 @@ func reportPrompt(t *testing.T, th liveThread, prompt string) {
 	}
 }
 
-// probeTimeout is the assist timeout, or KITH_MODEL_TIMEOUT when the probe is told one.
+// probeTimeout is the assist timeout, or KITH_MODEL_TIMEOUT when set.
 func probeTimeout(t *testing.T, assist config.Assist) time.Duration {
 	t.Helper()
 	spelled := os.Getenv("KITH_MODEL_TIMEOUT")
@@ -190,7 +182,7 @@ type liveThread struct {
 	replies int
 }
 
-// liveThreadsWorthNaming is the busiest threads in the cache that have no name.
+// liveThreadsWorthNaming is the busiest unnamed threads in the cache.
 func liveThreadsWorthNaming(ctx context.Context, t *testing.T, cache *db.Cache) []liveThread {
 	t.Helper()
 	rooms, err := cache.Rooms(ctx)
@@ -224,7 +216,7 @@ func liveThreadsWorthNaming(ctx context.Context, t *testing.T, cache *db.Cache) 
 	return found
 }
 
-// short is an event ID trimmed to something readable in a log line.
+// short trims an event ID for a log line.
 func short(id domain.EventID) string {
 	s := string(id)
 	if len(s) > 12 {

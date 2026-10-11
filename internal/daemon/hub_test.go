@@ -9,8 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// hubSettle bounds every wait here. The hub is pure in-memory fan-out, so
-// anything approaching this is a deadlock.
+// hubSettle bounds every wait; the hub is in-memory, so reaching it means deadlock.
 const hubSettle = 5 * time.Second
 
 // recv takes one value, failing rather than hanging if none arrives.
@@ -29,7 +28,6 @@ func recv[T any](t *testing.T, ch <-chan T, what string) T {
 	}
 }
 
-// Every subscriber sees every event.
 func TestHubFansOutToEverySubscriber(t *testing.T) {
 	t.Parallel()
 
@@ -47,8 +45,7 @@ func TestHubFansOutToEverySubscriber(t *testing.T) {
 	}
 }
 
-// A subscriber that has stopped reading loses events instead of stalling the pump, and
-// loses them alone.
+// A subscriber that stopped reading loses events alone, without stalling the pump.
 func TestHubDropsOnlyForTheFullSubscriber(t *testing.T) {
 	t.Parallel()
 
@@ -56,9 +53,8 @@ func TestHubDropsOnlyForTheFullSubscriber(t *testing.T) {
 	_, stalled := h.subscribe()
 	_, draining := h.subscribe()
 
-	// Interleaved rather than concurrent: the point is that a full queue never blocks the
-	// broadcast, and reading one value per broadcast proves the draining subscriber missed
-	// nothing without depending on goroutine timing.
+	// Interleaved, not concurrent: one read per broadcast proves the draining subscriber
+	// missed nothing without depending on goroutine timing.
 	overflow := 3
 	for i := range subBuffer + overflow {
 		h.broadcast(i)
@@ -72,9 +68,8 @@ func TestHubDropsOnlyForTheFullSubscriber(t *testing.T) {
 	}
 }
 
-// Releasing closes the subscriber's channel — the signal a streaming handler's
-// reader treats as a clean end — and forgets it: a broadcast sending to a closed
-// channel would panic.
+// Release closes the channel (a clean end to the reader) and forgets it: sending to a
+// closed channel would panic.
 func TestHubReleaseClosesAndForgets(t *testing.T) {
 	t.Parallel()
 
@@ -91,8 +86,7 @@ func TestHubReleaseClosesAndForgets(t *testing.T) {
 	}
 }
 
-// The source closing ends every subscriber, so each attached client sees the same
-// clean end an in-process reader saw when the sync loop stopped.
+// The source closing ends every subscriber cleanly.
 func TestHubPumpEndsSubscribersWhenSourceCloses(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +113,6 @@ func TestHubPumpEndsSubscribersWhenSourceCloses(t *testing.T) {
 	}
 }
 
-// A canceled context ends the hub too.
 func TestHubPumpEndsOnContextCancel(t *testing.T) {
 	t.Parallel()
 
@@ -141,8 +134,7 @@ func TestHubPumpEndsOnContextCancel(t *testing.T) {
 	}
 }
 
-// Subscribing after the source ended hands back a closed channel rather than one nothing
-// will ever feed or close.
+// Subscribing after the end returns a closed channel.
 func TestHubSubscribeAfterEnd(t *testing.T) {
 	t.Parallel()
 
@@ -158,8 +150,7 @@ func TestHubSubscribeAfterEnd(t *testing.T) {
 	}
 }
 
-// The notifier's delivery can be slow, and a burst after a suspend is hundreds of
-// messages: its queue holds them, where a client's would drop the rest.
+// The notifier's queue holds a post-suspend burst where a client's would drop.
 func TestTheNotifierQueueHoldsABurst(t *testing.T) {
 	t.Parallel()
 	s := NewStreams()

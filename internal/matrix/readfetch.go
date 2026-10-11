@@ -11,17 +11,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Read positions on events the cache does not hold. A receipt can point at an event
-// older than the cached window, or at one that is not a message at all (a bridge's
-// state event), and then its room cannot be counted locally (the badge falls back to
-// the server's notification count) and gets no thread floor. Such an event is
-// resolved once, in the background, from the server's stream order (resolveReceipt);
-// a failed ask leaves things as they were.
-//
-// The event's own time is not its position: bridges stamp messages with the remote
-// network's clock, so a state event can carry an earlier origin_server_ts than a
-// message the server ordered before it. The position is the newest message at or
-// before the receipt in stream order, by that message's time.
+// Receipts on uncached events (older than the cache, or a bridge's state event) are
+// resolved once in the background from the server's stream order; until then the
+// room uses the server's count. The position is the newest message at or before the
+// receipt in stream order, by that message's time: bridges stamp events with the
+// remote clock, so the event's own time is not its position.
 
 // readFetchWorkers caps concurrent event fetches: a cold start can ask for one per
 // room.
@@ -33,18 +27,16 @@ type fetchKey struct {
 	event domain.EventID
 }
 
-// fetchHeld fetches the held receipts of earlier syncs. Called as a sync begins: by
-// then the previous response's events have all been cached, so whatever is still
-// held is not arriving on its own. Held receipts are stamped from here on with the
-// new generation.
+// fetchHeld fetches receipts still held from earlier syncs. Called as a sync begins,
+// when the previous response's events are all cached, so these won't arrive alone.
 func (b *InProc) fetchHeld(ctx context.Context) {
 	for _, j := range b.held.nextSync() {
 		b.fetchPosition(ctx, j.room, j.held)
 	}
 }
 
-// fetchPosition learns where a receipt reads its room up to, in the background, and
-// places it there. Each event is asked for once per run; a failure is final.
+// fetchPosition resolves and places a receipt in the background. Each event is asked
+// for once per run; a failure is final.
 func (b *InProc) fetchPosition(ctx context.Context, roomID domain.RoomID, h heldReceipt) {
 	if b.cache == nil || b.client == nil || h.Event == "" {
 		return
@@ -80,8 +72,8 @@ func (b *InProc) fetchPosition(ctx context.Context, roomID domain.RoomID, h held
 // sees them (encrypted ones before decryption).
 var timelineTypes = []event.Type{event.EventMessage, event.EventSticker, event.EventEncrypted}
 
-// contextLimit is the /context window: the server splits it around the event, and
-// one message each side is all resolveReceipt reads.
+// contextLimit is the /context window, split around the event; resolveReceipt needs
+// one message each side.
 const contextLimit = 4
 
 // isTimeline reports whether an event is one the cache would hold as a message.
@@ -102,10 +94,9 @@ func firstTimeline(events []*event.Event) *event.Event {
 	return nil
 }
 
-// resolveReceipt is where a receipt on an uncached event reads a room up to, asked
-// of the server's /context. A thread receipt keeps its event and time (threads are
-// counted per reply). The room's newest cached message is read before the request:
-// anything cached by then is on the server, so "nothing after the receipt" covers it.
+// resolveReceipt asks /context where a receipt on an uncached event reads up to. A
+// thread receipt keeps its event and time. The newest cached message is read before
+// the request, so "nothing after the receipt" covers it.
 func (b *InProc) resolveReceipt(ctx context.Context, roomID domain.RoomID, kind, eventID domain.EventID) (readPos, bool) {
 	if ts, ok := b.positionOf(ctx, roomID, eventID); ok {
 		return readPos{Event: eventID, TS: ts}, true
@@ -114,7 +105,7 @@ func (b *InProc) resolveReceipt(ctx context.Context, roomID domain.RoomID, kind,
 	resp, err := b.client.Context(ctx, id.RoomID(roomID), id.EventID(eventID),
 		&mautrix.FilterPart{Types: timelineTypes, LazyLoadMembers: true}, contextLimit)
 	if err != nil || resp == nil || resp.Event == nil || resp.Event.Timestamp <= 0 {
-		// Tried once per receipt (receiptFetches); the room then counts from the server.
+		// Tried once per receipt; the room then counts from the server.
 		b.warnIf(ctx, err, "fetch a receipt's event", "room", roomID, "event", eventID)
 		return readPos{}, false
 	}
@@ -124,13 +115,10 @@ func (b *InProc) resolveReceipt(ctx context.Context, roomID domain.RoomID, kind,
 	return streamPosition(resp.Event, resp.EventsBefore, resp.EventsAfter, newest)
 }
 
-// streamPosition places a room receipt by stream order: at the newest message at or
-// before it (the receipt's own event, else the nearest before), by that message's
-// time. With no message after it, the room is read through: the position is also
-// at least the receipt's time and the newest cached message's (newest). A receipt
-// before every message sits just before the first. ok is false when the server's
-// answer cannot say (it ignored the filter and showed no message on either side
-// that settles it).
+// streamPosition places a room receipt at the newest message at or before it, by that
+// message's time. With nothing after it the room is read through (at least the
+// receipt's time and newest). A receipt before every message sits just before the
+// first. ok is false when the answer settles nothing (the server ignored the filter).
 func streamPosition(receipt *event.Event, before, after []*event.Event, newest readPos) (readPos, bool) {
 	var anchor readPos
 	if isTimeline(receipt) {
@@ -194,8 +182,8 @@ func (b *InProc) advanceRead(ctx context.Context, roomID domain.RoomID, pos read
 	}
 }
 
-// saveUnread persists a room's unread state and read time. Called from an unreadBook
-// change, under its lock. Best-effort.
+// saveUnread persists a room's unread state and read time, best-effort. Called under
+// the unreadBook lock.
 func (b *InProc) saveUnread(ctx context.Context, u domain.Unread, readTS int64) {
 	if b.cache == nil {
 		return
@@ -203,13 +191,10 @@ func (b *InProc) saveUnread(ctx context.Context, u domain.Unread, readTS int64) 
 	b.warnIf(ctx, b.cache.SaveUnread(ctx, u, readTS), "cache unread state", "room", u.RoomID)
 }
 
-// fetchUnplaced resolves each cached read event that has no position, so its room
-// can be counted locally. Called at startup with the cached state. A placed
-// position is resolved again while its event is not a cached message and the room
-// still counts unread: an earlier build placed such events by their own time, which
-// a bridge's clock can put after messages the server ordered before them. Rooms
-// counting nothing are left alone: a position only moves forward, so asking could
-// not lower their count.
+// fetchUnplaced resolves, at startup, each cached read event without a position. A
+// placed one is re-resolved while its event is uncached and the room counts unread,
+// since it may have been placed by a bridge's clock. Rooms counting nothing are
+// skipped: a position only moves forward.
 func (b *InProc) fetchUnplaced(ctx context.Context, cached []domain.Unread, placed map[domain.RoomID]int64) {
 	for _, u := range cached {
 		if u.ReadEvent == "" {
@@ -222,8 +207,8 @@ func (b *InProc) fetchUnplaced(ctx context.Context, cached []domain.Unread, plac
 	}
 }
 
-// worthResolving reports whether a placed position may be ahead of where it sits:
-// its event is not a cached message and the room counts something unread.
+// worthResolving reports whether a placed position's event is uncached while the room
+// counts something unread.
 func (b *InProc) worthResolving(ctx context.Context, u domain.Unread) bool {
 	if !u.Counted || u.Messages == 0 {
 		return false

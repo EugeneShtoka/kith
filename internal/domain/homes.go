@@ -5,18 +5,12 @@ import (
 	"strings"
 )
 
-// A room's homes are where it lives, for everything that picks one: its spaces and
-// the tags holding it (as tag:<name>). The first decides which name rule applies, a
-// download's {space}, a notification's {space}, and which place rule ranks as the
-// room's space. They are ranked by HomeOrder.
+// A room's homes are its spaces and tags (as tag:<name>). The first one picks the name
+// rule, a download's or notification's {space}, and the room's space for place rules.
 
-// HomeOrder is the order a room's homes are chosen in, most preferred first: what
-// [display] priority names, in its order; then what the rail order names, in its
-// order, where "*" — every group the rail does not name — is the tags in config
-// order, then the spaces you made, then a network's own spaces (a bridge's, or the
-// account or workspace its rooms come from: Managed or IsBridged), which say where a
-// room comes from, not where you put it. A tag of every room (All) comes last: it is the same
-// place as everywhere, so it is a room's home only when nothing else is.
+// HomeOrder ranks homes: [display] priority, then the rail order, where "*" stands for
+// unnamed tags (config order), then user spaces, then network-managed spaces. A tag
+// holding every room comes last.
 type HomeOrder struct {
 	// Priority is [display] priority: space names and tag:<name>s.
 	Priority []string
@@ -24,16 +18,15 @@ type HomeOrder struct {
 	Rail []string
 	// Tags is every tag's name, in config order.
 	Tags []string
-	// Every is the tags holding every room, Managed the network's own spaces, and
-	// Spaces every space known, by lower-cased name.
+	// Every is the tags holding every room, Managed the network's own spaces, Spaces
+	// every known space; keys are lower-cased names.
 	Every   map[string]bool
 	Managed map[string]bool
 	Spaces  map[string]bool
 }
 
-// NewHomeOrder is the home order the config gives (priority, rail order, tags), with
-// the network's own spaces among spaces marked; spaces may be nil where they are not
-// known yet (Places.Facts marks a room's own from its holders).
+// NewHomeOrder builds the order from config; spaces may be nil when not yet known
+// (Places.Facts marks them later).
 func NewHomeOrder(priority, rail []string, tags TagSet, spaces []Space) HomeOrder {
 	o := HomeOrder{Priority: priority, Rail: rail, Every: map[string]bool{}, Managed: map[string]bool{}, Spaces: map[string]bool{}}
 	for i := range tags.Len() {
@@ -46,8 +39,8 @@ func NewHomeOrder(priority, rail []string, tags TagSet, spaces []Space) HomeOrde
 	return o.WithManaged(spaces)
 }
 
-// WithManaged is o with the network's own spaces among spaces marked too; o itself
-// is left as it was (its map may be shared).
+// WithManaged returns o with spaces' managed ones marked; o's maps are not mutated
+// (they may be shared).
 func (o HomeOrder) WithManaged(spaces []Space) HomeOrder {
 	if len(spaces) > 0 {
 		known := make(map[string]bool, len(o.Spaces)+len(spaces))
@@ -74,7 +67,7 @@ func (o HomeOrder) WithManaged(spaces []Space) HomeOrder {
 // railRest is the rail entry standing for every group it does not name.
 const railRest = "*"
 
-// homeRank is where one home goes: by tier, then position, then within a position.
+// homeRank orders by tier, then position, then within a position.
 type homeRank struct{ tier, at, within int }
 
 func (r homeRank) less(o homeRank) bool {
@@ -87,7 +80,6 @@ func (r homeRank) less(o homeRank) bool {
 	return r.within < o.within
 }
 
-// rank places one home (a space name or a tag:<name>).
 func (o HomeOrder) rank(home string) homeRank {
 	key := strings.ToLower(strings.TrimSpace(home))
 	tag, isTag := TagOf(home)
@@ -115,8 +107,7 @@ func (o HomeOrder) rank(home string) homeRank {
 	}
 }
 
-// indexIn is where list names a home (lower-cased key): as written, or, for a tag, by
-// its bare name when no space is called that, as the rail reads a bare name.
+// indexIn finds a home in list; a tag also matches its bare name unless a space has it.
 func (o HomeOrder) indexIn(list []string, key, tag string, isTag bool) int {
 	if at := indexFold(list, key); at >= 0 || !isTag {
 		return at
@@ -128,9 +119,8 @@ func (o HomeOrder) indexIn(list []string, key, tag string, isTag bool) int {
 	return indexFold(list, bare)
 }
 
-// Sort is homes in this order. Homes that rank alike (two spaces neither priority nor
-// the rail names) go by name, so the order never depends on the order they arrive in:
-// the client and the daemon list a room's spaces each their own way, and must agree.
+// Sort orders homes; ties go by name so client and daemon agree whatever their input
+// order.
 func (o HomeOrder) Sort(homes []string) []string {
 	out := make([]string, len(homes))
 	copy(out, homes)
@@ -153,8 +143,7 @@ func (o HomeOrder) Sort(homes []string) []string {
 	return out
 }
 
-// indexFold is where key (lower-cased already) is among entries, case-insensitively;
-// -1 when it is not.
+// indexFold finds lower-cased key in entries case-insensitively; -1 if absent.
 func indexFold(entries []string, key string) int {
 	for i, e := range entries {
 		if strings.ToLower(strings.TrimSpace(e)) == key {
@@ -164,8 +153,7 @@ func indexFold(entries []string, key string) int {
 	return -1
 }
 
-// Homes is a room's spaces and tags in home order; a tag is TagEntry(name), so a tag
-// and a space of the same name stay apart. tags is in config order.
+// Homes is a room's spaces and tags (as TagEntry) in home order.
 func Homes(spaces, tags []string, order HomeOrder) []string {
 	homes := make([]string, 0, len(spaces)+len(tags))
 	homes = append(homes, spaces...)
@@ -175,7 +163,7 @@ func Homes(spaces, tags []string, order HomeOrder) []string {
 	return order.Sort(homes)
 }
 
-// HomeLabel is a home as a person reads it: a tag by its name.
+// HomeLabel is a home's display label: a tag's bare name.
 func HomeLabel(home string) string {
 	if name, ok := TagOf(home); ok {
 		return name

@@ -31,7 +31,7 @@ func take[T any](t *testing.T, ch <-chan T, what string) T {
 	}
 }
 
-// All four remaining streams deliver, with their payloads intact.
+// The four remaining streams deliver with payloads intact.
 func TestEveryStreamRoundTrips(t *testing.T) {
 	t.Parallel()
 
@@ -81,7 +81,6 @@ func TestEveryStreamRoundTrips(t *testing.T) {
 	}
 }
 
-// An empty invite set is delivered, not dropped.
 func TestEmptyInviteSetIsDelivered(t *testing.T) {
 	t.Parallel()
 
@@ -96,8 +95,7 @@ func TestEmptyInviteSetIsDelivered(t *testing.T) {
 	}
 }
 
-// A verification step whose kind this build does not recognize is dropped rather than
-// defaulted.
+// A verification kind this build does not know is dropped, not defaulted.
 func TestUnknownVerificationKindIsDropped(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +104,7 @@ func TestUnknownVerificationKindIsDropped(t *testing.T) {
 	go func() { _ = r.Start(context.Background()) }()
 	h.waitAttached(1)
 
-	// A kind past the ones this build knows converts to UNSPECIFIED on the way out.
+	// An unknown kind converts to UNSPECIFIED on the way out.
 	fake.Verifs <- domain.Verification{Kind: domain.VerificationRestored + 7, TxnID: "bogus"}
 	fake.Verifs <- domain.Verification{Kind: domain.VerificationDone, TxnID: "real"}
 
@@ -116,7 +114,6 @@ func TestUnknownVerificationKindIsDropped(t *testing.T) {
 	}
 }
 
-// Two attached clients both see every message.
 func TestTwoClientsBothSeeEveryMessage(t *testing.T) {
 	t.Parallel()
 
@@ -138,8 +135,7 @@ func TestTwoClientsBothSeeEveryMessage(t *testing.T) {
 	}
 }
 
-// A network rewriting its rooms reaches every attached client, which reads its room
-// list again.
+// A network rewriting its rooms reaches every attached client.
 func TestRoomsChangedReachesTheClient(t *testing.T) {
 	t.Parallel()
 	r, h := attach(t, &fakeBackend{Nop: apitest.Nop{}})
@@ -159,8 +155,8 @@ func TestRoomsChangedReachesTheClient(t *testing.T) {
 	}
 }
 
-// A window's change to the config is written by the daemon and reaches every other
-// window; one made on a file that changed since comes back as ErrConfigMoved.
+// A window's config change reaches every other window; one on a stale revision comes
+// back as ErrConfigMoved.
 func TestAConfigChangeReachesEveryWindow(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")
@@ -178,7 +174,7 @@ func TestAConfigChangeReachesEveryWindow(t *testing.T) {
 	}
 	changed := read.Config.Clone()
 	changed.Display.FPS = 42
-	original := read.Revision // the file before any save: older than whatever lands
+	original := read.Revision // older than whatever lands
 	deadline := time.Now().Add(settle)
 	var rev string
 	for { // the watching window's stream may not be open yet: save until it hears one

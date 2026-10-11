@@ -18,8 +18,7 @@ func agentWith(readRooms, readExcept, writeRooms, send []string) config.Agent {
 	}
 }
 
-// Reading is least privilege and writing is not: an empty read list shares nothing, an
-// empty write list is "whatever reading allows".
+// An empty read list shares nothing; an empty write list means whatever reading allows.
 func TestAgentScopesReadLeastPrivilegeWriteSameAsRead(t *testing.T) {
 	t.Parallel()
 
@@ -39,8 +38,7 @@ func TestAgentScopesReadLeastPrivilegeWriteSameAsRead(t *testing.T) {
 	}
 }
 
-// The user's own shape — read a space, send to a room ID — says nothing statically,
-// because whether that room is in the space is not decidable without rooms.
+// Reading a space and sending to a room ID is undecidable without rooms: no warning.
 func TestStaticWarningsStaySilentWhenUndecidable(t *testing.T) {
 	t.Parallel()
 
@@ -63,7 +61,7 @@ func TestStaticWarningsStaySilentWhenUndecidable(t *testing.T) {
 	}
 }
 
-// What the spelling alone rules out is said, naming the list and the entry.
+// Entries ruled out by spelling are warned about, naming the list and entry.
 func TestStaticWarningsNameDeadEntries(t *testing.T) {
 	t.Parallel()
 
@@ -115,8 +113,7 @@ func account() places {
 	}
 }
 
-// The user's config: a room ID in send that is a member of the space reading lists. It
-// must be silent, resolved or not.
+// A send room ID inside a read space stays silent, resolved or not.
 func TestResolvedWarningsSilentForARoomInAReadSpace(t *testing.T) {
 	t.Parallel()
 
@@ -126,8 +123,7 @@ func TestResolvedWarningsSilentForARoomInAReadSpace(t *testing.T) {
 	}
 }
 
-// Resolved, an entry is reported when rooms it matches are outside reading, with a few of
-// them named.
+// Resolved, an entry matching rooms outside reading is reported with examples.
 func TestResolvedWarningsNameRoomsOutsideReading(t *testing.T) {
 	t.Parallel()
 
@@ -156,8 +152,7 @@ func TestResolvedWarningsNameEncryptedRooms(t *testing.T) {
 	}
 }
 
-// Without rooms — no backend, a failing one, an entry matching nothing — the static check
-// is the answer.
+// Without rooms (no backend, a failing one, no match) the static check applies.
 func TestResolvedWarningsFallBackToStatic(t *testing.T) {
 	t.Parallel()
 
@@ -174,8 +169,7 @@ func TestResolvedWarningsFallBackToStatic(t *testing.T) {
 	}
 }
 
-// A room whose ID names its network is on that network, though no bridge space holds
-// it; a bare one in no space is Matrix.
+// A prefixed room ID is on its network without a bridge space; a bare one is Matrix.
 func TestFactsOfANativeRoom(t *testing.T) {
 	t.Parallel()
 

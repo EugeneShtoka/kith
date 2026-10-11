@@ -11,9 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Choosing how times and dates are written redraws the open timeline at once: rows
-// cached in the old format are not reused, and with the wider times of a 12-hour or
-// Korean clock every row's name still starts at one column and no row overflows.
+// Changing the time/date format redraws the timeline at once: cached rows are not
+// reused, and with wider times (12-hour, Korean) names still align and no row overflows.
 func TestAChosenClockRedrawsTheTimeline(t *testing.T) {
 	t.Parallel()
 	evening := time.Date(2025, 3, 5, 21, 30, 0, 0, time.Local)

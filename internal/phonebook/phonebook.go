@@ -1,13 +1,11 @@
-// Package phonebook is a folder of Markdown files, one per person, that kith shares
-// with whatever else reads them (a mail client, an Obsidian vault). A file's YAML front
-// matter holds the person: the keys in IdentifierKeys say who it is about, every other
-// key is a field of theirs. The body is the person's own notes, never touched.
+// Package phonebook is a folder of Markdown files, one per person, shared with other
+// programs (a mail client, an Obsidian vault). YAML front matter holds the person: the
+// IdentifierKeys say who it is, every other key is a field. The body is the user's
+// notes and is never touched.
 //
-// A file is found by its identifiers, not its name, so renaming it elsewhere breaks
-// nothing. Files are read afresh on every call: another program may have changed them.
-// A change rewrites the front matter with the one key changed, the rest kept in their
-// order with their comments, and the body byte for byte, through a rename so a reader
-// never sees half a file.
+// Files are matched by identifiers, not name, and re-read on every call since other
+// programs may change them. A write changes one key, keeps other keys' order and
+// comments and the body byte for byte, and lands via rename so no reader sees half a file.
 package phonebook
 
 import (
@@ -22,10 +20,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// IdentifierKeys are the front-matter keys that say who a file is about, as every app
-// sharing the folder reads them: a phone number in international form, an email
-// address, and a person's ID on each network (a Matrix user ID, a Telegram user ID, a
-// WhatsApp number's ID, a Slack ID as team.user).
+// IdentifierKeys are the front-matter keys that identify a person: phone in
+// international form, email, and per-network IDs (Matrix user ID, Telegram user ID,
+// WhatsApp number's ID, Slack ID as team.user).
 var IdentifierKeys = []string{"phone", "email", "matrix", "telegram", "whatsapp", "slack"}
 
 // Identifiers are a person's identifiers, by key.
@@ -53,7 +50,7 @@ type Field struct {
 // Book is the folder.
 type Book struct{ dir string }
 
-// New is the book in dir. It reads nothing until asked.
+// New returns the book in dir; it reads nothing until asked.
 func New(dir string) *Book { return &Book{dir: dir} }
 
 // Dir is the folder.
@@ -62,8 +59,8 @@ func (b *Book) Dir() string { return b.dir }
 // errNoFrontMatter is a file that does not start with a front matter block.
 var errNoFrontMatter = errors.New("no front matter")
 
-// Find is the first card, by file name, whose identifiers share one with ids; false for
-// none. A folder that does not exist yet holds no one.
+// Find returns the first card, by file name, sharing an identifier with ids. A missing
+// folder holds no one.
 func (b *Book) Find(ids Identifiers) (Card, bool, error) {
 	cards, err := b.cards()
 	if err != nil {
@@ -95,8 +92,8 @@ func (b *Book) Keys() ([]string, error) {
 	return keys, nil
 }
 
-// Create writes a new card for a person: named name (made safe for a file name, and
-// numbered when taken), with their identifiers and the person tag.
+// Create writes a new card with ids and the person tag, named after name (sanitized,
+// numbered when taken).
 func (b *Book) Create(name string, ids Identifiers) (Card, error) {
 	if err := os.MkdirAll(b.dir, 0o700); err != nil {
 		return Card{}, fmt.Errorf("phonebook: make %s: %w", b.dir, err)
@@ -119,8 +116,8 @@ func (b *Book) Create(name string, ids Identifiers) (Card, error) {
 	return read(path)
 }
 
-// Set writes one key of the card at path: values as a list when list, else the one
-// value; no values removes the key. The rest of the file is kept.
+// Set writes one key of the card at path, as a list when list; no values removes it.
+// The rest of the file is kept.
 func (b *Book) Set(path, key string, values []string, list bool) (Card, error) {
 	raw, err := os.ReadFile(path) //nolint:gosec // G304: a card the folder holds
 	if err != nil {
@@ -141,8 +138,7 @@ func (b *Book) Set(path, key string, values []string, list bool) (Card, error) {
 	return read(path)
 }
 
-// cards is every card in the folder, by file name; a file that is not one (no front
-// matter, or front matter that is not a mapping) is left out.
+// cards returns every card by file name, skipping files without mapping front matter.
 func (b *Book) cards() ([]Card, error) {
 	entries, err := os.ReadDir(b.dir)
 	if errors.Is(err, os.ErrNotExist) {
@@ -358,8 +354,7 @@ func digits(s string) string {
 	return b.String()
 }
 
-// fileName is a person's name as a file may be called: what a file system or a vault
-// would refuse taken out.
+// fileName strips from name what a file system or vault would refuse.
 func fileName(name string) string {
 	name = strings.Map(func(r rune) rune {
 		switch r {

@@ -8,9 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The thread a message belongs to has to survive a restart like any other fact
-// about it: without it the cache cannot tell a thread reply from a plain one, and
-// the room reads as a braid again on the next cold start.
+// A message's thread root survives a restart, or a cold start cannot tell thread
+// replies from plain ones.
 func TestAThreadRootSurvivesTheCache(t *testing.T) {
 	t.Parallel()
 
@@ -69,8 +68,7 @@ func TestEditingAMessageInAThreadKeepsItInTheThread(t *testing.T) {
 	}
 }
 
-// A thread root learned later (the reply arriving before the relation is known, or
-// a re-walk teaching old rows their thread) writes over an empty one.
+// A thread root learned later (reply before relation, or a re-walk) fills an empty one.
 func TestALaterSaveTeachesARowItsThread(t *testing.T) {
 	t.Parallel()
 
@@ -94,9 +92,8 @@ func TestALaterSaveTeachesARowItsThread(t *testing.T) {
 	}
 }
 
-// Sending into a thread needs the event its falling-back reply pointer should name
-// — the newest message already in it, which only the process holding the cache can
-// know.
+// LatestInThread gives the newest message in a thread, which a threaded send's
+// fallback reply pointer names.
 func TestLatestInThread(t *testing.T) {
 	t.Parallel()
 
@@ -121,8 +118,7 @@ func TestLatestInThread(t *testing.T) {
 	if got != "$r2" {
 		t.Errorf("latest = %q, want $r2 — not the room's newest, and not another thread's", got)
 	}
-	// A thread nobody has answered yet has no latest, which the caller reads as
-	// "the root is the whole chain" rather than as an error.
+	// An unanswered thread has no latest; not an error.
 	empty, err := cache.LatestInThread(ctx, room, "$nothing")
 	if err != nil || empty != "" {
 		t.Errorf("LatestInThread(unanswered) = %q, %v; want empty and no error", empty, err)

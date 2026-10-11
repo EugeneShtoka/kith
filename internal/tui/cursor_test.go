@@ -17,13 +17,13 @@ func TestMoveCursorWrap(t *testing.T) {
 		{"wrap off the start", 0, 3, -1, true, 2},
 		{"wrap by more than the length", 0, 3, 7, true, 1},
 		{"wrap backward by more than the length", 0, 3, -7, true, 2},
-		// Clamping: a long list has a position you can lose.
+		// Clamping: a long list has a position to keep.
 		{"clamp forward", 0, 3, 1, false, 1},
 		{"clamp at the end", 2, 3, 1, false, 2},
 		{"clamp at the start", 0, 3, -1, false, 0},
 		{"clamp a big jump", 0, 3, 99, false, 2},
 		{"clamp a big backward jump", 2, 3, -99, false, 0},
-		// Degenerate: an empty list has no cursor to move.
+		// An empty list has no cursor to move.
 		{"empty wraps to zero", 0, 0, 1, true, 0},
 		{"empty clamps to zero", 5, 0, -1, false, 0},
 		{"single item wraps to itself", 0, 1, 1, true, 0},
@@ -50,7 +50,7 @@ func TestWindowStart(t *testing.T) {
 		// The window holds still while the cursor moves inside it.
 		{"cursor in view", 2, 5, 20, 0},
 		{"cursor on the last visible row", 4, 5, 20, 0},
-		// And moves the least it can once the cursor leaves.
+		// It moves the least it can once the cursor leaves.
 		{"cursor one past the window", 5, 5, 20, 1},
 		{"cursor well past", 10, 5, 20, 6},
 		// It never scrolls past the end, so the last screen is full.

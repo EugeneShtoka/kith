@@ -13,7 +13,7 @@ import (
 )
 
 // showAgentLog prints the account's kith-mcp write ledger, oldest first. It needs no
-// daemon: it must work exactly when something has gone wrong.
+// daemon: it must work when something has gone wrong.
 func showAgentLog(configPath, profile string) error {
 	path, cfg, ready, err := loadConfig(configPath, profile)
 	if err != nil || !ready {
@@ -45,7 +45,6 @@ func showAgentLog(configPath, profile string) error {
 	return nil
 }
 
-// agentLogLine is one entry as a line.
 func agentLogLine(entry agent.Entry) string {
 	where := entry.Name
 	if where == "" {
@@ -60,8 +59,8 @@ func agentLogLine(entry agent.Entry) string {
 	return line
 }
 
-// warnAboutAgentScope prints the `[agent.write]` entries `[agent.read]` rules out.
-// Printed here because kith-mcp's stderr is somewhere nobody looks. Never fatal.
+// warnAboutAgentScope prints the `[agent.write]` entries `[agent.read]` rules out,
+// here because nobody reads kith-mcp's stderr. Never fatal.
 func warnAboutAgentScope(ctx context.Context, places setup.AgentPlaces, cfg config.Config) {
 	ctx, cancel := context.WithTimeout(ctx, agentScopeTimeout)
 	defer cancel()

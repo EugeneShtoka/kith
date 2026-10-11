@@ -15,15 +15,13 @@ type RoomID string
 // Membership is our own relationship to a room.
 type Membership string
 
-// The memberships the client represents. Matrix also has "leave" and "knock";
-// neither is listed, so neither is modeled.
+// Memberships the client models; Matrix's "leave" and "knock" rooms are never listed.
 const (
 	MembershipJoin   Membership = "" // joined; the zero value, see Membership
 	MembershipInvite Membership = "invite"
 )
 
-// Room is a Matrix room we are in or have been invited to, reduced to what the
-// client needs to list it.
+// Room is a joined or invited room, reduced to what the room list needs.
 type Room struct {
 	ID       RoomID
 	Name     string // the room's m.room.name, if it has one; may be empty
@@ -35,17 +33,16 @@ type Room struct {
 	InvitedBy  string // MXID of the inviter, for an invite
 	// Replacement is the m.room.tombstone replacement_room, if upgraded.
 	Replacement RoomID
-	// Archived is the network's own archive holding it: Telegram's Archived folder,
-	// WhatsApp's archived chats. kith's tag follows it where configured (Places).
+	// Archived is set by the network's own archive (Telegram's Archived folder,
+	// WhatsApp's archived chats); kith's tag can follow it (Places).
 	Archived bool
 	// Forum marks a forum's own room (Telegram's General topic): the forum is a space,
 	// and each of its other topics a room in it.
 	Forum bool
-	// Deleting is whether the room is put away by deleting it rather than leaving it
-	// (a private chat on a network that cannot leave one), and for whom.
+	// Deleting is whether the room is deleted rather than left (a private chat on a
+	// network that cannot leave one), and for whom.
 	Deleting ChatDeleting
-	// Network is the network behind a room another network keeps for it (a Matrix
-	// room a bridge keeps: the bridge's network); "" when none is known.
+	// Network is the bridged network behind a Matrix room; "" when unknown.
 	Network Protocol
 }
 
@@ -58,17 +55,15 @@ const (
 	ChatLeft ChatDeleting = iota
 	// ChatDeletedForMe: the chat is deleted for you only (your own saved messages).
 	ChatDeletedForMe
-	// ChatDeletedForEither: the chat is deleted for you, and, if you say so, for the
-	// other person too (a Telegram private chat).
+	// ChatDeletedForEither: deleted for you, optionally for the other person too
+	// (a Telegram private chat).
 	ChatDeletedForEither
 )
 
-// IsInvite reports whether this is a pending invitation rather than a room we have
-// joined.
+// IsInvite reports whether this is a pending invitation.
 func (r Room) IsInvite() bool { return r.Membership == MembershipInvite }
 
-// DisplayName is the human-facing label for a room: its name when set,
-// otherwise its ID, so a room is never rendered blank.
+// DisplayName is the room's name, else its ID, so it is never blank.
 func (r Room) DisplayName() string {
 	if r.Name != "" {
 		return r.Name
@@ -115,8 +110,8 @@ type NewRoom struct {
 	Invite    []string // invited at creation: people's IDs on the network it is made on
 	// Direct sets is_direct and records the room in our m.direct.
 	Direct bool
-	// On is the account it is made on: AccountRooms of a network other than Matrix's,
-	// which makes it as Kind says; empty for Matrix, which reads the fields above.
+	// On is the non-Matrix account to create it on (AccountRooms), as Kind says;
+	// empty for Matrix, which uses the fields above.
 	On   RoomOwner
 	Kind ChatKind
 }

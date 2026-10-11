@@ -18,16 +18,14 @@ import (
 // sample()'s account file in it.
 func withTempState(t *testing.T) string {
 	t.Helper()
-	// As a person moves it: the environment, read again. The reload is registered
-	// first, so it runs after the environment is put back.
+	// Registered first, so the reload runs after the environment is restored.
 	t.Cleanup(xdg.Reload)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	xdg.Reload()
 	return storeOf(sample().UserID).File
 }
 
-// storeOf is user's store as an install from before instances keeps it: the account
-// in the keyring, the file in the state directory under the account's name.
+// storeOf is the store of an instance named after user's account.
 func storeOf(user string) Store {
 	return StoreFor(domain.Storage{
 		Instance: domain.AccountKey(user), StateDir: filepath.Join(xdg.StateHome, "kith"), KeyringService: legacyService,
@@ -161,7 +159,6 @@ func TestFileFallbackRejectsInsecurePerms(t *testing.T) {
 	}
 }
 
-// A save that cannot complete leaves the previous session file untouched.
 func TestAFailedSaveKeepsThePreviousSession(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory permissions, so the write cannot be made to fail this way")
@@ -199,7 +196,6 @@ func TestAFailedSaveKeepsThePreviousSession(t *testing.T) {
 	}
 }
 
-// A successful save leaves no temporary file behind.
 func TestSaveLeavesNoTempFileBehind(t *testing.T) {
 	keyring.MockInitWithError(errors.New("no secret store"))
 	path := withTempState(t)
@@ -218,7 +214,6 @@ func TestSaveLeavesNoTempFileBehind(t *testing.T) {
 	}
 }
 
-// A keyring that is present but will not answer is not a first run.
 func TestALockedKeyringIsNotReportedAsAFirstRun(t *testing.T) {
 	keyring.MockInitWithError(errors.New("org.freedesktop.DBus.Error.TimedOut: keyring is locked"))
 	withTempState(t)
@@ -236,7 +231,6 @@ func TestALockedKeyringIsNotReportedAsAFirstRun(t *testing.T) {
 	}
 }
 
-// Save says *why* the store refused, rather than only that there wasn't one.
 func TestSaveExplainsWhyTheSecretStoreRefused(t *testing.T) {
 	keyring.MockInitWithError(errors.New("org.freedesktop.DBus.Error.TimedOut: keyring is locked"))
 	withTempState(t)
@@ -309,8 +303,7 @@ func TestKeyringSaveRemovesOnlyItsOwnFile(t *testing.T) {
 	}
 }
 
-// A pickle key that cannot be read is reported, never replaced: the crypto store it
-// encrypted, with this device's identity, opens only with the old key.
+// A corrupt pickle key is never replaced: only it opens the existing crypto store.
 func TestACorruptPickleKeyIsKeptAndReported(t *testing.T) {
 	keyring.MockInit()
 	const acct = "@alice:example.org|pickle"

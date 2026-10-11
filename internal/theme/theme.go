@@ -1,5 +1,5 @@
-// Package theme is kith's visual palette and the lipgloss styles built from it.
-// It imports nothing internal but themespec, the palette and its colors as data.
+// Package theme is kith's palette and the lipgloss styles built from it. Its only
+// internal import is themespec.
 package theme
 
 import (
@@ -32,8 +32,8 @@ type Palette struct {
 	SelectedDimBG color.Color
 }
 
-// Theme bundles the ready-to-use styles the views apply. Border styles carry no
-// fixed size — the caller sets Width/Height per frame from the terminal size.
+// Theme bundles the styles the views apply. Border styles carry no size; callers set
+// Width/Height per frame.
 type Theme struct {
 	Palette Palette
 

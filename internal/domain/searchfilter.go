@@ -6,40 +6,37 @@ import (
 	"time"
 )
 
-// Narrowing a search by who said it and roughly when.
+// Search filters: sender, date bounds and flags lifted out of a query.
 
-// SearchFilter is a parsed query: the terms to match, and what to narrow them to.
+// SearchFilter is a parsed query: terms to match and filters to narrow by.
 type SearchFilter struct {
-	// Terms is what is left after the filters are lifted out — what FTS5 matches.
+	// Terms is what FTS5 matches, after the filters are lifted out.
 	Terms string
 	// Sender is an MXID or a display-name fragment.
 	Sender string
-	// Since and Until bound the timestamps, inclusive of Since and exclusive of Until.
+	// Since is inclusive, Until exclusive.
 	Since time.Time
 	Until time.Time
-	// Mentioned narrows to the messages that name *us*.
+	// Mentioned narrows to messages that mention you.
 	Mentioned bool
-	// HasFile narrows to the messages carrying an attachment.
+	// HasFile narrows to messages with an attachment.
 	HasFile bool
-	// Starred narrows to the messages you have starred.
+	// Starred narrows to messages you starred.
 	Starred bool
-	// Tracked narrows to the messages carrying one of your tracked words, and Words is
-	// which of them to look for — the whole list, or one entry when `/tracked <word>`
-	// named it.
+	// Tracked narrows to messages with one of Words: all tracked words, or the one
+	// `/tracked <word>` named.
 	Tracked bool
 	Words   []string
 }
 
-// Empty reports whether the filter would match on nothing at all — no terms and no
-// narrowing. Searching for that is a question with no question in it.
+// Empty reports whether the filter has no terms and no narrowing.
 func (f SearchFilter) Empty() bool {
 	return f.Terms == "" && f.Sender == "" && f.Since.IsZero() && f.Until.IsZero() &&
 		!f.Mentioned && !f.HasFile && !f.Starred && !f.Tracked
 }
 
-// ParseSearch lifts the filter tokens out of an input and returns them beside the terms
-// that remain. now is passed in rather than read so that "7d" is testable and so the
-// pure layer keeps its one rule: no clocks.
+// ParseSearch lifts filter tokens (from:, since:, until:) out of input; the rest are
+// terms. now is passed in because the domain layer reads no clock.
 func ParseSearch(input string, now time.Time) SearchFilter {
 	var filter SearchFilter
 	var terms []string
@@ -95,7 +92,7 @@ func parseWhen(value string, now time.Time, endOfDay bool) (time.Time, bool) {
 	if at, err := time.ParseInLocation("2006-01-02", value, now.Location()); err == nil {
 		return day(at), true
 	}
-	// A relative span: a count and a unit, counted back from now.
+	// A relative span, counted back from now.
 	if len(value) < 2 {
 		return time.Time{}, false
 	}
@@ -105,9 +102,7 @@ func parseWhen(value string, now time.Time, endOfDay bool) (time.Time, bool) {
 	}
 	switch value[len(value)-1] {
 	case 'h':
-		// Hours, added for `/summary 2h` and useful to `since:` for the same reason:
-		// the span somebody means when they say "what happened while I was at lunch" is
-		// shorter than a day.
+		// Hours, for spans shorter than a day (`/summary 2h`).
 		return now.Add(-time.Duration(n) * time.Hour), true
 	case 'd':
 		return now.AddDate(0, 0, -n), true

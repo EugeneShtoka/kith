@@ -14,14 +14,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A forum is a space, and each of its topics a room in it: a topic's messages are its
-// room's, read, counted and filed as any room's are. The General topic is the forum's
-// own room. A topic is numbered by the message that began it, which a message in the
-// topic names in its reply header (topicOf); that message itself only says the topic's
-// title, which is its room's name.
+// A forum is a space with a room per topic; General is the forum's own room. A topic's
+// ID is its creation message, named in its messages' reply headers (topicOf); the
+// creation message itself only carries the title.
 
-// topicsPage is how many topics one ask for a forum's topics gets; topicsPages bounds
-// how many pages are read.
+// topicsPage is the page size for a forum's topics; topicsPages caps the pages read.
 const (
 	topicsPage  = 100
 	topicsPages = 20
@@ -37,7 +34,7 @@ func isForum(e dialog) bool {
 	return ok && c.Forum
 }
 
-// forumListing is a forum's topics, the latest message in each, and whom they name.
+// forumListing is a forum's topics, their latest messages and entities.
 type forumListing struct {
 	topics []*tg.ForumTopic
 	tops   []tg.MessageClass
@@ -73,8 +70,7 @@ func forumTopics(ctx context.Context, client *tg.Client, forum tg.InputPeerClass
 	return out, nil
 }
 
-// topicRooms is a forum's topics as rooms; General is the forum's own room, listed
-// with the forum.
+// topicRooms is a forum's topics as rooms, except General (the forum's own room).
 func topicRooms(self, forum int64, topics []*tg.ForumTopic) []domain.Room {
 	var out []domain.Room
 	for _, t := range topics {
@@ -86,8 +82,8 @@ func topicRooms(self, forum int64, topics []*tg.ForumTopic) []domain.Room {
 	return out
 }
 
-// cacheTopicTops caches the latest message of each topic, in its room: the room list
-// shows it, and marking the forum read reads every topic up to it.
+// cacheTopicTops caches each topic's latest message, for the room list and for
+// marking the forum read.
 func (a *Adapter) cacheTopicTops(ctx context.Context, self int64, f forumListing) {
 	if a.cache == nil {
 		return
@@ -103,8 +99,8 @@ func (a *Adapter) cacheTopicTops(ctx context.Context, self int64, f forumListing
 	}
 }
 
-// listedTopicsUnread keeps what a listing fetched then says of each topic's unread:
-// General's is the forum's own room's.
+// listedTopicsUnread applies a listing's per-topic unread; General's goes to the
+// forum's room.
 func (a *Adapter) listedTopicsUnread(ctx context.Context, self, forum int64, topics []*tg.ForumTopic, fetched time.Time) {
 	for _, t := range topics {
 		room := chatRoom(self, forum, topicNumber(t.ID))
@@ -123,8 +119,8 @@ func (a *Adapter) listedTopicsUnread(ctx context.Context, self, forum int64, top
 	}
 }
 
-// forgetForumThreads drops what was cached of a forum's topics while they were kept as
-// threads of its room: they are refetched into their own rooms.
+// forgetForumThreads drops topic messages cached as threads of the forum's room;
+// they are refetched into topic rooms.
 func (a *Adapter) forgetForumThreads(ctx context.Context, self, forum int64, topics []*tg.ForumTopic) {
 	if a.cache == nil {
 		return
@@ -139,8 +135,8 @@ func (a *Adapter) forgetForumThreads(ctx context.Context, self, forum int64, top
 	}
 }
 
-// topicReplies is a page of a topic's messages: Telegram keeps a topic as the replies
-// to the message that began it.
+// topicReplies is a page of a topic: Telegram stores a topic as replies to its
+// creation message.
 func (a *Adapter) topicReplies(ctx context.Context, ch chat, from string, limit int) (tg.MessagesMessagesClass, error) {
 	req := &tg.MessagesGetRepliesRequest{Peer: ch.peer, MsgID: ch.topic, Limit: limit}
 	if from != "" {
@@ -156,7 +152,7 @@ func (a *Adapter) topicReplies(ctx context.Context, ch chat, from string, limit 
 	return res, nil
 }
 
-// topicNumber is a topic as a room names it: 0 for General, which is the forum's own.
+// topicNumber is a room's topic ID; 0 for General.
 func topicNumber(topic int) int {
 	if topic == generalTopic {
 		return 0
@@ -164,7 +160,7 @@ func topicNumber(topic int) int {
 	return topic
 }
 
-// forumOf is the forum a topic's room is in, and whether it is one.
+// forumOf is a topic room's forum room; false if room is not a topic.
 func forumOf(room domain.RoomID) (domain.RoomID, bool) {
 	forum, _, ok := strings.Cut(string(room), topicSep)
 	return domain.RoomID(forum), ok

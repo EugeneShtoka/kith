@@ -241,8 +241,7 @@ func TestAnEmptyEditIsRefused(t *testing.T) {
 	}
 }
 
-// A deletion whose edit history could not all be removed still counts as deleted:
-// the message is gone, so the row must not come back.
+// A deletion whose edit history could not all be removed still counts as deleted.
 func TestAPartlyRemovedHistoryStillCountsAsDeleted(t *testing.T) {
 	t.Parallel()
 

@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// layoutIndexed is the reference layout: every loaded message laid out top to bottom,
-// with each message's row span, and no window. The pane draws through layoutWindow;
-// what it draws must be a slice of this.
+// layoutIndexed is the reference layout: every loaded message top to bottom, with each
+// message's row span and no window. layoutWindow's output must be a slice of it.
 func (m Model) layoutIndexed() ([]string, map[domain.EventID][2]int) {
 	_, w := m.walkFor()
 	m.extendTo(w, math.MaxInt)
@@ -37,9 +36,7 @@ func (m Model) layoutRows() []string {
 	return rows
 }
 
-// Scrolling must show the same rows it showed before the layout was windowed: the
-// viewport is the thing the user actually sees, so it is checked as a whole rather than
-// only through the layout beneath it.
+// Scrolling shows the same rows as the unwindowed layout, checked on the whole viewport.
 func TestMessageLinesUnchangedByWindowing(t *testing.T) {
 	m := benchTimelineModel(300)
 	rows := m.msgAreaRows()
@@ -73,11 +70,10 @@ func TestMessageLinesUnchangedByWindowing(t *testing.T) {
 	}
 }
 
-// The viewport cut at both ends must be exactly the slice of the whole layout it claims
-// to be. The rooms bracket where a windowed layout goes wrong first: one or no message,
-// dividers on every message or none (the window's first message is where a divider is
-// invented or lost), and a thread summary anchored above everything, which only a
-// window reaching the top may draw.
+// The viewport cut at both ends must equal the slice of the whole layout it claims. Cases
+// cover where windowing breaks first: one or no message, dividers on every message or none
+// (the window's first message can invent or lose one), and a thread summary anchored above
+// everything, which only a window reaching the top may draw.
 func TestLayoutWindowMatchesFullSlice(t *testing.T) {
 	rooms := map[string]Model{}
 	for _, n := range []int{1, 3, 40, 300} {

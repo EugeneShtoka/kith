@@ -7,8 +7,7 @@ import (
 	"testing"
 )
 
-// testFreq builds a Frequencies from `word count` lines, the way an installed file
-// would be read.
+// testFreq builds a Frequencies from `word count` lines.
 func testFreq(t *testing.T, tag, body string) *Frequencies {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), tag+freqExt)
@@ -22,8 +21,8 @@ func testFreq(t *testing.T, tag, body string) *Frequencies {
 	return f
 }
 
-// A Latin stand-in for the Hebrew shapes: `hte` is a transposition of the very common
-// `the`, `hosue` of `house`; `tqe` needs a substitution; `stll` a letter put back.
+// Latin stand-ins for the Hebrew cases: `hte` and `hosue` transpose `the` and `house`,
+// `tqe` needs a substitution, `stll` a letter put back.
 const latinList = "" +
 	"the 500000\n" +
 	"house 90000\n" +
@@ -49,9 +48,8 @@ func TestRareCatchesATranspositionOfACommonWord(t *testing.T) {
 	}
 }
 
-// The substitution half, which autocorrect's rule deliberately excludes: `tqe` is `the`
-// with one letter confused for another, and only the dictionary's own MAP set says
-// which letters those are.
+// MAP substitutions, which autocorrect excludes: `tqe` reaches `the` only through the
+// dictionary's MAP set.
 func TestRareUsesTheDictionarysConfusableSets(t *testing.T) {
 	t.Parallel()
 
@@ -59,8 +57,7 @@ func TestRareUsesTheDictionarysConfusableSets(t *testing.T) {
 	if !rare || len(hint.Alternatives) == 0 || hint.Alternatives[0] != "the" {
 		t.Fatalf("Rare(tqe) = %v, %v; want the", hint.Alternatives, rare)
 	}
-	// Without the MAP set there is no way to reach it: no transposition or insertion
-	// turns tqe into the.
+	// Without the MAP set, no transposition or insertion turns tqe into the.
 	plain := NewRarity(testFreq(t, "en_US", latinList), parseAffix("TRY etaoinshrdlu\n"))
 	if _, rare := plain.Rare("tqe", 100); rare {
 		t.Error("Rare(tqe) fired without a MAP set, so something else generated it")
@@ -77,8 +74,7 @@ func TestRareCatchesAMissingLetter(t *testing.T) {
 	}
 }
 
-// The comparison is the whole design: a rare word with nothing much commoner one slip
-// away is left alone, which is what keeps names and jargon unmarked.
+// A rare word with nothing much commoner one slip away is left alone (names, jargon).
 func TestRareLeavesARareWordWithNoCommonNeighbourAlone(t *testing.T) {
 	t.Parallel()
 
@@ -98,7 +94,7 @@ func TestRareLeavesCommonWordsAlone(t *testing.T) {
 	}
 }
 
-// The ratio is the knob, and it points the way the config says: higher is quieter.
+// A higher ratio is quieter.
 func TestRareRatioDecidesHowLoudItIs(t *testing.T) {
 	t.Parallel()
 
@@ -110,8 +106,7 @@ func TestRareRatioDecidesHowLoudItIs(t *testing.T) {
 	if hint, rare := r.Rare("hte", 100000); rare {
 		t.Errorf("Rare(hte) at ratio 100000 = %v, true; want silence", hint.Alternatives)
 	}
-	// A ratio of zero or less is not "no threshold", it is off — the loudest setting
-	// would be 1, and a caller that passes 0 has not configured anything.
+	// A ratio of zero or less turns hints off.
 	if _, rare := r.Rare("hte", 0); rare {
 		t.Error("Rare(hte) at ratio 0 = true; want off")
 	}
@@ -121,16 +116,14 @@ func TestRareRatioDecidesHowLoudItIs(t *testing.T) {
 func TestRareIgnoresANeighbourNobodyUsesEither(t *testing.T) {
 	t.Parallel()
 
-	// `rarely` at 400 is under the floor, however many times commoner it is than a
-	// word seen twice.
+	// `rarely` (400) is under the floor, however much commoner than a word seen twice.
 	r := NewRarity(testFreq(t, "en_US", latinList+"rarel 2\n"), parseAffix("TRY etaoinshrdlu\n"))
 	if hint, rare := r.Rare("rarel", 100); rare {
 		t.Errorf("Rare(rarel) = %v, true; want silence — the neighbor is below the floor", hint.Alternatives)
 	}
 }
 
-// Grammar is not a slip. A word and the same word with a clitic glued on are two legal
-// forms, and one being commoner says nothing about the other.
+// A word and the same word with a clitic glued on are both legal, not a slip.
 func TestRareExcludesCliticPrefixesForHebrew(t *testing.T) {
 	t.Parallel()
 
@@ -149,8 +142,7 @@ func TestRareExcludesCliticPrefixesForHebrew(t *testing.T) {
 func TestRareOffersAtMostThreeCommonestFirst(t *testing.T) {
 	t.Parallel()
 
-	// Four neighbors of `at`, all over the floor: the three commonest come back, in
-	// order, and the fourth does not.
+	// Four neighbors of `at` over the floor: the three commonest come back, in order.
 	const list = "at 3\nact 90000\nbat 80000\ncat 70000\neat 60000\n"
 	r := NewRarity(testFreq(t, "en_US", list), parseAffix("TRY abcet\n"))
 	hint, rare := r.Rare("at", 100)
@@ -222,8 +214,7 @@ func TestAffixScriptComesFromTheAlphabetItDeclares(t *testing.T) {
 			t.Errorf("%q: script = %v, want %v", aff, got, want)
 		}
 	}
-	// With no TRY line the list itself answers, since its words cannot be wrong about
-	// what they are written in.
+	// With no TRY line, the script comes from the list's words.
 	r := NewRarity(testFreq(t, "he_IL", "שלום 500\nתודה 900\n"), parseAffix("SET UTF-8\n"))
 	if got := r.Script(); got != Hebrew {
 		t.Errorf("script from the list = %v, want Hebrew", got)
@@ -242,7 +233,7 @@ func TestReadAffixReportsAMissingFile(t *testing.T) {
 func TestRareIsCertainOnlyWhenTheWordIsUnknownAndTheAnswerIsSingle(t *testing.T) {
 	t.Parallel()
 
-	// `hte` is in the list at 30, so its single candidate is a guess about intent.
+	// `hte` is in the list (30), so its one candidate is only a guess.
 	if hint, rare := latinRarity(t).Rare("hte", 100); !rare || hint.Certain {
 		t.Errorf("Rare(hte) certain=%v; a word the corpus has seen is never certain", hint.Certain)
 	}
@@ -258,8 +249,7 @@ func TestRareIsCertainOnlyWhenTheWordIsUnknownAndTheAnswerIsSingle(t *testing.T)
 	}
 }
 
-// The word file is the escape hatch that makes the feature tolerable: a hint somebody
-// has judged must not come back, and what they judged has to survive a restart.
+// A dismissed word is recorded and survives a restart.
 func TestWordFileRemembersAcrossReload(t *testing.T) {
 	t.Parallel()
 
@@ -271,7 +261,7 @@ func TestWordFileRemembersAcrossReload(t *testing.T) {
 	if err := a.Add("שגיא"); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	// Saying it twice is not an error and not a second line.
+	// Adding twice writes one line.
 	if err := a.Add("שגיא"); err != nil {
 		t.Fatalf("Add again: %v", err)
 	}
@@ -285,8 +275,7 @@ func TestWordFileRemembersAcrossReload(t *testing.T) {
 	}
 }
 
-// A missing file is what a machine that has never dismissed a hint looks like, and a
-// nil list is what a backend that never loaded one has.
+// A missing file and a nil list are both empty.
 func TestWordFileToleratesNothing(t *testing.T) {
 	t.Parallel()
 
@@ -311,9 +300,7 @@ func TestWordFileToleratesNothing(t *testing.T) {
 	}
 }
 
-// Remember records without writing, for the file hunspell owns: it appends on add and
-// does not deduplicate, so knowing what is already in there is what stops the same word
-// being written twice.
+// Remember records without writing: hunspell owns personal.dic and appends duplicates.
 func TestWordFileRemembersWithoutWriting(t *testing.T) {
 	t.Parallel()
 

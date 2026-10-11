@@ -9,11 +9,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// NotificationRules is the whole notification decision: a built-in account-wide rule
-// (show = mention, the base sound) always first, then every configured rule layered on
-// top. Configured rules never replace the built-in one; a configured rule with no match
-// and no sender ties with it on specificity and, being later, sets the account-wide
-// level. A misspelled level or time is an error rather than a silent fallback.
+// NotificationRules is a built-in account-wide rule (show = mention, base sound)
+// followed by the configured rules. A configured rule with no match or sender ties on
+// specificity and, being later, overrides the account-wide level. Misspellings are errors.
 func NotificationRules(notifs config.Notifications) ([]notify.Rule, error) {
 	show := notify.LevelMention
 	// The account-wide rule's sound is the base one; a rule's own sound replaces it.
@@ -67,9 +65,8 @@ func optionalLevel(key, spelled string) (*notify.Level, error) {
 	return &l, nil
 }
 
-// NotifierReporting composes the delivery sinks for a configuration, or a Nop when
-// notifications are off, with report hearing every failed delivery (see
-// notify.Settings.Report); the daemon logs them.
+// NotifierReporting builds the delivery sinks, or a Nop when notifications are off;
+// report receives every failed delivery.
 func NotifierReporting(notifs config.Notifications, report func(sink string, err error)) notify.Notifier {
 	if !notifs.Enabled {
 		return notify.Nop{}
@@ -84,8 +81,7 @@ func NotifierReporting(notifs config.Notifications, report func(sink string, err
 	})
 }
 
-// NotifierSinks is NotifierReporting as a builder: what the daemon rebuilds its sinks
-// with on every reload, each build reporting to the same report.
+// NotifierSinks is NotifierReporting as a builder, for rebuilding sinks on reload.
 func NotifierSinks(report func(sink string, err error)) func(config.Notifications) notify.Notifier {
 	return func(notifs config.Notifications) notify.Notifier { return NotifierReporting(notifs, report) }
 }
@@ -109,8 +105,7 @@ func NotificationLimit(notifs config.Notifications) (notify.Limit, error) {
 	return notify.Limit{Max: notifs.MaxPerRoom, Window: window}, nil
 }
 
-// defaultRateWindow is the period a burst is counted over when the config names a count
-// and no window.
+// defaultRateWindow is the burst window when only a count is configured.
 const defaultRateWindow = 2 * time.Minute
 
 // Templates is the user's title and body format, defaults filled in.

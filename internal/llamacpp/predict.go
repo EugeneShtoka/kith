@@ -16,9 +16,9 @@ import (
 // starts a word (leading space or U+2581), contains a letter or digit, and is not a
 // case-duplicate of an earlier one.
 
-// completionRequest is llama.cpp's native /completion body (the one carrying n_probs).
-// Temperature 0 so sampling cannot reorder the ranking; cache_prompt reuses the KV
-// cache across a draft's shared prefix.
+// completionRequest is llama.cpp's native /completion body. Temperature 0 keeps
+// sampling from reordering the ranking; cache_prompt reuses the KV cache across a
+// draft's shared prefix.
 type completionRequest struct {
 	Prompt      string  `json:"prompt"`
 	NPredict    int     `json:"n_predict"`
@@ -73,8 +73,8 @@ func (s *server) distribution(ctx context.Context, prompt string, n int) ([]toke
 		return nil, fmt.Errorf("llamacpp: read reply: %w", err)
 	}
 	var decoded completionResponse
-	// Decoded before the status check: a refusal's reason is in the body. A refusal
-	// need not be JSON, so the decode error only matters on a 200.
+	// Decode before the status check: a refusal's reason is in the body, but it need not
+	// be JSON, so the decode error matters only on a 200.
 	decodeErr := json.Unmarshal(raw, &decoded)
 	if resp.StatusCode != http.StatusOK {
 		if decoded.Error != nil && decoded.Error.Message != "" {
@@ -91,13 +91,11 @@ func (s *server) distribution(ctx context.Context, prompt string, n int) ([]toke
 	return decoded.Probabilities[0].Top, nil
 }
 
-// replyErr is an answer that was not a prediction: the server is up and talking, so
-// it is kept.
+// replyErr is a reply that was not a prediction; the server is alive, so it is kept.
 type replyErr struct{ error }
 
 func (e replyErr) Unwrap() error { return e.error }
 
-// maxReplyBytes bounds one reply.
 const maxReplyBytes = 1 << 20
 
 // words turns a distribution into the options worth offering, best first.
@@ -118,7 +116,7 @@ func words(probs []tokenProb, n int) []string {
 	return out
 }
 
-// wordOf is the word a token offers, and false when it offers none.
+// wordOf is the word a token offers, or false.
 func wordOf(token string) (string, bool) {
 	// GPT-2 BPE marks a word start with a space, SentencePiece with U+2581.
 	switch {
@@ -127,7 +125,7 @@ func wordOf(token string) (string, bool) {
 	case strings.HasPrefix(token, "▁"):
 		token = strings.TrimPrefix(token, "▁")
 	default:
-		// Continues the word on screen: not an offer.
+		// Continues the current word.
 		return "", false
 	}
 	// Keep only the first word of a token that spans whitespace.

@@ -6,8 +6,7 @@ import (
 	"testing"
 )
 
-// The [keys] part of default.toml is rendered from keySections; a hand edit there, or
-// a table change not regenerated, fails here. `make keys-doc` rewrites it.
+// default.toml's [keys] part matches keySections; `make keys-doc` regenerates it.
 func TestDefaultTOMLKeysSectionIsGenerated(t *testing.T) {
 	t.Parallel()
 
@@ -27,8 +26,7 @@ func TestDefaultTOMLKeysSectionIsGenerated(t *testing.T) {
 	}
 }
 
-// Every binding in Keys appears in keySections exactly once, so none ships without a
-// default or a description.
+// Every binding in Keys appears in keySections exactly once.
 func TestKeySectionsCoverKeys(t *testing.T) {
 	t.Parallel()
 

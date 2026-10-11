@@ -21,11 +21,9 @@ func TestAgentCooldown(t *testing.T) {
 		{"unset takes the default", "", setup.DefaultAgentCooldown, false},
 		{"a duration", "30s", 30 * time.Second, false},
 		{"spaces around it", " 5m ", 5 * time.Minute, false},
-		// Off is spelled out loud rather than reached by deleting the line, so turning
-		// a safety rail off is visible in the file.
+		// Off is explicit, so disabling the rail is visible in the file.
 		{"zero is off", "0", 0, false},
-		// A mistyped rail must not quietly become the built-in one: that is a setting
-		// somebody believes they changed.
+		// A typo must not silently fall back to the default.
 		{"a typo is refused", "5 minutes", 0, true},
 		{"negative is refused", "-1m", 0, true},
 	}
@@ -52,9 +50,7 @@ func TestAgentCooldown(t *testing.T) {
 	}
 }
 
-// Every place list is validated at startup, and all five agent lists are: a `send`
-// entry that names nothing is a room an assistant would silently draft into forever,
-// and a bad write-scope entry is a boundary that is not there.
+// All five agent place lists are validated at startup.
 func TestPlaceEntriesChecksEveryAgentList(t *testing.T) {
 	t.Parallel()
 

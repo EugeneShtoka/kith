@@ -12,28 +12,25 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An edit is the message again, as it now reads, with the time it was edited: the
-// cache shows the newest version, so an older copy (a history page read before the
-// edit) never undoes it. A deletion names messages by number: a channel's within the
-// channel, the rest's within the account, so those are looked up among its rooms.
+// An edit is the whole message with its edit time; the cache keeps the newest, so an
+// older copy never undoes it. Deletions name message numbers, per channel for
+// channels and per account otherwise, so the latter are looked up across its rooms.
 
-// keepDeletedIf sets [display.deleted] keep: whether a deleted message's words stay in
-// the cache, and an edited one's earlier versions.
+// keepDeletedIf sets [display.deleted] keep: whether deleted text and edit history
+// stay cached.
 func (a *Adapter) keepDeletedIf(keep bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.keepDeleted = keep
 }
 
-// keepsDeleted is [display.deleted] keep.
 func (a *Adapter) keepsDeleted() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.keepDeleted
 }
 
-// edited folds a version of a message onto it and hands it to the clients; one that
-// could not be cached holds the position, as a new message does.
+// edited caches and streams a new version; a cache failure holds the position.
 func (a *Adapter) edited(ctx context.Context, account Account, self int64, msg domain.Message) error {
 	if err := a.heardLive(ctx, account, self, msg); errors.Is(err, errNotOurs) {
 		return nil
@@ -47,8 +44,8 @@ func (a *Adapter) edited(ctx context.Context, account Account, self int64, msg d
 	return nil
 }
 
-// deletedIn marks messages of one chat deleted, by number: in the chat's room, or in
-// whichever of its forum topics' rooms the cache holds them.
+// deletedIn marks a chat's messages deleted, in its room or whichever topic room
+// holds them.
 func (a *Adapter) deletedIn(ctx context.Context, self, chat int64, ids []int) {
 	own := roomID(self, chat)
 	for _, id := range ids {
@@ -73,9 +70,8 @@ func (a *Adapter) deletedIn(ctx context.Context, self, chat int64, ids []int) {
 	}
 }
 
-// deleted marks messages deleted by their numbers within the account: in whichever of
-// its chats (not channels, which number their own) the cache holds them. One not
-// cached is no loss: nothing shows it.
+// deleted marks messages deleted by account-wide number in whichever non-channel
+// chat holds them; uncached ones are ignored.
 func (a *Adapter) deleted(ctx context.Context, self int64, ids []int) {
 	if a.cache == nil || len(ids) == 0 {
 		return
@@ -97,8 +93,8 @@ func (a *Adapter) deleted(ctx context.Context, self int64, ids []int) {
 	}
 }
 
-// markDeleted marks a message deleted in the cache, keeping its words only under
-// [display.deleted] keep, and tells the clients. Telegram does not say who deleted it.
+// markDeleted marks a message deleted, keeping its text only under [display.deleted]
+// keep. Telegram doesn't say who deleted it.
 func (a *Adapter) markDeleted(ctx context.Context, room domain.RoomID, id domain.EventID, at time.Time) {
 	keep := a.keepsDeleted()
 	gone := domain.Message{ID: id, RoomID: room, Redacted: true, RedactedAt: at}
@@ -119,7 +115,7 @@ func (a *Adapter) markDeleted(ctx context.Context, room domain.RoomID, id domain
 	emit(a, a.messages, gone)
 }
 
-// Redact deletes a message for everyone (yours, or another's where you may), and here.
+// Redact deletes a message for everyone, where permitted, and here.
 func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, _ string) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -143,8 +139,8 @@ func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID doma
 	return nil
 }
 
-// edit sends draft as the new version of the message it edits, and folds Telegram's
-// answer in here (the update it also arrives as is the same version again).
+// edit sends draft as an edit and caches the answer (its update echo is the same
+// version).
 func (a *Adapter) edit(ctx context.Context, ch chat, roomID domain.RoomID, draft domain.Draft) error {
 	id, ok := messageNumber(roomID, draft.Edits)
 	if !ok {
@@ -169,8 +165,8 @@ func (a *Adapter) edit(ctx context.Context, ch chat, roomID domain.RoomID, draft
 	return nil // edited; it arrives through the updates
 }
 
-// MessageHistory is a message's earlier versions as the cache kept them (under
-// [display.deleted] keep); Telegram keeps none to ask for.
+// MessageHistory is a message's cached earlier versions (under [display.deleted]
+// keep); Telegram keeps none.
 func (a *Adapter) MessageHistory(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, domain.Deletion, error) {
 	if a.cache == nil {
 		return nil, domain.Deletion{}, nil

@@ -7,8 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// A Slack account needs a name and a workspace kith can sign in to, written as its
-// address or ID in any of the ways Slack shows it, neither repeated.
+// An account needs a unique name and a unique workspace, in any address or ID form.
 func TestCheckConfigRefusesAccountsItCannotTellApart(t *testing.T) {
 	t.Parallel()
 	ok := config.SlackAccount{Name: "work", Workspace: "acme"}

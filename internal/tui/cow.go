@@ -2,13 +2,11 @@ package tui
 
 import "maps"
 
-// Model is copied by value on every Update, and a map is a reference: writing one in
-// place would change every copy, including ones a handler returns unchanged or a test
-// keeps. So Model's maps are copy-on-write (these helpers), and state shared on
-// purpose lives behind a pointer (derivedCache). Nothing may hold a map across
-// Updates expecting to see later writes: rail groups are judged by the view they are
-// handed (group.admits), and what the tags make of each room is memoized by these
-// maps' identity (tagged.go). TestNoValueReceiverWritesAMap holds the rule.
+// Model is copied by value on every Update and maps are references, so writing one in
+// place would change every copy. Model's maps are therefore copy-on-write (these
+// helpers), and state shared on purpose lives behind a pointer (derivedCache). Nothing
+// may hold a map across Updates expecting later writes; tagged.go memoizes on these
+// maps' identity. TestNoValueReceiverWritesAMap enforces this.
 
 // withEntry returns a copy of src with k set to v.
 func withEntry[K comparable, V any](src map[K]V, k K, v V) map[K]V {

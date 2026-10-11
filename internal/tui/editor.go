@@ -16,7 +16,6 @@ import (
 // any binding is consulted, and a configured binding beats the built-in editing set
 // (ctrl+e is emoji.open in the composer, end-of-line elsewhere).
 type editor struct {
-	// text is what has been typed.
 	text string
 	// at is the caret's byte offset, always on a grapheme boundary.
 	at int
@@ -48,7 +47,7 @@ const (
 const undoDepth = 64
 
 // recording pushes the current state as an undo step if this change starts a new one,
-// and drops the redo stack, since editing after an undo is a branch.
+// and drops the redo stack (editing after an undo is a branch).
 func (e editor) recording(kind editKind) editor {
 	if kind == e.last && kind != editWhole {
 		return e // the step in progress continues
@@ -66,7 +65,7 @@ func (e editor) recording(kind editKind) editor {
 }
 
 // changed records the undo step and sets the new text and caret; every edit goes
-// through it so none drops the history.
+// through it so none drops history.
 func (e editor) changed(text string, at int, kind editKind) editor {
 	e = e.recording(kind)
 	e.text, e.at = text, at
@@ -109,9 +108,9 @@ func newEditor(text string) editor { return editor{text: text, at: len(text)} }
 func (e editor) before() string { return e.text[:e.at] }
 func (e editor) after() string  { return e.text[e.at:] }
 
-// insert types s at the caret, leaving the caret after it.
-// A single grapheme continues the typing step; anything longer is its own step.
-// Whitespace ends the run, so undo takes back a word at a time.
+// insert types s at the caret, leaving the caret after it. A single grapheme continues
+// the typing step; anything longer is its own. Whitespace ends the run, so undo takes
+// back a word at a time.
 func (e editor) insert(s string) editor {
 	if s == "" {
 		return e
@@ -127,8 +126,8 @@ func (e editor) insert(s string) editor {
 	return e
 }
 
-// left and right step by one grapheme cluster, in logical order (in RTL text left
-// moves toward the start of the sentence, as in vim).
+// left and right step one grapheme cluster in logical order (in RTL text left moves
+// toward the sentence start, as in vim).
 func (e editor) left() editor {
 	return e.moved(e.at - lastClusterLen(e.before()))
 }
@@ -140,8 +139,8 @@ func (e editor) right() editor {
 func (e editor) home() editor { return e.moved(0) }
 func (e editor) end() editor  { return e.moved(len(e.text)) }
 
-// wordLeft and wordRight step by a word: a run of non-whitespace (readline's rule, so
-// ctrl+w takes a whole path or MXID).
+// wordLeft and wordRight step by a run of non-whitespace (readline's rule, so ctrl+w
+// takes a whole path or MXID).
 func (e editor) wordLeft() editor {
 	return e.moved(wordStart(e.before()))
 }
@@ -177,9 +176,9 @@ func (e editor) deleteToEnd() editor   { return e.changed(e.before(), e.at, edit
 // cleared empties the field as one undo step, for the cut key.
 func (e editor) cleared() editor { return e.changed("", 0, editWhole) }
 
-// editActions is what each editing action does (its keys are [keys.edit]). tail marks
-// edits that leave the caret at the end: the only ones a picker's filter gets, since
-// its arrows walk the list. row_up and row_down are the composer's, not here.
+// editActions maps each editing action to its edit (keys are [keys.edit]). tail marks
+// edits that leave the caret at the end, the only ones a picker's filter gets since its
+// arrows walk the list. row_up and row_down are the composer's.
 var editActions = map[action]struct {
 	tail  bool
 	apply func(editor) editor
@@ -222,7 +221,7 @@ func (e editor) applyEdit(act action, tailOnly bool) (editor, bool) {
 	return row.apply(e), true
 }
 
-// field is a text field that can be taking keystrokes, derived from what is on screen
+// field is a text field that can take keystrokes, derived from what is on screen
 // (Model.typingField), never stored.
 type field int
 
@@ -236,18 +235,18 @@ const (
 	fieldHelpFilter
 )
 
-// caret is where the next character lands, and which field owns it. Only one field
+// caret is where the next character lands and which field owns it. Only one field
 // types at a time; a caret owned by another field reads as "at the end".
 type caret struct {
 	owner field
 	at    int
-	// goal is the display column up/down motions aim for, plus one so zero means
-	// "no goal"; any ordinary edit resets it (see moveComposerRow).
+	// goal is the display column up/down aim for, plus one so zero means "no goal"; any
+	// ordinary edit resets it (see moveComposerRow).
 	goal int
 }
 
-// typingField is the field currently taking keystrokes, in the order the screen
-// shadows them; fieldNone means keys are commands.
+// typingField is the field taking keystrokes, in the order the screen shadows them;
+// fieldNone means keys are commands.
 func (m Model) typingField() field {
 	switch {
 	case m.reader.showing(readerHelp) && m.reader.filtering:
@@ -304,8 +303,8 @@ func (m Model) editorFor(f field) editor {
 }
 
 // editHistory is one field's undo and redo, kept on the Model because the editor is
-// rebuilt from the stored text on every keystroke. Indexed by an array (not a map)
-// so Model copies do not share it; every write clones before appending.
+// rebuilt from stored text on every keystroke. Indexed by an array (not a map) so
+// Model copies do not share it; every write clones before appending.
 type editHistory struct {
 	past, future []editSnapshot
 	last         editKind
@@ -334,20 +333,20 @@ func (m Model) store(f field, e editor) Model {
 	case fieldPrompt:
 		m.prompt.input, m.compose.caret = e.text, caret{owner: f, at: e.at}
 	case fieldFilter:
-		// The filter does not take the caret, so the emoji browser can insert at the
-		// composer's caret underneath.
+		// The filter does not take the caret, so the emoji browser inserts at the composer's
+		// caret underneath.
 		m.picker.filter = e.text
 		m.picker = m.picker.refilter()
 	case fieldHelpFilter:
-		// A new filter is a new list: start it from the top.
+		// A new filter is a new list: start from the top.
 		m.reader.filter, m.reader.scroll = e.text, 0
 	case fieldNone:
 	}
 	return m
 }
 
-// clampOffset keeps a caret inside text and on a grapheme boundary, since the text
-// can change under it.
+// clampOffset keeps a caret inside text and on a grapheme boundary, since the text can
+// change under it.
 func clampOffset(text string, at int) int {
 	if at <= 0 {
 		return 0
@@ -431,10 +430,10 @@ func lastClusterLen(s string) int {
 	return n
 }
 
-// pasteable is pasted text made fit for a field, and how many lines it arrived as.
-// Only the composer (multiline) keeps line breaks; elsewhere they become spaces.
-// Control characters are dropped so a pasted escape sequence cannot be drawn back
-// out as ANSI, and a trailing newline is not counted.
+// pasteable is pasted text made fit for a field, and how many lines it arrived as. Only
+// the composer (multiline) keeps line breaks; elsewhere they become spaces. Control
+// characters are dropped so a pasted escape sequence cannot be drawn as ANSI; a
+// trailing newline is not counted.
 func pasteable(s string, multiline bool) (text string, lines int) {
 	s = strings.TrimRight(strings.ReplaceAll(s, "\r\n", "\n"), "\n")
 	var b strings.Builder
@@ -460,8 +459,8 @@ func pasteable(s string, multiline bool) (text string, lines int) {
 	return b.String(), lines
 }
 
-// handlePaste puts pasted text into whichever field is taking keystrokes, at the
-// caret. With no field open and the timeline focused it starts a message.
+// handlePaste inserts pasted text at the caret of the field taking keystrokes; with
+// none open and the timeline focused it starts a message.
 func (m Model) handlePaste(content string) (Model, tea.Cmd) {
 	target := m.typingField()
 	compose := target == fieldNone
@@ -503,9 +502,9 @@ func (m Model) handlePaste(content string) (Model, tea.Cmd) {
 // segment is one display row's span text[start:end], excluding its newline.
 type segment struct{ start, end int }
 
-// wrapSegments lays text out in rows of at most width cells, breaking at a space
-// where it can and mid-word where it must. It returns spans rather than a string
-// because the caret is a byte offset: every byte stays, a break's space ending its row.
+// wrapSegments lays text out in rows of at most width cells, breaking at a space where
+// possible, mid-word where not. It returns spans because the caret is a byte offset:
+// every byte stays, a break's space ending its row.
 func wrapSegments(text string, width int) []segment {
 	if width < 1 {
 		width = 1
@@ -542,8 +541,8 @@ func wrapSegments(text string, width int) []segment {
 	return append(segs, segment{start: start, end: len(text)})
 }
 
-// caretSegment is the row the caret sits in; at a soft break it picks the later row,
-// where the next character lands.
+// caretSegment is the caret's row; at a soft break it picks the later row, where the
+// next character lands.
 func caretSegment(segs []segment, at int) int {
 	for i := len(segs) - 1; i > 0; i-- {
 		if at >= segs[i].start {

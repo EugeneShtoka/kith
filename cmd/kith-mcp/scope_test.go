@@ -9,8 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// everything is a send list that names every room in the fixture, which is the point of
-// using it: whatever refuses the write, it is not the send list.
+// everything is a send list naming every fixture room, so a refusal never comes from it.
 var everything = []string{"room:Standup", "room:Private chat", "dm", "group"}
 
 // writerWith is a writer with separate read and write scopes.
@@ -21,8 +20,8 @@ func writerWith(t *testing.T, f *fake, read, write domain.ModelScope, send []str
 	return s
 }
 
-// A room the assistant may read but not write to is refused — no send, no draft — and
-// the refusal names [agent.write] and lands in the ledger.
+// A readable but unwritable room is refused (no send, no draft), naming [agent.write],
+// and ledgered.
 func TestWriteOutsideTheWriteScopeIsRefused(t *testing.T) {
 	t.Parallel()
 
@@ -38,7 +37,7 @@ func TestWriteOutsideTheWriteScopeIsRefused(t *testing.T) {
 			t.Parallel()
 			f := twoRooms()
 			s := writerWith(t, f, shareAllEncrypted, tc.write, everything)
-			// Readable, which is what makes this a write-scope refusal and not a read one.
+			// Readable, so this is a write-scope refusal.
 			call(t, s, "read_room", map[string]any{"room": "Standup"})
 
 			said := callErr(t, s, "send_message", map[string]any{"room": "Standup", "text": "hello"})
@@ -57,8 +56,7 @@ func TestWriteOutsideTheWriteScopeIsRefused(t *testing.T) {
 	}
 }
 
-// Write is intersected with read: a write list that names a room the read lists refuse
-// does not make it writable, and the refusal names the read table.
+// Write is intersected with read; the refusal names the read table.
 func TestWriteScopeCannotWidenTheReadScope(t *testing.T) {
 	t.Parallel()
 
@@ -75,8 +73,7 @@ func TestWriteScopeCannotWidenTheReadScope(t *testing.T) {
 	}
 }
 
-// Reading encrypted rooms does not by itself open them for writing: that is its own
-// switch, and the refusal says which one to flip.
+// Reading encrypted rooms does not open them for writing; the refusal names the switch.
 func TestEncryptedWritingIsItsOwnSwitch(t *testing.T) {
 	t.Parallel()
 
@@ -94,8 +91,7 @@ func TestEncryptedWritingIsItsOwnSwitch(t *testing.T) {
 	}
 }
 
-// Send is intersected with write: a room send names but write refuses is neither sent to
-// nor drafted into.
+// Send is intersected with write: a room send names but write refuses is untouched.
 func TestSendCannotOutrankTheWriteScope(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +103,7 @@ func TestSendCannotOutrankTheWriteScope(t *testing.T) {
 	}
 }
 
-// Empty write lists mean every room the read scope allows — drafted, since send is empty.
+// Empty write lists mean every readable room, drafted since send is empty.
 func TestEmptyWriteScopeIsTheReadScope(t *testing.T) {
 	t.Parallel()
 
@@ -119,8 +115,7 @@ func TestEmptyWriteScopeIsTheReadScope(t *testing.T) {
 	}
 }
 
-// list_rooms says which of the rooms it shows may be written to, so the assistant can
-// know before it tries.
+// list_rooms marks which shown rooms are writable.
 func TestListRoomsMarksWhatIsWritable(t *testing.T) {
 	t.Parallel()
 
@@ -139,8 +134,7 @@ func TestListRoomsMarksWhatIsWritable(t *testing.T) {
 	}
 }
 
-// The tool description says where the assistant may write, from this config — the
-// assistant reads the description before it ever calls the tool.
+// send_message's description states this config's write scope.
 func TestSendMessageDescriptionStatesTheWriteScope(t *testing.T) {
 	t.Parallel()
 
@@ -171,8 +165,7 @@ func TestSendMessageDescriptionStatesTheWriteScope(t *testing.T) {
 	t.Fatal("send_message is not listed")
 }
 
-// With nothing listed for reading, every tool says so — once, naming the setting — rather
-// than coming back empty in a way that reads like an empty account.
+// With nothing readable, every tool says so once, naming the setting.
 func TestNothingSharedIsSaidByEveryTool(t *testing.T) {
 	t.Parallel()
 

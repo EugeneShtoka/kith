@@ -27,16 +27,15 @@ func TestPhrasesNeedsTwoWordsAndAClearLeader(t *testing.T) {
 	if got, ok := index.Next("I", "will", 3, 2); !ok || got != "be" {
 		t.Fatalf("Next(I, will) = %q, %v; want be", got, ok)
 	}
-	// "will be" → "there" twice, "late" once: twice is not three times, so nothing is
-	// drawn.
+	// "will be" → "there" twice, "late" once: below ratio 3, nothing.
 	if got, ok := index.Next("will", "be", 3, 2); ok {
 		t.Fatalf("Next(will, be) = %q, want nothing while the leader is not clear", got)
 	}
-	// At a lower ratio the same pair resolves, which is what makes the setting a setting.
+	// At a lower ratio the same pair resolves.
 	if got, ok := index.Next("will", "be", 2, 2); !ok || got != "there" {
 		t.Fatalf("Next(will, be) at 2x = %q, %v; want there", got, ok)
 	}
-	// Seen once is a coincidence, not a phrase.
+	// Seen once is below the minimum.
 	if got, ok := index.Next("be", "late", 3, 2); ok {
 		t.Fatalf("Next(be, late) = %q, want nothing for a continuation seen once", got)
 	}
@@ -47,16 +46,14 @@ func TestPhrasesNeedsTwoWordsAndAClearLeader(t *testing.T) {
 	if _, ok := index.Next("never", "said", 1, 1); ok {
 		t.Fatal("Next() answered for a pair with no history")
 	}
-	// And the zero value answers nothing rather than panicking: an empty room is the
-	// state every room starts in.
+	// The zero value answers nothing without panicking.
 	var empty Phrases
 	if _, ok := empty.Next("I", "will", 1, 1); ok {
 		t.Fatal("the zero value answered")
 	}
 }
 
-// Your own phrasing outweighs somebody else's, because a continuation is meant to sound
-// like you — but theirs still counts, because it is evidence about the room.
+// Your own phrasing outweighs others', which still counts.
 func TestPhrasesWeighYourOwnWords(t *testing.T) {
 	t.Parallel()
 
@@ -103,13 +100,13 @@ func TestPhraseContextNeedsAFinishedWord(t *testing.T) {
 		ok            bool
 	}{
 		{"I will ", "i", "will", true},
-		// Mid-word is the *word* ghost's question, not this one.
+		// Mid-word belongs to the word completer.
 		{"I wil", "", "", false},
 		{"will ", "", "", false},
 		{"", "", "", false},
 		// Punctuation separates words, so a sentence that ended still has two behind it.
 		{"is it true? ", "it", "true", true},
-		// Case is folded, because the index is.
+		// Case is folded.
 		{"I WILL ", "i", "will", true},
 	}
 	for _, tc := range cases {
@@ -121,10 +118,7 @@ func TestPhraseContextNeedsAFinishedWord(t *testing.T) {
 	}
 }
 
-// The same index answers two questions with different bars, and that is the point: a
-// ghost is drawn without being asked for and has to be right, while a list of four is
-// asked for by the eye and answered by a number key — so a wrong option beside a right
-// one costs nothing.
+// The unasked ghost needs a clear leader; the list of options does not.
 func TestNextWordsOffersWhatTheGateWouldRefuse(t *testing.T) {
 	t.Parallel()
 
@@ -145,8 +139,7 @@ func TestNextWordsOffersWhatTheGateWouldRefuse(t *testing.T) {
 	}
 }
 
-// The ladder: two words of context where there are two, one word where the pair has
-// never been seen, and this account's own commonest words where neither has.
+// Backoff: two words of context, then one, then the account's commonest words.
 func TestNextWordsWalksTheLadder(t *testing.T) {
 	t.Parallel()
 
@@ -165,7 +158,7 @@ func TestNextWordsWalksTheLadder(t *testing.T) {
 	if got := index.NextWords("nobody would check the ", 4); !has(got, "logs") || !has(got, "config") {
 		t.Errorf("NextWords = %v, want what follows the last word", got)
 	}
-	// Neither has: the account's own commonest words, which is better than silence.
+	// Neither has: the account's commonest words.
 	got := index.NextWords("xylophone zither ", 4)
 	if len(got) == 0 {
 		t.Fatal("NextWords offered nothing at all, which is the one answer a keyboard never gives")
@@ -175,8 +168,7 @@ func TestNextWordsWalksTheLadder(t *testing.T) {
 	}
 }
 
-// Function words are offered like any other, because they are the most predictable words
-// there are: 30% of what this account actually types next is one of them.
+// Function words are offered like any other; they are the most predictable.
 func TestNextWordsOffersFunctionWords(t *testing.T) {
 	t.Parallel()
 
@@ -190,8 +182,7 @@ func TestNextWordsOffersFunctionWords(t *testing.T) {
 	}
 }
 
-// The word just typed is never offered back: "the the" is a stutter rather than a
-// prediction, and it is what a bare count produces after a common word.
+// The word just typed is never offered back ("the the").
 func TestNextWordsDoesNotStutter(t *testing.T) {
 	t.Parallel()
 
@@ -207,7 +198,7 @@ func TestNextWordsDoesNotStutter(t *testing.T) {
 	}
 }
 
-// Mid-word is the vocabulary's question: this one answers only after a finished word.
+// NextWords answers only after a finished word.
 func TestNextWordsWaitsForAFinishedWord(t *testing.T) {
 	t.Parallel()
 

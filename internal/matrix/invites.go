@@ -40,9 +40,8 @@ func (b *InProc) JoinRoom(ctx context.Context, roomIDOrAlias string, via []strin
 	return domain.RoomID(resp.RoomID), nil
 }
 
-// LeaveRoom leaves a room; rejecting an invitation is the same call. The room goes from
-// the cache at once, not when a sync says so: a room list read before then would
-// bring it back.
+// LeaveRoom leaves a room (also rejects an invitation). The room leaves the cache at
+// once: a room list read before the sync says so would bring it back.
 func (b *InProc) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	if _, err := b.client.LeaveRoom(ctx, id.RoomID(roomID)); err != nil {
 		return fmt.Errorf("matrix: leave %s: %w", roomID, err)
@@ -82,8 +81,7 @@ func (l *leftRooms) mark(room domain.RoomID, at time.Time) {
 	l.at[room] = at
 }
 
-// since reports whether room was left after since: a room list asked for before then
-// still names it.
+// since reports whether room was left at or after since.
 func (l *leftRooms) since(room domain.RoomID, since time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -96,7 +94,7 @@ func (l *leftRooms) since(room domain.RoomID, since time.Time) bool {
 func (b *InProc) seedInvites(ctx context.Context) {
 	cached, err := b.CachedInvites(ctx)
 	if err != nil {
-		// The first sync then republishes every invite; nothing is lost.
+		// The first sync then republishes every invite.
 		b.warnIf(ctx, err, "seed invites from the cache")
 		return
 	}
@@ -107,10 +105,9 @@ func (b *InProc) seedInvites(ctx context.Context) {
 	b.invites.mu.Unlock()
 }
 
-// syncInvites folds a sync's invite section onto the pending set and publishes and
-// caches the whole set when it changes. An incremental sync is a delta: an invite is
-// dropped only when the room shows up in join or leave. An initial sync (no since)
-// is a census and replaces the set.
+// syncInvites folds a sync's invites onto the pending set, caching and publishing it
+// on change. An incremental sync drops an invite only when the room appears in join or
+// leave; an initial sync (no since) replaces the set.
 func (b *InProc) syncInvites(ctx context.Context, resp *mautrix.RespSync, since string) {
 	invites, changed := b.foldInvites(resp, since == "")
 	if !changed {
@@ -173,7 +170,6 @@ func (b *InProc) toInvite(roomID id.RoomID, ir *mautrix.SyncInvitedRoom) domain.
 		evt.Type.Class = event.StateEventType
 		if evt.Content.Parsed == nil {
 			if err := evt.Content.ParseRaw(evt.Type); err != nil {
-				// A malformed stripped-state event: the invite shows without it.
 				b.log().Debug("parse invite state failed", "room", roomID, "type", evt.Type.Type, "err", err)
 				continue
 			}
@@ -184,7 +180,7 @@ func (b *InProc) toInvite(roomID id.RoomID, ir *mautrix.SyncInvitedRoom) domain.
 				room.Name = name.Name
 			}
 		case event.StateCanonicalAlias:
-			// A named room wins; an alias is a better label than a bare room ID.
+			// A name wins over an alias.
 			if alias, ok := evt.Content.Parsed.(*event.CanonicalAliasEventContent); ok && room.Name == "" {
 				room.Name = string(alias.Alias)
 			}

@@ -7,10 +7,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A reply on a network that sends what it quotes (WhatsApp) keeps the quoted
-// message's sender and words, for when the message itself is not cached: older than
-// the history a room keeps, or from before the account was linked. It is no
-// message: it has no time, and never shows in the timeline, only in the reply.
+// Quoted messages: on networks whose replies carry the quoted sender and text
+// (WhatsApp), kept for when the original is not cached. They have no time and show
+// only in the reply, never in the timeline.
 
 // SaveQuoted keeps what a reply in roomID quotes of eventID. It does nothing for a
 // room the cache does not hold.

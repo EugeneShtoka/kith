@@ -10,9 +10,8 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// The identity that lists the account is this person; another person's identity is
-// not. Taking it (at start, or on a reload) recounts the rooms already counted, so a
-// badge that counted the puppet's messages as someone else's comes down at once.
+// The identity listing the account is this person; taking it recounts counted rooms,
+// so a badge that counted the puppet's messages comes down at once.
 func TestTheIdentityListingTheAccountIsYou(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

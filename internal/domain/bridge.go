@@ -11,12 +11,11 @@ type Protocol string
 // String returns the network's human-facing name ("WhatsApp", "Matrix", …).
 func (p Protocol) String() string { return string(p) }
 
-// IsBridged reports whether the person (or room) is on a network other than Matrix:
-// reached through a bridge, or directly by an adapter. The zero value is not known to
-// be anywhere else, so it is not.
+// IsBridged reports whether p is a known network other than Matrix (bridged or
+// native); the zero value is not.
 func (p Protocol) IsBridged() bool { return p != "" && p != ProtocolMatrix }
 
-// RepliesAreThreads reports whether the network has no reply that is not a thread.
+// RepliesAreThreads reports whether every reply on the network is a thread.
 func (p Protocol) RepliesAreThreads() bool { return p == ProtocolSlack }
 
 // The networks we can name. Anyone we can't attribute to a bridge is Matrix.
@@ -36,8 +35,7 @@ const (
 	ProtocolTwitter    Protocol = "Twitter"
 )
 
-// ProtocolNamed is the network named name, as its name or its lower-case token
-// ("telegram"); false for none.
+// ProtocolNamed finds a network by name, case-insensitively ("telegram").
 func ProtocolNamed(name string) (Protocol, bool) {
 	for _, p := range []Protocol{
 		ProtocolMatrix, ProtocolWhatsApp, ProtocolTelegram, ProtocolSignal, ProtocolSlack, ProtocolDiscord,
@@ -69,12 +67,11 @@ var bridges = map[string]Protocol{
 	"twitter":    ProtocolTwitter,
 }
 
-// bridgeProtocols names the network behind a bridge by the protocol its m.bridge
-// state says, where that is not one of bridges' tokens.
+// bridgeProtocols maps m.bridge protocol names that are not bridges' tokens.
 var bridgeProtocols = map[string]Protocol{"slackgo": ProtocolSlack}
 
-// BridgedBy is the network a bridge fronts, by its m.bridge state: its bot's
-// network, else its protocol's; "" when neither names one.
+// BridgedBy is the network a bridge fronts per its m.bridge state: its bot's network,
+// else its protocol's; "" when neither names one.
 func BridgedBy(bot, protocol string) Protocol {
 	if p := ProtocolOf(bot); p.IsBridged() {
 		return p
@@ -86,8 +83,8 @@ func BridgedBy(bot, protocol string) Protocol {
 	return bridgeProtocols[protocol]
 }
 
-// ProtocolOf is the network a person is actually on: the one their ID names, or, for a
-// Matrix ID, the one the bridge it belongs to fronts.
+// ProtocolOf is the network a person is on: their ID's network, or for a Matrix ghost
+// or bridge bot, the bridged network.
 func ProtocolOf(mxid string) Protocol {
 	if p := NetworkOf(mxid); p != ProtocolMatrix {
 		return p
@@ -121,8 +118,7 @@ func IsBridgeBot(mxid string) bool {
 	return ok
 }
 
-// botProtocol recognizes a bridge's own bot from its localpart: the network's token,
-// then "bot", then optionally an instance name.
+// botProtocol matches a bridge bot localpart: token + "bot" + optional instance suffix.
 func botProtocol(local string) (Protocol, bool) {
 	for token, p := range bridges {
 		rest, ok := strings.CutPrefix(local, token+"bot")
@@ -136,8 +132,7 @@ func botProtocol(local string) (Protocol, bool) {
 	return ProtocolMatrix, false
 }
 
-// ReactionRefusal is an emoji a bridged network would not accept as a reaction, and
-// when that was last observed.
+// ReactionRefusal is an emoji a bridged network rejected as a reaction, and when.
 type ReactionRefusal struct {
 	Protocol string
 	Emoji    string

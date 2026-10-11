@@ -5,8 +5,7 @@ import (
 	"testing"
 )
 
-// Once Serve is ending, no handler starts: one arriving after the drain counted none
-// would run while the caller closes the stores.
+// A shut gate admits no handler; a late one would run while the stores close.
 func TestAShutGateAdmitsNoHandler(t *testing.T) {
 	t.Parallel()
 	var g handlerGate
@@ -26,8 +25,7 @@ func TestAShutGateAdmitsNoHandler(t *testing.T) {
 	}
 }
 
-// Handlers entering while the gate shuts: every one is either refused or counted, so
-// a drain that sees none running has seen them all.
+// Every handler entering while the gate shuts is refused or counted.
 func TestTheGateCountsEveryHandlerItAdmits(t *testing.T) {
 	t.Parallel()
 	for range 100 {

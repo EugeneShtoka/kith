@@ -5,9 +5,6 @@ import (
 	"time"
 )
 
-// The limiter is the answer to a question no per-message rule can ask: whether the
-// twentieth popup in five minutes is still worth raising.
-
 var epoch = time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
 
 func TestLimitOffDeliversEverything(t *testing.T) {
@@ -22,8 +19,7 @@ func TestLimitOffDeliversEverything(t *testing.T) {
 	}
 }
 
-// The burst goes through, then the room starts counting — and says so once, naming how
-// many it has held.
+// The burst is delivered, then one summary per window carries the held count.
 func TestABurstIsDeliveredThenSummarized(t *testing.T) {
 	t.Parallel()
 
@@ -34,27 +30,26 @@ func TestABurstIsDeliveredThenSummarized(t *testing.T) {
 			t.Fatalf("message %d = %v, want Deliver — it is inside the burst", i, d)
 		}
 	}
-	// The fourth is the first over: one popup, naming itself.
+	// The fourth is the first over: a summary of one.
 	d, held := l.Allow("!room", limit, epoch.Add(4*time.Second))
 	if d != Summarize || held != 1 {
 		t.Fatalf("the first overflow = %v, %d; want Summarize of 1", d, held)
 	}
-	// The rest of the window is counted and says nothing.
+	// The rest of the window is held.
 	for i := range 10 {
 		held, _ := l.Allow("!room", limit, epoch.Add(time.Duration(5+i)*time.Second))
 		if held != Hold {
 			t.Fatalf("message %d after the summary = %v, want Hold", i, held)
 		}
 	}
-	// A window later, the count goes out — all ten of them, not one.
+	// A window later, the summary carries the whole held count.
 	d, held = l.Allow("!room", limit, epoch.Add(2*time.Minute+5*time.Second))
 	if d != Summarize || held != 11 {
 		t.Errorf("the next summary = %v, %d; want Summarize naming all 11 held", d, held)
 	}
 }
 
-// Rooms are counted apart. A busy room must not silence a quiet one, which is the
-// whole reason the state is keyed by room rather than global.
+// A busy room does not limit a quiet one.
 func TestRoomsAreLimitedSeparately(t *testing.T) {
 	t.Parallel()
 
@@ -71,8 +66,7 @@ func TestRoomsAreLimitedSeparately(t *testing.T) {
 	}
 }
 
-// A room that goes quiet starts fresh: the next thing it says arrives as itself rather
-// than as a statistic.
+// After a quiet window the next message is delivered, not summarized.
 func TestAQuietWindowResetsTheRoom(t *testing.T) {
 	t.Parallel()
 
@@ -81,14 +75,13 @@ func TestAQuietWindowResetsTheRoom(t *testing.T) {
 	l.Allow("!room", limit, epoch)
 	l.Allow("!room", limit, epoch.Add(time.Second))
 
-	// Nothing else arrives for a window, so the burst is over and forgotten.
+	// Nothing arrives for a window.
 	if d, held := l.Allow("!room", limit, epoch.Add(2*time.Minute)); d != Deliver || held != 0 {
 		t.Errorf("after a quiet window = %v, %d; want an ordinary delivery", d, held)
 	}
 }
 
-// Nothing is lost to the clock: messages held when a window ran out are named by the
-// first message of the next one, rather than vanishing with the window.
+// Messages held when a window ends are counted in the next window's first summary.
 func TestHeldMessagesSurviveTheWindowEnding(t *testing.T) {
 	t.Parallel()
 

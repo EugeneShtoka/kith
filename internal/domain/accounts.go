@@ -2,18 +2,16 @@ package domain
 
 import "fmt"
 
-// AccountRecord is what CheckAccounts reads of one configured account: its name, and
-// the field that says which account it is on its network (a phone number, a
-// workspace) as written, as compared, and why it names no account (nil when it does).
+// AccountRecord is one configured account for CheckAccounts: its name, and the field
+// identifying it on its network (e.g. phone) as written, as compared (Key), and why
+// it is invalid (Bad, nil when valid).
 type AccountRecord struct {
 	Name, Field, Written, Key string
 	Bad                       error
 }
 
-// CheckAccounts refuses a record table's accounts with no name, with a field naming
-// no account, or repeating another's name or account: a name picks the account to log
-// in, and the field is whom it logs in as. table names the records in the error
-// ("whatsapp.account[1]").
+// CheckAccounts rejects accounts with no name, an invalid field, or a duplicate name
+// or account. table prefixes the error ("whatsapp.account[1]").
 func CheckAccounts(table string, accounts []AccountRecord) error {
 	names, keys := map[string]bool{}, map[string]bool{}
 	for i, a := range accounts {
@@ -35,8 +33,7 @@ func CheckAccounts(table string, accounts []AccountRecord) error {
 	return nil
 }
 
-// PhoneAccount is the record of an account a phone number names (WhatsApp's,
-// Telegram's).
+// PhoneAccount is the record of a phone-numbered account (WhatsApp, Telegram).
 func PhoneAccount(name, phone string) AccountRecord {
 	digits := PhoneDigits(phone)
 	a := AccountRecord{Name: name, Field: "phone", Written: phone, Key: digits}

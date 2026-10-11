@@ -13,29 +13,25 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A thread's replies are not in its conversation's history (but for one also sent to
-// the channel); conversations.replies reads them, from the thread's start. A history
-// page names, on each message a thread hangs off, its newest reply: a thread whose
-// newest reply the cache lacks is read in the background, one at a time, so a thread
-// shows (and counts) as it would have had kith been listening.
+// Thread replies are not in conversation history (except ones also sent to the
+// channel); conversations.replies reads them from the start. History names each
+// root's newest reply; a thread whose newest reply the cache lacks is read in the
+// background, one at a time.
 //
-// Slack keeps a read position per thread, and says it when the thread is read
-// (last_read on the root) and when it is read on another client (thread_marked, live);
-// marking a thread read is kept here only, for no Slack client API slackgo knows
-// moves it. A thread counts as unread only where you follow it — you
-// spoke in it, or it named you — as Slack badges only the threads you follow. A thread
-// is not read when its room is (Slack keeps the two apart), but marking rooms read
-// reads their threads too (the thread floor).
+// Slack keeps a read position per thread (last_read on the root; thread_marked live).
+// Marking a thread read stays local: slackgo knows no API that moves it. A thread
+// counts as unread only if followed (you spoke in it or were named), as Slack badges.
+// Reading a room does not read its threads, but marking rooms read does (thread floor).
 
 const (
-	// threadPage is how many replies one conversations.replies call asks for.
+	// threadPage is the conversations.replies page size.
 	threadPage = 200
-	// threadPages bounds how much of one thread is read: threadPage×threadPages replies.
+	// threadPages bounds one thread's reading to threadPage×threadPages replies.
 	threadPages = 20
 )
 
-// ListThreads is a room's cached threads, newest activity first, each with what is
-// unread in it as the room's count has it.
+// ListThreads is a room's cached threads, newest activity first, with unread counts as
+// the room's count has them.
 func (a *Adapter) ListThreads(ctx context.Context, roomID domain.RoomID) ([]domain.Thread, error) {
 	if a.cache == nil {
 		return nil, nil
@@ -51,8 +47,8 @@ func (a *Adapter) ListThreads(ctx context.Context, roomID domain.RoomID) ([]doma
 	return domain.WithUnread(threads, domain.Unread{Threads: a.followed(ctx, roomID, unread)}), nil
 }
 
-// ThreadPage is a whole thread, its root first, read from Slack and cached: Slack pages
-// a thread only from its start, so there is never an older page (Next is "").
+// ThreadPage is a whole thread, root first, read from Slack and cached. Slack pages a
+// thread only from its start, so Next is always "".
 func (a *Adapter) ThreadPage(ctx context.Context, roomID domain.RoomID, root domain.EventID, _ string, limit int) (domain.TimelinePage, error) {
 	w, channel, err := a.conversation(roomID)
 	if err != nil {
@@ -69,8 +65,8 @@ func (a *Adapter) ThreadPage(ctx context.Context, roomID domain.RoomID, root dom
 	return domain.TimelinePage{Messages: msgs, Reactions: reactions}, nil
 }
 
-// readThread reads a thread from Slack, page by page of size (threadPage when not
-// positive), and caches it (cacheThread).
+// readThread reads a thread in pages of size (threadPage when not positive) and
+// caches it.
 func (a *Adapter) readThread(ctx context.Context, w *workspace, channel, ts string, size int) ([]domain.Message, []domain.Reaction, error) {
 	fetched := time.Now()
 	replies, lastRead, err := a.fetchThread(ctx, w, channel, ts, size)
@@ -81,8 +77,8 @@ func (a *Adapter) readThread(ctx context.Context, w *workspace, channel, ts stri
 	return msgs, reactions, nil
 }
 
-// fetchThread is a thread as Slack holds it, its root then its replies, oldest first,
-// and how far Slack says you read it ("" when it does not say).
+// fetchThread is a thread from Slack, root then replies oldest first, and its
+// last_read ("" when absent).
 func (a *Adapter) fetchThread(ctx context.Context, w *workspace, channel, ts string, size int) ([]slackgo.Message, string, error) {
 	if size <= 0 {
 		size = threadPage
@@ -125,9 +121,8 @@ func (a *Adapter) fetchThread(ctx context.Context, w *workspace, channel, ts str
 	return replies, lastRead, nil
 }
 
-// cacheThread caches a thread fetched at fetched (oldest first) as history, as a page
-// of its conversation is (cachePage); being the whole thread, it also says which
-// replies went (settleDeletions). The thread's read position moves to Slack's.
+// cacheThread caches a thread like a history page (cachePage); being complete, it also
+// marks missing replies deleted (settleDeletions) and moves the read position to Slack's.
 func (a *Adapter) cacheThread(ctx context.Context, w *workspace, channel, ts string, replies []slackgo.Message, lastRead string, fetched time.Time) ([]domain.Message, []domain.Reaction) {
 	newestFirst := slices.Clone(replies)
 	slices.Reverse(newestFirst) // as cachePage takes a page: as history answers it
@@ -138,10 +133,8 @@ func (a *Adapter) cacheThread(ctx context.Context, w *workspace, channel, ts str
 	return msgs, reactions
 }
 
-// settleDeletions marks deleted each cached reply of the thread that Slack's reading
-// of it lacks: one deleted while kith was not listening. Only a reply kith held before
-// the reading was asked for is judged — one cached since (live, sent, or by another
-// reading) may be newer than the reading, which could not have had it.
+// settleDeletions marks deleted each cached reply missing from Slack's copy. Only
+// replies cached before the fetch began are judged; newer ones may postdate it.
 func (a *Adapter) settleDeletions(ctx context.Context, w *workspace, channel, ts string, replies []slackgo.Message, fetched time.Time) {
 	if a.cache == nil {
 		return
@@ -165,12 +158,12 @@ func (a *Adapter) settleDeletions(ctx context.Context, w *workspace, channel, ts
 	}
 }
 
-// keepReplies are how long when a reply was cached is remembered: longer than a
-// reading of a thread can take (threadPages calls, each waiting out a rate limit).
+// keepReplies is how long a reply's cache time is remembered: longer than one thread
+// read can take (threadPages calls, each waiting out a rate limit).
 const keepReplies = 2 * threadPages * longestWait
 
-// heardReplies notes when each thread reply in msgs was cached, forgetting those
-// cached longer ago than keepReplies.
+// heardReplies records when each reply in msgs was cached, forgetting those older than
+// keepReplies.
 func (a *Adapter) heardReplies(msgs []domain.Message) {
 	now := time.Now()
 	a.mu.Lock()
@@ -187,8 +180,8 @@ func (a *Adapter) heardReplies(msgs []domain.Message) {
 	}
 }
 
-// heldBefore reports whether a cached reply was cached before at: one cached in an
-// earlier run, or longer ago than keepReplies, was.
+// heldBefore reports whether a reply was cached before at; one from an earlier run or
+// older than keepReplies was.
 func (a *Adapter) heldBefore(id domain.EventID, at time.Time) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -196,7 +189,7 @@ func (a *Adapter) heldBefore(id domain.EventID, at time.Time) bool {
 	return !noted || cached.Before(at)
 }
 
-// repliesBehind reports whether m starts a thread whose newest reply the cache lacks.
+// repliesBehind reports whether m roots a thread whose newest reply the cache lacks.
 func (a *Adapter) repliesBehind(ctx context.Context, team, channel string, m *slackgo.Msg) bool {
 	if a.cache == nil || m.ReplyCount == 0 || m.LatestReply == "" || m.ThreadTimestamp != m.Timestamp {
 		return false
@@ -209,10 +202,9 @@ func (a *Adapter) repliesBehind(ctx context.Context, team, channel string, m *sl
 	return !ok || tsTime(m.LatestReply).After(tsTime(cached))
 }
 
-// wantThread queues a thread to be read in the background, up to its newest reply
-// latest, unless it was read (or queued) up to that reply already this run: a reply
-// also sent to the channel is not cached as the thread's, so the cache alone would
-// ask forever. The reader runs while there is any.
+// wantThread queues a thread to be read up to latest unless already read or queued that
+// far this run: a reply also sent to the channel is not cached as the thread's, so the
+// cache alone would ask forever. Starts the reader if idle.
 func (a *Adapter) wantThread(w *workspace, channel, ts, latest string) {
 	root := messageID(w.creds.Team, channel, ts)
 	a.mu.Lock()
@@ -234,8 +226,8 @@ func (a *Adapter) wantThread(w *workspace, channel, ts, latest string) {
 	}
 }
 
-// wantRestOf queues the thread a live reply is in to be read, the first time one of
-// its replies arrives this run: what it said before kith listened is not cached.
+// wantRestOf queues a live reply's thread the first time this run, to fetch replies sent
+// before kith listened.
 func (a *Adapter) wantRestOf(w *workspace, channel string, m *slackgo.Msg) {
 	if m.ThreadTimestamp == "" || m.ThreadTimestamp == m.Timestamp {
 		return
@@ -248,15 +240,13 @@ func (a *Adapter) wantRestOf(w *workspace, channel string, m *slackgo.Msg) {
 	}
 }
 
-// threadWant is a thread queued to be read.
 type threadWant struct {
 	w           *workspace
 	channel, ts string
 }
 
-// readWanted reads the queued threads, oldest queued first, until none is left. A
-// thread of a workspace let go since is skipped; one that fails is asked for again
-// when a page next names it.
+// readWanted reads queued threads in order until none is left. Threads of a closed
+// workspace are skipped; a failed one is retried when a page next names it.
 func (a *Adapter) readWanted(ctx context.Context) {
 	for {
 		a.mu.Lock()
@@ -282,8 +272,8 @@ func (a *Adapter) readWanted(ctx context.Context) {
 	}
 }
 
-// threadMarked is a thread read on some client of yours, as the websocket says it;
-// slackgo knows no such event, so it arrives raw.
+// threadMarked is a thread read on another client of yours; slackgo lacks the event, so
+// it arrives raw.
 type threadMarked struct {
 	Type         string `json:"type"`
 	Subscription struct {
@@ -293,8 +283,8 @@ type threadMarked struct {
 	} `json:"subscription"`
 }
 
-// onUnmapped handles a live event slackgo does not know: a thread read elsewhere moves
-// its read position here.
+// onUnmapped handles live events slackgo does not know: thread_marked moves the
+// thread's read position.
 func (a *Adapter) onUnmapped(ctx context.Context, w *workspace, raw json.RawMessage) {
 	var e threadMarked
 	if json.Unmarshal(raw, &e) != nil || e.Type != "thread_marked" || a.cache == nil {
@@ -308,8 +298,7 @@ func (a *Adapter) onUnmapped(ctx context.Context, w *workspace, raw json.RawMess
 	a.recount(ctx, roomID(w.creds.Team, s.Channel))
 }
 
-// threadReadTo moves a thread's read position to Slack's, lastRead (none when empty);
-// an older one leaves it.
+// threadReadTo moves a thread's read position forward to lastRead (no-op when empty).
 func (a *Adapter) threadReadTo(ctx context.Context, team, channel, thread, lastRead string) {
 	read := tsTime(lastRead)
 	if a.cache == nil || read.IsZero() {
@@ -322,7 +311,7 @@ func (a *Adapter) threadReadTo(ctx context.Context, team, channel, thread, lastR
 	}
 }
 
-// MarkThreadRead moves a thread's read position to eventID, here.
+// MarkThreadRead moves a thread's read position to eventID, locally.
 func (a *Adapter) MarkThreadRead(ctx context.Context, roomID domain.RoomID, root, eventID domain.EventID, _ bool) error {
 	if a.cache == nil {
 		return nil
@@ -341,7 +330,7 @@ func (a *Adapter) MarkThreadRead(ctx context.Context, roomID domain.RoomID, root
 	return nil
 }
 
-// ThreadParticipant reports whether we sent a thread's root or any reply in it.
+// ThreadParticipant reports whether you sent a thread's root or any reply in it.
 func (a *Adapter) ThreadParticipant(ctx context.Context, roomID domain.RoomID, root domain.EventID) bool {
 	if a.cache == nil || root == "" {
 		return false
@@ -354,8 +343,8 @@ func (a *Adapter) ThreadParticipant(ctx context.Context, roomID domain.RoomID, r
 	return spoke
 }
 
-// followed is the unread threads of a room that you follow: those you spoke in, or
-// that name you (which, on Slack, follows a thread for good).
+// followed is a room's unread threads you follow: ones you spoke in or that name you
+// (which on Slack follows a thread for good).
 func (a *Adapter) followed(ctx context.Context, room domain.RoomID, threads []domain.ThreadUnread) []domain.ThreadUnread {
 	return slices.DeleteFunc(threads, func(t domain.ThreadUnread) bool {
 		if t.Mentions > 0 || a.ThreadParticipant(ctx, room, t.Root) {

@@ -9,12 +9,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 )
 
-// Talk is a login's other side for tests (api.LoginTalk): it answers each field from
-// Answers, in turn by key, and records every step. OnConfigure, when set, runs on each
-// record written (a test's stand-in for the config being re-read); OnShow on each code.
+// Talk is an api.LoginTalk for tests: it answers fields from Answers in turn by key
+// and records every step.
 type Talk struct {
 	mu sync.Mutex
-	// Answers are the answers to give, by field key, first first.
+	// Answers are the answers to give, by field key, in order.
 	Answers map[string][]string
 	// Asked is every field asked for, by key, and Notes every note given with one.
 	Asked []string
@@ -23,13 +22,13 @@ type Talk struct {
 	Shown   []string
 	Written []api.LoginRecord
 	Account string
-	// OnConfigure and OnShow hear a record written and a code shown.
+	// OnConfigure (a stand-in for the config re-read) and OnShow run on each record
+	// written and code shown.
 	OnConfigure func(api.LoginRecord) error
 	OnShow      func(code string)
 }
 
-// ErrNoAnswer is a field Talk has no answer left for: the login asked more than the
-// test expected.
+// ErrNoAnswer means the login asked more than the test supplied.
 var ErrNoAnswer = errors.New("apitest: no answer left for a field")
 
 var _ api.LoginTalk = (*Talk)(nil)

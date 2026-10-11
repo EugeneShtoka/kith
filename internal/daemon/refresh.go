@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// refreshDebounce coalesces a burst of room/space changes (e.g. a run of
-// m.space.child events) into one refresh.
+// refreshDebounce coalesces a burst of room/space changes (e.g. m.space.child events)
+// into one refresh.
 const refreshDebounce = 2 * time.Second
 
 type refreshBackend interface {
@@ -17,15 +17,14 @@ type refreshBackend interface {
 	RefreshSpaces(ctx context.Context) ([]domain.Space, error)
 }
 
-// Refresher re-reads the room list and space hierarchy when the sync loop reports
-// they changed (/sync never writes those caches), so a daemon running alone does
-// not drift. after runs once a refresh has landed.
+// Refresher re-reads the room list and space hierarchy when sync reports a change
+// (/sync never writes those caches); after runs once a refresh has landed.
 type Refresher struct {
 	b     refreshBackend
 	after func()
 	// signal is a depth-1 flag written without blocking from the sync goroutine.
 	signal chan struct{}
-	// log hears failed refreshes; nil is silent (see UseLogger).
+	// log hears failed refreshes; nil is silent.
 	log *slog.Logger
 }
 
@@ -38,12 +37,12 @@ func NewRefresher(b refreshBackend, after func()) *Refresher {
 func (r *Refresher) Changed() {
 	select {
 	case r.signal <- struct{}{}:
-	default: // already flagged; one refresh covers both
+	default: // already flagged
 	}
 }
 
-// Run refreshes once at startup (a cold cache would otherwise serve an empty room
-// list) and then on each debounced signal, until ctx ends. It blocks.
+// Run refreshes at startup (a cold cache would serve an empty room list) and then on
+// each debounced signal, until ctx ends. It blocks.
 func (r *Refresher) Run(ctx context.Context) {
 	r.refresh(ctx)
 	for {
@@ -64,8 +63,8 @@ func (r *Refresher) Run(ctx context.Context) {
 	}
 }
 
-// refresh re-reads both caches; a failure is left for the next change to retry.
-// Spaces first, because the room list is sifted against the hierarchy.
+// refresh re-reads both caches; a failure waits for the next change. Spaces first:
+// the room list is sifted against the hierarchy.
 func (r *Refresher) refresh(ctx context.Context) {
 	roomsOK := true
 	if _, err := r.b.RefreshSpaces(ctx); err != nil {
@@ -81,8 +80,7 @@ func (r *Refresher) refresh(ctx context.Context) {
 	}
 }
 
-// UseLogger sets where a failed refresh is logged (it is retried on the next change,
-// so a warning is all it costs). Call before Run.
+// UseLogger sets where a failed refresh is logged. Call before Run.
 func (r *Refresher) UseLogger(log *slog.Logger) { r.log = log }
 
 func (r *Refresher) warn(ctx context.Context, op string, err error) {

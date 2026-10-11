@@ -11,9 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A chat archived or unarchived on the phone (or in WhatsApp's first sync) is kept so:
-// a group by its JID, a direct chat by its person, and one kith has not listed yet
-// shows archived once it is.
+// Archive state from the phone is cached: a group by JID, a direct chat by person,
+// and a not-yet-listed chat shows archived once listed.
 func TestAChatArchivedOnThePhoneIsKept(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

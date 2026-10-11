@@ -9,8 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// WhatsApp's markers become formatting, as WhatsApp itself reads them; the words are
-// kept without them.
+// WhatsApp markers become formatting; the text is kept without them.
 func TestWhatsAppMarkersBecomeFormatting(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -29,7 +28,7 @@ func TestWhatsAppMarkersBecomeFormatting(t *testing.T) {
 		{"snake_case_name", "snake_case_name", nil},
 		{"*", "*", nil},
 		{"*one\ntwo*", "*one\ntwo*", nil},
-		// Markup in the text is words, not markup.
+		// HTML in the text is literal.
 		{"<b>hi</b> *x*", "<b>hi</b> x", []richtext.Span{{Start: 10, End: 11, Bold: true}}},
 	} {
 		words, f := formatted(c.in)
@@ -57,7 +56,7 @@ func TestWhatsAppMarkersBecomeFormatting(t *testing.T) {
 	}
 }
 
-// What kith's composer writes in Markdown goes out in WhatsApp's markers.
+// Composer Markdown goes out as WhatsApp markers.
 func TestMarkdownGoesOutAsWhatsAppWritesIt(t *testing.T) {
 	t.Parallel()
 	for in, want := range map[string]string{
@@ -77,8 +76,7 @@ func TestMarkdownGoesOutAsWhatsAppWritesIt(t *testing.T) {
 	}
 }
 
-// Whatever is typed, the formatting draws over the words exactly: the same text, and
-// every span inside it.
+// For any input, formatting text matches the plain text and every span is in range.
 func TestFormattingAlwaysFitsItsWords(t *testing.T) {
 	t.Parallel()
 	alphabet := []string{"*", "_", "~", "`", "```", " ", "\n", "a", "b", "é", "<", "&"}

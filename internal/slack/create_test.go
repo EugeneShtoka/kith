@@ -7,9 +7,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A channel is made under a name Slack takes, public or private as asked, and the
-// workspace's people are invited; someone of another workspace is named in the
-// partial failure, and a kind Slack does not make is refused.
+// A channel gets a valid name and the requested visibility, and workspace members are
+// invited; someone from another workspace is named in the partial failure, and an
+// unsupported kind is refused.
 func TestAChannelIsMadeOnSlack(t *testing.T) {
 	t.Parallel()
 	f, client := newFakeSlack(t)
@@ -44,8 +44,8 @@ func TestAChannelIsMadeOnSlack(t *testing.T) {
 	}
 }
 
-// A channel's name is lower case, a hyphen for each run of anything else, and at most
-// what Slack takes.
+// A channel name is lower case, each run of other characters a hyphen, capped at Slack's
+// maximum.
 func TestAChannelNameIsWhatSlackTakes(t *testing.T) {
 	t.Parallel()
 	for in, want := range map[string]string{

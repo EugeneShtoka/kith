@@ -18,7 +18,6 @@ func TestSearchKindZeroValueIsAWordSearch(t *testing.T) {
 	}
 }
 
-// Each kind's clause makes a list a non-empty query with no terms.
 func TestSearchKindNarrow(t *testing.T) {
 	for _, tc := range []struct {
 		kind      searchKind
@@ -53,7 +52,6 @@ func TestSearchKindNarrow(t *testing.T) {
 	}
 }
 
-// Each kind says its own summary sentence.
 func TestSearchKindSummaries(t *testing.T) {
 	m := Model{}
 	for _, tc := range []struct {

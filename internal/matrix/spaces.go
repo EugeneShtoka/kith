@@ -28,8 +28,7 @@ func (b *InProc) Spaces(ctx context.Context) ([]domain.Space, error) {
 	return spaces, nil
 }
 
-// matrixSpaces is the cached Matrix spaces: the cache holds every network's, and the
-// router adds the others' itself.
+// matrixSpaces is the cached Matrix spaces; the cache holds every network's.
 func (b *InProc) matrixSpaces(ctx context.Context) ([]domain.Space, error) {
 	spaces, err := b.cache.Spaces(ctx)
 	if err != nil {
@@ -38,18 +37,16 @@ func (b *InProc) matrixSpaces(ctx context.Context) ([]domain.Space, error) {
 	return slices.DeleteFunc(spaces, func(sp domain.Space) bool { return !domain.MatrixRooms.Owns(domain.RoomID(sp.ID)) }), nil
 }
 
-// RefreshSpaces fetches the joined spaces with their direct child rooms (sub-spaces
-// excluded), caches and returns them. A space whose state cannot be read keeps what
-// the cache knew of it: its rooms decide what an agent may see (`except = ["space:…"]`),
-// so a failed read must not read as a space with no rooms. A room whose kind cannot
-// be read is a space if the cache says so.
+// RefreshSpaces fetches, caches and returns the joined spaces with their direct
+// non-space children. An unreadable space keeps its cached form: its rooms scope
+// agent access, so a failed read must not look like an empty space.
 func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	asked := time.Now()
 	resp, err := b.client.JoinedRooms(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("matrix: joined rooms: %w", err)
 	}
-	// A space, or a room, left since the list was asked for is not brought back by it.
+	// Drop rooms left since the list was asked for.
 	resp.JoinedRooms = slices.DeleteFunc(resp.JoinedRooms, func(roomID id.RoomID) bool {
 		return b.left.since(domain.RoomID(roomID), asked)
 	})
@@ -72,7 +69,7 @@ func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 		}
 	}
 
-	// Who reaches across your rooms, asked once for all spaces (see domain.Space.Keeper).
+	// Asked once for all spaces (see domain.Space.Keeper).
 	wide := map[string]bool{}
 	if b.cache != nil {
 		if found, err := b.cache.WideReachingUsers(ctx, string(b.client.UserID), domain.KeeperReach); err == nil {
@@ -96,7 +93,7 @@ func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 		if err := b.cache.SaveSpaces(ctx, domain.MatrixRooms, spaces); err != nil {
 			return nil, fmt.Errorf("matrix: cache spaces: %w", err)
 		}
-		// Original is derived from canonical parents, so it is computed on read, not stored.
+		// Original derives from canonical parents: computed on read, not stored.
 		if origins, err := b.cache.OriginSpaces(ctx); err == nil {
 			for i := range spaces {
 				spaces[i].Original = origins[spaces[i].ID]
@@ -106,8 +103,7 @@ func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	return spaces, nil
 }
 
-// readCreateEvents reads every joined room's m.room.create concurrently: which rooms
-// are spaces, which could be read at all, and which room each replaced.
+// readCreateEvents reads every room's m.room.create concurrently.
 func (b *InProc) readCreateEvents(ctx context.Context, joined []id.RoomID) (isSpace, read []bool, predecessors []domain.RoomID) {
 	isSpace, read = make([]bool, len(joined)), make([]bool, len(joined))
 	predecessors = make([]domain.RoomID, len(joined))
@@ -117,8 +113,7 @@ func (b *InProc) readCreateEvents(ctx context.Context, joined []id.RoomID) (isSp
 	return isSpace, read, predecessors
 }
 
-// knownSpaces is the cached spaces by ID; none without a cache, or when it cannot be
-// read (the refresh then knows only what it read).
+// knownSpaces is the cached spaces by ID; empty when there is no readable cache.
 func (b *InProc) knownSpaces(ctx context.Context) map[domain.SpaceID]domain.Space {
 	out := map[domain.SpaceID]domain.Space{}
 	if b.cache == nil {
@@ -148,9 +143,8 @@ func fanOut(n int, fn func(i int)) {
 	wg.Wait()
 }
 
-// saveUpgradeLinks records each predecessor link in both directions: backward on the
-// successor (scrollback, search chain) and forward on the predecessor (navigation).
-// Best-effort.
+// saveUpgradeLinks records each upgrade link both ways: backward for scrollback and
+// search, forward for navigation. Best-effort.
 func (b *InProc) saveUpgradeLinks(ctx context.Context, joined []id.RoomID, predecessors []domain.RoomID) {
 	if b.cache == nil {
 		return
@@ -167,8 +161,7 @@ func (b *InProc) saveUpgradeLinks(ctx context.Context, joined []id.RoomID, prede
 	}
 }
 
-// roomCreate reads m.room.create: whether the room is a space, and its predecessor;
-// read is false when it could not be read (neither is known then).
+// roomCreate reads m.room.create; read is false when it could not be read.
 func (b *InProc) roomCreate(ctx context.Context, roomID id.RoomID) (isSpace bool, predecessor domain.RoomID, read bool) {
 	var content event.CreateEventContent
 	if err := b.client.StateEvent(ctx, roomID, event.StateCreate, "", &content); err != nil {
@@ -200,8 +193,7 @@ func (b *InProc) spaceChildren(ctx context.Context, spaceID id.RoomID, joined, s
 	}
 	children := make([]*event.Event, 0, len(state[event.StateSpaceChild]))
 	for stateKey, evt := range state[event.StateSpaceChild] {
-		// Every child event counts toward ownership, joined or not.
-		children = append(children, evt)
+		children = append(children, evt) // ownership counts every child, joined or not
 		// A removed child is a blanked event, not a deleted one.
 		if evt == nil || len(evt.Content.VeryRaw) <= 2 {
 			continue
@@ -220,21 +212,15 @@ func (b *InProc) spaceChildren(ctx context.Context, spaceID id.RoomID, joined, s
 	return space, true
 }
 
-// personalSpace is how a bridge marks its own space for an account (mautrix's
-// "personal filtering space"), which holds every room of that login.
+// personalSpace marks mautrix's per-login "personal filtering space".
 const personalSpace = "__personal_filtering_space__"
 
-// telegramForum is how the Telegram bridge names a forum's own space: its channel,
-// then the topic that is the space (-1). Its topics are the forum's channel too, so
-// the bridge leaves the whole forum for a leave of any one of them; a Telegram
-// community's space ("channel:<id>") holds channels left one by one.
+// telegramForum matches the Telegram bridge's forum space ID (channel, topic -1).
+// Leaving any topic leaves the whole forum, unlike a community ("channel:<id>").
 var telegramForum = regexp.MustCompile(`^channel:-?\d+:-1$`)
 
-// leavingOf is how a Matrix space is left, by its state: on its own, its rooms each a
-// membership of their own, unless a bridge marks it as its own space for an account,
-// which only signing out of the bridge leaves, or it is a bridged Telegram forum, left
-// whole with its topics. Any other space a bridge made for a chat (a community) is
-// left as one of your own.
+// leavingOf reads how a space is left: a bridge's personal space only by signing
+// out, a Telegram forum whole with its topics, anything else on its own.
 func leavingOf(state map[event.Type]map[string]*event.Event) domain.SpaceLeaving {
 	for _, kind := range []event.Type{event.StateBridge, event.StateHalfShotBridge} {
 		for _, evt := range state[kind] {
@@ -264,9 +250,8 @@ func leavingOf(state map[event.Type]map[string]*event.Event) domain.SpaceLeaving
 	return domain.LeftAlone
 }
 
-// spaceOwner returns the bridge network that owns a space (ProtocolMatrix for a
-// person's): it created the space, or every live child event was written by that one
-// bridge. Blanked (removed) child events are not evidence.
+// spaceOwner returns the bridge that created the space or wrote every live child
+// event; ProtocolMatrix otherwise. Blanked child events do not count.
 func spaceOwner(creator string, children []*event.Event) domain.Protocol {
 	if p := domain.ProtocolOf(creator); p.IsBridged() {
 		return p
@@ -307,9 +292,8 @@ func spaceKeeper(members map[string]*event.Event, self string, wide map[string]b
 	return ""
 }
 
-// CanonicalParent resolves the space a room lives in: the m.space.parent with
-// canonical: true (set by bridges). Candidates come from the cached hierarchy, and
-// the answer, including "none", is cached.
+// CanonicalParent resolves the room's canonical m.space.parent (set by bridges)
+// among cached spaces; the answer, including "none", is cached.
 func (b *InProc) CanonicalParent(ctx context.Context, roomID domain.RoomID) (domain.SpaceID, error) {
 	if b.cache != nil {
 		parent, known, err := b.cache.RoomParent(ctx, roomID)
@@ -372,9 +356,8 @@ func (b *InProc) cachedSpaceIDs(ctx context.Context) map[domain.RoomID]bool {
 	return ids
 }
 
-// RemoveFromSpace empties the space's m.space.child and the room's m.space.parent
-// (state is unsaid by empty content). A refused parent returns ErrNoSpaceParent:
-// the room is already out. The cached canonical parent is untouched.
+// RemoveFromSpace blanks the space's m.space.child and the room's m.space.parent.
+// A refused parent returns ErrNoSpaceParent: the room is already out.
 func (b *InProc) RemoveFromSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
 	empty := struct{}{}
 	if _, err := b.client.SendStateEvent(ctx, id.RoomID(spaceID), event.StateSpaceChild, string(roomID), &empty); err != nil {
@@ -386,10 +369,9 @@ func (b *InProc) RemoveFromSpace(ctx context.Context, spaceID domain.SpaceID, ro
 	return nil
 }
 
-// AddToSpace writes the space's m.space.child and the room's non-canonical
-// m.space.parent. Each needs power in its own room; a refused parent returns
-// ErrNoSpaceParent since the room is already filed. Canonical is deliberately unset:
-// it marks a room's single origin (see domain.Space.Original).
+// AddToSpace writes the space's m.space.child and the room's m.space.parent; a
+// refused parent returns ErrNoSpaceParent. Canonical stays unset: it marks a room's
+// single origin (see domain.Space.Original).
 func (b *InProc) AddToSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
 	via := []string{b.client.UserID.Homeserver()}
 	_, err := b.client.SendStateEvent(ctx, id.RoomID(spaceID), event.StateSpaceChild, string(roomID),

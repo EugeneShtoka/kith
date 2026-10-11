@@ -8,16 +8,14 @@ import (
 	"github.com/rivo/uniseg"
 )
 
-// Clock is how times and dates are written for people, everywhere kith shows one:
-// a time by a named style (TimeStyles), a date by a pattern of tokens (see
-// ParseDatePattern), a long one for headings and a short one for columns. The zero
-// Clock writes kith's defaults. Times meant for programs (RFC 3339) never use it.
+// Clock formats times (a TimeStyles style) and dates (ParseDatePattern patterns, long
+// for headings, short for columns) for people. The zero Clock uses the defaults.
 type Clock struct {
 	style       timeStyle
 	long, short []dateToken
 }
 
-// Default patterns: what kith wrote before they could be chosen.
+// Default time style and date patterns.
 const (
 	DefaultTimeStyle = "24h"
 	DefaultLongDate  = "DDD, DD MMM YYYY"
@@ -27,16 +25,14 @@ const (
 // timeStyle writes a time of day, with or without seconds.
 type timeStyle struct {
 	name string
-	// layout is a time.Format layout of hours and minutes; seconds adds ":05" after
-	// the minutes.
+	// layout is a time.Format layout of hours and minutes; seconds appends ":05".
 	layout string
-	// half, when set, are the words for before and after noon, and before says they
-	// precede the time.
+	// am and pm, when set, mark the half of the day; before puts them first.
 	am, pm string
 	before bool
 }
 
-// timeStyles are the accepted time styles, in the order a settings list shows them.
+// timeStyles are the accepted time styles, in settings-list order.
 var timeStyles = []timeStyle{
 	{name: "24h", layout: "15:04"},
 	{name: "12h", layout: "3:04", am: " AM", pm: " PM"},
@@ -99,8 +95,7 @@ func (c Clock) LongDate(t time.Time) string { return writeDate(c.longOr(), t.Loc
 // ShortDate is t's date as a column writes it.
 func (c Clock) ShortDate(t time.Time) string { return writeDate(c.shortOr(), t.Local()) }
 
-// TimeWidth is the most cells Time takes on any time of day, so a column of times
-// lines up; a shorter time is padded on the left.
+// TimeWidth is the widest Time output in cells, for aligning a column of times.
 func (c Clock) TimeWidth() int {
 	widest := 0
 	for h := range 24 {
@@ -156,23 +151,19 @@ func (s timeStyle) write(t time.Time, seconds bool) string {
 	return out + half
 }
 
-// dateToken is a piece of a date pattern: a field (kind and how many letters) or
-// literal text.
+// dateToken is a date pattern field (kind, letter count) or literal text.
 type dateToken struct {
 	kind    rune // 'Y', 'M', 'D', or 0 for literal
 	n       int
 	literal string
 }
 
-// ParseDatePattern reads a date pattern; "" is nil, which writes the default. Runs of Y,
-// M and D are fields; everything else is written as it stands:
+// ParseDatePattern reads a date pattern; "" is nil (the default). Runs of Y, M and D
+// are fields, anything else is literal. Names are English:
 //
 //	YYYY 2026   YY 26
 //	M    10     MM 10   MMM Oct   MMMM October
 //	D    8      DD 08   DDD Thu   DDDD Thursday
-//
-// so "DD.MM.YYYY", "MM/DD/YY", "DDD, D MMMM YYYY" and "YYYY年M月D日" all work.
-// Names are English.
 func ParseDatePattern(pattern string) ([]dateToken, error) {
 	var out []dateToken
 	runes := []rune(pattern)

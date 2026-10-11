@@ -8,11 +8,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Starring: a private bookmark on a message, kept in room account data (see
+// Starring is a private bookmark kept in room account data (see
 // internal/matrix/starred.go) and mirrored by the cache.
 
-// toggleStar stars the message under the cursor, or unstars it. The mark is set
-// optimistically; handleStarred undoes it on failure.
+// toggleStar stars or unstars the selected message, optimistically; handleStarred
+// undoes it on failure.
 func (m Model) toggleStar() (Model, tea.Cmd) {
 	msg, ok := m.selectedMessage()
 	if !ok {
@@ -28,8 +28,8 @@ func (m Model) toggleStar() (Model, tea.Cmd) {
 	return m, m.starCmd(msg.RoomID, msg.ID, on)
 }
 
-// unstarSelectedHit clears the star on the hit under the cursor in the starred
-// list and re-runs the search; the cursor keeps its index.
+// unstarSelectedHit unstars the hit under the cursor in the starred list and re-runs
+// the search; the cursor keeps its index.
 func (m Model) unstarSelectedHit() (Model, tea.Cmd) {
 	hit, ok := m.search.selected()
 	if !ok {
@@ -42,10 +42,9 @@ func (m Model) unstarSelectedHit() (Model, tea.Cmd) {
 	return m, tea.Batch(m.starCmd(hit.RoomID, hit.EventID, false), m.rerunSearchCmd())
 }
 
-// isStarred reports whether a message carries a star.
 func (m Model) isStarred(id domain.EventID) bool { return m.timeline.starred[id] }
 
-// handleStarred reports a bookmark the server refused and puts the row back.
+// handleStarred reports a refused bookmark and puts the row back.
 func (m Model) handleStarred(msg starredMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		return m, nil
@@ -60,14 +59,12 @@ func (m Model) handleStarred(msg starredMsg) (Model, tea.Cmd) {
 	return m.sayErr("could not "+what, msg.err), nil
 }
 
-// starredInMsg carries a room's bookmark set back from the daemon.
 type starredInMsg struct {
 	roomID domain.RoomID
 	ids    []domain.EventID
 	err    error
 }
 
-// starredInCmd asks which of a room's messages are starred.
 func (m Model) starredInCmd(roomID domain.RoomID) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
@@ -76,8 +73,8 @@ func (m Model) starredInCmd(roomID domain.RoomID) tea.Cmd {
 	}
 }
 
-// handleStarredIn adopts the set unless it is for a room no longer open. Failures
-// are silent: the marks are decoration.
+// handleStarredIn adopts the set unless the room is no longer open. Failures are
+// silent: the marks are decoration.
 func (m Model) handleStarredIn(msg starredInMsg) (Model, tea.Cmd) {
 	m.logErr(slog.LevelDebug, "load starred messages", msg.err, "room", msg.roomID)
 	if msg.err != nil || msg.roomID != m.openRoom {

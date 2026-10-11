@@ -11,9 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Bridged backfill often stamps a burst of messages with one time. Reads order ties
-// by event ID, as domain.MergeMessages does, so a window around one message holds it
-// and its true neighbors, and a page is the same on every read.
+// Bridged bursts share one time; reads break ties by event ID, as domain.MergeMessages
+// does, so windows and pages are stable.
 func TestMessagesSharingATimeKeepTheirOrder(t *testing.T) {
 	t.Parallel()
 
@@ -61,11 +60,8 @@ func TestMessagesSharingATimeKeepTheirOrder(t *testing.T) {
 	}
 }
 
-// A network that numbers a room's messages (Telegram) gives them whole seconds, so a
-// busy room has many in one second, and IDs that are the room's then the number. By
-// the ID's text, message 100 came before 99. Every read orders them by number:
-// a page, a window around each one, a thread, the latest, search and the merge, with
-// numbers crossing every digit count a room reaches and saved in no order.
+// Numbered IDs within one second (Telegram: "<room>/<n>") order by number, not text
+// ("100" after "99"), in every read and the merge.
 func TestNumberedMessagesInOneSecondKeepTheirOrder(t *testing.T) {
 	t.Parallel()
 
@@ -89,10 +85,8 @@ func TestNumberedMessagesInOneSecondKeepTheirOrder(t *testing.T) {
 	assertTimelineOrder(t, cache, room, root, want, len(numbers), "burst")
 }
 
-// assertTimelineOrder saves want shuffled into room and checks every read gives it
-// back in want's order: the merge, each page, a window around each message, the
-// thread under root (want[2 : 2+threaded], the replies), the latest, and search for
-// term over the replies.
+// assertTimelineOrder saves want shuffled and checks every read returns want's order:
+// merge, pages, windows, the thread under root (want[2:2+threaded]), latest, search.
 func assertTimelineOrder(t *testing.T, cache *Cache, room domain.RoomID, root domain.Message, want []domain.Message, threaded int, term string) {
 	t.Helper()
 	ctx := context.Background()
@@ -113,7 +107,7 @@ func assertTimelineOrder(t *testing.T, cache *Cache, room domain.RoomID, root do
 	if got := idsOf(domain.MergeMessages(nil, shuffled)); !slices.Equal(got, wantIDs) {
 		t.Errorf("MergeMessages = %v,\nwant %v", got, wantIDs)
 	}
-	// The client sorts what it reads again, merging pages: what is read carries the order.
+	// The client re-sorts what it reads, so what is read must carry the order.
 	read, rerr := cache.Messages(ctx, room, len(want))
 	if rerr != nil {
 		t.Fatal(rerr)
@@ -174,10 +168,8 @@ func assertTimelineOrder(t *testing.T, cache *Cache, room domain.RoomID, root do
 	}
 }
 
-// A network whose times are whole seconds and whose IDs carry no order (WhatsApp)
-// gives each message its place among those sharing its second (Seq). Every read
-// follows it whatever the IDs say; a message seen again keeps the first place it was
-// given; and the place goes when the message does.
+// With unordered IDs in one second (WhatsApp), Seq orders every read; a message seen
+// again keeps its first Seq, and the Seq row goes with the message.
 func TestGivenPlacesOrderMessagesInOneSecond(t *testing.T) {
 	t.Parallel()
 
@@ -185,8 +177,7 @@ func TestGivenPlacesOrderMessagesInOneSecond(t *testing.T) {
 	const room = domain.RoomID("whatsapp:1/2")
 	second := time.UnixMilli(1_700_000_000_000)
 	rng := rand.New(rand.NewPCG(3, 4))
-	// Random IDs of mixed lengths, as WhatsApp's are, so neither ID length nor text
-	// can pass for the order.
+	// Random mixed-length IDs, so neither length nor text gives the order.
 	randomID := func() domain.EventID {
 		const hex = "0123456789ABCDEF"
 		b := make([]byte, 16+rng.IntN(8))

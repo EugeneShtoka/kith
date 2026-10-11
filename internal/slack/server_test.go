@@ -16,7 +16,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// fakeSlack answers Web API methods by name; what each was asked is kept.
+// fakeSlack answers Web API methods by name and records each request.
 type fakeSlack struct {
 	mu      sync.Mutex
 	methods map[string]func(form map[string]string) any
@@ -75,8 +75,8 @@ func (f *fakeSlack) calls(method string) []map[string]string {
 	return f.asked[method]
 }
 
-// connectedTo is an adapter over a fresh cache with "work" (T1, signed in as U1)
-// connected through client.
+// connectedTo is an adapter over a fresh cache with "work" (T1, as U1) connected
+// through client.
 func connectedTo(t *testing.T, client *slackgo.Client) (*Adapter, *workspace) {
 	t.Helper()
 	work := Account{Name: "work", Workspace: "acme"}
@@ -92,9 +92,8 @@ func msgJSON(user, ts, text string) map[string]any {
 	return map[string]any{"type": "message", "user": user, "ts": ts, "text": text}
 }
 
-// History pages newest first from Slack and reads oldest first, its senders named;
-// each page is cached, and Next goes on while Slack has more. A rate limit is waited
-// out once.
+// History pages arrive newest first and read oldest first with senders named; each page
+// is cached, Next continues while Slack has more, and a rate limit is waited out once.
 func TestHistoryIsPagedAndCached(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -137,8 +136,8 @@ func TestHistoryIsPagedAndCached(t *testing.T) {
 	}
 }
 
-// A draft is posted as mrkdwn, cached and streamed as sent; a reply goes in the thread
-// of what it answers (the thread's root, when that is itself a reply).
+// A draft posts as mrkdwn and is cached and streamed; a reply goes in its target's
+// thread (the root, when the target is itself a reply).
 func TestSendPostsAndKeepsTheMessage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -185,8 +184,7 @@ func TestSendPostsAndKeepsTheMessage(t *testing.T) {
 	}
 }
 
-// A conversation's members are asked of Slack, named, cached, and offered for
-// mentions.
+// A conversation's members are fetched, named, cached, and offered for mentions.
 func TestMembersAreAskedAndNamed(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -215,9 +213,8 @@ func TestMembersAreAskedAndNamed(t *testing.T) {
 	}
 }
 
-// A live message is cached and streamed; one in a conversation the cache does not
-// know yet joins it. Slack ending the session signs the account out — unless the
-// connection that heard it was already replaced.
+// A live message is cached and streamed; an unknown conversation joins the cache.
+// Slack ending the session signs out, unless the connection was already replaced.
 func TestLiveEvents(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -262,8 +259,7 @@ func TestLiveEvents(t *testing.T) {
 	}
 }
 
-// A listing asks who is in each group DM and names it by the others' names, as its
-// messages show them, with them as its members.
+// A listing names each group DM by its other members' names and makes them its members.
 func TestAGroupDMIsNamedByItsPeople(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -288,11 +284,9 @@ func TestAGroupDMIsNamedByItsPeople(t *testing.T) {
 	}
 }
 
-// Catching up reads each listed conversation Slack says has newer messages than the
-// cache, from where the cache left off (all its recent ones when none are cached), so
-// every conversation's last message is known; one up to date is not asked again, nor
-// one not listed. One Slack does not count (a quiet DM) is read once, while nothing of
-// it is cached.
+// Catch-up reads each listed conversation newer than the cache from where it left off
+// (recent messages when none cached); up-to-date and unlisted ones are skipped. An
+// uncounted one (a quiet DM) is read once while nothing of it is cached.
 func TestCatchingUpReadsOnlyWhatIsNewer(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -349,8 +343,8 @@ func TestCatchingUpReadsOnlyWhatIsNewer(t *testing.T) {
 	}
 }
 
-// Our reaction goes out by Slack's name and is cached; the same again takes it back.
-// An edit goes out by chat.update and shows; a deletion goes out by chat.delete.
+// A reaction goes out by Slack's name and is cached; repeating it removes it. Edits use
+// chat.update, deletions chat.delete.
 func TestReactingEditingAndDeleting(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -402,9 +396,8 @@ func TestReactingEditingAndDeleting(t *testing.T) {
 	}
 }
 
-// Unread counts what came after Slack's last_read (and after our own newest message,
-// which reads what came before it); a read on another client moves it; marking read
-// here tells Slack.
+// Unread counts what came after last_read and our newest message; a read elsewhere
+// moves it; marking read here tells Slack.
 func TestUnreadFollowsSlacksReadPosition(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -453,8 +446,7 @@ func TestUnreadFollowsSlacksReadPosition(t *testing.T) {
 	}
 }
 
-// Who is typing is streamed when it changes, never ourselves; a typist whose notices
-// stop is forgotten.
+// Typists are streamed on change, never ourselves; one whose notices stop is forgotten.
 func TestTyping(t *testing.T) {
 	t.Parallel()
 	a, _ := cached(t, Account{Name: "work", Workspace: "acme"})

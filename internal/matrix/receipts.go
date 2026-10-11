@@ -10,10 +10,9 @@ import (
 // heldUnthreaded / heldMain for the room's own.
 type heldReceipt struct{ Kind, Event domain.EventID }
 
-// heldReceipts are our receipts whose event was not cached yet, each stamped with the
-// sync generation it came in. Sync listeners run before the events of their response,
-// so settleReceipts retries them from message ingest, and fetchHeld asks the
-// homeserver about those still held a sync later.
+// heldReceipts are our receipts whose event is not cached yet, stamped with their sync
+// generation. Sync listeners run before their response's events, so settleReceipts
+// retries them on ingest and fetchHeld asks the server about those held a sync later.
 type heldReceipts struct {
 	mu     sync.Mutex
 	byRoom map[domain.RoomID]map[heldReceipt]int
@@ -26,8 +25,8 @@ type heldJob struct {
 	held heldReceipt
 }
 
-// hold keeps a receipt whose event has not arrived. All are kept: which is newest is
-// not known yet.
+// hold keeps a receipt whose event has not arrived; all are kept, since which is
+// newest is unknown.
 func (r *heldReceipts) hold(roomID domain.RoomID, kind, eventID domain.EventID) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -61,9 +60,7 @@ func (r *heldReceipts) in(roomID domain.RoomID) []heldReceipt {
 	return out
 }
 
-// nextSync starts a sync generation and returns what is still held from earlier
-// ones: by then the previous response's events have all been cached, so those are
-// not arriving on their own.
+// nextSync starts a sync generation and returns what is still held from earlier ones.
 func (r *heldReceipts) nextSync() []heldJob {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -79,8 +76,8 @@ func (r *heldReceipts) nextSync() []heldJob {
 	return jobs
 }
 
-// receiptFetches asks the homeserver about each held receipt's event once, a few at a
-// time; Stop joins them through wg. The zero value is ready.
+// receiptFetches asks the server about each held receipt's event once, a few at a
+// time; Stop joins them through wg.
 type receiptFetches struct {
 	mu    sync.Mutex
 	tried map[fetchKey]bool
@@ -88,8 +85,8 @@ type receiptFetches struct {
 	wg    sync.WaitGroup
 }
 
-// first marks an event as asked for and reports whether it had not been before; when
-// it had not, slots is the semaphore the fetch must hold one of.
+// first marks an event as asked for, reporting whether it is new; if so, the fetch
+// must hold a slot of the returned semaphore.
 func (f *receiptFetches) first(key fetchKey) (slots chan struct{}, ok bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -18,7 +18,7 @@ func loadText(t *testing.T, body string) (Config, error) {
 	return Load(path)
 }
 
-// The two halves are read into their own tables, every key where it was written.
+// [agent.read] and [agent.write] decode into their own tables.
 func TestAgentReadAndWriteAreSeparateTables(t *testing.T) {
 	t.Parallel()
 

@@ -12,34 +12,30 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Schedules queues messages written now and sent later. Declared here rather than in
-// internal/api because only the daemon (daemon.Remote) can implement it: a message
-// sent only while the client is open is not scheduled, just late.
+// Schedules queues messages to send later. Only the daemon (daemon.Remote) implements
+// it: a message sent only while the client is open is late, not scheduled.
 type Schedules interface {
 	// Schedule queues a message, returning the handle that cancels it.
 	Schedule(ctx context.Context, msg domain.ScheduledMessage) (string, error)
-	// ScheduledMessages is the whole queue, every room, soonest first.
+	// ScheduledMessages returns the whole queue, every room, soonest first.
 	ScheduledMessages(ctx context.Context) ([]domain.ScheduledMessage, error)
 	// CancelScheduled drops one pending message.
 	CancelScheduled(ctx context.Context, id string) error
 }
 
-// scheduledMsg carries the queue back for the picker.
 type scheduledMsg struct {
 	queue []domain.ScheduledMessage
 	err   error
-	// onlyRoom narrows the answer to one room ("" = every room). It travels with the
-	// request so moving rooms meanwhile cannot change the filter.
+	// onlyRoom narrows the answer to one room ("" = every room); carried with the
+	// request so switching rooms meanwhile cannot change it.
 	onlyRoom domain.RoomID
 }
 
-// scheduleDoneMsg reports the outcome of queuing or canceling one.
 type scheduleDoneMsg struct {
 	what string
 	err  error
 }
 
-// errNoSchedules is what scheduling says in a client not attached to a daemon.
 var errNoSchedules = errors.New("this client cannot schedule: it is not attached to a daemon")
 
 // scheduleCmd queues a message off the event loop.
@@ -56,8 +52,8 @@ func (m Model) scheduleCmd(msg domain.ScheduledMessage, what string) tea.Cmd {
 	}
 }
 
-// queuedUnsentMsg is what became of a failed send: queued for retry, or not — in
-// which case the draft it carries goes back to the room rather than being lost.
+// queuedUnsentMsg reports whether a failed send was queued for retry; if not, its
+// draft goes back to the room.
 type queuedUnsentMsg struct {
 	err    error
 	roomID domain.RoomID
@@ -81,7 +77,6 @@ func (m Model) queueUnsentCmd(unsent sentMsg, queued domain.ScheduledMessage) te
 	}
 }
 
-// scheduledCmd fetches the queue, narrowed to onlyRoom unless it is empty.
 func (m Model) scheduledCmd(onlyRoom domain.RoomID) tea.Cmd {
 	if m.schedules == nil {
 		return func() tea.Msg { return scheduledMsg{err: errNoSchedules} }
@@ -91,7 +86,6 @@ func (m Model) scheduledCmd(onlyRoom domain.RoomID) tea.Cmd {
 	})
 }
 
-// cancelScheduledCmd drops one pending message.
 func (m Model) cancelScheduledCmd(id string) tea.Cmd {
 	if m.schedules == nil {
 		return nil
@@ -105,8 +99,7 @@ func (m Model) cancelScheduledCmd(id string) tea.Cmd {
 	}
 }
 
-// handleScheduleDone reports what happened — the only evidence a queued message
-// left the composer for somewhere.
+// handleScheduleDone reports the outcome: the only sign a queued message left the composer.
 func (m Model) handleScheduleDone(msg scheduleDoneMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("schedule", msg.err), nil
@@ -153,8 +146,7 @@ func (m Model) scheduledRowLabel(entry domain.ScheduledMessage, now time.Time) s
 	return fmt.Sprintf("%s · %s", where, entry.SummaryWith(now, isolate))
 }
 
-// parseScheduleTime splits `/at 09:00 text` or `/in 2h text` into the send instant
-// and the message. A clock time already past today means tomorrow.
+// parseScheduleTime splits `/at 09:00 text` or `/in 2h text` into send time and message.
 func parseScheduleTime(kind, arg string, now time.Time) (time.Time, string, error) {
 	arg = strings.TrimSpace(arg)
 	when, rest, found := strings.Cut(arg, " ")
@@ -182,7 +174,7 @@ func parseScheduleTime(kind, arg string, now time.Time) (time.Time, string, erro
 	}
 }
 
-// parseClock reads a wall-clock time, rolling to tomorrow when it has already gone.
+// parseClock reads a wall-clock time; one already past today means tomorrow.
 func parseClock(when string, now time.Time) (time.Time, error) {
 	for _, layout := range []string{"15:04", "1504", "3pm", "3:04pm"} {
 		t, err := time.Parse(layout, strings.ToLower(when))
@@ -205,8 +197,8 @@ func exampleFor(kind string) string {
 	return "09:00 good morning"
 }
 
-// scheduleComposed queues what was typed after /at or /in, clearing the composer as
-// sendComposed does. The thread, reply target and mention pills go with it.
+// scheduleComposed queues the text after /at or /in, with its thread, reply target and
+// mention pills, and clears the composer.
 func (m Model) scheduleComposed(room domain.Room, kind, arg string) (Model, tea.Cmd) {
 	at, body, err := parseScheduleTime(kind, arg, time.Now())
 	if err != nil {

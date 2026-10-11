@@ -11,43 +11,42 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The one way somebody's words reach the screen. User text is logical (typed order);
-// drawing it is always: cut in logical order, pick one direction per paragraph
-// (paragraphDir), reorder each drawn row (text_bidi.go), style after the reorder
-// (escape bytes are direction L and rule L2 scatters them), flush RTL right.
+// The one way user text reaches the screen. User text is logical (typed order); to
+// draw it: cut in logical order, pick one direction per paragraph (paragraphDir),
+// reorder each row (text_bidi.go), style after the reorder (escape bytes are direction
+// L and rule L2 scatters them), flush RTL right.
 //
 // Entry points; nothing else may reorder (forbidigo in .golangci.yml):
 //   - drawBlock — wrapped paragraphs: the timeline, the reader overlays, history.
 //   - drawLine — single-line cells: names, pickers, titles, status, search excerpts.
 //   - drawFragment — editable fields that split a paragraph at the caret.
 //
-// Sentences of our own are English, so user text inside one is isolated (U+2068…
-// U+2069) and drawLine lays the sentence out LTR with each isolate in its own
-// direction. The marks never reach the terminal.
+// Our own sentences are English, so user text inside one is isolated (U+2068…U+2069)
+// and drawLine lays the sentence out LTR with each isolate in its own direction. The
+// marks never reach the terminal.
 
 // markFunc styles a byte by its logical offset: a coalescing key (zero is plain), the
-// style, and the hyperlink it belongs to ("" for none).
+// style, and its hyperlink ("" for none).
 type markFunc func(logical int) (styleKey, ansi.Style, string)
 
 // ellipsis ends a cut line; appended in logical order, it lands where the text went.
 const ellipsis = "…"
 
-// isolateOpen and isolateClose bracket user text inside a sentence of ours. See isolate.
+// isolateOpen and isolateClose bracket user text inside our sentences. See isolate.
 const (
 	isolateOpen  = "\u2068"
 	isolateClose = "\u2069"
 )
 
-// stripIsolates drops the isolate marks.
 var stripIsolates = strings.NewReplacer(isolateOpen, "", isolateClose, "").Replace
 
-// hasIsolates reports whether text carries isolate marks, and so is a sentence of ours.
+// hasIsolates reports whether text carries isolate marks, and so is our sentence.
 func hasIsolates(text string) bool {
 	return strings.Contains(text, isolateOpen) || strings.Contains(text, isolateClose)
 }
 
-// isolate marks s as user text inside a sentence of ours. Text with no RTL, or that
-// already has isolates (they do not nest), is returned as is.
+// isolate marks s as user text inside our sentence. Text with no RTL, or already
+// isolated (they don't nest), is returned as is.
 func isolate(s string) string {
 	if !containsRTL(s) || strings.Contains(s, isolateOpen) {
 		return s
@@ -55,11 +54,10 @@ func isolate(s string) string {
 	return isolateOpen + s + isolateClose
 }
 
-// quoted is user text in quotation marks inside a sentence of ours, isolated. Not %q:
-// it would escape the isolate marks into a literal `\u2068` on screen.
+// quoted is isolated user text in quotes. Not %q: it would escape the isolate marks
+// into a literal `\u2068` on screen.
 func quoted(s string) string { return `"` + isolate(s) + `"` }
 
-// lineSpec is how a single-line cell is drawn.
 type lineSpec struct {
 	// width is the most cells the line may take; zero or less means no limit.
 	width int
@@ -75,8 +73,8 @@ type lineSpec struct {
 }
 
 // drawLine draws one line of logical text: flattened, cut to width in logical order,
-// reordered, optionally flushed right. Text already carrying escapes was drawn by us
-// and is only cut.
+// reordered, optionally flushed right. Text already carrying escapes is ours and is
+// only cut.
 func drawLine(logical string, spec lineSpec) string {
 	text := oneLine.Replace(logical)
 	if spec.width > 0 {
@@ -99,21 +97,20 @@ func drawLine(logical string, spec lineSpec) string {
 	return drawn
 }
 
-// drawSentence is a sentence of ours drawn uncut.
 func drawSentence(s string) string { return drawLine(s, lineSpec{sentence: true}) }
 
 // displayName is a name drawn uncut. A name inside a sentence is isolated instead;
 // reordering both would reverse it twice.
 func displayName(name string) string { return drawLine(name, lineSpec{}) }
 
-// nameCell caps a logical name to width cells and draws it. Cutting before the
-// reorder keeps an RTL name's head, not its tail.
+// nameCell caps a logical name to width cells and draws it. Cutting before the reorder
+// keeps an RTL name's head, not its tail.
 func nameCell(logical string, width int) string {
 	return drawLine(logical, lineSpec{width: max(width, 1)})
 }
 
 // truncateLogical cuts logical text to width cells with an ellipsis without drawing
-// it, for text still going into something that will be drawn.
+// it, for text that will be drawn later.
 func truncateLogical(s string, width int) string {
 	if width < 1 {
 		return ""
@@ -121,7 +118,6 @@ func truncateLogical(s string, width int) string {
 	return ansi.Truncate(s, width, ellipsis)
 }
 
-// cutLogical is truncateLogical with no ellipsis.
 func cutLogical(s string, width int) string {
 	if width < 1 {
 		return ""
@@ -129,15 +125,14 @@ func cutLogical(s string, width int) string {
 	return ansi.Truncate(s, width, "")
 }
 
-// truncateDrawn cuts an already-drawn row to width cells with an ellipsis. It never
-// reorders.
+// truncateDrawn cuts an already-drawn row to width cells with an ellipsis. It never reorders.
 func truncateDrawn(row string, width int) string {
 	return ansi.Truncate(row, max(width, 1), ellipsis)
 }
 
-// visualLine is the drawn order of one logical line and its direction. A sentence (or
-// a line with isolates) is LTR with each isolate in its own direction; anything else
-// is one paragraph in paragraphDir's direction.
+// visualLine is one logical line's drawn order and direction. A sentence (or a line
+// with isolates) is LTR with each isolate in its own direction; anything else is one
+// paragraph in paragraphDir's direction.
 func visualLine(text string, sentence bool) (string, bidi.Direction) {
 	if !hasIsolates(text) {
 		dir := paragraphDir(text)
@@ -163,7 +158,6 @@ func visualLine(text string, sentence bool) (string, bidi.Direction) {
 	return b.String(), bidi.LeftToRight
 }
 
-// blockSpec is how a paragraph of logical text is drawn as wrapped rows.
 type blockSpec struct {
 	// width is the wrap measure and the edge RTL rows flush against.
 	width int
@@ -171,15 +165,14 @@ type blockSpec struct {
 	dropBlank bool
 	// paint styles a drawn row given its visual text and direction. nil is plain.
 	paint func(vis string, dir bidi.Direction) string
-	// marks returns the styling for the row spanning logical [from, to); nil means
-	// paint the row instead.
+	// marks returns the styling for the row spanning logical [from, to); nil means paint
+	// the row instead.
 	marks func(from, to int) markFunc
 }
 
-// drawBlock draws a paragraph of logical text as screen rows: wrap first, then
-// reorder per row (rule L2), one direction for the whole paragraph, RTL rows flushed
-// right with unstyled padding. Text carrying escapes was drawn by us and is only
-// wrapped.
+// drawBlock draws a paragraph as rows: wrap first, then reorder per row (rule L2), one
+// direction for the paragraph, RTL rows flushed right with unstyled padding. Text
+// carrying escapes is ours and is only wrapped.
 func drawBlock(logical string, spec blockSpec) []string {
 	width := max(spec.width, 1)
 	segs := strings.Split(ansi.Wrap(logical, width, ""), "\n")
@@ -231,8 +224,8 @@ func drawBlock(logical string, spec blockSpec) []string {
 	return rows
 }
 
-// sentenceBlock is drawBlock for a sentence of ours with isolates: every row LTR,
-// nothing flushed, no marks.
+// sentenceBlock is drawBlock for our sentence with isolates: every row LTR, nothing
+// flushed, no marks.
 func sentenceBlock(segs []string, spec blockSpec) []string {
 	rows := make([]string, 0, len(segs))
 	for _, seg := range segs {
@@ -245,8 +238,8 @@ func sentenceBlock(segs []string, spec blockSpec) []string {
 	return rows
 }
 
-// drawFragment draws a piece of a paragraph whose direction was already decided — a
-// composer row or one side of a caret. at, when not nil, styles by logical offset.
+// drawFragment draws part of a paragraph whose direction is already decided (a
+// composer row or one side of a caret). A non-nil at styles by logical offset.
 func drawFragment(s string, dir bidi.Direction, at markFunc) string {
 	if at == nil {
 		return reorder(s, dir)
@@ -254,8 +247,8 @@ func drawFragment(s string, dir bidi.Direction, at markFunc) string {
 	return styledRow(s, dir, at)
 }
 
-// styledRow draws s reordered for dir, styled by at per logical offset; equal
-// adjacent keys share one escape pair.
+// styledRow draws s reordered for dir, styled by at per logical offset; equal adjacent
+// keys share one escape pair.
 func styledRow(s string, dir bidi.Direction, at markFunc) string {
 	visual, offs := reorderMapped(s, dir)
 	return styleVisual(visual, offs, at)
@@ -274,11 +267,11 @@ func styleVisual(visual string, offs []int, at markFunc) string {
 		if run.Len() == 0 {
 			return
 		}
-		// A plain run (key zero) still carries the base style, the sender's tint; an
-		// empty style writes no escape.
+		// A plain run (key zero) still carries the base style, the sender's tint; an empty
+		// style writes no escape.
 		text := style.Styled(run.String())
-		// OSC 8 wraps the styled run. An unsafe target is not wrapped: a rejected
-		// escape is printed and widens the row (domain.SafeHyperlink).
+		// OSC 8 wraps the styled run. An unsafe target is not wrapped: a rejected escape is
+		// printed and widens the row (domain.SafeHyperlink).
 		if href != "" && domain.SafeHyperlink(href) {
 			text = ansi.SetHyperlink(href) + text + ansi.ResetHyperlink()
 		}
@@ -293,8 +286,7 @@ func styleVisual(visual string, offs []int, at markFunc) string {
 		if i < len(offs) {
 			key, st, link = at(offs[i])
 		}
-		// The first run takes its style too: current starts at zero, which a plain run
-		// shares.
+		// The first run takes its style too: current starts at zero, which a plain run shares.
 		if key != current || i == 0 {
 			flush()
 			current, style, href = key, st, link

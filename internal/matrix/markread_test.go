@@ -66,8 +66,7 @@ func (rs *receiptServer) receipts() []string {
 	return append([]string(nil), rs.posted...)
 }
 
-// backendWith returns an InProc talking to srv, backed by a fresh cache holding
-// msgs per room.
+// backendWith returns an InProc on srv with a fresh cache holding msgs per room.
 func backendWith(t *testing.T, srv *httptest.Server, msgs map[domain.RoomID][]domain.Message) *InProc {
 	t.Helper()
 	cache := testCache(t)
@@ -86,7 +85,7 @@ func backendWith(t *testing.T, srv *httptest.Server, msgs map[domain.RoomID][]do
 }
 
 // Each room's newest cached event is receipted; uncached rooms are skipped and a
-// refusal is counted without costing the others.
+// refusal is counted without stopping the others.
 func TestMarkRoomsReadReceiptsTheNewestCachedEvent(t *testing.T) {
 	t.Parallel()
 
@@ -101,7 +100,7 @@ func TestMarkRoomsReadReceiptsTheNewestCachedEvent(t *testing.T) {
 		"!refused:x": {{ID: "$r", Timestamp: base}},
 	})
 
-	// !cold:x has nothing cached; the others are asked for in a deliberate jumble.
+	// !cold:x has nothing cached; the others are deliberately out of order.
 	got, err := b.MarkRoomsRead(context.Background(),
 		[]domain.RoomID{"!a:x", "!cold:x", "!refused:x", "!b:x"}, false)
 	if err != nil {
@@ -150,8 +149,7 @@ func TestMarkRoomsReadWithoutACacheFails(t *testing.T) {
 	}
 }
 
-// Regression: marking a room read must clear its threads locally too (write the
-// thread_read floor), not wait for the receipt to echo back through sync.
+// Marking a room read writes the thread_read floor locally, without waiting for the echo.
 func TestMarkRoomsReadClearsThreadsLocally(t *testing.T) {
 	t.Parallel()
 

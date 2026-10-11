@@ -11,22 +11,20 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Leaving a space from the rail is asked as its network leaves it (domain.Space.Leaving).
-// A WhatsApp community goes with all its groups, asked once. A Matrix space is a
-// membership of its own, and so is each of its rooms: whether its rooms go too is asked,
-// then, for each of them also in another space, whether that one goes (or every such
-// room, either way), and last whether to leave the space itself. Nothing is left until
-// that last yes. A bridged room is left on its network too only if its bridge passes
-// a leave on, which the last question says.
+// Leaving a space from the rail follows its network (domain.Space.Leaving). A WhatsApp
+// community goes with all its groups, asked once. For a Matrix space (each room a separate
+// membership): ask whether its rooms go, then about each also in another space (or all at
+// once), and last whether to leave the space. Nothing is left until that last yes. A bridged
+// room is left on its network only if its bridge passes leaves on, which the last question
+// says.
 
-// spaceLeave is a space being left, gathered over its questions.
 type spaceLeave struct {
 	space domain.Space
 	// rooms go with the space; shared are rooms also in another space, still to ask about.
 	rooms  []domain.RoomID
 	shared []domain.RoomID
-	// asked is how many shared rooms have been asked about; kept, how many rooms stay
-	// because they are part of another chat left only whole (a forum's topics).
+	// asked counts shared rooms asked about; kept counts rooms kept because they are parts of
+	// another chat left only whole (a forum's topics).
 	asked, kept int
 }
 
@@ -44,9 +42,8 @@ func (m Model) askLeaveSpaceWith(space domain.Space) Model {
 	return m
 }
 
-// answerEarlierStep takes an answer to a question before the last one of leaving a
-// space or deleting a chat: a no there is an answer (keep its rooms, or one of them;
-// delete for you only), not a cancel.
+// answerEarlierStep takes an answer before the last question of leaving a space or deleting
+// a chat: a no there is an answer (keep the rooms, delete for you only), not a cancel.
 func (m Model) answerEarlierStep(c confirmState, yes bool) (Model, bool) {
 	switch c.action { //nolint:exhaustive // every other action is answered by resolveConfirm
 	case pendingLeaveSpaceRooms:
@@ -67,8 +64,8 @@ func (m Model) leaveSpace(l spaceLeave) (Model, tea.Cmd) {
 	return m, m.leaveSpaceAndRoomsCmd(l)
 }
 
-// answerSpaceRooms takes whether the space's rooms go with it: each room only in this
-// space goes, and each also in another is asked about.
+// answerSpaceRooms takes whether the space's rooms go: rooms only in this space go, rooms also
+// elsewhere are asked about.
 func (m Model) answerSpaceRooms(l spaceLeave, yes bool) Model {
 	if yes {
 		for _, room := range l.space.Children {
@@ -86,8 +83,7 @@ func (m Model) answerSpaceRooms(l spaceLeave, yes bool) Model {
 	return m.nextSpaceQuestion(l)
 }
 
-// answerSharedRoom takes whether the first room still asked about goes, or, for all,
-// whether every one left to ask about does.
+// answerSharedRoom takes whether the next asked room goes, or with all, every remaining one.
 func (m Model) answerSharedRoom(l spaceLeave, yes, all bool) Model {
 	if len(l.shared) == 0 {
 		return m.nextSpaceQuestion(l)
@@ -114,9 +110,8 @@ func (m Model) nextSpaceQuestion(l spaceLeave) Model {
 	return m
 }
 
-// otherSpacesOf is the names of the spaces besides except that hold room and could be
-// left themselves: an account's own space holds all its rooms, so it is not another
-// place a room is in.
+// otherSpacesOf is the names of other leavable spaces holding room; an account's own space
+// holds all its rooms, so it does not count.
 func (m Model) otherSpacesOf(room domain.RoomID, except domain.SpaceID) []string {
 	var names []string
 	for _, s := range m.rooms.spaces {
@@ -127,9 +122,8 @@ func (m Model) otherSpacesOf(room domain.RoomID, except domain.SpaceID) []string
 	return names
 }
 
-// wholeChatOf is the name of a space whose rooms are parts of one chat with it (a
-// forum: domain.Space.Whole) and that holds room: such a room is left only with all
-// of it.
+// wholeChatOf names a space holding room whose rooms are parts of one chat (a forum,
+// domain.Space.Whole); such a room is left only with all of it.
 func (m Model) wholeChatOf(room domain.RoomID) (string, bool) {
 	for _, s := range m.rooms.spaces {
 		if s.Whole() && slices.Contains(s.Children, room) {
@@ -139,7 +133,7 @@ func (m Model) wholeChatOf(room domain.RoomID) (string, bool) {
 	return "", false
 }
 
-// spaceRoomName is a room of a space being left, by the name the room list gives it.
+// spaceRoomName is a room's name as the room list gives it.
 func (m Model) spaceRoomName(id domain.RoomID) string {
 	if room, ok := m.roomByID(id); ok {
 		return m.roomName(room)
@@ -170,9 +164,8 @@ func (m Model) leaveSpacePrompt(c confirmState) string {
 	}
 }
 
-// bridgedNote says which rooms being left are bridged ones. A bridge leaves them on
-// their network only when it is set to (mautrix's bridge_matrix_leave, off by
-// default), which kith cannot see, so it says so rather than promise it.
+// bridgedNote names the bridged rooms being left. A bridge leaves them on their network only
+// if configured to (mautrix's bridge_matrix_leave, off by default), which kith cannot see.
 func (m Model) bridgedNote(rooms []domain.RoomID) string {
 	by := map[domain.Protocol]int{}
 	var networks []domain.Protocol
@@ -201,7 +194,6 @@ func (m Model) bridgedNote(rooms []domain.RoomID) string {
 		", left there too only if the bridge passes a leave on (bridge_matrix_leave)"
 }
 
-// spaceLeftMsg reports leaving a space and the rooms that went with it.
 type spaceLeftMsg struct {
 	space domain.Space
 	// left are the rooms left; failed, each room that could not be, with why.
@@ -217,8 +209,8 @@ type roomFailure struct {
 	err  error
 }
 
-// leaveSpaceAndRoomsCmd leaves each room, then the space. A room that fails does not
-// stop the others, nor the space: each failure is reported.
+// leaveSpaceAndRoomsCmd leaves each room, then the space. A failing room stops neither the
+// others nor the space; each failure is reported.
 func (m Model) leaveSpaceAndRoomsCmd(l spaceLeave) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {

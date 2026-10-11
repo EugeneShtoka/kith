@@ -8,14 +8,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// selvesMsg is every ID that is this person, as the daemon knows them (api.Identity).
+// selvesMsg is every ID that is this person, per the daemon (api.Identity).
 type selvesMsg struct {
 	ids []string
 	err error
 }
 
-// loadSelvesCmd asks who this person is: at start, and when the room list brings an
-// account not seen before (see selvesAfterRooms).
+// loadSelvesCmd asks who this person is: at start, and when rooms show a new account
+// (see selvesAfterRooms).
 func (m Model) loadSelvesCmd() tea.Cmd {
 	return fetch(m.ctx, m.backend.Selves, func(ids []string, err error) tea.Msg { return selvesMsg{ids: ids, err: err} })
 }
@@ -28,13 +28,11 @@ func (m Model) handleSelves(msg selvesMsg) (Model, tea.Cmd) {
 	return m.withPeerAliases(), nil
 }
 
-// isMe reports whether id is this person: any ID the daemon says is theirs, on any
-// network (each network's own accounts, the IDs a bridge posts as for them).
+// isMe reports whether id is this person on any network (own accounts and bridge puppets).
 func (m Model) isMe(id string) bool {
 	return id != "" && slices.Contains(m.selves, id)
 }
 
-// selfIDs is every ID isMe accepts, in the daemon's order.
 func (m Model) selfIDs() []string {
 	ids := make([]string, 0, len(m.selves))
 	for _, id := range m.selves {
@@ -45,8 +43,7 @@ func (m Model) selfIDs() []string {
 	return ids
 }
 
-// selfIn is this person's ID on room's network, the first the daemon lists when they
-// have several there; "" when none.
+// selfIn is this person's first ID on room's network, or "".
 func (m Model) selfIn(room domain.RoomID) string {
 	network := domain.NetworkOf(string(room))
 	for _, id := range m.selfIDs() {
@@ -57,10 +54,9 @@ func (m Model) selfIn(room domain.RoomID) string {
 	return ""
 }
 
-// selvesAfterRooms asks again who this person is when rooms arrive from a network
-// account the list had none from: an account logging in (a WhatsApp phone just
-// linked) is what adds IDs, and its rooms are the first sign of it. The first list's
-// accounts are what the ask at startup covers.
+// selvesAfterRooms asks again who this person is when rooms arrive from a new
+// account: a login (a phone just linked) adds IDs, and its rooms are the first sign.
+// The startup ask covers the first list.
 func (m Model) selvesAfterRooms(rooms []domain.Room) (Model, tea.Cmd) {
 	first := m.roomAccounts == nil
 	if first {

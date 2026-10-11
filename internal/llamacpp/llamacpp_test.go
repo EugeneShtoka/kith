@@ -11,8 +11,7 @@ import (
 	"time"
 )
 
-// attached is a Predictor already holding a server, which is the state every ask after
-// the first one is in.
+// attached is a Predictor already holding a server.
 func attached(s *stub) *Predictor {
 	return &Predictor{
 		settings: Settings{Command: "llama-server", Model: "/models/x.gguf"},
@@ -20,9 +19,6 @@ func attached(s *stub) *Predictor {
 	}
 }
 
-// The strip belongs to NextWords rather than to every caller. The composer hands over a
-// draft ending in a space — that is what a word boundary *is* over there — and with the
-// space left on, this model answers "2", "1", "3" instead of words.
 func TestNextWordsStripsTheDraftsTrailingSpace(t *testing.T) {
 	t.Parallel()
 
@@ -39,8 +35,7 @@ func TestNextWordsStripsTheDraftsTrailingSpace(t *testing.T) {
 	}
 }
 
-// Slack over what is wanted, because the filtering happens after the answer arrives: ask
-// for exactly two and a full stop and a duplicate leave one.
+// Filtering happens after the answer, so it asks for more than n.
 func TestNextWordsAsksForMoreThanItNeeds(t *testing.T) {
 	t.Parallel()
 
@@ -58,8 +53,7 @@ func TestNextWordsWithNothingToAskAnswersNothing(t *testing.T) {
 
 	s := newStub(t, " a")
 	p := attached(s)
-	// A draft that is nothing but the boundary. Not an error: it is what the composer
-	// holds for the first keystroke of a message, and there is no sentence to continue.
+	// A blank draft is not an error, just nothing to continue.
 	got, err := p.NextWords(t.Context(), "   ", 4)
 	if err != nil || len(got) != 0 {
 		t.Errorf("NextWords = %v, %v; want nothing and no error", got, err)
@@ -69,15 +63,12 @@ func TestNextWordsWithNothingToAskAnswersNothing(t *testing.T) {
 	}
 }
 
-// A server that has died — a suspended laptop, the OOM killer, somebody's pkill — is
-// forgotten rather than talked to for the rest of the session.
 func TestAFailedAskDropsTheServer(t *testing.T) {
 	t.Parallel()
 
 	s := newStub(t)
 	p := attached(s)
-	// Closing the stub is the cheapest honest version of a dead server: the port stops
-	// answering, which is exactly what the process going away looks like from here.
+	// A closed port looks like a dead server.
 	s.Close()
 
 	if _, err := p.NextWords(t.Context(), "hello", 4); err == nil {
@@ -91,9 +82,6 @@ func TestAFailedAskDropsTheServer(t *testing.T) {
 	}
 }
 
-// forget is called from a failed request, which may land after another goroutine has
-// already replaced the server. Stopping *that* one would turn one slow completion into a
-// restart loop.
 func TestForgetLeavesAServerThatHasAlreadyBeenReplaced(t *testing.T) {
 	t.Parallel()
 
@@ -111,7 +99,6 @@ func TestForgetLeavesAServerThatHasAlreadyBeenReplaced(t *testing.T) {
 	}
 }
 
-// Close is final: a request racing a shutdown must not spawn a process nobody is holding.
 func TestNothingIsSpawnedAfterClose(t *testing.T) {
 	t.Parallel()
 
@@ -124,9 +111,7 @@ func TestNothingIsSpawnedAfterClose(t *testing.T) {
 	}
 }
 
-// Two states, two fixes: a model that is not installed is a download this client can do,
-// and a server that is not installed is a package manager. The offer has to say which, so
-// they are separate errors rather than a bool.
+// A missing model and a missing server have different fixes, so separate errors.
 func TestWhyNamesWhichHalfIsMissing(t *testing.T) {
 	t.Parallel()
 
@@ -146,16 +131,14 @@ func TestWhyNamesWhichHalfIsMissing(t *testing.T) {
 	}
 }
 
-// The idle stop is the whole reason the daemon can hold this at all: 460 MB resident
-// against 420ms to get it back.
+// The idle stop matters: 460 MB resident against 420ms to reload.
 func TestTheServerIsStoppedOnceItGoesQuiet(t *testing.T) {
 	t.Parallel()
 
 	s := newStub(t)
 	p := attached(s)
 	srv := p.running
-	// A clock that has already run past the window, so the first tick decides. The
-	// alternative is a test that sleeps for the real idle period.
+	// A clock already past the window, so the first tick decides.
 	srv.now = func() time.Time { return time.Now().Add(time.Hour) }
 
 	done := make(chan struct{})
@@ -173,8 +156,6 @@ func TestTheServerIsStoppedOnceItGoesQuiet(t *testing.T) {
 	}
 }
 
-// A window of zero means the default and a negative one means "never stop it", which is
-// the setting for a machine with memory to spare.
 func TestIdleZeroIsTheDefaultAndNegativeNeverStops(t *testing.T) {
 	t.Parallel()
 
@@ -184,8 +165,7 @@ func TestIdleZeroIsTheDefaultAndNegativeNeverStops(t *testing.T) {
 	if got := idleOr(-1); got != -1 {
 		t.Errorf("idleOr(-1) = %v, want it left alone", got)
 	}
-	// And the watch for it returns rather than ticking forever over a server it will
-	// never stop.
+	// The watch returns rather than ticking forever.
 	done := make(chan struct{})
 	go func() { defer close(done); (&Predictor{}).watchIdle(nil, -1) }()
 	select {
@@ -195,9 +175,6 @@ func TestIdleZeroIsTheDefaultAndNegativeNeverStops(t *testing.T) {
 	}
 }
 
-// The command line follows from decisions this package has already made, and two of them
-// are worth pinning: loopback only, because the model reads drafts, and one slot, because
-// four divide the context window while multiplying the KV cache.
 func TestTheServerIsSpawnedOnLoopbackWithOneSlot(t *testing.T) {
 	t.Parallel()
 
@@ -215,16 +192,13 @@ func TestTheServerIsSpawnedOnLoopbackWithOneSlot(t *testing.T) {
 			t.Errorf("%v: want %s %s", got, want[0], want[1])
 		}
 	}
-	// Threads unset leaves llama-server's own default alone rather than passing zero,
-	// which it reads as "no threads at all".
+	// Unset threads must not pass zero, which llama-server reads as no threads.
 	if plain := args(Settings{Model: "/models/x.gguf"}, 1); slices.Contains(plain, "--threads") {
 		t.Errorf("%v: --threads passed for a setting nobody made", plain)
 	}
 }
 
-// Only a dead server is forgotten. One that is slow or answers badly is kept: a cold
-// prompt on a slow CPU outlasts the timeout, and forgetting it would respawn the server
-// on every keystroke.
+// A slow or badly answering server is kept; forgetting it would respawn per keystroke.
 func TestOnlyADeadServerIsForgotten(t *testing.T) {
 	t.Parallel()
 

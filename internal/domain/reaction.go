@@ -1,7 +1,6 @@
 package domain
 
-// Reaction is a single m.reaction annotation: someone reacted to a target message with
-// a key (an emoji or short string).
+// Reaction is a single m.reaction annotation on a target message.
 type Reaction struct {
 	ID     EventID // the m.reaction event's own ID
 	RoomID RoomID
@@ -10,24 +9,21 @@ type Reaction struct {
 	Key    string // the reaction key (typically an emoji)
 }
 
-// ReactionUpdate is one live reaction change streamed from the sync loop: an added
-// reaction, or — when Removed — one taken back via redaction.
+// ReactionUpdate is one live reaction change: added, or Removed by redaction.
 type ReactionUpdate struct {
 	Reaction Reaction
 	Removed  bool
 }
 
-// ReactionTally is the per-key aggregate rendered beneath a message: the key, how many
-// people reacted with it, and whether the current user is among them (so the UI can
-// mark the ones they can toggle off).
+// ReactionTally is one key's aggregate under a message; Mine marks the user's own.
 type ReactionTally struct {
 	Key   string
 	Count int
 	Mine  bool
 }
 
-// AggregateReactions groups a target's reactions by key into display tallies, ordered
-// by first appearance so the row is stable across renders.
+// AggregateReactions tallies reactions by key in order of first appearance, so the
+// row is stable across renders.
 func AggregateReactions(rs []Reaction, me string) []ReactionTally {
 	idx := make(map[string]int, len(rs))
 	seen := make(map[EventID]bool, len(rs))

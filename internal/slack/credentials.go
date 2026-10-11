@@ -6,21 +6,19 @@ import (
 	"fmt"
 )
 
-// Secrets is where credentials are kept: the OS secret store, through the daemon (it
-// owns the keyring entries; this package needs only a name → value store).
+// Secrets is the OS secret store, via the daemon, which owns the keyring entries.
 type Secrets interface {
-	// Secret is the value kept under ref; ok false when there is none.
+	// Secret is the value under ref; ok is false when there is none.
 	Secret(ref string) (value string, ok bool, err error)
 	StoreSecret(ref, value string) error
 	DeleteSecret(ref string) error
 }
 
-// Credentials are one workspace's session as the Slack web client holds it: the
-// xoxc token and the `d` cookie it is only good together with, and who and where
-// they sign in as. Whoever has them can read and write as the person, so they live
-// in the OS secret store alone.
+// Credentials are a web-client session: the xoxc token, the `d` cookie it only works
+// with, and the team and user. They grant full access, so they live only in the OS
+// secret store.
 type Credentials struct {
-	// Team is the workspace's ID: the account part of every room and message ID.
+	// Team is the workspace ID: the account part of every room and message ID.
 	Team string `json:"team"`
 	// User is the person's user ID in the workspace.
 	User   string `json:"user"`
@@ -31,11 +29,10 @@ type Credentials struct {
 // errIncomplete is credentials missing a part Slack needs.
 var errIncomplete = errors.New("slack: credentials need a team, a user, a token and a cookie")
 
-// errUnusable is credentials that were kept but cannot be used: one account's
-// problem, not the store's.
+// errUnusable is stored credentials that cannot be used: the account's problem, not
+// the store's.
 var errUnusable = errors.New("unusable")
 
-// valid reports whether every part is there.
 func (c Credentials) valid() error {
 	if c.Team == "" || c.User == "" || c.Token == "" || c.Cookie == "" {
 		return errIncomplete
@@ -43,10 +40,10 @@ func (c Credentials) valid() error {
 	return nil
 }
 
-// credentialsRef is where an account's credentials are kept, by its configured name.
+// credentialsRef is the secret name for an account's credentials.
 func credentialsRef(account string) string { return "slack|" + account }
 
-// loadCredentials is an account's credentials; ok false when it is not signed in.
+// loadCredentials reads an account's credentials; ok is false when not signed in.
 func loadCredentials(secrets Secrets, account string) (Credentials, bool, error) {
 	blob, ok, err := secrets.Secret(credentialsRef(account))
 	if err != nil || !ok {
@@ -62,7 +59,6 @@ func loadCredentials(secrets Secrets, account string) (Credentials, bool, error)
 	return c, true, nil
 }
 
-// saveCredentials keeps an account's credentials.
 func saveCredentials(secrets Secrets, account string, c Credentials) error {
 	if err := c.valid(); err != nil {
 		return err

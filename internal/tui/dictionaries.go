@@ -10,10 +10,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Offering the dictionaries this account's own writing asks for, detected from the
-// cache by the daemon. Never automatic. esc dismisses (asked again next launch);
-// unticking a row and accepting declines that language for good. The prompts are a
-// chain — dictionaries, word frequencies, completion model — one at a time.
+// Offering dictionaries this account's own writing needs, detected from the cache by
+// the daemon. Never automatic. esc dismisses until next launch; unticking a row and
+// accepting declines that language for good. Prompts chain one at a time:
+// dictionaries, word frequencies, completion model.
 
 // dictionaryOffer is the state behind the one-time prompt.
 type dictionaryOffer struct {
@@ -27,7 +27,6 @@ type dictionaryOffer struct {
 	shownFreq []string
 }
 
-// offerDictionariesCmd asks the daemon what languages the corpus holds.
 func (m Model) offerDictionariesCmd() tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
@@ -40,15 +39,14 @@ func (m Model) offerDictionariesCmd() tea.Cmd {
 	}
 }
 
-// dictionaryOfferMsg carries the detector's answer back to the event loop.
 type dictionaryOfferMsg struct {
 	suggestion domain.SpellSuggestion
 }
 
-// maybeOfferDictionaries decides whether to ask at all, and asks once.
+// maybeOfferDictionaries asks once, if there is anything to ask.
 func (m Model) maybeOfferDictionaries() (Model, tea.Cmd) {
 	if len(m.rooms.joined) == 0 {
-		// Cold start with no corpus yet: do not set `asked`, so it is asked later.
+		// Cold start with no corpus: leave `asked` unset so it is asked later.
 		return m, nil
 	}
 	if m.offers.dictionaries.asked {
@@ -56,7 +54,7 @@ func (m Model) maybeOfferDictionaries() (Model, tea.Cmd) {
 	}
 	m.offers.dictionaries.asked = true
 	if !m.conf.base.Spell.SpellEnabled() {
-		// Spelling is off, but the chain continues to the completion model.
+		// Spelling is off; the chain continues to the completion model.
 		return m.maybeOfferModel()
 	}
 	return m, m.offerDictionariesCmd()
@@ -71,7 +69,7 @@ func (m Model) handleDictionaryOffer(msg dictionaryOfferMsg) (Model, tea.Cmd) {
 	}
 
 	items := make([]pickerItem, 0, len(msg.suggestion.Candidates))
-	// Every row starts ticked; the prompt exists to let somebody disagree.
+	// Every row starts ticked; the prompt is for opting out.
 	checked := make(map[string]bool, len(msg.suggestion.Candidates))
 	shown := make([]string, 0, len(msg.suggestion.Candidates))
 	for _, c := range msg.suggestion.Candidates {
@@ -96,8 +94,8 @@ func (m Model) handleDictionaryOffer(msg dictionaryOfferMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// offerFrequencies raises the word-counts prompt, second in the chain, if there is
-// anything left to offer.
+// offerFrequencies raises the word-counts prompt, second in the chain, if anything is
+// left to offer.
 func (m Model) offerFrequencies(candidates []domain.FrequencyCandidate) (Model, tea.Cmd) {
 	items := make([]pickerItem, 0, len(candidates))
 	checked := make(map[string]bool, len(candidates))
@@ -111,8 +109,8 @@ func (m Model) offerFrequencies(candidates []domain.FrequencyCandidate) (Model, 
 			value:  c.Tag,
 			detail: frequencyDetail(c),
 		})
-		// Only recommended rows start ticked: for some languages the download far
-		// outweighs how often the check would fire.
+		// Only recommended rows start ticked: for some languages the download outweighs how
+		// often the check would fire.
 		checked[c.Tag] = c.Recommended
 		shown = append(shown, c.Tag)
 	}
@@ -168,7 +166,6 @@ func (m Model) installFrequencies(tags []string) (Model, tea.Cmd) {
 	}
 }
 
-// frequenciesInstalledMsg is what came of it.
 type frequenciesInstalledMsg struct {
 	installed []string
 	failed    []string
@@ -196,12 +193,12 @@ func (m Model) acceptDictionaryOffer(tags []string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	next, save := m.declineDictionaries(declined)
 	install, fetch := next.installDictionaries(tags)
-	// With no frequencies to offer this goes on to the model offer, whose Cmd must run.
+	// With no frequencies to offer this moves on to the model offer, whose Cmd must run.
 	install, offer := install.offerFrequencies(install.offers.dictionaries.frequencies)
 	return install, tea.Batch(save, fetch, offer)
 }
 
-// declineDictionaries writes the refusals to the config, so they outlive the session.
+// declineDictionaries writes the refusals to the config so they outlive the session.
 func (m Model) declineDictionaries(tags []string) (Model, tea.Cmd) {
 	if len(tags) == 0 {
 		return m, nil
@@ -224,7 +221,6 @@ func (m Model) installDictionaries(tags []string) (Model, tea.Cmd) {
 	}
 }
 
-// dictionariesInstalledMsg is what came of it.
 type dictionariesInstalledMsg struct {
 	installed []string
 	failed    []string
@@ -243,7 +239,7 @@ func (m Model) handleDictionariesInstalled(msg dictionariesInstalledMsg) (Model,
 	}
 }
 
-// unticked is the rows shown but not chosen: the declined ones.
+// unticked is the rows shown but not chosen.
 func unticked(shown, chosen []string) []string {
 	var out []string
 	for _, tag := range shown {

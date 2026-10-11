@@ -30,9 +30,7 @@ func TestLiveModel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Drafts ending in a space, which is what the composer hands over at a word
-	// boundary: the trailing space is the caller's, and stripping it is this package's
-	// job rather than something every caller has to remember.
+	// Drafts end in a space, as the composer sends them; NextWords strips it.
 	for _, draft := range []string{
 		"I think we should check the ",
 		"let us meet ",

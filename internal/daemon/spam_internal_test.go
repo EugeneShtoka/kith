@@ -13,8 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// spamStoreStub is a spamStore whose recorded verdicts the test replaces, as syncs from
-// the account's other machines would.
+// spamStoreStub is a spamStore whose verdicts the test replaces, as syncs from other
+// machines would.
 type spamStoreStub struct {
 	mu       sync.Mutex
 	verdicts []domain.SpamVerdict
@@ -65,7 +65,7 @@ func TestTheCaughtMemoIsReReadFromTheCache(t *testing.T) {
 	}
 }
 
-// failingSpamStore refuses every write and read, the way a cache on a full disk would.
+// failingSpamStore refuses every read and write, like a cache on a full disk.
 type failingSpamStore struct{ spamStoreStub }
 
 func (*failingSpamStore) MarkSpam(context.Context, domain.SpamVerdict) error {
@@ -76,8 +76,8 @@ func (*failingSpamStore) SpamRooms(context.Context) ([]domain.SpamVerdict, error
 	return nil, errors.New("database is locked")
 }
 
-// A verdict that could not be written still holds in memory, but the journal hears
-// that it will not survive a restart; a failed reseed is logged too.
+// An unwritten verdict holds in memory, and the journal hears it will not survive a
+// restart; a failed reseed is logged too.
 func TestSpamStoreFailuresAreLogged(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer

@@ -8,9 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// ForgetThreads drops a room's threads from the cache: every message in one, the
-// messages that began them (roots), and how far each was read. A network that now
-// keeps what were threads as rooms of their own (a forum's topics) refetches them there.
+// ForgetThreads drops a room's thread messages, their roots and read positions, for
+// a network that now keeps threads as rooms of their own (a forum's topics).
 func (c *Cache) ForgetThreads(ctx context.Context, room domain.RoomID, roots []domain.EventID) error {
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM messages WHERE room_id = ? AND thread_root <> ''", string(room)); err != nil {
@@ -28,8 +27,7 @@ func (c *Cache) ForgetThreads(ctx context.Context, room domain.RoomID, roots []d
 	})
 }
 
-// ForgetOwned drops every room and space owner has from the cache, with everything
-// kept of them: an account signed out whose history is not to stay.
+// ForgetOwned drops every room and space of owner, with everything kept of them.
 func (c *Cache) ForgetOwned(ctx context.Context, owner domain.RoomOwner) error {
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		for _, table := range []string{"rooms", "spaces"} {
@@ -42,8 +40,7 @@ func (c *Cache) ForgetOwned(ctx context.Context, owner domain.RoomOwner) error {
 	})
 }
 
-// ForgetRooms drops rooms from the cache, with everything kept of them: rooms left. A
-// space is a room too (a Matrix space, a WhatsApp community), and goes as one.
+// ForgetRooms drops rooms, with everything kept of them; a space ID drops the space.
 func (c *Cache) ForgetRooms(ctx context.Context, rooms []domain.RoomID) error {
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		for _, room := range rooms {

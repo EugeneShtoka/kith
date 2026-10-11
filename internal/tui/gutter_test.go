@@ -9,11 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The gutter and the count are one idea: the numbers answer "how far is that" and the
-// count is what you do with the answer.
-
-// selectedRoomName is which room the list is on, by name — enough to tell three
-// different rooms apart, which is all these tests ask.
+// selectedRoomName is the selected room's name, enough to tell the test rooms apart.
 func selectedRoomName(t *testing.T, m Model) string {
 	t.Helper()
 	room, ok := m.currentRoom()
@@ -23,7 +19,6 @@ func selectedRoomName(t *testing.T, m Model) string {
 	return room.Name
 }
 
-// digits presses a run of number keys, which is what typing a count looks like.
 func digits(t *testing.T, m Model, run string) Model {
 	t.Helper()
 	for _, r := range run {
@@ -41,8 +36,7 @@ func TestDigitsAccumulateIntoACount(t *testing.T) {
 	if m.motion.count != 12 {
 		t.Fatalf("count = %d after typing 12, want 12", m.motion.count)
 	}
-	// It is shown while it is pending: a count you cannot see is one you cannot tell
-	// from a key that did nothing.
+	// A pending count is shown on the status line.
 	if !strings.Contains(m.status(), "12") {
 		t.Errorf("status = %q, want the pending count", m.status())
 	}
@@ -79,8 +73,7 @@ func TestACountIsTakenByTheNextMotionAndCleared(t *testing.T) {
 	}
 }
 
-// A count typed and then abandoned must not multiply something three keystrokes later,
-// which is the surprise vim avoids with the same rule.
+// An abandoned count must not multiply a later motion (as in vim).
 func TestACountIsClearedByAKeyThatIsNotAMotion(t *testing.T) {
 	t.Parallel()
 
@@ -91,8 +84,7 @@ func TestACountIsClearedByAKeyThatIsNotAMotion(t *testing.T) {
 	if m.motion.count != 0 {
 		t.Errorf("count = %d after another key, want it cleared", m.motion.count)
 	}
-	// The key that follows takes what is pending — which is now nothing — so a count
-	// typed and abandoned cannot multiply a motion two keystrokes later.
+	// The next key takes what is pending, now nothing.
 	after, _ := m.handleKey(tea.KeyPressMsg{Code: 'z'})
 	m = after
 	if got := m.take(); got != 1 {
@@ -100,8 +92,7 @@ func TestACountIsClearedByAKeyThatIsNotAMotion(t *testing.T) {
 	}
 }
 
-// Rooms are stepped over one at a time rather than by index, because the rows between
-// two rooms are not all rooms: a group header is a row and not a place.
+// Counts step selectable rows, not indices: a group header is a row but not a place.
 func TestACountStepsThatManySelectableRows(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +110,7 @@ func TestACountStepsThatManySelectableRows(t *testing.T) {
 	if start == after {
 		t.Fatal("a count of three moved nothing")
 	}
-	// Three steps down, then three back, is where it started.
+	// Three down then three back is where it started.
 	back, _ := m.stepRows(3, -1)
 	m = back
 	if got := selectedRoomName(t, m); got != start {
@@ -127,8 +118,7 @@ func TestACountStepsThatManySelectableRows(t *testing.T) {
 	}
 }
 
-// Running out of list stops at the last row rather than refusing the motion, which is
-// what every clamped cursor in this client does.
+// Running past the end clamps rather than refusing the motion, like every cursor here.
 func TestACountPastTheEndClampsRatherThanRefusing(t *testing.T) {
 	t.Parallel()
 
@@ -141,7 +131,7 @@ func TestACountPastTheEndClampsRatherThanRefusing(t *testing.T) {
 	if selectedRoomName(t, m) == "" {
 		t.Fatal("a count past the end selected nothing")
 	}
-	// And going back the same distance lands on the first, not somewhere before it.
+	// And back the same distance lands on the first.
 	back, _ := m.stepRows(99, -1)
 	m = back
 	if got := selectedRoomName(t, m); got != rooms[0].Name {
@@ -149,7 +139,7 @@ func TestACountPastTheEndClampsRatherThanRefusing(t *testing.T) {
 	}
 }
 
-// Off by default: a gutter is a column of screen given to a habit not everybody has.
+// Off by default: it costs a screen column.
 func TestTheGutterIsOffUntilAskedFor(t *testing.T) {
 	t.Parallel()
 
@@ -163,15 +153,15 @@ func TestTheGutterIsOffUntilAskedFor(t *testing.T) {
 	if m.gutterWidth() != gutterCells {
 		t.Errorf("gutter width = %d when on, want %d", m.gutterWidth(), gutterCells)
 	}
-	// **Taken out of the content width**, not drawn over it: the layout wraps to this
-	// number and the scroll arithmetic counts the rows it produces.
+	// Taken out of the content width, not drawn over it: layout wraps to it and scroll arithmetic
+	// counts its rows.
 	if narrow := m.contentWidth(); narrow != wide-gutterCells {
 		t.Errorf("content width = %d with the gutter on, want %d", narrow, wide-gutterCells)
 	}
 }
 
-// Distance is counted in messages — what the cursor moves in — and only the first row
-// of a message carries a number, because that is the row you can land on.
+// Distance counts messages (what the cursor moves in); only a message's first row carries a
+// number.
 func TestTheGutterNumbersMessagesNotRows(t *testing.T) {
 	t.Parallel()
 
@@ -192,8 +182,7 @@ func TestTheGutterNumbersMessagesNotRows(t *testing.T) {
 	}
 }
 
-// A date divider belongs to no message, so it carries no number: measuring from a row
-// the cursor can never be on would be measuring the wrong thing.
+// A date divider belongs to no message, so it carries no number.
 func TestTheGutterSkipsRowsThatBelongToNoMessage(t *testing.T) {
 	t.Parallel()
 
@@ -218,8 +207,7 @@ func TestTheGutterMarksTheCursorAndCapsTheDistance(t *testing.T) {
 	}
 }
 
-// `12G` in the room list: the count with a go-to-the-end key means *that row*, which is
-// the one reading of it that says anything — and it is what the numbers are for.
+// `12G` in the room list goes to that row.
 func TestACountWithTheEndKeyGoesToThatRow(t *testing.T) {
 	t.Parallel()
 
@@ -234,7 +222,7 @@ func TestACountWithTheEndKeyGoesToThatRow(t *testing.T) {
 	m = next
 	third := selectedRoomName(t, m)
 
-	// The same row from the other end of the list is the same row.
+	// The same row reached from the other end is the same row.
 	back, _ := m.gotoRow(1)
 	m = back
 	again, _ := m.gotoRow(3)
@@ -247,8 +235,7 @@ func TestACountWithTheEndKeyGoesToThatRow(t *testing.T) {
 	}
 }
 
-// Past the end lands on the last row rather than refusing, like every clamped cursor
-// here.
+// Past the end clamps rather than refusing.
 func TestGotoRowPastTheEndClamps(t *testing.T) {
 	t.Parallel()
 
@@ -268,8 +255,7 @@ func TestGotoRowPastTheEndClamps(t *testing.T) {
 	}
 }
 
-// The rail is a list like any other: `3G` is the third group, and its positions are
-// stable enough for a number to mean one thing.
+// The rail is a list like any other: `3G` is the third group.
 func TestACountReachesTheRailToo(t *testing.T) {
 	t.Parallel()
 
@@ -293,7 +279,7 @@ func TestACountReachesTheRailToo(t *testing.T) {
 		t.Errorf("2G landed on group %d, want the second", m.rail.cursor+1)
 	}
 
-	// And the count is spent: pressing it again is the plain end key.
+	// The count is spent: pressing again is the plain end key.
 	again, _ := m.railEnd(actSelectNewest)
 	m = again
 	if m.rail.cursor != last-1 {
@@ -301,7 +287,7 @@ func TestACountReachesTheRailToo(t *testing.T) {
 	}
 }
 
-// Past the end clamps rather than refusing, like every other cursor here.
+// Past the end clamps rather than refusing.
 func TestARailCountPastTheEndClamps(t *testing.T) {
 	t.Parallel()
 
@@ -317,9 +303,8 @@ func TestARailCountPastTheEndClamps(t *testing.T) {
 	}
 }
 
-// One pair of keys, every list: `gg`/`G` are `[keys.nav]`, shared by every pane, so the
-// top of the timeline, of the rail, of the room list and of a chooser are all the same
-// keystroke — and a count before them means that row in each.
+// `gg`/`G` are `[keys.nav]`, shared by every list (timeline, rail, room list, chooser), and a
+// count before them means that row in each.
 func TestTheEndKeysAreOnePairForEveryList(t *testing.T) {
 	t.Parallel()
 

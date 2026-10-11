@@ -125,14 +125,13 @@ func TestReleasingARoomWritesTheReleaseToAccountData(t *testing.T) {
 	}
 }
 
-// A rule never overwrites a release, even one not yet in this machine's cache: the
-// homeserver's copy is checked before writing.
+// A rule never overwrites a release, even one only on the homeserver.
 func TestARuleCannotOverwriteARelease(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	srv := newAccountDataServer(t)
-	// Released elsewhere: on the homeserver, and not in this machine's cache.
+	// Released elsewhere: on the homeserver, not in this cache.
 	srv.stored["!a:x"] = `{"rule":0,"released":true,"at_ms":1700000000000}`
 	b := backendWith(t, srv.Server, nil)
 

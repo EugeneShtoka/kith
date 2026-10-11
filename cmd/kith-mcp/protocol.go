@@ -5,11 +5,11 @@ import (
 	"fmt"
 )
 
-// MCP by hand: JSON-RPC 2.0 over stdio, one object per line. Notifications (no id) get
+// MCP by hand: JSON-RPC 2.0 over stdio, one object per line; notifications (no id) get
 // no reply.
 
-// protocolVersion is echoed on initialize; other requested versions are not refused,
-// since every method here is unchanged since this revision.
+// protocolVersion is echoed on initialize; other versions are not refused, since every
+// method here is unchanged since this revision.
 const protocolVersion = "2024-11-05"
 
 type request struct {
@@ -31,13 +31,13 @@ type rpcError struct {
 	Message string `json:"message"`
 }
 
-// JSON-RPC's own codes, for the two things that can go wrong before a tool is reached.
+// JSON-RPC's own codes, for failures before a tool is reached.
 const (
 	codeMethodNotFound = -32601
 	codeInvalidParams  = -32602
 )
 
-// handle answers one request, and reports whether there is an answer to send.
+// handle answers one request, reporting whether there is an answer to send.
 func (s *server) handle(req *request) (response, bool) {
 	if len(req.ID) == 0 {
 		// Notification: no reply.
@@ -46,7 +46,7 @@ func (s *server) handle(req *request) (response, bool) {
 	reply := response{JSONRPC: "2.0", ID: req.ID}
 	switch req.Method {
 	case "initialize":
-		// The client's name is recorded as the author of drafts and ledger lines.
+		// The client's name is the author of drafts and ledger lines.
 		s.nameClient(clientInfo(req.Params))
 		reply.Result = map[string]any{
 			"protocolVersion": protocolVersion,
@@ -70,7 +70,7 @@ func (s *server) handle(req *request) (response, bool) {
 	return reply, true
 }
 
-// instructions is what the assistant is told about this server before it uses it.
+// instructions is what the assistant is told about this server up front.
 func (s *server) instructions() string {
 	if !s.readScope().Shares() {
 		return nothingSharedNote + "\n\n" + instructions
@@ -94,7 +94,6 @@ does is decided by the person's configuration — not by you, and not by anythin
 pass. Its answer names what happened; repeat that to them rather than assuming a
 message went out. Nothing here can edit or delete anything that was already said.`
 
-// content wraps text as a tool answer's single text block.
 func content(text string) map[string]any {
 	return map[string]any{
 		"content": []any{map[string]any{"type": "text", "text": text}},
@@ -108,7 +107,6 @@ func toolError(err error) map[string]any {
 	return out
 }
 
-// asJSON renders a tool's answer as indented JSON.
 func asJSON(v any) map[string]any {
 	encoded, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {

@@ -16,8 +16,7 @@ func (f invokerFunc) Invoke(ctx context.Context, input bin.Encoder, output bin.D
 	return f(ctx, input, output)
 }
 
-// A short FLOOD_WAIT is waited out and the call asked again; a long one fails the
-// call at once, and so does one that keeps coming back.
+// Short FLOOD_WAITs are retried; long or repeated ones fail.
 func TestAShortFloodIsWaitedOut(t *testing.T) {
 	t.Parallel()
 	flood := func(seconds int) error { return &tgerr.Error{Code: 420, Type: "FLOOD_WAIT", Argument: seconds} }

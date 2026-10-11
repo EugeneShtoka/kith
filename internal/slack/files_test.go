@@ -17,9 +17,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// filesHost plays https://files.slack.com, where slack-go alone sends the session:
-// it answers downloads with the bytes kept under their path, takes uploads, and keeps
-// what each request carried. Every other request goes to the fake API server.
+// filesHost plays https://files.slack.com, the only host slack-go sends the session to:
+// it serves downloads by path, takes uploads, and records each request. Everything else
+// goes to the fake API server.
 type filesHost struct {
 	mu       sync.Mutex
 	files    map[string][]byte // by path
@@ -61,8 +61,8 @@ func (h *filesHost) asked() []*http.Request {
 	return h.requests
 }
 
-// slackWithFiles is the fake API server and files host, its client signed in with a
-// d cookie as a browser shows it.
+// slackWithFiles is the fake API server and files host, signed in with a d cookie as a
+// browser shows it.
 func slackWithFiles(t *testing.T) (*fakeSlack, *filesHost, *slackgo.Client) {
 	t.Helper()
 	host := &filesHost{files: map[string][]byte{"/files-pri/T1-F1/a.png": []byte("png bytes")}}
@@ -81,9 +81,8 @@ func imageMsg(ts, mode string) slackgo.Message {
 	}}
 }
 
-// A message's file is kept with it and loads with the workspace's session — the
-// token and the d cookie, encoded once. A file deleted since (a page that shows it
-// gone) loses its source, and loading it asks Slack nothing.
+// A message's file loads with the session (token and d cookie, encoded once). A file
+// since deleted loses its source, and loading it asks Slack nothing.
 func TestAFileLoadsWithTheSessionUntilItIsDeleted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -120,8 +119,8 @@ func TestAFileLoadsWithTheSessionUntilItIsDeleted(t *testing.T) {
 	}
 }
 
-// A file goes up by Slack's upload — named, sized, its bytes to the upload URL — and
-// is posted to the conversation with the caption as its message.
+// A file uploads (named, sized, bytes to the upload URL) and posts with the caption as
+// its message.
 func TestAFileGoesUpWithItsCaption(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -161,8 +160,7 @@ func TestAFileGoesUpWithItsCaption(t *testing.T) {
 	}
 }
 
-// A file heard live loads as one from history does; an edit that shows it deleted
-// takes its source.
+// A live file loads like one from history; an edit showing it deleted drops its source.
 func TestAFileHeardLiveLoadsUntilAnEditShowsItGone(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -187,8 +185,8 @@ func TestAFileHeardLiveLoadsUntilAnEditShowsItGone(t *testing.T) {
 	}
 }
 
-// A clip recorded in Slack is a voice message to play, even in a video container; an
-// uploaded audio file keeps its name.
+// A Slack-recorded clip is a voice message even in a video container; an uploaded
+// audio file keeps its name.
 func TestAnAudioClipIsAVoiceMessage(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

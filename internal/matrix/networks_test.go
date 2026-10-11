@@ -11,11 +11,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Each joined room not read yet has its network read from its bridge state in one
-// filtered sync and kept: by its bridge's bot, by the protocol it names, Matrix for a
-// room with none, by the older half-shot event as well; a room known already keeps its network whatever the reading says; a
-// room the reading does not carry stays unread; a failed reading is asked for again;
-// and a reading with nothing to read asks nothing.
+// Unread rooms get their network from bridge state in one filtered sync (bridge bot,
+// named protocol, half-shot event, else Matrix). A known room keeps its network, a room
+// not carried stays unread, a failure is retried, and nothing to read asks nothing.
 func TestTheRoomsNetworksAreReadOnce(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -96,9 +94,7 @@ func TestTheRoomsNetworksAreReadOnce(t *testing.T) {
 	}
 }
 
-// A reading runs when asked for, one at a time: asked again while one runs, it does
-// not start a second; a room refresh asks for one, for the rooms it brought, and
-// answers with what was read.
+// Readings run one at a time; a room refresh asks for one and answers with what was read.
 func TestAReadingIsAskedForAndRunsAlone(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

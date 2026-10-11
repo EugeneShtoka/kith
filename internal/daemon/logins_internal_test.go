@@ -13,8 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 )
 
-// asker is a network whose login shows a code now and then and asks until it is told
-// "ok"; running counts its logins under way.
+// asker is a network whose login sometimes shows a code and asks until told "ok";
+// running counts its logins under way.
 type asker struct{ running *atomic.Int32 }
 
 func (a asker) LoginNetwork() api.LoginNetwork { return api.LoginNetwork{Network: "fake"} }
@@ -41,10 +41,9 @@ func (a asker) Login(ctx context.Context, account string, talk api.LoginTalk) (a
 	}
 }
 
-// Logins under any interleaving of beginnings, answers and cancels, from several
-// callers at once: no call waits past its own deadline for a step that will not come,
-// every answer is a step or says the login has ended, and when the daemon stops, no
-// network's login is left running.
+// Under any interleaving of begin, answer and cancel from several callers: no call
+// waits past its deadline, every answer is a step or "ended", and no login outlives
+// the daemon.
 func TestLoginsNeverHangOrLeak(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(40) {
@@ -106,7 +105,7 @@ func TestLoginsNeverHangOrLeak(t *testing.T) {
 }
 
 // Beginning a login of an account ends the one under way: answering the older is
-// refused as ended, and the newer goes on.
+// refused as ended.
 func TestANewLoginOfAnAccountEndsTheOlder(t *testing.T) {
 	t.Parallel()
 	running := &atomic.Int32{}

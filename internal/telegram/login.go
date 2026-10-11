@@ -20,30 +20,24 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Logging in is a conversation (api.LoginTalk): the number is given, Telegram sends a
-// code, the code is given, and the password when the account has two-step
-// verification on. It runs on a connection of its own, which the session it signs in
-// with is taken from.
+// Login is an api.LoginTalk: number, code, then the 2FA password if set. It runs on
+// its own connection, whose session becomes the account's.
 
 // ErrNoAccount is a login for a name no [[telegram.account]] has.
 var ErrNoAccount = errors.New("telegram: no such [[telegram.account]]")
 
 var (
-	// errSuperseded is a login overtaken by a newer one of the same account, or by its
-	// leaving the config.
+	// errSuperseded: a newer login of the account began, or it left the config.
 	errSuperseded = errors.New("telegram: another login of this account began meanwhile")
-	// errNeedCode is an answer with no code, before the code was taken.
+	// errNeedCode is an empty answer to the code prompt.
 	errNeedCode = errors.New("telegram: the code Telegram sent is needed")
-	// errPasswordNeeded is an account with two-step verification on: signing in
-	// needs its password too.
+	// errPasswordNeeded: the account has 2FA on.
 	errPasswordNeeded = errors.New("telegram: this account has a two-step verification password; give it too")
-	// errBadCode is a login code that is not the one Telegram sent; another may be
-	// tried.
+	// errBadCode is a wrong code; the person may retry.
 	errBadCode = errors.New("telegram: that is not the code Telegram sent")
 )
 
-// login is an account's login under way: which of its logins it is (see
-// Adapter.signIns), and how to end it.
+// login is a login in progress: its generation (Adapter.signIns) and cancel.
 type login struct {
 	gen    int
 	cancel context.CancelFunc
@@ -59,7 +53,7 @@ func (a *Adapter) account(name string) (Account, error) {
 	return accounts[i], nil
 }
 
-// LoginNetwork is Telegram as a login lists it, with its accounts and their numbers.
+// LoginNetwork is Telegram with its accounts and numbers, for the login picker.
 func (a *Adapter) LoginNetwork() api.LoginNetwork {
 	n := api.LoginNetwork{Network: "telegram", Label: "Telegram", Detail: "a phone number, logged in with a code Telegram sends"}
 	for _, account := range a.accountsNow() {
@@ -68,9 +62,8 @@ func (a *Adapter) LoginNetwork() api.LoginNetwork {
 	return n
 }
 
-// Login logs account in, setting it up first when it is new (""): the app to log in
-// through, then the code Telegram sends, then the two-step password when the account
-// has one. A wrong answer is asked for again.
+// Login logs account in ("" sets up a new one): app, code, then 2FA password if any.
+// Wrong answers are asked again.
 func (a *Adapter) Login(ctx context.Context, name string, talk api.LoginTalk) (api.LoginEnd, error) {
 	if name == "" {
 		var err error
@@ -96,8 +89,8 @@ func (a *Adapter) Login(ctx context.Context, name string, talk api.LoginTalk) (a
 	return a.login(ctx, account, app, talk, a.newClient)
 }
 
-// askApp asks for the app to log in through until one will do: one's own, or, left
-// empty, kith's own when this build carries one.
+// askApp asks for the api_id/api_hash until valid; empty means the build's own app,
+// if it has one.
 func askApp(ctx context.Context, talk api.LoginTalk) (App, error) {
 	note := ""
 	for {
@@ -141,9 +134,8 @@ func isHash(s string) bool {
 	return len(s) == 32 && strings.Trim(strings.ToLower(s), "0123456789abcdef") == ""
 }
 
-// login logs account in through dial and app, ending any login of it under way: the
-// code is asked for once Telegram sent it, and the password when one is needed.
-// Signed in, the credentials are kept and the account connects.
+// login runs one login, canceling any earlier one of account; once signed in it
+// stores the credentials and connects.
 func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.LoginTalk, dial dialer) (api.LoginEnd, error) {
 	ctx, gen := a.beginLogin(ctx, account)
 	defer a.endLogin(account.Name, gen)
@@ -202,8 +194,7 @@ func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.
 	return end, err //nolint:wrapcheck // its own words, or the login's end
 }
 
-// beginLogin makes a login of account the latest, ending one under way, and is its
-// context and generation.
+// beginLogin starts a new login generation, canceling any in progress.
 func (a *Adapter) beginLogin(ctx context.Context, account Account) (context.Context, int) {
 	ctx, cancel := context.WithCancel(ctx)
 	a.mu.Lock()
@@ -227,8 +218,7 @@ func (a *Adapter) endLogin(name string, gen int) {
 	}
 }
 
-// signIn tries one answer: the code, then the password once Telegram asked for one
-// (codeTaken). The user is whom it signed in as.
+// signIn tries one answer: the code, or the password once Telegram asked (codeTaken).
 func (a *Adapter) signIn(
 	ctx context.Context, client *telegram.Client, phone, hash, code, password string, codeTaken *bool,
 ) (*tg.User, error) {
@@ -268,8 +258,8 @@ func signedInAs(in *tg.AuthAuthorization) (*tg.User, error) {
 	return user, nil
 }
 
-// keepLogin keeps a login's credentials, unless a newer login of the account began
-// meanwhile or it left the config: those would be overwritten by what is now stale.
+// keepLogin stores credentials unless a newer login began or the account left the
+// config.
 func (a *Adapter) keepLogin(account Account, gen int, creds Credentials) error {
 	a.keeping.Lock()
 	defer a.keeping.Unlock()
@@ -279,7 +269,7 @@ func (a *Adapter) keepLogin(account Account, gen int, creds Credentials) error {
 	return saveCredentials(a.secrets, account.Digits, creds)
 }
 
-// current reports whether gen is the account's latest login, and it is configured.
+// current reports whether gen is the latest login of a still-configured account.
 func (a *Adapter) current(account Account, gen int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -287,7 +277,7 @@ func (a *Adapter) current(account Account, gen int) bool {
 		slices.ContainsFunc(a.accounts, func(k Account) bool { return k.Name == account.Name && k.Digits == account.Digits })
 }
 
-// codeVia is where Telegram sent a code, as a person says it.
+// codeVia describes where Telegram sent the code.
 func codeVia(t tg.AuthSentCodeTypeClass) string {
 	switch t.(type) {
 	case *tg.AuthSentCodeTypeApp:
@@ -303,7 +293,7 @@ func codeVia(t tg.AuthSentCodeTypeClass) string {
 	return "Telegram"
 }
 
-// describeSendCode is why Telegram would not send a code, as a person can act on it.
+// describeSendCode explains a failed code request in actionable terms.
 func describeSendCode(err error) error {
 	switch {
 	case tgerr.Is(err, "PHONE_NUMBER_INVALID"):
@@ -319,7 +309,7 @@ func describeSendCode(err error) error {
 	return fmt.Errorf("telegram: have the code sent: %w", err)
 }
 
-// describeSignIn is why a code did not sign in: a wrong one may be tried again.
+// describeSignIn explains a failed sign-in; a wrong code may be retried.
 func describeSignIn(err error) error {
 	var signUp *auth.SignUpRequired
 	switch {
@@ -338,7 +328,7 @@ func personID(user int64) string {
 	return domain.NativePerson(domain.ProtocolTelegram, strconv.FormatInt(user, 10))
 }
 
-// userName is a user as a person calls them.
+// userName is a user's full name, else their @username.
 func userName(u *tg.User) string {
 	name := u.FirstName
 	if u.LastName != "" {
@@ -350,9 +340,8 @@ func userName(u *tg.User) string {
 	return name
 }
 
-// loginSession is a login's session, in memory until the login keeps it. gotd stores
-// it once the connection's setup is done, which runs beside the login's own calls: a
-// sign-in can finish first, so the login waits for it.
+// loginSession holds a login's session in memory until stored. gotd stores it after
+// connection setup, which can finish after sign-in, so the login waits for it.
 type loginSession struct {
 	session.StorageMemory
 	stored chan struct{}
@@ -361,7 +350,7 @@ type loginSession struct {
 
 func newLoginSession() *loginSession { return &loginSession{stored: make(chan struct{})} }
 
-// StoreSession keeps data, and says it was stored.
+// StoreSession keeps data and signals saved.
 func (s *loginSession) StoreSession(ctx context.Context, data []byte) error {
 	if err := s.StorageMemory.StoreSession(ctx, data); err != nil {
 		return err //nolint:wrapcheck // gotd's own storage

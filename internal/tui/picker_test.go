@@ -293,8 +293,7 @@ func TestPickerMoveIsItsOwnArithmetic(t *testing.T) {
 	}
 }
 
-// A list picker has no header until a filter is typed; the rows already name the
-// selection.
+// A list picker has no header until a filter is typed; the rows already show the selection.
 func TestAListPickerHasNoHeaderUntilYouType(t *testing.T) {
 	t.Parallel()
 

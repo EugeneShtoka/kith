@@ -24,7 +24,7 @@ func (c *Cache) Messages(ctx context.Context, roomID domain.RoomID, limit int) (
 	return msgs, nil
 }
 
-// MessageByID is one cached message, read as Messages reads each.
+// MessageByID returns one cached message, read as Messages reads each.
 func (c *Cache) MessageByID(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, bool, error) {
 	msgs, err := collect(ctx, c.db, "message",
 		messageSelect+` WHERE m.room_id = ? AND m.event_id = ?`,
@@ -35,10 +35,9 @@ func (c *Cache) MessageByID(ctx context.Context, roomID domain.RoomID, eventID d
 	return msgs[0], true, nil
 }
 
-// MarkRedacted flags a cached message as redacted, keeping sender/ts for the
-// placeholder, and erases its content unless keep. A message not cached yet gets a
-// tombstone instead (at is when it was deleted): whatever copy arrives later is saved
-// as deleted (see applyTombstone).
+// MarkRedacted flags a cached message as redacted (keeping sender/ts) and erases its
+// content unless keep. An uncached message gets a tombstone (at = deletion time), so a
+// later copy is saved as deleted (see applyTombstone).
 func (c *Cache) MarkRedacted(
 	ctx context.Context, roomID domain.RoomID, eventID domain.EventID, by, reason string, at time.Time, keep bool,
 ) error {
@@ -50,8 +49,8 @@ func (c *Cache) MarkRedacted(
 			return fmt.Errorf("db: mark redacted %s: %w", eventID, err)
 		}
 		if n, rerr := res.RowsAffected(); rerr == nil && n == 0 {
-			// Not a cached message: maybe the edit one shows (edits fold onto their
-			// target). Either way its tombstone keeps a later copy from applying.
+			// Not cached: maybe an edit folded onto its target. Either way the
+			// tombstone keeps a later copy from applying.
 			if err := revertShownEdit(ctx, tx, roomID, eventID, keep); err != nil {
 				return err
 			}
@@ -86,8 +85,7 @@ func buryUncached(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID
 	return nil
 }
 
-// isBuried reports whether a redaction of event arrived before any copy of it (see
-// buryUncached): for an edit event, that it was deleted.
+// isBuried reports whether a redaction of event arrived before any copy of it.
 func isBuried(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, event domain.EventID) (bool, error) {
 	if event == "" {
 		return false, nil
@@ -102,10 +100,8 @@ func isBuried(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, event domai
 	return found, nil
 }
 
-// applyTombstone saves a just-upserted message as deleted when a redaction of it came
-// first: flagged, its content forgotten (nothing of it was cached when it was deleted,
-// so there is nothing to keep), who deleted it recorded, and the tombstone spent.
-// applied reports whether there was one.
+// applyTombstone marks a just-upserted message deleted if its redaction came first:
+// content forgotten (nothing was cached to keep), redaction recorded, tombstone spent.
 func applyTombstone(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID domain.EventID) (applied bool, err error) {
 	var by, reason string
 	found, err := optional(tx.QueryRowContext(ctx,
@@ -135,8 +131,8 @@ func applyTombstone(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, event
 	return true, nil
 }
 
-// recordRedaction keeps who deleted a cached message and why; nothing for one not
-// cached (the stripped copy the server later serves carries them).
+// recordRedaction keeps who deleted a cached message and why; nothing for an uncached
+// one (the server's stripped copy carries them).
 func recordRedaction(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID domain.EventID, by, reason string) error {
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO message_redaction(room_id, event_id, by, reason)
@@ -164,7 +160,7 @@ func forgetContent(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventI
 	return nil
 }
 
-// EditShownBy is the message whose body comes from edit rev, if one does.
+// EditShownBy returns the message whose body comes from edit rev, if any.
 func (c *Cache) EditShownBy(ctx context.Context, roomID domain.RoomID, rev domain.EventID) (domain.EventID, bool, error) {
 	var target string
 	found, err := optional(c.db.QueryRowContext(ctx,
@@ -176,9 +172,8 @@ func (c *Cache) EditShownBy(ctx context.Context, roomID domain.RoomID, rev domai
 	return domain.EventID(target), found, nil
 }
 
-// revertShownEdit takes a deleted edit's words off the message showing them: back to
-// the newest other version cached (under keep), else to nothing and unedited, so the
-// original or another edit arriving later fills it (and the daemon asks the server).
+// revertShownEdit takes a deleted edit's words off its target: back to the newest other
+// cached version (under keep), else empty and unedited until a later copy fills it.
 func revertShownEdit(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, rev domain.EventID, keep bool) error {
 	var target string
 	found, err := optional(tx.QueryRowContext(ctx,
@@ -208,8 +203,8 @@ func revertShownEdit(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, rev 
 	return showVersion(ctx, tx, roomID, domain.EventID(target), prev, have)
 }
 
-// showVersion makes a message show one version of itself: an edit (recorded as the one
-// shown), the original (unedited), or, with none, nothing until one arrives.
+// showVersion makes a message show v: an edit (recorded as shown), the original, or,
+// when !have, nothing.
 func showVersion(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, target domain.EventID, v domain.Revision, have bool) error {
 	edited := have && v.ID != target
 	if _, err := tx.ExecContext(ctx,
@@ -241,8 +236,8 @@ func showVersion(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, target d
 	return nil
 }
 
-// ShowVersion is showVersion for the daemon, which fetched the version from the server
-// after the cache had none: taken only while the message still shows nothing.
+// ShowVersion applies a version fetched from the server, only while the message still
+// shows nothing.
 func (c *Cache) ShowVersion(ctx context.Context, roomID domain.RoomID, target domain.EventID, v domain.Revision) error {
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		var body string
@@ -260,9 +255,8 @@ func (c *Cache) ShowVersion(ctx context.Context, roomID domain.RoomID, target do
 	})
 }
 
-// forgetEdit drops the record of which edit a message shows, once it is deleted: a
-// deleted message says it was edited, not when or by which edit (as the client's
-// merge has it, see domain.combine).
+// forgetEdit drops which edit a message shows: a deleted message says it was edited,
+// not when or by which edit (as domain.combine has it).
 func forgetEdit(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID domain.EventID) error {
 	if _, err := tx.ExecContext(ctx, "DELETE FROM message_edit WHERE room_id = ? AND event_id = ?",
 		string(roomID), string(eventID)); err != nil {
@@ -271,8 +265,7 @@ func forgetEdit(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID d
 	return nil
 }
 
-// revisionsOf is the version each message carries, keyed by the event that carried
-// it; redactions and empty messages carry none.
+// revisionsOf is the version each message carries; redactions and empty messages carry none.
 func revisionsOf(msgs []domain.Message) []revisionRow {
 	rows := make([]revisionRow, 0, len(msgs))
 	for i := range msgs {
@@ -317,10 +310,8 @@ func (c *Cache) insertRevisions(ctx context.Context, roomID domain.RoomID, rows 
 	return c.inTx(ctx, func(tx *sql.Tx) error { return writeRevisions(ctx, tx, roomID, rows) })
 }
 
-// writeRevisions is insertRevisions inside the caller's transaction. A redacted
-// message gains no versions (its kept ones stay, and a forgotten one stays empty),
-// nor does one not cached (a copy of a deleted edit is not saved), and a deleted edit
-// is not a version.
+// writeRevisions is insertRevisions inside tx. Redacted or uncached messages gain no
+// versions, and a deleted edit is not one.
 func writeRevisions(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, rows []revisionRow) error {
 	if len(rows) == 0 {
 		return nil
@@ -366,17 +357,14 @@ func (c *Cache) Revisions(ctx context.Context, roomID domain.RoomID, eventID dom
 		}, string(roomID), string(eventID))
 }
 
-// SaveMessages upserts messages (skipping ones without an event ID) and trims the
-// room to what it keeps (UseKeep), in one transaction. A redacted copy (the server strips
-// content) forgets what the cache held, as MarkRedacted without keep does.
+// SaveMessages upserts messages (skipping ones without an event ID) and trims the room
+// to what it keeps, in one transaction. A redacted copy forgets the cached content.
 func (c *Cache) SaveMessages(ctx context.Context, roomID domain.RoomID, msgs []domain.Message) error {
 	return c.saveMessages(ctx, roomID, msgs, false)
 }
 
-// SaveMessagesWithRevisions is SaveMessages for [display.deleted] keep: it also
-// records the version each message carries, for the history view, in the same
-// transaction (a crash cannot keep a message and lose the version it arrived as),
-// and a redacted copy keeps the words already cached.
+// SaveMessagesWithRevisions is SaveMessages for [display.deleted] keep: it also records
+// each message's version in the same transaction, and a redacted copy keeps cached words.
 func (c *Cache) SaveMessagesWithRevisions(ctx context.Context, roomID domain.RoomID, msgs []domain.Message) error {
 	return c.saveMessages(ctx, roomID, msgs, true)
 }
@@ -386,17 +374,16 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 	if keep {
 		revisions = revisionsOf(msgs)
 	}
-	mine := c.mine() // outside the transaction: the networks answer it under their own locks
+	mine := c.mine() // outside the tx: networks answer under their own locks
 	limit := c.MessagesKept(roomID)
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		if err := registerRoom(ctx, tx, roomID); err != nil {
 			return err
 		}
-		// Order-independent upsert: flags only go 0→1, ts keeps the earliest, and a
-		// redacted body is never rewritten. A redacted copy empties the body unless
-		// keep (?13); an edit's body wins only when it is newer than the one shown
-		// (?14, see domain.SupersedesEdit). reply_to and thread_root are never
-		// blanked (an edit carries an empty thread root).
+		// Order-independent upsert: flags only go 0→1, ts keeps the earliest, a redacted
+		// body is never rewritten. A redacted copy empties the body unless keep (?13); an
+		// edit wins only when newer than the one shown (?14, domain.SupersedesEdit).
+		// reply_to and thread_root are never blanked (an edit carries no thread root).
 		stmt, err := tx.PrepareContext(ctx, `
 			INSERT INTO messages(room_id, event_id, sender, sender_name, body, ts_ms, redacted, edited, reply_to, mentioned, thread_root, emote) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
 			ON CONFLICT(room_id, event_id) DO UPDATE SET
@@ -437,12 +424,11 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 	})
 }
 
-// saveMessage upserts one message with stmt (saveMessages' upsert), then its side
-// rows: the edit it shows, or, when a redaction of it came first, its deletion.
+// saveMessage upserts one message, then its side rows or, if its redaction came first,
+// its deletion.
 func saveMessage(ctx context.Context, tx *sql.Tx, stmt *sql.Stmt, roomID domain.RoomID, m *domain.Message, keep bool) error {
 	if m.RevisionID != "" && m.RevisionID != m.ID {
-		// A copy of a deleted edit adds nothing: not its words to a cached row, and
-		// not a row of its words for an uncached one.
+		// A copy of a deleted edit adds nothing.
 		if buried, err := isBuried(ctx, tx, roomID, m.RevisionID); err != nil || buried {
 			return err
 		}
@@ -458,17 +444,15 @@ func saveMessage(ctx context.Context, tx *sql.Tx, stmt *sql.Stmt, roomID domain.
 	}
 	buried, err := applyTombstone(ctx, tx, roomID, m.ID)
 	if err != nil || buried {
-		return err // buried: deleted before it arrived, so none of it is kept
+		return err // deleted before it arrived: nothing kept
 	}
 	return saveExtras(ctx, tx, roomID, m, apply, keep)
 }
 
-// trim keeps a room's newest limit messages by a timestamp cutoff (one index seek; no
-// cutoff under the cap, none at all for a negative limit, which keeps every one). Messages sharing the boundary timestamp are all kept. Others'
-// reactions to what is trimmed go with it: nothing shows them, and they were the one
-// table that grew without bound. Our own stay, since reaction emoji are ranked from
-// them, and a reaction whose target was never cached is not touched (it may be paged
-// in later).
+// trim keeps a room's newest limit messages by timestamp cutoff (negative keeps all);
+// ties at the boundary are all kept. Others' reactions to trimmed messages go too, so
+// the table stays bounded; our own stay (they rank reaction emoji), as do reactions
+// to never-cached targets (which may be paged in later).
 func (c *Cache) trim(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, mine []string, limit int) error {
 	if limit < 0 {
 		return nil
@@ -499,8 +483,7 @@ func (c *Cache) trim(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, mine
 		`DELETE FROM messages WHERE room_id = ? AND ts_ms < ?`, string(roomID), cutoff.Int64); err != nil {
 		return fmt.Errorf("db: trim messages: %w", err)
 	}
-	// A message is older than its deletion, so one deleted before the cutoff would be
-	// trimmed on arrival anyway: its tombstone guards nothing.
+	// A message deleted before the cutoff would be trimmed on arrival anyway.
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM message_tombstone WHERE room_id = ? AND ts_ms < ?`, string(roomID), cutoff.Int64); err != nil {
 		return fmt.Errorf("db: trim tombstones: %w", err)
@@ -508,8 +491,7 @@ func (c *Cache) trim(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, mine
 	return nil
 }
 
-// editApplies reports whether m is an edit newer than the one its target shows, so
-// its body and formatting replace what is cached.
+// editApplies reports whether m is an edit newer than the one its target shows.
 func editApplies(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message) (bool, error) {
 	if !m.Edited || m.Redacted {
 		return false, nil
@@ -545,8 +527,7 @@ func recordEdit(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain
 	return nil
 }
 
-// dropSuperseded deletes rows an edit left keyed on its own event ID, now that the
-// edit folds onto its target.
+// dropSuperseded deletes rows keyed on an edit's own event ID; edits fold onto their target.
 func dropSuperseded(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, msgs []domain.Message) error {
 	stmt, err := tx.PrepareContext(ctx, `DELETE FROM messages WHERE room_id = ? AND event_id = ?`)
 	if err != nil {
@@ -565,8 +546,7 @@ func dropSuperseded(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, msgs 
 	return nil
 }
 
-// LatestEvents returns the newest cached event ID for each room that has one, for
-// marking a room read without opening it.
+// LatestEvents returns the newest cached event ID of each room that has one.
 func (c *Cache) LatestEvents(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]domain.EventID, error) {
 	latest := make(map[domain.RoomID]domain.EventID, len(roomIDs))
 	if len(roomIDs) == 0 {
@@ -591,8 +571,8 @@ func (c *Cache) LatestEvents(ctx context.Context, roomIDs []domain.RoomID) (map[
 	return latest, nil
 }
 
-// NewestTS is the latest time among a room's cached messages and their revisions
-// (edits); 0 when nothing is cached. Reactions and redactions carry no time here.
+// NewestTS is the latest time among a room's cached messages and revisions; 0 when
+// none. Reactions and redactions don't count.
 func (c *Cache) NewestTS(ctx context.Context, roomID domain.RoomID) (int64, error) {
 	var ts int64
 	err := c.db.QueryRowContext(ctx, `
@@ -605,8 +585,7 @@ func (c *Cache) NewestTS(ctx context.Context, roomID domain.RoomID) (int64, erro
 	return ts, nil
 }
 
-// ThreadMessages is one thread in order: its root (if cached) first, then up to
-// limit of its newest replies.
+// ThreadMessages returns a thread's root (if cached), then up to limit newest replies.
 func (c *Cache) ThreadMessages(
 	ctx context.Context, roomID domain.RoomID, root domain.EventID, limit int,
 ) ([]domain.Message, error) {
@@ -627,8 +606,8 @@ func (c *Cache) ThreadMessages(
 	return replies, nil
 }
 
-// LatestInThread is the newest cached event in a thread, or "" when none is cached;
-// the fallback m.in_reply_to for sending into it.
+// LatestInThread returns a thread's newest cached event, or ""; the fallback
+// m.in_reply_to for sending into it.
 func (c *Cache) LatestInThread(ctx context.Context, roomID domain.RoomID, root domain.EventID) (domain.EventID, error) {
 	var eventID string
 	if _, err := optional(c.db.QueryRowContext(ctx,
@@ -639,8 +618,7 @@ func (c *Cache) LatestInThread(ctx context.Context, roomID domain.RoomID, root d
 	return domain.EventID(eventID), nil
 }
 
-// LastMessages is when each room last had a message (redactions count). Rooms with
-// nothing cached are absent.
+// LastMessages returns each room's last message time (redactions count).
 func (c *Cache) LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, error) {
 	rows, err := c.db.QueryContext(ctx,
 		"SELECT room_id, MAX(ts_ms) AS recent FROM messages GROUP BY room_id")
@@ -659,7 +637,7 @@ func (c *Cache) LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, 
 			return nil, fmt.Errorf("db: scan last message: %w", err)
 		}
 		if recent <= 0 {
-			continue // a cached message with no timestamp says nothing about when
+			continue // no timestamp
 		}
 		latest[domain.RoomID(roomID)] = time.UnixMilli(recent)
 	}
@@ -669,9 +647,8 @@ func (c *Cache) LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, 
 	return latest, nil
 }
 
-// EachMessageBody streams every non-redacted, non-empty body to fn, saying whether
-// one of me (this person's IDs) wrote it. It reads a page at a time and calls fn between pages, so the one
-// connection is free for sync and the UI while fn works.
+// EachMessageBody streams every non-redacted, non-empty body to fn, with whether one of
+// me wrote it. It calls fn between pages so the single connection stays free.
 func (c *Cache) EachMessageBody(ctx context.Context, me []string, fn func(body string, mine bool)) error {
 	type body struct {
 		rowid        int64
@@ -702,7 +679,7 @@ func (c *Cache) EachMessageBody(ctx context.Context, me []string, fn func(body s
 // bodyPage is how many bodies EachMessageBody reads per query.
 const bodyPage = 2000
 
-// SenderOf is who sent one cached message; an error when it is not cached.
+// SenderOf returns a cached message's sender; an error when it is not cached.
 func (c *Cache) SenderOf(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (string, error) {
 	var sender string
 	if err := c.db.QueryRowContext(ctx,
@@ -713,7 +690,7 @@ func (c *Cache) SenderOf(ctx context.Context, roomID domain.RoomID, eventID doma
 	return sender, nil
 }
 
-// Message is one cached message's body and formatting, and whether it is cached.
+// Message returns a cached message's body and formatting, and whether it is cached.
 func (c *Cache) Message(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, bool, error) {
 	var body, html string
 	err := c.db.QueryRowContext(ctx, `
@@ -787,7 +764,7 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 		if editedMS.Valid {
 			msg.EditedAt = time.UnixMilli(editedMS.Int64)
 		}
-		// The edit shown, so the client breaks an edit tie as the cache did.
+		// So the client breaks an edit tie as the cache did.
 		msg.RevisionID = domain.EventID(revision.String)
 		if kind.Valid && kind.String != "" {
 			msg.Media = &domain.Media{
@@ -809,8 +786,8 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 	}
 }
 
-// MessagesAround is one message with before/after neighbors (counts), oldest
-// first. Nil when the message is not cached.
+// MessagesAround returns a message with before/after neighbors, oldest first; nil when
+// it is not cached.
 func (c *Cache) MessagesAround(
 	ctx context.Context, roomID domain.RoomID, event domain.EventID, before, after int,
 ) ([]domain.Message, error) {
@@ -831,7 +808,7 @@ func (c *Cache) MessagesAround(
 		return nil, fmt.Errorf("db: find %s: %w", event, err)
 	}
 	if !found {
-		return nil, nil // "not cached" is an answer, not a failure
+		return nil, nil
 	}
 
 	older, err := c.messagesBefore(ctx, roomID, at, seq, event, before)
@@ -845,9 +822,8 @@ func (c *Cache) MessagesAround(
 	return append(older, newer...), nil
 }
 
-// messagesBefore is the n messages before (at, event) in timeline order
-// (domain.CompareMessages), oldest first. The place, not the time alone: a bridged
-// burst shares one time.
+// messagesBefore is the n messages before (at, seq, event) in timeline order, oldest
+// first. Not by time alone: a bridged burst shares one time.
 func (c *Cache) messagesBefore(
 	ctx context.Context, roomID domain.RoomID, at, seq int64, event domain.EventID, n int,
 ) ([]domain.Message, error) {
@@ -873,9 +849,8 @@ func (c *Cache) messagesFrom(
 		scanMessage(roomID), string(roomID), at, seq, string(event), string(event), n)
 }
 
-// MessagesEndingIn is each cached message in owner's rooms whose ID is its room's, a
-// "/", and one of tails: the room and the ID, for a network whose deletions name a
-// message by a number unique across an account's rooms rather than by its room.
+// MessagesEndingIn finds owner's cached messages whose ID is "<room>/<tail>", for
+// networks whose deletions name a message by an account-wide number without its room.
 func (c *Cache) MessagesEndingIn(ctx context.Context, owner domain.RoomOwner, tails []string) ([]domain.Message, error) {
 	if len(tails) == 0 || owner == "" {
 		return nil, nil

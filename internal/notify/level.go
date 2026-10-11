@@ -26,8 +26,7 @@ var levelNames = map[Level]string{
 	LevelAll:     "all",
 }
 
-// Levels is every trigger level, weakest bar first — the order a picker steps through
-// and an error lists.
+// Levels returns every trigger level, strictest bar first.
 func Levels() []Level { return []Level{LevelNone, LevelMention, LevelDM, LevelAll} }
 
 // String returns the level's config spelling.
@@ -76,8 +75,8 @@ func ParseWhen(s string) (Window, error) {
 	return Window{Start: startAt, End: endAt}, nil
 }
 
-// Covers reports whether t's local wall clock falls inside the window, treating the
-// start as inclusive and the end as exclusive. A zero-length window covers nothing.
+// Covers reports whether t's local wall clock is in [Start, End); a zero-length window
+// covers nothing.
 func (w Window) Covers(t time.Time) bool {
 	if w.Start == w.End {
 		return false
@@ -97,8 +96,7 @@ func (w Window) String() string {
 	return clockString(w.Start) + "-" + clockString(w.End)
 }
 
-// parseClock reads an "HH:MM" (or "H:MM") wall-clock time as an offset from
-// midnight.
+// parseClock reads "HH:MM" (or "H:MM") as an offset from midnight.
 func parseClock(s string) (time.Duration, error) {
 	hh, mm, ok := strings.Cut(strings.TrimSpace(s), ":")
 	if !ok {
@@ -126,23 +124,20 @@ func sinceMidnight(t time.Time) time.Duration {
 	return time.Duration(h)*time.Hour + time.Duration(m)*time.Minute + time.Duration(s)*time.Second
 }
 
-// Event is what the rules decide about: the facts about one incoming message that
-// bear on whether it should interrupt you.
+// Event is the facts about one incoming message that the rules decide on.
 type Event struct {
-	// Mine marks our own message. It never notifies, whatever the levels say.
+	// Mine marks the user's own message; it never notifies.
 	Mine bool
-	// Mentioned marks a message that mentions us (m.mentions or a pill).
+	// Mentioned marks a message that mentions the user (m.mentions or a pill).
 	Mentioned bool
 	// Direct marks a message in a direct-message room.
 	Direct bool
-	// Tracked marks a message carrying one of the user's tracked words, and only when
-	// `[tracked] notify` is on — the switch is read where the event is built, so a rule
-	// never has to ask whether tracking is meant to interrupt.
+	// Tracked marks a message with a tracked word; set only when `[tracked] notify` is on.
 	Tracked bool
 }
 
-// Admits reports whether e clears the bar l. The levels are cumulative, so a bar of
-// LevelDM admits a mention as well as a direct message.
+// Admits reports whether e clears the bar l. Levels are cumulative: LevelDM also
+// admits mentions.
 func (l Level) Admits(e Event) bool {
 	switch l {
 	case LevelAll:
@@ -150,8 +145,7 @@ func (l Level) Admits(e Event) bool {
 	case LevelDM:
 		return e.Mentioned || e.Tracked || e.Direct
 	case LevelMention:
-		// A tracked word clears the mention bar, which is the whole of what tracking
-		// promises when it is allowed to notify.
+		// A tracked word counts as a mention.
 		return e.Mentioned || e.Tracked
 	case LevelNone:
 		return false

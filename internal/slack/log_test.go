@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// What slack-go logs reaches kith's log without the session in it: not the token in
-// the websocket's reconnect URL, not a token or cookie anywhere else in a line.
+// slack-go's lines reach kith's log with tokens and cookies redacted, including in the
+// reconnect URL.
 func TestSlackGoLogsNoSession(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer

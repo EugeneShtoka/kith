@@ -15,15 +15,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// ownUnitName is the systemd user unit kith writes for a config other than the
-// default one: one per instance, so a profile of that config has its own.
-// The instance is restricted to [A-Za-z0-9._-] (setup.StorageFor), a valid unit name.
+// ownUnitName is the systemd user unit kith writes for a non-default config, one per
+// instance. The instance is restricted to [A-Za-z0-9._-] (setup.StorageFor).
 func ownUnitName(storage domain.Storage) string {
 	return "kithd-" + storage.Instance + ".service"
 }
 
-// unitName is the unit that serves launch: the packaged kithd.service or
-// kithd@<profile>.service for the default config, the generated one for any other.
+// unitName is the unit serving launch: kithd.service or kithd@<profile>.service for
+// the default config, the generated one otherwise.
 func (l Launch) unitName(storage domain.Storage) string {
 	if l.OwnConfig {
 		return ownUnitName(storage)
@@ -34,10 +33,10 @@ func (l Launch) unitName(storage domain.Storage) string {
 // errUnsafeUnitPath is a path that cannot be written into a unit as one word.
 var errUnsafeUnitPath = errors.New("daemon: path cannot be written into a systemd unit")
 
-// unitPath is p as one word of a unit file. A relative path, or one with whitespace,
-// quotes, a backslash, "$" or a control character, is refused rather than quoted:
-// each directive splits and unescapes words its own way. "%" (a specifier) is doubled.
-// A path under /tmp or /var/tmp is refused too: PrivateTmp= hides it from the daemon.
+// unitPath is p as one word of a unit file. Relative paths and ones with whitespace,
+// quotes, backslash, "$" or control characters are refused, not quoted: each directive
+// splits words its own way. "%" is doubled. /tmp and /var/tmp are refused: PrivateTmp=
+// hides them from the daemon.
 func unitPath(p string) (string, error) {
 	if !filepath.IsAbs(p) || underTmp(p) || strings.ContainsFunc(p, func(r rune) bool {
 		return r <= ' ' || r == 0x7f || strings.ContainsRune(`"'\$`, r)
@@ -58,10 +57,9 @@ func underTmp(p string) bool {
 	return false
 }
 
-// ownUnit is the unit for a config other than the default one: kithd started with
-// that config (and profile), allowed to write only that config's directories (the
-// config file's own among them), under
-// the same sandbox as packaging/systemd/kithd.service (kept equal by a test).
+// ownUnit is the unit for a non-default config: kithd with that config and profile,
+// writing only its directories, under the same sandbox as
+// packaging/systemd/kithd.service (a test keeps them equal).
 func ownUnit(storage domain.Storage, kithd string, launch Launch) (string, error) {
 	words := make(map[string]string, 6)
 	for name, p := range map[string]string{
@@ -79,8 +77,7 @@ func ownUnit(storage domain.Storage, kithd string, launch Launch) (string, error
 	if launch.Profile != "" {
 		start += " --profile " + launch.Profile
 	}
-	// The config's directory too: kithd is the config file's one writer, and writes it
-	// atomically, beside itself.
+	// kithd writes the config file atomically, beside itself.
 	configDir, err := unitPath(filepath.Dir(launch.ConfigPath))
 	if err != nil {
 		return "", err
@@ -90,9 +87,8 @@ func ownUnit(storage domain.Storage, kithd string, launch Launch) (string, error
 	return fmt.Sprintf(ownUnitTemplate, words["config"], start, dirs, dirs), nil
 }
 
-// ownUnitTemplate is packaging/systemd/kithd.service with the config's own
-// ExecStart and directories. Its runtime directory is created like the others
-// (RuntimeDirectory= only reaches below %t).
+// ownUnitTemplate is packaging/systemd/kithd.service with the config's ExecStart and
+// directories. RuntimeDirectory= only reaches below %t, so it is created like the others.
 const ownUnitTemplate = `# Written by kith for its config %s, and rewritten when that config's
 # directories change. Edits here are overwritten.
 
@@ -141,9 +137,8 @@ BindReadOnlyPaths=-/tmp/.X11-unix
 WantedBy=default.target
 `
 
-// writeUnit writes content to dir/name unless it is already there, reporting
-// whether it changed (and systemd must reload). The file is replaced whole, never
-// left half-written for a daemon-reload to read.
+// writeUnit writes content to dir/name unless already there, reporting whether it
+// changed (so systemd must reload). The file is replaced atomically.
 func writeUnit(dir, name, content string) (changed bool, err error) {
 	path := filepath.Join(dir, name)
 	if old, rerr := os.ReadFile(path); rerr == nil && bytes.Equal(old, []byte(content)) { // #nosec G304 -- dir is the systemd user unit directory, name is ownUnitName
@@ -173,8 +168,8 @@ func writeUnit(dir, name, content string) (changed bool, err error) {
 	return true, nil
 }
 
-// installOwnUnit writes the config's unit to the systemd user unit directory and
-// has systemd reread it when it changed, returning the unit's name.
+// installOwnUnit writes the config's unit and has systemd reload it when changed,
+// returning the unit's name.
 func installOwnUnit(ctx context.Context, storage domain.Storage, launch Launch) (string, error) {
 	kithd, err := exec.LookPath(daemonBinary)
 	if err != nil {

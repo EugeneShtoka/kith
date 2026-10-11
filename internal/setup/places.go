@@ -10,8 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// PlaceEntries refuses a place entry that declares no kind, in every list that takes
-// one, plus the naming checks (jump chords, name targets).
+// PlaceEntries refuses place entries that declare no kind, plus the naming checks.
 func PlaceEntries(cfg config.Config) error {
 	if err := naming(cfg); err != nil {
 		return err
@@ -92,8 +91,8 @@ func (p Place) Reach(entry string) notify.Breadth {
 	}
 }
 
-// TrackedRules is the tracked word list as the domain takes it: the `rule` blocks, plus
-// the bare `words` desugared into one rule that admits everywhere.
+// TrackedRules is the `rule` blocks plus bare `words` as one rule that admits
+// everywhere.
 func TrackedRules(cfg config.Tracked) []domain.TrackedRule {
 	out := make([]domain.TrackedRule, 0, len(cfg.Rules)+1)
 	if len(cfg.Words) > 0 {
@@ -110,8 +109,7 @@ func TrackedRules(cfg config.Tracked) []domain.TrackedRule {
 	return out
 }
 
-// naming is the two checks about giving things names: that a target says what kind of
-// thing it is, and that a chord goes to one place.
+// naming checks that name targets declare a kind and each jump chord goes to one place.
 func naming(cfg config.Config) error {
 	if err := cfg.Keys.Jump.Validate(); err != nil {
 		return fmt.Errorf("setup: %w", err)

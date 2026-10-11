@@ -11,10 +11,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// What a script is given: the context under the cursor (link, message, history).
-// Scalars go in the environment and payloads on stdin, never argv — /proc/<pid>/cmdline
-// is world-readable and would publish decrypted history. A script sees what the screen
-// shows: spoilers stay covered and deleted messages stay placeholders.
+// A script gets the context under the cursor (link, message, history). Scalars go in
+// the environment and payloads on stdin, never argv: /proc/<pid>/cmdline is
+// world-readable. Spoilers stay covered and deleted messages stay placeholders.
 
 const (
 	envURL       = commandEnvPrefix + "URL"
@@ -23,14 +22,13 @@ const (
 	envSenderVia = commandEnvPrefix + "SENDER_NAME"
 )
 
-// pagerState is a script's output, split once into lines for the overlay.
 type pagerState struct {
 	title string
 	lines []string
 }
 
-// openPager shows a script's output in the read-and-dismiss overlay, titled by the
-// command. Truncation is noted at the top, where the overlay cannot cover it.
+// openPager shows a script's output in the overlay. Truncation is noted at the top,
+// where the overlay cannot cover it.
 func (m Model) openPager(name, body string, truncated bool) (Model, tea.Cmd) {
 	lines := strings.Split(body, "\n")
 	if truncated {
@@ -42,18 +40,16 @@ func (m Model) openPager(name, body string, truncated bool) (Model, tea.Cmd) {
 	return m.doneWithCommand().clearStatus(), nil
 }
 
-// pendingScript is a command waiting on the context it declared — a need can be a
+// pendingScript is a command waiting on its declared context; a need may be a
 // question (which of three links?) asked before it runs.
 type pendingScript struct {
 	name, path, arg string
 	room            domain.Room
 	needs           []domain.Need
-	// picked holds the values already resolved, by kind.
-	picked map[domain.NeedKind]string
+	picked          map[domain.NeedKind]string
 }
 
-// scriptNeeds is what a command declared, parsed (setup.Scripts has already refused
-// unknown entries).
+// scriptNeeds parses a command's declared needs (setup.Scripts already refused unknown ones).
 func (m Model) scriptNeeds(name string) []domain.Need {
 	script, configured := m.conf.base.Commands.ScriptFor(name)
 	if !configured {
@@ -68,8 +64,7 @@ func (m Model) scriptNeeds(name string) []domain.Need {
 	return needs
 }
 
-// scriptOutput is where a command's output goes: its block's `output`, else the
-// composer.
+// scriptOutput is where a command's output goes: its block's `output`, else the composer.
 func (m Model) scriptOutput(name string) domain.ScriptOutput {
 	if script, configured := m.conf.base.Commands.ScriptFor(name); configured {
 		if out, ok := domain.ParseScriptOutput(script.Output); ok {
@@ -79,8 +74,7 @@ func (m Model) scriptOutput(name string) domain.ScriptOutput {
 	return domain.OutputCompose
 }
 
-// resolveScript asks for the next unanswered question need, and runs when none is
-// left; each answer re-enters here.
+// resolveScript asks the next unanswered question need, or runs when none is left.
 func (m Model) resolveScript() (Model, tea.Cmd) {
 	for _, need := range m.script.needs {
 		kind, asks := contextForNeed[need.Kind]
@@ -100,8 +94,7 @@ func (m Model) resolveScript() (Model, tea.Cmd) {
 			m.script.picked = withEntry(m.script.picked, need.Kind, items[0].value)
 		default:
 			title := m.script.name + " — which " + contextSpecs[kind].noun + "?"
-			// Close the composer's completion: it gets keys before the picker and
-			// would swallow the arrows and enter meant for this list.
+			// The completion gets keys before the picker and would swallow its arrows and enter.
 			m = m.closeCompletion()
 			m.picker = newPickerWith(pickerContext, pickerSpec{title: title}, items)
 			m.picker.then = actRunScript
@@ -111,13 +104,11 @@ func (m Model) resolveScript() (Model, tea.Cmd) {
 	return m.launchScript()
 }
 
-// contextForNeed is which needs are questions, and about what; the rest have exactly
-// one answer.
+// contextForNeed lists the needs that are questions; the rest have exactly one answer.
 var contextForNeed = map[domain.NeedKind]contextKind{
 	domain.NeedURL: ctxLink,
 }
 
-// pickedScriptContext files a chosen row as the answer and carries on resolving.
 func (m Model) pickedScriptContext(value string) (Model, tea.Cmd) {
 	if m.script.name == "" {
 		return m, nil
@@ -131,16 +122,15 @@ func (m Model) pickedScriptContext(value string) (Model, tea.Cmd) {
 	return m.resolveScript()
 }
 
-// cancelScript drops a command that cannot be given what it asked for; the composer
-// keeps what was typed.
+// cancelScript drops a command whose needs cannot be met; the composer keeps the text.
 func (m Model) cancelScript() Model {
 	m.script = pendingScript{}
 	m.running = ""
 	return m
 }
 
-// scriptKey runs the command a sequence is bound to, reporting whether one was. Not
-// while typing; a binding whose script is missing says so rather than doing nothing.
+// scriptKey runs the script bound to press, reporting whether one was. Not while typing;
+// a binding whose script is missing says so.
 func (m Model) scriptKey(press string) (Model, tea.Cmd, bool) {
 	if m.typing() {
 		return m, nil, false
@@ -161,8 +151,7 @@ func (m Model) scriptKey(press string) (Model, tea.Cmd, bool) {
 	return mdl, cmd, true
 }
 
-// scriptMessage is the message a script's context comes from: the selection, else the
-// newest message in the room.
+// scriptMessage is the script's message: the selection, else the room's newest.
 func (m Model) scriptMessage() (domain.Message, bool) {
 	if msg, ok := m.selectedMessage(); ok {
 		return msg, true
@@ -188,15 +177,13 @@ type scriptMessageJSON struct {
 	Mine       bool   `json:"mine,omitempty"`
 }
 
-// scriptContextJSON is the object a script receives on stdin; undeclared keys are
-// absent rather than null.
+// scriptContextJSON is a script's stdin; undeclared keys are absent rather than null.
 type scriptContextJSON struct {
 	Message *scriptMessageJSON  `json:"message,omitempty"`
 	History []scriptMessageJSON `json:"history,omitempty"`
 	URL     string              `json:"url,omitempty"`
 }
 
-// scriptJSON builds that object for the needs this command declared.
 func (m Model) scriptJSON() ([]byte, error) {
 	var out scriptContextJSON
 	for _, need := range m.script.needs {
@@ -220,8 +207,7 @@ func (m Model) scriptJSON() ([]byte, error) {
 	return data, nil
 }
 
-// scriptMessageRow is one message as a script reads it; Summary keeps spoilers
-// covered and redactions as placeholders, as the timeline drew them.
+// scriptMessageRow uses Summary, so spoilers stay covered and redactions placeholders.
 func (m Model) scriptMessageRow(msg domain.Message) scriptMessageJSON {
 	return scriptMessageJSON{
 		EventID:    string(msg.ID),
@@ -236,7 +222,7 @@ func (m Model) scriptMessageRow(msg domain.Message) scriptMessageJSON {
 	}
 }
 
-// scriptHistory is the last count messages in the room, oldest first.
+// scriptHistory is the room's last count messages, oldest first.
 func (m Model) scriptHistory(count int) []scriptMessageJSON {
 	shown := m.shownMessages()
 	if len(shown) > count {
@@ -249,7 +235,7 @@ func (m Model) scriptHistory(count int) []scriptMessageJSON {
 	return rows
 }
 
-// scriptEnv is the declared scalars, for scripts too short to parse JSON.
+// scriptEnv is the declared scalars, for scripts that don't parse JSON.
 func (m Model) scriptEnv() []string {
 	var env []string
 	for _, need := range m.script.needs {
@@ -267,7 +253,6 @@ func (m Model) scriptEnv() []string {
 				envSenderVia+"="+msg.SenderName,
 			)
 		case domain.NeedHistory, domain.NeedNone:
-			// Payloads go on stdin.
 		}
 	}
 	return env

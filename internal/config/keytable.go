@@ -2,9 +2,8 @@ package config
 
 //go:generate go test -run TestDefaultTOMLKeysSectionIsGenerated . -update
 
-// keyBinding is one configurable action: its path under [keys], its default, and what
-// it does. doc is the help overlay's label and default.toml's comment; note is extra
-// prose for default.toml only.
+// keyBinding is one configurable action. doc is the help overlay's label and
+// default.toml's comment; note is extra prose for default.toml only.
 type keyBinding struct {
 	path string // "timeline.reply"; a top-level action has no dot
 	def  string
@@ -20,8 +19,8 @@ type keySection struct {
 	binds []keyBinding
 }
 
-// keySections is the one table of keybindings: DefaultKeys, the help overlay's labels
-// and the [keys] part of default.toml are all derived from it.
+// keySections is the source of DefaultKeys, the help overlay's labels and the [keys]
+// part of default.toml.
 var keySections = []keySection{
 	{
 		intro: `Keybindings. Each value is a comma-separated list ("k,up"); names are what the
@@ -129,18 +128,12 @@ leave to joined rooms; leave and reject ask first.`,
 				note: "A DM, or a room with one person besides you and bots."},
 			{path: "rooms.archived", def: "A", doc: "show or hide this place's archived rooms",
 				note: "Until kith restarts; [display] show_archived and a place's space_rule set where it starts."},
-			// `P` beside `A`: the two are opposites — stop counting this, keep this in
-			// front of me — and a capital for each, since both edit the config rather than
-			// moving a cursor.
-			// "!" for "report spam", the gesture every mail client has spelled that way for
-			// twenty years — and the only punctuation in this scope, because unlike its
-			// neighbors it is not a filing decision but a verdict.
+			// "!" is the mail clients' "report spam" key.
 			{path: "rooms.spam", def: "!", doc: "spam / not spam: move this conversation out of the way, or back",
 				note: "See [spam]."},
 			{path: "rooms.rename_thread", def: "alt+r", doc: "name the thread under the cursor",
 				note: "An empty name clears it."},
-			// The same chord as the timeline's, for the same list: which pane you asked
-			// from decides which room, not what the list is.
+			// Same chord as the timeline's; the pane decides which room.
 			{path: "rooms.list_threads", def: "ctrl+t", doc: "list the threads in the room under the cursor"},
 		},
 	},
@@ -172,7 +165,7 @@ group; timeline: the open room); ` + "`scope`" + ` cycles room → group → eve
 			{path: "search.jump", def: "enter", doc: "go to the selected message", note: "In its own room."},
 			{path: "search.scope", def: "tab", doc: "widen or narrow: room → group → everywhere"},
 			{path: "search.close", def: "esc", doc: "close the results"},
-			// The same glyph as the timeline's, doing the same thing from the other side.
+			// Same glyph as the timeline's star.
 			{path: "search.star", def: "*", doc: "unstar the selected message (the starred list)"},
 		},
 	},
@@ -190,8 +183,7 @@ group; timeline: the open room); ` + "`scope`" + ` cycles room → group → eve
 			{path: "timeline.next_mention", def: "m", doc: "next mention of you",
 				note: "The mention and attachment motions wrap."},
 			{path: "timeline.prev_mention", def: "M", doc: "previous mention of you"},
-			// f is the file, and vim's own f/F already search forward and backward, so the
-			// shift-is-backwards reading is already in the muscle.
+			// f for file; shift goes backward, as with vim's f/F.
 			{path: "timeline.next_attachment", def: "f", doc: "next message with a file"},
 			{path: "timeline.prev_attachment", def: "F", doc: "previous message with a file"},
 			{path: "timeline.prev_day", def: "[", doc: "back a day (start of this day first)"},
@@ -201,35 +193,31 @@ group; timeline: the open room); ` + "`scope`" + ` cycles room → group → eve
 				note: "A local name; an empty one clears it."},
 			// b for bell.
 			{path: "timeline.notify_rule", def: "b", doc: "notification rule for this sender or room"},
-			// vim's "open a fold", written spaced like z=.
+			// vim's "open a fold".
 			{path: "timeline.reveal", def: "z o", doc: "uncover what this message is hiding — a spoiler, or a kept deletion",
 				note: "Press again to cover it."},
 			{path: "timeline.copy_text", def: "yy", doc: "copy this message's text",
 				note: "The copy and open keys ask which when a message holds several candidates."},
 			{path: "timeline.copy_url", def: "yu", doc: "copy a link from it"},
 			{path: "timeline.copy_code", def: "yc", doc: "copy the verification code in it"},
-			// vim opens the link under the cursor with gx; so does this.
+			// As vim's gx.
 			{path: "timeline.open_url", def: "gx", doc: "open a link from it"},
-			// The same key with shift: open it *and take me there*.
+			// Shift also focuses the browser.
 			{path: "timeline.open_url_focus", def: "gX", doc: "open a link from it and go to the browser",
 				note: "See [clipboard] focus_command."},
-			// `gl` — go to the link — and *not* vim's `gf`, which this client already binds
-			// to the attachment list.
+			// "go to link"; not vim's gf, which is the attachment list here.
 			{path: "timeline.follow_link", def: "gl", doc: "follow a Matrix link in it",
 				note: "A matrix: or matrix.to address, mention pills included, in this client: opens a " +
 					"room or message, asks before joining, or opens the switcher for a person."},
-			// `gt` — go to the topic — beside `gl` and `gx`, the two other `g` bindings that
-			// open something the message or the room points at.
+			// "go to topic", beside gl and gx.
 			{path: "timeline.topic", def: "gt", doc: "read the room's topic"},
-			// `*` is the glyph of the thing, and vim's `*` — search for the word under the
-			// cursor — has no meaning in a timeline, so the letter is free.
+			// vim's word search under * has no use in a timeline.
 			{path: "timeline.star", def: "*", doc: "star it, or unstar it",
 				note: "Private, synced account data. `/starred` lists them."},
-			// `H` for history, one press rather than a chord — the capitals in this pane
-			// are already the bigger version of their lowercase key (f/F, s/S, m/M, e/E).
+			// H for history.
 			{path: "timeline.history", def: "H", doc: "what this message used to say",
 				note: "Every version and its deletion, if any (complete only with [display.deleted] keep)."},
-			// Save and save-as, the pair they have always been on other keyboards.
+			// s and S: save and save-as.
 			{path: "timeline.download", def: "s", doc: "save this message's attachment",
 				note: "Sending a file is the composer's alt+u."},
 			{path: "timeline.save_as", def: "S", doc: "save it somewhere else — opens a folder picker",
@@ -260,8 +248,8 @@ modifyOtherKeys; alt+enter works everywhere.`,
 			{path: "insert.attach", def: "alt+u", doc: "attach a file — what you have typed becomes its caption",
 				note: "Through the desktop's file chooser."},
 			{path: "insert.cancel", def: "esc", doc: "back to the message cursor"},
-			// right: forward, whichever arrow that is in the draft being written. tab: the
-			// whole suggestion, or the chooser when there is nothing to take.
+			// right means forward in the draft's direction; tab takes the whole suggestion,
+			// or opens the chooser when there is none.
 			{path: "insert.complete", def: "right", doc: "take a word of the completion being offered",
 				note: "See [complete]."},
 			{path: "insert.complete_all", def: "tab", doc: "take the whole completion, or choose from the list"},
@@ -422,8 +410,7 @@ navigate mode; ` + "`filter`" + ` switches to typing.`,
 	},
 	{
 		table: "player",
-		// The unshifted pair moves through the note, the shifted pair changes how fast it
-		// goes.
+		// Unshifted keys seek; shifted ones change speed.
 		intro: `The voice-note player bar (see [display.media.audio]). While a note is loaded
 these are consulted before the focused pane.`,
 		binds: []keyBinding{

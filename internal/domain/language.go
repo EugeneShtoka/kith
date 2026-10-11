@@ -10,7 +10,7 @@ type LanguageCandidate struct {
 	Bytes int64   // download size
 }
 
-// SpellSuggestion is the whole answer to "should I offer any dictionaries, and which".
+// SpellSuggestion is which dictionaries to offer, if any.
 type SpellSuggestion struct {
 	// Why is set when no engine is installed, naming what to install.
 	Why string
@@ -34,8 +34,7 @@ type FrequencyCandidate struct {
 	Accepts     float64
 }
 
-// Misspelling is one word worth marking in the text that was checked, and where it sits
-// in it.
+// Misspelling is one word to mark in the checked text, and its position.
 type Misspelling struct {
 	Word        string
 	Start       int
@@ -55,7 +54,7 @@ type ModelCandidate struct {
 	Recall float64 // share of this account's next words it predicts
 }
 
-// ModelSuggestion is the whole answer to "should the local model be offered".
+// ModelSuggestion is whether to offer the local model, and which.
 type ModelSuggestion struct {
 	// Why is set when llama.cpp is missing, naming what to install.
 	Why string

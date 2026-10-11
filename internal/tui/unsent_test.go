@@ -11,7 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// queueStub is the daemon's send queue, as much of it as the client can see.
+// queueStub is the daemon's send queue, as far as the client can see it.
 type queueStub struct {
 	added []domain.ScheduledMessage
 	fail  error
@@ -39,8 +39,6 @@ func failing(t *testing.T) (Model, *queueStub) {
 	return openedFromList(t, m, "!a:x"), queue
 }
 
-// The failure this exists for: a send the homeserver would not take used to be one
-// sentence on the status line and nothing else.
 func TestAFailedSendIsQueued(t *testing.T) {
 	t.Parallel()
 
@@ -63,16 +61,14 @@ func TestAFailedSendIsQueued(t *testing.T) {
 	if held.Body != "the words that must not be lost" || held.RoomID != "!a:x" {
 		t.Errorf("queued %+v, want the message that failed", held)
 	}
-	// As the message it *was*: a reply whose target was dropped lands attached to
-	// nothing, and a pill dropped is a name that notifies nobody.
+	// Queued as composed: a dropped reply target or pill would change the message.
 	if held.ReplyTo != "$their-message" {
 		t.Errorf("queued reply target = %q, want it kept", held.ReplyTo)
 	}
 	if len(held.Mentions) != 1 || held.Mentions[0].UserID != "@dana:x" {
 		t.Errorf("queued mentions = %+v, want Dana's pill kept", held.Mentions)
 	}
-	// Due now, which is what the scheduler reads as "send at the next pass" — and
-	// what makes it *unsent* rather than scheduled, in the list and in this summary.
+	// Due now: the scheduler sends it at the next pass, and it counts as unsent, not scheduled.
 	if !held.Immediate() {
 		t.Error("the queued entry reads as scheduled for later, not as unsent")
 	}
@@ -81,8 +77,7 @@ func TestAFailedSendIsQueued(t *testing.T) {
 	}
 }
 
-// When the queue cannot take it either — which means no daemon to keep it — the words
-// come back as the room's draft. Nothing is thrown away on either path.
+// When the queue can't take it either (no daemon), the words return as the room's draft.
 func TestAnUnqueueableSendGoesBackToTheDraft(t *testing.T) {
 	t.Parallel()
 
@@ -106,9 +101,7 @@ func TestAnUnqueueableSendGoesBackToTheDraft(t *testing.T) {
 	}
 }
 
-// A failed send for a room you have since left behind goes into *that* room's draft,
-// where the ✎ mark and the Drafts group make it findable — not into the room you
-// happen to be looking at, which would put your words in front of the wrong people.
+// A failed send for a room since left goes to that room's draft, not the one on screen.
 func TestAnUnqueueableSendReachesTheRightRoom(t *testing.T) {
 	t.Parallel()
 
@@ -137,8 +130,7 @@ func TestAnUnqueueableSendReachesTheRightRoom(t *testing.T) {
 	}
 }
 
-// Words typed after the failure are not less wanted than the ones that failed, so the
-// two are kept — separated, so it is visible that they are two things.
+// Text typed since the failure is kept too, visibly separated.
 func TestAnUnqueueableSendKeepsWhatWasTypedSince(t *testing.T) {
 	t.Parallel()
 
@@ -162,8 +154,7 @@ func TestAnUnqueueableSendKeepsWhatWasTypedSince(t *testing.T) {
 	}
 }
 
-// An edit is not queueable: it replaces an event, and a replacement arriving after the
-// room has moved on is worse than one that failed.
+// An edit is not queued: a late replacement is worse than a failed one.
 func TestAFailedEditIsNotQueued(t *testing.T) {
 	t.Parallel()
 
@@ -183,8 +174,8 @@ func TestAFailedEditIsNotQueued(t *testing.T) {
 	}
 }
 
-// routed routes a message through Update and hands back the command it asked for, so
-// a test can run the follow-up the way the event loop would.
+// routed routes a message through Update and returns its command, so a test can run
+// the follow-up as the event loop would.
 func routed(t *testing.T, m Model, msg any) (Model, tea.Cmd) {
 	t.Helper()
 	mdl, cmd := asModel(m.Update(msg))
@@ -192,7 +183,7 @@ func routed(t *testing.T, m Model, msg any) (Model, tea.Cmd) {
 	return got, cmd
 }
 
-// "Send failed" is not the same as "was not sent".
+// "Send failed" doesn't mean "was not sent", so a retry keeps the transaction ID.
 func TestAQueuedRetryKeepsTheTransactionID(t *testing.T) {
 	t.Parallel()
 
@@ -214,7 +205,7 @@ func TestAQueuedRetryKeepsTheTransactionID(t *testing.T) {
 	}
 }
 
-// And every composed message gets one, or the protection above has nothing to carry.
+// Every composed message gets one, or the retry has nothing to carry.
 func TestEveryComposedMessageCarriesATransactionID(t *testing.T) {
 	t.Parallel()
 

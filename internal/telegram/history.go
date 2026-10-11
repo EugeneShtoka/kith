@@ -16,14 +16,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A chat's history is Telegram's to page through, newest first: a page is cached as it
-// is read, so what was scrolled through once opens from the cache.
+// History is paged from Telegram newest first; each page is cached as read.
 
-// errNoPeer is a chat whose access hash no listing or update has revealed yet.
+// errNoPeer: no listing or update has revealed the chat's access hash yet.
 var errNoPeer = errors.New("telegram: that chat is not known to its account yet")
 
-// chat is a room's account connection and the peer that names it to Telegram, and the
-// forum topic the room is (0 for a chat's own room).
+// chat is a room's connection, peer, and forum topic (0 for the chat's own room).
 type chat struct {
 	conn  conn
 	peer  tg.InputPeerClass
@@ -31,11 +29,9 @@ type chat struct {
 	topic int
 }
 
-// room is the room the chat is.
 func (c chat) room() domain.RoomID { return chatRoom(c.conn.user, c.id, c.topic) }
 
-// chatOf is roomID's account connection and peer, ErrNetworkOff when the account is not
-// connected.
+// chatOf resolves roomID; ErrNetworkOff when its account is not connected.
 func (a *Adapter) chatOf(ctx context.Context, roomID domain.RoomID) (chat, error) {
 	parsed := domain.ParseID(string(roomID))
 	native, topicPart, inTopic := strings.Cut(parsed.Native, topicSep)
@@ -61,8 +57,7 @@ func (a *Adapter) chatOf(ctx context.Context, roomID domain.RoomID) (chat, error
 	return chat{conn: c, peer: p, id: id, topic: topic}, nil
 }
 
-// inputPeer is how calls name the chat with marked ID id, on connection c: by the
-// access hash its listing revealed, else the one the store kept from an update.
+// inputPeer is chat id's input peer, using the listing's access hash, else the store's.
 func (a *Adapter) inputPeer(ctx context.Context, c conn, id int64) (tg.InputPeerClass, error) {
 	switch {
 	case id == c.user:
@@ -90,8 +85,8 @@ func (a *Adapter) inputPeer(ctx context.Context, c conn, id int64) (tg.InputPeer
 	return &tg.InputPeerChannel{ChannelID: channel, AccessHash: hash}, nil
 }
 
-// Timeline is a page of a chat's history, oldest first, from where from left off ("" for
-// the newest); Next continues it, "" at the beginning.
+// Timeline is a history page, oldest first, from from ("" for newest); Next is "" at
+// the chat's beginning.
 func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from string, limit int) (domain.TimelinePage, error) {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -115,8 +110,7 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 	return page, nil
 }
 
-// historyPage is a page of a room's history as Telegram answers it, newest first: a
-// chat's, or a forum topic's (topicReplies).
+// historyPage is a raw history page, newest first, of a chat or topic (topicReplies).
 func (a *Adapter) historyPage(ctx context.Context, ch chat, from string, limit int) (tg.MessagesMessagesClass, error) {
 	if ch.topic != 0 {
 		return a.topicReplies(ctx, ch, from, limit)
@@ -135,7 +129,7 @@ func (a *Adapter) historyPage(ctx context.Context, ch chat, from string, limit i
 	return res, nil
 }
 
-// messagesOf is a messages answer's messages, newest first, and what they name.
+// messagesOf is an answer's messages, newest first, and its entities.
 func messagesOf(res tg.MessagesMessagesClass) ([]tg.MessageClass, peer.Entities, bool) {
 	switch r := res.(type) {
 	case *tg.MessagesMessages:
@@ -148,8 +142,8 @@ func messagesOf(res tg.MessagesMessagesClass) ([]tg.MessageClass, peer.Entities,
 	return nil, peer.Entities{}, false
 }
 
-// cachePage is a page of a chat's history as kith keeps it, oldest first, cached as
-// history: nothing is streamed or notified.
+// cachePage converts and caches a page as history (no stream, no notification),
+// returning it oldest first.
 func (a *Adapter) cachePage(ctx context.Context, ch chat, raw []tg.MessageClass, ent peer.Entities) []domain.Message {
 	var msgs []domain.Message
 	for _, m := range slices.Backward(raw) {
@@ -166,7 +160,7 @@ func (a *Adapter) cachePage(ctx context.Context, ch chat, raw []tg.MessageClass,
 	return msgs
 }
 
-// FetchEvent is one message, asked of Telegram (a reply's original, a link to one).
+// FetchEvent fetches one message from Telegram (a reply's original, a linked message).
 func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, error) {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -181,7 +175,7 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 	if err != nil {
 		return domain.Message{}, fmt.Errorf("telegram: fetch %s: %w", eventID, err)
 	}
-	// The message as it is, in its own room: a quote may be of another topic's.
+	// Use the message's own room: a quote may come from another topic.
 	if msg, ok := incoming(ch.conn.user, m, ent); ok {
 		if _, err := a.record(ctx, ch.conn.user, msg.RoomID, []domain.Message{msg}); err != nil {
 			a.log.Warn("cache a fetched message failed", "room", msg.RoomID, "err", err)
@@ -194,7 +188,7 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 // errGone is a message Telegram no longer has.
 var errGone = errors.New("telegram: the message is gone")
 
-// fetchRaw is message id of a chat as Telegram gives it now, and what it names.
+// fetchRaw fetches message id of a chat, with its entities.
 func (a *Adapter) fetchRaw(ctx context.Context, ch chat, id int) (tg.MessageClass, peer.Entities, error) {
 	var res tg.MessagesMessagesClass
 	var err error

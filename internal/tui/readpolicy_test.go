@@ -132,7 +132,7 @@ func TestReadDelayNeverOnFocus(t *testing.T) {
 	}
 }
 
-// Turning receipts off still reads the room — it just does not announce it.
+// Receipts off still reads the room, privately.
 func TestReceiptsOffSendPrivately(t *testing.T) {
 	spy := &receiptSpy{}
 	off := false
@@ -185,7 +185,6 @@ func TestBulkMarkReadSplitsByPolicy(t *testing.T) {
 	if len(quiet) != 1 || quiet[0] != "!quiet:x" || !spy.bulkPvt[1] {
 		t.Errorf("quiet batch = %v (private %v), want just !quiet:x", quiet, spy.bulkPvt[1])
 	}
-	// And it reports once, for the whole gesture.
 	if msg.rooms != 2 || msg.result.Marked != 2 {
 		t.Errorf("reported %+v, want 2 rooms marked in one message", msg)
 	}

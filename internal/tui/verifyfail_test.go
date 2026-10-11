@@ -18,16 +18,16 @@ import (
 
 var errNoDaemonReach = errors.New("accept verification: connection refused")
 
-// failingVerify refuses both controls, which is what the daemon being unreachable looks
-// like from here — a restart mid-flow, a dropped socket, a canceled context.
+// failingVerify refuses both controls, as an unreachable daemon would (a restart, a
+// dropped socket, a canceled context).
 type failingVerify struct {
 	apitest.Nop
 }
 
 func (failingVerify) AcceptVerification(context.Context, string) error { return errNoDaemonReach }
 
-// verifyBackend records what the overlay asked of it, which for an outgoing request is
-// the whole of what there is to observe: the key that means nothing must reach nothing.
+// verifyBackend records what the overlay asked of it; for an outgoing request a key
+// that means nothing must reach nothing.
 type verifyBackend struct {
 	apitest.Nop
 	mu   sync.Mutex
@@ -47,11 +47,10 @@ func (b *verifyBackend) accepted() []string {
 	return append([]string(nil), b.took...)
 }
 
-// keyOf is one keypress of a letter.
 func keyOf(r rune) tea.KeyPressMsg                             { return tea.KeyPressMsg{Code: r} }
 func (failingVerify) ConfirmSAS(context.Context, string) error { return errNoDaemonReach }
 
-// A control that never reached the daemon must release the overlay's waiting state.
+// A control that never reached the daemon releases the overlay's waiting state.
 func TestFailedVerifyControlReleasesTheKeyboard(t *testing.T) {
 	t.Parallel()
 
@@ -80,7 +79,7 @@ func TestFailedVerifyControlReleasesTheKeyboard(t *testing.T) {
 				}})
 			}
 
-			// Pressing the confirm key arms the wait and issues the control.
+			// The confirm key arms the wait and issues the control.
 			m, cmd := press(t, m, keyText("y"))
 			if !m.verify.waiting {
 				t.Fatalf("expected the overlay to be waiting: %+v", m.verify)
@@ -89,8 +88,7 @@ func TestFailedVerifyControlReleasesTheKeyboard(t *testing.T) {
 				t.Fatal("expected a command to be issued")
 			}
 
-			// Running it delivers verifyFailedMsg, which is what has to arrive: before
-			// this existed the command returned nil and Update was never re-entered.
+			// Running it delivers verifyFailedMsg, which re-enters Update.
 			m = settle(t, m, cmd)
 
 			if m.verify.waiting {
@@ -101,7 +99,7 @@ func TestFailedVerifyControlReleasesTheKeyboard(t *testing.T) {
 				t.Errorf("status = %q, want it to name the failure", m.st.event)
 			}
 
-			// The point of clearing waiting: the user can now decline.
+			// With waiting cleared the user can decline.
 			m, _ = press(t, m, keyText("n"))
 			if m.verify.active {
 				t.Errorf("cancel should dismiss the overlay after a failure: %+v", m.verify)
@@ -110,8 +108,8 @@ func TestFailedVerifyControlReleasesTheKeyboard(t *testing.T) {
 	}
 }
 
-// Starting a verification is the direction that was missing: everything after the first
-// move already worked, and a fresh session had to be verified from another client.
+// Starting a verification raises a waiting overlay, so a fresh session need not be
+// verified from another client.
 func TestStartingAVerificationRaisesAWaitingOverlay(t *testing.T) {
 	t.Parallel()
 
@@ -126,8 +124,7 @@ func TestStartingAVerificationRaisesAWaitingOverlay(t *testing.T) {
 	if !strings.Contains(view, "Accept it there") {
 		t.Errorf("the overlay does not say where to accept it:\n%s", view)
 	}
-	// **No [y].** There is nothing to accept — the other device is the one deciding —
-	// and offering the key would be offering to answer ourselves.
+	// No [y]: the other device decides, so there is nothing to accept.
 	if strings.Contains(view, "[y]") {
 		t.Errorf("an outgoing request offers [y]:\n%s", view)
 	}
@@ -136,8 +133,8 @@ func TestStartingAVerificationRaisesAWaitingOverlay(t *testing.T) {
 	}
 }
 
-// And the key does nothing either, because the overlay owns the keyboard: a [y] that
-// fell through would reach the pane behind it.
+// The key does nothing either: the overlay owns the keyboard, so a [y] can't fall
+// through to the pane behind it.
 func TestConfirmDoesNothingOnOurOwnRequest(t *testing.T) {
 	t.Parallel()
 
@@ -160,8 +157,8 @@ func TestConfirmDoesNothingOnOurOwnRequest(t *testing.T) {
 	}
 }
 
-// The emoji arrive on the same path an incoming verification takes, so the outgoing
-// flow needs nothing of its own past the first move.
+// The emoji arrive on the incoming verification path, so the outgoing flow needs
+// nothing of its own past the first move.
 func TestOurOwnRequestShowsTheEmojiWhenTheyArrive(t *testing.T) {
 	t.Parallel()
 
@@ -186,7 +183,6 @@ func TestOurOwnRequestShowsTheEmojiWhenTheyArrive(t *testing.T) {
 	}
 }
 
-// A session with no crypto machine has nothing to prove and nothing to prove it with.
 func TestStartingWithoutEncryptionSaysSo(t *testing.T) {
 	t.Parallel()
 

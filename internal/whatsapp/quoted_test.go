@@ -10,7 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// danaReplies is Dana answering a message kith never cached, quoting it.
+// danaReplies is Dana replying to an uncached message, quoting it.
 func danaReplies(id, text, quotedID string, quoted *waE2E.Message) *events.Message {
 	e := danaWrites(id, "")
 	e.Message = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
@@ -22,9 +22,8 @@ func danaReplies(id, text, quotedID string, quoted *waE2E.Message) *events.Messa
 	return e
 }
 
-// A reply to a message kith never cached still shows what it answers: the quoted
-// sender and words come with the reply, and FetchEvent finds them. Once the message
-// itself is cached, it is the answer.
+// A reply to an uncached message keeps its quote for FetchEvent; once the message is
+// cached, the cached one wins.
 func TestAReplyKeepsWhatItQuotes(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

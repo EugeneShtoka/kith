@@ -14,10 +14,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// A network's groupings (Telegram's folders) are copied into tags when the person asks,
-// never synced: the preview says, per tag, what a copy would change among that
-// account's rooms, and the copy writes what they chose into the config file, as any
-// change to it is written.
+// A network's groupings (Telegram folders) are copied into tags on request, never
+// synced: the preview shows per tag what a copy would change, and the copy writes the
+// chosen tags into the config file.
 
 // groupingSource is a backend whose networks may have groupings (route.Router).
 type groupingSource interface {
@@ -27,7 +26,7 @@ type groupingSource interface {
 var errNoGroupings = errors.New("daemon: this daemon copies no groupings")
 
 // groupingsNow is an account's groupings, the config, and every room's facts as the
-// config places them: what a preview and a copy are judged on.
+// config places them.
 func (s *server) groupingsNow(ctx context.Context, network, account string) (domain.RoomOwner, []domain.Grouping, config.Snapshot, []domain.RoomFacts, error) {
 	src, ok := s.Backend.(groupingSource)
 	if !ok || s.Config == nil {
@@ -85,7 +84,7 @@ func (s *server) PreviewGroupings(ctx context.Context, r *req[v1.PreviewGrouping
 }
 
 // ApplyGroupings copies an account's groupings into tags as chosen, judged on the
-// groupings and the config as they are now, and writes the config as UpdateConfig does.
+// current state, and writes the config as UpdateConfig does.
 func (s *server) ApplyGroupings(ctx context.Context, r *req[v1.ApplyGroupingsRequest]) (*resp[v1.ApplyGroupingsResponse], error) {
 	owner, groupings, snap, facts, err := s.groupingsNow(ctx, r.Msg.GetNetwork(), r.Msg.GetAccount())
 	if errors.Is(err, errNoGroupings) {
@@ -112,7 +111,7 @@ func (s *server) ApplyGroupings(ctx context.Context, r *req[v1.ApplyGroupingsReq
 	_, failed := errors.AsType[unwritable](err)
 	switch {
 	case failed:
-		return nil, rpcErr(err) // the daemon's failure, in its own words
+		return nil, rpcErr(err)
 	case errors.Is(err, api.ErrConfigMoved):
 		cerr := connect.NewError(connect.CodeAborted, err)
 		cerr.Meta().Set(sentinelHeader, "config-moved")
@@ -124,7 +123,6 @@ func (s *server) ApplyGroupings(ctx context.Context, r *req[v1.ApplyGroupingsReq
 	return connect.NewResponse(&v1.ApplyGroupingsResponse{}), nil
 }
 
-// ids is rooms as their IDs.
 func ids(rooms []domain.RoomID) []string {
 	out := make([]string, len(rooms))
 	for i, r := range rooms {

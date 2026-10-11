@@ -4,8 +4,8 @@ package audio
 
 import "errors"
 
-// ErrUnsupported: on Windows mpv's IPC is a named pipe and VLC has no --rc-unix, so
-// fail up front rather than wait out socketWait.
+// ErrUnsupported is returned on Windows, where mpv's IPC is a named pipe and VLC has
+// no --rc-unix; failing up front avoids waiting out socketWait.
 var ErrUnsupported = errors.New("audio: in-app voice-note playback is not supported on Windows yet " +
 	"(mpv's control channel there is a named pipe) — save the file and open it instead")
 

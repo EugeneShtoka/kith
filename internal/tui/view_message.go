@@ -24,13 +24,13 @@ const (
 	emoteMarker  = "*"
 )
 
-// hangingRows are drawn beneath a message and part of its span: caption chip, picture,
+// hangingRows are drawn beneath a message as part of its span: caption chip, picture,
 // reactions, and anchored thread summaries.
 func (m Model) hangingRows(msg domain.Message, threads []domain.Thread, nameW, width int) []string {
 	var rows []string
 	dir := m.bodyDir(msg)
 	// A captioned attachment's chip hangs beneath the caption. A deleted message's
-	// attachment shows nowhere but in its history (history.go).
+	// attachment shows only in its history (history.go).
 	if msg.Media != nil && msg.Caption() != "" && !msg.Redacted {
 		rows = append(rows, m.underBody(m.theme.Faint.Render(drawLine(mediaChip(msg.Media),
 			lineSpec{width: width - m.bodyColumn(nameW), sentence: true})), dir, nameW, width))
@@ -49,9 +49,8 @@ func (m Model) hangingRows(msg domain.Message, threads []domain.Thread, nameW, w
 	return rows
 }
 
-// underBody places a drawn row under the body column. Mirrored, it goes where its
-// message reads from: against the name on the right for right-to-left words, from the
-// left edge for left-to-right ones.
+// underBody places a drawn row under the body column. Mirrored, it starts where its
+// message reads from: against the name for RTL words, from the left edge for LTR.
 func (m Model) underBody(row string, dir bidi.Direction, nameW, width int) string {
 	switch {
 	case !m.mirrored():
@@ -63,16 +62,15 @@ func (m Model) underBody(row string, dir bidi.Direction, nameW, width int) strin
 	}
 }
 
-// bodyDir is the direction a message's words read in (the whole message takes one).
+// bodyDir is the direction a message's words read in (one per message).
 func (m Model) bodyDir(msg domain.Message) bidi.Direction {
 	return m.rowDir(msg, msg.Body)
 }
 
-// rowDir is the direction a message is laid out in, body its drawn text: the
-// direction of the sender's words. In a mirrored room what has no words of its own
-// reads as the room does: kith's text standing in for them (a deletion, a bare file
-// chip), a message of only links, emoji or numbers, and one that is only a bridge's
-// English header ("↷ Forwarded" on a forwarded file).
+// rowDir is the direction a message is laid out in: its words'. In a mirrored room,
+// rows without the sender's own words read as the room does: kith's stand-in text (a
+// deletion, a bare file chip), only links, emoji or numbers, or only a bridge's English
+// header ("↷ Forwarded").
 func (m Model) rowDir(msg domain.Message, body string) bidi.Direction {
 	if m.mirrored() && (standsIn(msg) || !domain.HasWords(domain.WithoutBridgeHeader(body))) {
 		return bidi.RightToLeft
@@ -80,15 +78,15 @@ func (m Model) rowDir(msg domain.Message, body string) bidi.Direction {
 	return paragraphDir(body)
 }
 
-// standsIn reports whether a message is drawn as kith's own words standing in for the
+// standsIn reports whether a message is drawn as kith's words standing in for the
 // sender's: a deletion, or a file with no caption.
 func standsIn(msg domain.Message) bool {
 	return msg.Redacted || (msg.Media != nil && msg.Caption() == "")
 }
 
-// replyPreview is the one-line quote of the message this one replies to, drawn as its
-// first line, or "" when not a reply. The quote is flattened to one line and drawn in
-// its own direction; the marker and name lead it (on the right when mirrored).
+// replyPreview is the one-line quote of the replied-to message, drawn as this one's
+// first line, or "". The quote is flattened and drawn in its own direction; the marker
+// and name lead it (on the right when mirrored).
 func (m Model) replyPreview(msg domain.Message, derived *derivedCache, nameW, width int, colors map[string]color.Color) string {
 	if msg.ReplyTo == "" {
 		return ""
@@ -115,8 +113,8 @@ func (m Model) replyPreview(msg domain.Message, derived *derivedCache, nameW, wi
 		}
 		return faint.Render(nameCell(body, quote)+" :") + name + faint.Render(" ↩")
 	}
-	// Capped to a snippet: a full-width quote repeats the original a few rows up.
-	// Cut before reordering (see nameCell).
+	// Capped to a snippet: a full-width quote repeats the original a few rows up. Cut
+	// before reordering (see nameCell).
 	if cap := min(quoteWidth, avail); cap > 0 {
 		body = nameCell(body, cap)
 	} else {
@@ -125,12 +123,10 @@ func (m Model) replyPreview(msg domain.Message, derived *derivedCache, nameW, wi
 	return truncateDrawn(faint.Render("↪ ")+name+faint.Render(": "+body), avail)
 }
 
-// quoteWidth caps the quoted text in a reply preview.
 const quoteWidth = 40
 
-// mediaChip is the one-line placeholder shown for an attachment: a type icon, the
-// file name, and (when known) its pixel dimensions and byte size, e.g.
-// "🖼 cat.jpg · 1024×768 · 240 KB".
+// mediaChip is the one-line attachment placeholder: a type icon, the file name, and
+// when known its pixel size and byte size, e.g. "🖼 cat.jpg · 1024×768 · 240 KB".
 func mediaChip(md *domain.Media) string {
 	icon := "📎"
 	switch md.Type {
@@ -167,8 +163,8 @@ func (m Model) reactionRow(target domain.EventID, dir bidi.Direction, nameW, wid
 	style := m.theme.Faint
 	chips := make([]string, 0, len(tallies))
 	for _, t := range tallies {
-		// emojiCell measures toned and text-presentation emoji as the terminal draws
-		// them; displayName because a key can be any string.
+		// emojiCell measures toned and text-presentation emoji as the terminal draws them;
+		// displayName because a key can be any string.
 		chips = append(chips, style.Render(emojiCell(displayName(t.Key))+" "+strconv.Itoa(t.Count)))
 	}
 	if m.mirrored() && dir == bidi.RightToLeft {
@@ -177,8 +173,8 @@ func (m Model) reactionRow(target domain.EventID, dir bidi.Direction, nameW, wid
 	return m.underBody(strings.Join(chips, "  "), dir, nameW, width)
 }
 
-// senderColorMap is every sender's color in the room (derived.go), computed from the
-// whole loaded history so colors do not change as you scroll.
+// senderColorMap is every sender's color in the room (derived.go), from the whole
+// loaded history so colors don't change as you scroll.
 func (m Model) senderColorMap() map[string]color.Color {
 	return m.derivedFor().colors
 }
@@ -189,7 +185,7 @@ func (m Model) bodyColumn(nameW int) int { return m.timeWidth() + 1 + nameW + 1 
 // timeWidth is the time column's width: the widest time of day the clock writes.
 func (m Model) timeWidth() int { return m.prefs.clock.TimeWidth() }
 
-// rowTime is a row's time, in the time column, or the column blank for none.
+// rowTime is a row's time for the time column, blank for none.
 func (m Model) rowTime(t time.Time) string {
 	if t.IsZero() {
 		return strings.Repeat(" ", m.timeWidth())
@@ -197,7 +193,7 @@ func (m Model) rowTime(t time.Time) string {
 	return m.theme.Muted.Render(m.prefs.clock.PaddedTime(t))
 }
 
-// messageRows renders one message: the first row carries the timestamp and fixed-width
+// messageRows renders one message: the first row carries the time and fixed-width
 // sender column, continuation rows align under the body, blank lines are dropped.
 func (m Model) messageRows(msg domain.Message, width, nameW int, colors map[string]color.Color, selected bool, preview string) []string {
 	c := colors[msg.Sender]
@@ -214,8 +210,8 @@ func (m Model) messageRows(msg domain.Message, width, nameW int, colors map[stri
 			return m.styleSegment(msg, vis, mentions, c, dir)
 		},
 	}
-	// The offset-mapped path draws the sender's formatting, tracked words and pill
-	// links (the painted path has no way to say a hyperlink).
+	// The offset-mapped path draws formatting, tracked words and pill links (the painted
+	// path cannot express a hyperlink).
 	if len(marks) > 0 || len(style.tracked) > 0 || style.linksMentions() {
 		spec.marks = func(from, to int) markFunc { return style.window(marks, from, to).at }
 	}
@@ -227,7 +223,7 @@ func (m Model) messageRows(msg domain.Message, width, nameW int, colors map[stri
 	prefix := m.messagePrefix(msg, nameW, c, selected)
 	indent := strings.Repeat(" ", prefixW)
 	rows := make([]string, 0, len(drawn)+1)
-	// A reply's quote shares the sender's first row rather than being a row of its own.
+	// A reply's quote shares the sender's first row.
 	if preview != "" {
 		rows = append(rows, prefix+preview)
 	}
@@ -238,9 +234,8 @@ func (m Model) messageRows(msg domain.Message, width, nameW int, colors map[stri
 			rows = append(rows, indent+row)
 		}
 	}
-	// An edited (but not redacted) message trails a faint marker on its last row;
-	// starred messages trail the mark here, not in the (default-off) gutter. A last
-	// row too full for them gets a row of their own, so none runs past the width.
+	// Edited (not redacted) and starred marks trail the last row; a row too full for them
+	// gets a row of their own, so none runs past the width.
 	if marks := m.trailingMarks(msg); len(marks) > 0 && len(rows) > 0 {
 		joined := strings.Join(marks, " ")
 		last := len(rows) - 1
@@ -253,9 +248,9 @@ func (m Model) messageRows(msg domain.Message, width, nameW int, colors map[stri
 	return rows
 }
 
-// mirroredMarks puts the marks trailing a mirrored message's words on its last row:
-// on the left of right-to-left words, after left-to-right ones. A row too full for
-// them gets a row of its own, flushed right, so the body never runs into the names.
+// mirroredMarks puts a mirrored message's trailing marks on its last row: left of RTL
+// words, after LTR ones. A row too full gets a row of its own, flushed right, so the
+// body never runs into the names.
 func mirroredMarks(drawn, marks []string, dir bidi.Direction, bodyW int) []string {
 	last := len(drawn) - 1
 	text := strings.TrimLeft(drawn[last], " ")
@@ -275,9 +270,8 @@ func mirroredMarks(drawn, marks []string, dir bidi.Direction, bodyW int) []strin
 	return drawn
 }
 
-// alignIn fills a drawn row to width on the side its direction leaves open: right to
-// left against the right edge, left to right from the left, so what follows it (the
-// name and the time of a mirrored row) always starts at the same column.
+// alignIn pads a drawn row to width on the side its direction leaves open, so what
+// follows (a mirrored row's name and time) starts at a fixed column.
 func alignIn(row string, dir bidi.Direction, width int) string {
 	if dir == bidi.RightToLeft {
 		return padStart(row, width)
@@ -297,12 +291,9 @@ func (m Model) trailingMarks(msg domain.Message) []string {
 	return marks
 }
 
-// mirroredMessageRows is messageRows in a room that reads right to left: the name and
-// the time on the right of the first row, and the body in its own direction before
-// them (a right-to-left one against the name); the quote, when
-// there is one, shares that row and the body goes under it. The marks that trail the
-// words follow the message's own reading order: on the left of right-to-left words,
-// after left-to-right ones.
+// mirroredMessageRows is messageRows for an RTL room: name and time on the right of the
+// first row, the body before them in its own direction; a quote shares that row and
+// pushes the body below. Trailing marks follow the message's own reading order.
 func (m Model) mirroredMessageRows(msg domain.Message, drawn []string, dir bidi.Direction, bodyW, nameW int, c color.Color, selected bool, preview string) []string {
 	ts, name := m.senderCells(msg, nameW, c, selected)
 	tail := " " + name + " " + ts
@@ -322,10 +313,9 @@ func (m Model) mirroredMessageRows(msg domain.Message, drawn []string, dir bidi.
 	return append(rows, drawn[1:]...)
 }
 
-// messageBody is the text a message shows, its mention spans, and its formatting spans.
-// Mentions are resolved before wrapping since resolved names change the length.
-// Toned emoji are spelled as the terminal draws them (presented) before anything
-// measures the text.
+// messageBody is a message's text, mention spans and formatting spans. Mentions are
+// resolved before wrapping since names change the length; toned emoji are spelled as
+// drawn (presented) before anything measures.
 func (m Model) messageBody(msg domain.Message, colors map[string]color.Color) (string, []mentionSpan, []richtext.Span) {
 	if text, spans, ok := m.formattedBody(msg); ok {
 		resolved, mentions := m.resolveMentions(text, msg.Mentions, colors, msg.RoomID)
@@ -342,8 +332,8 @@ func (m Model) messageBody(msg domain.Message, colors map[string]color.Color) (s
 	return body, mentions, bareLinkSpans(body, nil)
 }
 
-// bareLinkSpans turns every written-out URL into a link span, skipping any already
-// covered by one of the sender's (whose href may differ from the words).
+// bareLinkSpans makes a link span of every written-out URL not already covered by one
+// of the sender's (whose href may differ from the words).
 func bareLinkSpans(text string, have []richtext.Span) []richtext.Span {
 	found := domain.LinkSpans(text)
 	if len(found) == 0 {
@@ -364,7 +354,6 @@ func bareLinkSpans(text string, have []richtext.Span) []richtext.Span {
 	return out
 }
 
-// coveredByLink reports whether any link span overlaps [start, end).
 func coveredByLink(spans []richtext.Span, start, end int) bool {
 	for i := range spans {
 		if spans[i].Link && start < spans[i].End && spans[i].Start < end {
@@ -388,7 +377,7 @@ func (m Model) formattedBody(msg domain.Message) (string, []richtext.Span, bool)
 	return text, spans, true
 }
 
-// plainBody is the text a message shows when its formatting is not being drawn.
+// plainBody is a message's text when its formatting is not drawn.
 func (m Model) plainBody(msg domain.Message, colors map[string]color.Color) (string, []mentionSpan) {
 	switch {
 	case msg.Redacted && m.timeline.revealed[msg.ID] && msg.Body != "":
@@ -399,8 +388,8 @@ func (m Model) plainBody(msg domain.Message, colors map[string]color.Color) (str
 	case msg.Poll != nil:
 		return pollBody(msg.Poll), nil
 	case msg.Emote:
-		// The IRC marker without the name, which has its own column. Mention spans name
-		// people rather than offsets, so the prefix does not disturb them.
+		// The IRC marker without the name, which has its own column. Mention spans name people,
+		// not offsets, so the prefix doesn't disturb them.
 		body, spans := m.resolveMentions(msg.Body, msg.Mentions, colors, msg.RoomID)
 		return emoteMarker + " " + body, spans
 	case msg.Caption() != "":
@@ -434,7 +423,6 @@ func (m Model) styleSegment(msg domain.Message, vis string, mentions []mentionSp
 	return vis
 }
 
-// mentionSpan is a name to color in a body and the color to use.
 type mentionSpan struct {
 	name string
 	c    color.Color
@@ -442,9 +430,9 @@ type mentionSpan struct {
 	uri string
 }
 
-// resolveMentions rewrites each mention to the person's processed display name and
-// returns spans to color: their room hue if they have posted, else the accent. Spans are
-// longest-first so a shorter name cannot pre-empt a longer one.
+// resolveMentions rewrites each mention to the person's processed name and returns
+// spans to color: their room hue if they posted, else the accent. Longest first, so a
+// shorter name cannot pre-empt a longer one.
 func (m Model) resolveMentions(body string, mentions []domain.Mention, colors map[string]color.Color, roomID domain.RoomID) (string, []mentionSpan) {
 	if len(mentions) == 0 {
 		return body, nil
@@ -467,12 +455,10 @@ func (m Model) resolveMentions(body string, mentions []domain.Mention, colors ma
 	return body, spans
 }
 
-// mentionedName is the name a mention of userID is drawn with: who they are to this
-// person now (domain.People: an alias, the open room's member name, then known — the
-// cache's name for them, the words the mention was written in — then the name on
-// their latest loaded message, the phone book's name for their number), shaped by
-// the room's space rule as the sender column is. So a name learned or changed later
-// reaches every mention already drawn.
+// mentionedName is the name a mention of userID is drawn with: domain.People's answer
+// (alias, member name, known names, latest message name, phone book), shaped by the
+// room's space rule like the sender column. A name learned later reaches every mention
+// already drawn.
 func (m Model) mentionedName(userID string, roomID domain.RoomID, known ...string) string {
 	member, sent := "", ""
 	for i := range m.timeline.members {
@@ -495,8 +481,8 @@ func (m Model) people() domain.People {
 	return domain.People{Alias: m.aliasOf, Dir: m.dir.dir}
 }
 
-// aliasOf is the person's own name for userID, "" for none: an identity's alias, else
-// the name of a room named after them.
+// aliasOf is the person's own name for userID, or "": an identity alias, else the name
+// of a room named after them.
 func (m Model) aliasOf(userID string) string {
 	if alias := m.prefs.aliases[userID]; alias != "" {
 		return alias
@@ -507,9 +493,8 @@ func (m Model) aliasOf(userID string) string {
 	return m.peers.aliases[userID]
 }
 
-// styleMentions renders seg with each mentioned name in its color (bold) and the
-// rest in base, matching non-overlapping first occurrences. seg must be free of
-// ANSI (LTR bodies only).
+// styleMentions renders seg with each mentioned name bold in its color and the rest in
+// base, matching non-overlapping first occurrences. seg must be ANSI-free (LTR only).
 func styleMentions(seg string, mentions []mentionSpan, base lipgloss.Style) string {
 	type span struct {
 		start, end int
@@ -553,7 +538,6 @@ func styleMentions(seg string, mentions []mentionSpan, base lipgloss.Style) stri
 	return b.String()
 }
 
-// rangeOccupied reports whether any index in [start,end) is already taken.
 func rangeOccupied(occupied []bool, start, end int) bool {
 	for i := start; i < end && i < len(occupied); i++ {
 		if occupied[i] {
@@ -563,16 +547,15 @@ func rangeOccupied(occupied []bool, start, end int) bool {
 	return false
 }
 
-// messagePrefix is the styled "HH:MM <name> " lead-in for a message's first row,
-// with the name padded to nameW so bodies align. c is the sender's per-room
-// color; the name is bold to stand out from a color-tinted body.
+// messagePrefix is the styled "HH:MM <name> " lead-in, the name padded to nameW and
+// bold in the sender's room color.
 func (m Model) messagePrefix(msg domain.Message, nameW int, c color.Color, selected bool) string {
 	ts, name := m.senderCells(msg, nameW, c, selected)
 	return ts + " " + name + " "
 }
 
-// senderCells are a message's time and its styled name padded to nameW: after the
-// name, or, mirrored, before it, so names sit against the time either way.
+// senderCells are a message's time and styled name padded to nameW: after the name,
+// or before it when mirrored, so names sit against the time.
 func (m Model) senderCells(msg domain.Message, nameW int, c color.Color, selected bool) (ts, name string) {
 	label := displayName(m.processedName(msg))
 	pad := strings.Repeat(" ", max(nameW-ansi.StringWidth(label), 0))
@@ -594,22 +577,20 @@ func (m Model) nameColWidth() int {
 	return m.derivedFor().nameW
 }
 
-// senderName is processedName isolated for a sentence, like roomName: logical, and drawn
-// by whatever it is put into. A cell that is the name and nothing else — the sender
-// column, a reply's quote — draws it with displayName.
+// senderName is processedName isolated for use in a sentence. A cell holding only the
+// name (the sender column, a quote) uses displayName.
 func (m Model) senderName(msg domain.Message) string {
 	return isolate(m.processedName(msg))
 }
 
 // personIn is a sender label for someone named outside a message (thread reply,
-// typing, invite). The room must be passed so its space's name rule applies.
+// typing, invite); the room selects its space's name rule.
 func (m Model) personIn(room domain.RoomID, sender, name string) string {
 	return m.senderName(domain.Message{RoomID: room, Sender: sender, SenderName: name})
 }
 
-// processedName is the sender label after applying the display rules: a merged
-// identity's alias supplies the name when there is one, else the name of a room named
-// after them (peeralias.go), and shapedName shapes it.
+// processedName is the sender label: a merged identity's alias, else the name of a DM
+// named after them (peeralias.go), else their name, shaped by shapedName.
 func (m Model) processedName(msg domain.Message) string {
 	if id, ok := m.prefs.identities[msg.Sender]; ok && id.alias != "" {
 		return m.shapedName(id.alias, msg.RoomID)
@@ -620,22 +601,21 @@ func (m Model) processedName(msg domain.Message) string {
 	return m.shapedName(m.byNumber(senderLabel(msg)), msg.RoomID)
 }
 
-// shapedName applies the room's space name rules to a name, aliases included: an alias
-// says which name, the rule says how much of it.
+// shapedName applies the room's space name rules to a name, aliases included: the
+// alias picks the name, the rule how much of it.
 func (m Model) shapedName(name string, roomID domain.RoomID) string {
 	return m.nameRuleFor(m.ownSpace(roomID)).apply(name)
 }
 
-// nameRule is everything the display settings do to a name, resolved for one space, so
-// every surface applies the same transform and only chooses which space's rule.
+// nameRule is everything the display settings do to a name, resolved for one space,
+// so every surface applies the same transform.
 type nameRule struct {
 	firstOnly bool // keep the first word; per-space first_name_only
 	rooms     bool // also shorten people-named room labels; [display] room_name_rules
 	width     int  // truncate sender labels to this many columns, 0 = no limit
 }
 
-// nameRuleFor is the rule in force for one space, or the global half alone for a room
-// that belongs to none.
+// nameRuleFor is the rule for one space, or only the global half for a room in none.
 func (m Model) nameRuleFor(space string) nameRule {
 	rule := nameRule{
 		rooms: m.prefs.display.ApplyRoomNameRules(),
@@ -653,7 +633,6 @@ func (m Model) nameRuleFor(space string) nameRule {
 	return rule
 }
 
-// apply transforms one person's name, for a sender label.
 func (r nameRule) apply(name string) string {
 	if r.firstOnly {
 		name = firstName(name)
@@ -664,8 +643,8 @@ func (r nameRule) apply(name string) string {
 	return name
 }
 
-// within shortens the participants inside a people-named room label, reporting whether
-// the name was one.
+// within shortens participants inside a people-named room label, reporting whether it
+// was one.
 func (r nameRule) within(name string, members []string) (string, bool) {
 	if !r.firstOnly || !r.rooms {
 		return name, false
@@ -673,8 +652,8 @@ func (r nameRule) within(name string, members []string) (string, bool) {
 	return shortenByMembers(name, members)
 }
 
-// ownSpace is the room's first space in the user's priority order. The timeline uses it:
-// which door you came through is not part of the conversation.
+// ownSpace is the room's first space in priority order. The timeline uses it: the door
+// you came through is not part of the conversation.
 func (m Model) ownSpace(roomID domain.RoomID) string {
 	spaces := m.homesOf(roomID)
 	if len(spaces) == 0 {
@@ -683,8 +662,8 @@ func (m Model) ownSpace(roomID domain.RoomID) string {
 	return spaces[0]
 }
 
-// listedSpace is the rail's selected space when the room is in it, else ownSpace. Only
-// the room list uses it, so a space-scoped column is uniform with that space.
+// listedSpace is the rail's selected space when it holds the room, else ownSpace. Only
+// the room list uses it, so a space-scoped column is uniform.
 func (m Model) listedSpace(roomID domain.RoomID) string {
 	if here := m.rail.key(); here != "" {
 		for _, space := range m.placeHomes(roomID) {
@@ -696,7 +675,6 @@ func (m Model) listedSpace(roomID domain.RoomID) string {
 	return m.ownSpace(roomID)
 }
 
-// firstName returns the first whitespace-delimited token of a name.
 func firstName(s string) string {
 	if i := strings.IndexAny(s, " \t"); i >= 0 {
 		return s[:i]
@@ -704,8 +682,7 @@ func firstName(s string) string {
 	return s
 }
 
-// senderLabel is the name shown for a message: the resolved room display name,
-// falling back to the ID's short name when none was resolved.
+// senderLabel is the resolved room display name, else the ID's short name.
 func senderLabel(msg domain.Message) string {
 	if msg.SenderName != "" {
 		return msg.SenderName
@@ -713,8 +690,8 @@ func senderLabel(msg domain.Message) string {
 	return shortSender(msg.Sender)
 }
 
-// shortSender reduces a user ID to its short name (a localpart, a phone number) for a
-// compact timeline, falling back to the full value when it has none.
+// shortSender reduces a user ID to its short name (a localpart, a phone number), or
+// the full value when it has none.
 func shortSender(sender string) string {
 	s := domain.ShortName(sender)
 	if s == "" {

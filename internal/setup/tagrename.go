@@ -9,15 +9,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A tag is named by `tag:<name>` wherever a place is (rules, place lists, the rail
-// order, priority, name rules), and by its bare name where the rail takes a row's
-// label ([display.rail] hidden and hide_when_empty). Renaming one rewrites all of
-// those; deleting one drops it from the rail's lists and priority, and leaves the rest
-// for the person, since a rule naming a tag that is gone is refused, saying where.
+// A tag is referenced as `tag:<name>` in place entries and by bare name in
+// [display.rail] hidden/hide_when_empty. Deleting one leaves other references for the
+// person: a rule naming a missing tag is refused, saying where.
 
-// RenameTag is cfg with the tag named from (case-insensitive) called to: its [[tag]],
-// every `tag:<from>` entry (after `not ` too) in any setting, and every bare-name
-// entry in the rail's hidden and hide_when_empty. Nothing else changes.
+// RenameTag renames tag from (case-insensitive) to to: its [[tag]], every
+// `[not ]tag:<from>` entry in any setting, and bare names in the rail's lists.
 func RenameTag(cfg config.Config, from, to string) config.Config {
 	out := cfg.Clone()
 	to = strings.TrimSpace(to)
@@ -44,8 +41,8 @@ func RenameTag(cfg config.Config, from, to string) config.Config {
 	return out
 }
 
-// DeleteTag is cfg without the tag named name, and without it in the rail's lists and
-// [display] priority, where naming a tag that is gone would only be clutter.
+// DeleteTag removes tag name and its entries in the rail's lists and [display]
+// priority.
 func DeleteTag(cfg config.Config, name string) config.Config {
 	out := cfg.Clone()
 	out.Tags = slices.DeleteFunc(out.Tags, func(t config.Tag) bool { return sameTag(t.Name, name) })
@@ -68,8 +65,8 @@ func DeleteTag(cfg config.Config, name string) config.Config {
 	return out
 }
 
-// renamedReference is s with a reference to the tag from renamed to to: `tag:<from>`
-// or `not tag:<from>`, whole; anything else is s unchanged.
+// renamedReference renames a whole `[not ]tag:<from>` entry; anything else is
+// returned unchanged.
 func renamedReference(s, from, to string) string {
 	body, not := strings.TrimSpace(s), ""
 	if len(body) > len("not ") && strings.EqualFold(body[:len("not ")], "not ") {
@@ -84,8 +81,7 @@ func renamedReference(s, from, to string) string {
 
 func sameTag(a, b string) bool { return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b)) }
 
-// rewriteStrings replaces every string reachable from v (settable, exported) with
-// what f makes of it: struct fields, slice elements and pointed-to values.
+// rewriteStrings replaces every settable exported string reachable from v with f(s).
 func rewriteStrings(v reflect.Value, f func(string) string) {
 	switch v.Kind() {
 	case reflect.String:
@@ -117,17 +113,10 @@ func rewriteStrings(v reflect.Value, f func(string) string) {
 	}
 }
 
-// CombineTags is cfg with the tag named from folded into the tag named into (both
-// exist; case-insensitive): what renaming from to into's name means. The combined tag
-// holds exactly what either held — held says whether a tag holds a room now, among
-// rooms, every room an entry may name — and keeps into's settings. Where either rule
-// has a `not` term, which would start filtering the other tag's rooms, both are
-// replaced by the rooms they hold, picked by ID; otherwise the rules are joined, the
-// lists joined, and an exclusion dropped where the other tag holds the room — unless a
-// reference moved onto the combined tag would close a cycle through it, when it holds
-// the rooms instead too. Every
-// reference to from (rules, place lists, rail, priority, a network's archive) names
-// into after, with what that leaves twice, or a tag naming itself, dropped.
+// CombineTags folds tag from into tag into (case-insensitive), keeping into's settings
+// and holding exactly the rooms either held (per held, over rooms). Rules and lists are
+// joined; if either rule has a `not` term, or joining would close a cycle, the result
+// picks the held rooms by ID instead. References to from move to into, deduplicated.
 func CombineTags(cfg config.Config, from, into string, rooms []domain.RoomFacts, held func(tag string, room domain.RoomFacts) bool) config.Config {
 	out := cfg.Clone()
 	fi := slices.IndexFunc(out.Tags, func(t config.Tag) bool { return sameTag(t.Name, from) })
@@ -150,8 +139,7 @@ func CombineTags(cfg config.Config, from, into string, rooms []domain.RoomFacts,
 	a.Picked = joined(a.Picked, b.Picked)
 	a.Excluded = joined(unheld(a.Excluded, b.Name, rooms, held), unheld(b.Excluded, a.Name, rooms, held))
 	joinedRules := combined(out, fi, ii, from, a)
-	// A reference moved onto the combined tag can close a cycle through it (A names C,
-	// C named B), whose references then match nothing: the rooms it holds instead.
+	// A moved reference can close a cycle (A names C, C named B); pick by ID instead.
 	if _, warnings, err := Tags(joinedRules); err != nil || len(warnings) > 0 {
 		if _, before, _ := Tags(cfg); len(warnings) > len(before) || err != nil {
 			return combined(out, fi, ii, from, exact)
@@ -161,13 +149,13 @@ func CombineTags(cfg config.Config, from, into string, rooms []domain.RoomFacts,
 	return out
 }
 
-// combined is out with tag fi gone, tag ii made merged, and every reference to from
-// moved onto it — what is then listed twice, or a tag naming itself, dropped.
+// combined replaces tag ii with merged, drops tag fi, and moves references to from
+// onto merged, dropping duplicates and self-references.
 func combined(out config.Config, fi, ii int, from string, merged config.Tag) config.Config {
 	out = out.Clone()
 	out.Tags[ii] = merged
 	out.Tags = slices.Delete(out.Tags, fi, fi+1)
-	out = RenameTag(out, from, merged.Name) // no tag is called from now: only references move
+	out = RenameTag(out, from, merged.Name) // tag from is gone; only references move
 	for i := range out.Tags {
 		if sameTag(out.Tags[i].Name, merged.Name) {
 			out.Tags[i].Rule = slices.DeleteFunc(out.Tags[i].Rule, func(term string) bool {
@@ -204,9 +192,8 @@ func joined(lists ...[]string) []string {
 	return out
 }
 
-// unheld is the exclusions less the rooms the tag other holds: an entry naming one of
-// those is dropped, and replaced by the IDs of the rooms it named that other does not
-// hold (a room:<name> two rooms share), so those stay out.
+// unheld drops exclusions naming a room other holds, replacing each with the IDs of
+// its rooms other does not hold (a room:<name> may match several).
 func unheld(excluded []string, other string, rooms []domain.RoomFacts, held func(string, domain.RoomFacts) bool) []string {
 	var out []string
 	for _, entry := range excluded {

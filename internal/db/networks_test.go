@@ -8,9 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A room's network is kept once read and never rewritten; rooms not read yet are
-// exactly the joined ones with none kept; a network read before the room is listed is
-// kept for it; a room forgotten takes its network with it.
+// A room's network is kept once and never rewritten, may precede the room's listing,
+// and is dropped with the room.
 func TestARoomsNetworkIsKeptOnce(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

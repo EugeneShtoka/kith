@@ -28,8 +28,8 @@ func (a NetworkArchive) TagName() string {
 	return DefaultArchiveTag
 }
 
-// Archives is each network that has an archive of its own, by its section's name, and
-// its [<network>.archive], to read or to change in place.
+// Archives maps each network with its own archive, by section name, to its
+// [<network>.archive], editable in place.
 func (c *Config) Archives() map[string]*NetworkArchive {
 	return map[string]*NetworkArchive{"telegram": &c.Telegram.Archive, "whatsapp": &c.WhatsApp.Archive}
 }

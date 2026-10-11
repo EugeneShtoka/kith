@@ -9,13 +9,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Unread is counted locally, as the other networks' is: the cache counts what came
-// after a room's read position that is not ours. The position is Slack's: last_read
-// from client.counts as a workspace catches up, moved when the conversation is read
-// here or on another client (channel_marked and its kin). A room Slack gave no
-// position for is read up to just before what made it known.
+// Unread is counted locally: messages not yours after a room's read position. The
+// position is Slack's last_read (client.counts at catch-up), moved when read here or
+// elsewhere (channel_marked and kin). A room without one is read up to just before the
+// message that revealed it.
 
-// placed reports whether a room's read position is known, loading them the first time.
+// placed reports whether a room's read position is known, loading positions on first use.
 func (a *Adapter) placed(ctx context.Context, room domain.RoomID) bool {
 	a.mu.Lock()
 	loaded := a.positions != nil
@@ -43,7 +42,7 @@ func (a *Adapter) placed(ctx context.Context, room domain.RoomID) bool {
 	return known
 }
 
-// placeRead gives a room a read position at at, unless it has one.
+// placeRead sets a room's read position to at unless it has one.
 func (a *Adapter) placeRead(ctx context.Context, room domain.RoomID, at time.Time) {
 	if a.cache == nil || a.placed(ctx, room) {
 		return
@@ -51,8 +50,7 @@ func (a *Adapter) placeRead(ctx context.Context, room domain.RoomID, at time.Tim
 	a.readTo(ctx, room, "", at)
 }
 
-// readTo moves a room's read position forward to event (at its time); an older one
-// leaves it (the cache moves a position only forward).
+// readTo moves a room's read position forward to event; the cache never moves it back.
 func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, event domain.EventID, at time.Time) {
 	if a.cache == nil {
 		return
@@ -68,7 +66,6 @@ func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, event domain.E
 	a.mu.Unlock()
 }
 
-// recount streams a room's unread counts.
 func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 	if a.cache == nil {
 		return
@@ -89,7 +86,7 @@ func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 	emit(a, a.unread, u)
 }
 
-// onMarked moves a conversation's read position to ts, read on this or another client.
+// onMarked moves a conversation's read position to ts, read on any client.
 func (a *Adapter) onMarked(ctx context.Context, w *workspace, channel, ts string) {
 	if channel == "" || ts == "" {
 		return
@@ -128,9 +125,8 @@ func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	return rows, nil
 }
 
-// MarkRead marks a conversation read up to eventID, on Slack (every client of yours
-// follows) and in kith's count. Slack shows nobody else how far you read, so private
-// changes nothing.
+// MarkRead marks a conversation read up to eventID on Slack (all your clients follow)
+// and locally. Slack shows nobody your read position, so private changes nothing.
 func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, _ bool) error {
 	w, channel, err := a.conversation(roomID)
 	if err != nil {
@@ -148,8 +144,7 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 	return nil
 }
 
-// MarkRoomsRead marks each room read up to its newest cached message, its threads
-// with it.
+// MarkRoomsRead marks each room and its threads read up to its newest cached message.
 func (a *Adapter) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error) {
 	var result domain.ReadResult
 	if a.cache == nil {

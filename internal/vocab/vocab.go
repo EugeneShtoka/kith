@@ -1,8 +1,6 @@
-// Package vocab ranks word completions from what was said recently, counted in memory.
-//
-// Each window counts the words of a bounded set of recent messages: this room's, its
-// space's, your own, everyone's. A completion is scored over those windows, so its cost
-// is the words sharing the prefix, not the size of the cache.
+// Package vocab ranks word completions from in-memory counts of recent messages:
+// windows over this room, its space, your own, and everyone's. A lookup costs the words
+// sharing the prefix, not the size of the cache.
 package vocab
 
 import (
@@ -17,17 +15,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/spell"
 )
 
-// The score's weights: a use in this room outranks one in a sibling room, and your own
-// use sits between them.
+// Score weights per window.
 const (
 	RoomWeight  = 10
 	SpaceWeight = 3
 	MineWeight  = 5
 )
 
-// Fold is how a word is compared and offered: lower case, with diacritics removed from
-// Latin letters, as the cache's full-text index folds (unicode61 remove_diacritics 2).
-// A prefix typed with or without an accent then finds the same word.
+// Fold lowercases word and strips diacritics from Latin letters, matching the cache's
+// full-text index (unicode61 remove_diacritics 2).
 func Fold(word string) string {
 	word = strings.ToLower(word)
 	if isASCII(word) {
@@ -39,7 +35,7 @@ func Fold(word string) string {
 	lastLatin := false
 	for _, r := range decomposed {
 		if unicode.Is(unicode.Mn, r) && lastLatin {
-			continue // a mark on a Latin letter: é is e
+			continue // é is e
 		}
 		lastLatin = unicode.Is(unicode.Latin, r)
 		b.WriteRune(r)
@@ -56,9 +52,8 @@ func isASCII(s string) bool {
 	return true
 }
 
-// Window counts the words of up to about limit messages. Past a quarter over, Stale
-// says it should be rebuilt from the newest limit. Not safe for concurrent use: lookups
-// sort lazily.
+// Window counts the words of about limit messages; Stale reports when it should be
+// rebuilt. Not safe for concurrent use: lookups sort lazily.
 type Window struct {
 	counts   map[string]int
 	sorted   []string // counts' keys in order, rebuilt on first lookup after an Add
@@ -83,9 +78,8 @@ func (w *Window) Add(body string) {
 	}
 }
 
-// Words is a message's words as completion counts them, folded: spell.Words' words
-// (so code, URLs and numbers are left out), split at inner apostrophes and hyphens as
-// the full-text index splits them ("well-known" is "well" and "known").
+// Words is spell.Words' words (no code, URLs or numbers), split at inner apostrophes
+// and hyphens like the full-text index, and folded.
 func Words(body string) []string {
 	var out []string
 	for _, word := range spell.Words(body) {
@@ -98,7 +92,7 @@ func Words(body string) []string {
 
 func isJoiner(r rune) bool { return r == '\'' || r == '’' || r == '-' }
 
-// Stale reports whether the window has grown well past its limit.
+// Stale reports whether the window has grown a quarter past its limit.
 func (w *Window) Stale() bool { return w.messages > w.limit+w.limit/4 }
 
 // Count is how many times word was used in the window.
@@ -119,14 +113,13 @@ func (w *Window) withPrefix(prefix string, fn func(word string)) {
 	}
 }
 
-// Scope is the windows a completion is scored over; a nil one has no term, as a scope
-// that leaves the room or the space out.
+// Scope is the windows a completion is scored over; nil ones are skipped.
 type Scope struct {
 	Room, Space, Mine, Global *Window
 }
 
-// Rank is the words starting with prefix (already folded) that are long enough to be
-// worth offering, best first, at most limit.
+// Rank returns up to limit words starting with the folded prefix that are worth
+// offering, best first.
 func Rank(prefix string, s Scope, limit int) []domain.WordCandidate {
 	if prefix == "" || limit <= 0 {
 		return nil
@@ -137,8 +130,7 @@ func Rank(prefix string, s Scope, limit int) []domain.WordCandidate {
 			return
 		}
 		w.withPrefix(prefix, func(word string) {
-			// Only what saves some typing is offered (domain.LongEnough), which also
-			// leaves out the prefix itself.
+			// LongEnough also excludes the prefix itself.
 			if domain.LongEnough(prefix, word) {
 				scores[word] += weight * w.Count(word)
 			}

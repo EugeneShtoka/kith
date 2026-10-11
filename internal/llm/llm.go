@@ -14,21 +14,17 @@ import (
 	"time"
 )
 
-// Task is one thing the model can be asked for: the instruction, the shape of the ask,
-// and the bounds on the answer.
+// Task is one prompt the model can run, with bounds on the answer.
 type Task struct {
-	// Name is the task's config/UI name.
-	Name string
+	Name string // config/UI name
 	// System and Prompt are templates over the same fields (see Render).
 	System      string
 	Prompt      string
 	MaxTokens   int
 	Temperature float64
 	Stop        []string
-	// Model overrides the client's model when set.
-	Model string
-	// Effort is the reasoning effort ("low", "medium", "high"); empty = endpoint default.
-	Effort string
+	Model       string // overrides the client's model when set
+	Effort      string // reasoning effort ("low", "medium", "high"); empty = endpoint default
 }
 
 // Client is one configured endpoint.
@@ -39,8 +35,7 @@ type Client struct {
 	http     *http.Client
 }
 
-// ErrNotConfigured is returned when there is no endpoint to ask. It is a state rather
-// than a failure: the model layer is off until somebody names one.
+// ErrNotConfigured is returned when there is no endpoint: the model layer is off.
 var ErrNotConfigured = errors.New("llm: no endpoint configured")
 
 // New makes a client, or reports that there is nothing configured.
@@ -138,15 +133,15 @@ func (c *Client) Ask(ctx context.Context, task Task, fields map[string]string) (
 	return readReply(resp, task)
 }
 
-// readReply turns one HTTP response into the text or into the reason there is none.
+// readReply returns the reply text or why there is none.
 func readReply(resp *http.Response, task Task) (string, error) {
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxReplyBytes))
 	if err != nil {
 		return "", fmt.Errorf("llm: read reply: %w", err)
 	}
 	var decoded chatResponse
-	// Decoded before the status is judged: error details live in the body. A
-	// refusal need not be JSON, so the decode error only matters on a 200.
+	// Decode before the status check: error details are in the body, but a refusal
+	// need not be JSON, so the decode error matters only on a 200.
 	decodeErr := json.Unmarshal(raw, &decoded)
 	if resp.StatusCode != http.StatusOK {
 		if decoded.Error != nil && decoded.Error.Message != "" {
@@ -171,5 +166,4 @@ func readReply(resp *http.Response, task Task) (string, error) {
 	return text, nil
 }
 
-// maxReplyBytes bounds one reply.
 const maxReplyBytes = 1 << 20

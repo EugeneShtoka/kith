@@ -7,8 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// /me sends the words as an emote — the msgtype, which is the whole feature: every
-// other client renders it in the third person.
+// /me sends an emote msgtype, which other clients render in the third person.
 func TestMeSendsAnEmote(t *testing.T) {
 	t.Parallel()
 
@@ -33,7 +32,6 @@ func TestMeSendsAnEmote(t *testing.T) {
 	}
 }
 
-// An emote is rendered as something the sender did, not as something they said.
 func TestEmoteRendersWithItsMarker(t *testing.T) {
 	t.Parallel()
 
@@ -67,8 +65,8 @@ func TestMeWithNoWordsSaysWhatItWants(t *testing.T) {
 	}
 }
 
-// Text that is not a known one-line command is sent as a message: an unknown command
-// as typed, a leading `//` minus one slash, and a multi-line body whole.
+// Non-commands are sent: an unknown command as typed, a leading `//` minus one slash,
+// a multi-line body whole.
 func TestNonCommandsAreSentAsMessages(t *testing.T) {
 	t.Parallel()
 
@@ -97,8 +95,7 @@ func TestNonCommandsAreSentAsMessages(t *testing.T) {
 	}
 }
 
-// `/` completes the command list, and only at the start of the composer: mid-sentence
-// a slash is a slash.
+// `/` completes commands only at the start of the composer.
 func TestSlashCompletesCommands(t *testing.T) {
 	t.Parallel()
 
@@ -121,7 +118,6 @@ func TestSlashCompletesCommands(t *testing.T) {
 		t.Errorf("candidates = %+v, want only /mentions", m.completion.candidates)
 	}
 
-	// Mid-sentence: not a command.
 	mid, _ := attaching(t)
 	mid, _ = press(t, mid, keyText("i"))
 	mid = typeInto(t, mid, "and/or")

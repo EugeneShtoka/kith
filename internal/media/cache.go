@@ -1,6 +1,5 @@
-// Package media is the client's own cache of timeline images: the originals as files
-// an external viewer can open, and the decoded, downsampled renderings so reopening a
-// room doesn't re-decode. Every miss just does the work; it is never required.
+// Package media caches timeline images: originals as files an external viewer can open,
+// and downsampled renders so reopening a room doesn't re-decode. A miss just redoes the work.
 package media
 
 import (
@@ -23,8 +22,7 @@ const DefaultMaxBytes int64 = 1 << 30
 // Cache is a directory of attachment bytes and scaled renders.
 type Cache struct {
 	dir string
-	// renders is a subdirectory, so the cache root holds nothing but the attachments
-	// themselves.
+	// renders is a subdirectory, so the root holds only attachments.
 	renders string
 	max     int64
 }
@@ -56,7 +54,7 @@ func (c *Cache) Dir() string {
 	return c.dir
 }
 
-// Path is where an attachment's own bytes belong, whether or not they are there yet.
+// Path is where an attachment's bytes belong, present or not.
 func (c *Cache) Path(event domain.EventID, name, mimeType string) string {
 	if c == nil {
 		return ""
@@ -72,8 +70,8 @@ func (c *Cache) Read(event domain.EventID, name, mimeType string) ([]byte, bool)
 	return readNonEmpty(c.Path(event, name, mimeType))
 }
 
-// Write stores an attachment's bytes and returns the file they went to. A failure to
-// write is reported but is not fatal to anything: the bytes are already in hand.
+// Write stores an attachment's bytes and returns their path. A failure is non-fatal:
+// the caller already has the bytes.
 func (c *Cache) Write(event domain.EventID, name, mimeType string, data []byte) (string, error) {
 	if c == nil || len(data) == 0 {
 		return "", nil
@@ -106,8 +104,7 @@ func (c *Cache) PutRender(event domain.EventID, cols, rows int, drawn []byte) er
 	return write(c.renderPath(event, cols, rows), drawn)
 }
 
-// renderPath is where the drawing for one cell box lives: under renders/, out of the
-// way of anything that opens the cache looking for pictures.
+// renderPath is the render for one cell box, under renders/.
 func (c *Cache) renderPath(event domain.EventID, cols, rows int) string {
 	return filepath.Join(c.renders, fmt.Sprintf("%s@%dx%d.rows", key(event), cols, rows))
 }
@@ -164,8 +161,7 @@ func (c *Cache) Trim() (freed int64, err error) {
 	return freed, nil
 }
 
-// Touch records that a file was used now, so Trim keeps what is being looked at. A
-// failure is ignored: the worst it costs is that something useful is evicted early.
+// Touch marks a file used now for Trim's LRU; a failure only risks early eviction.
 func (c *Cache) Touch(path string) {
 	if c == nil || path == "" {
 		return
@@ -174,9 +170,7 @@ func (c *Cache) Touch(path string) {
 	_ = os.Chtimes(path, now, now)
 }
 
-// write puts data at path without ever leaving a half-written file where a reader could
-// find one: a torn PNG is worse than a miss, because a miss is retried and a torn file
-// is believed.
+// write replaces path atomically: a miss is retried, a torn file would be believed.
 func write(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
 	if err != nil {
@@ -200,7 +194,7 @@ func write(path string, data []byte) error {
 	return nil
 }
 
-// extension is what to call the file, so a viewer knows what it is holding.
+// extension picks a file extension so a viewer knows the type.
 func extension(name, mimeType string) string {
 	if ext := filepath.Ext(name); usableExtension(ext) {
 		return strings.ToLower(ext)
@@ -225,15 +219,13 @@ func extension(name, mimeType string) string {
 	return ".bin"
 }
 
-// conventional are the extensions people and desktops expect, preferred over the
-// other spellings a MIME table lists for the same type.
+// conventional extensions are preferred over a MIME table's other spellings.
 var conventional = []string{
 	".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".heic", ".tif", ".mp4", ".pdf",
 	".ogg", ".oga", ".opus", ".mp3", ".m4a", ".aac", ".wav", ".flac", ".webm",
 }
 
-// usableExtension reports whether ext is a short, plain, dotted suffix — the shape a
-// file extension has, as opposed to whatever else a filename might end in.
+// usableExtension reports whether ext is a short, plain, dotted suffix.
 func usableExtension(ext string) bool {
 	if len(ext) < 2 || len(ext) > 6 || !strings.HasPrefix(ext, ".") {
 		return false

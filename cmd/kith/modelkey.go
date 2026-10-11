@@ -14,8 +14,8 @@ import (
 // maxKeyBytes bounds what is read from a pipe.
 const maxKeyBytes = 8 << 10
 
-// setModelKey stores the model API key under ref in the OS keyring (not scoped to the
-// Matrix account). An empty answer deletes it. The value is never printed.
+// setModelKey stores the model API key under ref in the OS keyring (not per Matrix
+// account); an empty answer deletes it. The value is never printed.
 func setModelKey(keyring, ref string) error {
 	key, err := readKeyInput(fmt.Sprintf("API key for [assist] key_ref = %q", ref))
 	if err != nil {
@@ -35,8 +35,8 @@ func setModelKey(keyring, ref string) error {
 	return nil
 }
 
-// readKeyInput reads the key from the terminal, or from a pipe. Unlike passwords, a
-// rotatable API key is allowed from a pipe: it usually lives in a password manager.
+// readKeyInput reads the key from the terminal or a pipe. Unlike passwords, a rotatable
+// API key may come from a pipe: it usually lives in a password manager.
 func readKeyInput(prompt string) (string, error) {
 	if term.IsTerminal(int(os.Stdin.Fd())) {
 		return readSecret(prompt)

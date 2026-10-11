@@ -20,8 +20,7 @@ func VerificationKindToProto(k domain.VerificationKind) v1.VerificationKind {
 }
 
 // ProtoToVerificationKind converts a flow stage back; ok is false for anything
-// unrecognized. It must not fall back to zero, which is VerificationRequested and
-// would prompt the user to accept a flow nothing started.
+// unknown. Zero is VerificationRequested and would prompt for a flow nothing started.
 func ProtoToVerificationKind(pb v1.VerificationKind) (domain.VerificationKind, bool) {
 	for domainKind, wireKind := range verificationKinds {
 		if wireKind == pb {

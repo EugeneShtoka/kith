@@ -13,7 +13,7 @@ import (
 // EventID identifies a single Matrix event (e.g. "$abc:example.org").
 type EventID string
 
-// Message is a single timeline message event, reduced to what the client renders.
+// Message is a timeline message event, reduced to what the client renders.
 type Message struct {
 	ID         EventID
 	RoomID     RoomID
@@ -30,50 +30,43 @@ type Message struct {
 	RedactedReason string
 	RedactedAt     time.Time
 	Edited         bool // content replaced by an m.replace edit
-	// EditedAt is when the edit now supplying Body was sent: edits arrive in any
-	// order, and only a newer one may replace them. Zero means unknown (older than any).
+	// EditedAt is when the edit supplying Body was sent; edits arrive in any order and
+	// only a newer one replaces it. Zero means unknown (older than any).
 	EditedAt time.Time
-	// RevisionID is the event this message arrived as, when not its own ID (an edit
-	// carries its target's ID); on a message an edit was folded onto, the edit it
-	// shows, which breaks a tie between edits sent in the same millisecond.
+	// RevisionID is the event this arrived as when not ID (an edit carries its target's
+	// ID); on a folded message, the edit shown. Breaks ties between same-time edits.
 	RevisionID EventID
-	// Reverted marks a copy sent because the edit the message showed was deleted: it
-	// is what the message shows now (an older version, or nothing yet), and replaces
-	// the body and the edit whatever their times say.
+	// Reverted marks a copy sent because the shown edit was deleted; it replaces body
+	// and edit regardless of times.
 	Reverted   bool
 	ReplyTo    EventID // m.in_reply_to
 	ThreadRoot EventID // the m.thread root, if in a thread
 	// Mentioned marks a message mentioning the logged-in user (m.mentions or a pill).
 	Mentioned bool
 	Emote     bool // m.emote (`/me`)
-	// Placeholder marks a bridge's stand-in for a message it could not read yet (a
-	// WhatsApp message it failed to decrypt), which it replaces with the message by an
-	// edit when it can: not news itself, while the edit that replaces it is.
+	// Placeholder marks a bridge's stand-in for a message it could not decrypt yet; the
+	// bridge later replaces it by an edit, which counts as new.
 	Placeholder bool
 	Media       *Media // attachment metadata, or nil
 	Poll        *Poll  // the poll the message asks, or nil
-	// Seq orders messages that share a Timestamp, the larger the later; 0 when the
-	// network says nothing finer than the time. A network whose times are whole
-	// seconds and whose IDs carry no order (WhatsApp) sets it from its own sequence
-	// or from when the message arrived.
+	// Seq orders messages sharing a Timestamp (larger is later); 0 when unknown. Set
+	// by networks with whole-second times and unordered IDs (WhatsApp).
 	Seq int64
-	// Mentions are the formatted-body pills, so the timeline can color those names.
+	// Mentions are the formatted-body pills.
 	Mentions []Mention
 }
 
 // Mention is one pill within a message and the text that names it.
 type Mention struct {
-	// UserID is the person named, and RoomID the room named. Exactly one is set.
+	// Exactly one of UserID and RoomID is set.
 	UserID string
 	RoomID string
 	Name   string
-	// Known is the person's name in the room now, as the cache knows it (their member
-	// name there), filled in when the message is read and never kept: the name may
-	// have changed since the words of Name were written.
+	// Known is the person's current member name, filled in on read and never stored.
 	Known string
 }
 
-// Target is what this mention links to: an MXID or a room ID.
+// Target is the mention's MXID or room ID.
 func (m Mention) Target() string {
 	if m.RoomID != "" {
 		return m.RoomID
@@ -81,8 +74,7 @@ func (m Mention) Target() string {
 	return m.UserID
 }
 
-// URI is the `matrix:` address this mention points at, or "" when it points at nothing
-// nameable.
+// URI is the mention's `matrix:` URI, or "".
 func (m Mention) URI() string {
 	switch target := m.Target(); {
 	case strings.HasPrefix(target, "@"):
@@ -96,12 +88,11 @@ func (m Mention) URI() string {
 	}
 }
 
-// Notifies reports whether this mention belongs in `m.mentions` — the field that makes
-// somebody's client light up.
+// Notifies reports whether this mention belongs in `m.mentions`.
 func (m Mention) Notifies() bool { return m.UserID != "" }
 
-// IsUpdate reports whether this stream item revises an already-delivered message (an
-// edit or a redaction marker) rather than being a new one.
+// IsUpdate reports whether this stream item revises a delivered message (edit or
+// redaction).
 func (m Message) IsUpdate() bool { return m.Edited || m.Redacted }
 
 // Summary is the message in one line of plain text.
@@ -118,10 +109,10 @@ func (m Message) Summary() string {
 	return "[" + string(m.Media.Type) + "]"
 }
 
-// spoilerPlaceholder stands in for spoiler text wherever a message is not drawn.
+// spoilerPlaceholder replaces spoiler text where a message is not drawn (notifications).
 const spoilerPlaceholder = "++spoiler++"
 
-// NotifyBody is what a notification is allowed to say about a message.
+// NotifyBody is the message text for a notification, spoilers covered.
 func (m Message) NotifyBody() string {
 	if m.Format.IsZero() {
 		return m.Summary()
@@ -133,8 +124,7 @@ func (m Message) NotifyBody() string {
 	return covered
 }
 
-// coverSpoilers replaces every covered run with the placeholder, and reports whether
-// there was one at all.
+// coverSpoilers replaces spoiler spans with the placeholder; false when there are none.
 func coverSpoilers(text string, spans []richtext.Span) (string, bool) {
 	ranges := make([][2]int, 0, len(spans))
 	for _, span := range spans {
@@ -150,7 +140,7 @@ func coverSpoilers(text string, spans []richtext.Span) (string, bool) {
 	at := 0
 	for _, r := range ranges {
 		if r[0] < at {
-			// Overlapping or nested: whatever it covers is already covered.
+			// Overlapping or nested.
 			if r[1] > at {
 				at = r[1]
 			}
@@ -164,7 +154,7 @@ func coverSpoilers(text string, spans []richtext.Span) (string, bool) {
 	return out.String(), true
 }
 
-// Revision is one version a message had, and when it had it.
+// Revision is one version of a message.
 type Revision struct {
 	ID     EventID
 	Body   string
@@ -172,14 +162,14 @@ type Revision struct {
 	At     time.Time // the edit's own timestamp
 }
 
-// Deletion is the end of a message: who removed it, why they said they did, and when.
+// Deletion is who removed a message, why, and when.
 type Deletion struct {
 	At     time.Time
 	By     string
 	Reason string
 }
 
-// Happened reports whether there is a deletion to show at all.
+// Happened reports whether there is a deletion.
 func (d Deletion) Happened() bool { return d.By != "" || !d.At.IsZero() }
 
 // Caption is the text sent with an attachment, or "" when there is none.
@@ -190,8 +180,8 @@ func (m Message) Caption() string {
 	return m.Body
 }
 
-// MergeMessages returns the union of two message slices, de-duplicated by event ID (an
-// empty ID never collides) and in timeline order (CompareMessages).
+// MergeMessages unions two slices, deduplicated by non-empty ID, in CompareMessages
+// order.
 func MergeMessages(existing, incoming []Message) []Message {
 	merged := make([]Message, 0, len(existing)+len(incoming))
 	index := make(map[EventID]int, len(existing)+len(incoming))
@@ -206,7 +196,7 @@ func MergeMessages(existing, incoming []Message) []Message {
 				index[m.ID] = len(merged)
 			}
 			row := *m
-			row.Reverted = false // an instruction to combine, not part of a row
+			row.Reverted = false // an instruction to combine, not stored
 			merged = append(merged, row)
 		}
 	}
@@ -214,22 +204,17 @@ func MergeMessages(existing, incoming []Message) []Message {
 	return merged
 }
 
-// CompareMessages is timeline order: by time, then by Seq, then by ID, the shorter
-// first. A
-// network that numbers a room's messages (Telegram) gives them whole seconds and IDs
-// that are the room's then the number, so within one second the shorter ID is the
-// earlier and, at one length, text order is numeric order; by the text alone, message
-// 100 came before 99. Other networks' IDs only make the order the same every time.
-// The cache orders its queries the same way.
+// CompareMessages is timeline order: time, Seq, then ID shorter first. Telegram IDs
+// end in a message number, so shorter-first makes 99 precede 100. The cache queries
+// use the same order.
 func CompareMessages(a, b Message) int {
 	return cmp.Or(a.Timestamp.Compare(b.Timestamp), cmp.Compare(a.Seq, b.Seq),
 		cmp.Compare(len(a.ID), len(b.ID)), strings.Compare(string(a.ID), string(b.ID)))
 }
 
-// combine folds a duplicate copy b onto the first-seen copy a, keeping the richest
-// information from each: Redacted/Edited are sticky, missing fields are filled, the
-// earliest non-zero Timestamp wins (an edit never moves the row), and an edit's Body
-// wins while a plain duplicate never reverts an edit or un-redacts.
+// combine folds duplicate b onto first-seen a: Redacted/Edited are sticky, missing
+// fields fill, the earliest Timestamp wins, a newer edit's Body wins, and a plain
+// duplicate never reverts an edit or un-redacts.
 func combine(a, b Message) Message {
 	if b.Redacted {
 		// A redaction says what the body is now, even when that is empty.
@@ -255,47 +240,42 @@ func combine(a, b Message) Message {
 	a.ReplyTo = cmp.Or(a.ReplyTo, b.ReplyTo)
 	// Never clear a thread root: an edit arrives with an empty relation.
 	a.ThreadRoot = cmp.Or(a.ThreadRoot, b.ThreadRoot)
-	// A missing attachment is filled; a poll's later copy says how the votes stand now.
+	// A poll's later copy has the current votes.
 	a.Media, a.Poll = cmp.Or(a.Media, b.Media), cmp.Or(b.Poll, a.Poll)
-	a.Seq = cmp.Or(a.Seq, b.Seq) // the first place a message was given keeps it
+	a.Seq = cmp.Or(a.Seq, b.Seq) // first Seq sticks
 	if a.Mentions == nil {
 		a.Mentions = b.Mentions
 	}
 	switch {
 	case a.Redacted:
-		// A redacted message never regains a body: not from an older copy, and not
-		// from an edit, which servers leave unredacted.
+		// Never regains a body, not even from an edit (servers leave edits unredacted).
 	case b.Reverted:
-		// The edit shown was deleted: back to what the cache holds instead.
+		// The shown edit was deleted.
 		a.Body, a.Format, a.Edited = b.Body, b.Format, b.Edited
 		a.EditedAt, a.RevisionID = b.EditedAt, b.RevisionID
 	case b.Edited && (!a.Edited || SupersedesEdit(b, a.EditTime(), a.RevisionID)):
-		// The edit's formatting replaces the old, and plain replaces formatted: the
-		// timeline draws Format over Body, so a kept Format would show the old words.
+		// Format always goes with Body: a stale Format would show the old words.
 		a.Body, a.Format = b.Body, b.Format
 		a.EditedAt, a.RevisionID = b.EditTime(), b.RevisionID
-		if b.Media != nil { // an edit may bring the attachment (a bridge's placeholder replaced)
+		if b.Media != nil { // a bridge's edit replacing a placeholder may bring it
 			a.Media = b.Media
 		}
-		a.Placeholder = false // replaced: the message it stood in for
+		a.Placeholder = false
 	case a.Body == "" && b.Body != "":
-		// Its formatting comes with it: Format is drawn over Body.
 		a.Body = b.Body
 		if a.Format.IsZero() {
 			a.Format = b.Format
 		}
 	}
 	if a.Redacted {
-		// A deleted message says it was edited, not when or by which edit (as the
-		// cache has it).
+		// Keep only that it was edited, as the cache does.
 		a.EditedAt, a.RevisionID = time.Time{}, ""
 	}
 	return a
 }
 
-// EditTime is when the edit m shows was sent, zero when unknown. An edit event
-// carries it as its Timestamp; a folded message keeps its own Timestamp and records
-// the edit's in EditedAt.
+// EditTime is when the shown edit was sent, zero when unknown: EditedAt on a folded
+// message, Timestamp on an edit event.
 func (m Message) EditTime() time.Time {
 	if !m.EditedAt.IsZero() {
 		return m.EditedAt
@@ -306,9 +286,8 @@ func (m Message) EditTime() time.Time {
 	return time.Time{}
 }
 
-// SupersedesEdit reports whether edit replaces the edit sent at shownAt as shownRev:
-// it was sent later, and the event ID breaks a tie, so every delivery order agrees.
-// An unknown shown edit (zero time) is superseded by any other.
+// SupersedesEdit reports whether edit replaces the shown edit: later wins, event ID
+// breaks ties, so any delivery order agrees. A zero shownAt loses to any edit.
 func SupersedesEdit(edit Message, shownAt time.Time, shownRev EventID) bool {
 	at := edit.EditTime()
 	if !at.Equal(shownAt) {
@@ -317,11 +296,10 @@ func SupersedesEdit(edit Message, shownAt time.Time, shownRev EventID) bool {
 	return edit.RevisionID >= shownRev
 }
 
-// TimelinePage is one page of room scrollback, ordered oldest→newest so it can be
-// rendered top-to-bottom without reordering.
+// TimelinePage is one page of scrollback, oldest first.
 type TimelinePage struct {
 	Messages []Message
-	// Reactions are the m.reaction events found in this page.
+	// Reactions are the m.reaction events in this page.
 	Reactions []Reaction
 	Next      string
 }

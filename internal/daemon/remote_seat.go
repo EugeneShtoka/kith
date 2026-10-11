@@ -14,13 +14,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// TakeSeat asks for the seat and keeps it until ctx ends (api.Seat). It answers once
-// the daemon has: granted, or refused with ErrSeatTaken naming the other window. The
-// stream is held open behind it; when the daemon restarts, the seat is asked for again
-// (without force), and lost if another window took it meanwhile.
+// TakeSeat asks for the seat and keeps it until ctx ends (api.Seat), answering once
+// the daemon grants or refuses it (ErrSeatTaken naming the holder). After a daemon
+// restart the seat is asked for again without force, and lost if taken meanwhile.
 func (r *Remote) TakeSeat(ctx context.Context, force bool, where domain.SeatHolder) error {
-	// The seat is held until Stop, which is when the window has saved its drafts: not
-	// until ctx ends, which a signal does before the last write (tui.Run).
+	// Held until Stop, after the window saved its drafts; ctx ends earlier on a signal,
+	// before the last write (tui.Run).
 	held, leave := context.WithCancel(context.WithoutCancel(ctx))
 	r.mu.Lock()
 	r.leaveSeat = leave
@@ -45,8 +44,8 @@ func (r *Remote) TakeSeat(ctx context.Context, force bool, where domain.SeatHold
 // SeatLost is closed when another window takes the seat.
 func (r *Remote) SeatLost() <-chan struct{} { return r.lost }
 
-// keepSeat holds the seat stream open, answering the first grant or refusal on
-// answered and reporting a later loss on SeatLost.
+// keepSeat holds the seat stream open, answering the first grant or refusal and
+// reporting a later loss on SeatLost.
 func (r *Remote) keepSeat(ctx context.Context, force bool, where domain.SeatHolder, answered chan<- error) {
 	first := true
 	answer := func(err error) {
@@ -72,8 +71,8 @@ func (r *Remote) keepSeat(ctx context.Context, force bool, where domain.SeatHold
 			answer(err) // no daemon to sit at
 			return
 		}
-		// The daemon went away: it forgot the seat. Ask again when it is back; the
-		// backoff starts over after a steady sitting, as the streams' does (hold).
+		// The daemon went away and forgot the seat: ask again when it is back, with the
+		// backoff restarting after a steady sitting, as in hold.
 		if time.Since(began) >= steadyAttach {
 			attempt = 0
 		} else {
@@ -88,7 +87,7 @@ func (r *Remote) keepSeat(ctx context.Context, force bool, where domain.SeatHold
 // errSteppedAside is another window taking the seat by force.
 var errSteppedAside = errors.New("daemon: another window took the seat")
 
-// sit is one Seat stream: until it ends, or another window takes the seat.
+// sit is one Seat stream, until it ends or another window takes the seat.
 func (r *Remote) sit(ctx context.Context, force bool, where domain.SeatHolder, answer func(error)) error {
 	st, err := r.c.Seat(ctx, connect.NewRequest(&v1.SeatRequest{
 		Client: r.client, Force: force, Where: pc.SeatHolderToProto(where),
@@ -105,8 +104,8 @@ func (r *Remote) sit(ctx context.Context, force bool, where domain.SeatHolder, a
 		case *v1.SeatResponse_Taken:
 			return fmt.Errorf("%w: %s", api.ErrSeatTaken, pc.ProtoToSeatHolder(event.Taken))
 		case *v1.SeatResponse_StepAside:
-			// Another window waits until this one has saved and closed: keep the
-			// stream until Stop.
+			// The other window waits until this one has saved and closed: keep the stream until
+			// Stop.
 			r.lose()
 			<-ctx.Done()
 			return errSteppedAside
@@ -118,8 +117,8 @@ func (r *Remote) sit(ctx context.Context, force bool, where domain.SeatHolder, a
 	return errors.New("daemon: the seat stream ended")
 }
 
-// lose reports the seat gone to the window, once. Its writes stay named, so the
-// daemon refuses them once another window sits.
+// lose reports the seat gone, once. Writes stay named, so the daemon refuses them
+// once another window sits.
 func (r *Remote) lose() {
 	r.loseOnce.Do(func() { close(r.lost) })
 }

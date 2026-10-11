@@ -14,7 +14,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/media"
 )
 
-// clip is a message carrying a video.
 func clip(id domain.EventID) domain.Message {
 	return domain.Message{
 		ID: id, RoomID: "!a:x", Sender: "@dana:x", Timestamp: at(1),
@@ -112,7 +111,7 @@ func TestAPlayerThatFailsImmediatelyIsReported(t *testing.T) {
 	}
 }
 
-// A configured player that is not installed is an error, not a fallback.
+// A configured player that isn't installed is an error, not a fallback.
 func TestAConfiguredVideoPlayerMustExist(t *testing.T) {
 	t.Parallel()
 

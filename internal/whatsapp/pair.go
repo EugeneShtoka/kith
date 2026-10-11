@@ -13,15 +13,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// errNoAccount: pairing was asked for an account the config does not list.
+// errNoAccount: the account is not configured.
 var errNoAccount = errors.New("whatsapp: no such [[whatsapp.account]]")
 
-// errAlreadyLinked: the account is linked already; pairing again would leave the
-// phone with two kith devices.
+// errAlreadyLinked: pairing again would give the phone two kith devices.
 var errAlreadyLinked = errors.New("whatsapp: already linked (unlink kith on the phone, under Linked devices, to link it anew)")
 
-// pair links one configured account as a new linked device. code hears the code to
-// type on the phone; the account then runs as if it had been linked at startup.
+// pair links a configured account as a new device; code receives the pairing code to
+// type on the phone. The account then runs as if linked at startup.
 func (a *Adapter) pair(ctx context.Context, name string, code func(string) error) (string, error) {
 	accounts := a.accountsNow()
 	i := slices.IndexFunc(accounts, func(acc Account) bool { return acc.Name == name })
@@ -77,7 +76,7 @@ func (a *Adapter) pair(ctx context.Context, name string, code func(string) error
 		return "", fmt.Errorf("whatsapp: no answer from the phone: %w", ctx.Err())
 	}
 	if device.ID == nil || device.ID.User != account.Digits {
-		// Typed on another number's phone: that phone now lists kith, not this one.
+		// Paired from another number's phone: unlink it.
 		_ = client.Logout(ctx)
 		return "", fmt.Errorf("whatsapp: the code was entered on another number's phone, not %s's", account.Name)
 	}
@@ -86,8 +85,8 @@ func (a *Adapter) pair(ctx context.Context, name string, code func(string) error
 	return domain.NativePerson(domain.ProtocolWhatsApp, device.ID.ToNonAD().String()), nil
 }
 
-// askForCode waits for the pairing flow to be ready, asks for a phone-number code
-// and hands it to code. The QR channel is drained after: whatsmeow keeps sending on it.
+// askForCode requests a phone-number pairing code once the flow is ready. The QR
+// channel is drained after, since whatsmeow keeps sending on it.
 func askForCode(ctx context.Context, client *whatsmeow.Client, qr <-chan whatsmeow.QRChannelItem, digits string, code func(string) error) error {
 	defer func() {
 		go func() {
@@ -117,8 +116,7 @@ func askForCode(ctx context.Context, client *whatsmeow.Client, qr <-chan whatsme
 	}
 }
 
-// displayName is how the phone lists kith under Linked devices. WhatsApp wants
-// "Browser (OS)".
+// displayName is kith's name under Linked devices; WhatsApp wants "Browser (OS)".
 func displayName() string {
 	os := map[string]string{"linux": "Linux", "darwin": "macOS", "windows": "Windows", "freebsd": "FreeBSD"}[runtime.GOOS]
 	if os == "" {
@@ -127,10 +125,10 @@ func displayName() string {
 	return "Chrome (" + os + ")"
 }
 
-// errPairing: the account is being linked by another `kith login whatsapp` already.
+// errPairing: another `kith login whatsapp` is linking the account.
 var errPairing = errors.New("whatsapp: already being linked (finish or cancel the other `kith login whatsapp`)")
 
-// beginPairing claims an account for one pairing; false when another holds it.
+// beginPairing claims an account for pairing; false when already claimed.
 func (a *Adapter) beginPairing(account Account) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -147,7 +145,6 @@ func (a *Adapter) endPairing(account Account) {
 	delete(a.pairing, account.Digits)
 }
 
-// report sends the first outcome and drops the rest.
 func report(outcome chan<- error, err error) {
 	select {
 	case outcome <- err:

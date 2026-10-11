@@ -2,10 +2,8 @@ package domain
 
 import "path/filepath"
 
-// Storage is where one kith instance keeps everything: the configured directories,
-// the instance ID that names its files in them (so several instances can share a
-// directory), and the keyring service its secrets are kept under. Nothing in it
-// depends on any network account.
+// Storage is where one kith instance keeps everything. Instance names its files, so
+// several instances can share a directory. Nothing in it depends on a network account.
 type Storage struct {
 	Instance       string
 	DataDir        string // stores: cache, crypto, WhatsApp; dictionaries, models

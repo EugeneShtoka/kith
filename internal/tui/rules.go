@@ -10,11 +10,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Authoring notification rules from what you are looking at: a rule is keyed on a
-// room ID or MXID the UI does not show, so you point at the thing and pick a preset.
+// Authoring notification rules by pointing: a rule is keyed on a room ID or MXID the UI does
+// not show, so you point at the thing and pick a preset.
 
-// ruleTarget is what a rule being authored applies to, held as values rather than as
-// a pointer into the config so a list that changes underneath cannot redirect it.
+// ruleTarget is held by value, not as a config pointer, so a list changing underneath cannot
+// redirect it.
 type ruleTarget struct {
 	match  string // the rule's Match: a room ID, a space entry, or empty for "anywhere"
 	sender string // MXID, empty for a place-only rule
@@ -28,8 +28,8 @@ type rulePreset struct {
 	apply         func(*config.Rule) // nil for presets handled specially
 }
 
-// rulePresets are deliberately few; the config file expresses the rest. A scoped rule
-// is narrower than quiet hours or DND, so `show = all` already gets through both.
+// rulePresets are deliberately few; the config file expresses the rest. A scoped rule is
+// narrower than quiet hours or DND, so `show = all` already gets through both.
 var rulePresets = []rulePreset{
 	{
 		key: "all", label: "Notify me for everything",
@@ -75,7 +75,7 @@ func (m Model) openRuleForSender() (Model, tea.Cmd) {
 	if !found {
 		return m, nil
 	}
-	// senderName: the names are isolated inside sentences of ours (see isolate).
+	// senderName isolates names inside our sentences (see isolate).
 	who := m.senderName(msg)
 	m.aimedAt.ruleScopes = []ruleTarget{
 		{match: string(room.ID), sender: msg.Sender, what: who + " in " + m.roomName(room)},
@@ -279,8 +279,8 @@ func (m Model) removeRule() (Model, tea.Cmd) {
 	return m.applyNotifications(notifs, "removed the rule for "+target.what)
 }
 
-// upsertRule applies change to the rule for target, adding one if it does not exist.
-// One rule per (match, sender) pair, rather than several resolved by file order.
+// upsertRule applies change to target's rule, adding one if missing: one rule per (match,
+// sender), not several resolved by file order.
 func upsertRule(rules []config.Rule, target ruleTarget, change func(*config.Rule)) []config.Rule {
 	out := make([]config.Rule, 0, len(rules)+1)
 	found := false
@@ -342,8 +342,8 @@ func (m Model) existingRuleField(field func(config.Rule) string) string {
 	return ""
 }
 
-// Reading rules back: a rule's IDs say nothing in the config file, so the list
-// resolves each scope back to names.
+// Reading rules back: IDs mean nothing in the config file, so the list resolves each scope to
+// names.
 
 // openRuleList shows every rule; choosing one reopens it at the preset picker.
 func (m Model) openRuleList() (Model, tea.Cmd) {
@@ -364,12 +364,12 @@ func (m Model) openRuleList() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// describeRuleScope names what a rule applies to in the UI's words. An ID that
-// resolves to nothing is shown as itself, so a rule for a left room stays removable.
+// describeRuleScope names what a rule applies to in UI words. An unresolvable ID shows as
+// itself, so a rule for a left room stays removable.
 func (m Model) describeRuleScope(rule config.Rule) string {
 	who := ""
 	if rule.Sender != "" {
-		// Alias when they have one, else the MXID; isolated, as this is a sentence.
+		// Alias if any, else the MXID; isolated inside a sentence.
 		who = isolate(m.inviterName(rule.Sender))
 	}
 	where := ""

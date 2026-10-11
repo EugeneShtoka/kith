@@ -11,8 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/spell"
 )
 
-// addDictionary fetches one dictionary into kith's data directory (spell.SearchPaths
-// looks in its hunspell/ first) and reports what it did.
+// addDictionary fetches one dictionary into the data directory's hunspell/ (searched
+// first by spell.SearchPaths) and reports what it did.
 func addDictionary(data, tag string) error {
 	dir := filepath.Join(data, "hunspell")
 	if tag == "list" || tag == "?" {

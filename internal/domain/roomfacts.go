@@ -6,8 +6,7 @@ import (
 	"strings"
 )
 
-// RoomFacts is what a list entry can be about: the room itself, where it sits, and what
-// network it is on.
+// RoomFacts is what a list entry can match: the room, its spaces, tags and network.
 type RoomFacts struct {
 	ID       string
 	Name     string
@@ -15,16 +14,13 @@ type RoomFacts struct {
 	Direct   bool
 	Protocol Protocol // the network: its own (Room.Network), else its space's bridge's
 	Tags     []string // names of the [[tag]]s holding it, judged as a place (TagSet.Of)
-	// ArchivedIn is the tag its network's archive puts it in: the network archived it
-	// and kith follows that network's archive (Places.Archives). "" otherwise.
+	// ArchivedIn is the tag of the network archive holding it, when kith follows that
+	// archive (Places.Archives); "" otherwise.
 	ArchivedIn string
 }
 
-// Places is what a room's facts depend on besides the room itself: the names the
-// person gave rooms, the order they put spaces and tags in, and the tags. Every place
-// that decides by RoomFacts — notification rules, the assistant's and the agent's
-// scopes, codes, tracked words, the archive — builds them through Facts, so a list
-// entry means the same room everywhere.
+// Places is what RoomFacts depend on besides the room. Every user of RoomFacts builds
+// them through Facts, so a list entry means the same room everywhere.
 type Places struct {
 	Names map[RoomID]string // [[display.name]], by room
 	Order HomeOrder         // how a room's spaces (and homes) are ranked
@@ -33,11 +29,9 @@ type Places struct {
 	Archives map[Protocol]string
 }
 
-// Facts is room as a list entry matches it. holders are the spaces holding it, in
-// hierarchy order (HoldersOf). The name is the one the person gave the room, else
-// its own display name, never a label shortened for the room list; the spaces are
-// ordered by priority; the network is the room's own, once read (Room.Network), else
-// the first bridged holder's, else the one the room's ID names.
+// Facts builds room's facts; holders are its spaces in hierarchy order (HoldersOf).
+// The name is the local name, else the display name (never shortened). The network
+// is Room.Network, else the first bridged holder's, else the room ID's.
 func (p Places) Facts(room Room, holders []Space) RoomFacts {
 	facts := RoomFacts{
 		ID: string(room.ID), Name: room.DisplayName(), Direct: room.IsDirect,
@@ -86,8 +80,8 @@ const (
 	entryProtocol = "protocol:"
 	entryDirect   = "dm"
 	entryGroup    = "group"
-	// roomSigil marks a Matrix room ID, which is a complete entry on its own; so is
-	// any other network's room ID (IsRoomID).
+	// roomSigil marks a Matrix room ID, a complete entry on its own (as is any
+	// network's room ID, IsRoomID).
 	roomSigil = "!"
 )
 
@@ -103,8 +97,7 @@ const (
 	EntryRoom
 )
 
-// ParseEntry reports what kind of thing an entry names, without a room to compare it
-// against (so config can be validated at startup).
+// ParseEntry reports an entry's kind without a room, so config can be validated at startup.
 func ParseEntry(entry string) (EntryKind, bool) {
 	entry = strings.TrimSpace(entry)
 	switch {

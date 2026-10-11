@@ -7,8 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Both spellings of every kind of place, because a client that reads one of them
-// understands half the links it is sent.
+// Both spellings (matrix.to and matrix:) of every kind of place.
 func TestParsePlaceReadsBothSpellings(t *testing.T) {
 	t.Parallel()
 
@@ -84,8 +83,7 @@ func TestParsePlaceReadsBothSpellings(t *testing.T) {
 	}
 }
 
-// What must not be read as a place. A key that moves you somewhere has to be silent
-// on anything it does not understand, rather than going somewhere approximate.
+// Not places: anything not understood is refused rather than approximated.
 func TestParsePlaceRefusesWhatIsNotOne(t *testing.T) {
 	t.Parallel()
 
@@ -109,8 +107,7 @@ func TestParsePlaceRefusesWhatIsNotOne(t *testing.T) {
 	}
 }
 
-// The addresses in a message: the ones in the words, and the ones only the markup
-// knows — a mention pill says "Alice" in the body and carries the MXID in its href.
+// Addresses come from the body and from hrefs (a pill shows "Alice" but links the MXID).
 func TestPlaceLinksReadsTheWordsAndTheTargets(t *testing.T) {
 	t.Parallel()
 
@@ -132,8 +129,7 @@ func TestPlaceLinksReadsTheWordsAndTheTargets(t *testing.T) {
 	}
 }
 
-// A message with nothing to follow answers with nothing, which is what lets the key
-// be pressed anywhere.
+// A message with no addresses yields none.
 func TestPlaceLinksFindsNothingInOrdinaryProse(t *testing.T) {
 	t.Parallel()
 
@@ -142,7 +138,7 @@ func TestPlaceLinksFindsNothingInOrdinaryProse(t *testing.T) {
 	}
 }
 
-// The round trip a picker row and a status line are built from.
+// String and ParsePlace round-trip.
 func TestPlaceStringIsTheSpellingPeopleRecognize(t *testing.T) {
 	t.Parallel()
 
@@ -161,9 +157,7 @@ func TestPlaceStringIsTheSpellingPeopleRecognize(t *testing.T) {
 	}
 }
 
-// A mention's URI is written in the grammar the parser reads back, which is the only
-// thing that makes a pill followable: this client is the handler for the scheme, so a
-// URI it cannot itself resolve would be a link that dead-ends in its own window.
+// A mention's URI parses back, so pills are followable (kith handles the scheme itself).
 func TestMentionURIRoundTrips(t *testing.T) {
 	t.Parallel()
 
@@ -197,7 +191,7 @@ func TestMentionURIRoundTrips(t *testing.T) {
 	}
 }
 
-// A place chosen out of a list has to arrive with its routing servers still on it.
+// URI keeps the routing servers.
 func TestAPlaceRoundTripsThroughItsURI(t *testing.T) {
 	t.Parallel()
 
@@ -220,8 +214,7 @@ func TestAPlaceRoundTripsThroughItsURI(t *testing.T) {
 		}
 	}
 
-	// String is deliberately the shorter one: two links to a room that suggest
-	// different routes are one destination, which is what PlaceLinks deduplicates on.
+	// String omits via, so links differing only in routes deduplicate in PlaceLinks.
 	with, _ := domain.ParsePlace("https://matrix.to/#/!room:example.org?via=one.org")
 	without, _ := domain.ParsePlace("https://matrix.to/#/!room:example.org")
 	if with.String() != without.String() {

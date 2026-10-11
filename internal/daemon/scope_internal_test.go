@@ -11,7 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// gatedRooms serves a room list that can be swapped, and can hold a read mid-flight.
+// gatedRooms serves a swappable room list and can hold a read mid-flight.
 type gatedRooms struct {
 	mu    sync.Mutex
 	rooms []domain.Room
@@ -37,8 +37,7 @@ func (g *gatedRooms) ThreadParticipant(context.Context, domain.RoomID, domain.Ev
 	return false
 }
 
-// An invalidation that lands while a rebuild is reading wins: the rebuild's older
-// read is not installed, and the next lookup reads again.
+// An invalidation during a rebuild's read wins: the older read is not installed.
 func TestInvalidateOvertakesARebuildAlreadyReading(t *testing.T) {
 	t.Parallel()
 
@@ -63,8 +62,7 @@ func TestInvalidateOvertakesARebuildAlreadyReading(t *testing.T) {
 	}
 }
 
-// A room whose ID names its network is on that network whether or not the index has
-// listed it yet, though no bridge space holds it.
+// A room whose ID names its network is on it before the index lists it.
 func TestANativeRoomIsOnItsOwnNetwork(t *testing.T) {
 	t.Parallel()
 
@@ -89,8 +87,8 @@ type spaced struct {
 
 func (s *spaced) Spaces(context.Context) ([]domain.Space, error) { return s.spaces, nil }
 
-// The notifier reads a room as every other scope does: by the name you gave it, its
-// spaces in your order, the first bridge holding it, and the tags holding it.
+// The notifier reads a room as every scope does: your name for it, its spaces in your
+// order, the first bridge holding it, and its tags.
 func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 	t.Parallel()
 	src := &spaced{gatedRooms: gatedRooms{rooms: []domain.Room{{ID: "!r:x", Name: "Standup"}}}, spaces: []domain.Space{
@@ -110,9 +108,8 @@ func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 	}
 }
 
-// The notifier knows a room's tags: a rule can name tag:<name>, and {space} is the
-// first home by priority, a tag reading by its name. A reload brings the config's
-// tags and priority.
+// The notifier knows tags: rules name tag:<name>, {space} is the first home by
+// priority, and a reload brings new tags and priority.
 func TestTheNotifierKnowsTags(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -140,9 +137,8 @@ func TestTheNotifierKnowsTags(t *testing.T) {
 	}
 }
 
-// A room its network archived is in the tag that archive is, as the TUI files it:
-// notification rules and the agent's scope naming the tag see it there, a network not
-// followed puts nothing anywhere, and an archive changed in the config needs no reread.
+// A network-archived room is in that archive's tag for rules and agent scope; an
+// unfollowed network places nothing; a config change needs no reread.
 func TestANetworksArchiveIsJudgedAsThePlace(t *testing.T) {
 	t.Parallel()
 	src := &gatedRooms{rooms: []domain.Room{
@@ -169,10 +165,8 @@ func TestANetworksArchiveIsJudgedAsThePlace(t *testing.T) {
 	}
 }
 
-// What the cache keeps of a room follows [storage] by the room's place — a tag here —
-// read from the index as it stands: asked before the index holds the room, it answers
-// by the room's ID and network alone rather than read the cache (the cache asks
-// mid-write); once the index holds it, the tag's rule applies.
+// Retention follows [storage] by the room's place, read from the index without
+// rebuilding (the cache asks mid-write): before indexing, by ID and network alone.
 func TestTheCacheKeepsWhatTheRoomsPlaceSays(t *testing.T) {
 	t.Parallel()
 	small, all := 50, -1
@@ -190,7 +184,7 @@ func TestTheCacheKeepsWhatTheRoomsPlaceSays(t *testing.T) {
 	if got := n.MessagesKept("telegram:42/7"); got != -1 {
 		t.Errorf("before the index holds it: keeps %d, want -1 (no rebuild mid-write)", got)
 	}
-	n.scope.Facts(context.Background(), "telegram:42/7") // the index built, as a message's notification does
+	n.scope.Facts(context.Background(), "telegram:42/7") // build the index, as a notification does
 	if got, other := n.MessagesKept("telegram:42/7"), n.MessagesKept("telegram:42/8"); got != 50 || other != -1 {
 		t.Errorf("keeps %d in the archived room (want 50) and %d in the other (want -1)", got, other)
 	}

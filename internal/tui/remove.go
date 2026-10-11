@@ -7,23 +7,18 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// The remove key (x, picker.remove) takes the row under the cursor out of whatever list
-// it is in, wherever a list holds things that can go: a list setting's entry, a tag's
-// rule or room, a phonebook card's field, a record of a settings table (a person's
-// alias, a name you gave, a read or media rule), a tag, a notification rule, a
-// scheduled message, and a place in the filing picker (unticked, applied with the
-// rest). What goes for good asks first where its own gesture does (a tag).
+// The remove key (x, picker.remove) takes the row under the cursor out of any list of
+// removable things: list setting entries, tag rules and rooms, card fields, settings records,
+// tags, notification rules, scheduled messages, filing-picker places. A tag asks first.
 
-// actionRow begins the value of every row that makes something rather than being a
-// thing in the list (tagNew, settingAdd, personAdd, and the like).
+// actionRow prefixes the value of every row that makes something (tagNew, settingAdd, …)
+// rather than being a list item.
 const actionRow = "\x00"
 
-// removeUnderCursor removes the open picker's row under the cursor; handled is false
-// for a list whose rows are not things to remove, or a row that is not one (an Add row).
+// removeUnderCursor removes the picker row under the cursor; handled is false where rows are
+// not removable (or the row is an action row).
 func (m Model) removeUnderCursor() (Model, tea.Cmd, bool) {
 	item, ok := m.picker.selected()
-	// A row that makes something (Add a field, New tag, New space) is valued with a
-	// leading NUL, which no thing in a list is: it is not removed, in any list.
 	if !ok || strings.HasPrefix(item.value, actionRow) {
 		return m, nil, false
 	}
@@ -66,8 +61,7 @@ func (m Model) removeUnderCursor() (Model, tea.Cmd, bool) {
 	}
 }
 
-// removeRecordRow removes the settings table's record a row is (rec:<table>#<i>); a row
-// of anything else is not removed.
+// removeRecordRow removes the settings record a row is (rec:<table>#<i>).
 func (m Model) removeRecordRow(key string) (Model, tea.Cmd, bool) {
 	rest, ok := strings.CutPrefix(key, recordPrefix)
 	if !ok {

@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// askEdit starts editing the message under the cursor, in the composer. The
-// half-written draft is put aside and restored if the edit is abandoned.
+// askEdit edits the message under the cursor in the composer. The draft is put aside
+// and restored if the edit is abandoned.
 func (m Model) askEdit() (Model, tea.Cmd) {
 	msg, ok := m.selectedMessage()
 	if !ok {
@@ -28,13 +28,13 @@ func (m Model) askEdit() (Model, tea.Cmd) {
 	m.compose.editSaved = m.editorFor(fieldComposer).text
 	m.compose.editing = msg.ID
 	m = m.store(fieldComposer, newEditor(msg.Body).end())
-	// The message's pills come along, so a revision keeps mentioning whom it did.
+	// The message's pills come along, so a revision keeps its mentions.
 	m.compose.insertMode, m.compose.replyTo, m.compose.drafted = true, "", slices.Clone(msg.Mentions)
 	return m, nil
 }
 
-// cancelEdit abandons an edit and restores the composer's previous text. Called from
-// the one place leaving insert mode is handled.
+// cancelEdit abandons an edit and restores the composer's previous text. Called only
+// where leaving insert mode is handled.
 func (m Model) cancelEdit() Model {
 	if !m.compose.isEditing() {
 		return m
@@ -49,12 +49,12 @@ func (m Model) cancelEdit() Model {
 func (m Model) submitEdit(room domain.Room, body string) (Model, tea.Cmd) {
 	target, mentions := m.compose.editing, m.compose.drafted
 	if body == "" {
-		// Refused rather than treated as a deletion, which has its own key and question.
+		// Refused, not treated as a deletion, which has its own key and question.
 		return m.say("an empty edit would delete it — " +
 			m.keys.keyHint(scopeTimeline, actRedact) + " on the message does that, and asks first"), nil
 	}
 	m.compose = m.compose.cleared()
-	// Folded optimistically, in the same shape an incoming edit arrives as.
+	// Folded optimistically, shaped like an incoming edit.
 	if room.ID == m.openRoom {
 		m = m.setMessages(domain.MergeMessages(m.timeline.messages, []domain.Message{{
 			ID: target, RoomID: room.ID, Body: body, Edited: true,
@@ -62,7 +62,7 @@ func (m Model) submitEdit(room domain.Room, body string) (Model, tea.Cmd) {
 	}
 	revision := domain.Draft{
 		Body: body, Mentions: mentions, Edits: target,
-		// Rendered as a new message would be: an edit is no way around markdown = false.
+		// Rendered like a new message: an edit is no way around markdown = false.
 		Plain: !m.conf.base.Composer.MarkdownEnabled(),
 	}
 	m = m.doing("editing…")
@@ -71,8 +71,7 @@ func (m Model) submitEdit(room domain.Room, body string) (Model, tea.Cmd) {
 	return m, tea.Batch(m.editCmd(room.ID, revision), stop)
 }
 
-// handleEdited reports a failed edit and reloads the timeline to undo the
-// optimistic fold.
+// handleEdited reports a failed edit and reloads the timeline to undo the optimistic fold.
 func (m Model) handleEdited(msg editedMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		return m.clearStatus(), nil

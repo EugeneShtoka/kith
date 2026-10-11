@@ -12,28 +12,26 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A workspace's conversations are its rooms: the public and private channels the
-// person is in, their DMs and their group DMs; archived ones are left out. The
-// workspace itself is one space holding them all, so it reads as a unit in the rail;
-// Slack's sidebar sections are the person's own arrangement and not in the API.
+// A workspace's rooms are the channels, DMs and group DMs the person is in, archived
+// ones left out. The workspace is one space holding them all; Slack's sidebar sections
+// are not in the API.
 
-// roomID is a Slack conversation as one workspace sees it.
+// roomID is a conversation's ID within one workspace.
 func roomID(team, channel string) domain.RoomID {
 	return domain.RoomID(domain.NativeID(domain.ProtocolSlack, team, channel))
 }
 
-// personID is a Slack user: user IDs are unique within a workspace only.
+// personID is a Slack user's ID; user IDs are unique only within a workspace.
 func personID(team, user string) string {
 	return domain.NativePerson(domain.ProtocolSlack, team+"."+user)
 }
 
-// workspaceSpaceID is the space a workspace is: its team ID within its own account.
+// workspaceSpaceID is a workspace's space: its team ID within its own account.
 func workspaceSpaceID(team string) domain.SpaceID {
 	return domain.SpaceID(domain.NativeID(domain.ProtocolSlack, team, team))
 }
 
-// userName is how a person reads in Slack: the display name they chose, else their
-// full name, else their handle.
+// userName is a user's display name, else full name, else handle.
 func userName(u slackgo.User) string {
 	for _, name := range []string{u.Profile.DisplayName, u.Profile.RealName, u.RealName, u.Name} {
 		if name = strings.TrimSpace(name); name != "" {
@@ -43,8 +41,8 @@ func userName(u slackgo.User) string {
 	return ""
 }
 
-// groupDMName is a group DM's name from Slack's own for it, "mpdm-dana--sam--lee-1":
-// the handles of the people in it but the person's own, self.
+// groupDMName names a group DM from Slack's "mpdm-dana--sam--lee-1": the members'
+// handles except self's.
 func groupDMName(name, self string) string {
 	name = strings.TrimPrefix(name, "mpdm-")
 	if i := strings.LastIndex(name, "-"); i > 0 {
@@ -60,27 +58,24 @@ func groupDMName(name, self string) string {
 // slackOwn names Slack's own senders, which users.info does not answer for.
 var slackOwn = map[string]string{"USLACKBOT": "Slackbot", "USLACK": "Slack"}
 
-// listing is what one workspace's listing caches.
 type listing struct {
 	rooms   []domain.Room
 	members map[domain.RoomID][]domain.Member
 	space   domain.Space
 }
 
-// self is the person signed in: their user ID and handle in the workspace.
+// self is the signed-in person's user ID and handle.
 type self struct{ user, handle string }
 
-// listed turns a workspace's conversations into rooms, with a DM's other people as its
-// members, and the workspace into the space holding them. groups is who is in each
-// group DM, by its ID, as far as Slack said; names is what is known of the people,
-// by user ID.
+// listed turns conversations into rooms (a DM's other people as members) and the
+// workspace into their space. groups is each group DM's members as far as known; names
+// is known users' names by ID.
 func listed(team, teamName string, me self, conversations []slackgo.Channel, groups map[string][]string, names map[string]string) listing {
 	l := listing{
 		members: map[domain.RoomID][]domain.Member{},
 		space: domain.Space{
 			ID: workspaceSpaceID(team), Name: teamName, Bridge: domain.ProtocolSlack,
-			// Every channel's home: it is where the room belongs, not a space to file into.
-			// Left by signing the account out (SignOut).
+			// Every channel's home, not a space to file into; left only by SignOut.
 			Original: true, Leaving: domain.LeftBySigningOut,
 		},
 	}
@@ -121,7 +116,7 @@ func listed(team, teamName string, me self, conversations []slackgo.Channel, gro
 	return l
 }
 
-// groupDMs is a workspace's group DMs, by ID.
+// groupDMs is the group DMs' IDs.
 func groupDMs(conversations []slackgo.Channel) []string {
 	var ids []string
 	for i := range conversations {
@@ -132,7 +127,7 @@ func groupDMs(conversations []slackgo.Channel) []string {
 	return ids
 }
 
-// dmPartners is the people a workspace's DMs are with.
+// dmPartners is the users the DMs are with.
 func dmPartners(conversations []slackgo.Channel) []string {
 	var users []string
 	for i := range conversations {
@@ -143,12 +138,12 @@ func dmPartners(conversations []slackgo.Channel) []string {
 	return users
 }
 
-// errOtherWorkspace is a sign-in that belongs to a workspace the account does not name.
+// errOtherWorkspace is a sign-in to a workspace other than the account's.
 var errOtherWorkspace = errors.New("those credentials sign in to another workspace")
 
-// sameWorkspace checks a sign-in is to the account's workspace, which the account
-// names by its team ID ("T0123456789") or its address ("acme"): Slack's answer carries
-// both, the address as "https://acme.slack.com/".
+// sameWorkspace checks a sign-in matches the account's workspace, given as team ID
+// ("T0123456789") or address ("acme"); Slack answers with both, the address as
+// "https://acme.slack.com/".
 func sameWorkspace(account Account, signedInURL, team string) error {
 	if strings.HasPrefix(account.Workspace, "T") && strings.ToUpper(account.Workspace) == account.Workspace {
 		if team != account.Workspace {

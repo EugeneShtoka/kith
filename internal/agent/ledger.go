@@ -1,6 +1,6 @@
 // Package agent keeps the append-only JSON-lines ledger of messages an assistant
-// (kith-mcp) sent as this account. It is the audit trail and the source of the per-room
-// cooldown, and lives under XDG_STATE_HOME since no server has this record.
+// (kith-mcp) sent as this account: the audit trail and the source of the per-room
+// cooldown. It lives under XDG_STATE_HOME since no server has this record.
 package agent
 
 import (
@@ -18,40 +18,29 @@ import (
 	"github.com/gofrs/flock"
 )
 
-// What became of one request to write.
+// Outcomes of one write request.
 const (
-	// Sent is a message the homeserver took.
-	Sent = "sent"
-	// Queued is a message the homeserver would not take, handed to the daemon's queue
-	// to retry.
-	Queued = "queued"
-	// Scheduled is a message handed to the daemon's queue to send at a later time.
-	Scheduled = "scheduled"
-	// Drafted is a message left in a room's composer for a person to send or not.
-	Drafted = "drafted"
-	// Refused is a write the policy did not allow — a room outside `[agent.read]` or
-	// `[agent.write]` — so nothing reached any room or composer.
-	Refused = "refused"
+	Sent      = "sent"      // the homeserver took it
+	Queued    = "queued"    // the homeserver refused it; the daemon's queue retries
+	Scheduled = "scheduled" // queued to send later
+	Drafted   = "drafted"   // left in the room's composer
+	Refused   = "refused"   // outside [agent.read]/[agent.write]; nothing was written
 )
 
-// Entry is one line of the ledger: who wrote what, where it went, and why it went there
-// rather than the other way.
+// Entry is one ledger line.
 type Entry struct {
 	At      time.Time     `json:"at"`
 	Room    domain.RoomID `json:"room"`
 	Name    string        `json:"room_name,omitempty"`
 	Author  string        `json:"author"`
 	Outcome string        `json:"outcome"`
-	// Reason is why this outcome and not the other — the room is not on the send list,
-	// the cooldown is still running, the send failed.
+	// Reason explains the outcome, e.g. cooldown running or send failed.
 	Reason string `json:"reason,omitempty"`
-	// Text is the message, capped by TextCap.
-	Text string `json:"text"`
+	Text   string `json:"text"` // capped by TextCap
 }
 
-// TextCap is how much of a message the ledger keeps; NameCap of a room's name, and
-// ReasonCap of why. Every field is capped: a line longer than maxLine could not be
-// read back, and every later send, counted from the ledger, would be refused.
+// Field caps in runes. Every field is capped: a line over maxLine could not be read
+// back, and every later send would then be refused.
 const (
 	TextCap   = 500
 	NameCap   = 200
@@ -72,10 +61,8 @@ func Open(path string) (*Ledger, error) {
 	return &Ledger{path: path}, nil
 }
 
-// Exclusive holds the ledger for one decision and its record: another assistant
-// session (another kith-mcp) waits until release is called. The cooldown is read from the
-// ledger and the send appended to it, so without this two sessions could both read "no
-// message lately" and both send.
+// Exclusive locks the ledger across sessions until release, so two kith-mcp sessions
+// cannot both pass the cooldown check and send.
 func (l *Ledger) Exclusive(ctx context.Context) (release func(), err error) {
 	fl := flock.New(l.path + ".lock")
 	if _, err := fl.TryLockContext(ctx, lockRetry); err != nil {
@@ -84,11 +71,9 @@ func (l *Ledger) Exclusive(ctx context.Context) (release func(), err error) {
 	return func() { _ = fl.Unlock() }, nil
 }
 
-// lockRetry is how often a session waiting for the ledger asks again.
 const lockRetry = 20 * time.Millisecond
 
-// ownerOnly and dirMode keep the record as private as the messages it names. It holds
-// the text of things said in rooms, so it is exactly as sensitive as the cache.
+// The ledger holds message text, so it is as private as the cache.
 const (
 	ownerOnly = 0o600
 	dirMode   = 0o700
@@ -124,8 +109,8 @@ func (l *Ledger) Append(entry Entry) error {
 	if err != nil {
 		return fmt.Errorf("agent: open ledger %s: %w", l.path, err)
 	}
-	// One Write of one line, deliberately: an O_APPEND write under the pipe-buffer size
-	// lands whole, so two sessions writing at once interleave lines rather than bytes.
+	// One Write per line: a small O_APPEND write lands whole, so concurrent sessions
+	// interleave lines, not bytes.
 	if _, err := file.Write(append(line, '\n')); err != nil {
 		_ = file.Close() // the write error is the report
 		return fmt.Errorf("agent: write ledger %s: %w", l.path, err)
@@ -136,16 +121,14 @@ func (l *Ledger) Append(entry Entry) error {
 	return nil
 }
 
-// Entries is the whole ledger, oldest first, skipping lines that do not parse (see
-// Read, which counts them).
+// Entries is the whole ledger, oldest first, skipping unparsable lines.
 func (l *Ledger) Entries() ([]Entry, error) {
 	entries, _, err := l.Read()
 	return entries, err
 }
 
-// Read is the whole ledger, oldest first, and how many lines were skipped because they
-// do not parse — a torn write or a hand edit. Skipped, not fatal: one bad line must not
-// hide the record around it; but a reader showing the ledger should say so.
+// Read is the whole ledger, oldest first, and the count of unparsable lines skipped
+// (a torn write or hand edit); one bad line must not hide the rest.
 func (l *Ledger) Read() (entries []Entry, skipped int, err error) {
 	file, err := os.Open(l.path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -173,12 +156,12 @@ func (l *Ledger) Read() (entries []Entry, skipped int, err error) {
 	return out, skipped, nil
 }
 
-// maxLine bounds one ledger line when reading it back. Far above TextCap plus the rest
-// of an entry, and there so a corrupted file cannot be read into memory whole.
+// maxLine bounds one line on read, well above a capped entry, so a corrupt file is not
+// read whole.
 const maxLine = 1 << 16
 
-// LastOut is when a message last went out to one room — sent or queued — and whether one
-// ever did. It is the whole of what the cooldown asks.
+// LastOut is when a message last went out (sent, queued or scheduled) to room, for the
+// cooldown.
 func LastOut(entries []Entry, room domain.RoomID) (time.Time, bool) {
 	var latest time.Time
 	var found bool
@@ -196,7 +179,7 @@ func LastOut(entries []Entry, room domain.RoomID) (time.Time, bool) {
 	return latest, found
 }
 
-// capped trims text to at most n runes, marking that it was trimmed.
+// capped trims text to n runes plus an ellipsis.
 func capped(text string, n int) string {
 	runes := []rune(text)
 	if len(runes) <= n {

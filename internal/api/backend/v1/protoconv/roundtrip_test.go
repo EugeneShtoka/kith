@@ -10,9 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// TestEveryFieldSurvivesTheRoundTrip fills every field by reflection, so a field
-// added to a domain type is covered the moment it exists (a missing `mentioned`
-// once shipped this way).
+// TestEveryFieldSurvivesTheRoundTrip fills every field by reflection, so a new
+// domain field is covered as soon as it exists.
 func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -196,8 +195,7 @@ func fill(t *testing.T, v reflect.Value, path string) {
 		return
 	}
 
-	// Formatting is built only by its constructors. It crosses the wire as it draws,
-	// so it is made from two filled spans; its markup stays in the daemon by design.
+	// Formatting is built only by its constructors; its markup stays in the daemon.
 	if v.Type() == reflect.TypeFor[richtext.Formatted]() {
 		spans := reflect.New(reflect.TypeFor[[]richtext.Span]()).Elem()
 		fill(t, spans, path+".Spans")

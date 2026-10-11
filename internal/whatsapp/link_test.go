@@ -12,7 +12,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// links records what OnLink heard.
+// links records the status callbacks.
 type links struct {
 	mu  sync.Mutex
 	got []string // "name link detail"
@@ -30,7 +30,6 @@ func (l *links) all() []string {
 	return append([]string(nil), l.got...)
 }
 
-// SavedSessions is the configured accounts with a device, the ones the daemon waits for.
 func TestLinkedIsTheAccountsWithADevice(t *testing.T) {
 	t.Parallel()
 	home, work := Account{Name: "home", Digits: ownDigits}, Account{Name: "work", Digits: "1500000001"}
@@ -42,9 +41,8 @@ func TestLinkedIsTheAccountsWithADevice(t *testing.T) {
 	}
 }
 
-// An account says how it is linked as that changes: not linked at Start, connected,
-// reconnecting, unlinked by the phone, dropped from the config; one added to the
-// config says it is not linked yet. A client already replaced says nothing.
+// An account reports each link change (unlinked, connected, reconnecting, unlinked by
+// the phone, removed); a replaced client reports nothing.
 func TestAnAccountReportsItsLink(t *testing.T) {
 	t.Parallel()
 	account := Account{Name: "home", Digits: ownDigits}

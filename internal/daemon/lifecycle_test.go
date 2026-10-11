@@ -14,8 +14,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// State: readiness is "a sync response arrived", and the two transitions that
-// matter are the ones a client's decision hangs on.
+// Readiness means a sync response arrived; failure and recovery are tracked.
 func TestStateReadiness(t *testing.T) {
 	t.Parallel()
 
@@ -41,8 +40,7 @@ func TestStateReadiness(t *testing.T) {
 		t.Errorf("lastError = %q, want the sync failure", lastErr)
 	}
 
-	// A later success supersedes the failure; leaving the old message would have the
-	// client reporting a fault that has resolved.
+	// A later success clears the failure.
 	s.Synced(time.Now())
 	if ready, _, lastErr = s.Snapshot(); !ready || lastErr != "" {
 		t.Errorf("after recovery: ready = %t, lastError = %q; want true, empty", ready, lastErr)
@@ -55,7 +53,7 @@ func TestStateReadiness(t *testing.T) {
 	}
 }
 
-// The single-instance guard: the first daemon holds the lock, the second is told so.
+// The first daemon holds the lock; the second is told so.
 func TestLockAdmitsOneDaemon(t *testing.T) {
 	t.Parallel()
 
@@ -69,8 +67,7 @@ func TestLockAdmitsOneDaemon(t *testing.T) {
 		t.Fatal("first Acquire() held = false, want true")
 	}
 
-	// Not an error: two clients racing to auto-spawn is expected, and "someone else is
-	// already serving" is the outcome both wanted.
+	// Not an error: two clients racing to auto-spawn is expected.
 	second, held, err := daemon.Acquire(user)
 	if err != nil {
 		t.Fatalf("second Acquire() error = %v", err)
@@ -85,7 +82,7 @@ func TestLockAdmitsOneDaemon(t *testing.T) {
 	if rerr := first.Release(); rerr != nil {
 		t.Fatalf("Release() error = %v", rerr)
 	}
-	// Released means available: a restarted daemon must be able to take over.
+	// Released means a restarted daemon can take over.
 	third, held, err := daemon.Acquire(user)
 	if err != nil || !held {
 		t.Fatalf("Acquire() after Release() = %t, %v; want held", held, err)
@@ -93,7 +90,7 @@ func TestLockAdmitsOneDaemon(t *testing.T) {
 	t.Cleanup(func() { _ = third.Release() })
 }
 
-// Only the lock holder removes a socket, and it does.
+// Only the lock holder removes a stale socket.
 func TestLockRemovesStaleSocket(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +101,7 @@ func TestLockRemovesStaleSocket(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = lock.Release() })
 
-	// Stand in for what a killed daemon leaves behind.
+	// What a killed daemon leaves behind.
 	if werr := os.WriteFile(lock.Socket(), nil, 0o600); werr != nil {
 		t.Fatalf("plant a stale socket: %v", werr)
 	}
@@ -116,8 +113,7 @@ func TestLockRemovesStaleSocket(t *testing.T) {
 		t.Errorf("Close() = %v", cerr)
 	}
 
-	// The package-level Listen is the contrast: with a socket in the way and no lock
-	// held, refusing is the honest answer.
+	// Without the lock, Listen refuses a socket in the way.
 	if werr := os.WriteFile(lock.Socket(), nil, 0o600); werr != nil {
 		t.Fatalf("re-plant a stale socket: %v", werr)
 	}
@@ -126,8 +122,7 @@ func TestLockRemovesStaleSocket(t *testing.T) {
 	}
 }
 
-// Release leaves nothing behind, so the next daemon starts clean rather than
-// inheriting a socket it has to reason about.
+// Release leaves no socket behind.
 func TestLockReleaseRemovesSocket(t *testing.T) {
 	t.Parallel()
 
@@ -168,7 +163,7 @@ func TestLockAndSocketPathsPair(t *testing.T) {
 	}
 }
 
-// Status crosses the wire, so the client can tell "starting" from "broken".
+// Status lets the client tell "starting" from "broken".
 func TestStatusRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -204,8 +199,8 @@ func TestStatusRoundTrip(t *testing.T) {
 	}
 }
 
-// Attach waits for readiness rather than for a listening socket: a cold daemon answers
-// reads with an empty cache, which is indistinguishable from an empty account.
+// Attach waits for readiness, not a listening socket: a cold daemon's empty cache
+// looks like an empty account.
 func TestAttachWaitsForReady(t *testing.T) {
 	t.Parallel()
 
@@ -224,8 +219,7 @@ func TestAttachWaitsForReady(t *testing.T) {
 	}
 }
 
-// A daemon that never becomes ready fails with *its own* reason. "kithd is not
-// ready" is not an answer, and the daemon usually knows better.
+// A daemon that never becomes ready fails with its own reason.
 func TestAttachTimeoutReportsTheDaemonsError(t *testing.T) {
 	t.Parallel()
 
@@ -241,8 +235,7 @@ func TestAttachTimeoutReportsTheDaemonsError(t *testing.T) {
 	}
 }
 
-// No daemon at all: Attach fails rather than blocking forever or spawning one.
-// Starting one is Ensure's job, and keeping them apart is what lets a caller decide.
+// With no daemon, Attach fails rather than blocking or spawning (that is Ensure's job).
 func TestAttachWithNoDaemon(t *testing.T) {
 	t.Parallel()
 
@@ -252,8 +245,7 @@ func TestAttachWithNoDaemon(t *testing.T) {
 	}
 }
 
-// Ensure does not spawn when a daemon is already serving, and says nothing — there was no
-// gap, so there is nothing to warn about.
+// Ensure does not spawn when a daemon is serving, and gives no note.
 func TestEnsureAttachesToARunningDaemon(t *testing.T) {
 	t.Parallel()
 
@@ -287,7 +279,7 @@ func TestEnsureAttachesToARunningDaemon(t *testing.T) {
 		<-pumped
 	})
 
-	// The default config, no profile: what a single-account install starts with.
+	// The default config, no profile.
 	r, note, err := daemon.Ensure(ctx, user, daemon.Launch{}, settle)
 	if err != nil {
 		t.Fatalf("Ensure() error = %v", err)
@@ -300,8 +292,7 @@ func TestEnsureAttachesToARunningDaemon(t *testing.T) {
 	}
 }
 
-// The maintenance operations cross the wire: the client cannot do any of them
-// itself, because it never opens the databases.
+// Maintenance operations cross the wire: the client never opens the databases.
 func TestMaintenanceRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -329,7 +320,7 @@ func TestMaintenanceRoundTrip(t *testing.T) {
 	}
 }
 
-// maintenance is a backend that records the two store operations.
+// maintenance records the two store operations.
 type maintenance struct {
 	fakeBackend
 	keys      int
@@ -347,8 +338,7 @@ func (m *maintenance) RestoreKeyBackup(_ context.Context, secret string) (int, e
 	return m.keys, nil
 }
 
-// nopWithChannels gives the fan-out real channels to pump, so Streams.Run does not
-// sit on five nil channels for the life of the test.
+// nopWithChannels gives Streams.Run real channels instead of five nil ones.
 func nopWithChannels() apitest.Nop {
 	return apitest.Nop{
 		Msgs:    make(chan domain.Message),
@@ -359,11 +349,10 @@ func nopWithChannels() apitest.Nop {
 	}
 }
 
-// lockUser returns an account name unique to this test, so parallel tests take different
-// locks.
+// lockUser returns an instance name unique to the test, so parallel tests take
+// different locks.
 func lockUser(t *testing.T) domain.Storage {
 	t.Helper()
-	// Its own runtime directory: the lock file stays behind on Release (see
-	// Lock.Release), which is right for a daemon and untidy in the real one.
+	// Its own runtime directory: Release leaves the lock file behind.
 	return domain.Storage{Instance: strings.ReplaceAll(t.Name(), "/", "-"), RuntimeDir: filepath.Join(t.TempDir(), "kith")}
 }

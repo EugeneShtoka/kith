@@ -25,8 +25,8 @@ func (m Model) openEmojiPalette() (Model, tea.Cmd) {
 	return m, repaint()
 }
 
-// openReactionPalette is the same grid reacting to the selected message, filtered to
-// what the room's network accepts.
+// openReactionPalette is the same grid, reacting to the selected message and filtered
+// to what the room's network accepts.
 func (m Model) openReactionPalette() (Model, tea.Cmd) {
 	if _, ok := m.selectedMessage(); !ok {
 		return m, nil
@@ -66,15 +66,15 @@ func (m Model) insertPickedEmoji(emoji string) (Model, tea.Cmd) {
 	return m, m.recordEmojiCmd(emoji)
 }
 
-// pickerColumns is how many grid cells fit across the timeline pane's interior
-// (framePane's w-2). Rendering and vertical motion must agree on it.
+// pickerColumns is how many grid cells fit inside the timeline pane (framePane's w-2).
+// Rendering and vertical motion must agree on it.
 func (m Model) pickerColumns() int {
 	interior := m.width - railWidth - roomsWidth - 2
 	return max(interior/emojiCellWidth, 1)
 }
 
-// pickerLines renders the open picker: a header naming the selection, then the
-// items. A grid picker shows values in columns; a list picker shows labeled rows.
+// pickerLines renders the open picker: a header naming the selection, then the items,
+// in columns for a grid picker or labeled rows for a list.
 func (m Model) pickerLines(width, rows int) []string {
 	var out []string
 	if header := m.pickerHeader(); header != "" {
@@ -95,9 +95,9 @@ func (m Model) pickerLines(width, rows int) []string {
 	return out
 }
 
-// docParagraphs is default.toml's text as paragraphs to wrap: its prose lines joined
-// (the file wraps them for itself), an indented line (a table of values, an example)
-// kept as written, a blank line a break.
+// docParagraphs splits default.toml's text into paragraphs to wrap: prose lines joined
+// (the file wraps them itself), indented lines (tables, examples) kept as written,
+// blank lines as breaks.
 func docParagraphs(doc string) []string {
 	var out []string
 	prose := false
@@ -116,15 +116,15 @@ func docParagraphs(doc string) []string {
 	return out
 }
 
-// The setting's text beneath the list takes the rows the list leaves, at least
-// settingDocLeast and at most settingDocMost.
+// The setting's text below the list takes the rows the list leaves, between
+// settingDocLeast and settingDocMost.
 const (
 	settingDocLeast = 6
 	settingDocMost  = 20
 )
 
-// pickerNotes is what the open picker says beneath its list: the setting's text, or
-// who chose each answer of a poll, at most what the list leaves.
+// pickerNotes is the text below the open picker's list: the setting's doc, or who
+// chose each poll answer, within the rows the list leaves.
 func (m Model) pickerNotes(width int) []string {
 	if lines := m.settingDocLines(width); lines != nil {
 		return lines
@@ -136,9 +136,8 @@ func (m Model) pickerNotes(width int) []string {
 	return lines
 }
 
-// settingDocLines is what default.toml says of the setting under the cursor, wrapped
-// to width under a blank line; none outside a settings group or for a setting with
-// nothing written about it.
+// settingDocLines is default.toml's text for the setting under the cursor, wrapped to
+// width under a blank line; none outside a settings group or for an undocumented setting.
 func (m Model) settingDocLines(width int) []string {
 	if m.picker.kind != pickerSetting {
 		return nil
@@ -162,7 +161,7 @@ func (m Model) settingDocLines(width int) []string {
 	return lines
 }
 
-// pickerBody is how many item rows the open picker shows: the message area, less its
+// pickerBody is how many item rows the open picker shows: the message area minus its
 // header (as pickerLines lays it out).
 func (m Model) pickerBody() int {
 	rows := m.msgAreaRows() - len(m.pickerNotes(m.pickerWidth()))
@@ -193,27 +192,26 @@ func (m Model) gridRows(body, width int) []string {
 }
 
 // emojiCell is a glyph as drawn (display only): text-presentation emoji (‼ ✂ ⚠ ❤ …),
-// alone or beginning a sequence, get U+FE0F so they measure two columns, as the
-// terminal draws them.
+// alone or starting a sequence, get U+FE0F so they measure two columns, as drawn.
 func emojiCell(glyph string) string {
 	if ansi.StringWidth(glyph) == 2 {
 		return glyph
 	}
-	// A toned text-presentation emoji (base + modifier) is drawn two wide but measures
-	// one; the selector between them makes both agree.
+	// A toned text-presentation emoji (base + modifier) draws two wide but measures one;
+	// the selector between them makes both agree.
 	if base, mod, ok := splitTone(glyph); ok {
 		return base + presentationSelector + mod
 	}
 	if len([]rune(glyph)) == 1 {
 		return glyph + presentationSelector
 	}
-	// A joined sequence begun by a text-presentation symbol (❤‍🔥) the same.
+	// Likewise a joined sequence starting with a text-presentation symbol (❤‍🔥).
 	glyph, _ = presented(glyph, nil)
 	return glyph
 }
 
 // gridRow renders one row of cells, marking the selected one with a background fill
-// (a cursor glyph would shift cells; a foreground color is invisible on emoji).
+// (a cursor glyph would shift cells; foreground color is invisible on emoji).
 func (m Model) gridRow(start, perRow, width int) string {
 	var b strings.Builder
 	used := 0
@@ -259,15 +257,15 @@ func (m Model) listRows(body, width int) []string {
 	return out
 }
 
-// editingSettingRow reports whether the selected settings row (a setting, or an entry
-// of a list setting) is being typed in.
+// editingSettingRow reports whether the selected settings row (a setting, or a list
+// setting's entry) is being typed in.
 func (m Model) editingSettingRow() bool {
 	return (m.picker.kind == pickerSetting && m.prompt.kind == promptSetting) ||
 		(m.picker.kind == pickerSettingEntries && m.prompt.kind == promptSettingEntry)
 }
 
-// editedRow is a settings row whose value is being typed: the label, then the value
-// with the caret, drawn selected while untouched (the first key typed replaces it).
+// editedRow is a settings row being typed in: the label, then the value with the
+// caret, drawn selected while untouched (the first key replaces it).
 func (m Model) editedRow(lead, label string, width int) string {
 	sep := " : "
 	if m.picker.kind == pickerSettingEntries {
@@ -285,8 +283,8 @@ func (m Model) editedRow(lead, label string, width int) string {
 	return line + sep + value
 }
 
-// pickerHeader is what a picker has to say that its rows cannot, or "": for a list,
-// only the filter; for a grid, the selected emoji's shortcode too.
+// pickerHeader is what a picker says that its rows cannot, or "": the filter, and for
+// a grid the selected emoji's shortcode.
 func (m Model) pickerHeader() string {
 	item, ok := m.picker.selected()
 	if !ok {
@@ -301,8 +299,8 @@ func (m Model) pickerHeader() string {
 		}
 		return fmt.Sprintf("filter: %s   (%d of %d)", isolate(m.picker.filter), m.picker.cursor+1, len(m.picker.items))
 	}
-	// Through emojiCell as the grid is: a column of mismeasure wraps this full-width
-	// line and leaves a duplicated row (seen with toned ☝ ✌ ✍).
+	// Through emojiCell like the grid: a mismeasured column would wrap this full-width
+	// line and duplicate a row (seen with toned ☝ ✌ ✍).
 	label := emojiCell(item.label)
 	if item.detail != "" {
 		label += "  " + item.detail

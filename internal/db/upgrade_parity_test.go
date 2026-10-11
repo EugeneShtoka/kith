@@ -36,11 +36,8 @@ func schemaOf(t *testing.T, sqlDB *sql.DB) []schemaObject {
 	return out
 }
 
-// A cache upgraded from the first release and a cache built today must be the same
-// schema: every table, index, trigger and FTS table. The upgrade runs the migrations
-// over the v1 base as it shipped (testdata/schema-v1.sql, frozen; never edit it); a
-// rebuild creates today's baseSchema and runs them again over it. So a migration must
-// both reach baseSchema from v1 and be a no-op against baseSchema.
+// A cache upgraded from v1 (testdata/schema-v1.sql, frozen: never edit) matches a fresh
+// one, so every migration must reach baseSchema from v1 and be a no-op on baseSchema.
 func TestAnUpgradedCacheMatchesAFreshOne(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -13,7 +13,7 @@ import (
 )
 
 // leader is a network whose login sets an account up, shows a code, asks for it, and
-// is done; or fails as told.
+// is done, or fails as told.
 type leader struct {
 	fail error
 }
@@ -53,7 +53,7 @@ func (l leader) Login(ctx context.Context, account string, talk api.LoginTalk) (
 	}
 }
 
-// serveLogins is a daemon over the socket whose logins are leaders'.
+// serveLogins serves leaders' logins over a socket.
 func serveLogins(t *testing.T, leaders ...api.LoginLeader) *daemon.Remote {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "kithd.sock")
@@ -78,9 +78,8 @@ func serveLogins(t *testing.T, leaders ...api.LoginLeader) *daemon.Remote {
 	return daemon.NewRemote(path)
 }
 
-// A login crosses the socket step by step: fields to ask (a secret marked so), a
-// record to write, a code to show, a wrong answer asked again with a note, the end;
-// the account is named once set up.
+// A login crosses the socket step by step: fields (secrets marked), a record to write,
+// a code, a wrong answer re-asked with a note, the end; the account is named once set up.
 func TestALoginCrossesTheSocketStepByStep(t *testing.T) {
 	t.Parallel()
 	remote := serveLogins(t, leader{})
@@ -120,7 +119,7 @@ func TestALoginCrossesTheSocketStepByStep(t *testing.T) {
 	}
 }
 
-// A login that fails ends with its error; one of no network is refused as off.
+// A failed login ends with its error; one of no network is refused as off.
 func TestALoginFailureEndsIt(t *testing.T) {
 	t.Parallel()
 	remote := serveLogins(t, leader{fail: errors.New("refused by the network")})

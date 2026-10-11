@@ -7,24 +7,21 @@ import (
 	"unicode"
 )
 
-// What usually comes next, from what this room has actually said.
+// Next-word suggestions learned from a room's own messages.
 
 // Phrases is one room's trigram index: for each pair of words, what followed it.
 type Phrases struct {
 	// after maps a two-word key to the counts of what came next.
 	after map[phraseKey]map[string]int
-	// afterOne is the same over one word of context, and it is here because the
-	// measurement that excluded it was answering a different question.
+	// afterOne is the same over one word of context.
 	afterOne map[string]map[string]int
-	// words is how often this account uses each word at all — the backoff when neither
-	// context has been seen before.
+	// words counts each word; the backoff when neither context was seen.
 	words map[string]int
 }
 
 type phraseKey struct{ first, second string }
 
-// phraseMineWeight is what one of your own uses of a phrase is worth against somebody
-// else's.
+// phraseMineWeight is how much one of your own uses counts against someone else's.
 const phraseMineWeight = 3
 
 // PhrasesOf indexes a room's messages, weighting the ones me (every ID that is this
@@ -41,8 +38,7 @@ func PhrasesOf(messages []Message, me []string) Phrases {
 	return index
 }
 
-// Add counts one more message into the index, in place: the index is the sum of its
-// messages, so appending one is the same as indexing them all again.
+// Add counts one more message into the index in place.
 func (p Phrases) Add(msg *Message, me []string) {
 	if msg.Redacted || msg.Body == "" {
 		return
@@ -79,8 +75,8 @@ func add(index map[string]map[string]int, key, word string, weight int) {
 	next[word] += weight
 }
 
-// Next is the word that usually follows these two, when it leads clearly enough to draw
-// without being asked for.
+// Next is the word that usually follows these two, if it leads the runner-up by ratio
+// and has at least least uses.
 func (p Phrases) Next(first, second string, ratio, least int) (string, bool) {
 	if p.after == nil || ratio < 1 {
 		return "", false
@@ -93,9 +89,8 @@ func (p Phrases) Next(first, second string, ratio, least int) (string, bool) {
 	for word, count := range next {
 		switch {
 		case count > leadCount:
-			// The tie-break is alphabetical rather than arbitrary: a map's order is not
-			// stable, and a suggestion that changed between two keystrokes for no
-			// reason would read as a bug in the drawing.
+			// Alphabetical tie-break: map order is unstable and the suggestion must not
+			// flicker between keystrokes.
 			lead, leadCount, runnerUp = word, count, leadCount
 		case count == leadCount && word < lead:
 			lead, runnerUp = word, count
@@ -116,7 +111,7 @@ func (p Phrases) NextWords(draft string, n int) []string {
 	}
 	words := phraseWords(draft)
 	if len(words) == 0 || !strings.HasSuffix(draft, " ") {
-		// Mid-word is the vocabulary's question, not this one's. See PhraseContext.
+		// Mid-word completion belongs to the vocabulary.
 		return nil
 	}
 	out := make([]string, 0, n)
@@ -143,8 +138,7 @@ func (p Phrases) NextWords(draft string, n int) []string {
 	return out
 }
 
-// rank orders continuations by weight, alphabetically among equals — a map's order is not
-// stable, and a list that reshuffled between keystrokes would read as a fault.
+// rank orders continuations by weight, then alphabetically so the list is stable.
 func rank(counts map[string]int) []string {
 	if len(counts) == 0 {
 		return nil
@@ -174,8 +168,7 @@ func PhraseContext(draft string) (first, second string, ok bool) {
 	return words[len(words)-2], words[len(words)-1], true
 }
 
-// phraseWords splits text the way the composer reads it: runs of letters, lowercased,
-// everything else a separator.
+// phraseWords splits text into lowercased runs of letters.
 func phraseWords(text string) []string {
 	var out []string
 	var word strings.Builder

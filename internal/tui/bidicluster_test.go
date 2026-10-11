@@ -9,8 +9,7 @@ import (
 	"golang.org/x/text/unicode/bidi"
 )
 
-// Laying an RTL line out right-to-left must reverse grapheme *clusters*, never the
-// runes inside one.
+// Reordering an RTL line reverses grapheme clusters, never the runes inside one.
 func TestReorderKeepsEmojiSequencesWhole(t *testing.T) {
 	t.Parallel()
 
@@ -31,15 +30,13 @@ func TestReorderKeepsEmojiSequencesWhole(t *testing.T) {
 			line := "שלום " + seq.emoji + " מה קורה"
 			vis := reorder(line, bidi.RightToLeft)
 
-			// The sequence survives as one piece, in one grapheme cluster.
 			if !strings.Contains(vis, seq.emoji) {
 				t.Errorf("the emoji was taken apart:\n in  %q\n out %q", line, vis)
 			}
 			if before, after := clusters(line), clusters(vis); before != after {
 				t.Errorf("cluster count %d -> %d: a grapheme was split", before, after)
 			}
-			// And the line is still as wide as it was, which is what the pane was
-			// measured against.
+			// The width is unchanged.
 			if w1, w2 := ansi.StringWidth(line), ansi.StringWidth(vis); w1 != w2 {
 				t.Errorf("width %d -> %d", w1, w2)
 			}
@@ -47,8 +44,7 @@ func TestReorderKeepsEmojiSequencesWhole(t *testing.T) {
 	}
 }
 
-// Bracket mirroring (rule L4) still applies: it lives on single runes, which is exactly
-// what still goes through AppendReverse.
+// Bracket mirroring (rule L4) still applies to single runes via AppendReverse.
 func TestReorderStillMirrorsBrackets(t *testing.T) {
 	t.Parallel()
 

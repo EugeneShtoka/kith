@@ -79,8 +79,7 @@ func TestSpaceOwnership(t *testing.T) {
 	}
 }
 
-// A space's keeper is a member other than you who is in many of your rooms; no names
-// are consulted.
+// A space's keeper is another member who is in many of your rooms; names are ignored.
 func TestSpaceKeeper(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +105,7 @@ func TestSpaceKeeper(t *testing.T) {
 		t.Errorf("a bridge in the space: keeper = %q", got)
 	}
 
-	// A space only you are in is yours, however bridged its rooms happen to be.
+	// A space only you are in is yours.
 	if got := spaceKeeper(members(k2, e2), me, wide); got != "" {
 		t.Errorf("a space of your own: keeper = %q, want none", got)
 	}

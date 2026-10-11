@@ -450,7 +450,7 @@ func TestMentionsMe(t *testing.T) {
 	}
 }
 
-// Regression: /messages events arrive unparsed (Content.Parsed == nil) and used to vanish.
+// /messages events arrive unparsed (Content.Parsed == nil) and must still convert.
 func TestTimelineParsesRawMessages(t *testing.T) {
 	t.Parallel()
 
@@ -560,8 +560,7 @@ func TestReadReceipts(t *testing.T) {
 			wantRoom:    []string{"$e1:x"},
 			wantThreads: []string{"$a:x → $e2:x", "$b:x → $e3:x"},
 		},
-		// Every kind is a candidate; which is the room's position is the events' order,
-		// which only the cache knows (see applyReceipts).
+		// Every kind is a candidate; only the cache knows their order (see applyReceipts).
 		"unthreaded, main and private are all candidates": {
 			events: []*event.Event{
 				receiptEvent(`{"$old:x":{"m.read":{"@me:x":{"ts":1}}}}`),

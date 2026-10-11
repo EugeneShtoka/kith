@@ -13,8 +13,8 @@ import (
 
 var off = false
 
-// propsModel is a model with Alpha (in a space you made and a bridge's), Bravo (a
-// DM) and Charlie (in the space you made), and the tags given.
+// propsModel has Alpha (in a user-made space and a bridge's), Bravo (a DM) and Charlie
+// (in the user-made space), with the given tags.
 func propsModel(t *testing.T, cfg config.Config) Model {
 	t.Helper()
 	m := configured(cfg)
@@ -32,8 +32,8 @@ func rowHolds(t *testing.T, m Model, key string, id domain.RoomID) bool {
 	return admitsRoom(m, railRow(t, m, key), id)
 }
 
-// A silent tag's rooms count as read everywhere else: no badge, not in Unread, not
-// `unread` to another tag. The silent tag itself still sees them as they are.
+// A silent tag's rooms count as read everywhere else (no badge, not in Unread, not
+// `unread` to another tag); the silent tag itself sees their real state.
 func TestASilentTagsRoomsCountAsRead(t *testing.T) {
 	t.Parallel()
 	m := propsModel(t, config.Config{Tags: []config.Tag{
@@ -63,8 +63,8 @@ func TestASilentTagsRoomsCountAsRead(t *testing.T) {
 	}
 }
 
-// An exclusive tag shows its rooms alone, under no other tag; its spaces keep them.
-// Of two exclusive tags, the first configured wins.
+// An exclusive tag shows its rooms under no other tag; its spaces keep them. Of two
+// exclusive tags, the first configured wins.
 func TestAnExclusiveTagShowsItsRoomsAlone(t *testing.T) {
 	t.Parallel()
 	m := propsModel(t, config.Config{Tags: []config.Tag{
@@ -91,9 +91,8 @@ func TestAnExclusiveTagShowsItsRoomsAlone(t *testing.T) {
 	}
 }
 
-// A space-exclusive tag takes its rooms out of the spaces a person made and out of
-// other tags; the spaces they belong to (a bridge's) keep them, and so does another
-// space-exclusive tag holding them.
+// A space-exclusive tag takes its rooms out of user-made spaces and other tags; their
+// own spaces (a bridge's) and other space-exclusive tags keep them.
 func TestASpaceExclusiveTagKeepsRoomsWhereTheyBelong(t *testing.T) {
 	t.Parallel()
 	m := propsModel(t, config.Config{Tags: []config.Tag{
@@ -119,8 +118,8 @@ func TestASpaceExclusiveTagKeepsRoomsWhereTheyBelong(t *testing.T) {
 }
 
 // sticky keeps the open room listed after it is read; hide_when_empty drops an empty
-// row; first puts a row at the top unless the order places it; count_in_label says
-// how many rooms a row holds.
+// row; first puts a row at the top unless the order places it; count_in_label shows
+// the room count.
 func TestTagRowProperties(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{
@@ -153,11 +152,10 @@ func TestTagRowProperties(t *testing.T) {
 	}
 }
 
-// Over random rooms, spaces, tags, properties and state changes: a room an exclusive
-// tag claims shows under that tag alone; with a tag of every room, every room shows
-// somewhere unless hidden tags claim it; a space-exclusive tag
-// never takes a room out of a space it belongs to; a silenced room never counts as
-// unread; and the per-room memo always answers as a fresh computation would.
+// Over random rooms, spaces, tags, properties and state changes: an exclusive tag's
+// room shows under it alone; with an all-rooms tag every room shows somewhere unless a
+// hidden tag claims it; a space-exclusive tag never takes a room from its own space; a
+// silenced room never counts unread; and the memo matches a fresh computation.
 func TestTagPropertiesOverRandomConfigs(t *testing.T) {
 	t.Parallel()
 	terms := []string{"*", "dm", "group", "unread", "mention", "draft", "space:Made", "space:Bridge", "room:R1", "not dm", "not unread", "tag:T0"}

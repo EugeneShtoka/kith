@@ -20,8 +20,7 @@ type Script struct {
 	Keys   string   `toml:"keys"`   // bindings, written as in [keys]
 }
 
-// ScriptFor returns a command's block, matched without the slash and
-// case-insensitively.
+// ScriptFor returns a command's block, matched case-insensitively without the slash.
 func (c Commands) ScriptFor(command string) (Script, bool) {
 	command = commandName(command)
 	for _, script := range c.Scripts {
@@ -37,7 +36,7 @@ func commandName(name string) string {
 	return strings.ToLower(strings.TrimPrefix(strings.TrimSpace(name), "/"))
 }
 
-// DefaultCommandTimeout is how long a user command may run when nothing says otherwise.
+// DefaultCommandTimeout is how long a user command may run by default.
 const DefaultCommandTimeout = 15 * time.Second
 
 // RunTimeout is how long a command may run: the configured seconds, else the default.

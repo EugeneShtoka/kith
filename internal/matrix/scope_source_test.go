@@ -21,18 +21,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// What an assistant may reach is decided from facts the daemon read from the
-// homeserver and cached: which rooms are DMs (m.direct), which spaces hold which rooms
-// (m.room.create, the space's state), which network a space bridges, a room's name. A
-// read that fails, or answers less than it should, must never widen what a scope shares:
-// a failure is not "no DMs", "in no space" or "another name".
-//
-// A seeded world of rooms, DMs and spaces (some a bridge's) is served by a fake
-// homeserver; every read can fail. After a healthy refresh the facts must be the world's
-// exactly (every entry kind a scope may name is computed). After a refresh in which
-// reads failed, no generated scope may allow a room the world's facts would refuse.
-// After a healthy refresh again, the facts are the world's again. KITH_SCOPE_SEEDS runs a
-// deeper sweep, KITH_SCOPE_SEED one seed.
+// A failed or short read of room facts (m.direct, space state, names) must never widen
+// an assistant's scope. Over seeded worlds: a healthy refresh caches the exact facts;
+// with random reads failing, no scope allows a room the true facts refuse; a healthy
+// refresh restores them. KITH_SCOPE_SEEDS sets the sweep, KITH_SCOPE_SEED one seed.
 func TestAFailedReadAtTheSourceNeverWidensTheScope(t *testing.T) {
 	t.Parallel()
 	first, seeds := 0, 200
@@ -105,8 +97,8 @@ func (w scopeWorld) facts(room string) domain.RoomFacts {
 	return f
 }
 
-// entries is every entry a scope may name in this world, one of each kind the
-// validator accepts for an assistant (pinned is refused there: setup.scopeEntries).
+// entries is one scope entry of each kind an assistant may use (not pinned; see
+// setup.scopeEntries).
 func (w scopeWorld) entries() []string {
 	out := []string{"dm", "group", "protocol:telegram", "protocol:matrix"}
 	for _, room := range w.rooms {
@@ -281,7 +273,7 @@ func playScopeSeed(t *testing.T, seed uint64) string {
 		}
 	}
 	srv.mu.Unlock()
-	_ = refresh() // a refresh may refuse; the cache must stay safe either way
+	_ = refresh() // may fail; the cache must stay safe either way
 	entries := world.entries()
 	for range 40 {
 		scope := domain.ModelScope{
@@ -291,7 +283,7 @@ func playScopeSeed(t *testing.T, seed uint64) string {
 		for _, room := range world.rooms {
 			got, err := cachedFacts(ctx, b, domain.RoomID(room))
 			if err != nil {
-				continue // refused: narrower than anything
+				continue // refused is narrowest
 			}
 			faulted := domain.AllowModel(scope, got, "x", false).Allowed
 			truth := domain.AllowModel(scope, world.facts(room), "x", false).Allowed
@@ -327,8 +319,7 @@ func sameFacts(a, b domain.RoomFacts) bool {
 		slices.Equal(as, bs)
 }
 
-// cachedFacts is what the model opt-in decides a room by: its facts as the cache
-// holds them (local.Service reads the same two tables).
+// cachedFacts is a room's facts as the cache holds them, as local.Service reads them.
 func cachedFacts(ctx context.Context, b *InProc, roomID domain.RoomID) (domain.RoomFacts, error) {
 	rooms, err := b.cache.Rooms(ctx)
 	if err != nil {

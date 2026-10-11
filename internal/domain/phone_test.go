@@ -2,8 +2,7 @@ package domain
 
 import "testing"
 
-// A suggested name is the number's country, else the prefix and its last digits,
-// kept apart from the names taken.
+// A suggested name is the country, else prefix plus last digits, avoiding taken names.
 func TestPhoneNames(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ got, want string }{
@@ -24,8 +23,7 @@ func TestPhoneNames(t *testing.T) {
 	}
 }
 
-// Every calling code is prefix-free against the others, so the longest match is the
-// only one: no code is the start of another.
+// No calling code is a prefix of another.
 func TestCallingCodesArePrefixFree(t *testing.T) {
 	t.Parallel()
 	for code := range callingCodes {

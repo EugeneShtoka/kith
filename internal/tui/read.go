@@ -11,8 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Marking read without reading. The receipt's target event is resolved by the daemon
-// (api.MarkRoomsRead), since an unread room's timeline is usually not loaded here.
+// Marking read without reading. The daemon resolves the receipt's target event
+// (api.MarkRoomsRead), since an unread room's timeline is usually not loaded.
 
 // markRoomRead marks the selected room read without opening it, unconditionally.
 func (m Model) markRoomRead() (Model, tea.Cmd) {
@@ -54,8 +54,8 @@ func (m Model) handleMarkedUnread(msg markedUnreadMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// askMarkGroupRead confirms marking a rail group read, capturing the rooms with the
-// question so a membership change cannot redirect it.
+// askMarkGroupRead captures the rooms with the question so a membership change cannot
+// redirect it.
 func (m Model) askMarkGroupRead() (Model, tea.Cmd) {
 	g, ok := m.rail.at()
 	if !ok {
@@ -66,14 +66,13 @@ func (m Model) askMarkGroupRead() (Model, tea.Cmd) {
 		m = m.say("nothing unread in " + isolate(g.label))
 		return m, nil
 	}
-	// Isolated once here: the prompt, the status and the outcome all say it.
+	// Isolated once: the prompt, status and outcome all use it.
 	m.confirm = confirmState{action: pendingMarkGroupRead, group: isolate(g.label), rooms: rooms}
 	return m, nil
 }
 
-// unreadView is the single answer to "how much is unread here"; every badge, sum,
-// filter and gesture goes through it so they cannot disagree. It is built from the
-// Model each time it is asked for (see group.admits), so it is never stale.
+// unreadView is the single answer to "how much is unread here"; every badge, sum, filter and
+// gesture uses it so they cannot disagree. Built per call (see group.admits), so never stale.
 type unreadView struct {
 	counts map[domain.RoomID]domain.Unread
 	local  bool
@@ -85,9 +84,8 @@ type unreadView struct {
 	spam      domain.Spam
 	caught    map[domain.RoomID]domain.SpamVerdict
 	spamRooms map[domain.RoomID]bool
-	// tags and the facts they judge rooms by (precomputed, as archivedRooms), and the
-	// drafts the `draft` state word reads; tagMemo keeps what they make of each room
-	// (tagged.go), tagsRev says which tags it was made with.
+	// tags and the facts they judge by (precomputed), and the drafts the `draft` state word reads;
+	// tagMemo caches the per-room result (tagged.go), keyed by tagsRev.
 	tags      domain.TagSet
 	tagsRev   uint64
 	tagMemo   *tagMemo
@@ -140,7 +138,6 @@ func (m Model) refreshFacts() Model {
 	return m
 }
 
-// unreadView builds the view from the running configuration.
 func (m Model) unreadView() unreadView {
 	return unreadView{
 		counts:    m.unread,
@@ -158,9 +155,8 @@ func (m Model) unreadView() unreadView {
 	}
 }
 
-// unreadIn lists the rooms of a rail group that have something unread, for marking
-// them read: a room a silent tag holds (Archived) too. It leaves the group's total,
-// but its row still shows what is unread, and marking the group read reads it.
+// unreadIn lists a rail group's unread rooms for marking read, including those a silent tag
+// holds (Archived): they leave the group total but still show unread and are read with it.
 func (m Model) unreadIn(g group) []domain.RoomID {
 	view := m.unreadView()
 	var ids []domain.RoomID
@@ -242,15 +238,15 @@ func roomsPhrase(n int) string {
 }
 
 // A room a space-exclusive tag holds stays visible in its canonical parent space
-// (m.space.parent with canonical: true), resolved lazily and only for those rooms.
+// (m.space.parent with canonical: true), resolved lazily for those rooms only.
 
 // parentsMsg carries canonical parents resolved for the rooms that needed them.
 type parentsMsg struct {
 	parents map[domain.RoomID]domain.SpaceID
 }
 
-// resolveParentsCmd asks the daemon where not-yet-known rooms that leave the spaces
-// you made live; nil when there is nothing to ask.
+// resolveParentsCmd asks the daemon for canonical parents of not-yet-known rooms that leave
+// your spaces; nil when there is nothing to ask.
 func (m Model) resolveParentsCmd() tea.Cmd {
 	view := m.unreadView()
 	var want []domain.RoomID
@@ -281,8 +277,7 @@ func (m Model) resolveParentsCmd() tea.Cmd {
 	}
 }
 
-// handleParents records the answers; the rail's groups read them through the view
-// they are handed.
+// handleParents records the answers; rail groups read them through their view.
 func (m Model) handleParents(msg parentsMsg) (Model, tea.Cmd) {
 	parents := make(map[domain.RoomID]domain.SpaceID, len(m.parents)+len(msg.parents))
 	maps.Copy(parents, m.parents)

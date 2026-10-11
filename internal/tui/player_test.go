@@ -498,8 +498,8 @@ func TestAMissingPlayerSaysWhatToInstall(t *testing.T) {
 	}
 }
 
-// The redraw pulse re-arms only while the bar can change: not at the end (the
-// session survives via --keep-open), not paused, not once stopped.
+// The redraw pulse re-arms only while the bar can change: not at the end (the session survives
+// via --keep-open), not paused, not stopped.
 func TestPulseRearmsOnlyWhileMoving(t *testing.T) {
 	t.Parallel()
 
@@ -591,8 +591,8 @@ func TestArmingAnAlreadyRunningPulseAddsNothing(t *testing.T) {
 	}
 }
 
-// Stopping or failing to open a note carries the in-flight tick across, or the next
-// play would start a second chain.
+// Stopping or failing to open a note carries the in-flight tick across, or the next play would
+// start a second chain.
 func TestSwappingTheNoteKeepsTheTickAccountedFor(t *testing.T) {
 	t.Parallel()
 
@@ -608,8 +608,8 @@ func TestSwappingTheNoteKeepsTheTickAccountedFor(t *testing.T) {
 	}
 }
 
-// pulseOnce drives one pulse and reports the interval the next one was armed at, and
-// whether one was: the pulse re-arms one timer and keeps the chain marked running.
+// pulseOnce drives one pulse and reports the interval the next was armed at, and whether one
+// was armed.
 func pulseOnce(t *testing.T, m Model) (Model, time.Duration, bool) {
 	t.Helper()
 	wait := m.pulseInterval() // what the tick arms is decided before it
@@ -705,8 +705,8 @@ func finished(t *testing.T, disp config.Display) (Model, tea.Cmd) {
 	return asModel(m.Update(playerTickMsg{}))
 }
 
-// A finished note removes its bar after close_after (default when unset); 0 closes
-// at once and -1 never.
+// A finished note removes its bar after close_after (default when unset); 0 closes at once, -1
+// never.
 func TestAFinishedNoteClosesPerConfig(t *testing.T) {
 	t.Parallel()
 
@@ -796,16 +796,15 @@ func TestAStaleCloseIsIgnored(t *testing.T) {
 	})
 }
 
-// pressedThrough is m after key, with what it asks the player to do done: controls go
-// to the player off the event loop.
+// pressedThrough is m after key, with the player request it starts carried out (controls go
+// off the event loop).
 func pressedThrough(t *testing.T, m Model, key tea.KeyPressMsg) Model {
 	t.Helper()
 	next, cmd := press(t, m, key)
 	return deliver(t, next, cmd)
 }
 
-// hungSession is a player whose control socket takes a while to accept a write, as a
-// hung mpv does until the write times out.
+// hungSession is a player whose control socket is slow to accept a write, like a hung mpv.
 type hungSession struct {
 	*fakeSession
 	wait time.Duration
@@ -826,8 +825,7 @@ func (h hungSession) SetSpeed(f float64) error {
 	return h.fakeSession.SetSpeed(f)
 }
 
-// The player's controls reach it off the event loop: a player that does not answer
-// does not freeze the screen for as long as its write takes.
+// Controls reach the player off the event loop, so a hung player does not freeze the screen.
 func TestAHungPlayerDoesNotHoldUpTheKeys(t *testing.T) {
 	t.Parallel()
 	m, session := playing(t, config.Display{})

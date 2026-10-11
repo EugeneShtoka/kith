@@ -79,8 +79,7 @@ func (d Display) ShowTyping() bool { return enabled(d.Typing) }
 // SendsTyping reports whether to tell rooms when you are typing (unset: true).
 func (d Display) SendsTyping() bool { return enabled(d.SendTyping) }
 
-// SendsReceipts reports whether your read position is announced to the room (unset:
-// true).
+// SendsReceipts reports whether read receipts are sent (unset: true).
 func (d Display) SendsReceipts() bool { return enabled(d.SendReceipts) }
 
 // ReadAfter is how long the cursor must rest on a room before it counts as read without
@@ -96,9 +95,8 @@ func (d Display) ReadAfter() time.Duration {
 // labels (unset: true).
 func (d Display) ApplyRoomNameRules() bool { return enabled(d.RoomNameRules) }
 
-// DefaultFPS is the repaint rate used when [display] fps is unset: fast enough that a
-// keystroke's echo (at most one frame away) is not perceptible, and half the wakeups of
-// the renderer's own default of 60.
+// DefaultFPS is the repaint rate when [display] fps is unset: a keystroke echo stays
+// imperceptible at half the wakeups of the renderer's default 60.
 const DefaultFPS = 30
 
 // MinFPS and MaxFPS bound what the renderer will accept.
@@ -219,10 +217,8 @@ func (d Display) ShowsArchivedIn(place string) bool {
 	return d.ShowsArchived()
 }
 
-// NetworkColors is [display.theme.networks]: the color each network's rooms are named
-// in, where the room list or the rail asks for it (Display.NetworkColors,
-// SpaceRule.NetworkColors, Rail.NetworkColors): #rrggbb or a named color; "" is the default, "none" no
-// color.
+// NetworkColors is [display.theme.networks]: each network's room-name color, #rrggbb or
+// a named color; "" is the default, "none" no color.
 type NetworkColors struct {
 	WhatsApp       string `toml:"whatsapp"`
 	Telegram       string `toml:"telegram"`
@@ -239,16 +235,14 @@ type NetworkColors struct {
 	Matrix         string `toml:"matrix"`
 }
 
-// defaultNetworkColors are the colors of the networks with one when unset, each apart
-// from the others and from the theme's text, accent, badge and alert. Meta's two
-// networks share one.
+// defaultNetworkColors are distinct from each other and from the theme's text, accent,
+// badge and alert colors; Meta's two networks share one.
 var defaultNetworkColors = map[string]string{
 	"whatsapp": "teal", "telegram": "blue", "slack": "magenta", "messenger": "orchid",
 	"instagram": "orchid", "linkedin": "periwinkle", "google_messages": "coral",
 }
 
-// byKey is each network's color as set, by its key (its name, lower case, words
-// joined by "_").
+// byKey maps each network's key (lower-case name, words joined by "_") to its color.
 func (n NetworkColors) byKey() map[string]string {
 	return map[string]string{
 		"whatsapp": n.WhatsApp, "telegram": n.Telegram, "slack": n.Slack, "signal": n.Signal,
@@ -291,8 +285,7 @@ type DisplayName struct {
 	Name   string `toml:"name"`
 }
 
-// The prefixes a DisplayName target can carry. Spelled here so the parser, the writers
-// and the documentation cannot drift.
+// The prefixes a DisplayName target can carry.
 const (
 	NameTargetRoom   = "room:"
 	NameTargetSpace  = "space:"
@@ -314,9 +307,7 @@ func (d Display) NameFor(target string) string {
 	return name
 }
 
-// RoomNames is every room-ID entry as a map, for the callers that index by room rather
-// than asking one at a time — the daemon's scope index, chiefly, which has to resolve a
-// rule written against a name you chose.
+// RoomNames maps each named room ID to its name.
 func (d Display) RoomNames() map[string]string {
 	out := make(map[string]string, len(d.Names))
 	for _, entry := range d.Names {
@@ -327,8 +318,8 @@ func (d Display) RoomNames() map[string]string {
 	return out
 }
 
-// isBareRoomID reports whether a name's target is a room ID on its own, not one of the
-// NameTarget* forms. That is all a target can otherwise be: setup refuses the rest.
+// isBareRoomID reports whether target carries no NameTarget* prefix; setup refuses any
+// other form, so that means a room ID.
 func isBareRoomID(target string) bool {
 	if target == "" {
 		return false
@@ -365,8 +356,7 @@ type Deleted struct {
 // Keep reports whether deleted messages are kept, which is false unless asked for.
 func (d Deleted) Keep() bool { return d.KeepDeleted }
 
-// HideMine and HideOthers read the two settings, defaulting to showing both for a
-// config that does not mention them.
+// HideMine and HideOthers report whether deleted messages are hidden; unset shows them.
 func (d Deleted) HideMine() bool   { return d.Mine == DeletedHide }
 func (d Deleted) HideOthers() bool { return d.Others == DeletedHide }
 
@@ -420,16 +410,14 @@ type ThreadRule struct {
 	MaxInRoomList int    `toml:"max_in_room_list"` // 0 default, negative no cap
 }
 
-// defaultThreadRowMark leads a thread's row: the shape says "inside the row above" by
-// pointing at it.
+// defaultThreadRowMark leads a thread's row, pointing at its room's row above.
 const defaultThreadRowMark = "↳"
 
 // DefaultThreadsInRoomList is how many of a room's threads are listed before the rest
 // are counted into one line.
 const DefaultThreadsInRoomList = 5
 
-// Mode is InRoomList as one of the three values, defaulting an unset or unknown
-// setting to "unread" rather than refusing to draw a room list.
+// Mode is InRoomList normalized; unset or unknown is "unread".
 func (t Threads) Mode() string {
 	switch strings.ToLower(strings.TrimSpace(t.InRoomList)) {
 	case ThreadsAll:

@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// threaded is twoRooms with a conversation in Standup: a thread rooted at $root with
-// two replies, a main-timeline message, and a message in the other room.
+// threaded is twoRooms with a thread at $root (two replies) and a main-timeline message
+// in Standup, and a message in the other room.
 func threaded() *fake {
 	f := twoRooms()
 	f.messages = map[domain.RoomID][]domain.Message{
@@ -25,8 +25,8 @@ func threaded() *fake {
 	return f
 }
 
-// Where a message goes: the thread by its root or any reply in it, and a reply to a
-// message in a thread lands in that thread.
+// A thread is reached by its root or any reply; a reply to a threaded message lands in
+// that thread.
 func TestAMessageGoesWhereItIsAimed(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -54,8 +54,8 @@ func TestAMessageGoesWhereItIsAimed(t *testing.T) {
 	}
 }
 
-// A target that is not a message of that room is refused, and nothing is written: a
-// room outside the read scope is not found either, so nothing is said about it.
+// A target not in that room is refused and nothing written; a room outside read scope
+// is not found either.
 func TestATargetMustBeAMessageOfThatRoom(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -80,8 +80,7 @@ func TestATargetMustBeAMessageOfThatRoom(t *testing.T) {
 	}
 }
 
-// A thread or reply the policy drafts is drafted aimed there: in an empty composer the
-// draft takes the thread and the reply target.
+// A drafted thread reply or reply takes its aim in an empty composer.
 func TestAThreadReplyIsDraftedIntoItsThread(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -108,9 +107,8 @@ func TestAThreadReplyIsDraftedIntoItsThread(t *testing.T) {
 	}
 }
 
-// A composer holding a draft keeps its aim: words for another thread, for the main
-// timeline, or answering another message are refused and recorded, and the draft is
-// untouched; words for the same place are appended.
+// A held draft keeps its aim: words for elsewhere are refused and recorded, the draft
+// untouched; words for the same place append.
 func TestADraftAimedElsewhereIsNotAddedTo(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -149,8 +147,8 @@ func TestADraftAimedElsewhereIsNotAddedTo(t *testing.T) {
 	}
 }
 
-// A send that fails goes to the queue still aimed at its thread; one the queue will
-// not take either is drafted, aimed there too.
+// A failed send is queued still aimed at its thread; if the queue refuses, the draft is
+// aimed there too.
 func TestAQueuedThreadReplyKeepsItsThread(t *testing.T) {
 	t.Parallel()
 	f := threaded()
@@ -174,7 +172,7 @@ func TestAQueuedThreadReplyKeepsItsThread(t *testing.T) {
 	}
 }
 
-// Reading shows where each message is, and one thread can be read alone.
+// read_room shows each message's place, and one thread can be read alone.
 func TestReadRoomShowsAndReadsThreads(t *testing.T) {
 	t.Parallel()
 	s := newServer(threaded(), shareAll)

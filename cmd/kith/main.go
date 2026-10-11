@@ -1,9 +1,8 @@
-// Command kith is a terminal UI chat client for Matrix, WhatsApp, Telegram and Slack.
+// Command kith is a terminal chat client for Matrix, WhatsApp, Telegram and Slack.
 //
-// It holds no Matrix session and runs no sync: the kithd daemon owns those and this
-// process talks to it over a unix socket (see ARCHITECTURE.md). There is deliberately
-// no in-process fallback — two processes sharing one device's olm/megolm state corrupt
-// it. The one thing the daemon cannot do is prompt, so `kith login` runs here.
+// It holds no session and runs no sync: the kithd daemon does, over a unix socket (see
+// ARCHITECTURE.md). There is no in-process fallback, since two processes sharing a
+// device's olm/megolm state corrupt it.
 package main
 
 import (
@@ -38,7 +37,6 @@ const readyTimeout = 60 * time.Second
 // subcommands are `kith <name> …`, each with its own flags.
 var subcommands = map[string]func([]string) error{"login": runLogin, "import": runImport}
 
-// firstArg is the command line's first argument, "" without one.
 func firstArg() string {
 	if len(os.Args) > 1 {
 		return os.Args[1]
@@ -73,8 +71,8 @@ func main() {
 		flag.Bool("force", false, "take over from an kith already open on this account: it saves its drafts and closes")
 	flag.Parse()
 
-	// Local, exit-immediately operations run before anything needs a session: a
-	// machine with no dictionaries is exactly one still being set up.
+	// Local one-shot operations run before anything needs a session: a machine with no
+	// dictionaries is one still being set up.
 	switch {
 	case *showVersion:
 		fmt.Println(buildinfo.String("kith"))
@@ -109,7 +107,7 @@ func main() {
 
 // startup is the one-off work flags ask for around the session.
 type startup struct {
-	follow        string // a matrix URI the TUI should go to first
+	follow        string // a matrix URI to open first
 	force         bool   // take the seat from the window that has it
 	logLevel      string // --log-level; empty defers to $KITH_LOG_LEVEL and the config
 	logTarget     string // --log-target; empty defers to $KITH_LOG_TARGET and the config
@@ -121,20 +119,19 @@ type startup struct {
 	importKeys string
 }
 
-// attached is a config's daemon, attached to: the config, where its files are, and
-// the client.
+// attached is a config's attached daemon: the config, its storage and the client.
 type attached struct {
 	path    string
 	cfg     config.Config
 	storage domain.Storage
-	launch  daemon.Launch // how its daemon is started, and so restarted
+	launch  daemon.Launch // how its daemon is started and restarted
 	backend *daemon.Remote
 	note    string
 }
 
-// attach loads the config and attaches to (or starts) the daemon, whatever is logged
-// in: a network that is not says so in the daemon's status (see loggedOutNotice).
-// backend is nil when a first-run default config was just written.
+// attach loads the config and attaches to (or starts) the daemon whatever is logged in;
+// logged-out networks show in the daemon's status. backend is nil when a first-run
+// default config was just written.
 func attach(ctx context.Context, configPath, profile string, timeout time.Duration) (attached, error) {
 	path, cfg, ready, err := loadConfig(configPath, profile)
 	if err != nil || !ready {
@@ -147,9 +144,9 @@ func attach(ctx context.Context, configPath, profile string, timeout time.Durati
 	return reach(ctx, path, cfg, storage, profile, timeout)
 }
 
-// storageFor is where the config keeps its files, with its instance recorded in the
-// config when it names none (the daemon only ever reads it). A config that cannot be
-// written (one a system manages) is left be: its instance is derived from its path.
+// storageFor is where the config keeps its files, recording its instance in the config
+// when it names none. An unwritable (system-managed) config is left alone; its instance
+// derives from its path.
 func storageFor(cfg config.Config, path, profile string) (domain.Storage, error) {
 	storage, err := setup.StorageFor(cfg, path, profile)
 	if err != nil {
@@ -162,8 +159,7 @@ func storageFor(cfg config.Config, path, profile string) (domain.Storage, error)
 	return storage, nil
 }
 
-// loggedOutNotice says which network accounts are not logged in, and how to log them
-// in; "" when all are.
+// loggedOutNotice names the logged-out accounts and how to log them in; "" when none.
 func loggedOutNotice(rows []daemon.NetworkStatus) string {
 	var out []string
 	for _, row := range rows {
@@ -174,11 +170,11 @@ func loggedOutNotice(rows []daemon.NetworkStatus) string {
 	return strings.Join(out, " · ")
 }
 
-// reach attaches to (or starts) the daemon for a loaded config, logged in or not:
-// what the login commands do, as the daemon is what logs a network in.
+// reach attaches to (or starts) the daemon for a loaded config, logged in or not, as
+// the login commands need.
 func reach(ctx context.Context, path string, cfg config.Config, storage domain.Storage, profile string, timeout time.Duration) (attached, error) {
-	// The packaged units serve only the default config in the default directories;
-	// any other gets a unit of its own, naming the config.
+	// The packaged units serve only the default config in the default directories; any
+	// other gets its own unit.
 	launch := daemon.Launch{ConfigPath: path, Profile: profile, OwnConfig: !isDefaultConfig(path) || !inDefaultDirs(storage)}
 	backend, note, err := daemon.Ensure(ctx, storage, launch, timeout)
 	if err != nil {
@@ -204,8 +200,8 @@ func reachForLogin(ctx context.Context, configPath, profile string) (attached, e
 	return reach(ctx, path, cfg, storage, profile, readyTimeout)
 }
 
-// isDefaultConfig reports whether path is the config file kith reads by default,
-// which is the one the systemd units start kithd with.
+// isDefaultConfig reports whether path is kith's default config, the one the systemd
+// units start kithd with.
 func isDefaultConfig(path string) bool {
 	def, err := config.Path()
 	if err != nil {
@@ -216,16 +212,16 @@ func isDefaultConfig(path string) bool {
 	return aerr == nil && berr == nil && a == b
 }
 
-// inDefaultDirs reports whether storage keeps its files where the packaged units let
-// the daemon write: the directories kith uses when [storage] names none.
+// inDefaultDirs reports whether storage uses the default directories, the only ones the
+// packaged units let the daemon write.
 func inDefaultDirs(storage domain.Storage) bool {
 	def, err := setup.StorageDirs(config.Config{})
 	return err == nil && storage.DataDir == def.DataDir && storage.StateDir == def.StateDir &&
 		storage.CacheDir == def.CacheDir && storage.RuntimeDir == def.RuntimeDir
 }
 
-// sharedStorage is where the config's shared files go (dictionaries, models, API
-// keys), read without writing anything; the defaults when there is no config.
+// sharedStorage is where the config's shared files go (dictionaries, models, API keys),
+// read without writing anything; the defaults without a config.
 func sharedStorage(configPath, profile string) domain.Storage {
 	cfg := config.Config{}
 	path := configPath
@@ -244,9 +240,9 @@ func sharedStorage(configPath, profile string) domain.Storage {
 	return storage
 }
 
-// runKeyJobs does what the key flags ask before the interface opens, reporting whether
-// the run ends with it. Bootstrap and export end the run: the TUI would scroll away a
-// recovery key printed only once, and an export asks nothing of the session afterwards.
+// runKeyJobs runs the key flags before the interface opens, reporting whether the run
+// ends. Bootstrap and export end it: the TUI would scroll away a once-printed recovery
+// key, and an export needs nothing more.
 func runKeyJobs(ctx context.Context, backend *daemon.Remote, user string, jobs startup) (bool, error) {
 	if jobs.bootstrapKeys {
 		return true, bootstrapKeyBackup(ctx, backend, user)
@@ -268,8 +264,8 @@ func runKeyJobs(ctx context.Context, backend *daemon.Remote, user string, jobs s
 }
 
 func run(configPath, profile string, jobs startup) error {
-	// SIGTERM and SIGHUP (the terminal closing) end the program like an interrupt, so
-	// the drafts are written on the way out (tui.Run) and a playing voice note stops.
+	// SIGTERM and SIGHUP (terminal closing) act like an interrupt, so drafts are written on
+	// the way out and a playing voice note stops.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
 
@@ -283,8 +279,7 @@ func run(configPath, profile string, jobs startup) error {
 		fmt.Fprintln(os.Stderr, "kith:", at.note)
 	}
 	warnAboutAgentScope(ctx, backend, cfg)
-	// One window per daemon (api.Seat), taken before anything the TUI would do. The
-	// two runs that end with a printout need no window.
+	// One window per daemon (api.Seat), taken first; runs ending in a printout need none.
 	if !jobs.bootstrapKeys && jobs.exportKeys == "" {
 		if serr := backend.TakeSeat(ctx, jobs.force, whereAmI()); errors.Is(serr, api.ErrSeatTaken) {
 			return fmt.Errorf("%w; close it, or run kith --force to take over", serr)
@@ -332,8 +327,8 @@ func run(configPath, profile string, jobs startup) error {
 	return nil
 }
 
-// whereAmI is this window's whereabouts, for another refused the seat: the process,
-// its terminal (Linux names it through /proc), the machine, and now.
+// whereAmI describes this window for one refused the seat: process, terminal (via /proc
+// on Linux), machine and time.
 func whereAmI() domain.SeatHolder {
 	where := domain.SeatHolder{PID: os.Getpid(), Since: time.Now()}
 	if tty, err := os.Readlink("/proc/self/fd/0"); err == nil && strings.HasPrefix(tty, "/dev/") {
@@ -343,11 +338,9 @@ func whereAmI() domain.SeatHolder {
 	return where
 }
 
-// openLog opens the client's log: the journal (SYSLOG_IDENTIFIER kith, or
-// kith-<profile>) or $XDG_STATE_HOME/kith/kith.log (1 MB, one old copy kept),
-// as `[log] target` says. The terminal belongs to the TUI, so nothing may go to
-// stderr while it runs. It also becomes slog's (and so the log package's) default,
-// so a library that logs does not draw over the screen.
+// openLog opens the client's log, the journal (SYSLOG_IDENTIFIER kith or
+// kith-<profile>) or $XDG_STATE_HOME/kith/kith.log (1 MB, one old copy), per `[log]
+// target`. It becomes slog's default so no library writes to stderr over the TUI.
 func openLog(jobs startup, configured config.Log, profile string, storage domain.Storage) (*slog.Logger, func(), error) {
 	level, err := logging.Resolve(jobs.logLevel, configured.Level)
 	if err != nil {
@@ -366,8 +359,8 @@ func openLog(jobs startup, configured config.Log, profile string, storage domain
 	return log, closeLog, nil
 }
 
-// openLogTo opens d and makes it slog's default. A log that will not open is
-// reported here, before the TUI starts, and the run goes on without one.
+// openLogTo opens d and makes it slog's default. A failure is reported before the TUI
+// starts, and the run goes on without a log.
 func openLogTo(d logging.Destination) (*slog.Logger, func()) {
 	sink, err := logging.Open(d)
 	if err != nil {
@@ -416,8 +409,8 @@ func loadConfig(configPath, profile string) (path string, cfg config.Config, rea
 }
 
 // restoreKeyBackup imports the server-side room-key backup. The secret is read here
-// (only a terminal can) and crosses the 0600 socket to the daemon (only it owns the
-// crypto store).
+// (only a terminal can) and crosses the 0600 socket to the daemon, which owns the
+// crypto store.
 func restoreKeyBackup(ctx context.Context, backend api.Keys, user string) error {
 	secret, err := readSecret(fmt.Sprintf("Recovery key or passphrase for %s", user))
 	if err != nil {
@@ -438,9 +431,9 @@ func restoreKeyBackup(ctx context.Context, backend api.Keys, user string) error 
 	return nil
 }
 
-// bootstrapKeyBackup sets an account up for room-key backup and prints the recovery
-// key. It refuses when setup already exists: a second run would mint a new
-// cross-signing identity and orphan the first recovery key.
+// bootstrapKeyBackup sets up room-key backup and prints the recovery key. It refuses
+// when setup exists: a second run would mint a new cross-signing identity and orphan
+// the first recovery key.
 func bootstrapKeyBackup(ctx context.Context, backend api.Keys, user string) error {
 	fmt.Fprintln(os.Stderr,
 		"kith: this sets this account's encryption up for the first time: cross-signing,\n"+
@@ -467,8 +460,8 @@ func bootstrapKeyBackup(ctx context.Context, backend api.Keys, user string) erro
 	return nil
 }
 
-// printRecoveryKey shows the only copy of the recovery key — first, before any
-// partial-failure note, since the key cannot be recovered and the failure can be retried.
+// printRecoveryKey shows the only copy of the recovery key first, before any
+// partial-failure note: the failure can be retried, the key cannot be recovered.
 func printRecoveryKey(made domain.KeyBackup) {
 	fmt.Fprintln(os.Stderr, "\nkith: your recovery key — write it down now. "+
 		"It is shown once, stored nowhere, and is the only way back into this account's\n"+
@@ -493,7 +486,7 @@ func readSecret(prompt string) (string, error) {
 	return secret, err
 }
 
-// readSecretOrEmpty is readSecret taking an empty answer.
+// readSecretOrEmpty is readSecret accepting an empty answer.
 func readSecretOrEmpty(prompt string) (string, error) {
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
@@ -508,8 +501,8 @@ func readSecretOrEmpty(prompt string) (string, error) {
 	return strings.TrimRight(string(raw), "\r\n"), nil
 }
 
-// exportRoomKeys writes this device's room keys, encrypted with a passphrase, to path.
-// The daemon produces the ciphertext; this process writes it (the daemon cannot).
+// exportRoomKeys writes this device's room keys, passphrase-encrypted, to path. The
+// daemon produces the ciphertext; this process writes it (the daemon cannot).
 func exportRoomKeys(ctx context.Context, backend api.Keys, user, path string) error {
 	passphrase, err := readNewSecret(fmt.Sprintf("Passphrase to encrypt %s's room keys", user))
 	if err != nil {
@@ -563,8 +556,8 @@ func importRoomKeys(ctx context.Context, backend api.Keys, path string) error {
 	return nil
 }
 
-// readNewSecret reads a passphrase twice and requires a match: a mistyped export
-// passphrase is otherwise only discovered when the keys are needed.
+// readNewSecret reads a passphrase twice: a mistyped export passphrase would only show
+// when the keys are needed.
 func readNewSecret(prompt string) (string, error) {
 	first, err := readSecret(prompt)
 	if err != nil {

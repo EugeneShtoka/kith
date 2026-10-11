@@ -1,6 +1,6 @@
-// Package modelsetup derives the daemon's model layer from the config: the prompts
-// the remote model runs and the local completion server's settings. Daemon-only, so
-// the clients do not link the model clients or the process that serves a model.
+// Package modelsetup derives the daemon's model layer from config: the remote model's
+// prompts and the local completion server's settings. Daemon-only, so clients do not
+// link the model code.
 package modelsetup
 
 import (
@@ -16,14 +16,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// Default prompts. Short on purpose — a long instruction to a small local model is
-// mostly noise, and these have to work on llama-3.1-8b as well as on something large.
+// Default prompts, short because they must work on llama-3.1-8b as well as large models.
 const (
 	defaultRewriteSystem = "You rewrite chat messages. " +
 		"Apply the instruction to the draft and reply with the rewritten message only — " +
 		"no preamble, no quotes, no explanation. Keep it in {language}."
 	defaultRewritePrompt = "Instruction: {instruction}\n\nDraft:\n{draft}"
-	// The summary is written to the person asking, which is what {me} is for.
+	// The summary addresses the person asking ({me}).
 	defaultSummarySystem = "You summarize a chat conversation for {me}, who is catching up. " +
 		"Their own messages are marked 'You:'. Other people may refer to them by name — any of: {names} — " +
 		"and anything addressed to those names is addressed to you, so write it as 'you'. " +
@@ -37,10 +36,8 @@ const (
 		"Write plain text with no Markdown — no asterisks, no bold, no headings. " +
 		"Write in {language}. Never invent anything that is not in the conversation."
 	defaultSummaryPrompt = "Conversation:\n{context}"
-	// The todo prompt asks for one line per thing owed, because the answer is a list
-	// somebody scans rather than prose they read — and asks for nothing where there is
-	// nothing, because a model given several quiet rooms will otherwise invent an
-	// obligation to be helpful.
+	// The todo prompt asks for one line per item, and explicitly for nothing when there
+	// is nothing, or a model invents obligations.
 	defaultTodoSystem = "You read several chat conversations and list what {me} still owes people. " +
 		"One bullet per outstanding thing, in the form 'room — who — what they are waiting for'. " +
 		"Include only things actually asked of {me} and not yet answered by them; " +
@@ -50,31 +47,25 @@ const (
 	defaultTodoPrompt = "Conversations:\n{context}"
 )
 
-// Default bounds. The completion ceiling is small for the same reason its prompt asks for
-// few words — and because it is also the cost of every keystroke that triggers one.
+// Default bounds.
 const (
 	defaultRewriteTokens = 800
-	// A summary is read rather than typed into a sentence, so its ceiling is the one
-	// place here that is about the answer's length rather than the model's thinking.
 	defaultSummaryTokens = 1600
 	defaultTodoTokens    = 1200
 	// defaultEffort is the least thinking a reasoning model will do.
 	defaultEffort = "low"
 
-	// The thread namer.
 	defaultThreadNameSystem = "You name conversations. You reply with the name and nothing else: " +
 		"no quotes, no punctuation at the end, no explanation."
 	defaultThreadNamePrompt = "Below is a thread from a chat. " +
 		"Give it a name of at most six words that says what it is about — " +
 		"specific enough that someone who was in it recognizes it in a list, " +
 		"and written in {language}.\n\n{context}"
-	// Twenty-four is about three times the six words asked for, which leaves room for a
-	// model that counts differently without leaving room for a paragraph.
+	// About three times the six words asked for: slack, but no room for a paragraph.
 	defaultThreadNameTokens = 24
 )
 
-// ModelTasks are the prompts the model layer will run, by name, with the defaults
-// filled in for anything the config left out.
+// ModelTasks returns the model layer's prompts by name, with defaults filled in.
 func ModelTasks(cfg config.Assist) map[string]llm.Task {
 	return map[string]llm.Task{
 		domain.ModelRewrite: {
@@ -105,8 +96,7 @@ func ModelTasks(cfg config.Assist) map[string]llm.Task {
 			Temperature: cfg.ThreadName.Temperature,
 			Effort:      or(cfg.ThreadName.Effort, defaultEffort),
 			Model:       cfg.ThreadName.Model,
-			// A newline ends it.
-			Stop: orStrings(cfg.ThreadName.Stop, []string{"\n"}),
+			Stop:        orStrings(cfg.ThreadName.Stop, []string{"\n"}),
 		},
 		domain.ModelSummary: {
 			Name:        domain.ModelSummary,
@@ -116,15 +106,13 @@ func ModelTasks(cfg config.Assist) map[string]llm.Task {
 			Temperature: cfg.Summary.Temperature,
 			Effort:      or(cfg.Summary.Effort, defaultEffort),
 			Model:       cfg.Summary.Model,
-			// No stop sequence: a summary is several lines by nature, and the newline
-			// that ends a continuation would end this after its first bullet.
+			// No default stop: a summary spans several lines.
 			Stop: cfg.Summary.Stop,
 		},
 	}
 }
 
-// CompletionModel derives the settings for the model that finishes your words, and
-// reports whether it is switched on.
+// CompletionModel derives the local completion model's settings and whether it is on.
 func CompletionModel(cfg config.CompleteModel, dataHome string) (llamacpp.Settings, bool) {
 	if !cfg.ModelEnabled() {
 		return llamacpp.Settings{}, false
@@ -142,8 +130,7 @@ func CompletionModel(cfg config.CompleteModel, dataHome string) (llamacpp.Settin
 	}, true
 }
 
-// weightsFor resolves what `model` names, in the three spellings it can take, and is
-// false when nothing answers to it.
+// weightsFor resolves model as empty (any installed), a path, or a tag.
 func weightsFor(named, dir string) (string, bool) {
 	named = strings.TrimSpace(named)
 	switch {
@@ -167,8 +154,7 @@ func or(value, fallback string) string {
 	return value
 }
 
-// orStrings is or for a list: an unset list takes the fallback, an empty one is a
-// deliberate "none" and keeps it.
+// orStrings replaces only a nil list; an empty one is a deliberate "none".
 func orStrings(value, fallback []string) []string {
 	if value == nil {
 		return fallback

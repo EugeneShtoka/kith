@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// The ladder is notify.Rule's, to the letter: more constraints beat fewer, and
-// among equals the narrower place wins.
+// The ladder (shared with notify.Rule): more constraints beat fewer, then the narrower place.
 func TestResolveReadPrecedence(t *testing.T) {
 	place := DownloadPlace{RoomID: "!a:x", Space: "Work", Sender: "@dana:x"}
 	rules := []ReadRule{
@@ -20,15 +19,14 @@ func TestResolveReadPrecedence(t *testing.T) {
 	if !got.OnFocus || got.FocusAfter != 9*time.Second {
 		t.Errorf("policy = %+v, want the narrowest rule's 9s", got)
 	}
-	// The narrowest rule says nothing about Send, so the setting above it stands rather
-	// than the next-narrowest rule winning that field.
+	// The narrowest rule leaves Send unset, so the global setting stands, not the
+	// next-narrowest rule.
 	if !got.Send {
 		t.Error("send = false; an unset field inherits the outer setting, not another rule")
 	}
 }
 
-// A rule constrained by nothing is not a match: these lists sit under settings that
-// already say what happens by default.
+// A rule constrained by nothing matches nothing.
 func TestResolveReadIgnoresUnconstrainedRules(t *testing.T) {
 	got := ResolveRead(true, 0, []ReadRule{{Send: new(false)}}, DownloadPlace{RoomID: "!a:x"})
 	if !got.Send {
@@ -51,9 +49,7 @@ func TestResolveReadDefaults(t *testing.T) {
 	}
 }
 
-// Negative is "never on focus", and it must not collapse into zero — those are opposite
-// answers, and collapsing them would make the most conservative setting the most
-// aggressive one.
+// Negative means never on focus, the opposite of zero.
 func TestResolveReadNeverOnFocus(t *testing.T) {
 	never := ResolveRead(true, -time.Second, nil, DownloadPlace{RoomID: "!a:x"})
 	if never.OnFocus || never.FocusIsImmediate() {

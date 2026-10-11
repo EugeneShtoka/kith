@@ -10,22 +10,20 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// A Slack message's text is mrkdwn: the same markers WhatsApp writes (*bold*,
-// _italic_, ~strike~, `code`, ```blocks```), with &, < and > escaped, and everything
-// that is not words in angle brackets — <@U…> a person, <#C…|name> a channel,
-// <!here> the channel's people, <https://…|words> a link.
+// Slack text is mrkdwn: WhatsApp's markers (*bold*, _italic_, ~strike~, `code`,
+// ```blocks```) with &, < and > escaped, and references in angle brackets: <@U…> a
+// person, <#C…|name> a channel, <!here>, <https://…|words> a link.
 
-// names is what a workspace knows to write a message's references as words.
+// names resolves a message's references to words.
 type names struct {
 	team string
-	// me is the person's own user ID: a mention of them, or of everyone, is theirs.
+	// me is the person's user ID: a mention of them, or of everyone, is theirs.
 	me string
-	// user and channel name a user and a conversation by ID, "" when unknown.
+	// user and channel name a user or conversation by ID, "" when unknown.
 	user    func(id string) string
 	channel func(id string) string
 }
 
-// rendered is a message's text as kith keeps it.
 type rendered struct {
 	body      string
 	format    richtext.Formatted
@@ -33,27 +31,25 @@ type rendered struct {
 	mentioned bool
 }
 
-// reference is one <…> in a message's text: its words, the link it is (markup, ""
-// when only words), and whom it mentions.
+// reference is one <…>: its words, its link markup ("" for words only), and whom it
+// mentions.
 type reference struct {
 	words, link string
 	mention     *domain.Mention
 	mentionsMe  bool
 }
 
-// references finds every <…>; a '<' that is not one was escaped.
+// references finds every <…>; a bare '<' would have been escaped.
 var references = regexp.MustCompile(`<([^<>\n]+)>`)
 
-// unescape undoes what Slack escapes in text, and only that.
+// unescape undoes Slack's escaping, and only that.
 var unescape = strings.NewReplacer("&lt;", "<", "&gt;", ">", "&amp;", "&")
 
-// placeholder stands for the i-th reference while the markers are read: its number
-// between private-use characters, which read as boundaries between words, as the
-// reference's words would.
+// placeholder stands for the i-th reference while markers are parsed: its number
+// between private-use characters, which act as word boundaries like the words would.
 func placeholder(i int) string { return "\U000F0000" + strconv.Itoa(i) + "\U000F0001" }
 
-// render is a message's text as kith keeps it: the words, their formatting, and who
-// it mentions.
+// render is a message's text as kith keeps it: words, formatting and mentions.
 func render(text string, n names) rendered {
 	var out rendered
 	var refs []reference
@@ -94,12 +90,12 @@ func render(text string, n names) rendered {
 	if f.IsZero() || f.Text() == "" {
 		return out // formatting around nothing: the text as written
 	}
-	// The words are what the formatting draws over, exactly: the two never disagree.
+	// The formatting is drawn over exactly these words, so the two never disagree.
 	out.body, out.format = f.Text(), f
 	return out
 }
 
-// reference reads what is inside one <…>.
+// reference parses the inside of one <…>.
 func (n names) reference(inner string) reference {
 	target, label, labeled := strings.Cut(inner, "|")
 	switch {
@@ -126,8 +122,8 @@ func (n names) reference(inner string) reference {
 	case target == "!here" || target == "!channel" || target == "!everyone":
 		return reference{words: "@" + target[1:], mentionsMe: true}
 	case strings.HasPrefix(target, "!"):
-		// A user group (<!subteam^S…|@team>), a date (<!date^…|fallback>): Slack
-		// gives the words to show.
+		// A user group (<!subteam^S…|@team>) or date (<!date^…|fallback>): Slack gives the
+		// words to show.
 		if labeled {
 			return reference{words: label}
 		}
@@ -140,7 +136,6 @@ func (n names) reference(inner string) reference {
 	return reference{words: words, link: target}
 }
 
-// cmpOr is the first non-empty string.
 func cmpOr(a, b string) string {
 	if a != "" {
 		return a
@@ -148,12 +143,11 @@ func cmpOr(a, b string) string {
 	return b
 }
 
-// escape is text as Slack takes it: &, < and > are its own.
+// escape escapes &, < and > for Slack.
 var escape = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
-// composed is a draft as Slack takes it: escaped, each mention of a person in this
-// workspace written as Slack writes it (<@U…>), and Markdown in mrkdwn's markers
-// unless the draft is to go as typed.
+// composed is a draft as Slack takes it: escaped, mentions of this workspace's people
+// as <@U…>, and Markdown converted to mrkdwn unless sent as typed.
 func composed(draft domain.Draft, team string) string {
 	text := escape.Replace(draft.Body)
 	for _, m := range draft.LiveMentions() {
@@ -172,7 +166,7 @@ func composed(draft domain.Draft, team string) string {
 	})
 }
 
-// userOf is the user ID behind a person ID of this workspace's.
+// userOf is the user ID behind a person ID of this workspace.
 func userOf(person, team string) (string, bool) {
 	id := domain.ParseID(person)
 	if id.Network != domain.ProtocolSlack || id.Account != "" {

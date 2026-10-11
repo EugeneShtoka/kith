@@ -13,12 +13,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A chat is made on one account as a channel of Telegram's: a group is a supergroup, a
-// forum a supergroup with topics, a channel a broadcast one. Its members are added
-// after, by the access hashes the account has seen; one it has never seen cannot be
-// added, and is named in the partial failure.
+// New chats are Telegram channels: group = supergroup, forum = supergroup with topics,
+// channel = broadcast. Members are added by known access hashes; unknown ones are
+// reported in the partial failure.
 
-// CreateRoom makes a group, a forum or a channel on the account spec.On names.
+// CreateRoom makes a group, forum or channel on the account spec.On names.
 func (a *Adapter) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {
 	c, err := a.connOf(spec.On)
 	if err != nil {
@@ -55,7 +54,7 @@ func (a *Adapter) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.R
 	return room, a.addMembers(ctx, c, channel, spec.Invite)
 }
 
-// connOf is the connection of the account an owner names.
+// connOf is the connection of owner's account.
 func (a *Adapter) connOf(on domain.RoomOwner) (conn, error) {
 	id := domain.ParseID(string(on))
 	self, err := strconv.ParseInt(id.Account, 10, 64)
@@ -70,7 +69,7 @@ func (a *Adapter) connOf(on domain.RoomOwner) (conn, error) {
 	return conns[i], nil
 }
 
-// madeChannel is the channel a creation's updates name.
+// madeChannel finds the new channel in a creation's updates.
 func madeChannel(res tg.UpdatesClass) (*tg.Channel, bool) {
 	var chats []tg.ChatClass
 	switch u := res.(type) {
@@ -87,8 +86,7 @@ func madeChannel(res tg.UpdatesClass) (*tg.Channel, bool) {
 	return nil, false
 }
 
-// addMembers adds people to a new channel by their person IDs; who could not be added
-// is the error.
+// addMembers adds people by person ID; the error names those not added.
 func (a *Adapter) addMembers(ctx context.Context, c conn, channel *tg.Channel, people []string) error {
 	var users []tg.InputUserClass
 	var unknown []string

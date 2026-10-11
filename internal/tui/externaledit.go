@@ -11,12 +11,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Writing a message in $EDITOR. Finishing an edit only replaces the draft — nothing
-// is sent — and a failed edit leaves the draft exactly as it was.
+// Writing a message in $EDITOR. Finishing only replaces the draft (nothing is sent);
+// a failed edit leaves the draft unchanged.
 
-// externalEditMsg carries the result of an editor session back into the model: the
-// editor's failure, else the text it left, read (and the file removed) by the
-// callback, so the handler does no I/O.
+// externalEditMsg carries an editor session's result: the editor's failure, else the
+// text it left, read (and the file removed) by the callback so the handler does no I/O.
 type externalEditMsg struct {
 	err       error  // the editor failed; the draft stays
 	readErr   error  // the file could not be read back; the draft stays
@@ -31,8 +30,8 @@ type draftFileMsg struct {
 	err  error
 }
 
-// openExternalEditor writes the draft to a temporary file, off the Update loop; the
-// editor is run on it when that lands (handleDraftFile).
+// openExternalEditor writes the draft to a temp file off the Update loop; the editor
+// runs on it when that lands (handleDraftFile).
 func (m Model) openExternalEditor() (Model, tea.Cmd) {
 	draft := m.editorFor(fieldComposer).text
 	suffix := m.conf.base.Composer.FileSuffixOrDefault()
@@ -70,7 +69,7 @@ func (m Model) handleDraftFile(msg draftFileMsg) (Model, tea.Cmd) {
 	return m, tea.ExecProcess(cmd, editorFinished(msg.path))
 }
 
-// editorFinished is the callback run once the editor exits: it reads the draft back
+// editorFinished is the callback run when the editor exits: it reads the draft back
 // and removes the file, off the Update loop.
 func editorFinished(path string) func(error) tea.Msg {
 	return func(err error) tea.Msg {
@@ -89,7 +88,7 @@ func editorFinished(path string) func(error) tea.Msg {
 
 // handleExternalEdit takes the edited draft back into the composer.
 func (m Model) handleExternalEdit(msg externalEditMsg) (Model, tea.Cmd) {
-	// A draft copy left in the temp dir: worth knowing about, not the user's problem now.
+	// A leftover temp copy is worth logging, not interrupting the user over.
 	m.logErr(slog.LevelWarn, "remove the external-edit temp file", msg.removeErr, "path", msg.path)
 	if msg.err != nil {
 		m.logErr(slog.LevelWarn, "external editor failed", msg.err)
@@ -101,7 +100,7 @@ func (m Model) handleExternalEdit(msg externalEditMsg) (Model, tea.Cmd) {
 	}
 	text := msg.text
 
-	// One undo step: ctrl+z brings back the draft as it was before the editor.
+	// One undo step: ctrl+z restores the draft from before the editor.
 	m = m.store(fieldComposer, m.editorFor(fieldComposer).changed(text, len(text), editWhole))
 	m.compose.insertMode = true
 	m.focus = paneTimeline

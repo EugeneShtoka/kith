@@ -7,8 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// at builds a timestamp n minutes into an arbitrary fixed hour, so a test's
-// ordering is readable at the call site.
+// at is a timestamp n minutes into a fixed hour.
 func at(minute int) time.Time {
 	return time.Date(2026, 8, 26, 10, minute, 0, 0, time.UTC)
 }
@@ -75,8 +74,7 @@ func TestCollapseThreadsAnchorsAnOlderThreadAtItsNewestReply(t *testing.T) {
 	}
 }
 
-// Replies older than everything else loaded have nothing to hang under, which is the
-// one case an empty anchor means: draw it above the timeline rather than not at all.
+// Replies older than all main messages get an empty anchor: drawn above the timeline.
 func TestCollapseThreadsAnchorsAboveEverything(t *testing.T) {
 	t.Parallel()
 
@@ -147,8 +145,7 @@ func TestThreadMessages(t *testing.T) {
 	}
 }
 
-// An edit arrives carrying its target's ID and its own (m.replace) relation, so it has
-// no thread root.
+// An edit carries its target's ID and an m.replace relation, so no thread root.
 func TestMergeMessagesKeepsTheThreadThroughAnEdit(t *testing.T) {
 	t.Parallel()
 
@@ -184,9 +181,8 @@ func ids(msgs []domain.Message) []domain.EventID {
 	return out
 }
 
-// The case this client shipped with: a plain reply — m.in_reply_to and no thread
-// relation, which is what replying from the main timeline sends — answering a message a
-// thread has since grown under.
+// A plain reply (m.in_reply_to, no thread relation) to a message that became a thread
+// root joins that thread.
 func TestCollapseThreadsFoldsAPlainReplyIntoTheConversationItAnswers(t *testing.T) {
 	t.Parallel()
 
@@ -209,8 +205,7 @@ func TestCollapseThreadsFoldsAPlainReplyIntoTheConversationItAnswers(t *testing.
 	}
 }
 
-// A reply chains: answering the plain reply above is answering into the same
-// conversation, and so is every answer after it.
+// Replies chain into the same thread.
 func TestCollapseThreadsFollowsAChainOfPlainReplies(t *testing.T) {
 	t.Parallel()
 
@@ -231,7 +226,7 @@ func TestCollapseThreadsFollowsAChainOfPlainReplies(t *testing.T) {
 	}
 }
 
-// The rule stops where the evidence does.
+// A reply to an unthreaded message stays unthreaded.
 func TestCollapseThreadsLeavesAnOrdinaryReplyInTheTimeline(t *testing.T) {
 	t.Parallel()
 
@@ -251,8 +246,7 @@ func TestCollapseThreadsLeavesAnOrdinaryReplyInTheTimeline(t *testing.T) {
 	}
 }
 
-// A reply whose target is not among the loaded messages says nothing about any
-// thread, so it stays where it is rather than being filed under a guess.
+// A reply whose target is not loaded stays in the main timeline.
 func TestCollapseThreadsKeepsAReplyWhoseTargetIsNotLoaded(t *testing.T) {
 	t.Parallel()
 

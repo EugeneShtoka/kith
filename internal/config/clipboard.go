@@ -12,8 +12,7 @@ type Clipboard struct {
 // defaultOpenCommand is the desktop's URL handler on the platforms kith targets.
 const defaultOpenCommand = "xdg-open"
 
-// OpenCommandOrDefault is the program handed a link, defaulting to the freedesktop
-// opener.
+// OpenCommandOrDefault is the link opener, defaulting to xdg-open.
 func (c Clipboard) OpenCommandOrDefault() string {
 	if c.OpenCommand == "" {
 		return defaultOpenCommand

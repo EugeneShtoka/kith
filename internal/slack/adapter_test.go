@@ -17,7 +17,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// memSecrets is a secret store in memory; fail makes every read fail.
+// memSecrets is an in-memory secret store; fail makes every read fail.
 type memSecrets struct {
 	mu     sync.Mutex
 	values map[string]string
@@ -57,7 +57,6 @@ func signedIn(t *testing.T, secrets *memSecrets, account string) {
 	secrets.values[credentialsRef(account)] = string(blob)
 }
 
-// sessions records each account's reported state.
 type sessions struct {
 	mu   sync.Mutex
 	seen map[string]domain.AccountPhase
@@ -76,8 +75,8 @@ func (s *sessions) of(name string) (domain.AccountPhase, string) {
 	return s.seen[name], s.said[name]
 }
 
-// Starting says of an account that is not signed in how to sign in, and of one whose
-// credentials cannot be used, why. (One signed in is connected: that reaches Slack.)
+// Start tells a signed-out account how to sign in, and one with unusable credentials
+// why. (A signed-in one would reach Slack.)
 func TestStartSaysWhoIsSignedOut(t *testing.T) {
 	t.Parallel()
 	secrets := &memSecrets{values: map[string]string{}}
@@ -116,8 +115,8 @@ func TestStartSaysWhoIsSignedOut(t *testing.T) {
 	}
 }
 
-// SignedIn is the accounts with usable credentials: one with unusable ones is not, and
-// does not hide the others; a store that cannot be read is an error.
+// SavedSessions lists accounts with usable credentials; an unusable one does not hide
+// the others; an unreadable store is an error.
 func TestSignedInIsTheAccountsWithUsableCredentials(t *testing.T) {
 	t.Parallel()
 	secrets := &memSecrets{values: map[string]string{}}
@@ -133,7 +132,7 @@ func TestSignedInIsTheAccountsWithUsableCredentials(t *testing.T) {
 	}
 }
 
-// Credentials missing a part, or a store that cannot be read, are not a session.
+// Incomplete credentials or an unreadable store are not a session.
 func TestCredentialsMustBeWhole(t *testing.T) {
 	t.Parallel()
 	secrets := &memSecrets{values: map[string]string{}}
@@ -151,8 +150,8 @@ func TestCredentialsMustBeWhole(t *testing.T) {
 	}
 }
 
-// Until a workspace is connected, what needs one says the network is off, and the
-// rest is empty: members are the cached ones, and a typing notice is a courtesy.
+// Before a workspace connects, calls that need one report the network off; the rest
+// are empty: members come from the cache and typing is a courtesy.
 func TestNothingIsReachableBeforeAWorkspaceConnects(t *testing.T) {
 	t.Parallel()
 	a := New(nil, &memSecrets{values: map[string]string{}}, nil, nil)
@@ -172,7 +171,7 @@ func TestNothingIsReachableBeforeAWorkspaceConnects(t *testing.T) {
 			t.Errorf("%s = %v, want ErrNetworkOff", name, err)
 		}
 	}
-	// What the cache answers needs no workspace: nothing to mark here, no versions kept.
+	// Cache-only calls need no workspace: nothing to mark, no versions kept.
 	if res, err := a.MarkRoomsRead(ctx, []domain.RoomID{room}, false); err != nil || res.Skipped != 1 {
 		t.Errorf("MarkRoomsRead offline = %+v, %v; want it skipped", res, err)
 	}
@@ -204,8 +203,7 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 }
 
-// UseConfig reads [[slack.account]], each workspace as Slack writes it, and
-// [display.deleted] keep.
+// UseConfig reads [[slack.account]], normalizing workspaces, and [display.deleted] keep.
 func TestUseConfigReadsTheSlackSection(t *testing.T) {
 	t.Parallel()
 	a := New(nil, &memSecrets{values: map[string]string{}}, nil, nil)
@@ -220,9 +218,9 @@ func TestUseConfigReadsTheSlackSection(t *testing.T) {
 	}
 }
 
-// A new workspace is asked for until it is one (a web-client link is taken as its
-// ID), named ("work" for an ID, which says nothing), and written into the config;
-// then the session is asked for, a half pasted in the wrong field asked again.
+// Setup asks for a workspace until valid (a web-client link gives its ID), names it
+// ("work" for an ID), and writes the config; then asks for the session, re-asking a
+// half pasted in the wrong field.
 func TestANewWorkspaceIsSetUpThenItsSessionAsked(t *testing.T) {
 	t.Parallel()
 	a := New(nil, &memSecrets{values: map[string]string{}}, []Account{{Name: "club", Workspace: "chess"}}, nil)

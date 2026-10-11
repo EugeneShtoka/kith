@@ -1,6 +1,5 @@
-// Package markdown renders what is typed in kith's composer to HTML, for every network
-// that sends formatting: Matrix sends the HTML, Telegram the entities it flattens to.
-// One renderer, so a draft formats alike wherever it goes.
+// Package markdown renders composer text to HTML for every network that sends
+// formatting (Matrix sends the HTML, Telegram flattens it to entities).
 package markdown
 
 import (
@@ -12,11 +11,9 @@ import (
 	"maunium.net/go/mautrix/format/mdext"
 )
 
-// Renderer is CommonMark (as Element's composer), not chat-app conventions (`*x*` is
-// italic, `__x__` bold). No single-tilde strikethrough: it would mangle `~/path` and
-// "~5". Spoilers are on (goldmark parses code before inline extensions, so `a || b`
-// in code is safe). Tables are off: no network renders them. HTML in the source is
-// escaped, never passed through.
+// Renderer is CommonMark like Element's composer (`*x*` italic, `__x__` bold). No
+// single-tilde strikethrough (it mangles `~/path`); spoilers on (code is parsed first,
+// so `a || b` in code is safe); no tables (no network renders them); source HTML escaped.
 var Renderer = goldmark.New(
 	goldmark.WithExtensions(extension.Strikethrough, mdext.EscapeHTML, mdext.Spoiler),
 	format.HTMLOptions,

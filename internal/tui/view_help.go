@@ -13,7 +13,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// commandHelp lists the slash commands for the help overlay.
 func (m Model) commandHelp(keyColumn int) []string {
 	const usageColumn = 14 // "/upload <path[ | caption]>" is wider than any key
 	lines := []string{"", m.theme.Title.Render("Typed into the composer")}
@@ -77,8 +76,8 @@ func (m Model) jumpLabel(target domain.JumpTarget) string {
 	return target.String() + "  (nothing here matches)"
 }
 
-// readerBody is the title, body and paint of whichever boxed reader is up; the scroll
-// limit needs the same answer (readerContent).
+// readerBody is the title, body and paint of the open boxed reader; the scroll limit
+// uses the same answer (readerContent).
 func (m Model) readerBody() (string, []string, func(string) string) {
 	switch m.reader.kind {
 	case readerSummary:
@@ -99,8 +98,8 @@ func (m Model) readerBody() (string, []string, func(string) string) {
 	return "", nil, nil
 }
 
-// readerContent is the body of the reader that is up, laid out as drawn, so scroll
-// limits count wrapped rows.
+// readerContent is the open reader's body laid out as drawn, so scroll limits count
+// wrapped rows.
 func (m Model) readerContent() []string {
 	if !m.reader.boxed() {
 		return m.helpBody()
@@ -109,15 +108,14 @@ func (m Model) readerContent() []string {
 	return m.readerLines(lines, m.readerWidth(), paint)
 }
 
-// readerBox is a boxed reader overlay: a title and the body laid out by readerLines.
 func (m Model) readerBox(title string, lines []string, paint func(string) string) string {
 	width := m.readerWidth()
 	return m.scrollBox(m.theme.TitleActive.Render(drawLine(title, lineSpec{width: width, sentence: true})),
 		m.readerLines(lines, width, paint))
 }
 
-// scrollBox is a centered overlay: a rendered title, as much of lines as fits from the
-// reader's scroll position, and the help footer.
+// scrollBox is a centered overlay: a title, as much of lines as fits from the scroll
+// position, and the help footer.
 func (m Model) scrollBox(title string, lines []string) string {
 	start := min(m.reader.scroll, len(lines))
 	end := min(start+m.helpRows(), len(lines))
@@ -128,14 +126,13 @@ func (m Model) scrollBox(title string, lines []string) string {
 	return m.centeredBox(b.String())
 }
 
-// centeredBox frames content in the active pane style, centered on the screen.
 func (m Model) centeredBox(content string) string {
 	box := m.theme.PaneActive.Padding(1, 3).Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 
-// readerWidth is the overlay text width: the terminal less the box's border and
-// padding, capped at readerMaxWidth.
+// readerWidth is the overlay text width: the terminal less border and padding, capped
+// at readerMaxWidth.
 func (m Model) readerWidth() int {
 	const chrome = paneBorder + 6 // border, and three cells of padding on each side
 	return max(min(m.width-chrome, readerMaxWidth), 20)
@@ -144,9 +141,8 @@ func (m Model) readerWidth() int {
 // readerMaxWidth caps the overlay's measure: a summary is prose.
 const readerMaxWidth = 80
 
-// readerLines lays out an overlay body like a message: each line through drawBlock
-// (wrap, direction, reorder, RTL flush), keeping its indent on every wrapped row.
-// paint styles each drawn row.
+// readerLines lays out an overlay body like a message, each line through drawBlock,
+// keeping its indent on wrapped rows. paint styles each drawn row.
 func (m Model) readerLines(lines []string, width int, paint func(string) string) []string {
 	spec := blockSpec{}
 	if paint != nil {
@@ -196,10 +192,9 @@ func (m Model) helpBody() []string {
 	return []string{m.theme.Muted.Render("nothing matches " + isolate(m.reader.filter))}
 }
 
-// filterHelp keeps the help lines that contain query (case-insensitive, styling
-// ignored). The help is blocks, a title then its rows, separated by blank lines: a
-// block whose title matches stays whole, and otherwise keeps its title over just the
-// rows that match, or goes when none do.
+// filterHelp keeps help lines containing query (case-insensitive, styling ignored).
+// The help is blank-separated blocks of a title then rows: a block whose title matches
+// stays whole, otherwise it keeps its title over the matching rows, or goes.
 func filterHelp(lines []string, query string) []string {
 	query = strings.ToLower(strings.TrimSpace(query))
 	matches := func(line string) bool { return strings.Contains(strings.ToLower(ansi.Strip(line)), query) }
@@ -238,8 +233,7 @@ func filterHelp(lines []string, query string) []string {
 	return out
 }
 
-// helpFooter tells the reader how to leave, and that there is more to see when the
-// list is scrolled or clipped.
+// helpFooter says how to leave, and that there is more when scrolled or clipped.
 func (m Model) helpFooter(total, shown int) string {
 	leave := m.keys.keyHint(scopeCommand, actHelp)
 	if leave == "" {
@@ -263,7 +257,6 @@ func (m Model) helpFooter(total, shown int) string {
 	return leave + " close"
 }
 
-// scopeNotes follow a scope's rows in the help overlay.
 var scopeNotes = map[scope][]string{
 	scopeEdit: {
 		"  a field's own binding wins: {emoji.open} browses emoji in the composer,",
@@ -272,17 +265,16 @@ var scopeNotes = map[scope][]string{
 	},
 }
 
-// helpRows is how many binding rows the overlay can show: the frame height less the
-// box border, its padding, the title, and the footer.
+// helpRows is how many binding rows the overlay shows: the frame height less border,
+// padding, title and footer.
 func (m Model) helpRows() int {
 	const chrome = paneBorder + 2 + 2 + 2 // border, vertical padding, title + blank, blank + footer
 	return max(m.height-chrome, 1)
 }
 
-// helpLines builds the overlay's body from keyActions — one section per scope, in
-// that table's order — followed by any keymap config issues. Actions left with no
-// key at all are listed as "(unbound)" rather than hidden, so a binding you meant
-// to set and mistyped is visible.
+// helpLines builds the overlay from keyActions, one section per scope in table order,
+// then keymap config issues. Actions with no key are listed as "(unbound)" so a
+// mistyped binding is visible.
 func (m Model) helpLines() []string {
 	const keyColumn = 16
 	var lines []string

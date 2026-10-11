@@ -6,9 +6,6 @@ import (
 	"testing"
 )
 
-// Installed is what the offer and the daemon both read, and the case it exists for is
-// the truncated download: a GGUF of the right name and the wrong length is a server that
-// starts, fails to parse it, and never becomes healthy.
 func TestInstalledRejectsATruncatedModel(t *testing.T) {
 	t.Parallel()
 
@@ -28,9 +25,7 @@ func TestInstalledRejectsATruncatedModel(t *testing.T) {
 	}
 }
 
-// The committed manifest is checked for the properties the installer relies on, which is
-// what stops a regenerated one from being subtly wrong: a hash of the wrong length, a
-// size of zero, or a tag whose filename would collide with another's.
+// The manifest has 64-char hashes, positive sizes, and no colliding filenames.
 func TestTheCommittedManifestIsWellFormed(t *testing.T) {
 	t.Parallel()
 
@@ -50,8 +45,7 @@ func TestTheCommittedManifestIsWellFormed(t *testing.T) {
 			t.Errorf("%s: size %d", tag, src.File.Size)
 		}
 		if src.Recall <= 0 || src.Recall >= 1 {
-			// The number the offer shows. A zero here would offer a model with no
-			// argument for installing it.
+			// The offer shows this number.
 			t.Errorf("%s: recall %v is not a fraction", tag, src.Recall)
 		}
 		if other, clash := names[src.Filename()]; clash {

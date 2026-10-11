@@ -6,9 +6,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The vocabulary is what `setup` refuses against, so what it accepts and rejects is the
-// difference between a mistyped need being one sentence at startup and a script that
-// silently receives less than it asked for.
+// `setup` validates needs against this vocabulary, so a typo is refused at startup.
 func TestTheNeedVocabulary(t *testing.T) {
 	t.Parallel()
 
@@ -21,10 +19,9 @@ func TestTheNeedVocabulary(t *testing.T) {
 		{entry: "url", want: domain.Need{Kind: domain.NeedURL}, ok: true},
 		{entry: " URL ", want: domain.Need{Kind: domain.NeedURL}, ok: true},
 		{entry: "history:20", want: domain.Need{Kind: domain.NeedHistory, Count: 20}, ok: true},
-		// A count on something that takes none is a misunderstanding worth reporting,
-		// not something to accept and quietly ignore.
+		// A count on a need that takes none is refused.
 		{entry: "url:3"},
-		// And a need that takes one is not written without it.
+		// A need that takes a count requires one.
 		{entry: "history"},
 		{entry: "history:0"},
 		{entry: "history:501"},
@@ -43,8 +40,7 @@ func TestTheNeedVocabulary(t *testing.T) {
 	}
 }
 
-// A need reads back the way it is written, which is what lets the refusal quote the
-// vocabulary rather than describing it.
+// A need round-trips through String.
 func TestANeedWritesItselfBack(t *testing.T) {
 	t.Parallel()
 
@@ -59,8 +55,7 @@ func TestANeedWritesItselfBack(t *testing.T) {
 	}
 }
 
-// Empty is the default and not an error: every command behaved this way before the
-// setting existed, and a config that never mentions it must keep behaving that way.
+// Empty is the default, not an error.
 func TestAnUnsetOutputIsTheComposer(t *testing.T) {
 	t.Parallel()
 

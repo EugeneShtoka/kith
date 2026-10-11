@@ -15,13 +15,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A bridge knows the address book of each account logged into it, and a mautrix
-// bridge lists it on its provisioning API ([bridge_contacts]): kith reads those lists
-// with the person's own Matrix login and gives the phone book each contact's name, as
-// saved, so a person one account's phone knows is named on every other account and
-// network. The lists are read when Matrix connects, every few hours, and when the
-// setting changes; a bridge that cannot be read keeps what it gave last. Only a bridge
-// on the homeserver's own host is asked, since the request carries the login.
+// Bridge contacts ([bridge_contacts]): a mautrix bridge lists each login's address
+// book on its provisioning API, and those saved names feed the phone book for every
+// network. Read on connect, every few hours and on setting change; an unreadable
+// bridge keeps what it gave last. Only bridges on the homeserver's host are asked,
+// since the request carries the login.
 
 // bridgeContactsEvery is how often the bridges' contact lists are read again.
 const bridgeContactsEvery = 6 * time.Hour
@@ -67,9 +65,8 @@ func (m *Adapter) followBridgeContacts(ctx context.Context) {
 	}
 }
 
-// readBridgeContacts reads every bridge's lists and drops what a bridge no longer
-// configured gave; the room list is refreshed when anything was read, which carries
-// the phone book to the clients.
+// readBridgeContacts reads every bridge's lists and drops what unconfigured bridges
+// gave; a room list refresh carries the phone book to the clients.
 func (b *InProc) readBridgeContacts(ctx context.Context, bases []string) {
 	if b.cache == nil {
 		return
@@ -118,9 +115,8 @@ type provisioningContacts struct {
 // telNumber is a contact identifier that is a phone number: "tel:+<digits>".
 var telNumber = regexp.MustCompile(`^tel:\+?(\d{7,15})$`)
 
-// readBridge reads the contact list of each of this person's connected logins on the
-// bridge at base into the phone book, one source per login, and returns the sources
-// written. A login not connected keeps what it gave last.
+// readBridge reads each connected login's contacts on the bridge at base into the
+// phone book, one source per login, and returns the sources kept.
 func (b *InProc) readBridge(ctx context.Context, base string) ([]string, error) {
 	if !b.onHomeserver(base) {
 		return nil, fmt.Errorf("%s is not on the homeserver's host: kith sends it your login, so it asks only your own server", base)

@@ -8,11 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// What `[agent.read]` and `[agent.write]` mean once they are running, for the one
-// caller that acts on them.
-
-// DefaultAgentCooldown is how long a room rests after an assistant posts to it when the
-// config does not say.
+// DefaultAgentCooldown is the default rest for a room after an assistant posts to it.
 const DefaultAgentCooldown = time.Minute
 
 // AgentCooldown is the rest between two sends to one room, resolved.

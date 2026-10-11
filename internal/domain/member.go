@@ -6,15 +6,13 @@ import (
 	"unicode"
 )
 
-// Member is one participant in a room: their user ID and the display name they use
-// there.
+// Member is one participant in a room, with their per-room display name.
 type Member struct {
 	UserID      string
 	DisplayName string
 }
 
-// Name is the member's human-facing label, falling back to the ID's short name (a
-// localpart, a phone number) and then the ID itself, so a member never renders blank.
+// Name is the display name, else the ID's short name, else the ID; never blank.
 func (m Member) Name() string {
 	if m.DisplayName != "" {
 		return m.DisplayName
@@ -25,8 +23,7 @@ func (m Member) Name() string {
 	return m.UserID
 }
 
-// Localpart is the part of a Matrix ID before the server: "@alice:example.org" →
-// "alice".
+// Localpart returns "alice" for "@alice:example.org".
 func Localpart(mxid string) string {
 	local := strings.TrimPrefix(mxid, "@")
 	if colon := strings.IndexByte(local, ':'); colon >= 0 {
@@ -35,7 +32,7 @@ func Localpart(mxid string) string {
 	return local
 }
 
-// Matches reports whether the member answers to query, and how well.
+// Matches ranks how well the member matches query: 1 best, 0 no match.
 func (m Member) Matches(query string) int {
 	if query == "" {
 		return 1 // everything matches an empty query, all equally
@@ -68,8 +65,7 @@ func splitName(name string) []string {
 	})
 }
 
-// SortMembers orders members by display name, case-insensitively, with the MXID as
-// a stable tiebreaker so two people sharing a name keep a fixed order.
+// SortMembers orders members by name, case-insensitively, then by user ID.
 func SortMembers(members []Member) {
 	sort.SliceStable(members, func(i, j int) bool {
 		a, b := strings.ToLower(members[i].Name()), strings.ToLower(members[j].Name())

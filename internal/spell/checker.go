@@ -59,10 +59,9 @@ func touch(path string) error {
 	return nil
 }
 
-// start is Start with the command line decided, for stub engines in tests. dicPath
-// must be passed explicitly: an engine that cannot resolve `-d name` exits silently,
-// and kith's own data directory is not on any default search path. The banner is
-// consumed here so it is not read as the first answer.
+// start is Start with the command line decided. dicPath is passed explicitly: kith's
+// data directory is on no default search path, and an engine that cannot resolve
+// `-d name` exits silently.
 func start(ctx context.Context, path string, args []string, dicPath []string) (*Checker, error) {
 	cmd := exec.CommandContext(ctx, path, args...) // #nosec G204,G702 -- configured program and dictionary tags as argv, never a shell
 	if len(dicPath) > 0 {
@@ -93,8 +92,7 @@ func start(ctx context.Context, path string, args []string, dicPath []string) (*
 // engine while holding its own lock, so an engine that never speaks must not hang it.
 const bannerTimeout = 5 * time.Second
 
-// readBanner consumes the engine's banner line, giving up after bannerTimeout or ctx.
-// The engine itself runs on ctx (exec.CommandContext), so the wait has its own timer.
+// readBanner consumes the banner line, giving up after bannerTimeout or ctx.
 func (c *Checker) readBanner(ctx context.Context) error {
 	banner := make(chan error, 1)
 	reading := make(chan struct{})
@@ -156,8 +154,7 @@ func (c *Checker) Check(ctx context.Context, word string) (Verdict, error) {
 
 	select {
 	case <-ctx.Done():
-		// Killing the process unblocks the parked reader. die's result is the same
-		// cause, which the return below already carries.
+		// Killing the process unblocks the parked reader.
 		_ = c.die(ctx.Err())
 		return Verdict{}, fmt.Errorf("spell: checking %q: %w", word, ctx.Err())
 	case r := <-done:
@@ -212,16 +209,14 @@ func (c *Checker) die(cause error) error {
 		return c.dead
 	}
 	c.dead = fmt.Errorf("%w: %w", ErrDead, cause)
-	// Teardown of a process being killed: each step may fail because it already
-	// exited, and cause (returned) is what went wrong.
+	// Teardown steps may fail on an exited process; cause is the report.
 	_ = c.in.Close()
 	if c.cmd.Process == nil {
 		return c.dead
 	}
 	killEngine(c.cmd)
-	// Reader first, then Wait: Wait closes the pipes the reader is using. Closing the
-	// read end ends the read even if something the engine started still holds the
-	// write end (a wrapper whose child survived).
+	// Close the read end before Wait (which closes the pipes): it ends the read even when
+	// a surviving child of the engine holds the write end.
 	if c.reading != nil {
 		_ = c.outPipe.Close()
 		<-c.reading

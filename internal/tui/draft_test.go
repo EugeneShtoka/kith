@@ -14,7 +14,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Words typed in one room do not follow you to another, and come back with the room.
+// Words typed in one room stay with that room and come back with it.
 func TestADraftDoesNotFollowYouToAnotherRoom(t *testing.T) {
 	t.Parallel()
 
@@ -61,8 +61,8 @@ func TestADraftCarriesItsReplyAndItsUndo(t *testing.T) {
 	}
 }
 
-// The reply target is the draft's, so selecting the open room again (enter on its
-// row, a jump into it, a re-sort) keeps it, as it keeps the words.
+// The reply target is the draft's, so reselecting the open room (enter on its row, a
+// jump, a re-sort) keeps it, as it keeps the words.
 func TestReselectingTheOpenRoomKeepsTheReplyTarget(t *testing.T) {
 	t.Parallel()
 
@@ -80,8 +80,8 @@ func TestReselectingTheOpenRoomKeepsTheReplyTarget(t *testing.T) {
 	}
 }
 
-// The room list marks a room holding a draft, right after its name, without
-// shifting the name's column.
+// The room list marks a room holding a draft right after its name, without shifting
+// the name column.
 func TestTheRoomListMarksARoomHoldingADraft(t *testing.T) {
 	t.Parallel()
 
@@ -117,7 +117,7 @@ func TestTheRoomListMarksARoomHoldingADraft(t *testing.T) {
 	}
 }
 
-// An emptied draft is forgotten rather than remembered as empty.
+// An emptied draft is forgotten, not kept as empty.
 func TestAnEmptiedDraftIsForgotten(t *testing.T) {
 	t.Parallel()
 
@@ -147,8 +147,8 @@ func rowContaining(view, text string) (string, bool) {
 	return "", false
 }
 
-// The Drafts group lists rooms holding a draft (not the open one), and exists only
-// while there is one.
+// The Drafts group lists rooms holding a draft (not the open one) and exists only while
+// there is one.
 func TestTheDraftsGroupCollectsRoomsHoldingWords(t *testing.T) {
 	t.Parallel()
 
@@ -250,8 +250,7 @@ func roomCellContaining(view, text string) (string, bool) {
 // indent is how many columns of space a cell starts with.
 func indent(cell string) int { return len(cell) - len(strings.TrimLeft(cell, " ")) }
 
-// Walking the rail (which drops the open-room pin) stashes the draft rather than
-// throwing it away.
+// Walking the rail (which drops the open-room pin) stashes the draft.
 func TestADraftSurvivesWalkingTheRail(t *testing.T) {
 	t.Parallel()
 
@@ -398,7 +397,7 @@ func TestAnEmptyRoomSwitchWritesNothing(t *testing.T) {
 	}
 }
 
-// What was drafted while the client was closed comes back, and says whose it is.
+// Drafts written while the client was closed come back with their author.
 func TestStoredDraftsComeBackWithTheirProvenance(t *testing.T) {
 	t.Parallel()
 
@@ -424,7 +423,7 @@ func TestStoredDraftsComeBackWithTheirProvenance(t *testing.T) {
 	}
 }
 
-// A slow load must not land on top of words typed while it was in flight.
+// A slow load does not overwrite words typed while it was in flight.
 func TestLoadedDraftsDoNotOverwriteLiveTyping(t *testing.T) {
 	t.Parallel()
 
@@ -436,8 +435,8 @@ func TestLoadedDraftsDoNotOverwriteLiveTyping(t *testing.T) {
 	}
 }
 
-// A draft written elsewhere while this client runs is picked up on the poll, and
-// shows in the Drafts group.
+// A draft written elsewhere while this client runs is picked up on the poll and shows
+// in the Drafts group.
 func TestThePollPicksUpADraftWrittenElsewhere(t *testing.T) {
 	t.Parallel()
 
@@ -464,7 +463,7 @@ func TestThePollPicksUpADraftWrittenElsewhere(t *testing.T) {
 	}
 }
 
-// What this client holds always wins over a polled draft.
+// What this client holds wins over a polled draft.
 func TestThePollDoesNotDisturbADraftThisClientHolds(t *testing.T) {
 	t.Parallel()
 
@@ -486,8 +485,8 @@ func TestThePollDoesNotDisturbADraftThisClientHolds(t *testing.T) {
 	}
 }
 
-// pollAnswers is what a poll produced, skipping commands (the next tick's timer) that
-// do not answer promptly.
+// pollAnswers is what a poll produced, skipping commands that do not answer promptly
+// (the next tick's timer).
 func pollAnswers(t *testing.T, cmd tea.Cmd) []tea.Msg {
 	t.Helper()
 	batch, ok := cmd().(tea.BatchMsg)
@@ -562,8 +561,7 @@ func (draftFailer) ReplaceDraft(context.Context, domain.StoredDraft, domain.Stor
 	return false, errors.New("disk full")
 }
 
-// A failing draft store is said once, not on every pause that retries it, and its
-// recovery is said too.
+// A failing draft store is reported once, not on every retry, and recovery is reported.
 func TestDraftSaveFailuresAreSaidOnceAndRecoverySaid(t *testing.T) {
 	t.Parallel()
 	m := sized(t, starterNew(draftFailer{}, config.Display{}))
@@ -587,8 +585,8 @@ func TestDraftSaveFailuresAreSaidOnceAndRecoverySaid(t *testing.T) {
 	}
 }
 
-// A reply target chosen alone, with no words typed, arms the debounce, whose tick
-// writes it: the saver watches the whole composition, not only the words.
+// A reply target chosen with no words arms the debounce and is written: the saver
+// watches the whole composition.
 func TestAReplyChosenAloneIsSaved(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)

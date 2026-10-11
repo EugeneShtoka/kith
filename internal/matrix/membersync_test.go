@@ -116,7 +116,7 @@ func TestOnMemberIgnoresMalformedEvents(t *testing.T) {
 	}
 }
 
-// A room's name map means "fully resolved", so a single member event must not seed one.
+// A room's name map means "fully resolved", so one member event must not seed it.
 func TestSetMemberNameOnlyTouchesAnAlreadyFetchedRoom(t *testing.T) {
 	t.Parallel()
 
@@ -143,8 +143,8 @@ func TestSetMemberNameOnlyTouchesAnAlreadyFetchedRoom(t *testing.T) {
 	}
 }
 
-// Regression: the syncer keys listeners by event.Type including class, and member
-// events arrive in the state block; getting either wrong dropped every membership.
+// The syncer keys listeners by event.Type including class, and member events arrive
+// in the state block.
 func TestSyncStateBlockReachesOnMember(t *testing.T) {
 	t.Parallel()
 
@@ -187,8 +187,8 @@ func rawMember(sender string, stateKey *string, content string) *event.Event {
 	}
 }
 
-// A rewind (what ClearCache asks for) must clear next_batch, kept in the crypto store,
-// or the emptied cache is never refilled.
+// A rewind must clear next_batch (kept in the crypto store), or the emptied cache is
+// never refilled.
 func TestARewindClearsTheSyncPosition(t *testing.T) {
 	t.Parallel()
 
@@ -213,7 +213,7 @@ func TestARewindClearsTheSyncPosition(t *testing.T) {
 	}
 }
 
-// A rewind is reachable before Resume (ClearCache); it must not panic without a client.
+// A rewind is reachable before Resume; it must not panic without a client.
 func TestResetSyncPositionWithoutAClient(t *testing.T) {
 	t.Parallel()
 
@@ -236,9 +236,8 @@ func (failingSyncStore) SaveNextBatch(context.Context, id.UserID, string) error 
 	return errors.New("crypto store is read-only")
 }
 
-// A cache with no rooms is rewound on every start until something refills it, so a
-// crash after a rebuild or a failed rewind cannot leave it empty for good. A cache
-// holding rooms keeps its position.
+// An empty cache is rewound on every start until refilled, so a crash after a rebuild
+// or a failed rewind cannot leave it empty; a cache with rooms keeps its position.
 func TestStartRewindsAnEmptiedCache(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -281,8 +280,7 @@ func TestStartRewindsAnEmptiedCache(t *testing.T) {
 	}
 }
 
-// reopenedCache is a cache holding rooms, opened a second time the way a restart opens
-// it, so it does not report Rebuilt.
+// reopenedCache opens a cache with rooms a second time, so it does not report Rebuilt.
 func reopenedCache(t *testing.T, rooms []domain.Room) *db.Cache {
 	t.Helper()
 	ctx := context.Background()
@@ -308,9 +306,8 @@ func reopenedCache(t *testing.T, rooms []domain.Room) *db.Cache {
 	return again
 }
 
-// Whether a start rewinds is decided when the backend is built, not when Start runs:
-// the daemon's startup room refresh, or a client's RPC, can write rooms into an
-// emptied cache first, and the rewind was then skipped for good.
+// Whether a start rewinds is decided when the backend is built: a startup refresh or
+// an RPC can write rooms into the emptied cache before Start.
 func TestAnEmptiedCacheRewindsEvenAfterRoomsArrive(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

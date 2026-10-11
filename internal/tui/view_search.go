@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// searchTitle names the results pane, so the pane header says what is being
-// searched even once the prompt has closed.
+// searchTitle names the results pane, so the header says what is searched even after
+// the prompt closes.
 func (m Model) searchTitle() string {
 	title := m.search.showing().name() + " · " + m.scopeLabel(m.search.scope)
 	if q := strings.TrimSpace(m.search.query); q != "" {
@@ -21,7 +21,7 @@ func (m Model) searchTitle() string {
 
 // searchLines renders a summary row, then one windowed row per hit.
 func (m Model) searchLines(width, rows int) []string {
-	// A sentence of ours with the query in it, which is whatever was typed.
+	// Our sentence with the typed query in it.
 	header := []string{m.theme.Muted.Render(drawLine(m.searchSummary(), lineSpec{width: width, sentence: true}))}
 	if rows <= 1 || len(m.search.hits) == 0 {
 		return header
@@ -37,8 +37,7 @@ func (m Model) searchLines(width, rows int) []string {
 	return out
 }
 
-// searchRow renders one hit. The excerpt is flattened to a single line — a message
-// body can contain newlines, and a results list is only legible one row per result.
+// searchRow renders one hit, the excerpt flattened to a single line.
 func (m Model) searchRow(hit domain.SearchHit, selected bool, width int) string {
 	when := m.prefs.clock.ShortDate(hit.Timestamp) + " " + m.prefs.clock.Time(hit.Timestamp)
 	// Named as the timeline names people, the excerpt's mentions too.
@@ -50,8 +49,8 @@ func (m Model) searchRow(hit domain.SearchHit, selected bool, width int) string 
 			prefix += "  [" + nameCell(m.roomLabel(room), searchRoomWidth) + "]"
 		}
 	}
-	// The row is styled as a unit and the excerpt's highlights are applied inside
-	// it, so the selection and the match emphasis compose instead of fighting.
+	// The row is styled as a unit with highlights applied inside, so selection and match
+	// emphasis compose.
 	row := m.theme.Row(selected, m.focus == paneTimeline).Render(clamp(prefix+"  ", width))
 	room := width - ansi.StringWidth(row)
 	snippet, _ := domain.ResolveMentions(hit.Snippet, hit.Mentions, func(mn domain.Mention, words string) string {
@@ -59,8 +58,8 @@ func (m Model) searchRow(hit domain.SearchHit, selected bool, width int) string 
 	})
 	excerpt := flatten(snippet)
 
-	// The file list leads with the file name; elsewhere the words are the answer. Name
-	// and caption are drawn separately so an ASCII name cannot make a Hebrew caption LTR.
+	// The file list leads with the file name. Name and caption are drawn separately so an
+	// ASCII name can't make a Hebrew caption LTR.
 	if label := m.search.showing().label(hit); label != "" {
 		// The row's grouping label, in the tracked hue.
 		tag := lipgloss.NewStyle().Foreground(m.theme.Palette.BadgeAlert).Render(displayName(label) + " ")
@@ -80,7 +79,7 @@ func (m Model) searchRow(hit domain.SearchHit, selected bool, width int) string 
 }
 
 // excerptCell renders a result's text into width: cut logically, reordered when RTL,
-// with the engine's matched runs emphasized by logical offset.
+// the engine's matches emphasized by logical offset.
 func (m Model) excerptCell(excerpt string, width int) string {
 	if width < 1 {
 		return ""
@@ -98,9 +97,9 @@ func (m Model) excerptCell(excerpt string, width int) string {
 	}})
 }
 
-// highlightRanges takes the match markers out of a search excerpt, returning the plain
-// text and where the matches are in it, as logical byte ranges. A marker pair a
-// truncated snippet cut open runs to the end.
+// highlightRanges strips the match markers from an excerpt, returning the plain text
+// and the matches as logical byte ranges. A pair a truncated snippet cut open runs to
+// the end.
 func highlightRanges(snippet string) (string, []trackedRange) {
 	var b strings.Builder
 	var out []trackedRange
@@ -121,19 +120,18 @@ func highlightRanges(snippet string) (string, []trackedRange) {
 	return b.String(), out
 }
 
-// stripHighlights removes the match markers, giving the excerpt's plain text — for
-// measuring it, and for the RTL path that cannot carry styling.
+// stripHighlights removes the match markers, for measuring and for the RTL path that
+// can't carry styling.
 func stripHighlights(s string) string {
 	return strings.NewReplacer(domain.HighlightStart, "", domain.HighlightEnd, "").Replace(s)
 }
 
-// searchNameWidth and searchRoomWidth keep the result rows' columns aligned without
-// letting one long name push the excerpt off the pane.
+// searchNameWidth and searchRoomWidth keep result columns aligned without letting one
+// long name push the excerpt off the pane.
 const (
 	searchNameWidth = 16
 	searchRoomWidth = 14
 )
 
-// flatten collapses the whitespace in a snippet to single spaces, so a multi-line
-// message body still occupies one row of the results list.
+// flatten collapses whitespace to single spaces so a multi-line body takes one row.
 func flatten(s string) string { return strings.Join(strings.Fields(s), " ") }

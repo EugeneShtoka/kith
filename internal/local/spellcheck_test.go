@@ -15,10 +15,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// stubEngine gives a test a directory holding a dictionary pair, its canned answers,
-// and a symlink to the shared stub engine. The script is written once per package
-// (writing and exec'ing it per test races into ETXTBSY, golang/go#22315); per-test
-// answers are found through DICPATH, which production sets to the dictionary dir.
+// stubEngine gives a test a directory with a dictionary pair, canned answers and a
+// symlink to the shared stub engine. The script is written once per package (per-test
+// write+exec races into ETXTBSY, golang/go#22315); answers are found via DICPATH.
 func stubEngine(t *testing.T, answers map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -39,8 +38,8 @@ func stubEngine(t *testing.T, answers map[string]string) string {
 // answerFile holds "word<TAB>reply" lines; no entry means correctly spelled.
 const answerFile = "answers"
 
-// stubScript speaks the ispell pipe protocol. Command lines (`*word`, `@word`, `#`)
-// are logged and, as in the real protocol, answered with nothing.
+// stubScript speaks the ispell pipe protocol. Command lines (`*word`, `@word`, `#`) are
+// logged and, as in the real protocol, get no answer.
 const stubScript = `#!/bin/sh
 dir=${DICPATH%%:*}
 echo '@(#) International Ispell Version 3.1.20 (but really a test stub)'
@@ -74,7 +73,6 @@ var stubEngineOnce = sync.OnceValues(func() (string, error) {
 	return path, nil
 })
 
-// stubEnginePath is the shared engine, written once.
 func stubEnginePath(t *testing.T) string {
 	t.Helper()
 	path, err := stubEngineOnce()
@@ -148,8 +146,8 @@ func TestLearnWordTellsTheEngineAndForgetsTheVerdict(t *testing.T) {
 	}
 }
 
-// waitForCommands polls the stub's log until it holds want lines (commands get no
-// reply to synchronize on).
+// waitForCommands polls the stub's log until it holds want lines (commands get no reply
+// to synchronize on).
 func waitForCommands(t *testing.T, dir string, want int) []string {
 	t.Helper()
 	path := filepath.Join(dir, commandLog)

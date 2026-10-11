@@ -9,12 +9,11 @@ import (
 	"time"
 )
 
-// Credentials have several writers: each login when it finishes, and each connection
-// as gotd renews its session. A login begun later makes every earlier login and
-// connection stale, and an account left the config takes none; whatever the order,
-// what is kept is the latest login's, as its own connection last wrote it.
+// Credentials are written by finishing logins and by connections renewing sessions.
+// For any order, the stored value is the latest login's as its own connection last
+// wrote it; a removed account stores nothing.
 
-// bump begins a login of account, as beginLogin does: earlier ones are stale.
+// bump starts a new login generation, as beginLogin does.
 func bump(a *Adapter, account Account) int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -87,8 +86,7 @@ func TestOnlyTheLatestLoginKeepsCredentials(t *testing.T) {
 	}
 }
 
-// slowSecrets takes a while to write, as a keyring over D-Bus does: long enough for
-// another writer to come and go between a write's check and its landing.
+// slowSecrets writes slowly, like a D-Bus keyring, widening the check-to-write window.
 type slowSecrets struct{ *memSecrets }
 
 func (s slowSecrets) StoreSecret(ref, value string) error {
@@ -96,8 +94,7 @@ func (s slowSecrets) StoreSecret(ref, value string) error {
 	return s.memSecrets.StoreSecret(ref, value)
 }
 
-// A connection of an earlier login renewing its session while a later login finishes
-// never leaves its session over the later one's.
+// An old connection renewing its session never overwrites a newer login's.
 func TestAStaleRenewalNeverOutlastsANewerLogin(t *testing.T) {
 	t.Parallel()
 	for round := range 200 {

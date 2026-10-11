@@ -7,8 +7,7 @@ import (
 	"testing"
 )
 
-// A fresh cache already has exactly the declared indexes, so opening changes none: the
-// stored text compares equal to baseSchema's.
+// A fresh cache's stored index text equals baseSchema's, so opening changes none.
 func TestAFreshCacheNeedsNoIndexChanges(t *testing.T) {
 	t.Parallel()
 	cache := openTemp(t)
@@ -21,8 +20,7 @@ func TestAFreshCacheNeedsNoIndexChanges(t *testing.T) {
 	}
 }
 
-// An index whose definition drifted from baseSchema is rebuilt, and one baseSchema no
-// longer declares is dropped, the next time the cache is opened.
+// On open, an index that drifted from baseSchema is rebuilt and an undeclared one dropped.
 func TestOpenRebuildsAChangedIndexAndDropsAnUndeclaredOne(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -61,8 +59,7 @@ func TestOpenRebuildsAChangedIndexAndDropsAnUndeclaredOne(t *testing.T) {
 	}
 }
 
-// Only the newest copies set aside by rebuilds are kept; the cache itself and other
-// files beside it are not touched.
+// Only the newest aside copies are kept; the cache and other files are untouched.
 func TestOnlyTheNewestAsideCopiesAreKept(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

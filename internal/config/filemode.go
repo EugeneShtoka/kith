@@ -6,11 +6,9 @@ import (
 	"runtime"
 )
 
-// OpenToOthers says what users other than the owner may do with the config file at
-// path ("read", "write", "read and write"), or "" when nobody else can reach it. The
-// file says what an assistant may read and send (see docs/mcp.md), so a copy another
-// user can write widens that, and one they can read shows it. The app writes it 0600;
-// a file made by hand keeps the umask's mode. Windows keeps no such bits: always "".
+// OpenToOthers says what other users may do with the config file ("read", "write",
+// "read and write"), or "". It matters because the file grants an assistant's access
+// (docs/mcp.md). Always "" on Windows.
 func OpenToOthers(path string) (string, error) {
 	if runtime.GOOS == "windows" {
 		return "", nil

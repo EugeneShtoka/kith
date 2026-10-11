@@ -22,12 +22,9 @@ const defaultKeyring = "kith"
 // validInstance is what an instance may be: it is part of file names.
 var validInstance = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
-// StorageFor is where the config at configPath keeps its files, for the profile
-// chosen (cfg is that profile's, as Config.Profile returns it). It never writes the
-// config — the daemon runs with it read-only — so an instance the config does not
-// name is derived, the same in every program: the name an install from before kept
-// its files under, when they exist, else one from the config file's path.
-// RememberInstance writes it into the config.
+// StorageFor is where the config at configPath keeps its files for profile (cfg is
+// that profile's). It never writes the config (the daemon has it read-only), so an
+// unnamed instance is derived identically in every program; RememberInstance saves it.
 func StorageFor(cfg config.Config, configPath, profile string) (domain.Storage, error) {
 	storage, err := StorageDirs(cfg)
 	if err != nil {
@@ -48,9 +45,8 @@ func StorageFor(cfg config.Config, configPath, profile string) (domain.Storage, 
 	return storage, nil
 }
 
-// StorageDirs is the config's directories and keyring service, without an instance:
-// enough for what every instance shares (dictionaries, models, API keys), and never
-// writing the config. A directory must be absolute (or start with "~").
+// StorageDirs is the config's directories and keyring service without an instance,
+// for what all instances share. A directory must be absolute or start with "~".
 func StorageDirs(cfg config.Config) (domain.Storage, error) {
 	s := cfg.Storage
 	storage := domain.Storage{
@@ -75,9 +71,8 @@ func StorageDirs(cfg config.Config) (domain.Storage, error) {
 	return storage, nil
 }
 
-// chosenProfile is the profile in use: the one named, or the first when profiles
-// exist and none is named (Config.Profile chooses it), so naming it or not is one
-// instance.
+// chosenProfile is the named profile, else the first one (as Config.Profile picks),
+// so naming the default or not yields one instance.
 func chosenProfile(cfg config.Config, profile string) string {
 	if profile = strings.TrimSpace(profile); profile != "" || len(cfg.Profiles) == 0 {
 		return profile
@@ -85,10 +80,8 @@ func chosenProfile(cfg config.Config, profile string) string {
 	return cfg.Profiles[0].Name
 }
 
-// RememberInstance writes the instance StorageFor derived into a config that names
-// none, so the files stay found if the config file moves. Only clients call it: the
-// daemon cannot write the config. A config that cannot be written loses nothing
-// while it stays where it is (the instance is derived from its path).
+// RememberInstance writes the derived instance into a config that names none, so
+// files stay found if the config moves. Clients only; the daemon cannot write it.
 func RememberInstance(cfg config.Config, configPath string) error {
 	if cfg.Storage.Instance != "" || configPath == "" {
 		return nil
@@ -107,9 +100,8 @@ func RememberInstance(cfg config.Config, configPath string) error {
 	return nil
 }
 
-// baseInstance is the config's instance: the one it names; else, for an install from
-// before instances, the name its files were kept under; else one derived from the
-// config file's path (pathInstance).
+// baseInstance is the configured instance, else a pre-instance install's legacy name
+// if its files exist, else pathInstance.
 func baseInstance(cfg config.Config, configPath string, storage domain.Storage) (string, error) {
 	if id := cfg.Storage.Instance; id != "" {
 		if !validInstance.MatchString(id) {
@@ -137,10 +129,8 @@ func hasFiles(storage domain.Storage, instance string) bool {
 	return false
 }
 
-// pathInstance is the instance of a config that names none: 64 bits of the hash of
-// the config file's resolved path, so every program reading the same file (the
-// daemon started by systemd, a client given --config) derives the same one, and two
-// config files sharing directories derive different ones.
+// pathInstance is 64 bits of the hash of the config's resolved path: every program
+// reading one file agrees, and two configs sharing directories differ.
 func pathInstance(configPath string) string {
 	resolved := configPath
 	// No file at all is one fixed instance, never the working directory's.
@@ -156,8 +146,7 @@ func pathInstance(configPath string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// dirOr is a configured directory with "~" expanded, else the XDG one, each with
-// kith's own subdirectory.
+// dirOr is the configured directory with "~" expanded, else xdgDir/kith.
 func dirOr(configured, xdgDir string) string {
 	if configured == "" {
 		if xdgDir == "" {
@@ -173,8 +162,8 @@ func dirOr(configured, xdgDir string) string {
 	return filepath.Clean(configured)
 }
 
-// PhonebookDir is the phonebook's folder: [phonebook] dir, ~ expanded, else
-// $XDG_DATA_HOME/phonebook. Not kith's own: other programs share it.
+// PhonebookDir is [phonebook] dir, ~ expanded, else $XDG_DATA_HOME/phonebook (shared
+// with other programs, so no kith subdirectory).
 func PhonebookDir(cfg config.Config) string {
 	dir := cfg.Phonebook.Dir
 	if dir == "" {
@@ -188,8 +177,8 @@ func PhonebookDir(cfg config.Config) string {
 	return filepath.Clean(dir)
 }
 
-// KeepRules is [storage] messages_per_room and its [[storage.rule]]s, checked: a count
-// is negative (every message) or at least one, and a rule's match is a place entry.
+// KeepRules validates [storage] messages_per_room and [[storage.rule]]: a count is
+// negative (keep all) or at least one; a match is a place entry.
 func KeepRules(st config.Storage) (int, []domain.KeepRule, error) {
 	base := st.MessagesKept()
 	if base == 0 {

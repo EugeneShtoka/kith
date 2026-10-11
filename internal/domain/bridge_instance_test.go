@@ -6,8 +6,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Two bridges for one network on one homeserver need distinct bot names, and mautrix's
-// convention is an instance suffix.
+// Two bridges for one network on one homeserver get an instance suffix (mautrix convention).
 func TestInstanceSuffixedBridgeBots(t *testing.T) {
 	t.Parallel()
 
@@ -32,8 +31,7 @@ func TestInstanceSuffixedBridgeBots(t *testing.T) {
 		}
 	}
 
-	// A suffix has to start with a separator, or this stops being a rule about bots and
-	// becomes a prefix search over everybody's name.
+	// A suffix must start with a separator, or it would match any name with the prefix.
 	for _, mxid := range []string{
 		"@whatsappbotanist:example.org",
 		"@robot:example.org",

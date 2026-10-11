@@ -14,8 +14,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// emojiState is which emoji this client offers and in what order. A change to set,
-// skin, refused or orders is what makes palette stale.
+// emojiState is which emoji this client offers and in what order. Changing set, skin,
+// refused or orders makes palette stale.
 type emojiState struct {
 	// set is the working vocabulary ([display.emoji] set plus the user's additions).
 	set emojiSet
@@ -26,9 +26,9 @@ type emojiState struct {
 	refused map[string]map[string]bool
 	// orders is each room's emoji ranking, fetched once per room per session.
 	orders map[domain.RoomID]emojiOrder
-	// scope is the palette's frequency scope (room|space|global|static) and static
-	// its fallback set. palette is the active 10, computed on room-open and frozen
-	// for the visit so key positions hold.
+	// scope is the palette's frequency scope (room|space|global|static), static its
+	// fallback set. palette is the active 10, computed on room open and frozen for the
+	// visit so key positions hold.
 	scope   string
 	static  []string
 	palette []string
@@ -40,8 +40,8 @@ const paletteSize = 10
 // defaultReactions is the built-in static palette, used without [display.reactions].
 var defaultReactions = []string{"👍", "❤️", "😂", "🎉", "😮", "😢", "🙏", "👀", "🔥", "💯"}
 
-// paletteHint is the one-line legend of the palette with each slot's live pick key
-// (by default "1👍 2❤️ … 0💯"); a slot with no key is shown bare.
+// paletteHint is the palette legend with each slot's pick key ("1👍 2❤️ … 0💯" by
+// default); a slot with no key is shown bare.
 func (m Model) paletteHint() string {
 	var b strings.Builder
 	for i, e := range m.glyphs.palette {
@@ -56,9 +56,9 @@ func (m Model) paletteHint() string {
 	return b.String()
 }
 
-// resolveReaction turns react-prompt input into the reaction key to send: a
-// :shortcode: is looked up (case-insensitive), anything else is sent verbatim. An
-// unknown shortcode is refused with the nearest names, never sent as literal text.
+// resolveReaction turns react-prompt input into the key to send: a :shortcode: is
+// looked up (case-insensitive), anything else sent verbatim. An unknown shortcode is
+// refused with the nearest names, never sent as text.
 func (m Model) resolveReaction(s string) (string, bool) {
 	s = strings.TrimSpace(s)
 	name, isShortcode := shortcodeName(s)
@@ -83,8 +83,8 @@ func shortcodeName(s string) (string, bool) {
 	return name, true
 }
 
-// nearestShortcodes is the refusal message, offering names that start with what was
-// typed (a misspelling is usually a truncation: `:dance:` for `:dancer:`).
+// nearestShortcodes is the refusal message, offering names starting with what was
+// typed (misspellings are usually truncations: `:dance:` for `:dancer:`).
 func (m Model) nearestShortcodes(name string) string {
 	var near []string
 	for _, candidate := range m.glyphs.set.names {
@@ -101,8 +101,8 @@ func (m Model) nearestShortcodes(name string) string {
 	return "no emoji called :" + name + ": — try " + strings.Join(near, " ")
 }
 
-// looksLikeEmoji tests shape, not set membership: an emoji has no ASCII letters and
-// no colon, which rejects failed shortcodes and text reactions from usage history.
+// looksLikeEmoji tests shape, not membership: no ASCII letters and no colon, which
+// rejects failed shortcodes and text reactions from usage history.
 func looksLikeEmoji(s string) bool {
 	if s == "" {
 		return false
@@ -120,10 +120,10 @@ func onlyEmoji(list []string) []string {
 	return slices.DeleteFunc(slices.Clone(list), func(e string) bool { return !looksLikeEmoji(e) })
 }
 
-// emojiSet is the working vocabulary the completion popup and browser offer, in order.
-// Tiers: curated (emojidata.Curated), standard (+ every single-glyph Unicode emoji),
-// complete (+ ZWJ sequences and flags, which mis-measure without font ligatures).
-// Curated names win every collision.
+// emojiSet is the vocabulary the completion popup and browser offer, in order. Tiers:
+// curated (emojidata.Curated), standard (+ every single-glyph Unicode emoji), complete
+// (+ ZWJ sequences and flags, which mis-measure without font ligatures). Curated names
+// win every collision.
 type emojiSet struct {
 	// byName maps a shortcode to its emoji; nameOf is each emoji's display name.
 	byName map[string]string
@@ -140,8 +140,8 @@ const (
 	emojiComplete = config.EmojiComplete
 )
 
-// newEmojiSet builds the vocabulary for a tier plus the user's own additions; an
-// unrecognized tier (refused at startup by setup.EmojiTier) means curated.
+// newEmojiSet builds the vocabulary for a tier plus the user's additions; an unknown
+// tier (refused at startup by setup.EmojiTier) means curated.
 func newEmojiSet(tier string, extra map[string]string) emojiSet {
 	byName := make(map[string]string, len(emojidata.Curated)+len(emojidata.Standard))
 	// Widest first: later writes win, so curated and then user names override.
@@ -197,9 +197,9 @@ func distinctEmoji(set emojiSet) []string {
 	return out
 }
 
-// EmojiCells is every cell the browser would draw for a display configuration, toned
-// and presentation-reconciled. Exported for cmd/emoji-probe, which asks the terminal
-// how wide each really is.
+// EmojiCells is every cell the browser would draw for a display config, toned and
+// presentation-reconciled. Exported for cmd/emoji-probe, which measures each in the
+// terminal.
 func EmojiCells(display config.Display) ([]string, error) {
 	tone, err := setup.SkinTone(display.SkinTone)
 	if err != nil {

@@ -9,15 +9,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// searchLimit caps how many hits one search returns (newest first, so the oldest are
-// trimmed).
+// searchLimit caps the hits of one search; newest first, so the oldest are trimmed.
 const searchLimit = 200
 
-// searchSenderLimit caps how many people `from:` completes against, ranked by activity.
+// searchSenderLimit caps the people `from:` completes against, ranked by activity.
 const searchSenderLimit = 300
 
-// searchScope is how wide a search reaches — a visible mode cycled with a key, not a
-// typed token.
+// searchScope is how wide a search reaches, a visible mode cycled with a key.
 type searchScope int
 
 const (
@@ -26,10 +24,8 @@ const (
 	searchEverywhere
 )
 
-// next cycles room → group → everywhere → room.
 func (s searchScope) next() searchScope { return (s + 1) % 3 }
 
-// searchState is a search and its results.
 type searchState struct {
 	// active gates the results pane; it outlives the prompt.
 	active bool
@@ -41,17 +37,14 @@ type searchState struct {
 	hits   []domain.SearchHit
 	cursor int
 	err    error
-	// kind is a word search or a list (mentions, files, …); see searchKind. Typing in
-	// a list narrows it.
+	// kind is a word search or a list (mentions, files, …); typing in a list narrows it.
 	kind searchKind
-	// people are who `from:` completes against, asked once per scope; peopleScope is
-	// the scope they answer for.
+	// people are who `from:` completes against, asked once per scope (peopleScope).
 	people      []domain.Member
 	peopleScope searchScope
 }
 
-// showing is the kind the pane has open, defaulting to a word search so the zero
-// value left by closing the pane is safe.
+// showing defaults to a word search, so the zero value left by closing the pane is safe.
 func (s searchState) showing() searchKind {
 	if s.kind == nil {
 		return wordsList{}
@@ -59,15 +52,14 @@ func (s searchState) showing() searchKind {
 	return s.kind
 }
 
-// global reports whether the search covers every room.
 func (s searchState) global() bool { return s.scope == searchEverywhere }
 
-// awaiting reports whether a late answer belongs to the search that is running.
+// awaiting reports whether a late answer belongs to the running search.
 func (s searchState) awaiting(query string, scope searchScope) bool {
 	return s.active && s.query == query && s.scope == scope
 }
 
-// awaitingScope is awaiting for an answer about the scope only (the `from:` list).
+// awaitingScope is awaiting for a scope-only answer (the `from:` list).
 func (s searchState) awaitingScope(scope searchScope) bool {
 	return s.active && s.scope == scope
 }
@@ -79,13 +71,11 @@ func (s searchState) answered(hits []domain.SearchHit, err error) searchState {
 	return s
 }
 
-// moved walks the cursor through the hits, without wrapping.
 func (s searchState) moved(delta int) searchState {
 	s.cursor = moveCursor(s.cursor, len(s.hits), delta, false)
 	return s
 }
 
-// selected is the hit under the cursor, and whether there is one.
 func (s searchState) selected() (domain.SearchHit, bool) {
 	if s.cursor < 0 || s.cursor >= len(s.hits) {
 		return domain.SearchHit{}, false
@@ -93,14 +83,12 @@ func (s searchState) selected() (domain.SearchHit, bool) {
 	return s.hits[s.cursor], true
 }
 
-// openSearch starts a search, in the open room or across all of them; the timeline
-// pane becomes the results list.
+// openSearch starts a search in the open room or across all; the timeline pane shows results.
 func (m Model) openSearch(global bool) (Model, tea.Cmd) {
 	return m.openSearchFor(global, "")
 }
 
-// openSearchFor is openSearch with terms already typed (`/search foo`); they run at
-// once, and none just opens the box.
+// openSearchFor is openSearch with terms already typed (`/search foo`); they run at once.
 func (m Model) openSearchFor(global bool, terms string) (Model, tea.Cmd) {
 	reach := searchEverywhere
 	if !global {
@@ -114,7 +102,7 @@ func (m Model) openSearchFor(global bool, terms string) (Model, tea.Cmd) {
 	m.search = searchState{active: true, scope: reach, kind: wordsList{}}
 	m.focus = paneTimeline
 	m.compose = m.compose.left()
-	// Ask for `from:` candidates now so they are there before it is typed.
+	// Ask for `from:` candidates before it is typed.
 	senders := m.searchSendersCmd(m.searchRooms(reach), reach)
 	if terms == "" {
 		return m, senders
@@ -124,17 +112,14 @@ func (m Model) openSearchFor(global bool, terms string) (Model, tea.Cmd) {
 	return mdl, tea.Batch(cmd, senders)
 }
 
-// openMentions lists every message that names you, newest first. Unlike every other
-// list it opens everywhere whatever pane it was asked from — who named you is a
-// question about you, not about a room; `tab` narrows it.
+// openMentions lists messages that name you, newest first. It opens everywhere
+// whatever the pane, since it is about you, not a room; `tab` narrows it.
 func (m Model) openMentions() (Model, tea.Cmd) { return m.openMentionsIn(searchEverywhere) }
 
-// openMentionsIn is the mentions list at a chosen scope (`/mentions` asks about here).
 func (m Model) openMentionsIn(reach searchScope) (Model, tea.Cmd) {
 	return m.openList(promptMentions, reach, mentionsList{})
 }
 
-// openFiles lists every message in scope carrying an attachment.
 func (m Model) openFiles(global bool) (Model, tea.Cmd) {
 	scope := m.defaultSearchScope()
 	if global {
@@ -143,19 +128,18 @@ func (m Model) openFiles(global bool) (Model, tea.Cmd) {
 	return m.openList(promptFiles, scope, filesList{})
 }
 
-// openStarred lists every message you have bookmarked, newest star first.
 func (m Model) openStarred() (Model, tea.Cmd) {
 	return m.openList(promptStarred, m.defaultSearchScope(), starredList{})
 }
 
-// openTracked lists every message carrying one of your tracked words; word narrows to
-// one entry, empty opens the whole list grouped.
+// openTracked lists messages with a tracked word; word narrows to one entry, empty
+// groups by entry.
 func (m Model) openTracked(word string) (Model, tea.Cmd) {
 	return m.openList(promptTracked, m.defaultSearchScope(), trackedList{words: m.prefs.display.Tracked.Words, only: word})
 }
 
-// openList opens the results pane on a list kind. No terms are needed — the kind's
-// clause is the whole query — but the prompt stays open so typing narrows it.
+// openList opens the results pane on a list kind. The kind's clause is the whole
+// query, but the prompt stays open so typing narrows it.
 func (m Model) openList(prompt promptKind, scope searchScope, kind searchKind) (Model, tea.Cmd) {
 	m = m.openPrompt(prompt)
 	m.search = searchState{active: true, scope: scope, kind: kind}
@@ -164,9 +148,8 @@ func (m Model) openList(prompt promptKind, scope searchScope, kind searchKind) (
 	return m.runSearch("")
 }
 
-// defaultSearchScope is the scope for a search asked from the focused pane, one ladder
-// left to right: rail → everywhere, room list → its group, timeline/composer → the open
-// room (the group when none is open).
+// defaultSearchScope follows the focused pane: rail → everywhere, room list → its
+// group, timeline/composer → the open room (the group when none is open).
 func (m Model) defaultSearchScope() searchScope {
 	switch m.focus {
 	case paneRail:
@@ -181,8 +164,8 @@ func (m Model) defaultSearchScope() searchScope {
 	return searchInRoom
 }
 
-// searchRooms resolves a scope into the rooms it covers: the open room (none when no
-// room is open), the rail group's, or every room.
+// searchRooms resolves a scope to its rooms: the open room (none if none), the rail
+// group's, or every room.
 func (m Model) searchRooms(reach searchScope) domain.RoomSet {
 	switch reach {
 	case searchInRoom:
@@ -202,7 +185,6 @@ func (m Model) searchRooms(reach searchScope) domain.RoomSet {
 	}
 }
 
-// scopeLabel names a scope for the results title, with the thing it covers.
 func (m Model) scopeLabel(reach searchScope) string {
 	switch reach {
 	case searchInRoom:
@@ -211,15 +193,13 @@ func (m Model) scopeLabel(reach searchScope) string {
 		}
 		return "this room"
 	case searchInGroup:
-		// No noun: not every group is a space, and "group" means a non-DM room
-		// elsewhere in the config vocabulary.
+		// No noun: not every group is a space, and "group" means a non-DM room in the config.
 		return isolate(m.rail.label())
 	default:
 		return "everywhere"
 	}
 }
 
-// cycleSearchScope widens or wraps the scope and re-runs the query.
 func (m Model) cycleSearchScope() (Model, tea.Cmd) {
 	if !m.search.active {
 		return m, nil
@@ -235,12 +215,11 @@ func (m Model) cycleSearchScope() (Model, tea.Cmd) {
 	return mdl, tea.Batch(cmd, senders)
 }
 
-// runSearch issues a search for the current prompt text; an empty query clears the
-// results.
+// runSearch searches for the prompt text; an empty query clears the results.
 func (m Model) runSearch(query string) (Model, tea.Cmd) {
 	m.search.query = query
 	m.search.err = nil
-	// Filters are parsed here so only terms ever reach FTS5 (see domain.ParseSearch).
+	// Filters are parsed here so only terms reach FTS5 (see domain.ParseSearch).
 	filter := domain.ParseSearch(query, time.Now())
 	m.search.showing().narrow(&filter)
 	if filter.Empty() {
@@ -262,8 +241,8 @@ func (m Model) handleSearchResults(msg searchResultsMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleSearchSenders applies the people a search can be narrowed to. A failure is
-// ignored: `from:` falls back to the open room's members.
+// handleSearchSenders applies the `from:` candidates. A failure is ignored: `from:`
+// falls back to the open room's members.
 func (m Model) handleSearchSenders(msg searchSendersMsg) (Model, tea.Cmd) {
 	m.logErr(slog.LevelDebug, "load search senders", msg.err)
 	if msg.err != nil || !m.search.awaitingScope(msg.scope) {
@@ -273,26 +252,22 @@ func (m Model) handleSearchSenders(msg searchSendersMsg) (Model, tea.Cmd) {
 	return m.refreshCandidates(), nil
 }
 
-// commitSearch hands the keyboard from the prompt to the results list, which (even
-// empty) stays up.
+// commitSearch moves the keyboard from the prompt to the results list, which stays up even empty.
 func (m Model) commitSearch() (Model, tea.Cmd) {
 	return m.clearStatus(), nil
 }
 
-// closeSearch dismisses the results and returns the timeline to the conversation.
 func (m Model) closeSearch() (Model, tea.Cmd) {
 	m.search = searchState{}
 	return m.clearStatus(), nil
 }
 
-// moveSearchCursor walks the results list, clamping.
 func (m Model) moveSearchCursor(delta int) (Model, tea.Cmd) {
 	m.search = m.search.moved(delta)
 	return m, nil
 }
 
-// jumpToHit opens the hit's room and asks for its message to be selected once the
-// timeline has it (see resolveJump).
+// jumpToHit opens the hit's room and selects its message once loaded (see resolveJump).
 func (m Model) jumpToHit() (Model, tea.Cmd) {
 	hit, ok := m.search.selected()
 	if !ok {
@@ -310,15 +285,13 @@ func (m Model) jumpToHit() (Model, tea.Cmd) {
 	return next, cmd
 }
 
-// resolveJump selects a pending jump target once the timeline holds it. It can miss
-// when the message was trimmed from the cache since the search; that is reported once
-// the load has settled.
+// resolveJump selects a pending jump target once the timeline holds it. A message
+// trimmed from the cache since the search is reported once the load settles.
 func (m Model) resolveJump(settled bool) (Model, tea.Cmd) {
 	if m.jump.to == "" {
 		return m, nil
 	}
 	if indexOfMessage(m.timeline.messages, m.jump.to) >= 0 {
-		// revealMessage opens the thread a hit lives in, fetching its root if needed.
 		next, cmd := m.revealMessage(m.jump.to)
 		m = next
 		said := m.jump.why
@@ -336,7 +309,7 @@ func (m Model) resolveJump(settled bool) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// searchSummary is the results pane's header: the scope, in the kind's sentence.
+// searchSummary is the results header: the scope, in the kind's sentence.
 func (m Model) searchSummary() string {
 	where := "in this room"
 	if m.search.global() {
@@ -345,7 +318,6 @@ func (m Model) searchSummary() string {
 	return m.search.showing().summary(m, where)
 }
 
-// searchHint is the results list's own key legend.
 func (m Model) searchHint() string {
 	return m.hintLine(
 		keyed(m.keys.keyHint(scopeNav, actUp)+"/"+m.keys.keyHint(scopeNav, actDown), "results"),
@@ -355,7 +327,6 @@ func (m Model) searchHint() string {
 	)
 }
 
-// handleSearchKey drives the results list; nav keys fall through from scopeNav.
 func (m Model) handleSearchKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	act := m.keys.lookup(key.String(), scopeSearch, scopeNav, scopeCommand)
 	switch act {
@@ -375,14 +346,13 @@ func (m Model) handleSearchKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 		m.reader = m.reader.opening(readerHelp)
 		return m, nil
 	}
-	// Results are newest first, so the newest end is the top: all runs negative.
+	// Results are newest first, so the top is the newest end: all runs negative.
 	if delta, ok := navDelta(act, m.take(), m.msgAreaRows(), -len(m.search.hits)); ok {
 		return m.moveSearchCursor(delta)
 	}
 	return m, nil
 }
 
-// indexOfMessage returns the position of the message with id, or -1.
 func indexOfMessage(msgs []domain.Message, id domain.EventID) int {
 	for i := range msgs {
 		if msgs[i].ID == id {

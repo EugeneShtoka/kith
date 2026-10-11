@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/apitest"
 )
 
-// A stream with nothing to say (verifications, follows: quiet for hours) stays attached
-// past the client's answer timeout, which bounds the wait for a call's first header:
-// a stream's headers go out when it opens, not with its first event.
+// A quiet stream outlives the answer timeout: its headers go out when it opens, not
+// with its first event.
 func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "d.sock")

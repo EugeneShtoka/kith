@@ -39,8 +39,7 @@ func load(t *testing.T, path string) config.Config {
 	return cfg
 }
 
-// unchanged fails when reading storage wrote the config: the daemon runs with it
-// read-only, so working out where the files are must never need to write it.
+// unchanged fails if resolving storage wrote the config (the daemon has it read-only).
 func unchanged(t *testing.T, path string, before []byte) {
 	t.Helper()
 	if after, err := os.ReadFile(path); err != nil || !bytes.Equal(after, before) {
@@ -48,9 +47,8 @@ func unchanged(t *testing.T, path string, before []byte) {
 	}
 }
 
-// With nothing configured, files go where they always have. The instance is derived
-// from the config file without writing it, the same on every read (by the daemon or
-// a client), and a client may record it, which keeps it when the file moves.
+// Unconfigured: XDG directories and an instance derived from the config path without
+// writing it, stable across reads; once recorded it survives a move.
 func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n")
 	before, _ := os.ReadFile(path)
@@ -71,7 +69,7 @@ func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 		t.Errorf("the next read = (%+v, %v), want the same instance (%s)", second, err, first.Instance)
 	}
 
-	// Through a symlink, as the daemon may be given it, the same file is the same instance.
+	// A symlink to the same file is the same instance.
 	link := filepath.Join(root, "link.toml")
 	if err := os.Symlink(path, link); err != nil {
 		t.Fatal(err)
@@ -105,8 +103,8 @@ func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 	}
 }
 
-// An install from before instances keeps its files: its instance is the name they
-// were kept under, found without writing the config, and recorded by a client.
+// A pre-instance install keeps its legacy instance name, found without writing the
+// config.
 func TestAnInstallFromBeforeKeepsItsFiles(t *testing.T) {
 	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n")
 	legacy := domain.AccountKey("@ada:x")
@@ -131,8 +129,7 @@ func TestAnInstallFromBeforeKeepsItsFiles(t *testing.T) {
 	}
 }
 
-// A config that cannot be written is still served: reading storage never needs to
-// write it (the daemon under systemd sees the home directory read-only).
+// A read-only config still resolves storage.
 func TestAReadOnlyConfigIsServed(t *testing.T) {
 	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n")
 	if err := os.Chmod(root, 0o500); err != nil {
@@ -148,8 +145,8 @@ func TestAReadOnlyConfigIsServed(t *testing.T) {
 	}
 }
 
-// Configured directories are used as given ("~" is home); a relative one is refused;
-// two configs sharing them have their own files.
+// Configured directories are used ("~" expanded), relative ones refused, and two
+// configs sharing them get distinct files.
 func TestConfiguredDirectoriesAndSharing(t *testing.T) {
 	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n[storage]\ninstance = \"test\"\ndata_dir = \""+"/srv/kith"+"\"\nstate_dir = \"~/kith-state\"\nkeyring_service = \"kith-test\"\n")
 	storage, err := setup.StorageFor(load(t, path), path, "")
@@ -174,8 +171,8 @@ func TestConfiguredDirectoriesAndSharing(t *testing.T) {
 	}
 }
 
-// A profile has its own instance, the same whether or not it is named when it is
-// the first; one with files from before keeps them.
+// A profile has its own instance, the same for the first whether named or not; legacy
+// files are kept.
 func TestProfilesHaveTheirOwnInstance(t *testing.T) {
 	root, path := home(t, "[storage]\ninstance = \"base\"\n[[profile]]\nname = \"work\"\nuser = \"@w:x\"\nhomeserver = \"h\"\n[[profile]]\nname = \"home\"\nuser = \"@h:x\"\nhomeserver = \"h\"\n")
 	of := func(profile string) string {
@@ -201,8 +198,7 @@ func TestProfilesHaveTheirOwnInstance(t *testing.T) {
 	}
 }
 
-// /export writes into export_dir: by default the exports folder beside kith's data, a
-// "~" path expanded, and a relative one refused, naming the key.
+// export_dir defaults beside kith's data, expands "~", and refuses a relative path.
 func TestTheExportFolder(t *testing.T) {
 	t.Parallel()
 	var cfg config.Config

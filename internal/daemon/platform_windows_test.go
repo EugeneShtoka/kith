@@ -11,8 +11,7 @@ import (
 	"time"
 )
 
-// The line reaches cmd.exe as written: quotes inside it survive, and stdin is the
-// payload, which is how the clipboard command is fed.
+// The line reaches cmd.exe as written, inner quotes intact, with stdin as payload.
 func TestShellCommandRunsTheLineAsWritten(t *testing.T) {
 	t.Parallel()
 
@@ -28,8 +27,8 @@ func TestShellCommandRunsTheLineAsWritten(t *testing.T) {
 	}
 }
 
-// TestMain lets the test binary stand in for kithd.exe: started with the marker
-// variable set, it records its pid there and stays alive instead of testing.
+// TestMain lets the test binary stand in for kithd.exe: with the marker variable set,
+// it records its pid there and stays alive.
 func TestMain(m *testing.M) {
 	if marker := os.Getenv("KITH_FAKE_DAEMON_MARKER"); marker != "" {
 		_ = os.WriteFile(marker, []byte(strconv.Itoa(os.Getpid())), 0o600)
@@ -39,8 +38,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// detach finds kithd.exe on PATH and starts it with the flags that keep it off this
-// console.
+// detach finds kithd.exe on PATH and starts it off this console.
 func TestDetachStartsTheDaemon(t *testing.T) {
 	self, err := os.Executable()
 	if err != nil {

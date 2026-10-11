@@ -8,8 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A reply to a message folded into a thread quotes that message as it is now: an edit
-// of it shows in the quote, where a copy taken when the quote was first drawn did not.
+// A reply to a message folded into a thread quotes that message as it is now, edits included.
 func TestAQuotedThreadReplyShowsItsEdit(t *testing.T) {
 	t.Parallel()
 	ts := func(s int) time.Time { return time.Unix(int64(1_700_000_000+s), 0) }

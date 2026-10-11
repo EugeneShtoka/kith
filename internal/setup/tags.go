@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Tags is the configured [[tag]]s, parsed, and a warning for each set of tags whose
-// rules depend on each other (their references to each other match nothing).
+// Tags parses the [[tag]]s, warning on each reference cycle (such references match
+// nothing).
 func Tags(cfg config.Config) (domain.TagSet, []string, error) {
 	tags := make([]domain.Tag, len(cfg.Tags))
 	for i, t := range cfg.Tags {
@@ -36,9 +36,8 @@ func tagsCheck(cfg config.Config) error {
 // archiveNetworks is the network each [<network>.archive] section is.
 var archiveNetworks = map[string]domain.Protocol{"telegram": domain.ProtocolTelegram, "whatsapp": domain.ProtocolWhatsApp}
 
-// Archives is, for each network whose archive kith follows, the tag that archive is:
-// one that exists. Another name that does not exist is an error; the default name,
-// when no tag has it (deleted), follows nothing.
+// Archives maps each network whose archive kith follows to an existing tag. A missing
+// custom name is an error; a missing default name follows nothing.
 func Archives(cfg config.Config, tags domain.TagSet) (map[domain.Protocol]string, error) {
 	out := map[domain.Protocol]string{}
 	for section, archive := range cfg.Archives() {
@@ -57,8 +56,7 @@ func Archives(cfg config.Config, tags domain.TagSet) (map[domain.Protocol]string
 	return out, nil
 }
 
-// ArchiveTags is every tag an archive is, by name: each network's [*.archive] tag and
-// the default archive tag, those that exist, whether or not they follow a network.
+// ArchiveTags is every existing archive tag: each [*.archive] tag and the default.
 func ArchiveTags(cfg config.Config, tags domain.TagSet) []string {
 	var out []string
 	add := func(name string) {
@@ -83,8 +81,7 @@ func archivesCheck(cfg config.Config) error {
 	return err
 }
 
-// Mirrored is, for each network whose archive kith's filing changes too (mirror on),
-// the tag that files into it: one that exists.
+// Mirrored maps each network with archive mirroring on to its existing tag.
 func Mirrored(cfg config.Config, tags domain.TagSet) map[domain.Protocol]string {
 	out := map[domain.Protocol]string{}
 	for section, archive := range cfg.Archives() {

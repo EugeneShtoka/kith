@@ -14,9 +14,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// What a message used to say, and the one thing the view has to get right: it answers
-// the whole question — edits *and* the deletion — because that is one question.
-
 // historyBackend answers with a fixed history and records what was asked about.
 type historyBackend struct {
 	apitest.Nop
@@ -53,8 +50,7 @@ func editedThenDeleted() domain.Message {
 	}
 }
 
-// The whole feature in one test: three versions with their times, and the deletion
-// after them.
+// Three versions with their times, then the deletion.
 func TestTheHistoryShowsEveryVersionAndTheDeletion(t *testing.T) {
 	t.Parallel()
 
@@ -83,8 +79,7 @@ func TestTheHistoryShowsEveryVersionAndTheDeletion(t *testing.T) {
 			t.Errorf("the history is missing %q:\n%s", want, pane)
 		}
 	}
-	// Edits and the deletion in one view, which is the point: the question is what
-	// happened to this message, and this message had both happen to it.
+	// Edits and the deletion in one view.
 	if !strings.Contains(pane, "deleted by") || !strings.Contains(pane, "off topic") {
 		t.Errorf("the deletion is not on the end of the history:\n%s", pane)
 	}
@@ -96,8 +91,7 @@ func TestTheHistoryShowsEveryVersionAndTheDeletion(t *testing.T) {
 	}
 }
 
-// It takes the pane rather than expanding the row: a growing row would push the
-// conversation around while you read it.
+// It takes the pane rather than expanding the row, which would push the conversation around.
 func TestTheHistoryTakesTheTimelinePane(t *testing.T) {
 	t.Parallel()
 
@@ -116,8 +110,7 @@ func TestTheHistoryTakesTheTimelinePane(t *testing.T) {
 	}
 }
 
-// A message with no history says which of the two reasons applies, because the user can
-// do something about one of them and nothing about the other.
+// An empty history says which of the two reasons applies.
 func TestTheHistorySaysWhyItIsEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -139,8 +132,7 @@ func TestTheHistorySaysWhyItIsEmpty(t *testing.T) {
 	}
 }
 
-// An answer for a message the user has moved on from is dropped rather than replacing
-// what they are reading now.
+// An answer for a message the user has moved on from is dropped.
 func TestALateAnswerForAnotherMessageIsIgnored(t *testing.T) {
 	t.Parallel()
 
@@ -177,7 +169,7 @@ func TestTheHistoryKeysDoNotReachTheTimeline(t *testing.T) {
 	if m.timeline.selected != was {
 		t.Errorf("the message cursor moved to %q while the history was open", m.timeline.selected)
 	}
-	// Clamped at the top rather than scrolling into blank space above it.
+	// Clamped at the top.
 	m, _ = press(t, m, keyText("k"))
 	m, _ = press(t, m, keyText("k"))
 	if m.history.scroll != 0 {
@@ -185,7 +177,6 @@ func TestTheHistoryKeysDoNotReachTheTimeline(t *testing.T) {
 	}
 }
 
-// How much each edit changed, which is what makes a long history skimmable.
 func TestChangeNoteCountsWhatMoved(t *testing.T) {
 	t.Parallel()
 
@@ -200,9 +191,8 @@ func TestChangeNoteCountsWhatMoved(t *testing.T) {
 	}
 }
 
-// The deletion is a row in the sequence like a version is, and it carries a time in the
-// same column: a message taken back in the next breath and one removed three weeks
-// later are different events, and the clock is what says which happened.
+// The deletion is a row with a time in the same column as versions: an immediate retraction
+// and a removal weeks later are different events.
 func TestTheDeletionSaysWhen(t *testing.T) {
 	t.Parallel()
 
@@ -224,7 +214,7 @@ func TestTheDeletionSaysWhen(t *testing.T) {
 	}
 }
 
-// The time is the one fact that can be missing — the server has to answer for it.
+// The time can be missing; the server has to answer for it.
 func TestADeletionWithNoKnownTimeStillSaysWhatHappened(t *testing.T) {
 	t.Parallel()
 
@@ -241,8 +231,7 @@ func TestADeletionWithNoKnownTimeStillSaysWhatHappened(t *testing.T) {
 	}
 }
 
-// A redaction that arrived while this client was watching carries its own time, so the
-// view can answer with no fetch at all.
+// A redaction seen live carries its own time, so no fetch is needed.
 func TestALiveRedactionsTimeIsUsedWhenTheFetchSaysNothing(t *testing.T) {
 	t.Parallel()
 
@@ -276,22 +265,21 @@ func TestTheHistoryHonorsReboundKeys(t *testing.T) {
 		t.Errorf("the rebound down key scrolled to %d, want 1", scrolled.history.scroll)
 	}
 
-	// And the end key, which the literal switch never had a case for at all.
+	// And the end key.
 	ended, _ := m.handleHistoryKey(key('E'))
 	if ended.history.scroll <= 1 {
 		t.Errorf("the rebound end key scrolled to %d, want the far end", ended.history.scroll)
 	}
 
-	// esc still closes, because that is every overlay's exit and not a binding.
+	// esc still closes: it is every overlay's exit, not a binding.
 	closed, _ := m.handleHistoryKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if closed.history.active() {
 		t.Error("esc did not close the history")
 	}
 }
 
-// A Hebrew message's history reads the way the timeline draws it: every version in
-// visual order and flushed to the right edge, the deletion reason and the author's name
-// reordered too.
+// A Hebrew message's history reads as the timeline draws it: every version in visual order,
+// flushed right, with the deletion reason and author reordered too.
 func TestTheHistoryDrawsRightToLeftTextAsTheTimelineDoes(t *testing.T) {
 	t.Parallel()
 
@@ -352,8 +340,8 @@ func TestTheHistoryDrawsRightToLeftTextAsTheTimelineDoes(t *testing.T) {
 	}
 }
 
-// A long right-to-left version wraps in reading order: the sentence starts on the first
-// row, at its right edge, the way the timeline wraps one.
+// A long RTL version wraps in reading order: the sentence starts on the first row at its right
+// edge.
 func TestALongRightToLeftVersionWrapsInReadingOrder(t *testing.T) {
 	t.Parallel()
 
@@ -382,8 +370,8 @@ func historyRowContaining(lines []string, want string) (string, bool) {
 	return "", false
 }
 
-// The history view has no key of its own: the quit key closes it (as it closes a
-// pager), and a key bound to something else does that, whatever it is.
+// The history view has no close key of its own: the quit binding closes it (as a pager), and
+// any other bound key does not.
 func TestTheHistoryViewClosesOnTheQuitBindingOnly(t *testing.T) {
 	t.Parallel()
 	keys := config.DefaultKeys()

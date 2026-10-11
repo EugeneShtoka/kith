@@ -16,8 +16,8 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-// Notification is one alert to surface, as separate fields. Body is already trimmed by
-// the caller; the rest is verbatim so a template can use each on its own.
+// Notification is one alert. Body is trimmed by the caller; other fields are verbatim
+// for templates.
 type Notification struct {
 	// Sender is the sender's display name (their MXID when unresolved).
 	Sender string
@@ -27,30 +27,24 @@ type Notification struct {
 	Room string
 	// Body is the message text.
 	Body string
-	// Protocol is the network the sender is on — "WhatsApp", "Matrix", … — derived from
-	// their MXID by domain.ProtocolOf.
+	// Protocol is the sender's network ("WhatsApp", "Matrix", …), from domain.ProtocolOf.
 	Protocol string
-	// Space is the space the room is in, for {space}.
+	// Space is the room's space, for {space}.
 	Space string
-	// Sent is when the message was sent, rendered by {date} and {time} in the local
-	// timezone.
+	// Sent is the send time, rendered by {date} and {time} in local time.
 	Sent time.Time
-	// Date and Time are Sent as the person has times written ([display] formats),
-	// for {date} and {time}; empty writes ISO. A hook's KITH_DATE and KITH_TIME are
-	// ISO always: scripts parse them.
+	// Date and Time are Sent in the user's [display] formats; empty means ISO. Hook
+	// KITH_DATE and KITH_TIME are always ISO, since scripts parse them.
 	Date, Time string
-	// Sound is a file to play alongside this notification: the global default from
-	// [notifications] sound, or whatever the matching rule replaced it with.
+	// Sound is the file to play: the [notifications] default or the matching rule's.
 	Sound string
-	// Silent suppresses this notification's sound while still showing it — what a
-	// sound-only mute does (see MuteSound).
+	// Silent shows the notification without sound.
 	Silent bool
-	// Replaces is a key — the room — whose previous popup this one supersedes.
+	// Replaces is a coalescing key (the room) whose previous popup this one supersedes.
 	Replaces string
 }
 
-// Templates are the user's title and body formats for a notification. An empty
-// template renders empty.
+// Templates are the user's title and body formats; an empty template renders empty.
 type Templates struct {
 	Title string
 	Body  string
@@ -71,8 +65,7 @@ func (n Notification) isoSent() (date, clock string) {
 	return local.Format(dateLayout), local.Format(timeLayout)
 }
 
-// placeholderRe matches a template field. Unknown names are left alone rather than
-// blanked: "{tomorrow}" in a title is text somebody meant to be there.
+// placeholderRe matches a template field. Unknown names are kept as literal text.
 var placeholderRe = regexp.MustCompile(`\{[a-z]+\}`)
 
 // Render expands the placeholders in tpl — {space} {sender} {mxid} {room} {body}
@@ -105,7 +98,7 @@ func (n Notification) Render(tpl string) string {
 	for _, loc := range placeholderRe.FindAllStringIndex(tpl, -1) {
 		value, known := fields[tpl[loc[0]:loc[1]]]
 		if !known {
-			continue // not ours: it stays part of the surrounding literal
+			continue // unknown: stays literal
 		}
 		if lit := tpl[last:loc[0]]; lit != "" {
 			pieces = append(pieces, piece{text: lit})
@@ -139,8 +132,8 @@ func (n Notification) Render(tpl string) string {
 	return strings.TrimSpace(out.String())
 }
 
-// isSeparator reports whether a literal between two fields is punctuation joining them
-// — " · ", " — ", ", " — as opposed to text that means something on its own.
+// isSeparator reports whether a literal between fields is joining punctuation such as
+// " · " or ", ".
 func isSeparator(lit string) bool {
 	trimmed := strings.TrimSpace(lit)
 	if trimmed == "" {
@@ -170,23 +163,20 @@ type Nop struct{}
 // Notify does nothing.
 func (Nop) Notify(Notification) {}
 
-// Settings are the delivery options that do not vary from one notification to the next:
-// which sinks exist, how they render, and how long a popup stays up.
+// Settings are the per-notifier delivery options: sinks, templates, popup timeout.
 type Settings struct {
 	// Desktop posts the built-in freedesktop D-Bus notification.
 	Desktop bool
 	// Command runs a user hook once per notification.
 	Command string
-	// SoundCommand plays a notification's sound file, given the path as its only
-	// argument.
+	// SoundCommand plays a sound file, given its path as the only argument.
 	SoundCommand string
 	// Timeout is how long a desktop popup stays up.
 	Timeout time.Duration
 	// Templates is the user's title and body format.
 	Templates Templates
-	// Report, when set, hears every delivery that failed (no session bus, the popup
-	// refused, the hook would not start or exited non-zero). Notify has no caller
-	// to return to, so without it a broken sink is silent. Called from any goroutine.
+	// Report, when set, receives every failed delivery; Notify returns nothing, so
+	// otherwise failures are silent. Called from any goroutine.
 	Report func(sink string, err error)
 }
 
@@ -199,9 +189,7 @@ func (r reporter) failed(sink string, err error) {
 	}
 }
 
-// New composes a Notifier from the enabled sinks: the built-in D-Bus desktop
-// notification when Desktop is set, a user command hook when Command is non-empty, and
-// a sound player when SoundCommand is.
+// New composes a Notifier from the enabled sinks: D-Bus desktop, command hook, sound player.
 func New(s Settings) Notifier {
 	tpl, command, soundCommand, report := s.Templates, s.Command, s.SoundCommand, reporter(s.Report)
 	var sinks multi
@@ -238,8 +226,7 @@ func (ms multi) Notify(n Notification) {
 type dbusSink struct {
 	tpl     Templates
 	timeout time.Duration
-	// ids remembers which popup belongs to which coalescing key, so a summary can
-	// replace the room's previous one instead of stacking under it.
+	// ids maps coalescing keys to popup IDs so a popup replaces the room's previous one.
 	ids    *popupIDs
 	report reporter
 }
@@ -275,8 +262,7 @@ func (d dbusSink) Notify(n Notification) {
 	d.remember(n, id)
 }
 
-// replacing is the id this notification should take the place of, and remember records
-// the id it was given.
+// replacing is the popup id this notification replaces; remember records the id it got.
 func (d dbusSink) replacing(n Notification) uint32 {
 	if n.Replaces == "" {
 		return 0
@@ -298,8 +284,7 @@ func (d dbusSink) remember(n Notification, id uint32) {
 	d.ids.byKey[n.Replaces] = id
 }
 
-// popupIDs is the map of coalescing key to the id the notification daemon gave the
-// popup showing it.
+// popupIDs maps a coalescing key to the daemon's id for its popup.
 type popupIDs struct {
 	mu    sync.Mutex
 	byKey map[string]uint32
@@ -308,16 +293,14 @@ type popupIDs struct {
 // hints carries the sound decision to the notification daemon.
 func (n Notification) hints() map[string]dbus.Variant {
 	if n.Silent || n.Sound == "" {
-		// suppress-sound is set even with no file of ours to play, because a daemon may
-		// have a sound of its own — and a mute that only stopped *our* sound would not
-		// be a mute.
+		// Also suppresses the daemon's own default sound.
 		return map[string]dbus.Variant{"suppress-sound": dbus.MakeVariant(true)}
 	}
 	return map[string]dbus.Variant{"sound-file": dbus.MakeVariant(n.Sound)}
 }
 
-// expireTimeout converts a duration to the freedesktop field: milliseconds, with -1
-// meaning "the daemon decides" and 0 meaning "stay until dismissed".
+// expireTimeout converts d to the freedesktop field: milliseconds; -1 is the daemon
+// default, 0 is until dismissed.
 func expireTimeout(d time.Duration) int32 {
 	switch {
 	case d == 0:
@@ -353,7 +336,7 @@ func (c commandSink) Notify(n Notification) {
 		"KITH_DATE="+date,
 		"KITH_TIME="+clock,
 	)
-	// A hook that fails says so (its exit status, never the message).
+	// Failures report the exit status, never the message.
 	c.run.start("command", "notification command", c.report, func(ctx context.Context) *exec.Cmd {
 		cmd := shellCommand(ctx, c.template)
 		cmd.Env = env
@@ -368,8 +351,7 @@ type soundSink struct {
 	run    *bounded
 }
 
-// Notify plays n.Sound, and does nothing when there is none or when the
-// notification was silenced.
+// Notify plays n.Sound unless it is empty or the notification is silent.
 func (s soundSink) Notify(n Notification) {
 	if n.Sound == "" || n.Silent {
 		return
@@ -379,8 +361,8 @@ func (s soundSink) Notify(n Notification) {
 	})
 }
 
-// A hook or player that hangs must cost a slot, not a process and a goroutine per
-// message: each run is bounded in time, and at most hookSlots run at once per sink.
+// Each hook run is time-bounded, with at most hookSlots concurrent per sink, so a hung
+// hook cannot pile up processes.
 const (
 	hookTimeout = 30 * time.Second
 	hookSlots   = 4
@@ -399,8 +381,8 @@ func newBounded() *bounded {
 	return &bounded{slots: make(chan struct{}, hookSlots), timeout: hookTimeout}
 }
 
-// start runs what build makes, unless every slot is taken, and reaps it off the
-// caller's goroutine. label names it in errors; sink is what report files it under.
+// start runs build's command if a slot is free and reaps it on another goroutine.
+// label names it in errors; sink keys the report.
 func (b *bounded) start(sink, label string, report reporter, build func(context.Context) *exec.Cmd) {
 	select {
 	case b.slots <- struct{}{}:

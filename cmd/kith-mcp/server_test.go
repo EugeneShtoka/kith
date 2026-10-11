@@ -42,7 +42,7 @@ type fake struct {
 	withAsked []string
 	// selves is who the daemon says this person is; nil is @me:x.
 	selves []string
-	// files is each attachment's bytes, by message; loaded the event IDs fetched.
+	// files is each attachment's bytes by message; loaded records the event IDs fetched.
 	files  map[domain.EventID][]byte
 	loaded []domain.EventID
 
@@ -88,7 +88,6 @@ func (f *fake) Drafts(context.Context) ([]domain.StoredDraft, error) {
 	return out, nil
 }
 
-// store puts a draft in the fake's store.
 func (f *fake) store(draft domain.StoredDraft) {
 	if f.drafts == nil {
 		f.drafts = map[domain.RoomID]domain.StoredDraft{}
@@ -96,8 +95,8 @@ func (f *fake) store(draft domain.StoredDraft) {
 	f.drafts[draft.RoomID] = draft
 }
 
-// ReplaceDraft saves only over the draft the writer read, as the cache does.
-// beforeReplace, when set, runs first: another writer landing in between.
+// ReplaceDraft saves only over the draft the writer read, as the cache does;
+// beforeReplace runs first, as another writer landing in between.
 func (f *fake) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (bool, error) {
 	if hook := f.beforeReplace; hook != nil {
 		f.beforeReplace = nil
@@ -134,8 +133,8 @@ func (f *fake) CachedTimeline(_ context.Context, room domain.RoomID) ([]domain.M
 	return f.messages[room], nil
 }
 
-// SearchMessages answers the way the cache does: only the rooms in the set (none for
-// an empty one), and the limit applies to what the set lets through.
+// SearchMessages answers as the cache does: only rooms in the set (none for empty),
+// limit applied after.
 func (f *fake) SearchMessages(_ context.Context, req domain.SearchRequest) ([]domain.SearchHit, error) {
 	f.searchAsked = append(f.searchAsked, req.Rooms.IDs)
 	var out []domain.SearchHit
@@ -151,8 +150,7 @@ func (f *fake) SearchMessages(_ context.Context, req domain.SearchRequest) ([]do
 	return out, nil
 }
 
-// SearchSenders answers the way the cache does: only the people who posted in the set
-// (nobody for an empty one).
+// SearchSenders answers as the cache does: only people who posted in the set.
 func (f *fake) SearchSenders(_ context.Context, set domain.RoomSet, limit int) ([]domain.Member, error) {
 	f.sendersAsked = append(f.sendersAsked, set.IDs)
 	if set.None() {
@@ -184,8 +182,7 @@ func (f *fake) posted(userID string, rooms []domain.RoomID) bool {
 	return false
 }
 
-// RoomsWith answers the way the cache does: the limit applies to the rooms in the set
-// asked about, and an empty set is none.
+// RoomsWith answers as the cache does: the limit applies within the set; empty is none.
 func (f *fake) RoomsWith(_ context.Context, userIDs []string, set domain.RoomSet, limit int) ([]domain.Room, error) {
 	f.withAsked = userIDs
 	f.withRooms = append(f.withRooms, set.IDs)
@@ -202,8 +199,8 @@ func (f *fake) RoomsWith(_ context.Context, userIDs []string, set domain.RoomSet
 	return out, nil
 }
 
-// MessagesAround answers the around fixture when there is one; otherwise the event
-// itself, found only in the room asked about, as the cache does.
+// MessagesAround answers the around fixture if any, else the event itself, found only
+// in the room asked about.
 func (f *fake) MessagesAround(_ context.Context, room domain.RoomID, event domain.EventID, _, _ int) ([]domain.Message, error) {
 	if f.around != nil {
 		return f.around, nil
@@ -256,7 +253,7 @@ func newServer(f *fake, scope domain.ModelScope) *server {
 	return &server{backend: f, scope: scope}
 }
 
-// call runs one tool and returns the JSON it produced, decoded.
+// call runs one tool and returns its decoded JSON.
 func call(t *testing.T, s *server, name string, args map[string]any) map[string]any {
 	t.Helper()
 	encoded, err := json.Marshal(map[string]any{"name": name, "arguments": args})
@@ -281,7 +278,7 @@ func call(t *testing.T, s *server, name string, args map[string]any) map[string]
 	return out
 }
 
-// callErr runs a tool expecting it to refuse, and returns what it said.
+// callErr runs a tool expecting a refusal and returns what it said.
 func callErr(t *testing.T, s *server, name string, args map[string]any) string {
 	t.Helper()
 	encoded, err := json.Marshal(map[string]any{"name": name, "arguments": args})
@@ -343,7 +340,7 @@ func TestHandshakeAndToolList(t *testing.T) {
 	}
 }
 
-// Scope is checked on the way out of every listing.
+// Scope is checked on every listing.
 func TestScopeExcludesAndSaysSo(t *testing.T) {
 	t.Parallel()
 
@@ -355,7 +352,7 @@ func TestScopeExcludesAndSaysSo(t *testing.T) {
 		// Nothing listed shares nothing: least privilege.
 		{"nothing configured", domain.ModelScope{}, nil},
 		{"an except alone shares nothing", domain.ModelScope{Except: []string{"dm"}}, nil},
-		// Every room listed — but never an encrypted one until said.
+		// Every room listed, but never an encrypted one unless allowed.
 		{"everything, unencrypted", shareAll, []string{"Standup"}},
 		{"encrypted included", shareAllEncrypted, []string{"Standup", "Private chat"}},
 		{"an allow list", domain.ModelScope{Only: []string{"space:Work"}, Encrypted: true}, []string{"Standup"}},
@@ -386,8 +383,7 @@ func TestScopeExcludesAndSaysSo(t *testing.T) {
 	}
 }
 
-// A room outside the scope answers exactly as a room that does not exist, so naming
-// rooms cannot confirm that one is there.
+// A room outside the scope answers exactly like a missing room.
 func TestReadingAnExcludedRoomLooksLikeNoRoom(t *testing.T) {
 	t.Parallel()
 
@@ -398,15 +394,14 @@ func TestReadingAnExcludedRoomLooksLikeNoRoom(t *testing.T) {
 	if strip(hidden, "Private chat") != strip(missing, "Nonexistent") {
 		t.Fatalf("hidden and missing rooms answer differently:\n %q\n %q", hidden, missing)
 	}
-	// A fragment of a hidden room's name is not listed as a candidate either.
+	// A fragment of a hidden room's name is not listed as a candidate.
 	if got := callErr(t, s, "read_room", map[string]any{"room": "!secret"}); strings.Contains(got, "Private chat") {
 		t.Fatalf("refusal = %q, want no hidden room named", got)
 	}
 }
 
-// Whatever the assistant asks, the out-of-scope count stays the same and no query ever
-// reaches a hidden room: otherwise the count answers "does that word, name or person
-// appear in the rooms I may not see?".
+// The out-of-scope count is query-independent and no query reaches a hidden room, or
+// the count would reveal whether a word, name or person appears there.
 func TestTheOutOfScopeCountDoesNotAnswerQueries(t *testing.T) {
 	t.Parallel()
 
@@ -464,7 +459,7 @@ func TestRoomNamedResolvesOrAsks(t *testing.T) {
 	f.rooms = append(f.rooms, domain.Room{ID: "!standup2:x", Name: "Standup (archive)"})
 	s := newServer(f, shareAllEncrypted)
 
-	// An exact name wins over a substring, so the room somebody named is the room they get.
+	// An exact name wins over a substring.
 	out := call(t, s, "read_room", map[string]any{"room": "Standup"})
 	room, _ := out["room"].(map[string]any)
 	if room["id"] != "!open:x" {
@@ -497,14 +492,14 @@ func TestReadRoomMarksYourOwnMessages(t *testing.T) {
 	if mine, _ := second["mine"].(bool); !mine {
 		t.Error("the account's own message was not marked — 'how do I write' depends on it")
 	}
-	// And a sender filter is what makes "show me how they write" one call.
+	// A sender filter shows how someone writes in one call.
 	only := call(t, s, "read_room", map[string]any{"room": "Standup", "sender": "@me:x"})
 	if msgs, _ := only["messages"].([]any); len(msgs) != 1 {
 		t.Fatalf("filtered read returned %d messages, want 1", len(msgs))
 	}
 }
 
-// What the daemon says is this person marks the messages, whatever the network.
+// The daemon's selves mark messages as mine, on any network.
 func TestReadRoomMarksTheDaemonsSelvesMine(t *testing.T) {
 	t.Parallel()
 
@@ -526,7 +521,7 @@ func TestReadRoomMarksTheDaemonsSelvesMine(t *testing.T) {
 	}
 }
 
-// The example this was built for: names in, one room out.
+// Names in, one room out.
 func TestFindRoomsWithResolvesNamesAndRefusesAmbiguity(t *testing.T) {
 	t.Parallel()
 
@@ -547,7 +542,7 @@ func TestFindRoomsWithResolvesNamesAndRefusesAmbiguity(t *testing.T) {
 	if rooms, _ := out["rooms"].([]any); len(rooms) != 1 {
 		t.Fatalf("find_rooms_with = %v, want one room", out["rooms"])
 	}
-	// A Matrix ID is passed straight through, since it is already unambiguous.
+	// A Matrix ID is unambiguous and passed through.
 	call(t, s, "find_rooms_with", map[string]any{"people": []string{"@someone:x"}})
 	if len(f.withAsked) != 1 || f.withAsked[0] != "@someone:x" {
 		t.Fatalf("resolved %v, want the ID untouched", f.withAsked)
@@ -583,7 +578,7 @@ func TestSearchHidesWhatTheScopeHides(t *testing.T) {
 	if outside, _ := out[outsideScopeKey].(float64); outside != 1 {
 		t.Errorf("outside = %v, want 1", outside)
 	}
-	// And a bad date is refused with the field named, rather than silently ignored.
+	// A bad date is refused naming the field.
 	if got := callErr(t, newServer(f, shareAll), "search_messages",
 		map[string]any{"query": "x", "since": "last tuesday"}); !strings.Contains(got, "RFC3339") {
 		t.Fatalf("refusal = %q, want it to name the format", got)
@@ -614,7 +609,7 @@ func TestUnknownToolIsAProtocolError(t *testing.T) {
 	t.Parallel()
 
 	s := newServer(twoRooms(), shareAll)
-	// `delete_message` rather than a nonsense word.
+	// `delete_message`, a plausible name, not a nonsense word.
 	encoded, err := json.Marshal(map[string]any{"name": "delete_message", "arguments": map[string]any{}})
 	if err != nil {
 		t.Fatal(err)
@@ -628,7 +623,7 @@ func TestUnknownToolIsAProtocolError(t *testing.T) {
 	}
 }
 
-// Regression: find_people must not name people seen only in excluded rooms.
+// find_people must not name people seen only in excluded rooms.
 func TestFindPeopleOnlyNamesPeopleFromRoomsInScope(t *testing.T) {
 	t.Parallel()
 
@@ -638,7 +633,7 @@ func TestFindPeopleOnlyNamesPeopleFromRoomsInScope(t *testing.T) {
 		{UserID: "@shira:x", DisplayName: "Shira"},
 		{UserID: "@dan:x", DisplayName: "Dan"},
 	}
-	// Shira and Dan have only posted in the excluded encrypted DM.
+	// Shira and Dan posted only in the excluded encrypted DM.
 	f.postedIn = map[string][]domain.RoomID{
 		"@dana:x":  {"!open:x"},
 		"@shira:x": {"!secret:x"},
@@ -667,7 +662,7 @@ func TestFindPeopleOnlyNamesPeopleFromRoomsInScope(t *testing.T) {
 		}
 	}
 
-	// find_rooms_with must not resolve (or list as candidate) someone the scope hides.
+	// find_rooms_with must not resolve or suggest someone the scope hides.
 	if got := callErr(t, s, "find_rooms_with", map[string]any{"people": []string{"Shira"}}); !strings.Contains(got, "nobody called") {
 		t.Fatalf("find_rooms_with(Shira) = %q, want nobody", got)
 	}
@@ -676,7 +671,7 @@ func TestFindPeopleOnlyNamesPeopleFromRoomsInScope(t *testing.T) {
 	}
 }
 
-// An empty in-scope set must mean asking nothing, not every room.
+// An empty in-scope set asks nothing, not every room.
 func TestFindPeopleWithNothingInScopeFindsNobody(t *testing.T) {
 	t.Parallel()
 
@@ -692,12 +687,12 @@ func TestFindPeopleWithNothingInScopeFindsNobody(t *testing.T) {
 	}
 }
 
-// Regression: the limit applies to in-scope rooms, not before excluding.
+// The limit applies to in-scope rooms, after excluding.
 func TestFindRoomsWithLimitCountsOnlyRoomsInScope(t *testing.T) {
 	t.Parallel()
 
 	f := twoRooms()
-	// The excluded room is the most recently active, so it is first in the ranking.
+	// The excluded room is most recently active, so first in the ranking.
 	f.with = []domain.Room{
 		{ID: "!secret:x", Name: "Private chat", IsDirect: true},
 		{ID: "!open:x", Name: "Standup"},
@@ -722,8 +717,8 @@ func TestFindRoomsWithLimitCountsOnlyRoomsInScope(t *testing.T) {
 	}
 }
 
-// A request line over the limit is skipped, not buffered whole, and the session goes
-// on to answer the next one. So does a final line with no newline.
+// An overlong request line is skipped, not buffered, and the session answers the next;
+// so is a final line without newline.
 func TestAnOverlongLineIsSkippedAndTheSessionContinues(t *testing.T) {
 	t.Parallel()
 
@@ -745,8 +740,7 @@ func TestAnOverlongLineIsSkippedAndTheSessionContinues(t *testing.T) {
 	}
 }
 
-// Scope goes into the query, so a page of hits the agent may not see cannot crowd out
-// the ones it may: the limit counts only in-scope rooms.
+// The limit counts only in-scope rooms, so hidden hits cannot crowd out visible ones.
 func TestSearchLimitCountsOnlyInScopeRooms(t *testing.T) {
 	t.Parallel()
 
@@ -772,7 +766,7 @@ func TestSearchLimitCountsOnlyInScopeRooms(t *testing.T) {
 	}
 }
 
-// With nothing shared there is nothing to search, and no search over every room.
+// With nothing shared, nothing is searched.
 func TestSearchWithNothingSharedSearchesNothing(t *testing.T) {
 	t.Parallel()
 
@@ -789,8 +783,7 @@ func TestSearchWithNothingSharedSearchesNothing(t *testing.T) {
 	}
 }
 
-// Scope checks a whole listing without a round trip per room: one space list and one
-// encryption lookup per call, however many rooms there are.
+// A listing costs one space list and one encryption lookup per call, however many rooms.
 func TestAListingAsksTheDaemonOnce(t *testing.T) {
 	t.Parallel()
 
@@ -804,8 +797,8 @@ func TestAListingAsksTheDaemonOnce(t *testing.T) {
 		t.Fatalf("list_rooms over %d rooms read spaces %d times and encryption %d times, want once each",
 			len(f.rooms), f.spacesCalls, f.encryptionCalls)
 	}
-	// The next call reads spaces again (they may have changed), and asks once more about
-	// the plain rooms, which may have turned encryption on, but not the encrypted one.
+	// The next call rereads spaces and re-asks about plain rooms (encryption may have
+	// turned on), but not the encrypted one.
 	call(t, s, "unread_summary", nil)
 	if f.spacesCalls != 2 || f.encryptionCalls != 2 {
 		t.Fatalf("after a second call: spaces %d, encryption %d, want 2 and 2", f.spacesCalls, f.encryptionCalls)
@@ -815,8 +808,8 @@ func TestAListingAsksTheDaemonOnce(t *testing.T) {
 	}
 }
 
-// A room that turns encryption on between two calls is out of scope on the second,
-// when [agent.read] does not share encrypted rooms.
+// A room that turns encryption on between calls is out of scope on the second, when
+// encrypted rooms are not shared.
 func TestARoomThatTurnsOnEncryptionLeavesTheScope(t *testing.T) {
 	t.Parallel()
 
@@ -842,9 +835,8 @@ func listsRoom(answer map[string]any, id string) bool {
 	return false
 }
 
-// An assistant reads people by the names this person knows them by: their alias for
-// a sender, the phone book's name for a WhatsApp mention, whole, with no first-name
-// rule (a model reading a first name alone in a group loses who it was).
+// Assistants see people by this person's names for them (alias, phone book name),
+// whole: a first name alone in a group loses who it was.
 func TestAnAssistantReadsPeopleByTheirWholeNames(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()

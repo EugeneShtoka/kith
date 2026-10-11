@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// The two lists, and the one rule that matters between them: the carve-out outranks
-// everything, because an exception a rule can overturn is a suggestion.
+// The carve-out outranks the list and every rule.
 func TestSpamListsAndTheCarveOut(t *testing.T) {
 	t.Parallel()
 
@@ -24,7 +23,7 @@ func TestSpamListsAndTheCarveOut(t *testing.T) {
 	if !spam.Names(work) {
 		t.Error("a room named by the list is not named")
 	}
-	// Both halves of the toggle, and the asymmetry the key relies on.
+	// Both halves of the toggle.
 	marked := spam.Excusing("!dm:x", false).With("!dm:x", true)
 	if !marked.Lists("!dm:x") || slices.Contains(marked.Except, "!dm:x") {
 		t.Errorf("marking left %v / %v", marked.Entries, marked.Except)
@@ -35,8 +34,7 @@ func TestSpamListsAndTheCarveOut(t *testing.T) {
 	}
 }
 
-// A filter identifies a message; the rules promote a room. Both halves are pinned here
-// because the whole feature turns on them being different questions.
+// A filter identifies a message; the rules promote a room.
 func TestSpamRulesPromote(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +53,7 @@ func TestSpamRulesPromote(t *testing.T) {
 	if !ok || filter.Name != "crypto" {
 		t.Fatalf("caught = %+v (%v), want the crypto filter", filter, ok)
 	}
-	// The sender clause: the same words from somebody else are not this filter's.
+	// The same words from another sender do not match.
 	if _, ok := rules.Catches("hello", "@dana:x"); ok {
 		t.Error("a filter with a sender caught somebody else")
 	}
@@ -86,8 +84,7 @@ func TestSpamRulesPromote(t *testing.T) {
 	}
 }
 
-// Every rule can say why, because "why is this room in Spam" is the question the place
-// owes an answer to — and the answer names the filter, since that is the editable thing.
+// Every rule has a reason, naming the filter.
 func TestEveryRuleHasAReason(t *testing.T) {
 	t.Parallel()
 

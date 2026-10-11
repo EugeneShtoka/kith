@@ -12,8 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// cachedRoomBackend holds a room's cached messages, giving the newest few first and older
-// ones on request, as the cache does past its first page.
+// cachedRoomBackend holds a room's cached messages, giving the newest few first and
+// older ones on request, as the cache does past its first page.
 type cachedRoomBackend struct {
 	apitest.Nop
 	all    []domain.Message
@@ -35,9 +35,9 @@ func (b cachedRoomBackend) MessagesAround(_ context.Context, _ domain.RoomID, ev
 	return nil, nil
 }
 
-// /export writes all the cache holds of a room to a Markdown file in export_dir,
-// read back past its first page, oldest first; a span stops the reading early; an open
-// thread exports just the thread; and a second export never overwrites the first.
+// /export writes everything cached of a room to a Markdown file in export_dir, oldest
+// first, past the first page; a span stops early; an open thread exports just the
+// thread; a second export never overwrites the first.
 func TestExportWritesTheRoomToAFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -94,9 +94,8 @@ func TestExportWritesTheRoomToAFile(t *testing.T) {
 	}
 }
 
-// A place after the span sends the export there: a folder (made if missing, spaces in
-// its name and all), or a file when it ends in .md; a name already taken is not
-// written over.
+// A place after the span sends the export there: a folder (created if missing, spaces
+// allowed) or a file ending in .md; an existing name is not overwritten.
 func TestExportGoesWhereItIsSent(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()

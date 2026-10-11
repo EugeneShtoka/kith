@@ -1,16 +1,13 @@
 package domain
 
-// Session is the persisted result of a successful login: the credentials that let a
-// later run re-authenticate without the password.
+// Session is the persisted login, letting a later run authenticate without a password.
 type Session struct {
-	// Homeserver is the base URL the client talks to, as resolved at login — the
-	// `.well-known` answer rather than whatever the user typed, since that is what a
-	// later run must reuse to reach the same account.
+	// Homeserver is the base URL resolved at login (the `.well-known` answer, not what
+	// the user typed).
 	Homeserver string
 	// UserID is the full MXID (@user:server).
 	UserID string
-	// DeviceID identifies *this* installation to the homeserver, and is what the E2EE
-	// identity is bound to.
+	// DeviceID identifies this installation; the E2EE identity is bound to it.
 	DeviceID string
 	// AccessToken authenticates every request.
 	AccessToken string

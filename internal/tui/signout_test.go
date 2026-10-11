@@ -33,10 +33,8 @@ func (s signOuter) SignOut(_ context.Context, space domain.SpaceID, forget bool)
 	return nil
 }
 
-// L on an account's own space, over every answer and a refusal: whether its rooms go
-// too is asked first, and a no keeps them; last, saying whether they go, whether to
-// sign out; nothing happens before that last yes, and a no there signs nothing out; a
-// refusal says why, and nothing else on the rail is left.
+// L on an account's space asks whether its rooms go (no keeps them), then whether to
+// sign out; nothing happens before that yes, and a refusal says why.
 func TestSigningAnAccountOutFromTheRail(t *testing.T) {
 	t.Parallel()
 	r := rand.New(rand.NewPCG(3, 4))

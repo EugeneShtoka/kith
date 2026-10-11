@@ -23,7 +23,6 @@ func openTemp(t *testing.T) *Cache {
 	return cache
 }
 
-// mustSave persists one message and fails the test on error.
 func mustSave(t *testing.T, cache *Cache, room domain.RoomID, msg domain.Message) {
 	t.Helper()
 	if err := cache.SaveMessages(context.Background(), room, []domain.Message{msg}); err != nil {
@@ -56,7 +55,7 @@ func TestRoomsRoundTrip(t *testing.T) {
 	if len(got) != 2 || got[0].Name != "Alpha" || !got[0].IsDirect {
 		t.Fatalf("Rooms() = %+v, want sorted with Alpha (direct) first", got)
 	}
-	// Members round-trip through the JSON column; a room without any stays nil.
+	// Members round-trip through the JSON column; none stays nil.
 	if len(got[0].Members) != 0 {
 		t.Errorf("Alpha members = %+v, want none", got[0].Members)
 	}
@@ -122,7 +121,7 @@ func TestReopenPreservesDataAndSchema(t *testing.T) {
 		t.Fatalf("Close() error = %v", cerr)
 	}
 
-	// Reopening runs migrate again (a no-op) and the data survives.
+	// Reopening re-runs migrate (a no-op); the data survives.
 	second, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("reopen Open() error = %v", err)
@@ -189,8 +188,8 @@ func TestMarkRedacted(t *testing.T) {
 	}
 
 	got, _ := cache.Messages(ctx, "!a:x", 10)
-	// The row survives for the placeholder — sender and timestamp — and the words do
-	// not: keeping them is [display.deleted] keep, and it was not asked for here.
+	// The row survives for the placeholder but the words do not:
+	// [display.deleted] keep is off here.
 	if len(got) != 1 || !got[0].Redacted {
 		t.Fatalf("message not marked redacted: %+v", got)
 	}
@@ -204,7 +203,7 @@ func TestMarkRedacted(t *testing.T) {
 		t.Errorf("who deleted it and why was not recorded: %+v", got[0])
 	}
 
-	// A later re-save of the same event must not clear the redaction (max()).
+	// A later re-save must not clear the redaction.
 	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
 		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", Timestamp: at(1)},
 	}); err != nil {
@@ -228,8 +227,8 @@ func TestEditsPersist(t *testing.T) {
 		return domain.Message{ID: id, RoomID: room, Sender: "@a:x", Body: "new", Timestamp: at(9), Edited: true}
 	}
 
-	// Original then edit: replacement body, edited flag, and the original's earlier
-	// timestamp (so the row keeps its position rather than jumping to the edit time).
+	// Original then edit: replacement body, edited flag, and the original's
+	// timestamp, so the row keeps its position.
 	mustSave(t, cache, "!a:x", orig("!a:x", "$1"))
 	mustSave(t, cache, "!a:x", edit("!a:x", "$1"))
 	got, _ := cache.Messages(ctx, "!a:x", 10)
@@ -242,7 +241,7 @@ func TestEditsPersist(t *testing.T) {
 		t.Errorf("re-save reverted the edit: %+v", got[0])
 	}
 
-	// Reverse order (edit cached before the original) is equally order-independent.
+	// Edit cached before the original gives the same result.
 	mustSave(t, cache, "!b:x", edit("!b:x", "$2"))
 	mustSave(t, cache, "!b:x", orig("!b:x", "$2"))
 	if got, _ = cache.Messages(ctx, "!b:x", 10); got[0].Body != "new" || !got[0].Edited || !got[0].Timestamp.Equal(at(5)) {
@@ -307,8 +306,7 @@ func TestMediaPersists(t *testing.T) {
 	}
 }
 
-// The scope decides which uses count at all, which is the difference between a setting
-// that is honored and one that is approximated.
+// Each scope counts only its own uses; scopes are not weights.
 func TestEmojiScopesAreStrictNotWeighted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -353,8 +351,7 @@ func TestEmojiScopesAreStrictNotWeighted(t *testing.T) {
 		t.Errorf("room scope should lead with this room's 🔥: %v", room)
 	}
 
-	// "space": the room term is gone, so the space's own habit ranks without this
-	// conversation tilting it — ❤️ (twice, in the space) overtakes 🔥 (once).
+	// "space": no room term, so ❤️ (twice in the space) overtakes 🔥 (once).
 	sp := scores("space")
 	if sp["🔥"] != spaceWeight+1 {
 		t.Errorf("space scope: 🔥 scored %d, want %d — the room term should be gone", sp["🔥"], spaceWeight+1)
@@ -363,7 +360,7 @@ func TestEmojiScopesAreStrictNotWeighted(t *testing.T) {
 		t.Errorf("space scope should lead with ❤️, used twice in the space: %v", sp)
 	}
 
-	// "global": a plain count, and the nine uses far away finally win.
+	// "global": a plain count; the nine far-away uses win.
 	g := scores("global")
 	for emoji, want := range map[string]int{"🔥": 1, "❤️": 2, "👍": 9} {
 		if g[emoji] != want {
@@ -374,8 +371,7 @@ func TestEmojiScopesAreStrictNotWeighted(t *testing.T) {
 		t.Errorf("global ranking = %v, want 👍 > ❤️ > 🔥", g)
 	}
 
-	// An unrecognized scope is read as "room" rather than as nothing: a typo in a
-	// config should not silently flatten the ranking.
+	// An unrecognized scope reads as "room", so a config typo does not flatten the ranking.
 	if typo := scores("evrywhere"); typo["🔥"] != room["🔥"] {
 		t.Errorf("an unknown scope scored 🔥 %d, want the room scope's %d", typo["🔥"], room["🔥"])
 	}
@@ -387,7 +383,7 @@ func TestMediaSourceRoundTrip(t *testing.T) {
 	cache := openTemp(t)
 
 	// The source hangs off the cached message and cascades with it, so the message
-	// comes first — which is the order every real caller writes them in.
+	// is saved first.
 	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
@@ -417,8 +413,8 @@ func TestMediaSourceRoundTrip(t *testing.T) {
 		t.Error("unknown event should report not-found")
 	}
 
-	// A message the cache does not hold (history older than a full room keeps, trimmed
-	// as it arrived) has nothing to show an attachment on: no error, nothing kept.
+	// A message the cache does not hold has nothing to attach a source to: no error,
+	// nothing kept.
 	if err := cache.SaveMediaSource(ctx, "$trimmed", "!a:x", "", `{"key":"w"}`); err != nil {
 		t.Errorf("SaveMediaSource for an uncached message = %v, want nothing done", err)
 	}
@@ -448,8 +444,7 @@ func TestReactionsRoundTrip(t *testing.T) {
 		t.Fatalf("Reactions(!a:x) = %+v, want 2 (scoped to room)", got)
 	}
 
-	// Un-react: DeleteReaction returns the removed row (so the caller knows the
-	// room/target) and the reaction disappears.
+	// DeleteReaction returns the removed row and the reaction disappears.
 	del, ok, err := cache.DeleteReaction(ctx, "$r1")
 	if err != nil || !ok {
 		t.Fatalf("DeleteReaction($r1) ok=%v err=%v", ok, err)
@@ -461,8 +456,7 @@ func TestReactionsRoundTrip(t *testing.T) {
 		t.Errorf("after delete = %+v, want only $r2", got)
 	}
 
-	// An unknown id reports not-found, which is how a message redaction is told
-	// apart from an un-react.
+	// An unknown id is not-found: that tells a message redaction from an un-react.
 	if _, ok, _ := cache.DeleteReaction(ctx, "$nope"); ok {
 		t.Error("DeleteReaction reported ok for an unknown id")
 	}
@@ -491,7 +485,7 @@ func TestMessagesTrimToLimit(t *testing.T) {
 	if len(got) != testKeep {
 		t.Fatalf("cached count = %d, want trimmed to %d", len(got), testKeep)
 	}
-	// The oldest kept message is the (20th) — everything older was trimmed.
+	// The oldest kept message is the 20th.
 	if got[0].ID != domain.EventID(fmt.Sprintf("$%04d", 20)) {
 		t.Errorf("oldest kept = %q, want the 20th message", got[0].ID)
 	}
@@ -573,7 +567,7 @@ func TestUnreadRoundTrip(t *testing.T) {
 		t.Fatalf("Unread() = %+v, want [%+v]", got, want)
 	}
 
-	// A second save for the same room upserts (replaces) rather than duplicating.
+	// A second save for the same room upserts.
 	next := domain.Unread{RoomID: "!a:x", Notifications: 0, Highlights: 0, ReadEvent: "$e2"}
 	if err := cache.SaveUnread(ctx, next, 0); err != nil {
 		t.Fatalf("second SaveUnread() error = %v", err)
@@ -584,8 +578,7 @@ func TestUnreadRoundTrip(t *testing.T) {
 	}
 }
 
-// Keeping a deleted message is a setting, and the two halves of it are what the words
-// are for: erased, they are gone from the file; kept, they are still readable.
+// A deleted message's words are erased from the file unless keep is set.
 func TestRedactionKeepsTheWordsOnlyWhenAsked(t *testing.T) {
 	t.Parallel()
 
@@ -601,8 +594,7 @@ func TestRedactionKeepsTheWordsOnlyWhenAsked(t *testing.T) {
 		if err := cache.MarkRedacted(ctx, "!a:x", "$1", "@a:x", "", time.Time{}, keep); err != nil {
 			t.Fatalf("MarkRedacted: %v", err)
 		}
-		// And a page that was already in flight arrives afterwards, carrying the words
-		// the server has since stripped. It must not put them back.
+		// A page already in flight arriving afterwards must not restore the stripped words.
 		if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
 			{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", Format: richtext.FromMarkup("<strong>secret</strong>"),
 				Timestamp: time.Unix(1, 0)},
@@ -624,7 +616,7 @@ func TestRedactionKeepsTheWordsOnlyWhenAsked(t *testing.T) {
 	}
 }
 
-// Every version a message had, kept beside the one the timeline draws.
+// Every version of a message is kept beside the drawn one.
 func TestRevisionsKeepEveryVersionInOrder(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -650,22 +642,21 @@ func TestRevisionsKeepEveryVersionInOrder(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("%d versions, want 3: %+v", len(got), got)
 	}
-	// Oldest first, because that is the order they happened in and the order the
-	// history is read in.
+	// Oldest first.
 	for i, want := range []string{"seven", "seven thirty", "seven thirty, usual place"} {
 		if got[i].Body != want {
 			t.Errorf("version %d = %q, want %q", i+1, got[i].Body, want)
 		}
 	}
-	// The first version is keyed by the message's own ID; the rest by the edit that
-	// carried them, which is what makes a re-delivered edit one row and not two.
+	// The first version is keyed by the message's ID, the rest by their edit's ID,
+	// so a re-delivered edit is one row.
 	if got[0].ID != "$m" || got[1].ID != "$e1" || got[2].ID != "$e2" {
 		t.Errorf("ids = %q, %q, %q", got[0].ID, got[1].ID, got[2].ID)
 	}
 	if got[1].Format.Markup() == "" {
 		t.Error("a version's formatting was not kept with its words")
 	}
-	// Idempotent: the same edit arriving twice — a re-page, a resync — is one version.
+	// A repeated edit (re-page, resync) is one version.
 	if err := cache.SaveMessagesWithRevisions(ctx, "!a:x", []domain.Message{firstEdit, firstEdit}); err != nil {
 		t.Fatal(err)
 	}
@@ -674,9 +665,7 @@ func TestRevisionsKeepEveryVersionInOrder(t *testing.T) {
 	}
 }
 
-// Erasing what a deleted message said takes its drafts with it. Keeping every
-// version of a message whose words were just erased would be the erase undone by the
-// feature beside it.
+// Erasing a deleted message's words also erases its versions.
 func TestErasingADeletionTakesItsVersions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -694,8 +683,7 @@ func TestErasingADeletionTakesItsVersions(t *testing.T) {
 		t.Errorf("%d versions survived an erase: %+v", len(got), got)
 	}
 
-	// With keeping on, the deletion leaves them exactly where they are — that is the
-	// whole feature.
+	// With keeping on, deletion leaves the versions.
 	kept := domain.Message{ID: "$k", RoomID: "!a:x", Sender: "@her:x", Body: "held", Timestamp: at(2)}
 	if err := cache.SaveMessagesWithRevisions(ctx, "!a:x", []domain.Message{kept}); err != nil {
 		t.Fatal(err)
@@ -708,10 +696,9 @@ func TestErasingADeletionTakesItsVersions(t *testing.T) {
 	}
 }
 
-// A trim takes others' reactions to what it trims with it. It keeps our own (reaction
-// emoji are ranked from them) from every ID that is us — the Matrix account, a bridge
-// posting as us, a network's own account — reactions to kept messages, and reactions
-// whose target was never cached (it may be paged in later).
+// A trim removes others' reactions to trimmed messages. It keeps reactions from
+// any of our IDs (they rank reaction emoji), to kept messages, and to targets never
+// cached (they may be paged in later).
 func TestTrimTakesOthersReactionsToTrimmedMessages(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -720,7 +707,7 @@ func TestTrimTakesOthersReactionsToTrimmedMessages(t *testing.T) {
 	native := domain.NativePerson(domain.ProtocolWhatsApp, "447700900001@s.whatsapp.net")
 	cache.UseSelves(func() []string { return []string{"", "@me:x", "@whatsapp_447700900001:x", native} })
 
-	// Exactly at the cap: nothing is trimmed until one more arrives.
+	// At the cap nothing is trimmed until one more arrives.
 	msgs := make([]domain.Message, testKeep)
 	for i := range msgs {
 		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("$%04d", i)), RoomID: "!a:x", Body: "m",
@@ -765,8 +752,7 @@ func TestTrimTakesOthersReactionsToTrimmedMessages(t *testing.T) {
 	}
 }
 
-// A trim that does not know who we are — no network logged in, only the empty ID —
-// keeps every reaction, rather than take ours with the others'.
+// A trim with no known selves keeps every reaction rather than take ours.
 func TestTrimWithoutSelvesKeepsEveryReaction(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -806,8 +792,8 @@ func TestAFailedLookupIsNotNotCached(t *testing.T) {
 	}
 }
 
-// An edit's formatting follows the same order-independent rule as its words: the edit
-// replaces it (plain removes it), and the original arriving again never restores it.
+// An edit's formatting is order-independent like its words: the edit replaces
+// it (plain removes it), and a re-arriving original never restores it.
 func TestEditsCarryTheirFormatting(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -841,8 +827,8 @@ func TestEditsCarryTheirFormatting(t *testing.T) {
 	}
 }
 
-// Formatting that arrived without its markup (a client's drawn copy) is refused, not
-// saved as "no formatting": that would wipe the stored formatting of the message.
+// Formatting without its markup is refused, not saved as "no formatting", which
+// would wipe the stored formatting.
 func TestFormattingWithoutMarkupIsRefused(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -871,8 +857,8 @@ func TestFormattingWithoutMarkupIsRefused(t *testing.T) {
 // testKeep is the per-room cap the trimming tests install.
 const testKeep = 2000
 
-// With no cap installed every message is kept; a room's own cap trims it alone, and a
-// negative one keeps all.
+// With no cap every message is kept; a room's own cap trims it alone; a negative
+// cap keeps all.
 func TestEachRoomKeepsWhatItsCapSays(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -910,8 +896,7 @@ func TestEachRoomKeepsWhatItsCapSays(t *testing.T) {
 	}
 }
 
-// A space left is forgotten as a room is: its row and its children go, and the other
-// spaces stay.
+// Forgetting a space removes its row and children; other spaces stay.
 func TestForgettingASpace(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -15,12 +15,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A client that subscribed and then stopped reading (a suspended TUI) must not hold
-// shutdown past its timeout, nor leave its handler running once Serve has returned.
+// A client that stopped reading (a suspended TUI) must not hold shutdown past its
+// timeout, nor leave its handler running after Serve returns.
 func TestShutdownFreesAStreamWhoseClientStoppedReading(t *testing.T) {
 	t.Parallel()
 
-	// Short: a unix socket path is limited to about 100 bytes.
 	dir, err := os.MkdirTemp("", "mx") //nolint:usetesting // a unix socket path is limited to about 100 bytes; t.TempDir is longer
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +52,7 @@ func TestShutdownFreesAStreamWhoseClientStoppedReading(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
-	// A Connect server-stream call with an empty request, and then never a read.
+	// A Connect server-stream call with an empty request, then never a read.
 	if _, err := fmt.Fprint(conn, "POST /backend.v1.BackendService/Messages HTTP/1.1\r\n"+
 		"Host: mx\r\nContent-Type: application/connect+proto\r\nConnect-Protocol-Version: 1\r\n"+
 		"Content-Length: 5\r\n\r\n\x00\x00\x00\x00\x00"); err != nil {
@@ -61,9 +60,8 @@ func TestShutdownFreesAStreamWhoseClientStoppedReading(t *testing.T) {
 	}
 	waitUntil(t, func() bool { return streams.MessageSubscribers() == 1 }, "the stream to subscribe")
 
-	// Far more than the socket's buffers and the hub's queue hold. Paced, so the
-	// handler keeps up while it can write: it ends stuck in a write that only closing
-	// the connection ends.
+	// Far more than the socket buffers and hub queue hold, paced so the handler ends stuck
+	// in a write only closing the connection ends.
 	big := strings.Repeat("x", 64<<10)
 	for range 300 { // about 19 MiB
 		backend.Msgs <- domain.Message{ID: "$m", RoomID: "!a:x", Body: big}
@@ -99,8 +97,8 @@ func waitUntil(t *testing.T, cond func() bool, what string) {
 	}
 }
 
-// failingListener hands out connections until broken, then fails every Accept, as a
-// listener whose socket was removed or whose descriptor limit was hit does.
+// failingListener fails every Accept once broken, as a removed socket or descriptor
+// limit does.
 type failingListener struct {
 	net.Listener
 	broken chan struct{}
@@ -124,8 +122,7 @@ func (l *failingListener) Accept() (net.Conn, error) {
 	}
 }
 
-// When the listener fails, Serve still cuts off and waits for the handlers it
-// started before it returns: the caller closes the stores next.
+// When the listener fails, Serve still drains its handlers before returning.
 func TestAFailedListenerStillDrainsTheHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -180,8 +177,7 @@ func TestAFailedListenerStillDrainsTheHandlers(t *testing.T) {
 	}
 }
 
-// lifetimeBackend's MarkRoomsRead runs until its context ends, as a long space
-// sweep on the daemon's lifetime does.
+// lifetimeBackend's MarkRoomsRead runs until its context ends, like a long space sweep.
 type lifetimeBackend struct {
 	fakeBackend
 	started chan struct{}
@@ -193,9 +189,8 @@ func (b *lifetimeBackend) MarkRoomsRead(ctx context.Context, _ []domain.RoomID, 
 	return domain.ReadResult{}, ctx.Err()
 }
 
-// A handler on the daemon's lifetime outlives its connection, so closing connections
-// does not end it. A broken listener must, or the drain times out and the caller
-// skips Stop with the stores left open.
+// A lifetime handler outlives its connection; a broken listener must end it, or the
+// drain times out and the stores are left open.
 func TestAFailedListenerEndsLifetimeHandlers(t *testing.T) {
 	t.Parallel()
 

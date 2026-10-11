@@ -8,9 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A send's answer, applied when sent, comes again through the updates, perhaps after
-// a later send's: it does not put back what the later one changed. Someone else's
-// change, heard after, still counts.
+// A send's answer echoed late via updates doesn't undo a later send; a real change
+// heard after still applies.
 func TestALateEchoOfOurReactionDoesNotUndoALaterOne(t *testing.T) {
 	t.Parallel()
 	a, cache := cachedAdapter(t, &memSecrets{values: map[string]string{}})

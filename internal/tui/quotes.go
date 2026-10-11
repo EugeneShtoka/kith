@@ -8,24 +8,22 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Reply targets that are not among the loaded messages are fetched by ID (FetchEvent)
-// so the quote beside a reply is not empty. Unlike a thread root they are kept aside,
-// not merged into the timeline: an old target would land in the middle of today.
+// Reply targets not among the loaded messages are fetched by ID (FetchEvent). Unlike thread
+// roots they are kept aside, not merged into the timeline, where an old one would land in
+// the middle of today.
 
 // maxQuoteFetches bounds the fetches issued per pass.
 const maxQuoteFetches = 6
 
-// quoteState is the fetched targets and what has been asked for.
 type quoteState struct {
 	known map[domain.EventID]domain.Message
-	// asked are the IDs already requested, answered or not, so an unobtainable target
-	// is not re-requested every frame.
+	// asked holds IDs already requested, answered or not, so an unobtainable target is not
+	// re-requested every frame.
 	asked map[domain.EventID]bool
 }
 
-// quotedTarget is the message a reply answers, if it is known: one of the loaded
-// messages (shown, or folded into a thread), read where it is so an edit shows, else
-// one fetched for the purpose.
+// quotedTarget is the message a reply answers, if known: a loaded message (shown or folded
+// into a thread, read in place so edits show), else a fetched one.
 func (m Model) quotedTarget(derived *derivedCache, id domain.EventID) (domain.Message, bool) {
 	if msg, ok := derived.at(id); ok {
 		return msg, true
@@ -59,8 +57,7 @@ func (m Model) loadQuotes() (Model, tea.Cmd) {
 	if len(wanted) == 0 {
 		return m, nil
 	}
-	// quotedTarget already found every loaded target, drawn or folded into a thread:
-	// what is left is not loaded, and is fetched.
+	// quotedTarget already found every loaded target; what is left is fetched.
 	var cmds []tea.Cmd
 	for _, target := range wanted {
 		if len(cmds) >= maxQuoteFetches {
@@ -75,8 +72,7 @@ func (m Model) loadQuotes() (Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// markQuoteAsked records a request. Copy-on-write: the Model is copied by value and
-// earlier copies must not see the change.
+// markQuoteAsked records a request, copy-on-write since earlier Model copies must not see it.
 func (m Model) markQuoteAsked(id domain.EventID) Model {
 	m.quotes.asked = withEntry(m.quotes.asked, id, true)
 	return m
@@ -88,8 +84,8 @@ func (m Model) rememberQuote(msg domain.Message) Model {
 	return m
 }
 
-// handleFetchedQuote files a fetched reply target. Failure is silent: nobody asked,
-// and the row keeps its placeholder.
+// handleFetchedQuote files a fetched reply target. Failure is silent; the row keeps its
+// placeholder.
 func (m Model) handleFetchedQuote(msg fetchedQuoteMsg) (Model, tea.Cmd) {
 	m.logErr(slog.LevelDebug, "fetch quoted message", msg.err)
 	if msg.err != nil || msg.message.ID == "" {

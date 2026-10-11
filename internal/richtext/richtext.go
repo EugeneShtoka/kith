@@ -1,6 +1,6 @@
-// Package richtext is the single table of Matrix HTML formatting this client
-// understands. Formatted bodies are attacker-controlled, so they are sanitized once on
-// the way in (Sanitize) and flattened to text plus emphasis spans for drawing (Parse).
+// Package richtext is the table of Matrix HTML formatting kith understands. Formatted
+// bodies are attacker-controlled: Sanitize cleans them once on the way in, Parse
+// flattens them to text plus emphasis spans.
 package richtext
 
 import (
@@ -10,8 +10,8 @@ import (
 	"golang.org/x/net/html"
 )
 
-// allowed is the tags kept, deliberately smaller than the spec's list: only what a
-// terminal can draw. Dropped tags (img, tables, font/div, details) keep their text.
+// allowed is the tags kept: only what a terminal can draw, a subset of the spec's.
+// Dropped tags keep their text.
 var allowed = map[string]mark{
 	"b": markBold, "strong": markBold,
 	"i": markItalic, "em": markItalic,
@@ -78,10 +78,9 @@ func (s Span) Empty() bool {
 		!s.Underline && !s.Link && !s.Quote && !s.Heading && !s.Spoiler)
 }
 
-// Sanitize keeps the formatting this client understands and drops the rest; text is
-// never dropped. Attributes are removed except a safe-scheme href on links and the
-// spoiler attribute on spans. It returns "" when the result would draw exactly what
-// the plain body does.
+// Sanitize keeps the formatting kith understands and never drops text. Only a
+// safe-scheme href and the spoiler attribute survive. It returns "" when the result
+// draws the same as the plain body.
 //
 //nolint:gocognit // flat dispatch over the tokenizer's token kinds
 func Sanitize(formatted string) string {
@@ -102,7 +101,7 @@ func Sanitize(formatted string) string {
 			return keptOrNothing(out.String())
 		case html.TextToken:
 			if quiet != "" {
-				continue // inside a script or a style: its text is not a message
+				continue // inside script/style
 			}
 			out.WriteString(html.EscapeString(string(tokens.Text())))
 		case html.StartTagToken, html.SelfClosingTagToken:

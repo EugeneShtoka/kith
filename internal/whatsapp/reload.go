@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// UseConfig takes [[whatsapp.account]] and [display.deleted] keep, at start and each
-// time the config is re-read (see useAccounts).
+// UseConfig applies [[whatsapp.account]] and [display.deleted] keep, at start and on
+// each reload.
 func (a *Adapter) UseConfig(ctx context.Context, cfg config.Config) {
 	a.keepDeletedIf(cfg.Display.Deleted.Keep())
 	accounts := make([]Account, 0, len(cfg.WhatsApp.Accounts))
@@ -19,9 +19,8 @@ func (a *Adapter) UseConfig(ctx context.Context, cfg config.Config) {
 	a.useAccounts(ctx, accounts)
 }
 
-// CheckConfig refuses [[whatsapp.account]]s kith could not tell apart or link: a
-// missing or repeated name, no international number, a number listed twice. It asks
-// nothing of WhatsApp.
+// CheckConfig validates [[whatsapp.account]]s offline: unique names, international
+// numbers, no duplicates.
 func (a *Adapter) CheckConfig(_ context.Context, cfg config.Config) error {
 	records := make([]domain.AccountRecord, 0, len(cfg.WhatsApp.Accounts))
 	for _, account := range cfg.WhatsApp.Accounts {
@@ -30,11 +29,9 @@ func (a *Adapter) CheckConfig(_ context.Context, cfg config.Config) error {
 	return domain.CheckAccounts(cfg.WhatsApp.Table(), records) //nolint:wrapcheck // names the record itself
 }
 
-// useAccounts takes the [[whatsapp.account]] list: before Start, the ones it starts
-// with; after, without a restart, an account added that is already linked connects,
-// one added that is not can be paired at once, and one removed is disconnected. A
-// removed account's rooms stay in the cache, readable; unlinking it is the phone's to
-// do.
+// useAccounts applies the account list. After Start, an added linked account
+// connects, an unlinked one can be paired, and a removed one disconnects (its cached
+// rooms stay; unlinking is done on the phone).
 func (a *Adapter) useAccounts(ctx context.Context, accounts []Account) {
 	a.mu.Lock()
 	previous := a.accounts

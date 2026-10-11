@@ -29,15 +29,11 @@ func (c *Cache) Unread(ctx context.Context) ([]domain.Unread, error) {
 		})
 }
 
-// SaveUnread writes one room's already-merged unread state. readTS is the read
-// position's time (0: unknown): the time of the newest message at or before the
-// receipt in the server's stream order, not necessarily the receipt event's own
-// (see matrix.resolveReceipt; bridges stamp events with other clocks). The counts
-// and mark are replaced; the position only moves forward by that time, mirroring the
-// server's forward-only receipts: echoes and per-kind receipts arrive out of order,
-// and a receipt the server holds to be behind it is dropped there, not echoed, so a
-// local write ahead of the server's is kept rather than walked back. An unknown time
-// moves only a position that is unknown too.
+// SaveUnread writes one room's merged unread state. readTS (0: unknown) is the
+// newest message time at or before the receipt in stream order, not the receipt
+// event's own (see matrix.resolveReceipt). Counts and mark are replaced; the
+// position only moves forward by readTS, like the server's receipts, since echoes
+// and per-kind receipts arrive out of order.
 func (c *Cache) SaveUnread(ctx context.Context, u domain.Unread, readTS int64) error {
 	return c.execInRoom(ctx, u.RoomID, "upsert unread "+string(u.RoomID), `
 		INSERT INTO room_unread(room_id, notifications, highlights, read_event, marked, read_ts_ms)
@@ -77,16 +73,12 @@ const readPosition = `max(u.read_ts_ms, coalesce(r.ts_ms, 0))`
 // readKnown keeps the rooms whose read position is known.
 const readKnown = ` (u.read_ts_ms > 0 OR r.event_id IS NOT NULL)`
 
-// countUnreadQuery counts, per room, unread main-timeline messages and mentions; with
-// one room, that room's. me is every MXID that is this person: the account and the
-// accounts a bridge posts as for them ([[display.identity]]).
-// A room whose read position is unknown is dropped (caller falls back to the
-// server count). Not filtered by membership: placeholder rooms get badges too.
-// Excluded: your own, redacted, and threaded messages (counted per thread). Only ts_ms
-// is compared — an event-ID tiebreak once made a room permanently unread. The floor is
-// the later of the receipt and your own newest main-timeline message, which is one
-// seek of messages_by_room_sender per MXID: the badges cost rooms, not the messages
-// you have sent.
+// countUnreadQuery counts unread main-timeline messages and mentions per room (or
+// for one room). me is every MXID that is this person. Rooms with an unknown read
+// position are dropped (the caller uses the server count); placeholders count too.
+// Own, redacted and threaded messages are excluded. Only ts_ms is compared: an
+// event-ID tiebreak can leave a room permanently unread. The floor is the later of
+// the receipt and your newest message, one index seek per MXID.
 func countUnreadQuery(me []string, room domain.RoomID) (string, []any) {
 	var args []any
 	count := func(mentioned string) string {

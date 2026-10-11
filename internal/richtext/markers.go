@@ -8,15 +8,14 @@ import (
 	"unicode/utf8"
 )
 
-// Markers are formatting written as characters in the text, as WhatsApp and Slack
-// (mrkdwn) both write it: *bold*, _italic_, ~strikethrough~, `code` and ```code
-// blocks```. They map into markup; the words alone are what the markup draws.
+// Markers are inline formatting characters as WhatsApp and Slack (mrkdwn) write them:
+// *bold*, _italic_, ~strikethrough~, `code` and ```code blocks```.
 
 // emphasis are the inline markers and the tags they become.
 var emphasis = map[byte]string{'*': "b", '_': "i", '~': "s"}
 
-// FromMarkers turns markers into markup, and reports whether there was any formatting
-// at all. Everything else is escaped as text. A ```block``` is taken as it is written.
+// FromMarkers turns markers into markup and reports whether any were found. Other text
+// is escaped; a ```block``` is taken verbatim.
 func FromMarkers(text string) (markup string, any bool) {
 	var m strings.Builder
 	for {
@@ -28,7 +27,7 @@ func FromMarkers(text string) (markup string, any bool) {
 			return m.String(), any || a
 		}
 		mm, _ := inline(before)
-		// "```\ncode\n```" is how a block is typed: the newlines frame it, they are not in it.
+		// The newlines framing "```\ncode\n```" are not part of the block.
 		inner = strings.TrimSuffix(strings.TrimPrefix(inner, "\n"), "\n")
 		m.WriteString(mm + "<pre><code>" + html.EscapeString(inner) + "</code></pre>")
 		any, text = true, rest
@@ -64,9 +63,8 @@ func inline(text string) (markup string, any bool) {
 	return m.String(), any
 }
 
-// closing is where the marker at open closes, or 0: a marker opens after a boundary
-// (start, space, punctuation) before a non-space, and closes after a non-space before
-// a boundary, on the same line.
+// closing returns where the marker at open closes, or 0. A marker opens after a
+// boundary before a non-space and closes after a non-space before a boundary, on one line.
 func closing(text string, open int) int {
 	marker := text[open]
 	if open > 0 {
@@ -101,8 +99,8 @@ func closing(text string, open int) int {
 func isWordRune(r rune) bool  { return unicode.IsLetter(r) || unicode.IsDigit(r) }
 func isSpaceByte(b byte) bool { return b == ' ' || b == '\t' || b == '\n' }
 
-// Kith's composer writes Markdown; marker networks read their own. The common forms
-// translate one to one; anything else goes as typed.
+// The composer writes Markdown; for marker networks the common forms translate one to
+// one and anything else goes as typed.
 var (
 	mdBold    = regexp.MustCompile(`\*\*([^*\n]+)\*\*|__([^_\n]+)__`)
 	mdItalic  = regexp.MustCompile(`(^|[^\pL\pN*])\*([^*\s][^*\n]*?)\*([^\pL\pN*]|$)`)
@@ -111,9 +109,8 @@ var (
 	codeSpans = regexp.MustCompile("(?s)```.*?```|`[^`\n]+`")
 )
 
-// ToMarkers is a Markdown draft in markers: **bold** and __bold__ as *bold*, *italic*
-// as _italic_, ~~strike~~ as ~strike~, and a link as link writes it from its words and
-// address. Code is left as it is.
+// ToMarkers converts a Markdown draft to markers (**b**/__b__ to *b*, *i* to _i_,
+// ~~s~~ to ~s~, links via link); code is left as is.
 func ToMarkers(text string, link func(words, address string) string) string {
 	var out strings.Builder
 	last := 0

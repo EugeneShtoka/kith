@@ -12,14 +12,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// hash is an answer as a vote names it.
+// hash is an answer's hash as a vote names it.
 func hash(answer string) []byte {
 	sum := sha256.Sum256([]byte(answer))
 	return sum[:]
 }
 
-// A poll creation message is the poll; a vote names answers by their hash, replaces
-// the voter's last, and none takes it back; this account's own ballot is its choice.
+// Votes name answers by hash and replace the voter's last; an empty vote retracts.
 func TestAPollCountsEachVotersLastVote(t *testing.T) {
 	t.Parallel()
 	created := &waE2E.Message{PollCreationMessageV3: &waE2E.PollCreationMessage{
@@ -59,7 +58,7 @@ func TestAPollCountsEachVotersLastVote(t *testing.T) {
 		t.Errorf("tally = %+v, %d voters; want Sunday 2 with mine, Saturday 0", got.Poll.Options, got.Poll.Voters)
 	}
 
-	// Who voted is the ballots kept: Dana's last and this account's; Eli's taken back.
+	// Voters: Dana's last ballot and the account's; Eli retracted.
 	voters, err := a.PollVoters(ctx, room, poll)
 	if err != nil {
 		t.Fatal(err)

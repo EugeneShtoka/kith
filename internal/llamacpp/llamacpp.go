@@ -1,11 +1,7 @@
-// Package llamacpp reads a local language model as a next-token distribution.
-//
-// A keyboard ranks what comes next rather than chatting, so this asks llama-server's
-// `/completion` for `n_probs` instead of prompting a chat model. It is a leaf (depguard
-// `llamacpp-is-a-leaf`): a prompt and a count in, words out.
-//
-// The server is large to hold and slow to load relative to one answer, so it is lazy
-// (spawned on first ask) and idle-stopped.
+// Package llamacpp reads a local language model as a next-token distribution, via
+// llama-server's /completion n_probs rather than a chat prompt. It is a leaf (depguard
+// llamacpp-is-a-leaf). The server is costly to load, so it is spawned on first ask and
+// stopped when idle.
 package llamacpp
 
 import (
@@ -28,8 +24,8 @@ type Settings struct {
 	Port int
 	// Threads for the server; 0 leaves llama-server's default.
 	Threads int
-	// Context is the token window (contextDefault). Kept small: the KV cache is most of
-	// the cost beyond the weights.
+	// Context is the token window (contextDefault); small because the KV cache dominates
+	// memory beyond the weights.
 	Context int
 	// Idle before the server is stopped (idleDefault); negative never stops it.
 	Idle time.Duration
@@ -54,15 +50,13 @@ type Predictor struct {
 	closed   bool    // no lazy spawn after Close
 }
 
-// NewPredictor holds the settings and spawns nothing; nothing is validated either,
-// since "not installed" is an ordinary state.
+// NewPredictor holds the settings; it spawns and validates nothing.
 func NewPredictor(s Settings) *Predictor { return &Predictor{settings: s} }
 
 // Available reports whether weights are named and the server program exists.
 func (p *Predictor) Available() bool { return p.Why() == nil }
 
-// Why is Available's reason, or nil: ErrNotConfigured or ErrNoServer, which have
-// different fixes.
+// Why returns ErrNotConfigured, ErrNoServer, or nil.
 func (p *Predictor) Why() error {
 	if p == nil {
 		return ErrNotConfigured
@@ -80,9 +74,8 @@ func (p *Predictor) Why() error {
 }
 
 // NextWords ranks up to n words the model expects after prompt, best first.
-//
-// The trailing space is stripped: a space is its own token, so the word boundary must
-// fall in the next token — "check the " yields digits, "check the" yields words.
+// Trailing space is stripped: it is its own token, and "check the " predicts digits
+// where "check the" predicts words.
 func (p *Predictor) NextWords(ctx context.Context, prompt string, n int) ([]string, error) {
 	if n <= 0 {
 		return nil, nil
@@ -98,7 +91,7 @@ func (p *Predictor) NextWords(ctx context.Context, prompt string, n int) ([]stri
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Extra tokens because punctuation, fragments and case duplicates are filtered out.
+	// Spare tokens: punctuation, fragments and case duplicates are filtered out.
 	probs, err := srv.distribution(ctx, prompt, n+probeSpare)
 	if err != nil {
 		// A dead server is forgotten so the next ask spawns a fresh one.
@@ -110,10 +103,9 @@ func (p *Predictor) NextWords(ctx context.Context, prompt string, n int) ([]stri
 	return words(probs, n), nil
 }
 
-// gone reports whether a failed ask means the server is dead: its process exited, or
-// the connection failed for a reason other than this ask's own deadline. A slow answer
-// keeps it (a cold first prompt on a slow CPU outlasts the timeout, and a respawn costs
-// seconds more), and so does a reply that was not a prediction.
+// gone reports whether a failed ask means the server is dead: it exited, or the
+// connection failed for a reason other than this ask's deadline. A timeout keeps it:
+// a cold first prompt can outlast it, and a respawn costs more.
 func gone(ctx context.Context, srv *server, err error) bool {
 	select {
 	case <-srv.died():
@@ -164,8 +156,8 @@ func (p *Predictor) serve(ctx context.Context) (*server, time.Duration, error) {
 	return srv, timeout, nil
 }
 
-// forget stops srv unless it has already been replaced — a late failure must not kill
-// the fresh server that took its place.
+// forget stops srv unless it was already replaced, so a late failure never kills its
+// successor.
 func (p *Predictor) forget(srv *server) {
 	p.mu.Lock()
 	if p.running != srv {
@@ -177,8 +169,7 @@ func (p *Predictor) forget(srv *server) {
 	_ = srv.stop() // stop never fails (a process already gone is stopped)
 }
 
-// watchIdle stops srv once it has gone unused for idle, checking at idle/4 (≥1s).
-// It ends with the server.
+// watchIdle stops srv once unused for idle, checking every idle/4 (at least 1s).
 func (p *Predictor) watchIdle(srv *server, idle time.Duration) {
 	if idle <= 0 {
 		return
@@ -207,7 +198,6 @@ func idleOr(d time.Duration) time.Duration {
 	return d
 }
 
-// orDefault is d, or def when d is not positive.
 func orDefault(d, def time.Duration) time.Duration {
 	if d <= 0 {
 		return def

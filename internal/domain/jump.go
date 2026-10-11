@@ -2,9 +2,7 @@ package domain
 
 import "strings"
 
-// A place a key sequence goes to.
-
-// JumpKind is what sort of place a target names.
+// JumpKind is what sort of place a jump target names.
 type JumpKind int
 
 const (
@@ -12,8 +10,7 @@ const (
 	JumpNone JumpKind = iota
 	// JumpRoom is a room, named by its ID: "!abc:example.org".
 	JumpRoom
-	// JumpSpace is a rail group: a Matrix space, or one of the synthetic ones (All,
-	// DMs, Unread) — they are all places the rail can be on.
+	// JumpSpace is a rail group: a Matrix space or a synthetic one (All, DMs, Unread).
 	JumpSpace
 )
 
@@ -24,8 +21,7 @@ type JumpTarget struct {
 	Name string
 }
 
-// String spells a target the way it is written in config, for the help overlay and
-// for issue messages.
+// String spells a target as config writes it.
 func (t JumpTarget) String() string {
 	if t.Kind == JumpNone {
 		return ""
@@ -66,6 +62,5 @@ func ParseJump(value string) (JumpTarget, bool) {
 	return JumpTarget{}, false
 }
 
-// JumpKinds are the kinds a target can name, for an issue message that has to list
-// what was allowed.
+// JumpKinds lists the allowed target forms, for error messages.
 func JumpKinds() []string { return []string{"room:<!id:server>", "space:<name>"} }

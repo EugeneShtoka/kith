@@ -10,9 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// Every property of the config can be changed from settings: a row of its own in one
-// listed group, or a hand-written row that covers it — none is left out, none listed
-// twice.
+// Every property has exactly one row: its own in a listed group, or a hand-written
+// row that covers it.
 func TestEveryPropertyHasARow(t *testing.T) {
 	t.Parallel()
 	groups := map[string]bool{}
@@ -41,8 +40,7 @@ func TestEveryPropertyHasARow(t *testing.T) {
 	}
 }
 
-// An on/off property left unset follows its default: switched once it is written,
-// switched back it is unset again rather than written as the default.
+// An unset on/off property switched back to its default is unset, not written.
 func TestAnOptionalSwitchComesBackToUnset(t *testing.T) {
 	t.Parallel()
 	m, path := opened(t, config.Notifications{Enabled: true})
@@ -67,8 +65,6 @@ func TestAnOptionalSwitchComesBackToUnset(t *testing.T) {
 	}
 }
 
-// A generated number steps and is typed in place; a decimal and a text are typed in
-// place; each is applied and saved.
 func TestGeneratedRowsSetTheirProperty(t *testing.T) {
 	t.Parallel()
 	m, path := opened(t, config.Notifications{Enabled: true})
@@ -100,9 +96,8 @@ func TestGeneratedRowsSetTheirProperty(t *testing.T) {
 	}
 }
 
-// A list is edited an entry at a time, starting from its default when unset: an entry
-// moves (K/J), is added, changed, and removed by emptying it; each change is saved,
-// and esc goes back to the group on the list's row.
+// A list starts from its default when unset; entries move (K/J), are added, changed
+// and removed by emptying; each change is saved, and esc returns to the list's row.
 func TestAListIsEditedAnEntryAtATime(t *testing.T) {
 	t.Parallel()
 	m, path := opened(t, config.Notifications{Enabled: true})
@@ -144,7 +139,6 @@ func TestAListIsEditedAnEntryAtATime(t *testing.T) {
 	}
 }
 
-// What default.toml says of the setting under the cursor is shown beneath the list.
 func TestTheSettingsTextIsShownBeneathTheList(t *testing.T) {
 	t.Parallel()
 	m, _ := opened(t, config.Notifications{Enabled: true})
@@ -155,8 +149,8 @@ func TestTheSettingsTextIsShownBeneathTheList(t *testing.T) {
 	}
 }
 
-// x removes the entry under the cursor, saved at once, the cursor staying in place;
-// on the add row it does nothing, and while the list is being filtered it is typed.
+// x removes the entry under the cursor and saves; nothing on the add row, typed
+// while filtering.
 func TestXRemovesAListEntry(t *testing.T) {
 	t.Parallel()
 	m, path := opened(t, config.Notifications{Enabled: true})

@@ -10,7 +10,7 @@ import (
 type linkState struct {
 	// detached is set while the streams are down.
 	detached bool
-	// ended says the streams are closed for good (Remote.Start returned); the badge asks for a restart.
+	// ended: the streams are closed for good (Remote.Start returned); the badge asks for a restart.
 	ended bool
 	// seatLost: another window took the daemon's seat, and this one is quitting.
 	seatLost bool
@@ -18,9 +18,8 @@ type linkState struct {
 	restart func(context.Context) error
 }
 
-// handleAttached shows the daemon connection state and, on reconnect, re-reads the
-// open room: the daemon kept syncing while we were away, but no stream will replay
-// what arrived in the meantime.
+// handleAttached shows the daemon connection state and re-reads the open room on
+// reconnect: no stream replays what arrived meanwhile.
 func (m Model) handleAttached(msg attachedMsg) (Model, tea.Cmd) {
 	m.link.detached = !msg.attached
 	if !msg.attached {

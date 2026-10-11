@@ -591,8 +591,8 @@ func TestSummaryReportsWhyThereIsNone(t *testing.T) {
 	}
 }
 
-// Regression: a Hebrew summary was drawn backwards. Reader lines are reordered for
-// display and flushed right; English and pre-styled lines are untouched.
+// A Hebrew summary is reordered for display and flushed right; English and pre-styled
+// lines are untouched.
 func TestSummaryOverlayOrdersRightToLeftText(t *testing.T) {
 	t.Parallel()
 
@@ -654,7 +654,7 @@ func TestSummaryPaintsNamesInTheRoomsColors(t *testing.T) {
 	}}})
 
 	palette := m.roomPalette()
-	// Full and given names both, since a model shortens after the first mention.
+	// Full and given names: a model shortens after the first mention.
 	for _, name := range []string{"Sam Cohen", "Sam", "Noa Katz", "Noa"} {
 		if _, ok := palette[name]; !ok {
 			t.Fatalf("roomPalette() = %v, want %q in it", palette, name)

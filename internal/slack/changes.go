@@ -11,29 +11,25 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An edit replaces what a message says, a deletion takes it away; both arrive as
-// messages about another one (message_changed, message_deleted). The cache folds an
-// edit only when it is newer than the version it shows, so an older copy (a history
-// page read before the edit) never undoes it.
+// Edits and deletions arrive as message_changed and message_deleted. The cache folds an
+// edit only when newer than its stored version, so an older history page never undoes it.
 
-// keepDeletedIf sets [display.deleted] keep: whether a deleted message's words stay in
-// the cache, and an edited one's earlier versions. Called at startup, as the other
-// adapters' is.
+// keepDeletedIf sets [display.deleted] keep: whether deleted messages' words and edited
+// ones' earlier versions stay cached.
 func (a *Adapter) keepDeletedIf(keep bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.keepDeleted = keep
 }
 
-// keepsDeleted is [display.deleted] keep.
 func (a *Adapter) keepsDeleted() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.keepDeleted
 }
 
-// onEdited folds a live edit onto the message it changes. A change that is no edit
-// (a link unfurled under it) leaves what it says alone.
+// onEdited folds a live edit onto its message. A change that is not an edit (a link
+// unfurled) leaves the text alone.
 func (a *Adapter) onEdited(ctx context.Context, w *workspace, e *slackgo.MessageEvent) {
 	sub := e.SubMessage
 	if sub == nil || sub.Edited == nil {
@@ -58,7 +54,7 @@ func (a *Adapter) onEdited(ctx context.Context, w *workspace, e *slackgo.Message
 			}
 		}
 	}
-	// A file taken out of the message goes as a deleted message would.
+	// A file removed from the message goes as a deleted message would.
 	if e.PreviousMessage != nil {
 		for _, gone := range goneRows(msg, e.PreviousMessage, sub) {
 			a.markDeleted(ctx, msg.RoomID, gone, msg.Sender, tsTime(e.Timestamp))
@@ -70,7 +66,7 @@ func (a *Adapter) onEdited(ctx context.Context, w *workspace, e *slackgo.Message
 	}
 }
 
-// goneRows is the rows of the files was had that now no longer has.
+// goneRows is the file rows was had that now no longer has.
 func goneRows(msg domain.Message, was, now *slackgo.Msg) []domain.EventID {
 	still := map[domain.EventID]bool{}
 	rows := fileRows(msg, now)
@@ -99,7 +95,6 @@ func (a *Adapter) onDeleted(ctx context.Context, w *workspace, e *slackgo.Messag
 	}
 	room, id := roomID(w.creds.Team, e.Channel), messageID(w.creds.Team, e.Channel, e.DeletedTimestamp)
 	a.markDeleted(ctx, room, id, by, tsTime(e.Timestamp))
-	// Its files' rows go with it.
 	if e.PreviousMessage != nil {
 		rows := fileRows(domain.Message{ID: id, RoomID: room}, e.PreviousMessage)
 		for i := range rows {
@@ -108,7 +103,7 @@ func (a *Adapter) onDeleted(ctx context.Context, w *workspace, e *slackgo.Messag
 	}
 }
 
-// markDeleted marks a message deleted in the cache and tells the clients.
+// markDeleted marks a message deleted in the cache and streams it.
 func (a *Adapter) markDeleted(ctx context.Context, room domain.RoomID, id domain.EventID, by string, at time.Time) {
 	keep := a.keepsDeleted()
 	gone := domain.Message{ID: id, RoomID: room, Redacted: true, RedactedBy: by, RedactedAt: at}
@@ -129,7 +124,7 @@ func (a *Adapter) markDeleted(ctx context.Context, room domain.RoomID, id domain
 	emit(a, a.messages, gone)
 }
 
-// Redact deletes a message on Slack (yours, or another's where you may), and here.
+// Redact deletes a message on Slack (yours, or another's where permitted) and locally.
 func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, _ string) error {
 	w, channel, err := a.conversation(roomID)
 	if err != nil {
@@ -149,8 +144,8 @@ func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID doma
 	return nil
 }
 
-// edit sends draft as the new version of the message it edits, and folds it in here
-// (Slack's echo of it is the same version again).
+// edit sends draft as the edited message's new version and folds it in locally (Slack's
+// echo is the same version).
 func (a *Adapter) edit(ctx context.Context, w *workspace, roomID domain.RoomID, channel string, draft domain.Draft) error {
 	if isFileRow(draft.Edits) {
 		return errors.New("slack: a file has no words of its own to edit: edit the message it came with")
@@ -179,13 +174,12 @@ func (a *Adapter) edit(ctx context.Context, w *workspace, roomID domain.RoomID, 
 	return nil
 }
 
-// slackTS is a time as a Slack ts.
 func slackTS(t time.Time) string {
 	return fmt.Sprintf("%d.%06d", t.Unix(), t.Nanosecond()/int(time.Microsecond))
 }
 
-// MessageHistory is a message's earlier versions as the cache kept them (under
-// [display.deleted] keep); Slack keeps none to ask for.
+// MessageHistory is a message's earlier versions as cached under [display.deleted] keep;
+// Slack keeps none.
 func (a *Adapter) MessageHistory(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, domain.Deletion, error) {
 	if a.cache == nil {
 		return nil, domain.Deletion{}, nil

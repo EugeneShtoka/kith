@@ -27,8 +27,7 @@ func ledgerAt(t *testing.T) (*agent.Ledger, string) {
 	return out, path
 }
 
-// A ledger that has never been written to is the empty list rather than an error: there
-// is nothing to distinguish "wrote nothing" from "wrote nothing yet".
+// A ledger never written to reads as empty, not an error.
 func TestEmptyLedgerReadsAsNothing(t *testing.T) {
 	t.Parallel()
 
@@ -54,16 +53,13 @@ func TestAppendedEntriesComeBackInOrder(t *testing.T) {
 	if len(entries) != 3 || entries[0].Outcome != agent.Sent || entries[2].Outcome != agent.Queued {
 		t.Fatalf("entries = %+v, want the three in the order they were written", entries)
 	}
-	// An entry with no time of its own is stamped, because a ledger line that cannot say
-	// when is one the cooldown cannot use.
+	// An entry without a time is stamped; the cooldown needs it.
 	if entries[0].At.IsZero() {
 		t.Error("an appended entry carries no time")
 	}
 }
 
-// The cooldown asks one question of this file, and a draft is not an answer to it:
-// drafting is what the cooldown *does*, so counting one would make the rail hold a room
-// shut forever on its own output.
+// Drafts are what the cooldown produces, so counting them would lock a room forever.
 func TestLastOutIgnoresDraftsAndRefusals(t *testing.T) {
 	t.Parallel()
 
@@ -78,7 +74,7 @@ func TestLastOutIgnoresDraftsAndRefusals(t *testing.T) {
 	if !ever || !last.Equal(now.Add(-time.Hour)) {
 		t.Errorf("last out of !a:x = %v (%v), want the send an hour ago", last, ever)
 	}
-	// A queued message is on its way, so it counts exactly as a send does.
+	// A queued message counts as sent.
 	if _, ever := agent.LastOut(entries, "!b:x"); !ever {
 		t.Error("a queued message did not count")
 	}
@@ -87,7 +83,6 @@ func TestLastOutIgnoresDraftsAndRefusals(t *testing.T) {
 	}
 }
 
-// A long message is trimmed rather than making a line that cannot be appended atomically.
 func TestTextIsCapped(t *testing.T) {
 	t.Parallel()
 
@@ -101,8 +96,6 @@ func TestTextIsCapped(t *testing.T) {
 	}
 }
 
-// One unreadable line must not cost the whole record: the audit trail is worth more than
-// the write that went wrong.
 func TestABadLineIsSkippedNotFatal(t *testing.T) {
 	t.Parallel()
 
@@ -128,22 +121,19 @@ func TestABadLineIsSkippedNotFatal(t *testing.T) {
 	if len(entries) != 2 {
 		t.Fatalf("entries = %+v, want the two readable ones", entries)
 	}
-	// Read counts it, so --agent-log can say a line was lost rather than hide it.
+	// Read counts it, so --agent-log can report it.
 	if read, skipped, rerr := l.Read(); rerr != nil || len(read) != 2 || skipped != 1 {
 		t.Errorf("Read() = %d entries, %d skipped, %v; want 2, 1, nil", len(read), skipped, rerr)
 	}
 }
 
-// Writable is a pre-flight rather than a guess, because it is what the send path asks
-// before doing anything it cannot record.
 func TestWritableReportsABlockedLedger(t *testing.T) {
 	t.Parallel()
 
 	if err := ledger(t).Writable(); err != nil {
 		t.Fatalf("a fresh ledger reported %v, want writable", err)
 	}
-	// A directory where the file belongs: openable for neither append nor create, which
-	// is the state a broken state directory leaves behind.
+	// A directory where the file belongs can be neither appended nor created.
 	blocked, path := ledgerAt(t)
 	if err := os.Mkdir(path, 0o700); err != nil {
 		t.Fatalf("blocking it: %v", err)
@@ -153,9 +143,8 @@ func TestWritableReportsABlockedLedger(t *testing.T) {
 	}
 }
 
-// Every field is capped, not only the text: a room named at length (anyone can name a
-// room, or themselves in a DM) must not make the ledger unreadable, which refuses every
-// later send.
+// Every field is capped: an outsider-chosen long room name must not make the ledger
+// unreadable.
 func TestALongNameDoesNotBreakTheLedger(t *testing.T) {
 	t.Parallel()
 	l := ledger(t)

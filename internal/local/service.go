@@ -1,7 +1,6 @@
-// Package local is what the daemon answers from its own stores, whatever network a
-// room is on: the cache's drafts, search, emoji and color memory, and the assistant
-// (spelling, word completion, the language models). Nothing here talks to a chat
-// network; what it needs to know about one comes through Network.
+// Package local is what the daemon answers from its own stores whatever the network:
+// drafts, search, emoji and color memory, and the assistant (spelling, completion,
+// language models). It never talks to a chat network except through Network.
 package local
 
 import (
@@ -16,14 +15,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// timelineCacheLimit is how many cached messages CachedTimeline reads on room
-// entry — large enough to restore a backfilled room's history instantly.
+// timelineCacheLimit is how many cached messages CachedTimeline reads on room entry,
+// enough to restore a backfilled room instantly.
 const timelineCacheLimit = 2000
 
 // Network is what the service asks of the chat networks it serves alongside.
 type Network interface {
-	// Me is every ID that is this person, on every network: the Matrix account and
-	// its configured identity, each linked WhatsApp account.
+	// Me is every ID that is this person on every network.
 	Me() []string
 	// RoomEncryption reports which rooms are encrypted; unknown reports as encrypted.
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
@@ -31,21 +29,21 @@ type Network interface {
 	RewindSync(ctx context.Context) error
 }
 
-// Service answers from the cache and the local engines. Its zero engines answer as
-// unconfigured; Use* wires them.
+// Service answers from the cache and the local engines; zero engines answer as
+// unconfigured until Use* wires them.
 type Service struct {
 	cache *db.Cache
 	net   Network
-	// logger receives what the service cannot return (see UseLogger); nil is silent.
+	// logger receives what the service cannot return; nil is silent.
 	logger *slog.Logger
 
 	// spell is the spelling engine; its zero value answers ErrSpellUnavailable.
 	spell spellcheck
-	// model is the optional remote language-model layer (see modeltask.go).
+	// model is the optional remote language-model layer.
 	model modelLayer
-	// completion is the local word-completion model (see completionmodel.go).
+	// completion is the local word-completion model.
 	completion completionModel
-	// vocab is word completion's recent-history windows (see recentvocab.go).
+	// vocab is word completion's recent-history windows.
 	vocab recentVocab
 
 	// places are the names, space order and pins a room's facts are read with.
@@ -53,8 +51,8 @@ type Service struct {
 	places   domain.Places
 }
 
-// UsePlaces sets the room names, space priority and pins the model opt-in reads a
-// room's facts with, as every other scope does. Called at startup and on reload.
+// UsePlaces sets the room names, space priority and pins the model opt-in reads room
+// facts with. Called at startup and on reload.
 func (s *Service) UsePlaces(places domain.Places) {
 	s.placesMu.Lock()
 	defer s.placesMu.Unlock()
@@ -72,8 +70,7 @@ func New(cache *db.Cache, net Network) *Service {
 	return &Service{cache: cache, net: net}
 }
 
-// UseLogger sets where the service reports what it cannot return. nil keeps the
-// silent default.
+// UseLogger sets where the service reports what it cannot return; nil is silent.
 func (s *Service) UseLogger(log *slog.Logger) {
 	if log == nil {
 		return
@@ -84,8 +81,8 @@ func (s *Service) UseLogger(log *slog.Logger) {
 	s.spell.mu.Unlock()
 }
 
-// UseDataDir sets kith's data directory ([storage] data_dir), where dictionaries,
-// word counts and models are installed. Called at startup.
+// UseDataDir sets the data directory ([storage] data_dir) where dictionaries, word
+// counts and models are installed.
 func (s *Service) UseDataDir(dir string) {
 	s.spell.mu.Lock()
 	defer s.spell.mu.Unlock()
@@ -98,14 +95,12 @@ func (s *Service) Close() {
 	s.closeCompletionModel()
 }
 
-// MessageCached counts a message the network side just cached into word completion.
+// MessageCached feeds a newly cached message into word completion.
 func (s *Service) MessageCached(msg domain.Message) { s.vocab.added(msg, s.me()) }
 
-// RoomChanged is a room's cached messages changing other than by a new one (an edit,
-// a deletion): its completion windows are rebuilt on next use.
+// RoomChanged marks a room's completion windows for rebuild after an edit or deletion.
 func (s *Service) RoomChanged(roomID domain.RoomID) { s.vocab.changed(roomID) }
 
-// me is every ID that is this person.
 func (s *Service) me() []string {
 	if s.net == nil {
 		return nil
@@ -113,7 +108,7 @@ func (s *Service) me() []string {
 	return s.net.Me()
 }
 
-// roomEncrypted is whether a room is encrypted; anything unknown counts as yes.
+// roomEncrypted reports whether a room is encrypted; unknown counts as yes.
 func (s *Service) roomEncrypted(ctx context.Context, roomID domain.RoomID) bool {
 	if s.net == nil {
 		return true
@@ -135,7 +130,7 @@ func (s *Service) log() *slog.Logger {
 	return s.logger
 }
 
-// warnIf logs a failed best-effort step at warn, with op naming it; nil is silent.
+// warnIf logs a failed best-effort step at warn; nil err is silent.
 func (s *Service) warnIf(ctx context.Context, err error, op string, attrs ...any) {
 	if err == nil {
 		return
@@ -148,8 +143,7 @@ func (s *Service) warnIf(ctx context.Context, err error, op string, attrs ...any
 	s.log().Log(ctx, level, op+" failed", append([]any{"op", op, "err", err}, attrs...)...)
 }
 
-// fromCache runs a cache read, wrapping its error; without a cache it answers the
-// zero value.
+// fromCache runs a cache read, wrapping its error; without a cache it answers zero.
 func fromCache[T any](s *Service, op string, read func(*db.Cache) (T, error)) (T, error) {
 	var zero T
 	if s.cache == nil {
@@ -180,8 +174,8 @@ var errNoCache = errors.New("local: the cache is not open (the daemon log says w
 // ClearCache empties the local cache and has the networks refill it.
 func (s *Service) ClearCache(ctx context.Context) error {
 	if s.cache == nil {
-		// Saying nothing would read as done. A cache that failed to open is in the
-		// daemon's log; removing the file and restarting the daemon starts it anew.
+		// Silence would read as done. The open failure is in the daemon's log; removing the
+		// file and restarting starts anew.
 		return errNoCache
 	}
 	if err := s.cache.Clear(ctx); err != nil {

@@ -6,26 +6,22 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Leaving an account's own space from the rail signs the account out: its session
-// ends on the network and its kept session is deleted, while the account stays
-// configured (:login signs it back in). Whether its rooms and their history go from
-// kith too is asked first (no keeps them, readable); last, saying what goes, whether to
-// sign out. Nothing happens before that last yes.
+// Leaving an account's own space from the rail signs it out: the network session ends
+// and the kept session is deleted; the account stays configured (:login signs back in).
+// First asked whether its rooms and history go too, then whether to sign out; nothing
+// happens before that last yes.
 
-// askSignOut opens the questions for signing out the account space is.
 func (m Model) askSignOut(space domain.Space) Model {
 	m.confirm = confirmState{action: pendingSignOutForget, leaving: spaceLeave{space: space}}
 	return m
 }
 
-// answerSignOutForget takes whether the account's rooms go too, and asks last whether
-// to sign out.
+// answerSignOutForget records whether the rooms go, then asks whether to sign out.
 func (m Model) answerSignOutForget(c confirmState, yes bool) Model {
 	m.confirm = confirmState{action: pendingSignOut, leaving: c.leaving, forEveryone: yes}
 	return m
 }
 
-// signOutPrompt is the question for each step of signing out.
 func (m Model) signOutPrompt(c confirmState) string {
 	name := isolate(c.leaving.space.DisplayName())
 	rooms := roomsPhrase(len(c.leaving.space.Children))
@@ -39,13 +35,11 @@ func (m Model) signOutPrompt(c confirmState) string {
 	return q
 }
 
-// signedOutMsg reports signing out the account a space is.
 type signedOutMsg struct {
 	space domain.Space
 	err   error
 }
 
-// signOut signs out the account the questions settled on.
 func (m Model) signOut(c confirmState) (Model, tea.Cmd) {
 	m = m.say("signing out of " + isolate(c.leaving.space.DisplayName()) + "…")
 	ctx, backend, space, forget := m.ctx, m.backend, c.leaving.space, c.forEveryone
@@ -54,7 +48,7 @@ func (m Model) signOut(c confirmState) (Model, tea.Cmd) {
 	}
 }
 
-// handleSignedOut says how signing out went, and reads the rooms and spaces again.
+// handleSignedOut reports the outcome and reloads rooms and spaces.
 func (m Model) handleSignedOut(msg signedOutMsg) (Model, tea.Cmd) {
 	name := isolate(msg.space.DisplayName())
 	if msg.err != nil {

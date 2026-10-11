@@ -15,16 +15,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// A message is one of a chat's, as one account sees it: telegram:<self>/<peer>/<id>,
-// its ID unique within the chat (a channel's), or within the account (the rest).
+// Message IDs are telegram:<self>/<peer>/<id>; Telegram's id is unique per channel,
+// or per account for other chats.
 
-// messageID is a message of a chat as one account sees it.
+// messageID is a message's event ID for account self.
 func messageID(self, peerID int64, id int) domain.EventID {
 	return inRoom(roomID(self, peerID), id)
 }
 
-// markedPeer is a peer's marked ID: a user's, a basic group's negated, a channel's
-// -100….
+// markedPeer is a peer's Bot API ID: user as is, basic group negated, channel -100….
 func markedPeer(p tg.PeerClass) (int64, bool) {
 	switch p := p.(type) {
 	case *tg.PeerUser:
@@ -37,8 +36,7 @@ func markedPeer(p tg.PeerClass) (int64, bool) {
 	return 0, false
 }
 
-// incoming is a Telegram message as kith shows it, its sender named from ent; ok false
-// for one kith does not show (a service message: someone joined, a title changed).
+// incoming converts a Telegram message; false for service messages (joins, renames).
 func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Message, bool) {
 	m, ok := msg.(*tg.Message)
 	if !ok {
@@ -72,13 +70,12 @@ func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Messag
 		}
 	}
 	if m.EditDate != 0 && !m.EditHide {
-		// Each edit is a version: the cache shows the newest, whichever order they come.
+		// Each edit is a version; the cache shows the newest regardless of order.
 		out.Edited, out.EditedAt = true, time.Unix(int64(m.EditDate), 0)
 		out.RevisionID = domain.EventID(string(out.ID) + "@" + strconv.Itoa(m.EditDate))
 	}
 	out.Sender, out.SenderName = sender(self, chat, m, ent)
-	// A reply within the room; one to the message that began its topic is no reply, only
-	// the topic's (topics.go).
+	// A reply to the topic's first message only marks the topic (topics.go).
 	if reply, ok := m.ReplyTo.(*tg.MessageReplyHeader); ok && reply.ReplyToMsgID != 0 && reply.ReplyToMsgID != topic {
 		if other, ok := reply.GetReplyToPeerID(); !ok || samePeer(other, chat) {
 			out.ReplyTo = inRoom(room, reply.ReplyToMsgID)
@@ -87,9 +84,8 @@ func incoming(self int64, msg tg.MessageClass, ent peer.Entities) (domain.Messag
 	return out, true
 }
 
-// topicOf is the forum topic a message is in: the message that began it, as its
-// reply header names it; 0 for a message in no topic, or in General (the forum's own
-// room, topic 1).
+// topicOf is a message's forum topic ID from its reply header; 0 for none or General
+// (topic 1, the forum's own room).
 func topicOf(m *tg.Message) int {
 	reply, ok := m.ReplyTo.(*tg.MessageReplyHeader)
 	if !ok || !reply.ForumTopic {
@@ -105,7 +101,7 @@ func topicOf(m *tg.Message) int {
 // generalTopic is a forum's General topic, the forum's own room.
 const generalTopic = 1
 
-// labeled is an attachment's label before its caption, the caption's formatting kept.
+// labeled prefixes the caption with an attachment label, keeping its formatting.
 func labeled(label, caption string, format richtext.Formatted) (string, richtext.Formatted) {
 	switch {
 	case caption == "":
@@ -123,8 +119,8 @@ func samePeer(p tg.PeerClass, chat int64) bool {
 	return ok && id == chat
 }
 
-// sender is who sent m in chat, and their name: the account itself for its own; the
-// user, or the channel posting as itself, it is from; in a private chat, the person.
+// sender is m's sender ID and name: the account, the user, or a channel posting as
+// itself; in a private chat, the peer.
 func sender(self, chat int64, m *tg.Message, ent peer.Entities) (string, string) {
 	switch {
 	case m.Out:
@@ -157,9 +153,8 @@ func sender(self, chat int64, m *tg.Message, ent peer.Entities) (string, string)
 	return personID(chat), ""
 }
 
-// record caches messages of one room, the room made one of the account's first, where
-// no listing's sweep can come between the two (see keptRooms). joined reports whether
-// the room was not one of the account's before.
+// record adds the room to the account and caches messages under listing, so no sweep
+// can interleave (keptRooms). joined reports whether the room was new.
 func (a *Adapter) record(ctx context.Context, self int64, room domain.RoomID, msgs []domain.Message) (joined bool, err error) {
 	if a.cache == nil {
 		return false, nil
@@ -181,11 +176,9 @@ func (a *Adapter) record(ctx context.Context, self int64, room domain.RoomID, ms
 	return n > 0, nil
 }
 
-// arrived caches a message heard live and hands it to the clients, and counts it
-// unread (Telegram does). A chat the cache did not know (one just begun) is made one
-// of the account's rooms, and the listing asked again for its name. A message that
-// could not be cached holds the account's updates position (Store.hold), so it is
-// asked for again.
+// arrived caches, streams and counts a live message. An unknown chat triggers a
+// relist for its name; a cache failure holds the updates position (Store.hold) so the
+// message is refetched.
 func (a *Adapter) arrived(ctx context.Context, account Account, self int64, msg domain.Message) error {
 	if err := a.heardLive(ctx, account, self, msg); errors.Is(err, errNotOurs) {
 		return nil
@@ -200,7 +193,7 @@ func (a *Adapter) arrived(ctx context.Context, account Account, self int64, msg 
 	return nil
 }
 
-// heardLive caches a message or a version of one heard live (see arrived).
+// heardLive caches a live message or edit (see arrived).
 func (a *Adapter) heardLive(ctx context.Context, account Account, self int64, msg domain.Message) error {
 	if a.notOurs(self, msg.RoomID) {
 		return errNotOurs // a channel left, still followed (following.go)
@@ -219,7 +212,7 @@ func (a *Adapter) heardLive(ctx context.Context, account Account, self int64, ms
 	return nil
 }
 
-// relist lists an account's dialogs again, for a chat a message came to first.
+// relist relists an account's dialogs to learn a new chat's name.
 func (a *Adapter) relist(ctx context.Context, account Account) {
 	for _, c := range a.connected() {
 		if c.account.Name != account.Name {
@@ -231,8 +224,8 @@ func (a *Adapter) relist(ctx context.Context, account Account) {
 	}
 }
 
-// emit hands v to a stream without blocking: a client that is not reading misses it,
-// as with the other adapters (it reads the cache when it catches up).
+// emit sends v without blocking; a lagging client misses it and catches up from the
+// cache.
 func emit[T any](a *Adapter, ch chan T, v T) {
 	a.streamMu.RLock()
 	defer a.streamMu.RUnlock()

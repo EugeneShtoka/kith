@@ -11,19 +11,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A channel the account left, here or on another device, may still be followed: the
-// updates library keeps asking after every channel whose position it holds, and a
-// public group's history stays readable to anyone. Its messages are not the account's
-// to show. So a listing, which names every chat the account is in, settles it: a
-// followed channel it does not name is forgotten (its position, so it is not followed
-// on connecting again, and its rooms), and whatever is still heard from it is dropped.
-// A listing that names it again (joined anew) takes it back.
+// gotd keeps polling every channel it holds a pts for, even one the account left, and
+// public groups stay readable. A listing settles membership: an unlisted channel's pts
+// and rooms are forgotten and its messages dropped; relisting (rejoining) restores it.
 
-// errNotOurs is a message of a channel the account is no longer in: dropped.
+// errNotOurs is a message from a channel the account left.
 var errNotOurs = errors.New("telegram: a channel the account is not in")
 
-// settleFollowed forgets the channels the account follows that a listing of its
-// dialogs does not name, and takes back those it names.
+// settleFollowed forgets followed channels the listing omits and restores listed ones.
 func (a *Adapter) settleFollowed(ctx context.Context, self int64, elems []dialog) {
 	listed := map[int64]bool{}
 	for _, e := range elems {
@@ -66,7 +61,7 @@ func (a *Adapter) settleFollowed(ctx context.Context, self int64, elems []dialog
 	}
 }
 
-// forgetChatRooms drops a chat's room, and its topics', from the cache.
+// forgetChatRooms drops a chat's room and its topic rooms from the cache.
 func (a *Adapter) forgetChatRooms(ctx context.Context, room domain.RoomID) {
 	if a.cache == nil {
 		return
@@ -81,7 +76,7 @@ func (a *Adapter) forgetChatRooms(ctx context.Context, room domain.RoomID) {
 	}
 }
 
-// notOurs reports whether a room is of a channel the account is no longer in.
+// notOurs reports whether room belongs to a channel the account left.
 func (a *Adapter) notOurs(self int64, room domain.RoomID) bool {
 	native, _, _ := strings.Cut(domain.ParseID(string(room)).Native, topicSep)
 	chat, err := strconv.ParseInt(native, 10, 64)

@@ -8,25 +8,21 @@ import (
 
 // Draft is an outgoing message: the text, who it mentions, and what it replies to.
 type Draft struct {
-	// Body is the plain text, which is also the fallback for clients that ignore the
-	// HTML body.
+	// Body is the plain text, also the fallback for clients ignoring the HTML body.
 	Body string
 	// Mentions are the people named in Body.
 	Mentions []Mention
-	// Plain sends the body exactly as typed, with no Markdown rendering.
+	// Plain sends the body as typed, with no Markdown rendering.
 	Plain bool
-	// Emote sends the body as an m.emote rather than an m.text — the third person, what
-	// `/me` means everywhere.
+	// Emote sends an m.emote (`/me`) rather than m.text.
 	Emote bool
-	// Edits is the message this replaces — an m.replace, what every client draws with
-	// an "(edited)" marker.
+	// Edits is the message this replaces (m.replace).
 	Edits EventID
 	// ReplyTo is the event being replied to, empty for a new message.
 	ReplyTo EventID
-	// TxnID identifies this send, so that sending it twice delivers it once.
+	// TxnID makes a repeated send deliver once.
 	TxnID string
-	// ThreadRoot is the thread this message is being sent into, empty for the main
-	// timeline.
+	// ThreadRoot is the thread sent into, empty for the main timeline.
 	ThreadRoot EventID
 }
 

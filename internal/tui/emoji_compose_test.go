@@ -14,8 +14,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// emojiBackend answers with a fixed composed-emoji ranking and records the picks
-// reported back to it.
+// emojiBackend answers with a fixed composed-emoji ranking and records reported picks.
 type emojiBackend struct {
 	apitest.Nop
 	frequent []string
@@ -215,7 +214,7 @@ func TestEmojiClosingColonAccepts(t *testing.T) {
 	}
 }
 
-// A colon pair that isn't a shortcode survives exactly as typed.
+// A colon pair that is not a shortcode stays as typed.
 func TestEmojiUnknownShortcodeLeftAlone(t *testing.T) {
 	t.Parallel()
 
@@ -408,7 +407,7 @@ func TestReactionGridNeedsAMessage(t *testing.T) {
 	}
 }
 
-// The browser takes the keyboard: letters filter rather than type.
+// The browser takes the keyboard: letters filter instead of typing.
 func TestEmojiBrowserCapturesKeys(t *testing.T) {
 	t.Parallel()
 

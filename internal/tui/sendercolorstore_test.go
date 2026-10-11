@@ -55,7 +55,6 @@ func colorSession(t *testing.T, backend *slotStore, msgs []domain.Message) (Mode
 	return m, colors
 }
 
-// A person keeps their hue across a restart, and a later newcomer renumbers nobody.
 func TestSenderColorsSurviveARestart(t *testing.T) {
 	backend := newSlotStore()
 	first := []domain.Message{
@@ -70,7 +69,7 @@ func TestSenderColorsSurviveARestart(t *testing.T) {
 		t.Fatalf("leaving the room saved %v, want both senders", backend.saved["!a:x"])
 	}
 
-	// A second run also loads older history with someone who sorts first.
+	// The second run also loads older history with someone who sorts first.
 	second := append([]domain.Message{
 		{ID: "$0", RoomID: "!a:x", Sender: "@aaron:x", SenderName: "Aaron"},
 	}, first...)
@@ -91,7 +90,6 @@ func TestSenderColorsSurviveARestart(t *testing.T) {
 	}
 }
 
-// A stored numbering wins over one this session guessed before the load landed.
 func TestStoredSlotsOverrideALocalGuess(t *testing.T) {
 	backend := newSlotStore()
 	backend.saved["!a:x"] = map[string]int{"@bob:x": 5}
@@ -108,18 +106,16 @@ func TestStoredSlotsOverrideALocalGuess(t *testing.T) {
 	if got := m.derived.slots["@bob:x"]; got != 0 {
 		t.Fatalf("setup: local guess put bob at %d, want 0", got)
 	}
-	// The load lands.
 	m = rested(t, m, cmd)
 	if got := m.derived.slots["@bob:x"]; got != 5 {
 		t.Errorf("bob is at slot %d after the stored answer arrived, want 5", got)
 	}
-	// And the guess is not written back over the stored value.
+	// The guess is not written back over the stored value.
 	if _, pending := m.derived.unsaved["@bob:x"]; pending {
 		t.Error("the local guess is still queued to be written")
 	}
 }
 
-// A late answer for a room already left must not color the room now open.
 func TestLateSlotsForAnotherRoomAreDropped(t *testing.T) {
 	backend := newSlotStore()
 	m := sized(t, update(t, starterNew(backend, config.Display{}),

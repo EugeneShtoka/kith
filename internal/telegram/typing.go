@@ -10,13 +10,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Telegram says someone is typing (or recording, or choosing a sticker) every few
-// seconds while they do, and that they stopped when they send or cancel: a typist is
-// forgotten typingFor after their last notice otherwise, as Telegram's clients do.
+// Telegram repeats typing notices every few seconds and sends a cancel on stop; like
+// its clients, a typist expires typingFor after the last notice.
 const typingFor = 6 * time.Second
 
-// typingNotice is someone's notice in a chat, or in one forum topic of it: typing, or
-// stopped.
+// typingNotice is a start or stop notice in a chat or topic.
 func (a *Adapter) typingNotice(self, chat int64, topic int, who int64, action tg.SendMessageActionClass) {
 	if who == 0 || who == self {
 		return
@@ -43,7 +41,7 @@ func (a *Adapter) typingNotice(self, chat int64, topic int, who int64, action tg
 	}
 }
 
-// stoppedTyping forgets a typist, streaming the room's typists when that changed them.
+// stoppedTyping removes a typist, streaming the room if it changed.
 func (a *Adapter) stoppedTyping(room domain.RoomID, who string) {
 	a.mu.Lock()
 	timer, was := a.typing[room][who]
@@ -68,8 +66,7 @@ func (a *Adapter) typistsLocked(room domain.RoomID) []string {
 	return out
 }
 
-// SendTyping tells the chat we are typing, or stopped. A typing notice is a courtesy,
-// so an account not connected, or a refusal, is no error.
+// SendTyping sends a typing or stop notice; best effort, so failures aren't errors.
 func (a *Adapter) SendTyping(ctx context.Context, roomID domain.RoomID, typing bool, _ time.Duration) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {

@@ -30,19 +30,17 @@ type Rule struct {
 	Thread string `toml:"thread"`
 }
 
-// DefaultTimeoutSeconds is how long a desktop popup stays up when nothing says
-// otherwise.
+// DefaultTimeoutSeconds is how long a desktop popup stays up by default.
 const DefaultTimeoutSeconds = 15
 
-// PopupTimeout is how long a popup stays up: the configured seconds, the default when
-// unset, and a negative duration for "until dismissed" (the config's -1).
+// PopupTimeout is how long a popup stays up; negative means until dismissed (config -1).
 func (n Notifications) PopupTimeout() time.Duration {
 	seconds := DefaultTimeoutSeconds
 	if n.Timeout != nil {
 		seconds = *n.Timeout
 	}
 	if seconds < 0 {
-		return -1 // stays until dismissed
+		return -1
 	}
 	return time.Duration(seconds) * time.Second
 }
@@ -57,11 +55,9 @@ const (
 func (n Notifications) TitleTemplate() string { return template(n.Title, DefaultTitleTemplate) }
 
 // BodyTemplate is the effective body template, defaulting to DefaultBodyTemplate.
-// As with TitleTemplate, "-" means deliberately empty.
 func (n Notifications) BodyTemplate() string { return template(n.Body, DefaultBodyTemplate) }
 
-// template resolves one configured template against its default: unset falls back
-// to the default, and "-" is the explicit way to ask for nothing at all.
+// template resolves a configured template: unset is fallback, "-" is empty.
 func template(configured, fallback string) string {
 	switch configured {
 	case "":
@@ -78,12 +74,10 @@ type Schedule struct {
 	OverdueCutoff *int `toml:"overdue_cutoff_hours"` // nil default, <= 0 holds nothing
 }
 
-// DefaultOverdueCutoffHours is how late a missed message may be and still go out on its
-// own.
+// DefaultOverdueCutoffHours is how late a missed scheduled message may still be sent.
 const DefaultOverdueCutoffHours = 24
 
-// Cutoff is how far past its time a message may be and still be sent, resolving the
-// default.
+// Cutoff is how far past its time a scheduled message may still be sent.
 func (s Schedule) Cutoff() time.Duration {
 	hours := DefaultOverdueCutoffHours
 	if s.OverdueCutoff != nil {

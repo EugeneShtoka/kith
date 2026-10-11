@@ -10,24 +10,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A bridge names a private chat after the person in it, so naming the room names them
-// too: a room with a [[display.name]] whose own name is its one other member's name
-// gives that member the room's name, wherever they are shown. An identity's alias
-// still comes first. Only the named rooms' members are read.
+// A DM named after its one peer lends that peer the room's local name; an identity alias wins.
 
-// peerMembersLimit bounds the members read per named room: a room with this many is
-// not a private chat.
+// peerMembersLimit bounds members read per named room; a room this big is not a DM.
 const peerMembersLimit = 8
 
-// peerState is the named rooms' members and the names they give their peers.
 type peerState struct {
-	// key is the named rooms the members were last asked for (peerKey).
-	key string
-	// members is each named room's members, as last read.
+	// key is the peerKey the members were last asked for.
+	key     string
 	members map[domain.RoomID][]domain.Member
-	// aliases is each peer's room name, by user ID (withPeerAliases).
+	// aliases maps a peer's user ID to its room's name.
 	aliases map[string]string
-	// rev moves when aliases changes, for the timeline's derived cache.
+	// rev moves when aliases change, for the derived cache.
 	rev uint64
 }
 
@@ -37,7 +31,7 @@ type peerMembersMsg struct {
 	members map[domain.RoomID][]domain.Member
 }
 
-// namedRooms is each room the list knows that has a [[display.name]], by ID.
+// namedRooms is the known rooms with a [[display.name]].
 func (m Model) namedRooms() []domain.Room {
 	ids := slices.Sorted(maps.Keys(m.prefs.roomAliases))
 	rooms := make([]domain.Room, 0, len(ids))
@@ -49,8 +43,7 @@ func (m Model) namedRooms() []domain.Room {
 	return rooms
 }
 
-// peerKey is what the named rooms' peers depend on besides their members: which rooms,
-// and their own names, which a bridge changes with the person's.
+// peerKey changes when the named rooms or their names change.
 func peerKey(rooms []domain.Room) string {
 	var b strings.Builder
 	for i := range rooms {
@@ -59,8 +52,7 @@ func peerKey(rooms []domain.Room) string {
 	return b.String()
 }
 
-// refreshPeers reads the named rooms' members when the named rooms changed since they
-// were last read.
+// refreshPeers reads the named rooms' members when peerKey changed.
 func (m Model) refreshPeers() (Model, tea.Cmd) {
 	rooms := m.namedRooms()
 	key := peerKey(rooms)
@@ -79,7 +71,7 @@ func (m Model) refreshPeers() (Model, tea.Cmd) {
 			id := rooms[i].ID
 			list, err := backend.Members(ctx, id, peerMembersLimit)
 			if err != nil {
-				// A room not read names nobody; the next change reads it again.
+				// An unread room names nobody; the next change retries it.
 				if log != nil {
 					log.Warn("read a named room's members", "room", id, "err", err)
 				}
@@ -91,8 +83,7 @@ func (m Model) refreshPeers() (Model, tea.Cmd) {
 	}
 }
 
-// handlePeerMembers keeps the members read for the current named rooms; an answer for
-// an older set is dropped, the newer one being on its way.
+// handlePeerMembers keeps the answer for the current key; a stale one is dropped.
 func (m Model) handlePeerMembers(msg peerMembersMsg) (Model, tea.Cmd) {
 	if msg.key != m.peers.key {
 		return m, nil
@@ -101,8 +92,8 @@ func (m Model) handlePeerMembers(msg peerMembersMsg) (Model, tea.Cmd) {
 	return m.withPeerAliases(), nil
 }
 
-// withPeerAliases names each named room's peer by the room's name. Who is this person
-// (isMe) and the rooms' aliases change apart from the members, so it runs after each.
+// withPeerAliases names each named room's peer. isMe and room aliases change apart from the
+// members, so it runs after each.
 func (m Model) withPeerAliases() Model {
 	out := map[string]string{}
 	for _, id := range slices.Sorted(maps.Keys(m.peers.members)) {
@@ -124,8 +115,8 @@ func (m Model) withPeerAliases() Model {
 	return m
 }
 
-// peerOf is the one member of room who is neither this person nor a bridge's bot,
-// when the room's own name is that member's name.
+// peerOf is the room's one member who is neither me nor a bridge bot, when the room's own name
+// is that member's name.
 func (m Model) peerOf(room domain.Room, members []domain.Member) (string, bool) {
 	if len(members) >= peerMembersLimit || room.Name == "" {
 		return "", false

@@ -15,15 +15,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Every row the timeline caches must be keyed by everything its render reads. The
-// named cases in rowcache_test.go change one input each, and a key missing an input
-// nobody thought of passes them (focus, which decides whether pictures are drawn, was
-// found by reading the code). This walks random sequences of every input a row reads:
-// focus, insert mode, width, stars, reveals, reactions (added, removed, and swapped at
-// the same count), pictures, fetched quotes, the cursor, the room's spaces (a space
-// rule shapes sender names) and its name (a tracked-word rule can be scoped by it). A frame is drawn between steps, and asModel's staleRow check fails the
-// first Update that leaves a cached row unlike a fresh render. A new render input
-// without a key fails here without a new case.
+// Every cached row must be keyed by everything its render reads. Named cases (rowcache_test.go)
+// miss inputs nobody thought of, so this walks random sequences of every row input: focus,
+// insert mode, width, stars, reveals, reactions (including swaps at the same count), pictures,
+// fetched quotes, the cursor, the room's spaces and name. A frame is drawn between steps and
+// asModel's staleRow check fails the first Update leaving a stale row.
 func TestTheRowCacheHoldsOverAnyUpdateSequence(t *testing.T) {
 	t.Parallel()
 	seeds, steps := 120, 40
@@ -163,9 +159,8 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 	}
 }
 
-// walkMessages is a timeline with every kind of row: two days (date dividers),
-// pictures, a deleted message (revealable), replies to a loaded and to an unloaded
-// message, and bodies long enough to wrap.
+// walkMessages has every kind of row: two days (date dividers), pictures, a deleted message,
+// replies to loaded and unloaded messages, and bodies that wrap.
 func walkMessages() []domain.Message {
 	day := func(d, sec int) time.Time { return time.Unix(int64(d*86400+sec), 0) }
 	msgs := make([]domain.Message, 0, 12)
@@ -192,8 +187,8 @@ func walkMessages() []domain.Message {
 	return msgs
 }
 
-// Pictures are drawn only while the timeline has the focus. Moving it away and back
-// must redraw the rows around a picture, not keep them as they were cached.
+// Pictures are drawn only while the timeline has focus; moving focus away and back must redraw
+// the rows around a picture.
 func TestPictureRowsFollowTheFocus(t *testing.T) {
 	t.Parallel()
 	m := update(t, starterNew(&quoteBackend{}, config.Display{Media: config.Media{Mode: "inline"}}),

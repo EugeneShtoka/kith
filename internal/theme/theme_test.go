@@ -10,8 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// A generated color has to stay away from the hues an identity has already pinned, or
-// the person you gave green to shares it with whoever the wheel lands on next.
+// Generated colors avoid hues already pinned to identities.
 func TestSpreadColorsAvoidsPinnedHues(t *testing.T) {
 	t.Parallel()
 
@@ -31,8 +30,7 @@ func TestSpreadColorsAvoidsPinnedHues(t *testing.T) {
 	}
 }
 
-// Consecutive senders must not get neighboring shades — that is the whole reason the
-// step is the golden ratio rather than 1/n.
+// Consecutive senders get distant hues.
 func TestSpreadColorsSeparatesNeighbours(t *testing.T) {
 	t.Parallel()
 
@@ -45,7 +43,7 @@ func TestSpreadColorsSeparatesNeighbours(t *testing.T) {
 	}
 }
 
-// Distinct, and distinct all the way down the list — not just between neighbors.
+// All generated colors are distinct, not just neighbors.
 func TestSpreadColorsAreAllDifferent(t *testing.T) {
 	t.Parallel()
 
@@ -58,7 +56,7 @@ func TestSpreadColorsAreAllDifferent(t *testing.T) {
 	}
 }
 
-// Asking for none is not an error, and asking to avoid nothing is the ordinary case.
+// n == 0 and an empty avoid list are handled.
 func TestSpreadColorsDegenerateInputs(t *testing.T) {
 	t.Parallel()
 
@@ -70,8 +68,7 @@ func TestSpreadColorsDegenerateInputs(t *testing.T) {
 	}
 }
 
-// The search is bounded, so an avoid list covering the wheel returns fewer colors rather
-// than looping forever.
+// An avoid list covering the wheel returns fewer colors instead of looping.
 func TestSpreadColorsGivesUpRatherThanSpinning(t *testing.T) {
 	t.Parallel()
 
@@ -85,8 +82,7 @@ func TestSpreadColorsGivesUpRatherThanSpinning(t *testing.T) {
 	}
 }
 
-// hslColor is the only place a color is computed rather than written down, so the three
-// corners of the cube and one mid-hue are worth pinning.
+// hslColor on the primaries, a mid-hue and wraparound.
 func TestHSLConversion(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +100,7 @@ func TestHSLConversion(t *testing.T) {
 		{"black", 0, 0, 0, "#000000"},
 		{"white", 0, 0, 1, "#ffffff"},
 		{"mid grey", 210, 0, 0.5, "#808080"},
-		// Past the wheel: 480° is 120° again, which is what the Mod is for.
+		// 480° wraps to 120°.
 		{"wraps past 360", 480, 1, 0.5, "#00ff00"},
 	} {
 		if got := hslColor(tc.h, tc.s, tc.l); got != lipgloss.Color(tc.want) {
@@ -126,7 +122,7 @@ func TestHueOfInvertsHSL(t *testing.T) {
 	}
 }
 
-// A grey has no hue, and asking for one must not divide by the zero chroma.
+// A grey's hue is 0, with no division by zero chroma.
 func TestHueOfGreyIsZero(t *testing.T) {
 	t.Parallel()
 
@@ -202,8 +198,7 @@ func TestParseColor(t *testing.T) {
 	}
 }
 
-// Every friendly name has to survive ParseColor, or a config using one draws in the zero
-// color.
+// Every named color parses.
 func TestEveryNamedColorParses(t *testing.T) {
 	t.Parallel()
 
@@ -255,8 +250,7 @@ func TestRowNeverFills(t *testing.T) {
 	}
 }
 
-// The marker carries the row's fill so the selection runs unbroken beneath it, and its
-// own color so it still says "here" in a pane that does not have the focus.
+// The marker carries the row's fill and the cursor color, focused or not.
 func TestMarkerSitsOnTheRowsFill(t *testing.T) {
 	t.Parallel()
 
@@ -270,7 +264,7 @@ func TestMarkerSitsOnTheRowsFill(t *testing.T) {
 	if got := th.Marker(true, false); got.GetForeground() != th.Palette.Muted {
 		t.Error("the unfocused marker should recede, not disappear")
 	}
-	// Unselected: the marker is not drawn, so it must be the row untouched.
+	// Unselected, the marker is just the row's style.
 	marker, row := th.Marker(false, true), th.PaneRow(false, true)
 	if marker.GetForeground() != row.GetForeground() ||
 		marker.GetBackground() != row.GetBackground() {
@@ -278,8 +272,7 @@ func TestMarkerSitsOnTheRowsFill(t *testing.T) {
 	}
 }
 
-// A badge with a color of its own has to be repainted onto the row's fill, or a selected
-// room's unread count shows as a hole in the highlight.
+// A badge is repainted onto the row's fill so it doesn't punch a hole in it.
 func TestOnPaneRowRepaintsOntoTheFill(t *testing.T) {
 	t.Parallel()
 
@@ -299,8 +292,7 @@ func TestOnPaneRowRepaintsOntoTheFill(t *testing.T) {
 	}
 }
 
-// A highlight badge — a mention — must not look like an ordinary unread count; that
-// difference is the only thing distinguishing "someone said your name" at a glance.
+// A highlight (mention) badge differs from an ordinary unread count.
 func TestHighlightBadgeIsItsOwnColor(t *testing.T) {
 	t.Parallel()
 
@@ -313,7 +305,7 @@ func TestHighlightBadgeIsItsOwnColor(t *testing.T) {
 	}
 }
 
-// Focused and unfocused frames must differ: it is the only cue for which pane has keys.
+// Focused and unfocused frames differ; it is the only focus cue.
 func TestFocusIsVisible(t *testing.T) {
 	t.Parallel()
 

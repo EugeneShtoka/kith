@@ -1,8 +1,7 @@
 package config
 
-// Storage is [storage]: where this config's kith keeps its files, and under what
-// name. Empty directories are the XDG defaults; an empty instance is chosen (and
-// written here) the first time kith runs.
+// Storage is [storage]: where kith keeps its files. Empty directories are the XDG
+// defaults; an empty instance is chosen and written on first run.
 type Storage struct {
 	// Instance names this config's files in the directories below, so several
 	// configs can share them. Not tied to any account.
@@ -13,8 +12,8 @@ type Storage struct {
 	RuntimeDir     string `toml:"runtime_dir"`
 	ExportDir      string `toml:"export_dir"` // where /export writes; empty is <data_dir>/exports
 	KeyringService string `toml:"keyring_service"`
-	// MessagesPerRoom is how many messages a room keeps, the newest; nil or negative
-	// keeps every one. Rules narrow it per room, space or tag.
+	// MessagesPerRoom is how many newest messages a room keeps; nil or negative keeps
+	// all. Rules override it per place.
 	MessagesPerRoom *int          `toml:"messages_per_room"`
 	Rules           []StorageRule `toml:"rule"`
 }

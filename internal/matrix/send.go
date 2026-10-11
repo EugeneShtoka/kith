@@ -30,15 +30,13 @@ func (b *InProc) Send(ctx context.Context, roomID domain.RoomID, draft domain.Dr
 		return fmt.Errorf("matrix: send message: %w", err)
 	}
 	// Rank addressed people higher in future mention dropdowns; best-effort.
-	// Mentions is nil for messages without pills (see recordMentions).
 	if b.cache != nil {
 		b.debugIf(ctx, recordMentions(ctx, b.cache, roomID, &content), "record mentions", "room", roomID)
 	}
 	return nil
 }
 
-// recordMentions notes who a sent message addressed. content.Mentions may be nil;
-// a panic here once killed the daemon after a scheduled send.
+// recordMentions notes who a sent message addressed. content.Mentions may be nil.
 func recordMentions(ctx context.Context, rec *db.Cache, roomID domain.RoomID, content *event.MessageEventContent) error {
 	if content == nil || content.Mentions == nil {
 		return nil
@@ -65,10 +63,9 @@ func (b *InProc) threadFallback(ctx context.Context, roomID domain.RoomID, draft
 	return draft.ThreadRoot
 }
 
-// buildMessage turns a draft into event content. A mention travels three ways:
-// m.mentions (drives the highlight), a matrix.to pill in formatted_body, and the
-// plain name in body. The thread relation is set before the reply: SetThread writes
-// a falling-back m.in_reply_to that a genuine SetReplyTo then overwrites.
+// buildMessage turns a draft into event content. A mention goes in m.mentions, as a
+// matrix.to pill and as the plain name. SetThread precedes SetReplyTo so a real
+// reply overwrites the thread's fallback m.in_reply_to.
 func buildMessage(draft domain.Draft, fallback domain.EventID) event.MessageEventContent {
 	msgType := event.MsgText
 	if draft.Emote {
@@ -99,8 +96,8 @@ func buildMessage(draft domain.Draft, fallback domain.EventID) event.MessageEven
 			}
 		}
 	}
-	// Edit last: SetEdit copies the built content into m.new_content (and clears the
-	// outer m.mentions so a correction does not re-ping).
+	// Edit last: SetEdit copies the content into m.new_content and clears the outer
+	// m.mentions so a correction does not re-ping.
 	if draft.Edits != "" {
 		content.SetEdit(id.EventID(draft.Edits))
 	}
@@ -180,9 +177,8 @@ func (b *InProc) SendReaction(ctx context.Context, roomID domain.RoomID, target 
 	return nil
 }
 
-// sealReaction encrypts a reaction for an encrypted room; the machine keeps its
-// relation in the clear so servers can still aggregate it. Runs inside sealed, so
-// client.Crypto is fixed and, when nil, the room is known to be unencrypted.
+// sealReaction encrypts a reaction, leaving the relation clear for aggregation. Runs
+// inside sealed, so a nil client.Crypto means the room is unencrypted.
 func (b *InProc) sealReaction(ctx context.Context, roomID domain.RoomID, content *event.ReactionEventContent) (event.Type, any, error) {
 	if b.client.Crypto == nil || !b.roomEncrypted(ctx, roomID) {
 		return event.EventReaction, content, nil

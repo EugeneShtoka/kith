@@ -18,13 +18,11 @@ type Streams struct {
 	verifications *hub[domain.Verification]
 	// activity (typing, receipts) has no paired cache read.
 	activity *hub[domain.Activity]
-	// follows carries URIs from `kith --open` to attached TUIs. It has no backend
-	// channel (an RPC feeds it; see Follow), so Run does not pump it and Attached
-	// does not count it.
+	// follows carries `kith --open` URIs to attached TUIs. It has no backend channel (an
+	// RPC feeds it), so Run does not pump it and Attached does not count it.
 	follows *hub[string]
-	// rooms tells attached clients a network rewrote its rooms (a chat begun, renamed,
-	// archived on the phone), so they read the list again. Fed by RoomsChanged, not a
-	// backend channel, like follows.
+	// rooms tells clients a network rewrote its rooms so they reread the list. Fed by
+	// RoomsChanged, like follows.
 	rooms *hub[struct{}]
 	// configs carries the configuration after each change (Configured), like follows.
 	configs *hub[config.Snapshot]
@@ -45,8 +43,8 @@ func NewStreams() *Streams {
 	}
 }
 
-// Run pumps every backend channel into its hub until ctx is canceled or the backend
-// closes them, then ends every stream. It blocks.
+// Run pumps every backend channel into its hub until ctx ends or the backend closes
+// them, then ends every stream. It blocks.
 func (s *Streams) Run(ctx context.Context, b api.Backend) {
 	var wg sync.WaitGroup
 	wg.Go(func() { s.messages.pump(ctx, b.Messages()) })
@@ -56,19 +54,18 @@ func (s *Streams) Run(ctx context.Context, b api.Backend) {
 	wg.Go(func() { s.verifications.pump(ctx, b.Verifications()) })
 	wg.Go(func() { s.activity.pump(ctx, b.Activity()) })
 	wg.Wait()
-	s.follows.end() // no backend channel ends these otherwise
+	s.follows.end() // no backend channel ends these
 	s.rooms.end()
 	s.configs.end()
 }
 
-// notifierBuffer is the in-process consumer's queue. Its delivery can be slow (a desktop
-// notification over D-Bus, a spam verdict over the network), and a burst after a
-// suspend is hundreds of messages at once: a message it misses is a mention nobody
-// is told of, and nothing reads it again.
+// notifierBuffer is the in-process consumer's queue. Its delivery can be slow (D-Bus,
+// a spam verdict over the network) and a post-suspend burst is hundreds of messages;
+// a missed message is a mention nobody is told of.
 const notifierBuffer = 4096
 
 // SubscribeMessages attaches an in-process consumer (the notifier) to the message
-// stream, returning its id and channel. It does not affect Attached.
+// stream. It does not affect Attached.
 func (s *Streams) SubscribeMessages() (uint64, <-chan domain.Message) {
 	return s.messages.subscribeWith(notifierBuffer)
 }
@@ -76,8 +73,8 @@ func (s *Streams) SubscribeMessages() (uint64, <-chan domain.Message) {
 // ReleaseMessages detaches a subscriber taken out by SubscribeMessages.
 func (s *Streams) ReleaseMessages(id uint64) { s.messages.release(id) }
 
-// Attached reports how many clients are fully attached: the minimum subscriber
-// count across the five streams, since a client subscribes to them one by one.
+// Attached reports how many clients are fully attached: the minimum subscriber count
+// across the five streams, since a client subscribes one by one.
 func (s *Streams) Attached() int {
 	return min(
 		s.messages.subscribers(),
@@ -94,8 +91,7 @@ func (s *Streams) Configured(snap config.Snapshot) { s.configs.broadcast(snap) }
 // RoomsChanged tells every attached client that a network rewrote its rooms.
 func (s *Streams) RoomsChanged() { s.rooms.broadcast(struct{}{}) }
 
-// Follow hands a URI to every attached client and reports whether there was one;
-// `kith --open` starts a terminal when there was not.
+// Follow hands a URI to every attached client and reports whether there was one.
 func (s *Streams) Follow(uri string) bool {
 	if s.follows.subscribers() == 0 {
 		return false

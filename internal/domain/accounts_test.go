@@ -6,8 +6,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An account a phone number names needs a name and an international number, neither
-// repeated: login picks one by name, and the number is whom it logs in as.
+// A phone account needs a unique name and a unique international number.
 func TestPhoneAccountsAreNamedAndDistinct(t *testing.T) {
 	t.Parallel()
 	type acc struct{ name, phone string }

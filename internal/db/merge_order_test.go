@@ -12,13 +12,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// One message's history, as the daemon saves it: the original, two edits, and a
-// redaction. Matrix delivers these in any order (live sync, backfill newest page
-// first), so every order must leave the same row.
+// One message's history: the original, two edits and a redaction. Matrix delivers
+// these in any order, so every order must leave the same row.
 type historyStep struct {
 	name string
 	msg  domain.Message // saved with SaveMessagesWithRevisions
-	// redact, when set, is a redaction instead: MarkRedacted without keep.
+	// redact, when set, makes this a redaction (MarkRedacted without keep).
 	redact bool
 	// redactRev, when set, redacts that edit event (not the message).
 	redactRev domain.EventID
@@ -55,9 +54,8 @@ func stepOrders(steps []historyStep) [][]historyStep {
 	return out
 }
 
-// replay saves one order as the daemon would under [display.deleted] keep. Once
-// redacted, the server serves the original stripped (m.replace edits it leaves
-// alone), so a later original arrives as a redacted copy.
+// replay saves one order under [display.deleted] keep. After a redaction the server
+// serves the original stripped (edits stay), so a later original arrives redacted.
 func replay(ctx context.Context, cache *Cache, order []historyStep, keep bool) error {
 	const room = domain.RoomID("!r:x")
 	save := cache.SaveMessages
@@ -129,8 +127,7 @@ func TestSavedHistoryIsOrderIndependent(t *testing.T) {
 			},
 		},
 		{
-			// What a kept message shows depends on what had arrived when it was
-			// deleted, so only the flag is order-independent.
+			// A kept message's body depends on arrival order; only the flag does not.
 			name:  "edits and a redaction, keeping deleted",
 			steps: []historyStep{stepOrig, stepEdit1, stepEdit2, stepRedact},
 			keep:  true,
@@ -142,8 +139,7 @@ func TestSavedHistoryIsOrderIndependent(t *testing.T) {
 			},
 		},
 		{
-			// The server never sends the original (it is older than any page asked
-			// for); the edits, which it does not redact, still arrive.
+			// The original never arrives (older than any page); the edits still do.
 			name:  "a redaction before the message, then only its edits",
 			steps: []historyStep{stepEdit1, stepEdit2, stepRedact},
 			check: func(m domain.Message, revs []domain.Revision) error {
@@ -203,8 +199,8 @@ func TestSavedHistoryIsOrderIndependent(t *testing.T) {
 	}
 }
 
-// Trimming a room drops the tombstones older than what it keeps: a message is older
-// than its deletion, so one deleted before the cutoff would be trimmed on arrival.
+// Trimming drops tombstones older than the cutoff, so a message deleted before it is
+// trimmed on arrival.
 func TestTrimDropsTombstonesItNoLongerNeeds(t *testing.T) {
 	t.Parallel()
 
@@ -246,14 +242,10 @@ func TestTrimDropsTombstonesItNoLongerNeeds(t *testing.T) {
 	}
 }
 
-// The daemon's cache, the wire and the client's in-memory merge each resolve a
-// message's history, and must resolve it alike: the client shows a cached row (read
-// over the socket) and folds in what arrives live after it. So for every delivery
-// order, and every point in it where the client might have loaded the row, the row
-// the client ends with must equal what the cache ends with, read over the wire.
-// Each layer's own permutation test passed while they disagreed on an edit tie: the
-// cache broke it by event ID, and the client, which never received the ID, by
-// arrival.
+// The cache and the client's in-memory merge resolve a message's history alike: for
+// every delivery order and every point the client loads the row, the client's row
+// equals the cache's read over the wire. (Each layer's own test once passed while
+// they broke an edit tie differently.)
 func TestTheCacheAndTheClientResolveHistoryAlike(t *testing.T) {
 	t.Parallel()
 
@@ -295,10 +287,8 @@ func stepNames(order []historyStep) string {
 	return strings.Join(names, " ")
 }
 
-// resolvedAlike replays order into a cache step by step, as the daemon saves what
-// it receives. The client loads the row after loadedAfter steps (over the wire) and
-// folds in the rest as they arrive live: each as the daemon emits it, and a deleted
-// edit as the row the cache reverted to, marked to replace what the client shows.
+// resolvedAlike replays order into a cache; the client loads the row after loadedAfter
+// steps and folds in the rest live, a deleted edit as the reverted row.
 func resolvedAlike(cache *Cache, order []historyStep, loadedAfter int) error {
 	ctx := context.Background()
 	var client []domain.Message
@@ -372,8 +362,7 @@ func resolvedAlike(cache *Cache, order []historyStep, loadedAfter int) error {
 // drawn is formatting as a client draws it.
 func drawn(f richtext.Formatted) string { return fmt.Sprintf("%q %+v", f.Text(), f.Spans()) }
 
-// overTheWire is the room as the client receives it: read from the cache and sent
-// through the socket's wire types.
+// overTheWire reads the room from the cache through the socket's wire types.
 func overTheWire(ctx context.Context, cache *Cache) ([]domain.Message, error) {
 	msgs, err := cache.Messages(ctx, "!r:x", 10)
 	if err != nil {
@@ -382,11 +371,8 @@ func overTheWire(ctx context.Context, cache *Cache) ([]domain.Message, error) {
 	return protoconv.ProtoToMessages(protoconv.MessagesToProto(msgs)), nil
 }
 
-// Deleting an edit (its own event, not the message) takes its words away for good:
-// whatever order the original, the edits and the deletion arrive in, the words of a
-// deleted edit are never what the message shows. With [display.deleted] keep the
-// versions are all cached, so it shows exactly the newest one left; without, the
-// cache may know none older, and shows what it has (or nothing, until one arrives).
+// A deleted edit's words never show, in any arrival order. Under [display.deleted]
+// keep the newest remaining version shows; without it, whatever the cache has.
 func TestADeletedEditIsNeverShownAgain(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

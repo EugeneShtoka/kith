@@ -15,13 +15,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// spamType is the room account data type holding a room's spam verdict. Account data
-// rather than cache: rules fire once, so a verdict lost on a cache rebuild would never
-// be caught again. Invisible to the room.
+// spamType is the room account data type for a room's spam verdict. Account data, not
+// cache: rules fire once, so a verdict lost on a rebuild would never be caught again.
 const spamType = "org.kith.spam"
 
-// spamContent is one room's verdict (latest rule wins), or a release, written with
-// rule 0.
+// spamContent is one room's verdict (latest rule wins), or a release (rule 0).
 type spamContent struct {
 	Rule     int    `json:"rule"`
 	Filter   string `json:"filter,omitempty"`
@@ -39,8 +37,8 @@ func (c spamContent) verdict(roomID domain.RoomID) domain.SpamVerdict {
 	}
 }
 
-// spamFrom reports one room's spam account data in a sync, and whether the type was
-// present at all (absence is silence, not a release).
+// spamFrom reports one room's spam account data in a sync, and whether it was present
+// (absence is no change, not a release).
 func spamFrom(events []*event.Event) (content spamContent, present bool) {
 	for _, evt := range events {
 		if evt == nil || evt.Type.Type != spamType {
@@ -48,7 +46,7 @@ func spamFrom(events []*event.Event) (content spamContent, present bool) {
 		}
 		var parsed spamContent
 		if err := json.Unmarshal(evt.Content.VeryRaw, &parsed); err != nil {
-			// Unparseable still means present; empty reads as "not spam" (the safe side).
+			// Unparseable still counts as present; empty reads as "not spam".
 			return spamContent{}, true
 		}
 		content, present = parsed, true
@@ -56,10 +54,9 @@ func spamFrom(events []*event.Event) (content spamContent, present bool) {
 	return content, present
 }
 
-// MarkSpam records a verdict, a release, or (neither) clears it. The homeserver is
-// written first, then the mirror. A rule's verdict never overwrites a release: the
-// server's copy is checked first (domain.ErrSpamReleased), since the release may come
-// from another machine and not have synced yet.
+// MarkSpam records a verdict or a release, or clears both; the homeserver first, then
+// the mirror. A rule's verdict never overwrites a release, checked on the server too
+// since it may not have synced yet (domain.ErrSpamReleased).
 func (b *InProc) MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error {
 	at := verdict.At
 	if at.IsZero() {
@@ -126,8 +123,8 @@ func (b *InProc) clearSpam(ctx context.Context, roomID domain.RoomID) error {
 	})
 }
 
-// spamMirror applies a sync's verdict to the cache. Best-effort: the server copy is
-// the record, and an initial sync restates it.
+// spamMirror applies a sync's verdict to the cache; best-effort, as the server copy is
+// the record.
 func (b *InProc) spamMirror(ctx context.Context, roomID domain.RoomID, content spamContent) {
 	if b.cache == nil {
 		return

@@ -44,7 +44,7 @@ type State struct {
 	// Duration is zero until the player knows it.
 	Position, Duration time.Duration
 	Speed              float64
-	// Paused is the player's own flag, not a guess made when the key was pressed.
+	// Paused is the player's reported flag, not inferred from key presses.
 	Paused bool
 	// Done is end of file or the player exiting; neither is an error.
 	Done bool
@@ -97,8 +97,7 @@ func Play(ctx context.Context, command []string, path string, speed float64) (*S
 	}
 	// Reaped here so waitForSocket can notice an immediate exit.
 	exited := make(chan struct{})
-	// The exit status is not reported: a player that dies early shows up as
-	// waitForSocket's error, and one killed by Close is expected to exit non-zero.
+	// Exit status is ignored: an early death surfaces via waitForSocket, and Close kills it.
 	go func() { _ = cmd.Wait(); close(exited) }()
 
 	conn, err := waitForSocket(ctx, socket, exited)
@@ -200,8 +199,7 @@ func (s *Session) pollLoop(stop <-chan struct{}, every time.Duration) {
 			return
 		case <-ticker.C:
 			if err := s.speaks.ask(s); err != nil {
-				// The socket is gone, so the player is: the bar stops moving, and the
-				// next control the user presses returns this same failure to them.
+				// The player is gone; the next control returns the failure.
 				return
 			}
 		}
@@ -226,8 +224,7 @@ func (s *Session) TogglePause() error {
 	return s.speaks.pause(s)
 }
 
-// Seek moves by d. Seeking back from the end clears Done at once, so the bar does not
-// keep reading "done" until the player reports otherwise.
+// Seek moves by d. Seeking back clears Done immediately, before the player reports.
 func (s *Session) Seek(d time.Duration) error {
 	if s == nil {
 		return nil
@@ -266,9 +263,8 @@ func (s *Session) Close() {
 	if stop != nil {
 		close(stop)
 	}
-	// Teardown, all best effort: the player may have exited already (then quit,
-	// Close and Kill fail harmlessly), and a leftover socket dir is in a temp dir.
-	// Asked to quit before being killed, so it closes the audio device cleanly.
+	// Best-effort teardown; the player may already be gone. Quit before Kill lets it
+	// close the audio device cleanly.
 	_ = s.speaks.quit(s)
 	if conn != nil {
 		_ = conn.Close()
@@ -306,16 +302,14 @@ func (s *Session) write(line string) error {
 	// A connection without deadlines only loses the bound, not the write.
 	_ = s.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	if _, err := s.conn.Write([]byte(line + "\n")); err != nil {
-		// Part of the line may be out, and a queued question would take the next
-		// answer: nothing said after this can be trusted, so the session ends here
-		// (the reader sees the close and marks it done; later writes fail at once).
+		// A partial write desyncs queued queries from answers, so end the session.
 		_ = s.conn.Close()
 		return fmt.Errorf("audio: send %q: %w", line, err)
 	}
 	return nil
 }
 
-// maxLine caps one control line so a misbehaving player cannot grow our memory.
+// maxLine caps one control line so a misbehaving player cannot grow memory unbounded.
 const maxLine = 1 << 16
 
 // read folds everything the player says into the state until the connection ends.

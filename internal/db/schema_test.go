@@ -14,8 +14,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A database this build made is at this build's version, and opening it again
-// changes nothing.
+// A new database is stamped with this build's version; reopening changes nothing.
 func TestOpenStampsTheVersionAndReopeningIsANoOp(t *testing.T) {
 	t.Parallel()
 
@@ -56,8 +55,7 @@ func TestOpenRebuildsAnOlderCache(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	// A pre-base cache, in an older shape: a `ts` column, no
-	// STRICT, no foreign keys, and a table this schema has never heard of.
+	// A pre-base shape: a `ts` column, no STRICT, no foreign keys, an unknown table.
 	old, err := sql.Open("sqlite", path)
 	if err != nil {
 		t.Fatalf("open old: %v", err)
@@ -79,13 +77,10 @@ func TestOpenRebuildsAnOlderCache(t *testing.T) {
 	}
 	defer func() { _ = cache.Close() }()
 
-	// The base, then every migration on top of it — a rebuilt database ends up at the
-	// current schema, not parked at the base.
+	// A rebuild runs every migration on top of the base.
 	if want := schemaVersion + len(migrations); stampedVersion(t, cache) != want {
 		t.Errorf("user_version = %d, want %d", stampedVersion(t, cache), want)
 	}
-	// The table it had and this schema does not is gone, and the one they share has
-	// this schema's columns.
 	if tables := tableNames(t, cache); slices.Contains(tables, "thread_reindex") {
 		t.Errorf("thread_reindex survived the rebuild: %v", tables)
 	}
@@ -94,7 +89,7 @@ func TestOpenRebuildsAnOlderCache(t *testing.T) {
 	}
 	mustSave(t, cache, "!a:x", domain.Message{ID: "$2", Body: "from the new shape", Timestamp: time.UnixMilli(1)})
 
-	// The old file is still there, under a name that says what it is.
+	// The old file is kept aside.
 	aside := asideFiles(t, path)
 	if len(aside) != 1 {
 		t.Fatalf("set-aside copies = %v, want exactly one", aside)
@@ -175,9 +170,7 @@ func TestDeletingARoomCascades(t *testing.T) {
 	}
 }
 
-// The three queries the live cache measurably scanned. Each has an index named
-// after it now, and an index nobody's plan mentions is an index that is not
-// earning its writes — so the plan is what the test reads.
+// Hot queries use their indices, checked from the query plan.
 func TestTheHotQueriesUseTheirIndices(t *testing.T) {
 	t.Parallel()
 
@@ -196,26 +189,22 @@ func TestTheHotQueriesUseTheirIndices(t *testing.T) {
 		// inOrder is a query the index must return in order, with no sort step.
 		inOrder bool
 	}{
-		// Every message that names me, newest first: 115 rows out of 13,355, which
-		// used to mean reading all 13,355 and sorting them.
+		// Every message that names me, newest first.
 		{"mentions list", mentions, "messages_naming_me", false},
-		// Who has posted here, ranked. The index covers it — sender and ts_ms are
-		// both in it — so the ranking never touches the table.
+		// Who has posted here, ranked; the index covers it.
 		{"sender ranking", "SELECT sender, COUNT(*) AS n, MAX(ts_ms) AS recent FROM messages " +
 			"WHERE sender != '' GROUP BY sender ORDER BY n DESC, recent DESC", "messages_by_sender", false},
-		// A name for each MXID, which the mention dropdown asks on every keystroke.
+		// A name for each MXID, asked on every mention-dropdown keystroke.
 		{"member names", "SELECT user_id, display_name FROM room_members " +
 			"WHERE display_name != '' AND user_id IN (?, ?)", "room_members_by_user", false},
 		{"recent speakers", "SELECT sender, max(ts_ms) AS recent FROM messages " +
 			"WHERE room_id = ? AND sender != '' GROUP BY sender ORDER BY recent DESC LIMIT ?", "messages_by_room_sender", false},
-		// Which message a redacted edit event shows on, on every redaction of an event
-		// the cache holds no row for (EditShownBy, revertShownEdit).
+		// Which message a redacted edit shows on (EditShownBy, revertShownEdit).
 		{"edit a redaction names", "SELECT event_id FROM message_edit WHERE room_id = ? AND revision_id = ?",
 			"message_edit_by_revision", false},
 		// A room's newest edit, on every mark-read (NewestTS).
 		{"newest revision", "SELECT max(ts_ms) FROM message_revisions WHERE room_id = ?", "message_revisions_by_time", false},
-		// The timeline, a window around one message, and a thread, in (time, event ID)
-		// order: the index carries the tie-breaker, so none of them sorts.
+		// (time, event ID) order: the index carries the tie-breaker, so none sorts.
 		{"timeline page", messageSelect + " WHERE m.room_id = ? ORDER BY m.ts_ms DESC, m.event_id DESC LIMIT ?", "messages_by_time", true},
 		{"window before", messageSelect + " WHERE m.room_id = ? AND (m.ts_ms, m.event_id) < (?, ?) " +
 			"ORDER BY m.ts_ms DESC, m.event_id DESC LIMIT ?", "messages_by_time", true},
@@ -238,9 +227,8 @@ func TestTheHotQueriesUseTheirIndices(t *testing.T) {
 	}
 }
 
-// Milliseconds survive the round trip. The column is named for its unit because
-// the unnamed one caused this bug once already — a benchmark seeded seconds into
-// `ts` and everything it wrote looked like 1970.
+// Milliseconds survive the round trip (ts_ms is named for its unit; seconds in it
+// read as 1970).
 func TestTimestampsRoundTripAsMilliseconds(t *testing.T) {
 	t.Parallel()
 
@@ -295,8 +283,7 @@ func tableNames(t *testing.T, cache *Cache) []string {
 		}
 		names = append(names, name)
 	}
-	// A truncated iteration would otherwise read as "the table is not there", which is
-	// exactly what several of these assertions are about.
+	// A truncated iteration would read as a missing table.
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate tables: %v", err)
 	}
@@ -315,9 +302,8 @@ func countRows(t *testing.T, cache *Cache, table string) int {
 	return n
 }
 
-// queryPlan is EXPLAIN QUERY PLAN's answer as one string, so a test can say which
-// index a query must use. Parameters are bound to NULL: the plan is chosen from the
-// statement, not from the values.
+// queryPlan is EXPLAIN QUERY PLAN as one string. Parameters bind to NULL; the plan
+// depends on the statement, not the values.
 func queryPlan(t *testing.T, cache *Cache, query string) string {
 	t.Helper()
 	args := make([]any, strings.Count(query, "?"))
@@ -358,10 +344,8 @@ func asideFiles(t *testing.T, path string) []string {
 	return out
 }
 
-// analyzedCache is a cache shaped like a used one — rooms of mixed chatter, a few
-// senders of whom "me" is one, threads, mentions, read positions — with ANALYZE run,
-// as Open and Close do on a real cache: the planner chooses by these statistics, and
-// on an empty file it can choose differently.
+// analyzedCache is a cache shaped like a used one, with ANALYZE run as Open and
+// Close do: the planner may choose differently on an empty file.
 func analyzedCache(t *testing.T) *Cache {
 	t.Helper()
 	ctx := context.Background()
@@ -402,12 +386,9 @@ func analyzedCache(t *testing.T) *Cache {
 	return cache
 }
 
-// The badge, search and thread-list queries, each pinned to the index it reads. Where a
-// plan sorts, the sort is over what the index found, not the table:
-//   - your own newest message, the badges' floor, is one seek per room;
-//   - a full-text search sorts its matches by time (FTS5 returns rowid order), and
-//     excerpts only the page it keeps: a snippet costs a tokenizing of the body;
-//   - a thread list orders by each thread's newest reply, an aggregate.
+// Badge, search and thread-list queries use their indices; any sort is over index
+// results, not the table. Search sorts FTS5 matches (rowid order) by time and
+// excerpts only the kept page, since a snippet re-tokenizes the body.
 func TestTheBadgeSearchAndThreadQueriesUseTheirIndices(t *testing.T) {
 	t.Parallel()
 
@@ -458,8 +439,8 @@ func TestTheBadgeSearchAndThreadQueriesUseTheirIndices(t *testing.T) {
 	}
 }
 
-// The starred list and the files list, with no terms, are driven from the few rows
-// they name, not a walk of every message newest first.
+// Without terms, the starred and files lists start from their own rows, not a walk
+// of every message.
 func TestTheStarredAndFileListsStartFromTheirOwnRows(t *testing.T) {
 	t.Parallel()
 	cache := analyzedCache(t)

@@ -12,14 +12,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/logging"
 )
 
-// bufferLog is a debug-level logger writing to a buffer, as the client's log file would.
+// bufferLog is a debug-level logger writing to a buffer, like the client's log file.
 func bufferLog() (*slog.Logger, *bytes.Buffer) {
 	var buf bytes.Buffer
 	return logging.New(&buf, logging.Options{Level: slog.LevelDebug, NoTime: true}), &buf
 }
 
-// A refused mark-read says why on the status line and in the log: "could not mark X
-// read" alone hid a homeserver rejecting every receipt for hours.
+// A refused mark-read shows the reason on the status line and in the log.
 func TestMarkReadRefusalShowsAndLogsTheReason(t *testing.T) {
 	t.Parallel()
 

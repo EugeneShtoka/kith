@@ -11,9 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Leaving a group or a channel is leaving it on Telegram, on every device; a forum is
-// left whole, its topics' rooms with it. A topic is part of its forum, and a private
-// chat has no one to leave: neither can be left.
+// Groups and channels are left on Telegram; a forum is left with all its topics.
+// Topics and private chats cannot be left.
 
 // errTopicNotLeft is a topic's room asked to be left.
 var errTopicNotLeft = fmt.Errorf("%w: a forum's topic cannot be left on Telegram, only the whole forum (its General room); archive the topic to put it away", api.ErrNotOnNetwork)
@@ -27,9 +26,8 @@ var errGroupNotDeleted = fmt.Errorf("%w: only a private chat is deleted on Teleg
 // errSavedForMe is your saved messages asked to be deleted for someone else too.
 var errSavedForMe = fmt.Errorf("%w: your saved messages are yours alone; delete them for you only", api.ErrNotOnNetwork)
 
-// deletingOf is how a Telegram chat that cannot be left is deleted: a private chat
-// for you and, if you say so, for the other person; your saved messages for you. A
-// group, a channel and a topic are left instead (LeaveRoom).
+// deletingOf is how a chat that can't be left is deleted: a DM for you and optionally
+// the peer, Saved Messages for you. Groups, channels and topics are left instead.
 func deletingOf(roomID domain.RoomID) domain.ChatDeleting {
 	parsed := domain.ParseID(string(roomID))
 	chat, err := strconv.ParseInt(parsed.Native, 10, 64)
@@ -43,7 +41,7 @@ func deletingOf(roomID domain.RoomID) domain.ChatDeleting {
 	}
 }
 
-// withDeleting is rooms, each saying how it is deleted, if it is.
+// withDeleting sets each room's Deleting.
 func withDeleting(rooms []domain.Room) []domain.Room {
 	for i := range rooms {
 		rooms[i].Deleting = deletingOf(rooms[i].ID)
@@ -51,9 +49,8 @@ func withDeleting(rooms []domain.Room) []domain.Room {
 	return rooms
 }
 
-// DeleteChat deletes a private chat's history on Telegram, for you, and, with
-// forEveryone, for the other person too, and drops it from the cache: Telegram lists
-// it no more until someone writes in it again.
+// DeleteChat deletes a private chat's history for you (and the peer if forEveryone)
+// and drops it from the cache; it reappears when someone writes.
 func (a *Adapter) DeleteChat(ctx context.Context, roomID domain.RoomID, forEveryone bool) error {
 	switch deletingOf(roomID) {
 	case domain.ChatLeft:
@@ -68,7 +65,7 @@ func (a *Adapter) DeleteChat(ctx context.Context, roomID domain.RoomID, forEvery
 	if err != nil {
 		return err
 	}
-	// Telegram deletes a long history in parts: it says how much is left (Offset).
+	// Telegram deletes long histories in parts, reporting the rest in Offset.
 	for {
 		affected, err := ch.conn.client.API().MessagesDeleteHistory(ctx, &tg.MessagesDeleteHistoryRequest{
 			Peer: ch.peer, Revoke: forEveryone,
@@ -84,8 +81,7 @@ func (a *Adapter) DeleteChat(ctx context.Context, roomID domain.RoomID, forEvery
 	return nil
 }
 
-// LeaveRoom leaves a group or channel on Telegram and drops it, and a forum's topics,
-// from the cache.
+// LeaveRoom leaves a group or channel and drops it (and any forum topics) from the cache.
 func (a *Adapter) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	if _, inTopic := forumOf(roomID); inTopic {
 		return errTopicNotLeft
@@ -120,7 +116,7 @@ func (a *Adapter) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	return nil
 }
 
-// forgetLeft drops rooms left or deleted from the cache, and says the rooms changed.
+// forgetLeft drops left or deleted rooms from the cache and signals the change.
 func (a *Adapter) forgetLeft(ctx context.Context, gone []domain.RoomID) {
 	if a.cache == nil {
 		return

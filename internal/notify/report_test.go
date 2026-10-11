@@ -10,8 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// A hook that fails, or a player that is not there, is reported rather than lost —
-// and the report never carries the message.
+// A failing hook or missing player is reported, without the message text.
 func TestFailedDeliveryIsReported(t *testing.T) {
 	t.Parallel()
 	type failure struct{ sink, err string }

@@ -7,9 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The two directions of one link are written by separate calls — the successor's
-// create event is what we read, and the predecessor's forward link is derived from
-// it — so the writes have to commute.
+// The two directions of one link are written by separate calls, so they must commute.
 func TestChainLinksSurviveBeingWrittenInEitherOrder(t *testing.T) {
 	t.Parallel()
 
@@ -39,8 +37,7 @@ func TestChainLinksSurviveBeingWrittenInEitherOrder(t *testing.T) {
 				}
 			}
 
-			// B is the room that proves it: it is both a successor and a predecessor,
-			// so it is the only one whose row is written twice, once per direction.
+			// B is both successor and predecessor, so its row is written twice.
 			up, known, err := cache.RoomUpgrade(ctx, "!b:x")
 			if err != nil || !known {
 				t.Fatalf("RoomUpgrade(!b:x) = known %v, err %v; want known", known, err)
@@ -64,8 +61,7 @@ func TestChainLinksSurviveBeingWrittenInEitherOrder(t *testing.T) {
 	}
 }
 
-// Nearly every room is in no chain, and asking about one must not invent a row or
-// an error — RoomChain is called on the search path for every scope.
+// A room in no chain gets no row and no error; RoomChain runs on every search.
 func TestARoomInNoChainIsItsOwnWholeChain(t *testing.T) {
 	t.Parallel()
 
@@ -83,9 +79,8 @@ func TestARoomInNoChainIsItsOwnWholeChain(t *testing.T) {
 	}
 }
 
-// A server that writes two rooms naming each other as predecessor is a cycle, and a
-// chain walk that trusts the data would spin inside a query. The walk is bounded by
-// what it has already seen, not only by the hop limit.
+// Two rooms naming each other as predecessor form a cycle; the walk stops at rooms it
+// has seen, not only at the hop limit.
 func TestACycleInTheCacheDoesNotSpin(t *testing.T) {
 	t.Parallel()
 
@@ -107,9 +102,7 @@ func TestACycleInTheCacheDoesNotSpin(t *testing.T) {
 	}
 }
 
-// The scope a search is given is a set, and expanding it must not duplicate a room
-// two scopes share — an IN clause naming the same room twice is not wrong, but a
-// caller that reads the length to say "searching 3 rooms" is.
+// Expanding a search scope does not duplicate a room two scopes share.
 func TestExpandingAScopeKeepsEachRoomOnce(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +120,7 @@ func TestExpandingAScopeKeepsEachRoomOnce(t *testing.T) {
 		t.Errorf("RoomChains() = %v, want each room once in caller order", got)
 	}
 
-	// Nothing to expand: no table read to prove a no-op.
+	// Nothing to expand.
 	if got, err := cache.RoomChains(ctx, nil); err != nil || len(got) != 0 {
 		t.Errorf("RoomChains(nil) = %v, %v; want empty", got, err)
 	}

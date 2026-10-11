@@ -20,7 +20,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// danaWrites is Dana's message to us, addressed as WhatsApp does now (by LID).
+// danaWrites is Dana's message to the account, addressed by LID.
 func danaWrites(id, text string) *events.Message {
 	return &events.Message{
 		Info: types.MessageInfo{
@@ -33,8 +33,8 @@ func danaWrites(id, text string) *events.Message {
 
 var danaChat = domain.RoomID("whatsapp:" + ownDigits + "/" + danaPhone + "@s.whatsapp.net")
 
-// A direct chat's first message makes it a room named after the person, with them
-// in it; the message is cached, counted into word completion and streamed.
+// A direct chat's first message creates a room named after the person; the message
+// is cached, counted for word completion and streamed.
 func TestADirectChatBeginsWithItsFirstMessage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -70,8 +70,8 @@ func TestADirectChatBeginsWithItsFirstMessage(t *testing.T) {
 	}
 }
 
-// A listing of groups keeps the account's direct chats, and any room a message came
-// to after the listing was fetched; it still sweeps a group the account left.
+// A listing keeps direct chats and rooms heard from after it was fetched, but sweeps
+// a left group.
 func TestAListingSweepsOnlyWhatItShould(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -108,9 +108,8 @@ func TestAListingSweepsOnlyWhatItShould(t *testing.T) {
 	}
 }
 
-// Messages arriving while listings are written: none is lost with its room, whatever
-// the interleaving. A listing is what WhatsApp would answer: every group joined
-// before it was fetched, none joined after (the case the sweep must not take).
+// No interleaving of messages and listings loses a room. Each listing holds groups
+// joined before it was fetched, none after.
 func TestNoMessageIsSweptWithItsRoom(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -158,7 +157,7 @@ func TestNoMessageIsSweptWithItsRoom(t *testing.T) {
 	}
 }
 
-// historyOf is a live message as a history chunk carries it.
+// historyOf wraps a live message in a history chunk.
 func historyOf(e *events.Message) *events.HistorySync {
 	key := &waCommon.MessageKey{RemoteJID: new(e.Info.Chat.String()), FromMe: new(e.Info.IsFromMe), ID: new(e.Info.ID)}
 	if e.Info.IsGroup {
@@ -172,7 +171,6 @@ func historyOf(e *events.Message) *events.HistorySync {
 	}}}}
 }
 
-// Sending refuses what it cannot do, and an account that is not connected.
 func TestSendRefusesWhatItCannot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -182,8 +180,7 @@ func TestSendRefusesWhatItCannot(t *testing.T) {
 	}
 }
 
-// A mention is written as WhatsApp writes it and names the person; a reply quotes
-// what it answers; a retried send keeps its ID.
+// Mentions use WhatsApp's form, replies quote, and a retried send keeps its ID.
 func TestAnOutgoingMessageAsWhatsAppTakesIt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -225,7 +222,7 @@ func TestAnOutgoingMessageAsWhatsAppTakesIt(t *testing.T) {
 	}
 }
 
-// Mention candidates are ranked as Matrix's are: who spoke last leads.
+// Mention candidates lead with the latest speaker.
 func TestMentionCandidatesLeadWithWhoSpoke(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -249,7 +246,7 @@ func TestMentionCandidatesLeadWithWhoSpoke(t *testing.T) {
 	}
 }
 
-// A changed account list takes effect without a restart: a removed account is let go.
+// A removed account is disconnected without a restart.
 func TestAccountsChangeWithoutARestart(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

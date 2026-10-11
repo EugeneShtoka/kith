@@ -7,20 +7,17 @@ import (
 	"unicode/utf8"
 )
 
-// Finishing a word from what has actually been said.
-
+// Word completion from what has been said.
 const (
 	// CompleteMinPrefix is how much must be typed before anything is offered.
 	CompleteMinPrefix = 3
-	// CompleteMinSaving is how many characters a candidate must save to be offered at
-	// all.
+	// CompleteMinSaving is how many characters a candidate must save to be offered.
 	CompleteMinSaving = 2
 	// CompleteChoices is how many a chooser offers.
 	CompleteChoices = 3
 )
 
-// LongEnough reports whether a candidate saves enough over what has been typed to be
-// worth offering.
+// LongEnough reports whether word saves at least CompleteMinSaving runes over prefix.
 func LongEnough(prefix, word string) bool {
 	return len([]rune(word)) >= len([]rune(prefix))+CompleteMinSaving
 }
@@ -35,18 +32,16 @@ type WordCandidate struct {
 
 // CompleteRequest is one lookup: a partly typed word, and where it is being typed.
 type CompleteRequest struct {
-	// Prefix is what has been typed of the word, already lowercased by the caller when
-	// the language has case at all — the full-text index folds, so the vocabulary is
-	// folded, and matching it means asking in the same case.
+	// Prefix is lowercased by the caller: the full-text index, and so the vocabulary,
+	// is case-folded.
 	Prefix string
-	// RoomIDs is the conversation being typed in: the open room, and any room it was
-	// upgraded from.
+	// RoomIDs is the open room and any room it was upgraded from.
 	RoomIDs []RoomID
 	// SpaceRooms is every room in this room's spaces, including this one.
 	SpaceRooms []RoomID
 	// Scope is how wide to look: "room", "space" or "global".
 	Scope string
-	// Sources names which of the two corpora may answer.
+	// Sources names which corpora may answer; empty means all.
 	Sources []string
 	// Limit bounds the candidates returned.
 	Limit int
@@ -57,8 +52,7 @@ func (r CompleteRequest) Wants(source string) bool {
 	return len(r.Sources) == 0 || slices.Contains(r.Sources, source)
 }
 
-// Dominant is the leading candidate when it leads clearly enough to be drawn without
-// being asked for, and false when the field is too close to call.
+// Dominant is the first candidate when its score is at least ratio times the second's.
 func Dominant(candidates []WordCandidate, ratio int) (WordCandidate, bool) {
 	if len(candidates) == 0 || ratio < 1 {
 		return WordCandidate{}, false
@@ -73,8 +67,7 @@ func Dominant(candidates []WordCandidate, ratio int) (WordCandidate, bool) {
 	return WordCandidate{}, false
 }
 
-// MergeCandidates folds a second source into a ranked list, keeping the first source's
-// order and appending only what it did not have.
+// MergeCandidates appends extra's new words to ranked, scored below ranked's last.
 func MergeCandidates(ranked, extra []WordCandidate, limit int) []WordCandidate {
 	seen := make(map[string]struct{}, len(ranked))
 	for _, c := range ranked {
@@ -101,14 +94,12 @@ func MergeCandidates(ranked, extra []WordCandidate, limit int) []WordCandidate {
 	return out
 }
 
-// RecaseLike restores the case the typist was using, because the vocabulary has none.
+// RecaseLike applies the typed prefix's case (upper or capitalized) to word.
 func RecaseLike(typed, word string) string {
 	if typed == "" || word == "" {
 		return word
 	}
-	// Two letters before this counts as shouting: a single capital is how a sentence
-	// and a name both begin, and reading "C" as SHOUTING would make the commonest
-	// capital there is the one that behaves strangely.
+	// All caps needs two letters: a single capital is just a capitalized word.
 	if runes := []rune(typed); len(runes) > 1 && strings.ToUpper(typed) == typed && strings.ToLower(typed) != typed {
 		return strings.ToUpper(word)
 	}

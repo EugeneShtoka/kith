@@ -1,19 +1,19 @@
-// Command kith-mcp exposes this account's Matrix history to an AI assistant over the Model
-// Context Protocol, as a third client of the kithd daemon: no Matrix code of its own,
-// decrypted rooms from the daemon's cache, never a key.
+// Command kith-mcp exposes this account's chat history to an AI assistant over the
+// Model Context Protocol, as a client of kithd: no network code, decrypted rooms from
+// the daemon's cache, never a key.
 //
-// Writing: send_message(room, text) sends only to rooms `[agent.write] send` names; any
-// other writable room gets a draft in its composer. The model cannot choose. A per-room
-// cooldown and a ledger (internal/agent; `kith --agent-log`) ride with it.
+// Writing: send_message sends only to rooms `[agent.write] send` names; other writable
+// rooms get a composer draft. The model cannot choose. A per-room cooldown and a ledger
+// (internal/agent; `kith --agent-log`) apply.
 //
-// Scope: `[agent.read]` is least privilege (empty rooms shares nothing); `[agent.write]`
-// reads empty as "every readable room". Each narrows the one before: send ⊆ write ⊆ read.
+// Scope: `[agent.read]` is least privilege; `[agent.write]` reads empty as "every
+// readable room". send ⊆ write ⊆ read.
 //
 //	                        [agent.read]             [agent.write]
 //	rooms non-empty         those, minus except      only those
 //	rooms empty, except set nothing                  every readable room but those
 //	both empty              nothing                  every readable room
-//	encrypted = false       …never an encrypted one  …never an encrypted one
+//	encrypted = false       ...never an encrypted one ...never an encrypted one
 package main
 
 import (
@@ -99,12 +99,12 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 	} else {
 		log.Error("no agent ledger; send_message will refuse", "err", openErr)
 	}
-	// Concurrently, so the handshake does not wait on the cache reads.
+	// Concurrently, so the handshake does not wait on cache reads.
 	go warnAboutScope(log, server.backend, cfg)
 	return server.serve(os.Stdin, os.Stdout)
 }
 
-// phonebookFor is the phonebook an assistant may read fields from: nil unless
+// phonebookFor is the phonebook an assistant may read fields from; nil unless
 // [agent.read] people allows it.
 func phonebookFor(cfg config.Config) *phonebook.Book {
 	if !cfg.Agent.Read.People {
@@ -113,7 +113,7 @@ func phonebookFor(cfg config.Config) *phonebook.Book {
 	return phonebook.New(setup.PhonebookDir(cfg))
 }
 
-// warnAboutScope says, on stderr, which `[agent.write]` entries `[agent.read]` rules out.
+// warnAboutScope logs which `[agent.write]` entries `[agent.read]` rules out.
 func warnAboutScope(log *slog.Logger, places setup.AgentPlaces, cfg config.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), scopeCheckTimeout)
 	defer cancel()
@@ -175,7 +175,7 @@ type reader interface {
 	LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 }
 
-// writer is everything this binary can change. Nothing here can edit or delete.
+// writer is everything this binary can change; nothing here can edit or delete.
 type writer interface {
 	Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error
 	Schedule(ctx context.Context, msg domain.ScheduledMessage) (string, error)
@@ -183,25 +183,24 @@ type writer interface {
 	ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (bool, error)
 }
 
-// daemonCalls is both halves: everything this server asks of the daemon and nothing else.
+// daemonCalls is everything this server asks of the daemon, and nothing else.
 type daemonCalls interface {
 	reader
 	writer
 }
 
-// server holds the one connection and the decisions the model does not get to make.
+// server holds the daemon connection and the decisions the model does not make.
 type server struct {
 	backend daemonCalls
 	// scope is `[agent.read]`, always asked as least privilege (see readScope).
 	scope domain.ModelScope
 	// write is `[agent.write]` rooms/except/encrypted, asked only inside scope.
 	write domain.ModelScope
-	// selves is every ID the daemon says is this person, on every network, asked at
-	// each tool call (an account may log in meanwhile).
+	// selves is every ID that is this person, asked per tool call (accounts may log in
+	// meanwhile).
 	selves []string
-	// aliases are the person's own names for people ([[display.identity]]), and people
-	// names everyone with them and the directory, asked at each tool call. An
-	// assistant gets whole names: no first-name rule, no width.
+	// aliases are the person's names for people ([[display.identity]]); people names
+	// everyone with them and the directory, asked per call. Assistants get whole names.
 	aliases map[string]string
 	people  domain.People
 	// send is `[agent.write] send`: rooms posted to rather than drafted into.
@@ -210,8 +209,8 @@ type server struct {
 	cooldown time.Duration
 	// ledger records every write and answers the cooldown; nil disables writing.
 	ledger *agent.Ledger
-	// crypto holds the rooms known to be encrypted (that never reverts); a room not
-	// in it is asked again on each tool call.
+	// crypto holds rooms known to be encrypted (never reverts); others are asked again on
+	// each tool call.
 	mu     sync.Mutex
 	crypto map[domain.RoomID]bool
 	// client is the assistant's name from initialize, recorded as the author.
@@ -220,20 +219,19 @@ type server struct {
 	places domain.Places
 	// files is where get_attachment puts a file that is not an image.
 	files string
-	// book is the phonebook find_people reads people's fields from, when [agent.read]
-	// people allows; nil when it does not.
+	// book is the phonebook find_people reads fields from; nil unless [agent.read] people
+	// allows it.
 	book *phonebook.Book
 	// log is stderr; nil (a test) logs nothing.
 	log *slog.Logger
 }
 
-// logger is s.log, or a discarding logger.
 func (s *server) logger() *slog.Logger { return logging.OrDiscard(s.log) }
 
 // callTimeout bounds one tool call against an unresponsive daemon.
 const callTimeout = 20 * time.Second
 
-// serve runs the protocol loop: one JSON-RPC object per line in, one per line out.
+// serve runs the protocol loop: one JSON-RPC object per line in and out.
 func (s *server) serve(in io.Reader, out io.Writer) error {
 	lines := bufio.NewReaderSize(in, maxLine)
 	encoder := json.NewEncoder(out)
@@ -265,15 +263,15 @@ func (s *server) serve(in io.Reader, out io.Writer) error {
 	}
 }
 
-// maxLine bounds one request line: it is the reader's buffer, and never grows.
+// maxLine bounds one request line; it is the reader's buffer and never grows.
 const maxLine = 1 << 20
 
-// errLineTooLong is a request line longer than maxLine, already skipped.
+// errLineTooLong is a request line over maxLine, already skipped.
 var errLineTooLong = errors.New("request line longer than the limit")
 
-// readLine reads one line, of at most maxLine bytes. A longer one is discarded up to
-// its newline and reported as errLineTooLong, so one oversized request can neither
-// grow memory nor end the session.
+// readLine reads one line of at most maxLine bytes. A longer one is discarded to its
+// newline and reported as errLineTooLong, so it neither grows memory nor ends the
+// session.
 func readLine(r *bufio.Reader) ([]byte, error) {
 	line, err := r.ReadSlice('\n')
 	if !errors.Is(err, bufio.ErrBufferFull) {

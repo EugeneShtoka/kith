@@ -9,10 +9,8 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// Every ```toml example in docs/ is something a reader pastes into their config, and
-// Load refuses a key nothing reads. So each must decode, into a real table, with no
-// unknown keys. Two did not: skin_tone shown under [display.emoji], and one table
-// setting the same key twice.
+// Every ```toml example in docs/ decodes with no unknown or duplicate keys, since
+// readers paste them into their config.
 func TestTheDocsTOMLExamplesDecode(t *testing.T) {
 	t.Parallel()
 	files, err := filepath.Glob(filepath.Join("..", "..", "docs", "*.md"))

@@ -7,16 +7,15 @@ import (
 	"sync"
 )
 
-// DefaultMaxBytes caps a log file before it is rotated: one full file and one old
-// one (path + ".1") are kept, so the log never takes more than twice this.
+// DefaultMaxBytes caps a log file before rotation; with path+".1" kept, the log
+// uses at most twice this.
 const DefaultMaxBytes = 1 << 20
 
 // FileName is the client's log file inside its state directory.
 const FileName = "kith.log"
 
-// File is an append-only log file rotated at a size cap: when a write would take it
-// past max bytes, the file becomes path+".1" (replacing the previous one) and a
-// fresh one is started. Safe for concurrent use.
+// File is an append-only log rotated to path+".1" when a write would pass the cap.
+// Safe for concurrent use.
 type File struct {
 	mu   sync.Mutex
 	path string
@@ -25,8 +24,8 @@ type File struct {
 	size int64
 }
 
-// OpenFile opens (creating 0600, with 0700 parents) the log file at path. max <= 0
-// means DefaultMaxBytes.
+// OpenFile opens the log at path (0600, parents 0700); maxBytes <= 0 means
+// DefaultMaxBytes.
 func OpenFile(path string, maxBytes int64) (*File, error) {
 	if maxBytes <= 0 {
 		maxBytes = DefaultMaxBytes
@@ -58,8 +57,8 @@ func (lf *File) open() error {
 	return nil
 }
 
-// Write appends p, rotating first when p would take the file past the cap. A line
-// longer than the cap is still written whole, into a fresh file.
+// Write appends p, rotating first if it would pass the cap. A line longer than the
+// cap is written whole into a fresh file.
 func (lf *File) Write(p []byte) (int, error) {
 	lf.mu.Lock()
 	defer lf.mu.Unlock()
@@ -85,8 +84,7 @@ func (lf *File) rotate() error {
 		return fmt.Errorf("logging: close log file for rotation: %w", err)
 	}
 	lf.f = nil
-	// A failed rename still reopens the file, so logging goes on (past the cap)
-	// rather than stopping for good.
+	// Reopen even if the rename fails, so logging continues past the cap.
 	renameErr := os.Rename(lf.path, lf.path+".1")
 	if err := lf.open(); err != nil {
 		return err

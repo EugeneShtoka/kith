@@ -50,7 +50,7 @@ func TestEditorKeys(t *testing.T) {
 		"alt+d":             {key: alt('d'), text: "hello", at: 5},
 		"ctrl+u":            {key: ctrl('u'), text: " world", at: 0},
 		"ctrl+k":            {key: ctrl('k'), text: "hello", at: 5},
-		// Not editing keys: they must reach whatever is behind the field.
+		// Not editing keys: they reach whatever is behind the field.
 		"enter":  {key: key(tea.KeyEnter), text: "hello world", at: 5, unclaimed: true},
 		"esc":    {key: key(tea.KeyEscape), text: "hello world", at: 5, unclaimed: true},
 		"ctrl+n": {key: ctrl('n'), text: "hello world", at: 5, unclaimed: true},
@@ -96,7 +96,7 @@ func TestEditorClampsAtTheEnds(t *testing.T) {
 	}
 }
 
-// A grapheme is one keypress: 👍🏻 is two runes, and deleting half of it is wrong.
+// A grapheme is one keypress: 👍🏻 is two runes, never split.
 func TestEditorStepsByGrapheme(t *testing.T) {
 	t.Parallel()
 
@@ -123,7 +123,7 @@ func TestEditorWordsAreWhitespaceDelimited(t *testing.T) {
 	if got.text != "send " {
 		t.Errorf("ctrl+w gave %q, want the whole path gone", got.text)
 	}
-	// Trailing whitespace goes with the word before it, not on its own keystroke.
+	// Trailing whitespace goes with the word before it.
 	spaced, _ := newEditor("one two   ").edit(ctrl('w'), defaultKeys)
 	if spaced.text != "one " {
 		t.Errorf("ctrl+w over trailing spaces gave %q, want %q", spaced.text, "one ")
@@ -321,7 +321,7 @@ func TestCaretWindowKeepsTheCaretVisible(t *testing.T) {
 		t.Errorf("line = %q, want the text just before the caret", line)
 	}
 
-	// Caret at the front of a long line: what follows it is what you can see.
+	// Caret at the front of a long line: what follows it is visible.
 	front := ansi.Strip(editedLine(editor{text: long, at: 0}, 20, true))
 	if !strings.HasPrefix(front, caretMark) {
 		t.Errorf("line = %q, want the caret at the start", front)
@@ -413,7 +413,7 @@ func TestFilteredEmojiLandsAtTheCaret(t *testing.T) {
 	}
 }
 
-// An empty paste says so rather than silently doing nothing.
+// An empty paste says so.
 func TestEmptyPasteSaysSo(t *testing.T) {
 	t.Parallel()
 
@@ -453,8 +453,7 @@ func TestEnterMakesALineAndCtrlEnterSends(t *testing.T) {
 	}
 }
 
-// alt+enter sends too: ctrl+enter is indistinguishable from enter without the kitty
-// keyboard protocol.
+// alt+enter sends too: without the kitty keyboard protocol ctrl+enter looks like enter.
 func TestAltEnterAlsoSends(t *testing.T) {
 	t.Parallel()
 
@@ -491,7 +490,7 @@ func TestEnterSendsWhenFlipped(t *testing.T) {
 	if m.compose.input != "" {
 		t.Errorf("input = %q, want it sent rather than broken", m.compose.input)
 	}
-	// And ctrl+enter now makes the line.
+	// ctrl+enter makes the line.
 	m = typeInto(t, m, "a")
 	m, _ = press(t, m, sendKey())
 	if m.compose.input != "a\n" {
@@ -516,7 +515,7 @@ func TestEnterKeySettingRow(t *testing.T) {
 	}
 }
 
-// The rows the composer draws and the rows the message area gives up must agree.
+// The rows the composer draws equal the rows the message area gives up.
 func TestComposerHeightAndMessageAreaAgree(t *testing.T) {
 	t.Parallel()
 
@@ -548,7 +547,7 @@ func TestComposerHeightAndMessageAreaAgree(t *testing.T) {
 	if !strings.Contains(last, caretMark) {
 		t.Errorf("the caret should be on the last drawn row, got %q", stripStyles(last))
 	}
-	// And the divider says what is out of sight.
+	// The divider says what is out of sight.
 	if div := m.composerDivider(50); !strings.Contains(div, "above") {
 		t.Errorf("divider = %q, want it to say how much is hidden", div)
 	}
@@ -724,7 +723,7 @@ func TestComposerRowMotion(t *testing.T) {
 	if got := m.compose.input[:m.compose.caret.at]; got != "first line" {
 		t.Errorf("two rows up landed after %q — the goal column was not kept", got)
 	}
-	// And back down to where it started.
+	// Back down to where it started.
 	m, _ = press(t, m, key(tea.KeyDown))
 	m, _ = press(t, m, key(tea.KeyDown))
 	if got := m.compose.input[:m.compose.caret.at]; got != "first line\nno\nthird line" {
@@ -736,7 +735,7 @@ func TestComposerRowMotion(t *testing.T) {
 	if got := m.compose.input[:m.compose.caret.at]; got != "first line\nno" {
 		t.Errorf("after moving left, up landed after %q", got)
 	}
-	// The ends clamp rather than wrapping to the other end of the message.
+	// The ends clamp, not wrap.
 	m, _ = press(t, m, key(tea.KeyHome))
 	before := m.compose.caret.at
 	m, _ = press(t, m, key(tea.KeyUp))

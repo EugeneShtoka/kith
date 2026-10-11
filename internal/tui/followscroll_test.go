@@ -17,13 +17,11 @@ func TestScrollKeysCarryTheSelection(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			m := benchTimelineModel(400)
 			m.focus, m.compose.insertMode = paneTimeline, false
-			// Start at the bottom with the newest message selected, as opening a room
-			// leaves it.
+			// Start at the bottom with the newest message selected, as opening a room leaves it.
 			m.timeline.selected = m.timeline.messages[len(m.timeline.messages)-1].ID
 			m.timeline.scroll = 0
 			if name == "end" {
-				// end goes to the newest, so start away from it for the move to mean
-				// anything.
+				// end goes to the newest, so start away from it.
 				m.timeline.scroll = 200
 				m = m.keepSelectionVisible()
 			}
@@ -33,7 +31,7 @@ func TestScrollKeysCarryTheSelection(t *testing.T) {
 			if after.timeline.scroll == m.timeline.scroll {
 				t.Fatalf("%s did not move the view (scroll stayed %d)", name, m.timeline.scroll)
 			}
-			// The selection must now be inside the viewport.
+			// The selection is now inside the viewport.
 			from, to, ok := after.selectionRows()
 			if !ok {
 				t.Fatal("no selection after the move")
@@ -43,7 +41,7 @@ func TestScrollKeysCarryTheSelection(t *testing.T) {
 				t.Errorf("%s left the cursor outside the viewport: rows [%d,%d), viewport [%d,%d)",
 					name, from, to, after.timeline.scroll, after.timeline.scroll+rows)
 			}
-			// And an arrow afterwards must not spring the view back.
+			// An arrow afterwards does not spring the view back.
 			nudged, _ := asModel(after.Update(tea.KeyPressMsg{Code: 'k', Text: "k"}))
 			back := nudged
 			if delta := back.timeline.scroll - after.timeline.scroll; delta < -rows || delta > rows {
@@ -53,8 +51,8 @@ func TestScrollKeysCarryTheSelection(t *testing.T) {
 	}
 }
 
-// Scrolling while typing must not move the cursor: there is none on screen, and the
-// bindings are documented as view-only so they keep working in insert mode.
+// Scrolling while typing does not move the cursor: there is none on screen, and the
+// bindings are view-only so they work in insert mode.
 func TestScrollWhileTypingLeavesSelection(t *testing.T) {
 	m := benchTimelineModel(400)
 	m.focus, m.compose.insertMode = paneTimeline, true
@@ -71,8 +69,7 @@ func TestScrollWhileTypingLeavesSelection(t *testing.T) {
 	}
 }
 
-// home is "go to the beginning", which means the *first* message — not the nearest
-// visible one.
+// home selects the first message, not the nearest visible one.
 func TestHomeSelectsTheFirstMessage(t *testing.T) {
 	m := benchTimelineModel(400)
 	m.focus, m.compose.insertMode = paneTimeline, false
@@ -86,7 +83,7 @@ func TestHomeSelectsTheFirstMessage(t *testing.T) {
 	if after.timeline.selected != oldest {
 		t.Errorf("home selected %s, want the oldest message %s", after.timeline.selected, oldest)
 	}
-	// And it is on screen, not merely selected.
+	// It is on screen, not merely selected.
 	from, to, ok := after.selectionRows()
 	if !ok {
 		t.Fatal("no selection after home")
@@ -97,7 +94,7 @@ func TestHomeSelectsTheFirstMessage(t *testing.T) {
 	}
 }
 
-// end is the mirror: the newest message, selected and in view.
+// end selects the newest message and brings it into view.
 func TestEndSelectsTheNewestMessage(t *testing.T) {
 	m := benchTimelineModel(400)
 	m.focus, m.compose.insertMode = paneTimeline, false
@@ -117,9 +114,8 @@ func TestEndSelectsTheNewestMessage(t *testing.T) {
 	}
 }
 
-// ctrl+u and ctrl+d move half a screen, and the half is the point: what a half page
-// buys over a whole one is overlap — some of what you just read stays on screen to
-// place the rest against.
+// ctrl+u and ctrl+d move half a screen, keeping some of what was just read on screen
+// for context.
 func TestHalfPageMovesHalfAScreen(t *testing.T) {
 	m := benchTimelineModel(400)
 	m.focus, m.compose.insertMode = paneTimeline, false
@@ -135,7 +131,7 @@ func TestHalfPageMovesHalfAScreen(t *testing.T) {
 	if want := rows / 2; half.timeline.scroll != want {
 		t.Errorf("ctrl+u scrolled %d rows, want %d (half of %d)", half.timeline.scroll, want, rows)
 	}
-	// The cursor comes with it, for the same reason paging carries it.
+	// The cursor comes along, as with paging.
 	from, to, ok := half.selectionRows()
 	if !ok {
 		t.Fatal("no selection after ctrl+u")
@@ -144,7 +140,7 @@ func TestHalfPageMovesHalfAScreen(t *testing.T) {
 		t.Errorf("ctrl+u left the cursor outside the viewport: rows [%d,%d), viewport [%d,%d)",
 			from, to, half.timeline.scroll, half.timeline.scroll+rows)
 	}
-	// And back down again lands where it started.
+	// Back down lands where it started.
 	down, _ := asModel(half.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}))
 	back := down
 	if back.timeline.scroll != 0 {
@@ -152,8 +148,8 @@ func TestHalfPageMovesHalfAScreen(t *testing.T) {
 	}
 }
 
-// ctrl+d scrolls while typing — the composer's editor has no use for it — where ctrl+u
-// is the editor's "clear the line" and must never reach the timeline.
+// ctrl+d scrolls while typing (the editor has no use for it); ctrl+u is the editor's
+// "clear the line" and never reaches the timeline.
 func TestHalfPageWhileTypingIsCtrlDOnly(t *testing.T) {
 	m := benchTimelineModel(400)
 	m.focus, m.compose.insertMode = paneTimeline, true

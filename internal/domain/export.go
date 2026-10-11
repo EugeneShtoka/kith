@@ -8,31 +8,25 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// A conversation is exported as Markdown a person can read in any editor, or keep:
-// a heading per day; each message its time and sender, what it replies to, its
-// words with their formatting, its attachment, and its reactions; a thread's replies
-// gathered under the message that began it. People are named as kith names them,
-// whole; times and dates as the person has them written.
-
-// ExportOf is what an export is of.
+// ExportOf describes what an export is of.
 type ExportOf struct {
 	Title   string    // the room's name, or the thread's
 	Network string    // "Telegram", "WhatsApp", …
-	Span    string    // the span asked for, as typed ("7d"), "" for all of it
+	Span    string    // the span as typed ("7d"), "" for all of it
 	At      time.Time // when it was exported
 }
 
 // quoteRunes is how much of a replied-to message an export quotes.
 const quoteRunes = 80
 
-// ExportMarkdown is msgs, oldest first, as Markdown. name names a person from their ID
-// and the names known for them (People.Name); reactions are the room's.
+// ExportMarkdown renders msgs (oldest first) as Markdown: a heading per day, a
+// thread's replies quoted under its root. name is People.Name; reactions are the room's.
 func ExportMarkdown(of ExportOf, msgs []Message, reactions []Reaction, name func(userID string, known ...string) string, clock Clock) string {
 	byID := make(map[EventID]*Message, len(msgs))
 	for i := range msgs {
 		byID[msgs[i].ID] = &msgs[i]
 	}
-	replies := map[EventID][]*Message{} // a thread's replies, under a root the export holds
+	replies := map[EventID][]*Message{} // thread replies whose root is in the export
 	for i := range msgs {
 		if root := msgs[i].ThreadRoot; root != "" && root != msgs[i].ID && byID[root] != nil {
 			replies[root] = append(replies[root], &msgs[i])
@@ -77,7 +71,6 @@ func ExportMarkdown(of ExportOf, msgs []Message, reactions []Reaction, name func
 	return b.String()
 }
 
-// exportWriter writes one message at a time.
 type exportWriter struct {
 	byID    map[EventID]*Message
 	reacted map[EventID][]Reaction
@@ -85,7 +78,7 @@ type exportWriter struct {
 	clock   Clock
 }
 
-// message is one message's block: a line naming its time and sender, then its words.
+// message is one message's block: a time and sender line, then its content.
 func (w exportWriter) message(m *Message, inThread bool) string {
 	var b strings.Builder
 	head := "**" + w.clock.Time(m.Timestamp) + " · " + richtext.EscapeMarkdown(w.name(m.Sender, m.SenderName)) + "**"
@@ -122,8 +115,8 @@ func (w exportWriter) message(m *Message, inThread bool) string {
 	return b.String()
 }
 
-// words is a message's words as Markdown, its formatting kept and the people it
-// mentions named now. A file's own name is no words: the attachment line says it.
+// words is a message's text as Markdown, mentions renamed; a body that is just the
+// file's name is dropped (the attachment line has it).
 func (w exportWriter) words(m *Message) string {
 	text, spans := m.Body, []richtext.Span(nil)
 	if !m.Format.IsZero() {
@@ -133,7 +126,7 @@ func (w exportWriter) words(m *Message) string {
 		return ""
 	}
 	md := richtext.Markdown(text, spans)
-	// Mentions are found as Markdown wrote their words, and named in Markdown.
+	// Match mentions against their escaped form.
 	escaped := make([]Mention, len(m.Mentions))
 	for i, mn := range m.Mentions {
 		mn.Name = richtext.EscapeMarkdown(mn.Name)
@@ -142,11 +135,11 @@ func (w exportWriter) words(m *Message) string {
 	md, _ = ResolveMentions(md, escaped, func(mn Mention, words string) string {
 		return richtext.EscapeMarkdown(w.name(mn.UserID, mn.Known, words))
 	})
-	// Two spaces end a line in Markdown, so a message's lines stay its lines.
+	// Two trailing spaces keep Markdown line breaks.
 	return strings.ReplaceAll(md, "\n", "  \n")
 }
 
-// quote is the line quoting what a message replies to: its sender and first words.
+// quote is the line quoting a reply's target: its sender and first words.
 func (w exportWriter) quote(target EventID) string {
 	quoted := w.byID[target]
 	if quoted == nil {
@@ -163,7 +156,6 @@ func (w exportWriter) quote(target EventID) string {
 	return "> ↳ **" + richtext.EscapeMarkdown(w.name(quoted.Sender, quoted.SenderName)) + "**: " + richtext.EscapeMarkdown(words) + "\n"
 }
 
-// attachmentLine names an attachment: its kind, name and size.
 func attachmentLine(md *Media) string {
 	parts := []string{"📎 " + string(md.Type)}
 	if md.Name != "" {
@@ -175,7 +167,6 @@ func attachmentLine(md *Media) string {
 	return strings.Join(parts, " · ")
 }
 
-// quoteLines puts a block inside a blockquote.
 func quoteLines(block string) string {
 	lines := strings.Split(strings.TrimSuffix(block, "\n"), "\n")
 	for i := range lines {

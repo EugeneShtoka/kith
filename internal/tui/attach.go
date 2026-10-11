@@ -47,13 +47,11 @@ func (m Model) askForPath() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// fileChosenMsg carries what the desktop chooser answered.
 type fileChosenMsg struct {
 	path string
 	err  error
 }
 
-// chooseFileCmd runs the chooser off the event loop.
 func chooseFileCmd(ctx context.Context) tea.Cmd {
 	return func() tea.Msg {
 		path, err := filedialog.File(ctx, "Send which file?")
@@ -105,8 +103,8 @@ func (m Model) submitAttach(input string) (Model, tea.Cmd) {
 	return m.attachPath(room, path, caption)
 }
 
-// attachPath is the send itself. The path is resolved here because the daemon (under
-// systemd) has no home or working directory and accepts only absolute paths.
+// attachPath sends the file. The path is resolved here: the daemon (under systemd)
+// has no home or working directory and accepts only absolute paths.
 func (m Model) attachPath(room domain.Room, path, caption string) (Model, tea.Cmd) {
 	expanded, err := expandHome(path)
 	if err != nil {
@@ -144,7 +142,6 @@ func expandHome(path string) (string, error) {
 	return filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/")), nil
 }
 
-// attachSentMsg reports the upload, or why it did not happen.
 type attachSentMsg struct {
 	name string
 	err  error
@@ -170,7 +167,6 @@ func (m Model) sendFileCmd(roomID domain.RoomID, path, caption string) tea.Cmd {
 	}
 }
 
-// handleAttachSent reports the upload's outcome.
 func (m Model) handleAttachSent(msg attachSentMsg) (Model, tea.Cmd) {
 	switch {
 	case errors.Is(msg.err, api.ErrNoEncryption):
@@ -204,13 +200,13 @@ type pendingSave struct {
 	msg    domain.Message
 }
 
-// taking returns the pending errand; the caller clears it.
+// taking returns the pending save; the caller clears it.
 func (p pendingSave) taking() (domain.Message, domain.DownloadTarget) {
 	return p.msg, p.target
 }
 
-// saveAs saves into a folder picked with the desktop chooser; the template still names
-// the file.
+// saveAs saves into a folder picked with the desktop chooser; the template still
+// names the file.
 func (m Model) saveAs() (Model, tea.Cmd) {
 	msg, target, ok := m.downloadTarget()
 	if !ok {
@@ -222,7 +218,6 @@ func (m Model) saveAs() (Model, tea.Cmd) {
 	return m, chooseFolderCmd(m.ctx, target.Dir)
 }
 
-// folderChosenMsg carries the folder the desktop chooser answered with.
 type folderChosenMsg struct {
 	dir string
 	err error
@@ -237,8 +232,8 @@ func chooseFolderCmd(ctx context.Context, startAt string) tea.Cmd {
 	}
 }
 
-// handleFolderChosen writes the pending attachment into the chosen folder, keeping the
-// name the template produced.
+// handleFolderChosen writes the pending attachment into the chosen folder under the
+// template's name.
 func (m Model) handleFolderChosen(msg folderChosenMsg) (Model, tea.Cmd) {
 	saving, target := m.pendingSave.taking()
 	m.pendingSave = pendingSave{}
@@ -261,7 +256,7 @@ func (m Model) handleFolderChosen(msg folderChosenMsg) (Model, tea.Cmd) {
 	return m, m.downloadCmd(saving, target)
 }
 
-// noAttachmentNote says why nothing happened, when nothing did.
+// noAttachmentNote says why nothing happened.
 func noAttachmentNote(msg domain.Message) string {
 	if msg.ID == "" {
 		return ""
@@ -282,7 +277,7 @@ func (m Model) downloadTarget() (domain.Message, domain.DownloadTarget, bool) {
 	return msg, domain.ResolveDownload(dir, m.prefs.display.Media.DownloadTemplate, m.downloadRules(), m.placeOf(msg)), true
 }
 
-// downloadRules converts the configured overrides into the pure layer's own shape.
+// downloadRules converts the configured overrides to domain.DownloadRule.
 func (m Model) downloadRules() []domain.DownloadRule {
 	configured := m.prefs.display.Media.Rules
 	rules := make([]domain.DownloadRule, 0, len(configured))
@@ -322,7 +317,6 @@ func (m Model) placeOf(msg domain.Message) domain.DownloadPlace {
 	return place
 }
 
-// downloadedMsg reports where the attachment landed.
 type downloadedMsg struct {
 	path string
 	err  error

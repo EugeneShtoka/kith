@@ -12,8 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// lostReply is a store whose nth ReplaceDraft commits and then reports an error, as
-// when the daemon restarts after COMMIT or the socket drops before the answer.
+// lostReply is a store whose nth ReplaceDraft commits and then errors, as when the
+// daemon restarts after COMMIT or the socket drops before the answer.
 type lostReply struct {
 	*sharedDrafts
 	loseOn, calls int
@@ -35,7 +35,7 @@ func (l *lostReply) ReplaceDraft(ctx context.Context, d, over domain.StoredDraft
 }
 
 // A write that landed with its reply lost is this client's own: the retry after more
-// typing does not take its words for another writer's and write them twice.
+// typing does not count its words as another writer's and write them twice.
 func TestALostReplyThenTypingWritesTheWordsOnce(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
@@ -54,8 +54,8 @@ func TestALostReplyThenTypingWritesTheWordsOnce(t *testing.T) {
 	}
 }
 
-// A write that folded the assistant's words in and whose reply was lost: the retry
-// keeps those words, once, though the local copy never heard of them.
+// A lost-reply write that folded in the assistant's words: the retry keeps them once,
+// though the local copy never heard of them.
 func TestALostReplyAfterAFoldKeepsTheAdditionOnce(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
@@ -74,10 +74,8 @@ func TestALostReplyAfterAFoldKeepsTheAdditionOnce(t *testing.T) {
 	}
 }
 
-// The same lost fold, then more typing before the poll: the retry is based on that
-// write and carries its addition, which the local copy still has not heard of, so no
-// version stored after it is without the assistant's words (an exit then would lose
-// them).
+// The same lost fold, then more typing before the poll: the retry builds on that write
+// and carries its addition, so no later stored version lacks the assistant's words.
 func TestALostReplyAfterAFoldThenTypingKeepsTheAdditionOnce(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
@@ -158,8 +156,8 @@ func TestDescentOf(t *testing.T) {
 	}
 }
 
-// Two writes in one millisecond get different stamps, so one the store turned down is
-// never mistaken for one that landed.
+// Two writes in one millisecond get different stamps, so a turned-down write is never
+// mistaken for one that landed.
 func TestWriteStampsOnlyGoUp(t *testing.T) {
 	t.Parallel()
 	var s draftSaver
@@ -180,7 +178,7 @@ func (failingDrafts) ReplaceDraft(context.Context, domain.StoredDraft, domain.St
 }
 
 // The last write at exit reports the rooms the daemon did not take; nothing is kept
-// for later (unsaved.go): what typing it held is gone.
+// for later (unsaved.go).
 func TestTheLastWriteReportsWhatItCouldNotSave(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
@@ -199,8 +197,8 @@ func TestTheLastWriteReportsWhatItCouldNotSave(t *testing.T) {
 	}
 }
 
-// Typing that goes on without a pause is still saved every draftSaveEvery: an exit that
-// cannot reach the daemon loses at most that much.
+// Unbroken typing is still saved every draftSaveEvery: an exit that cannot reach the
+// daemon loses at most that much.
 func TestTypingWithoutAPauseIsSavedAllTheSame(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)

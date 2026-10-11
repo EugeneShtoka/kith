@@ -6,8 +6,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// Every option the settings screen offers is one the app will accept (the picker
-// once offered a spelling the validator refused).
 func TestEverySettingChoiceIsAcceptedByTheApp(t *testing.T) {
 	t.Parallel()
 

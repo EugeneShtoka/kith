@@ -39,8 +39,8 @@ func (s *draftStore) Drafts(context.Context) ([]domain.StoredDraft, error) {
 	return slices.Collect(maps.Values(s.drafts)), nil
 }
 
-// window is a client of h that asked for the seat, and what it was told; it lets go
-// when the test ends.
+// window is a client of h that asked for the seat, with the answer; it lets go at
+// test end.
 func window(t *testing.T, h *harness, force bool, pid int) (*daemon.Remote, error) {
 	t.Helper()
 	r := h.client()
@@ -50,7 +50,6 @@ func window(t *testing.T, h *harness, force bool, pid int) (*daemon.Remote, erro
 	return r, err
 }
 
-// A second window without --force is refused, and told where the first one is.
 func TestASecondWindowIsRefusedAndToldWhereTheFirstIs(t *testing.T) {
 	t.Parallel()
 	h := serve(t, &draftStore{})
@@ -66,8 +65,8 @@ func TestASecondWindowIsRefusedAndToldWhereTheFirstIs(t *testing.T) {
 	}
 }
 
-// --force tells the window in the seat to step aside, and gets the seat once it has
-// closed, not before.
+// --force asks the seated window to step aside and gets the seat once it closed, not
+// before.
 func TestForceTakesTheSeatOnceTheOtherWindowHasClosed(t *testing.T) {
 	t.Parallel()
 	h := serve(t, &draftStore{})
@@ -120,8 +119,8 @@ func TestAClosedWindowLeavesTheSeatFree(t *testing.T) {
 	}
 }
 
-// A window that does not answer loses the seat after a few seconds, and its draft
-// writes are refused from then on. A writer that is no window (kith-mcp) is not refused.
+// An unresponsive window loses the seat after a few seconds and its draft writes are
+// refused; a non-window writer (kith-mcp) is not.
 func TestAWindowThatDoesNotAnswerLosesTheSeat(t *testing.T) {
 	t.Parallel()
 	h := serve(t, &draftStore{})
@@ -144,12 +143,12 @@ func TestAWindowThatDoesNotAnswerLosesTheSeat(t *testing.T) {
 	}
 }
 
-// Two --force at once past a window that does not answer: each grant tells the window it
-// replaces, so no window sits on unaware while its writes are refused.
+// Two concurrent --force past an unresponsive window: each grant notifies the window
+// it replaces, so none sits on unaware.
 func TestEveryWindowReplacedIsToldItLostTheSeat(t *testing.T) {
 	t.Parallel()
 	h := serve(t, &draftStore{})
-	if _, err := window(t, h, false, 101); err != nil { // does not answer: never stops
+	if _, err := window(t, h, false, 101); err != nil { // never answers
 		t.Fatalf("the first window: %v", err)
 	}
 	type took struct {
@@ -177,8 +176,8 @@ func TestEveryWindowReplacedIsToldItLostTheSeat(t *testing.T) {
 	}
 }
 
-// A signal (the terminal closing) ends the window's context before its last draft
-// write: the seat stays with it until Stop, which comes after that write.
+// A signal ends the window's context before its last draft write; the seat stays
+// until Stop, after that write.
 func TestASignalKeepsTheSeatUntilStop(t *testing.T) {
 	t.Parallel()
 	h := serve(t, &draftStore{})
@@ -208,9 +207,8 @@ func TestASignalKeepsTheSeatUntilStop(t *testing.T) {
 	}
 }
 
-// A link handed over while the window sits but does not listen for links yet (it is
-// at a startup prompt, or reconnecting) is delivered, not taken for "no window": that
-// would start a second terminal, which the seat refuses.
+// A link handed over while the seated window is not yet listening is delivered, not
+// taken as "no window" (which would start a second terminal).
 func TestALinkWaitsForTheWindowThatSits(t *testing.T) {
 	t.Parallel()
 	h := serve(t, &draftStore{})

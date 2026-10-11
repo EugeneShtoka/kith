@@ -16,19 +16,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A Slack file is fetched from its url_private with the workspace's session (the token
-// and the d cookie), so its ID and URL are what kith keeps to load it later: in the
-// media table's file_json, as {"slack": fileID, "url": url}. A message carries one
-// attachment, so a Slack message with several files is its first file kith can load,
-// and each other one a row of its own under it (fileRows): the same sender, time and
-// thread, the file's name for its words. One kith cannot load is named in the text.
+// A Slack file is fetched from url_private with the session (token and d cookie), so
+// media.file_json keeps {"slack": fileID, "url": url}. A message holds one attachment:
+// the first loadable file; each other loadable file is a row of its own (fileRows) with
+// the same sender, time and thread; an unloadable one is named in the text.
 
-// fileSep joins a file's row ID to its message's: "<message>#<file ID>". Slack has no
-// message of its own for it, so what is done to the row (a reaction, a reply, a read)
-// is done to its message (cutLast reads only the message's part).
+// fileSep joins a file row's ID to its message's: "<message>#<file ID>". Actions on the
+// row (reaction, reply, read) apply to the message; cutLast reads only its part.
 const fileSep = "#"
 
-// fileRowID is the row of one of a message's further files.
+// fileRowID is the row ID of one of a message's further files.
 func fileRowID(message domain.EventID, fileID string) domain.EventID {
 	return message + fileSep + domain.EventID(fileID)
 }
@@ -36,8 +33,7 @@ func fileRowID(message domain.EventID, fileID string) domain.EventID {
 // isFileRow reports whether id is a further file's row rather than a message.
 func isFileRow(id domain.EventID) bool { return strings.Contains(string(id), fileSep) }
 
-// fileRows is a row for each of m's files after the one msg carries, each kith can
-// load, ordered as the message lists them.
+// fileRows is a row for each loadable file of m after the one msg carries, in order.
 func fileRows(msg domain.Message, m *slackgo.Msg) []domain.Message {
 	shown := firstLoadable(m.Files)
 	var out []domain.Message
@@ -55,7 +51,7 @@ func fileRows(msg domain.Message, m *slackgo.Msg) []domain.Message {
 	return out
 }
 
-// fileOf is the file a row of fileRows carries, among m's.
+// fileOf is the file among m's that a fileRows row carries.
 func fileOf(row domain.EventID, m *slackgo.Msg) *slackgo.File {
 	_, id, ok := strings.Cut(string(row), fileSep)
 	if !ok {
@@ -69,22 +65,21 @@ func fileOf(row domain.EventID, m *slackgo.Msg) *slackgo.File {
 	return nil
 }
 
-// fileSource is how a Slack file is kept for loading.
 type fileSource struct {
 	ID  string `json:"slack"`
 	URL string `json:"url"`
 }
 
-// loadable reports whether kith can fetch a file: one Slack holds (not a link to
-// another service's), not deleted, and not hidden by a free workspace's limit.
+// loadable reports whether a file can be fetched: hosted by Slack (not an external
+// link), not deleted, not hidden by a free workspace's limit.
 func loadable(f *slackgo.File) bool {
 	return !f.IsExternal && f.Mode != "tombstone" && f.Mode != "hidden_by_limit" && fileURL(f) != ""
 }
 
-// fileURL is where a file's bytes are: its download URL, else its private one.
+// fileURL is the download URL, else the private one.
 func fileURL(f *slackgo.File) string { return cmpOr(f.URLPrivateDownload, f.URLPrivate) }
 
-// firstLoadable is the index of a message's first file kith can load; -1 for none.
+// firstLoadable is the index of the first loadable file; -1 for none.
 func firstLoadable(files []slackgo.File) int {
 	for i := range files {
 		if loadable(&files[i]) {
@@ -94,7 +89,7 @@ func firstLoadable(files []slackgo.File) int {
 	return -1
 }
 
-// fileMedia is a file as kith shows it, its kind by its type.
+// fileMedia is a file as kith shows it, its kind from its type.
 func fileMedia(f *slackgo.File) *domain.Media {
 	media := domain.Media{Type: domain.MediaFile, Name: f.Name, Mime: f.Mimetype, Size: f.Size}
 	switch kind, _, _ := strings.Cut(f.Mimetype, "/"); kind {
@@ -105,17 +100,16 @@ func fileMedia(f *slackgo.File) *domain.Media {
 	case "audio":
 		media.Type = domain.MediaAudio
 	}
-	// A clip recorded in Slack: a voice message, whatever container it came in.
+	// A clip recorded in Slack is a voice message, whatever its container.
 	if f.SubType == "slack_audio" {
 		media.Type, media.Name = domain.MediaAudio, domain.VoiceMessage
 	}
 	return &media
 }
 
-// keepFile records how to load a cached message's attachment, the first file of m
-// kith can load (for a file's row, its file); a message whose files are all gone
-// (deleted since) loses its source, so loading it says so rather than asking Slack
-// for what it no longer has.
+// keepFile records how to load a cached message's attachment (for a file row, its
+// file). If all its files are deleted the source is dropped, so loading fails locally
+// instead of asking Slack.
 func (a *Adapter) keepFile(ctx context.Context, msg domain.Message, m *slackgo.Msg) {
 	if a.cache == nil || len(m.Files) == 0 {
 		return
@@ -140,7 +134,7 @@ func (a *Adapter) keepFile(ctx context.Context, msg domain.Message, m *slackgo.M
 }
 
 // LoadImage downloads a message's file with its workspace's session. It caches
-// nothing: the client's media cache is the cache, as for the other networks.
+// nothing; the client's media cache does.
 func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
 	w, _, err := a.conversation(roomID)
 	if err != nil {
@@ -168,9 +162,8 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 	return data.Bytes(), nil
 }
 
-// SendFile uploads a file to a conversation, the caption as its message. Slack's
-// upload answers with the file, not the message it posted, so the message reaches the
-// cache and the clients as Slack's live echo of it, like anyone else's file.
+// SendFile uploads a file with caption as its message. The upload answers with the file,
+// not the message, so the message arrives via Slack's live echo.
 func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
 	w, channel, err := a.conversation(roomID)
 	if err != nil {
@@ -197,9 +190,8 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, capt
 	return nil
 }
 
-// refetchFileMessages reads again the messages cached before a message's further
-// files were rows of their own, which named them in their text, so each file becomes
-// one to open and save.
+// refetchFileMessages rereads cached messages that name their extra files in the text,
+// so each loadable file gets its own row.
 func (a *Adapter) refetchFileMessages(ctx context.Context, w *workspace) {
 	if a.cache == nil {
 		return

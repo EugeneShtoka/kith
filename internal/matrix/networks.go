@@ -12,18 +12,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The network behind a Matrix room a bridge keeps is the bridge's, which the room's
-// m.bridge state says (Room.Network). A room never changes network, so each room's is
-// read once and kept: a background reading, asked for at start and after a room
-// refresh, reads every joined room not read yet. It is one /sync filtered to the
-// bridge state alone, not a request per room.
+// A bridged room's network (Room.Network) comes from its m.bridge state. It never
+// changes, so it is read once per room, in the background after start and room
+// refreshes, by one /sync filtered to bridge state.
 
 // networkFilter has a sync carry only the rooms' bridge state.
 const networkFilter = `{"presence":{"types":[]},"account_data":{"types":[]},` +
 	`"room":{"state":{"types":["m.bridge","uk.half-shot.bridge"]},"timeline":{"limit":0},` +
 	`"ephemeral":{"types":[]},"account_data":{"types":[]}}}`
 
-// roomNetworks is the asking for and the running of that reading: one at a time.
+// roomNetworks tracks whether a reading is wanted and whether one is running.
 type roomNetworks struct {
 	wanted, reading atomic.Bool
 }
@@ -31,8 +29,8 @@ type roomNetworks struct {
 // wantNetworks asks for a reading: rooms not read yet may be in the cache.
 func (b *InProc) wantNetworks() { b.networks.wanted.Store(true) }
 
-// readNetworksIfWanted starts the reading asked for, unless one runs; ctx is the sync
-// loop's, which bounds it, and Stop waits for it.
+// readNetworksIfWanted starts a wanted reading unless one runs; ctx is the sync
+// loop's, and Stop waits for it.
 func (b *InProc) readNetworksIfWanted(ctx context.Context) {
 	if b.cache == nil || !b.networks.wanted.Load() || !b.networks.reading.CompareAndSwap(false, true) {
 		return
@@ -44,8 +42,8 @@ func (b *InProc) readNetworksIfWanted(ctx context.Context) {
 	})
 }
 
-// readRoomNetworks reads and keeps the network of each joined room not read yet; a
-// room with no bridge state is Matrix's. A failure is tried again at the next asking.
+// readRoomNetworks keeps the network of each joined room not read yet (no bridge
+// state: Matrix). A failure is retried at the next request.
 func (b *InProc) readRoomNetworks(ctx context.Context) {
 	unknown, err := b.cache.RoomsOfUnknownNetwork(ctx, domain.MatrixRooms)
 	if err != nil || len(unknown) == 0 {
@@ -75,8 +73,7 @@ func (b *InProc) readRoomNetworks(ctx context.Context) {
 	}
 }
 
-// bridgeNetwork is the network a room's bridge state names, Matrix for a room no
-// bridge keeps.
+// bridgeNetwork is the network a room's bridge state names, or Matrix.
 func bridgeNetwork(state []*event.Event) domain.Protocol {
 	for _, evt := range state {
 		if evt == nil || (evt.Type != event.StateBridge && evt.Type != event.StateHalfShotBridge) {

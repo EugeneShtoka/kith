@@ -13,23 +13,21 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// keepDeletedIf sets [display.deleted] keep: whether a deleted message's words stay in
-// the cache. Called at startup, as Matrix's is.
+// keepDeletedIf sets [display.deleted] keep: whether a deleted message's text stays
+// cached. Called at startup.
 func (a *Adapter) keepDeletedIf(keep bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.keepDeleted = keep
 }
 
-// keepsDeleted is [display.deleted] keep.
 func (a *Adapter) keepsDeleted() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.keepDeleted
 }
 
-// onChange handles what changes a message already sent rather than adding one: an
-// edit, a deletion, a reaction. false when e is none of them (an ordinary message).
+// onChange handles edits, deletions and reactions; false for an ordinary message.
 func (a *Adapter) onChange(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message) bool {
 	if r := e.Message.GetReactionMessage(); r != nil {
 		a.onReaction(ctx, account, client, e, r)
@@ -49,12 +47,12 @@ func (a *Adapter) onChange(ctx context.Context, account Account, client *whatsme
 	case waE2E.ProtocolMessage_MESSAGE_EDIT:
 		a.onEdited(ctx, account, client, e, pm)
 	default:
-		// Every other protocol message is the protocol's own business.
+		// Other protocol messages are ignored.
 	}
 	return true
 }
 
-// change is where a change lands: the room, the sender, and the message changed.
+// change resolves a change's room, sender and target message.
 func (a *Adapter) change(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message, target string) (domain.RoomID, string, domain.EventID) {
 	lookup := a.pnLookup(client)
 	room := roomID(account.Digits, chatOf(ctx, &e.Info, lookup))
@@ -66,7 +64,7 @@ func (a *Adapter) change(ctx context.Context, account Account, client *whatsmeow
 		domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, account.Digits, target))
 }
 
-// onEdited folds an edit onto the message it replaces, as a Matrix edit is folded.
+// onEdited folds an edit onto the message it replaces.
 func (a *Adapter) onEdited(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message, pm *waE2E.ProtocolMessage) {
 	body, _, ok := content(pm.GetEditedMessage())
 	if !ok || body == "" {
@@ -85,8 +83,8 @@ func (a *Adapter) onEdited(ctx context.Context, account Account, client *whatsme
 	emit(a, a.messages, edit)
 }
 
-// onDeleted marks a message deleted ("delete for everyone"), keeping its words only
-// under [display.deleted] keep, and tells the clients.
+// onDeleted marks a message deleted for everyone, keeping its text only under
+// [display.deleted] keep.
 func (a *Adapter) onDeleted(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message, target string) {
 	room, sender, id := a.change(ctx, account, client, e, target)
 	keep := a.keepsDeleted()
@@ -108,14 +106,13 @@ func (a *Adapter) onDeleted(ctx context.Context, account Account, client *whatsm
 	emit(a, a.messages, gone)
 }
 
-// reactionID is the one reaction a person has on a message: WhatsApp keeps one each,
-// a new one replacing it and an empty one taking it back.
+// reactionID identifies a person's reaction on a message: WhatsApp allows one each;
+// a new one replaces it and an empty one removes it.
 func reactionID(account string, target string, sender types.JID) domain.EventID {
 	return domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, account, "reaction:"+target+":"+sender.User))
 }
 
-// onReaction records a reaction, replacing the sender's earlier one on that message,
-// or takes it back.
+// onReaction records, replaces or removes the sender's reaction.
 func (a *Adapter) onReaction(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message, r *waE2E.ReactionMessage) {
 	target := r.GetKey().GetID()
 	room, sender, targetID := a.change(ctx, account, client, e, target)
@@ -126,8 +123,8 @@ func (a *Adapter) onReaction(ctx context.Context, account Account, client *whats
 	a.applyReaction(ctx, reaction)
 }
 
-// applyReaction replaces whatever reaction has reaction's ID with it (none, for an
-// empty key), streaming the change as a removal and an add.
+// applyReaction replaces the reaction with reaction's ID (removes it for an empty
+// key), streaming a removal and an add.
 func (a *Adapter) applyReaction(ctx context.Context, reaction domain.Reaction) {
 	if a.cache != nil {
 		old, had, err := a.cache.DeleteReaction(ctx, reaction.ID)
@@ -149,8 +146,7 @@ func (a *Adapter) applyReaction(ctx context.Context, reaction domain.Reaction) {
 	}
 }
 
-// target is what an outgoing change is about: the chat, the message, who wrote it,
-// and the account's client.
+// target resolves an outgoing change's chat, message, author, account and client.
 func (a *Adapter) target(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (types.JID, types.MessageID, types.JID, Account, *whatsmeow.Client, error) {
 	room, event := domain.ParseID(string(roomID)), domain.ParseID(string(eventID))
 	chat, err := types.ParseJID(room.Native)
@@ -172,8 +168,8 @@ func (a *Adapter) target(ctx context.Context, roomID domain.RoomID, eventID doma
 	return chat, event.Native, sender, account, client, nil
 }
 
-// Redact deletes a message for everyone. WhatsApp lets you delete only your own (and
-// in a group you administer, others'); its refusal comes back as the error.
+// Redact deletes a message for everyone. WhatsApp allows only your own, or others'
+// in a group you administer; a refusal is the error.
 func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, _ string) error {
 	chat, id, sender, account, client, err := a.target(ctx, roomID, eventID)
 	if err != nil {
@@ -182,7 +178,7 @@ func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID doma
 	if _, err := client.SendMessage(ctx, chat, client.BuildRevoke(chat, sender, id)); err != nil {
 		return fmt.Errorf("whatsapp: delete in %s: %w", roomID, err)
 	}
-	// WhatsApp does not echo it: delete here as the echo would have.
+	// WhatsApp does not echo it, so apply it locally.
 	a.onDeleted(ctx, account, client, &events.Message{Info: types.MessageInfo{
 		MessageSource: types.MessageSource{Chat: chat, Sender: selfOf(client).pn, IsFromMe: true, IsGroup: chat.Server == types.GroupServer},
 		Timestamp:     time.Now(),
@@ -190,8 +186,8 @@ func (a *Adapter) Redact(ctx context.Context, roomID domain.RoomID, eventID doma
 	return nil
 }
 
-// SendReaction reacts to a message, replacing our earlier reaction on it (WhatsApp
-// keeps one per person).
+// SendReaction reacts to a message, replacing the account's earlier reaction
+// (WhatsApp keeps one per person).
 func (a *Adapter) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {
 	if isChannel(roomID) {
 		return errChannelReaction
@@ -211,8 +207,7 @@ func (a *Adapter) SendReaction(ctx context.Context, roomID domain.RoomID, target
 	return nil
 }
 
-// edit sends draft as a new version of the message it edits, and folds it in here
-// (WhatsApp does not echo it).
+// edit sends draft as an edit and folds it in locally (WhatsApp does not echo it).
 func (a *Adapter) edit(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error {
 	chat, id, _, account, client, err := a.target(ctx, roomID, draft.Edits)
 	if err != nil {

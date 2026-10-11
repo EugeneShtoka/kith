@@ -27,8 +27,7 @@ type ScheduledMessage struct {
 // Overdue reports whether the send time has passed at now.
 func (s ScheduledMessage) Overdue(now time.Time) bool { return now.After(s.At) }
 
-// Stale reports whether it is so far overdue that sending it unasked would be worse
-// than not sending it.
+// Stale reports whether it is more than cutoff overdue, too late to send unasked.
 func (s ScheduledMessage) Stale(now time.Time, cutoff time.Duration) bool {
 	if cutoff <= 0 {
 		return false
@@ -64,8 +63,7 @@ func PlanSchedule(queue []ScheduledMessage, now time.Time, cutoff time.Duration)
 	return plan
 }
 
-// SortScheduled orders a queue for display: soonest first, so the next thing to
-// happen is the first thing read.
+// SortScheduled orders a queue soonest first for display.
 func SortScheduled(queue []ScheduledMessage) {
 	sort.Slice(queue, func(i, j int) bool {
 		if !queue[i].At.Equal(queue[j].At) {
@@ -75,15 +73,14 @@ func SortScheduled(queue []ScheduledMessage) {
 	})
 }
 
-// Immediate reports whether this was a send-now the homeserver refused, queued for
-// retry, rather than one scheduled for a time.
+// Immediate reports whether this is a refused send-now queued for retry, not a
+// scheduled one.
 func (s ScheduledMessage) Immediate() bool { return !s.At.After(s.Written) }
 
 // summaryLength is how many characters of the body a Summary keeps.
 const summaryLength = 48
 
-// clipGraphemes shortens s to at most n characters — grapheme clusters, what a reader
-// counts — ending a shortened one with an ellipsis.
+// clipGraphemes shortens s to at most n grapheme clusters, ending with an ellipsis.
 func clipGraphemes(s string, n int) string {
 	if uniseg.GraphemeClusterCount(s) <= n {
 		return s
@@ -101,8 +98,7 @@ func (s ScheduledMessage) Summary(now time.Time) string {
 	return s.SummaryWith(now, func(body string) string { return body })
 }
 
-// SummaryWith is Summary with the shortened body passed through wrap, so a renderer can
-// style it.
+// SummaryWith is Summary with the body passed through wrap for styling.
 func (s ScheduledMessage) SummaryWith(now time.Time, wrap func(string) string) string {
 	body := wrap(clipGraphemes(strings.TrimSpace(s.Body), summaryLength))
 	when := s.At.Local().Format("Mon 15:04")

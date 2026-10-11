@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Every readable body arrives exactly once across pages, redacted and empty ones never,
-// and each says whether it was mine.
+// Every readable body arrives once across pages, never redacted or empty ones, each
+// marked whether it was mine.
 func TestEachMessageBodyReadsEveryBodyOnceAcrossPages(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

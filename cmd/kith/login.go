@@ -19,11 +19,10 @@ import (
 // loginTimeout bounds a login: a code to arrive and be typed, a phone to accept one.
 const loginTimeout = 15 * time.Minute
 
-// runLogin logs an account in through the daemon, starting it if need be: `kith login
-// [network] [account]`, Matrix when no network is named. The network leads: this
-// draws each step it takes (asks, reading secrets without echo; shows a code; writes
-// a new account into the config) until it says it is done. Nothing typed reaches
-// argv or the disk but what the config keeps.
+// runLogin is `kith login [network] [account]` (Matrix by default), through the daemon,
+// starting it if needed. The network leads; this draws each step (secrets read without
+// echo, codes shown, new accounts written to the config). Nothing typed reaches argv
+// or disk except what the config keeps.
 func runLogin(args []string) error {
 	fs := flag.NewFlagSet("login", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
@@ -55,8 +54,7 @@ func runLogin(args []string) error {
 	if at.note != "" {
 		fmt.Fprintln(os.Stderr, "kith:", at.note)
 	}
-	// The daemon reads the config only when asked: an account just added to the file
-	// is one it has not heard of yet.
+	// The daemon reads the config only when asked, so it has not seen a just-added account.
 	if err = at.backend.ReloadConfig(ctx); err != nil {
 		return fmt.Errorf("have kithd re-read the config: %w", err)
 	}
@@ -71,8 +69,7 @@ func runLogin(args []string) error {
 	return l.run(ctx, network, account)
 }
 
-// loginAccount is the account named, or the network's only one; "" (a new one) when
-// it has none.
+// loginAccount is the account named, or the network's only one; "" (new) when none.
 func loginAccount(ctx context.Context, logins api.Logins, network, named string) (string, error) {
 	networks, err := logins.LoginNetworks(ctx)
 	if err != nil {
@@ -116,7 +113,6 @@ type cliLogin struct {
 	path string
 }
 
-// run leads the login through to its end.
 func (l cliLogin) run(ctx context.Context, network, account string) error {
 	step, err := l.backend.BeginLogin(ctx, network, account)
 	for err == nil {
@@ -154,8 +150,8 @@ func (l cliLogin) run(ctx context.Context, network, account string) error {
 	return fmt.Errorf("kith login %s: %w", network, err)
 }
 
-// ask reads each field, its help first: a secret without echo, a suggestion kept by
-// an empty answer.
+// ask reads each field after its help: secrets without echo; an empty answer keeps a
+// suggestion.
 func (l cliLogin) ask(fields []api.LoginField) (map[string]string, error) {
 	values := make(map[string]string, len(fields))
 	for _, f := range fields {
@@ -184,12 +180,11 @@ func (l cliLogin) ask(fields []api.LoginField) (map[string]string, error) {
 	return values, nil
 }
 
-// configTries is how often a write is made again on a config that changed under it.
+// configTries is how often a write is retried on a config that changed under it.
 const configTries = 3
 
-// write has the daemon, the config file's writer, put a new account into it. A file
-// changed meanwhile (a window saving a setting) is read again and the account put into
-// that.
+// write has the daemon put a new account into the config; a file changed meanwhile is
+// re-read and the account put into that.
 func (l cliLogin) write(ctx context.Context, rec api.LoginRecord) error {
 	for try := 1; ; try++ {
 		snap, err := l.backend.GetConfig(ctx)
@@ -212,7 +207,7 @@ func (l cliLogin) write(ctx context.Context, rec api.LoginRecord) error {
 	}
 }
 
-// readLine reads one line typed after prompt, as typed (it is not a secret).
+// readLine reads one line typed after prompt, echoed (it is not a secret).
 func readLine(in *bufio.Reader, prompt string) (string, error) {
 	fmt.Fprintf(os.Stderr, "%s: ", prompt)
 	line, err := in.ReadString('\n')

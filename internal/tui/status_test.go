@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// An event covers the standing line until it expires; the deadline is checked on
-// read, and the sweep clears it without re-arming.
+// An event covers the standing line until it expires; the deadline is checked on read,
+// and the sweep clears it without re-arming.
 func TestEventExpiresBackToTheStandingLine(t *testing.T) {
 	t.Parallel()
 
@@ -41,8 +41,8 @@ func TestEventExpiresBackToTheStandingLine(t *testing.T) {
 	}
 }
 
-// Saying something arms exactly one sweep; nothing to say, or an already expired
-// event, arms none. Asserted on sweepArmed because TestMain stubs the scheduler.
+// Saying something arms one sweep; nothing to say, or an expired event, arms none.
+// Checked via sweepArmed because TestMain stubs the scheduler.
 func TestSayingSomethingArmsExactlyOneSweep(t *testing.T) {
 	t.Parallel()
 
@@ -66,7 +66,6 @@ func TestSayingSomethingArmsExactlyOneSweep(t *testing.T) {
 	}
 }
 
-// A new standing line retires the last event.
 func TestStandingLineClearsTheEvent(t *testing.T) {
 	t.Parallel()
 

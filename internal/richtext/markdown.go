@@ -5,11 +5,9 @@ import (
 	"strings"
 )
 
-// Markdown is text with spans written as Markdown, for a file a person reads in any
-// editor: bold as **…**, italic as _…_, strikethrough as ~~…~~, code in backticks,
-// a link as [text](href), a spoiler as ||…||, a quote's lines after "> ", a heading's
-// after "## ". Underline has no Markdown and is written as its words. What is not
-// formatting is escaped, so a "*" someone typed stays a "*".
+// Markdown renders text and spans as Markdown for a human-read file: **b**, _i_, ~~s~~,
+// `code`, [text](href), ||spoiler||, "> " quotes, "## " headings. Underline has no
+// Markdown, so only its words are written; other text is escaped.
 func Markdown(text string, spans []Span) string {
 	cuts := []int{0, len(text)}
 	for _, s := range spans {
@@ -77,8 +75,7 @@ func piece(words string, on Span) string {
 	return words
 }
 
-// lineMarks puts a quote's and a heading's marks before their lines. They are set by
-// line: a line any of whose words is quoted is a quote.
+// lineMarks prefixes quote and heading lines; a line with any quoted word is a quote.
 func lineMarks(out, text string, spans []Span) string {
 	quoted, headed := linesWith(text, spans, func(s Span) bool { return s.Quote }), linesWith(text, spans, func(s Span) bool { return s.Heading })
 	if len(quoted) == 0 && len(headed) == 0 {
@@ -96,7 +93,7 @@ func lineMarks(out, text string, spans []Span) string {
 	return strings.Join(lines, "\n")
 }
 
-// linesWith is the lines of text (by number) a span is matches touches.
+// linesWith returns the line numbers touched by spans matching is.
 func linesWith(text string, spans []Span, is func(Span) bool) map[int]bool {
 	out := map[int]bool{}
 	for _, s := range spans {
@@ -117,8 +114,8 @@ var markdownSpecial = strings.NewReplacer(
 	`\`, `\\`, "`", "\\`", "*", `\*`, "_", `\_`, "~", `\~`, "[", `\[`, "]", `\]`, "|", `\|`, "<", `\<`,
 )
 
-// EscapeMarkdown is words Markdown reads as written, a line's leading "#" or ">"
-// included.
+// EscapeMarkdown escapes words so Markdown reads them literally, including a leading
+// "#" or ">".
 func EscapeMarkdown(words string) string {
 	words = markdownSpecial.Replace(words)
 	lines := strings.Split(words, "\n")

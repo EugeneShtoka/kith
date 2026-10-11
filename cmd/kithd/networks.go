@@ -18,21 +18,19 @@ import (
 	"github.com/EugeneShtoka/kith/internal/whatsapp"
 )
 
-// network is an adapter as kithd runs it, whatever its network: it reads its own part
-// of the config, says where each of its accounts is, and names the accounts it will
-// resume. kithd builds every network it links and loops over them; what a network can
-// do beyond this the router asks it for (capabilities.go).
+// network is an adapter as kithd runs it: it reads its part of the config, reports each
+// account's state, and names the accounts it will resume. Further capabilities are
+// asked for by the router (capabilities.go).
 type network interface {
 	route.Adapter
 	Network() domain.Protocol
-	// UseConfig takes the config, before Start and each time it is re-read: the
-	// network's accounts (one added is connected if it has a session, one removed is
-	// let go) and the settings it follows.
+	// UseConfig takes the config before Start and on each re-read: added accounts with a
+	// session connect, removed ones are let go.
 	UseConfig(ctx context.Context, cfg config.Config)
 	// OnStatus sets who hears an account's state change. Set before Start.
 	OnStatus(changed func(domain.AccountStatus))
-	// SavedSessions is the accounts with a session kept, by name: Start connects them,
-	// and the daemon is ready once each has said where it is.
+	// SavedSessions is the accounts with a kept session: Start connects them, and the
+	// daemon is ready once each has reported.
 	SavedSessions(ctx context.Context) ([]string, error)
 	// Every network leads its own login.
 	api.LoginLeader
@@ -44,20 +42,18 @@ type (
 	cacheWriter interface {
 		OnCached(cached func(domain.Message), changed func(domain.RoomID))
 	}
-	// roomsRewriter rewrites its rooms in the cache itself (its own listing).
+	// roomsRewriter rewrites its rooms in the cache itself.
 	roomsRewriter interface{ OnRoomsChanged(changed func()) }
-	// configChecker says whether its part of the config is right, before kithd runs
-	// it (at start, at each re-read, and when a client asks before saving).
+	// configChecker validates its part of the config before kithd runs it (at start, on
+	// re-read, and when a client asks before saving).
 	configChecker interface {
 		CheckConfig(ctx context.Context, cfg config.Config) error
 	}
-	// roomsStaler learns of room changes the cache does not have until it is
-	// refreshed (Matrix's sync).
+	// roomsStaler learns of room changes the cache lacks until refreshed (Matrix's sync).
 	roomsStaler interface{ OnRoomsStale(stale func()) }
 )
 
-// checkConfig refuses a config kithd would not run: one setup refuses, or one a
-// network refuses its part of.
+// checkConfig refuses a config kithd would not run: one setup or any network refuses.
 func (s served) checkConfig(ctx context.Context, cfg config.Config) error {
 	if err := setup.Validate(cfg); err != nil {
 		return err
@@ -78,11 +74,10 @@ type store struct {
 	io.Closer
 }
 
-// openNetworks builds every network kithd links, over one cache and this instance's
-// keyring, each running whatever accounts the config gives it (Matrix, the one it
-// names). stores are the networks' own, for Close. WhatsApp's store is its sessions:
-// one that will not open leaves WhatsApp out, logged, rather than the daemon down with
-// it. Telegram's keeps only updates positions: without it they are kept in memory.
+// openNetworks builds every network kithd links over one cache and this instance's
+// keyring; stores are the networks' own, for Close. A WhatsApp session store that will
+// not open leaves WhatsApp out (logged) instead of taking the daemon down; without
+// Telegram's store, update positions are kept in memory.
 func openNetworks(
 	ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage,
 ) (networks []network, mx *matrix.Adapter, stores []store) {

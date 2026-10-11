@@ -12,10 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A draft's Markdown is Telegram's entities, at UTF-16 offsets (an emoji before them
-// counts twice); a plain draft, or one with no formatting, goes as typed; a person it
-// names is a mention when their access hash is known, the longer name claiming its
-// words first.
+// Markdown becomes UTF-16 entities (an emoji counts two units); plain or unformatted
+// drafts go as typed; mentions need a known access hash, longest name first.
 func TestDraftsAreSentWithEntities(t *testing.T) {
 	t.Parallel()
 	known := func(user int64) (int64, bool) { return user * 10, user != 9 }
@@ -45,9 +43,8 @@ func TestDraftsAreSentWithEntities(t *testing.T) {
 	}
 }
 
-// A message sent goes to the chat as Telegram's request — its entities, the message
-// it replies to, a random ID the same for the same draft sent again — and is cached and
-// handed to the clients under the ID Telegram gave it.
+// Send issues the request (entities, reply, stable random ID per draft) and caches and
+// streams the message under Telegram's ID.
 func TestASentMessageIsCachedUnderItsID(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)

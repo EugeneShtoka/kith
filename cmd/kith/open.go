@@ -42,8 +42,8 @@ func runOpen(configPath, profile, uri string) error {
 	return openInTerminal(ctx, cfg.Terminal, uri)
 }
 
-// openInTerminal starts a terminal running a client with --follow. Passing the URI on
-// the command line avoids the race of broadcasting before the new client attaches.
+// openInTerminal starts a terminal running a client with --follow; the URI on the
+// command line avoids racing a broadcast against the new client's attach.
 func openInTerminal(ctx context.Context, configured, uri string) error {
 	term, err := terminalFor(configured)
 	if err != nil {

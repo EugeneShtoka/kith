@@ -17,7 +17,7 @@ func groupAttr() *syscall.SysProcAttr { return &syscall.SysProcAttr{Setpgid: tru
 func adopt(*exec.Cmd) tree { return tree{} }
 func (tree) release()      {}
 
-// terminate asks the whole group to stop. An error means there was nobody to ask.
+// terminate signals the whole group; an error means it is already gone.
 func (s *server) terminate() error {
 	if err := syscall.Kill(-s.cmd.Process.Pid, syscall.SIGTERM); err != nil {
 		return fmt.Errorf("llamacpp: signal process group: %w", err)

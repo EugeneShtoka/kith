@@ -10,8 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// tag:<name> is a place wherever places are read, and naming a tag that does not
-// exist is refused there, as a word that names nothing is.
+// tag:<name> is a place everywhere places are read; a missing tag is refused.
 func TestTagPlacesMustNameATag(t *testing.T) {
 	t.Parallel()
 	base := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
@@ -34,8 +33,7 @@ func TestTagPlacesMustNameATag(t *testing.T) {
 	}
 }
 
-// Every scope's places carry the tags, and the home order: [display] priority, the
-// rail's order, the tags.
+// Places carry the tags and the home order ([display] priority, rail order, tags).
 func TestPlacesCarryTagsAndPriority(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
@@ -49,9 +47,7 @@ func TestPlacesCarryTagsAndPriority(t *testing.T) {
 	}
 }
 
-// The daemon's home order (the config's part, its spaces marked as it reads them) is
-// the client's (built from the config and the spaces at once): the two pick a room's
-// home, and must agree.
+// The daemon's and the client's home orders, built in different steps, agree.
 func TestTheHomeOrderIsTheSameBuiltInEitherStep(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}, {Name: "All", Rule: []string{"*"}}}}

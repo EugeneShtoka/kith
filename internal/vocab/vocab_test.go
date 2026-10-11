@@ -78,8 +78,8 @@ func TestAWindowFindsWordsAddedAfterALookup(t *testing.T) {
 	}
 }
 
-// What is never offered: the prefix itself, a word saving under two characters, and
-// anything for an empty prefix or no room to show it.
+// Never offered: the prefix itself, a word saving under two characters, anything for an
+// empty prefix or a zero limit.
 func TestRankRefusals(t *testing.T) {
 	t.Parallel()
 	w := NewWindow(4)

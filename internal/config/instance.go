@@ -12,9 +12,8 @@ var (
 	instanceLine = regexp.MustCompile(`^\s*instance\s*=\s*"([^"]*)"\s*(#.*)?$`)
 )
 
-// SetInstance records [storage] instance in the config file at path, leaving the
-// rest of the file — comments included — as it is. When the file already names one
-// (another kith got there first), that one is returned and nothing is written.
+// SetInstance writes [storage] instance into the config file at path, preserving the
+// rest of the file. If one is already set, it is returned and nothing is written.
 func SetInstance(path, instance string) (string, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- the user's own config file
 	if err != nil {

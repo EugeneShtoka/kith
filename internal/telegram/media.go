@@ -18,13 +18,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An attachment is a photo or a document (a file, voice, audio, video, a sticker) the
-// message carries. Downloading one names it by a file reference that expires, so
-// nothing is kept to load it later: LoadImage asks Telegram for the message again and
-// downloads what it carries now. The client's media cache is the cache, as for Matrix.
+// Attachments are photos or documents. File references expire, so LoadImage refetches
+// the message and downloads from its current media; the client's media cache caches.
 
-// attachment is a message's media as kith shows it; nil, with a label to read
-// instead, for one it cannot show (a location, a poll, an animated sticker).
+// attachment converts a message's media; nil plus a label for unsupported kinds
+// (location, poll, animated sticker).
 func attachment(media tg.MessageMediaClass) (*domain.Media, string) {
 	switch m := media.(type) {
 	case *tg.MessageMediaPhoto:
@@ -49,7 +47,7 @@ func attachment(media tg.MessageMediaClass) (*domain.Media, string) {
 	return nil, mediaLabel(media)
 }
 
-// document is a document's media: by what its attributes say it is.
+// document classifies a document by its attributes.
 func document(doc *tg.Document) (*domain.Media, string) {
 	media := &domain.Media{Type: domain.MediaFile, Mime: doc.MimeType, Size: int(doc.Size)}
 	sticker, video := "", false
@@ -88,13 +86,12 @@ func document(doc *tg.Document) (*domain.Media, string) {
 	return media, ""
 }
 
-// photoSize is one size a photo is kept in.
 type photoSize struct {
 	kind        string
 	w, h, bytes int
 }
 
-// largest is a photo's largest size, which is what kith downloads.
+// largest is a photo's largest size, the one kith downloads.
 func largest(photo *tg.Photo) (photoSize, bool) {
 	var best photoSize
 	for _, s := range photo.Sizes {
@@ -117,7 +114,7 @@ func largest(photo *tg.Photo) (photoSize, bool) {
 	return best, best.kind != ""
 }
 
-// fileLocation is where an attachment's bytes are, as Telegram gives the message now.
+// fileLocation is an attachment's current download location.
 func fileLocation(media tg.MessageMediaClass) (tg.InputFileLocationClass, bool) {
 	switch m := media.(type) {
 	case *tg.MessageMediaPhoto:
@@ -139,8 +136,7 @@ func fileLocation(media tg.MessageMediaClass) (tg.InputFileLocationClass, bool) 
 	return nil, false
 }
 
-// mediaLabel is what an attachment kith cannot show reads as: its kind, and what
-// little it says.
+// mediaLabel is placeholder text for an unsupported attachment.
 func mediaLabel(media tg.MessageMediaClass) string {
 	switch m := media.(type) {
 	case *tg.MessageMediaGeo, *tg.MessageMediaGeoLive, *tg.MessageMediaVenue:
@@ -155,8 +151,7 @@ func mediaLabel(media tg.MessageMediaClass) string {
 	return "[attachment]"
 }
 
-// LoadImage downloads a message's attachment, the message asked of Telegram again for
-// a file reference that has not expired.
+// LoadImage refetches the message for a fresh file reference and downloads its media.
 func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -185,9 +180,8 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 	return out.Bytes(), nil
 }
 
-// SendFile uploads a file and sends it, caption as its words (Markdown, as a message
-// is). An image goes as a photo, anything else as a file under its name; Telegram
-// draws audio and video by their type.
+// SendFile uploads and sends a file with a Markdown caption: images as photos, the
+// rest as documents (Telegram renders audio/video by MIME type).
 func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -226,8 +220,7 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, capt
 	return nil // sent; it arrives through the updates
 }
 
-// inputMedia is how an uploaded file goes out: a photo when it is an image Telegram
-// draws, else a document under its name and type.
+// inputMedia is a photo for images Telegram renders, else a named, typed document.
 func inputMedia(file tg.InputFileClass, name string, data []byte) tg.InputMediaClass {
 	mimeType := mime.TypeByExtension(strings.ToLower(filepath.Ext(name)))
 	if mimeType == "" {

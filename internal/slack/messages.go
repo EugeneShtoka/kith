@@ -13,19 +13,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// messageID is a message: Slack's ts names it within its conversation.
+// messageID is a message's ID: Slack's ts names it within its conversation.
 func messageID(team, channel, ts string) domain.EventID {
 	return domain.EventID(domain.NativeID(domain.ProtocolSlack, team, channel+"/"+ts))
 }
 
-// shown is the message subtypes kith shows: what people (and their bots) wrote. The
-// rest are notices (joins, topic changes) or changes to other messages (edits and
-// deletions, which come later).
+// shown is the message subtypes kith shows: what people and bots wrote. The rest are
+// notices (joins, topic changes) or edits and deletions of other messages.
 var shown = map[string]bool{
 	"": true, "bot_message": true, "me_message": true, "thread_broadcast": true, "file_share": true,
 }
 
-// tsTime is the time a Slack ts ("1700000000.123456", seconds and microseconds) says.
+// tsTime parses a Slack ts ("1700000000.123456": seconds and microseconds).
 func tsTime(ts string) time.Time {
 	secs, micros, _ := strings.Cut(ts, ".")
 	s, err := strconv.ParseInt(secs, 10, 64)
@@ -36,16 +35,15 @@ func tsTime(ts string) time.Time {
 	return time.Unix(s, us*int64(time.Microsecond))
 }
 
-// incoming is a Slack message in a conversation as kith keeps it; false for one kith
-// does not show.
+// incoming is a Slack message as kith keeps it; false for one kith does not show.
 func incoming(channel string, m *slackgo.Msg, n names) (domain.Message, bool) {
 	if !shown[m.SubType] || m.Timestamp == "" || m.Hidden {
 		return domain.Message{}, false
 	}
 	r := render(messageText(m), n)
 	body, named := r.body, false
-	// The first file kith can load is the attachment, any other it can load a row of
-	// its own (fileRows), and one it cannot is named under the text.
+	// The first loadable file is the attachment, each other loadable one gets its own
+	// row (fileRows), and an unloadable one is named under the text.
 	shown := firstLoadable(m.Files)
 	for i := range m.Files {
 		if i != shown && !loadable(&m.Files[i]) {
@@ -95,8 +93,8 @@ func incoming(channel string, m *slackgo.Msg, n names) (domain.Message, bool) {
 	return out, true
 }
 
-// messageText is what a message says, as mrkdwn: its text, else its blocks (an app's
-// or bot's post), else its attachments' fallbacks.
+// messageText is a message's mrkdwn: its text, else its blocks (app/bot posts), else
+// its attachments' fallbacks.
 func messageText(m *slackgo.Msg) string {
 	if m.Text != "" {
 		return m.Text
@@ -107,8 +105,7 @@ func messageText(m *slackgo.Msg) string {
 	return attachmentText(m.Attachments)
 }
 
-// attachmentText is what a message made only of attachments (a bot's, a link
-// unfurled) says: each one's fallback text.
+// attachmentText is the fallback text of each attachment (bot posts, unfurled links).
 func attachmentText(attachments []slackgo.Attachment) string {
 	var parts []string
 	for i := range attachments {
@@ -119,7 +116,7 @@ func attachmentText(attachments []slackgo.Attachment) string {
 	return strings.Join(parts, "\n")
 }
 
-// labeled is a placeholder for what kith cannot show yet, with its own words after.
+// labeled is a placeholder for what kith cannot show yet, followed by its own words.
 func labeled(kind, words string) string {
 	if words = strings.TrimSpace(words); words != "" {
 		return "[" + kind + "] " + words
@@ -127,10 +124,9 @@ func labeled(kind, words string) string {
 	return "[" + kind + "]"
 }
 
-// userRefs finds the people a text mentions.
 var userRefs = regexp.MustCompile(`<@([A-Z0-9]+)[|>]`)
 
-// people is everyone messages need named: their senders and whom they mention.
+// people is everyone msgs need named: senders and mentioned users.
 func people(msgs []slackgo.Msg) []string {
 	var users []string
 	add := func(u string) {
@@ -150,8 +146,8 @@ func people(msgs []slackgo.Msg) []string {
 // usersPerLookup bounds one users.info call.
 const usersPerLookup = 50
 
-// learnPeople asks Slack the names of the people w does not know yet among users.
-// A lookup that fails leaves them unnamed (their IDs show), logged.
+// learnPeople looks up the users w does not know yet; on failure they stay unnamed
+// (IDs show) and it is logged.
 func (a *Adapter) learnPeople(ctx context.Context, w *workspace, users []string) {
 	unknown := w.unnamed(users)
 	for chunk := range slices.Chunk(unknown, usersPerLookup) {
@@ -174,12 +170,12 @@ func (a *Adapter) learnPeople(ctx context.Context, w *workspace, users []string)
 	}
 }
 
-// usersPerPage is one users.list page: Slack's largest.
+// usersPerPage is the users.list page size (Slack's maximum).
 const usersPerPage = 200
 
-// listEveryone reads every member of the workspace, for the directory: a person is
-// named before they are seen in a message, and on every network their number links
-// them to. Slack's rate limit is waited out page by page.
+// listEveryone reads every workspace member for the directory, so people are named
+// before they speak and linked by number across networks. Rate limits are waited out
+// per page.
 func (a *Adapter) listEveryone(ctx context.Context, w *workspace) {
 	users, err := w.client.GetUsersContext(ctx, slackgo.GetUsersOptionLimit(usersPerPage))
 	if err != nil {
@@ -194,7 +190,7 @@ func (a *Adapter) listEveryone(ctx context.Context, w *workspace) {
 	a.keepPeople(ctx, w)
 }
 
-// keepPeople gives the directory who the workspace's known users are.
+// keepPeople gives the directory the workspace's known users.
 func (a *Adapter) keepPeople(ctx context.Context, w *workspace) {
 	if a.cache == nil {
 		return
@@ -205,9 +201,9 @@ func (a *Adapter) keepPeople(ctx context.Context, w *workspace) {
 	}
 }
 
-// arrived caches one message heard live and hands it to the clients. A conversation
-// the cache does not know yet (a DM just begun, a channel just joined) is made one of
-// the account's rooms first, and the listing asked again for its name.
+// arrived caches a live message and emits it. A conversation the cache lacks (new DM,
+// just joined) becomes one of the account's rooms first and the listing is redone for
+// its name.
 func (a *Adapter) arrived(ctx context.Context, w *workspace, channel string, m *slackgo.Msg) {
 	a.learnPeople(ctx, w, people([]slackgo.Msg{*m}))
 	msg, ok := incoming(channel, m, w.names())
@@ -224,7 +220,7 @@ func (a *Adapter) arrived(ctx context.Context, w *workspace, channel string, m *
 			a.keepFile(ctx, all[i], m)
 		}
 		a.heardOf(msg)
-		// A room first heard of is read up to just before what made it known.
+		// A newly heard room is read up to just before the message that revealed it.
 		a.placeRead(ctx, msg.RoomID, msg.Timestamp.Add(-time.Millisecond))
 		a.recount(ctx, msg.RoomID)
 		a.wantRestOf(w, channel, m)
@@ -237,9 +233,9 @@ func (a *Adapter) arrived(ctx context.Context, w *workspace, channel string, m *
 	}
 }
 
-// record caches messages of one room, the room made one of the account's first, where
-// no listing's sweep can come between the two (see keptRooms). It reports whether the
-// room was not joined before, and whether the messages were cached.
+// record adds the room to the account's rooms and caches msgs under listing, so no
+// sweep falls between (see keptRooms). It reports whether the room is new and whether
+// the messages were cached.
 func (a *Adapter) record(ctx context.Context, w *workspace, room domain.RoomID, msgs []domain.Message) (joined, ok bool) {
 	a.listing.Lock()
 	a.heard[room] = time.Now()
@@ -262,22 +258,22 @@ func (a *Adapter) record(ctx context.Context, w *workspace, room domain.RoomID, 
 	return n > 0, true
 }
 
-// heardOf tells who hears new messages cached (word completion) of one.
+// heardOf reports each newly cached message to onCached.
 func (a *Adapter) heardOf(msg domain.Message) {
 	if a.onCached != nil {
 		a.onCached(msg)
 	}
 }
 
-// relist lists a workspace again, for a conversation a message came to first.
+// relist lists a workspace again after a message came from an unlisted conversation.
 func (a *Adapter) relist(ctx context.Context, w *workspace) {
 	if _, err := a.list(ctx, w); err != nil {
 		a.log.Warn("list the workspace again failed", "account", w.account.Name, "err", err)
 	}
 }
 
-// emit hands v to a stream without blocking: a client that is not reading misses it,
-// as with the other adapters (it reads the cache when it catches up).
+// emit sends v without blocking; a client not reading misses it and catches up from the
+// cache, as with the other adapters.
 func emit[T any](a *Adapter, ch chan T, v T) {
 	a.streamMu.RLock()
 	defer a.streamMu.RUnlock()

@@ -19,10 +19,10 @@ var sharedOnPurpose = map[string]bool{
 	"derived": true, // *derivedCache, the render cache
 }
 
-// TestNoValueReceiverWritesAMap holds cow.go's rule mechanically: a method on a value
-// receiver writes no map reached through the receiver (index assignment, ++/--,
-// delete, clear, maps.Copy), unless the path crosses a field in sharedOnPurpose. Writes through a
-// local alias (x := m.a; x[k] = v) are not seen; build a new map with withEntry.
+// TestNoValueReceiverWritesAMap enforces cow.go's rule: a value-receiver method writes
+// no map reached through the receiver (index assignment, ++/--, delete, clear,
+// maps.Copy) unless the path crosses a sharedOnPurpose field. Writes through a local
+// alias (x := m.a; x[k] = v) are not caught; build a new map with withEntry.
 func TestNoValueReceiverWritesAMap(t *testing.T) {
 	t.Parallel()
 
@@ -92,10 +92,9 @@ func mapWrite(n ast.Node, recv string) ast.Expr {
 	return nil
 }
 
-// throughReceiver reports whether e is a field path rooted at recv (recv.a.b) that
-// crosses no field shared on purpose. An array field (m.edits[f]) is a value and is
-// indexed like a map; the scan cannot tell them apart, so arrays are listed in
-// valueArrays.
+// throughReceiver reports whether e is a field path rooted at recv (recv.a.b) crossing
+// no field shared on purpose. Array fields (m.edits[f]) index like maps and cannot be
+// told apart, so they are listed in valueArrays.
 func throughReceiver(e ast.Expr, recv string) bool {
 	sel, ok := e.(*ast.SelectorExpr)
 	if !ok {
@@ -119,8 +118,8 @@ func throughReceiver(e ast.Expr, recv string) bool {
 	}
 }
 
-// valueArrays are fixed-size array fields: indexing one in a value receiver writes
-// the receiver's own copy.
+// valueArrays are fixed-size array fields: indexing one in a value receiver writes the
+// receiver's own copy.
 var valueArrays = map[string]bool{
 	"edits": true, // [fieldCount]editHistory
 }
@@ -144,8 +143,8 @@ func exprString(e ast.Expr) string {
 	return b.String()
 }
 
-// writesFirstArg reports a call that writes the map it is handed first: the delete and
-// clear builtins, and maps.Copy/maps.DeleteFunc.
+// writesFirstArg reports a call that writes its first argument map: delete, clear,
+// maps.Copy, maps.DeleteFunc.
 func writesFirstArg(fun ast.Expr) bool {
 	switch f := fun.(type) {
 	case *ast.Ident:
@@ -157,8 +156,8 @@ func writesFirstArg(fun ast.Expr) bool {
 	return false
 }
 
-// Binding user commands in WithConfigFile (a value receiver) leaves the Model it was
-// called on as it was: the keymap's maps are copied before they are written.
+// WithConfigFile (a value receiver) binding user commands leaves its receiver intact:
+// the keymap's maps are copied before writing.
 func TestWithConfigFileLeavesItsReceiversKeymapAlone(t *testing.T) {
 	t.Parallel()
 	before := starterNew(apitest.Nop{}, config.Display{}).WithKeys(config.DefaultKeys())

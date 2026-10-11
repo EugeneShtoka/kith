@@ -10,8 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A draft whose mentions no longer parse is kept — the text is the user's — but the
-// loss is logged, since it would send without notifying anyone it named.
+// A draft with unparsable mentions is kept and the loss logged.
 func TestCorruptDraftMentionsAreLoggedNotLost(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

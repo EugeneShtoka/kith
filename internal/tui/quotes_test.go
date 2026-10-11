@@ -13,8 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// quoting is a client in a room whose backend answers FetchEvent; messages arrive via
-// Update so the triggered fetch actually runs.
+// quoting is a client in a room whose backend answers FetchEvent; messages arrive via Update
+// so the triggered fetch runs.
 func quoting(t *testing.T, backend *quoteBackend) Model {
 	t.Helper()
 	m := update(t, starterNew(backend, config.Display{}),
@@ -59,8 +59,7 @@ func TestAQuoteIsFetchedWhenItsTargetIsNotLoaded(t *testing.T) {
 	if _, known := m.quotes.known["$old"]; !known {
 		t.Fatal("the fetched target was not filed as a quote")
 	}
-	// Drawn in the reply's row, and *not* as a row of its own: a message from weeks
-	// ago has no business appearing in the middle of today.
+	// Drawn in the reply's row, not as a row of its own.
 	frame := stripStyles(m.View().Content)
 	if !strings.Contains(frame, "the message being answered") {
 		t.Errorf("the quote is not drawn:\n%s", frame)
@@ -87,8 +86,7 @@ func TestAnUnfetchableQuoteIsAskedForOnce(t *testing.T) {
 	if backend.asks != 1 {
 		t.Errorf("asked %d times, want once", backend.asks)
 	}
-	// And the row says which of the two it is, rather than showing an arrow and an
-	// ellipsis that reads as a reply to nothing.
+	// And the row says why, not an arrow and an ellipsis.
 	if frame := stripStyles(m.View().Content); !strings.Contains(frame, "quoted message") {
 		t.Errorf("no placeholder for the unavailable quote:\n%s", frame)
 	}
@@ -132,8 +130,7 @@ func TestGoingToTheMessageAReplyAnswers(t *testing.T) {
 		t.Errorf("cursor on %s, want the message the reply answers", jumped.timeline.selected)
 	}
 
-	// A message that answers nothing says so, rather than being a key that did
-	// nothing — the two are indistinguishable from the outside otherwise.
+	// A message that answers nothing says so, rather than silently doing nothing.
 	m.timeline.selected = "$filler"
 	quiet, _ := press(t, m.clearStatus(), keyCode(tea.KeyEnter))
 	if !strings.Contains(quiet.status(), "not a reply") {
@@ -157,7 +154,7 @@ func TestReplyIsBoundToR(t *testing.T) {
 		t.Errorf("r gave replyTo=%q insert=%v, want the reply started",
 			replying.compose.replyTo, replying.compose.insertMode)
 	}
-	// And enter does not: it is the other half of the pair.
+	// And enter does not reply.
 	notReplying, _ := press(t, m, keyCode(tea.KeyEnter))
 	if notReplying.compose.replyTo != "" {
 		t.Errorf("enter started a reply to %q", notReplying.compose.replyTo)

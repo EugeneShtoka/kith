@@ -12,16 +12,12 @@ import (
 	"time"
 )
 
-// stub is a llama-server that answers /health and returns one canned distribution,
-// recording the request it was given.
+// stub is a llama-server that answers /health and one canned distribution.
 type stub struct {
 	*httptest.Server
-	// asked is the last prompt received, for the trailing-space rule.
-	asked string
-	// probs is what it will answer with.
-	probs []string
-	// probes is the n_probs the last request asked for, for the slack rule.
-	probes int
+	asked  string   // last prompt received
+	probs  []string // the answer
+	probes int      // last n_probs requested
 }
 
 func newStub(t *testing.T, probs ...string) *stub {
@@ -49,15 +45,13 @@ func newStub(t *testing.T, probs ...string) *stub {
 	return s
 }
 
-// server pointed at the stub, skipping the spawn: what is under test here is the
-// protocol, not the process.
+// server points at the stub without spawning anything.
 func (s *stub) server() *server {
 	return &server{base: s.URL, http: s.Client(), now: time.Now}
 }
 
-// words keeps only tokens that start a word, drops punctuation, folds case (keeping
-// the likelier), keeps inner punctuation, handles SentencePiece, truncates at inner
-// whitespace, and stops at n.
+// words keeps word-starting tokens, drops punctuation, folds case (keeping the
+// likelier), handles SentencePiece, cuts at inner whitespace, and stops at n.
 func TestWords(t *testing.T) {
 	t.Parallel()
 
@@ -88,7 +82,6 @@ func TestWords(t *testing.T) {
 	}
 }
 
-// A server error carries the body's message.
 func TestAServerErrorCarriesWhatTheServerSaid(t *testing.T) {
 	t.Parallel()
 
@@ -105,7 +98,6 @@ func TestAServerErrorCarriesWhatTheServerSaid(t *testing.T) {
 	}
 }
 
-// A reply with no distribution is an error, not an empty answer.
 func TestAReplyWithNoDistributionIsAnError(t *testing.T) {
 	t.Parallel()
 

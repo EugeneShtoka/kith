@@ -1,8 +1,7 @@
 package daemon_test
 
-// An opt-in probe against a real, running kithd and a real account, kept because it
-// earned its place: it is what found the shutdown-as-failure bug, where a clean SIGTERM was
-// reported as a sync failure and systemd restarted the daemon.
+// Opt-in probe against a running kithd and a real account. It found the bug where a
+// clean SIGTERM was reported as a sync failure and systemd restarted the daemon.
 
 import (
 	"context"
@@ -57,8 +56,8 @@ func TestLiveDaemon(t *testing.T) {
 	}
 	t.Logf("INVITES %d", len(invites))
 
-	// One room's contents, to prove message conversion and per-room reads work with real
-	// (including encrypted) history.
+	// One room's contents prove message conversion and per-room reads on real (including
+	// encrypted) history.
 	var room domain.RoomID
 	var msgs []domain.Message
 	scanned := 0
@@ -96,8 +95,8 @@ func TestLiveDaemon(t *testing.T) {
 		t.Error("newest message has neither body nor media: the wire lost the content")
 	}
 
-	// The mark-read path, exercised without changing anything: a room ID the account is not
-	// in has no cached event, so it comes back skipped and no receipt is sent.
+	// Mark-read without side effects: a room the account is not in has no cached event,
+	// so it is skipped and no receipt is sent.
 	result, err := r.MarkRoomsRead(ctx, []domain.RoomID{"!definitely-not-a-room:invalid"}, false)
 	if err != nil {
 		t.Fatalf("MarkRoomsRead: %v", err)
@@ -108,8 +107,7 @@ func TestLiveDaemon(t *testing.T) {
 		t.Errorf("MarkRoomsRead(unknown room) = %+v, want %+v — nothing should have been receipted", result, want)
 	}
 
-	// A live page from the homeserver, not the cache: this is the slow path, and the
-	// one that carries reactions alongside messages.
+	// A live page from the homeserver: the slow path, carrying reactions.
 	page, err := r.Timeline(ctx, room, "", 20)
 	if err != nil {
 		t.Fatalf("Timeline: %v", err)
@@ -135,16 +133,14 @@ func TestLiveDaemon(t *testing.T) {
 	}
 	t.Logf("EMOJI SCORED %d (global scope)", len(scores))
 
-	// Search over the daemon's cache: a term common enough to hit, short enough to
-	// be meaningless on its own.
+	// Search the daemon's cache for a common term.
 	hits, err := r.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch("the", time.Now()), Rooms: domain.EveryRoom(), Limit: 5})
 	if err != nil {
 		t.Fatalf("SearchMessages: %v", err)
 	}
 	t.Logf("SEARCH %d hits for a common term", len(hits))
 
-	// The live stream: attach and see whether anything arrives. A quiet account is
-	// not a failure, so this only reports.
+	// The live stream: a quiet account is not a failure, so this only reports.
 	streamCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 	stream := daemon.NewRemote(socket)
@@ -166,8 +162,7 @@ func TestLiveDaemon(t *testing.T) {
 	liveDND(ctx, t, r)
 }
 
-// liveDND exercises the notification surface against the running daemon: the
-// do-not-disturb set and the config re-read.
+// liveDND exercises the do-not-disturb set and config re-read on the running daemon.
 func liveDND(ctx context.Context, t *testing.T, r *daemon.Remote) {
 	t.Helper()
 
@@ -204,7 +199,7 @@ func liveDND(ctx context.Context, t *testing.T, r *daemon.Remote) {
 		t.Errorf("Until came back in the wrong zone (%v): a countdown drawn from it would be hours out", got.Until)
 	}
 
-	// Reading it back proves it is daemon state, not something this client remembers.
+	// Reading it back proves it is daemon state.
 	read, err := r.DND(ctx)
 	if err != nil {
 		t.Fatalf("DND: %v", err)
@@ -222,8 +217,7 @@ func liveDND(ctx context.Context, t *testing.T, r *daemon.Remote) {
 	}
 	t.Log("DND cleared: the daemon is as it was found")
 
-	// The config re-read. It reads the file the daemon was started with, so this
-	// only passes if that file is still valid — which is the point.
+	// Re-reads the daemon's own config file, so it passes only while that file is valid.
 	if rerr := r.ReloadConfig(ctx); rerr != nil {
 		t.Errorf("ReloadConfig: %v", rerr)
 	} else {
@@ -231,17 +225,15 @@ func liveDND(ctx context.Context, t *testing.T, r *daemon.Remote) {
 	}
 }
 
-// localOffset is the local zone's offset at t.
 func localOffset(t time.Time) int {
 	_, offset := t.Local().Zone()
 	return offset
 }
 
-// attachLive connects to the running daemon for this account, or fails the test saying
-// which half was missing.
+// attachLive connects to the running daemon for user, or fails saying what was missing.
 func attachLive(t *testing.T, ctx context.Context, user string) (*daemon.Remote, string) {
 	t.Helper()
-	// A live install from before instances: the instance is the account's hash.
+	// A pre-instance install: the instance is the account's hash.
 	socket, err := daemon.SocketPath(domain.Storage{Instance: domain.AccountKey(user), RuntimeDir: filepath.Join(xdg.RuntimeDir, "kith")})
 	if err != nil {
 		t.Fatalf("SocketPath: %v", err)

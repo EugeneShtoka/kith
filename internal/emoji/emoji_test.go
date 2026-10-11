@@ -5,8 +5,7 @@ import (
 	"unicode/utf8"
 )
 
-// A name finds its emoji in the curated set first (the names people type, and Slack
-// and GitHub use), then among Unicode's names; an unknown name finds none.
+// Curated names win, then Unicode names; an unknown name finds none.
 func TestByName(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]string{
@@ -24,7 +23,6 @@ func TestByName(t *testing.T) {
 	}
 }
 
-// Every curated entry is a name for something that is not letters: an emoji.
 func TestCuratedNamesAreEmoji(t *testing.T) {
 	t.Parallel()
 	for name, e := range Curated {

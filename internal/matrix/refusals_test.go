@@ -26,8 +26,8 @@ func backendWithCache(t *testing.T, me id.UserID) *InProc {
 	return b
 }
 
-// A refusal is learned only from a reaction of ours, redacted by someone else, who is a
-// bridge; each condition is checked by removing it.
+// A refusal is learned only from a bridge redacting our reaction; each condition is
+// checked by removing it.
 func TestRefusalLearnedOnlyFromABridgeTakingOursAway(t *testing.T) {
 	t.Parallel()
 

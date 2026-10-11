@@ -9,9 +9,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// SetPeople replaces what source (one account: "whatsapp:<digits>", "telegram:<id>",
-// a bridge login) names identifiers and which it says are one person. Of two names a
-// source gives one identifier, the better ranked is kept.
+// SetPeople replaces source's names and links (source: "whatsapp:<digits>",
+// "telegram:<id>", a bridge login). Of two names for one identifier, the better
+// ranked is kept.
 func (c *Cache) SetPeople(ctx context.Context, source string, names []domain.PersonName, links []domain.PersonLink) error {
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		for _, table := range []string{"person_names", "person_links"} {
@@ -47,8 +47,8 @@ func savePersonNames(ctx context.Context, tx *sql.Tx, source string, names []dom
 	return nil
 }
 
-// savePersonLinks adds which identifiers source says are one person; a link to
-// oneself, or to nothing, says nothing.
+// savePersonLinks adds which identifiers source says are one person, skipping
+// self and empty links.
 func savePersonLinks(ctx context.Context, tx *sql.Tx, source string, links []domain.PersonLink) error {
 	stmt, err := tx.PrepareContext(ctx, `INSERT INTO person_links(source, id, other) VALUES(?, ?, ?)
 		ON CONFLICT(source, id, other) DO NOTHING`)
@@ -67,9 +67,8 @@ func savePersonLinks(ctx context.Context, tx *sql.Tx, source string, links []dom
 	return nil
 }
 
-// Directory is who people are (domain.Directory), from every source's names and links,
-// and the names bridges give their puppets: a puppet whose ID is a number
-// (domain.PhoneOf) is named by the bridge as RankBridged, its tag (" (WA)") taken off.
+// Directory builds domain.Directory from every source's names and links plus bridge
+// puppet names: a puppet with a phone ID is named at RankBridged, tag (" (WA)") removed.
 func (c *Cache) Directory(ctx context.Context) (domain.Directory, error) {
 	names, err := collect(ctx, c.db, "people's names", "SELECT source, id, name, rank FROM person_names",
 		func(rows *sql.Rows) (domain.PersonName, error) {
@@ -122,8 +121,7 @@ func (c *Cache) PeopleSources(ctx context.Context, prefix string) ([]string, err
 		}, prefix)
 }
 
-// ForgetPeople drops what every source beginning with prefix said of people, but
-// those in keep: an account or bridge no longer read takes its names with it.
+// ForgetPeople drops the names and links of every source with prefix, except keep.
 func (c *Cache) ForgetPeople(ctx context.Context, prefix string, keep []string) error {
 	sources, err := c.PeopleSources(ctx, prefix)
 	if err != nil {

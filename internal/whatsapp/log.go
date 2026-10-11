@@ -9,16 +9,15 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-// slogLogger is whatsmeow's log through kith's: its errors are mostly retried
-// requests, so they are warnings; its info is bookkeeping, so it is debug.
+// slogLogger routes whatsmeow's log to slog: errors (mostly retried requests) as
+// warnings, info as debug.
 type slogLogger struct{ log *slog.Logger }
 
-// newLogger is whatsmeow's logger for one account.
 func newLogger(log *slog.Logger, account string) waLog.Logger {
 	return slogLogger{log: log.With("component", "whatsmeow", "account", account)}
 }
 
-// NewStoreLogger is whatsmeow's logger for the store itself.
+// NewStoreLogger returns whatsmeow's logger for the store.
 func NewStoreLogger(log *slog.Logger) waLog.Logger {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
@@ -41,11 +40,9 @@ func (l slogLogger) at(level slog.Level, msg string, args ...any) {
 	l.log.Log(context.Background(), level, fmt.Sprintf(msg, args...))
 }
 
-// signalLogger is libsignal's package-wide logger. Its default prints every debug line
-// to stdout, which in kithd is the journal; it is also set lazily and unguarded on
-// first use, a race between the first two accounts to sign or decrypt. Set once
-// here, before any goroutine, it keeps libsignal's warnings and errors and drops the
-// rest.
+// signalLogger replaces libsignal's global logger, whose default prints debug to
+// stdout (the journal) and is set lazily without a guard (a race between accounts).
+// Set once before any goroutine; keeps warnings and errors only.
 type signalLogger struct{}
 
 func init() {

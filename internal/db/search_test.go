@@ -10,7 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Shorthands, so the seed tables below read as data rather than as type names.
+// Shorthands for the seed tables below.
 type domainMessage = domain.Message
 
 func domainRoomID(s string) domain.RoomID   { return domain.RoomID(s) }
@@ -37,7 +37,7 @@ func TestFTSQuery(t *testing.T) {
 		{`"code review"`, `"code review"`},
 		{`"code review" later`, `"code review" "later"*`},
 		{`deploy "on friday"`, `"deploy" "on friday"`},
-		// An unterminated phrase is someone mid-typing, so it still searches.
+		// An unterminated phrase is mid-typing, so it still searches.
 		{`"code rev`, `"code rev"*`},
 		// Punctuation is quoted, never interpreted.
 		{"what?", `"what?"*`},
@@ -62,8 +62,7 @@ func TestFTSQuery(t *testing.T) {
 	}
 }
 
-// Whatever the user types, the query must run. FTS5's parser is unforgiving and a
-// chat search box receives every character on the keyboard.
+// Any input yields a query FTS5 can parse.
 func TestSearchNeverErrorsOnUserInput(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +99,7 @@ func TestSearchMessages(t *testing.T) {
 		if len(hits) != 2 {
 			t.Fatalf("got %d hits, want 2: %+v", len(hits), hits)
 		}
-		// Newest first: time is the axis you scan a conversation on.
+		// Newest first.
 		if !hits[0].Timestamp.After(hits[1].Timestamp) {
 			t.Errorf("hits are not newest-first: %v then %v", hits[0].Timestamp, hits[1].Timestamp)
 		}
@@ -232,9 +231,8 @@ func TestSearchMessages(t *testing.T) {
 	})
 }
 
-// The index is maintained by triggers, so it must track every way a message can
-// change — and a redaction must take the text out of results even though the cache
-// keeps it for the "(deleted)" placeholder.
+// The trigger-maintained index tracks every change to a message; a redaction leaves
+// results though the row stays for the placeholder.
 func TestSearchIndexFollowsMessageChanges(t *testing.T) {
 	t.Parallel()
 
@@ -263,8 +261,7 @@ func TestSearchIndexFollowsMessageChanges(t *testing.T) {
 		t.Fatal("a new message should be searchable")
 	}
 
-	// Edit — the upsert's ON CONFLICT path is an UPDATE, which is a different
-	// trigger from the insert.
+	// Edit: the upsert's ON CONFLICT path fires the UPDATE trigger, not the insert one.
 	save(domainMessage{ID: "$1", RoomID: "!r:x", Sender: "@a:x", Body: "edited mango", Timestamp: at(1), Edited: true})
 	if count("pineapple") != 0 {
 		t.Error("the replaced text should no longer be searchable")
@@ -273,7 +270,7 @@ func TestSearchIndexFollowsMessageChanges(t *testing.T) {
 		t.Error("the edited text should be searchable")
 	}
 
-	// Redaction — the row survives for the placeholder, but must leave results.
+	// Redaction: the row survives for the placeholder but leaves results.
 	if err := cache.MarkRedacted(ctx, "!r:x", "$1", "", "", time.Time{}, false); err != nil {
 		t.Fatalf("MarkRedacted: %v", err)
 	}
@@ -294,8 +291,7 @@ func TestSearchIndexFollowsMessageChanges(t *testing.T) {
 	}
 }
 
-// The trim that caps a room at testKeep deletes rows, which must also
-// leave the index — otherwise search would offer hits it can no longer jump to.
+// Rows trimmed past testKeep leave the index too, or search offers hits it cannot jump to.
 func TestSearchIndexFollowsTrim(t *testing.T) {
 	t.Parallel()
 
@@ -316,7 +312,7 @@ func TestSearchIndexFollowsTrim(t *testing.T) {
 	if err := cache.SaveMessages(ctx, "!r:x", msgs); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
-	// The five oldest were trimmed, so their text must be gone from the index.
+	// The five oldest were trimmed.
 	hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch("tangerine", time.Now()), Rooms: domain.EveryRoom(), Limit: testKeep + 10})
 	if err != nil {
 		t.Fatalf("SearchMessages: %v", err)

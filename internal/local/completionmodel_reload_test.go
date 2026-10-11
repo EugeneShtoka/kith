@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/llamacpp"
 )
 
-// A config reload that leaves the completion model as it was keeps the running
-// predictor (a completion in flight is not cut off); changed settings, weights
-// replaced at the same path, or turning it off, replace it.
+// A reload leaving the completion model unchanged keeps the running predictor; changed
+// settings, weights replaced in place, or turning it off replace it.
 func TestAReloadKeepsAnUnchangedCompletionModel(t *testing.T) {
 	t.Parallel()
 	weights := filepath.Join(t.TempDir(), "model.gguf")

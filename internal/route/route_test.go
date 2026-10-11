@@ -19,7 +19,6 @@ const (
 	whatsappRoomID domain.RoomID = "whatsapp:44881234567/120363@g.us"
 )
 
-// twoNetworks routes a Matrix fake and a WhatsApp fake.
 func twoNetworks(t *testing.T) (*Router, *fakeMatrix, *fake) {
 	t.Helper()
 	m, wa := newFakeMatrix(), newFake("whatsapp")
@@ -27,7 +26,7 @@ func twoNetworks(t *testing.T) (*Router, *fakeMatrix, *fake) {
 	return r, m, wa
 }
 
-// perRoomCalls is every call about one room, made through the router.
+// perRoomCalls makes every per-room call through the router.
 func perRoomCalls(ctx context.Context, r *Router, room domain.RoomID) map[string]error {
 	calls := map[string]error{}
 	calls["MarkRead"] = r.MarkRead(ctx, room, "$e", false)
@@ -99,8 +98,7 @@ func TestARoomOnANetworkNotConnectedIsRefused(t *testing.T) {
 	}
 }
 
-// What only Matrix has is refused for another network's room before Matrix hears of
-// it, and reaches Matrix for its own.
+// Matrix-only calls are refused for another network's room before Matrix hears of it.
 func TestMatrixOnlyCallsStayOnMatrix(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -149,8 +147,7 @@ func TestMatrixOnlyCallsStayOnMatrix(t *testing.T) {
 	}
 }
 
-// Lists are every network's, Matrix first; one network failing fails the read rather
-// than passing a partial list as whole.
+// Lists join every network's, Matrix first; one failure fails the read.
 func TestListsAreEveryNetworksAndFailTogether(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -180,7 +177,7 @@ func TestListsAreEveryNetworksAndFailTogether(t *testing.T) {
 	}
 }
 
-// With Matrix alone, the router changes nothing: its streams are Matrix's own.
+// With Matrix alone the router passes its streams through.
 func TestOneNetworkIsPassedThrough(t *testing.T) {
 	t.Parallel()
 	m := newFakeMatrix()
@@ -191,8 +188,7 @@ func TestOneNetworkIsPassedThrough(t *testing.T) {
 	}
 }
 
-// Me is everyone this person is on every network, once each; the account is
-// Matrix's, the one the daemon is named after.
+// Me is every self on every network, once each.
 func TestMeIsEveryNetworksSelf(t *testing.T) {
 	t.Parallel()
 	r, m, wa := twoNetworks(t)
@@ -216,8 +212,8 @@ func TestARewindReachesEveryNetwork(t *testing.T) {
 	}
 }
 
-// Every network is optional, Matrix too: with none, the daemon runs empty until :login sets one up — Start
-// waits for the end, and lists are empty.
+// Every network is optional, Matrix too: with none, Start waits for the end and lists
+// are empty.
 func TestNewRunsWithNoNetwork(t *testing.T) {
 	t.Parallel()
 	empty := New(nil)
@@ -238,9 +234,8 @@ func TestNewRunsWithNoNetwork(t *testing.T) {
 	}
 }
 
-// randomRooms is a set of rooms spread over Matrix, WhatsApp (when connected), Telegram
-// (a bare adapter, when there) and a network with no adapter (a second WhatsApp
-// account's rooms count as WhatsApp's).
+// randomRooms spreads rooms over Matrix, WhatsApp (when connected), Telegram (a bare
+// adapter, when there) and a network with no adapter.
 func randomRooms(rng *rand.Rand) []domain.RoomID {
 	n := rng.IntN(12)
 	out := make([]domain.RoomID, 0, n)
@@ -259,9 +254,8 @@ func randomRooms(rng *rand.Rand) []domain.RoomID {
 	return out
 }
 
-// Marking rooms read, over any mix of networks and refusals: every room is counted
-// exactly once, each reaches only its own network, and an error means nothing was
-// attempted anywhere.
+// Over any mix of networks and refusals, every room is counted once and reaches only
+// its own network; an error means nothing was attempted.
 func TestMarkingRoomsReadAccountsForEveryRoom(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -321,9 +315,8 @@ func TestMarkingRoomsReadAccountsForEveryRoom(t *testing.T) {
 	}
 }
 
-// Encryption over any mix of networks: every room gets an answer, from its own
-// network only, and a room no network can answer for — none connected, or one that
-// does not say — reads as encrypted.
+// Every room gets an encryption answer from its own network only; a room nobody can
+// answer for reads as encrypted.
 func TestEncryptionIsAskedOfEachRoomsNetwork(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -370,9 +363,9 @@ func TestEncryptionIsAskedOfEachRoomsNetwork(t *testing.T) {
 	}
 }
 
-// withoutMatrix is each way a daemon can be without a usable Matrix: not configured
-// beside WhatsApp, configured but not logged in beside WhatsApp, or configured, not
-// logged in and alone. m is nil when Matrix is not configured; wa when absent.
+// withoutMatrix is each way a daemon lacks a usable Matrix: unconfigured beside
+// WhatsApp, logged out beside WhatsApp, or logged out alone. m is nil when Matrix is
+// not configured, wa when absent.
 func withoutMatrix(t *testing.T) map[string]func() (*Router, *fakeMatrix, *fake) {
 	t.Helper()
 	build := func(configured, whatsapp bool) func() (*Router, *fakeMatrix, *fake) {
@@ -382,7 +375,7 @@ func withoutMatrix(t *testing.T) map[string]func() (*Router, *fakeMatrix, *fake)
 			if configured {
 				m = newFakeMatrix()
 				m.loggedOut.Store(true)
-				// Anything that reached it would fail, and say so.
+				// Anything reaching it fails loudly.
 				m.fail = errFake
 				m.rooms = []domain.Room{{ID: matrixRoomID}}
 				matrix = m
@@ -405,9 +398,8 @@ func withoutMatrix(t *testing.T) map[string]func() (*Router, *fakeMatrix, *fake)
 	}
 }
 
-// Without a usable Matrix nothing reaches it: its rooms are refused as off, lists are
-// the other networks' alone, its own lists are empty, its own actions are refused as
-// off, and nobody is anyone on it. WhatsApp is served as before.
+// Without a usable Matrix nothing reaches it: its rooms and actions are refused as
+// off, lists are the others' alone, and nobody is anyone on it.
 func TestWithoutMatrixNothingReachesIt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -517,8 +509,7 @@ func TestMatrixLoggingInIsServedAtOnce(t *testing.T) {
 	}
 }
 
-// Without Matrix configured its streams carry nothing and end when the router stops,
-// so the daemon's pumps over them return.
+// Without Matrix its streams carry nothing and end with the router, so pumps return.
 func TestWithoutMatrixItsStreamsEndWithTheRouter(t *testing.T) {
 	t.Parallel()
 	r, _, _ := withoutMatrix(t)["not configured, WhatsApp"]()
@@ -532,9 +523,8 @@ func TestWithoutMatrixItsStreamsEndWithTheRouter(t *testing.T) {
 	}
 }
 
-// Spaces are every network's: Matrix's hierarchy and WhatsApp's communities, by name;
-// a network failing fails the read; a logged-out Matrix adds none. A WhatsApp
-// community is not Matrix's to file rooms into.
+// Spaces join Matrix's hierarchy and WhatsApp's communities by name; one failure fails
+// the read; a logged-out Matrix adds none; Matrix cannot file into a community.
 func TestSpacesAreEveryNetworks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -574,8 +564,8 @@ func TestSpacesAreEveryNetworks(t *testing.T) {
 	}
 }
 
-// A network with threads of its own is asked about its rooms' threads, and Matrix
-// never is; a network without threads still refuses them.
+// A network with its own threads is asked about its rooms' threads, never Matrix; one
+// without threads refuses them.
 func TestThreadsGoToTheRoomsNetwork(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -614,9 +604,8 @@ func TestThreadsGoToTheRoomsNetwork(t *testing.T) {
 	}
 }
 
-// A network lacking a capability refuses what needs it, as not on that network, and
-// is left out of what it cannot list; a room it serves names no parent, and its
-// threads were never taken part in.
+// A network lacking a capability refuses what needs it and is left out of lists; its
+// rooms name no parent and have no thread participation.
 func TestANetworkWithoutACapabilityRefusesWhatNeedsIt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -658,8 +647,8 @@ func (c *chatMaker) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.R
 	return "telegram:42/-1009", nil
 }
 
-// A chat to be made on an account goes to that account's network, not Matrix; a
-// network that makes none refuses it; a room with no account named is Matrix's.
+// A chat for an account goes to that account's network; a network that makes none
+// refuses; no account named means Matrix.
 func TestANewChatGoesToItsAccountsNetwork(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -24,8 +24,7 @@ const (
 // stubArg marks the re-invocation and says how the stub should behave.
 const stubArg = "spellstub:"
 
-// TestSpellStubEngine is the stub. It skips unless it was started as one, which is
-// what lets it live in the ordinary test file and still be a program.
+// TestSpellStubEngine is the stub engine; it skips unless started as one.
 func TestSpellStubEngine(t *testing.T) {
 	mode := stubMode()
 	if mode == "" {
@@ -52,17 +51,14 @@ func speakISpell(mode string) {
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		line := in.Text()
-		// Commands produce no output at all, which is why Add and Ignore do not wait
-		// for one. Echoing them to stderr lets a test see they arrived.
+		// Commands produce no output; echoing them to stderr lets a test see they arrived.
 		if strings.HasPrefix(line, "*") || strings.HasPrefix(line, "@") || line == "#" {
 			fmt.Fprintln(os.Stderr, "command:", line)
 			continue
 		}
 		switch mode {
 		case "silent":
-			// Sleeps rather than blocking forever: an empty select parks the only
-			// goroutine, the runtime calls that a deadlock and kills the process —
-			// which would make this stub *exit* when the point of it is to hang.
+			// Sleep: an empty select would be killed by the runtime as a deadlock.
 			time.Sleep(time.Hour)
 		case "wrong":
 			fmt.Println("& " + typoReceive + " 3 0: receive, relieve, reprieve")
@@ -86,9 +82,8 @@ func stub(t *testing.T, mode string) *Checker {
 	return c
 }
 
-// onceEngine writes a stub engine script once per package, at package init: exec'ing
-// a file written while another test forks races into ETXTBSY (golang/go#22315), and
-// nothing forks before the tests start.
+// onceEngine writes a stub engine script once, at package init: exec'ing a file
+// written while another test forks races into ETXTBSY (golang/go#22315).
 func onceEngine(script string) func(*testing.T) string {
 	var path string
 	var err error
@@ -117,8 +112,7 @@ func writeEngine(script string) (string, error) {
 	return path, nil
 }
 
-// echoDicPathEngine answers every word as a misspelling whose "suggestion" is the
-// DICPATH it was handed, which is how a test reads the child's environment back.
+// echoDicPathEngine answers every word as misspelled, suggesting the DICPATH it got.
 var echoDicPathEngine = onceEngine("#!/bin/sh\n" +
 	"echo '@(#) International Ispell Version 3.1.20 (but really a test stub)'\n" +
 	"while read -r _; do printf '& x 1 0: %s\\n\\n' \"$DICPATH\"; done\n")
@@ -127,7 +121,7 @@ var echoDicPathEngine = onceEngine("#!/bin/sh\n" +
 var correctEngine = onceEngine(
 	"#!/bin/sh\necho 'ispell stub'\nwhile read -r _; do echo '*'; echo ''; done\n")
 
-// The engine is told where the dictionaries are via DICPATH; otherwise it exits silently.
+// The engine gets the dictionary directories via DICPATH.
 func TestStartTellsTheEngineWhereTheDictionariesAre(t *testing.T) {
 	t.Parallel()
 
@@ -136,8 +130,7 @@ func TestStartTellsTheEngineWhereTheDictionariesAre(t *testing.T) {
 	ours, system := filepath.Join(dir, "ours"), filepath.Join(dir, "system")
 	c, err := Start(t.Context(), Availability{
 		Engine: Engine{Command: "fake-engine", Path: engine},
-		// Two dictionaries in one directory and one in another: the child should be
-		// told each directory once, in the order Look found them.
+		// Each directory is passed once, in the order Look found them.
 		Dictionaries: []Dictionary{
 			{Tag: "en_US", Dir: ours},
 			{Tag: "he_IL", Dir: ours},
@@ -159,8 +152,7 @@ func TestStartTellsTheEngineWhereTheDictionariesAre(t *testing.T) {
 	}
 }
 
-// The personal dictionary exists before the engine does, and an existing one is left
-// exactly as it was.
+// Start creates a missing personal dictionary and leaves an existing one unchanged.
 func TestStartCreatesThePersonalDictionaryAndKeepsWhatIsInIt(t *testing.T) {
 	t.Parallel()
 
@@ -199,8 +191,7 @@ func stubWithPersonal(t *testing.T, path string) *Checker {
 	return c
 }
 
-// The banner has to be eaten at startup or it is read as the answer to the first word
-// ever checked — which would make that word correct whatever it was.
+// The startup banner is not read as the answer to the first word.
 func TestCheckerEatsTheBanner(t *testing.T) {
 	t.Parallel()
 
@@ -246,8 +237,7 @@ func TestCheckerReadsEachKindOfAnswer(t *testing.T) {
 	}
 }
 
-// Several checks in a row share one pipe, so the answers must not run together: each
-// one has to stop at its own blank line.
+// Consecutive checks each stop at their own blank line.
 func TestCheckerKeepsAnswersApart(t *testing.T) {
 	t.Parallel()
 
@@ -263,8 +253,7 @@ func TestCheckerKeepsAnswersApart(t *testing.T) {
 	}
 }
 
-// An engine that has stopped is a state, not an incident: the caller's move is to
-// stop asking, and every later call has to say so rather than block.
+// Once the engine stops, every later call fails instead of blocking.
 func TestCheckerGoesDeadOnce(t *testing.T) {
 	t.Parallel()
 
@@ -278,15 +267,13 @@ func TestCheckerGoesDeadOnce(t *testing.T) {
 	if _, err := c.Check(t.Context(), "word"); !errors.Is(err, ErrDead) {
 		t.Errorf("second Check = %v, want ErrDead again", err)
 	}
-	// Closing a dead checker is what a caller does on quit having already closed on
-	// the error, and it must not be a second failure.
+	// Closing an already dead checker is not an error.
 	if err := c.Close(); err != nil {
 		t.Errorf("Close after death = %v, want nil", err)
 	}
 }
 
-// An engine that stops answering is indistinguishable from one that is slow, and the
-// composer cannot wait to find out which.
+// A check that outlives its context abandons an engine that stopped answering.
 func TestCheckerGivesUpWhenTheEngineStopsAnswering(t *testing.T) {
 	t.Parallel()
 
@@ -307,8 +294,7 @@ func TestCheckerGivesUpWhenTheEngineStopsAnswering(t *testing.T) {
 	}
 }
 
-// Add, Ignore and Save produce no reply by design; the test is that they neither
-// block waiting for one nor poison the next check.
+// Add, Ignore and Save neither wait for a reply nor disturb the next check.
 func TestCommandsDoNotWaitForAReply(t *testing.T) {
 	t.Parallel()
 
@@ -331,8 +317,7 @@ func TestCommandsDoNotWaitForAReply(t *testing.T) {
 	}
 }
 
-// Start refuses when there is nothing to check with, rather than launching an engine
-// that would exit immediately with a message nobody sees.
+// Start refuses when there is no dictionary.
 func TestStartRefusesWithoutDictionaries(t *testing.T) {
 	t.Parallel()
 
@@ -346,8 +331,7 @@ func TestStartRefusesWithoutDictionaries(t *testing.T) {
 var silentEngine = onceEngine("#!/bin/sh\nexec sleep 60\n")
 
 // An engine that never prints its banner fails the start instead of hanging it: the
-// backend starts engines under its own lock, so every spell check would wait too. The
-// context is long-lived, as the backend's is; a deadline would kill the engine anyway.
+// backend starts engines under its own lock. The context is long-lived, as the backend's.
 func TestAnEngineThatNeverSpeaksFailsTheStart(t *testing.T) {
 	t.Parallel()
 	if stubMode() != "" {
@@ -365,11 +349,8 @@ func TestAnEngineThatNeverSpeaksFailsTheStart(t *testing.T) {
 	}
 }
 
-// An engine started through a wrapper script, whose child neither answers nor exits
-// on end of input: the banner timeout still ends the start on time, and the child is
-// killed with the wrapper rather than left running. (It once held the start, and the
-// spell lock, for as long as it lived: only the wrapper was killed, and the reader
-// waited on a pipe the child kept open.)
+// A wrapper whose child neither answers nor exits still times out, and the child is
+// killed with the wrapper.
 func TestAWrapperEngineThatNeverSpeaksStillTimesOut(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -383,8 +364,7 @@ func TestAWrapperEngineThatNeverSpeaksStillTimesOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	began := time.Now()
-	// A parallel test's fork can hold the script's write descriptor until it execs:
-	// "text file busy" is that, not the engine, so it is tried again.
+	// A parallel test's fork may hold the script open until it execs; retry ETXTBSY.
 	var err error
 	for range 50 {
 		if _, err = start(context.Background(), script, []string{"-a"}, nil); !errors.Is(err, syscall.ETXTBSY) {

@@ -13,7 +13,6 @@ func TestInvitesRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	// A cold cache has no invitations, which is not an error.
 	got, err := cache.Invites(ctx)
 	if err != nil {
 		t.Fatalf("Invites on a cold cache: %v", err)
@@ -39,7 +38,6 @@ func TestInvitesRoundTrip(t *testing.T) {
 	byID := map[domain.RoomID]domain.Room{}
 	for _, r := range got {
 		byID[r.ID] = r
-		// Every row read back is an invitation, whatever the column layout.
 		if !r.IsInvite() {
 			t.Errorf("%s did not read back as an invitation", r.ID)
 		}
@@ -52,8 +50,7 @@ func TestInvitesRoundTrip(t *testing.T) {
 	}
 }
 
-// The set is a snapshot, not an upsert: a room that has dropped out of it was
-// answered and must disappear, and an empty set clears the table.
+// SaveInvites replaces the set: dropped rooms disappear and an empty set clears it.
 func TestSaveInvitesIsASnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -65,7 +62,6 @@ func TestSaveInvitesIsASnapshot(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("SaveInvites: %v", err)
 	}
-	// One answered elsewhere: the next set has only the other.
 	if err := cache.SaveInvites(ctx, []domain.Room{{ID: "!i2:x", Name: "Two"}}); err != nil {
 		t.Fatalf("SaveInvites: %v", err)
 	}
@@ -76,7 +72,6 @@ func TestSaveInvitesIsASnapshot(t *testing.T) {
 	if len(got) != 1 || got[0].ID != "!i2:x" {
 		t.Fatalf("after a shrinking snapshot: %+v, want just !i2:x", got)
 	}
-	// All answered.
 	if serr := cache.SaveInvites(ctx, nil); serr != nil {
 		t.Fatalf("SaveInvites(nil): %v", serr)
 	}
@@ -85,8 +80,7 @@ func TestSaveInvitesIsASnapshot(t *testing.T) {
 	}
 }
 
-// A joined-room snapshot and an invitation snapshot are independent: writing one
-// must not touch the other. This is the reason invitations are not in `rooms`.
+// Saving joined rooms and saving invites don't touch each other.
 func TestRoomsAndInvitesAreIndependent(t *testing.T) {
 	t.Parallel()
 

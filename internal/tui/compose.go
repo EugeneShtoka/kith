@@ -4,29 +4,27 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// composeState is the composer: what is being written, where the caret is, and what
-// pressing enter will mean. The fields are reset together on send (see cleared).
-// Model.selected is not here: it survives entering and leaving insert mode.
+// composeState is the composer: text, caret, and what enter will mean. Reset together
+// on send (see cleared). Model.selected is not here: it survives insert mode.
 type composeState struct {
 	input string
 	caret caret
 	// insertMode: keys compose text; otherwise the timeline is a message browser.
 	insertMode bool
-	// editing is the message being revised; editSaved is the composer text restored
-	// if the edit is abandoned.
+	// editing is the message being revised; editSaved is the composer text restored if
+	// the edit is abandoned.
 	editing   domain.EventID
 	editSaved string
 	replyTo   domain.EventID
 	// reacting and reactInput drive the emoji prompt a react action opens.
 	reacting   bool
 	reactInput string
-	// drafted are the mentions inserted into the composer. The body stays editable,
-	// so what ships is filtered against the final text on send (Draft.LiveMentions).
+	// drafted are the mentions inserted into the composer. The body stays editable, so
+	// they are filtered against the final text on send (Draft.LiveMentions).
 	drafted []domain.Mention
 }
 
-// cleared is the composer after a message goes out. insertMode is kept: the next
-// thing after one message is usually another.
+// cleared is the composer after a send. insertMode is kept: another message usually follows.
 func (c composeState) cleared() composeState {
 	return composeState{insertMode: c.insertMode}
 }
@@ -40,7 +38,6 @@ func (c composeState) left() composeState {
 	return c
 }
 
-// startReacting opens the emoji prompt empty.
 func (c composeState) startReacting() composeState {
 	c.reacting, c.reactInput = true, ""
 	return c
@@ -52,5 +49,4 @@ func (c composeState) doneReacting() composeState {
 	return c
 }
 
-// newTxnID is a fresh transaction ID for one send.
 func newTxnID() string { return domain.NewTxnID() }

@@ -12,24 +12,23 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// starredType is the room account data holding a room's starred messages: it survives
-// a cache rebuild, syncs across this account's machines, and (unlike a reaction) is
-// invisible to the room. Namespaced, since Matrix standardizes nothing here.
+// starredType is the room account data for a room's starred messages: it survives a
+// cache rebuild, syncs across devices, and is invisible to the room. Matrix has no standard type.
 const starredType = "org.kith.starred"
 
-// starredContent is the whole set for one room (account data is a value, not a log).
+// starredContent is the whole set for one room.
 type starredContent struct {
 	Events []string `json:"events"`
 }
 
-// starredFrom reports one room's stars from a sync, and whether the type was present
-// (absence is silence, not "no stars").
+// starredFrom reports one room's stars from a sync, and whether they were present
+// (absence is no change, not "no stars").
 func starredFrom(events []*event.Event) (ids []domain.EventID, present bool) {
 	for _, evt := range events {
 		if evt == nil || evt.Type.Type != starredType {
 			continue
 		}
-		// Our own type: decode raw. Unparseable still means present (an empty set).
+		// Our own type: decode raw. Unparseable still counts as present (empty set).
 		var content starredContent
 		if err := json.Unmarshal(evt.Content.VeryRaw, &content); err != nil {
 			return nil, true
@@ -45,8 +44,8 @@ func starredFrom(events []*event.Event) (ids []domain.EventID, present bool) {
 	return ids, present
 }
 
-// StarMessage adds or removes one message's star, writing the whole set back. The
-// current set is read from the cache mirror (no round trip; last writer wins).
+// StarMessage adds or removes one message's star, writing back the whole set read from
+// the cache mirror (last writer wins).
 func (b *InProc) StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, on bool) error {
 	if b.cache == nil {
 		return fmt.Errorf("matrix: star %s: no cache to read the current set from", eventID)
@@ -76,14 +75,13 @@ func (b *InProc) StarMessage(ctx context.Context, roomID domain.RoomID, eventID 
 	if err := b.client.SetRoomAccountData(ctx, id.RoomID(roomID), starredType, &content); err != nil {
 		return fmt.Errorf("matrix: write stars for %s: %w", roomID, err)
 	}
-	// Mirror now so the mark appears immediately; the sync echo confirms or corrects.
+	// Mirror now so the mark appears at once; the sync echo corrects it.
 	if err := b.cache.SetStarred(ctx, roomID, toEventIDs(next), time.Now().UnixMilli()); err != nil {
 		return fmt.Errorf("matrix: mirror stars for %s: %w", roomID, err)
 	}
 	return nil
 }
 
-// toEventIDs converts raw IDs.
 func toEventIDs(raw []string) []domain.EventID {
 	out := make([]domain.EventID, 0, len(raw))
 	for _, s := range raw {

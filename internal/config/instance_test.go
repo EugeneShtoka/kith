@@ -7,8 +7,7 @@ import (
 	"testing"
 )
 
-// The instance goes into the file without disturbing anything else in it, and one
-// already there (another kith got there first) wins.
+// SetInstance leaves the rest of the file intact, and an existing instance wins.
 func TestSetInstanceKeepsTheFile(t *testing.T) {
 	t.Parallel()
 	for name, c := range map[string]struct{ in, want string }{

@@ -8,8 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// openFile hands the selected message's m.file attachment (PDF, zip, …) to the
-// desktop's handler, like `U` on a link.
+// openFile hands the selected message's file attachment to the desktop's handler.
 func (m Model) openFile(msg domain.Message) (Model, tea.Cmd) {
 	opener, err := m.fileOpenerCommand()
 	if err != nil {
@@ -34,8 +33,8 @@ var fileOpenerCandidates = [][]string{
 	{"open"},
 }
 
-// openFileCmd puts the attachment on disk and hands it over, off the event loop. A
-// no-cache room still opens files; the copy is just left for Trim to reclaim.
+// openFileCmd fetches the attachment and hands it over, off the event loop. A no-cache room
+// still opens files; Trim reclaims the copy.
 func (m Model) openFileCmd(opener []string, job mediaJob, name string) tea.Cmd {
 	cache, backend, ctx := m.pics.cache, m.backend, m.ctx
 	return func() tea.Msg {
@@ -50,13 +49,11 @@ func (m Model) openFileCmd(opener []string, job mediaJob, name string) tea.Cmd {
 	}
 }
 
-// fileOpenedMsg reports what came of handing a file to the desktop.
 type fileOpenedMsg struct {
 	name string
 	err  error
 }
 
-// handleFileOpened reports the handoff's outcome.
 func (m Model) handleFileOpened(msg fileOpenedMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("could not open "+msg.name, msg.err), nil

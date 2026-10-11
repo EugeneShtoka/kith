@@ -27,8 +27,7 @@ func joined(events ...*event.Event) *mautrix.RespSync {
 	return resp
 }
 
-// The sync loop must notice every event that changes what Rooms()/Spaces() answer,
-// and ignore ordinary traffic (a refresh is a network call).
+// roomsChanged flags events that change Rooms()/Spaces() and ignores ordinary traffic.
 func TestRoomsChanged(t *testing.T) {
 	t.Parallel()
 

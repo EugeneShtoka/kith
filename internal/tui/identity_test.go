@@ -14,16 +14,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// aliasRoom is the fixture the identity flows run against: a room whose members include
-// two accounts of the same person, one of them bridged.
+// aliasPeople are the room's members, including two accounts of one person, one bridged.
 var aliasPeople = []domain.Member{
 	{UserID: "@whatsapp_4470:x", DisplayName: "Dana Levi (WA)"},
 	{UserID: "@dana:x", DisplayName: "Dana Levi"},
 	{UserID: "@bob:x", DisplayName: "Bob Stone"},
 }
 
-// aliasing returns a model with a config file, a room, its members and one message,
-// plus the path the config is written to.
+// aliasing returns a model with a config file, a room, its members and one message, plus the
+// config path.
 func aliasing(t *testing.T, display config.Display) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
@@ -45,8 +44,7 @@ func aliasing(t *testing.T, display config.Display) (Model, string) {
 	return m, path
 }
 
-// run presses a key and executes whatever command comes back, so a save actually
-// happens.
+// run presses a key and executes the returned command, so a save happens.
 func run(t *testing.T, m Model, key tea.KeyPressMsg) Model {
 	t.Helper()
 	next, cmd := press(t, m, key)
@@ -62,8 +60,7 @@ func typeText(t *testing.T, m Model, text string) Model {
 	return m
 }
 
-// The requested flow, end to end: p on the room, a on a person, name them, pick a color
-// — and the setting is both applied and written.
+// p on the room, a on a person, name, color: the setting is applied and written.
 func TestAliasFlowFromPeoplePicker(t *testing.T) {
 	t.Parallel()
 
@@ -74,7 +71,7 @@ func TestAliasFlowFromPeoplePicker(t *testing.T) {
 	if m.picker.kind != pickerPeople {
 		t.Fatalf("p should open the people picker, got kind %v", m.picker.kind)
 	}
-	// The picker shows the one thing you could not otherwise see.
+	// The picker shows the MXID detail.
 	body := stripStyles(strings.Join(m.pickerLines(80, 8), "\n"))
 	if !strings.Contains(body, "@whatsapp_4470:x") {
 		t.Errorf("the people picker must show MXIDs — that is what it is for:\n%s", body)
@@ -131,8 +128,7 @@ func TestAliasFlowFromPeoplePicker(t *testing.T) {
 	}
 }
 
-// The other requested path: a on a message goes straight to naming its sender, which is
-// the common case — the person you want to name just said something.
+// a on a message goes straight to naming its sender.
 func TestAliasFlowFromMessage(t *testing.T) {
 	t.Parallel()
 
@@ -152,8 +148,7 @@ func TestAliasFlowFromMessage(t *testing.T) {
 	}
 }
 
-// Adding a second account to an existing person is the merge case, and it must not
-// leave them in two identities at once — a state nothing else in the UI can render.
+// Adding an account to an existing person must not leave them in two identities.
 func TestAliasAddsToExistingIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -193,7 +188,7 @@ func TestAliasAddsToExistingIdentity(t *testing.T) {
 	if len(dana.IDs) != 2 {
 		t.Errorf("Dana = %+v, want both accounts", dana)
 	}
-	// Moved, not copied: the old identity must not still claim them.
+	// Moved, not copied: the old identity no longer claims them.
 	other := byAlias["Someone else"]
 	for _, mxid := range other.IDs {
 		if mxid == "@whatsapp_4470:x" {
@@ -208,8 +203,7 @@ func TestAliasAddsToExistingIdentity(t *testing.T) {
 	}
 }
 
-// An identity emptied by a move is dropped: an entry naming nobody renders nowhere and
-// is only noise in the file.
+// An identity emptied by a move is dropped.
 func TestAliasDropsEmptiedIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -231,7 +225,7 @@ func TestAliasDropsEmptiedIdentity(t *testing.T) {
 	}
 }
 
-// Backing out at any step changes nothing — the whole flow writes only at the end.
+// Backing out at any step changes nothing; the flow writes only at the end.
 func TestAliasFlowIsAbandonable(t *testing.T) {
 	t.Parallel()
 
@@ -282,8 +276,7 @@ func TestAliasFlowIsAbandonable(t *testing.T) {
 	}
 }
 
-// An empty name is not a name: it abandons the edit rather than creating a nameless
-// person.
+// An empty name abandons the edit rather than creating a nameless person.
 func TestAliasRejectsEmptyName(t *testing.T) {
 	t.Parallel()
 
@@ -310,7 +303,7 @@ func TestAliasRejectsEmptyName(t *testing.T) {
 	}
 }
 
-// The people picker is modal, which is the only reason `a` can mean "set alias" there.
+// The people picker is modal, which is why `a` can mean "set alias" there.
 func TestPeoplePickerIsModal(t *testing.T) {
 	t.Parallel()
 
@@ -329,8 +322,7 @@ func TestPeoplePickerIsModal(t *testing.T) {
 	if m.picker.kind != pickerPeople {
 		t.Error("filtering should not have triggered the alias action")
 	}
-	// Filtering finds people by MXID as well as by name, since the MXID is what you can
-	// see here and may be all you recognize.
+	// Filtering matches MXIDs as well as names.
 	for _, r := range "whatsapp" {
 		m, _ = press(t, m, keyText(string(r)))
 	}
@@ -341,8 +333,7 @@ func TestPeoplePickerIsModal(t *testing.T) {
 	}
 }
 
-// Nothing is written when there is nowhere to write, and that is reported rather than
-// silently dropped — the setting did apply, it just will not survive a restart.
+// With no config path nothing is written and that is reported; the setting still applies.
 func TestAliasWithoutConfigPath(t *testing.T) {
 	t.Parallel()
 

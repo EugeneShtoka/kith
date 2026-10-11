@@ -13,21 +13,20 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 )
 
-// loginTimeout bounds one login, from its first step to its last: long enough for a
-// code to be typed on a phone, short enough that a forgotten one ends.
+// loginTimeout bounds one login: long enough to type a code from a phone, short
+// enough that a forgotten one ends.
 const loginTimeout = 15 * time.Minute
 
 var (
-	// errNoSuchLogin is an answer to a login that ended or never was.
+	// errNoSuchLogin answers a login that ended or never was.
 	errNoSuchLogin = errors.New("daemon: that login has ended; begin it again")
-	// errNoSuchNetwork is a login of a network the daemon cannot log in to.
+	// errNoSuchNetwork answers a login of a network the daemon cannot log in to.
 	errNoSuchNetwork = fmt.Errorf("%w: no network here is called that", api.ErrNetworkOff)
 )
 
 // Logins runs logins as conversations (api.Logins): each network leads its own
-// (api.LoginLeader), and every step it takes is handed to the client one call at a
-// time. One login per account runs at once: beginning another ends the first. Build
-// it with NewLogins.
+// (api.LoginLeader), handing the client one step per call. One login per account
+// runs at once; beginning another ends the first.
 type Logins struct {
 	leaders func() []api.LoginLeader
 	run     context.Context //nolint:containedctx // logins outlive the RPC that began them
@@ -37,24 +36,23 @@ type Logins struct {
 	byKey map[string]*conversation
 }
 
-// NewLogins runs logins of what leaders lists (read at each call: a network may come
-// and go with the config) until run ends.
+// NewLogins runs logins of the networks leaders lists (read per call, since networks
+// come and go with the config) until run ends.
 func NewLogins(run context.Context, leaders func() []api.LoginLeader) *Logins {
 	return &Logins{leaders: leaders, run: run, byID: map[string]*conversation{}, byKey: map[string]*conversation{}}
 }
 
-// conversation is one login under way.
 type conversation struct {
 	id, network string
-	// steps carries what the leader says, one at a time; answers what the client
-	// answers to a step that asks.
+	// steps carries the leader's steps one at a time; answers carries the client's
+	// answers to steps that ask.
 	steps   chan said
 	answers chan map[string]string
 	cancel  context.CancelFunc
 	ended   <-chan struct{}
 
-	// turn lets one call speak at a time; under it, awaiting says the step the
-	// client holds asks for an answer.
+	// turn lets one call speak at a time; under it, awaiting says the client's current
+	// step expects an answer.
 	turn     sync.Mutex
 	awaiting bool
 
@@ -79,7 +77,6 @@ func (l *Logins) LoginNetworks(context.Context) ([]api.LoginNetwork, error) {
 	return out, nil
 }
 
-// leader is the network called name.
 func (l *Logins) leader(name string) (api.LoginLeader, error) {
 	i := slices.IndexFunc(l.leaders(), func(leader api.LoginLeader) bool { return leader.LoginNetwork().Network == name })
 	if i < 0 {
@@ -88,7 +85,7 @@ func (l *Logins) leader(name string) (api.LoginLeader, error) {
 	return l.leaders()[i], nil
 }
 
-// BeginLogin starts a login of account on network, ending one of it under way.
+// BeginLogin starts a login of account on network, ending one already under way.
 func (l *Logins) BeginLogin(ctx context.Context, network, account string) (api.LoginStep, error) {
 	leader, err := l.leader(network)
 	if err != nil {
@@ -116,7 +113,7 @@ func (l *Logins) BeginLogin(ctx context.Context, network, account string) (api.L
 	return c.next(ctx)
 }
 
-// lead runs the leader's side, then says how it ended and forgets the login.
+// lead runs the leader's side, then reports how it ended and forgets the login.
 func (l *Logins) lead(ctx context.Context, c *conversation, leader api.LoginLeader) {
 	defer l.forget(c)
 	end, err := leader.Login(ctx, c.accountNow(), talk{c})
@@ -127,7 +124,6 @@ func (l *Logins) lead(ctx context.Context, c *conversation, leader api.LoginLead
 	c.say(ctx, last)
 }
 
-// forget ends c and drops it from the logins.
 func (l *Logins) forget(c *conversation) {
 	c.cancel()
 	l.mu.Lock()
@@ -139,8 +135,8 @@ func (l *Logins) forget(c *conversation) {
 	}
 }
 
-// AnswerLogin hands the login its answer, if its step asked for one, and is the next
-// step.
+// AnswerLogin hands the login its answer, if its step asked for one, and returns the
+// next step.
 func (l *Logins) AnswerLogin(ctx context.Context, id string, values map[string]string) (api.LoginStep, error) {
 	l.mu.Lock()
 	c := l.byID[id]
@@ -174,7 +170,6 @@ func (l *Logins) CancelLogin(_ context.Context, id string) error {
 	return nil
 }
 
-// next is the leader's next step.
 func (c *conversation) next(ctx context.Context) (api.LoginStep, error) {
 	c.turn.Lock()
 	defer c.turn.Unlock()
@@ -198,7 +193,7 @@ func (c *conversation) nextLocked(ctx context.Context) (api.LoginStep, error) {
 	}
 }
 
-// say hands the client a step, when it next asks.
+// say hands the client a step when it next asks.
 func (c *conversation) say(ctx context.Context, s said) bool {
 	select {
 	case c.steps <- s:
@@ -208,7 +203,7 @@ func (c *conversation) say(ctx context.Context, s said) bool {
 	}
 }
 
-// hear is the client's answer to the step said last.
+// hear is the client's answer to the last step.
 func (c *conversation) hear(ctx context.Context) (map[string]string, error) {
 	select {
 	case values := <-c.answers:
@@ -255,7 +250,6 @@ func (t talk) Named(account string) {
 	t.c.account = account
 }
 
-// loginID is a new login's handle.
 func loginID() (string, error) {
 	b := make([]byte, 12)
 	if _, err := rand.Read(b); err != nil {

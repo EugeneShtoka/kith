@@ -12,8 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// Unary api.Backend methods (plus daemon-only extras) over the socket. On error
-// every method returns zero values: the response getters are nil-safe.
+// Unary api.Backend methods (plus daemon-only extras) over the socket. On error every
+// method returns zero values: the response getters are nil-safe.
 
 // ── Room ──
 
@@ -57,7 +57,7 @@ func (r *Remote) MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unrea
 	return err
 }
 
-// GetConfig is the configuration the daemon runs with, and its file's revision.
+// GetConfig is the daemon's configuration and its file's revision.
 func (r *Remote) GetConfig(ctx context.Context) (config.Snapshot, error) {
 	res, err := call(ctx, "read the config", r.c.GetConfig, &v1.GetConfigRequest{})
 	if err != nil {
@@ -71,7 +71,7 @@ func (r *Remote) GetConfig(ctx context.Context) (config.Snapshot, error) {
 }
 
 // UpdateConfig has the daemon write cfg, made on revision base, and returns the new
-// revision; api.ErrConfigMoved when the file changed since.
+// revision; api.ErrConfigMoved if the file changed since.
 func (r *Remote) UpdateConfig(ctx context.Context, base string, cfg config.Config) (string, error) {
 	res, err := call(ctx, "save the config", r.c.UpdateConfig,
 		&v1.UpdateConfigRequest{BaseRevision: base, Config: config.Encode(cfg)})
@@ -81,8 +81,8 @@ func (r *Remote) UpdateConfig(ctx context.Context, base string, cfg config.Confi
 	return res.GetRevision(), nil
 }
 
-// PreviewGroupings is what copying each of an account's groupings (Telegram's folders)
-// into the tag of its name would change, among that account's rooms.
+// PreviewGroupings is what copying each of an account's groupings (Telegram folders)
+// into a same-named tag would change.
 func (r *Remote) PreviewGroupings(ctx context.Context, network, account string) ([]domain.GroupingDiff, error) {
 	res, err := call(ctx, "read the folders", r.c.PreviewGroupings, &v1.PreviewGroupingsRequest{Network: network, Account: account})
 	if err != nil {
@@ -98,8 +98,8 @@ func (r *Remote) PreviewGroupings(ctx context.Context, network, account string) 
 	return out, nil
 }
 
-// ApplyGroupings copies an account's groupings into tags as chosen (by grouping name;
-// absent keeps the tag).
+// ApplyGroupings copies an account's groupings into tags as chosen; an absent key
+// keeps the tag.
 func (r *Remote) ApplyGroupings(ctx context.Context, network, account string, choices map[string]domain.GroupingChoice) error {
 	wire := make(map[string]v1.GroupingChoice, len(choices))
 	for name, c := range choices {
@@ -115,7 +115,6 @@ func (r *Remote) ApplyGroupings(ctx context.Context, network, account string, ch
 	return err
 }
 
-// roomIDs is IDs as rooms.
 func roomIDs(ids []string) []domain.RoomID {
 	out := make([]domain.RoomID, len(ids))
 	for i, id := range ids {
@@ -158,8 +157,7 @@ func (r *Remote) MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error
 	return err
 }
 
-// MarkRoomsRead sends only room IDs: each room's newest event is resolved from
-// the daemon's cache.
+// MarkRoomsRead sends only room IDs; the daemon resolves each newest event from its cache.
 func (r *Remote) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error) {
 	resp, err := call(ctx, "mark rooms read", r.c.MarkRoomsRead,
 		&v1.MarkRoomsReadRequest{RoomIds: pc.RoomIDsToStrings(roomIDs), Private: private})
@@ -223,8 +221,8 @@ func (r *Remote) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	return err
 }
 
-// CreateRoom keeps the in-process contract: a partial failure returns the new
-// room's ID together with an error.
+// CreateRoom keeps the in-process contract: a partial failure returns the new room's
+// ID with an error.
 func (r *Remote) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {
 	resp, err := call(ctx, "create room", r.c.CreateRoom, &v1.CreateRoomRequest{
 		Name:      spec.Name,
@@ -307,8 +305,8 @@ func (r *Remote) Redact(ctx context.Context, roomID domain.RoomID, eventID domai
 	return err
 }
 
-// SendFile passes the path, not the bytes: client and daemon are the same user on
-// the same machine. The caller makes it absolute.
+// SendFile passes the path, not the bytes: client and daemon are the same user on the
+// same machine. The caller makes it absolute.
 func (r *Remote) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
 	_, err := call(ctx, "send file", r.c.SendFile, &v1.SendFileRequest{RoomId: string(roomID), Path: path, Caption: caption})
 	return err
@@ -374,8 +372,8 @@ func (r *Remote) ModelTask(ctx context.Context, req domain.ModelRequest) (domain
 	return pc.ProtoToModelResult(resp), err
 }
 
-// ReplaceDraft names this window once it has the seat: from then on its writes are
-// refused if another window takes it.
+// ReplaceDraft names this window once it has the seat; its writes are then refused
+// if another window takes it.
 func (r *Remote) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (bool, error) {
 	request := &v1.ReplaceDraftRequest{Draft: pc.StoredDraftToProto(draft), Over: pc.StoredDraftToProto(over)}
 	if r.seated.Load() {
@@ -404,8 +402,8 @@ func (r *Remote) MessagesAround(ctx context.Context, roomID domain.RoomID, event
 	return pc.ProtoToMessages(resp.GetMessages()), err
 }
 
-// RoomEncryption reports rooms the daemon did not name as unencrypted: the
-// daemon already reported its unknowns as encrypted.
+// RoomEncryption reports rooms the daemon did not name as unencrypted; the daemon
+// already reports unknowns as encrypted.
 func (r *Remote) RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {
 	resp, err := call(ctx, "room encryption", r.c.RoomEncryption,
 		&v1.RoomEncryptionRequest{RoomIds: pc.RoomIDsToStrings(roomIDs)})
@@ -504,8 +502,7 @@ func (r *Remote) EmojiScores(ctx context.Context, kind domain.EmojiKind, roomID 
 	return out, nil
 }
 
-// LoadImage returns an attachment's bytes, from the daemon's media cache or
-// downloaded (and decrypted) by it.
+// LoadImage returns an attachment's bytes from the daemon's media cache or download.
 func (r *Remote) LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
 	resp, err := call(ctx, "load image", r.c.LoadImage, &v1.LoadImageRequest{RoomId: string(roomID), EventId: string(eventID)})
 	return resp.GetData(), err
@@ -535,8 +532,7 @@ func (r *Remote) CancelVerification(ctx context.Context, txnID string) error {
 
 // ── Maintenance ──
 
-// Status reports what the daemon says about itself; a dial failure means no
-// daemon is listening (see Ensure).
+// Status reports the daemon's state; a dial failure means no daemon is listening.
 func (r *Remote) Status(ctx context.Context) (ready bool, syncedAt time.Time, lastErr string, err error) {
 	resp, err := call(ctx, "status", r.c.Status, &v1.StatusRequest{})
 	if err != nil {
@@ -587,8 +583,8 @@ func (r *Remote) ClearCache(ctx context.Context) error {
 	return err
 }
 
-// RestoreKeyBackup sends the secret in the request body over the 0600 socket,
-// never on argv.
+// RestoreKeyBackup sends the secret in the request body over the 0600 socket, never
+// on argv.
 func (r *Remote) RestoreKeyBackup(ctx context.Context, secret string) (int, error) {
 	resp, err := call(ctx, "restore keys", r.c.RestoreKeyBackup, &v1.RestoreKeyBackupRequest{Secret: secret})
 	return int(resp.GetKeys()), err
@@ -679,15 +675,13 @@ func (r *Remote) DND(ctx context.Context) (notify.Temps, error) {
 	return pc.TempRulesFromProto(resp.GetRules()), err
 }
 
-// ReloadConfig asks the daemon to re-read its config, returning the parse error
-// if it will not load.
+// ReloadConfig asks the daemon to re-read its config, returning the parse error.
 func (r *Remote) ReloadConfig(ctx context.Context) error {
 	_, err := call(ctx, "reload config", r.c.ReloadConfig, &v1.ReloadConfigRequest{})
 	return err
 }
 
-// CheckConfig asks the daemon whether it would run with cfg, before it is written:
-// the error is what to fix.
+// CheckConfig asks the daemon whether it would run with cfg, before it is written.
 func (r *Remote) CheckConfig(ctx context.Context, cfg config.Config) error {
 	_, err := call(ctx, "check config", r.c.CheckConfig, &v1.CheckConfigRequest{Config: config.Encode(cfg)})
 	return err

@@ -16,11 +16,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 )
 
-// :login sets an account up and signs it in, inside kith. The daemon lists the
-// networks, and each network leads its own login (api.Logins): every step says what
-// to ask, show or write, and this draws it — a field typed on the status line with its
-// help in the timeline pane, secrets as dots; a code to type elsewhere; a new account
-// written into the config as any setting is. Nothing here knows a network.
+// :login sets up and signs in an account inside kith. The daemon lists networks and each leads
+// its own login (api.Logins): every step says what to ask, show or write, and this draws it (a
+// field on the status line with help in the timeline pane, secrets as dots, a code to type
+// elsewhere, a new account written to the config). Nothing here knows a network.
 
 // loginNew is the account picker's row for setting up another account.
 const loginNew = "\x00new"
@@ -28,7 +27,6 @@ const loginNew = "\x00new"
 // loginTimeout bounds a sign-in: a code to arrive and be typed, a phone to accept one.
 const loginTimeout = 15 * time.Minute
 
-// loginStage is where a sign-in is.
 type loginStage int
 
 const (
@@ -37,16 +35,15 @@ const (
 	loginWorking            // the daemon is at work: signing in, waiting for a phone
 )
 
-// loginState is the sign-in under way.
 type loginState struct {
 	stage loginStage
 	// network is the network being signed in to; account the account, once known.
 	network api.LoginNetwork
 	account string
-	// networks are the daemon's, for the account picker that follows the network's.
+	// networks are the daemon's, for the account picker that follows.
 	networks []api.LoginNetwork
-	// fields are the step's, at the one being typed; values the answers so far, and
-	// answered every answer given in this sign-in, drawn above the field.
+	// fields are the step's, at the one being typed; values are the answers so far; answered is
+	// every answer in this sign-in, drawn above the field.
 	fields   []api.LoginField
 	at       int
 	values   map[string]string
@@ -64,7 +61,6 @@ type answeredField struct {
 	label, shown string
 }
 
-// field is the field being typed.
 func (l loginState) field() (api.LoginField, bool) {
 	if l.stage != loginAsking || l.at >= len(l.fields) {
 		return api.LoginField{}, false
@@ -72,8 +68,8 @@ func (l loginState) field() (api.LoginField, bool) {
 	return l.fields[l.at], true
 }
 
-// loginEvent is news from the sign-in under way: a step to answer, a code, a record to
-// write, a note, or the end.
+// loginEvent is news from the sign-in: a step to answer, a code, a record to write, a note, or
+// the end.
 type loginEvent struct {
 	// ask is fields to answer; their answers go to answer.
 	ask    []api.LoginField
@@ -97,15 +93,15 @@ type loginMsg struct {
 
 func wrapLogin(e loginEvent) tea.Msg { return loginMsg{event: e, ok: true} }
 
-// loginNetworksMsg is the daemon's networks, for :login's picker; pick is the one
-// named on the command line, if any.
+// loginNetworksMsg is the daemon's networks for :login's picker; pick is the one named on the
+// command line, if any.
 type loginNetworksMsg struct {
 	networks []api.LoginNetwork
 	pick     string
 	err      error
 }
 
-// errNoLogin is a kith not attached to a daemon, which is what signs in.
+// errNoLogin reports kith not attached to a daemon, which does the signing in.
 var errNoLogin = errors.New("this kith is not attached to kithd, which signs in")
 
 // openLogin is :login: the daemon's networks, or straight to the one named.
@@ -150,8 +146,8 @@ func (m Model) handleLoginNetworks(msg loginNetworksMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// chooseLoginNetwork offers the network's accounts to sign in again, and a new one;
-// with none set up, it sets the new one up at once.
+// chooseLoginNetwork offers the network's accounts and a new one; with none set up, it sets up
+// a new one at once.
 func (m Model) chooseLoginNetwork(key string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	i := slices.IndexFunc(m.login.networks, func(n api.LoginNetwork) bool { return n.Network == key })
@@ -187,8 +183,8 @@ func (m Model) chooseLoginAccount(value string) (Model, tea.Cmd) {
 	return m.startLogin(m.login.network, value)
 }
 
-// startLogin has the daemon begin signing account in ("" sets a new one up); the
-// network's steps arrive as events.
+// startLogin has the daemon begin signing account in ("" sets up a new one); steps arrive as
+// events.
 func (m Model) startLogin(network api.LoginNetwork, account string) (Model, tea.Cmd) {
 	logins, ok := m.backend.(api.Logins)
 	if !ok {
@@ -215,11 +211,10 @@ type configReloader interface {
 	ReloadConfig(ctx context.Context) error
 }
 
-// loginWork leads the client's side of a sign-in, off the update loop: it begins
-// the login and answers each step — asking the model for answers, or to write a new
-// account (then has the daemon re-read the config) — until the network says it is
-// done. A step that needs the daemon restarted restarts it, once, and begins again.
-// Everything goes to events, which it closes.
+// loginWork runs the client side of a sign-in off the update loop: it begins the login and
+// answers each step (asking the model for answers, or to write a new account, then having the
+// daemon re-read the config) until the network is done. A step needing a daemon restart
+// restarts it once and begins again. Everything goes to events, which it closes.
 func loginWork(
 	logins api.Logins, reload configReloader, restart func(context.Context) error, network, account string,
 ) func(context.Context, chan<- loginEvent) {
@@ -248,8 +243,8 @@ type loginRun struct {
 	restart          func(context.Context) error
 	network, account string
 	events           chan<- loginEvent
-	// login is the daemon's login under way, for canceling it; restarted says the
-	// daemon was restarted once already.
+	// login is the daemon's login in progress, for canceling; restarted marks a restart already
+	// done.
 	login     string
 	restarted bool
 }
@@ -264,7 +259,7 @@ func (r *loginRun) send(ctx context.Context, e loginEvent) bool {
 	}
 }
 
-// cancelIfLeft ends the daemon's login when this side was canceled, past ctx.
+// cancelIfLeft ends the daemon's login when this side was canceled.
 func (r *loginRun) cancelIfLeft(ctx context.Context) {
 	if r.login == "" || ctx.Err() == nil {
 		return
@@ -274,8 +269,8 @@ func (r *loginRun) cancelIfLeft(ctx context.Context) {
 	_ = r.logins.CancelLogin(stop, r.login)
 }
 
-// answer does what step asks and is the next one; done when the sign-in ended
-// (said, or canceled).
+// answer does what step asks and returns the next step; done when the sign-in ended (finished
+// or canceled).
 func (r *loginRun) answer(ctx context.Context, step api.LoginStep) (api.LoginStep, bool, error) {
 	r.login, r.account = step.Login, cmp.Or(step.Account, r.account)
 	switch {
@@ -315,8 +310,8 @@ func (r *loginRun) answer(ctx context.Context, step api.LoginStep) (api.LoginSte
 	}
 }
 
-// writeAndGoOn has the model write the step's new account into the config, the
-// daemon re-read it, and the login go on.
+// writeAndGoOn has the model write the step's new account to the config, the daemon re-read
+// it, and the login go on.
 func writeAndGoOn(
 	ctx context.Context, logins api.Logins, reload configReloader, step api.LoginStep, send func(loginEvent) bool,
 ) (api.LoginStep, error) {
@@ -334,7 +329,7 @@ func writeAndGoOn(
 		return api.LoginStep{}, err
 	}
 	if reload != nil {
-		// The daemon reads the config only when asked: the account is new to it.
+		// The daemon reads the config only when asked, and the account is new to it.
 		if err := reload.ReloadConfig(ctx); err != nil {
 			return api.LoginStep{}, fmt.Errorf("have kithd re-read the config: %w", err)
 		}
@@ -342,9 +337,8 @@ func writeAndGoOn(
 	return logins.AnswerLogin(ctx, step.Login, nil) //nolint:wrapcheck // the daemon's own words
 }
 
-// handleLoginMsg is news from the sign-in: a step to answer, a record to write, a
-// code or a note to show, or, at the end, what it did, the rooms and spaces read
-// again to show what it brought.
+// handleLoginMsg handles sign-in news: a step to answer, a record to write, a code or note to
+// show, or at the end what it did, re-reading rooms and spaces.
 func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 	if m.login.stage == loginOff || !msg.ok {
 		return m, nil // canceled meanwhile
@@ -390,15 +384,15 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 	return m, next
 }
 
-// writeLoginRecord writes a new account into the config as a setting is, and is how
-// to save it; refused (applyConfig said why), saving fails.
+// writeLoginRecord writes a new account into the config as a setting is, returning how to save
+// it; if refused (applyConfig said why), saving fails.
 func (m Model) writeLoginRecord(rec api.LoginRecord) (Model, tea.Cmd, func() error) {
 	cfg := m.conf.base.Clone()
 	if err := cfg.Write(rec.Table, rec.Values); err != nil {
 		return m, nil, func() error { return fmt.Errorf("set the account up: %w", err) }
 	}
-	// Not held for kithd's check (applyConfig): the record is the network's own, and
-	// kithd judges it again when it re-reads the file.
+	// Not held to kithd's check (applyConfig): the record is the network's own, and kithd judges
+	// it again on re-read.
 	derived, err := derive(cfg)
 	if err != nil {
 		return m.sayErr("could not apply", err), nil, func() error {
@@ -416,8 +410,8 @@ func (m Model) writeLoginRecord(rec api.LoginRecord) (Model, tea.Cmd, func() err
 	}
 }
 
-// askLoginField opens the prompt for the field being typed, with its suggestion,
-// selected so typing replaces it.
+// askLoginField opens the prompt for the current field with its suggestion selected, so typing
+// replaces it.
 func (m Model) askLoginField() Model {
 	f, ok := m.login.field()
 	if !ok {
@@ -428,8 +422,8 @@ func (m Model) askLoginField() Model {
 	return m
 }
 
-// submitLogin takes the field's answer: a required one left empty is asked again;
-// the last of a step's fields sends them all.
+// submitLogin takes the field's answer: an empty required one is asked again; the step's last
+// field sends them all.
 func (m Model) submitLogin(input string) (Model, tea.Cmd) {
 	f, ok := m.login.field()
 	if !ok {
@@ -466,8 +460,8 @@ func (m Model) cancelLogin() Model {
 	return m.say("sign-in canceled")
 }
 
-// handleLoginKey is a key while the daemon signs in: the cancel key cancels, and the
-// rest wait, as with verification.
+// handleLoginKey handles a key while the daemon signs in: cancel cancels, the rest wait (as with
+// verification).
 func (m Model) handleLoginKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	if m.keys.lookup(key.String(), scopePrompt) == actCancel {
 		return m.cancelLogin(), nil
@@ -483,8 +477,8 @@ func (m Model) loginTitle() string {
 	return "Sign in: " + m.login.network.Label + " " + m.login.account
 }
 
-// loginLines is the timeline pane while signing in: what was answered, then the field
-// being typed and how to find its answer, or what the daemon is doing.
+// loginLines is the timeline pane while signing in: answers so far, then the current field and
+// how to find its answer, or what the daemon is doing.
 func (m Model) loginLines(width, rows int) []string {
 	var lines []string
 	block := func(text string) {

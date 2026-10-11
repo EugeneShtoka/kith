@@ -41,8 +41,7 @@ func railKeys(m Model) []string {
 	return out
 }
 
-// A room's displayed name is keyed on its ID, which the UI shows nowhere — so this is
-// the only practical way to set one.
+// A room's display name is keyed on its ID, which the UI never shows.
 func TestRenameRoom(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +54,7 @@ func TestRenameRoom(t *testing.T) {
 	if m.prompt.kind != promptRoomName {
 		t.Fatalf("R should open the rename prompt, got %v", m.prompt.kind)
 	}
-	// Prefilled: you are adjusting a name, not inventing one.
+	// Prefilled with the current name.
 	if m.prompt.input != "Alpha" {
 		t.Errorf("prompt input = %q, want the current name", m.prompt.input)
 	}
@@ -88,8 +87,8 @@ func TestRenameRoom(t *testing.T) {
 	}
 }
 
-// An empty name clears the override rather than setting a blank one: a room with no
-// name renders as its ID, which is never what typing nothing meant.
+// An empty name clears the override rather than setting a blank one (which would render
+// the ID).
 func TestRenameRoomEmptyClears(t *testing.T) {
 	t.Parallel()
 
@@ -123,8 +122,8 @@ func TestRenameRoomEmptyClears(t *testing.T) {
 	}
 }
 
-// Naming one thing leaves the others alone, replaces rather than duplicates, and clears
-// rather than blanking.
+// Naming one thing leaves others alone, replaces rather than duplicates, and clears rather
+// than blanks.
 func TestSetName(t *testing.T) {
 	t.Parallel()
 
@@ -147,14 +146,14 @@ func TestSetName(t *testing.T) {
 	if len(cleared) != 1 || cleared[0].Target != config.NameTargetSpace+"Work" {
 		t.Errorf("clearing gave %+v, want only the other entry", cleared)
 	}
-	// The input is never modified — these are config values shared with the model.
+	// The input is not modified: these config values are shared with the model.
 	if len(start) != 2 || start[0].Name != "A" {
 		t.Errorf("the input was mutated: %+v", start)
 	}
 }
 
-// Renaming a rail group changes its label but not its key, so ordering, hiding and
-// space rules keep addressing it.
+// Renaming a rail group changes its label, not its key, so ordering, hiding and space rules
+// still address it.
 func TestRenameGroup(t *testing.T) {
 	t.Parallel()
 
@@ -209,7 +208,7 @@ func TestRenameGroup(t *testing.T) {
 	}
 }
 
-// Layout edits do not apply to an invitation: it is a decision, not a room to rename.
+// Layout edits do not apply to an invitation.
 func TestRenameIgnoresInvites(t *testing.T) {
 	t.Parallel()
 
@@ -240,8 +239,8 @@ func indexOfGroupExact(groups []group, key string) int {
 	return -1
 }
 
-// A room in two spaces that disagree: the **list row** is drawn with the rules of the
-// space you are looking at, and the **sender labels** with the room's own.
+// A room in two disagreeing spaces: the list row uses the viewed space's rules, sender labels
+// the room's own.
 func TestTheListFollowsTheSpaceAndTheTimelineDoesNot(t *testing.T) {
 	t.Parallel()
 
@@ -249,9 +248,8 @@ func TestTheListFollowsTheSpaceAndTheTimelineDoesNot(t *testing.T) {
 		SpaceRules: []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
 		Priority:   []string{"Friends", "Work"},
 	})
-	// A DM named after one person, in Friends *and* Work, ranked so that Friends —
-	// which has no rule — is the room's own space (the DMs tag the rail shows first
-	// would be otherwise).
+	// A DM in Friends and Work, ranked so Friends (no rule) is its own space rather than the DMs
+	// tag.
 	dm := domain.Room{
 		ID: "!a:x", Name: "Michael Livingston",
 		Members: []string{"Michael Livingston"}, IsDirect: true,
@@ -269,8 +267,7 @@ func TestTheListFollowsTheSpaceAndTheTimelineDoesNot(t *testing.T) {
 	if got := m.roomLabelHere(dm); got != "Michael" {
 		t.Errorf("listed under Work, the row is %q, want Work's rule applied", got)
 	}
-	// **The half that was got wrong the first time.** Opening the room from Work must
-	// not reshape the conversation inside it.
+	// Opening the room from Work must not reshape the conversation inside it.
 	if got := m.shapedName("Michael Livingston", "!a:x"); got != "Michael Livingston" {
 		t.Errorf("the sender label is %q, want the room's own space to decide", got)
 	}
@@ -297,14 +294,13 @@ func TestASpanningGroupLeavesTheRoomsOwnSpaceToDecide(t *testing.T) {
 			t.Errorf("on %q, Bravo picked up a space that is not its own", key)
 		}
 	}
-	// A room in no space at all has no rule to find, either way round — and still gets
-	// the global half, which is what keeps the width cap working everywhere.
+	// A room in no space has no rule either way, but still gets the global half (the width cap).
 	if m.nameRuleFor(m.ownSpace("!nowhere:x")).firstOnly {
 		t.Error("a room in no space matched a space rule")
 	}
 }
 
-// The width cap is a sender-label setting and has never reached a room label.
+// The width cap applies to sender labels, not room labels.
 func TestTheWidthCapIsForSenderLabelsOnly(t *testing.T) {
 	t.Parallel()
 

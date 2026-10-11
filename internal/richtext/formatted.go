@@ -2,22 +2,19 @@ package richtext
 
 import "slices"
 
-// Formatted is a message's formatting, network-neutral. Its stored form is kith's
-// markup: the sanitized HTML subset this package keeps (Sanitize), which every network's
-// formatting converts into without loss (Matrix is already HTML; WhatsApp's and
-// Telegram's marks are a subset of it). Its drawn form is the text and spans that markup
-// flattens to (Parse).
+// Formatted is a message's network-neutral formatting. It is stored as kith's markup
+// (Sanitize's HTML subset, which every network's formatting converts into losslessly)
+// and drawn as Parse's text and spans.
 //
-// It is immutable and built only by FromMarkup or Drawn, so the drawn form can never
-// disagree with the stored one. The zero value is no formatting: the plain body draws.
+// Immutable and built only by FromMarkup or Drawn, so the two forms never disagree.
+// The zero value is no formatting.
 type Formatted struct {
 	markup string
 	text   string
 	spans  []Span
 }
 
-// FromMarkup is the formatting kith's markup describes. markup must already be
-// sanitized (Sanitize's output, or what the cache stored from it); "" is no formatting.
+// FromMarkup returns the formatting for already-sanitized markup; "" is none.
 func FromMarkup(markup string) Formatted {
 	if markup == "" {
 		return Formatted{}
@@ -26,8 +23,7 @@ func FromMarkup(markup string) Formatted {
 	return Formatted{markup: markup, text: text, spans: spans}
 }
 
-// Drawn is formatting known only by how it draws, as a client receives it: it has no
-// markup, so it cannot be stored.
+// Drawn is formatting with no markup, as a client receives it; it cannot be stored.
 func Drawn(text string, spans []Span) Formatted {
 	if text == "" && len(spans) == 0 {
 		return Formatted{}

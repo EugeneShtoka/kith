@@ -13,9 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A room left is gone from the cache at once, before any sync says so, and the room
-// list is refreshed; a room list the homeserver gave before the leave, from a refresh
-// already under way, does not bring it back.
+// A left room leaves the cache at once, and a refresh begun before the leave does not
+// bring it back.
 func TestALeftRoomStaysLeft(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -83,8 +82,8 @@ func TestALeftRoomStaysLeft(t *testing.T) {
 	}
 }
 
-// A space left is gone at once, and a space list the homeserver gave before the leave,
-// from a refresh already under way, does not bring it back.
+// A left space leaves the cache at once, and a refresh begun before the leave does not
+// bring it back.
 func TestALeftSpaceStaysLeft(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -98,8 +97,7 @@ func TestALeftSpaceStaysLeft(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/leave"):
 			_, _ = w.Write([]byte(`{}`))
 		case strings.Contains(r.URL.Path, "/state/m.room.create"):
-			// The homeserver says which rooms are spaces, as a real one would: the
-			// cache, which forgot the space at the leave, is not what drops it.
+			// The server, not the cache, says which rooms are spaces.
 			if strings.Contains(r.URL.Path, "!a:x") {
 				_, _ = w.Write([]byte(`{}`))
 			} else {
@@ -151,12 +149,9 @@ func TestALeftSpaceStaysLeft(t *testing.T) {
 	}
 }
 
-// How a space is left comes from its state, and the cache keeps it: a space a bridge
-// marks as its own for an account (as m.bridge or as the older half-shot event, by
-// its channel or by its room type) is not left; a bridged Telegram forum is left whole
-// with its topics; a bridged Telegram community, another bridge's space named like a
-// forum, a space of your own, and one with bridge state that marks nothing are left
-// on their own. A space whose state cannot be read keeps what the cache knew.
+// A space's leaving mode comes from its state and is cached: a bridge's per-account
+// space is not left, a Telegram forum is left whole, anything else alone; unreadable
+// state keeps the cached mode.
 func TestHowAMatrixSpaceIsLeftComesFromItsState(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

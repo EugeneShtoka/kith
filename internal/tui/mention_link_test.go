@@ -12,10 +12,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// A mention pill in the timeline links to the person it names, whichever drawing path
-// its row takes: the plain LTR paint, the offset-mapped marks (RTL lines, formatting,
-// tracked words, bare links), or a formatted body whose pill name was rewritten to an
-// alias (which drops the sender's link span). Hyperlinks are on by default.
+// A mention pill links to the person on every drawing path: plain LTR paint, offset-mapped
+// marks (RTL, formatting, tracked words, bare links), and a formatted body whose pill was
+// renamed to an alias (which drops the sender's link span).
 func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 	t.Parallel()
 

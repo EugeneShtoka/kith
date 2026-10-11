@@ -50,8 +50,7 @@ func TestParseSearchDates(t *testing.T) {
 	}
 }
 
-// A bound written as a date means a day, and the day you named belongs in the
-// results you asked for.
+// A date bound includes the whole named day.
 func TestUntilIncludesTheWholeDay(t *testing.T) {
 	got := ParseSearch("until:2026-08-31", searchNow).Until
 	want := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
@@ -60,7 +59,7 @@ func TestUntilIncludesTheWholeDay(t *testing.T) {
 	}
 }
 
-// Someone typing `since:yest` is mid-word.
+// An unparsable bound (`since:yest`, mid-word) stays a term.
 func TestUnparseableFiltersStayTerms(t *testing.T) {
 	for _, in := range []string{"since:yest", "until:nonsense", "since:", "colon:in:middle"} {
 		got := ParseSearch(in, searchNow)
@@ -73,8 +72,7 @@ func TestUnparseableFiltersStayTerms(t *testing.T) {
 	}
 }
 
-// An unknown prefix is not a filter and must reach the matcher untouched — a
-// message really can contain "http://example.org".
+// An unknown prefix stays a term ("http://example.org").
 func TestUnknownPrefixesAreTerms(t *testing.T) {
 	got := ParseSearch("see http://example.org", searchNow)
 	if got.Terms != "see http://example.org" {
@@ -86,7 +84,7 @@ func TestSearchFilterEmpty(t *testing.T) {
 	if !ParseSearch("   ", searchNow).Empty() {
 		t.Error("whitespace should be an empty filter")
 	}
-	// A filter with no terms is still a question: everything Dana said.
+	// A filter with no terms is not Empty.
 	if ParseSearch("from:dana", searchNow).Empty() {
 		t.Error("a sender-only filter is not empty")
 	}

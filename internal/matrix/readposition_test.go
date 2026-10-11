@@ -48,10 +48,9 @@ func (e srvEvent) json() map[string]any {
 	return out
 }
 
-// eventServer serves one room's stream (oldest first): GET /event/{id} and
-// /context/{id} (filtered by the filter's types, the limit split around the event,
-// as Synapse does), 404ing unknown events and counting each ask; GET /messages
-// (backwards: the stream's newest first); and receipts, recorded and never echoed.
+// eventServer serves one room's stream (oldest first): /event and /context (type
+// filtered, limit split around the event as Synapse does; unknown events 404, asks
+// counted), backwards /messages, and receipts (recorded, never echoed).
 type eventServer struct {
 	*httptest.Server
 	mu       sync.Mutex
@@ -233,9 +232,7 @@ func wantRead(t *testing.T, b *InProc, want domain.EventID) {
 	}
 }
 
-// Regression (root cause A): tuwunel keeps a receipt per kind and sync delivers them
-// all; the unthreaded one used to win whatever it pointed at, so a full sync put the
-// room back at an older receipt.
+// tuwunel syncs a receipt per kind; the newest wins, not the unthreaded one.
 func TestTheNewestReceiptIsTheRoomsPosition(t *testing.T) {
 	t.Parallel()
 
@@ -259,8 +256,7 @@ func TestTheNewestReceiptIsTheRoomsPosition(t *testing.T) {
 	}
 }
 
-// Regression (root cause B): a receipt behind the room's position, in a later sync,
-// does not move it back.
+// A receipt behind the room's position, in a later sync, does not move it back.
 func TestAnOlderReceiptDoesNotMoveTheRoomBack(t *testing.T) {
 	t.Parallel()
 
@@ -333,8 +329,8 @@ func TestAHeldReceiptLandsWhenItsEventArrives(t *testing.T) {
 	wantRead(t, b, "$late")
 }
 
-// Root cause C: a read event older than the cache is fetched once for its time, so
-// the room is counted locally and gets a thread floor.
+// A read event older than the cache is fetched once for its time, so the room is
+// counted locally and gets a thread floor.
 func TestAnUncachedReadEventIsFetchedForItsTime(t *testing.T) {
 	t.Parallel()
 
@@ -374,8 +370,7 @@ func TestAnUncachedReadEventIsFetchedForItsTime(t *testing.T) {
 	if n := srv.times("$gone"); n != 1 {
 		t.Errorf("$gone fetched %d times in one run, want 1", n)
 	}
-	// A restart asks again only while the room counts unread on an uncached event
-	// (an earlier build may have placed it by a bridge's clock): not once it is read.
+	// A restart asks again only while the room is unread on an uncached event.
 	restart := func() {
 		again := New(b.cache)
 		again.client = b.client
@@ -445,8 +440,8 @@ func TestAReceiptStillHeldASyncLaterIsFetched(t *testing.T) {
 	}
 }
 
-// receiptBodyOK answers like tuwunel does for a receipt body that is not a JSON object
-// (a typed nil marshals as `null`): 400 M_BAD_JSON. It reports whether the body was fine.
+// receiptBodyOK answers 400 M_BAD_JSON, as tuwunel does, for a receipt body that is
+// not a JSON object (a typed nil marshals as `null`), and reports whether it was fine.
 func receiptBodyOK(w http.ResponseWriter, r *http.Request) bool {
 	var body map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body == nil {

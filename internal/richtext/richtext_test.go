@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// The two halves of one table: what survives the door, and what it draws as.
-
 func TestSanitizeKeepsWhatCanBeDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -36,7 +34,7 @@ func TestSanitizeKeepsWhatCanBeDrawn(t *testing.T) {
 	}
 }
 
-// Everything this client cannot draw goes, and none of it reaches the cache.
+// Everything kith cannot draw is dropped.
 func TestSanitizeDropsWhatCannotBeDrawn(t *testing.T) {
 	t.Parallel()
 
@@ -74,8 +72,7 @@ func TestSanitizeDropsWhatCannotBeDrawn(t *testing.T) {
 	}
 }
 
-// The words a dropped tag was wrapped around stay, though — removing `<table>` must not
-// remove what was in the cells.
+// A dropped tag's words stay.
 func TestSanitizeKeepsTheWordsInsideDroppedMarkup(t *testing.T) {
 	t.Parallel()
 
@@ -94,9 +91,7 @@ func TestSanitizeKeepsTheWordsInsideDroppedMarkup(t *testing.T) {
 	}
 }
 
-// A formatted body that says exactly what the plain body says is not worth carrying: the
-// cache would store the message twice and the renderer would be asked a question with no
-// answer in it.
+// A formatted body that draws the same as the plain body is dropped.
 func TestSanitizeDropsAFormattedBodyWithNoFormatting(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +102,7 @@ func TestSanitizeDropsAFormattedBodyWithNoFormatting(t *testing.T) {
 	}
 }
 
-// Unbalanced markup is what a buggy client and a hostile one both produce.
+// Unbalanced markup is closed.
 func TestSanitizeClosesWhatWasLeftOpen(t *testing.T) {
 	t.Parallel()
 
@@ -120,8 +115,7 @@ func TestSanitizeClosesWhatWasLeftOpen(t *testing.T) {
 	}
 }
 
-// Parse is the drawing half: text a terminal can wrap and reorder, plus the byte ranges
-// to emphasize in it.
+// Parse yields text plus byte ranges to emphasize.
 func TestParseFlattensToTextAndSpans(t *testing.T) {
 	t.Parallel()
 
@@ -140,8 +134,7 @@ func TestParseFlattensToTextAndSpans(t *testing.T) {
 	}
 }
 
-// Nesting is a set, not a winner: bold inside a link is both, and each span says what
-// applies to its own range.
+// Nested emphasis accumulates: bold inside a link is both.
 func TestParseKeepsNestedEmphasis(t *testing.T) {
 	t.Parallel()
 
@@ -163,8 +156,7 @@ func TestParseKeepsNestedEmphasis(t *testing.T) {
 	}
 }
 
-// The link's target is kept apart from its text, which is the whole point: a named link
-// is a name the sender chose and an address the plain body never carried.
+// A link's href is kept apart from its text.
 func TestParseKeepsTheLinkTarget(t *testing.T) {
 	t.Parallel()
 
@@ -177,8 +169,7 @@ func TestParseKeepsTheLinkTarget(t *testing.T) {
 	}
 }
 
-// Block tags end the line, because that is the whole of what a terminal can say about
-// block structure without a layout engine.
+// Block tags end the line.
 func TestParseTurnsBlocksIntoLines(t *testing.T) {
 	t.Parallel()
 
@@ -202,8 +193,7 @@ func TestParseTurnsBlocksIntoLines(t *testing.T) {
 	}
 }
 
-// The whole way through, on exactly what the renderer produced for a message typed as
-// "**bold** and __italic__\n- item 1\n- item 2".
+// End to end on the renderer's output for "**bold** and __italic__\n- item 1\n- item 2".
 func TestARealListSurvivesTheDoorAndDrawsItsBullets(t *testing.T) {
 	t.Parallel()
 
@@ -225,15 +215,13 @@ func TestARealListSurvivesTheDoorAndDrawsItsBullets(t *testing.T) {
 	}
 }
 
-// Parsed is the text half of Parse, for the tests that only care what words survived.
+// Parsed returns only Parse's text.
 func Parsed(formatted string) string {
 	text, _ := Parse(formatted)
 	return text
 }
 
-// A spoiler is the one span that survives, and the reason it must is that dropping it
-// *revealed* what somebody covered up — the worst outcome available, since the sender
-// took an action and the client quietly undid it.
+// A spoiler span survives (dropping it would reveal the hidden text); a color span does not.
 func TestASpoilerSurvivesAndAColoredSpanDoesNot(t *testing.T) {
 	t.Parallel()
 
@@ -253,9 +241,7 @@ func TestASpoilerSurvivesAndAColoredSpanDoesNot(t *testing.T) {
 			spoiler: true, reason: "plot", text: "he dies",
 		},
 		{
-			// Kept alongside a mark that does survive, so the case is "the span went"
-			// rather than "the whole thing went": a formatted body with nothing left
-			// to draw is dropped entirely, which is tested above.
+			// Paired with <b> so only the span goes, not the whole body.
 			name: "a span that is only a color", in: `<b>keep</b><span data-mx-color="#f00">red</span>`,
 			spoiler: false, text: "keepred",
 		},

@@ -22,11 +22,9 @@ func memberships(m Model) map[domain.RoomID][]bool {
 	return out
 }
 
-// Over random tags, rooms sharing names, entries naming rooms by name, silent tags,
-// unread state, and Telegram chats its archive holds, followed and mirrored into a tag
-// or not: /tag puts the room in the tag or takes it out — it holds it exactly when it
-// did not before — and no other room's tags change. The written config, over the rooms
-// as the network then holds them, reads back to the same answer.
+// Over random tags, same-named rooms, name entries, silent tags, unread state and
+// Telegram archives (followed, mirrored or not): /tag flips whether the tag holds the
+// room and changes no other room's tags, and the written config reads back the same.
 func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 	t.Parallel()
 	names := []string{"A", "B", "C"}
@@ -94,8 +92,7 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 				if archiveCmd == nil {
 					t.Fatalf("%s: the archive tag is mirrored, and Telegram was not asked", where)
 				}
-				// The rule alone (no lists, no archive) decides whether the lists must say
-				// anything of the room: Telegram decides the rest.
+				// The rule alone decides whether the lists must mention the room; Telegram decides the rest.
 				filed, view := m.conf.base.Tags[tag], m.unreadView()
 				facts := view.factsOf(room)
 				bare := make([]domain.Tag, len(m.conf.base.Tags))
@@ -132,9 +129,8 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 	}
 }
 
-// The filing picker's last row makes a tag: enter on it asks the name (the settings
-// prompt), and the new tag holds the room. Escaping the name leaves everything as it
-// was and opens nothing else.
+// The filing picker's last row makes a tag holding the room; escaping the name prompt
+// changes nothing.
 func TestTheFilingPickerMakesANewTagWithTheRoomInIt(t *testing.T) {
 	t.Parallel()
 	open := func(t *testing.T) Model {
@@ -177,10 +173,8 @@ func TestTheFilingPickerMakesANewTagWithTheRoomInIt(t *testing.T) {
 	}
 }
 
-// A chat its network would not archive says so, and the room list is read again, so
-// the room shows where its network holds it; one archived needs nothing more (the
-// network's rooms changing brings the list). A network rewriting its rooms is read
-// again too.
+// A refused archive is reported and the room list reloads; a successful one needs
+// nothing. A network rewriting its rooms is reloaded too.
 func TestAnArchiveRefusedPutsTheRoomBack(t *testing.T) {
 	t.Parallel()
 	m := configured(config.Config{Tags: []config.Tag{{Name: "Archived"}}})
@@ -196,9 +190,8 @@ func TestAnArchiveRefusedPutsTheRoomBack(t *testing.T) {
 	}
 }
 
-// The filing picker offers the tags a room is filed into by hand — none, or a rule
-// naming a place — and not those their rule fills by what a room is: Unread, DMs,
-// Drafts, Invites, Spam, All.
+// The filing picker offers only hand-filed tags, not rule-filled ones (Unread, DMs,
+// Drafts, Invites, Spam, All).
 func TestTheFilingPickerLeavesOutTagsTheirRuleFills(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{

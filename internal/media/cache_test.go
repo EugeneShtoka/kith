@@ -46,7 +46,7 @@ func TestCachedFilesCarryTheirExtension(t *testing.T) {
 	}
 }
 
-// What went in comes back out, and a miss is a miss rather than an empty picture.
+// Read returns what Write stored; a miss reports false, not empty bytes.
 func TestReadAfterWrite(t *testing.T) {
 	t.Parallel()
 
@@ -64,8 +64,7 @@ func TestReadAfterWrite(t *testing.T) {
 	}
 }
 
-// A render is kept per cell box, because a picture drawn forty cells wide and the same
-// picture drawn twenty cells wide are different images.
+// Renders are kept per cell box.
 func TestRendersAreKeptPerCellBox(t *testing.T) {
 	t.Parallel()
 
@@ -84,8 +83,7 @@ func TestRendersAreKeptPerCellBox(t *testing.T) {
 	}
 }
 
-// The cache root holds attachments and nothing else, so an image viewer can be pointed
-// straight at it.
+// The cache root holds only attachments, so a viewer can be pointed at it.
 func TestTheCacheRootHoldsOnlyPictures(t *testing.T) {
 	t.Parallel()
 
@@ -108,14 +106,13 @@ func TestTheCacheRootHoldsOnlyPictures(t *testing.T) {
 			t.Errorf("the cache root holds %q, which is not an attachment", e.Name())
 		}
 	}
-	// And the drawing is still findable where it belongs.
+	// The render is still found.
 	if _, ok := cache.Render("$a:x", 20, 8); !ok {
 		t.Error("the drawing was not kept")
 	}
 }
 
-// Over its limit, the cache drops what has been looked at least recently — not what was
-// written least recently.
+// Trim drops the least recently used, not the least recently written.
 func TestTrimDropsTheLeastRecentlyUsed(t *testing.T) {
 	t.Parallel()
 
@@ -130,7 +127,7 @@ func TestTrimDropsTheLeastRecentlyUsed(t *testing.T) {
 			t.Fatalf("Write %s: %v", event, werr)
 		}
 	}
-	// Make the ages unambiguous, oldest first, then use the oldest one.
+	// Distinct ages, oldest first; then touch the oldest.
 	stamp(t, cache.Path("$old:x", "a.png", "image/png"), 1)
 	stamp(t, cache.Path("$mid:x", "a.png", "image/png"), 2)
 	stamp(t, cache.Path("$new:x", "a.png", "image/png"), 3)
@@ -170,8 +167,7 @@ func TestTrimLeavesASmallCacheAlone(t *testing.T) {
 	}
 }
 
-// A nil cache is a working client that simply does the work every time, so no call site
-// needs a branch around it.
+// A nil cache is usable and always misses.
 func TestNilCacheIsUsable(t *testing.T) {
 	t.Parallel()
 
@@ -194,8 +190,7 @@ func TestNilCacheIsUsable(t *testing.T) {
 	cache.Touch("/nowhere")
 }
 
-// Nothing half-written is ever left where a reader could find it: a torn PNG is worse
-// than a miss, because a miss is retried and a torn file is believed.
+// Writes leave no partial or temp files behind.
 func TestWritesLeaveNoPartialFiles(t *testing.T) {
 	t.Parallel()
 

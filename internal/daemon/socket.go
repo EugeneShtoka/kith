@@ -16,16 +16,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// socketDirMode keeps the socket's parent directory owner-only; it closes the
-// window before the socket's own mode is tightened after net.Listen.
+// socketDirMode keeps the socket's parent owner-only, closing the window before the
+// socket's own mode is tightened after net.Listen.
 const socketDirMode = 0o700
 
-// socketBaseURL is what Connect requests are addressed to; the host is ignored.
+// socketBaseURL addresses Connect requests; the host is ignored.
 const socketBaseURL = "http://kithd"
 
-// SocketPath returns the path of the instance's daemon socket. It is always under a
-// runtime directory the user owns ([storage] runtime_dir, else $XDG_RUNTIME_DIR/kith):
-// never a shared temp directory, where another local user could create it first.
+// SocketPath returns the instance's daemon socket path, always under a user-owned
+// runtime directory ([storage] runtime_dir, else $XDG_RUNTIME_DIR/kith), never a shared
+// temp directory another user could claim first.
 func SocketPath(storage domain.Storage) (string, error) {
 	if storage.RuntimeDir == "" {
 		return "", errors.New("daemon: no user runtime directory; set XDG_RUNTIME_DIR, or [storage] runtime_dir, to an owner-only directory")
@@ -41,9 +41,9 @@ func makeSocketDir(dir string) error {
 	return secureDir(dir)
 }
 
-// Listen opens the daemon's listening socket at path, creating its parent directory
-// owner-only. It never removes an existing socket — only the lock holder may (see
-// Lock.Listen). ctx bounds opening only.
+// Listen opens the daemon socket at path, creating its parent owner-only. It never
+// removes an existing socket; only the lock holder may (Lock.Listen). ctx bounds
+// opening only.
 func Listen(ctx context.Context, path string) (net.Listener, error) {
 	if err := makeSocketDir(filepath.Dir(path)); err != nil {
 		return nil, err
@@ -53,20 +53,19 @@ func Listen(ctx context.Context, path string) (net.Listener, error) {
 		return nil, fmt.Errorf("daemon: listen on %s: %w", path, err)
 	}
 	if err := restrictSocket(path); err != nil {
-		_ = ln.Close() // cleanup on the error path; the chmod failure is the report
+		_ = ln.Close() // the chmod failure is the report
 		return nil, fmt.Errorf("daemon: restrict socket permissions: %w", err)
 	}
 	return ln, nil
 }
 
 // answerTimeout bounds the wait for the first response header, so a wedged daemon
-// cannot hang a TUI call (whose context has no deadline) forever. It does not bound a
-// body (a stream, a media download), but it does bound a stream's headers: every
-// server stream sends them as it opens (serveStream, Seat).
+// cannot hang a TUI call forever. Bodies are unbounded, but every server stream sends
+// headers as it opens (serveStream, Seat).
 const answerTimeout = 2 * time.Minute
 
-// Dial returns an HTTP client that reaches the daemon's socket at path,
-// whatever host a request names.
+// Dial returns an HTTP client that reaches the daemon socket at path, whatever host a
+// request names.
 func Dial(path string) *http.Client {
 	return dialWithAnswerTimeout(path, answerTimeout)
 }
@@ -76,7 +75,7 @@ func dialWithAnswerTimeout(path string, answer time.Duration) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				// Secrets go down this socket: never to one in a directory someone else controls.
+				// Secrets go down this socket: never in a directory someone else controls.
 				if err := secureDir(filepath.Dir(path)); err != nil {
 					return nil, err
 				}

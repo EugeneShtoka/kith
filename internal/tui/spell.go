@@ -18,62 +18,57 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// Composer spell marks. Errors are held in logical byte offsets (resolved after the
-// bidi reorder), checked on a pause in typing, moved across edits in between, and
-// never drawn on the word the caret is in.
+// Composer spell marks are held in logical byte offsets (resolved after the bidi
+// reorder), checked on a pause in typing, shifted across edits in between, and never
+// drawn on the word the caret is in.
 
-// spellDebounce is how long the composer waits after the last keystroke before asking.
+// spellDebounce is the pause after the last keystroke before a check.
 const spellDebounce = 200 * time.Millisecond
 
 // spellTimeout bounds one check from the client's side.
 const spellTimeout = 5 * time.Second
 
-// spellState is what the composer knows about its own spelling.
 type spellState struct {
 	// off is set once the backend has nothing to check with; stop asking.
 	off bool
-	// shown are the errors being drawn, in logical byte offsets into text.
+	// shown are the errors drawn, in logical byte offsets into text.
 	shown []domain.Misspelling
-	// text is the current draft those offsets describe (edits move them).
+	// text is the draft those offsets describe.
 	text string
 	// gen counts drafts; a stale tick does nothing.
 	gen int
-	// applied is the generation of the last answer taken, so an older answer that
-	// overtakes a newer one is dropped.
+	// applied is the generation of the last answer taken; an older answer arriving later is dropped.
 	applied int
-	// boundary is where a word was just finished (0 for none), consumed by the check
-	// it arms so an autocorrection rides that answer. See autocorrect.go.
+	// boundary is where a word was just finished (0 for none), consumed by the check it
+	// arms so an autocorrection rides that answer (see autocorrect.go).
 	boundary int
-	// passed says this draft already went through the pre-send walk, so a skipped
-	// word does not reopen it. Any edit clears it.
+	// passed marks a draft already through the pre-send walk, so a skipped word doesn't
+	// reopen it. Any edit clears it.
 	passed bool
-	// explained is set once the first rare-word hint has been named this session.
+	// explained is set once the first rare-word hint has been explained this session.
 	explained bool
 }
 
-// spellTickMsg is the debounce firing.
 type spellTickMsg struct{ gen int }
 
-// spellCheckedMsg is the engine's answer and the draft it is about, which may no
-// longer be the draft on screen.
+// spellCheckedMsg is the engine's answer and its draft, which may no longer be on screen.
 type spellCheckedMsg struct {
 	gen   int
 	text  string
 	found []domain.Misspelling
-	// correctAt is the end offset of the just-finished word to autocorrect, 0 for
-	// none. By end, not text: the same word can appear twice.
+	// correctAt is the end offset of the just-finished word to autocorrect, 0 for none.
+	// By end, not text: the same word can appear twice.
 	correctAt int
-	// off says there is nothing to check with. It ends the feature for this session.
+	// off ends the feature for this session: there is nothing to check with.
 	off bool
 }
 
-// spellTickCmd fires the spell-check debounce.
 func spellTickCmd(gen int) tea.Cmd {
 	return tea.Tick(spellDebounce, func(time.Time) tea.Msg { return spellTickMsg{gen: gen} })
 }
 
-// armSpellCheck notices a changed draft and schedules a check. Called from Update so
-// every way the draft changes is caught by one comparison.
+// armSpellCheck schedules a check when the draft changed. Called from Update so every
+// way the draft changes is caught by one comparison.
 func (m Model) armSpellCheck() (Model, tea.Cmd) {
 	if m.spell.off || !m.conf.base.Spell.SpellEnabled() {
 		return m, nil
@@ -93,14 +88,14 @@ func (m Model) armSpellCheck() (Model, tea.Cmd) {
 		return m, nil
 	}
 	if boundary > 0 {
-		// A word was just finished and autocorrect is on: ask now, not after the
-		// debounce, so the fix lands while the word is still in view.
+		// A word was just finished with autocorrect on: ask now so the fix lands while the
+		// word is in view.
 		return m, m.checkSpellingCmd(m.spell.gen, text, boundary)
 	}
 	return m, spellTickCmd(m.spell.gen)
 }
 
-// handleSpellTick asks, if the draft it was armed for is still the draft.
+// handleSpellTick asks if the draft it was armed for is still current.
 func (m Model) handleSpellTick(msg spellTickMsg) (Model, tea.Cmd) {
 	if m.spell.off || msg.gen != m.spell.gen {
 		return m, nil
@@ -120,8 +115,7 @@ func (m Model) checkSpellingCmd(gen int, text string, correctAt int) tea.Cmd {
 		case errors.Is(err, api.ErrSpellUnavailable):
 			return spellCheckedMsg{gen: gen, off: true}
 		case err != nil:
-			// Not news (it runs per pause in typing); keep the underlines that are
-			// still true. Logged at debug, never with the text.
+			// Not news (it runs per pause); keep the underlines still true. Never log the text.
 			log.Debug("spell check failed", "err", err)
 			return nil
 		}
@@ -140,7 +134,7 @@ func withoutHints(found []domain.Misspelling) []domain.Misspelling {
 	return out
 }
 
-// handleSpellChecked takes the answer, moved onto the draft as it is now.
+// handleSpellChecked takes the answer, shifted onto the current draft.
 func (m Model) handleSpellChecked(msg spellCheckedMsg) (Model, tea.Cmd) {
 	if msg.off {
 		m.spell.off, m.spell.shown = true, nil
@@ -176,8 +170,8 @@ func (m Model) explainHints() Model {
 		m.keys.keyHint(scopeTimeline, actSpellWalk)))
 }
 
-// shiftRanges moves ranges computed against old onto new. The edit is recovered from
-// the common prefix and suffix; a range it touched is dropped (it will be re-checked).
+// shiftRanges moves ranges computed against old onto new. The edit is found from the
+// common prefix and suffix; a range it touched is dropped until re-checked.
 func shiftRanges(ranges []domain.Misspelling, old, new string) []domain.Misspelling {
 	if len(ranges) == 0 {
 		return ranges
@@ -187,7 +181,7 @@ func shiftRanges(ranges []domain.Misspelling, old, new string) []domain.Misspell
 	}
 	head := commonPrefix(old, new)
 	tail := commonSuffix(old[head:], new[head:])
-	// Where the replaced region ends in old, and how much longer new is than old.
+	// Where the replaced region ends in old, and how much longer new is.
 	editEnd, delta := len(old)-tail, len(new)-len(old)
 	out := make([]domain.Misspelling, 0, len(ranges))
 	for _, r := range ranges {
@@ -195,7 +189,7 @@ func shiftRanges(ranges []domain.Misspelling, old, new string) []domain.Misspell
 		case r.End <= head:
 			out = append(out, r) // before the edit: untouched
 		case r.Start >= editEnd:
-			// After it: the region has moved by delta.
+			// After it: shifted by delta.
 			r.Start, r.End = r.Start+delta, r.End+delta
 			out = append(out, r)
 		}
@@ -203,8 +197,8 @@ func shiftRanges(ranges []domain.Misspelling, old, new string) []domain.Misspell
 	return wholeWords(out, new)
 }
 
-// wholeWords drops ranges that no longer cover a whole word (by endsWord), so typing
-// `l` after a marked `wor` does not underline `wor` inside `worl` until the next check.
+// wholeWords drops ranges no longer covering a whole word (by endsWord), so typing `l`
+// after a marked `wor` doesn't underline `wor` in `worl` until the next check.
 func wholeWords(ranges []domain.Misspelling, text string) []domain.Misspelling {
 	out := make([]domain.Misspelling, 0, len(ranges))
 	for _, r := range ranges {
@@ -231,8 +225,8 @@ func wholeWords(ranges []domain.Misspelling, text string) []domain.Misspelling {
 	return out
 }
 
-// commonPrefix and commonSuffix count shared bytes at each end (callers pass the
-// suffix the rest after the prefix, so they never overlap). Bytes, not runes: a split
+// commonPrefix and commonSuffix count shared bytes at each end (the suffix is taken
+// from the rest after the prefix, so they never overlap). Bytes, not runes: a split
 // rune only shrinks the shared region, the safe direction.
 func commonPrefix(a, b string) int {
 	n := min(len(a), len(b))
@@ -252,8 +246,8 @@ func commonSuffix(a, b string) int {
 	return i
 }
 
-// composerMarks are the marks the composer should draw, leaving out the word the
-// caret is in (unfinished, not misspelled).
+// composerMarks are the marks to draw, minus the word the caret is in (unfinished, not
+// misspelled).
 func (m Model) composerMarks() []domain.Misspelling {
 	errors, hints := m.underlining(), m.hinting()
 	if m.spell.off || len(m.spell.shown) == 0 || (!errors && !hints) {
@@ -277,11 +271,9 @@ func (m Model) composerMarks() []domain.Misspelling {
 	return out
 }
 
-// underlining reports whether misspellings are drawn ("none" still checks, for the
-// walk).
+// underlining reports whether misspellings are drawn ("none" still checks, for the walk).
 func (m Model) underlining() bool { return m.underlineStyle() != config.SpellNoUnderline }
 
-// hinting reports whether rare words are drawn.
 func (m Model) hinting() bool { return m.rareUnderlineStyle() != config.SpellNoUnderline }
 
 // underlineStyle is the configured mark (setup.Validate rejects unknown ones).
@@ -293,7 +285,6 @@ func (m Model) underlineStyle() string {
 	return style
 }
 
-// rareUnderlineStyle is the configured mark for a rare word.
 func (m Model) rareUnderlineStyle() string {
 	style, err := setup.RareUnderline(m.conf.base.Spell.RareUnderline)
 	if err != nil {
@@ -302,7 +293,6 @@ func (m Model) rareUnderlineStyle() string {
 	return style
 }
 
-// spellUnderline maps a configured style onto the terminal's underline kinds.
 func spellUnderline(name string) ansi.Underline {
 	switch name {
 	case config.SpellCurly:
@@ -324,7 +314,6 @@ func (m Model) markedRow(s string, dir bidi.Direction, marks []domain.Misspellin
 	return drawFragment(s, dir, spellMarks(marks, wrong, hint))
 }
 
-// spellMarks is the composer's marks as a markFunc.
 func spellMarks(ranges []domain.Misspelling, wrong, hint ansi.Style) markFunc {
 	return func(off int) (styleKey, ansi.Style, string) {
 		switch markAt(off, ranges) {
@@ -360,8 +349,8 @@ func markAt(off int, ranges []domain.Misspelling) spellMark {
 	return markNone
 }
 
-// rangesIn narrows ranges to [from, to) and rebases them; a wrapped word is marked
-// on both rows.
+// rangesIn narrows ranges to [from, to) and rebases them; a wrapped word is marked on
+// both rows.
 func rangesIn(ranges []domain.Misspelling, from, to int) []domain.Misspelling {
 	var out []domain.Misspelling
 	for _, r := range ranges {

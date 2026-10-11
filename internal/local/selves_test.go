@@ -12,8 +12,7 @@ import (
 // waMe is this person's WhatsApp account, as the daemon names it.
 const waMe = "whatsapp:44880000001@s.whatsapp.net"
 
-// A reaction from any of this person's accounts counts toward their emoji: on
-// WhatsApp alone, and beside Matrix.
+// A reaction from any of this person's accounts counts toward their emoji.
 func TestEmojiScoresCountEveryAccountsReactions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -33,8 +32,8 @@ func TestEmojiScoresCountEveryAccountsReactions(t *testing.T) {
 	}
 }
 
-// What to call this person in a prompt comes from whichever account has a name: the
-// WhatsApp one without Matrix, a Matrix localpart when nothing has a name, else "you".
+// The prompt name comes from whichever account has one: WhatsApp without Matrix, a
+// Matrix localpart when none has a name, else "you".
 func TestAccountNameFromAnyAccount(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -68,9 +67,8 @@ func TestAccountNameFromAnyAccount(t *testing.T) {
 	}
 }
 
-// A word this person sends from any account weighs as their own in completion, both
-// from the cache and as it arrives: otherwise the tie goes alphabetically, to the
-// other person's word.
+// Words sent from any account weigh as this person's own in completion, from the
+// cache and live; otherwise the tie goes alphabetically to the other person's word.
 func TestCompletionWeighsEveryAccountsWordsAsOwn(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

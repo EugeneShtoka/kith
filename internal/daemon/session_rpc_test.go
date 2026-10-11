@@ -8,17 +8,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
 )
 
-// The daemon owns its session. A socket RPC that resumes or logs out would replace
-// the client its sync loop, refresher and handlers share, with no lock between them.
-// A login goes through BeginLogin and AnswerLogin, which hand each network its own
-// login (api.LoginLeader): a network replaces an account's session itself, under its
-// own lock (Matrix only on a Matrix that has none, saving it for the next start
-// otherwise; the others by login generation), and nothing else holds that client.
-// LoginNetworks only lists. SignOut is a network's own, as a login is: each ends one
-// account's session under that account's login generation, so no connection or login
-// begun before it keeps the session or connects again, and Matrix, whose session the
-// daemon shares, has none (the router refuses it). A new RPC named for a session needs
-// the same care, and a place in allowed.
+// The daemon owns its session: an RPC that resumes or logs out would replace the
+// client its sync loop, refresher and handlers share, unlocked. Logins and SignOut go
+// through each network's own LoginLeader, under that network's lock or login
+// generation. A new session RPC needs the same care, and a place in allowed.
 func TestTheSocketCannotReplaceTheSession(t *testing.T) {
 	t.Parallel()
 

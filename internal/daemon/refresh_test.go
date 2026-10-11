@@ -39,8 +39,7 @@ func (c *refreshCounter) counts() (int, int) {
 	return c.rooms, c.spaces
 }
 
-// A cold cache is indistinguishable from an account with nothing in it, so the
-// daemon fills it itself rather than waiting for a client to ask.
+// A cold cache looks like an empty account, so the daemon fills it at startup.
 func TestRefresherRefreshesAtStartup(t *testing.T) {
 	t.Parallel()
 
@@ -58,8 +57,7 @@ func TestRefresherRefreshesAtStartup(t *testing.T) {
 	waitFor(t, func() bool { return invalidated.get() == 1 })
 }
 
-// A change reported by the sync loop reaches the caches, and what was derived from
-// them is dropped afterwards.
+// A reported change reaches the caches, then derived state is dropped.
 func TestRefresherActsOnAChange(t *testing.T) {
 	t.Parallel()
 
@@ -79,16 +77,14 @@ func TestRefresherActsOnAChange(t *testing.T) {
 	waitFor(t, func() bool { return invalidated.get() == 2 })
 }
 
-// Changed never blocks, whatever the Refresher is doing — it is called from the sync
-// goroutine, where waiting on anything would hold up every client's stream.
+// Changed is called from the sync goroutine, so it never blocks and signals coalesce.
 func TestChangedNeverBlocksAndCoalesces(t *testing.T) {
 	t.Parallel()
 
 	backend := &refreshCounter{}
 	r := daemon.NewRefresher(backend, nil)
 
-	// Nothing is running Run, so nothing is draining the signal. This must still
-	// return, and promptly.
+	// Nothing drains the signal; this must still return promptly.
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -102,7 +98,7 @@ func TestChangedNeverBlocksAndCoalesces(t *testing.T) {
 		t.Fatal("Changed blocked; it is called from the sync goroutine and must not")
 	}
 
-	// A thousand signals are one refresh, because they describe one changed answer.
+	// A thousand signals are one refresh.
 	ctx := t.Context()
 	go r.Run(ctx)
 	waitFor(t, func() bool {
@@ -115,7 +111,7 @@ func TestChangedNeverBlocksAndCoalesces(t *testing.T) {
 	}
 }
 
-// A homeserver that is briefly unreachable is ordinary.
+// A briefly unreachable homeserver is ordinary.
 func TestRefresherSurvivesAFailure(t *testing.T) {
 	t.Parallel()
 
@@ -135,7 +131,7 @@ func TestRefresherSurvivesAFailure(t *testing.T) {
 		t.Errorf("invalidated %d times after a failed refresh, want 0", got)
 	}
 
-	// And it keeps working once the homeserver comes back.
+	// It keeps working once the homeserver is back.
 	backend.mu.Lock()
 	backend.err = nil
 	backend.mu.Unlock()
@@ -143,7 +139,7 @@ func TestRefresherSurvivesAFailure(t *testing.T) {
 	waitFor(t, func() bool { return invalidated.get() == 1 })
 }
 
-// atomic64 is a counter the tests can read from another goroutine.
+// atomic64 is a counter readable from another goroutine.
 type atomic64 struct {
 	mu sync.Mutex
 	n  int

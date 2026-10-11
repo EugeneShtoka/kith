@@ -14,21 +14,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Drafts are saved as they are typed (draftSaveDelay after a pause, draftSaveEvery at
-// the latest while typing goes on), when a room is left, and on quit. What the program
-// holds unsaved when it ends is written once more; what the daemon does not take then
-// (it is down, or another window has the seat) is gone: at most the last few seconds
-// of typing.
+// Drafts are saved after a pause (draftSaveDelay), at least every draftSaveEvery while
+// typing, when a room is left, and on quit. At exit unsaved drafts are written once
+// more; what the daemon doesn't take then (down, or another window has the seat) is
+// lost: at most the last few seconds of typing.
 
 // exitFlushWait bounds the drafts' last write at exit, when the daemon may be gone.
 const exitFlushWait = 3 * time.Second
 
-// flushDrafts writes every draft this client holds that is not stored yet, once the
-// program has ended: every way out passes here (quit, the interrupt key, a signal, the
-// terminal closing), and only quit waits for the saves itself. A save still on the wire
-// is abandoned and written again; its version is one this client may have written, so
-// the retry does not take it for another writer's. It answers the rooms it could not
-// write. ctx must outlive the program's own.
+// flushDrafts writes every unstored draft once the program has ended; every exit path
+// passes here, and only quit waits for its saves. A save still in flight is written
+// again; its version may be this client's own, so the retry doesn't mistake it for
+// another writer's. Returns the rooms it couldn't write. ctx must outlive the program's.
 func (m Model) flushDrafts(ctx context.Context) []domain.RoomID {
 	m.ctx = ctx
 	m.draftSync.inflight, m.draftSync.dirty = nil, nil
@@ -58,8 +55,7 @@ func (m Model) flushDrafts(ctx context.Context) []domain.RoomID {
 	return lost
 }
 
-// flushAtExit writes the drafts still unsaved when the program ends, and says so when
-// the daemon would not take some.
+// flushAtExit writes the drafts still unsaved at exit, reporting those the daemon refused.
 func flushAtExit(last Model, log *slog.Logger) {
 	ctx, cancel := context.WithTimeout(context.Background(), exitFlushWait)
 	defer cancel()

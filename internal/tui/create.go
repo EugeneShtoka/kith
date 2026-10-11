@@ -14,12 +14,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Making a room or a space, a chat on another network, or a tag: pick one whole answer,
-// then a name, and for another network's chat who is in it. Only what an account this
-// kith has can make is offered: Matrix's rooms and space when there is a Matrix
-// account, and each Telegram, WhatsApp and Slack account's own kinds (newChatKinds); a
-// tag, kith's own, always. Encryption
-// can only be chosen at creation, so it is asked here.
+// Making a room, space, other-network chat, or tag: pick one whole answer, then a
+// name, and for another network's chat its members. Only what this kith's accounts
+// can make is offered: Matrix rooms and spaces with a Matrix account, each Telegram,
+// WhatsApp and Slack account's kinds (newChatKinds), and a tag always. Encryption can
+// only be chosen at creation, so it is asked here.
 
 // newRoomKinds are the first step's rows, safe default first.
 var newRoomKinds = []struct {
@@ -50,7 +49,7 @@ var newRoomKinds = []struct {
 	},
 }
 
-// newChatKinds are what each network other than Matrix makes, in the order offered.
+// newChatKinds are what each non-Matrix network makes, in offered order.
 var newChatKinds = map[domain.Protocol][]struct {
 	kind   domain.ChatKind
 	label  string
@@ -71,11 +70,10 @@ var newChatKinds = map[domain.Protocol][]struct {
 	},
 }
 
-// chatValueSep joins an account and a kind in a new-chat row's value; no Matrix kind
-// has it.
+// chatValueSep joins account and kind in a new-chat row's value; no Matrix kind contains it.
 const chatValueSep = "|"
 
-// openNewRoom asks what to make, of what this kith's accounts can make.
+// openNewRoom asks what to make, from what this kith's accounts can make.
 func (m Model) openNewRoom() (Model, tea.Cmd) {
 	var items []pickerItem
 	if m.hasMatrix() {
@@ -115,8 +113,8 @@ func (m Model) openNewRoom() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// hasMatrix reports whether this kith has a Matrix account: one of the IDs that are
-// this person is a Matrix user's, or a Matrix room is listed.
+// hasMatrix reports whether this kith has a Matrix account: one of my IDs is a Matrix
+// user's, or a Matrix room is listed.
 func (m Model) hasMatrix() bool {
 	if slices.ContainsFunc(m.selves, domain.IsMatrixUserID) {
 		return true
@@ -139,8 +137,8 @@ func (m Model) chatAccounts() map[domain.Protocol][]string {
 	return out
 }
 
-// accountLabel tells one of a network's accounts from its others: a WhatsApp number,
-// a Slack workspace's name, a Telegram account's ID.
+// accountLabel distinguishes a network's accounts: a WhatsApp number, a Slack
+// workspace name, a Telegram account ID.
 func (m Model) accountLabel(network domain.Protocol, account string) string {
 	if network == domain.ProtocolWhatsApp {
 		return "+" + account
@@ -155,8 +153,8 @@ func (m Model) accountLabel(network domain.Protocol, account string) string {
 	return account
 }
 
-// chooseNewRoomKind settles the kind and asks for the name. A room lands in the
-// space selected in the rail; synthetic groups file it nowhere.
+// chooseNewRoomKind settles the kind and asks for the name. A room lands in the space
+// selected in the rail; synthetic groups file it nowhere.
 func (m Model) chooseNewRoomKind(value string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	if value == tagNew {
@@ -174,7 +172,7 @@ func (m Model) chooseNewRoomKind(value string) (Model, tea.Cmd) {
 		}
 		m.aimedAt.creating = kind.spec
 		if !kind.spec.Space {
-			// Nesting a space is left to the S key rather than assumed.
+			// Nesting a space is left to the S key, not assumed.
 			m.aimedAt.creating.Parent = m.selectedSpaceID()
 		}
 		return m.openPrompt(promptNewRoom), nil
@@ -182,7 +180,6 @@ func (m Model) chooseNewRoomKind(value string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// submitNewRoom creates it.
 func (m Model) submitNewRoom(input string) (Model, tea.Cmd) {
 	spec, fileInto := m.aimedAt.creating, m.aimedAt.fileInto
 	m.aimedAt.creating, m.aimedAt.fileInto = domain.NewRoom{}, ""
@@ -239,8 +236,8 @@ func (m Model) createNewChat(people []string) (Model, tea.Cmd) {
 	return m, m.createRoomAsCmd(spec, spec.Name, true)
 }
 
-// createSpaceForCmd makes a space and then files room into it, reporting both as one
-// creation: a space made but not given the room says so as a later step's failure.
+// createSpaceForCmd makes a space and files room into it, reported as one creation: a
+// failure to file shows as a later step's failure.
 func (m Model) createSpaceForCmd(spec domain.NewRoom, room domain.RoomID) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
@@ -255,8 +252,8 @@ func (m Model) createSpaceForCmd(spec domain.NewRoom, room domain.RoomID) tea.Cm
 	}
 }
 
-// handleRoomCreated reports the outcome and refreshes both the room list and the
-// spaces (a room filed into a space changes the hierarchy).
+// handleRoomCreated reports the outcome and refreshes rooms and spaces (filing into a
+// space changes the hierarchy).
 func (m Model) handleRoomCreated(msg roomCreatedMsg) (Model, tea.Cmd) {
 	switch {
 	case msg.err != nil && msg.roomID == "":
@@ -275,9 +272,8 @@ func (m Model) handleRoomCreated(msg roomCreatedMsg) (Model, tea.Cmd) {
 	return m, tea.Batch(m.refreshRoomsCmd(), m.refreshSpacesCmd())
 }
 
-// selectedSpaceID is the Matrix space the rail cursor is on, or "" on a synthetic
-// group. Space groups are keyed by name, so a name shared by two spaces resolves to
-// neither rather than to a guess.
+// selectedSpaceID is the Matrix space under the rail cursor, "" on a synthetic group.
+// Space groups are keyed by name, so a name shared by two spaces resolves to neither.
 func (m Model) selectedSpaceID() domain.SpaceID {
 	g, ok := m.currentGroup()
 	if !ok {
@@ -296,8 +292,8 @@ func (m Model) selectedSpaceID() domain.SpaceID {
 	return found
 }
 
-// enterPending opens a room created a moment ago once a refresh lists it; until
-// then the request stands.
+// enterPending opens a just-created room once a refresh lists it; until then the
+// request stands.
 func (m Model) enterPending() (Model, tea.Cmd, bool) {
 	if m.entering == "" {
 		return m, nil, false

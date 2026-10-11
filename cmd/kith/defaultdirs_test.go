@@ -7,8 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// The packaged units let the daemon write only the default directories: a config
-// keeping any of its files elsewhere needs a unit of its own.
+// A config keeping any file outside the default directories needs its own unit.
 func TestInDefaultDirs(t *testing.T) {
 	t.Parallel()
 	def, err := setup.StorageDirs(config.Config{})

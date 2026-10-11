@@ -11,8 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Half-block rows are ordinary rows: they land in the layout under the message that
-// sent them, and the timeline lays them out like any other text.
+// Half-block rows land in the layout under their message, laid out like text.
 func TestHalfBlocksAreLaidOutAsText(t *testing.T) {
 	t.Parallel()
 
@@ -32,8 +31,7 @@ func TestHalfBlocksAreLaidOutAsText(t *testing.T) {
 	}
 }
 
-// A picture running off the edge of the window is simply cut, like a long message —
-// which is the whole reason half-blocks are what survived.
+// A picture running off the window edge is cut, like a long message.
 func TestAHalfBlockPictureIsCutLikeText(t *testing.T) {
 	t.Parallel()
 
@@ -50,8 +48,8 @@ func TestAHalfBlockPictureIsCutLikeText(t *testing.T) {
 
 	rows, inner := m.msgAreaRows(), m.contentWidth()
 	total := len(m.layoutRows())
-	// Across every scroll position the pane is exactly full and never panics on a
-	// picture straddling an edge.
+	// At every scroll position the pane is exactly full, with no panic on a picture straddling
+	// an edge.
 	for scroll := range total {
 		m.timeline.scroll = scroll
 		if got := len(m.messageLines(rows, inner)); got != rows {
@@ -70,7 +68,7 @@ func TestBrowsingTheRoomListFetchesNoPictures(t *testing.T) {
 	if len(m.pics.imageLoading) != 0 {
 		t.Errorf("glancing at a room fetched %d picture(s)", len(m.pics.imageLoading))
 	}
-	// And the space is not held for them either, so the preview has no holes in it.
+	// Nor is space held for them, so the preview has no holes.
 	m = update(t, m, imageLoadedMsg{eventID: "$1", rows: []string{"r1", "r2", "r3"}})
 	if rows := strings.Join(m.layoutRows(), "\n"); strings.Contains(rows, "r1") {
 		t.Errorf("a room being glanced at drew its picture:\n%s", rows)
@@ -82,8 +80,7 @@ func TestBrowsingTheRoomListFetchesNoPictures(t *testing.T) {
 	}
 }
 
-// A resize re-fits the pictures: they are drawn to a fixed number of cells, so a
-// narrower pane does not reflow them.
+// A resize re-fits pictures, which are drawn to a fixed cell count.
 func TestResizeRefitsThePictures(t *testing.T) {
 	t.Parallel()
 

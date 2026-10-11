@@ -10,14 +10,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// numberMentioned is a mention as WhatsApp writes it in the text: "@" and the person's
-// LID or number.
+// numberMentioned matches a mention in text: "@" and a LID or number.
 var numberMentioned = regexp.MustCompile(`@(\d{6,15})\b`)
 
-// listOldMentions gives the account's cached messages cached before mentions were kept
-// the people their text mentions, so they are drawn by name: a number that is a LID
-// the store knows is that person, one that is a member's number is that member, and
-// any other is left as text (it may be just digits someone typed).
+// listOldMentions fills in mentions on cached messages from their text: a known LID or
+// a member's number becomes that person; other digits stay text.
 func (a *Adapter) listOldMentions(ctx context.Context, account Account, client *whatsmeow.Client) {
 	if a.cache == nil {
 		return

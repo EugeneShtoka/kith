@@ -13,8 +13,7 @@ import (
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 )
 
-// A daemon that waits for nothing is ready at once: `kith login` must be able to
-// reach a daemon with no network logged in.
+// A daemon waiting for nothing is ready at once, so `kith login` can reach it.
 func TestStateExpectingNothingIsReady(t *testing.T) {
 	t.Parallel()
 	s := NewState()
@@ -28,10 +27,9 @@ func TestStateExpectingNothingIsReady(t *testing.T) {
 	}
 }
 
-// Over any sequence of reports, failures and syncs, a daemon that named what it
-// waits for is ready exactly when nothing has failed since the last sync and every
-// expected account has reported a phase other than connecting; rows keep the latest
-// phase per account, and the time each last went online.
+// For any sequence of reports, failures and syncs, readiness holds exactly when nothing
+// failed since the last sync and every expected account is past connecting; rows keep
+// each account's latest phase and last online time.
 func TestStateReadinessFollowsTheExpectedAccounts(t *testing.T) {
 	t.Parallel()
 	accounts := []NetworkStatus{

@@ -61,8 +61,7 @@ func messagesServer(t *testing.T, chunk string) *httptest.Server {
 	return srv
 }
 
-// Regression: an undecryptable placeholder must never be cached, or it outlives the
-// session's arrival.
+// An undecryptable placeholder is never cached, or it outlives the session's arrival.
 func TestTimelineDoesNotCacheTheUndecryptablePlaceholder(t *testing.T) {
 	t.Parallel()
 

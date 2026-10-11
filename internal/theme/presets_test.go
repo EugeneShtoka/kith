@@ -30,7 +30,7 @@ func TestEveryPresetFillsEveryRole(t *testing.T) {
 	}
 }
 
-// An override changes one role and leaves the other eight where the preset put them.
+// An override changes one role and leaves the rest.
 func TestAnOverrideChangesOneRole(t *testing.T) {
 	t.Parallel()
 
@@ -69,8 +69,7 @@ func TestBadThemeConfigIsRefused(t *testing.T) {
 	}
 }
 
-// An empty preset means the default, and empty overrides mean "leave it alone" — which
-// is what makes a config naming one color change one color.
+// An empty preset means the default; an empty override leaves the role unchanged.
 func TestEmptyMeansDefault(t *testing.T) {
 	t.Parallel()
 

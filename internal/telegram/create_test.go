@@ -11,9 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A forum is made as a supergroup with topics, named as the room of its channel; the
-// person the account has seen is added by their access hash, and one it has not is
-// named in the partial failure. A kind Telegram does not make is refused.
+// A forum is created as a supergroup with topics; known people are added, unknown
+// ones reported; unsupported kinds are refused.
 func TestAChatIsMadeOnTelegram(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)

@@ -28,9 +28,8 @@ func hike() *tg.MessageMediaPoll {
 	}
 }
 
-// A poll message carries its poll: question, answers, votes and this account's
-// choice; a results update rewrites it, keeping the choice when the update does not
-// say it (min); a vote names the answers chosen, and its answer's results are kept.
+// A poll message carries question, answers, votes and our choice; a min results
+// update keeps the choice; a vote sends the chosen options and caches the results.
 func TestAPollIsReadUpdatedAndVotedIn(t *testing.T) {
 	t.Parallel()
 	ent := peer.NewEntities(map[int64]*tg.User{7: dana}, nil, nil)
@@ -74,7 +73,7 @@ func TestAPollIsReadUpdatedAndVotedIn(t *testing.T) {
 		return got.Poll
 	}
 
-	// Min, and with the poll itself again: the choice is not in it either.
+	// Min, with the poll repeated, which lacks the choice too.
 	minUpdate := &tg.UpdateMessagePoll{PollID: 777, Results: tg.PollResults{Min: true, TotalVoters: 4, Results: []tg.PollAnswerVoters{
 		{Option: []byte{0}, Voters: 3}, {Option: []byte{1}, Voters: 1},
 	}}}
@@ -105,9 +104,8 @@ func TestAPollIsReadUpdatedAndVotedIn(t *testing.T) {
 	}
 }
 
-// Who voted is read of the poll's message page by page, every answer a voter chose
-// kept, users and channels named as Telegram calls them; an anonymous poll is not
-// asked, and a poll naming its voters only to those who voted says so.
+// Voters are paged with all their choices and named; anonymous polls aren't queried;
+// voters-only visibility is reported.
 func TestAPollsVotersAreRead(t *testing.T) {
 	t.Parallel()
 	for name, c := range map[string]struct {

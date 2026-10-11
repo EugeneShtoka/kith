@@ -2,15 +2,14 @@ package config
 
 import "reflect"
 
-// Clone returns a copy of c that shares no slice, map or pointer with it, so editing
-// the copy never reaches c, nor a save of c still encoding on another goroutine.
+// Clone returns a deep copy of c, safe to edit while c is encoded on another goroutine.
 func (c Config) Clone() Config {
 	out, _ := reflect.TypeAssert[Config](deepCopy(reflect.ValueOf(c)))
 	return out
 }
 
-// deepCopy copies v all the way down. A struct with unexported fields (time.Time and
-// the like) is a value type and is copied whole.
+// deepCopy copies v recursively; a struct with unexported fields (time.Time) is copied
+// whole.
 func deepCopy(v reflect.Value) reflect.Value {
 	switch v.Kind() {
 	case reflect.Slice:

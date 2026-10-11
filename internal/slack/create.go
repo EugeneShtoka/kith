@@ -11,14 +11,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A channel is made in one workspace, public or private, and its members invited
-// after. Slack names a channel in lower case without spaces, so the name is written
-// that way.
+// A channel is created public or private in one workspace and members invited after.
+// Slack names are lower case without spaces, so the name is converted.
 
-// channelNameMost is the longest channel name Slack takes.
+// channelNameMost is Slack's maximum channel name length.
 const channelNameMost = 80
 
-// CreateRoom makes a channel in the workspace spec.On names.
+// CreateRoom creates a channel in the workspace spec.On names.
 func (a *Adapter) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {
 	team := domain.ParseID(string(spec.On)).Account
 	var w *workspace
@@ -65,8 +64,8 @@ func (a *Adapter) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.R
 	return room, nil
 }
 
-// channelName is a name as Slack takes a channel's: lower case, a hyphen for each run of
-// anything but a letter, a digit, a hyphen or an underscore, at most channelNameMost.
+// channelName converts a name to Slack's channel form: lower case, each run of anything
+// but letters, digits, '-' and '_' a hyphen, at most channelNameMost.
 func channelName(name string) string {
 	var b strings.Builder
 	dash := false

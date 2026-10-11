@@ -24,7 +24,7 @@ func spamming(t *testing.T, spam config.Spam) Model {
 	return out.clearStatus()
 }
 
-// A room in Spam leaves the group it was in (unlike Archive).
+// A room in Spam leaves its group (unlike Archive).
 func TestSpamIsAMoveNotATag(t *testing.T) {
 	t.Parallel()
 
@@ -46,14 +46,13 @@ func TestSpamIsAMoveNotATag(t *testing.T) {
 			t.Errorf("%q still lists a room that is in Spam — this is a move, not a tag", key)
 		}
 	}
-	// And nothing else moved with it.
+	// Nothing else moved with it.
 	home, _ := findGroup(m.rail.groups, homeGroupKey)
 	if !home.admits(m.unreadView(), domain.Room{ID: "!ops:x", Name: "Ops"}) {
 		t.Error("a room nobody marked went missing from All")
 	}
 }
 
-// With nothing caught there is no Spam group.
 func TestNoSpamGroupUntilSomethingIsCaught(t *testing.T) {
 	t.Parallel()
 
@@ -62,7 +61,7 @@ func TestNoSpamGroupUntilSomethingIsCaught(t *testing.T) {
 	}
 }
 
-// The exemption outranks everything, which is what makes releasing a room final.
+// The exemption outranks everything, which makes releasing a room final.
 func TestTheExemptionOutranksTheList(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +75,6 @@ func TestTheExemptionOutranksTheList(t *testing.T) {
 	}
 }
 
-// The exemption beats a rule.
 func TestTheExemptionOutranksARule(t *testing.T) {
 	t.Parallel()
 
@@ -96,12 +94,10 @@ func TestTheExemptionOutranksARule(t *testing.T) {
 	}
 }
 
-// A caught room is out of the counts too.
 func TestSpamStopsCounting(t *testing.T) {
 	t.Parallel()
 
 	m := spamming(t, config.Spam{Rooms: []string{"!a:x"}})
-	// Counted locally.
 	m.prefs.unreadLocal = true
 	m.unread[domain.RoomID("!a:x")] = domain.Unread{Messages: 4, Counted: true}
 	m.unread[domain.RoomID("!ops:x")] = domain.Unread{Messages: 2, Counted: true}
@@ -115,7 +111,6 @@ func TestSpamStopsCounting(t *testing.T) {
 	}
 }
 
-// Marking lists the room; releasing exempts it.
 func TestTheSpamKeyWritesBothDirections(t *testing.T) {
 	t.Parallel()
 
@@ -128,7 +123,7 @@ func TestTheSpamKeyWritesBothDirections(t *testing.T) {
 	if !marked.unreadView().isSpam(domain.Room{ID: "!a:x", Name: "Alpha"}) {
 		t.Error("the room is not in Spam after the key")
 	}
-	// Marking moves the pane on (the room left the list), so release from inside Spam.
+	// Marking moves the pane on, so release from inside Spam.
 	marked = openedFromList(t, marked, "!a:x")
 
 	next, _ = marked.toggleSpam()
@@ -136,13 +131,12 @@ func TestTheSpamKeyWritesBothDirections(t *testing.T) {
 	if released.rail.spam.Lists("!a:x") {
 		t.Error("the room is still listed after being released")
 	}
-	// The half that matters: releasing writes a carve-out, so no rule can put it back.
+	// Releasing writes a carve-out, so no rule can put it back.
 	if !slices.Contains(released.rail.spam.Except, "!a:x") {
 		t.Fatalf("[spam] except = %v, want the released room exempt", released.rail.spam.Except)
 	}
 }
 
-// The explanation names the rule and the filter.
 func TestWhyNamesTheRuleThatCaughtIt(t *testing.T) {
 	t.Parallel()
 
@@ -185,7 +179,6 @@ func (b *spamMarker) written() []domain.SpamVerdict {
 	return append([]domain.SpamVerdict(nil), b.marked...)
 }
 
-// Releasing a rule-caught room is also written to account data, for other machines.
 func TestReleasingARuleCaughtRoomReleasesItEverywhere(t *testing.T) {
 	t.Parallel()
 
@@ -219,8 +212,7 @@ func TestReleasingARuleCaughtRoomReleasesItEverywhere(t *testing.T) {
 	}
 }
 
-// A release from another machine takes the room out of Spam here, with no local
-// exemption written.
+// A release from another machine takes the room out of Spam without a local exemption.
 func TestAReleaseFromAnotherMachineTakesTheRoomOut(t *testing.T) {
 	t.Parallel()
 

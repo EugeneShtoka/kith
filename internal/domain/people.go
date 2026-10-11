@@ -4,12 +4,9 @@ import (
 	"strings"
 )
 
-// People names a person the way everything kith shows does, from what this person
-// has told it: their own alias for any of the person's identifiers first, then a name
-// they saved (an address book, a bridge's contact), then a name the network gives now
-// (a member's, a sender's, the words a mention was written in), then the name the
-// person chose for themselves, then their number. A surface applies its own shaping
-// after (the timeline's first-name rule); People never shortens.
+// People names a person. Precedence: own alias for any of their identifiers, a saved
+// or bridged name, a name the network gives now, the person's chosen name, their
+// number. People never shortens; surfaces shape names themselves.
 type People struct {
 	// Alias is the person's own name for someone ([[display.identity]]), "" for none.
 	Alias func(userID string) string
@@ -17,9 +14,8 @@ type People struct {
 	Dir Directory
 }
 
-// Name is userID's name, from known: names the network gives now, best first. A known
-// name that is only a number is looked up in the directory, and kept only when
-// nothing better is known.
+// Name is userID's name; known are names the network gives now, best first. A known
+// name that is only a number is looked up in the directory and used only as a last resort.
 func (p People) Name(userID string, known ...string) string {
 	if p.Alias != nil {
 		for _, id := range p.Dir.Identifiers(userID) {
@@ -75,13 +71,10 @@ func FirstName(name string) string {
 	return name
 }
 
-// ResolveMentions is body with each person a mention names written as name says,
-// keeping the "@" a mention was written with, in one pass: a name containing another
-// mention's words cannot be rewritten twice. name is given the mention (its Known
-// name among them) and the words it was written in, without the "@" (nothing when
-// they are only an ID's digits, as WhatsApp writes them). The mentions returned name
-// what body now says. A room mention, or one whose words body does not hold, is left
-// as it was.
+// ResolveMentions rewrites each user mention in body to name(m, words), keeping its
+// "@", in one pass so a rewritten name is never rewritten again. words is the mention
+// text without "@", empty when it is only an ID's digits (WhatsApp). The returned
+// mentions match the new body. Room mentions and mentions not found in body stay.
 func ResolveMentions(body string, mentions []Mention, name func(m Mention, words string) string) (string, []Mention) {
 	if len(mentions) == 0 {
 		return body, mentions
@@ -164,7 +157,7 @@ func freeIndex(s, word string, taken []bool) int {
 	return -1
 }
 
-// digitsOnly reports whether s is digits only, and some.
+// digitsOnly reports whether s is non-empty and all digits.
 func digitsOnly(s string) bool {
 	return s != "" && strings.Trim(s, "0123456789") == ""
 }

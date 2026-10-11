@@ -8,17 +8,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// selves are the configured identities ([[display.identity]]: each the MXIDs shown as
-// one person). The one that lists the account is this person, the others the accounts
-// bridges post as for them. A reload replaces them while counts run, hence the lock.
+// selves are the configured identities ([[display.identity]], each a set of MXIDs
+// shown as one person). A reload replaces them while counts run, hence the lock.
 type selves struct {
 	mu     sync.Mutex
 	groups [][]string
 }
 
-// UseIdentities takes the configured identities: a message from any MXID of the one
-// that lists this account is this person's own to the unread counts. Every room is
-// recounted when they changed.
+// UseIdentities sets the configured identities; messages from any MXID of the
+// account's identity count as own. Every room is recounted on change.
 func (b *InProc) UseIdentities(ctx context.Context, identities [][]string) {
 	b.selves.mu.Lock()
 	changed := !slices.EqualFunc(b.selves.groups, identities, slices.Equal)

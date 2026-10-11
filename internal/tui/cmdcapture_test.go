@@ -10,10 +10,9 @@ import (
 	"testing"
 )
 
-// A tea.Cmd closure that mentions the receiver captures it: the whole Model (16 KB and
-// every map it holds) stays alive for as long as the command runs, a sync stream or a
-// long poll among them. Commands take what they need as locals on the event loop
-// (ctx, backend := m.ctx, m.backend) and mention m nowhere. TestCommandsReachOnlyTheBackend
+// A tea.Cmd closure that mentions the receiver keeps the whole Model (16 KB and all its
+// maps) alive while it runs, e.g. a sync stream. Commands take what they need as locals
+// on the event loop (ctx, backend := m.ctx, m.backend). TestCommandsReachOnlyTheBackend
 // says which fields a command may use; this says how it may hold them.
 func TestCommandsDoNotCaptureTheModel(t *testing.T) {
 	t.Parallel()

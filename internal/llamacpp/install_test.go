@@ -14,8 +14,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/llamacpp/models"
 )
 
-// fixture serves one file and returns the base URL plus a Source describing it
-// truthfully.
+// fixture serves one file and returns its base URL and matching Source.
 func fixture(t *testing.T, weights []byte) (string, models.Source, *http.Client) {
 	t.Helper()
 
@@ -50,8 +49,7 @@ func TestInstallWritesTheWeightsUnderTheirTag(t *testing.T) {
 	if err := install(t.Context(), client, base, src, dir); err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	// Under the tag, not under whatever upstream calls the file: the thing a person
-	// types and the thing on disk should be the same word.
+	// Named by tag, not by the upstream filename.
 	got, err := os.ReadFile(filepath.Join(dir, "xx-1b.gguf"))
 	if err != nil {
 		t.Fatalf("read the installed model: %v", err)
@@ -61,8 +59,6 @@ func TestInstallWritesTheWeightsUnderTheirTag(t *testing.T) {
 	}
 }
 
-// A mismatch is a refusal, and the refusal has to be complete: this is the whole reason
-// the manifest carries a hash, so a model that is *nearly* right must not be loadable.
 func TestInstallRefusesWeightsThatDoNotMatchTheirHash(t *testing.T) {
 	t.Parallel()
 
@@ -75,14 +71,12 @@ func TestInstallRefusesWeightsThatDoNotMatchTheirHash(t *testing.T) {
 		t.Fatalf("install: %v, want ErrCorrupt", err)
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
-		// Nothing at all, not even the partial download: a directory holding a
-		// half-verified model is a server that starts and then fails to parse it.
+		// Not even the partial download may remain.
 		t.Errorf("refused the model and left %d files behind", len(entries))
 	}
 }
 
-// The size is checked before the hash and on its own, so a server that answers a 12-byte
-// request with a stream cannot be waited out to find out its hash is wrong.
+// The size limit stops an endless stream before the hash is computed.
 func TestInstallRefusesAFileLongerThanTheManifestSaid(t *testing.T) {
 	t.Parallel()
 

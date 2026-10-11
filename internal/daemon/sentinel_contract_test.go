@@ -14,14 +14,13 @@ import (
 func TestEverySentinelInTheContractCrossesTheWire(t *testing.T) {
 	t.Parallel()
 
-	// The declared sentinels, by the name they carry in the source.
+	// The declared sentinels, by source name.
 	declared := sentinelsDeclaredInAPI(t)
 	if len(declared) == 0 {
 		t.Fatal("parsed internal/api/errors.go and found no Err* declarations; the walk is broken")
 	}
 
-	// Each one, resolved to the value it names. Adding an api.Err* without adding it
-	// here is a compile-clean omission, which is why the parse above exists to catch it.
+	// A new api.Err* missing here compiles cleanly; the parse above catches it.
 	byName := map[string]error{
 		"ErrNoSpaceParent":    api.ErrNoSpaceParent,
 		"ErrNoPower":          api.ErrNoPower,
@@ -57,8 +56,7 @@ func TestEverySentinelInTheContractCrossesTheWire(t *testing.T) {
 	}
 }
 
-// A wrapped sentinel keeps its identity through the round trip, which is the property the
-// map exists for.
+// A wrapped sentinel keeps its identity through the round trip.
 func TestASentinelSurvivesBeingWrapped(t *testing.T) {
 	t.Parallel()
 
@@ -79,8 +77,7 @@ type wrapped struct{ err error }
 func (w wrapped) Error() string { return "daemon: while doing something: " + w.err.Error() }
 func (w wrapped) Unwrap() error { return w.err }
 
-// sentinelsDeclaredInAPI parses internal/api/errors.go and returns every Err* it
-// declares at package level.
+// sentinelsDeclaredInAPI parses internal/api/errors.go for package-level Err* names.
 func sentinelsDeclaredInAPI(t *testing.T) []string {
 	t.Helper()
 

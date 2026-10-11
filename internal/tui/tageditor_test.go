@@ -8,7 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// editingTag opens settings → Tags… → the named tag.
+// editingTag opens settings → Tags → the named tag.
 func editingTag(t *testing.T, name string) (Model, string) {
 	t.Helper()
 	m, path := opened(t, config.Notifications{})
@@ -23,8 +23,7 @@ func editingTag(t *testing.T, name string) (Model, string) {
 	return m, path
 }
 
-// Renaming a tag in the editor renames it everywhere it is named, in the running
-// config and the saved one, and the editor stays on it.
+// A rename reaches every reference in the running and saved config, and the editor stays on it.
 func TestRenamingATagFromTheEditor(t *testing.T) {
 	t.Parallel()
 	m, path := editingTag(t, "Pinned")
@@ -75,8 +74,7 @@ func TestTagPropertiesToggleFromTheEditor(t *testing.T) {
 	}
 }
 
-// Rule terms are added, edited and removed one at a time; a term that names nothing
-// is refused and changes nothing.
+// Rule terms are edited one at a time; a term that names nothing is refused.
 func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")
@@ -107,7 +105,6 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	}
 }
 
-// x removes the tag list's entry under the cursor without typing it out.
 func TestXRemovesATagEntry(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")
@@ -143,7 +140,7 @@ func TestMakingATag(t *testing.T) {
 }
 
 // Deleting asks first, takes the tag out of the rail's lists, and is refused while a
-// rule still names it, saying so.
+// rule still names it.
 func TestDeletingATagFromTheEditor(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")
@@ -166,8 +163,8 @@ func TestDeletingATagFromTheEditor(t *testing.T) {
 	}
 }
 
-// What takes rooms out of a tag's row is shown: every exclusive tag for one that is
-// not, only the earlier ones for one that is.
+// The editor shows what takes rooms from a tag: every exclusive tag for a
+// non-exclusive one, only the earlier ones for an exclusive one.
 func TestTheEditorSaysWhatAlsoExcludes(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Unread")
@@ -183,8 +180,7 @@ func TestTheEditorSaysWhatAlsoExcludes(t *testing.T) {
 	}
 }
 
-// Renaming a tag to another tag's name asks first; saying yes folds it into that tag,
-// which holds both tags' rooms; saying no changes nothing.
+// Renaming onto another tag's name asks first; yes folds it into that tag, no changes nothing.
 func TestRenamingATagOntoAnotherAsksToCombine(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")

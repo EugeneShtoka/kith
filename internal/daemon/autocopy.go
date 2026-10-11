@@ -8,9 +8,8 @@ import (
 )
 
 // captureCode copies a verification code out of msg when the [autocopy] rules say
-// to (domain.AutoCopy decides). Off by default: a self-rewriting clipboard is
-// remotely triggerable. Not gated on do-not-disturb — copying interrupts nobody,
-// and a clipboard that changed silently is worse than a popup, so it always says so.
+// to. Off by default: a self-rewriting clipboard is remotely triggerable. Ignores
+// do-not-disturb and always announces the copy: a silent clipboard change is worse.
 func (n *Notifications) captureCode(ctx context.Context, msg domain.Message, mine bool) {
 	n.mu.Lock()
 	rules, clip := n.autocopy, n.clip
@@ -28,8 +27,8 @@ func (n *Notifications) captureCode(ctx context.Context, msg domain.Message, min
 		return
 	}
 	if err := clip.copy(ctx, code.Value); err != nil {
-		// With no clipboard, the notification carrying the code is the delivery.
-		// The log names the room, never the code.
+		// With no clipboard, the notification carrying the code is the delivery. The log
+		// names the room, never the code.
 		if n.log != nil {
 			n.log.Log(ctx, levelFor(ctx), "auto-copy: copy to the clipboard failed", "room", msg.RoomID, "err", err)
 		}
@@ -39,8 +38,8 @@ func (n *Notifications) captureCode(ctx context.Context, msg domain.Message, min
 	n.notify(codeAlert(msg, facts, code, "copied to the clipboard"))
 }
 
-// codeAlert is the notification about a captured code. The code is in the body so
-// the user can check the clipboard, or get it at all when the copy failed.
+// codeAlert announces a captured code, with the code in the body so the user can check
+// the clipboard or copy it when the copy failed.
 func codeAlert(msg domain.Message, room domain.RoomFacts, code domain.Code, outcome string) notify.Notification {
 	label := "code"
 	if code.Label != "" {

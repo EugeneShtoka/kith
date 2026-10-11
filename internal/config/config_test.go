@@ -101,8 +101,7 @@ func TestLoadErrors(t *testing.T) {
 	}
 }
 
-// A key nothing reads is refused rather than silently ignored: a misplaced or removed
-// setting would otherwise look configured while doing nothing.
+// Unknown keys are refused rather than silently ignored.
 func TestLoadRefusesUnknownKeys(t *testing.T) {
 	t.Parallel()
 
@@ -192,8 +191,8 @@ func TestProfileResolution(t *testing.T) {
 	}
 }
 
-// Popup timeout and audio close_after share the config-wide sign convention: negative
-// is never, 0 is immediate (for the popup: the daemon decides), positive is seconds.
+// Popup timeout and audio close_after: negative is never, 0 immediate (popup: daemon
+// decides), positive seconds.
 func TestSecondsSignConvention(t *testing.T) {
 	t.Parallel()
 

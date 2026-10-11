@@ -20,9 +20,8 @@ func TestATsIsATime(t *testing.T) {
 	}
 }
 
-// What people and bots wrote is shown, each with its sender; notices and changes to
-// other messages are not (yet). A thread reply knows its thread, unless it was also
-// sent to the channel.
+// People's and bots' messages show with their sender; notices and changes to other
+// messages do not. A thread reply knows its thread unless also sent to the channel.
 func TestWhatPeopleWroteIsShown(t *testing.T) {
 	t.Parallel()
 	n := acmeNames()

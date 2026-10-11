@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Everything the timeline caches is answered from a key, and a cache is only ever as
-// correct as that key is complete.
+// Every timeline cache is answered from a key; a cache is only as correct as its key is
+// complete.
 
 // Closing a room and opening another must not show the first one's timeline.
 func TestCacheInvalidatedByRoomChange(t *testing.T) {
@@ -49,16 +49,14 @@ func TestCacheInvalidatedByWidthChange(t *testing.T) {
 	if narrow <= wide {
 		t.Errorf("halving the width gave %d rows, not more than the %d it wrapped to before", narrow, wide)
 	}
-	// And back again, to prove the entry keyed on width rather than merely being
-	// dropped once.
+	// And back again: the entry is keyed on width, not just dropped once.
 	m.width *= 2
 	if again := len(m.layoutRows()); again != wide {
 		t.Errorf("restoring the width gave %d rows, want the original %d", again, wide)
 	}
 }
 
-// A live config reload changes the identities and the theme, both of which the derived
-// answers were computed against.
+// A config reload changes identities and theme, which derived answers depend on.
 func TestCacheInvalidatedByConfigReload(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 	m.openRoom = "!a:x"
@@ -77,8 +75,8 @@ func TestCacheInvalidatedByConfigReload(t *testing.T) {
 	}
 }
 
-// A thread summary draws its own unread badge, and those counts move without any
-// message changing — a receipt landing, or the thread being read in another client.
+// A thread summary's unread badge changes without any message changing (a receipt, or a read
+// in another client).
 func TestCacheInvalidatedByUnreadChange(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 	m.openRoom = "!a:x"

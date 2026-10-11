@@ -10,8 +10,8 @@ func said() domain.DownloadPlace {
 	return domain.DownloadPlace{RoomID: "!standup:x", Space: "Work", Sender: "@dana:x"}
 }
 
-// The ladder, rung by rung. It is notify.Rule's, deliberately: more constraints beat
-// fewer, and among equals the narrower place wins.
+// The ladder, rung by rung (shared with notify.Rule): more constraints beat fewer,
+// then the narrower place.
 func TestSpeedResolvesNarrowestFirst(t *testing.T) {
 	t.Parallel()
 
@@ -50,8 +50,7 @@ func TestSpeedIgnoresSomebodyElsesRule(t *testing.T) {
 	}
 }
 
-// A rule states only what it changes: a speed rule must not quietly turn caching off
-// by being the rule that won.
+// A rule changes only the fields it sets.
 func TestASpeedRuleChangesOnlyTheSpeed(t *testing.T) {
 	t.Parallel()
 
@@ -75,7 +74,7 @@ func TestTheLastEquallySpecificRuleWins(t *testing.T) {
 	}
 }
 
-// A rule constrained by nothing is not a rule here.
+// A rule constrained by nothing matches nothing.
 func TestARuleNamingNothingDoesNotApply(t *testing.T) {
 	t.Parallel()
 
@@ -85,8 +84,7 @@ func TestARuleNamingNothingDoesNotApply(t *testing.T) {
 	}
 }
 
-// The same ladder decides where a file is saved, because it is the same question about
-// the same places — a person's attachments can have their own folder.
+// The same ladder decides where a file is saved.
 func TestDownloadRulesUseTheSameLadder(t *testing.T) {
 	t.Parallel()
 
@@ -106,8 +104,7 @@ func TestDownloadRulesUseTheSameLadder(t *testing.T) {
 	}
 }
 
-// Rules match the MXID, never the displayed name: a display name is something anyone
-// can change to anything, which makes it a poor thing to key a setting on.
+// Rules match the MXID, never the display name, which anyone can change.
 func TestRulesMatchTheMXIDNotTheName(t *testing.T) {
 	t.Parallel()
 

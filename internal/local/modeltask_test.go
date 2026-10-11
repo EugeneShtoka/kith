@@ -323,8 +323,7 @@ func TestModelTaskQuotesOnlyThisRoom(t *testing.T) {
 	}
 }
 
-// Regression: /summary in a room read to the end summarized nothing; it must fall back
-// to the recent conversation.
+// /summary in a room read to the end falls back to the recent conversation.
 func TestSummaryFallsBackWhenYouAreUpToDate(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -524,9 +523,8 @@ func TestTodoWithNothingUnreadCostsNothing(t *testing.T) {
 	}
 }
 
-// With the cache off, where a room sits is unknown: a scope that reads spaces or
-// networks is refused rather than decided as if the room were in none, and a scope that
-// names rooms only is still answered.
+// With the cache off, a scope reading spaces or networks is refused rather than
+// treating the room as in none; a rooms-only scope is still answered.
 func TestModelTaskWithNoCacheRefusesAScopeThatNamesPlaces(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -554,8 +552,7 @@ func TestModelTaskWithNoCacheRefusesAScopeThatNamesPlaces(t *testing.T) {
 	}
 }
 
-// The model opt-in reads a room by the name you gave it and your pins, as every other
-// scope does.
+// The model opt-in reads a room by your name for it and your pins, as every scope does.
 func TestTheModelScopeKnowsYourNamesAndPins(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

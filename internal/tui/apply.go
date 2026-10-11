@@ -16,15 +16,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/theme"
 )
 
-// applyConfig makes cfg the running configuration: it re-derives everything the UI
-// reads from it, keeps the rail cursor on focusGroup (empty = wherever it was), reports
-// done on the status line, and writes the file. Every in-app setting change funnels
-// through here so no derived structure is left stale.
+// applyConfig makes cfg the running configuration: re-derives everything the UI reads,
+// keeps the rail cursor on focusGroup (empty = where it was), reports done, and writes
+// the file. Every in-app setting change goes through here so nothing derived goes stale.
 //
-// A change to a network's accounts is the network's to judge, and only kithd links
-// the networks: it is applied once kithd has said it would run with it
-// (configCheckedMsg), unless another change was applied meanwhile, which it would
-// undo (it was made over the config before that one).
+// A change to a network's accounts waits for kithd to accept it (configCheckedMsg),
+// and is dropped if another change was applied meanwhile, which it would undo.
 func (m Model) applyConfig(cfg config.Config, done string) (Model, tea.Cmd) {
 	// Rules are derived only to validate them; the daemon resolves them itself.
 	derived, err := derive(cfg)
@@ -78,8 +75,8 @@ func networksChanged(was, now config.Config) bool {
 	return !reflect.DeepEqual(was.Networks(), now.Networks())
 }
 
-// applyDerived makes cfg, already checked and derived, the running configuration,
-// and has the daemon save it.
+// applyDerived makes cfg, already checked and derived, the running configuration and
+// has the daemon save it.
 func (m Model) applyDerived(cfg config.Config, derived derivations, done string) (Model, tea.Cmd) {
 	next, cmd := m.runDerived(cfg, derived, done)
 	return next, tea.Batch(next.saveConfigFileCmd(cfg), cmd)
@@ -117,7 +114,7 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m.glyphs.static = toneEach(cappedStatic(cfg.Display.Reactions.Static), derived.tone)
 	m.glyphs.palette = m.toneAll(m.glyphs.palette)
 
-	// Keep the rail cursor on a group by key rather than by position.
+	// Keep the rail cursor on a group by key, not position.
 	focusGroup := ""
 	if entry, ok := m.currentGroup(); ok {
 		focusGroup = entry.key
@@ -132,15 +129,14 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m.notifications.on = cfg.Notifications.Enabled
 
 	m = m.say(done)
-	// A room named or unnamed renames or unnames the person it is named after.
+	// Naming or unnaming a room renames the person it is named after.
 	m, peers := m.refreshPeers()
 	// A just-archived room needs its parent space resolved to be filed in the rail.
 	return m, tea.Batch(m.resolveParentsCmd(), peers)
 }
 
-// adoptConfig makes a configuration changed elsewhere (another window, a hand edit,
-// the daemon itself) the running one, without saving it back: it is the file already.
-// note is what the status line says.
+// adoptConfig runs a config changed elsewhere (another window, a hand edit, the
+// daemon) without saving it back. note goes on the status line.
 func (m Model) adoptConfig(cfg config.Config, note string) (Model, tea.Cmd) {
 	derived, err := derive(cfg)
 	if err != nil {
@@ -150,7 +146,7 @@ func (m Model) adoptConfig(cfg config.Config, note string) (Model, tea.Cmd) {
 }
 
 // applyIntegrations sets what is read off the config directly rather than derived.
-// Shared with WithConfigFile so startup and settings changes use one policy.
+// Shared with WithConfigFile so startup and settings changes agree.
 func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.conf.base = cfg
 	m.prefs.external.clipboard = cfg.Clipboard.Command
@@ -184,7 +180,7 @@ func (m Model) applyNaming(display config.Display) Model {
 	return m
 }
 
-// derivations are the values a config means, resolved together because a config that
+// derivations are the values a config means, resolved together so a config that
 // cannot produce all of them is refused whole.
 type derivations struct {
 	rules []notify.Rule
@@ -201,7 +197,7 @@ type derivations struct {
 	// tags are the [[tag]]s, and tagWarnings the cycles among them (said, not fatal).
 	tags        domain.TagSet
 	tagWarnings []string
-	// archives is the tag each followed network's archive is; mirrored the networks
+	// archives is the archive tag of each followed network; mirrored lists the networks
 	// whose archive kith's filing changes (fileTags).
 	archives map[domain.Protocol]string
 	mirrored map[domain.Protocol]string
@@ -211,8 +207,7 @@ type derivations struct {
 
 // derive resolves a config into what the model reads, or returns the first error.
 func derive(cfg config.Config) (derivations, error) {
-	// Everything the loader checks: a change the app applies must be a config that
-	// loads, or the daemon and the next start refuse what was saved.
+	// A config the app applies must load, or the daemon and the next start refuse it.
 	if err := setup.Validate(cfg); err != nil {
 		return derivations{}, err
 	}
@@ -277,7 +272,6 @@ func derive(cfg config.Config) (derivations, error) {
 	}, err
 }
 
-// applyDisplay changes the display settings and applies them.
 func (m Model) applyDisplay(display config.Display, done string) (Model, tea.Cmd) {
 	// Taken before the change, which can remove the row the cursor is on.
 	was := m.roomCursor()
@@ -288,9 +282,9 @@ func (m Model) applyDisplay(display config.Display, done string) (Model, tea.Cmd
 	return moved, tea.Batch(cmd, move)
 }
 
-// keepCursorNearby selects a neighbor when the change took the open room out of the
-// room list; otherwise the cursor would fall to row zero. Rows after a removed one
-// shift up, so whatever now sits at the old index is the next room.
+// keepCursorNearby selects a neighbor when the change removed the open room from the
+// list, instead of falling to row zero. Rows after a removed one shift up, so the old
+// index now holds the next room.
 func (m Model) keepCursorNearby(was int) (Model, tea.Cmd) {
 	if m.openRoom == "" {
 		return m, nil
@@ -331,7 +325,6 @@ func selectableNear(rows []roomRow, from int) (roomRow, bool) {
 	return roomRow{}, false
 }
 
-// applyNotifications changes the notification settings and applies them.
 func (m Model) applyNotifications(notifs config.Notifications, done string) (Model, tea.Cmd) {
 	cfg := m.conf.base.Clone()
 	cfg.Notifications = notifs
@@ -339,7 +332,7 @@ func (m Model) applyNotifications(notifs config.Notifications, done string) (Mod
 }
 
 // paletteOf resolves a display config's colors, falling back to the default palette
-// (a bad preset was already refused at startup; derive is the erroring version).
+// (a bad preset was refused at startup; derive is the erroring version).
 func paletteOf(display config.Display) theme.Palette {
 	palette, err := theme.Resolve(display.Theme.Preset, display.Theme.Overrides())
 	if err != nil {

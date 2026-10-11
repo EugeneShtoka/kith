@@ -6,11 +6,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 )
 
-// linkSteps is what to do on the phone with a pairing code.
+// linkSteps tells the user where to enter a pairing code on the phone.
 const linkSteps = "On the phone: WhatsApp → Settings → Linked devices → Link a device → " +
 	"“Link with phone number instead”, and type the code."
 
-// LoginNetwork is WhatsApp as a login lists it, with its accounts and their numbers.
+// LoginNetwork describes WhatsApp for login, with its accounts and numbers.
 func (a *Adapter) LoginNetwork() api.LoginNetwork {
 	n := api.LoginNetwork{Network: "whatsapp", Label: "WhatsApp", Detail: "a phone number, linked as one of its devices"}
 	for _, account := range a.accountsNow() {
@@ -19,8 +19,8 @@ func (a *Adapter) LoginNetwork() api.LoginNetwork {
 	return n
 }
 
-// Login links account as one of its phone's devices, setting it up first when it is
-// new (""): the code WhatsApp gives is shown until the phone accepts it.
+// Login links account as a device (setting up a new one when ""), showing the
+// pairing code until the phone accepts it.
 func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk) (api.LoginEnd, error) {
 	if account == "" {
 		name, err := api.NumberedAccount(ctx, talk, "whatsapp.account", "wa", a.LoginNetwork().Accounts,

@@ -1,11 +1,10 @@
 package domain
 
-// One scope, everywhere — the ladder that decides which rule wins where.
+// The shared specificity ladder that decides which rule wins where.
 
-// Scope is where something is happening, in the terms a rule can name: the room, the
-// space it belongs to, the thread it is in, and who is speaking.
+// Scope is where something happens, in terms a rule can name.
 type Scope struct {
-	// RoomID is what a rule matches on; a displayed name is not a handle.
+	// RoomID, not a displayed name, is what rules match.
 	RoomID string
 	// Space is the space the room is in.
 	Space string
@@ -15,8 +14,7 @@ type Scope struct {
 	Sender string
 }
 
-// Rank is how narrowly a rule names a place, and therefore which rule wins. Higher is
-// narrower.
+// Rank is how narrowly a rule names a place; higher is narrower and wins.
 type Rank int
 
 // The rungs, widest first.
@@ -31,8 +29,8 @@ const (
 	RankThreadSender
 )
 
-// Match is the constraints one rule carries. Empty fields mean "anywhere" and "anyone",
-// so a rule with neither names nothing and matches nothing.
+// Match is one rule's constraints. Empty fields mean anywhere/anyone, but a rule with
+// both empty matches nothing.
 type Match struct {
 	// Place is a room ID, a space's name, or a thread's root event.
 	Place string
@@ -40,8 +38,7 @@ type Match struct {
 	Sender string
 }
 
-// Rank scores how specifically this match names a scope, or NoMatch when it does not
-// name it at all.
+// Rank scores how specifically m names scope, or NoMatch.
 func (m Match) Rank(scope Scope) Rank {
 	if m.Sender != "" && m.Sender != scope.Sender {
 		return NoMatch
@@ -78,7 +75,7 @@ func (m Match) Rank(scope Scope) Rank {
 	}
 }
 
-// Narrowest returns the index of the rule that applies, and false when none does.
+// Narrowest returns the index of the narrowest matching rule; on a tie the later wins.
 func Narrowest(matches []Match, scope Scope) (int, bool) {
 	best, bestRank := -1, NoMatch
 	for i, match := range matches {
@@ -104,8 +101,8 @@ type ThreadRule struct {
 	Max   int
 }
 
-// ThreadCap is how many threads to list under one room: the narrowest rule naming it,
-// or the number that applies everywhere else.
+// ThreadCap is how many threads to list under one room: the narrowest rule's Max, else
+// base; negative means no cap (0), zero means fallback.
 func ThreadCap(base, fallback int, rules []ThreadRule, scope Scope) int {
 	at, ok := Narrowest(Matches(rules, func(r ThreadRule) Match {
 		return Match{Place: r.Match}

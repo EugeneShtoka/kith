@@ -25,16 +25,15 @@ func graphicalSession() error {
 	return nil
 }
 
-// socketMode is owner-only: the socket reaches everything the account can do, and
-// file permissions are its whole authorization.
+// socketMode is owner-only: file permissions are the socket's whole authorization.
 const socketMode = 0o600
 
 func restrictSocket(path string) error {
 	return os.Chmod(path, socketMode) //nolint:wrapcheck // Listen wraps it with what was being done
 }
 
-// secureDir checks that dir is a real directory this user owns, and makes it
-// owner-only: whoever controls the directory can replace the socket in it.
+// secureDir checks dir is a real directory this user owns and makes it owner-only:
+// whoever controls the directory can replace the socket.
 func secureDir(dir string) error {
 	info, err := os.Lstat(dir)
 	if err != nil {

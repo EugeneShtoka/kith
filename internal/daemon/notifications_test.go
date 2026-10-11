@@ -25,13 +25,12 @@ const (
 	dmName  = "Alice"
 	chatNam = "Standup"
 	space   = "Work"
-	// The same two places written as *rule entries*.
+	// The same two places as rule entries.
 	chatNamEntry = "room:Standup"
 	spaceEntry   = "space:Work"
 )
 
-// scopeBackend is the cache the daemon reads a room's name, spaces and DM-ness out
-// of. Only Rooms and Spaces matter here; everything else is a Nop.
+// scopeBackend serves the room and space lists the daemon reads; the rest is a Nop.
 type scopeBackend struct {
 	apitest.Nop
 
@@ -68,7 +67,6 @@ func (s *scopeBackend) roomReads() int {
 	return s.reads
 }
 
-// world is the backend every test here resolves scopes against.
 func world() *scopeBackend {
 	return &scopeBackend{
 		rooms: []domain.Room{
@@ -79,8 +77,7 @@ func world() *scopeBackend {
 	}
 }
 
-// recorder is a notify.Notifier that keeps what it was handed, so a test can assert
-// on delivery rather than on the decision alone.
+// recorder is a notify.Notifier that keeps what it was handed.
 type recorder struct {
 	mu   sync.Mutex
 	sent []notify.Notification
@@ -98,14 +95,12 @@ func (r *recorder) all() []notify.Notification {
 	return append([]notify.Notification(nil), r.sent...)
 }
 
-// notifsOn is a [notifications] section that notifies at the given level with the
-// sinks disabled — the tests substitute a recorder for delivery.
+// notifsOn notifies at level with the sinks disabled; tests deliver to a recorder.
 func notifsOn(level string) config.Config {
 	return config.Config{Notifications: config.Notifications{Enabled: true, Rules: []config.Rule{{Show: level}}}}
 }
 
-// notifier builds the daemon's notifier over world(), with a recorder in place of
-// the desktop sinks.
+// notifier builds a Notifications over world() with a recorder as its sink.
 func notifier(t *testing.T, cfg config.Config) (*daemon.Notifications, *recorder, *scopeBackend) {
 	t.Helper()
 
@@ -115,19 +110,16 @@ func notifier(t *testing.T, cfg config.Config) (*daemon.Notifications, *recorder
 		t.Fatalf("NewNotifications: %v", err)
 	}
 	n.UseSelves(func() []string { return []string{me} })
-	// Two sync responses: the daemon is past its catch-up batch, so a message arriving now
-	// arrived now.
+	// Two sync responses put the daemon past its catch-up batch.
 	n.Synced(time.Now())
 	n.Synced(time.Now())
 	return n, rec, src
 }
 
-// msg is one incoming message in a room.
 func msg(room domain.RoomID, sender, body string) domain.Message {
 	return domain.Message{ID: "$1", RoomID: room, Sender: sender, Body: body, Timestamp: time.Now()}
 }
 
-// The trigger levels, decided against the daemon's own room list.
 func TestLevelsDecideWhatNotifies(t *testing.T) {
 	t.Parallel()
 
@@ -159,8 +151,7 @@ func TestLevelsDecideWhatNotifies(t *testing.T) {
 	}
 }
 
-// The notification carries the fields a template renders, resolved from the daemon's own
-// cache: the room's name, the sender's, and the protocol its MXID implies.
+// A notification carries the room's name, the sender's, and the protocol its MXID implies.
 func TestNotificationCarriesResolvedFields(t *testing.T) {
 	t.Parallel()
 
@@ -189,8 +180,7 @@ func TestNotificationCarriesResolvedFields(t *testing.T) {
 	}
 }
 
-// A long body is cut to a summons rather than a screenful, and cut by runes so a
-// non-ASCII message is not sliced mid-character.
+// A long body is cut by runes, so non-ASCII text is not sliced mid-character.
 func TestNotificationTruncatesTheBody(t *testing.T) {
 	t.Parallel()
 
@@ -206,8 +196,7 @@ func TestNotificationTruncatesTheBody(t *testing.T) {
 	}
 }
 
-// A rule narrows the policy for one place or one person, resolved against the
-// spaces the daemon reads out of its own cache.
+// A rule narrows the policy for one place or person, resolved against cached spaces.
 func TestRulesResolveAgainstTheDaemonsRooms(t *testing.T) {
 	t.Parallel()
 
@@ -229,8 +218,7 @@ func TestRulesResolveAgainstTheDaemonsRooms(t *testing.T) {
 	}
 }
 
-// The room's alias reaches the notification text, because that is the name the user gave it
-// and the one they will recognize.
+// The room's configured alias reaches the notification text.
 func TestNotificationUsesTheConfiguredRoomAlias(t *testing.T) {
 	t.Parallel()
 
@@ -247,7 +235,7 @@ func TestNotificationUsesTheConfiguredRoomAlias(t *testing.T) {
 	}
 }
 
-// A rule names a room by ID unless you say otherwise, and a bare name names nothing.
+// A rule names a room by ID; a bare name names nothing.
 func TestRulesMatchARoomByIDAndRefuseABareName(t *testing.T) {
 	t.Parallel()
 
@@ -261,21 +249,19 @@ func TestRulesMatchARoomByIDAndRefuseABareName(t *testing.T) {
 		t.Error("a bare name matched a room; an entry has to declare its kind")
 	}
 
-	// Asked for explicitly, it matches — and the caveat is the user's to carry.
+	// Asked for explicitly, the name matches.
 	n, _, _ = notifier(t, withRule(chatNamEntry))
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "hi")); !ok {
 		t.Error("room:<name> should match the room it names")
 	}
 
-	// The ID does match, which is what the app writes.
 	n, _, _ = notifier(t, withRule(string(chatRm)))
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "hi")); !ok {
 		t.Error("a rule naming the room's ID should match it")
 	}
 }
 
-// Reload replaces the running policy; a config that will not parse is refused, naming
-// the section, and the old policy stays in force.
+// A config that will not parse is refused, naming the section; the old policy stays.
 func TestReloadReplacesThePolicy(t *testing.T) {
 	t.Parallel()
 
@@ -298,8 +284,7 @@ func TestReloadReplacesThePolicy(t *testing.T) {
 	}
 }
 
-// NewNotifications refuses a bad config outright, naming the key, rather than starting a
-// daemon that silently notifies about nothing.
+// NewNotifications refuses a bad config, naming the key.
 func TestNewNotificationsRefusesABadConfig(t *testing.T) {
 	t.Parallel()
 
@@ -317,8 +302,7 @@ func TestNewNotificationsRefusesABadConfig(t *testing.T) {
 	}
 }
 
-// The room index is read once and reused: two SQLite queries per notification would
-// put the cache in the path of every popup for nothing.
+// The room index is read once, keeping the cache out of every popup's path.
 func TestScopeIsIndexedNotReReadPerMessage(t *testing.T) {
 	t.Parallel()
 
@@ -331,8 +315,7 @@ func TestScopeIsIndexedNotReReadPerMessage(t *testing.T) {
 	}
 }
 
-// A room the index has never seen forces a re-read — the first message in a room
-// you were just invited to is exactly the case a stale index gets wrong.
+// A room the index has never seen forces a re-read (e.g. a fresh invite).
 func TestAnUnknownRoomRebuildsTheIndex(t *testing.T) {
 	t.Parallel()
 
@@ -356,7 +339,6 @@ func TestAnUnknownRoomRebuildsTheIndex(t *testing.T) {
 	}
 }
 
-// A message notifies with no TUI attached.
 func TestNotifiesWithNoClientAttached(t *testing.T) {
 	t.Parallel()
 
@@ -372,7 +354,7 @@ func TestNotifiesWithNoClientAttached(t *testing.T) {
 
 	n, rec, _ := notifier(t, notifsOn("all"))
 	go streams.Run(ctx, backend)
-	// Subscribe before producing: the hub is a fan-out, not a replay log.
+	// Subscribe before producing: the hub does not replay.
 	ready := make(chan struct{})
 	go func() { close(ready); n.Run(ctx, streams) }()
 	<-ready
@@ -390,8 +372,8 @@ func TestNotifiesWithNoClientAttached(t *testing.T) {
 	}
 }
 
-// waitFor polls cond until it holds or the test's patience runs out. A round trip
-// through the fan-out takes microseconds; anything approaching the bound is a hang.
+// waitFor polls cond until it holds; a fan-out round trip takes microseconds, so
+// hitting the bound means a hang.
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(settle)
@@ -404,8 +386,7 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("condition never became true")
 }
 
-// The message stream carries revisions as well as messages, and neither kind of revision is
-// a second event worth a second interruption.
+// Edits and redactions on the message stream never notify.
 func TestRevisionsDoNotNotify(t *testing.T) {
 	t.Parallel()
 
@@ -426,8 +407,7 @@ func TestRevisionsDoNotNotify(t *testing.T) {
 	}
 }
 
-// An attachment sent without a caption has an empty body and is still worth being
-// told about, so it is described by what it is rather than arriving blank.
+// A captionless attachment is described by what it is rather than arriving blank.
 func TestMediaNotificationSaysWhatItIs(t *testing.T) {
 	t.Parallel()
 
@@ -453,7 +433,7 @@ func TestMediaNotificationSaysWhatItIs(t *testing.T) {
 		t.Errorf("Body = %q, want the kind of attachment", got.Body)
 	}
 
-	// A caption still wins: it is what the sender actually said.
+	// A caption wins.
 	captioned := msg(chatRm, alice, "look at this")
 	captioned.Media = &domain.Media{Type: domain.MediaImage, Name: "cat.png"}
 	got, _ = n.Deliver(context.Background(), captioned)
@@ -474,19 +454,17 @@ func TestCatchUpDoesNotNotify(t *testing.T) {
 	}
 	n.UseSelves(func() []string { return []string{me} })
 
-	// Before any sync at all.
+	// Before any sync.
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "overnight")); ok {
 		t.Error("nothing should notify before the first sync response")
 	}
 
-	// The catch-up batch itself: its events arrive after the first response is
-	// announced and before the second.
+	// The catch-up batch arrives between the first and second responses.
 	n.Synced(time.Now())
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "also overnight")); ok {
 		t.Error("the catch-up batch is history; history does not interrupt you")
 	}
 
-	// Caught up: from here a message is a message.
 	n.Synced(time.Now())
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "just now")); !ok {
 		t.Error("once caught up, a message that arrives should notify at once")
@@ -496,8 +474,7 @@ func TestCatchUpDoesNotNotify(t *testing.T) {
 	}
 }
 
-// A sound-only mute lets the notification through and takes its sound, so it is not routed
-// through the do-not-disturb suppression at all.
+// A sound-only mute keeps the notification and drops its sound.
 func TestSoundMuteSilencesWithoutHiding(t *testing.T) {
 	t.Parallel()
 
@@ -528,8 +505,7 @@ func TestSoundMuteSilencesWithoutHiding(t *testing.T) {
 	}
 }
 
-// The global sound is the default and a rule replaces it, which is what makes one
-// sound expressible everywhere and a different one per space, room or person.
+// The global sound is the default; a rule replaces it.
 func TestSoundIsGlobalWithRuleOverrides(t *testing.T) {
 	t.Parallel()
 
@@ -548,7 +524,7 @@ func TestSoundIsGlobalWithRuleOverrides(t *testing.T) {
 	}
 }
 
-// The room index is dropped when the rooms actually change, rather than waited out.
+// InvalidateScope drops the room index when rooms change.
 func TestInvalidateScopeDropsTheIndex(t *testing.T) {
 	t.Parallel()
 
@@ -559,8 +535,8 @@ func TestInvalidateScopeDropsTheIndex(t *testing.T) {
 	}
 	reads := src.roomReads()
 
-	// The room is renamed behind the index. Without invalidation it would keep
-	// answering with the old name until the backstop expired.
+	// Renamed behind the index; without invalidation the old name would stay until
+	// the backstop expired.
 	src.mu.Lock()
 	src.rooms = []domain.Room{{ID: chatRm, Name: "Renamed"}, {ID: dmRoom, Name: dmName, IsDirect: true}}
 	src.mu.Unlock()
@@ -580,26 +556,22 @@ func TestInvalidateScopeDropsTheIndex(t *testing.T) {
 	}
 }
 
-// The rule helpers the do-not-disturb tests are written in.
 func hideRule(match, sender string) notify.Rule {
 	none := notify.LevelNone
 	return notify.Rule{Match: match, Sender: sender, Show: &none, Temp: true}
 }
 
-// silenceRule takes only the sound, which is the other key.
 func silenceRule(match, sender string) notify.Rule {
 	none := notify.LevelNone
 	return notify.Rule{Match: match, Sender: sender, Ring: &none, Temp: true}
 }
 
-// named and withUntil keep the call sites readable where only one field varies.
 func named(r notify.Rule, name string) notify.Rule { r.Name = name; return r }
 
 func withUntil(r notify.Rule, until time.Time) notify.Rule { r.Until = until; return r }
 
-// A rule's thread clause is answered against the daemon's own cache: whether we have spoken
-// in the conversation a message arrived in is not a fact the message carries, and it is the
-// distinction such a rule is entirely about.
+// A thread clause is answered from the cache: whether we spoke in the conversation
+// is not a fact the message carries.
 func TestAThreadRuleAsksWhetherWeAreInTheConversation(t *testing.T) {
 	t.Parallel()
 
@@ -629,8 +601,7 @@ func TestAThreadRuleAsksWhetherWeAreInTheConversation(t *testing.T) {
 	if _, got := n.Deliver(context.Background(), inThread("$theirs")); got {
 		t.Error("a thread we have not spoken in should be silent")
 	}
-	// And the room's main timeline is neither: the rule silencing threads matched it
-	// too, because "any" is a clause about threads that asks nothing.
+	// The main timeline is matched too: "any" asks nothing about threads.
 	if _, got := n.Deliver(context.Background(), msg(chatRm, alice, "hi")); got {
 		t.Error("the room itself is silenced by the rule that names it")
 	}
@@ -663,19 +634,17 @@ func TestABurstyRoomIsSummarizedRatherThanStacked(t *testing.T) {
 	if summary.Room != chatNam {
 		t.Errorf("summary room = %q, want the room it is about", summary.Room)
 	}
-	// It names no sender and makes no sound: the sound already rang for the ones that
-	// got through, and quoting one of several messages would be picking a winner.
+	// No sender and no sound: the sound already rang, and quoting one message would pick
+	// a winner.
 	if summary.Sender != "" || summary.Body == "" || !summary.Silent {
 		t.Errorf("summary = %+v, want an anonymous, silent count", summary)
 	}
-	// And it replaces the room's previous popup rather than stacking under it.
 	if summary.Replaces != string(chatRm) {
 		t.Errorf("summary Replaces = %q, want the room id", summary.Replaces)
 	}
 }
 
-// Nothing is dropped where nobody asked for a limit, which is every config that has
-// never heard of this.
+// Without a configured limit nothing is dropped.
 func TestNoLimitConfiguredDeliversEverything(t *testing.T) {
 	t.Parallel()
 
@@ -718,7 +687,7 @@ func TestAnUnknownRoomIsOnlyAskedAboutOnce(t *testing.T) {
 	n, _, src := notifier(t, notifsOn("all"))
 	n.Deliver(context.Background(), msg(chatRm, alice, "hi"))
 
-	// A room nothing will ever report: the sender's list is left alone.
+	// A room nothing will ever report.
 	const ghost = "!ghost:example.org"
 	before := src.roomReads()
 	n.Deliver(context.Background(), msg(ghost, alice, "first"))
@@ -727,7 +696,6 @@ func TestAnUnknownRoomIsOnlyAskedAboutOnce(t *testing.T) {
 		t.Fatal("the first message in an unknown room did not read the room list at all")
 	}
 
-	// Five more messages from the same unknown room.
 	after := src.roomReads()
 	for range 5 {
 		n.Deliver(context.Background(), msg(ghost, alice, "again"))
@@ -738,8 +706,7 @@ func TestAnUnknownRoomIsOnlyAskedAboutOnce(t *testing.T) {
 	}
 }
 
-// A message from any of your own IDs — an identity a bridge posts as, a WhatsApp
-// number — is yours: it never notifies you.
+// A message from any of your own IDs (bridge puppet, WhatsApp number) never notifies.
 func TestYourOtherIDsNeverNotifyYou(t *testing.T) {
 	t.Parallel()
 	n, _, _ := notifier(t, notifsOn("all"))
@@ -756,8 +723,8 @@ func TestYourOtherIDsNeverNotifyYou(t *testing.T) {
 	}
 }
 
-// A bridge's placeholder (a message it could not decrypt yet) is not announced; the
-// edit that replaces it is, as the message it now is; an ordinary edit is not.
+// A bridge placeholder is not announced; the edit replacing it is, as the message it
+// now is; an ordinary edit is not.
 func TestAPlaceholderIsAnnouncedOnceItIsReplaced(t *testing.T) {
 	t.Parallel()
 	n, rec, _ := notifier(t, notifsOn("all"))
@@ -786,8 +753,7 @@ func TestAPlaceholderIsAnnouncedOnceItIsReplaced(t *testing.T) {
 	}
 }
 
-// A sender and a room shown only as a number are named from the directory; a name
-// that is more than a number is kept.
+// A sender or room shown only as a number is named from the directory.
 func TestANotificationNamesANumberFromTheDirectory(t *testing.T) {
 	t.Parallel()
 	n, rec, src := notifier(t, notifsOn("all"))
@@ -819,8 +785,7 @@ func TestANotificationNamesANumberFromTheDirectory(t *testing.T) {
 	}
 }
 
-// A notification's {date} and {time} are written as [display] says, and follow a
-// reload; a pattern that cannot be read is refused, naming its key.
+// {date} and {time} follow [display] and reloads; an unreadable pattern is refused.
 func TestNotificationsWriteTheChosenClock(t *testing.T) {
 	t.Parallel()
 
@@ -856,9 +821,8 @@ func TestNotificationsWriteTheChosenClock(t *testing.T) {
 	}
 }
 
-// A notification names people as the timeline does: the person's alias for the
-// sender, the phone book's name for a WhatsApp mention, first names only where the
-// space says so (the sender, the mention and a direct chat's label alike).
+// Notifications name people as the timeline does: alias, phone book name, first
+// names only where the space says so.
 func TestNotificationsNamePeopleAsTheTimelineDoes(t *testing.T) {
 	t.Parallel()
 	const dana = "whatsapp:15550100001@s.whatsapp.net"
@@ -891,8 +855,7 @@ func TestNotificationsNamePeopleAsTheTimelineDoes(t *testing.T) {
 	}
 }
 
-// A Slack mention is written in the name the person had when it was sent; the
-// notification names them, and its sender, as the room's member list names them now.
+// Mentions and senders are named as the room's member list names them now.
 func TestANotificationNamesPeopleAsTheRoomNamesThemNow(t *testing.T) {
 	t.Parallel()
 	n, rec, _ := notifier(t, notifsOn("all"))

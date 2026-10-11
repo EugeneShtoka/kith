@@ -11,7 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// failing is the fixture with some of the daemon's lookups failing.
+// failing is the fixture with some daemon lookups failing.
 type failing struct {
 	*fake
 	spaces, encryption bool
@@ -33,16 +33,16 @@ func (f failing) RoomEncryption(ctx context.Context, rooms []domain.RoomID) (map
 	return f.fake.RoomEncryption(ctx, rooms)
 }
 
-// Rooms on a network kith reaches directly: in no space, their network named by their
-// IDs alone (invented numbers).
+// Rooms on a directly reached network: in no space, network named by ID (invented
+// numbers).
 const (
 	nativeGroup domain.RoomID = "whatsapp:44000000001/120363000000000001@g.us"
 	nativeDM    domain.RoomID = "whatsapp:44000000001/1500000002@s.whatsapp.net"
 )
 
-// scopeRooms covers every kind of place a scope entry can name: a plain room in a
-// space, a bridged room, a room in no space, a DM, an encrypted room, and a group and
-// a DM on a network reached directly.
+// scopeRooms covers every place kind a scope entry can name: a room in a space, a
+// bridged room, a spaceless room, a DM, an encrypted room, and a direct-network group
+// and DM.
 func scopeRooms() *fake {
 	return &fake{
 		rooms: []domain.Room{
@@ -65,15 +65,15 @@ func scopeRooms() *fake {
 	}
 }
 
-// scopePlaces are the names, space order and tags the fixture is read with: a room
-// called something of your own, an unnamed room named, and a tag picking by that name.
+// scopePlaces gives a room your own name, names an unnamed room, and adds a tag picking
+// by that name.
 var scopePlaces = domain.Places{
 	Names: map[domain.RoomID]string{"!loose:x": "Lounge", "!anon:x": "Quiet"},
 	Order: domain.HomeOrder{Priority: []string{"Telegram", "WhatsApp"}},
 	Tags:  pinnedTag(),
 }
 
-// pinnedTag picks two rooms, one by your name for it, and takes in a space.
+// pinnedTag picks two rooms (one by your name for it) and takes in a space.
 func pinnedTag() domain.TagSet {
 	tags, _, err := domain.NewTagSet([]domain.Tag{{
 		Name: "Pinned", Rule: []string{"space:Telegram"}, Picked: []string{"room:Lounge", "!work:x"},
@@ -101,8 +101,8 @@ func someEntries(rng *rand.Rand) []string {
 	return out
 }
 
-// decisions is what a server decides about every fixture room: may it read it, write
-// to it, and post to it without review.
+// decisions is what a server decides per fixture room: read, write, and post without
+// review.
 type decisions struct{ read, write, send map[domain.RoomID]bool }
 
 func decide(t *testing.T, s *server, rooms []domain.Room) decisions {
@@ -120,9 +120,8 @@ func decide(t *testing.T, s *server, rooms []domain.Room) decisions {
 	return d
 }
 
-// A failed lookup may only take rooms away: whatever the scope says and whichever of
-// the daemon's reads fails, the rooms read, written or posted to then are a subset of
-// the rooms allowed when every read works.
+// Whatever the scope and whichever daemon read fails, the rooms read, written or posted
+// to are a subset of those allowed when every read works.
 func TestAFailedLookupNeverWidensTheScope(t *testing.T) {
 	t.Parallel()
 	failures := []failing{{spaces: true}, {encryption: true}, {spaces: true, encryption: true}}
@@ -163,8 +162,8 @@ func TestAFailedLookupNeverWidensTheScope(t *testing.T) {
 	}
 }
 
-// A name you gave a room, and a pin, admit the rooms they name — as every other scope
-// reads them — and a room in two bridged spaces is on the bridge of the first.
+// Room names and pins admit what they name; a room in two bridged spaces is on the
+// first bridge.
 func TestNamesAndPinsAdmitWhatTheyName(t *testing.T) {
 	t.Parallel()
 	f := scopeRooms()
@@ -189,8 +188,8 @@ func TestNamesAndPinsAdmitWhatTheyName(t *testing.T) {
 	}
 }
 
-// A room that is in no space is truly in none: with the lookup working, `except
-// space:Work` does not exclude it, and `protocol:matrix` admits it.
+// A spaceless room is in no space: `except space:Work` keeps it and `protocol:matrix`
+// admits it.
 func TestARoomInNoSpaceIsAPlainMatrixRoom(t *testing.T) {
 	t.Parallel()
 	f := scopeRooms()
@@ -201,8 +200,8 @@ func TestARoomInNoSpaceIsAPlainMatrixRoom(t *testing.T) {
 	}
 }
 
-// A room whose ID names its network is on that network: `protocol:whatsapp` admits it
-// and `protocol:matrix` does not, though no bridge space holds it.
+// A room whose ID names its network is on it: `protocol:whatsapp` admits it,
+// `protocol:matrix` does not.
 func TestANativeRoomIsOnItsOwnNetwork(t *testing.T) {
 	t.Parallel()
 	f := scopeRooms()
@@ -218,9 +217,8 @@ func TestANativeRoomIsOnItsOwnNetwork(t *testing.T) {
 	}
 }
 
-// While the spaces cannot be read, every tool says so and asks for a retry, rather than
-// answering as if the shared rooms were empty — or, before, as if no room were in any
-// space.
+// While spaces are unreadable, every tool says so and asks for a retry instead of
+// answering empty.
 func TestEveryToolSaysWhenTheSpacesAreUnknown(t *testing.T) {
 	t.Parallel()
 	scope := domain.ModelScope{Only: []string{"group"}, Except: []string{"space:Work"}}
@@ -248,8 +246,7 @@ func TestEveryToolSaysWhenTheSpacesAreUnknown(t *testing.T) {
 	}
 }
 
-// A scope that names no space or network does not depend on the spaces, so it keeps
-// answering while they cannot be read.
+// A scope naming no space or network keeps answering while spaces are unreadable.
 func TestAScopeNamingNoPlaceIgnoresTheSpaces(t *testing.T) {
 	t.Parallel()
 	s := newServer(scopeRooms(), domain.ModelScope{Only: []string{"group"}})
@@ -260,8 +257,8 @@ func TestAScopeNamingNoPlaceIgnoresTheSpaces(t *testing.T) {
 	}
 }
 
-// A tag's rule can name a space, so `except = ["tag:Pinned"]` cannot be decided while
-// the spaces are unreadable: the room is refused, not taken for outside the tag.
+// A tag rule can name a space, so `except = ["tag:Pinned"]` is undecidable while spaces
+// are unreadable: the room is refused.
 func TestAPinNamingASpaceIsNotGuessed(t *testing.T) {
 	t.Parallel()
 	f := scopeRooms()

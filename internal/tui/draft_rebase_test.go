@@ -6,8 +6,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// extends is the one word-boundary rule every draft merge uses: a longer word is not
-// an extension ("a10" of "a1"), and neither is a draft that starts mid-word.
+// extends needs a word boundary: a longer word is not an extension ("a10" of "a1"),
+// nor is a draft starting mid-word.
 func TestExtendsNeedsAWordBoundary(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -31,9 +31,8 @@ func TestExtendsNeedsAWordBoundary(t *testing.T) {
 	}
 }
 
-// rebaseOnto for each way the stored draft can have moved under a save: the assistant
-// appended, or the draft was deleted with its room (left elsewhere), and nothing of
-// this client's is lost either way.
+// rebaseOnto for each way the stored draft can move under a save (assistant append, or
+// deleted with its room elsewhere): nothing of this client's is lost.
 func TestRebaseOntoEveryWayTheStoreMoved(t *testing.T) {
 	t.Parallel()
 	body := func(b string) domain.StoredDraft { return domain.StoredDraft{Body: b} }

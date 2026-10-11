@@ -161,9 +161,8 @@ func (c *Cache) WideReachingUsers(ctx context.Context, self string, minRooms int
 		}, self, minRooms)
 }
 
-// SearchSenders is everyone who has posted in rooms, most messages first, named from
-// their cached membership in those same rooms (unnamed when they have no name there).
-// limit <= 0 is no cap.
+// SearchSenders is everyone who posted in rooms, most messages first, named from
+// those same rooms. limit <= 0 is no cap.
 func (c *Cache) SearchSenders(ctx context.Context, rooms domain.RoomSet, limit int) ([]domain.Member, error) {
 	if rooms.None() {
 		return nil, nil
@@ -212,10 +211,8 @@ func (c *Cache) topSenders(ctx context.Context, rooms domain.RoomSet, limit int)
 	}, args...)
 }
 
-// namesOf is a display name for each person, as they are named in rooms. A name from outside the set would answer for rooms the caller
-// never asked about (kith-mcp matches its agent's query against these). Among several,
-// the name in the first room by ID wins, so the answer is stable. Lists of any length
-// bind (inIDs).
+// namesOf is each person's display name within rooms only, since kith-mcp matches
+// agent queries against them. The first room by ID wins, for a stable answer.
 func (c *Cache) namesOf(ctx context.Context, userIDs []string, rooms domain.RoomSet) (map[string]string, error) {
 	names := make(map[string]string, len(userIDs))
 	if len(userIDs) == 0 || rooms.None() {
@@ -258,14 +255,13 @@ func (c *Cache) readNames(ctx context.Context, userIDs []string, rooms domain.Ro
 	return nil
 }
 
-// RoomsWith is every joined room among rooms whose membership includes all of userIDs,
-// most recently active first. The rooms restrict the answer inside the query, so LIMIT
-// applies after the scope.
+// RoomsWith is every joined room among rooms whose members include all of userIDs,
+// most recently active first. Scope is applied in the query, before LIMIT.
 func (c *Cache) RoomsWith(ctx context.Context, userIDs []string, rooms domain.RoomSet, limit int) ([]domain.Room, error) {
 	if rooms.None() {
 		return nil, nil
 	}
-	// Distinct: the query matches a room holding as many people as were asked for.
+	// Distinct: the query compares the member count with len(wanted).
 	wanted := make([]string, 0, len(userIDs))
 	seen := make(map[string]bool, len(userIDs))
 	for _, id := range userIDs {
@@ -287,8 +283,7 @@ func (c *Cache) RoomsWith(ctx context.Context, userIDs []string, rooms domain.Ro
 		in, args = inIDs(args, rooms.IDs)
 		within = " AND r.id" + in
 	}
-	// The activity stamp is a correlated one-row seek per room; an aggregate over
-	// a messages join scaled with the whole cache.
+	// A correlated one-row seek per room; a messages join scales with the cache.
 	// #nosec G202 -- placeholders emits only "?, ?, ?"; every value is bound.
 	query := `
 		SELECT r.id, r.name, r.is_direct,
@@ -319,8 +314,7 @@ func (c *Cache) RoomsWith(ctx context.Context, userIDs []string, rooms domain.Ro
 	})
 }
 
-// MemberName is the display name one person has in any cached room, or "" when
-// unknown.
+// MemberName is a person's display name in any cached room, or "" when unknown.
 func (c *Cache) MemberName(ctx context.Context, userID string) (string, error) {
 	var name string
 	err := c.db.QueryRowContext(ctx,

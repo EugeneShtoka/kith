@@ -11,14 +11,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Commands typed into the composer. A command belongs here when its target is the
-// room you are writing in; another room named by address is the room list's join
-// key, and the thing under the cursor is a key in that pane.
+// Commands typed into the composer act on the room being written in; other rooms and
+// the thing under the cursor are keys in their panes.
 //
-// Only known commands are intercepted — anything else starting with a slash is a
-// message. A leading `//` escapes one slash, and a multi-line body is never a command.
+// Only known commands are intercepted; any other slash text is a message. A leading
+// `//` escapes one slash, and a multi-line body is never a command.
 
-// slashCommand is one command and what it does.
 type slashCommand struct {
 	name string // includes the slash: "/me"
 	// arg names the argument for the usage line; "" means none. A command with a
@@ -29,13 +27,13 @@ type slashCommand struct {
 	// keyScope and keyAct name the keybinding this command mirrors.
 	keyScope scope
 	keyAct   action
-	// run acts on the argument in the open room. The composer still holds the
-	// command text, so a run that sends has to clear it (see sendComposed).
+	// run acts on the argument in the open room. The composer still holds the command
+	// text, so a run that sends must clear it (see sendComposed).
 	run func(m Model, arg string, room domain.Room) (Model, tea.Cmd)
 }
 
-// consuming wraps a run that opens a pane: it clears the command from the composer
-// first, so the next enter does not run it again.
+// consuming wraps a run that opens a pane, clearing the command first so the next
+// enter doesn't rerun it.
 func consuming(open func(Model) (Model, tea.Cmd)) func(Model, string, domain.Room) (Model, tea.Cmd) {
 	return func(m Model, _ string, _ domain.Room) (Model, tea.Cmd) {
 		m.compose.input, m.compose.drafted = "", nil
@@ -238,8 +236,7 @@ var slashCommands = []slashCommand{
 
 const uploadCommand = "/upload"
 
-// composerCommand acts on a command in the composer; handled is false for an ordinary
-// message.
+// composerCommand runs a command in the composer; handled is false for an ordinary message.
 func (m Model) composerCommand(body string, room domain.Room) (bool, Model, tea.Cmd) {
 	if strings.HasPrefix(body, "//") {
 		return false, m, nil // an escaped slash: submit() sends it, minus one slash
@@ -268,7 +265,6 @@ func (m Model) composerCommand(body string, room domain.Room) (bool, Model, tea.
 	return false, m, nil
 }
 
-// commandWord splits a body into its leading /word and the rest.
 func commandWord(body string) (name, arg string, ok bool) {
 	if !strings.HasPrefix(body, "/") || len(body) == 1 {
 		return "", "", false
@@ -291,9 +287,8 @@ func commandArg(body, command string) (string, bool) {
 	return "", false
 }
 
-// allCommands is the built-in table plus the scripts found when the popup last opened,
-// with the dispatcher's precedence (built-ins win). It touches no disk: it runs on
-// every keystroke, so the scan happens once per popup open (scanUserCommandsCmd).
+// allCommands is the built-ins plus the scripts found when the popup last opened
+// (built-ins win). It runs on every keystroke, so it touches no disk.
 func (m Model) allCommands() []slashCommand {
 	if len(m.completion.userCommands) == 0 {
 		return slashCommands
@@ -309,7 +304,7 @@ func (m Model) allCommands() []slashCommand {
 }
 
 // scanUserCommandsCmd reads the commands directory off the event loop. A missing
-// directory means no scripts, not an error.
+// directory means no scripts.
 func (m Model) scanUserCommandsCmd() tea.Cmd {
 	dir, err := m.commandsDir()
 	if err != nil || dir == "" {
@@ -318,11 +313,10 @@ func (m Model) scanUserCommandsCmd() tea.Cmd {
 	return func() tea.Msg { return userCommandsMsg{commands: scanUserCommands(dir)} }
 }
 
-// userCommandsMsg carries the result of one directory scan back to the popup.
 type userCommandsMsg struct{ commands []slashCommand }
 
-// scanUserCommands lists the executable files in dir as commands — the same test
-// userCommand applies, so the popup cannot offer what the dispatcher would refuse.
+// scanUserCommands lists dir's executables as commands, by the same test as
+// userCommand, so the popup cannot offer what the dispatcher would refuse.
 func scanUserCommands(dir string) []slashCommand {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -345,8 +339,7 @@ func scanUserCommands(dir string) []slashCommand {
 	return out
 }
 
-// commandCandidates offers the commands for a "/" typed at the start of the composer,
-// labeled with their usage.
+// commandCandidates offers commands for a "/" at the start of the composer, labeled with usage.
 func (m Model) commandCandidates(query string) []candidate {
 	q := strings.ToLower(strings.TrimSpace(query))
 	rows := make([]candidate, 0, len(slashCommands))

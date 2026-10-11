@@ -11,11 +11,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A message's poll draws as its question and an answer per line, with how many chose
-// each and which this person did. The vote key (P) opens its answers, ticked as this
-// person chose them, to vote (several where the poll takes them) or take the vote
-// back, and says under them who chose each, as far as the network names them. The
-// network's new results come back as the message's poll changing.
+// A poll draws its question and one answer per line, with counts and this person's choice.
+// The vote key (P) opens its answers, ticked as chosen, to vote (several where allowed) or take
+// the vote back, and lists who chose each as far as the network names them. New results arrive
+// as the message's poll changing.
 
 // voteTakeBack is the vote picker's row that takes a vote back.
 const voteTakeBack = "\x00take back"
@@ -40,8 +39,7 @@ func pollBody(p *domain.Poll) string {
 	return b.String()
 }
 
-// votersState is who chose what in the poll the vote picker is open on, read when it
-// opens.
+// votersState is who chose what in the poll the vote picker is open on, read when it opens.
 type votersState struct {
 	event  domain.EventID
 	read   bool
@@ -80,9 +78,8 @@ func (m Model) votePickerOpen() bool {
 	return m.picker.active() && (m.picker.kind == pickerVote || m.picker.kind == pickerVoteMulti)
 }
 
-// voterLines is who chose each answer of the poll the picker is open on, a paragraph
-// an answer wrapped to width, under a blank line; why there are none when no one is
-// named.
+// voterLines lists who chose each answer of the open poll, one wrapped paragraph per answer
+// under a blank line, or why no one is named.
 func (m Model) voterLines(width int) []string {
 	if !m.votePickerOpen() || m.aimedAt.vote.Poll == nil {
 		return nil
@@ -149,8 +146,8 @@ func chosenBy(voters []domain.PollVoter, option string, name func(domain.PollVot
 // voterYou is how a poll names this person among its voters.
 const voterYou = "you"
 
-// voterName is how a poll in room names a voter: "you"; as the sender column would
-// when kith knows them; else as the network called them.
+// voterName names a voter in room: "you"; as the sender column would if kith knows them; else
+// as the network called them.
 func (m Model) voterName(room domain.RoomID) func(domain.PollVoter) string {
 	return func(voter domain.PollVoter) string {
 		if m.isMe(voter.ID) {
@@ -178,7 +175,6 @@ func (m Model) knowsName(id string) bool {
 	return false
 }
 
-// votedMsg is the outcome of a vote.
 type votedMsg struct{ err error }
 
 // openVote offers the selected message's poll's answers, the chosen ones ticked.
@@ -218,7 +214,7 @@ func (m Model) openVote() (Model, tea.Cmd) {
 	return m, m.readVotersCmd(msg)
 }
 
-// castVote sends a vote, the answers by ID; none takes it back.
+// castVote sends a vote by answer IDs; none takes it back.
 func (m Model) castVote(options []string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	msg := m.aimedAt.vote
@@ -238,7 +234,7 @@ func (m Model) castVote(options []string) (Model, tea.Cmd) {
 	}
 }
 
-// handleVoted says how a vote went; the results come with the poll's message.
+// handleVoted reports the vote's outcome; results come with the poll's message.
 func (m Model) handleVoted(msg votedMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("could not vote", msg.err), nil

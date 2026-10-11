@@ -12,7 +12,6 @@ import (
 	"time"
 )
 
-// A server whose process dies during startup says so, rather than timing out.
 func TestStartReportsAnImmediateExit(t *testing.T) {
 	t.Parallel()
 
@@ -21,9 +20,8 @@ func TestStartReportsAnImmediateExit(t *testing.T) {
 		t.Skip("no sh on PATH")
 	}
 
-	// A "server" that exits at once and never answers /health. The startup limit is set
-	// far higher than the test's own patience, so a pass can only mean the exit was
-	// noticed rather than waited out.
+	// Exits at once; the limit is far above the test's patience, so passing means the
+	// exit was noticed, not waited out.
 	const limit = 30 * time.Second
 	started := time.Now()
 	_, err = start(context.Background(), Settings{
@@ -45,7 +43,6 @@ func TestStartReportsAnImmediateExit(t *testing.T) {
 	}
 }
 
-// stop returns as soon as the process is gone, rather than at the SIGKILL deadline.
 func TestStopReturnsWhenTheProcessDies(t *testing.T) {
 	t.Parallel()
 
@@ -54,7 +51,7 @@ func TestStopReturnsWhenTheProcessDies(t *testing.T) {
 		t.Skip("no sleep on PATH")
 	}
 
-	// Wired the way start() wires one: own process group, a reaper that closes exited.
+	// Wired like start(): own process group, a reaper that closes exited.
 	cmd := exec.CommandContext(context.Background(), sleep, "60")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if startErr := cmd.Start(); startErr != nil {
@@ -70,8 +67,7 @@ func TestStopReturnsWhenTheProcessDies(t *testing.T) {
 	}
 	took := time.Since(began)
 
-	// `sleep` dies on SIGTERM at once. Anything near the two-second deadline means the
-	// exit was not observed and the process was killed instead.
+	// sleep dies on SIGTERM; nearing the 2s deadline means the exit went unobserved.
 	if took > time.Second {
 		t.Errorf("stop() took %s for a process that dies on SIGTERM — that is the deadline "+
 			"expiring, which means SIGKILL for a process that was already gone", took)
@@ -84,7 +80,7 @@ func TestStopReturnsWhenTheProcessDies(t *testing.T) {
 	}
 }
 
-// A server that never started can still be stopped, and does not block on a nil channel.
+// Stopping a never-started server does not block on a nil channel.
 func TestStopOnAServerThatNeverSpawned(t *testing.T) {
 	t.Parallel()
 

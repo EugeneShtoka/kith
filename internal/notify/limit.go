@@ -5,9 +5,7 @@ import (
 	"time"
 )
 
-// What a room is allowed to interrupt you with, and what happens past it.
-
-// Limit is how many popups one room may raise, over what period.
+// Limit caps how many popups one room may raise per Window.
 type Limit struct {
 	Max    int
 	Window time.Duration
@@ -16,26 +14,25 @@ type Limit struct {
 // On reports whether the limit does anything.
 func (l Limit) On() bool { return l.Max > 0 && l.Window > 0 }
 
-// Decision is what to do with one notification that the rules have already approved.
+// Decision is what to do with a notification the rules already approved.
 type Decision int
 
 const (
-	// Deliver posts it as it stands: the room is still within its burst.
+	// Deliver posts it as is: the room is within its burst.
 	Deliver Decision = iota
-	// Summarize posts one popup naming how many messages arrived instead of this one.
+	// Summarize posts one popup with the count of held messages instead.
 	Summarize
 	// Hold posts nothing.
 	Hold
 )
 
-// Limiter is the per-room state behind that decision.
+// Limiter holds the per-room burst state.
 type Limiter struct {
 	mu    sync.Mutex
 	rooms map[string]*window
 }
 
-// window is one room's burst: when it started, how many popups it has raised, how many
-// messages have been held since the last summary, and when that summary went out.
+// window is one room's burst state.
 type window struct {
 	started    time.Time
 	delivered  int
@@ -43,7 +40,8 @@ type window struct {
 	summarized time.Time
 }
 
-// Allow decides what to do with one approved notification from a room.
+// Allow decides what to do with an approved notification from room, and returns the
+// held count for a summary.
 func (l *Limiter) Allow(room string, limit Limit, now time.Time) (Decision, int) {
 	if !limit.On() {
 		return Deliver, 0

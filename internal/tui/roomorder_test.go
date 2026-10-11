@@ -59,8 +59,8 @@ func sameOrder(t *testing.T, got []string, want ...string) {
 	}
 }
 
-// Each sort chain orders the fixture differently; name is the tie-break throughout,
-// and uncached rooms go last even under ~recent.
+// Each sort chain orders the fixture differently; name breaks ties, and uncached rooms go
+// last even under ~recent.
 func TestRoomOrders(t *testing.T) {
 	t.Parallel()
 
@@ -214,8 +214,8 @@ func TestBadOrderIsRefused(t *testing.T) {
 	}
 }
 
-// The sort chords edit the current group's chain, each leaving the other half alone,
-// and the status names the whole chain.
+// Sort chords edit the current group's chain, each leaving the other half alone; the status
+// names the whole chain.
 func TestSortKeysEditTheChain(t *testing.T) {
 	t.Parallel()
 

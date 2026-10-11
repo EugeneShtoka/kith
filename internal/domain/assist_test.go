@@ -29,9 +29,8 @@ func TestAllowModelReadsBothLists(t *testing.T) {
 		// An allow list answers alone.
 		{"on the allow list", ModelScope{Only: []string{"!work:example.org"}}, url, false, ""},
 		{"not on the allow list", ModelScope{Only: []string{"!other:example.org"}}, url, false, ModelRefusedRoom},
-		// A displayed name needs the `room:` prefix now: a bare word that is not a room
-		// ID declares no kind and is refused, which is what stops a mistyped entry from
-		// being an invisible filter.
+		// A displayed name needs `room:`; a bare word is refused, so a typo cannot
+		// silently filter.
 		{"named by the name it is shown under", ModelScope{Only: []string{"room:Work · deploys"}}, url, false, ""},
 		{"named in another case, since a config is typed by hand", ModelScope{Only: []string{"room:work · DEPLOYS"}}, url, false, ""},
 		{"a bare name is refused rather than guessed at", ModelScope{Only: []string{"Work · deploys"}}, url, false, ModelRefusedRoom},
@@ -45,7 +44,7 @@ func TestAllowModelReadsBothLists(t *testing.T) {
 		},
 		// Blank entries are not a list.
 		{"a list of blanks is no list", ModelScope{Only: []string{"", "  "}}, url, false, ""},
-		// Encryption is answered before either list, and by its own switch.
+		// Encryption is decided first, by its own switch.
 		{"encrypted, and encrypted rooms are out", ModelScope{}, url, true, ModelRefusedEncrypted},
 		{"encrypted, allowed by name, still out", ModelScope{Only: []string{"!work:example.org"}}, url, true, ModelRefusedEncrypted},
 		{"encrypted, and encrypted rooms are in", ModelScope{Encrypted: true}, url, true, ""},
@@ -54,7 +53,7 @@ func TestAllowModelReadsBothLists(t *testing.T) {
 			ModelScope{Except: []string{"!work:example.org"}, Encrypted: true},
 			url, true, ModelRefusedRoom,
 		},
-		// The entries that make a list writable: a space, a network, a kind of room.
+		// Class entries: a space, a network, a kind of room.
 		{"a space it is in", ModelScope{Only: []string{"space:Work"}}, url, false, ""},
 		{"a space it is not in", ModelScope{Only: []string{"space:Home"}}, url, false, ModelRefusedRoom},
 		{"the network behind it", ModelScope{Only: []string{"protocol:Slack"}}, url, false, ""},
@@ -63,7 +62,7 @@ func TestAllowModelReadsBothLists(t *testing.T) {
 		{"it is not a direct message", ModelScope{Only: []string{"dm"}}, url, false, ModelRefusedRoom},
 		{"it is a group", ModelScope{Only: []string{"group"}}, url, false, ""},
 		{"direct messages kept out", ModelScope{Except: []string{"dm"}}, url, false, ""},
-		// The qualified spelling of what a bare entry already meant.
+		// The qualified spelling of a bare entry.
 		{"room: by ID", ModelScope{Only: []string{"room:!work:example.org"}}, url, false, ""},
 		{"room: by name", ModelScope{Only: []string{"room:Work · deploys"}}, url, false, ""},
 	}
@@ -81,8 +80,7 @@ func TestAllowModelReadsBothLists(t *testing.T) {
 	}
 }
 
-// A Listed scope is least privilege — `[agent.read]`'s reading. The same cases above,
-// unlisted, keep `[assist]`'s reading; this pins only what the switch changes.
+// A Listed scope is least privilege (`[agent.read]`); unlisted keeps `[assist]`'s reading.
 func TestAllowModelListedScopeSharesOnlyWhatIsNamed(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +98,7 @@ func TestAllowModelListedScopeSharesOnlyWhatIsNamed(t *testing.T) {
 		{"nothing listed beats the encryption answer", ModelScope{Listed: true}, true, ModelRefusedNothingListed},
 		{"listed by its space", ModelScope{Listed: true, Only: []string{"space:Work"}}, false, ""},
 		{"not listed", ModelScope{Listed: true, Only: []string{"space:Home"}}, false, ModelRefusedRoom},
-		// The one reading that differs once something is listed: except subtracts.
+		// Once something is listed, except subtracts.
 		{
 			"except subtracts from what rooms names",
 			ModelScope{Listed: true, Only: []string{"space:Work"}, Except: []string{"room:Standup"}},
@@ -131,9 +129,7 @@ func TestModelContextIsRecentBoundedAndInOrder(t *testing.T) {
 		{SenderName: "Cy", Body: strings.Repeat("c", 40)},
 	}
 
-	// 40 characters is ~11 tokens by the estimate, so a budget of 25 takes the last two
-	// and drops the oldest — what a model finishing a sentence needs is what was just
-	// said.
+	// 40 characters is ~11 tokens, so a budget of 25 keeps the newest two.
 	got := ModelContext(msgs, nil, 25)
 	if len(got) != 2 {
 		t.Fatalf("ModelContext() = %d lines, want 2", len(got))
@@ -145,22 +141,19 @@ func TestModelContextIsRecentBoundedAndInOrder(t *testing.T) {
 	if got := ModelContext(msgs, nil, 0); got != nil {
 		t.Errorf("ModelContext(no budget) = %v, want nothing", got)
 	}
-	// A deleted message is not context: the words are gone and quoting them elsewhere
-	// would be the deletion undone by another feature.
+	// A deleted message is not context.
 	deleted := []Message{{SenderName: "Ada", Body: "secret", Redacted: true}, {SenderName: "Bo", Body: "hello"}}
 	if got := ModelContext(deleted, nil, 100); len(got) != 1 || !strings.Contains(got[0], "hello") {
 		t.Errorf("ModelContext(with a deletion) = %v, want only what still exists", got)
 	}
-	// One message larger than the whole budget yields nothing rather than being sent
-	// anyway: the budget is a limit on what leaves the machine.
+	// A message larger than the budget yields nothing: the budget caps what leaves the machine.
 	huge := []Message{{SenderName: "Ada", Body: strings.Repeat("x", 4000)}}
 	if got := ModelContext(huge, nil, 10); len(got) != 0 {
 		t.Errorf("ModelContext(over budget) = %v, want nothing", got)
 	}
 }
 
-// A direct message on WhatsApp, which is the shape most of an account's rooms take and
-// therefore the one a list has to be able to describe without naming each of them.
+// A WhatsApp DM, the most common room shape.
 func TestRoomFactsNamesKindsOfRoom(t *testing.T) {
 	t.Parallel()
 
@@ -177,8 +170,7 @@ func TestRoomFactsNamesKindsOfRoom(t *testing.T) {
 			t.Errorf("Names(%q) = %v, want %v", entry, got, want)
 		}
 	}
-	// Refused: empty, a prefix with nothing after it, the wrong space or network — and
-	// a bare word, whether or not it happens to name the room.
+	// Refused: empty, a bare prefix, the wrong space or network, and a bare word.
 	for _, entry := range []string{
 		"", "   ", "space:", "protocol:", "space:Work", "protocol:Slack",
 		"Dan", "Dana", "WhatsApp",
@@ -188,8 +180,7 @@ func TestRoomFactsNamesKindsOfRoom(t *testing.T) {
 		}
 	}
 
-	// And the kind comes back with the answer, because a ranked rule needs to know
-	// whether an entry named one room or a set of them.
+	// The kind comes back too, for ranking rules.
 	for entry, want := range map[string]EntryKind{
 		"!dana:example.org": EntryRoom, "room:Dana": EntryRoom,
 		"space:WhatsApp": EntryClass, "protocol:WhatsApp": EntryClass,
@@ -207,8 +198,7 @@ func TestRoomFactsNamesKindsOfRoom(t *testing.T) {
 	if !plain.Names("protocol:Matrix") {
 		t.Error("a native room is not on the Matrix protocol")
 	}
-	// An empty name never matches an empty entry by accident, which is the bug a list
-	// of blank lines would otherwise cause.
+	// An empty name never matches an empty entry.
 	if plain.Names("") {
 		t.Error("a blank entry matched")
 	}
@@ -224,10 +214,10 @@ func TestParseSummarySpan(t *testing.T) {
 		count int
 		bad   bool
 	}{
-		// Nothing asked for is the default and not an error: "what I missed".
+		// Nothing asked for is the default ("what I missed"), not an error.
 		{arg: ""},
 		{arg: "   "},
-		// The search box's own vocabulary, so there is one way to say "since when".
+		// The search box's date vocabulary.
 		{arg: "2h", since: now.Add(-2 * time.Hour)},
 		{arg: "48h", since: now.Add(-48 * time.Hour)},
 		{arg: "7d", since: now.AddDate(0, 0, -7)},
@@ -235,12 +225,10 @@ func TestParseSummarySpan(t *testing.T) {
 		{arg: "today", since: time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC)},
 		{arg: "yesterday", since: time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC)},
 		{arg: "2026-09-18", since: time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC)},
-		// A bare number is the other way people ask, and one the date vocabulary has no
-		// spelling for.
+		// A bare number is a message count.
 		{arg: "50", count: 50},
 		{arg: "1", count: 1},
-		// Refused rather than defaulted: somebody who typed this meant something, and
-		// summarizing the wrong span silently is worse than being told.
+		// Refused rather than silently defaulted.
 		{arg: "2hours", bad: true},
 		{arg: "soon", bad: true},
 		{arg: "0", bad: true},
@@ -293,8 +281,7 @@ func TestMessagesInHonorsWhatWasAsked(t *testing.T) {
 	if got := MessagesIn(msgs, base.Add(5*time.Hour), 2); len(got) != 2 || got[0].Body != "i" {
 		t.Fatalf("MessagesIn(both) = %v, want the last two inside the span", bodies(got))
 	}
-	// A span that covers nothing returns nothing rather than widening itself: somebody
-	// who asked for the last hour is owed that answer.
+	// A span that covers nothing returns nothing rather than widening.
 	if got := MessagesIn(msgs, base.Add(100*time.Hour), 0); len(got) != 0 {
 		t.Fatalf("MessagesIn(empty span) = %v, want nothing", bodies(got))
 	}
@@ -308,8 +295,7 @@ func bodies(msgs []Message) []string {
 	return out
 }
 
-// The send list is the second question and it answers only its own: whether an
-// assistant may post to this room without a person looking first.
+// The send list decides only whether an assistant may post without review.
 func TestAllowSendNamesRoomsTheSameWayEveryOtherListDoes(t *testing.T) {
 	t.Parallel()
 
@@ -325,8 +311,7 @@ func TestAllowSendNamesRoomsTheSameWayEveryOtherListDoes(t *testing.T) {
 		room RoomFacts
 		want bool
 	}{
-		// The default, and the one worth stating first: nothing listed drafts
-		// everywhere, which is what an account that has never thought about this gets.
+		// The default: nothing listed drafts everywhere.
 		{"an empty list posts nowhere", nil, work, false},
 		{"a list of blanks is still empty", []string{"", "  "}, work, false},
 		{"by name", []string{"room:Standup"}, work, true},
@@ -336,8 +321,7 @@ func TestAllowSendNamesRoomsTheSameWayEveryOtherListDoes(t *testing.T) {
 		{"by kind", []string{"dm"}, dm, true},
 		{"a kind that does not describe it", []string{"dm"}, work, false},
 		{"one of several", []string{"space:Family", "room:Standup"}, work, true},
-		// A bare word declares no kind and is refused by RoomFacts.Match rather than
-		// guessed at — the same rule the other lists live under since #83.
+		// A bare word declares no kind and is refused by RoomFacts.Match.
 		{"a bare word names nothing", []string{"Standup"}, work, false},
 	}
 	for _, tc := range cases {
@@ -367,8 +351,7 @@ func TestNeedsPlaces(t *testing.T) {
 	}
 }
 
-// Every ID that is this person is quoted as "You": their WhatsApp account's lines as
-// well as their Matrix account's.
+// Every ID that is this person is quoted as "You", on any network.
 func TestModelContextQuotesEveryAccountAsYou(t *testing.T) {
 	t.Parallel()
 	msgs := []Message{

@@ -7,11 +7,7 @@ import (
 	"testing"
 )
 
-// The behavior worth pinning is the fallback: a tab in the terminal already open, and a
-// window only when that did not work.
-
-// record swaps both runners for ones that record what they were asked to run, and
-// answers with the given errors.
+// record swaps both runners for recorders; the tab runner returns tabErr.
 func record(t *testing.T, tabErr error) (tab, window *[]string) {
 	t.Helper()
 	var ranTab, ranWindow []string
@@ -48,7 +44,7 @@ func TestATabIsTriedFirst(t *testing.T) {
 	}
 }
 
-// No instance to talk to: the tab command fails, and the window is what the user gets.
+// When the tab command fails, a window opens.
 func TestAFailedTabOpensAWindow(t *testing.T) {
 	tab, window := record(t, errors.New("no wezterm gui running"))
 
@@ -68,8 +64,6 @@ func TestAFailedTabOpensAWindow(t *testing.T) {
 	}
 }
 
-// A terminal that cannot do tabs goes straight to a window rather than failing at one it
-// was never given.
 func TestATerminalWithNoTabCommandOpensAWindow(t *testing.T) {
 	tab, window := record(t, errors.New("should not be called"))
 
@@ -85,8 +79,7 @@ func TestATerminalWithNoTabCommandOpensAWindow(t *testing.T) {
 	}
 }
 
-// Nothing to run is a caller's bug, and is refused rather than starting a bare terminal
-// — which would look like the link having been followed to nowhere.
+// An empty command is refused rather than opening a bare terminal.
 func TestNothingToRunIsRefused(t *testing.T) {
 	record(t, nil)
 	if _, err := Run(context.Background(), Terminal{Name: "foot", Window: []string{"foot"}}, nil); err == nil {
@@ -94,8 +87,7 @@ func TestNothingToRunIsRefused(t *testing.T) {
 	}
 }
 
-// Detection takes the first terminal present, and the table is ordered so that one that
-// can open a tab beats one that cannot.
+// Detect takes the first terminal present; tab-capable ones come first in the table.
 func TestDetectPrefersATerminalThatCanTab(t *testing.T) {
 	realLookup := Lookup
 	t.Cleanup(func() { Lookup = realLookup })
@@ -120,8 +112,6 @@ func TestDetectPrefersATerminalThatCanTab(t *testing.T) {
 	}
 }
 
-// A configured name resolves to its commands, which is what makes the setting worth
-// having: the table is the knowledge, and the config picks from it.
 func TestNamedResolvesAConfiguredTerminal(t *testing.T) {
 	got, ok := Named("konsole")
 	if !ok || len(got.Tab) == 0 {

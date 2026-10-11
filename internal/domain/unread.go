@@ -2,8 +2,8 @@ package domain
 
 import "time"
 
-// Unread is a room's unread state, pulled from /sync: the server-computed notification
-// counts (which honor the user's push rules) plus our own read position.
+// Unread is a room's unread state: the server's push-rule-aware counts from /sync
+// plus our own read position and local counts.
 type Unread struct {
 	RoomID RoomID
 	// Notifications and Highlights are the server's unread_notifications counts.
@@ -44,7 +44,7 @@ func (u Unread) WithThreads(threads []ThreadUnread) Unread {
 	return u
 }
 
-// Count is what to badge: how much is unread, and how much of that names us.
+// Count is what to badge: local counts when local and Counted, else the server's.
 func (u Unread) Count(local bool) (count, highlights int) {
 	if local && u.Counted {
 		return u.Messages, u.Mentions
@@ -68,8 +68,7 @@ type ReadResult struct {
 	Marked  int
 	Skipped int
 	Failed  int
-	// FirstError is why the first failed room failed, so a report can say more than
-	// a count. Empty when nothing failed.
+	// FirstError is the first failure's reason; empty when nothing failed.
 	FirstError string
 }
 

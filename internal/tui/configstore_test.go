@@ -12,8 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// fileStore keeps the config in a file as the daemon does — on the revision it was
-// read at — for tests that read back what a change saved.
+// fileStore keeps the config in a file as the daemon does (on the revision it was
+// read at), for tests that read back what a change saved.
 type fileStore struct{ path string }
 
 func (f fileStore) GetConfig(context.Context) (config.Snapshot, error) {
@@ -42,7 +42,7 @@ func (f fileStore) UpdateConfig(_ context.Context, base string, cfg config.Confi
 
 func (fileStore) ConfigChanges() <-chan config.Snapshot { return nil }
 
-// keptIn is m with its changes saved to its config file, as the daemon would save them.
+// keptIn is m with its changes saved to its config file, as the daemon saves them.
 func (m Model) keptIn() Model {
 	m.conf.writer.store = fileStore{path: m.conf.path}
 	if data, err := os.ReadFile(m.conf.path); err == nil {
@@ -51,9 +51,9 @@ func (m Model) keptIn() Model {
 	return m
 }
 
-// madeOn is a fileStore that checks no write lands on a change made elsewhere unless
-// it was made on that change: each change says (in Terminal) the revision the window
-// had when it was made, and elsewhere holds the revisions written elsewhere.
+// madeOn is a fileStore that checks no write lands over an outside change unless made
+// on it: each change carries (in Terminal) the window's revision when it was made;
+// elsewhere holds the revisions written elsewhere.
 type madeOn struct {
 	fileStore
 	t         *testing.T
@@ -68,10 +68,10 @@ func (s madeOn) UpdateConfig(ctx context.Context, base string, cfg config.Config
 	return rev, err
 }
 
-// Over random interleavings of this window's changes (saved in the order made, each on
-// its own goroutine), changes made elsewhere, and their news arriving: no change of
-// this window lands over a change made elsewhere that it was not made on — it is
-// refused, or dropped as overtaken when the news arrives first.
+// Over random interleavings of this window's changes (saved in order, each on its own
+// goroutine), outside changes, and their news arriving: no change of this window
+// lands over an outside change it was not made on; it is refused, or dropped as
+// overtaken when the news comes first.
 func TestNoChangeLandsOverOneItWasNotMadeOn(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(200) {
@@ -125,9 +125,9 @@ func TestNoChangeLandsOverOneItWasNotMadeOn(t *testing.T) {
 	}
 }
 
-// A change made elsewhere is run here, and said; the echo of this window's own save is
-// not news; a save refused as made on an older file reads the file again, runs it, and
-// says the change was not saved.
+// An outside change is run here and announced; the echo of this window's own save is
+// not news; a save refused as stale re-reads the file, runs it, and says the change
+// was not saved.
 func TestAConfigChangedElsewhereIsRunHere(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")

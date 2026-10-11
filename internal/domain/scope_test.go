@@ -6,8 +6,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The ladder every per-place setting in this client is resolved with, stated once and
-// tested once: more constraints beat fewer, and among equals the narrower place wins.
+// The shared ladder: more constraints beat fewer, then the narrower place.
 
 var atWork = domain.Scope{
 	RoomID: "!room:example.org",
@@ -66,8 +65,7 @@ func TestARuleNamingSomewhereElseDoesNotMatch(t *testing.T) {
 	}
 }
 
-// A thread rung only exists where there is a thread. On the main timeline, a rule
-// naming a thread names somewhere else.
+// On the main timeline a thread rule does not match.
 func TestTheThreadRungNeedsAThread(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +104,7 @@ func TestNarrowestFindsNothingWhenNothingNamesIt(t *testing.T) {
 	}
 }
 
-// The ladder's first new customer: one room listing more threads than the rest.
+// ThreadCap: one room listing more threads than the rest.
 func TestThreadCapResolvesPerPlace(t *testing.T) {
 	t.Parallel()
 
@@ -127,8 +125,7 @@ func TestThreadCapResolvesPerPlace(t *testing.T) {
 	if got := domain.ThreadCap(3, 5, rules, elsewhere); got != 3 {
 		t.Errorf("a room nothing names capped at %d, want the global number", got)
 	}
-	// Zero means "the default" and negative means "no cap", at both levels — a rule
-	// that read the same number differently would be a second thing to learn.
+	// Zero means the default and negative means no cap, at both levels.
 	quiet := domain.Scope{RoomID: "!quiet:example.org"}
 	if got := domain.ThreadCap(3, 5, rules, quiet); got != 0 {
 		t.Errorf("a room with no cap resolved to %d, want 0 (list them all)", got)

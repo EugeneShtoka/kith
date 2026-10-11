@@ -27,9 +27,7 @@ func (tp *typer) SendTyping(_ context.Context, roomID domain.RoomID, typing bool
 	return nil
 }
 
-// Someone else typing shows on the rule above the composer — the line you are already
-// looking at while you wait for them, and the one place it costs the conversation no
-// room.
+// Someone else typing shows on the rule above the composer.
 func TestTypingShowsOnTheComposerDivider(t *testing.T) {
 	t.Parallel()
 
@@ -44,16 +42,13 @@ func TestTypingShowsOnTheComposerDivider(t *testing.T) {
 		t.Errorf("divider = %q, want the typing note on it", got)
 	}
 
-	// m.typing carries the whole set, so an empty one means everybody stopped — and
-	// that emptiness is the news.
+	// m.typing is the whole set, so an empty one means everybody stopped.
 	m = update(t, m, activityMsg{a: domain.Activity{RoomID: "!a:x"}})
 	if got := m.typingNote(); got != "" {
 		t.Errorf("typingNote = %q after everyone stopped, want empty", got)
 	}
 }
 
-// Two typists are named; past that it becomes a count, which is what fits and what
-// anyone actually wants to know.
 func TestTypingNamesTwoThenCounts(t *testing.T) {
 	t.Parallel()
 
@@ -90,7 +85,7 @@ func TestTypingNoticeIsSentOnceWhileTyping(t *testing.T) {
 		t.Errorf("calls = %d after a second keystroke, want the notice not re-sent", tp.calls)
 	}
 
-	// Sending says what the notice was promising, so the notice stops with it.
+	// Sending ends the notice.
 	_, cmd = press(t, m, sendKey())
 	m = deliver(t, m, cmd)
 	if tp.calls != 2 || tp.typing {
@@ -98,8 +93,7 @@ func TestTypingNoticeIsSentOnceWhileTyping(t *testing.T) {
 	}
 }
 
-// Emptying the composer is deciding not to say it, so the notice stops rather than
-// standing until it expires.
+// Emptying the composer stops the notice instead of letting it expire.
 func TestDeletingTheDraftStopsTheNotice(t *testing.T) {
 	t.Parallel()
 
@@ -122,8 +116,7 @@ func TestDeletingTheDraftStopsTheNotice(t *testing.T) {
 	}
 }
 
-// Both halves are separately refusable: one setting hides what other people are doing,
-// the other stops telling them what you are.
+// Showing others' typing and sending your own are separate settings.
 func TestTypingSettingsAreTwoSwitches(t *testing.T) {
 	t.Parallel()
 

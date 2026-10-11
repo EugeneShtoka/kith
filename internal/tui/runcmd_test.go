@@ -13,8 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// scripted gives a model whose commands directory holds one script, plus the
-// directory so a test can add more.
+// scripted gives a model whose commands directory holds one script, plus the directory.
 func scripted(t *testing.T, name, body string) (Model, string) {
 	t.Helper()
 	home := t.TempDir()
@@ -38,8 +37,7 @@ func write(t *testing.T, dir, name, body string, mode os.FileMode) {
 	}
 }
 
-// The whole point: a command you wrote produces text, and the text lands in the
-// composer for you to send — or not.
+// A user command's output lands in the composer to send or not.
 func TestUserCommandProposesItsOutput(t *testing.T) {
 	t.Parallel()
 
@@ -59,8 +57,7 @@ func TestUserCommandProposesItsOutput(t *testing.T) {
 	}
 }
 
-// Nothing is sent. That is the rule the whole design turns on: a script that
-// misfires costs a keystroke, not a message in a room with other people in it.
+// Nothing is sent: a misfiring script costs a keystroke, not a message in a shared room.
 func TestUserCommandSendsNothingByItself(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +73,7 @@ func TestUserCommandSendsNothingByItself(t *testing.T) {
 	if len(backend.sent) != 0 {
 		t.Errorf("sent %+v, want nothing until enter is pressed again", backend.sent)
 	}
-	// And the second enter sends what was proposed.
+	// The second enter sends what was proposed.
 	_, sendCmd := press(t, m, sendKey())
 	deliver(t, m, sendCmd)
 	if len(backend.sent) != 1 || backend.sent[0].Body != "a cat falling over" {
@@ -84,8 +81,7 @@ func TestUserCommandSendsNothingByItself(t *testing.T) {
 	}
 }
 
-// The room's context reaches the script, which is what lets one script behave
-// differently in different rooms.
+// The room's context reaches the script's environment.
 func TestUserCommandGetsTheRoomInItsEnvironment(t *testing.T) {
 	t.Parallel()
 
@@ -145,7 +141,7 @@ func TestHungCommandIsKilled(t *testing.T) {
 	write(t, dir, "hang", "#!/bin/sh\nsleep 30\n", 0o755)
 
 	m, _ := attaching(t)
-	// One second, so the test waits about that long rather than the default fifteen.
+	// One second, so the test waits about that long rather than fifteen.
 	m = m.WithConfigFile(filepath.Join(home, "config.toml"),
 		config.Config{Commands: config.Commands{Dir: dir, Timeout: 1}})
 	m, _ = press(t, m, keyText("i"))
@@ -154,9 +150,8 @@ func TestHungCommandIsKilled(t *testing.T) {
 	started := time.Now()
 	m = deliver(t, m, cmd)
 
-	// The property that broke: killing the shell leaves `sleep 30` holding the pipe,
-	// so reading to end-of-file waited the whole thirty seconds and reported the
-	// timeout long after it had passed. See commandWaitDelay.
+	// Killing the shell leaves `sleep 30` holding the pipe; reading to EOF must not wait for it.
+	// See commandWaitDelay.
 	if waited := time.Since(started); waited > 5*time.Second {
 		t.Errorf("waited %s for a 1s timeout — the kill is not closing the pipes", waited)
 	}
@@ -168,8 +163,7 @@ func TestHungCommandIsKilled(t *testing.T) {
 	}
 }
 
-// A name is one path segment, and that is the whole of the sandbox: "run what is in
-// my commands folder" must not be able to mean anything else.
+// A name is one path segment; that is the whole sandbox.
 func TestCommandNameCannotClimbOut(t *testing.T) {
 	t.Parallel()
 
@@ -198,8 +192,7 @@ func TestNonExecutableFileIsNotACommand(t *testing.T) {
 	}
 }
 
-// A built-in wins where the names collide, so a script cannot quietly change what
-// /me means.
+// A built-in wins a name collision, so a script cannot change what /me means.
 func TestBuiltInBeatsAScriptOfTheSameName(t *testing.T) {
 	t.Parallel()
 
@@ -217,8 +210,8 @@ func TestBuiltInBeatsAScriptOfTheSameName(t *testing.T) {
 	}
 }
 
-// The completion offers your scripts and stops offering a deleted one. The name is
-// typed before the async scan lands: the popup must not close while it is in flight.
+// Completion offers your scripts and drops deleted ones. The name is typed before the async
+// scan lands; the popup must not close meanwhile.
 func TestCompletionOffersYourScripts(t *testing.T) {
 	t.Parallel()
 
@@ -275,8 +268,7 @@ func TestCommandScanRunsOncePerOpenNotPerKeystroke(t *testing.T) {
 	}
 }
 
-// One at a time: a second enter while /zoom is still talking to Zoom would book a
-// second meeting.
+// One at a time: a second enter while /zoom runs would book a second meeting.
 func TestOneCommandAtATime(t *testing.T) {
 	t.Parallel()
 
@@ -293,8 +285,8 @@ func TestOneCommandAtATime(t *testing.T) {
 	_ = cmd // killed with the test's context
 }
 
-// A backgrounded child inheriting stdout (a launched browser) must not keep the
-// command running.
+// A backgrounded child inheriting stdout (a launched browser) must not keep the command
+// running.
 func TestBackgroundedChildDoesNotHoldTheCommand(t *testing.T) {
 	t.Parallel()
 
@@ -312,8 +304,8 @@ func TestBackgroundedChildDoesNotHoldTheCommand(t *testing.T) {
 	}
 }
 
-// A script with no `#!` line fails with ENOEXEC (a shell hides this); the status says
-// why and the composer keeps what was typed.
+// A script with no `#!` fails with ENOEXEC (a shell would hide this); the status says why and
+// the composer keeps the input.
 func TestScriptWithNoShebangSaysWhy(t *testing.T) {
 	t.Parallel()
 
@@ -405,8 +397,7 @@ func TestSentOutputGoesToTheRoomItWasTypedIn(t *testing.T) {
 	}
 }
 
-// A truncated output is never sent unreviewed, whatever the policy says: the message
-// would end mid-sentence, which is exactly the case for looking first.
+// Truncated output is never sent unreviewed, whatever the policy.
 func TestTruncatedOutputIsNeverSentUnreviewed(t *testing.T) {
 	t.Parallel()
 

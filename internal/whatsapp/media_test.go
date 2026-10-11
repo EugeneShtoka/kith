@@ -16,8 +16,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A photo is an image attachment kith can show, and keeps what WhatsApp needs to
-// load it; the kept part decodes back to the same keys.
+// A photo becomes an image attachment whose kept source decodes to the same keys.
 func TestAPhotoIsKeptToLoadLater(t *testing.T) {
 	t.Parallel()
 	photo := &waE2E.ImageMessage{
@@ -47,8 +46,7 @@ func TestAPhotoIsKeptToLoadLater(t *testing.T) {
 	}
 }
 
-// A recorded voice note is called one; a shared audio file stays nameless (the chip
-// says "audio"), and both are something to play.
+// A voice note is labeled as one; a shared audio file is unnamed; both are playable.
 func TestAVoiceNoteIsCalledOne(t *testing.T) {
 	t.Parallel()
 	note, _ := attachment(&waE2E.Message{AudioMessage: &waE2E.AudioMessage{Mimetype: new("audio/ogg; codecs=opus"), PTT: new(true)}})
@@ -61,8 +59,7 @@ func TestAVoiceNoteIsCalledOne(t *testing.T) {
 	}
 }
 
-// A photo arrives with its attachment and how to load it; loading needs the account
-// connected, and a message with nothing to load says so.
+// A photo arrives loadable; loading needs a connection and errors for no attachment.
 func TestAPhotoArrivesLoadable(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -91,8 +88,7 @@ func TestAPhotoArrivesLoadable(t *testing.T) {
 	}
 }
 
-// A file goes out as what it is: a picture as a photo, a film as a video, anything
-// else as a document under its name; the upload's keys go into it.
+// A file is sent as image, video or named document by type, carrying the upload keys.
 func TestAFileGoesOutAsWhatItIs(t *testing.T) {
 	t.Parallel()
 	png := []byte("\x89PNG\r\n\x1a\n0000")

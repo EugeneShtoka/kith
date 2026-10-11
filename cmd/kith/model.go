@@ -13,8 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// addModel fetches one model into kith's data directory, where internal/setup points
-// the daemon (setup.ModelDir), and reports what it did.
+// addModel fetches one model into the data directory (setup.ModelDir) and reports what
+// it did.
 func addModel(data, tag string) error {
 	dir := setup.ModelDir(data)
 	if tag == "list" || tag == "?" {

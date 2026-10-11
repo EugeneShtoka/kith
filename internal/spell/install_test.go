@@ -11,8 +11,7 @@ import (
 	"testing"
 )
 
-// fixture serves a set of paths and returns the base URL plus a Source describing
-// them truthfully.
+// fixture serves the files and returns the base URL and a matching Source.
 func fixture(t *testing.T, aff, dic, lic []byte) (string, Source, *http.Client) {
 	t.Helper()
 
@@ -50,8 +49,7 @@ func TestInstallWritesTheDictionaryAndItsLicense(t *testing.T) {
 	if err := install(t.Context(), client, base, src, dir); err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	// Installed under the *tag*, not under whatever upstream calls the file. German is
-	// "de_DE_frami" up there, and nobody should have to know that to load it.
+	// Installed under the tag, not the upstream file name (de_DE_frami).
 	for name, want := range map[string]string{
 		"xx_XX.aff":     "SET UTF-8\n",
 		"xx_XX.dic":     "2\nalpha\nbeta\n",
@@ -68,14 +66,12 @@ func TestInstallWritesTheDictionaryAndItsLicense(t *testing.T) {
 	}
 }
 
-// The check the whole pinning exercise exists for. A file that is not what the
-// manifest recorded is refused, and — the part that matters — **nothing is written**,
-// so there is no half-installed pair for the engine to load and be quietly wrong with.
+// A file that does not match the manifest is refused and nothing is written.
 func TestInstallRefusesAndWritesNothingOnAHashMismatch(t *testing.T) {
 	t.Parallel()
 
 	base, src, client := fixture(t, []byte("SET UTF-8\n"), []byte("1\nalpha\n"), []byte("GPL\n"))
-	// The manifest now disagrees with what the server will serve.
+	// Make the manifest disagree with the server.
 	src.Dic.SHA256 = "0000000000000000000000000000000000000000000000000000000000000000"
 	dir := t.TempDir()
 
@@ -92,8 +88,7 @@ func TestInstallRefusesAndWritesNothingOnAHashMismatch(t *testing.T) {
 	}
 }
 
-// Size is checked before the hash so a server answering a 3 MB request with 3 GB
-// cannot be made to exhaust memory while we wait to find out its hash is wrong.
+// Size is checked before the hash so an oversized response cannot exhaust memory.
 func TestInstallRefusesAFileOfTheWrongLength(t *testing.T) {
 	t.Parallel()
 
@@ -116,8 +111,7 @@ func TestInstallRefusesAFileOfTheWrongLength(t *testing.T) {
 	})
 }
 
-// A missing file upstream is a plain failure, not a corruption: the pin names a commit
-// that should have it, so this means the pin is wrong rather than the network.
+// A missing upstream file is a plain failure (a wrong pin), not a corruption.
 func TestInstallReportsAMissingFile(t *testing.T) {
 	t.Parallel()
 
@@ -128,8 +122,7 @@ func TestInstallReportsAMissingFile(t *testing.T) {
 	}
 }
 
-// A dictionary with no license upstream installs its two files and does not invent a
-// third.
+// A dictionary with no upstream license installs only its two files.
 func TestInstallWithoutALicense(t *testing.T) {
 	t.Parallel()
 
@@ -184,7 +177,7 @@ func TestGeneratedManifestIsWellFormed(t *testing.T) {
 			t.Errorf("%s license is half-recorded: %+v", tag, src.License)
 		}
 	}
-	// The pin has to be a real commit, or the URLs it builds are nonsense.
+	// The pin must be a real commit.
 	if _, commit, _ := Pin(); len(commit) != 40 {
 		t.Errorf("pinned commit %q is not a git SHA", commit)
 	}

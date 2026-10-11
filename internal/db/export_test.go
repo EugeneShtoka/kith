@@ -16,8 +16,7 @@ func (c *Cache) RoomChain(ctx context.Context, roomID domain.RoomID) ([]domain.R
 	return c.RoomChains(ctx, []domain.RoomID{roomID})
 }
 
-// RoomParents maps every resolved room to its canonical parent space; "" means
-// asked and has none.
+// RoomParents maps every resolved room to its canonical parent space; "" means none.
 func (c *Cache) RoomParents(ctx context.Context) (map[domain.RoomID]domain.SpaceID, error) {
 	return collectMap(ctx, c.db, "room parents",
 		"SELECT room_id, space_id FROM room_parents",

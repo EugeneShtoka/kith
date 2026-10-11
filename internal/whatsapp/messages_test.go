@@ -15,7 +15,6 @@ var me = self{pn: pn(ownDigits), lid: lid("100000000000009")}
 
 func noLookup(context.Context, types.JID) types.JID { return types.EmptyJID }
 
-// A person is kept under their phone number whenever WhatsApp or the store has it.
 func TestAPersonIsTheirPhoneNumberWhenKnown(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -39,8 +38,7 @@ func TestAPersonIsTheirPhoneNumberWhenKnown(t *testing.T) {
 	}
 }
 
-// A direct chat is one room whichever way WhatsApp addressed a message in it; a group
-// is its own.
+// A direct chat is one room however its messages are addressed; a group is its own.
 func TestAChatIsOneRoomHoweverAddressed(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -59,7 +57,7 @@ func TestAChatIsOneRoomHoweverAddressed(t *testing.T) {
 	}
 }
 
-// What a message says, what it answers and whom it names; you, when it names you.
+// A message's text, reply and mentions, including a mention of the account.
 func TestAMessageAsKithKeepsIt(t *testing.T) {
 	t.Parallel()
 	info := &types.MessageInfo{ID: "3EB0AA", Timestamp: time.Unix(1700000000, 0)}

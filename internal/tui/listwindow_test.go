@@ -27,16 +27,15 @@ func TestRoomListScrollsUnderTheCursor(t *testing.T) {
 	m := sized(t, update(t, newModel(), roomsMsg{rooms: manyRooms(40)}))
 	m.focus = paneRooms
 	for _, cursor := range []int{0, 12, 30, 39} {
-		// The highlight is derived from what is selected, so the way to move it is to
-		// select — which is the only way it moves in the running client either.
+		// The highlight follows the selection, so select to move it.
 		m.openRoom = domain.RoomID(fmt.Sprintf("!r%02d:x", cursor))
 		frame := stripStyles(m.View().Content)
 		want := fmt.Sprintf("▸ Room %02d", cursor)
 		if !strings.Contains(frame, want) {
 			t.Errorf("with the cursor at %d, %q is not on screen", cursor, want)
 		}
-		// The window moves the least it can: at the top of the list the first room is
-		// still shown, at the bottom the last one is.
+		// The window moves the least it can: the first room stays shown at the top, the last at the
+		// bottom.
 		switch cursor {
 		case 0:
 			if !strings.Contains(frame, "Room 00") {
@@ -48,7 +47,7 @@ func TestRoomListScrollsUnderTheCursor(t *testing.T) {
 			}
 		}
 	}
-	// And the header says where you are, since the cursor alone cannot.
+	// The header says where you are.
 	m.openRoom = "!r30:x"
 	if frame := stripStyles(m.View().Content); !strings.Contains(frame, "31/40") {
 		t.Error("a list longer than the pane should say the position in its header")
@@ -60,8 +59,7 @@ func TestRoomListScrollsUnderTheCursor(t *testing.T) {
 	}
 }
 
-// Walking down with the keyboard scrolls rather than running out of the pane — the way
-// the bug was actually met.
+// Walking down with the keyboard scrolls rather than leaving the pane.
 func TestWalkingDownTheRoomListStaysVisible(t *testing.T) {
 	t.Parallel()
 
@@ -76,8 +74,7 @@ func TestWalkingDownTheRoomListStaysVisible(t *testing.T) {
 	}
 }
 
-// The rail scrolls too, and its separators are why it cannot window on the group index:
-// each divider takes a row of its own, so the cursor's row is not its position.
+// The rail scrolls too; its dividers take rows, so the cursor's row is not its group index.
 func TestRailScrollsPastItsSeparators(t *testing.T) {
 	t.Parallel()
 
@@ -100,8 +97,7 @@ func TestRailScrollsPastItsSeparators(t *testing.T) {
 	}
 }
 
-// windowRows is the arithmetic on its own: it holds still while the cursor moves inside
-// the window, which is what stops a list scrolling under every keystroke.
+// windowRows holds still while the cursor moves inside the window.
 func TestWindowRows(t *testing.T) {
 	t.Parallel()
 
@@ -128,8 +124,7 @@ func TestWindowRows(t *testing.T) {
 	}
 }
 
-// paneBodyRows is the number framePane clips at, and the two must agree: that agreement
-// is the whole fix, so it is asserted rather than assumed.
+// paneBodyRows must agree with where framePane clips.
 func TestPaneBodyRowsMatchesWhatFramePaneShows(t *testing.T) {
 	t.Parallel()
 

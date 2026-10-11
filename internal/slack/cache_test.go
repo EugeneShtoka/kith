@@ -25,9 +25,9 @@ func cached(t *testing.T, accounts ...Account) (*Adapter, *db.Cache) {
 	return New(cache, &memSecrets{values: map[string]string{}}, accounts, nil), cache
 }
 
-// A workspace's listing reaches the cache as its rooms, its DMs' members and its
-// space; Rooms and Spaces read back only Slack's, each workspace its rooms' home; a
-// listing rewrites the account's rooms alone, and is heard.
+// A listing caches rooms, DM members and the space; Rooms and Spaces return only
+// Slack's, each workspace its rooms' home; a listing rewrites only its account's rooms
+// and is heard.
 func TestAListingIsCachedAsTheWorkspace(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

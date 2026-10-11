@@ -5,38 +5,30 @@ import (
 	"time"
 )
 
-// Thread is one thread's summary: enough to draw the row that stands in for a
-// conversation in the main timeline, and — once thread receipts exist — to badge it.
+// Thread is one thread's summary, enough to draw and badge its row in the main timeline.
 type Thread struct {
 	Root   EventID
 	RoomID RoomID
 	// Count is the number of replies, excluding the root.
 	Count int
-	// Latest is the newest reply, with its sender both as an MXID (for color) and as
-	// the name the timeline resolved for it (so the summary row can name a person
-	// without a second lookup).
+	// Latest is the newest reply; its sender as an MXID (for color) and resolved name.
 	Latest           EventID
 	LatestAt         time.Time
 	LatestSender     string
 	LatestSenderName string
-	// Anchor is the main-timeline message the summary row is drawn beneath: the root
-	// itself when it is loaded, and otherwise the newest main-timeline message before
-	// the thread's newest reply — the place in the conversation where the thread was
-	// last spoken in.
+	// Anchor is the main-timeline message the row is drawn beneath: the root when
+	// loaded, else the newest main-timeline message before the thread's newest reply.
 	Anchor EventID
 	// RootLoaded is whether Root is among the messages this summary was built from.
 	RootLoaded bool
-	// Title is the root's text, for naming the conversation where the root itself is
-	// not on screen — a row in the room list, a line in the picker.
+	// Title is the root's text, for naming the thread where the root is not on screen.
 	Title string
-	// Unread and Mentions are what has been said here since our receipt for this thread
-	// — the thread's own position, not the room's.
+	// Unread and Mentions count since our receipt for this thread, not the room's.
 	Unread   int
 	Mentions int
 }
 
-// WithUnread stamps each thread with what the room's unread state says about it, which
-// is what turns a summary row into a badged one.
+// WithUnread stamps each thread with its unread counts from u.
 func WithUnread(threads []Thread, u Unread) []Thread {
 	for i := range threads {
 		threads[i].Unread, threads[i].Mentions = u.ThreadCount(threads[i].Root)
@@ -44,8 +36,8 @@ func WithUnread(threads []Thread, u Unread) []Thread {
 	return threads
 }
 
-// Conversations maps each loaded message onto the thread it belongs to: the root of the
-// conversation it is part of, and nothing for a message that is in none.
+// Conversations maps each loaded message in a thread to its root. A root maps to
+// itself, and a plain reply to a threaded message joins that thread.
 func Conversations(msgs []Message) map[EventID]EventID {
 	roots := make(map[EventID]bool)
 	for i := range msgs {
@@ -73,9 +65,7 @@ func Conversations(msgs []Message) map[EventID]EventID {
 	return in
 }
 
-// ThreadRootOf is the conversation one message belongs to, by the reading above: its
-// thread's root, itself when it is a root something has answered, and "" when it is in
-// none.
+// ThreadRootOf is the message's thread root per Conversations, "" when in none.
 func ThreadRootOf(msgs []Message, id EventID) EventID {
 	if id == "" {
 		return ""
@@ -83,8 +73,8 @@ func ThreadRootOf(msgs []Message, id EventID) EventID {
 	return Conversations(msgs)[id]
 }
 
-// CollapseThreads splits a room's messages — oldest→newest, as MergeMessages leaves
-// them — into what the main timeline draws and one summary per thread.
+// CollapseThreads splits a room's messages (oldest first, as MergeMessages leaves
+// them) into the main timeline and one summary per thread.
 func CollapseThreads(msgs []Message) ([]Message, []Thread) {
 	in := Conversations(msgs)
 	main := make([]Message, 0, len(msgs))
@@ -93,8 +83,7 @@ func CollapseThreads(msgs []Message) ([]Message, []Thread) {
 	for i := range msgs {
 		msg := msgs[i]
 		root := in[msg.ID]
-		// A root belongs to its own conversation and is still drawn here: the summary
-		// row hangs off it, which is the whole shape of a collapsed thread.
+		// A root stays in the main timeline; its summary row hangs off it.
 		if root == "" || root == msg.ID {
 			main = append(main, msg)
 			continue
@@ -106,9 +95,8 @@ func CollapseThreads(msgs []Message) ([]Message, []Thread) {
 			order = append(order, root)
 		}
 		t.Count++
-		// The input is ordered, so the last reply seen is the newest one; the anchor
-		// follows it, which keeps an orphaned thread's row where the conversation
-		// actually last moved.
+		// Input is ordered, so the last reply seen is the newest; the anchor follows it,
+		// keeping a rootless thread's row where it last moved.
 		t.Latest, t.LatestAt = msg.ID, msg.Timestamp
 		t.LatestSender, t.LatestSenderName = msg.Sender, msg.SenderName
 		if len(main) > 0 {
@@ -141,8 +129,7 @@ func CollapseThreads(msgs []Message) ([]Message, []Thread) {
 	return main, threads
 }
 
-// ThreadMessages returns the messages belonging to one thread — the root, when it is
-// loaded, followed by its replies oldest→newest.
+// ThreadMessages returns a thread's root (when loaded) and its replies, oldest first.
 func ThreadMessages(msgs []Message, root EventID) []Message {
 	if root == "" {
 		return nil

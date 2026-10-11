@@ -10,15 +10,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A WhatsApp community is a space: its groups (the announcement group among them)
-// are the space's rooms. The community itself is a group WhatsApp lists, which
-// nobody chats in, so it is the space and not a room. What is in it is the
-// community's admins' to decide, so kith files nothing into it.
+// A WhatsApp community is a space whose rooms are its groups (including the
+// announcement group). The community group itself is not a room. Its admins decide
+// its contents, so kith files nothing into it.
 
-// communities splits an account's joined groups into its communities, as spaces, and
-// the groups people chat in. A community the account is in a group of, but which the
-// listing does not carry, is named by communityName (a round trip; "" leaves it
-// unnamed).
+// communities splits joined groups into communities (as spaces) and chat groups. A
+// community missing from the listing is named by communityName ("" leaves it unnamed).
 func communities(ctx context.Context, account string, groups []*types.GroupInfo,
 	communityName func(context.Context, types.JID) string,
 ) (spaces []domain.Space, chats []*types.GroupInfo) {
@@ -28,8 +25,7 @@ func communities(ctx context.Context, account string, groups []*types.GroupInfo,
 		if s := byJID[jid]; s != nil {
 			return s
 		}
-		// Original: its groups call it home (it is their canonical parent), so it is
-		// not a space to file rooms into.
+		// Original: it is its groups' canonical parent, not a space to file rooms into.
 		s := &domain.Space{ID: domain.SpaceID(roomID(account, jid)), Bridge: domain.ProtocolWhatsApp, Original: true}
 		byJID[jid] = s
 		return s
@@ -56,7 +52,7 @@ func communities(ctx context.Context, account string, groups []*types.GroupInfo,
 	return spaces, chats
 }
 
-// whatsAppSpaces is every WhatsApp account's cached communities.
+// whatsAppSpaces returns every account's cached communities.
 func (a *Adapter) whatsAppSpaces(ctx context.Context) ([]domain.Space, error) {
 	if a.cache == nil {
 		return nil, nil
@@ -68,8 +64,7 @@ func (a *Adapter) whatsAppSpaces(ctx context.Context) ([]domain.Space, error) {
 	spaces = slices.DeleteFunc(spaces, func(s domain.Space) bool {
 		return domain.NetworkOf(string(s.ID)) != domain.ProtocolWhatsApp
 	})
-	// Not stored (Matrix derives it on read too): every community is its groups' home,
-	// and is left with them (LeaveRoom).
+	// Derived on read: every community is its groups' home and is left with them.
 	for i := range spaces {
 		spaces[i].Original = true
 		spaces[i].Leaving = domain.LeftWithRooms
@@ -77,8 +72,7 @@ func (a *Adapter) whatsAppSpaces(ctx context.Context) ([]domain.Space, error) {
 	return spaces, nil
 }
 
-// Spaces is the WhatsApp communities, from the cache, then a space per account holding
-// all its rooms, as a Slack workspace holds its.
+// Spaces returns the cached communities, then a space per account holding all its rooms.
 func (a *Adapter) Spaces(ctx context.Context) ([]domain.Space, error) {
 	spaces, err := a.whatsAppSpaces(ctx)
 	if err != nil {
@@ -91,14 +85,13 @@ func (a *Adapter) Spaces(ctx context.Context) ([]domain.Space, error) {
 	return append(spaces, accounts...), nil
 }
 
-// accountSpaceID is the space an account is: its own number within its rooms' prefix.
+// accountSpaceID is an account's space: its number within its rooms' prefix.
 func accountSpaceID(digits string) domain.SpaceID {
 	return domain.SpaceID(domain.NativeID(domain.ProtocolWhatsApp, digits, digits))
 }
 
-// accountSpaces is a space per configured account with cached rooms, named after the
-// account, its children every room it sees. Derived on read, not stored: a chat
-// begun or a group joined is in it at once.
+// accountSpaces is a space per account with cached rooms, holding all of them.
+// Derived on read so a new chat or group appears in it at once.
 func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 	if a.cache == nil {
 		return nil, nil
@@ -121,17 +114,15 @@ func (a *Adapter) accountSpaces(ctx context.Context) ([]domain.Space, error) {
 		}
 		spaces = append(spaces, domain.Space{
 			ID: accountSpaceID(account.Digits), Name: "WhatsApp " + account.Name, Children: children,
-			// The home of every room no community claims; left by unlinking (SignOut).
+			// Home of every room no community claims; left by signing out.
 			Bridge: domain.ProtocolWhatsApp, Original: true, Leaving: domain.LeftBySigningOut,
 		})
 	}
 	return spaces, nil
 }
 
-// RefreshSpaces refetches every connected account's groups, which carry its
-// communities (one listing writes both), then answers from the cache. A client asks
-// for rooms and spaces at once: answering from the cache alone could beat the room
-// refresh that writes the communities.
+// RefreshSpaces refetches groups (which carry communities), then reads the cache.
+// Reading the cache alone could race the concurrent room refresh that writes them.
 func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	if _, err := a.RefreshRooms(ctx); err != nil {
 		return nil, err
@@ -139,7 +130,7 @@ func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	return a.Spaces(ctx)
 }
 
-// communityOf is the community a WhatsApp room is in, "" when none.
+// communityOf is a room's community, "" when none.
 func (a *Adapter) communityOf(ctx context.Context, roomID domain.RoomID) (domain.SpaceID, error) {
 	spaces, err := a.whatsAppSpaces(ctx)
 	if err != nil {

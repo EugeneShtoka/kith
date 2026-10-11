@@ -13,8 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/media"
 )
 
-// mediaState is everything about putting an attachment on screen: the mode, the
-// policy a room's rule can override, and what has already been drawn for the open room.
+// mediaState is attachment display state: mode, policy defaults, and what has been drawn for
+// the open room.
 type mediaState struct {
 	mode     string
 	graphics graphics
@@ -26,20 +26,17 @@ type mediaState struct {
 	rules         []domain.MediaRule
 	// speed is the default voice-note speed.
 	speed float64
-	// imageRows caches rendered rows by event ID; a present nil value means "attempted,
-	// nothing to show" (not retried). imageLoading dedupes in-flight loads. Both reset on
-	// room change.
+	// imageRows caches rendered rows by event ID; a nil value means "attempted, nothing to show"
+	// (not retried). imageLoading dedupes in-flight loads. Both reset on room change.
 	imageRows    map[domain.EventID][]string
 	imageLoading map[domain.EventID]bool
 	// aside is the deleted messages whose attachments were set aside (setAsideDeleted).
 	aside map[domain.EventID]bool
 }
 
-// setAsideDeleted moves the attachments of the loaded messages deleted since into the
-// media cache's deleted/ folder (media.Cache.SetAside), once each, off the loop: what
-// a deleted message had attached is kept apart, and shown only from its history.
-// Without [display.deleted] keep, a deletion erases the message, its attachment's
-// bytes in this cache included (media.Cache.Forget).
+// setAsideDeleted moves the attachments of newly deleted loaded messages into the cache's
+// deleted/ folder (media.Cache.SetAside), once each, off the loop; they are then shown only from
+// history. Without [display.deleted] keep, a deletion erases the bytes too (media.Cache.Forget).
 func (m Model) setAsideDeleted() (Model, tea.Cmd) {
 	if m.pics.cache == nil {
 		return m, nil
@@ -83,7 +80,6 @@ func (s mediaState) withNoImages() mediaState {
 	return s
 }
 
-// rowsFor is the drawn rows for one message's picture, empty when there are none.
 func (s mediaState) rowsFor(id domain.EventID) []string { return s.imageRows[id] }
 
 // settled reports whether this message's picture is drawn, known empty, or loading.
@@ -99,7 +95,6 @@ func (s mediaState) full(limit int) bool {
 	return len(s.imageRows)+len(s.imageLoading) >= limit
 }
 
-// loading marks a picture as in flight.
 func (s mediaState) loading(id domain.EventID) mediaState {
 	s.imageLoading = withEntry(s.imageLoading, id, true)
 	return s
@@ -118,8 +113,8 @@ const (
 	mediaInline      = config.MediaInline      // drawn in the timeline with half-blocks
 )
 
-// graphics is how a picture is drawn. Only text-based drawing is supported: Kitty
-// graphics-protocol pixels are not part of the frame and get painted over.
+// graphics is how a picture is drawn. Only text-based drawing is supported: Kitty protocol
+// pixels are not part of the frame and get painted over.
 type graphics int
 
 const (
@@ -143,16 +138,16 @@ func resolveGraphics(mode string) graphics {
 	return graphicsNone
 }
 
-// Bounds for an automatically sized picture; a configured max_height overrides the
-// automatic row ceiling.
+// Bounds for an automatically sized picture; a configured max_height overrides the row
+// ceiling.
 const (
 	minImageCells    = 8
 	maxAutoImageRows = 24
 )
 
-// blockMode is how much of a picture one character carries: half-blocks give 1x2 exact
-// pixels, sextants 2x3 pixels quantized to two shades. The zero value draws with
-// half-blocks, so a missed assignment cannot nil-call.
+// blockMode is how much of a picture one character carries: half-blocks give 1x2 exact pixels,
+// sextants 2x3 quantized to two shades. The zero value draws half-blocks, so a missed
+// assignment cannot nil-call.
 type blockMode struct {
 	px, py int
 	// glyph maps a bitmap of lit pixels (bit i is pixel (i%px, i/px)) to its character.
@@ -213,8 +208,8 @@ func sextantGlyph(bits int) rune {
 	return rune(0x1FB00 + offset)
 }
 
-// blockRows is how many terminal rows a width-w picture occupies. Independent of the
-// drawing mode: size is about cells (about twice as tall as wide), not sampling.
+// blockRows is the terminal rows a width-w picture occupies, independent of mode: cells are
+// about twice as tall as wide.
 func blockRows(w, imgW, imgH int) int {
 	if imgW <= 0 || imgH <= 0 {
 		return 1
@@ -222,8 +217,8 @@ func blockRows(w, imgW, imgH int) int {
 	return max((w*imgH+imgW-1)/imgW/2, 1)
 }
 
-// blockImage draws img as rows of styled text: each cell samples a px-by-py patch,
-// splits it into a darker and lighter group, and lights the lighter ones.
+// blockImage draws img as styled text rows: each cell samples a px-by-py patch, splits it into
+// darker and lighter groups, and lights the lighter ones.
 func blockImage(mode blockMode, img image.Image, targetW, maxH int) []string {
 	if img == nil || targetW < 1 {
 		return nil
@@ -263,8 +258,8 @@ func blockImage(mode blockMode, img image.Image, targetW, maxH int) []string {
 	return out
 }
 
-// split reduces a cell's samples to two colors, split at the brightness midpoint, and
-// the bitmap of pixels taking the lighter one.
+// split reduces a cell's samples to two colors split at the brightness midpoint, plus the
+// bitmap of lighter pixels.
 func split(patch []color.RGBA) (fg, bg color.RGBA, bits int) {
 	lo, hi := 1<<30, -1
 	for _, c := range patch {
@@ -309,8 +304,8 @@ func mean(side [4]int) color.RGBA {
 	}
 }
 
-// sampleRegion averages the source pixels mapping to one destination cell at
-// (dstCol, dstRow) in a dstW×dstH grid, box-downsampling the image.
+// sampleRegion box-averages the source pixels mapping to destination cell (dstCol, dstRow) in a
+// dstW×dstH grid.
 func sampleRegion(img image.Image, bounds image.Rectangle, dstCol, dstRow, dstW, dstH, srcW, srcH int) (r, g, b uint8) {
 	x0 := dstCol * srcW / dstW
 	x1 := min((dstCol+1)*srcW/dstW+1, srcW)

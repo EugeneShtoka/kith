@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// Both ends of the sentinel funnel, enforced rather than asserted in a comment.
+// Both ends of the sentinel funnel are enforced by parsing the source.
 func TestBothEndsOfTheFunnel(t *testing.T) {
 	t.Parallel()
 
@@ -43,8 +43,8 @@ func TestBothEndsOfTheFunnel(t *testing.T) {
 					"contract's sentinels is false on every client.",
 					base, fset.Position(call.Pos()).Line)
 
-			// Client side: "daemon: …" is the shape callErr produces. Writing it by hand
-			// means the daemon's tag was not read back, so the sentinel arrives as text.
+			// Client side: "daemon: ..." is callErr's shape; writing it by hand skips reading the
+			// daemon's tag back, so the sentinel arrives as text.
 			case strings.HasPrefix(base, "remote") && isSelector(call.Fun, "fmt", "Errorf") &&
 				len(call.Args) > 0 && literalStartsWith(call.Args[0], `"daemon: `):
 				t.Errorf("%s:%d: fmt.Errorf(\"daemon: …\") — use callErr(op, err).\n"+
@@ -60,7 +60,6 @@ func TestBothEndsOfTheFunnel(t *testing.T) {
 	}
 }
 
-// isSelector reports whether an expression is exactly pkg.Name.
 func isSelector(e ast.Expr, pkg, name string) bool {
 	sel, ok := e.(*ast.SelectorExpr)
 	if !ok || sel.Sel.Name != name {
@@ -70,7 +69,6 @@ func isSelector(e ast.Expr, pkg, name string) bool {
 	return ok && ident.Name == pkg
 }
 
-// literalStartsWith reports whether an expression is a string literal with this prefix.
 func literalStartsWith(e ast.Expr, prefix string) bool {
 	lit, ok := e.(*ast.BasicLit)
 	return ok && lit.Kind == token.STRING && strings.HasPrefix(lit.Value, prefix)

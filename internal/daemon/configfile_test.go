@@ -22,9 +22,8 @@ func configAt(t *testing.T, text, profile string) *ConfigFile {
 	return NewConfigFile(path, profile)
 }
 
-// A change made on the file as it is is written and put in force; one made on a file
-// that changed since — another writer's change, a hand edit — is refused, the file as
-// it was; one the daemon would not run with never reaches the file.
+// A change on the current revision is written and applied; one on a changed file is
+// refused, leaving it as it was; one the daemon would not run with is never written.
 func TestTheConfigIsWrittenOnlyOnTheRevisionItWasMadeOn(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -64,9 +63,8 @@ func TestTheConfigIsWrittenOnlyOnTheRevisionItWasMadeOn(t *testing.T) {
 	}
 }
 
-// A file that keeps the account in [[profile]] blocks keeps it there: a client has the
-// config with its profile applied, and what is written does not move the account to
-// the top level (which would not load).
+// An account kept in [[profile]] blocks stays there; moving it to the top level
+// would not load.
 func TestAWriteKeepsTheAccountInItsProfile(t *testing.T) {
 	t.Parallel()
 	f := configAt(t, "[[profile]]\nname = \"home\"\nhomeserver = \"https://x\"\nuser = \"@me:x\"\n", "home")
@@ -85,8 +83,7 @@ func TestAWriteKeepsTheAccountInItsProfile(t *testing.T) {
 	}
 }
 
-// Writers racing on one revision: whatever order they run in, exactly one is written,
-// every other is refused, and the file is the one written.
+// Of writers racing on one revision exactly one is written, the rest refused.
 func TestWritersOnOneRevisionAreWrittenOnce(t *testing.T) {
 	t.Parallel()
 	for round := range 20 {
@@ -116,8 +113,7 @@ func TestWritersOnOneRevisionAreWrittenOnce(t *testing.T) {
 	}
 }
 
-// A config the daemon cannot write (its directory read-only) is said as the daemon's
-// own failure, and changes nothing.
+// An unwritable config is the daemon's own failure and changes nothing.
 func TestAConfigThatCannotBeWrittenSaysSo(t *testing.T) {
 	t.Parallel()
 	f := configAt(t, "homeserver = \"https://x\"\nuser = \"@me:x\"\n", "")

@@ -2,9 +2,8 @@ package config
 
 import "testing"
 
-// A network's color is as set, else its default (WhatsApp green, Telegram blue, Slack
-// magenta), none for "none", for a network with no default, or one not known; a
-// network is named as its domain name is, any case, spaces as underscores.
+// A network's color is as set, else its default; "" for "none", no default, or an
+// unknown network. Names match in any case, spaces as underscores.
 func TestANetworksColor(t *testing.T) {
 	t.Parallel()
 	n := NetworkColors{Telegram: "#123456", Slack: "None", GoogleMessages: "cyan"}
@@ -21,8 +20,7 @@ func TestANetworksColor(t *testing.T) {
 	}
 }
 
-// The networks with a color by default each have their own, but Meta's two, which
-// share one.
+// Default network colors are distinct, except Meta's two networks.
 func TestNetworksDefaultColorsAreApart(t *testing.T) {
 	t.Parallel()
 	seen := map[string]string{}

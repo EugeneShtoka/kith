@@ -17,8 +17,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/filedialog"
 )
 
-// sendingBackend records what was asked of it, so a test can assert on the *path* the
-// daemon would receive rather than on a status line.
+// sendingBackend records what was asked, so tests can assert on the path the daemon
+// receives.
 type sendingBackend struct {
 	apitest.Nop
 	roomID  domain.RoomID
@@ -26,8 +26,7 @@ type sendingBackend struct {
 	caption string
 	media   []byte
 	err     error
-	// sent records the drafts that went out, for the tests about what a typed command
-	// turns into.
+	// sent records the drafts that went out.
 	sent []domain.Draft
 }
 
@@ -46,7 +45,6 @@ func (b *sendingBackend) LoadImage(context.Context, domain.RoomID, domain.EventI
 	return b.media, b.err
 }
 
-// attaching gives a model in a room, with a fake backend to send through.
 func attaching(t *testing.T) (Model, *sendingBackend) {
 	t.Helper()
 	backend := &sendingBackend{}
@@ -58,8 +56,8 @@ func attaching(t *testing.T) (Model, *sendingBackend) {
 	return m, backend
 }
 
-// The client resolves the path, because it is the process with the user's home and
-// working directory — the daemon has neither and refuses anything relative.
+// The client resolves the path: the daemon has no home or working directory and
+// refuses relative paths.
 func TestAttachSendsAnAbsolutePath(t *testing.T) {
 	t.Parallel()
 
@@ -70,9 +68,9 @@ func TestAttachSendsAnAbsolutePath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No portal in a test, so the key falls through to the typed prompt — which is also
-	// the SSH path, and the one that understands "path | caption".
-	m, _ = press(t, m, keyText("i")) // attaching is the composer's job now
+	// No portal in a test, so the key falls through to the typed prompt (also the SSH
+	// path, and the one that understands "path | caption").
+	m, _ = press(t, m, keyText("i")) // attaching happens in the composer
 	m, _ = press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModAlt})
 	m, _ = updateWith(t, m, fileChosenMsg{err: filedialog.ErrUnavailable})
 	if m.prompt.kind != promptAttach {
@@ -97,13 +95,12 @@ func TestAttachSendsAnAbsolutePath(t *testing.T) {
 	}
 }
 
-// A file that is not there is refused *before* the upload, with the reason, rather than
-// as a failed RPC after it.
+// A missing file is refused before the upload, with the reason.
 func TestAttachRefusesWhatIsNotThere(t *testing.T) {
 	t.Parallel()
 
 	m, backend := attaching(t)
-	m, _ = press(t, m, keyText("i")) // attaching is the composer's job now
+	m, _ = press(t, m, keyText("i")) // attaching happens in the composer
 	m, _ = press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModAlt})
 	m, _ = updateWith(t, m, fileChosenMsg{err: filedialog.ErrUnavailable})
 	m = typeIn(t, m, filepath.Join(t.TempDir(), "nope.png"))
@@ -116,13 +113,12 @@ func TestAttachRefusesWhatIsNotThere(t *testing.T) {
 	}
 }
 
-// A directory is refused the same way, and by name: "upload failed" would leave you
-// wondering whether the network or the path was the problem.
+// A directory is refused before the upload, by name.
 func TestAttachRefusesADirectory(t *testing.T) {
 	t.Parallel()
 
 	m, backend := attaching(t)
-	m, _ = press(t, m, keyText("i")) // attaching is the composer's job now
+	m, _ = press(t, m, keyText("i")) // attaching happens in the composer
 	m, _ = press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModAlt})
 	m, _ = updateWith(t, m, fileChosenMsg{err: filedialog.ErrUnavailable})
 	m = typeIn(t, m, t.TempDir())
@@ -135,8 +131,7 @@ func TestAttachRefusesADirectory(t *testing.T) {
 	}
 }
 
-// Saving is a key on the message, not a command with a target: what you are looking at
-// is what gets saved.
+// The download key saves the selected message's attachment.
 func TestDownloadSavesTheSelectedAttachment(t *testing.T) {
 	t.Parallel()
 
@@ -186,8 +181,7 @@ func TestDownloadNeverOverwrites(t *testing.T) {
 	}
 }
 
-// The name comes off a message a stranger wrote, so it names a file in the download
-// directory and nothing else.
+// The name comes from a stranger's message, so it cannot escape the download directory.
 func TestDownloadNameCannotEscapeTheDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -204,7 +198,7 @@ func TestDownloadNameCannotEscapeTheDirectory(t *testing.T) {
 	}
 }
 
-// The key says so when there is nothing to save, rather than doing nothing.
+// With nothing to save the key says so.
 func TestDownloadWithoutAnAttachment(t *testing.T) {
 	t.Parallel()
 
@@ -221,8 +215,7 @@ func TestDownloadWithoutAnAttachment(t *testing.T) {
 	}
 }
 
-// Attaching is an editing action, so it works from inside the composer — and what you
-// have typed goes with the file as its caption.
+// Attaching works from the composer, with the typed text as the caption.
 func TestAttachFromComposerUsesTypedTextAsCaption(t *testing.T) {
 	t.Parallel()
 
@@ -260,7 +253,7 @@ func TestAttachFromComposerUsesTypedTextAsCaption(t *testing.T) {
 	}
 }
 
-// The typed spelling, for when the path is already on the clipboard: paste, enter.
+// The typed form, for a path already on the clipboard: paste, enter.
 func TestUploadCommand(t *testing.T) {
 	t.Parallel()
 
@@ -296,8 +289,8 @@ func TestUploadCommand(t *testing.T) {
 	}
 }
 
-// Only known commands are intercepted: a message that starts with a slash is a message,
-// and `//` escapes one for the case where it starts with a real command.
+// Only known commands are intercepted; `//` escapes a message starting with a real
+// command.
 func TestSlashTextIsStillAMessage(t *testing.T) {
 	t.Parallel()
 
@@ -320,7 +313,7 @@ func TestSlashTextIsStillAMessage(t *testing.T) {
 	}
 }
 
-// A command with no path says what it needs rather than sending itself as a message.
+// A command without a path says what it needs instead of sending itself.
 func TestUploadCommandWithoutAPath(t *testing.T) {
 	t.Parallel()
 
@@ -332,16 +325,13 @@ func TestUploadCommandWithoutAPath(t *testing.T) {
 	if backend.path != "" {
 		t.Error("nothing should have been sent")
 	}
-	// The usage line, spelled the way you would type it — every command answers a
-	// missing argument the same way (see slashCommands), which is more use than
-	// "missing argument" and shorter than guessing.
+	// The usage line, as every command answers a missing argument (see slashCommands).
 	if !strings.Contains(m.status(), "/upload <path") {
 		t.Errorf("status = %q, should say what it wants", m.status())
 	}
 }
 
-// updateWith feeds a message in and keeps the command, which the folder/file chooser
-// replies need — they are answered off the event loop and then act.
+// updateWith feeds a message in and returns the command, which chooser replies need.
 func updateWith(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
 	t.Helper()
 	next, cmd := asModel(m.Update(msg))
@@ -349,8 +339,7 @@ func updateWith(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
 	return got, cmd
 }
 
-// The template makes folders, and the folders are the ones a person recognizes: the
-// space, the room, who sent it.
+// The template makes folders by space, room and sender.
 func TestDownloadFollowsTheTemplate(t *testing.T) {
 	t.Parallel()
 
@@ -376,8 +365,7 @@ func TestDownloadFollowsTheTemplate(t *testing.T) {
 	}
 }
 
-// A per-room rule beats the settings, so "everything from this room goes there" is one
-// entry rather than a setting you keep changing.
+// A per-room rule beats the download directory setting.
 func TestDownloadRuleOverridesTheDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -399,8 +387,7 @@ func TestDownloadRuleOverridesTheDirectory(t *testing.T) {
 	}
 }
 
-// Save-as asks the **desktop** for a folder — the XDG portal, the same interface
-// Firefox asks through — rather than drawing a file browser of our own.
+// Save-as asks the desktop (XDG portal) for a folder.
 func TestSaveAsRemembersWhatIsBeingSaved(t *testing.T) {
 	t.Parallel()
 
@@ -434,7 +421,7 @@ func TestSaveAsRemembersWhatIsBeingSaved(t *testing.T) {
 	}
 }
 
-// Changing your mind in the chooser saves nothing and says nothing.
+// Canceling the chooser saves nothing and says nothing.
 func TestSaveAsCanceled(t *testing.T) {
 	t.Parallel()
 
@@ -456,13 +443,12 @@ func TestSaveAsCanceled(t *testing.T) {
 	}
 }
 
-// With no portal to ask, attaching falls back to typing a path — which is the only
-// thing that works over SSH, where there is no desktop at all.
+// With no portal, attaching falls back to typing a path (the only option over SSH).
 func TestAttachFallsBackToTypingWithoutAPortal(t *testing.T) {
 	t.Parallel()
 
 	m, _ := attaching(t)
-	m, _ = press(t, m, keyText("i")) // attaching is the composer's job now
+	m, _ = press(t, m, keyText("i")) // attaching happens in the composer
 	m, _ = press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModAlt})
 	m, _ = updateWith(t, m, fileChosenMsg{err: filedialog.ErrUnavailable})
 	if m.prompt.kind != promptAttach {
@@ -473,8 +459,8 @@ func TestAttachFallsBackToTypingWithoutAPortal(t *testing.T) {
 	}
 }
 
-// What the chooser answers is sent, with whatever is in the composer as the caption —
-// read when the answer arrives, because you may have typed it while the chooser was up.
+// The chosen file is sent with the composer as caption, read when the answer
+// arrives: it may have been typed while the chooser was up.
 func TestChosenFileIsSentWithTheComposerAsCaption(t *testing.T) {
 	t.Parallel()
 
@@ -499,9 +485,7 @@ func TestChosenFileIsSentWithTheComposerAsCaption(t *testing.T) {
 	}
 }
 
-// ctrl+u belongs to the line editor — "delete back to the start of the line", a
-// readline key old enough that taking it away from a text field is a bug however well
-// the replacement is documented.
+// ctrl+u is readline's "delete to line start", not attach.
 func TestCtrlUClearsTheLineRatherThanAttaching(t *testing.T) {
 	t.Parallel()
 
@@ -509,8 +493,8 @@ func TestCtrlUClearsTheLineRatherThanAttaching(t *testing.T) {
 	m, _ = press(t, m, keyText("i"))
 	m = typeInto(t, m, "half a thought")
 
-	// A command comes back either way — typing tells the room you are typing — so what
-	// says the chooser did *not* open is the status line it would have set.
+	// A command comes back either way (the typing notice), so the status line is what
+	// shows the chooser did not open.
 	cleared, _ := press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	if strings.Contains(cleared.status(), "choosing a file") {
 		t.Error("ctrl+u opened the file chooser; it should only clear the line")
@@ -523,7 +507,7 @@ func TestCtrlUClearsTheLineRatherThanAttaching(t *testing.T) {
 	}
 }
 
-// A file refused for want of encryption says why, not the error chain.
+// A file refused for lack of encryption says why, not the error chain.
 func TestAttachRefusedWithoutEncryptionSaysWhy(t *testing.T) {
 	t.Parallel()
 	m, _ := attaching(t)

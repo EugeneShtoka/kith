@@ -14,16 +14,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// /export writes the open room, or the open thread, to a Markdown file
-// (domain.ExportMarkdown): all of what the cache holds, or the span asked for, as
-// /summary reads one ("7d", "yesterday", "2026-09-18", 500). It goes into
-// [storage] export_dir, or where the person says: a folder, or a file ending in .md.
-// People are named as you know them, whole; times as you have them written.
+// /export writes the open room or thread to a Markdown file (domain.ExportMarkdown):
+// everything cached, or a span as /summary reads one ("7d", "yesterday", "2026-09-18",
+// 500). It goes to [storage] export_dir or a given folder or .md file. People are named
+// as you know them; times use your format.
 
-// exportPage is how many cached messages one read back fetches.
+// exportPage is how many cached messages one read-back fetches.
 const exportPage = 2000
 
-// exportedMsg is an export written, or why not.
 type exportedMsg struct {
 	path  string
 	count int
@@ -78,8 +76,8 @@ func (m Model) openExport(room domain.Room, arg string) (Model, tea.Cmd) {
 	}
 }
 
-// cachedHistory is everything the cache holds of a room, oldest first, read back a page
-// at a time; it stops once it has gone past the span asked for.
+// cachedHistory is everything cached of a room, oldest first, read back a page at a
+// time; it stops once past the span asked for.
 func cachedHistory(ctx context.Context, backend api.Backend, room domain.RoomID, span domain.SummarySpan) ([]domain.Message, error) {
 	msgs, err := backend.CachedTimeline(ctx, room)
 	if err != nil {
@@ -108,9 +106,9 @@ func cachedHistory(ctx context.Context, backend api.Backend, room domain.RoomID,
 	return msgs, nil
 }
 
-// splitExportArg is /export's argument as a span and a place: the place is the first
-// word that is a path ("~/…", "/…", "./…") to the end, so a folder may have spaces in
-// its name, and the span is what comes before it.
+// splitExportArg splits /export's argument into span and place: the place runs from
+// the first path-like word ("~/…", "/…", "./…") to the end, so folders may contain
+// spaces; the span is what precedes it.
 func splitExportArg(arg string) (span, where string) {
 	words := strings.Fields(arg)
 	for i, w := range words {
@@ -122,8 +120,8 @@ func splitExportArg(arg string) (span, where string) {
 	return strings.Join(words, " "), ""
 }
 
-// exportTarget is the folder an export goes into, and its file name when the person
-// gave one (a path ending in .md); with no place given, [storage] export_dir.
+// exportTarget is the export's folder and, for a path ending in .md, its file name;
+// with no place given, [storage] export_dir.
 func (m Model) exportTarget(where string) (dir, file string, err error) {
 	if where == "" {
 		dirs, derr := setup.StorageDirs(m.conf.base)
@@ -150,7 +148,7 @@ func spanSaid(span domain.SummarySpan) string {
 	return " in " + span.Said
 }
 
-// exportFileName is "<title> <date>.md", with nothing in it a path would read.
+// exportFileName is "<title> <date>.md", with nothing a path would interpret.
 func exportFileName(of domain.ExportOf) string {
 	title := strings.NewReplacer("/", "-", "\\", "-", "\x00", "").Replace(strings.TrimSpace(of.Title))
 	if title == "" {

@@ -21,15 +21,15 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// TestMain keeps the tests off the system keyring: it refuses everything, so a Matrix
+// TestMain keeps tests off the system keyring: it refuses everything, so a Matrix
 // session lives in the file fallback (allow_token_file).
 func TestMain(m *testing.M) {
 	keyring.MockInitWithError(errors.New("no secret service in tests"))
 	os.Exit(m.Run())
 }
 
-// servedFor builds the daemon's backend for cfg in a fresh instance, a Matrix session
-// saved for it when saved has one.
+// servedFor builds the daemon's backend for cfg in a fresh instance, with a Matrix
+// session saved when saved has one.
 func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 	t.Helper()
 	dir := t.TempDir()
@@ -52,9 +52,8 @@ func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 	return backend
 }
 
-// A config with WhatsApp alone serves without a Matrix account: Matrix is there to set
-// one up, with no account to list, its lists empty, and nothing to wait for while no
-// account is linked.
+// A WhatsApp-only config serves: Matrix has no account, empty lists, and nothing to
+// wait for.
 func TestADaemonWithoutMatrixServes(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}}}
@@ -75,8 +74,7 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 }
 
 // Every network is built whatever the config holds, so a first account needs no
-// restart: an empty config runs each with nothing to do, and has the daemon wait for
-// nothing.
+// restart; an empty config waits for nothing.
 func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	t.Parallel()
 	backend := servedFor(t, config.Config{}, domain.Session{})
@@ -100,8 +98,8 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	}
 }
 
-// Matrix in the config is served logged out until a session takes; the daemon waits
-// for it only when one was saved.
+// Matrix is served logged out until a session takes; it is waited for only with a
+// saved session.
 func TestMatrixIsWaitedForOnlyWithASavedSession(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Homeserver: "https://matrix.invalid", User: "@me:x", AllowTokenFile: true}
@@ -143,8 +141,7 @@ func TestStorageDirsAreMade(t *testing.T) {
 	}
 }
 
-// A cache that will not open stops the daemon, naming the file: there is no daemon
-// without one.
+// A cache that will not open stops the daemon, naming the file.
 func TestACacheThatWillNotOpenIsAnError(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -159,9 +156,8 @@ func TestACacheThatWillNotOpenIsAnError(t *testing.T) {
 	}
 }
 
-// Each network judges its own section: an account with only a name, in any network's
-// table, is refused naming that table, at start and when the file is re-read, and the
-// re-read then changes nothing.
+// Each network judges its own section: a name-only account is refused naming its
+// table, at start and on re-read, and the re-read then changes nothing.
 func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 	t.Parallel()
 	backend := servedFor(t, config.Config{}, domain.Session{})
@@ -190,8 +186,7 @@ func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 	}
 }
 
-// A re-read selects the profile kithd runs as: Matrix, set up in the file while kithd
-// ran with no account, takes that profile's account — not another's, and not none.
+// A re-read takes the running profile's Matrix account, not another's and not none.
 func TestAReReadTakesTheProfilesMatrixAccount(t *testing.T) {
 	t.Parallel()
 	backend := servedFor(t, config.Config{}, domain.Session{})

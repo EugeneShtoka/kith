@@ -58,7 +58,7 @@ func TestLinks(t *testing.T) {
 			body: `[docs](https://example.org/docs)`,
 			want: []string{"https://example.org/docs"},
 		},
-		// The narrowness is the point: these are not offered for opening.
+		// None of these is offered for opening.
 		{"no file scheme", "file:///etc/passwd", nil},
 		{"no javascript scheme", "javascript:alert(1)", nil},
 		{"no custom scheme", "myapp://do-something", nil},
@@ -86,8 +86,7 @@ func TestLinks(t *testing.T) {
 	}
 }
 
-// Whatever a message contains, extraction must terminate and must not offer anything
-// that isn't a web link. A body is text someone else wrote.
+// For any body, extraction terminates and offers only web links.
 func TestLinksOnHostileBodies(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +118,7 @@ func TestOpenableLink(t *testing.T) {
 			t.Errorf("OpenableLink(%q) = false, want true", link)
 		}
 	}
-	// Everything else is refused: an opener is handed whatever this returns true for.
+	// Everything else is refused: whatever passes goes to an opener.
 	bad := []string{
 		"", "example.org", "file:///etc/passwd", "javascript:alert(1)",
 		"data:text/html,<script>", "mxc://s/m", "ftp://x.org", " https://x.org",

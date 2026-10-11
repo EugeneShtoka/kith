@@ -12,15 +12,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Some groups' rows are made from the config as it stands rather than listed: the
-// Names group's switch per space and tag, a record table's records, a record's fields.
-// They are settings like any other, so a change stays on its row, a number steps, a
-// list opens its entries, and esc steps back.
+// Some groups' rows are made from the config rather than listed: the Names group's
+// per-place switches, a record table's records, a record's fields. They behave like
+// any setting.
 //
-// Their keys say where they are: rec:<table> lists a table's records, rec:<table>#<i>
-// is one record, rec:<table>#<i>.<field> one of its fields; names:<rail key> is a
-// place's first-names switch, colors:<rail key> its network-colors one, archived:<rail
-// key> whether its room list shows archived rooms.
+// Keys: rec:<table> lists a table's records, rec:<table>#<i> is one record,
+// rec:<table>#<i>.<field> one field; names:, colors: and archived:<rail key> are a
+// place's first-names, network-colors and archived-rooms rows.
 
 const (
 	recordPrefix = "rec:"
@@ -31,9 +29,8 @@ const (
 	recordRemove = "#remove"
 )
 
-// recordTableLabels name the record tables in settings, every network's accounts
-// among them; a table not named here has no row (the Names group's switches stand for
-// display.space_rule).
+// recordTableLabels name the record tables, every network's accounts among them; an
+// unnamed table has no row (the Names switches stand for display.space_rule).
 var recordTableLabels = withNetworkTables(map[string]string{
 	"display.identity":     "People (accounts shown as one)",
 	"display.name":         "Names you gave",
@@ -47,7 +44,6 @@ var recordTableLabels = withNetworkTables(map[string]string{
 	"keys.jump":            "Jump shortcuts",
 })
 
-// withNetworkTables adds each network's accounts table to labels.
 func withNetworkTables(labels map[string]string) map[string]string {
 	for _, n := range (config.Config{}).Networks() {
 		labels[n.Table()] = n.Network() + " accounts"
@@ -55,9 +51,8 @@ func withNetworkTables(labels map[string]string) map[string]string {
 	return labels
 }
 
-// recordTableSettings are the rows leading to the record tables, one per labeled
-// table, in the group its path places it. Each opens its records (chooseSetting: a row
-// keyed rec:<table> leads there).
+// recordTableSettings are the rows leading to each labeled record table, in the group
+// its path places it.
 func recordTableSettings() []setting {
 	var out []setting
 	for _, t := range config.RecordTables() {
@@ -86,7 +81,7 @@ func recordTable(key string) (config.RecordTable, bool) {
 	return config.RecordTable{}, false
 }
 
-// groupRows is a group's rows: listed, or made from the config (see above).
+// groupRows is a group's rows: listed, or made from the config.
 func (m Model) groupRows(group string) []setting {
 	switch {
 	case group == "names":
@@ -113,7 +108,7 @@ func (m Model) groupRows(group string) []setting {
 	return groupSettings(group)
 }
 
-// setting is the row keyed key: among the rows of the group open, else listed.
+// setting is the row keyed key: among the open group's rows, else listed.
 func (m Model) setting(key string) (setting, bool) {
 	rows := m.groupRows(m.choosing.settingGroup)
 	for i := range rows {
@@ -124,8 +119,8 @@ func (m Model) setting(key string) (setting, bool) {
 	return findSetting(key)
 }
 
-// settingsParent is where esc goes from a group: a record to its table, a table to the
-// group it is listed in, any other group to the groups.
+// settingsParent is where esc goes from a group: a record to its table, a table to its
+// group, any other group to the groups.
 func settingsParent(group string) (parent, at string, ok bool) {
 	if strings.HasPrefix(group, keysPrefix) {
 		return "keys", group, true
@@ -161,7 +156,7 @@ func (m Model) settingGroupLabel(group string) string {
 	return label
 }
 
-// recordRows are a table's records, each leading to its fields, then a row to add one.
+// recordRows are a table's records, each leading to its fields, then an add row.
 func (m Model) recordRows(t config.RecordTable) []setting {
 	n := m.conf.base.Records(t.Path)
 	rows := make([]setting, 0, n+1)
@@ -178,8 +173,8 @@ func (m Model) recordRows(t config.RecordTable) []setting {
 	return append(rows, addRecordRow(t, group))
 }
 
-// addRecordRow adds a record, typed in place as its first field (a rule's place, a
-// person's alias): a record is never empty, which some tables refuse and none needs.
+// addRecordRow adds a record typed in place as its first field (a rule's place, a
+// person's alias), so a record is never empty, which some tables refuse.
 func addRecordRow(t config.RecordTable, group string) setting {
 	first := t.Fields[0]
 	path := t.Path
@@ -201,7 +196,7 @@ func addRecordRow(t config.RecordTable, group string) setting {
 	}
 }
 
-// recordSummary names a record by what it says: its first two set fields.
+// recordSummary names a record by its first two set fields.
 func recordSummary(c config.Config, t config.RecordTable, i int) string {
 	var parts []string
 	for _, f := range t.Fields {
@@ -215,8 +210,7 @@ func recordSummary(c config.Config, t config.RecordTable, i int) string {
 	return strings.Join(parts, " · ")
 }
 
-// recordFieldRows are one record's fields, each set as a property is, then a row to
-// remove it.
+// recordFieldRows are one record's fields, then a row to remove it.
 func (m Model) recordFieldRows(t config.RecordTable, i int) []setting {
 	group := fmt.Sprintf("%s%s#%d", recordPrefix, t.Path, i)
 	rows := make([]setting, 0, len(t.Fields)+1)
@@ -230,7 +224,6 @@ func (m Model) recordFieldRows(t config.RecordTable, i int) []setting {
 	})
 }
 
-// recordField is one field's row, set as a property of its kind is.
 func recordField(t config.RecordTable, i int, group string, f config.Property) setting {
 	path, name := t.Path, f.Path
 	doc := f.Doc
@@ -274,15 +267,14 @@ func fieldWords(c config.Config, path string, i int, f config.Property) string {
 	return v
 }
 
-// inheritChoices are an optional on/off field's values: a rule that turns it on, off,
-// or leaves it to the wider setting (a switch has only two states).
+// inheritChoices are an optional on/off field's values: on, off, or inherit the wider
+// setting (a switch has only two states).
 var inheritChoices = []settingChoiceOption{
 	{"true", "on", "this rule turns it on"},
 	{"false", "off", "this rule turns it off"},
 	{"", "unset", "follows the wider setting"},
 }
 
-// removeRecord takes record i out of t and shows the table.
 func (m Model) removeRecord(t config.RecordTable, i int) (Model, tea.Cmd) {
 	cfg := m.conf.base.Clone()
 	if err := cfg.RemoveRecord(t.Path, i); err != nil {
@@ -292,10 +284,9 @@ func (m Model) removeRecord(t config.RecordTable, i int) (Model, tea.Cmd) {
 	return next.settingsIn(recordPrefix+t.Path, ""), cmd
 }
 
-// placeNameRows are a first-names switch for every space and tag on the rail that can
-// be a room's home: senders in rooms there are shown by first name
-// ([[display.space_rule]]). A tag of state alone (Unread) is nobody's home, and one of
-// every room (All) is everywhere.
+// placeNameRows are a first-names switch ([[display.space_rule]]) for every rail
+// space and tag that can be a room's home. A state tag (Unread) is nobody's home and
+// one of every room (All) is everywhere.
 func (m Model) placeNameRows() []setting {
 	var rows []setting
 	for _, g := range m.rail.groups {
@@ -317,9 +308,8 @@ func (m Model) placeNameRows() []setting {
 	return rows
 }
 
-// placeColorRows are a network-colors choice for every space and tag on the rail: its
-// room list names each room in its network's color as everywhere ([display]
-// network_colors), or on or off whatever that says ([[display.space_rule]]).
+// placeColorRows are a network-colors choice for every rail space and tag: follow
+// [display] network_colors, or force on or off ([[display.space_rule]]).
 func (m Model) placeColorRows() []setting {
 	var rows []setting
 	for _, g := range m.rail.groups {
@@ -342,7 +332,7 @@ func (m Model) placeColorRows() []setting {
 	return rows
 }
 
-// placeColorChoices are a place's network-colors choices, and placeColorValues what
+// placeColorChoices are a place's network-colors choices and placeColorValues what
 // each writes: nil follows [display] network_colors.
 var (
 	placeColorChoices = []settingChoiceOption{
@@ -353,8 +343,7 @@ var (
 	placeColorValues = map[string]*bool{"everywhere": nil, "on": new(true), "off": new(false)}
 )
 
-// placeColorsShown is a place's network-colors choice: its own, or as everywhere and
-// what that is.
+// placeColorsShown is a place's network-colors choice: its own, or the inherited one.
 func placeColorsShown(c config.Config, place string) string {
 	if r, ok := c.Display.SpaceRule(place); ok && r.NetworkColors != nil {
 		return onOff(*r.NetworkColors)
@@ -362,9 +351,8 @@ func placeColorsShown(c config.Config, place string) string {
 	return "as everywhere (" + onOff(c.Display.NetworkColors) + ")"
 }
 
-// placeArchivedRows are an archived-rooms choice for every space and tag on the rail but
-// an archive's own: its room list shows them as everywhere ([display] show_archived),
-// or shows or hides them whatever that says ([[display.space_rule]]).
+// placeArchivedRows are an archived-rooms choice for every rail space and tag but an
+// archive's own: follow [display] show_archived, or force show or hide.
 func (m Model) placeArchivedRows() []setting {
 	var rows []setting
 	for _, g := range m.rail.groups {
@@ -387,7 +375,7 @@ func (m Model) placeArchivedRows() []setting {
 	return rows
 }
 
-// placeArchivedChoices are a place's archived-rooms choices, and placeArchivedValues
+// placeArchivedChoices are a place's archived-rooms choices and placeArchivedValues
 // what each writes: nil follows [display] show_archived.
 var (
 	placeArchivedChoices = []settingChoiceOption{
@@ -398,8 +386,7 @@ var (
 	placeArchivedValues = map[string]*bool{"everywhere": nil, "shown": new(true), "hidden": new(false)}
 )
 
-// placeArchivedShown is a place's archived-rooms choice: its own, or as everywhere and
-// what that is.
+// placeArchivedShown is a place's archived-rooms choice: its own, or the inherited one.
 func placeArchivedShown(c config.Config, place string) string {
 	word := map[bool]string{true: "shown", false: "hidden"}
 	if r, ok := c.Display.SpaceRule(place); ok && r.ShowArchived != nil {
@@ -408,8 +395,7 @@ func placeArchivedShown(c config.Config, place string) string {
 	return "as everywhere (" + word[c.Display.ShowsArchived()] + ")"
 }
 
-// isHomeTag reports whether a tag (tag:<name>) holds some room as a place, and not
-// every room.
+// isHomeTag reports whether a tag (tag:<name>) holds some rooms, but not every room.
 func (m Model) isHomeTag(key string) bool {
 	if m.spans(key) {
 		return false
@@ -423,7 +409,6 @@ func (m Model) isHomeTag(key string) bool {
 	return false
 }
 
-// placeWord is "tag" or "space", for a rail key.
 func placeWord(key string) string {
 	if isTagGroup(key) {
 		return "tag"
@@ -441,19 +426,17 @@ func firstNamesIn(c config.Config, place string) bool {
 	return false
 }
 
-// withFirstNames is rules with place's first-names switch set to on.
 func withFirstNames(rules []config.SpaceRule, place string, on bool) []config.SpaceRule {
 	return withSpaceRule(rules, place, func(r *config.SpaceRule) { r.FirstNameOnly = on })
 }
 
-// withNetworkColors is rules with place's network-colors choice set to on: nil follows
-// [display] network_colors.
+// withNetworkColors sets place's network-colors choice: nil follows [display] network_colors.
 func withNetworkColors(rules []config.SpaceRule, place string, on *bool) []config.SpaceRule {
 	return withSpaceRule(rules, place, func(r *config.SpaceRule) { r.NetworkColors = on })
 }
 
-// withSpaceRule is rules with place's rule changed by change, the rest of it kept; a
-// rule left setting nothing is dropped, so the file keeps only what is set.
+// withSpaceRule applies change to place's rule; a rule left setting nothing is
+// dropped, so the file keeps only what is set.
 func withSpaceRule(rules []config.SpaceRule, place string, change func(*config.SpaceRule)) []config.SpaceRule {
 	rule := config.SpaceRule{Space: place}
 	out := make([]config.SpaceRule, 0, len(rules)+1)

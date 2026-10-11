@@ -58,8 +58,7 @@ func warding(t *testing.T) (Model, *warden) {
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
 	m = next
-	// The people list is built from the members the room-open load fetches, so a test
-	// that opens it has to have them.
+	// The people list is built from the members the room-open load fetches.
 	m = update(t, m, membersMsg{roomID: "!a:x", members: []domain.Member{
 		{UserID: "@dana:x", DisplayName: "Dana"},
 	}})
@@ -153,8 +152,7 @@ func TestARefusalIsShownAsWritten(t *testing.T) {
 	}
 }
 
-// /unban lifts a ban in the room written in: with the person named it goes straight
-// out (it is not asked first, as invite is not); with nobody named it asks who.
+// /unban with a name sends at once (unasked, like invite); without one it asks who.
 func TestUnbanIsACommand(t *testing.T) {
 	t.Parallel()
 

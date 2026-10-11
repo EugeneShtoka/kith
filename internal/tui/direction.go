@@ -10,29 +10,28 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// roomLayout is the open room's side ([display.direction]): decided once per opening,
-// so the timeline does not flip while you read; a side set by hand applies at once.
+// roomLayout is the open room's side ([display.direction]), decided once per opening
+// so the timeline does not flip while reading; a hand-set side applies at once.
 type roomLayout struct {
 	room domain.RoomID
 	rtl  bool
-	// settled: decided for this opening. Until then an auto room reads left to right
-	// and is guessed again as messages arrive.
+	// settled: decided for this opening. Until then an auto room reads LTR and is
+	// re-guessed as messages arrive.
 	settled bool
 }
 
 // guessWindow is how many of the newest messages the auto guess reads.
 const guessWindow = 100
 
-// mirrored reports whether the open room's timeline reads right to left: the sender
-// column on the right, the text flushed against it.
+// mirrored reports whether the open room reads right to left: sender column on the
+// right, text flushed against it.
 func (m Model) mirrored() bool {
 	return m.timeline.layout.room == m.openRoom && m.timeline.layout.rtl
 }
 
-// settleLayout decides the open room's side: a place set by hand, else the guess from
-// its newest messages when auto is on, else left to right. The guess is made once per
-// opening, as soon as a message with letters is loaded; it costs one pass over those
-// messages' text.
+// settleLayout decides the open room's side: a hand-set place, else the guess from its
+// newest messages when auto is on, else LTR. The guess is made once per opening, as
+// soon as a message with letters is loaded.
 func (m Model) settleLayout() Model {
 	l := m.timeline.layout
 	if l.room != m.openRoom {
@@ -53,7 +52,7 @@ func (m Model) settleLayout() Model {
 	return m
 }
 
-// resettleLayout decides the open room's side again, after the settings changed.
+// resettleLayout decides the open room's side again after a settings change.
 func (m Model) resettleLayout() Model {
 	m.timeline.layout.settled = false
 	return m.settleLayout()
@@ -85,9 +84,9 @@ func guessLayout(msgs []domain.Message) domain.Layout {
 	return domain.GuessLayout(bodies)
 }
 
-// cycleDirection sets the room under the cursor by hand: right to left, then left to
-// right, then back to what its space or the guess says. Only the room's own entry
-// moves; one naming its space is edited in the config.
+// cycleDirection hand-sets the room under the cursor: RTL, then LTR, then back to its
+// space or the guess. Only the room's own entry moves; one naming its space is edited
+// in the config.
 func (m Model) cycleDirection() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok {
@@ -126,14 +125,13 @@ func padEnd(row string, width int) string {
 	return row
 }
 
-// leadRow puts lead before a flushed row's text, keeping it against the right edge:
-// what trails a message in reading order leads it on screen when it reads right to left.
+// leadRow puts lead before a flushed row's text, against the right edge: what trails a
+// message in reading order leads it on screen in RTL.
 func leadRow(row, lead string, width int) string {
 	return padStart(lead+strings.TrimLeft(row, " "), width)
 }
 
-// mirroredChips is reaction chips in reading order for a mirrored row: the first read
-// is the rightmost.
+// mirroredChips orders reaction chips for a mirrored row: the first read is rightmost.
 func mirroredChips(chips []string) []string {
 	out := slices.Clone(chips)
 	slices.Reverse(out)

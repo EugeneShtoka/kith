@@ -23,9 +23,8 @@ func (l leaver) LeaveRoom(_ context.Context, room domain.RoomID) error {
 	return nil
 }
 
-// L on the rail: a Telegram forum, after asking, is left by leaving its chat, and goes
-// from the list with its topics; a tag, after asking, is deleted; any other space says
-// it is not left from here (a bridge's own space for an account).
+// L on the rail: a Telegram forum is left via its chat after asking, taking its topics; a
+// tag is deleted after asking; any other space (e.g. a bridge's account space) is refused.
 func TestLeavingFromTheRail(t *testing.T) {
 	t.Parallel()
 	var left []domain.RoomID
@@ -79,9 +78,8 @@ func TestLeavingFromTheRail(t *testing.T) {
 	}
 }
 
-// L on one room of a forum, bridged or Telegram's own, asks nothing and says it is left
-// only with the whole forum, from the rail; a room of a space whose rooms are left one
-// by one is asked about as ever.
+// L on one room of a forum says it is left only with the whole forum; a room of an ordinary
+// space is asked about as usual.
 func TestAForumsRoomIsNotLeftAlone(t *testing.T) {
 	t.Parallel()
 	var left []domain.RoomID

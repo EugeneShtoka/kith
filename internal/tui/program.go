@@ -15,7 +15,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// RunOptions is what the program runs with.
+// RunOptions configures Run.
 type RunOptions struct {
 	Backend api.Backend
 	// Notifications and Schedules are daemon-only services, not api.Backend roles.
@@ -24,26 +24,25 @@ type RunOptions struct {
 	Config        config.Config
 	// ConfigPath is where in-app setting changes are written.
 	ConfigPath string
-	// Log is the client's log (a file: the terminal is the program's).
+	// Log is the client's log, a file since the terminal is the program's.
 	Log *slog.Logger
 	// Follow is a matrix URI to open at start, or "".
 	Follow string
 	// Notice is the status line's standing text at start ("" for none): what is logged out.
 	Notice string
-	// RestartDaemon restarts the daemon and returns once it answers again: :login
-	// turning on a network the daemon was started without. nil when it cannot.
+	// RestartDaemon restarts the daemon and returns once it answers (for :login enabling a network
+	// the daemon lacks); nil when unavailable.
 	RestartDaemon func(ctx context.Context) error
 }
 
 // Run starts the Bubble Tea program bound to ctx and blocks until it exits.
 func Run(ctx context.Context, opts RunOptions) error {
 	backend, cfg, log := opts.Backend, opts.Config, opts.Log
-	// The program's commands end with it: a save abandoned at exit must not go on
-	// retrying while the last write (flushAtExit) runs.
+	// Commands end with the program, so an abandoned save stops retrying while flushAtExit runs.
 	ctx, endCommands := context.WithCancel(ctx)
 	defer endCommands()
-	// Bubble Tea pushes the Kitty keyboard protocol; an incomplete teardown leaves the
-	// shell unable to read arrow keys. Popping a clean stack is a no-op.
+	// Bubble Tea pushes the Kitty keyboard protocol; an incomplete teardown leaves the shell
+	// unable to read arrow keys. Popping a clean stack is a no-op.
 	defer restoreKeyboard()
 
 	// A cache that will not open is reported, not fatal.
@@ -64,11 +63,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 		model = model.WithFollow(opts.Follow)
 	}
 	if opts.Notice != "" {
-		// Standing, not an event: it stays true until something else is going on.
+		// Standing text: it stays until something else is going on.
 		model = model.doing(opts.Notice)
 	}
-	// The rules only describe (the status badge); the daemon decides and delivers.
-	// Installed whatever `enabled` says, which also gives the model `me`.
+	// The rules only drive the status badge; the daemon decides and delivers. Installed regardless
+	// of `enabled`, which also gives the model `me`.
 	rules, err := setup.NotificationRules(cfg.Notifications)
 	if err != nil {
 		return err
@@ -118,9 +117,8 @@ func openMediaCache(cfg config.Media, log *slog.Logger) (*media.Cache, error) {
 	return cache, nil
 }
 
-// restoreKeyboard pops one entry off the terminal's Kitty keyboard-protocol
-// stack, undoing the enhancement Bubble Tea requests at startup. It writes only
-// when stdout is a real terminal, so redirected output stays clean.
+// restoreKeyboard pops the Kitty keyboard-protocol entry Bubble Tea pushed, writing only when
+// stdout is a terminal.
 func restoreKeyboard() {
 	if term.IsTerminal(int(os.Stdout.Fd())) {
 		_, _ = fmt.Fprint(os.Stdout, "\x1b[<u") // nothing to do if the terminal is gone

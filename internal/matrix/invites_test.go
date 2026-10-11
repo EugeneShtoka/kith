@@ -23,8 +23,7 @@ func stripped(evtType event.Type, stateKey, sender string, content map[string]an
 	return strippedEvent{evtType: evtType.Type, stateKey: stateKey, sender: sender, content: content}
 }
 
-// invitedRoom builds an invite section by round-tripping through JSON, so fixtures
-// have the same VeryRaw/Parsed state a real invitation arrives with.
+// invitedRoom builds an invite section via JSON, so fixtures carry real VeryRaw/Parsed state.
 func invitedRoom(events ...strippedEvent) *mautrix.SyncInvitedRoom {
 	raw := make([]map[string]any, 0, len(events))
 	for _, e := range events {
@@ -188,7 +187,7 @@ func ids(rooms []domain.Room) []string {
 	return out
 }
 
-// Regression: sync is a delta, so an invite absent from a later batch is still pending.
+// Sync is a delta: an invite absent from a later batch is still pending.
 func TestFoldInvitesKeepsWhatASyncDoesNotMention(t *testing.T) {
 	t.Parallel()
 
@@ -246,7 +245,7 @@ func TestFoldInvitesDropsAnsweredRooms(t *testing.T) {
 	}
 }
 
-// An initial sync is a census: it replaces the set.
+// An initial sync replaces the set.
 func TestFoldInvitesReplacesTheSetOnAnInitialSync(t *testing.T) {
 	t.Parallel()
 
@@ -266,7 +265,7 @@ func TestFoldInvitesReplacesTheSetOnAnInitialSync(t *testing.T) {
 	}
 }
 
-// Same size, different rooms — the count alone must not be the test.
+// Same size, different rooms: the count alone is not the test.
 func TestFoldInvitesNoticesASwapOfTheSameSize(t *testing.T) {
 	t.Parallel()
 

@@ -16,8 +16,8 @@ import (
 // threadFloor is the floor row's root_event, matching thread_root of unthreaded messages.
 const threadFloor = ""
 
-// SaveThreadRead moves one read position (a thread's, or the floor when root is
-// empty) forward only: receipts echo back and arrive out of order.
+// SaveThreadRead moves a thread's read position (the floor when root is empty)
+// forward only: receipts echo back and arrive out of order.
 func (c *Cache) SaveThreadRead(ctx context.Context, roomID domain.RoomID, root, event domain.EventID, ts int64) error {
 	return c.execInRoom(ctx, roomID, "save thread read position in "+string(roomID), `
 		INSERT INTO thread_read(room_id, root_event, read_event, read_ts_ms) VALUES(?, ?, ?, ?)
@@ -37,8 +37,7 @@ func (c *Cache) SeedThreadFloor(ctx context.Context, roomID domain.RoomID, event
 		string(roomID), threadFloor, string(event), ts)
 }
 
-// MessageTS is when a cached event happened, and false when it is not cached (a
-// receipt on an uncached event is left unrecorded).
+// MessageTS is when a cached event happened, false when it is not cached.
 func (c *Cache) MessageTS(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (int64, bool, error) {
 	var ts int64
 	found, err := optional(c.db.QueryRowContext(ctx,
@@ -50,13 +49,10 @@ func (c *Cache) MessageTS(ctx context.Context, roomID domain.RoomID, eventID dom
 	return ts, found, nil
 }
 
-// countThreadsQuery counts, per thread, unread replies: newer than the thread's
-// receipt, the room floor, and your own newest reply in that thread, excluding your
-// own and redacted ones; with one room, that room's threads. me is every MXID that is
-// this person (see countUnreadQuery). Timestamps alone are compared (an event-ID
-// tiebreak is a guess that can leave a thread permanently unread). m.event_id is a
-// bare column beside max(), which SQLite takes from the max row: the newest unread
-// reply. Most recent activity first per room, the root breaking a tie.
+// countThreadsQuery counts each thread's unread replies: newer than its receipt, the
+// floor and your own newest reply, excluding yours and redacted ones. Only timestamps
+// are compared (an event-ID tiebreak can leave a thread unread forever). m.event_id,
+// a bare column beside max(), comes from the max row: the newest unread reply.
 func countThreadsQuery(me []string, room domain.RoomID) (string, []any) {
 	var notMine, mine string
 	var args []any
@@ -196,8 +192,7 @@ func scanThreads(rows *sql.Rows, roomID domain.RoomID) ([]domain.Thread, error) 
 	})
 }
 
-// SpokeInThread reports whether one of me (every MXID that is this person) sent the
-// thread's root or any reply in it.
+// SpokeInThread reports whether any of me sent the thread's root or a reply in it.
 func (c *Cache) SpokeInThread(ctx context.Context, roomID domain.RoomID, root domain.EventID, me []string) (bool, error) {
 	var spoke bool
 	in, args := inIDs([]any{string(roomID)}, me)
@@ -212,8 +207,7 @@ func (c *Cache) SpokeInThread(ctx context.Context, roomID domain.RoomID, root do
 	return spoke, nil
 }
 
-// NamedInThread reports whether the thread's root or a reply in it, not deleted,
-// mentions you.
+// NamedInThread reports whether an undeleted root or reply in the thread mentions you.
 func (c *Cache) NamedInThread(ctx context.Context, roomID domain.RoomID, root domain.EventID) (bool, error) {
 	var named bool
 	if err := c.db.QueryRowContext(ctx, `

@@ -28,7 +28,7 @@ func flattenKeys(prefix string, v reflect.Value, out *strings.Builder) {
 	}
 }
 
-// DefaultKeys is exactly what it was, binding for binding.
+// DefaultKeys matches the golden file, binding for binding.
 func TestDefaultKeysGolden(t *testing.T) {
 	t.Parallel()
 

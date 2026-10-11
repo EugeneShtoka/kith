@@ -116,12 +116,11 @@ func TestMergeMessagesRedaction(t *testing.T) {
 
 	at := func(sec int) time.Time { return time.Unix(int64(sec), 0) }
 	real := []domain.Message{{ID: "$1", Sender: "@a:x", SenderName: "Alice", Body: "secret", Timestamp: at(5)}}
-	// A live redaction arrives as a synthetic copy carrying the ID, the flag, and
-	// whatever is left of the body — which is nothing unless the cache was told to keep
-	// it ([display.deleted] keep).
+	// A live redaction is a synthetic copy with the ID, the flag, and the body only
+	// under [display.deleted] keep.
 	redaction := []domain.Message{{ID: "$1", Redacted: true, RedactedBy: "@mod:x", RedactedReason: "spam"}}
 
-	// Folded on: the row survives — sender, name, timestamp — and the words do not.
+	// Folded on: the row survives, the words do not.
 	got := domain.MergeMessages(real, redaction)
 	if len(got) != 1 {
 		t.Fatalf("len = %d, want 1 (deduped)", len(got))
@@ -137,9 +136,8 @@ func TestMergeMessagesRedaction(t *testing.T) {
 		t.Errorf("who deleted it and why was lost: %+v", m)
 	}
 
-	// The race is the half that matters. A redaction can fold in before the page
-	// carrying the message arrives — the server strips the content, but a buffer in
-	// flight does not — so a redacted message must never regain a body.
+	// A redaction can fold in before an in-flight page carrying the message, so a
+	// redacted message must never regain a body.
 	if m := domain.MergeMessages(redaction, real)[0]; !m.Redacted ||
 		!m.Timestamp.Equal(at(5)) {
 		t.Errorf("out-of-order redaction lost data: %+v", m)
@@ -221,8 +219,7 @@ func TestMergeMessagesKeepsEmptyIDs(t *testing.T) {
 	}
 }
 
-// The message stream carries three kinds of thing: new messages, edits folded onto
-// their target, and redaction markers. Only the first is a new event.
+// Of new messages, edits and redaction markers, only new messages are new events.
 func TestMessageIsUpdate(t *testing.T) {
 	t.Parallel()
 
@@ -237,8 +234,7 @@ func TestMessageIsUpdate(t *testing.T) {
 	}
 }
 
-// Caption is the words someone typed with an attachment, told apart from a body
-// that is only the file name repeated (MSC2530).
+// Caption is typed text with an attachment, not a repeated file name (MSC2530).
 func TestMessageCaption(t *testing.T) {
 	t.Parallel()
 
@@ -273,8 +269,7 @@ func TestMessageCaption(t *testing.T) {
 	}
 }
 
-// Summary is what to say when there is no room to render a message properly: the
-// body when there is one, and otherwise what the attachment is.
+// Summary is the body, else a description of the attachment.
 func TestMessageSummary(t *testing.T) {
 	t.Parallel()
 
@@ -296,8 +291,7 @@ func TestMessageSummary(t *testing.T) {
 			domain.Message{Body: "look", Media: &domain.Media{Type: domain.MediaImage, Name: "cat.png"}},
 			"look",
 		},
-		// The body repeats the file name (no `filename` field, or a sender that writes
-		// both), so there is nothing anyone typed and the chip's wording wins.
+		// The body only repeats the file name, so the chip's wording wins.
 		"a body that is only the file name is not a caption": {
 			domain.Message{Body: "cat.png", Media: &domain.Media{Type: domain.MediaImage, Name: "cat.png"}},
 			"[image: cat.png]",
@@ -313,8 +307,7 @@ func TestMessageSummary(t *testing.T) {
 	}
 }
 
-// A covered message stays covered in the one place this client speaks without being
-// asked to.
+// A covered message stays covered in notifications.
 func TestANotificationCoversWhatTheSenderCovered(t *testing.T) {
 	t.Parallel()
 
@@ -379,8 +372,7 @@ func TestANotificationCoversWhatTheSenderCovered(t *testing.T) {
 	}
 }
 
-// The timeline draws HTML over Body, so an edit replaces both: a kept HTML would show
-// the old words beside the "edited" label.
+// An edit replaces HTML as well as Body, since the timeline prefers HTML.
 func TestMergeMessagesEditReplacesTheFormatting(t *testing.T) {
 	t.Parallel()
 
@@ -406,8 +398,7 @@ func TestMergeMessagesEditReplacesTheFormatting(t *testing.T) {
 	}
 }
 
-// A copy that brings the missing body brings its formatting only when the row had
-// none: formatting already known is not dropped by a plain copy.
+// A copy filling the body adds formatting only if the row had none.
 func TestMergeMessagesKeepsFormattingAPlainCopyLacks(t *testing.T) {
 	t.Parallel()
 

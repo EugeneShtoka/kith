@@ -6,8 +6,7 @@ import (
 	"testing"
 )
 
-// The record tables are every list of records but those with editors of their own,
-// each with what default.toml says of it.
+// RecordTables lists every record table without its own editor, with its doc.
 func TestRecordTablesAreListedAndDocumented(t *testing.T) {
 	t.Parallel()
 	var paths []string
@@ -32,8 +31,8 @@ func TestRecordTablesAreListedAndDocumented(t *testing.T) {
 	}
 }
 
-// A record is added, its fields set (each kind) and read back, unset, and removed; a
-// change to a config copied by assignment never reaches the original.
+// Records are added, set (each kind), read back, unset and removed; an assigned copy's
+// changes never reach the original.
 func TestRecordsAreEditedFieldByField(t *testing.T) {
 	t.Parallel()
 	var base Config

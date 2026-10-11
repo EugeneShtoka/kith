@@ -29,15 +29,13 @@ func TestTheRoomUnionFollowsItsSources(t *testing.T) {
 		t.Fatalf("after withJoined: %v", got)
 	}
 
-	// Invitations come last: they are only ever shown by their own rail group, so their
-	// position among the joined rooms is not visible.
+	// Invitations come last; only their own rail group shows them, so their position is unseen.
 	inv = inv.withInvites([]domain.Room{room("!i")})
 	if got := roomIDs(inv.all); !sameIDs(got, "!a", "!b", "!i") {
 		t.Fatalf("after withInvites: %v", got)
 	}
 
-	// A refresh of one source must not drop the other — the reason they are kept apart
-	// at all.
+	// Refreshing one source must not drop the other; that is why they are kept apart.
 	inv = inv.withJoined([]domain.Room{room("!a"), room("!b"), room("!c")})
 	if got := roomIDs(inv.all); !sameIDs(got, "!a", "!b", "!c", "!i") {
 		t.Errorf("a room-list refresh dropped the invitations: %v", got)

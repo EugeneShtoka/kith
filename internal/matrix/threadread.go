@@ -13,17 +13,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Thread read receipts (MSC3771). Opening a room marks its main timeline read; each
-// thread has its own receipt. Two rules keep our counts aligned with the server's:
-// our own replies never count (countThreadsQuery), and an unthreaded receipt moves
-// the room's thread floor, so every thread without a later receipt follows it.
-//
-// The homeserver keeps one receipt per kind (unthreaded, "main", each thread; public
-// and private apart), each forward-only on its own, and sync hands them over one by
-// one. So no single receipt is the room's position: it is the newest of them by the
-// time of the message each points at, and a candidate whose event is not a cached
-// message waits (holdReceipt) until it is, or until fetchPosition places it by the
-// server's stream order (a bridge's state event carries no usable time of its own).
+// Thread read receipts (MSC3771). Our own replies never count, and an unthreaded
+// receipt moves the room's thread floor. The server keeps one forward-only receipt per
+// kind (unthreaded, main, each thread; public and private apart), so the room's
+// position is the newest by its event's time; a receipt for an uncached event is held
+// until cached or placed by fetchPosition (state events carry no usable time).
 
 // Kinds of held receipt, beside a thread's root: the room's own positions.
 const (
@@ -68,9 +62,8 @@ func (cur readPos) ahead(next readPos) bool {
 	return next.TS > cur.TS || next.Event != cur.Event
 }
 
-// readReceipts collects our own receipts from one room's ephemeral events. All are
-// collected: a batch often carries several kinds, and only their events' times say
-// which is newest.
+// readReceipts collects all our receipts from one room's ephemeral events; only
+// their events' times say which is newest.
 func readReceipts(events []*event.Event, self id.UserID) selfReceipts {
 	out := selfReceipts{}
 	for _, evt := range events {
@@ -79,8 +72,8 @@ func readReceipts(events []*event.Event, self id.UserID) selfReceipts {
 		}
 		parse(evt)
 		for eventID, receipts := range *evt.Content.AsReceipt() {
-			// Both m.read and m.read.private: our private receipts echo back as private,
-			// and ignoring them left badges stuck with send_receipts off.
+			// Private receipts echo back as m.read.private; with send_receipts off
+			// they are the only ones.
 			for _, kind := range []event.ReceiptType{event.ReceiptTypeRead, event.ReceiptTypeReadPrivate} {
 				rr, ok := receipts[kind][self]
 				if !ok {
@@ -102,10 +95,9 @@ func readReceipts(events []*event.Event, self id.UserID) selfReceipts {
 	return out
 }
 
-// applyReceipts writes our thread positions to the cache, and returns the newest
-// room position among the receipts whose event is known and whether any thread
-// position moved (the signal to recount). Unknown events are held. Without a cache
-// nothing can be placed, and the most recently sent receipt stands in.
+// applyReceipts caches thread positions and returns the newest placeable room
+// position and whether a thread position moved. Unknown events are held; without a
+// cache the most recently sent receipt stands in.
 func (b *InProc) applyReceipts(ctx context.Context, roomID domain.RoomID, r selfReceipts) (readPos, bool) {
 	if b.cache == nil {
 		return newestSent(r.Room), false
@@ -147,14 +139,12 @@ func newestSent(cands []readCandidate) readPos {
 	return readPos{Event: best.Event}
 }
 
-// placeReceipt records one receipt whose event's time is known. A room receipt
-// (unthreaded or main) seeds a missing thread floor, or every thread in the room's
-// history would count as unread, and is returned as a room position; an unthreaded
-// one also moves the floor. threads reports a thread position written.
+// placeReceipt records a receipt whose event time is known. A room receipt seeds a
+// missing thread floor (else all history counts unread); an unthreaded one also moves
+// it. threads reports a thread position written.
 func (b *InProc) placeReceipt(ctx context.Context, roomID domain.RoomID, kind, eventID domain.EventID, ts int64) (pos readPos, threads bool) {
 	switch kind {
 	case heldUnthreaded, heldMain:
-		// Whole room read: one floor write covers every thread.
 		if kind == heldUnthreaded {
 			err := b.cache.SaveThreadRead(ctx, roomID, "", eventID, ts)
 			b.warnIf(ctx, err, "cache thread read floor", "room", roomID, "event", eventID)
@@ -181,8 +171,7 @@ func (b *InProc) applyThreadReceipt(ctx context.Context, roomID domain.RoomID, r
 	return b.cache.SaveThreadRead(ctx, roomID, root, eventID, ts) == nil
 }
 
-// settleReceipts retries a room's held receipts after a message was cached. A room
-// position that lands moves the room's marker.
+// settleReceipts retries a room's held receipts after a message was cached.
 func (b *InProc) settleReceipts(ctx context.Context, roomID domain.RoomID) {
 	waiting := b.held.in(roomID)
 
@@ -214,7 +203,7 @@ func (b *InProc) positionOf(ctx context.Context, roomID domain.RoomID, eventID d
 }
 
 // MarkThreadRead sends a threaded receipt and writes it through to the cache so the
-// badge clears now rather than on the sync echo (the write only moves forward).
+// badge clears before the sync echo.
 func (b *InProc) MarkThreadRead(ctx context.Context, roomID domain.RoomID, root, eventID domain.EventID, private bool) error {
 	if err := b.client.SendReceipt(ctx, id.RoomID(roomID), id.EventID(eventID), receiptType(private),
 		&mautrix.ReqSendReceipt{ThreadID: string(root)}); err != nil {
@@ -237,8 +226,8 @@ func (b *InProc) ListThreads(ctx context.Context, roomID domain.RoomID) ([]domai
 	})
 }
 
-// addThreadCounts adds a room's unread threads to its (main-timeline) counts, so the
-// badge is the room total. Rooms the cache cannot count keep the server's number.
+// addThreadCounts adds unread threads to a room's main-timeline counts. Rooms the
+// cache cannot count keep the server's number.
 func (b *InProc) addThreadCounts(ctx context.Context, u domain.Unread) domain.Unread {
 	if b.cache == nil || !u.Counted {
 		return u
@@ -280,9 +269,8 @@ func (b *InProc) ThreadParticipant(ctx context.Context, roomID domain.RoomID, ro
 // threadPageSize is the default page of a thread's scrollback (same as a room's).
 const threadPageSize = 50
 
-// ThreadPage fetches one page of a thread's replies via /relations/{root}/m.thread,
-// for threads longer than the cached window. The root itself is not a relation;
-// callers fetch it with FetchEvent.
+// ThreadPage fetches a page of a thread's replies via /relations. The root is not a
+// relation; callers fetch it with FetchEvent.
 func (b *InProc) ThreadPage(ctx context.Context, roomID domain.RoomID, root domain.EventID, from string, limit int) (domain.TimelinePage, error) {
 	if limit <= 0 {
 		limit = threadPageSize

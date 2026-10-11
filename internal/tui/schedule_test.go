@@ -8,7 +8,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// scheduledFixture is a minimal pending send.
 func scheduledFixture() domain.ScheduledMessage {
 	return domain.ScheduledMessage{
 		ID: "s1", RoomID: "!a:x", Body: "later",
@@ -16,7 +15,6 @@ func scheduledFixture() domain.ScheduledMessage {
 	}
 }
 
-// The two shapes people actually type: a clock time and a delay.
 func TestParseScheduleTime(t *testing.T) {
 	t.Parallel()
 
@@ -32,7 +30,6 @@ func TestParseScheduleTime(t *testing.T) {
 			"at", "09:00 good morning",
 			time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), "good morning",
 		},
-		// A time that has gone means the next one; nobody types 07:00 meaning an hour ago.
 		"clock already past rolls to tomorrow": {
 			"at", "07:00 good morning",
 			time.Date(2026, 9, 8, 7, 0, 0, 0, time.UTC), "good morning",
@@ -49,7 +46,6 @@ func TestParseScheduleTime(t *testing.T) {
 			"in", "1h30m nearly there",
 			now.Add(90 * time.Minute), "nearly there",
 		},
-		// The body keeps its own spaces; only the time is split off.
 		"body with several words and punctuation": {
 			"in", "30m ok — see you at the usual place",
 			now.Add(30 * time.Minute), "ok — see you at the usual place",
@@ -96,7 +92,6 @@ func TestParseScheduleTimeRefusals(t *testing.T) {
 	}
 }
 
-// A client with no daemon cannot schedule, and says so.
 func TestSchedulingWithoutADaemonSaysSo(t *testing.T) {
 	t.Parallel()
 
@@ -116,7 +111,6 @@ func TestSchedulingWithoutADaemonSaysSo(t *testing.T) {
 	}
 }
 
-// `/scheduled` lists only this room's queue.
 func TestScheduledScopedToOneRoom(t *testing.T) {
 	t.Parallel()
 
@@ -132,7 +126,6 @@ func TestScheduledScopedToOneRoom(t *testing.T) {
 		{ID: "s3", RoomID: "!a:x", Body: "here too", At: now.Add(3 * time.Hour), Written: now},
 	}
 
-	// Every room: three rows, each naming its room.
 	all := update(t, m, scheduledMsg{queue: queue})
 	if got := len(all.picker.items); got != 3 {
 		t.Fatalf(":scheduled listed %d rows, want 3", got)
@@ -141,7 +134,7 @@ func TestScheduledScopedToOneRoom(t *testing.T) {
 		t.Errorf("row = %q, want the room named when the list spans rooms", all.picker.items[0].label)
 	}
 
-	// One room: only its two, without the room name.
+	// One room: only its two rows, without the room name.
 	scoped := update(t, m, scheduledMsg{queue: queue, onlyRoom: "!a:x"})
 	if got := len(scoped.picker.items); got != 2 {
 		t.Fatalf("/scheduled listed %d rows, want the 2 in this room", got)
@@ -156,7 +149,6 @@ func TestScheduledScopedToOneRoom(t *testing.T) {
 	}
 }
 
-// An empty room says so in its own words.
 func TestScheduledInThisRoomWhenEmpty(t *testing.T) {
 	t.Parallel()
 

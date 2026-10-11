@@ -29,8 +29,7 @@ func (w *workerLog) String() string {
 	return w.buf.String()
 }
 
-// A refresh that fails is retried on the next change — and now also says why, where
-// before it vanished.
+// A failed refresh is logged with its reason.
 func TestRefresherLogsAFailedRefresh(t *testing.T) {
 	t.Parallel()
 

@@ -11,7 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// ownStorage is a config's storage with every directory of its own.
+// ownStorage is a config's storage with every directory its own.
 func ownStorage() domain.Storage {
 	return domain.Storage{
 		Instance: "sandbox-work", DataDir: "/home/u/sb/data", StateDir: "/home/u/sb/state",
@@ -19,8 +19,8 @@ func ownStorage() domain.Storage {
 	}
 }
 
-// directives is a unit's directives in order, section headers kept, comments and
-// blank lines dropped, minus the keys in except.
+// directives is a unit's directives in order, section headers kept, comments and blank
+// lines dropped, minus the keys in except.
 func directives(unit string, except ...string) []string {
 	var out []string
 	for line := range strings.Lines(unit) {
@@ -48,8 +48,7 @@ func values(unit, key string) []string {
 	return out
 }
 
-// A config's own unit runs under the same sandbox as the packaged one: only what
-// names the config and its directories differs.
+// A config's own unit uses the packaged sandbox; only config and directory names differ.
 func TestOwnUnitMatchesThePackagedSandbox(t *testing.T) {
 	t.Parallel()
 	packaged, err := os.ReadFile("../../packaging/systemd/kithd.service")
@@ -60,17 +59,15 @@ func TestOwnUnitMatchesThePackagedSandbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// RuntimeDirectory= reaches only below %t; the own unit creates its runtime
-	// directory with the others instead.
+	// RuntimeDirectory= reaches only below %t, so the own unit creates it with the others.
 	differ := []string{"Description", "ExecStart", "ExecStartPre", "ReadWritePaths", "RuntimeDirectory", "RuntimeDirectoryPreserve"}
 	if got, want := directives(own, differ...), directives(string(packaged), differ...); !slices.Equal(got, want) {
 		t.Errorf("own unit's directives differ from kithd.service's:\n got %q\nwant %q", got, want)
 	}
 }
 
-// The unit starts kithd with its config and profile, lets it write exactly the
-// config's directories (none of the default ones), and creates each before the
-// sandbox is built.
+// The unit starts kithd with its config and profile, may write exactly the config's
+// directories, and creates each before the sandbox is built.
 func TestOwnUnitServesItsConfig(t *testing.T) {
 	t.Parallel()
 	storage := ownStorage()
@@ -101,9 +98,8 @@ func TestOwnUnitServesItsConfig(t *testing.T) {
 	}
 }
 
-// A path that would split, unescape or expand differently in some directive, or
-// that PrivateTmp= would hide, is refused, never written; "%" is doubled so systemd
-// reads it literally.
+// A path some directive would split, unescape or expand, or PrivateTmp= would hide, is
+// refused; "%" is doubled.
 func TestUnitPath(t *testing.T) {
 	t.Parallel()
 	for _, bad := range []string{"rel/dir", "", "/a b", "/a\tb", "/a\nb", `/a"b`, "/a'b", `/a\b`, "/$HOME", "/a\x7fb", "/tmp", "/tmp/kith", "/var/tmp/kith", "/tmp/../tmp/x"} {
@@ -124,7 +120,7 @@ func TestUnitPath(t *testing.T) {
 	}
 }
 
-// The default config is served by the packaged units; any other by its instance's own.
+// The default config uses the packaged units; any other its instance's own.
 func TestLaunchUnitName(t *testing.T) {
 	t.Parallel()
 	storage := ownStorage()
@@ -143,8 +139,8 @@ func TestLaunchUnitName(t *testing.T) {
 	}
 }
 
-// The unit is rewritten only when it changed (each rewrite costs a daemon-reload),
-// replaced whole, and readable by systemd.
+// The unit is rewritten only when changed (each costs a daemon-reload), atomically, and
+// readable by systemd.
 func TestWriteUnit(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "systemd", "user")

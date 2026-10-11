@@ -8,22 +8,21 @@ import (
 	"github.com/EugeneShtoka/kith/internal/spell"
 )
 
-// Word completion: the cache's own vocabulary first, in its order, then the installed
-// frequency lists fill what is left (domain.MergeCandidates). A word you have used
-// beats a commoner one you have not.
+// Word completion: the cache's vocabulary first, in its order, then installed
+// frequency lists (domain.MergeCandidates). A word you have used beats a commoner one.
 
-// completeSpare is how many extra candidates to ask the cache for, since short words
-// are filtered out afterwards.
+// completeSpare is extra candidates asked of the cache, since short words are filtered
+// out afterwards.
 const completeSpare = 8
 
-// The [complete] sources names (internal/local reads no config).
+// The [complete] source names (internal/local reads no config).
 const (
 	sourceHistory   = "history"
 	sourceFrequency = "frequency"
 )
 
-// CompleteWord finishes a partly typed word from what has been said in scope, with
-// rooms expanded through their upgrade chains.
+// CompleteWord finishes a partly typed word from what was said in scope, rooms expanded
+// through their upgrade chains.
 func (s *Service) CompleteWord(ctx context.Context, req domain.CompleteRequest) ([]domain.WordCandidate, error) {
 	if req.Prefix == "" || req.Limit <= 0 {
 		return nil, nil
@@ -56,9 +55,8 @@ func (s *Service) CompleteWord(ctx context.Context, req domain.CompleteRequest) 
 	return domain.MergeCandidates(ranked, s.spell.completions(req.Prefix, req.Limit), req.Limit), nil
 }
 
-// completions is what the frequency list for the prefix's script offers. Nothing when
-// the prefix is not one word (same tokenizer as the checker), no list is installed for
-// the script, or the engine has not started yet (lists load with it).
+// completions is what the frequency list for the prefix's script offers; nothing when
+// the prefix is not one word, no list is installed, or the engine has not started.
 func (s *spellcheck) completions(prefix string, limit int) []domain.WordCandidate {
 	words := spell.Words(prefix)
 	if len(words) != 1 {

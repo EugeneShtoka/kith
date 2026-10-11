@@ -9,9 +9,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Autocorrect, whose whole content is the rule that decides when *not* to fire.
-
-// The rule, on its own.
 func TestAutocorrectionOnlyFiresOnACertainFix(t *testing.T) {
 	t.Parallel()
 
@@ -76,15 +73,14 @@ func TestAutocorrectionOnlyFiresOnACertainFix(t *testing.T) {
 			want:        "",
 		},
 		{
-			// Two bytes per letter, so a rule written over bytes would see four
-			// differences here and refuse.
+			// Two bytes per letter: a byte-based rule would see four differences and refuse.
 			name:        "a transposition in Hebrew is still one swap",
 			word:        "כמתב",
 			suggestions: []string{"מכתב", "כמבת", "מכבת", "כמת"},
 			want:        "מכתב",
 		},
 		{
-			// The swap *is* in the list — second.
+			// The swap is in the list, second.
 			name:        "a swap ranked second is still a choice",
 			word:        "עשכיו",
 			suggestions: []string{"אשכיו", "עכשיו", "עשיו", "שכיו"},
@@ -109,8 +105,7 @@ func TestAutocorrectionOnlyFiresOnACertainFix(t *testing.T) {
 	}
 }
 
-// End to end: typing the space after a misspelled word fixes it, and nothing else
-// moves.
+// Typing the space after a misspelled word fixes it and moves nothing else.
 func TestFinishingAWordCorrectsIt(t *testing.T) {
 	t.Parallel()
 
@@ -119,8 +114,7 @@ func TestFinishingAWordCorrectsIt(t *testing.T) {
 	m.conf.base.Spell.Autocorrect = config.AutocorrectMisspellings
 	m = typeInto(t, m, "I "+typoThe)
 
-	// The space that ends the word is what arms the check, and the check is asked about
-	// the whole draft with the word's end marked.
+	// The space arms the check, which gets the whole draft with the word's end marked.
 	b.found = []domain.Misspelling{wrong("I "+typoThe+" ", typoThe, "the", "ten")}
 	next, cmd := press(t, m, keyText(" "))
 	m = next
@@ -140,8 +134,7 @@ func TestFinishingAWordCorrectsIt(t *testing.T) {
 	if want := "I the "; m.compose.input != want {
 		t.Fatalf("the draft is %q, want %q", m.compose.input, want)
 	}
-	// The caret was after the space and is still after it, so typing carries on where
-	// it was rather than jumping to wherever the correction ended.
+	// The caret stays after the space, not where the correction ended.
 	if got := m.editorFor(fieldComposer).at; got != len("I the ") {
 		t.Errorf("the caret is at %d, want the end of the draft", got)
 	}
@@ -174,7 +167,7 @@ func TestAnAutocorrectIsItsOwnUndoStep(t *testing.T) {
 	}
 }
 
-// Off by default, and off means off: the word is underlined and left alone.
+// Off by default: the word is underlined and left alone.
 func TestAutocorrectOffLeavesTheWordAlone(t *testing.T) {
 	t.Parallel()
 
@@ -199,7 +192,6 @@ func TestAutocorrectOffLeavesTheWordAlone(t *testing.T) {
 	}
 }
 
-// A paste is not somebody finishing a word.
 func TestAPasteIsNotAWordBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -230,7 +222,7 @@ func TestTypingInsideAWordCorrectsNothing(t *testing.T) {
 	}
 }
 
-// A word edited during the round trip is not rewritten under the person editing it.
+// A word edited during the round trip is not rewritten.
 func TestAWordChangedWhileTheAnswerWasInFlightIsLeftAlone(t *testing.T) {
 	t.Parallel()
 
@@ -270,9 +262,8 @@ func runTo[T any](cmd tea.Cmd) (T, bool) {
 	return zero, false
 }
 
-// A rare word is the one case where autocorrect may touch a word the dictionary
-// *accepted*, and only on the backend's say-so: Certain means the corpus has never seen
-// the word as typed and exactly one commoner word is a slip away.
+// A rare word the dictionary accepted is corrected only when the backend says Certain:
+// the corpus never saw it as typed and exactly one commoner word is a slip away.
 func TestRareWordsAreOnlyCorrectedWhenTheCorpusIsCertain(t *testing.T) {
 	t.Parallel()
 
@@ -286,8 +277,7 @@ func TestRareWordsAreOnlyCorrectedWhenTheCorpusIsCertain(t *testing.T) {
 		{"certain, and rare words are allowed", config.AutocorrectRare, certain, "the"},
 		{"certain, under all", config.AutocorrectAll, certain, "the"},
 		{
-			// The whole safety property: a word the corpus *has* seen is a word
-			// somebody writes, and the commoner neighbor is a guess about intent.
+			// A word the corpus has seen is one somebody writes; the commoner neighbor is a guess.
 			name: "not certain, however lonely the candidate",
 			mode: config.AutocorrectAll,
 			mark: domain.Misspelling{Word: "tolea", Suggestions: []string{"toleat"}, Rare: true},
@@ -324,8 +314,7 @@ func TestRareWordsAreOnlyCorrectedWhenTheCorpusIsCertain(t *testing.T) {
 	}
 }
 
-// And the other direction: "rare" alone does not license rewriting a misspelling, which
-// is the setting for somebody who trusts the corpus and not the engine's suggestions.
+// "rare" alone does not rewrite misspellings.
 func TestRareOnlyDoesNotCorrectMisspellings(t *testing.T) {
 	t.Parallel()
 

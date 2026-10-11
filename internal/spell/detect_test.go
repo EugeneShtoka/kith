@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// tags is the offered dictionaries, for the cases where the arithmetic is not the point.
+// tags returns the offered tags.
 func tags(cs []Candidate) []string {
 	out := make([]string, 0, len(cs))
 	for _, c := range cs {
@@ -19,7 +19,7 @@ func has(list []string, want string) bool {
 	return slices.Contains(list, want)
 }
 
-// repeat builds a corpus big enough to clear the word floor without writing it out.
+// repeat builds a corpus big enough to clear the word floor.
 func repeat(t *testing.T, c *Counts, text string, times int, mine bool) {
 	t.Helper()
 	for range times {
@@ -27,9 +27,7 @@ func repeat(t *testing.T, c *Counts, text string, times int, mine bool) {
 	}
 }
 
-// The shape this account actually has: mostly English, a sixth Hebrew, a twelfth
-// Russian — and no Ukrainian at all, which the marker sets have to get right or a
-// dictionary nobody needs is offered.
+// Mostly English, some Hebrew and Russian, no Ukrainian: Ukrainian is not offered.
 func TestDetectOffersTheLanguagesInTheCorpus(t *testing.T) {
 	t.Parallel()
 
@@ -49,9 +47,7 @@ func TestDetectOffersTheLanguagesInTheCorpus(t *testing.T) {
 	}
 }
 
-// The bug that made the marker sets worth writing as codepoints: an ASCII "I" inside
-// the Ukrainian set counted every English *"I"* and reported a language with no words
-// in the corpus at all.
+// An ASCII "I" in the Ukrainian set must not count English text as Ukrainian.
 func TestUkrainianMarkersDoNotMatchLatinLetters(t *testing.T) {
 	t.Parallel()
 
@@ -86,8 +82,7 @@ func TestCyrillicPicksTheLanguageItsLettersName(t *testing.T) {
 		}
 	})
 
-	// Plenty of Cyrillic sentences contain neither language's distinctive letters, and
-	// the answer then has to be the commoner one rather than nothing.
+	// With no distinctive letters, Cyrillic falls back to Russian.
 	t.Run("neither, falls back", func(t *testing.T) {
 		t.Parallel()
 		var c Counts
@@ -98,8 +93,7 @@ func TestCyrillicPicksTheLanguageItsLettersName(t *testing.T) {
 	})
 }
 
-// Somebody writing German writes English too, so the accented language is offered
-// *alongside* English rather than instead of it.
+// An accented language is offered alongside English, not instead of it.
 func TestAnAccentedLanguageIsOfferedBesideEnglish(t *testing.T) {
 	t.Parallel()
 
@@ -115,8 +109,7 @@ func TestAnAccentedLanguageIsOfferedBesideEnglish(t *testing.T) {
 	}
 }
 
-// Plain English offers only English: no accents means no accented language, or every
-// corpus would collect dictionaries it has no use for.
+// Plain English offers only English.
 func TestPlainEnglishOffersOnlyEnglish(t *testing.T) {
 	t.Parallel()
 
@@ -128,9 +121,8 @@ func TestPlainEnglishOffersOnlyEnglish(t *testing.T) {
 	}
 }
 
-// The bars exist to keep an accident out. Two words of Arabic in a large corpus is not
-// a language, and — separately — Arabic has no dictionary in the manifest, so it could
-// not be offered even if it cleared them.
+// A few Arabic words in a large corpus clear neither bar; Arabic also has no
+// dictionary in the manifest.
 func TestAStrayQuotationIsNotALanguage(t *testing.T) {
 	t.Parallel()
 
@@ -161,8 +153,7 @@ func TestATinyCorpusOffersNothing(t *testing.T) {
 	}
 }
 
-// What you write counts for more than what you read — but a language you only read is
-// still visible, because it is one you will eventually answer in.
+// Own messages weigh more, but a language only read is still offered.
 func TestOwnMessagesWeighMore(t *testing.T) {
 	t.Parallel()
 
@@ -179,8 +170,7 @@ func TestOwnMessagesWeighMore(t *testing.T) {
 	}
 }
 
-// The offer shows its reasoning, so the share has to be a real fraction of everything
-// classified rather than a number that happens to look like one.
+// Share is a fraction of everything classified.
 func TestSharesAreFractionsOfTheWholeCorpus(t *testing.T) {
 	t.Parallel()
 

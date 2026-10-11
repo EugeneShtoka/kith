@@ -7,8 +7,8 @@ import (
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 )
 
-// The client's side of logins (api.Logins). Answers, secrets among them, travel in
-// the request body over the 0600 socket, never on argv.
+// The client's side of logins (api.Logins). Answers, secrets included, travel in the
+// request body over the 0600 socket, never on argv.
 
 var _ api.Logins = (*Remote)(nil)
 

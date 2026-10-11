@@ -9,8 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// Every check here exists for one reason: a filter that silently did not load is a
-// firewall somebody believes is running.
+// Filters that cannot work are refused rather than silently skipped.
 func TestSpamRulesRefuseWhatCannotWork(t *testing.T) {
 	t.Parallel()
 
@@ -49,8 +48,8 @@ func TestSpamRulesRefuseWhatCannotWork(t *testing.T) {
 	}
 }
 
-// The defaults are what an account that has never thought about this gets: the two
-// cheap rules on, the one that can move an established room off, and a week's window.
+// Defaults: the two cheap rules on, the one that can move an established room off,
+// and a week's window.
 func TestSpamDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -73,8 +72,7 @@ func TestSpamDefaults(t *testing.T) {
 	if !rules.Any() {
 		t.Error("a configured filter left the rules unable to fire")
 	}
-	// And with no filter at all, nothing can fire — which is why there is no enabled
-	// switch beside them.
+	// With no filter nothing fires, so there is no enabled switch.
 	off, err := setup.SpamRules(config.Spam{})
 	if err != nil {
 		t.Fatalf("SpamRules(empty): %v", err)
@@ -84,8 +82,7 @@ func TestSpamDefaults(t *testing.T) {
 	}
 }
 
-// A filter that names a sender and no words is a legitimate rule: some spam is known by
-// who is saying it rather than by what it says.
+// A sender with no words is a valid filter.
 func TestASenderIsEnoughForAFilter(t *testing.T) {
 	t.Parallel()
 

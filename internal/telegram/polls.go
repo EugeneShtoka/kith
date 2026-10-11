@@ -13,15 +13,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A Telegram poll is a message's media: its question and answers, and its results
-// (votes per answer, which this account chose). Results change as people vote, and
-// Telegram says so in an update naming the poll's message; a vote is sent by naming
-// the answers' options. An answer's option is bytes: kith names it in base64.
+// A poll is message media with results (votes per answer, our choice), updated by
+// updates naming the message. Votes name answer options, which are bytes; kith
+// encodes them in base64.
 
-// optionID is an answer's option as kith names it.
+// optionID is an option's base64 form.
 func optionID(option []byte) string { return base64.RawURLEncoding.EncodeToString(option) }
 
-// pollOf is a Telegram poll and its results as kith keeps them.
+// pollOf converts a poll and its results.
 func pollOf(p *tg.Poll, r *tg.PollResults) *domain.Poll {
 	out := &domain.Poll{
 		ID: strconv.FormatInt(p.ID, 10), Question: p.Question.Text,
@@ -36,8 +35,8 @@ func pollOf(p *tg.Poll, r *tg.PollResults) *domain.Poll {
 	return out
 }
 
-// withResults applies results to a poll. Results that are min say nothing of this
-// account's choice: what before said of it is kept.
+// withResults applies results to a poll. Min results omit our choice, so before's is
+// kept.
 func withResults(p *domain.Poll, r *tg.PollResults, before *domain.Poll) {
 	if r == nil {
 		return
@@ -69,8 +68,7 @@ func withResults(p *domain.Poll, r *tg.PollResults, before *domain.Poll) {
 	}
 }
 
-// pollUpdated keeps a poll's results as an update says, and tells the clients its
-// room changed.
+// pollUpdated caches an update's poll results and signals the room changed.
 func (a *Adapter) pollUpdated(ctx context.Context, self int64, u *tg.UpdateMessagePoll) {
 	if a.cache == nil {
 		return
@@ -108,8 +106,7 @@ func (a *Adapter) pollUpdated(ctx context.Context, self int64, u *tg.UpdateMessa
 	}
 }
 
-// VotePoll votes in a message's poll on Telegram: the answers by their options; none
-// takes the vote back. The results arrive as an update.
+// VotePoll votes for options; none retracts. Results arrive as an update.
 func (a *Adapter) VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -137,16 +134,14 @@ func (a *Adapter) VotePoll(ctx context.Context, roomID domain.RoomID, eventID do
 	return nil
 }
 
-// Who chose what is asked of Telegram page by page, and only of a poll made public:
-// an anonymous one names no one, and a public one may name its voters only to those
-// who have voted. At most pollVotersPages pages are read; the counts still tell the
-// rest.
+// Voters are listed only for public polls, and Telegram may show them only to
+// voters. At most pollVotersPages pages are read; counts cover the rest.
 const (
 	pollVotersPage  = 50
 	pollVotersPages = 20
 )
 
-// PollVoters is who chose each answer of a message's poll, as Telegram names them.
+// PollVoters is who chose each answer of a message's poll.
 func (a *Adapter) PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error) {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -173,7 +168,7 @@ func (a *Adapter) PollVoters(ctx context.Context, roomID domain.RoomID, eventID 
 	return readVotes(ctx, ch, id)
 }
 
-// readVotes asks who chose what in message id's public poll, page by page.
+// readVotes pages through a public poll's votes.
 func readVotes(ctx context.Context, ch chat, id int) (domain.PollVoters, error) {
 	ballots := map[string][]string{}
 	names := map[string]string{}
@@ -217,8 +212,7 @@ func readVotes(ctx context.Context, ch chat, id int) (domain.PollVoters, error) 
 	return out, nil
 }
 
-// peerVote is one vote as kith names it: the voter's person ID and name, and the
-// answers chosen. A vote with an answer of the voter's own words names none.
+// peerVote is one voter and their chosen options; a free-text answer has none.
 func peerVote(v tg.MessagePeerVoteClass, ent peer.Entities) (voter, name string, options []string, ok bool) {
 	var from tg.PeerClass
 	switch v := v.(type) {

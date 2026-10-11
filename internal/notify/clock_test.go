@@ -9,9 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// A popup writes {date} and {time} as the person has chosen; a hook is handed ISO
-// whatever was chosen, and its title the chosen form: scripts parse the variables,
-// people read the title.
+// Rendered {date}/{time} use the chosen format; hook KITH_DATE/KITH_TIME stay ISO.
 func TestThePersonsClockIsForPeopleAndISOForScripts(t *testing.T) {
 	t.Parallel()
 	sent := time.Date(2026, 8, 21, 14, 5, 0, 0, time.Local)

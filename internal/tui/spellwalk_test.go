@@ -10,11 +10,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The correction walk: what it is walking, what each key does to the draft, and the
-// two things that would make it useless — a list that renumbers itself while you read
-// it, and a correction you cannot take back in one keystroke.
+// The correction walk must never renumber its list while open, and each correction
+// must undo in one keystroke.
 
-// learned is one word the walk taught the backend, and how long it was meant to last.
+// learned is one word the walk taught the backend, and for how long.
 type learned struct {
 	word    string
 	forever bool
@@ -33,21 +32,18 @@ func (b *spellBackend) lessons() []learned {
 	return append([]learned(nil), b.taught...)
 }
 
-// walking is a model at the message cursor with a draft and its errors already found —
-// the state you are in when you press the key that opens the walk.
+// walking is a model at the message cursor with a draft and its errors already found.
 func walking(t *testing.T, b *spellBackend, draft string, marks ...domain.Misspelling) Model {
 	t.Helper()
 	m := spellComposing(t, b)
 	m = typeInto(t, m, draft)
 	m.spell.shown = marks
-	// esc, in effect: the walk is opened from the message cursor, because z= in the
-	// composer would type "z=" into the message.
+	// The walk opens from the message cursor: z= in the composer would type "z=".
 	m.compose.insertMode = false
 	return m
 }
 
-// openWalk presses the binding rather than calling the opener, so the chord itself is
-// covered: "z =" is two presses, and only the second resolves to anything.
+// openWalk presses the binding so the chord "z =" itself is covered.
 func openWalk(t *testing.T, m Model) Model {
 	t.Helper()
 	m, _ = chord(t, m, "z", "=")
@@ -57,11 +53,9 @@ func openWalk(t *testing.T, m Model) Model {
 	return m
 }
 
-// altS is the composer's opener, pressed the way a person presses it.
 func altS() tea.KeyPressMsg { return tea.KeyPressMsg{Code: 's', Mod: tea.ModAlt} }
 
-// The list is what is underlined, in the order it appears in the draft, and the popup
-// says which of them you are on.
+// The list is what is underlined, in draft order, and the popup says which one is current.
 func TestTheWalkOpensOnWhatIsUnderlined(t *testing.T) {
 	t.Parallel()
 
@@ -82,8 +76,7 @@ func TestTheWalkOpensOnWhatIsUnderlined(t *testing.T) {
 	}
 }
 
-// A number replaces the word and moves on — and what is left of the list moves with the
-// draft.
+// A number replaces the word and moves on; the rest of the list shifts with the draft.
 func TestANumberReplacesTheWordAndCarriesTheRestAlong(t *testing.T) {
 	t.Parallel()
 
@@ -100,13 +93,12 @@ func TestANumberReplacesTheWordAndCarriesTheRestAlong(t *testing.T) {
 	if m.walk.at != 1 {
 		t.Fatalf("the walk is on %d, want it to have advanced to 1", m.walk.at)
 	}
-	// The first typo gained a byte in the correction, so the second error moved one
-	// byte right with it.
+	// The first correction gained a byte, so the second error moved one byte right.
 	next := m.walk.items[1]
 	if covered := m.compose.input[next.Start:next.End]; covered != typoReceive {
 		t.Errorf("the next mark covers %q, want %q", covered, typoReceive)
 	}
-	// And taking it corrects the right word, which is the point of the arithmetic.
+	// Taking it corrects the right word.
 	m, _ = press(t, m, keyText("1"))
 	if want := "the receive mail"; m.compose.input != want {
 		t.Errorf("the draft is %q, want %q", m.compose.input, want)
@@ -116,7 +108,6 @@ func TestANumberReplacesTheWordAndCarriesTheRestAlong(t *testing.T) {
 	}
 }
 
-// One ctrl+z takes a correction back.
 func TestAReplacementIsOneUndoStep(t *testing.T) {
 	t.Parallel()
 
@@ -135,8 +126,7 @@ func TestAReplacementIsOneUndoStep(t *testing.T) {
 	}
 }
 
-// A number with nothing behind it does nothing at all. The list on screen already says
-// which numbers exist, so saying it again on the status line would be scolding.
+// A number with no suggestion behind it does nothing; the list already shows which exist.
 func TestANumberWithNoSuggestionBehindItIsIgnored(t *testing.T) {
 	t.Parallel()
 
@@ -154,8 +144,7 @@ func TestANumberWithNoSuggestionBehindItIsIgnored(t *testing.T) {
 	}
 }
 
-// Skipping leaves the word exactly as it is and goes to the next one. space does it
-// too, because that is where a thumb already is.
+// Skipping leaves the word as it is; space skips too.
 func TestSkipLeavesTheWordAndMovesOn(t *testing.T) {
 	t.Parallel()
 
@@ -176,7 +165,6 @@ func TestSkipLeavesTheWordAndMovesOn(t *testing.T) {
 	}
 }
 
-// Teaching a word is the answer to a name no dictionary has heard of.
 func TestAddAndIgnoreTeachTheWordAndClearItsUnderlines(t *testing.T) {
 	t.Parallel()
 
@@ -217,8 +205,7 @@ func TestAddAndIgnoreTeachTheWordAndClearItsUnderlines(t *testing.T) {
 	}
 }
 
-// esc stops and leaves everything it did not reach underlined. The walk is a way
-// through the errors, not a demand that they all be dealt with.
+// esc leaves everything not reached underlined.
 func TestStoppingLeavesTheRestUnderlined(t *testing.T) {
 	t.Parallel()
 
@@ -240,7 +227,6 @@ func TestStoppingLeavesTheRestUnderlined(t *testing.T) {
 	}
 }
 
-// The walk owns the keyboard while it is up.
 func TestTheWalkOwnsTheKeyboard(t *testing.T) {
 	t.Parallel()
 
@@ -260,7 +246,6 @@ func TestTheWalkOwnsTheKeyboard(t *testing.T) {
 	}
 }
 
-// An answer landing mid-walk does not renumber the list.
 func TestAnAnswerMidWalkDoesNotRenumberIt(t *testing.T) {
 	t.Parallel()
 
@@ -284,8 +269,7 @@ func TestAnAnswerMidWalkDoesNotRenumberIt(t *testing.T) {
 	}
 }
 
-// Nothing misspelled is not an error and not a popup: it is one line saying there is
-// nothing here for you to do.
+// A clean draft gets a status line, not an error or a popup.
 func TestOpeningWithACleanDraftSaysSo(t *testing.T) {
 	t.Parallel()
 
@@ -301,7 +285,6 @@ func TestOpeningWithACleanDraftSaysSo(t *testing.T) {
 	}
 }
 
-// A Hebrew word is drawn the way it reads, in the popup as everywhere else.
 func TestTheWalkDrawsAnRTLWordTheWayItReads(t *testing.T) {
 	t.Parallel()
 
@@ -318,8 +301,8 @@ func TestTheWalkDrawsAnRTLWordTheWayItReads(t *testing.T) {
 	}
 }
 
-// A word the engine cannot guess at — a name, usually — still gets a row saying so.
-// An empty popup would read as one that failed to load.
+// A word with no guesses (usually a name) gets a row saying so; an empty popup would
+// look like a failed load.
 func TestAWordWithNoSuggestionsSaysThereAreNone(t *testing.T) {
 	t.Parallel()
 
@@ -333,24 +316,21 @@ func TestAWordWithNoSuggestionsSaysThereAreNone(t *testing.T) {
 	}
 }
 
-// [spell] check_before_send: the walk opens instead of the message going out, and the
-// message goes out when the walk is done.
+// [spell] check_before_send: the walk opens instead of the send, and the message goes
+// out when the walk is done.
 
-// sendReady is a model composing a draft whose errors have already been answered for,
-// with check_before_send on — the state a send key lands in.
+// sendReady is a model with an answered draft and check_before_send on.
 func sendReady(t *testing.T, b *spellBackend, draft string, marks ...domain.Misspelling) Model {
 	t.Helper()
 	m := spellComposing(t, b)
 	m.conf.base.Spell.CheckBeforeSend = true
 	m = typeInto(t, m, draft)
 	m.spell.shown = marks
-	// The answer describes this draft, which is what applied == gen means: nothing is
-	// outstanding, so the gate reads what it is holding rather than asking again.
+	// applied == gen: nothing is outstanding, so the gate reads what it holds rather than asking.
 	m.spell.applied = m.spell.gen
 	return m
 }
 
-// Something misspelled holds the send and opens the walk on it instead.
 func TestSendWithAMisspellingOpensTheWalkInstead(t *testing.T) {
 	t.Parallel()
 
@@ -373,8 +353,6 @@ func TestSendWithAMisspellingOpensTheWalkInstead(t *testing.T) {
 	}
 }
 
-// Answering the last one sends. That is the whole point of the setting: the correction
-// is on the way to the message going out, not a detour from it.
 func TestFinishingAWalkOpenedByASendSendsIt(t *testing.T) {
 	t.Parallel()
 
@@ -387,8 +365,8 @@ func TestFinishingAWalkOpenedByASendSendsIt(t *testing.T) {
 	if m.walk.active {
 		t.Fatal("the walk is still up after its last word was answered")
 	}
-	// settle rather than one call: sending is a batch — the message, the read receipt,
-	// the typing notice — and only running it out reaches the one that posts.
+	// settle: sending is a batch (message, read receipt, typing notice), and only running
+	// it out reaches the post.
 	m = settle(t, m, cmd)
 	got := b.posted()
 	if len(got) != 1 {
@@ -402,7 +380,6 @@ func TestFinishingAWalkOpenedByASendSendsIt(t *testing.T) {
 	}
 }
 
-// Skipping is an answer.
 func TestSkippingEverythingStillSends(t *testing.T) {
 	t.Parallel()
 
@@ -418,8 +395,7 @@ func TestSkippingEverythingStillSends(t *testing.T) {
 	}
 }
 
-// esc stops the walk *and* the send. Nothing goes out behind you: esc is how you say
-// "I will deal with this myself", and the draft is left for you to deal with.
+// esc stops the walk and the send; the draft is left for the user.
 func TestStoppingAWalkOpenedByASendCancelsTheSend(t *testing.T) {
 	t.Parallel()
 
@@ -441,8 +417,8 @@ func TestStoppingAWalkOpenedByASendCancelsTheSend(t *testing.T) {
 	}
 }
 
-// A clean draft is not interrupted, and neither is a draft nobody can check. A checker
-// that cannot answer must not be able to stop a message going out.
+// A clean draft sends straight out, and so does one nobody can check: a broken checker
+// must not block a message.
 func TestNothingWrongAndNothingToCheckWithBothSendStraightOut(t *testing.T) {
 	t.Parallel()
 
@@ -471,8 +447,7 @@ func TestNothingWrongAndNothingToCheckWithBothSendStraightOut(t *testing.T) {
 	}
 }
 
-// Sending inside the debounce — typing a sentence and sending it in the same breath —
-// asks the checker now rather than skipping the check.
+// Sending inside the debounce asks the checker now rather than skipping the check.
 func TestSendingBeforeTheCheckHasRunAsksForOne(t *testing.T) {
 	t.Parallel()
 
@@ -481,7 +456,7 @@ func TestSendingBeforeTheCheckHasRunAsksForOne(t *testing.T) {
 	m := spellComposing(t, b)
 	m.conf.base.Spell.CheckBeforeSend = true
 	m = typeInto(t, m, draft)
-	// No answer has landed: applied is behind gen, which is what "still typing" is.
+	// No answer has landed: applied is behind gen.
 
 	m, cmd := press(t, m, sendKey())
 	if m.walk.active {
@@ -507,13 +482,13 @@ func TestSendingBeforeTheCheckHasRunAsksForOne(t *testing.T) {
 	}
 }
 
-// Typing on while the check is in flight is not an answer to the send that started it.
+// A draft edited while the check is in flight is not sent.
 func TestADraftEditedDuringTheCheckIsNotSent(t *testing.T) {
 	t.Parallel()
 
 	b := &spellBackend{}
 	m := sendReady(t, b, "hello there")
-	// The check was asked about the draft one keystroke ago; the composer has moved on.
+	// The check was about the draft one keystroke ago.
 	held := spellBeforeSendMsg{gen: m.spell.gen, text: "hello the"}
 
 	next, _ := m.handleSpellBeforeSend(held)
@@ -526,8 +501,7 @@ func TestADraftEditedDuringTheCheckIsNotSent(t *testing.T) {
 	}
 }
 
-// The walk opens from inside the composer, and the keystroke does not reach the draft on
-// its way through.
+// The walk opens from inside the composer without the keystroke reaching the draft.
 func TestTheWalkOpensFromInsideTheComposer(t *testing.T) {
 	t.Parallel()
 
@@ -544,16 +518,15 @@ func TestTheWalkOpensFromInsideTheComposer(t *testing.T) {
 	if m.compose.input != draft {
 		t.Fatalf("alt+s typed something: %q", m.compose.input)
 	}
-	// And the numbers correct rather than typing, which is the interception order the
-	// composer makes load-bearing: the walk is asked before the field is.
+	// Numbers correct rather than type: the walk is asked before the field.
 	m, _ = press(t, m, keyText("1"))
 	if m.compose.input != "I receive mail" {
 		t.Errorf("the draft is %q, want the correction rather than a typed 1", m.compose.input)
 	}
 }
 
-// allowed records what the walk dismissed rather than taught, which is the whole of the
-// observable difference between `a` on a misspelling and `a` on a hint.
+// allowed records what the walk dismissed rather than taught, the difference between
+// `a` on a misspelling and `a` on a hint.
 func (b *spellBackend) AllowRareWord(_ context.Context, word string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -567,7 +540,7 @@ func (b *spellBackend) dismissals() []string {
 	return append([]string(nil), b.dismissed...)
 }
 
-// `a` means two different things, because the two marks are two different claims.
+// `a` on a hint dismisses it rather than teaching the engine.
 func TestAddOnAHintDismissesItInsteadOfTeachingTheEngine(t *testing.T) {
 	t.Parallel()
 
@@ -587,7 +560,7 @@ func TestAddOnAHintDismissesItInsteadOfTeachingTheEngine(t *testing.T) {
 	if got := b.lessons(); len(got) != 0 {
 		t.Errorf("the engine was taught %v; it already accepts that word", got)
 	}
-	// And the mark goes, because nothing else is coming to remove it.
+	// The mark goes, since nothing else will remove it.
 	for _, r := range m.spell.shown {
 		if r.Word == "שגיא" {
 			t.Error("the hint is still drawn after being dismissed")
@@ -595,8 +568,8 @@ func TestAddOnAHintDismissesItInsteadOfTeachingTheEngine(t *testing.T) {
 	}
 }
 
-// `i` on a hint is still the session-long version, and still goes to the engine's
-// ignore rather than the allow-list: "not now" and "never" are different answers.
+// `i` on a hint still goes to the engine's ignore, not the allow-list: "not now" and
+// "never" differ.
 func TestIgnoreOnAHintStaysWithTheEngine(t *testing.T) {
 	t.Parallel()
 
@@ -617,7 +590,6 @@ func TestIgnoreOnAHintStaysWithTheEngine(t *testing.T) {
 	}
 }
 
-// The footer says what the key will do, and on a hint that is not "add".
 func TestTheWalkExplainsAHintAndRenamesTheKey(t *testing.T) {
 	t.Parallel()
 
@@ -635,7 +607,7 @@ func TestTheWalkExplainsAHintAndRenamesTheKey(t *testing.T) {
 	}
 }
 
-// A hint must not hold up a send unless somebody asked for exactly that.
+// A hint holds up a send only if configured to.
 func TestRareBeforeSendDecidesWhetherAHintGatesTheSend(t *testing.T) {
 	t.Parallel()
 
@@ -660,7 +632,6 @@ func TestRareBeforeSendDecidesWhetherAHintGatesTheSend(t *testing.T) {
 	}
 }
 
-// One choice for one word.
 func TestCorrectingAWordFixesItsOtherOccurrences(t *testing.T) {
 	t.Parallel()
 
@@ -687,14 +658,13 @@ func TestCorrectingAWordFixesItsOtherOccurrences(t *testing.T) {
 	if got := m.editorFor(fieldComposer).text; got != want {
 		t.Errorf("draft = %q, want every occurrence fixed:\n  %q", got, want)
 	}
-	// And the walk is over, because there is nothing left to ask about.
+	// Nothing is left to ask about.
 	if m.walk.active {
 		t.Errorf("the walk is still asking: %+v", m.walk.items)
 	}
 }
 
-// A word deliberately skipped is not reached back for. Skipping is an answer, and a later
-// choice must not overwrite an earlier one.
+// A skipped word is not corrected by a later choice.
 func TestCorrectingDoesNotReachBackPastASkip(t *testing.T) {
 	t.Parallel()
 
@@ -716,8 +686,7 @@ func TestCorrectingDoesNotReachBackPastASkip(t *testing.T) {
 	m := walking(t, b, draft, marks...)
 	m = openWalk(t, m)
 
-	// Skip the first, then correct the second: the first stays as it was typed, and the
-	// third goes with the second.
+	// Skip the first, correct the second: the first stays as typed, the third follows the second.
 	skipped, _ := m.handleSpellWalkKey(key('s'))
 	m = skipped
 	next, _ := m.takeSuggestion(1)

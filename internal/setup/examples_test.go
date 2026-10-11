@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// Every commented [[notifications.rule]] example in the shipped config is one a reader
-// may uncomment: each must decode and pass the startup check. Two once named a space
-// bare ("Work"), which startup refuses.
+// Every commented [[notifications.rule]] example in the shipped config decodes and
+// passes the startup check once uncommented.
 func TestTheNotificationRuleExamplesPassStartup(t *testing.T) {
 	t.Parallel()
 
@@ -40,7 +39,7 @@ func TestTheNotificationRuleExamplesPassStartup(t *testing.T) {
 		t.Fatalf("found %d commented [[notifications.rule]] examples; the parser no longer matches default.toml", len(blocks))
 	}
 
-	// Through config.Load, the way startup reads it: unknown keys refused too.
+	// Through config.Load, as startup reads it, refusing unknown keys.
 	dir := t.TempDir()
 	for i, block := range blocks {
 		path := filepath.Join(dir, "config-"+string(rune('a'+i))+".toml")

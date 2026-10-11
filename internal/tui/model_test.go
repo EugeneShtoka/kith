@@ -102,8 +102,8 @@ func deliver(t *testing.T, m Model, cmd tea.Cmd) Model {
 	return m
 }
 
-// rested is m once the room it just opened has settled: cmd (what selectRoom returned)
-// run, and then the room load its timer would fire, delivered here instead.
+// rested is m after the room it opened settles: cmd (from selectRoom) run, then the timer's
+// room load delivered directly.
 func rested(t *testing.T, m Model, cmd tea.Cmd) Model {
 	t.Helper()
 	m = settle(t, m, cmd)
@@ -111,12 +111,12 @@ func rested(t *testing.T, m Model, cmd tea.Cmd) Model {
 	return settle(t, next, load)
 }
 
-// The command checks below match a closure by the part of its name that survives
-// inlining: instrumented builds (-race, -cover) inline differently, and a closure
-// inlined into its caller is named after both ("Model.askHold.Model.holdDraftCmd.func1").
+// The command checks below match a closure by the part of its name that survives inlining:
+// -race and -cover inline differently, and an inlined closure is named after both functions
+// ("Model.askHold.Model.holdDraftCmd.func1").
 
-// isListener reports whether cmd waits on a stream (listen): the tests deliver what a
-// stream would carry themselves, and a listener run here could wait forever.
+// isListener reports whether cmd waits on a stream; tests deliver stream messages themselves,
+// and running a listener could block forever.
 func isListener(cmd tea.Cmd) bool { return strings.Contains(cmdFunc(cmd), "listen[") }
 
 // cmdFunc is the full name of the function a command is, or "".
@@ -127,9 +127,8 @@ func cmdFunc(cmd tea.Cmd) string {
 	return ""
 }
 
-// isTimer reports whether cmd is a tea.Tick (a debounce, a sweep, the player's
-// pulse): running one would sleep through its wait, so the helpers drop it, and a
-// test that needs the timer's message delivers that message itself.
+// isTimer reports whether cmd is a tea.Tick (debounce, sweep, player pulse). Helpers drop
+// timers rather than sleep; a test needing the timer's message delivers it itself.
 func isTimer(cmd tea.Cmd) bool {
 	name := cmdFunc(cmd)
 	return strings.HasPrefix(name, "charm.land/bubbletea/v2.Tick.") || strings.Contains(name, ".Tick.func")
@@ -159,8 +158,8 @@ func timers(t *testing.T, cmd tea.Cmd) int {
 	return n
 }
 
-// untimed is what a command does besides arming timers: its batch opened (and nothing
-// else run), timers left out, and one command or a batch of the rest, nil for none.
+// untimed is cmd minus its timers: its batch opened (nothing else run), timers dropped, and the
+// rest as one command or batch, nil for none.
 func untimed(t *testing.T, cmd tea.Cmd) tea.Cmd {
 	t.Helper()
 	var rest []tea.Cmd
@@ -1271,7 +1270,7 @@ func TestFrequentPaletteApplied(t *testing.T) {
 	if m.glyphs.palette[0] != "🔥" || m.glyphs.palette[1] != "🎉" {
 		t.Errorf("palette leads with %v, want 🔥,🎉", m.glyphs.palette[:2])
 	}
-	// And the browser grid opens in the same order — one ranking, three ways in.
+	// The browser grid uses the same order.
 	if grid := m.rankedEmoji(domain.EmojiReaction); grid[0] != "🔥" || grid[1] != "🎉" {
 		t.Errorf("the grid leads with %v, want the palette's order", grid[:2])
 	}
@@ -1859,7 +1858,7 @@ func TestNameProcessing(t *testing.T) {
 	if got := m.processedName(domain.Message{RoomID: "!a:x", Sender: "@p:x", SenderName: "+1500000"}); got != "Dana" {
 		t.Errorf("aliased name = %q, want the space rule applied to it too", got)
 	}
-	// The same answer from the pill path, which is the point of their sharing one.
+	// The pill path gives the same answer, since both share it.
 	if got := m.mentionedName("@p:x", "!a:x", "+1500000"); got != "Dana" {
 		t.Errorf("aliased mention = %q, want Dana", got)
 	}
@@ -2541,10 +2540,8 @@ func TestAFailedReceiptIsSaidAndRetried(t *testing.T) {
 	}
 }
 
-// The helpers that tell commands apart (isTimer, isBatch, isListener) match closures by
-// name, and those names belong to bubbletea and to how the compiler inlines. If a
-// rebase or a build mode renames them, this fails, rather than "no timer was armed"
-// passing for want of recognizing one.
+// The command matchers (isTimer, isBatch, isListener) depend on bubbletea's names and compiler
+// inlining; if those change this fails, rather than "no timer was armed" passing silently.
 func TestTheCommandMatchersKnowTheirCommands(t *testing.T) {
 	t.Parallel()
 	noop := func() tea.Msg { return nil }
@@ -2565,8 +2562,8 @@ func TestTheCommandMatchersKnowTheirCommands(t *testing.T) {
 	}
 }
 
-// An order entry names a group as hidden does: by its key, else by its name on the
-// rail in any case, so a tag's bare name places the tag; a space of that name keeps it.
+// An order entry names a group as hidden does: by key, else by rail name case-insensitively, so
+// a tag's bare name places the tag; a space of that name keeps it.
 func TestRailOrderPlacesATagByItsName(t *testing.T) {
 	t.Parallel()
 	keys := func(gs []group) string {

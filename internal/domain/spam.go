@@ -63,7 +63,7 @@ type SpamRule int
 const (
 	// SpamNotSpam is the zero value: this room is not in Spam.
 	SpamNotSpam SpamRule = iota
-	// SpamByHand is you, saying so.
+	// SpamByHand: you marked it.
 	SpamByHand
 	// SpamFirstMessage: the room's first message was caught.
 	SpamFirstMessage
@@ -73,7 +73,7 @@ const (
 	SpamMostly
 )
 
-// Reason is the rule in the words a status line and a `:why` answer use.
+// Reason is the rule in words, for the status line and `:why`.
 func (r SpamRule) Reason(filter string) string {
 	named := ""
 	if filter != "" {
@@ -100,7 +100,7 @@ type SpamVerdict struct {
 	Rule   SpamRule
 	Filter string
 	At     time.Time
-	// Released is a person taking the room out. No rule may put it back.
+	// Released means a person took the room out; no rule may put it back.
 	Released bool
 }
 
@@ -138,7 +138,7 @@ func (f SpamFilter) anything() bool {
 	return true
 }
 
-// SpamRules is the whole of what promotes a room, and each part is its own switch.
+// SpamRules is what promotes a room into Spam; each rule switches on separately.
 type SpamRules struct {
 	Filters      []SpamFilter
 	FirstMessage bool
@@ -163,7 +163,7 @@ func (r SpamRules) Catches(body, sender string) (SpamFilter, bool) {
 	return SpamFilter{}, false
 }
 
-// SpamCase is what is known about one message when the rules are asked about it.
+// SpamCase is what the rules know about one message.
 type SpamCase struct {
 	Filter string // the filter that caught it, or ""
 	First  bool   // nothing in the room before it
@@ -173,7 +173,7 @@ type SpamCase struct {
 	Caught, Total int
 }
 
-// Promotes decides whether this message moves its room into Spam, and by which rule.
+// Promotes reports whether this message moves its room into Spam, and by which rule.
 func (r SpamRules) Promotes(c SpamCase) (SpamRule, bool) {
 	if c.Filter == "" {
 		return SpamNotSpam, false

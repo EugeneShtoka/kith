@@ -39,7 +39,7 @@ func (b *memberBackend) Send(_ context.Context, _ domain.RoomID, draft domain.Dr
 	return b.sendFail
 }
 
-// composing returns a model in insert mode in a room with the given members.
+// composing returns a model in insert mode in a room with members.
 func composing(t *testing.T, members ...domain.Member) (Model, *memberBackend) {
 	t.Helper()
 	return composingWith(t, config.Display{}, members...)
@@ -108,7 +108,7 @@ func TestMentionPopupNotOpenedMidWord(t *testing.T) {
 	if m.compose.input != "mail me at eugene@" {
 		t.Errorf("input = %q", m.compose.input)
 	}
-	// At the very start of the composer it does open.
+	// At the very start of the composer it opens.
 	m2, _ := composing(t, people...)
 	m2 = typeInto(t, m2, "@")
 	if !m2.completion.active {
@@ -116,8 +116,7 @@ func TestMentionPopupNotOpenedMidWord(t *testing.T) {
 	}
 }
 
-// Typing narrows, and the ordering is the specified one: name-token prefixes first,
-// substrings after.
+// Typing narrows: name-token prefixes first, then substrings.
 func TestMentionPopupNarrows(t *testing.T) {
 	t.Parallel()
 
@@ -128,8 +127,8 @@ func TestMentionPopupNarrows(t *testing.T) {
 	for _, c := range m.completion.candidates {
 		labels = append(labels, c.label)
 	}
-	// Michael Livingston and Liv Andersen match a name token; Olivia Stone only as
-	// a substring; Dana Levi not at all.
+	// Michael Livingston and Liv Andersen match a name token; Olivia Stone a substring;
+	// Dana Levi nothing.
 	want := []string{"Michael Livingston", "Liv Andersen", "Olivia Stone"}
 	if strings.Join(labels, "|") != strings.Join(want, "|") {
 		t.Errorf("candidates = %v, want %v", labels, want)
@@ -148,14 +147,13 @@ func TestMentionPopupClosesWithNoCandidates(t *testing.T) {
 	if m.compose.input != "@zzz" {
 		t.Errorf("input = %q — the typed text must survive", m.compose.input)
 	}
-	// And the keys it would have owned go back to typing.
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.compose.input != "@zzz" {
 		t.Errorf("input = %q after tab, want the text untouched", m.compose.input)
 	}
 }
 
-// Whitespace ends a completion — names do not span words here.
+// Whitespace ends a completion: names do not span words.
 func TestMentionPopupClosesOnSpace(t *testing.T) {
 	t.Parallel()
 
@@ -233,7 +231,7 @@ func TestMentionPopupNavigation(t *testing.T) {
 	if want := len(people) - 1; m.completion.cursor != want {
 		t.Errorf("up from the top should wrap to %d, got %d", want, m.completion.cursor)
 	}
-	// ctrl+n/ctrl+p are the readline convention and work too.
+	// ctrl+n/ctrl+p (readline) work too.
 	m, _ = press(t, m, tea.KeyPressMsg{Code: 'n', Mod: tea.ModCtrl})
 	if m.completion.cursor != 0 {
 		t.Errorf("ctrl+n from the end should wrap to 0, got %d", m.completion.cursor)
@@ -242,7 +240,7 @@ func TestMentionPopupNavigation(t *testing.T) {
 	if want := len(people) - 1; m.completion.cursor != want {
 		t.Errorf("ctrl+p should wrap back to %d, got %d", want, m.completion.cursor)
 	}
-	// enter accepts rather than sending while the popup is up.
+	// enter accepts instead of sending while the popup is up.
 	m2, b2 := composing(t, people...)
 	m2 = typeInto(t, m2, "@dana")
 	m2, _ = press(t, m2, tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -265,7 +263,7 @@ func TestCompletionShadowsGlobalKeysOnlyWhileOpen(t *testing.T) {
 	if m.picker.active() {
 		t.Error("ctrl+n should navigate the popup, not open the DND chooser, while it is open")
 	}
-	// With the popup closed it means what it always means — even mid-compose.
+	// With the popup closed it means do-not-disturb, even mid-compose.
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape}) // dismiss the popup
 	if m.completion.active {
 		t.Fatal("esc should dismiss the popup")
@@ -292,14 +290,14 @@ func TestCompletionEscapeDismissesPopupOnly(t *testing.T) {
 	if m.compose.input != "hi @liv" {
 		t.Errorf("input = %q — dismissing leaves the text as typed", m.compose.input)
 	}
-	// A second esc leaves insert mode, as it always did.
+	// A second esc leaves insert mode.
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.compose.insertMode {
 		t.Error("the second esc should leave insert mode")
 	}
 }
 
-// The whole point: the sent message carries a real Matrix mention.
+// The sent message carries a real Matrix mention.
 func TestSendCarriesMention(t *testing.T) {
 	t.Parallel()
 
@@ -324,13 +322,13 @@ func TestSendCarriesMention(t *testing.T) {
 	if len(live) != 1 || live[0].UserID != "@dana:x" {
 		t.Errorf("mentions = %+v, want dana", live)
 	}
-	// And the composer's mention list is cleared for the next message.
+	// The composer's mention list is cleared for the next message.
 	if len(m.compose.drafted) != 0 {
 		t.Errorf("drafted = %+v, want cleared after sending", m.compose.drafted)
 	}
 }
 
-// A name typed over must not notify the person it no longer names.
+// A name typed over does not notify the person it no longer names.
 func TestSendDropsMentionEditedAway(t *testing.T) {
 	t.Parallel()
 
@@ -396,8 +394,7 @@ func TestMentionPopupIsIdentityMergeAware(t *testing.T) {
 	}
 }
 
-// Two people with the same display name are disambiguated, and a bridged account
-// says which network it is on.
+// Same display names are disambiguated, and a bridged account shows its network.
 func TestMentionPopupRowDetails(t *testing.T) {
 	t.Parallel()
 
@@ -434,7 +431,7 @@ func TestMentionPopupRenders(t *testing.T) {
 	}
 }
 
-// A long candidate list is capped, and says how many it is not showing.
+// A long list is capped and counts what it hides.
 func TestMentionPopupCapsAndCounts(t *testing.T) {
 	t.Parallel()
 
@@ -456,8 +453,8 @@ func TestMentionPopupCapsAndCounts(t *testing.T) {
 	}
 }
 
-// Members load with the room so the popup opens on the first keystroke, and the
-// network refresh follows it.
+// Members load with the room so the popup opens on the first keystroke; the network
+// refresh follows.
 func TestMembersLoadOnRoomOpen(t *testing.T) {
 	t.Parallel()
 
@@ -477,7 +474,7 @@ func TestMembersLoadOnRoomOpen(t *testing.T) {
 	if len(m.timeline.members) != len(people) {
 		t.Errorf("members = %d, want the ranked list", len(m.timeline.members))
 	}
-	// A result for a room the user has moved on from is dropped.
+	// A result for a room already left behind is dropped.
 	m = update(t, m, membersMsg{roomID: "!elsewhere:x", members: nil})
 	if len(m.timeline.members) != len(people) {
 		t.Error("another room's members should not replace the open room's")

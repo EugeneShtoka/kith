@@ -6,9 +6,8 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// Detecting sync changes to the room list, names or spaces. Rooms() and Spaces() read
-// a cache only RefreshRooms/RefreshSpaces write, so a daemon with no client attached
-// would otherwise never learn of them. The sync loop reports; the owner refreshes.
+// Detecting sync changes to the room list, names or spaces, which only
+// RefreshRooms/RefreshSpaces write to the cache. The sync loop reports; the owner refreshes.
 
 // roomStateTypes are the state events that change what Rooms() or Spaces() answer.
 // Others' m.room.member is excluded: frequent, and it only matters for hero names.
@@ -21,8 +20,7 @@ var roomStateTypes = map[event.Type]bool{
 	event.StateTopic:          true,
 }
 
-// roomsChanged reports whether a sync changes the room list, names or spaces. Our own
-// membership changing adds or removes rooms.
+// roomsChanged reports whether a sync changes the room list, names or spaces.
 func roomsChanged(resp *mautrix.RespSync, me id.UserID) bool {
 	if resp == nil {
 		return false

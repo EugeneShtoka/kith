@@ -15,20 +15,20 @@ import (
 	"github.com/EugeneShtoka/kith/internal/llamacpp/models"
 )
 
-// The local completion model: the only thing that answers ModelTask("complete").
-// Nothing leaves the machine, so the room scope lists and the per-minute cap do not
-// apply; a short timeout does. Off until weights are installed; spawned on first ask.
+// The local completion model answers ModelTask("complete"). Nothing leaves the
+// machine, so room scope and the per-minute cap do not apply; a short timeout does.
+// Off until weights are installed; spawned on first ask.
 
-// completionModel is the running engine, or nothing.
+// completionModel is the running engine, if any.
 type completionModel struct {
 	mu sync.Mutex
 	// predictor is nil when nothing is installed or the layer is off.
 	predictor *llamacpp.Predictor
 	// model is the weights' short name, for the marker.
 	model string
-	// settings are what the predictor was built from, so an install can swap the path.
+	// settings built the predictor, so an install can swap the path.
 	settings llamacpp.Settings
-	// weights is the model file as it was then: replaced in place, it is new weights.
+	// weights stamps the model file, so one replaced in place counts as new.
 	weights weightsStamp
 }
 
@@ -38,7 +38,7 @@ type weightsStamp struct {
 	modTime time.Time
 }
 
-// weightsOf stamps the file at path; the zero stamp when it cannot be read.
+// weightsOf stamps the file at path; the zero stamp when unreadable.
 func weightsOf(path string) weightsStamp {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -47,13 +47,11 @@ func weightsOf(path string) weightsStamp {
 	return weightsStamp{size: info.Size(), modTime: info.ModTime()}
 }
 
-// modelDir is where installed weights live.
 func (s *Service) modelDir() string { return filepath.Join(s.spell.home(), "models") }
 
-// UseCompletionModel wires the engine, or turns it off (startup and reload). A reload
-// that changes nothing (the same settings, the same weights file) keeps the running
-// predictor, so a completion in flight is not cut off. Otherwise the old predictor's
-// server is stopped.
+// UseCompletionModel wires or disables the engine (startup and reload). A reload with
+// the same settings and weights file keeps the running predictor, so an in-flight
+// completion survives; otherwise the old server is stopped.
 func (s *Service) UseCompletionModel(settings llamacpp.Settings, on bool) {
 	weights := weightsOf(settings.Model)
 	var next *llamacpp.Predictor
@@ -76,7 +74,6 @@ func (s *Service) UseCompletionModel(settings llamacpp.Settings, on bool) {
 	}
 }
 
-// closeCompletionModel stops the server, if one is running.
 func (s *Service) closeCompletionModel() {
 	s.completion.mu.Lock()
 	predictor := s.completion.predictor
@@ -87,7 +84,7 @@ func (s *Service) closeCompletionModel() {
 	}
 }
 
-// modelReady is the engine to ask and the name to report it by, or false.
+// modelReady is the engine to ask and its reported name, or false.
 func (s *Service) modelReady() (*llamacpp.Predictor, string, bool) {
 	s.completion.mu.Lock()
 	predictor, name := s.completion.predictor, s.completion.model
@@ -98,7 +95,7 @@ func (s *Service) modelReady() (*llamacpp.Predictor, string, bool) {
 	return predictor, name, true
 }
 
-// completeFromModel answers a completion, or refuses with a sentence that names the fix.
+// completeFromModel answers a completion, or refuses with a sentence naming the fix.
 func (s *Service) completeFromModel(ctx context.Context, req domain.ModelRequest, settings ModelSettings) domain.ModelResult {
 	result := domain.ModelResult{Endpoint: thisMachine}
 	predictor, name, ok := s.modelReady()
@@ -147,15 +144,14 @@ func (s *Service) whyNoModel() string {
 	}
 }
 
-// thisMachine is printed in place of an endpoint URL (the port varies per spawn).
+// thisMachine replaces an endpoint URL (the port varies per spawn).
 const thisMachine = "this machine"
 
 // completionPrompt is the raw text the model continues: quoted context, then the
-// draft. No chat template: the model continues a document.
+// draft. No chat template.
 func (s *Service) completionPrompt(ctx context.Context, req domain.ModelRequest, settings ModelSettings) string {
 	fields, _, err := s.modelFields(ctx, req, settings)
 	if err != nil {
-		// The draft alone is a fine prompt.
 		return req.Draft
 	}
 	context := strings.TrimSpace(fields["{context}"])
@@ -165,7 +161,6 @@ func (s *Service) completionPrompt(ctx context.Context, req domain.ModelRequest,
 	return context + "\n" + req.Draft
 }
 
-// shortModelName is the weights' filename without .gguf.
 func shortModelName(path string) string {
 	if path == "" {
 		return ""
@@ -176,8 +171,8 @@ func shortModelName(path string) string {
 	return strings.TrimSuffix(path, ".gguf")
 }
 
-// InstallModel fetches the weights (unless already present) and points the running
-// layer at them, so no restart is needed.
+// InstallModel fetches the weights (unless present) and points the running layer at
+// them, with no restart.
 func (s *Service) InstallModel(ctx context.Context, tag string) error {
 	dir := s.modelDir()
 	path, ok := models.Installed(dir, tag)
@@ -199,7 +194,7 @@ func (s *Service) InstallModel(ctx context.Context, tag string) error {
 
 // DetectModel answers whether to offer the completion model: nothing when installed
 // or off, a sentence when llama.cpp is missing, else a candidate. The daemon answers
-// because it spawns llama-server, and its PATH is what matters.
+// because it spawns llama-server, so its PATH is what matters.
 func (s *Service) DetectModel(_ context.Context) (domain.ModelSuggestion, error) {
 	s.completion.mu.Lock()
 	predictor, settings := s.completion.predictor, s.completion.settings
@@ -230,13 +225,11 @@ func (s *Service) DetectModel(_ context.Context) (domain.ModelSuggestion, error)
 	}, nil
 }
 
-// onPath reports whether the server program exists.
 func onPath(command string) bool {
 	_, err := exec.LookPath(command)
 	return err == nil
 }
 
-// missingServer is the sentence for a machine without llama.cpp.
 func missingServer(command string) string {
 	return command + " is not installed, and the completion model needs it — " +
 		"Arch: pacman -S llama.cpp · Homebrew: brew install llama.cpp · " +

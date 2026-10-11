@@ -2,8 +2,7 @@ package richtext
 
 import "testing"
 
-// Formatting comes back as the Markdown a person would have typed for it, and words
-// that only look like Markdown stay words.
+// Spans render as typed Markdown; Markdown-like words are escaped.
 func TestFormattingIsWrittenAsMarkdown(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {

@@ -7,9 +7,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// "This room has no canonical parent" is an answer, not a missing one — most rooms
-// you filed into a space yourself have none — so it has to be storable. Without
-// that, every rail rebuild would re-ask the homeserver about every such room forever.
+// "No canonical parent" is stored as an answer, so rail rebuilds do not re-ask the
+// homeserver for every such room.
 func TestRoomParentRemembersAbsenceAsWellAsPresence(t *testing.T) {
 	t.Parallel()
 
@@ -44,8 +43,7 @@ func TestRoomParentRemembersAbsenceAsWellAsPresence(t *testing.T) {
 	}
 }
 
-// A room can be moved between spaces, and the answer is replaced rather than
-// duplicated.
+// A moved room's parent is replaced, not duplicated.
 func TestSaveRoomParentReplaces(t *testing.T) {
 	t.Parallel()
 

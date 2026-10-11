@@ -18,22 +18,20 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Completion in the composer: the word being typed (from the daemon's vocabulary),
-// the next word at a boundary (the local model, then the room's own phrase index),
-// and the keys that take them. A ghost is drawn only when the leader leads clearly
-// (domain.Dominant). Nothing is suggested while the spelling walk is open.
+// Composer completion: the word being typed (daemon vocabulary), the next word at a
+// boundary (local model, then the room's phrase index), and the keys that take them.
+// A ghost draws only when the leader clearly leads (domain.Dominant). Nothing is
+// suggested while the spelling walk is open.
 
-// assistDebounce is how long the composer waits before asking for a word completion.
+// assistDebounce is the wait before asking for a word completion.
 const assistDebounce = 120 * time.Millisecond
 
 // assistTimeout bounds one lookup.
 const assistTimeout = 3 * time.Second
 
-// assistCandidates is how many to fetch: more than are shown, because the dominance
-// test reads the runners-up.
+// assistCandidates is more than are shown: the dominance test reads the runners-up.
 const assistCandidates = 6
 
-// assistState is what the composer knows about finishing the word in progress.
 type assistState struct {
 	// prefix is the partly typed word, folded like the vocabulary; empty means nothing
 	// in flight. typed is the same prefix as written, used to re-case candidates.
@@ -48,7 +46,7 @@ type assistState struct {
 // assistTickMsg is the debounce firing for one prefix.
 type assistTickMsg struct{ gen int }
 
-// assistDoneMsg is the daemon's answer, and the prefix it answers about.
+// assistDoneMsg is the daemon's answer and the prefix it answers.
 type assistDoneMsg struct {
 	gen        int
 	prefix     string
@@ -56,20 +54,19 @@ type assistDoneMsg struct {
 	candidates []domain.WordCandidate
 }
 
-// assistTickCmd fires the completion debounce.
 func assistTickCmd(gen int) tea.Cmd {
 	return tea.Tick(assistDebounce, func(time.Time) tea.Msg { return assistTickMsg{gen: gen} })
 }
 
-// armCompletion notices the word under the caret has changed and schedules a lookup.
-// Called from Update after every message, since many paths change the composer.
+// armCompletion schedules a lookup when the word under the caret changed. Called
+// after every Update message, since many paths change the composer.
 func (m Model) armCompletion() (Model, tea.Cmd) {
 	if !m.conf.base.Complete.CompleteEnabled() || m.openRoom == "" {
 		return m, nil
 	}
 	typed, ok := m.wordBeingTyped()
 	if !ok {
-		// Drop the state so the ghost disappears immediately.
+		// Drop the state so the ghost disappears at once.
 		m.assist = assistState{}
 		return m, nil
 	}
@@ -99,14 +96,13 @@ func (m Model) handleAssistDone(msg assistDoneMsg) (Model, tea.Cmd) {
 	}
 	m.assist.applied = msg.gen
 	m.assist.candidates = msg.candidates
-	// A popup opened before the answer landed is waiting for exactly this.
+	// A popup opened before the answer is waiting for it.
 	if m.completion.active && m.completion.trigger == wordTrigger {
 		return m.refreshCandidates(), nil
 	}
 	return m, nil
 }
 
-// completeWordCmd asks the daemon to finish the word.
 func (m Model) completeWordCmd(gen int, prefix, typed string) tea.Cmd {
 	room := m.openRoom
 	req := domain.CompleteRequest{
@@ -130,9 +126,9 @@ func (m Model) completeWordCmd(gen int, prefix, typed string) tea.Cmd {
 	}
 }
 
-// wordBeingTyped is the word the caret is at the end of, and false when there is none
-// worth finishing: not composing, caret not at the end of the draft, shorter than
-// domain.CompleteMinPrefix, or the walk or another popup owns the keys.
+// wordBeingTyped is the word the caret ends, false when none is worth finishing: not
+// composing, caret not at the draft's end, shorter than domain.CompleteMinPrefix, or
+// the walk or another popup owns the keys.
 func (m Model) wordBeingTyped() (string, bool) {
 	if !m.compose.insertMode || m.walk.active || m.compose.reacting {
 		return "", false
@@ -182,8 +178,7 @@ func (m Model) ghost() (string, bool) {
 	return m.phraseGhost()
 }
 
-// assistLead is the whole leading word when it leads clearly enough to be offered
-// without being asked for.
+// assistLead is the leading word when it leads clearly enough to offer unasked.
 func (m Model) assistLead() (string, bool) {
 	typed, ok := m.wordBeingTyped()
 	if !ok || typed != m.assist.typed {
@@ -196,12 +191,11 @@ func (m Model) assistLead() (string, bool) {
 	return lead.Word, true
 }
 
-// wordTrigger is word completion's empty trigger: the popup is opened by a key over a
-// word already being written.
+// wordTrigger is word completion's empty trigger: a key opens it over a word in progress.
 const wordTrigger = ""
 
 // isWords reports whether this popup is the word chooser (the other triggerless
-// source is the command line, in the prompt).
+// source is the command line).
 func (c completionState) isWords() bool {
 	return c.active && c.trigger == wordTrigger && c.target != targetPrompt
 }
@@ -216,9 +210,9 @@ func (m Model) wordCandidates(query string) []candidate {
 	return out
 }
 
-// offered is the answer applied to what was typed: re-cased, dropping words that do
-// not extend it, capped at domain.CompleteChoices. The ghost, the chooser and the
-// number keys all read this one list so they agree on positions.
+// offered is the answer applied to what was typed: re-cased, non-extending words
+// dropped, capped at domain.CompleteChoices. Ghost, chooser and number keys all read
+// this list so positions agree.
 func (m Model) offered(typed string) []domain.WordCandidate {
 	out := make([]domain.WordCandidate, 0, domain.CompleteChoices)
 	for _, c := range m.assist.candidates {
@@ -234,8 +228,8 @@ func (m Model) offered(typed string) []domain.WordCandidate {
 	return out
 }
 
-// openWordCompletion opens the chooser over the word being typed from the
-// candidates already fetched; if the answer is still in flight it fills on arrival.
+// openWordCompletion opens the chooser from the candidates already fetched; one
+// still in flight fills it on arrival.
 func (m Model) openWordCompletion() (Model, tea.Cmd) {
 	typed, ok := m.wordBeingTyped()
 	if !ok {
@@ -245,8 +239,8 @@ func (m Model) openWordCompletion() (Model, tea.Cmd) {
 	return m.openCompletion(targetComposer, wordTrigger, ed.at-len(typed))
 }
 
-// assistKey handles the completion keys while composing, and reports whether it took
-// the key; with nothing on offer the keys keep their ordinary meanings.
+// assistKey handles completion keys while composing and reports whether it took the
+// key; with nothing on offer keys keep their usual meaning.
 func (m Model) assistKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	act := m.keys.lookup(key.String(), scopeInsert)
 	if choice, ok := choiceOf(act); ok {
@@ -275,7 +269,7 @@ func (m Model) assistKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		if phrase, ok := m.phraseGhost(); ok {
 			return answered(m.takePhrase(phrase))
 		}
-		// Nothing confident enough to draw: escalate to the list.
+		// Nothing confident enough to draw: open the list.
 		if typed, ok := m.wordBeingTyped(); ok && len(m.offered(typed)) > 0 {
 			return answered(m.openWordCompletion())
 		}
@@ -284,8 +278,8 @@ func (m Model) assistKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// takeChoice inserts the n-th thing on offer. While a word is being typed that is the
-// vocabulary's list; at a boundary it is the model/phrase options.
+// takeChoice inserts the n-th offer: the vocabulary's list mid-word, the model/phrase
+// options at a boundary.
 func (m Model) takeChoice(n int) (Model, tea.Cmd, bool) {
 	if typed, ok := m.wordBeingTyped(); ok && typed == m.assist.typed {
 		offered := m.offered(typed)
@@ -301,9 +295,9 @@ func (m Model) takeChoice(n int) (Model, tea.Cmd, bool) {
 	return answered(m.takePhrase(options[n]))
 }
 
-// modelOptions are the next-word options for the draft: this room's phrase index
-// first (instant, offline), then the model's, deduplicated. Before the model answers
-// for this exact draft, the phrase index fills all but one slot.
+// modelOptions are the next-word options: this room's phrase index first (instant,
+// offline), then the model's, deduplicated. Until the model answers this draft the
+// phrase index fills all but one slot.
 func (m Model) modelOptions() []string {
 	draft, ok := m.draftForModel()
 	if !ok {
@@ -315,8 +309,7 @@ func (m Model) modelOptions() []string {
 	return merge(m.model.options, m.phraseOptions(draft, ladderSlots))
 }
 
-// merge is the two sources in order, case-insensitively deduplicated, up to the
-// strip's width.
+// merge concatenates both in order, case-insensitively deduplicated, up to the strip's width.
 func merge(first, second []string) []string {
 	out := make([]string, 0, domain.MaxCompletionOptions)
 	seen := make(map[string]bool, domain.MaxCompletionOptions)
@@ -334,12 +327,11 @@ func merge(first, second []string) []string {
 	return out
 }
 
-// ladderSlots is how many of the five slots the local phrase index keeps once the
-// model has answered: measured, one beats both zero and two (the room's own jargon
-// is what a general model cannot know).
+// ladderSlots is the phrase index's share of the five slots once the model has
+// answered: measured, one beats zero and two (room jargon a general model lacks).
 const ladderSlots = 1
 
-// phraseOptions is what this room and account have said next before, up to n.
+// phraseOptions is what this room and account said next before, up to n.
 func (m Model) phraseOptions(draft string, n int) []string {
 	return m.phrases.phrases().NextWords(draft, n)
 }
@@ -355,7 +347,7 @@ func (m Model) takeWord(word string) (Model, tea.Cmd) {
 	if start < 0 {
 		return m, nil
 	}
-	// A trailing space, as a completed name gets.
+	// Trailing space, like a completed name.
 	head := ed.text[:start] + word + " "
 	m = m.store(fieldComposer, ed.changed(head+ed.after(), len(head), editWhole))
 	// Clear now so the ghost does not flash back over the finished word.
@@ -364,8 +356,8 @@ func (m Model) takeWord(word string) (Model, tea.Cmd) {
 	return m.composerTyped("")
 }
 
-// takePhrase inserts a suggestion at the caret, as one undo step. It adds to a whole
-// draft rather than replacing a part-typed word.
+// takePhrase inserts a suggestion at the caret as one undo step, appending rather
+// than replacing a part-typed word.
 func (m Model) takePhrase(text string) (Model, tea.Cmd) {
 	draft, ok := m.draftForModel()
 	if !ok || text == "" {
@@ -382,8 +374,7 @@ func (m Model) takePhrase(text string) (Model, tea.Cmd) {
 	return m.composerTyped("")
 }
 
-// takeFirstWord inserts only the first word of a suggestion, so the next ask can
-// continue from what was accepted.
+// takeFirstWord inserts the suggestion's first word, so the next ask continues from it.
 func (m Model) takeFirstWord(text string) (Model, tea.Cmd) {
 	first := text
 	if cut := strings.IndexFunc(text, unicode.IsSpace); cut > 0 {
@@ -392,11 +383,10 @@ func (m Model) takeFirstWord(text string) (Model, tea.Cmd) {
 	return m.takePhrase(first)
 }
 
-// swapArrows turns the arrow keys around when the caret is in right-to-left text, so
-// the key pointing into a suggestion means "forward" in both directions. It is
-// decided by the word at the caret, not the paragraph (Hebrew drafts often embed
-// Latin). Only the arrows swap; backspace/delete/home/end are logical, and pane
-// movement never mirrors.
+// swapArrows reverses the arrow keys when the caret is in RTL text, so the key
+// pointing into a suggestion means "forward". Decided by the word at the caret, not
+// the paragraph (Hebrew drafts often embed Latin). Only arrows swap; backspace,
+// delete, home and end are logical, and pane movement never mirrors.
 func swapArrows(key tea.KeyPressMsg, text string, at int) tea.KeyPressMsg {
 	if !caretInRTL(text, at) {
 		return key
@@ -429,12 +419,11 @@ func caretInRTL(text string, at int) bool {
 	return false
 }
 
-// phraseLeast is how many times a continuation must have been seen before the local
-// phrase ghost draws it.
+// phraseLeast is how often a continuation must have been seen before it ghosts.
 const phraseLeast = 2
 
 // armPhrases rebuilds the room's phrase index when its messages change, keyed on the
-// timeline revision counter rather than comparing slices.
+// timeline revision rather than comparing slices.
 func (m Model) armPhrases() Model {
 	if !m.conf.base.Complete.CompleteEnabled() || m.openRoom == "" {
 		return m
@@ -443,16 +432,15 @@ func (m Model) armPhrases() Model {
 		return m
 	}
 	p := m.phrases
-	// The maps are extended in place, so only by the copy that grew them to this point
-	// (store.n == n): an older copy re-arming would count the same messages twice.
+	// The maps are extended in place, so only by the copy that grew them (store.n == n):
+	// an older copy re-arming would count messages twice.
 	grown := p.room == m.openRoom && slices.Equal(p.me, m.selfIDs()) && p.n <= len(m.timeline.messages) &&
 		p.store != nil && p.store.n == p.n
 	if grown {
 		grown = phraseSum(phraseSeed, m.timeline.messages[:p.n]) == p.sum
 	}
 	if grown {
-		// The timeline grew at the end and nothing already indexed changed (the usual
-		// live message): index only what is new.
+		// Grew at the end with nothing indexed changed (the usual live message): index the new ones.
 		for i := p.n; i < len(m.timeline.messages); i++ {
 			p.store.phrases.Add(&m.timeline.messages[i], p.me)
 		}
@@ -468,9 +456,8 @@ func (m Model) armPhrases() Model {
 	return m
 }
 
-// phraseIndex is the open room's trigram index, and which timeline it was built from:
-// the first n messages, fingerprinted by sum, so a timeline that only grew at the end
-// can be added to rather than indexed again.
+// phraseIndex is the open room's trigram index and the timeline it was built from
+// (first n messages, fingerprinted by sum), so a timeline that only grew can be extended.
 type phraseIndex struct {
 	room domain.RoomID
 	me   []string
@@ -478,7 +465,7 @@ type phraseIndex struct {
 	n    int
 	sum  uint64
 	// store is shared on purpose (like derived): copying 16 KB of maps per live message
-	// is what incremental indexing avoids. See armPhrases for who may extend it.
+	// is what incremental indexing avoids. armPhrases says who may extend it.
 	store *phraseStore
 }
 
@@ -519,7 +506,7 @@ func phraseSum(h uint64, msgs []domain.Message) uint64 {
 	return h
 }
 
-// phraseGhost is what this room usually says next, when it says it clearly enough.
+// phraseGhost is what this room usually says next, when clear enough.
 func (m Model) phraseGhost() (string, bool) {
 	if !m.conf.base.Complete.GhostEnabled() {
 		return "", false
@@ -539,11 +526,10 @@ func (m Model) phraseGhost() (string, bool) {
 	return next + " ", true
 }
 
-// ghostTail is the suggestion drawn after the caret on this row, styled and clipped
-// to the room left. It is clipped before styling: the composer's grapheme clip would
-// cut an ANSI escape in half.
+// ghostTail is the suggestion after the caret on this row, styled and clipped to fit.
+// Clipped before styling: the grapheme clip would cut an ANSI escape.
 func (m Model) ghostTail(row string, at int, dir bidi.Direction, width int) string {
-	// Only on the row the caret ends, at the end of the draft.
+	// Only on the caret's row, at the end of the draft.
 	if at != len(row) || m.completion.active {
 		return ""
 	}
@@ -559,11 +545,9 @@ func (m Model) ghostTail(row string, at int, dir bidi.Direction, width int) stri
 }
 
 // The model layer asks only at a word boundary, only in rooms named in
-// `[complete.model] rooms` (decided by the daemon), and a live room shows a marker in
-// the gutter. There is no debounce: stale answers are dropped by gen and sameAsk,
-// and a held space key is coalesced by sameAsk.
+// `[complete.model] rooms` (daemon-decided); a live room shows a gutter marker. No
+// debounce: gen and sameAsk drop stale answers, and sameAsk coalesces a held space.
 
-// modelState is what the composer knows about the model layer.
 type modelState struct {
 	// text is the draft the suggestion answers for; nothing is drawn for another draft.
 	text string
@@ -576,16 +560,16 @@ type modelState struct {
 	// endpoint and model name what is answering, for the gutter marker.
 	endpoint string
 	model    string
-	// live is set once a request has actually gone out for this room.
+	// live is set once a request has gone out for this room.
 	live bool
-	// failure is the last request's error. Unlike other unrequested failures it is
-	// kept and shown: a misconfigured endpoint otherwise looks like the feature is off.
+	// failure is the last request's error, kept and shown unlike other unrequested
+	// failures: a misconfigured endpoint otherwise looks like the feature is off.
 	failure string
 	// gen counts drafts asked about, so a late answer cannot be drawn over a newer one.
 	gen     int
 	applied int
-	// summary/todo are the last `/summary` and `:todo` answers and their notes, and
-	// preview the last dry run; the overlays outlive the messages that filled them.
+	// summary/todo are the last `/summary` and `:todo` answers and notes, preview the
+	// last dry run; overlays outlive the messages that filled them.
 	summary     string
 	summaryNote string
 	todo        string
@@ -605,14 +589,13 @@ type modelDoneMsg struct {
 	failure string
 }
 
-// modelAskNow schedules the ask for the next pass of the event loop (Update must not
-// do I/O).
+// modelAskNow schedules the ask for the next loop pass (Update must not do I/O).
 func modelAskNow(gen int) tea.Cmd {
 	return func() tea.Msg { return modelTickMsg{gen: gen} }
 }
 
 // sameAsk reports whether two drafts are the same question. Trailing whitespace is
-// not part of it (internal/llamacpp strips it), so a held space key asks once.
+// ignored (internal/llamacpp strips it), so a held space asks once.
 func sameAsk(a, b string) bool {
 	return strings.TrimRight(a, " \t") == strings.TrimRight(b, " \t")
 }
@@ -624,7 +607,7 @@ func (m Model) armModelAsk() (Model, tea.Cmd) {
 	}
 	draft, ok := m.draftForModel()
 	if !ok {
-		// Not the model's turn; drop the suggestion.
+		// Not the model's turn: drop the suggestion.
 		m.model.text, m.model.suggestion, m.model.options = "", "", nil
 		return m, nil
 	}
@@ -669,7 +652,6 @@ func (m Model) handleModelDone(msg modelDoneMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// modelAskCmd asks the daemon's model layer.
 func (m Model) modelAskCmd(gen int, draft, task, instruction string) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	req := domain.ModelRequest{
@@ -679,7 +661,7 @@ func (m Model) modelAskCmd(gen int, draft, task, instruction string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := backend.ModelTask(ctx, req)
 		if err != nil {
-			// Kept: a wrong model name or key otherwise looks like a feature that is off.
+			// Kept: a wrong model name or key otherwise looks like the feature is off.
 			return modelDoneMsg{gen: gen, text: draft, failure: err.Error()}
 		}
 		return modelDoneMsg{gen: gen, text: draft, result: result}
@@ -687,7 +669,7 @@ func (m Model) modelAskCmd(gen int, draft, task, instruction string) tea.Cmd {
 }
 
 // draftForModel is the draft to ask about: composing, caret at the end, at least
-// modelMinWords, and ending in a space (a word boundary).
+// modelMinWords, ending in a space.
 func (m Model) draftForModel() (string, bool) {
 	if !m.compose.insertMode || m.walk.active || m.compose.reacting || m.completion.active {
 		return "", false
@@ -702,7 +684,7 @@ func (m Model) draftForModel() (string, bool) {
 	return text, true
 }
 
-// modelMinWords is how much must be written before the model is asked at all.
+// modelMinWords is the minimum draft length before the model is asked.
 const modelMinWords = 3
 
 // modelGhost is the model's suggestion when it answers the current draft.
@@ -717,8 +699,8 @@ func (m Model) modelGhost() (string, bool) {
 	return m.model.suggestion, true
 }
 
-// modelMarker is the composer gutter's note about the model layer, shown whenever it
-// is configured (including refusing and failing), empty otherwise.
+// modelMarker is the composer gutter's model-layer note, shown whenever it is
+// configured (including refusing or failing).
 func (m Model) modelMarker() string {
 	if !m.modelLayerOn() || m.openRoom == "" {
 		return ""
@@ -735,16 +717,14 @@ func (m Model) modelMarker() string {
 	}
 }
 
-// modelLayerOn reports whether the local model may run, from config alone. Whether
+// modelLayerOn reports whether the local model may run, from config alone; whether
 // the weights exist is the daemon's question.
 func (m Model) modelLayerOn() bool {
 	model := m.conf.base.Complete.Model
 	return model.ModelEnabled() && !model.Declined
 }
 
-// `:model` asks the daemon for a dry run: the exact request that would be sent,
-// nothing sent.
-// modelPreviewMsg carries a dry run into the overlay.
+// modelPreviewMsg carries `:model`'s dry run (the exact request, unsent) into the overlay.
 type modelPreviewMsg struct{ result domain.ModelResult }
 
 // openModelPreview asks what would be sent for the draft as it stands.
@@ -753,7 +733,7 @@ func (m Model) openModelPreview() (Model, tea.Cmd) {
 	if m.openRoom == "" {
 		return m.say("open a room first — what is sent depends on which one"), nil
 	}
-	// An empty draft is allowed: what the room would send is worth reading first.
+	// An empty draft is allowed: what the room would send is worth reading.
 	draft := m.compose.input
 	req := domain.ModelRequest{
 		Task: domain.ModelComplete, RoomID: m.openRoom, Draft: draft,
@@ -768,14 +748,13 @@ func (m Model) openModelPreview() (Model, tea.Cmd) {
 	}
 }
 
-// handleModelPreview puts the dry run on screen.
 func (m Model) handleModelPreview(msg modelPreviewMsg) (Model, tea.Cmd) {
 	m.model.preview = msg.result
 	m.reader = m.reader.opening(readerAsk)
 	return m, nil
 }
 
-// modelPreviewLines is the overlay's body: where it would go, and exactly what would go.
+// modelPreviewLines is the overlay body: where it would go, and exactly what.
 func (m Model) modelPreviewLines() []string {
 	result := m.model.preview
 	var lines []string
@@ -796,20 +775,19 @@ func (m Model) modelPreviewLines() []string {
 	return append(lines, strings.Split(result.Text, "\n")...)
 }
 
-// `/summary` summarizes what you missed in the open room (after your read receipt, or
-// the recent conversation if up to date). The answer opens a reader, never the
+// summaryMsg carries a `/summary` answer: what you missed in the open room (after
+// your read receipt, else the recent conversation). It opens a reader, never the
 // composer, so it cannot be sent by accident.
-// summaryMsg carries the answer into the overlay.
 type summaryMsg struct {
 	room   domain.RoomID
 	result domain.ModelResult
 	err    string
 }
 
-// openSummary asks for one and says so while it is coming.
+// openSummary asks for one and says so while it comes.
 func (m Model) openSummary(room domain.Room, arg string) (Model, tea.Cmd) {
 	ctx, backend := m.ctx, m.backend
-	// Clear the "/summary" text so it is not one enter from being sent.
+	// Clear "/summary" so it is not one enter from being sent.
 	m.compose = m.compose.cleared()
 	if !m.conf.base.Assist.AssistEnabled() {
 		return m.say("no model endpoint configured — see [assist] in the config"), nil
@@ -831,11 +809,11 @@ func (m Model) openSummary(room domain.Room, arg string) (Model, tea.Cmd) {
 	}
 }
 
-// handleSummary puts it on screen, or says why there is none. Unlike the ghost, a
-// refusal reaches the status line: this was asked for.
+// handleSummary shows it or says why there is none. Unlike the ghost, a refusal
+// reaches the status line: this was asked for.
 func (m Model) handleSummary(msg summaryMsg) (Model, tea.Cmd) {
 	if msg.room != m.openRoom {
-		// The room changed while it was being written.
+		// The room changed meanwhile.
 		return m, nil
 	}
 	switch {
@@ -852,8 +830,7 @@ func (m Model) handleSummary(msg summaryMsg) (Model, tea.Cmd) {
 	return m.clearStatus(), nil
 }
 
-// summaryLines is the overlay's body: the dimmed note on what was read, then the
-// summary.
+// summaryLines is the overlay body: the dimmed note on what was read, then the summary.
 func (m Model) summaryLines() []string {
 	return m.notedLines(m.model.summaryNote, m.model.summary)
 }
@@ -867,16 +844,14 @@ func (m Model) notedLines(note, body string) []string {
 	return append(lines, dropEmptySections(strings.Split(plainText(body), "\n"))...)
 }
 
-// `:todo` lists what people are waiting on you for across unread rooms (chosen by the
-// daemon within the model layer's scope).
+// `:todo` lists what people await from you across unread rooms (chosen by the daemon
+// within the model layer's scope).
 
-// todoMsg carries the list into the overlay.
 type todoMsg struct {
 	result domain.ModelResult
 	err    string
 }
 
-// openTodo asks for it.
 func (m Model) openTodo() (Model, tea.Cmd) {
 	ctx, backend := m.ctx, m.backend
 	if !m.conf.base.Assist.AssistEnabled() {
@@ -892,7 +867,6 @@ func (m Model) openTodo() (Model, tea.Cmd) {
 	}
 }
 
-// handleTodo puts it on screen, or says why there is none.
 func (m Model) handleTodo(msg todoMsg) (Model, tea.Cmd) {
 	switch {
 	case msg.err != "":
@@ -909,13 +883,11 @@ func (m Model) handleTodo(msg todoMsg) (Model, tea.Cmd) {
 	return m.clearStatus(), nil
 }
 
-// todoLines is the overlay's body: what was read, then what is owed.
 func (m Model) todoLines() []string { return m.notedLines(m.model.todoNote, m.model.todo) }
 
-// roomPalette maps every name a summary might use for the open room's speakers
-// (cached and shown names, and unambiguous given names) to their message color, so a
-// summary reads like the timeline. Painting happens on the visual row, after the
-// bidi reorder, longest name first.
+// roomPalette maps every name a summary may use for the open room's speakers (cached,
+// shown and unambiguous given names) to their message color. Painting happens on the
+// visual row after the bidi reorder, longest name first.
 func (m Model) roomPalette() map[string]color.Color {
 	colors := m.senderColorMap()
 	out := make(map[string]color.Color, len(colors))
@@ -954,8 +926,7 @@ func (m Model) roomPalette() map[string]color.Color {
 	return out
 }
 
-// paintNames returns a painter for one room's palette, or nil when there is nothing
-// to paint.
+// paintNames returns a painter for a palette, nil when there is nothing to paint.
 func paintNames(palette map[string]color.Color) func(string) string {
 	if len(palette) == 0 {
 		return nil
@@ -993,9 +964,8 @@ func paintNames(palette map[string]color.Color) func(string) string {
 	}
 }
 
-// dropEmptySections removes a "Waiting on you" heading with nothing under it — a
-// model says "none" but a person reads a heading as meaning content. Forgiving about
-// how "nothing" is spelled.
+// dropEmptySections removes a "Waiting on you" heading with nothing under it: models
+// write "none", but a heading reads as content. Lenient about how "nothing" is spelled.
 func dropEmptySections(lines []string) []string {
 	out := make([]string, 0, len(lines))
 	for i := 0; i < len(lines); i++ {
@@ -1023,8 +993,8 @@ func dropEmptySections(lines []string) []string {
 	return out
 }
 
-// isSectionHead reports whether this is the summary's own heading rather than a
-// person's name (the other thing ending in a colon).
+// isSectionHead reports whether this is a summary heading rather than a person's name
+// (the other thing ending in a colon).
 func isSectionHead(head string) bool {
 	return strings.EqualFold(strings.TrimSpace(head), "waiting on you")
 }
@@ -1039,8 +1009,7 @@ func nothingWord(rest string) bool {
 	return false
 }
 
-// emptyBelow reports whether the lines from i onwards hold nothing before the next
-// heading — a heading with no items under it.
+// emptyBelow reports whether lines from i hold nothing before the next heading.
 func emptyBelow(lines []string, i int) bool {
 	for ; i < len(lines); i++ {
 		text := strings.TrimSpace(lines[i])
@@ -1053,7 +1022,7 @@ func emptyBelow(lines []string, i int) bool {
 	return true
 }
 
-// plainText strips the emphasis markers models write despite being asked not to.
+// plainText strips emphasis markers models write despite being asked not to.
 func plainText(s string) string {
 	for _, marker := range []string{"**", "__"} {
 		s = strings.ReplaceAll(s, marker, "")
@@ -1061,8 +1030,7 @@ func plainText(s string) string {
 	return s
 }
 
-// answering is what the composer is aimed at: the reply target (more specific), else
-// the thread root.
+// answering is the composer's target: the reply target, else the thread root.
 func (m Model) answering() domain.EventID {
 	if m.compose.replyTo != "" {
 		return m.compose.replyTo

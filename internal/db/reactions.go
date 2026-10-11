@@ -61,8 +61,8 @@ func (c *Cache) RecordEmoji(ctx context.Context, kind domain.EmojiKind, roomID d
 		string(roomID), string(kind), emoji, ts)
 }
 
-// DeleteReaction removes a reaction (an un-react) and returns it atomically via
-// RETURNING. ok is false when it was not cached, i.e. the redaction targets a message.
+// DeleteReaction removes a reaction (an un-react) and returns it; ok is false when it
+// was not cached, i.e. the redaction targets a message.
 func (c *Cache) DeleteReaction(ctx context.Context, eventID domain.EventID) (domain.Reaction, bool, error) {
 	var target, room, sender, emoji string
 	found, err := optional(c.db.QueryRowContext(ctx,
@@ -96,9 +96,9 @@ const (
 	scopeGlobal = "global"
 )
 
-// emojiScoreQuery is the weighted score query for one kind. Reactions are counted
-// from this account's own annotations (idempotent across re-paging); composed
-// emoji have no such record, so they use the emoji_usage tally.
+// emojiScoreQuery is the weighted score query for one kind. Reactions count this
+// account's own annotations (idempotent across re-paging); composed emoji use the
+// emoji_usage tally.
 func emojiScoreQuery(kind domain.EmojiKind, roomID domain.RoomID, spaceRooms []domain.RoomID, me []string, scope string) (string, []any) {
 	// Terms a scope excludes are left out of the SQL so args match.
 	var terms []string
@@ -126,8 +126,7 @@ func emojiScoreQuery(kind domain.EmojiKind, roomID domain.RoomID, spaceRooms []d
 		"FROM emoji_usage WHERE kind = ? GROUP BY emoji"), append(args, string(kind))
 }
 
-// sumOver assembles the score query: the scope's terms over per-row value each,
-// plus the global term all.
+// sumOver assembles the score query: the scope's terms over each, plus the global term over all.
 func sumOver(terms []string, each, all, from string) string {
 	sum := make([]string, 0, len(terms)+1)
 	for _, t := range terms {
@@ -137,8 +136,7 @@ func sumOver(terms []string, each, all, from string) string {
 	return "SELECT emoji, " + strings.Join(sum, " + ") + " AS score " + from
 }
 
-// EmojiScores is every used emoji of one kind with its score for a room (see the
-// weights above), in one query. Unused emoji are absent.
+// EmojiScores is every used emoji of one kind with its score for a room; unused ones are absent.
 func (c *Cache) EmojiScores(
 	ctx context.Context,
 	kind domain.EmojiKind,
