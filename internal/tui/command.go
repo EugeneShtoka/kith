@@ -111,7 +111,7 @@ var commands = []command{
 		run:     noArg(Model.toggleArchived),
 	},
 	{
-		name: "new", summary: "create a room, a space, or a group, forum, channel or community on another network",
+		name: "new", summary: "create a room, a space, a tag, or a group, forum, channel or community on another network",
 		run: noArg(Model.openNewRoom),
 	},
 	{
