@@ -48,8 +48,8 @@ func TestNewRoomOffersWholeAnswers(t *testing.T) {
 	if !m.picker.active() {
 		t.Fatal(":new opened no picker")
 	}
-	if len(m.picker.items) != 4 {
-		t.Errorf("offered %d kinds, want 4", len(m.picker.items))
+	if len(m.picker.items) != 5 || m.picker.items[4].value != tagNew {
+		t.Errorf("offered %d kinds, want Matrix's 4 and a tag", len(m.picker.items))
 	}
 	if first := m.picker.items[0]; !strings.Contains(first.detail, "encrypted") {
 		t.Errorf("first kind = %+v, want the encrypted private room", first)
@@ -193,8 +193,23 @@ func TestNewOffersWhatTheAccountsMake(t *testing.T) {
 
 	withMatrix, _ := building(t)
 	withMatrix, _ = withMatrix.openNewRoom()
-	if len(withMatrix.picker.all) != len(newRoomKinds) {
-		t.Errorf("with a Matrix account alone: %d rows, want Matrix's %d", len(withMatrix.picker.all), len(newRoomKinds))
+	if len(withMatrix.picker.all) != len(newRoomKinds)+1 {
+		t.Errorf("with a Matrix account alone: %d rows, want Matrix's %d and a tag", len(withMatrix.picker.all), len(newRoomKinds))
+	}
+	if !strings.Contains(got, "Tag [kith's own group") {
+		t.Errorf("no tag offered without a Matrix account:\n%s", got)
+	}
+}
+
+// A tag is made from :new as from the tag list: named, then opened in the editor.
+func TestNewMakesATag(t *testing.T) {
+	t.Parallel()
+	m, _ := opened(t, config.Notifications{})
+	m, _ = m.openNewRoom()
+	m = pickLabel(t, m, "Tag")
+	m = typeIn(t, m, "Family")
+	if m.configTag("Family") < 0 || m.picker.kind != pickerTagEdit || m.choosing.tag.tag != "Family" {
+		t.Errorf("tags %+v, picker %v on %q: want Family made and open", m.conf.base.Tags, m.picker.kind, m.choosing.tag.tag)
 	}
 }
 
