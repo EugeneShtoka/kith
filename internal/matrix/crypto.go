@@ -36,6 +36,8 @@ func cryptoDSN(path string) string {
 // the client. Call after Resume and before any RPC is served: mautrix reads
 // client.StateStore unlocked, so it must not change once handlers run.
 func (b *InProc) OpenCryptoStore(ctx context.Context, dbPath string) error {
+	// Settings go on the DSN, as pragmas are per connection: this store's corruption
+	// cannot be recovered.
 	rawDB, err := sql.Open("sqlite", cryptoDSN(dbPath))
 	if err != nil {
 		return fmt.Errorf("matrix: open crypto db: %w", err)
