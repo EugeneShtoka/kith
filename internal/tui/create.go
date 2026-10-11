@@ -11,10 +11,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Making a room or a space, or a chat on another network: pick one whole answer, then
-// a name, and for another network's chat who is in it. Only what an account this kith
-// has can make is offered: Matrix's rooms and space when there is a Matrix account,
-// and each Telegram, WhatsApp and Slack account's own kinds (newChatKinds). Encryption
+// Making a room or a space, a chat on another network, or a tag: pick one whole answer,
+// then a name, and for another network's chat who is in it. Only what an account this
+// kith has can make is offered: Matrix's rooms and space when there is a Matrix
+// account, and each Telegram, WhatsApp and Slack account's own kinds (newChatKinds); a
+// tag, kith's own, always. Encryption
 // can only be chosen at creation, so it is asked here.
 
 // newRoomKinds are the first step's rows, safe default first.
@@ -102,9 +103,11 @@ func (m Model) openNewRoom() (Model, tea.Cmd) {
 			}
 		}
 	}
-	if len(items) == 0 {
-		return m.say("no account here makes rooms or chats"), nil
-	}
+	// A tag needs no account: it is kith's own, over every network.
+	items = append(items, pickerItem{
+		label: "Tag", detail: "kith's own group, by a rule or by hand, over every network",
+		value: tagNew, match: "tag kith's own group",
+	})
 	m.picker = newPicker(pickerNewRoom, items)
 	return m, nil
 }
@@ -153,6 +156,10 @@ func (m Model) accountLabel(network domain.Protocol, account string) string {
 // space selected in the rail; synthetic groups file it nowhere.
 func (m Model) chooseNewRoomKind(value string) (Model, tea.Cmd) {
 	m = m.closePicker()
+	if value == tagNew {
+		m.choosing.tag = tagEditing{}
+		return m.openPrompt(promptTagName), nil
+	}
 	if on, kind, isChat := strings.Cut(value, chatValueSep); isChat {
 		m.aimedAt.creating = domain.NewRoom{On: domain.RoomOwner(on), Kind: domain.ChatKind(atoiSafe(kind))}
 		return m.openPrompt(promptNewRoom), nil
