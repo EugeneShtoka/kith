@@ -6,7 +6,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// every room exists, for the tests that are not about a room going away.
+// anyRoom treats every room as existing.
 func anyRoom(domain.RoomID) bool { return true }
 
 // The list records places you opened, and nothing else.
@@ -38,23 +38,20 @@ func TestJumplistRecordsArrivals(t *testing.T) {
 		t.Errorf("after a round trip back=%v forward=%v, want one entry back and none forward", j.back, j.forward)
 	}
 
-	// The landing itself is announced again by the code that opens a room, and must not
-	// double-count: the anchor is already there.
+	// The landing is announced again by the room opener and must not double-count.
 	j = j.arrived("!b:x")
 	if len(j.back) != 1 {
 		t.Errorf("back = %v after re-announcing the place we are at, want it unchanged", j.back)
 	}
 
-	// Opening somewhere new is a branch: what you could have gone forward to is not on
-	// the way anywhere any more.
+	// Opening somewhere new drops the forward entries.
 	j = j.arrived("!c:x")
 	if len(j.forward) != 0 {
 		t.Errorf("forward = %v after opening somewhere new, want it dropped", j.forward)
 	}
 }
 
-// Nothing to go back to is a state, not an error — the model says so rather than moving
-// somewhere arbitrary.
+// Nothing to go back to is a state, not an error.
 func TestJumplistEmptyEnds(t *testing.T) {
 	t.Parallel()
 
@@ -67,8 +64,8 @@ func TestJumplistEmptyEnds(t *testing.T) {
 	}
 }
 
-// The list is bounded, and it does not repeat the entry already on top: alternating
-// between two rooms all afternoon must not grow it.
+// The list is bounded and does not repeat its top entry, so alternating two rooms does not
+// grow it.
 func TestJumplistIsBounded(t *testing.T) {
 	t.Parallel()
 
@@ -99,8 +96,7 @@ func TestJumplistIsBounded(t *testing.T) {
 	}
 }
 
-// A room that has gone away is stepped over and forgotten, so the key that skipped it
-// does not trip over it again.
+// A room that has gone is stepped over and forgotten.
 func TestJumplistStepsOverAGoneRoom(t *testing.T) {
 	t.Parallel()
 
@@ -116,7 +112,7 @@ func TestJumplistStepsOverAGoneRoom(t *testing.T) {
 		t.Errorf("forward = %v, want the place we left", next.forward)
 	}
 
-	// Nothing but dead entries is the same as nothing at all.
+	// Only dead entries is the same as none.
 	dead := jumplist{anchor: "!here:x", back: []domain.RoomID{"!gone:x"}}
 	if _, _, ok := dead.goingBack(func(domain.RoomID) bool { return false }); ok {
 		t.Error("a list of gone rooms claimed somewhere to go")

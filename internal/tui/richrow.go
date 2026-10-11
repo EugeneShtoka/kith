@@ -10,17 +10,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// Emphasis on a row that is about to be bidi-reordered. ANSI cannot go into a line
-// before the reorder (escape bytes are direction L and rule L2 scatters them; see
-// bidimap.go), so every mark is held as logical byte offsets and resolved against
-// the drawn string afterwards, with the style asked for per byte.
+// Emphasis on a row about to be bidi-reordered. ANSI cannot go in before the reorder (escape
+// bytes are direction L and rule L2 scatters them; see bidimap.go), so marks are logical byte
+// offsets resolved against the drawn string afterwards, styled per byte.
 
-// styleKey identifies a style so runs coalesce without comparing escapes; zero is
-// plain.
+// styleKey identifies a style so runs coalesce without comparing escapes; zero is plain.
 type styleKey uint64
 
-// richStyle is one message body's styling: the sender's formatting, mentions and
-// tracked words, all as logical ranges (which is what lets them color RTL lines).
+// richStyle is one body's styling (sender formatting, mentions, tracked words) as logical
+// ranges, which lets it color RTL lines.
 type richStyle struct {
 	spans    []richtext.Span
 	mentions []mentionRange
@@ -33,15 +31,14 @@ type richStyle struct {
 	// hidden tints a covered spoiler (fg and bg); revealed opens this message's.
 	hidden   ansi.Color
 	revealed bool
-	// tracked words draw in trackedColor and underlined: color alone is not enough
-	// on every terminal.
-	tracked []trackedRange
-	// hyperlinks wraps link runs in OSC 8.
+	// tracked words draw in trackedColor and underlined: color alone is not enough on every
+	// terminal.
+	tracked    []trackedRange
 	hyperlinks bool
 }
 
-// trackedRange is a tracked word found in the text — the user's overlay, kept apart
-// from richtext.Span, which is the sender's markup.
+// trackedRange is a tracked word in the text: the user's overlay, separate from richtext.Span
+// (the sender's markup).
 type trackedRange struct{ start, end int }
 
 type mentionRange struct {
@@ -51,9 +48,8 @@ type mentionRange struct {
 	href string
 }
 
-// at is the per-byte style styledRow asks for. Key bits: spans' marks in the low
-// bits, tracked at bit 20, mention index at 32, link span index at 44 (so distinct
-// links never coalesce).
+// at is the per-byte style styledRow asks for. Key bits: span marks low, tracked at bit 20,
+// mention index at 32, link span index at 44 (so distinct links never coalesce).
 func (r richStyle) at(logical int) (styleKey, ansi.Style, string) {
 	key, style, href := styleKey(0), r.base, ""
 	for i := range r.mentions {
@@ -104,8 +100,8 @@ func markKey(span richtext.Span) styleKey {
 	return key
 }
 
-// styled applies one span's marks. Bold/italic/strike are the terminal's own; code,
-// quote and links take a color, since a terminal has no other way to say them.
+// styled applies one span's marks. Bold/italic/strike are native; code, quote and links take a
+// color, the terminal's only other means.
 func (r richStyle) styled(style ansi.Style, span richtext.Span) ansi.Style {
 	if span.Bold || span.Heading {
 		style = style.Bold()
@@ -129,15 +125,14 @@ func (r richStyle) styled(style ansi.Style, span richtext.Span) ansi.Style {
 		style = style.ForegroundColor(r.link).Underline(true)
 	}
 	if span.Spoiler && !r.revealed {
-		// Same fg and bg: hides the text while keeping every width, so wrap and
-		// reorder are undisturbed.
+		// Same fg and bg hides the text while keeping widths, so wrap and reorder are undisturbed.
 		style = style.ForegroundColor(r.hidden).BackgroundColor(r.hidden)
 	}
 	return style
 }
 
-// rangesOf finds each mentioned name in text, longest first and once each (the
-// pill rules: a prefix name must not claim a longer one's text).
+// rangesOf finds each mentioned name in text, longest first and once each, so a prefix name
+// cannot claim a longer one's text.
 func rangesOf(text string, mentions []mentionSpan) []mentionRange {
 	if len(mentions) == 0 {
 		return nil
@@ -173,8 +168,8 @@ func clipRange(start, end, from, to int) (int, int, bool) {
 	return s - from, e - from, s < e
 }
 
-// shiftSpans narrows spans to a wrapped line's window [from, to), rebased; a span
-// split by the wrap comes back on both lines.
+// shiftSpans narrows spans to a wrapped line's window [from, to), rebased; a span split by the
+// wrap appears on both lines.
 func shiftSpans(spans []richtext.Span, from, to int) []richtext.Span {
 	var out []richtext.Span
 	for _, span := range spans {
@@ -206,9 +201,9 @@ func shiftTracked(ranges []trackedRange, from, to int) []trackedRange {
 	return out
 }
 
-// segmentStarts is where each wrapped line begins in text, searching forward from
-// the previous line's end so repeated lines land right. A line not found gives up
-// (the message is drawn unstyled, never wrong).
+// segmentStarts is where each wrapped line begins in text, searching on from the previous
+// line's end so repeated lines land right. A missing line gives up (drawn unstyled, never
+// wrong).
 func segmentStarts(text string, segments []string) ([]int, bool) {
 	out := make([]int, 0, len(segments))
 	cursor := 0
@@ -247,7 +242,6 @@ func (m Model) richStyleFor(msg domain.Message, text string, mentions []mentionS
 	}
 }
 
-// trackedRanges finds the tracked words in text.
 func trackedRanges(words domain.Tracked, text string) []trackedRange {
 	if !words.Any() {
 		return nil

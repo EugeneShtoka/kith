@@ -2,10 +2,9 @@ package tui
 
 import "github.com/EugeneShtoka/kith/internal/domain"
 
-// Back and forward over places, like vim's jumplist: only places you opened on purpose
-// (enter, the switcher, a chord, a search hit) are recorded, not rooms the cursor walks
-// past. The anchor is the last place opened; going back pushes it onto the forward
-// side, and jumping somewhere new drops the forward side.
+// Back and forward over places, like vim's jumplist: only deliberate opens (enter, switcher,
+// chord, search hit) are recorded, not cursor walks. Going back pushes the anchor onto the
+// forward side; jumping somewhere new drops it.
 
 // jumpDepth bounds each side.
 const jumpDepth = 32
@@ -18,8 +17,8 @@ type jumplist struct {
 	forward []domain.RoomID
 }
 
-// arrived records landing somewhere on purpose: the anchor goes onto the back stack and
-// the forward side is dropped. Arriving where you already are records nothing.
+// arrived records a deliberate landing: the anchor goes onto back and forward is dropped.
+// Arriving where you already are records nothing.
 func (j jumplist) arrived(at domain.RoomID) jumplist {
 	if at == "" || at == j.anchor {
 		return j
@@ -47,8 +46,7 @@ func (j jumplist) goingForward(exists func(domain.RoomID) bool) (jumplist, domai
 	return j, to, ok
 }
 
-// stepPlaces pops from one side onto the other, stepping over and forgetting rooms that
-// have gone.
+// stepPlaces pops from one side onto the other, forgetting rooms that have gone.
 func stepPlaces(
 	from, onto []domain.RoomID,
 	anchor domain.RoomID,
@@ -81,8 +79,7 @@ func push(stack []domain.RoomID, id domain.RoomID) []domain.RoomID {
 	return stack
 }
 
-// without returns a copy of items without x, in a fresh backing array: the caller's
-// slice is shared state.
+// without returns a copy of items without x in a fresh array: the caller's slice is shared.
 func without[T comparable](items []T, x T) []T {
 	out := make([]T, 0, len(items))
 	for _, item := range items {

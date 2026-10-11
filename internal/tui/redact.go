@@ -10,9 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Deleting a message: a key on the message cursor that asks first, folds the row at
-// once without waiting for the echo, and restores it on failure. Another's message
-// needs the room's redact level, checked by the backend.
+// Deleting asks first, folds the row at once without waiting for the echo, and restores it
+// on failure. Another's message needs the room's redact level, checked by the backend.
 
 // askRedact asks whether to delete the message under the cursor.
 func (m Model) askRedact() (Model, tea.Cmd) {
@@ -42,7 +41,7 @@ func (m Model) redactPrompt(pending confirmState) string {
 
 // redact carries out a confirmed deletion, folding the row immediately.
 func (m Model) redact(pending confirmState) (Model, tea.Cmd) {
-	// The same synthetic redaction an incoming one arrives as, so one fold path.
+	// The same synthetic redaction an incoming one arrives as, so there is one fold path.
 	if pending.roomID == m.openRoom {
 		m = m.setMessages(domain.MergeMessages(m.timeline.messages, []domain.Message{{
 			ID: pending.event, RoomID: pending.roomID, Redacted: true,
@@ -57,7 +56,7 @@ func (m Model) handleRedacted(msg redactedMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		return m.clearStatus(), nil
 	}
-	// The message is gone, only its edit history remains: do not restore it.
+	// Gone except its edit history: do not restore it.
 	if errors.Is(msg.err, api.ErrEditsRemain) {
 		m.logErr(slog.LevelWarn, "delete left its edit history", msg.err, "room", msg.roomID)
 		return m.say("deleted — but " + msg.err.Error()), nil

@@ -11,13 +11,11 @@ import (
 	"testing"
 )
 
-// rowReads classifies every piece of Model state the row renderer reads, found by
-// following renderEntry through every Model method it reaches. Each read is keyed by
-// the row cache (rowInputs, per message), keyed for the whole timeline (derivedKey:
-// the room, the messages' revision, the config revision, the unread and place
-// fingerprints, the width through prepareRows), or not cached at all. A read the table
-// does not name fails TestTheRowRendererReadsOnlyKeyedState until someone decides which
-// it is: a key narrower than the render is the bug three audits in a row found.
+// rowReads classifies every piece of Model state the row renderer reads (following renderEntry
+// through every Model method): keyed by the row cache (rowInputs, per message), keyed for the
+// whole timeline (derivedKey: room, messages' revision, config revision, unread and place
+// fingerprints, width via prepareRows), or not cached. An unlisted read fails
+// TestTheRowRendererReadsOnlyKeyedState until classified.
 var rowReads = map[string]string{
 	// rowInputs, per message.
 	"timeline.reactions": "rowInputs.reactions (a fingerprint of the chips)",
@@ -90,9 +88,8 @@ func classify(read string) string {
 	return ""
 }
 
-// rendererReads follows root through every Model method it calls, and answers each
-// m.field.field… chain read (with the method it was read in), and each place the Model
-// itself is handed to something else.
+// rendererReads follows root through every Model method it calls, returning each m.field…
+// chain read (with the method reading it) and each place the Model itself is passed on.
 func rendererReads(t *testing.T, root string) (map[string]string, []string) {
 	t.Helper()
 	fset := token.NewFileSet()
@@ -159,8 +156,8 @@ func rendererReads(t *testing.T, root string) (map[string]string, []string) {
 	return reads, passed
 }
 
-// chain is sel as a field path from the receiver ("timeline.reactions"), or false when
-// it is rooted elsewhere.
+// chain is sel as a field path from the receiver ("timeline.reactions"), or false when rooted
+// elsewhere.
 func chain(sel *ast.SelectorExpr, recv string) (string, bool) {
 	var parts []string
 	var x ast.Expr = sel
@@ -181,9 +178,8 @@ func chain(sel *ast.SelectorExpr, recv string) (string, bool) {
 	}
 }
 
-// derivedReads is every Model field the derived cache's computation reads (computeDerived
-// and what it calls), each with the derivedKey field that covers it. The row cache's
-// walk (rowReads) starts at renderEntry and never reaches these.
+// derivedReads is every Model field computeDerived (and its callees) reads, with the
+// derivedKey field covering it. The rowReads walk never reaches these.
 var derivedReads = map[string]string{
 	"openRoom":          "derivedKey.room",
 	"thread":            "derivedKey.thread (open is root != \"\")",
@@ -201,8 +197,7 @@ var derivedReads = map[string]string{
 	"peers.aliases":     "derivedKey.peers (peers.rev moves whenever aliases changes)",
 }
 
-// TestTheDerivedCacheReadsOnlyKeyedState walks computeDerived's calls and reads, as
-// TestTheRowRendererReadsOnlyKeyedState walks the row renderer's.
+// TestTheDerivedCacheReadsOnlyKeyedState walks computeDerived's calls and reads.
 func TestTheDerivedCacheReadsOnlyKeyedState(t *testing.T) {
 	t.Parallel()
 	reads, passed := rendererReads(t, "computeDerived")

@@ -80,7 +80,7 @@ func TestTheWholeLoadPathDrawsAPicture(t *testing.T) {
 			if !strings.Contains(frame, loaded.rows[0]) {
 				t.Error("the drawing is not in the rendered frame")
 			}
-			// And it came back out of the cache the second time, drawn the same way.
+			// The second render is a cache hit, drawn the same.
 			again, hit := cache.Render("$1", next.imageTargetWidth(), next.imageMaxHeight())
 			if !hit {
 				t.Fatal("the drawing was not kept, so opening the room again would redo it")

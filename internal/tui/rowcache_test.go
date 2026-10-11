@@ -6,9 +6,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A row's cache entry is keyed by everything it draws. Each case changes one input
-// of a message the cursor is not on (only the selected row is drawn fresh), and the
-// frame must match one drawn from an empty cache.
+// Each case changes one input of an unselected message (the selected row is always drawn
+// fresh); the frame must match one drawn from an empty cache.
 func TestTheRowCacheFollowsEveryRowInput(t *testing.T) {
 	t.Parallel()
 

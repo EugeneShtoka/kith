@@ -53,8 +53,7 @@ func withInvites(t *testing.T, m Model, invites ...domain.Room) Model {
 	return got
 }
 
-// onInvite selects the first invitation in the invites group, with the room list
-// focused — the state every invitation action is taken from.
+// onInvite selects the first invitation in the invites group, with the room list focused.
 func onInvite(t *testing.T, m Model) Model {
 	t.Helper()
 	m.focus = paneRooms
@@ -67,8 +66,7 @@ func onInvite(t *testing.T, m Model) Model {
 	return next
 }
 
-// With nothing pending, the rail is exactly what it was before invitations existed —
-// the feature costs the user nothing until it has something to say.
+// With nothing pending, the rail is unchanged.
 func TestNoInvitesLeavesRailAlone(t *testing.T) {
 	t.Parallel()
 
@@ -86,8 +84,7 @@ func TestNoInvitesLeavesRailAlone(t *testing.T) {
 	}
 }
 
-// An invitation appears in its own group, counted, and nowhere else — it is a decision,
-// not a room you can open by accident from the room list.
+// An invitation appears in its own group, counted, and nowhere else.
 func TestInvitesGetTheirOwnGroup(t *testing.T) {
 	t.Parallel()
 
@@ -123,15 +120,14 @@ func TestInvitesGetTheirOwnGroup(t *testing.T) {
 			t.Errorf("%s is not an invitation but is in the invites group", room.ID)
 		}
 	}
-	// A new invitation is announced, since a group you aren't looking at is exactly
-	// what you miss.
+	// A new invitation is announced, since its group may not be in view.
 	if !strings.Contains(m.status(), "2 new invitations") {
 		t.Errorf("status = %q, want an announcement", m.status())
 	}
 }
 
-// A refresh of the joined rooms must not drop the invitations, and a revised invitation
-// set must not drop the rooms.
+// A joined-rooms refresh must not drop invitations, and a new invitation set must not drop
+// rooms.
 func TestRefreshAndInvitesDoNotClobberEachOther(t *testing.T) {
 	t.Parallel()
 
@@ -163,8 +159,7 @@ func TestRefreshAndInvitesDoNotClobberEachOther(t *testing.T) {
 	}
 }
 
-// Accepting is joining, and needs no confirmation: it is what the invitation is for,
-// and leaving undoes it.
+// Accepting joins without confirmation; leaving undoes it.
 func TestAcceptInviteJoins(t *testing.T) {
 	t.Parallel()
 
@@ -196,7 +191,7 @@ func TestRejectInviteConfirmsFirst(t *testing.T) {
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})),
 		invited("!i1:x", "Design Review", "@alice:x"))
 
-	// Declining the question does nothing at all.
+	// Declining the question does nothing.
 	m := onInvite(t, base)
 	m, _ = press(t, m, keyText("d"))
 	if !m.confirm.active() {
@@ -229,8 +224,7 @@ func TestRejectInviteConfirmsFirst(t *testing.T) {
 	}
 }
 
-// Leaving a joined room asks too, and applies to the joined room — not to an
-// invitation, which has its own answer.
+// Leaving a joined room asks too; it is inert on an invitation.
 func TestLeaveConfirmsAndOnlyAppliesToJoinedRooms(t *testing.T) {
 	t.Parallel()
 
@@ -239,7 +233,7 @@ func TestLeaveConfirmsAndOnlyAppliesToJoinedRooms(t *testing.T) {
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})),
 		invited("!i1:x", "Invited", "@alice:x"))
 
-	// On an invitation, leave is inert — reject is the action that fits.
+	// On an invitation, leave is inert; reject fits.
 	inv := onInvite(t, m)
 	inv, _ = press(t, inv, keyCode('L'))
 	if inv.confirm.active() {
@@ -273,8 +267,7 @@ func TestLeaveConfirmsAndOnlyAppliesToJoinedRooms(t *testing.T) {
 	}
 }
 
-// A pending question captures the keyboard: a question you can walk away from gets
-// answered by accident later.
+// A pending question captures the keyboard so it is not answered by accident later.
 func TestConfirmCapturesKeys(t *testing.T) {
 	t.Parallel()
 
@@ -312,7 +305,7 @@ func TestJoinPrompt(t *testing.T) {
 	if m.prompt.kind != promptJoin {
 		t.Fatal("J should open the join prompt")
 	}
-	// Letters bound to other actions still type — same rule as the composer.
+	// Letters bound to other actions still type, as in the composer.
 	for _, r := range "#jkl:x" {
 		m, _ = press(t, m, keyText(string(r)))
 	}
@@ -347,8 +340,7 @@ func TestJoinPrompt(t *testing.T) {
 	}
 }
 
-// Selecting an invitation must not fetch a history we are not allowed to read — that
-// 403 would make a perfectly normal invitation look broken.
+// Selecting an invitation fetches no history: the 403 would make it look broken.
 func TestSelectingInviteFetchesNothing(t *testing.T) {
 	t.Parallel()
 
@@ -360,7 +352,7 @@ func TestSelectingInviteFetchesNothing(t *testing.T) {
 	if m.status() != "" {
 		t.Errorf("status = %q, want it left alone", m.status())
 	}
-	// And opening it goes nowhere: there is no timeline behind it.
+	// Opening it goes nowhere: there is no timeline behind it.
 	next, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if next.focus == paneTimeline {
 		t.Error("an invitation should not open into the timeline pane")
@@ -381,8 +373,7 @@ func TestInviteDecisionPane(t *testing.T) {
 	}
 }
 
-// A leave drops the room locally at once, so a second keystroke isn't aimed at a room
-// that is already gone.
+// A leave drops the room locally at once, so a second keystroke does not target it.
 func TestLeftDropsRoomImmediately(t *testing.T) {
 	t.Parallel()
 
@@ -403,7 +394,7 @@ func TestLeftDropsRoomImmediately(t *testing.T) {
 	}
 }
 
-// A failed membership change says so rather than pretending it worked.
+// A failed membership change is reported.
 func TestMembershipFailuresSurface(t *testing.T) {
 	t.Parallel()
 
@@ -422,8 +413,8 @@ func TestMembershipFailuresSurface(t *testing.T) {
 	}
 }
 
-// A config that placed the invites group deliberately is respected; one written before
-// invitations existed still gets them at the top rather than buried.
+// A config placing the invites group is respected; one that never mentions it gets it at the
+// top.
 func TestInvitesGroupPlacement(t *testing.T) {
 	t.Parallel()
 
@@ -431,8 +422,7 @@ func TestInvitesGroupPlacement(t *testing.T) {
 	view := starterView(t, unreadView{})
 	rooms := []domain.Room{invited("!i:x", "Invited", "@alice:x")}
 
-	// The user never mentioned invites: it is promoted to the front even though
-	// applyRailConfig demotes unlisted groups.
+	// Never mentioned: promoted to the front even though applyRailConfig demotes unlisted groups.
 	unaware := railGroups(spaces, config.Rail{
 		Order:  []string{unreadGroupKey, "Work"},
 		Hidden: []string{homeGroupKey, dmsGroupKey},
@@ -441,7 +431,7 @@ func TestInvitesGroupPlacement(t *testing.T) {
 		t.Errorf("groups = %v, want invites first", got)
 	}
 
-	// The user placed it: left where they put it.
+	// Placed by the user: left there.
 	aware := railGroups(spaces, config.Rail{
 		Order:  []string{unreadGroupKey, inviteGroupKey, "Work"},
 		Hidden: []string{homeGroupKey, dmsGroupKey},
@@ -492,7 +482,6 @@ func groupKeys(groups []group) []string {
 	return out
 }
 
-// roomByIDIn finds a room in a slice.
 func roomByIDIn(rooms []domain.Room, id domain.RoomID) (domain.Room, bool) {
 	if at := indexOfRoom(rooms, id); at >= 0 {
 		return rooms[at], true

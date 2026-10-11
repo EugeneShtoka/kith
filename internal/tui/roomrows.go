@@ -13,8 +13,8 @@ import (
 
 // threadRows is the room list's thread state (the thread pane is threadState).
 type threadRows struct {
-	// cursor is the thread row the room-list cursor is on (by root, since rows
-	// reindex); empty means the room's own row.
+	// cursor is the thread row under the room-list cursor (by root, since rows reindex); empty
+	// means the room's own row.
 	cursor domain.EventID
 	// opening is a thread a row asked to open, held until the room's messages arrive.
 	opening domain.EventID
@@ -26,7 +26,6 @@ func newThreadRows() threadRows {
 	return threadRows{known: map[domain.RoomID][]domain.Thread{}}
 }
 
-// recording stores what ListThreads answered for a room.
 func (t threadRows) recording(room domain.RoomID, threads []domain.Thread) threadRows {
 	t.known = withEntry(t.known, room, threads)
 	return t
@@ -39,9 +38,8 @@ func (t threadRows) taking() (domain.EventID, threadRows) {
 	return root, t
 }
 
-// roomRow is one room-list row: a room, one of its threads (listed beneath it so
-// activity on an old root is findable), or an overflow line counting threads not
-// listed.
+// roomRow is one room-list row: a room, one of its threads (listed so activity on an old root
+// is findable), or an overflow line counting unlisted threads.
 type roomRow struct {
 	room   domain.Room
 	thread domain.ThreadUnread
@@ -53,8 +51,8 @@ func (r roomRow) isThread() bool { return r.thread.Root != "" }
 
 func (r roomRow) selectable() bool { return r.more == 0 }
 
-// roomRows is the room list as drawn: every room of the current group followed by
-// its thread rows. The cursor, window and counter all read this one list.
+// roomRows is the room list as drawn: each room of the current group followed by its thread
+// rows. Cursor, window and counter all read this list.
 func (m Model) roomRows() []roomRow {
 	if m.hasFrameRows {
 		return m.frameRows
@@ -68,8 +66,8 @@ func (m Model) roomRows() []roomRow {
 		if mode == config.ThreadsNever {
 			continue
 		}
-		// Rooms a silent tag holds list no threads; muted ones do (muting silences
-		// notifications, not messages).
+		// Rooms a silent tag holds list no threads; muted ones do (muting silences notifications, not
+		// messages).
 		if rooms[i].IsInvite() || view.silenced(rooms[i]) {
 			continue
 		}
@@ -114,17 +112,17 @@ func (m Model) appendThreadRows(rows []roomRow, room domain.Room, mode string) [
 	return rows
 }
 
-// threadsUnder is the threads to list beneath one room, newest activity first:
-// unread ones from the room's unread state, plus (mode "all") ListThreads' answer.
+// threadsUnder is the threads listed beneath a room, newest activity first: unread ones, plus
+// ListThreads' answer in mode "all".
 func (m Model) threadsUnder(room domain.Room, mode string) []domain.ThreadUnread {
 	out := append([]domain.ThreadUnread(nil), m.unread[room.ID].Threads...)
 	listed := make(map[domain.EventID]bool, len(out))
 	for _, t := range out {
 		listed[t.Root] = true
 	}
-	// The open thread and the cursor's thread keep their rows once read, so a row
-	// does not vanish from under the cursor; one the full list carries keeps its own
-	// place there (pinned, it would jump to here, and stepping down would never pass it).
+	// The open thread and the cursor's thread keep their rows once read, so a row does not vanish
+	// from under the cursor; a thread the full list carries keeps its place there (pinning it here
+	// would make stepping down never pass it).
 	known := m.rows.known[room.ID]
 	if mode != config.ThreadsAll {
 		known = nil
@@ -157,8 +155,8 @@ func (m Model) threadsUnder(room domain.Room, mode string) []domain.ThreadUnread
 	return out
 }
 
-// pinnedThreadRow rebuilds the row for a thread gone read while looked at, from the
-// open room's messages.
+// pinnedThreadRow rebuilds the row of a thread gone read while viewed, from the open room's
+// messages.
 func (m Model) pinnedThreadRow(root domain.EventID) (domain.ThreadUnread, bool) {
 	_, threads := domain.CollapseThreads(m.timeline.messages)
 	for i := range threads {
@@ -174,8 +172,8 @@ func (m Model) pinnedThreadRow(root domain.EventID) (domain.ThreadUnread, bool) 
 	return domain.ThreadUnread{}, false
 }
 
-// threadRowLabel names a thread's row: alias, then the daemon's title, then a
-// fallback (threadName needs the open room's messages; this row may not have them).
+// threadRowLabel names a thread row: alias, then the daemon's title, then a fallback
+// (threadName needs the open room's messages, which this row may lack).
 func (m Model) threadRowLabel(t domain.ThreadUnread) string {
 	title := m.prefs.threadAliases[t.Root]
 	if title == "" {
@@ -194,8 +192,8 @@ func (m Model) moreThreadsLabel(n int) string {
 	return fmt.Sprintf("+%d more threads", n)
 }
 
-// rowCursor is the selected row's position, derived from the selected room and
-// thread IDs so it follows them across reindexing.
+// rowCursor is the selected row's position, derived from the selected room and thread IDs so
+// it survives reindexing.
 func (m Model) rowCursor(rows []roomRow) int {
 	for i := range rows {
 		if rows[i].room.ID != m.openRoom || !rows[i].selectable() {
@@ -283,8 +281,8 @@ func (m Model) selectedRow() (roomRow, bool) {
 	return rows[m.rowCursor(rows)], true
 }
 
-// openSelectedThread opens the cursor's thread. The room's messages are usually not
-// loaded yet, so the root is remembered and entered when they land (resolveThread).
+// openSelectedThread opens the cursor's thread. The room's messages are usually not loaded
+// yet, so the root is entered when they land (resolveThread).
 func (m Model) openSelectedThread(root domain.EventID) (Model, tea.Cmd) {
 	m.focus = paneTimeline
 	m.compose.insertMode = false
@@ -328,8 +326,8 @@ func hasThreadCursorIn(u domain.Unread, root domain.EventID) bool {
 	return false
 }
 
-// listThreadsCmd fetches, once per room in view, the thread lists mode "all" needs.
-// A room's list is refreshed when it is opened (selectRoom).
+// listThreadsCmd fetches, once per room in view, the thread lists mode "all" needs; a room's
+// list is refreshed on open (selectRoom).
 func (m Model) listThreadsCmd() tea.Cmd {
 	if m.prefs.display.Threads.Mode() != config.ThreadsAll {
 		return nil
@@ -358,5 +356,4 @@ func (m Model) handleRoomThreads(msg roomThreadsMsg) (Model, tea.Cmd) {
 	return m.nameThreads(msg.roomID, msg.threads)
 }
 
-// roomCursor is the highlighted row's position, derived on every read.
 func (m Model) roomCursor() int { return m.rowCursor(m.roomRows()) }

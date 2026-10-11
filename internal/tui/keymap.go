@@ -12,8 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// action is something a keypress can ask for. Handlers switch on these rather than
-// literal keys, which makes bindings configurable and the help overlay generated.
+// action is something a keypress asks for. Handlers switch on actions, not literal keys, so
+// bindings are configurable and help is generated.
 type action int
 
 // The actions. actNone means "this key does nothing here".
@@ -26,7 +26,6 @@ const (
 	actJumpTo
 	actJumpBack
 	actJumpForward
-	// actBindJump gives the room or space under the cursor a [keys.jump] sequence.
 	actFocusNext
 	actFocusPrev
 	actToggleDND
@@ -90,8 +89,8 @@ const (
 	actAcceptEmoji
 	actCancelEmoji
 	actFilter
-	// actRenameThread is one action across three scopes; a chord rather than a letter
-	// because the thread list is always filtering, so a letter there is text.
+	// actRenameThread spans three scopes; a chord, not a letter, because the thread list always
+	// filters.
 	actRenameThread
 	actTogglePick
 	actIncrease      // the number under the cursor up (settings)
@@ -109,8 +108,8 @@ const (
 	actOpenURL
 	actOpenURLFocus
 	actFollowLink
-	// actRunScript is bound to nothing: it is the intent carried by a chooser opened
-	// for a user command whose need has several answers.
+	// actRunScript is bound to nothing: it is the intent of a chooser opened for a user command
+	// whose need has several answers.
 	actRunScript
 	actTopic
 	actStar
@@ -118,8 +117,8 @@ const (
 	actNotifyRule
 	actSettings
 	actCommand
-	// actRedraw clears and redraws the screen, removing cells left behind when the
-	// terminal laid text out differently than measured.
+	// actRedraw clears and redraws the screen, removing cells left by a terminal that laid text
+	// out differently than measured.
 	actRedraw
 	actComplete
 	actCompleteAll
@@ -152,7 +151,6 @@ const (
 	actNormalSpeed
 	actSaveSpeed
 	actStopPlay
-	// Choosing a spelling suggestion is 1–9, a position rather than a binding.
 	actReveal
 	actSpellWalk
 	actSpellSkip
@@ -175,8 +173,8 @@ const (
 	actEditRedo
 	actEditRowUp
 	actEditRowDown
-	// Taking the n-th completion option (scopeInsert) and reacting with the n-th
-	// palette emoji (scopeReact): consecutive, so the position is the offset.
+	// Position actions: the n-th completion option (scopeInsert), palette emoji (scopeReact) and
+	// spelling suggestion (scopeSpell); consecutive, so the position is the offset.
 	actChoose1
 	actChoose2
 	actChoose3
@@ -227,12 +225,11 @@ func pickOf(act action) (int, bool) {
 	return 0, false
 }
 
-// scope is the mode a binding applies in; handlers consult their scopes most
-// specific first.
+// scope is the mode a binding applies in; handlers consult scopes most specific first.
 type scope int
 
-// scopeGlobal is live in every mode including text entry, so only keys that produce
-// no text belong there; scopeCommand is every mode where you are not typing.
+// scopeGlobal is live in every mode including text entry, so only keys producing no text
+// belong there; scopeCommand is every mode where you are not typing.
 const (
 	scopeGlobal scope = iota
 	scopeCommand
@@ -282,9 +279,8 @@ var scopeTitles = []struct {
 	{scopeEdit, "Editing text (in any field)"},
 }
 
-// keyActions maps each scope's actions to their [keys] path, in the order help lists
-// each scope's rows. The path is how a row finds its keys, its default and its help
-// label (config.KeyDoc), and how issue messages name it.
+// keyActions maps each scope's actions to their [keys] path, in help order. The path finds a
+// row's keys, default and help label (config.KeyDoc), and names it in issues.
 type keyAction struct {
 	scope scope
 	act   action
@@ -300,7 +296,6 @@ func (r keyAction) label() string {
 	return doc
 }
 
-// keys is the row's binding in k.
 func (r keyAction) keys(k config.Keys) string {
 	value, _ := k.Binding(r.name)
 	return value
@@ -435,7 +430,6 @@ var keyActions = []keyAction{
 	{scopeCompletion, actAcceptCompletion, "completion.accept"},
 	{scopeCompletion, actDismiss, "completion.dismiss"},
 
-	// 1–9 pick a suggestion and are positions, not rebindable actions.
 	{scopeSpell, actSpellSkip, "spell.skip"},
 	{scopeSpell, actSpellAdd, "spell.add"},
 	{scopeSpell, actSpellIgnore, "spell.ignore"},
@@ -474,7 +468,7 @@ var keyActions = []keyAction{
 	{scopeEmoji, actAcceptEmoji, "emoji.accept"},
 	{scopeEmoji, actCancelEmoji, "emoji.cancel"},
 
-	// send before newline: if a config gives both one key, the earlier row wins it.
+	// send before newline: if a config gives both one key, the earlier row wins.
 	{scopeInsert, actSend, "insert.send"},
 	{scopeInsert, actNewline, "insert.newline"},
 	{scopeInsert, actOpenEmoji, "emoji.open"},
@@ -526,11 +520,9 @@ var keyActions = []keyAction{
 	{scopeVerify, actCancel, "verify.cancel"},
 }
 
-// essential actions always keep a key, so no keymap can lock you out of moving and
-// canceling: one a config leaves with none (unbound with "-", or every key taken) gets
-// its default keys back, and the issue says so. Their keys are ordinary defaults, and
-// any of them can be given to something else. Quitting is quit's (q) and, if bound,
-// interrupt's.
+// essential actions always keep a key so no keymap locks you out of moving and canceling: one
+// left keyless (unbound with "-" or every key taken) gets its defaults back, with an issue.
+// Their keys are ordinary defaults. Quitting is quit's (q) and, if bound, interrupt's.
 type essentialAction struct {
 	scope scope
 	act   action
@@ -555,30 +547,29 @@ var essential = []essentialAction{
 	{scopePicker, actClosePick, "picker.close"},
 }
 
-// keymap resolves a pressed key to an action within a scope. Bindings may be
-// sequences ("gg" or "g g"), stored as steps joined by a space. issues lists config
-// problems, which are reported rather than fatal.
+// keymap resolves a pressed key to an action within a scope. Bindings may be sequences ("gg"
+// or "g g"), stored as steps joined by a space. issues lists config problems, reported rather
+// than fatal.
 type keymap struct {
 	binds map[scope]map[string]action
-	// prefixes maps each incomplete sequence to the scopes that own it, so a press
-	// waits for its partner only where the binding lives.
+	// prefixes maps each incomplete sequence to its owning scopes, so a press waits for its
+	// partner only where the binding lives.
 	prefixes map[string]map[scope]bool
 	issues   []string
 	// labels is each action's keys in resolution order, for help and the legend.
 	labels map[scope]map[action][]string
-	// jumps and scripts are sequences bound to a place ([keys.jump]) or a user
-	// command. They resolve only where keys are commands, after the action scopes, so
-	// they can neither swallow text nor shadow a built-in.
+	// jumps and scripts are sequences bound to a place ([keys.jump]) or a user command. They
+	// resolve only where keys are commands, after the action scopes, so they can neither swallow
+	// text nor shadow a built-in.
 	jumps   map[string]domain.JumpTarget
 	scripts map[string]string
 }
 
-// unbind is the config value that deliberately leaves an action with no key (empty
-// means "unset" to fillDefaults).
+// unbind deliberately leaves an action keyless (empty means "unset" to fillDefaults).
 const unbind = "-"
 
-// withScripts is k with the user-command bindings added, k itself untouched: Models
-// are values, and a copy shares k's maps (bindScripts writes into them).
+// withScripts returns k with user-command bindings added, k untouched: Model copies share k's
+// maps, which bindScripts writes into.
 func (k keymap) withScripts(scripts []config.Script) keymap {
 	k.issues = slices.Clone(k.issues)
 	k.scripts = maps.Clone(k.scripts)
@@ -591,17 +582,16 @@ func (k keymap) withScripts(scripts []config.Script) keymap {
 	return k
 }
 
-// keymapFor builds the whole keymap for a config: the action table, then [keys.jump]
-// and user-command bindings, refused where they collide with the table.
+// keymapFor builds the whole keymap: the action table, then [keys.jump] and user-command
+// bindings, refused where they collide with the table.
 func keymapFor(cfg config.Config) keymap {
 	km := newKeymap(cfg.Keys)
 	km.bindScripts(cfg.Commands.Scripts)
 	return km
 }
 
-// newKeymap builds the action keymap. A bad keymap is never fatal: every problem
-// becomes an issue, and an action whose keys are all taken falls back to its
-// built-in binding.
+// newKeymap builds the action keymap. Problems become issues, never fatal; an action whose
+// keys are all taken falls back to its built-in binding.
 func newKeymap(keys config.Keys) keymap {
 	km := keymap{
 		binds:    map[scope]map[string]action{},
@@ -649,10 +639,9 @@ func newKeymap(keys config.Keys) keymap {
 	return km
 }
 
-// keepEssentials gives each essential action left with no key its default keys back.
-// A default another action holds is taken from it, since an essential action outranks
-// an ordinary one; the action that lost it falls back to its own default. Both are
-// reported.
+// keepEssentials gives each keyless essential action its defaults back. A default another
+// action holds is taken from it (essential outranks ordinary), and that action falls back to
+// its own default. Both are reported.
 func (k *keymap) keepEssentials(defaults config.Keys) {
 	for _, e := range essential {
 		if len(k.keysFor(e.scope, e.act)) > 0 {
@@ -690,8 +679,8 @@ func (k *keymap) unbindKey(s scope, key string, act action) {
 	k.labels[s][act] = slices.DeleteFunc(slices.Clone(k.labels[s][act]), func(l string) bool { return l == key })
 }
 
-// bindJumps records the sequences bound to places. A bad entry costs only that key;
-// a sequence an action holds is refused (unbind the action with "-" to take it).
+// bindJumps records sequences bound to places. A bad entry costs only that key; a sequence an
+// action holds is refused (unbind the action with "-" to free it).
 func (k *keymap) bindJumps(jumps map[string]string) {
 	if len(jumps) == 0 {
 		return
@@ -718,8 +707,8 @@ func (k *keymap) bindJumps(jumps map[string]string) {
 	}
 }
 
-// bindScripts records the sequences bound to user commands, under bindJumps' rules;
-// two commands on one sequence is refused rather than resolved by file order.
+// bindScripts records sequences bound to user commands, under bindJumps' rules; two commands
+// on one sequence are refused rather than resolved by file order.
 func (k *keymap) bindScripts(scripts []config.Script) {
 	for _, script := range scripts {
 		name := strings.TrimPrefix(strings.TrimSpace(script.Name), "/")
@@ -751,15 +740,15 @@ func (k keymap) scriptFor(seq string) (string, bool) {
 	return name, ok
 }
 
-// prefixShadow says why a multi-step binding can never fire (a shorter prefix is
-// already a complete binding in a scope it resolves beside), or "".
+// prefixShadow says why a multi-step binding can never fire (a shorter prefix is already
+// complete in a scope resolved beside it), or "".
 func (k keymap) prefixShadow(owner scope, seq string) string {
 	steps := strings.Split(seq, " ")
 	if len(steps) < 2 {
 		return ""
 	}
-	// Only scopes resolved beside this one can shadow it: `s` in the timeline must
-	// not block `s u` in the room list.
+	// Only scopes resolved beside this one can shadow it: `s` in the timeline must not block
+	// `s u` in the room list.
 	against := append([]scope{owner}, sharedScopes...)
 	for i := 1; i < len(steps); i++ {
 		prefix := strings.Join(steps[:i], " ")
@@ -788,9 +777,8 @@ func (k *keymap) claimPrefixes(s scope, seq string) {
 // sharedScopes are consulted alongside whichever pane has focus.
 var sharedScopes = []scope{scopeGlobal, scopeNav, scopeCommand, scopePlayer}
 
-// jumpConflict says why seq cannot be bound to a place, or "" when it can: it is
-// an action's key, the start of a longer binding, or extends a complete one.
-// Rebinding another place is not a conflict.
+// jumpConflict says why seq cannot be bound to a place, or "": it is an action's key, starts a
+// longer binding, or extends a complete one. Rebinding another place is not a conflict.
 func (k keymap) jumpConflict(seq string) string {
 	if s, act, ok := k.actionFor(seq); ok {
 		return "already bound to " + actionName(s, act)
@@ -809,9 +797,8 @@ func (k keymap) jumpConflict(seq string) string {
 	return ""
 }
 
-// actionFor is the action a key or sequence is bound to, and the scope holding it.
-// actionFor is the action a sequence is bound to and its scope, walking scopes in
-// help order so a collision is always reported against the same binding.
+// actionFor is the action a sequence is bound to and its scope, walking scopes in help order
+// so a collision is always reported against the same binding.
 func (k keymap) actionFor(seq string) (scope, action, bool) {
 	for _, section := range scopeTitles {
 		if act, ok := k.binds[section.scope][seq]; ok {
@@ -856,8 +843,8 @@ func (k *keymap) claim(s scope, key string, act action) {
 	k.claimPrefixes(s, key)
 }
 
-// incomplete reports whether seq could still grow into a binding in one of scopes.
-// A complete binding is never incomplete: if "g" and "g g" are both bound, "g" fires.
+// incomplete reports whether seq could still grow into a binding in one of scopes. A complete
+// binding is never incomplete: with "g" and "g g" both bound, "g" fires.
 func (k keymap) incomplete(seq string, scopes ...scope) bool {
 	owners := k.prefixes[seq]
 	for _, s := range scopes {
@@ -871,12 +858,11 @@ func (k keymap) incomplete(seq string, scopes ...scope) bool {
 // incompleteAnywhere is incomplete over every scope, for config checks.
 func (k keymap) incompleteAnywhere(seq string) bool { return len(k.prefixes[seq]) > 0 }
 
-// boundIn reports whether seq is a complete binding in one of scopes, or a jump or
-// script (bound wherever keys are commands). Asking about any scope instead broke
-// `y y` in the timeline once `y` was bound in the room list.
+// boundIn reports whether seq is a complete binding in one of scopes, or a jump or script
+// (bound wherever keys are commands). Checking any scope instead broke `y y` in the timeline
+// when `y` was bound in the room list.
 func (k keymap) boundIn(seq string, scopes ...scope) bool {
-	// Scripts must be checked too, or multi-step script bindings are abandoned
-	// mid-sequence.
+	// Scripts too, or multi-step script bindings are abandoned mid-sequence.
 	if _, ok := k.jumps[seq]; ok {
 		return true
 	}
@@ -917,8 +903,8 @@ func (k keymap) lookup(key string, scopes ...scope) action {
 	return actNone
 }
 
-// namedKeys are the non-character key names Bubble Tea reports (from
-// tea.KeyPressMsg.String()); f1–f20 are matched by pattern.
+// namedKeys are the non-character key names Bubble Tea reports (tea.KeyPressMsg.String());
+// f1–f20 match by pattern.
 var namedKeys = map[string]bool{
 	"enter": true, "esc": true, "tab": true, "space": true, "backspace": true,
 	"delete": true, "insert": true, "up": true, "down": true, "left": true,
@@ -957,9 +943,8 @@ func validKey(name string) bool {
 	return false
 }
 
-// splitKeys parses a comma-separated binding list, dropping blanks. The name "minus"
-// is the - key ("-" alone binds nothing); the name "comma"
-// stands for "," since the separator cannot be written otherwise.
+// splitKeys parses a comma-separated binding list, dropping blanks. "minus" names the - key
+// ("-" alone unbinds) and "comma" names ",", which the separator makes unwritable.
 func splitKeys(list string) []string {
 	parts := strings.Split(list, ",")
 	keys := make([]string, 0, len(parts))
@@ -980,9 +965,9 @@ func splitKeys(list string) []string {
 // shorthandSteps is the longest run-together sequence accepted without spaces ("gg").
 const shorthandSteps = 3
 
-// normalizeSequence canonicalizes a binding to steps joined by one space. "gg" is
-// accepted as "g g", but only for 2–3 letters/digits that are not a key name, so a
-// typo like "escape" stays intact for validation to report.
+// normalizeSequence canonicalizes a binding to steps joined by one space. "gg" is accepted as
+// "g g" only for 2–3 letters/digits that are not a key name, so a typo like "escape" stays
+// for validation to report.
 func normalizeSequence(binding string) string {
 	if fields := strings.Fields(binding); len(fields) > 1 {
 		return strings.Join(fields, " ")
@@ -1038,8 +1023,8 @@ func spellSequence(key string) string {
 	return strings.Join(steps, "")
 }
 
-// commandKeyHint is keyHint restricted to keys that produce no text, for modes that
-// filter as you type.
+// commandKeyHint is keyHint limited to keys that produce no text, for modes that filter as you
+// type.
 func (k keymap) commandKeyHint(s scope, act action) string {
 	for _, key := range k.keysFor(s, act) {
 		if !typesText(key) {

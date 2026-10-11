@@ -10,10 +10,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// pendingAction is an irreversible or wide-reaching action waiting for confirmation.
+// pendingAction is an irreversible or wide-reaching action awaiting confirmation.
 type pendingAction int
 
-// The confirmable actions.
 const (
 	pendingNone pendingAction = iota
 	pendingLeave
@@ -26,29 +25,27 @@ const (
 	pendingJoinPlace
 	// pendingDeleteTag: a [[tag]], by name (group).
 	pendingDeleteTag
-	// pendingLeaveSpace: a space (group) left by leaving one room (room), its rooms with it.
+	// pendingLeaveSpace: a space (group) left by leaving its one room (room), with its rooms.
 	pendingLeaveSpace
-	// pendingLeaveSpaceRooms, pendingLeaveSharedRoom and pendingLeaveSpaceItself: the
-	// questions of leaving a space (leaving) on its own or with its rooms (leavespace.go).
+	// pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingLeaveSpaceItself: the questions of
+	// leaving a space (leaving), alone or with its rooms (leavespace.go).
 	pendingLeaveSpaceRooms
 	pendingLeaveSharedRoom
 	pendingLeaveSpaceItself
-	// pendingDeleteForThem and pendingDeleteChat: the questions of deleting a chat that
-	// cannot be left (room), for its other person too (forEveryone) or not
-	// (deletechat.go).
+	// pendingDeleteForThem, pendingDeleteChat: the questions of deleting a chat that cannot be
+	// left (room), for its other person too (forEveryone) or not (deletechat.go).
 	pendingDeleteForThem
 	pendingDeleteChat
-	// pendingSignOutForget and pendingSignOut: the questions of signing out the account
-	// a space is (leaving.space), forgetting its rooms (forEveryone) or not (signout.go).
+	// pendingSignOutForget, pendingSignOut: the questions of signing out the account a space is
+	// (leaving.space), forgetting its rooms (forEveryone) or not (signout.go).
 	pendingSignOutForget
 	pendingSignOut
-	// pendingCombineTags: a tag (group) renamed to another's name (address), folded
-	// into it.
+	// pendingCombineTags: a tag (group) renamed to another's name (address), folded into it.
 	pendingCombineTags
 )
 
-// confirmState is the pending action and its targets, captured with the question so a
-// list shifting under the cursor cannot redirect the action.
+// confirmState is the pending action and its targets, captured with the question so a list
+// shifting under the cursor cannot redirect it.
 type confirmState struct {
 	action pendingAction
 	room   domain.Room
@@ -72,11 +69,10 @@ type confirmState struct {
 	forEveryone bool
 }
 
-// active reports whether a confirmation is outstanding.
 func (c confirmState) active() bool { return c.action != pendingNone }
 
-// handleInvites applies a fresh, authoritative invitation set (from the cache or the
-// stream), rebuilding the rail and announcing new invitations.
+// handleInvites applies a fresh, authoritative invitation set, rebuilding the rail and
+// announcing new invitations.
 func (m Model) handleInvites(invites []domain.Room) (Model, tea.Cmd) {
 	arrived := newInvites(m.rooms.invites, invites)
 	m.rooms = m.rooms.withInvites(invites)
@@ -120,8 +116,7 @@ func invitePhrase(n int) string {
 	return fmt.Sprintf("%d new invitations", n)
 }
 
-// askLeave and askReject open the confirmation for the selected room; each is inert on
-// the wrong kind of row.
+// askLeave and askReject confirm on the selected room; each is inert on the wrong kind of row.
 func (m Model) askLeave() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok || room.IsInvite() {
@@ -138,10 +133,9 @@ func (m Model) askLeave() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// askLeaveGroup is the rail's leave: a tag is deleted, a space that one room carries
-// (a Telegram forum) is left with that room, a space left with its rooms or on its own
-// as leavespace.go asks, and an account's own space signs it out (signout.go), each
-// after asking. A bridge's own space for an account is not left from here, and says so.
+// askLeaveGroup is the rail's leave, each after asking: a tag is deleted; a space carried by
+// one room (a Telegram forum) is left with that room; other spaces per leavespace.go; an
+// account's own space signs it out (signout.go). A bridge's account space is refused.
 func (m Model) askLeaveGroup() (Model, tea.Cmd) {
 	entry, ok := m.currentGroup()
 	if !ok {
@@ -172,8 +166,7 @@ func (m Model) askLeaveGroup() (Model, tea.Cmd) {
 	}
 }
 
-// spaceNamed is the space a rail row is (its key is the space's name), when exactly one
-// space has that name.
+// spaceNamed is the space a rail row is (keyed by name), when exactly one space has that name.
 func (m Model) spaceNamed(name string) (domain.Space, bool) {
 	var found []domain.Space
 	for _, s := range m.rooms.spaces {
@@ -232,8 +225,7 @@ func (m Model) confirmPrompt() string {
 	return ""
 }
 
-// resolveConfirm carries out the pending action, or abandons it; the prompt closes
-// either way.
+// resolveConfirm carries out or abandons the pending action; the prompt closes either way.
 func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 	pending := m.confirm
 	m.confirm = confirmState{}
@@ -336,8 +328,8 @@ func (m Model) handleLeft(msg leftMsg) (Model, tea.Cmd) {
 	return next, tea.Batch(cmd, next.refreshRoomsCmd())
 }
 
-// handleCachedInvites seeds the invitation set from the cache at startup; a read error
-// is not evidence the invitations are gone.
+// handleCachedInvites seeds invitations from the cache at startup; a read error is not
+// evidence they are gone.
 func (m Model) handleCachedInvites(msg invitesMsg) (Model, tea.Cmd) {
 	m.logErr(slog.LevelWarn, "load cached invites", msg.err)
 	if msg.err != nil {
@@ -360,7 +352,7 @@ func (m Model) handleConfirmKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	case actNo:
 		return m.resolveConfirm(false)
 	case actYesAll, actNoAll:
-		// Only a room also in another space is asked about with its like.
+		// Yes/no to all applies only to the shared-room question.
 		if m.confirm.action == pendingLeaveSharedRoom {
 			pending := m.confirm
 			m.confirm = confirmState{}
@@ -370,8 +362,8 @@ func (m Model) handleConfirmKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// goToReplacement is /replacement: it leaves an upgraded (tombstoned) room for its
-// replacement, joining it only if the server has not already.
+// goToReplacement is /replacement: leaves a tombstoned room for its replacement, joining it
+// unless already joined.
 func (m Model) goToReplacement(room domain.Room) (Model, tea.Cmd) {
 	m.compose.input, m.compose.drafted = "", nil
 	if room.Replacement == "" {

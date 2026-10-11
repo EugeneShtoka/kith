@@ -8,9 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Reactions a bridged network refuses are learned, not hardcoded: the daemon sees a
-// bridge redact one of ours, the client sees its own send fail. Both write one table
-// keyed on protocol, since the restriction belongs to the network.
+// Reactions a bridged network refuses are learned, not hardcoded: the daemon sees a bridge
+// redact one, the client sees its send fail. Both write one table keyed on protocol.
 
 // refusedIn reports whether emoji is known to be refused by protocol.
 func (m Model) refusedIn(protocol domain.Protocol, emoji string) bool {
@@ -69,8 +68,8 @@ func (m Model) handleRefusals(msg refusalsMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// noteReactionFailure records a refusal only the client saw (its send failed) and
-// says so, or the emoji vanishing from the palette would be inexplicable.
+// noteReactionFailure records a refusal only the client saw and says so, so the emoji does
+// not vanish from the palette unexplained.
 func (m Model) noteReactionFailure(emoji string) (Model, tea.Cmd) {
 	protocol := m.roomProtocol()
 	if !protocol.IsBridged() || emoji == "" {

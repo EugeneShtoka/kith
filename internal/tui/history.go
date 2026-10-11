@@ -10,10 +10,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The message-history view takes the timeline pane rather than expanding a row, and
-// shows edits and the deletion together.
+// The message-history view takes the timeline pane rather than expanding a row, and shows
+// edits and the deletion together.
 
-// historyState is the open history view.
 type historyState struct {
 	open bool
 	msg  domain.Message
@@ -25,7 +24,6 @@ type historyState struct {
 	scroll   int
 }
 
-// active reports whether the history has the pane.
 func (h historyState) active() bool { return h.open }
 
 // openHistory shows what the selected message has been through.
@@ -38,7 +36,6 @@ func (m Model) openHistory() (Model, tea.Cmd) {
 	return m, m.messageHistoryCmd(msg.RoomID, msg.ID)
 }
 
-// closeHistory puts the conversation back.
 func (m Model) closeHistory() (Model, tea.Cmd) {
 	m.history = historyState{}
 	return m, nil
@@ -76,8 +73,7 @@ func (m Model) historyTitle() string {
 	}
 }
 
-// historyLines renders the versions, newest last, with what happened to the message
-// at the end of them.
+// historyLines renders the versions, newest last, followed by what happened to the message.
 func (m Model) historyLines(width, height int) []string {
 	lines := make([]string, 0, height)
 	switch {
@@ -105,8 +101,7 @@ func (m Model) historyLines(width, height int) []string {
 	return window(lines, m.history.scroll, height)
 }
 
-// versionLines is one block per version: its number, its time, what changed, and the
-// words themselves.
+// versionLines is one block per version: number, time, change size, and the words.
 func (m Model) versionLines(width int) []string {
 	lines := make([]string, 0, len(m.history.revs)*3)
 	for i, rev := range m.history.revs {
@@ -117,8 +112,7 @@ func (m Model) versionLines(width int) []string {
 			head += "edited" + changeNote(m.history.revs[i-1].Body, rev.Body)
 		}
 		lines = append(lines, m.theme.Title.Render(head))
-		// Through readerLines so an RTL version is reordered and flushed right like the
-		// timeline, not drawn backwards.
+		// Through readerLines so an RTL version is reordered and flushed right like the timeline.
 		body := strings.Split(rev.Body, "\n")
 		for k := range body {
 			body[k] = "     " + body[k]
@@ -131,8 +125,8 @@ func (m Model) versionLines(width int) []string {
 	return lines
 }
 
-// deletionLine is the deletion as the last row of the sequence, with its time when the
-// fetch reached the server (an empty time column otherwise) and the timeline's wording.
+// deletionLine is the deletion as the last row, with its time when the fetch reached the
+// server (else an empty time column), in the timeline's wording.
 func (m Model) deletionLine() string {
 	if !m.history.msg.Redacted {
 		return ""
@@ -146,8 +140,8 @@ func (m Model) deletionLine() string {
 	return m.theme.Title.Render("  ✕" + when + said)
 }
 
-// historyAttachment is what the message had attached, and the key that shows it: the
-// only place a deleted message's attachment is shown.
+// historyAttachment shows the attachment and the key that opens it; the only place a deleted
+// message's attachment is shown.
 func (m Model) historyAttachment(width int) string {
 	if m.history.msg.Media == nil {
 		return ""
@@ -156,9 +150,8 @@ func (m Model) historyAttachment(width int) string {
 	return m.theme.Muted.Render(drawLine(line, lineSpec{width: max(width-1, 1), sentence: true}))
 }
 
-// viewHistoryMedia opens the attachment of the message whose history is open, a
-// deleted message's included: a picture in the viewer, alone and at full size; a
-// video in the player; anything else with the desktop's handler.
+// viewHistoryMedia opens the history's message attachment, deleted or not: a picture alone in
+// the viewer, a video in the player, anything else with the desktop's handler.
 func (m Model) viewHistoryMedia() (Model, tea.Cmd) {
 	msg := m.history.msg
 	switch {
@@ -212,8 +205,8 @@ func changeNote(before, after string) string {
 	return "  reworded"
 }
 
-// window is the visible slice of a rendered list, clamped so scrolling past the end
-// lands on the last screenful rather than on blank space.
+// window is the visible slice of a list, clamped so scrolling past the end shows the last
+// screenful.
 func window(lines []string, scroll, height int) []string {
 	if height <= 0 || len(lines) <= height {
 		return lines
@@ -230,8 +223,8 @@ func window(lines []string, scroll, height int) []string {
 // historyScrollAll is further than any history: both ends clamp.
 const historyScrollAll = 1 << 20
 
-// handleHistoryKey owns every key while the view is open (no cursor moves behind it),
-// routed through scopeNav so rebinding applies.
+// handleHistoryKey owns every key while the view is open, routed through scopeNav so
+// rebinding applies.
 func (m Model) handleHistoryKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	press := key.String()
 	// The quit key closes it, as it closes a pager; so does back (esc by default).
@@ -251,10 +244,9 @@ func (m Model) handleHistoryKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// navDelta is how far one motion moves a plain scrolled list, for the panes that are
-// one: a count repeats a line step, a page is the pane's height, and an end is all
-// (signed toward the newest end, so a newest-first list passes it negative).
-// ok is false for an action that is not a motion.
+// navDelta is how far one motion moves a plain scrolled list: a count repeats a line step, a
+// page is the pane height, an end is all (signed toward the newest end, so newest-first lists
+// pass it negative). ok is false for a non-motion.
 func navDelta(act action, count, page, all int) (delta int, ok bool) {
 	switch act {
 	case actDown:

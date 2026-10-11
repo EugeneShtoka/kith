@@ -91,8 +91,7 @@ func solidImage(w, h int) image.Image {
 	return m
 }
 
-// Every 2x3 bitmap has its own character, and the four that Unicode had already are the
-// ones it had already.
+// Every 2x3 bitmap has its own character, and the four Unicode already had map to those.
 func TestSextantGlyphs(t *testing.T) {
 	t.Parallel()
 
@@ -155,8 +154,7 @@ func TestSextantsCarryMoreAtTheSameSize(t *testing.T) {
 	}
 }
 
-// A drawing is made of drawable cells, whatever is in the picture: a flat picture needs
-// no glyph at all and is simply the background color.
+// A flat picture needs no glyph and draws as its background color.
 func TestAFlatPictureDrawsAsItsOwnColor(t *testing.T) {
 	t.Parallel()
 

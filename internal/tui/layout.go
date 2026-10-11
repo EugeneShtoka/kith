@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Editing the layout from the app: renaming rooms, threads and rail groups, and
-// rearranging the rail, by pointing at the thing (room IDs and group keys are not shown).
+// Renaming rooms, threads and rail groups, and rearranging the rail, by pointing at the thing
+// (room IDs and group keys are not shown).
 
 // renameRoom opens the prompt for the selected room's displayed name, prefilled.
 func (m Model) renameRoom() (Model, tea.Cmd) {
@@ -42,8 +42,7 @@ func (m Model) submitRoomName(name string) (Model, tea.Cmd) {
 	return m.applyDisplay(display, "renamed to "+isolate(strings.TrimSpace(name)))
 }
 
-// renameThread opens the prompt for a thread's name, prefilled with the current
-// (often guessed) name.
+// renameThread opens the prompt for a thread's name, prefilled with its (often guessed) name.
 func (m Model) renameThread(root domain.EventID) (Model, tea.Cmd) {
 	if root == "" {
 		return m, nil
@@ -100,5 +99,4 @@ func (m Model) submitGroupName(label string) (Model, tea.Cmd) {
 	return m.applyDisplay(display, "renamed to "+isolate(label))
 }
 
-// currentGroup is the rail group under the cursor.
 func (m Model) currentGroup() (group, bool) { return m.rail.at() }

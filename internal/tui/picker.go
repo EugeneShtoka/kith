@@ -10,17 +10,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A picker is a modal chooser over a list of things. A picker with letter actions
-// (e.g. `a` to alias a person) is modal: it starts in navigate mode, `i` enters
-// filter mode and esc steps back out. A picker whose only action is "choose this
-// one" filters from the first keystroke.
+// A picker is a modal chooser over a list. One with letter actions (e.g. `a` to alias a
+// person) starts in navigate mode; `i` enters filter mode and esc steps back. One whose only
+// action is choose filters from the first keystroke.
 
-// pickerWalk is what a chooser walk in progress is for, beyond its items.
+// pickerWalk is the state of a chooser walk beyond its items.
 type pickerWalk struct {
 	// identity is the identity edit being walked through (picker, then prompt).
 	identity pendingIdentity
-	// setting is the preference being changed while its value is chosen, and
-	// settingGroup the settings group it is listed under (settings.go).
+	// setting is the preference whose value is being chosen; settingGroup is its settings group
+	// (settings.go).
 	setting      string
 	settingGroup string
 	// settingEntry is the entry of a list setting being typed; -1 adds one.
@@ -91,8 +90,8 @@ type pickerSpec struct {
 	modal bool
 	// grid renders items as a grid of values (emoji) rather than labeled rows.
 	grid bool
-	// multi makes a checkbox set: space ticks, enter applies the whole set. It
-	// implies modal, since space is a character in filter mode.
+	// multi makes a checkbox set: space ticks, enter applies the set. It implies modal, since space
+	// is text in filter mode.
 	multi bool
 }
 
@@ -137,19 +136,17 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerImportChoice:    {}, // titled with the folder
 }
 
-// pickerItem is one row: label shown, detail dimmed, value acted on, and match the
-// text filtering narrows against (defaults to label+detail).
+// pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text
+// (defaults to label+detail).
 type pickerItem struct {
 	label  string
 	detail string
 	value  string
 	match  string
-	// room is where the row's thing lives, for lists spanning rooms; empty means the
-	// open room.
+	// room is where the row's thing lives, for lists spanning rooms; empty means the open room.
 	room domain.RoomID
 }
 
-// picker is the open chooser.
 type picker struct {
 	kind pickerKind
 	// then is the action of the key that opened a pickerContext, applied on accept.
@@ -161,8 +158,7 @@ type picker struct {
 	all    []pickerItem
 	items  []pickerItem
 	cursor int
-	// checked is the ticked rows of a multi picker, keyed by value so filtering
-	// cannot move ticks.
+	// checked is the ticked rows of a multi picker, keyed by value so filtering cannot move ticks.
 	checked map[string]bool
 }
 
@@ -170,7 +166,7 @@ func (p picker) active() bool { return p.kind != pickerNone }
 
 func (p picker) ticked(value string) bool { return p.checked[value] }
 
-// at puts the cursor on the row whose value is value; on the first row when none is.
+// at puts the cursor on the row with value, else on the first row.
 func (p picker) at(value string) picker {
 	for i, item := range p.items {
 		if item.value == value {
@@ -213,7 +209,6 @@ func newPicker(kind pickerKind, items []pickerItem) picker {
 	return newPickerWith(kind, pickerSpecs[kind], items)
 }
 
-// newPickerWith is newPicker with the spec supplied by the caller.
 func newPickerWith(kind pickerKind, spec pickerSpec, items []pickerItem) picker {
 	p := picker{kind: kind, spec: spec, all: items}
 	if !spec.modal {
@@ -229,8 +224,8 @@ func newCheckedPicker(kind pickerKind, items []pickerItem, checked map[string]bo
 	return p
 }
 
-// refilter recomputes the visible items: prefix matches first, then substring
-// matches, the same order as the mention and emoji completions.
+// refilter recomputes the visible items: prefix matches first, then substring, as in the
+// mention and emoji completions.
 func (p picker) refilter() picker {
 	query := strings.ToLower(strings.TrimSpace(p.filter))
 	if query == "" {
@@ -252,7 +247,7 @@ func (p picker) refilter() picker {
 	return p
 }
 
-// matchText is what filtering matches; label isolate marks are not typed, so stripped.
+// matchText is what filtering matches, with label isolate marks stripped (they are not typed).
 func (i pickerItem) matchText() string {
 	if i.match != "" {
 		return stripIsolates(i.match)
@@ -264,8 +259,8 @@ func (i pickerItem) matchText() string {
 func (m Model) handlePickerKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	open := m.picker.active()
 	mdl, cmd, handled := m.pickerKey(key)
-	// Closing replaces a full pane at once; repaint so mis-measured glyph cells from
-	// the picker cannot survive in the timeline.
+	// Closing replaces a full pane; repaint so mis-measured glyph cells from the picker do not
+	// survive.
 	if open && !mdl.picker.active() {
 		return mdl, tea.Batch(cmd, repaint()), handled
 	}
@@ -277,7 +272,7 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		if text := key.Text; text != "" {
 			return m.store(fieldFilter, m.editorFor(fieldFilter).insert(text)), nil, true
 		}
-		// Only the editing keys that keep the caret at the end: arrows walk the list.
+		// Only edits that keep the caret at the end: arrows walk the list.
 		if ed, ok := m.editorFor(fieldFilter).editTail(key, m.keys); ok {
 			return m.store(fieldFilter, ed), nil, true
 		}
@@ -287,8 +282,8 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		m.picker.mode = pickerFilter
 		return m, nil, true
 	case actRenameThread:
-		// Handled here, not in pickerAction: the thread list is always filtering, and
-		// this binding is a chord, which produces no text.
+		// Handled here, not in pickerAction: the thread list always filters, and this binding is a
+		// chord, which produces no text.
 		if m.picker.kind == pickerThread {
 			return answered(m.renameSelectedThread())
 		}
@@ -298,8 +293,7 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	case actAcceptPick:
 		return answered(m.acceptPick())
 	case actClosePick:
-		// esc first leaves filter mode (modal) or clears the query (non-modal), and
-		// only then closes.
+		// esc first leaves filter mode (modal) or clears the query (non-modal), then closes.
 		if m.picker.spec.modal && m.picker.mode == pickerFilter {
 			m.picker.mode = pickerNavigate
 		} else if m.picker.filter == "" {
@@ -334,9 +328,9 @@ func (m Model) movePicker(key tea.KeyPressMsg) (Model, bool) {
 	return m, handled
 }
 
-// move is the cursor arithmetic for one motion. Grid pickers step vertically by a
-// row's width, and a page is the page rows on screen (navDelta, as every pane). A
-// count multiplies steps, not pages; with the ends it names a row (vim's `12G`).
+// move is the cursor arithmetic for one motion. Grids step vertically by a row's width; a page
+// is the visible rows (navDelta). A count multiplies steps, not pages; with the ends it names a
+// row (vim's `12G`).
 func (p picker) move(act action, perRow, count, page int) (picker, bool) {
 	n := len(p.items)
 	delta := 0
@@ -432,9 +426,8 @@ func (m Model) closePicker() Model {
 	return m
 }
 
-// repaint clears and redraws the screen. Spent where a full pane is replaced at once:
-// when the program and terminal disagree on a glyph's width, cells from the previous
-// frame otherwise survive under the new one.
+// repaint clears and redraws the screen, used where a full pane is replaced: when program and
+// terminal disagree on a glyph's width, old cells otherwise survive.
 func repaint() tea.Cmd { return tea.ClearScreen }
 
 // acceptPick carries out the picker's primary action on the selection.
@@ -472,8 +465,8 @@ func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
 	}
 }
 
-// acceptConversationPick handles pickers that act on what is being read; handled is
-// false for the setting pickers.
+// acceptConversationPick handles pickers acting on what is being read; handled is false for
+// setting pickers.
 func (m Model) acceptConversationPick(item pickerItem) (Model, tea.Cmd, bool) {
 	switch m.picker.kind {
 	case pickerPerson:
@@ -498,7 +491,7 @@ func (m Model) acceptConversationPick(item pickerItem) (Model, tea.Cmd, bool) {
 	case pickerJump:
 		return answered(m.acceptJump(item.value))
 	case pickerScheduled:
-		// The queue is re-read after canceling, so it shows what the daemon holds.
+		// Re-read after canceling, so it shows what the daemon holds.
 		return m.closePicker(), m.cancelScheduledCmd(item.value), true
 	default:
 		return m, nil, false
@@ -547,8 +540,8 @@ func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
 	}
 }
 
-// pickerHint is the open picker's legend, which depends on the mode: while
-// filtering, letters are text, so only non-typing keys are advertised.
+// pickerHint is the picker legend; while filtering, letters are text, so only non-typing keys
+// are shown.
 func (m Model) pickerHint() string {
 	var rename []hint
 	if m.picker.kind == pickerThread {
@@ -587,8 +580,8 @@ func (m Model) pickerHint() string {
 	}, rename...)...)
 }
 
-// settingsHint is the legend of a settings level: what enter does on the row under
-// the cursor, the number keys on a number, and esc stepping back. false elsewhere.
+// settingsHint is a settings level's legend: what enter does on the row, the number keys on a
+// number, and esc stepping back. false elsewhere.
 func (m Model) settingsHint() (string, bool) {
 	move := keyed(m.keys.keyHint(scopeNav, actUp)+"/"+m.keys.keyHint(scopeNav, actDown), "move")
 	switch m.picker.kind {

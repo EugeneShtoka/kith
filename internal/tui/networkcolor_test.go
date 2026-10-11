@@ -16,9 +16,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/theme"
 )
 
-// A name drawn in its own color lays out exactly as one drawn in the row's: over
-// names short and long, wide and right-to-left, with and without a lead, a trail and
-// a badge, in rows wide and too narrow for the name, selected or not.
+// A name in its own color lays out exactly as one in the row's color: across short, long,
+// wide and RTL names, with or without lead, trail and badge, wide and narrow rows, selected
+// or not.
 func TestAColoredNameLaysOutAsAPlainOne(t *testing.T) {
 	t.Parallel()
 	m := New(context.Background(), apitest.Nop{}, config.Display{})
@@ -50,10 +50,9 @@ func TestAColoredNameLaysOutAsAPlainOne(t *testing.T) {
 	}
 }
 
-// A place that asks for it names each room in its network's color, by its facts (a
-// bridged Matrix room's bridge's), as configured or by default, none for
-// a network with none; a place that does not, and every room elsewhere, keep the row's
-// color. The rail, when asked, colors a space or tag whose rooms are all on one
+// A place that asks for it names each room in its network's color (by its facts; a bridged
+// room's is its bridge's), configured or default, none for a network without one; other rooms
+// keep the row's color. The rail, when asked, colors a space or tag whose rooms are all on one
 // network, and no other.
 func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 	t.Parallel()
@@ -103,7 +102,7 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 			t.Errorf("in Quiet, which does not ask, %s is colored", rooms[i].Name)
 		}
 	}
-	// Everywhere: a place with no rule of its own follows, one that says off does not.
+	// Everywhere: a place with no rule follows; one set off does not.
 	everywhere := m
 	everywhere.prefs.display.NetworkColors = true
 	if g := got(everywhere, rooms[1]); g != color("orange") {
@@ -117,8 +116,7 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 	for _, g := range m.rail.groups {
 		networks[g.key] = g.network
 	}
-	// Drawn: the rail row of a one-network space is in its color while the rail asks,
-	// and in the row's own when it does not.
+	// The rail row of a one-network space is in its color while the rail asks, else the row's own.
 	only := m.rail.groups[indexOfGroup(m.rail.groups, "Only WhatsApp")]
 	if row := m.railRow(only, false, false, 20); !strings.Contains(row, "38;2;29;233;182") {
 		t.Errorf("Only WhatsApp's rail row is not teal: %q", row)
@@ -134,9 +132,8 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 	}
 }
 
-// A place's two settings share its [[display.space_rule]]: setting one keeps the
-// other, and the rule goes only when neither is set. Network colors set off is set: it
-// overrides [display] network_colors.
+// A place's two settings share its [[display.space_rule]]: setting one keeps the other, and the
+// rule goes only when neither is set. network_colors off counts as set and overrides [display].
 func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 	t.Parallel()
 	rules := []config.SpaceRule{{Space: "Other", FirstNameOnly: true}}
@@ -162,9 +159,8 @@ func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 	}
 }
 
-// A room's thread rows, and the row counting the threads left out, are drawn in the
-// room's network color, so a room and its threads read as one; in a place that does
-// not ask, none of them is.
+// A room's thread rows and its overflow row take the room's network color; in a place that does
+// not ask, none do.
 func TestAThreadRowTakesItsRoomsColor(t *testing.T) {
 	t.Parallel()
 	room := domain.Room{ID: "telegram:1/-11", Name: "Book club"}
@@ -204,8 +200,8 @@ func sgrOf(t *testing.T, c color.Color) string {
 	return fmt.Sprintf("38;2;%d;%d;%d", r>>8, g>>8, b>>8)
 }
 
-// A config applied from the app (a room renamed, a space added) rebuilds the rail
-// with its networks, so a one-network space keeps its color.
+// A config applied from the app rebuilds the rail with its networks, keeping a one-network
+// space's color.
 func TestTheRailKeepsItsColorsWhenTheConfigIsApplied(t *testing.T) {
 	t.Parallel()
 	display := config.Display{Rail: config.Rail{NetworkColors: true}}

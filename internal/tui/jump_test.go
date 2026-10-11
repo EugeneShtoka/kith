@@ -13,8 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// jumping builds a client with two spaces that hold different rooms, so a jump has
-// somewhere to jump *from* and the rail has to move to follow it.
+// jumping builds a client with two spaces holding different rooms, so the rail must move to
+// follow a jump.
 func jumping(t *testing.T) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
@@ -31,7 +31,7 @@ func jumping(t *testing.T) Model {
 
 func jumpKey() tea.KeyPressMsg { return tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl} }
 
-// value of the row under the cursor, for asserting what a filter narrowed to.
+// pickedValue is the value of the row under the cursor.
 func pickedValue(t *testing.T, m Model) string {
 	t.Helper()
 	item, ok := m.picker.selected()
@@ -75,16 +75,14 @@ func TestJumpListsRoomsAndSpaces(t *testing.T) {
 	if spaces != 5 {
 		t.Errorf("listed %d groups, want the whole rail", spaces)
 	}
-	// It filters from the first keystroke: choosing a row is the only thing it does, so
-	// there is no letter action for typing to collide with.
+	// It filters from the first keystroke: choosing is its only action.
 	if m.picker.mode != pickerFilter {
 		t.Error("the switcher should start in filter mode")
 	}
 }
 
-// Typing a person's name reaches their conversation, and the rail follows: the
-// highlight is derived from the *filtered* room list, so opening a room the current
-// group excludes would leave the timeline in one room and the list pointing nowhere.
+// Jumping to a room moves the rail to a group holding it: the highlight derives from the
+// filtered room list, which would otherwise point nowhere.
 func TestJumpMovesTheRailToHoldTheRoom(t *testing.T) {
 	t.Parallel()
 
@@ -115,8 +113,7 @@ func TestJumpMovesTheRailToHoldTheRoom(t *testing.T) {
 	}
 }
 
-// Jumping between rooms of one space leaves the rail where it is: the group already
-// holds the room, and moving it out from under you would be gratuitous.
+// Jumping within one space leaves the rail where it is.
 func TestJumpStaysInTheGroupThatAlreadyHolds(t *testing.T) {
 	t.Parallel()
 
@@ -134,8 +131,7 @@ func TestJumpStaysInTheGroupThatAlreadyHolds(t *testing.T) {
 	}
 }
 
-// A space row moves the rail and opens what is in it, which is what selecting a group
-// in the rail already does.
+// A space row moves the rail and opens its first room, as selecting it in the rail does.
 func TestJumpToASpace(t *testing.T) {
 	t.Parallel()
 
@@ -157,8 +153,7 @@ func TestJumpToASpace(t *testing.T) {
 	}
 }
 
-// Unread rooms come first with nothing typed: before you have said what you are looking
-// for, "where am I needed" is the only ordering that means anything.
+// With nothing typed, unread rooms come first.
 func TestJumpPutsUnreadRoomsFirst(t *testing.T) {
 	t.Parallel()
 
@@ -175,8 +170,7 @@ func TestJumpPutsUnreadRoomsFirst(t *testing.T) {
 	}
 }
 
-// The switcher is reachable mid-sentence, and what was typed is still there afterwards:
-// deciding to answer somebody else is exactly when it is wanted.
+// The switcher works mid-sentence and the draft survives.
 func TestJumpWorksWhileTypingAndKeepsTheDraft(t *testing.T) {
 	t.Parallel()
 
@@ -190,8 +184,7 @@ func TestJumpWorksWhileTypingAndKeepsTheDraft(t *testing.T) {
 	if opened.picker.kind != pickerJump {
 		t.Fatal("ctrl+k did not open the switcher from insert mode")
 	}
-	// Insert mode is kept, so esc out of the switcher is back in the sentence rather
-	// than one key away from it.
+	// Insert mode is kept, so esc out of the switcher returns to the sentence.
 	if !opened.compose.insertMode {
 		t.Error("backing out of the switcher should return to the message being written")
 	}
@@ -207,8 +200,8 @@ func TestJumpWorksWhileTypingAndKeepsTheDraft(t *testing.T) {
 	}
 }
 
-// A row whose room has gone — left or archived while the chooser was open — says so
-// rather than opening whatever moved into its place.
+// A row whose room has gone (left or archived while open) says so rather than opening whatever
+// took its place.
 func TestJumpToAVanishedRoomSaysSo(t *testing.T) {
 	t.Parallel()
 
@@ -234,8 +227,7 @@ func jumpBound(t *testing.T) Model {
 	return jumping(t).WithKeys(keys)
 }
 
-// A sequence bound to a place goes there — the whole point being that it costs no
-// typing and no list.
+// A sequence bound to a place goes there.
 func TestJumpChordGoesToItsPlace(t *testing.T) {
 	t.Parallel()
 
@@ -250,7 +242,7 @@ func TestJumpChordGoesToItsPlace(t *testing.T) {
 		t.Errorf("open room = %q, want the DM the chord names", after.openRoom)
 	}
 
-	// And a space chord moves the rail.
+	// A space chord moves the rail.
 	space := jumpBound(t)
 	space, _ = press(t, space, keyText("g"))
 	space, _ = press(t, space, keyText("w"))
@@ -259,8 +251,7 @@ func TestJumpChordGoesToItsPlace(t *testing.T) {
 	}
 }
 
-// A room is named by its ID, so a room whose *name* looks like the target cannot
-// intercept it — which is the whole reason name matching was dropped.
+// A room is named by ID, so a room whose name looks like the target cannot intercept it.
 func TestChordNamesARoomByIDNotByName(t *testing.T) {
 	t.Parallel()
 
@@ -308,8 +299,7 @@ func TestJumpChordToNowhereSaysSo(t *testing.T) {
 	}
 }
 
-// Jump sequences are suspended while typing, like every other chord: holding a step
-// back to see what follows it would drop a character from a message.
+// Jump sequences are suspended while typing, like every chord.
 func TestJumpChordsDoNotFireWhileTyping(t *testing.T) {
 	t.Parallel()
 
@@ -327,8 +317,7 @@ func TestJumpChordsDoNotFireWhileTyping(t *testing.T) {
 	}
 }
 
-// A sequence already bound to a command is refused rather than allowed to shadow it:
-// the action tables are what every handler and the help overlay are written against.
+// A sequence already bound to a command is refused rather than shadowing it.
 func TestJumpCannotStealABoundKey(t *testing.T) {
 	t.Parallel()
 
@@ -345,7 +334,7 @@ func TestJumpCannotStealABoundKey(t *testing.T) {
 	}
 }
 
-// An unreadable target is an issue, not a key that quietly does nothing.
+// An unreadable target is reported as an issue.
 func TestJumpIssuesForABadTarget(t *testing.T) {
 	t.Parallel()
 
@@ -369,7 +358,7 @@ func TestJumpIssuesForABadTarget(t *testing.T) {
 	}
 }
 
-// The overlay lists them, resolved to where they actually lead.
+// The overlay lists jump bindings resolved to where they lead.
 func TestHelpShowsJumpBindings(t *testing.T) {
 	t.Parallel()
 
@@ -378,14 +367,12 @@ func TestHelpShowsJumpBindings(t *testing.T) {
 	if !strings.Contains(help, "g w") || !strings.Contains(help, "space Work") {
 		t.Errorf("help does not list the space chord:\n%s", help)
 	}
-	// A room binding is an ID in the file and a name in the overlay, which is what
-	// makes the ID bearable: nobody has to read one to know where a key goes.
+	// A room binding is an ID in the file and a name in the overlay.
 	if !strings.Contains(help, "Dana Levi") {
 		t.Error("help does not resolve the room chord to the room's name")
 	}
 
-	// And it says when one leads nowhere, which is what somebody comes to the overlay
-	// to find out.
+	// And it says when one leads nowhere.
 	keys := config.DefaultKeys()
 	keys.Jump = config.Jumps{
 		{Chord: "g z", Target: "room:!gone:x"},
@@ -396,8 +383,7 @@ func TestHelpShowsJumpBindings(t *testing.T) {
 	}
 }
 
-// namesakes builds the case a display name cannot survive: one person reachable over
-// three networks, so three DMs carry one name.
+// namesakes is one person reachable over three networks: three DMs with one name.
 func namesakes(t *testing.T) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
@@ -408,8 +394,7 @@ func namesakes(t *testing.T) Model {
 	return sized(t, m.clearStatus())
 }
 
-// The case that drove the design: one person over three bridges is three rooms with one
-// display name.
+// One person over three bridges is three rooms with one display name; IDs tell them apart.
 func TestNamesakesAreToldApartByID(t *testing.T) {
 	t.Parallel()
 
@@ -439,21 +424,19 @@ func TestNamesakesAreToldApartByID(t *testing.T) {
 		t.Errorf("bound %+v, want the ID of the room written in (%s)", target, want)
 	}
 
-	// And it is on its way to the file, so it survives a restart.
+	// It is written to the file, so it survives a restart.
 	saved := deliver(t, after, cmd)
 	written, err := os.ReadFile(saved.conf.path)
 	if err != nil {
 		t.Fatalf("read back the config: %v", err)
 	}
-	// A block per binding, which is the shape that makes a file of twelve of them
-	// readable — the map it replaced wrote them all on one line.
+	// One [[keys.jump]] block per binding.
 	if !strings.Contains(string(written), "[[keys.jump]]\nchord = \"g d\"\ntarget = \"room:"+string(want)+"\"") {
 		t.Errorf("the config does not carry the binding:\n%s", written)
 	}
 }
 
-// The prompt opens prefilled with whatever already points at the place, and an empty
-// sequence removes it — the only spelling of "not any more" a one-line prompt has.
+// The prompt is prefilled with the place's existing sequence; an empty sequence removes it.
 func TestBindPromptPrefillsTheExistingSequence(t *testing.T) {
 	t.Parallel()
 
@@ -465,8 +448,7 @@ func TestBindPromptPrefillsTheExistingSequence(t *testing.T) {
 	m = next
 
 	_, m, _ = m.composerCommand("/shortcut", roomByName(t, m, "!dana:x"))
-	// Spelled the way the help overlay spells it — "gd", not "g d" — since that is what
-	// the user reads everywhere else, and it is accepted back either way.
+	// Spelled as the help overlay spells it ("gd", not "g d"); either spelling is accepted back.
 	if got := m.editorFor(fieldPrompt).text; got != "gd" {
 		t.Errorf("prompt = %q, want the sequence already bound to that room", got)
 	}
@@ -507,8 +489,7 @@ func TestBindRefusesACollidingSequence(t *testing.T) {
 	}
 }
 
-// jumped goes somewhere through the switcher, the way a person does: ctrl+k, type
-// enough of the name, enter.
+// jumped goes somewhere through the switcher: ctrl+k, type the name, enter.
 func jumped(t *testing.T, m Model, name string) Model {
 	t.Helper()
 	opened, _ := press(t, m, jumpKey())
@@ -517,8 +498,7 @@ func jumped(t *testing.T, m Model, name string) Model {
 	return chosen
 }
 
-// ctrl+o goes back to the room you jumped away from and alt+o returns — the pair that
-// answers "two conversations at once" without splitting the screen.
+// ctrl+o goes back to the room jumped away from; alt+o returns.
 func TestBackAndForwardFollowJumps(t *testing.T) {
 	t.Parallel()
 
@@ -533,14 +513,13 @@ func TestBackAndForwardFollowJumps(t *testing.T) {
 	if back.openRoom != "!a:x" {
 		t.Fatalf("ctrl+o opened %s, want the room jumped from (!a:x)", back.openRoom)
 	}
-	// The room list follows: the rail moved to a group that holds it, or the highlight
-	// and the timeline would disagree.
+	// The rail moved to a group holding it, or highlight and timeline would disagree.
 	if _, ok := back.currentRoom(); !ok {
 		t.Error("after going back the room list has no row for the open room")
 	}
 
-	// ctrl+i is the vim key and the documented one; alt+o is the fallback for a
-	// terminal that cannot tell ctrl+i from tab.
+	// ctrl+i is the vim key and the documented one; alt+o is the fallback for terminals that
+	// cannot tell ctrl+i from tab.
 	for _, forward := range []tea.KeyPressMsg{
 		{Code: 'i', Mod: tea.ModCtrl},
 		{Code: 'o', Mod: tea.ModAlt},
@@ -549,14 +528,14 @@ func TestBackAndForwardFollowJumps(t *testing.T) {
 		if fwd.openRoom != "!ops:x" {
 			t.Fatalf("%s opened %s, want !ops:x", forward.String(), fwd.openRoom)
 		}
-		// And back again — the round trip must not have consumed the entry.
+		// And back again: the round trip must not consume the entry.
 		again, _ := press(t, fwd, tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
 		if again.openRoom != "!a:x" {
 			t.Errorf("ctrl+o after %s opened %s, want !a:x", forward.String(), again.openRoom)
 		}
 	}
-	// tab still moves between panes: the two keys are one byte apart in history and
-	// this is the assertion that says they are not one binding here.
+	// tab still moves between panes: ctrl+i and tab were historically one byte, but are
+	// separate bindings here.
 	tabbed, _ := press(t, back, tea.KeyPressMsg{Code: tea.KeyTab})
 	if tabbed.openRoom != back.openRoom {
 		t.Errorf("tab moved the open room to %s, want it left alone", tabbed.openRoom)
@@ -582,9 +561,7 @@ func TestWalkingTheListRecordsNothing(t *testing.T) {
 	}
 }
 
-// A room that has gone away since you left it is skipped rather than reported: the key
-// is for getting back to a conversation, and stopping on a dead entry makes the second
-// press look as broken as the first.
+// A room gone since you left it is skipped rather than reported.
 func TestBackSkipsARoomThatIsGone(t *testing.T) {
 	t.Parallel()
 
@@ -603,8 +580,7 @@ func TestBackSkipsARoomThatIsGone(t *testing.T) {
 	}
 }
 
-// openedFromList is the ordinary way a room gets opened: the cursor walks onto it
-// (which is all selectRoom is) and enter opens it.
+// openedFromList opens a room the ordinary way: the cursor walks onto it and enter opens it.
 func openedFromList(t *testing.T, m Model, id domain.RoomID) Model {
 	t.Helper()
 	room, listed := m.rooms.byID(id)
@@ -617,8 +593,7 @@ func openedFromList(t *testing.T, m Model, id domain.RoomID) Model {
 	return opened
 }
 
-// Opening rooms from the list — enter, three times — has to be what ctrl+o walks back
-// through.
+// Rooms opened from the list with enter are what ctrl+o walks back through.
 func TestBackWalksRoomsOpenedFromTheList(t *testing.T) {
 	t.Parallel()
 
@@ -635,12 +610,12 @@ func TestBackWalksRoomsOpenedFromTheList(t *testing.T) {
 	if again.openRoom != "!a:x" {
 		t.Fatalf("second ctrl+o opened %s, want !a:x", again.openRoom)
 	}
-	// The first room opened is the end of the road: there was nowhere before it.
+	// The first room opened is the end: nothing before it.
 	end, _ := press(t, again, tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
 	if !strings.Contains(end.status(), "nothing to go back to") {
 		t.Errorf("a third ctrl+o said %q, want it to stop at the first room opened", end.status())
 	}
-	// And forward retraces exactly the same steps.
+	// Forward retraces the same steps.
 	fwd, _ := press(t, again, tea.KeyPressMsg{Code: 'i', Mod: tea.ModCtrl})
 	if fwd.openRoom != "!dana:x" {
 		t.Errorf("ctrl+i opened %s, want !dana:x", fwd.openRoom)
@@ -672,9 +647,9 @@ func TestOverlaysAreNotPlaces(t *testing.T) {
 	}
 }
 
-// :shortcut binds the open room, or — tab in its prompt — the space or tag selected in
-// the rail; the prompt says which, and holds that place's sequence. A space is
-// recorded by name, and the key works at once.
+// :shortcut binds the open room or, after tab, the rail's selected space or tag; the prompt
+// says which and holds that place's sequence. A space is recorded by name; the key works at
+// once.
 func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 	t.Parallel()
 
@@ -708,7 +683,7 @@ func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 		t.Errorf("the new binding took us to %q", got)
 	}
 
-	// Typed whole, it binds the first place at once; tab back round comes to the room.
+	// Typed whole, it binds the first place at once; tab round comes back to the room.
 	bound, _ := m.runCommandLine("shortcut g a")
 	if target, ok := bound.keys.jumpFor("g a"); !ok || target.Kind != domain.JumpRoom || target.Name != "!a:x" {
 		t.Errorf(":shortcut g a bound %+v (%v), want the open room", target, ok)
@@ -719,10 +694,9 @@ func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 	}
 }
 
-// :shortcut starts on what has the focus, as a search's scope does: the rail's space
-// or tag from the rail, the room from the room list (the one under its cursor, here
-// Infra's Ops, not the open Alpha) or the timeline (the open one); tab switches to the
-// other.
+// :shortcut starts on what has focus, like a search's scope: the rail's space or tag from the
+// rail, the room from the room list (the one under its cursor, here Infra's Ops, not the open
+// Alpha) or the timeline (the open one); tab switches to the other.
 func TestShortcutStartsOnWhatHasTheFocus(t *testing.T) {
 	t.Parallel()
 

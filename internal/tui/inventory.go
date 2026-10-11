@@ -6,9 +6,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// inventory is the joined rooms, invitations, their union, and the space hierarchy.
-// joined and invites are each replaced wholesale by their own path; all is only
-// rebuilt through the setters, so it cannot go stale.
+// inventory is the joined rooms, invitations, their union, and the space hierarchy. all is
+// rebuilt only through the setters, so it cannot go stale.
 type inventory struct {
 	joined  []domain.Room
 	invites []domain.Room
@@ -18,28 +17,25 @@ type inventory struct {
 	holders *spaceHolders
 }
 
-// withJoined replaces the joined-room snapshot.
 func (inv inventory) withJoined(joined []domain.Room) inventory {
 	inv.joined = joined
 	return inv.recombined()
 }
 
-// withInvites replaces the invitation set; it is authoritative.
+// withInvites replaces the invitation set (authoritative).
 func (inv inventory) withInvites(invites []domain.Room) inventory {
 	inv.invites = invites
 	return inv.recombined()
 }
 
-// withSpaces replaces the space hierarchy.
 func (inv inventory) withSpaces(spaces []domain.Space) inventory {
 	inv.spaces = spaces
 	inv.holders = indexHolders(spaces)
 	return inv
 }
 
-// spaceHolders maps each room to the names of the spaces holding it, in hierarchy
-// order. Every draw asks this of every listed room, and scanning each space's children
-// for each room was most of a keypress in a few hundred rooms.
+// spaceHolders maps each room to its holding spaces' names, in hierarchy order. Every draw
+// asks this per listed room; scanning children per room was too slow at a few hundred rooms.
 type spaceHolders struct {
 	from  []domain.Space // the slice it was built from
 	names map[domain.RoomID][]string
@@ -49,7 +45,7 @@ func indexHolders(spaces []domain.Space) *spaceHolders {
 	h := &spaceHolders{from: spaces, names: map[domain.RoomID][]string{}}
 	for i := range spaces {
 		name := spaces[i].DisplayName()
-		// A space listing a child twice still holds it once, as a scan finds it.
+		// A child listed twice is held once, as a scan would find it.
 		seen := make(map[domain.RoomID]bool, len(spaces[i].Children))
 		for _, child := range spaces[i].Children {
 			if !seen[child] {
@@ -61,12 +57,11 @@ func indexHolders(spaces []domain.Space) *spaceHolders {
 	return h
 }
 
-// spaceNames is the names of the spaces holding id, in hierarchy order. The index
-// answers when it was built from the current spaces; a hierarchy set another way (a
-// test assigning the field) is scanned.
+// spaceNames is the names of the spaces holding id, in hierarchy order. The index is used when
+// built from the current spaces; otherwise (a test assigning the field) the spaces are scanned.
 func (inv inventory) spaceNames(id domain.RoomID) []string {
 	if h := inv.holders; h != nil && sameSpaces(h.from, inv.spaces) {
-		return slices.Clip(h.names[id]) // clipped: an append by a caller must not write into the index
+		return slices.Clip(h.names[id]) // clipped so a caller's append cannot write into the index
 	}
 	var names []string
 	for i := range inv.spaces {
@@ -77,7 +72,7 @@ func (inv inventory) spaceNames(id domain.RoomID) []string {
 	return names
 }
 
-// sameSpaces reports whether a and b are the same slice, not merely equal ones.
+// sameSpaces reports whether a and b are the same slice, not just equal.
 func sameSpaces(a, b []domain.Space) bool {
 	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }
@@ -98,7 +93,6 @@ func (inv inventory) recombined() inventory {
 	return inv
 }
 
-// byID is the room with this ID among the union, and whether there is one.
 func (inv inventory) byID(id domain.RoomID) (domain.Room, bool) {
 	for i := range inv.all {
 		if inv.all[i].ID == id {
@@ -108,8 +102,8 @@ func (inv inventory) byID(id domain.RoomID) (domain.Room, bool) {
 	return domain.Room{}, false
 }
 
-// removeRoom is rooms without the one named; the three-index slice keeps append from
-// writing into the caller's backing array.
+// removeRoom returns rooms without id; the three-index slice keeps append off the caller's
+// array.
 func removeRoom(rooms []domain.Room, id domain.RoomID) []domain.Room {
 	at := indexOfRoom(rooms, id)
 	if at < 0 {

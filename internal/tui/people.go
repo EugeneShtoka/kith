@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Room membership: invite and unban are typed (the person is not in the member list),
-// kick and ban act on the people list. All but invite ask first.
+// Invite and unban take a typed MXID (the person is not in the member list); kick and ban act
+// on the people list. All but invite ask first.
 
 // openInvite asks who to invite to the room under the cursor.
 func (m Model) openInvite() (Model, tea.Cmd) { return m.openMemberPrompt(promptInvite) }
@@ -23,19 +23,17 @@ func (m Model) openMemberPrompt(kind promptKind) (Model, tea.Cmd) {
 	return m.openPrompt(kind), nil
 }
 
-// submitInvite sends the invitation.
 func (m Model) submitInvite(input string) (Model, tea.Cmd) {
 	return m.submitMember(input, memberInvite, "inviting ")
 }
 
-// submitUnban lifts the ban.
 func (m Model) submitUnban(input string) (Model, tea.Cmd) {
 	return m.submitMember(input, memberUnban, "unbanning ")
 }
 
 func (m Model) submitMember(input string, act memberAction, doing string) (Model, tea.Cmd) {
 	room, mxid, ok := m.memberTarget(input)
-	// Cleared either way, so a later prompt cannot inherit the room.
+	// Cleared either way so a later prompt cannot inherit the room.
 	m.aimedAt.member = ""
 	if !ok {
 		return m, nil
@@ -44,9 +42,8 @@ func (m Model) submitMember(input string, act memberAction, doing string) (Model
 	return m, m.memberCmd(room, mxid, act, "")
 }
 
-// memberTarget validates what was typed against the room the prompt was opened for.
-// The MXID shape is checked because a missing server part ("@dana") otherwise gets an
-// opaque homeserver error.
+// memberTarget validates input against the room the prompt was opened for. The MXID shape is
+// checked because "@dana" otherwise gets an opaque homeserver error.
 func (m Model) memberTarget(input string) (domain.RoomID, string, bool) {
 	room := m.aimedAt.member
 	mxid := strings.TrimSpace(input)
@@ -56,8 +53,8 @@ func (m Model) memberTarget(input string) (domain.RoomID, string, bool) {
 	return room, mxid, true
 }
 
-// askKickSelected and askBanSelected confirm an action on the people list, naming the
-// person since the filtered row under the cursor may not be the one you looked at.
+// askKickSelected and askBanSelected name the person, since the filtered row under the cursor
+// may not be the one looked at.
 func (m Model) askKickSelected() (Model, tea.Cmd) { return m.askAboutPerson(pendingKick) }
 
 func (m Model) askBanSelected() (Model, tea.Cmd) { return m.askAboutPerson(pendingBan) }
@@ -80,8 +77,8 @@ func (m Model) askAboutPerson(what pendingAction) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleMemberChanged reports the outcome and, except for an invite, re-reads the
-// room's membership so the people list and mention completion drop a removed person.
+// handleMemberChanged reports the outcome and, except for an invite, re-reads membership so
+// the people list and mention completion drop a removed person.
 func (m Model) handleMemberChanged(msg memberChangedMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		m = m.sayErr("could not "+msg.action.present()+" "+msg.person, msg.err)

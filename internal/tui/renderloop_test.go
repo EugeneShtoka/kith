@@ -11,11 +11,9 @@ import (
 	"testing"
 )
 
-// View() must run on the Update goroutine: it reads Model.derived, which Update writes
-// and every model copy shares, so rendering alongside an Update is a silent data race.
-// Asserted against the framework's source: View() has one call site, inside
-// Program.render, and render is never started with `go`. cmdreach_test.go guards the
-// tea.Cmd side of the same invariant.
+// View() must run on the Update goroutine: it reads Model.derived, which Update writes and all
+// copies share. Asserted against the framework source: View() is called only in
+// Program.render, never started with `go`. cmdreach_test.go guards the tea.Cmd side.
 func TestRenderRunsOnTheUpdateGoroutine(t *testing.T) {
 	t.Parallel()
 
@@ -79,8 +77,8 @@ func TestRenderRunsOnTheUpdateGoroutine(t *testing.T) {
 	}
 }
 
-// bubbletea stays replaced by the fork, so the test above asserts against source we
-// control. (Deleting the replace fails the build; this catches repointing it.)
+// bubbletea stays replaced by the fork, so the test above asserts against source we control.
+// Deleting the replace fails the build; this catches repointing it.
 func TestBubbleTeaStaysPinnedToTheFork(t *testing.T) {
 	t.Parallel()
 

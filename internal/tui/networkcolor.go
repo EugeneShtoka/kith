@@ -7,12 +7,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/theme"
 )
 
-// A room's name can be drawn in its network's color ([display.theme.networks]): in the
-// room lists, as [display] network_colors says and a place's [[display.space_rule]]
-// network_colors overrides, and,
-// on the rail, a space or tag whose rooms are all on one network ([display.rail]
-// network_colors). A room's network is its facts' (domain.RoomFacts.Protocol): a
-// bridged Matrix room's is its bridge's.
+// A room's name can be drawn in its network's color ([display.theme.networks]): in room lists
+// per [display] network_colors (a space_rule may override), and on the rail for a space or tag
+// whose rooms are all on one network. A bridged room's network is its bridge's.
 
 // networkColor is the color network's rooms are named in, nil for none.
 func (m Model) networkColor(network domain.Protocol) color.Color {
@@ -26,8 +23,8 @@ func (m Model) networkColor(network domain.Protocol) color.Color {
 	return c
 }
 
-// roomNameColor is the color a room's name is drawn in in the room list of the place
-// selected on the rail, nil for the row's own.
+// roomNameColor is the color of a room's name in the rail-selected place's list, nil for the
+// row's own.
 func (m Model) roomNameColor(room domain.Room) color.Color {
 	if !m.prefs.display.NetworkColorsIn(m.rail.key()) {
 		return nil
@@ -35,7 +32,7 @@ func (m Model) roomNameColor(room domain.Room) color.Color {
 	return m.networkColor(m.unreadView().factsOf(room).Protocol)
 }
 
-// withNetworks is groups, each with the one network all its rooms are on, if they are.
+// withNetworks tags each group with the one network all its rooms are on, if any.
 func (m Model) withNetworks(groups []group) []group {
 	view := m.unreadView()
 	for i := range groups {

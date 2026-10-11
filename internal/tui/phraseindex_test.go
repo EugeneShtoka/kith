@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The room's phrase index is added to when the timeline only grew, and rebuilt when
-// anything already indexed changed. Either way it is exactly what indexing the whole
-// timeline gives.
+// The phrase index is extended when the timeline only grew and rebuilt otherwise; either way
+// it equals a full rebuild.
 func TestThePhraseIndexMatchesARebuild(t *testing.T) {
 	t.Parallel()
 
@@ -58,10 +57,8 @@ func TestThePhraseIndexMatchesARebuild(t *testing.T) {
 	}
 }
 
-// The index is extended in place, shared by Model copies. An older copy that grows
-// its own way (a handler returning the Model it began with, a test keeping one) must
-// not add to maps a newer copy already grew: each copy's index is what indexing its
-// own timeline gives, and neither counts a message twice.
+// The index is extended in place and shared by Model copies: an older copy growing its own
+// way must not add to maps a newer copy already grew, nor count a message twice.
 func TestAnOlderCopyDoesNotGrowTheSharedIndex(t *testing.T) {
 	t.Parallel()
 

@@ -13,12 +13,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The switcher (ctrl+k): type a few letters of a person, room or space and go there,
-// over lists the client already holds. People with no room yet are offered last, as
-// rows that say "start a DM", so no row looks like a place but creates one.
+// The switcher (ctrl+k): type part of a person, room or space name and go there, over lists
+// already held. People with no room yet come last as "start a DM" rows, so no row looks like a
+// place but creates one.
 
-// jumpItems is everything the switcher can reach: unread rooms, other rooms, DM
-// candidates, then rail groups.
+// jumpItems is everything the switcher reaches: unread rooms, other rooms, DM candidates, then
+// rail groups.
 func (m Model) jumpItems() []pickerItem {
 	view := m.unreadView()
 	items := make([]pickerItem, 0, len(m.rooms.all)+len(m.rail.groups))
@@ -37,7 +37,7 @@ func (m Model) jumpItems() []pickerItem {
 			label:  isolate(m.byNumber(person.DisplayName)),
 			detail: "start a DM",
 			value:  "dm:" + person.UserID,
-			// The MXID matches too: you may know only their address, or number.
+			// The MXID matches too: you may know only their address or number.
 			match: m.byNumber(person.DisplayName) + " " + person.DisplayName + " " + person.UserID,
 		})
 	}
@@ -58,15 +58,15 @@ func (m Model) jumpRoomItem(view unreadView, room domain.Room, unread int) picke
 	item := pickerItem{
 		label: m.roomName(room),
 		value: "room:" + string(room.ID),
-		// The room ID is matchable but not shown, to reach same-named rooms exactly.
+		// The room ID is matchable but not shown, to tell same-named rooms apart.
 		match: m.roomLabel(room) + " " + strings.Join(room.Members, " ") + " " + string(room.ID),
 	}
 	item.detail = jumpDetail(room, unread, view.ownerName(room))
 	return item
 }
 
-// jumpDetail says what a row is: invitation or unread count, then DM or the exclusive
-// tag it shows under.
+// jumpDetail says what a row is: invitation or unread count, then DM or the exclusive tag it
+// shows under.
 func jumpDetail(room domain.Room, unread int, owner string) string {
 	parts := make([]string, 0, 2)
 	switch {
@@ -84,8 +84,8 @@ func jumpDetail(room domain.Room, unread int, owner string) string {
 	return strings.Join(parts, " · ")
 }
 
-// openJump opens the switcher. It is live in every mode, including while typing, and
-// insert mode is left alone so backing out returns you to the sentence.
+// openJump opens the switcher. It works in every mode, including typing; insert mode is kept so
+// backing out returns to the sentence.
 func (m Model) openJump() (Model, tea.Cmd) {
 	items := m.jumpItems()
 	if len(items) == 0 {
@@ -96,8 +96,8 @@ func (m Model) openJump() (Model, tea.Cmd) {
 	return m, tea.Batch(repaint(), m.directCandidatesCmd())
 }
 
-// handleDirectCandidates folds in who this account could DM and rebuilds the open
-// switcher, keeping the typed filter.
+// handleDirectCandidates folds in DM candidates and rebuilds the open switcher, keeping the
+// filter.
 func (m Model) handleDirectCandidates(msg directCandidatesMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		// Not reported: the switcher works without these rows.
@@ -114,9 +114,8 @@ func (m Model) handleDirectCandidates(msg directCandidatesMsg) (Model, tea.Cmd) 
 	return m, repaint()
 }
 
-// startDirect creates an encrypted DM with one person and opens it. No encryption
-// question: a two-person room cannot be encrypted too soon, and encryption can only be
-// chosen at creation.
+// startDirect creates an encrypted DM and opens it. No encryption question: a two-person room
+// cannot be encrypted too soon, and encryption is only chosen at creation.
 func (m Model) startDirect(user string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	if user == "" {
@@ -137,7 +136,7 @@ func (m Model) startDirect(user string) (Model, tea.Cmd) {
 	}, name, true)
 }
 
-// acceptJump goes where a chosen row says: "kind:id", split once (IDs contain colons).
+// acceptJump goes where a row says: "kind:id", split once (IDs contain colons).
 func (m Model) acceptJump(value string) (Model, tea.Cmd) {
 	kind, target, ok := strings.Cut(value, ":")
 	if !ok {
@@ -152,13 +151,13 @@ func (m Model) acceptJump(value string) (Model, tea.Cmd) {
 	return m.goToRoom(domain.RoomID(target))
 }
 
-// goToRoom opens a room from anywhere, first moving the rail to a group that holds it
-// so the room-list highlight stays on the open room.
+// goToRoom opens a room from anywhere, first moving the rail to a group holding it so the
+// room-list highlight stays on the open room.
 func (m Model) goToRoom(id domain.RoomID) (Model, tea.Cmd) {
 	m = m.closePicker()
 	idx := indexOfRoom(m.rooms.all, id)
 	if idx < 0 {
-		// The room was left or archived while the chooser was open.
+		// Left or archived while the chooser was open.
 		return m.say("that room is no longer in the list"), nil
 	}
 	room := m.rooms.all[idx]
@@ -173,8 +172,8 @@ func (m Model) goToRoom(id domain.RoomID) (Model, tea.Cmd) {
 	return opened, tea.Batch(cmd, openCmd)
 }
 
-// groupHolding is the rail group to show a room under: the current one if it holds the
-// room, then a real space, then any group.
+// groupHolding is the rail group to show a room under: the current one if it holds the room,
+// then a real space, then any group.
 func (m Model) groupHolding(room domain.Room) int {
 	view := m.unreadView()
 	if g, ok := m.rail.at(); ok && g.admits(view, room) {
@@ -193,8 +192,8 @@ func (m Model) groupHolding(room domain.Room) int {
 	return m.rail.cursor
 }
 
-// jumpToGroup moves the rail to a group and opens its first room, which is what
-// selecting a group in the rail already does.
+// jumpToGroup moves the rail to a group and opens its first room, as selecting it in the rail
+// does.
 func (m Model) jumpToGroup(key string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	idx := indexOfGroup(m.rail.groups, key)
@@ -206,11 +205,9 @@ func (m Model) jumpToGroup(key string) (Model, tea.Cmd) {
 	return m.selectGroup()
 }
 
-// Jump chords: a sequence bound to a place (`g w` for Work) for the few places you go
-// daily, complementing the switcher's search.
+// Jump chords: a sequence bound to a place (`g w` for Work), complementing the switcher.
 
-// jumpKey acts on a sequence bound to a place, reporting whether one was. Never while
-// typing, like chords.
+// jumpKey acts on a sequence bound to a place, reporting whether one was. Never while typing.
 func (m Model) jumpKey(press string) (Model, tea.Cmd, bool) {
 	if m.typing() {
 		return m, nil, false
@@ -236,8 +233,8 @@ func (m Model) goTo(target domain.JumpTarget) (Model, tea.Cmd) {
 	return m.say("no room here with the ID " + target.Name), nil
 }
 
-// roomNamed is the room a target names. Targets are room IDs, never display names: one
-// person over three bridges is three rooms with the same name.
+// roomNamed is the room a target names. Targets are room IDs, never display names: one person
+// over three bridges is three rooms with the same name.
 func (m Model) roomNamed(target domain.JumpTarget) (domain.Room, bool) {
 	if idx := indexOfRoom(m.rooms.all, domain.RoomID(target.Name)); idx >= 0 {
 		return m.rooms.all[idx], true
@@ -245,8 +242,8 @@ func (m Model) roomNamed(target domain.JumpTarget) (domain.Room, bool) {
 	return domain.Room{}, false
 }
 
-// groupNamed resolves a space target to a rail key: the label exactly, then the key
-// (what Matrix calls it, which survives a rename), then a label starting with it.
+// groupNamed resolves a space target to a rail key: exact label, then key (the Matrix name,
+// which survives a rename), then a label prefix.
 func (m Model) groupNamed(name string) (string, bool) {
 	want := strings.ToLower(name)
 	for _, test := range []func(g group) bool{
@@ -263,15 +260,13 @@ func (m Model) groupNamed(name string) (string, bool) {
 	return "", false
 }
 
-// Writing a binding from inside the app: :shortcut binds what you are on — the space
-// or tag selected in the rail when the rail has the focus, else the room — and tab in
-// its prompt switches to the other, as tab switches a search's scope. /shortcut is the
-// same from the composer, starting on the room written in. A room is recorded by ID,
-// which the UI never shows, so it is bound from where it is.
+// :shortcut binds what you are on: the rail's selected space or tag when the rail has focus,
+// else the room; tab in its prompt switches between them. /shortcut is the same from the
+// composer, starting on the room written in. Rooms are recorded by ID, which the UI never
+// shows, so they are bound by pointing.
 
-// bindShortcut is :shortcut and /shortcut: keys becomes the sequence that reaches the
-// place in focus (bindingTargets). With no keys it asks, prefilled with the one the
-// place has, and tab moves the prompt to the other place.
+// bindShortcut is :shortcut and /shortcut: keys becomes the sequence reaching the focused
+// place (bindingTargets). With no keys it asks, prefilled with the place's current one.
 func (m Model) bindShortcut(keys string, room *domain.Room) (Model, tea.Cmd) {
 	m.compose.input, m.compose.drafted = "", nil
 	targets := m.bindingTargets(room)
@@ -286,10 +281,9 @@ func (m Model) bindShortcut(keys string, room *domain.Room) (Model, tea.Cmd) {
 	return m.submitJumpBinding(keys)
 }
 
-// bindingTargets are the places a shortcut can be bound to here, the one in focus
-// first: the space or tag selected in the rail when the rail has the focus, else the
-// room — room when given (the one written in), the one under the room list's cursor,
-// or the open one.
+// bindingTargets are the places a shortcut can bind to here, focused one first: the rail's
+// selected space or tag when the rail has focus, else the room (given, under the room-list
+// cursor, or open).
 func (m Model) bindingTargets(room *domain.Room) []domain.JumpTarget {
 	if room == nil && m.focus == paneRooms {
 		if row, ok := m.selectedRow(); ok {
@@ -314,8 +308,8 @@ func (m Model) bindingTargets(room *domain.Room) []domain.JumpTarget {
 	return append(roomTarget, placeTarget...)
 }
 
-// cycleBindingTarget is tab in the shortcut prompt: the next place, the prompt holding
-// the sequence it has.
+// cycleBindingTarget is tab in the shortcut prompt: the next place, keeping the typed
+// sequence.
 func (m Model) cycleBindingTarget() (Model, tea.Cmd) {
 	if next, ok := m.nextBindingTarget(); ok {
 		return m.askBinding(next)
@@ -323,8 +317,7 @@ func (m Model) cycleBindingTarget() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// nextBindingTarget is the place tab moves the shortcut prompt to; false when there
-// is no other.
+// nextBindingTarget is the place tab moves to; false when there is no other.
 func (m Model) nextBindingTarget() (domain.JumpTarget, bool) {
 	targets := m.aimedAt.bindings
 	if len(targets) < 2 {
@@ -349,8 +342,8 @@ func (m Model) askBinding(target domain.JumpTarget) (Model, tea.Cmd) {
 	return m.openPromptWith(promptJumpBind, m.sequenceBoundTo(target)), nil
 }
 
-// sequenceBoundTo is the sequence already pointing at a place, matched on the resolved
-// place rather than the written text.
+// sequenceBoundTo is the sequence already pointing at a place, matched on the resolved place,
+// not the written text.
 func (m Model) sequenceBoundTo(target domain.JumpTarget) string {
 	for _, seq := range slices.Sorted(maps.Keys(m.keys.jumps)) {
 		if m.samePlace(m.keys.jumps[seq], target) {
@@ -360,8 +353,8 @@ func (m Model) sequenceBoundTo(target domain.JumpTarget) string {
 	return ""
 }
 
-// samePlace reports whether two targets lead to the same place; spaces compare by the
-// group they resolve to.
+// samePlace reports whether two targets lead to the same place; spaces compare by resolved
+// group.
 func (m Model) samePlace(a, b domain.JumpTarget) bool {
 	if a.Kind != b.Kind {
 		return false
@@ -452,7 +445,6 @@ func (m Model) jumpForward() (Model, tea.Cmd) {
 	return m.goToRoom(to)
 }
 
-// roomListed is whether a room is still in the inventory.
 func (m Model) roomListed(id domain.RoomID) bool {
 	return indexOfRoom(m.rooms.all, id) >= 0
 }

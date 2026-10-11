@@ -59,8 +59,8 @@ var allNamed = []config.DisplayName{
 	{Target: "!other:x", Name: "Eli L"},
 }
 
-// peerModel is a model that has the room list, the members it asked for and, when
-// selves is set, who this person is.
+// peerModel has the room list, the requested members and, when selves is set, who this
+// person is.
 func peerModel(t *testing.T, b peerBackend, display config.Display, rooms []domain.Room, selves bool) Model {
 	t.Helper()
 	m := New(context.Background(), b, display)
@@ -78,8 +78,8 @@ func danaShown(m Model, room domain.RoomID) string {
 	return m.processedName(domain.Message{RoomID: room, Sender: peerDana, SenderName: peerLong})
 }
 
-// A private chat you named after the one person in it names that person, in every
-// room; a group, a chat named for someone else, and you yourself are left alone.
+// A private chat named after its one peer names that peer everywhere; a group, a chat named
+// for someone else, and yourself are left alone.
 func TestARoomNamedAfterItsPeerNamesThePeer(t *testing.T) {
 	t.Parallel()
 	b := peerBackend{members: peerMembers(peerLong), selves: []string{peerMe, peerPuppet}}
@@ -101,9 +101,8 @@ func TestARoomNamedAfterItsPeerNamesThePeer(t *testing.T) {
 	}
 }
 
-// The peer follows every input it is derived from: who this person is arriving after
-// the members, the room's name being cleared, the bridge renaming the room with the
-// person, and an identity naming them.
+// The peer follows every input: selves arriving after members, the room name cleared, the
+// bridge renaming room and person, and an identity naming them.
 func TestARoomNamedPeerFollowsItsInputs(t *testing.T) {
 	t.Parallel()
 	b := peerBackend{members: peerMembers(peerLong), selves: []string{peerMe, peerPuppet}}

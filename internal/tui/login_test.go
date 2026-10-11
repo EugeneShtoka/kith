@@ -17,8 +17,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// loginDaemon is a daemon whose logins follow scripts: each BeginLogin takes the next
-// script, and each step of it is answered in turn. It records what it was given.
+// loginDaemon runs scripted logins: each BeginLogin takes the next script, whose steps are
+// answered in turn. It records what it was given.
 type loginDaemon struct {
 	apitest.Nop
 	networks []api.LoginNetwork
@@ -111,9 +111,8 @@ func answer(t *testing.T, m Model, input string) (Model, tea.Cmd) {
 	return m.submitPrompt()
 }
 
-// untilAsked feeds cmd's messages back until the sign-in waits for a field or ends,
-// and is what is left to run (the sign-in's listener, while it goes on); a command that
-// does not answer soon (the status line's timer) is dropped.
+// untilAsked feeds cmd's messages back until the sign-in waits for a field or ends, returning
+// what is left to run (the sign-in's listener); a slow command (the status timer) is dropped.
 func untilAsked(t *testing.T, m Model, cmd tea.Cmd) (Model, tea.Cmd) {
 	t.Helper()
 	queue := []tea.Cmd{cmd}
@@ -151,10 +150,9 @@ func untilAsked(t *testing.T, m Model, cmd tea.Cmd) (Model, tea.Cmd) {
 
 var fakeNetwork = api.LoginNetwork{Network: "fake", Label: "Fake", Detail: "a phone number"}
 
-// :login lists the daemon's networks; one with no account sets a new one up at once:
-// its fields asked one by one with their help, the suggestion kept by enter, a secret
-// drawn as dots; the record it asks for written into the config and re-read by the
-// daemon; its code shown; its end said.
+// :login lists the daemon's networks; one with no account is set up at once: fields asked one
+// by one with help, enter keeps the suggestion, secrets drawn as dots, the record written to
+// the config and re-read by the daemon, the code shown, the end reported.
 func TestLoginDrawsWhatTheNetworkAsks(t *testing.T) {
 	t.Parallel()
 	d := &loginDaemon{networks: []api.LoginNetwork{fakeNetwork}, scripts: [][]api.LoginStep{{
@@ -223,8 +221,8 @@ func TestLoginDrawsWhatTheNetworkAsks(t *testing.T) {
 	}
 }
 
-// A network with accounts offers them, and a new one; a required field left empty is
-// asked again; canceling midway ends the login on the daemon too.
+// A network with accounts offers them and a new one; an empty required field is asked again;
+// canceling midway ends the login on the daemon too.
 func TestLoginAgainOrCancel(t *testing.T) {
 	t.Parallel()
 	network := fakeNetwork
@@ -265,8 +263,7 @@ func TestLoginAgainOrCancel(t *testing.T) {
 	}
 }
 
-// A login that needs the daemon restarted restarts it and begins again, on the
-// account it set up.
+// A login that needs a daemon restart restarts it and begins again on the new account.
 func TestLoginRestartsTheDaemonWhenAsked(t *testing.T) {
 	t.Parallel()
 	d := &loginDaemon{networks: []api.LoginNetwork{fakeNetwork}, scripts: [][]api.LoginStep{

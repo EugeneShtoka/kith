@@ -9,8 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// starterRail is a first-run rail with every starter tag holding something, plus one
-// space.
+// starterRail is a first-run rail with every starter tag non-empty, plus one space.
 func starterRail(t *testing.T) Model {
 	t.Helper()
 	m := starterNew(apitest.Nop{}, config.Display{})
@@ -28,9 +27,8 @@ func starterRail(t *testing.T) Model {
 	return update(t, m, spacesMsg{spaces: []domain.Space{{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!r:x"}}}})
 }
 
-// Every rail key is one of three kinds, and everything that asks agrees which: a
-// space's (its name), a tag's (tag:<name>), or the fallback row of a rail with
-// neither.
+// Every rail key is one of: a space (its name), a tag (tag:<name>), or the fallback row; all
+// callers agree which.
 func TestEveryRailKeyIsClassified(t *testing.T) {
 	t.Parallel()
 
@@ -70,8 +68,8 @@ func TestEveryRowHasItsLabel(t *testing.T) {
 	}
 }
 
-// With no spaces and no tags the rail is one row of every room, and it is not a
-// place: no name rule or notification rule is written against it.
+// With no spaces and no tags the rail is one row of every room; it is not a place, so no
+// name or notification rule targets it.
 func TestTheFallbackRowRefusesPlaceRules(t *testing.T) {
 	t.Parallel()
 

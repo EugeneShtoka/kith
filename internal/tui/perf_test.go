@@ -12,17 +12,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// settled is m after one Update, as every keypress in a session finds it: what Update
-// caches (the phrase index, the derived rows) is already built. A benchmark that
-// repeats a key on the model it started from would otherwise rebuild those caches on
-// every iteration, which a session pays once per timeline change.
+// settled is m after one Update, as a keypress finds it: Update's caches (phrase index,
+// derived rows) are built. Otherwise a benchmark repeating a key on its starting model would
+// rebuild them every iteration, a cost a session pays once per timeline change.
 func settled(m Model) Model {
 	next, _ := benchModel(m.Update(settleMsg{}))
 	return next
 }
 
-// benchModel is asModel without its row-cache check (staleRow), which re-renders
-// every cached row: in a benchmark loop it would be most of what is measured.
+// benchModel is asModel without the staleRow check, which re-renders every cached row and
+// would dominate a benchmark.
 func benchModel(mdl tea.Model, cmd tea.Cmd) (Model, tea.Cmd) {
 	return mdl.(Model), cmd
 }
@@ -32,8 +31,6 @@ type settleMsg struct{}
 
 // Benchmarks for the unbounded lists (timeline, room list) at cache-sized inputs.
 // Run: go test ./internal/tui -run xxx -bench 'Layout|RoomRows|Scroll' -benchmem
-//
-// benchSenders is a small pool, as in a real room.
 var benchSenders = []string{
 	"@alice:example.org", "@bob:example.org", "@carol:example.org",
 	"@dave:example.org", "@erin:example.org",
@@ -62,13 +59,11 @@ func benchMessages(n int) []domain.Message {
 			Body:      benchBodies[i%len(benchBodies)],
 			Timestamp: start.Add(time.Duration(i) * 7 * time.Minute),
 		}
-		// Every eleventh message answers the one before it, which is what a
-		// quote-reply preview costs.
+		// Every eleventh message replies to the previous one (quote-reply preview cost).
 		if i > 0 && i%11 == 0 {
 			msgs[i].ReplyTo = msgs[i-1].ID
 		}
-		// Every seventeenth belongs to a thread rooted a little way back, so
-		// CollapseThreads has real relations to fold.
+		// Every seventeenth is in a thread rooted a little way back, so CollapseThreads has work.
 		if i > 40 && i%17 == 0 {
 			msgs[i].ThreadRoot = msgs[i-40].ID
 		}
@@ -184,7 +179,7 @@ func BenchmarkScrollAtDepth(b *testing.B) {
 			m := benchTimelineModel(2000)
 			m.timeline.scroll = depth
 			m = settled(m)
-			// Warm the cache the way scrolling there would have.
+			// Warm the cache as scrolling there would.
 			_ = m.layoutRows()
 			key := tea.KeyPressMsg{Code: tea.KeyPgUp}
 			b.ReportAllocs()
@@ -230,8 +225,7 @@ func benchRealisticRoomList() Model {
 		}
 	}
 	display := config.Display{
-		// The name rules this account runs with: every room label goes through
-		// shortening as well as bidi.
+		// Name rules on: every room label goes through shortening as well as bidi.
 		SpaceRules: []config.SpaceRule{{Space: "Space 0", FirstNameOnly: true}},
 	}
 	m := starterNew(apitest.Nop{}, display)
@@ -276,9 +270,8 @@ func BenchmarkRealFilteredRooms(b *testing.B) {
 	}
 }
 
-// BenchmarkRealRoomListKeypressWithActivity is that list as a synced account has it:
-// nearly every room with a last-message time, so the recent key orders them and the
-// name key only breaks ties.
+// BenchmarkRealRoomListKeypressWithActivity is that list with nearly every room having a
+// last-message time, so recent orders them and name only breaks ties.
 func BenchmarkRealRoomListKeypressWithActivity(b *testing.B) {
 	m := benchRealisticRoomList()
 	m.lastMessage = make(map[domain.RoomID]time.Time, len(m.rooms.all))
@@ -298,9 +291,9 @@ func BenchmarkRealRoomListKeypressWithActivity(b *testing.B) {
 	}
 }
 
-// BenchmarkMessageArrival is a live message landing in the open room at the bottom,
-// frame included: the message set changes, so the derived answers and the rows of the
-// window are rebuilt. The model is reused, so every iteration is the same one arrival.
+// BenchmarkMessageArrival is a live message landing in the open room at the bottom, frame
+// included: derived answers and window rows are rebuilt. The model is reused, so each
+// iteration is the same arrival.
 func BenchmarkMessageArrival(b *testing.B) {
 	for _, n := range []int{300, 2000} {
 		b.Run(fmt.Sprintf("msgs=%d", n), func(b *testing.B) {
@@ -319,8 +312,8 @@ func BenchmarkMessageArrival(b *testing.B) {
 	}
 }
 
-// BenchmarkScrolledMessageArrival is BenchmarkMessageArrival read scrolled up: the view
-// is held still around the new message (keepAnchored).
+// BenchmarkScrolledMessageArrival is BenchmarkMessageArrival scrolled up, with the view held
+// around the new message (keepAnchored).
 func BenchmarkScrolledMessageArrival(b *testing.B) {
 	for _, n := range []int{300, 2000} {
 		b.Run(fmt.Sprintf("msgs=%d", n), func(b *testing.B) {
@@ -341,8 +334,7 @@ func BenchmarkScrolledMessageArrival(b *testing.B) {
 	}
 }
 
-// BenchmarkResize is a terminal resize, alternating two widths so every frame
-// re-wraps the window.
+// BenchmarkResize alternates two widths so every frame re-wraps the window.
 func BenchmarkResize(b *testing.B) {
 	m := settled(benchTimelineModel(2000))
 	sizes := []tea.WindowSizeMsg{{Width: 180, Height: 50}, {Width: 200, Height: 50}}

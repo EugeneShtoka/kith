@@ -12,8 +12,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// A link's run is wrapped in OSC 8 so the terminal can open it, and the wrapper is
-// zero-width — the row still measures as its text.
+// A link's run is wrapped in zero-width OSC 8; the row still measures as its text.
 func TestHyperlinkWrapsTheRunWithoutWidth(t *testing.T) {
 	t.Parallel()
 
@@ -35,7 +34,7 @@ func TestHyperlinkWrapsTheRunWithoutWidth(t *testing.T) {
 	}
 }
 
-// Off means the row is exactly what it was.
+// Off leaves the row unchanged.
 func TestHyperlinkCanBeTurnedOff(t *testing.T) {
 	t.Parallel()
 
@@ -46,8 +45,7 @@ func TestHyperlinkCanBeTurnedOff(t *testing.T) {
 	}
 }
 
-// Two links in one message point at two different places, which they cannot do if their
-// runs coalesce on having the same marks.
+// Two links in one message stay apart rather than coalescing on equal marks.
 func TestHyperlinkKeepsTwoLinksApart(t *testing.T) {
 	t.Parallel()
 
@@ -65,8 +63,8 @@ func TestHyperlinkKeepsTwoLinksApart(t *testing.T) {
 	}
 }
 
-// The sender's own markup wins where both would claim the same text: its href may
-// differ from the words, and two hyperlink runs on one cell has no good answer.
+// The sender's markup wins over a detected link on the same text: its href may differ from
+// the words, and nested hyperlinks have no good answer.
 func TestHyperlinkDoesNotDoubleUpOnAMarkedLink(t *testing.T) {
 	t.Parallel()
 
@@ -95,8 +93,7 @@ func TestHyperlinkOnAMentionPill(t *testing.T) {
 	}
 }
 
-// The sender's own markup outranks our reading of the words: an <a href> covering a
-// pill keeps its target, because they wrote that address and we inferred the other.
+// An <a href> covering a pill keeps its target: the sender wrote it, the pill was inferred.
 func TestHyperlinkSpanBeatsThePill(t *testing.T) {
 	t.Parallel()
 
@@ -115,9 +112,8 @@ func TestHyperlinkSpanBeatsThePill(t *testing.T) {
 	}
 }
 
-// A message holding a link is drawn in its sender's color all through, not only
-// where it holds none: the words after the link (on its next line, left-to-right or
-// right-to-left) and before it on the same line.
+// A message holding a link stays in the sender's color throughout: after the link (next line,
+// LTR or RTL) and before it on the same line.
 func TestTheSendersColorOutlivesALink(t *testing.T) {
 	t.Parallel()
 	m := sized(t, newModel())

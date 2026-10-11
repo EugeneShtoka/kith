@@ -18,8 +18,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// ruling returns a model in a room that belongs to a space, with one message from
-// Alice, plus the config path rules are written to.
+// ruling returns a model in a room within a space, with one message from Alice, plus the
+// config path rules are written to.
 func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
@@ -34,8 +34,7 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!standup:x"}},
 	}})
 	m = sized(t, m).WithConfigFile(path, base).keptIn()
-	// Install the rules the same way startup does, so the status line describes the
-	// real ones rather than a hand-assembled set.
+	// Install the rules as startup does, so the status line describes the real ones.
 	rules, err := setup.NotificationRules(notifs)
 	if err != nil {
 		t.Fatalf("rules: %v", err)
@@ -51,13 +50,11 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	return m, path
 }
 
-// notifyAll is a notifications section whose account-wide rule shows everything,
-// followed by rules.
+// notifyAll is a notifications section whose account-wide rule shows everything, then rules.
 func notifyAll(rules ...config.Rule) config.Notifications {
 	return config.Notifications{Enabled: true, Rules: append([]config.Rule{{Name: "everything", Show: "all"}}, rules...)}
 }
 
-// lastRule is the most recently appended rule.
 func lastRule(t *testing.T, rules []config.Rule) config.Rule {
 	t.Helper()
 	if len(rules) == 0 {
@@ -105,7 +102,7 @@ func pickLabel(t *testing.T, m Model, substr string) Model {
 		t.Fatalf("nothing matches %q in the picker", substr)
 	}
 	next, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	// deliver: closing the picker also asks for a repaint, so the command is a batch.
+	// Closing the picker also asks for a repaint, so the command is a batch.
 	return deliver(t, next, cmd)
 }
 
@@ -191,8 +188,8 @@ func TestRuleAuthoringChangesTheDecision(t *testing.T) {
 
 	t.Run("one person always gets through", func(t *testing.T) {
 		t.Parallel()
-		// Mention-only and quiet all day: a rule naming Alice is narrower than the
-		// quiet-hours rule, so `show = all` gets her through.
+		// Mention-only and quiet all day: a rule naming Alice is narrower than quiet hours, so
+		// `show = all` gets her through.
 		m, path := ruling(t, config.Notifications{Enabled: true, Rules: []config.Rule{
 			{Name: "quiet hours", Show: "none", When: "00:00-23:59"},
 		}})
@@ -303,7 +300,6 @@ func TestRulePresetsMarkWhatIsSet(t *testing.T) {
 	if set["Notify me for everything"] {
 		t.Error("a preset that is not in effect should not be marked")
 	}
-	// Remove is offered because there is something to remove.
 	if !set["Remove the rule"] && !hasLabel(m.picker.items, "Remove the rule") {
 		t.Error("remove should be offered when a rule exists")
 	}
@@ -481,7 +477,7 @@ func hasLabel(items []pickerItem, label string) bool {
 	return false
 }
 
-// The rule list resolves IDs back to names, or a rule is unreadable once written.
+// The rule list resolves IDs back to names.
 func TestRuleListReadsRulesBack(t *testing.T) {
 	t.Parallel()
 
@@ -556,8 +552,8 @@ func TestRuleListWithNoRules(t *testing.T) {
 	}
 }
 
-// A space-scoped rule written from a message, the room list or the rail is a place
-// entry (not the bare name), so it passes the startup check and reaches the space.
+// A space-scoped rule written from a message, room list or rail is a place entry (not the bare
+// name), so it passes the startup check.
 func TestSpaceRulesAreWrittenAsPlaceEntries(t *testing.T) {
 	t.Parallel()
 

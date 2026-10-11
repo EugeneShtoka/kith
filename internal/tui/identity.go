@@ -11,19 +11,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/theme"
 )
 
-// Setting someone's alias from the app, since identities are keyed on MXIDs the client
-// rarely shows: pick a person → pick or create the identity → pick a color. Nothing is
-// written until the last step.
+// Setting someone's alias in-app, since identities are keyed on MXIDs the client rarely
+// shows: pick a person, pick or create the identity, pick a color. Nothing is written until
+// the last step.
 
-// pendingIdentity is the identity edit in progress, carried between the pickers. It
-// holds the MXID, not a config pointer, so a reload cannot redirect the edit.
+// pendingIdentity is the identity edit carried between pickers. It holds the MXID, not a
+// config pointer, so a reload cannot redirect the edit.
 type pendingIdentity struct {
 	mxid string
-	// name is the display name, for the prompts.
 	name string
 	// alias is empty while still being chosen.
 	alias string
-	// creating: a brand-new identity whose alias is typed.
+	// creating marks a brand-new identity whose alias is typed.
 	creating bool
 }
 
@@ -45,7 +44,7 @@ func (m Model) openIdentityFor(mxid, name string) (Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.isMe(mxid) {
-		// Naming yourself is allowed; just say who it is.
+		// Naming yourself is allowed.
 		m = m.say("that's you")
 	}
 	m.choosing.identity = pendingIdentity{mxid: mxid, name: name}
@@ -53,8 +52,8 @@ func (m Model) openIdentityFor(mxid, name string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// identityItems lists the identities this person could join, plus "new person"; ones
-// they are already in are marked, not hidden.
+// identityItems lists identities this person could join, plus "new person"; ones they are in
+// are marked, not hidden.
 func (m Model) identityItems(mxid string) []pickerItem {
 	items := []pickerItem{{
 		label: "+ new person",
@@ -81,8 +80,8 @@ func (m Model) identityItems(mxid string) []pickerItem {
 	return items
 }
 
-// chooseIdentity starts naming a new person, or adds the MXID to the chosen identity
-// and moves on to the color.
+// chooseIdentity starts naming a new person, or adds the MXID to the chosen identity and
+// moves on to the color.
 func (m Model) chooseIdentity(alias string) (Model, tea.Cmd) {
 	if alias == newIdentityValue {
 		m.choosing.identity.creating = true
@@ -128,7 +127,7 @@ func (m Model) colorItems() []pickerItem {
 	return items
 }
 
-// chooseColor is the last step: it writes the config and applies it in place.
+// chooseColor is the last step: it writes the config and applies it.
 func (m Model) chooseColor(hex string) (Model, tea.Cmd) {
 	pending := m.choosing.identity
 	m.choosing.identity = pendingIdentity{}
@@ -140,9 +139,8 @@ func (m Model) chooseColor(hex string) (Model, tea.Cmd) {
 	return m.applyDisplay(display, fmt.Sprintf("%s is now %s", isolate(pending.name), isolate(pending.alias)))
 }
 
-// mergeIdentity returns display with mxid added to the identity named alias, creating
-// it when there is none, and removed from every other identity (an MXID belongs to one
-// person). Identities left empty are dropped.
+// mergeIdentity adds mxid to the identity named alias (creating it if needed) and removes it
+// from every other, since an MXID belongs to one person. Emptied identities are dropped.
 func mergeIdentity(display config.Display, alias, mxid, color string) config.Display {
 	identities := make([]config.Identity, 0, len(display.Identities)+1)
 	found := false
@@ -173,7 +171,7 @@ func lipglossSwatch(t theme.Theme, hex string) string {
 	return t.Swatch(c).Render("███")
 }
 
-// identityColors is the deliberately short list offered for a person's color.
+// identityColors is the deliberately short palette for a person's color.
 var identityColors = []string{
 	"#8ff586", "#7aa2f7", "#f7768e", "#e0af68", "#bb9af7", "#7dcfff",
 	"#9ece6a", "#ff9e64", "#f7c8e0", "#73daca", "#c0caf5", "#ff757f",

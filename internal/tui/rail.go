@@ -4,9 +4,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// railState is the space rail: its groups, the cursor, and everything that decides
-// which rooms a group admits and how they sort. roomFacts and spamRooms are derived
-// (see refreshPlaces); set their inputs without refreshing and they go stale.
+// railState is the space rail: groups, cursor, and what decides which rooms a group admits and
+// how they sort. roomFacts and spamRooms are derived (see refreshPlaces); changing their inputs
+// without refreshing leaves them stale.
 type railState struct {
 	groups []group
 	cursor int
@@ -16,31 +16,28 @@ type railState struct {
 	spam      domain.Spam
 	caught    map[domain.RoomID]domain.SpamVerdict
 	spamRooms map[domain.RoomID]bool
-	// tags: the [[tag]]s. roomFacts is every room's facts, precomputed (a tag is asked
-	// about every room on every draw); spanning is the tags (as tag:<name>, lower-cased)
-	// holding every room in it, derived with it.
+	// tags: the [[tag]]s. roomFacts is every room's facts, precomputed since every draw asks a tag
+	// about every room; spanning is the tags (tag:<name>, lower-cased) holding every room.
 	tags      domain.TagSet
 	roomFacts map[domain.RoomID]domain.RoomFacts
-	// archives is the tag each followed network's archive is (domain.Places), and
-	// mirrored the networks whose archive filing in kith changes too.
+	// archives maps each followed network to its archive tag (domain.Places); mirrored is the
+	// networks whose archive filing kith also changes.
 	archives map[domain.Protocol]string
 	mirrored map[domain.Protocol]string
-	// archiveTags is every tag an archive is; archivedShown the places whose room list
-	// the archived key flipped, and to what, until kith restarts (archived.go).
+	// archiveTags is every archive tag; archivedShown is the places whose archived toggle was
+	// flipped, and to what, until restart (archived.go).
 	archiveTags   []string
 	archivedShown map[string]bool
 	spanning      map[string]bool
-	// homes is the order a room's homes are chosen in, derived with roomFacts from the
-	// config and the spaces (domain.HomeOrder).
+	// homes is the order a room's homes are chosen in, derived with roomFacts (domain.HomeOrder).
 	homes domain.HomeOrder
-	// tagsRev counts the tags applied, for tagMemo's key; tagMemo is shared by the
-	// Model's copies (see tagged.go).
+	// tagsRev counts tag applications, for tagMemo's key; tagMemo is shared by Model copies (see
+	// tagged.go).
 	tagsRev uint64
 	tagMemo *tagMemo
 }
 
-// at is the group the cursor is on, bounds-checked because sync can rebuild the groups
-// under the cursor.
+// at is the group under the cursor, bounds-checked because sync can rebuild the groups.
 func (r railState) at() (group, bool) {
 	if r.cursor < 0 || r.cursor >= len(r.groups) {
 		return group{}, false
@@ -66,7 +63,7 @@ func (r railState) label() string {
 	return g.label
 }
 
-// moved walks the cursor, stopping at the ends (no wrap).
+// moved walks the cursor, stopping at the ends.
 func (r railState) moved(delta int) (railState, bool) {
 	next := r.cursor + delta
 	if next < 0 || next >= len(r.groups) {

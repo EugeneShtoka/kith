@@ -13,12 +13,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Room-list order, resolved per rail group on every draw (see domain.RoomOrder), so
-// it follows config reloads and session overrides.
+// Room-list order is resolved per rail group on every draw (see domain.RoomOrder), so it
+// follows config reloads and session overrides.
 
-// roomList is a rail group's order: config's answer with this session's per-group
-// override on top. Overrides last the session only, so they never disagree with the
-// file for long.
+// roomList is a rail group's order: config's answer with this session's per-group override on
+// top. Overrides last the session only.
 func (m Model) roomList(group string) domain.RoomList {
 	list := domain.ResolveRoomList(m.prefs.display.Rooms.Sort, m.rail.rules, group)
 	if chain, ok := m.rail.chains[group]; ok {
@@ -39,16 +38,15 @@ func roomListRules(rooms config.Rooms) []domain.RoomListRule {
 	return out
 }
 
-// setRoomOrder changes what orders the current group, leaving the partitioning bands
-// in front of it alone (see RoomList.WithTail).
+// setRoomOrder changes what orders the current group, leaving the partitioning bands in front
+// alone (see RoomList.WithTail).
 func (m Model) setRoomOrder(keys ...string) (Model, tea.Cmd) {
 	return m.changeChain(func(list domain.RoomList) domain.RoomList {
 		return list.WithTail(keys...)
 	})
 }
 
-// toggleSortKey adds a partitioning key to the front of the group's chain, or
-// removes it.
+// toggleSortKey adds or removes a partitioning key at the front of the group's chain.
 func (m Model) toggleSortKey(key string) (Model, tea.Cmd) {
 	return m.changeChain(func(list domain.RoomList) domain.RoomList {
 		if list.Has(key) {
@@ -58,8 +56,8 @@ func (m Model) toggleSortKey(key string) (Model, tea.Cmd) {
 	})
 }
 
-// changeChain edits the current group's chain and says what the list now does. The
-// cursor stays on its room: selection is by ID, so the row moves, not the cursor.
+// changeChain edits the current group's chain and reports it. Selection is by ID, so the row
+// moves, not the cursor.
 func (m Model) changeChain(edit func(domain.RoomList) domain.RoomList) (Model, tea.Cmd) {
 	entry, ok := m.currentGroup()
 	if !ok {
@@ -70,10 +68,8 @@ func (m Model) changeChain(edit func(domain.RoomList) domain.RoomList) (Model, t
 	return m, repaint()
 }
 
-// orderRooms sorts a group's rooms by its chain, stably over the alphabetical order
-// they arrive in. Each room's keys are read once, before sorting: a comparison is made
-// n log n times, and reading a label there (a space lookup each) was most of a keypress
-// in a few hundred rooms.
+// orderRooms sorts a group's rooms by its chain, stably over the alphabetical input. Each
+// room's keys are read once before sorting; reading labels per comparison was too slow.
 func (m Model) orderRooms(rooms []domain.Room, list domain.RoomList) []domain.Room {
 	if len(rooms) < 2 || len(list.Chain) == 0 {
 		return rooms
@@ -84,16 +80,15 @@ func (m Model) orderRooms(rooms []domain.Room, list domain.RoomList) []domain.Ro
 		keys[i] = m.roomKeysOf(i, &rooms[i], view)
 	}
 	chain := compileChain(list.Chain)
-	// The one read of the Model the comparator needs, once per room: a comparator that
-	// were a Model method would copy the whole Model on each of n log n calls.
+	// The comparator's only Model read, once per room; a Model-method comparator would copy the
+	// whole Model on every call.
 	name := func(k *roomKeys) string {
 		if !k.named {
 			k.name, k.named = strings.ToLower(m.roomLabel(rooms[k.index])), true
 		}
 		return k.name
 	}
-	// Indices, not the keys themselves, are what moves: generic and small, where
-	// sort.SliceStable swapped whole structs through reflection.
+	// Sort indices, not the key structs.
 	order := make([]int32, len(rooms))
 	for i := range order {
 		order[i] = int32(i)
@@ -119,8 +114,7 @@ func (m Model) orderRooms(rooms []domain.Room, list domain.RoomList) []domain.Ro
 	return ordered
 }
 
-// sortBy is a sort key resolved once per sort, so a comparison switches on a small
-// integer rather than comparing key names.
+// sortBy is a sort key resolved once per sort, so comparisons switch on a small integer.
 type sortBy uint8
 
 const (
@@ -132,14 +126,12 @@ const (
 	byName
 )
 
-// chainKey is one compiled link of a chain.
 type chainKey struct {
 	by  sortBy
 	rev bool
 }
 
-// compileChain resolves a chain's key names; one this client does not know sorts
-// nothing, as before.
+// compileChain resolves a chain's key names; an unknown one sorts nothing.
 func compileChain(chain []domain.SortKey) []chainKey {
 	out := make([]chainKey, 0, len(chain))
 	for _, k := range chain {
@@ -167,15 +159,14 @@ type roomKeys struct {
 	unread, mentions, drafts bool
 	last                     time.Time
 	known                    bool // last is a cached message's time
-	// name is the lower-cased label, read on first use (orderRooms' name): only rooms tied
-	// on every earlier key need one, and a label is the dear part.
+	// name is the lower-cased label, read lazily (orderRooms' name): only rooms tied on every
+	// earlier key need it, and labels are expensive.
 	name  string
 	named bool
 }
 
-// roomKeysOf reads a room's keys. A room that was unread when opened
-// (m.opened.wasUnread) keeps its unread-band place until left, so reading it does not
-// slide it away from under the cursor.
+// roomKeysOf reads a room's keys. A room unread when opened (m.opened.wasUnread) keeps its
+// unread-band place until left, so reading it does not slide it from under the cursor.
 func (m Model) roomKeysOf(index int, room *domain.Room, view unreadView) roomKeys {
 	k := roomKeys{
 		index:    index,
@@ -187,9 +178,8 @@ func (m Model) roomKeysOf(index int, room *domain.Room, view unreadView) roomKey
 	return k
 }
 
-// compareRooms is one key's comparator: negative when a comes first, zero to defer to
-// the next key. fixed marks an answer that `~` must not flip. name is a room's
-// lower-cased label, read on first use.
+// compareRooms is one key's comparator: negative when a comes first, zero to defer to the next
+// key. fixed marks an answer `~` must not flip.
 func compareRooms(by sortBy, a, b *roomKeys, name func(*roomKeys) string) (cmp int, fixed bool) {
 	switch by {
 	case byUnread:
@@ -211,7 +201,6 @@ func compareRooms(by sortBy, a, b *roomKeys, name func(*roomKeys) string) (cmp i
 	return 0, false
 }
 
-// flagFirst compares two booleans as "true comes first".
 func flagFirst(a, b bool) int {
 	switch {
 	case a == b:
@@ -235,8 +224,8 @@ func (m Model) noteActivity(msg domain.Message) Model {
 	return m
 }
 
-// handleLastMessages merges the cache's last-message times, keeping any newer ones
-// that arrived meanwhile. A failure leaves the alphabetical order.
+// handleLastMessages merges the cache's last-message times, keeping newer ones that arrived
+// meanwhile. A failure leaves the alphabetical order.
 func (m Model) handleLastMessages(msg lastMessagesMsg) (Model, tea.Cmd) {
 	m.logErr(slog.LevelWarn, "load last-message times", msg.err)
 	if msg.err != nil || len(msg.at) == 0 {

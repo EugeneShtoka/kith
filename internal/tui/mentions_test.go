@@ -10,8 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The list of mentions themselves: every message that names you, newest first, across
-// every room — what was said and when, rather than which rooms hold one.
+// The mentions list shows the messages naming you, newest first, across rooms.
 func TestMentionsListShowsTheMessages(t *testing.T) {
 	t.Parallel()
 
@@ -31,15 +30,13 @@ func TestMentionsListShowsTheMessages(t *testing.T) {
 	if !m.search.active || m.search.showing() != (mentionsList{}) {
 		t.Fatal("@ did not open the mentions list")
 	}
-	// The prompt stays open, and its label says what typing will do — the list is
-	// already there, so typing narrows it rather than starting a search.
+	// The prompt stays open, labelled for narrowing, not searching.
 	if m.prompt.kind != promptMentions {
 		t.Errorf("prompt = %d, want the mentions prompt", m.prompt.kind)
 	}
 	if got := m.prompt.label(); !strings.Contains(got, "narrow") {
 		t.Errorf("label = %q, want it to say typing narrows the list", got)
 	}
-	// The filter did the asking, with no terms at all.
 	if len(backend.requests) == 0 {
 		t.Fatal("nothing was asked of the cache")
 	}
@@ -57,8 +54,7 @@ func TestMentionsListShowsTheMessages(t *testing.T) {
 		t.Fatalf("hits = %d, want both mentions", len(m.search.hits))
 	}
 
-	// The pane says what it is showing, and the rows carry the room — which is what
-	// makes a cross-room list readable.
+	// The pane names what it shows, and rows carry the room.
 	frame := stripStyles(m.View().Content)
 	for _, want := range []string{"Mentions", "2 mentions", "Alpha", "Bravo", "@you can you"} {
 		if !strings.Contains(frame, want) {
@@ -67,8 +63,7 @@ func TestMentionsListShowsTheMessages(t *testing.T) {
 	}
 }
 
-// An empty list is the good outcome, not a failed question — so it says so in those
-// terms rather than "no matches".
+// An empty list is reported as good news, not "no matches".
 func TestNoMentionsSaysSoKindly(t *testing.T) {
 	t.Parallel()
 
@@ -84,8 +79,7 @@ func TestNoMentionsSaysSoKindly(t *testing.T) {
 	}
 }
 
-// Typing narrows the list, and the scope key still narrows it to one room — both free,
-// because this is the search machinery wearing a different title.
+// Typing and the scope key narrow the list, as in search.
 func TestMentionsCanBeNarrowed(t *testing.T) {
 	t.Parallel()
 

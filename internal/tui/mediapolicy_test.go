@@ -11,7 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A room can say it would rather not have its pictures fetched.
+// A room can opt out of auto-fetching pictures.
 func TestARoomCanRefuseToFetchPicturesUnasked(t *testing.T) {
 	t.Parallel()
 
@@ -25,15 +25,14 @@ func TestARoomCanRefuseToFetchPicturesUnasked(t *testing.T) {
 	if len(m.pics.imageLoading) != 0 {
 		t.Errorf("a room with auto = false fetched %d picture(s)", len(m.pics.imageLoading))
 	}
-	// The chip is still there to say what was not fetched.
+	// The chip still says what was not fetched.
 	if rows := strings.Join(m.layoutRows(), "\n"); !strings.Contains(rows, "cat.jpg") {
 		t.Errorf("the attachment is not named anywhere:\n%s", rows)
 	}
 }
 
-// A rule naming the room beats one naming a space it is in, which beats the setting
-// above them both — the same precedence as where a file would be saved, because it is
-// the same question about the same places.
+// A room rule beats a space rule, which beats the global setting (same precedence as save
+// locations).
 func TestMediaRulesResolveNarrowestFirst(t *testing.T) {
 	t.Parallel()
 
@@ -73,8 +72,8 @@ func TestMediaRulesResolveNarrowestFirst(t *testing.T) {
 	}
 }
 
-// The viewer is given the picture under the cursor first and older ones behind it, so
-// "next" walks back through the room's history.
+// The viewer gets the picture under the cursor first and older ones behind it, so "next" walks
+// back through history.
 func TestViewingListsThePictureUnderTheCursorFirst(t *testing.T) {
 	t.Parallel()
 
@@ -87,9 +86,7 @@ func TestViewingListsThePictureUnderTheCursorFirst(t *testing.T) {
 		},
 	}})
 
-	// The gallery is the room's pictures in the order they were sent — **both
-	// directions from the one you opened**, which is what makes it a gallery rather
-	// than a list of what came before.
+	// The gallery is the room's pictures in send order, both directions from the opened one.
 	jobs, start := m.gallery("$4")
 	if got := ids(jobs); strings.Join(got, ",") != "$1,$2,$4" {
 		t.Errorf("the gallery listed %v, want the pictures in the order they were sent", got)
@@ -97,11 +94,11 @@ func TestViewingListsThePictureUnderTheCursorFirst(t *testing.T) {
 	if start != 2 {
 		t.Errorf("start = %d, want the gallery to open on $4", start)
 	}
-	// From the middle, what came after is still there to walk forward into.
+	// From the middle, later pictures are reachable forward.
 	if _, at := m.gallery("$2"); at != 1 {
 		t.Errorf("start = %d, want the gallery to open on $2", at)
 	}
-	// A message with no picture of its own opens the newest, since it names none.
+	// A message with no picture opens the newest.
 	if _, at := m.gallery("$3"); at != 2 {
 		t.Errorf("start = %d from a text message, want the newest picture", at)
 	}
@@ -112,8 +109,7 @@ func TestViewingListsThePictureUnderTheCursorFirst(t *testing.T) {
 	}
 }
 
-// Every picture in the list carries the room's caching answer, so a room that forbids
-// keeping bytes on disk is still honored when they are fetched to be looked at.
+// Every picture carries the room's caching rule, so a no-cache room is honored when viewing.
 func TestViewingCarriesTheRoomsCachingRule(t *testing.T) {
 	t.Parallel()
 
@@ -148,7 +144,7 @@ func ids(jobs []mediaJob) []string {
 	return out
 }
 
-// A picture grows with the window rather than sitting at a fixed size.
+// Picture size follows the window.
 func TestPictureSizeFollowsTheWindow(t *testing.T) {
 	t.Parallel()
 
@@ -169,15 +165,14 @@ func TestPictureSizeFollowsTheWindow(t *testing.T) {
 	if short < minImageCells || shortW < minImageCells {
 		t.Errorf("a small window gave a %dx%d picture, below the %d floor", shortW, short, minImageCells)
 	}
-	// Never so tall that the conversation disappears behind it.
+	// Never so tall that it hides the conversation.
 	m = update(t, m, tea.WindowSizeMsg{Width: 300, Height: 200})
 	if got := m.imageMaxHeight(); got > maxAutoImageRows {
 		t.Errorf("a very tall window allowed %d rows, past the %d ceiling", got, maxAutoImageRows)
 	}
 }
 
-// A configured size is taken as written: a number somebody wrote down is not a guess to
-// be second-guessed by the window.
+// A configured size is taken as written.
 func TestConfiguredPictureSizeWins(t *testing.T) {
 	t.Parallel()
 
@@ -192,8 +187,7 @@ func TestConfiguredPictureSizeWins(t *testing.T) {
 	}
 }
 
-// The viewer is told to fit pictures to its window, so opening a twelve-megapixel
-// photograph does not begin at one pixel per pixel with the reader zooming out.
+// Auto-detected viewers are told to fit pictures to the window, not open at 1:1.
 func TestAutoDetectedViewersAreToldToFit(t *testing.T) {
 	t.Parallel()
 
@@ -222,8 +216,7 @@ func TestConfiguredViewerIsTakenAsWritten(t *testing.T) {
 	}
 }
 
-// From the room list there is no message cursor, so viewing starts at the newest
-// picture — the room's own media, browsable without opening it.
+// From the room list there is no message cursor, so viewing starts at the newest picture.
 func TestViewingFromTheRoomListStartsAtTheNewest(t *testing.T) {
 	t.Parallel()
 

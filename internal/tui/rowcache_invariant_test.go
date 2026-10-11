@@ -5,10 +5,9 @@ import (
 	"slices"
 )
 
-// staleRow is the first cached timeline row the next frame would serve that differs
-// from a fresh render, or nil. The cache is keyed by what a row depends on, so a
-// row input the key misses (a star, a reveal, a fetched quote) shows up here as soon
-// as any test changes it. It reads the cache and never fills it.
+// staleRow returns the first cached timeline row the next frame would serve that differs
+// from a fresh render, or nil; a row input missing from the cache key shows up here. It
+// never fills the cache.
 func staleRow(m Model) error {
 	d := m.derived
 	if d == nil || !d.valid || d.key != m.keyFor() {
@@ -24,8 +23,7 @@ func staleRow(m Model) error {
 		if !e.valid || !e.current(m.entryInputs(w, i)) {
 			continue // re-rendered when next drawn
 		}
-		// The whole entry: the rows, and the rule above and height the running totals
-		// are summed from.
+		// The whole entry: rows, rule above, and height.
 		if fresh := m.renderEntry(w, i); !slices.Equal(e.rows, fresh.rows) ||
 			e.divider != fresh.divider || e.unread != fresh.unread || e.height != fresh.height {
 			return fmt.Errorf("row cache: message %d (%s) is cached as\n%q (divider %v, unread %v, height %d)\n"+

@@ -12,9 +12,8 @@ import (
 // bareKey is a key name written into prose, where a {path} token belongs.
 var bareKey = regexp.MustCompile(`(^|[\s(` + "`" + `])(tab|enter|esc|ctrl\+\w+|alt\+\w+|shift\+\w+)\b`)
 
-// Prose that tells a key names it by binding ({search.scope}), so a rebound key is
-// shown as it is: no summary or help note writes a key name, and every token names a
-// real binding.
+// Prose names keys by binding ({search.scope}) so a rebound key shows as it is: no bare key
+// names, and every token names a real binding.
 func TestProseNamesKeysByTheirBinding(t *testing.T) {
 	t.Parallel()
 	var prose []string

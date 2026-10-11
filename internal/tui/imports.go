@@ -15,13 +15,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// :import copies an account's groupings (Telegram's folders) into tags, once, as the
-// person chooses per tag: the networks and accounts are the ones set up (as :login
-// offers them), the folders what the daemon previews, each with what a copy would
-// change among that account's rooms. A folder no tag is named after makes its tag; one
-// whose tag exists changes nothing until a choice is made for it.
+// :import copies an account's groupings (Telegram folders) into tags once, chosen per tag. A
+// folder no tag is named after makes its tag; one whose tag exists changes nothing until a
+// choice is made for it.
 
-// groupingsStore is the daemon copying groupings. Optional, as configStore is.
+// groupingsStore is the daemon copying groupings; optional, like configStore.
 type groupingsStore interface {
 	PreviewGroupings(ctx context.Context, network, account string) ([]domain.GroupingDiff, error)
 	ApplyGroupings(ctx context.Context, network, account string, choices map[string]domain.GroupingChoice) error
@@ -29,41 +27,37 @@ type groupingsStore interface {
 
 var errNoImport = errors.New("this kith copies no folders")
 
-// importState is an :import under way.
 type importState struct {
 	networks []api.LoginNetwork
 	network  api.LoginNetwork
 	account  string
 	diffs    []domain.GroupingDiff
 	choices  map[string]domain.GroupingChoice
-	// folder is the folder whose choice is being made.
-	folder string
+	folder   string
 }
 
 // importCopy is the folder list's last row: copy as chosen.
 const importCopy = "\x00copy"
 
-// importNetworksMsg is the networks set up, to import from.
 type importNetworksMsg struct {
 	networks []api.LoginNetwork
 	err      error
 }
 
-// importPreviewMsg is the daemon's preview of an account's folders; offered when kith
-// offers them unasked, an account just set up, where none to copy says nothing.
+// importPreviewMsg is the daemon's preview of an account's folders. offered marks an unasked
+// offer after setup, where nothing to copy stays silent.
 type importPreviewMsg struct {
 	diffs   []domain.GroupingDiff
 	err     error
 	offered bool
 }
 
-// importedMsg is the outcome of the copy.
 type importedMsg struct {
 	copied int
 	err    error
 }
 
-// plural is the word for n of it.
+// plural picks the word for n.
 func plural(n int, one, many string) string {
 	if n == 1 {
 		return one
@@ -71,7 +65,7 @@ func plural(n int, one, many string) string {
 	return many
 }
 
-// openImport starts :import: the networks set up, to choose from.
+// openImport starts :import with the networks set up.
 func (m Model) openImport(string) (Model, tea.Cmd) {
 	logins, ok := m.backend.(interface {
 		LoginNetworks(ctx context.Context) ([]api.LoginNetwork, error)
@@ -95,7 +89,6 @@ func (m Model) handleAccounts(msg tea.Msg) (Model, tea.Cmd) {
 	return m.handleImport(msg)
 }
 
-// handleImport is an :import's news.
 func (m Model) handleImport(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case importNetworksMsg:
@@ -133,7 +126,6 @@ func (m Model) handleImportNetworks(msg importNetworksMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// chooseImportAccount previews the account's folders.
 func (m Model) chooseImportAccount(value string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	key, account, _ := strings.Cut(value, "\x00")
@@ -157,9 +149,8 @@ func (m Model) previewImportCmd(offered bool) tea.Cmd {
 	}
 }
 
-// offerImport offers an account just set up its folders, when its network has any to
-// copy: making a tag for each folder no tag is named after, keeping the rest until
-// chosen, as :import does.
+// offerImport offers a just-set-up account's folders when its network has any, as :import
+// does.
 func (m Model) offerImport(network api.LoginNetwork, account string) (Model, tea.Cmd) {
 	if account == "" {
 		return m, nil
@@ -168,8 +159,8 @@ func (m Model) offerImport(network api.LoginNetwork, account string) (Model, tea
 	return m, m.previewImportCmd(true)
 }
 
-// handleImportPreview offers the folders, each with its choice: a new tag is made, an
-// existing one kept until chosen.
+// handleImportPreview offers the folders: a new tag is made, an existing one kept until
+// chosen.
 func (m Model) handleImportPreview(msg importPreviewMsg) (Model, tea.Cmd) {
 	if msg.offered && (msg.err != nil || len(msg.diffs) == 0) {
 		return m, nil // unasked: a network without folders says nothing
@@ -283,7 +274,6 @@ func (m Model) chooseImportChoice(value string) (Model, tea.Cmd) {
 	return m.importFolders(), nil
 }
 
-// copyImport has the daemon copy the folders as chosen.
 func (m Model) copyImport() (Model, tea.Cmd) {
 	store, _ := m.backend.(groupingsStore)
 	ctx, network, account, choices := m.ctx, m.imports.network.Network, m.imports.account, m.imports.choices

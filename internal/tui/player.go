@@ -13,31 +13,27 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Voice-note playback: mpv plays headless (internal/audio) and the controls live
-// in a bar that does not own the keyboard — its keys are a scope consulted ahead of
-// the pane's while a note is loaded. `{`/`}` change this playback's speed only; `s`
-// offers to remember it via the scope picker.
+// Voice-note playback: mpv plays headless (internal/audio); the bar does not own the keyboard,
+// its keys are a scope consulted ahead of the pane's while a note is loaded. `{`/`}` change
+// this playback's speed; `s` offers to remember it.
 
-// playerState is the loaded voice note, if any.
 type playerState struct {
 	session audioSession
 	// event is the message being played, so the play key again means "toggle".
 	event domain.EventID
 	title string
-	// place is where the note was said, for the speed-scope picker (the cursor may
-	// have moved since).
+	// place is where the note was said, for the speed-scope picker (the cursor may have moved).
 	place domain.DownloadPlace
 	// configured is the place's configured speed, what `=` returns to.
 	configured float64
 	// speed is in force now, held ahead of the player's answer.
 	speed float64
-	// loading: the note's bytes are still being fetched.
+	// loading is set while the note's bytes are fetched.
 	loading bool
-	// pulsing: a redraw tick is in flight; ticks cannot be canceled, so only one
-	// chain may run.
+	// pulsing marks a redraw tick in flight; ticks cannot be canceled, so only one chain may run.
 	pulsing bool
-	// grace is how many ticks to redraw regardless of State(): mpv answers controls
-	// over IPC, so State() lags a keypress briefly.
+	// grace is ticks to redraw regardless of State(): mpv answers controls over IPC, so State()
+	// briefly lags a keypress.
 	grace int
 }
 
@@ -52,8 +48,8 @@ type audioSession interface {
 
 func (p playerState) active() bool { return p.session != nil || p.loading }
 
-// advancing reports whether the bar can still change on its own; a paused or
-// finished (--keep-open) note is loaded but still.
+// advancing reports whether the bar can still change on its own; a paused or finished
+// (--keep-open) note is loaded but still.
 func (p playerState) advancing() bool {
 	if p.loading {
 		return true
@@ -69,8 +65,8 @@ func (p playerState) state() (audio.State, bool) {
 	return p.session.State(), true
 }
 
-// replace swaps in a new note, carrying over pulsing (the in-flight tick outlives
-// the state it was armed for).
+// replace swaps in a new note, carrying pulsing over (the in-flight tick outlives the state it
+// was armed for).
 func (p playerState) replace(next playerState) playerState {
 	next.pulsing = p.pulsing
 	return next
@@ -147,8 +143,8 @@ func (m Model) play() (Model, tea.Cmd) {
 	return mdl, tea.Batch(mdl.playAudioCmd(command, job, policy.Speed), pulse)
 }
 
-// playAudioCmd puts the note in the media cache and starts the player. A room that
-// forbids caching still plays; its file is just not kept alive, so Trim reclaims it.
+// playAudioCmd caches the note and starts the player. A no-cache room still plays; its file is
+// left for Trim to reclaim.
 func (m Model) playAudioCmd(command []string, job mediaJob, speed float64) tea.Cmd {
 	cache, backend, ctx := m.pics.cache, m.backend, m.ctx
 	return func() tea.Msg {
@@ -178,8 +174,8 @@ func (m Model) handleAudioReady(msg audioReadyMsg) (Model, tea.Cmd) {
 	return m.say("playing " + isolate(m.player.title)).armPulse()
 }
 
-// handlePlayerTick redraws the bar and re-arms while something is moving; otherwise
-// the chain ends and the next control restarts it.
+// handlePlayerTick redraws the bar and re-arms while something moves; otherwise the chain ends
+// and the next control restarts it.
 func (m Model) handlePlayerTick() (Model, tea.Cmd) {
 	m.player.pulsing = false
 	if !m.player.active() {
@@ -194,9 +190,8 @@ func (m Model) handlePlayerTick() (Model, tea.Cmd) {
 	return m, playerTickCmd(wait)
 }
 
-// pulseInterval is how long the bar can wait before showing something stale: the
-// floor just after a control (the grace ticks), else the faster of the clock (1s) and
-// the progress head (duration/cells), over the speed.
+// pulseInterval is how long the bar can wait before going stale: the floor during grace ticks,
+// else the faster of the clock (1s) and the progress head (duration/cells), over the speed.
 func (m Model) pulseInterval() time.Duration {
 	if m.player.grace > 0 {
 		return playerPulseMin
@@ -216,8 +211,8 @@ func (m Model) pulseInterval() time.Duration {
 	return min(max(time.Duration(float64(per)/speed), playerPulseMin), playerPulseMax)
 }
 
-// armClose starts the one-shot that removes a finished note's bar, per config. A
-// paused note does not arm it.
+// armClose starts the one-shot removing a finished note's bar, per config; a paused note does
+// not arm it.
 func (m Model) armClose() (Model, tea.Cmd) {
 	state, ok := m.player.state()
 	if !ok || !state.Done {
@@ -240,8 +235,8 @@ func (m Model) handlePlayerClose(msg playerCloseMsg) (Model, tea.Cmd) {
 	return m.stopPlaying()
 }
 
-// armPulse gives the pulse a grace period and starts it unless a chain is running.
-// Every control goes through here.
+// armPulse grants a grace period and starts the pulse unless a chain runs. Every control goes
+// through here.
 func (m Model) armPulse() (Model, tea.Cmd) {
 	if !m.player.active() {
 		return m, nil
@@ -259,8 +254,7 @@ func playerTickCmd(after time.Duration) tea.Cmd {
 	return tea.Tick(after, func(time.Time) tea.Msg { return playerTickMsg{} })
 }
 
-// playerCloseCmd closes the finished player after the given wait, unless another
-// message has started playing by then.
+// playerCloseCmd closes the finished player after the wait unless another note started.
 func playerCloseCmd(after time.Duration, event domain.EventID) tea.Cmd {
 	return tea.Tick(after, func(time.Time) tea.Msg { return playerCloseMsg{event: event} })
 }
@@ -307,8 +301,8 @@ func (m Model) seekAudio(d time.Duration) (Model, tea.Cmd) {
 	return m.control(func(s audioSession) error { return s.Seek(d) })
 }
 
-// control sends one control to the player off the event loop (a hung player must not
-// freeze the screen: a write waits up to its timeout), and pulses the bar.
+// control sends one control to the player off the event loop (a write to a hung player waits
+// up to its timeout) and pulses the bar.
 func (m Model) control(do func(audioSession) error) (Model, tea.Cmd) {
 	session, event := m.player.session, m.player.event
 	send := func() tea.Msg { return playerControlMsg{event: event, err: do(session)} }
@@ -322,7 +316,7 @@ type playerControlMsg struct {
 	err   error
 }
 
-// handlePlayerControl says why a control failed, while that note is still loaded.
+// handlePlayerControl reports a failed control while that note is still loaded.
 func (m Model) handlePlayerControl(msg playerControlMsg) (Model, tea.Cmd) {
 	if msg.err == nil || msg.event != m.player.event {
 		return m, nil
@@ -370,8 +364,8 @@ func playerAdvice(err error) string {
 	return text
 }
 
-// withPlayerScope puts the player's keys ahead of a pane's while a note is loaded.
-// Never applied while typing, so space still types.
+// withPlayerScope puts the player's keys ahead of a pane's while a note is loaded; never while
+// typing, so space still types.
 func (m Model) withPlayerScope(scopes ...scope) []scope {
 	if !m.player.active() {
 		return scopes
@@ -379,8 +373,8 @@ func (m Model) withPlayerScope(scopes ...scope) []scope {
 	return append([]scope{scopePlayer}, scopes...)
 }
 
-// renderPlayer draws the bar above the status line. As the terminal narrows the key
-// legend goes first (in two steps), then the progress bar; clock and speed stay.
+// renderPlayer draws the bar above the status line. As the terminal narrows the legend goes
+// first (in two steps), then the progress bar; clock and speed stay.
 func (m Model) renderPlayer(width int) string {
 	if !m.player.active() {
 		return ""
@@ -398,9 +392,8 @@ func (m Model) renderPlayer(width int) string {
 	return m.theme.Muted.Render(clamp(line, width))
 }
 
-// playerRow divides the row at this width: the fixed block, the legend that fits,
-// and the cells left for the progress bar (< minProgressCells: none). Shared with the
-// pulse, which needs the cell count.
+// playerRow divides the row: the fixed block, the legend that fits, and the cells left for the
+// progress bar (none below minProgressCells). The pulse shares it for the cell count.
 func (m Model) playerRow(st audio.State, width int) (left, keys string, cells int) {
 	left = strings.Join([]string{
 		playIcon(st),
@@ -464,8 +457,8 @@ func progressBar(st audio.State, cells int) string {
 	return strings.Repeat("━", head) + "●" + strings.Repeat("─", cells-1-head)
 }
 
-// openSpeedScope offers the places to remember the current speed for, built from
-// where the note was said.
+// openSpeedScope offers places to remember the current speed for, from where the note was
+// said.
 func (m Model) openSpeedScope() (Model, tea.Cmd) {
 	place := m.player.place
 	who := place.Person

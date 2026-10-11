@@ -9,9 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// One key for every attachment, which is the shape the question has: standing on a
-// message, "open this" is one gesture, and which program answers it is a fact about the
-// file rather than a decision for the reader's fingers.
+// One key opens any attachment; which program answers depends on the file.
 func TestTheOpenKeyDispatchesOnWhatIsAttached(t *testing.T) {
 	t.Parallel()
 
@@ -27,7 +25,7 @@ func TestTheOpenKeyDispatchesOnWhatIsAttached(t *testing.T) {
 		return m.clearStatus()
 	}
 
-	// A file is the kind that had no key at all before: it goes to the desktop.
+	// A file goes to the desktop.
 	next, cmd := withMedia(domain.MediaFile).viewMedia()
 	m := next
 	if cmd == nil {
@@ -37,9 +35,7 @@ func TestTheOpenKeyDispatchesOnWhatIsAttached(t *testing.T) {
 		t.Errorf("status = %q, want it to say the file is being opened", m.status())
 	}
 
-	// A voice note belongs to the play key alone — it is the one attachment with a
-	// player *inside* the client — so this says which key plays it rather than quietly
-	// starting it.
+	// A voice note is played by the play key alone, so this names that key rather than starting it.
 	next, cmd = withMedia(domain.MediaAudio).viewMedia()
 	voice := next
 	if cmd != nil {
@@ -61,9 +57,8 @@ func TestTheOpenKeyDispatchesOnWhatIsAttached(t *testing.T) {
 	}
 }
 
-// Where the gallery opens is told to the viewers that can be told, and arranged for the
-// ones that cannot — which is what keeps "forward" reaching the pictures sent after the
-// one you opened.
+// A viewer is told where the gallery starts if it can be, else the list is arranged, so
+// "forward" still reaches pictures sent after the opened one.
 func TestTheViewerIsToldWhereToStart(t *testing.T) {
 	t.Parallel()
 
@@ -85,8 +80,7 @@ func TestTheViewerIsToldWhereToStart(t *testing.T) {
 		t.Errorf("feh's list was reordered: %v", out)
 	}
 
-	// A viewer that cannot be told gets the list rotated instead, so the chosen picture
-	// is first and forward still reaches everything.
+	// A viewer that cannot be told gets the list rotated, chosen picture first.
 	command, out = viewerStart([]string{"eog"}, false, files, 2)
 	if len(command) != 1 {
 		t.Errorf("eog = %v, want no invented flag", command)
@@ -101,9 +95,8 @@ func TestTheViewerIsToldWhereToStart(t *testing.T) {
 	}
 }
 
-// A viewer the user configured is run as written: no flag is added that it may not
-// understand, even when its name is one we know. It is told where to start only through
-// a placeholder it was given; without one the list is rotated instead.
+// A configured viewer runs as written: no flag is added even for a known name. It learns the
+// start only through a placeholder; without one the list is rotated.
 func TestAConfiguredViewerGetsNoInventedFlag(t *testing.T) {
 	t.Parallel()
 
@@ -131,15 +124,15 @@ func TestAConfiguredViewerGetsNoInventedFlag(t *testing.T) {
 	if strings.Join(command, " ") != "nsxiv -n 3" {
 		t.Errorf("{index} = %v, want the 1-based position", command)
 	}
-	// Inside a word too, and at the first picture, where nothing else would be filled in.
+	// Inside a word too, and at the first picture.
 	command, _ = viewerStart([]string{"v", "--at={index}"}, true, files, 0)
 	if strings.Join(command, " ") != "v --at=1" {
 		t.Errorf("{index} at the start = %v, want it filled in anyway", command)
 	}
 }
 
-// The window around a long history keeps both sides of the picture you opened rather
-// than the last N of the room.
+// The window around a long history keeps both sides of the opened picture, not the room's
+// last N.
 func TestTheGalleryWindowIsCentered(t *testing.T) {
 	t.Parallel()
 
@@ -154,7 +147,7 @@ func TestTheGalleryWindowIsCentered(t *testing.T) {
 	if start != 5 {
 		t.Errorf("start = %d, want the chosen picture in the middle", start)
 	}
-	// Near the ends the window slides rather than running off them.
+	// Near the ends the window slides rather than running off.
 	if _, at := trimAround(jobs, 2, 10); at != 2 {
 		t.Errorf("start = %d near the beginning, want it kept where it is", at)
 	}

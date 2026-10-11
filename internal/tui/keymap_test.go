@@ -12,8 +12,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The shipped defaults must be internally consistent — no conflicts, nothing
-// unbound. If this fails, the default config contradicts itself.
+// The shipped default keymap has no conflicts and nothing unbound.
 func TestDefaultKeymapIsClean(t *testing.T) {
 	t.Parallel()
 
@@ -32,8 +31,7 @@ func TestDefaultKeymapIsClean(t *testing.T) {
 	}
 }
 
-// Rebinding an action in config changes what the key does, with no code change —
-// and the help overlay shows the new key without being edited.
+// Rebinding an action in config changes what the key does, and help shows the new key.
 func TestRebindingTakesEffect(t *testing.T) {
 	t.Parallel()
 
@@ -42,17 +40,17 @@ func TestRebindingTakesEffect(t *testing.T) {
 
 	m := withMessage(t, openTimeline(t, sized(t, withRooms(t, newModel())).WithKeys(keys)))
 
-	// The old key no longer replies…
+	// The old key no longer replies...
 	m = update(t, m, keyText("\r"))
 	if m.compose.replyTo != "" {
 		t.Error("enter should no longer start a reply once reply is rebound")
 	}
-	// …and the new one does.
+	// ...and the new one does.
 	m = update(t, m, keyCode('R'))
 	if m.compose.replyTo == "" {
 		t.Error("R should start a reply after rebinding")
 	}
-	// Help is generated, so it names the new key without anyone editing it.
+	// Help is generated, so it names the new key.
 	if got := strings.Join(m.keys.keysFor(scopeTimeline, actReply), ","); got != "R" {
 		t.Errorf("help would show reply as %q, want R", got)
 	}
@@ -79,8 +77,8 @@ func TestPartialConfigStillGetsDefaults(t *testing.T) {
 	}
 }
 
-// The keys that move, go back and cancel are ordinary defaults: a config can give
-// them to something else (the user's rule: no key is hard-coded).
+// Moving, back and cancel keys are ordinary defaults a config can reassign; no key is
+// hard-coded.
 func TestMovingAndCancelingKeysAreRebindable(t *testing.T) {
 	t.Parallel()
 
@@ -111,8 +109,8 @@ func TestMovingAndCancelingKeysAreRebindable(t *testing.T) {
 	}
 }
 
-// No keymap can lock you out: an essential action left with no key gets its default
-// back, and the issue says so.
+// No keymap can lock you out: an essential action left keyless gets its default back, with an
+// issue.
 func TestEssentialActionsAlwaysKeepAKey(t *testing.T) {
 	t.Parallel()
 
@@ -139,8 +137,7 @@ func TestEssentialActionsAlwaysKeepAKey(t *testing.T) {
 			t.Errorf("no issue says %s kept its key; issues %v", name, km.issues)
 		}
 	}
-	// A default another action took is taken back from it, and that action falls back
-	// to its own default: composing always has a way out.
+	// A default another action took is reclaimed, and that action falls back to its own default.
 	keys = config.DefaultKeys()
 	keys.Insert.Send = "esc"
 	km = newKeymap(keys)
@@ -180,8 +177,8 @@ func TestConflictFallsBackToDefault(t *testing.T) {
 	}
 }
 
-// An action set to "-" is deliberately given no key, which "" cannot mean (TOML
-// leaves omitted fields empty, and those take their default).
+// "-" deliberately unbinds an action, which "" cannot mean (omitted TOML fields are empty and
+// take their default).
 func TestUnbindSentinel(t *testing.T) {
 	t.Parallel()
 
@@ -192,7 +189,7 @@ func TestUnbindSentinel(t *testing.T) {
 	if got := km.keysFor(scopeTimeline, actReact); len(got) != 0 {
 		t.Errorf("react = %v, want no keys", got)
 	}
-	// "e" is react's key; unbound, nothing answers it. (Not "r" — that is reply.)
+	// "e" is react's key; unbound, nothing answers it. ("r" is reply.)
 	if got := km.lookup("e", scopeTimeline); got != actNone {
 		t.Errorf("e = %v, want nothing", got)
 	}
@@ -201,8 +198,8 @@ func TestUnbindSentinel(t *testing.T) {
 	}
 }
 
-// A more specific scope wins: the timeline's go_reply binding beats nav's identical
-// open binding, which is what lets enter mean two different things.
+// A more specific scope wins: the timeline's go_reply beats nav's identical open binding, so
+// enter means two things.
 func TestScopePrecedence(t *testing.T) {
 	t.Parallel()
 
@@ -218,8 +215,7 @@ func TestScopePrecedence(t *testing.T) {
 	}
 }
 
-// While composing, a key that types something types it — no binding can make a
-// letter unreachable in the composer.
+// While composing, a printable key types; no binding can make a letter unreachable.
 func TestBindingsNeverSwallowTypedText(t *testing.T) {
 	t.Parallel()
 
@@ -261,8 +257,7 @@ func TestABoundInterruptQuitsEverywhere(t *testing.T) {
 	}
 }
 
-// The ? overlay is generated from the keymap, so it lists every action and cannot
-// drift from what the keys do.
+// The ? overlay is generated from the keymap, so it lists every action.
 func TestHelpOverlayListsEveryAction(t *testing.T) {
 	t.Parallel()
 
@@ -302,7 +297,7 @@ func TestHelpScrolls(t *testing.T) {
 	}
 }
 
-// Opening and closing help, with the keys the overlay itself advertises.
+// Help opens and closes with the keys the overlay advertises.
 func TestHelpOpensAndCloses(t *testing.T) {
 	t.Parallel()
 
@@ -320,8 +315,7 @@ func TestHelpOpensAndCloses(t *testing.T) {
 	}
 }
 
-// The status legend reads its key names out of the keymap, so a rebinding shows up
-// there too.
+// The status legend reads key names from the keymap, so rebinding shows there too.
 func TestHintsFollowBindings(t *testing.T) {
 	t.Parallel()
 
@@ -386,8 +380,8 @@ func TestValidKey(t *testing.T) {
 	}
 }
 
-// A key name the terminal never reports would be a silently dead binding, so it is
-// reported and the action falls back to its default.
+// A key name the terminal never reports would be a dead binding, so it is reported and falls
+// back to the default.
 func TestUnknownKeyNameIsReported(t *testing.T) {
 	t.Parallel()
 
@@ -432,8 +426,7 @@ func TestSplitKeys(t *testing.T) {
 	}
 }
 
-// openTimeline opens the first room and steps back from the composer to the message
-// cursor.
+// openTimeline opens the first room and steps back from the composer to the message cursor.
 func openTimeline(t *testing.T, m Model) Model {
 	t.Helper()
 	m = update(t, m, keyCode('l')) // rail → rooms
@@ -441,8 +434,7 @@ func openTimeline(t *testing.T, m Model) Model {
 	return update(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 }
 
-// withMessage lands one message in the open room, so the message cursor has
-// something to select and the actions that need a selection can run.
+// withMessage lands one message in the open room so selection-based actions can run.
 func withMessage(t *testing.T, m Model) Model {
 	t.Helper()
 	return update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
@@ -450,7 +442,6 @@ func withMessage(t *testing.T, m Model) Model {
 	}})
 }
 
-// withHelp opens the help overlay.
 func withHelp(t *testing.T, m Model) Model {
 	t.Helper()
 	m = update(t, m, keyText("?"))
@@ -460,7 +451,7 @@ func withHelp(t *testing.T, m Model) Model {
 	return m
 }
 
-// Key sequences: "gg" is two presses, and the first of them waits rather than acting.
+// Key sequences: "gg" is two presses, and the first waits rather than acting.
 func TestKeySequences(t *testing.T) {
 	t.Parallel()
 
@@ -486,7 +477,7 @@ func TestKeySequences(t *testing.T) {
 	if km.lookup("g", scopeNav) != actNone {
 		t.Error(`"g" alone should bind nothing once the binding is "gg"`)
 	}
-	// Written either way, and read back the way vim writes it.
+	// Written either way, read back in vim's spelling.
 	spaced := newKeymap(withNav(keys, "g g"))
 	if got := spaced.lookup("g g", scopeNav); got != actSelectOldest {
 		t.Errorf(`the spaced spelling should bind the same sequence, got %v`, got)
@@ -496,8 +487,8 @@ func TestKeySequences(t *testing.T) {
 	}
 }
 
-// A three-step chord needs the spaced spelling, and a mistyped key name must stay a
-// reported mistake rather than quietly becoming one.
+// A three-step chord needs the spaced spelling, and a mistyped key name stays a reported
+// mistake.
 func TestSequenceShorthandIsNarrow(t *testing.T) {
 	t.Parallel()
 
@@ -520,7 +511,7 @@ func withNav(keys config.Keys, binding string) config.Keys {
 	return keys
 }
 
-// The end keys go to the ends of the help, as in every other list, not a page.
+// The end keys go to the ends of the help, not a page.
 func TestHelpEndKeysGoToTheEnds(t *testing.T) {
 	t.Parallel()
 
@@ -549,8 +540,8 @@ func TestHelpEndKeysGoToTheEnds(t *testing.T) {
 	}
 }
 
-// interrupt and paste are bindings like any other: rebound, the new key does the job
-// from anywhere, typing included, and the old one is just a key.
+// interrupt and paste are ordinary bindings: rebound, the new key works everywhere (typing
+// included) and the old one is just a key.
 func TestInterruptAndPasteAreRebindable(t *testing.T) {
 	t.Parallel()
 
@@ -573,9 +564,8 @@ func TestInterruptAndPasteAreRebindable(t *testing.T) {
 	}
 }
 
-// Searching the help: / starts a filter, typing narrows the list as it is typed (a
-// command key types too), enter keeps it for scrolling, esc clears it, and a second
-// esc closes the help.
+// Help search: / starts a filter, typing narrows (command keys type too), enter keeps it for
+// scrolling, esc clears it, a second esc closes help.
 func TestHelpSearchNarrowsTheList(t *testing.T) {
 	t.Parallel()
 
@@ -669,9 +659,9 @@ func isHelpTitle(m Model, line string) bool {
 	return false
 }
 
-// Editing text is bound like everything else ([keys.edit]): a rebound key edits, the
-// old one no longer does, "-" leaves an action unbound, and the composer's row motion
-// follows its binding. A bad binding is reported and falls back to the default.
+// Editing keys are bindings ([keys.edit]): a rebound key edits, the old one does not, "-"
+// unbinds, and the composer's row motion follows its binding. A bad binding is reported and
+// falls back.
 func TestEditingKeysAreRebindable(t *testing.T) {
 	t.Parallel()
 
@@ -724,8 +714,8 @@ func TestEditingKeysAreRebindable(t *testing.T) {
 	})
 }
 
-// Positions in a list are bindings too: the completion strip's alt+1..5, the
-// palette's digits and the correction walk's digits, each rebindable.
+// List positions are rebindable bindings: the completion strip's alt+1..5, the palette's
+// digits and the correction walk's digits.
 func TestListPositionsAreBindings(t *testing.T) {
 	t.Parallel()
 	keys := config.DefaultKeys()

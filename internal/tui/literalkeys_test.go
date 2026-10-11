@@ -10,10 +10,8 @@ import (
 	"testing"
 )
 
-// Every key is a binding with a default (keymap.go and the config's key table), so a
-// user can rebind it: a handler comparing a pressed key with a literal ("q", "esc")
-// would override the binding silently. This fails on a comparison or switch case of a
-// key's String() (or a variable holding one) against a string literal.
+// Every key is rebindable, so a handler comparing a key's String() (or a variable holding
+// it) with a string literal would silently override the binding.
 func TestNoHandlerComparesAKeyWithALiteral(t *testing.T) {
 	t.Parallel()
 	paths, err := filepath.Glob("*.go")

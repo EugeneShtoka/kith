@@ -50,25 +50,23 @@ const (
 type group struct {
 	key   string
 	label string
-	// admits reports whether a room belongs, judged by the view it is handed, which
-	// is the Model's current one: a group captures only its own shape (a space's
-	// children), never state that later changes.
+	// admits reports whether a room belongs, judged by the view passed in (the Model's current
+	// one); a group captures only its own shape (a space's children), never changing state.
 	admits func(unreadView, domain.Room) bool
 	// sepAfter draws a divider row beneath this group (a separator token in the rail order).
 	sepAfter bool
-	// sticky keeps the open room listed until you move off it; first puts the row at
-	// the top unless the rail order places it; countInLabel adds how many rooms it
-	// holds to the label; hideWhenEmpty drops the row while it holds nothing.
+	// sticky keeps the open room listed until you move off it; first puts the row at the top
+	// unless the rail order places it; countInLabel appends the room count; hideWhenEmpty drops
+	// the row while empty.
 	sticky, first, countInLabel, hideWhenEmpty bool
-	// network is the one network every room it holds is on, "" for rooms on several
-	// or none; worked out by rebuiltRail only while the rail colors by network.
+	// network is the one network all its rooms are on, "" otherwise; set by rebuiltRail only while
+	// the rail colors by network.
 	network domain.Protocol
 }
 
-// railGroups builds the rail — a row per tag, then a group per space — and applies the
-// user's rail config. There are no rows of the client's own: All, Unread, Archived and
-// the rest are tags the config defines. A rail with nothing to show gets one All row,
-// so the room list is never out of reach.
+// railGroups builds the rail (a row per tag, then a group per space) and applies the rail
+// config. All, Unread, Archived and the rest are config-defined tags; a rail with nothing to
+// show gets one All row.
 func railGroups(
 	spaces []domain.Space,
 	cfg config.Rail,
@@ -84,8 +82,8 @@ func railGroups(
 			children[id] = true
 		}
 		name, spaceID := s.DisplayName(), s.ID
-		// A space a bridge keeps (a network's own grouping, a community) is where its
-		// rooms belong; a space a person made is not.
+		// A bridge-kept space (a network's grouping, a community) is where its rooms belong; a
+		// person-made space is not.
 		belongs := s.Keeper != "" || s.Bridge.IsBridged()
 		groups = append(groups, group{
 			key:   name,
@@ -95,8 +93,8 @@ func railGroups(
 				if !children[r.ID] || r.IsInvite() || v.isSpam(r) {
 					return false
 				}
-				// A space-exclusive tag keeps a room only where it belongs: a bridge's
-				// space, or its own canonical home.
+				// A space-exclusive tag keeps a room only where it belongs: a bridge's space or its canonical
+				// home.
 				return !v.leavesMadeSpaces(r) || belongs || v.parents[r.ID] == spaceID
 			},
 		})
@@ -108,12 +106,11 @@ func railGroups(
 	return withoutTrailingSeparator(promoteFirst(groups, cfg))
 }
 
-// fallbackGroupKey is the rail key of the one row a rail with no spaces and no tags
-// gets.
+// fallbackGroupKey is the rail key of the single row a rail with no spaces and no tags gets.
 const fallbackGroupKey = "*all"
 
-// fallbackGroup is every room but invitations and spam: what a config with no tags
-// and an account with no spaces still needs to reach its rooms.
+// fallbackGroup is every room but invitations and spam, for a config with no tags and an
+// account with no spaces.
 func fallbackGroup() group {
 	return group{
 		key:    fallbackGroupKey,
@@ -139,9 +136,8 @@ func (m Model) rebuiltRail() Model {
 	return m
 }
 
-// railFromState is the rail's groups as the model's rooms, spaces and settings make
-// them, each with its one network when the rail colors by it. Every rebuild goes
-// through it, so none drops the colors.
+// railFromState builds the rail's groups from rooms, spaces and settings, each with its one
+// network when the rail colors by it. Every rebuild goes through it so none drops the colors.
 func (m Model) railFromState() []group {
 	groups := railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), m.rooms.all)
 	if m.prefs.display.Rail.NetworkColors {
@@ -178,8 +174,8 @@ func isTagGroup(key string) bool {
 // fallback row. A space's key is its name.
 func isSpaceGroup(key string) bool { return key != fallbackGroupKey && !isTagGroup(key) }
 
-// tagGroups is a rail row per tag not hidden, in configured order, with the tag's
-// properties (see unreadView.showsInTag for who it lists).
+// tagGroups is a rail row per visible tag, in configured order (see unreadView.showsInTag for
+// membership).
 func tagGroups(view unreadView) []group {
 	groups := make([]group, 0, view.tags.Len())
 	for i := range view.tags.Len() {
@@ -197,9 +193,8 @@ func tagGroups(view unreadView) []group {
 	return groups
 }
 
-// promoteFirst moves the rows marked first (a tag with `first`, as Invites) to the top,
-// in their order, unless the rail order places them: applyRailConfig demotes unnamed
-// groups, which would bury pending invitations.
+// promoteFirst moves rows marked first (a tag with `first`, as Invites) to the top unless the
+// rail order places them: applyRailConfig demotes unnamed groups, which would bury invitations.
 func promoteFirst(groups []group, cfg config.Rail) []group {
 	var front, rest []group
 	for _, g := range groups {
@@ -215,11 +210,10 @@ func promoteFirst(groups []group, cfg config.Rail) []group {
 	return append(front, rest...)
 }
 
-// applyRailConfig renames, hides, then reorders groups per config; hiding everything
-// keeps Home so the rail is never empty. Order: named keys first, a separator token
-// draws a divider after the preceding group, the wildcard stands for every unnamed
-// group, and anything left keeps its default order at the end. It returns the order
-// with each entry resolved to the key of the group it names (resolveOrder).
+// applyRailConfig renames, hides, then reorders groups; hiding everything keeps Home. Order:
+// named keys first, a separator draws a divider after the preceding group, the wildcard stands
+// for every unnamed group, and the rest keep default order at the end. It returns the order
+// resolved to group keys (resolveOrder).
 func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName, view unreadView, rooms []domain.Room) ([]group, []string) {
 	display := config.Display{Names: names}
 	for i := range groups {
@@ -268,10 +262,10 @@ func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName
 	return orderGroups(kept, byKey, order), order
 }
 
-// resolveOrder is the rail order with each entry the key of the group it names: its
-// key as written, else, as hidden and hide_when_empty take one, its key or its label in
-// any case, so "Services" places the tag the rail shows as Services when no space is
-// called that. An entry naming no group, a divider and the wildcard stay as written.
+// resolveOrder maps each rail-order entry to the key of the group it names: its key as written,
+// else (as hidden and hide_when_empty match) a key or label case-insensitively, so "Services"
+// places the tag shown as Services when no space has that name. Unmatched entries, dividers and
+// the wildcard stay as written.
 func resolveOrder(groups []group, order []string) []string {
 	out := make([]string, len(order))
 	for i, tok := range order {
@@ -288,8 +282,8 @@ func resolveOrder(groups []group, order []string) []string {
 
 // orderGroups emits the kept groups in configured order, unplaced ones last.
 func orderGroups(kept []group, byKey map[string]group, order []string) []group {
-	// The wildcard expands against the whole order, so a group named after it
-	// (`["*", "archived"]`) is not swallowed by it.
+	// The wildcard expands against the whole order, so a group named after it (`["*", "archived"]`)
+	// is not swallowed.
 	named := make(map[string]bool, len(order))
 	for _, tok := range order {
 		if !isSeparator(tok) && !isWildcard(tok) {
@@ -373,8 +367,7 @@ func findGroup(groups []group, key string) (group, bool) {
 	return group{}, false
 }
 
-// scrollback is a pane's position in a conversation's history: the next page's
-// token, whether the start is loaded, and whether a page is in flight.
+// scrollback is a pane's position in a conversation's history.
 type scrollback struct {
 	// token is where the next page starts; empty asks for the newest messages.
 	token string
@@ -393,9 +386,8 @@ type roomScrollback struct {
 	backfilling bool
 }
 
-// overlayTarget is what an open overlay is aimed at, captured by ID when it opens:
-// the room list re-sorts as messages arrive, so reading the cursor at accept time
-// could hit a different row.
+// overlayTarget is what an open overlay aims at, captured by ID on open: the room list
+// re-sorts as messages arrive, so reading the cursor at accept time could hit another row.
 type overlayTarget struct {
 	// person is the phonebook card the person picker is open on (phonebook.go).
 	person personState
@@ -422,17 +414,15 @@ type overlayTarget struct {
 	vote domain.Message
 }
 
-// timelineState is the open room's loaded timeline and what the reader has done in
-// it: the messages and their reactions, stars and uncovered spoilers, the members to
-// mention, how far back the pane has paged, the scroll and the cursor. A room change
+// timelineState is the open room's loaded timeline and the reader's state in it. A room change
 // resets it.
 type timelineState struct {
 	// messages is the loaded timeline; assigned only by setMessages.
 	messages []domain.Message
 	// rev counts changes to messages (bumped by setMessages); it invalidates the derived cache.
 	rev uint64
-	// reactions is the reactions by target event. Changed through putReaction and
-	// dropReaction, which tell the row cache.
+	// reactions is the reactions by target event, changed through putReaction and dropReaction,
+	// which tell the row cache.
 	reactions map[domain.EventID][]domain.Reaction
 	// starred is which messages you bookmarked.
 	starred map[domain.EventID]bool
@@ -454,14 +444,14 @@ type timelineState struct {
 	layout roomLayout
 }
 
-// prefsState is the settings resolved from the config each time it is applied (see
-// applyConfig): read everywhere, written nowhere else.
+// prefsState is the settings resolved from the config on each apply (applyConfig): read
+// everywhere, written nowhere else.
 type prefsState struct {
 	display config.Display
 	// identities maps each merged MXID to its resolved person, from display.Identities.
 	identities map[string]resolvedIdentity
-	// aliases is each identity's alias by every ID it names and the numbers they are
-	// (setup.Aliases), so an alias reaches a person's linked accounts.
+	// aliases maps every ID and number an identity names to its alias (setup.Aliases), so an alias
+	// reaches linked accounts.
 	aliases map[string]string
 	// roomAliases maps a room ID to its configured display name.
 	roomAliases map[domain.RoomID]string
@@ -474,8 +464,7 @@ type prefsState struct {
 	unreadLocal bool
 	// phonebookDir is the phonebook's folder ([phonebook] dir, resolved).
 	phonebookDir string
-	// clock is how times and dates are written ([display] time_format and the date
-	// formats).
+	// clock is how times and dates are written ([display] time_format and date formats).
 	clock domain.Clock
 	// codes is what counts as a verification code and where to look. See codes.go.
 	codes codeSettings
@@ -485,9 +474,8 @@ type prefsState struct {
 	openInsert bool
 }
 
-// configState is the config file a session edits: where it lives, the whole of it
-// (so a save keeps what this app does not edit), the writer that keeps saves in order,
-// and a count of live reloads.
+// configState is the config file a session edits: its path, the whole file (so a save keeps
+// what the app does not edit), the writer ordering saves, and a live-reload count.
 type configState struct {
 	// path is where settings are written back; empty is not saved.
 	path string
@@ -496,8 +484,8 @@ type configState struct {
 	base   config.Config
 	// rev counts live config reloads, which also invalidate derived answers.
 	rev uint64
-	// applied counts the changes applied, so one kithd was still checking can tell
-	// whether it would land over a newer one (applyConfig).
+	// applied counts changes applied, so one kithd was still checking can tell whether it would
+	// land over a newer one (applyConfig).
 	applied uint64
 }
 
@@ -511,8 +499,7 @@ type Model struct {
 	// log is the client's log file (never the terminal); safe to use from a tea.Cmd.
 	log   *slog.Logger
 	theme theme.Theme
-	// namedThreads is which threads the model has asked to be named, so a request is
-	// never armed twice.
+	// namedThreads records threads already asked to be named, so a request is never armed twice.
 	namedThreads map[domain.EventID]bool
 
 	width, height int
@@ -535,8 +522,8 @@ type Model struct {
 	// quotes are reply targets that are not among the loaded messages. See quotes.go.
 	quotes quoteState
 
-	// edits is each text field's undo/redo history; the editor itself is rebuilt from
-	// the stored text on every key. See editHistory.
+	// edits is each text field's undo/redo history; the editor is rebuilt from the stored text on
+	// every key. See editHistory.
 	edits [fieldHelpFilter + 1]editHistory
 
 	// jumps is back/forward over rooms (session state). See jumplist.go.
@@ -544,8 +531,8 @@ type Model struct {
 
 	// unread is each room's unread state, seeded from cache and updated live. Mutated in place.
 	unread map[domain.RoomID]domain.Unread
-	// lastMessage is when each room last had a message, for activity ordering. A room
-	// with nothing cached is absent, not zero.
+	// lastMessage is each room's last message time, for activity ordering; a room with nothing
+	// cached is absent, not zero.
 	lastMessage map[domain.RoomID]time.Time
 	// loadArmed counts room selections, so a load armed for a room the cursor left is dropped.
 	loadArmed int
@@ -555,8 +542,7 @@ type Model struct {
 	live liveActivity
 	// sentTyping is the typing notice we last sent. See typingNotice.
 	sentTyping typingNotice
-	// parents maps a room to the space it lives in, resolved on demand for archived
-	// rooms.
+	// parents maps a room to its space, resolved on demand for archived rooms.
 	parents map[domain.RoomID]domain.SpaceID
 
 	// glyphs is the emoji vocabulary and its ranking. See emojiState.
@@ -568,21 +554,18 @@ type Model struct {
 
 	// thread is the conversation the timeline pane is showing, if any. See threadState.
 	thread threadState
-	// timeline is the open room's loaded messages and where the reader is in them.
-	// See timelineState.
+	// timeline is the open room's loaded messages and the reader's place in them.
 	timeline timelineState
 	// completion is the open completion popup.
 	completion completionState
 
-	// derived caches the full-history passes the layout needs. A pointer so it survives
-	// Update's value copy; see derived.go. Update writes it (row cache, color slots) and
-	// View only reads it, and only for the Model it was primed for (frame); the vendored
-	// Bubble Tea fork calls View between Updates on their goroutine — asserted by
-	// TestRenderRunsOnTheUpdateGoroutine, while cmdreach_test.go checks no tea.Cmd
-	// reaches it.
+	// derived caches the full-history passes the layout needs; a pointer so it survives Update's
+	// value copy (derived.go). Update writes it and View only reads it, for the Model it was primed
+	// for (frame). The Bubble Tea fork calls View between Updates on their goroutine
+	// (TestRenderRunsOnTheUpdateGoroutine); cmdreach_test.go checks no tea.Cmd reaches it.
 	derived *derivedCache
-	// frames and frame say whether the shared cache is final for this Model (see
-	// frameClock): View reads it only when it is.
+	// frames and frame say whether the shared cache is final for this Model (see frameClock); View
+	// reads it only then.
 	frames *frameClock
 	frame  uint64
 	// receipts is the read-receipt policy and what has been sent. See receiptState.
@@ -665,16 +648,16 @@ type Model struct {
 	search  searchState
 	// rows is the room list's thread rows. See roomrows.go.
 	rows threadRows
-	// frameRows is the room list built once for one View: set on View's own copy of
-	// the Model, so no Update ever sees it (asModel's check in the tests).
+	// frameRows is the room list built once per View, set on View's own Model copy so no Update
+	// sees it (checked by asModel in tests).
 	frameRows    []roomRow
 	hasFrameRows bool
 
 	// jump is a message to select once the timeline contains it. See jumpTarget.
 	jump jumpTarget
 
-	// chord is the key sequence in progress; only set where keys are commands, and any
-	// key that cannot continue it ends it.
+	// chord is the key sequence in progress; set only where keys are commands, and ended by any key
+	// that cannot continue it.
 	chord []string
 	// keys resolves a keypress to an action per mode; the `?` overlay is generated from it.
 	keys keymap
@@ -696,23 +679,21 @@ type verifyState struct {
 	waiting  bool // an accept/confirm is in flight, awaiting the next step
 }
 
-// motionCount is the digits typed before a motion (count) and what the motion took
-// (repeat, `12j`). Kept apart so an abandoned count cannot multiply a later key.
+// motionCount is the digits typed before a motion (count) and what the motion took (repeat,
+// `12j`), kept apart so an abandoned count cannot multiply a later key.
 type motionCount struct {
 	count  int
 	repeat int
 }
 
-// openedRoom is what was true of the open room when it was opened.
 type openedRoom struct {
 	// wasUnread is the open room if it was unread when opened, keeping it in the unread band while read.
 	wasUnread domain.RoomID
-	// unreadFrom is the last read message when the room was opened — a snapshot, so the
-	// unread line does not walk down as receipts move.
+	// unreadFrom is the last read message at open time, a snapshot so the unread line does not walk
+	// down as receipts move.
 	unreadFrom domain.EventID
 }
 
-// oneTimeOffers is the one-time download offers.
 type oneTimeOffers struct {
 	// dictionaries is the spelling-dictionary offer. See dictionaries.go.
 	dictionaries dictionaryOffer
@@ -742,7 +723,7 @@ func New(ctx context.Context, backend api.Backend, display config.Display) Model
 	source, _ := setup.UnreadSource(display.Unread)
 	unreadLocal := source != config.UnreadNotifications
 	parents := make(map[domain.RoomID]domain.SpaceID)
-	// Naming and media are set by applyNaming/applyMedia below, the path every settings change uses.
+	// Naming and media are set by applyNaming/applyMedia below, as for every settings change.
 	m := Model{
 		backend:      backend,
 		log:          logging.Discard(),
@@ -783,8 +764,8 @@ func New(ctx context.Context, backend api.Backend, display config.Display) Model
 	return m.applyMedia(display.Media)
 }
 
-// startupEmoji resolves the react palette (toned), the skin tone and the emoji tier.
-// Validated at startup, so errors fall back to the defaults.
+// startupEmoji resolves the react palette (toned), skin tone and emoji tier. Validated at
+// startup, so errors fall back to defaults.
 func startupEmoji(display config.Display) (static []string, tone string, tier string) {
 	static = cappedStatic(display.Reactions.Static)
 	tone, _ = setup.SkinTone(display.SkinTone)
@@ -792,8 +773,8 @@ func startupEmoji(display config.Display) (static []string, tone string, tier st
 	return toneEach(static, tone), tone, tier
 }
 
-// startupMediaMode resolves how attachments are drawn; an invalid mode (only possible
-// from a config built in code) draws placeholders.
+// startupMediaMode resolves how attachments are drawn; an invalid mode (only from a config built
+// in code) draws placeholders.
 func startupMediaMode(display config.Display) string {
 	mode, err := setup.MediaMode(display.Media.Mode)
 	if err != nil {
@@ -802,8 +783,8 @@ func startupMediaMode(display config.Display) string {
 	return mode
 }
 
-// buildIdentities indexes each configured identity by its MXIDs. The alias (else the
-// first MXID) is the shared color key; a valid color pins it.
+// buildIdentities indexes each identity by its MXIDs. The alias (else the first MXID) is the
+// shared color key; a valid color pins it.
 func buildIdentities(ids []config.Identity) map[string]resolvedIdentity {
 	out := make(map[string]resolvedIdentity)
 	for i, id := range ids {
@@ -850,20 +831,20 @@ func buildThreadAliases(names []config.DisplayName) map[domain.EventID]string {
 	return out
 }
 
-// roomName is a room's label isolated for embedding in a sentence (see isolate).
-// Things not drawn — folder names, config matches, sort keys — use roomLabel.
+// roomName is a room's label isolated for a sentence (see isolate); undrawn uses (folder names,
+// config matches, sort keys) take roomLabel.
 func (m Model) roomName(room domain.Room) string {
 	return isolate(m.roomLabel(room))
 }
 
-// roomLabel is a room's logical-order label: its alias, else its name, first-named
-// per its own space's rule when the room is named after its members.
+// roomLabel is a room's logical-order label: alias, else name, first-named per its own space's
+// rule when named after its members.
 func (m Model) roomLabel(room domain.Room) string {
 	return m.labeled(room, m.nameRuleFor(m.ownSpace(room.ID)))
 }
 
-// roomLabelHere is roomLabel for a room-list row, where the rule comes from the
-// space being viewed so a column is uniform. See firstNameOnlyHere.
+// roomLabelHere is roomLabel for a room-list row, using the viewed space's rule so a column is
+// uniform. See firstNameOnlyHere.
 func (m Model) roomLabelHere(room domain.Room) string {
 	return m.labeled(room, m.nameRuleFor(m.listedSpace(room.ID)))
 }
@@ -880,9 +861,9 @@ func (m Model) labeled(room domain.Room, rule nameRule) string {
 	return name
 }
 
-// shortenByMembers first-names each member within the name, only if the name is
-// entirely member names plus list punctuation. Longest members match first so an
-// overlapping name is not partially replaced.
+// shortenByMembers first-names each member within the name, only if the name is entirely member
+// names plus list punctuation. Longest members match first so overlapping names are not
+// partially replaced.
 func shortenByMembers(name string, members []string) (string, bool) {
 	ordered := append([]string(nil), members...)
 	sort.Slice(ordered, func(i, j int) bool { return len(ordered[i]) > len(ordered[j]) })
@@ -902,8 +883,8 @@ func shortenByMembers(name string, members []string) (string, bool) {
 	return shortened, true
 }
 
-// peopleNameResidue is what remains after member names are removed, minus list
-// punctuation (",", "and", "N others"). Non-empty means the name is a title.
+// peopleNameResidue is what remains after removing member names and list punctuation (",",
+// "and", "N others"); non-empty means the name is a title.
 func peopleNameResidue(s string) string {
 	fields := strings.Fields(strings.ReplaceAll(s, ",", " "))
 	kept := make([]string, 0, len(fields))
@@ -952,15 +933,13 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
-// Update routes a message to its handler, then runs the steps every state change
-// needs (jumplist, derived cache, arming timers, quotes, inline pictures) once here
-// rather than at each call site.
+// Update routes a message to its handler, then runs the steps every state change needs.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.route(msg)
 	next = next.notedArrival()
 	cmds := []tea.Cmd{cmd}
-	// Each arm* step compares state once per message, instead of a hook at every
-	// place the composer text or status can change. tea.Batch drops nil commands.
+	// Each arm* step compares state once per message instead of hooking every place the composer
+	// text or status changes. tea.Batch drops nil commands.
 	for _, arm := range []func(Model) (Model, tea.Cmd){
 		Model.armStatusSweep, Model.armSpellCheck, Model.armCompletion, Model.armModelAsk,
 	} {
@@ -980,8 +959,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		next, c = next.loadInlineImages()
 		cmds = append(cmds, c)
 	}
-	// Settle what the timeline caches here, not in View: rendering only reads. After
-	// every step that can change what it reads, so the frame draws what was primed.
+	// Settle the timeline caches here, not in View (rendering only reads), after every step that can
+	// change what they read.
 	next = next.primeTimeline()
 	// Last: the cache is now final for exactly this Model (see View).
 	if next.frames != nil {
@@ -1010,8 +989,8 @@ func (m Model) route(msg tea.Msg) (Model, tea.Cmd) {
 	}
 }
 
-// notedArrival records the open room in the jumplist whenever the timeline has
-// focus, covering every way of opening a room. Idempotent.
+// notedArrival records the open room in the jumplist whenever the timeline has focus, covering
+// every way of opening a room. Idempotent.
 func (m Model) notedArrival() Model {
 	if m.focus != paneTimeline || m.openRoom == "" {
 		return m
@@ -1031,8 +1010,8 @@ func (m Model) handleDataMsg(msg tea.Msg) (Model, tea.Cmd) {
 	return m.handleContentMsg(msg)
 }
 
-// handleAppMsg handles outcomes of things done on the user's behalf: settings written,
-// links opened, the sync loop ending.
+// handleAppMsg handles outcomes of actions done for the user: settings written, links opened,
+// the sync loop ending.
 func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	if mdl, cmd, handled := m.handleComposeMsg(msg); handled {
 		return mdl, cmd, true
@@ -1206,8 +1185,7 @@ func (m Model) handleHousekeepingMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	}
 }
 
-// handleRoomListMsg handles messages that reshape the room list and the rail. handled
-// is false for anything else.
+// handleRoomListMsg handles messages that reshape the room list and the rail.
 func (m Model) handleRoomListMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case activityMsg:
@@ -1251,8 +1229,7 @@ func (m Model) handleRoomListMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	}
 }
 
-// handleRoomsThenOffer handles the room list and, on the first one, starts the chain
-// of one-time offers.
+// handleRoomsThenOffer handles the room list and, on the first one, starts the one-time offers.
 func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
 	next, cmd := m.handleRooms(msg)
 	next, offer := next.maybeOfferDictionaries()
@@ -1261,8 +1238,8 @@ func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
 	return next, tea.Batch(cmd, offer, selves, next.directoryCmd(), peers)
 }
 
-// handleSideMsg handles account-wide loads, verification, and reactions and images
-// on messages already shown.
+// handleSideMsg handles account-wide loads, verification, and reactions and images on shown
+// messages.
 func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case directCandidatesMsg:
@@ -1347,9 +1324,8 @@ func (m Model) handleContentMsg(msg tea.Msg) (Model, tea.Cmd) {
 	}
 }
 
-// firstKey handles the keys checked before anything can capture one: interrupt quits
-// from any mode, and paste asks the terminal for its clipboard (for terminals that
-// pass the key through).
+// firstKey handles keys checked before anything can capture one: interrupt quits from any mode,
+// and paste requests the terminal's clipboard (for terminals that pass the key through).
 func (m Model) firstKey(key tea.KeyPressMsg) (tea.Cmd, bool) {
 	switch m.keys.lookup(key.String(), scopeGlobal) {
 	case actInterrupt:
@@ -1421,8 +1397,7 @@ func (m Model) handleKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	}
 }
 
-// globalKey handles bindings live in every mode, typing included (so none produce
-// text). handled is false for anything it does not claim.
+// globalKey handles bindings live in every mode, typing included (so none produce text).
 func (m Model) globalKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	switch m.keys.lookup(key.String(), scopeGlobal) {
 	case actFocusNext:
@@ -1445,8 +1420,8 @@ func (m Model) globalKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// handleCapturedKey gives the key to whatever owns the keyboard — an overlay, a
-// pending question, an open prompt. captured is false when nothing does.
+// handleCapturedKey gives the key to whatever owns the keyboard (overlay, pending question,
+// open prompt); captured is false when nothing does.
 func (m Model) handleCapturedKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	switch {
 	// Any key closes the explanation.
@@ -1459,7 +1434,7 @@ func (m Model) handleCapturedKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		return answered(m.handleHelpKey(key))
 	case m.verify.active:
 		return answered(m.handleVerifyKey(key))
-	// A pending confirmation captures the keyboard so it cannot be answered by accident later.
+	// A pending confirmation captures the keyboard so it is not answered by accident later.
 	case m.confirm.active():
 		return answered(m.handleConfirmKey(key))
 	case m.prompt.active():
@@ -1471,9 +1446,8 @@ func (m Model) handleCapturedKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// moveFocus moves focus one pane left or right. It stops at the ends rather than
-// wrapping and reports false there, so the key (tab) falls through to the composer's
-// completion.
+// moveFocus moves focus one pane left or right, stopping at the ends and reporting false there
+// so tab falls through to the composer's completion.
 func (m Model) moveFocus(delta int) (Model, tea.Cmd, bool) {
 	next := m.focus + pane(delta)
 	if next < 0 || next >= paneCount {
@@ -1484,9 +1458,9 @@ func (m Model) moveFocus(delta int) (Model, tea.Cmd, bool) {
 	return m, nil, true
 }
 
-// handleHelpKey scrolls the reader overlays; help, quit and back close them. Keys
-// resolve as sequences too ("gg"). In help, search narrows the list (see
-// handleHelpFilterKey), and back clears a filter before it closes.
+// handleHelpKey scrolls the reader overlays; help, quit and back close them. Keys resolve as
+// sequences too ("gg"). In help, search narrows the list (handleHelpFilterKey), and back clears
+// a filter before closing.
 func (m Model) handleHelpKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	help := m.reader.showing(readerHelp)
 	if help && m.reader.filtering {
@@ -1518,8 +1492,8 @@ func (m Model) handleHelpKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleHelpFilterKey types the help filter: text narrows the list as it is typed,
-// submit keeps it and gives the keys back to scrolling, and cancel drops it.
+// handleHelpFilterKey types the help filter: text narrows as typed, submit keeps it and returns
+// keys to scrolling, cancel drops it.
 func (m Model) handleHelpFilterKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	if text := key.Text; text != "" {
 		return m.store(fieldHelpFilter, m.editorFor(fieldHelpFilter).insert(text)), nil
@@ -1545,8 +1519,8 @@ func (m Model) scrollHelp(want int) Model {
 	return m
 }
 
-// commandAction handles actions that mean the same in every pane. handled is false
-// when act is the pane's own business.
+// commandAction handles actions that mean the same in every pane; handled is false for
+// pane-specific ones.
 func (m Model) commandAction(act action) (Model, tea.Cmd, bool) {
 	// Player keys first: the bar is on screen from every pane.
 	if mdl, cmd, handled := m.playerAction(act); handled {
@@ -1554,8 +1528,7 @@ func (m Model) commandAction(act action) (Model, tea.Cmd, bool) {
 	}
 	switch act {
 	case actQuit:
-		// Flush the open room's colors (no room boundary will after quit), then the
-		// drafts still to be written.
+		// Flush the open room's colors (no room boundary follows quit), then pending drafts.
 		mdl, cmd := m.quitAfterDrafts(m.flushSenderSlots())
 		return mdl, cmd, true
 	case actHelp:
@@ -1610,8 +1583,8 @@ func (m Model) handleRailKey(press string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// roomStandingAction handles room-list keys that change how a room stands: unread
-// state, spaces, archive, pin, spam and the list's sort order.
+// roomStandingAction handles room-list keys that change how a room stands: unread state,
+// spaces, archive, pin, spam and sort order.
 func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 	switch act {
 	case actToggleUnreadFirst:
@@ -1649,8 +1622,8 @@ func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 
 // roomThreadAction handles room-list keys about threads: naming a thread row, listing the room's threads.
 func (m Model) roomThreadAction(act action) (Model, tea.Cmd, bool) {
-	// Only the naming keys need the cursor's row; building the list for every other
-	// key was half of what a keypress in a large room list cost.
+	// Only the naming keys need the cursor's row; building it for every key was too slow in a large
+	// room list.
 	thread := func() (domain.EventID, bool) {
 		row, ok := m.selectedRow()
 		return row.thread.Root, ok && row.isThread()
@@ -1673,8 +1646,8 @@ func (m Model) roomThreadAction(act action) (Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// handleRoomsKey drives the room list; the rooms scope is consulted first so its keys
-// win over navigation.
+// handleRoomsKey drives the room list; the rooms scope is consulted first so its keys win over
+// navigation.
 func (m Model) handleRoomsKey(press string) (Model, tea.Cmd) {
 	act := m.keys.lookup(press, m.withPlayerScope(scopeRooms, scopeNav, scopeCommand)...)
 	if mdl, cmd, handled := m.commandAction(act); handled {
@@ -1789,8 +1762,8 @@ func (m Model) handleTimelineKey(key tea.KeyPressMsg, press string) (Model, tea.
 	}
 }
 
-// handleNormalKey drives the timeline as a message browser. The timeline scope is
-// consulted first so its reply binding wins over nav's open.
+// handleNormalKey drives the timeline as a message browser. The timeline scope is consulted
+// first so its reply binding wins over nav's open.
 func (m Model) handleNormalKey(press string) (Model, tea.Cmd) {
 	act := m.keys.lookup(press, m.withPlayerScope(scopeTimeline, scopeNav, scopeCommand)...)
 	if mdl, cmd, handled := m.timelineAction(act); handled {
@@ -1799,8 +1772,8 @@ func (m Model) handleNormalKey(press string) (Model, tea.Cmd) {
 	return m.timelineMotion(act)
 }
 
-// threadAction handles keys about a thread in the room: open, start, list, rename —
-// and back, which closes a thread before leaving the pane.
+// threadAction handles thread keys: open, start, list, rename, and back, which closes a thread
+// before leaving the pane.
 func (m Model) threadAction(act action) (Model, tea.Cmd, bool) {
 	switch act {
 	case actBack:
@@ -1901,8 +1874,7 @@ func (m Model) messageAction(act action) (Model, tea.Cmd, bool) {
 	}
 }
 
-// timelineMotion moves the message cursor (in messages) and the viewport (in visual
-// rows).
+// timelineMotion moves the message cursor (in messages) and the viewport (in visual rows).
 func (m Model) timelineMotion(act action) (Model, tea.Cmd) {
 	// Paging moves the view; the cursor follows it on screen.
 	if rows, ok := m.pageScroll(act); ok {
@@ -1935,9 +1907,9 @@ func (m Model) timelineMotion(act action) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// pageScroll is how far a paging action moves the timeline view, in rows toward the
-// oldest (the scroll offset counts up from the newest row, so the opposite sign to
-// navDelta's). ok is false for an action that does not page.
+// pageScroll is how far a paging action moves the view, in rows toward the oldest (the opposite
+// sign to navDelta, since scroll counts up from the newest row). ok is false for non-paging
+// actions.
 func (m Model) pageScroll(act action) (int, bool) {
 	switch act {
 	case actPageUp, actPageDown, actHalfPageUp, actHalfPageDown:
@@ -1947,16 +1919,16 @@ func (m Model) pageScroll(act action) (int, bool) {
 	return 0, false
 }
 
-// jumpToStart goes to the conversation's beginning: the oldest message, then keeps
-// loading history to the real start (gg only goes to the oldest loaded).
+// jumpToStart goes to the oldest message and keeps loading history to the real start (gg only
+// reaches the oldest loaded).
 func (m Model) jumpToStart() (Model, tea.Cmd) {
 	m, selected := m.selectEnd(-1)
 	m, backfill := m.backfillToStart()
 	return m, tea.Batch(selected, backfill)
 }
 
-// handleInsertKey composes a message: text types at the caret, editing keys edit,
-// send posts, cancel returns to the message cursor. Paging still works.
+// handleInsertKey composes a message: text types at the caret, editing keys edit, send posts,
+// cancel returns to the message cursor. Paging still works.
 func (m Model) handleInsertKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	// Swap arrows first so every layer sees "forward" the same way in RTL text. See swapArrows.
 	key = swapArrows(key, m.compose.input, m.editorFor(fieldComposer).at)
@@ -1998,8 +1970,8 @@ func (m Model) handleInsertKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m.insertEditKey(key)
 }
 
-// insertEditKey handles non-command composer keys: completion, row motions, the line
-// editor, then scrolling.
+// insertEditKey handles non-command composer keys: completion, row motions, the line editor,
+// then scrolling.
 func (m Model) insertEditKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	// Completion keys first; they fall through when there is no suggestion.
 	if mdl, cmd, ok := m.assistKey(key); ok {
@@ -2020,8 +1992,8 @@ func (m Model) insertEditKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m.scrollKey(key.String())
 }
 
-// scrollKey applies a bulk-scroll binding only, so text-entry modes can page the
-// timeline without the nav scope claiming keys they need.
+// scrollKey applies only bulk-scroll bindings, so text-entry modes can page the timeline without
+// the nav scope claiming their keys.
 func (m Model) scrollKey(key string) (Model, tea.Cmd) {
 	act := m.keys.lookup(key, scopeNav)
 	if rows, ok := m.pageScroll(act); ok {
@@ -2036,8 +2008,8 @@ func (m Model) scrollKey(key string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleReactKey drives the emoji prompt: a digit picks from the palette and sends,
-// text builds a :shortcode: or emoji, send posts it, cancel closes.
+// handleReactKey drives the emoji prompt: a digit sends a palette pick, text builds a
+// :shortcode: or emoji, send posts it, cancel closes.
 func (m Model) handleReactKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	// A pick key reacts only while nothing is typed, so a :shortcode: can contain a digit.
 	if m.compose.reactInput == "" {
@@ -2081,8 +2053,8 @@ func (m Model) sendReaction(reaction string) (Model, tea.Cmd) {
 	return m, m.sendReactionCmd(msg.RoomID, msg.ID, reaction)
 }
 
-// keepSelectionVisible moves the message cursor into the viewport after the view
-// moved on its own, so the next arrow does not drag the view back.
+// keepSelectionVisible moves the message cursor into the viewport after the view moved on its
+// own, so the next arrow does not drag the view back.
 func (m Model) keepSelectionVisible() Model {
 	rows := m.msgAreaRows()
 	from, to, ok := m.selectionRows()
@@ -2115,8 +2087,8 @@ func (m Model) scrollToStart() (Model, tea.Cmd) {
 	return m.backfillToStart()
 }
 
-// backfillToStart keeps loading history until the start. A thread pages one page at a
-// time: backfilling is the room's mechanism and would pull the room's whole history.
+// backfillToStart keeps loading history to the start. A thread pages one page at a time:
+// backfilling is the room's mechanism and would pull the room's whole history.
 func (m Model) backfillToStart() (Model, tea.Cmd) {
 	if m.atStartHere() {
 		return m, nil
@@ -2127,8 +2099,8 @@ func (m Model) backfillToStart() (Model, tea.Cmd) {
 	return m.loadOlder()
 }
 
-// atStartHere reports whether the shown conversation has no more history: the
-// thread's flag while one is open, the room's otherwise.
+// atStartHere reports whether the shown conversation (thread if open, else room) has no more
+// history.
 func (m Model) atStartHere() bool {
 	if m.thread.open() {
 		return m.thread.atStart
@@ -2136,8 +2108,8 @@ func (m Model) atStartHere() bool {
 	return m.timeline.hist.atStart
 }
 
-// resetSelection returns the timeline to normal mode with the newest message selected.
-// The reply target is the draft's, and goes with it (stashDraft), not with the cursor.
+// resetSelection returns the timeline to normal mode with the newest message selected. The reply
+// target belongs to the draft (stashDraft), not the cursor.
 func (m Model) resetSelection() Model {
 	m.compose = m.compose.left().doneReacting()
 	m.timeline.selected = ""
@@ -2146,8 +2118,8 @@ func (m Model) resetSelection() Model {
 	return m
 }
 
-// selectedIndex is the selected message's position in what the pane shows,
-// defaulting to the newest; -1 for an empty timeline.
+// selectedIndex is the selected message's position in what the pane shows, defaulting to the
+// newest; -1 for an empty timeline.
 func (m Model) selectedIndex() int {
 	return indexIn(m.shownMessages(), m.timeline.selected)
 }
@@ -2184,8 +2156,8 @@ func (m Model) selectedID() domain.EventID {
 	return ""
 }
 
-// moveSelection moves the message cursor by delta (positive = newer), keeping it in
-// view; moving past the oldest loaded message loads more.
+// moveSelection moves the message cursor by delta (positive = newer), keeping it in view; moving
+// past the oldest loaded message loads more.
 func (m Model) moveSelection(delta int) (Model, tea.Cmd) {
 	msgs := m.shownMessages()
 	idx := indexIn(msgs, m.timeline.selected)
@@ -2221,9 +2193,9 @@ var (
 	attachmentMatch = timelineMatch{"attachments", func(msg domain.Message) bool { return msg.Media != nil }}
 )
 
-// jumpMatch moves the selection to the nearest match in dir (dir>0 = newer),
-// wrapping like vim's wrapscan and saying so. With nothing selected the cursor is
-// the newest message, so without the wrap "next" would never find anything.
+// jumpMatch moves to the nearest match in dir (dir>0 = newer), wrapping like vim's wrapscan and
+// saying so. With nothing selected the cursor is the newest message, so "next" relies on the
+// wrap.
 func (m Model) jumpMatch(dir int, match timelineMatch) (Model, tea.Cmd) {
 	msgs := m.shownMessages()
 	start := indexIn(msgs, m.timeline.selected)
@@ -2287,8 +2259,8 @@ func (m Model) selectEnd(dir int) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleSenderSlots adopts the cached colors for the open room; a late answer for
-// another room is dropped.
+// handleSenderSlots adopts the open room's cached colors; a late answer for another room is
+// dropped.
 func (m Model) handleSenderSlots(msg senderSlotsMsg) (Model, tea.Cmd) {
 	m.logErr(slog.LevelDebug, "load sender colors", msg.err, "room", msg.roomID)
 	if msg.err != nil || m.derived == nil || msg.roomID != m.openRoom {
@@ -2298,9 +2270,9 @@ func (m Model) handleSenderSlots(msg senderSlotsMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// flushSenderSlots writes back colors assigned since the last flush. Called at room
-// boundaries (leaving, quitting) rather than every Update, which would make every key
-// return a command. Colors of a room never left are lost on kill and re-derived.
+// flushSenderSlots writes back colors assigned since the last flush, at room boundaries
+// (leaving, quitting) rather than every Update. A never-left room's colors are lost on kill and
+// re-derived.
 func (m Model) flushSenderSlots() tea.Cmd {
 	if m.derived == nil {
 		return nil
@@ -2312,8 +2284,8 @@ func (m Model) flushSenderSlots() tea.Cmd {
 	return m.saveSenderSlotsCmd(roomID, slots)
 }
 
-// setMessages is the only way messages are replaced; it bumps timelineRev, which
-// invalidates the derived cache (TestMessagesAssignedOnlyBySetMessages).
+// setMessages is the only way messages are replaced; it bumps timeline.rev, invalidating the
+// derived cache.
 func (m Model) setMessages(msgs []domain.Message) Model {
 	m.timeline.messages = msgs
 	m.timeline.rev++
@@ -2345,8 +2317,8 @@ func (m Model) scrollToSelection() Model {
 	return m
 }
 
-// scrollBy moves the viewport by delta visual rows (positive = older), clamped to the
-// loaded range; scrolling past the top loads older history.
+// scrollBy moves the viewport by delta visual rows (positive = older), clamped to the loaded
+// range; scrolling past the top loads older history.
 func (m Model) scrollBy(delta int) (Model, tea.Cmd) {
 	target := m.timeline.scroll + delta
 	if target < 0 {
@@ -2368,9 +2340,8 @@ func (m Model) scrollBy(delta int) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// maxScroll is the furthest-back offset that still fills the viewport. Exact when
-// the layout reached the oldest loaded message, otherwise a lower bound no smaller
-// than the current scroll — enough for a clamp.
+// maxScroll is the furthest-back offset that still fills the viewport: exact when the layout
+// reached the oldest loaded message, else a lower bound no smaller than the current scroll.
 func (m Model) maxScroll() int {
 	rows := m.msgAreaRows()
 	// A page of headroom past the current position.
@@ -2378,8 +2349,8 @@ func (m Model) maxScroll() int {
 	return limit
 }
 
-// selectGroup responds to a rail move: open the new group's first room, or clear
-// the timeline for an empty group.
+// selectGroup responds to a rail move: open the group's first room, or clear the timeline for an
+// empty group.
 func (m Model) selectGroup() (Model, tea.Cmd) {
 	// Stash before clearing openRoom: the ID is how the draft's room is known.
 	m = m.stashDraft(m.openRoom)
@@ -2391,8 +2362,8 @@ func (m Model) selectGroup() (Model, tea.Cmd) {
 	return m.selectRoom(fr[0])
 }
 
-// leavingFor settles what must be read before the open room changes: the unread
-// band, the unread-line snapshot, and the outgoing draft.
+// leavingFor settles what must be read before the open room changes: the unread band, the
+// unread-line snapshot, and the outgoing draft.
 func (m Model) leavingFor(room domain.Room) Model {
 	m.timeline.opened.wasUnread = ""
 	if m.unreadView().tallies(room) {
@@ -2414,8 +2385,8 @@ func (m Model) selectRoom(room domain.Room) (Model, tea.Cmd) {
 	m.openRoom = room.ID
 	m = m.emptiedTimeline()
 	m.glyphs.palette = m.glyphs.static // fall back to static until the ranked palette lands
-	// Leaving a room drops the thread-row cursor, unless the move landed on one of the
-	// new room's thread rows.
+	// Leaving a room drops the thread-row cursor unless the move landed on one of the new room's
+	// thread rows.
 	if leaving && m.rows.cursor != "" && !hasThreadCursorIn(m.unread[room.ID], m.rows.cursor) {
 		m.rows.cursor = ""
 	}
@@ -2441,13 +2412,12 @@ func (m Model) selectRoom(room domain.Room) (Model, tea.Cmd) {
 		m, aimed = m.restoreDraft(room.ID)
 		m = m.rebuiltRail()
 	}
-	// Loads are armed, not issued: they fire once the cursor rests (roomLoadDelay), so
-	// scrolling past rooms costs no round trips.
+	// Loads are armed, not issued: they fire once the cursor rests (roomLoadDelay), so scrolling past
+	// rooms costs no round trips.
 	m.loadArmed++
 	cmds := []tea.Cmd{saveColors, focusRead, m.armRoomLoad(room.ID), aimed}
-	// Repaint on a room change: cells the terminal laid out differently than measured
-	// would otherwise survive into the new room. Not on re-selecting the open room,
-	// which happens on every re-sort.
+	// Repaint on a room change so mis-measured cells do not survive; not on re-selecting the open
+	// room, which happens on every re-sort.
 	if leaving {
 		cmds = append(cmds, repaint())
 	}
@@ -2493,9 +2463,8 @@ func (m Model) loadRoomCmd(roomID domain.RoomID) tea.Cmd {
 	return tea.Batch(append(cmds, m.listThreadsCmd())...)
 }
 
-// clearRoom closes the open room, leaving the timeline blank. The status line goes
-// with the room only when there was one: with none open, what it says (a network
-// logged out) is about the account, not a room.
+// clearRoom closes the open room, blanking the timeline. The status line is cleared only if a
+// room was open: otherwise it may be about the account (a network logged out).
 func (m Model) clearRoom() (Model, tea.Cmd) {
 	wasOpen := m.openRoom != ""
 	// The draft goes with the room, wherever the room went.
@@ -2526,8 +2495,8 @@ func (m Model) submit() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	// An edit first: its text is a message someone already received, so a leading slash
-	// is not a command, and emptying it is reported (see submitEdit).
+	// An edit first: its text was already received, so a leading slash is not a command, and
+	// emptying it is reported (see submitEdit).
 	if m.compose.isEditing() {
 		return m.submitEdit(room, body)
 	}
@@ -2538,7 +2507,8 @@ func (m Model) submit() (Model, tea.Cmd) {
 	if handled, mdl, cmd := m.composerCommand(body, room); handled {
 		return mdl, cmd
 	}
-	// [spell] check_before_send may open the walk instead; after commands, so paths are not checked.
+	// [spell] check_before_send may open the walk instead; after commands, so paths are not
+	// checked.
 	if mdl, cmd, held := m.spellGate(); held {
 		return mdl, cmd
 	}
@@ -2571,11 +2541,10 @@ func (m Model) sendComposed(room domain.Room, body string, emote bool) (Model, t
 	return m, tea.Batch(m.sendCmd(room.ID, draft), stop)
 }
 
-// markRead sends a receipt for the newest shown message, deduped by receipts.marked so it
-// can be called on open, on history and per live message; it does not gate on unread
-// counts, which can lag. The room receipt covers the main timeline only (threads keep
-// their own positions); an open thread gets a thread receipt, and a thread with no
-// reply yet gets none.
+// markRead sends a receipt for the newest shown message, deduped by receipts.marked so it can be
+// called on open, on history and per live message; it ignores unread counts, which can lag. The
+// room receipt covers the main timeline only; an open thread gets a thread receipt, and a thread
+// with no reply gets none.
 func (m Model) markRead() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok {
@@ -2598,15 +2567,13 @@ func (m Model) markRead() (Model, tea.Cmd) {
 	return m, m.markReadCmd(room.ID, last, private)
 }
 
-// due reports whether event still needs a receipt: not the one that landed, nor the
-// one in flight.
+// due reports whether event still needs a receipt: neither landed nor in flight.
 func (r receiptState) due(event domain.EventID) bool {
 	return event != "" && event != r.marked && event != r.sending
 }
 
-// handleReceiptSent records a landed receipt, or says why it failed and leaves the
-// event unmarked so the next trigger retries it. A receipt for a room since left
-// changes nothing but is still reported.
+// handleReceiptSent records a landed receipt, or reports a failure and leaves the event unmarked
+// for retry. A receipt for a room since left changes nothing but is still reported.
 func (m Model) handleReceiptSent(msg receiptSentMsg) (Model, tea.Cmd) {
 	room, open := m.currentRoom()
 	current := open && room.ID == msg.roomID && msg.event == m.receipts.sending
@@ -2632,8 +2599,8 @@ func newestIn(msgs []domain.Message, root domain.EventID) domain.EventID {
 	return ""
 }
 
-// loadOlder requests the next-older page unless one is in flight, the start is
-// reached, or no pagination token has arrived yet.
+// loadOlder requests the next-older page unless one is in flight, the start is reached, or no
+// pagination token has arrived.
 func (m Model) loadOlder() (Model, tea.Cmd) {
 	// A thread pages itself rather than pulling the room's history.
 	if m.thread.open() {
@@ -2648,9 +2615,9 @@ func (m Model) loadOlder() (Model, tea.Cmd) {
 	return m, m.loadTimelineCmd(room.ID, m.timeline.hist.token)
 }
 
-// handleRooms applies a room list from cache or refresh, keeping the open room if it
-// still exists; a cold start or vanished room selects the group's first. A refresh
-// error is ignored once a list is shown.
+// handleRooms applies a room list from cache or refresh, keeping the open room if it still
+// exists; a cold start or vanished room selects the group's first. A refresh error is ignored
+// once a list is shown.
 func (m Model) handleRooms(msg roomsMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		if len(m.rooms.joined) == 0 {
@@ -2746,16 +2713,16 @@ func (m Model) handleReactionUpdate(msg reactionUpdateMsg) (Model, tea.Cmd) {
 		}
 	}
 	cmds := []tea.Cmd{m.listenReactionsCmd()}
-	// Our own reaction removed in a bridged room means the bridge refused it; the daemon
-	// has recorded that, so re-read the refusals.
+	// Our own reaction removed in a bridged room means the bridge refused it; the daemon recorded
+	// that, so re-read the refusals.
 	if msg.u.Removed && m.isMe(msg.u.Reaction.Sender) && m.roomProtocol().IsBridged() {
 		cmds = append(cmds, m.refusalsCmd())
 	}
 	return m, tea.Batch(cmds...)
 }
 
-// withReactions is m with reactions added to the open room's index, deduped by event
-// ID. The index is copied once per batch, and each target's list is a new slice.
+// withReactions adds reactions to the open room's index, deduped by event ID. The index is copied
+// once per batch, and each target's list is a new slice.
 func (m Model) withReactions(rs ...domain.Reaction) Model {
 	var index map[domain.EventID][]domain.Reaction
 	for _, r := range rs {
@@ -2806,8 +2773,8 @@ func cappedStatic(configured []string) []string {
 	return s
 }
 
-// spaceRoomsFor is the rooms of a room's own space (first by space_priority) — the
-// middle tier of the emoji ranking.
+// spaceRoomsFor is the rooms of a room's own space (first by space_priority), the middle tier of
+// the emoji ranking.
 func (m Model) spaceRoomsFor(roomID domain.RoomID) []domain.RoomID {
 	names := m.homesOf(roomID)
 	if len(names) == 0 {
@@ -2831,8 +2798,7 @@ func (m Model) spaceRoomsFor(roomID domain.RoomID) []domain.RoomID {
 	return nil
 }
 
-// WithKeys replaces the keymap with one built from config; config issues are reported
-// on the status line and in help, never fatal.
+// WithKeys replaces the keymap with one built from config; issues are reported, never fatal.
 func (m Model) WithKeys(keys config.Keys) Model {
 	m.keys = newKeymap(keys)
 	if n := len(m.keys.issues); n > 0 {
@@ -2849,9 +2815,9 @@ func (m Model) helpKey() string {
 	return "the key bound to keys.help"
 }
 
-// WithConfigFile applies the config read from path at start, and its integrations.
-// Changes are saved by the daemon, the file's one writer, made on the revision read
-// here; without a daemon to keep it, they apply but are not saved.
+// WithConfigFile applies the config read from path at start, and its integrations. Changes are
+// saved by the daemon (the file's one writer) on the revision read here; without a daemon they
+// apply but are not saved.
 func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 	m.conf.path = path
 	m.conf.writer = &configWriter{}
@@ -2868,15 +2834,14 @@ func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 		derived, _ = derive(config.Config{})
 	}
 	next := m.applyIntegrations(cfg, derived)
-	// Script bindings live in [[commands.script]], not [keys], so bind them onto the
-	// existing keymap rather than rebuilding it.
+	// Script bindings live in [[commands.script]], not [keys], so bind them onto the existing keymap.
 	next.keys = next.keys.withScripts(cfg.Commands.Scripts)
 	// The rail is the spaces and the tags; New had no tags to build it from.
 	return next.rebuiltRail()
 }
 
-// handleConfigNews is news of a change: kithd's verdict on one held back, its save,
-// the daemon's re-read.
+// handleConfigNews handles config news: kithd's verdict on a held-back change, its save, or the
+// daemon's re-read.
 func (m Model) handleConfigNews(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case configCheckedMsg:
@@ -2888,9 +2853,8 @@ func (m Model) handleConfigNews(msg tea.Msg) (Model, tea.Cmd) {
 	return m.handleConfigNewsMsg(news)
 }
 
-// handleConfigSaved reports a save the daemon would not make. One made on a file that
-// changed meanwhile is overtaken: the file as it is now is read and run instead. A
-// save that went through needs nothing: the daemon has put it in force.
+// handleConfigSaved reports a save the daemon refused. One made on a file that changed meanwhile
+// is overtaken: the current file is read and applied instead. A successful save needs nothing.
 func (m Model) handleConfigSaved(msg configSavedMsg) (Model, tea.Cmd) {
 	switch {
 	case msg.err == nil:
@@ -2901,9 +2865,8 @@ func (m Model) handleConfigSaved(msg configSavedMsg) (Model, tea.Cmd) {
 	return m.sayErr("setting applied but not saved", msg.err), nil
 }
 
-// configNewsMsg is the configuration as the daemon has it now: changed elsewhere
-// (listened for), or read again after a save it refused as made on an older file
-// (overtaken).
+// configNewsMsg is the configuration as the daemon has it now: changed elsewhere (listened for),
+// or re-read after a save refused as made on an older file (overtaken).
 type configNewsMsg struct {
 	snap      config.Snapshot
 	overtaken bool
@@ -2911,8 +2874,7 @@ type configNewsMsg struct {
 	err       error
 }
 
-// listenConfigCmd waits for the next change to the configuration; nil without a
-// daemon keeping it.
+// listenConfigCmd waits for the next configuration change; nil without a daemon.
 func (m Model) listenConfigCmd() tea.Cmd {
 	store := m.conf.writer.storeOf()
 	if store == nil {
@@ -2923,8 +2885,8 @@ func (m Model) listenConfigCmd() tea.Cmd {
 	})
 }
 
-// readConfigCmd reads the configuration from the daemon; overtaken when a save was
-// refused for being made on an older file.
+// readConfigCmd reads the configuration from the daemon; overtaken marks a save refused for being
+// made on an older file.
 func (m Model) readConfigCmd(overtaken bool) tea.Cmd {
 	store, ctx := m.conf.writer.storeOf(), m.ctx
 	if store == nil {
@@ -2936,8 +2898,8 @@ func (m Model) readConfigCmd(overtaken bool) tea.Cmd {
 	}
 }
 
-// handleConfigNewsMsg runs a configuration changed elsewhere — unless it is the echo
-// of this window's own save — saying which changes of this window it overtook.
+// handleConfigNewsMsg applies a configuration changed elsewhere (unless it echoes this window's
+// own save), reporting which of this window's changes it overtook.
 func (m Model) handleConfigNewsMsg(msg configNewsMsg) (Model, tea.Cmd) {
 	var again tea.Cmd
 	if msg.listened {
@@ -2958,8 +2920,8 @@ func (m Model) handleConfigNewsMsg(msg configNewsMsg) (Model, tea.Cmd) {
 	return next, tea.Batch(cmd, again)
 }
 
-// WithRestart wires in restarting the daemon, for :login to turn a network on; nil
-// when this kith cannot.
+// WithRestart wires in restarting the daemon, for :login enabling a network; nil when
+// unavailable.
 func (m Model) WithRestart(restart func(context.Context) error) Model {
 	m.link.restart = restart
 	return m
@@ -2984,9 +2946,8 @@ func (m Model) WithRules(rules []notify.Rule, on bool) Model {
 	return m
 }
 
-// WithCache gives the model a picture cache; without one it re-renders each time.
-// WithLogger sets where failures are logged; the status line shows them briefly, the
-// log keeps them. nil keeps the silent default.
+// WithLogger sets where failures are logged; the status line shows them briefly, the log keeps
+// them. nil keeps the silent default.
 func (m Model) WithLogger(log *slog.Logger) Model {
 	if log != nil {
 		m.log = log
@@ -2994,6 +2955,7 @@ func (m Model) WithLogger(log *slog.Logger) Model {
 	return m
 }
 
+// WithCache gives the model a picture cache; without one it re-renders each time.
 func (m Model) WithCache(cache *media.Cache) Model {
 	m.pics.cache = cache
 	return m
@@ -3006,20 +2968,19 @@ func (m Model) dropImages() Model {
 	return m
 }
 
-// homesOf is a room's spaces and tags (as tag:<name>), ordered by [display] priority:
-// the first is the one that picks name rules, place rules and a download's folder.
-// Tags are judged as places are (domain.TagSet.Of), as the daemon judges them.
+// homesOf is a room's spaces and tags (as tag:<name>), ordered by [display] priority; the first
+// picks name rules, place rules and a download's folder. Tags are judged as the daemon judges
+// places (domain.TagSet.Of).
 func (m Model) homesOf(roomID domain.RoomID) []string {
 	return domain.Homes(m.rooms.spaceNames(roomID), m.rail.roomFacts[roomID].Tags, m.rail.homes)
 }
 
-// spans reports whether a home holds every room — a tag of everything, as All: the
-// same place as everywhere, so no scope offers it and a rail row of it does not decide
-// a room's name rules.
+// spans reports whether a home holds every room (a tag like All): it equals everywhere, so no
+// scope offers it and its rail row does not decide name rules.
 func (m Model) spans(home string) bool { return m.rail.spanning[strings.ToLower(home)] }
 
-// placeHomes is homesOf without the homes spanning every room, for offering scopes
-// and for the rail row's say in name rules.
+// placeHomes is homesOf without homes spanning every room, for offering scopes and the rail row's
+// say in name rules.
 func (m Model) placeHomes(roomID domain.RoomID) []string {
 	return slices.DeleteFunc(m.homesOf(roomID), m.spans)
 }
@@ -3032,7 +2993,6 @@ func homeEntry(home string) string {
 	return domain.SpaceEntry(home)
 }
 
-// roomByID looks up a joined room by ID.
 func (m Model) roomByID(id domain.RoomID) (domain.Room, bool) { return m.rooms.byID(id) }
 
 // handleImageLoaded records a finished inline-image load (nil rows on failure).
@@ -3071,8 +3031,8 @@ func (m Model) handleReactionSent(msg reactionSentMsg) (Model, tea.Cmd) {
 // maxInlineImages bounds how many inline images load at once.
 const maxInlineImages = 60
 
-// loadInlineImages issues capped, de-duplicated background loads for unloaded images
-// in the shown messages.
+// loadInlineImages issues capped, deduplicated background loads for unloaded images in the shown
+// messages.
 func (m Model) loadInlineImages() (Model, tea.Cmd) {
 	if !m.showsPictures() {
 		return m, nil
@@ -3126,8 +3086,8 @@ func (m Model) imageMaxHeight() int {
 	return min(max(m.msgAreaRows()/2, minImageCells), maxAutoImageRows)
 }
 
-// handleCachedTimeline merges cached messages for the open room; the pagination
-// token is left to the live fetch.
+// handleCachedTimeline merges cached messages for the open room; the pagination token is left to
+// the live fetch.
 func (m Model) handleCachedTimeline(msg cachedTimelineMsg) (Model, tea.Cmd) {
 	m.logErr(slog.LevelWarn, "load cached timeline", msg.err)
 	if msg.err != nil {
@@ -3144,8 +3104,8 @@ func (m Model) handleCachedTimeline(msg cachedTimelineMsg) (Model, tea.Cmd) {
 	return m, tea.Batch(jump, opening, naming)
 }
 
-// handleTimeline merges a fetched page for the open room (by timestamp, deduped),
-// updates pagination and continues a backfill.
+// handleTimeline merges a fetched page for the open room (by timestamp, deduped), updates
+// pagination and continues a backfill.
 func (m Model) handleTimeline(msg timelineMsg) (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok || msg.roomID != room.ID {
@@ -3230,9 +3190,8 @@ func (m Model) handleVerifyStarted(msg verifyStartedMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleVerifyFailed clears waiting after an accept/confirm failed to reach the
-// daemon, handing the keyboard back. The overlay stays: the request is still open on
-// the other device.
+// handleVerifyFailed clears waiting after an accept/confirm failed to reach the daemon. The
+// overlay stays: the request is still open on the other device.
 func (m Model) handleVerifyFailed(msg verifyFailedMsg) (Model, tea.Cmd) {
 	m.verify.waiting = false
 	return m.sayErr("verification failed", msg.err), nil
@@ -3291,9 +3250,8 @@ func (m Model) handleIncoming(msg incomingMsg) (Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// handleSent reports a failed send; on success it marks the conversation read —
-// replying implies reading, and while composing the focus-gated mark in handleIncoming
-// does not fire. markRead targets the open thread when there is one.
+// handleSent reports a failed send; on success it marks the conversation read (replying implies
+// reading, and while composing the focus-gated mark in handleIncoming does not fire).
 func (m Model) handleSent(msg sentMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		// Logged here: the status line may only say "queued, retrying".
@@ -3304,9 +3262,8 @@ func (m Model) handleSent(msg sentMsg) (Model, tea.Cmd) {
 	return m.markRead()
 }
 
-// queueUnsent hands a message the homeserver refused to the daemon's send queue (the
-// `/at` queue, due now), so it is retried even after this client exits. Past
-// schedule_cutoff it stops retrying. See daemon.Scheduler.
+// queueUnsent hands a refused message to the daemon's send queue (the `/at` queue, due now), so
+// it is retried even after this client exits, until schedule_cutoff. See daemon.Scheduler.
 func (m Model) queueUnsent(msg sentMsg) (Model, tea.Cmd) {
 	// Edits and empty drafts are not queued: a late replacement is worse than a failed one.
 	if msg.draft.Edits != "" || strings.TrimSpace(msg.draft.Body) == "" {
@@ -3327,8 +3284,8 @@ func (m Model) queueUnsent(msg sentMsg) (Model, tea.Cmd) {
 	})
 }
 
-// handleQueuedUnsent reports a failed send as queued, or — with no queue — puts the
-// words back as the room's draft.
+// handleQueuedUnsent reports a failed send as queued, or with no queue puts the words back as the
+// room's draft.
 func (m Model) handleQueuedUnsent(msg queuedUnsentMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		return m.say("send failed — queued, retrying"), nil
@@ -3339,8 +3296,8 @@ func (m Model) handleQueuedUnsent(msg queuedUnsentMsg) (Model, tea.Cmd) {
 		m.namedRoom(msg.roomID) + "'s draft"), nil
 }
 
-// putBackDraft returns an unsendable message to its room's draft, prepended to what
-// is there now and separated by a blank line.
+// putBackDraft returns an unsendable message to its room's draft, prepended and separated by a
+// blank line.
 func (m Model) putBackDraft(roomID domain.RoomID, unsent domain.Draft) Model {
 	if roomID == m.openRoom {
 		ed := m.editorFor(fieldComposer)
@@ -3381,8 +3338,8 @@ func (m Model) namedRoom(id domain.RoomID) string {
 	return string(id)
 }
 
-// filteredRooms returns the selected group's rooms in its configured order. The
-// Unread group also keeps the open room listed until you move off it.
+// filteredRooms returns the selected group's rooms in configured order; the Unread group also
+// keeps the open room listed until you move off it.
 func (m Model) filteredRooms() []domain.Room {
 	g, ok := m.rail.at()
 	if !ok {
@@ -3436,9 +3393,8 @@ func historyStatus(count int, atStart bool) string {
 	return fmt.Sprintf("%d message(s) · [pgup] older", count)
 }
 
-// handleSyncEnded records that the streams closed for good (Start returned). Unary
-// calls still work, so without the badge the client would look healthy with nothing
-// live arriving; the badge asks for a restart.
+// handleSyncEnded records that the streams closed for good (Start returned). Unary calls still
+// work, so the badge asks for a restart rather than the client looking healthy with nothing live.
 func (m Model) handleSyncEnded(msg syncEndedMsg) (Model, tea.Cmd) {
 	m.link.detached, m.link.ended = true, true
 	m.logErr(slog.LevelError, "sync stopped", msg.err)
@@ -3452,8 +3408,7 @@ func syncStatus(err error) string {
 	return "sync stopped"
 }
 
-// answered spreads a (Model, tea.Cmd) pair into the routers' three-value form:
-// `return answered(m.doSomething())`.
+// answered spreads a (Model, tea.Cmd) pair into the routers' three-value form.
 func answered(mdl Model, cmd tea.Cmd) (Model, tea.Cmd, bool) {
 	return mdl, cmd, true
 }

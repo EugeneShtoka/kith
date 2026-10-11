@@ -1,7 +1,6 @@
 package tui
 
-// The read-and-dismiss overlays: full-frame, one question, closed by any key.
-// (Not overlayTarget, which is what an open prompt is aimed at.)
+// Read-and-dismiss overlays: full-frame, closed by any key. (Unrelated to overlayTarget.)
 
 // reader names which overlay is up.
 type reader uint8
@@ -17,9 +16,8 @@ const (
 	readerScript         // a script's output with `output = "pager"`
 )
 
-// readerState is the overlay up and its first visible row. The help overlay can be
-// narrowed: filter is the text its rows must contain, and filtering that it is being
-// typed (keys are text then, see fieldHelpFilter).
+// readerState is the overlay up and its first visible row. filter narrows the help overlay;
+// filtering means it is being typed (see fieldHelpFilter).
 type readerState struct {
 	kind      reader
 	scroll    int
@@ -27,7 +25,6 @@ type readerState struct {
 	filtering bool
 }
 
-// up reports whether an overlay has the frame.
 func (r readerState) up() bool { return r.kind != readerNone }
 
 // boxed reports whether readerBox draws this overlay (title, body, footer).
@@ -41,15 +38,12 @@ func (r readerState) boxed() bool {
 	return false
 }
 
-// showing reports whether this particular overlay is the one up.
 func (r readerState) showing(kind reader) bool { return r.kind == kind }
 
-// opening puts one up, scrolled to the top.
 func (r readerState) opening(kind reader) readerState {
 	return readerState{kind: kind, scroll: 0}
 }
 
-// closed dismisses whatever is up.
 func (r readerState) closed() readerState { return readerState{} }
 
 // scrolledTo moves the offset, clamped to [0, limit]; limit is the largest first row

@@ -6,7 +6,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// promptKind is what an open one-line prompt is asking for.
 type promptKind int
 
 // The prompts. promptNone means none is open.
@@ -41,21 +40,19 @@ const (
 	promptLogin       // a :login field; its label and help are the field's (login.go)
 )
 
-// promptState is the open prompt and what has been typed into it.
 type promptState struct {
 	kind  promptKind
 	input string
-	// fresh marks a prefilled value not yet touched: drawn selected, it is replaced by
-	// the first text typed and cleared by the first deletion; a caret motion keeps it.
+	// fresh marks an untouched prefilled value: drawn selected, replaced by the first typed text
+	// and cleared by the first deletion; caret motion keeps it.
 	fresh bool
 }
 
-// active reports whether a prompt is open and holding the keyboard.
 func (p promptState) active() bool { return p.kind != promptNone }
 
 // label is the prompt's leading text.
 //
-//nolint:funlen // one case per enum value, kept whole so `exhaustive` checks it
+//nolint:funlen // one case per enum value, kept whole for `exhaustive`
 func (p promptState) label() string {
 	switch p.kind {
 	case promptCommand:
@@ -116,7 +113,6 @@ func (p promptState) label() string {
 	return ""
 }
 
-// openPrompt opens an empty prompt of the given kind.
 func (m Model) openPrompt(kind promptKind) Model {
 	return m.openPromptWith(kind, "")
 }
@@ -128,16 +124,15 @@ func (m Model) openPromptWith(kind promptKind, text string) Model {
 	return m
 }
 
-// closePrompt closes whatever prompt is open.
 func (m Model) closePrompt() Model {
 	m.prompt = promptState{}
 	return m
 }
 
-// handlePromptKey drives an open prompt. Text keys type before any binding is
-// consulted, so no keymap can make a character unreachable.
+// handlePromptKey drives an open prompt. Text keys type before any binding is consulted, so
+// no keymap can make a character unreachable.
 func (m Model) handlePromptKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
-	// The popup is asked first, only while open, so enter still submits otherwise.
+	// The popup gets keys only while open, so enter still submits otherwise.
 	if m.completion.active {
 		if mdl, cmd, handled := m.handleCompletionKey(key); handled {
 			return mdl, cmd
@@ -248,8 +243,7 @@ func (m Model) submitPrompt() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// submitSettingPrompt is a value typed on a settings row: a setting's, or an entry of
-// a list setting.
+// submitSettingPrompt handles a value typed on a settings row (a setting or a list entry).
 func (m Model) submitSettingPrompt(kind promptKind, input string) (Model, tea.Cmd) {
 	if kind == promptSettingEntry {
 		return m.submitSettingEntry(input)
@@ -257,8 +251,8 @@ func (m Model) submitSettingPrompt(kind promptKind, input string) (Model, tea.Cm
 	return m.submitSetting(input)
 }
 
-// submitEditorPrompt is a value typed in the tag editor (a tag's name, or an entry of
-// one of its lists) or on a phonebook card (a field's value, or a new field's name).
+// submitEditorPrompt handles a value typed in the tag editor (name or list entry) or on a
+// phonebook card (field value or new field name).
 func (m Model) submitEditorPrompt(kind promptKind, input string) (Model, tea.Cmd) {
 	switch kind {
 	case promptTagEntry:
@@ -272,8 +266,7 @@ func (m Model) submitEditorPrompt(kind promptKind, input string) (Model, tea.Cmd
 	}
 }
 
-// cancelFormPrompt abandons a prompt that is one step of a form: a sign-in's field, or
-// a phonebook card's, which goes back to the card.
+// cancelFormPrompt abandons a form step: a sign-in field, or a card field (back to the card).
 func (m Model) cancelFormPrompt(kind promptKind) Model {
 	if kind == promptLogin {
 		return m.cancelLogin()
@@ -281,7 +274,7 @@ func (m Model) cancelFormPrompt(kind promptKind) Model {
 	return m.cancelPerson()
 }
 
-// cancelPrompt abandons the prompt, undoing whatever it had started to show.
+// cancelPrompt abandons the prompt, undoing what it had started to show.
 func (m Model) cancelPrompt() (Model, tea.Cmd) {
 	kind := m.prompt.kind
 	m = m.closePrompt()

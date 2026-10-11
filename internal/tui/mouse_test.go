@@ -6,9 +6,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// The wheel over the timeline scrolls it, and the message cursor comes with it — the
-// same rule paging follows, for the same reason: a cursor left behind drags the view
-// back to itself on the next arrow, so the scroll undoes itself one keypress later.
+// The wheel scrolls the timeline and drags the cursor along, as paging does: a cursor left
+// behind would pull the view back on the next arrow.
 func TestWheelScrollsTheTimeline(t *testing.T) {
 	m := benchTimelineModel(400)
 	m.focus, m.compose.insertMode = paneTimeline, false
@@ -36,8 +35,7 @@ func TestWheelScrollsTheTimeline(t *testing.T) {
 	}
 }
 
-// A click is inert on purpose: two ways of saying where you are disagree the moment you
-// touch either one, so the pointer never moves the cursor.
+// Clicks are inert so the pointer never disagrees with the keyboard cursor.
 func TestClickDoesNothing(t *testing.T) {
 	m := benchTimelineModel(400)
 	m.focus = paneTimeline
@@ -54,8 +52,7 @@ func TestClickDoesNothing(t *testing.T) {
 	}
 }
 
-// Which pane a column belongs to is the whole hit test, and the two boundaries are
-// where an off-by-one would send the wheel to the wrong pane.
+// The pane boundaries are where an off-by-one would misroute the wheel.
 func TestPaneAtColumns(t *testing.T) {
 	m := benchTimelineModel(1)
 	for _, tc := range []struct {

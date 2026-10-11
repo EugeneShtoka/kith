@@ -11,9 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// WhatsApp writes a mention as "@" and a number. It is drawn as "@" and the name the
-// person is known by: their number until a name is known, and the member list's name
-// once it arrives, which may be after the row was first drawn.
+// A WhatsApp "@<number>" mention is drawn with the person's known name: the number until a
+// name is known, then the member list's name, even if that arrives after the first draw.
 func TestANumberMentionIsDrawnWithTheName(t *testing.T) {
 	t.Parallel()
 	const eli = "whatsapp:1500000005@s.whatsapp.net"
@@ -35,10 +34,8 @@ func TestANumberMentionIsDrawnWithTheName(t *testing.T) {
 	}
 }
 
-// Every mention of a person is drawn with who they are to this person now, not the
-// words it was sent with: a Telegram mention by the person's alias for them, a Matrix
-// one by the member's name now; and where the room's space keeps first names only,
-// a mention is a first name too, as the sender column is.
+// A mention is drawn with the name known now, not as sent: a Telegram mention by the alias, a
+// Matrix one by the member's current name, a first name where the space keeps first names.
 func TestEveryMentionIsDrawnWithTheNameKnownNow(t *testing.T) {
 	t.Parallel()
 	m := withRooms(t, newModel())
@@ -70,8 +67,7 @@ func TestEveryMentionIsDrawnWithTheNameKnownNow(t *testing.T) {
 	}
 }
 
-// A search result names its sender and the people its excerpt mentions as the
-// timeline would: the person's alias, the name the room knows them by now.
+// A search result names its sender and mentioned people as the timeline would.
 func TestASearchResultNamesPeopleAsTheTimelineDoes(t *testing.T) {
 	t.Parallel()
 	m := withRooms(t, newModel())
@@ -87,8 +83,8 @@ func TestASearchResultNamesPeopleAsTheTimelineDoes(t *testing.T) {
 	}
 }
 
-// A message read from the cache carries the name the room knows a mentioned person by
-// now (Mention.Known); the timeline draws it even before the member list is loaded.
+// A cached message carries a mentioned person's current name (Mention.Known), drawn even
+// before the member list loads.
 func TestAMentionIsDrawnWithTheNameTheCacheKnowsNow(t *testing.T) {
 	t.Parallel()
 	m := withRooms(t, newModel())
