@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -293,11 +294,11 @@ func TestFilingSpacesLeavesUnlistedSpacesAlone(t *testing.T) {
 	}
 }
 
-// spaceRows is the filing picker's space rows, without its tag rows and New tag.
+// spaceRows is the filing picker's space rows, without its tag rows and the New rows.
 func spaceRows(items []pickerItem) []pickerItem {
 	var out []pickerItem
 	for _, item := range items {
-		if !isTagGroup(item.value) && item.value != tagNew {
+		if !isTagGroup(item.value) && item.value != tagNew && item.value != spaceNew {
 			out = append(out, item)
 		}
 	}
@@ -319,5 +320,82 @@ func TestTheFilingListFollowsThePriority(t *testing.T) {
 	want := []string{"tag:Pinned", "Friends", "Work", "tag:Archived"}
 	if len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
 		t.Errorf("rows = %v, want %v first: priority, then the rail", got, want)
+	}
+}
+
+// spaceMaker files rooms and makes spaces, recording both.
+type spaceMaker struct {
+	filer
+	made   domain.NewRoom
+	addErr error
+}
+
+func (s *spaceMaker) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.RoomID, error) {
+	s.made = spec
+	return "!svc:x", nil
+}
+
+func (s *spaceMaker) AddToSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
+	if s.addErr != nil {
+		return s.addErr
+	}
+	return s.filer.AddToSpace(ctx, spaceID, roomID)
+}
+
+// makingSpaces is a model on a Matrix room and a room of kith's own WhatsApp.
+func makingSpaces(t *testing.T, addErr error) (Model, *spaceMaker) {
+	t.Helper()
+	s := &spaceMaker{addErr: addErr}
+	m := update(t, starterNew(s, config.Display{}), roomsMsg{rooms: []domain.Room{
+		{ID: "!a:x", Name: "Alpha"},
+		{ID: "whatsapp:1/g@g.us", Name: "Family"},
+	}})
+	m = update(t, m, spacesMsg{spaces: []domain.Space{{ID: "!w:x", Name: "Work"}}})
+	m = sized(t, m.clearStatus())
+	m.focus = paneRooms
+	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
+	return m, s
+}
+
+// On a Matrix room, S offers New space: it asks the name, makes a space (not nested,
+// unencrypted as every space) and files the room into it. A room of another network's
+// own adapter cannot be in a Matrix space and is not offered one.
+func TestTheSpacePickerMakesASpaceForAMatrixRoom(t *testing.T) {
+	t.Parallel()
+	m, s := makingSpaces(t, nil)
+	m, _ = m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	m, _ = press(t, m, keyText("S"))
+	m = pickLabel(t, m, "New space")
+	if !m.prompt.active() || m.prompt.kind != promptNewRoom {
+		t.Fatalf("New space opened prompt %v", m.prompt.kind)
+	}
+	m = typeIn(t, m, "Services")
+	if !s.made.Space || s.made.Name != "Services" || s.made.Parent != "" {
+		t.Errorf("made %+v, want a space named Services", s.made)
+	}
+	if !s.added || s.addedTo != "!svc:x" || s.room != "!a:x" {
+		t.Errorf("filed %v %q into %q, want Alpha into the new space", s.added, s.room, s.addedTo)
+	}
+	if !strings.Contains(m.status(), "Services created") {
+		t.Errorf("status = %q", m.status())
+	}
+
+	m, _ = m.selectRoom(domain.Room{ID: "whatsapp:1/g@g.us", Name: "Family"})
+	m, _ = press(t, m, keyText("S"))
+	if slices.ContainsFunc(m.picker.all, func(i pickerItem) bool { return i.value == spaceNew }) {
+		t.Error("a WhatsApp room of kith's own was offered a Matrix space")
+	}
+}
+
+// A space made but not given the room says both halves.
+func TestANewSpaceThatCannotTakeTheRoomSaysSo(t *testing.T) {
+	t.Parallel()
+	m, _ := makingSpaces(t, errors.New("forbidden"))
+	m, _ = m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	m, _ = press(t, m, keyText("S"))
+	m = pickLabel(t, m, "New space")
+	m = typeIn(t, m, "Services")
+	if got := m.status(); !strings.Contains(got, "was created") || !strings.Contains(got, "forbidden") {
+		t.Errorf("status = %q, want the space made and the filing refused", got)
 	}
 }
