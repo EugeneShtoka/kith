@@ -109,10 +109,10 @@ func runDaemon(t *testing.T, path string, b api.Backend) *daemonRun {
 	}
 	go func() { defer close(run.pumped); streams.Run(ctx, b) }()
 	go func() {
-		run.served <- daemon.Serve(ctx, ln, &daemon.Daemon{
+		run.served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{
 			Backend: b, Streams: streams, State: daemon.NewState(),
 			Notifications: notifications, Reload: (&reloadStub{}).fn,
-		})
+		}))
 	}()
 	t.Cleanup(func() { run.stop(t) })
 	return run

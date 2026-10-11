@@ -29,7 +29,7 @@ var errNoGroupings = errors.New("daemon: this daemon copies no groupings")
 // config places them.
 func (s *server) groupingsNow(ctx context.Context, network, account string) (domain.RoomOwner, []domain.Grouping, config.Snapshot, []domain.RoomFacts, error) {
 	src, ok := s.Backend.(groupingSource)
-	if !ok || s.Config == nil {
+	if !ok {
 		return "", nil, config.Snapshot{}, nil, errNoGroupings
 	}
 	protocol, ok := domain.ProtocolNamed(network)

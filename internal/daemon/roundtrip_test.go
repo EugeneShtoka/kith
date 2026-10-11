@@ -107,6 +107,7 @@ func serve(t *testing.T, b api.Backend, with ...func(*daemon.Daemon)) *harness {
 	for _, f := range with {
 		f(d)
 	}
+	complete(t, d)
 	go func() { served <- daemon.Serve(ctx, ln, d) }()
 	t.Cleanup(func() {
 		cancel()

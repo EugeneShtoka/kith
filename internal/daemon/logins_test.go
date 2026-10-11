@@ -64,10 +64,10 @@ func serveLogins(t *testing.T, leaders ...api.LoginLeader) *daemon.Remote {
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
 	go func() {
-		served <- daemon.Serve(ctx, ln, &daemon.Daemon{
+		served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{
 			Backend: apitest.Nop{}, Streams: daemon.NewStreams(), State: daemon.NewState(),
 			Logins: daemon.NewLogins(ctx, func() []api.LoginLeader { return leaders }),
-		})
+		}))
 	}()
 	t.Cleanup(func() {
 		cancel()

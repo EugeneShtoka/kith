@@ -42,7 +42,7 @@ func serveIdentity(t *testing.T, b selvesBackend, state *daemon.State) *daemon.R
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
 	go func() {
-		served <- daemon.Serve(ctx, ln, &daemon.Daemon{Backend: b, Streams: daemon.NewStreams(), State: state})
+		served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{Backend: b, Streams: daemon.NewStreams(), State: state}))
 	}()
 	t.Cleanup(func() {
 		cancel()

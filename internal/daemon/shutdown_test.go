@@ -42,9 +42,9 @@ func TestShutdownFreesAStreamWhoseClientStoppedReading(t *testing.T) {
 	const timeout = 10 * time.Second // the daemon's shutdownTimeout
 	served := make(chan error, 1)
 	go func() {
-		served <- daemon.Serve(ctx, ln, &daemon.Daemon{
+		served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{
 			Backend: backend, Streams: streams, State: daemon.NewState(),
-		})
+		}))
 	}()
 
 	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", filepath.Join(dir, "s"))
@@ -147,9 +147,9 @@ func TestAFailedListenerStillDrainsTheHandlers(t *testing.T) {
 
 	served := make(chan error, 1)
 	go func() {
-		served <- daemon.Serve(context.Background(), ln, &daemon.Daemon{
+		served <- daemon.Serve(context.Background(), ln, complete(t, &daemon.Daemon{
 			Backend: backend, Streams: streams, State: daemon.NewState(),
-		})
+		}))
 	}()
 	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", filepath.Join(dir, "s"))
 	if err != nil {
@@ -209,9 +209,9 @@ func TestAFailedListenerEndsLifetimeHandlers(t *testing.T) {
 	backend := &lifetimeBackend{fakeBackend: fakeBackend{Nop: nopWithChannels()}, started: make(chan struct{})}
 	served := make(chan error, 1)
 	go func() {
-		served <- daemon.Serve(context.Background(), ln, &daemon.Daemon{
+		served <- daemon.Serve(context.Background(), ln, complete(t, &daemon.Daemon{
 			Backend: backend, Streams: daemon.NewStreams(), State: daemon.NewState(),
-		})
+		}))
 	}()
 	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", filepath.Join(dir, "s"))
 	if err != nil {

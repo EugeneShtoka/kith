@@ -12,8 +12,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/daemon"
 )
 
-// A config reaches the daemon's check whole and the refusal comes back in its words;
-// a daemon with no check refuses the call.
+// A config reaches the daemon's check whole and the refusal comes back in its words.
 func TestCheckConfigRoundTrip(t *testing.T) {
 	t.Parallel()
 	var got config.Config
@@ -42,9 +41,6 @@ func TestCheckConfigRoundTrip(t *testing.T) {
 		t.Errorf("CheckConfig = %v, want the check's refusal", err)
 	}
 
-	if err := serveCheck(t, nil).CheckConfig(context.Background(), sent); err == nil {
-		t.Error("a daemon with no check passed a config")
-	}
 }
 
 // serveCheck serves a daemon with check and returns a client.
@@ -58,10 +54,10 @@ func serveCheck(t *testing.T, check daemon.CheckConfig) *daemon.Remote {
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
 	go func() {
-		served <- daemon.Serve(ctx, ln, &daemon.Daemon{
+		served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{
 			Backend: &fakeBackend{Nop: nopWithChannels()}, Streams: daemon.NewStreams(), State: daemon.NewState(),
 			CheckConfig: check,
-		})
+		}))
 	}()
 	t.Cleanup(func() {
 		cancel()
