@@ -607,6 +607,8 @@ type Model struct {
 	prefs prefsState
 	// offers is the one-time download offers. See oneTimeOffers.
 	offers oneTimeOffers
+	// rescanSince is how far back the open rescan judged, for applying it.
+	rescanSince time.Time
 	// spell is the composer's spelling state. See spell.go.
 	spell spellState
 	// assist is the word completion in progress. See assist.go.
@@ -1094,6 +1096,8 @@ func (m Model) handleAssistMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDraftSaved(msg))
 	case spamLoadedMsg:
 		return answered(m.handleSpamLoaded(msg))
+	case rescannedMsg:
+		return answered(m.handleRescanned(msg))
 	case spamReleasedMsg:
 		return answered(m.handleSpamReleased(msg))
 	case draftsLoadedMsg:

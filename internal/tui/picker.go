@@ -82,7 +82,8 @@ const (
 	pickerImportAccount // :import's accounts, folders and choices; see imports.go
 	pickerImportFolders
 	pickerImportChoice
-	pickerCards // :people, every card in the phonebook; see cards.go
+	pickerCards      // :people, every card in the phonebook; see cards.go
+	pickerSpamRescan // rooms a rescan would move into Spam; see rescan.go
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -137,6 +138,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerImportFolders:   {}, // titled with the account
 	pickerImportChoice:    {}, // titled with the folder
 	pickerCards:           {title: "People in the phonebook"},
+	pickerSpamRescan:      {modal: true, multi: true}, // titled with the count
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text
@@ -470,6 +472,8 @@ func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
 		return m.acceptFrequencyOffer(values)
 	case pickerCompletionModel:
 		return m.acceptModelOffer(values)
+	case pickerSpamRescan:
+		return m.applyRescan(values)
 	default:
 		return m.closePicker(), nil
 	}

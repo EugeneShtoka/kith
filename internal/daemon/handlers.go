@@ -735,6 +735,19 @@ func (s *server) DND(_ context.Context, _ *req[v1.DNDRequest]) (*resp[v1.DNDResp
 	return connect.NewResponse(&v1.DNDResponse{Rules: pc.TempRulesToProto(s.Notifications.DND())}), nil
 }
 
+func (s *server) RescanSpam(ctx context.Context, r *req[v1.RescanSpamRequest]) (*resp[v1.RescanSpamResponse], error) {
+	var since time.Time
+	if ms := r.Msg.GetSinceUnixMs(); ms > 0 {
+		since = time.UnixMilli(ms)
+	}
+	rooms := make([]domain.RoomID, 0, len(r.Msg.GetRoomIds()))
+	for _, id := range r.Msg.GetRoomIds() {
+		rooms = append(rooms, domain.RoomID(id))
+	}
+	found, err := s.Notifications.RescanSpam(ctx, since, r.Msg.GetApply(), rooms)
+	return reply(&v1.RescanSpamResponse{Rooms: pc.CandidatesToProto(found)}, err)
+}
+
 // ReloadConfig reports an unparsable config as InvalidArgument: it is the caller's input.
 func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest]) (*resp[v1.ReloadConfigResponse], error) {
 	if err := s.Reload(ctx); err != nil {

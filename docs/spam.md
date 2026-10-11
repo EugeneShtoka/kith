@@ -120,6 +120,19 @@ A room with an exemption in `except`, or one you released on any of your machine
 
 The two exemptions differ in reach. `[spam] except` belongs to one machine and outranks everything there, including `[spam] rooms`. A release in account data belongs to the account and outranks every rule, but a room that this machine's `[spam] rooms` names (for example through `protocol:`) stays in Spam on this machine.
 
+## Rescanning what is already cached
+
+The rules run as messages arrive, so a filter you add today does not look at yesterday. `:rescan` judges the messages already in the local cache, as if each had just arrived, and lists the rooms that would move, with the filter and the message that moves each:
+
+```text
+:rescan          everything cached
+:rescan 30d      only messages from the last 30 days (also 12h, 1h30m)
+```
+
+Every room starts ticked. Untick the ones to leave alone with `space`, and `enter` moves the rest. Nothing moves before that. The moves are verdicts like any rule's, stored in the room's account data, so `/why` explains them and your other machines see them.
+
+A rescan uses the `always`, `direct` and `ratio` moves. It never uses `first_message`, because the cache may not reach back to a room's first message, and an old room whose oldest cached message happens to be caught is not a new room. It skips the rooms `except` names, the rooms you released, the rooms already in Spam, and your own messages. Like the live rules, it judges only what is cached.
+
 ## Why is this room in Spam?
 
 In a caught room, `W` (or `/why`) starts with the reason and the filter:

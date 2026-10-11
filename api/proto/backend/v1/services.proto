@@ -101,6 +101,25 @@ message SpamRoomsResponse {
   repeated SpamVerdict rooms = 1;
 }
 
+// SpamCandidate is a room a rescan would move into Spam, and the message that moves it.
+message SpamCandidate {
+  SpamVerdict verdict = 1;
+  Message sample = 2;
+}
+
+message RescanSpamRequest {
+  // since_unix_ms is the oldest message judged; 0 is everything cached.
+  int64 since_unix_ms = 1;
+  // apply moves the rooms; otherwise nothing changes.
+  bool apply = 2;
+  // room_ids limits apply to these rooms; empty is every candidate.
+  repeated string room_ids = 3;
+}
+
+message RescanSpamResponse {
+  repeated SpamCandidate rooms = 1;
+}
+
 message MarkSpamRequest {
   SpamVerdict verdict = 1;
 }
@@ -1568,6 +1587,9 @@ service BackendService {
   rpc ClearDND(ClearDNDRequest) returns (ClearDNDResponse);
   // DND reports the temporary rules in force.
   rpc DND(DNDRequest) returns (DNDResponse);
+  // RescanSpam judges cached messages by the spam filters as if they arrived now, and
+  // lists the rooms that would move into Spam; with apply it moves them.
+  rpc RescanSpam(RescanSpamRequest) returns (RescanSpamResponse);
   // ReloadConfig re-reads the configuration file the daemon was started with, and
   // returns the parse error if it will not load — leaving the running configuration
   // untouched.

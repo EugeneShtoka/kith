@@ -306,6 +306,9 @@ const (
 	BackendServiceClearDNDProcedure = "/backend.v1.BackendService/ClearDND"
 	// BackendServiceDNDProcedure is the fully-qualified name of the BackendService's DND RPC.
 	BackendServiceDNDProcedure = "/backend.v1.BackendService/DND"
+	// BackendServiceRescanSpamProcedure is the fully-qualified name of the BackendService's RescanSpam
+	// RPC.
+	BackendServiceRescanSpamProcedure = "/backend.v1.BackendService/RescanSpam"
 	// BackendServiceReloadConfigProcedure is the fully-qualified name of the BackendService's
 	// ReloadConfig RPC.
 	BackendServiceReloadConfigProcedure = "/backend.v1.BackendService/ReloadConfig"
@@ -592,6 +595,9 @@ type BackendServiceClient interface {
 	ClearDND(context.Context, *connect.Request[v1.ClearDNDRequest]) (*connect.Response[v1.ClearDNDResponse], error)
 	// DND reports the temporary rules in force.
 	DND(context.Context, *connect.Request[v1.DNDRequest]) (*connect.Response[v1.DNDResponse], error)
+	// RescanSpam judges cached messages by the spam filters as if they arrived now, and
+	// lists the rooms that would move into Spam; with apply it moves them.
+	RescanSpam(context.Context, *connect.Request[v1.RescanSpamRequest]) (*connect.Response[v1.RescanSpamResponse], error)
 	// ReloadConfig re-reads the configuration file the daemon was started with, and
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
@@ -1228,6 +1234,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("DND")),
 			connect.WithClientOptions(opts...),
 		),
+		rescanSpam: connect.NewClient[v1.RescanSpamRequest, v1.RescanSpamResponse](
+			httpClient,
+			baseURL+BackendServiceRescanSpamProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RescanSpam")),
+			connect.WithClientOptions(opts...),
+		),
 		reloadConfig: connect.NewClient[v1.ReloadConfigRequest, v1.ReloadConfigResponse](
 			httpClient,
 			baseURL+BackendServiceReloadConfigProcedure,
@@ -1392,6 +1404,7 @@ type backendServiceClient struct {
 	setDND                *connect.Client[v1.SetDNDRequest, v1.SetDNDResponse]
 	clearDND              *connect.Client[v1.ClearDNDRequest, v1.ClearDNDResponse]
 	dND                   *connect.Client[v1.DNDRequest, v1.DNDResponse]
+	rescanSpam            *connect.Client[v1.RescanSpamRequest, v1.RescanSpamResponse]
 	reloadConfig          *connect.Client[v1.ReloadConfigRequest, v1.ReloadConfigResponse]
 	checkConfig           *connect.Client[v1.CheckConfigRequest, v1.CheckConfigResponse]
 	getConfig             *connect.Client[v1.GetConfigRequest, v1.GetConfigResponse]
@@ -1899,6 +1912,11 @@ func (c *backendServiceClient) DND(ctx context.Context, req *connect.Request[v1.
 	return c.dND.CallUnary(ctx, req)
 }
 
+// RescanSpam calls backend.v1.BackendService.RescanSpam.
+func (c *backendServiceClient) RescanSpam(ctx context.Context, req *connect.Request[v1.RescanSpamRequest]) (*connect.Response[v1.RescanSpamResponse], error) {
+	return c.rescanSpam.CallUnary(ctx, req)
+}
+
 // ReloadConfig calls backend.v1.BackendService.ReloadConfig.
 func (c *backendServiceClient) ReloadConfig(ctx context.Context, req *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error) {
 	return c.reloadConfig.CallUnary(ctx, req)
@@ -2204,6 +2222,9 @@ type BackendServiceHandler interface {
 	ClearDND(context.Context, *connect.Request[v1.ClearDNDRequest]) (*connect.Response[v1.ClearDNDResponse], error)
 	// DND reports the temporary rules in force.
 	DND(context.Context, *connect.Request[v1.DNDRequest]) (*connect.Response[v1.DNDResponse], error)
+	// RescanSpam judges cached messages by the spam filters as if they arrived now, and
+	// lists the rooms that would move into Spam; with apply it moves them.
+	RescanSpam(context.Context, *connect.Request[v1.RescanSpamRequest]) (*connect.Response[v1.RescanSpamResponse], error)
 	// ReloadConfig re-reads the configuration file the daemon was started with, and
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
@@ -2836,6 +2857,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("DND")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceRescanSpamHandler := connect.NewUnaryHandler(
+		BackendServiceRescanSpamProcedure,
+		svc.RescanSpam,
+		connect.WithSchema(backendServiceMethods.ByName("RescanSpam")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceReloadConfigHandler := connect.NewUnaryHandler(
 		BackendServiceReloadConfigProcedure,
 		svc.ReloadConfig,
@@ -3096,6 +3123,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceClearDNDHandler.ServeHTTP(w, r)
 		case BackendServiceDNDProcedure:
 			backendServiceDNDHandler.ServeHTTP(w, r)
+		case BackendServiceRescanSpamProcedure:
+			backendServiceRescanSpamHandler.ServeHTTP(w, r)
 		case BackendServiceReloadConfigProcedure:
 			backendServiceReloadConfigHandler.ServeHTTP(w, r)
 		case BackendServiceCheckConfigProcedure:
@@ -3519,6 +3548,10 @@ func (UnimplementedBackendServiceHandler) ClearDND(context.Context, *connect.Req
 
 func (UnimplementedBackendServiceHandler) DND(context.Context, *connect.Request[v1.DNDRequest]) (*connect.Response[v1.DNDResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.DND is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RescanSpam(context.Context, *connect.Request[v1.RescanSpamRequest]) (*connect.Response[v1.RescanSpamResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RescanSpam is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) ReloadConfig(context.Context, *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error) {

@@ -263,6 +263,20 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	return nil
 }
 
+// RescanSpam judges cached messages since since, as if they arrived now, and returns
+// the rooms that would move into Spam. With apply it moves them, only those in rooms
+// when that is not empty, and returns the ones it moved.
+func (n *Notifications) RescanSpam(ctx context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.SpamCandidate, error) {
+	if n.spam == nil {
+		return nil, nil
+	}
+	all, err := n.scope.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return n.spam.rescan(ctx, all, since, apply, rooms)
+}
+
 // SetDND puts a temporary rule in force, replacing one naming the same thing.
 func (n *Notifications) SetDND(r notify.Rule) notify.Temps {
 	n.mu.Lock()

@@ -108,6 +108,13 @@ type SpamVerdict struct {
 	Released bool
 }
 
+// SpamCandidate is a room a rescan of cached history would move into Spam, and the
+// message that moves it.
+type SpamCandidate struct {
+	Verdict SpamVerdict
+	Sample  Message
+}
+
 // Spam reports whether this verdict puts a room in Spam; a release never does.
 func (v SpamVerdict) Spam() bool { return v.Rule != SpamNotSpam && !v.Released }
 

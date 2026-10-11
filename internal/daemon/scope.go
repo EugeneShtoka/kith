@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -242,6 +244,31 @@ func buildIndex(
 		}
 	}
 	return index, archived, order, nil
+}
+
+// All is every room's facts, read fresh, in room ID order.
+func (x *scopeIndex) All(ctx context.Context) ([]domain.RoomFacts, error) {
+	x.mu.Lock()
+	src, aliases, base := x.src, x.aliases, x.base
+	x.mu.Unlock()
+	index, archived, _, err := buildIndex(ctx, src, aliases, base)
+	if err != nil {
+		return nil, err
+	}
+	x.mu.Lock()
+	tags, archives := x.tags, x.archives
+	x.mu.Unlock()
+	out := make([]domain.RoomFacts, 0, len(index))
+	for id := range index {
+		facts := index[id]
+		if archived[id] {
+			facts.ArchivedIn = archives[facts.Protocol]
+		}
+		facts.Tags = tags.Of(facts)
+		out = append(out, facts)
+	}
+	slices.SortFunc(out, func(a, b domain.RoomFacts) int { return strings.Compare(a.ID, b.ID) })
+	return out, nil
 }
 
 func roomAliases(names []config.DisplayName) map[domain.RoomID]string {
