@@ -118,6 +118,7 @@ type RoomsKeys struct {
 	Spaces       string `toml:"spaces"`
 	MarkUnread   string `toml:"mark_unread"`
 	Spam         string `toml:"spam"`
+	Archived     string `toml:"archived"`
 	RenameThread string `toml:"rename_thread"`
 	ListThreads  string `toml:"list_threads"`
 }

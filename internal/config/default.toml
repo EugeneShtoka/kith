@@ -90,6 +90,14 @@ color_messages = false
 # network_colors says otherwise for its own room list.
 network_colors = false
 
+# List archived rooms (those the archive tag holds: [whatsapp.archive] and
+# [telegram.archive] tag, "Archived" by default) in room lists: in a bridge's space or a
+# forum, where an archived room still belongs. The archive's own list always shows
+# them. A place's [[display.space_rule]] show_archived says otherwise for its room
+# list, and the archived key (`A` in the room list, or :archived) flips it for the
+# place you are in until kith restarts.
+show_archived = true
+
 # Which spaces the filing key (`S` in the room list) offers. Empty works it out: your
 # spaces, minus those a bridge keeps and those a room calls its origin. Naming spaces
 # (display name, case-insensitive, or room ID) makes this the whole list, in order.
@@ -154,10 +162,13 @@ row_numbers = false
 # follows the one selected in the rail in the room list, else its home (see priority).
 # network_colors names each room in this place's room list in its network's color
 # ([display.theme.networks]), true or false whatever [display] network_colors says.
+# show_archived lists archived rooms in this place's room list, true or false whatever
+# [display] show_archived says.
 # [[display.space_rule]]
 # space = "Friends"
 # first_name_only = true
 # network_colors = true
+# show_archived = false
 
 # Merge several accounts into one person with a shared alias and/or fixed color
 # (#rrggbb or a named color). Both are optional. An alias chooses which name to show;
@@ -1330,6 +1341,9 @@ spaces        = "S"       # file this room into a space or a tag, or take it out
 # Prompts for an @user:server.
 invite        = "i"       # invite someone to this room
 view_media    = "v"       # open this room's pictures in an image viewer, newest first
+# Until kith restarts; [display] show_archived and a place's space_rule set where it
+# starts.
+archived      = "A"       # show or hide this place's archived rooms
 # spam / not spam: move this conversation out of the way, or back
 # See [spam].
 spam          = "!"

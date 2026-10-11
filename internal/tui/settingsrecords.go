@@ -19,12 +19,14 @@ import (
 //
 // Their keys say where they are: rec:<table> lists a table's records, rec:<table>#<i>
 // is one record, rec:<table>#<i>.<field> one of its fields; names:<rail key> is a
-// place's first-names switch, colors:<rail key> its network-colors one.
+// place's first-names switch, colors:<rail key> its network-colors one, archived:<rail
+// key> whether its room list shows archived rooms.
 
 const (
 	recordPrefix = "rec:"
 	namesPrefix  = "names:"
 	colorsPrefix = "colors:"
+	archivedKey  = "archived:"
 	recordAdd    = "#add"
 	recordRemove = "#remove"
 )
@@ -91,6 +93,8 @@ func (m Model) groupRows(group string) []setting {
 		return append(m.placeNameRows(), groupSettings(group)...)
 	case group == "look":
 		return append(groupSettings(group), m.placeColorRows()...)
+	case group == "rooms":
+		return append(groupSettings(group), m.placeArchivedRows()...)
 	case strings.HasPrefix(group, keysPrefix):
 		if t, ok := keyTableOf(group); ok {
 			return keyBindingRows(t)
@@ -356,6 +360,52 @@ func placeColorsShown(c config.Config, place string) string {
 		return onOff(*r.NetworkColors)
 	}
 	return "as everywhere (" + onOff(c.Display.NetworkColors) + ")"
+}
+
+// placeArchivedRows are an archived-rooms choice for every space and tag on the rail but
+// an archive's own: its room list shows them as everywhere ([display] show_archived),
+// or shows or hides them whatever that says ([[display.space_rule]]).
+func (m Model) placeArchivedRows() []setting {
+	var rows []setting
+	for _, g := range m.rail.groups {
+		if name, isTag := domain.TagOf(g.key); (!isSpaceGroup(g.key) && !isTagGroup(g.key)) || (isTag && m.isArchiveTag(name)) {
+			continue
+		}
+		place := g.key
+		rows = append(rows, setting{
+			key: archivedKey + place, group: "rooms", kind: settingChoice,
+			label:   "Archived rooms in " + g.label,
+			doc:     "Whether this " + placeWord(place) + "'s room list lists the rooms the archive tag holds. As everywhere follows [display] show_archived; the archived key flips it until kith restarts.",
+			choices: placeArchivedChoices,
+			show:    func(c config.Config) string { return placeArchivedShown(c, place) },
+			set: func(c *config.Config, value string) error {
+				c.Display.SpaceRules = withSpaceRule(c.Display.SpaceRules, place, func(r *config.SpaceRule) { r.ShowArchived = placeArchivedValues[value] })
+				return nil
+			},
+		})
+	}
+	return rows
+}
+
+// placeArchivedChoices are a place's archived-rooms choices, and placeArchivedValues
+// what each writes: nil follows [display] show_archived.
+var (
+	placeArchivedChoices = []settingChoiceOption{
+		{"everywhere", "as everywhere", "as [display] show_archived says"},
+		{"shown", "shown", "listed whatever [display] show_archived says"},
+		{"hidden", "hidden", "left out whatever [display] show_archived says"},
+	}
+	placeArchivedValues = map[string]*bool{"everywhere": nil, "shown": new(true), "hidden": new(false)}
+)
+
+// placeArchivedShown is a place's archived-rooms choice: its own, or as everywhere and
+// what that is.
+func placeArchivedShown(c config.Config, place string) string {
+	word := map[bool]string{true: "shown", false: "hidden"}
+	if r, ok := c.Display.SpaceRule(place); ok && r.ShowArchived != nil {
+		return word[*r.ShowArchived]
+	}
+	return "as everywhere (" + word[c.Display.ShowsArchived()] + ")"
 }
 
 // isHomeTag reports whether a tag (tag:<name>) holds some room as a place, and not

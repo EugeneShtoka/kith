@@ -25,7 +25,10 @@ type Display struct {
 	Theme           Theme  `toml:"theme"`
 	// NetworkColors names each room in every room list in its network's color
 	// (Theme.Networks); a place's [[display.space_rule]] can say otherwise.
-	NetworkColors bool          `toml:"network_colors"`
+	NetworkColors bool `toml:"network_colors"`
+	// ShowArchived lists the rooms the archive tag holds in every room list but the
+	// archive's own (which always does); nil is true. A place's rule can say otherwise.
+	ShowArchived  *bool         `toml:"show_archived"`
 	Tracked       Tracked       `toml:"tracked"`
 	Typing        *bool         `toml:"typing"`
 	SendTyping    *bool         `toml:"send_typing"`
@@ -173,10 +176,15 @@ type SpaceRule struct {
 	// NetworkColors names each room in this place's room list in its network's color,
 	// or not, whatever Display.NetworkColors says; nil follows it.
 	NetworkColors *bool `toml:"network_colors"`
+	// ShowArchived lists archived rooms in this place's room list, or not, whatever
+	// Display.ShowArchived says; nil follows it.
+	ShowArchived *bool `toml:"show_archived"`
 }
 
 // Empty reports whether the rule sets nothing, so the file need not keep it.
-func (r SpaceRule) Empty() bool { return !r.FirstNameOnly && r.NetworkColors == nil }
+func (r SpaceRule) Empty() bool {
+	return !r.FirstNameOnly && r.NetworkColors == nil && r.ShowArchived == nil
+}
 
 // SpaceRule is place's [[display.space_rule]] (a space's name, or tag:<name>, in any
 // case), if it has one.
@@ -196,6 +204,19 @@ func (d Display) NetworkColorsIn(place string) bool {
 		return *r.NetworkColors
 	}
 	return d.NetworkColors
+}
+
+// ShowsArchived reports whether room lists show archived rooms ([display] show_archived;
+// unset is true).
+func (d Display) ShowsArchived() bool { return enabled(d.ShowArchived) }
+
+// ShowsArchivedIn reports whether place's room list shows archived rooms: as its rule
+// says, else as ShowArchived does.
+func (d Display) ShowsArchivedIn(place string) bool {
+	if r, ok := d.SpaceRule(place); ok && r.ShowArchived != nil {
+		return *r.ShowArchived
+	}
+	return d.ShowsArchived()
 }
 
 // NetworkColors is [display.theme.networks]: the color each network's rooms are named

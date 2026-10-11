@@ -137,6 +137,7 @@ const (
 	actBan
 	actSpaces
 	actSpam
+	actToggleArchived // show or hide the place's archived rooms
 	actOpenThread
 	actStartThread
 	actListThreads
@@ -387,6 +388,7 @@ var keyActions = []keyAction{
 	{scopeRooms, actInvite, "rooms.invite"},
 	{scopeRooms, actSpaces, "rooms.spaces"},
 	{scopeRooms, actSpam, "rooms.spam"},
+	{scopeRooms, actToggleArchived, "rooms.archived"},
 
 	{scopeTimeline, actInsert, "timeline.insert"},
 	{scopeTimeline, actOpenEmoji, "emoji.open"},

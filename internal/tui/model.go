@@ -1625,6 +1625,8 @@ func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openInvite())
 	case actSpam:
 		return answered(m.toggleSpam())
+	case actToggleArchived:
+		return answered(m.toggleArchived())
 	}
 	return m, nil, false
 }
@@ -3370,10 +3372,15 @@ func (m Model) filteredRooms() []domain.Room {
 	}
 	pinned := g.sticky && m.openRoom != ""
 	view := m.unreadView()
+	hideArchived := !m.archivedShownIn(g.key)
 	out := make([]domain.Room, 0, len(m.rooms.all))
 	// Indexed: domain.Room is large enough that a range copy trips gocritic.
 	for i := range m.rooms.all {
-		if g.admits(view, m.rooms.all[i]) || (pinned && m.rooms.all[i].ID == m.openRoom) {
+		if pinned && m.rooms.all[i].ID == m.openRoom {
+			out = append(out, m.rooms.all[i])
+			continue
+		}
+		if g.admits(view, m.rooms.all[i]) && (!hideArchived || !m.isArchived(view, m.rooms.all[i])) {
 			out = append(out, m.rooms.all[i])
 		}
 	}
