@@ -60,7 +60,7 @@ func TestStopEndsTheJob(t *testing.T) {
 	cmd, tr := sleeper(t)
 	exited := make(chan struct{})
 	go func() { _ = cmd.Wait(); tr.release(); close(exited) }()
-	srv := &server{cmd: cmd, tree: tr, exited: exited, now: time.Now}
+	srv := &server{cmd: cmd, tree: tr, exited: exited}
 
 	began := time.Now()
 	if stopErr := srv.stop(); stopErr != nil {

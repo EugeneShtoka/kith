@@ -138,8 +138,8 @@ func TestTheServerIsStoppedOnceItGoesQuiet(t *testing.T) {
 	s := newStub(t)
 	p := attached(s)
 	srv := p.running
-	// A clock already past the window, so the first tick decides.
-	srv.now = func() time.Time { return time.Now().Add(time.Hour) }
+	// Last used an hour ago, so the first tick decides.
+	srv.last = time.Now().Add(-time.Hour)
 
 	done := make(chan struct{})
 	go func() { defer close(done); p.watchIdle(srv, 4*time.Second) }()
@@ -230,7 +230,7 @@ func TestOnlyADeadServerIsForgotten(t *testing.T) {
 			ts := httptest.NewServer(c.answer(release))
 			t.Cleanup(ts.Close)
 			t.Cleanup(func() { close(release) }) // runs first: Close waits for the handler
-			srv := &server{base: ts.URL, http: ts.Client(), now: time.Now, exited: make(chan struct{})}
+			srv := &server{base: ts.URL, http: ts.Client(), exited: make(chan struct{})}
 			if c.died {
 				close(srv.exited)
 			}

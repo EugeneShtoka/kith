@@ -163,9 +163,6 @@ func TestFileReopenKeepsSize(t *testing.T) {
 
 func TestHelpers(t *testing.T) {
 	t.Parallel()
-	if OrDiscard(nil) == nil || OrDiscard(Discard()) == nil {
-		t.Error("OrDiscard returned nil")
-	}
 	Discard().Error("nothing") // must not panic
 }
 

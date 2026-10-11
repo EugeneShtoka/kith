@@ -601,19 +601,35 @@ func stripSQLComments(script string) string {
 	return strings.Join(kept, "\n")
 }
 
-// prepare brings the database to the current schema: current (by number and shape)
-// only reconciles indexes, base..current migrates, anything else is copied aside and
+// schemaPlan is the schema a cache is brought to: the base, then migrations, and the
+// shape they build, worked out once.
+type schemaPlan struct {
+	migrations []string
+	shape      func() (map[string]map[string]columnShape, error)
+}
+
+func newSchemaPlan(migrations []string) schemaPlan {
+	return schemaPlan{migrations: migrations, shape: sync.OnceValues(func() (map[string]map[string]columnShape, error) {
+		return expectedShape(migrations)
+	})}
+}
+
+// currentSchema is the schema this build opens every cache with.
+var currentSchema = newSchemaPlan(migrations)
+
+// prepare brings the database to plan's schema: current (by number and shape) only
+// reconciles indexes, base..current migrates, anything else is copied aside and
 // rebuilt. A rebuild is reported so the caller can reset the sync position.
-func prepare(ctx context.Context, sqlDB *sql.DB, path string) (prepared, error) {
+func prepare(ctx context.Context, sqlDB *sql.DB, path string, plan schemaPlan) (prepared, error) {
 	version, err := userVersion(ctx, sqlDB)
 	if err != nil {
 		return prepared{}, err
 	}
-	current := schemaVersion + len(migrations)
+	current := schemaVersion + len(plan.migrations)
 	if version == current {
 		// The number alone is not trusted: a reused version or a hand-edited cache
 		// would fail at the first query.
-		ok, serr := shapeMatches(ctx, sqlDB)
+		ok, serr := shapeMatches(ctx, sqlDB, plan)
 		if serr != nil {
 			return prepared{}, serr
 		}
@@ -634,8 +650,8 @@ func prepare(ctx context.Context, sqlDB *sql.DB, path string) (prepared, error) 
 		version = schemaVersion
 		out.rebuilt = true
 	}
-	for i := version - schemaVersion; i < len(migrations); i++ {
-		if migrateErr := applyMigration(ctx, sqlDB, i); migrateErr != nil {
+	for i := version - schemaVersion; i < len(plan.migrations); i++ {
+		if migrateErr := applyMigration(ctx, sqlDB, plan.migrations, i); migrateErr != nil {
 			return out, migrateErr
 		}
 	}
@@ -650,9 +666,9 @@ type columnShape struct {
 	pk      int
 }
 
-// expectedShape is the schema's tables and columns, built once in memory from the
-// statements a rebuild runs.
-var expectedShape = sync.OnceValues(func() (map[string]map[string]columnShape, error) {
+// expectedShape is the tables and columns the base and migrations build, made in
+// memory from the statements a rebuild runs.
+func expectedShape(migrations []string) (map[string]map[string]columnShape, error) {
 	ctx := context.Background()
 	mem, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
@@ -664,12 +680,12 @@ var expectedShape = sync.OnceValues(func() (map[string]map[string]columnShape, e
 		return nil, fmt.Errorf("db: build the reference schema: %w", err)
 	}
 	for i := range migrations {
-		if err := applyMigration(ctx, mem, i); err != nil {
+		if err := applyMigration(ctx, mem, migrations, i); err != nil {
 			return nil, err
 		}
 	}
 	return shapeOf(ctx, mem)
-})
+}
 
 // shapeOf is every table with its columns and every trigger with its statement:
 // without the FTS triggers search silently goes stale.
@@ -716,10 +732,10 @@ func shapeOf(ctx context.Context, sqlDB *sql.DB) (map[string]map[string]columnSh
 	return out, nil
 }
 
-// shapeMatches reports whether every schema table exists with the same columns;
-// extra tables are ignored.
-func shapeMatches(ctx context.Context, sqlDB *sql.DB) (bool, error) {
-	want, err := expectedShape()
+// shapeMatches reports whether every table of plan's schema exists with the same
+// columns; extra tables are ignored.
+func shapeMatches(ctx context.Context, sqlDB *sql.DB, plan schemaPlan) (bool, error) {
+	want, err := plan.shape()
 	if err != nil {
 		return false, err
 	}
@@ -874,8 +890,8 @@ func stampVersion(ctx context.Context, exec interface {
 	return nil
 }
 
-// applyMigration applies one migration and stamps its version in one transaction.
-func applyMigration(ctx context.Context, sqlDB *sql.DB, index int) error {
+// applyMigration applies migrations[index] and stamps its version in one transaction.
+func applyMigration(ctx context.Context, sqlDB *sql.DB, migrations []string, index int) error {
 	version := schemaVersion + index + 1
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {

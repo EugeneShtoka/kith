@@ -717,24 +717,12 @@ func (s *server) AllowRareWord(ctx context.Context, r *req[v1.AllowRareWordReque
 
 // ── Notification ──
 
-// noNotifier refuses when the daemon has no notifier (test harnesses): an empty set
-// would falsely read as "nothing is silenced".
-func (s *server) noNotifier() error {
-	if s.Notifications != nil {
-		return nil
-	}
-	return connect.NewError(connect.CodeUnimplemented, errors.New("daemon: this daemon does not deliver notifications"))
-}
-
 func invalid(msg string) error {
 	return connect.NewError(connect.CodeInvalidArgument, errors.New("daemon: set dnd: "+msg))
 }
 
 // SetDND refuses a rule that changes nothing or has already lapsed.
 func (s *server) SetDND(_ context.Context, r *req[v1.SetDNDRequest]) (*resp[v1.SetDNDResponse], error) {
-	if err := s.noNotifier(); err != nil {
-		return nil, err
-	}
 	if r.Msg.GetRule() == nil {
 		return nil, invalid("no rule given; say what to silence")
 	}
@@ -749,9 +737,6 @@ func (s *server) SetDND(_ context.Context, r *req[v1.SetDNDRequest]) (*resp[v1.S
 }
 
 func (s *server) ClearDND(_ context.Context, r *req[v1.ClearDNDRequest]) (*resp[v1.ClearDNDResponse], error) {
-	if err := s.noNotifier(); err != nil {
-		return nil, err
-	}
 	var left notify.Temps
 	if r.Msg.GetAll() {
 		left = s.Notifications.ClearAllDND()
@@ -762,9 +747,6 @@ func (s *server) ClearDND(_ context.Context, r *req[v1.ClearDNDRequest]) (*resp[
 }
 
 func (s *server) DND(_ context.Context, _ *req[v1.DNDRequest]) (*resp[v1.DNDResponse], error) {
-	if err := s.noNotifier(); err != nil {
-		return nil, err
-	}
 	return connect.NewResponse(&v1.DNDResponse{Rules: pc.TempRulesToProto(s.Notifications.DND())}), nil
 }
 

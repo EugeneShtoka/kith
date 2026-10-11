@@ -96,12 +96,17 @@ func dsn(path string) string {
 // Open opens (creating if needed) the cache at path and brings its schema up to
 // date. One connection serializes access.
 func Open(ctx context.Context, path string) (*Cache, error) {
+	return open(ctx, path, currentSchema)
+}
+
+// open is Open with the schema to bring the cache to.
+func open(ctx context.Context, path string, plan schemaPlan) (*Cache, error) {
 	sqlDB, err := sql.Open("sqlite", dsn(path))
 	if err != nil {
 		return nil, fmt.Errorf("db: open %s: %w", path, err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	state, perr := prepare(ctx, sqlDB, path)
+	state, perr := prepare(ctx, sqlDB, path, plan)
 	if perr != nil {
 		_ = sqlDB.Close()
 		return nil, perr

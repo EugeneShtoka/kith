@@ -24,14 +24,6 @@ func hasTable(ctx context.Context, sqlDB *sql.DB, name string) (bool, error) {
 	return slices.Contains(tables, name), nil
 }
 
-// withMigrations swaps the package's migration list for the duration of one test.
-func withMigrations(t *testing.T, list ...string) {
-	t.Helper()
-	saved := migrations
-	migrations = list
-	t.Cleanup(func() { migrations = saved })
-}
-
 // An unrecognized version, older or newer, is rebuilt.
 func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 	t.Parallel()
@@ -86,14 +78,14 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 
 // A failed migration leaves neither its DDL nor its version stamp.
 func TestApplyMigrationIsAtomic(t *testing.T) {
-	withMigrations(t,
+	failing := newSchemaPlan([]string{
 		`CREATE TABLE half_applied(x INTEGER); THIS IS NOT SQL;`,
-	)
+	})
 
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	_, err := Open(ctx, path)
+	_, err := open(ctx, path, failing)
 	if err == nil {
 		t.Fatal("Open() accepted a database whose migration could not be applied")
 	}
@@ -102,8 +94,7 @@ func TestApplyMigrationIsAtomic(t *testing.T) {
 	}
 
 	// Reopen the same file with no migrations, to inspect it.
-	migrations = nil
-	cache, err := Open(ctx, path)
+	cache, err := open(ctx, path, newSchemaPlan(nil))
 	if err != nil {
 		t.Fatalf("reopen error = %v", err)
 	}
@@ -128,15 +119,15 @@ func TestApplyMigrationIsAtomic(t *testing.T) {
 
 // Migrations apply once, stamp their version, and do not re-run on reopen.
 func TestMigrationsApplyOnceAndStampTheirVersion(t *testing.T) {
-	withMigrations(t,
+	plan := newSchemaPlan([]string{
 		`CREATE TABLE added_by_migration_one(x INTEGER NOT NULL) STRICT;`,
 		`CREATE INDEX added_by_migration_two ON added_by_migration_one(x);`,
-	)
+	})
 
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	cache, err := Open(ctx, path)
+	cache, err := open(ctx, path, plan)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -162,9 +153,12 @@ func TestMigrationsApplyOnceAndStampTheirVersion(t *testing.T) {
 	}
 
 	// CREATE TABLE without IF NOT EXISTS would fail if re-run.
-	again, err := Open(ctx, path)
+	again, err := open(ctx, path, plan)
 	if err != nil {
 		t.Fatalf("reopen re-ran the migrations: %v", err)
+	}
+	if again.Rebuilt() {
+		t.Error("reopen rebuilt a cache already at its version and shape")
 	}
 	if closeErr := again.Close(); closeErr != nil {
 		t.Fatalf("Close() error = %v", closeErr)
@@ -230,8 +224,7 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cache.db")
 
 	func() {
-		withMigrations(t)
-		cache, err := Open(ctx, path)
+		cache, err := open(ctx, path, newSchemaPlan(nil))
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -244,8 +237,7 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 		}
 	}()
 
-	withMigrations(t, `CREATE TABLE added_later(x INTEGER NOT NULL) STRICT;`)
-	cache, err := Open(ctx, path)
+	cache, err := open(ctx, path, newSchemaPlan([]string{`CREATE TABLE added_later(x INTEGER NOT NULL) STRICT;`}))
 	if err != nil {
 		t.Fatalf("reopen error = %v", err)
 	}
@@ -434,18 +426,15 @@ func TestRebuildDropsAnFTSTableBeforeItsShadows(t *testing.T) {
 func TestMigratedTablesAreSpelledLikeTheBase(t *testing.T) {
 	ctx := context.Background()
 
-	// Captured before withMigrations swaps the list.
-	real := append([]string(nil), migrations...)
-
 	created := regexp.MustCompile(`(?i)CREATE\s+(?:VIRTUAL\s+)?TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)`)
 	// A table a later migration drops is meant to be missing from the base.
 	dropped := map[string]bool{}
-	for _, stmt := range real {
+	for _, stmt := range migrations {
 		for _, match := range regexp.MustCompile(`(?i)DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)`).FindAllStringSubmatch(stmt, -1) {
 			dropped[match[1]] = true
 		}
 	}
-	for _, stmt := range real {
+	for _, stmt := range migrations {
 		for _, match := range created.FindAllStringSubmatch(stmt, -1) {
 			table := match[1]
 			if dropped[table] {
@@ -461,8 +450,7 @@ func TestMigratedTablesAreSpelledLikeTheBase(t *testing.T) {
 				// A cache that predates the migration: the base with the table removed.
 				path := filepath.Join(t.TempDir(), "old.db")
 				func() {
-					withMigrations(t)
-					cache, err := Open(ctx, path)
+					cache, err := open(ctx, path, newSchemaPlan(nil))
 					if err != nil {
 						t.Fatalf("Open() error = %v", err)
 					}
@@ -472,7 +460,6 @@ func TestMigratedTablesAreSpelledLikeTheBase(t *testing.T) {
 					}
 				}()
 
-				withMigrations(t, real...)
 				migrated, err := Open(ctx, path)
 				if err != nil {
 					t.Fatalf("reopen error = %v", err)

@@ -20,10 +20,10 @@ func TestTheClientReadsRoomsAsTheDaemonDoes(t *testing.T) {
 		{ID: "!r:x", Name: "Standup"},
 		{ID: "!m:x", Name: "Dana Levi, Sam Cole", Members: []string{"Dana Levi", "Sam Cole"}},
 	}})
-	m.rooms.spaces = []domain.Space{
+	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "!wa:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!r:x"}},
 		{ID: "!tg:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{"!r:x"}},
-	}
+	}})
 	room, _ := m.roomByID("!r:x")
 	want := (domain.Places{
 		Names: map[domain.RoomID]string{"!r:x": "Daily"}, Tags: m.rail.tags,

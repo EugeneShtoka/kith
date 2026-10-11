@@ -26,10 +26,15 @@ func TestSpaceHoldersMatchAScan(t *testing.T) {
 		}
 	}
 	indexed := inventory{}.withSpaces(spaces)
-	scanned := inventory{spaces: spaces} // no index: the fallback scan
 
 	for _, id := range append(rooms, "!nowhere:x") {
-		if got, want := indexed.spaceNames(id), scanned.spaceNames(id); !slices.Equal(got, want) {
+		var want []string
+		for i := range spaces {
+			if slices.Contains(spaces[i].Children, id) {
+				want = append(want, spaces[i].DisplayName())
+			}
+		}
+		if got := indexed.spaceNames(id); !slices.Equal(got, want) {
 			t.Errorf("%s: index %v, scan %v", id, got, want)
 		}
 	}

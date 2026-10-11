@@ -14,6 +14,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/agent"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/logging"
 )
 
 // newWriter is a server that may write, with a ledger in a test temp directory.
@@ -26,6 +27,7 @@ func newWriter(t *testing.T, f *fake, scope domain.ModelScope, send []string) *s
 	return &server{
 		backend: f, scope: scope,
 		send: send, cooldown: time.Minute, ledger: ledger, client: "test-client",
+		log: logging.Discard(),
 	}
 }
 
@@ -613,6 +615,7 @@ func TestTwoSessionsShareOneCooldown(t *testing.T) {
 			backend: gatedSend{fake: scopeRooms(), arrived: arrived, release: release},
 			scope:   shareAllEncrypted, send: []string{"group"},
 			cooldown: time.Hour, ledger: ledger, client: "test",
+			log: logging.Discard(),
 		}
 	}
 	raw, err := json.Marshal(writeArgs{Room: "Standup", Text: "hello"})

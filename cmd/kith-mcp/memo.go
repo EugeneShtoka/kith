@@ -85,7 +85,7 @@ func (s *server) learnEncryption(ctx context.Context, rooms []domain.Room) {
 	}
 	state, err := s.backend.RoomEncryption(ctx, unknown)
 	if err != nil {
-		s.logger().Warn("room encryption lookup failed; asking room by room", "rooms", len(unknown), "err", err)
+		s.log.Warn("room encryption lookup failed; asking room by room", "rooms", len(unknown), "err", err)
 		return
 	}
 	memo := memoOf(ctx)

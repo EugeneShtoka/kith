@@ -110,18 +110,18 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 	if selves, err := s.backend.Selves(ctx); err == nil {
 		s.selves = selves
 	} else {
-		s.logger().Warn("ask who this person is failed; messages are marked mine by the Matrix account alone", "err", err)
+		s.log.Warn("ask who this person is failed; messages are marked mine by the Matrix account alone", "err", err)
 	}
 	dir, err := s.backend.Directory(ctx)
 	if err != nil {
-		s.logger().Warn("read the directory failed; people are named as their networks name them", "err", err)
+		s.log.Warn("read the directory failed; people are named as their networks name them", "err", err)
 	}
 	s.people = setup.PeopleOf(s.aliases, dir)
 	result, err := t.run(s, ctx, raw)
 	if err != nil {
 		// The assistant reads the reason; the log keeps it for the person. Tool errors name
 		// rooms and scope, never message text.
-		s.logger().Warn("tool call failed", "tool", t.name, "err", err)
+		s.log.Warn("tool call failed", "tool", t.name, "err", err)
 		return toolError(err)
 	}
 	if c, ok := result.(toolContent); ok {

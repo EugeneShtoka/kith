@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/logging"
 )
 
 // fake answers reads from fixtures and records writes.
@@ -250,7 +251,7 @@ var (
 )
 
 func newServer(f *fake, scope domain.ModelScope) *server {
-	return &server{backend: f, scope: scope}
+	return &server{backend: f, scope: scope, log: logging.Discard()}
 }
 
 // call runs one tool and returns its decoded JSON.

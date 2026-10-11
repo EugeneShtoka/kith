@@ -116,7 +116,7 @@ func InstallFreq(ctx context.Context, client *http.Client, tag, dir string) (Fre
 	return src, installFreq(ctx, client, frequencyBase, src, frequencyLicense, dir)
 }
 
-// installFreq is InstallFreq with the origin and entry decided, for tests.
+// installFreq is InstallFreq with the origin and entry decided.
 func installFreq(ctx context.Context, client *http.Client, base string, src FreqSource, lic File, dir string) error {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("spell: make %s: %w", dir, err)
