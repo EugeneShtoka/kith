@@ -32,7 +32,7 @@ type Daemon struct {
 	Streams *Streams
 	// State is readiness: whether a sync has landed, and what broke if not.
 	State *State
-	// Notifications may be nil in a test harness; its handlers then refuse.
+	// Notifications delivers alerts and holds the do-not-disturb rules.
 	Notifications *Notifications
 	// Reload re-reads the config file; nil when the daemon was given none.
 	Reload Reload

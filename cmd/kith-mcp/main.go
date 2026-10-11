@@ -222,11 +222,9 @@ type server struct {
 	// book is the phonebook find_people reads fields from; nil unless [agent.read] people
 	// allows it.
 	book *phonebook.Book
-	// log is stderr; nil (a test) logs nothing.
+	// log is stderr.
 	log *slog.Logger
 }
-
-func (s *server) logger() *slog.Logger { return logging.OrDiscard(s.log) }
 
 // callTimeout bounds one tool call against an unresponsive daemon.
 const callTimeout = 20 * time.Second
@@ -238,7 +236,7 @@ func (s *server) serve(in io.Reader, out io.Writer) error {
 	for {
 		line, err := readLine(lines)
 		if errors.Is(err, errLineTooLong) {
-			s.logger().Warn("request line too long; skipped", "limit", maxLine)
+			s.log.Warn("request line too long; skipped", "limit", maxLine)
 			continue
 		}
 		if len(line) == 0 && err != nil {
@@ -247,7 +245,7 @@ func (s *server) serve(in io.Reader, out io.Writer) error {
 		var req request
 		if jsonErr := json.Unmarshal(line, &req); jsonErr != nil {
 			// No id to answer to.
-			s.logger().Warn("unreadable request", "err", jsonErr)
+			s.log.Warn("unreadable request", "err", jsonErr)
 			continue
 		}
 		resp, answer := s.handle(&req)

@@ -157,7 +157,7 @@ type Notifier interface {
 	Notify(n Notification)
 }
 
-// Nop drops every notification; used when notifications are disabled or in tests.
+// Nop drops every notification; used when notifications are disabled.
 type Nop struct{}
 
 // Notify does nothing.

@@ -225,7 +225,7 @@ func (s *server) sendNow(ctx context.Context, room domain.Room, text string, tar
 		return s.wrote(room, agent.Sent, text, "")
 	}
 	// The daemon's error stays in the log; the assistant gets what happened, not internals.
-	s.logger().Warn("send failed; queueing", "room", room.ID, "err", sendErr)
+	s.log.Warn("send failed; queueing", "room", room.ID, "err", sendErr)
 	now := time.Now().UTC()
 	_, queueErr := s.backend.Schedule(ctx, domain.ScheduledMessage{
 		RoomID: room.ID, Body: text, TxnID: draft.TxnID, At: now, Written: now,
@@ -234,7 +234,7 @@ func (s *server) sendNow(ctx context.Context, room domain.Room, text string, tar
 	if queueErr == nil {
 		return s.wrote(room, agent.Queued, text, "the homeserver would not take it yet; the daemon is retrying it")
 	}
-	s.logger().Warn("queueing failed; drafting", "room", room.ID, "err", queueErr)
+	s.log.Warn("queueing failed; drafting", "room", room.ID, "err", queueErr)
 	return s.draftFor(ctx, room, text, "the send failed and the queue would not take it either", target)
 }
 
@@ -372,7 +372,7 @@ func (s *server) wrote(room domain.Room, outcome, text, why string) (any, error)
 		Room: room.ID, Name: room.DisplayName(), Author: s.whoever(),
 		Outcome: outcome, Reason: why, Text: text,
 	}); err != nil {
-		s.logger().Error("agent ledger append failed", "room", room.ID, "outcome", outcome, "err", err)
+		s.log.Error("agent ledger append failed", "room", room.ID, "outcome", outcome, "err", err)
 		out["ledger_error"] = err.Error() + " — tell them: what you write is supposed to be recorded"
 	}
 	return out, nil
@@ -384,7 +384,7 @@ func (s *server) refuse(room domain.Room, text string, why error) error {
 		Room: room.ID, Name: room.DisplayName(), Author: s.whoever(),
 		Outcome: agent.Refused, Reason: why.Error(), Text: text,
 	}); err != nil {
-		s.logger().Error("agent ledger append failed", "room", room.ID, "outcome", agent.Refused, "err", err)
+		s.log.Error("agent ledger append failed", "room", room.ID, "outcome", agent.Refused, "err", err)
 		return fmt.Errorf("nothing was written: %w (and recording the refusal failed: %w)", why, err)
 	}
 	return fmt.Errorf("nothing was written: %w", why)
@@ -406,7 +406,7 @@ func (s *server) recordUnseenRoom(ctx context.Context, want, text string) {
 		}
 	}
 	if err := s.ledger.Append(entry); err != nil {
-		s.logger().Error("agent ledger append failed", "room", entry.Room, "outcome", agent.Refused, "err", err)
+		s.log.Error("agent ledger append failed", "room", entry.Room, "outcome", agent.Refused, "err", err)
 	}
 }
 

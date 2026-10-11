@@ -107,7 +107,7 @@ func (s *server) placesKnown(ctx context.Context) error {
 func (s *server) holdersOf(ctx context.Context, roomID domain.RoomID) ([]domain.Space, error) {
 	spaces, err := s.spaces(ctx)
 	if err != nil {
-		s.logger().Warn("space lookup for the scope check failed", "room", roomID, "err", err)
+		s.log.Warn("space lookup for the scope check failed", "room", roomID, "err", err)
 		return nil, fmt.Errorf("%w: %w", errPlaceUnknown, err)
 	}
 	return domain.HoldersOf(roomID, spaces), nil
@@ -130,7 +130,7 @@ func (s *server) encrypted(ctx context.Context, roomID domain.RoomID) bool {
 	if err != nil {
 		// Fail closed without remembering: one daemon hiccup must not hide a room for the
 		// whole session.
-		s.logger().Warn("room encryption lookup failed; treating the room as encrypted", "room", roomID, "err", err)
+		s.log.Warn("room encryption lookup failed; treating the room as encrypted", "room", roomID, "err", err)
 		return true
 	}
 	answer := state[roomID]
@@ -252,7 +252,7 @@ func (s *server) readableRoom(ctx context.Context, want string) (domain.Room, er
 func (s *server) roomsByID(ctx context.Context) map[domain.RoomID]domain.Room {
 	rooms, err := s.rooms(ctx)
 	if err != nil {
-		s.logger().Warn("room list read failed; results lack room names", "err", err)
+		s.log.Warn("room list read failed; results lack room names", "err", err)
 	}
 	byID := make(map[domain.RoomID]domain.Room, len(rooms))
 	for i := range rooms {
@@ -279,7 +279,7 @@ func (s *server) listRooms(ctx context.Context, raw json.RawMessage) (any, error
 	unread, uerr := s.backend.CachedUnread(ctx)
 	if uerr != nil {
 		// The list still answers, with unread counts of 0.
-		s.logger().Warn("unread counts read failed", "err", uerr)
+		s.log.Warn("unread counts read failed", "err", uerr)
 	}
 	counts := map[domain.RoomID]int{}
 	for _, u := range unread {
@@ -375,7 +375,7 @@ func (s *server) cardFields(userID string) map[string]any {
 	}
 	card, found, err := s.book.Find(phonebook.Identifiers(domain.CardIdentifiers(ids)))
 	if err != nil {
-		s.logger().Warn("read the phonebook failed", "err", err)
+		s.log.Warn("read the phonebook failed", "err", err)
 		return nil
 	}
 	if !found || len(card.Fields) == 0 {

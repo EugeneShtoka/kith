@@ -421,7 +421,7 @@ func (n *Notifications) notify(alert notify.Notification) {
 	notifier.Notify(alert)
 }
 
-// decide is Deliver's trigger, with scope and clock as arguments for testing.
+// decide is Deliver's trigger, with scope and clock as arguments.
 func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope notify.Scope, mine bool, now time.Time) (notify.Notification, bool) {
 	// Edits and redaction markers never interrupt.
 	if msg.IsUpdate() {

@@ -169,9 +169,6 @@ func TestModelTaskCapIsARollingMinute(t *testing.T) {
 		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"!a:x"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 2,
 	})
-	clock := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
-	b.model.now = func() time.Time { return clock }
-
 	ask := func() domain.ModelResult {
 		got, err := b.ModelTask(ctx, domain.ModelRequest{
 			Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "one two three ",
@@ -194,7 +191,12 @@ func TestModelTaskCapIsARollingMinute(t *testing.T) {
 	if !strings.Contains(third.Refusal, "cap") {
 		t.Errorf("refusal = %q, want it to name the cap", third.Refusal)
 	}
-	clock = clock.Add(61 * time.Second)
+	// A minute passes: the two sends are now older than the window.
+	b.model.mu.Lock()
+	for i := range b.model.recent {
+		b.model.recent[i] = b.model.recent[i].Add(-61 * time.Second)
+	}
+	b.model.mu.Unlock()
 	if !ask().Asked() {
 		t.Fatal("the window did not roll")
 	}

@@ -52,8 +52,6 @@ type modelLayer struct {
 	client   *llm.Client
 	// recent are the send times within the last minute.
 	recent []time.Time
-	// now is time.Now, replaced in tests.
-	now func() time.Time
 }
 
 // UseModel wires the model layer, or turns it off. Called at startup and on reload.
@@ -346,15 +344,12 @@ func describeAsk(task llm.Task, fields map[string]string) string {
 func (l *modelLayer) spend() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	clock := l.now
-	if clock == nil {
-		clock = time.Now
-	}
 	cap := l.settings.PerMinute
 	if cap <= 0 {
 		return true
 	}
-	cutoff := clock().Add(-time.Minute)
+	now := time.Now()
+	cutoff := now.Add(-time.Minute)
 	kept := l.recent[:0]
 	for _, at := range l.recent {
 		if at.After(cutoff) {
@@ -365,7 +360,7 @@ func (l *modelLayer) spend() bool {
 	if len(l.recent) >= cap {
 		return false
 	}
-	l.recent = append(l.recent, clock())
+	l.recent = append(l.recent, now)
 	return true
 }
 

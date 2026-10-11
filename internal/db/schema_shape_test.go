@@ -69,7 +69,7 @@ func TestACacheOfTheCurrentNumberButAnotherShapeIsRebuilt(t *testing.T) {
 	if !aside {
 		t.Error("no copy of the old cache was set aside")
 	}
-	if ok, err := shapeMatches(context.Background(), c.db); !ok || err != nil {
+	if ok, err := shapeMatches(context.Background(), c.db, currentSchema); !ok || err != nil {
 		t.Errorf("after the rebuild the shape matches = %v, %v", ok, err)
 	}
 }

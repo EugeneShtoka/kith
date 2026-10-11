@@ -26,7 +26,6 @@ type server struct {
 
 	mu   sync.Mutex
 	last time.Time
-	now  func() time.Time // replaced in tests
 }
 
 // start spawns a server and waits until it answers. ctx bounds only the wait; the
@@ -85,7 +84,6 @@ func start(ctx context.Context, settings Settings) (*server, error) {
 		base:   "http://127.0.0.1:" + strconv.Itoa(port),
 		http:   &http.Client{},
 		exited: exited,
-		now:    time.Now,
 	}
 	srv.touch()
 	if err := srv.wait(ctx, orDefault(settings.Startup, startupDefault)); err != nil {
@@ -174,14 +172,14 @@ func (s *server) died() <-chan struct{} { return s.exited }
 
 func (s *server) touch() {
 	s.mu.Lock()
-	s.last = s.now()
+	s.last = time.Now()
 	s.mu.Unlock()
 }
 
 func (s *server) idleFor() time.Duration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.now().Sub(s.last)
+	return time.Since(s.last)
 }
 
 func (s *server) url(path string) string { return s.base + path }

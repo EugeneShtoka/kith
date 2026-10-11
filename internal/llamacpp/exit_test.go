@@ -59,7 +59,7 @@ func TestStopReturnsWhenTheProcessDies(t *testing.T) {
 	}
 	exited := make(chan struct{})
 	go func() { _ = cmd.Wait(); close(exited) }()
-	srv := &server{cmd: cmd, exited: exited, now: time.Now}
+	srv := &server{cmd: cmd, exited: exited}
 
 	began := time.Now()
 	if stopErr := srv.stop(); stopErr != nil {

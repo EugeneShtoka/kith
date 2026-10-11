@@ -73,7 +73,7 @@ func Install(ctx context.Context, client *http.Client, tag, dir string) (Source,
 	return src, install(ctx, client, dictionaryBase, src, dir)
 }
 
-// install is Install with the origin and entry decided, for tests.
+// install is Install with the origin and entry decided.
 func install(ctx context.Context, client *http.Client, base string, src Source, dir string) error {
 	tag := src.Tag
 	if err := os.MkdirAll(dir, 0o750); err != nil {

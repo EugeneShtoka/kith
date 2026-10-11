@@ -2,102 +2,133 @@ package launch
 
 import (
 	"context"
-	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 )
 
-// record swaps both runners for recorders; the tab runner returns tabErr.
-func record(t *testing.T, tabErr error) (tab, window *[]string) {
+// installed makes PATH hold only stand-ins for programs, each exiting with its status.
+// Every run appends its name and arguments as one line to the returned log.
+func installed(t *testing.T, programs map[string]int) (log string) {
 	t.Helper()
-	var ranTab, ranWindow []string
-	realStart, realDetached := start, startDetached
-	start = func(_ context.Context, argv []string) error {
-		ranTab = argv
-		return tabErr
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-ins are shell scripts")
 	}
-	startDetached = func(_ context.Context, argv []string) error {
-		ranWindow = argv
+	dir := t.TempDir()
+	log = filepath.Join(dir, "runs")
+	for name, status := range programs {
+		script := "#!/bin/sh\n" +
+			"{ printf '%s' " + name + "; for a in \"$@\"; do printf '\\037%s' \"$a\"; done; printf '\\n'; } >>'" + log + "'\n" +
+			"exit " + strconv.Itoa(status) + "\n"
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir)
+	return log
+}
+
+// runs reads the complete lines of log back as argvs.
+func runs(t *testing.T, log string) [][]string {
+	t.Helper()
+	data, err := os.ReadFile(log) // #nosec G304 -- the test's own temp file
+	if os.IsNotExist(err) {
 		return nil
 	}
-	t.Cleanup(func() { start, startDetached = realStart, realDetached })
-	return &ranTab, &ranWindow
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out [][]string
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if line != "" {
+			out = append(out, strings.Split(line, "\x1f"))
+		}
+	}
+	// The last line may still be being written.
+	if !strings.HasSuffix(string(data), "\n") && len(out) > 0 {
+		out = out[:len(out)-1]
+	}
+	return out
 }
+
+// awaitRuns waits up to within for n runs: a window is started and not waited on.
+func awaitRuns(t *testing.T, log string, n int, within time.Duration) [][]string {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for {
+		got := runs(t, log)
+		if len(got) >= n || time.Now().After(deadline) {
+			return got
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+var wezterm = Terminal{Name: "wezterm", Tab: []string{"wezterm", "cli", "spawn", "--"}, Window: []string{"wezterm", "start", "--"}}
 
 // A running terminal takes the tab, and nothing else is started.
 func TestATabIsTriedFirst(t *testing.T) {
-	tab, window := record(t, nil)
+	log := installed(t, map[string]int{"wezterm": 0, "kith": 0})
 
-	opened, err := Run(context.Background(), Terminal{
-		Name: "wezterm", Tab: []string{"wezterm", "cli", "spawn", "--"}, Window: []string{"wezterm", "start", "--"},
-	}, []string{"/bin/kith", "--follow", "matrix:r/x:example.org"})
+	opened, err := Run(context.Background(), wezterm, []string{"kith", "--follow", "matrix:r/x:example.org"})
 
 	if err != nil || opened != "tab" {
 		t.Fatalf("Run() = %q, %v; want a tab", opened, err)
 	}
-	want := []string{"wezterm", "cli", "spawn", "--", "/bin/kith", "--follow", "matrix:r/x:example.org"}
-	if !reflect.DeepEqual(*tab, want) {
-		t.Errorf("ran %+v\nwant %+v", *tab, want)
-	}
-	if len(*window) != 0 {
-		t.Errorf("a window was opened as well: %+v", *window)
+	want := [][]string{{"wezterm", "cli", "spawn", "--", "kith", "--follow", "matrix:r/x:example.org"}}
+	// A window would be started, not waited on: give it time to show.
+	if got := awaitRuns(t, log, 2, 300*time.Millisecond); !reflect.DeepEqual(got, want) {
+		t.Errorf("ran %+v\nwant %+v", got, want)
 	}
 }
 
 // When the tab command fails, a window opens.
 func TestAFailedTabOpensAWindow(t *testing.T) {
-	tab, window := record(t, errors.New("no wezterm gui running"))
+	log := installed(t, map[string]int{"wezterm": 1, "kith": 0})
 
-	opened, err := Run(context.Background(), Terminal{
-		Name: "wezterm", Tab: []string{"wezterm", "cli", "spawn", "--"}, Window: []string{"wezterm", "start", "--"},
-	}, []string{"/bin/kith"})
+	opened, err := Run(context.Background(), wezterm, []string{"kith"})
 
 	if err != nil || opened != "window" {
 		t.Fatalf("Run() = %q, %v; want a window", opened, err)
 	}
-	if len(*tab) == 0 {
-		t.Error("the tab was never attempted")
-	}
-	want := []string{"wezterm", "start", "--", "/bin/kith"}
-	if !reflect.DeepEqual(*window, want) {
-		t.Errorf("ran %+v\nwant %+v", *window, want)
+	want := [][]string{{"wezterm", "cli", "spawn", "--", "kith"}, {"wezterm", "start", "--", "kith"}}
+	if got := awaitRuns(t, log, 2, 5*time.Second); !reflect.DeepEqual(got, want) {
+		t.Errorf("ran %+v\nwant %+v", got, want)
 	}
 }
 
 func TestATerminalWithNoTabCommandOpensAWindow(t *testing.T) {
-	tab, window := record(t, errors.New("should not be called"))
+	log := installed(t, map[string]int{"foot": 0, "kith": 0})
 
-	opened, err := Run(context.Background(), Terminal{Name: "foot", Window: []string{"foot"}}, []string{"/bin/kith"})
+	opened, err := Run(context.Background(), Terminal{Name: "foot", Window: []string{"foot"}}, []string{"kith"})
 	if err != nil || opened != "window" {
 		t.Fatalf("Run() = %q, %v; want a window", opened, err)
 	}
-	if len(*tab) != 0 {
-		t.Errorf("a tab was attempted on a terminal with no tab command: %+v", *tab)
-	}
-	if len(*window) == 0 {
-		t.Error("nothing was opened")
+	want := [][]string{{"foot", "kith"}}
+	if got := awaitRuns(t, log, 1, 5*time.Second); !reflect.DeepEqual(got, want) {
+		t.Errorf("ran %+v\nwant %+v", got, want)
 	}
 }
 
 // An empty command is refused rather than opening a bare terminal.
 func TestNothingToRunIsRefused(t *testing.T) {
-	record(t, nil)
+	log := installed(t, map[string]int{"foot": 0})
 	if _, err := Run(context.Background(), Terminal{Name: "foot", Window: []string{"foot"}}, nil); err == nil {
 		t.Error("Run with no command succeeded")
+	}
+	if got := runs(t, log); len(got) != 0 {
+		t.Errorf("ran %+v; want nothing", got)
 	}
 }
 
 // Detect takes the first terminal present; tab-capable ones come first in the table.
 func TestDetectPrefersATerminalThatCanTab(t *testing.T) {
-	realLookup := Lookup
-	t.Cleanup(func() { Lookup = realLookup })
-
-	Lookup = func(name string) (string, error) {
-		if name == "xterm" || name == "kitty" {
-			return "/usr/bin/" + name, nil
-		}
-		return "", errors.New("not found")
-	}
+	installed(t, map[string]int{"xterm": 0, "kitty": 0})
 	got, ok := Detect()
 	if !ok {
 		t.Fatal("Detect found nothing with two terminals present")
@@ -106,7 +137,7 @@ func TestDetectPrefersATerminalThatCanTab(t *testing.T) {
 		t.Errorf("Detect() = %q, want kitty — it can put a tab in a running terminal", got.Name)
 	}
 
-	Lookup = func(string) (string, error) { return "", errors.New("not found") }
+	installed(t, nil)
 	if _, found := Detect(); found {
 		t.Error("Detect found a terminal on a machine with none")
 	}
