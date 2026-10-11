@@ -36,7 +36,9 @@ const (
 	promptCommand
 	promptTagName
 	promptTagEntry
-	promptLogin // a :login field; its label and help are the field's (login.go)
+	promptPersonValue // a phonebook field's value
+	promptPersonKey   // a new phonebook field's name
+	promptLogin       // a :login field; its label and help are the field's (login.go)
 )
 
 // promptState is the open prompt and what has been typed into it.
@@ -104,6 +106,10 @@ func (p promptState) label() string {
 		return "tag name: "
 	case promptTagEntry:
 		return "entry (empty removes it): "
+	case promptPersonValue:
+		return "value (commas make a list, empty removes it): "
+	case promptPersonKey:
+		return "field name: "
 	case promptLogin, promptNone:
 		return "" // a login field's label is the field's (loginPromptLabel)
 	}
@@ -189,7 +195,7 @@ func (m Model) promptChanged(typed string) (Model, tea.Cmd) {
 		return m.promptTyped(typed)
 	case promptJoin, promptAlias, promptRoomName, promptGroupName, promptThreadName,
 		promptRuleSound, promptRuleName, promptAttach, promptSetting, promptSettingEntry, promptInvite,
-		promptUnban, promptNewRoom, promptJumpBind, promptTagName, promptTagEntry, promptLogin, promptNone:
+		promptUnban, promptNewRoom, promptJumpBind, promptTagName, promptTagEntry, promptPersonValue, promptPersonKey, promptLogin, promptNone:
 		return m, nil
 	}
 	return m, nil
@@ -232,8 +238,8 @@ func (m Model) submitPrompt() (Model, tea.Cmd) {
 		return m.submitNewRoom(input)
 	case promptJumpBind:
 		return m.submitJumpBinding(input)
-	case promptTagName, promptTagEntry:
-		return m.submitTagPrompt(kind, input)
+	case promptTagName, promptTagEntry, promptPersonValue, promptPersonKey:
+		return m.submitEditorPrompt(kind, input)
 	case promptLogin:
 		return m.submitLogin(input)
 	case promptNone:
@@ -251,13 +257,28 @@ func (m Model) submitSettingPrompt(kind promptKind, input string) (Model, tea.Cm
 	return m.submitSetting(input)
 }
 
-// submitTagPrompt is a value typed in the tag editor: a tag's name, or an entry of one
-// of its lists.
-func (m Model) submitTagPrompt(kind promptKind, input string) (Model, tea.Cmd) {
-	if kind == promptTagEntry {
+// submitEditorPrompt is a value typed in the tag editor (a tag's name, or an entry of
+// one of its lists) or on a phonebook card (a field's value, or a new field's name).
+func (m Model) submitEditorPrompt(kind promptKind, input string) (Model, tea.Cmd) {
+	switch kind {
+	case promptTagEntry:
 		return m.submitTagEntry(input)
+	case promptPersonValue:
+		return m.submitPersonValue(input)
+	case promptPersonKey:
+		return m.submitPersonKey(input)
+	default:
+		return m.submitTagName(input)
 	}
-	return m.submitTagName(input)
+}
+
+// cancelFormPrompt abandons a prompt that is one step of a form: a sign-in's field, or
+// a phonebook card's, which goes back to the card.
+func (m Model) cancelFormPrompt(kind promptKind) Model {
+	if kind == promptLogin {
+		return m.cancelLogin()
+	}
+	return m.cancelPerson()
 }
 
 // cancelPrompt abandons the prompt, undoing whatever it had started to show.
@@ -304,8 +325,8 @@ func (m Model) cancelPrompt() (Model, tea.Cmd) {
 		return m.tagOpen(m.choosing.tag.tag), nil
 	case promptTagEntry:
 		return m.tagEntriesOpen(m.choosing.tag.tag, m.choosing.tag.list), nil
-	case promptLogin:
-		return m.cancelLogin(), nil
+	case promptPersonValue, promptPersonKey, promptLogin:
+		return m.cancelFormPrompt(kind), nil
 	}
 	return m, nil
 }

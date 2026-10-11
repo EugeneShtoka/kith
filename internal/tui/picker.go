@@ -70,6 +70,8 @@ const (
 	pickerFrequencies
 	pickerCompletionModel
 	pickerNewRoom
+	pickerPerson     // a person's phonebook card: its fields, and a row to add one
+	pickerPersonKeys // which field to add to a card
 	pickerNewMembers // who is in a chat being made on another network
 	pickerJump       // the switcher; see jump.go
 	pickerTags
@@ -121,6 +123,8 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerFrequencies:     {title: "Install word counts, so typos that are also words get caught?", modal: true, multi: true},
 	pickerCompletionModel: {title: "Install the completion model, to run on this machine?", modal: true, multi: true},
 	pickerNewRoom:         {title: "Create what?"},
+	pickerPerson:          {},                         // titled with the person
+	pickerPersonKeys:      {},                         // titled with the person
 	pickerNewMembers:      {modal: true, multi: true}, // titled with the chat's name
 	pickerJump:            {title: "Go to"},
 	pickerTags:            {title: "Tags"},
@@ -407,6 +411,8 @@ func (m Model) pickerAction(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		return answered(m.askBanSelected())
 	case actName:
 		return answered(m.aliasSelectedPerson())
+	case actPerson:
+		return answered(m.personOfMember())
 	default:
 		return m, nil, false
 	}
@@ -470,6 +476,10 @@ func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
 // false for the setting pickers.
 func (m Model) acceptConversationPick(item pickerItem) (Model, tea.Cmd, bool) {
 	switch m.picker.kind {
+	case pickerPerson:
+		return answered(m.choosePersonRow(item.value))
+	case pickerPersonKeys:
+		return answered(m.choosePersonKey(item.value))
 	case pickerReaction:
 		return answered(m.reactWithPicked(item.value))
 	case pickerVote:

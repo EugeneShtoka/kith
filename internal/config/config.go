@@ -50,6 +50,7 @@ type Config struct {
 	Agent          Agent         `toml:"agent"`
 	Commands       Commands      `toml:"commands"`
 	Schedule       Schedule      `toml:"schedule"`
+	Phonebook      Phonebook     `toml:"phonebook"`
 	Log            Log           `toml:"log"`
 	WhatsApp       WhatsApp      `toml:"whatsapp"`
 	Slack          Slack         `toml:"slack"`

@@ -31,6 +31,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 | [WhatsApp](whatsapp.md) | Linking WhatsApp directly: setup, several accounts, without Matrix, what works, the risks |
 | [Slack](slack.md) | Signing in to Slack workspaces directly: setup, several workspaces, what you see, the risks |
 | [Telegram](telegram.md) | Logging in to Telegram directly (being built): setup, the app's ID and hash |
+| [Phonebook](phonebook.md) | A folder of Markdown cards, one per person, shared with other programs: the format, and `I` on a person |
 | [Encryption](encryption.md) | End-to-end encryption, device verification, key backup, key export and import, what is stored where |
 
 ## Reference

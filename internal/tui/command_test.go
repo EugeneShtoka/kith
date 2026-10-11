@@ -25,6 +25,8 @@ func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 		"settings": true, "dnd": true, "join": true, "go": true, "new": true, "login": true, "import": true,
 		// Not a room's: what the room list shows of the place in view.
 		"archived": true,
+		// A person's, not a room's: their phonebook card.
+		"person": true,
 	}
 	// both act on the room written in as /, and on the open room or the rail's place
 	// as : (tab moves between them).

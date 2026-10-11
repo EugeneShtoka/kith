@@ -90,6 +90,15 @@ type AgentRead struct {
 	Rooms     []string `toml:"rooms"`  // place vocabulary; empty shares nothing
 	Except    []string `toml:"except"` // subtracted from Rooms
 	Encrypted bool     `toml:"encrypted"`
+	// People hands an assistant what the phonebook says of the people it sees.
+	People bool `toml:"people"`
+}
+
+// Phonebook is [phonebook]: the folder of people's files kith shares with other
+// programs (internal/phonebook).
+type Phonebook struct {
+	// Dir is the folder; empty is $XDG_DATA_HOME/phonebook.
+	Dir string `toml:"dir"`
 }
 
 // AgentWrite is [agent.write]: where an assistant may draft, and where it may send.

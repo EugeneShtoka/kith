@@ -106,6 +106,11 @@ var commands = []command{
 		run: Model.openImport,
 	},
 	{
+		name:    "person",
+		summary: "the phonebook card of the person in view: the selected message's sender, else the room's one person",
+		run:     noArg(Model.personInView),
+	},
+	{
 		name: "archived", keyScope: scopeRooms, keyAct: actToggleArchived,
 		summary: "show or hide the archived rooms of the place you are in, until kith restarts",
 		run:     noArg(Model.toggleArchived),

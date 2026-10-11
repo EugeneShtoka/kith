@@ -79,7 +79,7 @@ Nine tools: eight read, one writes. A room argument accepts a room ID or the roo
 | --- | --- | --- |
 | `list_rooms` | `query` (optional, name contains), `limit` (default 40, max 200) | Rooms with unread counts, rooms that have unread messages first; `writable: true` on rooms `send_message` may write to |
 | `find_rooms_with` | `people` (required, list of names or Matrix IDs), `limit` (default 10, max 50) | Rooms that **all** the named people are in |
-| `find_people` | `query` (required), `limit` (default 10, max 50) | People whose display name or Matrix ID contains the query, from the rooms in scope |
+| `find_people` | `query` (required), `limit` (default 10, max 50) | People whose display name or Matrix ID contains the query, from the rooms in scope; with `[agent.read] people = true`, each with their [phonebook](phonebook.md) card's `fields` |
 | `read_room` | `room` (required), `limit` (default 40, max 200), `sender` (optional Matrix ID), `thread` (optional: a thread's root, or any message in it) | The latest messages, oldest first; with `thread`, only that thread |
 | `search_messages` | `query` (required), `room`, `sender`, `since` (RFC 3339), `limit` (default 20, max 100) | Full-text hits across the cache |
 | `read_around` | `room` (required), `event` (required, an event ID), `before` (default 5, max 50), `after` (default 10, max 50) | The conversation around one message |

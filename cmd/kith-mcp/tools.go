@@ -172,7 +172,8 @@ var tools = []tool{
 	{
 		name: "find_people",
 		summary: "Find people by name among those who have posted in the rooms you may read, " +
-			"returning their Matrix IDs. " +
+			"returning their Matrix IDs, and, where the person's settings allow, what their phonebook " +
+			"card says of them (birthday, family, pets, …) as fields. " +
 			"Use it first when a request names somebody, then pass the IDs to find_rooms_with.",
 		schema: schema(map[string]any{
 			"query": str("part of a display name or Matrix ID"),

@@ -37,6 +37,7 @@ var propertyGroups = append([]propertyGroup{
 	{"display.skin_tone", "emoji", "display."},
 	{"display.reactions.", "emoji", "display."},
 	{"display.rooms.", "rooms", "display."},
+	{"phonebook.", "names", ""},
 	{"display.show_archived", "rooms", "display."},
 	{"display.rail.", "rooms", "display."},
 	{"display.priority", "rooms", "display."},
