@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/phonebook"
 )
 
 // A picker is a modal chooser over a list. One with letter actions (e.g. `a` to alias a
@@ -81,6 +82,7 @@ const (
 	pickerImportAccount // :import's accounts, folders and choices; see imports.go
 	pickerImportFolders
 	pickerImportChoice
+	pickerCards // :people, every card in the phonebook; see cards.go
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -134,6 +136,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerImportAccount:   {title: "Copy folders from which account?"},
 	pickerImportFolders:   {}, // titled with the account
 	pickerImportChoice:    {}, // titled with the folder
+	pickerCards:           {title: "People in the phonebook"},
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text
@@ -145,6 +148,10 @@ type pickerItem struct {
 	match  string
 	// room is where the row's thing lives, for lists spanning rooms; empty means the open room.
 	room domain.RoomID
+	// card matches the row by a person's card (phonebook.Card.Matches) instead of its text;
+	// byTerms hides it until a field term is typed.
+	card    *phonebook.Card
+	byTerms bool
 }
 
 type picker struct {
@@ -225,24 +232,27 @@ func newCheckedPicker(kind pickerKind, items []pickerItem, checked map[string]bo
 }
 
 // refilter recomputes the visible items: prefix matches first, then substring, as in the
-// mention and emoji completions.
+// mention and emoji completions, then the rows matched by their cards.
 func (p picker) refilter() picker {
 	query := strings.ToLower(strings.TrimSpace(p.filter))
-	if query == "" {
-		p.items = p.all
-	} else {
-		var prefix, contains []pickerItem
-		for _, item := range p.all {
-			text := strings.ToLower(item.matchText())
-			switch {
-			case strings.HasPrefix(text, query):
-				prefix = append(prefix, item)
-			case strings.Contains(text, query):
-				contains = append(contains, item)
+	terms := phonebook.ParseQuery(p.filter)
+	var prefix, contains, cards []pickerItem
+	for _, item := range p.all {
+		if item.card != nil {
+			if (!item.byTerms || terms.HasTerms()) && item.card.Matches(terms) {
+				cards = append(cards, item)
 			}
+			continue
 		}
-		p.items = slices.Concat(prefix, contains)
+		text := strings.ToLower(item.matchText())
+		switch {
+		case strings.HasPrefix(text, query):
+			prefix = append(prefix, item)
+		case strings.Contains(text, query):
+			contains = append(contains, item)
+		}
 	}
+	p.items = slices.Concat(prefix, contains, cards)
 	p.cursor = clampIndex(p.cursor, len(p.items))
 	return p
 }
@@ -490,6 +500,8 @@ func (m Model) acceptConversationPick(item pickerItem) (Model, tea.Cmd, bool) {
 		return answered(m.openPickedThread(domain.EventID(item.value), item.room))
 	case pickerJump:
 		return answered(m.acceptJump(item.value))
+	case pickerCards:
+		return answered(m.choosePhonebookCard(item))
 	case pickerScheduled:
 		// Re-read after canceling, so it shows what the daemon holds.
 		return m.closePicker(), m.cancelScheduledCmd(item.value), true

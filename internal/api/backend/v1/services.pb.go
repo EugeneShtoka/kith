@@ -5775,8 +5775,11 @@ type SearchMessagesRequest struct {
 	// Only the messages you starred.
 	Starred bool `protobuf:"varint,10,opt,name=starred,proto3" json:"starred,omitempty"`
 	// Only the messages carrying one of the tracked words, and which of them to look for.
-	Tracked       bool     `protobuf:"varint,11,opt,name=tracked,proto3" json:"tracked,omitempty"`
-	Words         []string `protobuf:"bytes,12,rep,name=words,proto3" json:"words,omitempty"`
+	Tracked bool     `protobuf:"varint,11,opt,name=tracked,proto3" json:"tracked,omitempty"`
+	Words   []string `protobuf:"bytes,12,rep,name=words,proto3" json:"words,omitempty"`
+	// Only the messages from one of these IDs (a phonebook field term the client resolved);
+	// none leaves it open.
+	Senders       []string `protobuf:"bytes,14,rep,name=senders,proto3" json:"senders,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5891,6 +5894,13 @@ func (x *SearchMessagesRequest) GetTracked() bool {
 func (x *SearchMessagesRequest) GetWords() []string {
 	if x != nil {
 		return x.Words
+	}
+	return nil
+}
+
+func (x *SearchMessagesRequest) GetSenders() []string {
+	if x != nil {
+		return x.Senders
 	}
 	return nil
 }
@@ -12268,7 +12278,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x10UnbanUserRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x13\n" +
-	"\x11UnbanUserResponse\"\xc2\x02\n" +
+	"\x11UnbanUserResponse\"\xdc\x02\n" +
 	"\x15SearchMessagesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x03R\x05limit\x12\x19\n" +
@@ -12282,7 +12292,8 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\astarred\x18\n" +
 	" \x01(\bR\astarred\x12\x18\n" +
 	"\atracked\x18\v \x01(\bR\atracked\x12\x14\n" +
-	"\x05words\x18\f \x03(\tR\x05words\"C\n" +
+	"\x05words\x18\f \x03(\tR\x05words\x12\x18\n" +
+	"\asenders\x18\x0e \x03(\tR\asenders\"C\n" +
 	"\x16SearchMessagesResponse\x12)\n" +
 	"\x04hits\x18\x01 \x03(\v2\x15.backend.v1.SearchHitR\x04hits\"\xb4\x01\n" +
 	"\x13CompleteWordRequest\x12\x16\n" +

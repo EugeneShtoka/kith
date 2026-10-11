@@ -26,6 +26,8 @@ func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 		"archived": true,
 		// A person's, not a room's: their phonebook card.
 		"person": true,
+		// The phonebook's cards, nobody's room.
+		"people": true,
 	}
 	// both act on the room written in as /, and on the open room or the rail's place as :.
 	both := map[string]bool{"shortcut": true}

@@ -15,10 +15,11 @@ import (
 
 // The switcher (ctrl+k): type part of a person, room or space name and go there, over lists
 // already held. People with no room yet come last as "start a DM" rows, so no row looks like a
-// place but creates one.
+// place but creates one. A field term (role:attorney) lists the people whose phonebook card
+// meets it.
 
-// jumpItems is everything the switcher reaches: unread rooms, other rooms, DM candidates, then
-// rail groups.
+// jumpItems is everything the switcher reaches: unread rooms, other rooms, DM candidates, rail
+// groups, then the phonebook's people, shown only for a field term.
 func (m Model) jumpItems() []pickerItem {
 	view := m.unreadView()
 	items := make([]pickerItem, 0, len(m.rooms.all)+len(m.rail.groups))
@@ -48,6 +49,16 @@ func (m Model) jumpItems() []pickerItem {
 			value:  "group:" + g.key,
 			// The key matches too, so a renamed group is findable by its Matrix name.
 			match: g.label + " " + g.key,
+		})
+	}
+	cards := m.cards.index.Cards()
+	for i := range cards {
+		items = append(items, pickerItem{
+			label:   isolate(cards[i].Name),
+			detail:  "person",
+			value:   "card:" + cards[i].Path,
+			card:    &cards[i],
+			byTerms: true,
 		})
 	}
 	return items
@@ -147,6 +158,8 @@ func (m Model) acceptJump(value string) (Model, tea.Cmd) {
 		return m.jumpToGroup(target)
 	case "dm":
 		return m.startDirect(target)
+	case "card":
+		return m.goToCard(target)
 	}
 	return m.goToRoom(domain.RoomID(target))
 }

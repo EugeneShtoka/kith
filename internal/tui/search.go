@@ -102,8 +102,9 @@ func (m Model) openSearchFor(global bool, terms string) (Model, tea.Cmd) {
 	m.search = searchState{active: true, scope: reach, kind: wordsList{}}
 	m.focus = paneTimeline
 	m.compose = m.compose.left()
-	// Ask for `from:` candidates before it is typed.
-	senders := m.searchSendersCmd(m.searchRooms(reach), reach)
+	// Ask for `from:` candidates before it is typed, and the cards a field term meets.
+	m, cards := m.loadCards(false, "")
+	senders := tea.Batch(m.searchSendersCmd(m.searchRooms(reach), reach), cards)
 	if terms == "" {
 		return m, senders
 	}
@@ -222,6 +223,14 @@ func (m Model) runSearch(query string) (Model, tea.Cmd) {
 	// Filters are parsed here so only terms reach FTS5 (see domain.ParseSearch).
 	filter := domain.ParseSearch(query, time.Now())
 	m.search.showing().narrow(&filter)
+	if filter.SenderField != "" {
+		senders, why := m.fieldSenders(filter.SenderField)
+		if why != "" {
+			m.search.hits, m.search.cursor = nil, 0
+			return m.say(why), nil
+		}
+		filter.Senders = senders
+	}
 	if filter.Empty() {
 		m.search.hits, m.search.cursor = nil, 0
 		return m, nil

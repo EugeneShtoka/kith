@@ -14,6 +14,11 @@ type SearchFilter struct {
 	Terms string
 	// Sender is an MXID or a display-name fragment.
 	Sender string
+	// SenderField is a phonebook field term after from: (from:role:attorney), which the
+	// client resolves into Senders.
+	SenderField string
+	// Senders narrows to messages from any of these IDs; nil leaves it open.
+	Senders []string
 	// Since is inclusive, Until exclusive.
 	Since time.Time
 	Until time.Time
@@ -31,7 +36,7 @@ type SearchFilter struct {
 
 // Empty reports whether the filter has no terms and no narrowing.
 func (f SearchFilter) Empty() bool {
-	return f.Terms == "" && f.Sender == "" && f.Since.IsZero() && f.Until.IsZero() &&
+	return f.Terms == "" && f.Sender == "" && f.SenderField == "" && f.Senders == nil && f.Since.IsZero() && f.Until.IsZero() &&
 		!f.Mentioned && !f.HasFile && !f.Starred && !f.Tracked
 }
 
@@ -48,9 +53,13 @@ func ParseSearch(input string, now time.Time) SearchFilter {
 		}
 		switch strings.ToLower(name) {
 		case "from":
-			filter.Sender = strings.TrimPrefix(value, "@") // typed either way
-			if strings.Contains(value, ":") {
-				filter.Sender = value // a full MXID, colons and all
+			switch {
+			case fieldTerm(value):
+				filter.SenderField = value
+			case strings.Contains(value, ":"):
+				filter.Sender = value // a full ID, colons and all
+			default:
+				filter.Sender = strings.TrimPrefix(value, "@") // typed either way
 			}
 		case "since":
 			if at, ok := parseWhen(value, now, false); ok {
@@ -70,6 +79,13 @@ func ParseSearch(input string, now time.Time) SearchFilter {
 	}
 	filter.Terms = strings.Join(terms, " ")
 	return filter
+}
+
+// fieldTerm reports whether a from: value is a phonebook field term (key:value) rather
+// than an ID.
+func fieldTerm(value string) bool {
+	key, rest, ok := strings.Cut(value, ":")
+	return ok && key != "" && rest != "" && !strings.HasPrefix(value, "@") && !IsUserID(value)
 }
 
 // parseWhen reads a date bound: a relative span (7d, 2w, 3m), a word (today,

@@ -168,11 +168,15 @@ row_numbers = false
 # ([display.theme.networks]), true or false whatever [display] network_colors says.
 # show_archived lists archived rooms in this place's room list, true or false whatever
 # [display] show_archived says.
+# show_field names a phonebook field ([phonebook]) whose value this place shows after a
+# person's name: in its room list on a DM or a room with one person in it, and in the
+# member list ("Dana Levi · Meta").
 # [[display.space_rule]]
 # space = "space:Friends"
 # first_name_only = true
 # network_colors = true
 # show_archived = false
+# show_field = "company"
 
 # Merge several accounts into one person with a shared alias and/or fixed color
 # (#rrggbb or a named color). Both are optional. An alias chooses which name to show;

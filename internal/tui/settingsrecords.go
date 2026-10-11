@@ -18,12 +18,15 @@ import (
 // any setting.
 //
 // Keys: rec:<table> lists a table's records, rec:<table>#<i> is one record,
-// rec:<table>#<i>.<field> one field; names:, colors: and archived:<rail key> are a
-// place's first-names, network-colors and archived-rooms rows.
+// rec:<table>#<i>.<field> one field; names:, field:, colors: and archived:<rail key> are a
+// place's first-names, field-beside-names, network-colors and archived-rooms rows.
 
 const (
 	recordPrefix = "rec:"
 	namesPrefix  = "names:"
+	fieldPrefix  = "field:"
+	// noShowField is the no-field choice; no card key is spelled so.
+	noShowField  = "\x00none"
 	colorsPrefix = "colors:"
 	archivedKey  = "archived:"
 	recordAdd    = "#add"
@@ -86,7 +89,7 @@ func recordTable(key string) (config.RecordTable, bool) {
 func (m Model) groupRows(group string) []setting {
 	switch {
 	case group == "names":
-		return append(m.placeNameRows(), groupSettings(group)...)
+		return slices.Concat(m.placeNameRows(), m.placeFieldRows(), groupSettings(group))
 	case group == "look":
 		return append(groupSettings(group), m.placeColorRows()...)
 	case group == "rooms":
@@ -302,6 +305,47 @@ func (m Model) placeNameRows() []setting {
 			show:  func(c config.Config) string { return onOff(firstNamesIn(c, place)) },
 			set: func(c *config.Config, _ string) error {
 				c.Display.SpaceRules = withFirstNames(c.Display, place, !firstNamesIn(*c, place))
+				return nil
+			},
+		})
+	}
+	return rows
+}
+
+// placeFieldRows are a choice for every rail space and tag of the phonebook field shown
+// after names there ([[display.space_rule]] show_field): none, or a key the cards use.
+func (m Model) placeFieldRows() []setting {
+	keys := m.cards.index.Keys()
+	var rows []setting
+	for _, g := range m.rail.groups {
+		if !isSpaceGroup(g.key) && !isTagGroup(g.key) {
+			continue
+		}
+		place := g.key
+		choices := []settingChoiceOption{{noShowField, "none", "names alone"}}
+		shown := slices.Clone(keys)
+		if current := m.conf.base.Display.ShowFieldIn(setup.HomeNamer(m.conf.base.Display, place)); current != "" && !slices.Contains(shown, current) {
+			shown = append(shown, current)
+		}
+		for _, key := range shown {
+			choices = append(choices, settingChoiceOption{key, key, "the " + key + " on the person's card"})
+		}
+		rows = append(rows, setting{
+			key: fieldPrefix + place, group: "names", kind: settingChoice,
+			label:   "Field beside names in " + g.label,
+			doc:     "In this " + placeWord(place) + "'s room list, a DM or a room with one person in it besides you and bots shows a field of that person's phonebook card after the name (\"Dana Levi · Meta\"), and so does the member list.",
+			choices: choices,
+			show: func(c config.Config) string {
+				if key := c.Display.ShowFieldIn(setup.HomeNamer(c.Display, place)); key != "" {
+					return key
+				}
+				return "none"
+			},
+			set: func(c *config.Config, value string) error {
+				if value == noShowField {
+					value = ""
+				}
+				c.Display.SpaceRules = withSpaceRule(c.Display, place, func(r *config.SpaceRule) { r.ShowField = value })
 				return nil
 			},
 		})

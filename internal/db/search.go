@@ -76,6 +76,15 @@ func searchWhere(req domain.SearchRequest, args []any) (string, []any, bool) {
 		like := "%" + escapeLike(sender) + "%"
 		args = append(args, like, like)
 	}
+	if senders := req.Filter.Senders; senders != nil {
+		if len(senders) == 0 {
+			return "", nil, false
+		}
+		var in string
+		in, args = inIDs(args, senders)
+		// #nosec G202 -- inIDs emits only placeholders; every sender is bound.
+		sql += " AND m.sender" + in
+	}
 	if req.Filter.Mentioned {
 		sql += " AND m.mentioned = 1"
 	}

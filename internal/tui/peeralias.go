@@ -118,20 +118,11 @@ func (m Model) withPeerAliases() Model {
 // peerOf is the room's one member who is neither me nor a bridge bot, when the room's own name
 // is that member's name.
 func (m Model) peerOf(room domain.Room, members []domain.Member) (string, bool) {
-	if len(members) >= peerMembersLimit || room.Name == "" {
+	if room.Name == "" {
 		return "", false
 	}
-	var peer domain.Member
-	for _, member := range members {
-		if m.isMe(member.UserID) || domain.IsBridgeBot(member.UserID) {
-			continue
-		}
-		if peer.UserID != "" {
-			return "", false
-		}
-		peer = member
-	}
-	if peer.UserID == "" || peer.DisplayName != room.Name {
+	peer, many := m.onePerson(members)
+	if many || peer.UserID == "" || peer.DisplayName != room.Name {
 		return "", false
 	}
 	return peer.UserID, true

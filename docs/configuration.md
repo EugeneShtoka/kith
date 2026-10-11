@@ -96,7 +96,8 @@ You rarely need to open the file. Inside kith:
   - A list of records (read rules, media rules, people, names you gave, spam filters,
     scripts, accounts, jump shortcuts) opens its records, each one's fields set as
     above; *Add one* is typed as its first field, *Remove this one* takes it out.
-  - **Names** has a first-names-only switch for every space and tag. **Keys** has
+  - **Names** has a first-names-only switch for every space and tag, and the
+    [phonebook](phonebook.md#a-field-beside-names) field shown beside names there. **Keys** has
     every binding by table, typed as the file writes them (`k,up`; empty restores the
     default, `-` binds nothing); a binding that would clash is refused with the reason.
   - **Tags** edits your [tags](usage.md#tags).

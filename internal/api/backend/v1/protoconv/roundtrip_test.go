@@ -17,7 +17,8 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 
 	// Fields that deliberately do not cross the wire, matched by name at any depth.
 	offWire := map[string]string{
-		"RevisionID": "only the daemon, which writes the cache, needs it",
+		"RevisionID":  "only the daemon, which writes the cache, needs it",
+		"SenderField": "the client resolves it into Senders before it searches",
 	}
 
 	for _, tc := range []struct {

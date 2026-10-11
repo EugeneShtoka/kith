@@ -139,3 +139,79 @@ func TestANewCardIsMadeAndItsKeysOffered(t *testing.T) {
 		t.Errorf("the new card is not found by its identifier: %+v", found)
 	}
 }
+
+// A field term matches a key in any case, identifier keys too, by part of any value (any
+// element of a list); several terms must all hold, and plain words look in the name and
+// aliases. A word without both sides of its colon is a plain word.
+func TestCardsAreSearchedByTheirFields(t *testing.T) {
+	t.Parallel()
+	b := book(t, map[string]string{
+		"Dana Levi.md": dana,
+		"Eli Stone.md": "---\nRole: Family Attorney\ncompany: [Acme, Meta]\nmatrix: [\"@eli:x\"]\n---\n",
+		"Noa.md":       "---\nrole: architect\naliases: [Noa Stone]\n---\n",
+	})
+	cards, err := b.Cards()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for query, want := range map[string]string{
+		"role:attorney":             "Eli Stone",
+		"ROLE:ATTORNEY":             "Eli Stone",
+		"role:a":                    "Eli Stone,Noa",
+		"company:meta":              "Eli Stone",
+		"company:acme company:meta": "Eli Stone",
+		"company:acme role:arch":    "",
+		"pets:rex":                  "Dana Levi",
+		"phone:123-4567":            "Dana Levi",
+		"matrix:@eli":               "Eli Stone",
+		"stone":                     "Eli Stone,Noa",
+		"stone role:arch":           "Noa",
+		"birthday:1990 dana":        "Dana Levi",
+		"nickname:x":                "",
+		"role: :attorney":           "",
+		"":                          "Dana Levi,Eli Stone,Noa",
+	} {
+		var got []string
+		for _, c := range cards {
+			if c.Matches(ParseQuery(query)) {
+				got = append(got, c.Name)
+			}
+		}
+		if strings.Join(got, ",") != want {
+			t.Errorf("%q matched %v, want %q", query, got, want)
+		}
+	}
+	if q := ParseQuery("role: x:y :z dana"); len(q.Terms) != 1 || q.Terms[0].String() != "x:y" || strings.Join(q.Words, " ") != "role: :z dana" {
+		t.Errorf("parsed %+v", q)
+	}
+}
+
+// An index finds the card a person's identifiers name, the first by file name when two
+// share one, as the folder does; an empty identifier names no one.
+func TestAnIndexFindsCardsAsTheFolderDoes(t *testing.T) {
+	t.Parallel()
+	b := book(t, map[string]string{
+		"Dana Levi.md": dana,
+		"Dana Old.md":  "---\nemail: [dana@example.com]\n---\n",
+		"Eli.md":       "---\nphone: [\"+15550100002\"]\nemail: [\"\"]\n---\n",
+	})
+	cards, _ := b.Cards()
+	x := NewIndex(cards)
+	for _, c := range []struct {
+		ids  Identifiers
+		want string
+	}{
+		{Identifiers{"email": {"DANA@example.com"}}, "Dana Levi"},
+		{Identifiers{"phone": {"972 54 123 4567"}}, "Dana Levi"},
+		{Identifiers{"phone": {"15550100002"}, "email": {"dana@example.com"}}, "Dana Levi"},
+		{Identifiers{"phone": {"+1 555 010 0002"}}, "Eli"},
+		{Identifiers{"email": {""}}, ""},
+		{Identifiers{"phone": {"x"}}, ""},
+		{Identifiers{"telegram": {"1"}}, ""},
+	} {
+		got, ok := x.Find(c.ids)
+		if got.Name != c.want || ok != (c.want != "") {
+			t.Errorf("%v found %q, %v; want %q", c.ids, got.Name, ok, c.want)
+		}
+	}
+}

@@ -595,6 +595,9 @@ message SearchMessagesRequest {
   // Only the messages carrying one of the tracked words, and which of them to look for.
   bool tracked = 11;
   repeated string words = 12;
+  // Only the messages from one of these IDs (a phonebook field term the client resolved);
+  // none leaves it open.
+  repeated string senders = 14;
 }
 
 message SearchMessagesResponse {

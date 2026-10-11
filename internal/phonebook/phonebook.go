@@ -66,13 +66,15 @@ func (b *Book) Find(ids Identifiers) (Card, bool, error) {
 	if err != nil {
 		return Card{}, false, err
 	}
-	for i := range cards {
-		if matches(cards[i].IDs, ids) {
-			return cards[i], true, nil
-		}
-	}
-	return Card{}, false, nil
+	card, ok := NewIndex(cards).Find(ids)
+	return card, ok, nil
 }
+
+// Cards returns every card, by file name. A missing folder holds no one.
+func (b *Book) Cards() ([]Card, error) { return b.cards() }
+
+// Read returns the card at path as the file has it now.
+func (b *Book) Read(path string) (Card, error) { return read(path) }
 
 // Keys is every field key the folder's cards use, sorted, identifiers left out.
 func (b *Book) Keys() ([]string, error) {
@@ -80,16 +82,7 @@ func (b *Book) Keys() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var keys []string
-	for i := range cards {
-		for _, f := range cards[i].Fields {
-			if !slices.Contains(keys, f.Key) {
-				keys = append(keys, f.Key)
-			}
-		}
-	}
-	slices.Sort(keys)
-	return keys, nil
+	return NewIndex(cards).Keys(), nil
 }
 
 // Create writes a new card with ids and the person tag, named after name (sanitized,
@@ -318,30 +311,20 @@ func removeKey(doc *yaml.Node, key string) {
 	}
 }
 
-// matches reports whether two sets of identifiers share one: a phone number by its
-// digits, an email in any case, the rest as written.
-func matches(a, b Identifiers) bool {
-	for key, values := range a {
-		for _, v := range values {
-			for _, w := range b[key] {
-				if same(key, v, w) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func same(key, a, b string) bool {
+// identifier is an identifier as it is compared: a phone number by its digits, an email in
+// any case, the rest as written; "" never matches.
+func identifier(key, value string) string {
+	value = strings.TrimSpace(value)
 	switch key {
 	case "phone":
-		da, db := digits(a), digits(b)
-		return da != "" && da == db
+		value = digits(value)
 	case "email":
-		return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
+		value = strings.ToLower(value)
 	}
-	return strings.TrimSpace(a) == strings.TrimSpace(b) && strings.TrimSpace(a) != ""
+	if value == "" {
+		return ""
+	}
+	return key + "\x00" + value
 }
 
 func digits(s string) string {

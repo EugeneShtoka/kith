@@ -211,6 +211,7 @@ func SearchRequestToProto(req domain.SearchRequest) *v1.SearchMessagesRequest {
 	out := &v1.SearchMessagesRequest{
 		Query:     req.Filter.Terms,
 		Sender:    req.Filter.Sender,
+		Senders:   req.Filter.Senders,
 		Limit:     int64(req.Limit),
 		Mentioned: req.Filter.Mentioned,
 		HasFile:   req.Filter.HasFile,
@@ -230,6 +231,7 @@ func ProtoToSearchRequest(msg *v1.SearchMessagesRequest) domain.SearchRequest {
 		Filter: domain.SearchFilter{
 			Terms:     msg.GetQuery(),
 			Sender:    msg.GetSender(),
+			Senders:   msg.GetSenders(),
 			Mentioned: msg.GetMentioned(),
 			HasFile:   msg.GetHasFile(),
 			Starred:   msg.GetStarred(),

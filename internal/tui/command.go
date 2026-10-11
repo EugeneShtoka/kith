@@ -111,6 +111,11 @@ var commands = []command{
 		run:     noArg(Model.personInView),
 	},
 	{
+		name: "people", arg: "[terms]", argOptional: true,
+		summary: "every card in the phonebook — a name or key:value (role:attorney) narrows it, and choosing one opens it",
+		run:     Model.openPhonebook,
+	},
+	{
 		name: "archived", keyScope: scopeRooms, keyAct: actToggleArchived,
 		summary: "show or hide the archived rooms of the place you are in, until kith restarts",
 		run:     noArg(Model.toggleArchived),
