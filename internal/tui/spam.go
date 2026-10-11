@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// Spam is a move, not a tag: no space lists a spam room, and a Spam tag (rule `spam`,
-// exclusive) gives them a row. Spam rooms are out of unread totals, badges and
-// group-wide mark-read.
+// Spam is a state, not a place: a tag with rule `spam` gives its rooms a row, and its
+// exclusive and counts_unread decide where else they show and whether they count.
 
 func (v unreadView) isSpam(room domain.Room) bool { return v.spamRooms[room.ID] }
 
@@ -75,7 +74,7 @@ func (m Model) toggleSpam() (Model, tea.Cmd) {
 		return mdl, tea.Batch(cmd, m.releaseSpamCmd(room.ID))
 	}
 	spam := m.rail.spam.Excusing(id, false).With(id, true)
-	return m.applySpam(spam, name+" is in Spam — still readable, out of its space and out of the counts")
+	return m.applySpam(spam, name+" is in Spam — still readable, and it does not notify")
 }
 
 // applySpam writes both lists to the top-level `[spam]` section (the daemon reads it

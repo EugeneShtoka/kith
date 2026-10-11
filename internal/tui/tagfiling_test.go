@@ -52,7 +52,10 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 		}
 		var tags []config.Tag
 		for i := range 1 + rng.IntN(3) {
-			tag := config.Tag{Name: fmt.Sprintf("T%d", i), Exclusive: rng.IntN(4) == 0}
+			tag := config.Tag{Name: fmt.Sprintf("T%d", i)}
+			if rng.IntN(4) == 0 {
+				tag.Exclusive = []string{"tags"}
+			}
 			if rng.IntN(3) == 0 {
 				tag.CountsUnread = &off
 			}

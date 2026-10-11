@@ -48,8 +48,8 @@ func ApplyGroupings(cfg config.Config, owner domain.RoomOwner, groupings []domai
 
 // configTag is the index of the [[tag]] named name (case-insensitive), -1 for none.
 func configTag(cfg config.Config, name string) int {
-	for i, t := range cfg.Tags {
-		if strings.EqualFold(strings.TrimSpace(t.Name), strings.TrimSpace(name)) {
+	for i := range cfg.Tags {
+		if strings.EqualFold(strings.TrimSpace(cfg.Tags[i].Name), strings.TrimSpace(name)) {
 			return i
 		}
 	}

@@ -89,13 +89,12 @@ func railGroups(
 			key:   name,
 			label: name,
 			admits: func(v unreadView, r domain.Room) bool {
-				// An invitation and spam are not in any space until dealt with.
-				if !children[r.ID] || r.IsInvite() || v.isSpam(r) {
+				// An invitation is not in any space until dealt with.
+				if !children[r.ID] || r.IsInvite() {
 					return false
 				}
-				// A space-exclusive tag keeps a room only where it belongs: a bridge's space or its canonical
-				// home.
-				return !v.leavesMadeSpaces(r) || belongs || v.parents[r.ID] == spaceID
+				// Its origin is where it belongs: a bridge's space or its canonical home.
+				return !v.leavesSpace(r, belongs || v.parents[r.ID] == spaceID)
 			},
 		})
 	}
@@ -109,13 +108,13 @@ func railGroups(
 // fallbackGroupKey is the rail key of the single row a rail with no spaces and no tags gets.
 const fallbackGroupKey = "*all"
 
-// fallbackGroup is every room but invitations and spam, for a config with no tags and an
-// account with no spaces.
+// fallbackGroup is every room but invitations, for a config with no tags and an account
+// with no spaces.
 func fallbackGroup() group {
 	return group{
 		key:    fallbackGroupKey,
 		label:  "All",
-		admits: func(v unreadView, r domain.Room) bool { return !r.IsInvite() && !v.isSpam(r) },
+		admits: func(v unreadView, r domain.Room) bool { return !r.IsInvite() },
 	}
 }
 

@@ -2,21 +2,21 @@ package tui
 
 import (
 	"reflect"
-	"slices"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// What the tags make of each room: which hold it, whether it is silenced, its
-// exclusive tag, and the space-exclusive tags holding it. Every rail row asks this per
+// What the tags make of each room: which hold it, whether it is silenced, the tag it
+// shows under alone, and which spaces it leaves. Every rail row asks this per
 // room per draw, so it is memoized, keyed by the identity of its copy-on-write inputs
 // (cow.go): any change is a new map and a new key.
 
 type roomTags struct {
-	in        []bool // by tag index: the tag holds it
-	silenced  bool   // a silent tag holds it
-	owner     int    // the exclusive tag it shows under, first in config order; -1 none
-	spaceExcl []int  // the space-exclusive tags holding it
+	in       []bool // by tag index: the tag holds it
+	silenced bool   // a silent tag holds it
+	owner    int    // the tag it shows under alone (exclusive tags), first in config order; -1 none
+	// leaves is where the tags holding it take it from.
+	leaves domain.Exclusive
 }
 
 type tagMemo struct {
@@ -95,12 +95,11 @@ func (v unreadView) computeTags(room domain.Room) roomTags {
 		if out.in[i] = v.tags.HasAt(i, facts, state); !out.in[i] {
 			continue
 		}
-		if tag.Exclusive && out.owner < 0 {
+		if tag.Exclusive.Tags && out.owner < 0 {
 			out.owner = i
 		}
-		if tag.SpaceExclusive {
-			out.spaceExcl = append(out.spaceExcl, i)
-		}
+		out.leaves.Spaces = out.leaves.Spaces || tag.Exclusive.Spaces
+		out.leaves.Origin = out.leaves.Origin || tag.Exclusive.Origin
 	}
 	return out
 }
@@ -137,18 +136,11 @@ func (v unreadView) rawState(room domain.Room) domain.RoomState {
 	}
 }
 
-// showsInTag reports whether tag i's row lists room: the tag holds it and no other
-// claims it (an exclusive tag shows it alone; a space-exclusive one takes it from every
-// non-space-exclusive tag).
+// showsInTag reports whether tag i's row lists room: the tag holds it and no
+// exclusive tag claims it.
 func (v unreadView) showsInTag(i int, room domain.Room) bool {
 	t := v.tagsOf(room)
-	if !t.in[i] {
-		return false
-	}
-	if t.owner >= 0 {
-		return t.owner == i
-	}
-	return len(t.spaceExcl) == 0 || slices.Contains(t.spaceExcl, i)
+	return t.in[i] && (t.owner < 0 || t.owner == i)
 }
 
 // ownerName is the name of the exclusive tag room shows under; "" for none.
@@ -159,10 +151,14 @@ func (v unreadView) ownerName(room domain.Room) string {
 	return ""
 }
 
-// leavesMadeSpaces reports whether a space-exclusive tag holds room, taking it out of
-// user-made spaces.
-func (v unreadView) leavesMadeSpaces(room domain.Room) bool {
-	return len(v.tagsOf(room).spaceExcl) > 0
+// leavesSpace reports whether a tag holding room takes it out of a space; origin is
+// whether the room belongs there.
+func (v unreadView) leavesSpace(room domain.Room, origin bool) bool {
+	leaves := v.tagsOf(room).leaves
+	if origin {
+		return leaves.Origin
+	}
+	return leaves.Spaces
 }
 
 func (v unreadView) silenced(room domain.Room) bool { return v.tagsOf(room).silenced }

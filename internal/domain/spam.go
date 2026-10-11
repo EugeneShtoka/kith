@@ -71,6 +71,8 @@ const (
 	SpamDirect
 	// SpamMostly: most messages over the window were caught.
 	SpamMostly
+	// SpamAlways: a filter that moves on any catch caught a message.
+	SpamAlways
 )
 
 // Reason is the rule in words, for the status line and `:why`.
@@ -88,6 +90,8 @@ func (r SpamRule) Reason(filter string) string {
 		return "it is a direct message and its message was caught by a filter" + named
 	case SpamMostly:
 		return "most of what is said in it is caught by a filter" + named
+	case SpamAlways:
+		return "a message in it was caught by a filter" + named
 	case SpamNotSpam:
 		return ""
 	}
@@ -110,16 +114,30 @@ func (v SpamVerdict) Spam() bool { return v.Rule != SpamNotSpam && !v.Released }
 // ErrSpamReleased refuses a rule's verdict for a room a person released.
 var ErrSpamReleased = errors.New("the room was released from Spam")
 
-// SpamFilter identifies spam messages; SpamRules promote rooms.
+// SpamFilter identifies spam messages, and which rules move their room into Spam.
 type SpamFilter struct {
 	Name  string  // reported when it catches something
 	Words Tracked // with Tracked's glob widths
 	From  string  // optional sender MXID
+	// In is the places it watches, in the place vocabulary; empty is everywhere.
+	In    []string
+	Moves SpamMoves
 }
 
-// Catches reports whether this filter catches one message.
-func (f SpamFilter) Catches(body, sender string) bool {
+// SpamMoves is which rules a filter's catch can move a room by.
+type SpamMoves struct {
+	Always       bool // any catch
+	FirstMessage bool // the room's first message
+	Direct       bool // a direct message you never wrote in
+	Ratio        bool // most of the window (SpamRules.Ratio)
+}
+
+// Catches reports whether this filter catches one message in room.
+func (f SpamFilter) Catches(body, sender string, room RoomFacts) bool {
 	if f.From != "" && !strings.EqualFold(strings.TrimSpace(f.From), sender) {
+		return false
+	}
+	if len(f.In) > 0 && !namesAny(f.In, room) {
 		return false
 	}
 	if f.anything() {
@@ -138,11 +156,9 @@ func (f SpamFilter) anything() bool {
 	return true
 }
 
-// SpamRules is what promotes a room into Spam; each rule switches on separately.
+// SpamRules is the filters, and the ratio rule's numbers.
 type SpamRules struct {
-	Filters      []SpamFilter
-	FirstMessage bool
-	Direct       bool
+	Filters []SpamFilter
 	// Ratio, Floor and Window: the caught share, the minimum message count, and the
 	// period they are counted over.
 	Ratio  float64
@@ -153,41 +169,55 @@ type SpamRules struct {
 // Any reports whether any rule can fire.
 func (r SpamRules) Any() bool { return len(r.Filters) > 0 }
 
-// Catches reports which filter catches a message, if any.
-func (r SpamRules) Catches(body, sender string) (SpamFilter, bool) {
+// Catching is every filter that catches a message in room, in config order.
+func (r SpamRules) Catching(body, sender string, room RoomFacts) []SpamFilter {
+	var out []SpamFilter
 	for _, filter := range r.Filters {
-		if filter.Catches(body, sender) {
-			return filter, true
+		if filter.Catches(body, sender, room) {
+			out = append(out, filter)
 		}
 	}
-	return SpamFilter{}, false
+	return out
+}
+
+// CountsForRatio reports whether a filter moving by ratio catches a message in room.
+func (r SpamRules) CountsForRatio(body, sender string, room RoomFacts) bool {
+	return slices.ContainsFunc(r.Filters, func(f SpamFilter) bool {
+		return f.Moves.Ratio && f.Catches(body, sender, room)
+	})
 }
 
 // SpamCase is what the rules know about one message.
 type SpamCase struct {
-	Filter string // the filter that caught it, or ""
-	First  bool   // nothing in the room before it
-	Direct bool
-	Mine   bool // you have written in this room
+	Filters []SpamFilter // the filters that caught it
+	First   bool         // nothing in the room before it
+	Direct  bool
+	Mine    bool // you have written in this room
 	// Caught and Total count the room's messages in the window.
 	Caught, Total int
 }
 
-// Promotes reports whether this message moves its room into Spam, and by which rule.
-func (r SpamRules) Promotes(c SpamCase) (SpamRule, bool) {
-	if c.Filter == "" {
-		return SpamNotSpam, false
+// Promotes reports whether this message moves its room into Spam, by which rule and
+// filter: the first filter, in config order, whose moves fire.
+func (r SpamRules) Promotes(c SpamCase) (SpamRule, SpamFilter, bool) {
+	for _, f := range c.Filters {
+		switch {
+		case f.Moves.Always:
+			return SpamAlways, f, true
+		case f.Moves.FirstMessage && c.First:
+			return SpamFirstMessage, f, true
+		case f.Moves.Direct && c.Direct && !c.Mine:
+			return SpamDirect, f, true
+		case f.Moves.Ratio && c.Total >= r.Floor && c.share() >= r.Ratio:
+			return SpamMostly, f, true
+		}
 	}
-	if r.FirstMessage && c.First {
-		return SpamFirstMessage, true
-	}
-	if r.Direct && c.Direct && !c.Mine {
-		return SpamDirect, true
-	}
-	if r.Ratio > 0 && c.Total >= r.Floor && c.share() >= r.Ratio {
-		return SpamMostly, true
-	}
-	return SpamNotSpam, false
+	return SpamNotSpam, SpamFilter{}, false
+}
+
+// RatioWanted reports whether a filter that caught the message moves by ratio.
+func (c SpamCase) RatioWanted() bool {
+	return slices.ContainsFunc(c.Filters, func(f SpamFilter) bool { return f.Moves.Ratio })
 }
 
 // share is Caught/Total, zero for an empty window.

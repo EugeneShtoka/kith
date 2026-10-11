@@ -40,17 +40,33 @@ const (
 
 type tagProperty struct {
 	key, label string
-	field      func(*config.Tag) *bool
+	get        func(config.Tag) bool
+	set        func(*config.Tag, bool)
+}
+
+// flag is a property kept in one bool field.
+func boolProperty(key, label string, field func(*config.Tag) *bool) tagProperty {
+	return tagProperty{key, label,
+		func(t config.Tag) bool { return *field(&t) },
+		func(t *config.Tag, on bool) { *field(t) = on }}
+}
+
+// exclusiveFrom is one word of the exclusive list.
+func exclusiveFrom(what, label string) tagProperty {
+	return tagProperty{"exclusive." + what, label,
+		func(t config.Tag) bool { return t.ExclusiveFrom(what) },
+		func(t *config.Tag, on bool) { t.Exclusive = t.WithExclusive(what, on) }}
 }
 
 var tagProperties = []tagProperty{
-	{"exclusive", "Shows its rooms alone", func(t *config.Tag) *bool { return &t.Exclusive }},
-	{"space_exclusive", "Takes its rooms out of spaces you made", func(t *config.Tag) *bool { return &t.SpaceExclusive }},
-	{"sticky", "Keeps the open room listed", func(t *config.Tag) *bool { return &t.Sticky }},
-	{"hide_when_empty", "Hidden while empty", func(t *config.Tag) *bool { return &t.HideWhenEmpty }},
-	{"first", "At the top of the rail", func(t *config.Tag) *bool { return &t.First }},
-	{"count_in_label", "Says how many rooms it holds", func(t *config.Tag) *bool { return &t.CountInLabel }},
-	{"hidden", "Hidden from the rail", func(t *config.Tag) *bool { return &t.Hidden }},
+	exclusiveFrom(config.ExclusiveTags, "Takes its rooms from other tags"),
+	exclusiveFrom(config.ExclusiveSpaces, "Takes its rooms from other spaces"),
+	exclusiveFrom(config.ExclusiveOrigin, "Takes its rooms from their own space"),
+	boolProperty("sticky", "Keeps the open room listed", func(t *config.Tag) *bool { return &t.Sticky }),
+	boolProperty("hide_when_empty", "Hidden while empty", func(t *config.Tag) *bool { return &t.HideWhenEmpty }),
+	boolProperty("first", "At the top of the rail", func(t *config.Tag) *bool { return &t.First }),
+	boolProperty("count_in_label", "Says how many rooms it holds", func(t *config.Tag) *bool { return &t.CountInLabel }),
+	boolProperty("hidden", "Hidden from the rail", func(t *config.Tag) *bool { return &t.Hidden }),
 }
 
 // countsUnreadKey is counts_unread's row: a *bool whose nil is true.
@@ -62,8 +78,9 @@ func (m Model) openTags() (Model, tea.Cmd) { return m.tagsOpen(), nil }
 func (m Model) tagsOpen() Model {
 	tags := m.conf.base.Tags
 	items := make([]pickerItem, 0, len(tags)+1)
-	for _, t := range tags {
-		items = append(items, pickerItem{label: isolate(t.Name), detail: tagSummary(t), value: t.Name, match: t.Name})
+	for i := range tags {
+		t := &tags[i]
+		items = append(items, pickerItem{label: isolate(t.Name), detail: tagSummary(*t), value: t.Name, match: t.Name})
 	}
 	items = append(items, pickerItem{label: "New tag", value: tagNew, match: "new tag"})
 	m.choosing.tag = tagEditing{}
@@ -127,7 +144,7 @@ func (m Model) tagOpen(name string) Model {
 		{label: "First names only", detail: onOff(firstNamesIn(m.conf.base, domain.TagEntry(t.Name))), value: tagFirst},
 	}
 	for _, p := range tagProperties {
-		items = append(items, pickerItem{label: p.label, detail: onOff(*p.field(&t)), value: p.key})
+		items = append(items, pickerItem{label: p.label, detail: onOff(p.get(t)), value: p.key})
 	}
 	if claimed := m.claimedFrom(at); claimed != "" {
 		items = append(items, pickerItem{label: "Also excludes", detail: claimed, value: tagClaimed})
@@ -164,22 +181,19 @@ func (m Model) entryName(entry string) string {
 	return entry
 }
 
-// claimedFrom names the tags that take rooms out of tag at's row: the earlier exclusive
-// tags if it is exclusive (first configured wins), else every exclusive tag, plus the
-// space-exclusive tags unless it is one. "" for none.
+// claimedFrom names the tags that take rooms out of tag at's row: the earlier tags
+// exclusive from tags if it is one (first configured wins), else every one. "" for none.
 func (m Model) claimedFrom(at int) string {
 	tags := m.conf.base.Tags
 	this := tags[at]
 	var names []string
-	for i, t := range tags {
+	for i := range tags {
+		t := &tags[i]
 		if i == at {
 			continue
 		}
-		switch {
-		case t.Exclusive && (!this.Exclusive || i < at):
-			names = append(names, isolate(t.Name)+" (exclusive)")
-		case t.SpaceExclusive && !this.SpaceExclusive && !this.Exclusive:
-			names = append(names, isolate(t.Name)+" (space-exclusive)")
+		if t.ExclusiveFrom(config.ExclusiveTags) && (!this.ExclusiveFrom(config.ExclusiveTags) || i < at) {
+			names = append(names, isolate(t.Name))
 		}
 	}
 	return strings.Join(names, ", ")
@@ -194,7 +208,7 @@ func (m Model) chooseTagRow(value string) (Model, tea.Cmd) {
 	case tagRule, tagPicked, tagExcluded:
 		return m.tagEntriesOpen(name, value), nil
 	case tagClaimed:
-		m = m.say("an exclusive tag shows its rooms alone, and a space-exclusive one takes them out of other tags")
+		m = m.say("a tag exclusive from tags shows its rooms alone")
 		return m.tagOpen(name), nil
 	case tagDelete:
 		m.confirm = confirmState{action: pendingDeleteTag, group: name}
@@ -216,8 +230,8 @@ func (m Model) chooseTagRow(value string) (Model, tea.Cmd) {
 	}
 	for _, p := range tagProperties {
 		if p.key == value {
-			now := !*p.field(&m.conf.base.Tags[m.configTag(name)])
-			return m.editTag(name, func(t *config.Tag) { *p.field(t) = now }, strings.ToLower(p.label)+": "+onOff(now))
+			now := !p.get(m.conf.base.Tags[m.configTag(name)])
+			return m.editTag(name, func(t *config.Tag) { p.set(t, now) }, strings.ToLower(p.label)+": "+onOff(now))
 		}
 	}
 	return m.tagOpen(name), nil
