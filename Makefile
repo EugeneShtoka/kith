@@ -88,14 +88,21 @@ ifndef COVERPROFILE
 COVERPROFILE := $(or $(TMPDIR),/tmp)/kith-cover-$(shell echo $$PPID).out
 endif
 
+# Tests never read your data, config or state (a phonebook, a config file): the XDG
+# dirs point at an empty home of their own. Fixed rather than fresh per run, so Go's
+# test cache, which keys on the environment, stays valid. XDG_CACHE_HOME is left alone:
+# it holds Go's build cache.
+TEST_HOME := $(or $(TMPDIR),/tmp)/kith-test-home
+TEST_ENV  := XDG_DATA_HOME=$(TEST_HOME)/data XDG_CONFIG_HOME=$(TEST_HOME)/config XDG_STATE_HOME=$(TEST_HOME)/state
+
 # -count=1: never serve cached results. The profile feeds coverage-check.
 test:
-	go test -race -count=1 -coverprofile=$(COVERPROFILE) ./...
+	$(TEST_ENV) go test -race -count=1 -coverprofile=$(COVERPROFILE) ./...
 
 # The pre-push gate's tests: no race detector, and from Go's test cache, so a package
 # whose code and tests did not change is not run again. CI runs `test`.
 test-quick:
-	go test ./...
+	$(TEST_ENV) go test ./...
 
 # --allow-serial-runners: a second concurrent run waits for the first instead of
 # failing with "parallel golangci-lint is running".
@@ -255,7 +262,7 @@ tools: ensure-tools
 
 # Test-coverage report: total summary to stdout + browsable HTML in coverage.html.
 coverage:
-	go test -count=1 -coverprofile=coverage.out ./...
+	$(TEST_ENV) go test -count=1 -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -1
 	go tool cover -html=coverage.out -o coverage.html
 

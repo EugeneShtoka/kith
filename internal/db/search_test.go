@@ -122,6 +122,22 @@ func TestSearchMessages(t *testing.T) {
 		}
 	})
 
+	t.Run("narrows to a set of senders, with or without words", func(t *testing.T) {
+		// An empty set is nobody.
+		for senders, want := range map[string]int{"@alice:x @carol:x": 2, "@bob:x": 0, "": 0} {
+			filter := domain.ParseSearch("deploy", time.Now())
+			filter.Senders = strings.Fields(senders)
+			hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: filter, Rooms: domain.EveryRoom(), Limit: 20})
+			if err != nil || len(hits) != want {
+				t.Errorf("senders %q: %d hits (err %v), want %d", senders, len(hits), err, want)
+			}
+		}
+		hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.SearchFilter{Senders: []string{"@dana:x", "@eva:x"}}, Rooms: domain.EveryRoom(), Limit: 20})
+		if err != nil || len(hits) != 2 {
+			t.Errorf("senders alone: %+v (err %v)", hits, err)
+		}
+	})
+
 	t.Run("scopes to one room", func(t *testing.T) {
 		all, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch("deploy", time.Now()), Rooms: domain.EveryRoom(), Limit: 20})
 		if err != nil {

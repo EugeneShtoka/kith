@@ -332,11 +332,18 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	if err != nil {
 		return nil, err
 	}
+	// Field terms (role:attorney) are matched against cards, the rest of the words as
+	// they always were: one piece of a name or ID.
+	query := peopleQuery(in.Query)
+	if query.HasTerms() && s.book == nil {
+		return map[string]any{"people": []any{}, "note": phonebookNotSharedNote}, nil
+	}
 	people, err := s.peopleInScope(ctx, inScope)
 	if err != nil {
 		return nil, err
 	}
-	want := strings.ToLower(in.Query)
+	cards := s.cards()
+	want := strings.ToLower(strings.Join(query.Words, " "))
 	type personView struct {
 		UserID string `json:"user_id"`
 		Name   string `json:"name,omitempty"`
@@ -345,13 +352,18 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	}
 	var out []personView
 	for _, person := range people {
-		if strings.Contains(strings.ToLower(person.DisplayName), want) ||
-			strings.Contains(strings.ToLower(person.UserID), want) {
-			out = append(out, personView{UserID: person.UserID, Name: person.DisplayName, Fields: s.cardFields(person.UserID)})
+		named := strings.Contains(strings.ToLower(person.DisplayName), want) ||
+			strings.Contains(strings.ToLower(person.UserID), want)
+		card, found := s.cardOf(cards, person.UserID)
+		if named && (!query.HasTerms() || found && card.Matches(query.Fields())) {
+			out = append(out, personView{UserID: person.UserID, Name: person.DisplayName, Fields: cardFields(card, found)})
 		}
 		if len(out) >= limitOr(in.Limit, 10, 50) {
 			break
 		}
+	}
+	if len(out) == 0 && query.HasTerms() {
+		return nil, fmt.Errorf("nobody whose card meets %q has posted in the rooms [agent.read] allows", in.Query)
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("nobody called %q has posted in the rooms [agent.read] allows", in.Query)
@@ -359,12 +371,37 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	return map[string]any{"people": out}, nil
 }
 
-// cardFields is userID's phonebook card by key (lists as lists, single values as
-// themselves); nil without a phonebook, card or field.
-func (s *server) cardFields(userID string) map[string]any {
-	if s.book == nil {
-		return nil
+// peopleQuery is a find_people query: an ID (@dana:x, telegram:42) is a word, not a
+// field term.
+func peopleQuery(text string) phonebook.Query {
+	var q phonebook.Query
+	for word := range strings.FieldsSeq(text) {
+		if term, ok := phonebook.ParseTerm(word); ok && !domain.IsUserID(word) {
+			q.Terms = append(q.Terms, term)
+			continue
+		}
+		q.Words = append(q.Words, word)
 	}
+	return q
+}
+
+// phonebookNotSharedNote says why field terms find nobody.
+const phonebookNotSharedNote = "the phonebook is not shared ([agent.read] people is off), so field terms find nobody"
+
+// cards is the phonebook's cards, read once per call; empty without a phonebook.
+func (s *server) cards() phonebook.Index {
+	if s.book == nil {
+		return phonebook.Index{}
+	}
+	cards, err := s.book.Cards()
+	if err != nil {
+		s.log.Warn("read the phonebook failed", "err", err)
+	}
+	return phonebook.NewIndex(cards)
+}
+
+// cardOf is userID's person's card: every ID the directory or an identity links to theirs.
+func (s *server) cardOf(cards phonebook.Index, userID string) (phonebook.Card, bool) {
 	ids := s.people.Dir.Identifiers(userID)
 	if alias := s.aliases[userID]; alias != "" {
 		for other, a := range s.aliases {
@@ -373,11 +410,12 @@ func (s *server) cardFields(userID string) map[string]any {
 			}
 		}
 	}
-	card, found, err := s.book.Find(phonebook.Identifiers(domain.CardIdentifiers(ids)))
-	if err != nil {
-		s.log.Warn("read the phonebook failed", "err", err)
-		return nil
-	}
+	return cards.Find(phonebook.Identifiers(domain.CardIdentifiers(ids)))
+}
+
+// cardFields is a card by key (lists as lists, single values as themselves); nil without
+// a card or field.
+func cardFields(card phonebook.Card, found bool) map[string]any {
 	if !found || len(card.Fields) == 0 {
 		return nil
 	}

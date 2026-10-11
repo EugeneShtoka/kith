@@ -177,11 +177,14 @@ type SpaceRule struct {
 	// ShowArchived lists archived rooms in this place's room list, or not, whatever
 	// Display.ShowArchived says; nil follows it.
 	ShowArchived *bool `toml:"show_archived"`
+	// ShowField is a phonebook field key whose value this place's room list and member
+	// list show after a person's name; empty shows none.
+	ShowField string `toml:"show_field"`
 }
 
 // Empty reports whether the rule sets nothing, so the file need not keep it.
 func (r SpaceRule) Empty() bool {
-	return !r.FirstNameOnly && r.NetworkColors == nil && r.ShowArchived == nil
+	return !r.FirstNameOnly && r.NetworkColors == nil && r.ShowArchived == nil && r.ShowField == ""
 }
 
 // SpaceRule is a place's [[display.space_rule]], if it has one: names reports whether
@@ -213,6 +216,12 @@ func (d Display) NetworkColorsIn(names func(entry string) bool) bool {
 		return *r.NetworkColors
 	}
 	return d.NetworkColors
+}
+
+// ShowFieldIn is the phonebook field a place shows beside names, "" for none.
+func (d Display) ShowFieldIn(names func(entry string) bool) string {
+	r, _ := d.SpaceRule(names)
+	return r.ShowField
 }
 
 // ShowsArchived reports whether room lists show archived rooms ([display] show_archived;

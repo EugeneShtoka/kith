@@ -61,6 +61,8 @@ Press `:` from anywhere except the composer.
 | `:starred` | Every message you have starred | |
 | `:tracked [word]` | Every message with one of your tracked words, grouped by word | |
 | `:caught` | Preview what the spam filters would catch | |
+| `:people [terms]` | Every card in the [phonebook](phonebook.md); a name or `key:value` narrows it, and `enter` opens one | |
+| `:person` | The phonebook card of the person in view: the selected message's sender, else the room's one person | `I` |
 | `:scheduled` | Everything queued to send later, in every room; `enter` cancels one | |
 | `:todo` | What people are waiting on you for, across rooms (needs [assist](assist.md)) | |
 | `:dnd` | Silence notifications, for a while or for one place | `ctrl+n` |

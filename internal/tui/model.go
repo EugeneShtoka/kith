@@ -565,6 +565,8 @@ type Model struct {
 	dir directoryState
 	// peers is who each room you named is named after (peeralias.go).
 	peers peerState
+	// cards is the phonebook's cards as last read, and members read for show_field (cards.go).
+	cards cardsState
 	// roomAccounts is each network account the room list has had rooms from (see
 	// selvesAfterRooms); nil before the first list.
 	roomAccounts []string
@@ -1218,7 +1220,9 @@ func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
 	next, offer := next.maybeOfferDictionaries()
 	next, selves := next.selvesAfterRooms(msg.rooms)
 	next, peers := next.refreshPeers()
-	return next, tea.Batch(cmd, offer, selves, next.directoryCmd(), peers)
+	next, fields := next.refreshFieldMembers()
+	next, cards := next.loadCards(false, "")
+	return next, tea.Batch(cmd, offer, selves, next.directoryCmd(), peers, fields, cards)
 }
 
 // handleSideMsg handles account-wide loads, verification, and reactions and images on shown
@@ -1243,6 +1247,12 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handlePollVoters(msg))
 	case peerMembersMsg:
 		return answered(m.handlePeerMembers(msg))
+	case cardsMsg:
+		return answered(m.handleCards(msg))
+	case fieldMembersMsg:
+		return answered(m.handleFieldMembers(msg))
+	case cardRoomsMsg:
+		return answered(m.handleCardRooms(msg))
 	case searchSendersMsg:
 		return answered(m.handleSearchSenders(msg))
 	case lastMessagesMsg:

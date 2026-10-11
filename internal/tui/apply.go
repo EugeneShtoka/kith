@@ -92,7 +92,6 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m.prefs.identities = buildIdentities(cfg.Display.Identities)
 	m.prefs.aliases = setup.Aliases(cfg.Display.Identities)
 	m.prefs.clock = derived.clock
-	m.prefs.phonebookDir = setup.PhonebookDir(cfg)
 	m.receipts.policy = readSettingsFrom(cfg.Display)
 	// Invalidates the timeline's cached colors, name column and rows.
 	m.conf.rev++
@@ -131,8 +130,11 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m = m.say(done)
 	// Naming or unnaming a room renames the person it is named after.
 	m, peers := m.refreshPeers()
+	m, fields := m.refreshFieldMembers()
+	// The folder may have moved.
+	m, cards := m.loadCards(false, "")
 	// A just-archived room needs its parent space resolved to be filed in the rail.
-	return m, tea.Batch(m.resolveParentsCmd(), peers)
+	return m, tea.Batch(m.resolveParentsCmd(), peers, fields, cards)
 }
 
 // adoptConfig runs a config changed elsewhere (another window, a hand edit, the
@@ -149,6 +151,7 @@ func (m Model) adoptConfig(cfg config.Config, note string) (Model, tea.Cmd) {
 // Shared with WithConfigFile so startup and settings changes agree.
 func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.conf.base = cfg
+	m.prefs.phonebookDir = setup.PhonebookDir(cfg)
 	m.prefs.external.clipboard = cfg.Clipboard.Command
 	m.prefs.external.copyDownloads = cfg.Clipboard.CopyDownloads
 	m.prefs.external.open = cfg.Clipboard.OpenCommandOrDefault()

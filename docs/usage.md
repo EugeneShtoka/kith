@@ -263,7 +263,7 @@ When you open a room, a **new** rule marks where your unread messages begin. It 
 | `ctrl+o` / `ctrl+i` | Back to the previous room / forward again (`alt+o` also goes forward) |
 | `B` on a room or group | Bind a key sequence that goes straight there |
 
-The **switcher** works from anywhere, mid-sentence included; your draft stays with its room. With nothing typed it lists unread rooms first, then everything else, then groups. People you share no room with appear last as *start a DM*, so typing someone's name or Matrix ID is also how you start a conversation. `:go` opens it by name.
+The **switcher** works from anywhere, mid-sentence included; your draft stays with its room. With nothing typed it lists unread rooms first, then everything else, then groups. People you share no room with appear last as *start a DM*, so typing someone's name or Matrix ID is also how you start a conversation. A field of their [phonebook](phonebook.md#searching-by-field) card finds people too: `role:attorney` lists everyone whose card says so, and choosing one opens your conversation with them. `:go` opens it by name.
 
 **Back and forward** record every room you actually open, however you got there — the switcher, a jump, a search hit, a link. Previewing rooms by walking the list is not recorded, and neither are overlays. Two keys to alternate between conversations is the answer to wanting two rooms on screen at once.
 
@@ -411,6 +411,7 @@ Names you give are local — only you see them — and live in your config.
 - `a` on a room or rail group gives it a name of your own (`[[display.name]]`); `alt+r` names a thread.
   A private chat is named after the person in it, so naming one names them too, wherever they are shown, while the room's own name is still that person's name and nobody else but you is in it. A name given with `a` on their message wins.
 - `[[display.space_rule]]` shows first names only in a space or tag (`space = "space:Work"`, `"tag:Work"` or `"place:Work"`).
+- A place's `[[display.space_rule]] show_field = "company"` shows that field of a person's [phonebook](phonebook.md#a-field-beside-names) card after their name, in its room list and member list: "Dana Levi · Meta".
 - `[display] network_colors = true` names each room in every room list in its network's color; a place's `[[display.space_rule]] network_colors = true` or `false` overrides that for its own room list.
 - `[display.rail] network_colors = true` colors a rail row whose rooms are all on one network the same way.
 - `[display.theme.networks]` sets those colors (`#rrggbb`, a named color, or `"none"`). Unset, each network has its own, apart from the theme's text, accent, badge and alert colors: WhatsApp teal, Telegram blue, Slack magenta, Messenger and Instagram (Meta) orchid, LinkedIn periwinkle, Google Messages (SMS) coral. A bridged Matrix room counts as its bridge's network. All of it is in settings (`,`): under look, the switch everywhere, each space's and tag's choice (as everywhere, on, off) and each network's color; under rooms, the rail's switch.

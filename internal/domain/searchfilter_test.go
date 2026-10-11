@@ -34,6 +34,22 @@ func TestParseSearchSenderForms(t *testing.T) {
 	}
 }
 
+// After from:, key:value is a phonebook field term; an ID on any network is still an ID.
+func TestParseSearchSenderFieldTerm(t *testing.T) {
+	for in, want := range map[string][2]string{
+		"from:role:attorney":     {"", "role:attorney"},
+		"from:Company:Meta paid": {"", "Company:Meta"},
+		"from:telegram:42":       {"telegram:42", ""},
+		"from:@dana:example.org": {"@dana:example.org", ""},
+		"from:role:":             {"role:", ""},
+	} {
+		got := ParseSearch(in, searchNow)
+		if got.Sender != want[0] || got.SenderField != want[1] || got.Empty() {
+			t.Errorf("%q -> sender %q, field %q; want %q", in, got.Sender, got.SenderField, want)
+		}
+	}
+}
+
 func TestParseSearchDates(t *testing.T) {
 	cases := map[string]time.Time{
 		"since:today":     time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),

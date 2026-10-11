@@ -352,9 +352,11 @@ func TestRefreshPreservesRoomSelection(t *testing.T) {
 	if room, _ := m.currentRoom(); room.ID != "!b:x" {
 		t.Errorf("after refresh selected %q, want !b:x preserved", room.ID)
 	}
-	// The refresh reads the directory again; it loads nothing of the room.
+	// The refresh reads the directory and the phonebook again; it loads nothing of the room.
 	for _, msg := range msgsOf(t, cmd) {
-		if _, dir := msg.(directoryMsg); !dir {
+		switch msg.(type) {
+		case directoryMsg, cardsMsg:
+		default:
 			t.Errorf("preserving the same room should not reload its timeline: %T", msg)
 		}
 	}

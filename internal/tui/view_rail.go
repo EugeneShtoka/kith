@@ -177,6 +177,9 @@ func (m Model) roomListLine(r roomRow, inner int, selected, active bool) string 
 			badge, r.thread.Mentions > 0, inner, selected, active)
 	}
 	label := rowLabel{name: m.roomLabelHere(r.room), color: tint}
+	if person, ok := m.roomPerson(r.room); ok {
+		label.name = m.besideName(label.name, person)
+	}
 	switch {
 	case r.room.IsInvite():
 		// Marked, so an invitation never reads as a room you can just open.

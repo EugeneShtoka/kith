@@ -51,6 +51,7 @@ Two filters are spelled in the query, because their values are open-ended. Filte
 | Filter | Matches |
 | --- | --- |
 | `from:dana` | Messages whose sender's Matrix ID or display name contains `dana`. `from:@dana:example.org` pins one account |
+| `from:role:attorney` | Messages from everyone whose [phonebook](phonebook.md#searching-by-field) card has `attorney` in its `role`, by every ID kith knows them by. A field no card has searches nothing and says so |
 | `since:<when>` | Messages at or after that point |
 | `until:<when>` | Messages before that point |
 

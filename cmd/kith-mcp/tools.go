@@ -173,9 +173,11 @@ var tools = []tool{
 		summary: "Find people by name among those who have posted in the rooms you may read, " +
 			"returning their Matrix IDs, and, where the person's settings allow, what their phonebook " +
 			"card says of them (birthday, family, pets, …) as fields. " +
+			"Where the phonebook is shared, key:value terms (role:attorney) find the people whose card " +
+			"has that field with that in its value. " +
 			"Use it first when a request names somebody, then pass the IDs to find_rooms_with.",
 		schema: schema(map[string]any{
-			"query": str("part of a display name or Matrix ID"),
+			"query": str("part of a display name or Matrix ID, and/or key:value terms matched against phonebook card fields (all must hold)"),
 			"limit": num("optional: how many to return (default 10)"),
 		}, "query"),
 		run: (*server).findPeople,
