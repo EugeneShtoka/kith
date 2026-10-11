@@ -12,14 +12,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Unread is counted locally, as Matrix's is: the cache counts what came after a
-// room's read position that is not ours. WhatsApp keeps no counts kith can ask for,
-// so the position is kith's to keep: placed when a room is first seen (from
-// history's unread count, or just before its first live message), and moved by
-// reading, here or on any other of the account's devices.
+// Unread is counted locally from a read position kith keeps (WhatsApp exposes no
+// counts). The position is placed when a room is first seen (from history's unread
+// count, or just before its first live message) and moved by reads on any device.
 
-// placed reports whether a room's read position is known, loading the set of placed
-// rooms the first time.
+// placed reports whether a room has a read position, loading positions on first use.
 func (a *Adapter) placed(ctx context.Context, room domain.RoomID) bool {
 	a.mu.Lock()
 	loaded := a.positions != nil
@@ -33,7 +30,6 @@ func (a *Adapter) placed(ctx context.Context, room domain.RoomID) bool {
 	return known
 }
 
-// loadPositions reads the WhatsApp rooms' read positions.
 func (a *Adapter) loadPositions(ctx context.Context) {
 	positions := map[domain.RoomID]time.Time{}
 	if read, err := a.cache.ReadPositions(ctx); err == nil {
@@ -52,8 +48,7 @@ func (a *Adapter) loadPositions(ctx context.Context) {
 	}
 }
 
-// placeRead gives a room a read position at at, unless it has one: a room first seen
-// is read up to just before what made it known.
+// placeRead sets a room's read position to at unless it already has one.
 func (a *Adapter) placeRead(ctx context.Context, room domain.RoomID, at time.Time) {
 	if a.placed(ctx, room) {
 		return
@@ -61,9 +56,8 @@ func (a *Adapter) placeRead(ctx context.Context, room domain.RoomID, at time.Tim
 	a.readTo(ctx, room, "", at)
 }
 
-// readTo moves a room's read position forward to event (at its time); a read of
-// something older — a receipt arriving late — leaves it where it is (the cache only
-// moves a position forward).
+// readTo moves a room's read position forward to event; a late receipt for an older
+// message is ignored (the cache only moves forward).
 func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, event domain.EventID, at time.Time) {
 	if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room, ReadEvent: event}, at.UnixMilli()); err != nil {
 		a.log.Warn("save a read position failed", "room", room, "err", err)
@@ -76,7 +70,6 @@ func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, event domain.E
 	a.mu.Unlock()
 }
 
-// recount streams a room's unread counts.
 func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 	messages, mentions, counted, err := a.cache.CountUnread(ctx, a.Me(), room)
 	if err != nil {
@@ -86,7 +79,7 @@ func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 	emit(a, a.unread, domain.Unread{RoomID: room, Messages: messages, Mentions: mentions, Counted: counted})
 }
 
-// CachedUnread is every WhatsApp room's unread counts.
+// CachedUnread returns every WhatsApp room's unread counts.
 func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	if a.cache == nil {
 		return nil, nil
@@ -111,7 +104,7 @@ func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 }
 
 // onReceipt moves a room's read position when the account read it on another device.
-// Others' receipts (delivered, read by them) are not kith's to show yet.
+// Others' receipts are ignored.
 func (a *Adapter) onReceipt(ctx context.Context, account Account, e *events.Receipt) {
 	if e.Type != types.ReceiptTypeReadSelf || len(e.MessageIDs) == 0 || a.cache == nil {
 		return
@@ -123,9 +116,8 @@ func (a *Adapter) onReceipt(ctx context.Context, account Account, e *events.Rece
 	a.recount(ctx, room)
 }
 
-// timeOf is a cached message's time: a read position is "up to this message", so a
-// message that arrived before the read but after this one stays unread. fallback
-// when the message is not cached.
+// timeOf is a cached message's time, or fallback when not cached. A read position is
+// "up to this message", not "up to the receipt's time".
 func (a *Adapter) timeOf(ctx context.Context, room domain.RoomID, event domain.EventID, fallback time.Time) time.Time {
 	if msg, found, err := a.cache.MessageByID(ctx, room, event); err == nil && found && !msg.Timestamp.IsZero() {
 		return msg.Timestamp
@@ -133,7 +125,7 @@ func (a *Adapter) timeOf(ctx context.Context, room domain.RoomID, event domain.E
 	return fallback
 }
 
-// lookupFor is an account's LID lookup, or none when it is not connected.
+// lookupFor is an account's LID lookup, nil when not connected.
 func (a *Adapter) lookupFor(account Account) pnOf {
 	if _, client, ok := a.clientFor(account.Digits); ok {
 		return a.pnLookup(client)
@@ -141,8 +133,8 @@ func (a *Adapter) lookupFor(account Account) pnOf {
 	return nil
 }
 
-// MarkRead marks a room read up to eventID: on WhatsApp (the sender sees it read,
-// unless private, which tells only your own devices) and in kith's count.
+// MarkRead marks a room read up to eventID on WhatsApp and locally; private tells
+// only the account's own devices.
 func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, private bool) error {
 	room := domain.ParseID(string(roomID))
 	event := domain.ParseID(string(eventID))
@@ -156,7 +148,7 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 	}
 	var sender types.JID
 	if chat.Server == types.GroupServer && a.cache != nil {
-		// In a group, a receipt names whose message it is.
+		// In a group, a receipt names the message's sender.
 		if from, err := a.cache.SenderOf(ctx, roomID, eventID); err == nil {
 			sender, _ = types.ParseJID(domain.ParseID(from).Native)
 		}
@@ -166,8 +158,7 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 		kind = append(kind, types.ReceiptTypeReadSelf)
 	}
 	now := time.Now()
-	// A channel's posts are marked viewed by server ID, which kith does not keep: read
-	// there is kith's own.
+	// Channel posts are marked viewed by server ID, which kith does not keep: local only.
 	if chat.Server != types.NewsletterServer {
 		if err := client.MarkRead(ctx, []types.MessageID{event.Native}, now, chat, sender, kind...); err != nil {
 			return fmt.Errorf("whatsapp: mark %s read: %w", roomID, err)

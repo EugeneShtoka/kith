@@ -9,10 +9,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Signing an account out signs its session out of Slack (a session Slack ended
-// already counts), stops its connection and deletes its credentials, its rooms
-// staying readable or going as asked; a connection made on its old sign-in is not
-// adopted after; signed out, it is not connected, and another space is no account's.
+// Sign-out ends the Slack session (an already-ended one counts), stops the connection
+// and deletes credentials, keeping or dropping rooms as asked. A connection on the old
+// sign-in is not adopted after, and another space is no account's.
 func TestSigningOutEndsTheSlackSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

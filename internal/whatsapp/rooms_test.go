@@ -21,9 +21,8 @@ const (
 func pn(digits string) types.JID  { return types.NewJID(digits, types.DefaultUserServer) }
 func lid(digits string) types.JID { return types.NewJID(digits, types.HiddenUserServer) }
 
-// A group is a room named by the account that sees it, with each participant a
-// member named by phone number when known (so contacts fold across accounts and
-// bridges) and by LID otherwise; the account itself is a member, never a hero.
+// A group is a room whose participants are members by phone number when known, else
+// LID; the account itself is a member, never a hero.
 func TestAGroupIsARoomOfItsParticipants(t *testing.T) {
 	t.Parallel()
 	group := &types.GroupInfo{
@@ -76,8 +75,7 @@ func TestAGroupIsARoomOfItsParticipants(t *testing.T) {
 	}
 }
 
-// A participant listed by phone number but saved in contacts only under their LID is
-// still named.
+// A participant listed by number but saved only under their LID is still named.
 func TestANameKnownOnlyByLIDIsFound(t *testing.T) {
 	t.Parallel()
 	group := &types.GroupInfo{JID: types.NewJID("1203", types.GroupServer), Participants: []types.GroupParticipant{
@@ -97,7 +95,7 @@ func TestANameKnownOnlyByLIDIsFound(t *testing.T) {
 	}
 }
 
-// A contact's name: the phone's address book first, then what they call themselves.
+// A contact's name: address book first, then push name.
 func TestAContactGoesByTheirSavedName(t *testing.T) {
 	t.Parallel()
 	for want, c := range map[string]types.ContactInfo{

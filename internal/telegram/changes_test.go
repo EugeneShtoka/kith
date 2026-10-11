@@ -19,7 +19,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// send pushes the account updates, Telegram's state then at pts.
+// send pushes updates with Telegram's state at pts.
 func (u *updatesOf) send(t *testing.T, s *tgtest.Server, pts int, updates ...tg.UpdateClass) {
 	t.Helper()
 	u.mu.Lock()
@@ -37,8 +37,7 @@ func (u *updatesOf) send(t *testing.T, s *tgtest.Server, pts int, updates ...tg.
 	}
 }
 
-// reacted is a message's reactions: emoji, counted, who chose them where Telegram
-// says.
+// reacted builds a message's reactions: emoji, counts and named reactors.
 func reacted(counts map[string]int, recent map[string][]int64, mine ...string) tg.MessageReactions {
 	var rs tg.MessageReactions
 	for _, key := range slices.Sorted(func(yield func(string) bool) {
@@ -90,8 +89,8 @@ func unreadOf(t *testing.T, cache *db.Cache, room domain.RoomID) domain.Unread {
 	return domain.Unread{}
 }
 
-// What changes a message, or a chat, while kith listens reaches the cache and the
-// clients: an edit, reactions, a read on another device, someone typing, a deletion.
+// Live edits, reactions, remote reads, typing and deletions reach the cache and
+// clients.
 func TestChangesHeardLiveReachTheCache(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -141,9 +140,8 @@ func TestChangesHeardLiveReachTheCache(t *testing.T) {
 	})
 }
 
-// What kith does to a message or a chat goes to Telegram as its requests: an edit, a
-// deletion (a channel's through channels), a reaction toggled (the account's other
-// reactions kept, or replaced where it may keep one), a read, a mark, a typing notice.
+// kith's edits, deletions (channels via channels.*), reaction toggles, reads, marks
+// and typing go to Telegram as the right requests.
 func TestChangesMadeHereGoToTelegram(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -280,9 +278,8 @@ func TestChangesMadeHereGoToTelegram(t *testing.T) {
 	}
 }
 
-// A deletion names a message by its number within the account: it is found in the
-// chat that holds it, never in a channel (whose numbers are its own) or another
-// account's chat.
+// A deletion by account-wide message number hits only the chat holding it, never a
+// channel (own numbering) or another account's chat.
 func TestADeletionFindsItsChatByNumber(t *testing.T) {
 	t.Parallel()
 	a, cache := cachedAdapter(t, &memSecrets{values: map[string]string{}})
@@ -300,8 +297,7 @@ func TestADeletionFindsItsChatByNumber(t *testing.T) {
 	}
 }
 
-// A message's versions arrive in any order — live edits, history pages read before or
-// after them — and the newest always shows: an older one never replaces it.
+// The newest version shows whatever order live edits and history pages arrive in.
 func TestAnOlderVersionNeverReplacesANewerOne(t *testing.T) {
 	t.Parallel()
 	ent := peer.NewEntities(map[int64]*tg.User{7: dana}, nil, nil)
@@ -332,8 +328,7 @@ func TestAnOlderVersionNeverReplacesANewerOne(t *testing.T) {
 	}
 }
 
-// A history page is what a message's reactions were when it was read: a page read
-// before a live change, written after it, never brings the old ones back.
+// A history page fetched before a live reaction change can't restore old reactions.
 func TestAHistoryPageNeverUndoesALiveReaction(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(60) {
@@ -377,9 +372,8 @@ func TestAHistoryPageNeverUndoesALiveReaction(t *testing.T) {
 	}
 }
 
-// A listing is fetched, then written: whatever order live changes (a message arrives,
-// a chat is read elsewhere) come between, a listing never writes its older count over
-// one heard since it was fetched. Listings are written one at a time, in order.
+// A listing never overwrites unread counts changed live since it was fetched, for
+// any interleaving; listings are written in order.
 func TestAListingNeverUndoesAnUnreadChangeHeardSince(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(60) {
@@ -425,7 +419,7 @@ func TestAListingNeverUndoesAnUnreadChangeHeardSince(t *testing.T) {
 	}
 }
 
-// Messages arriving at once are each counted: none is lost to another's write.
+// Concurrent arrivals are each counted.
 func TestConcurrentArrivalsAreEachCounted(t *testing.T) {
 	t.Parallel()
 	a, cache := cachedAdapter(t, &memSecrets{values: map[string]string{}})
@@ -440,8 +434,8 @@ func TestConcurrentArrivalsAreEachCounted(t *testing.T) {
 	}
 }
 
-// Reactions are one per person named, the account's own among them however Telegram
-// says it, and the rest of a count as no one's.
+// Reactions expand to one per named person (own included, however flagged), the rest
+// anonymous.
 func TestReactionsAreOnePerPerson(t *testing.T) {
 	t.Parallel()
 	rs := messageReactions(roomID(42, -11), 5, reacted(map[string]int{"👍": 3, "❤": 1}, map[string][]int64{"👍": {7}}, "❤"))
@@ -458,7 +452,7 @@ func TestReactionsAreOnePerPerson(t *testing.T) {
 	}
 }
 
-// A typist is forgotten when they cancel, or when their notices stop.
+// A typist is dropped on cancel or when notices stop.
 func TestATypistIsForgotten(t *testing.T) {
 	t.Parallel()
 	a, _ := cachedAdapter(t, &memSecrets{values: map[string]string{}})

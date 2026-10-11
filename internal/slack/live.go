@@ -7,15 +7,13 @@ import (
 	slackgo "github.com/slack-go/slack"
 )
 
-// A workspace's live events come over the web client's websocket (RTM), on the same
-// session: messages as they are posted, and conversations joined, left or renamed.
+// Live events come over the web client's websocket (RTM) on the same session.
 
-// drainFor bounds how long a let-go connection's last events are read, so its
-// websocket can close (it blocks on a full channel otherwise).
+// drainFor bounds draining a closed connection's last events; its websocket blocks on a
+// full channel otherwise.
 const drainFor = 10 * time.Second
 
-// goLive follows a connected workspace's live events until it is let go or the
-// adapter's run ends.
+// goLive follows a workspace's live events until it is let go or the run ends.
 func (a *Adapter) goLive(w *workspace) {
 	a.mu.Lock()
 	ctx := a.run
@@ -26,7 +24,7 @@ func (a *Adapter) goLive(w *workspace) {
 	go a.live(ctx, w)
 }
 
-// live is one workspace's websocket, reconnected by slack-go as it drops.
+// live runs one workspace's websocket; slack-go reconnects it when it drops.
 func (a *Adapter) live(ctx context.Context, w *workspace) {
 	rtm := w.client.NewRTM()
 	w.mu.Lock()
@@ -48,7 +46,7 @@ func (a *Adapter) live(ctx context.Context, w *workspace) {
 	}
 }
 
-// letGo closes a websocket, reading what it still sends until it says it is closed.
+// letGo closes a websocket, draining it until it reports closed.
 func (a *Adapter) letGo(rtm *slackgo.RTM) {
 	_ = rtm.Disconnect() // already disconnected is as good
 	deadline := time.After(drainFor)
@@ -100,7 +98,7 @@ func (a *Adapter) onEvent(ctx context.Context, w *workspace, ev slackgo.RTMEvent
 		}
 		return false
 	case *slackgo.FatalConnectionErrorEvent:
-		// slack-go gave up reconnecting: start over, from asking Slack who this is.
+		// slack-go gave up reconnecting: start over from auth.test.
 		if a.release(w) {
 			go a.connect(ctx, w.account, w.creds)
 		}
@@ -115,7 +113,7 @@ func (a *Adapter) onEvent(ctx context.Context, w *workspace, ev slackgo.RTMEvent
 	return true
 }
 
-// onAnyMarked moves a read position as a channel, a DM or a group DM was read.
+// onAnyMarked moves the read position of a channel, DM or group DM that was read.
 func (a *Adapter) onAnyMarked(ctx context.Context, w *workspace, e any) {
 	switch e := e.(type) {
 	case *slackgo.ChannelMarkedEvent:
@@ -134,8 +132,7 @@ func (a *Adapter) current(w *workspace) bool {
 	return a.workspaces[w.account.Name] == w
 }
 
-// release lets w go when it is still its account's connection, and reports whether
-// it was.
+// release lets w go if it is still its account's connection, reporting whether it was.
 func (a *Adapter) release(w *workspace) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()

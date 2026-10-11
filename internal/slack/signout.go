@@ -8,16 +8,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Signing an account out signs its session out of Slack, as Slack's own "Sign out"
-// does, stops its connection and deletes its kept credentials; the account stays in
-// the config, and logging in signs it back in. Slack is told through the session, so
-// an account not connected is not signed out.
+// Signing out ends the session on Slack (as Slack's "Sign out" does), stops the
+// connection and deletes stored credentials; the account stays configured. Slack is
+// told through the session, so a disconnected account is not signed out there.
 
 // errNoSuchAccountSpace is a space that is no Slack account's workspace.
 var errNoSuchAccountSpace = fmt.Errorf("%w: no Slack account here is that workspace", api.ErrNotOnNetwork)
 
 // SignOut signs out the account whose workspace space is; with forget, its rooms and
-// their history go from the cache too, else they stay, readable.
+// history leave the cache too.
 func (a *Adapter) SignOut(ctx context.Context, space domain.SpaceID, forget bool) error {
 	var w *workspace
 	for _, c := range a.connected() {
@@ -47,8 +46,8 @@ func (a *Adapter) SignOut(ctx context.Context, space domain.SpaceID, forget bool
 	return nil
 }
 
-// signOff ends w's connection, and makes every connection begun on an older sign-in
-// stale, so none of them is adopted (adopt).
+// signOff ends w's connection and makes connections begun on older sign-ins stale, so
+// adopt refuses them.
 func (a *Adapter) signOff(w *workspace) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

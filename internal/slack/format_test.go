@@ -18,8 +18,8 @@ func acmeNames() names {
 	}
 }
 
-// A message's references read as words: people and channels by name, links by
-// their words, Slack's escapes undone; markers around them format.
+// References read as words (people and channels by name, links by their words), escapes
+// are undone, and markers around them format.
 func TestSlackTextReadsAsWords(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -55,7 +55,7 @@ func TestSlackTextReadsAsWords(t *testing.T) {
 	}
 }
 
-// A mention is kept with the words it reads as, a person's or a channel's.
+// A mention keeps the words it reads as, for a person or a channel.
 func TestSlackMentionsNameWhomTheyMention(t *testing.T) {
 	t.Parallel()
 	got := render("<@U2> in <#C1>", acmeNames()).mentions
@@ -68,8 +68,8 @@ func TestSlackMentionsNameWhomTheyMention(t *testing.T) {
 	}
 }
 
-// A draft goes as mrkdwn: escaped, mentions of this workspace's people as <@U…>,
-// Markdown in markers, links as Slack writes them; a plain draft keeps its words.
+// A draft goes as mrkdwn: escaped, mentions as <@U…>, Markdown as markers, links in
+// Slack's form; a plain draft keeps its words.
 func TestDraftsGoAsMrkdwn(t *testing.T) {
 	t.Parallel()
 	dana := domain.Mention{UserID: "slack:T1.U2", Name: "@Dana"}

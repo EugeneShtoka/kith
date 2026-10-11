@@ -8,16 +8,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Signing an account out unlinks kith from the phone, as removing it from the phone's
-// linked devices does: WhatsApp forgets this device and kith's store forgets its keys.
-// The account stays in the config, and logging in pairs it again. Unlinking is said to
-// WhatsApp through the connection, so an account not connected is not signed out.
+// Signing out unlinks this device: WhatsApp forgets it and the store drops its keys.
+// The account stays configured; logging in pairs again. It needs a live connection.
 
-// errNoSuchAccountSpace is a space that is no WhatsApp account's own.
+// errNoSuchAccountSpace: the space is no WhatsApp account's.
 var errNoSuchAccountSpace = fmt.Errorf("%w: no WhatsApp account here is that space", api.ErrNotOnNetwork)
 
-// SignOut unlinks the account whose own space space is; with forget, its rooms and
-// their history go from the cache too, else they stay, readable.
+// SignOut unlinks the account owning space; forget also drops its rooms from the cache.
 func (a *Adapter) SignOut(ctx context.Context, space domain.SpaceID, forget bool) error {
 	var account Account
 	for _, acc := range a.accountsNow() {

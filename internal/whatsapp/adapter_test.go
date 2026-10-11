@@ -36,7 +36,6 @@ func offline(t *testing.T, accounts ...Account) (*Adapter, *db.Cache, *Store) {
 
 var waRoom = domain.RoomID("whatsapp:" + ownDigits + "/1203@g.us")
 
-// The adapter lists WhatsApp's rooms from the shared cache and none of Matrix's.
 func TestTheAdapterListsOnlyWhatsAppRooms(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -53,7 +52,6 @@ func TestTheAdapterListsOnlyWhatsAppRooms(t *testing.T) {
 	}
 }
 
-// Stars and spam verdicts on WhatsApp rooms are kith's own, kept in the cache.
 func TestStarsAndSpamAreKeptLocally(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -81,7 +79,7 @@ func TestStarsAndSpamAreKeptLocally(t *testing.T) {
 	}
 }
 
-// What comes with messages is refused, saying so, rather than pretending to work.
+// Unsupported operations return an error rather than silently succeeding.
 func TestWhatComesLaterIsRefused(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -97,7 +95,6 @@ func TestWhatComesLaterIsRefused(t *testing.T) {
 	}
 }
 
-// Pairing refuses an account the config does not list, and one already linked.
 func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -119,8 +116,8 @@ func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	if _, err := a.pair(ctx, "home", never); !errors.Is(err, errAlreadyLinked) {
 		t.Errorf("a linked account = %v, want errAlreadyLinked", err)
 	}
-	// While one pairing runs, a second for the same account is refused before it
-	// looks at the store (where it would find nothing linked yet).
+	// A concurrent pairing is refused before the store is checked (it would find
+	// nothing linked yet).
 	if !a.beginPairing(a.accounts[0]) {
 		t.Fatal("a free account could not be claimed")
 	}
@@ -130,7 +127,7 @@ func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	a.endPairing(a.accounts[0])
 }
 
-// Stopping ends every stream, so the router's merge and the daemon's pumps finish.
+// Stop closes every stream, so the router's merge and the daemon's pumps finish.
 func TestStoppingEndsTheStreams(t *testing.T) {
 	t.Parallel()
 	a, _, _ := offline(t)
@@ -157,8 +154,7 @@ func isClosed[T any](ch <-chan T) bool {
 	}
 }
 
-// UseConfig reads [[whatsapp.account]], each number as its digits, and
-// [display.deleted] keep.
+// UseConfig reads [[whatsapp.account]] (numbers as digits) and [display.deleted] keep.
 func TestUseConfigReadsTheWhatsAppSection(t *testing.T) {
 	t.Parallel()
 	a, _, _ := offline(t)
@@ -173,8 +169,7 @@ func TestUseConfigReadsTheWhatsAppSection(t *testing.T) {
 	}
 }
 
-// A new account is asked for by number and name and written into the config before
-// it is linked.
+// A new account's number and name are written to the config before linking.
 func TestANewAccountIsSetUpBeforeLinking(t *testing.T) {
 	t.Parallel()
 	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})

@@ -26,8 +26,8 @@ func followed(id, name string, role types.NewsletterRole) *types.NewsletterMetad
 	return m
 }
 
-// The channels an account follows are rooms, named and described as WhatsApp has them;
-// one WhatsApp says nothing of the viewer for is followed, not run.
+// Followed channels are rooms with WhatsApp's name and description; no viewer
+// metadata means followed, not administered.
 func TestChannelsAreRooms(t *testing.T) {
 	t.Parallel()
 	rooms, known := channelRooms(ownDigits, []*types.NewsletterMetadata{
@@ -44,9 +44,8 @@ func TestChannelsAreRooms(t *testing.T) {
 	}
 }
 
-// Only a channel's admins post: a follower's message, file or reaction is refused
-// before WhatsApp is asked, as is posting in a channel no listing has described.
-// Another account's listing leaves this one's channels as they were.
+// Only admins post: a follower's message, file or reaction is refused locally, as is
+// posting in an unlisted channel. Another account's listing leaves these unchanged.
 func TestOnlyAChannelsAdminsPost(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -80,7 +79,7 @@ func TestOnlyAChannelsAdminsPost(t *testing.T) {
 		t.Errorf("work's own channel, after home's listing: %v", err)
 	}
 
-	// home's next listing no longer has Mine: posting there is refused again.
+	// home's next listing lacks Mine: posting there is refused again.
 	_, homeKnown = channelRooms(home.Digits, []*types.NewsletterMetadata{followed("1201", "Weather", "")})
 	a.useChannels(home, homeKnown)
 	if err := a.mayPost(mine); !errors.Is(err, api.ErrNoPower) {
@@ -91,8 +90,8 @@ func TestOnlyAChannelsAdminsPost(t *testing.T) {
 	}
 }
 
-// A channel's post lands in the channel's room, sent by the channel under its name —
-// not a direct chat with it — and fetched posts come in the same shape.
+// A channel post lands in the channel's room, sent by the channel (not a DM), and
+// fetched posts have the same shape.
 func TestAChannelPostIsTheChannels(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

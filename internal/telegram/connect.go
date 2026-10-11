@@ -12,9 +12,8 @@ import (
 	"github.com/gotd/td/telegram/auth"
 )
 
-// Retrying an account Telegram cannot be reached for: from firstRetry, doubling to
-// lastRetry. (gotd reconnects a running client by itself; this is for one that
-// stopped.)
+// Reconnect backoff for a stopped client, doubling from firstRetry to lastRetry.
+// gotd reconnects a running client itself.
 const (
 	firstRetry = 5 * time.Second
 	lastRetry  = 5 * time.Minute
@@ -23,19 +22,19 @@ const (
 // conn is a logged-in account's connection.
 type conn struct {
 	account Account
-	// gen is the login it runs on (see Adapter.signIns).
+	// gen is its login generation (Adapter.signIns).
 	gen    int
 	cancel context.CancelFunc
-	// user is the account's own user ID, and client its connection, once Telegram
-	// said who it is; hashes what its last listing revealed (rooms.go).
+	// user and client are set once Telegram says who the account is; hashes come
+	// from the last listing.
 	user   int64
 	client *telegram.Client
 	live   *live
 	hashes accessHashes
 }
 
-// connectAs connects account on creds, from its login gen, replacing the connection
-// an older login made — unless a newer login began meanwhile, or the adapter stopped.
+// connectAs replaces an older login's connection, unless a newer login began or the
+// adapter stopped.
 func (a *Adapter) connectAs(account Account, creds Credentials, gen int, dial dialer) {
 	ctx, cancel := context.WithCancel(a.runContext())
 	a.mu.Lock()
@@ -53,8 +52,7 @@ func (a *Adapter) connectAs(account Account, creds Credentials, gen int, dial di
 	go a.connect(ctx, account, creds, gen, dial)
 }
 
-// connect keeps an account connected, trying again while Telegram cannot be reached,
-// until ctx ends or Telegram ends the session.
+// connect reconnects with backoff until ctx ends or Telegram ends the session.
 func (a *Adapter) connect(ctx context.Context, account Account, creds Credentials, gen int, dial dialer) {
 	for wait := firstRetry; ; wait = min(2*wait, lastRetry) {
 		storage := &keptSession{a: a, account: account, gen: gen, creds: creds}
@@ -70,8 +68,8 @@ func (a *Adapter) connect(ctx context.Context, account Account, creds Credential
 	}
 }
 
-// connectOnce runs one connection until it ends; true when trying again would not
-// help (it was ended, or Telegram ended the session).
+// connectOnce runs one connection; true when retrying is pointless (cancelled or
+// session ended).
 func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, client *telegram.Client, live *live) bool {
 	a.session(account, Connecting, "")
 	err := client.Run(ctx, func(ctx context.Context) error {
@@ -104,8 +102,7 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 	return false
 }
 
-// adopt records whom the account's connection from login gen is, unless a newer login
-// replaced it. It reports whether it did.
+// adopt records the user of login gen's connection; false if a newer login replaced it.
 func (a *Adapter) adopt(account Account, gen int, user int64, client *telegram.Client, l *live) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -118,7 +115,7 @@ func (a *Adapter) adopt(account Account, gen int, user int64, client *telegram.C
 	return true
 }
 
-// connected is the connections Telegram has said whom they are, as they stand.
+// connected is a snapshot of the connections whose user is known.
 func (a *Adapter) connected() []conn {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -131,7 +128,7 @@ func (a *Adapter) connected() []conn {
 	return out
 }
 
-// selfOf is an account's own user ID, once a login or a kept session said it.
+// selfOf is an account's user ID, once known.
 func (a *Adapter) selfOf(account Account) (int64, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -139,7 +136,7 @@ func (a *Adapter) selfOf(account Account) (int64, bool) {
 	return self, ok && self != 0
 }
 
-// disown forgets whom the connection from login gen is: it is not connected now.
+// disown clears login gen's connection user on disconnect.
 func (a *Adapter) disown(account Account, gen int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -148,13 +145,12 @@ func (a *Adapter) disown(account Account, gen int) {
 	}
 }
 
-// loginHint is how to log an account in.
 func loginHint(account Account) string {
 	return ":login telegram in kith, or `kith login telegram " + account.Name + "`"
 }
 
-// keptSession is a connection's session, kept with the account's credentials: gotd
-// writes it as it changes (a data center moved to, a key renewed).
+// keptSession stores the session with the credentials; gotd rewrites it on DC
+// migration or key renewal.
 type keptSession struct {
 	a       *Adapter
 	account Account
@@ -175,8 +171,7 @@ func (s *keptSession) LoadSession(context.Context) ([]byte, error) {
 	return slices.Clone(s.creds.Session), nil
 }
 
-// StoreSession keeps the session — unless a newer login replaced this one, whose
-// session it would overwrite.
+// StoreSession stores the session unless a newer login replaced this one.
 func (s *keptSession) StoreSession(_ context.Context, data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

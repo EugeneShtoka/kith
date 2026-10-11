@@ -21,7 +21,6 @@ var (
 	fin = domain.NativePerson(domain.ProtocolWhatsApp, pn(finPhone).String())
 )
 
-// mentionsOf is the people a cached message mentions.
 func mentionsOf(t *testing.T, msgs []domain.Message, id domain.EventID) []domain.Mention {
 	t.Helper()
 	for i := range msgs {
@@ -33,9 +32,8 @@ func mentionsOf(t *testing.T, msgs []domain.Message, id domain.EventID) []domain
 	return nil
 }
 
-// WhatsApp writes a mention as "@" and the person's LID, naming them beside the
-// text. kith keeps who it is as their number, as it keeps a sender, with the text
-// that names them, so the client can draw the name they are known by.
+// A mention ("@" and LID) is kept under the person's number, as senders are, so the
+// client shows their name.
 func TestAMentionIsThePersonByTheirNumber(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -62,9 +60,8 @@ func TestAMentionIsThePersonByTheirNumber(t *testing.T) {
 	}
 }
 
-// Messages cached before mentions were kept get them when the account connects: a
-// LID the store knows is that person, a member's number is that member, and other
-// digits stay text. Doing it again changes nothing.
+// Old cached messages get mentions on connect: known LIDs and member numbers resolve,
+// other digits stay text. Idempotent.
 func TestOldMessagesGetTheirMentions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

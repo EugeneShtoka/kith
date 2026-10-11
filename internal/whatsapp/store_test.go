@@ -9,8 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// A device linked from an opened store asks its phone for all the history it holds:
-// the properties sent with the link say so.
+// A device linked from an opened store requests full history.
 func TestLinkingAsksForTheWholeHistory(t *testing.T) {
 	t.Parallel()
 	s, err := OpenStore(context.Background(), filepath.Join(t.TempDir(), "whatsapp.db"), NewStoreLogger(nil))

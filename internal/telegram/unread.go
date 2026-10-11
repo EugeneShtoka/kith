@@ -11,21 +11,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Unread is counted two ways, as Matrix's is. Telegram counts each chat's unread
-// messages and mentions, and says how far it was read (its read_inbox_max_id): the
-// listing gives both, a read on any client moves them, and each message arriving
-// counts one more, as Telegram's own clients count it. The cache counts what came
-// after that read position, when it holds the message it points at, which is what a
-// badge shows where it can.
-//
-// A listing is fetched, then written: a chat whose unread changed live in between
-// keeps what it heard, which is newer than the listing's.
+// Unread is counted two ways. Telegram's counts (from the listing, reads on any
+// client, +1 per arrival) and read_inbox_max_id; the cache counts after that position
+// when it holds the message, and badges prefer that. A live change between a
+// listing's fetch and write wins over the listing.
 
 // unreadSpan is how long a background read-position fetch may take.
 const unreadSpan = 30 * time.Second
 
-// loadUnread reads the cached unread rows the first time they are needed. Caller
-// holds unreadMu.
+// loadUnread lazily loads cached unread rows. Caller holds unreadMu.
 func (a *Adapter) loadUnread(ctx context.Context) {
 	if a.unreadState != nil {
 		return
@@ -43,11 +37,9 @@ func (a *Adapter) loadUnread(ctx context.Context) {
 	}
 }
 
-// changeUnread applies change to room's unread as Telegram counts it, keeps it and
-// streams the room's counts. change answers the read position's time, in Unix
-// milliseconds (0 when unknown: the cache keeps the position it has). fetched is
-// when a listing's state was fetched, zero for one heard live: a room changed live
-// since a listing was fetched keeps what it heard.
+// changeUnread applies change to room's Telegram unread, stores and streams it.
+// change returns the read position's time in Unix ms (0 keeps the cached one).
+// fetched is the listing's fetch time, zero for live; live changes since fetched win.
 func (a *Adapter) changeUnread(ctx context.Context, room domain.RoomID, fetched time.Time, change func(u *domain.Unread) int64) {
 	if a.cache == nil {
 		return
@@ -74,8 +66,8 @@ func (a *Adapter) changeUnread(ctx context.Context, room domain.RoomID, fetched 
 	a.recount(ctx, room)
 }
 
-// counted counts a message arrived as Telegram does: one more unread (and mention)
-// in its chat, unless it is ours; sending reads the chat.
+// counted bumps unread (and mentions) for an arriving message as Telegram does;
+// our own message reads the chat.
 func (a *Adapter) counted(ctx context.Context, msg domain.Message, mine bool) {
 	a.changeUnread(ctx, msg.RoomID, time.Time{}, func(u *domain.Unread) int64 {
 		switch {
@@ -91,8 +83,7 @@ func (a *Adapter) counted(ctx context.Context, msg domain.Message, mine bool) {
 	})
 }
 
-// readTime is when the message event was sent, in Unix milliseconds, as the cache
-// holds it; 0 when it does not.
+// readTime is event's cached time in Unix ms; 0 if not cached.
 func (a *Adapter) readTime(ctx context.Context, room domain.RoomID, event domain.EventID) int64 {
 	if a.cache == nil || event == "" {
 		return 0
@@ -104,10 +95,8 @@ func (a *Adapter) readTime(ctx context.Context, room domain.RoomID, event domain
 	return ts
 }
 
-// readInbox moves a room's read position to message max, read on this or another
-// client, still unread being what Telegram counts after it: a chat's, or a forum
-// topic's. A position on a message the cache does not hold is placed once Telegram has
-// given it (placeRead).
+// readInbox moves a chat's or topic's read position to max (from any client). If max
+// isn't cached, placeRead fetches it.
 func (a *Adapter) readInbox(ctx context.Context, room domain.RoomID, max, still int) {
 	event := inRoom(room, max)
 	ts := a.readTime(ctx, room, event)
@@ -123,9 +112,8 @@ func (a *Adapter) readInbox(ctx context.Context, room domain.RoomID, max, still 
 	}
 }
 
-// placeRead places a read position on a message the cache did not hold, once
-// Telegram has given it: the cache then counts from it. A failed ask leaves the
-// badge to Telegram's count.
+// placeRead fetches an uncached read-position message so the cache can count from it;
+// on failure the badge uses Telegram's count.
 func (a *Adapter) placeRead(ctx context.Context, room domain.RoomID, event domain.EventID) {
 	ctx, cancel := context.WithTimeout(ctx, unreadSpan)
 	defer cancel()
@@ -136,7 +124,7 @@ func (a *Adapter) placeRead(ctx context.Context, room domain.RoomID, event domai
 	a.changeUnread(ctx, room, time.Time{}, func(*domain.Unread) int64 { return msg.Timestamp.UnixMilli() })
 }
 
-// markedUnread is a chat marked unread, or not, on any client.
+// markedUnread applies a chat's manual unread mark from any client.
 func (a *Adapter) markedUnread(ctx context.Context, room domain.RoomID, marked bool) {
 	a.changeUnread(ctx, room, time.Time{}, func(u *domain.Unread) int64 {
 		u.Marked = marked
@@ -144,7 +132,7 @@ func (a *Adapter) markedUnread(ctx context.Context, room domain.RoomID, marked b
 	})
 }
 
-// listedUnread keeps what a listing fetched then says of its chats' unread.
+// listedUnread applies a listing's unread counts.
 func (a *Adapter) listedUnread(ctx context.Context, self int64, elems []dialog, listed []domain.Room, fetched time.Time) {
 	for _, e := range elems {
 		if e.info == nil {
@@ -175,7 +163,7 @@ func (a *Adapter) listedUnread(ctx context.Context, self int64, elems []dialog, 
 	}
 }
 
-// recount streams a room's unread: Telegram's counts, and the cache's when it can.
+// recount streams a room's unread: Telegram's counts plus the cache's when possible.
 func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 	if a.cache == nil {
 		return
@@ -218,9 +206,8 @@ func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	return rows, nil
 }
 
-// MarkRead marks a chat read up to eventID, on Telegram (every client of yours
-// follows) and here. Telegram shows others only that a message was read, not by whom
-// in a group, so private changes nothing.
+// MarkRead marks a chat read up to eventID on Telegram and here. private is ignored:
+// Telegram doesn't reveal who read in groups.
 func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, _ bool) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -282,7 +269,7 @@ func (a *Adapter) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, pr
 	return result, nil
 }
 
-// MarkRoomUnread marks a chat unread, or not, on Telegram and here.
+// MarkRoomUnread sets a chat's unread mark on Telegram and here.
 func (a *Adapter) MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unread bool) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {

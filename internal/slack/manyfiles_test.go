@@ -11,8 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// threeFiles is a message with an image, a PDF and a link to a document Slack does
-// not hold.
+// threeFiles is a message with an image, a PDF and a link to an external document.
 func threeFiles(ts string) slackgo.Msg {
 	return slackgo.Msg{
 		Type: "message", SubType: "file_share", User: "U2", Timestamp: ts, Text: "see these",
@@ -24,16 +23,15 @@ func threeFiles(ts string) slackgo.Msg {
 	}
 }
 
-// Every file of a message kith can load is one it can open and save: the first is the
-// message's attachment, each other a row of its own just under it, from the same
-// sender, loading its own file. One it cannot load is named in the text. What is
-// done to a row is done to its message, except what would change the message itself.
+// Each loadable file opens and saves: the first as the attachment, the others as rows
+// just below from the same sender; an unloadable one is named in the text. Actions on a
+// row apply to its message, except ones that would change the message itself.
 func TestEveryFileOfAMessageLoads(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	f, host, client := slackWithFiles(t)
 	host.files["/files-pri/T1-F2/b.pdf"] = []byte("pdf bytes")
-	// Slack would take both, so only kith can refuse them.
+	// Slack would accept both, so kith must refuse them.
 	f.on("chat.delete", func(map[string]string) any { return map[string]any{"ok": true, "channel": "C1", "ts": "1.0"} })
 	f.on("chat.update", func(map[string]string) any { return map[string]any{"ok": true, "channel": "C1", "ts": "1.0"} })
 	a, w := connectedTo(t, client)
@@ -74,8 +72,8 @@ func TestEveryFileOfAMessageLoads(t *testing.T) {
 	}
 }
 
-// A file taken out of a message by an edit goes as a deleted message does, and the
-// message's deletion takes its files' rows with it.
+// A file removed by an edit goes like a deleted message; deleting the message removes
+// its file rows.
 func TestAFilesRowGoesWithItsFileAndItsMessage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -112,8 +110,8 @@ func TestAFilesRowGoesWithItsFileAndItsMessage(t *testing.T) {
 	}
 }
 
-// Messages cached before further files were rows named them in their text; each is
-// read again from Slack (a thread's reply from its thread) and its files become rows.
+// Messages naming their extra files in text are reread (replies via their thread) and
+// their files become rows.
 func TestMessagesCachedNamingFilesAreReadAgain(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

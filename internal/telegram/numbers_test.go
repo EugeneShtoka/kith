@@ -12,10 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A listing gives the directory every user it carries, by their ID: a contact by the
-// name you saved, anyone else by their own, and linked to their number where
-// Telegram shows it; nobody deleted, nor yourself. A listing read again replaces what
-// the account knew.
+// A listing feeds the directory every user (contacts at saved rank, linked to their
+// phone), skipping deleted users and self; a relisting replaces the account's set.
 func TestAListingNamesTheNumbersItShows(t *testing.T) {
 	t.Parallel()
 	users := map[int64]*tg.User{
@@ -40,7 +38,7 @@ func TestAListingNamesTheNumbersItShows(t *testing.T) {
 	if err := cache.SaveMembers(t.Context(), "!dm:x", []domain.Member{{UserID: "@whatsapp_15550100001:x", DisplayName: "Dana Bridged (WA)"}}); err != nil {
 		t.Fatal(err)
 	}
-	// book is the names the directory gives the numbers 15550100001-9, the named ones.
+	// book is the directory's names for the numbers 15550100001-9.
 	book := func() map[string]string {
 		dir, err := cache.Directory(t.Context())
 		if err != nil {
@@ -59,9 +57,8 @@ func TestAListingNamesTheNumbersItShows(t *testing.T) {
 	if want := (map[string]string{"15550100001": "Dana Saved", "15550100002": "Eli Saved"}); !maps.Equal(book(), want) {
 		t.Errorf("book = %v, want %v", book(), want)
 	}
-	// Each user is named by their ID too, a number or none: the one without a number
-	// by their own name, Eli's ID by the name a WhatsApp address book saved for the
-	// number Telegram links it to.
+	// Users are named by ID too: one without a number by their own name, Eli by the
+	// WhatsApp address-book name for his linked number.
 	dir, err := cache.Directory(t.Context())
 	if err != nil {
 		t.Fatal(err)

@@ -15,11 +15,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// listPage is how many conversations one users.conversations page asks for (Slack's
-// most).
+// listPage is the users.conversations page size (Slack's maximum).
 const listPage = 1000
 
-// conversationTypes is every kind of conversation a person is in.
 var conversationTypes = []string{"public_channel", "private_channel", "mpim", "im"}
 
 // workspace is one signed-in account's connection.
@@ -28,36 +26,31 @@ type workspace struct {
 	creds   Credentials
 	// signIn is the account's sign-in the session is from (Adapter.signIns).
 	signIn int
-	// teamName is the workspace's own name, and handle the person's in it, from
-	// sign-in.
+	// teamName is the workspace's name and handle the person's, from sign-in.
 	teamName, handle string
 	client           *slackgo.Client
 
-	// rtm is the live websocket, set while live runs (under mu): typing notices go out
-	// on it.
+	// rtm is the live websocket while live runs (under mu); typing notices go out on it.
 	rtm *slackgo.RTM
 
-	// done closes when the connection is let go: signed in again, removed, stopped.
+	// done closes when the connection is let go (re-sign-in, removal, stop).
 	done      chan struct{}
 	closeOnce sync.Once
 	// catching is held while the workspace is caught up (see catchUp).
 	catching sync.Mutex
-	// filesReread is set once refetchFileMessages has run in this daemon: a message
-	// naming a file kith cannot load (a link, a deleted one) is read again once a run,
-	// not on every reconnect.
+	// filesReread runs refetchFileMessages once per daemon, not per reconnect: a message
+	// naming an unloadable file (a link, a deleted one) would be reread every time.
 	filesReread sync.Once
 
 	mu sync.Mutex
-	// people and channels name the workspace's users and conversations by ID, as
-	// far as they are known; joined is the conversations the last listing named.
+	// people and channels are known names by ID; joined is the last listing's conversations.
 	people   map[string]string
 	channels map[string]string
 	joined   map[string]bool
-	// phones is each user's number, where their profile writes it internationally.
+	// phones is each user's number, where their profile has it in international form.
 	phones map[string]string
 }
 
-// newWorkspace is a connection on a session; client talks to Slack with it.
 func newWorkspace(account Account, creds Credentials, teamName string, client *slackgo.Client, signIn int) *workspace {
 	return &workspace{
 		account: account, creds: creds, teamName: teamName, client: client, signIn: signIn,
@@ -68,7 +61,7 @@ func newWorkspace(account Account, creds Credentials, teamName string, client *s
 // close lets the connection go; its live events stop.
 func (w *workspace) close() { w.closeOnce.Do(func() { close(w.done) }) }
 
-// names is how w writes a message's references.
+// names resolves a message's references for w.
 func (w *workspace) names() names {
 	return names{
 		team: w.creds.Team, me: w.creds.User,
@@ -85,7 +78,7 @@ func (w *workspace) names() names {
 	}
 }
 
-// unnamed is the users among these w has no name for, each once.
+// unnamed is the given users w has no name for, deduplicated.
 func (w *workspace) unnamed(users []string) []string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -94,9 +87,7 @@ func (w *workspace) unnamed(users []string) []string {
 	return slices.Compact(unknown)
 }
 
-// knowPerson keeps a user's name.
-// knowUser keeps a user's name and, where their profile writes it internationally,
-// their number.
+// knowUser keeps a user's name and, if given in international form, their number.
 func (w *workspace) knowUser(u *slackgo.User) {
 	w.knowPerson(u.ID, userName(*u))
 	if digits, ok := domain.PhoneIn(u.Profile.Phone); ok {
@@ -104,7 +95,6 @@ func (w *workspace) knowUser(u *slackgo.User) {
 	}
 }
 
-// knowPhone keeps a user's number, from their profile.
 func (w *workspace) knowPhone(user, digits string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -114,8 +104,7 @@ func (w *workspace) knowPhone(user, digits string) {
 	w.phones[user] = digits
 }
 
-// directory is who the workspace's known users are, for the directory: each by their
-// ID under the name they chose, linked to their number where their profile gives one.
+// directory is the known users, by ID and chosen name, linked to their numbers.
 func (w *workspace) directory() ([]domain.PersonName, []domain.PersonLink) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -139,7 +128,6 @@ func (w *workspace) knowPerson(user, name string) {
 	w.people[user] = name
 }
 
-// knowChannels keeps the listed conversations, and their names.
 func (w *workspace) knowChannels(rooms []domain.Room) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -153,7 +141,7 @@ func (w *workspace) knowChannels(rooms []domain.Room) {
 	}
 }
 
-// listedNow is the conversations the last listing named, in order.
+// listedNow is the last listing's conversations, sorted.
 func (w *workspace) listedNow() []string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -163,18 +151,15 @@ func (w *workspace) listedNow() []string {
 // ErrNoAccount is a sign-in for a name no [[slack.account]] has.
 var ErrNoAccount = errors.New("slack: no such [[slack.account]]")
 
-// clientFor is a Slack client with a workspace's session: the token, and the cookie
-// it is only good together with. Its own log goes to the adapter's, without the
-// session (see slackLog).
+// clientFor is a client on a session: the token plus the `d` cookie it only works
+// with. Its log goes to the adapter's, without the session (see slackLog).
 func (a *Adapter) clientFor(c Credentials) *slackgo.Client {
 	return slackgo.New(c.Token, slackgo.OptionCookie("d", cookieValue(c.Cookie)), slackgo.OptionLog(slackLog{log: a.log}))
 }
 
-// cookieValue is the `d` cookie decoded. A browser shows it URL-encoded ("%2B", "%2F")
-// and slackgo.OptionCookie encodes what it is given, so the copied value would reach
-// Slack encoded twice and be refused. PathUnescape, not QueryUnescape: the decoded
-// value has '+' in it, which must stay a '+'. A value that does not decode is left as
-// it was.
+// cookieValue decodes the `d` cookie: browsers show it URL-encoded and OptionCookie
+// encodes again, which Slack refuses. PathUnescape keeps '+' as is. An undecodable
+// value is returned unchanged.
 func cookieValue(cookie string) string {
 	if v, err := url.PathUnescape(cookie); err == nil {
 		return v
@@ -182,12 +167,11 @@ func cookieValue(cookie string) string {
 	return cookie
 }
 
-// landing is who and where a sign-in landed, by name.
+// landing is the workspace and user a sign-in landed on, by name.
 type landing struct{ workspace, user string }
 
-// signIn takes a session for the named account (its token and `d` cookie, from a
-// browser signed in to the workspace), checks it with Slack and against the
-// workspace the account names, keeps it, and connects the account.
+// signIn verifies a browser session (token and `d` cookie) with Slack and against the
+// account's workspace, stores it, and connects the account.
 func (a *Adapter) signIn(ctx context.Context, name, token, cookie string) (landing, error) {
 	i := slices.IndexFunc(a.accountsNow(), func(acc Account) bool { return acc.Name == name })
 	if i < 0 {
@@ -219,16 +203,14 @@ func (a *Adapter) signIn(ctx context.Context, name, token, cookie string) (landi
 	return landing{workspace: who.Team, user: who.User}, nil
 }
 
-// Retrying a workspace Slack cannot be reached for: from firstRetry, doubling to
-// lastRetry.
+// Retry backoff while Slack is unreachable: firstRetry, doubling up to lastRetry.
 const (
 	firstRetry = 5 * time.Second
 	lastRetry  = 5 * time.Minute
 )
 
-// connect opens a signed-in account's session, trying again while Slack cannot be
-// reached. Slack is asked who it is first, so a session Slack has ended reads as
-// signed out rather than as an outage.
+// connect opens an account's session, retrying while Slack is unreachable. auth.test
+// comes first so an ended session reads as signed out, not an outage.
 func (a *Adapter) connect(ctx context.Context, account Account, creds Credentials) {
 	signIn := a.currentSignIn(account.Name)
 	for wait := firstRetry; ; wait = min(2*wait, lastRetry) {
@@ -281,8 +263,7 @@ func isSignedOut(err error) bool {
 	return false
 }
 
-// newSignIn starts an account's next sign-in, superseding any connection still
-// being made on an older session.
+// newSignIn starts the account's next sign-in, superseding connections on older ones.
 func (a *Adapter) newSignIn(account string) int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -297,9 +278,8 @@ func (a *Adapter) currentSignIn(account string) int {
 	return a.signIns[account]
 }
 
-// adopt makes w the account's connection and says it is connected — unless the
-// account was signed in again since w's session (a connection made on the older one
-// would replace the newer), or is no longer configured. It reports whether it did.
+// adopt makes w the account's connection unless the account signed in again since w's
+// session or is no longer configured. It reports whether it did.
 func (a *Adapter) adopt(w *workspace) bool {
 	a.mu.Lock()
 	current := w.signIn == a.signIns[w.account.Name] && !a.stopped &&
@@ -328,8 +308,8 @@ func (a *Adapter) connected() []*workspace {
 	return out
 }
 
-// list fetches a workspace's conversations and the people its DMs are with, and
-// writes them over the account's cached rooms and space.
+// list fetches a workspace's conversations and DM peers and writes them over its
+// cached rooms and space.
 func (a *Adapter) list(ctx context.Context, w *workspace) ([]domain.Room, error) {
 	a.refreshing.Lock()
 	defer a.refreshing.Unlock()
@@ -347,7 +327,7 @@ func (a *Adapter) list(ctx context.Context, w *workspace) ([]domain.Room, error)
 			break
 		}
 	}
-	// Unnamed DMs still list, under their IDs or handles, rather than none at all.
+	// Unnamed DMs still list, under IDs or handles.
 	groups := a.groupMembers(ctx, w, groupDMs(conversations))
 	people := dmPartners(conversations)
 	for _, members := range groups {
@@ -366,8 +346,8 @@ func (a *Adapter) list(ctx context.Context, w *workspace) ([]domain.Room, error)
 	return l.rooms, nil
 }
 
-// groupMembers asks Slack who is in each group DM. One it cannot say is left out, and
-// that group DM named by handles.
+// groupMembers asks who is in each group DM; one that fails is left out and named by
+// handles.
 func (a *Adapter) groupMembers(ctx context.Context, w *workspace, ids []string) map[string][]string {
 	groups := make(map[string][]string, len(ids))
 	for _, id := range ids {
@@ -388,10 +368,9 @@ func (a *Adapter) groupMembers(ctx context.Context, w *workspace, ids []string) 
 	return groups
 }
 
-// save writes a workspace's listing, fetched then, over its cached rooms, space and DM
-// members. A room a message arrived in since the listing was fetched (a channel just
-// joined, a DM just begun) is kept, though the listing does not name it: the sweep
-// would take its history.
+// save writes a listing fetched at fetched over the cached rooms, space and DM members.
+// A room that got a message since the fetch is kept though unlisted, or the sweep would
+// drop its history.
 func (a *Adapter) save(ctx context.Context, w *workspace, l listing, fetched time.Time) error {
 	if a.cache == nil {
 		return nil
@@ -420,8 +399,8 @@ func (a *Adapter) save(ctx context.Context, w *workspace, l listing, fetched tim
 	return nil
 }
 
-// keptRooms is an owner's cached rooms a listing fetched then must not sweep: those
-// heard from since. Caller holds listing.
+// keptRooms is the owner's cached rooms heard from since fetched, which the listing must
+// not sweep. Caller holds listing.
 func (a *Adapter) keptRooms(ctx context.Context, owner domain.RoomOwner, listed []domain.Room, fetched time.Time) ([]domain.Room, error) {
 	rooms, err := a.cache.Rooms(ctx)
 	if err != nil {

@@ -1,7 +1,6 @@
-// Package whatsapp is kith's own link to WhatsApp, through whatsmeow: each configured
-// account is one of its phone's linked devices. It writes what it sees into the cache
-// every network shares, so search, drafts, the assistant and notifications work for it
-// as they do for Matrix. It is the only package that imports whatsmeow.
+// Package whatsapp connects to WhatsApp through whatsmeow, each configured account as
+// a linked device, writing into the shared cache. It is the only package that imports
+// whatsmeow.
 package whatsapp
 
 import (
@@ -15,28 +14,26 @@ import (
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	// The pure-Go SQLite driver the cache already uses; whatsmeow speaks its dialect.
+	// The pure-Go SQLite driver the cache uses; whatsmeow supports its dialect.
 	_ "modernc.org/sqlite"
 )
 
-// Store is the WhatsApp session store: every linked account's device keys, contacts
-// and Signal sessions, in one file. It is the session itself — whoever has it can
-// read and send as those accounts — so only the daemon opens it.
+// Store is the WhatsApp session store: device keys, contacts and Signal sessions of
+// every linked account. Anyone holding it can act as those accounts; only the daemon
+// opens it.
 type Store struct {
 	db        *sql.DB
 	container *sqlstore.Container
 }
 
-// askFullHistory asks, of every phone linked from now on, for all the history it
-// holds rather than a recent slice of each chat (what WhatsApp Web is sent). A phone
-// sends history once, when a device is linked, so a device linked before this asked
-// keeps the slice it was sent until it is linked anew. whatsmeow sends one set of
-// device properties for every device, so this is set once, before any linking.
+// askFullHistory requests full history rather than WhatsApp Web's recent slice. A
+// phone sends history only at linking, and whatsmeow's device properties are global,
+// so this is set once before any linking.
 var askFullHistory = sync.OnceFunc(func() {
 	store.DeviceProps.RequireFullSync = new(true)
 })
 
-// OpenStore opens (creating and migrating) the store at path.
+// OpenStore opens the store at path, creating and migrating it.
 func OpenStore(ctx context.Context, path string, log waLog.Logger) (*Store, error) {
 	askFullHistory()
 	dsn := (&url.URL{Scheme: "file", Opaque: path, RawQuery: url.Values{
@@ -46,7 +43,7 @@ func OpenStore(ctx context.Context, path string, log waLog.Logger) (*Store, erro
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: open the store: %w", err)
 	}
-	// One writer: whatsmeow's own advice for SQLite.
+	// One connection: whatsmeow's advice for SQLite.
 	db.SetMaxOpenConns(1)
 	container := sqlstore.NewWithDB(db, "sqlite3", log)
 	if err := container.Upgrade(ctx); err != nil {
@@ -64,8 +61,7 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// device is the linked device for the account with these digits, or nil when it is
-// not linked.
+// device is the account's linked device, nil when not linked.
 func (s *Store) device(ctx context.Context, digits string) (*store.Device, error) {
 	devices, err := s.container.GetAllDevices(ctx)
 	if err != nil {
@@ -79,9 +75,8 @@ func (s *Store) device(ctx context.Context, digits string) (*store.Device, error
 	return nil, nil
 }
 
-// LIDNumbers is every LID whose number the store knows, as WhatsApp sent them (in
-// history, with contacts, beside a message's sender): each LID's digits to its
-// number's. It is the whole of whatsmeow's map, for every linked account.
+// LIDNumbers maps every known LID's digits to its phone number's, across all linked
+// accounts.
 func (s *Store) LIDNumbers(ctx context.Context) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT lid, pn FROM whatsmeow_lid_map")
 	if err != nil {

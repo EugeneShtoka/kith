@@ -10,21 +10,19 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// self is an account's own addresses: its phone number and its LID.
+// self is an account's own phone-number and LID JIDs.
 type self struct{ pn, lid types.JID }
 
-// is reports whether jid is this account.
 func (s self) is(jid types.JID) bool {
 	jid = jid.ToNonAD()
 	return (!s.pn.IsEmpty() && jid == s.pn) || (!s.lid.IsEmpty() && jid == s.lid)
 }
 
-// pnOf finds the phone number behind a LID, or the empty JID.
+// pnOf maps a LID to its phone number, or the empty JID.
 type pnOf func(ctx context.Context, lid types.JID) types.JID
 
-// person is the address a person is kept under: the phone number when WhatsApp gives
-// one (alt, or the store knows it), so they fold with the same contact seen in a
-// group, through a bridge or by another account; the LID otherwise.
+// person is the JID a person is kept under: the phone number when known (alt or the
+// store), so they fold across groups, bridges and accounts; else the LID.
 func person(ctx context.Context, jid, alt types.JID, lookup pnOf) types.JID {
 	jid = jid.ToNonAD()
 	if jid.Server != types.HiddenUserServer {
@@ -41,9 +39,8 @@ func person(ctx context.Context, jid, alt types.JID, lookup pnOf) types.JID {
 	return jid
 }
 
-// chatOf is the chat a message belongs in. A direct chat is kept under the other
-// person's address (person), so the conversation is one room however WhatsApp
-// addressed each message; a group is its own JID.
+// chatOf is a message's chat: a direct chat under the peer's person JID, so PN- and
+// LID-addressed messages share a room; a group under its own JID.
 func chatOf(ctx context.Context, info *types.MessageInfo, lookup pnOf) types.JID {
 	if info.IsGroup {
 		return info.Chat.ToNonAD()
@@ -55,8 +52,8 @@ func chatOf(ctx context.Context, info *types.MessageInfo, lookup pnOf) types.JID
 	return person(ctx, info.Chat, alt, lookup)
 }
 
-// incoming is a message as kith keeps it. What kith does not show from WhatsApp yet —
-// reactions, edits, deletions, the protocol's own messages — is false.
+// incoming converts a message; false for protocol messages (reactions, edits,
+// deletions and the like).
 func incoming(account string, room domain.RoomID, info *types.MessageInfo, msg *waE2E.Message, sender string, me self) (domain.Message, bool) {
 	body, context, ok := content(msg)
 	if !ok {
@@ -93,8 +90,7 @@ func incoming(account string, room domain.RoomID, info *types.MessageInfo, msg *
 	return out, true
 }
 
-// content is what a message says, and the context (reply, mentions) it carries.
-// Media are shown by kind and caption until they can be loaded.
+// content is a message's text and context info (reply, mentions).
 func content(msg *waE2E.Message) (string, *waE2E.ContextInfo, bool) {
 	switch {
 	case msg == nil:
@@ -104,8 +100,7 @@ func content(msg *waE2E.Message) (string, *waE2E.ContextInfo, bool) {
 	case msg.GetExtendedTextMessage() != nil:
 		m := msg.GetExtendedTextMessage()
 		return m.GetText(), m.GetContextInfo(), true
-	// An attachment's words are its caption (a document's, its name): the media chip
-	// says what it is (see attachment).
+	// An attachment's text is its caption (a document's name); the media chip shows its kind.
 	case msg.GetImageMessage() != nil:
 		return msg.GetImageMessage().GetCaption(), msg.GetImageMessage().GetContextInfo(), true
 	case msg.GetVideoMessage() != nil:
@@ -129,7 +124,6 @@ func content(msg *waE2E.Message) (string, *waE2E.ContextInfo, bool) {
 	return "", nil, false
 }
 
-// cmpOr is the first non-empty string.
 func cmpOr(a, b string) string {
 	if a != "" {
 		return a
@@ -137,7 +131,7 @@ func cmpOr(a, b string) string {
 	return b
 }
 
-// labeled is a placeholder for what kith cannot show yet, with its own words after.
+// labeled is a placeholder for unsupported content, followed by its text.
 func labeled(kind, words string) string {
 	label := "[" + kind + "]"
 	if words = strings.TrimSpace(words); words != "" {

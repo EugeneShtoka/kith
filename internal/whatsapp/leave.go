@@ -10,14 +10,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Leaving a group, or a community, is leaving it on WhatsApp, on every linked device. A
-// community's groups are left one by one (the rail leaves them before it). A private
-// chat has no one to leave.
+// Leaving a group or community is done on WhatsApp. A community's groups are left one
+// by one first (the rail does that). Private chats cannot be left.
 
-// errChatNotLeft is a private chat asked to be left.
 var errChatNotLeft = fmt.Errorf("%w: a private chat cannot be left on WhatsApp; archive it to put it away", api.ErrNotOnNetwork)
 
-// LeaveRoom leaves a group or a community on WhatsApp and drops it from the cache.
+// LeaveRoom leaves a group or community on WhatsApp and drops it from the cache.
 func (a *Adapter) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	room := domain.ParseID(string(roomID))
 	chat, err := types.ParseJID(room.Native)

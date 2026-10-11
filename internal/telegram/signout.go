@@ -10,17 +10,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Signing an account out ends its session on Telegram (it leaves the account's active
-// sessions), stops its connection and deletes its kept credentials; the account stays
-// in the config, and logging in signs it back in. The session is ended through the
-// connection, so an account not connected is not signed out: its session would live on
-// at Telegram.
+// Sign-out ends the Telegram session, stops the connection and deletes credentials;
+// the account stays configured. It needs a live connection, or the session would
+// survive at Telegram.
 
-// errNoSuchAccountSpace is a space that is no Telegram account's own.
+// errNoSuchAccountSpace is a space that isn't a Telegram account's.
 var errNoSuchAccountSpace = fmt.Errorf("%w: no Telegram account here is that space", api.ErrNotOnNetwork)
 
-// SignOut signs out the account whose own space space is; with forget, its rooms and
-// their history go from the cache too, else they stay, readable.
+// SignOut signs out space's account; forget also drops its rooms from the cache.
 func (a *Adapter) SignOut(ctx context.Context, space domain.SpaceID, forget bool) error {
 	account, self, ok := a.accountOfSpace(space)
 	if !ok {
@@ -57,9 +54,8 @@ func (a *Adapter) SignOut(ctx context.Context, space domain.SpaceID, forget bool
 	return nil
 }
 
-// letGo ends an account's connection and any login of it, and makes every login and
-// connection begun before now stale, so none of them keeps credentials or connects
-// again (current, connectAs).
+// letGo cancels an account's connection and login and bumps its generation so no
+// earlier work stores credentials or reconnects.
 func (a *Adapter) letGo(account Account) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -74,7 +70,7 @@ func (a *Adapter) letGo(account Account) {
 	}
 }
 
-// accountOfSpace is the configured account whose own space space is, and its user.
+// accountOfSpace is space's configured account and user ID.
 func (a *Adapter) accountOfSpace(space domain.SpaceID) (Account, int64, bool) {
 	for _, account := range a.accountsNow() {
 		if self, ok := a.selfOf(account); ok && accountSpaceID(self) == space {

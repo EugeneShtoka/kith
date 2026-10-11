@@ -13,9 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Slack's reaction names and kith's emoji keys map both ways: a name to its emoji
-// (toned as it says), the emoji back to a name Slack takes; a workspace's own emoji
-// keeps its name.
+// Reaction names and emoji keys map both ways, tones included; a custom emoji keeps its
+// name.
 func TestReactionNamesAndKeys(t *testing.T) {
 	t.Parallel()
 	for name, key := range map[string]string{
@@ -45,12 +44,10 @@ func liveWorkspace(t *testing.T, a *Adapter) *workspace {
 	return w
 }
 
-// A message is edited live, reacted to and taken back (live, or while kith was not
-// connected), and read in history pages fetched before or after each change, written
-// in any order, then once more at the end. Whatever the order: the message shows its
-// newest edit, a deletion sticks, and its reactions are Slack's — a page read before a
-// reaction was taken back never brings it back, and the last page takes back one that
-// went while nobody was listening.
+// A message is edited, reacted to and unreacted (live or while away), and history pages
+// fetched before or after each change land in any order, then once more at the end. The
+// message shows its newest edit, a deletion sticks, and reactions match Slack's: a stale
+// page never restores a removed reaction, and the last page removes one lost while away.
 func TestLiveChangesAndHistoryPagesAgree(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -86,8 +83,8 @@ func TestLiveChangesAndHistoryPagesAgree(t *testing.T) {
 				fetched time.Time
 			}
 			var pending []page
-			// Half the runs change nothing while kith is away: then the cache must hold
-			// Slack's state after every step, not only once a fresh page lands.
+			// Half the runs change nothing while away: then the cache must match Slack after every
+			// step, not only after a fresh page.
 			offline := seed%2 == 1
 			check := func(step int) {
 				t.Helper()
@@ -157,7 +154,7 @@ func TestLiveChangesAndHistoryPagesAgree(t *testing.T) {
 				}
 				check(step)
 			}
-			// Every page still in flight lands too, then one read now, after everything.
+			// Every page still in flight lands, then one fetched now.
 			for _, p := range pending {
 				a.cachePage(ctx, w, "C1", []slackgo.Message{p.msg}, p.fetched)
 			}
@@ -182,7 +179,7 @@ func TestLiveChangesAndHistoryPagesAgree(t *testing.T) {
 	}
 }
 
-// cachedReactions are the cached reactions in C1 as user/name, sorted.
+// cachedReactions are C1's cached reactions as user/name, sorted.
 func cachedReactions(t *testing.T, a *Adapter) []string {
 	t.Helper()
 	rs, err := a.cache.Reactions(context.Background(), roomID("T1", "C1"))
@@ -197,7 +194,7 @@ func cachedReactions(t *testing.T, a *Adapter) []string {
 	return sortedKeys(got)
 }
 
-// liveReactions are Slack's reactions as user/name, each name as kith spells it back.
+// liveReactions are Slack's reactions as user/name, names as kith spells them back.
 func liveReactions(reactions map[string]bool) []string {
 	want := map[string]bool{}
 	for k := range reactions {

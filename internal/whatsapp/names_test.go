@@ -9,9 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A direct chat is named after the person as the address book has them, else as
-// they named themselves, else as a message named them, else by their number; the chat
-// with yourself is You.
+// Direct chat name order: address book, push name, message name, number; own chat is You.
 func TestADirectChatIsNamedAfterThePerson(t *testing.T) {
 	t.Parallel()
 	known := map[string]string{"447700900111": "Dana Lee"}
@@ -34,10 +32,8 @@ func TestADirectChatIsNamedAfterThePerson(t *testing.T) {
 	}
 }
 
-// Names arriving after the history (as right after linking) name the account's
-// direct chats again: a chat with no name gets the person's, one read as a number gets
-// the name; one named from a message keeps it until a better name is known; and no
-// chat is made for a contact the account never spoke with.
+// Late-arriving names rename direct chats (a message's name stays until a better one)
+// and create no chat for a contact never spoken with.
 func TestNamesArrivingLaterNameTheChats(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -78,9 +74,8 @@ func TestNamesArrivingLaterNameTheChats(t *testing.T) {
 	}
 }
 
-// An account gives the phone book every name it knows a number by: the address book's
-// as saved, else the person's own or their business's as chosen; a contact known by
-// LID under its number when the store has one, and none without.
+// The phone book gets every known number's name (saved or chosen); LID contacts go
+// under their number when known.
 func TestAnAccountNamesTheNumbersItKnows(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -111,7 +106,7 @@ func TestAnAccountNamesTheNumbersItKnows(t *testing.T) {
 	if err := client.Store.Contacts.PutContactName(ctx, unmapped, "Nobody's Number", ""); err != nil {
 		t.Fatal(err)
 	}
-	// A bridge names Alex too: an address book would outrank it, Alex's own name does not.
+	// A bridge also names Alex: an address book name would outrank it, a push name does not.
 	if err := cache.SaveMembers(ctx, "!dm:x", []domain.Member{
 		{UserID: "@whatsapp_447700900222:x", DisplayName: "Alex Bridged (WA)"},
 		{UserID: "@whatsapp_447700900111:x", DisplayName: "Dana Bridged (WA)"},
@@ -131,8 +126,7 @@ func TestAnAccountNamesTheNumbersItKnows(t *testing.T) {
 			t.Errorf("+%s is named %q, want %q", number, got, want)
 		}
 	}
-	// Someone cached under their LID is named by the number WhatsApp maps it to; a LID
-	// without a number is nobody the directory knows.
+	// A LID resolves to its mapped number's name; an unmapped LID to none.
 	for id, want := range map[string]string{
 		"whatsapp:" + lid.String():      "Sam Hidden",
 		"whatsapp:" + unmapped.String(): "",

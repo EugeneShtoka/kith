@@ -1,7 +1,5 @@
-// Package telegram is kith's own link to Telegram: each configured account is one phone
-// number it logs in as, a Telegram client of its own (through gotd/td, pure Go). It
-// writes what it sees into the cache every network shares, so search, drafts, the
-// assistant and notifications work for it as they do for Matrix.
+// Package telegram is kith's Telegram client (gotd/td): one login per configured phone
+// number, writing into the shared cache like every other network.
 package telegram
 
 import (
@@ -17,95 +15,82 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// streamBuffer bounds each stream, as the other adapters' do.
+// streamBuffer bounds each stream.
 const streamBuffer = 64
 
-// errStartedTwice guards Start, which runs once.
 var errStartedTwice = errors.New("telegram: started twice")
 
 // Account is one configured Telegram account: a phone number.
 type Account struct {
 	// Name is what `kith login telegram <name>` takes.
-	Name string
-	// Digits is its phone number's digits, as Telegram takes it.
+	Name   string
 	Digits string
 }
 
-// A configured account's state, as every network's account says it.
+// Account states.
 const (
 	// LoggedOut has no credentials: never logged in, or logged out by Telegram.
-	LoggedOut = domain.AccountLoggedOut
-	// Connecting is logged in and reaching Telegram.
+	LoggedOut  = domain.AccountLoggedOut
 	Connecting = domain.AccountConnecting
-	// Connected is logged in and connected.
-	Connected = domain.AccountOnline
+	Connected  = domain.AccountOnline
 )
 
 // Adapter is every configured Telegram account. Build it with New.
 type Adapter struct {
 	cache   *db.Cache
 	secrets Secrets
-	// store keeps the accounts' updates positions and access hashes; nil keeps them in
-	// memory (a store that would not open).
+	// store keeps updates state and access hashes; nil keeps them in memory.
 	store *Store
 	log   *slog.Logger
 
-	// onCached hears each message cached, onChanged each room whose cached messages
-	// changed otherwise (see OnCached).
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
 
-	// onStatus hears an account's state change (see OnStatus); onRoomsChanged an
-	// account's rooms being rewritten in the cache (OnRoomsChanged).
 	onStatus       func(domain.AccountStatus)
 	onRoomsChanged func()
 
 	mu       sync.Mutex
 	accounts []Account
-	// signIns counts each account's logins, so neither a login nor a connection begun
-	// on an older one ever replaces a newer one's credentials or connection.
+	// signIns is a generation per account, so work from an older login never replaces
+	// a newer login's credentials or connection.
 	signIns map[string]int
-	// logins are the logins under way, conns the logged-in accounts' connections, by
-	// account name.
+	// logins in progress and live connections, by account name.
 	logins map[string]*login
 	conns  map[string]*conn
-	// keepDeleted is [display.deleted] keep (keepDeletedIf).
+	// keepDeleted is [display.deleted] keep.
 	keepDeleted bool
-	// selves is each account's own user ID, by name, once known: its rooms' account
-	// part, kept when its connection is not.
+	// selves is each account's user ID; outlives the connection.
 	selves  map[string]int64
 	started bool
 	stopped bool
-	// run is Start's context: logins and connections last as long.
-	run context.Context //nolint:containedctx // RPCs and reloads arrive with no context of their own to outlive
+	// run is Start's context; logins and connections live under it.
+	run context.Context //nolint:containedctx // RPCs and reloads have no context to outlive
 
-	// refreshing serializes listings, so an older one is never written over a newer.
+	// refreshing serializes listings, so an older one never overwrites a newer.
 	refreshing sync.Mutex
-	// listing is held while a listing is written and while a message is, so the two
-	// never interleave; heard is when each room last had a message cached (keptRooms).
+	// listing keeps listing writes and message writes from interleaving; heard is when
+	// each room last had a message cached (keptRooms).
 	listing sync.Mutex
 	heard   map[domain.RoomID]time.Time
-	// moved is when each chat last moved between folders live (listedArchive).
+	// moved is when each chat last changed folder live (listedArchive).
 	moved map[domain.RoomID]time.Time
 
-	// unreadMu serializes changing a room's unread with keeping it; unreadState is
-	// each room's as Telegram counts it (loaded from the cache on first use), unreadAt
-	// when it last changed live (see changeUnread).
+	// unreadMu guards unread changes; unreadState is Telegram's unread per room
+	// (lazily loaded from the cache), unreadAt when it last changed live.
 	unreadMu    sync.Mutex
 	unreadState map[domain.RoomID]domain.Unread
 	unreadAt    map[domain.RoomID]time.Time
 
-	// reacted is when each message's reactions last changed live (see cachePage);
-	// typing who is typing where, each forgotten when their timer fires (typing.go).
+	// reacted is when each message's reactions last changed live (cachePage); typing
+	// expires each typist by timer.
 	reacted map[domain.EventID]time.Time
 	typing  map[domain.RoomID]map[string]*time.Timer
-	// echoes is the reactions applied as our sends' answers said, until heard again.
+	// echoes are reactions applied from our own sends' answers, until heard again.
 	echoes map[string]time.Time
-	// notMember is, per account, the channels it is no longer in (following.go).
+	// notMember is, per account, the channels it has left (following.go).
 	notMember map[int64]map[int64]bool
 
-	// keeping serializes writing credentials with checking that their login is still
-	// the latest (keepLogin).
+	// keeping makes the latest-login check and the credentials write atomic (keepLogin).
 	keeping sync.Mutex
 
 	streamMu  sync.RWMutex
@@ -116,8 +101,7 @@ type Adapter struct {
 	reactions chan domain.ReactionUpdate
 }
 
-// New is the adapter for accounts, their credentials in secrets, their updates
-// positions in store (nil: in memory), writing into cache. log may be nil.
+// New builds the adapter. store and log may be nil.
 func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log *slog.Logger) *Adapter {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
@@ -145,18 +129,16 @@ func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log
 // Network is Telegram.
 func (a *Adapter) Network() domain.Protocol { return domain.ProtocolTelegram }
 
-// OnCached sets who hears each message the adapter caches, and each room whose cached
-// messages changed otherwise (word completion). Set before Start.
+// OnCached sets callbacks for each cached message and each room whose cache changed
+// otherwise. Set before Start.
 func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
 	a.onCached, a.onChanged = cached, changed
 }
 
-// OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
-// before Start.
+// OnRoomsChanged sets a callback for rewritten account rooms. Set before Start.
 func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
 
-// OnStatus sets who hears an account's state change, with what to tell a person
-// about it (empty when nothing). Set before Start.
+// OnStatus sets a callback for account state changes. Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
 
 // session reports an account's state.
@@ -166,8 +148,7 @@ func (a *Adapter) session(account Account, phase domain.AccountPhase, detail str
 	}
 }
 
-// UseConfig takes [[telegram.account]], at start and each time the config is re-read
-// (see useAccounts).
+// UseConfig applies [[telegram.account]], at start and on each reload.
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
 	accounts := make([]Account, 0, len(cfg.Telegram.Accounts))
 	for _, account := range cfg.Telegram.Accounts {
@@ -177,9 +158,8 @@ func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
 	a.keepDeletedIf(cfg.Display.Deleted.Keep())
 }
 
-// CheckConfig refuses [[telegram.account]]s kith could not tell apart or log in as: a
-// missing or repeated name, no international number, a number listed twice. It asks
-// nothing of Telegram.
+// CheckConfig rejects missing or duplicate names, non-international and duplicate
+// numbers. Offline.
 func (a *Adapter) CheckConfig(_ context.Context, cfg config.Config) error {
 	records := make([]domain.AccountRecord, 0, len(cfg.Telegram.Accounts))
 	for _, account := range cfg.Telegram.Accounts {
@@ -188,14 +168,13 @@ func (a *Adapter) CheckConfig(_ context.Context, cfg config.Config) error {
 	return domain.CheckAccounts(cfg.Telegram.Table(), records) //nolint:wrapcheck // names the record itself
 }
 
-// accountsNow is the configured accounts (useAccounts replaces them).
 func (a *Adapter) accountsNow() []Account {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return slices.Clone(a.accounts)
 }
 
-// runContext is what logins and connections run under: Start's context, once it ran.
+// runContext is Start's context, or Background before Start.
 func (a *Adapter) runContext() context.Context {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -205,9 +184,8 @@ func (a *Adapter) runContext() context.Context {
 	return a.run
 }
 
-// useAccounts takes the configured accounts: before Start, the ones it starts with;
-// after, an account added is connected if logged in, as one configured at Start is,
-// and one removed is let go, with its login under way.
+// useAccounts replaces the accounts. After Start, an added account is connected if
+// logged in; a removed one's connection and login are cancelled.
 func (a *Adapter) useAccounts(accounts []Account) {
 	a.mu.Lock()
 	known := a.accounts
@@ -252,12 +230,11 @@ func (a *Adapter) Start(ctx context.Context) error {
 		a.announce(account)
 	}
 	<-ctx.Done()
-	return ctx.Err() //nolint:wrapcheck // our own shutdown, as the other adapters'
+	return ctx.Err() //nolint:wrapcheck // our own shutdown
 }
 
-// SavedSessions is the configured accounts that have credentials kept, by name: what
-// Start connects. An account whose credentials are unusable is not one (its status
-// says why); a store that cannot be read is an error.
+// SavedSessions names the accounts with usable stored credentials. Unusable ones are
+// skipped (their status says why); an unreadable store is an error.
 func (a *Adapter) SavedSessions(context.Context) ([]string, error) {
 	var in []string
 	for _, account := range a.accountsNow() {
@@ -275,8 +252,7 @@ func (a *Adapter) SavedSessions(context.Context) ([]string, error) {
 	return in, nil
 }
 
-// announce connects an account that is logged in, and says how to log in when it is
-// not.
+// announce connects a logged-in account, or reports how to log in.
 func (a *Adapter) announce(account Account) {
 	creds, ok, err := loadCredentials(a.secrets, account.Digits)
 	switch {
@@ -320,7 +296,7 @@ func (a *Adapter) Stop() {
 	close(a.reactions)
 }
 
-// Messages, Activity, Unread and Reactions are the live streams.
+// Messages is the live message stream.
 func (a *Adapter) Messages() <-chan domain.Message { return a.messages }
 
 // Activity is typing and receipts.
@@ -346,8 +322,7 @@ func (a *Adapter) Me() []string {
 	return me
 }
 
-// RoomEncryption: Telegram rooms are not end-to-end encrypted (secret chats, which
-// are, are not shown).
+// RoomEncryption is false for all: secret chats, the only E2E ones, aren't shown.
 func (a *Adapter) RoomEncryption(_ context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {
 	out := make(map[domain.RoomID]bool, len(roomIDs))
 	for _, id := range roomIDs {

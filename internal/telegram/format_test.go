@@ -8,10 +8,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Entities become kith's markup at the right words — offsets count UTF-16 units, so
-// an emoji before them counts twice — nested properly where they overlap; a URL links
-// to itself; a person named by an entity is a mention; an entity past the text, or a
-// kind kith does not draw, leaves the words as written.
+// Entities map to nested markup at UTF-16 offsets (an emoji counts two); URLs link to
+// themselves; name entities become mentions; out-of-range or unsupported entities
+// leave text as is.
 func TestEntitiesAreMarkup(t *testing.T) {
 	t.Parallel()
 	for name, c := range map[string]struct {

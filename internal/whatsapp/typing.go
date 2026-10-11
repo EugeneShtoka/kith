@@ -13,8 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// onTyping keeps who is typing in each room and streams the room's set when it moves.
-// Our own typing (from another device) is not reported back.
+// onTyping tracks who is typing per room and streams changes; own typing from
+// another device is ignored.
 func (a *Adapter) onTyping(ctx context.Context, account Account, client *whatsmeow.Client, e *events.ChatPresence) {
 	if selfOf(client).is(e.Sender) {
 		return
@@ -37,8 +37,8 @@ func (a *Adapter) onTyping(ctx context.Context, account Account, client *whatsme
 	}
 }
 
-// SendTyping tells the chat we are typing, or have stopped. WhatsApp ends a typing
-// notice by itself after a while, so the timeout is not passed on.
+// SendTyping sends a typing state. WhatsApp expires it by itself, so the timeout is
+// unused.
 func (a *Adapter) SendTyping(ctx context.Context, roomID domain.RoomID, typing bool, _ time.Duration) error {
 	id := domain.ParseID(string(roomID))
 	chat, err := types.ParseJID(id.Native)
@@ -47,7 +47,7 @@ func (a *Adapter) SendTyping(ctx context.Context, roomID domain.RoomID, typing b
 	}
 	_, client, ok := a.clientFor(id.Account)
 	if !ok || chat.Server == types.NewsletterServer {
-		return nil // a typing notice is a courtesy; nothing to say it failed to, or to whom in a channel
+		return nil // typing is best-effort
 	}
 	state := types.ChatPresencePaused
 	if typing {

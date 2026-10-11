@@ -5,9 +5,8 @@ import (
 	"testing"
 )
 
-// The `d` cookie reaches Slack as the browser holds it — URL-encoded once — whether it
-// was copied encoded (as DevTools shows it) or decoded; slackgo.OptionCookie encodes
-// what cookieValue returns.
+// The `d` cookie reaches Slack URL-encoded once, whether pasted encoded (as DevTools
+// shows it) or decoded.
 func TestCookieValueReachesSlackEncodedOnce(t *testing.T) {
 	const browser = "xoxd-DR5W%2Bn3K%2FMIKx%3D%3D"
 	for name, in := range map[string]string{

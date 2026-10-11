@@ -14,9 +14,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// groupHistory serves messages.getHistory for basic groups: group id has sizes[id]
-// messages, numbered 1…n; floods answers FLOOD_WAIT that many times first. It records
-// each request as "<group>@<offset>".
+// groupHistory serves getHistory: group id has sizes[id] messages numbered 1…n, the
+// first floods requests get FLOOD_WAIT, and each request is logged as "<group>@<offset>".
 type groupHistory struct {
 	mu     sync.Mutex
 	sizes  map[int64]int
@@ -57,8 +56,8 @@ func (g *groupHistory) requests() []string {
 	return slices.Clone(g.asked)
 }
 
-// Each chat is read back to its beginning, page by page, the chat last spoken in
-// first; one read back already is not asked again.
+// Each chat is backfilled to its start, most recent chat first; finished chats are
+// skipped.
 func TestEachChatIsReadBackToItsBeginning(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -91,8 +90,8 @@ func TestEachChatIsReadBackToItsBeginning(t *testing.T) {
 	}
 }
 
-// A chat whose reading stopped carries on from its place, and stops as deep as the
-// cache keeps that room; asked to wait, it waits and asks again.
+// Backfill resumes from its saved offset, stops at the room's cache depth, and waits
+// out FLOOD_WAIT.
 func TestReadingBackCarriesOnWhereItStopped(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)

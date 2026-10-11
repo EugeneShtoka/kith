@@ -9,10 +9,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A Slack user learned from a message is in the directory by their ID, under the name
-// they chose, and linked to the number their profile gives: a name an address book on
-// another network saved for that number names them on Slack too, and theirs names a
-// number known only as digits elsewhere.
+// A user seen in a message enters the directory by ID under their chosen name, linked to
+// their profile number, so names saved for that number on other networks apply and theirs
+// names digits known elsewhere.
 func TestASlackUserIsOneOfThePeopleTheDirectoryKnows(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -53,9 +52,8 @@ func TestASlackUserIsOneOfThePeopleTheDirectoryKnows(t *testing.T) {
 	}
 }
 
-// Every member of a workspace is in the directory once it connects, page after page:
-// someone not yet seen in a message is named, linked to their number; someone deleted
-// is not.
+// On connect every member enters the directory, page by page: unseen ones named and
+// linked to their number; deleted ones not.
 func TestEveryMemberOfAWorkspaceIsInTheDirectory(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -95,7 +93,7 @@ func TestEveryMemberOfAWorkspaceIsInTheDirectory(t *testing.T) {
 	}
 }
 
-// Connecting lists the workspace's members, with the catch-up, in the background.
+// Connecting lists members in the background with the catch-up.
 func TestConnectingListsTheWorkspace(t *testing.T) {
 	t.Parallel()
 	f, client := newFakeSlack(t)

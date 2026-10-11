@@ -10,10 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A folder holds the chats it names, and the chats of the kinds it takes that it does
-// not name out (an archived one out too, where it says so); a chat it names it holds
-// whatever its kinds. Whether chats are read or muted is not copied, and the folder
-// says so.
+// A folder holds included chats regardless of kind, plus chats of included kinds not
+// excluded (archived ones excluded if set); read/muted filters are skipped and reported.
 func TestAFolderHoldsWhatItsFiltersSay(t *testing.T) {
 	t.Parallel()
 	ent := peer.NewEntities(

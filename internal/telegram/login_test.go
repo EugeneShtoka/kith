@@ -25,9 +25,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// fakeTelegram is Telegram's login, served by gotd's in-process MTProto server: one
-// account (code "12345"), with a two-step password when password is set. Its first
-// rejectPasswords password checks fail.
+// fakeTelegram is a login served by gotd's in-process MTProto server: one account
+// (code "12345"), 2FA when password is set; the first rejectPasswords checks fail.
 type fakeTelegram struct {
 	cluster *cluster.Cluster
 	user    *tg.User
@@ -39,7 +38,6 @@ type fakeTelegram struct {
 	revoked         bool
 }
 
-// newFakeTelegram serves a fake Telegram until the test ends.
 func newFakeTelegram(t *testing.T) *fakeTelegram {
 	t.Helper()
 	f := &fakeTelegram{
@@ -92,7 +90,7 @@ func newFakeTelegram(t *testing.T) *fakeTelegram {
 		}
 		return &tg.AuthAuthorization{User: f.user}, nil
 	})
-	// Every connection asks where its updates are: nothing has happened yet.
+	// Every connection asks for updates state; nothing has happened yet.
 	var state tg.UpdatesGetStateRequest
 	answer(tg.UpdatesGetStateRequestTypeID, &state, func() (bin.Encoder, *tgerr.Error) {
 		return &tg.UpdatesState{Pts: 1, Date: int(time.Now().Unix()), Seq: 1}, nil
@@ -136,8 +134,8 @@ func (f *fakeTelegram) set(change func(*fakeTelegram)) {
 	change(f)
 }
 
-// connected waits for heard to say name is connected: a login over the fake server
-// computes a password check and exchanges keys, which a loaded machine takes seconds for.
+// connected waits for name to connect; SRP and key exchange take seconds on a loaded
+// machine.
 func connected(t *testing.T, heard *sessions, name string) {
 	t.Helper()
 	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
@@ -148,7 +146,7 @@ func connected(t *testing.T, heard *sessions, name string) {
 	t.Fatalf("%s did not connect", name)
 }
 
-// srpParameters is a two-step password's parameters, with Telegram's published prime.
+// srpParameters are 2FA password parameters with Telegram's published prime.
 func srpParameters() *tg.AccountPassword {
 	p, _ := new(big.Int).SetString("C71CAEB9C6B1C9048E6C522F70F13F73980D40238E3E21C14934D037563D930F"+
 		"48198A0AA7C14058229493D22530F4DBFA336F6E0AC925139543AED44CCE7C37"+
@@ -173,8 +171,7 @@ func srpParameters() *tg.AccountPassword {
 
 var testApp = App{ID: 1, Hash: "0123456789abcdef0123456789abcdef"}
 
-// logIn runs an adapter for home over secrets, and home's login over the fake,
-// answering from answers.
+// logIn runs home's login over the fake, answering from answers.
 func logIn(t *testing.T, f *fakeTelegram, secrets *memSecrets, answers map[string][]string) (*Adapter, *sessions, *apitest.Talk, api.LoginEnd, error) {
 	t.Helper()
 	a, heard := started(t, secrets, home)
@@ -183,9 +180,8 @@ func logIn(t *testing.T, f *fakeTelegram, secrets *memSecrets, answers map[strin
 	return a, heard, talk, end, err
 }
 
-// A login asks for the code, then — the account having two-step verification — the
-// password; a missing or wrong code or password is asked for again, saying why.
-// Signed in, the credentials are kept and the account connects as itself.
+// A login asks code then password, re-asking with a reason on bad answers; on success
+// credentials are stored and the account connects.
 func TestALoginTakesTheCodeThenThePassword(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -218,8 +214,7 @@ func TestALoginTakesTheCodeThenThePassword(t *testing.T) {
 	}
 }
 
-// A login asks for an app until one will do: half an app, a malformed one, or none in
-// a build without kith's own, is asked for again.
+// Partial, malformed, or empty (without a built-in app) app answers are re-asked.
 func TestALoginAsksForAnAppUntilOneWillDo(t *testing.T) {
 	t.Parallel()
 	answers := map[string][]string{
@@ -242,8 +237,7 @@ func TestALoginAsksForAnAppUntilOneWillDo(t *testing.T) {
 	}
 }
 
-// A new account is asked for by number and name, written into the config, and logged
-// in under its name.
+// A new account is asked for number and name, written to the config, and logged in.
 func TestANewAccountIsSetUpFirst(t *testing.T) {
 	t.Parallel()
 	a := New(nil, &memSecrets{values: map[string]string{}}, nil, []Account{work}, nil)
@@ -268,7 +262,7 @@ func TestANewAccountIsSetUpFirst(t *testing.T) {
 	}
 }
 
-// A session Telegram ended leaves the account logged out, saying how to log in.
+// A session Telegram ended leaves the account logged out with a login hint.
 func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -283,7 +277,7 @@ func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 	creds, _, _ := loadCredentials(secrets, home.Digits)
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
-	// The login's own connection ends first, so only this one speaks for home.
+	// End the login's own connection so only this one reports for home.
 	a.mu.Lock()
 	gen := a.signIns[home.Name]
 	a.conns[home.Name].cancel()
@@ -296,8 +290,7 @@ func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 	}
 }
 
-// A login keeps its session only once gotd has stored it, however late that comes
-// beside the sign-in: read before, it would be empty.
+// A login waits for gotd to store the session, however late after sign-in.
 func TestALoginWaitsForItsSessionToBeStored(t *testing.T) {
 	t.Parallel()
 	s := newLoginSession()

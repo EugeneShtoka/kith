@@ -17,10 +17,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Signing an account out ends its session on Telegram, stops its connection and
-// deletes its credentials, its rooms staying readable or going as asked; neither a
-// session its old connection saves afterwards nor a connection its old login makes
-// brings it back; signed out, it is not connected, and another space is no account.
+// Sign-out ends the Telegram session, stops the connection, deletes credentials, and
+// keeps or drops rooms as asked; late session saves or connects from old work don't
+// revive it.
 func TestSigningOutEndsTheSessionForGood(t *testing.T) {
 	t.Parallel()
 	for _, forget := range []bool{false, true} {
@@ -66,8 +65,7 @@ func TestSigningOutEndsTheSessionForGood(t *testing.T) {
 			t.Errorf("forget %v: home = %v %q, want logged out", forget, s, said)
 		}
 
-		// What was under way before: its old connection saving the session, its old
-		// login connecting.
+		// Old work finishing late: a session save and a login's connect.
 		stale := &keptSession{a: a, account: home, gen: oldGen, creds: creds}
 		if err := stale.StoreSession(ctx, []byte("renewed")); err != nil {
 			t.Fatal(err)

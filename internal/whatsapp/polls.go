@@ -16,12 +16,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A WhatsApp poll is a message asking it; each vote is a message of its own, encrypted
-// to the poll, naming the answers chosen by their SHA-256 and replacing the voter's
-// last. So the poll keeps every voter's ballot and counts the votes from them. An
-// answer's ID is its words, which a vote is built from.
+// A WhatsApp vote is its own message, encrypted to the poll, naming chosen answers by
+// SHA-256 and replacing the voter's last. The poll keeps each voter's ballot; an
+// answer's ID is its text.
 
-// pollOf is a poll creation message as kith keeps the poll; nil for any other.
+// pollOf converts a poll creation message; nil for any other.
 func pollOf(msg *waE2E.Message) *domain.Poll {
 	var created *waE2E.PollCreationMessage
 	switch {
@@ -41,7 +40,7 @@ func pollOf(msg *waE2E.Message) *domain.Poll {
 	return p
 }
 
-// chosenOptions is a vote's chosen hashes as the poll's answers.
+// chosenOptions maps a vote's hashes to the poll's answers.
 func chosenOptions(p *domain.Poll, hashes [][]byte) []string {
 	var out []string
 	for _, o := range p.Options {
@@ -56,7 +55,7 @@ func chosenOptions(p *domain.Poll, hashes [][]byte) []string {
 	return out
 }
 
-// onPollVote counts a vote heard: its voter's ballot replaced by what they chose now.
+// onPollVote replaces the voter's ballot.
 func (a *Adapter) onPollVote(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message, update *waE2E.PollUpdateMessage) {
 	if a.cache == nil {
 		return
@@ -70,8 +69,8 @@ func (a *Adapter) onPollVote(ctx context.Context, account Account, client *whats
 	a.cast(ctx, client, room, target, voter, vote.GetSelectedOptions(), nil)
 }
 
-// cast keeps one voter's ballot in a cached poll, chosen as hashes or as answers, and
-// tells the clients the room changed.
+// cast stores a voter's ballot (as hashes or answers) in a cached poll and reports
+// the room changed.
 func (a *Adapter) cast(ctx context.Context, client *whatsmeow.Client, room domain.RoomID, target domain.EventID, voter string, hashes [][]byte, answers []string) {
 	msg, held, err := a.cache.MessageByID(ctx, room, target)
 	if err != nil || !held || msg.Poll == nil {
@@ -103,9 +102,8 @@ func (a *Adapter) cast(ctx context.Context, client *whatsmeow.Client, room domai
 	}
 }
 
-// VotePoll votes in a poll on WhatsApp, the answers by their words; none takes the
-// vote back. WhatsApp does not echo a vote to the device that sent it: it is counted
-// here.
+// VotePoll votes by answer text; no options retracts. WhatsApp does not echo the
+// vote, so it is counted here.
 func (a *Adapter) VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error {
 	chat, id, sender, _, client, err := a.target(ctx, roomID, eventID)
 	if err != nil {
@@ -129,8 +127,7 @@ func (a *Adapter) VotePoll(ctx context.Context, roomID domain.RoomID, eventID do
 	return nil
 }
 
-// PollVoters is who chose each answer of a poll, from the ballots kept as votes were
-// heard; the client names them as it names the room's people.
+// PollVoters returns who chose each answer, from the kept ballots.
 func (a *Adapter) PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error) {
 	if a.cache == nil {
 		return domain.PollVoters{}, nil
@@ -143,7 +140,7 @@ func (a *Adapter) PollVoters(ctx context.Context, roomID domain.RoomID, eventID 
 		return domain.PollVoters{}, fmt.Errorf("whatsapp: %s asks no poll kith holds", eventID)
 	}
 	out := domain.PollVoters{}
-	// A vote taken back deletes its ballot (cast), so every ballot chose something.
+	// A retracted vote deletes its ballot, so every ballot is non-empty.
 	for _, voter := range slices.Sorted(maps.Keys(msg.Poll.Ballots)) {
 		out.Voters = append(out.Voters, domain.PollVoter{ID: voter, Options: msg.Poll.Ballots[voter]})
 	}

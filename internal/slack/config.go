@@ -12,11 +12,11 @@ import (
 )
 
 var (
-	// workspaceAddress is a Slack workspace's address: the part before ".slack.com".
+	// workspaceAddress is the part before ".slack.com".
 	workspaceAddress = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
-	// teamID is a workspace's ID, as app.slack.com links carry it.
+	// teamID is a workspace ID, as app.slack.com links carry it.
 	teamID = regexp.MustCompile(`^T[A-Z0-9]{8,}$`)
-	// clientLink is a link into the Slack web client: app.slack.com/client/<team>/….
+	// clientLink is a web-client link: app.slack.com/client/<team>/….
 	clientLink = regexp.MustCompile(`app\.slack\.com/client/(T[A-Z0-9]{8,})(?:/|$)`)
 )
 
@@ -27,9 +27,9 @@ var errNotWorkspace = errors.New("is not a Slack workspace — write its address
 // isTeamID reports whether workspace is a team ID (T…) rather than an address.
 func isTeamID(workspace string) bool { return teamID.MatchString(workspace) }
 
-// addressOf is a workspace as Slack writes it, from what the config or a login may
-// say: its address ("acme", "acme.slack.com", "https://acme.slack.com/"), or its team
-// ID ("T0123456789", or any app.slack.com/client/T0123456789/… link).
+// addressOf normalizes a workspace from config or login: an address ("acme",
+// "acme.slack.com", "https://acme.slack.com/") or a team ID ("T0123456789", or any
+// app.slack.com/client/T0123456789/… link).
 func addressOf(written string) string {
 	raw := strings.TrimSpace(written)
 	if m := clientLink.FindStringSubmatch(raw); m != nil {
@@ -44,7 +44,7 @@ func addressOf(written string) string {
 	return strings.TrimSuffix(w, ".slack.com")
 }
 
-// checkAddress refuses what is no workspace address or ID (addressOf's result).
+// checkAddress refuses an addressOf result that is no workspace address or ID.
 func checkAddress(address string) error {
 	if !workspaceAddress.MatchString(address) && !isTeamID(address) {
 		return fmt.Errorf("%q is not a Slack workspace — write its address (acme, for acme.slack.com), "+
@@ -53,9 +53,8 @@ func checkAddress(address string) error {
 	return nil
 }
 
-// CheckConfig refuses [[slack.account]]s kith could not tell apart or sign in to: a
-// missing or repeated name, a workspace that is no Slack address or ID, one listed
-// twice. It asks nothing of Slack.
+// CheckConfig refuses [[slack.account]]s with a missing or repeated name, an invalid
+// workspace, or a workspace listed twice. It does not contact Slack.
 func (a *Adapter) CheckConfig(_ context.Context, cfg config.Config) error {
 	records := make([]domain.AccountRecord, 0, len(cfg.Slack.Accounts))
 	for _, account := range cfg.Slack.Accounts {

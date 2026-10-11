@@ -6,10 +6,9 @@ import (
 	"testing"
 )
 
-// Over random interleavings of a connection begun on the kept session finishing late,
-// fresh sign-ins, and the account leaving and rejoining the config: the account's
-// connection is never from an older sign-in than one already adopted, and an account
-// not configured has none.
+// Over random interleavings of a late connection on the stored session, fresh sign-ins,
+// and the account leaving and rejoining the config: the adopted connection never goes
+// back to an older sign-in, and an unconfigured account has none.
 func TestAnOlderSessionNeverReplacesANewerOne(t *testing.T) {
 	t.Parallel()
 	account := Account{Name: "work", Workspace: "acme"}

@@ -10,9 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An account listed moments ago is not listed again for a client's refresh: the
-// cache answers (WhatsApp refuses listings that come faster). Changes arriving
-// meanwhile wait for one listing, however many there are.
+// Within listingEvery a client's refresh reads the cache, and changes coalesce into
+// one trailing listing.
 func TestAListingIsNotRepeatedTooSoon(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -31,7 +30,7 @@ func TestAListingIsNotRepeatedTooSoon(t *testing.T) {
 	if wait := a.untilListable(ownDigits); wait <= 0 || wait > listingEvery {
 		t.Fatalf("just listed: wait = %v, want up to %v", wait, listingEvery)
 	}
-	// No client at all: a listing would fail; the cache must answer.
+	// With no client a listing would fail; the cache must answer.
 	rooms, err := a.refreshAccount(ctx, account, nil, true)
 	if err != nil || len(rooms) != 1 || rooms[0].ID != room {
 		t.Errorf("a refresh just after a listing = (%v, %v), want the cached room", rooms, err)
@@ -47,8 +46,7 @@ func TestAListingIsNotRepeatedTooSoon(t *testing.T) {
 	}
 }
 
-// When WhatsApp will not list the channels, the cached ones stand in, with what was
-// known of them: a listing without them would sweep their history.
+// A refused channel listing keeps the cached channels, or the sweep would drop them.
 func TestARefusedChannelListingKeepsTheChannels(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -72,7 +70,7 @@ func TestARefusedChannelListingKeepsTheChannels(t *testing.T) {
 	}
 }
 
-// A direct chat's or channel's members are what is known: refreshing them lists nothing.
+// Refreshing a direct chat's or channel's members makes no request.
 func TestRefreshingAChatsMembersListsNothing(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -90,8 +88,7 @@ func TestRefreshingAChatsMembersListsNothing(t *testing.T) {
 	}
 }
 
-// One account WhatsApp will not list (here: never connected) answers from the cache,
-// direct chats included, and does not take the other account's rooms with it.
+// A failing account answers from the cache without dropping other accounts' rooms.
 func TestOneAccountsFailedListingKeepsEveryAccountsRooms(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

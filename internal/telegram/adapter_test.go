@@ -72,8 +72,7 @@ func (s *sessions) of(name string) (domain.AccountPhase, string) {
 	return s.seen[name], s.said[name]
 }
 
-// started runs an adapter over secrets for accounts, recording what each says, and
-// stops it with the test.
+// started runs an adapter for accounts, recording their states, until the test ends.
 func started(t *testing.T, secrets Secrets, accounts ...Account) (*Adapter, *sessions) {
 	t.Helper()
 	heard := &sessions{seen: map[string]domain.AccountPhase{}, said: map[string]string{}}
@@ -106,8 +105,7 @@ var (
 	work = Account{Name: "work", Digits: "12025550100"}
 )
 
-// Starting says of each account whether it is logged in: one with credentials is
-// connecting, one without is told how to log in, by its name.
+// On start, an account with credentials is connecting; one without gets a login hint.
 func TestStartSaysWhoIsLoggedIn(t *testing.T) {
 	t.Parallel()
 	secrets := &memSecrets{values: map[string]string{}}
@@ -123,8 +121,7 @@ func TestStartSaysWhoIsLoggedIn(t *testing.T) {
 	}
 }
 
-// Credentials that cannot be read, or are kept but incomplete, leave the account
-// logged out, saying why.
+// Unreadable or incomplete credentials leave the account logged out with a reason.
 func TestUnreadableCredentialsSaySo(t *testing.T) {
 	t.Parallel()
 	_, heard := started(t, &memSecrets{fail: errors.New("keyring locked")}, home)
@@ -139,7 +136,7 @@ func TestUnreadableCredentialsSaySo(t *testing.T) {
 	}
 }
 
-// An account added when the config is re-read says whether it is logged in.
+// An account added on config reload reports its login state.
 func TestAnAddedAccountIsAnnounced(t *testing.T) {
 	t.Parallel()
 	a, heard := started(t, &memSecrets{values: map[string]string{}}, home)

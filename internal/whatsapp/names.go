@@ -11,21 +11,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A direct chat is named after the person: as the phone's address book has them, else
-// as they named themselves, else their business name. Right after linking, WhatsApp
-// sends the history before the names, so a chat first seen then has none yet: it reads
-// as the number until the names arrive, and each batch of names that does arrive names
-// the account's direct chats again. The chat with yourself is You.
+// A direct chat is named after the person: address book name, else push name, else
+// business name. After linking, WhatsApp sends history before names, so chats show
+// the number until a batch of names arrives and renames them.
 
-// renameAfter gathers a batch of names (a sync brings thousands) before the chats are
-// named again.
+// renameAfter debounces renaming while a batch of names arrives (a sync brings thousands).
 const renameAfter = 2 * time.Second
 
 // youName is the chat with yourself.
 const youName = "You"
 
-// chatName is what a direct chat with peer is called: the person's name, else
-// fallback (the name a message carried), else their number; You for yourself.
+// chatName names a direct chat: the person's name, else fallback (a message's push
+// name), else their number; You for yourself.
 func chatName(ctx context.Context, names nameOf, own self, peer types.JID, fallback string) string {
 	if own.is(peer) {
 		return youName
@@ -42,14 +39,13 @@ func chatName(ctx context.Context, names nameOf, own self, peer types.JID, fallb
 	return ""
 }
 
-// renamer names each account's direct chats again a little after names arrive, once
-// per batch.
+// renamer debounces renaming each account's direct chats.
 type renamer struct {
 	mu      sync.Mutex
 	pending map[string]bool // by account digits
 }
 
-// renameLater names the account's direct chats again once this batch of names is in.
+// renameLater renames the account's direct chats once this batch of names is in.
 func (a *Adapter) renameLater(account Account, client *whatsmeow.Client) {
 	a.renames.mu.Lock()
 	if a.renames.pending == nil {
@@ -70,9 +66,7 @@ func (a *Adapter) renameLater(account Account, client *whatsmeow.Client) {
 	})
 }
 
-// renameChats names the account's cached direct chats as the store knows the people
-// now, changing only those whose name changed, and gives the phone book what the
-// account knows its people's numbers by.
+// renameChats renames cached direct chats whose name changed and updates the phone book.
 func (a *Adapter) renameChats(ctx context.Context, account Account, client *whatsmeow.Client) {
 	if a.cache == nil {
 		return
@@ -109,9 +103,9 @@ func (a *Adapter) renameChats(ctx context.Context, account Account, client *what
 	}
 }
 
-// keepNumberNames gives the phone book every name the account knows a number by: the
-// address book's (saved), else the person's own or their business's (chosen). A
-// contact WhatsApp knows by LID is put under its number when the store knows that.
+// keepNumberNames writes every name the account knows a number by to the phone book:
+// saved (address book), else chosen (push or business name). LID contacts go under
+// their number when known.
 func (a *Adapter) keepNumberNames(ctx context.Context, account Account, client *whatsmeow.Client) {
 	contacts, err := client.Store.Contacts.GetAllContacts(ctx)
 	if err != nil {
@@ -135,8 +129,8 @@ func (a *Adapter) keepNumberNames(ctx context.Context, account Account, client *
 	}
 }
 
-// phoneOf is a contact's number as international digits; empty for one with none
-// known (a LID the store has no number for, a group).
+// phoneOf is a contact's number as international digits; empty when unknown (an
+// unmapped LID, a group).
 func (a *Adapter) phoneOf(ctx context.Context, client *whatsmeow.Client, jid types.JID) string {
 	if jid.Server == types.HiddenUserServer {
 		pn, err := client.Store.LIDs.GetPNForLID(ctx, jid)
@@ -151,10 +145,8 @@ func (a *Adapter) phoneOf(ctx context.Context, client *whatsmeow.Client, jid typ
 	return jid.User
 }
 
-// numberSource is the phone book's source for an account's names.
-// lidLinks is every LID the store knows the number of, as links in the directory: a
-// person cached under their LID before WhatsApp said whose it is (a message, a member)
-// is named by the number's name all the same.
+// lidLinks links every LID with a known number to that number, so a person cached
+// under their LID still gets the number's name.
 func (a *Adapter) lidLinks(ctx context.Context, account Account) []domain.PersonLink {
 	if a.store == nil {
 		return nil
@@ -174,4 +166,5 @@ func (a *Adapter) lidLinks(ctx context.Context, account Account) []domain.Person
 	return links
 }
 
+// numberSource is the phone book's source for an account's names.
 func numberSource(account Account) string { return "whatsapp:" + account.Digits }

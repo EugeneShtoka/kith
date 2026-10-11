@@ -12,14 +12,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A conversation's history is Slack's to page through, newest first: a page is cached
-// as it is read, so what was scrolled through once opens from the cache.
+// History pages come from Slack newest first and are cached as read, so scrolled
+// history reopens from the cache.
 
-// longestWait is the longest Slack's rate limit is waited out before a call gives up.
+// longestWait is the longest rate-limit wait before a call gives up.
 const longestWait = 30 * time.Second
 
-// Timeline is a page of a conversation's history, oldest first, from where from left
-// off ("" for the newest); Next continues it, "" at the beginning.
+// Timeline is a page of history, oldest first, before from ("" for the newest); Next
+// continues it, "" at the beginning.
 func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from string, limit int) (domain.TimelinePage, error) {
 	w, channel, err := a.conversation(roomID)
 	if err != nil {
@@ -47,13 +47,10 @@ func (a *Adapter) Timeline(ctx context.Context, roomID domain.RoomID, from strin
 	return page, nil
 }
 
-// cachePage is a page of a conversation's history, as Slack answers it (newest
-// first), oldest first as kith keeps it, its senders named, and the reactions on it;
-// it is cached as history: nothing is streamed or notified. The page's reactions are
-// Slack's on the messages it carries, so a cached one the page lacks went while kith
-// was not listening, and goes; but a message whose reactions changed live since the
-// page was fetched keeps the live ones (reactedSince). A thread hanging off it with
-// replies the cache lacks is queued to be read (threads.go).
+// cachePage caches a history page (Slack's newest-first, stored oldest first) with
+// named senders and reactions, without streaming or notifying. The page's reactions
+// replace the cached ones, except on messages reacted to live since the fetch
+// (reactedSince). Threads with uncached replies are queued (threads.go).
 func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, page []slackgo.Message, fetched time.Time) ([]domain.Message, []domain.Reaction) {
 	raw := make([]slackgo.Msg, len(page))
 	for i := range page {
@@ -105,8 +102,7 @@ func (a *Adapter) cachePage(ctx context.Context, w *workspace, channel string, p
 	return msgs, reactions
 }
 
-// settleReactions makes the cached reactions on the settled messages the page's: those
-// it lacks are dropped, its own are written.
+// settleReactions replaces the cached reactions on the settled messages with the page's.
 func (a *Adapter) settleReactions(ctx context.Context, room domain.RoomID, settled map[domain.EventID]bool, reactions []domain.Reaction) {
 	if len(settled) == 0 {
 		return
@@ -134,7 +130,7 @@ func (a *Adapter) settleReactions(ctx context.Context, room domain.RoomID, settl
 	}
 }
 
-// logDropped says which of a page's messages are not shown, by subtype.
+// logDropped logs a page's hidden messages by subtype.
 func (a *Adapter) logDropped(room domain.RoomID, channel string, raw []slackgo.Msg, n names, kept int) {
 	var dropped []string
 	for i := range raw {
@@ -145,7 +141,7 @@ func (a *Adapter) logDropped(room domain.RoomID, channel string, raw []slackgo.M
 	a.log.Debug("history: messages not shown", "room", room, "fetched", len(raw), "kept", kept, "dropped", dropped)
 }
 
-// conversation is the connected workspace a room is in, and its channel ID there.
+// conversation is a room's connected workspace and its channel ID there.
 func (a *Adapter) conversation(roomID domain.RoomID) (*workspace, string, error) {
 	id := domain.ParseID(string(roomID))
 	if id.Network != domain.ProtocolSlack || id.Account == "" {
@@ -159,8 +155,8 @@ func (a *Adapter) conversation(roomID domain.RoomID) (*workspace, string, error)
 	return nil, "", fmt.Errorf("%w: the Slack workspace %s is not signed in or not connected", errNetworkOff, id.Account)
 }
 
-// waitingOut makes a call, and once more after the wait Slack asks for when it is
-// rate limited — unless that wait is longer than longestWait or ctx ends first.
+// waitingOut makes a call, retrying once after Slack's rate-limit wait unless that
+// exceeds longestWait or ctx ends.
 func waitingOut(ctx context.Context, call func() error) error {
 	err := call()
 	limited, ok := errors.AsType[*slackgo.RateLimitedError](err)

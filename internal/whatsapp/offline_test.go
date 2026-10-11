@@ -17,7 +17,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// linkedClient is a client for a device stored as linked to digits, never connected.
+// linkedClient is a never-connected client for a device stored as linked to digits.
 func linkedClient(t *testing.T, store *Store, digits string) *whatsmeow.Client {
 	t.Helper()
 	device := store.container.NewDevice()
@@ -33,7 +33,7 @@ func linkedClient(t *testing.T, store *Store, digits string) *whatsmeow.Client {
 	return whatsmeow.NewClient(device, newLogger(slog.New(slog.DiscardHandler), "test"))
 }
 
-// Start with nothing linked yet waits for the end and connects nothing.
+// Start with nothing linked connects nothing and waits for ctx.
 func TestStartWithNothingLinkedWaits(t *testing.T) {
 	t.Parallel()
 	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
@@ -53,8 +53,7 @@ func TestStartWithNothingLinkedWaits(t *testing.T) {
 	}
 }
 
-// A linked account is this person, by phone number and LID; the phone unlinking it
-// drops it.
+// A linked account is in Me by number and LID until the phone unlinks it.
 func TestALinkedAccountIsMeUntilThePhoneUnlinksIt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -70,7 +69,7 @@ func TestALinkedAccountIsMeUntilThePhoneUnlinksIt(t *testing.T) {
 	if name := a.names(client)(ctx, pn(danaPhone)); name != "" {
 		t.Errorf("an unknown contact's name = %q", name)
 	}
-	// Not connected: the refresh fails, saying so, and writes nothing.
+	// Not connected: the refresh fails and writes nothing.
 	if _, err := a.RefreshRooms(ctx); err == nil {
 		t.Error("RefreshRooms without a connection succeeded")
 	}
@@ -87,7 +86,7 @@ func TestALinkedAccountIsMeUntilThePhoneUnlinksIt(t *testing.T) {
 	}
 }
 
-// What needs nothing from WhatsApp answers from the cache, or with nothing.
+// Calls that need nothing from WhatsApp answer from the cache, or with nothing.
 func TestTheQuietAnswers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -134,7 +133,7 @@ func TestTheQuietAnswers(t *testing.T) {
 func second[T any](_ T, err error) error        { return err }
 func third[T, U any](_ T, _ U, err error) error { return err }
 
-// whatsmeow's log goes to kith's at the levels kith uses.
+// whatsmeow's log maps onto kith's levels.
 func TestWhatsmeowLogsThroughKith(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder

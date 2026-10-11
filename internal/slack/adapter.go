@@ -1,7 +1,6 @@
-// Package slack is kith's own link to Slack: each configured account is one workspace
-// it is signed in to, as the Slack web client is. It writes what it sees into the
-// cache every network shares, so search, drafts, the assistant and notifications work
-// for it as they do for Matrix.
+// Package slack connects kith to Slack: each configured account is one workspace,
+// signed in as the web client is. It writes into the shared cache, so search, drafts,
+// the assistant and notifications work as for Matrix.
 package slack
 
 import (
@@ -19,7 +18,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// streamBuffer bounds each stream, as the other adapters' do.
+// streamBuffer bounds each live stream.
 const streamBuffer = 64
 
 // errNetworkOff is an account that is not signed in or not connected.
@@ -36,7 +35,7 @@ type Account struct {
 	Workspace string
 }
 
-// A configured account's state, as every network's account says it.
+// A configured account's state.
 const (
 	// SignedOut has no credentials: never signed in, or signed out by Slack.
 	SignedOut = domain.AccountLoggedOut
@@ -70,33 +69,29 @@ type Adapter struct {
 	signIns map[string]int
 	started bool
 	stopped bool
-	// run is Start's context: an account added later is connected for as long.
+	// run is Start's context; an account added later connects under it.
 	run context.Context //nolint:containedctx // reloads arrive with no context of their own to outlive
 
 	// refreshing serializes listings, so an older one is never written over a newer.
 	refreshing sync.Mutex
-	// listing is held while a listing is written and while a message is, so the two
-	// never interleave; heard is when each room last had a message cached (see
-	// keptRooms).
+	// listing serializes writing a listing and caching a message; heard is when each
+	// room last had a message cached (see keptRooms).
 	listing sync.Mutex
 	heard   map[domain.RoomID]time.Time
 
-	// keepDeleted is [display.deleted] keep (KeepDeleted). positions are the rooms'
-	// read positions, loaded on first use (unread.go); typing is who is typing where,
-	// each forgotten when their timer fires (typing.go); reacted is when each message's
-	// reactions last changed live (reactions.go). All under mu.
+	// keepDeleted is [display.deleted] keep. positions are read positions, loaded lazily
+	// (unread.go); typing holds per-user expiry timers (typing.go); reacted is when each
+	// message's reactions last changed live (reactions.go). All under mu.
 	keepDeleted bool
 	positions   map[domain.RoomID]time.Time
 	typing      map[domain.RoomID]map[string]*time.Timer
 	reacted     map[domain.EventID]time.Time
-	// threadsAsked is the newest reply each thread was last read up to, or queued to
-	// be; threadQueue is the threads waiting to be read, readingThreads whether they
-	// are being (threads.go). Under mu.
+	// threadsAsked is the newest reply each thread was read or queued up to; threadQueue
+	// is the threads waiting; readingThreads is whether a reader runs (threads.go). Under mu.
 	threadsAsked   map[domain.EventID]string
 	threadQueue    []threadWant
 	readingThreads bool
-	// repliesCached is when each thread reply was cached, lately (threads.go). Under
-	// mu.
+	// repliesCached is when each recent thread reply was cached (threads.go). Under mu.
 	repliesCached map[domain.EventID]time.Time
 
 	streamMu  sync.RWMutex
@@ -132,12 +127,11 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 // Network is Slack.
 func (a *Adapter) Network() domain.Protocol { return domain.ProtocolSlack }
 
-// OnStatus sets who hears an account's state change, with what to tell a person
-// about it (empty when nothing). Set before Start.
+// OnStatus sets who hears an account's state change, with a detail for the person
+// (empty when none). Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
 
-// UseConfig takes [[slack.account]] and [display.deleted] keep, at start and each
-// time the config is re-read (see useAccounts).
+// UseConfig takes [[slack.account]] and [display.deleted] keep, at start and on reload.
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
 	a.keepDeletedIf(cfg.Display.Deleted.Keep())
 	accounts := make([]Account, 0, len(cfg.Slack.Accounts))
@@ -151,29 +145,26 @@ func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
 // before Start.
 func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
 
-// OnCached sets who hears each message the adapter caches, and each room whose cached
-// messages changed otherwise (word completion). Set before Start.
+// OnCached sets who hears each cached message, and each room whose cached messages
+// changed otherwise. Set before Start.
 func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
 	a.onCached, a.onChanged = cached, changed
 }
 
-// session reports an account's state.
 func (a *Adapter) session(account Account, phase domain.AccountPhase, detail string) {
 	if a.onStatus != nil {
 		a.onStatus(domain.AccountStatus{Network: domain.ProtocolSlack, Account: account.Name, Phase: phase, Detail: detail})
 	}
 }
 
-// accountsNow is the configured accounts (useAccounts replaces them).
 func (a *Adapter) accountsNow() []Account {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return slices.Clone(a.accounts)
 }
 
-// useAccounts takes the configured accounts: before Start, the ones it starts with;
-// after, an account added is connected if signed in, as one configured at Start is,
-// and one removed is let go.
+// useAccounts replaces the configured accounts; once started, an added signed-in
+// account connects and a removed one is closed.
 func (a *Adapter) useAccounts(accounts []Account) {
 	a.mu.Lock()
 	known := a.accounts
@@ -196,9 +187,8 @@ func (a *Adapter) useAccounts(accounts []Account) {
 	}
 }
 
-// SavedSessions is the configured accounts that have credentials kept, by name: what
-// Start connects. An account whose credentials are unusable is not one (its status
-// says why); a store that cannot be read is an error.
+// SavedSessions is the configured accounts with stored credentials. Unusable
+// credentials are skipped (their status says why); an unreadable store is an error.
 func (a *Adapter) SavedSessions(context.Context) ([]string, error) {
 	var signed []string
 	for _, account := range a.accountsNow() {
@@ -232,8 +222,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 	return ctx.Err() //nolint:wrapcheck // our own shutdown, as the other adapters'
 }
 
-// announce connects an account that is signed in, and says how to sign in when it is
-// not.
+// announce connects a signed-in account, or reports how to sign in.
 func (a *Adapter) announce(ctx context.Context, account Account) {
 	creds, ok, err := loadCredentials(a.secrets, account.Name)
 	switch {
@@ -271,7 +260,7 @@ func (a *Adapter) Stop() {
 	close(a.reactions)
 }
 
-// Messages, Activity, Unread and Reactions are the live streams.
+// Messages is the live message stream.
 func (a *Adapter) Messages() <-chan domain.Message { return a.messages }
 
 // Activity is typing and receipts.
@@ -320,7 +309,7 @@ func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	return out, nil
 }
 
-// Spaces is the workspaces, each the space of its rooms, from the cache.
+// Spaces is the cached workspaces, each the space of its rooms.
 func (a *Adapter) Spaces(ctx context.Context) ([]domain.Space, error) {
 	if a.cache == nil {
 		return nil, nil
@@ -339,8 +328,8 @@ func (a *Adapter) Spaces(ctx context.Context) ([]domain.Space, error) {
 	return spaces, nil
 }
 
-// RefreshSpaces lists the workspaces again (one listing writes rooms and space), then
-// answers from the cache.
+// RefreshSpaces relists the workspaces (a listing writes rooms and space), then reads
+// the cache.
 func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	if _, err := a.RefreshRooms(ctx); err != nil {
 		return nil, err
@@ -348,7 +337,7 @@ func (a *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	return a.Spaces(ctx)
 }
 
-// errNoMarkUnread is marking a Slack conversation unread, which kith does not do yet.
+// errNoMarkUnread: marking a conversation unread is not supported yet.
 var errNoMarkUnread = errors.New("slack: marking a conversation unread is not supported yet")
 
 // MarkRoomUnread is not supported yet.
@@ -363,11 +352,10 @@ func (a *Adapter) CanonicalParent(_ context.Context, roomID domain.RoomID) (doma
 	return workspaceSpaceID(id.Account), nil
 }
 
-// DirectCandidates is who a DM may be started with: none before a workspace is
-// connected.
+// DirectCandidates offers none for Slack.
 func (a *Adapter) DirectCandidates(context.Context, int) ([]domain.Member, error) { return nil, nil }
 
-// RoomEncryption: Slack rooms are not end-to-end encrypted.
+// RoomEncryption is false for every room: Slack has no end-to-end encryption.
 func (a *Adapter) RoomEncryption(_ context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {
 	out := make(map[domain.RoomID]bool, len(roomIDs))
 	for _, id := range roomIDs {

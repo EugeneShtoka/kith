@@ -8,8 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A member is reached by their number, as the directory or a WhatsApp ID writes it;
-// someone of another network is not.
+// A member is addressed by directory number or WhatsApp ID; other networks' IDs fail.
 func TestAMembersAddressIsTheirNumber(t *testing.T) {
 	t.Parallel()
 	for person, want := range map[string]string{
@@ -25,7 +24,7 @@ func TestAMembersAddressIsTheirNumber(t *testing.T) {
 	}
 }
 
-// A name longer than WhatsApp takes is refused before anything is asked of it.
+// A too-long group name is refused locally.
 func TestAGroupNameIsAtMostWhatWhatsAppTakes(t *testing.T) {
 	t.Parallel()
 	a := &Adapter{}

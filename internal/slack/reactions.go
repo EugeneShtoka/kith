@@ -13,12 +13,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/emoji"
 )
 
-// Slack names a reaction ("thumbsup", "+1::skin-tone-2"); kith keys one by its emoji,
-// as every network does. A name with no emoji kith knows (a workspace's own) keys as
-// ":name:". Each person may put several different reactions on a message, so a
-// reaction is the message, the person and the name.
+// Slack names reactions ("thumbsup", "+1::skin-tone-2"); kith keys them by emoji, or
+// ":name:" for a custom one. A person may add several different reactions, so a
+// reaction is identified by message, person and name.
 
-// skinTones are Slack's tone suffixes and the modifiers they are.
+// skinTones maps Slack's tone suffixes to their modifiers.
 var skinTones = map[string]string{
 	"skin-tone-2": "\U0001F3FB", "skin-tone-3": "\U0001F3FC", "skin-tone-4": "\U0001F3FD",
 	"skin-tone-5": "\U0001F3FE", "skin-tone-6": "\U0001F3FF",
@@ -27,8 +26,7 @@ var skinTones = map[string]string{
 // presentation is U+FE0F, which a toned emoji drops before its modifier.
 const presentation = "️"
 
-// reactionKey is the emoji a Slack reaction name stands for, toned as it says; ":name:"
-// for one kith has no emoji for.
+// reactionKey is the emoji a reaction name stands for, toned; ":name:" when unknown.
 func reactionKey(name string) string {
 	base, tone, _ := strings.Cut(name, "::")
 	e, ok := emoji.ByName(base)
@@ -41,9 +39,8 @@ func reactionKey(name string) string {
 	return e
 }
 
-// namesByEmoji is each curated emoji's Slack name — the shortest of its names, which
-// is Slack's own where they differ ("+1" before "thumbsup") — then Unicode's names
-// for the rest.
+// namesByEmoji maps each curated emoji to its shortest name (Slack's own where they
+// differ: "+1" before "thumbsup"), then Unicode's names for the rest.
 var namesByEmoji = func() map[string]string {
 	out := map[string]string{}
 	for _, set := range []map[string]string{emoji.Curated, emoji.Standard} {
@@ -67,8 +64,8 @@ var namesByEmoji = func() map[string]string {
 	return out
 }()
 
-// reactionName is the Slack name for a reaction key: ":name:" as written, a toned emoji
-// as name::skin-tone-n; false for an emoji kith has no name for.
+// reactionName is the Slack name for a key: ":name:" as written, a toned emoji as
+// name::skin-tone-n; false when unknown.
 func reactionName(key string) (string, bool) {
 	if len(key) > 2 && strings.HasPrefix(key, ":") && strings.HasSuffix(key, ":") {
 		return key[1 : len(key)-1], true
@@ -89,7 +86,7 @@ func reactionID(team, channel, ts, user, name string) domain.EventID {
 	return domain.EventID(domain.NativeID(domain.ProtocolSlack, team, channel+"/"+ts+"/reaction/"+user+"/"+name))
 }
 
-// messageReactions are the reactions a message carries, as history gives them.
+// messageReactions are a message's reactions as history gives them.
 func messageReactions(team, channel string, m *slackgo.Msg) []domain.Reaction {
 	var out []domain.Reaction
 	for _, r := range m.Reactions {
@@ -104,7 +101,7 @@ func messageReactions(team, channel string, m *slackgo.Msg) []domain.Reaction {
 	return out
 }
 
-// onReaction applies a reaction added or taken back live.
+// onReaction applies a live reaction added or removed.
 func (a *Adapter) onReaction(ctx context.Context, w *workspace, e slackgo.ReactionEvent, added bool) {
 	if e.Item.Type != "message" || e.Item.Channel == "" || e.Item.Timestamp == "" {
 		return
@@ -118,9 +115,8 @@ func (a *Adapter) onReaction(ctx context.Context, w *workspace, e slackgo.Reacti
 	a.applyReaction(ctx, r, added)
 }
 
-// applyReaction caches a reaction added or drops one taken back, and streams it. A
-// message whose reactions changed live is noted, so a history page read before the
-// change does not bring the old ones back (cachePage).
+// applyReaction caches or drops a reaction and streams it. The message is noted as
+// reacted live, so an older history page does not restore old reactions (cachePage).
 func (a *Adapter) applyReaction(ctx context.Context, r domain.Reaction, added bool) {
 	a.mu.Lock()
 	a.reacted[r.Target] = time.Now()
@@ -149,8 +145,8 @@ func (a *Adapter) reactedSince(target domain.EventID, at time.Time) bool {
 	return !a.reacted[target].Before(at)
 }
 
-// SendReaction puts our reaction of key on target, or takes it back when we have it
-// there already: Slack keeps one of each name per person, and refuses a second.
+// SendReaction toggles your key reaction on target: Slack keeps one of each name per
+// person and refuses a second.
 func (a *Adapter) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {
 	w, channel, err := a.conversation(roomID)
 	if err != nil {
@@ -183,7 +179,7 @@ func (a *Adapter) SendReaction(ctx context.Context, roomID domain.RoomID, target
 	return nil
 }
 
-// haveReaction reports whether the cache holds the reaction with id in room.
+// haveReaction reports whether the cache holds reaction id in room.
 func (a *Adapter) haveReaction(ctx context.Context, room domain.RoomID, id domain.EventID) bool {
 	if a.cache == nil {
 		return false

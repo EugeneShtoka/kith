@@ -9,10 +9,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// membersPage is how many members one conversations.members page asks for.
+// membersPage is the conversations.members page size.
 const membersPage = 1000
 
-// Members is a room's members, from the cache.
+// Members is a room's cached members.
 func (a *Adapter) Members(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
 	if a.cache == nil {
 		return nil, nil
@@ -24,7 +24,7 @@ func (a *Adapter) Members(ctx context.Context, roomID domain.RoomID, limit int) 
 	return members, nil
 }
 
-// RefreshMembers asks Slack who is in a conversation, names them, and caches them.
+// RefreshMembers fetches a conversation's members, names them, and caches them.
 func (a *Adapter) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]domain.Member, error) {
 	w, channel, err := a.conversation(roomID)
 	if err != nil {
@@ -64,8 +64,8 @@ func (a *Adapter) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]d
 	return a.Members(ctx, roomID, 0)
 }
 
-// MentionCandidates orders a room's members for the mention dropdown, as the other
-// networks' are: recent speakers, the most mentioned, then everyone alphabetically.
+// MentionCandidates orders a room's members for the mention dropdown: recent speakers,
+// most mentioned, then everyone alphabetically.
 func (a *Adapter) MentionCandidates(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
 	members, err := a.Members(ctx, roomID, 0)
 	if err != nil || len(members) == 0 || a.cache == nil {

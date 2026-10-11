@@ -9,11 +9,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// sessionWarning is what the copied session is, said before it is asked for.
+// sessionWarning is shown before the session is asked for.
 const sessionWarning = "Both are a session: whoever has them can read and write as you. kith keeps them in " +
 	"the system keyring. Signing out of Slack in that browser ends this session too."
 
-// LoginNetwork is Slack as a login lists it, with its workspaces.
+// LoginNetwork is Slack and its workspaces as a login lists them.
 func (a *Adapter) LoginNetwork() api.LoginNetwork {
 	n := api.LoginNetwork{Network: "slack", Label: "Slack", Detail: "a workspace, signed in with your browser's session"}
 	for _, account := range a.accountsNow() {
@@ -22,9 +22,8 @@ func (a *Adapter) LoginNetwork() api.LoginNetwork {
 	return n
 }
 
-// Login signs account in with the session a browser signed in to its workspace holds,
-// setting it up first when it is new (""): Slack checks the session, and a refused
-// one is asked for again.
+// Login signs account in with a browser's session for its workspace, setting the
+// account up first when it is new (""). A session Slack refuses is asked for again.
 func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk) (api.LoginEnd, error) {
 	if account == "" {
 		name, err := a.setUp(ctx, talk)
@@ -73,8 +72,7 @@ func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk)
 	}
 }
 
-// setUp asks for a new workspace and what to call it, and has it written into the
-// config.
+// setUp asks for a new workspace and its account name and writes it into the config.
 func (a *Adapter) setUp(ctx context.Context, talk api.LoginTalk) (string, error) {
 	accounts := a.accountsNow()
 	var address, note string
@@ -117,13 +115,13 @@ func (a *Adapter) setUp(ctx context.Context, talk api.LoginTalk) (string, error)
 	return name, nil
 }
 
-// session is where a workspace's session is copied from: open, the page to open in a
-// browser signed in to it; token and cookie, how to find each half there.
+// session is how to copy a workspace's session: open is the page to open in a signed-in
+// browser; token and cookie say how to find each half there.
 type session struct {
 	where, open, token, cookie string
 }
 
-// sessionHelp is the help for a workspace, by address ("acme") or team ID.
+// sessionHelp is the session help for a workspace address ("acme") or team ID.
 func sessionHelp(workspace string) session {
 	h := session{
 		where: workspace + ".slack.com", open: "https://" + workspace + ".slack.com",

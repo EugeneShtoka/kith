@@ -12,12 +12,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// WhatsApp's archive is a chat's own fact, kept in the account's app state, which
-// every linked device shares: the first sync says which chats are archived, a change
-// on any device arrives as an event, and kith changes it with an app state patch.
-// WhatsApp says them one at a time, in order, so no listing can come between.
+// Archive state lives in the account's app state, shared by all linked devices:
+// changes arrive as ordered events and kith writes them with an app state patch.
 
-// onArchive keeps a chat archived, or not, as WhatsApp says.
 func (a *Adapter) onArchive(ctx context.Context, account Account, e *events.Archive) {
 	if a.cache == nil || e.Action == nil {
 		return
@@ -29,7 +26,7 @@ func (a *Adapter) onArchive(ctx context.Context, account Account, e *events.Arch
 	a.archived(ctx, roomID(account.Digits, chat), e.Action.GetArchived())
 }
 
-// archived keeps whether a chat is archived, and says the rooms changed.
+// archived caches a chat's archive state and reports the rooms changed.
 func (a *Adapter) archived(ctx context.Context, room domain.RoomID, archived bool) {
 	if err := a.cache.SetArchived(ctx, map[domain.RoomID]bool{room: archived}); err != nil {
 		a.log.Warn("keep a chat's archive failed", "room", room, "err", err)
@@ -40,8 +37,8 @@ func (a *Adapter) archived(ctx context.Context, room domain.RoomID, archived boo
 	}
 }
 
-// SetArchived archives a chat on WhatsApp, or unarchives it, on every linked device,
-// and here. Archiving unpins it, as WhatsApp's own apps do.
+// SetArchived archives or unarchives a chat on WhatsApp and locally. Archiving unpins
+// it, as WhatsApp's apps do.
 func (a *Adapter) SetArchived(ctx context.Context, roomID domain.RoomID, archived bool) error {
 	id := domain.ParseID(string(roomID))
 	chat, err := types.ParseJID(id.Native)

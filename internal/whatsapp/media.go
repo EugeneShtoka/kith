@@ -20,17 +20,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A WhatsApp attachment is fetched from WhatsApp's servers and decrypted with keys
-// the message carries, so the message's media part is what kith keeps to load it
-// later: in the media table's file_json, as {"whatsapp": kind, "proto": base64}.
+// Attachments are decrypted with keys in the message, so kith keeps the media part in
+// the media table's file_json as {"whatsapp": kind, "proto": base64}.
 
-// mediaSource is how a WhatsApp attachment is kept for loading.
 type mediaSource struct {
 	Kind  string `json:"whatsapp"`
 	Proto string `json:"proto"`
 }
 
-// The kinds an attachment can be kept as.
+// Attachment kinds.
 const (
 	kindImage    = "image"
 	kindVideo    = "video"
@@ -39,8 +37,7 @@ const (
 	kindSticker  = "sticker"
 )
 
-// attachment is a message's media as kith shows it, and how to load it later; nil
-// when the message has none.
+// attachment is a message's media and how to load it; nil when it has none.
 func attachment(msg *waE2E.Message) (*domain.Media, *mediaSource) {
 	var (
 		media domain.Media
@@ -81,7 +78,6 @@ func attachment(msg *waE2E.Message) (*domain.Media, *mediaSource) {
 	return &media, &mediaSource{Kind: kind, Proto: base64.StdEncoding.EncodeToString(encoded)}
 }
 
-// downloadable is a kept attachment as whatsmeow downloads it.
 func (s mediaSource) downloadable() (whatsmeow.DownloadableMessage, error) {
 	raw, err := base64.StdEncoding.DecodeString(s.Proto)
 	if err != nil {
@@ -111,7 +107,6 @@ func (s mediaSource) downloadable() (whatsmeow.DownloadableMessage, error) {
 	return part, nil
 }
 
-// keepSource records how to load a cached message's attachment.
 func (a *Adapter) keepSource(ctx context.Context, msg domain.Message, source *mediaSource) {
 	if source == nil || a.cache == nil {
 		return
@@ -125,8 +120,7 @@ func (a *Adapter) keepSource(ctx context.Context, msg domain.Message, source *me
 	}
 }
 
-// LoadImage downloads and decrypts a message's attachment. It caches nothing: the
-// client's media cache is the cache, as for Matrix.
+// LoadImage downloads and decrypts a message's attachment; caching is the client's.
 func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
 	if a.cache == nil {
 		return nil, fmt.Errorf("whatsapp: no cache to find the attachment of %s in", eventID)
@@ -154,9 +148,8 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 	return data, nil
 }
 
-// SendFile uploads a file and sends it, with caption as its words (empty: none). An
-// image or a video goes as one, audio as audio, anything else as a document under
-// its name.
+// SendFile uploads and sends a file with an optional caption: image, video or audio
+// by type, else a named document.
 func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
 	if err := a.mayPost(roomID); err != nil {
 		return err
@@ -201,7 +194,7 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, capt
 	return nil
 }
 
-// fileMessage is the message a file goes out as, and the kind it is uploaded as.
+// fileMessage is a file's message and upload media type.
 func fileMessage(name string, data []byte, caption string) (*waE2E.Message, whatsmeow.MediaType) {
 	mimeType := mime.TypeByExtension(strings.ToLower(filepath.Ext(name)))
 	if mimeType == "" {
@@ -226,7 +219,7 @@ func fileMessage(name string, data []byte, caption string) (*waE2E.Message, what
 	}}, whatsmeow.MediaDocument
 }
 
-// bytesOf is a size as kith keeps it; WhatsApp's are unsigned 64-bit.
+// bytesOf converts WhatsApp's uint64 size.
 func bytesOf(n uint64) int {
 	if n > uint64(math.MaxInt) {
 		return math.MaxInt
@@ -234,7 +227,6 @@ func bytesOf(n uint64) int {
 	return int(n)
 }
 
-// withUpload puts an upload's address and keys into the message that carries it.
 func withUpload(message *waE2E.Message, up whatsmeow.UploadResponse) {
 	url, path := up.URL, up.DirectPath
 	switch {

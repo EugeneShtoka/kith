@@ -14,7 +14,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// danaChanges is Dana changing one of her messages: an edit, a deletion or a reaction.
+// danaChanges is Dana's edit, deletion or reaction.
 func danaChanges(id string, m *waE2E.Message) *events.Message {
 	e := danaWrites(id, "")
 	e.Message = m
@@ -24,8 +24,8 @@ func danaChanges(id string, m *waE2E.Message) *events.Message {
 
 func key(id string) *waCommon.MessageKey { return &waCommon.MessageKey{ID: new(id)} }
 
-// An edit folds onto its message: the new words, marked edited, kept apart from the
-// earlier ones only under [display.deleted] keep.
+// An edit folds onto its message; earlier versions are kept only under
+// [display.deleted] keep.
 func TestAnEditFoldsOntoItsMessage(t *testing.T) {
 	t.Parallel()
 	for _, keep := range []bool{false, true} {
@@ -50,8 +50,7 @@ func TestAnEditFoldsOntoItsMessage(t *testing.T) {
 	}
 }
 
-// A deletion takes the words away — or keeps them under [display.deleted] keep — and
-// says who deleted it.
+// A deletion drops the text (kept under [display.deleted] keep) and records who deleted it.
 func TestADeletionAsYouAskedItKept(t *testing.T) {
 	t.Parallel()
 	for _, keep := range []bool{false, true} {
@@ -76,8 +75,8 @@ func TestADeletionAsYouAskedItKept(t *testing.T) {
 	}
 }
 
-// One reaction per person per message: a new one replaces it, an empty one takes it
-// back; each change is streamed as what was removed and what was added.
+// One reaction per person per message: a new one replaces, an empty one removes; each
+// change streams a removal and an add.
 func TestAReactionReplacesTheLast(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -119,8 +118,7 @@ func TestAReactionReplacesTheLast(t *testing.T) {
 	}
 }
 
-// Changing a message needs its account connected; a message kith never cached cannot
-// be fetched from WhatsApp, which keeps none to ask for.
+// Changing a message needs a connection; an uncached message cannot be fetched.
 func TestChangesNeedAConnection(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

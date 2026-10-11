@@ -13,11 +13,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A listing is fetched, then written; a message can arrive between the two, in a
-// conversation the listing did not know of yet (a channel joined, a DM begun). Over
-// random interleavings of fetches, writes, messages and leaving: a room with a message
-// cached after a listing was fetched keeps it when that listing is written, and a
-// room the person left is swept by the first listing fetched after it was last heard.
+// A message can arrive between a listing's fetch and write, in a conversation it did not
+// know. Over random interleavings: a room with a message cached after the fetch survives
+// the write, and a left room is swept by the first listing fetched after it was last heard.
 func TestAListingNeverSweepsAMessageItDidNotKnowOf(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(25) {
@@ -28,7 +26,7 @@ func TestAListingNeverSweepsAMessageItDidNotKnowOf(t *testing.T) {
 	}
 }
 
-// fetchedListing is a listing in flight: what was joined when it was fetched.
+// fetchedListing is a listing in flight: what was joined at fetch time.
 type fetchedListing struct {
 	joined []string
 	at     time.Time
@@ -88,8 +86,8 @@ func listingRace(t *testing.T, rng *rand.Rand) {
 	}
 }
 
-// checkAfterListing holds a listing written to what it promises, and every room it
-// kept to the messages cached in it.
+// checkAfterListing checks a written listing's promise and that every kept room holds
+// its cached messages.
 func checkAfterListing(ctx context.Context, t *testing.T, a *Adapter, l fetchedListing, lastHeard map[string]time.Time, sent map[domain.EventID]string, channels []string) {
 	t.Helper()
 	rooms, err := a.Rooms(ctx)

@@ -10,13 +10,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Telegram's Archived folder is a chat's own fact, which every client of the account
-// sees: a listing says which folder each chat is in, a move on any client arrives as
-// an update, and kith moves one with folders.editPeerFolders. A listing is fetched,
-// then written: a chat moved live in between keeps where it was moved to.
+// The Archived folder is account-wide: listings report it, moves arrive as updates,
+// and kith moves chats with folders.editPeerFolders. A live move between a listing's
+// fetch and write wins.
 
-// listedArchive is a listing's archived chats fetched then, less those moved live
-// since. Caller holds listing.
+// listedArchive is a listing's archive flags minus chats moved live since fetched.
+// Caller holds listing.
 func (a *Adapter) listedArchive(listed map[domain.RoomID]bool, fetched time.Time) map[domain.RoomID]bool {
 	out := make(map[domain.RoomID]bool, len(listed))
 	for room, archived := range listed {
@@ -28,7 +27,7 @@ func (a *Adapter) listedArchive(listed map[domain.RoomID]bool, fetched time.Time
 	return out
 }
 
-// movedLive keeps a chat moved into the Archived folder, or out, on any client.
+// movedLive applies a live folder move from any client.
 func (a *Adapter) movedLive(ctx context.Context, room domain.RoomID, archived bool) {
 	if a.cache == nil {
 		return
@@ -46,7 +45,6 @@ func (a *Adapter) movedLive(ctx context.Context, room domain.RoomID, archived bo
 	}
 }
 
-// folderPeers hands chats moved between folders to movedLive.
 func (a *Adapter) folderPeers(ctx context.Context, self int64, peers []tg.FolderPeer) {
 	for _, p := range peers {
 		if chat, ok := markedPeer(p.Peer); ok {
@@ -55,8 +53,7 @@ func (a *Adapter) folderPeers(ctx context.Context, self int64, peers []tg.Folder
 	}
 }
 
-// SetArchived moves a chat into Telegram's Archived folder, or back to the main list,
-// on every client of the account, and here.
+// SetArchived moves a chat into or out of Telegram's Archived folder, and here.
 func (a *Adapter) SetArchived(ctx context.Context, roomID domain.RoomID, archived bool) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {

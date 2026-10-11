@@ -13,21 +13,21 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A WhatsApp channel (a newsletter) is a room its admins post in and everyone else
-// reads. The channels an account follows are listed with its groups; one with nothing
-// cached yet has its latest posts fetched once, as history, already read.
+// A WhatsApp channel (newsletter) is a room only its admins post in. Followed channels
+// come with the group listing; one with nothing cached gets its latest posts fetched
+// once, as read history.
 
-// channelHistory is how many of a channel's latest posts are fetched the first time.
+// channelHistory is how many latest posts a channel's first fetch takes.
 const channelHistory = 50
 
-// errChannelReadOnly is posting in a channel one only follows.
+// errChannelReadOnly refuses posting in a channel the account only follows.
 var errChannelReadOnly = fmt.Errorf("%w: only the channel's admins post in it", api.ErrNoPower)
 
-// errChannelReaction is reacting in a channel: WhatsApp wants the post's server ID
-// there, which kith does not keep yet.
+// errChannelReaction: channel reactions need the post's server ID, which kith does
+// not keep.
 var errChannelReaction = fmt.Errorf("%w: reacting in WhatsApp channels is not supported yet", api.ErrNotOnNetwork)
 
-// channel is what the listing says of one followed channel.
+// channel is the listing's info on one followed channel.
 type channel struct {
 	name string
 	role types.NewsletterRole
@@ -39,7 +39,7 @@ func isChannel(roomID domain.RoomID) bool {
 	return err == nil && jid.Server == types.NewsletterServer
 }
 
-// channelRooms is the channels an account follows, as rooms, and what each is.
+// channelRooms converts followed channels into rooms plus their info.
 func channelRooms(account string, metas []*types.NewsletterMetadata) ([]domain.Room, map[domain.RoomID]channel) {
 	rooms := make([]domain.Room, 0, len(metas))
 	known := make(map[domain.RoomID]channel, len(metas))
@@ -58,8 +58,7 @@ func channelRooms(account string, metas []*types.NewsletterMetadata) ([]domain.R
 	return rooms, known
 }
 
-// useChannels keeps what the listing said of an account's channels, replacing what
-// its last listing said.
+// useChannels replaces an account's channel info with the latest listing's.
 func (a *Adapter) useChannels(account Account, known map[domain.RoomID]channel) {
 	owner := domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits)
 	a.mu.Lock()
@@ -72,7 +71,7 @@ func (a *Adapter) useChannels(account Account, known map[domain.RoomID]channel) 
 	maps.Copy(a.channels, known)
 }
 
-// channelOf is what the last listing said of a channel; false when it has said nothing.
+// channelOf is the last listing's info on a channel; false when none.
 func (a *Adapter) channelOf(roomID domain.RoomID) (channel, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -80,9 +79,8 @@ func (a *Adapter) channelOf(roomID domain.RoomID) (channel, bool) {
 	return ch, ok
 }
 
-// mayPost refuses posting in a channel unless this account is one of its admins. A
-// channel the listing has not described yet is refused too: WhatsApp would refuse
-// a follower, and kith cannot tell one from an admin before it knows.
+// mayPost refuses posting in a channel unless the account is an admin. A channel not
+// yet listed is refused too, since follower and admin are indistinguishable then.
 func (a *Adapter) mayPost(roomID domain.RoomID) error {
 	if !isChannel(roomID) {
 		return nil
@@ -93,7 +91,7 @@ func (a *Adapter) mayPost(roomID domain.RoomID) error {
 	return errChannelReadOnly
 }
 
-// channelEvents is a channel's fetched posts as the message events live ones are.
+// channelEvents converts fetched channel posts into live-style message events.
 func channelEvents(jid types.JID, posts []*types.NewsletterMessage) []*events.Message {
 	out := make([]*events.Message, 0, len(posts))
 	for _, p := range posts {
@@ -111,9 +109,8 @@ func channelEvents(jid types.JID, posts []*types.NewsletterMessage) []*events.Me
 	return out
 }
 
-// fetchChannelHistory caches the latest posts of each of an account's channels that
-// has nothing cached yet, as read history. A failure leaves that channel for the next
-// listing.
+// fetchChannelHistory caches latest posts, as read history, for channels with nothing
+// cached. A failed channel is retried on the next listing.
 func (a *Adapter) fetchChannelHistory(ctx context.Context, account Account, client *whatsmeow.Client, rooms []domain.Room) {
 	if a.cache == nil || len(rooms) == 0 {
 		return

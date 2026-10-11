@@ -10,13 +10,11 @@ import (
 	"github.com/gotd/td/tgerr"
 )
 
-// Telegram answers an account asking too fast with FLOOD_WAIT and how long to wait.
-// A short wait is waited out and the call asked again, so a burst (a forum's topics
-// read one after another, quotes fetched while scrolling) slows down instead of
-// failing; a long one fails the call, which its caller may wait out itself (backfill).
+// Short FLOOD_WAITs are waited out and retried, so bursts (forum topics, quotes while
+// scrolling) slow down instead of failing; long ones fail, for callers like backfill
+// to handle.
 
-// floodWaitLimit is the longest wait a call waits out by itself; floodRetries how many
-// times it asks again.
+// floodWaitLimit is the longest wait retried automatically; floodRetries the retries.
 const (
 	floodWaitLimit = 30 * time.Second
 	floodRetries   = 3

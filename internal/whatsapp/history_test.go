@@ -18,7 +18,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Where a conversation was read up to, from how many of its newest are unread.
 func TestTheReadPositionFromHistory(t *testing.T) {
 	t.Parallel()
 	at := func(s int) time.Time { return time.Unix(int64(1700000000+s), 0) }
@@ -32,8 +31,7 @@ func TestTheReadPositionFromHistory(t *testing.T) {
 	}
 }
 
-// historyFrom is a history chunk of one conversation with Dana: her messages at
-// seconds 1, 2, 3, the last unread.
+// historyFrom is a history chunk of Dana's messages at seconds 1, 2, 3.
 func historyFrom(unread uint32) *events.HistorySync {
 	var msgs []*waHistorySync.HistorySyncMsg
 	for i, text := range []string{"one", "two", "three"} {
@@ -50,8 +48,7 @@ func historyFrom(unread uint32) *events.HistorySync {
 	}}}}
 }
 
-// History is cached, quietly: the room is there, named, read up to where WhatsApp
-// says, and nothing is streamed (years of messages must not notify).
+// History is cached with room, name and read position, and nothing is streamed.
 func TestHistoryIsCachedQuietly(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -86,8 +83,8 @@ func TestHistoryIsCachedQuietly(t *testing.T) {
 	}
 }
 
-// A live message from someone else is unread; ours is not; reading on the phone
-// clears the count, and the change is streamed.
+// Others' live messages are unread, own ones not; a read on the phone clears and
+// streams the count.
 func TestUnreadFollowsMessagesAndReads(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -134,15 +131,15 @@ func TestUnreadFollowsMessagesAndReads(t *testing.T) {
 	if last, _ := drain(); last.Messages != 0 || !last.Counted {
 		t.Errorf("the read was streamed as %+v", last)
 	}
-	// Read on the phone up to the first of two: the second, though it arrived
-	// before the read, stays unread.
+	// Read up to the first of two: the second stays unread though it arrived
+	// before the receipt.
 	fourth, fifth := danaWrites("3EB0U4", "fourth"), danaWrites("3EB0U5", "fifth")
 	fourth.Info.Timestamp, fifth.Info.Timestamp = time.Now().Add(time.Second), time.Now().Add(2*time.Second)
 	a.onMessage(ctx, account, client, fourth)
 	a.onMessage(ctx, account, client, fifth)
 	a.onReceipt(ctx, account, &events.Receipt{
 		MessageSource: types.MessageSource{Chat: pn(danaPhone), Sender: me.pn, IsFromMe: true},
-		// Read after both had arrived: the receipt's own time would cover the fifth too.
+		// The receipt's own time would cover the fifth too.
 		MessageIDs: []types.MessageID{"3EB0U4"}, Timestamp: time.Now().Add(5 * time.Second), Type: types.ReceiptTypeReadSelf,
 	})
 	if got := count(); got != 1 {
@@ -156,7 +153,7 @@ func TestUnreadFollowsMessagesAndReads(t *testing.T) {
 	if got := count(); got != 1 {
 		t.Errorf("a late receipt for an older message left %d unread, want still the fifth", got)
 	}
-	// Someone else having read ours is not a read of ours.
+	// Another person's read receipt does not mark ours read.
 	third := danaWrites("3EB0U3", "third")
 	third.Info.Timestamp = time.Now().Add(3 * time.Second)
 	a.onMessage(ctx, account, client, third)
@@ -169,7 +166,7 @@ func TestUnreadFollowsMessagesAndReads(t *testing.T) {
 	}
 }
 
-// Who is typing, as a set per room; our own typing on another device is not news.
+// Typing is a set per room; own typing from another device is ignored.
 func TestTypingIsWhoIsTypingNow(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -207,7 +204,7 @@ func TestTypingIsWhoIsTypingNow(t *testing.T) {
 	}
 }
 
-// Reading and typing with nothing connected: reading says so, typing is let go.
+// Without a connection, marking read errors and typing is a no-op.
 func TestReadingNeedsAConnection(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -223,9 +220,8 @@ func TestReadingNeedsAConnection(t *testing.T) {
 	}
 }
 
-// WhatsApp gives whole seconds and IDs that carry no order. History is ordered by
-// its own sequence (msgOrderID, sent newest first), live messages by when they
-// arrive: a burst in one second reads back as it was sent, whatever its IDs.
+// Timestamps are whole seconds and IDs unordered: history orders by msgOrderID,
+// live messages by arrival, so a burst within a second keeps its send order.
 func TestMessagesInOneSecondKeepTheOrderTheyWereSent(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

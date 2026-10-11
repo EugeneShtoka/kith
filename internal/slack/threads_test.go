@@ -14,7 +14,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// threadUnread is what the room's count says of each of its threads, by root ts.
+// threadUnread is the room count's unread per thread, by root ts.
 func threadUnread(t *testing.T, a *Adapter, room domain.RoomID) map[string]int {
 	t.Helper()
 	rows, err := a.CachedUnread(context.Background())
@@ -34,10 +34,9 @@ func threadUnread(t *testing.T, a *Adapter, room domain.RoomID) map[string]int {
 	return out
 }
 
-// A history page naming a thread's newest reply, which the cache lacks, has the
-// thread read in the background, page after page, each beginning with the root again;
-// Slack's last_read on the root is the thread's read position. ThreadPage reads the
-// whole thread at once, so there is never an older page.
+// A page naming an uncached newest reply has the thread read in the background, page by
+// page (each starting with the root); the root's last_read is the read position.
+// ThreadPage reads the whole thread, so there is no older page.
 func TestThreadsAreReadFromSlack(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -95,7 +94,7 @@ func TestThreadsAreReadFromSlack(t *testing.T) {
 	if _, err := a.ThreadPage(ctx, room, "slack:T1/C2/10.0", "", 0); err == nil {
 		t.Error("ThreadPage took a root of another conversation")
 	}
-	// A page naming the same newest reply again does not read the thread again.
+	// A page naming the same newest reply again does not reread the thread.
 	before := len(f.calls("conversations.replies"))
 	if _, err := a.Timeline(ctx, room, "", 50); err != nil {
 		t.Fatal(err)
@@ -106,26 +105,24 @@ func TestThreadsAreReadFromSlack(t *testing.T) {
 	}
 }
 
-// threadMarkedJSON is the websocket's word that a thread of C1 was read elsewhere.
+// threadMarkedJSON is a thread_marked event: a thread of C1 read elsewhere.
 func threadMarkedJSON(thread, lastRead string) json.RawMessage {
 	return json.RawMessage(fmt.Sprintf(`{"type":"thread_marked","subscription":{"type":"thread","channel":"C1","thread_ts":%q,"last_read":%q}}`, thread, lastRead))
 }
 
-// threadsRead reports whether no thread waits to be read, or is being.
+// threadsRead reports whether no thread is queued or being read.
 func threadsRead(a *Adapter) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return !a.readingThreads && len(a.threadQueue) == 0
 }
 
-// arrive delivers a live message in C1.
 func arrive(a *Adapter, w *workspace, user, ts, thread, text string) {
 	a.arrived(context.Background(), w, "C1", &slackgo.Msg{Type: "message", User: user, Timestamp: ts, ThreadTimestamp: thread, Text: text})
 }
 
-// Only followed threads count: one you spoke in, or one naming you. A thread is read
-// here (MarkThreadRead) or on another client (thread_marked, live); marking rooms read
-// reads their threads too.
+// Only followed threads count (spoke in, or named in). Threads are read via
+// MarkThreadRead or thread_marked; marking rooms read reads their threads too.
 func TestFollowedThreadsCount(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -189,7 +186,7 @@ func TestFollowedThreadsCount(t *testing.T) {
 	}
 }
 
-// A draft written in a thread is posted in it, whatever it answers.
+// A draft written in a thread posts there, whatever it answers.
 func TestADraftInAThreadIsPostedInIt(t *testing.T) {
 	t.Parallel()
 	f, client := newFakeSlack(t)
@@ -208,15 +205,14 @@ func TestADraftInAThreadIsPostedInIt(t *testing.T) {
 	}
 }
 
-// threadTruth is one thread as Slack holds it, and what kith was told of it.
+// threadTruth is a thread as Slack holds it and what kith was told of it.
 type threadTruth struct {
 	replies []truthReply
-	// slackRead is the thread's read position on Slack (moved on another client).
+	// slackRead is Slack's read position (moved on another client).
 	slackRead int
-	// known is the newest read position kith was told of or set: Slack's, from a
-	// thread_marked or a reading, or its own MarkThreadRead; floor is MarkRoomsRead's.
+	// known is the newest read position kith learned or set; floor is MarkRoomsRead's.
 	known, floor int
-	// cached is every message kith cached, by its second, deleted or not.
+	// cached is every message kith cached, by second, deleted or not.
 	cached map[int]bool
 }
 
@@ -228,7 +224,7 @@ type truthReply struct {
 
 func secondTS(n int) string { return fmt.Sprintf("%d.000000", n) }
 
-// snapshot is the thread as conversations.replies reads it now, root first.
+// snapshot is the thread as conversations.replies returns it now, root first.
 func (tr *threadTruth) snapshot() ([]slackgo.Message, string) {
 	out := []slackgo.Message{{Msg: slackgo.Msg{Type: "message", User: "U2", Timestamp: "100.000000", ThreadTimestamp: "100.000000", Text: "root"}}}
 	for _, r := range tr.replies {
@@ -251,9 +247,8 @@ func replyMsg(r truthReply) slackgo.Msg {
 	return slackgo.Msg{Type: "message", User: r.user, Timestamp: secondTS(r.at), ThreadTimestamp: "100.000000", Text: text}
 }
 
-// wantUnread is what kith should count unread in the thread: replies it holds, not
-// deleted and not ours, after every read position it knows and our own newest reply —
-// in a thread we spoke in or that names us.
+// wantUnread is the expected unread count: held, undeleted replies not ours after every
+// known read position and our newest reply, if the thread is followed.
 func (tr *threadTruth) wantUnread() int {
 	after, spoke, named := max(tr.known, tr.floor), false, false
 	for _, r := range tr.replies {
@@ -277,14 +272,11 @@ func (tr *threadTruth) wantUnread() int {
 	return n
 }
 
-// One thread lives while kith listens or not: replies arrive (live, or while it was
-// away), are deleted (live or away), the thread is read on another client (said live,
-// or not) and here, rooms are marked read, and readings of the thread are fetched at
-// one step and written at a later one. Whatever the order: the thread's replies are
-// Slack's — a stale reading never brings a deleted reply back nor drops one sent after
-// it, a reading drops one deleted while kith was away — and its unread count is the
-// followed thread's replies after every read position kith knows; when nothing
-// happened away, after every step.
+// Replies arrive and are deleted (live or away), the thread is read elsewhere and here,
+// rooms are marked read, and readings are fetched at one step and written later. In any
+// order, replies match Slack's (a stale reading neither restores a deleted reply nor drops
+// a newer one) and the unread count follows wantUnread; with nothing happening away, after
+// every step.
 func TestThreadRepliesAndReadPositionsAgree(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -447,7 +439,7 @@ func TestAThreadThatFailedIsReadAgain(t *testing.T) {
 }
 
 // A thread whose newest reply was also sent to the channel (so is not cached as the
-// thread's) is read once a run, not again for every page naming it.
+// thread's) is read once a run, not for every page naming it.
 func TestAThreadEndingInABroadcastIsReadOnce(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -15,20 +15,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// Telegram's formatting is entities over the text — bold, italic, underline, strike,
-// code, pre, links, spoilers, quotes, mentions — at offsets counted in UTF-16 code
-// units. kith keeps formatting as richtext markup, which they all map into; entities
-// may overlap, and the markup nests, so one that crosses another's end is split.
+// Telegram formatting is entities at UTF-16 offsets. kith maps them to nested
+// richtext markup; overlapping entities are split where they cross.
 
-// mark is one entity as markup: where it runs, in byte offsets of the text, and the
-// tags around it.
+// mark is one entity as markup, in byte offsets.
 type mark struct {
 	start, end  int
 	open, close string
 }
 
-// formatted is a Telegram text as kith keeps it: the words, their formatting (zero
-// when there is none), and the people it mentions by name.
+// formatted is a text's words, its markup (zero if none) and name mentions.
 func formatted(text string, entities []tg.MessageEntityClass) (string, richtext.Formatted, []domain.Mention) {
 	if len(entities) == 0 {
 		return text, richtext.Formatted{}, nil
@@ -57,12 +53,12 @@ func formatted(text string, entities []tg.MessageEntityClass) (string, richtext.
 	if f.IsZero() || f.Text() == "" {
 		return text, richtext.Formatted{}, mentions
 	}
-	// The words are what the formatting draws over, exactly: the two never disagree.
+	// Body is exactly the formatting's text.
 	return f.Text(), f, mentions
 }
 
-// tags is the markup an entity draws as, over words; "" for one kith draws as written
-// (hashtags, @usernames, custom emoji: their fallback is the text).
+// tags is an entity's markup; "" for ones shown as plain text (hashtags, @usernames,
+// custom emoji).
 func tags(e tg.MessageEntityClass, words string) (open, closing string) {
 	switch e := e.(type) {
 	case *tg.MessageEntityBold:
@@ -101,9 +97,8 @@ func byteOffsets(text string) []int {
 	return append(at, len(text))
 }
 
-// nested is text with marks as properly nested markup: at each boundary the marks
-// ending there close (and any closed on the way, still running, open again), then the
-// marks starting there open, the longest outermost.
+// nested renders marks as properly nested markup: at each boundary, close ending
+// marks (reopening any closed early), then open starting ones, longest outermost.
 func nested(text string, marks []mark) string {
 	bounds := []int{0, len(text)}
 	for _, m := range marks {
@@ -114,7 +109,7 @@ func nested(text string, marks []mark) string {
 	var out strings.Builder
 	var open []mark
 	for i, at := range bounds {
-		// Close what ends here; what was closed on the way opens again after.
+		// Close what ends here; reopen what was closed on the way.
 		if lowest := slices.IndexFunc(open, func(m mark) bool { return m.end == at }); lowest >= 0 {
 			var reopen []mark
 			for len(open) > lowest {
@@ -146,16 +141,14 @@ func nested(text string, marks []mark) string {
 	return out.String()
 }
 
-// outgoing is a draft as Telegram sends it: the text, its entities, and the
-// formatting kith shows it with. Markdown is rendered (unless the draft is plain) and
-// flattened to text and spans, each span an entity at UTF-16 offsets; each person the
-// draft names (by the name typed, longest first, first unclaimed occurrence) is a
-// name entity, when their access hash is known (else their name stays text).
+// outgoing renders a draft's Markdown (unless plain) to text and UTF-16 entities.
+// Mentions become name entities when the access hash is known (longest name first,
+// first unclaimed occurrence); otherwise they stay text.
 func outgoing(draft domain.Draft, hash func(user int64) (int64, bool)) (string, []tg.MessageEntityClass, richtext.Formatted) {
 	text, format := draft.Body, richtext.Formatted{}
 	if !draft.Plain {
 		if rendered, err := markdown.HTML(draft.Body); err == nil {
-			// No formatting: the body goes as typed, as Matrix's does.
+			// No formatting: send as typed.
 			if f := richtext.FromMarkup(richtext.Sanitize(rendered)); !f.IsZero() && f.Text() != "" {
 				text, format = f.Text(), f
 			}
@@ -191,8 +184,7 @@ func outgoing(draft domain.Draft, hash func(user int64) (int64, bool)) (string, 
 	return text, entities, format
 }
 
-// utf16Units maps each byte offset of text (and one past its end) to its UTF-16
-// offset, which is what Telegram counts in.
+// utf16Units maps each byte offset of text (and one past its end) to its UTF-16 offset.
 func utf16Units(text string) []int {
 	units := make([]int, len(text)+1)
 	n := 0
@@ -207,7 +199,7 @@ func utf16Units(text string) []int {
 	return units
 }
 
-// spanEntities is a span as Telegram's entities, one per emphasis it carries.
+// spanEntities is one entity per emphasis on span.
 func spanEntities(s richtext.Span, units []int) []tg.MessageEntityClass {
 	if s.Empty() || s.End > len(units)-1 {
 		return nil
@@ -249,8 +241,7 @@ func longestFirst(mentions []domain.Mention) []domain.Mention {
 	return ordered
 }
 
-// unclaimed is the first occurrence of name in text no earlier mention claimed; -1
-// when there is none.
+// unclaimed is the first occurrence of name not claimed by an earlier mention, or -1.
 func unclaimed(text, name string, claimed []bool) int {
 	if name == "" {
 		return -1

@@ -13,9 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// onHistory caches the history WhatsApp sends a newly linked device, in chunks over
-// the first minutes. It is history, not news: nothing is streamed to the clients or
-// notified. Each conversation's read position comes from its unread count.
+// onHistory caches the history chunks sent to a newly linked device. Nothing is
+// streamed or notified; read positions come from each chat's unread count.
 func (a *Adapter) onHistory(ctx context.Context, account Account, client *whatsmeow.Client, e *events.HistorySync) {
 	if a.cache == nil || e.Data == nil {
 		return
@@ -32,9 +31,8 @@ func (a *Adapter) onHistory(ctx context.Context, account Account, client *whatsm
 				continue
 			}
 			if in, ok := a.convert(ctx, account, client, evt); ok {
-				// History's own order: WhatsApp Web resumes a chunk at the last
-				// message's msgOrderID and skips those at or above it, so it grows
-				// with the conversation, newest highest.
+				// msgOrderID increases with the conversation, newest highest (WhatsApp
+				// Web resumes chunks by it).
 				in.msg.Seq = int64(min(hm.GetMsgOrderID(), math.MaxInt64))
 				byRoom[in.msg.RoomID] = append(byRoom[in.msg.RoomID], in)
 			}
@@ -48,10 +46,8 @@ func (a *Adapter) onHistory(ctx context.Context, account Account, client *whatsm
 	}
 }
 
-// recordHistory caches one conversation's messages in one write, its room first,
-// where no listing's sweep can come between (see saveListing). name is the
-// conversation's, as history gives it ("" for none), and unread how many of its
-// newest messages are unread.
+// recordHistory caches one conversation's messages after its room, in one write under
+// listing. name may be ""; unread counts the newest unread messages.
 func (a *Adapter) recordHistory(ctx context.Context, account Account, client *whatsmeow.Client, room domain.RoomID, msgs []arrived, name string, unread int) {
 	slices.SortStableFunc(msgs, func(x, y arrived) int { return domain.CompareMessages(x.msg, y.msg) })
 	batch := make([]domain.Message, len(msgs))
@@ -78,9 +74,8 @@ func (a *Adapter) recordHistory(ctx context.Context, account Account, client *wh
 	a.recount(ctx, room)
 }
 
-// readFromHistory is where a conversation was read up to, given how many of its
-// newest messages WhatsApp says are unread: just after the last read one, or just
-// before them all when every one is unread. msgs are oldest first, and not empty.
+// readFromHistory is the read position given the unread count: just after the last
+// read message, or just before all when all are unread. msgs: oldest first, non-empty.
 func readFromHistory(msgs []domain.Message, unread int) time.Time {
 	switch {
 	case unread <= 0:

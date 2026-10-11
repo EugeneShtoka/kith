@@ -11,10 +11,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Send posts a text message: Markdown as mrkdwn, mentions as Slack's own; a draft that
-// edits a message replaces it (changes.go). A draft written in a thread is posted in
-// it; a reply, in the thread of the message it answers — Slack has no other kind. The message is cached and streamed
-// here; Slack's echo of it over the websocket is the same message again.
+// Send posts a text message: Markdown as mrkdwn, mentions in Slack's form; an editing
+// draft replaces its message (changes.go). A draft in a thread posts there; a reply goes
+// in its target's thread (Slack has no other kind). The message is cached and streamed
+// here; Slack's websocket echo is the same message.
 func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error {
 	w, channel, err := a.conversation(roomID)
 	if err != nil {
@@ -33,7 +33,7 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 	if err != nil {
 		return fmt.Errorf("slack: send to %s: %w", roomID, err)
 	}
-	// The draft names whom it mentions; Slack is asked only for whom it does not.
+	// The draft names its mentions; Slack is asked only for the rest.
 	for _, mention := range draft.LiveMentions() {
 		if user, ok := userOf(mention.UserID, w.creds.Team); ok {
 			w.knowPerson(user, strings.TrimPrefix(mention.Name, "@"))
@@ -55,8 +55,8 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 	return nil
 }
 
-// threadOf is the ts of the thread a reply to replyTo goes in: the thread replyTo is
-// in, or the one it starts. "" when there is nothing of this conversation's to answer.
+// threadOf is the thread ts a reply to replyTo goes in: the thread replyTo is in or
+// starts; "" when replyTo is not in this conversation.
 func (a *Adapter) threadOf(ctx context.Context, w *workspace, roomID domain.RoomID, channel string, replyTo domain.EventID) string {
 	target := domain.ParseID(string(replyTo))
 	if replyTo == "" || target.Network != domain.ProtocolSlack || target.Account != w.creds.Team {
@@ -76,7 +76,7 @@ func (a *Adapter) threadOf(ctx context.Context, w *workspace, roomID domain.Room
 	return ts
 }
 
-// cutLast splits a message's native ID, "C…/ts", into its conversation and ts.
+// cutLast splits a native message ID, "C…/ts", into conversation and ts.
 func cutLast(native string) (channel, ts string, ok bool) {
 	native, _, _ = strings.Cut(native, fileSep) // a file's row is its message
 	for i := len(native) - 1; i >= 0; i-- {
@@ -87,7 +87,7 @@ func cutLast(native string) (channel, ts string, ok bool) {
 	return "", "", false
 }
 
-// countMentions records who our message mentions, for the dropdown's ranking.
+// countMentions records whom your message mentions, for mention ranking.
 func (a *Adapter) countMentions(ctx context.Context, sent domain.Message) {
 	for _, m := range sent.Mentions {
 		if m.UserID == "" {
@@ -99,7 +99,7 @@ func (a *Adapter) countMentions(ctx context.Context, sent domain.Message) {
 	}
 }
 
-// FetchEvent is a cached message, else the one Slack has under its ts.
+// FetchEvent is a cached message, else Slack's message under its ts.
 func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, error) {
 	if a.cache != nil {
 		if msg, ok, err := a.cache.MessageByID(ctx, roomID, eventID); err == nil && ok {

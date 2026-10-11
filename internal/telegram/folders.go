@@ -11,20 +11,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Telegram's folders are the person's own groupings of their chats: kith copies them
-// into tags when asked (domain.Grouping). A folder is the chats it names, and the
-// kinds of chat it takes (contacts, groups, channels, bots…) less those it names out;
-// the copy is the chats it holds now. Whether a chat is read, or muted, changes as you
-// use it: those filters are not copied, and the copy says so. The Archived folder is
-// not a folder here: [telegram.archive] keeps it.
+// Telegram folders can be copied into tags (domain.Grouping) as a snapshot: included
+// chats plus chats of included kinds, minus excluded ones. Read/muted filters are
+// dynamic, so they are skipped and reported. Archived is handled by [telegram.archive].
 
-// chatKind is what a folder's filters ask of a chat.
+// chatKind is the chat properties folder filters test.
 type chatKind struct {
 	contact, nonContact, group, broadcast, bot, archived bool
 }
 
-// Groupings is one account's folders as they hold chats now, and the rooms the account
-// sees.
+// Groupings is an account's folders as a snapshot, with the account's rooms.
 func (a *Adapter) Groupings(ctx context.Context, account string) (domain.RoomOwner, []domain.Grouping, error) {
 	i := slices.IndexFunc(a.connected(), func(c conn) bool { return c.account.Name == account })
 	if i < 0 {
@@ -52,8 +48,7 @@ func (a *Adapter) Groupings(ctx context.Context, account string) (domain.RoomOwn
 	return domain.AccountRooms(domain.ProtocolTelegram, fmt.Sprint(c.user)), out, nil
 }
 
-// folder is the chats a folder holds among the account's: those it names, then those
-// of the kinds it takes that it does not name out.
+// folder is a folder's included chats, then chats of included kinds not excluded.
 func folder(self int64, f *tg.DialogFilter, kinds map[domain.RoomID]chatKind) domain.Grouping {
 	g := domain.Grouping{Name: f.Title.Text, Rooms: named(self, append(slices.Clone(f.PinnedPeers), f.IncludePeers...), kinds)}
 	out := named(self, f.ExcludePeers, kinds)
@@ -74,7 +69,7 @@ func folder(self int64, f *tg.DialogFilter, kinds map[domain.RoomID]chatKind) do
 	return g
 }
 
-// named is the account's chats among peers, as rooms.
+// named is the account's rooms among peers.
 func named(self int64, peers []tg.InputPeerClass, kinds map[domain.RoomID]chatKind) []domain.RoomID {
 	var out []domain.RoomID
 	for _, p := range peers {
@@ -100,7 +95,7 @@ func named(self int64, peers []tg.InputPeerClass, kinds map[domain.RoomID]chatKi
 	return out
 }
 
-// chatKinds is what each of the account's chats is, as a folder's filters ask.
+// chatKinds is each chat's chatKind.
 func chatKinds(self int64, elems []dialog) map[domain.RoomID]chatKind {
 	out := map[domain.RoomID]chatKind{}
 	for _, e := range elems {

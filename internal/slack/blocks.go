@@ -8,13 +8,12 @@ import (
 	slackgo "github.com/slack-go/slack"
 )
 
-// Many apps and bots post only blocks, with no text beside them, and the web client
-// writes a person's message as rich text beside the text it also sends. A message with
-// no text reads from its blocks, written as the mrkdwn a text would be, so mentions,
-// links and formatting go through the one renderer (render).
+// Many apps and bots post only blocks, and the web client sends rich text beside a
+// person's text. A message with no text reads from its blocks, converted to mrkdwn so
+// mentions, links and formatting go through render.
 
-// blockText is what a message's blocks say, as mrkdwn; "" when they say nothing kith
-// can show (an image, a button).
+// blockText is a message's blocks as mrkdwn; "" when nothing is showable (an image, a
+// button).
 func blockText(blocks slackgo.Blocks) string {
 	var parts []string
 	for _, b := range blocks.BlockSet {
@@ -25,7 +24,6 @@ func blockText(blocks slackgo.Blocks) string {
 	return strings.Join(parts, "\n")
 }
 
-// oneBlock is one block as mrkdwn.
 func oneBlock(b slackgo.Block) string {
 	switch b := b.(type) {
 	case *slackgo.RichTextBlock:
@@ -59,7 +57,7 @@ func oneBlock(b slackgo.Block) string {
 	return ""
 }
 
-// textObject is a text object as mrkdwn: plain text is escaped, so "<" is no reference.
+// textObject is a text object as mrkdwn; plain text is escaped so "<" is no reference.
 func textObject(t *slackgo.TextBlockObject) string {
 	if t.Type == slackgo.PlainTextType {
 		return escape.Replace(t.Text)
@@ -67,7 +65,7 @@ func textObject(t *slackgo.TextBlockObject) string {
 	return t.Text
 }
 
-// richElement is one rich-text element: a paragraph, a list, a quote, a code block.
+// richElement converts one rich-text element: paragraph, list, quote or code block.
 func richElement(e slackgo.RichTextElement) string {
 	switch e := e.(type) {
 	case *slackgo.RichTextSection:
@@ -94,7 +92,7 @@ func richElement(e slackgo.RichTextElement) string {
 	return ""
 }
 
-// richRun is a run of rich-text pieces as mrkdwn.
+// richRun converts a run of rich-text pieces to mrkdwn.
 func richRun(elements []slackgo.RichTextSectionElement) string {
 	var b strings.Builder
 	for _, e := range elements {
@@ -126,8 +124,8 @@ func richRun(elements []slackgo.RichTextSectionElement) string {
 	return b.String()
 }
 
-// styled wraps text in the markers its style asks for, around the words alone: a
-// marker against a space does not open or close in mrkdwn.
+// styled wraps the words, not surrounding spaces, in their style's markers: a marker
+// next to a space does not open or close in mrkdwn.
 func styled(text string, style *slackgo.RichTextSectionTextStyle) string {
 	if style == nil || strings.TrimSpace(text) == "" {
 		return text
@@ -150,8 +148,8 @@ func styled(text string, style *slackgo.RichTextSectionTextStyle) string {
 	return lead + core + trail
 }
 
-// emojiOf is an emoji as its character, from the code points Slack gives
-// ("1f44d" or "1f469-200d-1f4bb"); else as :name:.
+// emojiOf is an emoji from Slack's code points ("1f44d" or "1f469-200d-1f4bb"), else
+// :name:.
 func emojiOf(e *slackgo.RichTextSectionEmojiElement) string {
 	if e.Unicode == "" {
 		return ":" + e.Name + ":"

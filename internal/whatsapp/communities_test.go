@@ -15,9 +15,8 @@ import (
 
 func group(jid string) types.JID { return types.NewJID(jid, types.GroupServer) }
 
-// A community is a space holding its groups (the announcement group among them); the
-// community itself is no room. A group in none is a plain room; a community the
-// listing does not carry is named by asking.
+// A community is a space of its groups, not a room itself; a group in none is a plain
+// room; a community missing from the listing is named by a lookup.
 func TestCommunitiesAreSpacesOfTheirGroups(t *testing.T) {
 	t.Parallel()
 	building, school := group("120363001"), group("120363002")
@@ -56,9 +55,8 @@ func TestCommunitiesAreSpacesOfTheirGroups(t *testing.T) {
 	}
 }
 
-// A listing's communities are cached with its groups, per account: another account's
-// stay, and Matrix's are none of WhatsApp's. An account with rooms is a space too,
-// after the communities. A room's community is its canonical parent, else its account.
+// Communities are cached per account alongside groups; an account with rooms is also
+// a space. A room's canonical parent is its community, else its account.
 func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -94,7 +92,7 @@ func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 	if spaces, _ := a.Spaces(ctx); !spaces[0].Managed() {
 		t.Error("a cached community reads back as a space to file rooms into")
 	}
-	// A community is left with its groups; an account's own space by unlinking it.
+	// A community is left with its groups; an account's space by signing out.
 	if spaces, _ := a.Spaces(ctx); spaces[0].Leaving != domain.LeftWithRooms || spaces[2].Leaving != domain.LeftBySigningOut {
 		t.Errorf("leaving a community %v, the account's space %v", spaces[0].Leaving, spaces[2].Leaving)
 	}
@@ -102,7 +100,6 @@ func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 		t.Errorf("CanonicalParent = (%q, %v), want the community", parent, err)
 	}
 
-	// home leaves its community: its next listing has none, work's stays.
 	if err := a.saveListing(ctx, home, groupListing{rooms: []domain.Room{{ID: room}}}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -114,8 +111,7 @@ func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 	}
 }
 
-// Each account with rooms is a space named after it holding every room it sees —
-// groups and direct chats, not another account's.
+// Each account with rooms is a space of its own groups and direct chats.
 func TestAnAccountIsTheSpaceOfItsRooms(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -158,8 +154,7 @@ func TestAnAccountIsTheSpaceOfItsRooms(t *testing.T) {
 	}
 }
 
-// A private chat is not left on WhatsApp, and a group is left only through its
-// account's connection.
+// A private chat cannot be left; a group needs its account connected.
 func TestOnlyAGroupIsLeft(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -172,7 +167,7 @@ func TestOnlyAGroupIsLeft(t *testing.T) {
 	}
 }
 
-// An account is unlinked only through its connection, and only its own space is one.
+// Signing out needs a connection and an account's own space.
 func TestOnlyAConnectedAccountIsSignedOut(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

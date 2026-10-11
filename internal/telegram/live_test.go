@@ -23,9 +23,8 @@ import (
 // dana is a person the fake's messages come from.
 var dana = &tg.User{ID: 7, AccessHash: 70, FirstName: "Dana"}
 
-// updatesOf serves the fake's updates side: its state is pts, and a difference asked
-// for from an older pts carries missed (the messages up to pts). It remembers the
-// session that asked, to push updates to.
+// updatesOf serves the fake's updates: state is pts, a difference from an older pts
+// returns missed, and the asking session is kept for pushes.
 type updatesOf struct {
 	mu      sync.Mutex
 	pts     int
@@ -81,8 +80,7 @@ func (u *updatesOf) push(t *testing.T, s *tgtest.Server, m *tg.Message, pts int)
 	}
 }
 
-// loggedInWithStore is home logged in over the fake, its updates position in a store,
-// its messages in a cache.
+// loggedInWithStore is home logged in over the fake, with a store and a cache.
 func loggedInWithStore(t *testing.T, f *fakeTelegram, st *Store) (*Adapter, *db.Cache) {
 	t.Helper()
 	f.dialogsOf(func() []*tg.Chat { return nil }, nil)
@@ -105,7 +103,6 @@ func loggedInWithStore(t *testing.T, f *fakeTelegram, st *Store) (*Adapter, *db.
 	return a, cache
 }
 
-// openStore is a fresh store.
 func openStore(t *testing.T) *Store {
 	t.Helper()
 	st, err := OpenStore(context.Background(), filepath.Join(t.TempDir(), "telegram.db"))
@@ -116,7 +113,7 @@ func openStore(t *testing.T) *Store {
 	return st
 }
 
-// waitFor waits for cond, a network's pace.
+// waitFor polls cond with a network-like timeout.
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 	for deadline := time.Now().Add(20 * time.Second); !cond(); time.Sleep(10 * time.Millisecond) {
@@ -140,9 +137,8 @@ func cachedBodies(t *testing.T, cache *db.Cache, room domain.RoomID) []string {
 	return out
 }
 
-// A message heard live is cached, handed to the clients, named after its sender, and
-// the account's updates position kept past it — a hold left by an earlier connection
-// released, as a connection begins anew.
+// A live message is cached, streamed and named, and the updates position advances
+// past it; a new connection releases an earlier hold.
 func TestALiveMessageIsCachedAndHeard(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -170,8 +166,7 @@ func TestALiveMessageIsCachedAndHeard(t *testing.T) {
 	})
 }
 
-// A message sent while kith was not listening arrives when it connects again: the
-// position kept is older than Telegram's, so the difference is asked for.
+// Messages missed while offline arrive on reconnect via getDifference.
 func TestAMessageMissedWhileAwayArrives(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -188,10 +183,8 @@ func TestAMessageMissedWhileAwayArrives(t *testing.T) {
 	})
 }
 
-// The position kept never passes a message that was not cached: whatever order
-// messages are cached or fail in, and reconnects come between, the position saved is
-// at most the last one all of whose messages were cached — what a reconnect asks
-// Telegram again from. (gotd saves its position after the handler, failed or not.)
+// The saved position never passes an uncached message, for any order of cache
+// failures and reconnects. (gotd saves its position even when the handler fails.)
 func TestThePositionNeverPassesAnUncachedMessage(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(300) {
@@ -224,7 +217,7 @@ func TestThePositionNeverPassesAnUncachedMessage(t *testing.T) {
 		}
 	}
 
-	// And arrived holds the account when it cannot cache.
+	// arrived holds the account when it cannot cache.
 	st := openStore(t)
 	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
 	if err != nil {
@@ -237,10 +230,8 @@ func TestThePositionNeverPassesAnUncachedMessage(t *testing.T) {
 	}
 }
 
-// A message is shown from whom it came: the account for its own, the person in a
-// private chat, the member who wrote in a group, a channel posting as itself; a reply
-// points at its original in the same chat; an attachment reads as its label before
-// the caption when kith cannot show it; a service message is not shown.
+// Sender attribution (own, DM peer, group member, channel), replies, attachment
+// labels, and hidden service messages.
 func TestMessagesAreShownAsTelegramSendsThem(t *testing.T) {
 	t.Parallel()
 	ent := peer.NewEntities(
@@ -273,8 +264,8 @@ func TestMessagesAreShownAsTelegramSendsThem(t *testing.T) {
 	}
 }
 
-// A chat's history is read newest first and given oldest first, a page at a time,
-// the next page asked from the oldest message of the last; each page is cached.
+// History pages are fetched newest first, returned oldest first, chained by the
+// oldest ID, and cached.
 func TestHistoryIsReadPageByPage(t *testing.T) {
 	t.Parallel()
 	f := newFakeTelegram(t)
@@ -323,15 +314,13 @@ func (f *fakeTelegram) server() *tgtest.Server {
 	return s
 }
 
-// updatesState is a kept position at pts.
+// updatesState is a stored state at pts.
 func updatesState(pts int) updates.State {
 	return updates.State{Pts: pts, Date: int(time.Now().Unix()), Seq: 1}
 }
 
-// A listing and live messages race for a room: whatever order a listing is fetched,
-// messages arrive (in rooms it names or not: a chat just begun), and listings are
-// written in, a room a message was cached in after a listing was fetched is never
-// swept by that listing.
+// A listing never sweeps a room that got a message after the listing was fetched,
+// for any interleaving.
 func TestAListingNeverSweepsARoomHeardSinceItWasFetched(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(60) {
@@ -387,7 +376,7 @@ func TestAListingNeverSweepsARoomHeardSinceItWasFetched(t *testing.T) {
 	}
 }
 
-// knowDana keeps Dana's access hash in st, as an update revealing her would.
+// knowDana stores Dana's access hash in st.
 func knowDana(t *testing.T, st *Store) {
 	t.Helper()
 	if err := st.SetUserAccessHash(t.Context(), 42, dana.ID, dana.AccessHash); err != nil {

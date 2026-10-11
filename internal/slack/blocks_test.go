@@ -8,7 +8,7 @@ import (
 	slackgo "github.com/slack-go/slack"
 )
 
-// decoded is a message as Slack sends it, through slack-go's own decoding.
+// decoded is a message decoded by slack-go.
 func decoded(t *testing.T, raw string) slackgo.Msg {
 	t.Helper()
 	var m slackgo.Msg
@@ -18,8 +18,8 @@ func decoded(t *testing.T, raw string) slackgo.Msg {
 	return m
 }
 
-// An app's post of blocks alone reads: its header, its section and fields, its
-// context line — the words, formatted as mrkdwn would be.
+// A blocks-only app post reads as header, section and fields, and context, formatted as
+// mrkdwn.
 func TestAnAppsBlocksRead(t *testing.T) {
 	t.Parallel()
 	m := decoded(t, `{"type":"message","subtype":"bot_message","bot_id":"B1","username":"AlertManager","ts":"5.0","text":"",
@@ -47,8 +47,7 @@ func TestAnAppsBlocksRead(t *testing.T) {
 	}
 }
 
-// Rich text reads as the person wrote it: styles, links, mentions, emoji as characters,
-// lists, quotes and code.
+// Rich text keeps styles, links, mentions, emoji as characters, lists, quotes and code.
 func TestRichTextReads(t *testing.T) {
 	t.Parallel()
 	m := decoded(t, `{"type":"message","user":"U2","ts":"6.0","text":"","blocks":[{"type":"rich_text","elements":[
@@ -83,7 +82,7 @@ func TestRichTextReads(t *testing.T) {
 		t.Errorf("mentions = %+v, want Dana", got.Mentions)
 	}
 
-	// A message with text reads from its text: the blocks beside it say the same.
+	// A message with text reads from its text; the blocks say the same.
 	both := decoded(t, `{"type":"message","user":"U2","ts":"7.0","text":"the text",
 	  "blocks":[{"type":"rich_text","elements":[{"type":"rich_text_section","elements":[{"type":"text","text":"the blocks"}]}]}]}`)
 	if got, _ := incoming("C1", &both, acmeNames()); got.Body != "the text" {

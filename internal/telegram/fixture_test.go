@@ -9,10 +9,8 @@ import (
 	"github.com/gotd/td/tgtest"
 )
 
-// The fake's replies are encoded one at a time. Encoding a Telegram object writes its
-// flags field, and the fixtures in replies are shared: dana by tests running in
-// parallel, a fake's own user by handlers answering at once. Encoded together, the
-// same struct is written twice at once, which the race detector rightly calls a race.
+// The fake's replies are encoded one at a time: encoding writes an object's flags
+// field, and fixtures (dana, the fake's user) are shared across parallel handlers.
 
 // encodeMu is held while a reply is encoded.
 var encodeMu sync.Mutex

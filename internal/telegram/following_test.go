@@ -12,9 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A channel the account follows but a listing does not name (it left) is forgotten:
-// its position, so it is not followed on connecting again, and its room; what is
-// still heard from it makes no room. A listing that names it again takes it back.
+// An unlisted (left) channel loses its pts and room, and later messages make no room;
+// relisting restores it.
 func TestAChannelLeftIsNoLongerFollowed(t *testing.T) {
 	t.Parallel()
 	st := openStore(t)
@@ -53,7 +52,6 @@ func TestAChannelLeftIsNoLongerFollowed(t *testing.T) {
 	}
 }
 
-// cachedAdapterWithStore is home's adapter over a fresh cache and st.
 func cachedAdapterWithStore(t *testing.T, st *Store) (*Adapter, *db.Cache) {
 	t.Helper()
 	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))

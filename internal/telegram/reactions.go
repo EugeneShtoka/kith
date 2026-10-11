@@ -15,20 +15,17 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Telegram tells a message's reactions whole — how many of each, and who reacted
-// where it may say (a private chat, a small group) — and kith keeps one reaction per
-// person per emoji, as every network does. A reaction counted with no one named
-// (a channel's) is kept as one of no one. Each change replaces the message's
-// reactions, so the cache drops those the new set lacks.
+// Telegram sends a message's reactions whole: counts per emoji, plus reactors where
+// it names them (DMs, small groups). kith keeps one row per person per emoji; unnamed
+// counts (channels) become anonymous rows. Each update replaces the whole set.
 
-// errCustomEmoji is a custom emoji sent: kith has no way to name one.
+// errCustomEmoji: kith cannot send custom emoji.
 var errCustomEmoji = errors.New("telegram: a custom emoji cannot be sent from kith")
 
-// customEmoji is the key a custom emoji reacts as: it has no Unicode to show.
+// customEmoji is the key for any custom emoji, which has no Unicode form.
 const customEmoji = ":custom_emoji:"
 
-// reactionKey is the emoji a Telegram reaction is; false for one kith does not show
-// (a paid star).
+// reactionKey is a reaction's emoji; false for ones kith doesn't show (paid stars).
 func reactionKey(r tg.ReactionClass) (string, bool) {
 	switch r := r.(type) {
 	case *tg.ReactionEmoji:
@@ -39,14 +36,13 @@ func reactionKey(r tg.ReactionClass) (string, bool) {
 	return "", false
 }
 
-// reactionID is one person's reaction of key on a message; anonymous ones are
-// numbered instead.
+// reactionID identifies one person's key on a message; anonymous ones are numbered.
 func reactionID(target domain.EventID, who, key string) domain.EventID {
 	return domain.EventID(string(target) + "/reaction/" + who + "/" + key)
 }
 
-// messageReactions are the reactions a message carries, as kith keeps them: one per
-// person named, the account's own among them, and the rest of each count as no one.
+// messageReactions expands a message's reactions: one per named person (including
+// the account), the rest of each count anonymous.
 func messageReactions(room domain.RoomID, msgID int, rs tg.MessageReactions) []domain.Reaction {
 	target := inRoom(room, msgID)
 	self, _ := strconv.ParseInt(domain.ParseID(string(room)).Account, 10, 64) // whose room it is
@@ -82,9 +78,8 @@ func messageReactions(room domain.RoomID, msgID int, rs tg.MessageReactions) []d
 	return out
 }
 
-// reactionsChanged replaces a message's reactions with rs, heard live, and streams
-// what changed. The message is noted, so a history page read before the change does
-// not bring the old ones back (pageReactions).
+// reactionsChanged applies a live reaction set and notes the time so an older history
+// page can't restore the old set (pageReactions).
 func (a *Adapter) reactionsChanged(ctx context.Context, room domain.RoomID, target domain.EventID, rs []domain.Reaction) {
 	a.mu.Lock()
 	a.reacted[target] = time.Now()
@@ -92,8 +87,7 @@ func (a *Adapter) reactionsChanged(ctx context.Context, room domain.RoomID, targ
 	a.replaceReactions(ctx, room, target, rs, true)
 }
 
-// replaceReactions makes rs a message's reactions in the cache, streaming each change
-// when live.
+// replaceReactions writes rs as the message's reactions, streaming changes when live.
 func (a *Adapter) replaceReactions(ctx context.Context, room domain.RoomID, target domain.EventID, rs []domain.Reaction, live bool) {
 	var had []domain.Reaction
 	if a.cache != nil {
@@ -132,8 +126,8 @@ func (a *Adapter) replaceReactions(ctx context.Context, room domain.RoomID, targ
 	}
 }
 
-// pageReactions caches the reactions of messages a history page read then carried,
-// but not over a change heard live since: that is newer.
+// pageReactions caches a history page's reactions, except where a live change since
+// fetched is newer.
 func (a *Adapter) pageReactions(ctx context.Context, self int64, raw []tg.MessageClass, read time.Time) {
 	for _, m := range raw {
 		msg, ok := m.(*tg.Message)
@@ -152,14 +146,13 @@ func (a *Adapter) pageReactions(ctx context.Context, self int64, raw []tg.Messag
 		if !changed.IsZero() && !changed.Before(read) {
 			continue
 		}
-		// None said is none: a page carries every reaction its messages have.
+		// A page carries all reactions, so none listed means none.
 		a.replaceReactions(ctx, room, target, messageReactions(room, msg.ID, msg.Reactions), false)
 	}
 }
 
-// SendReaction puts our reaction of key on target, or takes it back when we have it
-// there already. Our other reactions stay (Premium keeps several); an account that
-// may keep only one has it replaced.
+// SendReaction toggles our key on target, keeping our other reactions (Premium allows
+// several; otherwise Telegram replaces it).
 func (a *Adapter) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
@@ -197,8 +190,7 @@ func (a *Adapter) SendReaction(ctx context.Context, roomID domain.RoomID, target
 	return nil
 }
 
-// heardReactions keeps a message's reactions as an update says them, unless the
-// update is a send of ours answered again (ownEcho).
+// heardReactions applies an update's reactions unless it echoes our own send (ownEcho).
 func (a *Adapter) heardReactions(ctx context.Context, room domain.RoomID, target domain.EventID, rs []domain.Reaction) {
 	if a.ownEcho(target, rs) {
 		return // applied when it was sent
@@ -206,12 +198,11 @@ func (a *Adapter) heardReactions(ctx context.Context, room domain.RoomID, target
 	a.reactionsChanged(ctx, room, target, rs)
 }
 
-// echoFor is how long a reaction of ours applied on sending is waited for as an echo.
+// echoFor is how long a sent reaction's echo is awaited.
 const echoFor = time.Minute
 
-// sentReactions remembers reactions applied as a send's answer said them: the same
-// answer comes again through the updates, perhaps after a later send's, and must not
-// put back what that one changed.
+// sentReactions remembers reactions applied from a send's answer. The same updates
+// arrive again, possibly after a later send's, and must not undo it.
 func (a *Adapter) sentReactions(target domain.EventID, rs []domain.Reaction) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -224,8 +215,7 @@ func (a *Adapter) sentReactions(target domain.EventID, rs []domain.Reaction) {
 	a.echoes[reactionState(target, rs)] = now
 }
 
-// ownEcho reports whether reactions heard are a send's answer applied already, and
-// forgets it: heard once more, they are someone's.
+// ownEcho reports and consumes a matching sentReactions entry; a second hearing is real.
 func (a *Adapter) ownEcho(target domain.EventID, rs []domain.Reaction) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -235,7 +225,7 @@ func (a *Adapter) ownEcho(target domain.EventID, rs []domain.Reaction) bool {
 	return ok && time.Since(at) <= echoFor
 }
 
-// reactionState names a message's reactions whole: the message and every reaction.
+// reactionState is a key for a message's full reaction set.
 func reactionState(target domain.EventID, rs []domain.Reaction) string {
 	ids := make([]string, len(rs))
 	for i := range rs {
@@ -259,7 +249,7 @@ func (a *Adapter) react(ctx context.Context, ch chat, id int, keys []string) (tg
 	return res, nil
 }
 
-// myReactions is the keys of me's reactions on target, as the cache holds them.
+// myReactions is me's cached reaction keys on target.
 func (a *Adapter) myReactions(ctx context.Context, room domain.RoomID, target domain.EventID, me string) []string {
 	if a.cache == nil {
 		return nil
