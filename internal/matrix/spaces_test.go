@@ -128,14 +128,16 @@ func TestSpaceKeeper(t *testing.T) {
 	}
 }
 
-// /joined_rooms includes spaces; the refresh drops them by sifting against the cached
-// hierarchy. This is the only guard (Cache.Rooms does not filter).
+// A room whose m.room.create cannot be read is a space if the cache says so.
 func TestRefreshRoomsDropsCachedSpaces(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case strings.Contains(r.URL.Path, "/state/m.room.create"):
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"errcode":"M_FORBIDDEN"}`))
 		case strings.HasSuffix(r.URL.Path, "/joined_rooms"):
 			_, _ = w.Write([]byte(`{"joined_rooms": ["!chat:x", "!work:x"]}`))
 		case strings.HasSuffix(r.URL.Path, "/joined_members"):
