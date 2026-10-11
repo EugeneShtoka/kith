@@ -47,8 +47,8 @@ func (h *listingServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		_, _ = w.Write([]byte(`{"joined_rooms": ["!chat:x", "!work:x"]}`))
 	case strings.Contains(path, "/state/m.room.create"):
-		room := path[strings.Index(path, "/rooms/")+len("/rooms/"):]
-		room = room[:strings.Index(room, "/")]
+		_, rest, _ := strings.Cut(path, "/rooms/")
+		room, _, _ := strings.Cut(rest, "/")
 		h.mu.Lock()
 		h.creates[room]++
 		h.mu.Unlock()
@@ -121,11 +121,9 @@ func TestRoomsAndSpacesShareOneListing(t *testing.T) {
 	var rooms []domain.Room
 	var spaces []domain.Space
 	var roomsErr, spacesErr error
-	wg.Add(1)
-	go func() { defer wg.Done(); spaces, spacesErr = b.RefreshSpaces(ctx) }()
+	wg.Go(func() { spaces, spacesErr = b.RefreshSpaces(ctx) })
 	<-h.asked // the spaces refresh is listing
-	wg.Add(1)
-	go func() { defer wg.Done(); rooms, roomsErr = b.RefreshRooms(ctx) }()
+	wg.Go(func() { rooms, roomsErr = b.RefreshRooms(ctx) })
 	close(h.gate)
 	wg.Wait()
 	if roomsErr != nil || spacesErr != nil {
