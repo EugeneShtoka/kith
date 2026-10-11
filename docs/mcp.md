@@ -98,8 +98,11 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 | `text` | The message, exactly as it should appear; nothing is added to it. Every dash longer than a hyphen (—, ―, – or ‒) is written as a hyphen (-), whether the message is sent or drafted |
 | `thread` | Optional: write into this thread, named by its root or any message in it |
 | `reply_to` | Optional: the event ID of the message this answers. A reply to a message in a thread goes into that thread |
+| `at` | Optional: send it at this time instead of now, RFC 3339 with its offset (`2026-10-12T09:00:00+03:00`). The daemon's send-later queue sends it, and the client lists it under `:scheduled` until then |
 
 A `thread` or `reply_to` must be a message of that room's cached history, or nothing is written: an event of any other room is not found, whatever room it is in. **A drafted thread reply stays in its thread.** A room holds one draft, and it remembers where it goes: into an empty composer the assistant's draft takes its thread and reply target, and the client opens that thread to show it. A composer that already holds a draft keeps its aim. Words meant for another thread, for the main timeline, or answering another message are refused and recorded, and your draft is untouched.
+
+**A later send (`at`) goes only to a room the assistant may send to.** A room it would only draft into refuses it, recorded: a draft is reviewed before it goes, a scheduled message is not. It is recorded as `scheduled`, and rests the room for the cooldown as a send does.
 
 **The assistant may write only where `[agent.write]` allows**, and that is never wider than what `[agent.read]` allows. The tool's description, as the assistant receives it, spells out your write scope and send list, so it knows where it may write before it tries. A room it may read but not write is refused with an error naming `[agent.write]`. A room outside `[agent.read]` is answered as if it did not exist. Either way nothing is sent or drafted, and the refusal is recorded in the [ledger](#the-audit-trail-kith---agent-log) with the rule that refused it.
 

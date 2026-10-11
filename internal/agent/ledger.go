@@ -25,6 +25,8 @@ const (
 	// Queued is a message the homeserver would not take, handed to the daemon's queue
 	// to retry.
 	Queued = "queued"
+	// Scheduled is a message handed to the daemon's queue to send at a later time.
+	Scheduled = "scheduled"
 	// Drafted is a message left in a room's composer for a person to send or not.
 	Drafted = "drafted"
 	// Refused is a write the policy did not allow — a room outside `[agent.read]` or
@@ -184,7 +186,7 @@ func LastOut(entries []Entry, room domain.RoomID) (time.Time, bool) {
 		if entries[i].Room != room {
 			continue
 		}
-		if entries[i].Outcome != Sent && entries[i].Outcome != Queued {
+		if entries[i].Outcome != Sent && entries[i].Outcome != Queued && entries[i].Outcome != Scheduled {
 			continue
 		}
 		if !found || entries[i].At.After(latest) {
