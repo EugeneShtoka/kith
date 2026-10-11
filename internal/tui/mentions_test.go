@@ -30,7 +30,7 @@ func TestMentionsListShowsTheMessages(t *testing.T) {
 	if !m.search.active || m.search.showing() != (mentionsList{}) {
 		t.Fatal("@ did not open the mentions list")
 	}
-	// The prompt stays open, labelled for narrowing, not searching.
+	// The prompt stays open, labeled for narrowing, not searching.
 	if m.prompt.kind != promptMentions {
 		t.Errorf("prompt = %d, want the mentions prompt", m.prompt.kind)
 	}

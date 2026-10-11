@@ -134,7 +134,7 @@ func isHash(s string) bool {
 	return len(s) == 32 && strings.Trim(strings.ToLower(s), "0123456789abcdef") == ""
 }
 
-// login runs one login, cancelling any earlier one of account; once signed in it
+// login runs one login, canceling any earlier one of account; once signed in it
 // stores the credentials and connects.
 func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.LoginTalk, dial dialer) (api.LoginEnd, error) {
 	ctx, gen := a.beginLogin(ctx, account)
@@ -194,7 +194,7 @@ func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.
 	return end, err //nolint:wrapcheck // its own words, or the login's end
 }
 
-// beginLogin starts a new login generation, cancelling any in progress.
+// beginLogin starts a new login generation, canceling any in progress.
 func (a *Adapter) beginLogin(ctx context.Context, account Account) (context.Context, int) {
 	ctx, cancel := context.WithCancel(ctx)
 	a.mu.Lock()

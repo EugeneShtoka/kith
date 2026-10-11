@@ -193,7 +193,7 @@ const (
 	escapedClose = "\\u2069"
 )
 
-// quoted keeps the isolate marks themselves; `%q` would draw `⁨` on screen.
+// quoted keeps the isolate marks themselves; `%q` would draw `\u2068` on screen.
 func TestQuotedKeepsTheIsolateMarksUnescaped(t *testing.T) {
 	t.Parallel()
 

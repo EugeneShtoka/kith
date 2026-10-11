@@ -68,7 +68,7 @@ func (a *Adapter) connect(ctx context.Context, account Account, creds Credential
 	}
 }
 
-// connectOnce runs one connection; true when retrying is pointless (cancelled or
+// connectOnce runs one connection; true when retrying is pointless (canceled or
 // session ended).
 func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, client *telegram.Client, live *live) bool {
 	a.session(account, Connecting, "")

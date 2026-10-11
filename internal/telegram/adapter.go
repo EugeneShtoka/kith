@@ -185,7 +185,7 @@ func (a *Adapter) runContext() context.Context {
 }
 
 // useAccounts replaces the accounts. After Start, an added account is connected if
-// logged in; a removed one's connection and login are cancelled.
+// logged in; a removed one's connection and login are canceled.
 func (a *Adapter) useAccounts(accounts []Account) {
 	a.mu.Lock()
 	known := a.accounts

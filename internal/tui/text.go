@@ -55,7 +55,7 @@ func isolate(s string) string {
 }
 
 // quoted is isolated user text in quotes. Not %q: it would escape the isolate marks
-// into a literal `⁨` on screen.
+// into a literal `\u2068` on screen.
 func quoted(s string) string { return `"` + isolate(s) + `"` }
 
 type lineSpec struct {
