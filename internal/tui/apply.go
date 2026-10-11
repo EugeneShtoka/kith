@@ -159,6 +159,7 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.prefs.codes.rules, m.prefs.codes.scope = derived.codeRules, derived.codeScope
 	m.rail.tags = derived.tags
 	m.rail.archives, m.rail.mirrored = derived.archives, derived.mirrored
+	m.rail.archiveTags = derived.archiveTags
 	m.rail.tagsRev++
 	if m.rail.tagMemo == nil {
 		m.rail.tagMemo = &tagMemo{}
@@ -203,6 +204,8 @@ type derivations struct {
 	// whose archive kith's filing changes (fileTags).
 	archives map[domain.Protocol]string
 	mirrored map[domain.Protocol]string
+	// archiveTags is every tag an archive is (setup.ArchiveTags).
+	archiveTags []string
 }
 
 // derive resolves a config into what the model reads, or returns the first error.
@@ -259,6 +262,7 @@ func derive(cfg config.Config) (derivations, error) {
 		tagWarnings: tagWarnings,
 		archives:    archives,
 		mirrored:    setup.Mirrored(cfg, tags),
+		archiveTags: setup.ArchiveTags(cfg, tags),
 		palette:     palette,
 		rules:       rules,
 		unreadLocal: source != config.UnreadNotifications,

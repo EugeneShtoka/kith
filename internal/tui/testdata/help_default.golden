@@ -61,6 +61,7 @@
   i                invite someone to this room
   S                file this room into a space or a tag, or take it out of one
   !                spam / not spam: move this conversation out of the way, or back
+  A                show or hide this place's archived rooms
 
 [1;38;2;102;135;153mTimeline — message cursor[m
   i                compose a message

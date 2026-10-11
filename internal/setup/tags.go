@@ -2,6 +2,7 @@ package setup
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -54,6 +55,22 @@ func Archives(cfg config.Config, tags domain.TagSet) (map[domain.Protocol]string
 		}
 	}
 	return out, nil
+}
+
+// ArchiveTags is every tag an archive is, by name: each network's [*.archive] tag and
+// the default archive tag, those that exist, whether or not they follow a network.
+func ArchiveTags(cfg config.Config, tags domain.TagSet) []string {
+	var out []string
+	add := func(name string) {
+		if _, ok := tags.Index(name); ok && !slices.ContainsFunc(out, func(n string) bool { return strings.EqualFold(n, name) }) {
+			out = append(out, name)
+		}
+	}
+	add(config.DefaultArchiveTag)
+	for _, archive := range cfg.Archives() {
+		add(archive.TagName())
+	}
+	return out
 }
 
 // archivesCheck is Archives for Validate.

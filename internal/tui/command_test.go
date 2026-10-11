@@ -23,6 +23,8 @@ func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 	clientWide := map[string]bool{
 		"verify": true, "todo": true, "help": true,
 		"settings": true, "dnd": true, "join": true, "go": true, "new": true, "login": true, "import": true,
+		// Not a room's: what the room list shows of the place in view.
+		"archived": true,
 	}
 	// both act on the room written in as /, and on the open room or the rail's place
 	// as : (tab moves between them).

@@ -125,6 +125,8 @@ leave to joined rooms; leave and reject ask first.`,
 				note: "Tick with space, apply with enter."},
 			{path: "rooms.invite", def: "i", doc: "invite someone to this room", note: "Prompts for an @user:server."},
 			{path: "rooms.view_media", def: "v", doc: "open this room's pictures in an image viewer, newest first"},
+			{path: "rooms.archived", def: "A", doc: "show or hide this place's archived rooms",
+				note: "Until kith restarts; [display] show_archived and a place's space_rule set where it starts."},
 			// `P` beside `A`: the two are opposites — stop counting this, keep this in
 			// front of me — and a capital for each, since both edit the config rather than
 			// moving a cursor.

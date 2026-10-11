@@ -25,7 +25,11 @@ type railState struct {
 	// mirrored the networks whose archive filing in kith changes too.
 	archives map[domain.Protocol]string
 	mirrored map[domain.Protocol]string
-	spanning map[string]bool
+	// archiveTags is every tag an archive is; archivedShown the places whose room list
+	// the archived key flipped, and to what, until kith restarts (archived.go).
+	archiveTags   []string
+	archivedShown map[string]bool
+	spanning      map[string]bool
 	// homes is the order a room's homes are chosen in, derived with roomFacts from the
 	// config and the spaces (domain.HomeOrder).
 	homes domain.HomeOrder
