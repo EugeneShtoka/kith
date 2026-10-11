@@ -10,8 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// fileHit is a search hit that carries an attachment, which is the only thing that
-// separates the file list's rows from any other search result.
+// fileHit is a search hit carrying an attachment, which is what makes it a file-list row.
 func fileHit(room domain.RoomID, event domain.EventID, name, file, caption string, agoHours int) domain.SearchHit {
 	h := hit(room, event, name, caption, agoHours)
 	h.FileName = file
@@ -25,14 +24,12 @@ func browsingFiles(t *testing.T, hits ...domain.SearchHit) (Model, *searchBacken
 		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
-	// Standing in the room, which is what makes "this room" the honest default scope —
-	// from the rail the question is about a space, and openFiles says so.
+	// In the room, so "this room" is the default scope (from the rail it is a space).
 	m.focus = paneTimeline
 	return m.clearStatus(), backend
 }
 
-// gf opens the list with no terms typed: the clause is the whole question, so the
-// answer is on screen before anything is asked.
+// gf opens the list with no terms typed: the clause is the whole question.
 func TestFilesKeyOpensTheListOnThisRoom(t *testing.T) {
 	t.Parallel()
 
@@ -62,15 +59,14 @@ func TestFilesKeyOpensTheListOnThisRoom(t *testing.T) {
 	if req.Filter.Mentioned {
 		t.Error("the file list is not the mentions list")
 	}
-	// The question is about a conversation, so it starts on the open room rather than
-	// everywhere — the opposite default from the mentions list.
+	// It starts on the open room, not everywhere (unlike the mentions list).
 	if req.Rooms.All || len(req.Rooms.IDs) != 1 || req.Rooms.IDs[0] != "!a:x" {
 		t.Errorf("rooms = %+v, want just the open room", req.Rooms)
 	}
 }
 
-// :files follows the same scope ladder the key does, because the command line reads the
-// pane the colon was typed in.
+// :files follows the key's scope ladder: the command line reads the pane the colon was
+// typed in.
 func TestFilesCommandFollowsThePane(t *testing.T) {
 	t.Parallel()
 
@@ -91,7 +87,7 @@ func TestFilesCommandFollowsThePane(t *testing.T) {
 	}
 }
 
-// …and from the timeline the same command means the room you are reading.
+// From the timeline the same command means the room being read.
 func TestFilesCommandFromTheTimelineIsTheRoom(t *testing.T) {
 	t.Parallel()
 
@@ -110,8 +106,7 @@ func TestFilesCommandFromTheTimelineIsTheRoom(t *testing.T) {
 	}
 }
 
-// The summary names files rather than matches, and an empty list is a fact rather than
-// a question that failed.
+// The summary speaks of files, and an empty list is reported as a fact, not a failure.
 func TestFilesSummarySpeaksOfFiles(t *testing.T) {
 	t.Parallel()
 
@@ -158,7 +153,7 @@ func TestFileRowLeadsWithTheFileName(t *testing.T) {
 	}
 }
 
-// A Hebrew caption beside an ASCII file name must still read right-to-left.
+// A Hebrew caption beside an ASCII file name still reads right to left.
 func TestFileRowReordersAnRTLCaptionBesideAnASCIIName(t *testing.T) {
 	t.Parallel()
 
@@ -171,8 +166,7 @@ func TestFileRowReordersAnRTLCaptionBesideAnASCIIName(t *testing.T) {
 	if !strings.Contains(row, "image.jpg") {
 		t.Fatalf("row = %q, want the file name", row)
 	}
-	// reorder is what the timeline applies to an RTL run; the row must carry its
-	// output, not the logical order it was stored in.
+	// The row carries reorder's output, not the logical order.
 	want := reorder(hebrew, bidi.RightToLeft)
 	if want == hebrew {
 		t.Fatal("fixture is not actually reordered; the test would prove nothing")
@@ -207,8 +201,8 @@ func TestSearchRowReordersTheSenderName(t *testing.T) {
 	}
 }
 
-// A room label is cut before it is reordered, not after: truncating the display form
-// takes the visually-leftmost characters, which for an RTL name is its *end*.
+// A room label is cut before reordering: truncating the display form takes the
+// visually leftmost characters, which for an RTL name is its end.
 func TestSearchRowCapsTheRoomLabelBeforeReordering(t *testing.T) {
 	t.Parallel()
 
@@ -223,8 +217,8 @@ func TestSearchRowCapsTheRoomLabelBeforeReordering(t *testing.T) {
 	m.focus = paneTimeline
 	m = m.clearStatus()
 
-	// The global list is the one that shows a room column at all, and the rail is the
-	// rung that means everywhere (see defaultSearchScope).
+	// Only the global list shows a room column, and the rail is the rung meaning
+	// everywhere (see defaultSearchScope).
 	m.focus = paneRail
 	mdl, cmd := m.runCommandLine(":files")
 	m = mdl

@@ -39,12 +39,10 @@ func (c chatEnder) DeleteChat(_ context.Context, room domain.RoomID, forEveryone
 	return nil
 }
 
-// L on a chat, over every way a chat is put away, every answer and a refusal: a room
-// that is left is left, never deleted; a chat deleted for you alone asks once; one the
-// other person can lose too asks that first (no deleting it for you only), and last,
-// saying for whom, whether to delete it; nothing goes before that last yes, and a no
-// there deletes nothing; a deleted chat leaves the list, a refused one stays and says
-// why.
+// L on a chat, over every kind of chat, answer and refusal: a leavable room is left,
+// never deleted; a chat deletable only for you asks once; one the other person can
+// lose too asks that first, then confirms saying for whom; nothing goes before that
+// last yes; a deleted chat leaves the list, a refused one stays and says why.
 func TestDeletingAChatThatCannotBeLeft(t *testing.T) {
 	t.Parallel()
 	r := rand.New(rand.NewPCG(5, 8))

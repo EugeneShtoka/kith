@@ -26,9 +26,9 @@ func numbersNamed(names map[string]string) domain.Directory {
 	return domain.NewDirectory(rows, nil)
 }
 
-// A room, a sender and a member a network shows only as a number are named from the
-// directory, read with the room list; your own names come first, and a label that is
-// more than a number is left alone.
+// A room, sender or member shown only as a number is named from the directory (read
+// with the room list); your own names win, and a label that is more than a number is
+// left alone.
 func TestANumberIsNamedFromTheDirectory(t *testing.T) {
 	t.Parallel()
 	b := bookBackend{dir: numbersNamed(map[string]string{"15550100001": "Dana", "15550100002": "Eli", "15550100003": "Fay"})}

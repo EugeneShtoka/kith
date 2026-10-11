@@ -6,8 +6,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Day motions. Back goes to the start of the current day first (vim's paragraph
-// convention), then to the day before; forward goes to the next day's first message.
+// Day motions. Back goes to the start of the current day first (like vim paragraphs),
+// then the day before; forward goes to the next day's first message.
 
 // dayStart is the index of the first message of the day that message i falls in.
 func dayStart(msgs []domain.Message, i int) int {
@@ -28,7 +28,7 @@ func dayEnd(msgs []domain.Message, i int) int {
 }
 
 // jumpDay moves the cursor count days older (dir < 0) or newer and puts that day's
-// first message at the top. Running out stops at the last day reached.
+// first message at the top, stopping at the last day reached.
 func (m Model) jumpDay(count, dir int) (Model, tea.Cmd) {
 	msgs := m.shownMessages()
 	if len(msgs) == 0 {
@@ -56,8 +56,7 @@ func (m Model) jumpDay(count, dir int) (Model, tea.Cmd) {
 	return m.dayAtTop(), nil
 }
 
-// dayStep is one day's worth of movement from an index, and -1 when there is no
-// further day that way in what is loaded.
+// dayStep is one day's movement from an index, -1 when no further day is loaded.
 func dayStep(msgs []domain.Message, from, dir int) int {
 	if dir < 0 {
 		if start := dayStart(msgs, from); start < from {
@@ -101,8 +100,7 @@ func (m Model) dayAtTop() Model {
 	return m
 }
 
-// selectionHasDivider reports whether a date separator is drawn above the selected
-// message.
+// selectionHasDivider reports whether a date separator is drawn above the selection.
 func (m Model) selectionHasDivider() bool {
 	derived, w := m.walkFor()
 	i, ok := derived.index[m.selectedID()]

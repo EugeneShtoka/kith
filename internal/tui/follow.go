@@ -6,9 +6,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Following a Matrix link moves you inside the client (gx would open a browser): a
-// joined room or message → go there; an unjoined room → ask before joining; a person →
-// the switcher filtered to them, since following a link must not create anything.
+// Following a Matrix link moves inside the client (gx opens a browser): a joined room
+// or message goes there; an unjoined room asks before joining; a person opens the
+// switcher filtered to them, since following must not create anything.
 
 // jumpTarget is a message to select once the timeline contains it (see
 // resolveJump); why names who asked.
@@ -17,8 +17,8 @@ type jumpTarget struct {
 	why string
 }
 
-// messageHrefs are the targets of the named links in a message's formatted body — the
-// only place a mention pill's MXID appears.
+// messageHrefs are the targets of named links in a message's formatted body, the only
+// place a mention pill's MXID appears.
 func (m Model) messageHrefs(msg domain.Message) []string {
 	_, spans, ok := m.formattedBody(msg)
 	if !ok {
@@ -68,7 +68,7 @@ func (m Model) placeLabel(place domain.Place) (label, detail string) {
 	return place.String(), ""
 }
 
-// goToPlace is the move itself, once there is one place to go to.
+// goToPlace moves to a single resolved place.
 func (m Model) goToPlace(place domain.Place) (Model, tea.Cmd) {
 	switch place.Kind {
 	case domain.PlaceNone:
@@ -82,8 +82,8 @@ func (m Model) goToPlace(place domain.Place) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// goToPerson opens the switcher filtered to somebody's name, or their MXID when there
-// is no name for them.
+// goToPerson opens the switcher filtered to somebody's name, or their MXID when they
+// have none.
 func (m Model) goToPerson(user string) (Model, tea.Cmd) {
 	next, cmd := m.openJump()
 	name := next.mentionedName(user, next.openRoom)
@@ -112,8 +112,8 @@ func (m Model) goToPlaceRoom(place domain.Place, event domain.EventID) (Model, t
 	return next, cmd
 }
 
-// joinPlace joins the room a link pointed at, after the question. The linked event is
-// not jumped to: history arrives over sync only after the join.
+// joinPlace joins the linked room after confirmation. The linked event is not jumped
+// to: history arrives over sync only after the join.
 func (m Model) joinPlace(pending confirmState) (Model, tea.Cmd) {
 	m = m.say("joining " + pending.address + "…")
 	return m, m.joinRoomCmd(pending.address, pending.via...)
@@ -125,8 +125,8 @@ func (m Model) WithFollow(uri string) Model {
 	return m
 }
 
-// followPendingLink follows the startup link once the room list has arrived; it
-// answers false until then, so it is safe to call on every refresh.
+// followPendingLink follows the startup link once the room list has arrived; false
+// until then, so it is safe to call on every refresh.
 func (m Model) followPendingLink() (Model, tea.Cmd, bool) {
 	if m.followAt == "" || len(m.rooms.joined) == 0 {
 		return m, nil, false
@@ -137,7 +137,7 @@ func (m Model) followPendingLink() (Model, tea.Cmd, bool) {
 	return next, cmd, true
 }
 
-// followLink goes where uri points and says so — after the move, since opening a room
+// followLink goes where uri points and says so after the move, since opening a room
 // sets its own status and the last writer wins.
 func (m Model) followLink(uri string) (Model, tea.Cmd) {
 	place, ok := domain.ParsePlace(uri)
@@ -149,9 +149,8 @@ func (m Model) followLink(uri string) (Model, tea.Cmd) {
 	return next.say("followed a link to " + isolate(label)), cmd
 }
 
-// followSource is a backend that can hand over links clicked elsewhere on the desktop
-// (`kith --open`). Optional, because it is not Matrix and api.Backend should not
-// carry it.
+// followSource is a backend that hands over links clicked elsewhere on the desktop
+// (`kith --open`). Optional: it is not Matrix, so api.Backend does not carry it.
 type followSource interface {
 	Follows() <-chan string
 }
@@ -166,8 +165,8 @@ func (m Model) listenFollowCmd() tea.Cmd {
 		func(uri string) tea.Msg { return followMsg{uri: uri} })
 }
 
-// roomsSource is a backend that says when a network rewrote its rooms. Optional, as
-// followSource is.
+// roomsSource is a backend that says when a network rewrote its rooms. Optional, like
+// followSource.
 type roomsSource interface {
 	RoomsChanged() <-chan struct{}
 }

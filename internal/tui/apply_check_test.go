@@ -12,7 +12,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// checkingDaemon is a daemon that judges configs: refuse is its verdict on every one.
+// checkingDaemon judges configs: refuse is its verdict on every one.
 type checkingDaemon struct {
 	apitest.Nop
 	refuse error
@@ -24,7 +24,6 @@ func (d *checkingDaemon) CheckConfig(context.Context, config.Config) error {
 	return d.refuse
 }
 
-// checkedModel is a model over d, with the starter config.
 func checkedModel(t *testing.T, d *checkingDaemon) Model {
 	t.Helper()
 	cfg, err := starterOnce()
@@ -54,9 +53,8 @@ func verdict(t *testing.T, m Model, cmd tea.Cmd) Model {
 	return update(t, m, msg)
 }
 
-// A change to a network's accounts is applied only once kithd says it would run with
-// it; refused, nothing changes and the status says why. Any other change is applied
-// at once, with nothing asked.
+// An account change applies only once kithd accepts it; refused, nothing changes and
+// the status says why. Other changes apply at once.
 func TestAnAccountChangeWaitsForKithd(t *testing.T) {
 	t.Parallel()
 	d := &checkingDaemon{}
@@ -90,8 +88,8 @@ func TestAnAccountChangeWaitsForKithd(t *testing.T) {
 	}
 }
 
-// A change kithd passes after another landed is not applied: it was made over the
-// config before that one, and would undo it.
+// A change kithd passes after another landed is dropped: it was made over the older
+// config and would undo the newer one.
 func TestAHeldChangeDoesNotUndoANewerOne(t *testing.T) {
 	t.Parallel()
 	m := checkedModel(t, &checkingDaemon{})

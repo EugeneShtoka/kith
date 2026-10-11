@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-// A tea.Cmd that is thrown away is work that silently never happens, while the model
-// already records it as done (an offer marked asked, typing marked stopped). Every
-// call to a package function whose last result is a tea.Cmd must keep that result.
+// A discarded tea.Cmd is work that never happens while the model records it as done
+// (an offer marked asked, typing marked stopped). Every call to a package function
+// whose last result is a tea.Cmd must keep it.
 func TestNoCommandIsDropped(t *testing.T) {
 	t.Parallel()
 

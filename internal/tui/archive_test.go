@@ -15,9 +15,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// counting builds a room list where the two definitions of "unread" disagree: Alpha is
-// a muted room — the homeserver says nothing would have notified you, while three
-// messages sit there unread — and Bravo is an ordinary noisy one.
+// counting builds rooms where the two meanings of "unread" disagree: Alpha is muted
+// (no notifications, three unread messages), Bravo is ordinary.
 func counting(t *testing.T, display config.Display) Model {
 	t.Helper()
 	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
@@ -53,15 +52,14 @@ func TestBadgeCountsUnreadMessagesNotNotifications(t *testing.T) {
 		t.Errorf("muted room badge = %q (highlight %v), want ●3 highlighted", badge, highlight)
 	}
 
-	// And the old meaning is still available, exactly as it was.
+	// The notifications meaning is still available.
 	server := counting(t, config.Display{Unread: "notifications"})
 	if badge, _ := server.unreadBadge(roomByName(t, server, "!a:x")); badge != "" {
 		t.Errorf("with unread=notifications the muted room badged %q, want nothing", badge)
 	}
 }
 
-// picking is m with these rooms in the named tag's picked list, applied as the
-// filing picker applies it.
+// picking puts rooms in the named tag's picked list, as the filing picker does.
 func picking(t *testing.T, m Model, tag string, rooms ...string) Model {
 	t.Helper()
 	cfg := m.conf.base.Clone()
@@ -88,7 +86,7 @@ func TestArchivedRoomKeepsItsRowAndLeavesTheTotals(t *testing.T) {
 		t.Errorf("archived room badge = %q (highlight %v), want ·3 unhighlighted", badge, highlight)
 	}
 
-	// The group sums only what counts, and the Unread group holds only what counts.
+	// The group sums, and the Unread group holds, only what counts.
 	work := m.rail.groups[indexOfGroup(m.rail.groups, "Work")]
 	if n, _ := m.groupUnread(work); n != 2 {
 		t.Errorf("Work group total = %d, want 2 — the archived room's three excluded", n)
@@ -98,8 +96,8 @@ func TestArchivedRoomKeepsItsRowAndLeavesTheTotals(t *testing.T) {
 	}
 }
 
-// A space whose only unread room is archived is marked read, not refused as having
-// nothing unread: the room stays in its own network's space, and its row says it has.
+// Marking a space read reads its archived rooms too: they stay in their network's
+// space and their rows show unread.
 func TestMarkingASpaceReadReadsItsArchivedRooms(t *testing.T) {
 	t.Parallel()
 	m := picking(t, counting(t, config.Display{}), "Archived", "!a:x")
@@ -114,8 +112,7 @@ func TestMarkingASpaceReadReadsItsArchivedRooms(t *testing.T) {
 	}
 }
 
-// /tag is a toggle and says which way it went, because nothing else on screen changes
-// enough to tell; a new name makes the tag.
+// /tag toggles and says which way it went; a new name creates the tag.
 func TestTagCommandTogglesAndReportsWhichWay(t *testing.T) {
 	t.Parallel()
 
@@ -131,8 +128,7 @@ func TestTagCommandTogglesAndReportsWhichWay(t *testing.T) {
 	if !strings.Contains(m.status(), "Alpha is in Archived") {
 		t.Errorf("status = %q, want it to say the room went in", m.status())
 	}
-	// Archived is exclusive, so the room left All, and the selection moved to its
-	// neighbor rather than staying on a row that is no longer there.
+	// Archived is exclusive, so the room left All and the selection moved to its neighbor.
 	if m.openRoom == "!a:x" {
 		t.Fatal("the open room is one the list no longer holds")
 	}
@@ -165,8 +161,7 @@ func tagIndex(t *testing.T, m Model, name string) int {
 	return -1
 }
 
-// A room a tag holds by its rule is taken out by excluding that room alone: the rule
-// keeps its other rooms.
+// Taking a room out of a rule-held tag excludes that room only.
 func TestTakingARoomOutOfARuleExcludesOnlyIt(t *testing.T) {
 	t.Parallel()
 
@@ -185,8 +180,7 @@ func TestTakingARoomOutOfARuleExcludesOnlyIt(t *testing.T) {
 	}
 }
 
-// spaced builds a rail with both kinds of space: one a bridge made (every room it
-// carries lives there) and one filed by hand.
+// spaced builds a rail with a bridge-made space and a hand-filed one.
 func spaced(t *testing.T, display config.Display) Model {
 	t.Helper()
 	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
@@ -200,7 +194,6 @@ func spaced(t *testing.T, display config.Display) Model {
 	return sized(t, m.clearStatus())
 }
 
-// hasGroup reports whether the rail carries a group with this key.
 func hasGroup(groups []group, key string) bool {
 	for _, g := range groups {
 		if g.key == key {
@@ -226,14 +219,13 @@ func roomsIn(t *testing.T, m Model, key string) []domain.RoomID {
 	return ids
 }
 
-// Archived (space_exclusive) takes a room out of the spaces you filed it into, All
-// and DMs; the space it belongs to keeps it.
+// Archived (space_exclusive) removes a room from user-filed spaces, All and DMs; its
+// own space keeps it.
 func TestArchivedRoomLeavesEverythingButItsOwnSpace(t *testing.T) {
 	t.Parallel()
 
 	m := picking(t, spaced(t, config.Display{}), "Archived", "!a:x")
-	// The canonical parent as the daemon would resolve it: the space the bridge put the
-	// room in when it created the portal.
+	// The canonical parent: the space the bridge created the portal in.
 	m = update(t, m, parentsMsg{parents: map[domain.RoomID]domain.SpaceID{"!a:x": "!wa:x"}})
 
 	if got := roomsIn(t, m, "Work"); len(got) != 1 || got[0] != "!b:x" {
@@ -250,9 +242,8 @@ func TestArchivedRoomLeavesEverythingButItsOwnSpace(t *testing.T) {
 	}
 }
 
-// Before the answer arrives — and for a room that has no canonical parent at all, which
-// is the ordinary case for a room you added to a space yourself — the archived room is
-// in exactly one place.
+// Without a known canonical parent (before the answer, or for a hand-filed room) the
+// archived room is in one place only.
 func TestArchivedRoomWithNoKnownParentIsOnlyInTheArchivedGroup(t *testing.T) {
 	t.Parallel()
 
@@ -267,8 +258,7 @@ func TestArchivedRoomWithNoKnownParentIsOnlyInTheArchivedGroup(t *testing.T) {
 	}
 }
 
-// The starter's Archived row hides while empty: with nothing filed away the rail does
-// not show it, and it appears the moment a room goes in, without a restart.
+// The Archived group shows only while something is archived, updating without restart.
 func TestArchivedGroupExistsOnlyWhileSomethingIsArchived(t *testing.T) {
 	t.Parallel()
 
@@ -282,8 +272,7 @@ func TestArchivedGroupExistsOnlyWhileSomethingIsArchived(t *testing.T) {
 	}
 }
 
-// parentAsker records which rooms were asked about and answers for one of them, so the
-// test can watch the resolution happen rather than injecting its result.
+// parentAsker records which rooms were asked about and answers for one of them.
 type parentAsker struct {
 	apitest.Nop
 	mu     sync.Mutex
@@ -304,9 +293,8 @@ func (p *parentAsker) askedRooms() []domain.RoomID {
 	return append([]domain.RoomID(nil), p.asked...)
 }
 
-// Only rooms a space-exclusive tag holds are asked about, and each only once:
-// resolving where a room lives costs the daemon room state, and asking for all of them
-// would turn a rail rebuild into a hierarchy walk.
+// Only rooms a space-exclusive tag holds are asked about, each once: resolving a
+// parent costs the daemon room state.
 func TestParentsAreResolvedOnlyForArchivedRooms(t *testing.T) {
 	t.Parallel()
 
@@ -336,14 +324,13 @@ func TestParentsAreResolvedOnlyForArchivedRooms(t *testing.T) {
 		t.Errorf("WhatsApp UK = %v, want the archived room back once its parent is known", got)
 	}
 
-	// Asked once: a second pass over the same rooms has nothing left to ask.
+	// A second pass has nothing left to ask.
 	if cmd := m.resolveParentsCmd(); cmd != nil {
 		t.Error("a resolved room was queued for resolution again")
 	}
 }
 
-// The starter's Pinned tag is additive: a pinned room is in Pinned **and** in its own
-// space.
+// Pinned is additive: a pinned room is in Pinned and in its own space.
 func TestPinnedGroupIsAdditive(t *testing.T) {
 	t.Parallel()
 
@@ -361,16 +348,15 @@ func TestPinnedGroupIsAdditive(t *testing.T) {
 	}
 }
 
-// A tag is a place a rule can name, and it ranks as a class — which is what lets a
-// pinned room through a do-not-disturb without any pierce concept at all.
+// A tag rule ranks narrower than global scope, so pinned rooms get through DND.
 func TestATagIsNarrowerThanGlobalSilence(t *testing.T) {
 	t.Parallel()
 
 	none, all := notify.LevelNone, notify.LevelAll
 	rules := []notify.Rule{
-		// Do-not-disturb: global scope, temporary, the newer statement.
+		// Do-not-disturb: global, temporary, newer.
 		{Name: "dnd", Show: &none, Temp: true},
-		// And the standing rule that says pinned conversations still reach you.
+		// Pinned conversations still reach you.
 		{Name: "pinned", Match: "tag:Pinned", Show: &all},
 	}
 	pinned := setup.Place{Room: domain.RoomFacts{ID: "!a:x", Tags: []string{"Pinned"}}}
@@ -378,8 +364,7 @@ func TestATagIsNarrowerThanGlobalSilence(t *testing.T) {
 	if got.Show != notify.LevelAll {
 		t.Errorf("a pinned room was silenced by a global DND; the rule naming it is narrower")
 	}
-	// And an unpinned one stays silent, which is what makes the first answer mean
-	// something.
+	// An unpinned room stays silent.
 	plain := setup.Place{Room: domain.RoomFacts{ID: "!b:x"}}
 	quiet := notify.Resolve(rules, notify.Scope{Room: plain}, time.Now())
 	if quiet.Show != notify.LevelNone {

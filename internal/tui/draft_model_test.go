@@ -21,33 +21,28 @@ import (
 )
 
 // Two writers share every stored draft: the one window the daemon serves (api.Seat)
-// and kith-mcp appending the assistant's words; and every window is followed by the next
-// one, on the same store, as when another takes the seat or kith is started again.
-// Each write is a compare-and-set, each reply can come back late, and the runtime runs
-// commands in whatever order they finish. The happy-path tests
-// in draft_merge_test.go fix one order each; this plays out thousands. A scheduler
-// holds every command and every reply, and a seeded walk interleaves them with
-// typing, pauses, sends, room switches, edits, polls, the assistant's appends (also
-// between the RPCs of one save), deletions (a room left elsewhere deletes its draft)
-// and quitting. The daemon fails
-// too: a write refused before it commits, a write that commits with its reply lost,
-// a read that fails. Quitting is either route out: quit (which waits for the saves; so
-// does stepping aside for another window), or
-// the program ending at once (the interrupt key, a signal, the terminal closing), after
-// which only tui.Run's last write (FlushDrafts) runs, and what it cannot write is kept
-// in a file. When it all comes to rest, the words must add up:
+// and kith-mcp appending the assistant's words; each window is followed by another on
+// the same store (seat taken over, or kith restarted). Writes are compare-and-set,
+// replies can be late, and commands finish in any order. A scheduler holds every
+// command and reply, and a seeded walk interleaves them with typing, pauses, sends,
+// room switches, edits, polls, assistant appends (also between one save's RPCs),
+// deletions (a room left elsewhere), and quitting. The daemon fails too: writes refused
+// before commit, writes committed with the reply lost, failed reads. Quitting is either
+// quit (waits for saves, as stepping aside does) or the program ending at once, after
+// which only tui.Run's last write (FlushDrafts) runs and what it cannot write is kept
+// in a file. At rest:
 //
 //   - every word typed or appended is, exactly once, in a sent message or a stored
-//     draft (never lost, never doubled: the sent words never come back);
+//     draft (never lost, never doubled; sent words never come back);
 //   - a deleted draft stays deleted, unless this client held unsaved changes to it
 //     then or typed there after, which are written back whole;
 //   - the store and the window agree on every draft;
 //   - a reply or edit target the person changed, in a room not sent from or deleted
 //     in, is the one stored;
 //   - after quit, everything typed is stored or sent; what the last write kept in the
-//     file is, once the next run has restored it.
+//     file is, once the next run restores it.
 //
-// A failure prints the schedule; KITH_DRAFT_SEED=<seed> replays that one alone, and
+// A failure prints the schedule; KITH_DRAFT_SEED=<seed> replays it alone, and
 // KITH_DRAFT_TRACE=1 adds the store and this client's copy after every step.
 func TestDraftsSurviveEveryInterleaving(t *testing.T) {
 	t.Parallel()
@@ -109,7 +104,7 @@ type draftWorld struct {
 	msgs  []tea.Msg // finished, not yet delivered (in finishing order)
 	log   []string
 	quit  bool
-	// leaving: quit was asked for; the user does nothing more while it finishes.
+	// leaving: quit was asked for; the user does nothing more.
 	leaving bool
 	// calm: at rest, the assistant writes no more either.
 	calm bool
@@ -127,15 +122,15 @@ type draftWorld struct {
 	touched map[domain.RoomID]bool
 	// end cancels the program's context, as tui.Run does before its last write.
 	end context.CancelFunc
-	// targets records, per room and field ("reply", "edit"), what the person set it to
-	// last; settled rooms (no send, no deletion) are checked against it at rest.
+	// targets records, per room and field ("reply", "edit"), what the person last set;
+	// settled rooms (no send, no deletion) are checked against it at rest.
 	targets   map[domain.RoomID]map[string]string
 	unsettled map[domain.RoomID]bool
 	serial    int
-	// exits counts the programs ended (then followed by the next one: nextRun).
+	// exits counts the programs ended (each followed by nextRun).
 	exits int
-	// givenUp are the words of rooms the last write at an exit could not reach: they
-	// may be missing, or back in a draft after they were sent.
+	// givenUp are the words of rooms the last write at an exit could not reach: they may
+	// be missing, or back in a draft after being sent.
 	givenUp map[string]bool
 }
 
@@ -317,8 +312,8 @@ func (w *draftWorld) step() {
 	}
 }
 
-// typeWord types one word into the open room's composer (not while editing: those
-// words are the correction, which this model does not send).
+// typeWord types one word into the open room's composer (not while editing: those words
+// are the correction, which this model does not send).
 func (w *draftWorld) typeWord() {
 	if w.m.compose.isEditing() {
 		return
@@ -394,7 +389,7 @@ func (w *draftWorld) edit() {
 	w.update(draftTickMsg{gen: -1})
 }
 
-// assistantAppends is kith-mcp's send_message with draft mode: an append to the stored
+// assistantAppends is kith-mcp's send_message in draft mode: an append to the stored
 // draft, refused while a message is being corrected there.
 func (w *draftWorld) assistantAppends(room domain.RoomID) {
 	s := w.store.sharedDrafts
@@ -404,8 +399,8 @@ func (w *draftWorld) assistantAppends(room domain.RoomID) {
 	if cur.Editing != "" {
 		return
 	}
-	// Sometimes into a thread, by kith-mcp's rule: an empty draft takes the aim, and a
-	// draft aimed elsewhere is not added to.
+	// Sometimes into a thread, by kith-mcp's rule: an empty draft takes the aim; a draft
+	// aimed elsewhere is not added to.
 	thread := draftThreads[w.rng.IntN(len(draftThreads))]
 	switch {
 	case cur.Empty():
@@ -425,8 +420,8 @@ func (w *draftWorld) assistantAppends(room domain.RoomID) {
 // draftThreads are where a draft can be aimed: the main timeline and two threads.
 var draftThreads = []domain.EventID{"", "$t1", "$t2"}
 
-// moveThread takes the open room's composer, and what it holds, to the main timeline
-// or a thread, as opening and closing a thread does.
+// moveThread takes the open room's composer and its content to the main timeline or a
+// thread, as opening and closing a thread does.
 func (w *draftWorld) moveThread() {
 	room := w.m.openRoom
 	to := draftThreads[w.rng.IntN(len(draftThreads))]
@@ -458,10 +453,9 @@ func (w *draftWorld) deleteElsewhere(room domain.RoomID) {
 	}
 	w.note("deleted elsewhere: %s (%q, edit returns to %q)", room, cur.Body, cur.EditSaved)
 	w.deleted[room] = append(w.deleted[room], strings.Fields(cur.Body+" "+cur.EditSaved)...)
-	// Held here unsaved, a different composition may be kept whole (it is what the
-	// person sees and went on with); held as stored, the deletion must win. A write of
-	// this client's that went unanswered is unsaved as far as it knows: whether the
-	// deletion took its words or older ones cannot be told, and keeping them is safer.
+	// Held here unsaved, a different composition may be kept whole (the person saw it and
+	// went on); held as stored, the deletion wins. An unanswered write counts as unsaved:
+	// whether the deletion took its words or older ones is unknown, so keeping them is safer.
 	w.touched[room] = w.touched[room] || !sameComposition(cur, w.local(room)) ||
 		len(w.m.draftSync.unsure[room]) > 0
 	w.unsettled[room] = true
@@ -469,8 +463,7 @@ func (w *draftWorld) deleteElsewhere(room domain.RoomID) {
 }
 
 // rest lets everything finish: every command and reply, then pauses and polls until
-// nothing changes. After quit, nothing is delivered and nothing more happens: the
-// program is gone, and only what reached the store counts.
+// nothing changes. After quit nothing is delivered: only what reached the store counts.
 func (w *draftWorld) rest() {
 	w.note("— rest —")
 	w.calm = true
@@ -512,14 +505,14 @@ func (w *draftWorld) rest() {
 	}
 }
 
-// exit is the program ending: a command still running either finished before the end
-// or was cut off (Run cancels their context), no reply is delivered, and tui.Run's last
-// write takes what is left. What it cannot store is kept.
+// exit is the program ending: each running command finished before the end or was cut
+// off (Run cancels their context), no reply is delivered, and tui.Run's last write
+// takes what is left. What it cannot store is kept.
 func (w *draftWorld) exit() {
 	w.note("— exit —")
 	w.exits++
 	var done, cut []tea.Cmd
-	// A batch is its commands running side by side, each finishing or cut on its own.
+	// A batch's commands run side by side, each finishing or cut on its own.
 	for pending := w.cmds; len(pending) > 0; {
 		cmd := pending[0]
 		pending = pending[1:]
@@ -534,8 +527,8 @@ func (w *draftWorld) exit() {
 			cut = append(cut, cmd)
 		}
 	}
-	// Finished before the end: the runtime took their replies. What those ask to run
-	// next is too late.
+	// Finished before the end: the runtime took their replies; what they ask to run next
+	// is too late.
 	w.cmds = nil
 	for _, cmd := range done {
 		w.run(cmd)
@@ -543,17 +536,16 @@ func (w *draftWorld) exit() {
 	for _, msg := range w.msgs {
 		w.update(msg)
 	}
-	// A send those replies asked for (typing that waited on a hold, then its send) is
-	// counted as sent: what becomes of a send cut off by the end is not the drafts'
-	// business, and this walk asks only where the words of drafts go.
+	// A send those replies asked for (typing that waited on a hold, then its send) counts
+	// as sent: a send cut off by the end is outside what this walk checks.
 	w.runSends(w.cmds)
 	w.end()
 	for _, cmd := range cut {
 		w.detach(cmd) // its call in flight may land; it goes no further
 	}
 	w.cmds, w.msgs = nil, nil
-	// A room the last write could not reach is given up (unsaved.go): its unsaved words
-	// may be gone, and a send whose clear did not land may be offered again.
+	// A room the last write could not reach is given up (unsaved.go): its unsaved words may
+	// be gone, and a send whose clear did not land may be offered again.
 	for _, room := range w.m.flushDrafts(context.Background()) {
 		local, stored := w.local(room), w.stored(room)
 		w.unsettled[room] = true // its targets as much as its words
@@ -565,8 +557,7 @@ func (w *draftWorld) exit() {
 	w.nextRun()
 }
 
-// nextRun is the next window, on the same store with the daemon back, and everything
-// comes to rest.
+// nextRun is the next window, on the same store with the daemon back, brought to rest.
 func (w *draftWorld) nextRun() {
 	w.note("— next run —")
 	w.quit, w.leaving = false, false
@@ -628,7 +619,7 @@ func (w *draftWorld) stored(room domain.RoomID) domain.StoredDraft {
 
 // check is the invariants at rest, or "" when they hold.
 func (w *draftWorld) check() string {
-	// Sent twice, or sent and still in a draft, is the sync bringing sent words back.
+	// Sent twice, or sent and still in a draft, means sync brought sent words back.
 	count := map[string]int{}
 	var where []string
 	for _, body := range w.sent {
@@ -655,8 +646,8 @@ func (w *draftWorld) check() string {
 			case "edit":
 				got = string(d.Editing)
 			case "thread":
-				// The thread is the person's only where their own words are: a draft of the
-				// assistant's alone (the window followed it) is aimed where it was written.
+				// The thread is the person's only where their own words are: a draft of only the
+				// assistant's words is aimed where it was written.
 				if !w.holdsTyped(d) {
 					continue
 				}
@@ -692,7 +683,7 @@ func (w *draftWorld) check() string {
 }
 
 // local is room's draft as this client holds it: the composer for the open room, the
-// stashed copy for another.
+// stashed copy otherwise.
 func (w *draftWorld) local(room domain.RoomID) domain.StoredDraft { return localOf(w.m, room) }
 
 func localOf(m Model, room domain.RoomID) domain.StoredDraft {
@@ -707,15 +698,14 @@ func localOf(m Model, room domain.RoomID) domain.StoredDraft {
 	}
 }
 
-// sameComposition compares what a person would see of two drafts: its thread too, where
-// there is one to see.
+// sameComposition compares what a person would see of two drafts, thread included.
 func sameComposition(a, b domain.StoredDraft) bool {
 	return a.Body == b.Body && a.ReplyTo == b.ReplyTo && a.Editing == b.Editing && a.EditSaved == b.EditSaved &&
 		(a.Empty() || a.ThreadRoot == b.ThreadRoot)
 }
 
-// racyDrafts lets the assistant write between the RPCs of one save, as it can when
-// kith-mcp runs beside the client.
+// racyDrafts lets the assistant write between one save's RPCs, as kith-mcp can beside
+// the client.
 type racyDrafts struct {
 	*sharedDrafts
 	world *draftWorld
@@ -738,8 +728,8 @@ func (r *racyDrafts) meddle() {
 	}
 }
 
-// fails reports whether the daemon fails this call: 1 in 10 while things happen, and
-// while quitting (the daemon may be the reason), never at rest.
+// fails reports whether the daemon fails this call: 1 in 10 while active and while
+// quitting (the daemon may be the reason), never at rest.
 func (r *racyDrafts) fails() bool {
 	return (!r.world.calm || r.world.leaving) && r.world.rng.IntN(10) == 0
 }

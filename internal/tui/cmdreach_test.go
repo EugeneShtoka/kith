@@ -11,25 +11,23 @@ import (
 	"testing"
 )
 
-// Bubble Tea runs every tea.Cmd on its own goroutine. The model is a value and its
-// maps are copy-on-write (cow.go), but the derived cache is shared by every copy, and
-// derivedFor() writes through m.derived on the event loop. So inside a tea.Cmd the
-// model may only be used for its immutable, concurrency-safe fields; everything else
-// is read on the event loop and captured as a local first.
+// Every tea.Cmd runs on its own goroutine. Model maps are copy-on-write (cow.go), but
+// the derived cache is shared by every copy and written by derivedFor() on the event
+// loop. Inside a tea.Cmd only these immutable, concurrency-safe fields may be read;
+// everything else is captured as a local on the loop first.
 var cmdMayRead = map[string]bool{
 	"backend": true, // daemon client, safe for concurrent use
 	"ctx":     true, // app-lifetime context, written once
 	"log":     true, // *slog.Logger, safe for concurrent use, set once at startup
 }
 
-// offLoop are the package's command builders. Every function they are handed runs on
-// the command's goroutine even when it does not itself return a tea.Msg (fire's call
-// returns an error, fetch's call a value), so those arguments are scanned too.
+// offLoop are the package's command builders. Every function passed to them runs on
+// the command's goroutine even when it returns no tea.Msg (fire's returns an error,
+// fetch's a value), so those arguments are scanned too.
 var offLoop = []string{"fetch", "fire", "listen"}
 
-// TestCommandsReachOnlyTheBackend walks every tea.Cmd closure in the package and
-// fails on any model field it reads outside cmdMayRead, following calls to the
-// model's own methods.
+// TestCommandsReachOnlyTheBackend fails on any model field a tea.Cmd closure reads
+// outside cmdMayRead, following calls to the model's own methods.
 func TestCommandsReachOnlyTheBackend(t *testing.T) {
 	t.Parallel()
 
@@ -135,13 +133,13 @@ func offenses(where string, body ast.Node, recv, recvType string, methods map[st
 	return out
 }
 
-// sharedAccessors are the Model's ways to the shared cache: a local taken from one
-// and used in a command reaches it off the loop as surely as m.derived would.
+// sharedAccessors lead to the shared cache: a local taken from one and used in a
+// command reaches it off the loop just as m.derived would.
 var sharedAccessors = map[string]bool{"derived": true, "derivedFor": true, "walkFor": true}
 
-// sharedCaptures reports locals of decl assigned from the shared cache (x := m.derived,
-// d, w := m.walkFor()) that a command body then uses. Model maps are copy-on-write
-// (cow.go), so a captured map is a snapshot; the cache is the one thing shared.
+// sharedCaptures reports locals assigned from the shared cache (x := m.derived,
+// d, w := m.walkFor()) that a command body uses. Captured model maps are snapshots
+// (cow.go); the cache is the only shared thing.
 func sharedCaptures(decl *ast.FuncDecl, body ast.Node) []string {
 	recv := receiverOf(decl)
 	tainted := map[string]bool{}
@@ -182,9 +180,8 @@ func fromShared(e ast.Expr, recv string) bool {
 	return found
 }
 
-// offLoopHelpers checks that every offLoop name is still a package function (so a
-// rename cannot quietly drop it from the scan) and matches a call to one, generic
-// instantiation included.
+// offLoopHelpers checks every offLoop name is still a package function (so a rename
+// cannot drop it from the scan) and matches calls to one, generic instantiation included.
 func offLoopHelpers(t *testing.T, files []*ast.File) func(ast.Expr) bool {
 	t.Helper()
 	declared := map[string]bool{}
@@ -212,9 +209,8 @@ func offLoopHelpers(t *testing.T, files []*ast.File) func(ast.Expr) bool {
 	}
 }
 
-// reaches is every disallowed model field a body reads, following calls to the
-// receiver type's own methods (keyed by type, as several types share method names);
-// seen breaks recursion.
+// reaches is every disallowed model field a body reads, following the receiver type's
+// methods (keyed by type, since types share method names); seen breaks recursion.
 func reaches(body ast.Node, recv, recvType string, methods map[string]*ast.FuncDecl, seen map[string]bool) []string {
 	var out []string
 	ast.Inspect(body, func(node ast.Node) bool {
@@ -268,7 +264,7 @@ func receiverType(fn *ast.FuncDecl) string {
 	return ""
 }
 
-// methodKey is how methods are looked up: Type.name.
+// methodKey is Type.name.
 func methodKey(fn *ast.FuncDecl) string { return receiverType(fn) + "." + fn.Name.Name }
 
 // returnsTeaMsg reports whether a function literal returns exactly one tea.Msg

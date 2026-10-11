@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// deletedRoom is a timeline with one deletion of yours, one of somebody else's, and a
-// message from each that is still there.
+// deletedRoom has one deletion of yours, one of somebody else's, and a surviving
+// message from each.
 func deletedRoom(t *testing.T, deleted config.Deleted) Model {
 	t.Helper()
 	m := sized(t, newModel())

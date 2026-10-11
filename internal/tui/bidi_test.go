@@ -10,9 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The rule these tests exist for: a name stays logical until it is drawn, and a
-// *sentence* built from names is drawn left to right with each name isolated and
-// reordered in its own direction.
+// A name stays logical until drawn; a sentence built from names is drawn LTR with
+// each name isolated and reordered in its own direction.
 const (
 	hebRoom   = "משפחה"
 	hebPerson = "דנה לוי"
@@ -20,12 +19,10 @@ const (
 
 func hebVisual(s string) string { return reorder(s, bidi.RightToLeft) }
 
-// displayTitle is how a sentence of ours is drawn — a title, a status line — without
-// the width or the styling.
+// displayTitle draws one of our sentences (title, status line) without width or styling.
 func displayTitle(s string) string { return drawLine(s, lineSpec{sentence: true}) }
 
-// namedRoom is a model in a Hebrew-named room with one message from a Hebrew-named
-// person — enough for every surface that names either of them.
+// namedRoom is a Hebrew-named room with one message from a Hebrew-named person.
 func namedRoom(t *testing.T) Model {
 	t.Helper()
 	m := sized(t, update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: hebRoom}}}))
@@ -41,8 +38,8 @@ func namedRoom(t *testing.T) Model {
 	return m.clearStatus()
 }
 
-// A description that names a person and a room reads as one sentence, with the English
-// words in the order they were written and each name reversed in place.
+// A sentence naming a person and a room keeps English word order with each name
+// reversed in place.
 func TestRTLNamesInSentences(t *testing.T) {
 	t.Parallel()
 
@@ -68,14 +65,14 @@ func TestRTLNamesInSentences(t *testing.T) {
 		t.Errorf("rule scopes =\n  %q\nwant\n  %q", got, logical)
 	}
 
-	// Drawn, the rows say it in visual order: the picker draws what it is given.
+	// The picker draws its rows in visual order.
 	body := stripStyles(strings.Join(rm.pickerLines(60, 6), "\n"))
 	for _, sentence := range want {
 		if !strings.Contains(body, sentence) {
 			t.Errorf("the picker should show %q, got:\n%s", sentence, body)
 		}
 	}
-	// And so does the status line, which draws its sentence the same way.
+	// So does the status line.
 	said := m.say("do not disturb: " + logical[2])
 	status := strings.Split(stripStyles(said.View().Content), "\n")[m.height-1]
 	if !strings.Contains(status, want[2]) {
@@ -83,8 +80,7 @@ func TestRTLNamesInSentences(t *testing.T) {
 	}
 }
 
-// The mute picker had both bugs in one list: its room row was reordered twice and its
-// person row not at all.
+// The mute picker reorders room and person rows exactly once.
 func TestRTLNamesInMuteTargets(t *testing.T) {
 	t.Parallel()
 
@@ -99,7 +95,7 @@ func TestRTLNamesInMuteTargets(t *testing.T) {
 	if displayTitle(targets[1].what) != hebVisual(hebPerson)+", anywhere" {
 		t.Errorf("person target draws as %q", displayTitle(targets[1].what))
 	}
-	// match is what gets written to the config, and it is an ID either way.
+	// match is what goes into the config: an ID either way.
 	if targets[0].match != "!a:x" {
 		t.Errorf("room target matches on %q, want the room ID", targets[0].match)
 	}

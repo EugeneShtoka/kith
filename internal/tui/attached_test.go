@@ -8,7 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Losing the daemon says so, on screen, until it is back.
+// Losing the daemon shows on screen until it is back.
 func TestLosingTheDaemonIsOnScreen(t *testing.T) {
 	t.Parallel()
 
@@ -24,8 +24,7 @@ func TestLosingTheDaemonIsOnScreen(t *testing.T) {
 	if badge := lost.connectionBadge(); !strings.Contains(badge, "daemon lost") {
 		t.Errorf("connectionBadge() = %q, want it to name the lost daemon", badge)
 	}
-	// And it outranks the notification badge in the slot they share: "why is nothing
-	// happening" has a nearer answer than any do-not-disturb rule.
+	// It outranks the notification badge in their shared slot.
 	if !strings.Contains(lost.renderStatus(), "daemon lost") {
 		t.Errorf("the status bar does not show the lost daemon:\n%s", lost.renderStatus())
 	}
@@ -69,8 +68,7 @@ func TestLosingTheDaemonAsksForNothing(t *testing.T) {
 	}
 }
 
-// attachable is a sized model with a room open, which is the state the reconnect has
-// something to do in.
+// attachable is a sized model with a room open.
 func attachable(t *testing.T) Model {
 	t.Helper()
 	return attachableWith(t, &countingBackend{})
@@ -79,8 +77,7 @@ func attachable(t *testing.T) Model {
 func attachableWith(t *testing.T, backend *countingBackend) Model {
 	t.Helper()
 
-	// A closed channel, which is how a backend says "this will not happen" — the in-
-	// process one answers the same way.
+	// A closed channel: how a backend says "this will not happen".
 	settled := make(chan bool)
 	close(settled)
 	backend.Attach = settled

@@ -62,8 +62,8 @@ func TestALiveMessageKeepsAScrolledViewStill(t *testing.T) {
 	}
 }
 
-// Scrolled up in a thread, older replies arrive above: what is on screen stays where
-// it is (the offset counts from the newest row, so rows above move nothing).
+// Scrolled up in a thread, older replies arrive above: the view stays put (the
+// offset counts from the newest row).
 func TestOlderRepliesKeepAScrolledThreadStill(t *testing.T) {
 	t.Parallel()
 

@@ -11,35 +11,27 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// completionRows is how many candidates the popup shows at once; the rest are
-// counted in a footer.
+// completionRows is how many candidates the popup shows; the rest are counted in a footer.
 const completionRows = 8
 
 // mentionCandidateLimit bounds how many members are ranked for the dropdown.
 const mentionCandidateLimit = 500
 
-// candidate is one row of the completion popup.
 type candidate struct {
 	text   string // inserted
 	label  string // shown; may differ from text (a shortcode's emoji)
 	detail string // dimmed suffix disambiguating otherwise identical rows
-	// userID / roomID make accepting record a mention or a room link rather than
-	// only inserting a name.
+	// userID / roomID make accepting record a mention or room link, not just a name.
 	userID string
 	roomID string
-	// emoji is set for an emoji row so accepting can record the choice for ranking.
+	// emoji is set on an emoji row so accepting records the choice for ranking.
 	emoji string
-	// spaceAfter appends a space on accept: names are followed by more words, emoji
-	// often by punctuation.
+	// spaceAfter appends a space on accept: names precede words, emoji often punctuation.
 	spaceAfter bool
 }
 
-// completionTarget is which text field the popup is completing.
-
-// completionTarget is which text field the popup is completing. The popup was built
-// for the composer, but the react prompt is where a `:shortcode:` is *most* typed —
-// it is the reason the shortcode map exists — so the popup has to be able to edit
-// either field rather than assuming one.
+// completionTarget is the text field the popup completes. The react prompt is where
+// `:shortcode:` is typed most, so the popup edits either field.
 type completionTarget int
 
 const (
@@ -53,16 +45,16 @@ const (
 type completionState struct {
 	active bool
 	target completionTarget
-	// trigger is the text that opened it — "@", ":", "from:", or "" for the command
-	// line and word completion.
+	// trigger is the text that opened it: "@", ":", "from:", or "" for the command line
+	// and word completion.
 	trigger string
 	// start is the byte offset of the trigger in the field's text.
 	start int
-	// userCommands is the commands directory scanned when this popup opened, so a
-	// script added a minute ago needs no restart.
+	// userCommands is the commands directory scanned when this popup opened, so a new
+	// script needs no restart.
 	userCommands []slashCommand
-	// scanning is true between opening the "/" popup and its directory scan landing,
-	// so an empty candidate list does not close the popup before the scan answers.
+	// scanning is true until the "/" popup's directory scan lands, so an empty list does
+	// not close the popup early.
 	scanning bool
 	// query is what has been typed after the trigger.
 	query      string
@@ -70,9 +62,8 @@ type completionState struct {
 	cursor     int
 }
 
-// openCompletion starts a popup for the trigger at the given offset in the given
-// field. For "/" it also returns the off-loop scan of the commands directory; the
-// built-ins show immediately.
+// openCompletion starts a popup for the trigger at start in target. For "/" it also
+// returns the off-loop commands directory scan; built-ins show at once.
 func (m Model) openCompletion(target completionTarget, trigger string, start int) (Model, tea.Cmd) {
 	m.completion = completionState{
 		active: true, target: target, trigger: trigger, start: start,
@@ -85,8 +76,7 @@ func (m Model) openCompletion(target completionTarget, trigger string, start int
 	return m, m.scanUserCommandsCmd()
 }
 
-// handleUserCommands folds a finished directory scan into the open "/" popup, if it
-// is still open.
+// handleUserCommands folds a finished directory scan into the "/" popup, if still open.
 func (m Model) handleUserCommands(msg userCommandsMsg) (Model, tea.Cmd) {
 	if !m.completion.active || m.completion.trigger != "/" {
 		return m, nil
@@ -96,7 +86,6 @@ func (m Model) handleUserCommands(msg userCommandsMsg) (Model, tea.Cmd) {
 	return m.refreshCandidates(), nil
 }
 
-// fieldOf is which text field a completion target names.
 func fieldOf(target completionTarget) field {
 	switch target {
 	case targetReaction:
@@ -113,8 +102,8 @@ func (m Model) completionEditor() editor {
 	return m.editorFor(fieldOf(m.completion.target))
 }
 
-// triggersFor is which sources are offered in a field, longest first so "from:" is
-// recognized before its ":". A reaction is a single emoji, so only ":" there.
+// triggersFor is the sources offered in a field, longest first so "from:" wins over
+// ":". A reaction is a single emoji, so only ":" there.
 func triggersFor(target completionTarget) []string {
 	switch target {
 	case targetReaction:
@@ -141,8 +130,8 @@ var completionSources = map[string]func(m Model, query string) []candidate{
 	"from:": Model.senderCandidates,
 }
 
-// completionSourceFor is which source answers for one popup. The command line and word
-// completion have an empty trigger and are told apart by the field.
+// completionSourceFor is the source for one popup. The command line and word
+// completion share the empty trigger and differ by field.
 func completionSourceFor(target completionTarget, trigger string) (func(Model, string) []candidate, bool) {
 	if trigger == "" {
 		if target == targetPrompt {
@@ -158,9 +147,8 @@ func completionSourceFor(target completionTarget, trigger string) (func(Model, s
 // announce a value and are replaced by it; "from:" names a field and keeps its place.
 func triggerKept(trigger string) bool { return strings.HasSuffix(trigger, ":") && len(trigger) > 1 }
 
-// triggerOpens reports whether a trigger typed after text should open a popup: only
-// at the start or after whitespace (so an email address does not), and "/" only at
-// the very start, where it can be a command.
+// triggerOpens reports whether a trigger typed after text opens a popup: only at the
+// start or after whitespace (not in an email address), and "/" only at the very start.
 func triggerOpens(trigger, text string) bool {
 	if trigger == "/" {
 		return text == ""
@@ -172,8 +160,7 @@ func triggerOpens(trigger, text string) bool {
 	return unicode.IsSpace(last)
 }
 
-// refreshCandidates re-filters the popup against its query, closing it when nothing
-// matches.
+// refreshCandidates re-filters against the query, closing the popup when nothing matches.
 func (m Model) refreshCandidates() Model {
 	if !m.completion.active {
 		return m
@@ -199,8 +186,8 @@ func (m Model) mentionCandidates(query string) []candidate {
 	return m.matchPeople(query, m.timeline.members)
 }
 
-// roomCandidates are the rooms a `#` names, across every room this account is in. The
-// room's name is inserted; the link is written on send (see domain.Mention).
+// roomCandidates are the rooms a `#` names, across all joined rooms. The name is
+// inserted; the link is written on send (see domain.Mention).
 func (m Model) roomCandidates(query string) []candidate {
 	type scored struct {
 		name string
@@ -253,8 +240,8 @@ func roomMatch(name, id, query string) int {
 	return 0
 }
 
-// searchPeople is who `from:` completes against: everyone who has posted in the
-// search's scope, then anyone in the open room who has not (available instantly).
+// searchPeople is who `from:` completes: everyone who posted in the search's scope,
+// then anyone else in the open room (available instantly).
 func (m Model) searchPeople() []domain.Member {
 	people := m.search.people
 	if len(people) == 0 {
@@ -274,8 +261,8 @@ func (m Model) searchPeople() []domain.Member {
 	return out
 }
 
-// matchPeople filters and orders a pre-ranked list of people for a query, best match
-// first, keeping the incoming order within each match quality.
+// matchPeople filters pre-ranked people for a query, best match first, keeping the
+// incoming order within each match quality.
 func (m Model) matchPeople(query string, people []domain.Member) []candidate {
 	type scored struct {
 		member domain.Member
@@ -289,8 +276,8 @@ func (m Model) matchPeople(query string, people []domain.Member) []candidate {
 	}
 	sort.SliceStable(matches, func(a, b int) bool { return matches[a].rank < matches[b].rank })
 
-	// One row per person: a configured identity merges several user IDs. The kept row is
-	// the highest-ranked account, which is one actually in this room.
+	// One row per person: an identity merges several user IDs. The kept row is the
+	// highest-ranked account, one actually in this room.
 	rows := make([]candidate, 0, len(matches))
 	seen := make(map[string]bool, len(matches))
 	for _, match := range matches {
@@ -333,7 +320,6 @@ func (m Model) personOf(member domain.Member) (person, name string) {
 	return member.UserID, m.memberName(member)
 }
 
-// selectedCandidate is the row under the cursor.
 func (m Model) selectedCandidate() (candidate, bool) {
 	if !m.completion.active || m.completion.cursor >= len(m.completion.candidates) {
 		return candidate{}, false
@@ -341,8 +327,8 @@ func (m Model) selectedCandidate() (candidate, bool) {
 	return m.completion.candidates[m.completion.cursor], true
 }
 
-// acceptCompletion replaces the trigger and query with the selected candidate. For a
-// member or room in the composer it also records the mention/link.
+// acceptCompletion replaces trigger and query with the selected candidate; in the
+// composer a member or room also records the mention/link.
 func (m Model) acceptCompletion() (Model, tea.Cmd) {
 	chosen, ok := m.selectedCandidate()
 	if !ok {
@@ -362,7 +348,7 @@ func (m Model) acceptCompletion() (Model, tea.Cmd) {
 	if chosen.spaceAfter {
 		inserted += " "
 	}
-	// One undoable edit, so ctrl+z takes the completion back off.
+	// One undoable edit, so ctrl+z removes the completion.
 	m = m.store(fieldOf(m.completion.target),
 		ed.changed(head+inserted+ed.after(), len(head)+len(inserted), editWhole))
 	// Mentions and room links belong to messages, not to search filters.
@@ -389,9 +375,8 @@ func (m Model) moveCompletionCursor(delta int) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleCompletionKey gives the popup its keys while it is open; handled is false
-// for anything it does not claim, so typing passes through. It is consulted before
-// the global scope.
+// handleCompletionKey takes the popup's keys while it is open, before the global
+// scope; handled is false for anything else, so typing passes through.
 func (m Model) handleCompletionKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	switch m.keys.lookup(key.String(), scopeCompletion) {
 	case actNext:
@@ -409,20 +394,19 @@ func (m Model) handleCompletionKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 // composerTyped keeps the popup in step with the composer after its text changes.
 func (m Model) composerTyped(typed string) (Model, tea.Cmd) {
 	m, cmd := m.textTyped(targetComposer, typed)
-	// Every composer change passes here: keep the typing notice in step and note
-	// word boundaries for autocorrect.
+	// Every composer change passes here: update the typing notice and note word
+	// boundaries for autocorrect.
 	m, typing := m.noteTyping()
 	return m.noteWordBoundary(typed), tea.Batch(cmd, typing)
 }
 
-// reactionTyped keeps the popup in step with the react prompt.
 func (m Model) reactionTyped(typed string) (Model, tea.Cmd) {
 	return m.textTyped(targetReaction, typed)
 }
 
-// textTyped keeps the popup in step with a text field after it changes: a trigger
-// opens one, typing narrows it, and moving before the trigger closes it. The command
-// records an emoji completed by typing the closing colon.
+// textTyped keeps the popup in step with a field: a trigger opens one, typing narrows
+// it, moving before the trigger closes it. The command records an emoji completed by
+// typing the closing colon.
 func (m Model) textTyped(target completionTarget, typed string) (Model, tea.Cmd) {
 	ed := m.editorFor(fieldOf(target))
 	if m.completion.active {
@@ -455,7 +439,7 @@ func (m Model) textTyped(target completionTarget, typed string) (Model, tea.Cmd)
 		if start < 0 || ed.text[start:ed.at] != trigger {
 			continue
 		}
-		// Only what was just typed opens a popup, not moving back over an old "@".
+		// Only just-typed text opens a popup, not moving back over an old "@".
 		if !strings.HasSuffix(trigger, typed) && !strings.HasSuffix(typed, trigger) {
 			continue
 		}
@@ -467,7 +451,6 @@ func (m Model) textTyped(target completionTarget, typed string) (Model, tea.Cmd)
 	return m, nil
 }
 
-// promptTyped keeps the popup in step with the search/command prompt.
 func (m Model) promptTyped(typed string) (Model, tea.Cmd) {
 	return m.textTyped(targetPrompt, typed)
 }
@@ -489,9 +472,8 @@ func (m Model) emojiCandidates(query string) []candidate {
 	return m.emojiCandidatesOf(query, domain.EmojiComposed)
 }
 
-// emojiCandidatesOf lists emoji of one kind (composed and reaction vocabularies are
-// ranked apart): ranked browse order with no query, else prefix matches then
-// substring matches, each ranked.
+// emojiCandidatesOf lists emoji of one kind (composed and reaction rank apart): browse
+// order with no query, else prefix then substring matches, each ranked.
 func (m Model) emojiCandidatesOf(query string, kind domain.EmojiKind) []candidate {
 	q := strings.ToLower(strings.TrimSpace(query))
 	names := m.glyphs.set.names
@@ -540,8 +522,8 @@ func (m Model) emojiRows(emojis []string) []candidate {
 	return out
 }
 
-// acceptClosedShortcode handles a query finished with ":". A known shortcode becomes
-// its emoji; an unknown one is left as typed (":30:" in "at 10:30:").
+// acceptClosedShortcode handles a query ending in ":". A known shortcode becomes its
+// emoji; an unknown one stays as typed (":30:" in "at 10:30:").
 func (m Model) acceptClosedShortcode() (Model, tea.Cmd) {
 	name := strings.ToLower(strings.TrimSuffix(m.completion.query, ":"))
 	emoji, known := m.glyphs.set.byName[name]
@@ -558,8 +540,8 @@ func (m Model) acceptClosedShortcode() (Model, tea.Cmd) {
 	return m, m.recordEmojiCmd(emoji)
 }
 
-// senderCandidates offers people for `from:`. The MXID is inserted, since the filter
-// is matched against the index and display names collide.
+// senderCandidates offers people for `from:`. The MXID is inserted: the filter matches
+// the index, and display names collide.
 func (m Model) senderCandidates(query string) []candidate {
 	rows := m.matchPeople(query, m.searchPeople())
 	out := make([]candidate, 0, len(rows))

@@ -2,9 +2,8 @@ package tui
 
 // List arithmetic shared by every scrollable selection.
 
-// moveCursor steps cur by delta within n items. wrap cycles at the ends (short
-// lists like the completion popup); otherwise it clamps, so long lists keep
-// their position.
+// moveCursor steps cur by delta within n items. wrap cycles at the ends (short lists
+// like the completion popup); otherwise it clamps so long lists keep position.
 func moveCursor(cur, n, delta int, wrap bool) int {
 	if n <= 0 {
 		return 0
@@ -16,8 +15,8 @@ func moveCursor(cur, n, delta int, wrap bool) int {
 	return clampIndex(next, n)
 }
 
-// windowStart is the first visible index of a list of total items showing visible
-// at a time, scrolled the least it can be to keep cursor on screen.
+// windowStart is the first visible index of total items showing visible at a time,
+// scrolled the least needed to keep cursor on screen.
 func windowStart(cursor, visible, total int) int {
 	if visible <= 0 || total <= visible {
 		return 0
@@ -41,8 +40,8 @@ func clampIndex(i, n int) int {
 // countLimit bounds a vim-style count typed before a motion (`12j`).
 const countLimit = 9999
 
-// countDigit reads a press as another digit of a pending count, and reports whether it
-// was one. A leading `0` is not a count (it may be bound); after that it extends one.
+// countDigit reads a press as another digit of a pending count and reports whether it
+// was one. A leading `0` is not a count (it may be bound).
 func countDigit(press string, pending int) (int, bool) {
 	if len(press) != 1 || press[0] < '0' || press[0] > '9' {
 		return 0, false

@@ -106,7 +106,7 @@ func TestDayJumpAtTheEnds(t *testing.T) {
 	}
 }
 
-// The title carries the selected message's day, for when no separator is on screen.
+// The title shows the selected message's day for when no separator is on screen.
 func TestStickyDayInTheTitle(t *testing.T) {
 	m := dayRoom(t)
 	m.timeline.selected = "$d1m2"

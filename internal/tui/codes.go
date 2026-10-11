@@ -21,10 +21,9 @@ func (m Model) codesHere(roomID domain.RoomID) bool {
 	return m.prefs.codes.scope.Admits(m.factsFor(room))
 }
 
-// factsFor is what a list entry can match about one room, as the daemon and every
-// other scope read it (domain.Places.Facts): the name you gave it or its own, never
-// the shortened room-list label; the network from the bridge space owning it, not
-// from roomProtocol(), which guesses from the open room's senders.
+// factsFor is what a list entry can match about a room, as every scope reads it
+// (domain.Places.Facts): its given or own name, never the shortened list label; the
+// network from its owning bridge space, not roomProtocol(), which guesses from senders.
 func (m Model) factsFor(room domain.Room) domain.RoomFacts {
 	places := domain.Places{Names: m.prefs.roomAliases, Order: m.rail.homes, Tags: m.rail.tags, Archives: m.rail.archives}
 	return places.Facts(room, domain.HoldersOf(room.ID, m.rooms.spaces))

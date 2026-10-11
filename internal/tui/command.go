@@ -21,8 +21,8 @@ type command struct {
 	// argOptional: `:search` with nothing opens the box, `:join` with nothing is a
 	// usage error.
 	argOptional bool
-	// keyScope and keyAct name the keybinding this command mirrors, resolved through
-	// the live keymap so a rebound key shows correctly. Zero when there is none.
+	// keyScope and keyAct name the binding this command mirrors, resolved through the live
+	// keymap so a rebound key shows correctly. Zero when none.
 	keyScope scope
 	keyAct   action
 	run      func(m Model, arg string) (Model, tea.Cmd)
@@ -34,8 +34,8 @@ func noArg(f func(Model) (Model, tea.Cmd)) func(Model, string) (Model, tea.Cmd) 
 }
 
 // commands is the table the command line, its completion and the help overlay read.
-// Scoped commands start from the pane the colon was typed in (see
-// defaultSearchScope); :mentions is the exception, since it is about you.
+// Scoped commands start from the pane the colon was typed in (defaultSearchScope);
+// :mentions is the exception, being about you.
 var commands = []command{
 	{
 		name: "files", keyScope: scopeCommand, keyAct: actFiles,
@@ -78,7 +78,7 @@ var commands = []command{
 		run:     noArg(Model.openJump),
 	},
 	{
-		// Here rather than in the composer: it acts on a different room.
+		// Here, not in the composer: it acts on a different room.
 		name: "join", arg: "<#room:server or !id>",
 		summary: "join a room by address, and open it",
 		run:     Model.submitJoin,
@@ -154,14 +154,12 @@ var commands = []command{
 // commandTrigger is empty: the colon is the prompt's label, not text in the field.
 const commandTrigger = ""
 
-// openCommandLine starts the command line with its completion already open.
 func (m Model) openCommandLine() (Model, tea.Cmd) {
 	m = m.openPrompt(promptCommand)
 	return m.openCompletion(targetPrompt, commandTrigger, 0)
 }
 
-// runCommandLine dispatches what was typed at the colon; an unknown name is answered
-// with the list.
+// runCommandLine dispatches a command line; an unknown name is answered with the list.
 func (m Model) runCommandLine(input string) (Model, tea.Cmd) {
 	name := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(input), ":"))
 	if name == "" {
@@ -191,7 +189,6 @@ func commandNames() string {
 	return strings.Join(names, ", ")
 }
 
-// commandLineCandidates offers the command line's commands as you type.
 func (m Model) commandLineCandidates(query string) []candidate {
 	q := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(query, ":")))
 	rows := make([]candidate, 0, len(commands))
@@ -212,8 +209,8 @@ func (m Model) commandLineCandidates(query string) []candidate {
 	return rows
 }
 
-// liveKeys is text with each {path} (a [keys] binding, "search.scope") written as
-// the key it has now, so prose never names a key a config has moved.
+// liveKeys replaces each {path} ([keys] binding, e.g. "search.scope") with its current
+// key, so prose never names a key the config moved.
 func (m Model) liveKeys(text string) string {
 	return liveKeyToken.ReplaceAllStringFunc(text, func(token string) string {
 		name := token[1 : len(token)-1]

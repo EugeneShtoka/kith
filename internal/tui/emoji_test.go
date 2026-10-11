@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// The palette's pick keys are bindings: 1..9 then 0 by default, rebindable, and the
-// legend shows whatever they are.
+// The palette's pick keys are bindings (1..9 then 0 by default), rebindable, and the
+// legend shows the current ones.
 func TestPaletteKeysAreBindings(t *testing.T) {
 	t.Parallel()
 

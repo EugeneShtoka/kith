@@ -12,7 +12,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// yanking returns a model at the message cursor over the given messages, newest last.
+// yanking returns a model at the message cursor over bodies, newest last.
 func yanking(t *testing.T, bodies ...domain.Message) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}),
@@ -30,8 +30,7 @@ func msgWith(id, body string) domain.Message {
 	return domain.Message{ID: domain.EventID(id), RoomID: "!a:x", Sender: "@a:x", SenderName: "Alice", Body: body}
 }
 
-// A copy is confirmed on one line: OSC 52 can fail silently, so the status is the
-// only evidence.
+// A copy is confirmed on the status line: OSC 52 can fail silently.
 func TestCopyTextConfirms(t *testing.T) {
 	t.Parallel()
 
@@ -109,7 +108,7 @@ func TestCopyLinkOneOrAsk(t *testing.T) {
 	}
 }
 
-// The three link keys open the same list; the key alone stamps what accepting does.
+// The three link keys open the same list; the key decides what accepting does.
 func TestLinkPickerIntentFollowsTheKey(t *testing.T) {
 	t.Parallel()
 
@@ -143,8 +142,7 @@ func TestLinkPickerIntentFollowsTheKey(t *testing.T) {
 	}
 }
 
-// A message with no web link says so. Non-web schemes are never extracted, so they
-// never reach open() at all.
+// A message without a web link says so. Non-web schemes are never extracted.
 func TestLinkActionsWithNoLink(t *testing.T) {
 	t.Parallel()
 
@@ -164,7 +162,7 @@ func TestLinkActionsWithNoLink(t *testing.T) {
 	}
 }
 
-// The scheme check is the security boundary: links come from other people's messages.
+// The scheme check is a security boundary: links come from other people.
 func TestOpenRefusesNonWebSchemes(t *testing.T) {
 	t.Parallel()
 
@@ -340,7 +338,7 @@ func TestCutTakesTheDraftToTheClipboard(t *testing.T) {
 	}
 }
 
-// An empty field must not overwrite the clipboard with nothing.
+// An empty field does not overwrite the clipboard.
 func TestCutWithNothingToCut(t *testing.T) {
 	t.Parallel()
 

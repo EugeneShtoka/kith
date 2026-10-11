@@ -10,14 +10,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// noteWordBoundary records that a word was just finished, so the check armSpellCheck
-// arms next in this event can carry a correction as well as underlines. Autocorrect
-// only rewrites when the fix is not a guess; each fix is its own undo step.
+// noteWordBoundary marks that a word just ended, so the next spell check can carry a
+// correction as well as underlines. Autocorrect rewrites only certain fixes, each its
+// own undo step.
 func (m Model) noteWordBoundary(typed string) Model {
 	if !m.correcting() || m.spell.off || !m.conf.base.Spell.SpellEnabled() {
 		return m
 	}
-	// A paste is not someone finishing a word: never correct it silently.
+	// A paste is not finishing a word: never correct it silently.
 	if utf8.RuneCountInString(typed) != 1 || !endsWord(typed) {
 		return m
 	}
@@ -34,8 +34,8 @@ func endsWord(s string) bool {
 	return !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '\'' && r != '-'
 }
 
-// autocorrect applies the one certain fix for the word that just ended. The range is
-// shifted onto the current draft; an edit that touched the word meanwhile drops it.
+// autocorrect applies the one certain fix for the word that just ended, shifted onto
+// the current draft; an edit to the word meanwhile drops it.
 func (m Model) autocorrect(msg spellCheckedMsg) Model {
 	if !m.correcting() {
 		return m
@@ -57,8 +57,8 @@ func (m Model) autocorrect(msg spellCheckedMsg) Model {
 	return m
 }
 
-// replaceWord puts with in place of what r covers, as one undo step, carrying the caret
-// along if it sits after the word.
+// replaceWord replaces what r covers with with, as one undo step, moving the caret
+// along if it is after the word.
 func (m Model) replaceWord(r domain.Misspelling, with string) Model {
 	e := m.editorFor(fieldComposer)
 	if r.End > len(e.text) || e.text[r.Start:r.End] != r.Word {
@@ -72,14 +72,13 @@ func (m Model) replaceWord(r domain.Misspelling, with string) Model {
 	return m.store(fieldComposer, e.changed(text, at, editWhole))
 }
 
-// correcting reports whether autocorrect may rewrite anything at all.
 func (m Model) correcting() bool {
 	return m.conf.base.Spell.Corrects(config.AutocorrectMisspellings) ||
 		m.conf.base.Spell.Corrects(config.AutocorrectRare)
 }
 
-// autocorrection is what to replace a mark with, and whether it is certain enough to do
-// unasked. A rare word's certainty is decided by the backend, which has the corpus.
+// autocorrection is the replacement for a mark and whether it is certain enough to
+// apply unasked. For a rare word the backend, which has the corpus, decides.
 func (m Model) autocorrection(r domain.Misspelling) (string, bool) {
 	if r.Rare {
 		if !m.conf.base.Spell.Corrects(config.AutocorrectRare) || !r.Certain || len(r.Suggestions) != 1 {
@@ -107,9 +106,9 @@ func misspellingCorrection(word string, suggestions []string) (string, bool) {
 	return "", false
 }
 
-// oneCertainEdit reports whether want is word with one keyboard slip undone: a case
-// change, a transposition, or a dropped letter. A wrong letter is deliberately not on
-// the list ("cet" could be cat, cot, cut or set).
+// oneCertainEdit reports whether want is word with one slip undone: a case change, a
+// transposition, or a dropped letter. A wrong letter is excluded on purpose ("cet"
+// could be cat, cot, cut or set).
 func oneCertainEdit(word, want string) bool {
 	if word == want {
 		return false
@@ -134,8 +133,8 @@ func transposed(word, want []rune) bool {
 		slices.Equal(word[i+2:], want[i+2:])
 }
 
-// oneLetterShort reports whether want is word with one missing letter put back. A
-// letter too many is deliberately not corrected.
+// oneLetterShort reports whether want is word with one missing letter restored. An
+// extra letter is not corrected, on purpose.
 func oneLetterShort(word, want []rune) bool {
 	if len(want) != len(word)+1 {
 		return false

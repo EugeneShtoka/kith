@@ -37,9 +37,9 @@ func rowsOf(m Model, msgs []domain.Message, i int) []string {
 	return m.messageRows(msgs[i], 80, m.nameColWidth(), m.senderColorMap(), false, "")
 }
 
-// A room that reads right to left is mirrored: each first row ends in the name and
-// the time at the right edge. Only those move: each message keeps its own direction,
-// right-to-left words against the name, left-to-right ones from the left edge.
+// A RTL room is mirrored: each first row ends with name and time at the right edge.
+// Each message keeps its own direction: RTL words against the name, LTR ones from the
+// left edge.
 func TestARightToLeftRoomIsMirrored(t *testing.T) {
 	t.Parallel()
 	msgs := append(slices.Clone(hebrew), said("", "", "", "", "a word in English")[4])
@@ -72,8 +72,8 @@ func TestARightToLeftRoomIsMirrored(t *testing.T) {
 	}
 }
 
-// What trails the words in reading order (edited, the star) leads them on screen in a
-// mirrored room; a reply's quote and the reactions sit on the right as well.
+// In a mirrored room, trailing marks (edited, the star) lead the words on screen; a
+// reply's quote and the reactions sit on the right too.
 func TestAMirroredRoomMirrorsWhatHangsOnAMessage(t *testing.T) {
 	t.Parallel()
 	// The reply answers a message not directly above it, so it shows its quote.
@@ -110,9 +110,8 @@ func TestAMirroredRoomMirrorsWhatHangsOnAMessage(t *testing.T) {
 	}
 }
 
-// auto guesses once per opening and keeps it while you read: an English burst does
-// not flip the room under you. Off, a Hebrew room reads left to right; set by hand,
-// the hand wins over the guess.
+// auto guesses once per opening and holds: an English burst does not flip the room.
+// Off, a Hebrew room reads LTR; a hand setting wins over the guess.
 func TestTheAutoGuessHoldsForTheOpening(t *testing.T) {
 	t.Parallel()
 	m := directed(t, config.Direction{Auto: true}, hebrew)
@@ -138,8 +137,8 @@ func TestTheAutoGuessHoldsForTheOpening(t *testing.T) {
 	}
 }
 
-// D cycles the room's own entry, right to left, left to right, back to the config's
-// say, and the timeline is redrawn at once, not from cached rows.
+// D cycles the room's own entry (RTL, LTR, config's choice) and redraws the timeline at
+// once, not from cached rows.
 func TestCyclingTheDirectionRedrawsTheTimeline(t *testing.T) {
 	t.Parallel()
 	m := directed(t, config.Direction{}, hebrew)
@@ -188,8 +187,8 @@ func fullLine(letter string, width int) string {
 	return strings.Join(words, " ")
 }
 
-// A mark (edited, the star) on a last row already full goes on a row of its own: the
-// body never runs into the name column, mirrored or not.
+// A mark (edited, the star) on a full last row goes on its own row: the body never
+// runs into the name column, mirrored or not.
 func TestAMarkNeverPushesARowPastItsColumn(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -226,9 +225,9 @@ func TestAMarkNeverPushesARowPastItsColumn(t *testing.T) {
 	}
 }
 
-// What has no words of its own reads as the room does: kith's text in place of the
-// sender's (a deletion, a bare file chip), a link alone, emoji alone. In a mirrored room
-// it sits against the name. A caption, or words beside a link, keep their direction.
+// Content without words of its own reads as the room does: kith's placeholder text (a
+// deletion, a bare file chip), a lone link, lone emoji. In a mirrored room it sits
+// against the name. A caption, or words beside a link, keep their direction.
 func TestAPlaceholderFollowsTheRoom(t *testing.T) {
 	t.Parallel()
 	msgs := said("gone", "report.pdf", "a caption in English", // a bare file's body is its name
@@ -238,8 +237,8 @@ func TestAPlaceholderFollowsTheRoom(t *testing.T) {
 	msgs[1].Media = &domain.Media{Type: domain.MediaFile, Name: "report.pdf"}
 	msgs[2].Media = &domain.Media{Type: domain.MediaImage, Name: "cat.jpg"}
 	m := directed(t, config.Direction{RTL: []string{"!a:x"}}, msgs)
-	// A link alone and emoji alone have no language: the room's. Words beside a link do.
-	// A bridge's header alone is not the sender's words either; words after it are.
+	// A lone link or lone emoji take the room's direction; words beside a link do not.
+	// A bridge's header alone is not the sender's words; words after it are.
 	for i, against := range []bool{true, true, false, true, true, false, true, true, false} {
 		first := ansi.Strip(rowsOf(m, msgs, i)[0])
 		body := strings.TrimSuffix(first, " dana "+domain.Clock{}.Time(msgs[i].Timestamp))
@@ -247,7 +246,7 @@ func TestAPlaceholderFollowsTheRoom(t *testing.T) {
 			t.Errorf("message %d: %q, want it against the name %v", i, body, against)
 		}
 	}
-	// Left to right, a placeholder reads from the left as ever.
+	// LTR, a placeholder reads from the left.
 	ltr := directed(t, config.Direction{}, msgs)
 	if first := ansi.Strip(rowsOf(ltr, msgs, 0)[0]); !strings.Contains(first, "dana "+redactedBody) && !strings.Contains(first, "dana (deleted") {
 		t.Errorf("left to right: %q, want the placeholder after the name", first)

@@ -11,7 +11,7 @@ import (
 )
 
 // emojiOrder is one room's emoji scores (db.EmojiScores: 10 per use here, 3 in its
-// spaces, 1 anywhere), per kind, since reacting and composing are different
+// spaces, 1 anywhere), per kind, since reacting and composing are separate
 // vocabularies. Fetched once per room per session so the order does not shift.
 type emojiOrder struct {
 	reaction map[string]int
@@ -39,9 +39,9 @@ func foldScores(scores map[string]int) map[string]int {
 	return folded
 }
 
-// emojiRanker is the one order emoji are offered in: quick palette, browser grid and
-// :shortcode: popup. Compared lexicographically: this kind's score, the other kind's
-// score, position in the static defaults, then input order (alphabetical).
+// emojiRanker is the one order emoji are offered in (quick palette, browser grid,
+// :shortcode: popup), compared lexicographically: this kind's score, the other kind's,
+// position in the static defaults, then input order (alphabetical).
 type emojiRanker struct {
 	primary, secondary, defaults map[string]int
 }

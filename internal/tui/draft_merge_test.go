@@ -14,7 +14,7 @@ import (
 )
 
 // sharedDrafts is the daemon's draft store as two writers see it: every write is
-// conditional on the version its writer read, as db.ReplaceDraft is.
+// conditional on the version its writer read, like db.ReplaceDraft.
 type sharedDrafts struct {
 	apitest.Nop
 	mu     sync.Mutex
@@ -63,7 +63,7 @@ func (s *sharedDrafts) body(room domain.RoomID) string {
 	return s.drafts[room].Body
 }
 
-// sharing is a client in !a:x with "hi" already stored there, loaded as it starts.
+// sharing is a client in !a:x with "hi" already stored and loaded at start.
 func sharing(t *testing.T) (Model, *sharedDrafts) {
 	t.Helper()
 	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{
@@ -88,8 +88,8 @@ func polled(t *testing.T, m Model) Model {
 	return deliver(t, m, m.loadDraftsCmd())
 }
 
-// The assistant adds to a draft this client already holds. With nothing typed here
-// since, the poll takes the new version: in the open composer and in a stashed room.
+// The assistant adds to a draft this client holds. With nothing typed here since, the
+// poll takes the new version, in the open composer and in a stashed room.
 func TestAnIdleDraftTakesTheAssistantsAddition(t *testing.T) {
 	t.Parallel()
 
@@ -114,8 +114,8 @@ func TestAnIdleDraftTakesTheAssistantsAddition(t *testing.T) {
 	})
 }
 
-// Typing here and the assistant's addition cross: the poll leaves the typing alone,
-// and the save keeps both, in the store and in the composer.
+// Typing here crossing the assistant's addition: the poll leaves the typing alone and
+// the save keeps both, in the store and the composer.
 func TestTypingAndAnAdditionThatCrossKeepBoth(t *testing.T) {
 	t.Parallel()
 
@@ -146,7 +146,7 @@ func TestTypingAndAnAdditionThatCrossKeepBoth(t *testing.T) {
 }
 
 // Sending clears the composer; an addition that arrived meanwhile survives as the
-// room's draft instead of being deleted with it.
+// room's draft.
 func TestAnAdditionOutlivesTheDraftItWasAddedTo(t *testing.T) {
 	t.Parallel()
 
@@ -163,9 +163,8 @@ func TestAnAdditionOutlivesTheDraftItWasAddedTo(t *testing.T) {
 	}
 }
 
-// The failures below were each found by the audit of 2026-09-26b, and each is a
-// schedule TestDraftsSurviveEveryInterleaving can reach; named here so the order that
-// broke it is on record.
+// Each failure below is a schedule TestDraftsSurviveEveryInterleaving can reach, named
+// so the breaking order is on record.
 
 // leaveFor moves to another room and runs the writes leaving asks for (openedFromList
 // goes through press, which drops them).
@@ -183,8 +182,8 @@ func tickCmd(t *testing.T, m Model) (Model, tea.Cmd) {
 	return asModel(m.Update(draftTickMsg{gen: m.draftSync.gen}))
 }
 
-// A send that crosses this client's own save still on the wire must not bring the
-// sent words back (credited to the assistant).
+// A send crossing this client's own save still on the wire does not bring the sent
+// words back (credited to the assistant).
 func TestASendCrossingItsOwnSaveStaysSent(t *testing.T) {
 	t.Parallel()
 	for _, order := range []string{"save answers first", "save answers after the send"} {
@@ -219,8 +218,7 @@ func TestASendCrossingItsOwnSaveStaysSent(t *testing.T) {
 	}
 }
 
-// Two saves of this client's own typing, the first slower than the debounce, store
-// the typing once.
+// Two saves of this client's typing, the first slower than the debounce, store it once.
 func TestOverlappingOwnSavesDoNotDoubleTheText(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
@@ -259,8 +257,8 @@ func TestAPollOlderThanASaveIsNotTaken(t *testing.T) {
 	}
 }
 
-// A draft deleted under this client (its room left elsewhere, which deletes it) goes
-// here too, and is not written back by leaving the room.
+// A draft deleted elsewhere (its room left, which deletes it) goes here too and is not
+// written back by leaving the room.
 func TestADraftDeletedElsewhereStaysDeleted(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
@@ -277,8 +275,8 @@ func TestADraftDeletedElsewhereStaysDeleted(t *testing.T) {
 	}
 }
 
-// Deleted under this client while it typed more: no other window sent those words
-// (there is one, api.Seat), so all of what this client holds is written back.
+// Deleted elsewhere while this client typed more: no other window sent those words
+// (there is one, api.Seat), so all this client holds is written back.
 func TestTypingOverADraftDeletedElsewhereKeepsItAll(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
@@ -295,7 +293,7 @@ func TestTypingOverADraftDeletedElsewhereKeepsItAll(t *testing.T) {
 }
 
 // The assistant's addition crossing the start of an edit belongs to the draft the
-// composer returns to, and survives canceling the edit.
+// composer returns to and survives canceling the edit.
 func TestAnAdditionCrossingAnEditSurvivesItsCancel(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
@@ -319,8 +317,8 @@ func TestAnAdditionCrossingAnEditSurvivesItsCancel(t *testing.T) {
 	}
 }
 
-// Where this client had no draft and the assistant wrote one, both are kept whole:
-// the assistant's words are not cut where they happen to start like the typing.
+// Where this client had no draft and the assistant wrote one, both are kept whole: the
+// assistant's words are not cut where they happen to match the typing's start.
 func TestADraftStartedOnBothSidesKeepsBothWhole(t *testing.T) {
 	t.Parallel()
 	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{}}
@@ -339,7 +337,7 @@ func TestADraftStartedOnBothSidesKeepsBothWhole(t *testing.T) {
 	}
 }
 
-// Visiting a room holds its draft, it does not write it: who drafted it stays.
+// Visiting a room holds its draft without writing it: its author stays.
 func TestVisitingADraftKeepsWhoWroteIt(t *testing.T) {
 	t.Parallel()
 	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{

@@ -4,9 +4,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// withDeletionsHidden drops the deletions [display.deleted] asks to hide, yours and
-// others' separately. It filters `shown`, so every index into the pane agrees. A
-// thread anchor is always kept, or its thread would have no row to be reached from.
+// withDeletionsHidden drops the deletions [display.deleted] hides, yours and others'
+// separately. It filters `shown`, so all pane indices agree. Thread anchors are kept,
+// or their threads would have no row.
 func (m Model) withDeletionsHidden(msgs []domain.Message, threads []domain.Thread) []domain.Message {
 	mine, others := m.prefs.display.Deleted.HideMine(), m.prefs.display.Deleted.HideOthers()
 	if !mine && !others {
@@ -37,8 +37,8 @@ func (m Model) hiddenDeletion(msg domain.Message, mine, others bool) bool {
 	return others
 }
 
-// fromMe reports whether a sender is you: any of your IDs (isMe), or one grouped with
-// any of them by [[display.identity]] (e.g. a bridged puppet of your phone).
+// fromMe reports whether sender is you: any of your IDs (isMe), or one grouped with
+// them by [[display.identity]] (e.g. a bridged puppet of your phone).
 func (m Model) fromMe(sender string) bool {
 	if sender == "" {
 		return false
@@ -58,8 +58,8 @@ func (m Model) fromMe(sender string) bool {
 	return false
 }
 
-// deletedBody is the placeholder a deleted message draws: "(deleted)", or who removed
-// it (and why) when that was somebody other than the sender.
+// deletedBody is a deleted message's placeholder: "(deleted)", or who removed it (and
+// why) when not the sender.
 func (m Model) deletedBody(msg domain.Message) string {
 	if msg.RedactedBy == "" || msg.RedactedBy == msg.Sender {
 		return redactedBody

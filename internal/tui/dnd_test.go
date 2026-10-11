@@ -15,8 +15,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// fakeNotifications stands in for the daemon's notification state, one temporary
-// rule per named thing.
+// fakeNotifications stands in for the daemon's notification state, one temporary rule
+// per named thing.
 type fakeNotifications struct {
 	mu     sync.Mutex
 	temps  notify.Temps
@@ -61,8 +61,8 @@ func (f *fakeNotifications) held() notify.Temps {
 	return append(notify.Temps(nil), f.temps...)
 }
 
-// silencing gives a model attached to a fake daemon, in Alpha (in the Work space)
-// with one of Alice's messages selected, so every mute scope applies.
+// silencing gives a model on a fake daemon, in Alpha (in Work) with one of Alice's
+// messages selected, so every mute scope applies.
 func silencing(t *testing.T) (Model, *fakeNotifications) {
 	t.Helper()
 
@@ -83,7 +83,7 @@ func silencing(t *testing.T) (Model, *fakeNotifications) {
 	return m, daemon
 }
 
-// drain is deliver: run a command and fold what it produced into the model.
+// drain runs a command and folds what it produced into the model.
 func drain(t *testing.T, m Model, cmd tea.Cmd) Model {
 	t.Helper()
 	return deliver(t, m, cmd)
@@ -233,8 +233,8 @@ func TestSilenceBadgeNamesTheStandingRule(t *testing.T) {
 	}
 }
 
-// With notifications off the badge says so and names no rule; an empty rule set
-// must not resolve to a phantom silencing rule.
+// With notifications off the badge says so and names no rule (an empty rule set must
+// not resolve to a phantom silencing rule).
 func TestSilenceBadgeWithNotificationsOff(t *testing.T) {
 	t.Parallel()
 
@@ -356,7 +356,7 @@ func TestTwoKeysTwoKindsOfSilence(t *testing.T) {
 	}
 }
 
-// Either key lifts whatever is in force, in one keystroke.
+// Either key lifts whatever is in force in one keystroke.
 func TestEitherKeyLiftsAnySilence(t *testing.T) {
 	t.Parallel()
 

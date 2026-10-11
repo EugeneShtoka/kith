@@ -115,7 +115,7 @@ func TestANewRoomLandsInTheSelectedSpace(t *testing.T) {
 	}
 }
 
-// Created but not filed into its space reports both halves.
+// Created but not filed into its space reports both.
 func TestAPartialCreationSaysBothHalves(t *testing.T) {
 	t.Parallel()
 
@@ -149,8 +149,8 @@ func TestAnEmptyNameCreatesNothing(t *testing.T) {
 	}
 }
 
-// chatting is a model with no Matrix account: a Telegram account, two WhatsApp
-// accounts, and a directory naming people on them.
+// chatting is a model with no Matrix account: one Telegram and two WhatsApp accounts,
+// and a directory naming people on them.
 func chatting(t *testing.T) (Model, *builder) {
 	t.Helper()
 	b := &builder{id: "telegram:42/-1009"}
@@ -170,9 +170,8 @@ func chatting(t *testing.T) (Model, *builder) {
 	return m, b
 }
 
-// Only what an account here makes is offered: no Matrix rooms without a Matrix
-// account, each Telegram and WhatsApp account's kinds, and the account named where a
-// network has two.
+// Only what an account here makes is offered: no Matrix rooms without Matrix, each
+// Telegram and WhatsApp account's kinds, with the account named where a network has two.
 func TestNewOffersWhatTheAccountsMake(t *testing.T) {
 	t.Parallel()
 	m, _ := chatting(t)
@@ -201,7 +200,7 @@ func TestNewOffersWhatTheAccountsMake(t *testing.T) {
 	}
 }
 
-// A tag is made from :new as from the tag list: named, then opened in the editor.
+// :new makes a tag as the tag list does: named, then opened in the editor.
 func TestNewMakesATag(t *testing.T) {
 	t.Parallel()
 	m, _ := opened(t, config.Notifications{})
@@ -213,9 +212,8 @@ func TestNewMakesATag(t *testing.T) {
 	}
 }
 
-// A Telegram forum is named, then its account's people are offered (that account's
-// alone) and the ticked ones made its members; a WhatsApp group with no one ticked is
-// not made.
+// A Telegram forum is named, then its account's people are offered and the ticked
+// ones made members; a WhatsApp group with nobody ticked is not made.
 func TestANewChatIsNamedThenGivenItsPeople(t *testing.T) {
 	t.Parallel()
 	m, b := chatting(t)

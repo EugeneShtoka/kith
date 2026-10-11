@@ -100,7 +100,7 @@ func TestDictionaryOfferIsMadeOnce(t *testing.T) {
 	}
 }
 
-// A cold start with no corpus must not consume the one question.
+// A cold start with no corpus does not use up the one question.
 func TestDictionaryOfferWaitsForACorpus(t *testing.T) {
 	t.Parallel()
 
@@ -219,7 +219,7 @@ func freqCandidates() []domain.FrequencyCandidate {
 }
 
 // The word-counts prompt is raised when no dictionaries are missing, ticking only
-// the recommended rows.
+// recommended rows.
 func TestFrequencyOfferIsRaisedWhenNoDictionariesAreMissing(t *testing.T) {
 	t.Parallel()
 
@@ -290,8 +290,8 @@ func TestDecliningCountsIsRememberedSeparately(t *testing.T) {
 	}
 }
 
-// With no frequency lists to offer, accepting the dictionaries goes on to the model
-// offer, and its lookup runs: it is marked asked, so a dropped lookup never comes back.
+// With no frequency lists, accepting dictionaries moves on to the model offer and its
+// lookup runs (it is marked asked, so a dropped lookup never returns).
 func TestAcceptingDictionariesGoesOnToTheModelOffer(t *testing.T) {
 	t.Parallel()
 

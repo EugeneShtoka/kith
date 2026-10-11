@@ -11,14 +11,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// typingNotice is the room we told we are typing and when. Empty means nobody.
+// typingNotice is the room told we are typing, and when. Empty means none.
 type typingNotice struct {
 	room domain.RoomID
 	at   time.Time
 }
 
-// liveActivity is who is typing in each room. Kept for every room because the stream
-// carries every room and there is no request to re-fetch it on entry.
+// liveActivity is who is typing in each room. Kept for every room: the stream
+// carries all rooms and nothing re-fetches it on entry.
 type liveActivity struct {
 	typists map[domain.RoomID][]string
 }
@@ -27,8 +27,8 @@ func newLiveActivity() liveActivity {
 	return liveActivity{typists: map[domain.RoomID][]string{}}
 }
 
-// handleActivity folds one room's activity in. Typing carries the whole set, so it is
-// assigned rather than merged; other people's read positions are deliberately dropped.
+// handleActivity folds one room's activity in. Typing is the whole set, so it is
+// assigned, not merged; other people's read positions are dropped.
 func (m Model) handleActivity(msg activityMsg) (Model, tea.Cmd) {
 	a := msg.a
 	if len(a.Typing) == 0 {
@@ -39,8 +39,8 @@ func (m Model) handleActivity(msg activityMsg) (Model, tea.Cmd) {
 	return m, m.listenActivityCmd()
 }
 
-// typingNote is what the composer divider says about who is typing in the open room,
-// or "" when nobody is or the setting is off. Past two people it becomes a count.
+// typingNote is the composer divider's note on who is typing, or "" when nobody is
+// or the setting is off. Past two people it becomes a count.
 func (m Model) typingNote() string {
 	if !m.prefs.display.ShowTyping() {
 		return ""
@@ -63,9 +63,8 @@ func (m Model) personName(mxid string) string {
 	return isolate(m.knownName(mxid, m.openRoom))
 }
 
-// knownName is the label someone has in room, as the sender column would write it:
-// identity alias, then the open room's member list, then the newest loaded message
-// they sent, then their localpart or number (and the phone book's name for it).
+// knownName is someone's label in room, as the sender column writes it: identity
+// alias, open room's member list, newest loaded message, then localpart or number.
 func (m Model) knownName(mxid string, room domain.RoomID) string {
 	for i := range m.timeline.members {
 		if m.timeline.members[i].UserID == mxid && m.timeline.members[i].DisplayName != "" {
@@ -80,15 +79,15 @@ func (m Model) knownName(mxid string, room domain.RoomID) string {
 	return m.processedName(domain.Message{RoomID: room, Sender: mxid})
 }
 
-// The refresh must be comfortably shorter than the homeserver timeout or the indicator
-// blinks off between keystrokes (Element's numbers).
+// The refresh must be well under the homeserver timeout or the indicator blinks off
+// between keystrokes (Element's numbers).
 const (
 	typingTimeout = 15 * time.Second
 	typingRefresh = 10 * time.Second
 )
 
-// noteTyping tells the open room you are typing, if it has not been told recently.
-// The notice expires server-side, so no timer is needed; an empty composer stops it.
+// noteTyping tells the open room you are typing, unless told recently. The notice
+// expires server-side, so no timer; an empty composer stops it.
 func (m Model) noteTyping() (Model, tea.Cmd) {
 	if !m.prefs.display.SendsTyping() {
 		return m, nil
@@ -100,7 +99,7 @@ func (m Model) noteTyping() (Model, tea.Cmd) {
 	if strings.TrimSpace(m.compose.input) == "" {
 		return m.stopTyping()
 	}
-	// Moved rooms mid-sentence: tell the old room we stopped.
+	// Changed rooms mid-sentence: tell the old one we stopped.
 	var cmds []tea.Cmd
 	if m.sentTyping.room != "" && m.sentTyping.room != room.ID {
 		cmds = append(cmds, m.sendTypingCmd(m.sentTyping.room, false))
@@ -114,7 +113,6 @@ func (m Model) noteTyping() (Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// stopTyping cancels the notice, if one is out.
 func (m Model) stopTyping() (Model, tea.Cmd) {
 	if m.sentTyping.room == "" {
 		return m, nil

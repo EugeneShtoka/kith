@@ -20,14 +20,12 @@ func markRanges(visual string, offs []int, ranges []domain.Misspelling, wrong, h
 	return styleVisual(visual, offs, spellMarks(ranges, wrong, hint))
 }
 
-// reorderMapped is the piece A4 turns on, and the reason it exists is that ANSI cannot
-// be put into a line before the bidi reorder: escape bytes are ASCII, read as direction
-// L, and rule L2 scatters them through the row.
+// reorderMapped exists because ANSI cannot go into a line before the bidi reorder:
+// escape bytes are ASCII, direction L, and rule L2 scatters them through the row.
 
-// bidiCorpus is the set these properties are checked against: pure LTR (the path that
-// never reorders), pure RTL, both mixed in both base directions, digits inside RTL (the
-// one real case of a second embedding level), brackets (rule L4 mirrors them), and a
-// grapheme cluster that must not be taken apart.
+// bidiCorpus: pure LTR (never reorders), pure RTL, mixed in both base directions,
+// digits inside RTL (a second embedding level), brackets (L4 mirrors them), and a
+// grapheme cluster that must stay whole.
 var bidiCorpus = []struct {
 	name string
 	text string
@@ -44,7 +42,7 @@ var bidiCorpus = []struct {
 	{"empty", "", bidi.LeftToRight},
 }
 
-// The two must draw the same thing.
+// reorderMapped draws what reorder draws.
 func TestReorderMappedDrawsWhatReorderDraws(t *testing.T) {
 	t.Parallel()
 
@@ -87,8 +85,7 @@ func TestReorderMappedAccountsForEveryRune(t *testing.T) {
 	}
 }
 
-// Put every drawn rune back where its offset says it came from and the logical string
-// reappears.
+// Placing each drawn rune back at its offset restores the logical string.
 func TestReorderMappedRoundTripsToTheLogicalText(t *testing.T) {
 	t.Parallel()
 
@@ -117,9 +114,8 @@ func TestReorderMappedRoundTripsToTheLogicalText(t *testing.T) {
 	}
 }
 
-// The property the underline actually depends on: the runes the renderer styles are
-// exactly the runes whose logical offset lies inside a range — no more, no fewer, and
-// wherever on the row bidi put them.
+// The runes styled are exactly those whose logical offset is inside a range, wherever
+// bidi put them.
 func TestMarkRangesStylesExactlyTheRangeWhereverItLands(t *testing.T) {
 	t.Parallel()
 
@@ -130,8 +126,7 @@ func TestMarkRangesStylesExactlyTheRangeWhereverItLands(t *testing.T) {
 		}
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			// A range over the middle third of the text, snapped to rune boundaries —
-			// arbitrary, which is the point: it is not chosen to be easy to draw.
+			// An arbitrary range: the middle third, snapped to rune boundaries.
 			starts := runeStarts(c.text)
 			if len(starts) < 3 {
 				t.Skip("too short to cut a range out of")
@@ -164,8 +159,7 @@ func TestMarkRangesStylesExactlyTheRangeWhereverItLands(t *testing.T) {
 	}
 }
 
-// Nothing to mark takes the path the composer has always taken, escapes and all: no
-// escapes.
+// Nothing to mark adds no escapes.
 func TestMarkRangesWithNothingToMarkAddsNothing(t *testing.T) {
 	t.Parallel()
 

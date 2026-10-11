@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// Following a link to a place, and the three answers it has — go there, ask before
-// joining, or hand the question to the switcher.
+// Following a link to a place has three answers: go there, ask before joining, or
+// open the switcher.
 
 // linkMsg is a message carrying one address.
 func linkMsg(body, html string) domain.Message {
@@ -35,8 +35,7 @@ func TestFollowingALinkToAJoinedRoomOpensIt(t *testing.T) {
 	}
 }
 
-// A message names a message, and the jump is queued for when the timeline holds it —
-// the same mechanism a search hit uses.
+// A link to a message queues the jump until the timeline holds it, as a search hit does.
 func TestFollowingALinkToAMessageQueuesTheJump(t *testing.T) {
 	t.Parallel()
 
@@ -54,8 +53,8 @@ func TestFollowingALinkToAMessageQueuesTheJump(t *testing.T) {
 	}
 }
 
-// A room this account is not in is an invitation to join, and joining is visible to
-// everybody already there — so it asks, naming what it would join.
+// Joining is visible to everyone in the room, so a link to an unjoined room asks
+// first, naming what it would join.
 func TestFollowingALinkToARoomWeAreNotInAsksFirst(t *testing.T) {
 	t.Parallel()
 
@@ -71,8 +70,8 @@ func TestFollowingALinkToARoomWeAreNotInAsksFirst(t *testing.T) {
 	if got.confirm.address != "#book-club:example.org" {
 		t.Errorf("would join %q, want #book-club:example.org", got.confirm.address)
 	}
-	// The routing servers are what make a room on an unknown homeserver reachable at
-	// all, so they have to survive the question.
+	// The routing servers make a room on an unknown homeserver reachable, so they survive
+	// the question.
 	if len(got.confirm.via) != 1 || got.confirm.via[0] != "one.org" {
 		t.Errorf("via = %+v, want [one.org]", got.confirm.via)
 	}
@@ -81,8 +80,7 @@ func TestFollowingALinkToARoomWeAreNotInAsksFirst(t *testing.T) {
 	}
 }
 
-// A person is the one case with more than one right answer, so it opens the screen that
-// lists them all rather than making a room.
+// A link to a person opens the switcher listing their rooms instead of making a room.
 func TestFollowingALinkToAPersonOpensTheSwitcher(t *testing.T) {
 	t.Parallel()
 
@@ -103,8 +101,7 @@ func TestFollowingALinkToAPersonOpensTheSwitcher(t *testing.T) {
 	}
 }
 
-// The address in a mention pill is in the markup, not in the words — which is why this
-// reads the formatted body.
+// A mention pill's address is in the markup, not the words, so the formatted body is read.
 func TestFollowingFindsTheAddressInsideAPill(t *testing.T) {
 	t.Parallel()
 
@@ -122,7 +119,7 @@ func TestFollowingFindsTheAddressInsideAPill(t *testing.T) {
 	}
 }
 
-// Several addresses ask which, the same one-or-ask rule the other link keys follow.
+// Several addresses ask which, by the one-or-ask rule.
 func TestSeveralPlacesAsksWhich(t *testing.T) {
 	t.Parallel()
 
@@ -139,15 +136,13 @@ func TestSeveralPlacesAsksWhich(t *testing.T) {
 	if len(got.picker.items) != 2 {
 		t.Errorf("%d rows, want 2", len(got.picker.items))
 	}
-	// The room this client knows is named, not spelled: a column of room IDs is a
-	// column nobody can choose between.
+	// A known room is shown by name, not ID.
 	if got.picker.items[0].label != "Bravo" {
 		t.Errorf("first row = %q, want the room's name", got.picker.items[0].label)
 	}
 }
 
-// A message full of web links has nothing for this key, and says so in words that do
-// not read as "that link is broken".
+// A message with only web links says it has no Matrix link, not that the link is broken.
 func TestFollowingSaysWhenThereIsNoMatrixLink(t *testing.T) {
 	t.Parallel()
 
@@ -190,8 +185,7 @@ func TestConfirmingAJoinJoinsWhatTheLinkNamed(t *testing.T) {
 	}
 }
 
-// A link handed over by the desktop while the client is running: it moves, and it says
-// so.
+// A link handed over by the desktop while running moves the view and says so.
 func TestAHandedOverLinkMovesAndSaysSo(t *testing.T) {
 	t.Parallel()
 
@@ -207,7 +201,7 @@ func TestAHandedOverLinkMovesAndSaysSo(t *testing.T) {
 	}
 }
 
-// Something that is not a link says so rather than moving.
+// A handed-over non-link is reported instead of moving.
 func TestAHandedOverNonLinkIsReported(t *testing.T) {
 	t.Parallel()
 
@@ -223,15 +217,14 @@ func TestAHandedOverNonLinkIsReported(t *testing.T) {
 	}
 }
 
-// A client started for a link waits for the room list before acting on it: "am I in
-// that room" is the first question following one asks, and the answer is no for every
-// room until the list arrives.
+// A client started for a link waits for the room list: until it arrives, every room
+// looks unjoined.
 func TestAStartupLinkWaitsForTheRoomList(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, newModel()).WithFollow("https://matrix.to/#/!b:x")
 
-	// No rooms yet: the request stands rather than being spent against an empty list.
+	// No rooms yet: the request stands instead of being spent on an empty list.
 	if _, _, followed := m.followPendingLink(); followed {
 		t.Fatal("the link was followed before the room list arrived")
 	}

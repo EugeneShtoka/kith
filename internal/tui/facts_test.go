@@ -10,7 +10,7 @@ import (
 )
 
 // Codes and tracked words read a room as the daemon does: by the name you gave it,
-// never the shortened label the room list shows, and on the first bridge holding it.
+// never the shortened list label, and on the first bridge holding it.
 func TestTheClientReadsRoomsAsTheDaemonDoes(t *testing.T) {
 	t.Parallel()
 	m := starterNew(apitest.Nop{}, config.Display{

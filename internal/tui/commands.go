@@ -26,8 +26,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// errNoDaemon is returned when something only the daemon can do is asked of a model
-// without one (as in most tests).
+// errNoDaemon is returned for daemon-only work on a model without one (most tests).
 var errNoDaemon = errors.New("not attached to kithd")
 
 // roomsMsg carries the result of loading the joined room list.
@@ -45,8 +44,8 @@ type spacesMsg struct {
 // incomingMsg carries one message streamed from the sync loop.
 type incomingMsg struct{ message domain.Message }
 
-// timelineMsg carries a fetched page of scrollback. roomID guards against a page
-// arriving after the user switched rooms.
+// timelineMsg carries a fetched page of scrollback; roomID drops a page that arrives
+// after a room switch.
 type timelineMsg struct {
 	roomID domain.RoomID
 	page   domain.TimelinePage
@@ -69,9 +68,8 @@ type unreadMsg struct {
 // unreadUpdateMsg carries one room's unread state, streamed from the sync loop.
 type unreadUpdateMsg struct{ u domain.Unread }
 
-// invitesMsg carries the cached invitation set at startup; inviteUpdateMsg carries
-// one streamed from sync. Both are the whole set, never a delta; only the streamed
-// one re-subscribes.
+// invitesMsg carries the cached invitations at startup, inviteUpdateMsg one streamed
+// from sync. Both are the whole set, never a delta; only the streamed one re-subscribes.
 type invitesMsg struct {
 	invites []domain.Room
 	err     error
@@ -87,7 +85,7 @@ type joinedMsg struct {
 
 type leftMsg struct {
 	roomID domain.RoomID
-	// also are rooms that went with it (a forum's topics), and space that a space did.
+	// also are rooms that went with it (a forum's topics); space is set when a space was left.
 	also  []domain.RoomID
 	space bool
 	// deleted: a chat deleted, not left.
@@ -102,8 +100,8 @@ type membersMsg struct {
 	err     error
 }
 
-// searchResultsMsg carries the hits for one search, with the query and scope it was
-// run for so stale results are dropped.
+// searchResultsMsg carries one search's hits with its query and scope, so stale
+// results are dropped.
 type searchResultsMsg struct {
 	query string
 	scope searchScope
@@ -131,16 +129,16 @@ type imageLoadedMsg struct {
 // verifyMsg carries one interactive device-verification step from the backend.
 type verifyMsg struct{ v domain.Verification }
 
-// sentMsg reports the outcome of a send. It carries the draft because after a
-// failure it is the only remaining copy of the words (see Model.handleSent).
+// sentMsg reports a send's outcome. It carries the draft: after a failure it is the
+// only copy of the words (see Model.handleSent).
 type sentMsg struct {
 	err    error
 	roomID domain.RoomID
 	draft  domain.Draft
 }
 
-// reactionSentMsg is the outcome of posting a reaction. The key is kept because a
-// failure is how we learn a network refuses that emoji.
+// reactionSentMsg is a reaction's outcome. The key is kept: a failure is how a
+// network's refusal of that emoji is learned.
 type reactionSentMsg struct {
 	key string
 	err error
@@ -149,8 +147,8 @@ type reactionSentMsg struct {
 // syncEndedMsg reports that the /sync loop returned (normally on shutdown).
 type syncEndedMsg struct{ err error }
 
-// attachedMsg reports the daemon connection dropping (false) or coming back
-// (true). Only the daemon-backed client raises it; see api.Backend.Attached.
+// attachedMsg reports the daemon connection dropping (false) or returning (true).
+// Only the daemon-backed client raises it; see api.Backend.Attached.
 type attachedMsg struct{ attached bool }
 
 // loadRoomsCmd reads the cached room list; refreshRoomsCmd fetches it from the
@@ -174,8 +172,8 @@ func (m Model) startSyncCmd() tea.Cmd {
 }
 
 // fetch runs one backend call off the event loop and wraps its outcome as a message.
-// ctx is an argument, not a capture, so it is read on the event loop; call and wrap
-// run on the command's goroutine and must not read the model (see cmdreach_test.go).
+// ctx is an argument so it is read on the loop; call and wrap run on the command's
+// goroutine and must not read the model (see cmdreach_test.go).
 func fetch[T any](ctx context.Context, call func(context.Context) (T, error), wrap func(T, error) tea.Msg) tea.Cmd {
 	return func() tea.Msg {
 		v, err := call(ctx)
@@ -183,9 +181,8 @@ func fetch[T any](ctx context.Context, call func(context.Context) (T, error), wr
 	}
 }
 
-// fire runs one backend write off the event loop without reporting back: for writes
-// whose failure costs nothing worth saying on screen. A failure is still logged, at
-// warn, under op.
+// fire runs one backend write off the event loop without reporting back, for writes
+// whose failure is not worth showing. Failures are logged at warn under op.
 func fire(ctx context.Context, log *slog.Logger, op string, call func(context.Context) error) tea.Cmd {
 	return func() tea.Msg {
 		if err := call(ctx); err != nil && log != nil {
@@ -221,7 +218,7 @@ func (m Model) listenCmd() tea.Cmd {
 }
 
 // cachedTimelineCmd reads a room's cached messages; loadTimelineCmd fetches a live
-// page. Both are merged into the same timeline.
+// page. Both merge into the same timeline.
 func (m Model) cachedTimelineCmd(roomID domain.RoomID) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
@@ -467,9 +464,9 @@ func (m Model) jobFor(msg domain.Message) mediaJob {
 	}
 }
 
-// loadImageCmd fetches, decodes and draws a message's image off the event loop,
-// reusing a cached drawing for this cell box or the cached bytes when present. A
-// failure returns empty rows so the load isn't retried.
+// loadImageCmd fetches, decodes and draws a message's image off the event loop, reusing
+// a cached drawing for this cell box or cached bytes. A failure returns empty rows so
+// the load is not retried.
 func (m Model) loadImageCmd(job mediaJob, targetW, maxH int) tea.Cmd {
 	ctx, backend, log := m.ctx, m.backend, m.log
 	cache, blocks := m.pics.cache, m.pics.blocks
@@ -532,8 +529,8 @@ type fetchedEventMsg struct {
 	err     error
 }
 
-// fetchedQuoteMsg carries a reply's target fetched because it is not loaded. Separate
-// from fetchedEventMsg: quotes are kept aside (quotes.go), not folded into the timeline.
+// fetchedQuoteMsg carries a reply target that was not loaded. Separate from
+// fetchedEventMsg: quotes are kept aside (quotes.go), not folded into the timeline.
 type fetchedQuoteMsg struct {
 	roomID  domain.RoomID
 	message domain.Message
@@ -590,8 +587,8 @@ func (m Model) refreshMembersCmd(roomID domain.RoomID) tea.Cmd {
 	}
 }
 
-// roomCreatedMsg is the outcome of creating a room or a space. Both an ID and an
-// error can be set: the room exists but filing it into a space failed.
+// roomCreatedMsg is the outcome of creating a room or space. ID and error can both be
+// set: the room exists but filing it into a space failed.
 type roomCreatedMsg struct {
 	// enter asks to open the room once a refresh lists it.
 	enter  bool
@@ -703,8 +700,8 @@ func (msg spaceFiledMsg) summary() string {
 	return msg.room + ": " + strings.Join(parts, " · ")
 }
 
-// fileRoomCmd applies every change the picker decided on, in order, and reports once.
-// A refusal is collected rather than fatal.
+// fileRoomCmd applies the picker's changes in order and reports once; refusals are
+// collected, not fatal.
 func (m Model) fileRoomCmd(roomID domain.RoomID, room string, changes []spaceChange) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
@@ -764,15 +761,15 @@ func (m Model) senderSlotsCmd(roomID domain.RoomID) tea.Cmd {
 	}
 }
 
-// saveSenderSlotsCmd writes newly assigned colors back; failures only mean they are
+// saveSenderSlotsCmd writes newly assigned colors back; a failure only means they are
 // re-derived next time.
 func (m Model) saveSenderSlotsCmd(roomID domain.RoomID, slots map[string]int) tea.Cmd {
 	backend := m.backend
 	return fire(m.ctx, m.log, "save sender colors", func(ctx context.Context) error { return backend.SaveSenderSlots(ctx, roomID, slots) })
 }
 
-// sendReactionCmd posts a reaction; it echoes back over the reaction stream, so only
-// the outcome is routed back.
+// sendReactionCmd posts a reaction; it echoes back on the reaction stream, so only the
+// outcome is routed back.
 func (m Model) sendReactionCmd(roomID domain.RoomID, target domain.EventID, key string) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
@@ -789,7 +786,7 @@ type receiptSentMsg struct {
 	err    error
 }
 
-// markReadCmd sends a read receipt; the outcome is routed back so a failure is said
+// markReadCmd sends a read receipt; the outcome is routed back so a failure is shown
 // and retried on the next trigger.
 func (m Model) markReadCmd(roomID domain.RoomID, eventID domain.EventID, private bool) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
@@ -799,8 +796,8 @@ func (m Model) markReadCmd(roomID domain.RoomID, eventID domain.EventID, private
 	}
 }
 
-// threadPageMsg carries one page of a thread's own history, with the thread it was
-// asked about so a page arriving after the view moved on can be dropped.
+// threadPageMsg carries one page of a thread's history, tagged with the thread so a
+// page arriving after the view moved on is dropped.
 type threadPageMsg struct {
 	roomID domain.RoomID
 	root   domain.EventID
@@ -843,8 +840,8 @@ func (m Model) markThreadReadCmd(roomID domain.RoomID, root, eventID domain.Even
 	}
 }
 
-// markedReadMsg is the outcome of marking rooms read without opening them, beside
-// the label and number of rooms asked for.
+// markedReadMsg is the outcome of marking rooms read without opening them, with the
+// label and room count asked for.
 type markedReadMsg struct {
 	label  string
 	rooms  int
@@ -852,9 +849,8 @@ type markedReadMsg struct {
 	err    error
 }
 
-// markRoomsReadCmd marks whole rooms read. The answer is routed back since it was an
-// explicit keystroke. Announced and private-receipt rooms are two requests but one
-// report.
+// markRoomsReadCmd marks whole rooms read, reporting back since it was an explicit
+// keystroke. Public- and private-receipt rooms take two requests but one report.
 func (m Model) markRoomsReadCmd(roomIDs []domain.RoomID, label string) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	announced, quiet := m.splitByReceipt(roomIDs)
@@ -943,12 +939,12 @@ func (m Model) listenVerifyCmd() tea.Cmd {
 		func(v domain.Verification) tea.Msg { return verifyMsg{v: v} })
 }
 
-// verifyFailedMsg reports a verification control that never reached the daemon.
-// Without it the overlay would wait forever for a step that is not coming.
+// verifyFailedMsg reports a verification control that never reached the daemon;
+// without it the overlay would wait forever.
 type verifyFailedMsg struct{ err error }
 
 // startVerifyCmd asks this account's other devices to verify this session; the
-// returned transaction id addresses every later step.
+// returned transaction ID addresses every later step.
 func (m Model) startVerifyCmd() tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
@@ -1006,13 +1002,12 @@ func (m Model) recordEmojiCmd(emoji string) tea.Cmd {
 	})
 }
 
-// errNoConfigStore: no daemon keeps the config file for this client, so a change can be
-// applied but not saved.
+// errNoConfigStore: no daemon keeps the config file, so a change applies but is not saved.
 var errNoConfigStore = errors.New("no daemon to keep the config file")
 
-// configStore is the daemon, the config file's one writer: a change is made on the
-// revision it was read at, and every client hears each change. Optional, as
-// followSource is: api.Backend does not carry the config.
+// configStore is the daemon, the config file's only writer: a change is made on the
+// revision it was read at, and every client hears each change. Optional, like
+// followSource: api.Backend does not carry the config.
 type configStore interface {
 	GetConfig(ctx context.Context) (config.Snapshot, error)
 	UpdateConfig(ctx context.Context, base string, cfg config.Config) (string, error)
@@ -1022,9 +1017,8 @@ type configStore interface {
 // configSavedMsg reports the outcome of writing the config back.
 type configSavedMsg struct{ err error }
 
-// saveConfigFileCmd has the daemon write a whole configuration (assembled by
-// applyConfig). Its place in line is taken now, on the event loop, so snapshots land
-// in the order the changes were made.
+// saveConfigFileCmd has the daemon write a whole config (assembled by applyConfig).
+// Its place in line is taken on the event loop, so snapshots land in change order.
 func (m Model) saveConfigFileCmd(cfg config.Config) tea.Cmd {
 	ctx, writer := m.ctx, m.conf.writer
 	gen := writer.take()
@@ -1032,9 +1026,8 @@ func (m Model) saveConfigFileCmd(cfg config.Config) tea.Cmd {
 }
 
 // configWriter orders whole-config saves, each on the revision the last one left.
-// Each runs on its own goroutine, so without it an older snapshot could land after a
-// newer one and silently undo a setting. It also knows which revisions it wrote, so
-// the echo of its own save is not taken for news.
+// Saves run on separate goroutines, so without it an older snapshot could land after
+// a newer one and undo a setting. It records its own revisions so their echo is not news.
 type configWriter struct {
 	store configStore
 
@@ -1064,8 +1057,8 @@ func (w *configWriter) take() uint64 {
 	return w.taken
 }
 
-// save has the daemon write cfg, unless a newer snapshot is saved already. Held
-// throughout, so saves go one at a time, each on the revision the last left.
+// save has the daemon write cfg unless a newer snapshot is already saved. The lock is
+// held throughout, so saves go one at a time.
 func (w *configWriter) save(ctx context.Context, gen uint64, cfg config.Config) error {
 	if w == nil || w.store == nil {
 		return errNoConfigStore
@@ -1087,10 +1080,9 @@ func (w *configWriter) save(ctx context.Context, gen uint64, cfg config.Config) 
 	return nil
 }
 
-// adopt makes rev, read from the daemon, the revision the next save is made on. news
-// is false for one this writer saved itself. A change made elsewhere supersedes the
-// saves still in line, which were made over the config before it and would undo it:
-// dropped reports whether there were any.
+// adopt makes rev, read from the daemon, the base of the next save; news is false for
+// a revision this writer saved. An outside change supersedes the queued saves, which
+// would undo it; dropped reports whether there were any.
 func (w *configWriter) adopt(rev string) (news, dropped bool) {
 	if w == nil {
 		return false, false
@@ -1105,8 +1097,8 @@ func (w *configWriter) adopt(rev string) (news, dropped bool) {
 	return true, dropped
 }
 
-// dndMsg is the daemon's answer to anything touching do-not-disturb: the whole set in
-// force or an error. note is the status line, empty for a silent refresh.
+// dndMsg is the daemon's answer to any do-not-disturb call: the whole set in force, or
+// an error. note is the status line, empty for a silent refresh.
 type dndMsg struct {
 	temps notify.Temps
 	note  string
@@ -1118,10 +1110,9 @@ type dndMsg struct {
 type pollTickMsg struct{}
 
 // pollInterval is slow on purpose: nothing it catches is urgent, and it is the only
-// periodic wakeup in an idle client.
+// periodic wakeup of an idle client.
 const pollInterval = 60 * time.Second
 
-// pollTickCmd schedules the next look.
 func (m Model) pollTickCmd() tea.Cmd {
 	return tea.Tick(pollInterval, func(time.Time) tea.Msg { return pollTickMsg{} })
 }
@@ -1165,13 +1156,12 @@ func (m Model) clearAllDNDCmd() tea.Cmd {
 // openedMsg reports a failed attempt to open a link.
 type openedMsg struct{ err error }
 
-// openLinkCmd hands a link to the configured opener as a single argv element, no
-// shell. The caller has already checked the scheme.
+// openLinkCmd hands a link to the configured opener as one argv element, no shell.
+// The caller has checked the scheme.
 func (m Model) openLinkCmd(link string) tea.Cmd {
 	ctx, opener := m.ctx, m.prefs.external.open
 	return func() tea.Msg {
-		// launch waits a moment, so an opener exiting non-zero (no handler for the
-		// scheme) is reported rather than looking like success.
+		// launch waits briefly so an opener exiting non-zero (no handler) is reported.
 		return openedMsg{err: launch(ctx, []string{opener}, link)}
 	}
 }
@@ -1196,7 +1186,7 @@ func (m Model) clipboardSinkCmd(text string) tea.Cmd {
 		cmd := exec.CommandContext(ctx, "sh", "-c", command) // #nosec G204 -- command is user config; the payload goes on stdin, never interpolated
 		cmd.Stdin = strings.NewReader(text)
 		if err := cmd.Start(); err != nil {
-			// The OSC 52 write is the primary path; this is a fallback. Logged.
+			// OSC 52 is the primary path; this is only a fallback, so just log.
 			log.Warn("clipboard command failed to start", "err", err)
 			return nil
 		}

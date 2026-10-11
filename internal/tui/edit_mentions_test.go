@@ -37,7 +37,7 @@ func sentEdit(t *testing.T, m Model, backend *sendingBackend) domain.Draft {
 	return backend.sent[0]
 }
 
-// Revising a message that names someone keeps naming them: the pill is not lost.
+// Revising a message that names someone keeps the mention.
 func TestAnEditKeepsTheMessagesMentions(t *testing.T) {
 	t.Parallel()
 
@@ -90,7 +90,7 @@ func TestMentioningYouDoesNotRecolorTheSender(t *testing.T) {
 	}
 }
 
-// markdown = false holds for revisions too: an edit goes out as typed, as a send does.
+// markdown = false applies to edits too.
 func TestAnEditFollowsTheMarkdownSetting(t *testing.T) {
 	t.Parallel()
 

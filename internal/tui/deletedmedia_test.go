@@ -32,7 +32,7 @@ func picture(id domain.EventID, deleted bool) domain.Message {
 }
 
 // withPictures is a model over a real media cache, its room holding a picture and a
-// deleted one, the deleted one selected; keep is [display.deleted] keep.
+// deleted one (selected); keep is [display.deleted] keep.
 func withPictures(t *testing.T, keep bool) (Model, *media.Cache) {
 	t.Helper()
 	display := config.Display{Deleted: config.Deleted{KeepDeleted: keep}}
@@ -48,9 +48,8 @@ func withPictures(t *testing.T, keep bool) (Model, *media.Cache) {
 	return m, cache
 }
 
-// A deleted message's picture is not shown, fetched or offered: no chip, no picture
-// rows, no inline load, not in the room's gallery; viewing or saving it from the
-// timeline points to its history instead.
+// A deleted message's picture is not shown, fetched or offered (no chip, rows, inline
+// load or gallery entry); viewing or saving it points to its history instead.
 func TestADeletedPictureIsHiddenFromTheTimeline(t *testing.T) {
 	t.Parallel()
 	m, _ := withPictures(t, true)
@@ -84,8 +83,8 @@ func TestADeletedPictureIsHiddenFromTheTimeline(t *testing.T) {
 	}
 }
 
-// A deleted message's attachment is moved aside as soon as the deletion is seen, and
-// its history opens it from there, at full size; one never cached is fetched there.
+// A deleted attachment is set aside when the deletion is seen, and its history opens
+// it from there at full size; one never cached is fetched there.
 func TestADeletedPictureIsKeptAsideAndOpenedFromItsHistory(t *testing.T) {
 	t.Parallel()
 	m, cache := withPictures(t, true)
@@ -142,8 +141,8 @@ func loadedMessage(t *testing.T, m Model, id domain.EventID) domain.Message {
 	return m.timeline.messages[i]
 }
 
-// Without [display.deleted] keep, a deletion erases the message, and its attachment's
-// bytes and drawings in the media cache with it.
+// Without [display.deleted] keep, a deletion erases the attachment's bytes and
+// drawings from the media cache.
 func TestADeletedAttachmentIsErasedWhenDeletionsAreNotKept(t *testing.T) {
 	t.Parallel()
 	m, cache := withPictures(t, false)

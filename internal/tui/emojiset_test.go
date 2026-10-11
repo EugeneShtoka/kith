@@ -43,7 +43,7 @@ func TestEmojiTiersAreCumulative(t *testing.T) {
 	}
 }
 
-// The curated names are what people type, so no generated name may take one.
+// Curated names are what people type, so no generated name may take one.
 func TestCuratedNamesWinCollisions(t *testing.T) {
 	t.Parallel()
 
@@ -177,8 +177,7 @@ func TestOneOrderForEveryWayIn(t *testing.T) {
 	}
 }
 
-// An empty composed history is informed by the reaction history, which it outranks
-// once it exists.
+// An empty composed history borrows the reaction history, and outranks it once it exists.
 func TestComposingBorrowsTheReactionHistory(t *testing.T) {
 	t.Parallel()
 
@@ -218,8 +217,8 @@ func TestNonEmojiUsageNeverReachesThePalette(t *testing.T) {
 	}
 }
 
-// The "nearby" rung is the room's first space by [display] priority, and does
-// not depend on the rail cursor.
+// The "nearby" rung is the room's first space by [display] priority, independent of
+// the rail cursor.
 func TestSpaceRungIsTheRoomsPrioritySpace(t *testing.T) {
 	t.Parallel()
 

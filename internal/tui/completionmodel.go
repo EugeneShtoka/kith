@@ -9,12 +9,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Offering the local completion model once, when its weights are not installed.
-// The config half is checked here; the daemon checks the filesystem because it is
-// the process that spawns llama-server. esc dismisses until next launch; unticking
-// the row and accepting declines for good ([complete.model] declined = true).
+// Offering the local completion model once when its weights are missing. Config is
+// checked here; the daemon checks the filesystem since it spawns llama-server. esc
+// dismisses until next launch; unticking and accepting declines for good
+// ([complete.model] declined = true).
 
-// modelOffer is the state behind the prompt.
 type modelOffer struct {
 	asked bool   // the offer was already raised this session
 	tag   string // what the prompt offers, to tell an unticked row from a ticked one
@@ -41,7 +40,6 @@ func (m Model) maybeOfferModel() (Model, tea.Cmd) {
 	}
 }
 
-// modelOfferMsg carries the daemon's answer back to the event loop.
 type modelOfferMsg struct {
 	suggestion domain.ModelSuggestion
 }
@@ -49,7 +47,7 @@ type modelOfferMsg struct {
 // handleModelOffer raises the prompt, or says why it cannot.
 func (m Model) handleModelOffer(msg modelOfferMsg) (Model, tea.Cmd) {
 	if why := msg.suggestion.Why; why != "" {
-		// The engine is missing; say so once with the install command.
+		// The engine is missing: say so once, with the install command.
 		return m.say(firstLine(why)), nil
 	}
 	if !msg.suggestion.Offer {
@@ -57,7 +55,7 @@ func (m Model) handleModelOffer(msg modelOfferMsg) (Model, tea.Cmd) {
 	}
 	candidate := msg.suggestion.Candidate
 	m.offers.model.tag = candidate.Tag
-	// Ticked: the prompt lets somebody disagree, not opt in.
+	// Ticked: the prompt is for opting out, not in.
 	m.picker = newCheckedPicker(pickerCompletionModel,
 		[]pickerItem{{
 			label:  candidate.Tag,
@@ -80,7 +78,7 @@ func (m Model) acceptModelOffer(tags []string) (Model, tea.Cmd) {
 
 	m = m.closePicker()
 	if declined {
-		// Only the explicit "not this one" is written down.
+		// Only an explicit "not this one" is written down.
 		cfg := m.conf.base.Clone()
 		cfg.Complete.Model.Declined = true
 		return m.applyConfig(cfg, "")
@@ -104,7 +102,6 @@ func (m Model) installModel(tags []string) (Model, tea.Cmd) {
 	}
 }
 
-// modelInstalledMsg is the outcome of installModel.
 type modelInstalledMsg struct {
 	tag string
 	err string

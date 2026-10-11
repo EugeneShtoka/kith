@@ -6,12 +6,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Taking one thing (a link, a Matrix address, a code) out of the message under the
-// cursor. The rule: none says so, one acts, several ask. Each kind keeps its own
-// "none" sentence.
+// Taking one thing (link, Matrix address, code) out of the message under the cursor:
+// none says so, one acts, several ask. Each kind has its own "none" sentence.
 
-// contextKind is the thing being taken, not the purpose: three keys want a link and
-// mean different things by it.
+// contextKind is the thing taken, not the purpose: three keys want a link for
+// different ends.
 type contextKind int
 
 const (
@@ -24,15 +23,14 @@ const (
 	ctxCode
 )
 
-// contextSpec is one kind: how to find its candidates in a message, and what to say
-// when there are none.
+// contextSpec is one kind: how to find its candidates, and what to say when none.
 type contextSpec struct {
-	// items builds the chooser's rows; each row's value is what a consumer receives.
+	// items builds the chooser's rows; a row's value is what the consumer receives.
 	items func(m Model, msg domain.Message) []pickerItem
-	// noun names one of these, for titling a chooser a script asked for.
+	// noun names one of these, to title a chooser a script asked for.
 	noun string
-	// empty is the status line when the message holds none. The code one names the
-	// rules it looked with, so a too-narrow rule set is distinguishable from no code.
+	// empty is the status line when the message holds none. The code one names the rules
+	// used, so a too-narrow rule set is distinguishable from no code.
 	empty func(m Model) string
 }
 
@@ -54,8 +52,8 @@ var contextSpecs = map[contextKind]contextSpec{
 	ctxCode: {
 		noun: "code",
 		items: func(m Model, msg domain.Message) []pickerItem {
-			// CodeCandidates, not Codes: the key was pressed on this message, so the
-			// bar is "most plausible", not "worth volunteering unprompted".
+			// CodeCandidates, not Codes: the key was pressed on this message, so the bar is
+			// "most plausible", not "worth volunteering".
 			return codeItems(domain.CodeCandidates(msg.Body, m.prefs.codes.rules))
 		},
 		empty: func(m Model) string {
@@ -64,7 +62,7 @@ var contextSpecs = map[contextKind]contextSpec{
 	},
 }
 
-// contextFor is which kind each key asks for.
+// contextFor is the kind each key asks for.
 var contextFor = map[action]contextKind{
 	actCopyURL:      ctxLink,
 	actOpenURL:      ctxLink,
@@ -73,7 +71,7 @@ var contextFor = map[action]contextKind{
 	actCopyCode:     ctxCode,
 }
 
-// contextTitles is what the chooser asks, per action.
+// contextTitles is the chooser's question per action.
 var contextTitles = map[action]string{
 	actCopyURL:      "Copy which link?",
 	actOpenURL:      "Open which link?",
@@ -83,7 +81,7 @@ var contextTitles = map[action]string{
 }
 
 // takeContext applies the one-or-ask rule. The action is stamped on the picker at
-// press time, so accepting a row cannot drift from the key that opened it.
+// press time, so accepting cannot drift from the key that opened it.
 func (m Model) takeContext(then action) (Model, tea.Cmd) {
 	kind := contextFor[then]
 	if kind == ctxNone {
@@ -112,8 +110,7 @@ func newContextPicker(then action, items []pickerItem) picker {
 	return p
 }
 
-// useContext hands a resolved value to the action, directly for a single candidate
-// or through the chooser.
+// useContext hands a resolved value to the action, directly or through the chooser.
 func (m Model) useContext(then action, value string) (Model, tea.Cmd) {
 	switch then {
 	case actCopyURL:
@@ -136,8 +133,7 @@ func (m Model) useContext(then action, value string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// acceptContext is what choosing a row does: close the chooser, then act on it with
-// the intent the key stamped.
+// acceptContext closes the chooser and acts on the row with the key's stamped intent.
 func (m Model) acceptContext(then action, value string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	return m.useContext(then, value)

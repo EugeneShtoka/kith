@@ -10,8 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Opening the editor writes the draft to a file, but in a command, not in Update: the
-// file appears only when the command runs, and holds the composer's text as it was.
+// Opening the editor writes the draft to a file in a command, not in Update, holding
+// the composer's text at that moment.
 func TestExternalEditWritesTheCurrentDraft(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 	m.openRoom = "!a:x"

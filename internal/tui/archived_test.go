@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// archiving is a bridge's space holding Alpha and Bravo, with Alpha in the starter's
-// Archived tag: an archived room still belongs in its bridge's space.
+// archiving is a bridge space holding Alpha and Bravo, with Alpha tagged Archived:
+// an archived room still belongs in its bridge's space.
 func archiving(t *testing.T, display config.Display) Model {
 	t.Helper()
 	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
@@ -35,8 +35,8 @@ func archivedListed(m Model) []domain.RoomID {
 	return out
 }
 
-// A room list shows archived rooms as [display] show_archived says, a place's rule
-// over it; the archive's own list shows them whatever either says.
+// A list shows archived rooms per show_archived, a place's rule over it; the archive
+// always shows them.
 func TestArchivedRoomsAreShownAsConfigured(t *testing.T) {
 	t.Parallel()
 	if got := archivedListed(archiving(t, config.Display{})); !slices.Equal(got, []domain.RoomID{"!a:x", "!b:x"}) {
@@ -56,8 +56,8 @@ func TestArchivedRoomsAreShownAsConfigured(t *testing.T) {
 	}
 }
 
-// The archived key flips the place in view, and that place alone, until restart; on
-// the archive it says the archive always lists its rooms.
+// The archived key flips only the place in view, until restart; on the archive it
+// says the archive always lists its rooms.
 func TestTheArchivedKeyFlipsThePlaceInView(t *testing.T) {
 	t.Parallel()
 	m := archiving(t, config.Display{})
@@ -80,8 +80,7 @@ func TestTheArchivedKeyFlipsThePlaceInView(t *testing.T) {
 	}
 }
 
-// Settings offers each place's choice, written as its space_rule, and none for the
-// archive itself.
+// Settings offers a show_archived choice per place, none for the archive itself.
 func TestEachPlaceChoosesItsArchivedRooms(t *testing.T) {
 	t.Parallel()
 	m := archiving(t, config.Display{})

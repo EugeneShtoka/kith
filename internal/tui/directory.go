@@ -10,31 +10,27 @@ import (
 
 // People are named from the daemon's directory (domain.Directory): the best name any
 // account or bridge gives any of a person's numbers and network IDs. Your own names
-// come first: a room's [[display.name]], an identity's alias. The directory is read
-// again with every room list, since a sync that brings names brings rooms.
+// win: a room's [[display.name]], an identity's alias. Re-read with every room list,
+// since a sync that brings names brings rooms.
 
-// directoryState is the directory as last read, and a revision that moves when it
-// changes.
+// directoryState is the directory as last read, and a revision that moves when it changes.
 type directoryState struct {
 	dir domain.Directory
 	rev uint64
 }
 
-// directoryMsg is the daemon's directory.
 type directoryMsg struct {
 	dir domain.Directory
 	err error
 }
 
-// directoryCmd reads the directory.
 func (m Model) directoryCmd() tea.Cmd {
 	return fetch(m.ctx, m.backend.Directory, func(dir domain.Directory, err error) tea.Msg {
 		return directoryMsg{dir: dir, err: err}
 	})
 }
 
-// handleDirectory keeps a directory that changed; one that could not be read keeps
-// the last.
+// handleDirectory keeps a changed directory; on a read failure the last one stays.
 func (m Model) handleDirectory(msg directoryMsg) (Model, tea.Cmd) {
 	m.logErr(slog.LevelWarn, "read the directory", msg.err)
 	if msg.err != nil || msg.dir.Equal(m.dir.dir) {

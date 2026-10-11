@@ -123,7 +123,7 @@ func TestModelOfferIsMadeOnce(t *testing.T) {
 	}
 }
 
-// The dictionary → model prompt chain must reach the model even when spelling has
+// The dictionary-then-model prompt chain reaches the model even when spelling has
 // nothing to ask.
 func TestTheChainReachesTheModelWhenSpellingHasNothingToAsk(t *testing.T) {
 	t.Parallel()
@@ -158,7 +158,7 @@ func TestTheChainReachesTheModelWhenThereIsNoSpellEngine(t *testing.T) {
 	}
 }
 
-// Once the chain has started, a second room list must not restart it.
+// A second room list does not restart a started chain.
 func TestASecondRoomListDoesNotOvertakeTheChain(t *testing.T) {
 	t.Parallel()
 
@@ -171,8 +171,7 @@ func TestASecondRoomListDoesNotOvertakeTheChain(t *testing.T) {
 	}
 }
 
-// modelLayerOn asks "may the model run" from config alone; the assist endpoint is
-// unrelated.
+// modelLayerOn depends on config alone; the assist endpoint is unrelated.
 func TestTheGateIsTheCompletionModelAlone(t *testing.T) {
 	t.Parallel()
 
@@ -213,8 +212,8 @@ func TestTheStripDoesNotOfferTheSameWordTwice(t *testing.T) {
 	}
 }
 
-// A held space key is the same question, so no debounce is needed; the ask resolves
-// to the tick message directly.
+// A held space is the same question, so there is no debounce: the ask resolves
+// straight to the tick message.
 func TestThereIsNoWaitBeforeAsking(t *testing.T) {
 	t.Parallel()
 
