@@ -38,7 +38,7 @@
   a                name this group
   b                notification rule for this space
   m                mark every unread room in this group read
-  L                leave this space, or delete this tag
+  L, x             leave this space, or delete this tag
 
 [1;38;2;102;135;153mRoom list[m
   su               unread rooms on top, on/off
@@ -56,7 +56,7 @@
   I                the phonebook card of the room's one person
   b                notification rule for this room
   J                join a room by ID or alias
-  L                leave the selected room
+  L, x             leave the selected room
   m                mark this room read without opening it
   M                mark this room unread, or clear the mark
   i                invite someone to this room
@@ -164,7 +164,7 @@
   -                lower the number under the cursor
   K                move the entry under the cursor up
   J                move the entry under the cursor down
-  x                remove the entry under the cursor
+  x                remove the row under the cursor from its list
   enter, tab       choose the item under the cursor, or apply the ticked ones
   esc              stop typing, then close
 

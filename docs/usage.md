@@ -446,7 +446,7 @@ In the room list:
 | `p` | The people in this room — the only place a Matrix ID is browsable. In it: `a` name, `r` remove, `b` ban (both ask), `i` to start filtering |
 | `i` | Invite someone by Matrix ID (`/invite` from the composer) |
 | `J` | Join a room by ID or alias (`:join` from the command line) |
-| `L` | Leave the selected room (asks first; `/leave` from the composer) |
+| `L`, `x` | Leave the selected room (asks first; `/leave` from the composer) |
 | `S` | File the room into spaces or take it out: `space` ticks, `enter` applies |
 
 `/unban @user:server` lifts a ban, `/replacement` goes to the room that replaced an upgraded one, and `:new` creates a room, a space, a chat or a tag, offering only what your accounts can make (a tag, kith's own, is always offered and opens in the tag editor once named). With a Matrix account: a private encrypted room, a private unencrypted room (for bridges and bots that cannot read encrypted rooms), a public room, and a space; a room created while a space is selected in the rail is filed into that space, and encryption is decided here — a room is encrypted from its first event or not at all. With kith's own connections: a Telegram group, forum (a group with topics) or channel; a WhatsApp group (at most 25 characters of name) or community; a Slack channel, public or private (Slack writes its name in lower case with hyphens). A network with several accounts names the account on each row. After the name, a chat asks who is in it, from the people that account knows: tick them and press `enter`. A WhatsApp group needs at least one; a Telegram member the account has never seen cannot be added, and is named.

@@ -86,14 +86,14 @@ func TestACountIsClearedByAKeyThatIsNotAMotion(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = digits(t, m, "9")
-	next, _ := m.handleKey(tea.KeyPressMsg{Code: 'x'})
+	next, _ := m.handleKey(tea.KeyPressMsg{Code: 'z'})
 	m = next
 	if m.motion.count != 0 {
 		t.Errorf("count = %d after another key, want it cleared", m.motion.count)
 	}
 	// The key that follows takes what is pending — which is now nothing — so a count
 	// typed and abandoned cannot multiply a motion two keystrokes later.
-	after, _ := m.handleKey(tea.KeyPressMsg{Code: 'x'})
+	after, _ := m.handleKey(tea.KeyPressMsg{Code: 'z'})
 	m = after
 	if got := m.take(); got != 1 {
 		t.Errorf("the abandoned count survived as %d", got)

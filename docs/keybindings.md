@@ -46,6 +46,7 @@ The spaces rail, the left pane. Naming is written back to `[[display.name]]` for
 | `name` | `a` | Name this group |
 | `notify_rule` | `b` | Notification rule for this space |
 | `mark_read` | `m` | Mark every unread room in this group read |
+| `leave` | `L`, `x` | Leave this space, or delete this tag (asks first) |
 
 ### `[keys.nav]`
 
@@ -81,7 +82,7 @@ The room list, the middle pane. Consulted before `[keys.nav]`. `accept` and `rej
 | `name` | `a` | Name this room |
 | `notify_rule` | `b` | Notification rule for this room |
 | `join` | `J` | Join a room by ID or alias |
-| `leave` | `L` | Leave the selected room |
+| `leave` | `L`, `x` | Leave the selected room (asks first) |
 | `mark_read` | `m` | Mark this room read without opening it |
 | `mark_unread` | `M` | Mark this room unread, or clear the mark |
 | `invite` | `i` | Invite someone to this room |
@@ -223,6 +224,7 @@ Any chooser overlay — the people list, identities, colors, links, spaces, thre
 | `ban` | `b` | Ban the person under the cursor from this room |
 | `rename` | `alt+r` | Name the thread under the cursor |
 | `toggle` | `space` | Tick the row under the cursor (in a list of checkboxes) |
+| `remove` | `x` | Take the row under the cursor out of its list: a list setting's entry, a tag's rule or room, a phonebook card's field, a settings record (an alias, a name you gave, a rule), a tag (asks first), a notification rule, a scheduled message; in the filing picker it unticks the place. A row that makes something (Add a field, New tag) is never removed |
 | `accept` | `enter`, `tab` | Choose the item under the cursor, or apply the ticked ones |
 | `close` | `esc` | Stop typing, then close |
 
