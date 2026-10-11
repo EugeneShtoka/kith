@@ -226,7 +226,7 @@ func benchRealisticRoomList() Model {
 	}
 	display := config.Display{
 		// Name rules on: every room label goes through shortening as well as bidi.
-		SpaceRules: []config.SpaceRule{{Space: "Space 0", FirstNameOnly: true}},
+		SpaceRules: []config.SpaceRule{{Space: "space:Space 0", FirstNameOnly: true}},
 	}
 	m := starterNew(apitest.Nop{}, display)
 	cfg := m.conf.base.Clone()

@@ -178,7 +178,7 @@ func (m Model) muteTargets() []muteTarget {
 				kind = "tag"
 			}
 			targets = append(targets, muteTarget{
-				kind: kind, match: homeEntry(home), label: shown, what: "everything in " + shown,
+				kind: kind, match: domain.HomeEntry(home), label: shown, what: "everything in " + shown,
 			})
 		}
 	}

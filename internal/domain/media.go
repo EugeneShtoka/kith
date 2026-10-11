@@ -38,7 +38,7 @@ func (m *Media) IsVideo() bool { return m != nil && m.Type == MediaVideo }
 
 // MediaRule is one place's attachment policy; a nil field inherits.
 type MediaRule struct {
-	// Match is a room ID or a space's name; Sender is an MXID.
+	// Match is a room ID or a home entry (NamesHome); Sender is an MXID.
 	Match  string
 	Sender string
 	Auto   *bool

@@ -36,7 +36,7 @@ func TestATagIsAPlace(t *testing.T) {
 // of one name stay apart; a tag reads by its name.
 func TestHomesFollowThePriority(t *testing.T) {
 	t.Parallel()
-	got := Homes([]string{"Work", "Family"}, []string{"Family", "Busy"}, HomeOrder{Priority: []string{"tag:Family", "Work"}})
+	got := Homes([]string{"Work", "Family"}, []string{"Family", "Busy"}, HomeOrder{Priority: []string{"tag:Family", "space:Work"}})
 	if want := []string{"tag:Family", "Work", "tag:Busy", "Family"}; !slices.Equal(got, want) {
 		t.Errorf("Homes = %v, want %v", got, want)
 	}
@@ -56,6 +56,9 @@ func TestHomesFollowThePriority(t *testing.T) {
 //     name where "*" stands (after the rail when it has none);
 //  3. at "*": tags (config order), then your spaces, then a network's own spaces;
 //  4. a tag of every room only when nothing else is a home.
+//
+// Entries are space:, tag: and place: (a space shown under its rename, a space and a
+// tag sharing a name, any case); homes one entry places tie by name.
 func TestARoomsHomeFollowsTheRulesInAnyOrder(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(500) {
@@ -69,11 +72,16 @@ func TestARoomsHomeFollowsTheRulesInAnyOrder(t *testing.T) {
 			}
 			spaces = append(spaces, s)
 		}
-		tagDefs := []Tag{{Name: "DMs", Rule: []string{"dm"}}, {Name: "Pinned"}, {Name: "Clients"}, {Name: "All", Rule: []string{"*"}}}
+		tagDefs := []Tag{{Name: "DMs", Rule: []string{"dm"}}, {Name: "Pinned"}, {Name: "Clients"}, {Name: "Family"}, {Name: "All", Rule: []string{"*"}}}
 		rng.Shuffle(len(tagDefs), func(i, j int) { tagDefs[i], tagDefs[j] = tagDefs[j], tagDefs[i] })
 		tagDefs = tagDefs[:rng.IntN(len(tagDefs)+1)] // no tags at all, too
 		set := mustTags(t, tagDefs...)
-		entries := append(slices.Clone(spaceNames), "tag:DMs", "tag:Pinned", "tag:Clients", "tag:All")
+		var entries []string
+		for _, name := range spaceNames {
+			entries = append(entries, "space:"+name)
+		}
+		entries = append(entries, "tag:DMs", "tag:Pinned", "tag:Clients", "tag:family", "tag:All",
+			"place:Family", "place:clients", "place:Pals", "place:Work", "place:whatsapp home", "place:All", "Work")
 		pick := func(extra ...string) []string {
 			var out []string
 			for _, e := range append(slices.Clone(entries), extra...) {
@@ -84,7 +92,8 @@ func TestARoomsHomeFollowsTheRulesInAnyOrder(t *testing.T) {
 			rng.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
 			return out
 		}
-		order := NewHomeOrder(pick(), pick("*", "-"), set, spaces)
+		labels := map[string]string{"Acme": "Clients", "Friends": "Pals"}
+		order := NewHomeOrder(pick(), pick("*", "-"), set, spaces, labels)
 
 		// A room: some spaces, some tags.
 		var roomSpaces, roomTags []string
@@ -109,14 +118,14 @@ func TestARoomsHomeFollowsTheRulesInAnyOrder(t *testing.T) {
 				t.Fatalf("seed %d: homes %v, but %v when the spaces arrive as %v", seed, got, again, s)
 			}
 		}
-		if want := expectedHome(order, roomSpaces, roomTags, spaces); got[0] != want {
+		if want := expectedHome(order, labels, roomSpaces, roomTags, spaces); got[0] != want {
 			t.Errorf("seed %d: first home %q, want %q\n  priority %v\n  rail %v\n  spaces %v tags %v", seed, got[0], want, order.Priority, order.Rail, roomSpaces, roomTags)
 		}
 	}
 }
 
-// expectedHome is the rules above, applied one at a time.
-func expectedHome(order HomeOrder, spaces, tags []string, all []Space) string {
+// expectedHome is the rules above, applied one at a time; labels are the spaces' renames.
+func expectedHome(order HomeOrder, labels map[string]string, spaces, tags []string, all []Space) string {
 	var homes []string
 	homes = append(homes, spaces...)
 	for _, tag := range tags {
@@ -127,21 +136,44 @@ func expectedHome(order HomeOrder, spaces, tags []string, all []Space) string {
 	if len(candidates) == 0 {
 		return "tag:All"
 	}
-	position := func(list []string, h string) int {
-		return slices.IndexFunc(list, func(e string) bool { return strings.EqualFold(e, h) })
-	}
-	// 1. priority.
-	best, bestAt := "", -1
-	for _, h := range candidates {
-		if at := position(order.Priority, h); at >= 0 && (bestAt < 0 || at < bestAt) {
-			best, bestAt = h, at
+	names := func(entry, h string) bool {
+		kind, name, _ := strings.Cut(strings.ToLower(entry), ":")
+		tag, isTag := strings.CutPrefix(h, "tag:")
+		switch kind {
+		case "space":
+			return !isTag && strings.EqualFold(name, h)
+		case "tag":
+			return isTag && strings.EqualFold(name, tag)
+		case "place":
+			if isTag {
+				return strings.EqualFold(name, tag)
+			}
+			return strings.EqualFold(name, h) || strings.EqualFold(name, labels[h])
 		}
+		return false // a bare name names nothing
 	}
-	if best != "" {
-		return best
+	position := func(list []string, h string) int {
+		return slices.IndexFunc(list, func(e string) bool { return names(e, h) })
+	}
+	byName := func(a, b string) int { return strings.Compare(strings.ToLower(a), strings.ToLower(b)) }
+	// 1. priority; homes one entry places tie by name.
+	if at := slices.MinFunc(candidates, func(a, b string) int {
+		pa, pb := position(order.Priority, a), position(order.Priority, b)
+		if pa < 0 {
+			pa = len(order.Priority)
+		}
+		if pb < 0 {
+			pb = len(order.Priority)
+		}
+		return pa - pb
+	}); position(order.Priority, at) >= 0 {
+		first := position(order.Priority, at)
+		return slices.MinFunc(slices.DeleteFunc(slices.Clone(candidates), func(h string) bool {
+			return position(order.Priority, h) != first
+		}), byName)
 	}
 	// 2. rail position.
-	rest := position(order.Rail, "*")
+	rest := slices.Index(order.Rail, "*")
 	if rest < 0 {
 		rest = len(order.Rail)
 	}
@@ -154,8 +186,8 @@ func expectedHome(order HomeOrder, spaces, tags []string, all []Space) string {
 	least := slices.MinFunc(candidates, func(a, b string) int { return railAt(a) - railAt(b) })
 	at := railAt(least)
 	tied := slices.DeleteFunc(slices.Clone(candidates), func(h string) bool { return railAt(h) != at })
-	if at != rest || position(order.Rail, least) >= 0 && len(tied) == 1 {
-		return least // a named entry stands alone at its position
+	if at != rest {
+		return slices.MinFunc(tied, byName) // placed by an entry
 	}
 	// 3. at "*": tags in config order, then your spaces, then the network's own, each
 	// group by name.
@@ -181,16 +213,25 @@ func expectedHome(order HomeOrder, spaces, tags []string, all []Space) string {
 	})
 }
 
-// A home order names a tag by its bare name, as the rail does, unless a space is
-// called that.
-func TestAHomeOrderNamesATagByItsName(t *testing.T) {
+// A bare name in a home order names nothing; place: names every home shown so, space:
+// and tag: only their own kind.
+func TestAHomeOrderNamesHomesOnlyByPrefix(t *testing.T) {
 	t.Parallel()
-	o := HomeOrder{Rail: []string{"Services", "Work"}}
-	if got := Homes([]string{"Work"}, []string{"Services"}, o); got[0] != "tag:Services" {
-		t.Errorf("homes = %q, want the tag the rail names first", got)
+	cases := []struct {
+		rail []string
+		want string
+	}{
+		{[]string{"Services", "space:Work"}, "Work"},
+		{[]string{"tag:Services", "space:Work"}, "tag:Services"},
+		{[]string{"space:Services", "space:Work"}, "Services"},
+		{[]string{"place:services", "space:Work"}, "Services"}, // both; a space sorts before tag:
+		{[]string{"place:Desk", "space:Work"}, "Work"},         // Desk is Work's rename
+		{[]string{"space:Desk", "place:Services"}, "Services"}, // space: reads the name, not the label
 	}
-	o = o.WithManaged([]Space{{ID: "!s:x", Name: "Services"}})
-	if got := Homes([]string{"Work"}, []string{"Services"}, o); got[0] != "Work" {
-		t.Errorf("with a space called Services, homes = %q, want Work first", got)
+	for _, c := range cases {
+		o := NewHomeOrder(nil, c.rail, TagSet{}, nil, map[string]string{"Work": "Desk"})
+		if got := Homes([]string{"Work", "Services"}, []string{"Services"}, o); got[0] != c.want {
+			t.Errorf("rail %q: homes = %q, want %q first", c.rail, got, c.want)
+		}
 	}
 }

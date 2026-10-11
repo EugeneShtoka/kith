@@ -19,7 +19,7 @@ import (
 // roomList is a rail group's order: config's answer with this session's per-group override on
 // top. Overrides last the session only.
 func (m Model) roomList(group string) domain.RoomList {
-	list := domain.ResolveRoomList(m.prefs.display.Rooms.Sort, m.rail.rules, group)
+	list := domain.ResolveRoomList(m.prefs.display.Rooms.Sort, m.rail.rules, group, m.rail.homes.Label(group))
 	if chain, ok := m.rail.chains[group]; ok {
 		list.Chain = chain
 	}

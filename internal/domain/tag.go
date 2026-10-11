@@ -80,6 +80,9 @@ type term struct {
 	state  func(RoomState) bool // a state word
 	judged bool                 // the state word is a judgement (judgedWords)
 	place  string               // a place entry (RoomFacts.Names)
+	// shownAs is a place:<name> term's name: its spaces match on the room's facts, a
+	// tag of that name (tag, then) through the set, so cycles are broken alike.
+	shownAs string
 }
 
 // parseTerm reads one rule term; known is the tags that exist, lower-cased.
@@ -101,11 +104,19 @@ func parseTerm(raw string, known map[string]bool) (term, error) {
 			return term{}, fmt.Errorf("%q names no tag", raw)
 		}
 		t.tag = strings.ToLower(name)
+	case hasPrefixFold(s, entryPlace):
+		_, name, ok := ParseHomeEntry(s)
+		if !ok {
+			return term{}, fmt.Errorf("%q names no place", raw)
+		}
+		t.place, t.shownAs = s, name
+		if known[strings.ToLower(name)] {
+			t.tag = strings.ToLower(name)
+		}
 	default:
 		if _, ok := ParseEntry(s); !ok {
-			return term{}, fmt.Errorf("%q names nothing — write *, a state word (%s), tag:<name>, "+
-				"a room ID, room:<name>, space:<name>, protocol:<network>, dm or group, "+
-				"each optionally after `not`", raw, strings.Join(stateWordList(), ", "))
+			return term{}, fmt.Errorf("%q needs a prefix: %s (or *, a state word: %s, %s; "+
+				"each may follow `not`)", raw, EntryPrefixes, strings.Join(stateWordList(), ", "), EntryWords)
 		}
 		t.place = s
 	}
@@ -370,12 +381,16 @@ func (s TagSet) has(i int, facts RoomFacts, state RoomState, asking map[int]bool
 			return true
 		case t.state != nil:
 			return t.state(state)
+		case t.shownAs != "" && facts.inSpaceShownAs(t.shownAs):
+			return true
 		case t.tag != "":
 			j := s.byName[t.tag]
 			if s.cyclic[[2]string{from, t.tag}] || asking[j] {
 				return false
 			}
 			return s.has(j, facts, state, asking)
+		case t.shownAs != "":
+			return false
 		default:
 			return facts.Names(t.place)
 		}
@@ -413,8 +428,8 @@ func refiled(entries []string, facts RoomFacts, others []RoomFacts) []string {
 			out = append(out, entry)
 			continue
 		}
-		for _, o := range others {
-			if o.ID != facts.ID && o.Names(entry) && !slices.Contains(out, o.ID) {
+		for i := range others {
+			if o := &others[i]; o.ID != facts.ID && o.Names(entry) && !slices.Contains(out, o.ID) {
 				out = append(out, o.ID)
 			}
 		}

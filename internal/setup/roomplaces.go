@@ -17,7 +17,7 @@ func PlacesOf(cfg config.Config) domain.Places {
 	archives, _ := Archives(cfg, tags)
 	return domain.Places{
 		Names:    names,
-		Order:    domain.NewHomeOrder(display.Priority, display.Rail.Order, tags, nil),
+		Order:    domain.NewHomeOrder(display.Priority, display.Rail.Order, tags, nil, display.SpaceLabels()),
 		Tags:     tags,
 		Archives: archives,
 	}

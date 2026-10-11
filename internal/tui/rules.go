@@ -83,7 +83,7 @@ func (m Model) openRuleForSender() (Model, tea.Cmd) {
 		{match: string(room.ID), what: "everyone in " + m.roomName(room)},
 	}
 	for _, home := range m.placeHomes(room.ID) {
-		entry, shown := homeEntry(home), isolate(domain.HomeLabel(home))
+		entry, shown := domain.HomeEntry(home), isolate(domain.HomeLabel(home))
 		m.aimedAt.ruleScopes = append(m.aimedAt.ruleScopes,
 			ruleTarget{match: entry, sender: msg.Sender, what: who + " in " + shown},
 			ruleTarget{match: entry, what: "everything in " + shown})
@@ -100,7 +100,7 @@ func (m Model) openRuleForRoom() (Model, tea.Cmd) {
 	}
 	m.aimedAt.ruleScopes = []ruleTarget{{match: string(room.ID), what: m.roomName(room)}}
 	for _, home := range m.placeHomes(room.ID) {
-		m.aimedAt.ruleScopes = append(m.aimedAt.ruleScopes, ruleTarget{match: homeEntry(home), what: "everything in " + domain.HomeLabel(home)})
+		m.aimedAt.ruleScopes = append(m.aimedAt.ruleScopes, ruleTarget{match: domain.HomeEntry(home), what: "everything in " + domain.HomeLabel(home)})
 	}
 	m.picker = newPicker(pickerRuleScope, ruleScopeItems(m.aimedAt.ruleScopes))
 	return m, nil
@@ -117,7 +117,7 @@ func (m Model) openRuleForGroup() (Model, tea.Cmd) {
 		return m, nil
 	}
 	// A space's rail key is its bare name, not yet a place entry; a tag's is one.
-	m.aimedAt.ruleScopes = []ruleTarget{{match: homeEntry(entry.key), what: "everything in " + entry.label}}
+	m.aimedAt.ruleScopes = []ruleTarget{{match: domain.HomeEntry(entry.key), what: "everything in " + entry.label}}
 	return m.chooseRuleScope(0)
 }
 

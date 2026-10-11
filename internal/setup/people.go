@@ -23,17 +23,6 @@ func Aliases(ids []config.Identity) map[string]string {
 	return out
 }
 
-// FirstNameSpaces is each space whose names are first names only ([[display.space_rule]]).
-func FirstNameSpaces(d config.Display) map[string]bool {
-	out := map[string]bool{}
-	for _, r := range d.SpaceRules {
-		if r.FirstNameOnly {
-			out[r.Space] = true
-		}
-	}
-	return out
-}
-
 // PeopleOf is People with these aliases and directory.
 func PeopleOf(aliases map[string]string, dir domain.Directory) domain.People {
 	return domain.People{Alias: func(user string) string { return aliases[user] }, Dir: dir}

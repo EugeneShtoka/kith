@@ -40,10 +40,10 @@ type Notifications struct {
 	rules     []notify.Rule
 	notifier  notify.Notifier
 	clock     domain.Clock // how a notification writes its {date} and {time}
-	// aliases are the person's names for people, firstNames the spaces showing first
+	// aliases are the person's names for people, firstNames whether a home shows first
 	// names only, roomRules whether a direct chat's label is shaped too.
 	aliases    map[string]string
-	firstNames map[string]bool
+	firstNames func(home string) bool
 	roomRules  bool
 	temps      notify.Temps
 	autocopy   domain.AutoCopy
@@ -125,10 +125,10 @@ func (n *Notifications) byNumber(ctx context.Context, once *lazyDirectory, label
 }
 
 // namer names people as the timeline does: alias, network name, directory name,
-// first names only where space's rule says so.
-func (n *Notifications) namer(ctx context.Context, once *lazyDirectory, space string) func(user string, known ...string) string {
+// first names only where home's rule says so.
+func (n *Notifications) namer(ctx context.Context, once *lazyDirectory, home string) func(user string, known ...string) string {
 	n.mu.Lock()
-	aliases, first := n.aliases, n.firstNamesLocked(space)
+	aliases, first := n.aliases, n.firstNamesLocked(home)
 	n.mu.Unlock()
 	return func(user string, known ...string) string {
 		name := setup.PeopleOf(aliases, n.directory(ctx, once)).Name(user, known...)
@@ -139,15 +139,15 @@ func (n *Notifications) namer(ctx context.Context, once *lazyDirectory, space st
 	}
 }
 
-// firstNamesIn reports whether space's names are first names only.
-func (n *Notifications) firstNamesIn(space string) bool {
+// firstNamesIn reports whether home's names are first names only.
+func (n *Notifications) firstNamesIn(home string) bool {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.firstNamesLocked(space)
+	return n.firstNamesLocked(home)
 }
 
-func (n *Notifications) firstNamesLocked(space string) bool {
-	return space != "" && n.firstNames[space]
+func (n *Notifications) firstNamesLocked(home string) bool {
+	return n.firstNames != nil && n.firstNames(home)
 }
 
 func (n *Notifications) isMine(sender string) bool {
@@ -253,7 +253,9 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.notifier, n.limit, n.clock = rules, notifier, limit, clock
-	n.aliases, n.firstNames = setup.Aliases(cfg.Display.Identities), setup.FirstNameSpaces(cfg.Display)
+	display := cfg.Display
+	n.aliases = setup.Aliases(display.Identities)
+	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
 	n.roomRules = cfg.Display.ApplyRoomNameRules()
 	n.keep, n.keepRules = keep, keepRules
 	n.autocopy, n.clip = autocopy, clipboard{command: cfg.Clipboard.Command}
@@ -446,11 +448,12 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 		return notify.Notification{}, false
 	}
 	// A room can be in several spaces and tags; {space} is the first by priority.
-	space := n.scope.Home(facts)
+	home := n.scope.FirstHome(facts)
+	space := domain.HomeLabel(home)
 	var once lazyDirectory // read only when someone is to be named
-	name := n.namer(ctx, &once, space)
+	name := n.namer(ctx, &once, home)
 	room := n.byNumber(ctx, &once, facts.Name)
-	if n.roomRules && facts.Direct && n.firstNamesIn(space) {
+	if n.roomRules && facts.Direct && n.firstNamesIn(home) {
 		room = domain.FirstName(room)
 	}
 	// NotifyBody keeps what the sender covered up covered.

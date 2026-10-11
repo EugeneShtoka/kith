@@ -1108,7 +1108,7 @@ func TestTheThreadListShortensNamesByTheSpaceRule(t *testing.T) {
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
 	}})
-	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: "Work", FirstNameOnly: true}}
+	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}}
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = update(t, next, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
 		{ID: "$root", RoomID: "!a:x", Sender: "@noa:x", SenderName: "Noa Katz", Body: "ship it?", Timestamp: at(1)},

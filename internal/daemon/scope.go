@@ -80,8 +80,8 @@ func (x *scopeIndex) SetArchives(archives map[domain.Protocol]string) {
 	x.archives = archives
 }
 
-// Home is a room's first home (space or tag, in home order), as {space} shows it.
-func (x *scopeIndex) Home(facts domain.RoomFacts) string {
+// FirstHome is a room's first home in home order: a space's name, or tag:<name>.
+func (x *scopeIndex) FirstHome(facts domain.RoomFacts) string {
 	x.mu.Lock()
 	order := x.order
 	x.mu.Unlock()
@@ -89,7 +89,7 @@ func (x *scopeIndex) Home(facts domain.RoomFacts) string {
 	if len(homes) == 0 {
 		return ""
 	}
-	return domain.HomeLabel(homes[0])
+	return homes[0]
 }
 
 // SetHomeOrder replaces the config's part of the home order and drops the index.

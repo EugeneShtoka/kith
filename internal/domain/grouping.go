@@ -43,11 +43,12 @@ func DiffGroupings(groupings []Grouping, tags TagSet, rooms []RoomFacts, owner R
 		d := GroupingDiff{Grouping: g}
 		i, exists := tags.Index(g.Name)
 		d.Exists = exists
-		for _, r := range rooms {
+		for j := range rooms {
+			r := &rooms[j]
 			if !owner.Owns(RoomID(r.ID)) {
 				continue
 			}
-			held := exists && tags.HasAt(i, r, RoomState{})
+			held := exists && tags.HasAt(i, *r, RoomState{})
 			in := slices.Contains(g.Rooms, RoomID(r.ID))
 			switch {
 			case in && !held:

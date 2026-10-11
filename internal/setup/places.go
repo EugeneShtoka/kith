@@ -53,7 +53,95 @@ func PlaceEntries(cfg config.Config) error {
 			return fmt.Errorf("setup: display.direction: %q is in both rtl and ltr", entry)
 		}
 	}
+	return homeEntries(cfg)
+}
+
+// What a list naming rail rows may hold besides space:, tag: and place: entries.
+const (
+	homePrefixes  = "space:, tag:, place:"
+	railWords     = "* or -"
+	ruleWords     = "a room ID"
+	filingPrefix  = "space:, place:"
+	filingWords   = "a space's ID"
+	jumpPrefixes  = "room:, space:, tag:, place:"
+	railSeparator = "-"
+)
+
+// placeList is one setting's entries and the forms it takes.
+type placeList struct {
+	what, prefixes, words string
+	entries               []string
+	ok                    func(string) bool
+}
+
+// homeEntries refuses an entry naming rail rows without a prefix: a bare name could be
+// a space, a tag or a row's label.
+func homeEntries(cfg config.Config) error {
+	for _, l := range slices.Concat(railLists(cfg.Display), ruleLists(cfg)) {
+		for _, entry := range l.entries {
+			if !l.ok(entry) {
+				return fmt.Errorf("setup: %w", domain.NeedsPrefix(l.what, entry, l.prefixes, l.words))
+			}
+		}
+	}
 	return nil
+}
+
+func isHomeEntry(entry string) bool { _, _, ok := domain.ParseHomeEntry(entry); return ok }
+
+// isIDEntry reports a room or event ID: complete on its own.
+func isIDEntry(entry string) bool {
+	entry = strings.TrimSpace(entry)
+	return strings.HasPrefix(entry, "!") || strings.HasPrefix(entry, "$") || domain.IsRoomID(entry)
+}
+
+// railLists are the lists of rail rows: priority, the rail's own, filing_spaces.
+func railLists(d config.Display) []placeList {
+	return []placeList{
+		{"display.priority", homePrefixes, "", d.Priority, isHomeEntry},
+		{"display.rail.order", homePrefixes, railWords, d.Rail.Order, func(e string) bool {
+			e = strings.TrimSpace(e)
+			return isHomeEntry(e) || e == "*" || (e != "" && strings.Trim(e, railSeparator) == "")
+		}},
+		{"display.rail.hidden", homePrefixes, "", d.Rail.Hidden, isHomeEntry},
+		{"display.rail.hide_when_empty", homePrefixes, "", d.Rail.HideWhenEmpty, isHomeEntry},
+		{"display.filing_spaces", filingPrefix, filingWords, d.FilingSpaces, func(e string) bool {
+			_, isTag := domain.TagOf(e)
+			return isIDEntry(e) || (isHomeEntry(e) && !isTag)
+		}},
+	}
+}
+
+// ruleLists are the one-entry settings of rules and jumps. An empty match is a
+// sender-only rule (or none), an empty group RoomList's to refuse.
+func ruleLists(cfg config.Config) []placeList {
+	d := cfg.Display
+	var out []placeList
+	add := func(what, prefixes, words, entry string, ok func(string) bool) {
+		if strings.TrimSpace(entry) != "" {
+			out = append(out, placeList{what, prefixes, words, []string{entry}, ok})
+		}
+	}
+	match := func(e string) bool { return isHomeEntry(e) || isIDEntry(e) }
+	for i, r := range d.SpaceRules {
+		add(fmt.Sprintf("display.space_rule[%d].space", i), homePrefixes, "", r.Space, isHomeEntry)
+	}
+	for i, r := range d.Rooms.Rules {
+		add(fmt.Sprintf("display.rooms.rule[%d].group", i), homePrefixes, "", r.Group, isHomeEntry)
+	}
+	for i, r := range d.ReadRules {
+		add(fmt.Sprintf("display.read_rule[%d].match", i), homePrefixes, ruleWords, r.Match, match)
+	}
+	for i, r := range d.Threads.Rules {
+		add(fmt.Sprintf("display.threads.rule[%d].match", i), homePrefixes, ruleWords, r.Match, match)
+	}
+	for i := range d.Media.Rules {
+		add(fmt.Sprintf("display.media.rule[%d].match", i), homePrefixes, ruleWords, d.Media.Rules[i].Match, match)
+	}
+	for _, j := range cfg.Keys.Jump {
+		add(fmt.Sprintf("keys.jump %q", j.Chord), jumpPrefixes, "", j.Target, domain.HasJumpPrefix)
+	}
+	return out
 }
 
 // knownTags refuses a tag:<name> entry that names no [[tag]].
@@ -68,6 +156,25 @@ func knownTags(cfg config.Config, what string, entries []string) error {
 		}
 	}
 	return nil
+}
+
+// HomeNamer reports, for one home (a space's name, or tag:<name>), whether a home entry
+// names it, given the label its rail row shows under the display's renames.
+func HomeNamer(d config.Display, home string) func(entry string) bool {
+	label := ""
+	if _, isTag := domain.TagOf(home); !isTag {
+		label = d.SpaceLabels()[strings.TrimSpace(home)]
+	}
+	return func(entry string) bool { return domain.NamesHome(entry, home, label) }
+}
+
+// FirstNamesIn reports whether home's [[display.space_rule]] shows first names only.
+func FirstNamesIn(d config.Display, home string) bool {
+	if home == "" {
+		return false
+	}
+	r, ok := d.SpaceRule(HomeNamer(d, home))
+	return ok && r.FirstNameOnly
 }
 
 // Place adapts the client's place vocabulary to the ranking notify does.

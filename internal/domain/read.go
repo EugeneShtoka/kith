@@ -6,7 +6,7 @@ import "time"
 
 // ReadRule is one place's read policy; nil fields inherit.
 type ReadRule struct {
-	// Match is a room ID or a space's name; Sender is an MXID.
+	// Match is a room ID or a home entry (NamesHome); Sender is an MXID.
 	Match  string
 	Sender string
 	// Send is whether a read receipt goes to the homeserver at all.

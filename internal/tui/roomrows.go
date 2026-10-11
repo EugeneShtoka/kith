@@ -90,6 +90,7 @@ func (m Model) scopeOfRoom(room domain.Room) domain.Scope {
 	scope := domain.Scope{RoomID: string(room.ID)}
 	if homes := m.homesOf(room.ID); len(homes) > 0 {
 		scope.Space = homes[0]
+		scope.SpaceLabel = m.rail.homes.Label(homes[0])
 	}
 	return scope
 }

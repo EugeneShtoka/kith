@@ -64,11 +64,11 @@ func (m Model) scriptHelp(keyColumn int) []string {
 
 // jumpLabel says where a jump target leads, or that it leads nowhere.
 func (m Model) jumpLabel(target domain.JumpTarget) string {
-	if target.Kind == domain.JumpSpace {
+	if target.Kind == domain.JumpHome {
 		if key, found := m.groupNamed(target.Name); found {
-			return "space " + isolate(m.rail.groups[indexOfGroup(m.rail.groups, key)].label)
+			return placeWord(key) + " " + isolate(m.rail.groups[indexOfGroup(m.rail.groups, key)].label)
 		}
-		return target.String() + "  (no such space here)"
+		return target.String() + "  (nothing in the rail here)"
 	}
 	if room, found := m.roomNamed(target); found {
 		return m.roomName(room)

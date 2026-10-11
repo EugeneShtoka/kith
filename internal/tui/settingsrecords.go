@@ -10,6 +10,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
 // Some groups' rows are made from the config rather than listed: the Names group's
@@ -300,7 +301,7 @@ func (m Model) placeNameRows() []setting {
 			doc:   "Senders in rooms whose home is this " + placeWord(place) + " are shown by their first name. A room in several places follows its home: [display] priority, then the rail's order.",
 			show:  func(c config.Config) string { return onOff(firstNamesIn(c, place)) },
 			set: func(c *config.Config, _ string) error {
-				c.Display.SpaceRules = withFirstNames(c.Display.SpaceRules, place, !firstNamesIn(*c, place))
+				c.Display.SpaceRules = withFirstNames(c.Display, place, !firstNamesIn(*c, place))
 				return nil
 			},
 		})
@@ -324,7 +325,7 @@ func (m Model) placeColorRows() []setting {
 			choices: placeColorChoices,
 			show:    func(c config.Config) string { return placeColorsShown(c, place) },
 			set: func(c *config.Config, value string) error {
-				c.Display.SpaceRules = withNetworkColors(c.Display.SpaceRules, place, placeColorValues[value])
+				c.Display.SpaceRules = withNetworkColors(c.Display, place, placeColorValues[value])
 				return nil
 			},
 		})
@@ -345,7 +346,7 @@ var (
 
 // placeColorsShown is a place's network-colors choice: its own, or the inherited one.
 func placeColorsShown(c config.Config, place string) string {
-	if r, ok := c.Display.SpaceRule(place); ok && r.NetworkColors != nil {
+	if r, ok := c.Display.SpaceRule(setup.HomeNamer(c.Display, place)); ok && r.NetworkColors != nil {
 		return onOff(*r.NetworkColors)
 	}
 	return "as everywhere (" + onOff(c.Display.NetworkColors) + ")"
@@ -367,7 +368,7 @@ func (m Model) placeArchivedRows() []setting {
 			choices: placeArchivedChoices,
 			show:    func(c config.Config) string { return placeArchivedShown(c, place) },
 			set: func(c *config.Config, value string) error {
-				c.Display.SpaceRules = withSpaceRule(c.Display.SpaceRules, place, func(r *config.SpaceRule) { r.ShowArchived = placeArchivedValues[value] })
+				c.Display.SpaceRules = withSpaceRule(c.Display, place, func(r *config.SpaceRule) { r.ShowArchived = placeArchivedValues[value] })
 				return nil
 			},
 		})
@@ -389,7 +390,7 @@ var (
 // placeArchivedShown is a place's archived-rooms choice: its own, or the inherited one.
 func placeArchivedShown(c config.Config, place string) string {
 	word := map[bool]string{true: "shown", false: "hidden"}
-	if r, ok := c.Display.SpaceRule(place); ok && r.ShowArchived != nil {
+	if r, ok := c.Display.SpaceRule(setup.HomeNamer(c.Display, place)); ok && r.ShowArchived != nil {
 		return word[*r.ShowArchived]
 	}
 	return "as everywhere (" + word[c.Display.ShowsArchived()] + ")"
@@ -401,8 +402,8 @@ func (m Model) isHomeTag(key string) bool {
 		return false
 	}
 	name, _ := domain.TagOf(key)
-	for _, f := range m.rail.roomFacts {
-		if slices.ContainsFunc(f.Tags, func(t string) bool { return strings.EqualFold(t, name) }) {
+	for id := range m.rail.roomFacts {
+		if slices.ContainsFunc(m.rail.roomFacts[id].Tags, func(t string) bool { return strings.EqualFold(t, name) }) {
 			return true
 		}
 	}
@@ -417,35 +418,31 @@ func placeWord(key string) string {
 }
 
 // firstNamesIn reports whether place (a space's name, or tag:<name>) shows first names.
-func firstNamesIn(c config.Config, place string) bool {
-	for _, r := range c.Display.SpaceRules {
-		if strings.EqualFold(r.Space, place) {
-			return r.FirstNameOnly
-		}
-	}
-	return false
-}
+func firstNamesIn(c config.Config, place string) bool { return setup.FirstNamesIn(c.Display, place) }
 
-func withFirstNames(rules []config.SpaceRule, place string, on bool) []config.SpaceRule {
-	return withSpaceRule(rules, place, func(r *config.SpaceRule) { r.FirstNameOnly = on })
+func withFirstNames(d config.Display, place string, on bool) []config.SpaceRule {
+	return withSpaceRule(d, place, func(r *config.SpaceRule) { r.FirstNameOnly = on })
 }
 
 // withNetworkColors sets place's network-colors choice: nil follows [display] network_colors.
-func withNetworkColors(rules []config.SpaceRule, place string, on *bool) []config.SpaceRule {
-	return withSpaceRule(rules, place, func(r *config.SpaceRule) { r.NetworkColors = on })
+func withNetworkColors(d config.Display, place string, on *bool) []config.SpaceRule {
+	return withSpaceRule(d, place, func(r *config.SpaceRule) { r.NetworkColors = on })
 }
 
-// withSpaceRule applies change to place's rule; a rule left setting nothing is
-// dropped, so the file keeps only what is set.
-func withSpaceRule(rules []config.SpaceRule, place string, change func(*config.SpaceRule)) []config.SpaceRule {
-	rule := config.SpaceRule{Space: place}
-	out := make([]config.SpaceRule, 0, len(rules)+1)
-	for _, r := range rules {
-		if strings.EqualFold(r.Space, place) {
-			rule = r
-			continue
+// withSpaceRule applies change to place's own rule (space:<name> or tag:<name>), begun
+// from the rule it follows now when it has none; a rule left setting nothing is dropped,
+// so the file keeps only what is set.
+func withSpaceRule(d config.Display, place string, change func(*config.SpaceRule)) []config.SpaceRule {
+	rule, _ := d.SpaceRule(setup.HomeNamer(d, place))
+	rule.Space = domain.HomeEntry(place)
+	own := func(r config.SpaceRule) bool {
+		return !domain.IsPlaceEntry(r.Space) && domain.NamesHome(r.Space, place, "")
+	}
+	out := make([]config.SpaceRule, 0, len(d.SpaceRules)+1)
+	for _, r := range d.SpaceRules {
+		if !own(r) {
+			out = append(out, r)
 		}
-		out = append(out, r)
 	}
 	change(&rule)
 	if !rule.Empty() {

@@ -156,7 +156,7 @@ The two tables read their lists differently. **Reading is least privilege**; wri
 
 With `encrypted = false`, **no encrypted room is in scope, whatever the lists say.** A room whose encryption status cannot be determined is treated as encrypted.
 
-In the same spirit, when the daemon cannot say which spaces a room is in, a scope with `space:` or `protocol:` entries admits no room. The tool reports that and asks the assistant to try again; it does not guess "in no space", which would slip past an `except = ["space:…"]`. A `send` list naming spaces or networks drafts instead of sending. Scopes that name rooms only (`dm`, `group`, `room:`, IDs) are unaffected. The daemon's own model tasks follow the same rule when its cache is off.
+In the same spirit, when the daemon cannot say which spaces a room is in, a scope with `space:`, `tag:`, `place:` or `protocol:` entries admits no room. The tool reports that and asks the assistant to try again; it does not guess "in no space", which would slip past an `except = ["space:…"]`. A `send` list naming spaces or networks drafts instead of sending. Scopes that name rooms only (`dm`, `group`, `room:`, IDs) are unaffected. The daemon's own model tasks follow the same rule when its cache is off.
 
 **Empty `[agent.write]` lists mean every room the assistant may read.** Least privilege already applies one table up, so by default that is nowhere; list a room for reading and the assistant may draft in it without you saying so twice. Everything outside `send` is a draft that you still have to send yourself. To read without writing anywhere, exclude both kinds of room: `[agent.write] except = ["dm", "group"]`.
 
@@ -169,6 +169,8 @@ Entries use the same vocabulary as every other room list in the config:
 | `!abc:example.org` | One room, by ID |
 | `room:Standup` | One room, by its displayed name (or ID) |
 | `space:Work` | Every room in that space |
+| `tag:Pinned` | Every room that tag holds |
+| `place:Work` | Every room in a rail row shown as Work: a space, a tag, renamed or not |
 | `protocol:WhatsApp` | Every room bridged from that network (`Matrix` for native rooms) |
 | `dm` | Every direct message |
 | `group` | Every room that is not a direct message |

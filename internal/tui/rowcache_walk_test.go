@@ -46,7 +46,7 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 
 	display := config.Display{
 		Media:      config.Media{Mode: "inline"},
-		SpaceRules: []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
+		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
 		Tracked:    config.Tracked{Rules: []config.TrackedRule{{Words: []string{"word3"}, In: []string{"room:Alpha"}}}},
 	}
 	m := update(t, starterNew(&quoteBackend{}, display),

@@ -187,7 +187,7 @@ func KeepRules(st config.Storage) (int, []domain.KeepRule, error) {
 	rules := make([]domain.KeepRule, 0, len(st.Rules))
 	for i, r := range st.Rules {
 		if _, ok := domain.ParseEntry(r.Match); !ok {
-			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d: match %q is no place — a room ID, room:<name>, space:<name>, tag:<name>, protocol:<network>, dm or group", i+1, r.Match)
+			return 0, nil, fmt.Errorf("config: %w", domain.NeedsPrefix(fmt.Sprintf("storage.rule[%d].match", i), r.Match, domain.EntryPrefixes, domain.EntryWords))
 		}
 		if r.Messages == nil || *r.Messages == 0 {
 			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d (%s): messages is unset or 0; -1 keeps every message", i+1, r.Match)

@@ -62,15 +62,20 @@ func TestParseSortChain(t *testing.T) {
 func TestARuleReplacesTheChainWhole(t *testing.T) {
 	t.Parallel()
 
-	rules := []RoomListRule{{Group: "work", Sort: []string{"name"}}}
+	rules := []RoomListRule{{Group: "space:work", Sort: []string{"name"}}, {Group: "place:Pals", Sort: []string{"recent"}}}
 	// Group names match case-insensitively.
-	list := ResolveRoomList([]string{"unread", "recent"}, rules, "Work")
+	list := ResolveRoomList([]string{"unread", "recent"}, rules, "Work", "")
 	if len(list.Chain) != 1 || list.Chain[0].Key != SortName {
 		t.Errorf("Work chain = %+v, want the rule's chain alone", list.Chain)
 	}
-	other := ResolveRoomList([]string{"unread", "recent"}, rules, "Friends")
-	if len(other.Chain) != 2 {
-		t.Errorf("Friends chain = %+v, want the global chain", other.Chain)
+	for _, c := range []struct{ group, label string }{{"Friends", ""}, {"tag:Work", ""}, {"Work Chat", ""}} {
+		if other := ResolveRoomList([]string{"unread", "recent"}, rules, c.group, c.label); len(other.Chain) != 2 {
+			t.Errorf("%s chain = %+v, want the global chain", c.group, other.Chain)
+		}
+	}
+	// place: names the group by what the rail shows.
+	if pals := ResolveRoomList([]string{"unread", "recent"}, rules, "Friends", "Pals"); len(pals.Chain) != 1 || pals.Chain[0].Key != SortRecent {
+		t.Errorf("Friends shown as Pals chain = %+v, want the place: rule's", pals.Chain)
 	}
 }
 

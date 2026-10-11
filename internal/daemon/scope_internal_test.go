@@ -95,7 +95,7 @@ func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 		{ID: "!wa:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!r:x"}},
 		{ID: "!tg:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{"!r:x"}},
 	}}
-	x := newScopeIndex(src, []config.DisplayName{{Target: "!r:x", Name: "Daily"}}, domain.HomeOrder{Priority: []string{"Telegram"}})
+	x := newScopeIndex(src, []config.DisplayName{{Target: "!r:x", Name: "Daily"}}, domain.HomeOrder{Priority: []string{"space:Telegram"}, Labels: map[string]string{"telegram": "TG"}})
 	tags, _, err := domain.NewTagSet([]domain.Tag{{Name: "Pinned", Picked: []string{"room:Daily"}}})
 	if err != nil {
 		t.Fatal(err)
@@ -105,6 +105,10 @@ func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 	if got.Name != "Daily" || got.Protocol != domain.ProtocolWhatsApp || !slices.Equal(got.Tags, []string{"Pinned"}) ||
 		len(got.Spaces) != 2 || got.Spaces[0] != "Telegram" {
 		t.Errorf("facts = %+v, want Daily, WhatsApp (the first bridge), tag Pinned, Telegram first", got)
+	}
+	// place: reads the rail's rename and the tags, as the client's facts do.
+	if !got.Names("place:tg") || !got.Names("place:pinned") || got.Names("place:Daily") {
+		t.Errorf("facts = %+v, want place:TG (Telegram renamed) and place:Pinned to name the room", got)
 	}
 }
 
@@ -116,7 +120,7 @@ func TestTheNotifierKnowsTags(t *testing.T) {
 	src := &spaced{gatedRooms: gatedRooms{rooms: []domain.Room{{ID: "!mom:x", Name: "Mom", IsDirect: true}}},
 		spaces: []domain.Space{{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!mom:x"}}}}
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
-	cfg.Display.Priority = []string{"tag:Family", "Work"}
+	cfg.Display.Priority = []string{"tag:Family", "space:Work"}
 	n, err := NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return nil })
 	if err != nil {
 		t.Fatal(err)
@@ -125,14 +129,14 @@ func TestTheNotifierKnowsTags(t *testing.T) {
 	if !facts.Names("tag:Family") {
 		t.Fatalf("facts = %+v, want the room's tag known", facts)
 	}
-	if got := n.scope.Home(facts); got != "Family" {
+	if got := domain.HomeLabel(n.scope.FirstHome(facts)); got != "Family" {
 		t.Errorf("{space} = %q, want the tag that ranks first, by its name", got)
 	}
-	cfg.Display.Priority = []string{"Work"}
+	cfg.Display.Priority = []string{"space:Work"}
 	if err := n.Reload(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if got := n.scope.Home(n.scope.Facts(ctx, "!mom:x")); got != "Work" {
+	if got := domain.HomeLabel(n.scope.FirstHome(n.scope.Facts(ctx, "!mom:x"))); got != "Work" {
 		t.Errorf("{space} after a reload ranking Work first = %q", got)
 	}
 }

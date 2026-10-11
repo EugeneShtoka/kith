@@ -21,7 +21,7 @@ type Storage struct {
 // StorageRule is one [[storage.rule]]: what one place keeps instead.
 type StorageRule struct {
 	// Match names the place as every place list does: a room ID, room:<name>,
-	// space:<name>, tag:<name>, protocol:<network>, dm or group.
+	// space:<name>, tag:<name>, place:<name>, protocol:<network>, dm or group.
 	Match    string `toml:"match"`
 	Messages *int   `toml:"messages"` // negative keeps every one
 }

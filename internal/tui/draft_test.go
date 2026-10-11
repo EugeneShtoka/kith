@@ -183,7 +183,7 @@ func TestTheDraftsGroupCollectsRoomsHoldingWords(t *testing.T) {
 	}
 }
 
-// hide_when_empty drops a group holding nothing, matched by key or label.
+// hide_when_empty drops a group holding nothing, named by a home entry.
 func TestHideWhenEmptyDropsAGroupHoldingNothing(t *testing.T) {
 	t.Parallel()
 
@@ -199,9 +199,13 @@ func TestHideWhenEmptyDropsAGroupHoldingNothing(t *testing.T) {
 	if _, ok := findGroup(groups, unreadGroupKey); !ok {
 		t.Error("Unread stayed hidden with something unread in it")
 	}
-	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{"DMs"}}, nil, view, rooms)
+	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{"place:dms"}}, nil, view, rooms)
 	if _, ok := findGroup(groups, dmsGroupKey); ok {
 		t.Error("hide_when_empty did not match a group by its displayed label")
+	}
+	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{"DMs"}}, nil, view, rooms)
+	if _, ok := findGroup(groups, dmsGroupKey); !ok {
+		t.Error("a bare name in hide_when_empty matched a group")
 	}
 	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{"nonsense"}}, nil, view, rooms)
 	if len(groups) < 3 {

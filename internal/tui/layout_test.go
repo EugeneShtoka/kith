@@ -230,6 +230,14 @@ func TestRenameIgnoresInvites(t *testing.T) {
 
 // indexOfGroupExact is indexOfGroup without its fall-back-to-zero, so a test can tell
 // "not present" from "the first one".
+// findGroup returns the group with the given key.
+func findGroup(groups []group, key string) (group, bool) {
+	if i := indexOfGroupExact(groups, key); i >= 0 {
+		return groups[i], true
+	}
+	return group{}, false
+}
+
 func indexOfGroupExact(groups []group, key string) int {
 	for i := range groups {
 		if groups[i].key == key {
@@ -245,7 +253,7 @@ func TestTheListFollowsTheSpaceAndTheTimelineDoesNot(t *testing.T) {
 	t.Parallel()
 
 	m, _ := laidOut(t, config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
+		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
 		Priority:   []string{"Friends", "Work"},
 	})
 	// A DM in Friends and Work, ranked so Friends (no rule) is its own space rather than the DMs
@@ -283,7 +291,7 @@ func TestASpanningGroupLeavesTheRoomsOwnSpaceToDecide(t *testing.T) {
 	t.Parallel()
 
 	m, _ := laidOut(t, config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
+		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
 	})
 	for _, key := range []string{homeGroupKey, dmsGroupKey, unreadGroupKey} {
 		m.rail.cursor = indexOfGroup(m.rail.groups, key)

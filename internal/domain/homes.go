@@ -2,6 +2,7 @@ package domain
 
 import (
 	"maps"
+	"slices"
 	"strings"
 )
 
@@ -10,25 +11,30 @@ import (
 
 // HomeOrder ranks homes: [display] priority, then the rail order, where "*" stands for
 // unnamed tags (config order), then user spaces, then network-managed spaces. A tag
-// holding every room comes last.
+// holding every room comes last. Both lists hold home entries (NamesHome); the first
+// entry naming a home places it.
 type HomeOrder struct {
-	// Priority is [display] priority: space names and tag:<name>s.
+	// Priority is [display] priority.
 	Priority []string
-	// Rail is [display.rail] order: space names, tag:<name>s, "*" and "-".
+	// Rail is [display.rail] order: home entries, "*" and "-".
 	Rail []string
 	// Tags is every tag's name, in config order.
 	Tags []string
-	// Every is the tags holding every room, Managed the network's own spaces, Spaces
-	// every known space; keys are lower-cased names.
+	// Every is the tags holding every room, Managed the network's own spaces; keys are
+	// lower-cased names.
 	Every   map[string]bool
 	Managed map[string]bool
-	Spaces  map[string]bool
+	// Labels is each renamed space's rail label, by its lower-cased name.
+	Labels map[string]string
 }
 
 // NewHomeOrder builds the order from config; spaces may be nil when not yet known
-// (Places.Facts marks them later).
-func NewHomeOrder(priority, rail []string, tags TagSet, spaces []Space) HomeOrder {
-	o := HomeOrder{Priority: priority, Rail: rail, Every: map[string]bool{}, Managed: map[string]bool{}, Spaces: map[string]bool{}}
+// (Places.Facts marks them later). labels is each renamed space's label, by name.
+func NewHomeOrder(priority, rail []string, tags TagSet, spaces []Space, labels map[string]string) HomeOrder {
+	o := HomeOrder{Priority: priority, Rail: rail, Every: map[string]bool{}, Managed: map[string]bool{}, Labels: map[string]string{}}
+	for name, label := range labels {
+		o.Labels[strings.ToLower(strings.TrimSpace(name))] = label
+	}
 	for i := range tags.Len() {
 		name := tags.At(i).Name
 		o.Tags = append(o.Tags, strings.ToLower(strings.TrimSpace(name)))
@@ -42,14 +48,6 @@ func NewHomeOrder(priority, rail []string, tags TagSet, spaces []Space) HomeOrde
 // WithManaged returns o with spaces' managed ones marked; o's maps are not mutated
 // (they may be shared).
 func (o HomeOrder) WithManaged(spaces []Space) HomeOrder {
-	if len(spaces) > 0 {
-		known := make(map[string]bool, len(o.Spaces)+len(spaces))
-		maps.Copy(known, o.Spaces)
-		for i := range spaces {
-			known[strings.ToLower(strings.TrimSpace(spaces[i].DisplayName()))] = true
-		}
-		o.Spaces = known
-	}
 	marked := false
 	for i := range spaces {
 		if spaces[i].Managed() || spaces[i].IsBridged() {
@@ -86,10 +84,10 @@ func (o HomeOrder) rank(home string) homeRank {
 	if isTag && o.Every[strings.ToLower(tag)] {
 		return homeRank{tier: 3}
 	}
-	if at := o.indexIn(o.Priority, key, tag, isTag); at >= 0 {
+	if at := o.indexIn(o.Priority, home); at >= 0 {
 		return homeRank{tier: 0, at: at}
 	}
-	if at := o.indexIn(o.Rail, key, tag, isTag); at >= 0 {
+	if at := o.indexIn(o.Rail, home); at >= 0 {
 		return homeRank{tier: 1, at: at}
 	}
 	// The rest go where "*" stands, or after the rail when it has none.
@@ -107,16 +105,18 @@ func (o HomeOrder) rank(home string) homeRank {
 	}
 }
 
-// indexIn finds a home in list; a tag also matches its bare name unless a space has it.
-func (o HomeOrder) indexIn(list []string, key, tag string, isTag bool) int {
-	if at := indexFold(list, key); at >= 0 || !isTag {
-		return at
+// indexIn is the first entry in list naming home; -1 if none does.
+func (o HomeOrder) indexIn(list []string, home string) int {
+	label := o.Label(home)
+	return slices.IndexFunc(list, func(entry string) bool { return NamesHome(entry, home, label) })
+}
+
+// Label is a space home's renamed rail label; "" for a tag or a space not renamed.
+func (o HomeOrder) Label(home string) string {
+	if _, isTag := TagOf(home); isTag {
+		return ""
 	}
-	bare := strings.ToLower(strings.TrimSpace(tag))
-	if o.Spaces[bare] {
-		return -1
-	}
-	return indexFold(list, bare)
+	return o.Labels[strings.ToLower(strings.TrimSpace(home))]
 }
 
 // Sort orders homes; ties go by name so client and daemon agree whatever their input
@@ -140,6 +140,22 @@ func (o HomeOrder) Sort(homes []string) []string {
 			out[j], out[j-1] = out[j-1], out[j]
 		}
 	}
+	return out
+}
+
+// ByPriority puts the homes [display] priority names first, in its order; the rest
+// keep theirs.
+func (o HomeOrder) ByPriority(homes []string) []string {
+	out := slices.Clone(homes)
+	at := make(map[string]int, len(out))
+	for _, h := range out {
+		if i := o.indexIn(o.Priority, h); i >= 0 {
+			at[h] = i
+		} else {
+			at[h] = len(o.Priority)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b string) int { return at[a] - at[b] })
 	return out
 }
 

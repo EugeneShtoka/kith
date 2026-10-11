@@ -22,7 +22,8 @@ func ApplyGroupings(cfg config.Config, owner domain.RoomOwner, groupings []domai
 		if configTag(out, g.Name) < 0 {
 			out.Tags = append(out.Tags, config.Tag{Name: g.Name})
 		}
-		for _, r := range rooms {
+		for j := range rooms {
+			r := &rooms[j]
 			if !owner.Owns(domain.RoomID(r.ID)) {
 				continue
 			}
@@ -35,11 +36,11 @@ func ApplyGroupings(cfg config.Config, owner domain.RoomOwner, groupings []domai
 				return config.Config{}, err
 			}
 			i, _ := tags.Index(g.Name)
-			if tags.HasAt(i, r, domain.RoomState{}) == in {
+			if tags.HasAt(i, *r, domain.RoomState{}) == in {
 				continue
 			}
 			at := configTag(out, g.Name)
-			out.Tags[at].Picked, out.Tags[at].Excluded = tags.Filed(i, r, domain.RoomState{}, in, rooms)
+			out.Tags[at].Picked, out.Tags[at].Excluded = tags.Filed(i, *r, domain.RoomState{}, in, rooms)
 		}
 	}
 	return out, nil

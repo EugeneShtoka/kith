@@ -120,6 +120,8 @@ Entries can name a single room or a whole kind of room:
 | `!abc:example.org` | One room, by ID |
 | `room:Standup` | One room, by its name in the rail (or its ID) |
 | `space:Work` | Every room in that space |
+| `tag:Pinned` | Every room that tag holds |
+| `place:Work` | Every room in a rail row shown as Work: a space, a tag, renamed or not |
 | `protocol:WhatsApp` | Every room bridged from that network (`Matrix` for native rooms) |
 | `dm` | Every direct message |
 | `group` | Every room that is not a direct message |
