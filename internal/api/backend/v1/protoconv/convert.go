@@ -34,7 +34,6 @@ func RoomsToProto(rooms []domain.Room) []*v1.Room {
 	return mapSlice(rooms, RoomToProto)
 }
 
-// MediaToProto converts attachment metadata; nil means no attachment.
 // PollToProto is a message's poll on the wire; nil for none.
 func PollToProto(p *domain.Poll) *v1.Poll {
 	if p == nil {
@@ -105,6 +104,7 @@ var pollHidings = map[domain.PollHiding]v1.PollHiding{
 	domain.PollVoteFirst: v1.PollHiding_POLL_HIDING_VOTE_FIRST,
 }
 
+// MediaToProto converts attachment metadata; nil means no attachment.
 func MediaToProto(m *domain.Media) *v1.Media {
 	if m == nil {
 		return nil
@@ -211,8 +211,8 @@ func MessagesToProto(msgs []domain.Message) []*v1.Message {
 	return mapSlice(msgs, MessageToProto)
 }
 
-// ProtoToRoom converts one room back. Like every ProtoTo* converter, nil yields
-// the zero value rather than panicking.
+// ProtoToRoom converts one room back. Every ProtoTo* converter maps nil to the zero
+// value.
 func ProtoToRoom(pb *v1.Room) domain.Room {
 	if pb == nil {
 		return domain.Room{}

@@ -7,10 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// A duration somebody wrote wrongly is refused where a typo can be reported with its
-// key, which is the half of the contract the OrDefault helpers cannot keep: they
-// resolve, and resolving quietly is how a setting somebody believes they changed stays
-// unchanged.
+// Misspelled durations are refused with their key instead of silently defaulting.
 func TestModelDurationsRefuseWhatCannotBeRead(t *testing.T) {
 	t.Parallel()
 
@@ -27,8 +24,7 @@ func TestModelDurationsRefuseWhatCannotBeRead(t *testing.T) {
 			t.Errorf("%s: %v, want an error naming %s", tc.name, err, tc.want)
 		}
 	}
-	// And the one place zero is an answer rather than an omission: never stop the
-	// server is a thing somebody may legitimately want to say.
+	// Idle "0s" is valid: never stop the server.
 	if err := ModelDurations(config.CompleteModel{Idle: "0s"}); err != nil {
 		t.Errorf(`idle = "0s" was refused: %v`, err)
 	}
@@ -37,7 +33,7 @@ func TestModelDurationsRefuseWhatCannotBeRead(t *testing.T) {
 	}
 }
 
-// A bare word is refused, because with one list it could mean three things.
+// A bare target is refused: it could be a room, space or thread.
 func TestANameTargetHasToSayWhatItNames(t *testing.T) {
 	t.Parallel()
 

@@ -8,9 +8,8 @@ import (
 	"github.com/rivo/uniseg"
 )
 
-// A timeline's times are a column: in every style, every minute of the day pads to
-// the same width, so no row's body starts a cell off (the CJK styles' words are two
-// cells a character).
+// In every style, every minute of the day pads to the same width (CJK characters
+// are two cells), so timeline bodies align.
 func TestEveryTimeOfDayFillsTheColumnExactly(t *testing.T) {
 	t.Parallel()
 	for _, style := range TimeStyles() {

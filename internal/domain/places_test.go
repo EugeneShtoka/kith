@@ -7,8 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// One room as every scope reads it: your name for it, its spaces in your order, the
-// first bridge holding it, and pins that may name any of those.
+// A room's facts: local name, spaces in your order, first bridge, and matching tags.
 func TestARoomsFactsAreReadOneWay(t *testing.T) {
 	t.Parallel()
 	room := domain.Room{ID: "!r:x", Name: "Standup", IsDirect: false}
@@ -64,7 +63,7 @@ func TestHoldersAreTheSpacesHoldingTheRoom(t *testing.T) {
 	}
 }
 
-// A tag is decided by the space hierarchy as much as space: is.
+// A tag reads the space hierarchy as space: does.
 func TestTagsNeedThePlaces(t *testing.T) {
 	t.Parallel()
 	if !(domain.ModelScope{Except: []string{"tag:Pinned"}}).NeedsPlaces() {

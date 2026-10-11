@@ -5,9 +5,8 @@ import (
 	"testing"
 )
 
-// Every slice, map and pointer reachable from a clone is its own: writing through any
-// of them leaves the original alone. The walk covers every field, so a new one is
-// checked without this test changing.
+// A clone shares no slice, map or pointer with the original; the walk covers new fields
+// automatically.
 func TestCloneSharesNothing(t *testing.T) {
 	t.Parallel()
 
@@ -22,8 +21,7 @@ func TestCloneSharesNothing(t *testing.T) {
 	}
 }
 
-// fill gives every slice and map one element and every pointer a value, all the way
-// down, so there is something to share.
+// fill gives every slice and map one element and every pointer a value, recursively.
 func fill(v reflect.Value) {
 	switch v.Kind() {
 	case reflect.Slice:

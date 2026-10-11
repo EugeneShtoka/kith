@@ -7,11 +7,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// A conversation exports as Markdown: a heading per day; each message its time and
-// sender named as kith names them, the message it replies to quoted, its words with
-// their formatting and the people they mention named, its attachment and reactions;
-// edits and deletions said; a thread's replies under its first message; and words
-// that only look like Markdown left as words.
+// Markdown export: day headings, sender names, quoted replies, formatting, mentions,
+// attachments, reactions, edits, deletions, threads, and Markdown-like text escaped.
 func TestAConversationExportsAsMarkdown(t *testing.T) {
 	t.Parallel()
 	day1 := time.Date(2026, 3, 5, 21, 30, 0, 0, time.Local)

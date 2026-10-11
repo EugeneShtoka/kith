@@ -25,11 +25,10 @@ func TestSyncFaultSeparatesShutdownFromFailure(t *testing.T) {
 		"real failure while running":   {live, real, real},
 		"no error":                     {live, nil, nil},
 		"our shutdown, canceled error": {stopped, context.Canceled, nil},
-		// Stop() can make the loop return something other than context.Canceled; a
-		// done context means it is still our shutdown.
+		// Stop() may return something other than context.Canceled; a done context is
+		// still our shutdown.
 		"our shutdown, other error": {stopped, real, nil},
-		// The context has not been canceled but the loop saw a cancellation anyway —
-		// still ours: nothing else cancels it.
+		// A cancellation with a live context is still ours: nothing else cancels it.
 		"canceled error, live context": {live, context.Canceled, nil},
 	}
 	for name, tc := range tests {

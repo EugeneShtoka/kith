@@ -43,9 +43,8 @@ func (j Jumps) Map() map[string]string {
 	return out
 }
 
-// Keys are kith's configurable keybindings. Every value is a comma-separated list, so
-// an action can answer to several keys ("k,up"). Defaults and descriptions live in
-// keySections.
+// Keys are kith's configurable keybindings; each value is a comma-separated list
+// ("k,up"). Defaults and descriptions live in keySections.
 type Keys struct {
 	Quit        string         `toml:"quit"`
 	Interrupt   string         `toml:"interrupt"`
@@ -132,8 +131,7 @@ type RailKeys struct {
 	Leave      string `toml:"leave"`
 }
 
-// SearchKeys open message search and drive its results. Search covers the local
-// cache — every message the client has seen — so it is instant and works offline.
+// SearchKeys open message search over the local cache and drive its results.
 type SearchKeys struct {
 	Room     string `toml:"room"`
 	All      string `toml:"all"`
@@ -176,8 +174,7 @@ type NavKeys struct {
 	ScrollNewest string `toml:"scroll_newest"`
 }
 
-// TimelineKeys are the message cursor's actions, active only in the timeline when
-// you are not typing.
+// TimelineKeys are the message cursor's actions, outside insert mode.
 type TimelineKeys struct {
 	Insert         string `toml:"insert"`
 	Reply          string `toml:"reply"`
@@ -227,8 +224,8 @@ type PlayerKeys struct {
 	Stop        string `toml:"stop"`
 }
 
-// InsertKeys apply while composing. Anything not bound here types itself, so keep
-// these to keys that produce no text.
+// InsertKeys apply while composing; unbound keys type themselves, so bind only keys
+// that produce no text.
 type InsertKeys struct {
 	Send         string `toml:"send"`
 	Newline      string `toml:"newline"`
@@ -245,8 +242,7 @@ type InsertKeys struct {
 	Choose5 string `toml:"choose_5"`
 }
 
-// CompletionKeys apply while the completion popup is open — the @-mention dropdown, and
-// the other sources that will share it.
+// CompletionKeys apply while the completion popup is open.
 type CompletionKeys struct {
 	Next    string `toml:"next"`
 	Prev    string `toml:"prev"`
@@ -274,8 +270,7 @@ type SpellKeys struct {
 	Choose9 string `toml:"choose_9"`
 }
 
-// EmojiKeys open and drive the emoji browser — a grid of every emoji kith knows,
-// filterable by typing.
+// EmojiKeys open and drive the emoji browser grid.
 type EmojiKeys struct {
 	Open   string `toml:"open"`
 	Accept string `toml:"accept"`
@@ -288,8 +283,7 @@ type ComposerKeys struct {
 	Cut          string `toml:"cut"`
 }
 
-// PickerKeys apply while a chooser overlay is open — the people list, the identity
-// list, the color swatches, the link list.
+// PickerKeys apply while a chooser overlay (people, identities, colors, links) is open.
 type PickerKeys struct {
 	Filter   string `toml:"filter"`
 	Name     string `toml:"name"`
@@ -316,8 +310,8 @@ type SortKeys struct {
 	Alphabetical  string `toml:"alphabetical"`
 }
 
-// ReactKeys apply while the emoji prompt is open. Digits stay positional over the
-// quick palette and are not configurable — they *are* the palette's positions.
+// ReactKeys apply while the emoji prompt is open. Digits pick palette positions and are
+// not configurable.
 type ReactKeys struct {
 	Send   string `toml:"send"`
 	Cancel string `toml:"cancel"`
@@ -334,15 +328,13 @@ type ReactKeys struct {
 	Pick10 string `toml:"pick_10"`
 }
 
-// VerifyKeys apply while the device-verification overlay is up, which captures
-// every other key.
+// VerifyKeys apply while the device-verification overlay is up; it captures all other keys.
 type VerifyKeys struct {
 	Confirm string `toml:"confirm"`
 	Cancel  string `toml:"cancel"`
 }
 
-// DefaultKeys are the built-in bindings — what kith does with no [keys] section
-// at all. They come from keySections.
+// DefaultKeys are the built-in bindings, from keySections.
 func DefaultKeys() Keys { return defaultKeys }
 
 var defaultKeys = func() Keys {
@@ -380,8 +372,7 @@ var keyFields = func() map[string][]int {
 	return out
 }()
 
-// Binding is the value of the binding at path ("timeline.reply"), and false for a path
-// Keys has no field for.
+// Binding is the value at path ("timeline.reply"); false for an unknown path.
 func (k Keys) Binding(path string) (string, bool) {
 	index, ok := keyFields[path]
 	if !ok {
@@ -390,7 +381,7 @@ func (k Keys) Binding(path string) (string, bool) {
 	return reflect.ValueOf(k).FieldByIndex(index).String(), true
 }
 
-// KeyDoc is what the binding at path does, in one line, and false for an unknown path.
+// KeyDoc is the one-line description of the binding at path; false for an unknown path.
 func KeyDoc(path string) (string, bool) {
 	doc, ok := keyDocs[path]
 	return doc, ok
@@ -406,7 +397,7 @@ var keyDocs = func() map[string]string {
 	return out
 }()
 
-// FillDefaults gives every binding the config file left out its built-in value.
+// FillDefaults sets every unset binding to its built-in value.
 func (k *Keys) FillDefaults() {
 	fillStringDefaults(reflect.ValueOf(k).Elem(), reflect.ValueOf(DefaultKeys()))
 }

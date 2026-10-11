@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-// Tracked words — the words you want to see wherever they are said.
+// Tracked words: words you want to see wherever they are said.
 
 // Tracked is the configured word list.
 type Tracked struct {
@@ -15,21 +15,17 @@ type Tracked struct {
 	Words []string
 }
 
-// Hit is one occurrence: the entry that matched and where, in byte offsets into the
-// text it was found in.
+// Hit is one occurrence, in byte offsets into the searched text.
 type Hit struct {
 	Start, End int
-	// Word is the configured entry, as configured — `*deploy*` rather than the text
-	// that matched it.
+	// Word is the entry as configured (`*deploy*`), not the matched text.
 	Word string
 }
 
-// Any reports whether anything is tracked at all, so the common case — an empty list
-// — costs one length check per message rather than a scan.
+// Any reports whether anything is tracked, so an empty list costs no scan.
 func (t Tracked) Any() bool { return len(t.Words) > 0 }
 
-// Find returns every occurrence of every tracked word in body, in the order they
-// appear.
+// Find returns every occurrence of every tracked word in body, in order per entry.
 func (t Tracked) Find(body string) []Hit {
 	if !t.Any() || body == "" {
 		return nil
@@ -56,17 +52,15 @@ func (t Tracked) Find(body string) []Hit {
 					last = hit
 				}
 			}
-			// Advance by one rune rather than by the match, so a needle that fits twice
-			// in one word is still seen — the dedup above decides what that means,
-			// rather than the scan silently skipping it.
+			// Advance one rune, not past the match, so overlapping matches are seen; the
+			// dedup above collapses those in one word.
 			at = start + runeLenAt(folded, start)
 		}
 	}
 	return hits
 }
 
-// wordStart and wordEnd widen a match to the word containing it, which is what a hit
-// spans.
+// wordStart and wordEnd widen a match to the word containing it.
 func wordStart(text string, at int) int {
 	for at > 0 {
 		r, size := utf8.DecodeLastRuneInString(text[:at])
@@ -89,8 +83,8 @@ func wordEnd(text string, at int) int {
 	return at
 }
 
-// trackedGlob splits an entry into the text to look for and whether each end is
-// anchored to a word boundary. A `*` on an end means "do not anchor there".
+// trackedGlob splits an entry into its needle and whether each end is open: a `*`
+// on an end means no word-boundary anchor there.
 func trackedGlob(entry string) (needle string, leftOpen, rightOpen bool) {
 	needle = strings.ToLower(strings.TrimSpace(entry))
 	if leftOpen = strings.HasPrefix(needle, "*"); leftOpen {
@@ -102,9 +96,7 @@ func trackedGlob(entry string) (needle string, leftOpen, rightOpen bool) {
 	return needle, leftOpen, rightOpen
 }
 
-// startsCleanly and endsCleanly are the two word-boundary checks, and they are two
-// functions because they look in opposite directions: the left edge asks about the
-// character *before* the match and the right edge about the character *at* its end.
+// startsCleanly checks the rune before start; endsCleanly the rune at end.
 func startsCleanly(text string, start int, open bool) bool {
 	if open || start == 0 {
 		return true
@@ -121,24 +113,21 @@ func endsCleanly(text string, end int, open bool) bool {
 	return !isWordRune(r)
 }
 
-// isWordRune reports whether a rune is part of a word rather than a break between
-// two of them.
+// isWordRune reports whether r is a letter or digit.
 func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
 
-// runeLenAt is how many bytes the rune at i occupies, and at least one so a scan
-// cannot stall on invalid input.
+// runeLenAt is the byte length of the rune at i, at least one so a scan cannot
+// stall on invalid input.
 func runeLenAt(text string, i int) int {
 	_, size := utf8.DecodeRuneInString(text[i:])
 	return max(size, 1)
 }
 
-// TrackedRule is one entry in the word list with a range: where it applies, whose
-// messages it applies to, and whether a hit may interrupt.
+// TrackedRule is a set of words scoped by place and sender, with its own notify setting.
 type TrackedRule struct {
 	// Words are this rule's entries, each with its own glob width. See Tracked.Words.
 	Words []string
-	// Where the rule applies, as include/exclude over RoomFacts entries — a room ID or
-	// name bare, `space:Work`, `protocol:WhatsApp`, `dm`, `group`.
+	// Where is the places the rule applies to (RoomFacts entries).
 	Where PlaceFilter
 	// From narrows the rule to these senders' messages, by MXID. Empty is anybody.
 	From []string
@@ -152,8 +141,7 @@ func (r TrackedRule) Admits(room RoomFacts, sender string) bool {
 	return r.Where.Admits(room) && (len(r.From) == 0 || slices.Contains(r.From, sender))
 }
 
-// TrackedFor is the word list in force for one message's place and sender: the union of
-// every rule that admits it.
+// TrackedFor is the union of the words of every rule admitting this place and sender.
 func TrackedFor(rules []TrackedRule, room RoomFacts, sender string) Tracked {
 	var words []string
 	seen := map[string]bool{}
@@ -171,9 +159,8 @@ func TrackedFor(rules []TrackedRule, room RoomFacts, sender string) Tracked {
 	return Tracked{Words: words}
 }
 
-// TrackedNotifies reports whether a hit in this place, from this sender, may interrupt
-// — and it asks the rules that actually matched the body rather than every rule
-// admitting the room.
+// TrackedNotifies reports whether hits may notify, asking only the admitting rules
+// whose words actually hit; fallback applies where a rule sets no Notify.
 func TrackedNotifies(rules []TrackedRule, hits []Hit, fallback bool, room RoomFacts, sender string) bool {
 	if len(hits) == 0 {
 		return false

@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-// AccountPhase is where one network account is: what a client shows beside it.
+// AccountPhase is a network account's connection state.
 type AccountPhase int
 
 const (
@@ -29,8 +29,7 @@ type AccountStatus struct {
 	Detail string
 }
 
-// SyncFault returns nil when err (from api.Backend.Start) is just our own
-// shutdown, so a clean stop does not exit non-zero or clear readiness.
+// SyncFault returns nil when err (from api.Backend.Start) is only our own shutdown.
 func SyncFault(ctx context.Context, err error) error {
 	if err == nil || ctx.Err() != nil || errors.Is(err, context.Canceled) {
 		return nil //nolint:nilerr // discarding the error is the point: our own shutdown is not a fault

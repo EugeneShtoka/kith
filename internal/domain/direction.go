@@ -7,8 +7,7 @@ import (
 	"unicode"
 )
 
-// Layout is which side a room's timeline reads from: the sender column on the left
-// (LTR) or mirrored onto the right (RTL).
+// Layout is which side a room's timeline reads from (sender column left or right).
 type Layout int
 
 const (
@@ -20,13 +19,12 @@ const (
 	LayoutRTL
 )
 
-// Directions are the places set by hand to one side, as place entries.
+// Directions are place entries set by hand to one side.
 type Directions struct {
 	RTL, LTR []string
 }
 
-// Of is the side a room is set to: the narrowest entry naming it wins (a room over
-// its space, network or kind). Both lists naming it equally narrowly set nothing.
+// Of is the side a room is set to: the narrowest matching entry wins; a tie sets nothing.
 func (d Directions) Of(room RoomFacts) Layout {
 	rtl, ltr := narrowest(d.RTL, room), narrowest(d.LTR, room)
 	switch {
@@ -59,7 +57,7 @@ func (d Directions) With(entry string, side Layout) Directions {
 	}
 }
 
-// narrowest is how narrowly the list's entries name the room: EntryInvalid when none do.
+// narrowest is the narrowest kind of entry matching room; EntryInvalid when none do.
 func narrowest(list []string, room RoomFacts) EntryKind {
 	best := EntryInvalid
 	for _, entry := range list {
@@ -70,10 +68,8 @@ func narrowest(list []string, room RoomFacts) EntryKind {
 	return best
 }
 
-// GuessLayout is the side a conversation mostly reads from, by one vote per message:
-// a message is right to left when most of its letters are, links left out (an
-// address is Latin in every language). RTL needs more than half of the messages that
-// have letters; anything less is left to right. LayoutUnset when none has a letter.
+// GuessLayout votes per message (RTL when most of its non-link letters are); RTL needs
+// a majority of messages with letters. LayoutUnset when none has a letter.
 func GuessLayout(bodies []string) Layout {
 	rtl, voted := 0, 0
 	for _, body := range bodies {
@@ -96,25 +92,21 @@ func GuessLayout(bodies []string) Layout {
 	}
 }
 
-// bridgeHeader is the first line a bridge writes above what it carries, in English
-// whatever the conversation's language: a forward (WhatsApp, Telegram) or an album.
+// bridgeHeader is a bridge's English first line for a forward or an album.
 var bridgeHeader = regexp.MustCompile(`^(↷ Forwarded|Forwarded message from [^\n]*|` +
 	`Sent an album with \d+ \w+( and \d+ \w+)*:)[ \t]*(\n|$)`)
 
-// WithoutBridgeHeader is body without a bridge's header line: the words it carries
-// are the sender's, the header is not.
+// WithoutBridgeHeader strips a bridge's header line, which is not the sender's words.
 func WithoutBridgeHeader(body string) string {
 	return bridgeHeader.ReplaceAllString(body, "")
 }
 
-// HasWords reports whether body has a letter outside its links: a message of only
-// addresses, emoji or numbers has no language to read in.
+// HasWords reports whether body has a letter outside its links.
 func HasWords(body string) bool {
 	r, l := letterSides(withoutLinks(body))
 	return r+l > 0
 }
 
-// withoutLinks is body with its written-out addresses cut.
 func withoutLinks(body string) string {
 	links := LinkSpans(body)
 	if len(links) == 0 {
@@ -136,7 +128,7 @@ var rtlScripts = []*unicode.RangeTable{
 	unicode.Samaritan, unicode.Mandaic, unicode.Adlam,
 }
 
-// letterSides counts the letters written right to left and the others.
+// letterSides counts RTL letters and other letters.
 func letterSides(s string) (rtl, ltr int) {
 	for _, r := range s {
 		switch {

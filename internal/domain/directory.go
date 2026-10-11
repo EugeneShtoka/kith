@@ -6,13 +6,9 @@ import (
 	"strings"
 )
 
-// The directory is who people are, from everything kith has been told. A person is
-// known by identifiers: their phone number (PhoneID) and their ID on each network. A
-// source (an account, a bridge login) names identifiers, ranked as the phone book's
-// names are, and may say two identifiers are one person (a Telegram user and their
-// number). An ID that is a number (a WhatsApp ID, a bridge's puppet: PhoneOf) is that
-// number too. A person's name is the best any source gives any of their identifiers,
-// so a contact saved on one phone names them on every network and account.
+// The directory groups identifiers (a PhoneID, network IDs) into people. Sources name
+// identifiers and link them; an ID that is a number (PhoneOf) is that number too. A
+// person's name is the best any source gives any of their identifiers.
 
 // PersonName is what one source calls an identifier.
 type PersonName struct {
@@ -35,7 +31,7 @@ const phonePrefix = "tel:"
 // PhoneID is the identifier of a phone number, by its international digits.
 func PhoneID(digits string) string { return phonePrefix + digits }
 
-// numberOf is the phone identifier id also is, "" for none.
+// numberOf is id's phone identifier, "" for none.
 func numberOf(id string) string {
 	if strings.HasPrefix(id, phonePrefix) {
 		return ""
@@ -46,21 +42,19 @@ func numberOf(id string) string {
 	return ""
 }
 
-// Directory is the people a set of names and links describes. The zero Directory
-// knows no one. Safe to share: it is never changed once built.
+// Directory is the people a set of names and links describes. Immutable once built,
+// so safe to share.
 type Directory struct {
 	names []PersonName
 	links []PersonLink
-	// person is each identifier's person (one of their identifiers stands for them;
-	// which is never seen), and members each person's identifiers, sorted.
+	// person maps each identifier to its person's root identifier; members maps a
+	// root to its identifiers, sorted.
 	person  map[string]string
 	members map[string][]string
-	// best is each person's name and its rank.
-	best map[string]PersonName
+	best    map[string]PersonName
 }
 
-// NewDirectory builds the people names and links describe. The same rows, in any
-// order, give the same directory.
+// NewDirectory builds a directory; row order does not matter.
 func NewDirectory(names []PersonName, links []PersonLink) Directory {
 	d := Directory{
 		names: slices.Clone(names), links: slices.Clone(links),
@@ -102,12 +96,10 @@ func NewDirectory(names []PersonName, links []PersonLink) Directory {
 	return d
 }
 
-// identities groups identifiers into people: each points towards another of its
-// person's, the one standing for them pointing at itself (a union-find).
+// identities is a union-find over identifiers.
 type identities map[string]string
 
-// find is the identifier standing for id's person, id joining as a person of its own
-// when new.
+// find returns id's root, adding id as its own root when new.
 func (g identities) find(id string) string {
 	parent, ok := g[id]
 	if !ok {
@@ -122,7 +114,7 @@ func (g identities) find(id string) string {
 	return root
 }
 
-// known adds id, with the number it is (numberOf) as the same person.
+// known adds id, joined with its number (numberOf).
 func (g identities) known(id string) {
 	g.find(id)
 	if number := numberOf(id); number != "" {
@@ -130,7 +122,6 @@ func (g identities) known(id string) {
 	}
 }
 
-// join makes two identifiers one person.
 func (g identities) join(a, b string) {
 	g.known(a)
 	g.known(b)
@@ -143,14 +134,13 @@ func (g identities) union(a, b string) {
 	}
 }
 
-// comparePersonNames orders names best first: by rank, then source, then name, then
-// identifier, so ties fall the same way every time.
+// comparePersonNames orders names best first, deterministically.
 func comparePersonNames(a, b PersonName) int {
 	return cmp.Or(cmp.Compare(a.Rank, b.Rank), cmp.Compare(a.Source, b.Source),
 		cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID))
 }
 
-// naming reports whether name names someone: not empty, not only a number.
+// naming reports whether name is a real name: not empty, not a number.
 func naming(name string) bool {
 	name = strings.TrimSpace(name)
 	if name == "" || digitsOnly(name) {
@@ -160,7 +150,6 @@ func naming(name string) bool {
 	return !isNumber
 }
 
-// personOf is the person id belongs to, by id or by the number it is.
 func (d Directory) personOf(id string) (string, bool) {
 	if root, ok := d.person[id]; ok {
 		return root, true
@@ -172,7 +161,7 @@ func (d Directory) personOf(id string) (string, bool) {
 	return "", false
 }
 
-// Name is the best name any source gives the person id is, and its rank.
+// Name is the best name for id's person, and its rank.
 func (d Directory) Name(id string) (string, NameRank, bool) {
 	root, ok := d.personOf(id)
 	if !ok {
@@ -182,8 +171,8 @@ func (d Directory) Name(id string) (string, NameRank, bool) {
 	return best.Name, best.Rank, ok
 }
 
-// Named is the directory's name for a label that is only a number ("+972 54-123-4567",
-// "+359881234567 (WA)"); false for any other label, or a number it has no name for.
+// Named is the name for a label that is only a phone number ("+359881234567 (WA)");
+// false otherwise or when unnamed.
 func (d Directory) Named(label string) (string, bool) {
 	digits, ok := PhoneIn(label)
 	if !ok {
@@ -193,7 +182,7 @@ func (d Directory) Named(label string) (string, bool) {
 	return name, ok
 }
 
-// Identifiers is every identifier of the person id is, id among them.
+// Identifiers is every identifier of id's person, including id.
 func (d Directory) Identifiers(id string) []string {
 	if root, ok := d.personOf(id); ok {
 		ids := d.members[root]
@@ -205,7 +194,7 @@ func (d Directory) Identifiers(id string) []string {
 	return []string{id}
 }
 
-// Names and Links are the rows the directory was built from, sorted: what carries it
+// Names is the names the directory was built from, sorted; they and Links carry it
 // between processes.
 func (d Directory) Names() []PersonName { return d.names }
 

@@ -5,10 +5,9 @@ import (
 	"strings"
 )
 
-// CardIdentifiers is what a phonebook card knows a person by, from all the IDs kith has
-// of them: each written as the card writes it, by key (phone, matrix, telegram,
-// whatsapp, slack). A number is a phone, however the network spelled it; a bridge's
-// puppet is the network's user where kith can tell it.
+// CardIdentifiers maps a person's IDs to phonebook card keys (phone, matrix, telegram,
+// whatsapp, slack). Any number becomes a phone; a recognizable bridge puppet becomes
+// its network's user.
 func CardIdentifiers(ids []string) map[string][]string {
 	out := map[string][]string{}
 	add := func(key, value string) {

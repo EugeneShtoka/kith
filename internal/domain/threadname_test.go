@@ -31,7 +31,7 @@ func TestThreadNameFrom(t *testing.T) {
 	}
 }
 
-// An answer that is not an attempt at a name is refused rather than cut down to size.
+// An answer that is not a name is refused, not truncated.
 func TestAnAnswerThatIsNotANameIsRefused(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +41,7 @@ func TestAnAnswerThatIsNotANameIsRefused(t *testing.T) {
 		t.Errorf("ThreadNameFrom(a 114-character non-answer) = %q, want it refused", got)
 	}
 
-	// But a real name that runs a little long is still a name, and is trimmed.
+	// A slightly long real name is trimmed.
 	long := "Rolling back the release because the migration locked the table"
 	if got := domain.ThreadNameFrom(long); got == "" {
 		t.Errorf("ThreadNameFrom(%q) refused a name that is merely long", long)

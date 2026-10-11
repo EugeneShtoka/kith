@@ -1,8 +1,6 @@
-// Package config loads kith's XDG-compliant TOML configuration. It is a
-// foundation package: an import sink that pulls in no other internal package.
-//
-// default.toml is the user-facing documentation of every setting; the Go doc comments
-// here say only type, unit and zero-value meaning.
+// Package config loads kith's XDG TOML configuration. It imports no other internal
+// package. default.toml documents every setting for users; Go comments here give only
+// type, unit and zero-value meaning.
 package config
 
 import (
@@ -24,8 +22,8 @@ import (
 //go:embed default.toml
 var defaultConfigTOML string
 
-// profileName is what a profile may be called: the characters a systemd instance
-// name and a shell argument both take without quoting or escaping.
+// profileName is the characters a systemd instance name and a shell argument both take
+// unquoted.
 var profileName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // Config is kith's user configuration, one field per top-level key or table.
@@ -98,9 +96,8 @@ func Path() (string, error) {
 	return p, nil
 }
 
-// WriteDefaultIfMissing writes the annotated default config to path when no file exists
-// there yet, so a first run leaves the user a complete, documented config to edit.
-// created reports whether a file was written (false when one already existed).
+// WriteDefaultIfMissing writes the annotated default config to path if no file exists;
+// created reports whether it wrote one.
 func WriteDefaultIfMissing(path string) (created bool, err error) {
 	if _, statErr := os.Stat(path); statErr == nil {
 		return false, nil
@@ -121,8 +118,8 @@ func WriteDefaultIfMissing(path string) (created bool, err error) {
 // Annotated is the fully-documented default config — every option with its prose.
 func Annotated() string { return defaultConfigTOML }
 
-// Load reads the TOML config at path, refusing keys nothing reads (a misplaced or
-// misspelled setting would otherwise look configured while doing nothing).
+// Load reads the TOML config at path, refusing unknown keys so a misspelled setting
+// is not silently ignored.
 func Load(path string) (Config, error) {
 	body, err := os.ReadFile(path) //nolint:gosec // G304: the config file the user named
 	if err != nil {
@@ -131,8 +128,7 @@ func Load(path string) (Config, error) {
 	return decode(path, string(body))
 }
 
-// starter is the tags and the rail's order the starter config (written on first run)
-// has, fresh each call: what a config that never mentions them gets.
+// starter is the default config's tags and rail order, freshly decoded each call.
 func starter() Config {
 	var cfg Config
 	if _, err := toml.Decode(defaultConfigTOML, &cfg); err != nil {
@@ -141,8 +137,8 @@ func starter() Config {
 	return Config{Tags: cfg.Tags, Display: Display{Rail: Rail{Order: cfg.Display.Rail.Order}}}
 }
 
-// Decode reads a config from its text as Load reads the file: what a client sends
-// the daemon to check before writing it (Encode).
+// Decode parses config text as Load does; the daemon uses it to check a client's config
+// before writing it.
 func Decode(text string) (Config, error) { return decode("the sent config", text) }
 
 // decode is Load and Decode's reading; source names the text in errors.
@@ -159,22 +155,20 @@ func decode(source, text string) (Config, error) {
 		}
 		return Config{}, fmt.Errorf("config: %s: unknown keys: %s", source, strings.Join(keys, ", "))
 	}
-	// TOML leaves every unmentioned field zero, so an action the file never heard of
-	// would end up with no key at all.
+	// Unmentioned fields decode as zero; give every action its default key.
 	cfg.Keys.FillDefaults()
-	// A file that never mentions the tags, or the rail's order, has the starter's: a
-	// hand-written config gets them as a first run's does. `tag = []` has none.
+	// Absent tags or rail order take the starter's; an explicit `[]` means none.
 	switch {
 	case !meta.IsDefined("tag"):
 		cfg.Tags = starter().Tags
 	case len(cfg.Tags) == 0:
-		cfg.Tags = nil // `tag = []`: none, as a config built with none has
+		cfg.Tags = nil
 	}
 	switch {
 	case !meta.IsDefined("display", "rail", "order"):
 		cfg.Display.Rail.Order = starter().Display.Rail.Order
 	case len(cfg.Display.Rail.Order) == 0:
-		cfg.Display.Rail.Order = nil // `order = []`, as for the tags
+		cfg.Display.Rail.Order = nil
 	}
 	if err := cfg.RequireAccount(); err != nil {
 		return Config{}, err
@@ -185,21 +179,16 @@ func decode(source, text string) (Config, error) {
 // HasMatrix reports whether the (profile-resolved) config names a Matrix account.
 func (c Config) HasMatrix() bool { return c.Homeserver != "" && c.User != "" }
 
-// RequireAccount refuses accounts named only in part: a [[profile]] without its name,
-// homeserver or user, or Matrix's homeserver without its user (or the reverse). A config
-// naming no account at all is whole: kith starts with nothing to show, and :login sets
-// the first one up.
+// RequireAccount refuses partly named accounts: a [[profile]] missing name, homeserver
+// or user, or a homeserver without a user (or the reverse). No account at all is valid.
 func (c Config) RequireAccount() error {
-	// A profile supplies the account, so a file that has profiles is complete without a
-	// top-level one — and which profile is not this function's business (see Profile,
-	// which is where a name is matched and where naming the account twice is refused).
+	// Profiles supply the account; Profile picks one and refuses a duplicate top-level one.
 	if len(c.Profiles) > 0 {
 		for _, p := range c.Profiles {
 			if p.Name == "" {
 				return errors.New("config: every [[profile]] needs a name")
 			}
-			// The name reaches a systemd instance name (kithd@work) and an argv
-			// element, so it is held to what both take without quoting.
+			// The name becomes a systemd instance name (kithd@work) and an argv element.
 			if !profileName.MatchString(p.Name) {
 				return fmt.Errorf("config: profile name %q may only contain letters, digits, dot, dash and underscore", p.Name)
 			}
@@ -244,8 +233,7 @@ func (c Config) Profile(name string) (Config, error) {
 	return c, nil
 }
 
-// ProfileNames lists the configured profiles in the order the file gives them,
-// which is also the order that decides the default.
+// ProfileNames lists the profiles in file order; the first is the default.
 func (c Config) ProfileNames() []string {
 	names := make([]string, 0, len(c.Profiles))
 	for _, p := range c.Profiles {

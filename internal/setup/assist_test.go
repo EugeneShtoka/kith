@@ -25,8 +25,7 @@ func TestModelLayerRefusesWhatCannotWork(t *testing.T) {
 		{"a deny list on its own", config.Assist{
 			Endpoint: "https://example.invalid/v1", Except: []string{"!a:x"},
 		}, ""},
-		// A URL with a typo is the worst failure this section has: the feature looks on
-		// and refuses every ask with the endpoint's own error, which reads as a bug.
+		// Otherwise every ask fails with an error that reads as a bug.
 		{"an endpoint that is not a URL", config.Assist{Endpoint: "api.groq.com/v1/chat"}, "not an http(s) URL"},
 		{"a timeout that is not a duration", config.Assist{
 			Endpoint: "https://example.invalid/v1", Timeout: "soon",
@@ -34,9 +33,7 @@ func TestModelLayerRefusesWhatCannotWork(t *testing.T) {
 		{"a negative timeout", config.Assist{
 			Endpoint: "https://example.invalid/v1", Timeout: "-1s",
 		}, "must be positive"},
-		// A room on both lists: the allow list answers alone, so the exception does
-		// nothing, and being told is better than finding out from a room that is
-		// included despite being named as an exception.
+		// The allow list answers alone, so the exception would do nothing.
 		{"a room named in both lists", config.Assist{
 			Endpoint: "https://example.invalid/v1",
 			Rooms:    []string{" !a:x "}, Except: []string{"!A:X"},
@@ -58,9 +55,7 @@ func TestModelLayerRefusesWhatCannotWork(t *testing.T) {
 	}
 }
 
-// What a completion quotes, resolved — and the one property that matters: a bad
-// spelling is an error rather than the default, since a setting somebody believes they
-// changed and did not is worse than one they never wrote.
+// A bad spelling is an error, not the default.
 func TestCompletionPick(t *testing.T) {
 	t.Parallel()
 

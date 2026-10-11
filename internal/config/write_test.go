@@ -32,8 +32,7 @@ func minimal() Config {
 	return cfg
 }
 
-// The baseline is what a *missing* key produces — not what the shipped default.toml
-// says.
+// The baseline is what a missing key produces, not the shipped default.toml.
 func TestSaveBaselineIsTheAbsentKeyNotTheShippedDefault(t *testing.T) {
 	t.Parallel()
 
@@ -53,8 +52,7 @@ func TestSaveBaselineIsTheAbsentKeyNotTheShippedDefault(t *testing.T) {
 	}
 }
 
-// Anything at its default is left out, so the file stays readable and a later change
-// to a default flows through instead of being frozen.
+// Settings at their default are omitted, so later default changes flow through.
 func TestSaveOmitsDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -72,8 +70,7 @@ func TestSaveOmitsDefaults(t *testing.T) {
 	}
 }
 
-// A changed binding is written; the rest of the keymap is not. This is what lets a
-// rewrite preserve a hand-edited value while dropping the prose around it.
+// Only changed bindings are written.
 func TestSaveWritesOnlyChangedBindings(t *testing.T) {
 	t.Parallel()
 
@@ -99,8 +96,7 @@ func TestSaveWritesOnlyChangedBindings(t *testing.T) {
 	}
 }
 
-// Identities are the whole point of the writer: they are keyed on MXIDs the UI never
-// shows, so they can only be created from inside the app.
+// Identities round-trip through the writer.
 func TestSaveIdentities(t *testing.T) {
 	t.Parallel()
 
@@ -114,8 +110,7 @@ func TestSaveIdentities(t *testing.T) {
 	if strings.Count(body, "[[display.identity]]") != 2 {
 		t.Errorf("want two identity tables:\n%s", body)
 	}
-	// An array inside a table must be a bare key, not a dotted path — a dotted path
-	// after a table header lands the value somewhere else that still parses.
+	// Inside a table, an array needs a bare key; a dotted path would land elsewhere.
 	if strings.Contains(body, "display.identity.ids") {
 		t.Errorf("ids must be written as a bare key inside its table:\n%s", body)
 	}
@@ -128,8 +123,7 @@ func TestSaveIdentities(t *testing.T) {
 	}
 }
 
-// Every shape the config is made of has to survive a round trip, or a setting is
-// quietly lost the next time anything is saved.
+// Every config shape survives a save and reload.
 func TestSaveRoundTripsEveryShape(t *testing.T) {
 	t.Parallel()
 
@@ -162,8 +156,7 @@ func TestSaveRoundTripsEveryShape(t *testing.T) {
 	}
 }
 
-// Saving twice must produce identical bytes, or every save would churn the file and
-// nothing about it would be reviewable.
+// Saving twice produces identical bytes.
 func TestSaveIsIdempotent(t *testing.T) {
 	t.Parallel()
 
@@ -191,8 +184,7 @@ func TestSaveIsIdempotent(t *testing.T) {
 	}
 }
 
-// The hand-written file is preserved once, and the backup is never overwritten by a
-// later save — it holds what you wrote, not what the app last produced.
+// The first save backs up the hand-written file; later saves never overwrite the backup.
 func TestSaveBacksUpOnce(t *testing.T) {
 	t.Parallel()
 
@@ -244,8 +236,7 @@ func TestSaveFresh(t *testing.T) {
 	}
 }
 
-// The file holds no secrets but it does hold your homeserver and account, so it is
-// written 0600 like the rest of the app's state.
+// The config is written 0600.
 func TestSavePermissions(t *testing.T) {
 	t.Parallel()
 
@@ -259,8 +250,7 @@ func TestSavePermissions(t *testing.T) {
 	}
 }
 
-// An emptied list is written as [], because omitting it would let the default come
-// back on the next load.
+// An emptied list is written as [] so the default does not return on load.
 func TestSaveEmptiedList(t *testing.T) {
 	t.Parallel()
 
@@ -282,15 +272,13 @@ func TestSaveEmptiedList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// FillDefaults treats "" as unset, so it comes back — which is why "-" is the
-	// sentinel for a deliberate unbind, not "".
+	// FillDefaults treats "" as unset, so "-" is the unbind sentinel.
 	if reloaded.Keys.Nav.Up != DefaultKeys().Nav.Up {
 		t.Errorf("Nav.Up = %q; an empty binding reads as unset and refills", reloaded.Keys.Nav.Up)
 	}
 }
 
-// The header points at the documentation rather than repeating it, so a
-// machine-written file does not re-document every option on every save.
+// The header points at the documentation instead of repeating it.
 func TestSaveHeaderPointsAtTheDocs(t *testing.T) {
 	t.Parallel()
 
@@ -312,8 +300,7 @@ func TestSaveHeaderPointsAtTheDocs(t *testing.T) {
 func TestEveryScalarKindInConfigHasALiteral(t *testing.T) {
 	t.Parallel()
 
-	// kind -> the field path that first reached it, so a failure names something the
-	// reader can go and look at.
+	// kind -> the first field path that reached it, for the failure message.
 	found := map[reflect.Kind]string{}
 	record := func(typ reflect.Type, at string) {
 		for typ.Kind() == reflect.Pointer {
@@ -356,8 +343,7 @@ func TestEveryScalarKindInConfigHasALiteral(t *testing.T) {
 	}
 }
 
-// reflectTypeOfKind is a representative type for a kind, so the check above can be
-// made against the kind it found rather than the field's own named type.
+// reflectTypeOfKind is a representative type for a kind.
 func reflectTypeOfKind(k reflect.Kind) reflect.Type {
 	switch k {
 	case reflect.String:
@@ -373,14 +359,12 @@ func reflectTypeOfKind(k reflect.Kind) reflect.Type {
 	case reflect.Map:
 		return reflect.TypeFor[map[string]string]()
 	default:
-		// Deliberately unrepresentable: an unknown kind reaches scalarLiteral as a zero
-		// Value, which has no literal form, so the caller reports it.
+		// A zero Value has no literal form, so the caller reports the kind.
 		return reflect.TypeOf(struct{}{})
 	}
 }
 
-// The float settings survive a save and a reload — including whole numbers, which is
-// where TOML is strict.
+// Float settings survive a save and reload, including whole numbers.
 func TestFloatSettingsSurviveASaveAndReload(t *testing.T) {
 	t.Parallel()
 
@@ -423,7 +407,7 @@ func TestFloatSettingsSurviveASaveAndReload(t *testing.T) {
 	}
 }
 
-// A list stops being a line once it stops fitting.
+// A list wraps to one entry per line once too long.
 func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 	t.Parallel()
 
@@ -453,7 +437,7 @@ func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 		if gotWrapped != tc.wrapped {
 			t.Errorf("%s: wrapped = %v, want %v:\n%s", name, gotWrapped, tc.wrapped, body)
 		}
-		// Whichever shape, it has to read back as the same list.
+		// Either shape reads back as the same list.
 		round, err := Load(path)
 		if err != nil {
 			t.Fatalf("%s: the written config does not load: %v", name, err)
@@ -480,9 +464,8 @@ func TestRoomNamesTakesEveryRoomID(t *testing.T) {
 	}
 }
 
-// A config that never mentions the tags, or the rail's order, has the starter's, as a
-// first run's does; writing it back leaves them out (they are the default), and a
-// config whose tags were all deleted is written as `tag = []`, which stays empty.
+// Absent tags and rail order take the starter's and are omitted on save; deleting all
+// tags writes `tag = []`, which stays empty.
 func TestAConfigWithoutTagsHasTheStartersAndDeletingThemSticks(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")

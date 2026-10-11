@@ -8,9 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// CodeRules builds the code shape from config, rejecting a set of rules that could
-// never match anything — a configuration mistake rather than a preference, because
-// finding no codes ever is indistinguishable from the feature being broken.
+// CodeRules builds the code shape, rejecting rules that can never match (which would
+// look like a broken feature).
 func CodeRules(codes config.Codes) (domain.CodeRules, error) {
 	rules := domain.CodeRules{
 		MinLength:    codes.Min(),
@@ -26,13 +25,12 @@ func CodeRules(codes config.Codes) (domain.CodeRules, error) {
 	return rules, nil
 }
 
-// CodeScope is where kith looks for codes on its own initiative — the include and
-// exclude lists, unchanged.
+// CodeScope is where kith looks for codes unprompted: the include and exclude lists.
 func CodeScope(codes config.Codes) domain.CodeScope {
 	return domain.CodeScope{Include: codes.Include, Exclude: codes.Exclude}
 }
 
-// Codes derives both halves — the shape and the scope — from a configuration.
+// Codes derives the code shape and scope.
 func Codes(codes config.Codes) (domain.CodeRules, domain.CodeScope, error) {
 	rules, err := CodeRules(codes)
 	if err != nil {

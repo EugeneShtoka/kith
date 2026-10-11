@@ -1,8 +1,7 @@
 package domain
 
-// RoomSet is which rooms a query reads: every room, or the ones listed. An empty list
-// is no rooms, never every room: a set built from a scope that shares nothing must not
-// read everything. EveryRoom is the only way to ask for all of them.
+// RoomSet is which rooms a query reads. An empty list is no rooms, so a scope that
+// shares nothing reads nothing; only EveryRoom asks for all.
 type RoomSet struct {
 	All bool
 	IDs []RoomID

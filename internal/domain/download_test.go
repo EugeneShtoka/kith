@@ -20,8 +20,7 @@ func place() domain.DownloadPlace {
 	}
 }
 
-// With no template a file lands in the directory under its own name — the simple case
-// stays simple.
+// With no template a file lands in the directory under its own name.
 func TestResolveDownloadWithoutATemplate(t *testing.T) {
 	t.Parallel()
 
@@ -31,7 +30,7 @@ func TestResolveDownloadWithoutATemplate(t *testing.T) {
 	}
 }
 
-// The template names folders, and they are the folders a person would recognize.
+// The template expands to readable folder names.
 func TestResolveDownloadTemplate(t *testing.T) {
 	t.Parallel()
 
@@ -45,8 +44,7 @@ func TestResolveDownloadTemplate(t *testing.T) {
 	}
 }
 
-// A field that expands to nothing leaves no empty folder behind: a room in no space
-// must not save into "/dl//Standup".
+// A field that expands to nothing leaves no empty folder ("/dl//Standup").
 func TestResolveDownloadDropsEmptySegments(t *testing.T) {
 	t.Parallel()
 
@@ -58,8 +56,8 @@ func TestResolveDownloadDropsEmptySegments(t *testing.T) {
 	}
 }
 
-// Everything in a path comes off a message someone else wrote. A room called
-// "Design / Ops" is one folder, and a filename that tries to climb does not.
+// Path parts come from others' messages: "Design / Ops" is one folder, and a
+// filename cannot climb out.
 func TestResolveDownloadCannotEscape(t *testing.T) {
 	t.Parallel()
 
@@ -83,8 +81,7 @@ func TestResolveDownloadCannotEscape(t *testing.T) {
 	}
 }
 
-// A rule for the room beats one for its space, which beats the settings — the same
-// "more specific wins" this project uses everywhere else.
+// A room rule beats a space rule, which beats the settings.
 func TestResolveDownloadRulesNarrowestWins(t *testing.T) {
 	t.Parallel()
 
@@ -97,16 +94,14 @@ func TestResolveDownloadRulesNarrowestWins(t *testing.T) {
 		t.Errorf("path = %q, want the room's own rule to win", got.Path())
 	}
 
-	// With only the space rule, the space's directory is used and the outer template
-	// still applies — a rule changes what it names and nothing else.
+	// A rule changes only what it sets; the outer template still applies.
 	got = domain.ResolveDownload("/dl", "{space}/{name}{ext}", rules[:1], place())
 	if got.Path() != "/work/Work/photo.png" {
 		t.Errorf("path = %q, want the space's directory with the outer template", got.Path())
 	}
 }
 
-// "-" turns the template off for one place, which an empty string cannot say because
-// empty means inherit.
+// "-" turns the template off for one place; empty means inherit.
 func TestResolveDownloadRuleCanTurnOffTheTemplate(t *testing.T) {
 	t.Parallel()
 

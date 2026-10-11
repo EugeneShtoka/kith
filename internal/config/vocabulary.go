@@ -1,6 +1,6 @@
 package config
 
-// The words a configuration file is allowed to use, and the one place they are spelled.
+// The enumerated values config settings accept.
 
 // Media display modes ([display.media] mode).
 const (
@@ -13,8 +13,7 @@ const (
 // MediaModes is every accepted mode, in the order an error should list them.
 func MediaModes() []string { return []string{MediaPlaceholder, MediaInline} }
 
-// Media detail levels ([display.media] detail) — how much of a picture one
-// character carries.
+// Media detail levels ([display.media] detail).
 const (
 	// MediaSextant packs six subcells into a character; the default.
 	MediaSextant = "sextant"
@@ -25,7 +24,7 @@ const (
 // MediaDetails is every accepted detail level, most detailed first.
 func MediaDetails() []string { return []string{MediaSextant, MediaHalf} }
 
-// Emoji tiers ([display.emoji] set) — how much of the standard set to offer.
+// Emoji tiers ([display.emoji] set).
 const (
 	// EmojiCurated is the hand-picked set; the default.
 	EmojiCurated = "curated"
@@ -38,7 +37,7 @@ const (
 // EmojiTiers is every accepted tier, smallest first.
 func EmojiTiers() []string { return []string{EmojiCurated, EmojiStandard, EmojiComplete} }
 
-// Unread sources ([display] unread) — what a badge counts.
+// Unread sources ([display] unread): what a badge counts.
 const (
 	// UnreadMessages counts cached messages after the read receipt; the default.
 	UnreadMessages = "messages"
@@ -49,8 +48,7 @@ const (
 // UnreadSources is every accepted source.
 func UnreadSources() []string { return []string{UnreadMessages, UnreadNotifications} }
 
-// Thread listings ([display.threads] in_room_list) — which of a room's threads are
-// listed beneath it.
+// Thread listings ([display.threads] in_room_list).
 const (
 	ThreadsUnread = "unread"
 	ThreadsAll    = "all"
@@ -60,12 +58,10 @@ const (
 // ThreadListings is every accepted value.
 func ThreadListings() []string { return []string{ThreadsUnread, ThreadsAll, ThreadsNever} }
 
-// SkinToneNone is the absence of a tone, which is a spelling a user can write and
-// not the same thing as an empty setting — both resolve to no modifier.
+// SkinToneNone is an explicit no-tone setting; like an empty one, it applies no modifier.
 const SkinToneNone = "none"
 
-// skinToneModifier is each accepted tone name and the Unicode modifier that applies it,
-// in the order the chart names them.
+// skinToneModifier is each tone name and its Unicode modifier, in chart order.
 var skinToneModifier = []struct {
 	Name     string
 	Modifier string
@@ -87,8 +83,8 @@ func SkinToneNames() []string {
 	return out
 }
 
-// SkinToneModifier is the Unicode modifier for a tone name, and whether the name is
-// one. "none" is a name, and its modifier is the empty string.
+// SkinToneModifier is the Unicode modifier for a tone name ("" for "none"), and whether
+// the name is known.
 func SkinToneModifier(name string) (string, bool) {
 	for _, t := range skinToneModifier {
 		if t.Name == name {
@@ -98,10 +94,9 @@ func SkinToneModifier(name string) (string, bool) {
 	return "", false
 }
 
-// What to do with a message somebody deleted ([display.deleted]).
+// Deleted-message modes ([display.deleted]).
 const (
-	// DeletedShow draws the "(deleted)" placeholder where the message was, which is the
-	// default: a gap in a conversation is a fact about it.
+	// DeletedShow draws a "(deleted)" placeholder; the default.
 	DeletedShow = "show"
 	// DeletedHide takes the row out altogether.
 	DeletedHide = "hide"
@@ -110,13 +105,11 @@ const (
 // DeletedModes is every accepted value, in the order an error should list them.
 func DeletedModes() []string { return []string{DeletedShow, DeletedHide} }
 
-// Spelling underline styles ([spell] underline) — how a misspelled word is marked
-// in the composer.
+// Misspelling underline styles ([spell] underline).
 const (
 	// SpellCurly is a curly underline (SGR 4:3); the default.
 	SpellCurly = "curly"
-	// SpellLine is a plain underline (SGR 4), for a terminal that draws 4:3 badly
-	// rather than not at all.
+	// SpellLine is a plain underline (SGR 4), for terminals that draw 4:3 badly.
 	SpellLine = "line"
 	// SpellNoUnderline marks nothing.
 	SpellNoUnderline = "none"
@@ -125,13 +118,11 @@ const (
 // SpellUnderlines is every accepted style, in the order an error should list them.
 func SpellUnderlines() []string { return []string{SpellCurly, SpellLine, SpellNoUnderline} }
 
-// How wide the completion vocabulary is ([complete] scope).
+// Completion vocabulary scopes ([complete] scope).
 const (
-	// CompleteScopeRoom weighs this room's words highest, then its spaces', then
-	// everywhere.
+	// CompleteScopeRoom weighs this room's words highest, then its spaces', then all.
 	CompleteScopeRoom = "room"
-	// CompleteScopeSpace drops the room term: useful where a set of rooms share one
-	// vocabulary and no single one of them owns it.
+	// CompleteScopeSpace drops the room term, for rooms that share one vocabulary.
 	CompleteScopeSpace = "space"
 	// CompleteScopeGlobal counts every word once, wherever it was said.
 	CompleteScopeGlobal = "global"
@@ -142,33 +133,30 @@ func CompleteScopes() []string {
 	return []string{CompleteScopeRoom, CompleteScopeSpace, CompleteScopeGlobal}
 }
 
-// Where completions come from ([complete] sources).
+// Completion sources ([complete] sources).
 const (
-	// CompleteHistory is the cache: what has been said in this room, its spaces, and
-	// anywhere, weighted in that order and again for the words you wrote yourself.
+	// CompleteHistory is cached messages: room, spaces, anywhere, weighted in that order
+	// and boosted for your own words.
 	CompleteHistory = "history"
-	// CompleteFrequency is the installed word-frequency list for the language being
-	// typed in — the same data the rare-word check reads.
+	// CompleteFrequency is the installed word-frequency list for the typed language (the
+	// rare-word check's data).
 	CompleteFrequency = "frequency"
 )
 
 // CompleteSources is every accepted source, in the order an error should list them.
 func CompleteSources() []string { return []string{CompleteHistory, CompleteFrequency} }
 
-// Rare-word underline styles ([spell] rare_underline) — how a word the dictionary
-// accepted but the corpus barely knows is marked.
+// Rare-word underline styles ([spell] rare_underline): for words the dictionary accepts
+// but the corpus barely knows.
 const (
-	// SpellDotted is a dotted underline (SGR 4:4); the default, and deliberately not
-	// the curly a misspelling gets.
+	// SpellDotted is a dotted underline (SGR 4:4); the default, distinct from a misspelling's.
 	SpellDotted = "dotted"
 )
 
 // RareUnderlines is every accepted style for a rare word.
 func RareUnderlines() []string { return []string{SpellDotted, SpellLine, SpellNoUnderline} }
 
-// What autocorrect may rewrite ([spell] autocorrect) — the values name the class of
-// word rather than a degree of aggression, because the levels are not ordered by how
-// careful they are: each names what it is allowed to touch.
+// Autocorrect modes ([spell] autocorrect); each names the class of word it may rewrite.
 const (
 	// AutocorrectOff rewrites nothing.
 	AutocorrectOff = "off"

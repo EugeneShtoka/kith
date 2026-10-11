@@ -9,19 +9,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// `[spam]` as the rules that run, derived once for the two callers that must agree: the
-// daemon, which promotes a room when a message arrives, and the client, which previews
-// what a filter would catch before it is saved.
+// `[spam]` rules, derived in one place so the daemon (on arrival) and the client
+// (previewing a filter) agree.
 
-// DefaultSpamWindow is the period the ratio rule counts over when the config gives
-// none.
+// DefaultSpamWindow is the ratio rule's default counting window.
 const DefaultSpamWindow = 7 * 24 * time.Hour
 
-// DefaultSpamFloor is how many messages the ratio rule needs before a share means
-// anything.
+// DefaultSpamFloor is the minimum message count before the ratio rule applies.
 const DefaultSpamFloor = 5
 
-// SpamRules is `[spam]` as the decision takes it, with every spelling checked.
+// SpamRules validates `[spam]` into domain rules.
 func SpamRules(cfg config.Spam) (domain.SpamRules, error) {
 	out := domain.SpamRules{
 		FirstMessage: cfg.FirstMessageRule(),
@@ -88,7 +85,7 @@ func spamFilters(filters []config.SpamFilter) ([]domain.SpamFilter, error) {
 	return out, nil
 }
 
-// SpamPlaces is the two hand-written lists as the domain takes them.
+// SpamPlaces converts the two hand-written lists.
 func SpamPlaces(cfg config.Spam) domain.Spam {
 	return domain.Spam{Entries: cfg.Rooms, Except: cfg.Except}
 }

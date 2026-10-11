@@ -12,11 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/llamacpp/models"
 )
 
-// Turning `[complete.model]` into a running predictor's settings.
-
-// ModelDir is where installed weights live: kith's own directory, beside the
-// dictionaries and the frequency lists, for the same reasons — no root is needed,
-// nothing else owns it, and what this client installed is what this client reads.
+// ModelDir is where installed weights live, beside the dictionaries in kith's own
+// data directory.
 func ModelDir(dataDir string) string { return filepath.Join(dataDir, "models") }
 
 // ModelNames refuses a `model` that cannot ever resolve to weights.
@@ -47,15 +44,13 @@ func ModelNames(cfg config.CompleteModel) error {
 	return nil
 }
 
-// ModelDurations refuses a duration somebody wrote wrongly, which is the half of the
-// config contract the OrDefault helpers cannot keep: they resolve, and resolving
-// quietly is how a setting somebody believes they changed stays unchanged.
+// ModelDurations refuses misspelled durations, which the OrDefault helpers would
+// silently replace with defaults.
 func ModelDurations(cfg config.CompleteModel) error {
 	for _, field := range []struct {
 		key     string
 		spelled string
-		// zeroOK marks the one duration where "0s" is an answer rather than an
-		// omission: an idle window of zero means never stop the server.
+		// zeroOK: an idle window of "0s" means never stop the server.
 		zeroOK bool
 	}{
 		{"complete.model.idle", cfg.Idle, true},
@@ -82,10 +77,7 @@ func ModelDurations(cfg config.CompleteModel) error {
 
 // CompletionPick is what a completion may quote, resolved.
 func CompletionPick(cfg config.CompleteModel) (domain.ContextPick, error) {
-	// The raw values are checked before orInt sees them, because "0 or less means
-	// unset" is right for an omitted key and wrong for `recent = -1`: one is a line
-	// nobody wrote and the other is a line somebody wrote wrongly, and only the second
-	// is worth refusing.
+	// Checked before orInt, which treats negatives as unset; `recent = -1` is a mistake.
 	if cfg.Recent < 0 || cfg.BeforeReply < 0 {
 		return domain.ContextPick{}, fmt.Errorf(
 			"complete.model: recent (%d) and before_reply (%d) are counts of messages, so they cannot be negative",

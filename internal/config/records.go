@@ -9,13 +9,12 @@ import (
 	"sync"
 )
 
-// A record table is a list of records, one [[block]] each ([[display.read_rule]]):
-// what the settings screen edits a record at a time, each record's fields set as
-// properties are. The tags and the notification rules have editors of their own, and
-// profiles are the accounts the app is started with.
+// A record table is a [[block]] list ([[display.read_rule]]) the settings screen edits
+// one record at a time, fields set like properties. Tags, notification rules and
+// profiles are edited elsewhere.
 
-// RecordTable is one table: its path, what default.toml says above it, and its fields
-// (each Path the field's name, its Doc the comment on it in default.toml's example).
+// RecordTable is one table with its default.toml doc and fields (Path is the field
+// name, Doc its comment in default.toml's example).
 type RecordTable struct {
 	Path   string
 	Doc    string
@@ -53,8 +52,7 @@ var (
 	tables     []RecordTable
 )
 
-// paragraphAround is the comment paragraph of default.toml holding needle (a table
-// shown as an example inside a longer comment); "" when none does.
+// paragraphAround is the default.toml comment paragraph containing needle; "" if none.
 func paragraphAround(needle string) string {
 	lines := strings.Split(defaultConfigTOML, "\n")
 	at := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(l, "#") && strings.Contains(l, needle) })
@@ -105,7 +103,7 @@ func table(c reflect.Value, path string) (reflect.Value, bool) {
 	return field(c, path)
 }
 
-// recordField is field name of record i of the table at path in c.
+// recordField is field name of record i in the table at path.
 func recordField(c reflect.Value, path string, i int, name string) (reflect.Value, error) {
 	t, ok := table(c, path)
 	if !ok {
@@ -182,7 +180,7 @@ func (c *Config) SetRecordList(path string, i int, name string, entries []string
 	return nil
 }
 
-// AddRecord appends an empty record to the table at path, and is its index.
+// AddRecord appends an empty record to the table at path and returns its index.
 func (c *Config) AddRecord(path string) (int, error) {
 	if err := c.ownTable(path); err != nil {
 		return 0, err
@@ -211,8 +209,8 @@ func (c *Config) RemoveRecord(path string, i int) error {
 	return nil
 }
 
-// ownTable gives c a table at path of its own before it is changed: a config cloned
-// shallowly (or not at all) must never write through to the one it came from.
+// ownTable copies the table at path before a change, so a shallow clone never writes
+// through to its source.
 func (c *Config) ownTable(path string) error {
 	t, ok := table(reflect.ValueOf(c).Elem(), path)
 	if !ok {
@@ -224,9 +222,8 @@ func (c *Config) ownTable(path string) error {
 	return nil
 }
 
-// Write sets what a login asks to have written: a new record of table with values by
-// field, or, with no table, values by key path. Nothing is changed when any of it is
-// refused.
+// Write applies a login's values: a new record of table by field, or, with no table,
+// values by key path. All or nothing.
 func (c *Config) Write(table string, values map[string]string) error {
 	next := c.Clone()
 	keys := slices.Sorted(maps.Keys(values))

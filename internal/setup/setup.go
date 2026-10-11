@@ -20,8 +20,8 @@ import (
 // errOf drops a resolved value so a (value, error) check fits in Validate's list.
 func errOf[T any](_ T, err error) error { return err }
 
-// Validate checks every section whose failure is cheaper to find at startup than at
-// the first message, and returns the first problem in the order listed.
+// Validate checks config sections at startup and returns the first problem in list
+// order.
 func Validate(cfg config.Config) error {
 	d := cfg.Display
 	for _, err := range []error{
@@ -138,8 +138,8 @@ func AutocorrectMode(mode config.Autocorrect) (string, error) {
 	return oneOf("spell.autocorrect", "mode", string(mode), config.AutocorrectModes())
 }
 
-// AudioPlayback checks the voice-note speed (global and per rule) and skip step. A
-// configured speed out of range is refused here, while the player clamps at runtime.
+// AudioPlayback checks voice-note speeds (global and per rule) and the skip step;
+// out-of-range config is refused, though the player clamps at runtime.
 func AudioPlayback(cfg config.Media) error {
 	if err := audioSpeed("display.media.audio.speed", cfg.Audio.Speed); err != nil {
 		return err
@@ -271,8 +271,8 @@ func quoteAll(values []string) string {
 	return strings.Join(quoted, ", ")
 }
 
-// oneOf resolves a configured word against its vocabulary. section is what to edit
-// ("display.emoji.set"), noun what the value is ("set").
+// oneOf resolves a configured word against allowed; empty is allowed[0]. section and
+// noun name it in errors ("display.emoji.set", "set").
 func oneOf(section, noun, name string, allowed []string) (string, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(name))
 	if trimmed == "" {

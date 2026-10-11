@@ -14,16 +14,14 @@ type Composer struct {
 	Markdown   *bool  `toml:"markdown"`
 }
 
-// MarkdownEnabled reports whether the composer renders Markdown, defaulting to true
-// for a config that does not mention it.
+// MarkdownEnabled reports whether the composer renders Markdown (unset: true).
 func (c Composer) MarkdownEnabled() bool { return enabled(c.Markdown) }
 
-// defaultEditor is used when neither the config nor the environment names one. vi
-// is the editor POSIX requires to exist.
+// defaultEditor is the fallback editor; POSIX requires vi.
 const defaultEditor = "vi"
 
-// EditorCommand is the program and arguments the draft is handed to, resolved through
-// the config, then $VISUAL, then $EDITOR, then vi. It never returns an empty command.
+// EditorCommand is the draft editor's argv: the config, then $VISUAL, $EDITOR, vi.
+// Never empty.
 func (c Composer) EditorCommand() []string {
 	for _, candidate := range []string{c.Editor, os.Getenv("VISUAL"), os.Getenv("EDITOR")} {
 		if fields := strings.Fields(candidate); len(fields) > 0 {
@@ -61,12 +59,10 @@ type Spell struct {
 	RareRatio           int         `toml:"rare_ratio"` // 0 is the built-in default
 }
 
-// Autocorrect is `[spell] autocorrect`: which classes of word may be rewritten as you
-// finish typing them.
+// Autocorrect is `[spell] autocorrect`: which classes of word may be rewritten as typed.
 type Autocorrect string
 
-// Corrects reports whether autocorrect may rewrite the given class of word. An empty
-// value — the key absent from the file — is "off", which is what it has always been.
+// Corrects reports whether autocorrect may rewrite the given class of word; empty is off.
 func (s Spell) Corrects(mode string) bool {
 	switch string(s.Autocorrect) {
 	case AutocorrectAll:
@@ -86,8 +82,7 @@ func (s Spell) FrequenciesDeclinedFor(tag string) bool {
 // SpellDeclined reports whether a dictionary was offered and turned down.
 func (s Spell) SpellDeclined(tag string) bool { return slices.Contains(s.Declined, tag) }
 
-// SpellEnabled reports whether checking is on, defaulting to true for a config
-// written before the setting existed.
+// SpellEnabled reports whether checking is on (unset: true).
 func (s Spell) SpellEnabled() bool { return enabled(s.Enabled) }
 
 // EngineOrDefault is the configured engine, or hunspell.
@@ -98,7 +93,7 @@ func (s Spell) EngineOrDefault() string {
 	return s.Command
 }
 
-// Complete is [complete]: finishing a word from what has actually been said.
+// Complete is [complete]: word completion from what has been said.
 type Complete struct {
 	Enabled *bool         `toml:"enabled"`
 	Ghost   *bool         `toml:"ghost"`
@@ -127,9 +122,8 @@ type CompleteModel struct {
 	Declined    bool   `toml:"declined"`
 }
 
-// ModelEnabled reports whether the completion model may run, defaulting to on: the
-// weights being installed is the decision, and a second switch to flip after the
-// download would be the same question asked twice.
+// ModelEnabled reports whether the completion model may run (unset: true); installing
+// the weights is the opt-in.
 func (c CompleteModel) ModelEnabled() bool { return enabled(c.Enabled) }
 
 // CommandOrDefault is llama.cpp's server, defaulting to the name it installs as.
@@ -151,20 +145,18 @@ func (c CompleteModel) IdleOrDefault() time.Duration {
 		return DefaultLocalIdle
 	}
 	if parsed <= 0 {
-		// Negative is what internal/llamacpp reads as "never stop it", and an explicit
-		// zero in a config file means the same thing said the obvious way.
+		// internal/llamacpp reads negative as "never stop"; zero means the same.
 		return -1
 	}
 	return parsed
 }
 
-// StartupOrDefault is how long a spawn may take before it is called a failure.
+// StartupOrDefault is how long a server spawn may take before it fails.
 func (c CompleteModel) StartupOrDefault() time.Duration {
 	return durationOr(c.Startup, DefaultLocalStartup)
 }
 
-// TimeoutOrDefault bounds one prediction. A suggestion that arrives after the word has
-// been typed is not a suggestion.
+// TimeoutOrDefault bounds one prediction; a late suggestion is useless.
 func (c CompleteModel) TimeoutOrDefault() time.Duration {
 	return durationOr(c.Timeout, DefaultLocalTimeout)
 }
@@ -176,11 +168,10 @@ const (
 	DefaultLocalTimeout = time.Second
 )
 
-// CompleteEnabled reports whether completion is on, defaulting to true for a config
-// written before the setting existed.
+// CompleteEnabled reports whether completion is on (unset: true).
 func (c Complete) CompleteEnabled() bool { return enabled(c.Enabled) }
 
-// GhostEnabled reports whether the inline suggestion draws.
+// GhostEnabled reports whether the inline suggestion draws (unset: true).
 func (c Complete) GhostEnabled() bool { return enabled(c.Ghost) }
 
 // RatioOrDefault is the dominance the ghost requires, defaulting to three.
@@ -191,13 +182,10 @@ func (c Complete) RatioOrDefault() int {
 	return c.Ratio
 }
 
-// ScopeOrDefault is the vocabulary's width, defaulting to the room — which is not the
-// narrowest answer it sounds like: every scope keeps a plain count over the whole
-// cache, so "room" means "weigh this room's words highest", not "look only here".
+// ScopeOrDefault is the vocabulary scope, default "room": weigh this room's words
+// highest, still counting the whole cache.
 func (c Complete) ScopeOrDefault() string {
 	if c.Scope == "" {
-		// The constant, not the word: vocabulary.go exists to name every accepted
-		// config string.
 		return CompleteScopeRoom
 	}
 	return c.Scope

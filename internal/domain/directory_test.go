@@ -13,10 +13,8 @@ func shuffled[T any](r *rand.Rand, rows []T) []T {
 	return out
 }
 
-// A person is every identifier the sources link, through chains and cycles, and the
-// number a WhatsApp ID is; their name is the best any source gives any of them, the
-// same whatever order the rows come in. A name that is only a number names nobody,
-// and a link to oneself joins nothing.
+// Links join identifiers transitively (and a WhatsApp ID to its number); the best
+// name wins regardless of row order. Number-only names and self-links are ignored.
 func TestAPersonIsEveryLinkedIdentifierInAnyOrder(t *testing.T) {
 	t.Parallel()
 	const (
@@ -70,8 +68,7 @@ func TestAPersonIsEveryLinkedIdentifierInAnyOrder(t *testing.T) {
 	}
 }
 
-// People name a person by your alias on any of their identifiers, then a name you
-// saved, then a name given now, then the name they chose, then their number.
+// Name precedence: alias, saved, given now, chosen, number.
 func TestPeopleNameByTheBestTheyKnow(t *testing.T) {
 	t.Parallel()
 	dir := NewDirectory([]PersonName{
@@ -100,8 +97,7 @@ func TestPeopleNameByTheBestTheyKnow(t *testing.T) {
 	}
 }
 
-// A bridge is known by its bot, else by the protocol its bridge state names; neither
-// known is no network.
+// A bridge is known by its bot, else its bridge state's protocol.
 func TestABridgeIsKnownByItsBotOrProtocol(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -122,8 +118,7 @@ func TestABridgeIsKnownByItsBotOrProtocol(t *testing.T) {
 	}
 }
 
-// A room's network is its own once read, over its spaces' bridge; a room not read is
-// its first bridged space's, else its ID's.
+// A room's network: its own, else its first bridged space's, else its ID's.
 func TestARoomsOwnNetworkComesFirst(t *testing.T) {
 	t.Parallel()
 	slack := []Space{{ID: "!s:x", Name: "Workspace", Bridge: ProtocolSlack}}

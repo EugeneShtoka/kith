@@ -8,36 +8,31 @@ import (
 // SpaceID identifies a Matrix space, which is itself a room (type m.space).
 type SpaceID string
 
-// Space is a Matrix space: a room-of-rooms. Children holds the IDs of its direct child
-// rooms (sub-spaces excluded), used to filter the room list to the space in the rail.
+// Space is a Matrix space. Children are its direct child rooms, sub-spaces excluded.
 type Space struct {
 	ID       SpaceID
 	Name     string
 	Children []RoomID
-	// Bridge is the network whose bridge owns this space, and ProtocolMatrix for one a
-	// person keeps.
+	// Bridge is the network whose bridge owns this space; ProtocolMatrix for a person's.
 	Bridge Protocol
-	// Keeper is somebody other than you who is inside this space and inside your rooms
-	// at large — which is what a bridge looks like from the outside, and what a person
-	// does not.
+	// Keeper is another member who is also in many of your rooms (KeeperReach), which
+	// marks a bridge rather than a person.
 	Keeper string
-	// Original marks a space that at least one room names as its canonical parent — the
-	// space that room came from, as opposed to one it was also filed into.
+	// Original marks a space that at least one room names as its canonical parent.
 	Original bool
 	// Leaving is what leaving the space from the rail does.
 	Leaving SpaceLeaving
-	// LeaveBy is the room whose leaving leaves the space and all of its rooms with it (a
-	// Telegram forum's chat: its topics go with it), for LeftByRoom; "" otherwise.
+	// LeaveBy is, for LeftByRoom, the room whose leaving leaves the whole space (a
+	// Telegram forum's chat); "" otherwise.
 	LeaveBy RoomID
 }
 
-// SpaceLeaving is how a space is left, which the network decides.
+// SpaceLeaving is how the network lets a space be left.
 type SpaceLeaving int
 
 // The ways a space is left.
 const (
-	// NotLeft: a bridge's own space for an account, whose signing out is the
-	// bridge's to do.
+	// NotLeft: a bridge's own space for an account; signing out is the bridge's job.
 	NotLeft SpaceLeaving = iota
 	// LeftByRoom: leaving one room (LeaveBy) leaves the space and its rooms (a Telegram
 	// forum).
@@ -45,15 +40,13 @@ const (
 	// LeftWithRooms: the space is left with every room inside it (a WhatsApp
 	// community: its groups go too).
 	LeftWithRooms
-	// LeftAlone: the space is a membership of its own, and so is each room inside it,
-	// which may stay (a Matrix space).
+	// LeftAlone: the space is left alone; its rooms may stay (a Matrix space).
 	LeftAlone
-	// LeftBySigningOut: the space is an account's own (a Telegram or WhatsApp account,
-	// a Slack workspace), left by signing the account out.
+	// LeftBySigningOut: the space is an account (Telegram, WhatsApp, a Slack workspace),
+	// left by signing out.
 	LeftBySigningOut
-	// LeftWhole: the space and its rooms are one chat (a bridged Telegram forum and
-	// its topics: the bridge leaves the whole forum for any one of them), left with
-	// every room inside it.
+	// LeftWhole: the space and its rooms are one chat, left together (a bridged
+	// Telegram forum: the bridge leaves the whole forum for any topic).
 	LeftWhole
 )
 
@@ -64,20 +57,16 @@ func (s Space) Leavable() bool { return s.Leaving != NotLeft }
 // forum and its topics), so a room inside is left only with all of it.
 func (s Space) Whole() bool { return s.Leaving == LeftByRoom || s.Leaving == LeftWhole }
 
-// KeeperReach is how many of your rooms a space's other member has to be inside before
-// it is taken for a bridge rather than a person.
+// KeeperReach is how many of your rooms a space member must share to count as a bridge.
 const KeeperReach = 5
 
-// Managed reports whether something other than you decides what is in this space — a
-// bridge that keeps it, or a room that calls it home.
+// Managed reports whether a bridge keeps this space or a room calls it home.
 func (s Space) Managed() bool { return s.Keeper != "" || s.Original }
 
-// IsBridged reports whether a bridge created this space, and therefore whether it is a
-// place this client should offer to file rooms into.
+// IsBridged reports whether a bridge created this space.
 func (s Space) IsBridged() bool { return s.Bridge != "" && s.Bridge.IsBridged() }
 
-// DisplayName is the human-facing label for a space: its name when set,
-// otherwise its ID, so a space is never rendered blank.
+// DisplayName is the space's name, else its ID, so it is never blank.
 func (s Space) DisplayName() string {
 	if s.Name != "" {
 		return s.Name

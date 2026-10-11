@@ -13,8 +13,7 @@ var (
 	fresh   = started.Add(time.Minute)
 )
 
-// capturing is auto-copy configured the way it has to be to do anything: on, and
-// with somewhere named.
+// capturing is auto-copy switched on with a place named.
 func capturing() domain.AutoCopy {
 	return domain.AutoCopy{
 		Enabled: true,
@@ -31,15 +30,14 @@ func arrived(at time.Time) domain.Message {
 	}
 }
 
-// here is the room that message landed in, in the space the scope names.
+// here is the room it landed in, in the scoped space.
 func here() domain.Arrival {
 	return domain.Arrival{CaughtUp: true, Room: domain.RoomFacts{
 		ID: "!sms:x", Name: "SMS", Spaces: []string{"Bridges"},
 	}}
 }
 
-// The case the feature exists for: a code arrives while nothing is attached, in a
-// place that was named, and it is captured.
+// A code arriving in a named place while nothing is attached is captured.
 func TestAutoCopyCapturesALiveCode(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +53,7 @@ func TestAutoCopyCapturesALiveCode(t *testing.T) {
 	}
 }
 
-// refusal is one guard's case: the configuration, the message, and where it landed.
+// refusal is one guard's case.
 type refusal struct {
 	rules domain.AutoCopy
 	msg   domain.Message
@@ -71,8 +69,7 @@ func elsewhere() domain.Arrival {
 	return in
 }
 
-// Every guard, one at a time. Each of these is the difference between a useful
-// feature and a clipboard anyone who can message you controls.
+// Each guard on its own refuses the copy.
 func TestAutoCopyRefusals(t *testing.T) {
 	t.Parallel()
 

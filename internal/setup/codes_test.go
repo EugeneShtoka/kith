@@ -9,8 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// Config → domain translation, including the tri-state bools where "absent" is not
-// "false".
+// Tri-state bools keep "absent" distinct from "false".
 func TestCodeRulesFromConfig(t *testing.T) {
 	t.Parallel()
 
@@ -32,9 +31,7 @@ func TestCodeRulesFromConfig(t *testing.T) {
 	}
 }
 
-// A shape that could never match is a configuration mistake, not a preference: finding
-// no codes ever is indistinguishable from the feature being broken, so it is refused
-// before a login rather than discovered after one.
+// A shape that can never match is refused at startup.
 func TestCodeRulesRejectAnImpossibleShape(t *testing.T) {
 	t.Parallel()
 
@@ -47,8 +44,7 @@ func TestCodeRulesRejectAnImpossibleShape(t *testing.T) {
 	}
 }
 
-// The scope is carried through verbatim: it has no shape that can be impossible, so
-// there is nothing to validate and nothing to default.
+// The scope is carried through verbatim.
 func TestCodeScopeFromConfig(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +57,6 @@ func TestCodeScopeFromConfig(t *testing.T) {
 	}
 }
 
-// Auto-copy has three prerequisites and two of them are easy to get wrong quietly.
 func TestAutoCopyUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -73,7 +68,7 @@ func TestAutoCopyUnavailable(t *testing.T) {
 		t.Errorf("a complete configuration should be usable: %v", err)
 	}
 
-	// Off is not a problem. Nothing is wrong with not wanting it.
+	// Off is not a problem.
 	off := working
 	off.Clipboard.AutoCopy = false
 	off.Clipboard.Command = ""
@@ -88,8 +83,7 @@ func TestAutoCopyUnavailable(t *testing.T) {
 		t.Errorf("error = %v, should name the missing clipboard command", err)
 	}
 
-	// The one that matters most: nowhere named means everywhere, and everywhere means
-	// anyone who can message you can rewrite your clipboard.
+	// No scope means everywhere: anyone could rewrite the clipboard.
 	nowhere := working
 	nowhere.Codes.Include = nil
 	err = setup.AutoCopyUnavailable(nowhere)
@@ -98,8 +92,7 @@ func TestAutoCopyUnavailable(t *testing.T) {
 	}
 }
 
-// The decision carries the switch, the scope and the shape, so a caller never has to
-// check the switch itself before asking.
+// The decision carries the switch, scope and shape, so callers need not check the switch.
 func TestAutoCopyFromConfig(t *testing.T) {
 	t.Parallel()
 

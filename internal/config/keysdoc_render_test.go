@@ -1,15 +1,13 @@
 package config
 
-// The [keys] part of default.toml is generated from keySections by the test that
-// checks it (`make keys-doc` runs that test with -update), so the renderer is test code.
+// The renderer for default.toml's [keys] part; `make keys-doc` runs its test with -update.
 
 import (
 	"strings"
 	"unicode/utf8"
 )
 
-// keysTOMLStart opens the part of default.toml rendered from keySections, which runs
-// from this line to the end of the file.
+// keysTOMLStart opens the generated part of default.toml, which runs to the end of file.
 const keysTOMLStart = "# ─────────────────────────────────────────────────────────────────────────────\n# Keybindings."
 
 // docWidth is the column default.toml's comments wrap at.
@@ -40,8 +38,8 @@ func renderKeysTOML() string {
 	return b.String()
 }
 
-// writeBindings renders one table's bindings, names and comments aligned. A doc that
-// would run past docWidth goes on its own line above the binding instead.
+// writeBindings renders one table's bindings with aligned comments; a doc past
+// docWidth goes on its own line above.
 func writeBindings(b *strings.Builder, binds []keyBinding) {
 	nameWidth := 0
 	for _, bind := range binds {

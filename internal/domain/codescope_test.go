@@ -6,8 +6,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An entry names a room by ID, by displayed name, or by a space it is in — one idea,
-// one spelling, shared with notification rules.
+// An entry names a room by ID, displayed name or space, as in notification rules.
 func TestCodeScopeMatchesThreeWays(t *testing.T) {
 	t.Parallel()
 
@@ -32,14 +31,13 @@ func TestCodeScopeMatchesThreeWays(t *testing.T) {
 			t.Errorf("exclude %q should block the room it names", entry)
 		}
 	}
-	// A bare word that is not a room ID declares no kind, so it names nothing — which
-	// is what makes a mistyped entry a refusal at startup rather than a silent miss.
+	// A bare word declares no kind and names nothing, so a typo is refused at startup.
 	if (domain.CodeScope{Include: []string{"Bridges"}}).Admits(sms) {
 		t.Error(`a bare "Bridges" matched; it has to be written space:Bridges`)
 	}
 }
 
-// No lists means everywhere: the feature works before anyone configures it.
+// No lists means everywhere.
 func TestCodeScopeEmptyMeansEverywhere(t *testing.T) {
 	t.Parallel()
 
@@ -54,8 +52,7 @@ func TestCodeScopeEmptyMeansEverywhere(t *testing.T) {
 	}
 }
 
-// Exclude wins. The reason to write one is to stop something happening, and a rule
-// that a broader rule can override does not stop it.
+// Exclude beats include.
 func TestCodeScopeExcludeWins(t *testing.T) {
 	t.Parallel()
 

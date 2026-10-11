@@ -3,10 +3,9 @@ package domain
 // MentionRankRung bounds each ranking rung (recent speakers, mention history).
 const MentionRankRung = 32
 
-// RankMembers orders a room's members for the mention dropdown: the recent speakers,
-// then the most mentioned, then everyone else in the order given (alphabetical, as
-// the cache lists them); at most limit (0 or less: all). A rung's user who is no
-// longer a member is skipped, and nobody is listed twice.
+// RankMembers orders members for the mention dropdown: recent speakers, then most
+// mentioned, then the rest in given order; at most limit (<= 0: all). Non-members in
+// a rung are skipped; nobody is listed twice.
 func RankMembers(all []Member, speakers, mentioned []string, limit int) []Member {
 	byID := make(map[string]Member, len(all))
 	for _, m := range all {

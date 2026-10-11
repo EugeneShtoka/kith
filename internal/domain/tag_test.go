@@ -26,9 +26,8 @@ var (
 	botsGrp = RoomFacts{ID: "!bots:x", Name: "Bots", Spaces: []string{"Work"}, Protocol: ProtocolMatrix}
 )
 
-// A rule holds a room when some positive term matches and no `not` term does; a rule
-// of `not` terms alone needs no positive one; an empty rule holds only picked rooms.
-// Picked beats the rule, excluded beats both.
+// Some positive term and no `not` term must match (only `not` terms: no positive
+// needed); an empty rule holds only picked rooms. Excluded beats picked beats the rule.
 func TestATagHoldsWhatItsRuleSays(t *testing.T) {
 	t.Parallel()
 	set := mustTags(t,
@@ -87,7 +86,7 @@ func TestARuleCanNameTags(t *testing.T) {
 	}
 }
 
-// What names nothing is refused, saying what was meant.
+// A term naming nothing is refused with a hint.
 func TestTagsThatNameNothingAreRefused(t *testing.T) {
 	t.Parallel()
 	for name, tags := range map[string][]Tag{
@@ -104,9 +103,8 @@ func TestTagsThatNameNothingAreRefused(t *testing.T) {
 	}
 }
 
-// Tags whose rules depend on each other are reported, once per cycle, and their
-// references to each other match nothing: whichever tag is asked first, the answer
-// is the same, and nothing loops.
+// A cycle is reported once and its internal references match nothing, so answers
+// are order-independent and nothing loops.
 func TestCyclesAreReportedAndMatchNothing(t *testing.T) {
 	t.Parallel()
 	set, warnings, err := NewTagSet([]Tag{
@@ -133,9 +131,8 @@ func TestCyclesAreReportedAndMatchNothing(t *testing.T) {
 	}
 }
 
-// Over random reference graphs, Has agrees with a model that breaks every reference
-// between mutually reachable tags (found independently, by transitive closure), and
-// it always answers.
+// Over random reference graphs, Has agrees with a transitive-closure model and
+// always terminates.
 func TestTagReferencesOverRandomGraphs(t *testing.T) {
 	t.Parallel()
 	rooms := []RoomFacts{momDM, workGrp, botsGrp}
@@ -174,9 +171,8 @@ func TestTagReferencesOverRandomGraphs(t *testing.T) {
 	}
 }
 
-// modelTags is the reference evaluation: reach is the transitive closure of the
-// references, a reference between two tags that reach each other is broken, and with
-// those gone the rest is a DAG, evaluated by plain recursion.
+// modelTags breaks references between mutually reachable tags (by transitive closure)
+// and evaluates the remaining DAG recursively.
 func modelTags(tags []Tag) func(int, RoomFacts) bool {
 	n := len(tags)
 	index := func(name string) int {
@@ -240,9 +236,8 @@ func modelTags(tags []Tag) func(int, RoomFacts) bool {
 	return eval
 }
 
-// Filing writes no more than the choice needs: a room the rule holds is not picked, one
-// it leaves out is not excluded; an entry naming the room goes, and one that also
-// named another room leaves that room's ID in its place.
+// Filing writes the minimum: no pick where the rule holds, no exclude where it doesn't;
+// a dropped shared entry leaves the other room's ID.
 func TestFiledWritesOnlyWhatTheChoiceNeeds(t *testing.T) {
 	t.Parallel()
 	twin := RoomFacts{ID: "!twin:x", Name: "Standup"}
@@ -265,10 +260,8 @@ func TestFiledWritesOnlyWhatTheChoiceNeeds(t *testing.T) {
 	}
 }
 
-// A network's archive puts a room in the tag kith follows it with, and in no other:
-// only when that network is followed, never past an exclusion (kith's own word
-// against it), and a tag naming the archive tag holds it too. Taking it out in kith
-// excludes it; putting it back needs nothing written.
+// A network archive puts a room in its followed tag (and tags naming it), never past
+// an exclusion. Taking it out excludes it; putting it back writes nothing.
 func TestANetworksArchiveHoldsARoomInItsTag(t *testing.T) {
 	t.Parallel()
 	set := mustTags(t,
@@ -306,8 +299,8 @@ func TestANetworksArchiveHoldsARoomInItsTag(t *testing.T) {
 	}
 }
 
-// What a room keeps is the narrowest rule naming it — one room over a tag, a space or
-// a network; among equals the later — else the setting everywhere.
+// The narrowest rule wins (room over tag, space or network; later among equals), else
+// the global setting.
 func TestARoomKeepsWhatItsNarrowestRuleSays(t *testing.T) {
 	t.Parallel()
 	room := RoomFacts{ID: "telegram:42/7", Name: "Dana", Spaces: []string{"Family"}, Tags: []string{"Archived"}, Protocol: ProtocolTelegram, Direct: true}

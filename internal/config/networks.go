@@ -1,12 +1,10 @@
 package config
 
-// A NetworkSection is a chat network's own table ([whatsapp], [slack], …): the
-// accounts kith signs in to there, one record each. The settings screen lists every
-// network through it; whether a section is right is its adapter's to say (kithd asks
-// each one), so a new network is its section, a field of Config and a line in
-// Networks.
+// A NetworkSection is a chat network's table ([whatsapp], [slack], ...) holding its
+// accounts, one record each. Its adapter validates it; adding a network takes a
+// section, a Config field and a line in Networks.
 type NetworkSection interface {
-	// Network is the network's name as a sentence says it: "WhatsApp".
+	// Network is the display name: "WhatsApp".
 	Network() string
 	// Table is its accounts' record table: "whatsapp.account".
 	Table() string

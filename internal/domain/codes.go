@@ -10,34 +10,26 @@ import (
 	"unicode/utf8"
 )
 
-// Verification codes — the OTPs and PINs that arrive by SMS bridge and then get retyped
-// by hand into a browser.
-
-// Code is one detected code and the evidence for it.
+// Code is one detected verification code (OTP, PIN) and the evidence for it.
 type Code struct {
-	// Value is the code itself, exactly as it appeared.
+	// Value is the code exactly as it appeared.
 	Value string
-	// Label is the keyword that marks it as a code ("code", "otp", "קוד"), or empty for
-	// a bare number in a short message.
+	// Label is the keyword marking it ("code", "otp", "קוד"); empty for a bare number.
 	Label string
 }
 
-// fencePattern matches a fenced code block, including an unterminated one — a paste
-// that runs to the end of the message is still a paste. (?s) so it spans lines.
+// fencePattern matches a fenced code block, including an unterminated one.
 var fencePattern = regexp.MustCompile("(?s)```.*?(```|$)")
 
-// CodeRules is what counts as code-shaped: how long, and out of which characters.
+// CodeRules is what counts as code-shaped: length and character set.
 type CodeRules struct {
 	// MinLength and MaxLength bound the token in characters.
 	MinLength, MaxLength int
-	// Letters and Digits say which ASCII classes a code may contain (codes are ASCII in
-	// practice, whatever language the message around them is in), and Symbols adds any
-	// other characters it may contain — "-_" for a hyphenated code, "@!?" for a
-	// generated password.
+	// Letters and Digits allow ASCII classes (codes are ASCII in practice); Symbols adds
+	// other allowed characters, e.g. "-_".
 	Letters, Digits bool
 	Symbols         string
-	// RequireDigit demands at least one digit in the token.
-	RequireDigit bool
+	RequireDigit    bool
 }
 
 // DefaultCodeRules is four to eight alphanumerics with at least one digit.
@@ -45,8 +37,7 @@ func DefaultCodeRules() CodeRules {
 	return CodeRules{MinLength: 4, MaxLength: 8, Letters: true, Digits: true, RequireDigit: true}
 }
 
-// Describe is the rule set in words — "4–8 letters/digits with a digit" — for the
-// status line to say what it was looking for when it found nothing.
+// Describe is the rule set in words: "4–8 letters/digits with a digit".
 func (r CodeRules) Describe() string {
 	d := r.orDefault()
 	length := fmt.Sprintf("%d–%d", d.MinLength, d.MaxLength)
@@ -64,16 +55,15 @@ func (r CodeRules) Describe() string {
 		classes = append(classes, strconv.Quote(d.Symbols))
 	}
 	out := length + " " + strings.Join(classes, "/")
-	// Only worth saying where the token could otherwise hold none.
+	// Only worth saying when the token could otherwise hold none.
 	if d.RequireDigit && (d.Letters || d.Symbols != "") {
 		out += " with a digit"
 	}
 	return out
 }
 
-// Validate reports a rule set that could never match anything, which is a configuration
-// mistake rather than a preference: silently finding no codes ever is indistinguishable
-// from the feature being broken.
+// Validate rejects a rule set that could never match, which would look like a broken
+// feature.
 func (r CodeRules) Validate() error {
 	switch {
 	case r.MinLength < 1:
@@ -88,8 +78,7 @@ func (r CodeRules) Validate() error {
 	return nil
 }
 
-// orDefault substitutes the built-in rules for a zero value, so every entry point can
-// take a CodeRules without every caller having to have one.
+// orDefault substitutes the built-in rules for a zero value.
 func (r CodeRules) orDefault() CodeRules {
 	if r.MinLength == 0 && r.MaxLength == 0 && !r.Letters && !r.Digits && r.Symbols == "" {
 		return DefaultCodeRules()
@@ -97,7 +86,6 @@ func (r CodeRules) orDefault() CodeRules {
 	return r
 }
 
-// allows reports whether c is a character a code may contain.
 func (r CodeRules) allows(c rune) bool {
 	switch {
 	case r.Digits && c >= '0' && c <= '9':
@@ -109,8 +97,7 @@ func (r CodeRules) allows(c rune) bool {
 	}
 }
 
-// tokens returns the byte ranges of the code-shaped runs in s: maximal runs of allowed
-// characters whose length is in range.
+// tokens returns the byte ranges of maximal allowed-character runs of valid length.
 func (r CodeRules) tokens(s string) [][2]int {
 	var out [][2]int
 	start, length := -1, 0
@@ -139,7 +126,7 @@ func (r CodeRules) appendToken(out [][2]int, s string, start, end, length int) [
 	return append(out, [2]int{start, end})
 }
 
-// codeLabels are the words that mark the number beside them as a code.
+// codeLabels are the keywords that mark a nearby token as a code.
 var codeLabels = []codeLabel{
 	{word: "code"}, {word: "codes"}, {word: "otp"}, {word: "pin"}, {word: "pins"},
 	{word: "verification"}, {word: "verify"}, {word: "password"}, {word: "passwords"},
@@ -147,22 +134,20 @@ var codeLabels = []codeLabel{
 	{word: "קוד", prefixed: true}, {word: "סיסמה", prefixed: true}, {word: "אימות", prefixed: true},
 }
 
-// codeLabel is one keyword and how its language attaches to it.
 type codeLabel struct {
 	word string
-	// prefixed allows a single attached letter in front of the word.
+	// prefixed allows one attached letter in front (Hebrew prefixes).
 	prefixed bool
 }
 
 const (
 	// labelWindow is how far from a token a keyword still counts, in runes.
 	labelWindow = 40
-	// afterLead is how far into a message a token may start and still be vouched for by
-	// a keyword that comes *after* it.
+	// afterLead is how far into a message (runes) a token may start and still be
+	// labeled by a keyword after it.
 	afterLead = 16
-	// bareContextRunes is how much *other* text a message may hold for a bare,
-	// unlabeled number in it to still count as a code — non-space runes, everything
-	// except the number itself.
+	// bareContextRunes is how many other non-space runes a message may hold for a bare
+	// number in it to count as a code.
 	bareContextRunes = 2
 	// looseLimit caps how many candidates the on-request fallback offers.
 	looseLimit = 8
@@ -170,14 +155,12 @@ const (
 	maxScan = 4096
 )
 
-// Codes returns the verification codes in body, strongest first and without duplicates:
-// the ones a keyword vouches for, then — only in a message that is nothing but a code —
-// bare numbers.
+// Codes returns the verification codes in body, strongest first, deduplicated: those a
+// keyword labels, then a bare number in a message that is nothing but that number.
 func Codes(body string, rules CodeRules) []Code {
 	rules = rules.orDefault()
 	body = trimScan(body)
-	// Fenced blocks and links come out first, because both are full of code-shaped runs
-	// that are not codes.
+	// Fenced blocks and links are full of code-shaped runs that are not codes.
 	scan := linkPattern.ReplaceAllString(fencePattern.ReplaceAllString(body, " "), " ")
 	lower := strings.ToLower(scan)
 	tokens := rules.tokens(scan)
@@ -186,8 +169,7 @@ func Codes(body string, rules CodeRules) []Code {
 	}
 	seen := make(map[string]bool, len(tokens))
 	out := make([]Code, 0, len(tokens))
-	// Three passes, strongest evidence first, because the order is what a single
-	// keystroke acts on.
+	// Three passes, strongest evidence first: a single keystroke takes the first.
 	for _, loc := range tokens {
 		token := scan[loc[0]:loc[1]]
 		if seen[token] || partOfBiggerNumber(scan, loc[0], loc[1]) {
@@ -209,9 +191,8 @@ func Codes(body string, rules CodeRules) []Code {
 			out = append(out, Code{Value: token, Label: label})
 		}
 	}
-	// Unlabeled, so the bar is higher on three counts: all digits (a bare alphanumeric
-	// run is far more often a word with a digit in it — "sha1", "v2beta", "utf8"),
-	// essentially alone in the message, and the *only* candidate.
+	// Unlabeled: must be all digits (not "sha1", "utf8"), essentially alone in the
+	// message, and the only candidate.
 	if soleDigitToken(scan, tokens) {
 		for _, loc := range tokens {
 			token := scan[loc[0]:loc[1]]
@@ -231,9 +212,8 @@ func Codes(body string, rules CodeRules) []Code {
 	return out
 }
 
-// CodeCandidates answers a different question from Codes, and so has a different bar:
-// somebody has pressed the key on this specific message, so the only useful answer is
-// the most plausible thing in it.
+// CodeCandidates is Codes with a lower bar, for an explicit request on one message:
+// failing Codes, any code-shaped tokens.
 func CodeCandidates(body string, rules CodeRules) []Code {
 	if found := Codes(body, rules); len(found) > 0 {
 		return found
@@ -259,7 +239,7 @@ func CodeCandidates(body string, rules CodeRules) []Code {
 	return out
 }
 
-// trimScan caps how much of a body is looked at, on a rune boundary.
+// trimScan caps the body at maxScan bytes, on a rune boundary.
 func trimScan(body string) string {
 	if len(body) <= maxScan {
 		return body
@@ -271,8 +251,7 @@ func trimScan(body string) string {
 	return body[:cut]
 }
 
-// labelIn returns the first code keyword appearing as a word in an already-lowercased
-// window of text around a token, or empty if none does.
+// labelIn returns the first code keyword appearing as a word in a lowercased window.
 func labelIn(window string) string {
 	for _, label := range codeLabels {
 		if containsWord(window, label) {
@@ -282,7 +261,6 @@ func labelIn(window string) string {
 	return ""
 }
 
-// containsWord reports whether the label appears in haystack as its own word.
 func containsWord(haystack string, label codeLabel) bool {
 	for from := 0; from <= len(haystack)-len(label.word); {
 		at := strings.Index(haystack[from:], label.word)
@@ -298,13 +276,11 @@ func containsWord(haystack string, label codeLabel) bool {
 	return false
 }
 
-// standsAsWord reports whether haystack[at:end] is a word of its own — nothing
-// alphanumeric on either side — or, when the label allows a prefix, a word carrying
-// exactly one attached letter in front.
+// standsAsWord reports whether haystack[at:end] is a whole word, or, if prefixed, one
+// with exactly one attached letter in front.
 func standsAsWord(haystack string, at, end int, prefixed bool) bool {
-	// A letter or digit after it makes this a longer, different word, whatever the
-	// language: this is what separates סיסמה in הסיסמה (accepted) from קוד in הנקודה
-	// (rejected).
+	// A letter or digit after makes a different word: סיסמה in הסיסמה is accepted,
+	// קוד in הנקודה is not.
 	if alphanumericAt(haystack, end, +1) {
 		return false
 	}
@@ -314,7 +290,6 @@ func standsAsWord(haystack string, at, end int, prefixed bool) bool {
 	if !prefixed {
 		return false
 	}
-	// One attached letter, and only if the word starts there.
 	return !alphanumericAt(haystack, prevRuneStart(haystack, at)-1, -1)
 }
 
@@ -325,8 +300,8 @@ func prevRuneStart(s string, i int) int {
 	return i
 }
 
-// alphanumericAt reports whether there is a letter or digit at byte offset i. dir says
-// which rune is meant: -1 for the one ending at i, +1 for the one beginning there.
+// alphanumericAt reports a letter or digit at byte offset i: the rune ending there
+// (dir -1) or starting there (dir +1).
 func alphanumericAt(s string, i, dir int) bool {
 	if i < 0 || i >= len(s) {
 		return false
@@ -340,7 +315,6 @@ func alphanumericAt(s string, i, dir int) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
-// windowBefore is the labelWindow runes of text just before a token.
 func windowBefore(s string, start int) string {
 	from := start
 	for range labelWindow {
@@ -353,7 +327,6 @@ func windowBefore(s string, start int) string {
 	return s[from:start]
 }
 
-// windowAfter is the labelWindow runes of text just after a token.
 func windowAfter(s string, end int) string {
 	to := end
 	for range labelWindow {
@@ -366,8 +339,7 @@ func windowAfter(s string, end int) string {
 	return s[end:to]
 }
 
-// partOfBiggerNumber reports whether the token is a piece of a longer number rather
-// than a number of its own — glued to more digits by a separator.
+// partOfBiggerNumber reports whether a separator glues the token to more digits.
 func partOfBiggerNumber(scan string, start, end int) bool {
 	return glued(scan, start-1, -1) || glued(scan, end, +1)
 }
@@ -389,7 +361,6 @@ func glued(scan string, i, dir int) bool {
 	return scan[beyond] >= '0' && scan[beyond] <= '9'
 }
 
-// soleDigitToken reports whether exactly one of the code-shaped tokens is all digits.
 func soleDigitToken(scan string, tokens [][2]int) bool {
 	count := 0
 	for _, loc := range tokens {
@@ -403,8 +374,8 @@ func soleDigitToken(scan string, tokens [][2]int) bool {
 	return count == 1
 }
 
-// standsAlone reports whether the token at [start,end) is essentially the whole
-// message — everything else in it, spaces aside, fits in bareContextRunes.
+// standsAlone reports whether everything but the token fits in bareContextRunes
+// non-space runes.
 func standsAlone(scan string, start, end int) bool {
 	rest := 0
 	for _, r := range scan[:start] + scan[end:] {
@@ -418,12 +389,10 @@ func standsAlone(scan string, start, end int) bool {
 	return true
 }
 
-// containsDigit reports whether s has a digit in it.
 func containsDigit(s string) bool {
 	return strings.ContainsAny(s, "0123456789")
 }
 
-// allDigits reports whether s is nothing but digits.
 func allDigits(s string) bool {
 	return strings.TrimLeft(s, "0123456789") == ""
 }

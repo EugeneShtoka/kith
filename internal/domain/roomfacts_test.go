@@ -6,8 +6,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A space written by SpaceEntry is an entry the parser accepts as a class of rooms,
-// reaches the rooms in that space, and reads back to the name it was written from.
+// SpaceEntry yields a class entry that matches the space's rooms and round-trips via SpaceOf.
 func TestSpaceEntryRoundTrips(t *testing.T) {
 	t.Parallel()
 

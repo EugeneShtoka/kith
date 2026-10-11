@@ -43,8 +43,7 @@ func TestLocalpart(t *testing.T) {
 	}
 }
 
-// The match ranks are what decide the dropdown's order, so each has to mean what
-// it says: a name-token prefix beats a localpart prefix beats a substring.
+// Match ranks: a name-token prefix beats a localpart prefix beats a substring.
 func TestMemberMatches(t *testing.T) {
 	t.Parallel()
 

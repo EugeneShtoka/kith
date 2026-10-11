@@ -7,8 +7,7 @@ import (
 	"strings"
 )
 
-// Phone numbers and account names, as a login of a network that identifies by number
-// (WhatsApp, Telegram) asks for them.
+// Phone numbers and account names for logins to networks that identify by number.
 
 // PhoneDigits is a number's digits alone, as typed with "+", spaces or dashes.
 func PhoneDigits(phone string) string {
@@ -21,7 +20,7 @@ func PhoneDigits(phone string) string {
 	return b.String()
 }
 
-// CheckPhone refuses what is no international number: 7 to 15 digits.
+// CheckPhone refuses anything but an international number's 7 to 15 digits.
 func CheckPhone(digits string) error {
 	if len(digits) < 7 || len(digits) > 15 {
 		return errors.New("write the number with its country code, as +44 7700 900123")

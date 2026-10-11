@@ -11,8 +11,7 @@ import (
 
 func at(base time.Time, d time.Duration) time.Time { return base.Add(d) }
 
-// The three outcomes a queue has at any moment, and the cutoff is what separates the
-// second from the third.
+// A queue splits into send, held (past the cutoff) and the next wake-up.
 func TestPlanScheduleSortsIntoSendHeldAndNext(t *testing.T) {
 	t.Parallel()
 
@@ -27,22 +26,21 @@ func TestPlanScheduleSortsIntoSendHeldAndNext(t *testing.T) {
 
 	plan := PlanSchedule(queue, now, 24*time.Hour)
 
-	// Due and inside the cutoff, oldest first: the order they were meant to arrive.
+	// Due and inside the cutoff, oldest first.
 	if len(plan.Send) != 2 || plan.Send[0].ID != "yesterday-early" || plan.Send[1].ID != "just-missed" {
 		t.Errorf("Send = %v, want yesterday-early then just-missed", ids(plan.Send))
 	}
-	// Past the cutoff: nothing happens without a person saying so.
+	// Past the cutoff: held for a person.
 	if len(plan.Held) != 1 || plan.Held[0].ID != "ancient" {
 		t.Errorf("Held = %v, want ancient", ids(plan.Held))
 	}
-	// The wake-up is the *earliest* thing still to come, not the last one seen.
+	// The wake-up is the earliest pending time.
 	if !plan.Next.Equal(at(now, 30*time.Minute)) {
 		t.Errorf("Next = %v, want the sooner of the two future entries", plan.Next)
 	}
 }
 
-// A queue with nothing left to wait for asks for no timer at all — which is what
-// keeps an idle daemon idle.
+// Nothing pending asks for no timer.
 func TestPlanScheduleWantsNoWakeupWithNothingPending(t *testing.T) {
 	t.Parallel()
 
@@ -52,15 +50,14 @@ func TestPlanScheduleWantsNoWakeupWithNothingPending(t *testing.T) {
 		t.Errorf("Next = %v on an empty queue, want the zero time", plan.Next)
 	}
 
-	// Same when everything is due: they go now, so there is nothing to wake for.
+	// Same when everything is due.
 	plan = PlanSchedule([]ScheduledMessage{{ID: "a", At: at(now, -time.Minute)}}, now, 24*time.Hour)
 	if !plan.Next.IsZero() {
 		t.Errorf("Next = %v with only due messages, want the zero time", plan.Next)
 	}
 }
 
-// A cutoff of zero means "however late is fine" — for someone who would rather a
-// message arrive very late than not at all.
+// A cutoff of zero means however late is fine.
 func TestACutoffOfZeroHoldsNothing(t *testing.T) {
 	t.Parallel()
 
@@ -78,8 +75,7 @@ func TestACutoffOfZeroHoldsNothing(t *testing.T) {
 	}
 }
 
-// Overdue and Stale at the boundaries: exactly at the cutoff is still sent, and a
-// future message is neither, whatever the cutoff.
+// Boundaries: exactly at the cutoff is still sent; a future message is neither.
 func TestOverdueAndStale(t *testing.T) {
 	t.Parallel()
 
@@ -121,7 +117,7 @@ func TestSummaryCutsWholeCharacters(t *testing.T) {
 		"hebrew": strings.Repeat("שלום ", 20),
 		// Odd-length ASCII before the Hebrew puts byte 47 inside a letter.
 		"mixed": "a" + strings.Repeat("עולם ", 20),
-		// A family emoji is one character of seven runes; cutting it apart draws four.
+		// A family emoji is one character of seven runes.
 		"emoji":  strings.Repeat("👨‍👩‍👧 ", 30),
 		"arabic": strings.Repeat("مرحبا ", 20),
 	} {

@@ -12,10 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Over random configs naming a tag in every kind of setting, in any case, after `not`,
-// beside decoys that only look like it: renaming it changes no room's membership in
-// any tag, leaves no reference to the old name, touches no decoy, and the config is
-// as valid as it was.
+// Over random configs with decoys: renaming changes no membership, leaves no old
+// reference, touches no decoy, and keeps validity.
 func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 	t.Parallel()
 	refs := []string{"tag:T0", "TAG:t0", "not tag:T0", "not  Tag:T0 "}
@@ -94,8 +92,8 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 	}
 }
 
-// Deleting a tag drops it from the rail's lists and priority; a rule naming it is
-// left for the person, and the config then says where.
+// Deleting drops the tag from rail lists and priority; rules naming it are left and
+// then reported.
 func TestDeletingATag(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Homeserver: "https://x", User: "@me:x", Tags: []config.Tag{{Name: "Old"}, {Name: "Keep"}}}
@@ -121,8 +119,8 @@ func TestDeletingATag(t *testing.T) {
 	}
 }
 
-// A network's archive goes with its tag: renamed with it (the default name too), and
-// let go when it is deleted.
+// A network's archive follows its tag on rename (default name too) and is cleared on
+// delete.
 func TestANetworksArchiveGoesWithItsTag(t *testing.T) {
 	t.Parallel()
 	var cfg config.Config
@@ -138,9 +136,8 @@ func TestANetworksArchiveGoesWithItsTag(t *testing.T) {
 	}
 }
 
-// Each followed network's archive is the tag it names; a tag named that does not
-// exist is refused, the default name with no such tag follows nothing, and a network
-// not followed is left out.
+// Archives resolve to existing tags; a missing custom tag is refused, a missing
+// default follows nothing, unfollowed networks are omitted.
 func TestArchivesAreTheTagsTheyName(t *testing.T) {
 	t.Parallel()
 	var cfg config.Config
@@ -166,9 +163,7 @@ func TestArchivesAreTheTagsTheyName(t *testing.T) {
 	}
 }
 
-// Over random rooms (names shared), tags with rules (`not` terms, references between
-// them), picks and exclusions by ID or by name, and unread state: combining B into A
-// leaves A holding exactly what A or B held, no room more or less.
+// Over random rooms and tags, combining B into A holds exactly what A or B held.
 func TestCombiningTagsHoldsExactlyWhatEitherHeld(t *testing.T) {
 	t.Parallel()
 	names := []string{"Mom", "Standup", "Dana"}
@@ -233,9 +228,8 @@ func TestCombiningTagsHoldsExactlyWhatEitherHeld(t *testing.T) {
 	}
 }
 
-// Combined, two tags without `not` terms keep a rule: the two joined, a reference of
-// one to the other dropped (the tag would name itself), and every reference elsewhere —
-// another tag's rule, the rail, a network's archive — naming the combined tag.
+// Without `not` terms the rules are joined, mutual references dropped, and other
+// references renamed to the combined tag.
 func TestCombinedTagsKeepTheirRules(t *testing.T) {
 	t.Parallel()
 	var cfg config.Config

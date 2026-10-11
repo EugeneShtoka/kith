@@ -8,50 +8,43 @@ import (
 	"time"
 )
 
-// Whether the model layer may see one room, and what it is allowed to be told.
-
 // ModelPermit is what the model layer is allowed to do in one room.
 type ModelPermit struct {
 	// Allowed is whether a request may be made at all.
 	Allowed bool
-	// Refusal names why not, in words a status line can show. Empty when Allowed.
+	// Refusal says why not, for the status line. Empty when Allowed.
 	Refusal string
 }
 
-// Reasons a room is refused, spelled once so the UI and the tests agree.
+// Reasons a room is refused.
 const (
-	// ModelRefusedOff is no endpoint configured — the default state of the feature.
+	// ModelRefusedOff is no endpoint configured (the default).
 	ModelRefusedOff = "no model endpoint configured"
-	// ModelRefusedRoom is a room the lists do not admit — either it is missing from a
-	// non-empty `rooms`, or it is named in `except`.
+	// ModelRefusedRoom is a room missing from a non-empty `rooms` or named in `except`.
 	ModelRefusedRoom = "this room is not one [assist] allows"
 	// ModelRefusedEncrypted is an encrypted room while encrypted rooms are excluded.
 	ModelRefusedEncrypted = "this room is encrypted; set [assist] encrypted = true to include those"
-	// ModelRefusedNothingListed is a Listed scope whose allow list is empty: nothing
-	// has been shared, so no room is admitted.
+	// ModelRefusedNothingListed is a Listed scope with an empty allow list.
 	ModelRefusedNothingListed = "no rooms are listed, so nothing is shared"
 )
 
 // ModelScope is which rooms the model layer may see.
 type ModelScope struct {
-	// Only, when it names anything, is the whole of what is allowed.
+	// Only, when non-empty, is everything allowed.
 	Only []string
-	// Except is what is refused when Only names nothing. Empty on both means every room.
+	// Except is refused when Only is empty. Both empty means every room.
 	Except []string
-	// Encrypted admits end-to-end encrypted rooms to the lists at all.
+	// Encrypted admits end-to-end encrypted rooms.
 	Encrypted bool
-	// Listed is least privilege: empty Only admits nothing, and Except subtracts from
-	// Only.
+	// Listed is least privilege: empty Only admits nothing; Except subtracts from Only.
 	Listed bool
 }
 
-// NeedsPlaces reports whether a decision reads where a room sits — a space: or
-// protocol: entry in either list. When the places are unknown, only a scope that does not
-// can be answered without guessing.
+// NeedsPlaces reports whether either list has an entry that depends on where a room sits.
 func (s ModelScope) NeedsPlaces() bool { return NamesAPlace(s.Only) || NamesAPlace(s.Except) }
 
-// NamesAPlace reports whether a list has an entry whose answer depends on the space
-// hierarchy: space: and protocol:, and tag:, since a tag's rule may name a space.
+// NamesAPlace reports whether a list has a space:, protocol: or tag: entry (a tag's
+// rule may name a space).
 func NamesAPlace(list []string) bool {
 	return slices.ContainsFunc(list, func(entry string) bool {
 		entry = strings.TrimSpace(entry)
@@ -60,8 +53,7 @@ func NamesAPlace(list []string) bool {
 	})
 }
 
-// Shares reports whether this scope can admit any room at all without looking at one —
-// false only for a Listed scope whose Only names nothing.
+// Shares is false only for a Listed scope with an empty Only.
 func (s ModelScope) Shares() bool {
 	return !s.Listed || len(nonEmpty(s.Only)) > 0
 }
@@ -87,8 +79,7 @@ func AllowModel(scope ModelScope, room RoomFacts, endpoint string, encrypted boo
 	return ModelPermit{Allowed: true}
 }
 
-// nonEmpty drops blank entries, so a list holding only whitespace is the empty list it
-// looks like rather than a whitelist admitting nothing.
+// nonEmpty drops blank entries, so a whitespace-only list counts as empty.
 func nonEmpty(list []string) []string {
 	out := make([]string, 0, len(list))
 	for _, entry := range list {
@@ -99,13 +90,12 @@ func nonEmpty(list []string) []string {
 	return out
 }
 
-// namesAny reports whether any entry in the list describes this room.
 func namesAny(list []string, room RoomFacts) bool {
 	return slices.ContainsFunc(list, room.Names)
 }
 
-// ModelContext is the conversation quoted to the model, newest last, bounded; me
-// (this person's IDs) are quoted as "You".
+// ModelContext is the conversation quoted to the model, oldest first, within budget
+// tokens; messages from me are quoted as "You".
 func ModelContext(messages []Message, me []string, budget int) []string {
 	if budget <= 0 {
 		return nil
@@ -124,11 +114,10 @@ func ModelContext(messages []Message, me []string, budget int) []string {
 		spent += cost
 		out = append(out, speaker(messages[i], me)+": "+body)
 	}
-	slices.Reverse(out) // oldest first, as said
+	slices.Reverse(out)
 	return out
 }
 
-// speaker is how one message is attributed in the quoted conversation.
 func speaker(msg Message, me []string) string {
 	if msg.Sender != "" && slices.Contains(me, msg.Sender) {
 		return "You"
@@ -144,7 +133,7 @@ func speaker(msg Message, me []string) string {
 	return "someone"
 }
 
-// charsPerToken is the estimate the budget is counted in.
+// charsPerToken estimates tokens for the budget.
 const charsPerToken = 4
 
 // ModelRequest is one ask of the model layer.
@@ -156,28 +145,23 @@ type ModelRequest struct {
 	Instruction string  // for tasks that take one ("shorter")
 	ReplyTo     EventID // the reply target or thread root the draft answers
 	Span        SummarySpan
-	// DryRun assembles the request and sends nothing, for the preview overlay.
+	// DryRun builds the request without sending it (preview).
 	DryRun bool
 }
 
-// The task names, spelled here so the config, the RPC and the UI agree.
+// Task names.
 const (
-	// ModelComplete continues the sentence being written.
-	ModelComplete = "complete"
-	// ModelRewrite rewrites a draft to an instruction.
-	ModelRewrite = "rewrite"
-	// ModelTodo is what people are waiting on you for, across rooms.
-	ModelTodo = "todo"
-	// ModelSummary says what a conversation has been about.
-	ModelSummary = "summary"
-	// ModelThreadName names a thread from what is in it.
-	ModelThreadName = "thread_name"
+	ModelComplete   = "complete"    // continue the sentence being written
+	ModelRewrite    = "rewrite"     // rewrite a draft to an instruction
+	ModelTodo       = "todo"        // what people wait on you for, across rooms
+	ModelSummary    = "summary"     // what a conversation has been about
+	ModelThreadName = "thread_name" // name a thread from its content
 )
 
 // ThreadNameLimit is the longest a generated thread name may be, in runes.
 const ThreadNameLimit = 48
 
-// ThreadNameFrom turns a model's reply into a label, or "" if there is nothing usable.
+// ThreadNameFrom turns a model's reply into a label, or "" if unusable.
 func ThreadNameFrom(reply string) string {
 	lines := make([]string, 0, 4)
 	for line := range strings.SplitSeq(reply, "\n") {
@@ -189,7 +173,7 @@ func ThreadNameFrom(reply string) string {
 		return ""
 	}
 	name := lines[0]
-	// A line ending in a colon with something after it is a preamble, not an answer.
+	// A first line ending in a colon is a preamble.
 	if len(lines) > 1 && strings.HasSuffix(name, ":") {
 		name = lines[1]
 	}
@@ -198,12 +182,12 @@ func ThreadNameFrom(reply string) string {
 	name = strings.Trim(name, "\"'“”‘’`")
 	name = strings.TrimRight(name, ".,;:")
 	name = strings.Join(strings.Fields(name), " ")
-	// Far over the limit means the model misunderstood; the snippet is a better label.
+	// Far over the limit means the model misunderstood; the caller's snippet is better.
 	if len([]rune(name)) > 2*ThreadNameLimit {
 		return ""
 	}
 	if runes := []rune(name); len(runes) > ThreadNameLimit {
-		// Cut on a word boundary when one is within reach.
+		// Cut on a word boundary when one is near.
 		cut := string(runes[:ThreadNameLimit])
 		if space := strings.LastIndex(cut, " "); space > ThreadNameLimit/2 {
 			cut = cut[:space]
@@ -213,22 +197,21 @@ func ThreadNameFrom(reply string) string {
 	return name
 }
 
-// ModelResult is what came back, or why nothing did.
+// ModelResult is the model's reply, or why nothing was asked.
 type ModelResult struct {
-	Text    string   // the reply, or for a dry run the prompt that would be sent
+	Text    string   // the reply, or for a dry run the prompt
 	Options []string // a completion's continuations, best first (Text is the first)
 	Refusal string   // why nothing was asked
-	Note    string   // what was read, e.g. how many messages a summary covered
+	Note    string   // e.g. how many messages a summary covered
 	// Endpoint and Model are what answered, or would have.
 	Endpoint string
 	Model    string
 }
 
-// Asked reports whether anything actually went out.
+// Asked reports whether a request was sent.
 func (r ModelResult) Asked() bool { return r.Refusal == "" }
 
-// MessagesAfter is everything said after one event, and everything when the event is
-// not in the slice.
+// MessagesAfter is the messages after one event, or all of them if it is absent.
 func MessagesAfter(messages []Message, after EventID) []Message {
 	if after == "" {
 		return messages
@@ -241,19 +224,17 @@ func MessagesAfter(messages []Message, after EventID) []Message {
 	return messages
 }
 
-// StoredDraft is a half-written message as it survives a restart.
+// StoredDraft is an unsent message persisted across restarts.
 type StoredDraft struct {
 	RoomID   RoomID
 	Body     string
 	Caret    int // byte offset into Body; the caller clamps it
 	Mentions []Mention
-	// ReplyTo and Editing are what the draft is aimed at; EditSaved is what the
-	// composer held before an edit borrowed it.
+	// EditSaved is what the composer held before an edit replaced it.
 	ReplyTo   EventID
 	Editing   EventID
 	EditSaved string
-	// ThreadRoot is the thread the draft is written into, empty for the main timeline.
-	// A thread alone is not worth keeping: Empty ignores it.
+	// ThreadRoot is the draft's thread, empty for the main timeline; Empty ignores it.
 	ThreadRoot EventID
 	Author     string // empty for the person at the keyboard
 	Updated    time.Time
@@ -262,12 +243,12 @@ type StoredDraft struct {
 // DraftAgent is the author recorded for a draft this client did not type.
 const DraftAgent = "agent"
 
-// Empty reports whether there is nothing worth keeping (which deletes a stored draft).
+// Empty reports whether there is nothing worth keeping; an empty draft is deleted.
 func (d StoredDraft) Empty() bool {
 	return d.Body == "" && d.ReplyTo == "" && d.Editing == "" && d.EditSaved == ""
 }
 
-// SummarySpan is how much of a room a summary reads, when the person asking said.
+// SummarySpan is how much of a room a summary reads, if given.
 type SummarySpan struct {
 	Since time.Time // zero when not given
 	Count int       // zero when not given
@@ -299,8 +280,7 @@ func ParseSummarySpan(arg string, now time.Time) (SummarySpan, error) {
 		"%q is not a span — try 2h, 7d, yesterday, 2026-09-18, or a number of messages", arg)
 }
 
-// MessagesIn is the messages a named span covers: those at or after `since`, or the
-// last `count` of them, or both.
+// MessagesIn is the messages at or after since (if set), then the last count (if > 0).
 func MessagesIn(messages []Message, since time.Time, count int) []Message {
 	out := messages
 	if !since.IsZero() {
@@ -319,8 +299,8 @@ func MessagesIn(messages []Message, since time.Time, count int) []Message {
 	return out
 }
 
-// AllowSend decides whether an assistant may post to a room unreviewed, or whether its
-// words go into that room's composer as a draft instead.
+// AllowSend reports whether an assistant may post to a room unreviewed rather than
+// leave a draft.
 func AllowSend(send []string, room RoomFacts) bool {
 	return namesAny(nonEmpty(send), room)
 }

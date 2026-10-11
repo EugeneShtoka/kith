@@ -57,7 +57,7 @@ func TestEveryWordConfigDeclaresIsAccepted(t *testing.T) {
 				t.Errorf("unset resolved to %q, want the first word's value %q", got, want)
 			}
 
-			// And a word that is not in the vocabulary is refused, naming the rest.
+			// An unknown word is refused, naming the vocabulary.
 			_, err = v.resolve("definitely-not-a-real-value")
 			if err == nil {
 				t.Fatal("an unknown value was accepted")
@@ -111,8 +111,7 @@ func TestDeletedMessagesRefusesByName(t *testing.T) {
 			t.Errorf("the error is %q, which does not name %s", err, key)
 		}
 	}
-	// And what is meant to work, does — the empty config included, which is every
-	// config written before this setting existed.
+	// Valid values, including the empty config, pass.
 	for _, cfg := range []config.Deleted{{}, {Mine: "hide"}, {Mine: "show", Others: "hide"}} {
 		if err := setup.DeletedMessages(cfg); err != nil {
 			t.Errorf("DeletedMessages(%+v) = %v", cfg, err)

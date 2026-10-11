@@ -30,8 +30,7 @@ func TestParseSortKey(t *testing.T) {
 	}
 }
 
-// A whole chain, with every unknown entry reported: a chain is written in one go, and
-// being told about one typo at a time is three restarts to fix three of them.
+// A whole chain, with every unknown entry reported at once.
 func TestParseSortChain(t *testing.T) {
 	t.Parallel()
 
@@ -52,8 +51,7 @@ func TestParseSortChain(t *testing.T) {
 		t.Errorf("chain = %+v, want the two good keys kept", chain)
 	}
 
-	// A repeated key is dropped: applying a comparator twice cannot change an order,
-	// and a chain that reads as if it might is worse than one that says what it does.
+	// A repeated key is dropped; it cannot change the order.
 	chain, _ = ParseSortChain([]string{"recent", "unread", "recent"})
 	if len(chain) != 2 || chain[0].Key != SortRecent || chain[1].Key != SortUnread {
 		t.Errorf("chain = %+v, want the duplicate dropped and the first position kept", chain)
@@ -65,8 +63,7 @@ func TestARuleReplacesTheChainWhole(t *testing.T) {
 	t.Parallel()
 
 	rules := []RoomListRule{{Group: "work", Sort: []string{"name"}}}
-	// Case-insensitive: a rule written for `work` must not silently do nothing because
-	// the space is called `Work`.
+	// Group names match case-insensitively.
 	list := ResolveRoomList([]string{"unread", "recent"}, rules, "Work")
 	if len(list.Chain) != 1 || list.Chain[0].Key != SortName {
 		t.Errorf("Work chain = %+v, want the rule's chain alone", list.Chain)
@@ -77,8 +74,7 @@ func TestARuleReplacesTheChainWhole(t *testing.T) {
 	}
 }
 
-// The three sort keys edit a chain, and each has to leave the other's half alone:
-// asking for "by name" must not reset whether the unread rooms are on top.
+// The sort keys edit one half of the chain and leave the other alone.
 func TestChainEdits(t *testing.T) {
 	t.Parallel()
 
@@ -108,8 +104,7 @@ func TestChainEdits(t *testing.T) {
 	}
 }
 
-// The label is the whole chain in words: a key has just changed part of it, and the
-// rest is what makes the result make sense.
+// The label is the whole chain in words.
 func TestChainLabel(t *testing.T) {
 	t.Parallel()
 

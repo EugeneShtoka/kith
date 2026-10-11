@@ -55,20 +55,18 @@ const (
 	DefaultAudioSkip  = 10
 )
 
-// DefaultCloseAfterSeconds is how long a finished note's bar stays when nothing says
-// otherwise.
+// DefaultCloseAfterSeconds is how long a finished note's bar stays by default.
 const DefaultCloseAfterSeconds = 15
 
-// CloseDelay is how long the bar stays after the note ends: the configured seconds, the
-// default when unset, and a negative duration for "never" (the config's -1) — the same
-// sign convention read_delay and the popup timeout use.
+// CloseDelay is how long the bar stays after the note ends; negative means never
+// (config -1), as for read_delay and the popup timeout.
 func (a Audio) CloseDelay() time.Duration {
 	seconds := DefaultCloseAfterSeconds
 	if a.CloseAfter != nil {
 		seconds = *a.CloseAfter
 	}
 	if seconds < 0 {
-		return -1 // stays until stopped by hand
+		return -1
 	}
 	return time.Duration(seconds) * time.Second
 }

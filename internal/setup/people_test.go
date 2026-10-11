@@ -8,8 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// An alias on an ID that is a number names that number too, so the person is aliased
-// on every account the directory links to it: a Telegram account with their number.
+// An alias on a number ID reaches every account the directory links to that number.
 func TestAnAliasOnANumberReachesTheirOtherAccounts(t *testing.T) {
 	t.Parallel()
 	aliases := setup.Aliases([]config.Identity{{Alias: "Fay (mine)", IDs: []string{"whatsapp:15550100009@s.whatsapp.net"}}})

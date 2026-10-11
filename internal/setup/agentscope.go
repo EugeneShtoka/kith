@@ -10,11 +10,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The two scopes `[agent]` declares, resolved, and the one mistake worth warning about
-// in them: a write entry that reading already rules out.
+// `[agent]` read/write scopes, and warnings for write entries that reading rules out.
 
-// AgentReadScope is `[agent.read]` as the scope check takes it: least privilege, so
-// an empty `rooms` shares nothing and `except` subtracts from what `rooms` names.
+// AgentReadScope is `[agent.read]` as a least-privilege scope: empty `rooms` shares
+// nothing; `except` subtracts from `rooms`.
 func AgentReadScope(agent config.Agent) domain.ModelScope {
 	return domain.ModelScope{
 		Only: agent.Read.Rooms, Except: agent.Read.Except,
@@ -29,8 +28,7 @@ func AgentWriteScope(agent config.Agent) domain.ModelScope {
 	}
 }
 
-// AgentPlaces is what resolving an entry to rooms needs to ask: the rooms, the spaces
-// they sit in, and which are encrypted.
+// AgentPlaces is what resolving entries to rooms needs.
 type AgentPlaces interface {
 	Rooms(ctx context.Context) ([]domain.Room, error)
 	Spaces(ctx context.Context) ([]domain.Space, error)
@@ -67,8 +65,8 @@ func nothingShared(entries []writeEntry) string {
 		" can never take effect. List what it may read in [agent.read] rooms."
 }
 
-// AgentStaticWarnings is the write entries reading rules out by their spelling alone,
-// with no room list to hand — which is what lets every binary say it at startup.
+// AgentStaticWarnings flags write entries reading rules out by spelling alone, so any
+// binary can warn at startup without a room list.
 func AgentStaticWarnings(agent config.Agent) []string {
 	entries := writeEntries(agent)
 	if len(entries) == 0 {
@@ -91,8 +89,7 @@ func AgentStaticWarnings(agent config.Agent) []string {
 // decided from the spelling.
 func ruledOut(entry string, read config.AgentRead) string {
 	for _, except := range read.Except {
-		// Matching is case-insensitive throughout, so an entry spelled the same way
-		// names the same rooms: every one of them is subtracted from reading.
+		// Matching is case-insensitive, so an equal except entry removes every room.
 		if strings.EqualFold(strings.TrimSpace(except), entry) {
 			return "[agent.read] except names it too"
 		}
@@ -132,8 +129,8 @@ func ruledOut(entry string, read config.AgentRead) string {
 	return ""
 }
 
-// The entry shapes ruledOut can reason about. Everything else — a room by name, a space,
-// `pinned` — is kindOther, about which nothing is decidable without rooms.
+// Entry shapes ruledOut can reason about; kindOther (names, spaces, `pinned`) needs
+// the rooms.
 const (
 	kindID       = "id"
 	kindProtocol = "protocol"
@@ -181,8 +178,8 @@ func trimRoomPrefix(entry string) string {
 // examplesShown is how many rooms a resolved warning names.
 const examplesShown = 3
 
-// resolveRooms loads what the resolved check reads: every room, its place facts, and
-// which rooms are encrypted. ok is false when there is nothing to resolve against.
+// resolveRooms loads rooms, their place facts and encryption; ok is false when there
+// is nothing to resolve against.
 func resolveRooms(ctx context.Context, places AgentPlaces, named domain.Places) (
 	rooms []domain.Room, facts []domain.RoomFacts, crypto map[domain.RoomID]bool, ok bool,
 ) {
@@ -206,8 +203,8 @@ func resolveRooms(ctx context.Context, places AgentPlaces, named domain.Places) 
 	return rooms, facts, crypto, true
 }
 
-// AgentWarnings is the write entries reading rules out, resolved against the rooms this
-// account is in when places can answer, and the static check otherwise.
+// AgentWarnings flags write entries reading rules out, resolved against actual rooms
+// when places can answer, else statically.
 func AgentWarnings(ctx context.Context, places AgentPlaces, named domain.Places, agent config.Agent) []string {
 	entries := writeEntries(agent)
 	if len(entries) == 0 {
@@ -270,7 +267,7 @@ func staticFor(static []string, e writeEntry) []string {
 	return nil
 }
 
-// examples is a few room names, sorted so the same config warns the same way twice.
+// examples lists a few room names, sorted so warnings are stable.
 func examples(names []string) string {
 	sort.Strings(names)
 	if len(names) > examplesShown {

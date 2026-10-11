@@ -2,8 +2,7 @@ package domain
 
 import "testing"
 
-// A room's side set by hand: the narrowest entry naming it wins, and two lists naming
-// it equally narrowly set nothing (the guess, or left to right, decides).
+// The narrowest entry wins; a tie between the lists sets nothing.
 func TestTheNarrowestDirectionEntryWins(t *testing.T) {
 	t.Parallel()
 	room := RoomFacts{ID: "!fam:x", Name: "Family", Spaces: []string{"Friends", "Work"}}
@@ -41,8 +40,7 @@ func TestDirectionsWithMovesOneEntry(t *testing.T) {
 	}
 }
 
-// One vote per message, by most of its letters, links left out; RTL takes more than
-// half of the messages that have letters.
+// One vote per message by its majority script, links ignored; RTL needs over half.
 func TestGuessLayoutVotesPerMessage(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -64,8 +62,7 @@ func TestGuessLayoutVotesPerMessage(t *testing.T) {
 	}
 }
 
-// A bridge's header line is cut, and only its own: the words after it stay, and a
-// sentence that merely starts alike is left alone.
+// Only a real bridge header line is cut; the rest stays.
 func TestWithoutBridgeHeader(t *testing.T) {
 	t.Parallel()
 	for body, want := range map[string]string{

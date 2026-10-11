@@ -26,7 +26,7 @@ func Encode(cfg Config) string {
 	return header + encodeDiff(reflect.ValueOf(cfg), reflect.ValueOf(omittedBaseline()), nil)
 }
 
-// header explains what the file now is.
+// header opens every saved config file.
 const header = `# kith configuration — written by kith.
 #
 # This file records only the settings that differ from the built-in defaults, so
@@ -39,8 +39,7 @@ const header = `# kith configuration — written by kith.
 
 `
 
-// omittedBaseline is the config a file with nothing in it produces — the zero value
-// with FillDefaults applied, exactly as Load would leave it.
+// omittedBaseline is what Load produces from an empty file.
 func omittedBaseline() Config {
 	var cfg Config
 	cfg.Keys.FillDefaults()
@@ -49,8 +48,8 @@ func omittedBaseline() Config {
 	return cfg
 }
 
-// backupOnce copies path to path+".bak" the first time, so the hand-written version
-// survives.
+// backupOnce copies path to path+".bak" unless a backup exists, preserving the
+// hand-written original.
 func backupOnce(path string) error {
 	backup := path + ".bak"
 	if _, err := os.Stat(backup); err == nil {
@@ -63,8 +62,6 @@ func backupOnce(path string) error {
 		}
 		return fmt.Errorf("config: read %s for backup: %w", path, err)
 	}
-	// The path is the config file the app was told to use, plus a fixed suffix — the
-	// same provenance as the file just read, not new input.
 	if err := os.WriteFile(backup, current, 0o600); err != nil { // #nosec G703 -- derived from the caller's own config path
 		return fmt.Errorf("config: write %s: %w", backup, err)
 	}
@@ -78,8 +75,8 @@ func encodeDiff(value, defaults reflect.Value, prefix []string) string {
 	return values + tables
 }
 
-// splitDiff is encodeDiff with the two halves kept apart, so a caller can tell whether
-// a table has any values of its own.
+// splitDiff is encodeDiff with values and subtables apart, so a caller can tell whether
+// a table has values of its own.
 func splitDiff(value, defaults reflect.Value, prefix []string) (string, string) {
 	var values, tables strings.Builder
 	for i := range value.NumField() {
@@ -95,7 +92,7 @@ func splitDiff(value, defaults reflect.Value, prefix []string) (string, string) 
 			tables.WriteString(encodeTable(got, want, append(prefix, name)))
 		case got.Kind() == reflect.Slice && got.Type().Elem().Kind() == reflect.Struct:
 			if got.Len() == 0 && want.Len() > 0 {
-				// Emptied: written as [], or the baseline's would come back on the next load.
+				// Write [] so the baseline's entries don't return on load.
 				fmt.Fprintf(&values, "%s = []\n", name)
 				continue
 			}
@@ -125,8 +122,8 @@ func encodeTable(got, want reflect.Value, path []string) string {
 	return "\n[" + strings.Join(path, ".") + "]\n" + values + tables
 }
 
-// arrayLiteral renders a slice of scalars as a TOML array. ok is false when it matches
-// the baseline, so an untouched list is left out entirely.
+// arrayLiteral renders a slice of scalars as a TOML array; false when it matches the
+// baseline.
 func arrayLiteral(got, want reflect.Value) (string, bool) {
 	if slicesEqual(got, want) {
 		return "", false
@@ -139,17 +136,16 @@ func arrayLiteral(got, want reflect.Value) (string, bool) {
 		}
 		items = append(items, literal)
 	}
-	// An emptied list is written as [], because omitting it would let the baseline come
-	// back on the next load.
+	// An emptied list stays as [] so the baseline doesn't return on load.
 	line := "[" + strings.Join(items, ", ") + "]"
 	if len(items) < 2 || len(line) <= arrayWrapWidth {
 		return line, true
 	}
-	// One entry per line once it stops fitting, so long ID lists stay diffable.
+	// One entry per line once too long, so long ID lists stay diffable.
 	return "[\n\t" + strings.Join(items, ",\n\t") + ",\n]", true
 }
 
-// arrayWrapWidth is where a list stops being a line and becomes a block.
+// arrayWrapWidth is the line length past which a list wraps.
 const arrayWrapWidth = 80
 
 // encodeStructSlice renders a slice of structs as repeated `[[table]]` entries.
@@ -175,8 +171,7 @@ func tomlName(field reflect.StructField) string {
 	return strings.Split(tag, ",")[0]
 }
 
-// scalarEqual compares two scalar fields, treating a nil pointer as "unset" so an
-// unset *bool matches an unset default rather than being written as its value.
+// scalarEqual compares two scalar fields; nil pointers are equal only to nil.
 func scalarEqual(got, want reflect.Value) bool {
 	if got.Kind() == reflect.Pointer {
 		switch {
@@ -194,8 +189,7 @@ func scalarEqual(got, want reflect.Value) bool {
 	return got.Interface() == want.Interface()
 }
 
-// scalarLiteral renders a scalar as a TOML value. ok is false for a kind that has no
-// literal form, which is a field the emitter should skip rather than guess at.
+// scalarLiteral renders a scalar as a TOML value; false for a kind to skip.
 func scalarLiteral(v reflect.Value) (string, bool) {
 	switch v.Kind() {
 	case reflect.String:
@@ -218,8 +212,8 @@ func scalarLiteral(v reflect.Value) (string, bool) {
 	}
 }
 
-// inlineTable renders a map[string]string as `{ k = "v", … }`, keys sorted so the
-// output does not shuffle between saves.
+// inlineTable renders a map[string]string as `{ k = "v", ... }` with keys sorted for
+// stable output.
 func inlineTable(v reflect.Value) string {
 	keys := make([]string, 0, v.Len())
 	for _, k := range v.MapKeys() {
@@ -245,8 +239,8 @@ func floatTOML(f float64) (string, bool) {
 	return s, true
 }
 
-// quoteTOML renders s as a TOML basic string. Only the escapes TOML requires are
-// applied, so a display name full of accents or Hebrew stays readable in the file.
+// quoteTOML renders s as a TOML basic string, escaping only what TOML requires so
+// non-ASCII text stays readable.
 func quoteTOML(s string) string {
 	var b strings.Builder
 	b.WriteByte('"')
@@ -270,8 +264,7 @@ func quoteTOML(s string) string {
 	return b.String()
 }
 
-// slicesEqual compares two slices element-wise, treating nil and empty as the same
-// thing — a config file cannot tell them apart, so neither should the diff.
+// slicesEqual compares slices element-wise; nil and empty are equal, as in TOML.
 func slicesEqual(a, b reflect.Value) bool {
 	if a.Len() != b.Len() {
 		return false
@@ -307,7 +300,6 @@ func writeAtomic(path, body string) error {
 		return fmt.Errorf("config: mktemp: %w", err)
 	}
 	name := tmp.Name()
-	// Cleanup on the error paths below; the error each returns is the report.
 	cleanup := func() { _ = tmp.Close(); _ = os.Remove(name) }
 	if _, err := tmp.WriteString(body); err != nil {
 		cleanup()
@@ -338,8 +330,8 @@ type Snapshot struct {
 	Revision string
 }
 
-// Revision names a config file's contents: two files have the same revision only when
-// they are byte for byte the same, so a hand edit is a change too. A missing file is "".
+// Revision is a hash of a config file's bytes, so a hand edit is a change too; "" for
+// a missing file.
 func Revision(data []byte) string {
 	if data == nil {
 		return ""

@@ -40,7 +40,7 @@ type ModelPrompt struct {
 // AssistEnabled reports whether there is an endpoint to ask at all.
 func (c Assist) AssistEnabled() bool { return strings.TrimSpace(c.Endpoint) != "" }
 
-// BudgetOrDefault is how much conversation may be quoted, defaulting to a short one.
+// BudgetOrDefault is how many tokens of conversation may be quoted.
 func (c Assist) BudgetOrDefault() int {
 	if c.Budget <= 0 {
 		return DefaultModelBudget
@@ -78,8 +78,7 @@ func (c Assist) NameThreadsAfterOrDefault() int {
 	return DefaultNameThreadsAfter
 }
 
-// Agent is [agent.*]: what `kith-mcp`, an assistant attached to this account, may read
-// and write.
+// Agent is [agent.*]: what kith-mcp may read and write.
 type Agent struct {
 	Read  AgentRead  `toml:"read"`
 	Write AgentWrite `toml:"write"`

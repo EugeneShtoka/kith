@@ -7,8 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The glob is the feature: one list, two languages, and each entry saying how wide
-// it wants to be without a global switch deciding for both.
+// Each entry sets its own match width with `*`.
 func TestTrackedGlobWidth(t *testing.T) {
 	t.Parallel()
 
@@ -50,8 +49,7 @@ func TestTrackedGlobWidth(t *testing.T) {
 			want:  nil,
 		},
 		{
-			// And the mark covers the word the sentence actually contains, prefix
-			// included — see TestTrackedSpansTheWholeWord for why.
+			// The span covers the whole word, prefix included.
 			name:  "and gets it from the stars",
 			words: []string{"*פריסה*"},
 			body:  "לפריסה של המערכת",
@@ -96,8 +94,7 @@ func TestTrackedGlobWidth(t *testing.T) {
 	}
 }
 
-// A hit carries the entry as configured, not the text that matched it, because the
-// list groups by what the user wrote.
+// A hit carries the entry as configured, not the matched text.
 func TestTrackedHitNamesTheEntry(t *testing.T) {
 	t.Parallel()
 
@@ -112,8 +109,7 @@ func TestTrackedHitNamesTheEntry(t *testing.T) {
 	}
 }
 
-// One word is one hit, however many times the needle fits inside it — because the
-// hit *is* the word. Two separate words are two hits.
+// One word is one hit however often the needle fits; two words are two hits.
 func TestTrackedCountsWordsNotNeedles(t *testing.T) {
 	t.Parallel()
 
@@ -125,8 +121,7 @@ func TestTrackedCountsWordsNotNeedles(t *testing.T) {
 	}
 }
 
-// The span is the word whatever the glob's width, so the same word underlines
-// identically however it was caught.
+// The span is the whole word whatever the glob's width.
 func TestTrackedSpansTheWholeWord(t *testing.T) {
 	t.Parallel()
 
@@ -140,8 +135,7 @@ func TestTrackedSpansTheWholeWord(t *testing.T) {
 	}
 }
 
-// Rules combine by union, which is the whole reason they are a filter and not a
-// ladder: a narrower rule adds its words, it does not replace the broader one's.
+// Rules combine by union, not by the narrowest-wins ladder.
 func TestTrackedRulesUnionByScope(t *testing.T) {
 	t.Parallel()
 
@@ -186,8 +180,7 @@ func TestTrackedRuleExceptAndFrom(t *testing.T) {
 	}
 }
 
-// Notifying is per rule over a global default, and one rule saying yes is enough:
-// a quieter rule tracking the same word is not an argument against the louder one.
+// Notify is per rule over a global default; one rule saying yes is enough.
 func TestTrackedNotifiesPerRule(t *testing.T) {
 	t.Parallel()
 
@@ -205,7 +198,7 @@ func TestTrackedNotifiesPerRule(t *testing.T) {
 	if domain.TrackedNotifies(quiet, hits, true, room, "@dana:x") {
 		t.Error("a rule saying notify=false interrupted, though it overrides the global default")
 	}
-	// And a rule that says nothing follows the global default.
+	// A rule that sets nothing follows the global default.
 	plain := []domain.TrackedRule{{Words: []string{"outage"}}}
 	if !domain.TrackedNotifies(plain, hits, true, room, "@dana:x") {
 		t.Error("a rule with no opinion did not follow the global default")

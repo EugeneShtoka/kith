@@ -1,7 +1,6 @@
 package config
 
-// Tag is one [[tag]]: the person's own grouping of rooms, shown in the rail with the
-// spaces. What its fields mean is internal/domain's (domain.Tag).
+// Tag is one [[tag]]: a user-defined room group shown in the rail; see domain.Tag.
 type Tag struct {
 	Name     string   `toml:"name"`
 	Rule     []string `toml:"rule"`

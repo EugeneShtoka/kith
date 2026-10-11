@@ -4,9 +4,8 @@ import (
 	"testing"
 )
 
-// A person is named by what this person told kith first: their alias, then a name
-// the network gave, then the phone book's name for a number, then the number; an
-// ID's bare digits are never a name.
+// Precedence: alias, network name, phone book name for a number, the number; an ID's
+// bare digits are never a name.
 func TestPeopleAreNamedByWhatThePersonKnows(t *testing.T) {
 	t.Parallel()
 	p := People{
@@ -32,9 +31,8 @@ func TestPeopleAreNamedByWhatThePersonKnows(t *testing.T) {
 	}
 }
 
-// Every mention is rewritten at its own place, once: a name that contains another
-// mention's words does not get rewritten again, the same words twice are two
-// mentions, the "@" a mention had stays, and what cannot be placed is left alone.
+// Each mention is rewritten once at its own place: no double rewrite, repeated words
+// are separate mentions, "@" stays, unplaceable mentions are left alone.
 func TestMentionsAreRewrittenInOnePass(t *testing.T) {
 	t.Parallel()
 	names := map[string]string{"a": "Bo Bo", "b": "Cy", "c": "Dana", "d": ""}

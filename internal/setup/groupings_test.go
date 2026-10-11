@@ -9,11 +9,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Over random tags (rules, picks and exclusions by ID or by name), rooms of two
-// Telegram accounts and of WhatsApp, a random folder of one account and a random
-// choice: taking Telegram's makes the account's rooms in the tag exactly the folder's,
-// merging adds the folder's and takes none away, keeping changes nothing — and no
-// other room, nor any other tag, changes; the diff says exactly what taking would do.
+// Over random tags, rooms and folders: taking makes the account's rooms in the tag
+// exactly the folder's, merging only adds, keeping changes nothing, and no other room
+// or tag changes.
 func TestAFolderIsCopiedIntoItsTagAsChosen(t *testing.T) {
 	t.Parallel()
 	names := []string{"Mom", "Dana", "Work"}

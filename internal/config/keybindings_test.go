@@ -8,19 +8,17 @@ import (
 	"testing"
 )
 
-// FillDefaults is the non-obvious correctness bit.
 func TestFillDefaults(t *testing.T) {
 	t.Parallel()
 
-	// The empty case: a config with no [keys] section is exactly the defaults.
+	// No [keys] section: exactly the defaults.
 	var empty Keys
 	empty.FillDefaults()
 	if !reflect.DeepEqual(empty, DefaultKeys()) {
 		t.Errorf("an empty Keys should fill to the defaults, got %+v", empty)
 	}
 
-	// The partial case: one field set, everything else — including fields in nested
-	// tables the file never mentioned — filled in.
+	// One field set: everything else, nested tables included, is filled.
 	partial := Keys{Quit: "Q", Timeline: TimelineKeys{React: "e"}}
 	partial.FillDefaults()
 	if partial.Quit != "Q" || partial.Timeline.React != "e" {
@@ -113,8 +111,7 @@ func TestLoadWithoutKeysSection(t *testing.T) {
 	}
 }
 
-// [[keys.jump]] blocks decode through the TOML tags; a wrong tag is a feature that
-// silently does nothing.
+// [[keys.jump]] blocks decode through the TOML tags.
 func TestLoadJumpBindings(t *testing.T) {
 	t.Parallel()
 
@@ -139,8 +136,7 @@ target = "room:!inbox:example.org"
 	}
 }
 
-// No [keys.jump] means no jump bindings — there is nothing to default to, since the
-// places are the user's own.
+// No [keys.jump] means no jump bindings.
 func TestJumpHasNoDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -154,9 +150,7 @@ func TestJumpHasNoDefaults(t *testing.T) {
 	}
 }
 
-// A chord bound twice is the one thing the map spelling made impossible by
-// construction, so the list has to say so — and saying so beats what a map did, which
-// was silently keep whichever binding was parsed last.
+// A chord bound twice is refused.
 func TestAChordGoesToOnePlace(t *testing.T) {
 	t.Parallel()
 
@@ -169,7 +163,7 @@ func TestAChordGoesToOnePlace(t *testing.T) {
 	if err == nil {
 		t.Fatal("a chord bound twice was accepted")
 	}
-	// The error names the chord, which is the whole advantage over the map.
+	// The error names the chord.
 	if !strings.Contains(err.Error(), `"g w"`) {
 		t.Errorf("error = %v, want it to name the doubled chord", err)
 	}

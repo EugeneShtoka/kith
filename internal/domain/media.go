@@ -12,55 +12,50 @@ const (
 	MediaFile  MediaType = "file"  // m.file (and anything else with an attachment)
 )
 
-// VoiceMessage is the name of a recorded voice note, which carries no file name of its
-// own; a Matrix bridge writes the same words into the body.
+// VoiceMessage names a voice note, which has no file name; bridges use the same body.
 const VoiceMessage = "voice message"
 
-// Media is the display metadata for a message's attachment: enough to render a
-// placeholder chip and to size an inline/preview render.
+// Media is the display metadata for a message's attachment.
 type Media struct {
-	// Type is what to draw: an image gets a preview, everything else a chip.
 	Type MediaType
 	Name string // the file name (from the message body)
-	// Mime is the sender's claim about the content type.
+	// Mime is the sender's unverified content type.
 	Mime   string
 	Width  int // pixels, 0 if unknown
 	Height int // pixels, 0 if unknown
 	Size   int // bytes, 0 if unknown
 }
 
-// IsImage reports whether the attachment is a still image, the only kind the
-// timeline can render inline (others show as a chip).
+// IsImage reports whether the attachment is a still image, the only kind rendered
+// inline.
 func (m *Media) IsImage() bool { return m != nil && m.Type == MediaImage }
 
-// IsAudio reports whether the attachment is something to listen to — a voice note or
-// any other m.audio — which is what the player can open.
+// IsAudio reports whether the attachment is m.audio (voice notes included).
 func (m *Media) IsAudio() bool { return m != nil && m.Type == MediaAudio }
 
-// IsVideo reports whether the attachment is something to watch.
+// IsVideo reports whether the attachment is a video.
 func (m *Media) IsVideo() bool { return m != nil && m.Type == MediaVideo }
 
-// MediaRule is one place's attachment policy, in the pure layer's own terms. Each
-// field is "unset means inherit", so a rule states only what it changes.
+// MediaRule is one place's attachment policy; a nil field inherits.
 type MediaRule struct {
 	// Match is a room ID or a space's name; Sender is an MXID.
 	Match  string
 	Sender string
 	Auto   *bool
 	Cache  *bool
-	// Speed is how fast this place's voice notes play, as a multiplier.
+	// Speed is the voice note playback multiplier.
 	Speed *float64
 }
 
-// MediaPolicy is what actually applies somewhere: whether pictures are fetched without
-// being asked, whether their bytes are kept on disk, and how fast a voice note plays.
+// MediaPolicy is the effective policy for a place: auto-fetch images, cache them on
+// disk, and voice note speed.
 type MediaPolicy struct {
 	Auto  bool
 	Cache bool
 	Speed float64
 }
 
-// ResolveMedia works out what applies in one place.
+// ResolveMedia applies the narrowest matching rule over the defaults.
 func ResolveMedia(auto, cache bool, speed float64, rules []MediaRule, place DownloadPlace) MediaPolicy {
 	policy := MediaPolicy{Auto: auto, Cache: cache, Speed: speed}
 	if rule, ok := narrowestMediaRule(rules, place); ok {
@@ -77,9 +72,7 @@ func ResolveMedia(auto, cache bool, speed float64, rules []MediaRule, place Down
 	return policy
 }
 
-// narrowestMediaRule finds the most specific rule for a place, later rules winning
-// among equals — see narrowestDownloadRule, which resolves the same question the same
-// way over the same list.
+// narrowestMediaRule finds the most specific rule for a place, later rules winning ties.
 func narrowestMediaRule(rules []MediaRule, place DownloadPlace) (MediaRule, bool) {
 	at, ok := Narrowest(Matches(rules, func(r MediaRule) Match {
 		return Match{Place: r.Match, Sender: r.Sender}
@@ -90,7 +83,7 @@ func narrowestMediaRule(rules []MediaRule, place DownloadPlace) (MediaRule, bool
 	return rules[at], true
 }
 
-// HumanSize is a byte count as a person reads it: "1.2 MB", "340 KB", "12 B".
+// HumanSize formats a byte count: "1.2 MB", "340 KB", "12 B".
 func HumanSize(n int) string {
 	switch {
 	case n >= 1<<20:

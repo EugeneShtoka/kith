@@ -13,18 +13,15 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// A property is one scalar setting of the config, by its TOML path ("display.fps"):
-// what the settings screen lists. Tables of records (rules, identities, tags,
-// accounts), the key bindings and the storage locations are not properties: the first
-// are edited a record at a time, the keys have their own table, and storage is where
-// the app's own files live, which it cannot move under itself.
+// A property is one scalar setting by TOML path ("display.fps"), as the settings screen
+// lists it. Record tables, key bindings and storage are not properties: records are
+// edited one at a time, keys have their own table, and the app cannot move its own files.
 
 // PropertyKind is what a property holds, which decides how it is edited.
 type PropertyKind int
 
 const (
-	// PropertyBool is on or off; PropertyOptionalBool is on, off, or unset (its
-	// default).
+	// PropertyBool is on or off; PropertyOptionalBool may also be unset (its default).
 	PropertyBool PropertyKind = iota + 1
 	PropertyOptionalBool
 	// PropertyInt is a whole number; PropertyOptionalInt may also be unset.
@@ -41,14 +38,13 @@ const (
 type Property struct {
 	Path string
 	Kind PropertyKind
-	// Doc is default.toml's comment for it, and Default the value it writes (as TOML
-	// writes it: true, 30, "room"); either is "" when it gives none. Example marks a
-	// Default written only commented out: often the default, sometimes an example.
+	// Doc is default.toml's comment and Default its value as TOML (true, 30, "room");
+	// "" when absent. Example marks a Default written only commented out.
 	Doc, Default string
 	Example      bool
 }
 
-// notProperties are the paths under which nothing is a property (see above).
+// notProperties are the top-level tables that hold no properties.
 var notProperties = []string{"keys", "storage", "profile"}
 
 // Properties is every property, in the order the config declares them.
@@ -242,8 +238,7 @@ func (c *Config) SetList(path string, entries []string) error {
 	return nil
 }
 
-// setScalar sets v, or what it points to (a fresh value, never one shared with a
-// config this one was cloned from).
+// setScalar sets v, or a freshly allocated pointee so a cloned config shares nothing.
 func setScalar(v, x reflect.Value) {
 	if v.Kind() == reflect.Pointer {
 		p := reflect.New(v.Type().Elem())
@@ -270,12 +265,10 @@ var (
 	keyLine = regexp.MustCompile(`^(?:# ?)?([a-z_0-9]+)\s*=\s*(.*)$`)
 )
 
-// documented reads default.toml: for each key, what is written about it and the value
-// it writes. The text is the comment directly above the key; else the comment opening
-// its paragraph (one comment over a group of keys); else, in a table's first
-// paragraph, the comment above the table's header — the key's own entry when that
-// lists the keys one by one ("#   mode   ..."), else all of it. A key written twice
-// (the default, then an alternative commented out) keeps the first.
+// documented reads each key's doc and value from default.toml. The doc is the comment
+// directly above the key; else its paragraph's opening comment; else, in a table's
+// first paragraph, the key's entry in the header comment ("#   mode   ...") or the
+// whole header. A key written twice keeps the first.
 func documented() map[string]doc {
 	r := docReader{docs: map[string]doc{}, live: map[string]bool{}, headers: map[string][]string{}}
 	for raw := range strings.SplitSeq(defaultConfigTOML, "\n") {
@@ -304,7 +297,7 @@ type docReader struct {
 	table           string
 	inArray         bool     // inside an [[array]] block, whose keys are its records' fields
 	array           string   // that block's table
-	exampleArray    bool     // …a commented one, which ends at the next blank line
+	exampleArray    bool     // a commented [[array]], which ends at the next blank line
 	header, own     []string // the table header's comment; the comment since the last key
 	para            []string // the comment opening the paragraph
 	headerParagraph bool     // still in the table's first paragraph
@@ -446,9 +439,8 @@ func joinDoc(lines []string) string {
 	return strings.Trim(strings.Join(out, "\n"), "\n")
 }
 
-// isValue reports whether what follows `key =` is a TOML value (or a list opening over
-// several lines), so prose that merely starts like a key ("# send_receipts = false
-// still moves…") is read as the comment it is.
+// isValue reports whether what follows `key =` is a TOML value or a multi-line list
+// opening, so prose like "# send_receipts = false still moves..." stays a comment.
 func isValue(s string) bool {
 	value, _ := splitTrailing(s)
 	if value == "[" {

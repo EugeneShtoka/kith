@@ -2,23 +2,17 @@ package domain
 
 import "slices"
 
-// A grouping is a set of chats a person made on a network for themselves — Telegram's
-// folders — which kith copies into a tag of the same name when asked, never syncing it
-// after. What is copied is the chats themselves, of one account.
-
-// Grouping is one of an account's groupings as it is now.
+// Grouping is a network's chat folder (e.g. Telegram's) for one account, which kith
+// copies into a same-named tag on request, without syncing it after.
 type Grouping struct {
-	Name string
-	// Rooms are the chats it holds, as kith names them.
+	Name  string
 	Rooms []RoomID
-	// Left is what of it a copy cannot keep (a filter on whether a chat is read, say),
-	// in words, for the person to know.
+	// Left describes, in words, what a copy cannot keep (e.g. a read-state filter).
 	Left []string
 }
 
-// GroupingDiff is what copying a grouping into its tag would change, among one
-// account's rooms only: the tag's other rooms (another network's, another account's)
-// are not the grouping's to change.
+// GroupingDiff is what copying a grouping into its tag would change, among that
+// account's rooms only.
 type GroupingDiff struct {
 	Grouping Grouping
 	// Exists is whether a tag has its name already.
@@ -42,7 +36,7 @@ const (
 )
 
 // DiffGroupings is what copying each grouping into its tag would change, among owner's
-// rooms: rooms are every room's facts, the tags judged on them as places (no state).
+// rooms; tags are judged on facts alone (no state).
 func DiffGroupings(groupings []Grouping, tags TagSet, rooms []RoomFacts, owner RoomOwner) []GroupingDiff {
 	out := make([]GroupingDiff, 0, len(groupings))
 	for _, g := range groupings {

@@ -7,11 +7,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// ApplyGroupings is cfg with each grouping copied into its tag as chosen: a tag made
-// for a grouping no tag is named after, and, among owner's rooms only, the grouping's
-// rooms put in (MergeIn, TakeNetworks) and the rest taken out (TakeNetworks), each
-// written as filing a room by hand writes it (TagSet.Filed). rooms are every room's
-// facts; the tags are judged on them as places.
+// ApplyGroupings copies each grouping into its tag, creating missing tags. Among
+// owner's rooms only, it files the grouping's rooms in (MergeIn, TakeNetworks) and
+// others out (TakeNetworks), as filing by hand would (TagSet.Filed).
 func ApplyGroupings(cfg config.Config, owner domain.RoomOwner, groupings []domain.Grouping,
 	choices map[string]domain.GroupingChoice, rooms []domain.RoomFacts,
 ) (config.Config, error) {

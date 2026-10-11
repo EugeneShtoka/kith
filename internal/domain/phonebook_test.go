@@ -2,8 +2,8 @@ package domain
 
 import "testing"
 
-// A label is a number only when it is nothing else: "+", digits and the punctuation
-// numbers are written with, a bridge's tag allowed after it.
+// A label is a number only if it is "+", digits and number punctuation, plus an
+// optional bridge tag.
 func TestALabelIsANumberOnlyWhenItIsNothingElse(t *testing.T) {
 	t.Parallel()
 	for label, want := range map[string]string{
@@ -44,8 +44,8 @@ func TestABridgesTagComesOffAName(t *testing.T) {
 	}
 }
 
-// A person's number is read from an ID made of one: WhatsApp's, directly or through
-// a bridge of any instance. Another network's numeric ID is no phone number.
+// A number is read from WhatsApp IDs, native or bridged (any instance), never from
+// another network's numeric ID.
 func TestAPersonsNumberIsReadFromTheirID(t *testing.T) {
 	t.Parallel()
 	for id, want := range map[string]string{
@@ -68,8 +68,7 @@ func TestAPersonsNumberIsReadFromTheirID(t *testing.T) {
 	}
 }
 
-// The directory names a label that is only a number it knows; any other label is not
-// its.
+// The directory names only labels that are numbers it knows.
 func TestTheDirectoryNamesOnlyANumberItKnows(t *testing.T) {
 	t.Parallel()
 	book := NewDirectory([]PersonName{{Source: "s", ID: PhoneID("15550100123"), Name: "Dana"}}, nil)

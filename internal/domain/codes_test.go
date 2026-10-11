@@ -5,8 +5,7 @@ import (
 	"testing"
 )
 
-// values is the codes' values, for the cases where the evidence is not what is being
-// checked.
+// values is the codes' values, without evidence.
 func values(codes []Code) []string {
 	out := make([]string, 0, len(codes))
 	for _, c := range codes {
@@ -15,8 +14,7 @@ func values(codes []Code) []string {
 	return out
 }
 
-// The shapes these actually arrive in. Every case here is a message a bridge or a
-// service really sends, which is the only reason to believe the detector works.
+// Message shapes real bridges and services send.
 func TestCodes(t *testing.T) {
 	t.Parallel()
 
@@ -54,8 +52,7 @@ func TestCodes(t *testing.T) {
 	}
 }
 
-// Bridged Hebrew SMS is the daily case this was written for, so it is tested in the
-// script it arrives in rather than assumed to fall out of the English rules.
+// Bridged Hebrew SMS, tested in its own script.
 func TestCodesHebrew(t *testing.T) {
 	t.Parallel()
 
@@ -78,8 +75,7 @@ func TestCodesHebrew(t *testing.T) {
 	}
 }
 
-// A URL is full of code-shaped runs, so links come out before anything is looked at.
-// Without this, a shortened link's path is a perfectly good six-character "code".
+// Links are removed first: a short link's path looks like a code.
 func TestCodesIgnoresLinks(t *testing.T) {
 	t.Parallel()
 
@@ -92,8 +88,7 @@ func TestCodesIgnoresLinks(t *testing.T) {
 	}
 }
 
-// The evidence is kept, not collapsed into a bool: it is what the UI shows to say
-// *why* something is thought to be a code.
+// The evidence is kept so the UI can say why something is a code.
 func TestCodesReportTheirEvidence(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +102,7 @@ func TestCodesReportTheirEvidence(t *testing.T) {
 	}
 }
 
-// Strongest evidence first, because a single keystroke takes the first one.
+// Strongest evidence first: a single keystroke takes the first.
 func TestCodesRankEvidenceNotPosition(t *testing.T) {
 	t.Parallel()
 
@@ -129,16 +124,14 @@ func TestCodesBareNeedsAMessageThatIsOnlyTheCode(t *testing.T) {
 	for _, body := range []string{
 		"the 2026 planning doc is up",
 		"we shipped 12345 units to the warehouse",
-		// These shapes are what a loose rule actually let through when it was run over
-		// a real message history: a name with a number after it, a ticket number, an id
-		// in backticks, a year.
+		// False positives seen in real history: a name and number, a ticket number, an
+		// id in backticks, a year.
 		"Table 5512",
 		"3120 is done on the frontend",
 		"try 9042 ?",
 		"record id `27553901`",
 		"הסרט 1994",
-		// Several numbers and no keyword: which one is the code is unknowable, and this
-		// shape is a card, an account or a date rather than an OTP.
+		// Several numbers and no keyword is a card, account or date, not an OTP.
 		"1234 5678 9012 3456",
 		"482910 7391",
 	} {
@@ -155,8 +148,7 @@ func TestCodesKeywordsAreWords(t *testing.T) {
 	for _, body := range []string{
 		"the spin off left 4821 rows behind",
 		"we should encode the 4821 differently",
-		// Hebrew is where this bites hardest: קוד sits inside הנקודה (the point) and
-		// פקודה (command), both entirely ordinary words.
+		// קוד sits inside the ordinary words הנקודה (the point) and פקודה (command).
 		"זאת הנקודה — יש 3120 שורות בטבלה",
 		"הפקודה הזאת מחזירה 4821 שורות",
 	} {
@@ -164,8 +156,7 @@ func TestCodesKeywordsAreWords(t *testing.T) {
 			t.Errorf("Codes(%q) = %+v, want nothing", body, got)
 		}
 	}
-	// …while the Hebrew forms that *do* mean it keep working: a one-letter prefix is
-	// how the language says "the".
+	// Hebrew one-letter prefixes ("the") still match.
 	for _, body := range []string{"הסיסמה שלך: 7391", "הקוד הוא 7391", "וקוד האימות 7391"} {
 		if got := values(Codes(body, CodeRules{})); len(got) != 1 || got[0] != "7391" {
 			t.Errorf("Codes(%q) = %v, want [7391]", body, got)
@@ -195,7 +186,7 @@ func TestCodesIgnoreFencedBlocks(t *testing.T) {
 	}
 }
 
-// The two questions have different bars.
+// Volunteering a code needs more evidence than answering when asked.
 func TestCodeCandidatesFallBackOnRequest(t *testing.T) {
 	t.Parallel()
 
@@ -219,15 +210,14 @@ func TestCodeCandidatesFallBackOnRequest(t *testing.T) {
 	if got := CodeCandidates("see you at the standup", CodeRules{}); got != nil {
 		t.Errorf("on request = %+v, want nothing", got)
 	}
-	// The fallback is capped: a picker of thirty numbers is not a question.
+	// The fallback is capped.
 	many := "5512 9042 3120 4821 7391 8906 1857 2026 1994 4444 5678"
 	if got := CodeCandidates(many, CodeRules{}); len(got) != looseLimit {
 		t.Errorf("candidates = %d, want the cap of %d", len(got), looseLimit)
 	}
 }
 
-// Only the top of a body is scanned: a code is at the start of a message or it is not
-// there, and an enormous paste should not become an enormous scan.
+// Only the top of a body is scanned.
 func TestCodesScanIsCapped(t *testing.T) {
 	t.Parallel()
 
@@ -237,8 +227,7 @@ func TestCodesScanIsCapped(t *testing.T) {
 	}
 }
 
-// The shape is configurable because "a code" is a different shape on different
-// services, and the defaults are measured against one person's history.
+// The code shape is configurable per service.
 func TestCodeRulesShapeTheSearch(t *testing.T) {
 	t.Parallel()
 
@@ -250,8 +239,7 @@ func TestCodeRulesShapeTheSearch(t *testing.T) {
 		t.Errorf("a six-digit code under a six-only rule = %v", got)
 	}
 
-	// Digits only: a letter is a boundary, so an alphanumeric code breaks into runs too
-	// short to qualify.
+	// Digits only: letters break an alphanumeric code into runs too short to qualify.
 	digitsOnly := CodeRules{MinLength: 4, MaxLength: 8, Digits: true, RequireDigit: true}
 	if got := Codes("Your code is A1B2C3", digitsOnly); got != nil {
 		t.Errorf("an alphanumeric code under a digits-only rule = %+v, want nothing", got)
@@ -271,14 +259,13 @@ func TestCodeRulesShapeTheSearch(t *testing.T) {
 	if got := values(Codes("Your code is A1-B2-C3", hyphenated)); len(got) != 1 || got[0] != "A1-B2-C3" {
 		t.Errorf("hyphenated rule = %v, want [A1-B2-C3]", got)
 	}
-	// …and without the symbol allowed, the same body is three runs too short to count.
+	// Without the symbol allowed, the same body is three runs too short.
 	if got := Codes("Your code is A1-B2-C3", DefaultCodeRules()); got != nil {
 		t.Errorf("default rules on a hyphenated code = %+v, want nothing", got)
 	}
 }
 
-// Turning the digit requirement off is a real loosening, and the test says so out loud
-// rather than leaving the consequence to be discovered.
+// Turning the digit requirement off admits plain words.
 func TestCodeRulesWithoutTheDigitRequirement(t *testing.T) {
 	t.Parallel()
 
@@ -291,8 +278,7 @@ func TestCodeRulesWithoutTheDigitRequirement(t *testing.T) {
 	}
 }
 
-// A rule set that could never match is a configuration mistake, not a preference:
-// finding no codes ever is indistinguishable from the feature being broken.
+// A rule set that can never match is refused.
 func TestCodeRulesValidate(t *testing.T) {
 	t.Parallel()
 
@@ -315,8 +301,7 @@ func TestCodeRulesValidate(t *testing.T) {
 	}
 }
 
-// The zero value means the defaults, so a caller with no configuration still gets
-// sensible behavior rather than a rule that admits nothing.
+// The zero value means the defaults.
 func TestCodeRulesZeroValueMeansDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -328,9 +313,8 @@ func TestCodeRulesZeroValueMeansDefaults(t *testing.T) {
 	}
 }
 
-// The status line says what a code has to look like when it finds none, so the
-// description has to read as English and follow the rules it describes — a fixed length
-// says one number, and a class the rules exclude must not be advertised.
+// The description reads as English and matches the rules: a fixed length says one
+// number, and an excluded class is not mentioned.
 func TestCodeRulesDescribe(t *testing.T) {
 	t.Parallel()
 
@@ -340,8 +324,7 @@ func TestCodeRulesDescribe(t *testing.T) {
 	}{
 		"the defaults":   {DefaultCodeRules(), "4–8 letters/digits with a digit"},
 		"the zero value": {CodeRules{}, "4–8 letters/digits with a digit"},
-		// "6 digits with a digit" would be a tautology; the requirement is only worth
-		// stating where the charset admits something that is not one.
+		// The digit requirement is stated only where the charset admits non-digits.
 		"a fixed length, digits only": {
 			CodeRules{MinLength: 6, MaxLength: 6, Digits: true, RequireDigit: true},
 			"6 digits",

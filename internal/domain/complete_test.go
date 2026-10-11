@@ -17,8 +17,7 @@ func TestDominantNeedsAClearLeader(t *testing.T) {
 		{"a whisker short", []WordCandidate{{"coriander", 29}, {"cormorant", 10}}, 3, ""},
 		{"too close to call", []WordCandidate{{"coriander", 11}, {"cormorant", 10}}, 3, ""},
 		{"a ratio of one takes the lead as it is", []WordCandidate{{"coriander", 11}, {"cormorant", 10}}, 1, "coriander"},
-		// Only the runner-up matters: a long tail says nothing about whether the leader
-		// is the word wanted.
+		// Only the runner-up matters, not the tail.
 		{"a tail changes nothing", []WordCandidate{{"coriander", 30}, {"cormorant", 9}, {"corbel", 8}}, 3, "coriander"},
 	}
 	for _, tc := range cases {
@@ -39,9 +38,7 @@ func TestMergeCandidatesKeepsTheCorpusAhead(t *testing.T) {
 	t.Parallel()
 
 	cache := []WordCandidate{{"flapjack", 25}, {"flagstone", 4}}
-	// The frequency list's words are commoner in the language by a wide margin, and
-	// that is precisely what must not promote them: they are words this account has
-	// never used, and the ones it has used are better completions.
+	// Words this account used outrank commoner frequency-list words it never used.
 	freq := []WordCandidate{{"flannel", 900_000}, {"flagstone", 500_000}, {"flatten", 100}}
 
 	got := MergeCandidates(cache, freq, 10)
@@ -54,8 +51,8 @@ func TestMergeCandidatesKeepsTheCorpusAhead(t *testing.T) {
 			t.Fatalf("MergeCandidates() = %+v, want %v in that order", got, want)
 		}
 	}
-	// The appended scores land below the weakest cache candidate, so the dominance gate
-	// cannot read a word nobody here has ever written as overwhelming evidence.
+	// Appended scores land below the weakest cache candidate, so they never pass the
+	// dominance gate.
 	for _, c := range got[2:] {
 		if c.Score >= cache[len(cache)-1].Score {
 			t.Fatalf("appended %q scored %d, want below the cache's own floor %d", c.Word, c.Score, cache[len(cache)-1].Score)

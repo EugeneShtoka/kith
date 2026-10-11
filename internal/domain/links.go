@@ -27,8 +27,7 @@ func Links(body string) []string {
 	return out
 }
 
-// trimLinkTail removes punctuation that ends the sentence rather than the URL — "see
-// https://example.org." is a link and a full stop, not a link ending in a dot.
+// trimLinkTail strips trailing sentence punctuation and unbalanced closing brackets.
 func trimLinkTail(link string) string {
 	for len(link) > 0 {
 		last := link[len(link)-1]
@@ -47,7 +46,6 @@ func trimLinkTail(link string) string {
 	return link
 }
 
-// opener is the bracket that matches a closing one.
 func opener(closing byte) byte {
 	switch closing {
 	case ')':
@@ -61,8 +59,8 @@ func opener(closing byte) byte {
 	}
 }
 
-// balanced reports whether s has at least as many openers as closers, meaning the
-// trailing closer belongs to the link rather than to the prose around it.
+// balanced reports whether s has at least as many openers as closers, so a trailing
+// closer belongs to the link.
 func balanced(s string, open, closing byte) bool {
 	return strings.Count(s, string(open)) >= strings.Count(s, string(closing))
 }
@@ -79,8 +77,7 @@ type LinkSpan struct {
 	URL        string
 }
 
-// LinkSpans returns the web links in body with their positions, in the order they
-// appear — duplicates included, since each occurrence is its own run on screen.
+// LinkSpans returns the web links in body with their positions, duplicates included.
 func LinkSpans(body string) []LinkSpan {
 	found := linkPattern.FindAllStringIndex(body, -1)
 	if len(found) == 0 {
@@ -93,7 +90,6 @@ func LinkSpans(body string) []LinkSpan {
 		if link == "" {
 			continue
 		}
-		// The trim only ever removes from the end, so the span shortens with it.
 		out = append(out, LinkSpan{Start: at[0], End: at[0] + len(link), URL: link})
 	}
 	return out

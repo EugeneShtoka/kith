@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// One message's history: the original, two edits, and a redaction. Matrix delivers
-// these in any order (live sync, backfill newest page first, a cached row plus a
-// page), so every order must fold to the same message.
+// An original, two edits and a redaction arrive in any order; every order must fold
+// to the same message.
 var (
 	mergeOrig = domain.Message{ID: "$m", RoomID: "!r", Sender: "@a:x", Body: "v0",
 		Format: richtext.FromMarkup("<b>v0</b>"), Timestamp: time.UnixMilli(5000)}
@@ -21,8 +20,7 @@ var (
 	mergeEdit2 = domain.Message{ID: "$m", RoomID: "!r", Sender: "@a:x", Body: "v2",
 		Format: richtext.FromMarkup("<b>v2</b>"), RevisionID: "$e2", Timestamp: time.UnixMilli(9000),
 		EditedAt: time.UnixMilli(9000), Edited: true}
-	// Servers strip the target's content but never redact its m.replace edits, so a
-	// redaction can be followed by an edit that still carries the words.
+	// Servers do not redact m.replace edits, so an edit after a redaction still carries words.
 	mergeRedaction = domain.Message{ID: "$m", RoomID: "!r", Redacted: true, RedactedBy: "@mod:x"}
 )
 

@@ -5,10 +5,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Aliases is the person's own name for each user ID their [[display.identity]] blocks
-// name, for domain.People.Alias; an identity with no alias names nobody. An ID that is
-// a number (a WhatsApp ID) names the number too, so the alias reaches every account
-// the directory links to it.
+// Aliases maps each user ID in [[display.identity]] to its alias. A number ID (e.g.
+// WhatsApp) also maps the bare number, so the alias reaches every linked account.
 func Aliases(ids []config.Identity) map[string]string {
 	out := map[string]string{}
 	for _, id := range ids {

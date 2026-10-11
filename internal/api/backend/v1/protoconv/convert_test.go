@@ -51,9 +51,8 @@ func TestNilProtoYieldsZeroValue(t *testing.T) {
 	}
 }
 
-// Every verification kind has a distinct wire form, and anything unknown is
-// refused rather than defaulting to VerificationRequested (which would prompt the
-// user to accept a flow nothing started).
+// Every verification kind has a distinct wire form; unknown is refused rather than
+// defaulting to VerificationRequested.
 func TestVerificationKinds(t *testing.T) {
 	t.Parallel()
 

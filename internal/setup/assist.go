@@ -9,16 +9,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Checking `[assist]`, and what its tasks may quote.
-
 // Default bounds for what a task may quote.
 const (
-	// defaultSummaryBudget is how much conversation a summary may quote — far more than
-	// a completion, because it is *about* the conversation.
+	// defaultSummaryBudget is larger than a completion's: a summary is about the
+	// conversation.
 	defaultSummaryBudget = 6000
-	// A todo reads several rooms, so its budget is larger and its room count is what
-	// really bounds it: five conversations is what somebody can act on in one sitting,
-	// and a list of thirty is a list nobody reads.
+	// A todo reads several rooms; its room count is the real bound.
 	defaultTodoBudget = 9000
 	defaultTodoRooms  = 8
 )
@@ -29,9 +25,8 @@ func ModelBudgets(cfg config.Assist, completion config.CompleteModel) map[string
 	return map[string]int{
 		domain.ModelSummary: orInt(cfg.Summary.Budget, defaultSummaryBudget),
 		domain.ModelTodo:    orInt(cfg.Todo.Budget, defaultTodoBudget),
-		// The completion's budget comes from its own section, which is the whole reason
-		// this takes two arguments: the model it feeds runs on this machine, so what
-		// the number buys is room in a 1024-token window rather than a smaller bill.
+		// From its own section: the local model's budget is room in a 1024-token
+		// window, not cost.
 		domain.ModelComplete: orInt(completion.Budget, config.DefaultModelBudget),
 	}
 }
@@ -41,8 +36,7 @@ func ModelBudgets(cfg config.Assist, completion config.CompleteModel) map[string
 func ModelLayer(cfg config.Assist) error {
 	endpoint := strings.TrimSpace(cfg.Endpoint)
 	if endpoint == "" {
-		// Off, which is the default.
-		return nil
+		return nil // off, the default
 	}
 	if !strings.HasPrefix(endpoint, "http://") && !strings.HasPrefix(endpoint, "https://") {
 		return fmt.Errorf("complete.model.endpoint: %q is not an http(s) URL", endpoint)
@@ -56,8 +50,7 @@ func ModelLayer(cfg config.Assist) error {
 			return fmt.Errorf("complete.model.timeout: %q must be positive", spelled)
 		}
 	}
-	// A room in both lists is the contradiction this section invites now that there are
-	// two of them.
+	// A room in both lists is a contradiction.
 	for _, room := range cfg.Except {
 		if strings.TrimSpace(room) == "" {
 			continue
@@ -71,8 +64,8 @@ func ModelLayer(cfg config.Assist) error {
 	return nil
 }
 
-// names reports whether a list names one room, by the same comparison domain.AllowModel
-// makes — trimmed and case-insensitive, because a config file is typed by hand.
+// names reports whether list names room, trimmed and case-insensitive like
+// domain.AllowModel.
 func names(list []string, room string) bool {
 	for _, entry := range list {
 		if strings.EqualFold(strings.TrimSpace(entry), strings.TrimSpace(room)) {

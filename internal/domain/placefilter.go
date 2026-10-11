@@ -1,13 +1,12 @@
 package domain
 
-// Include/exclude over places — the filter shape this client uses wherever the question
-// is "does this apply here" rather than "which rule wins".
+// PlaceFilter is an include/exclude list of places.
 type PlaceFilter struct {
 	Include, Exclude []string
 }
 
-// Admits reports whether the place is in scope, with each entry read as a RoomFacts
-// entry: a room's ID or name bare, `space:Work`, `protocol:WhatsApp`, `dm`, `group`.
+// Admits reports whether room is in scope. Entries are RoomFacts entries: a room ID
+// or name, `space:Work`, `protocol:WhatsApp`, `dm`, `group`.
 func (f PlaceFilter) Admits(room RoomFacts) bool {
 	if namesAny(f.Exclude, room) {
 		return false
@@ -15,6 +14,6 @@ func (f PlaceFilter) Admits(room RoomFacts) bool {
 	return len(f.Include) == 0 || namesAny(f.Include, room)
 }
 
-// Everywhere reports a filter that names no place, which for some callers is a
-// meaningful refusal rather than a permissive default — see CodeScope.
+// Everywhere reports a filter with no includes; some callers treat that as a refusal
+// (see CodeScope).
 func (f PlaceFilter) Everywhere() bool { return len(f.Include) == 0 }

@@ -8,59 +8,52 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Logging in is a conversation each network leads: it asks for what it needs, shows
-// what to do with a code, has a new account written into the config, and ends saying
-// whom it logged in as. A client draws each step and answers it, knowing no network:
-// `:login` and `kith login` are one driver each, whatever the network.
+// Login is a step-by-step conversation the network leads (ask, show a code, write
+// config, done); clients draw and answer steps without knowing the network.
 
 // LoginField is one thing a login asks for.
 type LoginField struct {
 	// Key names the answer; Label is what the prompt says.
 	Key, Label string
-	// Help is what it is and where to find it, as paragraphs (an indented line is
-	// kept as written).
+	// Help is paragraphs explaining the field; an indented line is kept verbatim.
 	Help string
-	// Value is a likely answer, offered to keep (a name from the number's country).
+	// Value is a suggested answer.
 	Value string
 	// Secret is drawn as dots and read without echo; Optional takes an empty answer.
 	Secret, Optional bool
 }
 
-// LoginRecord is a new account for the client to write into the config: a record of
-// Table ("whatsapp.account") with Values by field, or, with no Table, Values by key
-// path (Matrix's "homeserver" and "user").
+// LoginRecord is a new account for the client to write into the config: a Table
+// record ("whatsapp.account") by field, or with no Table, Values by key path.
 type LoginRecord struct {
 	Table  string
 	Values map[string]string
 }
 
-// LoginStep is where a login is: what to ask, show or write, or that it ended.
-// Exactly one of Ask, Code, Configure, Restart and Done says what to do; Note may
-// accompany any of them.
+// LoginStep is the current login step. Exactly one of Ask, Code, Configure, Restart
+// and Done is set; Note may accompany any.
 type LoginStep struct {
-	// Login is the conversation, for AnswerLogin and CancelLogin.
+	// Login identifies the conversation for AnswerLogin and CancelLogin.
 	Login string
-	// Account is the account it is about, once known (a new one has a name only
-	// after it was asked).
+	// Account is the account, once known.
 	Account string
-	// Note is what just happened: why an answer was refused, where a code went.
+	// Note is what just happened, e.g. why an answer was refused.
 	Note string
-	// Ask is fields to answer, all at once, with AnswerLogin.
+	// Ask is fields to answer together via AnswerLogin.
 	Ask []LoginField
-	// Code is to be shown until the next step: Note says where to type it.
-	// AnswerLogin, with no values, waits for what comes after.
+	// Code is shown until the next step (Note says where to type it); AnswerLogin
+	// with no values waits for it.
 	Code string
-	// Configure is a new account to write into the config; once written and the
-	// daemon has re-read it, AnswerLogin, with no values, goes on.
+	// Configure is an account to write into the config; after the daemon re-reads
+	// it, AnswerLogin with no values continues.
 	Configure *LoginRecord
-	// Restart ends the conversation: the daemon must restart to go on, after which
-	// BeginLogin on Account begins it again.
+	// Restart ends the conversation: restart the daemon, then BeginLogin on Account.
 	Restart bool
-	// Done ends the conversation: what the login did.
+	// Done ends the conversation, saying what the login did.
 	Done string
 }
 
-// LoginNetwork is a network that can be logged in to, and its accounts set up already.
+// LoginNetwork is a network that can be logged in to, with its existing accounts.
 type LoginNetwork struct {
 	// Network is what BeginLogin takes ("whatsapp"); Label is its name, Detail what
 	// logging in to it takes.
@@ -68,22 +61,21 @@ type LoginNetwork struct {
 	Accounts               []LoginAccount
 }
 
-// LoginAccount is an account set up already: its name and what it is (a number, a
-// workspace).
+// LoginAccount is an existing account; Detail is e.g. its number or workspace.
 type LoginAccount struct {
 	Name, Detail string
 }
 
-// Logins logs network accounts in. Only the daemon logs in, because it keeps the
-// sessions and connects on them; `:login` and `kith login` ask it.
+// Logins logs network accounts in. Only the daemon logs in, since it keeps the
+// sessions; `:login` and `kith login` ask it.
 type Logins interface {
 	// LoginNetworks is every network the daemon can log in to.
 	LoginNetworks(ctx context.Context) ([]LoginNetwork, error)
-	// BeginLogin starts logging account in ("" sets a new one up), ending any login of
-	// it under way, and is the first step.
+	// BeginLogin starts logging account in ("" sets up a new one), ending any login of
+	// it under way, and returns the first step.
 	BeginLogin(ctx context.Context, network, account string) (LoginStep, error)
-	// AnswerLogin answers the step the login is at (values by field key; none for a
-	// code shown or a record written) and is the next step. A failure ends the login.
+	// AnswerLogin answers the current step (values by field key; none after a code or
+	// record) and returns the next. A failure ends the login.
 	AnswerLogin(ctx context.Context, login string, values map[string]string) (LoginStep, error)
 	// CancelLogin ends a login.
 	CancelLogin(ctx context.Context, login string) error
@@ -91,21 +83,21 @@ type Logins interface {
 
 // LoginTalk is a login's side of the conversation, as the network leads it.
 type LoginTalk interface {
-	// Ask asks for fields and is the answers, by key; note says why (a refused
-	// answer). It waits for them.
+	// Ask asks for fields and waits for the answers by key; note explains, e.g. a
+	// refused answer.
 	Ask(ctx context.Context, note string, fields ...LoginField) (map[string]string, error)
-	// Show has the client show code, note saying where to type it, until the next
-	// step. It does not wait.
+	// Show displays code until the next step; note says where to type it. It does
+	// not wait.
 	Show(ctx context.Context, code, note string) error
-	// Configure has the client write a new account into the config, and waits until
-	// the daemon has re-read it.
+	// Configure has the client write a new account into the config and waits until
+	// the daemon re-reads it.
 	Configure(ctx context.Context, record LoginRecord) error
 	// Named says which account the login is about, once a new one has a name.
 	Named(account string)
 }
 
-// LoginEnd is how a login ended: Done says what it did; Restart, that the daemon
-// must restart to go on (a new Matrix account, whose store opens at start).
+// LoginEnd is how a login ended. Restart means the daemon must restart (a new Matrix
+// account's store opens at start).
 type LoginEnd struct {
 	Done    string
 	Restart bool
@@ -115,16 +107,14 @@ type LoginEnd struct {
 type LoginLeader interface {
 	// LoginNetwork is the network as a login lists it, with its accounts.
 	LoginNetwork() LoginNetwork
-	// Login logs account in ("" sets a new one up), talking through talk, until it
-	// is done, fails, or ctx ends. A wrong answer is asked again, with a note.
+	// Login logs account in ("" sets up a new one) through talk until done, failed or
+	// ctx ends. A wrong answer is asked again with a note.
 	Login(ctx context.Context, account string, talk LoginTalk) (LoginEnd, error)
 }
 
-// NumberedAccount sets up a new account of a network that knows people by number
-// (WhatsApp, Telegram): it asks for the number, then a name (suggested from the
-// number's country, prefix and its last digits otherwise), refusing a number or name
-// one of accounts has, and has the client write it into table. help is the number's
-// help, and the name's.
+// NumberedAccount sets up a new account on a phone-number network (WhatsApp,
+// Telegram): it asks for a number and a name, refusing ones accounts already have,
+// and has the client write it into table.
 func NumberedAccount(
 	ctx context.Context, talk LoginTalk, table, prefix string, accounts []LoginAccount, numberHelp, nameHelp string,
 ) (string, error) {

@@ -2,7 +2,7 @@ package domain
 
 import "strings"
 
-// OrderSpaces puts a room's spaces in the order the user cares about them.
+// OrderSpaces orders a room's spaces by the user's priority list; unranked ones follow.
 func OrderSpaces(spaces, priority []string) []string {
 	if len(spaces) < 2 || len(priority) == 0 {
 		return spaces
@@ -20,8 +20,7 @@ func OrderSpaces(spaces, priority []string) []string {
 
 	ordered := make([]string, 0, len(spaces))
 	taken := make([]bool, len(spaces))
-	// Walk the priority list rather than the spaces, so two spaces the user ranked come
-	// out in *their* order rather than in the room's.
+	// Walk the priority list so ranked spaces come out in the user's order.
 	for i := range priority {
 		for j, space := range spaces {
 			if taken[j] {

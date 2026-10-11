@@ -2,23 +2,20 @@ package domain
 
 import "strconv"
 
-// VerificationKind identifies which stage of an interactive device-verification
-// flow a Verification event represents.
+// VerificationKind is the stage of a device-verification flow.
 type VerificationKind int
 
 const (
-	// VerificationRequested: another device asked to verify this one; the user chooses
-	// whether to accept.
+	// VerificationRequested: another device asked to verify this one.
 	VerificationRequested VerificationKind = iota
-	// VerificationSAS: a short authentication string is ready to compare against the
-	// other device.
+	// VerificationSAS: a short authentication string is ready to compare.
 	VerificationSAS
 	// VerificationDone: both devices verified each other successfully.
 	VerificationDone
 	// VerificationCanceled: the flow ended without verifying.
 	VerificationCanceled
-	// VerificationRestored: after a successful verification, room keys were gossiped
-	// from a verified device and imported (Reason carries a summary).
+	// VerificationRestored: room keys gossiped from a verified device were imported
+	// (Reason summarizes).
 	VerificationRestored
 )
 
@@ -37,8 +34,7 @@ func (k VerificationKind) String() string {
 	return "verification(" + strconv.Itoa(int(k)) + ")"
 }
 
-// Verification is one step of an interactive SAS device-verification flow, streamed
-// from the backend to the UI.
+// Verification is one step of a SAS device-verification flow, streamed to the UI.
 type Verification struct {
 	Kind  VerificationKind
 	TxnID string
@@ -47,8 +43,7 @@ type Verification struct {
 	From   string
 	Device string
 
-	// SAS: the short authentication string to compare — one entry per emoji (glyph +
-	// human name) and/or the decimal fallback.
+	// SAS: the string to compare, as emojis and/or the decimal fallback.
 	Emojis   []SASEmoji
 	Decimals []int
 

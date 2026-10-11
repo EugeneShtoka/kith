@@ -6,8 +6,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Invented IDs in WhatsApp's shapes: an account, a group, a phone chat, a LID chat, a
-// message.
+// Invented IDs in WhatsApp's shapes.
 const (
 	waAccount = "44000000001"
 	waGroup   = "120363000000000001@g.us"
@@ -44,7 +43,7 @@ func TestIDsSayTheirNetworkAndAccount(t *testing.T) {
 		"telegram channel":    {"telegram:111/-1004444", domain.ID{Network: domain.ProtocolTelegram, Account: "111", Native: "-1004444"}, true, false, ""},
 		"telegram message":    {"telegram:111/-1004444/55", domain.ID{Network: domain.ProtocolTelegram, Account: "111", Native: "-1004444/55"}, false, false, ""},
 		"telegram user":       {"telegram:222", domain.ID{Network: domain.ProtocolTelegram, Native: "222"}, false, true, ""},
-		// Not a network kith reaches: a word with a colon is Matrix's, and names nothing.
+		// An unknown prefix is Matrix's.
 		"unknown prefix": {"room:Standup", domain.ID{Network: domain.ProtocolMatrix, Native: "room:Standup"}, false, false, "room"},
 		"empty":          {"", domain.ID{Network: domain.ProtocolMatrix}, false, false, ""},
 		"bare prefix":    {"whatsapp:", domain.ID{Network: domain.ProtocolWhatsApp}, false, false, ""},
@@ -74,8 +73,7 @@ func TestIDsSayTheirNetworkAndAccount(t *testing.T) {
 	}
 }
 
-// The account is what tells two accounts' views of one group, and of one message,
-// apart; a person is the same person from either.
+// The account separates two accounts' views of a group or message; a person is shared.
 func TestNativeIDsKeepAccountsApart(t *testing.T) {
 	t.Parallel()
 
@@ -91,8 +89,7 @@ func TestNativeIDsKeepAccountsApart(t *testing.T) {
 	}
 }
 
-// A person on a network kith reaches directly is on that network, not on Matrix, and a
-// Matrix ID never reads as native whatever its localpart says.
+// A native person is on their network; a Matrix ID never reads as native.
 func TestProtocolOfANativePerson(t *testing.T) {
 	t.Parallel()
 
@@ -106,8 +103,7 @@ func TestProtocolOfANativePerson(t *testing.T) {
 	}
 }
 
-// A member with no display name falls back to their phone number, not to the word
-// "whatsapp" (what cutting at the first colon gave).
+// A member with no display name falls back to their phone number, not "whatsapp".
 func TestANativeMemberHasAReadableName(t *testing.T) {
 	t.Parallel()
 
@@ -120,8 +116,7 @@ func TestANativeMemberHasAReadableName(t *testing.T) {
 	}
 }
 
-// A native room's ID is a complete list entry, like a Matrix room's, and names that
-// room only.
+// A native room ID is a complete list entry naming only that room.
 func TestANativeRoomIDIsAnEntry(t *testing.T) {
 	t.Parallel()
 
@@ -170,8 +165,7 @@ func TestNativeIDsRoundTrip(t *testing.T) {
 	}
 }
 
-// Each writer owns exactly its own rooms: Matrix's, and each account's apart, even
-// when one account's digits begin another's.
+// Each writer owns only its rooms, even when one account's digits prefix another's.
 func TestEachWriterOwnsOnlyItsRooms(t *testing.T) {
 	t.Parallel()
 	a := domain.AccountRooms(domain.ProtocolWhatsApp, "44")

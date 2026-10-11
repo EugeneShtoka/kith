@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// What a script asks for, and where what it prints goes.
+// Script needs (context it asks for) and outputs (where its stdout goes).
 
 // NeedKind is one kind of context a script can ask for.
 type NeedKind int
@@ -29,14 +29,14 @@ type Need struct {
 	Count int
 }
 
-// needNames is the vocabulary, and the only place it is written down.
+// needNames is the single source of the needs vocabulary.
 var needNames = map[string]NeedKind{
 	"message": NeedMessage,
 	"url":     NeedURL,
 	"history": NeedHistory,
 }
 
-// needsCount is which kinds require their `:n`, and reject being written without it.
+// needsCount is which kinds require a `:n` count.
 var needsCount = map[NeedKind]bool{NeedHistory: true}
 
 // MaxHistoryNeed caps `history:n`.
@@ -50,8 +50,7 @@ func ParseNeed(entry string) (Need, bool) {
 		return Need{}, false
 	}
 	if !needsCount[kind] {
-		// A count on a need that takes none is a misunderstanding worth reporting, not
-		// something to accept and ignore.
+		// A count on a need that takes none is refused, not ignored.
 		if hasParam {
 			return Need{}, false
 		}
@@ -78,8 +77,7 @@ func (n Need) String() string {
 	return ""
 }
 
-// NeedVocabulary is every need this client can supply, in a stable order, for the
-// error that refuses one it cannot.
+// NeedVocabulary is every need, sorted, for error messages.
 func NeedVocabulary() []string {
 	out := make([]string, 0, len(needNames))
 	for name, kind := range needNames {
@@ -96,24 +94,21 @@ func NeedVocabulary() []string {
 type ScriptOutput int
 
 const (
-	// OutputCompose replaces the composer's contents — the default, and what every user
-	// command did before there was a choice.
+	// OutputCompose replaces the composer's contents; the default.
 	OutputCompose ScriptOutput = iota
 	// OutputSend posts it to the room unreviewed.
 	OutputSend
 	// OutputStatus puts one line on the status bar and nothing anywhere else.
 	OutputStatus
-	// OutputPager shows it in the read-and-dismiss overlay, the one place in this
-	// client for text that is meant to be *read* rather than sent.
+	// OutputPager shows it in the read-and-dismiss overlay.
 	OutputPager
-	// OutputClipboard copies it, through the same path the copy keys use.
+	// OutputClipboard copies it, as the copy keys do.
 	OutputClipboard
-	// OutputNone discards it: the script's side effect is the point, and a script that
-	// opens a browser has nothing to say afterwards.
+	// OutputNone discards it, for scripts run for their side effect.
 	OutputNone
 )
 
-// outputNames is the vocabulary, written once.
+// outputNames is the single source of the output vocabulary.
 var outputNames = map[string]ScriptOutput{
 	"compose":   OutputCompose,
 	"send":      OutputSend,
@@ -123,8 +118,7 @@ var outputNames = map[string]ScriptOutput{
 	"none":      OutputNone,
 }
 
-// ParseScriptOutput reads an `output` value. Empty is OutputCompose, which is what
-// every command did before this setting existed.
+// ParseScriptOutput reads an `output` value; empty is OutputCompose.
 func ParseScriptOutput(value string) (ScriptOutput, bool) {
 	value = strings.ToLower(strings.TrimSpace(value))
 	if value == "" {
@@ -134,7 +128,7 @@ func ParseScriptOutput(value string) (ScriptOutput, bool) {
 	return out, known
 }
 
-// OutputVocabulary is every sink, in a stable order, for the refusal.
+// OutputVocabulary is every output, sorted, for error messages.
 func OutputVocabulary() []string {
 	out := make([]string, 0, len(outputNames))
 	for name := range outputNames {
