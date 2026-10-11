@@ -7,12 +7,11 @@ import (
 	"unsafe"
 )
 
-// closeStreams ends every stream the Remote holds — counted, not read carefully.
+// closeStreams ends every stream the Remote holds, found by reflection.
 func TestCloseStreamsEndsEveryStream(t *testing.T) {
 	t.Parallel()
 
-	// The real constructor: the point is to see every stream the type declares, not the
-	// ones a test remembered to make.
+	// The real constructor, so every declared stream is seen.
 	r := newRemote(nil)
 	r.closeStreams()
 
@@ -36,9 +35,8 @@ func TestCloseStreamsEndsEveryStream(t *testing.T) {
 		}
 		// `ch` is unexported, so reflect refuses to operate on it directly.
 		ch = reflect.NewAt(ch.Type(), unsafe.Pointer(ch.UnsafeAddr())).Elem()
-		// A select with a default, rather than Recv: a receive on a stream that is still
-		// open blocks for ever, which is the very failure being tested for and would hang
-		// the suite instead of failing it.
+		// Select with a default, not Recv: receiving on an open stream would hang the suite
+		// instead of failing it.
 		chosen, _, recvOK := reflect.Select([]reflect.SelectCase{
 			{Dir: reflect.SelectRecv, Chan: ch},
 			{Dir: reflect.SelectDefault},

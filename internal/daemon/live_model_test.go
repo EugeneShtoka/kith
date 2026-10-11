@@ -1,7 +1,6 @@
 package daemon_test
 
-// An opt-in probe against a real, running kithd with the local completion model
-// installed.
+// Opt-in probe against a running kithd with the local completion model installed.
 
 import (
 	"context"
@@ -32,14 +31,13 @@ func TestLiveLocalModel(t *testing.T) {
 	}
 	room := rooms[0].ID
 
-	// What the daemon thinks there is to offer.
 	found, err := r.DetectModel(ctx)
 	if err != nil {
 		t.Fatalf("DetectModel: %v", err)
 	}
 	t.Logf("DETECT offer=%t why=%q candidate=%+v", found.Offer, found.Why, found.Candidate)
 
-	// A draft ending in a space, which is what the composer hands over at a word boundary.
+	// A draft ending in a space, as the composer sends at a word boundary.
 	const draft = "I think we should check the "
 	start := time.Now()
 	result, err := r.ModelTask(ctx, domain.ModelRequest{
@@ -68,20 +66,19 @@ func TestLiveLocalModel(t *testing.T) {
 		}
 	}
 
-	// And then the number the composer's debounce is derived from.
+	// The number the composer's debounce is derived from.
 	warm := warmRoundTrip(t, ctx, r, room)
 	t.Logf("ROUND TRIP over %d warm asks: p50=%s p90=%s max=%s",
 		len(warm), warm[len(warm)/2].Round(time.Millisecond),
 		warm[len(warm)*9/10].Round(time.Millisecond),
 		warm[len(warm)-1].Round(time.Millisecond))
 
-	// The bar the debounce was sized against.
 	if p50 := warm[len(warm)/2]; p50 > 200*time.Millisecond {
 		t.Errorf("p50 round trip is %s — too slow for the debounce this client uses", p50)
 	}
 }
 
-// warmRoundTrip times a completion for each of ten drafts, twice over, and returns the
+// warmRoundTrip times a completion for each of ten drafts, twice, returning the
 // timings sorted.
 func warmRoundTrip(t *testing.T, ctx context.Context, r *daemon.Remote, room domain.RoomID) []time.Duration {
 	t.Helper()

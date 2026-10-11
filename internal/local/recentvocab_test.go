@@ -13,7 +13,7 @@ import (
 
 const vocabMe = "@me:x"
 
-// completing is a backend with a cache holding a few rooms' messages.
+// completing is a backend whose cache holds a few rooms' messages.
 func completing(t *testing.T) *Service {
 	t.Helper()
 	b := backendWithCache(t, vocabMe)
@@ -64,8 +64,8 @@ func TestCompletionWeighsThisRoomOverItsSpace(t *testing.T) {
 	}
 }
 
-// A message arriving after the windows were built counts at once; a redaction takes its
-// words back out.
+// A message arriving after the windows were built counts at once; a redaction removes
+// its words.
 func TestCompletionFollowsLiveMessagesAndRedactions(t *testing.T) {
 	t.Parallel()
 	b := completing(t)
@@ -116,8 +116,8 @@ func TestCompletionRacesIncomingMessages(t *testing.T) {
 	wg.Wait()
 }
 
-// The scope decides which terms count: at "room" a sibling's word beats a distant one;
-// at "global" only the plain count is left, and the tie goes alphabetically.
+// At "room" scope a sibling's word beats a distant one; at "global" only the plain
+// count is left and ties go alphabetically.
 func TestCompletionScopeWidensAndNarrows(t *testing.T) {
 	t.Parallel()
 	b := backendWithCache(t, vocabMe)

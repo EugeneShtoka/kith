@@ -15,7 +15,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/phonebook"
 )
 
-// allowed reports whether a room may be read, and says why not when it may not.
+// allowed reports whether a room may be read, and why not.
 func (s *server) allowed(ctx context.Context, room domain.Room) error {
 	return s.permits(ctx, room, s.readScope(), readTable)
 }
@@ -34,11 +34,9 @@ const nothingSharedNote = "Nothing in this account is shared with you: [agent.re
 	"any room until they list rooms or spaces there (for example rooms = [\"space:Work\"]). " +
 	"Tell them that rather than retrying."
 
-// errNothingShared is nothingSharedNote as an error.
 var errNothingShared = errors.New(strings.TrimSuffix(nothingSharedNote, "."))
 
-// writable reports whether a room may be written to: read scope first, then write scope,
-// so a refusal names the right table.
+// writable checks read scope, then write scope, so a refusal names the right table.
 func (s *server) writable(ctx context.Context, room domain.Room) error {
 	if err := s.allowed(ctx, room); err != nil {
 		return err
@@ -52,7 +50,7 @@ const (
 	writeTable = "[agent.write]"
 )
 
-// permits asks one scope about one room, and words a refusal in the table's own terms.
+// permits asks one scope about one room, wording a refusal in that table's terms.
 func (s *server) permits(ctx context.Context, room domain.Room, scope domain.ModelScope, table string) error {
 	if !scope.Shares() {
 		return errNothingShared
@@ -61,7 +59,7 @@ func (s *server) permits(ctx context.Context, room domain.Room, scope domain.Mod
 	if err != nil && scope.NeedsPlaces() {
 		return err
 	}
-	// An unknown encryption state counts as encrypted (see encrypted).
+	// Unknown encryption counts as encrypted.
 	permit := domain.AllowModel(scope, facts, "configured", s.encrypted(ctx, room.ID))
 	if permit.Allowed {
 		return nil
@@ -79,22 +77,22 @@ func (s *server) permits(ctx context.Context, room domain.Room, scope domain.Mod
 func (s *server) factsOf(ctx context.Context, room domain.Room) (domain.RoomFacts, error) {
 	holders, err := s.holdersOf(ctx, room.ID)
 	if err != nil {
-		// What is known without the spaces still counts, the names you gave rooms
-		// above all: an `except = ["room:<your name>"]` must keep excluding.
+		// What is known without spaces still counts, your room names above all: an
+		// `except = ["room:<your name>"]` must keep excluding.
 		return s.places.Facts(room, nil), err
 	}
 	return s.places.Facts(room, holders), nil
 }
 
 // errPlaceUnknown refuses a room whose spaces could not be read. Guessing "in no space"
-// would fail open: an `except = ["space:…"]` entry would stop matching, and a
-// `protocol:` entry would take a bridged room for a Matrix one.
+// fails open: `except = ["space:..."]` would stop matching and `protocol:` would take
+// a bridged room for Matrix.
 var errPlaceUnknown = errors.New("could not tell which spaces this room is in, so it is " +
 	"not shared for now; try again in a moment")
 
-// placesKnown fails a listing whose scope checks would all be guesses: with the spaces
-// unreadable, a scope naming places refuses every room, and an empty answer would read
-// as "nothing there".
+// placesKnown fails a listing whose scope checks would all be guesses: with spaces
+// unreadable every place-naming scope refuses, and an empty answer would read as
+// "nothing there".
 func (s *server) placesKnown(ctx context.Context) error {
 	if read := s.readScope(); !read.Shares() || !read.NeedsPlaces() {
 		return nil
@@ -115,10 +113,8 @@ func (s *server) holdersOf(ctx context.Context, roomID domain.RoomID) ([]domain.
 	return domain.HoldersOf(roomID, spaces), nil
 }
 
-// encrypted asks the daemon whether a room is encrypted, answering yes on failure.
-// "Encrypted" is kept for the process's life (it never reverts); "not encrypted" only
-// for the tool call, since the room can turn encryption on at any time. A failure is
-// asked again next time.
+// encrypted asks the daemon whether a room is encrypted, yes on failure. "Encrypted" is
+// kept for the process (it never reverts); "not encrypted" only for the tool call.
 func (s *server) encrypted(ctx context.Context, roomID domain.RoomID) bool {
 	s.mu.Lock()
 	known := s.crypto[roomID]
@@ -132,8 +128,8 @@ func (s *server) encrypted(ctx context.Context, roomID domain.RoomID) bool {
 	}
 	state, err := s.backend.RoomEncryption(ctx, []domain.RoomID{roomID})
 	if err != nil {
-		// Fail closed, and do not remember it: one daemon hiccup must not hide a
-		// room for the rest of the session.
+		// Fail closed without remembering: one daemon hiccup must not hide a room for the
+		// whole session.
 		s.logger().Warn("room encryption lookup failed; treating the room as encrypted", "room", roomID, "err", err)
 		return true
 	}
@@ -178,14 +174,12 @@ func (s *server) readableRooms(ctx context.Context) (readable []domain.Room, out
 	return readable, outside, nil
 }
 
-// outsideScopeKey reports how many rooms `[agent.read]` leaves out: a fixed number for
-// a given config, never one that depends on what the assistant asked, so it cannot be
-// used to probe what those rooms contain or are called.
+// outsideScopeKey reports how many rooms `[agent.read]` leaves out: fixed per config,
+// independent of the query, so it cannot probe those rooms' contents or names.
 const outsideScopeKey = "rooms_outside_scope"
 
-// peopleInScope is everyone who has posted in the given in-scope rooms, most talkative
-// first; nobody for none. Only the rooms named are read: this asks for no room set
-// wider than the scope.
+// peopleInScope is everyone who posted in the given in-scope rooms, most talkative
+// first. Only those rooms are read, never a wider set.
 func (s *server) peopleInScope(ctx context.Context, rooms []domain.RoomID) ([]domain.Member, error) {
 	if len(rooms) == 0 {
 		return nil, nil
@@ -197,12 +191,11 @@ func (s *server) peopleInScope(ctx context.Context, rooms []domain.RoomID) ([]do
 	return people, nil
 }
 
-// peoplePool is how many of the ranked posters a name is matched against.
+// peoplePool is how many ranked posters a name is matched against.
 const peoplePool = 2000
 
-// roomNamed resolves what somebody typed to one of rooms: an ID exactly, or a name
-// loosely. Only rooms the assistant may see are passed in, so neither a match nor a
-// refusal says anything about a room outside the scope.
+// roomNamed resolves typed input to one of rooms: an ID exactly, or a name loosely.
+// Only visible rooms are passed in, so neither match nor refusal reveals others.
 func roomNamed(rooms []domain.Room, want string) (domain.Room, error) {
 	want = strings.TrimSpace(want)
 	if want == "" {
@@ -219,8 +212,8 @@ func roomNamed(rooms []domain.Room, want string) (domain.Room, error) {
 			loose = append(loose, rooms[i])
 		}
 	}
-	// Exact names first; two rooms of one name are as ambiguous as two loose matches
-	// (anyone in a DM can name themselves after another room).
+	// Exact names first; two rooms with one name are ambiguous (anyone in a DM can name
+	// themselves after another room).
 	matches := exact
 	if len(matches) == 0 {
 		matches = loose
@@ -235,14 +228,14 @@ func roomNamed(rooms []domain.Room, want string) (domain.Room, error) {
 		for i := range matches[:min(5, len(matches))] {
 			names = append(names, fmt.Sprintf("%s (%s)", matches[i].DisplayName(), matches[i].ID))
 		}
-		// Never guess between rooms: a wrong guess posts to the wrong conversation.
+		// Never guess: a wrong guess posts to the wrong conversation.
 		return domain.Room{}, fmt.Errorf("%q matches %d rooms — say which by ID: %s",
 			want, len(matches), strings.Join(names, ", "))
 	}
 }
 
-// errNoSuchRoom is the one answer for a room that does not exist and a room outside
-// `[agent.read]`, so the assistant cannot tell them apart.
+// errNoSuchRoom answers both a missing room and one outside `[agent.read]`, so they
+// are indistinguishable.
 var errNoSuchRoom = errors.New("no room by that name or ID among the rooms [agent.read] allows " +
 	"(a room outside it, including an encrypted room while [agent.read] encrypted is false, is not visible)")
 
@@ -285,7 +278,7 @@ func (s *server) listRooms(ctx context.Context, raw json.RawMessage) (any, error
 	}
 	unread, uerr := s.backend.CachedUnread(ctx)
 	if uerr != nil {
-		// The list still answers, with every unread count shown as 0.
+		// The list still answers, with unread counts of 0.
 		s.logger().Warn("unread counts read failed", "err", uerr)
 	}
 	counts := map[domain.RoomID]int{}
@@ -347,7 +340,7 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	type personView struct {
 		UserID string `json:"user_id"`
 		Name   string `json:"name,omitempty"`
-		// Fields is what the person's phonebook card says, when [agent.read] people allows.
+		// Fields is the person's phonebook card, when [agent.read] people allows.
 		Fields map[string]any `json:"fields,omitempty"`
 	}
 	var out []personView
@@ -366,8 +359,8 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	return map[string]any{"people": out}, nil
 }
 
-// cardFields is what the phonebook's card of userID's person says, by key: a list as
-// a list, one value as itself; nil without a phonebook, a card, or any field.
+// cardFields is userID's phonebook card by key (lists as lists, single values as
+// themselves); nil without a phonebook, card or field.
 func (s *server) cardFields(userID string) map[string]any {
 	if s.book == nil {
 		return nil
@@ -553,8 +546,8 @@ func (s *server) searchMessages(ctx context.Context, raw json.RawMessage) (any, 
 		}
 		req.Filter.Since = since
 	}
-	// Scope goes into the query, so the limit counts only in-scope rooms. Rooms outside
-	// it are never searched, not even to count.
+	// Scope goes into the query, so the limit counts only in-scope rooms; others are never
+	// searched, not even to count.
 	inScope, outOfScope, serr := s.roomsInScope(ctx)
 	if serr != nil {
 		return nil, serr
@@ -574,7 +567,7 @@ func (s *server) searchMessages(ctx context.Context, raw json.RawMessage) (any, 
 	}, nil
 }
 
-// hitView is one search result, named by room and event so read_around can be called on it.
+// hitView is one search result, named by room and event for read_around.
 type hitView struct {
 	Room     string `json:"room"`
 	RoomName string `json:"room_name,omitempty"`
@@ -585,8 +578,8 @@ type hitView struct {
 	Snippet  string `json:"snippet"`
 }
 
-// shapeHits drops any hit in a room outside `[agent.read]`; the query was already
-// scoped, so this only guards a room that left the scope mid-call.
+// shapeHits drops hits in rooms outside `[agent.read]`; the query was scoped, so this
+// guards a room that left scope mid-call.
 func (s *server) shapeHits(ctx context.Context, hits []domain.SearchHit) []hitView {
 	byID := s.roomsByID(ctx)
 	unmark := strings.NewReplacer(domain.HighlightStart, "", domain.HighlightEnd, "")
@@ -596,7 +589,7 @@ func (s *server) shapeHits(ctx context.Context, hits []domain.SearchHit) []hitVi
 		if !known || s.allowed(ctx, room) != nil {
 			continue
 		}
-		// Markers off first, so a mention's words are whole to be found.
+		// Strip markers first, so a mention's words are whole.
 		snippet, _ := domain.ResolveMentions(unmark.Replace(hits[i].Snippet), hits[i].Mentions, func(mn domain.Mention, words string) string {
 			return s.people.Name(mn.UserID, mn.Known, words)
 		})
@@ -686,7 +679,7 @@ func (s *server) unreadSummary(ctx context.Context, raw json.RawMessage) (any, e
 	if n := limitOr(in.Limit, 20, 100); len(out) > n {
 		out = out[:n]
 	}
-	// Not how many hidden rooms have unread messages: that would report their activity.
+	// Not the hidden rooms' unread count: that would report their activity.
 	_, outOfScope, err := s.roomsInScope(ctx)
 	if err != nil {
 		return nil, err

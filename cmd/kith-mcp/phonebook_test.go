@@ -10,7 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/phonebook"
 )
 
-// The phonebook is handed to the server only when [agent.read] people says so.
+// The server gets the phonebook only when [agent.read] people says so.
 func TestThePhonebookIsReadOnlyWhereAllowed(t *testing.T) {
 	t.Parallel()
 	var cfg config.Config
@@ -24,8 +24,7 @@ func TestThePhonebookIsReadOnlyWhereAllowed(t *testing.T) {
 	}
 }
 
-// Where [agent.read] people allows it, a person find_people names carries their card's
-// fields, a list as a list; without it, none.
+// Where allowed, find_people carries each person's card fields, lists as lists.
 func TestFindPeopleCarriesTheCardWhereAllowed(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

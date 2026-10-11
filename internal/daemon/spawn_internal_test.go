@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// The warning after auto-spawning has to say what it *cost*, not just what happened.
+// The warning after auto-spawning says what it cost.
 func TestStartedNoteSaysWhatItCost(t *testing.T) {
 	t.Parallel()
 
@@ -25,8 +25,7 @@ func TestStartedNoteSaysWhatItCost(t *testing.T) {
 	}
 }
 
-// The enable hint appears whenever the unit is not enabled — which, in a test environment,
-// it is not.
+// The enable hint appears whenever the unit is not enabled, as in tests.
 func TestStartedNoteOffersTheUnitWhenNotEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -42,8 +41,8 @@ func TestStartedNoteOffersTheUnitWhenNotEnabled(t *testing.T) {
 	}
 }
 
-// trimOutput keeps a multi-line systemd complaint from wrapping through an error
-// message, and is what unitEnabled compares against.
+// trimOutput keeps a multi-line systemd complaint out of an error message; unitEnabled
+// compares against it.
 func TestTrimOutput(t *testing.T) {
 	t.Parallel()
 
@@ -82,19 +81,18 @@ func TestDetachedDaemonOutlivesItsCaller(t *testing.T) {
 	}
 }
 
-// fakeDaemon puts a stand-in for kithd first on PATH: it marks the disk so a test knows
-// it ran, then stays alive long enough to be observed.
+// fakeDaemon puts a kithd stand-in first on PATH that marks the disk, then stays alive.
 func fakeDaemon(t *testing.T) (dir, marker string) {
 	t.Helper()
 
 	dir = t.TempDir()
 	marker = filepath.Join(dir, "started")
-	// The stub lets go of the stdio it inherited before it sleeps.
+	// The stub releases its inherited stdio before sleeping.
 	script := "#!/bin/sh\ntouch " + marker + "\nexec >/dev/null 2>&1 </dev/null\nsleep 30\n"
 	if err := os.WriteFile(filepath.Join(dir, daemonBinary), []byte(script), 0o700); err != nil {
 		t.Fatalf("write fake daemon: %v", err)
 	}
-	// Prepended, not replaced: detach needs to find setsid too.
+	// Prepended: detach needs setsid too.
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	return dir, marker
 }
@@ -104,8 +102,8 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// processAlive reports whether the fake daemon from dir is still running, matched on
-// the unique temp path so no other process can be mistaken for it.
+// processAlive reports whether the fake daemon from dir runs, matched on its unique
+// temp path.
 func processAlive(t *testing.T, dir string) bool {
 	t.Helper()
 	return exec.CommandContext(t.Context(), "pgrep", "-f", filepath.Join(dir, daemonBinary)).Run() == nil
@@ -134,8 +132,7 @@ func waitFor(t *testing.T, cond func() bool, what string) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
-// A profile picks a templated systemd instance, so one installed unit file serves every
-// account anybody adds.
+// A profile picks a templated instance, so one unit file serves every account.
 func TestUnitForProfile(t *testing.T) {
 	t.Parallel()
 
@@ -147,7 +144,7 @@ func TestUnitForProfile(t *testing.T) {
 	}
 }
 
-// A daemon that holds the socket open but never answers must not hang the client.
+// A daemon holding the socket open but never answering does not hang the client.
 func TestStatusProbeIsBoundedAgainstASilentDaemon(t *testing.T) {
 	t.Parallel()
 
@@ -170,8 +167,7 @@ func TestStatusProbeIsBoundedAgainstASilentDaemon(t *testing.T) {
 			case accepted <- struct{}{}:
 			default:
 			}
-			// Hold it open and never reply. Closing would give the client an error
-			// immediately, which is the case that already worked.
+			// Hold it open, never reply; closing would error at once, which already worked.
 			t.Cleanup(func() { _ = conn.Close() })
 		}
 	}()
@@ -183,8 +179,7 @@ func TestStatusProbeIsBoundedAgainstASilentDaemon(t *testing.T) {
 	if perr == nil {
 		t.Fatal("expected an error from a daemon that never answers")
 	}
-	// The bound is reattachProbeTimeout; allow generous slack for a loaded machine
-	// while still failing outright if the call was unbounded.
+	// The bound is reattachProbeTimeout; generous slack still catches an unbounded call.
 	if limit := 10 * time.Second; elapsed > limit {
 		t.Errorf("statusProbe took %s, want it bounded near %s", elapsed, reattachProbeTimeout)
 	}

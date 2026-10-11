@@ -18,9 +18,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/spell"
 )
 
-// Spell checking lives in the daemon because the engine is a subprocess. The text
-// crosses rather than words, because the tokenizer (internal/spell) decides what a
-// word is.
+// Spell checking lives in the daemon because the engine is a subprocess. Text crosses,
+// not words, because the tokenizer (internal/spell) decides what a word is.
 
 // SpellSettings is the [spell] configuration, translated by the caller.
 type SpellSettings struct {
@@ -30,8 +29,8 @@ type SpellSettings struct {
 	Command string
 	// Dictionaries narrows which installed ones to load; empty means all.
 	Dictionaries []string
-	// FlagRare is `[spell] flag_rare_words`: also mark accepted words when a much commoner
-	// word is one slip away (needs the language's frequency list).
+	// FlagRare is `[spell] flag_rare_words`: also mark accepted words one slip from a much
+	// commoner word (needs the language's frequency list).
 	FlagRare bool
 	// RareRatio is `[spell] rare_ratio`; zero means defaultRareRatio.
 	RareRatio int
@@ -40,8 +39,8 @@ type SpellSettings struct {
 // defaultRareRatio is the measured default for `rare_ratio`.
 const defaultRareRatio = 100
 
-// spellRestarts is how many times a dead engine is restarted before giving up (a
-// crash on a bad dictionary repeats; don't fork per keystroke).
+// spellRestarts caps restarts of a dead engine: a crash on a bad dictionary repeats,
+// and forking per keystroke must not happen.
 const spellRestarts = 3
 
 // spellTimeout bounds one CheckSpelling call; exceeding it kills the child.
@@ -50,8 +49,8 @@ const spellTimeout = 2 * time.Second
 // spellMemoLimit caps the word→verdict memo; reaching it empties the memo.
 const spellMemoLimit = 4096
 
-// spellcheck is the engine as the backend holds it: started on first check, restarted
-// on death up to spellRestarts.
+// spellcheck is the engine, started on first check and restarted on death up to
+// spellRestarts.
 type spellcheck struct {
 	mu       sync.Mutex
 	settings SpellSettings
@@ -68,24 +67,23 @@ type spellcheck struct {
 	// appends without deduplicating).
 	personal *spell.WordFile
 	// dirs is where dictionaries are looked for (zero: the real search paths); dirs[0]
-	// also holds the personal dictionary. Tests set their own.
+	// also holds the personal dictionary.
 	dirs []string
 	// freqs is where frequency lists are looked for; empty means the real one.
 	freqs string
-	// log is the backend's logger (see UseLogger); nil is silent.
+	// log is the backend's logger; nil is silent.
 	log *slog.Logger
 	// data is kith's data directory ([storage] data_dir); empty is the default one.
 	data string
 }
 
-// home is kith's data directory, where dictionaries and word counts are installed.
+// home is the data directory, where dictionaries and word counts are installed.
 func (s *spellcheck) home() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.homeLocked()
 }
 
-// homeLocked is home with mu held.
 func (s *spellcheck) homeLocked() string {
 	if s.data != "" {
 		return s.data
@@ -101,7 +99,6 @@ func (s *spellcheck) logger() *slog.Logger {
 	return s.log
 }
 
-// lookIn is where to search for dictionaries.
 func (s *spellcheck) lookIn() []string {
 	if len(s.dirs) > 0 {
 		return s.dirs
@@ -122,15 +119,15 @@ func (s *spellcheck) freqDir() string {
 	return spell.FreqDir(s.homeLocked())
 }
 
-// UseSpell sets the spelling settings. Wired at startup.
+// UseSpell sets the spelling settings.
 func (s *Service) UseSpell(settings SpellSettings) {
 	s.spell.mu.Lock()
 	defer s.spell.mu.Unlock()
 	s.spell.settings = settings
 }
 
-// CheckSpelling returns the words in text the engine does not accept, plus rare-word
-// hints when enabled. Verdicts are memoized per word.
+// CheckSpelling returns the words in text the engine rejects, plus rare-word hints
+// when enabled. Verdicts are memoized per word.
 func (s *Service) CheckSpelling(ctx context.Context, text string) ([]domain.Misspelling, error) {
 	words := spell.Words(text)
 	if len(words) == 0 {
@@ -151,7 +148,7 @@ func (s *Service) CheckSpelling(ctx context.Context, text string) ([]domain.Miss
 			return nil, err
 		}
 		if verdict.OK {
-			// Accepted; maybe still a rare-word slip.
+			// Accepted, but maybe a rare-word slip.
 			if hint, rare := s.spell.rare(w); rare {
 				out = append(out, domain.Misspelling{
 					Word: w.Text, Start: w.Start, End: w.End,
@@ -167,7 +164,7 @@ func (s *Service) CheckSpelling(ctx context.Context, text string) ([]domain.Miss
 	return out, nil
 }
 
-// rare asks the frequency list about an accepted word. Unmemoized: it is cheap.
+// rare asks the frequency list about an accepted word; cheap, so unmemoized.
 func (s *spellcheck) rare(w spell.Word) (spell.Hint, bool) {
 	s.mu.Lock()
 	r, ok := s.rarity[w.Script]
@@ -188,7 +185,7 @@ func (s *spellcheck) allowList() string {
 	return filepath.Join(s.lookIn()[0], "rare-ok.txt")
 }
 
-// AllowRareWord records that a word is not worth hinting about, permanently.
+// AllowRareWord permanently stops hinting about a word.
 func (s *Service) AllowRareWord(_ context.Context, word string) error {
 	s.spell.mu.Lock()
 	if s.spell.allowed == nil {
@@ -202,9 +199,9 @@ func (s *Service) AllowRareWord(_ context.Context, word string) error {
 	return nil
 }
 
-// loadRarity reads the frequency list of every installed dictionary that has one,
-// keyed by script. A script claimed by two dictionaries is left out: a German word
-// measured against English counts would always look rare.
+// loadRarity reads the frequency list of every installed dictionary with one, keyed by
+// script. A script claimed by two dictionaries is left out: a German word measured
+// against English counts would always look rare.
 func loadRarity(log *slog.Logger, avail spell.Availability, dir string) map[spell.Script]*spell.Rarity {
 	type found struct {
 		tag    string
@@ -216,7 +213,7 @@ func loadRarity(log *slog.Logger, avail spell.Availability, dir string) map[spel
 	for _, d := range avail.Dictionaries {
 		aff, err := spell.ReadAffix(filepath.Join(d.Dir, d.Tag+".aff"))
 		if err != nil {
-			// The dictionary loaded for checking, so an unreadable .aff is worth saying.
+			// The dictionary loaded for checking, so an unreadable .aff is worth reporting.
 			log.Warn("rare-word hints: read affix file failed", "dictionary", d.Tag, "err", err)
 			continue
 		}
@@ -231,8 +228,7 @@ func loadRarity(log *slog.Logger, avail spell.Availability, dir string) map[spel
 		}
 		freq, err := spell.LoadFreq(spell.FreqFile(dir, d.tag))
 		if err != nil {
-			// Not installed is the usual case (`kith --add-frequencies`); anything
-			// else is a broken list.
+			// Not installed is usual (`kith --add-frequencies`); anything else is a broken list.
 			level := slog.LevelWarn
 			if errors.Is(err, fs.ErrNotExist) {
 				level = slog.LevelDebug
@@ -248,7 +244,7 @@ func loadRarity(log *slog.Logger, avail spell.Availability, dir string) map[spel
 	return out
 }
 
-// reloadRarity re-reads the frequency lists after one is installed. It rescans: a new
+// reloadRarity re-reads the frequency lists after an install, rescanning because a new
 // list can change which scripts are unambiguous.
 func (s *spellcheck) reloadRarity() {
 	s.mu.Lock()
@@ -261,8 +257,8 @@ func (s *spellcheck) reloadRarity() {
 }
 
 // LearnWord teaches the engine a word: forever writes the personal dictionary,
-// otherwise it is accepted for this engine's life. The memo forgets the word either
-// way, or it would stay underlined.
+// otherwise it lasts the engine's life. The memo forgets the word either way, or it
+// would stay underlined.
 func (s *Service) LearnWord(_ context.Context, word string, forever bool) error {
 	if word == "" {
 		return nil
@@ -289,7 +285,7 @@ func (s *Service) LearnWord(_ context.Context, word string, forever bool) error 
 		return fail(err)
 	}
 	if forever {
-		// Save now: a killed daemon must not lose the word.
+		// Save now so a killed daemon does not lose the word.
 		if err := checker.Save(); err != nil {
 			return fail(err)
 		}
@@ -299,7 +295,6 @@ func (s *Service) LearnWord(_ context.Context, word string, forever bool) error 
 	return nil
 }
 
-// taught reports whether the personal dictionary already holds a word.
 func (s *spellcheck) taught(word string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -313,14 +308,13 @@ func (s *spellcheck) noteTaught(word string) {
 	s.personal.Remember(word)
 }
 
-// forget drops one word from the memo.
 func (s *spellcheck) forget(word string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.memo, word)
 }
 
-// verdict answers for one word, from the memo when it can.
+// verdict answers for one word, from the memo when possible.
 func (s *spellcheck) verdict(ctx context.Context, c *spell.Checker, word string) (spell.Verdict, error) {
 	if v, ok := s.remembered(word); ok {
 		return v, nil
@@ -353,14 +347,14 @@ func (s *spellcheck) engine() (*spell.Checker, error) {
 
 	avail, _ := spell.Look(s.settings.Command, s.settings.Dictionaries, s.lookIn())
 	if !avail.Ready() {
-		// No engine or no dictionary: won't change while this process runs.
+		// No engine or no dictionary won't change while this process runs.
 		s.gone = true
 		return nil, fmt.Errorf("%w: %s", api.ErrSpellUnavailable, avail.Why(spell.Distro()))
 	}
-	// Create the personal dictionary's directory now: hunspell opens it at startup.
+	// hunspell opens the personal dictionary at startup, so create its directory now.
 	personal := s.personalDic()
 	if err := os.MkdirAll(filepath.Dir(personal), 0o700); err != nil {
-		// Still checkable; only the "add to dictionary" half is lost, so say why.
+		// Still checkable; only "add to dictionary" is lost.
 		s.logger().Warn("personal dictionary unavailable", "err", err)
 		personal = ""
 	}
@@ -381,19 +375,16 @@ func (s *spellcheck) engine() (*spell.Checker, error) {
 	return checker, nil
 }
 
-// retire drops a checker that has died, unless a later one has already replaced it.
+// retire drops a dead checker unless a later one already replaced it.
 func (s *spellcheck) retire(dead *spell.Checker) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.checker == dead {
-		// The engine already died; Close only reaps it, and why it died is the
-		// error the caller is returning.
-		_ = s.checker.Close() // ignored: see above
+		_ = s.checker.Close() // ignored: Close only reaps a dead engine; the caller returns why it died
 		s.checker = nil
 	}
 }
 
-// remembered is the memo lookup.
 func (s *spellcheck) remembered(word string) (spell.Verdict, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -401,7 +392,6 @@ func (s *spellcheck) remembered(word string) (spell.Verdict, bool) {
 	return v, ok
 }
 
-// remember writes the memo.
 func (s *spellcheck) remember(word string, v spell.Verdict) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

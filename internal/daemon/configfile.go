@@ -11,33 +11,29 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// The daemon is the config file's one writer: a client changes it with UpdateConfig,
-// on the revision it read, and every client hears the result. The revision is the
-// file's contents, so a hand edit made meanwhile refuses a change made on the file
-// before it, rather than being written over.
+// The daemon is the config file's one writer. Clients write via UpdateConfig on the
+// revision they read; the revision is the file's contents, so a hand edit made
+// meanwhile refuses the stale change instead of being overwritten.
 
-// unwritable is a config the daemon would run with but could not write: its own
-// failure (a read-only file system), not the client's input.
+// unwritable is a valid config the daemon could not write (e.g. read-only file
+// system): its failure, not the client's input.
 type unwritable struct{ err error }
 
 func (u unwritable) Error() string { return "daemon: write the config: " + u.err.Error() }
 func (u unwritable) Unwrap() error { return u.err }
 
-// ConfigFile is the config file the daemon serves: its path and the [[profile]] it
-// runs as. Build it with NewConfigFile.
+// ConfigFile is the config file the daemon serves and the [[profile]] it runs as.
 type ConfigFile struct {
 	path, profile string
 	// mu serializes writes, each read-check-write-apply as one.
 	mu sync.Mutex
 }
 
-// NewConfigFile is the config at path, served as profile.
 func NewConfigFile(path, profile string) *ConfigFile {
 	return &ConfigFile{path: path, profile: profile}
 }
 
-// Read is the configuration as the daemon serves it (its profile applied), and the
-// file's revision.
+// Read is the served configuration (profile applied) and the file's revision.
 func (f *ConfigFile) Read() (config.Snapshot, error) {
 	data, err := os.ReadFile(f.path)
 	if err != nil {
@@ -54,10 +50,9 @@ func (f *ConfigFile) Read() (config.Snapshot, error) {
 	return config.Snapshot{Config: served, Revision: config.Revision(data)}, nil
 }
 
-// Write makes cfg the config file, if the file is still at base and check passes it,
-// then puts it in force with apply. cfg is as a client has it, its profile applied;
-// what is written keeps the account in [[profile]] blocks where the file keeps it
-// there. It returns what was written.
+// Write makes cfg the config file if the file is still at base and check passes, then
+// applies it, returning what was written. cfg has its profile applied; the account
+// stays in [[profile]] blocks where the file keeps it there.
 func (f *ConfigFile) Write(ctx context.Context, base string, cfg config.Config, check CheckConfig, apply Reload) (config.Snapshot, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

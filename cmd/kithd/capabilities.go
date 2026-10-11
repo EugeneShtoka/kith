@@ -9,10 +9,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/whatsapp"
 )
 
-// What each network can do, said where it is wired. The router asks an adapter for a
-// capability when a call needs it, so a method whose signature drifted would silently
-// make the network refuse that call; these make it a build error instead. A
-// capability a network gains is added here.
+// Compile-time capability assertions per network: the router asks for capabilities by
+// interface, so a drifted method signature would silently make the network refuse the
+// call. Add a capability here when a network gains it.
 var (
 	_ interface {
 		route.Adapter

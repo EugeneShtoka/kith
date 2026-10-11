@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/agent"
 )
 
-// With at, a room the list sends to gets the message queued for that time, recorded as
-// scheduled, its words shortened as any other's; and it rests the room as a send does.
+// With at, a send-list room gets the message queued for that time, recorded as
+// scheduled, dashes shortened, and the room rests as after a send.
 func TestALaterSendIsQueuedForItsTime(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
@@ -35,8 +35,8 @@ func TestALaterSendIsQueuedForItsTime(t *testing.T) {
 	}
 }
 
-// A room only drafted into refuses a later send, recorded; a time not RFC 3339, or
-// past, is refused before anything.
+// A draft-only room refuses a later send (recorded); a non-RFC 3339 or past time is
+// refused first.
 func TestALaterSendIsRefusedWhereItWouldBeDrafted(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()

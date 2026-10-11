@@ -23,8 +23,8 @@ type fake struct {
 	fail   error // every call fails with this, when set
 	// failMarking refuses MarkRoomsRead outright (nothing attempted).
 	failMarking error
-	// failEach and skipEach make MarkRoomsRead attempt every room but report the
-	// first failEach as failed and the next skipEach as skipped.
+	// failEach and skipEach make MarkRoomsRead attempt every room but report the first
+	// failEach as failed and the next skipEach as skipped.
 	failEach, skipEach int
 	// encrypted is what RoomEncryption answers per room (absent: false).
 	encrypted map[domain.RoomID]bool
@@ -354,14 +354,13 @@ func (m *fakeMatrix) calls() []string {
 	return append([]string(nil), m.matrixCalls...)
 }
 
-// spacedFake is a network with spaces of its own beside Matrix's (WhatsApp's
-// communities); a plain fake has none.
+// spacedFake is a network with its own spaces (WhatsApp communities).
 type spacedFake struct{ *fake }
 
 func (f spacedFake) Spaces(context.Context) ([]domain.Space, error)        { return f.spaces, f.fail }
 func (f spacedFake) RefreshSpaces(context.Context) ([]domain.Space, error) { return f.spaces, f.fail }
 
-// threadedFake is a network with threads beside Matrix's (Slack); a plain fake has none.
+// threadedFake is a network with its own threads (Slack).
 type threadedFake struct{ *fake }
 
 func (f threadedFake) ListThreads(_ context.Context, room domain.RoomID) ([]domain.Thread, error) {
@@ -392,8 +391,7 @@ func routed(matrix *fakeMatrix, others map[domain.Protocol]Adapter) *Router {
 	return New(adapters)
 }
 
-// bare is a network with no capability beyond running and streaming, as a new
-// adapter is before it does anything else.
+// bare is a network with no capability beyond running and streaming.
 type bare struct{ f *fake }
 
 func (b bare) Start(ctx context.Context) error         { return b.f.Start(ctx) }

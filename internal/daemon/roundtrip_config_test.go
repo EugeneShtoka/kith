@@ -12,9 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/daemon"
 )
 
-// A config a client means to write reaches the daemon's check whole, as the client
-// holds it, and the check's refusal comes back in its own words; a daemon with no
-// check refuses the call rather than passing everything.
+// A config reaches the daemon's check whole and the refusal comes back in its words;
+// a daemon with no check refuses the call.
 func TestCheckConfigRoundTrip(t *testing.T) {
 	t.Parallel()
 	var got config.Config
@@ -48,7 +47,7 @@ func TestCheckConfigRoundTrip(t *testing.T) {
 	}
 }
 
-// serveCheck serves a daemon with check, and is a client of it.
+// serveCheck serves a daemon with check and returns a client.
 func serveCheck(t *testing.T, check daemon.CheckConfig) *daemon.Remote {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "kithd.sock")

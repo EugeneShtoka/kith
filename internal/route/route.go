@@ -1,7 +1,6 @@
-// Package route serves the chat networks as one: a call about a room goes to the
-// adapter for that room's network, a list is every adapter's, and a stream carries
-// every adapter's events. Matrix is optional, like every network; it alone has
-// spaces, membership, threads, device verification and key backup.
+// Package route serves the chat networks as one: a room call goes to that room's
+// adapter, a list joins every adapter's, and a stream merges their events. Matrix is
+// optional; it alone has spaces, membership, threads, verification and key backup.
 package route
 
 import (
@@ -17,11 +16,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Adapter is one chat network. Every adapter runs, streams what it hears, and knows
-// who the person is on it; everything else is a capability it has or lacks (below).
-// A call about a room asks that room's network for the capability, and a network
-// without it refuses with api.ErrNotOnNetwork. What the daemon answers from its cache
-// whatever the network is internal/local's.
+// Adapter is one chat network: it runs, streams events and knows who the person is on
+// it. Everything else is an optional capability; a room's network lacking one refuses
+// with api.ErrNotOnNetwork. Cache-only answers are internal/local's.
 type Adapter interface {
 	// Start connects and runs until ctx ends or Stop is called. It blocks.
 	Start(ctx context.Context) error
@@ -36,8 +33,8 @@ type Adapter interface {
 
 // The capabilities an adapter may have.
 type (
-	// Session is a network that can be there and not usable yet: until LoggedIn turns
-	// true (once, before anything reaches it), the router treats it as off.
+	// Session is a network that exists before it is usable: until LoggedIn turns true
+	// (once, before anything reaches it), the router treats it as off.
 	Session interface{ LoggedIn() bool }
 	// Resync refills an emptied cache from the start.
 	Resync interface {
@@ -79,8 +76,8 @@ type (
 	// Groupings is a network whose people group their chats themselves (Telegram's
 	// folders), copied into tags when asked.
 	Groupings interface {
-		// Groupings is one account's groupings as they are now, and the rooms that
-		// account sees (what a copy may change in a tag).
+		// Groupings is one account's current groupings and the rooms it sees (what a copy
+		// may change in a tag).
 		Groupings(ctx context.Context, account string) (domain.RoomOwner, []domain.Grouping, error)
 	}
 	// Stars is bookmarks.
@@ -117,8 +114,7 @@ type (
 	Voter interface {
 		VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error
 	}
-	// ChatMaker makes a chat (a group, a forum, a channel, a community) on one of its
-	// accounts, the one spec.On names.
+	// ChatMaker makes a chat (group, forum, channel, community) on the account spec.On names.
 	ChatMaker interface {
 		CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error)
 	}
@@ -141,9 +137,8 @@ type (
 	Media interface {
 		LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 	}
-	// Encryption says which rooms are end-to-end encrypted. A network without it is
-	// taken to encrypt every room: what reads it decides who may read a room (the
-	// agent's scope), and a network that forgot to say must not widen that.
+	// Encryption says which rooms are end-to-end encrypted. A network without it counts
+	// as encrypting every room: agent scope depends on it and must not widen by omission.
 	Encryption interface {
 		RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	}
@@ -152,7 +147,7 @@ type (
 		Spaces(ctx context.Context) ([]domain.Space, error)
 		RefreshSpaces(ctx context.Context) ([]domain.Space, error)
 	}
-	// SpaceEditor files rooms into spaces (Matrix's: a WhatsApp community is its
+	// SpaceEditor files rooms into spaces (Matrix only: a WhatsApp community is its
 	// admins' to fill).
 	SpaceEditor interface {
 		AddToSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error
@@ -170,17 +165,16 @@ type (
 type Router struct {
 	// adapters are the networks, by the network their IDs name.
 	adapters map[domain.Protocol]Adapter
-	// all is every adapter in the networks' order: started, stopped and streamed
-	// from, logged in or not.
+	// all is every adapter in network order, logged in or not.
 	all []Adapter
 
-	// noInvites and noVerifications stand in for the streams of a capability no
-	// network has: nothing is sent on them, and Stop closes them.
+	// noInvites and noVerifications stand in for streams no network has: never sent on,
+	// closed by Stop.
 	noInvites       chan []domain.Room
 	noVerifications chan domain.Verification
 
-	// done ends the merged streams' pumps when the router stops, so a reader that
-	// went away cannot leave one blocked on a send.
+	// done ends the merged streams' pumps on Stop, so a departed reader cannot leave one
+	// blocked on a send.
 	done     chan struct{}
 	stopOnce sync.Once
 
@@ -193,8 +187,8 @@ type Router struct {
 	verifications <-chan domain.Verification
 }
 
-// New routes adapters, keyed by the network their IDs name. None at all is a daemon
-// with no account yet: it answers with nothing until :login sets one up.
+// New routes adapters keyed by the network their IDs name. None at all is a daemon
+// with no account yet, answering nothing until :login sets one up.
 func New(adapters map[domain.Protocol]Adapter) *Router {
 	r := &Router{
 		adapters: maps.Clone(adapters), done: make(chan struct{}),
@@ -206,7 +200,7 @@ func New(adapters map[domain.Protocol]Adapter) *Router {
 	return r
 }
 
-// on reports whether a can be asked: it has no session to wait for, or has one.
+// on reports whether a can be asked: it has no session, or a logged-in one.
 func on(a Adapter) bool {
 	s, ok := a.(Session)
 	return !ok || s.LoggedIn()
@@ -225,8 +219,7 @@ func (r *Router) adapterFor(id string) (Adapter, error) {
 	return a, nil
 }
 
-// onRoom runs call on roomID's network, as the capability C; what names C in the
-// refusal of a network without it.
+// onRoom runs call on roomID's network as capability C; what names C in the refusal.
 func onRoom[C, T any](r *Router, roomID domain.RoomID, what string, call func(C) (T, error)) (T, error) {
 	var zero T
 	a, err := r.adapterFor(string(roomID))
@@ -268,8 +261,8 @@ func having[C any](r *Router) []C {
 	return out
 }
 
-// gather is every live answer of the networks with capability C, concatenated in
-// order. One failing fails the whole read: a partial list would read as complete.
+// gather concatenates every live answer of the networks with C, in order. One failure
+// fails the read: a partial list would read as complete.
 func gather[C, T any](r *Router, read func(C) ([]T, error)) ([]T, error) {
 	var out []T
 	for _, c := range having[C](r) {
@@ -282,8 +275,8 @@ func gather[C, T any](r *Router, read func(C) ([]T, error)) ([]T, error) {
 	return out, nil
 }
 
-// sole is the live network with capability C, for a call that names no room (keys,
-// verification, a new room); ErrNetworkOff when none has it.
+// sole is the live network with C, for a call naming no room (keys, verification, a
+// new room); ErrNetworkOff when none has it.
 func sole[C any](r *Router, what string) (C, error) {
 	if found := having[C](r); len(found) > 0 {
 		return found[0], nil
@@ -292,8 +285,8 @@ func sole[C any](r *Router, what string) (C, error) {
 	return zero, fmt.Errorf("%w: nothing logged in does %s", api.ErrNetworkOff, what)
 }
 
-// byNetwork splits rooms by the adapter that serves them with capability C, keeping
-// their order; rooms on no such network are returned apart, with why.
+// byNetwork splits rooms by the adapter serving them with C, keeping order; rooms on
+// no such network are returned apart, with why.
 func byNetwork[C any](r *Router, rooms []domain.RoomID, what string) (map[Adapter][]domain.RoomID, map[domain.RoomID]error) {
 	parts := make(map[Adapter][]domain.RoomID)
 	off := map[domain.RoomID]error{}
@@ -313,8 +306,7 @@ func byNetwork[C any](r *Router, rooms []domain.RoomID, what string) (map[Adapte
 	return parts, off
 }
 
-// Start runs every adapter until ctx ends, and returns when all have, with what
-// each ended with.
+// Start runs every adapter until ctx ends and returns when all have, with their errors.
 func (r *Router) Start(ctx context.Context) error {
 	if len(r.all) == 0 {
 		<-ctx.Done() // no network: the daemon still runs, for :login to reach
@@ -360,7 +352,7 @@ func (r *Router) Me() []string {
 // Selves is Me as the API serves it (api.Identity).
 func (r *Router) Selves(context.Context) ([]string, error) { return r.Me(), nil }
 
-// RewindSync has every network that can refill the emptied cache, logged in or not.
+// RewindSync has every network that can refill the emptied cache do so, logged in or not.
 func (r *Router) RewindSync(ctx context.Context) error {
 	var errs []error
 	for _, a := range r.all {
@@ -398,9 +390,8 @@ func (r *Router) DirectCandidates(ctx context.Context, limit int) ([]domain.Memb
 	return out, nil
 }
 
-// MarkRoomsRead marks each room read through its network. One network refusing
-// outright counts its rooms as failed; only when nothing could be attempted at all
-// is it an error.
+// MarkRoomsRead marks each room read through its network. A network refusing outright
+// counts its rooms as failed; it is an error only when nothing could be attempted.
 func (r *Router) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error) {
 	parts, off := byNetwork[ReadState](r, roomIDs, "read state")
 	var total domain.ReadResult
@@ -435,8 +426,7 @@ func (r *Router) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, pri
 			fail(got.Failed, got.FirstError)
 		}
 	}
-	// Counting can't tell "nothing was attempted": a network may try every room it
-	// has and fail them all.
+	// Counts cannot tell "nothing attempted": a network may try and fail every room.
 	if refused != nil && !attempted {
 		return domain.ReadResult{}, refused
 	}
@@ -451,8 +441,8 @@ func cmpOr(a, b error) error {
 	return b
 }
 
-// RoomEncryption asks each room's network. A room on no connected network, or on one
-// that does not say, reports as encrypted (the safe direction).
+// RoomEncryption asks each room's network; a room on no connected network, or one that
+// does not say, reports as encrypted.
 func (r *Router) RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {
 	parts, off := byNetwork[Encryption](r, roomIDs, "encryption")
 	out := make(map[domain.RoomID]bool, len(roomIDs))

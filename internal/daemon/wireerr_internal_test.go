@@ -11,8 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 )
 
-// A call the daemon abandoned for its context crosses as that, not as "internal", and
-// the client can test for it with errors.Is as it would a local call.
+// A call abandoned for its context crosses as that error, not "internal", so errors.Is
+// works as for a local call.
 func TestContextErrorsCrossTheWireAsThemselves(t *testing.T) {
 	t.Parallel()
 

@@ -15,13 +15,13 @@ import (
 // Process-creation flags from winbase.h (not in package syscall).
 const (
 	detachedProcess = 0x00000008
-	// createBreakawayFromJob leaves a kill-on-close job (SSH, IDE terminals) the
-	// client may run in, so the daemon does not die with the terminal.
+	// createBreakawayFromJob leaves a kill-on-close job (SSH, IDE terminals) so the
+	// daemon does not die with the terminal.
 	createBreakawayFromJob = 0x01000000
 )
 
-// detach starts kithd.exe with no console in its own process group — the Windows
-// shape of `setsid kithd`. context.Background() as in detach_unix.go.
+// detach starts kithd.exe with no console in its own process group, the Windows
+// `setsid kithd`. context.Background() as in detach_unix.go.
 func detach(daemonArgs []string) error {
 	path, err := daemonPath()
 	if err != nil {
@@ -31,7 +31,7 @@ func detach(daemonArgs []string) error {
 	start := func(flags uint32) error {
 		cmd := exec.CommandContext(context.Background(), path, args...) // #nosec G204 -- path is kithd.exe beside us or on PATH; the profile is a config-file name
 		cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: flags, HideWindow: true}
-		// Not the client's console: the daemon logs to DaemonLogPath (--log-file).
+		// Not the client's console: the daemon logs to its --log-file.
 		cmd.Stdout, cmd.Stderr = nil, nil
 		if err := cmd.Start(); err != nil {
 			return fmt.Errorf("start %s: %w", path, err)
@@ -41,8 +41,8 @@ func detach(daemonArgs []string) error {
 		return nil
 	}
 	base := uint32(detachedProcess | syscall.CREATE_NEW_PROCESS_GROUP)
-	// Breakaway first; a job that forbids it refuses the whole CreateProcess with
-	// ACCESS_DENIED, and then the plain start is the best there is.
+	// Breakaway first; a job forbidding it fails CreateProcess with ACCESS_DENIED, and
+	// the plain start is then the best there is.
 	if err := start(base | createBreakawayFromJob); err == nil {
 		return nil
 	} else if !errors.Is(err, syscall.ERROR_ACCESS_DENIED) {
@@ -54,8 +54,8 @@ func detach(daemonArgs []string) error {
 	return nil
 }
 
-// daemonPath finds kithd.exe: beside this executable first (an unzipped release
-// is often not on PATH), then on PATH.
+// daemonPath finds kithd.exe beside this executable (an unzipped release is often not
+// on PATH), then on PATH.
 func daemonPath() (string, error) {
 	if self, err := os.Executable(); err == nil {
 		sibling := filepath.Join(filepath.Dir(self), daemonBinary+".exe")

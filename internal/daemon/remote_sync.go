@@ -14,12 +14,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Start attaches to every daemon stream and pumps each onto its channel,
-// blocking until ctx is canceled or Stop is called. It starts no sync loop: the
-// daemon syncs regardless, so "start" means "attach".
-//
-// It survives the daemon restarting: losing the streams is a reconnect, not an
-// ending (see hold and Attached). The channels close once, when Start returns.
+// Start attaches to every daemon stream and pumps each onto its channel, blocking
+// until ctx ends or Stop. The daemon syncs regardless, so "start" means "attach". A
+// daemon restart is a reconnect, not an ending; the channels close once, on return.
 func (r *Remote) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -36,8 +33,8 @@ func (r *Remote) Start(ctx context.Context) error {
 	return r.hold(ctx)
 }
 
-// firstAttachTries bounds attempts before deciding there is no daemon (about two
-// seconds with reattachDelays): long enough to cover a restart racing startup.
+// firstAttachTries bounds attempts before deciding there is no daemon (about 2s with
+// reattachDelays), covering a restart racing startup.
 const firstAttachTries = 4
 
 // reattachDelays backs off to five seconds and stays there.
@@ -56,16 +53,12 @@ func reattachDelay(attempt int) time.Duration {
 	return reattachDelays[min(attempt, len(reattachDelays)-1)]
 }
 
-// hold stays attached for as long as this client is meant to be, reattaching when
-// the daemon goes away. Each attempt gets its own context because the first
-// stream to end cancels the rest.
+// hold stays attached, reattaching when the daemon goes away; each attempt gets its
+// own context because the first stream to end cancels the rest.
 //
-// Only a client that has never reached a daemon may give up, after firstAttachTries.
-// This must be a flag, not the attempt count: a count spent by ordinary restarts
-// once left long-lived clients permanently stream-less. And it is set when a daemon
-// answers, before the streams open, not when an attachment ends cleanly: one ended by
-// a crash ends in an error, and a client attached for hours then gave up two seconds
-// into the restart.
+// Only a client that never reached a daemon may give up. That is a flag set when a
+// daemon answers, not an attempt count or a clean end: either once left long-lived
+// clients stream-less after an ordinary restart or crash.
 func (r *Remote) hold(ctx context.Context) error {
 	everAttached := false
 	attempt := 0
@@ -80,8 +73,8 @@ func (r *Remote) hold(ctx context.Context) error {
 		if r.finished(ctx) {
 			return nil
 		}
-		// A first subscribe can fail because the daemon that answered Attach's
-		// probe is restarting, so it is retried unless nothing answers at all.
+		// A first subscribe can fail because the daemon is restarting, so it is retried
+		// unless nothing answers at all.
 		if !everAttached && err != nil && !r.daemonAnswers(ctx) {
 			if attempt >= firstAttachTries-1 {
 				return err
@@ -98,9 +91,9 @@ func (r *Remote) hold(ctx context.Context) error {
 			continue
 		}
 		everAttached = true
-		// A loss after a steady attachment starts its backoff over; one that ended at
-		// once keeps climbing. A daemon whose sync failed for good still answers Status
-		// but ends every stream, and resetting there reconnected every 250ms forever.
+		// A loss after a steady attachment restarts the backoff; a quick one keeps climbing.
+		// A daemon whose sync failed for good still answers Status but ends every stream,
+		// and resetting there reconnected every 250ms forever.
 		if time.Since(began) >= steadyAttach {
 			attempt = 0
 		} else {
@@ -114,12 +107,12 @@ func (r *Remote) hold(ctx context.Context) error {
 	}
 }
 
-// steadyAttach is how long an attachment must last for its loss to count as new
-// rather than as the same outage continuing: the longest backoff step.
+// steadyAttach is how long an attachment must last for its loss to count as a new
+// outage: the longest backoff step.
 var steadyAttach = reattachDelays[len(reattachDelays)-1]
 
-// daemonAnswers probes the socket with a unary Status call. A stream opening
-// proves nothing: connect dials lazily, on the first Receive.
+// daemonAnswers probes with a unary Status call; a stream opening proves nothing,
+// since connect dials lazily on the first Receive.
 func (r *Remote) daemonAnswers(ctx context.Context) bool {
 	probe, cancel := context.WithTimeout(ctx, reattachProbeTimeout)
 	defer cancel()
@@ -127,8 +120,8 @@ func (r *Remote) daemonAnswers(ctx context.Context) bool {
 	return err == nil
 }
 
-// waitToRetry backs off until the socket answers again, so a long outage is one
-// reconnect rather than many. It reports false when the client is finished.
+// waitToRetry backs off until the socket answers again; false when the client is
+// finished.
 func (r *Remote) waitToRetry(ctx context.Context, attempt int) bool {
 	for {
 		select {
@@ -155,13 +148,12 @@ func (r *Remote) say(attached bool) {
 	}
 }
 
-// Attached reports losing the daemon (false) and getting it back (true); see
-// api.Backend. true is sent just before re-subscribing, so a message in that
-// window reaches neither the catch-up read nor the stream; the unread stream
-// still marks its room.
+// Attached reports losing the daemon (false) and getting it back (true). true is sent
+// just before re-subscribing, so a message in that window reaches neither the
+// catch-up read nor the stream; the unread stream still marks its room.
 func (r *Remote) Attached() <-chan bool { return r.attached.ch }
 
-// configPump is the configuration's stream, each change decoded as the file is.
+// configPump streams the configuration, each change decoded as the file is.
 func (r *Remote) configPump(ctx context.Context) error {
 	return pumpStream(ctx, "config", r.configs, r.c.ConfigChanged, &v1.ConfigChangedRequest{},
 		func(f *v1.ConfigChangedResponse) (config.Snapshot, bool) {
@@ -170,9 +162,8 @@ func (r *Remote) configPump(ctx context.Context) error {
 		})
 }
 
-// attach runs one pump per stream until they have all ended. The first to end
-// detaches the rest: they share one connection, so one ending means this client
-// is no longer served. Channels are not closed here.
+// attach runs one pump per stream until all end. The first to end detaches the rest:
+// they share one connection. Channels are not closed here.
 func (r *Remote) attach(ctx context.Context, detach context.CancelFunc) error {
 	pumps := []func(context.Context) error{
 		func(ctx context.Context) error {
@@ -194,8 +185,7 @@ func (r *Remote) attach(ctx context.Context, detach context.CancelFunc) error {
 				})
 		},
 		func(ctx context.Context) error {
-			// Empty frames are delivered: the stream carries the whole set, so empty
-			// means the last invitation was answered.
+			// Empty frames are delivered: the stream carries the whole set.
 			return pumpStream(ctx, "invites", r.invites, r.c.Invites, &v1.InvitesRequest{},
 				func(f *v1.InvitesResponse) ([]domain.Room, bool) {
 					return pc.ProtoToRooms(f.GetInvites()), true
@@ -238,9 +228,8 @@ func (r *Remote) attach(ctx context.Context, detach context.CancelFunc) error {
 	return errors.Join(errs...)
 }
 
-// pumpStream forwards one server stream onto out until it ends or ctx is
-// canceled. convert returns false for a frame to drop. Errors caused by our own
-// cancellation are not failures.
+// pumpStream forwards one server stream onto out until it ends or ctx is canceled;
+// convert returns false to drop a frame. Our own cancellation is not a failure.
 func pumpStream[Req, F, T any](
 	ctx context.Context,
 	name string,
@@ -275,8 +264,8 @@ func pumpStream[Req, F, T any](
 	return nil
 }
 
-// Stop detaches from the daemon, unblocking Start. Safe before Start, more than
-// once, and concurrently.
+// Stop detaches from the daemon, unblocking Start. Safe before Start, repeatedly and
+// concurrently.
 func (r *Remote) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -313,8 +302,8 @@ const (
 	armReattach
 )
 
-// finished reports whether this client is leaving (Stop, or ctx ended), as
-// opposed to the daemon having gone away.
+// finished reports whether this client is leaving (Stop or ctx), as opposed to the
+// daemon having gone away.
 func (r *Remote) finished(ctx context.Context) bool {
 	if ctx.Err() != nil {
 		return true
@@ -324,8 +313,8 @@ func (r *Remote) finished(ctx context.Context) bool {
 	return r.stopped
 }
 
-// arm records the cancel func Stop will call, reporting armStopped if Stop
-// already ran (so an early Stop is not lost) and armReattach on a second Start.
+// arm records the cancel func Stop will call; armStopped if Stop already ran,
+// armReattach on a second Start.
 func (r *Remote) arm(cancel context.CancelFunc) armState {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -341,8 +330,8 @@ func (r *Remote) arm(cancel context.CancelFunc) armState {
 	}
 }
 
-// closeStreams ends every daemon→UI channel, attached and follows included:
-// a listener parked on a channel nothing will close again leaks forever.
+// closeStreams ends every daemon→UI channel: a listener parked on one nothing will
+// close leaks forever.
 func (r *Remote) closeStreams() {
 	r.msgs.done()
 	r.unread.done()

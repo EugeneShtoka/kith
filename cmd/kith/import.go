@@ -14,14 +14,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// groupings is the daemon copying an account's groupings (Telegram's folders) into tags.
+// groupings copies an account's groupings (Telegram folders) into tags via the daemon.
 type groupings interface {
 	LoginNetworks(ctx context.Context) ([]api.LoginNetwork, error)
 	PreviewGroupings(ctx context.Context, network, account string) ([]domain.GroupingDiff, error)
 	ApplyGroupings(ctx context.Context, network, account string, choices map[string]domain.GroupingChoice) error
 }
 
-// runImport is `kith import <network> [account]`: the account's folders, copied into
+// runImport is `kith import <network> [account]`: copies the account's folders into
 // tags once, asking per tag where the copy would change one.
 func runImport(args []string) error {
 	fs := flag.NewFlagSet("import", flag.ExitOnError)
@@ -78,9 +78,9 @@ func importAccount(ctx context.Context, g groupings, network, named string) (str
 	return "", fmt.Errorf("no network is called %s", network)
 }
 
-// askImport previews an account's folders and copies them as answered. offered, after
-// a login: one question for all (new tags made, existing ones only gaining chats), and
-// nothing said when there are none; else a question per tag the copy would change.
+// askImport previews an account's folders and copies them as answered. With offered
+// (after a login): one question for all, silent when there are none; otherwise a
+// question per tag the copy would change.
 func askImport(ctx context.Context, g groupings, in *bufio.Reader, network, account string, offered bool) error {
 	diffs, err := g.PreviewGroupings(ctx, network, account)
 	if offered && (err != nil || len(diffs) == 0) {
@@ -129,7 +129,7 @@ func askImport(ctx context.Context, g groupings, in *bufio.Reader, network, acco
 	return nil
 }
 
-// describeFolder is one folder and what a copy would do with its tag.
+// describeFolder is one folder and what a copy would do to its tag.
 func describeFolder(d domain.GroupingDiff) string {
 	var line strings.Builder
 	line.WriteString(d.Grouping.Name + ": ")
@@ -147,8 +147,8 @@ func describeFolder(d domain.GroupingDiff) string {
 	return line.String()
 }
 
-// chooseFolder asks what to do with one folder's tag: a new one is made when wanted,
-// one that differs taken, merged or kept.
+// chooseFolder asks what to do with one folder's tag: create a new one, or take, merge
+// or keep one that differs.
 func chooseFolder(in *bufio.Reader, d domain.GroupingDiff) domain.GroupingChoice {
 	switch {
 	case !d.Exists:
@@ -168,7 +168,7 @@ func chooseFolder(in *bufio.Reader, d domain.GroupingDiff) domain.GroupingChoice
 	return domain.KeepTags
 }
 
-// yes asks a yes-or-no question; empty is fallback (no, unless given).
+// yes asks a yes-or-no question; empty means fallback (no, unless given).
 func yes(in *bufio.Reader, question string, fallback ...bool) bool {
 	fmt.Print(question)
 	switch answer(in) {
@@ -180,7 +180,7 @@ func yes(in *bufio.Reader, question string, fallback ...bool) bool {
 	return false
 }
 
-// answer is one line read, trimmed and lower-cased; empty at the end of input.
+// answer reads one line, trimmed and lower-cased; empty at end of input.
 func answer(in *bufio.Reader) string {
 	line, _ := in.ReadString('\n')
 	return strings.ToLower(strings.TrimSpace(line))

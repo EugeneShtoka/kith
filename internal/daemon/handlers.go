@@ -22,15 +22,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// server implements BackendService: a thin adapter from the wire to d.Backend,
-// the stream fan-out, and the daemon's own state.
+// server implements BackendService over d.Backend, the stream fan-out and daemon state.
 type server struct {
 	*Daemon
 	// lifetime is the daemon's context, for committed work that must outlive the
-	// request (see MarkRoomsRead). Nil falls back to the request's context.
+	// request; nil falls back to the request's.
 	lifetime context.Context //nolint:containedctx // the process's lifetime, deliberately held
-	// seat is the one window served (Seat).
-	seat *seat
+	seat     *seat
 }
 
 var _ backendv1connect.BackendServiceHandler = (*server)(nil)
@@ -40,12 +38,11 @@ type (
 	resp[T any] = connect.Response[T]
 )
 
-// Reload re-reads the daemon's configuration and applies it, or returns the
-// error that stopped it having changed nothing.
+// Reload re-reads and applies the daemon's configuration, or changes nothing and
+// returns the error.
 type Reload func(ctx context.Context) error
 
-// CheckConfig says whether the daemon would run with cfg, changing nothing: the
-// error is what the user must fix.
+// CheckConfig reports whether the daemon would run with cfg, changing nothing.
 type CheckConfig func(ctx context.Context, cfg config.Config) error
 
 func roomID(id string) domain.RoomID   { return domain.RoomID(id) }
@@ -113,9 +110,8 @@ func (s *server) MarkRead(ctx context.Context, r *req[v1.MarkReadRequest]) (*res
 	return reply(&v1.MarkReadResponse{}, err)
 }
 
-// MarkRoomsRead runs under the daemon's lifetime, not the request's: the user
-// already committed to marking a space read, and net/http cancels a request's
-// context when the client disconnects, which would leave the space half cleared.
+// MarkRoomsRead runs under the daemon's lifetime: net/http cancels the request on
+// client disconnect, which would leave the space half cleared.
 func (s *server) MarkRoomsRead(ctx context.Context, r *req[v1.MarkRoomsReadRequest]) (*resp[v1.MarkRoomsReadResponse], error) {
 	if s.lifetime != nil {
 		ctx = s.lifetime
@@ -380,8 +376,8 @@ func (s *server) UnbanUser(ctx context.Context, r *req[v1.UnbanUserRequest]) (*r
 	return reply(&v1.UnbanUserResponse{}, s.Backend.UnbanUser(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetUserId()))
 }
 
-// CreateRoom returns the ID even alongside an error (the room exists but a
-// later step failed). Connect cannot carry both, so the error travels as Warning.
+// CreateRoom returns the ID even alongside an error (the room exists but a later step
+// failed); Connect cannot carry both, so the error travels as Warning.
 func (s *server) CreateRoom(ctx context.Context, r *req[v1.CreateRoomRequest]) (*resp[v1.CreateRoomResponse], error) {
 	id, err := s.Backend.CreateRoom(ctx, domain.NewRoom{
 		Name:      r.Msg.GetName(),
@@ -432,9 +428,7 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 	return reply(&v1.ReplaceDraftResponse{Saved: saved}, cmp.Or(err, wrote))
 }
 
-// Seat gives the caller the seat and keeps it for as long as the stream is open, or
-// says who has it (see api.Seat).
-// errNoLogins refuses a login of a daemon that runs none.
+// errNoLogins refuses a login on a daemon that runs none.
 var errNoLogins = fmt.Errorf("%w: this daemon logs nothing in", api.ErrNetworkOff)
 
 func (s *server) LoginNetworks(ctx context.Context, _ *req[v1.LoginNetworksRequest]) (*resp[v1.LoginNetworksResponse], error) {
@@ -468,6 +462,7 @@ func (s *server) CancelLogin(ctx context.Context, r *req[v1.CancelLoginRequest])
 	return reply(&v1.CancelLoginResponse{}, s.Logins.CancelLogin(ctx, r.Msg.GetLogin()))
 }
 
+// Seat gives the caller the seat while the stream is open, or says who has it.
 func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {
 	sat, err := s.seat.take(ctx, r.Msg.GetClient(), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
 	if errors.Is(err, api.ErrSeatTaken) {
@@ -491,8 +486,8 @@ func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.S
 	if err := sendFrame(st, &v1.SeatResponse{Event: &v1.SeatResponse_StepAside{StepAside: true}}); err != nil {
 		return err
 	}
-	// The window saves its drafts, then closes the stream; one that does not answer
-	// is let go of here once the seat is given over without it.
+	// The window saves its drafts, then closes the stream; one that does not answer is
+	// let go once the seat is given over.
 	select {
 	case <-ctx.Done():
 	case <-sat.over:
@@ -500,7 +495,6 @@ func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.S
 	return nil
 }
 
-// sendFrame sends one stream frame, as a wire error when it cannot.
 func sendFrame[T any](st *connect.ServerStream[T], frame *T) error {
 	if err := st.Send(frame); err != nil {
 		return rpcErr(fmt.Errorf("send stream frame: %w", err))
@@ -546,11 +540,8 @@ func (s *server) Messages(ctx context.Context, _ *req[v1.MessagesRequest], st *c
 	})
 }
 
-// Follow hands a matrix URI to the attached client; nobody listening is a
-// false, not an error.
-// Follow hands a link to the window that sits: at once when it listens, else when its
-// link stream opens (it is starting up, or reconnecting). Delivered is false only with
-// no window, and `kith --open` then starts one.
+// Follow hands a link to the seated window, now if it listens, else when its link
+// stream opens. Delivered is false only with no window; `kith --open` then starts one.
 func (s *server) Follow(_ context.Context, r *req[v1.FollowRequest]) (*resp[v1.FollowResponse], error) {
 	uri := r.Msg.GetUri()
 	delivered := s.Streams.Follow(uri) || s.seat.keepLink(uri)
@@ -622,7 +613,6 @@ func (s *server) Status(_ context.Context, _ *req[v1.StatusRequest]) (*resp[v1.S
 	return connect.NewResponse(out), nil
 }
 
-// phaseToProto is a Phase on the wire.
 func phaseToProto(p Phase) v1.NetworkPhase {
 	switch p {
 	case PhaseLoggedOut:
@@ -648,7 +638,7 @@ func (s *server) Directory(ctx context.Context, _ *req[v1.DirectoryRequest]) (*r
 	return reply(pc.DirectoryToProto(dir), err)
 }
 
-// protoToPhase is a wire phase as a Phase; one this build does not know is 0.
+// protoToPhase maps a wire phase to a Phase; one this build does not know is 0.
 func protoToPhase(p v1.NetworkPhase) Phase {
 	switch p {
 	case v1.NetworkPhase_NETWORK_PHASE_LOGGED_OUT:
@@ -683,8 +673,8 @@ func (s *server) ImportRoomKeys(ctx context.Context, r *req[v1.ImportRoomKeysReq
 	return reply(&v1.ImportRoomKeysResponse{Imported: int64(imported), Total: int64(total)}, err)
 }
 
-// BootstrapKeyBackup reports a failure after the recovery key exists in
-// Incomplete, not as an error, so the key is never lost.
+// BootstrapKeyBackup reports a failure after the recovery key exists in Incomplete,
+// not as an error, so the key is never lost.
 func (s *server) BootstrapKeyBackup(ctx context.Context, r *req[v1.BootstrapKeyBackupRequest]) (*resp[v1.BootstrapKeyBackupResponse], error) {
 	made, err := s.Backend.BootstrapKeyBackup(ctx, r.Msg.GetPassword())
 	return reply(pc.KeyBackupToProto(made), err)
@@ -727,8 +717,8 @@ func (s *server) AllowRareWord(ctx context.Context, r *req[v1.AllowRareWordReque
 
 // ── Notification ──
 
-// noNotifier refuses when the daemon was built without a notifier (test
-// harnesses): an empty set would falsely read as "nothing is silenced".
+// noNotifier refuses when the daemon has no notifier (test harnesses): an empty set
+// would falsely read as "nothing is silenced".
 func (s *server) noNotifier() error {
 	if s.Notifications != nil {
 		return nil
@@ -740,8 +730,7 @@ func invalid(msg string) error {
 	return connect.NewError(connect.CodeInvalidArgument, errors.New("daemon: set dnd: "+msg))
 }
 
-// SetDND refuses a rule that changes nothing or has already lapsed, either of
-// which would look like the call silently doing nothing.
+// SetDND refuses a rule that changes nothing or has already lapsed.
 func (s *server) SetDND(_ context.Context, r *req[v1.SetDNDRequest]) (*resp[v1.SetDNDResponse], error) {
 	if err := s.noNotifier(); err != nil {
 		return nil, err
@@ -779,8 +768,7 @@ func (s *server) DND(_ context.Context, _ *req[v1.DNDRequest]) (*resp[v1.DNDResp
 	return connect.NewResponse(&v1.DNDResponse{Rules: pc.TempRulesToProto(s.Notifications.DND())}), nil
 }
 
-// ReloadConfig reports a config that will not parse as InvalidArgument: it is
-// the caller's input, and the message is what the user must fix.
+// ReloadConfig reports an unparsable config as InvalidArgument: it is the caller's input.
 func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest]) (*resp[v1.ReloadConfigResponse], error) {
 	if s.Reload == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("daemon: this daemon was started without a config to re-read"))
@@ -788,7 +776,7 @@ func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest
 	if err := s.Reload(ctx); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if s.Config != nil { // a hand edit: every client hears it, as a written change
+	if s.Config != nil { // a hand edit: every client hears it as a written change
 		if snap, err := s.Config.Read(); err == nil {
 			s.Streams.Configured(snap)
 		}
@@ -798,7 +786,6 @@ func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest
 
 var errNoConfigFile = errors.New("daemon: this daemon was started without a config file")
 
-// GetConfig is the configuration in force and its file's revision.
 func (s *server) GetConfig(context.Context, *req[v1.GetConfigRequest]) (*resp[v1.GetConfigResponse], error) {
 	if s.Config == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, errNoConfigFile)
@@ -810,9 +797,8 @@ func (s *server) GetConfig(context.Context, *req[v1.GetConfigRequest]) (*resp[v1
 	return connect.NewResponse(&v1.GetConfigResponse{Config: config.Encode(snap.Config), Revision: snap.Revision}), nil
 }
 
-// UpdateConfig writes a client's configuration, refusing one made on an older file
-// (ABORTED: read it again) or one the daemon would not run with (INVALID_ARGUMENT: the
-// message is what to fix), and tells every client the result.
+// UpdateConfig writes a client's configuration, refusing one based on an older file
+// (ABORTED) or one the daemon would not run with (INVALID_ARGUMENT), and broadcasts it.
 func (s *server) UpdateConfig(ctx context.Context, r *req[v1.UpdateConfigRequest]) (*resp[v1.UpdateConfigResponse], error) {
 	if s.Config == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, errNoConfigFile)
@@ -825,7 +811,7 @@ func (s *server) UpdateConfig(ctx context.Context, r *req[v1.UpdateConfigRequest
 	_, failed := errors.AsType[unwritable](err)
 	switch {
 	case failed:
-		return nil, rpcErr(err) // the daemon's failure, in its own words
+		return nil, rpcErr(err)
 	case errors.Is(err, api.ErrConfigMoved):
 		cerr := connect.NewError(connect.CodeAborted, err)
 		cerr.Meta().Set(sentinelHeader, "config-moved") // errors.Is holds on the client
@@ -844,8 +830,7 @@ func (s *server) ConfigChanged(ctx context.Context, _ *req[v1.ConfigChangedReque
 	})
 }
 
-// CheckConfig reports a config the daemon would refuse as InvalidArgument, as
-// ReloadConfig does: it is the caller's input.
+// CheckConfig reports a config the daemon would refuse as InvalidArgument.
 func (s *server) CheckConfig(ctx context.Context, r *req[v1.CheckConfigRequest]) (*resp[v1.CheckConfigResponse], error) {
 	if s.Daemon.CheckConfig == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("daemon: this daemon cannot check a config"))
@@ -864,8 +849,7 @@ func (s *server) CheckConfig(ctx context.Context, r *req[v1.CheckConfigRequest])
 
 var errNoScheduler = errors.New("daemon: scheduled messages are unavailable on this daemon")
 
-// Schedule assigns the ID itself: it is the cancel handle, and a client-chosen
-// one could collide.
+// Schedule assigns the ID: it is the cancel handle, and a client-chosen one could collide.
 func (s *server) Schedule(_ context.Context, r *req[v1.ScheduleRequest]) (*resp[v1.ScheduleResponse], error) {
 	if s.Scheduler == nil {
 		return nil, rpcErr(errNoScheduler)
@@ -892,8 +876,8 @@ func (s *server) CancelScheduled(_ context.Context, r *req[v1.CancelScheduledReq
 	return reply(&v1.CancelScheduledResponse{}, s.Scheduler.Cancel(r.Msg.GetId()))
 }
 
-// newScheduleID is random rather than a counter because the queue outlives the
-// process: a restarted counter could reuse an ID still in the file.
+// newScheduleID is random because the queue outlives the process: a restarted
+// counter could reuse an ID still in the file.
 func newScheduleID() string {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {

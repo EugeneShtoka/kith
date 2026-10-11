@@ -8,13 +8,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Roles some networks have: membership (invites, joining, moderation), filing rooms
-// into spaces, device verification and key backup — Matrix's, today. A call about a
-// room goes to the room's network; one that names no room goes to the network that
-// has the role. Without it, lists are empty and actions are refused with
-// api.ErrNetworkOff.
+// Roles only some networks have (Matrix today): membership, filing rooms into spaces,
+// device verification and key backup. A room call goes to the room's network; others
+// go to the network with the role. Without it, lists are empty and actions refuse
+// with api.ErrNetworkOff.
 
-// AddToSpace files a room into a space of the same network. Another network's space
+// AddToSpace files a room into a space of the same network; another network's space
 // (a WhatsApp community) is its admins' to fill.
 func (r *Router) AddToSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
 	if err := sameNetwork(spaceID, roomID); err != nil {

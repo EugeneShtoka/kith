@@ -16,8 +16,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// newWriter is a server that may write, with a ledger in a directory that goes away with
-// the test.
+// newWriter is a server that may write, with a ledger in a test temp directory.
 func newWriter(t *testing.T, f *fake, scope domain.ModelScope, send []string) *server {
 	t.Helper()
 	ledger, err := agent.Open(filepath.Join(t.TempDir(), "sends.jsonl"))
@@ -30,7 +29,7 @@ func newWriter(t *testing.T, f *fake, scope domain.ModelScope, send []string) *s
 	}
 }
 
-// entries is the ledger, read back.
+// entries reads the ledger back.
 func entries(t *testing.T, s *server) []agent.Entry {
 	t.Helper()
 	out, err := s.ledger.Entries()
@@ -54,8 +53,7 @@ func TestSendGoesOutWhenTheListSaysSo(t *testing.T) {
 	if len(f.sent) != 1 || !strings.HasSuffix(f.sent[0].Body, "on my way") {
 		t.Fatalf("sent = %+v, want the message", f.sent)
 	}
-	// The transaction ID is what makes a failed send safe to retry, so a send without one
-	// is a send whose failure cannot be recovered from.
+	// The transaction ID makes a failed send safe to retry.
 	if f.sent[0].TxnID == "" {
 		t.Error("the send carried no transaction ID")
 	}
@@ -68,7 +66,7 @@ func TestSendGoesOutWhenTheListSaysSo(t *testing.T) {
 	}
 }
 
-// Everywhere the list does not name is drafted — which is an answer, not a failure.
+// Rooms the list does not name are drafted, which is an answer, not a failure.
 func TestUnlistedRoomIsDrafted(t *testing.T) {
 	t.Parallel()
 
@@ -86,8 +84,7 @@ func TestUnlistedRoomIsDrafted(t *testing.T) {
 	if held.Body != "on my way" {
 		t.Fatalf("draft = %q, want the words", held.Body)
 	}
-	// The provenance is the whole reason a draft is an acceptable answer: the composer
-	// says who wrote it and when, so old words are visibly not a live thought.
+	// The composer shows who wrote the draft and when, so old words are visibly not live.
 	if held.Author != "test-client" || held.Updated.IsZero() {
 		t.Errorf("draft author/when = %q/%v, want the client and a time", held.Author, held.Updated)
 	}
@@ -96,8 +93,7 @@ func TestUnlistedRoomIsDrafted(t *testing.T) {
 	}
 }
 
-// Reading is the weaker permission and it is asked first: a room the scope refuses cannot
-// be written to however `send` names it.
+// Read scope is asked first: a room it refuses cannot be written however `send` names it.
 func TestSendCannotOutrankTheReadScope(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +111,7 @@ func TestSendCannotOutrankTheReadScope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f := twoRooms()
-			// The send list names everything, which is the point: it still loses.
+			// The send list names everything and still loses.
 			s := newWriter(t, f, tc.scope, []string{"room:Standup", "room:Private chat", "dm", "group"})
 			said := callErr(t, s, "send_message", map[string]any{"room": tc.room, "text": "hello"})
 			if len(f.sent) != 0 || len(f.drafts) != 0 {
@@ -124,7 +120,7 @@ func TestSendCannotOutrankTheReadScope(t *testing.T) {
 			if !strings.Contains(said, "[agent.read]") {
 				t.Errorf("refusal = %q, want it to name the setting that refused", said)
 			}
-			// A refused write is still an attempt somebody auditing wants to see.
+			// A refused write is still ledgered for auditing.
 			if ledger := entries(t, s); len(ledger) != 1 || ledger[0].Outcome != agent.Refused {
 				t.Errorf("ledger = %+v, want the refusal recorded", ledger)
 			}
@@ -132,7 +128,7 @@ func TestSendCannotOutrankTheReadScope(t *testing.T) {
 	}
 }
 
-// The cooldown rests a room: a second message inside the window waits in the composer.
+// A second message within the cooldown waits in the composer.
 func TestCooldownDraftsTheSecondMessage(t *testing.T) {
 	t.Parallel()
 
@@ -150,13 +146,13 @@ func TestCooldownDraftsTheSecondMessage(t *testing.T) {
 	if reason, _ := out["reason"].(string); !strings.Contains(reason, "cooldown") {
 		t.Errorf("reason = %q, want it to name the cooldown", reason)
 	}
-	// Nothing is lost when the rail bites: the words are in the composer.
+	// The words are not lost: they are in the composer.
 	if !strings.Contains(f.drafts["!open:x"].Body, "second") {
 		t.Errorf("draft = %q, want the message the cooldown held back", f.drafts["!open:x"].Body)
 	}
 }
 
-// A cooldown of zero is off, which is a thing somebody can ask for out loud.
+// A cooldown of zero is off.
 func TestCooldownOffSendsBoth(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +166,7 @@ func TestCooldownOffSendsBoth(t *testing.T) {
 	}
 }
 
-// A draft is appended to, never over: the person's words come first and survive.
+// A draft is appended to, never overwritten: the person's words come first.
 func TestDraftIsAppendedNotOverwritten(t *testing.T) {
 	t.Parallel()
 
@@ -190,8 +186,8 @@ func TestDraftIsAppendedNotOverwritten(t *testing.T) {
 	}
 }
 
-// Whatever happens to the words, they reach the backend with hyphens for every longer
-// dash, and hyphens stay. A draft the person already had keeps its dashes as typed.
+// Every dash longer than a hyphen reaches the backend as a hyphen; an existing draft
+// keeps its dashes as typed.
 func TestLongDashesAreWrittenShort(t *testing.T) {
 	t.Parallel()
 
@@ -244,8 +240,7 @@ func TestLongDashesAreWrittenShort(t *testing.T) {
 	}
 }
 
-// An edit in progress is the case the rule allows a refusal for: there is no safe merge
-// into somebody's correction of a message the room has already read.
+// An edit in progress is refused: there is no safe merge into a correction.
 func TestEditInProgressIsRefused(t *testing.T) {
 	t.Parallel()
 
@@ -264,7 +259,7 @@ func TestEditInProgressIsRefused(t *testing.T) {
 	}
 }
 
-// A draft nobody is sending is where an append loop would end up, so there is a floor.
+// A draft nobody sends is where an append loop ends up, so it is capped.
 func TestAnEndlessDraftIsRefused(t *testing.T) {
 	t.Parallel()
 
@@ -278,8 +273,7 @@ func TestAnEndlessDraftIsRefused(t *testing.T) {
 	}
 }
 
-// A send the homeserver will not take goes into the daemon's queue under the same
-// transaction ID, which is what makes retrying it safe.
+// A refused send goes to the daemon's queue under the same transaction ID.
 func TestFailedSendIsQueuedUnderTheSameID(t *testing.T) {
 	t.Parallel()
 
@@ -294,15 +288,13 @@ func TestFailedSendIsQueuedUnderTheSameID(t *testing.T) {
 	if len(f.queued) != 1 || f.queued[0].TxnID == "" {
 		t.Fatalf("queued = %+v, want one message carrying its transaction ID", f.queued)
 	}
-	// A queued message is on its way, so the rail counts it: a loop that could bypass the
-	// cooldown by failing would be the worst kind.
+	// A queued message counts for the cooldown, so failing cannot bypass it.
 	if _, ever := agent.LastOut(entries(t, s), "!open:x"); !ever {
 		t.Error("a queued message was not counted by the cooldown")
 	}
 }
 
-// When the queue will not take it either, the words come back as a draft — the same last
-// resort the client itself falls back to.
+// When the queue refuses too, the words become a draft.
 func TestUnqueueableSendBecomesADraft(t *testing.T) {
 	t.Parallel()
 
@@ -319,14 +311,13 @@ func TestUnqueueableSendBecomesADraft(t *testing.T) {
 	}
 }
 
-// The cooldown is read out of the ledger, so a ledger that cannot be written is a rail
-// that cannot count — and an unrecordable send is refused rather than made.
+// The cooldown is read from the ledger, so a send that cannot be recorded is refused.
 func TestNothingIsSentThatCannotBeRecorded(t *testing.T) {
 	t.Parallel()
 
 	f := twoRooms()
 	s := newWriter(t, f, shareAll, []string{"space:Work"})
-	// A directory where the file should be: openable for neither append nor create.
+	// A directory where the file should be: neither appendable nor creatable.
 	path := filepath.Join(t.TempDir(), "sends.jsonl")
 	if err := os.Mkdir(path, 0o700); err != nil {
 		t.Fatalf("blocking the ledger: %v", err)
@@ -346,8 +337,7 @@ func TestNothingIsSentThatCannotBeRecorded(t *testing.T) {
 	}
 }
 
-// A server with no ledger at all refuses to write, and says so rather than failing
-// halfway through.
+// Without a ledger the server refuses to write, and says so up front.
 func TestNoLedgerMeansNoWriting(t *testing.T) {
 	t.Parallel()
 
@@ -362,8 +352,8 @@ func TestNoLedgerMeansNoWriting(t *testing.T) {
 	}
 }
 
-// The name a client gives itself is what a draft and a ledger line are attributed to, and
-// it is somebody else's text: one line, bounded, no control characters.
+// A client's self-reported name is untrusted text: one line, bounded, no control
+// characters.
 func TestClientNameIsTakenAsText(t *testing.T) {
 	t.Parallel()
 
@@ -382,17 +372,15 @@ func TestClientNameIsTakenAsText(t *testing.T) {
 	}
 }
 
-// errNoServer stands in for the homeserver being unreachable, which is the failure the
-// send ladder exists for.
+// errNoServer stands in for an unreachable homeserver.
 var errNoServer = errTest("no route to host")
 
 type errTest string
 
 func (e errTest) Error() string { return string(e) }
 
-// A write to a withheld room and a write to a room that does not exist look the same
-// to the assistant: the same answer, and the same work behind it (one ledger entry
-// each), so neither the words nor the time tell them apart. The user still sees which.
+// Withheld and missing rooms get the same answer and the same work (one ledger entry
+// each), so neither words nor timing tell them apart; the user still sees which.
 func TestAWithheldRoomAndAMissingOneAreRefusedAlike(t *testing.T) {
 	t.Parallel()
 
@@ -413,8 +401,8 @@ func TestAWithheldRoomAndAMissingOneAreRefusedAlike(t *testing.T) {
 	}
 }
 
-// The TUI saves what the person types a moment after they type it. An append built on
-// the draft read before that save must not overwrite it: it is rebuilt on theirs.
+// An append built before the TUI saved the person's typing is rebuilt on their save,
+// not written over it.
 func TestAnAppendKeepsWordsTypedWhileItWasBuilt(t *testing.T) {
 	t.Parallel()
 
@@ -435,9 +423,8 @@ func TestAnAppendKeepsWordsTypedWhileItWasBuilt(t *testing.T) {
 	}
 }
 
-// A draft the assistant could not write is recorded like any refused write, whatever
-// stopped it: the composer mid-edit, a draft already over the cap, or a draft that
-// kept changing under every attempt. The user reads the ledger to see what was tried.
+// A draft that could not be written (composer mid-edit, over the cap, or changing under
+// every attempt) is ledgered like any refused write.
 func TestADraftThatCouldNotBeWrittenIsInTheLedger(t *testing.T) {
 	t.Parallel()
 
@@ -482,7 +469,7 @@ func TestADraftThatCouldNotBeWrittenIsInTheLedger(t *testing.T) {
 	}
 }
 
-// replyLost commits every draft write and then reports an error, as when the daemon
+// replyLost commits every draft write then reports an error, as when the daemon
 // restarts after COMMIT; commits false only reports the error.
 type replyLost struct {
 	*fake
@@ -498,8 +485,7 @@ func (r replyLost) ReplaceDraft(ctx context.Context, draft, over domain.StoredDr
 	return false, errors.New("unavailable: connection reset")
 }
 
-// An append that landed with its answer lost is reported as drafted, and not appended
-// again: the words are in the draft once.
+// An append that landed with its answer lost is reported as drafted, not appended again.
 func TestADraftWhoseAnswerIsLostIsWrittenOnce(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
@@ -515,7 +501,7 @@ func TestADraftWhoseAnswerIsLostIsWrittenOnce(t *testing.T) {
 	}
 }
 
-// A write that did not land is still the error it was.
+// A write that did not land is still an error.
 func TestADraftThatDidNotLandIsAnError(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
@@ -526,7 +512,7 @@ func TestADraftThatDidNotLandIsAnError(t *testing.T) {
 	}
 }
 
-// The cap counts the addition: a draft just under it cannot grow past it in one go.
+// The cap counts the addition: a draft just under it cannot grow past it at once.
 func TestTheDraftCapCountsTheAddition(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
@@ -557,8 +543,7 @@ func TestLanded(t *testing.T) {
 	}
 }
 
-// A failed send tells the assistant what happened, not the daemon's internals: the
-// error text stays in kith-mcp's log.
+// A failed send's reason omits the daemon's internals; they stay in the log.
 func TestAFailedSendKeepsTheDaemonErrorOutOfTheReason(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
@@ -578,9 +563,8 @@ func TestAFailedSendKeepsTheDaemonErrorOutOfTheReason(t *testing.T) {
 	}
 }
 
-// Two rooms shown under one name are refused, not guessed: a DM peer can take any
-// display name (a DM is named after its peer), and the first exact match would post
-// there unreviewed.
+// Two rooms with one exact name are refused, not guessed: a DM peer can take any
+// display name, and the first match would post there unreviewed.
 func TestAnExactNameHeldByTwoRoomsIsRefused(t *testing.T) {
 	t.Parallel()
 	f := &fake{rooms: []domain.Room{
@@ -614,8 +598,8 @@ func (g gatedSend) Send(ctx context.Context, room domain.RoomID, d domain.Draft)
 	return g.fake.Send(ctx, room, d)
 }
 
-// Two assistant sessions share one ledger, and so one cooldown: while one decides and
-// sends, the other waits, then finds the send recorded and leaves its words as a draft.
+// Two sessions share one ledger and cooldown: while one sends, the other waits, then
+// sees the send recorded and drafts.
 func TestTwoSessionsShareOneCooldown(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "sends.jsonl")

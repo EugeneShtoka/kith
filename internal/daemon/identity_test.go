@@ -32,7 +32,6 @@ func numbersNamed(names map[string]string) domain.Directory {
 	return domain.NewDirectory(rows, nil)
 }
 
-// serveIdentity is a daemon over b with state.
 func serveIdentity(t *testing.T, b selvesBackend, state *daemon.State) *daemon.Remote {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "kithd.sock")
@@ -54,8 +53,7 @@ func serveIdentity(t *testing.T, b selvesBackend, state *daemon.State) *daemon.R
 	return daemon.NewRemote(path)
 }
 
-// A client learns who this person is, and each network account's state, from the
-// daemon.
+// A client learns this person's IDs and each account's state from the daemon.
 func TestSelvesAndNetworksCrossTheSocket(t *testing.T) {
 	t.Parallel()
 	ids := []string{"@me:x", "whatsapp:44880000001@s.whatsapp.net"}
@@ -86,8 +84,7 @@ func TestSelvesAndNetworksCrossTheSocket(t *testing.T) {
 	}
 }
 
-// The directory crosses the socket whole: every name, rank and link, so a client
-// names people as the daemon would.
+// The directory crosses the socket whole: every name, rank and link.
 func TestTheDirectoryCrossesTheSocket(t *testing.T) {
 	t.Parallel()
 	dir := domain.NewDirectory([]domain.PersonName{

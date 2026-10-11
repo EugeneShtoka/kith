@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// ReplaceDraft stores (or, when empty, removes) a room's draft in the cache, only
-// while the stored one is still over.
+// ReplaceDraft stores (or, when empty, removes) a room's draft, only while the stored
+// one is still over.
 func (s *Service) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (bool, error) {
 	return fromCache(s, "replace draft", func(c *db.Cache) (bool, error) {
 		return c.ReplaceDraft(ctx, draft, over)
@@ -29,8 +29,8 @@ func (s *Service) SearchMessages(ctx context.Context, req domain.SearchRequest) 
 	if s.cache == nil {
 		return nil, nil
 	}
-	// Expand the scope to whole upgrade chains: the FTS index is per room ID, so an
-	// upgraded room's earlier history would otherwise be silently missed.
+	// Expand to whole upgrade chains: the FTS index is per room ID, so an upgraded room's
+	// earlier history would be missed.
 	if !req.Rooms.All {
 		rooms, err := s.cache.RoomChains(ctx, req.Rooms.IDs)
 		if err != nil {
@@ -87,7 +87,7 @@ func (s *Service) RecordEmoji(ctx context.Context, kind domain.EmojiKind, roomID
 	})
 }
 
-// ReactionRefusals is what has been learned about what bridges will not deliver.
+// ReactionRefusals is what bridges are known not to deliver.
 func (s *Service) ReactionRefusals(ctx context.Context) ([]domain.ReactionRefusal, error) {
 	return fromCache(s, "reaction refusals", func(c *db.Cache) ([]domain.ReactionRefusal, error) {
 		return c.ReactionRefusals(ctx)

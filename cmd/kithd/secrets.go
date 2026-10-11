@@ -4,8 +4,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/session"
 )
 
-// keyringSecrets keeps a network's credentials in the OS secret store, under this
-// instance: two instances signed in to one workspace hold two sessions.
+// keyringSecrets keeps a network's credentials in the OS secret store per instance, so
+// two instances on one workspace hold two sessions.
 type keyringSecrets struct {
 	service, scope string
 }

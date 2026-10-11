@@ -37,12 +37,12 @@ func (r *Router) MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error
 	return doOnRoom(r, verdict.Room, "spam reports", func(c SpamReports) error { return c.MarkSpam(ctx, verdict) })
 }
 
-// CanonicalParent is the space a room names as its parent; none on a network
-// without homes.
+// CanonicalParent is the space a room names as its parent; none on a network without
+// homes.
 func (r *Router) CanonicalParent(ctx context.Context, roomID domain.RoomID) (domain.SpaceID, error) {
 	parent, err := onRoom(r, roomID, "homes", func(c Homes) (domain.SpaceID, error) { return c.CanonicalParent(ctx, roomID) })
 	if errors.Is(err, api.ErrNotOnNetwork) {
-		return "", nil // a network without homes: the room names no parent
+		return "", nil
 	}
 	return parent, err
 }
@@ -125,8 +125,8 @@ func (r *Router) MentionCandidates(ctx context.Context, roomID domain.RoomID, li
 	return onRoom(r, roomID, "mentions", func(c People) ([]domain.Member, error) { return c.MentionCandidates(ctx, roomID, limit) })
 }
 
-// Spaces is every network's cached spaces: Matrix's hierarchy and the others'
-// (WhatsApp communities), sorted by name.
+// Spaces is every network's cached spaces (Matrix hierarchy, WhatsApp communities),
+// sorted by name.
 func (r *Router) Spaces(ctx context.Context) ([]domain.Space, error) {
 	return r.allSpaces(func(s SpaceLister) ([]domain.Space, error) { return s.Spaces(ctx) })
 }
@@ -136,8 +136,8 @@ func (r *Router) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	return r.allSpaces(func(s SpaceLister) ([]domain.Space, error) { return s.RefreshSpaces(ctx) })
 }
 
-// allSpaces is read over every live network that has spaces; one failing fails the
-// read, as gather does: a partial hierarchy would read as complete.
+// allSpaces reads every live network with spaces; one failure fails the read, as in
+// gather.
 func (r *Router) allSpaces(read func(SpaceLister) ([]domain.Space, error)) ([]domain.Space, error) {
 	out, err := gather(r, read)
 	if err != nil {
@@ -147,8 +147,7 @@ func (r *Router) allSpaces(read func(SpaceLister) ([]domain.Space, error)) ([]do
 	return out, nil
 }
 
-// Groupings is one account's groupings on a network that has them (Telegram's
-// folders), and the rooms that account sees.
+// Groupings is one account's groupings (Telegram folders) and the rooms it sees.
 func (r *Router) Groupings(ctx context.Context, network domain.Protocol, account string) (domain.RoomOwner, []domain.Grouping, error) {
 	a, ok := r.adapters[network]
 	if !ok || !on(a) {

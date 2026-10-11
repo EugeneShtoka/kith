@@ -40,7 +40,7 @@ func (s *server) toolList() []map[string]any {
 // sendTool is the one tool whose description depends on the config.
 const sendTool = "send_message"
 
-// writePolicy is `[agent.write]` said to the assistant, appended to send_message's
+// writePolicy is `[agent.write]` told to the assistant, appended to send_message's
 // description.
 func (s *server) writePolicy() string {
 	if !s.readScope().Shares() {
@@ -81,7 +81,6 @@ func listed(entries []string) string {
 	return strings.Join(kept, ", ")
 }
 
-// call runs one tool.
 func (s *server) call(params json.RawMessage) (any, *rpcError) {
 	var req struct {
 		Name string          `json:"name"`
@@ -94,8 +93,8 @@ func (s *server) call(params json.RawMessage) (any, *rpcError) {
 		if tools[i].name != req.Name {
 			continue
 		}
-		// Nothing shared: refuse up front. list_rooms answers with a note instead, and
-		// send_message refuses itself so the attempt reaches the ledger.
+		// Nothing shared: refuse up front. list_rooms answers with a note, and send_message
+		// refuses itself so the attempt is ledgered.
 		if !s.readScope().Shares() && tools[i].name != "list_rooms" && tools[i].name != sendTool {
 			return toolError(errNothingShared), nil
 		}
@@ -120,8 +119,8 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 	s.people = setup.PeopleOf(s.aliases, dir)
 	result, err := t.run(s, ctx, raw)
 	if err != nil {
-		// The assistant reads the reason; the log keeps it for the person. Tool
-		// errors name rooms and scope, never message text.
+		// The assistant reads the reason; the log keeps it for the person. Tool errors name
+		// rooms and scope, never message text.
 		s.logger().Warn("tool call failed", "tool", t.name, "err", err)
 		return toolError(err)
 	}
@@ -131,7 +130,7 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 	return asJSON(result)
 }
 
-// schema is shorthand for the object schemas below, all of which have the same shape.
+// schema builds the object schemas below, all of the same shape.
 func schema(props map[string]any, required ...string) map[string]any {
 	out := map[string]any{"type": "object", "properties": props}
 	if len(required) > 0 {
@@ -280,7 +279,7 @@ func viewOf(room *domain.Room) roomView {
 	return roomView{ID: string(room.ID), Name: room.DisplayName(), Direct: room.IsDirect}
 }
 
-// messageView is one message, in the terms somebody reading a conversation needs.
+// messageView is one message as a reader of the conversation needs it.
 type messageView struct {
 	EventID string `json:"event_id"`
 	Room    string `json:"room,omitempty"`
@@ -313,7 +312,7 @@ func attachmentOf(m *domain.Media) *attachmentView {
 }
 
 func (s *server) view(msg domain.Message, withRoom bool) messageView {
-	// Mentions name who they mention as everyone else is named here.
+	// Mentions name people as everyone else is named here.
 	body, _ := domain.ResolveMentions(msg.Body, msg.Mentions, func(mn domain.Mention, words string) string {
 		return s.people.Name(mn.UserID, mn.Known, words)
 	})

@@ -21,7 +21,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// The client comes back by itself, and the channel the UI reads never closed.
+// The client reattaches by itself, and the UI's channel never closes.
 func TestClientReattachesWhenTheDaemonRestarts(t *testing.T) {
 	t.Parallel()
 
@@ -41,8 +41,7 @@ func TestClientReattachesWhenTheDaemonRestarts(t *testing.T) {
 		t.Fatalf("first message = %+v, want $before", got)
 	}
 
-	// The daemon goes away — and the socket file with it, the way a restart leaves it:
-	// systemd stops the unit, the listener closes, and the next start binds the path again.
+	// The daemon and its socket file go away, as a systemd restart leaves them.
 	first.stop(t)
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("remove socket: %v", err)
@@ -57,15 +56,13 @@ func TestClientReattachesWhenTheDaemonRestarts(t *testing.T) {
 	}
 	second.waitAttached(t, 1)
 
-	// The point of all of it: a message sent after the restart arrives on the same
-	// channel the UI has been holding since startup.
+	// A message sent after the restart arrives on the channel the UI held all along.
 	feed <- domain.Message{ID: "$after", RoomID: "!r:x", Body: "after the restart"}
 	if got := nextMessage(t, client.Messages()); got.ID != "$after" {
 		t.Fatalf("message after the restart = %+v, want $after", got)
 	}
 
-	// And Stop still ends it — a retry loop that outlived the client would keep a
-	// goroutine and a socket probe running after quit.
+	// Stop still ends it; a retry loop outliving the client would leak.
 	client.Stop()
 	select {
 	case err := <-attached:
@@ -80,8 +77,7 @@ func TestClientReattachesWhenTheDaemonRestarts(t *testing.T) {
 	}
 }
 
-// daemonRun is one lifetime of a daemon on a fixed path, so a test can end it and
-// start another where it was.
+// daemonRun is one lifetime of a daemon on a fixed path.
 type daemonRun struct {
 	streams *daemon.Streams
 	served  chan error
@@ -90,7 +86,7 @@ type daemonRun struct {
 	stopped bool
 }
 
-// runDaemon serves b on path until the test stops it (or ends).
+// runDaemon serves b on path until stopped or the test ends.
 func runDaemon(t *testing.T, path string, b api.Backend) *daemonRun {
 	t.Helper()
 
@@ -122,8 +118,7 @@ func runDaemon(t *testing.T, path string, b api.Backend) *daemonRun {
 	return run
 }
 
-// stop ends this daemon and waits for it to be gone, so the next one can bind the
-// path. Idempotent: the test stops it explicitly and the cleanup stops it again.
+// stop ends this daemon and waits until the path is free. Idempotent.
 func (d *daemonRun) stop(t *testing.T) {
 	t.Helper()
 
@@ -152,7 +147,7 @@ func (d *daemonRun) waitAttached(t *testing.T, want int) {
 	t.Fatalf("timed out waiting for %d client(s); %d attached", want, d.streams.Attached())
 }
 
-// nextMessage reads one streamed message, failing the test rather than hanging.
+// nextMessage reads one streamed message, failing rather than hanging.
 func nextMessage(t *testing.T, ch <-chan domain.Message) domain.Message {
 	t.Helper()
 
@@ -168,8 +163,7 @@ func nextMessage(t *testing.T, ch <-chan domain.Message) domain.Message {
 	}
 }
 
-// waitAttachment reads one attachment change. The reconnect is on a real clock —
-// it backs off and probes the socket — so this waits rather than polls.
+// waitAttachment reads one attachment change; the reconnect runs on a real clock.
 func waitAttachment(t *testing.T, ch <-chan bool) bool {
 	t.Helper()
 
@@ -185,8 +179,8 @@ func waitAttachment(t *testing.T, ch <-chan bool) bool {
 	}
 }
 
-// A daemon that goes away between the readiness probe and the first subscribe does not
-// leave the client permanently stream-less.
+// A daemon gone between the readiness probe and the first subscribe does not leave
+// the client stream-less.
 func TestAFirstAttachThatRacesARestartStillReattaches(t *testing.T) {
 	t.Parallel()
 
@@ -194,7 +188,7 @@ func TestAFirstAttachThatRacesARestartStillReattaches(t *testing.T) {
 	feed := make(chan domain.Message, 4)
 	backend := apitest.Nop{Msgs: feed}
 
-	// The daemon the client was told about, already gone by the time it subscribes.
+	// Already gone by the time the client subscribes.
 	gone := runDaemon(t, path, backend)
 	gone.stop(t)
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -218,21 +212,21 @@ func TestAFirstAttachThatRacesARestartStillReattaches(t *testing.T) {
 	default:
 	}
 
-	// The point: the channel the UI has been holding since startup still delivers.
+	// The UI's original channel still delivers.
 	feed <- domain.Message{ID: "$after", RoomID: "!r:x", Body: "after the race"}
 	if got := nextMessage(t, client.Messages()); got.ID != "$after" {
 		t.Fatalf("message after the race = %+v, want $after", got)
 	}
 }
 
-// A daemon that answers Status but ends every stream at once (its sync failed for
-// good) is not reattached to every 250ms forever: the backoff keeps climbing.
+// A daemon that answers Status but ends every stream at once is not reattached every
+// 250ms forever: the backoff keeps climbing.
 func TestStreamsThatEndAtOnceBackOff(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "kithd.sock")
 	ended := make(chan domain.Message)
-	close(ended) // the first stream ends as soon as it opens, taking the rest with it
+	close(ended) // the first stream ends as it opens, taking the rest with it
 	runDaemon(t, path, apitest.Nop{Msgs: ended})
 
 	client := daemon.NewRemote(path)
@@ -252,15 +246,14 @@ func TestStreamsThatEndAtOnceBackOff(t *testing.T) {
 		}
 		break
 	}
-	// 250ms, 500ms, 1s, 2s: at most three reattaches fit. Resetting after each
-	// reattached about nine times.
+	// 250ms, 500ms, 1s, 2s: at most three reattaches fit; resetting gave about nine.
 	if reattached > 4 {
 		t.Errorf("reattached %d times in 2.5s, want the backoff to climb", reattached)
 	}
 }
 
-// cutProxy forwards a socket path to a daemon's, and can cut every connection at once,
-// the way a crashed daemon leaves its clients: streams end in an error, not cleanly.
+// cutProxy forwards a socket path to a daemon's and can cut every connection at once,
+// as a crash does: streams end in an error, not cleanly.
 type cutProxy struct {
 	ln    net.Listener
 	mu    sync.Mutex
@@ -296,7 +289,7 @@ func newCutProxy(t *testing.T, path, target string) *cutProxy {
 	return p
 }
 
-// cut closes the listener and every connection, abruptly.
+// cut closes the listener and every connection abruptly.
 func (p *cutProxy) cut() {
 	_ = p.ln.Close()
 	p.mu.Lock()
@@ -307,9 +300,8 @@ func (p *cutProxy) cut() {
 	p.conns = nil
 }
 
-// A client that was attached and loses its daemon to a crash — the streams end in an
-// error — keeps trying for as long as the daemon is gone, however long the restart
-// takes: only a client that never reached a daemon gives up.
+// A client that was once attached survives a crash and keeps trying however long the
+// restart takes; only a never-attached client gives up.
 func TestAClientAttachedOnceOutlastsACrashAndASlowRestart(t *testing.T) {
 	t.Parallel()
 
@@ -333,7 +325,7 @@ func TestAClientAttachedOnceOutlastsACrashAndASlowRestart(t *testing.T) {
 	proxy.cut()
 	first.stop(t)
 	_ = os.Remove(path)
-	// Down for longer than a client that never attached waits before giving up.
+	// Down longer than a never-attached client waits.
 	select {
 	case err := <-ended:
 		t.Fatalf("the client gave up while the daemon was down (err=%v)", err)

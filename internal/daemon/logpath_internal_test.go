@@ -7,9 +7,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A daemon started without systemd logs to a file in the instance's state directory,
-// one per profile, and is told so on its command line — with the config it serves,
-// when that is not the default one.
+// A daemon started without systemd logs to a per-profile file in the state directory,
+// named on its command line, with --config when the config is not the default.
 func TestDaemonLogPathAndDetachArgs(t *testing.T) {
 	t.Parallel()
 	storage := domain.Storage{StateDir: "/state", Instance: "x"}

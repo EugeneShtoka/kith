@@ -12,12 +12,11 @@ import (
 )
 
 // Word completion from recent history (internal/vocab): each window is read from the
-// cache the first time it is needed, then kept up to date as messages arrive. An edit or
-// a redaction cannot be counted out, so it drops the windows it touches; so does a
-// window's growing well past its size. Either way the next completion rebuilds it.
+// cache on first use, then updated as messages arrive. Edits, redactions and overgrown
+// windows cannot be counted out, so they drop the window for the next completion to
+// rebuild.
 
-// How many messages each window counts: this conversation's, its space's, your own, and
-// everyone's.
+// Window sizes in messages: this conversation, its space, your own, and everyone's.
 const (
 	roomWindow   = 1000
 	spaceWindow  = 3000
@@ -27,18 +26,17 @@ const (
 	scopedWindows = 32
 )
 
-// recentVocab holds the windows. mu guards all of it: completions read from RPC
-// goroutines and messages arrive on the sync goroutine. A build reads the cache under
-// mu, so a message arriving meanwhile waits rather than being counted into nothing.
+// recentVocab holds the windows. mu guards all of it: completions come from RPC
+// goroutines and messages from sync. A build reads the cache under mu, so a message
+// arriving meanwhile waits instead of being lost.
 type recentVocab struct {
 	mu     sync.Mutex
-	rooms  scopedWindowSet // keyed by the conversation's rooms (its upgrade chain)
+	rooms  scopedWindowSet // keyed by the conversation's upgrade chain
 	spaces scopedWindowSet // keyed by the space's rooms
 	mine   *vocab.Window
 	global *vocab.Window
 }
 
-// scopedWindow is a window over a set of rooms.
 type scopedWindow struct {
 	key    string
 	rooms  []domain.RoomID // sorted
@@ -59,8 +57,7 @@ func roomsKey(rooms []domain.RoomID) (string, []domain.RoomID) {
 	return strings.Join(parts, " "), sorted
 }
 
-// get is the fresh window for rooms, building it (and evicting the least recently used)
-// when there is none.
+// get returns the fresh window for rooms, building it (evicting the LRU) when absent.
 func (s *scopedWindowSet) get(rooms []domain.RoomID, build func([]domain.RoomID) *vocab.Window) *vocab.Window {
 	key, sorted := roomsKey(rooms)
 	for i, w := range *s {
@@ -99,9 +96,9 @@ func (s *scopedWindowSet) drop(room domain.RoomID) {
 	})
 }
 
-// rank scores req.Prefix over the windows its scope names, building any not yet held.
-// Scope rules: the room term only for a room scope with rooms, the space term unless
-// global, the mine term with an account.
+// rank scores req.Prefix over the windows its scope names, building missing ones: the
+// room term only for a room scope with rooms, the space term unless global, the mine
+// term with an account.
 func (v *recentVocab) rank(ctx context.Context, cache *db.Cache, req domain.CompleteRequest, me []string, limit int) ([]domain.WordCandidate, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -136,7 +133,7 @@ func (v *recentVocab) rank(ctx context.Context, cache *db.Cache, req domain.Comp
 	}
 	scope.Global = v.global
 	if firstErr != nil {
-		// A window that could not be read is not kept, so the next completion retries.
+		// An unreadable window is not kept, so the next completion retries.
 		v.forgetAll()
 		return nil, firstErr
 	}
@@ -172,7 +169,7 @@ func (v *recentVocab) added(msg domain.Message, me []string) {
 	}
 }
 
-// changed drops what a redaction in room makes wrong.
+// changed drops windows a redaction in room makes wrong.
 func (v *recentVocab) changed(room domain.RoomID) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -192,7 +189,7 @@ func (v *recentVocab) cleared() {
 	v.forgetAll()
 }
 
-// forgetAll drops every window (a cleared cache, or a failed read). Caller holds mu.
+// forgetAll drops every window. Caller holds mu.
 func (v *recentVocab) forgetAll() {
 	v.rooms, v.spaces, v.mine, v.global = nil, nil, nil, nil
 }

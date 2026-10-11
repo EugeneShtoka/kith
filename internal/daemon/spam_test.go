@@ -13,8 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// spamBackend is the world() backend plus the three things promoting a room needs: what a
-// room has said, what is already caught, and somewhere to record a verdict.
+// spamBackend is world() plus room history, caught rooms and a verdict store.
 type spamBackend struct {
 	*scopeBackend
 
@@ -22,7 +21,7 @@ type spamBackend struct {
 	timeline map[domain.RoomID][]domain.Message
 	caught   []domain.SpamVerdict
 	marked   []domain.SpamVerdict
-	// refuse is what MarkSpam answers, for the write the homeserver turns down.
+	// refuse is what MarkSpam answers, for a write the homeserver turns down.
 	refuse error
 }
 
@@ -52,7 +51,7 @@ func (s *spamBackend) MarkSpam(_ context.Context, verdict domain.SpamVerdict) er
 	return nil
 }
 
-// store replaces what the account data says, as a sync from another machine would.
+// store replaces the account data, as a sync from another machine would.
 func (s *spamBackend) store(verdicts ...domain.SpamVerdict) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -65,8 +64,7 @@ func (s *spamBackend) verdicts() []domain.SpamVerdict {
 	return append([]domain.SpamVerdict(nil), s.marked...)
 }
 
-// said fills a room's history, which is what "the first message" and "most of them" are
-// asked about.
+// said fills a room's history.
 func (s *spamBackend) said(room domain.RoomID, bodies ...string) *spamBackend {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -82,7 +80,7 @@ func (s *spamBackend) said(room domain.RoomID, bodies ...string) *spamBackend {
 	return s
 }
 
-// spamConfig is a notifying config with one filter, plus whatever the case changes.
+// spamConfig is a notifying config with one filter plus the case's changes.
 func spamConfig(spam config.Spam) config.Config {
 	cfg := notifsOn("all")
 	if len(spam.Filters) == 0 {
@@ -92,7 +90,7 @@ func spamConfig(spam config.Spam) config.Config {
 	return cfg
 }
 
-// spamNotifier is the daemon's notifier over a backend that can be caught.
+// spamNotifier is the daemon's notifier over a spam-capable backend.
 func spamNotifier(t *testing.T, cfg config.Config, src *spamBackend) (*daemon.Notifications, *recorder) {
 	t.Helper()
 	rec := &recorder{}
@@ -106,8 +104,7 @@ func spamNotifier(t *testing.T, cfg config.Config, src *spamBackend) (*daemon.No
 	return n, rec
 }
 
-// The strongest rule and the cheapest: in a new room the first message *is* the
-// relationship, and the message that catches the room is the one that must not notify.
+// In a new room the first spam message promotes it, and that message does not notify.
 func TestTheFirstMessageInARoomPromotesIt(t *testing.T) {
 	t.Parallel()
 
@@ -132,8 +129,7 @@ func TestTheFirstMessageInARoomPromotesIt(t *testing.T) {
 	}
 }
 
-// In an established room a spam message is noise, not a relationship — so the strongest
-// rule deliberately does not fire, and the message notifies like anything else.
+// In an established room one spam message is noise: no promotion, it notifies.
 func TestAnEstablishedRoomIsNotPromotedByOneMessage(t *testing.T) {
 	t.Parallel()
 
@@ -151,7 +147,7 @@ func TestAnEstablishedRoomIsNotPromotedByOneMessage(t *testing.T) {
 	}
 }
 
-// A DM you have written in is a conversation, and one caught message must not move it.
+// A DM you have written in is a conversation; one caught message does not move it.
 func TestADirectMessageYouHaveAnsweredIsAConversation(t *testing.T) {
 	t.Parallel()
 
@@ -169,8 +165,7 @@ func TestADirectMessageYouHaveAnsweredIsAConversation(t *testing.T) {
 	}
 }
 
-// A DM is one person, so a verdict on the message is a verdict on the sender and the sender
-// is the room.
+// In a DM a verdict on the message is a verdict on the room.
 func TestADirectMessageIsItsSender(t *testing.T) {
 	t.Parallel()
 
@@ -191,8 +186,7 @@ func TestADirectMessageIsItsSender(t *testing.T) {
 	}
 }
 
-// The third rule, and the only one that can move a room that was fine yesterday. It takes
-// three numbers because one is not enough: a share, a floor under it, and a window.
+// Most of a window's messages caught promotes a group: a share, a floor and a window.
 func TestMostOfTheMessagesPromotesAGroup(t *testing.T) {
 	t.Parallel()
 
@@ -210,7 +204,7 @@ func TestMostOfTheMessagesPromotesAGroup(t *testing.T) {
 	}
 }
 
-// Two of three is not evidence, which is what the floor is for.
+// Two of three is under the floor.
 func TestTheFloorStopsASmallSample(t *testing.T) {
 	t.Parallel()
 
@@ -226,7 +220,7 @@ func TestTheFloorStopsASmallSample(t *testing.T) {
 	}
 }
 
-// The carve-out outranks every rule, which is what makes releasing a room final.
+// The exemption outranks every rule.
 func TestAnExemptionOutranksEveryRule(t *testing.T) {
 	t.Parallel()
 
@@ -241,8 +235,7 @@ func TestAnExemptionOutranksEveryRule(t *testing.T) {
 	}
 }
 
-// A room you said was spam needs no rule and records no verdict — the statement is
-// already in the config, which is the one place a person can edit it.
+// A room listed as spam needs no rule and records no verdict: the config holds it.
 func TestAListedRoomIsSilentWithoutARule(t *testing.T) {
 	t.Parallel()
 
@@ -257,8 +250,7 @@ func TestAListedRoomIsSilentWithoutARule(t *testing.T) {
 	}
 }
 
-// A verdict made before this daemon started still holds, because it is read back from
-// account data rather than remembered by the process that made it.
+// A verdict made before this daemon started holds: it is read back from account data.
 func TestAnAlreadyCaughtRoomStaysQuiet(t *testing.T) {
 	t.Parallel()
 
@@ -274,8 +266,7 @@ func TestAnAlreadyCaughtRoomStaysQuiet(t *testing.T) {
 	}
 }
 
-// With no filter written, nothing here can fire — which is why there is no `enabled`
-// switch beside them.
+// With no filter written nothing fires, hence no `enabled` switch.
 func TestNoFilterMeansNoPromotion(t *testing.T) {
 	t.Parallel()
 
@@ -291,8 +282,7 @@ func TestNoFilterMeansNoPromotion(t *testing.T) {
 	}
 }
 
-// Our own first message in a room cannot promote it, which matters because the commonest
-// way a room has exactly one message in it is that you just started it.
+// Our own first message cannot promote a room, the usual case of a new room.
 func TestOurOwnMessageNeverPromotes(t *testing.T) {
 	t.Parallel()
 
@@ -307,8 +297,7 @@ func TestOurOwnMessageNeverPromotes(t *testing.T) {
 	}
 }
 
-// A room a tag picked is one a rule can name — the documented way to let one
-// conversation through a silence — and the fact has to exist on the side that decides.
+// A rule can name a tag-picked room to let one conversation through a silence.
 func TestAPickedRoomIsAPlaceARuleCanName(t *testing.T) {
 	t.Parallel()
 
@@ -323,15 +312,13 @@ func TestAPickedRoomIsAPlaceARuleCanName(t *testing.T) {
 	if len(rec.all()) != 1 {
 		t.Errorf("delivered %d, want the one that was let through", len(rec.all()))
 	}
-	// And the room nobody pinned stays silent, so the rule is doing the work rather
-	// than the level.
+	// The unpinned room stays silent, so the rule, not the level, does the work.
 	if _, notified := n.Deliver(context.Background(), msg(dmRoom, alice, "hi")); notified {
 		t.Error("an unpinned room was let through by a rule about pinned ones")
 	}
 }
 
-// A release recorded in account data — made on this machine or any other — outranks every
-// rule, exactly as the local exemption does.
+// A release in account data, from any machine, outranks every rule.
 func TestAReleaseInAccountDataOutranksEveryRule(t *testing.T) {
 	t.Parallel()
 
@@ -347,7 +334,7 @@ func TestAReleaseInAccountDataOutranksEveryRule(t *testing.T) {
 	}
 }
 
-// A room released while this daemon is running leaves Spam here too.
+// A room released while this daemon runs leaves Spam here too.
 func TestAReleaseReachesARunningDaemon(t *testing.T) {
 	t.Parallel()
 
@@ -371,8 +358,7 @@ func TestAReleaseReachesARunningDaemon(t *testing.T) {
 	}
 }
 
-// When the homeserver says the room was released — a release this daemon had not heard
-// of yet — the rule loses, and the message is delivered like any other.
+// A release this daemon had not heard of beats the rule; the message is delivered.
 func TestARuleThatLosesToAReleaseDoesNotSilence(t *testing.T) {
 	t.Parallel()
 
@@ -384,7 +370,7 @@ func TestARuleThatLosesToAReleaseDoesNotSilence(t *testing.T) {
 	if _, notified := n.Deliver(ctx, msg(chatRm, alice, "double your bitcoin")); !notified {
 		t.Error("a rule silenced a room the homeserver says was released")
 	}
-	// And it is remembered: the next message does not try again.
+	// It is remembered: the next message does not try again.
 	src.refuse = nil
 	if _, notified := n.Deliver(ctx, msg(chatRm, alice, "more bitcoin")); !notified {
 		t.Error("the second message was silenced")

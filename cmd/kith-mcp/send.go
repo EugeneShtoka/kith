@@ -16,39 +16,37 @@ import (
 // draftCap stops a never-sending loop from growing a draft forever.
 const draftCap = 8000
 
-// writeArgs is deliberately only what is said and where, never what happens.
+// writeArgs is only what is said and where, never what happens.
 type writeArgs struct {
 	Room    string `json:"room"`
 	Text    string `json:"text"`
 	Thread  string `json:"thread"`
 	ReplyTo string `json:"reply_to"`
-	// At sends it then rather than now: RFC 3339, with its offset.
+	// At sends it then rather than now: RFC 3339 with offset.
 	At string `json:"at"`
 }
 
-// errLaterOnlyWhereSent refuses a delayed send to a room the policy only drafts into: a
-// draft is reviewed before it goes, a scheduled message is not.
+// errLaterOnlyWhereSent refuses a delayed send to a draft-only room: a draft is
+// reviewed before it goes, a scheduled message is not.
 var errLaterOnlyWhereSent = errors.New("a message is sent later only where you may send; " +
 	"this room is drafted into, so nothing was scheduled. Write it now as a draft, or tell them")
 
-// aim is where in a room a message goes: a thread (its root) and a message it
-// answers, either empty.
+// aim is where in a room a message goes: a thread root and a message it answers,
+// either empty.
 type aim struct {
 	thread, replyTo domain.EventID
 }
 
-// errElsewhere refuses to add to a draft aimed somewhere else (another thread, the
-// main timeline, another message to answer): the words would be sent where they were
-// not meant, and the person's draft would change what it answers.
+// errElsewhere refuses to add to a draft aimed elsewhere (another thread, the main
+// timeline, another reply target): the words would go where not meant.
 var errElsewhere = errors.New("that room's composer already holds a draft aimed elsewhere (another " +
 	"thread, the main timeline, or another message to answer), so nothing was added to it. Tell them; " +
 	"it can go in once that draft is sent or cleared")
 
-// shortDashes writes every dash longer than a hyphen (figure, en and em dash, the
-// horizontal bar) as a hyphen.
+// shortDashes turns every dash longer than a hyphen into a hyphen.
 var shortDashes = strings.NewReplacer("\u2012", "-", "\u2013", "-", "\u2014", "-", "\u2015", "-")
 
-// sendMessage is the tool.
+// sendMessage is the send_message tool.
 func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, error) {
 	in, err := args[writeArgs](raw)
 	if err != nil {
@@ -70,7 +68,7 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 		if errors.Is(err, errNoSuchRoom) {
 			s.recordUnseenRoom(ctx, in.Room, text)
 			if !s.readScope().Shares() {
-				// Says the same whatever room was named, so it reveals nothing.
+				// The same whatever room was named, so it reveals nothing.
 				return nil, fmt.Errorf("nothing was written: %w", errNothingShared)
 			}
 		}
@@ -84,7 +82,7 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	if err != nil {
 		return nil, err
 	}
-	// From the cooldown read to the send's record, no other session decides.
+	// No other session decides between the cooldown read and the send's record.
 	release, err := s.ledger.Exclusive(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("refusing to send what cannot be recorded: %w", err)
@@ -105,8 +103,7 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	return s.draftFor(ctx, room, text, decision.reason, target)
 }
 
-// checked is the words to write, every dash longer than a hyphen made one (whatever
-// becomes of them), and when they go: zero for now.
+// checked returns the text with long dashes made hyphens, and when it goes (zero: now).
 func (in writeArgs) checked(now time.Time) (string, time.Time, error) {
 	text := shortDashes.Replace(strings.TrimSpace(in.Text))
 	if text == "" {
@@ -116,8 +113,8 @@ func (in writeArgs) checked(now time.Time) (string, time.Time, error) {
 	return text, later, err
 }
 
-// sendTime is when a message is to go: zero for now, else the time given, which must
-// be ahead of now.
+// sendTime is when a message goes: zero for now, else the given time, which must be
+// ahead of now.
 func sendTime(at string, now time.Time) (time.Time, error) {
 	if at = strings.TrimSpace(at); at == "" {
 		return time.Time{}, nil
@@ -143,10 +140,9 @@ func (s *server) sendLater(ctx context.Context, room domain.Room, text string, t
 	return s.wrote(room, agent.Scheduled, text, "it goes out at "+at.Format(time.RFC3339)+"; the daemon sends it, and the client lists it under :scheduled until then")
 }
 
-// aimIn resolves a thread and a reply target to messages of this room's cached
-// history, which is inside the read scope already: an event of any other room is not
-// found, so nothing about it is said. A thread named by one of its replies is its
-// root, and a reply to a message in a thread is written in that thread.
+// aimIn resolves thread and reply targets within this room's cached history (already
+// in read scope), so another room's event is simply not found. A thread named by a
+// reply is its root; a reply to a threaded message goes in that thread.
 func (s *server) aimIn(ctx context.Context, room domain.Room, thread, replyTo string) (aim, error) {
 	var out aim
 	if replyTo = strings.TrimSpace(replyTo); replyTo != "" {
@@ -191,8 +187,8 @@ type writeChoice struct {
 	reason string
 }
 
-// howToWrite reads the policy and the rail, in that order.
-// An unwritable ledger refuses the send: the cooldown is counted from it.
+// howToWrite reads the policy, then the cooldown. An unwritable ledger refuses the
+// send: the cooldown is counted from it.
 func (s *server) howToWrite(ctx context.Context, room domain.Room) (writeChoice, error) {
 	facts, placeErr := s.factsOf(ctx, room)
 	if placeErr != nil && domain.NamesAPlace(s.send) {
@@ -220,17 +216,15 @@ func (s *server) howToWrite(ctx context.Context, room domain.Room) (writeChoice,
 	return writeChoice{send: true}, nil
 }
 
-// sendNow posts the message, and keeps it when the homeserver will not take it.
-// A failure goes to the daemon's queue under the same txn ID (so it cannot duplicate);
-// a draft is the last resort.
+// sendNow posts the message. A failure goes to the daemon's queue under the same txn ID
+// (no duplicate); a draft is the last resort.
 func (s *server) sendNow(ctx context.Context, room domain.Room, text string, target aim) (any, error) {
 	draft := domain.Draft{Body: text, TxnID: domain.NewTxnID(), ThreadRoot: target.thread, ReplyTo: target.replyTo}
 	sendErr := s.backend.Send(ctx, room.ID, draft)
 	if sendErr == nil {
 		return s.wrote(room, agent.Sent, text, "")
 	}
-	// The daemon's error text stays in the log: the reason is for the assistant, and
-	// names what happened, not the internals it happened in.
+	// The daemon's error stays in the log; the assistant gets what happened, not internals.
 	s.logger().Warn("send failed; queueing", "room", room.ID, "err", sendErr)
 	now := time.Now().UTC()
 	_, queueErr := s.backend.Schedule(ctx, domain.ScheduledMessage{
@@ -244,16 +238,15 @@ func (s *server) sendNow(ctx context.Context, room domain.Room, text string, tar
 	return s.draftFor(ctx, room, text, "the send failed and the queue would not take it either", target)
 }
 
-// draftAttempts bounds how often an append is rebuilt because someone wrote the
-// draft between its read and its write; draftBackoff is the pause before the second
-// (doubled before the third), so a person typing gets a moment to pause.
+// draftAttempts bounds rebuilds when someone wrote the draft between read and write;
+// draftBackoff pauses before the second (doubled before the third) so a typist can
+// pause.
 const (
 	draftAttempts = 3
 	draftBackoff  = 100 * time.Millisecond
 )
 
-// The drafts refused on their merits, recorded as refusals (a failure to reach the
-// daemon is not one).
+// Drafts refused on their merits, recorded as refusals (an unreachable daemon is not).
 var (
 	errMidEdit = errors.New("that room's composer is mid-edit, and appending to an edit would change " +
 		"a message they are already correcting. Tell them, and try again when they have finished")
@@ -263,9 +256,9 @@ var (
 		"none of it was touched and nothing of theirs was lost. Try again in a moment")
 )
 
-// draftFor puts the words in a room's composer, without ever taking any out. The
-// append is written only over the draft it was built on, so words someone saves in
-// between (the TUI's debounced save) are never dropped: it is rebuilt on theirs.
+// draftFor adds the words to a room's composer, never removing any. The append is
+// written only over the draft it was built on, so words saved in between (the TUI's
+// debounced save) are kept and it is rebuilt on them.
 func (s *server) draftFor(ctx context.Context, room domain.Room, text, why string, target aim) (any, error) {
 	pause := draftBackoff
 	for attempt := range draftAttempts {
@@ -295,7 +288,7 @@ func (s *server) draftFor(ctx context.Context, room domain.Room, text, why strin
 	return nil, s.refuse(room, text, errDraftChanging)
 }
 
-// appendDraft adds text to the room's draft once, over the draft it read. saved is
+// appendDraft adds text to the room's draft once, over the draft it read; saved is
 // false when the draft changed in between.
 func (s *server) appendDraft(ctx context.Context, room domain.Room, text string, target aim) (appended, saved bool, err error) {
 	held, err := s.draftIn(ctx, room.ID)
@@ -303,12 +296,12 @@ func (s *server) appendDraft(ctx context.Context, room domain.Room, text string,
 		return false, false, err
 	}
 	over := held
-	// Appending to an edit in progress would alter a message they are correcting.
+	// Appending to an edit in progress would alter the message being corrected.
 	if held.Editing != "" || held.EditSaved != "" {
 		return false, false, errMidEdit
 	}
-	// An empty composer is aimed where these words go; one holding a draft keeps its
-	// aim, and takes them only when that is where they go.
+	// An empty composer takes these words' aim; a held draft keeps its aim and takes them
+	// only when it matches.
 	switch {
 	case held.Empty():
 		held.ThreadRoot, held.ReplyTo = target.thread, target.replyTo
@@ -328,8 +321,8 @@ func (s *server) appendDraft(ctx context.Context, room domain.Room, text string,
 	held.Author, held.Updated = s.whoever(), time.Now()
 	saved, err = s.backend.ReplaceDraft(ctx, held, over)
 	if err != nil {
-		// The write may have landed with its answer lost: trying again would append
-		// the same words twice. Stored as written, or with more after it, it landed.
+		// The write may have landed with its answer lost; retrying would append twice. Stored
+		// as written, or with more after it, means it landed.
 		if now, rerr := s.draftIn(ctx, room.ID); rerr == nil && landed(now, held) {
 			return appended, true, nil
 		}
@@ -338,8 +331,8 @@ func (s *server) appendDraft(ctx context.Context, room domain.Room, text string,
 	return appended, saved, nil
 }
 
-// landed reports whether the stored draft is this write, or this write with more after
-// it (the person went on typing): either way, it was stored.
+// landed reports whether the stored draft is this write, possibly with more typed
+// after it.
 func landed(stored, wrote domain.StoredDraft) bool {
 	if stored.Body == wrote.Body {
 		return stored.Updated.UnixMilli() == wrote.Updated.UnixMilli() && stored.Author == wrote.Author
@@ -362,7 +355,7 @@ func (s *server) draftIn(ctx context.Context, room domain.RoomID) (domain.Stored
 	return domain.StoredDraft{RoomID: room}, nil
 }
 
-// wrote records what happened and says it, in that order.
+// wrote records what happened, then says it.
 func (s *server) wrote(room domain.Room, outcome, text, why string) (any, error) {
 	out := map[string]any{
 		"action": outcome,
@@ -397,11 +390,9 @@ func (s *server) refuse(room domain.Room, text string, why error) error {
 	return fmt.Errorf("nothing was written: %w", why)
 }
 
-// recordUnseenRoom puts a write aimed at a room the assistant cannot see in the
-// ledger, so the user sees the attempt: under the room, when the name is one outside
-// `[agent.read]`, else under the name asked for. Both cases append, so the time the
-// refusal takes does not tell a withheld room from a missing one; the assistant is
-// told only that no such room is visible.
+// recordUnseenRoom ledgers a write aimed at a room the assistant cannot see: under the
+// room if it exists outside `[agent.read]`, else under the name asked. Both append, so
+// timing cannot tell a withheld room from a missing one.
 func (s *server) recordUnseenRoom(ctx context.Context, want, text string) {
 	entry := agent.Entry{
 		Name: want, Author: s.whoever(), Outcome: agent.Refused, Text: text,
@@ -446,7 +437,6 @@ func (s *server) nameClient(name, version string) {
 	s.client = clean
 }
 
-// clientNameCap bounds the kept client name.
 const clientNameCap = 40
 
 // printable maps control characters to spaces, so a name cannot inject lines.
@@ -457,7 +447,7 @@ func printable(r rune) rune {
 	return r
 }
 
-// round is a duration said the way a sentence says one.
+// round is a duration rounded for a sentence.
 func round(d time.Duration) time.Duration {
 	if d < time.Minute {
 		return d.Round(time.Second)

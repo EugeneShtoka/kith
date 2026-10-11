@@ -12,8 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// recording answers with fixtures and remembers its arguments, so each method's wiring is
-// checked from both ends of the socket.
+// recording answers with fixtures and records its arguments, so each method's wiring
+// is checked from both ends of the socket.
 type recording struct {
 	apitest.Nop
 
@@ -237,11 +237,10 @@ func (r *recording) InstallModel(_ context.Context, tag string) error {
 
 var _ api.Backend = (*recording)(nil)
 
-// stamp is a fixed instant for fixtures.
+// stamp is a fixture instant at millisecond precision.
 func stamp() time.Time { return time.UnixMilli(time.Now().UnixMilli()) }
 
-// Reads: a room refresh, the space hierarchy, cached unread and invites all come
-// back field-for-field.
+// Room refresh, space hierarchy, cached unread and invites round-trip field for field.
 func TestReadRolesRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -280,8 +279,7 @@ func TestReadRolesRoundTrip(t *testing.T) {
 	}
 }
 
-// MarkRoomsRead carries a list out and three counts back; a swapped count is invisible
-// to the compiler.
+// MarkRoomsRead carries a list out and three counts back; a swapped count compiles.
 func TestMarkRoomsReadRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -301,8 +299,7 @@ func TestMarkRoomsReadRoundTrip(t *testing.T) {
 	}
 }
 
-// A timeline page keeps its messages, the reactions discovered alongside them, and its
-// pagination token.
+// A timeline page keeps its messages, discovered reactions and pagination token.
 func TestTimelineRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -333,7 +330,7 @@ func TestTimelineRoundTrip(t *testing.T) {
 		t.Errorf("CachedTimeline() = %+v, %v; want the page's messages", cached, err)
 	}
 
-	// One event by ID: what a thread older than the cached window asks for.
+	// One event by ID, as a thread older than the cached window asks for.
 	one, err := r.FetchEvent(context.Background(), "!a:example.org", "$one:example.org")
 	if err != nil {
 		t.Fatalf("FetchEvent() error = %v", err)
@@ -346,7 +343,6 @@ func TestTimelineRoundTrip(t *testing.T) {
 	}
 }
 
-// A draft reaches the daemon whole.
 func TestSendCarriesTheWholeDraft(t *testing.T) {
 	t.Parallel()
 
@@ -370,8 +366,7 @@ func TestSendCarriesTheWholeDraft(t *testing.T) {
 	}
 }
 
-// Reactions, members, emoji, media and search: one call each, checking both the
-// arguments that arrive and the result that returns.
+// Reactions, members, emoji, media and search: arguments in and results out.
 func TestRemainingRolesRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -418,8 +413,7 @@ func TestRemainingRolesRoundTrip(t *testing.T) {
 		t.Errorf("backend saw (%q, %q), want (compose, 🙂)", b.gotKind, b.gotEmoji)
 	}
 
-	// Bytes, not a path: a byte lost or a copy truncated shows up as an image that
-	// will not decode, so the exact slice matters.
+	// Exact bytes: a truncated copy is an image that will not decode.
 	image, err := r.LoadImage(ctx, "!a:example.org", "$m:example.org")
 	if err != nil || !reflect.DeepEqual(image, b.image) {
 		t.Errorf("LoadImage() = %v, %v; want %v", image, err, b.image)
@@ -433,8 +427,7 @@ func TestRemainingRolesRoundTrip(t *testing.T) {
 		t.Errorf("backend saw query %q, want code", b.gotQuery)
 	}
 
-	// Completion crosses as a prefix, two room lists and a scope, and comes back in the
-	// order it was ranked in.
+	// Completion crosses as a prefix, two room lists and a scope, and keeps its ranking.
 	words, err := r.CompleteWord(ctx, domain.CompleteRequest{
 		Prefix:     "comp",
 		RoomIDs:    []domain.RoomID{"!a:example.org"},
@@ -454,8 +447,8 @@ func TestRemainingRolesRoundTrip(t *testing.T) {
 	}
 }
 
-// Membership and account: the two answers to an invitation, and the credentials
-// path. An access token crossing the socket is the reason its mode is 0600.
+// Invitation answers and the credentials path. An access token crossing the socket is
+// why its mode is 0600.
 func TestMembershipAndAccountRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -470,7 +463,7 @@ func TestMembershipAndAccountRoundTrip(t *testing.T) {
 	if b.gotAlias != "#book-club:example.org" {
 		t.Errorf("backend saw alias %q, want #book-club:example.org", b.gotAlias)
 	}
-	// via is what makes a room unknown to this homeserver joinable.
+	// via makes a room unknown to this homeserver joinable.
 	if !reflect.DeepEqual(b.gotVia, []string{"one.org", "two.org"}) {
 		t.Errorf("backend saw via %+v, want [one.org two.org]", b.gotVia)
 	}
@@ -482,8 +475,7 @@ func TestMembershipAndAccountRoundTrip(t *testing.T) {
 	}
 }
 
-// The three verification controls carry their transaction ID, which is the only
-// thing tying an answer to the flow being answered.
+// Verification controls carry their transaction ID, which ties an answer to its flow.
 func TestVerificationControlsRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -507,8 +499,8 @@ func TestVerificationControlsRoundTrip(t *testing.T) {
 	}
 }
 
-// blockingReader holds MarkRoomsRead open long enough for the test to hang up on it, then
-// reports whether the context it was handed was still alive.
+// blockingReader holds MarkRoomsRead open until the client hangs up, then reports
+// whether its context was still alive.
 type blockingReader struct {
 	apitest.Nop
 	started chan struct{}
@@ -526,7 +518,7 @@ func (b *blockingReader) MarkRoomsRead(ctx context.Context, roomIDs []domain.Roo
 	return domain.ReadResult{Marked: len(roomIDs)}, nil
 }
 
-// The client hanging up must not stop a mark-read that is already under way.
+// A client hanging up does not stop a mark-read already under way.
 func TestMarkRoomsReadSurvivesTheClientHangingUp(t *testing.T) {
 	t.Parallel()
 
@@ -535,7 +527,7 @@ func TestMarkRoomsReadSurvivesTheClientHangingUp(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		// The result is discarded: by design there is nobody left to receive it.
+		// Nobody is left to receive the result.
 		_, _ = r.MarkRoomsRead(ctx, []domain.RoomID{"!a:example.org", "!b:example.org"}, false)
 	}()
 	<-b.started
@@ -546,8 +538,7 @@ func TestMarkRoomsReadSurvivesTheClientHangingUp(t *testing.T) {
 	}
 }
 
-// What a bridge refuses crosses the wire as a list of three-field rows, and the timestamp
-// is the field a conversion is most likely to drop.
+// Bridge refusals cross as three-field rows; the timestamp is the likeliest to drop.
 func TestReactionRefusalsRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -574,7 +565,7 @@ func TestReactionRefusalsRoundTrip(t *testing.T) {
 	}
 }
 
-// A map crossing the wire, which protobuf carries as repeated entries.
+// A map crosses the wire as repeated entries.
 func TestEmojiScoresRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -592,14 +583,13 @@ func TestEmojiScoresRoundTrip(t *testing.T) {
 	if b.gotKind != domain.EmojiComposed || !reflect.DeepEqual(b.gotRooms, siblings) {
 		t.Errorf("backend saw (%q, %+v), want (compose, %+v)", b.gotKind, b.gotRooms, siblings)
 	}
-	// The scope is the client's setting and decides which rooms count at all, so a
-	// dropped one is a ranking silently answering a different question.
+	// The scope decides which rooms count; dropping it silently changes the ranking.
 	if b.gotScope != "global" {
 		t.Errorf("backend saw scope %q, want global", b.gotScope)
 	}
 }
 
-// A backend failure fails the call on every method group rather than reading as an empty result.
+// A backend failure fails the call on every method group, not an empty result.
 func TestEveryRolePropagatesFailure(t *testing.T) {
 	t.Parallel()
 
@@ -657,7 +647,7 @@ func TestEveryRolePropagatesFailure(t *testing.T) {
 	}
 }
 
-// A sentinel keeps its identity (errors.Is) across the wire; an unclassified error gains none.
+// A sentinel keeps errors.Is identity across the wire; an unclassified error gains none.
 func TestSentinelSurvivesTheWire(t *testing.T) {
 	t.Parallel()
 
@@ -673,7 +663,7 @@ func TestSentinelSurvivesTheWire(t *testing.T) {
 	}
 }
 
-// A link handed from one kith process to another, over the daemon.
+// A link handed from one kith process to another through the daemon.
 func TestFollowReachesAnAttachedClientAndSaysSo(t *testing.T) {
 	t.Parallel()
 
@@ -681,8 +671,7 @@ func TestFollowReachesAnAttachedClientAndSaysSo(t *testing.T) {
 	r, h := attach(t, b)
 	ctx := context.Background()
 
-	// Nobody on the receiving stream yet: the link reaches no one, and the answer says so
-	// rather than pretending.
+	// Nobody on the receiving stream yet: the answer says it was not delivered.
 	delivered, err := r.Follow(ctx, "matrix:r/x:example.org")
 	if err != nil {
 		t.Fatalf("Follow() error = %v", err)
@@ -691,7 +680,7 @@ func TestFollowReachesAnAttachedClientAndSaysSo(t *testing.T) {
 		t.Error("Follow claimed delivery with nothing subscribed")
 	}
 
-	// With the client attached, it is delivered and it arrives.
+	// With the client attached, it is delivered.
 	started := make(chan error, 1)
 	go func() { started <- r.Start(context.Background()) }()
 	h.waitAttached(1)
@@ -713,8 +702,7 @@ func TestFollowReachesAnAttachedClientAndSaysSo(t *testing.T) {
 	}
 }
 
-// Maps cross as repeated entries, so keys and values are compared whole; an uncolored
-// room comes back empty rather than as an error.
+// Maps are compared whole; an uncolored room comes back empty, not as an error.
 func TestSenderSlotsRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -740,7 +728,7 @@ func TestSenderSlotsRoundTrip(t *testing.T) {
 	}
 }
 
-// A verdict carries its reason (rule, filter) and a release travels as one.
+// A verdict carries its reason (rule, filter); a release travels as one.
 func TestSpamRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -770,8 +758,8 @@ func TestSpamRoundTrip(t *testing.T) {
 	}
 }
 
-// Rare and Certain are single bools: dropped, a hint arrives as a misspelling (or an
-// uncertain hint as license to rewrite).
+// Rare and Certain are single bools: dropped, a hint arrives as a misspelling or an
+// uncertain hint as license to rewrite.
 func TestSpellingRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -793,7 +781,7 @@ func TestSpellingRoundTrip(t *testing.T) {
 }
 
 // The model offer's evidence (size, recall), the no-offer case and the missing-program
-// sentence all survive; an install refusal crosses as an error.
+// sentence survive; an install refusal crosses as an error.
 func TestModelRoundTrip(t *testing.T) {
 	t.Parallel()
 

@@ -11,35 +11,34 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// spamStore is what promoting a room into Spam needs from the backend. Promotion
-// lives in the daemon because the first-message rule fires on a message that
-// arrives once, usually while no client is open; the verdict goes to room account
-// data (matrix/spam.go) so it survives rebuilds and reaches other machines.
+// spamStore is what promoting a room into Spam needs. Promotion lives in the daemon
+// because the first-message rule fires once, usually with no client open; verdicts
+// go to room account data so they survive rebuilds and reach other machines.
 type spamStore interface {
 	MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error
 	SpamRooms(ctx context.Context) ([]domain.SpamVerdict, error)
 	CachedTimeline(ctx context.Context, roomID domain.RoomID) ([]domain.Message, error)
 }
 
-// spamWatch decides whether a message moves its room into Spam, and remembers what
-// it decided. The set is held in memory, seeded from the cache.
+// spamWatch decides whether a message moves its room into Spam and remembers the
+// verdict, in memory, seeded from the cache.
 type spamWatch struct {
 	store spamStore
-	// log hears reads and writes that failed; nil is silent. Set before use.
+	// log hears failed reads and writes; nil is silent. Set before use.
 	log *slog.Logger
-	// mine, when set, is whether a sender is this person (Notifications.UseSelves):
-	// have you ever written here separates a conversation from a broadcast.
+	// mine reports whether a sender is this person: having written in a room separates
+	// a conversation from a broadcast.
 	mine func(sender string) bool
 
 	mu     sync.Mutex
 	rules  domain.SpamRules
 	places domain.Spam
 	// stored/released mirror the account data, re-read after spamReseed or a reload
-	// (a release made on another machine arrives only by sync).
+	// (a release on another machine arrives only by sync).
 	stored   map[domain.RoomID]bool
 	released map[domain.RoomID]bool
-	// recorded is what this process promoted; kept apart from stored so a re-read
-	// cannot drop a verdict whose write failed.
+	// recorded is what this process promoted, kept apart from stored so a re-read cannot
+	// drop a verdict whose write failed.
 	recorded map[domain.RoomID]bool
 	seededAt time.Time
 	seeded   bool
@@ -62,7 +61,7 @@ func newSpamWatch(store spamStore) *spamWatch {
 // spamReseed is how long the memo of caught and released rooms is trusted.
 const spamReseed = time.Minute
 
-// reload replaces the rules and hand-written lists, and marks the memo stale.
+// reload replaces the rules and hand-written lists and marks the memo stale.
 func (w *spamWatch) reload(rules domain.SpamRules, places domain.Spam) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -70,9 +69,8 @@ func (w *spamWatch) reload(rules domain.SpamRules, places domain.Spam) {
 	w.seeded = false
 }
 
-// spam reports whether this message's room is in Spam, already or as of this
-// message. Precedence: `[spam] except` > hand-written list > account-data release >
-// recorded verdicts > rules.
+// spam reports whether the message's room is in Spam, already or as of this message.
+// Precedence: `[spam] except` > hand-written list > release > recorded > rules.
 func (w *spamWatch) spam(ctx context.Context, msg domain.Message, facts domain.RoomFacts) bool {
 	w.mu.Lock()
 	rules, places := w.rules, w.places
@@ -119,7 +117,7 @@ func (w *spamWatch) judge(
 	// One history read answers every room question the rules ask.
 	history, err := w.history(ctx, msg)
 	if err != nil {
-		// Unknown must never read as "new and unspoken-in" — what the strongest rules fire on.
+		// Unknown must never read as "new and unspoken-in", which the strongest rules fire on.
 		w.warn(ctx, "spam: read the room's history failed; not judging this message", err, "room", msg.RoomID, "event", msg.ID)
 		return domain.SpamVerdict{}, false
 	}
@@ -139,7 +137,6 @@ func (w *spamWatch) judge(
 	}, true
 }
 
-// roomHistory is what came before one message.
 type roomHistory struct {
 	msgs  []domain.Message
 	first bool
@@ -147,7 +144,7 @@ type roomHistory struct {
 }
 
 // history reads what a room has said. Only "has history" is memoized: a room that
-// looks new may just not have been fetched yet.
+// looks new may just not be fetched yet.
 func (w *spamWatch) history(ctx context.Context, msg domain.Message) (roomHistory, error) {
 	msgs, err := w.store.CachedTimeline(ctx, msg.RoomID)
 	if err != nil {
@@ -177,7 +174,6 @@ func (w *spamWatch) history(ctx context.Context, msg domain.Message) (roomHistor
 	return out, nil
 }
 
-// warn logs a failed step; nil err or no logger is silent.
 func (w *spamWatch) warn(ctx context.Context, msg string, err error, attrs ...any) {
 	if err == nil || w.log == nil {
 		return
@@ -200,8 +196,8 @@ func (w *spamWatch) window(msgs []domain.Message, rules domain.SpamRules) (caugh
 	return caught, total
 }
 
-// record writes the verdict to account data and memory, and reports whether it is
-// in force: not if the room was released elsewhere (remembered as released).
+// record writes the verdict to account data and memory, reporting whether it is in
+// force (not if the room was released elsewhere).
 func (w *spamWatch) record(ctx context.Context, verdict domain.SpamVerdict) bool {
 	err := w.store.MarkSpam(ctx, verdict)
 	w.mu.Lock()
@@ -210,14 +206,14 @@ func (w *spamWatch) record(ctx context.Context, verdict domain.SpamVerdict) bool
 		w.released[verdict.Room] = true
 		return false
 	}
-	// Any other failure leaves the verdict in force for this process, but it will
-	// not survive a restart or reach other devices: worth a warning.
+	// Any other failure keeps the verdict for this process only: it will not survive a
+	// restart or reach other devices.
 	w.warn(ctx, "spam: record the verdict failed; it holds until restart only", err, "room", verdict.Room, "rule", verdict.Rule)
 	w.recorded[verdict.Room] = true
 	return true
 }
 
-// seed rereads caught and released rooms from the cache; a failure leaves it stale
+// seed rereads caught and released rooms from the cache; on failure it stays stale
 // so the next message retries.
 func (w *spamWatch) seed(ctx context.Context) {
 	verdicts, err := w.store.SpamRooms(ctx)
@@ -238,7 +234,7 @@ func (w *spamWatch) seed(ctx context.Context) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.stored, w.released = stored, released
-	// A release outranks what this process recorded before it heard of it.
+	// A release outranks what this process recorded before hearing of it.
 	for room := range released {
 		delete(w.recorded, room)
 	}

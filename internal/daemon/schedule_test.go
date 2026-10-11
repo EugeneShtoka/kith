@@ -15,13 +15,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/schedule"
 )
 
-// writeFile is os.WriteFile with the queue's mode, kept here so the test does not
-// import os for one call.
+// writeFile is os.WriteFile with the queue's mode.
 func writeFile(path, body string) error {
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 
-// recordingSender is the backend the scheduler sends through.
 type recordingSender struct {
 	mu    sync.Mutex
 	sent  []domain.Draft
@@ -58,8 +56,7 @@ func newScheduler(t *testing.T, now time.Time, cutoff time.Duration) (*Scheduler
 	return s, sender, store
 }
 
-// The point of the daemon owning this: a message whose moment passed while nothing
-// was running goes out when the daemon comes back.
+// A message that came due while nothing ran goes out when the daemon starts.
 func TestStartSendsWhatCameDueWhileTheDaemonWasDown(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +83,7 @@ func TestStartSendsWhatCameDueWhileTheDaemonWasDown(t *testing.T) {
 	if len(left) != 1 || left[0].ID != "later" {
 		t.Errorf("queue = %+v, want only the future message", left)
 	}
-	// And the file agrees, so a restart does not send it twice.
+	// The file agrees, so a restart does not send it twice.
 	onDisk, err := store.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -96,8 +93,7 @@ func TestStartSendsWhatCameDueWhileTheDaemonWasDown(t *testing.T) {
 	}
 }
 
-// Past the cutoff nothing is sent unasked, the message is kept, and it is reported
-// once — the daemon was off longer than the message was willing to wait.
+// Past the cutoff a message is kept, not sent, and reported once.
 func TestAMessagePastTheCutoffIsHeldNotSent(t *testing.T) {
 	t.Parallel()
 
@@ -123,15 +119,14 @@ func TestAMessagePastTheCutoffIsHeldNotSent(t *testing.T) {
 	if len(lines) == 0 {
 		t.Error("a held message was not reported, so nobody would ever know")
 	}
-	// The report reaches the journal: it names the message, never its text.
+	// The report names the message, never its text.
 	for _, line := range lines {
 		if strings.Contains(line, "last tuesday") || !strings.Contains(line, "ancient") {
 			t.Errorf("held line = %q, want the ID and not the body", line)
 		}
 	}
 
-	// Reported once, not on every pass: a stale entry sits in the queue for as long
-	// as it takes someone to look at it.
+	// Reported once, not on every pass.
 	before := len(lines)
 	s.pass(context.Background())
 	if len(lines) != before {
@@ -139,7 +134,7 @@ func TestAMessagePastTheCutoffIsHeldNotSent(t *testing.T) {
 	}
 }
 
-// A cutoff of zero means however late is fine.
+// A cutoff of zero sends however late.
 func TestACutoffOfZeroSendsAnythingOverdue(t *testing.T) {
 	t.Parallel()
 
@@ -157,8 +152,7 @@ func TestACutoffOfZeroSendsAnythingOverdue(t *testing.T) {
 	}
 }
 
-// A thread reply scheduled today has to land in that thread tomorrow, not in the
-// room's main timeline where the conversation it answers is not.
+// A scheduled thread reply lands in its thread, not the main timeline.
 func TestAScheduledThreadReplyKeepsItsRoot(t *testing.T) {
 	t.Parallel()
 
@@ -206,7 +200,7 @@ func TestCancelRemovesFromTheQueueAndTheFile(t *testing.T) {
 	if len(onDisk) != 0 {
 		t.Error("the message is still on disk, so a restart would send it")
 	}
-	// Canceling what is already gone is the same answer, not an error.
+	// Canceling what is already gone is not an error.
 	if err := s.Cancel("x1"); err != nil {
 		t.Errorf("canceling an unknown id: %v", err)
 	}
@@ -215,8 +209,7 @@ func TestCancelRemovesFromTheQueueAndTheFile(t *testing.T) {
 	}
 }
 
-// An unreadable queue must not stop the daemon: it would take every other feature
-// down over one line of hand-edited TOML.
+// An unreadable queue is reported and does not stop the daemon.
 func TestAnUnreadableQueueIsReportedNotFatal(t *testing.T) {
 	t.Parallel()
 
@@ -242,12 +235,12 @@ func TestAnUnreadableQueueIsReportedNotFatal(t *testing.T) {
 	}
 }
 
-// A queue that cannot be written must not be listed as though it were.
+// A message that could not be saved is not listed.
 func TestAMessageThatCouldNotBeSavedIsNotQueued(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
-	// A path inside a file is unopenable, which is the cheapest unwritable location.
+	// A path inside a file is the cheapest unwritable location.
 	dir := t.TempDir()
 	blocker := filepath.Join(dir, "blocker")
 	if err := writeFile(blocker, "not a directory"); err != nil {
@@ -269,8 +262,8 @@ func TestAMessageThatCouldNotBeSavedIsNotQueued(t *testing.T) {
 	}
 }
 
-// flakyQueue is a Queue whose Save can be made to fail, which is the only way to reach the
-// ordering claim() exists to enforce.
+// flakyQueue is a Queue whose Save can be made to fail, to reach the ordering claim()
+// enforces.
 type flakyQueue struct {
 	mu       sync.Mutex
 	onDisk   []domain.ScheduledMessage
@@ -310,7 +303,7 @@ func (q *flakyQueue) len() int {
 	return len(q.onDisk)
 }
 
-// The bug this guards: sending first and saving after leaves memory ahead of the file.
+// Sending before saving would leave memory ahead of the file.
 func TestAQueueThatCannotBeWrittenSendsNothingRatherThanTwice(t *testing.T) {
 	t.Parallel()
 
@@ -338,8 +331,7 @@ func TestAQueueThatCannotBeWrittenSendsNothingRatherThanTwice(t *testing.T) {
 		t.Error("the message left the queue even though the removal was never written")
 	}
 
-	// Restart with the write still failing, as many times as it takes. Nothing may
-	// go out until the file can be advanced.
+	// Nothing goes out until the file can be advanced, however many restarts.
 	for range 3 {
 		start().startNow(context.Background())
 	}
@@ -350,7 +342,6 @@ func TestAQueueThatCannotBeWrittenSendsNothingRatherThanTwice(t *testing.T) {
 		t.Errorf("the file holds %d entries, want the message still pending", store.len())
 	}
 
-	// The queue becomes writable.
 	store.fail(nil)
 	start().startNow(context.Background())
 	if sender.count() != 1 {
@@ -360,15 +351,14 @@ func TestAQueueThatCannotBeWrittenSendsNothingRatherThanTwice(t *testing.T) {
 		t.Errorf("the file still holds %d entries after a successful send", store.len())
 	}
 
-	// And the restart after that sends nothing, because the removal is durable.
+	// The next restart sends nothing: the removal is durable.
 	start().startNow(context.Background())
 	if sender.count() != 1 {
 		t.Errorf("a restart after a successful send re-sent it: %d total", sender.count())
 	}
 }
 
-// A send that fails goes back to the file, not just to memory: an outage that lasts
-// longer than the daemon does must not cost the message.
+// A failed send goes back to the file, so an outage outlasting the daemon keeps it.
 func TestAFailedSendGoesBackOnDisk(t *testing.T) {
 	t.Parallel()
 
@@ -386,7 +376,6 @@ func TestAFailedSendGoesBackOnDisk(t *testing.T) {
 		t.Fatalf("the file holds %d entries after a failed send, want the message back", store.len())
 	}
 
-	// The network comes back, and so does the daemon.
 	sender.fail = nil
 	next := NewScheduler(store, sender, func() time.Duration { return 24 * time.Hour }, nil)
 	next.now = func() time.Time { return now }
@@ -397,7 +386,6 @@ func TestAFailedSendGoesBackOnDisk(t *testing.T) {
 	}
 }
 
-// Shutdown mid-pass returns what was claimed and never attempted.
 func TestShutdownMidPassReturnsUnsentMessages(t *testing.T) {
 	t.Parallel()
 
@@ -423,7 +411,7 @@ func TestShutdownMidPassReturnsUnsentMessages(t *testing.T) {
 	}
 }
 
-// The timer a Schedule RPC arms survives the RPC.
+// The timer a Schedule RPC arms survives the RPC's canceled context.
 func TestAMessageAddedByAnRPCStillSendsAfterThatRPCReturns(t *testing.T) {
 	t.Parallel()
 
@@ -432,7 +420,7 @@ func TestAMessageAddedByAnRPCStillSendsAfterThatRPCReturns(t *testing.T) {
 	s.now = time.Now
 	s.Start(daemonCtx)
 
-	// Exactly what the handler does: its own request context, canceled on return.
+	// As the handler does: its own request context, canceled on return.
 	_, done := context.WithCancel(daemonCtx)
 	if err := s.Add(domain.ScheduledMessage{
 		ID: "soon", RoomID: "!a:x", Body: "after the handler is gone",
@@ -440,7 +428,7 @@ func TestAMessageAddedByAnRPCStillSendsAfterThatRPCReturns(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Add() = %v", err)
 	}
-	done() // the handler returns here
+	done()
 
 	deadline := time.Now().Add(2 * time.Second)
 	for sender.count() == 0 && time.Now().Before(deadline) {
@@ -451,7 +439,6 @@ func TestAMessageAddedByAnRPCStillSendsAfterThatRPCReturns(t *testing.T) {
 	}
 }
 
-// Stop waits for a pass that is already sending.
 func TestStopWaitsForAPassThatIsAlreadySending(t *testing.T) {
 	t.Parallel()
 
@@ -463,8 +450,7 @@ func TestStopWaitsForAPassThatIsAlreadySending(t *testing.T) {
 	s := NewScheduler(store, blocking, func() time.Duration { return time.Hour }, func(slog.Level, string) {})
 	s.now = time.Now
 
-	// Add runs the pass inline, and this pass parks inside Send — so Add itself does not
-	// return until the sender is released.
+	// Add runs the pass inline and it parks inside Send, so Add blocks until release.
 	added := make(chan error, 1)
 	go func() {
 		added <- s.Add(domain.ScheduledMessage{
@@ -473,8 +459,7 @@ func TestStopWaitsForAPassThatIsAlreadySending(t *testing.T) {
 		})
 	}()
 
-	// The pass is now inside Send. Stop from another goroutine so the test can tell
-	// whether it waits.
+	// Stop from another goroutine so the test can tell whether it waits.
 	<-entered
 	stopped := make(chan struct{})
 	go func() { s.Stop(); close(stopped) }()
@@ -496,8 +481,7 @@ func TestStopWaitsForAPassThatIsAlreadySending(t *testing.T) {
 	}
 }
 
-// blockingSender parks inside Send until it is released, so a test can hold a pass
-// open across a Stop.
+// blockingSender parks inside Send until released.
 type blockingSender struct {
 	once    sync.Once
 	entered chan struct{}
@@ -510,8 +494,7 @@ func (b *blockingSender) Send(context.Context, domain.RoomID, domain.Draft) erro
 	return nil
 }
 
-// gatedQueue is a Queue whose first Save parks until the test releases it, so two writers
-// can be held in a chosen order.
+// gatedQueue's first Save parks until released, to order two writers.
 type gatedQueue struct {
 	mu    sync.Mutex
 	queue []domain.ScheduledMessage
@@ -545,7 +528,7 @@ func (g *gatedQueue) Save(queue []domain.ScheduledMessage) error {
 	return nil
 }
 
-// A message that has been sent does not come back because another write was in flight.
+// A sent message does not come back from a write still in flight.
 func TestASentMessageDoesNotComeBackFromAWriteStillInFlight(t *testing.T) {
 	t.Parallel()
 
@@ -566,7 +549,7 @@ func TestASentMessageDoesNotComeBackFromAWriteStillInFlight(t *testing.T) {
 	s.mu.Unlock()
 	t.Cleanup(s.Stop)
 
-	// Writer one: adds a message far in the future. Its Save is the gated one.
+	// Writer one adds a future message; its Save is gated.
 	addDone := make(chan error, 1)
 	go func() {
 		addDone <- s.Add(domain.ScheduledMessage{
@@ -576,7 +559,7 @@ func TestASentMessageDoesNotComeBackFromAWriteStillInFlight(t *testing.T) {
 	}()
 	<-store.entered
 
-	// Writer two: the pass that claims "due" and sends it.
+	// Writer two is the pass that claims and sends "due".
 	passDone := make(chan struct{})
 	go func() { s.pass(context.Background()); close(passDone) }()
 
@@ -619,11 +602,10 @@ func TestAFailedSendIsRetriedOnACadence(t *testing.T) {
 	}
 	s.startNow(context.Background())
 
-	// Still queued — a message that could not be sent is not a message to forget.
 	if got := len(s.List()); got != 1 {
 		t.Fatalf("queue holds %d entries, want the failed message kept", got)
 	}
-	// And a wake-up is armed for it, which is the part that did not exist.
+	// A wake-up is armed for it.
 	s.mu.Lock()
 	armed, wait := s.timer != nil, s.backoff
 	s.mu.Unlock()
@@ -634,8 +616,7 @@ func TestAFailedSendIsRetriedOnACadence(t *testing.T) {
 		t.Errorf("backoff = %v after one failure, want %v", wait, retryFloor)
 	}
 
-	// Each failing pass waits longer, to a ceiling: an outage should not mean an
-	// attempt a second for hours.
+	// Each failing pass waits longer, up to a ceiling.
 	for range 20 {
 		s.pass(context.Background())
 	}
@@ -646,7 +627,7 @@ func TestAFailedSendIsRetriedOnACadence(t *testing.T) {
 		t.Errorf("backoff = %v after a run of failures, want the ceiling %v", wait, retryCeiling)
 	}
 
-	// The server comes back: the message goes, and the cadence resets.
+	// The server comes back: the message goes and the cadence resets.
 	sender.fail = nil
 	s.pass(context.Background())
 	if sender.count() != 1 {
@@ -666,8 +647,7 @@ func TestAFailedSendIsRetriedOnACadence(t *testing.T) {
 	}
 }
 
-// A message held past its cutoff must not arm the retry: nothing happens to those
-// until a person says so, so a cadence for them would be a timer that never stops.
+// A held message does not arm the retry: only a person releases it.
 func TestAHeldMessageDoesNotArmARetry(t *testing.T) {
 	t.Parallel()
 
@@ -696,7 +676,7 @@ func TestAHeldMessageDoesNotArmARetry(t *testing.T) {
 	}
 }
 
-// A repeated failure is reported once per distinct error, and the eventual success once.
+// A repeated failure is reported once per distinct error, and the success once.
 func TestAFailingMessageIsReportedOncePerState(t *testing.T) {
 	t.Parallel()
 
@@ -725,8 +705,7 @@ func TestAFailingMessageIsReportedOncePerState(t *testing.T) {
 		t.Errorf("line = %q, want it to say the message is being retried", reported[0])
 	}
 
-	// A different error is news: it is a different problem with a different answer,
-	// and silence would leave the first explanation standing.
+	// A different error is news.
 	sender.mu.Lock()
 	sender.fail = errors.New("M_FORBIDDEN")
 	sender.mu.Unlock()
@@ -735,8 +714,7 @@ func TestAFailingMessageIsReportedOncePerState(t *testing.T) {
 		t.Fatalf("a changed error reported %d lines in total, want 2:\n%v", len(reported), reported)
 	}
 
-	// And the send that works says so, or the last word on the message is that it
-	// failed.
+	// The eventual success is reported.
 	sender.mu.Lock()
 	sender.fail = nil
 	sender.mu.Unlock()
@@ -749,8 +727,8 @@ func TestAFailingMessageIsReportedOncePerState(t *testing.T) {
 	}
 }
 
-// A pass that panics while planning is recovered, and leaves the scheduler usable:
-// its lock released and nothing registered for Stop to wait on.
+// A pass panicking while planning is recovered: the lock is released and nothing is
+// registered for Stop to wait on.
 func TestAPanickingPassLeavesTheSchedulerUsable(t *testing.T) {
 	t.Parallel()
 	store := schedule.New(filepath.Join(t.TempDir(), "scheduled.toml"))
@@ -777,8 +755,7 @@ func TestAPanickingPassLeavesTheSchedulerUsable(t *testing.T) {
 	}
 }
 
-// startNow is Start with the first pass run in line, so a test can assert on what it
-// sent the moment it returns.
+// startNow is Start with the first pass run inline.
 func (s *Scheduler) startNow(ctx context.Context) {
 	s.load(ctx)
 	s.pass(ctx)
@@ -797,8 +774,8 @@ func (h *heldSender) Send(ctx context.Context, roomID domain.RoomID, draft domai
 	return h.recordingSender.Send(ctx, roomID, draft)
 }
 
-// Start returns while an overdue send is still in flight: the socket is served after
-// it, and one slow homeserver must not keep every client from attaching.
+// Start returns while an overdue send is in flight, so one slow homeserver does not
+// keep clients from attaching.
 func TestStartDoesNotWaitForTheFirstPass(t *testing.T) {
 	t.Parallel()
 

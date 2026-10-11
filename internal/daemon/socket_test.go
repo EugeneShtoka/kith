@@ -10,9 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The socket is per-account and named by hash: two accounts on one machine get two daemons,
-// the same account gets the same path every run, and the MXID does not appear in a
-// directory listing.
+// The socket is per account and named by hash: stable across runs, distinct per
+// account, and the MXID never appears in a listing.
 func TestSocketPath(t *testing.T) {
 	t.Parallel()
 
@@ -32,8 +31,7 @@ func TestSocketPath(t *testing.T) {
 	}
 }
 
-// The socket and its directory are owner-only. Everything the account can do is
-// reachable through it, and on this transport the file mode is the only check.
+// The socket and its directory are owner-only: the file mode is the only check.
 func TestListenPermissions(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +59,7 @@ func TestListenPermissions(t *testing.T) {
 	}
 }
 
-// A socket already in use is an error, not a takeover: only the lock holder may unlink a stale one.
+// A socket in use is an error, not a takeover; only the lock holder unlinks a stale one.
 func TestListenRefusesAnAddressInUse(t *testing.T) {
 	t.Parallel()
 

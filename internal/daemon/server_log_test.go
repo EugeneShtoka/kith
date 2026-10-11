@@ -33,7 +33,7 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-// refusingBackend fails the way the motivating incident did: every receipt refused.
+// refusingBackend refuses every receipt.
 type refusingBackend struct {
 	fakeBackend
 }
@@ -68,8 +68,7 @@ func serveLogged(t *testing.T, b *refusingBackend) (*daemon.Remote, *syncBuffer)
 	return daemon.NewRemote(path), logs
 }
 
-// A failed call reaches the journal with its name and reason, and the client gets the
-// reason word for word (no "internal:" noise).
+// A failed call is logged with name and reason; the client gets the reason verbatim.
 func TestFailedCallIsLoggedWithItsReason(t *testing.T) {
 	t.Parallel()
 	r, logs := serveLogged(t, &refusingBackend{fakeBackend{err: errors.New("matrix: rooms: M_FORBIDDEN (HTTP 403): nope")}})

@@ -20,8 +20,7 @@ func testCache(t *testing.T) *db.Cache {
 	return cache
 }
 
-// fakeNetwork is one person (me: their IDs, on any network) with nothing encrypted,
-// counting rewinds.
+// fakeNetwork is one person with IDs me, nothing encrypted, counting rewinds.
 type fakeNetwork struct {
 	me      []string
 	rewinds int
@@ -37,7 +36,7 @@ func (n *fakeNetwork) RoomEncryption(_ context.Context, rooms []domain.RoomID) (
 }
 func (n *fakeNetwork) RewindSync(context.Context) error { n.rewinds++; return nil }
 
-// backendWithCache is a service over a fresh cache for the account me ("" for none).
+// backendWithCache is a service over a fresh cache for account me ("" for none).
 func backendWithCache(t *testing.T, me string) *Service {
 	t.Helper()
 	if me == "" {

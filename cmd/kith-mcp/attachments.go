@@ -16,19 +16,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A message's file is fetched through the daemon, as the client fetches it. An image an
-// assistant can look at comes back as an image; anything else is written under the
-// cache and named by its path, since the assistant runs on this machine.
+// Attachments are fetched through the daemon. An image an assistant can view comes back
+// as an image; anything else is written under the cache and named by path, since the
+// assistant runs on this machine.
 
 // attachmentMost is the largest file handed to an assistant.
 const attachmentMost = 20 << 20
 
-// seenImages are the image types an assistant takes as an image; another picture (a
-// HEIC) is a file like any other.
+// seenImages are the types an assistant takes as an image; others (HEIC) are files.
 var seenImages = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true}
 
-// toolContent is a tool answer already in the protocol's content form, passed through
-// as it is rather than written as JSON.
+// toolContent is a tool answer already in protocol content form, passed through rather
+// than encoded as JSON.
 type toolContent map[string]any
 
 func (s *server) getAttachment(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -82,8 +81,8 @@ func (s *server) getAttachment(ctx context.Context, raw json.RawMessage) (any, e
 	return map[string]any{"attachment": view, "path": path}, nil
 }
 
-// keepFile writes a message's file under the agent files directory, named by the
-// message and the file's own name, and is its path.
+// keepFile writes a message's file under the agent files directory, named by message
+// and file name, returning its path.
 func (s *server) keepFile(msg domain.Message, data []byte) (string, error) {
 	if s.files == "" {
 		return "", errors.New("there is nowhere to put the file")

@@ -12,8 +12,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 )
 
-// backupCounter is a backend whose answer the test chooses, counting how often it
-// was asked.
+// backupCounter answers as the test chooses and counts calls.
 type backupCounter struct {
 	mu       sync.Mutex
 	passes   int
@@ -58,9 +57,7 @@ func (r *recorder) all() []string {
 	return append([]string(nil), r.lines...)
 }
 
-// The startup pass is not redundant with the timed ones: keys that arrived while the daemon
-// was stopped are in the store and in no backup, so waiting a full interval to notice them
-// would make every restart a window.
+// The startup pass catches keys that arrived while the daemon was stopped.
 func TestKeyBackupSweepsAtStartupAndOnTheTimer(t *testing.T) {
 	t.Parallel()
 
@@ -83,7 +80,7 @@ func TestKeyBackupSweepsAtStartupAndOnTheTimer(t *testing.T) {
 	cancel()
 }
 
-// An account with no backup is a state, not a fault, and it does not change by itself.
+// An account with no backup is a standing state, reported once.
 func TestKeyBackupSaysAStandingConditionOnce(t *testing.T) {
 	t.Parallel()
 
@@ -103,8 +100,7 @@ func TestKeyBackupSaysAStandingConditionOnce(t *testing.T) {
 	}
 }
 
-// Said once is not said never: when the condition goes away and comes back, it is
-// worth hearing again — the second occurrence is new information.
+// A condition that goes away and comes back is reported again.
 func TestKeyBackupSaysItAgainAfterItChanges(t *testing.T) {
 	t.Parallel()
 
@@ -123,8 +119,7 @@ func TestKeyBackupSaysItAgainAfterItChanges(t *testing.T) {
 	}
 }
 
-// A pass that uploaded something says how much. A pass with nothing to do says
-// nothing at all, which is what a working daemon looks like almost all the time.
+// A pass reports how much it uploaded; an idle pass says nothing.
 func TestKeyBackupReportsOnlyWhatItDid(t *testing.T) {
 	t.Parallel()
 
@@ -145,7 +140,7 @@ func TestKeyBackupReportsOnlyWhatItDid(t *testing.T) {
 	}
 }
 
-// Shutting the daemon down cancels the context mid-pass.
+// Shutdown cancels the context mid-pass, which is not reported.
 func TestKeyBackupIsSilentOnShutdown(t *testing.T) {
 	t.Parallel()
 
@@ -159,8 +154,7 @@ func TestKeyBackupIsSilentOnShutdown(t *testing.T) {
 	}
 }
 
-// Anything else is a real failure and is reported — once, for as long as it keeps
-// saying the same thing.
+// Any other failure is reported once while it stays the same.
 func TestKeyBackupReportsAFailure(t *testing.T) {
 	t.Parallel()
 
@@ -175,8 +169,8 @@ func TestKeyBackupReportsAFailure(t *testing.T) {
 	}
 }
 
-// An account that logs in after the startup sweep (which found nothing to back up)
-// is swept at once, not an interval later; asking twice before it runs is one sweep.
+// A login after the startup sweep is swept at once; two requests before it runs are
+// one sweep.
 func TestKeyBackupSweepsSoonWhenAsked(t *testing.T) {
 	t.Parallel()
 	c := &backupCounter{}

@@ -1,8 +1,7 @@
-// Command kithd is kith's daemon: it owns the networks' sessions (Matrix's /sync loop
-// and E2EE crypto store, the WhatsApp linked devices) and the cache, and serves them
-// to clients over a unix socket. It is the sole owner of that state (an exclusive lock
-// precedes every store), and runs with no terminal open so notifications keep working.
-// It runs logged in to nothing too: `kith login` logs a network in through it.
+// Command kithd is kith's daemon: the sole owner of the networks' sessions (Matrix
+// /sync and E2EE crypto store, WhatsApp linked devices) and the cache, served to
+// clients over a unix socket. It runs without a terminal so notifications keep
+// working, and with nothing logged in so `kith login` can reach it.
 package main
 
 import (
@@ -55,12 +54,12 @@ func main() {
 	if *verbose && *logLevel == "" {
 		*logLevel = "debug"
 	}
-	// The level is settled once the config is read; until then the flag or env rules.
+	// Settled once the config is read; until then the flag or env rules.
 	level := &slog.LevelVar{}
 	if parsed, err := logging.Resolve(*logLevel, ""); err == nil {
 		level.Set(parsed)
 	}
-	// Read first, as `[log] target` says where even its own failure is logged.
+	// Read first: `[log] target` says where even its own failure is logged.
 	cfg, path, err := loadConfig(*configPath, *profile)
 	log, closeLog := newLogger(daemonLog{
 		flagTarget:    *logTarget,
@@ -88,22 +87,20 @@ func main() {
 	}
 }
 
-// daemonLog is what decides where the daemon logs.
 type daemonLog struct {
 	flagTarget, configured string // --log-target and `[log] target`
 	file                   string // --log-file
 	identifier             string // SYSLOG_IDENTIFIER: kithd or kithd-<profile>
 	level                  slog.Leveler
-	underJournald          bool // stderr is the journal: a systemd unit
+	underJournald          bool // stderr is the journal (a systemd unit)
 	journal                logging.Journal
 }
 
 // newLogger picks the daemon's log. A systemd unit logs to stderr, which journald
-// already captures under the unit's name, so writing to the journal as well would
-// log every line twice. A daemon kith started (with --log-file) logs to the
-// journal when there is one, else to that file, as `[log] target` says. One run in
-// a terminal without --log-file logs to the terminal unless target is journal.
-// Whatever cannot open falls back to stderr, saying so.
+// already captures (writing the journal too would double every line). A daemon kith
+// started (--log-file) logs to the journal if any, else that file, per `[log] target`.
+// In a terminal without --log-file it logs to the terminal unless target is journal.
+// Anything that cannot open falls back to stderr, saying so.
 func newLogger(d daemonLog) (*slog.Logger, func()) {
 	stderr := logging.New(os.Stderr, logging.Options{Level: d.level, NoTime: d.underJournald})
 	target, terr := logging.ResolveTarget(d.flagTarget, d.configured)
@@ -128,16 +125,15 @@ func newLogger(d daemonLog) (*slog.Logger, func()) {
 	}
 }
 
-// run takes the single-instance lock, resumes the stored session
-// and serves until SIGINT/SIGTERM (systemd stops units with SIGTERM).
+// run takes the single-instance lock, resumes stored sessions and serves until
+// SIGINT/SIGTERM.
 func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Config, file configFile, storage domain.Storage) error {
 	if warning := config.ModeWarning(file.path); warning != "" {
 		log.Warn(warning)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	// The first signal starts shutdown; restoring the default lets a second one end a
-	// shutdown that is stuck.
+	// The first signal starts shutdown; restoring the default lets a second end a stuck one.
 	context.AfterFunc(ctx, stop)
 
 	relevel, err := settleLevel(log, level, flagLevel, cfg.Log.Level)
@@ -150,13 +146,12 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		return fmt.Errorf("acquire single-instance lock: %w", err)
 	}
 	if !held {
-		// Another daemon won a spawn race; that is what the caller wanted.
+		// Another daemon won a spawn race, which is what the caller wanted.
 		return nil
 	}
-	// Set when Serve gave up on live handlers: the stores are then left for the process
-	// exit to release rather than closed under a write, and so is the lock. Released
-	// here, it would let a respawned daemon open the same stores while those handlers
-	// still write; the kernel drops it when the process exits.
+	// Set when Serve gave up on live handlers: the stores and the lock are then left for
+	// process exit to release. Releasing the lock here would let a respawned daemon open
+	// the stores while those handlers still write.
 	var handlersLive bool
 	defer func() {
 		if !handlersLive {
@@ -181,8 +176,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 			closeCache(log, cache)
 		}
 	}()
-	// The networks check their own sections, so only once they are built; nothing
-	// has started yet.
+	// Networks check their own sections, so only once built; nothing has started yet.
 	if cerr := backend.checkConfig(ctx, cfg); cerr != nil {
 		return cerr
 	}
@@ -197,14 +191,14 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	return err
 }
 
-// releaseLock gives up the single-instance lock on the way out, logging a failure.
+// releaseLock gives up the single-instance lock, logging a failure.
 func releaseLock(log *slog.Logger, lock *daemon.Lock) {
 	if err := lock.Release(); err != nil {
 		log.Warn("release single-instance lock failed", "err", err)
 	}
 }
 
-// closeCache closes the cache on the way out (nil: there was none), logging a failure.
+// closeCache closes the cache (nil: none), logging a failure.
 func closeCache(log *slog.Logger, cache *db.Cache) {
 	if cache == nil {
 		return
@@ -240,31 +234,29 @@ func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.Age
 	}
 }
 
-// served is the daemon's api.Backend: the networks behind one router for everything
-// that reaches a network, and the local service for what the cache and the engines
-// answer. A method both offered would make it ambiguous and fail to compile, so none
-// is served twice. matrix is the Matrix adapter itself, for what only kithd does
-// with it (the sync callbacks, key backup); built whether or not the config names
-// its account.
+// served is the daemon's api.Backend: one router for everything reaching a network and
+// the local service for cache and engine answers. A method both offered would be
+// ambiguous and fail to compile. matrix is the Matrix adapter itself, for kithd-only
+// uses (sync callbacks, key backup), built whether or not the config names an account.
 type served struct {
 	*route.Router
 	*local.Service
 	matrix *matrix.Adapter
 	// dataDir and schedulePath are this instance's ([storage]).
 	dataDir, schedulePath string
-	// networks is every network built (openNetworks), Matrix among them when there.
+	// networks is every network built, Matrix among them when there.
 	networks []network
 	// stores are the networks' own stores, closed with the backend.
 	stores []store
-	// cache is the cache every network writes, told how much of each room to keep
+	// cache is the cache every network writes; it learns how much of each room to keep
 	// once the notifications' place index exists (newWorkers).
 	cache *db.Cache
 }
 
 var _ api.Backend = served{}
 
-// newServed builds the networks (openNetworks), the router over them and the service
-// over one cache, the service hearing what each network caches.
+// newServed builds the networks, the router over them and the service over one cache,
+// the service hearing what each network caches.
 func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage) served {
 	networks, mx, stores := openNetworks(ctx, cache, log, cfg, storage)
 	adapters := make(map[domain.Protocol]route.Adapter, len(networks))
@@ -272,7 +264,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 		adapters[n.Network()] = n
 	}
 	router := route.New(adapters)
-	// Before any network starts writing: whose reactions a trim keeps.
+	// Before any network writes: whose reactions a trim keeps.
 	cache.UseSelves(router.Me)
 	service := local.New(cache, router)
 	service.UseLogger(log)
@@ -287,7 +279,6 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	}
 }
 
-// loginLeaders is every network's login.
 func (s served) loginLeaders() []api.LoginLeader {
 	leaders := make([]api.LoginLeader, 0, len(s.networks))
 	for _, n := range s.networks {
@@ -296,7 +287,7 @@ func (s served) loginLeaders() []api.LoginLeader {
 	return leaders
 }
 
-// Close stops the local engines and closes the networks' stores (after Stop, which
+// Close stops the local engines and closes the networks' stores (after Stop
 // disconnected their accounts), logging a failure.
 func (s served) Close(log *slog.Logger) {
 	s.Service.Close()
@@ -307,8 +298,7 @@ func (s served) Close(log *slog.Logger) {
 	}
 }
 
-// configure applies the config to the backend; internal/local reads no config
-// itself.
+// configure applies the config to the backend; internal/local reads no config itself.
 func configure(log *slog.Logger, backend served, cfg config.Config, storage domain.Storage) {
 	backend.UseSpell(local.SpellSettings{
 		Enabled:      cfg.Spell.SpellEnabled(),
@@ -323,8 +313,7 @@ func configure(log *slog.Logger, backend served, cfg config.Config, storage doma
 	backend.UsePlaces(setup.PlacesOf(cfg))
 }
 
-// modelSettings translates `[assist]` and `[complete.model]` and reads the API key. A
-// missing key is not fatal: the endpoint's refusal reaches the composer instead.
+// modelSettings translates `[assist]` and `[complete.model]` and reads the API key.
 func modelSettings(log *slog.Logger, cfg config.Config, keyring string) local.ModelSettings {
 	assist, completion := cfg.Assist, cfg.Complete.Model
 	key, kerr := session.Secret(keyring, assist.KeyRef)
@@ -358,8 +347,8 @@ func modelSettings(log *slog.Logger, cfg config.Config, keyring string) local.Mo
 	}
 }
 
-// connectAndSync runs every network: each finishes its own connecting, then syncs.
-// SyncFault drops errors caused by our own shutdown, so a clean stop exits 0.
+// connectAndSync runs every network. SyncFault drops errors caused by our own shutdown,
+// so a clean stop exits 0.
 func connectAndSync(ctx context.Context, router *route.Router) error {
 	if err := domain.SyncFault(ctx, router.Start(ctx)); err != nil {
 		return fmt.Errorf("networks: %w", err)
@@ -367,8 +356,8 @@ func connectAndSync(ctx context.Context, router *route.Router) error {
 	return nil
 }
 
-// serve runs the workers and the socket, and returns only after every worker has
-// exited: the caller closes the crypto store and cache right after.
+// serve runs the workers and the socket, returning only after every worker exited: the
+// caller closes the crypto store and cache next.
 func serve(
 	parent context.Context,
 	log *slog.Logger,
@@ -384,7 +373,7 @@ func serve(
 	if err != nil {
 		return fmt.Errorf("open socket: %w", err)
 	}
-	defer func() { _ = ln.Close() }() // Serve's shutdown has closed it already
+	defer func() { _ = ln.Close() }() // Serve's shutdown already closed it
 
 	w, err := newWorkers(log, cfg, backend)
 	if err != nil {
@@ -393,8 +382,8 @@ func serve(
 
 	var wg sync.WaitGroup
 	var syncErr error
-	// Before Serve answers anyone: a client polling Status must not see a daemon
-	// that waits for nothing yet.
+	// Before Serve answers: a client polling Status must not see a daemon waiting for
+	// nothing yet.
 	w.state.Expect(expected(ctx, log, backend)...)
 	wg.Go(func() { w.streams.Run(ctx, backend) })
 	wg.Go(func() { w.notifications.Run(ctx, w.streams) })
@@ -403,8 +392,7 @@ func serve(
 	wg.Go(func() {
 		syncErr = connectAndSync(ctx, backend.Router)
 		if syncErr != nil {
-			// Clients see this as the daemon's state; the journal needs it at once,
-			// not only when the process exits.
+			// Clients see this as daemon state; the journal needs it now, not at exit.
 			log.Error("sync stopped", "err", syncErr)
 		}
 		w.state.Failed(syncErr)
@@ -441,7 +429,7 @@ func reloader(
 	backend served,
 	notifications *daemon.Notifications,
 ) daemon.Reload {
-	// One reload at a time: two interleaved would leave a mix of both files' settings.
+	// One reload at a time: interleaved ones would mix both files' settings.
 	var one sync.Mutex
 	return func(ctx context.Context) error {
 		one.Lock()
@@ -465,8 +453,8 @@ func reloader(
 	}
 }
 
-// workers is everything the daemon runs beside the socket, wired together and into
-// the backend's callbacks before anything starts.
+// workers is everything the daemon runs beside the socket, wired into the backend's
+// callbacks before anything starts.
 type workers struct {
 	notifications *daemon.Notifications
 	refresher     *daemon.Refresher
@@ -477,8 +465,8 @@ type workers struct {
 
 // newWorkers builds the workers and registers their backend callbacks; serve starts them.
 func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, error) {
-	// Delivery happens in the background with no caller to tell: each failed sink is
-	// logged here, by sink, never with the message.
+	// Delivery has no caller to tell: each failed sink is logged here, never with the
+	// message.
 	sinks := setup.NotifierSinks(func(sink string, err error) {
 		log.Warn("notification delivery failed", "sink", sink, "err", err)
 	})
@@ -492,8 +480,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	notifications.UseLogger(log)
 	notifications.UseSelves(backend.Me)
 	notifications.UseDirectory(backend.Directory)
-	// Before any network starts writing: how much of each room the cache keeps follows
-	// [storage], judged by the room's place, and every reload.
+	// Before any network writes: retention follows [storage] by room place, and reloads.
 	if backend.cache != nil {
 		notifications.UseMemberNames(backend.cache.RoomMemberName)
 		backend.cache.UseKeep(notifications.MessagesKept)
@@ -501,20 +488,19 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)
 
-	// Readiness is "what the daemon started with has synced", not "socket open": a
-	// cold cache looks like no rooms (see serve's Expect).
+	// Readiness is "what the daemon started with has synced", not "socket open": a cold
+	// cache looks like no rooms.
 	state := daemon.NewState()
 	streams := daemon.NewStreams()
 	for _, n := range backend.networks {
 		n.OnStatus(func(s domain.AccountStatus) { state.Report(daemon.StatusOf(s), time.Now()) })
-		// A network that rewrites its own rooms needs the scope read again, and the
-		// clients their room list; one whose
-		// rooms went stale needs the refresher, which refreshes every network (so not
-		// for the first kind: its own refresh would set it off again).
+		// A network rewriting its own rooms needs the scope reread and clients told; one whose
+		// rooms went stale needs the refresher, which refreshes every network (not for the
+		// first kind: its own refresh would retrigger it).
 		if r, ok := n.(roomsRewriter); ok {
 			r.OnRoomsChanged(func() {
 				notifications.InvalidateScope()
-				streams.RoomsChanged() // attached clients read their room list again
+				streams.RoomsChanged() // attached clients reread their room list
 			})
 		}
 		if r, ok := n.(roomsStaler); ok {
@@ -525,13 +511,13 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	backups := daemon.NewKeyBackup(m, func(level slog.Level, line string) {
 		log.Log(context.Background(), level, "key backup: "+line, "op", "key backup")
 	})
-	// Logged in after the startup refresh: refresh again, now with Matrix, and back up
-	// what the startup sweep missed while it had no session.
+	// Logged in after the startup refresh: refresh again with Matrix, and back up what the
+	// startup sweep missed.
 	m.OnLoggedIn(func() {
 		refresher.Changed()
 		backups.Soon()
 	})
-	// A sync is the account online as of the sync's own time, and the catch-up that
+	// A sync means the account is online as of the sync's time, and is the catch-up
 	// notifications wait for.
 	m.OnSynced(func(t time.Time) {
 		state.Report(daemon.StatusOf(m.Online()), t)
@@ -546,9 +532,8 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	}, nil
 }
 
-// expected is every account the daemon starts with a session, for State.Expect: the
-// ones each network will resume. A network whose sessions cannot be read is not
-// waited for.
+// expected is every account the daemon starts with a session, for State.Expect. A
+// network whose sessions cannot be read is not waited for.
 func expected(ctx context.Context, log *slog.Logger, backend served) []daemon.NetworkStatus {
 	var out []daemon.NetworkStatus
 	for _, n := range backend.networks {
@@ -566,8 +551,8 @@ func expected(ctx context.Context, log *slog.Logger, backend served) []daemon.Ne
 // configFile is the config kithd serves: its path, and the [[profile]] it runs as.
 type configFile struct{ path, profile string }
 
-// read is the file as kithd runs it: re-read, with its profile selected, so a reload
-// sees the account a start does.
+// read re-reads the file with its profile selected, so a reload sees the account a
+// start does.
 func (f configFile) read() (config.Config, error) {
 	cfg, err := config.Load(f.path)
 	if err != nil {
@@ -580,8 +565,7 @@ func (f configFile) read() (config.Config, error) {
 	return cfg, nil
 }
 
-// loadConfig reads and validates the config for the account to serve, returning the
-// path too: ReloadConfig re-reads the same file.
+// loadConfig reads and validates the config to serve, returning its path for reloads.
 func loadConfig(configPath, profile string) (config.Config, string, error) {
 	path := configPath
 	if path == "" {
@@ -605,9 +589,8 @@ func loadConfig(configPath, profile string) (config.Config, string, error) {
 	return cfg, path, nil
 }
 
-// makeStorageDirs creates the instance's directories, private to this user: the
-// stores create their files, not the directories they live in. The runtime one is
-// the lock's (daemon.Acquire).
+// makeStorageDirs creates the instance's directories, private to this user: stores
+// create files, not their directories. The runtime one holds the lock.
 func makeStorageDirs(storage domain.Storage) error {
 	for _, dir := range []string{storage.DataDir, storage.StateDir, storage.CacheDir} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -617,14 +600,12 @@ func makeStorageDirs(storage domain.Storage) error {
 	return nil
 }
 
-// openCache opens the instance's cache, or returns nil with a warning: without it the
-// backend falls through to the network.
+// openCache opens the instance's cache. There is no daemon without it: every network
+// writes into it and every client reads from it.
 func openCache(ctx context.Context, log *slog.Logger, path string) (*db.Cache, error) {
 	cache, err := db.Open(ctx, path)
 	if err != nil {
-		// Every network writes into it and every client reads from it: there is no
-		// daemon without it. A unit retries every few seconds, so fixing the cause
-		// (disk space, permissions) is enough.
+		// A unit retries every few seconds, so fixing the cause is enough.
 		return nil, fmt.Errorf("open the cache %s (free disk space or fix its permissions): %w", path, err)
 	}
 	cache.UseLogger(log)
@@ -635,8 +616,7 @@ func openCache(ctx context.Context, log *slog.Logger, path string) (*db.Cache, e
 }
 
 // startScheduler starts the send-later queue before Serve, so overdue messages go out
-// without waiting for a client. The returned atomic holds the overdue cutoff so a
-// reload can change it.
+// without a client. The returned atomic holds the overdue cutoff for reloads.
 func startScheduler(ctx context.Context, log *slog.Logger, cfg config.Config, sender daemon.Sender, queuePath string) (*daemon.Scheduler, *atomic.Int64) {
 	cutoff := &atomic.Int64{}
 	cutoff.Store(int64(cfg.Schedule.Cutoff()))

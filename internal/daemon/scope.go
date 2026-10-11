@@ -21,41 +21,37 @@ type scopeSource interface {
 	ThreadParticipant(ctx context.Context, roomID domain.RoomID, root domain.EventID) bool
 }
 
-// scopeTTL is a backstop only: the index is invalidated on room-state changes
-// (Refresher), config reloads and lookups for unknown rooms.
+// scopeTTL is a backstop: the index is invalidated on room-state changes, config
+// reloads and lookups for unknown rooms.
 const scopeTTL = time.Hour
 
-// scopeIndex answers "what do I know about this room?" from a cached read of the
-// room list and space hierarchy, so a message does not cost two SQLite queries.
-// Safe for concurrent use.
+// scopeIndex caches the room list and space hierarchy so a message does not cost two
+// SQLite queries. Safe for concurrent use.
 type scopeIndex struct {
 	src scopeSource
-	// log hears a failed rebuild (the previous index stays in use); set before use.
+	// log hears a failed rebuild (the previous index stays); set before use.
 	log *slog.Logger
 
 	mu      sync.Mutex
 	aliases map[domain.RoomID]string
-	// order ranks a room's homes; {space} in a notification is the first. base is the
-	// config's part of it, and order base with the network's own spaces the last
-	// rebuild read marked.
+	// order ranks a room's homes ({space} shows the first): base is the config's part,
+	// order adds the network spaces the last rebuild marked.
 	base, order domain.HomeOrder
-	// rooms are the indexed rooms' facts, tags left out: tags change without a
-	// rebuild, so they are applied as a room is looked up.
+	// rooms are the indexed rooms' facts without tags: tags change without a rebuild, so
+	// they are applied per lookup.
 	rooms   map[domain.RoomID]domain.RoomFacts
 	builtAt time.Time
-	// missed records rooms a rebuild did not find, and when (see scopeRetry).
+	// missed records when a rebuild did not find a room (see scopeRetry).
 	missed map[domain.RoomID]time.Time
-	// gen counts config changes; a rebuild (done unlocked) that raced one is discarded.
+	// gen counts config changes; an unlocked rebuild that raced one is discarded.
 	gen uint64
-	// tags are judged per lookup, so a reload of them needs no rebuild; so is each
-	// network's archive (archives, the tag each followed one is), over the rooms the
-	// last rebuild read as archived by their network.
+	// tags and archives (the tag each followed network's archive is) are judged per
+	// lookup, so reloading them needs no rebuild.
 	tags     domain.TagSet
 	archives map[domain.Protocol]string
 	archived map[domain.RoomID]bool
 }
 
-// newScopeIndex returns an index over src, with no rooms read yet.
 func newScopeIndex(src scopeSource, aliases []config.DisplayName, order domain.HomeOrder) *scopeIndex {
 	return &scopeIndex{src: src, aliases: roomAliases(aliases), base: order, order: order}
 }
@@ -69,23 +65,22 @@ func (x *scopeIndex) SetAliases(aliases []config.DisplayName) {
 	x.gen++
 }
 
-// SetTags replaces the tags, so rules naming tag:<name> can match. No index drop:
-// tags are judged per lookup.
+// SetTags replaces the tags rules can match as tag:<name>; judged per lookup, so no
+// index drop.
 func (x *scopeIndex) SetTags(tags domain.TagSet) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	x.tags = tags
 }
 
-// SetArchives replaces the tag each followed network's archive is. No index drop:
-// it is judged per lookup.
+// SetArchives replaces the tag each followed network's archive is; no index drop.
 func (x *scopeIndex) SetArchives(archives map[domain.Protocol]string) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	x.archives = archives
 }
 
-// Home is a room's first home — space or tag, in home order — as {space} shows it.
+// Home is a room's first home (space or tag, in home order), as {space} shows it.
 func (x *scopeIndex) Home(facts domain.RoomFacts) string {
 	x.mu.Lock()
 	order := x.order
@@ -106,12 +101,12 @@ func (x *scopeIndex) SetHomeOrder(order domain.HomeOrder) {
 	x.gen++
 }
 
-// Invalidate drops the index (and the miss cooldown), so the next lookup rereads.
+// Invalidate drops the index and the miss cooldown.
 func (x *scopeIndex) Invalidate() {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	x.builtAt, x.missed = time.Time{}, nil
-	// A rebuild already reading must not install what it read before this.
+	// A rebuild already reading must not install its older read.
 	x.gen++
 }
 
@@ -131,8 +126,8 @@ func (x *scopeIndex) Scope(ctx context.Context, roomID domain.RoomID, sender str
 	return s, known
 }
 
-// Facts is the room as the RoomFacts vocabulary takes it. An unplaced room still
-// answers with its ID: sync reaches a new room before /joined_rooms names it.
+// Facts is the room as RoomFacts. An unplaced room still answers with its ID: sync
+// reaches a new room before /joined_rooms names it.
 func (x *scopeIndex) Facts(ctx context.Context, roomID domain.RoomID) domain.RoomFacts {
 	facts, ok := x.lookup(ctx, roomID)
 	out := domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
@@ -142,8 +137,8 @@ func (x *scopeIndex) Facts(ctx context.Context, roomID domain.RoomID) domain.Roo
 	return x.factsFrom(roomID, facts)
 }
 
-// Known is the room as the index holds it now, with today's tags, never rebuilding it;
-// a room it does not hold is its ID and network alone.
+// Known is the room as indexed now, with current tags, never rebuilding; an unknown
+// room is its ID and network alone.
 func (x *scopeIndex) Known(roomID domain.RoomID) domain.RoomFacts {
 	x.mu.Lock()
 	facts := x.rooms[roomID]
@@ -151,7 +146,7 @@ func (x *scopeIndex) Known(roomID domain.RoomID) domain.RoomFacts {
 	return x.factsFrom(roomID, facts)
 }
 
-// factsFrom is one indexed room as the rule vocabulary takes it, with today's tags.
+// factsFrom is one indexed room with current tags.
 func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts domain.RoomFacts) domain.RoomFacts {
 	if facts.ID == "" {
 		facts = domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
@@ -166,19 +161,17 @@ func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts domain.RoomFacts) dom
 	return facts
 }
 
-// Direct reports whether a room is a direct message.
 func (x *scopeIndex) Direct(ctx context.Context, roomID domain.RoomID) bool {
 	facts, _ := x.lookup(ctx, roomID)
 	return facts.Direct
 }
 
-// scopeRetry is how long "this room is not in the cache" is believed before
-// rebuilding again; without it every message in a not-yet-listed room cost several
-// full cache reads.
+// scopeRetry is how long a cache miss is believed before rebuilding again; without
+// it every message in an unlisted room cost several full cache reads.
 const scopeRetry = 5 * time.Second
 
-// lookup returns what is known about a room, rebuilding a stale or incomplete index
-// first. The read happens with the lock released; gen guards the install.
+// lookup returns a room's facts, rebuilding a stale or incomplete index first. The
+// read happens unlocked; gen guards the install.
 func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.RoomFacts, bool) {
 	x.mu.Lock()
 	facts, ok := x.rooms[roomID]
@@ -186,7 +179,6 @@ func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.R
 		x.mu.Unlock()
 		return facts, true
 	}
-	// A room a recent rebuild already failed to find is not worth another read.
 	if missedAt, seen := x.missed[roomID]; seen && time.Since(missedAt) < scopeRetry {
 		x.mu.Unlock()
 		return facts, ok
@@ -217,9 +209,8 @@ func (x *scopeIndex) lookup(ctx context.Context, roomID domain.RoomID) (domain.R
 	return facts, ok
 }
 
-// buildIndex reads the room list and space hierarchy into a fresh index, the rooms
-// their network archived, and the home order with the network's own spaces among them marked. A free function, so it
-// provably touches nothing the mutex guards.
+// buildIndex reads rooms, spaces, network archives and the home order into a fresh
+// index. A free function, so it provably touches nothing the mutex guards.
 func buildIndex(
 	ctx context.Context,
 	src scopeSource,
@@ -253,7 +244,6 @@ func buildIndex(
 	return index, archived, order, nil
 }
 
-// roomAliases indexes the configured room names by room ID.
 func roomAliases(names []config.DisplayName) map[domain.RoomID]string {
 	out := make(map[domain.RoomID]string, len(names))
 	for room, name := range (config.Display{Names: names}).RoomNames() {

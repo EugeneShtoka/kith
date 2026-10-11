@@ -24,8 +24,8 @@ func (networks) AnswerLogin(context.Context, string, map[string]string) (api.Log
 }
 func (networks) CancelLogin(context.Context, string) error { return nil }
 
-// `kith login <network> [account]` means the account named, or the network's only
-// one, or a new one when it has none; two unnamed, or a name it lacks, are refused.
+// `kith login <network> [account]` picks the named account, the only one, or a new one
+// when none; two unnamed, or an unknown name, are refused.
 func TestLoginPicksTheNamedOrOnlyAccount(t *testing.T) {
 	t.Parallel()
 	d := networks{list: []api.LoginNetwork{

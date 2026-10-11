@@ -12,8 +12,7 @@ import (
 	"time"
 )
 
-// A daemon that accepts the connection and then never answers does not hold a caller
-// forever.
+// A daemon that accepts and never answers does not hold a caller forever.
 func TestACallToASilentDaemonDoesNotHangForever(t *testing.T) {
 	t.Parallel()
 
@@ -26,8 +25,7 @@ func TestACallToASilentDaemonDoesNotHangForever(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = ln.Close() })
 
-	// Accept and say nothing at all, which is what a wedged daemon looks like from the
-	// outside: the socket is live, so dialing succeeds and there is no error to return.
+	// Accept and stay silent, as a wedged daemon does: dialing succeeds, no error comes.
 	go func() {
 		for {
 			conn, aerr := ln.Accept()
@@ -63,9 +61,8 @@ func TestACallToASilentDaemonDoesNotHangForever(t *testing.T) {
 	}
 }
 
-// Whoever controls the socket's directory can swap the socket, and the TUI sends
-// passwords and recovery keys down it: a symlink is refused, and a loose mode on a
-// directory we own is tightened before use.
+// The socket carries passwords and recovery keys, so a symlinked directory is refused
+// and a loose mode on our own directory is tightened.
 func TestTheSocketDirectoryIsOwnerOnly(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

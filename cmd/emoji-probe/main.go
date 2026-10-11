@@ -1,11 +1,10 @@
-// Command emoji-probe checks that every emoji kith offers occupies as many columns
-// on screen as the client (uniseg) thinks: a one-column disagreement wraps a pane row
-// and shifts everything below, and only the terminal itself can answer. It prints a
-// glyph, reads the cursor position (DSR/CPR) and compares.
+// Command emoji-probe checks that every emoji kith offers occupies as many terminal
+// columns as uniseg says: one column off wraps a pane row. It prints a glyph, reads the
+// cursor position (DSR/CPR) and compares.
 //
 //	go run ./cmd/emoji-probe            # the configured set
 //	go run ./cmd/emoji-probe -set complete -tone light
-//	go run ./cmd/emoji-probe -text "…"  # one line, reported per rune
+//	go run ./cmd/emoji-probe -text "..."  # one line, reported per rune
 //
 // It needs /dev/tty, prints one line per disagreement, and exits non-zero if any.
 package main
@@ -94,8 +93,7 @@ func run(setName, toneName string) error {
 	return nil
 }
 
-// runText measures a whole line against the terminal, then each rune, so a
-// disagreement names the character that caused it.
+// runText measures a whole line, then each character, so a disagreement names its cause.
 func runText(text string) error {
 	if text == "-" {
 		raw, err := io.ReadAll(os.Stdin)
@@ -116,8 +114,8 @@ func runText(text string) error {
 	}
 	want := ansi.StringWidth(text)
 
-	// Character by character as the eye reads them: a flag is two regional indicators,
-	// and an emoji joined of several (❤️‍🔥) is one, which no single rune shows.
+	// Per grapheme cluster: a flag is two regional indicators and a ZWJ emoji (❤️‍🔥) is
+	// one character, which no single rune shows.
 	bad := 0
 	for g := uniseg.NewGraphemes(text); g.Next(); {
 		cluster := g.Str()
@@ -130,7 +128,7 @@ func runText(text string) error {
 			fmt.Printf("mismatch %s %q measured=%d drawn=%d\n", codepoints(cluster), cluster, w, d)
 		}
 	}
-	// Last, so it is what stays on screen.
+	// Last, so it stays on screen.
 	fmt.Printf("%d character(s) disagree with the terminal; whole line: measured=%d drawn=%d\n", bad, want, drawn)
 	if bad > 0 || drawn != want {
 		return errors.New("this text would break the layout")
@@ -138,7 +136,7 @@ func runText(text string) error {
 	return nil
 }
 
-// codepoints spells a character's runes, U+… each.
+// codepoints spells a character's runes as U+XXXX each.
 func codepoints(cluster string) string {
 	parts := make([]string, 0, len(cluster))
 	for _, r := range cluster {
@@ -147,7 +145,7 @@ func codepoints(cluster string) string {
 	return strings.Join(parts, " ")
 }
 
-// openRaw opens /dev/tty in raw mode (the cursor report arrives as unechoed input).
+// openRaw opens /dev/tty in raw mode, so the cursor report arrives unechoed.
 func openRaw() (*os.File, func(), error) {
 	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
@@ -158,7 +156,7 @@ func openRaw() (*os.File, func(), error) {
 		_ = tty.Close() // the raw-mode error is the report
 		return nil, nil, fmt.Errorf("raw mode: %w", err)
 	}
-	// Restoring on the way out: nothing is left to tell if the terminal is gone.
+	// Best effort: if the terminal is gone there is nothing to tell.
 	return tty, func() {
 		_ = term.Restore(int(tty.Fd()), state)
 		_ = tty.Close()
@@ -166,7 +164,7 @@ func openRaw() (*os.File, func(), error) {
 }
 
 // probe prints cell at the start of a cleared line and returns the column the cursor
-// reached — the terminal's own answer for how wide it is.
+// reached: the terminal's own width.
 func probe(tty *os.File, cell string) (int, error) {
 	if _, err := fmt.Fprintf(tty, "\x1b[H\x1b[2J%s\x1b[6n", cell); err != nil {
 		return 0, fmt.Errorf("write to the terminal: %w", err)

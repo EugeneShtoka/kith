@@ -25,8 +25,8 @@ func (r *Router) MarkThreadRead(ctx context.Context, roomID domain.RoomID, root,
 	})
 }
 
-// ThreadParticipant reports whether we took part in a thread; in a room of a network
-// without threads (or one that is off), we did not.
+// ThreadParticipant reports whether we took part in a thread; false on a network
+// without threads or one that is off.
 func (r *Router) ThreadParticipant(ctx context.Context, roomID domain.RoomID, root domain.EventID) bool {
 	took, _ := onRoom(r, roomID, "threads", func(c Threads) (bool, error) { return c.ThreadParticipant(ctx, roomID, root), nil })
 	return took

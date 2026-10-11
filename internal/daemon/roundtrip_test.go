@@ -21,8 +21,7 @@ import (
 // settle bounds every wait in these tests.
 const settle = 5 * time.Second
 
-// fakeBackend is the daemon's backend under test: apitest.Nop with a room list to
-// read and whatever channels a test feeds.
+// fakeBackend is apitest.Nop with a room list and test-fed channels.
 type fakeBackend struct {
 	apitest.Nop
 	rooms []domain.Room
@@ -33,7 +32,7 @@ func (f *fakeBackend) Rooms(context.Context) ([]domain.Room, error) {
 	return f.rooms, f.err
 }
 
-// harness is a daemon running on a temporary socket, plus the fan-out feeding it.
+// harness is a daemon on a temporary socket plus the fan-out feeding it.
 type harness struct {
 	t             *testing.T
 	path          string
@@ -43,8 +42,7 @@ type harness struct {
 	reload        *reloadStub
 }
 
-// reloadStub stands in for the daemon binary's config re-read: it counts calls and can be
-// told to refuse.
+// reloadStub stands in for the config re-read: it counts calls and can refuse.
 type reloadStub struct {
 	mu    sync.Mutex
 	calls int
@@ -70,16 +68,15 @@ func (r *reloadStub) count() int {
 	return r.calls
 }
 
-// scopeOnly lends an api.Backend the one thing the notifier needs and the client's
-// interface does not carry: whether we have spoken in a thread.
+// scopeOnly adds what the notifier needs beyond api.Backend: whether we spoke in a thread.
 type scopeOnly struct{ api.Backend }
 
 func (scopeOnly) ThreadParticipant(context.Context, domain.RoomID, domain.EventID) bool {
 	return false
 }
 
-// serve starts a daemon on a temporary socket, pumping b's channels into its
-// fan-out. The server is shut down, and its exit checked, when the test ends.
+// serve starts a daemon on a temporary socket, pumping b's channels into its fan-out;
+// shutdown and exit are checked at cleanup.
 func serve(t *testing.T, b api.Backend, with ...func(*daemon.Daemon)) *harness {
 	t.Helper()
 
@@ -124,7 +121,6 @@ func serve(t *testing.T, b api.Backend, with ...func(*daemon.Daemon)) *harness {
 	}
 }
 
-// client returns a fresh Remote dialing this daemon.
 func (h *harness) client() *daemon.Remote {
 	h.t.Helper()
 	return daemon.NewRemote(h.path)
@@ -144,7 +140,7 @@ func (h *harness) waitAttached(want int) {
 	h.t.Fatalf("timed out waiting for %d client(s) to attach; %d attached", want, h.streams.Attached())
 }
 
-// attach is serve + one client, for the tests that need only that.
+// attach is serve plus one client.
 func attach(t *testing.T, b api.Backend) (*daemon.Remote, *harness) {
 	t.Helper()
 
@@ -153,8 +149,7 @@ func attach(t *testing.T, b api.Backend) (*daemon.Remote, *harness) {
 	return r, h
 }
 
-// A read method survives the wire: the TUI sees the daemon's rooms exactly as the
-// in-process backend would have handed them over.
+// The TUI sees the daemon's rooms exactly as the in-process backend returns them.
 func TestRoomsRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -174,8 +169,7 @@ func TestRoomsRoundTrip(t *testing.T) {
 	}
 }
 
-// A backend failure reaches the client as a failure, carrying the daemon's own message —
-// the TUI shows that text, so losing it would leave the user with nothing to act on.
+// A backend failure reaches the client with the daemon's message, which the TUI shows.
 func TestRoomsPropagatesBackendError(t *testing.T) {
 	t.Parallel()
 
@@ -190,8 +184,7 @@ func TestRoomsPropagatesBackendError(t *testing.T) {
 	}
 }
 
-// A canceled caller context fails the call rather than hanging, which is what
-// makes the TUI's context the thing that bounds a request.
+// A canceled caller context fails the call rather than hanging.
 func TestRoomsHonorsCallerContext(t *testing.T) {
 	t.Parallel()
 
@@ -204,8 +197,7 @@ func TestRoomsHonorsCallerContext(t *testing.T) {
 	}
 }
 
-// The stream survives the wire, message content intact, and Stop ends the subscription
-// cleanly.
+// Messages cross intact and Stop ends the subscription cleanly.
 func TestMessagesStreamRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -252,8 +244,8 @@ func TestMessagesStreamRoundTrip(t *testing.T) {
 	}
 }
 
-// The daemon ending its streams is a reconnect, not the end: the client's channels stay
-// open until Stop.
+// The daemon ending its streams is a reconnect: the client's channels stay open until
+// Stop.
 func TestTheDaemonEndingAStreamIsNotTheEndOfTheClient(t *testing.T) {
 	t.Parallel()
 
@@ -262,10 +254,9 @@ func TestTheDaemonEndingAStreamIsNotTheEndOfTheClient(t *testing.T) {
 
 	started := make(chan error, 1)
 	go func() { started <- r.Start(context.Background()) }()
-	close(msgs) // the daemon's own source ends, so it ends every stream
+	close(msgs) // the daemon's source ends, ending every stream
 
-	// It says so, and then says it is back — the daemon is still serving, which is
-	// what the reconnect probes for.
+	// It reports the loss, then the return: the daemon is still serving.
 	if got := waitAttachment(t, r.Attached()); got {
 		t.Error("Attached() = true when the streams ended, want false")
 	}
@@ -277,7 +268,7 @@ func TestTheDaemonEndingAStreamIsNotTheEndOfTheClient(t *testing.T) {
 		t.Fatalf("Start() = %v; the client gave up on a daemon that is still there", err)
 	default:
 	}
-	// And the channel the UI holds is still the channel the UI holds.
+	// The UI's channel is still the same.
 	select {
 	case _, open := <-r.Messages():
 		if !open {
@@ -286,7 +277,7 @@ func TestTheDaemonEndingAStreamIsNotTheEndOfTheClient(t *testing.T) {
 	default:
 	}
 
-	// Finished is Stop, and only Stop.
+	// Only Stop finishes it.
 	r.Stop()
 	select {
 	case err := <-started:
@@ -301,8 +292,7 @@ func TestTheDaemonEndingAStreamIsNotTheEndOfTheClient(t *testing.T) {
 	}
 }
 
-// Stop before Start must not be lost: otherwise a client that gave up during
-// startup would attach anyway and block on a channel nobody reads.
+// Stop before Start must not be lost, or a client that gave up would attach anyway.
 func TestStopBeforeStart(t *testing.T) {
 	t.Parallel()
 
@@ -325,7 +315,7 @@ func TestStopBeforeStart(t *testing.T) {
 	}
 }
 
-// Dialing a socket nobody is listening on fails at the call, not at construction.
+// Dialing a socket nobody listens on fails at the call, not at construction.
 func TestRemoteWithNoDaemon(t *testing.T) {
 	t.Parallel()
 
@@ -344,9 +334,8 @@ func TestStartTwice(t *testing.T) {
 
 	r, _ := attach(t, &fakeBackend{Nop: apitest.Nop{Msgs: make(chan domain.Message)}})
 
-	// The first attachment ends with its context rather than with Stop, because Stop is the
-	// other answer: a stopped Remote attaches nothing and says nothing, which is right for
-	// a client that has quit.
+	// End the first attachment with its context, not Stop: a stopped Remote attaches
+	// nothing.
 	ctx, cancel := context.WithCancel(context.Background())
 	first := make(chan error, 1)
 	go func() { first <- r.Start(ctx) }()

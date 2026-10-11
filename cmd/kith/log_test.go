@@ -27,8 +27,7 @@ func captureStderr(t *testing.T, f func()) string {
 	return string(out)
 }
 
-// Whatever the target and whether or not there is a journal, the client's log never
-// reaches the terminal the TUI draws on.
+// Whatever the target, with or without a journal, the client never logs to stderr.
 func TestClientLogNeverWritesStderr(t *testing.T) {
 	saved := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(saved) })

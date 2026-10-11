@@ -13,8 +13,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// withFiles is two rooms whose open one holds a picture, a document, a picture of a
-// type an assistant does not take, and a deleted file; the private one holds a picture.
+// withFiles is two rooms: the open one holds a picture, a document, an unsupported
+// image type and a deleted file; the private one a picture.
 func withFiles() *fake {
 	f := twoRooms()
 	at := time.Unix(1_700_000_100, 0)
@@ -29,9 +29,8 @@ func withFiles() *fake {
 	return f
 }
 
-// A message with a file says what it is; a picture comes back as an image to look at,
-// any other file is written under the files directory (its name kept to the
-// directory) and named by its path; a deleted file is not fetched.
+// A picture comes back as an image; another file is written under the files directory
+// and named by path; a deleted file is not fetched.
 func TestAnAttachmentIsHandedOver(t *testing.T) {
 	t.Parallel()
 	f := withFiles()
@@ -74,8 +73,8 @@ func TestAnAttachmentIsHandedOver(t *testing.T) {
 	}
 }
 
-// A file is handed over only from a room the assistant may read, and not fetched at
-// all from one it may not; one larger than the limit is refused before it is fetched.
+// Files come only from readable rooms, never fetched from others; one over the limit is
+// refused before fetching.
 func TestAnAttachmentKeepsToTheScope(t *testing.T) {
 	t.Parallel()
 	f := withFiles()
@@ -95,7 +94,7 @@ func TestAnAttachmentKeepsToTheScope(t *testing.T) {
 	}
 }
 
-// raw runs one tool and returns its result object as the protocol carries it.
+// raw runs one tool and returns its protocol result object.
 func raw(t *testing.T, s *server, name string, args map[string]any) map[string]any {
 	t.Helper()
 	encoded, err := json.Marshal(map[string]any{"name": name, "arguments": args})

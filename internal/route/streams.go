@@ -7,8 +7,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// streamBuffer is each merged stream's buffer, as large as one adapter's: the merge
-// adds no loss of its own while its reader keeps up.
+// streamBuffer matches one adapter's buffer, so merging adds no loss while the reader
+// keeps up.
 const streamBuffer = 64
 
 // Messages is every network's live messages.
@@ -35,23 +35,22 @@ func (r *Router) Reactions() <-chan domain.ReactionUpdate {
 	return r.reactions
 }
 
-// Invites streams every network's invite sets; with no network that has invites, it
-// carries nothing and closes when the router stops.
+// Invites streams every network's invite sets; with no such network it carries nothing
+// and closes on Stop.
 func (r *Router) Invites() <-chan []domain.Room {
 	r.openStreams()
 	return r.invites
 }
 
-// Verifications streams device verifications; with no network that verifies, it
-// carries nothing and closes when the router stops.
+// Verifications streams device verifications; with no such network it carries nothing
+// and closes on Stop.
 func (r *Router) Verifications() <-chan domain.Verification {
 	r.openStreams()
 	return r.verifications
 }
 
-// openStreams builds the merged streams once. With one adapter they are its own
-// channels: nothing to merge. A role's streams are every adapter's with the role,
-// logged in or not.
+// openStreams builds the merged streams once; with one adapter they are its own
+// channels. Role streams include adapters not logged in.
 func (r *Router) openStreams() {
 	r.streamsOnce.Do(func() {
 		r.messages = merge(r.done, r.all, Adapter.Messages)
@@ -79,9 +78,8 @@ func withRole[C any](adapters []Adapter) []C {
 	return out
 }
 
-// merge is one stream carrying every adapter's: it closes when all of theirs have
-// closed, or when done does. An adapter's order is kept; across adapters there is
-// none to keep.
+// merge carries every adapter's stream, closing when all have closed or done does.
+// Order is kept per adapter only.
 func merge[A, T any](done <-chan struct{}, adapters []A, stream func(A) <-chan T) <-chan T {
 	if len(adapters) == 1 {
 		return stream(adapters[0])

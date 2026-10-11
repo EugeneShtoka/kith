@@ -19,14 +19,13 @@ import (
 
 const (
 	readHeaderTimeout = 30 * time.Second
-	// shutdownTimeout is how long a graceful shutdown waits for handlers. A stream
-	// ends with the base context, unless its client stopped reading: then it is blocked
-	// in a write, and only closing the connection frees it.
+	// shutdownTimeout is how long a graceful shutdown waits for handlers. A stream whose
+	// client stopped reading is blocked in a write; only closing the connection frees it.
 	shutdownTimeout = 10 * time.Second
 )
 
-// Daemon is everything the socket serves: the Matrix backend plus facts about
-// this process that api.Backend cannot answer.
+// Daemon is everything the socket serves: the backend plus facts about this process
+// that api.Backend cannot answer.
 type Daemon struct {
 	Backend api.Backend
 	// Streams fans each backend channel out to every subscriber.
@@ -39,34 +38,30 @@ type Daemon struct {
 	Reload Reload
 	// CheckConfig judges a config a client means to write; nil refuses the call.
 	CheckConfig CheckConfig
-	// Config is the config file, which only the daemon writes; nil refuses GetConfig
-	// and UpdateConfig.
+	// Config is the config file, written only by the daemon; nil refuses GetConfig and
+	// UpdateConfig.
 	Config *ConfigFile
-	// Scheduler is nil when the queue path could not be resolved; its handlers
-	// then refuse.
+	// Scheduler is nil when the queue path could not be resolved; its handlers refuse.
 	Scheduler *Scheduler
 	// Logins logs network accounts in; nil refuses every login with ErrNetworkOff.
 	Logins api.Logins
-	// Log receives every failed call, with the procedure and the reason, so a
-	// failure a client only counted still reaches the journal. nil logs nothing.
+	// Log receives every failed call with procedure and reason, so a failure a client
+	// only counted reaches the journal. nil logs nothing.
 	Log *slog.Logger
 }
 
-// Serve hosts d on ln until ctx is canceled, then shuts down gracefully. Feeding
-// Streams is the caller's job (Streams.Run).
-//
-// There is no authentication: the socket is 0600, so the kernel already decided
-// who may connect.
+// Serve hosts d on ln until ctx is canceled, then shuts down gracefully; the caller
+// runs Streams.Run. No authentication: the socket is 0600.
 func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
-	// Handlers that outlive their request (MarkRoomsRead) run on this, so a broken
-	// listener can end them too: the caller's ctx is still live then.
+	// Handlers outliving their request (MarkRoomsRead) run on this, so a broken listener
+	// can end them while the caller's ctx is still live.
 	ctx, cancelHandlers := context.WithCancel(ctx)
 	defer cancelHandlers()
 	mux := http.NewServeMux()
 	mux.Handle(backendv1connect.NewBackendServiceHandler(&server{Daemon: d, lifetime: ctx, seat: &seat{}},
 		connect.WithInterceptors(failureLog{log: d.Log})))
-	// Every handler is counted, so none is left running once Serve has returned and
-	// the caller closes the stores under it; and once Serve is ending, none starts.
+	// Every handler is counted so none runs after Serve returns and the caller closes
+	// the stores, and none starts once Serve is ending.
 	var inflight handlerGate
 	srv := &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -86,9 +81,8 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 
 	select {
 	case err := <-errc:
-		// The listener broke while handlers may still be running: cut them off, end
-		// the ones on the daemon's lifetime, and wait, as a shutdown does, before the
-		// caller closes the stores.
+		// The listener broke: cut handlers off, end those on the daemon's lifetime, and wait
+		// before the caller closes the stores.
 		_ = srv.Close() // ignored: the serve error is the one to report
 		inflight.shut()
 		cancelHandlers()
@@ -108,9 +102,8 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 		if srv.Shutdown(shutCtx) == nil {
 			return nil
 		}
-		// A client that stopped reading (a suspended TUI) holds its stream in a write.
-		// That is the client's doing, not a daemon failure: cut every connection and wait
-		// for the handlers, which now fail their writes or see their canceled context.
+		// A client that stopped reading (a suspended TUI) holds its stream in a write: cut
+		// every connection and wait for the handlers to fail their writes.
 		_ = srv.Close() // ignored: Shutdown already closed the listener, and conns close regardless
 		inflight.shut()
 		if !drained(&inflight, timeout) {
@@ -123,12 +116,12 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 	}
 }
 
-// ErrHandlersRunning is Serve giving up on handlers that did not finish. They may be
-// mid-write, so the caller must leave the stores open and let the process exit
-// release them: closing the crypto store under a write can corrupt it.
+// ErrHandlersRunning means Serve gave up on unfinished handlers. They may be
+// mid-write, so the caller must leave the stores open and let process exit release
+// them: closing the crypto store under a write can corrupt it.
 var ErrHandlersRunning = errors.New("handlers still running")
 
-// drained waits for n to reach zero, giving up after timeout.
+// drained waits for the gate's count to reach zero, giving up after timeout.
 func drained(g *handlerGate, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for g.running() > 0 {
@@ -140,17 +133,15 @@ func drained(g *handlerGate, timeout time.Duration) bool {
 	return true
 }
 
-// handlerGate counts running handlers and, once shut, admits no more. A counter, not
-// a WaitGroup: a handler may still arrive while shutdown waits. A request already
-// read when the server closed would otherwise start after the drain saw none running,
-// as the caller closes the stores.
+// handlerGate counts running handlers and, once shut, admits no more. Not a
+// WaitGroup: a request read before the server closed could otherwise start after the
+// drain saw none running, as the caller closes the stores.
 type handlerGate struct {
 	mu     sync.Mutex
 	n      int
 	closed bool
 }
 
-// enter admits a handler, or refuses one once the gate is shut.
 func (g *handlerGate) enter() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -167,7 +158,6 @@ func (g *handlerGate) leave() {
 	g.n--
 }
 
-// shut admits no more handlers.
 func (g *handlerGate) shut() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -180,8 +170,8 @@ func (g *handlerGate) running() int {
 	return g.n
 }
 
-// failureLog logs each call that fails: a client shows a short line (or nothing), and
-// the journal is where its reason must survive.
+// failureLog logs each failed call: the client shows a short line or nothing, so the
+// journal keeps the reason.
 type failureLog struct{ log *slog.Logger }
 
 func (f failureLog) report(ctx context.Context, procedure string, err error) {
@@ -204,7 +194,7 @@ func (f failureLog) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	}
 }
 
-// WrapStreamingClient is unused: the interceptor is installed on the server only.
+// WrapStreamingClient is unused: the interceptor is server-only.
 func (f failureLog) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
 	return next
 }
@@ -217,8 +207,8 @@ func (f failureLog) WrapStreamingHandler(next connect.StreamingHandlerFunc) conn
 	}
 }
 
-// rpcErr maps a backend error onto a Connect error, tagging contract sentinels so
-// the client can restore their identity (see sentinel.go).
+// rpcErr maps a backend error onto a Connect error, tagging contract sentinels so the
+// client can restore them (see sentinel.go).
 func rpcErr(err error) error {
 	if err == nil {
 		return nil
@@ -237,8 +227,7 @@ func rpcErr(err error) error {
 	return cerr
 }
 
-// reply turns a backend result into a handler result. msg may be built from a
-// zero value when err is set; it is discarded.
+// reply turns a backend result into a handler result; msg is discarded when err is set.
 func reply[T any](msg *T, err error) (*connect.Response[T], error) {
 	if err != nil {
 		return nil, rpcErr(err)
@@ -246,13 +235,13 @@ func reply[T any](msg *T, err error) (*connect.Response[T], error) {
 	return connect.NewResponse(msg), nil
 }
 
-// serveStream forwards one hub to one server stream until the client leaves or
-// the hub closes, always releasing the subscription.
+// serveStream forwards one hub to one server stream until the client leaves or the
+// hub closes, always releasing the subscription.
 func serveStream[T, R any](ctx context.Context, h *hub[T], stream *connect.ServerStream[R], frame func(T) *R) error {
 	id, ch := h.subscribe()
 	defer h.release(id)
-	// Headers now, not with the first event: the client bounds its wait for them
-	// (answerTimeout), and a stream can have nothing to say for hours.
+	// Send headers now: the client bounds its wait for them (answerTimeout), and a stream
+	// can be silent for hours.
 	if err := stream.Send(nil); err != nil {
 		return rpcErr(fmt.Errorf("open stream: %w", err))
 	}

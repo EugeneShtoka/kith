@@ -10,40 +10,38 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// seat is the one window the daemon serves (api.Seat). A window has it while its Seat
-// stream is open; asking for it by force tells the window that has it to step aside,
-// and gives it over once that window has closed its stream or not done so in time.
+// seat is the one window the daemon serves (api.Seat), held while its Seat stream is
+// open. A forced take asks the holder to step aside and hands over once it closes its
+// stream or times out.
 type seat struct {
 	mu sync.Mutex
-	// turn counts the windows given the seat; holder is the current one's client id
-	// ("" free), where is its whereabouts, aside is closed to tell it to step aside,
-	// and left when its stream ends.
+	// turn counts windows given the seat; holder is the current client id ("" free),
+	// where its whereabouts.
 	turn   uint64
 	holder string
 	where  domain.SeatHolder
 	aside  chan struct{}
 	left   chan struct{}
-	// link is a matrix link handed over (`kith --open`) while a window sat but did
-	// not listen for links yet (starting up, reconnecting): its link stream gets it.
+	// link is a `kith --open` link handed over while the seated window was not yet
+	// listening for links (starting, reconnecting); its link stream gets it.
 	link string
 }
 
-// stepAsideWait bounds how long a window told to step aside has to save its drafts and
-// close before the seat is given over anyway: it has stopped answering. Longer than
-// the client's own wait for its saves at quit.
+// stepAsideWait bounds how long a window asked to step aside has to save and close
+// before the seat is handed over anyway; longer than the client's own quit wait.
 const stepAsideWait = 3 * time.Second
 
-// sitting is one window's time in the seat: aside is closed to tell it to step aside,
-// and over once it has left or the seat was given over without it.
+// sitting is one window's time in the seat: aside closes to ask it to step aside,
+// over once it left or the seat was handed over.
 type sitting struct {
 	turn  uint64
 	aside <-chan struct{}
 	over  <-chan struct{}
 }
 
-// take gives client the seat: at once when it is free, or when the window that has it
-// has left or not answered a request to step aside (force only). Without force a
-// taken seat is refused with ErrSeatTaken, naming where the other window is.
+// take gives client the seat when free, or (force only) once the holder has left or
+// ignored a step-aside request. Without force a taken seat is refused with
+// ErrSeatTaken naming the holder's whereabouts.
 func (s *seat) take(ctx context.Context, client string, force bool, where domain.SeatHolder) (sitting, error) {
 	timeout := time.NewTimer(stepAsideWait)
 	defer timeout.Stop()
@@ -77,8 +75,7 @@ func (s *seat) take(ctx context.Context, client string, force bool, where domain
 
 func (s *seat) sitLocked(client string, where domain.SeatHolder) sitting {
 	if s.holder != "" {
-		// Given over while that window still sat (it did not answer): it is told, and
-		// whoever waited for it to leave looks again.
+		// Handed over while the holder still sat: tell it, and wake waiters.
 		s.askAsideLocked()
 		close(s.left)
 	}
@@ -97,8 +94,7 @@ func (s *seat) askAsideLocked() {
 	}
 }
 
-// leave is a sitting's stream ending: the seat is free, unless it was given over
-// already.
+// leave ends a sitting: the seat is free unless already handed over.
 func (s *seat) leave(sat sitting) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -109,7 +105,7 @@ func (s *seat) leave(sat sitting) {
 	close(s.left)
 }
 
-// keepLink holds uri for the window that sits, and reports whether one does.
+// keepLink holds uri for the seated window and reports whether there is one.
 func (s *seat) keepLink(uri string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -120,7 +116,7 @@ func (s *seat) keepLink(uri string) bool {
 	return true
 }
 
-// takeLink is the link held for the window, once.
+// takeLink returns the held link, once.
 func (s *seat) takeLink() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -129,9 +125,8 @@ func (s *seat) takeLink() string {
 	return uri
 }
 
-// write runs a draft write from client unless another window has the seat. It runs
-// under the lock, so the seat does not change hands between the check and the write.
-// A client of "" is not a window (kith-mcp) and is never refused.
+// write runs a draft write from client unless another window has the seat, under the
+// lock so the seat cannot change hands in between. Client "" (kith-mcp) is never refused.
 func (s *seat) write(client string, write func() error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

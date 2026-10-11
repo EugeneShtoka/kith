@@ -13,8 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// foldered is a backend whose Telegram account 42 has one folder, Friends: two of its
-// chats.
+// foldered is a backend whose Telegram account 42 has one folder, Friends, of two chats.
 type foldered struct{ fakeBackend }
 
 func (*foldered) Groupings(_ context.Context, network domain.Protocol, account string) (domain.RoomOwner, []domain.Grouping, error) {
@@ -26,9 +25,8 @@ func (*foldered) Groupings(_ context.Context, network domain.Protocol, account s
 	}, nil
 }
 
-// The preview says what copying a folder would change, among the account's rooms only;
-// the copy writes it into the config file, the tag made where none was, and a
-// WhatsApp chat in the tag left alone.
+// The preview covers only the account's rooms; the copy writes the config, creating
+// the tag, and leaves a WhatsApp chat in the tag alone.
 func TestAFolderIsPreviewedAndCopiedIntoTheConfig(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")

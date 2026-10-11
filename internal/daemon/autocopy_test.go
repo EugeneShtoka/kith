@@ -14,8 +14,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// autoCopyNotifier builds a daemon notifier copying codes from the SMS bridge room to a
-// file standing in for the clipboard, after the given number of sync responses.
+// autoCopyNotifier copies codes from the SMS bridge room to a file standing in for
+// the clipboard, after syncs sync responses.
 func autoCopyNotifier(t *testing.T, autoCopy bool, syncs int) (*daemon.Notifications, *recorder, string) {
 	t.Helper()
 
@@ -54,10 +54,8 @@ func noCopy(t *testing.T, clip, why string) {
 	}
 }
 
-// smsRoom is the bridge room codes arrive in.
 const smsRoom = "!sms:example.org"
 
-// codeWorld is the room list the capturing daemon resolves against.
 func codeWorld() *scopeBackend {
 	return &scopeBackend{rooms: []domain.Room{
 		{ID: smsRoom, Name: "SMS", IsDirect: true},
@@ -65,13 +63,11 @@ func codeWorld() *scopeBackend {
 	}}
 }
 
-// codeMsg is a message carrying a verification code.
 func codeMsg(room domain.RoomID, body string) domain.Message {
 	return domain.Message{ID: "$1", RoomID: room, Sender: "@bridge:example.org", Body: body, Timestamp: time.Now()}
 }
 
-// clipboardHolds reads back what the sink was given, waiting for the command to
-// finish writing.
+// clipboardHolds reads back what the sink was given, waiting for the command to finish.
 func clipboardHolds(t *testing.T, path string) string {
 	t.Helper()
 	var got []byte
@@ -86,8 +82,7 @@ func clipboardHolds(t *testing.T, path string) string {
 	return string(got)
 }
 
-// The case the feature exists for: a code arrives with nothing attached, and it is
-// in the clipboard by the time anyone looks.
+// A code arriving with nothing attached lands in the clipboard.
 func TestAutoCopyWritesTheClipboard(t *testing.T) {
 	n, rec, clip := capturingDaemon(t)
 
@@ -96,8 +91,7 @@ func TestAutoCopyWritesTheClipboard(t *testing.T) {
 	if got := clipboardHolds(t, clip); got != "482910" {
 		t.Errorf("clipboard = %q, want the code alone", got)
 	}
-	// And it says so: the clipboard changed without a keystroke, which the user
-	// would otherwise discover by pasting the wrong thing.
+	// The copy is announced, or the user discovers it by pasting the wrong thing.
 	var said bool
 	for _, alert := range rec.all() {
 		if strings.Contains(alert.Body, "482910") && strings.Contains(alert.Body, "copied") {
@@ -109,7 +103,7 @@ func TestAutoCopyWritesTheClipboard(t *testing.T) {
 	}
 }
 
-// A room nobody named is not one to copy from, however code-shaped the message.
+// An unnamed room is not copied from, however code-shaped the message.
 func TestAutoCopyStaysWhereItWasTold(t *testing.T) {
 	n, _, clip := capturingDaemon(t)
 
@@ -118,17 +112,14 @@ func TestAutoCopyStaysWhereItWasTold(t *testing.T) {
 	noCopy(t, clip, "a room outside the include list should not have reached the clipboard")
 }
 
-// Before the daemon has caught up, nothing is copied: the first sync response is everything
-// that happened while it was down, and a week-old code pasted over whatever you were
-// carrying is a real cost for no benefit.
+// Nothing is copied before catch-up: a week-old code must not overwrite the clipboard.
 func TestAutoCopyWaitsUntilCaughtUp(t *testing.T) {
 	n, _, clip := autoCopyNotifier(t, true, 1) // the catch-up response only
 	n.Deliver(context.Background(), codeMsg(smsRoom, "Your code is 482910"))
 	noCopy(t, clip, "the catch-up batch should not reach the clipboard")
 }
 
-// A copy that cannot run has failed invisibly, which is the mode this project treats as a
-// bug — so the code is delivered in the notification instead.
+// A copy that cannot run delivers the code in the notification instead.
 func TestAutoCopyReportsWhenItCannotCopy(t *testing.T) {
 	n, rec, _ := capturingDaemon(t)
 	t.Setenv("WAYLAND_DISPLAY", "")
@@ -147,8 +138,7 @@ func TestAutoCopyReportsWhenItCannotCopy(t *testing.T) {
 	}
 }
 
-// Auto-copy fires regardless of do-not-disturb. Copying does not interrupt you, and
-// "don't ping me" is not "stop doing your job".
+// Auto-copy ignores do-not-disturb: copying interrupts nobody.
 func TestAutoCopyIgnoresDND(t *testing.T) {
 	n, _, clip := capturingDaemon(t)
 	n.SetDND(hideRule("", ""))
