@@ -10,9 +10,11 @@ import (
 type DownloadPlace struct {
 	// RoomID is what a rule matches on.
 	RoomID string
-	Space  string
-	Room   string
-	Person string
+	// Space is the room's first home (Scope.Space), SpaceLabel its renamed label.
+	Space      string
+	SpaceLabel string
+	Room       string
+	Person     string
 	// Thread is the root event, empty for the main timeline.
 	Thread string
 	// Sender is the MXID behind Person.
@@ -84,7 +86,7 @@ func narrowestDownloadRule(rules []DownloadRule, place DownloadPlace) (DownloadR
 }
 
 func (p DownloadPlace) scope() Scope {
-	return Scope{RoomID: p.RoomID, Space: p.Space, Thread: p.Thread, Sender: p.Sender}
+	return Scope{RoomID: p.RoomID, Space: p.Space, SpaceLabel: p.SpaceLabel, Thread: p.Thread, Sender: p.Sender}
 }
 
 // expandDownloadTemplate fills in fields as safe segments and drops empty segments.

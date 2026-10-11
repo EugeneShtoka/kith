@@ -9,10 +9,10 @@ import (
 func TestResolveReadPrecedence(t *testing.T) {
 	place := DownloadPlace{RoomID: "!a:x", Space: "Work", Sender: "@dana:x"}
 	rules := []ReadRule{
-		{Match: "Work", Send: new(false)},                               // the space
+		{Match: "space:Work", Send: new(false)},                         // the space
 		{Sender: "@dana:x", Send: new(true)},                            // the person anywhere
 		{Match: "!a:x", Send: new(false)},                               // this room
-		{Match: "Work", Sender: "@dana:x", Send: new(true)},             // person in space
+		{Match: "space:Work", Sender: "@dana:x", Send: new(true)},       // person in space
 		{Match: "!a:x", Sender: "@dana:x", Delay: new(9 * time.Second)}, // person in room — narrowest
 	}
 	got := ResolveRead(true, 0, rules, place)

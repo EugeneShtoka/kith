@@ -71,11 +71,11 @@ The rail's order and hidden rows are `[display.rail]` (`order`, `hidden`); a spa
 tag's first-names-only rule is a `[[display.space_rule]]`.
 
 These write to your config for you (a tag is renamed in its `[[tag]]`, not with `a`;
-name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` takes a space's name or a tag as `tag:<name>` (a bare name no space has means the row the rail shows by that name, a tag's included), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing. Without an `order`, tags come first, then spaces.
+name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` names rows as `space:<name>`, `tag:<name>` or `place:<name>` (every row the rail shows by that name, renamed or not, a space's or a tag's; several are placed together), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing. A bare name is refused at startup. Without an `order`, tags come first, then spaces.
 
 ```toml
 [display.rail]
-order = ["tag:Unread", "-", "Work", "Friends", "-", "*", "-", "tag:Archived"]
+order = ["tag:Unread", "-", "space:Work", "place:Friends", "-", "*", "-", "tag:Archived"]
 hide_when_empty = ["tag:Unread"]
 ```
 
@@ -102,8 +102,8 @@ terms alone matches every room they leave, and an empty rule holds only picked
 rooms. The terms are:
 
 - `*`: every room;
-- the place words: a room ID, `room:<name>`, `space:<name>`, `protocol:<network>`,
-  `dm`, `group`;
+- the place words: a room ID, `room:<name>`, `space:<name>`, `place:<name>` (a space
+  or tag the rail shows by that name), `protocol:<network>`, `dm`, `group`;
 - the state words: `unread`, `mention`, `draft`, `spam`, `invite`, which follow
   the room as it changes;
 - `tag:<name>`: another tag's rooms.
@@ -145,8 +145,8 @@ an on/off row, and which other tags take rooms out of its row (the exclusive one
 the space-exclusive ones). The rule and the room lists are edited an entry at a time:
 choose an entry to change it (empty removes it), `x` removes the entry under the cursor,
 or the last row adds one. Renaming
-a tag renames it everywhere it is named — `tag:<name>` in rules, place lists, the rail
-order and priority, and its name in the rail's `hidden` and `hide_when_empty`.
+a tag renames it everywhere it is named as `tag:<name>`: rules, place lists, the rail's
+lists and priority. A `place:<name>` entry is left as written.
 Renaming it to another tag's name asks whether to combine the two: the other tag then
 holds every room either held and keeps its own settings, and everything that named
 the renamed tag names it. Their rules are joined, unless one has a `not` term (which
@@ -166,8 +166,8 @@ nothing there (`not unread` matches everything). Tagging a room that way widens 
 names the tag: a room you pick into a tag `[agent.read]` lists becomes readable to the
 assistant.
 
-A room's tags are homes beside its spaces. `[display] priority` ranks both (spaces
-by name, tags as `tag:<name>`), and the first decides which name rule applies, the
+A room's tags are homes beside its spaces. `[display] priority` ranks both (`space:<name>`,
+`tag:<name>`, or `place:<name>` for whatever the rail shows by that name), and the first decides which name rule applies, the
 `{space}` of a notification and a download's folder. What it does not name follows:
 spaces first, then tags in the order they are written. Keep a tag that holds every
 room, such as All, last — the starter config writes it last — so it is a room's home
@@ -209,7 +209,7 @@ The order is a **chain** of comparators, applied in turn until one decides. `~` 
 sort = ["unread", "recent", "name"]   # the default
 
 [[display.rooms.rule]]                # per rail group: replaces the chain whole
-group = "dms"
+group = "tag:DMs"
 sort  = ["drafts", "unread", "name"]
 ```
 
@@ -410,7 +410,7 @@ Names you give are local — only you see them — and live in your config.
 - `I` on a message, on a person in the member list, or on a one-person room opens that person's **card** in the [phonebook](phonebook.md): their birthday, family, pets or any field you add, kept as a Markdown file other programs can share.
 - `a` on a room or rail group gives it a name of your own (`[[display.name]]`); `alt+r` names a thread.
   A private chat is named after the person in it, so naming one names them too, wherever they are shown, while the room's own name is still that person's name and nobody else but you is in it. A name given with `a` on their message wins.
-- `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag).
+- `[[display.space_rule]]` shows first names only in a space or tag (`space = "space:Work"`, `"tag:Work"` or `"place:Work"`).
 - `[display] network_colors = true` names each room in every room list in its network's color; a place's `[[display.space_rule]] network_colors = true` or `false` overrides that for its own room list.
 - `[display.rail] network_colors = true` colors a rail row whose rooms are all on one network the same way.
 - `[display.theme.networks]` sets those colors (`#rrggbb`, a named color, or `"none"`). Unset, each network has its own, apart from the theme's text, accent, badge and alert colors: WhatsApp teal, Telegram blue, Slack magenta, Messenger and Instagram (Meta) orchid, LinkedIn periwinkle, Google Messages (SMS) coral. A bridged Matrix room counts as its bridge's network. All of it is in settings (`,`): under look, the switch everywhere, each space's and tag's choice (as everywhere, on, off) and each network's color; under rooms, the rail's switch.

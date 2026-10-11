@@ -192,34 +192,30 @@ func (m Model) namedSpaces(named []string, room domain.RoomID) ([]pickerItem, ma
 	checked := make(map[string]bool, len(named))
 	seen := make(map[domain.SpaceID]bool, len(named))
 	for _, entry := range named {
-		space, ok := m.spaceByEntry(entry)
-		if !ok || seen[space.ID] {
-			continue
+		for _, space := range m.spacesByEntry(entry) {
+			if !seen[space.ID] {
+				seen[space.ID] = true
+				items = appendSpaceRow(items, checked, space, m.spaceLabel(space), room)
+			}
 		}
-		seen[space.ID] = true
-		items = appendSpaceRow(items, checked, space, m.spaceLabel(space), room)
 	}
 	return items, checked
 }
 
-// spaceByEntry resolves a filing_spaces entry: a space ID, or a unique
-// case-insensitive match on its display name or rail label.
-func (m Model) spaceByEntry(entry string) (domain.Space, bool) {
+// spacesByEntry resolves a filing_spaces entry: a space ID, or every space a space: or
+// place: entry names.
+func (m Model) spacesByEntry(entry string) []domain.Space {
 	entry = strings.TrimSpace(entry)
-	if entry == "" {
-		return domain.Space{}, false
-	}
 	if space, ok := m.spaceByID(domain.SpaceID(entry)); ok {
-		return space, true
+		return []domain.Space{space}
 	}
-	var found domain.Space
-	hits := 0
+	var found []domain.Space
 	for i := range m.rooms.spaces {
-		if strings.EqualFold(m.rooms.spaces[i].DisplayName(), entry) || strings.EqualFold(m.spaceLabel(m.rooms.spaces[i]), entry) {
-			found, hits = m.rooms.spaces[i], hits+1
+		if name := m.rooms.spaces[i].DisplayName(); domain.NamesHome(entry, name, m.rail.homes.Label(name)) {
+			found = append(found, m.rooms.spaces[i])
 		}
 	}
-	return found, hits == 1
+	return found
 }
 
 // spaceLabel is what the rail calls a space (its rename, if any).

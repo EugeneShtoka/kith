@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -65,18 +66,21 @@ func scopeRooms() *fake {
 	}
 }
 
-// scopePlaces gives a room your own name, names an unnamed room, and adds a tag picking
-// by that name.
+// scopePlaces gives a room your own name, names an unnamed room, shows the WhatsApp
+// space as Chats, and adds tags: one picking by your name, one sharing a space's name.
 var scopePlaces = domain.Places{
 	Names: map[domain.RoomID]string{"!loose:x": "Lounge", "!anon:x": "Quiet"},
-	Order: domain.HomeOrder{Priority: []string{"Telegram", "WhatsApp"}},
+	Order: domain.HomeOrder{Priority: []string{"space:Telegram", "space:WhatsApp"}, Labels: map[string]string{"whatsapp": "Chats"}},
 	Tags:  pinnedTag(),
 }
 
-// pinnedTag picks two rooms (one by your name for it) and takes in a space.
+// pinnedTag picks two rooms (one by your name for it) and takes in a space; Work picks
+// a room outside the space of that name.
 func pinnedTag() domain.TagSet {
 	tags, _, err := domain.NewTagSet([]domain.Tag{{
 		Name: "Pinned", Rule: []string{"space:Telegram"}, Picked: []string{"room:Lounge", "!work:x"},
+	}, {
+		Name: "Work", Picked: []string{"!dm:x"},
 	}})
 	if err != nil {
 		panic(err)
@@ -88,7 +92,8 @@ func pinnedTag() domain.TagSet {
 var scopeEntries = []string{
 	"space:Work", "space:WhatsApp", "space:Telegram", "protocol:matrix", "protocol:whatsapp",
 	"protocol:telegram", "room:Standup", "room:Lounge", "room:Quiet", "!wa:x", "dm", "group",
-	"tag:Pinned", string(nativeGroup),
+	"tag:Pinned", string(nativeGroup), "tag:Work",
+	"place:Work", "place:chats", "place:Pinned", "place:TELEGRAM", "place:WhatsApp",
 }
 
 func someEntries(rng *rand.Rand) []string {
@@ -121,41 +126,63 @@ func decide(t *testing.T, s *server, rooms []domain.Room) decisions {
 }
 
 // Whatever the scope and whichever daemon read fails, the rooms read, written or posted
-// to are a subset of those allowed when every read works.
+// to are a subset of those allowed when every read works. Random scopes cover mixes;
+// every pair of one rooms entry and one except entry covers each kind against each
+// fallback (a random mix rarely leaves an except entry the only place-dependent one).
 func TestAFailedLookupNeverWidensTheScope(t *testing.T) {
 	t.Parallel()
-	failures := []failing{{spaces: true}, {encryption: true}, {spaces: true, encryption: true}}
 	for seed := range uint64(400) {
 		rng := rand.New(rand.NewPCG(seed, 7))
 		read := domain.ModelScope{Only: someEntries(rng), Except: someEntries(rng), Encrypted: rng.IntN(2) == 0}
 		write := domain.ModelScope{Only: someEntries(rng), Except: someEntries(rng), Encrypted: rng.IntN(2) == 0}
-		send := someEntries(rng)
-		build := func(backend daemonCalls) *server {
-			s := writerWith(t, scopeRooms(), read, write, send)
-			s.backend = backend
-			s.places = scopePlaces
-			s.cooldown = 0
-			return s
+		neverWidens(t, fmt.Sprintf("seed %d", seed), read, write, someEntries(rng))
+	}
+	for _, only := range append([]string{""}, scopeEntries...) {
+		for _, except := range append([]string{""}, scopeEntries...) {
+			scope := domain.ModelScope{Only: nonBlank(only), Except: nonBlank(except), Encrypted: true}
+			neverWidens(t, fmt.Sprintf("rooms %q, except %q", only, except), scope, scope, nonBlank(only))
 		}
-		fixture := scopeRooms()
-		healthy := decide(t, build(fixture), fixture.rooms)
-		for _, fail := range failures {
-			fail.fake = scopeRooms()
-			got := decide(t, build(fail), fixture.rooms)
-			for _, room := range fixture.rooms {
-				for _, c := range []struct {
-					what      string
-					ok, under bool
-				}{
-					{"read", healthy.read[room.ID], got.read[room.ID]},
-					{"write", healthy.write[room.ID], got.write[room.ID]},
-					{"send unreviewed", healthy.send[room.ID], got.send[room.ID]},
-				} {
-					if c.under && !c.ok {
-						t.Fatalf("seed %d, spaces failing=%v, encryption failing=%v: %s %s is allowed only "+
-							"while the lookup fails\nread %+v\nwrite %+v\nsend %v",
-							seed, fail.spaces, fail.encryption, c.what, room.Name, read, write, send)
-					}
+	}
+}
+
+// nonBlank is a one-entry list, or none for "".
+func nonBlank(entry string) []string {
+	if entry == "" {
+		return nil
+	}
+	return []string{entry}
+}
+
+// neverWidens fails when some daemon read failing allows a room the healthy run refuses.
+func neverWidens(t *testing.T, label string, read, write domain.ModelScope, send []string) {
+	t.Helper()
+	failures := []failing{{spaces: true}, {encryption: true}, {spaces: true, encryption: true}}
+	build := func(backend daemonCalls) *server {
+		s := writerWith(t, scopeRooms(), read, write, send)
+		s.backend = backend
+		s.places = scopePlaces
+		s.cooldown = 0
+		return s
+	}
+	fixture := scopeRooms()
+	healthy := decide(t, build(fixture), fixture.rooms)
+	for _, fail := range failures {
+		fail.fake = scopeRooms()
+		got := decide(t, build(fail), fixture.rooms)
+		for i := range fixture.rooms {
+			room := &fixture.rooms[i]
+			for _, c := range []struct {
+				what      string
+				ok, under bool
+			}{
+				{"read", healthy.read[room.ID], got.read[room.ID]},
+				{"write", healthy.write[room.ID], got.write[room.ID]},
+				{"send unreviewed", healthy.send[room.ID], got.send[room.ID]},
+			} {
+				if c.under && !c.ok {
+					t.Fatalf("%s, spaces failing=%v, encryption failing=%v: %s %s is allowed only "+
+						"while the lookup fails\nread %+v\nwrite %+v\nsend %v",
+						label, fail.spaces, fail.encryption, c.what, room.Name, read, write, send)
 				}
 			}
 		}
@@ -184,6 +211,59 @@ func TestNamesAndPinsAdmitWhatTheyName(t *testing.T) {
 		s.places = scopePlaces
 		if got := s.allowed(ctx, room(c.room)) == nil; got != c.want {
 			t.Errorf("%s admits %s = %v, want %v", c.entry, c.room, got, c.want)
+		}
+	}
+}
+
+// A place: entry admits exactly the rooms of every rail row shown so: a space by its name
+// or its rename, a tag, in any case, a space and a tag sharing the name both; as rooms
+// or except, for reading and writing alike.
+func TestAPlaceEntryAdmitsExactlyTheRoomsOfItsRows(t *testing.T) {
+	t.Parallel()
+	f := scopeRooms()
+	ctx := withCallMemo(context.Background())
+	all := func(scope domain.ModelScope, write bool) []domain.RoomID {
+		s := writerWith(t, f, scope, scope, nil)
+		s.places = scopePlaces
+		var got []domain.RoomID
+		for i := range f.rooms {
+			allowed := s.allowed(ctx, f.rooms[i])
+			if write {
+				allowed = s.writable(ctx, f.rooms[i])
+			}
+			if allowed == nil {
+				got = append(got, f.rooms[i].ID)
+			}
+		}
+		return got
+	}
+	everyRoom := make([]domain.RoomID, 0, len(f.rooms))
+	for i := range f.rooms {
+		everyRoom = append(everyRoom, f.rooms[i].ID)
+	}
+	for _, c := range []struct {
+		entry string
+		want  []domain.RoomID
+	}{
+		{"place:Work", []domain.RoomID{"!work:x", "!dm:x", "!enc:x"}},       // the space and the tag
+		{"place:chats", []domain.RoomID{"!wa:x", "!dm:x", "!both:x"}},       // WhatsApp, renamed
+		{"place:WhatsApp", []domain.RoomID{"!wa:x", "!dm:x", "!both:x"}},    // by its name too
+		{"place:TELEGRAM", []domain.RoomID{"!both:x"}},                      // a bridge's space
+		{"place:Pinned", []domain.RoomID{"!work:x", "!loose:x", "!both:x"}}, // a tag
+		{"place:Lounge", nil}, // a room's name is no row
+		{"space:Chats", nil},  // space: reads the name
+		{"Work", nil},         // a bare name names nothing
+	} {
+		for _, write := range []bool{false, true} {
+			only := domain.ModelScope{Only: []string{c.entry}, Encrypted: true}
+			if got := all(only, write); !slices.Equal(got, c.want) {
+				t.Errorf("rooms = [%q] (write %t) admits %v, want %v", c.entry, write, got, c.want)
+			}
+			except := domain.ModelScope{Only: []string{"dm", "group"}, Except: []string{c.entry}, Encrypted: true}
+			want := slices.DeleteFunc(slices.Clone(everyRoom), func(id domain.RoomID) bool { return slices.Contains(c.want, id) })
+			if got := all(except, write); !slices.Equal(got, want) {
+				t.Errorf("except = [%q] (write %t) admits %v, want %v", c.entry, write, got, want)
+			}
 		}
 	}
 }

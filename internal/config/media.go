@@ -32,7 +32,7 @@ func (m Media) Caching() bool { return enabled(m.Cache) }
 
 // MediaRule is one [[display.media.rule]]; unset fields inherit.
 type MediaRule struct {
-	Match    string   `toml:"match"`  // a room ID or a space's name
+	Match    string   `toml:"match"`  // a room ID, space:, tag: or place:
 	Sender   string   `toml:"sender"` // MXID, for per-person settings (speed)
 	Auto     *bool    `toml:"auto"`
 	Cache    *bool    `toml:"cache"`

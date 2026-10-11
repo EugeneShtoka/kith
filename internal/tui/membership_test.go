@@ -424,7 +424,7 @@ func TestInvitesGroupPlacement(t *testing.T) {
 
 	// Never mentioned: promoted to the front even though applyRailConfig demotes unlisted groups.
 	unaware := railGroups(spaces, config.Rail{
-		Order:  []string{unreadGroupKey, "Work"},
+		Order:  []string{unreadGroupKey, "space:Work"},
 		Hidden: []string{homeGroupKey, dmsGroupKey},
 	}, nil, view, rooms)
 	if got := groupKeys(unaware); got[0] != inviteGroupKey {
@@ -433,7 +433,7 @@ func TestInvitesGroupPlacement(t *testing.T) {
 
 	// Placed by the user: left there.
 	aware := railGroups(spaces, config.Rail{
-		Order:  []string{unreadGroupKey, inviteGroupKey, "Work"},
+		Order:  []string{unreadGroupKey, inviteGroupKey, "space:Work"},
 		Hidden: []string{homeGroupKey, dmsGroupKey},
 	}, nil, view, rooms)
 	if got := groupKeys(aware); got[1] != inviteGroupKey {

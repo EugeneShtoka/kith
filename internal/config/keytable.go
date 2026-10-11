@@ -61,7 +61,9 @@ between the open room and the rail's space), or /shortcut for the room written i
 Targets:
 
   room:<!id:server>  a room, by ID (names are ambiguous across bridges)
-  space:<space>      a rail group, by name
+  space:<name>       a space's rail row
+  tag:<name>         a tag's rail row
+  place:<name>       the first rail row shown as <name>
 
 ` + "`?`" + ` lists them resolved to names. A chord bound twice, or colliding with a command
 (bound, a prefix of one, or prefixed by one), is refused.

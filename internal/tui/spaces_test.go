@@ -38,7 +38,7 @@ func filing(t *testing.T) (Model, *filer) {
 	t.Helper()
 	f := &filer{}
 	// Work and Friends ranked first, so the picker opens on them.
-	m := update(t, starterNew(f, config.Display{Priority: []string{"Work", "Friends"}}), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(f, config.Display{Priority: []string{"space:Work", "space:Friends"}}), roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},
 		{ID: "!b:x", Name: "Bravo"},
 	}})
@@ -185,7 +185,7 @@ func TestTheFilingListFollowsTheRail(t *testing.T) {
 	m, _ := filing(t)
 	// Reorder and rename the way the rail config does, then rebuild the rail.
 	m.prefs.display.Priority = nil
-	m.prefs.display.Rail.Order = []string{"Friends", "Work"}
+	m.prefs.display.Rail.Order = []string{"space:Friends", "space:Work"}
 	m.prefs.display.Names = []config.DisplayName{{Target: config.NameTargetSpace + "Friends", Name: "Mates"}}
 	m.rail.groups = railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), m.rooms.all)
 
@@ -221,7 +221,7 @@ func TestFilingSpacesNamesTheList(t *testing.T) {
 	t.Parallel()
 
 	m, _ := filing(t)
-	m.prefs.display.FilingSpaces = []string{"Friends", "!w:x"}
+	m.prefs.display.FilingSpaces = []string{"space:Friends", "!w:x"}
 	m, _ = press(t, m, keyText("S"))
 
 	var got []string
@@ -237,7 +237,7 @@ func TestFilingSpacesOverridesTheJudgment(t *testing.T) {
 	t.Parallel()
 
 	m, _ := filing(t)
-	m.prefs.display.FilingSpaces = []string{"WhatsApp"}
+	m.prefs.display.FilingSpaces = []string{"space:WhatsApp"}
 	m, _ = press(t, m, keyText("S"))
 	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != "!wa:x" {
 		t.Errorf("rows = %+v, want the named bridge space", rows)
@@ -248,14 +248,14 @@ func TestFilingSpacesSkipsWhatItCannotFind(t *testing.T) {
 	t.Parallel()
 
 	m, _ := filing(t)
-	m.prefs.display.FilingSpaces = []string{"Gone", "Work"}
+	m.prefs.display.FilingSpaces = []string{"space:Gone", "space:Work"}
 	m, _ = press(t, m, keyText("S"))
 	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != "!w:x" {
 		t.Errorf("rows = %+v, want just Work", rows)
 	}
 
 	m2, _ := filing(t)
-	m2.prefs.display.FilingSpaces = []string{"Gone", "Also gone"}
+	m2.prefs.display.FilingSpaces = []string{"space:Gone", "place:Also gone"}
 	m2, _ = press(t, m2, keyText("S"))
 	if m2.picker.active() {
 		t.Error("a list matching nothing should open no picker")
@@ -269,7 +269,7 @@ func TestFilingSpacesLeavesUnlistedSpacesAlone(t *testing.T) {
 	t.Parallel()
 
 	m, f := filing(t)
-	m.prefs.display.FilingSpaces = []string{"Friends"} // Alpha is in Work, which is not listed
+	m.prefs.display.FilingSpaces = []string{"space:Friends"} // Alpha is in Work, which is not listed
 	m, _ = press(t, m, keyText("S"))
 	next, cmd := m.acceptPick()
 	mdl := next
@@ -297,7 +297,7 @@ func TestTheFilingListFollowsThePriority(t *testing.T) {
 	t.Parallel()
 
 	m, _ := filing(t)
-	m.prefs.display.Priority = []string{"tag:Pinned", "Friends"}
+	m.prefs.display.Priority = []string{"tag:Pinned", "space:Friends"}
 	m, _ = press(t, m, keyText("S"))
 	var got []string
 	for _, item := range m.picker.all {

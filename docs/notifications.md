@@ -114,8 +114,9 @@ A misspelled level, window or thread value is an error at startup, and on reload
 | `protocol:WhatsApp` | Every room on that network |
 | `dm` / `group` | Every direct message, or every room that is not one |
 | `tag:Pinned` | Every room that tag holds, judged on the room alone (its state words match nothing here) |
+| `place:Work` | Every room in a rail row shown as Work: a space, a tag, renamed or not |
 
-A bare word that is not a room ID (such as `"Work"`) is **refused at startup**, with an error that names the entry. Room IDs are awkward to type, so it is usually easier to write rules [from the UI](#editing-rules-from-the-ui).
+A bare word that is not a room ID (such as `"Work"`) is **refused at startup**, with an error that names the entry and the prefixes to choose from. Room IDs are awkward to type, so it is usually easier to write rules [from the UI](#editing-rules-from-the-ui).
 
 ### Which rule wins
 

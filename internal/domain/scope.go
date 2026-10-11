@@ -1,13 +1,17 @@
 package domain
 
+import "strings"
+
 // The shared specificity ladder that decides which rule wins where.
 
 // Scope is where something happens, in terms a rule can name.
 type Scope struct {
 	// RoomID, not a displayed name, is what rules match.
 	RoomID string
-	// Space is the space the room is in.
+	// Space is the room's first home: a space's name, or tag:<name>.
 	Space string
+	// SpaceLabel is that home's rail label when renamed, else "".
+	SpaceLabel string
 	// Thread is the root event, empty for the main timeline.
 	Thread string
 	// Sender is the speaker's MXID, empty for a question about a place.
@@ -32,7 +36,7 @@ const (
 // Match is one rule's constraints. Empty fields mean anywhere/anyone, but a rule with
 // both empty matches nothing.
 type Match struct {
-	// Place is a room ID, a space's name, or a thread's root event.
+	// Place is a room ID, a home entry (NamesHome), or a thread's root event.
 	Place string
 	// Sender is one person's MXID.
 	Sender string
@@ -51,21 +55,19 @@ func (m Match) Rank(scope Scope) Rank {
 		}
 		return RankSender // constrained only by who, so: this person anywhere
 	}
-	switch m.Place {
-	case scope.Thread:
-		if scope.Thread == "" {
-			return NoMatch
-		}
+	place := strings.TrimSpace(m.Place)
+	switch {
+	case scope.Thread != "" && place == scope.Thread:
 		if named {
 			return RankThreadSender
 		}
 		return RankThread
-	case scope.RoomID:
+	case scope.RoomID != "" && place == scope.RoomID:
 		if named {
 			return RankRoomSender
 		}
 		return RankRoom
-	case scope.Space:
+	case scope.Space != "" && NamesHome(place, scope.Space, scope.SpaceLabel):
 		if named {
 			return RankSpaceSender
 		}

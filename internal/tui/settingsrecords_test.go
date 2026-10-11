@@ -46,7 +46,7 @@ func TestFirstNamesPerPlace(t *testing.T) {
 	m = pickLabel(t, m, "only in Work")
 	m = pickLabel(t, m, "only in DMs")
 	rules := m.conf.base.Display.SpaceRules
-	if !slices.Contains(rules, config.SpaceRule{Space: "Work", FirstNameOnly: true}) ||
+	if !slices.Contains(rules, config.SpaceRule{Space: "space:Work", FirstNameOnly: true}) ||
 		!slices.Contains(rules, config.SpaceRule{Space: "tag:DMs", FirstNameOnly: true}) {
 		t.Fatalf("rules = %+v, want Work and tag:DMs on", rules)
 	}
@@ -58,7 +58,7 @@ func TestFirstNamesPerPlace(t *testing.T) {
 		t.Errorf("saved rules = %+v", reloaded.Display.SpaceRules)
 	}
 	m = pickLabel(t, m, "only in Work")
-	if slices.ContainsFunc(m.conf.base.Display.SpaceRules, func(r config.SpaceRule) bool { return r.Space == "Work" }) {
+	if slices.ContainsFunc(m.conf.base.Display.SpaceRules, func(r config.SpaceRule) bool { return r.Space == "space:Work" }) {
 		t.Error("switched off, Work's rule is still written")
 	}
 
@@ -83,11 +83,11 @@ func TestRecordsAreEditedInSettings(t *testing.T) {
 		t.Fatalf("Read rules opened %v on %q", m.picker.kind, m.choosing.settingGroup)
 	}
 	m = pickLabel(t, m, "Add one")
-	m = typeIn(t, m, "Work")
-	if got := m.conf.base.Display.ReadRules; len(got) != 1 || got[0].Match != "Work" {
-		t.Fatalf("after adding: %+v, want one rule matching Work", got)
+	m = typeIn(t, m, "space:Work")
+	if got := m.conf.base.Display.ReadRules; len(got) != 1 || got[0].Match != "space:Work" {
+		t.Fatalf("after adding: %+v, want one rule matching space:Work", got)
 	}
-	m = pickLabel(t, m, "Work") // the record
+	m = pickLabel(t, m, "space:Work") // the record
 	if m.choosing.settingGroup != recordPrefix+"display.read_rule#0" {
 		t.Fatalf("the record opened %q", m.choosing.settingGroup)
 	}

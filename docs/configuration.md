@@ -176,37 +176,46 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[log]` | `level`: how much the daemon, the client and `kith-mcp` log (`debug`, `info`, `warn`, `error`; default `info`). `--log-level` and `KITH_LOG_LEVEL` override it. `target`: where the client and a daemon it started log (`auto`, `journal`, `file`; default `auto`, the journal when there is one). `--log-target` and `KITH_LOG_TARGET` override it. | [troubleshooting.md](troubleshooting.md#where-the-log-goes) |
 | `[keys]` and `[keys.*]` | Every keybinding, one table per mode. | [keybindings.md](keybindings.md) |
 
-Some sections take repeatable blocks for per-place overrides. They name places in one
-of three ways.
+Settings that name a place say which kind with a prefix:
+
+- `space:<name>`: a space by its name (a Telegram forum, a WhatsApp community and a
+  Slack workspace are spaces too);
+- `tag:<name>`: a tag;
+- `place:<name>`: every rail row shown as `<name>`, its label after a
+  `[[display.name]]` rename or its name, in any case: a space, a tag, anything the
+  rail shows. Where several rows share the name it means all of them;
+- `room:<name>`: a room by the name kith shows for it; `protocol:<network>` a network.
+
+A room ID (`!abc:example.org`, or a network's own) needs no prefix. A bare name is
+refused at startup, naming the setting and the prefixes it takes, because a space, a
+tag and a room can share one.
 
 **The place vocabulary** is used by `[[notifications.rule]] match`,
-`[[display.tracked.rule]] in` / `except`, and the room lists `[codes] include` /
-`exclude`, `[spam] rooms` / `except`, `[assist] rooms` / `except` and
-`[agent.read]` / `[agent.write]`. An entry is:
-
-- a bare room ID (`!abc:example.org`);
-- `room:<name>`, `space:<name>`, `tag:<name>` or `protocol:<network>` (a tag is
-  judged on the room alone: its state words match nothing as a place);
-- `dm` or `group`.
-
-A bare word that isn't a room ID is refused at startup, because an entry that could mean
-three things is a typo that never matches. An empty list means every place everywhere
-except `[agent.read] rooms`, where it means none.
+`[[display.tracked.rule]] in` / `except`, `[display.direction]`, `[[storage.rule]]
+match`, a tag's `rule`, and the room lists `[codes] include` / `exclude`, `[spam]
+rooms` / `except`, `[assist] rooms` / `except` and `[agent.read]` / `[agent.write]`.
+An entry is a room ID, any of the prefixes above, `dm` or `group` (a tag is judged on
+the room alone: its state words match nothing as a place). An empty list means every
+place everywhere except `[agent.read] rooms`, where it means none.
 
 `kith-mcp` reads the config when it starts, so a room you put in a tag, or take out of
 one, reaches an `[agent.*]` list naming that tag the next time it starts — as does any
 other edit to those lists.
 
-**A room ID or a space's name, as written**, is what `match` takes in
-`[[display.read_rule]]`, `[[display.media.rule]]` and `[[display.threads.rule]]`: for
-example `match = "!abc:example.org"` or `match = "Work"`. These are not checked at
-startup.
+**Rail rows** (`space:`, `tag:` or `place:`) are what `[display] priority`, `[display.rail]
+order` / `hidden` / `hide_when_empty`, `[[display.space_rule]] space` and
+`[[display.rooms.rule]] group` take; the rail order also takes `*` and `-`.
+`[display] filing_spaces` takes `space:`, `place:` or a space's ID. `[[keys.jump]]
+target` takes `room:<room ID>` or a rail row.
+
+**A room ID or a rail row** is what `match` takes in `[[display.read_rule]]`,
+`[[display.media.rule]]` and `[[display.threads.rule]]`, for example
+`match = "space:Work"`; a row there is the room's first home ([display] priority).
 
 **Their own keys:**
 
 - `[[display.name]]` names its `target`: a room ID, `room:<name>`, `space:<name>` or
   `thread:<root event ID>` (a tag is named in its `[[tag]]`);
-- `[[display.rooms.rule]]` names a rail `group`;
 - `[[display.identity]]` lists `ids` (user IDs, on any network);
 - `[[spam.filter]]` matches `words` and `from`.
 
@@ -351,7 +360,7 @@ filing stays in kith (taking a followed chat out writes `excluded`, as for any r
 sort = ["mentions", "unread", "recent", "name"]
 
 [[display.rooms.rule]]
-group = "dms"
+group = "tag:DMs"
 sort  = ["drafts", "unread", "name"]
 ```
 

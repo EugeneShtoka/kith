@@ -471,7 +471,7 @@ func TestRailConfig(t *testing.T) {
 
 	// Hidden removes a group; listed order comes first, unlisted follow.
 	ord := railGroups(spaces, config.Rail{
-		Order:  []string{"Work", "tag:DMs"},
+		Order:  []string{"space:Work", "tag:DMs"},
 		Hidden: []string{"tag:All"},
 	}, nil, three, nil)
 	if got := strings.Join(keys(ord), ","); got != "Work,tag:DMs,tag:Unread,Friends" {
@@ -479,13 +479,13 @@ func TestRailConfig(t *testing.T) {
 	}
 
 	// Hiding every group keeps the first, so the rail is never empty.
-	guard := railGroups(spaces, config.Rail{Hidden: []string{"tag:All", "tag:DMs", "tag:Unread", "Work", "Friends"}}, nil, three, nil)
+	guard := railGroups(spaces, config.Rail{Hidden: []string{"tag:All", "tag:DMs", "tag:Unread", "space:Work", "place:Friends"}}, nil, three, nil)
 	if len(guard) != 1 {
 		t.Errorf("hide-all guard = %+v, want one row", keys(guard))
 	}
 
 	// A dash token draws a divider after the preceding group; unlisted Unread follows.
-	sep := railGroups(spaces, config.Rail{Order: []string{"tag:All", "tag:DMs", "-", "Work", "Friends"}}, nil, three, nil)
+	sep := railGroups(spaces, config.Rail{Order: []string{"tag:All", "tag:DMs", "-", "space:Work", "space:Friends"}}, nil, three, nil)
 	if got := strings.Join(keys(sep), ","); got != "tag:All,tag:DMs,Work,Friends,tag:Unread" {
 		t.Errorf("separator order = %q, want tag:All,tag:DMs,Work,Friends,tag:Unread", got)
 	}
@@ -1828,7 +1828,7 @@ func TestNameProcessing(t *testing.T) {
 	}})
 	m.prefs.display = config.Display{
 		MaxNameLength: 8,
-		SpaceRules:    []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
+		SpaceRules:    []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
 	}
 	inWork := domain.Message{RoomID: "!a:x", Sender: "@x:x", SenderName: "Rowan Blackwood"}
 
@@ -1898,7 +1898,7 @@ func TestRoomName(t *testing.T) {
 	// A first-name-only space shortens people-named rooms and leaves titles alone; the
 	// rule names the space the rooms are in.
 	m = starterNew(apitest.Nop{}, config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
+		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
 	})
 	m = sized(t, withRooms(t, m))
 	m = update(t, m, spacesMsg{spaces: []domain.Space{{
@@ -1933,7 +1933,7 @@ func TestRoomName(t *testing.T) {
 		Members: []string{"Rowan Blackwood", "Piper Nightingale", "Quinn Foster"},
 	}
 	m = starterNew(apitest.Nop{}, config.Display{
-		SpaceRules:    []config.SpaceRule{{Space: "Work", FirstNameOnly: true}},
+		SpaceRules:    []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
 		MaxNameLength: 8,
 	})
 	m = sized(t, withRooms(t, m))
@@ -2559,32 +2559,5 @@ func TestTheCommandMatchersKnowTheirCommands(t *testing.T) {
 		if !c.test(c.cmd) {
 			t.Errorf("%s: not recognized (%s)", name, cmdFunc(c.cmd))
 		}
-	}
-}
-
-// An order entry names a group as hidden does: by key, else by rail name case-insensitively, so
-// a tag's bare name places the tag; a space of that name keeps it.
-func TestRailOrderPlacesATagByItsName(t *testing.T) {
-	t.Parallel()
-	keys := func(gs []group) string {
-		out := make([]string, len(gs))
-		for i, g := range gs {
-			out[i] = g.key
-		}
-		return strings.Join(out, ",")
-	}
-	three := threeTags(t)
-	spaces := []domain.Space{{ID: "!w:x", Name: "Work"}, {ID: "!f:x", Name: "Friends"}}
-	got := railGroups(spaces, config.Rail{Order: []string{"unread", "Work", "-", "*"}}, nil, three, nil)
-	if keys(got) != "tag:Unread,Work,tag:All,tag:DMs,Friends" {
-		t.Errorf("order by a tag's name = %q", keys(got))
-	}
-	if !got[1].sepAfter || got[0].sepAfter {
-		t.Errorf("the divider after Work moved: %+v", got)
-	}
-	spaces = append(spaces, domain.Space{ID: "!d:x", Name: "DMs"})
-	got = railGroups(spaces, config.Rail{Order: []string{"dms", "*"}}, nil, three, nil)
-	if got[0].key != "DMs" {
-		t.Errorf("a space named like a tag: first = %q, want the space", got[0].key)
 	}
 }

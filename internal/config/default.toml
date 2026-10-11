@@ -100,9 +100,9 @@ show_archived = true
 
 # Which spaces the filing key (`S` in the room list) offers. Empty works it out: your
 # spaces, minus those a bridge keeps and those a room calls its origin. Naming spaces
-# (display name, case-insensitive, or room ID) makes this the whole list, in order.
+# (space:<name>, place:<name> or a space's ID) makes this the whole list, in order.
 #
-#   filing_spaces = ["Work", "Friends", "!w1kIQdLjYDUj7wgUis:example.org"]
+#   filing_spaces = ["space:Work", "place:Friends", "!w1kIQdLjYDUj7wgUis:example.org"]
 filing_spaces = []
 
 # The wheel scrolls the pane under the pointer; clicks do nothing. While on, the
@@ -131,17 +131,21 @@ send_typing = true
 unread = "messages"
 
 # The place vocabulary, which every list of places in this file takes: a room ID bare,
-# `room:<name>`, `space:<name>`, `tag:<name>`, `protocol:<network>`, `dm`, `group`.
+# `room:<name>`, `space:<name>`, `tag:<name>`, `place:<name>`, `protocol:<network>`,
+# `dm`, `group`. `place:<name>` is every rail row shown as <name> (its label after a
+# rename, or its name, in any case): a space, a tag, a forum, a community, a
+# workspace. A setting naming rail rows (priority, the rail's lists, space_rule,
+# rooms rules) takes space:, tag: and place:. A bare name is refused at startup.
 
 # Preference order when one home must be chosen for a room in several spaces or tags:
 # the {space} of a notification, the download folder, which [[display.space_rule]]
-# applies, which place rule counts as the room's space. Spaces by name, tags as
-# tag:<name>. What it does not name follows the rail's order ([display.rail]); what
-# the rail does not name either goes where its "*" is: tags in the order they are
-# written, then spaces you made, then a network's own (a bridge's, a WhatsApp
-# account's, a Slack workspace's). A tag of every room (All) is a room's home only
-# when nothing else is.
-# priority = ["tag:Family", "Work", "Friends"]
+# applies, which place rule counts as the room's space. Spaces as space:<name>, tags
+# as tag:<name>, or place:<name>. What it does not name follows the rail's order
+# ([display.rail]); what the rail does not name either goes where its "*" is: tags in
+# the order they are written, then spaces you made, then a network's own (a bridge's,
+# a WhatsApp account's, a Slack workspace's). A tag of every room (All) is a room's
+# home only when nothing else is.
+# priority = ["tag:Family", "space:Work", "place:Friends"]
 
 # Open a room in the composer rather than the message cursor (one esc away).
 open_in_insert_mode = true
@@ -157,7 +161,7 @@ row_numbers = false
 # (DMs, bridge rooms) too.
 # room_name_rules = true
 
-# Per-place rules: space is a space's name, or tag:<name> for a tag.
+# Per-place rules: space is space:<name>, tag:<name> or place:<name>.
 # first_name_only shows just the first token of a sender's name. A room in two places
 # follows the one selected in the rail in the room list, else its home (see priority).
 # network_colors names each room in this place's room list in its network's color
@@ -165,7 +169,7 @@ row_numbers = false
 # show_archived lists archived rooms in this place's room list, true or false whatever
 # [display] show_archived says.
 # [[display.space_rule]]
-# space = "Friends"
+# space = "space:Friends"
 # first_name_only = true
 # network_colors = true
 # show_archived = false
@@ -214,7 +218,7 @@ read_delay    = -1
 # DM.
 #
 # [[display.read_rule]]
-# match = "Work"        # a room ID or a space's name
+# match = "space:Work"  # a room ID, space:, tag: or place:
 # delay = 30
 #
 # [[display.read_rule]]
@@ -385,21 +389,20 @@ hide_when_empty = true
 name = "All"
 rule = ["*"]
 
-# Rail layout, by group key: a space's name, tag:<name>. A name that is neither is
-# matched, in any case, to the row the rail shows by that name (a tag's bare name, a
-# renamed space). "-" draws a divider after the preceding group; "*" stands for every
-# group not named. Unlisted groups (with no "*") follow in default order. A tag marked
-# `first` goes to the top unless named here.
+# Rail layout: space:<name>, tag:<name>, or place:<name> for every row shown as
+# <name> (placed together, in rail order). "-" draws a divider after the preceding
+# group; "*" stands for every group not named. Unlisted groups (with no "*") follow in
+# default order. A tag marked `first` goes to the top unless named here.
 #
 # Rename a space's row with [[display.name]] (target = "space:Work").
 [display.rail]
 order = ["tag:All", "tag:DMs", "tag:Unread", "tag:Drafts", "tag:Pinned", "-", "*", "-", "tag:Archived", "tag:Spam"]
-# Rows hidden while they hold nothing (key or label, case-insensitive); a tag can say
-# so itself (hide_when_empty).
+# Rows hidden while they hold nothing (as order names them); a tag can say so itself
+# (hide_when_empty).
 #
-#   hide_when_empty = ["Work"]
+#   hide_when_empty = ["space:Work"]
 hide_when_empty = []
-# Rows never shown (key or label); a tag can say so itself (hidden).
+# Rows never shown (as order names them); a tag can say so itself (hidden).
 hidden = []
 # Name a space or tag whose rooms are all on one network in that network's color
 # ([display.theme.networks]).
@@ -460,13 +463,13 @@ max_height = 16
 # cache_dir    = ""
 # cache_max_mb = 0
 
-# Per-place overrides, matched by room ID or space name (never a displayed name). The
-# narrower match wins; a rule changes only what it sets. Fields: auto (fetch pictures
+# Per-place overrides, matched by room ID, space:, tag: or place: (a room's first
+# home). The narrower match wins; a rule changes only what it sets. Fields: auto (fetch pictures
 # unasked), cache (keep on disk), dir, template ("-" turns the layout off), speed
 # (voice notes). `sender` makes a rule about a person, for speed.
 #
 # [[display.media.rule]]
-# match = "Work"
+# match = "space:Work"
 # dir   = "~/work/attachments"
 #
 # [[display.media.rule]]
@@ -511,11 +514,10 @@ close_after  = 15      # seconds
 [display.rooms]
 sort = ["unread", "recent", "name"]
 
-# Per rail group, by group key (a space's name, or home/dms/unread). `sort` replaces
-# the chain whole.
+# Per rail group (space:, tag: or place:<name>). `sort` replaces the chain whole.
 #
 #   [[display.rooms.rule]]
-#   group = "Work"
+#   group = "space:Work"
 #   sort  = ["recent", "name"]
 
 # Quick-react palette (1-9, 0 in the react prompt). scope ranks by your usage: "room"
@@ -534,7 +536,7 @@ in_room_list     = "unread"
 max_in_room_list = 5
 # marker         = "↳"   # leads a thread's row
 
-# Per place (room ID or space name; narrowest wins, later wins among equals):
+# Per place (room ID, space:, tag: or place:; narrowest wins, later wins among equals):
 #
 # [[display.threads.rule]]
 # match            = "!busy:example.org"
@@ -1285,7 +1287,9 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 # Targets:
 #
 #   room:<!id:server>  a room, by ID (names are ambiguous across bridges)
-#   space:<space>      a rail group, by name
+#   space:<name>       a space's rail row
+#   tag:<name>         a tag's rail row
+#   place:<name>       the first rail row shown as <name>
 #
 # `?` lists them resolved to names. A chord bound twice, or colliding with a command
 # (bound, a prefix of one, or prefixed by one), is refused.

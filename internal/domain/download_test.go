@@ -86,7 +86,7 @@ func TestResolveDownloadRulesNarrowestWins(t *testing.T) {
 	t.Parallel()
 
 	rules := []domain.DownloadRule{
-		{Match: "Work", Dir: "/work"},
+		{Match: "space:Work", Dir: "/work"},
 		{Match: "!standup:x", Dir: "/standup", Template: "{name}{ext}"},
 	}
 	got := domain.ResolveDownload("/dl", "{space}/{name}{ext}", rules, place())

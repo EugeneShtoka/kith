@@ -43,13 +43,13 @@ type ModelScope struct {
 // NeedsPlaces reports whether either list has an entry that depends on where a room sits.
 func (s ModelScope) NeedsPlaces() bool { return NamesAPlace(s.Only) || NamesAPlace(s.Except) }
 
-// NamesAPlace reports whether a list has a space:, protocol: or tag: entry (a tag's
-// rule may name a space).
+// NamesAPlace reports whether a list has a space:, protocol:, tag: or place: entry (a
+// tag's rule may name a space).
 func NamesAPlace(list []string) bool {
 	return slices.ContainsFunc(list, func(entry string) bool {
 		entry = strings.TrimSpace(entry)
 		return hasPrefixFold(entry, entrySpace) || hasPrefixFold(entry, entryProtocol) ||
-			hasPrefixFold(entry, termTag)
+			hasPrefixFold(entry, termTag) || hasPrefixFold(entry, entryPlace)
 	})
 }
 

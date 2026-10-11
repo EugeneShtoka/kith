@@ -223,7 +223,7 @@ func TestSpaceRungIsTheRoomsPrioritySpace(t *testing.T) {
 	t.Parallel()
 
 	m := starterNew(apitest.Nop{}, config.Display{
-		Priority: []string{"Friends"},
+		Priority: []string{"space:Friends"},
 	})
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"},

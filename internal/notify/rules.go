@@ -64,7 +64,7 @@ func ParseThread(name string) (ThreadMatch, error) {
 type Rule struct {
 	// Name is the display name, e.g. "Quiet hours".
 	Name string
-	// Match names a place: a room ID or a space's name.
+	// Match is one place-vocabulary entry; empty is account-wide.
 	Match string
 	// Sender narrows the rule to one person's MXID. Empty matches anyone.
 	Sender string

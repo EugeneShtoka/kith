@@ -203,7 +203,7 @@ func (m Model) chooseTagRow(value string) (Model, tea.Cmd) {
 		place := domain.TagEntry(name)
 		now := !firstNamesIn(m.conf.base, place)
 		cfg := m.conf.base.Clone()
-		cfg.Display.SpaceRules = withFirstNames(cfg.Display.SpaceRules, place, now)
+		cfg.Display.SpaceRules = withFirstNames(cfg.Display, place, now)
 		return m.applyTagConfig(cfg, name, isolate(name)+": first names only: "+onOff(now))
 	case countsUnreadKey:
 		now := !m.conf.base.Tags[m.configTag(name)].Counts()

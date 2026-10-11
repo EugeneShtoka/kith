@@ -22,10 +22,10 @@ func TestSpeedResolvesNarrowestFirst(t *testing.T) {
 		why  string
 	}{
 		{domain.MediaRule{}, 1, "nothing named this place, so the setting above stands"},
-		{domain.MediaRule{Match: "Work", Speed: new(1.25)}, 1.25, "the space it is in"},
+		{domain.MediaRule{Match: "space:Work", Speed: new(1.25)}, 1.25, "the space it is in"},
 		{domain.MediaRule{Sender: "@dana:x", Speed: new(1.5)}, 1.5, "her anywhere beats the space"},
 		{domain.MediaRule{Match: "!standup:x", Speed: new(1.75)}, 1.75, "this room beats her anywhere"},
-		{domain.MediaRule{Match: "Work", Sender: "@dana:x", Speed: new(float64(2))}, 2, "her in the space beats the room"},
+		{domain.MediaRule{Match: "space:Work", Sender: "@dana:x", Speed: new(float64(2))}, 2, "her in the space beats the room"},
 		{domain.MediaRule{Match: "!standup:x", Sender: "@dana:x", Speed: new(2.5)}, 2.5, "her in this room wins outright"},
 	} {
 		if step.add != (domain.MediaRule{}) {
@@ -43,7 +43,7 @@ func TestSpeedIgnoresSomebodyElsesRule(t *testing.T) {
 
 	rules := []domain.MediaRule{
 		{Match: "!standup:x", Sender: "@someone:x", Speed: new(float64(3))},
-		{Match: "Work", Speed: new(1.25)},
+		{Match: "space:Work", Speed: new(1.25)},
 	}
 	if got := domain.ResolveMedia(true, true, 1, rules, said()).Speed; got != 1.25 {
 		t.Errorf("speed = %v, want the space's 1.25 — the room rule names another person", got)
@@ -89,7 +89,7 @@ func TestDownloadRulesUseTheSameLadder(t *testing.T) {
 	t.Parallel()
 
 	rules := []domain.DownloadRule{
-		{Match: "Work", Dir: "/work"},
+		{Match: "space:Work", Dir: "/work"},
 		{Sender: "@dana:x", Dir: "/dana"},
 		{Match: "!standup:x", Dir: "/standup"},
 	}

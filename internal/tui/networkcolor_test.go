@@ -13,6 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/setup"
 	"github.com/EugeneShtoka/kith/internal/theme"
 )
 
@@ -63,7 +64,7 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 		{ID: "!plain:x", Name: "Plain"},
 	}
 	display := config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "Mixed", NetworkColors: new(true)}, {Space: "Only WhatsApp", NetworkColors: new(false)}},
+		SpaceRules: []config.SpaceRule{{Space: "space:Mixed", NetworkColors: new(true)}, {Space: "space:Only WhatsApp", NetworkColors: new(false)}},
 		Theme:      config.Theme{Networks: config.NetworkColors{Telegram: "orange", Matrix: "none"}},
 		Rail:       config.Rail{NetworkColors: true},
 	}
@@ -136,26 +137,29 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 // rule goes only when neither is set. network_colors off counts as set and overrides [display].
 func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 	t.Parallel()
-	rules := []config.SpaceRule{{Space: "Other", FirstNameOnly: true}}
-	rules = withFirstNames(rules, "Friends", true)
-	rules = withNetworkColors(rules, "friends", new(true)) // the place, in any case
-	c := config.Config{Display: config.Display{SpaceRules: rules}}
-	if !firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn("Friends") || len(rules) != 2 {
-		t.Fatalf("both on: %+v", rules)
+	d := config.Display{SpaceRules: []config.SpaceRule{{Space: "space:Other", FirstNameOnly: true}}}
+	friends := setup.HomeNamer(d, "Friends")
+	d.SpaceRules = withFirstNames(d, "Friends", true)
+	d.SpaceRules = withNetworkColors(d, "Friends", new(true))
+	c := config.Config{Display: d}
+	if !firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn(friends) || len(d.SpaceRules) != 2 ||
+		d.SpaceRules[1].Space != "space:Friends" {
+		t.Fatalf("both on: %+v, want one space:Friends rule", d.SpaceRules)
 	}
-	rules = withFirstNames(rules, "Friends", false)
-	c.Display.SpaceRules = rules
-	if firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn("Friends") {
-		t.Fatalf("first names off took the colors with it: %+v", rules)
+	d.SpaceRules = withFirstNames(d, "Friends", false)
+	c.Display = d
+	if firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn(friends) {
+		t.Fatalf("first names off took the colors with it: %+v", d.SpaceRules)
 	}
-	rules = withNetworkColors(rules, "Friends", new(false))
-	c.Display.SpaceRules, c.Display.NetworkColors = rules, true
-	if c.Display.NetworkColorsIn("Friends") || len(rules) != 2 {
-		t.Fatalf("off is not kept against [display] network_colors: %+v", rules)
+	d.SpaceRules = withNetworkColors(d, "Friends", new(false))
+	d.NetworkColors = true
+	c.Display = d
+	if c.Display.NetworkColorsIn(friends) || len(d.SpaceRules) != 2 {
+		t.Fatalf("off is not kept against [display] network_colors: %+v", d.SpaceRules)
 	}
-	rules = withNetworkColors(rules, "Friends", nil)
-	if len(rules) != 1 || rules[0].Space != "Other" || !rules[0].FirstNameOnly {
-		t.Fatalf("both off: %+v, want only Other's rule", rules)
+	d.SpaceRules = withNetworkColors(d, "Friends", nil)
+	if len(d.SpaceRules) != 1 || d.SpaceRules[0].Space != "space:Other" || !d.SpaceRules[0].FirstNameOnly {
+		t.Fatalf("both off: %+v, want only Other's rule", d.SpaceRules)
 	}
 }
 

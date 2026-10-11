@@ -63,7 +63,7 @@ func (m Model) byPriority(rows []pickerItem) []pickerItem {
 	}
 	out := make([]pickerItem, 0, len(rows))
 	used := make([]bool, len(rows))
-	for _, key := range domain.OrderSpaces(keys, m.prefs.display.Priority) {
+	for _, key := range domain.NewHomeOrder(m.prefs.display.Priority, nil, domain.TagSet{}, nil, m.prefs.display.SpaceLabels()).ByPriority(keys) {
 		for i := range rows {
 			if !used[i] && keys[i] == key {
 				used[i] = true
