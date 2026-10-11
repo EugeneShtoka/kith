@@ -10,9 +10,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Row-loop helpers: every query here checks rows.Err through these, so an
-// interrupted iteration cannot return a short list silently. `what` names the
-// query in errors.
+// Row-loop helpers: they check rows.Err so an interrupted iteration cannot return a
+// short list silently. `what` names the query in errors.
 
 // querier is satisfied by *sql.DB and *sql.Tx.
 type querier interface {
@@ -83,10 +82,9 @@ func optional(err error) (bool, error) {
 	return err == nil, err
 }
 
-// jsonListAt is how long an ID list gets a placeholder per ID; a longer one is bound
-// as one JSON array, read by json_each. Far under sqliteMaxParams, so the statement's
-// other values always fit, and above what the hot paths bind (a space's rooms), so
-// their plans are the placeholder ones.
+// jsonListAt is the longest ID list bound as one placeholder per ID; longer lists
+// are bound as one JSON array via json_each. Well under sqliteMaxParams, and above
+// what hot paths bind, so those keep placeholder plans.
 const jsonListAt = 1000
 
 // inIDs is " IN (...)" for ids, with args extended to bind them in that place.
@@ -100,8 +98,7 @@ func inIDs[T ~string](args []any, ids []T) (string, []any) {
 	}
 	encoded, err := json.Marshal(list)
 	if err != nil {
-		// A []string always encodes; were it not to, the placeholders' own error (too
-		// many variables) is the one the caller reports.
+		// Unreachable for strings; the placeholders' own error would surface.
 		return " IN (" + placeholders(len(ids)) + ")", bindIDs(args, ids)
 	}
 	return " IN (SELECT value FROM json_each(?))", append(args, string(encoded))

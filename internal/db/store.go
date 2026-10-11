@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// HoldsRooms reports whether any joined room is cached. An empty cache has lost
-// whatever history the sync position assumes it holds.
+// HoldsRooms reports whether any joined room is cached; an empty cache has lost
+// the history the sync position assumes.
 func (c *Cache) HoldsRooms(ctx context.Context) (bool, error) {
 	var holds bool
 	err := c.db.QueryRowContext(ctx,
@@ -75,10 +75,9 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 		}, membership)
 }
 
-// registerRoom inserts a placeholder row (empty membership) so the sync stream can
-// write about a room the room list has not caught up with; the next refresh
-// promotes it. Unpromoted rows are deliberately never swept: a registered
-// predecessor of an upgraded room holds history the chain walk needs.
+// registerRoom inserts a placeholder row (empty membership) for a room the room
+// list has not caught up with; a refresh promotes it. Placeholders are never swept:
+// an upgraded room's predecessor holds history the chain walk needs.
 func registerRoom(ctx context.Context, exec execer, roomID domain.RoomID) error {
 	if _, err := exec.ExecContext(ctx,
 		"INSERT INTO rooms(id, membership) VALUES(?, '') ON CONFLICT(id) DO NOTHING",
@@ -88,9 +87,8 @@ func registerRoom(ctx context.Context, exec execer, roomID domain.RoomID) error 
 	return nil
 }
 
-// SetArchived keeps which of rooms the network archived. A room the cache does not
-// hold yet is registered (registerRoom), as a message's is: a network may say a chat
-// is archived before anything lists it (WhatsApp's first sync).
+// SetArchived keeps which rooms the network archived, registering unknown ones: a
+// network may archive a chat before listing it (WhatsApp's first sync).
 func (c *Cache) SetArchived(ctx context.Context, rooms map[domain.RoomID]bool) error {
 	if len(rooms) == 0 {
 		return nil
@@ -112,7 +110,7 @@ func (c *Cache) SetArchived(ctx context.Context, rooms map[domain.RoomID]bool) e
 	})
 }
 
-// SetForums keeps which of rooms are made of topics, as a network's listing says.
+// SetForums keeps which rooms are made of topics.
 func (c *Cache) SetForums(ctx context.Context, rooms map[domain.RoomID]bool) error {
 	if len(rooms) == 0 {
 		return nil
@@ -139,8 +137,8 @@ type execer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-// Stored rooms.membership values; empty is a registered placeholder (registerRoom).
-// Spelled out because domain.MembershipJoin is the empty string.
+// Stored rooms.membership values; empty is a placeholder (registerRoom). Spelled
+// out because domain.MembershipJoin is the empty string.
 const (
 	membershipJoin   = "join"
 	membershipInvite = "invite"
@@ -154,11 +152,9 @@ func membershipFrom(membership string) domain.Membership {
 	return domain.MembershipJoin
 }
 
-// SaveRooms reconciles owner's cached joined rooms with rooms in one transaction:
-// upsert each, then delete the ones of owner's that are gone (cascading their data).
-// Only owner's: the cache holds every network's rooms, and one network's list says
-// nothing about another's. A plain replace would cascade away every room's history.
-// An empty snapshot sweeps nothing. A room owner does not own is refused.
+// SaveRooms upserts owner's joined rooms and deletes owner's rooms that are gone,
+// leaving other networks' rooms alone. An empty snapshot sweeps nothing; a room
+// owner does not own is refused.
 func (c *Cache) SaveRooms(ctx context.Context, owner domain.RoomOwner, rooms []domain.Room) error {
 	for i := range rooms {
 		if !owner.Owns(rooms[i].ID) {
@@ -173,8 +169,8 @@ func (c *Cache) SaveRooms(ctx context.Context, owner domain.RoomOwner, rooms []d
 	})
 }
 
-// AddRooms upserts some of owner's joined rooms and sweeps nothing: a room a network
-// learns of one at a time (a chat's first message), not from a full listing.
+// AddRooms upserts some of owner's joined rooms without sweeping, for rooms learned
+// one at a time rather than from a full listing.
 func (c *Cache) AddRooms(ctx context.Context, owner domain.RoomOwner, rooms []domain.Room) error {
 	for i := range rooms {
 		if !owner.Owns(rooms[i].ID) {
@@ -184,9 +180,8 @@ func (c *Cache) AddRooms(ctx context.Context, owner domain.RoomOwner, rooms []do
 	return c.inTx(ctx, func(tx *sql.Tx) error { return upsertRooms(ctx, tx, rooms, membershipJoin) })
 }
 
-// JoinRooms makes owner's rooms joined — new, or placeholders a message registered —
-// without touching what is known of one already joined (its name above all). It
-// reports how many were not joined before.
+// JoinRooms marks owner's new or placeholder rooms joined, leaving already joined
+// ones untouched, and reports how many changed.
 func (c *Cache) JoinRooms(ctx context.Context, owner domain.RoomOwner, ids []domain.RoomID) (int, error) {
 	joined := 0
 	err := c.inTx(ctx, func(tx *sql.Tx) error {
@@ -210,9 +205,8 @@ func (c *Cache) JoinRooms(ctx context.Context, owner domain.RoomOwner, ids []dom
 	return joined, err
 }
 
-// sweepOwnedRooms deletes owner's joined rooms the snapshot no longer carries. An
-// owner is an ID prefix ("!" for Matrix, "whatsapp:<account>/" for an account), so
-// the sweep matches on it and never reaches a room of another's.
+// sweepOwnedRooms deletes owner's joined rooms missing from the snapshot. An owner
+// is an ID prefix ("!" for Matrix, "whatsapp:<account>/" for an account).
 func sweepOwnedRooms(ctx context.Context, tx *sql.Tx, owner domain.RoomOwner, rooms []domain.Room) error {
 	if len(rooms) == 0 {
 		return nil
@@ -367,9 +361,8 @@ func (c *Cache) loadChildren(ctx context.Context, spaces []domain.Space, index m
 
 type spaceChild struct{ space, room string }
 
-// SaveSpaces replaces owner's cached spaces and their child mappings in one
-// transaction, leaving every other network's (and account's) spaces alone. A space
-// owner does not own is refused.
+// SaveSpaces replaces owner's cached spaces and their children, leaving others'
+// alone. A space owner does not own is refused.
 func (c *Cache) SaveSpaces(ctx context.Context, owner domain.RoomOwner, spaces []domain.Space) error {
 	for i := range spaces {
 		if !owner.Owns(domain.RoomID(spaces[i].ID)) {
@@ -377,8 +370,7 @@ func (c *Cache) SaveSpaces(ctx context.Context, owner domain.RoomOwner, spaces [
 		}
 	}
 	return c.inTx(ctx, func(tx *sql.Tx) error {
-		// Children go with their space (ON DELETE CASCADE); fixed statements, the
-		// owner bound as an ID prefix as SaveRooms binds it.
+		// Children cascade; owner is bound as an ID prefix.
 		if _, err := tx.ExecContext(ctx, "DELETE FROM spaces WHERE substr(id, 1, ?) = ?", len(owner), string(owner)); err != nil {
 			return fmt.Errorf("db: clear %q's spaces: %w", owner, err)
 		}
@@ -401,8 +393,7 @@ func (c *Cache) SaveSpaces(ctx context.Context, owner domain.RoomOwner, spaces [
 	})
 }
 
-// saveSpace writes one space, how it is left, and its children, by the prepared
-// statements of SaveSpaces' transaction.
+// saveSpace writes one space, how it is left, and its children.
 func saveSpace(ctx context.Context, tx *sql.Tx, space, child *sql.Stmt, s domain.Space) error {
 	if _, err := space.ExecContext(ctx, string(s.ID), s.Name, string(s.Bridge), s.Keeper); err != nil {
 		return fmt.Errorf("db: insert space %s: %w", s.ID, err)

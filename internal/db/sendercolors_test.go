@@ -24,8 +24,7 @@ func TestSenderSlotsRoundTrip(t *testing.T) {
 	}
 }
 
-// Once given, a hue is never taken back: a client that started from a colder cache
-// must not renumber a room somebody else already learned.
+// A given hue is never taken back: a client with a colder cache must not renumber a room.
 func TestSenderSlotsDoNotMove(t *testing.T) {
 	ctx := context.Background()
 	c := openTemp(t)
@@ -33,7 +32,7 @@ func TestSenderSlotsDoNotMove(t *testing.T) {
 	if err := c.SaveSenderSlots(ctx, "!a:x", map[string]int{"@bob:x": 3}); err != nil {
 		t.Fatal(err)
 	}
-	// A second client, having seen fewer people, thinks Bob is the first color.
+	// A second client, having seen fewer people, gives Bob the first color.
 	if err := c.SaveSenderSlots(ctx, "!a:x", map[string]int{"@bob:x": 0, "@dave:x": 1}); err != nil {
 		t.Fatal(err)
 	}

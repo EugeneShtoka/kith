@@ -10,13 +10,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// ReplaceDraft writes one room's draft, replacing it wholesale (or deleting it when
-// empty), only while the stored draft is still over, as its writer read it: the same
-// composition (words, reply and edit targets, thread, the draft an edit returns to) and time;
-// a zero over means none is stored. The time is the writer's clock, so two writers can
-// stamp one millisecond: the composition decides then. saved is false when another
-// writer got there first: a write built on what was read would otherwise drop what
-// they wrote.
+// ReplaceDraft replaces (or, when empty, deletes) a room's draft only while the stored
+// one still equals over, composition and time; a zero over means none stored. Writers
+// can share a millisecond, so the composition is compared too. saved is false when
+// another writer got there first.
 func (c *Cache) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (saved bool, err error) {
 	if draft.RoomID == "" {
 		return false, nil
@@ -32,8 +29,7 @@ func (c *Cache) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft
 		if qerr != nil {
 			return fmt.Errorf("db: read draft for %s: %w", draft.RoomID, qerr)
 		}
-		// Absent matches only a writer that read none: one that read a draft, since
-		// deleted, would bring it back.
+		// Absent matches only a writer that read none, or a deleted draft comes back.
 		unchanged := !found && over.Body == "" && over.Updated.IsZero()
 		if found {
 			unchanged = body == over.Body && replyTo == string(over.ReplyTo) && editing == string(over.Editing) &&
@@ -125,8 +121,8 @@ func (c *Cache) Drafts(ctx context.Context) ([]domain.StoredDraft, error) {
 			if updated != 0 {
 				draft.Updated = time.UnixMilli(updated)
 			}
-			// Unreadable mentions are dropped rather than losing the draft — logged,
-			// since the draft would then send without notifying who it named.
+			// Unreadable mentions are dropped, keeping the draft; logged, as it would
+			// then send without notifying them.
 			if mentions != "" {
 				if jerr := json.Unmarshal([]byte(mentions), &draft.Mentions); jerr != nil {
 					draft.Mentions = nil

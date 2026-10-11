@@ -64,9 +64,8 @@ func syncingServer(t *testing.T, log *sinceLog) *httptest.Server {
 	return srv
 }
 
-// --clear-cache reaches a daemon that is already syncing. The loop keeps its token in
-// memory and saves it after each response, so the rewind has to restart the loop: the
-// next /sync must go out with no since token.
+// A rewind on a running daemon restarts the sync loop, which holds its token in
+// memory: the next /sync goes out with no since token.
 func TestARewindRestartsARunningSync(t *testing.T) {
 	t.Parallel()
 
@@ -93,7 +92,7 @@ func TestARewindRestartsARunningSync(t *testing.T) {
 	})
 }
 
-// Before the loop starts, the rewind is immediate, and the loop starts from it.
+// Before the loop starts, the rewind is immediate.
 func TestARewindBeforeSyncIsImmediate(t *testing.T) {
 	t.Parallel()
 
@@ -112,10 +111,9 @@ func TestARewindBeforeSyncIsImmediate(t *testing.T) {
 	}
 }
 
-// The response a rewind is taken on still reaches the sync listeners: the crypto
-// machine's among them. A full initial sync carries no device_lists.changed, so a
-// device list change dropped here would never be fetched, and messages would keep
-// being encrypted to a contact's old devices.
+// The response a rewind is taken on still reaches the listeners, the crypto machine's
+// included: a full initial sync carries no device_lists.changed, so a dropped device
+// list change would never be fetched.
 func TestTheRewindingResponseStillReachesTheListeners(t *testing.T) {
 	t.Parallel()
 

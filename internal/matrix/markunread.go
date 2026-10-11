@@ -10,7 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Marked unread: MSC2867's m.marked_unread room account data, shared by all of this
+// Marked unread is MSC2867's m.marked_unread room account data, shared across the
 // account's clients. Reading a room clears it.
 
 // markedUnread reports one room's m.marked_unread from a sync, and whether it was
@@ -36,8 +36,8 @@ func (b *InProc) MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unrea
 	return nil
 }
 
-// clearMarked drops a room's mark after a read, only when we hold it set (so the
-// common receipt costs no request). A failure is logged: the room then stays marked.
+// clearMarked drops a room's mark after a read, only when it is set (so the common
+// receipt costs no request).
 func (b *InProc) clearMarked(ctx context.Context, roomID domain.RoomID) {
 	if !b.unread.get(roomID).Marked {
 		return

@@ -23,8 +23,8 @@ func (c *Cache) SenderSlots(ctx context.Context, roomID domain.RoomID) (map[stri
 		}, string(roomID))
 }
 
-// SaveSenderSlots records new slots for a room. A stored slot is never changed:
-// a hue once given is kept, even against a client with a colder cache.
+// SaveSenderSlots records new slots for a room; a stored slot is never changed, even
+// by a client with a colder cache.
 func (c *Cache) SaveSenderSlots(ctx context.Context, roomID domain.RoomID, slots map[string]int) error {
 	if roomID == "" || len(slots) == 0 {
 		return nil

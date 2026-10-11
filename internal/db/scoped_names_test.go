@@ -7,9 +7,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The people ranked in a set of rooms are named as they are in those rooms. A name
-// someone uses only elsewhere stays out: kith-mcp matches the agent's query against
-// these names, and a nickname from a withheld room would answer it.
+// People ranked in a set of rooms carry only the names they have there, so a nickname
+// from a withheld room cannot match a kith-mcp query.
 func TestSendersAreNamedFromTheirOwnRooms(t *testing.T) {
 	t.Parallel()
 

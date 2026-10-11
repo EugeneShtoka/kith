@@ -19,13 +19,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Bootstrapping key backup on an account with none. Dangerous: it mints a new
-// cross-signing identity and recovery key, so it refuses (refuseIfSetUp) rather
-// than overwrite an existing setup.
+// Key backup bootstrap mints a new cross-signing identity and recovery key, so it
+// refuses to overwrite an existing setup (refuseIfSetUp).
 
 // BootstrapKeyBackup creates cross-signing keys, secret storage with a fresh recovery
-// key, a backup version whose key lives there, and a first upload. password is the
-// account password (publishing cross-signing keys needs user-interactive auth).
+// key, a backup version and a first upload. password is for user-interactive auth.
 func (b *InProc) BootstrapKeyBackup(ctx context.Context, password string) (domain.KeyBackup, error) {
 	helper := b.cryptoHelper()
 	if helper == nil {
@@ -43,11 +41,11 @@ func (b *InProc) BootstrapKeyBackup(ctx context.Context, password string) (domai
 		}
 		return domain.KeyBackup{}, fmt.Errorf("matrix: set up cross-signing: %w", err)
 	}
-	// From here the recovery key exists only in this value: later failures go in
-	// Incomplete rather than an error that would discard it.
+	// The recovery key exists only in this value: later failures go in Incomplete,
+	// since an error would discard it.
 	made := domain.KeyBackup{RecoveryKey: recoveryKey}
 
-	// Best-effort self-signing so other clients see this device as verified.
+	// Best-effort: lets other clients see this device as verified.
 	b.warnIf(ctx, mach.SignOwnDevice(ctx, mach.OwnIdentity()), "sign own device")
 	b.warnIf(ctx, mach.SignOwnMasterKey(ctx), "sign own master key")
 
@@ -61,20 +59,19 @@ func (b *InProc) BootstrapKeyBackup(ctx context.Context, password string) (domai
 	uploaded, err := uploadRoomKeys(ctx, mach.Client, mach.CryptoStore, version, backupKey.PublicKey())
 	made.Uploaded = uploaded
 	if err != nil {
-		// Not fatal: the daemon's sweep continues the upload.
+		// The daemon's sweep continues the upload.
 		made.Incomplete = err.Error()
 	}
 	return made, nil
 }
 
 // refuseIfSetUp returns ErrKeyBackupExists when secret storage or a backup version
-// exists (either alone is enough). An unclear answer also stops the bootstrap.
+// exists; an unclear answer also refuses.
 func refuseIfSetUp(ctx context.Context, mach *crypto.OlmMachine) error {
 	switch _, err := mach.SSSS.GetDefaultKeyID(ctx); {
 	case err == nil:
 		return api.ErrKeyBackupExists
 	case errors.Is(err, ssss.ErrNoDefaultKeyID):
-		// No secret storage yet, which is what we are here to create.
 	default:
 		return fmt.Errorf("matrix: read secret storage: %w", err)
 	}
@@ -82,7 +79,6 @@ func refuseIfSetUp(ctx context.Context, mach *crypto.OlmMachine) error {
 	case err == nil:
 		return api.ErrKeyBackupExists
 	case errors.Is(err, mautrix.MNotFound):
-		// No backup version yet.
 	default:
 		return fmt.Errorf("matrix: read key backup version: %w", err)
 	}
@@ -114,28 +110,26 @@ func createBackupVersion(
 		return "", nil, fmt.Errorf("matrix: create key backup version: %w", err)
 	}
 	if err := storeBackupKey(ctx, mach, backupKey, recoveryKey); err != nil {
-		// Undo the half-made version; if that fails too, say so, or an orphan backup
-		// nobody holds the key to is left on the server unexplained.
+		// Undo the half-made version, reporting an orphan left behind.
 		if derr := mach.Client.DeleteKeyBackupVersion(ctx, created.Version); derr != nil {
 			err = errors.Join(err, fmt.Errorf("matrix: remove the unusable key backup version %s: %w", created.Version, derr))
 		}
 		return "", nil, err
 	}
-	// Keep the crypto store's record in step with the server.
 	if err := mach.SetKeyBackupVersion(ctx, created.Version); err != nil {
 		return "", nil, fmt.Errorf("matrix: record key backup version: %w", err)
 	}
 	return created.Version, backupKey, nil
 }
 
-// signedAuthData builds a backup version's auth_data: the public key, signed by the
-// master cross-signing key so clients without the private key can trust it.
+// signedAuthData builds a backup version's auth_data: the public key signed by the
+// master cross-signing key.
 func signedAuthData(
 	user id.UserID,
 	master olm.PKSigning,
 	key *backup.MegolmBackupKey,
 ) (backup.MegolmAuthData, error) {
-	// mautrix types this curve25519 key as Ed25519; it is unpadded base64 either way.
+	// mautrix types this curve25519 key as Ed25519; unpadded base64 either way.
 	authData := backup.MegolmAuthData{
 		PublicKey: id.Ed25519(base64.RawStdEncoding.EncodeToString(key.PublicKey().Bytes())),
 	}
@@ -149,8 +143,7 @@ func signedAuthData(
 	return authData, nil
 }
 
-// storeBackupKey puts the backup's private key into secret storage (what
-// RestoreKeyBackup reads).
+// storeBackupKey puts the backup's private key into secret storage.
 func storeBackupKey(
 	ctx context.Context,
 	mach *crypto.OlmMachine,
@@ -163,7 +156,6 @@ func storeBackupKey(
 	}
 	ssssKey, _, err := unlockSSSS(keyID, keyData, recoveryKey)
 	if err != nil {
-		// Our own fresh key failing means the storage is wrong, not the key.
 		return fmt.Errorf("matrix: the secret storage just created does not accept its own recovery key: %w", err)
 	}
 	// Padded base64, as other clients write it.

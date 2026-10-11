@@ -51,8 +51,7 @@ func (b *InProc) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]do
 }
 
 // MentionCandidates orders a room's members for the mention dropdown: recent
-// speakers, then most mentioned, then everyone else alphabetically. Ordering only;
-// the caller filters by what was typed.
+// speakers, most mentioned, then the rest alphabetically. The caller filters.
 func (b *InProc) MentionCandidates(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
 	members, err := b.Members(ctx, roomID, 0)
 	if err != nil {

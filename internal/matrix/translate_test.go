@@ -25,7 +25,7 @@ func eventID(s string) id.EventID { return id.EventID(s) }
 func roomID(s string) id.RoomID   { return id.RoomID(s) }
 func userID(s string) id.UserID   { return id.UserID(s) }
 
-// buildMedia is what decides whether a message draws as a chip or as text.
+// buildMedia decides whether a message draws as an attachment or as text.
 func TestBuildMedia(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +61,7 @@ func TestBuildMedia(t *testing.T) {
 	}
 }
 
-// Regression: stickers (own event type, no msgtype, often no body) used to vanish.
+// A sticker (own event type, no msgtype, maybe no body) is kept as an image.
 func TestToDomainMessageKeepsASticker(t *testing.T) {
 	t.Parallel()
 
@@ -207,9 +207,8 @@ func TestSameThreadUnread(t *testing.T) {
 	}
 }
 
-// A bridge's placeholder — a WhatsApp message it could not decrypt yet, sent as a
-// notice — is marked so; the edit that replaces it with the picture brings the
-// picture, under the placeholder's ID, with or without a caption.
+// A bridge placeholder is marked, and the edit replacing it brings the picture under
+// the placeholder's ID, with or without a caption.
 func TestAnEditReplacingAPlaceholderBringsItsPicture(t *testing.T) {
 	t.Parallel()
 	notice := &event.Event{

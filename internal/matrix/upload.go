@@ -26,16 +26,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Sending a file. Most rooms are encrypted, so encrypt-then-upload is the common
-// path. The info block (mimetype, size, image dimensions) must be complete for other
-// clients to draw it, and the msgtype comes from sniffed content, not the extension.
-// The client passes an absolute path: both processes are the same user.
+// Sending a file. Other clients need a complete info block (mimetype, size, image
+// dimensions) to draw it; msgtype comes from sniffed content, not the extension.
 
-// maxSniff is how much is read to identify a file (what DetectContentType uses).
+// maxSniff is how much DetectContentType reads.
 const maxSniff = 512
 
-// SendFile uploads a file (encrypted where the room is) and posts it. An empty
-// caption means the filename is the body.
+// SendFile uploads a file (encrypted where the room is) and posts it.
 func (b *InProc) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
 	file, err := os.Open(path) // #nosec G304 -- the user's own path, over a 0600 socket
 	if err != nil {
@@ -51,7 +48,6 @@ func (b *InProc) SendFile(ctx context.Context, roomID domain.RoomID, path, capti
 		return fmt.Errorf("matrix: %s is a directory", filepath.Base(path))
 	}
 	if info.Size() == 0 {
-		// An empty upload yields an attachment nobody can open.
 		return fmt.Errorf("matrix: %s is empty", filepath.Base(path))
 	}
 
@@ -66,8 +62,8 @@ func (b *InProc) SendFile(ctx context.Context, roomID domain.RoomID, path, capti
 		return fmt.Errorf("matrix: rewind %s: %w", name, err)
 	}
 
-	// Sealed across both steps: refused before any byte is uploaded, and the room
-	// cannot gain a crypto machine between encrypting the file and sending its key.
+	// Sealed across both steps: refused before any byte is uploaded, and crypto cannot
+	// appear between encrypting the file and sending its key.
 	return b.sealed(ctx, roomID, func() error {
 		if err := b.upload(ctx, roomID, file, info.Size(), &content); err != nil {
 			return err
@@ -79,8 +75,8 @@ func (b *InProc) SendFile(ctx context.Context, roomID domain.RoomID, path, capti
 	})
 }
 
-// upload puts the bytes on the homeserver, encrypted when the room is. Encrypted
-// attachments set File (URL and key together), never a bare URL.
+// upload puts the bytes on the homeserver, encrypted when the room is; encrypted
+// attachments set File, never a bare URL.
 func (b *InProc) upload(ctx context.Context, roomID domain.RoomID, r io.Reader, size int64, content *event.MessageEventContent) error {
 	if !b.roomEncrypted(ctx, roomID) {
 		resp, err := b.client.UploadMedia(ctx, mautrix.ReqUploadMedia{
@@ -96,7 +92,6 @@ func (b *InProc) upload(ctx context.Context, roomID domain.RoomID, r io.Reader, 
 		return nil
 	}
 
-	// Streamed, so a large file is never held twice.
 	crypt := attachment.NewEncryptedFile()
 	encrypted := crypt.EncryptStream(r)
 
@@ -109,8 +104,7 @@ func (b *InProc) upload(ctx context.Context, roomID domain.RoomID, r io.Reader, 
 		_ = encrypted.Close() // ignored: cleanup; the upload error is the one to report
 		return fmt.Errorf("matrix: upload (encrypted): %w", err)
 	}
-	// Close before reading the keys, not in a defer: mautrix fills in the SHA256 on
-	// Close, and without it recipients cannot decrypt.
+	// Not deferred: mautrix fills in the SHA256 on Close, which recipients need.
 	if err := encrypted.Close(); err != nil {
 		return fmt.Errorf("matrix: finish encrypting: %w", err)
 	}
@@ -121,10 +115,9 @@ func (b *InProc) upload(ctx context.Context, roomID domain.RoomID, r io.Reader, 
 	return nil
 }
 
-// roomEncrypted reports whether a room is encrypted, failing closed (true) when the
-// state store cannot answer. The store has no row for a plain room and none for a
-// room whose state it has not seen yet (a new or reset store), so "not encrypted" is
-// believed only for a room whose state it holds: every room has power levels.
+// roomEncrypted reports whether a room is encrypted, failing closed. The store has
+// no row for a plain room nor for an unseen one, so "not encrypted" is believed only
+// when it holds the room's power levels.
 func (b *InProc) roomEncrypted(ctx context.Context, roomID domain.RoomID) bool {
 	if b.client == nil {
 		return true
@@ -169,8 +162,7 @@ func sniff(f io.ReadSeeker, name string) (string, error) {
 	return detected, nil
 }
 
-// attachmentContent builds a file's event. With a caption the body is the caption and
-// FileName the name; without one the body is the name.
+// attachmentContent builds a file's event; with a caption, the name goes in FileName.
 func attachmentContent(name, caption, mimetype string, size int64) event.MessageEventContent {
 	content := event.MessageEventContent{
 		MsgType: msgTypeFor(mimetype),

@@ -8,8 +8,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// What a bridge refuses is keyed on the protocol, not the room: what Telegram will not
-// take in one chat it will not take in any of them.
+// Bridge refusals are keyed on the protocol, not the room.
 func TestReactionRefusalsRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -34,8 +33,7 @@ func TestReactionRefusalsRoundTrip(t *testing.T) {
 		t.Fatalf("%d refusals, want 3: %+v", len(got), got)
 	}
 
-	// Re-recording the same one moves its timestamp rather than duplicating the row:
-	// the record says when it was last seen, and the pair is the identity.
+	// Re-recording moves the timestamp rather than duplicating the row.
 	later := first.Add(time.Hour)
 	if again := cache.SaveReactionRefusal(ctx, "Telegram", "🫶", later); again != nil {
 		t.Fatal(again)
@@ -53,7 +51,7 @@ func TestReactionRefusalsRoundTrip(t *testing.T) {
 		}
 	}
 
-	// Blanks are not facts.
+	// Blanks are not recorded.
 	if blank := cache.SaveReactionRefusal(ctx, "", "🫶", first); blank != nil {
 		t.Fatal(blank)
 	}
@@ -65,8 +63,8 @@ func TestReactionRefusalsRoundTrip(t *testing.T) {
 	}
 }
 
-// The weights: ten for this room, three for its space, one for anywhere — three
-// independent terms, so a use here is worth 14 and a use in a sibling room 4.
+// Weights add up: 10 for this room, 3 for its space, 1 anywhere, so a use here is 14
+// and in a sibling room 4.
 func TestEmojiScoresWeighByDistance(t *testing.T) {
 	t.Parallel()
 
@@ -80,7 +78,7 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 		{ID: "$r1", RoomID: here, Target: "$m1", Sender: me, Key: "🎯"},
 		{ID: "$r2", RoomID: sibling, Target: "$m2", Sender: me, Key: "🧭"},
 		{ID: "$r3", RoomID: far, Target: "$m3", Sender: me, Key: "🛰️"},
-		// Somebody else's reaction is not this account's history.
+		// Somebody else's reaction does not count.
 		{ID: "$r4", RoomID: here, Target: "$m1", Sender: "@them:x", Key: "🐘"},
 	}
 	if err := cache.SaveReactions(ctx, reacted); err != nil {
@@ -105,7 +103,7 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 		}
 	}
 
-	// Idempotent: the same page arriving twice must not inflate the score.
+	// Idempotent: the same page twice does not inflate the score.
 	if resave := cache.SaveReactions(ctx, reacted); resave != nil {
 		t.Fatal(resave)
 	}
@@ -117,7 +115,7 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 		t.Errorf("re-saving the same reactions moved 🎯 from %d to %d", scores["🎯"], again["🎯"])
 	}
 
-	// Repeated use compounds, which is the whole mechanism.
+	// Repeated use compounds.
 	more := make([]domain.Reaction, 0, 4)
 	for i := range 4 {
 		more = append(more, domain.Reaction{
@@ -154,8 +152,7 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 	if composed["✍️"] != roomWeight+spaceWeight+1 {
 		t.Errorf("composed ✍️ scored %d, want the same weighting as a reaction", composed["✍️"])
 	}
-	// And the two kinds stay apart: the composed emoji is nowhere in the reaction
-	// ranking, however often it is typed.
+	// The composed emoji is absent from the reaction ranking.
 	if scores["✍️"] != 0 {
 		t.Errorf("a composed emoji scored %d in the reaction ranking", scores["✍️"])
 	}

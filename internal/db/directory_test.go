@@ -12,9 +12,8 @@ import (
 // tel names a number's identifier.
 func tel(digits string) string { return domain.PhoneID(digits) }
 
-// The directory takes, for each number, the name it trusts most from any account or
-// bridge: a saved name before a bridge's, a bridge's before one the person chose; a
-// name that is a number names nobody; an account read again replaces what it knew.
+// Each number takes its most trusted name from any source (saved > bridge > chosen);
+// a name that is a number names nobody; re-reading an account replaces its names.
 func TestTheDirectoryTakesTheMostTrustedNameFromAnyAccount(t *testing.T) {
 	t.Parallel()
 	c, ctx := openTemp(t), context.Background()
@@ -67,8 +66,7 @@ func TestTheDirectoryTakesTheMostTrustedNameFromAnyAccount(t *testing.T) {
 	}
 }
 
-// A cache from before the directory (v9, names kept by number in phone_names) opens
-// with every name it had, as a number's: what an account knew is not lost.
+// Upgrading a v9 cache (names in phone_names) keeps every name and rank.
 func TestACacheFromBeforeTheDirectoryKeepsItsNames(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -123,10 +121,8 @@ func TestACacheFromBeforeTheDirectoryKeepsItsNames(t *testing.T) {
 	}
 }
 
-// A source read again replaces all it said — names and links — and leaves every other
-// source's; of two names it gives one identifier the better ranked stays; a link to
-// oneself or to nothing is not kept; and forgetting a prefix's sources spares those
-// still read.
+// A re-read source replaces only its own names and links; of two names for one ID the
+// better ranked stays; self or empty links are dropped; ForgetPeople spares kept sources.
 func TestASourceReplacesWhatItSaidOfPeople(t *testing.T) {
 	t.Parallel()
 	c, ctx := openTemp(t), context.Background()

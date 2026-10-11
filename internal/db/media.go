@@ -10,15 +10,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
-// message_media has two writers arriving at different times: the display half
-// (with the message) and the fetch half (mxc + encrypted file JSON). Each upserts
-// its own columns only.
+// message_media has two writers at different times: the display half (with the
+// message) and the fetch half (mxc + file JSON). Each upserts only its own columns.
 
-// SaveMediaSource records where an attachment's bytes come from, for a cached message
-// that is not redacted: a deleted message gains no content, so a late fetch cannot
-// bring back what a redaction forgot. For a message the cache does not hold (history
-// older than a full room keeps, trimmed as it arrived) it does nothing: there is
-// nothing to show the attachment on.
+// SaveMediaSource records where an attachment's bytes come from. It does nothing for
+// a redacted message (a late fetch must not undo the redaction) or an uncached one.
 func (c *Cache) SaveMediaSource(ctx context.Context, eventID domain.EventID, roomID domain.RoomID, mxc, fileJSON string) error {
 	if _, err := c.db.ExecContext(ctx, `
 		INSERT INTO message_media(room_id, event_id, mxc, file_json)
@@ -31,9 +27,9 @@ func (c *Cache) SaveMediaSource(ctx context.Context, eventID domain.EventID, roo
 	return nil
 }
 
-// MediaSource returns an attachment's mxc URI and file JSON; ok is false when no
-// source is recorded. A Matrix attachment has an mxc URI (and file JSON when it is
-// encrypted); another network's keeps only its own JSON, in file_json.
+// MediaSource returns an attachment's mxc URI and file JSON; ok is false when none is
+// recorded. Matrix has an mxc URI (plus file JSON when encrypted); other networks
+// keep only their own JSON in file_json.
 func (c *Cache) MediaSource(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (mxc, fileJSON string, ok bool, err error) {
 	err = c.db.QueryRowContext(ctx,
 		"SELECT mxc, file_json FROM message_media WHERE room_id = ? AND event_id = ?",
@@ -47,8 +43,8 @@ func (c *Cache) MediaSource(ctx context.Context, roomID domain.RoomID, eventID d
 	return mxc, fileJSON, true, nil
 }
 
-// saveMedia records the display half of an attachment. No attachment writes
-// nothing: a re-save that knows less (failed decrypt) must not undo one that knew more.
+// saveMedia records the display half of an attachment. No attachment writes nothing,
+// so a re-save that knows less (failed decrypt) cannot undo one that knew more.
 func saveMedia(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, msg *domain.Message) error {
 	if msg.Media == nil {
 		return nil
@@ -66,9 +62,8 @@ func saveMedia(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, msg *domai
 	return nil
 }
 
-// saveExtras writes a message's side rows once its row is upserted: the edit it now
-// shows (apply), its attachment and formatting, and for a redacted copy, who deleted
-// it and, unless keep, forgetting what was cached.
+// saveExtras writes a message's side rows after its upsert: the shown edit, attachment,
+// formatting, and for a redacted copy who deleted it (forgetting the text unless keep).
 func saveExtras(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message, apply, keep bool) error {
 	// A deleted message keeps its place.
 	if err := saveOrder(ctx, tx, roomID, m); err != nil {
@@ -91,8 +86,7 @@ func saveExtras(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain
 			return err
 		}
 	}
-	// An edit's attachment counts only where the edit does: an older one arriving
-	// late must not replace a newer one's.
+	// An edit's attachment counts only where the edit does: a late older one must not win.
 	if isEdit := m.RevisionID != "" && m.RevisionID != m.ID; !isEdit || apply {
 		if err := saveMedia(ctx, tx, roomID, m); err != nil {
 			return err
@@ -107,8 +101,8 @@ func saveExtras(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain
 	return saveHTML(ctx, tx, roomID, m, apply)
 }
 
-// errDrawnOnly refuses formatting that came without its markup (a client's copy): the
-// cache stores markup, and saving none would silently drop the message's formatting.
+// errDrawnOnly refuses formatting without its markup (a client's copy): saving it
+// would silently drop the message's formatting.
 var errDrawnOnly = errors.New("db: formatting without markup cannot be stored")
 
 // storable is formatting's stored form, refusing formatting that has none.
@@ -119,10 +113,9 @@ func storable(f richtext.Formatted, id domain.EventID) (string, error) {
 	return f.Markup(), nil
 }
 
-// saveHTML records a message's formatting, deleting the row when an edit removed
-// it. Like the body, it is never written for an already-redacted row, and a copy
-// that is not a newer edit (apply) never overwrites an edited row's formatting: the
-// original arriving again, or an older edit delivered later.
+// saveHTML records a message's formatting, deleting the row when an edit removed it.
+// Like the body, it skips redacted rows, and only a newer edit (apply) overwrites an
+// edited row's formatting.
 func saveHTML(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message, apply bool) error {
 	const kept = `EXISTS (SELECT 1 FROM messages WHERE room_id = ? AND event_id = ?
 		AND (redacted = 1 OR (edited = 1 AND ? = 0)))`

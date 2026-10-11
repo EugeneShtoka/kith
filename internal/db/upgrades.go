@@ -34,9 +34,8 @@ func (c *Cache) RoomUpgrade(ctx context.Context, roomID domain.RoomID) (up RoomU
 	}, true, nil
 }
 
-// SaveRoomUpgrade records a room's upgrade links. An empty link means "this call
-// does not know", so each end is written by whichever call discovered it and the
-// CASEs make the writes commute.
+// SaveRoomUpgrade records a room's upgrade links. An empty link means unknown, so
+// the CASEs keep the stored one and the writes commute.
 func (c *Cache) SaveRoomUpgrade(ctx context.Context, roomID domain.RoomID, up RoomUpgrade) error {
 	return c.execInRoom(ctx, roomID, "save room upgrade "+string(roomID), `
 		INSERT INTO room_upgrades(room_id, replacement, predecessor, checked_ms) VALUES(?, ?, ?, ?)
@@ -50,9 +49,9 @@ func (c *Cache) SaveRoomUpgrade(ctx context.Context, roomID domain.RoomID, up Ro
 // chainLimit bounds a chain walk, so a cycle in the cache cannot loop forever.
 const chainLimit = 16
 
-// RoomChains expands rooms to every room they descend from, keeping order and
-// dropping duplicates. It reads the (small) link table once and walks in memory;
-// it runs per keystroke from word completion. Empty stays empty.
+// RoomChains expands rooms to every room they descend from, in order, without
+// duplicates. It reads the small link table once: word completion calls it per
+// keystroke.
 func (c *Cache) RoomChains(ctx context.Context, roomIDs []domain.RoomID) ([]domain.RoomID, error) {
 	if len(roomIDs) == 0 {
 		return roomIDs, nil

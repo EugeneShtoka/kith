@@ -224,14 +224,12 @@ func TestBuildMessageReplyInsideAThread(t *testing.T) {
 	}
 }
 
-// Regression: nil Mentions crashed the mention-ranking loop after the send went out
-// (double sends via the queue; daemon exit from the scheduler goroutine).
+// recordMentions tolerates content with nil Mentions.
 func TestRecordingMentionsToleratesAMessageWithNone(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	cache := testCache(t)
-	// The content buildMessage produces for a plain send and for a reply.
 	for _, content := range []event.MessageEventContent{
 		buildMessage(domain.Draft{Body: "no pills here"}, ""),
 		buildMessage(domain.Draft{Body: "answering", ReplyTo: "$target"}, ""),

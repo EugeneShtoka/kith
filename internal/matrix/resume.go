@@ -25,16 +25,14 @@ func SavedSession(cfg config.Config, keys session.Store) (domain.Session, error)
 	return saved, nil
 }
 
-// resumeSession restores a session. prepare is the homeserver-dependent startup left
-// to do, nil when the homeserver answered. A rejected session is
-// api.ErrSessionRejected, and leaves the crypto store unopened.
+// resumeSession restores a session. prepare is the startup still waiting on the
+// homeserver (nil if it answered). A rejected session (api.ErrSessionRejected) leaves the crypto store unopened.
 func resumeSession(
 	ctx context.Context, log *slog.Logger, backend *InProc, crypto cryptoPlace, saved domain.Session,
 ) (prepare func(context.Context) error, err error) {
 	rerr := backend.Resume(ctx, saved)
 	if rerr == nil || errors.Is(rerr, api.ErrUnreachable) {
-		// Before anything reaches the adapter, and offline too: the state store must be
-		// in place before any RPC runs (see matrix.InProc.OpenCryptoStore).
+		// Offline too: the state store must exist before any RPC runs.
 		openCryptoStore(ctx, log, backend, crypto.Path)
 	}
 	switch {
@@ -42,7 +40,6 @@ func resumeSession(
 		enableEncryption(ctx, log, backend, crypto.Keys)
 		return nil, nil
 	case errors.Is(rerr, api.ErrUnreachable):
-		// Serve the on-disk cache offline and connect once the homeserver is back.
 		log.Warn("cannot reach the homeserver; serving cached history and connecting when it is back", "err", rerr)
 		return func(ctx context.Context) error {
 			if werr := waitForHomeserver(ctx, backend); werr != nil {
@@ -58,7 +55,7 @@ func resumeSession(
 }
 
 // waitForHomeserver polls until the homeserver answers, ctx ends, or the session is
-// rejected. Backoff is capped at 30s so a laptop waking from suspend reconnects quickly.
+// rejected. Backoff caps at 30s so a laptop waking from suspend reconnects quickly.
 func waitForHomeserver(ctx context.Context, backend *InProc) error {
 	const (
 		first = 2 * time.Second

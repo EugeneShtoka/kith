@@ -32,8 +32,7 @@ func withMigrations(t *testing.T, list ...string) {
 	t.Cleanup(func() { migrations = saved })
 }
 
-// One rule decides everything: a version this binary does not understand gets
-// rebuilt, in *either* direction.
+// An unrecognized version, older or newer, is rebuilt.
 func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 	t.Parallel()
 
@@ -45,8 +44,7 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "cache.db")
 
-			// Build a database at that version, with a table this schema does not have
-			// so a rebuild is observable.
+			// A foreign table makes the rebuild observable.
 			seed, openErr := sql.Open("sqlite", dsn(path))
 			if openErr != nil {
 				t.Fatalf("open seed: %v", openErr)
@@ -72,7 +70,6 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 			} else if got != current {
 				t.Errorf("user_version = %d after opening a %d, want %d", got, version, current)
 			}
-			// Rebuilt, so the table this schema never had is gone.
 			stale, herr := hasTable(ctx, cache.db, "from_before")
 			if herr != nil {
 				t.Fatalf("hasTable() error = %v", herr)
@@ -80,7 +77,6 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 			if stale {
 				t.Errorf("from_before survived opening a database stamped %d", version)
 			}
-			// Usable either way.
 			if serr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "A"}}); serr != nil {
 				t.Errorf("SaveRooms() after opening a %d: %v", version, serr)
 			}
@@ -88,8 +84,7 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 	}
 }
 
-// A migration that fails must leave nothing behind — not its DDL, and not its
-// version number.
+// A failed migration leaves neither its DDL nor its version stamp.
 func TestApplyMigrationIsAtomic(t *testing.T) {
 	withMigrations(t,
 		`CREATE TABLE half_applied(x INTEGER); THIS IS NOT SQL;`,
@@ -106,7 +101,7 @@ func TestApplyMigrationIsAtomic(t *testing.T) {
 		t.Errorf("error %q does not say a migration failed", err)
 	}
 
-	// Reopen with the migration list emptied — the same file, inspected.
+	// Reopen the same file with no migrations, to inspect it.
 	migrations = nil
 	cache, err := Open(ctx, path)
 	if err != nil {
@@ -131,8 +126,7 @@ func TestApplyMigrationIsAtomic(t *testing.T) {
 	}
 }
 
-// The append-only path, end to end: a migration applies, stamps its index+1, and a
-// reopen is a no-op rather than a re-run.
+// Migrations apply once, stamp their version, and do not re-run on reopen.
 func TestMigrationsApplyOnceAndStampTheirVersion(t *testing.T) {
 	withMigrations(t,
 		`CREATE TABLE added_by_migration_one(x INTEGER NOT NULL) STRICT;`,
@@ -167,8 +161,7 @@ func TestMigrationsApplyOnceAndStampTheirVersion(t *testing.T) {
 		t.Fatalf("Close() error = %v", closeErr)
 	}
 
-	// Reopening must not re-run them: CREATE TABLE without IF NOT EXISTS would fail
-	// the second time, which is the cheap proof that the version gate holds.
+	// CREATE TABLE without IF NOT EXISTS would fail if re-run.
 	again, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("reopen re-ran the migrations: %v", err)
@@ -178,16 +171,14 @@ func TestMigrationsApplyOnceAndStampTheirVersion(t *testing.T) {
 	}
 }
 
-// The base schema's measured shape, asserted against a database the package built for
-// itself.
+// The FTS update trigger is narrowed and ANALYZE has run.
 func TestTheBaseSchemaHasTheMeasuredShape(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	// The trigger has to be narrowed on both axes — the column and the value — or a
-	// re-save of an unchanged message still reindexes it.
+	// Narrowed by column and value, or re-saving an unchanged message reindexes it.
 	var trigger string
 	if err := cache.db.QueryRowContext(ctx,
 		"SELECT sql FROM sqlite_master WHERE type='trigger' AND name='messages_fts_update'",
@@ -200,7 +191,6 @@ func TestTheBaseSchemaHasTheMeasuredShape(t *testing.T) {
 		}
 	}
 
-	// ANALYZE ran, which is what makes the planner choose the indices above.
 	var stats int
 	if err := cache.db.QueryRowContext(ctx,
 		"SELECT count(*) FROM sqlite_master WHERE name='sqlite_stat1'").Scan(&stats); err != nil {
@@ -234,14 +224,11 @@ func indexNames(t *testing.T, cache *Cache, table string) []string {
 	return out
 }
 
-// A database already on the base is migrated forward, not rebuilt — its rows survive.
-// This is the ordinary upgrade, and the one that has to be non-destructive: it is what
-// happens to an installed client when a release adds a migration.
+// A base-version database is migrated forward, not rebuilt: its rows survive.
 func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	// A genuine base-only database: open with no migrations declared.
 	func() {
 		withMigrations(t)
 		cache, err := Open(ctx, path)
@@ -257,7 +244,6 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 		}
 	}()
 
-	// Now with a migration declared, the same file upgrades in place.
 	withMigrations(t, `CREATE TABLE added_later(x INTEGER NOT NULL) STRICT;`)
 	cache, err := Open(ctx, path)
 	if err != nil {
@@ -273,7 +259,6 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 	if has, herr := hasTable(ctx, cache.db, "added_later"); herr != nil || !has {
 		t.Errorf("migration did not run (has=%v err=%v)", has, herr)
 	}
-	// The point: nothing was rebuilt, so the row is still there.
 	rooms, err := cache.Rooms(ctx)
 	if err != nil {
 		t.Fatalf("Rooms() error = %v", err)
@@ -283,14 +268,13 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 	}
 }
 
-// The rebuild flag is what pairs the two halves of a reset.
+// Rebuilt reports a fresh or unrecognized cache, not a current one.
 func TestOpenReportsWhetherItRebuilt(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	// A first run creates the file from nothing, which goes through rebuild.
 	cache, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("Open on a fresh path: %v", err)
@@ -302,8 +286,7 @@ func TestOpenReportsWhetherItRebuilt(t *testing.T) {
 		t.Fatalf("Close: %v", cerr)
 	}
 
-	// Reopening a current cache must not claim a rebuild: that would rewind the
-	// sync position on every start and re-fetch the world each time.
+	// A false rebuild would rewind the sync position on every start.
 	cache, err = Open(ctx, path)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
@@ -315,8 +298,6 @@ func TestOpenReportsWhetherItRebuilt(t *testing.T) {
 		t.Fatalf("Close: %v", cerr)
 	}
 
-	// A version this binary does not know is set aside and rebuilt, in either
-	// direction — and the caller has to hear about it.
 	for _, version := range []int{schemaVersion - 1, schemaVersion + len(migrations) + 9} {
 		stamp(t, path, version)
 		cache, err = Open(ctx, path)
@@ -332,8 +313,7 @@ func TestOpenReportsWhetherItRebuilt(t *testing.T) {
 	}
 }
 
-// stamp forces a cache's user_version, so the next Open sees a version it does not
-// recognize.
+// stamp forces a cache's user_version.
 func stamp(t *testing.T, path string, version int) {
 	t.Helper()
 	raw, err := sql.Open("sqlite", dsn(path))
@@ -347,15 +327,13 @@ func stamp(t *testing.T, path string, version int) {
 	}
 }
 
-// The cache set aside before a rebuild is a database that opens and still has the
-// rows in it — including when the rows are in the WAL rather than in the file.
+// The copy set aside before a rebuild keeps rows still in the WAL.
 func TestTheCacheSetAsideKeepsRowsLivingInTheWAL(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	// A cache stamped by a schema this binary has never heard of, so Open rebuilds it.
 	old, err := sql.Open("sqlite", dsn(path))
 	if err != nil {
 		t.Fatal(err)
@@ -424,7 +402,6 @@ func TestRebuildDropsAnFTSTableBeforeItsShadows(t *testing.T) {
 	defer func() { _ = sqlDB.Close() }()
 	sqlDB.SetMaxOpenConns(1)
 
-	// The real base schema, so the FTS table and its shadows are the ones that ship.
 	if _, execErr := sqlDB.ExecContext(ctx, baseSchema); execErr != nil {
 		t.Fatal(execErr)
 	}
@@ -441,7 +418,6 @@ func TestRebuildDropsAnFTSTableBeforeItsShadows(t *testing.T) {
 		t.Errorf("messages_fts is listed after its shadow table: %v", names)
 	}
 
-	// The assertion that matters: the order actually works.
 	if dropErr := dropAll(ctx, sqlDB, names); dropErr != nil {
 		t.Fatalf("dropAll() = %v", dropErr)
 	}
@@ -458,12 +434,11 @@ func TestRebuildDropsAnFTSTableBeforeItsShadows(t *testing.T) {
 func TestMigratedTablesAreSpelledLikeTheBase(t *testing.T) {
 	ctx := context.Background()
 
-	// Captured before withMigrations swaps the list out from under the test.
+	// Captured before withMigrations swaps the list.
 	real := append([]string(nil), migrations...)
 
 	created := regexp.MustCompile(`(?i)CREATE\s+(?:VIRTUAL\s+)?TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)`)
-	// A table a later migration drops (a removal is a new DROP migration) is meant to
-	// be missing from the base.
+	// A table a later migration drops is meant to be missing from the base.
 	dropped := map[string]bool{}
 	for _, stmt := range real {
 		for _, match := range regexp.MustCompile(`(?i)DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)`).FindAllStringSubmatch(stmt, -1) {
@@ -512,9 +487,7 @@ func TestMigratedTablesAreSpelledLikeTheBase(t *testing.T) {
 	}
 }
 
-// The chain survives a real open/close cycle, which the in-memory tests do not
-// exercise: the table is WITHOUT ROWID with a text primary key, and a link that
-// does not come back is a conversation whose history silently ends at the upgrade.
+// The upgrade chain survives a real close and reopen.
 func TestTheUpgradeChainSurvivesReopen(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
@@ -544,7 +517,7 @@ func TestTheUpgradeChainSurvivesReopen(t *testing.T) {
 		t.Errorf("chain after reopen = %v, want [!new:x !old:x]", chain)
 	}
 
-	// And the room list carries the forward link, which is what badges a dead room.
+	// The room list carries the forward link that badges a dead room.
 	rooms, err := cache.Rooms(ctx)
 	if err != nil {
 		t.Fatalf("Rooms() error = %v", err)
@@ -556,8 +529,7 @@ func TestTheUpgradeChainSurvivesReopen(t *testing.T) {
 	}
 }
 
-// storedSQL returns a table's CREATE statement as SQLite kept it, with runs of
-// whitespace collapsed so indentation is not the thing under test.
+// storedSQL returns a table's stored CREATE statement, whitespace collapsed.
 func storedSQL(t *testing.T, cache *Cache, table string) string {
 	t.Helper()
 	var stmt string

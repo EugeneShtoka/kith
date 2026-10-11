@@ -11,8 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Regression: streams are also written outside the sync loop (recount from RPC,
-// mautrix goroutines), so a send racing close panicked.
+// Streams are written outside the sync loop too (RPC recounts, mautrix goroutines),
+// so a send racing close must not panic.
 func TestEmitDuringCloseStreamsDoesNotPanic(t *testing.T) {
 	t.Parallel()
 
@@ -58,7 +58,7 @@ func TestCloseStreamsIsIdempotent(t *testing.T) {
 	}
 }
 
-// Deterministic half: recount from an RPC handler after the streams closed.
+// A recount from an RPC handler after the streams closed does not panic.
 func TestRecountAfterCloseStreamsDoesNotPanic(t *testing.T) {
 	t.Parallel()
 

@@ -8,9 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A room's network never changes: a room a bridge keeps is that network's for good.
-// So it is read once and kept, never rewritten; a room read and found to be no
-// bridge's keeps ProtocolMatrix, so what is known is exactly what has a row.
+// A room's network never changes, so it is read once and never rewritten. A room
+// found to be no bridge's keeps ProtocolMatrix: known means having a row.
 
 // RoomsOfUnknownNetwork is owner's joined rooms whose network has not been read yet.
 func (c *Cache) RoomsOfUnknownNetwork(ctx context.Context, owner domain.RoomOwner) ([]domain.RoomID, error) {
@@ -25,9 +24,8 @@ func (c *Cache) RoomsOfUnknownNetwork(ctx context.Context, owner domain.RoomOwne
 		}, len(owner), string(owner))
 }
 
-// KeepRoomNetworks keeps the network each room was read to be on, for a room not
-// read before; one already known keeps what it had. A room the cache does not hold
-// yet is registered (registerRoom), as an archived one is.
+// KeepRoomNetworks records each room's network unless already known. A room the
+// cache does not hold yet is registered (registerRoom).
 func (c *Cache) KeepRoomNetworks(ctx context.Context, networks map[domain.RoomID]domain.Protocol) error {
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		for room, network := range networks {

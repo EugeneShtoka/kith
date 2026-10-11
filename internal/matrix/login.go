@@ -12,9 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/session"
 )
 
-// passwordLogin logs the config's user in with password and saves the session. A
-// Matrix waiting for one starts on it at once; one already running keeps its
-// session, and the new one is used from the next start.
+// passwordLogin logs the config's user in and saves the session. A waiting adapter
+// starts on it at once; a running one keeps its session until the next start.
 func (m *Adapter) passwordLogin(ctx context.Context, password string) (matrixLoggedIn, error) {
 	m.logins.Lock()
 	defer m.logins.Unlock()
@@ -39,14 +38,14 @@ func (m *Adapter) passwordLogin(ctx context.Context, password string) (matrixLog
 	return out, nil
 }
 
-// matrixLoggedIn is a Matrix login's outcome: Started when Matrix started on the
-// session at once, false when it was saved for the daemon's next start.
+// matrixLoggedIn is a login's outcome; Started is false when the session waits for
+// the daemon's next start.
 type matrixLoggedIn struct {
 	UserID, DeviceID string
 	Started          bool
 }
 
-// LoginNetwork is Matrix as a login lists it: the config's account, once it has one.
+// LoginNetwork is Matrix as a login lists it, with the config's account if any.
 func (m *Adapter) LoginNetwork() api.LoginNetwork {
 	n := api.LoginNetwork{Network: "matrix", Label: "Matrix", Detail: "an account on a homeserver"}
 	if acc := m.accountNow(); acc.User != "" {
@@ -55,10 +54,8 @@ func (m *Adapter) LoginNetwork() api.LoginNetwork {
 	return n
 }
 
-// Login logs the config's account in with its password, asked again when refused,
-// setting it up first when the config names none: its homeserver and Matrix ID are
-// written into the config, which hands the account over when re-read. A session the
-// running Matrix cannot start on (its store opened already) starts with the next one.
+// Login logs the config's account in with its password, re-asking when refused. With
+// no account configured it first writes a homeserver and Matrix ID into the config.
 func (m *Adapter) Login(ctx context.Context, name string, talk api.LoginTalk) (api.LoginEnd, error) {
 	acc := m.accountNow()
 	switch {
@@ -97,8 +94,8 @@ func (m *Adapter) Login(ctx context.Context, name string, talk api.LoginTalk) (a
 
 var matrixIDShape = regexp.MustCompile(`^@[^:\s]+:\S+$`)
 
-// setUp asks for a homeserver and a Matrix ID, has them written into the config, and
-// is the ID; Configure returns once the daemon has re-read it.
+// setUp asks for a homeserver and Matrix ID, writes them into the config and returns
+// the ID; Configure returns once the daemon has re-read it.
 func setUp(ctx context.Context, talk api.LoginTalk) (string, error) {
 	var homeserver, note string
 	for {
@@ -146,8 +143,8 @@ func setUp(ctx context.Context, talk api.LoginTalk) (string, error) {
 	return user, nil
 }
 
-// handOver gives a waiting adapter the session, reporting whether it took it. One
-// trying another session is waited for: if that one is rejected, this one is wanted.
+// handOver gives a waiting adapter the session, reporting whether it took it. An
+// adapter trying another session is waited for, in case that one is rejected.
 func (m *Adapter) handOver(ctx context.Context, sess domain.Session) (bool, error) {
 	for {
 		m.mu.Lock()

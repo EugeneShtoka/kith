@@ -18,7 +18,7 @@ func TestNamesResolveBeyondTheParameterCeiling(t *testing.T) {
 	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: room, Name: "Crowd"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
-	// Two people who are really there, so the answer is checkable rather than empty.
+	// Two real people, so the answer is checkable.
 	for _, m := range []domain.Member{
 		{UserID: "@first:example.org", DisplayName: "First"},
 		{UserID: "@last:example.org", DisplayName: "Last"},
@@ -42,8 +42,7 @@ func TestNamesResolveBeyondTheParameterCeiling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("namesOf(%d people): %v", len(ask), err)
 	}
-	// One from the first chunk and one from the last, so a fix that only ran the first
-	// batch fails here.
+	// One from the first chunk and one from the last.
 	if got := names["@first:example.org"]; got != "First" {
 		t.Errorf("first person resolved to %q, want First", got)
 	}

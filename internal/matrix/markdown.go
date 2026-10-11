@@ -13,13 +13,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/markdown"
 )
 
-// Outgoing Markdown: bridges translate formatted_body, so without HTML a message
-// arrives with its asterisks intact. mautrix's renderer is used (what its bridges
-// use). HTML in the source is escaped, never passed through.
+// Outgoing Markdown is rendered with mautrix's renderer, since bridges translate
+// formatted_body. HTML in the source is escaped, never passed through.
 
-// renderBody renders a typed body to HTML, "" when it has no formatting and no
-// mentions. Mentions are written into the Markdown source as links before a single
-// render; substituting into the HTML afterwards could rewrite inside href attributes.
+// renderBody renders a typed body to HTML, "" when plain. Mentions become Markdown
+// links before rendering; substituting into HTML could rewrite inside href attributes.
 func renderBody(body string, mentions []domain.Mention) string {
 	content := format.RenderMarkdownCustom(withMentionLinks(body, mentions), markdown.Renderer)
 	if content.Format != event.FormatHTML {

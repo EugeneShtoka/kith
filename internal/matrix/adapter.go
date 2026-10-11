@@ -48,12 +48,9 @@ const (
 	running
 )
 
-// Adapter is the Matrix adapter as the router starts it. It is built with no account:
-// the config gives it one (UseConfig, at start or when re-read), and Start waits for
-// it. It may then have no session, or one the homeserver rejects: Start waits for
-// passwordLogin, and the router treats Matrix as off until LoggedIn. What is left of
-// connecting once the homeserver answers belongs to its Start, and holds up no other
-// network.
+// Adapter is the Matrix network adapter. It starts with no account; Start waits for
+// UseConfig to name one and, without a usable session, for passwordLogin. The router
+// treats Matrix as off until LoggedIn.
 type Adapter struct {
 	*InProc
 	log   *slog.Logger
@@ -73,8 +70,8 @@ type Adapter struct {
 	logins sync.Mutex
 
 	mu sync.Mutex
-	// account is the config's, once it named one; accounted is closed then. It is
-	// taken once: the encryption store opens for one user, so another takes a restart.
+	// account is set once, then accounted is closed: the encryption store opens for
+	// one user, so another account takes a restart.
 	account   account
 	accounted chan struct{}
 	// saved is the session to try first; zero when there is none. userLog is log
@@ -114,8 +111,8 @@ func (m *Adapter) accountNow() account {
 	return m.account
 }
 
-// takeAccount takes the config's account, with the session saved for it, unless one
-// was taken already: then a different one waits for a restart, said in the log.
+// takeAccount takes the config's account and its saved session, unless one was
+// taken already; a different account then waits for a restart.
 func (m *Adapter) takeAccount(cfg config.Config) {
 	have := m.accountNow()
 	switch {
@@ -172,9 +169,8 @@ func (m *Adapter) report(phase domain.AccountPhase, detail string) {
 	m.onStatus(m.status(phase, detail))
 }
 
-// UseConfig takes the account, [display.deleted] keep and the identities, at start and
-// each time the config is re-read. An account set up while kithd runs starts at once;
-// one changed waits for a restart (takeAccount).
+// UseConfig applies the config at start and on each re-read. A new account starts at
+// once; a changed one waits for a restart.
 func (m *Adapter) UseConfig(ctx context.Context, cfg config.Config) {
 	m.KeepDeleted(cfg.Display.Deleted.Keep())
 	m.UseIdentities(ctx, identityGroups(cfg))
@@ -204,12 +200,11 @@ func (m *Adapter) SavedSessions(context.Context) ([]string, error) {
 // LoggedIn reports whether Matrix has a session the router may use (route.Session).
 func (m *Adapter) LoggedIn() bool { return m.loggedIn.Load() }
 
-// hint is what to do to log Matrix in.
+// loginHint says how to log Matrix in.
 const loginHint = ":login matrix in kith, or run `kith login`"
 
-// Start waits for the config to name the account, then tries the saved session, else
-// waits for a login; then finishes connecting and runs the sync loop. A rejected
-// session waits for a login again. It blocks.
+// Start waits for an account, resumes the saved session or waits for a login, then
+// runs the sync loop. A rejected session waits for a login again. It blocks.
 func (m *Adapter) Start(ctx context.Context) error {
 	select {
 	case <-m.accounted:

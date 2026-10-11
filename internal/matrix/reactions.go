@@ -8,9 +8,8 @@ import (
 	"maunium.net/go/mautrix/event"
 )
 
-// noteRefusedReaction learns what a bridged network will not accept: a reaction of
-// ours redacted by someone else who is a bridge. All three conditions matter (own
-// un-reacts and moderators in native rooms must not count).
+// noteRefusedReaction learns what a bridged network refuses: our reaction redacted by
+// a bridge. Own un-reacts and native-room moderators do not count.
 func (b *InProc) noteRefusedReaction(ctx context.Context, r domain.Reaction, redaction *event.Event) {
 	me := string(b.client.UserID)
 	if r.Sender != me || string(redaction.Sender) == me {

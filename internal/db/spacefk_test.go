@@ -7,14 +7,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// space_children.room_id carries no foreign key, and that is a decision (see the note
-// beside the table).
+// space_children.room_id deliberately has no foreign key (see the note beside the table).
 func TestASpaceCanListAChildTheRoomTableHasNotSeenYet(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
 
-	// The spaces refresh landing first: a space with children, and no rooms written.
+	// The spaces refresh lands first: children, no rooms written.
 	err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{
 		ID:       "!work:x",
 		Name:     "Work",
@@ -33,8 +32,7 @@ func TestASpaceCanListAChildTheRoomTableHasNotSeenYet(t *testing.T) {
 		t.Fatalf("spaces = %+v, want one space keeping both children", spaces)
 	}
 
-	// And the room refresh that follows makes them ordinary rooms, with the space
-	// membership already in place.
+	// The following room refresh finds the space membership in place.
 	if err = cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{
 		{ID: "!notyet:x", Name: "One"}, {ID: "!alsonotyet:x", Name: "Two"},
 	}); err != nil {
@@ -49,9 +47,8 @@ func TestASpaceCanListAChildTheRoomTableHasNotSeenYet(t *testing.T) {
 	}
 }
 
-// room_parents.space_id carries no foreign key for a different reason: the empty
-// string is a recorded answer ("asked, and there is no canonical parent"), and
-// SQLite exempts NULL from foreign-key checks but not ”.
+// room_parents.space_id has no foreign key because ” records "no canonical parent",
+// and SQLite exempts NULL from foreign-key checks but not ”.
 func TestARoomCanNameAParentTheSpaceTableHasNotSeenYet(t *testing.T) {
 	t.Parallel()
 

@@ -25,7 +25,7 @@ func TestKeyFileOperationsRefuseWithoutEncryption(t *testing.T) {
 	}
 }
 
-// Every unreadable export is ErrBadKeyFile (a MAC failure cannot say which cause).
+// Every unreadable export is ErrBadKeyFile: a MAC failure cannot say which cause.
 func TestEveryUnreadableExportIsTheSameAnswer(t *testing.T) {
 	t.Parallel()
 

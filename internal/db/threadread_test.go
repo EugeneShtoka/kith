@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// threadRoom lays down one room with a main timeline and two threads, read to
-// $read, and returns the times it used so a test can place a receipt among them.
+// threadRoom lays down a room with a main timeline and two threads, read to $read,
+// and returns its clock.
 func threadRoom(t *testing.T, cache *Cache) func(int) time.Time {
 	t.Helper()
 	base := time.Date(2026, 8, 28, 9, 0, 0, 0, time.UTC)
@@ -33,16 +33,14 @@ func threadRoom(t *testing.T, cache *Cache) func(int) time.Time {
 	return at
 }
 
-// A thread's replies are counted against that thread's own position, and the room's
-// count stops at the main timeline. Together they are the room, which is what makes
-// the sub-rows a breakdown of the badge above them rather than a second opinion.
+// Thread replies count against their thread's position and the room's count stops at
+// the main timeline, so the thread rows break down the room's badge.
 func TestCountingSplitsTheRoomFromItsThreads(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
 	at := threadRoom(t, cache)
-	// The floor sits where the room was read, which is what migration writes for
-	// every room that had a read position before threads existed.
+	// The floor sits where the room was read, as migration seeds it.
 	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
 		t.Fatalf("SeedThreadFloor() error = %v", err)
 	}
@@ -60,7 +58,7 @@ func TestCountingSplitsTheRoomFromItsThreads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CountThreadUnread() error = %v", err)
 	}
-	// **One thread, not two — because a reply of your own is a read position.**
+	// One thread, not two: your own reply is a read position.
 	if len(threads) != 1 {
 		t.Fatalf("threads = %+v, want only $other — a reply in $root floors it", threads)
 	}
@@ -73,8 +71,8 @@ func TestCountingSplitsTheRoomFromItsThreads(t *testing.T) {
 	}
 }
 
-// A reply of your own floors only its own thread, and only up to itself: a later
-// answer in the same thread is unread again, and the room's own count is untouched.
+// Your reply floors only its own thread, up to itself; a later answer is unread and
+// the room's count is untouched.
 func TestYourReplyFloorsOnlyItsOwnThreadAndOnlyUpToItself(t *testing.T) {
 	t.Parallel()
 
@@ -83,7 +81,7 @@ func TestYourReplyFloorsOnlyItsOwnThreadAndOnlyUpToItself(t *testing.T) {
 	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
 		t.Fatalf("SeedThreadFloor() error = %v", err)
 	}
-	// Somebody answers *after* our reply, in the thread we had answered.
+	// An answer after our reply, in the same thread.
 	mustSave(t, cache, "!a:x", domain.Message{
 		ID: "$a3", Sender: "@bob:x", Body: "one more", Timestamp: at(7), ThreadRoot: "$root",
 	})
@@ -104,8 +102,7 @@ func TestYourReplyFloorsOnlyItsOwnThreadAndOnlyUpToItself(t *testing.T) {
 	if root.Unread != 1 || root.Latest != "$a3" {
 		t.Errorf("$root = %+v, want exactly the reply that came after ours", root)
 	}
-	// And the room's main timeline is where it was: our reply was in a thread, and a
-	// thread says nothing about the room.
+	// The main timeline is unchanged: a thread reply says nothing about the room.
 	messages, _, counted, err := cache.CountUnread(ctx, mine, "!a:x")
 	if err != nil {
 		t.Fatalf("CountUnread() error = %v", err)
@@ -115,9 +112,7 @@ func TestYourReplyFloorsOnlyItsOwnThreadAndOnlyUpToItself(t *testing.T) {
 	}
 }
 
-// A receipt for one thread clears that thread and leaves the room and every other
-// thread exactly where they were. That is the whole point of a threaded receipt,
-// and the reason reading a room no longer clears the conversations inside it.
+// A receipt for one thread clears only that thread.
 func TestAThreadReceiptClearsOnlyItsThread(t *testing.T) {
 	t.Parallel()
 
@@ -156,7 +151,7 @@ func TestAnUnthreadedReceiptAdvancesEveryThread(t *testing.T) {
 	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
 		t.Fatalf("SeedThreadFloor() error = %v", err)
 	}
-	// The floor row is the one with an empty root; an unthreaded receipt writes it.
+	// The floor row has an empty root; an unthreaded receipt writes it.
 	if err := cache.SaveThreadRead(ctx, "!a:x", "", "$b1", at(6).UnixMilli()); err != nil {
 		t.Fatalf("SaveThreadRead() error = %v", err)
 	}
@@ -194,9 +189,8 @@ func TestAReadPositionOnlyMovesForward(t *testing.T) {
 	}
 }
 
-// The floor is seeded once and then only unthreaded receipts move it. If opening a
-// room could re-seed it, every gesture that marks the main timeline read would mark
-// its threads read too — which is exactly what threaded receipts exist to prevent.
+// The floor is seeded once; only unthreaded receipts move it, or marking the main
+// timeline read would mark its threads read too.
 func TestTheFloorIsSeededOnceAndNotAgain(t *testing.T) {
 	t.Parallel()
 
@@ -213,16 +207,14 @@ func TestTheFloorIsSeededOnceAndNotAgain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CountThreadUnread() error = %v", err)
 	}
-	// Only $other: the second seeding did not move the floor, and our own reply
-	// quiets $root.
+	// Only $other: the reseed did not move the floor, and our reply quiets $root.
 	if len(threads) != 1 || threads[0].Root != "$other" {
 		t.Errorf("threads = %+v, want $other still unread", threads)
 	}
 }
 
-// Threads lists what the cache holds for a room whether or not it is open, which is
-// what the room list and the picker need. A thread whose root aged out is still
-// listed: being a root is a fact about the replies, and they are here.
+// Threads lists a room's cached threads whether or not it is open, including one
+// whose root aged out.
 func TestListingARoomsThreads(t *testing.T) {
 	t.Parallel()
 
@@ -243,8 +235,7 @@ func TestListingARoomsThreads(t *testing.T) {
 	if threads[0].Root != "$other" || threads[0].Count != 1 || threads[0].Latest != "$b1" {
 		t.Errorf("first thread = %+v, want $other with one reply", threads[0])
 	}
-	// Three replies and **none** unread: the third is ours, and answering a thread is
-	// proof of having read what came before the answer.
+	// Three replies, none unread: the third is ours, which reads what came before.
 	if threads[1].Root != "$root" || threads[1].Count != 3 || threads[1].Unread != 0 {
 		t.Errorf("second thread = %+v, want $root with 3 replies and none unread", threads[1])
 	}
@@ -253,8 +244,8 @@ func TestListingARoomsThreads(t *testing.T) {
 	}
 }
 
-// Threads with the same newest-reply time (bridged backfill stamps whole seconds) are
-// listed in one order every time: by root, after activity.
+// Threads with the same newest-reply time (bridges stamp whole seconds) are listed
+// by root.
 func TestThreadsWithEqualActivityAreListedByRoot(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
@@ -291,9 +282,8 @@ func TestThreadsWithEqualActivityAreListedByRoot(t *testing.T) {
 	}
 }
 
-// A message a bridge posted for you (your Slack or WhatsApp puppet, listed with your
-// account in [[display.identity]]) is your own: it floors what came before it, in the
-// room and in a thread, and is not counted itself. Only the account, and it was not.
+// A message your bridge puppet posted is your own: it floors what came before it, in
+// the room and in a thread, and is not counted. The account alone does not know it.
 func TestAMessageFromYourBridgedAccountIsYourOwn(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()

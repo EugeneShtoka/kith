@@ -10,12 +10,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 )
 
-// Room keys as a spec-format export file, interoperable with Element: the answer for
-// accounts without a server-side backup.
+// Room keys as a spec-format export file (Element-compatible), for accounts without
+// a server-side backup.
 
 // ExportRoomKeys encrypts every megolm session this device holds and returns the
-// export's bytes. Bytes, not a path: the daemon cannot write outside its sandbox,
-// and what crosses the socket is already ciphertext.
+// export's bytes, not a path: the daemon cannot write outside its sandbox.
 func (b *InProc) ExportRoomKeys(ctx context.Context, passphrase string) ([]byte, error) {
 	helper := b.cryptoHelper()
 	if helper == nil {
@@ -50,8 +49,8 @@ func (b *InProc) ImportRoomKeys(ctx context.Context, passphrase string, data []b
 	return imported, total, nil
 }
 
-// unreadableExport reports whether err means "not a key export I can read". A wrong
-// passphrase and a corrupt file fail the same MAC check, so they are one answer.
+// unreadableExport reports whether err means an unreadable key export. A wrong
+// passphrase and a corrupt file fail the same MAC check.
 func unreadableExport(err error) bool {
 	return errors.Is(err, crypto.ErrMismatchingExportHash) ||
 		errors.Is(err, crypto.ErrMissingExportPrefix) ||

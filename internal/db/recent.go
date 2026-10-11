@@ -8,10 +8,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// RecentBodies is the bodies of the newest n unredacted messages: in rooms (none when
-// it names none), and only senders' when senders names any (this person's IDs, on
-// every network). What completion counts
-// recent words from (internal/vocab); each shape is one index walk, newest first.
+// RecentBodies returns the bodies of the newest n unredacted messages in rooms,
+// limited to senders when given; completion's recent-word source (internal/vocab).
+// Each query shape is one index walk.
 func (c *Cache) RecentBodies(ctx context.Context, rooms domain.RoomSet, senders []string, n int) ([]string, error) {
 	if n <= 0 || rooms.None() {
 		return nil, nil

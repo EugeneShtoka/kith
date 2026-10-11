@@ -9,8 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Word completion is kept by internal/local, which hears of each cached message and
-// each room whose messages changed otherwise; without that its windows go stale.
+// The cache listener hears each cached message and each room whose messages otherwise
+// changed (internal/local's completion depends on it).
 func TestTheCacheListenerHearsMessagesAndDeletions(t *testing.T) {
 	t.Parallel()
 
@@ -43,8 +43,7 @@ func TestTheCacheListenerHearsMessagesAndDeletions(t *testing.T) {
 	}
 }
 
-// The cache holds every network's rooms; Matrix lists only its own, or the router,
-// which adds each network's, would show the others' twice.
+// Matrix lists only its own cached rooms, or the router would show others' twice.
 func TestMatrixListsOnlyItsOwnCachedRooms(t *testing.T) {
 	t.Parallel()
 

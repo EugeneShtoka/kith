@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A message's poll is kept whole, as JSON, beside it: written with the message, and
-// rewritten on its own as its results change (SetPoll). No poll writes nothing, so a
-// copy that says less (a bridge's placeholder) keeps the one known.
+// A message's poll is stored whole as JSON, written with the message and rewritten
+// as results change (SetPoll). A copy without a poll (a bridge placeholder) keeps it.
 
 // savePoll records a message's poll; none writes nothing.
 func savePoll(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID domain.EventID, poll *domain.Poll) error {
@@ -30,8 +29,7 @@ func savePoll(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID dom
 	return nil
 }
 
-// SetPoll rewrites the poll of a cached message, as its results now stand; a message
-// the cache does not hold, or one deleted, is left alone.
+// SetPoll rewrites a cached message's poll; uncached or deleted messages are left alone.
 func (c *Cache) SetPoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, poll domain.Poll) error {
 	data, err := json.Marshal(poll)
 	if err != nil {
@@ -47,8 +45,8 @@ func (c *Cache) SetPoll(ctx context.Context, roomID domain.RoomID, eventID domai
 	return nil
 }
 
-// PollsByID is the cached messages whose poll a network names by id, within an
-// account's rooms: a results update names the poll, not the message.
+// PollsByID is the cached messages in owner's rooms with poll id: a results update
+// names the poll, not the message.
 func (c *Cache) PollsByID(ctx context.Context, owner domain.RoomOwner, id string) ([]domain.Message, error) {
 	return collect(ctx, c.db, "polls by id", `
 		SELECT room_id, event_id, poll FROM message_polls

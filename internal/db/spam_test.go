@@ -8,9 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The mirror, and the one property that matters about it: a verdict comes back with the
-// rule and the filter that made it, because "why is this room in Spam" has to be
-// answerable offline.
+// A verdict round-trips with its rule and filter, so "why is this Spam" is answerable
+// offline.
 func TestSpamRoomsRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -39,8 +38,7 @@ func TestSpamRoomsRoundTrip(t *testing.T) {
 		t.Errorf("at = %v, want %v", rooms[0].At, at)
 	}
 
-	// A second verdict on the same room replaces the first: account data is a value,
-	// and this mirrors it.
+	// A second verdict replaces the first: account data is one value per room.
 	if err := cache.SetSpam(ctx, domain.SpamVerdict{Room: "!a:x", Rule: domain.SpamMostly, At: at}); err != nil {
 		t.Fatalf("SetSpam(again): %v", err)
 	}
@@ -57,8 +55,7 @@ func TestSpamRoomsRoundTrip(t *testing.T) {
 	}
 }
 
-// A release is a value of the same key, not the absence of one: the room's account data
-// says "released", and the mirror has to keep saying it.
+// A release is a stored value, not the absence of a verdict.
 func TestSpamReleaseIsMirroredAndReplacesTheVerdict(t *testing.T) {
 	t.Parallel()
 
@@ -66,12 +63,10 @@ func TestSpamReleaseIsMirroredAndReplacesTheVerdict(t *testing.T) {
 	cache := openTemp(t)
 	at := time.Now().Truncate(time.Millisecond)
 
-	// Caught first, then released — the order it happens in.
 	if err := cache.SetSpam(ctx, domain.SpamVerdict{Room: "!a:x", Rule: domain.SpamFirstMessage, Filter: "crypto", At: at}); err != nil {
 		t.Fatalf("SetSpam: %v", err)
 	}
-	// And a release for a room the cache has not listed yet, which is the normal order on
-	// a rebuilt cache: account data can arrive before the room list.
+	// Also a room not listed yet: account data can arrive before the room list.
 	for _, room := range []domain.RoomID{"!a:x", "!cold:x"} {
 		if err := cache.SetSpam(ctx, domain.SpamVerdict{Room: room, Released: true, At: at}); err != nil {
 			t.Fatalf("SetSpam(release %s): %v", room, err)
@@ -93,8 +88,7 @@ func TestSpamReleaseIsMirroredAndReplacesTheVerdict(t *testing.T) {
 		}
 	}
 
-	// A verdict written after a release replaces it, because account data is one value
-	// per room; which of the two may be written is the writer's decision, not the mirror's.
+	// A later verdict replaces a release; which may be written is the writer's call.
 	if err := cache.SetSpam(ctx, domain.SpamVerdict{Room: "!a:x", Rule: domain.SpamMostly, At: at}); err != nil {
 		t.Fatalf("SetSpam(again): %v", err)
 	}

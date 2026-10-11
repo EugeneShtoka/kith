@@ -12,9 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The live case (a Google Messages SMS bridge room), in the server's stream order:
-// two SMS, then three bridge state events. The last SMS carries a later
-// origin_server_ts (the phone's clock) than the state event the receipt points at.
+// An SMS bridge room in stream order: two SMS, then three bridge state events. The
+// last SMS has a later origin_server_ts (phone clock) than the receipted state event.
 const smsRoom = domain.RoomID("!sms:x")
 
 var smsStream = []srvEvent{
@@ -51,15 +50,14 @@ func smsUnread(t *testing.T, b *InProc) domain.Unread {
 	return domain.Unread{}
 }
 
-// Regression: a receipt on a bridge's state event was placed by that event's own
-// time, behind an SMS the server orders before it, so the room showed 1 unread
-// forever. The position is the stream order's: the room is read through.
+// A receipt on a bridge state event is placed by stream order, not the event's own
+// time, so an earlier-streamed SMS with a later ts is read.
 func TestAReceiptOnABridgeStateEventReadsByStreamOrder(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
-		// readTS is the stored position's time: 0 is a fresh receipt, the state
-		// event's own time is one an earlier build placed.
+		// readTS: 0 is a fresh receipt; the state event's ts is a position placed by
+		// its own time.
 		readTS int64
 	}{
 		"a fresh receipt":                 {readTS: 0},
@@ -91,8 +89,7 @@ func TestAReceiptOnABridgeStateEventReadsByStreamOrder(t *testing.T) {
 	}
 }
 
-// The same receipt arriving by sync: held (not a cached message), then placed by
-// stream order a sync later.
+// The same receipt by sync is held, then placed by stream order a sync later.
 func TestASyncedReceiptOnAStateEventReadsByStreamOrder(t *testing.T) {
 	t.Parallel()
 
@@ -132,9 +129,8 @@ func TestAMessageAfterAStateReceiptStaysUnread(t *testing.T) {
 	}
 }
 
-// Regression: marking a room read without opening it receipted the newest message by
-// time, which the server (holding a later position in its order) ignored without an
-// echo, so nothing changed. The position now moves locally once the receipt lands.
+// MarkRoomsRead moves the position locally once the receipt lands; the server may
+// never echo it.
 func TestMarkRoomsReadMovesThePositionWithoutAnEcho(t *testing.T) {
 	t.Parallel()
 
@@ -184,7 +180,6 @@ func TestMarkReadMovesThePositionForwardOnly(t *testing.T) {
 	if got := unreadOf(t, b); !got.Counted || got.Messages != 0 {
 		t.Errorf("after an older receipt: unread = %+v, want nothing unread", got)
 	}
-	// The read time as the cache keeps it, written with every change.
 	placed, err := b.cache.ReadPositions(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -194,9 +189,8 @@ func TestMarkReadMovesThePositionForwardOnly(t *testing.T) {
 	}
 }
 
-// The live room, placed by an earlier build and with /context failing: pressing m
-// (or opening it) receipts the server's newest event (the bridge's state event,
-// which it accepts) and reads the room through locally, without an echo.
+// With /context failing, marking the bridge room read receipts the stream's newest
+// event (a state event) and reads the room through locally.
 func TestMarkingTheBridgeRoomReadReceiptsTheStreamsNewest(t *testing.T) {
 	t.Parallel()
 

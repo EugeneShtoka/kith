@@ -6,11 +6,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// unreadBook is each room's last-known unread state, so mergeUnread can apply a
-// partial sync delta (counts or receipt, not necessarily both), and when each room's
-// read event happened (absent: unknown), so the read position only moves forward.
-// One lock covers both, and a change is persisted under it (see update), so
-// concurrent writers persist in the order they changed it.
+// unreadBook is each room's last-known unread state (so mergeUnread can apply a
+// partial sync delta) and read time (so the position only moves forward). Changes
+// persist under its lock, so concurrent writers persist in order.
 type unreadBook struct {
 	mu     sync.Mutex
 	rooms  map[domain.RoomID]domain.Unread
@@ -48,9 +46,8 @@ func (u *unreadBook) get(roomID domain.RoomID) domain.Unread {
 	return u.rooms[roomID]
 }
 
-// update runs change on a room's state and read time under the lock, and keeps what
-// it leaves when it reports a change (or the room was known). change may persist the
-// state it reports changed: it runs under the lock for exactly that.
+// update runs change under the lock and keeps the result when it reports a change
+// (or the room was known). change may persist the state, which is why it holds the lock.
 func (u *unreadBook) update(roomID domain.RoomID, change func(cur *domain.Unread, readTS *int64) bool) (domain.Unread, bool) {
 	u.mu.Lock()
 	defer u.mu.Unlock()

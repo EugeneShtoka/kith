@@ -14,8 +14,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A member who joins while a room's name list is being fetched is not lost: the list
-// read before the join is not installed, and the next lookup asks again.
+// A join during a name-list fetch is not lost: the stale list is not installed.
 func TestAJoinDuringANameFetchIsNotLost(t *testing.T) {
 	t.Parallel()
 	entered := make(chan struct{})

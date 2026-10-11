@@ -12,12 +12,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Membership moderation. Power levels are checked here first so a refusal can name
-// the level needed and held (ErrNoPower) instead of surfacing M_FORBIDDEN. The check
-// is advisory; the homeserver still decides.
+// Power levels are pre-checked so a refusal names the levels (ErrNoPower) rather than
+// M_FORBIDDEN. Advisory only; the homeserver decides.
 
-// canAct checks our power against need and, when target is set, that we strictly
-// outrank the target. Unreadable power levels are not a refusal: the server decides.
+// canAct checks our power against need and, with a target, that we strictly outrank
+// it. Unreadable power levels are not a refusal.
 func (b *InProc) canAct(ctx context.Context, roomID domain.RoomID, target string, need func(*event.PowerLevelsEventContent) int, verb string) error {
 	var levels event.PowerLevelsEventContent
 	if err := b.client.StateEvent(ctx, id.RoomID(roomID), event.StatePowerLevels, "", &levels); err != nil {
@@ -28,7 +27,6 @@ func (b *InProc) canAct(ctx context.Context, roomID domain.RoomID, target string
 		return fmt.Errorf("%w: you need power %d in this room to %s, and you have %d",
 			api.ErrNoPower, required, verb, mine)
 	}
-	// Acting on somebody needs strictly greater power.
 	if target != "" {
 		if theirs := levels.GetUserLevel(id.UserID(target)); theirs >= mine {
 			return fmt.Errorf("%w: %s has power %d in this room and you have %d — you cannot %s an equal",
@@ -40,7 +38,6 @@ func (b *InProc) canAct(ctx context.Context, roomID domain.RoomID, target string
 
 // InviteUser invites somebody to a room.
 func (b *InProc) InviteUser(ctx context.Context, roomID domain.RoomID, userID string) error {
-	// Inviting depends only on our own level.
 	if err := b.canAct(ctx, roomID, "", (*event.PowerLevelsEventContent).Invite, "invite"); err != nil {
 		return err
 	}
@@ -97,9 +94,9 @@ func (b *InProc) Redact(ctx context.Context, roomID domain.RoomID, eventID domai
 	return b.redactEdits(ctx, roomID, eventID, reason)
 }
 
-// redactEdits redacts a deleted message's edits too: each m.replace carries its own
-// copy of the text. Skipped when [display.deleted] keep. Runs after the deletion,
-// and its failure (ErrEditsRemain) does not undo it.
+// redactEdits redacts a deleted message's edits, since each m.replace carries its own
+// copy of the text. Skipped under [display.deleted] keep; failure (ErrEditsRemain)
+// does not undo the deletion.
 func (b *InProc) redactEdits(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error {
 	if b.keepDeleted.Load() {
 		return nil

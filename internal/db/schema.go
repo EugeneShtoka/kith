@@ -392,11 +392,11 @@ CREATE TABLE reaction_refusals (
 ) STRICT, WITHOUT ROWID;
 `
 
-// migrations are post-base changes, append only: entry i stamps
-// schemaVersion+i+1. When adding one: also update baseSchema, guard with IF NOT
-// EXISTS, prefer a side table over ADD COLUMN, and pin it in migrationFingerprints.
-// Indexes need no migration (see ensureIndexes); removals are new DROP migrations.
-// TestAnUpgradedCacheMatchesAFreshOne holds a v1 cache, migrated, to a fresh one.
+// migrations are post-base changes, append only: entry i stamps schemaVersion+i+1.
+// A new one also updates baseSchema, uses IF NOT EXISTS, prefers a side table over
+// ADD COLUMN, and is pinned in migrationFingerprints. Indexes need none (see
+// ensureIndexes); removals are new DROP migrations. TestAnUpgradedCacheMatchesAFreshOne
+// checks a migrated v1 cache against a fresh one.
 var migrations = []string{
 	// v2: drafts remember their thread.
 	`CREATE TABLE IF NOT EXISTS draft_threads (
@@ -479,11 +479,9 @@ DROP TABLE phone_names;`,
 ) STRICT, WITHOUT ROWID;`,
 }
 
-// ensureIndexes makes the file's explicit indexes exactly baseSchema's: a missing one
-// is created, one whose definition changed is rebuilt, and one baseSchema no longer
-// declares is dropped. So an index changed in baseSchema needs no migration: indexes
-// hold no data, and reconciling on every open brings a fresh, rebuilt or migrated cache
-// to the same set. Every explicit index is declared in baseSchema.
+// ensureIndexes makes the file's indexes exactly baseSchema's (create missing,
+// rebuild changed, drop undeclared), so index changes need no migration. Every
+// explicit index is declared in baseSchema.
 func ensureIndexes(ctx context.Context, sqlDB *sql.DB) error {
 	_, err := reconcileIndexes(ctx, sqlDB)
 	return err
@@ -534,9 +532,8 @@ func quoteIdent(name string) string {
 	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
 
-// sameIndex compares a stored index definition with a declared one. SQLite stores the
-// statement as written, less any IF NOT EXISTS; spacing and keyword case are not
-// meaningful.
+// sameIndex compares index SQL ignoring IF NOT EXISTS (SQLite drops it), spacing
+// and case.
 func sameIndex(stored, declared string) bool {
 	norm := func(sql string) string {
 		fields := strings.Fields(sql)
@@ -567,7 +564,7 @@ func indexesPresent(ctx context.Context, sqlDB *sql.DB) (map[string]string, erro
 }
 
 // baseIndexes maps each CREATE [UNIQUE] INDEX in baseSchema to its statement,
-// parsed from the const (comments stripped) so there is no second list to forget.
+// parsed so there is no second list to keep in sync.
 func baseIndexes() map[string]string {
 	out := map[string]string{}
 	for stmt := range strings.SplitSeq(stripSQLComments(baseSchema), ";") {
@@ -604,9 +601,9 @@ func stripSQLComments(script string) string {
 	return strings.Join(kept, "\n")
 }
 
-// prepare brings the database at path to the current schema: current (by number
-// and by shape) is a no-op bar ensureIndexes, base..current migrates, anything else is
-// copied aside and rebuilt. It reports whether it rebuilt so the caller can reset the sync position.
+// prepare brings the database to the current schema: current (by number and shape)
+// only reconciles indexes, base..current migrates, anything else is copied aside and
+// rebuilt. A rebuild is reported so the caller can reset the sync position.
 func prepare(ctx context.Context, sqlDB *sql.DB, path string) (prepared, error) {
 	version, err := userVersion(ctx, sqlDB)
 	if err != nil {
@@ -614,16 +611,15 @@ func prepare(ctx context.Context, sqlDB *sql.DB, path string) (prepared, error) 
 	}
 	current := schemaVersion + len(migrations)
 	if version == current {
-		// The number alone is not trusted: a version reused for another shape (a fold),
-		// or a cache edited by hand, would otherwise open and fail at the first query.
+		// The number alone is not trusted: a reused version or a hand-edited cache
+		// would fail at the first query.
 		ok, serr := shapeMatches(ctx, sqlDB)
 		if serr != nil {
 			return prepared{}, serr
 		}
 		if ok {
-			// The shape is right, so an index that will not build is a passing failure
-			// (the lock, the disk), not a wrong shape: a rebuild would drop what only
-			// the cache holds.
+			// Shape is right, so an index failure is transient (lock, disk); a rebuild
+			// would lose cache-only data.
 			return prepared{}, ensureIndexes(ctx, sqlDB)
 		}
 		version = -1 // not the shape it claims: rebuild, keeping a copy aside
@@ -646,17 +642,16 @@ func prepare(ctx context.Context, sqlDB *sql.DB, path string) (prepared, error) 
 	return out, ensureIndexes(ctx, sqlDB)
 }
 
-// columnShape is one column as the shape check compares it. Column order, defaults
-// and SQL text are left out: a column added by ALTER sits last and reads differently,
-// and is the same column.
+// columnShape is what the shape check compares per column. Order, defaults and
+// SQL text are left out: a column added by ALTER sits last but is the same column.
 type columnShape struct {
 	typ     string
 	notNull bool
 	pk      int
 }
 
-// expectedShape is every table this code's schema creates, with its columns, built
-// once in an in-memory database from the same statements a rebuild runs.
+// expectedShape is the schema's tables and columns, built once in memory from the
+// statements a rebuild runs.
 var expectedShape = sync.OnceValues(func() (map[string]map[string]columnShape, error) {
 	ctx := context.Background()
 	mem, err := sql.Open("sqlite", ":memory:")
@@ -676,9 +671,8 @@ var expectedShape = sync.OnceValues(func() (map[string]map[string]columnShape, e
 	return shapeOf(ctx, mem)
 })
 
-// shapeOf is every table in the database with its columns, and every trigger with
-// its statement: the FTS index is kept by triggers, and a cache without them searches
-// what it held when they went, with no error anywhere.
+// shapeOf is every table with its columns and every trigger with its statement:
+// without the FTS triggers search silently goes stale.
 func shapeOf(ctx context.Context, sqlDB *sql.DB) (map[string]map[string]columnShape, error) {
 	tables, err := tablesIn(ctx, sqlDB)
 	if err != nil {
@@ -722,8 +716,8 @@ func shapeOf(ctx context.Context, sqlDB *sql.DB) (map[string]map[string]columnSh
 	return out, nil
 }
 
-// shapeMatches reports whether every table the schema creates is in the database with
-// the same columns. Tables it does not create are ignored: leftovers do no harm.
+// shapeMatches reports whether every schema table exists with the same columns;
+// extra tables are ignored.
 func shapeMatches(ctx context.Context, sqlDB *sql.DB) (bool, error) {
 	want, err := expectedShape()
 	if err != nil {
@@ -765,8 +759,8 @@ func rebuild(ctx context.Context, sqlDB *sql.DB, path string) (asideErr, fatal e
 	if _, vacErr := sqlDB.ExecContext(ctx, "VACUUM"); vacErr != nil {
 		return asideErr, fmt.Errorf("db: vacuum after rebuild: %w", vacErr)
 	}
-	// Create and stamp in one transaction. The drops stay outside it because
-	// PRAGMA foreign_keys is a no-op inside one; an interrupted drop just rebuilds again.
+	// Create and stamp in one transaction. Drops stay outside: PRAGMA foreign_keys is
+	// a no-op inside one, and an interrupted drop just rebuilds again.
 	tx, txErr := sqlDB.BeginTx(ctx, nil)
 	if txErr != nil {
 		return asideErr, fmt.Errorf("db: begin rebuild: %w", txErr)
@@ -794,8 +788,7 @@ func dropAll(ctx context.Context, sqlDB *sql.DB, tables []string) (err error) {
 	if _, ferr := sqlDB.ExecContext(ctx, "PRAGMA foreign_keys=OFF"); ferr != nil {
 		return fmt.Errorf("db: suspend foreign keys: %w", ferr)
 	}
-	// Restored even when ctx is canceled: the pool's one connection would otherwise go
-	// on with cascades off.
+	// Restored even if ctx is canceled, or the pool's one connection keeps cascades off.
 	defer func() {
 		if _, rerr := sqlDB.ExecContext(context.WithoutCancel(ctx), "PRAGMA foreign_keys=ON"); rerr != nil {
 			err = errors.Join(err, fmt.Errorf("db: restore foreign keys: %w", rerr))
@@ -834,15 +827,15 @@ func copyAside(ctx context.Context, sqlDB *sql.DB, path string) error {
 	return nil
 }
 
-// asideInfix marks a copy set aside by a rebuild; keptAside is how many are kept.
-// Each is a whole cache, and before this every rebuild added one for good.
+// asideInfix marks a copy set aside by a rebuild; keptAside is how many are kept
+// (each is a whole cache).
 const (
 	asideInfix = ".pre-schema-"
 	keptAside  = 2
 )
 
-// pruneAside deletes all but the newest keep copies beside path. The timestamp in the
-// name sorts in time order. Best effort: a copy left behind costs only disk.
+// pruneAside deletes all but the newest keep copies beside path (names sort by
+// time). Best effort.
 func pruneAside(path string, keep int) {
 	dir, base := filepath.Split(path)
 	entries, err := os.ReadDir(filepath.Clean(dir))
@@ -857,7 +850,7 @@ func pruneAside(path string, keep int) {
 	}
 	slices.Sort(copies)
 	for _, name := range copies[:max(len(copies)-keep, 0)] {
-		_ = os.Remove(filepath.Join(dir, name)) // best effort, as above
+		_ = os.Remove(filepath.Join(dir, name))
 	}
 }
 

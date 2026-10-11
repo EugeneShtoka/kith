@@ -10,8 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The pragmas have to be on the DSN, because a pool does not hand out only the
-// connection that was configured.
+// Pragmas live on the DSN, so every pooled connection gets them.
 func TestConnectionSettingsSurviveAReplacedConnection(t *testing.T) {
 	t.Parallel()
 
@@ -40,7 +39,7 @@ func TestConnectionSettingsSurviveAReplacedConnection(t *testing.T) {
 		}
 	}
 
-	// The consequence, not just the setting: the cascade must still fire.
+	// The cascade must still fire.
 	if _, err := cache.db.ExecContext(ctx, "DELETE FROM rooms WHERE id = '!r:x'"); err != nil {
 		t.Fatalf("delete room error = %v", err)
 	}
@@ -54,8 +53,7 @@ func TestConnectionSettingsSurviveAReplacedConnection(t *testing.T) {
 	}
 }
 
-// The cache path comes from an XDG directory, so it can contain characters that
-// string-concatenating a DSN would hand to the query parser instead.
+// The cache path may hold characters a concatenated DSN would hand to the query parser.
 func TestOpenHandlesAwkwardPaths(t *testing.T) {
 	t.Parallel()
 
@@ -74,7 +72,6 @@ func TestOpenHandlesAwkwardPaths(t *testing.T) {
 			}
 			defer func() { _ = cache.Close() }()
 
-			// It opened; check it is the file we asked for and it is usable.
 			var fk string
 			if err := cache.db.QueryRowContext(context.Background(), "PRAGMA foreign_keys").Scan(&fk); err != nil {
 				t.Fatalf("PRAGMA foreign_keys error = %v", err)

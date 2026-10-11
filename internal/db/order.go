@@ -9,20 +9,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// seqOf is a message m's place among the messages sharing its time
-// (domain.Message.Seq), 0 when none was given: message_order holds only the given.
+// seqOf is message m's domain.Message.Seq; 0 when none, as message_order holds only
+// given ones.
 const seqOf = `COALESCE((SELECT o.seq FROM message_order o WHERE o.room_id = m.room_id AND o.event_id = m.event_id), 0)`
 
-// newestFirstIn is the timeline's order (domain.CompareMessages) reversed, for a query
-// over messages m. A network that numbers a room's messages (Telegram) gives them
-// whole seconds and IDs that are the room's then the number, so within one second the
-// shorter ID is the earlier and, at one length, text order is numeric order: by the
-// ID's text alone, message 100 came before 99. One whose IDs carry no order
-// (WhatsApp) gives the order itself, as seq.
+// newestFirstIn is domain.CompareMessages reversed, over messages m. Numbered IDs
+// (Telegram: whole seconds, room then number) sort by length then text, so 99 precedes
+// 100; networks with unordered IDs (WhatsApp) give seq.
 const newestFirstIn = " m.ts_ms DESC, " + seqOf + " DESC, length(m.event_id) DESC, m.event_id DESC"
 
-// saveOrder keeps m's Seq, when it has one. The first given stays: a message seen
-// again (history after live, a retry) does not move.
+// saveOrder keeps m's Seq; the first given stays, so a message seen again does not move.
 func saveOrder(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message) error {
 	if m.Seq == 0 {
 		return nil
@@ -34,8 +30,8 @@ func saveOrder(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.
 	return nil
 }
 
-// saveMentions keeps whom m mentions, when it mentions anyone. A copy without its
-// mentions (an edit's echo) leaves those kept.
+// saveMentions keeps whom m mentions; a copy without mentions (an edit's echo) leaves
+// the kept ones.
 func saveMentions(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message) error {
 	for _, mn := range m.Mentions {
 		if mn.UserID == "" {
@@ -50,14 +46,12 @@ func saveMentions(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *doma
 	return nil
 }
 
-// senderNow is m's sender as named in its room now (their member name), else as the
-// message named them when it came: a name may have changed since.
+// senderNow is m's sender's current member name, else the name the message carried.
 const senderNow = `COALESCE(NULLIF((SELECT rm.display_name FROM room_members rm
 	 WHERE rm.room_id = m.room_id AND rm.user_id = m.sender), ''), m.sender_name)`
 
-// mentionsNow is the people m mentions, a JSON array of [user, words, name now]: the
-// words the mention was written in, and the person's member name in the room now
-// (domain.Mention.Known), "" when the cache has none.
+// mentionsNow is m's mentions as a JSON array of [user, written name, current member
+// name (domain.Mention.Known, "" when unknown)].
 const mentionsNow = `(SELECT json_group_array(json_array(x.user_id, x.name,
 	   COALESCE((SELECT rm.display_name FROM room_members rm WHERE rm.room_id = x.room_id AND rm.user_id = x.user_id), '')))
 	  FROM message_mentions x WHERE x.room_id = m.room_id AND x.event_id = m.event_id)`
@@ -92,9 +86,8 @@ func (c *Cache) RoomMemberName(ctx context.Context, room domain.RoomID, user str
 	return name, nil
 }
 
-// UnlistedNumberMentions is the messages in owner's rooms whose text has an "@" and a
-// digit but that list no one as mentioned: cached before mentions were kept, by a
-// network that writes a mention as "@" and a number (WhatsApp). Body and room only.
+// UnlistedNumberMentions is owner's messages with "@" and a digit but no listed
+// mentions: cached before mentions were kept (WhatsApp's "@number"). Body and room only.
 func (c *Cache) UnlistedNumberMentions(ctx context.Context, owner domain.RoomOwner) ([]domain.Message, error) {
 	if owner == "" {
 		return nil, nil
@@ -123,9 +116,9 @@ func (c *Cache) AddMentions(ctx context.Context, roomID domain.RoomID, eventID d
 	})
 }
 
-// MessagesNamingFiles is the messages in owner's rooms that carry a file and name
-// others in their text ("[file] name"): cached before a network's further files were
-// rows of their own (Slack's). Room, ID and thread only.
+// MessagesNamingFiles is owner's messages with a file that name others in their text
+// ("[file] name"), cached before extra files got rows of their own (Slack). Room, ID
+// and thread only.
 func (c *Cache) MessagesNamingFiles(ctx context.Context, owner domain.RoomOwner) ([]domain.Message, error) {
 	if owner == "" {
 		return nil, nil

@@ -32,16 +32,14 @@ func TestDraftsRoundTrip(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("Drafts() = %+v, want one", got)
 	}
-	// The mentions survive, which is the half worth pinning: a pill lost in a restart
-	// notifies nobody and looks exactly like one that works.
+	// Mentions survive: a lost pill notifies nobody and looks like one that works.
 	if len(got[0].Mentions) != 1 || got[0].Mentions[0].UserID != "@dana:x" {
 		t.Errorf("mentions = %+v, want Dana's", got[0].Mentions)
 	}
 	if got[0].Body != draft.Body || got[0].Caret != 7 || got[0].ReplyTo != "$m:x" {
 		t.Errorf("Drafts() = %+v, want what was stored", got[0])
 	}
-	// And the provenance, which is what lets a composer say whose words these are rather
-	// than presenting them as a live thought.
+	// So does the provenance.
 	if got[0].Author != domain.DraftAgent || !got[0].Updated.Equal(written) {
 		t.Errorf("author/updated = %q/%v, want the agent and %v", got[0].Author, got[0].Updated, written)
 	}
@@ -49,8 +47,7 @@ func TestDraftsRoundTrip(t *testing.T) {
 		t.Error("an agent's draft reported itself as hand-written")
 	}
 
-	// Replaced wholesale rather than appended: a draft is the current state of a
-	// composer, not a history of one.
+	// Replaced wholesale, not appended.
 	draft.Body, draft.Author = "second thoughts", ""
 	if err := putDraft(ctx, cache, draft); err != nil {
 		t.Fatalf("putDraft(again): %v", err)
@@ -60,8 +57,7 @@ func TestDraftsRoundTrip(t *testing.T) {
 		t.Fatalf("Drafts() = %+v, want one row, rewritten and now hand-written", got)
 	}
 
-	// An empty draft is a delete, because an empty composer is a legitimate answer to
-	// "what does this room hold".
+	// An empty draft is a delete.
 	if err := putDraft(ctx, cache, domain.StoredDraft{RoomID: "!a:x"}); err != nil {
 		t.Fatalf("putDraft(empty): %v", err)
 	}
@@ -70,8 +66,7 @@ func TestDraftsRoundTrip(t *testing.T) {
 	}
 }
 
-// A draft belongs to its room and goes with it: leaving a room in another client should
-// not leave words behind pointing at a room this account is no longer in.
+// A draft goes with its room.
 func TestDraftsGoWithTheirRoom(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -90,8 +85,6 @@ func TestDraftsGoWithTheirRoom(t *testing.T) {
 	}
 }
 
-// The two reads the agent integration turns on: the room a set of people share, and the
-// conversation around a search hit.
 func TestRoomsWithNarrowsAsPeopleAreAdded(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -115,7 +108,6 @@ func TestRoomsWithNarrowsAsPeopleAreAdded(t *testing.T) {
 	member("!one:x", "@noa:x", "@dana:x")
 	member("!none:x", "@dana:x")
 
-	// One name is a wide question.
 	got, err := cache.RoomsWith(ctx, []string{"@noa:x"}, domain.EveryRoom(), 10)
 	if err != nil {
 		t.Fatalf("RoomsWith: %v", err)
@@ -123,8 +115,7 @@ func TestRoomsWithNarrowsAsPeopleAreAdded(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("RoomsWith(noa) = %+v, want both rooms they are in", got)
 	}
-	// A second name can only narrow it, which is the property that makes this useful:
-	// "the room with Noa and Evgeny" is one room, not a list to disambiguate.
+	// A second name can only narrow it.
 	got, err = cache.RoomsWith(ctx, []string{"@noa:x", "@evgeny:x"}, domain.EveryRoom(), 10)
 	if err != nil {
 		t.Fatalf("RoomsWith: %v", err)
@@ -136,8 +127,7 @@ func TestRoomsWithNarrowsAsPeopleAreAdded(t *testing.T) {
 	if blank, _ := cache.RoomsWith(ctx, []string{"", "  "}, domain.EveryRoom(), 10); len(blank) != 0 {
 		t.Fatalf("RoomsWith(blank) = %+v, want nothing", blank)
 	}
-	// A room set restricts the candidates *before* the limit, so a scoped caller asking
-	// for one room gets the one it may show rather than the one ranked first overall.
+	// A room set restricts the candidates before the limit.
 	got, err = cache.RoomsWith(ctx, []string{"@noa:x"}, domain.TheseRooms([]domain.RoomID{"!one:x", "!none:x"}), 1)
 	if err != nil {
 		t.Fatalf("RoomsWith(scoped): %v", err)
@@ -169,8 +159,7 @@ func TestMessagesAroundGivesAHitItsConversation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MessagesAround: %v", err)
 	}
-	// Two before, the hit, two after — in the order it was said, which is the whole
-	// point: a snippet says what was mentioned and this says what was asked.
+	// Two before, the hit, two after, in chronological order.
 	want := []string{"c", "d", "e", "f", "g"}
 	if len(got) != len(want) {
 		t.Fatalf("MessagesAround() = %d messages, want %d", len(got), len(want))
@@ -180,11 +169,11 @@ func TestMessagesAroundGivesAHitItsConversation(t *testing.T) {
 			t.Fatalf("MessagesAround() = %v, want %v in order", bodies(got), want)
 		}
 	}
-	// At the edges it gives what there is rather than failing.
+	// At the edges it gives what there is.
 	if got, _ := cache.MessagesAround(ctx, "!a:x", "$a", 5, 1); len(got) != 2 {
 		t.Errorf("MessagesAround(first) = %v, want the message and its one neighbor", bodies(got))
 	}
-	// A hit whose message is no longer cached has no context, which is an answer.
+	// An uncached hit has no context, not an error.
 	if got, _ := cache.MessagesAround(ctx, "!a:x", "$missing", 2, 2); len(got) != 0 {
 		t.Errorf("MessagesAround(missing) = %v, want nothing", bodies(got))
 	}
@@ -231,7 +220,7 @@ func TestReplaceDraftWritesOnlyOverWhatWasRead(t *testing.T) {
 	}
 }
 
-// putDraft stores d over whatever the room holds, as a writer that just read it does.
+// putDraft stores d over whatever the room holds.
 func putDraft(ctx context.Context, c *Cache, d domain.StoredDraft) error {
 	drafts, err := c.Drafts(ctx)
 	if err != nil {
@@ -247,9 +236,8 @@ func putDraft(ctx context.Context, c *Cache, d domain.StoredDraft) error {
 	return err
 }
 
-// A write over a draft read before it was deleted (sent, or cleared) is refused, even
-// when what was read had no words: a reply-only draft read by kith-mcp, then sent from
-// the TUI, must not come back with its reply target when kith-mcp's append lands.
+// A write over a draft read before it was deleted is refused, even a wordless one: a
+// sent reply-only draft must not come back with its reply target.
 func TestReplaceDraftRefusesAWriteOverADeletedDraft(t *testing.T) {
 	t.Parallel()
 
@@ -280,9 +268,8 @@ func TestReplaceDraftRefusesAWriteOverADeletedDraft(t *testing.T) {
 	}
 }
 
-// Two writers can stamp the same millisecond with the same words (a correction both
-// hold): the rest of the composition tells the versions apart, so a write over one
-// is refused over the other.
+// Versions with the same millisecond and words are told apart by the rest of the
+// composition, so a write over one is refused over the other.
 func TestReplaceDraftTellsVersionsApartByTheirComposition(t *testing.T) {
 	t.Parallel()
 	at := time.UnixMilli(5000)
@@ -306,8 +293,7 @@ func TestReplaceDraftTellsVersionsApartByTheirComposition(t *testing.T) {
 	}
 }
 
-// A draft's thread comes back with it; written without one, the old thread is gone;
-// and it goes with the draft.
+// A draft's thread round-trips, is cleared when rewritten without one, and is deleted with it.
 func TestADraftKeepsItsThread(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()

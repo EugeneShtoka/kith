@@ -21,8 +21,7 @@ func (b *InProc) saveMediaSource(ctx context.Context, roomID domain.RoomID, evt 
 		if content.NewContent == nil {
 			return
 		}
-		// An edit bringing an attachment: its source is the replaced message's, which
-		// is the one the timeline shows.
+		// An edit's attachment is keyed to the replaced message, which the timeline shows.
 		content, target = content.NewContent, domain.EventID(replaced)
 	}
 	mxc, fileJSON := mediaSource(content)

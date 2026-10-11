@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A poll is kept with its message, rewritten as its results change, found by the ID
-// its network names it by, and erased with a deleted message's content.
+// A poll is kept with its message, rewritten as results change, found by its network
+// ID, and erased with a deleted message's content.
 func TestAPollIsKeptWithItsMessage(t *testing.T) {
 	t.Parallel()
 	c, ctx := openTemp(t), context.Background()

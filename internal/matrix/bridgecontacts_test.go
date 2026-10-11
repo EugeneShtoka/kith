@@ -14,11 +14,10 @@ import (
 	"testing"
 )
 
-// fakeBridges is a homeserver's host with bridges' provisioning APIs under it, each
-// answering whoami and contacts for this person only, as their own token.
+// fakeBridges serves bridges' provisioning APIs (whoami, contacts) for this person only.
 type fakeBridges struct {
 	mu sync.Mutex
-	// logins is each bridge's logins: id to state.
+	// logins is each bridge's login IDs to state.
 	logins map[string]map[string]string
 	// contacts is each bridge login's list.
 	contacts map[string][]map[string]any
@@ -74,11 +73,10 @@ func contact(name string, ids ...string) map[string]any {
 	return map[string]any{"name": name, "identifiers": ids}
 }
 
-// Each bridge's contact list names numbers, one source per connected login: a name
-// that is a number and a contact with no number name nothing. A login logged out, and
-// a bridge that cannot be read, keep what they gave last; a bridge no longer
-// configured takes its names away; one off the homeserver's host is never asked,
-// since the request carries the login.
+// Each connected bridge login's contacts name numbers; a numeric name or a contact
+// with no number names nothing. A logged-out login or unreadable bridge keeps its last
+// names; an unconfigured bridge loses them; one off the homeserver's host is never
+// asked, since the request carries the login.
 func TestABridgesContactListNamesNumbers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -109,7 +107,7 @@ func TestABridgesContactListNamesNumbers(t *testing.T) {
 	stale := 0
 	b.onRoomsStale = func() { stale++ }
 	a, bb, off := srv.URL+"/_matrix/provision/wa-a", srv.URL+"/_matrix/provision/wa-b", elsewhere.URL+"/_matrix/provision/wa-a"
-	// book is the names the directory gives the test's numbers, the named ones only.
+	// book is the names the directory gives the test's numbers.
 	book := func() map[string]string {
 		dir, err := b.cache.Directory(ctx)
 		if err != nil {

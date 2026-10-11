@@ -9,9 +9,8 @@ import (
 	"testing"
 )
 
-// docs/database.md tells a reader which version a current cache is at and what each
-// migration adds. It said "migrations is empty" for two migrations after v2 and v3
-// landed; this holds the prose to the code.
+// docs/database.md states the current cache version and what each migration adds;
+// this keeps the prose in step with the code.
 func TestTheDatabaseDocNamesEveryMigration(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile(filepath.Join("..", "..", "docs", "database.md"))

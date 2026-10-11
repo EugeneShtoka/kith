@@ -11,10 +11,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A room is plain only when the state store holds its state and no encryption event.
-// A store that has not seen the room (new, reset, not caught up with sync) holds no
-// encryption row for it either, and "unknown" must read as encrypted: it decides
-// whether an assistant may read the room's cached, decrypted history.
+// A room is plain only when the state store holds its state without an encryption
+// event; an unseen room reads as encrypted, since this gates assistant access.
 func TestARoomWhoseStateIsUnknownReadsAsEncrypted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

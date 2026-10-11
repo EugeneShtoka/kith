@@ -26,15 +26,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/session"
 )
 
-// homeserver is a fake Matrix homeserver: logins hand out new tokens, whoami
-// accepts only those it handed out, and everything else is unknown.
+// homeserver is a fake homeserver: logins issue tokens and whoami accepts only those.
 type homeserver struct {
 	*httptest.Server
 	mu     sync.Mutex
 	issued map[string]bool
 	logins atomic.Int64
-	// whoamiDelay is how long checking a session takes, so a login can land while
-	// one is being checked.
+	// whoamiDelay lets a login land while a session is being checked.
 	whoamiDelay atomic.Int64
 }
 
@@ -98,8 +96,7 @@ func (p *phases) last() domain.AccountPhase {
 	return p.got[len(p.got)-1]
 }
 
-// testAdapter is a Matrix adapter for the fake homeserver, its secrets in the mock
-// keyring under a service of its own, starting from saved.
+// testAdapter is an adapter for hs, starting from saved.
 func testAdapter(t *testing.T, hs *homeserver, saved domain.Session) (*Adapter, *phases, session.Store) {
 	t.Helper()
 	dir := t.TempDir()
@@ -161,13 +158,11 @@ func waitUntil(t *testing.T, what string, cond func() bool) {
 	}
 }
 
-// noKeyring has the keyring refuse everything, so sessions go to the file fallback
-// (allow_token_file): go-keyring's mock store is not safe for concurrent use, and these
-// tests log in concurrently. It is process-wide: the tests that use it are not parallel.
+// noKeyring forces the token-file fallback: go-keyring's mock is not safe for the
+// concurrent logins here. It is process-wide, so its tests are not parallel.
 func noKeyring() { keyring.MockInitWithError(errors.New("no secret service in tests")) }
 
-// A daemon with no session, or one the homeserver rejects, waits logged out —
-// nothing reaches Matrix — until a login hands it a session, which it then runs on.
+// With no session or a rejected one, Matrix waits logged out until a login.
 func TestMatrixWaitsForALoginAndStartsOnIt(t *testing.T) {
 	noKeyring()
 	hs := newHomeserver(t)
@@ -202,8 +197,7 @@ func TestMatrixWaitsForALoginAndStartsOnIt(t *testing.T) {
 	}
 }
 
-// A login while Matrix runs saves the session for the next start and leaves the
-// running one alone: the socket never replaces the session the sync loop uses.
+// A login while running is saved for the next start; the running session stays.
 func TestALoginWhileRunningIsKeptForTheNextStart(t *testing.T) {
 	noKeyring()
 	hs := newHomeserver(t)
@@ -234,9 +228,7 @@ func TestALoginWhileRunningIsKeptForTheNextStart(t *testing.T) {
 	}
 }
 
-// Logins at any moment — before Start, while waiting, while resuming, while running,
-// several at once — start Matrix exactly once and never block: one is handed over
-// (or the saved session takes), the rest are saved.
+// Logins at any moment, concurrent or not, start Matrix exactly once and never block.
 func TestLoginsAtAnyMomentStartMatrixOnce(t *testing.T) {
 	noKeyring()
 	hs := newHomeserver(t)
@@ -287,7 +279,6 @@ func TestLoginsAtAnyMomentStartMatrixOnce(t *testing.T) {
 	}
 }
 
-// Shut down while logged out, the adapter returns cleanly.
 func TestMatrixLoggedOutStopsCleanly(t *testing.T) {
 	noKeyring()
 	m, p, _ := testAdapter(t, newHomeserver(t), domain.Session{})
@@ -302,9 +293,8 @@ func TestMatrixLoggedOutStopsCleanly(t *testing.T) {
 	m.Stop()
 }
 
-// With no account, Matrix waits saying nothing; setting one up inside kith writes it
-// into the config, the re-read config hands it over, and the password logs it in and
-// starts it at once — no restart. A different account named later waits for one.
+// An account set up inside kith starts without a restart; a different one named
+// later waits for one.
 func TestMatrixSetUpInsideKithStartsWithoutARestart(t *testing.T) {
 	noKeyring()
 	hs := newHomeserver(t)
@@ -343,10 +333,8 @@ func TestMatrixSetUpInsideKithStartsWithoutARestart(t *testing.T) {
 	}
 }
 
-// The config handing the account over races everything that waits for it: Start, a
-// login under way, a second re-read naming another. Whatever the order, the first
-// account named is the one taken (of two named at once, either, but one), Start starts
-// once on it, and a login logs it in.
+// Racing Start, logins and re-reads, the first account named is taken exactly once
+// (of two named at once, either one).
 func TestTheAccountIsTakenOnceWhateverRaces(t *testing.T) {
 	noKeyring()
 	hs := newHomeserver(t)
@@ -380,7 +368,7 @@ func TestTheAccountIsTakenOnceWhateverRaces(t *testing.T) {
 		})
 		delay()
 		wg.Wait()
-		// The fake homeserver logs anyone in as @me:x: the account is read off the status.
+		// The fake logs anyone in as @me:x, so read the account off the status.
 		if _, err := m.passwordLogin(ctx, "secret"); err != nil {
 			t.Fatalf("seed %d: login = %v", seed, err)
 		}

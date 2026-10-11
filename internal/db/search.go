@@ -18,7 +18,7 @@ func searchQuery(req domain.SearchRequest) (string, []any, bool) {
 	}
 	match := ftsQuery(req.Filter.Terms)
 	if match == "" {
-		// With no terms the FTS join is dropped ("everything Dana said last week").
+		// No terms: no FTS join (e.g. "everything Dana said last week").
 		if req.Filter.Empty() {
 			return "", nil, false
 		}
@@ -36,8 +36,8 @@ func searchQuery(req domain.SearchRequest) (string, []any, bool) {
 	if !ok {
 		return "", nil, false
 	}
-	// A snippet is computed as a row is, before the sort: for a common word, every match
-	// would be tokenized to show a page. So the page is found first, then excerpted.
+	// snippet() runs per row before the sort, so find the page first, then excerpt it;
+	// otherwise a common word tokenizes every match.
 	return `
 		WITH page AS MATERIALIZED (
 		  SELECT m.rowid AS id
@@ -60,8 +60,8 @@ func searchQuery(req domain.SearchRequest) (string, []any, bool) {
 // newestFirst is a search's order: newestFirstIn across rooms.
 const newestFirst = " ORDER BY" + newestFirstIn
 
-// searchWhere is the conditions a request puts on m (and mm), each opening with AND,
-// with their values appended to args; false when they can match nothing.
+// searchWhere returns the request's AND conditions on m (and mm), appending their
+// values to args; false when they can match nothing.
 func searchWhere(req domain.SearchRequest, args []any) (string, []any, bool) {
 	var sql string
 	if !req.Rooms.All {
@@ -105,9 +105,8 @@ func searchWhere(req domain.SearchRequest, args []any) (string, []any, bool) {
 	return sql, args, true
 }
 
-// plainFrom is a search's FROM without terms. Starred messages and files are few: the
-// small table drives (CROSS JOIN fixes the order), where walking every message newest
-// first would read the whole cache to fill a page.
+// plainFrom is a search's FROM without terms. Starred and file tables are small, so
+// they drive the join (CROSS JOIN fixes the order) instead of scanning every message.
 func plainFrom(filter domain.SearchFilter) string {
 	const media = `
 		LEFT JOIN message_media mm ON mm.room_id = m.room_id AND mm.event_id = m.event_id`
@@ -121,9 +120,9 @@ func plainFrom(filter domain.SearchFilter) string {
 	}
 }
 
-// trackedClause narrows to messages containing any tracked word as a substring
-// (a superset; SearchMessages applies domain.Tracked's word rule). False when
-// nothing is tracked, which must match nothing rather than drop the filter.
+// trackedClause narrows to messages containing any tracked word as a substring (a
+// superset; SearchMessages applies the word rule). False when nothing is tracked:
+// that must match nothing, not drop the filter.
 func trackedClause(words []string) (string, []any, bool) {
 	likes := make([]string, 0, len(words))
 	args := make([]any, 0, len(words))
@@ -141,11 +140,10 @@ func trackedClause(words []string) (string, []any, bool) {
 	return " AND (" + strings.Join(likes, " OR ") + ")", args, true
 }
 
-// snippetTokens is the tokens of context a result excerpt carries.
+// snippetTokens is the number of context tokens in a result excerpt.
 const snippetTokens = 12
 
-// SearchMessages finds cached non-redacted messages matching req, newest first. A
-// request with nothing searchable returns nothing and no error.
+// SearchMessages finds cached non-redacted messages matching req, newest first.
 func (c *Cache) SearchMessages(ctx context.Context, req domain.SearchRequest) ([]domain.SearchHit, error) {
 	query, args, ok := searchQuery(req)
 	if !ok {
@@ -185,9 +183,9 @@ func (c *Cache) SearchMessages(ctx context.Context, req domain.SearchRequest) ([
 	return kept, nil
 }
 
-// ftsQuery turns input into an FTS5 MATCH expression, or "". Every token is quoted
-// as a literal (FTS5 syntax errors on "?", "(", "-x"), "quoted phrases" stay whole,
-// and the last unquoted token is prefix-matched for search-as-you-type.
+// ftsQuery turns input into an FTS5 MATCH expression, or "". Tokens are quoted (FTS5
+// errors on "?", "(", "-x"), phrases stay whole, and the last unquoted token is
+// prefix-matched for search-as-you-type.
 func ftsQuery(input string) string {
 	tokens, lastIsPhrase := splitSearchTokens(input)
 	if len(tokens) == 0 {
@@ -197,7 +195,7 @@ func ftsQuery(input string) string {
 	for i, tok := range tokens {
 		quoted := quoteFTS(tok)
 		if i == len(tokens)-1 && !lastIsPhrase {
-			quoted += "*" // prefix-match the word still being typed
+			quoted += "*"
 		}
 		parts = append(parts, quoted)
 	}

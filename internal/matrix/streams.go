@@ -10,10 +10,9 @@ import (
 // Messages streams incoming room messages to the UI.
 func (b *InProc) Messages() <-chan domain.Message { return b.out.msgs }
 
-// streams is what the backend publishes to its client, and the lock that keeps a
-// send off a closed channel. Sends are not all on the sync goroutine (recount from
-// RPCs; mautrix's waitForSession re-dispatch). Holding the read lock across a send is
-// safe only because every send is non-blocking.
+// streams is what the backend publishes, with a lock keeping sends off closed
+// channels (sends come from several goroutines). Holding the read lock across a send
+// is safe only because every send is non-blocking.
 type streams struct {
 	mu        sync.RWMutex
 	closed    bool
@@ -24,8 +23,7 @@ type streams struct {
 	invites   chan []domain.Room
 }
 
-// open makes the channels, each buffered so sync never waits on the client. Before
-// it, every channel is nil and emit drops what it is given.
+// open makes the buffered channels. Before it, every channel is nil and emit drops.
 func (s *streams) open() {
 	s.msgs = make(chan domain.Message, messageBuffer)
 	s.unread = make(chan domain.Unread, messageBuffer)
@@ -34,8 +32,8 @@ func (s *streams) open() {
 	s.invites = make(chan []domain.Room, inviteBuffer)
 }
 
-// emit delivers v unless the streams are closed (a send on a closed channel panics).
-// Lossy on a full buffer: every stream has a cache read behind it.
+// emit delivers v unless the streams are closed. Lossy on a full buffer: every stream
+// has a cache read behind it.
 func emit[T any](s *streams, ch chan T, v T) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -48,8 +46,8 @@ func emit[T any](s *streams, ch chan T, v T) {
 	}
 }
 
-// close closes every channel once, under the write lock so concurrent sends see
-// closed. The verification channel is not here: its one send selects on the verification context.
+// close closes every channel once, under the write lock. The verification channel is
+// not here: its one send selects on the verification context.
 func (s *streams) close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

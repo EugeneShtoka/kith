@@ -8,10 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A message read from the cache names its sender and the people it mentions as the
-// room names them now: a member who renamed is read by the new name, in the
-// timeline and in search alike, and someone the room does not list keeps the words
-// the message was sent with.
+// Cached messages show sender and mentions by current member names, in timeline and
+// search; someone the room does not list keeps the name the message was sent with.
 func TestMessagesAreReadWithTheNamesKnownNow(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()

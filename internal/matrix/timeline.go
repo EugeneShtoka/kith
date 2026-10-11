@@ -15,12 +15,11 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// undecryptableBody stands in for an encrypted event we have no megolm session for,
-// so undecryptable history stays visible instead of looking like an empty room.
+// undecryptableBody stands in for an encrypted event with no megolm session, so
+// such history stays visible.
 const undecryptableBody = "🔒 Encrypted message — no decryption key"
 
-// cacheMessages writes messages to the cache, plus their revisions when keepDeleted.
-// Best-effort: every path that caches messages goes through here.
+// cacheMessages caches messages, with revisions when keepDeleted; best-effort.
 func (b *InProc) cacheMessages(ctx context.Context, roomID domain.RoomID, msgs []domain.Message) {
 	if b.cache == nil || len(msgs) == 0 {
 		return
@@ -55,8 +54,8 @@ func (b *InProc) Timeline(ctx context.Context, roomID domain.RoomID, from string
 	return b.pageFrom(ctx, roomID, resp.Chunk, next), nil
 }
 
-// chainPrefix marks a Next token we made up: "continue in this other room".
-// Server tokens are opaque, so ours must be something no server would emit.
+// chainPrefix marks a Next token of our own meaning "continue in this other room";
+// it must not collide with opaque server tokens.
 const chainPrefix = "kith:chain:"
 
 // chainNext returns the token continuing scrollback into roomID's predecessor, or
@@ -146,9 +145,8 @@ func (b *InProc) hydrate(ctx context.Context, roomID domain.RoomID, evt *event.E
 	return b.decryptEvent(ctx, evt)
 }
 
-// fetchedMessage converts a hydrated event, substituting a visible placeholder for
-// one we could not decrypt (undecrypted: never cache it, or it pins the message
-// unreadable after its session arrives). ok is false for non-message events.
+// fetchedMessage converts a hydrated event, with a placeholder for one not decrypted
+// (undecrypted: do not cache it). ok is false for non-message events.
 func (b *InProc) fetchedMessage(ctx context.Context, roomID domain.RoomID, evt *event.Event) (msg domain.Message, undecrypted, ok bool) {
 	msg, ok = toDomainMessage(evt)
 	if !ok {
@@ -187,9 +185,8 @@ func (b *InProc) restoreKept(ctx context.Context, roomID domain.RoomID, msgs []d
 	}
 }
 
-// MessageHistory is every version of one message, oldest first, merged from the
-// cache (kept versions) and the server (every m.replace, but no redacted original).
-// Fetched on demand only.
+// MessageHistory is every version of one message, oldest first, merged from kept
+// versions and the server's m.replace events (which lack a redacted original).
 func (b *InProc) MessageHistory(
 	ctx context.Context, roomID domain.RoomID, eventID domain.EventID,
 ) ([]domain.Revision, domain.Deletion, error) {
@@ -218,8 +215,7 @@ func (b *InProc) fetchRevisions(
 	if original, err := b.client.GetEvent(ctx, id.RoomID(roomID), id.EventID(eventID)); err == nil {
 		original.RoomID = id.RoomID(roomID)
 		parse(original)
-		// A redacted event carries its redaction in unsigned.redacted_because, the only
-		// source for when it was deleted.
+		// unsigned.redacted_because is the only source for when it was deleted.
 		if because := original.Unsigned.RedactedBecause; because != nil {
 			parse(because)
 			deletion = domain.Deletion{

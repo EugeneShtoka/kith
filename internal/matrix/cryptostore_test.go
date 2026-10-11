@@ -14,8 +14,8 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// keysServer answers what the crypto helper's Init asks (our own keys: none yet, so
-// it uploads them) and the encryption state of sealedRoom.
+// keysServer answers the crypto helper's Init (no keys yet, so it uploads them) and
+// sealedRoom's encryption state.
 func keysServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -47,9 +47,8 @@ func cryptoBackendOn(t *testing.T, srv *httptest.Server) *InProc {
 	return b
 }
 
-// The state store is in place before any RPC runs, and sync keeps it current: the
-// crypto helper feeds only a store it made itself, and an unfed store would read a
-// room that turned on encryption as plain.
+// The state store is in place before any RPC and kept current by sync; an unfed store
+// would read a newly encrypted room as plain.
 func TestTheCryptoStoreFollowsSync(t *testing.T) {
 	t.Parallel()
 
@@ -73,9 +72,8 @@ func TestTheCryptoStoreFollowsSync(t *testing.T) {
 	}
 }
 
-// On a degraded start, encryption comes up while RPCs already run: they read the
-// state store (ours, and mautrix's after each call) and the sync store. Meaningful
-// under -race, which fails on any unordered write.
+// On a degraded start, encryption comes up while RPCs read the state and sync stores.
+// Meaningful under -race.
 func TestEncryptionComesUpUnderLiveRPCs(t *testing.T) {
 	t.Parallel()
 

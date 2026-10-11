@@ -11,11 +11,11 @@ import (
 
 const me = "@me:x"
 
-// mine is me as the counts take it: every MXID that is this person.
+// mine is every MXID that is this person.
 var mine = []string{me}
 
-// The count is what has not been read, which is a different question from the one
-// the homeserver answers (what would have notified you).
+// The count is what is unread, not what would have notified (the server's number);
+// our own message floors what came before it.
 func TestCountUnreadCountsWhatHasNotBeenRead(t *testing.T) {
 	t.Parallel()
 
@@ -43,14 +43,12 @@ func TestCountUnreadCountsWhatHasNotBeenRead(t *testing.T) {
 	if !counted {
 		t.Fatal("counted = false for a room whose read event is cached")
 	}
-	// **One, not two.**
 	if messages != 1 || mentions != 1 {
 		t.Errorf("CountUnread() = %d messages, %d mentions; want 1, 1 — our own message floors what came before it", messages, mentions)
 	}
 }
 
-// The floor is the *later* of the receipt and our own message, not our own message
-// instead of it: a receipt ahead of anything we wrote still governs.
+// The floor is the later of the receipt and our own newest message.
 func TestCountUnreadKeepsTheLaterFloor(t *testing.T) {
 	t.Parallel()
 
@@ -74,16 +72,14 @@ func TestCountUnreadKeepsTheLaterFloor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CountUnread() error = %v", err)
 	}
-	// Only $after: the receipt is newer than our message, so it is the floor and
-	// $answer is read by it. A max() of the two, never a replacement.
+	// Only $after: the receipt is newer than our message.
 	if !counted || messages != 1 {
 		t.Errorf("CountUnread() = %d (counted %v), want 1 — the receipt is the later floor", messages, counted)
 	}
 }
 
-// A room the cache cannot answer for — the receipt names an event that aged out, or
-// the room was never opened — has to come back uncounted, so the caller falls back
-// to the server's number instead of drawing a confident zero.
+// A room whose read event is not cached comes back uncounted, so the caller falls
+// back to the server's number.
 func TestCountUnreadReportsWhenItCannotAnswer(t *testing.T) {
 	t.Parallel()
 
@@ -103,8 +99,7 @@ func TestCountUnreadReportsWhenItCannotAnswer(t *testing.T) {
 	}
 }
 
-// A message sharing the receipt's millisecond counts as **read**, whichever event ID
-// it has — and this test replaces one that asserted the opposite.
+// A message sharing the receipt's millisecond counts as read, whatever its event ID.
 func TestAMessageSharingTheReceiptsMillisecondCountsAsRead(t *testing.T) {
 	t.Parallel()
 
@@ -114,7 +109,7 @@ func TestAMessageSharingTheReceiptsMillisecondCountsAsRead(t *testing.T) {
 	mustSave(t, cache, "!a:x", domain.Message{ID: "$aaa", Sender: "@alice:x", Body: "first", Timestamp: same})
 	mustSave(t, cache, "!a:x", domain.Message{ID: "$bbb", Sender: "@alice:x", Body: "second", Timestamp: same})
 
-	// Either way round: the receipt on the lower ID is the case that used to stick.
+	// Either way round, including the receipt on the lower ID.
 	for _, read := range []domain.EventID{"$aaa", "$bbb"} {
 		if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", ReadEvent: read}, 0); err != nil {
 			t.Fatalf("SaveUnread() error = %v", err)
@@ -131,8 +126,7 @@ func TestAMessageSharingTheReceiptsMillisecondCountsAsRead(t *testing.T) {
 		}
 	}
 
-	// A genuinely later message is still counted, which is the half that must not
-	// have been lost in the fix.
+	// A later message is still counted.
 	later := same.Add(time.Millisecond)
 	mustSave(t, cache, "!a:x", domain.Message{ID: "$ccc", Sender: "@alice:x", Body: "after", Timestamp: later})
 	messages, _, _, err := cache.CountUnread(ctx, mine, "!a:x")
@@ -144,8 +138,7 @@ func TestAMessageSharingTheReceiptsMillisecondCountsAsRead(t *testing.T) {
 	}
 }
 
-// The batch form answers for every room it can and stays silent about the rest,
-// which is what lets startup badge a mixture of counted and uncounted rooms.
+// CountUnreadAll omits rooms it cannot count.
 func TestCountUnreadAllOmitsRoomsItCannotAnswerFor(t *testing.T) {
 	t.Parallel()
 
@@ -178,8 +171,7 @@ func TestCountUnreadAllOmitsRoomsItCannotAnswerFor(t *testing.T) {
 	}
 }
 
-// The read position only moves forward by its event's time; the counts and the mark
-// are replaced whatever the position does.
+// The read position only moves forward by time; counts and the mark are always replaced.
 func TestSaveUnreadKeepsTheNewerPosition(t *testing.T) {
 	t.Parallel()
 

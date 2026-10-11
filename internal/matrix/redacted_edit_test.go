@@ -18,8 +18,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A deleted edit, as the daemon handles it live: the message it showed goes back to
-// the version before it, and the client is sent that, marked to replace what it shows.
+// A deleted edit reverts the message to the prior version, sent as a replacement.
 func TestADeletedEditRevertsTheMessage(t *testing.T) {
 	t.Parallel()
 
@@ -116,8 +115,7 @@ func serveOriginal(body string) http.HandlerFunc {
 	}
 }
 
-// Deleting many edits at once asks the server for at most readFetchWorkers versions at
-// a time, and for each deleted edit once.
+// Deleting many edits fetches at most readFetchWorkers at a time, each once.
 func TestDeletedEditFetchesAreBounded(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -40,9 +40,8 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	}
 	peers, directRead := b.directPeers(ctx)
 	known := b.cachedRoomIndex(ctx)
-	// Spaces come back from /joined_rooms too; drop them using the cached space list
-	// (asking per room would be a state call each). On a cold cache Cache.Rooms
-	// filters them instead.
+	// /joined_rooms includes spaces; drop them by the cached space list rather than a
+	// state call per room. On a cold cache Cache.Rooms filters them.
 	spaces := b.cachedSpaceIDs(ctx)
 	joined := make([]id.RoomID, 0, len(resp.JoinedRooms))
 	for _, roomID := range resp.JoinedRooms {
@@ -56,9 +55,8 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 		peer, isDM := peers[roomID]
 		prev, seen := known[roomID]
 		if !directRead && seen {
-			// m.direct could not be read: which rooms are DMs is what the cache knew.
-			// It decides what an agent may see (`except = ["dm"]`), so an unread list
-			// must not read as "no DMs".
+			// m.direct unreadable: keep the cached DM flag, since it decides agent
+			// scope (`except = ["dm"]`).
 			isDM = prev.IsDirect
 		}
 		name, members := b.roomName(ctx, roomID, peer, prev, seen)
@@ -111,8 +109,8 @@ func (b *InProc) roomName(ctx context.Context, roomID id.RoomID, peer id.UserID,
 		shown, extra, ok = b.heroMembers(ctx, roomID)
 	}
 
-	// A name that cannot be read keeps the cached one: `room:<name>` entries decide
-	// what an agent may see, so a failed read must not rename the room out of them.
+	// An unreadable name keeps the cached one: `room:<name>` entries decide agent
+	// scope, so a failed read must not rename the room out of them.
 	var rn event.RoomNameEventContent
 	err := b.client.StateEvent(ctx, roomID, event.StateRoomName, "", &rn)
 	switch {
@@ -147,8 +145,8 @@ func (b *InProc) roomName(ctx context.Context, roomID id.RoomID, peer id.UserID,
 	return domain.FormatHeroes(shown, extra), shown
 }
 
-// roomTopic reads m.room.topic; "" when absent or unreadable. Fetched every refresh
-// (cheap, and topics must be current), unlike members.
+// roomTopic reads m.room.topic; "" when absent or unreadable. Unlike members, it is
+// fetched every refresh.
 func (b *InProc) roomTopic(ctx context.Context, roomID id.RoomID) string {
 	var topic event.TopicEventContent
 	if err := b.client.StateEvent(ctx, roomID, event.StateTopic, "", &topic); err != nil {
@@ -262,7 +260,6 @@ func (b *InProc) roomMemberNames(ctx context.Context, roomID domain.RoomID) map[
 	seen := b.names.seen(roomID)
 	resp, err := b.client.JoinedMembers(ctx, id.RoomID(roomID))
 	if err != nil {
-		// Not memoized, so the next call retries; names show as IDs meanwhile.
 		b.warnIf(ctx, err, "fetch joined members", "room", roomID)
 		return nil
 	}

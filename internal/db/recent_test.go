@@ -14,10 +14,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/vocab"
 )
 
-// vocab.Fold and spell.Words must see the words the full-text index sees, or recent
-// completion offers words the index spells differently. Compared per message, over
-// the words completion can offer (letters only, 3+ long). Numbers, code and URLs are
-// skipped by spell.Words on purpose; those are not compared.
+// vocab.Fold and spell.Words tokenize like the full-text index, over words completion
+// can offer (letters only, 3+ long); numbers, code and URLs are skipped on purpose.
 func TestRecentVocabTokensAgreeWithTheIndex(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -34,8 +32,7 @@ func TestRecentVocabTokensAgreeWithTheIndex(t *testing.T) {
 	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}}); err != nil {
 		t.Fatal(err)
 	}
-	// The index's own terms, through a vocabulary view on this connection only: the
-	// schema has none, since nothing but this test would read it.
+	// A temp vocabulary view; the schema has none since only this test reads it.
 	if _, err := cache.db.ExecContext(ctx,
 		`CREATE VIRTUAL TABLE temp.index_terms USING fts5vocab(main, messages_fts, 'instance')`); err != nil {
 		t.Fatal(err)
@@ -86,8 +83,7 @@ func TestRecentVocabTokensAgreeWithTheIndex(t *testing.T) {
 		t.Errorf("recent completion agrees with the index on only %.0f%% of words", 100*rate)
 	}
 
-	// The one deliberate difference: the index has the words of URLs and inline code,
-	// and recent completion does not offer them.
+	// Deliberate difference: completion skips words of URLs and inline code.
 	for _, word := range vocab.Words("see https://example.org/path and `make check` now") {
 		if slices.Contains([]string{"https", "example", "org", "path", "make", "check"}, word) {
 			t.Errorf("%q from a URL or code span is counted", word)

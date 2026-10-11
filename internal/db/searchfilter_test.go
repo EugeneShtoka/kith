@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A room with three people talking across three days, which is what makes each
-// filter distinguishable from the others.
+// filteredCache holds three people talking across three days, so each filter is
+// distinguishable.
 func filteredCache(t *testing.T) *Cache {
 	t.Helper()
 	cache := openTemp(t)
@@ -45,8 +45,7 @@ func search(t *testing.T, cache *Cache, req domain.SearchRequest) []domain.Searc
 	return hits
 }
 
-// The scope arrives as a set of rooms, which is how one room, a space's rooms and
-// every room are all the same question.
+// The scope is a set of rooms: one room, a space's rooms or every room.
 func TestSearchScopesToARoomSet(t *testing.T) {
 	cache := filteredCache(t)
 	all := search(t, cache, domain.SearchRequest{Filter: domain.SearchFilter{Terms: "invoice"}, Rooms: domain.EveryRoom()})
@@ -69,8 +68,7 @@ func TestSearchScopesToARoomSet(t *testing.T) {
 	}
 }
 
-// A sender is matched against the MXID and the display name, because what you
-// remember is "Dana" and what identifies her is "@dana:x".
+// A sender filter matches the MXID and the display name.
 func TestSearchFiltersBySender(t *testing.T) {
 	cache := filteredCache(t)
 	for _, who := range []string{"@dana:x", "dana", "Dana"} {
@@ -110,16 +108,14 @@ func TestSearchFiltersByDateSpan(t *testing.T) {
 	}
 }
 
-// "Everything Dana said last week" is a real question with no terms in it, and
-// FTS5 has nothing to match on it — so the full-text join is dropped rather than
-// faked with a wildcard its grammar has no safe spelling for.
+// A search with filters but no terms drops the full-text join (FTS5 has no safe
+// match-all).
 func TestSearchWithNoTermsButFilters(t *testing.T) {
 	cache := filteredCache(t)
 	hits := search(t, cache, domain.SearchRequest{Filter: domain.SearchFilter{Sender: "@dana:x"}, Rooms: domain.EveryRoom()})
 	if len(hits) != 2 {
 		t.Errorf("sender-only search found %d, want Dana's 2", len(hits))
 	}
-	// And with nothing at all, there is no question to answer.
 	if got := search(t, cache, domain.SearchRequest{}); len(got) != 0 {
 		t.Errorf("an empty request found %d, want none", len(got))
 	}
@@ -142,8 +138,7 @@ func TestSearchSenderWildcardsAreLiteral(t *testing.T) {
 	}
 }
 
-// The file list is a search with one clause, the way the mentions list is: no terms,
-// every message in scope carrying an attachment, newest first.
+// The file list is a search with no terms: messages with an attachment, newest first.
 func TestSearchNarrowsToMessagesWithAFile(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +165,6 @@ func TestSearchNarrowsToMessagesWithAFile(t *testing.T) {
 	if len(hits) != 2 {
 		t.Fatalf("got %d hits, want the two messages carrying a file", len(hits))
 	}
-	// Newest first, as every list here is.
 	if hits[0].EventID != "$4" || hits[1].EventID != "$2" {
 		t.Errorf("hits = %q, %q; want $4 then $2", hits[0].EventID, hits[1].EventID)
 	}
@@ -178,8 +172,7 @@ func TestSearchNarrowsToMessagesWithAFile(t *testing.T) {
 		t.Errorf("names = %q, %q; want the attachment names", hits[0].FileName, hits[1].FileName)
 	}
 
-	// Without the clause the file-less messages come back too, and the ones with a
-	// file still carry their name — the join is not conditional on the filter.
+	// Without the clause, file-less messages return too and files keep their name.
 	all := search(t, cache, domain.SearchRequest{Filter: domain.SearchFilter{Sender: "dana"}, Rooms: domain.EveryRoom()})
 	if len(all) != 4 {
 		t.Fatalf("got %d hits unfiltered, want all four", len(all))
@@ -195,8 +188,7 @@ func TestSearchNarrowsToMessagesWithAFile(t *testing.T) {
 	}
 }
 
-// A file list narrowed further by terms is still a file list: the clause and the
-// full-text match compose rather than one replacing the other.
+// The file clause and full-text terms compose.
 func TestSearchCombinesFileClauseWithTerms(t *testing.T) {
 	t.Parallel()
 
@@ -225,8 +217,7 @@ func TestSearchCombinesFileClauseWithTerms(t *testing.T) {
 	}
 }
 
-// A room set with no rooms reads no room: a scope that shares nothing must never read
-// everything. Every room is asked for by name (EveryRoom), and then everything is read.
+// An empty room set reads no room; only EveryRoom reads everything.
 func TestAnEmptyRoomSetReadsNoRoom(t *testing.T) {
 	t.Parallel()
 	cache := filteredCache(t)

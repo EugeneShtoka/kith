@@ -16,8 +16,7 @@ func TestMembersRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	// A cold cache has no members, which is not an error — the dropdown shows what
-	// it has and the refresh fills it in.
+	// A cold cache has no members, which is not an error.
 	got, err := cache.Members(ctx, "!a:x", 0)
 	if err != nil {
 		t.Fatalf("Members on a cold cache: %v", err)
@@ -53,9 +52,7 @@ func TestMembersRoundTrip(t *testing.T) {
 	}
 }
 
-// The list is a per-room snapshot: someone missing from /joined_members has left,
-// and an upsert would keep offering them in the dropdown forever. Other rooms must
-// be untouched.
+// SaveMembers replaces one room's snapshot: anyone missing has left; other rooms are untouched.
 func TestSaveMembersIsAPerRoomSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -74,7 +71,6 @@ func TestSaveMembersIsAPerRoomSnapshot(t *testing.T) {
 		t.Fatalf("SaveMembers: %v", err)
 	}
 
-	// Leaver has gone from room A.
 	if err := cache.SaveMembers(ctx, "!a:x", []domain.Member{
 		{UserID: "@alice:x", DisplayName: "Alice"},
 	}); err != nil {
@@ -87,7 +83,6 @@ func TestSaveMembersIsAPerRoomSnapshot(t *testing.T) {
 	if len(roomA) != 1 || roomA[0].UserID != "@alice:x" {
 		t.Errorf("room A = %+v, want just alice", roomA)
 	}
-	// Room B is untouched.
 	roomB, err := cache.Members(ctx, "!b:x", 0)
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +116,7 @@ func TestMembersLimit(t *testing.T) {
 	if len(limited) != 10 {
 		t.Fatalf("limit 10 returned %d", len(limited))
 	}
-	// Ordered by display name, so the limit takes a predictable slice.
+	// Ordered by display name, so the limit is predictable.
 	if limited[0].DisplayName != "Person 000" {
 		t.Errorf("first = %q, want the alphabetically first", limited[0].DisplayName)
 	}
@@ -134,8 +129,7 @@ func TestMembersLimit(t *testing.T) {
 	}
 }
 
-// Who you address in this room is a better guess than who you address in general,
-// but the general answer beats nothing in a room you are new to.
+// Addressees rank by this room's history first, then globally.
 func TestFrequentMentions(t *testing.T) {
 	t.Parallel()
 
@@ -155,8 +149,7 @@ func TestFrequentMentions(t *testing.T) {
 	record("!a:x", "@often:x", 5, at(20))
 	record("!b:x", "@elsewhere:x", 50, at(30))
 
-	// In room A, the room's own history leads; the global rung then contributes
-	// whoever isn't already placed.
+	// The room's history leads; the global ranking adds whoever is not placed yet.
 	got, err := cache.FrequentMentions(ctx, "!a:x", 10)
 	if err != nil {
 		t.Fatalf("FrequentMentions: %v", err)
@@ -168,8 +161,7 @@ func TestFrequentMentions(t *testing.T) {
 		t.Errorf("the global rung should follow, got %v", got)
 	}
 
-	// In an unknown room there is no local history, so the global ranking is all
-	// there is — and it is much better than nothing.
+	// An unknown room falls back to the global ranking.
 	cold, err := cache.FrequentMentions(ctx, "!new:x", 10)
 	if err != nil {
 		t.Fatal(err)
@@ -190,7 +182,7 @@ func TestFrequentMentions(t *testing.T) {
 	}
 }
 
-// The dropdown's best free guess: whoever just spoke.
+// Recent speakers rank by their latest message, per room.
 func TestRecentSpeakers(t *testing.T) {
 	t.Parallel()
 
@@ -205,8 +197,7 @@ func TestRecentSpeakers(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
-	// A different room, saved separately — SaveMessages files every message under
-	// the room it is given, not the one on the message.
+	// Saved separately: SaveMessages files messages under the room it is given.
 	if err := cache.SaveMessages(ctx, "!other:x", []domain.Message{
 		{ID: "$4", RoomID: "!other:x", Sender: "@elsewhere:x", Body: "other room", Timestamp: at(99)},
 	}); err != nil {
@@ -223,7 +214,6 @@ func TestRecentSpeakers(t *testing.T) {
 	if got[0] != "@recent:x" || got[1] != "@old:x" {
 		t.Errorf("speakers = %v, want recent then old", got)
 	}
-	// Scoped to the room.
 	for _, sender := range got {
 		if sender == "@elsewhere:x" {
 			t.Error("another room's speaker leaked in")
@@ -231,8 +221,7 @@ func TestRecentSpeakers(t *testing.T) {
 	}
 }
 
-// Who a search can be narrowed to: the people who actually posted, across whatever
-// rooms the scope covers, ranked by how much they said.
+// Search senders are those who posted in scope, ranked by message count.
 func TestSearchSenders(t *testing.T) {
 	t.Parallel()
 
@@ -252,7 +241,7 @@ func TestSearchSenders(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
-	// A name comes from the membership, and only for those who have one.
+	// A name comes from the membership, when there is one.
 	if err := cache.SaveMembers(ctx, "!a:x", []domain.Member{
 		{UserID: "@loud:x", DisplayName: "Loud Larry"},
 		{UserID: "@quiet:x"},
@@ -260,7 +249,7 @@ func TestSearchSenders(t *testing.T) {
 		t.Fatalf("SaveMembers: %v", err)
 	}
 
-	// Scoped to one room: whoever said most first.
+	// One room: whoever said most first.
 	got, err := cache.SearchSenders(ctx, domain.TheseRooms([]domain.RoomID{"!a:x"}), 0)
 	if err != nil {
 		t.Fatalf("SearchSenders: %v", err)
@@ -271,8 +260,7 @@ func TestSearchSenders(t *testing.T) {
 	if got[0].UserID != "@loud:x" || got[0].DisplayName != "Loud Larry" {
 		t.Errorf("first = %+v, want the most prolific sender, named", got[0])
 	}
-	// No membership row with a name: offered under the MXID rather than dropped,
-	// because that is what the filter matches on anyway.
+	// Without a named membership the sender is offered under the MXID, not dropped.
 	if got[1].UserID != "@quiet:x" || got[1].DisplayName != "" {
 		t.Errorf("second = %+v, want @quiet:x with no name", got[1])
 	}
@@ -286,7 +274,7 @@ func TestSearchSenders(t *testing.T) {
 		t.Errorf("global scope returned %+v, want everyone who has posted anywhere", all)
 	}
 
-	// The limit caps the ranking rather than truncating it arbitrarily.
+	// The limit caps the ranking.
 	top, err := cache.SearchSenders(ctx, domain.EveryRoom(), 1)
 	if err != nil {
 		t.Fatalf("SearchSenders(limit): %v", err)
@@ -296,9 +284,7 @@ func TestSearchSenders(t *testing.T) {
 	}
 }
 
-// SaveMember is the sync stream's writer: one person at a time, and it must not
-// disturb anyone else in the room. SaveMembers replaces the roster; this one edits
-// a row in it.
+// SaveMember edits one row of the roster without disturbing the rest.
 func TestSaveMemberUpsertsWithoutClearingTheRoom(t *testing.T) {
 	t.Parallel()
 
@@ -312,7 +298,7 @@ func TestSaveMemberUpsertsWithoutClearingTheRoom(t *testing.T) {
 		t.Fatalf("SaveMembers: %v", err)
 	}
 
-	// A newcomer joins: added, and the two already there are untouched.
+	// A newcomer is added; the others are untouched.
 	if err := cache.SaveMember(ctx, "!a:x", domain.Member{UserID: "@carol:x", DisplayName: "Carol"}); err != nil {
 		t.Fatalf("SaveMember: %v", err)
 	}
@@ -320,8 +306,7 @@ func TestSaveMemberUpsertsWithoutClearingTheRoom(t *testing.T) {
 		t.Fatalf("after a join: %v", got)
 	}
 
-	// A rename is the same event type, so it must overwrite rather than fail on the
-	// primary key or add a second row for the same person.
+	// A rename overwrites the row rather than adding one or failing on the key.
 	if err := cache.SaveMember(ctx, "!a:x", domain.Member{UserID: "@bob:x", DisplayName: "Robert"}); err != nil {
 		t.Fatalf("SaveMember rename: %v", err)
 	}
@@ -334,8 +319,7 @@ func TestSaveMemberUpsertsWithoutClearingTheRoom(t *testing.T) {
 	}
 }
 
-// A leave has to remove the row, or the mention dropdown keeps offering someone who
-// is gone and Space.Keeper keeps counting the room toward their reach.
+// A leave removes the row, so the person is no longer offered or counted.
 func TestRemoveMemberDropsOnlyThatPerson(t *testing.T) {
 	t.Parallel()
 
@@ -359,8 +343,7 @@ func TestRemoveMemberDropsOnlyThatPerson(t *testing.T) {
 		t.Errorf("@bob:x was collateral: %v", got)
 	}
 
-	// Leaves arrive for people whose join this cache never saw — a cold start that
-	// begins mid-conversation. That is a no-op, not an error.
+	// A leave for someone never seen joining (cold start) is a no-op, not an error.
 	if err := cache.RemoveMember(ctx, "!a:x", "@ghost:x"); err != nil {
 		t.Errorf("RemoveMember on an unknown member: %v", err)
 	}
@@ -383,9 +366,8 @@ func memberNames(t *testing.T, cache *Cache, roomID domain.RoomID) map[string]st
 	return names
 }
 
-// Naming one person twice (an MXID and a name that resolves to it) narrows to the
-// rooms they are in, not to none: the count the query matches against is of
-// distinct people.
+// Naming one person twice (MXID and name) narrows to their rooms, not to none: the
+// query counts distinct people.
 func TestRoomsWithCountsEachPersonOnce(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
@@ -404,8 +386,7 @@ func TestRoomsWithCountsEachPersonOnce(t *testing.T) {
 	}
 }
 
-// Rooms equally recent (no messages cached, or bridged ones stamped alike) come back
-// in one order every time, not whichever the query planner met first.
+// Equally recent rooms come back in a stable order.
 func TestRoomsWithOrdersTiesByRoom(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()

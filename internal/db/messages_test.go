@@ -10,16 +10,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Marking a room read without opening it needs an event to point the receipt at,
-// and the newest cached message is the only one such a room has.
+// LatestEvents gives each room's newest cached message, the receipt target for
+// marking a room read unopened.
 func TestLatestEventsPicksTheNewestPerRoom(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
 	base := time.Date(2026, 8, 24, 9, 0, 0, 0, time.UTC)
 
-	// Saved oldest-last, so a query that returned insertion order rather than time
-	// order would pick the wrong one.
+	// Saved newest-first, so insertion order would pick the wrong one.
 	for _, msg := range []domain.Message{
 		{ID: "$a-new", Timestamp: base.Add(2 * time.Hour)},
 		{ID: "$a-mid", Timestamp: base.Add(time.Hour)},
@@ -29,8 +28,7 @@ func TestLatestEventsPicksTheNewestPerRoom(t *testing.T) {
 	}
 	mustSave(t, cache, "!b:x", domain.Message{ID: "$b-only", Timestamp: base})
 
-	// !c:x is a room nothing has been cached for — never opened, nothing of its own
-	// seen — and !d:x was never heard of at all.
+	// !c:x has nothing cached.
 	got, err := cache.LatestEvents(ctx, []domain.RoomID{"!a:x", "!b:x", "!c:x"})
 	if err != nil {
 		t.Fatalf("LatestEvents() error = %v", err)
@@ -43,14 +41,13 @@ func TestLatestEventsPicksTheNewestPerRoom(t *testing.T) {
 		t.Error("a room with nothing cached must be absent, not empty")
 	}
 
-	// No rooms asked about is not a query, and not an error either.
+	// No rooms: no error.
 	if empty, eerr := cache.LatestEvents(ctx, nil); eerr != nil || len(empty) != 0 {
 		t.Errorf("LatestEvents(nil) = %v, %v; want an empty map", empty, eerr)
 	}
 }
 
-// A live message arriving later moves the answer, which is what makes the feature
-// keep working: the receipt has to land on what arrived while nobody was looking.
+// A later live message moves the answer.
 func TestLatestEventsFollowsNewMessages(t *testing.T) {
 	t.Parallel()
 
@@ -67,9 +64,8 @@ func TestLatestEventsFollowsNewMessages(t *testing.T) {
 	}
 }
 
-// When each room last had a message, for the room list's activity order. A room the
-// cache holds nothing for is absent rather than zero: absence means unknown, and a
-// room from 1970 would sort as if it had been silent since.
+// A room with nothing cached is absent, not zero, which would sort as silent since
+// 1970.
 func TestLastMessages(t *testing.T) {
 	t.Parallel()
 
@@ -130,8 +126,7 @@ func TestSaveMessagesOverwritesBodyOnResave(t *testing.T) {
 			"placeholder guard in internal/matrix may no longer be needed", got[0].Body, "replaced")
 	}
 
-	// An edited row is the one case that resists replacement, which is why the
-	// guard cannot live here on its own: edited=1 is the only body the upsert protects.
+	// Only an edited row resists replacement.
 	mustSave(t, cache, "!r:x", domain.Message{ID: "$ed:x", Body: "edited text", Edited: true, Timestamp: at})
 	mustSave(t, cache, "!r:x", domain.Message{ID: "$ed:x", Body: "plain resave", Timestamp: at})
 	got, err = cache.Messages(ctx, "!r:x", 10)
@@ -165,8 +160,8 @@ func TestNewestTSCoversMessagesAndEdits(t *testing.T) {
 	}
 }
 
-// A message found by its ending is one of the owner's, whole tail matched: not
-// another account's, not one whose number only ends the same.
+// A message found by its ending is the owner's, whole tail matched: not another
+// account's, nor one whose number only ends the same.
 func TestMessagesAreFoundByTheirEnding(t *testing.T) {
 	t.Parallel()
 	c := openTemp(t)
@@ -198,8 +193,8 @@ func TestMessagesAreFoundByTheirEnding(t *testing.T) {
 	}
 }
 
-// A placeholder replaced by an edit bringing a picture shows the picture; an older
-// edit arriving after it, with another, does not replace it.
+// An edit bringing a picture replaces a placeholder; an older edit arriving later
+// does not.
 func TestAnEditBringsItsPictureOnlyWhereItCounts(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()

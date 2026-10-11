@@ -7,10 +7,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// memberNameMemo is each room's user-ID→display-name map, one request per room. A
-// present map means the room is fully resolved. Maps are replaced, never mutated,
-// because callers hold them outside the lock. changes counts each room's membership
-// changes, so a fetch that a change overtook installs nothing (putAt).
+// memberNameMemo is each room's user-ID→display-name map; a present map means fully
+// resolved. Maps are replaced, never mutated: callers hold them outside the lock.
+// changes counts membership changes so a fetch overtaken by one installs nothing.
 type memberNameMemo struct {
 	mu      sync.Mutex
 	rooms   map[domain.RoomID]map[string]string
@@ -24,8 +23,7 @@ func (n *memberNameMemo) seen(roomID domain.RoomID) uint64 {
 	return n.changes[roomID]
 }
 
-// putAt memoizes names fetched when the room's change count was seen, unless a change
-// came since: the list predates it, and the next lookup fetches again.
+// putAt memoizes names fetched at change count seen, unless a change came since.
 func (n *memberNameMemo) putAt(roomID domain.RoomID, seen uint64, names map[string]string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -46,9 +44,8 @@ func (n *memberNameMemo) get(roomID domain.RoomID) (map[string]string, bool) {
 	return names, ok
 }
 
-// rename applies a membership change ("" removes) to a room already resolved; a room
-// not yet resolved is left alone, its first lookup fetches the whole list. Either way
-// it is counted, so a fetch already under way does not install a list without it.
+// rename applies a membership change ("" removes) to a resolved room and always counts
+// it, so an in-flight fetch does not install a list without it.
 func (n *memberNameMemo) rename(roomID domain.RoomID, userID, name string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()

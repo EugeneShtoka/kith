@@ -103,8 +103,7 @@ func TestCachelessUnreadAnswersNothing(t *testing.T) {
 	}
 }
 
-// Regression: a deletion whose words were kept went blank once a server page (which
-// carries no content for redactions) was fetched.
+// A kept deletion's words survive a server page, which carries no redacted content.
 func TestAKeptDeletionSurvivesAPageFromTheServer(t *testing.T) {
 	t.Parallel()
 

@@ -80,8 +80,8 @@ func newBackupKey(t *testing.T) *backup.MegolmBackupKey {
 	return key
 }
 
-// The uploaded payload (hand-assembled, since mautrix's export() is unexported) must
-// decrypt back into the session it came from.
+// The uploaded payload (hand-built, as mautrix's export() is unexported) decrypts
+// back into its session.
 func TestUploadRoomKeysRoundTrips(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()

@@ -12,13 +12,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Benchmarks for the cache's hot queries at a realistic size: 400 rooms holding 500
-// messages each (200k in all, about 2.7M words), words Zipf-distributed so common prefixes hit many
-// rows, as real text does. Run:
+// Hot-query benchmarks over 400 rooms × 500 messages, Zipf-distributed words so common
+// prefixes hit many rows. One fixture, one sub-benchmark per query:
 //
 //	go test ./internal/db -run xxx -bench Queries -benchmem
-//
-// Seeding takes a while, so every query is a sub-benchmark of one fixture.
 
 const (
 	benchRooms   = 400
@@ -63,7 +60,7 @@ func seedBench(b *testing.B) (*Cache, []domain.RoomID) {
 		rooms[r] = domain.RoomID(fmt.Sprintf("!room%03d:example.org", r))
 		joined[r] = domain.Room{ID: rooms[r], Name: fmt.Sprintf("Room %d", r)}
 	}
-	// All at once: SaveRooms is the whole joined set, and sweeps any room it omits.
+	// All at once: SaveRooms sweeps any room it omits.
 	if err := cache.SaveRooms(ctx, domain.MatrixRooms, joined); err != nil {
 		b.Fatal(err)
 	}
@@ -71,7 +68,7 @@ func seedBench(b *testing.B) (*Cache, []domain.RoomID) {
 		msgs := make([]domain.Message, benchPerRoom)
 		var reactions []domain.Reaction
 		for i := range msgs {
-			n := 4 + rng.IntN(20) // a chat message: a few words to a couple of sentences
+			n := 4 + rng.IntN(20)
 			body := make([]string, n)
 			for w := range body {
 				body[w] = words[zipf.Uint64()]

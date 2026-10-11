@@ -10,14 +10,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// writer is one owner's rooms: a pool to draw snapshots from.
+// writer is one owner's rooms, a pool to draw snapshots from.
 type writer struct {
 	owner domain.RoomOwner
 	pool  []domain.RoomID
 }
 
-// writers are Matrix and two WhatsApp accounts whose digits begin alike, so an ID
-// prefix sloppy by one character would reach the other's rooms.
+// writers are Matrix and two WhatsApp accounts with alike digits, so an ID prefix off
+// by one character would reach another's rooms.
 func writers(sizes ...int) []writer {
 	matrix := writer{owner: domain.MatrixRooms}
 	a := writer{owner: domain.AccountRooms(domain.ProtocolWhatsApp, "44")}
@@ -36,9 +36,8 @@ func writers(sizes ...int) []writer {
 	return []writer{matrix, a, b}
 }
 
-// Any interleaving of every network's room refreshes: a room is cached exactly when
-// its own writer's latest snapshot holds it (or its writer never sent one without
-// it), and its history is never swept by another writer's.
+// Under any interleaving of room refreshes, a room is cached exactly when its writer's
+// latest snapshot holds it (or never omitted it), and no other writer sweeps its history.
 func TestEachNetworksRefreshKeepsToItsOwnRooms(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -95,8 +94,7 @@ func TestEachNetworksRefreshKeepsToItsOwnRooms(t *testing.T) {
 	}
 }
 
-// A writer cannot save a room it does not own: the next refresh of the real owner
-// would treat it as its own and, worse, this writer's would sweep it.
+// A writer cannot save a room it does not own: its own refresh would later sweep it.
 func TestARoomOfAnotherWriterIsRefused(t *testing.T) {
 	t.Parallel()
 	cache := openTemp(t)
@@ -133,8 +131,7 @@ func TestAddingARoomSweepsNothing(t *testing.T) {
 	}
 }
 
-// Joining marks a room joined once, keeps a joined room's name, and promotes the
-// placeholder a message registered.
+// Joining marks a room joined, keeps its name, and promotes a message's placeholder.
 func TestJoiningARoomKeepsWhatIsKnown(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -166,8 +163,8 @@ func TestJoiningARoomKeepsWhatIsKnown(t *testing.T) {
 	}
 }
 
-// Any interleaving of every network's space refreshes: each writer's latest snapshot
-// is exactly its spaces, children and all; nobody else's is touched.
+// Under any interleaving of space refreshes, each writer's latest snapshot is exactly
+// its spaces, children and all.
 func TestEachNetworksSpacesKeepToThemselves(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

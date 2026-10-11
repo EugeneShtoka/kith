@@ -8,9 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An ID list longer than one statement may bind (SQLite's 32,766 variables) still
-// answers: an account in that many rooms, a space of that size, a star set that big.
-// Each reader that takes a list is asked with one, plus the one room that matters.
+// ID lists longer than SQLite's 32,766 bound variables still answer; each reader is
+// asked with one, plus the one room that matters.
 func TestLongIDListsStillAnswer(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
@@ -72,8 +71,7 @@ func TestLongIDListsStillAnswer(t *testing.T) {
 	}
 }
 
-// A room snapshot longer than SQLite's variable limit still sweeps the rooms it no
-// longer carries.
+// A room snapshot over SQLite's variable limit still sweeps rooms it omits.
 func TestAVeryLongRoomSnapshotStillSweeps(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
