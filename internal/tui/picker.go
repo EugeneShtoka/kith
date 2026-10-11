@@ -103,10 +103,10 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerIdentity:        {title: "Add to which person?"},
 	pickerColor:           {title: "Color"},
 	pickerContext:         {}, // title supplied at the call site
-	pickerScheduled:       {title: "Scheduled — choose one to cancel"},
+	pickerScheduled:       {title: "Scheduled — choose one to cancel", modal: true},
 	pickerRuleScope:       {title: "Notifications for what?"},
 	pickerSpeedScope:      {title: "Play at this speed for what?"},
-	pickerRuleList:        {title: "Notification rules"},
+	pickerRuleList:        {title: "Notification rules", modal: true},
 	pickerRulePreset:      {title: "Notify how?"},
 	pickerSettingGroups:   {title: "Settings", modal: true},
 	pickerSetting:         {modal: true}, // titled with the group
@@ -123,11 +123,11 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerFrequencies:     {title: "Install word counts, so typos that are also words get caught?", modal: true, multi: true},
 	pickerCompletionModel: {title: "Install the completion model, to run on this machine?", modal: true, multi: true},
 	pickerNewRoom:         {title: "Create what?"},
-	pickerPerson:          {},                         // titled with the person
+	pickerPerson:          {modal: true},              // titled with the person
 	pickerPersonKeys:      {},                         // titled with the person
 	pickerNewMembers:      {modal: true, multi: true}, // titled with the chat's name
 	pickerJump:            {title: "Go to"},
-	pickerTags:            {title: "Tags"},
+	pickerTags:            {title: "Tags", modal: true},
 	pickerTagEdit:         {},            // titled with the tag
 	pickerTagEntries:      {modal: true}, // titled with the tag and the list
 	pickerLoginNetwork:    {title: "Sign in to what?"},
@@ -373,6 +373,11 @@ func (m Model) pickerAction(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	if m.picker.mode != pickerNavigate {
 		return m, nil, false
 	}
+	if m.keys.lookup(key.String(), scopePicker) == actRemoveEntry {
+		if mdl, cmd, handled := m.removeUnderCursor(); handled {
+			return mdl, cmd, true
+		}
+	}
 	if m.picker.kind == pickerSetting {
 		switch m.keys.lookup(key.String(), scopePicker) {
 		case actIncrease:
@@ -389,16 +394,11 @@ func (m Model) pickerAction(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 			return answered(m.moveSettingEntry(-1))
 		case actMoveEntryDown:
 			return answered(m.moveSettingEntry(1))
-		case actRemoveEntry:
-			return answered(m.removeSettingEntry())
 		default:
 			return m, nil, false
 		}
 	}
 	if m.picker.kind == pickerTagEntries {
-		if m.keys.lookup(key.String(), scopePicker) == actRemoveEntry {
-			return answered(m.removeTagEntry())
-		}
 		return m, nil, false
 	}
 	if m.picker.kind != pickerPeople {

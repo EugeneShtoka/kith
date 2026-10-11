@@ -1301,14 +1301,14 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 # The rail. Its order and hidden rows are [display.rail]'s.
 [keys.rail]
 # A local name; an empty one clears it.
-name        = "a"  # name this group
-notify_rule = "b"  # notification rule for this space
+name        = "a"    # name this group
+notify_rule = "b"    # notification rule for this space
 # Asks first.
-mark_read   = "m"  # mark every unread room in this group read
+mark_read   = "m"    # mark every unread room in this group read
 # Asks first. A Telegram forum is left with all its topics, a WhatsApp community with
 # all its groups; leaving a Matrix space asks which of its rooms go too; an account's
 # own space signs it out.
-leave       = "L"  # leave this space, or delete this tag
+leave       = "L,x"  # leave this space, or delete this tag
 
 # Cursor motion, shared by every pane.
 [keys.nav]
@@ -1336,7 +1336,7 @@ scroll_newest  = "end"            # jump to the latest
 join          = "J"       # join a room by ID or alias
 # Asks first. A private chat its network cannot leave is deleted instead; a room of a
 # forum is left only with the whole forum, from the rail.
-leave         = "L"       # leave the selected room
+leave         = "L,x"     # leave the selected room
 accept        = "y"       # accept the selected invitation
 reject        = "d"       # reject the selected invitation
 people        = "p"       # list the people in this room
@@ -1564,8 +1564,10 @@ decrease  = "minus"      # lower the number under the cursor
 move_up   = "K"          # move the entry under the cursor up
 # In a settings list.
 move_down = "J"          # move the entry under the cursor down
-# In a settings or tag list.
-remove    = "x"          # remove the entry under the cursor
+# A list setting's entry, a tag's rule or room, a card's field, a settings record (an
+# alias, a name, a rule), a tag (asks first), a notification rule, a scheduled message;
+# in the filing picker it unticks.
+remove    = "x"          # remove the row under the cursor from its list
 # Asks first.
 kick      = "r"          # remove the person under the cursor from this room
 # Asks first.
