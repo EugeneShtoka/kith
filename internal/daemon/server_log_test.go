@@ -54,10 +54,10 @@ func serveLogged(t *testing.T, b *refusingBackend) (*daemon.Remote, *syncBuffer)
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
 	go func() {
-		served <- daemon.Serve(ctx, ln, &daemon.Daemon{
+		served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{
 			Backend: b, Streams: daemon.NewStreams(), State: daemon.NewState(),
 			Log: logging.New(logs, logging.Options{Level: slog.LevelDebug}),
-		})
+		}))
 	}()
 	t.Cleanup(func() {
 		cancel()

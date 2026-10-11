@@ -428,37 +428,22 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 	return reply(&v1.ReplaceDraftResponse{Saved: saved}, cmp.Or(err, wrote))
 }
 
-// errNoLogins refuses a login on a daemon that runs none.
-var errNoLogins = fmt.Errorf("%w: this daemon logs nothing in", api.ErrNetworkOff)
-
 func (s *server) LoginNetworks(ctx context.Context, _ *req[v1.LoginNetworksRequest]) (*resp[v1.LoginNetworksResponse], error) {
-	if s.Logins == nil {
-		return reply(&v1.LoginNetworksResponse{}, nil)
-	}
 	networks, err := s.Logins.LoginNetworks(ctx)
 	return reply(&v1.LoginNetworksResponse{Networks: loginNetworksToProto(networks)}, err)
 }
 
 func (s *server) BeginLogin(ctx context.Context, r *req[v1.BeginLoginRequest]) (*resp[v1.BeginLoginResponse], error) {
-	if s.Logins == nil {
-		return nil, rpcErr(errNoLogins)
-	}
 	step, err := s.Logins.BeginLogin(ctx, r.Msg.GetNetwork(), r.Msg.GetAccount())
 	return reply(&v1.BeginLoginResponse{Step: loginStepToProto(step)}, err)
 }
 
 func (s *server) AnswerLogin(ctx context.Context, r *req[v1.AnswerLoginRequest]) (*resp[v1.AnswerLoginResponse], error) {
-	if s.Logins == nil {
-		return nil, rpcErr(errNoLogins)
-	}
 	step, err := s.Logins.AnswerLogin(ctx, r.Msg.GetLogin(), r.Msg.GetValues())
 	return reply(&v1.AnswerLoginResponse{Step: loginStepToProto(step)}, err)
 }
 
 func (s *server) CancelLogin(ctx context.Context, r *req[v1.CancelLoginRequest]) (*resp[v1.CancelLoginResponse], error) {
-	if s.Logins == nil {
-		return reply(&v1.CancelLoginResponse{}, nil)
-	}
 	return reply(&v1.CancelLoginResponse{}, s.Logins.CancelLogin(ctx, r.Msg.GetLogin()))
 }
 
@@ -752,26 +737,17 @@ func (s *server) DND(_ context.Context, _ *req[v1.DNDRequest]) (*resp[v1.DNDResp
 
 // ReloadConfig reports an unparsable config as InvalidArgument: it is the caller's input.
 func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest]) (*resp[v1.ReloadConfigResponse], error) {
-	if s.Reload == nil {
-		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("daemon: this daemon was started without a config to re-read"))
-	}
 	if err := s.Reload(ctx); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if s.Config != nil { // a hand edit: every client hears it as a written change
-		if snap, err := s.Config.Read(); err == nil {
-			s.Streams.Configured(snap)
-		}
+	// A hand edit: every client hears it as a written change.
+	if snap, err := s.Config.Read(); err == nil {
+		s.Streams.Configured(snap)
 	}
 	return connect.NewResponse(&v1.ReloadConfigResponse{}), nil
 }
 
-var errNoConfigFile = errors.New("daemon: this daemon was started without a config file")
-
 func (s *server) GetConfig(context.Context, *req[v1.GetConfigRequest]) (*resp[v1.GetConfigResponse], error) {
-	if s.Config == nil {
-		return nil, connect.NewError(connect.CodeUnimplemented, errNoConfigFile)
-	}
 	snap, err := s.Config.Read()
 	if err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
@@ -782,9 +758,6 @@ func (s *server) GetConfig(context.Context, *req[v1.GetConfigRequest]) (*resp[v1
 // UpdateConfig writes a client's configuration, refusing one based on an older file
 // (ABORTED) or one the daemon would not run with (INVALID_ARGUMENT), and broadcasts it.
 func (s *server) UpdateConfig(ctx context.Context, r *req[v1.UpdateConfigRequest]) (*resp[v1.UpdateConfigResponse], error) {
-	if s.Config == nil {
-		return nil, connect.NewError(connect.CodeUnimplemented, errNoConfigFile)
-	}
 	cfg, err := config.Decode(r.Msg.GetConfig())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -814,9 +787,6 @@ func (s *server) ConfigChanged(ctx context.Context, _ *req[v1.ConfigChangedReque
 
 // CheckConfig reports a config the daemon would refuse as InvalidArgument.
 func (s *server) CheckConfig(ctx context.Context, r *req[v1.CheckConfigRequest]) (*resp[v1.CheckConfigResponse], error) {
-	if s.Daemon.CheckConfig == nil {
-		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("daemon: this daemon cannot check a config"))
-	}
 	cfg, err := config.Decode(r.Msg.GetConfig())
 	if err == nil {
 		err = s.Daemon.CheckConfig(ctx, cfg)
@@ -829,13 +799,8 @@ func (s *server) CheckConfig(ctx context.Context, r *req[v1.CheckConfigRequest])
 
 // ── Schedule ──
 
-var errNoScheduler = errors.New("daemon: scheduled messages are unavailable on this daemon")
-
 // Schedule assigns the ID: it is the cancel handle, and a client-chosen one could collide.
 func (s *server) Schedule(_ context.Context, r *req[v1.ScheduleRequest]) (*resp[v1.ScheduleResponse], error) {
-	if s.Scheduler == nil {
-		return nil, rpcErr(errNoScheduler)
-	}
 	msg := pc.ProtoToScheduled(r.Msg.GetMessage())
 	msg.ID = newScheduleID()
 	if msg.Written.IsZero() {
@@ -845,16 +810,10 @@ func (s *server) Schedule(_ context.Context, r *req[v1.ScheduleRequest]) (*resp[
 }
 
 func (s *server) ScheduledMessages(_ context.Context, _ *req[v1.ScheduledMessagesRequest]) (*resp[v1.ScheduledMessagesResponse], error) {
-	if s.Scheduler == nil {
-		return nil, rpcErr(errNoScheduler)
-	}
 	return connect.NewResponse(&v1.ScheduledMessagesResponse{Messages: pc.ScheduledToProto(s.Scheduler.List())}), nil
 }
 
 func (s *server) CancelScheduled(_ context.Context, r *req[v1.CancelScheduledRequest]) (*resp[v1.CancelScheduledResponse], error) {
-	if s.Scheduler == nil {
-		return nil, rpcErr(errNoScheduler)
-	}
 	return reply(&v1.CancelScheduledResponse{}, s.Scheduler.Cancel(r.Msg.GetId()))
 }
 
