@@ -102,6 +102,7 @@ const (
 	actAcceptPick
 	actClosePick
 	actName
+	actPerson // the phonebook card of the person in view
 	actShowPeople
 	actCopyText
 	actCopyURL
@@ -380,6 +381,7 @@ var keyActions = []keyAction{
 	{scopeRooms, actRenameThread, "rooms.rename_thread"},
 	{scopeRooms, actListThreads, "rooms.list_threads"},
 	{scopeRooms, actName, "rooms.name"},
+	{scopeRooms, actPerson, "rooms.person"},
 	{scopeRooms, actNotifyRule, "rooms.notify_rule"},
 	{scopeRooms, actJoin, "rooms.join"},
 	{scopeRooms, actLeave, "rooms.leave"},
@@ -394,6 +396,7 @@ var keyActions = []keyAction{
 	{scopeTimeline, actOpenEmoji, "emoji.open"},
 	{scopeTimeline, actRenameThread, "timeline.rename_thread"},
 	{scopeTimeline, actName, "timeline.name"},
+	{scopeTimeline, actPerson, "timeline.person"},
 	{scopeTimeline, actNotifyRule, "timeline.notify_rule"},
 	{scopeTimeline, actCopyText, "timeline.copy_text"},
 	{scopeTimeline, actCopyURL, "timeline.copy_url"},
@@ -455,6 +458,7 @@ var keyActions = []keyAction{
 
 	{scopePicker, actFilter, "picker.filter"},
 	{scopePicker, actName, "picker.name"},
+	{scopePicker, actPerson, "picker.person"},
 	{scopePicker, actKick, "picker.kick"},
 	{scopePicker, actBan, "picker.ban"},
 	{scopePicker, actRenameThread, "picker.rename"},

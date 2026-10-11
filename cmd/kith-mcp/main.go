@@ -35,6 +35,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
+	"github.com/EugeneShtoka/kith/internal/phonebook"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
@@ -89,6 +90,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 		aliases:  setup.Aliases(cfg.Display.Identities),
 		cooldown: cooldown,
 		files:    storage.AgentFilesDir(),
+		book:     phonebookFor(cfg),
 		log:      log,
 	}
 	// Without a ledger the read tools still work; send_message refuses.
@@ -100,6 +102,15 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 	// Concurrently, so the handshake does not wait on the cache reads.
 	go warnAboutScope(log, server.backend, cfg)
 	return server.serve(os.Stdin, os.Stdout)
+}
+
+// phonebookFor is the phonebook an assistant may read fields from: nil unless
+// [agent.read] people allows it.
+func phonebookFor(cfg config.Config) *phonebook.Book {
+	if !cfg.Agent.Read.People {
+		return nil
+	}
+	return phonebook.New(setup.PhonebookDir(cfg))
 }
 
 // warnAboutScope says, on stderr, which `[agent.write]` entries `[agent.read]` rules out.
@@ -209,6 +220,9 @@ type server struct {
 	places domain.Places
 	// files is where get_attachment puts a file that is not an image.
 	files string
+	// book is the phonebook find_people reads people's fields from, when [agent.read]
+	// people allows; nil when it does not.
+	book *phonebook.Book
 	// log is stderr; nil (a test) logs nothing.
 	log *slog.Logger
 }

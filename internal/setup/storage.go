@@ -173,6 +173,21 @@ func dirOr(configured, xdgDir string) string {
 	return filepath.Clean(configured)
 }
 
+// PhonebookDir is the phonebook's folder: [phonebook] dir, ~ expanded, else
+// $XDG_DATA_HOME/phonebook. Not kith's own: other programs share it.
+func PhonebookDir(cfg config.Config) string {
+	dir := cfg.Phonebook.Dir
+	if dir == "" {
+		return filepath.Join(xdg.DataHome, "phonebook")
+	}
+	if dir == "~" || strings.HasPrefix(dir, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, strings.TrimPrefix(dir, "~"))
+		}
+	}
+	return filepath.Clean(dir)
+}
+
 // KeepRules is [storage] messages_per_room and its [[storage.rule]]s, checked: a count
 // is negative (every message) or at least one, and a rule's match is a place entry.
 func KeepRules(st config.Storage) (int, []domain.KeepRule, error) {

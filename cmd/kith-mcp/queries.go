@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/phonebook"
 )
 
 // allowed reports whether a room may be read, and says why not when it may not.
@@ -345,12 +347,14 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	type personView struct {
 		UserID string `json:"user_id"`
 		Name   string `json:"name,omitempty"`
+		// Fields is what the person's phonebook card says, when [agent.read] people allows.
+		Fields map[string]any `json:"fields,omitempty"`
 	}
 	var out []personView
 	for _, person := range people {
 		if strings.Contains(strings.ToLower(person.DisplayName), want) ||
 			strings.Contains(strings.ToLower(person.UserID), want) {
-			out = append(out, personView{UserID: person.UserID, Name: person.DisplayName})
+			out = append(out, personView{UserID: person.UserID, Name: person.DisplayName, Fields: s.cardFields(person.UserID)})
 		}
 		if len(out) >= limitOr(in.Limit, 10, 50) {
 			break
@@ -360,6 +364,39 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 		return nil, fmt.Errorf("nobody called %q has posted in the rooms [agent.read] allows", in.Query)
 	}
 	return map[string]any{"people": out}, nil
+}
+
+// cardFields is what the phonebook's card of userID's person says, by key: a list as
+// a list, one value as itself; nil without a phonebook, a card, or any field.
+func (s *server) cardFields(userID string) map[string]any {
+	if s.book == nil {
+		return nil
+	}
+	ids := s.people.Dir.Identifiers(userID)
+	if alias := s.aliases[userID]; alias != "" {
+		for other, a := range s.aliases {
+			if a == alias && !slices.Contains(ids, other) {
+				ids = append(ids, other)
+			}
+		}
+	}
+	card, found, err := s.book.Find(phonebook.Identifiers(domain.CardIdentifiers(ids)))
+	if err != nil {
+		s.logger().Warn("read the phonebook failed", "err", err)
+		return nil
+	}
+	if !found || len(card.Fields) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(card.Fields))
+	for _, f := range card.Fields {
+		if f.List {
+			out[f.Key] = f.Values
+		} else if len(f.Values) > 0 {
+			out[f.Key] = f.Values[0]
+		}
+	}
+	return out
 }
 
 func (s *server) findRoomsWith(ctx context.Context, raw json.RawMessage) (any, error) {

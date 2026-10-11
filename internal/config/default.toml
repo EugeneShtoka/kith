@@ -1012,6 +1012,8 @@ stop = []
 rooms = []
 except = []
 encrypted = false
+# Hand the assistant what the phonebook ([phonebook]) says of the people it finds.
+people = false
 
 # [agent.write] — narrowed by reading: it may write only where it may read, and send
 # only where it may write. rooms/except read like [assist]'s (both empty: everywhere
@@ -1037,6 +1039,14 @@ cooldown = "1m"
 # held for you to decide. 0 holds nothing: every late message is sent.
 [schedule]
 overdue_cutoff_hours = 24
+
+# A folder of Markdown files, one per person, shared with whatever else reads it (a
+# mail client, an Obsidian vault). A file's front matter says who it is about (phone,
+# email, matrix, telegram, whatsapp, slack) and holds the person's fields (birthday,
+# spouse, pets, …); its body is the person's notes, which kith never touches. `I` on a
+# person opens theirs. Empty is $XDG_DATA_HOME/phonebook.
+[phonebook]
+dir = ""
 
 # `level` is how much is logged: "debug", "info", "warn" or "error". `--log-level`
 # and $KITH_LOG_LEVEL override it. Logs name rooms and events by ID, never their text.
@@ -1341,6 +1351,8 @@ spaces        = "S"       # file this room into a space or a tag, or take it out
 # Prompts for an @user:server.
 invite        = "i"       # invite someone to this room
 view_media    = "v"       # open this room's pictures in an image viewer, newest first
+# A DM, or a room with one person besides you and bots.
+person        = "I"       # the phonebook card of the room's one person
 # Until kith restarts; [display] show_archived and a place's space_rule set where it
 # starts.
 archived      = "A"       # show or hide this place's archived rooms
@@ -1395,6 +1407,8 @@ next_attachment = "f"       # next message with a file
 prev_attachment = "F"       # previous message with a file
 prev_day        = "["       # back a day (start of this day first)
 next_day        = "]"       # forward a day
+# the sender's card in the phonebook: their fields, to read and edit
+person          = "I"
 # A local name; an empty one clears it.
 name            = "a"       # name the sender of the selected message
 notify_rule     = "b"       # notification rule for this sender or room
@@ -1539,6 +1553,8 @@ cut           = "ctrl+x"  # cut the whole draft to the clipboard
 [keys.picker]
 filter    = "i"          # start typing to narrow the list
 name      = "a"          # name the person under the cursor
+# In the member list.
+person    = "I"          # the phonebook card of the person under the cursor
 toggle    = "space"      # tick the row under the cursor (in a list of checkboxes)
 # In settings.
 increase  = "+"          # raise the number under the cursor

@@ -53,6 +53,7 @@
   alt+r            name the thread under the cursor
   ctrl+t           list the threads in the room under the cursor
   a                name this room
+  I                the phonebook card of the room's one person
   b                notification rule for this room
   (unbound)        join a room by ID or alias
   L                leave the selected room
@@ -68,6 +69,7 @@
   ctrl+e           react with any emoji (the grid)
   alt+r            name this thread
   a                name the sender of the selected message
+  I                the sender's card in the phonebook: their fields, to read and edit
   b                notification rule for this sender or room
   yy               copy this message's text
   yu               copy a link from it
@@ -153,6 +155,7 @@
 [1;38;2;102;135;153mChoosers (people, identities, colors)[m
   i                start typing to narrow the list
   a                name the person under the cursor
+  I                the phonebook card of the person under the cursor
   r                remove the person under the cursor from this room
   b                ban the person under the cursor from this room
   alt+r            name the thread under the cursor

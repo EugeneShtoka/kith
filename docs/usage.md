@@ -404,6 +404,7 @@ With `[display] hyperlinks = true` (default), links are also clickable in termin
 Names you give are local — only you see them — and live in your config.
 
 - `a` on a message names its **sender**: pick an existing person to merge this account into (for example the same contact over several bridges), or a new one, then a color. This writes a `[[display.identity]]`.
+- `I` on a message, on a person in the member list, or on a one-person room opens that person's **card** in the [phonebook](phonebook.md): their birthday, family, pets or any field you add, kept as a Markdown file other programs can share.
 - `a` on a room or rail group gives it a name of your own (`[[display.name]]`); `alt+r` names a thread.
   A private chat is named after the person in it, so naming one names them too, wherever they are shown, while the room's own name is still that person's name and nobody else but you is in it. A name given with `a` on their message wins.
 - `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag).

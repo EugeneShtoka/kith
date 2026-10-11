@@ -110,6 +110,7 @@ type RoomsKeys struct {
 	Accept       string `toml:"accept"`
 	Reject       string `toml:"reject"`
 	People       string `toml:"people"`
+	Person       string `toml:"person"`
 	ViewMedia    string `toml:"view_media"`
 	Name         string `toml:"name"`
 	NotifyRule   string `toml:"notify_rule"`
@@ -192,6 +193,7 @@ type TimelineKeys struct {
 	PrevDay        string `toml:"prev_day"`
 	NextDay        string `toml:"next_day"`
 	Name           string `toml:"name"`
+	Person         string `toml:"person"`
 	NotifyRule     string `toml:"notify_rule"`
 	CopyText       string `toml:"copy_text"`
 	CopyURL        string `toml:"copy_url"`
@@ -291,6 +293,7 @@ type ComposerKeys struct {
 type PickerKeys struct {
 	Filter   string `toml:"filter"`
 	Name     string `toml:"name"`
+	Person   string `toml:"person"`
 	Kick     string `toml:"kick"`
 	Ban      string `toml:"ban"`
 	Rename   string `toml:"rename"`

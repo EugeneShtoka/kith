@@ -397,6 +397,8 @@ type roomScrollback struct {
 // the room list re-sorts as messages arrive, so reading the cursor at accept time
 // could hit a different row.
 type overlayTarget struct {
+	// person is the phonebook card the person picker is open on (phonebook.go).
+	person personState
 	// creating is the room being created by the new-room prompt.
 	creating domain.NewRoom
 	// member is the room an open invite or unban prompt aims at.
@@ -468,6 +470,8 @@ type prefsState struct {
 	// unreadLocal counts unread messages (the daemon's count) rather than notifying ones.
 	// See domain.Unread.Count.
 	unreadLocal bool
+	// phonebookDir is the phonebook's folder ([phonebook] dir, resolved).
+	phonebookDir string
 	// clock is how times and dates are written ([display] time_format and the date
 	// formats).
 	clock domain.Clock
@@ -1265,6 +1269,14 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDirectory(msg))
 	case selvesMsg:
 		return answered(m.handleSelves(msg))
+	case personCardMsg:
+		return answered(m.handlePersonCard(msg))
+	case personKeysMsg:
+		return answered(m.handlePersonKeys(msg))
+	case personWrittenMsg:
+		return answered(m.handlePersonWritten(msg))
+	case roomPersonMsg:
+		return answered(m.handleRoomPerson(msg))
 	case pollVotersMsg:
 		return answered(m.handlePollVoters(msg))
 	case peerMembersMsg:
@@ -1627,6 +1639,8 @@ func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.toggleSpam())
 	case actToggleArchived:
 		return answered(m.toggleArchived())
+	case actPerson:
+		return answered(m.personOfRoom())
 	}
 	return m, nil, false
 }
@@ -1855,6 +1869,8 @@ func (m Model) messageAction(act action) (Model, tea.Cmd, bool) {
 	switch act {
 	case actName:
 		return answered(m.openIdentityForSender())
+	case actPerson:
+		return answered(m.personOfSender())
 	case actNotifyRule:
 		return answered(m.openRuleForSender())
 	case actCopyText:

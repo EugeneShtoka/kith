@@ -210,7 +210,8 @@ func (m Model) promptHint() string {
 		submit = "walk the results"
 	case promptAlias, promptRoomName, promptGroupName, promptThreadName, promptRuleSound,
 		promptRuleName, promptAttach, promptSetting, promptSettingEntry, promptInvite, promptUnban,
-		promptNewRoom, promptJumpBind, promptCommand, promptTagName, promptTagEntry, promptNone:
+		promptNewRoom, promptJumpBind, promptCommand, promptTagName, promptTagEntry,
+		promptPersonValue, promptPersonKey, promptNone:
 		// "submit" says it for these.
 	case promptLogin:
 		submit = "next"

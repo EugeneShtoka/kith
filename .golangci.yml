@@ -262,6 +262,16 @@ linters:
             - "github.com/adrg/xdg"
             - "github.com/zalando/go-keyring"
 
+        # A folder of Markdown files other programs share: plain files and YAML, nothing
+        # of kith's.
+        phonebook-is-a-leaf:
+          files:
+            - "**/internal/phonebook/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/phonebook"
+            - "gopkg.in/yaml.v3"
+
         schedule-is-a-leaf:
           files:
             - "**/internal/schedule/**"
@@ -541,6 +551,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/phonebook"
             - "github.com/EugeneShtoka/kith/internal/setup"
 
         probe-main-wiring:
@@ -573,6 +584,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/media"
             - "github.com/EugeneShtoka/kith/internal/notify"
+            - "github.com/EugeneShtoka/kith/internal/phonebook"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/theme"
             - "github.com/EugeneShtoka/kith/internal/tui"
