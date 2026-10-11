@@ -22,7 +22,14 @@ type writeArgs struct {
 	Text    string `json:"text"`
 	Thread  string `json:"thread"`
 	ReplyTo string `json:"reply_to"`
+	// At sends it then rather than now: RFC 3339, with its offset.
+	At string `json:"at"`
 }
+
+// errLaterOnlyWhereSent refuses a delayed send to a room the policy only drafts into: a
+// draft is reviewed before it goes, a scheduled message is not.
+var errLaterOnlyWhereSent = errors.New("a message is sent later only where you may send; " +
+	"this room is drafted into, so nothing was scheduled. Write it now as a draft, or tell them")
 
 // aim is where in a room a message goes: a thread (its root) and a message it
 // answers, either empty.
@@ -47,11 +54,9 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	if err != nil {
 		return nil, err
 	}
-	// Every outcome (sent, queued, drafted, refused) is of these words, so no path
-	// writes a dash longer than a hyphen.
-	text := shortDashes.Replace(strings.TrimSpace(in.Text))
-	if text == "" {
-		return nil, errors.New("send_message needs something to say")
+	text, later, err := in.checked(time.Now())
+	if err != nil {
+		return nil, err
 	}
 	if s.ledger == nil {
 		return nil, errors.New("this server cannot write: no ledger, so nothing it did could be recorded")
@@ -89,10 +94,53 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	if err != nil {
 		return nil, err
 	}
-	if decision.send {
+	switch {
+	case !later.IsZero() && !decision.send:
+		return nil, s.refuse(room, text, fmt.Errorf("%w (%s)", errLaterOnlyWhereSent, decision.reason))
+	case !later.IsZero():
+		return s.sendLater(ctx, room, text, target, later)
+	case decision.send:
 		return s.sendNow(ctx, room, text, target)
 	}
 	return s.draftFor(ctx, room, text, decision.reason, target)
+}
+
+// checked is the words to write, every dash longer than a hyphen made one (whatever
+// becomes of them), and when they go: zero for now.
+func (in writeArgs) checked(now time.Time) (string, time.Time, error) {
+	text := shortDashes.Replace(strings.TrimSpace(in.Text))
+	if text == "" {
+		return "", time.Time{}, errors.New("send_message needs something to say")
+	}
+	later, err := sendTime(in.At, now)
+	return text, later, err
+}
+
+// sendTime is when a message is to go: zero for now, else the time given, which must
+// be ahead of now.
+func sendTime(at string, now time.Time) (time.Time, error) {
+	if at = strings.TrimSpace(at); at == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse(time.RFC3339, at)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("at %q is not an RFC 3339 time with its offset, such as 2026-10-12T09:00:00+03:00", at)
+	}
+	if !t.After(now) {
+		return time.Time{}, fmt.Errorf("at %s has passed; leave it out to send now", at)
+	}
+	return t.UTC(), nil
+}
+
+// sendLater hands the message to the daemon's queue for its time.
+func (s *server) sendLater(ctx context.Context, room domain.Room, text string, target aim, at time.Time) (any, error) {
+	if _, err := s.backend.Schedule(ctx, domain.ScheduledMessage{
+		RoomID: room.ID, Body: text, TxnID: domain.NewTxnID(), At: at, Written: time.Now().UTC(),
+		ThreadRoot: target.thread, ReplyTo: target.replyTo,
+	}); err != nil {
+		return nil, fmt.Errorf("scheduling it: %w", err)
+	}
+	return s.wrote(room, agent.Scheduled, text, "it goes out at "+at.Format(time.RFC3339)+"; the daemon sends it, and the client lists it under :scheduled until then")
 }
 
 // aimIn resolves a thread and a reply target to messages of this room's cached

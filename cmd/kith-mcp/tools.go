@@ -258,6 +258,9 @@ var tools = []tool{
 				"(a message's \"thread\" field). Without it the message goes to the room's main timeline"),
 			"reply_to": str("optional: the event ID of the message this answers. A message in a thread " +
 				"is answered in that thread"),
+			"at": str("optional: send it at this time instead of now, RFC 3339 with its offset " +
+				"(2026-10-12T09:00:00+03:00). Only in a room you may send to; a room you would only " +
+				"draft into is refused"),
 		}, "room", "text"),
 		run: (*server).sendMessage,
 	},
