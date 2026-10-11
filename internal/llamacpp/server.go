@@ -13,15 +13,13 @@ import (
 	"time"
 )
 
-// server is a spawned llama-server and the address it answers on. It is not ready
-// until /health says so, and it must die with us: the whole process group (job
-// object on Windows) is signaled.
+// server is a spawned llama-server. Stopping signals its whole process group (a job
+// object on Windows) so it dies with us.
 type server struct {
-	cmd *exec.Cmd
-	// base is the server's URL origin (scheme, host and port).
-	base string
+	cmd  *exec.Cmd
+	base string // URL origin
 	http *http.Client
-	// exited is closed by the reaper. Reading cmd.ProcessState is only safe after it.
+	// exited is closed by the reaper; cmd.ProcessState is safe to read only after it.
 	exited chan struct{}
 	// tree is what stop signals: nothing on unix (pgid == pid), a job object on Windows.
 	tree tree
@@ -31,8 +29,8 @@ type server struct {
 	now  func() time.Time // replaced in tests
 }
 
-// start spawns a server and waits until it answers. ctx bounds only the wait: the
-// server outlives the request that started it, ending via Close or the idle watch.
+// start spawns a server and waits until it answers. ctx bounds only the wait; the
+// server outlives it.
 func start(ctx context.Context, settings Settings) (*server, error) {
 	port := settings.Port
 	if port == 0 {
@@ -43,9 +41,8 @@ func start(ctx context.Context, settings Settings) (*server, error) {
 		port = free
 	}
 
-	// Spawned and reaped from one goroutine locked to its OS thread for the child's
-	// life: PR_SET_PDEATHSIG fires when the forking thread exits, and Go retires idle
-	// threads. The reaper also prevents zombies.
+	// Spawn and reap on one goroutine locked to its OS thread for the child's life:
+	// PR_SET_PDEATHSIG fires when the forking thread exits, and Go retires idle threads.
 	type spawn struct {
 		cmd  *exec.Cmd
 		tree tree
@@ -69,8 +66,8 @@ func start(ctx context.Context, settings Settings) (*server, error) {
 		t := adopt(cmd)
 		defer t.release()
 		started <- spawn{cmd: cmd, tree: t}
-		// The exit is observed through exited; a server we stop exits non-zero, and
-		// one that dies early fails wait (or the next prediction) with its own error.
+		// The exit is observed through exited; an early death surfaces in wait or the
+		// next prediction.
 		_ = cmd.Wait()
 	}()
 
@@ -98,8 +95,8 @@ func start(ctx context.Context, settings Settings) (*server, error) {
 	return srv, nil
 }
 
-// args is the server command line: loopback only (it reads drafts), one slot (requests
-// are serial and slots divide the context), no web UI.
+// args is the command line: loopback only (it reads drafts), one slot (requests are
+// serial and slots divide the context), no web UI.
 func args(settings Settings, port int) []string {
 	window := settings.Context
 	if window <= 0 {
@@ -155,8 +152,7 @@ func (s *server) healthy(ctx context.Context) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-// stop sends SIGTERM, then SIGKILL after two seconds. A server that never spawned or
-// is already gone counts as stopped.
+// stop sends SIGTERM, then SIGKILL after two seconds. It always returns nil.
 func (s *server) stop() error {
 	if s.cmd == nil || s.cmd.Process == nil {
 		return nil
@@ -190,8 +186,8 @@ func (s *server) idleFor() time.Duration {
 
 func (s *server) url(path string) string { return s.base + path }
 
-// freePort asks the OS for an unused loopback port. The window before llama-server
-// binds it is racy, but a fixed port would collide with a previous hard-killed run.
+// freePort asks the OS for an unused loopback port. Racy until llama-server binds it,
+// but a fixed port would collide with a hard-killed earlier run.
 func freePort(ctx context.Context) (int, error) {
 	var lc net.ListenConfig
 	listener, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")

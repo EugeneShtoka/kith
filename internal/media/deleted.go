@@ -10,15 +10,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A deleted message's attachment is kept apart, in the cache's deleted/ folder: out of
-// the way of the pictures a viewer is pointed at, and out of trimming (Trim reads the
-// root and renders/ only), since what was deleted may not be fetchable again. Its
-// drawings go: a deleted picture is not drawn in the timeline.
+// A deleted message's attachment moves to deleted/, which Trim never reads since it may
+// not be fetchable again. Its renders are removed: deleted pictures are not drawn.
 
 // deletedDir is the folder deleted messages' attachments are kept in.
 func (c *Cache) deletedDir() string { return filepath.Join(c.dir, "deleted") }
 
-// AsidePath is where a deleted message's attachment is kept, whether or not it is there.
+// AsidePath is where a deleted message's attachment belongs, present or not.
 func (c *Cache) AsidePath(event domain.EventID, name, mimeType string) string {
 	if c == nil {
 		return ""
@@ -26,8 +24,8 @@ func (c *Cache) AsidePath(event domain.EventID, name, mimeType string) string {
 	return filepath.Join(c.deletedDir(), key(event)+extension(name, mimeType))
 }
 
-// SetAside moves a deleted message's attachment into deleted/, if the cache holds it,
-// and drops its drawings; it answers where the attachment is kept now.
+// SetAside moves a cached attachment into deleted/, drops its renders, and returns
+// the new path.
 func (c *Cache) SetAside(event domain.EventID, name, mimeType string) (string, error) {
 	if c == nil {
 		return "", nil
@@ -41,7 +39,7 @@ func (c *Cache) SetAside(event domain.EventID, name, mimeType string) (string, e
 	}
 	drawings, _ := filepath.Glob(filepath.Join(c.renders, key(event)+"*"))
 	for _, d := range drawings {
-		_ = os.Remove(d) // a drawing left behind is never shown: nothing draws it
+		_ = os.Remove(d) // a leftover render is never shown
 	}
 	return aside, nil
 }
@@ -69,9 +67,8 @@ func (c *Cache) WriteAside(event domain.EventID, name, mimeType string, data []b
 	return path, nil
 }
 
-// Forget removes everything the cache holds of a message's attachment, wherever it
-// is: its bytes, kept aside or not, and its drawings. [display.deleted] keep off
-// erases a deleted message, and this is its attachment's share.
+// Forget removes all of a message's attachment data, set aside or not, and its renders
+// (for [display.deleted] keep off).
 func (c *Cache) Forget(event domain.EventID) {
 	if c == nil {
 		return
@@ -83,7 +80,7 @@ func (c *Cache) Forget(event domain.EventID) {
 	} {
 		files, _ := filepath.Glob(pattern)
 		for _, f := range files {
-			_ = os.Remove(f) // one left behind is never shown: nothing points at it
+			_ = os.Remove(f) // a leftover is never referenced
 		}
 	}
 }

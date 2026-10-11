@@ -18,14 +18,11 @@ import (
 	"strings"
 )
 
-// Word frequency lists, the data behind rare-word hints: some dictionaries (Hspell)
-// accept nearly every string grammar can generate, so a typo landing on a legal form
-// is invisible without counts. Lists are pinned, checksummed and never automatic like
-// dictionaries, but pruned below frequencyMinCount and rewritten sorted by word so a
-// lookup is a binary search over one blob.
+// Word frequency lists back rare-word hints: some dictionaries (Hspell) accept nearly
+// any string, so a typo landing on a legal form needs counts. Lists are pinned, checksummed,
+// never automatic, pruned below frequencyMinCount and stored sorted for binary search.
 
-// FreqSource is a frequency list that can be installed, named by the dictionary tag it
-// belongs to.
+// FreqSource is an installable frequency list, keyed by dictionary tag.
 type FreqSource struct {
 	// Tag is the dictionary tag (he_IL, not he); tags may share one upstream file.
 	Tag  string

@@ -7,8 +7,7 @@ import (
 	"testing"
 )
 
-// dictDir writes .aff/.dic pairs for tags, plus any stray files named, and returns
-// the directory.
+// dictDir writes .aff/.dic pairs for tags, plus stray files, and returns the dir.
 func dictDir(t *testing.T, tags []string, stray ...string) string {
 	t.Helper()
 	dir := t.TempDir()

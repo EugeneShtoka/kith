@@ -58,8 +58,7 @@ func TestRender(t *testing.T) {
 	}
 }
 
-// A body that itself looks like a placeholder must not be re-expanded — one
-// substitution pass only, so a message can't forge another field.
+// A body that looks like a placeholder is not re-expanded, so it cannot forge a field.
 func TestRenderIsSinglePass(t *testing.T) {
 	t.Parallel()
 
@@ -88,12 +87,10 @@ func TestRenderKeepsNewlines(t *testing.T) {
 	}
 }
 
-// A sound sink only fires when a rule gave the notification a sound, which most have
-// not — so the common case must be a no-op rather than an attempt to play nothing.
 func TestSoundSinkOnlyPlaysWhenAsked(t *testing.T) {
 	t.Parallel()
 
-	// "true" is a program that exists and does nothing, so a play is harmless here.
+	// "true" exists and does nothing, so playing is harmless.
 	n := notify.New(notify.Settings{SoundCommand: "true", Templates: tpl})
 	if _, isNop := n.(notify.Nop); isNop {
 		t.Fatal("a sound command should compose a sink")
@@ -101,16 +98,14 @@ func TestSoundSinkOnlyPlaysWhenAsked(t *testing.T) {
 	n.Notify(notify.Notification{Sender: "a", Body: "b"})              // no sound: nothing to play
 	n.Notify(notify.Notification{Sender: "a", Body: "b", Sound: "/x"}) // must not panic
 
-	// No sound command means no sink at all, so a rule's sound is simply unheard rather
-	// than an error.
+	// No sound command means no sound sink, not an error.
 	if _, isNop := notify.New(notify.Settings{Templates: tpl}).(notify.Nop); !isNop {
 		t.Error("with nothing configured, New should still be a Nop")
 	}
 }
 
-// The freedesktop expire_timeout is a signed 32-bit millisecond count, where -1 means
-// "the daemon decides" and 0 means "stay until dismissed" — so the mapping has to be
-// exact at both ends, and must not wrap a long timeout into one of them.
+// expire_timeout is int32 ms (-1 daemon default, 0 until dismissed); a long timeout
+// must not wrap into either.
 func TestPopupTimeoutMapping(t *testing.T) {
 	t.Parallel()
 
@@ -133,8 +128,6 @@ func TestPopupTimeoutMapping(t *testing.T) {
 	}
 }
 
-// An empty field takes one separator with it, so a template written for the common case
-// reads correctly in the uncommon one.
 func TestRenderDropsTheSeparatorOfAnEmptyField(t *testing.T) {
 	t.Parallel()
 
@@ -144,11 +137,9 @@ func TestRenderDropsTheSeparatorOfAnEmptyField(t *testing.T) {
 		"middle field takes the separator before it":   {"{room} · {space} · {sender}", "Standup · Alice"},
 		"trailing field takes the separator before it": {"{room} · {space}", "Standup"},
 		"every field empty leaves nothing":             {"{space} · {space}", ""},
-		// A bracket is not a separator: it describes a shape rather than joining two
-		// things, and half a bracket is worse than an empty pair.
+		// Brackets are not separators: half a bracket is worse than an empty pair.
 		"brackets are kept": {"[{space}] {room}", "[] Standup"},
-		// Words are not separators, so nothing around them is dropped — the gap the
-		// missing field left is what the template asked for.
+		// Words are not separators, so nothing around them is dropped.
 		"literal text stays": {"in {space} somewhere", "in  somewhere"},
 	}
 	for name, tc := range tests {

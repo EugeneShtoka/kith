@@ -11,11 +11,9 @@ import (
 	"unicode/utf8"
 )
 
-// Rare-word hints: flag a word the engine accepted when a far commoner word is one
-// slip away (e.g. Hebrew `נוכן` for `נכון`). A comparison, never a floor, so rare but
-// correct words stay unmarked. A hint is not a verdict and offers a short list, since
-// the intended word can be rarer than the typed one. Data comes from the frequency list
-// and the dictionary's own .aff (TRY, MAP).
+// Rare-word hints flag an accepted word when a far commoner word is one slip away
+// (Hebrew `נוכן` for `נכון`). A comparison, not a floor, so rare correct words stay unmarked.
+// Data: the frequency list and the dictionary's .aff (TRY, MAP).
 
 // rareNeighbourFloor is the minimum count for a neighbor to matter; low enough to keep
 // `שולם` (563) as a hint for `שלום`.
@@ -160,9 +158,8 @@ var cliticPrefixes = map[string]string{
 type Hint struct {
 	// Alternatives are commoner words one slip away, commonest first, at most three.
 	Alternatives []string
-	// Certain means replacing without asking is safe: the corpus has never seen the
-	// typed word and exactly one candidate passed. Uniqueness alone is not enough —
-	// real words mistyped into other real words exist.
+	// Certain means replacing without asking is safe: the corpus never saw the typed
+	// word and exactly one candidate passed.
 	Certain bool
 }
 
@@ -229,9 +226,8 @@ func (r *Rarity) clitic(candidate, word string) bool {
 }
 
 // candidates are the words one slip away: a transposition, a missing letter (from TRY)
-// or a MAP confusion. Extra letters are not generated. Mirrors
-// internal/tui/autocorrect.go, which cannot share code (`tui-no-infra`). Duplicates
-// are left in; deduping the few survivors is cheaper.
+// or a MAP confusion; duplicates are left in. Mirrors internal/tui/autocorrect.go, which
+// cannot share code (`tui-no-infra`).
 func (r *Rarity) candidates(word string) []string {
 	w := []rune(word)
 	out := make([]string, 0, (len(w)+1)*(len(r.try)+1))
@@ -269,9 +265,8 @@ func (r *Rarity) candidates(word string) []string {
 	return out
 }
 
-// Word files: rare-ok.txt holds words dismissed as fine (consulted before measuring);
-// personal.dic is read to know what the engine already holds, since hunspell appends
-// duplicates. They stay separate: rare-ok words are already in the dictionary.
+// Word files: rare-ok.txt holds dismissed hints (words already in the dictionary);
+// personal.dic is mirrored to know what the engine holds, since hunspell appends duplicates.
 
 // WordFile is a list of words on disk, one per line.
 type WordFile struct {
@@ -285,8 +280,7 @@ func LoadWordFile(path string) *WordFile {
 	a := &WordFile{path: path, words: map[string]bool{}}
 	data, err := os.ReadFile(path) // #nosec G304 -- a word file under kith's data directory
 	if err != nil {
-		// Absent is the normal first run. An unreadable file acts as an empty list
-		// (a rare word is underlined, nothing is lost), and Add reports the I/O.
+		// Absent on first run; unreadable acts as empty and Add reports the I/O.
 		return a
 	}
 	for line := range strings.SplitSeq(string(data), "\n") {

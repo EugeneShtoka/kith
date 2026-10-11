@@ -169,8 +169,7 @@ func TestHelpers(t *testing.T) {
 	Discard().Error("nothing") // must not panic
 }
 
-// A value under a secret's name is redacted whole, whatever it looks like: the value
-// patterns cannot recognize "abc" as a password. Other keys keep their values.
+// A value under a secret key is redacted whole; other keys keep their values.
 func TestSecretKeysAreRedactedWhatever(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer

@@ -75,15 +75,12 @@ func TestInstallFreqPrunesSortsAndKeepsTheLicense(t *testing.T) {
 		data = append(data, line)
 	}
 
-	// Pruned at the threshold and sorted by word, not by count: `gamma 2` and
-	// `delta 1` are below it, and `the` sorts after `beta` however often it was said.
+	// Pruned at the threshold and sorted by word, not count.
 	want := []string{"alpha 12", "beta 3", "the 900", "zebra 40"}
 	if strings.Join(data, "|") != strings.Join(want, "|") {
 		t.Errorf("installed list = %q, want %q", data, want)
 	}
-	// The header is what lets a file found on disk say what it is, which is both what
-	// CC-BY-SA asks of a derivative and what somebody finding megabytes in their data
-	// directory is owed.
+	// The header identifies the file, as CC-BY-SA asks of a derivative.
 	joined := strings.Join(head, "\n")
 	for _, must := range []string{"xx_XX", frequencyRepo, frequencyCommit, "CC-BY-SA-4.0", "4 of 6"} {
 		if !strings.Contains(joined, must) {
@@ -93,16 +90,14 @@ func TestInstallFreqPrunesSortsAndKeepsTheLicense(t *testing.T) {
 	if got, err := os.ReadFile(filepath.Join(dir, "xx_XX.LICENSE")); err != nil || string(got) != upstreamLicense {
 		t.Errorf("license = %q, %v; want %q", got, err, upstreamLicense)
 	}
-	// Nothing half-written left over: the pruned copy is renamed into place, so a
-	// `.part` surviving the install would be a list that is short and looks complete.
+	// No `.part` file is left behind.
 	if _, err := os.Stat(filepath.Join(dir, "xx_XX.freq.part")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("a .part file survived the install: %v", err)
 	}
 }
 
-// The check the pinning exists for, and the part that matters: nothing is written. A
-// truncated frequency list is worse than none — every word past the cut looks infinitely
-// rare, which is exactly the shape that produces false marks.
+// A checksum mismatch writes nothing: a truncated list would make every word past
+// the cut look rare.
 func TestInstallFreqRefusesAndWritesNothingOnAHashMismatch(t *testing.T) {
 	t.Parallel()
 
@@ -125,9 +120,8 @@ func TestInstallFreqRefusesAndWritesNothingOnAHashMismatch(t *testing.T) {
 	}
 }
 
-// Size is checked as well as the hash, and separately: a server that answers with more
-// bytes than the manifest allows is stopped by the limit rather than read to the end and
-// then hashed.
+// Size is checked separately: an oversized body is stopped by the limit, not read
+// to the end and then hashed.
 func TestInstallFreqRefusesAListThatIsNotTheRecordedSize(t *testing.T) {
 	t.Parallel()
 
@@ -164,11 +158,10 @@ func TestInstallFreqAndLoadRoundTrip(t *testing.T) {
 		"zebra": 40,
 		"alpha": 12,
 		"beta":  3,
-		// Below the threshold and never in the file: the list stops distinguishing
-		// "rare" from "absent" at the cut, and 0 is the honest answer for both.
+		// Below the threshold, so absent from the file: 0, as for an unknown word.
 		"gamma": 0,
 		"delta": 0,
-		// Neither in the file nor anywhere near it.
+		// Not in the file at all.
 		"aaaa": 0,
 		"zzzz": 0,
 		"":     0,
@@ -179,9 +172,7 @@ func TestInstallFreqAndLoadRoundTrip(t *testing.T) {
 	}
 }
 
-// A file that arrived out of order — an older install, or one somebody edited — is
-// repaired rather than refused: refusing it would be a language silently unchecked for a
-// reason the user cannot see.
+// An out-of-order file (older install, hand-edited) is re-sorted, not refused.
 func TestLoadFreqRepairsAnUnsortedFile(t *testing.T) {
 	t.Parallel()
 
@@ -202,9 +193,7 @@ func TestLoadFreqRepairsAnUnsortedFile(t *testing.T) {
 	}
 }
 
-// `#` is a comment in the header and a word everywhere else. The lists are tokenized
-// subtitles, so a token starting with one is unlikely and not impossible, and a file is
-// allowed to contain its own data.
+// `#` lines are comments only in the header; `#hash 9` after it is an entry.
 func TestLoadFreqTreatsHashAsAWordAfterTheHeader(t *testing.T) {
 	t.Parallel()
 
@@ -242,8 +231,7 @@ func TestLoadFreqReportsAMissingOrEmptyFile(t *testing.T) {
 	}
 }
 
-// A malformed line is skipped rather than fatal: a list is data, not a protocol, and one
-// odd line in a corpus of a million is not a reason to refuse a language.
+// A malformed line is skipped, not fatal.
 func TestPruneLinesSkipsWhatItCannotRead(t *testing.T) {
 	t.Parallel()
 
@@ -271,8 +259,7 @@ func TestFreqPathsAndInstalled(t *testing.T) {
 	if got, want := FreqFile(dir, "he_IL"), filepath.Join(dir, "he_IL.freq"); got != want {
 		t.Errorf("FreqFile = %q, want %q", got, want)
 	}
-	// A directory that does not exist yet is not an error — it is what a machine that
-	// has never installed one looks like.
+	// A missing directory means nothing installed, not an error.
 	if got := FreqInstalled(dir); got != nil {
 		t.Errorf("FreqInstalled of a missing dir = %v, want nil", got)
 	}
@@ -299,9 +286,8 @@ func TestInstallFreqRejectsAnUnknownTag(t *testing.T) {
 	}
 }
 
-// Every list is keyed by a tag that can actually be installed as a dictionary. The
-// reverse is deliberately *not* asserted: a language with a dictionary and no counts
-// simply gets no rare marks, which is the designed outcome rather than a gap.
+// Every list's tag is an installable dictionary. The reverse is not required: a
+// dictionary without counts just gets no rare marks.
 func TestEveryFrequencyListBelongsToADictionary(t *testing.T) {
 	t.Parallel()
 
@@ -316,8 +302,7 @@ func TestEveryFrequencyListBelongsToADictionary(t *testing.T) {
 		if src.Words == 0 || src.Kept == 0 {
 			t.Errorf("%s: unmeasured manifest entry %+v", tag, src)
 		}
-		// What it downloads and what it keeps are different numbers, and the prompt
-		// quotes both — the pruning is two thirds of the file.
+		// Download and kept sizes differ (pruning drops about two thirds); the prompt quotes both.
 		if src.Disk() >= src.Bytes() {
 			t.Errorf("%s: kept %d bytes of a %d-byte download", tag, src.Disk(), src.Bytes())
 		}
@@ -352,8 +337,7 @@ func TestFreqPrefix(t *testing.T) {
 			t.Fatalf("Prefix(comp, 3) = %+v, want %v in that order", got, want)
 		}
 	}
-	// "comp" is the commonest entry of all and is deliberately absent: it is what has
-	// already been typed.
+	// "comp" is the commonest entry but excluded: it is what was typed.
 	for _, c := range got {
 		if c.Word == "comp" {
 			t.Fatalf("Prefix(comp, 3) offered the prefix itself: %+v", got)

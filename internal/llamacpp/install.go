@@ -15,17 +15,16 @@ import (
 	"github.com/EugeneShtoka/kith/internal/llamacpp/models"
 )
 
-// Model downloads are pinned to one upstream commit, SHA-256 checked (a mismatch
-// installs nothing), and never automatic. Unlike dictionaries they stream to a temp
-// file in the destination, hashing as they go, and are renamed only once verified.
+// Model downloads are pinned to one upstream commit, SHA-256 checked, and never
+// automatic. They stream to a temp file in the destination and are renamed once verified.
 
 // ErrUnknownModel is returned for a tag the manifest does not carry.
 var ErrUnknownModel = errors.New("llamacpp: no such model")
 
-// ErrCorrupt is returned when a download does not match the manifest. Not transient.
+// ErrCorrupt is returned when a download does not match the manifest.
 var ErrCorrupt = errors.New("llamacpp: downloaded file does not match its recorded checksum")
 
-// Install downloads one model into dir, verifying it before it lands under its own name.
+// Install downloads and verifies one model into dir.
 func Install(ctx context.Context, client *http.Client, tag, dir string) (models.Source, error) {
 	src, ok := models.SourceFor(tag)
 	if !ok {
@@ -34,7 +33,7 @@ func Install(ctx context.Context, client *http.Client, tag, dir string) (models.
 	return src, install(ctx, client, models.Base(), src, dir)
 }
 
-// install is Install with the origin and entry decided, for tests.
+// install is Install with the origin and entry resolved.
 func install(ctx context.Context, client *http.Client, base string, src models.Source, dir string) error {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("llamacpp: make %s: %w", dir, err)
@@ -46,8 +45,7 @@ func install(ctx context.Context, client *http.Client, base string, src models.S
 	if err != nil {
 		return fmt.Errorf("llamacpp: make a temporary file in %s: %w", dir, err)
 	}
-	// A no-op after the successful rename; on failure, cleanup whose own errors add
-	// nothing to the one returned.
+	// A no-op after a successful rename.
 	defer func() {
 		_ = tmp.Close()
 		_ = os.Remove(tmp.Name())
@@ -68,8 +66,7 @@ func install(ctx context.Context, client *http.Client, base string, src models.S
 	return nil
 }
 
-// download streams one file into w, hashing as it goes, and fails unless size and
-// SHA-256 match.
+// download streams one file into w and fails unless size and SHA-256 match.
 func download(ctx context.Context, client *http.Client, url string, want models.File, w io.Writer) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -99,5 +96,5 @@ func download(ctx context.Context, client *http.Client, url string, want models.
 	return nil
 }
 
-// DefaultClient allows an hour: 369 MB on a slow link is a long honest download.
+// DefaultClient allows an hour: 369 MB on a slow link takes long.
 func DefaultClient() *http.Client { return &http.Client{Timeout: time.Hour} }

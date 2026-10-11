@@ -1,6 +1,5 @@
-// Package schedule is the on-disk queue of messages to send later. It is a TOML file
-// rather than part of the disposable cache, since unsent messages exist nowhere else;
-// unparseable entries are reported and kept, never dropped.
+// Package schedule is the on-disk TOML queue of messages to send later. It is not in
+// the disposable cache since unsent messages exist nowhere else.
 package schedule
 
 import (
@@ -15,52 +14,45 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// ownerOnly is the file mode: the queue holds message bodies you have not sent yet.
+// ownerOnly: the queue holds unsent message bodies.
 const ownerOnly os.FileMode = 0o600
 
-// Store is the queue on disk. The daemon owns it — one writer, so there is no lock
-// here and no two-process race to reason about. The client asks the daemon.
+// Store is the queue on disk. Only the daemon writes it, so there is no lock.
 type Store struct {
 	path string
 }
 
-// New returns a store over the file at path. It does not read it; Load does.
+// New returns a store over the file at path without reading it.
 func New(path string) *Store { return &Store{path: path} }
 
-// Path is where the queue lives, for reporting.
+// Path is the queue file's path.
 func (s *Store) Path() string { return s.path }
 
-// file is the TOML document.
 type file struct {
 	Message []entry `toml:"message"`
 }
 
-// entry is one pending send as written to disk.
 type entry struct {
-	ID         string `toml:"id"`
-	Room       string `toml:"room"`
-	Body       string `toml:"body"`
-	ThreadRoot string `toml:"thread_root,omitempty"`
-	// ReplyTo and Mention are what make a queued message arrive as the message it was:
-	// the target it answers, and the pills written into its body.
-	ReplyTo string    `toml:"reply_to,omitempty"`
-	Mention []mention `toml:"mention,omitempty"`
-	// TxnID is what makes retrying safe: the homeserver deduplicates by it, so an entry
-	// whose send may already have arrived can be tried again.
+	ID         string    `toml:"id"`
+	Room       string    `toml:"room"`
+	Body       string    `toml:"body"`
+	ThreadRoot string    `toml:"thread_root,omitempty"`
+	ReplyTo    string    `toml:"reply_to,omitempty"`
+	Mention    []mention `toml:"mention,omitempty"`
+	// TxnID makes retries safe: the homeserver deduplicates by it.
 	TxnID   string `toml:"txn_id,omitempty"`
 	Emote   bool   `toml:"emote,omitempty"`
 	At      string `toml:"at"`
 	Written string `toml:"written"`
 }
 
-// mention is one pill as written to disk: who to notify, and the text that names them.
 type mention struct {
 	UserID string `toml:"user_id"`
 	Name   string `toml:"name"`
 }
 
-// Load reads the queue. A missing file is an empty queue, not an error: that is
-// every account that has never scheduled anything.
+// Load reads the queue; a missing file is empty. Bad entries are reported in the error
+// while the rest load.
 func (s *Store) Load() ([]domain.ScheduledMessage, error) {
 	var doc file
 	if _, err := toml.DecodeFile(s.path, &doc); err != nil {
@@ -103,7 +95,7 @@ func (e entry) decode() (domain.ScheduledMessage, error) {
 	mentions := make([]domain.Mention, 0, len(e.Mention))
 	for _, m := range e.Mention {
 		if m.UserID == "" {
-			continue // a pill with nobody to notify is not a pill
+			continue
 		}
 		mentions = append(mentions, domain.Mention{UserID: m.UserID, Name: m.Name})
 	}

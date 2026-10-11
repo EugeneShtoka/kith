@@ -42,9 +42,8 @@ func TestBadThemeIsRefused(t *testing.T) {
 	}
 }
 
-// A color a config writes is "#rrggbb" or a known name, in any case and spacing; a
-// name reads as its hex; anything else, empty included, is no color. The names are
-// listed sorted, each one a color.
+// Color accepts "#rrggbb" or a known name in any case and spacing, and nothing else;
+// ColorNames is sorted and each parses.
 func TestAConfigColor(t *testing.T) {
 	t.Parallel()
 

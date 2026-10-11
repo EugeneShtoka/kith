@@ -8,20 +8,14 @@ import (
 	"time"
 )
 
-// One rule, and only rules.
-
-// Scope is the context one notification is judged in: where it happened and who sent
-// it. Spaces is a list because a room can belong to several.
+// Scope is the context a notification is judged in: where it happened and who sent it.
 type Scope struct {
 	// Room answers what a rule's Match names, and how broadly.
 	Room   Place
 	Sender string
-	// Thread is the conversation the message is in — its root — and empty for the
-	// room's main timeline.
+	// Thread is the thread root, empty for the main timeline.
 	Thread string
-	// Participating reports that we have spoken in that thread, which is the
-	// distinction every client's thread setting is actually about: a conversation you
-	// joined is one you asked to hear about.
+	// Participating reports that the user has posted in that thread.
 	Participating bool
 }
 
@@ -29,10 +23,9 @@ type Scope struct {
 type ThreadMatch int
 
 const (
-	// ThreadAny is the default and the zero value: the rule does not ask about threads,
-	// so it applies to a message wherever it sits.
+	// ThreadAny (the zero value) matches regardless of thread.
 	ThreadAny ThreadMatch = iota
-	// ThreadParticipating matches only a message in a thread we have spoken in.
+	// ThreadParticipating matches only a message in a thread the user has posted in.
 	ThreadParticipating
 	// ThreadNone matches only a message that is in no thread at all.
 	ThreadNone
@@ -67,28 +60,25 @@ func ParseThread(name string) (ThreadMatch, error) {
 	return ThreadAny, fmt.Errorf("unknown thread condition %q (want any, participating or none)", name)
 }
 
-// Rule is one statement about what gets through, and the only such statement there is.
+// Rule is one statement about which notifications get through.
 type Rule struct {
-	// Name is how a person says this rule — "Quiet hours", "Alice", "Standup".
+	// Name is the display name, e.g. "Quiet hours".
 	Name string
 	// Match names a place: a room ID or a space's name.
 	Match string
 	// Sender narrows the rule to one person's MXID. Empty matches anyone.
 	Sender string
-	// Thread narrows the rule to a message's place in a conversation: unset asks
-	// nothing, "participating" is only threads we have spoken in, "none" is only the
-	// main timeline.
+	// Thread narrows the rule by thread; see ThreadMatch.
 	Thread ThreadMatch
 	// When is a daily window the rule is awake in. Nil means always.
 	When *Window
-	// Show is the bar a message clears to raise a popup at all.
+	// Show is the bar a message clears to raise a popup.
 	Show *Level
 	// Ring is the bar to also make a sound.
 	Ring *Level
 	// Sound is the file to play when it rings.
 	Sound string
-	// Temp marks a rule written by a keystroke rather than read from the config: this
-	// is what do-not-disturb is.
+	// Temp marks a do-not-disturb rule set at runtime rather than read from config.
 	Temp bool
 	// Until is when a temporary rule lapses. Zero means until it is turned off.
 	Until time.Time
@@ -103,8 +93,7 @@ func (r Rule) Live(now time.Time) bool {
 	return r.When == nil || r.When.Covers(now)
 }
 
-// Remaining is how much of a temporary rule is left, or zero when it has no deadline
-// or is not temporary.
+// Remaining is how much of a temporary rule is left; zero if it has no deadline or is not temporary.
 func (r Rule) Remaining(now time.Time) time.Duration {
 	if !r.Temp || r.Until.IsZero() {
 		return 0
@@ -115,17 +104,14 @@ func (r Rule) Remaining(now time.Time) time.Duration {
 	return 0
 }
 
-// Names reports whether the rule speaks about this exact thing, which is the identity a
-// temporary rule is replaced and lifted by: two rules naming the same place and the
-// same person are one statement said twice.
+// Names reports whether the rule names this place and sender; temporary rules are
+// replaced and lifted by this identity.
 func (r Rule) Names(match, sender string) bool {
 	return r.Match == match && r.Sender == sender
 }
 
-// Specificity is how narrowly a rule matched, and it decides which rule wins. A rule
-// about a person beats one about a room: it says what you want of them wherever they
-// are, muted or always let through, while a room's rule is about the room at large. A
-// rule naming both is narrower than either.
+// Specificity ranks, narrowest last, decide which rule wins. A sender rule beats a
+// room rule; a rule naming both beats either.
 const (
 	noMatch = iota
 	matchGlobal
@@ -146,14 +132,12 @@ func (r Rule) specificity(s Scope) int {
 
 	if r.Match == "" {
 		if !hasSender {
-			// Constrained by nothing: the account-wide rule, which every other rule
-			// refines.
 			return matchGlobal
 		}
-		return matchSender // constrained only by who, so: this person anywhere
+		return matchSender
 	}
-	// One vocabulary for *where*, shared with every filter in this client: a room ID
-	// bare, `room:<name>`, `space:<name>`, `protocol:<network>`, `dm`, `group`.
+	// Match uses the client-wide place vocabulary: a bare room ID, `room:<name>`,
+	// `space:<name>`, `protocol:<network>`, `dm`, `group`.
 	if s.Room == nil {
 		return noMatch
 	}
@@ -204,9 +188,8 @@ func (r Rule) matchesThread(s Scope) bool {
 	}
 }
 
-// threadRank is the secondary key: a rule that names a thread condition is the narrower
-// statement among rules matching the same place, and so has the last word over one that
-// does not.
+// threadRank is the secondary sort key: among equal-place rules, one with a thread
+// condition is narrower and wins.
 func (r Rule) threadRank() int {
 	if r.Thread == ThreadAny {
 		return 0
@@ -214,8 +197,8 @@ func (r Rule) threadRank() int {
 	return 1
 }
 
-// Resolved is what the rules add up to for one scope at one instant, and — the part
-// that matters as much as the answer — *which rule* produced each half of it.
+// Resolved is the effective result of the rules for one scope at one instant, with the
+// rule behind each part.
 type Resolved struct {
 	// Show and Ring are the effective bars.
 	Show, Ring Level
@@ -223,8 +206,7 @@ type Resolved struct {
 	Sound string
 	// ShowBy, RingBy and SoundBy are the rules that last set each.
 	ShowBy, RingBy, SoundBy Rule
-	// Applied is every rule that took part, least specific first — the chain, for
-	// explaining a decision rather than merely stating it.
+	// Applied is every matching rule, least specific first, for explaining a decision.
 	Applied []Rule
 }
 
@@ -273,15 +255,14 @@ func Resolve(rules []Rule, s Scope, now time.Time) Resolved {
 			out.Sound, out.SoundBy = rule.Sound, rule
 		}
 	}
-	// Ring follows Show unless something said otherwise: a notification that appears
-	// makes its noise, which is what every version of this feature has done.
+	// Ring follows Show unless a rule set it.
 	if !ringSet {
 		out.Ring, out.RingBy = out.Show, out.ShowBy
 	}
 	return out
 }
 
-// Outcome is what happens to one message, and which rule is answerable for it.
+// Outcome is what happens to one message, and which rule decided it.
 type Outcome struct {
 	// Notify raises a popup.
 	Notify bool
@@ -289,16 +270,14 @@ type Outcome struct {
 	Silent bool
 	// Sound is the file to play when it is not silent.
 	Sound string
-	// By is the rule that decided: the one whose Show held the message back, or whose
-	// Ring took its sound, or — when the notification goes out whole — the one that
-	// admitted it.
+	// By is the rule whose Show blocked it, whose Ring silenced it, or whose Show admitted it.
 	By Rule
 }
 
 // Decide applies the resolved bars to one message.
 func (r Resolved) Decide(e Event) Outcome {
 	if e.Mine {
-		// Our own message, echoed back by sync.
+		// The user's own message, echoed by sync.
 		return Outcome{}
 	}
 	if !r.Show.Admits(e) {
@@ -310,11 +289,10 @@ func (r Resolved) Decide(e Event) Outcome {
 	return Outcome{Notify: true, Sound: r.Sound, By: r.ShowBy}
 }
 
-// Temps is the set of temporary rules the daemon holds — do-not-disturb, as a set
-// rather than a switch.
+// Temps is the set of temporary (do-not-disturb) rules the daemon holds.
 type Temps []Rule
 
-// Add puts one temporary rule in force.
+// Add puts a temporary rule in force, replacing one with the same place and sender.
 func (t Temps) Add(r Rule) Temps {
 	r.Temp = true
 	out := make(Temps, 0, len(t)+1)
@@ -337,8 +315,7 @@ func (t Temps) Remove(match, sender string) Temps {
 	return out
 }
 
-// Live is the rules still in force at now, widest scope first — the order they should
-// be *read* in, which is the opposite of the order the chooser asks in.
+// Live is the rules still in force at now, widest scope first.
 func (t Temps) Live(now time.Time) Temps {
 	out := make(Temps, 0, len(t))
 	for i := range t {
@@ -355,8 +332,7 @@ func (t Temps) Live(now time.Time) Temps {
 // anyScope ranks a temporary rule by shape alone, for listing.
 var anyScope = Scope{}
 
-// Any reports whether anything is in force at now — what one keystroke asks before
-// deciding whether it is setting a silence or lifting one.
+// Any reports whether any temporary rule is in force at now.
 func (t Temps) Any(now time.Time) bool {
 	for i := range t {
 		if t[i].Live(now) {
@@ -376,8 +352,7 @@ func (t Temps) Global(now time.Time) (Rule, bool) {
 	return Rule{}, false
 }
 
-// Rules is a standing rule set with the temporary ones layered on, which is what the
-// decision is actually made against.
+// Rules is the standing rules with the temporary ones appended.
 func Rules(standing []Rule, temps Temps) []Rule {
 	out := make([]Rule, 0, len(standing)+len(temps))
 	out = append(out, standing...)

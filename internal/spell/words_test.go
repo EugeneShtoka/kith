@@ -33,8 +33,7 @@ func TestWordsKeepsProse(t *testing.T) {
 	same(t, texts(Words("well-known problem")), "well-known", "problem")
 }
 
-// Every offset has to map back onto the text it came from: that is what the composer
-// underlines, so an offset that is off by a byte underlines the wrong column.
+// Every offset maps back onto its text; the composer underlines by them.
 func TestWordOffsetsMapBack(t *testing.T) {
 	t.Parallel()
 
@@ -46,7 +45,7 @@ func TestWordOffsetsMapBack(t *testing.T) {
 	}
 }
 
-// The skip list is the difference between a usable checker and a wall of underlines.
+// Code, links, Matrix identifiers and shortcodes are skipped.
 func TestWordsSkipsWhatADictionaryCannotJudge(t *testing.T) {
 	t.Parallel()
 
@@ -77,8 +76,7 @@ func TestWordsSkipsWhatADictionaryCannotJudge(t *testing.T) {
 	}
 }
 
-// A colon is punctuation far more often than it is a shortcode, and a checker that
-// swallowed the rest of a sentence after one would be worse than no checker.
+// A bare colon is punctuation, not the start of a shortcode.
 func TestWordsTreatsOrdinaryColonsAsPunctuation(t *testing.T) {
 	t.Parallel()
 
@@ -87,9 +85,8 @@ func TestWordsTreatsOrdinaryColonsAsPunctuation(t *testing.T) {
 	same(t, texts(Words("look :: here")), "look", "here")
 }
 
-// The rule that was got wrong first, measuring a real corpus: a word belongs to the
-// script most of its letters belong to. Counting letters instead lets one stray
-// character drag a word into the wrong dictionary.
+// A word belongs to the script most of its letters are in, so one stray letter
+// cannot move it.
 func TestScriptIsDecidedPerWordByMajority(t *testing.T) {
 	t.Parallel()
 
@@ -117,8 +114,7 @@ func TestScriptIsDecidedPerWordByMajority(t *testing.T) {
 	}
 }
 
-// A mixed message is the normal shape here, so the tokenizer has to hand back each
-// word filed under its own script rather than picking one for the sentence.
+// A mixed message files each word under its own script.
 func TestWordsFilesAMixedSentencePerWord(t *testing.T) {
 	t.Parallel()
 
@@ -133,9 +129,8 @@ func TestWordsFilesAMixedSentencePerWord(t *testing.T) {
 	}
 }
 
-// A fence is allowed to span the lines of one draft. The counterpart rule — never run
-// this over several texts joined together — cannot be asserted here because it is a
-// rule about callers; it is why Words takes one text and has no batch form.
+// A fence may span the lines of one draft. Words takes one text because skip regions
+// must never run across joined texts.
 func TestWordsAllowsAFenceToSpanLinesOfOneText(t *testing.T) {
 	t.Parallel()
 

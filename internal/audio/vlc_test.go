@@ -162,7 +162,7 @@ func TestVLCControlsUseItsOwnCommands(t *testing.T) {
 	}
 }
 
-// Stopped is not finished: a note paused in the middle must not read as done.
+// A note paused mid-way does not read as done.
 func TestVLCTellsStoppedFromFinished(t *testing.T) {
 	t.Parallel()
 

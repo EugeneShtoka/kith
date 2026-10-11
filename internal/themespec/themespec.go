@@ -1,8 +1,6 @@
-// Package themespec is the theme config as data: the built-in presets and the
-// per-role overrides, validated, as the color strings the config writes ("#00aaff",
-// or an ANSI slot like "12"). It imports nothing, so the headless binaries can check a
-// config's [display.theme] without linking a terminal renderer; internal/theme turns
-// the strings into colors for the TUI.
+// Package themespec validates theme config as color strings ("#00aaff" or an ANSI slot
+// like "12"): built-in presets plus per-role overrides. It imports nothing, so headless
+// binaries can check [display.theme] without linking a renderer.
 package themespec
 
 import (
@@ -100,9 +98,8 @@ func terminal() Colors {
 
 var hexColor = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
 
-// Resolve is a preset by name ("" = default) with per-role hex overrides ("" =
-// unchanged). Unknown presets, roles or malformed colors are errors, not silent
-// fallbacks.
+// Resolve returns a preset ("" = default) with per-role hex overrides ("" = unchanged).
+// Unknown presets, roles or malformed colors are errors.
 func Resolve(preset string, overrides map[string]string) (Colors, error) {
 	name := strings.ToLower(strings.TrimSpace(preset))
 	if name == "" {
@@ -181,8 +178,8 @@ var namedColors = map[string]string{
 	"white":      "#deebfe", // light_purple: cobalt2's near-white
 }
 
-// Color is a color a config writes, as "#rrggbb": that value, or one of namedColors
-// by name (any case). ok is false for an empty or unrecognized value.
+// Color normalizes a config color ("#rrggbb" or a namedColors name, any case) to hex;
+// ok is false for an empty or unrecognized value.
 func Color(s string) (string, bool) {
 	s = strings.TrimSpace(s)
 	if hex, ok := namedColors[strings.ToLower(s)]; ok {

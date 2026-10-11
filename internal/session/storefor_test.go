@@ -9,9 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// An install from before keeps its keyring entries; a new instance of the same Matrix
-// account has its own, and never reads the old ones: a second kith must not take
-// over the first one's Matrix device, nor its encryption key.
+// A second instance of the same Matrix account never reads the first one's session
+// or encryption key.
 func TestANewInstanceNeverTakesAnothersSession(t *testing.T) {
 	keyring.MockInit()
 	const user = "@ada:x"
@@ -38,8 +37,6 @@ func TestANewInstanceNeverTakesAnothersSession(t *testing.T) {
 	}
 }
 
-// An API key belongs to the person: one kept under the default service is found from
-// an instance with its own.
 func TestASecretIsFoundUnderTheDefaultService(t *testing.T) {
 	keyring.MockInit()
 	if err := StoreSecret("kith", "groq", "k1"); err != nil {

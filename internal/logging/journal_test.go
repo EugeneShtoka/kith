@@ -133,8 +133,7 @@ func TestJournalHandlerFields(t *testing.T) {
 	if got := f.last(t); got["PRIORITY"] != "7" || got["AT"] != "2026-09-25T01:02:03Z" || len(got) != 4 {
 		t.Errorf("debug entry = %v", got)
 	}
-	// Every name handed to the journal is one it accepts: go-systemd would otherwise
-	// complain on stderr, which kith must never write to.
+	// Every field name must be valid, or go-systemd complains on stderr.
 	log.Info("odd keys", "a.b", 1, "-x", 2, "9lives", 3, "ключ", 4)
 	for name := range f.last(t) {
 		if FieldName(name) != name && name != "MESSAGE" && name != "PRIORITY" && name != "SYSLOG_IDENTIFIER" {
@@ -204,7 +203,7 @@ func TestJournalWithAttrsAndGroups(t *testing.T) {
 	}
 }
 
-// The journal gets exactly what the text format would: no secrets.
+// The journal is scrubbed like the text format.
 func TestJournalScrubs(t *testing.T) {
 	t.Parallel()
 	f, log := newJournalLogger(slog.LevelDebug)
@@ -261,8 +260,7 @@ func TestJournalConcurrent(t *testing.T) {
 	}
 }
 
-// Live: KITH_LIVE_JOURNAL=1 go test -run TestLiveJournal ./internal/logging writes a
-// uniquely tagged entry to this machine's journal and reads it back.
+// Live: KITH_LIVE_JOURNAL=1 writes a tagged entry to the real journal and reads it back.
 func TestLiveJournal(t *testing.T) {
 	if os.Getenv("KITH_LIVE_JOURNAL") != "1" {
 		t.Skip("set KITH_LIVE_JOURNAL=1 to write to the real journal")

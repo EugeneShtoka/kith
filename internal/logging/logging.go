@@ -1,12 +1,8 @@
-// Package logging builds the one log format all three binaries share: log/slog's
-// text handler, with a level from flag, env or config, no timestamps under journald
-// (it stamps every line itself), and secrets scrubbed from every value on the way
-// out. It is a leaf: callers hand it a writer and it hands back a *slog.Logger.
+// Package logging builds the log format shared by all binaries: slog text, level from
+// flag/env/config, no timestamps under journald, secrets scrubbed.
 //
-// What goes where (see Open and Target): kith, which owns the terminal, logs to the
-// journal over its native protocol (JournalHandler) when there is one, else to a
-// size-capped file (OpenFile); kithd logs to stderr under systemd (journald captures
-// it), and when detached to the journal or its --log-file; kith-mcp to stderr (stdout is
+// kith (owns the terminal) logs to the journal, else a size-capped file; kithd logs to
+// stderr under systemd, else the journal or --log-file; kith-mcp to stderr (stdout is
 // the protocol).
 package logging
 
@@ -43,8 +39,8 @@ func ParseLevel(name string) (slog.Level, error) {
 	}
 }
 
-// Resolve picks the level: the flag if set, else $KITH_LOG_LEVEL if set, else the
-// config's, else info. Each is validated, so a typo is reported rather than ignored.
+// Resolve picks the level: flag, else $KITH_LOG_LEVEL, else config, else info. The
+// chosen one is validated, so a typo is reported.
 func Resolve(flag, configured string) (slog.Level, error) {
 	for _, name := range []string{flag, os.Getenv(EnvLevel), configured} {
 		if strings.TrimSpace(name) != "" {
@@ -80,15 +76,14 @@ func New(w io.Writer, opts Options) *slog.Logger {
 	}))
 }
 
-// UnderJournald reports whether stderr is connected to the journal: systemd sets
-// JOURNAL_STREAM to its device and inode for a unit whose output goes there, and a
-// child that inherited the variable with some other stderr does not count.
+// UnderJournald reports whether stderr is the stream JOURNAL_STREAM names (an
+// inherited variable with a different stderr does not count).
 func UnderJournald() bool {
 	under, err := journal.StderrIsJournalStream()
 	return err == nil && under
 }
 
-// Discard is a logger that writes nothing: the default for a component nobody wired.
+// Discard returns a logger that writes nothing.
 func Discard() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 // OrDiscard returns l, or Discard when l is nil.
@@ -101,9 +96,8 @@ func OrDiscard(l *slog.Logger) *slog.Logger {
 
 // ── Secrets ──
 
-// secretPatterns match a credential and keep only its name: the replacement keeps
-// group 1 (the key and separator) and redacts the rest. Matrix access tokens
-// (syt_…, mct_…) are caught bare too, since an error may quote one out of context.
+// secretPatterns keep group 1 (key and separator) and redact the rest. Bare Matrix
+// tokens (syt_…, mct_…) are caught too, since errors may quote one out of context.
 var secretPatterns = []*regexp.Regexp{
 	// Authorization: Bearer xyz / Bearer xyz
 	regexp.MustCompile(`(?i)(authorization:\s*(?:bearer|basic)\s+|bearer\s+)[^\s"',;]+`),
@@ -125,9 +119,8 @@ func Scrub(s string) string {
 	return s
 }
 
-// secretKeys are attribute keys whose value is a secret whatever it looks like: the
-// value patterns only catch a credential they can recognize, and "token"="abc" is not
-// one. Matched whole and case-insensitively; "-" counts as "_".
+// secretKeys are attribute keys whose values are always redacted, since the patterns
+// can't recognize e.g. "abc". Case-insensitive, whole match; "-" counts as "_".
 var secretKeys = map[string]bool{
 	"access_token": true, "refresh_token": true, "token": true, "password": true,
 	"passphrase": true, "recovery_key": true, "api_key": true, "apikey": true,
@@ -139,9 +132,8 @@ func isSecretKey(key string) bool {
 	return secretKeys[strings.ReplaceAll(strings.ToLower(key), "-", "_")]
 }
 
-// scrubAttr scrubs one attribute's value, whatever its kind: an error or a Stringer
-// is rendered first, so what it says is scrubbed too. A value under a secret key
-// (secretKeys) is redacted whole.
+// scrubAttr scrubs a value of any kind, rendering errors and Stringers first; a
+// secretKeys value is redacted whole.
 func scrubAttr(a slog.Attr) slog.Attr {
 	v := a.Value.Resolve()
 	if v.Kind() != slog.KindGroup && isSecretKey(a.Key) {

@@ -37,8 +37,7 @@ func ParseTarget(name string) (Target, error) {
 	}
 }
 
-// ResolveTarget picks the target: the flag if set, else $KITH_LOG_TARGET if set, else
-// the config's, else auto. Each is validated, like Resolve's levels.
+// ResolveTarget picks the target like Resolve: flag, $KITH_LOG_TARGET, config, auto.
 func ResolveTarget(flag, configured string) (Target, error) {
 	for _, name := range []string{flag, os.Getenv(EnvTarget), configured} {
 		if strings.TrimSpace(name) != "" {
@@ -61,8 +60,8 @@ type Destination struct {
 	Target Target
 	// Identifier tags journal entries (see Identifier).
 	Identifier string
-	// File is the log file: the target when it is TargetFile, the fallback when
-	// the journal is not there. Empty means none, so no journal is an error.
+	// File is the target for TargetFile, else the fallback without a journal; empty
+	// makes a missing journal an error.
 	File string
 	// Level is the minimum level written; nil means info.
 	Level slog.Leveler
@@ -79,8 +78,7 @@ type Sink struct {
 	closer  io.Closer
 }
 
-// Close closes the file. The journal needs no closing: its socket is shared by the
-// process.
+// Close closes the file; the journal socket is process-wide and stays open.
 func (s *Sink) Close() error {
 	if s.closer == nil {
 		return nil
@@ -91,14 +89,11 @@ func (s *Sink) Close() error {
 	return nil
 }
 
-// ErrNoJournal is Open's error when the journal was wanted, is not there, and no
-// file was given to fall back to.
+// ErrNoJournal means the journal was wanted, is absent, and no fallback file was given.
 var ErrNoJournal = errors.New("logging: no journal")
 
-// Open opens d's log. Auto and journal try the journal first; without one they
-// fall back to the file — silently for auto, with a one-time note at the top of the
-// file for journal, since that was asked for by name. Nothing is ever written to
-// stderr: the caller decides what an error means.
+// Open opens d's log. Auto and journal fall back to the file without a journal;
+// journal also notes the fallback in the file. Nothing is written to stderr.
 func Open(d Destination) (*Sink, error) {
 	if d.Target != TargetFile {
 		j := SystemJournal

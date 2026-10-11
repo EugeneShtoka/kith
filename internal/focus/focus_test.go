@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-// What is worth pinning here is the ladder and the wait.
-
 // env replaces the environment reader with a fixed map.
 func env(t *testing.T, vars map[string]string) {
 	t.Helper()
@@ -41,8 +39,8 @@ func installed(t *testing.T, programs ...string) {
 	t.Cleanup(func() { lookPath = real })
 }
 
-// record swaps the runner for one that remembers every argv it was given and answers
-// with errs in order, repeating the last one once they run out.
+// record swaps the runner for one that records each argv and answers with errs in
+// order, repeating the last.
 func record(t *testing.T, errs ...error) *[][]string {
 	t.Helper()
 	var ran [][]string
@@ -62,7 +60,7 @@ func record(t *testing.T, errs ...error) *[][]string {
 	return &ran
 }
 
-// noNap makes wait's retries instant, so a test costs nothing to run.
+// noNap makes wait's retries instant.
 func noNap(t *testing.T) {
 	t.Helper()
 	real := nap
@@ -70,8 +68,7 @@ func noNap(t *testing.T) {
 	t.Cleanup(func() { nap = real })
 }
 
-// The desktop is chosen by its own environment variable, not by what happens to be
-// installed.
+// The desktop is chosen by its environment variable, not by what is installed.
 func TestTheRunningDesktopWinsOverTheInstalledOne(t *testing.T) {
 	env(t, map[string]string{"I3SOCK": "/run/user/1000/i3/ipc-socket.2532", "DISPLAY": ":0"})
 	installed(t, "swaymsg", "i3-msg", "wmctrl")
@@ -83,8 +80,7 @@ func TestTheRunningDesktopWinsOverTheInstalledOne(t *testing.T) {
 	}
 }
 
-// A desktop whose tool is not installed is skipped rather than chosen and failed on: an
-// i3 session with no i3-msg still has wmctrl, and wmctrl still works.
+// A desktop whose tool is missing falls through to wmctrl.
 func TestAMissingToolFallsThroughToTheGenericRung(t *testing.T) {
 	env(t, map[string]string{"I3SOCK": "/run/user/1000/i3/ipc-socket.2532", "DISPLAY": ":0"})
 	installed(t, "wmctrl")
@@ -96,7 +92,6 @@ func TestAMissingToolFallsThroughToTheGenericRung(t *testing.T) {
 	}
 }
 
-// Nothing to run it with is a real answer, and the one GNOME under Wayland gives.
 func TestNoFocuserIsAnAnswer(t *testing.T) {
 	env(t, map[string]string{"WAYLAND_DISPLAY": "wayland-0", "XDG_CURRENT_DESKTOP": "GNOME"})
 	installed(t)
@@ -106,8 +101,7 @@ func TestNoFocuserIsAnAnswer(t *testing.T) {
 	}
 }
 
-// The class goes into the criteria string, not onto the end of the argv — which is the
-// whole reason this table uses a placeholder.
+// The class is substituted inside the criteria string, not appended to the argv.
 func TestTheClassIsSubstitutedIntoTheCriteria(t *testing.T) {
 	ran := record(t)
 
@@ -121,8 +115,7 @@ func TestTheClassIsSubstitutedIntoTheCriteria(t *testing.T) {
 	}
 }
 
-// sway is asked twice because a browser may be a native Wayland window or an XWayland
-// one, and its name does not say which.
+// sway tries app_id then class: the browser may be native Wayland or XWayland.
 func TestASecondFormIsTriedWhenTheFirstFindsNothing(t *testing.T) {
 	ran := record(t, errors.New("no window"), nil)
 
@@ -138,7 +131,7 @@ func TestASecondFormIsTriedWhenTheFirstFindsNothing(t *testing.T) {
 	}
 }
 
-// Every form failing is ErrNoWindow, which is what wait retries on.
+// Every form failing is ErrNoWindow, which wait retries on.
 func TestEveryFormFailingIsNoWindow(t *testing.T) {
 	record(t, errors.New("exit status 2"))
 
@@ -149,8 +142,7 @@ func TestEveryFormFailingIsNoWindow(t *testing.T) {
 	}
 }
 
-// The platforms where opening already raises the browser run nothing and report success
-// — a complaint there would be about a job that was already done.
+// Where opening already raises the browser, nothing runs and Raise succeeds.
 func TestTheDesktopOpenerRunsNothing(t *testing.T) {
 	ran := record(t)
 
@@ -163,8 +155,7 @@ func TestTheDesktopOpenerRunsNothing(t *testing.T) {
 	}
 }
 
-// wait exists for the cold start: the opener returns before the browser has a window, so
-// the first attempts find nothing and the later one succeeds.
+// On a cold start the first attempts find no window and a later one succeeds.
 func TestWaitRetriesUntilTheWindowExists(t *testing.T) {
 	noNap(t)
 	ran := record(t, errors.New("no window"), errors.New("no window"), nil)
@@ -178,7 +169,6 @@ func TestWaitRetriesUntilTheWindowExists(t *testing.T) {
 	}
 }
 
-// A browser that never appears is reported rather than waited on forever.
 func TestWaitGivesUp(t *testing.T) {
 	noNap(t)
 	record(t, errors.New("no window"))
@@ -190,8 +180,7 @@ func TestWaitGivesUp(t *testing.T) {
 	}
 }
 
-// Not knowing which browser to look for is not something waiting can fix, so it returns
-// at once instead of spending the whole budget.
+// An unknown browser returns at once instead of spending the retry budget.
 func TestNotKnowingTheBrowserDoesNotWait(t *testing.T) {
 	noNap(t)
 	ran := record(t)
@@ -206,9 +195,7 @@ func TestNotKnowingTheBrowserDoesNotWait(t *testing.T) {
 	}
 }
 
-// A configured command names its own window, so nothing asks the desktop which browser
-// is the default — which is also what keeps it working when the answer would have been
-// wrong.
+// A configured command names its own window, so no browser lookup happens.
 func TestAConfiguredCommandNeedsNoBrowserLookup(t *testing.T) {
 	browser = browserCache{}
 	t.Cleanup(func() { browser = browserCache{} })
@@ -225,8 +212,7 @@ func TestAConfiguredCommandNeedsNoBrowserLookup(t *testing.T) {
 	}
 }
 
-// StartupWMClass is read in preference to the file's own name, because it is the key
-// that exists to answer exactly this question.
+// StartupWMClass is preferred over the file name.
 func TestTheDesktopEntryNamesTheWindowClass(t *testing.T) {
 	dir := t.TempDir()
 	writeEntry(t, dir, "vivaldi-stable.desktop", "[Desktop Entry]\nName=Vivaldi\nStartupWMClass=Vivaldi-stable\n")
@@ -237,7 +223,6 @@ func TestTheDesktopEntryNamesTheWindowClass(t *testing.T) {
 	}
 }
 
-// A hyphen in a desktop id may be a directory.
 func TestAHyphenatedIDMayBeADirectory(t *testing.T) {
 	dir := t.TempDir()
 	writeEntry(t, filepath.Join(dir, "applications", "kde"), "konqueror.desktop", "[Desktop Entry]\nStartupWMClass=konqueror\n")
@@ -248,8 +233,7 @@ func TestAHyphenatedIDMayBeADirectory(t *testing.T) {
 	}
 }
 
-// Keys under a [Desktop Action …] header belong to the action, not to the program, so
-// reading one would answer a question nobody asked.
+// Keys under a [Desktop Action …] header belong to the action and are ignored.
 func TestOnlyTheFirstGroupIsRead(t *testing.T) {
 	file := "[Desktop Entry]\nName=Firefox\n\n[Desktop Action new-private-window]\nStartupWMClass=wrong\n"
 
@@ -258,8 +242,7 @@ func TestOnlyTheFirstGroupIsRead(t *testing.T) {
 	}
 }
 
-// With no StartupWMClass anywhere, the desktop file's own name is the fallback — which
-// is what it is for most browsers, firefox.desktop included.
+// Without StartupWMClass the desktop file's name is the class, as for most browsers.
 func TestTheFileNameIsTheFallbackClass(t *testing.T) {
 	browser = browserCache{}
 	t.Cleanup(func() { browser = browserCache{} })
@@ -276,8 +259,7 @@ func TestTheFileNameIsTheFallbackClass(t *testing.T) {
 	}
 }
 
-// No way to ask which browser is the default is its own error, distinct from "asked, and
-// nothing came forward".
+// No way to query the default browser is ErrNoBrowser, distinct from ErrNoWindow.
 func TestNoDefaultBrowserIsItsOwnError(t *testing.T) {
 	browser = browserCache{}
 	t.Cleanup(func() { browser = browserCache{} })
@@ -288,7 +270,7 @@ func TestNoDefaultBrowserIsItsOwnError(t *testing.T) {
 	}
 }
 
-// answer replaces the command-output reader with one that always says the same.
+// answer makes the command-output reader always return line.
 func answer(t *testing.T, line string) {
 	t.Helper()
 	real := output
@@ -296,7 +278,7 @@ func answer(t *testing.T, line string) {
 	t.Cleanup(func() { output = real })
 }
 
-// writeEntry puts one desktop file where the lookup will find it.
+// writeEntry writes a desktop file where the lookup finds it.
 func writeEntry(t *testing.T, dir, name, body string) {
 	t.Helper()
 	if filepath.Base(dir) != "kde" {

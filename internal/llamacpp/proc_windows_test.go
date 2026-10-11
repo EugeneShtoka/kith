@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// TestMain lets the test binary stand in for a long-running child: re-executed with
-// the variable set, it sleeps instead of testing. Windows has no `sleep` to borrow.
+// TestMain lets the test binary stand in for a long-running child (Windows has no
+// sleep): with the variable set, it sleeps instead of testing.
 func TestMain(m *testing.M) {
 	if os.Getenv("KITH_LLAMACPP_SLEEPER") == "1" {
 		time.Sleep(60 * time.Second)
@@ -41,8 +41,7 @@ func sleeper(t *testing.T) (*exec.Cmd, tree) {
 	return cmd, tr
 }
 
-// Closing the last handle to the job kills what is in it. That is the dieWithParent
-// guarantee: when the daemon dies however it dies, the kernel closes its handles.
+// Closing the last job handle kills the child: the Windows dieWithParent guarantee.
 func TestClosingTheJobKillsTheServer(t *testing.T) {
 	cmd, tr := sleeper(t)
 	exited := make(chan struct{})
@@ -56,8 +55,7 @@ func TestClosingTheJobKillsTheServer(t *testing.T) {
 	}
 }
 
-// The job object is made, and stopping it ends the process at once — the Windows
-// counterpart of exit_test.go's TestStopReturnsWhenTheProcessDies.
+// Stopping the job ends the process at once.
 func TestStopEndsTheJob(t *testing.T) {
 	cmd, tr := sleeper(t)
 	exited := make(chan struct{})
@@ -76,7 +74,7 @@ func TestStopEndsTheJob(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the process outlived stop()")
 	}
-	// A second stop, after the reaper closed the job, is a stop that worked.
+	// A second stop, after the reaper closed the job, succeeds.
 	if stopErr := srv.stop(); stopErr != nil {
 		t.Errorf("second stop() error = %v", stopErr)
 	}

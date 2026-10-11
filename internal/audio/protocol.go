@@ -8,9 +8,8 @@ import (
 	"time"
 )
 
-// protocol is one player's control language. mpv takes JSON and pushes every
-// property change; VLC takes text lines, answers only what it is asked, and seeks
-// absolutely — so the two share an interface, not an implementation.
+// protocol is one player's control language. mpv takes JSON and pushes property
+// changes; VLC takes text lines, answers only queries, and seeks absolutely.
 type protocol interface {
 	// flags start the player on socket at speed; Play appends the file.
 	flags(socket string, speed float64) []string
@@ -78,8 +77,7 @@ type mpvEvent struct {
 	Data  json.RawMessage `json:"data"`
 }
 
-// jsonValue decodes raw into a T, reporting false for null — which would otherwise
-// unmarshal as the zero value and read as "position zero".
+// jsonValue decodes raw into a T, reporting false for null rather than a zero value.
 func jsonValue[T any](raw json.RawMessage) (T, bool) {
 	var v *T
 	if err := json.Unmarshal(raw, &v); err != nil || v == nil {
@@ -193,7 +191,7 @@ func (vlcRC) absorb(s *Session, line []byte) {
 	text := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(line)), ">"))
 	value, err := strconv.ParseFloat(text, 64)
 	if err != nil {
-		return // VLC's chatter (prompts, status lines) is not an answer: not an error
+		return // prompts and status lines, not answers
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

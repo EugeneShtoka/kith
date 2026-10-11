@@ -5,8 +5,7 @@ import (
 	"testing"
 )
 
-// Formatting read from markup draws what Parse draws, keeps the markup it came from,
-// and cannot be changed through what it hands out.
+// FromMarkup draws what Parse draws, keeps its markup, and hands out copies.
 func TestFormattedDrawsItsMarkup(t *testing.T) {
 	t.Parallel()
 

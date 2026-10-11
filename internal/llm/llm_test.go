@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-// The client is tested against a local server, because everything worth pinning here is
-// about the *request* it builds and how it reads a reply — neither of which needs a real
-// model, and both of which are what breaks when an endpoint is swapped for another.
-
 func serve(t *testing.T, status int, body string) (string, *[]map[string]any, *[]http.Header) {
 	t.Helper()
 	var bodies []map[string]any
@@ -54,8 +50,7 @@ func TestNewRefusesNothingConfigured(t *testing.T) {
 			t.Errorf("New(%q) error = %v, want ErrNotConfigured", endpoint, err)
 		}
 	}
-	// And a nil client refuses rather than panicking, which is what makes "off" a state
-	// the caller can hold rather than a branch it has to remember.
+	// A nil client refuses rather than panicking.
 	var off *Client
 	if _, err := off.Ask(context.Background(), completeTask(), fields()); !errors.Is(err, ErrNotConfigured) {
 		t.Errorf("(*Client)(nil).Ask() error = %v, want ErrNotConfigured", err)
@@ -76,8 +71,6 @@ func TestAskBuildsTheRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Ask: %v", err)
 	}
-	// Trimmed, because a model that pads its answer with spaces would otherwise insert
-	// them into somebody's message.
 	if got != "fox jumps" {
 		t.Fatalf("Ask() = %q, want the reply trimmed", got)
 	}
@@ -91,8 +84,7 @@ func TestAskBuildsTheRequest(t *testing.T) {
 	if body["max_tokens"] != float64(32) {
 		t.Errorf("max_tokens = %v, want 32", body["max_tokens"])
 	}
-	// Temperature is left out when the task has no opinion, so the endpoint's own
-	// default applies rather than a zero this client never chose.
+	// Unset temperature is omitted so the endpoint default applies.
 	if _, sent := body["temperature"]; sent {
 		t.Error("temperature was sent for a task that did not set one")
 	}
@@ -112,8 +104,6 @@ func TestAskBuildsTheRequest(t *testing.T) {
 	}
 }
 
-// A model on this machine has nothing to authenticate, and requiring a key for localhost
-// would make the private option the awkward one.
 func TestAskWithoutAKeySendsNoHeader(t *testing.T) {
 	t.Parallel()
 
@@ -133,8 +123,7 @@ func TestAskWithoutAKeySendsNoHeader(t *testing.T) {
 func TestAskReportsWhatWentWrong(t *testing.T) {
 	t.Parallel()
 
-	// The useful half of an error from these endpoints is in the body, so a status line
-	// without it is a message nobody can act on.
+	// The body's error message is included.
 	url, _, _ := serve(t, http.StatusBadRequest, `{"error":{"message":"model not found"}}`)
 	client, _ := New(url, "nope", "", time.Second)
 	_, err := client.Ask(context.Background(), completeTask(), fields())
@@ -142,15 +131,14 @@ func TestAskReportsWhatWentWrong(t *testing.T) {
 		t.Fatalf("Ask() error = %v, want the endpoint's own words in it", err)
 	}
 
-	// A 200 with no choices is not an answer.
+	// A 200 with no choices is an error.
 	empty, _, _ := serve(t, http.StatusOK, `{"choices":[]}`)
 	client, _ = New(empty, "m", "", time.Second)
 	if _, err := client.Ask(context.Background(), completeTask(), fields()); err == nil {
 		t.Fatal("Ask() accepted a reply with no choices")
 	}
 
-	// A task whose prompt renders to nothing is refused before anything is sent: there
-	// is no request to make, and sending an empty one would spend a slot to be told so.
+	// An empty prompt is refused before sending.
 	quiet, bodies, _ := serve(t, http.StatusOK, `{"choices":[{"message":{"content":"x"}}]}`)
 	client, _ = New(quiet, "m", "", time.Second)
 	if _, err := client.Ask(context.Background(), Task{Name: "empty", Prompt: "  "}, nil); err == nil {
@@ -165,14 +153,13 @@ func TestRenderExpandsWhatItKnows(t *testing.T) {
 	t.Parallel()
 
 	got := Render("a {draft} b {language} c {unknown_field} d", fields())
-	// Unknown names are left alone: "{like this}" in a prompt is text somebody meant to
-	// be there, and blanking it would silently change what they wrote.
+	// Unknown placeholders are left as written.
 	want := "a the quick brown b English c {unknown_field} d"
 	if got != want {
 		t.Fatalf("Render() = %q, want %q", got, want)
 	}
-	// One pass, so a value containing a placeholder is not re-expanded — the same rule
-	// the notification templates follow, and the reason a draft cannot rewrite a prompt.
+	// One pass: a value containing a placeholder is not re-expanded, so a draft cannot
+	// rewrite a prompt.
 	if got := Render("{draft}", map[string]string{"{draft}": "{language}", "{language}": "English"}); got != "{language}" {
 		t.Fatalf("Render() = %q, want one pass only", got)
 	}

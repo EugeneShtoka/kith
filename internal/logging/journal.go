@@ -11,21 +11,17 @@ import (
 	"github.com/coreos/go-systemd/v22/journal"
 )
 
-// Journal is where journal entries go. SystemJournal is the real one; tests pass
-// a fake.
+// Journal is a sink for journal entries; SystemJournal is the real one.
 type Journal struct {
 	// Available reports whether the journal can take entries.
 	Available func() bool
-	// Send writes one entry: its MESSAGE, PRIORITY (a syslog priority, see
-	// Priority) and other fields.
+	// Send writes one entry; priority is a syslog priority (see Priority).
 	Send func(message string, priority int, fields map[string]string) error
 }
 
-// SystemJournal is systemd-journald through go-systemd's native-protocol client:
-// one datagram per entry on /run/systemd/journal/socket, an entry too big for one
-// handed over as a file descriptor. Available probes the socket (a datagram
-// connect, which fails with no socket or nobody bound to it); it is false on
-// Windows, and on macOS and FreeBSD, which have no journald.
+// SystemJournal is journald via go-systemd's native protocol: one datagram per entry,
+// oversized ones passed as a file descriptor. Available probes the socket; it is
+// false where there is no journald (Windows, macOS, FreeBSD).
 var SystemJournal = Journal{
 	Available: journal.Enabled,
 	Send: func(message string, priority int, fields map[string]string) error {
@@ -39,8 +35,7 @@ var SystemJournal = Journal{
 // maxFieldName is journald's limit on a field name.
 const maxFieldName = 64
 
-// reservedFields are journal fields with a meaning of their own; an attribute
-// whose name comes out as one is renamed ATTR_<name> rather than overriding it.
+// reservedFields have journal meanings; an attribute mapping to one becomes ATTR_<name>.
 var reservedFields = map[string]bool{
 	"MESSAGE": true, "MESSAGE_ID": true, "PRIORITY": true, "SYSLOG_IDENTIFIER": true,
 	"SYSLOG_FACILITY": true, "SYSLOG_PID": true, "SYSLOG_TIMESTAMP": true, "SYSLOG_RAW": true,
@@ -48,10 +43,9 @@ var reservedFields = map[string]bool{
 	"INVOCATION_ID": true, "USER_INVOCATION_ID": true, "DOCUMENTATION": true,
 }
 
-// FieldName turns an attribute key (groups joined with _) into a journal field
-// name: upper case, every character outside [A-Z0-9_] replaced with _, with no
-// leading _ (journald keeps those for fields it sets itself) or digit, and at most
-// 64 bytes. It returns "" when nothing usable is left, and the attribute is dropped.
+// FieldName maps an attribute key (groups joined by _) to a journal field name: upper
+// case, [A-Z0-9_] only, no leading _ (journald-reserved) or digit, at most 64 bytes.
+// "" means the attribute is dropped.
 func FieldName(key string) string {
 	var b strings.Builder
 	for _, r := range strings.ToUpper(key) {
@@ -72,8 +66,8 @@ func FieldName(key string) string {
 	return name
 }
 
-// Priority maps a slog level to a syslog priority: error and above 3, warn 4,
-// info 6, debug 7. A level between two takes the lower one's.
+// Priority maps a slog level to a syslog priority (error 3, warn 4, info 6, debug 7);
+// in-between levels round down.
 func Priority(level slog.Level) int {
 	switch {
 	case level >= slog.LevelError:
@@ -87,10 +81,8 @@ func Priority(level slog.Level) int {
 	}
 }
 
-// JournalHandler is an slog.Handler writing each record to the journal: MESSAGE,
-// PRIORITY, SYSLOG_IDENTIFIER, and one field per attribute (see FieldName), every
-// value scrubbed of secrets as the text format is. It is immutable, so safe for
-// concurrent use (Send is one datagram per entry).
+// JournalHandler is an slog.Handler writing records to the journal, one field per
+// attribute, scrubbed like the text format. Immutable, so safe for concurrent use.
 type JournalHandler struct {
 	journal    Journal
 	identifier string
@@ -155,9 +147,8 @@ func (h *JournalHandler) WithGroup(name string) slog.Handler {
 	return &next
 }
 
-// addAttr adds a's field (or its group's fields) to fields, following slog's
-// handler rules: an empty attribute is dropped, an empty group too, and a group
-// with no key is inlined.
+// addAttr adds a's fields per slog's handler rules: empty attrs and groups are
+// dropped, a keyless group is inlined.
 func addAttr(fields map[string]string, prefix string, a slog.Attr) {
 	a.Value = a.Value.Resolve()
 	if a.Equal(slog.Attr{}) {

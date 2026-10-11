@@ -1,7 +1,6 @@
-// Package focus brings the browser forward after a link was handed to it. Window
-// managers usually refuse a background program's activation request, so this is a
-// per-desktop ladder: compositor IPC (sway, i3, Hyprland, KWin) first, since it only
-// knows managed windows, then EWMH via wmctrl; macOS/Windows need nothing.
+// Package focus raises the browser after a link is opened. Window managers usually
+// refuse a background program's activation request, so it tries compositor IPC (sway,
+// i3, Hyprland, KWin), then EWMH via wmctrl; macOS and Windows need nothing.
 package focus
 
 import (
@@ -20,16 +19,14 @@ import (
 // classHolder is where the window class goes in a Focuser's argv.
 const classHolder = "{class}"
 
-// Focuser is one way of bringing a window forward: which desktop it belongs to,
-// the program that does it, and the command lines to try.
+// Focuser is one desktop's way of raising a window.
 type Focuser struct {
-	// Name is what this is, for a status line and for tests.
+	// Name labels the focuser in status lines and tests.
 	Name string
-	// Vars: any one set means this desktop is running (checked before Command, since
-	// swaymsg may be installed on an i3 machine).
+	// Vars: any one set means this desktop is running. Checked before Command, since
+	// swaymsg may be installed on an i3 machine.
 	Vars []string
-	// Command is the binary looked up on $PATH. Empty means this rung needs no
-	// program — see the darwin/windows entry, which is a no-op.
+	// Command is looked up on $PATH; empty means no program is needed.
 	Command string
 	// Tries are argv lines attempted in order (sway: native app_id, then XWayland class).
 	Tries [][]string
@@ -50,8 +47,7 @@ var known = []Focuser{
 		Name:    "i3",
 		Vars:    []string{"I3SOCK"},
 		Command: "i3-msg",
-		// i3 exits 2 and prints "No window matches given criteria" when nothing
-		// matched, which is the signal wait needs to tell "not yet" from "never".
+		// i3 exits 2 when no window matches, so wait can retry.
 		Tries: [][]string{{"i3-msg", `[class="(?i)^` + classHolder + `$"] focus`}},
 	},
 	{
@@ -64,8 +60,7 @@ var known = []Focuser{
 		Name:    "kde",
 		Vars:    []string{"KDE_FULL_SESSION"},
 		Command: "kdotool",
-		// kdotool is xdotool's shape over KWin's scripting API, and chaining the
-		// search into the action is the form its README documents.
+		// Chaining search into the action is the form kdotool's README documents.
 		Tries: [][]string{{"kdotool", "search", "--class", classHolder, "windowactivate", "%@"}},
 	},
 	{
@@ -77,19 +72,15 @@ var known = []Focuser{
 	},
 }
 
-// desktopOpener is the entry for the two platforms where opening a URL already raises
-// the browser.
+// desktopOpener is the no-op for platforms where opening a URL already raises the browser.
 var desktopOpener = Focuser{Name: "desktop"}
 
 var (
-	// ErrNoFocuser means nothing on this machine can raise a window. It is a real
-	// answer on GNOME under Wayland, where no mechanism exists at all.
+	// ErrNoFocuser means nothing here can raise a window (e.g. GNOME on Wayland).
 	ErrNoFocuser = errors.New("focus: nothing here can raise a window")
-	// ErrNoWindow means the focuser ran and found no window of that class — the
-	// browser has not made its window yet, or it is not called what we think.
+	// ErrNoWindow means the focuser found no window of that class.
 	ErrNoWindow = errors.New("focus: no window of that class")
-	// ErrNoBrowser means the default browser could not be identified, so there is
-	// no class to look for.
+	// ErrNoBrowser means the default browser, and so its class, is unknown.
 	ErrNoBrowser = errors.New("focus: no default browser on this desktop")
 )
 
@@ -155,14 +146,14 @@ func (f Focuser) Raise(ctx context.Context, class string) error {
 	return fmt.Errorf("%w: %s: %w", ErrNoWindow, f.Name, last)
 }
 
-// custom is a user-configured focuser run by a shell. Safe: it receives no message
-// input, and the quoting these tools need is unusable as an argv.
+// custom is a user-configured focuser run by a shell: it takes no message input, and
+// these tools' quoting does not fit an argv.
 func custom(command string) Focuser {
 	return Focuser{Name: "configured", Tries: [][]string{{"sh", "-c", command}}}
 }
 
-// needsClass reports whether this focuser has to be told what to look for. A
-// configured command does not: it names its own window.
+// needsClass reports whether the argv has a class placeholder; a configured command
+// names its own window.
 func (f Focuser) needsClass() bool {
 	for _, try := range f.Tries {
 		for _, arg := range try {
@@ -174,8 +165,7 @@ func (f Focuser) needsClass() bool {
 	return false
 }
 
-// Go is the whole act from the caller's side: pick the focuser, work out what to
-// look for, and wait for the window.
+// Go picks a focuser, finds the browser's class if needed, and waits for its window.
 func Go(ctx context.Context, configured string) error {
 	focuser := custom(configured)
 	if configured == "" {
@@ -195,13 +185,11 @@ func Go(ctx context.Context, configured string) error {
 	return wait(ctx, focuser, class)
 }
 
-// patience is how long a browser is given to put its window up, and how often it
-// is asked for.
+// patience is how long a browser gets to show its window; interval is the retry period.
 const (
 	patience = 8 * time.Second
 	interval = 200 * time.Millisecond
-	// attempts is the budget counted in tries rather than in clock time, so the
-	// loop has no wall clock in it and a test can make the waiting free.
+	// attempts counts tries, not wall time, so tests can make waiting free.
 	attempts = int(patience / interval)
 )
 
@@ -234,10 +222,9 @@ func wait(ctx context.Context, f Focuser, class string) error {
 	return err
 }
 
-// browser caches the default browser's window class for the life of the process.
+// browser caches the default browser's window class for the process lifetime.
 var browser browserCache
 
-// browserCache is the default browser's window class, looked up once.
 type browserCache struct {
 	once  sync.Once
 	class string
@@ -250,8 +237,7 @@ func browserClass(ctx context.Context) (string, error) {
 	return browser.class, browser.err
 }
 
-// browserQueries are the two ways of asking which browser is the default, in the order
-// they are tried.
+// browserQueries ask for the default browser, in order.
 var browserQueries = [][]string{
 	{"xdg-settings", "get", "default-web-browser"},
 	{"xdg-mime", "query", "default", "x-scheme-handler/https"},
@@ -271,8 +257,7 @@ var output = func(ctx context.Context, argv []string) (string, error) {
 // readBrowser does the work browserClass caches.
 func readBrowser(ctx context.Context) (string, error) {
 	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		// Nothing asks for a class on these: the focuser has no commands to put one
-		// in. Answering "" rather than an error keeps the no-op rung silent.
+		// The no-op focuser takes no class; "" rather than an error keeps it silent.
 		return "", nil
 	}
 	var desktop string
@@ -325,8 +310,7 @@ func entryValue(file, key string) string {
 	return ""
 }
 
-// applicationDirs is where desktop entries live, in the spec's precedence order:
-// the user's own first, then the system's.
+// applicationDirs lists desktop-entry dirs in XDG precedence: user first, then system.
 func applicationDirs() []string {
 	var dirs []string
 	home, ok := lookupEnv("XDG_DATA_HOME")

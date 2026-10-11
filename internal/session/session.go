@@ -1,7 +1,6 @@
-// Package session persists login credentials in the OS secret store (via go-keyring,
-// no cgo). Without a secret store the token is not persisted unless the caller opts
-// into a per-account 0600 file in the XDG state dir (allowFile), which is removed as
-// soon as the keyring becomes usable again.
+// Package session persists login credentials in the OS secret store (go-keyring, no
+// cgo). Without one, the token is persisted only if the caller opts into a per-account
+// 0600 file in the XDG state dir, removed once the keyring works again.
 package session
 
 import (
@@ -21,26 +20,23 @@ import (
 )
 
 const (
-	// legacyService is the keyring service before it was configurable; secrets
-	// kept under it are still found.
+	// legacyService is the default keyring service; secrets under it are found from any.
 	legacyService             = "kith"
 	pickleKeyLen              = 32
 	ownerOnly     fs.FileMode = 0o600
 )
 
-// Store is where one instance's session and encryption key are kept: a keyring
-// service and account, and the fallback file.
+// Store locates one instance's session and encryption key: keyring service, account
+// and fallback file.
 type Store struct {
 	Service string
 	Account string
 	File    string
 }
 
-// StoreFor is the instance's store. An install from before instances (its instance
-// is the name made from the Matrix account) keeps the keyring entries it always had,
-// under the account itself, so nothing moves; any other instance has its own, and
-// never reads another's: a second instance must not take over the first one's
-// Matrix device.
+// StoreFor is the instance's store. An instance named after its Matrix account keys by
+// the account itself; any other keys by instance, so a second instance never takes over
+// the first one's Matrix device.
 func StoreFor(storage domain.Storage, user string) Store {
 	account := storage.Instance
 	if user != "" && storage.Instance == domain.AccountKey(user) {
@@ -49,8 +45,7 @@ func StoreFor(storage domain.Storage, user string) Store {
 	return Store{Service: storage.KeyringService, Account: account, File: storage.SessionFile()}
 }
 
-// ErrNoSecretStore is returned when no OS secret store is usable and the file
-// fallback was not opted into. It is a warning to relay, not a fatal error.
+// ErrNoSecretStore means no OS secret store and no file fallback; a warning, not fatal.
 var ErrNoSecretStore = errors.New(
 	"session: no OS secret store available; token not persisted (set allow_token_file to persist to a 0600 file)")
 
@@ -73,8 +68,7 @@ func Save(st Store, s domain.Session, allowFile bool) error {
 	return fmt.Errorf("%w: %w", ErrNoSecretStore, setErr)
 }
 
-// Load returns the saved session; found=false with a nil error means nothing is
-// stored (first run). The file fallback is consulted only when allowFile.
+// Load returns the saved session; found=false with nil error means a first run.
 func Load(st Store, allowFile bool) (domain.Session, bool, error) {
 	blob, err := keyring.Get(st.Service, st.Account)
 	switch {
@@ -82,8 +76,7 @@ func Load(st Store, allowFile bool) (domain.Session, bool, error) {
 		return decode([]byte(blob))
 	case errors.Is(err, keyring.ErrNotFound), errors.Is(err, keyring.ErrUnsupportedPlatform):
 	default:
-		// A locked or unreachable keyring must not look like a first run, or the
-		// user is told to log in again over a session that was fine.
+		// A locked or unreachable keyring is not a first run.
 		if allowFile {
 			if s, found, ferr := readFile(st.File); ferr == nil && found {
 				return s, found, nil
@@ -102,9 +95,8 @@ func Load(st Store, allowFile bool) (domain.Session, bool, error) {
 // replaced: a new key cannot open the crypto store the old one encrypted.
 var ErrCorruptPickleKey = errors.New("session: the pickle key in the keyring is corrupt")
 
-// LoadOrCreatePickleKey returns the stable key encrypting the E2EE crypto store,
-// generating it on first use. It lives only in the keyring; without one it returns
-// ErrNoSecretStore, and for an entry that is not a key, ErrCorruptPickleKey.
+// LoadOrCreatePickleKey returns the E2EE crypto store key, generating it on first use.
+// It lives only in the keyring.
 func LoadOrCreatePickleKey(st Store) ([]byte, error) {
 	service, acct := st.Service, st.Account+"|pickle"
 	switch existing, err := keyring.Get(service, acct); {
@@ -129,9 +121,8 @@ func LoadOrCreatePickleKey(st Store) ([]byte, error) {
 	return key, nil
 }
 
-// Secret reads a named secret (e.g. a model API key) under service. Deliberately not
-// scoped to an instance or an account: the key belongs to the person, so one kept
-// under the default service is found from any. A missing entry is "" and no error.
+// Secret reads a named secret (e.g. an API key) under service, falling back to the
+// default service; not scoped to an instance. A missing entry is "" and no error.
 func Secret(service, ref string) (string, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
@@ -150,8 +141,7 @@ func Secret(service, ref string) (string, error) {
 	return "", nil
 }
 
-// StoreSecret writes a named secret under service; an empty value is refused (that
-// is a delete).
+// StoreSecret writes a named secret under service; an empty value is refused.
 func StoreSecret(service, ref, value string) error {
 	ref = strings.TrimSpace(ref)
 	if ref == "" || value == "" {
@@ -181,7 +171,7 @@ func decode(blob []byte) (domain.Session, bool, error) {
 	return s, true, nil
 }
 
-// readFile reads one fallback file, refusing one that others can read.
+// readFile reads the fallback file, refusing one others can read.
 func readFile(path string) (domain.Session, bool, error) {
 	info, err := os.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -202,8 +192,7 @@ func readFile(path string) (domain.Session, bool, error) {
 	return decode(blob)
 }
 
-// saveFile writes the fallback file via temp file + sync + rename, so a failed save
-// never destroys the previous (unrecoverable) token.
+// saveFile writes atomically so a failed save never destroys the previous token.
 func saveFile(path string, blob []byte) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {

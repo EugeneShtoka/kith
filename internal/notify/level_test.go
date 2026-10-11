@@ -15,8 +15,7 @@ func at(hour, min int) time.Time {
 func TestParseLevel(t *testing.T) {
 	t.Parallel()
 
-	// Pairs rather than a map: one input is deliberately padded, which a map key linter
-	// flags as suspicious.
+	// Pairs, not a map: a linter flags the deliberately padded map key.
 	ok := []struct {
 		in   string
 		want notify.Level
@@ -39,8 +38,7 @@ func TestParseLevel(t *testing.T) {
 			t.Errorf("ParseLevel(%q) = %v, want %v", in, got, want)
 		}
 	}
-	// A typo is an error, not a silent fallback — silence is this feature's failure
-	// mode and would be indistinguishable from working.
+	// A typo is an error, not a silent fallback.
 	for _, bad := range []string{"", "mentions", "direct", "everything", "1"} {
 		if _, err := notify.ParseLevel(bad); err == nil {
 			t.Errorf("ParseLevel(%q) should have errored", bad)
@@ -88,8 +86,7 @@ func TestWindowCovers(t *testing.T) {
 		when time.Time
 		want bool
 	}{
-		// An overnight window is the evening plus the morning, not the 22 hours between
-		// — the bug this wrap-around exists to avoid.
+		// An overnight window is the evening plus the morning, not the hours between.
 		"overnight, late evening":  {overnight, at(23, 30), true},
 		"overnight, small hours":   {overnight, at(3, 0), true},
 		"overnight, at the start":  {overnight, at(22, 0), true},  // start inclusive
@@ -143,9 +140,7 @@ func TestLevelAdmits(t *testing.T) {
 	}
 }
 
-// A tracked word clears the mention bar, which is what tracking promises when it is
-// allowed to interrupt — and it does so as its own fact, so nothing downstream reads a
-// mention nobody made.
+// A tracked word clears the mention bar without being marked as a mention.
 func TestTrackedWordClearsTheMentionBar(t *testing.T) {
 	t.Parallel()
 
@@ -158,7 +153,6 @@ func TestTrackedWordClearsTheMentionBar(t *testing.T) {
 	if notify.LevelNone.Admits(tracked) {
 		t.Error("LevelNone admitted a tracked word; silence has to mean silence")
 	}
-	// And it is not a mention: the two facts stay apart.
 	if tracked.Mentioned {
 		t.Error("a tracked hit set Mentioned, which would mislead the template and the badge")
 	}

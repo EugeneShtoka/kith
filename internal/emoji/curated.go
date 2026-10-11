@@ -1,9 +1,9 @@
-// Package emoji is kith's emoji by name: a curated working set with the names people
-// type (and Slack and GitHub use), and every Unicode emoji by its CLDR name, generated.
+// Package emoji maps names to emoji: a curated set with Slack/GitHub names, and every
+// Unicode emoji by its CLDR name (generated).
 package emoji
 
-// Curated is the curated :name: → emoji working set, small enough to browse.
-// Several names may share an emoji; the shortest is displayed.
+// Curated is the browsable :name: → emoji set; of names sharing an emoji, the shortest
+// is displayed.
 var Curated = map[string]string{
 	// Hands and gestures
 	"+1": "👍", "thumbsup": "👍", "-1": "👎", "thumbsdown": "👎",
@@ -50,7 +50,7 @@ var Curated = map[string]string{
 	"arrows_counterclockwise": "🔄", "repeat": "🔁", "infinity": "♾️",
 	"heavy_plus_sign": "➕", "heavy_minus_sign": "➖", "heavy_division_sign": "➗",
 
-	// Objects, work, and things that come up in a dev chat
+	// Objects and work
 	"bulb": "💡", "zap": "⚡", "boom": "💥", "fire": "🔥", "sparkles": "✨",
 	"star": "⭐", "star2": "🌟", "dizzy": "💫", "rocket": "🚀", "bug": "🐛",
 	"beetle": "🪲", "wrench": "🔧", "hammer": "🔨", "nut_and_bolt": "🔩",
@@ -116,8 +116,7 @@ var Curated = map[string]string{
 	"luggage": "🧳", "passport": "🛂", "ticket": "🎫",
 }
 
-// ByName is the emoji a name stands for — curated, then Unicode's single glyphs, then
-// its sequences — and false for a name none of them has.
+// ByName looks name up in Curated, then Standard, then Sequences.
 func ByName(name string) (string, bool) {
 	for _, set := range []map[string]string{Curated, Standard, Sequences} {
 		if e, ok := set[name]; ok {

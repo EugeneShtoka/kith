@@ -9,10 +9,8 @@ import (
 	"strings"
 )
 
-// The engine is a subprocess (kith is cgo-free) speaking the ispell pipe protocol.
-// hunspell is the default because `-d d1,d2` loads several dictionaries into one
-// process. Engines are often installed without dictionaries, so saying why checking
-// is off matters as much as checking.
+// The engine is a subprocess (kith is cgo-free) speaking the ispell pipe protocol;
+// hunspell is the default because `-d d1,d2` loads several dictionaries in one process.
 
 // Engine is a spellchecker binary that speaks the ispell pipe protocol.
 type Engine struct {

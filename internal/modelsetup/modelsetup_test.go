@@ -14,7 +14,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// The assist tasks are the three a small local model cannot do.
 func TestModelTasksAreTheOnesAModelIsAskedFor(t *testing.T) {
 	t.Parallel()
 
@@ -27,8 +26,7 @@ func TestModelTasksAreTheOnesAModelIsAskedFor(t *testing.T) {
 			t.Errorf("no %s task, so 'no prompt configured' could mean two different things", name)
 		}
 	}
-	// The summary's prompt is the one with something to get wrong: it is written *to*
-	// the person asking, which is what {me} and {names} are for.
+	// The summary addresses the person asking via {me} and {names}.
 	summary := tasks[domain.ModelSummary]
 	for _, want := range []string{"{me}", "{names}"} {
 		if !strings.Contains(summary.System, want) {
@@ -39,7 +37,7 @@ func TestModelTasksAreTheOnesAModelIsAskedFor(t *testing.T) {
 		t.Errorf("default summary prompt = %q, want the conversation in it", summary.Prompt)
 	}
 
-	// And what the config says wins, which is the whole point of the prompts living there.
+	// Config wins over defaults.
 	mine := ModelTasks(config.Assist{
 		Rewrite: config.ModelPrompt{System: "be brief", Prompt: "{draft}", MaxTokens: 9, Temperature: 0.3},
 	})
@@ -49,9 +47,7 @@ func TestModelTasksAreTheOnesAModelIsAskedFor(t *testing.T) {
 	}
 }
 
-// weights writes a file of exactly the size the manifest records, which is what
-// Installed checks: a GGUF of the right name and the wrong length is a server that
-// starts, fails to parse it, and never becomes healthy.
+// weights writes a file of exactly the manifest size, which is what Installed checks.
 func weights(t *testing.T, dataHome, tag string) string {
 	t.Helper()
 	src, ok := models.SourceFor(tag)
@@ -74,9 +70,7 @@ func weights(t *testing.T, dataHome, tag string) string {
 	return path
 }
 
-// An empty `model` means "whichever is installed", which is what makes `--add-model`
-// the whole of the setup: a download that then needed a config edit to take effect
-// would be a second step nobody was told about.
+// An empty model means whichever is installed, so --add-model needs no config edit.
 func TestTheModelIsWhicheverIsInstalled(t *testing.T) {
 	t.Parallel()
 
@@ -92,8 +86,6 @@ func TestTheModelIsWhicheverIsInstalled(t *testing.T) {
 	}
 }
 
-// Somebody who built their own GGUF should not have to move it into this client's
-// directory to use it — so a path that points at a real file is taken as written.
 func TestAPathIsTakenAsWritten(t *testing.T) {
 	t.Parallel()
 
@@ -128,8 +120,8 @@ func TestTheSettingsCarryTheProcessAndItsDurations(t *testing.T) {
 	}
 }
 
-// With nothing usable installed the layer is still on (the offer notices that) but
-// resolves no model; enabled = false turns it off.
+// With nothing installed the layer stays on but resolves no model; enabled = false
+// turns it off.
 func TestCompletionModelWithNothingInstalled(t *testing.T) {
 	t.Parallel()
 

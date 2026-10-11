@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// A deleted message's attachment moves to deleted/, its drawings go, and trimming the
-// cache leaves it alone; one fetched after the deletion is kept there directly.
+// A deleted attachment moves to deleted/, loses its renders and survives Trim; one
+// fetched after deletion goes there directly.
 func TestADeletedAttachmentIsSetAside(t *testing.T) {
 	t.Parallel()
 	c, err := New(t.TempDir(), 1) // a one-byte cache: Trim evicts everything it reads

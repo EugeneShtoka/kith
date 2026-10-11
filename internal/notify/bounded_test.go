@@ -42,7 +42,7 @@ func (f *failures) waitFor(t *testing.T, want string) {
 
 func sleeper(ctx context.Context) *exec.Cmd { return exec.CommandContext(ctx, "sleep", "30") }
 
-// A hook that hangs is killed at the timeout and said to have failed.
+// A hanging hook is killed at the timeout and reported.
 func TestAHangingHookIsKilledAtTheTimeout(t *testing.T) {
 	t.Parallel()
 	var got failures
@@ -57,8 +57,7 @@ func TestAHangingHookIsKilledAtTheTimeout(t *testing.T) {
 	}
 }
 
-// With every slot taken, the next notification's hook is skipped and said to be,
-// rather than piling up another process.
+// With every slot taken, the next hook is skipped and reported.
 func TestHooksBeyondTheCapAreSkipped(t *testing.T) {
 	t.Parallel()
 	var got failures

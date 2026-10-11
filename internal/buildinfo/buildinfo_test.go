@@ -23,8 +23,7 @@ func TestStringOmitsEmptyFields(t *testing.T) {
 	origV, origC, origD := Version, Commit, Date
 	t.Cleanup(func() { Version, Commit, Date = origV, origC, origD })
 
-	// No commit/date injected and (under `go test`) no VCS build info either,
-	// so those lines must be omitted rather than rendered empty.
+	// No commit/date injected and no VCS info under go test: those lines are omitted.
 	Version, Commit, Date = "v9.9.9", "", ""
 
 	got := String("kith")
