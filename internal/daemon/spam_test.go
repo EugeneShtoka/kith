@@ -424,3 +424,91 @@ func TestARuleThatLosesToAReleaseDoesNotSilence(t *testing.T) {
 		t.Errorf("recorded %+v, want nothing: the room was released", src.verdicts())
 	}
 }
+
+// put adds one message to a room's cached history, age ago.
+func (s *spamBackend) put(room domain.RoomID, sender, body string, age time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := len(s.timeline[room])
+	s.timeline[room] = append(s.timeline[room], domain.Message{
+		ID: domain.EventID(fmt.Sprintf("$%s%d", room, n)), RoomID: room, Sender: sender, Body: body,
+		Timestamp: time.Now().Add(-age),
+	})
+}
+
+// A rescan judges cached history by the rules that hold for an old message: always,
+// direct and ratio, never first_message. It skips exempt, released and caught rooms
+// and your own messages, previews without moving, and applies only the rooms named.
+func TestARescanJudgesCachedHistory(t *testing.T) {
+	t.Parallel()
+	const (
+		dmWritten = "!dm2:example.org"
+		group     = "!group:example.org"
+		exempt    = "!exempt:example.org"
+		released  = "!released:example.org"
+		mineOnly  = "!mine:example.org"
+		day       = 24 * time.Hour
+	)
+	src := spamWorld()
+	src.rooms = append(src.rooms,
+		domain.Room{ID: dmWritten, Name: "Bob", IsDirect: true},
+		domain.Room{ID: group, Name: "Group"},
+		domain.Room{ID: exempt, Name: "Exempt"},
+		domain.Room{ID: released, Name: "Released"},
+		domain.Room{ID: mineOnly, Name: "Mine"},
+	)
+	src.spaces[0].Children = append(src.spaces[0].Children, exempt, released, mineOnly)
+	src.put(chatRm, alice, "morning", 3*day)
+	src.put(chatRm, alice, "go vote today", 2*day)
+	src.put(dmRoom, alice, "double your bitcoin", 5*day)
+	src.put(dmWritten, bob, "bitcoin?", day)
+	src.put(dmWritten, me, "no thanks", day)
+	src.put(group, bob, "bitcoin bitcoin", day) // first in the room, but that rule is out
+	src.put(exempt, alice, "vote", day)
+	src.put(released, alice, "vote", day)
+	src.put(mineOnly, me, "I will vote", day)
+	src.store(domain.SpamVerdict{Room: released, Released: true})
+	n, _ := spamNotifier(t, spamConfig(config.Spam{
+		Except: []string{"room:Exempt"},
+		Filters: []config.SpamFilter{
+			{Name: "crypto", Words: []string{"*bitcoin*"}},
+			{Name: "elections", Words: []string{"vote"}, In: []string{"space:" + space}, Moves: []string{"always"}},
+		},
+	}), src)
+	ctx := context.Background()
+
+	found, err := n.RescanSpam(ctx, time.Time{}, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[domain.RoomID]domain.SpamCandidate{}
+	for _, c := range found {
+		got[c.Verdict.Room] = c
+	}
+	if c := got[chatRm]; len(got) != 2 || c.Verdict.Rule != domain.SpamAlways || c.Verdict.Filter != "elections" || c.Sample.Body != "go vote today" {
+		t.Fatalf("candidates = %+v, want the Work room by elections and the unanswered DM", found)
+	}
+	if c := got[dmRoom]; c.Verdict.Rule != domain.SpamDirect || c.Verdict.Filter != "crypto" {
+		t.Errorf("DM candidate = %+v, want the direct rule by crypto", c)
+	}
+	if len(src.verdicts()) != 0 {
+		t.Fatalf("a preview recorded %+v", src.verdicts())
+	}
+
+	recent, err := n.RescanSpam(ctx, time.Now().Add(-36*time.Hour), false, nil)
+	if err != nil || len(recent) != 0 {
+		t.Errorf("since 36h ago = %+v (%v), want nothing: both catches are older", recent, err)
+	}
+
+	moved, err := n.RescanSpam(ctx, time.Time{}, true, []domain.RoomID{chatRm})
+	if err != nil || len(moved) != 1 || moved[0].Verdict.Room != chatRm {
+		t.Fatalf("apply = %+v (%v), want the Work room alone", moved, err)
+	}
+	if marked := src.verdicts(); len(marked) != 1 || marked[0].Room != chatRm || marked[0].Rule != domain.SpamAlways {
+		t.Fatalf("recorded %+v, want the Work room alone", marked)
+	}
+	again, _ := n.RescanSpam(ctx, time.Time{}, false, nil)
+	if len(again) != 1 || again[0].Verdict.Room != dmRoom {
+		t.Errorf("after moving, a preview = %+v, want only the DM left", again)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -211,6 +212,85 @@ func (w *spamWatch) record(ctx context.Context, verdict domain.SpamVerdict) bool
 	w.warn(ctx, "spam: record the verdict failed; it holds until restart only", err, "room", verdict.Room, "rule", verdict.Rule)
 	w.recorded[verdict.Room] = true
 	return true
+}
+
+// rescan judges each room's cached messages since since by the rules that hold for an
+// old message: not first_message, since the cache may not reach a room's start. The
+// first message that moves a room is its sample. With apply it records the verdicts,
+// for only the rooms in only when that is not empty.
+func (w *spamWatch) rescan(
+	ctx context.Context, rooms []domain.RoomFacts, since time.Time, apply bool, only []domain.RoomID,
+) ([]domain.SpamCandidate, error) {
+	w.seed(ctx)
+	w.mu.Lock()
+	rules, places := w.rules, w.places
+	w.mu.Unlock()
+	var out []domain.SpamCandidate
+	for i := range rooms {
+		if err := ctx.Err(); err != nil {
+			return out, fmt.Errorf("daemon: rescan stopped: %w", err)
+		}
+		facts := rooms[i]
+		id := domain.RoomID(facts.ID)
+		if len(only) > 0 && !slices.Contains(only, id) {
+			continue
+		}
+		if !rules.Any() || places.Excused(facts) || places.Names(facts) || w.settled(id) {
+			continue
+		}
+		found, ok, err := w.judgeHistory(ctx, facts, rules, since)
+		if err != nil {
+			return out, err
+		}
+		if !ok || (apply && !w.record(ctx, found.Verdict)) {
+			continue
+		}
+		out = append(out, found)
+	}
+	return out, nil
+}
+
+// settled reports whether a room is already in Spam by a verdict, or released.
+func (w *spamWatch) settled(room domain.RoomID) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.released[room] || w.stored[room] || w.recorded[room]
+}
+
+// judgeHistory finds the oldest message since since that moves room, oldest first.
+func (w *spamWatch) judgeHistory(
+	ctx context.Context, room domain.RoomFacts, rules domain.SpamRules, since time.Time,
+) (domain.SpamCandidate, bool, error) {
+	msgs, err := w.store.CachedTimeline(ctx, domain.RoomID(room.ID))
+	if err != nil {
+		return domain.SpamCandidate{}, false, fmt.Errorf("daemon: read %s to rescan it: %w", room.ID, err)
+	}
+	mine := slices.ContainsFunc(msgs, func(m domain.Message) bool {
+		return !m.IsUpdate() && w.mine != nil && w.mine(m.Sender)
+	})
+	slices.SortStableFunc(msgs, func(a, b domain.Message) int { return a.Timestamp.Compare(b.Timestamp) })
+	counted := false
+	place := domain.SpamCase{Direct: room.Direct, Mine: mine}
+	for i := range msgs {
+		m := msgs[i]
+		if m.IsUpdate() || m.Timestamp.Before(since) || (w.mine != nil && w.mine(m.Sender)) {
+			continue
+		}
+		place.Filters = rules.Catching(m.Body, m.Sender, room)
+		if len(place.Filters) == 0 {
+			continue
+		}
+		if place.RatioWanted() && !counted {
+			place.Caught, place.Total = w.window(msgs, rules, room)
+			counted = true
+		}
+		rule, filter, promoted := rules.Promotes(place)
+		if promoted {
+			verdict := domain.SpamVerdict{Room: domain.RoomID(room.ID), Rule: rule, Filter: filter.Name, At: time.Now()}
+			return domain.SpamCandidate{Verdict: verdict, Sample: m}, true, nil
+		}
+	}
+	return domain.SpamCandidate{}, false, nil
 }
 
 // seed rereads caught and released rooms from the cache; on failure it stays stale

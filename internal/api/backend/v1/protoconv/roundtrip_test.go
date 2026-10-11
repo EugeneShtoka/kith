@@ -85,6 +85,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"SpamVerdict", domain.SpamVerdict{}, func(v any) any {
 			return protoconv.ProtoToSpam(protoconv.SpamToProto([]domain.SpamVerdict{v.(domain.SpamVerdict)})[0])
 		}},
+		{"SpamCandidate", domain.SpamCandidate{}, func(v any) any {
+			return protoconv.ProtoToCandidates(protoconv.CandidatesToProto([]domain.SpamCandidate{v.(domain.SpamCandidate)}))[0]
+		}},
 		{"Deletion", domain.Deletion{}, func(v any) any {
 			return protoconv.ProtoToDeletion(protoconv.DeletionToProto(v.(domain.Deletion)))
 		}},

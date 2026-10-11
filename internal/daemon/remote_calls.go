@@ -675,6 +675,20 @@ func (r *Remote) DND(ctx context.Context) (notify.Temps, error) {
 	return pc.TempRulesFromProto(resp.GetRules()), err
 }
 
+// RescanSpam judges cached messages since since by the spam filters; with apply it
+// moves the rooms (only those in rooms, when given).
+func (r *Remote) RescanSpam(ctx context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.SpamCandidate, error) {
+	req := &v1.RescanSpamRequest{Apply: apply}
+	if !since.IsZero() {
+		req.SinceUnixMs = since.UnixMilli()
+	}
+	for _, id := range rooms {
+		req.RoomIds = append(req.RoomIds, string(id))
+	}
+	resp, err := call(ctx, "rescan spam", r.c.RescanSpam, req)
+	return pc.ProtoToCandidates(resp.GetRooms()), err
+}
+
 // ReloadConfig asks the daemon to re-read its config, returning the parse error.
 func (r *Remote) ReloadConfig(ctx context.Context) error {
 	_, err := call(ctx, "reload config", r.c.ReloadConfig, &v1.ReloadConfigRequest{})

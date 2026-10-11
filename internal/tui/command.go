@@ -53,6 +53,11 @@ var commands = []command{
 		run:     noArg(Model.openCaught),
 	},
 	{
+		name: "rescan", arg: "[since]", argOptional: true,
+		summary: "rooms the spam filters would move, judging what is cached (30d, 12h; all when empty) — ticked ones move",
+		run:     Model.openRescan,
+	},
+	{
 		name: "mentions", keyScope: scopeCommand, keyAct: actMentions,
 		summary: "every message that names you — everywhere, newest first",
 		run:     noArg(Model.openMentions),

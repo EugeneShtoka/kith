@@ -37,3 +37,20 @@ func ProtoToSpam(pb *v1.SpamVerdict) domain.SpamVerdict {
 func ProtoToSpamList(pbs []*v1.SpamVerdict) []domain.SpamVerdict {
 	return mapSlice(pbs, ProtoToSpam)
 }
+
+// CandidatesToProto converts rescan candidates.
+func CandidatesToProto(cs []domain.SpamCandidate) []*v1.SpamCandidate {
+	return mapSlice(cs, func(c domain.SpamCandidate) *v1.SpamCandidate {
+		return &v1.SpamCandidate{Verdict: SpamToProto([]domain.SpamVerdict{c.Verdict})[0], Sample: MessageToProto(c.Sample)}
+	})
+}
+
+// ProtoToCandidate converts one candidate back.
+func ProtoToCandidate(pb *v1.SpamCandidate) domain.SpamCandidate {
+	return domain.SpamCandidate{Verdict: ProtoToSpam(pb.GetVerdict()), Sample: ProtoToMessage(pb.GetSample())}
+}
+
+// ProtoToCandidates converts a list back.
+func ProtoToCandidates(pbs []*v1.SpamCandidate) []domain.SpamCandidate {
+	return mapSlice(pbs, ProtoToCandidate)
+}
