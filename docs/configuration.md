@@ -98,11 +98,16 @@ You rarely need to open the file. Inside kith:
     above; *Add one* is typed as its first field, *Remove this one* takes it out. A
     filter's *Add one* asks for each part in turn (name, tag, words or a sender,
     where it watches, what it moves) and writes the filter only at the end.
-  - **Names** has a first-names-only switch for every space and tag, and the
-    [phonebook](phonebook.md#a-field-beside-names) field shown beside names there. **Keys** has
-    every binding by table, typed as the file writes them (`k,up`; empty restores the
-    default, `-` binds nothing); a binding that would clash is refused with the reason.
-  - **Tags** edits your [tags](usage.md#tags).
+  - **Keys** has every binding by table, typed as the file writes them (`k,up`; empty
+    restores the default, `-` binds nothing); a binding that would clash is refused
+    with the reason.
+  - **Places** has a page for every space and tag the rail shows (and hidden tags), and
+    makes a new tag. A place's page holds everything about it: a tag's name, rule,
+    rooms and [properties](usage.md#tags); the place's first-names switch, the
+    [phonebook](phonebook.md#a-field-beside-names) field shown beside names, network
+    colors and archived rooms; and its [filters](filters.md), the ones moving rooms
+    into a tag or watching a space, with a row adding one with the place filled in.
+    `,` on a rail row opens that place's page.
 - `a` on a room, space, rail group, thread or person gives it your own name.
 - `b` on a message, room or space writes a notification rule for it.
 - `/why` shows every notification rule in force for the current room, in order, and

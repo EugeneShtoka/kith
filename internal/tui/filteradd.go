@@ -27,9 +27,13 @@ var filterMoveRows = []struct{ value, label, detail string }{
 	{config.FilterMoveRatio, "Mostly", "most of what the room says, over the filter's window"},
 }
 
-// startFilter begins a new filter with its name.
-func (m Model) startFilter() (Model, tea.Cmd) {
-	m.choosing.filter = config.Filter{}
+// startFilter begins a new filter with its name, from the Filters list.
+func (m Model) startFilter() (Model, tea.Cmd) { return m.startFilterFrom("", config.Filter{}) }
+
+// startFilterFrom begins a new filter with preset filled in (a place's page sets its
+// tag or the space it watches); back is the page to return to, "" for the Filters list.
+func (m Model) startFilterFrom(back string, preset config.Filter) (Model, tea.Cmd) {
+	m.choosing.filter, m.choosing.filterBack = preset, back
 	return m.closePicker().openPrompt(promptFilterName), nil
 }
 
@@ -98,7 +102,11 @@ func (m Model) openFilterPlaces() Model {
 	if len(items) == 0 {
 		return m.openFilterMoves()
 	}
-	m.picker = newCheckedPicker(pickerFilterPlaces, items, map[string]bool{})
+	checked := map[string]bool{}
+	for _, entry := range m.choosing.filter.In {
+		checked[entry] = true
+	}
+	m.picker = newCheckedPicker(pickerFilterPlaces, items, checked)
 	return m
 }
 
@@ -137,14 +145,23 @@ func (m Model) acceptFilterMoves(moves []string) (Model, tea.Cmd) {
 		return m.sayErr("this filter", err), nil
 	}
 	m = m.closePicker()
-	m.choosing.filter = config.Filter{}
+	back := m.choosing.filterBack
+	m.choosing.filter, m.choosing.filterBack = config.Filter{}, ""
 	next, cmd := m.applyConfig(cfg, fmt.Sprintf("added the filter %s — :rescan judges what is already cached", quoted(f.Name)))
+	if back != "" {
+		return next.settingsIn(back, ""), cmd
+	}
 	at := filterTable + "#" + strconv.Itoa(len(cfg.Filters)-1)
 	return next.settingsIn(at, ""), cmd
 }
 
-// backToFilters drops the draft and returns to the filter list, on its add row.
+// backToFilters drops the draft and returns where it began: a place's page, or the
+// Filters list on its add row.
 func (m Model) backToFilters() Model {
-	m.choosing.filter = config.Filter{}
+	back := m.choosing.filterBack
+	m.choosing.filter, m.choosing.filterBack = config.Filter{}, ""
+	if back != "" {
+		return m.closePrompt().settingsIn(back, "")
+	}
 	return m.closePrompt().settingsIn(filterTable, filterTable+recordAdd)
 }

@@ -89,12 +89,10 @@ func recordTable(key string) (config.RecordTable, bool) {
 // groupRows is a group's rows: listed, or made from the config.
 func (m Model) groupRows(group string) []setting {
 	switch {
-	case group == "names":
-		return slices.Concat(m.placeNameRows(), m.placeFieldRows(), groupSettings(group))
-	case group == "look":
-		return append(groupSettings(group), m.placeColorRows()...)
-	case group == "rooms":
-		return append(groupSettings(group), m.placeArchivedRows()...)
+	case group == "places":
+		return m.placesRows()
+	case strings.HasPrefix(group, placePagePrefix):
+		return m.placePageRows(strings.TrimPrefix(group, placePagePrefix))
 	case strings.HasPrefix(group, keysPrefix):
 		if t, ok := keyTableOf(group); ok {
 			return keyBindingRows(t)
@@ -130,6 +128,9 @@ func settingsParent(group string) (parent, at string, ok bool) {
 	if strings.HasPrefix(group, keysPrefix) {
 		return "keys", group, true
 	}
+	if strings.HasPrefix(group, placePagePrefix) {
+		return "places", group, true
+	}
 	if !strings.HasPrefix(group, recordPrefix) {
 		return "", group, false
 	}
@@ -147,6 +148,9 @@ func settingsParent(group string) (parent, at string, ok bool) {
 
 // settingGroupLabel is a group's words, made ones included.
 func (m Model) settingGroupLabel(group string) string {
+	if key, ok := strings.CutPrefix(group, placePagePrefix); ok {
+		return "Places · " + m.pageLabel(key) + " (" + placeWord(key) + ")"
+	}
 	if t, ok := keyTableOf(group); ok && strings.HasPrefix(group, keysPrefix) {
 		return "Keys · " + keyTableLabel(t.Name)
 	}
@@ -306,93 +310,69 @@ func (m Model) removeRecord(t config.RecordTable, i int) (Model, tea.Cmd) {
 	return next.settingsIn(recordPrefix+t.Path, ""), cmd
 }
 
-// placeNameRows are a first-names switch ([[display.space_rule]]) for every rail
-// space and tag that can be a room's home. A state tag (Unread) is nobody's home and
-// one of every room (All) is everywhere.
-func (m Model) placeNameRows() []setting {
-	var rows []setting
-	for _, g := range m.rail.groups {
-		if home := isSpaceGroup(g.key) || (isTagGroup(g.key) && m.isHomeTag(g.key)); !home {
-			continue
-		}
-		place := g.key
-		rows = append(rows, setting{
-			key: namesPrefix + place, group: "names", kind: settingToggle,
-			label: "First names only in " + g.label,
-			doc:   "Senders in rooms whose home is this " + placeWord(place) + " are shown by their first name. A room in several places follows its home: [display] priority, then the rail's order.",
-			show:  func(c config.Config) string { return onOff(firstNamesIn(c, place)) },
-			set: func(c *config.Config, _ string) error {
-				c.Display.SpaceRules = withFirstNames(c.Display, place, !firstNamesIn(*c, place))
-				return nil
-			},
-		})
+// The per-place rows a place's page shows (places.go), each writing that place's
+// [[display.space_rule]]: first names, the field beside names, network colors and
+// archived rooms.
+
+// nameRow is place's first-names switch.
+func nameRow(place, label, group string) setting {
+	return setting{
+		key: namesPrefix + place, group: group, kind: settingToggle,
+		label: "First names only",
+		doc:   "Senders in rooms whose home is " + label + " are shown by their first name. A room in several places follows its home: [display] priority, then the rail's order.",
+		show:  func(c config.Config) string { return onOff(firstNamesIn(c, place)) },
+		set: func(c *config.Config, _ string) error {
+			c.Display.SpaceRules = withFirstNames(c.Display, place, !firstNamesIn(*c, place))
+			return nil
+		},
 	}
-	return rows
 }
 
-// placeFieldRows are a choice for every rail space and tag of the phonebook field shown
-// after names there ([[display.space_rule]] show_field): none, or a key the cards use.
-func (m Model) placeFieldRows() []setting {
-	keys := m.cards.index.Keys()
-	var rows []setting
-	for _, g := range m.rail.groups {
-		if !isSpaceGroup(g.key) && !isTagGroup(g.key) {
-			continue
-		}
-		place := g.key
-		choices := []settingChoiceOption{{noShowField, "none", "names alone"}}
-		shown := slices.Clone(keys)
-		if current := m.conf.base.Display.ShowFieldIn(setup.HomeNamer(m.conf.base.Display, place)); current != "" && !slices.Contains(shown, current) {
-			shown = append(shown, current)
-		}
-		for _, key := range shown {
-			choices = append(choices, settingChoiceOption{key, key, "the " + key + " on the person's card"})
-		}
-		rows = append(rows, setting{
-			key: fieldPrefix + place, group: "names", kind: settingChoice,
-			label:   "Field beside names in " + g.label,
-			doc:     "In this " + placeWord(place) + "'s room list, a DM or a room with one person in it besides you and bots shows a field of that person's phonebook card after the name (\"Dana Levi · Meta\"), and so does the member list.",
-			choices: choices,
-			show: func(c config.Config) string {
-				if key := c.Display.ShowFieldIn(setup.HomeNamer(c.Display, place)); key != "" {
-					return key
-				}
-				return "none"
-			},
-			set: func(c *config.Config, value string) error {
-				if value == noShowField {
-					value = ""
-				}
-				c.Display.SpaceRules = withSpaceRule(c.Display, place, func(r *config.SpaceRule) { r.ShowField = value })
-				return nil
-			},
-		})
+// fieldRow is place's choice of phonebook field beside names: none, or a key the cards use.
+func (m Model) fieldRow(place, group string) setting {
+	choices := []settingChoiceOption{{noShowField, "none", "names alone"}}
+	shown := slices.Clone(m.cards.index.Keys())
+	if current := m.conf.base.Display.ShowFieldIn(setup.HomeNamer(m.conf.base.Display, place)); current != "" && !slices.Contains(shown, current) {
+		shown = append(shown, current)
 	}
-	return rows
+	for _, key := range shown {
+		choices = append(choices, settingChoiceOption{key, key, "the " + key + " on the person's card"})
+	}
+	return setting{
+		key: fieldPrefix + place, group: group, kind: settingChoice,
+		label:   "Field beside names",
+		doc:     "In this " + placeWord(place) + "'s room list, a DM or a room with one person in it besides you and bots shows a field of that person's phonebook card after the name (\"Dana Levi · Meta\"), and so does the member list.",
+		choices: choices,
+		show: func(c config.Config) string {
+			if key := c.Display.ShowFieldIn(setup.HomeNamer(c.Display, place)); key != "" {
+				return key
+			}
+			return "none"
+		},
+		set: func(c *config.Config, value string) error {
+			if value == noShowField {
+				value = ""
+			}
+			c.Display.SpaceRules = withSpaceRule(c.Display, place, func(r *config.SpaceRule) { r.ShowField = value })
+			return nil
+		},
+	}
 }
 
-// placeColorRows are a network-colors choice for every rail space and tag: follow
-// [display] network_colors, or force on or off ([[display.space_rule]]).
-func (m Model) placeColorRows() []setting {
-	var rows []setting
-	for _, g := range m.rail.groups {
-		if !isSpaceGroup(g.key) && !isTagGroup(g.key) {
-			continue
-		}
-		place := g.key
-		rows = append(rows, setting{
-			key: colorsPrefix + place, group: "look", kind: settingChoice,
-			label:   "Network colors in " + g.label,
-			doc:     "Rooms in this " + placeWord(place) + "'s room list are named in their network's color, as [display.theme.networks] sets: a bridged room in its bridge's network's. As everywhere follows [display] network_colors.",
-			choices: placeColorChoices,
-			show:    func(c config.Config) string { return placeColorsShown(c, place) },
-			set: func(c *config.Config, value string) error {
-				c.Display.SpaceRules = withNetworkColors(c.Display, place, placeColorValues[value])
-				return nil
-			},
-		})
+// colorRow is place's network-colors choice: follow [display] network_colors, or force
+// on or off.
+func colorRow(place, group string) setting {
+	return setting{
+		key: colorsPrefix + place, group: group, kind: settingChoice,
+		label:   "Network colors",
+		doc:     "Rooms in this " + placeWord(place) + "'s room list are named in their network's color, as [display.theme.networks] sets: a bridged room in its bridge's network's. As everywhere follows [display] network_colors.",
+		choices: placeColorChoices,
+		show:    func(c config.Config) string { return placeColorsShown(c, place) },
+		set: func(c *config.Config, value string) error {
+			c.Display.SpaceRules = withNetworkColors(c.Display, place, placeColorValues[value])
+			return nil
+		},
 	}
-	return rows
 }
 
 // placeColorChoices are a place's network-colors choices and placeColorValues what
@@ -414,28 +394,20 @@ func placeColorsShown(c config.Config, place string) string {
 	return "as everywhere (" + onOff(c.Display.NetworkColors) + ")"
 }
 
-// placeArchivedRows are an archived-rooms choice for every rail space and tag but an
-// archive's own: follow [display] show_archived, or force show or hide.
-func (m Model) placeArchivedRows() []setting {
-	var rows []setting
-	for _, g := range m.rail.groups {
-		if name, isTag := domain.TagOf(g.key); (!isSpaceGroup(g.key) && !isTagGroup(g.key)) || (isTag && m.isArchiveTag(name)) {
-			continue
-		}
-		place := g.key
-		rows = append(rows, setting{
-			key: archivedKey + place, group: "rooms", kind: settingChoice,
-			label:   "Archived rooms in " + g.label,
-			doc:     "Whether this " + placeWord(place) + "'s room list lists the rooms the archive tag holds. As everywhere follows [display] show_archived; the archived key flips it until kith restarts.",
-			choices: placeArchivedChoices,
-			show:    func(c config.Config) string { return placeArchivedShown(c, place) },
-			set: func(c *config.Config, value string) error {
-				c.Display.SpaceRules = withSpaceRule(c.Display, place, func(r *config.SpaceRule) { r.ShowArchived = placeArchivedValues[value] })
-				return nil
-			},
-		})
+// archivedRow is place's archived-rooms choice: follow [display] show_archived, or force
+// show or hide.
+func archivedRow(place, group string) setting {
+	return setting{
+		key: archivedKey + place, group: group, kind: settingChoice,
+		label:   "Archived rooms",
+		doc:     "Whether this " + placeWord(place) + "'s room list lists the rooms the archive tag holds. As everywhere follows [display] show_archived; the archived key flips it until kith restarts.",
+		choices: placeArchivedChoices,
+		show:    func(c config.Config) string { return placeArchivedShown(c, place) },
+		set: func(c *config.Config, value string) error {
+			c.Display.SpaceRules = withSpaceRule(c.Display, place, func(r *config.SpaceRule) { r.ShowArchived = placeArchivedValues[value] })
+			return nil
+		},
 	}
-	return rows
 }
 
 // placeArchivedChoices are a place's archived-rooms choices and placeArchivedValues

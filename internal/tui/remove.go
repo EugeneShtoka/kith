@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // The remove key (x, picker.remove) takes the row under the cursor out of any list of
@@ -33,10 +35,6 @@ func (m Model) removeUnderCursor() (Model, tea.Cmd, bool) {
 		return answered(m.submitPersonValue(""))
 	case pickerSetting:
 		return m.removeRecordRow(item.value)
-	case pickerTags:
-		m = m.closePicker()
-		m.confirm = confirmState{action: pendingDeleteTag, group: item.value}
-		return m, nil, true
 	case pickerRuleList:
 		i, err := strconv.Atoi(item.value)
 		if err != nil || i < 0 || i >= len(m.aimedAt.ruleScopes) {
@@ -63,6 +61,15 @@ func (m Model) removeUnderCursor() (Model, tea.Cmd, bool) {
 
 // removeRecordRow removes the settings record a row is (rec:<table>#<i>).
 func (m Model) removeRecordRow(key string) (Model, tea.Cmd, bool) {
+	if page, ok := strings.CutPrefix(key, placePagePrefix); ok && m.choosing.settingGroup == "places" {
+		name, isTag := domain.TagOf(page)
+		if !isTag {
+			return m, nil, false // a space is left from the rail, not deleted here
+		}
+		m = m.closePicker()
+		m.confirm = confirmState{action: pendingDeleteTag, group: name}
+		return m, nil, true
+	}
 	rest, ok := strings.CutPrefix(key, recordPrefix)
 	if !ok {
 		return m, nil, false

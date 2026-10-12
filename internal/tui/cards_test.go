@@ -289,11 +289,11 @@ func TestTheFieldBesideNamesIsChosenInSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	m = m.WithConfigFile(path, m.conf.base).keptIn()
-	m = m.settingsIn("names", "")
-	if got := rowFor(t, m, "Field beside names in Friends").detail; got != "none" {
+	m = m.settingsIn(placePage("Friends"), "")
+	if got := rowFor(t, m, "Field beside names").detail; got != "none" {
 		t.Errorf("Friends reads %q, want none", got)
 	}
-	m = pickLabel(t, m, "Field beside names in Friends")
+	m = pickLabel(t, m, "Field beside names")
 	var offered []string
 	for _, item := range m.picker.all {
 		offered = append(offered, item.label)
@@ -313,7 +313,7 @@ func TestTheFieldBesideNamesIsChosenInSettings(t *testing.T) {
 	if got := rowText(m, danaDM); got != "Dana Levi · Meta" {
 		t.Errorf("once set, Dana's DM reads %q", got)
 	}
-	m = pickLabel(t, m, "Field beside names in Friends")
+	m = pickLabel(t, m, "Field beside names")
 	m = pickLabel(t, m, "none")
 	if len(m.conf.base.Display.SpaceRules) != 0 {
 		t.Errorf("none kept %+v", m.conf.base.Display.SpaceRules)

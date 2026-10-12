@@ -139,10 +139,12 @@ once: the folder list shows each one with what it would do — a new tag, or how
 existing tag would change among that account's chats — and you choose per tag before
 **Copy**. Setting an account up offers the same.
 
-**Editing tags in the app.** Settings (`,`) → **Tags** lists your tags and makes a new
-one. A tag's page shows its name, rule, picked and excluded rooms, every property as
-an on/off row (each word of `exclusive` is its own row), and which other tags take
-rooms out of its row (the ones exclusive from tags). The rule and the room lists are edited an entry at a time:
+**Editing tags in the app.** Settings (`,`) → **Places** lists your spaces and tags and
+makes a new tag; `,` on a rail row opens that place's page. A tag's page shows its
+name, rule, picked and excluded rooms, every property as an on/off row (each word of
+`exclusive` is its own row), which other tags take rooms out of its row (the ones
+exclusive from tags), its display choices and the [filters](filters.md) moving rooms
+into it. The rule and the room lists are edited an entry at a time:
 choose an entry to change it (empty removes it), `x` removes the entry under the cursor,
 or the last row adds one. Renaming
 a tag renames it everywhere it is named as `tag:<name>`: rules, place lists, the rail's
@@ -241,7 +243,7 @@ A thread's summary sits at its root in the timeline, which may be far up the scr
 - **Opening** a room reads it. **Selecting** it in the list does not, unless you set `[display] read_delay` to a number of seconds to rest on it (`0` reads everything the cursor touches; `-1`, the default, never).
 - `m` in the room list marks a room read without opening it; `m` in the rail marks the whole group.
 - `M` marks a room you have read as still needing you, and clears that mark. It is the homeserver's marked-unread flag, so it shows on your other clients; reading the room clears it too. `/unread` does the same from the composer.
-- **Archiving** a room is putting it in the starter config's Archived tag (`S`, or `/tag Archived`): it stays readable and writable, but stops counting toward any badge, leaves every group except the space it belongs to and Archived, and is skipped by group-wide mark-read. Whether a room list shows archived rooms at all is `[display] show_archived` (on by default), a place's `[[display.space_rule]] show_archived` over it, or settings (`,` → Rail and room list → Archived rooms in …, per space and tag); `A` in the room list (or `:archived`) flips it for the place you are in until kith restarts. The archive's own list always shows them.
+- **Archiving** a room is putting it in the starter config's Archived tag (`S`, or `/tag Archived`): it stays readable and writable, but stops counting toward any badge, leaves every group except the space it belongs to and Archived, and is skipped by group-wide mark-read. Whether a room list shows archived rooms at all is `[display] show_archived` (on by default), a place's `[[display.space_rule]] show_archived` over it, or settings (a place's page in **Places**, or `,` on its rail row); `A` in the room list (or `:archived`) flips it for the place you are in until kith restarts. The archive's own list always shows them.
 - **Pinning** is putting it in the Pinned tag: it appears there as well as where it lives, and `tag:Pinned` is a place a notification rule can name — a way to let one conversation through do-not-disturb. See [Notifications](notifications.md).
 - `!` moves a conversation to **Spam** and back, a [`[[keys.tag]]`](filters.md#the-spam-tag) binding any tag can have.
 
@@ -414,7 +416,7 @@ Names you give are local — only you see them — and live in your config.
 - A place's `[[display.space_rule]] show_field = "company"` shows that field of a person's [phonebook](phonebook.md#a-field-beside-names) card after their name, in its room list and member list: "Dana Levi · Meta".
 - `[display] network_colors = true` names each room in every room list in its network's color; a place's `[[display.space_rule]] network_colors = true` or `false` overrides that for its own room list.
 - `[display.rail] network_colors = true` colors a rail row whose rooms are all on one network the same way.
-- `[display.theme.networks]` sets those colors (`#rrggbb`, a named color, or `"none"`). Unset, each network has its own, apart from the theme's text, accent, badge and alert colors: WhatsApp teal, Telegram blue, Slack magenta, Messenger and Instagram (Meta) orchid, LinkedIn periwinkle, Google Messages (SMS) coral. A bridged Matrix room counts as its bridge's network. All of it is in settings (`,`): under look, the switch everywhere, each space's and tag's choice (as everywhere, on, off) and each network's color; under rooms, the rail's switch.
+- `[display.theme.networks]` sets those colors (`#rrggbb`, a named color, or `"none"`). Unset, each network has its own, apart from the theme's text, accent, badge and alert colors: WhatsApp teal, Telegram blue, Slack magenta, Messenger and Instagram (Meta) orchid, LinkedIn periwinkle, Google Messages (SMS) coral. A bridged Matrix room counts as its bridge's network. All of it is in settings (`,`): under look, the switch everywhere and each network's color; on each place's page in **Places**, that space's or tag's choice (as everywhere, on, off); under rooms, the rail's switch.
 - `[display] max_name_length` caps the sender column; `color_messages = true` tints message bodies in the sender's color.
 
 kith keeps one directory of the people it knows, on every network and account. A

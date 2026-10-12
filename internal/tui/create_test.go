@@ -207,8 +207,8 @@ func TestNewMakesATag(t *testing.T) {
 	m, _ = m.openNewRoom()
 	m = pickLabel(t, m, "Tag")
 	m = typeIn(t, m, "Family")
-	if m.configTag("Family") < 0 || m.picker.kind != pickerTagEdit || m.choosing.tag.tag != "Family" {
-		t.Errorf("tags %+v, picker %v on %q: want Family made and open", m.conf.base.Tags, m.picker.kind, m.choosing.tag.tag)
+	if m.configTag("Family") < 0 || !onTagPage(m, "Family") {
+		t.Errorf("tags %+v, picker %v on %q: want Family made and open", m.conf.base.Tags, m.picker.kind, m.choosing.settingGroup)
 	}
 }
 
