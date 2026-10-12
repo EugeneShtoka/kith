@@ -318,8 +318,8 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		if m.picker.spec.modal && m.picker.mode == pickerFilter {
 			m.picker.mode = pickerNavigate
 		} else if m.picker.filter == "" {
-			if back, ok := m.settingsBack(); ok {
-				return back, nil, true
+			if back := pickerActions[m.picker.kind].back; back != nil {
+				return back(m), nil, true
 			}
 			return m.closePicker(), nil, true
 		}
@@ -453,121 +453,22 @@ func repaint() tea.Cmd { return tea.ClearScreen }
 
 // acceptPick carries out the picker's primary action on the selection.
 func (m Model) acceptPick() (Model, tea.Cmd) {
+	act := pickerActions[m.picker.kind]
 	// A set applies whole, even when empty.
 	if m.picker.spec.multi {
-		return m.acceptCheckedPick(m.picker.checkedValues())
+		if act.apply == nil {
+			return m.closePicker(), nil
+		}
+		return act.apply(m, m.picker.checkedValues())
 	}
 	item, ok := m.picker.selected()
-	if !ok {
+	if !ok || act.choose == nil {
 		return m.closePicker(), nil
 	}
-	if mdl, cmd, handled := m.acceptConversationPick(item); handled {
-		return mdl, cmd
-	}
-	return m.acceptSettingPick(item)
-}
-
-func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
-	switch m.picker.kind {
-	case pickerRoomSpaces:
-		return m.applyRoomSpaces(values)
-	case pickerNewMembers:
-		return m.createNewChat(values)
-	case pickerVoteMulti:
-		return m.castVote(values)
-	case pickerDictionaries:
-		return m.acceptDictionaryOffer(values)
-	case pickerFrequencies:
-		return m.acceptFrequencyOffer(values)
-	case pickerCompletionModel:
-		return m.acceptModelOffer(values)
-	case pickerRescan:
-		return m.applyRescan(values)
-	case pickerFilterPlaces:
-		return m.acceptFilterPlaces(values)
-	case pickerSettingSet:
-		return m.writeSettingSet(values)
-	case pickerFilterMoves:
-		return m.acceptFilterMoves(values)
-	default:
-		return m.closePicker(), nil
-	}
+	return act.choose(m, item)
 }
 
 // acceptConversationPick handles pickers acting on what is being read; handled is false for
-// setting pickers.
-func (m Model) acceptConversationPick(item pickerItem) (Model, tea.Cmd, bool) {
-	switch m.picker.kind {
-	case pickerPerson:
-		return answered(m.choosePersonRow(item.value))
-	case pickerPersonKeys:
-		return answered(m.choosePersonKey(item.value))
-	case pickerReaction:
-		return answered(m.reactWithPicked(item.value))
-	case pickerVote:
-		if item.value == voteTakeBack {
-			return answered(m.castVote(nil))
-		}
-		return answered(m.castVote([]string{item.value}))
-	case pickerEmoji:
-		return answered(m.insertPickedEmoji(item.value))
-	case pickerPeople:
-		return answered(m.aliasSelectedPerson())
-	case pickerContext:
-		return answered(m.acceptContext(m.picker.then, item.value))
-	case pickerThread:
-		return answered(m.openPickedThread(domain.EventID(item.value), item.room))
-	case pickerJump:
-		return answered(m.acceptJump(item.value))
-	case pickerCards:
-		return answered(m.choosePhonebookCard(item))
-	case pickerScheduled:
-		// Re-read after canceling, so it shows what the daemon holds.
-		return m.closePicker(), m.cancelScheduledCmd(item.value), true
-	default:
-		return m, nil, false
-	}
-}
-
-// acceptSettingPick handles pickers that write a setting.
-func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
-	switch m.picker.kind {
-	case pickerIdentity:
-		return m.chooseIdentity(item.value)
-	case pickerColor:
-		return m.chooseColor(item.value)
-	case pickerRuleScope, pickerRuleList:
-		return m.chooseRuleScope(atoiSafe(item.value))
-	case pickerSpeedScope:
-		return m.chooseSpeedScope(atoiSafe(item.value))
-	case pickerRulePreset:
-		return m.chooseRulePreset(item.value)
-	case pickerSettingGroups:
-		return m.chooseSettingGroup(item.value)
-	case pickerSetting:
-		return m.chooseSetting(item.value)
-	case pickerSettingValue:
-		return m.chooseSettingValue(item.value)
-	case pickerSettingEntries:
-		return m.chooseSettingEntry(item.value)
-	case pickerDNDScope, pickerMuteScope:
-		return m.chooseDNDScope(atoiSafe(item.value))
-	case pickerDNDFor:
-		return m.chooseDNDFor(item.value)
-	case pickerNewRoom:
-		return m.chooseNewRoomKind(item.value)
-	case pickerFilterTag:
-		return m.chooseFilterTag(item.value)
-	case pickerTagEntries:
-		return m.chooseTagEntry(item.value)
-	case pickerLoginNetwork, pickerLoginAccount, pickerImportAccount, pickerImportFolders, pickerImportChoice:
-		return m.chooseAccountPick(m.picker.kind, item.value)
-	case pickerNone:
-		return m, nil
-	default:
-		return m.closePicker(), nil
-	}
-}
 
 // pickerHint is the picker legend; while filtering, letters are text, so only non-typing keys
 // are shown.

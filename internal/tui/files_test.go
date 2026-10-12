@@ -46,7 +46,7 @@ func TestFilesKeyOpensTheListOnThisRoom(t *testing.T) {
 	if m.prompt.kind != promptFiles {
 		t.Errorf("prompt = %d, want the files prompt", m.prompt.kind)
 	}
-	if got := m.prompt.label(); !strings.Contains(got, "narrow") {
+	if got := m.promptLabel(); !strings.Contains(got, "narrow") {
 		t.Errorf("label = %q, should say typing narrows the list", got)
 	}
 	if len(backend.requests) == 0 {
