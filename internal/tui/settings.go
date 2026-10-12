@@ -575,7 +575,7 @@ func choiceWords(s setting, value string) string {
 func (m Model) chooseSettingGroup(group string) (Model, tea.Cmd) {
 	if rows := m.groupRows(group); len(rows) == 1 && rows[0].kind == settingOpen {
 		m.choosing.settingGroup = group
-		return rows[0].open(m)
+		return m.chooseSetting(rows[0].key) // a record table's row has no open of its own
 	}
 	return m.settingsIn(group, ""), nil
 }
