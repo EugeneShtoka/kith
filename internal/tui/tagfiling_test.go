@@ -194,7 +194,7 @@ func TestAnArchiveRefusedPutsTheRoomBack(t *testing.T) {
 }
 
 // The filing picker offers only hand-filed tags, not rule-filled ones (Unread, DMs,
-// Drafts, Invites, Spam, All).
+// Drafts, Invites, All).
 func TestTheFilingPickerLeavesOutTagsTheirRuleFills(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{
@@ -203,9 +203,9 @@ func TestTheFilingPickerLeavesOutTagsTheirRuleFills(t *testing.T) {
 		{Name: "Unread", Rule: []string{"unread"}},
 		{Name: "Drafts", Rule: []string{"draft"}},
 		{Name: "Invites", Rule: []string{"invite"}},
-		{Name: "Spam", Rule: []string{"spam"}},
+		{Name: "Spam"},
 		{Name: "Quiet", Rule: []string{"not unread"}},
-		{Name: "Wanted", Rule: []string{"not spam"}},
+		{Name: "Wanted", Rule: []string{"not tag:Spam"}},
 		{Name: "Pinned"},
 		{Name: "Archived"},
 		{Name: "Work", Rule: []string{"space:Work"}},

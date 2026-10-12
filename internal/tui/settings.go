@@ -505,7 +505,7 @@ var settingGroups = []settingGroup{
 	{"completion", "Completion"},
 	{"assist", "Assistant"},
 	{"codes", "Codes and clipboard"},
-	{"spam", "Spam"},
+	{"filters", "Filters"},
 	{"agent", "AI agent access"},
 	{"networks", "Accounts and networks"},
 	{"advanced", "Commands, logs and schedule"},
@@ -706,8 +706,8 @@ func (m Model) settingsBack() (Model, bool) {
 		return m.settingsTop(group), true
 	case pickerTags:
 		return m.settingsTop("tags"), true
-	case pickerFilterPlaces, pickerFilterMoves:
-		return m.backToSpamFilters(), true
+	case pickerFilterTag, pickerFilterPlaces, pickerFilterMoves:
+		return m.backToFilters(), true
 	case pickerTagEdit:
 		return m.tagsOpen(), true
 	case pickerTagEntries:

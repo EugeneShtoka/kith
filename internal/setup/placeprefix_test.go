@@ -60,8 +60,9 @@ func placeSettings() []placeSetting {
 		{"agent.write.rooms", func(c *config.Config, e string) { c.Agent.Write.Rooms = one(e) }, placeForms},
 		{"agent.write.except", func(c *config.Config, e string) { c.Agent.Write.Except = one(e) }, placeForms},
 		{"agent.write.send", func(c *config.Config, e string) { c.Agent.Write.Send = one(e) }, placeForms},
-		{"spam.rooms", func(c *config.Config, e string) { c.Spam.Rooms = one(e) }, placeForms},
-		{"spam.except", func(c *config.Config, e string) { c.Spam.Except = one(e) }, placeForms},
+		{"filter[0].in", func(c *config.Config, e string) {
+			c.Filters = []config.Filter{{Name: "x", Tag: "Pinned", Words: one("w"), In: one(e)}}
+		}, placeForms},
 		{"assist.rooms", func(c *config.Config, e string) { c.Assist.Rooms = one(e) }, placeForms},
 		{"assist.except", func(c *config.Config, e string) { c.Assist.Except = one(e) }, placeForms},
 		{"tracked.rule[0].in", func(c *config.Config, e string) {

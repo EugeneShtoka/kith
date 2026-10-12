@@ -193,7 +193,7 @@ func (filesList) summary(m Model, where string) string {
 	return countedSummary(len(m.search.hits), where, "no files", "1 file", "files")
 }
 
-// caughtList previews what the spam filters would catch, through the daemon's matcher
+// caughtList previews what the filters would catch, through the daemon's matcher
 // (domain.Tracked).
 type caughtList struct {
 	words   []string          // every filter's words, flattened
@@ -223,7 +223,7 @@ func (c caughtList) summary(m Model, where string) string {
 		return "could not preview the filters: " + m.search.err.Error()
 	}
 	if len(c.words) == 0 && c.senders == 0 {
-		return "no spam filters yet — add one under [[spam.filter]] in the config"
+		return "no filters yet — add one under [[filter]] in the config"
 	}
 	if len(c.words) == 0 {
 		return c.bySender() + " — nothing here is matched by words, so there is nothing to preview"

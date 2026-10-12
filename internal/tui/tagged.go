@@ -26,9 +26,9 @@ type tagMemo struct {
 
 // tagKey identifies the inputs: the tags (by revision) and each map by identity.
 type tagKey struct {
-	tagsRev                     uint64
-	unread, drafts, facts, spam uintptr
-	local                       bool
+	tagsRev               uint64
+	unread, drafts, facts uintptr
+	local                 bool
 }
 
 // identity is a map's identity; nil is 0.
@@ -44,7 +44,6 @@ func (v unreadView) tagKey() tagKey {
 	return tagKey{
 		tagsRev: v.tagsRev,
 		unread:  identity(v.counts), drafts: identity(v.drafts), facts: identity(v.roomFacts),
-		spam:  identity(v.spamRooms),
 		local: v.local,
 	}
 }
@@ -131,7 +130,6 @@ func (v unreadView) rawState(room domain.Room) domain.RoomState {
 		Unread:  v.counts[room.ID].HasUnread(v.local),
 		Mention: highlights > 0,
 		Draft:   draft,
-		Spam:    v.isSpam(room),
 		Invite:  room.IsInvite(),
 	}
 }

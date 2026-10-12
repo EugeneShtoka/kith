@@ -52,6 +52,9 @@ type scopeIndex struct {
 	tags     domain.TagSet
 	archives map[domain.Protocol]string
 	archived map[domain.RoomID]bool
+	// caught is the tags filters moved a room into; nil knows none. Set before use; it
+	// reads memory only.
+	caught func(domain.RoomID) []string
 }
 
 func newScopeIndex(src scopeSource, aliases []config.DisplayName, order domain.HomeOrder) *scopeIndex {
@@ -148,10 +151,13 @@ func (x *scopeIndex) Known(roomID domain.RoomID) domain.RoomFacts {
 	return x.factsFrom(roomID, facts)
 }
 
-// factsFrom is one indexed room with current tags.
+// factsFrom is one indexed room with current tags, and the ones filters moved it into.
 func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts domain.RoomFacts) domain.RoomFacts {
 	if facts.ID == "" {
 		facts = domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
+	}
+	if x.caught != nil {
+		facts.Caught = x.caught(roomID)
 	}
 	x.mu.Lock()
 	tags := x.tags
@@ -246,6 +252,14 @@ func buildIndex(
 	return index, archived, order, nil
 }
 
+// Mutes reports whether a tag holding the room has notifies = false.
+func (x *scopeIndex) Mutes(facts domain.RoomFacts) bool {
+	x.mu.Lock()
+	tags := x.tags
+	x.mu.Unlock()
+	return tags.Mutes(facts.Tags)
+}
+
 // All is every room's facts, read fresh, in room ID order.
 func (x *scopeIndex) All(ctx context.Context) ([]domain.RoomFacts, error) {
 	x.mu.Lock()
@@ -263,6 +277,9 @@ func (x *scopeIndex) All(ctx context.Context) ([]domain.RoomFacts, error) {
 		facts := index[id]
 		if archived[id] {
 			facts.ArchivedIn = archives[facts.Protocol]
+		}
+		if x.caught != nil {
+			facts.Caught = x.caught(id)
 		}
 		facts.Tags = tags.Of(facts)
 		out = append(out, facts)

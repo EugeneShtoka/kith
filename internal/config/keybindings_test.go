@@ -171,3 +171,27 @@ func TestAChordGoesToOnePlace(t *testing.T) {
 		t.Error("a binding with no chord was accepted")
 	}
 }
+
+// Absent tag keys are the starter's (`!` into Spam); `tag = []` is none, and survives a
+// save.
+func TestTagKeysDefaultToTheStartersAndCanBeEmptied(t *testing.T) {
+	t.Parallel()
+	absent, err := Decode("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(absent.Keys.Tag) != 1 || absent.Keys.Tag[0] != (TagKey{Chord: "!", Tag: "Spam"}) {
+		t.Errorf("absent = %+v, want the starter's", absent.Keys.Tag)
+	}
+	emptied, err := Decode("[keys]\ntag = []\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(emptied.Keys.Tag) != 0 {
+		t.Errorf("tag = [] decoded as %+v, want none", emptied.Keys.Tag)
+	}
+	again, err := Decode(Encode(emptied))
+	if err != nil || len(again.Keys.Tag) != 0 {
+		t.Errorf("after a save: %+v, %v; want none still", again.Keys.Tag, err)
+	}
+}

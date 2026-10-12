@@ -17,7 +17,7 @@ import (
 // rescanBackend answers rescans with found, keeping each call.
 type rescanBackend struct {
 	apitest.Nop
-	found []domain.SpamCandidate
+	found []domain.MoveCandidate
 
 	mu    sync.Mutex
 	calls []rescanCall
@@ -29,14 +29,14 @@ type rescanCall struct {
 	rooms []domain.RoomID
 }
 
-func (b *rescanBackend) RescanSpam(_ context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.SpamCandidate, error) {
+func (b *rescanBackend) RescanFilters(_ context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.MoveCandidate, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.calls = append(b.calls, rescanCall{since, apply, rooms})
 	if !apply {
 		return b.found, nil
 	}
-	var out []domain.SpamCandidate
+	var out []domain.MoveCandidate
 	for i := range b.found {
 		if slices.Contains(rooms, b.found[i].Verdict.Room) {
 			out = append(out, b.found[i])
@@ -49,13 +49,13 @@ func (b *rescanBackend) RescanSpam(_ context.Context, since time.Time, apply boo
 // back as the preview was.
 func TestRescanPreviewsThenMovesTheTickedRooms(t *testing.T) {
 	t.Parallel()
-	candidate := func(room domain.RoomID, body string) domain.SpamCandidate {
-		return domain.SpamCandidate{
-			Verdict: domain.SpamVerdict{Room: room, Rule: domain.SpamAlways, Filter: "elections"},
+	candidate := func(room domain.RoomID, body string) domain.MoveCandidate {
+		return domain.MoveCandidate{
+			Verdict: domain.TagVerdict{Room: room, Tag: "Spam", Rule: domain.MoveAlways, Filter: "elections"},
 			Sample:  domain.Message{RoomID: room, Body: body},
 		}
 	}
-	b := &rescanBackend{found: []domain.SpamCandidate{candidate("!a:x", "go vote"), candidate("!b:x", "vote today")}}
+	b := &rescanBackend{found: []domain.MoveCandidate{candidate("!a:x", "go vote"), candidate("!b:x", "vote today")}}
 	m := New(context.Background(), b, config.Display{}).WithConfigFile("", config.Config{})
 
 	m, cmd := m.runCommandLine(":rescan 30d")
@@ -63,7 +63,7 @@ func TestRescanPreviewsThenMovesTheTickedRooms(t *testing.T) {
 		t.Fatal(":rescan asked nothing")
 	}
 	m = update(t, m, cmd())
-	if m.picker.kind != pickerSpamRescan || len(m.picker.checkedValues()) != 2 {
+	if m.picker.kind != pickerRescan || len(m.picker.checkedValues()) != 2 {
 		t.Fatalf("picker %v ticked %v, want both rooms ticked", m.picker.kind, m.picker.checkedValues())
 	}
 	since := b.calls[0].since

@@ -54,7 +54,7 @@ var propertyGroups = append([]propertyGroup{
 	{"assist.", "assist", "assist."},
 	{"codes.", "codes", "codes."},
 	{"clipboard.", "codes", ""},
-	{"spam.", "spam", "spam."},
+	{"filter", "filters", ""},
 	{"agent.", "agent", "agent."},
 	{"homeserver", "networks", ""},
 	{"user", "networks", ""},

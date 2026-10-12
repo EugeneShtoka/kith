@@ -83,31 +83,32 @@ message MarkRoomsReadResponse {
   string first_error = 4;
 }
 
-// SpamVerdict is why one room is in Spam, or that it was released from it.
-message SpamVerdict {
+// TagVerdict is a filter having moved one room into one tag, or a person having taken
+// it out (released), which no filter overturns.
+message TagVerdict {
   string room_id = 1;
-  // rule is domain.SpamRule; 0 is not spam, which is what clearing writes.
-  int32 rule = 2;
-  // filter is the name of the filter that caught it, empty for a hand-made verdict.
-  string filter = 3;
-  int64 at_unix_ms = 4;
-  // released is a person taking the room out (rule 0); it outranks every rule.
-  bool released = 5;
+  string tag = 2;
+  // rule is domain.MoveRule; 0 is no move.
+  int32 rule = 3;
+  // filter is the name of the filter that moved it.
+  string filter = 4;
+  int64 at_unix_ms = 5;
+  bool released = 6;
 }
 
-message SpamRoomsRequest {}
+message TagVerdictsRequest {}
 
-message SpamRoomsResponse {
-  repeated SpamVerdict rooms = 1;
+message TagVerdictsResponse {
+  repeated TagVerdict verdicts = 1;
 }
 
-// SpamCandidate is a room a rescan would move into Spam, and the message that moves it.
-message SpamCandidate {
-  SpamVerdict verdict = 1;
+// MoveCandidate is a room a rescan would move into a tag, and the message that moves it.
+message MoveCandidate {
+  TagVerdict verdict = 1;
   Message sample = 2;
 }
 
-message RescanSpamRequest {
+message RescanFiltersRequest {
   // since_unix_ms is the oldest message judged; 0 is everything cached.
   int64 since_unix_ms = 1;
   // apply moves the rooms; otherwise nothing changes.
@@ -116,15 +117,23 @@ message RescanSpamRequest {
   repeated string room_ids = 3;
 }
 
-message RescanSpamResponse {
-  repeated SpamCandidate rooms = 1;
+message RescanFiltersResponse {
+  repeated MoveCandidate rooms = 1;
 }
 
-message MarkSpamRequest {
-  SpamVerdict verdict = 1;
+message MarkTagRequest {
+  TagVerdict verdict = 1;
 }
 
-message MarkSpamResponse {}
+message MarkTagResponse {}
+
+message RetagVerdictsRequest {
+  string from = 1;
+  // to empty drops the verdicts (a deleted tag).
+  string to = 2;
+}
+
+message RetagVerdictsResponse {}
 
 message CanonicalParentRequest {
   string room_id = 1;
@@ -1361,11 +1370,14 @@ service BackendService {
   // LastMessages is when each room last had a message, for ordering the list by
   // activity.
   rpc LastMessages(LastMessagesRequest) returns (LastMessagesResponse);
-  // SpamRooms lists the rooms a spam filter caught, with the rule and the filter that
-  // caught each.
-  rpc SpamRooms(SpamRoomsRequest) returns (SpamRoomsResponse);
-  // MarkSpam records a verdict on one room, or clears it.
-  rpc MarkSpam(MarkSpamRequest) returns (MarkSpamResponse);
+  // TagVerdicts lists every room a filter moved into a tag, and every release, with
+  // the rule and the filter.
+  rpc TagVerdicts(TagVerdictsRequest) returns (TagVerdictsResponse);
+  // MarkTag records a filter's move or a release on one room and tag; a move never
+  // overwrites a release.
+  rpc MarkTag(MarkTagRequest) returns (MarkTagResponse);
+  // RetagVerdicts moves one tag's verdicts to its new name, or drops them.
+  rpc RetagVerdicts(RetagVerdictsRequest) returns (RetagVerdictsResponse);
   // Space
   // Spaces returns the cached spaces, each with its direct child rooms.
   rpc Spaces(SpacesRequest) returns (SpacesResponse);
@@ -1587,9 +1599,9 @@ service BackendService {
   rpc ClearDND(ClearDNDRequest) returns (ClearDNDResponse);
   // DND reports the temporary rules in force.
   rpc DND(DNDRequest) returns (DNDResponse);
-  // RescanSpam judges cached messages by the spam filters as if they arrived now, and
-  // lists the rooms that would move into Spam; with apply it moves them.
-  rpc RescanSpam(RescanSpamRequest) returns (RescanSpamResponse);
+  // RescanFilters judges cached messages by the filters as if they arrived now, and
+  // lists the rooms that would move into a tag; with apply it moves them.
+  rpc RescanFilters(RescanFiltersRequest) returns (RescanFiltersResponse);
   // ReloadConfig re-reads the configuration file the daemon was started with, and
   // returns the parse error if it will not load — leaving the running configuration
   // untouched.

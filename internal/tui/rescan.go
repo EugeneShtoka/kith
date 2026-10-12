@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -12,9 +13,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// spamRescanner is a daemon that judges cached messages by the spam filters.
-type spamRescanner interface {
-	RescanSpam(ctx context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.SpamCandidate, error)
+// filterRescanner is a daemon that judges cached messages by the filters.
+type filterRescanner interface {
+	RescanFilters(ctx context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.MoveCandidate, error)
 }
 
 // rescanTimeout bounds a rescan: it reads every room's cached history.
@@ -23,11 +24,11 @@ const rescanTimeout = 2 * time.Minute
 type rescannedMsg struct {
 	since   time.Time
 	applied bool
-	found   []domain.SpamCandidate
+	found   []domain.MoveCandidate
 	err     error
 }
 
-// openRescan previews which rooms the spam filters would move, judging what is cached
+// openRescan previews which rooms the filters would move, judging what is cached
 // since arg ago (everything when empty); nothing moves until the picker is applied.
 func (m Model) openRescan(arg string) (Model, tea.Cmd) {
 	since, err := parseSince(arg, time.Now())
@@ -61,15 +62,15 @@ func parseSince(arg string, now time.Time) (time.Time, error) {
 }
 
 func (m Model) rescanCmd(since time.Time, apply bool, rooms []domain.RoomID) tea.Cmd {
-	rescanner, ok := m.backend.(spamRescanner)
+	rescanner, ok := m.backend.(filterRescanner)
 	if !ok {
-		return func() tea.Msg { return rescannedMsg{err: fmt.Errorf("only kithd rescans for spam")} }
+		return func() tea.Msg { return rescannedMsg{err: fmt.Errorf("only kithd rescans with the filters")} }
 	}
 	app := m.ctx
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(app, rescanTimeout)
 		defer cancel()
-		found, err := rescanner.RescanSpam(ctx, since, apply, rooms)
+		found, err := rescanner.RescanFilters(ctx, since, apply, rooms)
 		return rescannedMsg{since: since, applied: apply, found: found, err: err}
 	}
 }
@@ -79,32 +80,32 @@ func (m Model) handleRescanned(msg rescannedMsg) (Model, tea.Cmd) {
 		return m.sayErr("rescan", msg.err), nil
 	}
 	if msg.applied {
-		return m.say(fmt.Sprintf("moved %s into Spam", roomsPhrase(len(msg.found)))), m.loadSpamCmd()
+		return m.say(fmt.Sprintf("moved %s", movesPhrase(len(msg.found)))), m.loadVerdictsCmd()
 	}
 	if len(msg.found) == 0 {
-		return m.say("the spam filters move no room on what is cached"), nil
+		return m.say("the filters move no room on what is cached"), nil
 	}
 	items := make([]pickerItem, 0, len(msg.found))
 	checked := make(map[string]bool, len(msg.found))
 	for i := range msg.found {
 		c := msg.found[i]
-		id := string(c.Verdict.Room)
-		name := id
+		id := moveValue(c.Verdict)
+		name := string(c.Verdict.Room)
 		if room, ok := m.roomByID(c.Verdict.Room); ok {
 			name = m.roomName(room)
 		}
 		items = append(items, pickerItem{
 			label:  isolate(name),
-			detail: c.Verdict.Filter + " · " + isolate(firstLine(c.Sample.Body)),
+			detail: "into " + isolate(m.tagLabel(c.Verdict.Tag)) + " · " + c.Verdict.Filter + " · " + isolate(firstLine(c.Sample.Body)),
 			value:  id,
-			match:  name + " " + c.Verdict.Filter + " " + c.Sample.Body,
+			match:  name + " " + c.Verdict.Tag + " " + c.Verdict.Filter + " " + c.Sample.Body,
 		})
 		checked[id] = true
 	}
 	m.rescanSince = msg.since
-	spec := pickerSpecs[pickerSpamRescan]
-	spec.title = fmt.Sprintf("Move %s into Spam?", roomsPhrase(len(items)))
-	m.picker = newPickerWith(pickerSpamRescan, spec, items)
+	spec := pickerSpecs[pickerRescan]
+	spec.title = fmt.Sprintf("Make %s?", movesPhrase(len(items)))
+	m.picker = newPickerWith(pickerRescan, spec, items)
 	m.picker.checked = checked
 	return m, nil
 }
@@ -118,7 +119,26 @@ func (m Model) applyRescan(values []string) (Model, tea.Cmd) {
 	}
 	rooms := make([]domain.RoomID, 0, len(values))
 	for _, v := range values {
-		rooms = append(rooms, domain.RoomID(v))
+		if room := roomOfMove(v); !slices.Contains(rooms, room) {
+			rooms = append(rooms, room)
+		}
 	}
 	return m, m.rescanCmd(since, true, rooms)
+}
+
+// A move's picker value is its room and tag; applying moves a room into every tag the
+// rescan found for it.
+func moveValue(v domain.TagVerdict) string { return string(v.Room) + "\x00" + v.Tag }
+
+func roomOfMove(value string) domain.RoomID {
+	room, _, _ := strings.Cut(value, "\x00")
+	return domain.RoomID(room)
+}
+
+// movesPhrase pluralizes a count of moves.
+func movesPhrase(n int) string {
+	if n == 1 {
+		return "1 move"
+	}
+	return fmt.Sprintf("%d moves", n)
 }

@@ -52,20 +52,25 @@ func (m Model) whyLines(now time.Time) []string {
 	rules := notify.Rules(m.notifications.rules, m.notifications.temps)
 	resolved := notify.Resolve(rules, scope, now)
 
-	// Spam is not a rule: a room in it never notifies, so that is answered first, with the
-	// chain shown as what applies once released.
-	if reason := m.spamReason(room); reason != "" {
-		return append([]string{
-			m.theme.Muted.Render(drawSentence("for " + m.roomName(room) + ", right now:")), "",
-			"it is in Spam — " + reason,
-			m.theme.Muted.Render("nothing here notifies while it is; the spam key takes it out, and exempts it"),
+	// A tag that does not notify is not a rule: a room it holds never notifies, so that is
+	// answered first, with the chain shown as what applies once the room leaves it.
+	moves := m.moveReasons(room)
+	if muting := m.mutingTags(room); len(muting) > 0 {
+		head := []string{m.theme.Muted.Render(drawSentence("for " + m.roomName(room) + ", right now:")), ""}
+		head = append(head, moves...)
+		head = append(head,
+			"it is in "+joinedTags(muting)+", which does not notify (notifies = false)",
+			m.theme.Muted.Render("taking it out of that tag lets it notify again"),
 			"",
-			m.theme.Muted.Render("the rules below would otherwise apply:"), "",
-		}, m.whyChain(resolved, scope, now)...)
+			m.theme.Muted.Render("the rules below would otherwise apply:"), "")
+		return append(head, m.whyChain(resolved, scope, now)...)
 	}
 
 	// The master switch comes before any rule; the chain is still shown.
 	var lines []string
+	if len(moves) > 0 {
+		lines = append(append(lines, moves...), "")
+	}
 	if !m.notifications.on {
 		lines = append(lines,
 			"notifications are off — nothing is delivered, whatever the rules say",

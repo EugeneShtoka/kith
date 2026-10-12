@@ -43,9 +43,10 @@ var recordTableLabels = withNetworkTables(map[string]string{
 	"display.rooms.rule":   "Room list order per group",
 	"display.threads.rule": "Threads per place",
 	"display.media.rule":   "Media per place",
-	"spam.filter":          "Spam filters",
+	"filter":               "Filters",
 	"commands.script":      "Scripts",
 	"keys.jump":            "Jump shortcuts",
+	"keys.tag":             "Tag keys",
 })
 
 func withNetworkTables(labels map[string]string) map[string]string {
@@ -174,11 +175,11 @@ func (m Model) recordRows(t config.RecordTable) []setting {
 			open:  func(m Model) (Model, tea.Cmd) { return m.settingsIn(key, ""), nil },
 		})
 	}
-	if group == spamFilterTable {
+	if group == filterTable {
 		return append(rows, setting{
 			key: group + recordAdd, group: group, kind: settingOpen, label: "Add one", doc: t.Doc,
 			show: func(config.Config) string { return "" },
-			open: Model.startSpamFilter,
+			open: Model.startFilter,
 		})
 	}
 	return append(rows, addRecordRow(t, group))

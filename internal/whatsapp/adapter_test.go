@@ -71,11 +71,17 @@ func TestStarsAndSpamAreKeptLocally(t *testing.T) {
 	if stars, _ := cache.Starred(ctx, waRoom); len(stars) != 0 {
 		t.Errorf("stars after unstarring = %v", stars)
 	}
-	if err := a.MarkSpam(ctx, domain.SpamVerdict{Room: waRoom, Rule: domain.SpamFirstMessage}); err != nil {
+	if err := a.MarkTag(ctx, domain.TagVerdict{Room: waRoom, Tag: "Spam", Rule: domain.MoveFirstMessage}); err != nil {
 		t.Fatal(err)
 	}
-	if spam, _ := cache.SpamRooms(ctx); len(spam) != 1 || spam[0].Room != waRoom {
-		t.Errorf("spam = %+v, want the verdict", spam)
+	if moves, _ := cache.TagVerdicts(ctx); len(moves) != 1 || moves[0].Room != waRoom {
+		t.Errorf("moves = %+v, want the move", moves)
+	}
+	if err := a.RetagVerdicts(ctx, "Spam", ""); err != nil {
+		t.Fatal(err)
+	}
+	if moves, _ := cache.TagVerdicts(ctx); len(moves) != 0 {
+		t.Errorf("moves after dropping the tag = %+v", moves)
 	}
 }
 

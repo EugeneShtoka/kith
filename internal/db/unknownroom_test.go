@@ -21,19 +21,19 @@ func TestPerRoomWritersRegisterTheRoomFirst(t *testing.T) {
 		check func(context.Context, *testing.T, *Cache)
 	}{
 		{
-			name: "SetSpam",
+			name: "SetRoomVerdicts",
 			write: func(ctx context.Context, c *Cache) error {
-				return c.SetSpam(ctx, domain.SpamVerdict{
-					Room: room, Rule: domain.SpamByHand, Filter: "test", At: now,
+				return c.SetRoomVerdicts(ctx, room, []domain.TagVerdict{
+					{Room: room, Tag: "Spam", Rule: domain.MoveAlways, Filter: "test", At: now},
 				})
 			},
 			check: func(ctx context.Context, t *testing.T, c *Cache) {
-				rooms, err := c.SpamRooms(ctx)
+				verdicts, err := c.TagVerdicts(ctx)
 				if err != nil {
-					t.Fatalf("SpamRooms: %v", err)
+					t.Fatalf("TagVerdicts: %v", err)
 				}
-				if len(rooms) != 1 || rooms[0].Room != room {
-					t.Errorf("SpamRooms = %v, want the one verdict just written", rooms)
+				if len(verdicts) != 1 || verdicts[0].Room != room {
+					t.Errorf("TagVerdicts = %v, want the one verdict just written", verdicts)
 				}
 			},
 		},

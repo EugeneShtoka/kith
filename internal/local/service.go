@@ -209,9 +209,9 @@ func (s *Service) StarredIn(ctx context.Context, roomID domain.RoomID) ([]domain
 	})
 }
 
-// SpamRooms is every caught room from the cache (mirrored from account data).
-func (s *Service) SpamRooms(ctx context.Context) ([]domain.SpamVerdict, error) {
-	return fromCache(s, "list spam rooms", func(c *db.Cache) ([]domain.SpamVerdict, error) {
-		return c.SpamRooms(ctx)
+// TagVerdicts is every move and release from the cache (mirrored from account data).
+func (s *Service) TagVerdicts(ctx context.Context) ([]domain.TagVerdict, error) {
+	return fromCache(s, "list tag verdicts", func(c *db.Cache) ([]domain.TagVerdict, error) {
+		return c.TagVerdicts(ctx)
 	})
 }

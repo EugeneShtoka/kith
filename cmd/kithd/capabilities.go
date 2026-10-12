@@ -21,7 +21,7 @@ var (
 		route.Homes
 		route.ReadState
 		route.Stars
-		route.SpamReports
+		route.TagMoves
 		route.History
 		route.Sender
 		route.Typist
@@ -46,7 +46,7 @@ var (
 		route.ReadState
 		route.Archiver
 		route.Stars
-		route.SpamReports
+		route.TagMoves
 		route.History
 		route.Sender
 		route.Typist
@@ -65,6 +65,7 @@ var (
 
 	_ interface {
 		route.Adapter
+		route.TagMoves
 		route.RoomLister
 		route.Homes
 		route.ReadState
@@ -85,6 +86,7 @@ var (
 
 	_ interface {
 		route.Adapter
+		route.TagMoves
 		route.RoomLister
 		route.Homes
 		route.ReadState

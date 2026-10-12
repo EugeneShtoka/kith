@@ -94,6 +94,9 @@ func placeFingerprint(f domain.RoomFacts) uint64 {
 		h = fnvMix(h, tag)
 	}
 	h = fnvMix(h, f.ArchivedIn)
+	for _, tag := range f.Caught {
+		h = fnvMix(h, tag)
+	}
 	return h
 }
 

@@ -13,8 +13,8 @@ import (
 // person: a rule naming a missing tag is refused, saying where. A `place:<name>` entry
 // names whatever the rail shows by that name, so neither touches it.
 
-// RenameTag renames tag from (case-insensitive) to to: its [[tag]] and every
-// `[not ]tag:<from>` entry in any setting.
+// RenameTag renames tag from (case-insensitive) to to: its [[tag]], every
+// `[not ]tag:<from>` entry in any setting, and the filters and keys naming it.
 func RenameTag(cfg config.Config, from, to string) config.Config {
 	out := cfg.Clone()
 	to = strings.TrimSpace(to)
@@ -29,11 +29,21 @@ func RenameTag(cfg config.Config, from, to string) config.Config {
 			archive.Tag = to // the archive goes with its tag, default name or not
 		}
 	}
+	for i := range out.Filters {
+		if sameTag(out.Filters[i].Tag, from) {
+			out.Filters[i].Tag = to
+		}
+	}
+	for i := range out.Keys.Tag {
+		if sameTag(out.Keys.Tag[i].Tag, from) {
+			out.Keys.Tag[i].Tag = to
+		}
+	}
 	return out
 }
 
-// DeleteTag removes tag name and its entries in the rail's lists and [display]
-// priority.
+// DeleteTag removes tag name, its entries in the rail's lists and [display] priority,
+// and the filters and keys moving rooms into it.
 func DeleteTag(cfg config.Config, name string) config.Config {
 	out := cfg.Clone()
 	out.Tags = slices.DeleteFunc(out.Tags, func(t config.Tag) bool { return sameTag(t.Name, name) })
@@ -45,6 +55,8 @@ func DeleteTag(cfg config.Config, name string) config.Config {
 	out.Display.Rail.Hidden = slices.DeleteFunc(out.Display.Rail.Hidden, names)
 	out.Display.Rail.HideWhenEmpty = slices.DeleteFunc(out.Display.Rail.HideWhenEmpty, names)
 	out.Display.Priority = slices.DeleteFunc(out.Display.Priority, names)
+	out.Filters = slices.DeleteFunc(out.Filters, func(f config.Filter) bool { return sameTag(f.Tag, name) })
+	out.Keys.Tag = slices.DeleteFunc(out.Keys.Tag, func(k config.TagKey) bool { return sameTag(k.Tag, name) })
 	for _, archive := range out.Archives() {
 		if sameTag(archive.Tag, name) {
 			archive.Tag = "" // a network's archive then follows no tag (the default, if any)

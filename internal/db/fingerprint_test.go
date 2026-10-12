@@ -26,6 +26,9 @@ var migrationFingerprints = []struct {
 	{10, "person_names, person_links: names by any identifier, and links; phone_names moved in", "5aa551cbaa7b"},
 	{11, "space_leaving: how a space is left", "20b7e6e0ef13"},
 	{12, "room_networks: the network behind a bridged room", "0b9a747aeb01"},
+	{13, "tag_verdicts: filter moves per room and tag, and releases", "3c8b378d4069"},
+	{14, "drop spam_rooms: spam verdicts are tag verdicts", "2243f0b8aa8f"},
+	{15, "drop spam_released: spam releases are tag releases", "eee14992913e"},
 }
 
 func fingerprint(stmt string) string {

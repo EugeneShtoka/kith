@@ -69,8 +69,12 @@ var tagProperties = []tagProperty{
 	boolProperty("hidden", "Hidden from the rail", func(t *config.Tag) *bool { return &t.Hidden }),
 }
 
-// countsUnreadKey is counts_unread's row: a *bool whose nil is true.
-const countsUnreadKey = "counts_unread"
+// countsUnreadKey and notifiesKey are counts_unread's and notifies' rows: *bools whose
+// nil is true.
+const (
+	countsUnreadKey = "counts_unread"
+	notifiesKey     = "notifies"
+)
 
 // openTags is the settings row's way into the tag list.
 func (m Model) openTags() (Model, tea.Cmd) { return m.tagsOpen(), nil }
@@ -141,6 +145,7 @@ func (m Model) tagOpen(name string) Model {
 		{label: "Picked", detail: m.entriesWords(t.Picked), value: tagPicked},
 		{label: "Excluded", detail: m.entriesWords(t.Excluded), value: tagExcluded},
 		{label: "Counts as unread", detail: onOff(t.Counts()), value: countsUnreadKey},
+		{label: "Notifies", detail: onOff(t.Notifying()), value: notifiesKey},
 		{label: "First names only", detail: onOff(firstNamesIn(m.conf.base, domain.TagEntry(t.Name))), value: tagFirst},
 	}
 	for _, p := range tagProperties {
@@ -219,6 +224,14 @@ func (m Model) chooseTagRow(value string) (Model, tea.Cmd) {
 		cfg := m.conf.base.Clone()
 		cfg.Display.SpaceRules = withFirstNames(cfg.Display, place, now)
 		return m.applyTagConfig(cfg, name, isolate(name)+": first names only: "+onOff(now))
+	case notifiesKey:
+		now := !m.conf.base.Tags[m.configTag(name)].Notifying()
+		return m.editTag(name, func(t *config.Tag) {
+			t.Notifies = nil // unset is on
+			if !now {
+				t.Notifies = &now
+			}
+		}, "notifies: "+onOff(now))
 	case countsUnreadKey:
 		now := !m.conf.base.Tags[m.configTag(name)].Counts()
 		return m.editTag(name, func(t *config.Tag) {
@@ -372,8 +385,9 @@ func (m Model) submitTagName(input string) (Model, tea.Cmd) {
 		m.confirm = confirmState{action: pendingCombineTags, group: from, address: m.conf.base.Tags[at].Name}
 		return m, nil
 	}
-	return m.applyTagConfig(setup.RenameTag(m.conf.base, from, name), name,
+	next, cmd := m.applyTagConfig(setup.RenameTag(m.conf.base, from, name), name,
 		"renamed "+isolate(from)+" to "+isolate(name)+", everywhere it is named")
+	return next, tea.Batch(cmd, next.retagCmd(from, name))
 }
 
 // combineTags folds tag from into tag into, keeping the rooms each holds now.
@@ -389,8 +403,9 @@ func (m Model) combineTags(from, into string) (Model, tea.Cmd) {
 		i, ok := view.tags.Index(tag)
 		return ok && view.tagsOf(byID[facts.ID]).in[i]
 	}
-	return m.applyTagConfig(setup.CombineTags(m.conf.base, from, into, rooms, held), into,
+	next, cmd := m.applyTagConfig(setup.CombineTags(m.conf.base, from, into, rooms, held), into,
 		"combined "+isolate(from)+" into "+isolate(into))
+	return next, tea.Batch(cmd, next.retagCmd(from, into))
 }
 
 // createTag adds an empty tag (no rule: it holds the rooms put in it) and applies the
@@ -427,5 +442,17 @@ func (m Model) deleteTag(name string) (Model, tea.Cmd) {
 	if next.configTag(name) >= 0 {
 		return next.tagOpen(name), cmd // refused: the reason is on the status line
 	}
-	return next.tagsOpen(), cmd
+	return next.tagsOpen(), tea.Batch(cmd, next.retagCmd(name, ""))
+}
+
+// retagCmd moves tag from's filter moves to tag to (renamed or combined), or drops them
+// (deleted), once the config holds the change: from is gone and to, if any, exists.
+func (m Model) retagCmd(from, to string) tea.Cmd {
+	if m.configTag(from) >= 0 || (to != "" && m.configTag(to) < 0) {
+		return nil // refused: the config is as it was
+	}
+	ctx, backend := m.ctx, m.backend
+	return func() tea.Msg {
+		return verdictsWrittenMsg{failed: "the rooms filters moved into " + from + " did not follow", err: backend.RetagVerdicts(ctx, from, to)}
+	}
 }

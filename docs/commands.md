@@ -27,8 +27,7 @@ Both open a completion list as you type, showing each command's arguments and it
 | `/tracked [word]` | Where your tracked words came up here | |
 | `/topic` | Read the room's topic in full | `gt` |
 | `/why` | Why this room does or does not notify you | `W` |
-| `/caught` | What the spam filters catch here | |
-| `/spam` | Move this room into Spam, or take it out | `!` |
+| `/caught` | What the filters catch here | |
 | `/unread` | Mark this room unread | `M` |
 | `/tag [name]` | Put this room in a tag, or take it out; with no name, pick among your spaces and tags | `S` with no name |
 | `/invite <@user:server>` | Invite someone to this room | |
@@ -60,7 +59,7 @@ Press `:` from anywhere except the composer.
 | `:threads` | Threads in scope, newest first | `ctrl+t` |
 | `:starred` | Every message you have starred | |
 | `:tracked [word]` | Every message with one of your tracked words, grouped by word | |
-| `:caught` | Preview what the spam filters would catch | |
+| `:caught` | Preview what the filters would catch | |
 | `:people [terms]` | Every card in the [phonebook](phonebook.md); a name or `key:value` narrows it, and `enter` opens one | |
 | `:person` | The phonebook card of the person in view: the selected message's sender, else the room's one person | `I` |
 | `:scheduled` | Everything queued to send later, in every room; `enter` cancels one | |

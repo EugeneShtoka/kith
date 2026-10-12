@@ -179,15 +179,8 @@ var slashCommands = []slashCommand{
 	},
 	{
 		name:    "/caught",
-		summary: "what the spam filters catch here — {search.scope} widens it",
+		summary: "what the filters catch here — {search.scope} widens it",
 		run:     consuming(Model.openCaught),
-	},
-	{
-		name:     "/spam",
-		keyScope: scopeRooms,
-		keyAct:   actSpam,
-		summary:  "move this conversation into Spam, or take it out — out of the counts, still readable",
-		run:      consuming(Model.toggleSpam),
 	},
 	{
 		name:    "/direction",

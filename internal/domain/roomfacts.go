@@ -19,6 +19,8 @@ type RoomFacts struct {
 	// ArchivedIn is the tag of the network archive holding it, when kith follows that
 	// archive (Places.Archives); "" otherwise.
 	ArchivedIn string
+	// Caught is the tags a filter moved it into, released ones left out.
+	Caught []string
 }
 
 // Places is what RoomFacts depend on besides the room. Every user of RoomFacts builds
@@ -29,6 +31,8 @@ type Places struct {
 	Tags  TagSet
 	// Archives is, per network whose archive kith follows, the tag that archive is.
 	Archives map[Protocol]string
+	// Caught is, per room, the tags a filter moved it into.
+	Caught map[RoomID][]string
 }
 
 // Facts builds room's facts; holders are its spaces in hierarchy order (HoldersOf).
@@ -64,6 +68,7 @@ func (p Places) Facts(room Room, holders []Space) RoomFacts {
 	if room.Archived {
 		facts.ArchivedIn = p.Archives[NetworkOf(string(room.ID))]
 	}
+	facts.Caught = p.Caught[room.ID]
 	// Last: a tag's rule matches on the facts above.
 	facts.Tags = p.Tags.Of(facts)
 	return facts

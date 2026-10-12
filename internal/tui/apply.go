@@ -104,7 +104,6 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m = m.applyMedia(cfg.Display.Media)
 	// Set before the rail is rebuilt: a group's Unread filter captures unreadView.
 	m.prefs.unreadLocal = derived.unreadLocal
-	m.rail.spam = setup.SpamPlaces(cfg.Spam)
 	m = m.refreshPlaces()
 	// A room set by hand, or auto turned on or off, applies to the open room now.
 	m = m.resettleLayout()

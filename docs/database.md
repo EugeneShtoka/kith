@@ -103,8 +103,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | `reactions` | `m.annotation` events: target, sender, and the key (column `emoji`) |
 | `drafts` | the unsent message per room, including reply/edit state, mentions, the caret, and who wrote it (you, or an assistant) |
 | `starred` | mirror of the `org.kith.starred` account data |
-| `spam_rooms` | mirror of the `org.kith.spam` account data: the rule and filter that caught a room |
-| `spam_released` | mirror of the releases in the same account data: rooms taken out of Spam, which no rule may put back |
+| `tag_verdicts` | mirror of the `org.kith.tags` account data: per room and tag, the rule and filter that moved it, or a release |
 
 ### Rankings and bookkeeping
 
@@ -207,9 +206,8 @@ Some things belong to this client and have no Matrix event of their own. They li
 holds a mirror:
 
 - `starred` mirrors `org.kith.starred`: your private bookmarks per room.
-- `spam_rooms` mirrors `org.kith.spam`: which filter caught a room, and which rule.
-- `spam_released` mirrors the releases in `org.kith.spam`: a room here stays out of
-  Spam whatever the rules say.
+- `tag_verdicts` mirrors `org.kith.tags`: per tag, which filter moved a room there and
+  by which rule, or a release, which keeps it out of that tag whatever the filters say.
 
 The homeserver has the record; the table exists because search and the room list
 have to join against something, offline. That split is what makes a rebuild
@@ -300,8 +298,12 @@ Since then:
   Matrix room a bridge keeps, by its `m.bridge` state), read once per room and kept: a
   room never changes network. A room read and found to be no bridge's keeps `Matrix`,
   so a room with no row is one not read yet.
+- v13 (`tag_verdicts`): filter moves per room and tag, and releases, mirroring
+  `org.kith.tags`. v14 and v15 drop `spam_rooms` and `spam_released`, which spam
+  verdicts used before Spam became an ordinary tag; their account data is not
+  carried over (`:rescan` judges the cache again).
 
-so a current cache is at version 12.
+so a current cache is at version 15.
 
 ### Indexes need no migration
 

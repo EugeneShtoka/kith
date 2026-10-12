@@ -50,19 +50,17 @@ CREATE TABLE starred (
 	FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
--- Local mirror of org.kith.spam account data: rule by number, filter by name.
-CREATE TABLE spam_rooms (
-	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
-	rule    INTEGER NOT NULL,
-	filter  TEXT    NOT NULL DEFAULT '',
-	at_ms   INTEGER NOT NULL DEFAULT 0
-) STRICT, WITHOUT ROWID;
-
--- Rooms released from Spam; a room is here or in spam_rooms, never both. Kept
--- because a release outranks every rule.
-CREATE TABLE spam_released (
-	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
-	at_ms   INTEGER NOT NULL DEFAULT 0
+-- Local mirror of org.kith.tags account data: per room, the tags a filter moved it
+-- into (rule by number, filter by name) and the ones a person took it out of
+-- (released, which outranks every filter). tag is lower-cased.
+CREATE TABLE tag_verdicts (
+	room_id  TEXT    NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	tag      TEXT    NOT NULL,
+	rule     INTEGER NOT NULL DEFAULT 0,
+	filter   TEXT    NOT NULL DEFAULT '',
+	at_ms    INTEGER NOT NULL DEFAULT 0,
+	released INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (room_id, tag)
 ) STRICT, WITHOUT ROWID;
 
 CREATE TABLE spaces (
@@ -477,6 +475,19 @@ DROP TABLE phone_names;`,
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
 	network TEXT NOT NULL
 ) STRICT, WITHOUT ROWID;`,
+	// v13: filter verdicts per tag, replacing spam's.
+	`CREATE TABLE IF NOT EXISTS tag_verdicts (
+	room_id  TEXT    NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	tag      TEXT    NOT NULL,
+	rule     INTEGER NOT NULL DEFAULT 0,
+	filter   TEXT    NOT NULL DEFAULT '',
+	at_ms    INTEGER NOT NULL DEFAULT 0,
+	released INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (room_id, tag)
+) STRICT, WITHOUT ROWID;`,
+	// v14, v15: spam's verdicts are tag verdicts now.
+	`DROP TABLE IF EXISTS spam_rooms;`,
+	`DROP TABLE IF EXISTS spam_released;`,
 }
 
 // ensureIndexes makes the file's indexes exactly baseSchema's (create missing,

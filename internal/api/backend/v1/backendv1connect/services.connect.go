@@ -61,11 +61,14 @@ const (
 	// BackendServiceLastMessagesProcedure is the fully-qualified name of the BackendService's
 	// LastMessages RPC.
 	BackendServiceLastMessagesProcedure = "/backend.v1.BackendService/LastMessages"
-	// BackendServiceSpamRoomsProcedure is the fully-qualified name of the BackendService's SpamRooms
-	// RPC.
-	BackendServiceSpamRoomsProcedure = "/backend.v1.BackendService/SpamRooms"
-	// BackendServiceMarkSpamProcedure is the fully-qualified name of the BackendService's MarkSpam RPC.
-	BackendServiceMarkSpamProcedure = "/backend.v1.BackendService/MarkSpam"
+	// BackendServiceTagVerdictsProcedure is the fully-qualified name of the BackendService's
+	// TagVerdicts RPC.
+	BackendServiceTagVerdictsProcedure = "/backend.v1.BackendService/TagVerdicts"
+	// BackendServiceMarkTagProcedure is the fully-qualified name of the BackendService's MarkTag RPC.
+	BackendServiceMarkTagProcedure = "/backend.v1.BackendService/MarkTag"
+	// BackendServiceRetagVerdictsProcedure is the fully-qualified name of the BackendService's
+	// RetagVerdicts RPC.
+	BackendServiceRetagVerdictsProcedure = "/backend.v1.BackendService/RetagVerdicts"
 	// BackendServiceSpacesProcedure is the fully-qualified name of the BackendService's Spaces RPC.
 	BackendServiceSpacesProcedure = "/backend.v1.BackendService/Spaces"
 	// BackendServiceRefreshSpacesProcedure is the fully-qualified name of the BackendService's
@@ -306,9 +309,9 @@ const (
 	BackendServiceClearDNDProcedure = "/backend.v1.BackendService/ClearDND"
 	// BackendServiceDNDProcedure is the fully-qualified name of the BackendService's DND RPC.
 	BackendServiceDNDProcedure = "/backend.v1.BackendService/DND"
-	// BackendServiceRescanSpamProcedure is the fully-qualified name of the BackendService's RescanSpam
-	// RPC.
-	BackendServiceRescanSpamProcedure = "/backend.v1.BackendService/RescanSpam"
+	// BackendServiceRescanFiltersProcedure is the fully-qualified name of the BackendService's
+	// RescanFilters RPC.
+	BackendServiceRescanFiltersProcedure = "/backend.v1.BackendService/RescanFilters"
 	// BackendServiceReloadConfigProcedure is the fully-qualified name of the BackendService's
 	// ReloadConfig RPC.
 	BackendServiceReloadConfigProcedure = "/backend.v1.BackendService/ReloadConfig"
@@ -369,11 +372,14 @@ type BackendServiceClient interface {
 	// LastMessages is when each room last had a message, for ordering the list by
 	// activity.
 	LastMessages(context.Context, *connect.Request[v1.LastMessagesRequest]) (*connect.Response[v1.LastMessagesResponse], error)
-	// SpamRooms lists the rooms a spam filter caught, with the rule and the filter that
-	// caught each.
-	SpamRooms(context.Context, *connect.Request[v1.SpamRoomsRequest]) (*connect.Response[v1.SpamRoomsResponse], error)
-	// MarkSpam records a verdict on one room, or clears it.
-	MarkSpam(context.Context, *connect.Request[v1.MarkSpamRequest]) (*connect.Response[v1.MarkSpamResponse], error)
+	// TagVerdicts lists every room a filter moved into a tag, and every release, with
+	// the rule and the filter.
+	TagVerdicts(context.Context, *connect.Request[v1.TagVerdictsRequest]) (*connect.Response[v1.TagVerdictsResponse], error)
+	// MarkTag records a filter's move or a release on one room and tag; a move never
+	// overwrites a release.
+	MarkTag(context.Context, *connect.Request[v1.MarkTagRequest]) (*connect.Response[v1.MarkTagResponse], error)
+	// RetagVerdicts moves one tag's verdicts to its new name, or drops them.
+	RetagVerdicts(context.Context, *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -595,9 +601,9 @@ type BackendServiceClient interface {
 	ClearDND(context.Context, *connect.Request[v1.ClearDNDRequest]) (*connect.Response[v1.ClearDNDResponse], error)
 	// DND reports the temporary rules in force.
 	DND(context.Context, *connect.Request[v1.DNDRequest]) (*connect.Response[v1.DNDResponse], error)
-	// RescanSpam judges cached messages by the spam filters as if they arrived now, and
-	// lists the rooms that would move into Spam; with apply it moves them.
-	RescanSpam(context.Context, *connect.Request[v1.RescanSpamRequest]) (*connect.Response[v1.RescanSpamResponse], error)
+	// RescanFilters judges cached messages by the filters as if they arrived now, and
+	// lists the rooms that would move into a tag; with apply it moves them.
+	RescanFilters(context.Context, *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error)
 	// ReloadConfig re-reads the configuration file the daemon was started with, and
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
@@ -700,16 +706,22 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("LastMessages")),
 			connect.WithClientOptions(opts...),
 		),
-		spamRooms: connect.NewClient[v1.SpamRoomsRequest, v1.SpamRoomsResponse](
+		tagVerdicts: connect.NewClient[v1.TagVerdictsRequest, v1.TagVerdictsResponse](
 			httpClient,
-			baseURL+BackendServiceSpamRoomsProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("SpamRooms")),
+			baseURL+BackendServiceTagVerdictsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("TagVerdicts")),
 			connect.WithClientOptions(opts...),
 		),
-		markSpam: connect.NewClient[v1.MarkSpamRequest, v1.MarkSpamResponse](
+		markTag: connect.NewClient[v1.MarkTagRequest, v1.MarkTagResponse](
 			httpClient,
-			baseURL+BackendServiceMarkSpamProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("MarkSpam")),
+			baseURL+BackendServiceMarkTagProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("MarkTag")),
+			connect.WithClientOptions(opts...),
+		),
+		retagVerdicts: connect.NewClient[v1.RetagVerdictsRequest, v1.RetagVerdictsResponse](
+			httpClient,
+			baseURL+BackendServiceRetagVerdictsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RetagVerdicts")),
 			connect.WithClientOptions(opts...),
 		),
 		spaces: connect.NewClient[v1.SpacesRequest, v1.SpacesResponse](
@@ -1234,10 +1246,10 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("DND")),
 			connect.WithClientOptions(opts...),
 		),
-		rescanSpam: connect.NewClient[v1.RescanSpamRequest, v1.RescanSpamResponse](
+		rescanFilters: connect.NewClient[v1.RescanFiltersRequest, v1.RescanFiltersResponse](
 			httpClient,
-			baseURL+BackendServiceRescanSpamProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("RescanSpam")),
+			baseURL+BackendServiceRescanFiltersProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RescanFilters")),
 			connect.WithClientOptions(opts...),
 		),
 		reloadConfig: connect.NewClient[v1.ReloadConfigRequest, v1.ReloadConfigResponse](
@@ -1315,8 +1327,9 @@ type backendServiceClient struct {
 	starredIn             *connect.Client[v1.StarredInRequest, v1.StarredInResponse]
 	canonicalParent       *connect.Client[v1.CanonicalParentRequest, v1.CanonicalParentResponse]
 	lastMessages          *connect.Client[v1.LastMessagesRequest, v1.LastMessagesResponse]
-	spamRooms             *connect.Client[v1.SpamRoomsRequest, v1.SpamRoomsResponse]
-	markSpam              *connect.Client[v1.MarkSpamRequest, v1.MarkSpamResponse]
+	tagVerdicts           *connect.Client[v1.TagVerdictsRequest, v1.TagVerdictsResponse]
+	markTag               *connect.Client[v1.MarkTagRequest, v1.MarkTagResponse]
+	retagVerdicts         *connect.Client[v1.RetagVerdictsRequest, v1.RetagVerdictsResponse]
 	spaces                *connect.Client[v1.SpacesRequest, v1.SpacesResponse]
 	refreshSpaces         *connect.Client[v1.RefreshSpacesRequest, v1.RefreshSpacesResponse]
 	addToSpace            *connect.Client[v1.AddToSpaceRequest, v1.AddToSpaceResponse]
@@ -1404,7 +1417,7 @@ type backendServiceClient struct {
 	setDND                *connect.Client[v1.SetDNDRequest, v1.SetDNDResponse]
 	clearDND              *connect.Client[v1.ClearDNDRequest, v1.ClearDNDResponse]
 	dND                   *connect.Client[v1.DNDRequest, v1.DNDResponse]
-	rescanSpam            *connect.Client[v1.RescanSpamRequest, v1.RescanSpamResponse]
+	rescanFilters         *connect.Client[v1.RescanFiltersRequest, v1.RescanFiltersResponse]
 	reloadConfig          *connect.Client[v1.ReloadConfigRequest, v1.ReloadConfigResponse]
 	checkConfig           *connect.Client[v1.CheckConfigRequest, v1.CheckConfigResponse]
 	getConfig             *connect.Client[v1.GetConfigRequest, v1.GetConfigResponse]
@@ -1467,14 +1480,19 @@ func (c *backendServiceClient) LastMessages(ctx context.Context, req *connect.Re
 	return c.lastMessages.CallUnary(ctx, req)
 }
 
-// SpamRooms calls backend.v1.BackendService.SpamRooms.
-func (c *backendServiceClient) SpamRooms(ctx context.Context, req *connect.Request[v1.SpamRoomsRequest]) (*connect.Response[v1.SpamRoomsResponse], error) {
-	return c.spamRooms.CallUnary(ctx, req)
+// TagVerdicts calls backend.v1.BackendService.TagVerdicts.
+func (c *backendServiceClient) TagVerdicts(ctx context.Context, req *connect.Request[v1.TagVerdictsRequest]) (*connect.Response[v1.TagVerdictsResponse], error) {
+	return c.tagVerdicts.CallUnary(ctx, req)
 }
 
-// MarkSpam calls backend.v1.BackendService.MarkSpam.
-func (c *backendServiceClient) MarkSpam(ctx context.Context, req *connect.Request[v1.MarkSpamRequest]) (*connect.Response[v1.MarkSpamResponse], error) {
-	return c.markSpam.CallUnary(ctx, req)
+// MarkTag calls backend.v1.BackendService.MarkTag.
+func (c *backendServiceClient) MarkTag(ctx context.Context, req *connect.Request[v1.MarkTagRequest]) (*connect.Response[v1.MarkTagResponse], error) {
+	return c.markTag.CallUnary(ctx, req)
+}
+
+// RetagVerdicts calls backend.v1.BackendService.RetagVerdicts.
+func (c *backendServiceClient) RetagVerdicts(ctx context.Context, req *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error) {
+	return c.retagVerdicts.CallUnary(ctx, req)
 }
 
 // Spaces calls backend.v1.BackendService.Spaces.
@@ -1912,9 +1930,9 @@ func (c *backendServiceClient) DND(ctx context.Context, req *connect.Request[v1.
 	return c.dND.CallUnary(ctx, req)
 }
 
-// RescanSpam calls backend.v1.BackendService.RescanSpam.
-func (c *backendServiceClient) RescanSpam(ctx context.Context, req *connect.Request[v1.RescanSpamRequest]) (*connect.Response[v1.RescanSpamResponse], error) {
-	return c.rescanSpam.CallUnary(ctx, req)
+// RescanFilters calls backend.v1.BackendService.RescanFilters.
+func (c *backendServiceClient) RescanFilters(ctx context.Context, req *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error) {
+	return c.rescanFilters.CallUnary(ctx, req)
 }
 
 // ReloadConfig calls backend.v1.BackendService.ReloadConfig.
@@ -1996,11 +2014,14 @@ type BackendServiceHandler interface {
 	// LastMessages is when each room last had a message, for ordering the list by
 	// activity.
 	LastMessages(context.Context, *connect.Request[v1.LastMessagesRequest]) (*connect.Response[v1.LastMessagesResponse], error)
-	// SpamRooms lists the rooms a spam filter caught, with the rule and the filter that
-	// caught each.
-	SpamRooms(context.Context, *connect.Request[v1.SpamRoomsRequest]) (*connect.Response[v1.SpamRoomsResponse], error)
-	// MarkSpam records a verdict on one room, or clears it.
-	MarkSpam(context.Context, *connect.Request[v1.MarkSpamRequest]) (*connect.Response[v1.MarkSpamResponse], error)
+	// TagVerdicts lists every room a filter moved into a tag, and every release, with
+	// the rule and the filter.
+	TagVerdicts(context.Context, *connect.Request[v1.TagVerdictsRequest]) (*connect.Response[v1.TagVerdictsResponse], error)
+	// MarkTag records a filter's move or a release on one room and tag; a move never
+	// overwrites a release.
+	MarkTag(context.Context, *connect.Request[v1.MarkTagRequest]) (*connect.Response[v1.MarkTagResponse], error)
+	// RetagVerdicts moves one tag's verdicts to its new name, or drops them.
+	RetagVerdicts(context.Context, *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -2222,9 +2243,9 @@ type BackendServiceHandler interface {
 	ClearDND(context.Context, *connect.Request[v1.ClearDNDRequest]) (*connect.Response[v1.ClearDNDResponse], error)
 	// DND reports the temporary rules in force.
 	DND(context.Context, *connect.Request[v1.DNDRequest]) (*connect.Response[v1.DNDResponse], error)
-	// RescanSpam judges cached messages by the spam filters as if they arrived now, and
-	// lists the rooms that would move into Spam; with apply it moves them.
-	RescanSpam(context.Context, *connect.Request[v1.RescanSpamRequest]) (*connect.Response[v1.RescanSpamResponse], error)
+	// RescanFilters judges cached messages by the filters as if they arrived now, and
+	// lists the rooms that would move into a tag; with apply it moves them.
+	RescanFilters(context.Context, *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error)
 	// ReloadConfig re-reads the configuration file the daemon was started with, and
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
@@ -2323,16 +2344,22 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("LastMessages")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServiceSpamRoomsHandler := connect.NewUnaryHandler(
-		BackendServiceSpamRoomsProcedure,
-		svc.SpamRooms,
-		connect.WithSchema(backendServiceMethods.ByName("SpamRooms")),
+	backendServiceTagVerdictsHandler := connect.NewUnaryHandler(
+		BackendServiceTagVerdictsProcedure,
+		svc.TagVerdicts,
+		connect.WithSchema(backendServiceMethods.ByName("TagVerdicts")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServiceMarkSpamHandler := connect.NewUnaryHandler(
-		BackendServiceMarkSpamProcedure,
-		svc.MarkSpam,
-		connect.WithSchema(backendServiceMethods.ByName("MarkSpam")),
+	backendServiceMarkTagHandler := connect.NewUnaryHandler(
+		BackendServiceMarkTagProcedure,
+		svc.MarkTag,
+		connect.WithSchema(backendServiceMethods.ByName("MarkTag")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceRetagVerdictsHandler := connect.NewUnaryHandler(
+		BackendServiceRetagVerdictsProcedure,
+		svc.RetagVerdicts,
+		connect.WithSchema(backendServiceMethods.ByName("RetagVerdicts")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceSpacesHandler := connect.NewUnaryHandler(
@@ -2857,10 +2884,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("DND")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServiceRescanSpamHandler := connect.NewUnaryHandler(
-		BackendServiceRescanSpamProcedure,
-		svc.RescanSpam,
-		connect.WithSchema(backendServiceMethods.ByName("RescanSpam")),
+	backendServiceRescanFiltersHandler := connect.NewUnaryHandler(
+		BackendServiceRescanFiltersProcedure,
+		svc.RescanFilters,
+		connect.WithSchema(backendServiceMethods.ByName("RescanFilters")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceReloadConfigHandler := connect.NewUnaryHandler(
@@ -2945,10 +2972,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceCanonicalParentHandler.ServeHTTP(w, r)
 		case BackendServiceLastMessagesProcedure:
 			backendServiceLastMessagesHandler.ServeHTTP(w, r)
-		case BackendServiceSpamRoomsProcedure:
-			backendServiceSpamRoomsHandler.ServeHTTP(w, r)
-		case BackendServiceMarkSpamProcedure:
-			backendServiceMarkSpamHandler.ServeHTTP(w, r)
+		case BackendServiceTagVerdictsProcedure:
+			backendServiceTagVerdictsHandler.ServeHTTP(w, r)
+		case BackendServiceMarkTagProcedure:
+			backendServiceMarkTagHandler.ServeHTTP(w, r)
+		case BackendServiceRetagVerdictsProcedure:
+			backendServiceRetagVerdictsHandler.ServeHTTP(w, r)
 		case BackendServiceSpacesProcedure:
 			backendServiceSpacesHandler.ServeHTTP(w, r)
 		case BackendServiceRefreshSpacesProcedure:
@@ -3123,8 +3152,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceClearDNDHandler.ServeHTTP(w, r)
 		case BackendServiceDNDProcedure:
 			backendServiceDNDHandler.ServeHTTP(w, r)
-		case BackendServiceRescanSpamProcedure:
-			backendServiceRescanSpamHandler.ServeHTTP(w, r)
+		case BackendServiceRescanFiltersProcedure:
+			backendServiceRescanFiltersHandler.ServeHTTP(w, r)
 		case BackendServiceReloadConfigProcedure:
 			backendServiceReloadConfigHandler.ServeHTTP(w, r)
 		case BackendServiceCheckConfigProcedure:
@@ -3194,12 +3223,16 @@ func (UnimplementedBackendServiceHandler) LastMessages(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.LastMessages is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) SpamRooms(context.Context, *connect.Request[v1.SpamRoomsRequest]) (*connect.Response[v1.SpamRoomsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SpamRooms is not implemented"))
+func (UnimplementedBackendServiceHandler) TagVerdicts(context.Context, *connect.Request[v1.TagVerdictsRequest]) (*connect.Response[v1.TagVerdictsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.TagVerdicts is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) MarkSpam(context.Context, *connect.Request[v1.MarkSpamRequest]) (*connect.Response[v1.MarkSpamResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MarkSpam is not implemented"))
+func (UnimplementedBackendServiceHandler) MarkTag(context.Context, *connect.Request[v1.MarkTagRequest]) (*connect.Response[v1.MarkTagResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MarkTag is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RetagVerdicts(context.Context, *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RetagVerdicts is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error) {
@@ -3550,8 +3583,8 @@ func (UnimplementedBackendServiceHandler) DND(context.Context, *connect.Request[
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.DND is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) RescanSpam(context.Context, *connect.Request[v1.RescanSpamRequest]) (*connect.Response[v1.RescanSpamResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RescanSpam is not implemented"))
+func (UnimplementedBackendServiceHandler) RescanFilters(context.Context, *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RescanFilters is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) ReloadConfig(context.Context, *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error) {

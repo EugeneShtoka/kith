@@ -911,7 +911,7 @@ func (m Model) Init() tea.Cmd {
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
 		m.listenFollowCmd(), m.listenSeatCmd(), m.listenRoomsCmd(), m.listenConfigCmd(),
 		m.loadDraftsCmd(),
-		m.loadSpamCmd(),
+		m.loadVerdictsCmd(),
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
 		m.listenAttachedCmd(),
 		m.lastMessagesCmd(),
@@ -1083,7 +1083,7 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	}
 }
 
-// handleAssistMsg handles writing aids and drafts: completion, the language model, spam and drafts.
+// handleAssistMsg handles writing aids and drafts: completion, the language model, filter moves and drafts.
 func (m Model) handleAssistMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case assistTickMsg:
@@ -1094,12 +1094,12 @@ func (m Model) handleAssistMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDraftTick(msg))
 	case draftSavedMsg:
 		return answered(m.handleDraftSaved(msg))
-	case spamLoadedMsg:
-		return answered(m.handleSpamLoaded(msg))
+	case verdictsLoadedMsg:
+		return answered(m.handleVerdictsLoaded(msg))
 	case rescannedMsg:
 		return answered(m.handleRescanned(msg))
-	case spamReleasedMsg:
-		return answered(m.handleSpamReleased(msg))
+	case verdictsWrittenMsg:
+		return answered(m.handleVerdictsWritten(msg))
 	case draftsLoadedMsg:
 		return answered(m.handleDraftsLoaded(msg))
 	case playerControlMsg:
@@ -1378,6 +1378,9 @@ func (m Model) handleKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	if mdl, cmd, handled := m.jumpKey(press); handled {
 		return mdl, cmd
 	}
+	if mdl, cmd, handled := m.tagKey(press); handled {
+		return mdl, cmd
+	}
 	if mdl, cmd, handled := m.scriptKey(press); handled {
 		return mdl, cmd
 	}
@@ -1580,7 +1583,7 @@ func (m Model) handleRailKey(press string) (Model, tea.Cmd) {
 }
 
 // roomStandingAction handles room-list keys that change how a room stands: unread state,
-// spaces, archive, pin, spam and sort order.
+// spaces, archive, pin and sort order.
 func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 	switch act {
 	case actToggleUnreadFirst:
@@ -1606,8 +1609,6 @@ func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openSpacePicker())
 	case actInvite:
 		return answered(m.openInvite())
-	case actSpam:
-		return answered(m.toggleSpam())
 	case actToggleArchived:
 		return answered(m.toggleArchived())
 	case actPerson:

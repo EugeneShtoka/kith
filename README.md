@@ -68,7 +68,7 @@ readable, searchable and answerable. Promotion rules are individually switchable
 only you demote, `/caught` previews what a filter *would* catch over your history
 before you trust it, and `/why` names the rule and filter behind a verdict. Filter
 verdicts are stored in your account data, so they survive a cache rebuild and reach
-your other machines. [Spam →](docs/spam.md)
+your other machines. [Filters →](docs/filters.md)
 
 ### Help writing, in the languages you actually use
 
@@ -174,7 +174,7 @@ Full walkthrough, per platform, with profiles and encryption setup:
 | --- | --- |
 | **Using kith** | [Getting started](docs/getting-started.md) · [Using the client](docs/usage.md) · [Keybindings](docs/keybindings.md) · [Search](docs/search.md) |
 | **Networks** | [WhatsApp](docs/whatsapp.md) · [Telegram](docs/telegram.md) · [Slack](docs/slack.md) · [Matrix encryption](docs/encryption.md) |
-| **Features** | [Notifications](docs/notifications.md) · [Spam](docs/spam.md) · [Composer](docs/composer.md) · [Assist (LLM)](docs/assist.md) · [Commands](docs/commands.md) · [MCP server](docs/mcp.md) · [Encryption](docs/encryption.md) |
+| **Features** | [Notifications](docs/notifications.md) · [Filters](docs/filters.md) · [Composer](docs/composer.md) · [Assist (LLM)](docs/assist.md) · [Commands](docs/commands.md) · [MCP server](docs/mcp.md) · [Encryption](docs/encryption.md) |
 | **Reference** | [Configuration](docs/configuration.md) · [Command line](docs/cli.md) · [Troubleshooting](docs/troubleshooting.md) |
 | **Project** | [Architecture](ARCHITECTURE.md) · [Database](docs/database.md) · [Roadmap](docs/roadmap.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) |
 
