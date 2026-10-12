@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -248,7 +249,55 @@ func (b *InProc) onMember(ctx context.Context, evt *event.Event) {
 
 // senderName resolves a sender's room display name, "" when unknown.
 func (b *InProc) senderName(ctx context.Context, roomID domain.RoomID, sender string) string {
-	return b.roomMemberNames(ctx, roomID)[sender]
+	if name := b.roomMemberNames(ctx, roomID)[sender]; name != "" {
+		return name
+	}
+	return b.nameElsewhere(ctx, sender)
+}
+
+// nameElsewhere names a sender who is no member of the room they wrote in, as a bridge's
+// ghost may be (Slackbot announcing a huddle in a DM): their name in another cached room,
+// else their profile's, asked once.
+func (b *InProc) nameElsewhere(ctx context.Context, sender string) string {
+	if b.cache != nil {
+		if name, err := b.cache.MemberName(ctx, sender); err == nil && name != "" {
+			return name
+		}
+	}
+	if name, asked := b.profiles.get(sender); asked {
+		return name
+	}
+	resp, err := b.client.GetDisplayName(ctx, id.UserID(sender))
+	if err != nil {
+		// Remembered as nameless: asking again for every message would flood the server.
+		b.warnIf(ctx, err, "read a sender's profile name", "user", sender)
+		b.profiles.put(sender, "")
+		return ""
+	}
+	b.profiles.put(sender, resp.DisplayName)
+	return resp.DisplayName
+}
+
+// profileNames is the profile names asked so far, an empty name included.
+type profileNames struct {
+	mu    sync.Mutex
+	names map[string]string
+}
+
+func (p *profileNames) get(user string) (string, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	name, ok := p.names[user]
+	return name, ok
+}
+
+func (p *profileNames) put(user, name string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.names == nil {
+		p.names = map[string]string{}
+	}
+	p.names[user] = name
 }
 
 // roomMemberNames returns a room's user-ID→display-name map, memoized. A failed
