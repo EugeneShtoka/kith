@@ -87,11 +87,13 @@ You rarely need to open the file. Inside kith:
   the list is what this page's reference says about the setting under the cursor.
   - A change is saved at once and you stay on its row, so several can change in a row;
     `esc` steps back a level.
-  - On/off flips with `enter`. A number steps with `+` and `-`, or `enter` types it on
-    its row (the current value selected, so typing replaces it). Text is typed the
-    same way.
+  - On/off flips with `enter`. A number steps with `+` and `-`, or `enter` types it
+    right below the list (the current value selected, so typing replaces it); the
+    status line shows the keys. Text is typed the same way. Anything asked while a
+    list fills the timeline pane (settings, a person's card, a picker) is typed there,
+    after the list; over the timeline itself, input stays in the status line.
   - A list (priority, the rail's order, include lists) opens its entries: `enter`
-    edits one on its row (emptied, it is removed), `x` removes the entry under the
+    edits one below the list (emptied, it is removed), `x` removes the entry under the
     cursor, the last row adds one, and `K`/`J` move the entry under the cursor.
   - A list of records (read rules, media rules, people, names you gave, filters,
     scripts, accounts, jump shortcuts) opens its records, each one's fields set as

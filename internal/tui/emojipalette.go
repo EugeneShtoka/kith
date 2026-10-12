@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -84,11 +83,16 @@ func (m Model) pickerLines(width, rows int) []string {
 		return padTo(out, rows)
 	}
 	doc := m.pickerNotes(width)
-	body := max(rows-len(out)-len(doc), 1)
+	var field []string
+	if m.promptInline() {
+		field = m.promptLines(width)
+	}
+	body := max(rows-len(out)-len(doc)-len(field), 1)
 	if m.picker.spec.grid {
 		return padTo(append(out, m.gridRows(body, width)...), rows)
 	}
-	out = padTo(append(out, m.listRows(body, width)...), rows-len(doc))
+	// An inline prompt follows the rows, where the reading stops.
+	out = padTo(append(append(out, m.listRows(body, width)...), field...), rows-len(doc))
 	for _, line := range doc {
 		out = append(out, m.theme.Muted.Render(line))
 	}
@@ -165,6 +169,9 @@ func (m Model) settingDocLines(width int) []string {
 // header (as pickerLines lays it out).
 func (m Model) pickerBody() int {
 	rows := m.msgAreaRows() - len(m.pickerNotes(m.pickerWidth()))
+	if m.promptInline() {
+		rows -= len(m.promptLines(m.pickerWidth()))
+	}
 	if m.pickerHeader() != "" {
 		rows--
 	}
@@ -248,39 +255,9 @@ func (m Model) listRows(body, width int) []string {
 		if m.picker.spec.multi {
 			lead += checkbox(m.picker.ticked(item.value)) + " "
 		}
-		if selected && m.editingSettingRow() {
-			out = append(out, m.editedRow(lead, item.label, width))
-			continue
-		}
 		out = append(out, m.labeledRow(lead, item.label, item.detail, selected, width))
 	}
 	return out
-}
-
-// editingSettingRow reports whether the selected settings row (a setting, or a list
-// setting's entry) is being typed in.
-func (m Model) editingSettingRow() bool {
-	return (m.picker.kind == pickerSetting && m.prompt.kind == promptSetting) ||
-		(m.picker.kind == pickerSettingEntries && m.prompt.kind == promptSettingEntry)
-}
-
-// editedRow is a settings row being typed in: the label, then the value with the
-// caret, drawn selected while untouched (the first key replaces it).
-func (m Model) editedRow(lead, label string, width int) string {
-	sep := " : "
-	if m.picker.kind == pickerSettingEntries {
-		label, sep = "", "" // an entry is its value: the row is the editor alone
-	}
-	line := m.theme.Row(true, true).Render(clamp(lead+drawLine(label, lineSpec{width: max(width-ansi.StringWidth(lead), 1), sentence: true}), width))
-	room := width - ansi.StringWidth(line) - len(sep)
-	if room < 1 {
-		return line
-	}
-	value := editedLine(m.editorFor(fieldPrompt), room, m.typingField() == fieldPrompt)
-	if m.prompt.fresh {
-		value = lipgloss.NewStyle().Reverse(true).Render(m.prompt.input) + caretMark
-	}
-	return line + sep + value
 }
 
 // pickerHeader is what a picker says that its rows cannot, or "": the filter, and for

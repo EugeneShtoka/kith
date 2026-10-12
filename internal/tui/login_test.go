@@ -197,8 +197,9 @@ func TestLoginDrawsWhatTheNetworkAsks(t *testing.T) {
 		t.Fatalf("asked %+v after writing, want the token", f)
 	}
 	m = m.openPromptWith(promptLogin, "secret-token")
-	if status := m.renderStatus(); strings.Contains(status, "secret") || !strings.Contains(status, "•••") {
-		t.Errorf("status line while typing the token = %q, want dots", status)
+	field := strings.Join(m.loginLines(100, 30), "\n")
+	if strings.Contains(field, "secret") || !strings.Contains(field, "•••") || strings.Contains(m.renderStatus(), "secret") {
+		t.Errorf("the pane while typing the token = %q, want dots", field)
 	}
 	m, cmd = m.submitPrompt()
 	for _, line := range m.loginLines(100, 30) {

@@ -208,9 +208,14 @@ func presetLevel(key string) string {
 	}
 }
 
-// chooseRulePreset applies a preset, branching for the ones that need more input.
+// chooseRulePreset applies a preset, branching for the ones that need more input; those
+// are asked over the presets.
 func (m Model) chooseRulePreset(key string) (Model, tea.Cmd) {
-	m = m.closePicker()
+	switch key {
+	case "sound", "name":
+	default:
+		m = m.closePicker()
+	}
 	switch key {
 	case "remove":
 		return m.removeRule()

@@ -85,7 +85,6 @@ func (m Model) identityItems(mxid string) []pickerItem {
 func (m Model) chooseIdentity(alias string) (Model, tea.Cmd) {
 	if alias == newIdentityValue {
 		m.choosing.identity.creating = true
-		m = m.closePicker()
 		m = m.openPromptWith(promptAlias, m.choosing.identity.name)
 		return m, nil
 	}

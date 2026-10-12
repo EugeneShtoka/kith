@@ -34,7 +34,16 @@ func (m Model) startFilter() (Model, tea.Cmd) { return m.startFilterFrom("", con
 // tag or the space it watches); back is the page to return to, "" for the Filters list.
 func (m Model) startFilterFrom(back string, preset config.Filter) (Model, tea.Cmd) {
 	m.choosing.filter, m.choosing.filterBack = preset, back
-	return m.closePicker().openPrompt(promptFilterName), nil
+	return m.filterPage().openPrompt(promptFilterName), nil
+}
+
+// filterPage is the page a new filter's prompts are asked over: the place's it began
+// on, or the Filters list.
+func (m Model) filterPage() Model {
+	if back := m.choosing.filterBack; back != "" {
+		return m.settingsIn(back, back+"#addfilter")
+	}
+	return m.settingsIn(filterTable, filterTable+recordAdd)
 }
 
 func (m Model) submitFilterName(input string) (Model, tea.Cmd) {
@@ -46,11 +55,11 @@ func (m Model) submitFilterName(input string) (Model, tea.Cmd) {
 		return strings.EqualFold(strings.TrimSpace(f.Name), name)
 	})
 	if taken {
-		return m.openPromptWith(promptFilterName, name).say("a filter is already called " + quoted(name)), nil
+		return m.filterPage().openPromptWith(promptFilterName, name).say("a filter is already called " + quoted(name)), nil
 	}
 	m.choosing.filter.Name = name
 	if m.choosing.filter.Tag != "" {
-		return m.openPrompt(promptFilterWords), nil
+		return m.filterPage().openPrompt(promptFilterWords), nil
 	}
 	return m.openFilterTags(), nil
 }
@@ -68,7 +77,7 @@ func (m Model) openFilterTags() Model {
 
 func (m Model) chooseFilterTag(tag string) (Model, tea.Cmd) {
 	m.choosing.filter.Tag = tag
-	return m.closePicker().openPrompt(promptFilterWords), nil
+	return m.filterPage().openPrompt(promptFilterWords), nil
 }
 
 // submitFilterWords takes space- or comma-separated globs; none asks for a sender.
@@ -76,7 +85,7 @@ func (m Model) submitFilterWords(input string) (Model, tea.Cmd) {
 	words := strings.FieldsFunc(input, func(r rune) bool { return r == ',' || r == ' ' })
 	m.choosing.filter.Words = words
 	if len(words) == 0 {
-		return m.openPrompt(promptFilterFrom), nil
+		return m.filterPage().openPrompt(promptFilterFrom), nil
 	}
 	return m.openFilterPlaces(), nil
 }
@@ -84,7 +93,7 @@ func (m Model) submitFilterWords(input string) (Model, tea.Cmd) {
 func (m Model) submitFilterFrom(input string) (Model, tea.Cmd) {
 	from := strings.TrimSpace(input)
 	if from == "" && len(m.choosing.filter.Words) == 0 {
-		return m.openPrompt(promptFilterFrom).say("a filter needs words or a sender — with neither it would catch everything"), nil
+		return m.filterPage().openPrompt(promptFilterFrom).say("a filter needs words or a sender — with neither it would catch everything"), nil
 	}
 	m.choosing.filter.From = from
 	return m.openFilterPlaces(), nil

@@ -195,7 +195,6 @@ func tagList(t *config.Tag, list string) *[]string {
 }
 
 func (m Model) chooseTagEntry(value string) (Model, tea.Cmd) {
-	m = m.closePicker()
 	editing := m.choosing.tag
 	at := m.configTag(editing.tag)
 	if at < 0 {
