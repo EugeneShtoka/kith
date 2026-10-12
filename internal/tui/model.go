@@ -1140,10 +1140,8 @@ func (m Model) handleAttachmentMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDownloaded(msg))
 	case mediaViewedMsg:
 		return answered(m.handleMediaViewed(msg))
-	case videoPlayedMsg:
-		return answered(m.handleVideoPlayed(msg))
-	case fileOpenedMsg:
-		return answered(m.handleFileOpened(msg))
+	case handedOffMsg:
+		return answered(m.handleHandedOff(msg))
 	case audioReadyMsg:
 		return answered(m.handleAudioReady(msg))
 	default:
