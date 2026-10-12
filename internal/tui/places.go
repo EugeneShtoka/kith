@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -132,17 +133,15 @@ func (m Model) tagPageRows(name, group string) []setting {
 			return m.openPromptWith(promptTagName, t.Name), nil
 		},
 	}}
-	for _, list := range []struct{ key, label string }{{tagRule, "Rule"}, {tagPicked, "Picked"}, {tagExcluded, "Excluded"}} {
-		entries := *tagList(&t, list.key)
-		show := m.entriesWords(entries)
-		if list.key == tagRule {
-			show = ruleWords(entries)
-		}
-		rows = append(rows, setting{
-			key: group + "#" + list.key, group: group, kind: settingOpen, label: list.label,
-			show: func(config.Config) string { return show },
-			open: func(m Model) (Model, tea.Cmd) { return m.tagEntriesOpen(t.Name, list.key), nil },
-		})
+	for _, list := range []struct {
+		key, label string
+		field      func(*config.Tag) *[]string
+	}{
+		{tagRule, "Rule", func(c *config.Tag) *[]string { return &c.Rule }},
+		{tagPicked, "Picked", func(c *config.Tag) *[]string { return &c.Picked }},
+		{tagExcluded, "Excluded", func(c *config.Tag) *[]string { return &c.Excluded }},
+	} {
+		rows = append(rows, m.tagListRow(name, group, list.key, list.label, list.field))
 	}
 	rows = append(rows,
 		tagToggle(name, group, countsUnreadKey, "Counts as unread", config.Tag.Counts, func(tag *config.Tag, on bool) { tag.CountsUnread = unsetIfOn(on) }),
@@ -161,6 +160,40 @@ func (m Model) tagPageRows(name, group string) []setting {
 		})
 	}
 	return rows
+}
+
+// tagListRow is one of the tag's lists, edited an entry at a time as any list setting
+// is; a room entry is shown by the room's name.
+func (m Model) tagListRow(name, group, key, label string, field func(*config.Tag) *[]string) setting {
+	at := func(c config.Config) int {
+		return slices.IndexFunc(c.Tags, func(t config.Tag) bool { return domain.SameTag(t.Name, name) })
+	}
+	entries := func(c config.Config) []string {
+		if i := at(c); i >= 0 {
+			return slices.Clone(*field(&c.Tags[i]))
+		}
+		return nil
+	}
+	s := setting{
+		key: group + "#" + key, group: group, kind: settingList, label: label,
+		show:    func(c config.Config) string { return m.entriesWords(entries(c)) },
+		set:     func(*config.Config, string) error { return errors.New("edited an entry at a time") },
+		entries: entries,
+		setEntries: func(c *config.Config, list []string) error {
+			i := at(*c)
+			if i < 0 {
+				return fmt.Errorf("no tag is called %q", name)
+			}
+			*field(&c.Tags[i]) = list
+			return nil
+		},
+		entryLabel: m.entryName,
+	}
+	if key == tagRule {
+		s.show = func(c config.Config) string { return ruleWords(entries(c)) }
+		s.entryLabel = nil
+	}
+	return s
 }
 
 // unsetIfOn is a *bool whose nil is true: nil for on, false for off.

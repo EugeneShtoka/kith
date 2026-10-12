@@ -23,7 +23,11 @@ func (m Model) settingEntriesOpen(key, at string) Model {
 	entries := m.settingEntries(key)
 	items := make([]pickerItem, 0, len(entries)+1)
 	for i, e := range entries {
-		items = append(items, pickerItem{label: e, value: strconv.Itoa(i), match: e})
+		label, detail := e, ""
+		if s.entryLabel != nil {
+			label, detail = s.entryLabel(e), e
+		}
+		items = append(items, pickerItem{label: label, detail: detail, value: strconv.Itoa(i), match: label + " " + e})
 	}
 	items = append(items, pickerItem{label: "Add an entry", value: settingAdd, match: "Add an entry"})
 	m.choosing.setting, m.choosing.settingGroup = key, s.group

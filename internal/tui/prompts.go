@@ -92,11 +92,7 @@ func init() {
 				m.aimedAt.binding, m.aimedAt.bindings = domain.JumpTarget{}, nil
 				return m, nil
 			}},
-		promptTagName: {label: "tag name: ", submit: Model.submitTagName, cancel: Model.cancelTagName},
-		promptTagEntry: {label: "entry (empty removes it): ", submit: Model.submitTagEntry,
-			cancel: func(m Model) (Model, tea.Cmd) {
-				return m.tagEntriesOpen(m.choosing.tag.tag, m.choosing.tag.list), nil
-			}},
+		promptTagName:     {label: "tag name: ", submit: Model.submitTagName, cancel: Model.cancelTagName},
 		promptPersonValue: {label: "value (commas make a list, empty removes it): ", submit: Model.submitPersonValue, cancel: cancelToCard},
 		promptPersonKey:   {label: "field name: ", submit: Model.submitPersonKey, cancel: cancelToCard},
 		promptLogin: {labelOf: Model.loginPromptLabel, submit: Model.submitLogin,

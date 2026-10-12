@@ -32,7 +32,6 @@ const (
 	promptJumpBind
 	promptCommand
 	promptTagName
-	promptTagEntry
 	promptPersonValue // a phonebook field's value
 	promptPersonKey   // a new phonebook field's name
 	promptLogin       // a :login field; its label and help are the field's (login.go)
