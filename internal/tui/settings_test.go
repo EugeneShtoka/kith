@@ -688,3 +688,17 @@ func TestEscStepsBackALevel(t *testing.T) {
 		t.Errorf("esc from Places: picker %v, want the groups", m.picker.kind)
 	}
 }
+
+// Every settings group opens with enter, a group of one row leading somewhere (Filters,
+// a list of records) included, and lands on a list.
+func TestEverySettingsGroupOpens(t *testing.T) {
+	t.Parallel()
+	for _, g := range settingGroups {
+		m, _ := opened(t, config.Notifications{})
+		m = m.settingsTop(g.key)
+		next, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+		if !next.picker.active() && !next.prompt.active() {
+			t.Errorf("%s: enter left nothing open", g.label)
+		}
+	}
+}
