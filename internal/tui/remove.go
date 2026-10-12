@@ -47,7 +47,7 @@ func (m Model) removeUnderCursor() (Model, tea.Cmd, bool) {
 		return reopened, tea.Batch(cmd, more), true
 	case pickerScheduled:
 		return answered(m.acceptPick())
-	case pickerRoomSpaces:
+	case pickerRoomSpaces, pickerSettingSet, pickerFilterPlaces, pickerFilterMoves:
 		checked := make(map[string]bool, len(m.picker.checked))
 		for k, v := range m.picker.checked {
 			checked[k] = v && k != item.value

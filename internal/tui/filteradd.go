@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -173,4 +174,52 @@ func (m Model) backToFilters() Model {
 		return m.closePrompt().settingsIn(back, "")
 	}
 	return m.closePrompt().settingsIn(filterTable, filterTable+recordAdd)
+}
+
+// chosenField makes a filter's tag, moves and places choices rather than typed text,
+// as adding one asks them; any other field is returned as it is.
+func (m Model) chosenField(s setting, table, field string) setting {
+	if table != "filter" {
+		return s
+	}
+	switch field {
+	case "tag":
+		s.kind, s.choices = settingChoice, nil
+		for i := range m.conf.base.Tags {
+			name := m.conf.base.Tags[i].Name
+			s.choices = append(s.choices, settingChoiceOption{name, name, "moves rooms into " + name})
+		}
+	case "moves":
+		s.kind, s.choices = settingMulti, nil
+		for _, row := range filterMoveRows {
+			s.choices = append(s.choices, settingChoiceOption{row.value, row.label, row.detail})
+		}
+		set := s.setEntries
+		s.setEntries = func(c *config.Config, moves []string) error {
+			if len(moves) == 0 {
+				return errors.New("tick at least one move — a filter that moves nothing does nothing")
+			}
+			return set(c, moves)
+		}
+	case "in":
+		s.kind, s.choices = settingMulti, m.placeChoices(s.entries(m.conf.base))
+	}
+	return s
+}
+
+// placeChoices are the rail's spaces and tags as place entries, then any entry already
+// written that names something else (a room, a network), so ticking keeps it.
+func (m Model) placeChoices(current []string) []settingChoiceOption {
+	var out []settingChoiceOption
+	for _, g := range m.rail.groups {
+		if isSpaceGroup(g.key) || isTagGroup(g.key) {
+			out = append(out, settingChoiceOption{domain.HomeEntry(g.key), g.label, placeWord(g.key)})
+		}
+	}
+	for _, entry := range current {
+		if !slices.ContainsFunc(out, func(c settingChoiceOption) bool { return c.value == entry }) {
+			out = append(out, settingChoiceOption{entry, entry, "as written"})
+		}
+	}
+	return out
 }
