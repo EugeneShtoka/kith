@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/phonebook"
 )
@@ -29,6 +30,8 @@ type pickerWalk struct {
 	speedScopes []ruleTarget
 	// tag is where the tag editor is (tageditor.go).
 	tag tagEditing
+	// spamFilter is the spam filter being added, written at its last step (spamfilteradd.go).
+	spamFilter config.SpamFilter
 }
 
 // pickerMode is whether keystrokes move the cursor or narrow the list.
@@ -82,8 +85,10 @@ const (
 	pickerImportAccount // :import's accounts, folders and choices; see imports.go
 	pickerImportFolders
 	pickerImportChoice
-	pickerCards      // :people, every card in the phonebook; see cards.go
-	pickerSpamRescan // rooms a rescan would move into Spam; see rescan.go
+	pickerCards        // :people, every card in the phonebook; see cards.go
+	pickerSpamRescan   // rooms a rescan would move into Spam; see rescan.go
+	pickerFilterPlaces // where a new spam filter watches; see spamfilteradd.go
+	pickerFilterMoves  // what its catch moves a room by
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -139,6 +144,8 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerImportChoice:    {}, // titled with the folder
 	pickerCards:           {title: "People in the phonebook"},
 	pickerSpamRescan:      {modal: true, multi: true}, // titled with the count
+	pickerFilterPlaces:    {title: "Watch where? None ticked is everywhere", modal: true, multi: true},
+	pickerFilterMoves:     {title: "Move a room into Spam when it catches", modal: true, multi: true},
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text
@@ -474,6 +481,10 @@ func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
 		return m.acceptModelOffer(values)
 	case pickerSpamRescan:
 		return m.applyRescan(values)
+	case pickerFilterPlaces:
+		return m.acceptFilterPlaces(values)
+	case pickerFilterMoves:
+		return m.acceptFilterMoves(values)
 	default:
 		return m.closePicker(), nil
 	}

@@ -174,6 +174,13 @@ func (m Model) recordRows(t config.RecordTable) []setting {
 			open:  func(m Model) (Model, tea.Cmd) { return m.settingsIn(key, ""), nil },
 		})
 	}
+	if group == spamFilterTable {
+		return append(rows, setting{
+			key: group + recordAdd, group: group, kind: settingOpen, label: "Add one", doc: t.Doc,
+			show: func(config.Config) string { return "" },
+			open: Model.startSpamFilter,
+		})
+	}
 	return append(rows, addRecordRow(t, group))
 }
 
@@ -184,7 +191,7 @@ func addRecordRow(t config.RecordTable, group string) setting {
 	path := t.Path
 	return setting{
 		key: group + recordAdd, group: group, kind: settingText, label: "Add one", doc: t.Doc,
-		help: "its " + propertyLabel(first.Path) + " — " + strings.TrimSuffix(firstLine(strings.TrimSpace(first.Doc)), "."),
+		help: firstFieldHelp(first),
 		show: func(config.Config) string { return "" },
 		edit: func(config.Config) string { return "" },
 		set: func(c *config.Config, v string) error {
@@ -198,6 +205,16 @@ func addRecordRow(t config.RecordTable, group string) setting {
 			return c.SetRecordValue(path, i, first.Path, v)
 		},
 	}
+}
+
+// firstFieldHelp says what a new record's first field is, and what it means when its
+// doc says.
+func firstFieldHelp(first config.Property) string {
+	help := "its " + propertyLabel(first.Path)
+	if doc := strings.TrimSuffix(firstLine(strings.TrimSpace(first.Doc)), "."); doc != "" {
+		help += " — " + doc
+	}
+	return help
 }
 
 // recordSummary names a record by its first two set fields.

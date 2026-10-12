@@ -95,7 +95,9 @@ You rarely need to open the file. Inside kith:
     cursor, the last row adds one, and `K`/`J` move the entry under the cursor.
   - A list of records (read rules, media rules, people, names you gave, spam filters,
     scripts, accounts, jump shortcuts) opens its records, each one's fields set as
-    above; *Add one* is typed as its first field, *Remove this one* takes it out.
+    above; *Add one* is typed as its first field, *Remove this one* takes it out. A
+    spam filter's *Add one* asks for each part in turn (name, words or a sender,
+    where it watches, what it moves) and writes the filter only at the end.
   - **Names** has a first-names-only switch for every space and tag, and the
     [phonebook](phonebook.md#a-field-beside-names) field shown beside names there. **Keys** has
     every binding by table, typed as the file writes them (`k,up`; empty restores the

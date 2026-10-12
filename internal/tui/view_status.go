@@ -211,6 +211,8 @@ func (m Model) promptHint() string {
 		promptNewRoom, promptJumpBind, promptCommand, promptTagName, promptTagEntry,
 		promptPersonValue, promptPersonKey, promptNone:
 		// "submit" says it for these.
+	case promptFilterName, promptFilterWords, promptFilterFrom:
+		submit = "next"
 	case promptLogin:
 		submit = "next"
 		if m.login.at == len(m.login.fields)-1 {

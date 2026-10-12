@@ -706,6 +706,8 @@ func (m Model) settingsBack() (Model, bool) {
 		return m.settingsTop(group), true
 	case pickerTags:
 		return m.settingsTop("tags"), true
+	case pickerFilterPlaces, pickerFilterMoves:
+		return m.backToSpamFilters(), true
 	case pickerTagEdit:
 		return m.tagsOpen(), true
 	case pickerTagEntries:
