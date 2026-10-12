@@ -76,11 +76,10 @@ const (
 	pickerFrequencies
 	pickerCompletionModel
 	pickerNewRoom
-	pickerPerson     // a person's phonebook card: its fields, and a row to add one
-	pickerPersonKeys // which field to add to a card
-	pickerNewMembers // who is in a chat being made on another network
-	pickerJump       // the switcher; see jump.go
-	pickerTagEntries
+	pickerPerson       // a person's phonebook card: its fields, and a row to add one
+	pickerPersonKeys   // which field to add to a card
+	pickerNewMembers   // who is in a chat being made on another network
+	pickerJump         // the switcher; see jump.go
 	pickerLoginNetwork // :login's networks; see login.go
 	pickerLoginAccount
 	pickerImportAccount // :import's accounts, folders and choices; see imports.go
@@ -137,7 +136,6 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerPersonKeys:      {},                         // titled with the person
 	pickerNewMembers:      {modal: true, multi: true}, // titled with the chat's name
 	pickerJump:            {title: "Go to"},
-	pickerTagEntries:      {modal: true}, // titled with the tag and the list
 	pickerLoginNetwork:    {title: "Sign in to what?"},
 	pickerLoginAccount:    {}, // titled with the network
 	pickerImportAccount:   {title: "Copy folders from which account?"},
@@ -413,9 +411,6 @@ func (m Model) pickerAction(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 			return m, nil, false
 		}
 	}
-	if m.picker.kind == pickerTagEntries {
-		return m, nil, false
-	}
 	if m.picker.kind != pickerPeople {
 		return m, nil, false
 	}
@@ -539,12 +534,6 @@ func (m Model) settingsHint() (string, bool) {
 			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "edit"),
 			keyed(m.keys.keyHint(scopePicker, actRemoveEntry), "remove"),
 			keyed(m.keys.keyHint(scopePicker, actMoveEntryUp)+"/"+m.keys.keyHint(scopePicker, actMoveEntryDown), "move it"),
-			keyed(m.keys.keyHint(scopePicker, actFilter), "filter"),
-			keyed(m.keys.keyHint(scopePicker, actClosePick), "back")), true
-	case pickerTagEntries:
-		return m.hintLine(move,
-			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "edit"),
-			keyed(m.keys.keyHint(scopePicker, actRemoveEntry), "remove"),
 			keyed(m.keys.keyHint(scopePicker, actFilter), "filter"),
 			keyed(m.keys.keyHint(scopePicker, actClosePick), "back")), true
 	default:

@@ -56,6 +56,8 @@ type setting struct {
 	entries    func(config.Config) []string
 	setEntries func(*config.Config, []string) error
 	open       func(Model) (Model, tea.Cmd)
+	// entryLabel shows a list entry (a room by its name); nil shows it as written.
+	entryLabel func(string) string
 }
 
 type settingChoiceOption struct {

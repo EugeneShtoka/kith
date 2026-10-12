@@ -84,10 +84,10 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")
 	m = pickLabel(t, m, "Rule")
-	if m.picker.kind != pickerTagEntries {
+	if m.picker.kind != pickerSettingEntries {
 		t.Fatalf("Rule opened picker %v", m.picker.kind)
 	}
-	m = pickLabel(t, m, "Add a term")
+	m = pickLabel(t, m, "Add an entry")
 	m = typeIn(t, m, "space:Work")
 	if got := m.conf.base.Tags[m.configTag("Pinned")].Rule; !slices.Equal(got, []string{"space:Work"}) {
 		t.Fatalf("rule = %v, want the added term", got)
@@ -95,7 +95,7 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	if !admitsRoom(m, railRow(t, m, pinnedGroupKey), "!standup:x") {
 		t.Error("the rule's room is not in the tag's row")
 	}
-	m = pickLabel(t, m, "Add a term")
+	m = pickLabel(t, m, "Add an entry")
 	m = typeIn(t, m, "unred")
 	if !strings.Contains(m.status(), "could not apply") || len(m.conf.base.Tags[m.configTag("Pinned")].Rule) != 1 {
 		t.Errorf("status %q, rule %v: want a bad term refused", m.status(), m.conf.base.Tags[m.configTag("Pinned")].Rule)
@@ -105,7 +105,7 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	if got := m.conf.base.Tags[m.configTag("Pinned")].Rule; len(got) != 0 {
 		t.Errorf("rule = %v, want the emptied term removed", got)
 	}
-	if m.picker.kind != pickerTagEntries {
+	if m.picker.kind != pickerSettingEntries {
 		t.Errorf("after editing: picker %v, want the list back", m.picker.kind)
 	}
 }
@@ -114,14 +114,14 @@ func TestXRemovesATagEntry(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")
 	m = pickLabel(t, m, "Rule")
-	m = pickLabel(t, m, "Add a term")
+	m = pickLabel(t, m, "Add an entry")
 	m = typeIn(t, m, "space:Work")
 	m.picker.cursor = 0
 	m, _ = press(t, m, keyText("x"))
 	if got := m.conf.base.Tags[m.configTag("Pinned")].Rule; len(got) != 0 {
 		t.Errorf("rule = %v, want the term removed", got)
 	}
-	if m.picker.kind != pickerTagEntries {
+	if m.picker.kind != pickerSettingEntries {
 		t.Errorf("after x: picker %v, want the list back", m.picker.kind)
 	}
 }

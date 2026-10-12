@@ -17,21 +17,17 @@ import (
 // reference (setup.RenameTag).
 
 type tagEditing struct {
-	tag   string // the tag's name; "" while creating one
-	list  string // tagRule, tagPicked or tagExcluded
-	entry int    // the entry a prompt edits; -1 adds one
+	tag string // the tag's name; "" while creating one
 	// fileRoom is the room a tag created from the filing picker goes on; "" from settings.
 	fileRoom domain.RoomID
 }
 
-// A tag's lists, the entries list's add row, and the filing pickers' "New tag" row (no
-// tag can be named so).
+// A tag's lists, and the filing pickers' "New tag" row (no tag can be named so).
 const (
 	tagRule     = "rule"
 	tagPicked   = "picked"
 	tagExcluded = "excluded"
 	tagNew      = "\x00new"
-	tagAdd      = "add"
 )
 
 type tagProperty struct {
@@ -157,97 +153,6 @@ func (m Model) tagOpen(name string) Model {
 func (m Model) applyTagConfig(cfg config.Config, name, done string) (Model, tea.Cmd) {
 	next, cmd := m.applyConfig(cfg, done)
 	return next.tagOpen(name), cmd
-}
-
-// tagEntriesOpen lists one of a tag's lists, each entry editable, and an add row.
-func (m Model) tagEntriesOpen(name, list string) Model {
-	at := m.configTag(name)
-	if at < 0 {
-		return m.tagsOpen()
-	}
-	entries := tagList(&m.conf.base.Tags[at], list)
-	items := make([]pickerItem, 0, len(*entries)+1)
-	for i, e := range *entries {
-		label := e
-		if list != tagRule {
-			label = m.entryName(e)
-		}
-		items = append(items, pickerItem{label: label, detail: e, value: fmt.Sprint(i), match: label + " " + e})
-	}
-	add := map[string]string{tagRule: "Add a term", tagPicked: "Add a room", tagExcluded: "Exclude a room"}[list]
-	items = append(items, pickerItem{label: add, value: tagAdd, match: add})
-	m.choosing.tag = tagEditing{tag: m.conf.base.Tags[at].Name, list: list}
-	spec := pickerSpecs[pickerTagEntries]
-	spec.title = m.conf.base.Tags[at].Name + ": " + list
-	m.picker = newPickerWith(pickerTagEntries, spec, items)
-	return m
-}
-
-func tagList(t *config.Tag, list string) *[]string {
-	switch list {
-	case tagPicked:
-		return &t.Picked
-	case tagExcluded:
-		return &t.Excluded
-	default:
-		return &t.Rule
-	}
-}
-
-func (m Model) chooseTagEntry(value string) (Model, tea.Cmd) {
-	editing := m.choosing.tag
-	at := m.configTag(editing.tag)
-	if at < 0 {
-		return m.tagsOpen(), nil
-	}
-	if value == tagAdd {
-		m.choosing.tag.entry = -1
-		return m.openPrompt(promptTagEntry), nil
-	}
-	i := atoiSafe(value)
-	entries := *tagList(&m.conf.base.Tags[at], editing.list)
-	if i < 0 || i >= len(entries) {
-		return m.tagEntriesOpen(editing.tag, editing.list), nil
-	}
-	m.choosing.tag.entry = i
-	return m.openPromptWith(promptTagEntry, entries[i]), nil
-}
-
-func (m Model) removeTagEntry() (Model, tea.Cmd) {
-	item, ok := m.picker.selected()
-	if !ok || item.value == tagAdd {
-		return m, nil
-	}
-	m.choosing.tag.entry = atoiSafe(item.value)
-	return m.submitTagEntry("")
-}
-
-// submitTagEntry writes the prompt's entry; empty removes the one being edited.
-func (m Model) submitTagEntry(input string) (Model, tea.Cmd) {
-	editing := m.choosing.tag
-	at := m.configTag(editing.tag)
-	if at < 0 {
-		return m.tagsOpen(), nil
-	}
-	input = strings.TrimSpace(input)
-	cfg := m.conf.base.Clone()
-	entries := tagList(&cfg.Tags[at], editing.list)
-	var done string
-	switch {
-	case editing.entry < 0 && input == "":
-		return m.tagEntriesOpen(editing.tag, editing.list), nil
-	case editing.entry < 0:
-		*entries, done = append(*entries, input), "added "+input
-	case editing.entry >= len(*entries):
-		return m.tagEntriesOpen(editing.tag, editing.list), nil
-	case input == "":
-		done = "removed " + (*entries)[editing.entry]
-		*entries = append((*entries)[:editing.entry:editing.entry], (*entries)[editing.entry+1:]...)
-	default:
-		(*entries)[editing.entry], done = input, "set "+input
-	}
-	next, cmd := m.applyConfig(cfg, isolate(editing.tag)+" "+editing.list+": "+done)
-	return next.tagEntriesOpen(editing.tag, editing.list), cmd
 }
 
 // submitTagName names a new tag, or renames the edited one everywhere it is referenced.
