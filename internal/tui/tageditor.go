@@ -11,11 +11,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// The tag editor, from settings: the tags, then one tag's name, rule, picked and
-// excluded rooms, properties, and which other tags take rooms from it. Each change is
-// applied and saved at once. Rule, picked and excluded are edited an entry at a time,
-// since room names may hold any separator. Renaming rewrites every reference
-// (setup.RenameTag).
+// Editing a tag, from its page in Settings → Places (places.go): its name, and its rule,
+// picked and excluded rooms an entry at a time, since room names may hold any
+// separator. Each change is applied and saved at once. Renaming rewrites every
+// reference (setup.RenameTag).
 
 type tagEditing struct {
 	tag   string // the tag's name; "" while creating one
@@ -25,16 +24,13 @@ type tagEditing struct {
 	fileRoom domain.RoomID
 }
 
-// The editor's rows that are not properties.
+// A tag's lists, the entries list's add row, and the filing pickers' "New tag" row (no
+// tag can be named so).
 const (
-	tagName     = "name"
 	tagRule     = "rule"
 	tagPicked   = "picked"
 	tagExcluded = "excluded"
-	tagClaimed  = "claimed"
-	tagFirst    = "first_names" // its rooms' senders by first name ([[display.space_rule]])
-	tagDelete   = "delete"
-	tagNew      = "\x00new" // the list's "New tag" row; no tag can be named this
+	tagNew      = "\x00new"
 	tagAdd      = "add"
 )
 
@@ -76,22 +72,6 @@ const (
 	notifiesKey     = "notifies"
 )
 
-// openTags is the settings row's way into the tag list.
-func (m Model) openTags() (Model, tea.Cmd) { return m.tagsOpen(), nil }
-
-func (m Model) tagsOpen() Model {
-	tags := m.conf.base.Tags
-	items := make([]pickerItem, 0, len(tags)+1)
-	for i := range tags {
-		t := &tags[i]
-		items = append(items, pickerItem{label: isolate(t.Name), detail: tagSummary(*t), value: t.Name, match: t.Name})
-	}
-	items = append(items, pickerItem{label: "New tag", value: tagNew, match: "new tag"})
-	m.choosing.tag = tagEditing{}
-	m.picker = newPicker(pickerTags, items)
-	return m
-}
-
 // tagSummary is a tag in a line: its rule and how many rooms it picks and excludes.
 func tagSummary(t config.Tag) string {
 	parts := []string{ruleWords(t.Rule)}
@@ -111,16 +91,6 @@ func ruleWords(rule []string) string {
 	return strings.Join(rule, ", ")
 }
 
-// chooseTag opens a tag's editor, or prompts for a new tag's name.
-func (m Model) chooseTag(value string) (Model, tea.Cmd) {
-	m = m.closePicker()
-	if value == tagNew {
-		m.choosing.tag = tagEditing{}
-		return m.openPrompt(promptTagName), nil
-	}
-	return m.tagOpen(value), nil
-}
-
 // configTag is the index of the named tag in the running config, or -1.
 func (m Model) configTag(name string) int {
 	for i := range m.conf.base.Tags {
@@ -129,39 +99,6 @@ func (m Model) configTag(name string) int {
 		}
 	}
 	return -1
-}
-
-// tagOpen shows one tag's rows; a tag renamed or deleted meanwhile falls back to the list.
-func (m Model) tagOpen(name string) Model {
-	at := m.configTag(name)
-	if at < 0 {
-		return m.tagsOpen()
-	}
-	t := m.conf.base.Tags[at]
-	m.choosing.tag = tagEditing{tag: t.Name}
-	items := []pickerItem{
-		{label: "Name", detail: isolate(t.Name), value: tagName},
-		{label: "Rule", detail: ruleWords(t.Rule), value: tagRule},
-		{label: "Picked", detail: m.entriesWords(t.Picked), value: tagPicked},
-		{label: "Excluded", detail: m.entriesWords(t.Excluded), value: tagExcluded},
-		{label: "Counts as unread", detail: onOff(t.Counts()), value: countsUnreadKey},
-		{label: "Notifies", detail: onOff(t.Notifying()), value: notifiesKey},
-		{label: "First names only", detail: onOff(firstNamesIn(m.conf.base, domain.TagEntry(t.Name))), value: tagFirst},
-	}
-	for _, p := range tagProperties {
-		items = append(items, pickerItem{label: p.label, detail: onOff(p.get(t)), value: p.key})
-	}
-	if claimed := m.claimedFrom(at); claimed != "" {
-		items = append(items, pickerItem{label: "Also excludes", detail: claimed, value: tagClaimed})
-	}
-	items = append(items, pickerItem{label: "Delete this tag", value: tagDelete})
-	for i := range items {
-		items[i].match = items[i].label
-	}
-	spec := pickerSpecs[pickerTagEdit]
-	spec.title = "Tag: " + t.Name
-	m.picker = newPickerWith(pickerTagEdit, spec, items)
-	return m
 }
 
 func (m Model) entriesWords(entries []string) string {
@@ -204,63 +141,19 @@ func (m Model) claimedFrom(at int) string {
 	return strings.Join(names, ", ")
 }
 
-func (m Model) chooseTagRow(value string) (Model, tea.Cmd) {
-	name := m.choosing.tag.tag
-	m = m.closePicker()
-	switch value {
-	case tagName:
-		return m.openPromptWith(promptTagName, name), nil
-	case tagRule, tagPicked, tagExcluded:
-		return m.tagEntriesOpen(name, value), nil
-	case tagClaimed:
-		m = m.say("a tag exclusive from tags shows its rooms alone")
-		return m.tagOpen(name), nil
-	case tagDelete:
-		m.confirm = confirmState{action: pendingDeleteTag, group: name}
-		return m, nil
-	case tagFirst:
-		place := domain.TagEntry(name)
-		now := !firstNamesIn(m.conf.base, place)
-		cfg := m.conf.base.Clone()
-		cfg.Display.SpaceRules = withFirstNames(cfg.Display, place, now)
-		return m.applyTagConfig(cfg, name, isolate(name)+": first names only: "+onOff(now))
-	case notifiesKey:
-		now := !m.conf.base.Tags[m.configTag(name)].Notifying()
-		return m.editTag(name, func(t *config.Tag) {
-			t.Notifies = nil // unset is on
-			if !now {
-				t.Notifies = &now
-			}
-		}, "notifies: "+onOff(now))
-	case countsUnreadKey:
-		now := !m.conf.base.Tags[m.configTag(name)].Counts()
-		return m.editTag(name, func(t *config.Tag) {
-			t.CountsUnread = nil // unset is on
-			if !now {
-				t.CountsUnread = &now
-			}
-		}, "counts as unread: "+onOff(now))
-	}
-	for _, p := range tagProperties {
-		if p.key == value {
-			now := !p.get(m.conf.base.Tags[m.configTag(name)])
-			return m.editTag(name, func(t *config.Tag) { p.set(t, now) }, strings.ToLower(p.label)+": "+onOff(now))
-		}
-	}
-	return m.tagOpen(name), nil
-}
+// tagsOpen is Settings → Places; tagOpen is the named tag's page, or Places when it is
+// gone (renamed or deleted meanwhile).
+func (m Model) tagsOpen() Model { return m.settingsIn("places", "") }
 
-func (m Model) editTag(name string, change func(*config.Tag), done string) (Model, tea.Cmd) {
-	cfg := m.conf.base.Clone()
+func (m Model) tagOpen(name string) Model {
 	at := m.configTag(name)
 	if at < 0 {
-		return m.tagsOpen(), nil
+		return m.tagsOpen()
 	}
-	change(&cfg.Tags[at])
-	return m.applyTagConfig(cfg, cfg.Tags[at].Name, isolate(name)+": "+done)
+	return m.settingsIn(placePage(tagGroupKey(m.conf.base.Tags[at].Name)), "")
 }
 
-// applyTagConfig applies cfg and reopens the editor on the tag now named name.
+// applyTagConfig applies cfg and reopens the page of the tag now named name.
 func (m Model) applyTagConfig(cfg config.Config, name, done string) (Model, tea.Cmd) {
 	next, cmd := m.applyConfig(cfg, done)
 	return next.tagOpen(name), cmd

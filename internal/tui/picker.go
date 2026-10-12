@@ -30,8 +30,10 @@ type pickerWalk struct {
 	speedScopes []ruleTarget
 	// tag is where the tag editor is (tageditor.go).
 	tag tagEditing
-	// filter is the filter being added, written at its last step (filteradd.go).
-	filter config.Filter
+	// filter is the filter being added, written at its last step (filteradd.go); filterBack
+	// is the place page it began on, "" for the Filters list.
+	filter     config.Filter
+	filterBack string
 }
 
 // pickerMode is whether keystrokes move the cursor or narrow the list.
@@ -77,8 +79,6 @@ const (
 	pickerPersonKeys // which field to add to a card
 	pickerNewMembers // who is in a chat being made on another network
 	pickerJump       // the switcher; see jump.go
-	pickerTags
-	pickerTagEdit
 	pickerTagEntries
 	pickerLoginNetwork // :login's networks; see login.go
 	pickerLoginAccount
@@ -135,8 +135,6 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerPersonKeys:      {},                         // titled with the person
 	pickerNewMembers:      {modal: true, multi: true}, // titled with the chat's name
 	pickerJump:            {title: "Go to"},
-	pickerTags:            {title: "Tags", modal: true},
-	pickerTagEdit:         {},            // titled with the tag
 	pickerTagEntries:      {modal: true}, // titled with the tag and the list
 	pickerLoginNetwork:    {title: "Sign in to what?"},
 	pickerLoginAccount:    {}, // titled with the network
@@ -554,10 +552,6 @@ func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
 		return m.chooseDNDFor(item.value)
 	case pickerNewRoom:
 		return m.chooseNewRoomKind(item.value)
-	case pickerTags:
-		return m.chooseTag(item.value)
-	case pickerTagEdit:
-		return m.chooseTagRow(item.value)
 	case pickerFilterTag:
 		return m.chooseFilterTag(item.value)
 	case pickerTagEntries:

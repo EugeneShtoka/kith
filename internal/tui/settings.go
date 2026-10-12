@@ -262,17 +262,6 @@ var curatedSettings = []setting{
 		open: Model.openRuleList,
 	},
 	{
-		key: "tags", group: "tags", label: "Tags",
-		show: func(c config.Config) string {
-			if len(c.Tags) == 0 {
-				return "none"
-			}
-			return strconv.Itoa(len(c.Tags)) + " tags"
-		},
-		kind: settingOpen,
-		open: Model.openTags,
-	},
-	{
 		key: "notifications.sound", group: "notifications", label: "Notification sound",
 		show: func(c config.Config) string { return orDefault(c.Notifications.Sound, "silent") },
 		kind: settingText,
@@ -510,7 +499,7 @@ var settingGroups = []settingGroup{
 	{"networks", "Accounts and networks"},
 	{"advanced", "Commands, logs and schedule"},
 	{"keys", "Keys"},
-	{"tags", "Tags"},
+	{"places", "Places"},
 }
 
 func groupSettings(group string) []setting {
@@ -532,7 +521,12 @@ func groupLabel(group string) string {
 	return group
 }
 
-func (m Model) openSettings() (Model, tea.Cmd) { return m.settingsTop(""), nil }
+func (m Model) openSettings() (Model, tea.Cmd) {
+	if page, ok := m.openPlaceUnderCursor(); ok {
+		return page, nil
+	}
+	return m.settingsTop(""), nil
+}
 
 // settingsTop shows the groups, the cursor on at. A group holding one row that leads
 // somewhere (Tags) is that row.
@@ -704,12 +698,8 @@ func (m Model) settingsBack() (Model, bool) {
 			return m.settingsIn(parent, at), true
 		}
 		return m.settingsTop(group), true
-	case pickerTags:
-		return m.settingsTop("tags"), true
 	case pickerFilterTag, pickerFilterPlaces, pickerFilterMoves:
 		return m.backToFilters(), true
-	case pickerTagEdit:
-		return m.tagsOpen(), true
 	case pickerTagEntries:
 		return m.tagOpen(m.choosing.tag.tag), true
 	default:

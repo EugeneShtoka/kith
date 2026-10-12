@@ -84,11 +84,12 @@ func TestTheArchivedKeyFlipsThePlaceInView(t *testing.T) {
 func TestEachPlaceChoosesItsArchivedRooms(t *testing.T) {
 	t.Parallel()
 	m := archiving(t, config.Display{})
-	m.choosing.settingGroup = "rooms"
+	m.choosing.settingGroup = placePage("WhatsApp UK")
 	row, ok := m.setting(archivedKey + "WhatsApp UK")
 	if !ok {
 		t.Fatal("no archived-rooms row for the bridge's space")
 	}
+	m.choosing.settingGroup = placePage("tag:Archived")
 	if _, ok := m.setting(archivedKey + "tag:Archived"); ok {
 		t.Error("the archive has a row of its own")
 	}

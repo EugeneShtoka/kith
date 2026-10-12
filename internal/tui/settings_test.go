@@ -679,12 +679,12 @@ func TestEscStepsBackALevel(t *testing.T) {
 	}
 
 	m, _ = opened(t, config.Notifications{})
-	m = pickLabel(t, m, "Tags")
+	m = pickLabel(t, m, "Places")
 	m = pickLabel(t, m, "Pinned")
-	if m = esc(m); m.picker.kind != pickerTags {
-		t.Errorf("esc from a tag: picker %v, want the tags", m.picker.kind)
+	if m = esc(m); m.picker.kind != pickerSetting || m.choosing.settingGroup != "places" {
+		t.Errorf("esc from a tag: picker %v on %q, want Places", m.picker.kind, m.choosing.settingGroup)
 	}
 	if m = esc(m); m.picker.kind != pickerSettingGroups {
-		t.Errorf("esc from the tags: picker %v, want the groups", m.picker.kind)
+		t.Errorf("esc from Places: picker %v, want the groups", m.picker.kind)
 	}
 }

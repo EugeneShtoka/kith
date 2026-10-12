@@ -81,7 +81,9 @@ at startup. Two filters may catch one message: each moves the room into its own 
 Renaming a tag renames the filters and keys naming it; deleting it deletes them.
 
 Adding a filter from **Settings → Filters → Add one** asks for each part in turn and
-writes the filter only at the end.
+writes the filter only at the end. A place's page in **Settings → Places** lists its
+filters and adds one with the place filled in: a tag's page one moving rooms into it,
+a space's page one watching it.
 
 ### The moves
 
