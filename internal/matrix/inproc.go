@@ -73,8 +73,10 @@ type InProc struct {
 
 	ver verifyState
 
-	// names memoizes each room's user-ID→display-name map.
-	names memberNameMemo
+	// names memoizes each room's user-ID→display-name map; profiles memoizes the names of
+	// senders who are no member of the room they wrote in (rooms.go).
+	names    memberNameMemo
+	profiles profileNames
 
 	unread unreadBook
 	// selves are the other MXIDs that are this person.
