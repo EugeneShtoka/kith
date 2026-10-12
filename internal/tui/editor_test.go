@@ -475,8 +475,8 @@ func TestEnterSendsWhenFlipped(t *testing.T) {
 	if err := toggleEnterKey(&cfg, ""); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Keys.Insert.Send != "enter" || cfg.Keys.Insert.Newline != "ctrl+enter,alt+enter" {
-		t.Fatalf("flip gave send=%q newline=%q", cfg.Keys.Insert.Send, cfg.Keys.Insert.Newline)
+	if cfg.Keys.Bindings["insert.send"] != "enter" || cfg.Keys.Bindings["insert.newline"] != "ctrl+enter,alt+enter" {
+		t.Fatalf("flip gave send=%q newline=%q", cfg.Keys.Bindings["insert.send"], cfg.Keys.Bindings["insert.newline"])
 	}
 	m.keys = newKeymap(cfg.Keys)
 	if len(m.keys.issues) > 0 {

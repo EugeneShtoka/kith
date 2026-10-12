@@ -46,13 +46,13 @@ func TestHelpOverlayIssuesGolden(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Nav.Open = "esc"
-	keys.Insert.Send = "esc"
-	keys.Timeline.React = "enter"
-	keys.Timeline.Reply = "notakey"
-	keys.Rooms.Join = unbind
-	keys.Sort.Recent = "s"
-	keys.Picker.Kick = "a"
+	keys.Bindings["nav.open"] = "esc"
+	keys.Bindings["insert.send"] = "esc"
+	keys.Bindings["timeline.react"] = "enter"
+	keys.Bindings["timeline.reply"] = "notakey"
+	keys.Bindings["rooms.join"] = unbind
+	keys.Bindings["sort.recent"] = "s"
+	keys.Bindings["picker.kick"] = "a"
 	keys.Jump = config.Jumps{{Chord: "g x", Target: "room:!r:x"}, {Chord: "q", Target: "space:Work"}}
 	m := withHelp(t, sized(t, withRooms(t, newModel())).WithKeys(keys))
 	checkGolden(t, "help_issues.golden", strings.Join(m.helpLines(), "\n")+"\n")
