@@ -66,7 +66,7 @@ func (m Model) placesRows() []setting {
 		show: func(config.Config) string { return "" },
 		open: func(m Model) (Model, tea.Cmd) {
 			m.choosing.tag = tagEditing{}
-			return m.closePicker().openPrompt(promptTagName), nil
+			return m.openPrompt(promptTagName), nil
 		},
 	})
 }
@@ -129,7 +129,7 @@ func (m Model) tagPageRows(name, group string) []setting {
 		show: func(config.Config) string { return isolate(t.Name) },
 		open: func(m Model) (Model, tea.Cmd) {
 			m.choosing.tag = tagEditing{tag: t.Name}
-			return m.closePicker().openPromptWith(promptTagName, t.Name), nil
+			return m.openPromptWith(promptTagName, t.Name), nil
 		},
 	}}
 	for _, list := range []struct{ key, label string }{{tagRule, "Rule"}, {tagPicked, "Picked"}, {tagExcluded, "Excluded"}} {

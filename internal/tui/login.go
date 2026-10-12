@@ -495,6 +495,9 @@ func (m Model) loginLines(width, rows int) []string {
 	}
 	if f, ok := m.login.field(); ok {
 		block(f.Help)
+		if m.promptInline() {
+			lines = append(lines, m.promptLines(width)...)
+		}
 		if len(m.login.fields) > 1 {
 			lines = append(lines, "", m.theme.Muted.Render(fmt.Sprintf("%d of %d", m.login.at+1, len(m.login.fields))))
 		}

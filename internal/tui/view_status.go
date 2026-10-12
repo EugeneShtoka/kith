@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -24,31 +25,15 @@ func (m Model) renderStatus() string {
 		}
 		return m.theme.Muted.Render(drawLine(m.hintLine(hints...), lineSpec{width: m.width, sentence: true}))
 	}
-	if m.editingSettingRow() {
-		// The value is typed on its row; here, what it may be and the keys.
-		return m.theme.Muted.Render(drawLine(m.hintLine(
-			note(m.settingHelp()),
-			keyed(m.keys.keyHint(scopePrompt, actSubmit), "save"),
-			keyed(m.keys.keyHint(scopePrompt, actCancel), "keep it as it was"),
-		), lineSpec{width: m.width, sentence: true}))
+	if m.promptInline() {
+		// The field is drawn after the content in the timeline pane; here, its keys.
+		return m.theme.Muted.Render(drawLine(m.promptHint(), lineSpec{width: m.width, sentence: true}))
 	}
 	if m.prompt.active() {
-		label, hint := m.prompt.label(), m.promptHint()
-		switch m.prompt.kind { //nolint:exhaustive // two prompts label themselves
-		case promptJumpBind:
-			label = m.bindingLabel()
-		case promptLogin:
-			label = m.loginPromptLabel()
-		}
-		typed := m.editorFor(fieldPrompt)
-		if m.loginSecret() {
-			typed = masked(typed) // a password or session: dots, never the text
-		}
+		label, hint := m.promptLabel(), m.promptHint()
 		const gap = "   —   "
 		room := m.width - ansi.StringWidth(label) - ansi.StringWidth(hint) - len(gap)
-		return m.theme.Muted.Render(clamp(
-			label+editedLine(typed, room, m.typingField() == fieldPrompt)+gap+hint,
-			m.width))
+		return m.theme.Muted.Render(clamp(label+m.promptValue(room)+gap+hint, m.width))
 	}
 
 	left := m.status()
@@ -219,9 +204,13 @@ func (m Model) promptHint() string {
 			submit = "sign in"
 		}
 	}
+	cancel := "cancel"
+	if m.prompt.kind == promptSetting || m.prompt.kind == promptSettingEntry {
+		submit, cancel = "save", "keep it as it was"
+	}
 	hints := []hint{
 		keyed(m.keys.keyHint(scopePrompt, actSubmit), submit),
-		keyed(m.keys.keyHint(scopePrompt, actCancel), "cancel"),
+		keyed(m.keys.keyHint(scopePrompt, actCancel), cancel),
 	}
 	if next, ok := m.nextBindingTarget(); ok && m.prompt.kind == promptJumpBind {
 		hints = append(hints, keyed(m.keys.keyHint(scopePrompt, actSearchScope), m.targetName(next)))
@@ -263,4 +252,41 @@ func (m Model) hintLine(hints ...hint) string {
 		}
 	}
 	return strings.Join(parts, " · ")
+}
+
+// promptLabel is the open prompt's leading text; some prompts name what they set.
+func (m Model) promptLabel() string {
+	switch m.prompt.kind { //nolint:exhaustive // these prompts label themselves
+	case promptJumpBind:
+		return m.bindingLabel()
+	case promptLogin:
+		return m.loginPromptLabel()
+	case promptSetting, promptSettingEntry:
+		return m.settingPromptLabel()
+	}
+	return m.prompt.label()
+}
+
+// promptValue is what is typed, in room columns: dots for a secret, and an untouched
+// prefilled value selected, so the first key replaces it.
+func (m Model) promptValue(room int) string {
+	if m.prompt.fresh && !m.loginSecret() {
+		return lipgloss.NewStyle().Reverse(true).Render(m.prompt.input) + caretMark
+	}
+	typed := m.editorFor(fieldPrompt)
+	if m.loginSecret() {
+		typed = masked(typed) // a password or session: dots, never the text
+	}
+	return editedLine(typed, room, m.typingField() == fieldPrompt)
+}
+
+// promptLines are an inline prompt as the timeline pane draws it after its content: the
+// field, then what it may be.
+func (m Model) promptLines(width int) []string {
+	label := m.promptLabel()
+	out := []string{"", clamp(m.theme.Title.Render(label)+m.promptValue(width-ansi.StringWidth(label)), width)}
+	if m.prompt.kind == promptSetting || m.prompt.kind == promptSettingEntry {
+		out = append(out, m.theme.Muted.Render(drawLine(m.settingHelp(), lineSpec{width: width, sentence: true})))
+	}
+	return out
 }

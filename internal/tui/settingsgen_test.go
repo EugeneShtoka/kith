@@ -119,8 +119,8 @@ func TestAListIsEditedAnEntryAtATime(t *testing.T) {
 	m = typeIn(t, m, "mentions")
 	m = m.settingEntriesOpen("display.rooms.sort", "2") // name
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !m.editingSettingRow() || !m.prompt.fresh || m.prompt.input != "name" {
-		t.Fatalf("enter on an entry: editing %v fresh %v input %q", m.editingSettingRow(), m.prompt.fresh, m.prompt.input)
+	if m.prompt.kind != promptSettingEntry || !m.prompt.fresh || m.prompt.input != "name" {
+		t.Fatalf("enter on an entry: editing %v fresh %v input %q", (m.prompt.kind == promptSettingEntry), m.prompt.fresh, m.prompt.input)
 	}
 	m = typeIn(t, m, "")
 	if got := m.conf.base.Display.Rooms.Sort; !slices.Equal(got, []string{"recent", "unread", "mentions"}) {

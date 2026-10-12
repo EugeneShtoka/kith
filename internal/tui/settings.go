@@ -24,7 +24,7 @@ type settingKind int
 const (
 	settingToggle settingKind = iota // flips immediately
 	settingChoice                    // opens a picker of the allowed values
-	settingText                      // typed in place on its row
+	settingText                      // typed below its group's rows
 	settingNumber                    // typed in place, or stepped with + and -
 	settingList                      // a list of entries, edited one at a time
 	settingOpen                      // leads somewhere rather than holding a value
@@ -586,7 +586,7 @@ func (m Model) chooseSettingGroup(group string) (Model, tea.Cmd) {
 }
 
 // chooseSetting acts on a setting by kind. The group stays open: a toggle flips in
-// place, a choice returns to it, a typed value is typed on its row.
+// place, a choice returns to it, a typed value is typed below the rows.
 func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 	s, ok := m.setting(key)
 	if !ok {
@@ -613,7 +613,7 @@ func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// editSettingInPlace types a value on the setting's row, starting from text, selected
+// editSettingInPlace types a value for the setting below its group's rows, starting from text, selected
 // so the first key replaces it.
 func (m Model) editSettingInPlace(s setting, text string) Model {
 	m = m.settingsIn(s.group, s.key)
@@ -705,6 +705,19 @@ func (m Model) settingsBack() (Model, bool) {
 	default:
 		return m, false
 	}
+}
+
+// settingPromptLabel names what a settings prompt sets: the row's label, or its list's
+// for an entry.
+func (m Model) settingPromptLabel() string {
+	s, ok := m.setting(m.choosing.setting)
+	if !ok {
+		return m.prompt.label()
+	}
+	if m.prompt.kind == promptSettingEntry {
+		return s.label + " entry: "
+	}
+	return s.label + ": "
 }
 
 func (m Model) settingHelp() string {

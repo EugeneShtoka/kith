@@ -590,13 +590,13 @@ func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 		t.Errorf("the row reads %q after -, want 14", got)
 	}
 
-	// Enter: typed on the row, 14 selected; 8 replaces it.
+	// Enter: typed after the rows, 14 selected; 8 replaces it.
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !m.editingSettingRow() || !m.prompt.fresh || m.prompt.input != "14" {
-		t.Fatalf("enter on a number: editing %v, fresh %v, input %q; want 14 selected on its row", m.editingSettingRow(), m.prompt.fresh, m.prompt.input)
+	if m.prompt.kind != promptSetting || !m.prompt.fresh || m.prompt.input != "14" {
+		t.Fatalf("enter on a number: editing %v, fresh %v, input %q; want 14 selected on its row", (m.prompt.kind == promptSetting), m.prompt.fresh, m.prompt.input)
 	}
-	if view := stripStyles(m.View().Content); !strings.Contains(view, "Sender name width : 14") {
-		t.Errorf("the row does not show the value being typed:\n%s", view)
+	if view := stripStyles(m.View().Content); !strings.Contains(view, "Sender name width: 14") {
+		t.Errorf("the pane does not show the value being typed after its rows:\n%s", view)
 	}
 	m, _ = press(t, m, keyText("8"))
 	next, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -644,8 +644,8 @@ func TestARefusedValueStaysToBeFixed(t *testing.T) {
 	m, _ := opened(t, config.Notifications{Enabled: true})
 	m = toSetting(t, m, "width")
 	m = typeIn(t, m, "wide")
-	if !m.editingSettingRow() || m.prompt.input != "wide" || m.prompt.fresh {
-		t.Errorf("after a refused value: editing %v, input %q, fresh %v; want it kept, not selected", m.editingSettingRow(), m.prompt.input, m.prompt.fresh)
+	if m.prompt.kind != promptSetting || m.prompt.input != "wide" || m.prompt.fresh {
+		t.Errorf("after a refused value: editing %v, input %q, fresh %v; want it kept, not selected", (m.prompt.kind == promptSetting), m.prompt.input, m.prompt.fresh)
 	}
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.prompt.active() || m.picker.kind != pickerSetting {

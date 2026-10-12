@@ -101,8 +101,8 @@ func (m Model) showPerson(at string) Model {
 
 // choosePersonRow edits a field, or asks which to add.
 func (m Model) choosePersonRow(value string) (Model, tea.Cmd) {
-	m = m.closePicker()
 	if value == personAdd {
+		m = m.closePicker()
 		book := m.book()
 		return m, func() tea.Msg {
 			keys, err := book.Keys()
@@ -150,7 +150,7 @@ func (m Model) handlePersonKeys(msg personKeysMsg) (Model, tea.Cmd) {
 
 // choosePersonKey asks the chosen field's value, or a new field's name.
 func (m Model) choosePersonKey(value string) (Model, tea.Cmd) {
-	m = m.closePicker()
+	m = m.showPerson("") // the card stays behind the field's prompt
 	if value == personNewKey {
 		return m.openPrompt(promptPersonKey), nil
 	}
@@ -168,7 +168,7 @@ func (m Model) submitPersonKey(input string) (Model, tea.Cmd) {
 		return m.showPerson("").say("a field's name cannot hold : or #, nor start with -"), nil
 	}
 	m.aimedAt.person.key, m.aimedAt.person.list = key, false
-	return m.openPrompt(promptPersonValue), nil
+	return m.showPerson("").openPrompt(promptPersonValue), nil
 }
 
 // submitPersonValue writes the field: commas make a list, empty removes it. A person with no

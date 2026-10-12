@@ -49,6 +49,9 @@ type promptState struct {
 	// fresh marks an untouched prefilled value: drawn selected, replaced by the first typed text
 	// and cleared by the first deletion; caret motion keeps it.
 	fresh bool
+	// hosted marks a prompt opened over a list in the timeline pane (settings, a card, a
+	// picker): it is drawn after the list's rows, and the list closes when it is submitted.
+	hosted bool
 }
 
 func (p promptState) active() bool { return p.kind != promptNone }
@@ -128,9 +131,19 @@ func (m Model) openPrompt(kind promptKind) Model {
 
 // openPromptWith opens a prompt prefilled with text, the caret at its end.
 func (m Model) openPromptWith(kind promptKind, text string) Model {
-	m.prompt = promptState{kind: kind, input: text}
+	hosted := m.picker.active() && !m.picker.spec.grid
+	m.prompt = promptState{kind: kind, input: text, hosted: hosted}
 	m.compose.caret = caret{owner: fieldPrompt, at: len(text)}
 	return m
+}
+
+// submittedPrompt closes a submitted prompt and the list it was asked over; the handler
+// reopens what should follow.
+func (m Model) submittedPrompt() Model {
+	if m.prompt.hosted {
+		m = m.closePicker()
+	}
+	return m.closePrompt()
 }
 
 func (m Model) closePrompt() Model {
@@ -209,7 +222,7 @@ func (m Model) promptChanged(typed string) (Model, tea.Cmd) {
 // submitPrompt acts on what was typed and closes the prompt.
 func (m Model) submitPrompt() (Model, tea.Cmd) {
 	kind, input := m.prompt.kind, m.prompt.input
-	m = m.closePrompt()
+	m = m.submittedPrompt()
 	switch kind {
 	case promptCommand:
 		return m.runCommandLine(input)
@@ -343,4 +356,14 @@ func (m Model) cancelPrompt() (Model, tea.Cmd) {
 		return m.cancelFormPrompt(kind), nil
 	}
 	return m, nil
+}
+
+// promptInline reports whether the open prompt is drawn after the content that took over
+// the timeline pane (a list, the sign-in) rather than in the status line, which then shows
+// only its keys. Over the timeline itself a prompt stays in the status line.
+func (m Model) promptInline() bool {
+	if !m.prompt.active() {
+		return false
+	}
+	return (m.prompt.hosted && m.picker.active()) || (m.prompt.kind == promptLogin && m.login.stage != loginOff)
 }
