@@ -146,14 +146,21 @@ func (r *Remote) StarredIn(ctx context.Context, roomID domain.RoomID) ([]domain.
 	return out, nil
 }
 
-func (r *Remote) SpamRooms(ctx context.Context) ([]domain.SpamVerdict, error) {
-	resp, err := call(ctx, "list spam rooms", r.c.SpamRooms, &v1.SpamRoomsRequest{})
-	return pc.ProtoToSpamList(resp.GetRooms()), err
+// TagVerdicts is every move and release, from the daemon's cache.
+func (r *Remote) TagVerdicts(ctx context.Context) ([]domain.TagVerdict, error) {
+	resp, err := call(ctx, "list tag verdicts", r.c.TagVerdicts, &v1.TagVerdictsRequest{})
+	return pc.ProtoToVerdicts(resp.GetVerdicts()), err
 }
 
-func (r *Remote) MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error {
-	_, err := call(ctx, "mark spam", r.c.MarkSpam,
-		&v1.MarkSpamRequest{Verdict: pc.SpamToProto([]domain.SpamVerdict{verdict})[0]})
+// MarkTag records a move or a release on one room and tag.
+func (r *Remote) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
+	_, err := call(ctx, "mark tag", r.c.MarkTag, &v1.MarkTagRequest{Verdict: pc.VerdictToProto(verdict)})
+	return err
+}
+
+// RetagVerdicts moves one tag's verdicts to its new name, or drops them.
+func (r *Remote) RetagVerdicts(ctx context.Context, from, to string) error {
+	_, err := call(ctx, "move tag verdicts", r.c.RetagVerdicts, &v1.RetagVerdictsRequest{From: from, To: to})
 	return err
 }
 
@@ -675,17 +682,17 @@ func (r *Remote) DND(ctx context.Context) (notify.Temps, error) {
 	return pc.TempRulesFromProto(resp.GetRules()), err
 }
 
-// RescanSpam judges cached messages since since by the spam filters; with apply it
+// RescanFilters judges cached messages since since by the filters; with apply it
 // moves the rooms (only those in rooms, when given).
-func (r *Remote) RescanSpam(ctx context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.SpamCandidate, error) {
-	req := &v1.RescanSpamRequest{Apply: apply}
+func (r *Remote) RescanFilters(ctx context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.MoveCandidate, error) {
+	req := &v1.RescanFiltersRequest{Apply: apply}
 	if !since.IsZero() {
 		req.SinceUnixMs = since.UnixMilli()
 	}
 	for _, id := range rooms {
 		req.RoomIds = append(req.RoomIds, string(id))
 	}
-	resp, err := call(ctx, "rescan spam", r.c.RescanSpam, req)
+	resp, err := call(ctx, "rescan filters", r.c.RescanFilters, req)
 	return pc.ProtoToCandidates(resp.GetRooms()), err
 }
 

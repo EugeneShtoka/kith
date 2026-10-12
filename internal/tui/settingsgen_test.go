@@ -75,11 +75,11 @@ func TestGeneratedRowsSetTheirProperty(t *testing.T) {
 	if m.conf.base.Display.FPS != 3 {
 		t.Errorf("fps after three + = %d", m.conf.base.Display.FPS)
 	}
-	m = m.settingsIn("spam", "spam.ratio")
+	m = m.settingsIn("media", "display.media.audio.speed")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = typeIn(t, m, "0.4")
-	if m.conf.base.Spam.Ratio != 0.4 {
-		t.Errorf("spam ratio = %v, want 0.4", m.conf.base.Spam.Ratio)
+	m = typeIn(t, m, "1.5")
+	if m.conf.base.Display.Media.Audio.Speed != 1.5 {
+		t.Errorf("audio speed = %v, want 1.5", m.conf.base.Display.Media.Audio.Speed)
 	}
 	m = m.settingsIn("look", "display.theme.accent")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -88,8 +88,8 @@ func TestGeneratedRowsSetTheirProperty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.Display.FPS != 3 || reloaded.Spam.Ratio != 0.4 || reloaded.Display.Theme.Accent != "#ff8800" {
-		t.Errorf("saved fps %d ratio %v accent %q", reloaded.Display.FPS, reloaded.Spam.Ratio, reloaded.Display.Theme.Accent)
+	if reloaded.Display.FPS != 3 || reloaded.Display.Media.Audio.Speed != 1.5 || reloaded.Display.Theme.Accent != "#ff8800" {
+		t.Errorf("saved fps %d speed %v accent %q", reloaded.Display.FPS, reloaded.Display.Media.Audio.Speed, reloaded.Display.Theme.Accent)
 	}
 	if item, _ := m.picker.selected(); m.picker.kind != pickerSetting || item.value != "display.theme.accent" {
 		t.Errorf("after saving: picker %v on %q, want the group on the row", m.picker.kind, item.value)

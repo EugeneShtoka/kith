@@ -13,45 +13,64 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// Adding a spam filter asks for each part in turn: its name, the words or the sender it
-// catches, where it watches and what it moves a room by. Nothing is written until the
-// last step, so a half-made filter is never refused and lost.
+// Adding a filter asks for each part in turn: its name, the tag it moves rooms into, the
+// words or the sender it catches, where it watches and what it moves a room by. Nothing
+// is written until the last step, so a half-made filter is never refused and lost.
 
-const spamFilterTable = recordPrefix + "spam.filter"
+const filterTable = recordPrefix + "filter"
 
-// spamMoveRows are the moves a filter's catch can make, in the order the rules run.
-var spamMoveRows = []struct{ value, label, detail string }{
-	{config.SpamMoveAlways, "Always", "any message it catches"},
-	{config.SpamMoveFirstMessage, "First message", "the room's first message"},
-	{config.SpamMoveDirect, "Direct message", "a DM you never wrote in"},
-	{config.SpamMoveRatio, "Mostly spam", "most of what the room says, over [spam] window"},
+// filterMoveRows are the moves a filter's catch can make, in the order they are tried.
+var filterMoveRows = []struct{ value, label, detail string }{
+	{config.FilterMoveAlways, "Always", "any message it catches"},
+	{config.FilterMoveFirstMessage, "First message", "the room's first message"},
+	{config.FilterMoveDirect, "Direct message", "a DM you never wrote in"},
+	{config.FilterMoveRatio, "Mostly", "most of what the room says, over the filter's window"},
 }
 
-// startSpamFilter begins a new filter with its name.
-func (m Model) startSpamFilter() (Model, tea.Cmd) {
-	m.choosing.spamFilter = config.SpamFilter{}
+// startFilter begins a new filter with its name.
+func (m Model) startFilter() (Model, tea.Cmd) {
+	m.choosing.filter = config.Filter{}
 	return m.closePicker().openPrompt(promptFilterName), nil
 }
 
 func (m Model) submitFilterName(input string) (Model, tea.Cmd) {
 	name := strings.TrimSpace(input)
 	if name == "" {
-		return m.backToSpamFilters(), nil
+		return m.backToFilters(), nil
 	}
-	taken := slices.ContainsFunc(m.conf.base.Spam.Filters, func(f config.SpamFilter) bool {
+	taken := slices.ContainsFunc(m.conf.base.Filters, func(f config.Filter) bool {
 		return strings.EqualFold(strings.TrimSpace(f.Name), name)
 	})
 	if taken {
 		return m.openPromptWith(promptFilterName, name).say("a filter is already called " + quoted(name)), nil
 	}
-	m.choosing.spamFilter.Name = name
-	return m.openPrompt(promptFilterWords), nil
+	m.choosing.filter.Name = name
+	if m.choosing.filter.Tag != "" {
+		return m.openPrompt(promptFilterWords), nil
+	}
+	return m.openFilterTags(), nil
+}
+
+// openFilterTags lists the tags a filter can move rooms into.
+func (m Model) openFilterTags() Model {
+	items := make([]pickerItem, 0, len(m.conf.base.Tags))
+	for i := range m.conf.base.Tags {
+		name := m.conf.base.Tags[i].Name
+		items = append(items, pickerItem{label: isolate(name), value: name, match: name})
+	}
+	m.picker = newPicker(pickerFilterTag, items)
+	return m
+}
+
+func (m Model) chooseFilterTag(tag string) (Model, tea.Cmd) {
+	m.choosing.filter.Tag = tag
+	return m.closePicker().openPrompt(promptFilterWords), nil
 }
 
 // submitFilterWords takes space- or comma-separated globs; none asks for a sender.
 func (m Model) submitFilterWords(input string) (Model, tea.Cmd) {
 	words := strings.FieldsFunc(input, func(r rune) bool { return r == ',' || r == ' ' })
-	m.choosing.spamFilter.Words = words
+	m.choosing.filter.Words = words
 	if len(words) == 0 {
 		return m.openPrompt(promptFilterFrom), nil
 	}
@@ -60,10 +79,10 @@ func (m Model) submitFilterWords(input string) (Model, tea.Cmd) {
 
 func (m Model) submitFilterFrom(input string) (Model, tea.Cmd) {
 	from := strings.TrimSpace(input)
-	if from == "" && len(m.choosing.spamFilter.Words) == 0 {
+	if from == "" && len(m.choosing.filter.Words) == 0 {
 		return m.openPrompt(promptFilterFrom).say("a filter needs words or a sender — with neither it would catch everything"), nil
 	}
-	m.choosing.spamFilter.From = from
+	m.choosing.filter.From = from
 	return m.openFilterPlaces(), nil
 }
 
@@ -84,17 +103,17 @@ func (m Model) openFilterPlaces() Model {
 }
 
 func (m Model) acceptFilterPlaces(entries []string) (Model, tea.Cmd) {
-	m.choosing.spamFilter.In = entries
+	m.choosing.filter.In = entries
 	return m.openFilterMoves(), nil
 }
 
 // openFilterMoves lists the moves, the default ones ticked.
 func (m Model) openFilterMoves() Model {
-	items := make([]pickerItem, 0, len(spamMoveRows))
+	items := make([]pickerItem, 0, len(filterMoveRows))
 	checked := map[string]bool{}
-	for _, row := range spamMoveRows {
+	for _, row := range filterMoveRows {
 		items = append(items, pickerItem{label: row.label, detail: row.detail, value: row.value})
-		checked[row.value] = slices.Contains(config.SpamMovesDefault, row.value)
+		checked[row.value] = slices.Contains(config.FilterMovesDefault, row.value)
 	}
 	m.picker = newCheckedPicker(pickerFilterMoves, items, checked)
 	return m
@@ -105,27 +124,27 @@ func (m Model) acceptFilterMoves(moves []string) (Model, tea.Cmd) {
 	if len(moves) == 0 {
 		return m.say("tick at least one move — a filter that moves nothing does nothing"), nil
 	}
-	f := m.choosing.spamFilter
-	if !slices.Equal(moves, config.SpamMovesDefault) {
+	f := m.choosing.filter
+	if !slices.Equal(moves, config.FilterMovesDefault) {
 		f.Moves = moves
 	}
 	cfg := m.conf.base.Clone()
-	cfg.Spam.Filters = append(cfg.Spam.Filters, f)
-	if _, err := setup.SpamRules(cfg.Spam); err != nil {
+	cfg.Filters = append(cfg.Filters, f)
+	if _, err := setup.Filters(cfg); err != nil {
 		return m.sayErr("this filter", err), nil
 	}
 	if err := setup.PlaceEntries(cfg); err != nil {
 		return m.sayErr("this filter", err), nil
 	}
 	m = m.closePicker()
-	m.choosing.spamFilter = config.SpamFilter{}
-	next, cmd := m.applyConfig(cfg, fmt.Sprintf("added the spam filter %s — :rescan judges what is already cached", quoted(f.Name)))
-	at := spamFilterTable + "#" + strconv.Itoa(len(cfg.Spam.Filters)-1)
+	m.choosing.filter = config.Filter{}
+	next, cmd := m.applyConfig(cfg, fmt.Sprintf("added the filter %s — :rescan judges what is already cached", quoted(f.Name)))
+	at := filterTable + "#" + strconv.Itoa(len(cfg.Filters)-1)
 	return next.settingsIn(at, ""), cmd
 }
 
-// backToSpamFilters drops the draft and returns to the filter list, on its add row.
-func (m Model) backToSpamFilters() Model {
-	m.choosing.spamFilter = config.SpamFilter{}
-	return m.closePrompt().settingsIn(spamFilterTable, spamFilterTable+recordAdd)
+// backToFilters drops the draft and returns to the filter list, on its add row.
+func (m Model) backToFilters() Model {
+	m.choosing.filter = config.Filter{}
+	return m.closePrompt().settingsIn(filterTable, filterTable+recordAdd)
 }

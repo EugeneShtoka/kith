@@ -93,10 +93,10 @@ You rarely need to open the file. Inside kith:
   - A list (priority, the rail's order, include lists) opens its entries: `enter`
     edits one on its row (emptied, it is removed), `x` removes the entry under the
     cursor, the last row adds one, and `K`/`J` move the entry under the cursor.
-  - A list of records (read rules, media rules, people, names you gave, spam filters,
+  - A list of records (read rules, media rules, people, names you gave, filters,
     scripts, accounts, jump shortcuts) opens its records, each one's fields set as
     above; *Add one* is typed as its first field, *Remove this one* takes it out. A
-    spam filter's *Add one* asks for each part in turn (name, words or a sender,
+    filter's *Add one* asks for each part in turn (name, tag, words or a sender,
     where it watches, what it moves) and writes the filter only at the end.
   - **Names** has a first-names-only switch for every space and tag, and the
     [phonebook](phonebook.md#a-field-beside-names) field shown beside names there. **Keys** has
@@ -168,7 +168,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[notifications]` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
 | `[clipboard]` | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
 | `[codes]` | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
-| `[spam]` | The Spam group: its room lists, the rules that move rooms there, and `[[spam.filter]]`. | [spam.md](spam.md) |
+| `[[filter]]` | Words or a sender that move rooms into a tag (the starter's Spam, or any other). | [filters.md](filters.md) |
 | `[composer]` | External editor (`alt+e`), temp-file suffix, Markdown on send. | [composer.md](composer.md) |
 | `[spell]` | Spell-checking engine, dictionaries, rare-word detection, check before sending. | [composer.md](composer.md) |
 | `[complete]`, `[complete.model]` | Word completion and ghost text, and the local llama.cpp model behind it. | [composer.md](composer.md) |
@@ -220,7 +220,7 @@ target` takes `room:<room ID>` or a rail row.
 - `[[display.name]]` names its `target`: a room ID, `room:<name>`, `space:<name>` or
   `thread:<root event ID>` (a tag is named in its `[[tag]]`);
 - `[[display.identity]]` lists `ids` (user IDs, on any network);
-- `[[spam.filter]]` matches `words` and `from`.
+- `[[filter]]` matches `words` and `from`.
 
 When several rules match, the narrower one wins: a person in a room beats the room,
 which beats the person anywhere, which beats a space.

@@ -19,7 +19,7 @@ func TestTagPlacesMustNameATag(t *testing.T) {
 		"agent read":          func(c *config.Config) { c.Agent.Read.Rooms = []string{"tag:Nope"} },
 		"codes":               func(c *config.Config) { c.Codes.Include = []string{"tag:Nope"} },
 		"a spam filter's in": func(c *config.Config) {
-			c.Spam.Filters = []config.SpamFilter{{Name: "x", Words: []string{"w"}, In: []string{"tag:Nope"}}}
+			c.Filters = []config.Filter{{Name: "x", Tag: "Family", Words: []string{"w"}, In: []string{"tag:Nope"}}}
 		},
 	} {
 		cfg := base

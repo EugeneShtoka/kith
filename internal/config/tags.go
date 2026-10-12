@@ -13,8 +13,9 @@ type Tag struct {
 	Excluded []string `toml:"excluded"`
 	Hidden   bool     `toml:"hidden"`
 
-	// CountsUnread nil is true.
+	// CountsUnread and Notifies nil are true.
 	CountsUnread *bool `toml:"counts_unread"`
+	Notifies     *bool `toml:"notifies"`
 	// Exclusive is where its rooms leave: ExclusiveTags, ExclusiveSpaces, ExclusiveOrigin.
 	Exclusive     []string `toml:"exclusive"`
 	Sticky        bool     `toml:"sticky"`
@@ -48,3 +49,6 @@ func (t Tag) WithExclusive(what string, on bool) []string {
 
 // Counts reports counts_unread, which is true unless set false.
 func (t Tag) Counts() bool { return enabled(t.CountsUnread) }
+
+// Notifying reports notifies, which is true unless set false.
+func (t Tag) Notifying() bool { return enabled(t.Notifies) }

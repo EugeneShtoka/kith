@@ -56,19 +56,19 @@ type Notifications struct {
 	selves func() []string
 	// people reads the directory; nil knows nobody.
 	people func(context.Context) (domain.Directory, error)
-	// spam has its own lock and outlives reloads: a caught room stays caught.
-	spam *spamWatch
+	// filters has its own lock and outlives reloads: a moved room stays moved.
+	filters *filterWatch
 	// log hears what Deliver cannot return; nil is silent.
 	log *slog.Logger
 }
 
 // UseSelves sets every ID that is this person on any network, including bridge
 // puppets; a function because accounts may log in later. Their messages never
-// notify and make a room a conversation for the spam rules. Call before Run.
+// notify and make a room a conversation for the filters. Call before Run.
 func (n *Notifications) UseSelves(selves func() []string) {
 	n.selves = selves
-	if n.spam != nil {
-		n.spam.mine = n.isMine
+	if n.filters != nil {
+		n.filters.mine = n.isMine
 	}
 }
 
@@ -162,8 +162,8 @@ func (n *Notifications) UseLogger(log *slog.Logger) {
 	}
 	n.log = log
 	n.scope.log = log
-	if n.spam != nil {
-		n.spam.log = log
+	if n.filters != nil {
+		n.filters.log = log
 	}
 }
 
@@ -199,9 +199,10 @@ func NewNotifications(cfg config.Config, src scopeSource, sinks Sinks) (*Notific
 		scope: newScopeIndex(src, cfg.Display.Names, homeOrderOf(cfg)),
 		sinks: sinks,
 	}
-	// A source without spam storage leaves the spam feature off.
-	if store, ok := src.(spamStore); ok {
-		n.spam = newSpamWatch(store)
+	// A source with nowhere to keep moves leaves the filters off.
+	if store, ok := src.(filterStore); ok {
+		n.filters = newFilterWatch(store)
+		n.scope.caught = n.filters.caught
 	}
 	if err := n.Reload(cfg); err != nil {
 		return nil, err
@@ -228,7 +229,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	spam, err := setup.SpamRules(cfg.Spam)
+	filters, err := setup.Filters(cfg)
 	if err != nil {
 		return err
 	}
@@ -238,16 +239,15 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	}
 	notifier := n.sinks(cfg.Notifications)
 
-	// A room caught as spam stays caught through a reload.
-	if n.spam != nil {
-		n.spam.reload(spam, setup.SpamPlaces(cfg.Spam))
-	}
-
 	n.scope.SetAliases(cfg.Display.Names)
 	n.scope.SetHomeOrder(homeOrderOf(cfg))
 	// Already validated by Reload.
 	tags, _, _ := setup.Tags(cfg)
 	n.scope.SetTags(tags)
+	// A moved room stays moved through a reload.
+	if n.filters != nil {
+		n.filters.reload(filters, tags)
+	}
 	archives, _ := setup.Archives(cfg, tags)
 	n.scope.SetArchives(archives)
 	n.mu.Lock()
@@ -263,18 +263,18 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	return nil
 }
 
-// RescanSpam judges cached messages since since, as if they arrived now, and returns
-// the rooms that would move into Spam. With apply it moves them, only those in rooms
+// RescanFilters judges cached messages since since, as if they arrived now, and returns
+// the rooms that would move into a tag. With apply it moves them, only those in rooms
 // when that is not empty, and returns the ones it moved.
-func (n *Notifications) RescanSpam(ctx context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.SpamCandidate, error) {
-	if n.spam == nil {
+func (n *Notifications) RescanFilters(ctx context.Context, since time.Time, apply bool, rooms []domain.RoomID) ([]domain.MoveCandidate, error) {
+	if n.filters == nil {
 		return nil, nil
 	}
 	all, err := n.scope.All(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return n.spam.rescan(ctx, all, since, apply, rooms)
+	return n.filters.rescan(ctx, all, since, apply, rooms)
 }
 
 // SetDND puts a temporary rule in force, replacing one naming the same thing.
@@ -338,7 +338,6 @@ func (n *Notifications) MessagesKept(roomID domain.RoomID) int {
 // must be bounded; a wedged notification daemon once held SIGTERM.
 func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify.Notification, bool) {
 	now := time.Now()
-	scope, _ := n.scope.Scope(ctx, msg.RoomID, msg.Sender, msg.ThreadRoot)
 	mine := n.isMine(msg.Sender)
 
 	n.captureCode(ctx, msg, mine)
@@ -347,11 +346,15 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 		return notify.Notification{}, false
 	}
 
-	// A spam room never notifies. Asked after code capture; it promotes the room as a
-	// side effect.
-	if n.spam != nil && !mine && n.spam.spam(ctx, msg, n.scope.Facts(ctx, msg.RoomID)) {
+	// The filters run first, so the scope sees the tags they moved the room into.
+	if n.filters != nil && !mine {
+		n.filters.watch(ctx, msg, n.scope.Facts(ctx, msg.RoomID))
+	}
+	// A room a tag with notifies = false holds never notifies. Asked after code capture.
+	if n.scope.Mutes(n.scope.Facts(ctx, msg.RoomID)) {
 		return notify.Notification{}, false
 	}
+	scope, _ := n.scope.Scope(ctx, msg.RoomID, msg.Sender, msg.ThreadRoot)
 
 	alert, ok := n.decide(ctx, msg, scope, mine, now)
 	if !ok {

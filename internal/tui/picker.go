@@ -30,8 +30,8 @@ type pickerWalk struct {
 	speedScopes []ruleTarget
 	// tag is where the tag editor is (tageditor.go).
 	tag tagEditing
-	// spamFilter is the spam filter being added, written at its last step (spamfilteradd.go).
-	spamFilter config.SpamFilter
+	// filter is the filter being added, written at its last step (filteradd.go).
+	filter config.Filter
 }
 
 // pickerMode is whether keystrokes move the cursor or narrow the list.
@@ -86,8 +86,9 @@ const (
 	pickerImportFolders
 	pickerImportChoice
 	pickerCards        // :people, every card in the phonebook; see cards.go
-	pickerSpamRescan   // rooms a rescan would move into Spam; see rescan.go
-	pickerFilterPlaces // where a new spam filter watches; see spamfilteradd.go
+	pickerRescan       // the moves a rescan would make; see rescan.go
+	pickerFilterTag    // the tag a new filter moves rooms into; see filteradd.go
+	pickerFilterPlaces // where it watches
 	pickerFilterMoves  // what its catch moves a room by
 )
 
@@ -143,7 +144,8 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerImportFolders:   {}, // titled with the account
 	pickerImportChoice:    {}, // titled with the folder
 	pickerCards:           {title: "People in the phonebook"},
-	pickerSpamRescan:      {modal: true, multi: true}, // titled with the count
+	pickerRescan:          {modal: true, multi: true}, // titled with the count
+	pickerFilterTag:       {title: "Move rooms into which tag?"},
 	pickerFilterPlaces:    {title: "Watch where? None ticked is everywhere", modal: true, multi: true},
 	pickerFilterMoves:     {title: "Move a room into Spam when it catches", modal: true, multi: true},
 }
@@ -479,7 +481,7 @@ func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
 		return m.acceptFrequencyOffer(values)
 	case pickerCompletionModel:
 		return m.acceptModelOffer(values)
-	case pickerSpamRescan:
+	case pickerRescan:
 		return m.applyRescan(values)
 	case pickerFilterPlaces:
 		return m.acceptFilterPlaces(values)
@@ -556,6 +558,8 @@ func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
 		return m.chooseTag(item.value)
 	case pickerTagEdit:
 		return m.chooseTagRow(item.value)
+	case pickerFilterTag:
+		return m.chooseFilterTag(item.value)
 	case pickerTagEntries:
 		return m.chooseTagEntry(item.value)
 	case pickerLoginNetwork, pickerLoginAccount, pickerImportAccount, pickerImportFolders, pickerImportChoice:

@@ -83,10 +83,15 @@ type Rooms interface {
 	StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error
 	// StarredIn returns a room's starred messages, newest star first (cache read).
 	StarredIn(ctx context.Context, roomID domain.RoomID) ([]domain.EventID, error)
-	// SpamRooms returns the rooms a spam filter caught (cache read).
-	SpamRooms(ctx context.Context) ([]domain.SpamVerdict, error)
-	// MarkSpam records or clears one room's verdict in room account data.
-	MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error
+	// TagVerdicts returns every room a filter moved into a tag, and every release
+	// (cache read).
+	TagVerdicts(ctx context.Context) ([]domain.TagVerdict, error)
+	// MarkTag records a filter's move or a release on one room and tag; a move never
+	// overwrites a release (domain.ErrReleased).
+	MarkTag(ctx context.Context, verdict domain.TagVerdict) error
+	// RetagVerdicts moves every verdict on tag from to tag to (a renamed tag), or drops
+	// them when to is empty (a deleted one).
+	RetagVerdicts(ctx context.Context, from, to string) error
 	// LastMessages is each room's latest cached message time. Rooms with no cached
 	// history are absent (unknown), not zero.
 	LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, error)

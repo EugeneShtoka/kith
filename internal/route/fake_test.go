@@ -134,9 +134,11 @@ func (f *fake) StarMessage(_ context.Context, room domain.RoomID, _ domain.Event
 	return f.touch(room)
 }
 
-func (f *fake) MarkSpam(_ context.Context, verdict domain.SpamVerdict) error {
+func (f *fake) MarkTag(_ context.Context, verdict domain.TagVerdict) error {
 	return f.touch(verdict.Room)
 }
+
+func (f *fake) RetagVerdicts(context.Context, string, string) error { return nil }
 
 func (f *fake) CanonicalParent(_ context.Context, room domain.RoomID) (domain.SpaceID, error) {
 	return "", f.touch(room)

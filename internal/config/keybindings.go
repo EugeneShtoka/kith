@@ -32,6 +32,26 @@ func (j Jumps) Validate() error {
 	return nil
 }
 
+// TagKey is one chord and the tag it puts the room in, or takes it out of.
+type TagKey struct {
+	Chord string `toml:"chord"`
+	Tag   string `toml:"tag"`
+}
+
+// TagKeys is the list of tag bindings.
+type TagKeys []TagKey
+
+// Map is the bindings as the keymap wants them: chord to tag name.
+func (t TagKeys) Map() map[string]string {
+	out := make(map[string]string, len(t))
+	for _, entry := range t {
+		if entry.Chord != "" && entry.Tag != "" {
+			out[entry.Chord] = entry.Tag
+		}
+	}
+	return out
+}
+
 // Map is the bindings as the keymap wants them.
 func (j Jumps) Map() map[string]string {
 	out := make(map[string]string, len(j))
@@ -61,6 +81,7 @@ type Keys struct {
 	JumpBack    string         `toml:"jump_back"`
 	JumpForward string         `toml:"jump_forward"`
 	Jump        Jumps          `toml:"jump"`
+	Tag         TagKeys        `toml:"tag"`
 	Nav         NavKeys        `toml:"nav"`
 	Rail        RailKeys       `toml:"rail"`
 	Rooms       RoomsKeys      `toml:"rooms"`
@@ -117,7 +138,6 @@ type RoomsKeys struct {
 	Invite       string `toml:"invite"`
 	Spaces       string `toml:"spaces"`
 	MarkUnread   string `toml:"mark_unread"`
-	Spam         string `toml:"spam"`
 	Archived     string `toml:"archived"`
 	RenameThread string `toml:"rename_thread"`
 	ListThreads  string `toml:"list_threads"`
@@ -335,7 +355,11 @@ type VerifyKeys struct {
 }
 
 // DefaultKeys are the built-in bindings, from keySections.
-func DefaultKeys() Keys { return defaultKeys }
+func DefaultKeys() Keys {
+	k := defaultKeys
+	k.Tag = slices.Clone(k.Tag)
+	return k
+}
 
 var defaultKeys = func() Keys {
 	var k Keys
@@ -349,6 +373,7 @@ var defaultKeys = func() Keys {
 			v.FieldByIndex(index).SetString(b.def)
 		}
 	}
+	k.Tag = starter().Keys.Tag // the starter's tag keys, beside its tags
 	return k
 }()
 
@@ -399,7 +424,11 @@ var keyDocs = func() map[string]string {
 
 // FillDefaults sets every unset binding to its built-in value.
 func (k *Keys) FillDefaults() {
-	fillStringDefaults(reflect.ValueOf(k).Elem(), reflect.ValueOf(DefaultKeys()))
+	defaults := DefaultKeys()
+	fillStringDefaults(reflect.ValueOf(k).Elem(), reflect.ValueOf(defaults))
+	if k.Tag == nil {
+		k.Tag = defaults.Tag // unset takes the starter's; decode keeps an explicit []
+	}
 }
 
 // fillStringDefaults recursively copies defaults into empty string fields of target.

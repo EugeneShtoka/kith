@@ -35,8 +35,9 @@ func (Nop) MarkRoomUnread(context.Context, domain.RoomID, bool) error           
 func (Nop) SetRoomArchived(context.Context, domain.RoomID, bool) error                 { return nil }
 func (Nop) StarMessage(context.Context, domain.RoomID, domain.EventID, bool) error     { return nil }
 func (Nop) StarredIn(context.Context, domain.RoomID) ([]domain.EventID, error)         { return nil, nil }
-func (Nop) SpamRooms(context.Context) ([]domain.SpamVerdict, error)                    { return nil, nil }
-func (Nop) MarkSpam(context.Context, domain.SpamVerdict) error                         { return nil }
+func (Nop) TagVerdicts(context.Context) ([]domain.TagVerdict, error)                   { return nil, nil }
+func (Nop) MarkTag(context.Context, domain.TagVerdict) error                           { return nil }
+func (Nop) RetagVerdicts(context.Context, string, string) error                        { return nil }
 func (Nop) AddToSpace(_ context.Context, _ domain.SpaceID, _ domain.RoomID) error      { return nil }
 func (Nop) CreateRoom(context.Context, domain.NewRoom) (domain.RoomID, error)          { return "", nil }
 func (Nop) InviteUser(context.Context, domain.RoomID, string) error                    { return nil }

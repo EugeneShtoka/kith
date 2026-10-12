@@ -40,7 +40,6 @@ type Config struct {
 	Keys           Keys          `toml:"keys"`
 	Clipboard      Clipboard     `toml:"clipboard"`
 	Codes          Codes         `toml:"codes"`
-	Spam           Spam          `toml:"spam"`
 	Composer       Composer      `toml:"composer"`
 	Spell          Spell         `toml:"spell"`
 	Complete       Complete      `toml:"complete"`
@@ -56,6 +55,7 @@ type Config struct {
 	Storage        Storage       `toml:"storage"`
 	Profiles       []Profile     `toml:"profile"`
 	Tags           []Tag         `toml:"tag"`
+	Filters        []Filter      `toml:"filter"`
 }
 
 // Log is `[log]`: how much each binary writes to its log, and where. Level empty is
@@ -134,7 +134,10 @@ func starter() Config {
 	if _, err := toml.Decode(defaultConfigTOML, &cfg); err != nil {
 		panic("config: the starter config does not decode: " + err.Error()) // a build that cannot happen
 	}
-	return Config{Tags: cfg.Tags, Display: Display{Rail: Rail{Order: cfg.Display.Rail.Order}}}
+	return Config{
+		Tags: cfg.Tags, Display: Display{Rail: Rail{Order: cfg.Display.Rail.Order}},
+		Keys: Keys{Tag: cfg.Keys.Tag},
+	}
 }
 
 // Decode parses config text as Load does; the daemon uses it to check a client's config
@@ -163,6 +166,10 @@ func decode(source, text string) (Config, error) {
 		cfg.Tags = starter().Tags
 	case len(cfg.Tags) == 0:
 		cfg.Tags = nil
+	}
+	// Absent tag keys take the starter's too; `[keys] tag = []` means none.
+	if !meta.IsDefined("keys", "tag") {
+		cfg.Keys.Tag = DefaultKeys().Tag
 	}
 	switch {
 	case !meta.IsDefined("display", "rail", "order"):

@@ -1,0 +1,213 @@
+package domain
+
+import (
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+)
+
+// A filter catches messages and moves their room into a tag. What it moved is a
+// verdict, kept per room and tag; a person taking the room out releases it, and no
+// filter moves a released room back into that tag.
+
+// MoveRule is what moved a room into a tag.
+type MoveRule int
+
+const (
+	// MoveNone is the zero value: no filter moved the room.
+	MoveNone MoveRule = iota
+	// MoveAlways: a filter that moves on any catch caught a message.
+	MoveAlways
+	// MoveFirstMessage: the room's first message was caught.
+	MoveFirstMessage
+	// MoveDirect: a direct message you never wrote in was caught.
+	MoveDirect
+	// MoveMostly: most messages over the filter's window were caught.
+	MoveMostly
+)
+
+// Reason is the rule in words, for `/why`.
+func (r MoveRule) Reason(filter string) string {
+	named := ""
+	if filter != "" {
+		named = fmt.Sprintf(" (%s)", filter)
+	}
+	switch r {
+	case MoveAlways:
+		return "a message in it was caught by a filter" + named
+	case MoveFirstMessage:
+		return "the first message in it was caught by a filter" + named
+	case MoveDirect:
+		return "it is a direct message and its message was caught by a filter" + named
+	case MoveMostly:
+		return "most of what is said in it is caught by a filter" + named
+	case MoveNone:
+		return ""
+	}
+	return ""
+}
+
+// TagVerdict is one room's move into one tag, or its release from it.
+type TagVerdict struct {
+	Room   RoomID
+	Tag    string
+	Rule   MoveRule
+	Filter string
+	At     time.Time
+	// Released means a person took the room out; no filter may put it back.
+	Released bool
+}
+
+// In reports whether this verdict puts the room in its tag; a release never does.
+func (v TagVerdict) In() bool { return v.Rule != MoveNone && !v.Released }
+
+// SameTag reports whether two tag names are one tag.
+func SameTag(a, b string) bool {
+	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
+}
+
+// ErrReleased refuses a filter's verdict for a room a person released from that tag.
+var ErrReleased = errors.New("the room was taken out of that tag")
+
+// Filter catches messages and moves their room into Tag.
+type Filter struct {
+	Name  string  // reported when it catches something
+	Tag   string  // the tag it moves rooms into
+	Words Tracked // with Tracked's glob widths
+	From  string  // optional sender ID
+	// In is the places it watches, in the place vocabulary; empty is everywhere.
+	In    []string
+	Moves FilterMoves
+	// Ratio, Floor and Window: the caught share, the minimum message count, and the
+	// period they are counted over, for the ratio move.
+	Ratio  float64
+	Floor  int
+	Window time.Duration
+}
+
+// FilterMoves is which rules a filter's catch can move a room by.
+type FilterMoves struct {
+	Always       bool // any catch
+	FirstMessage bool // the room's first message
+	Direct       bool // a direct message you never wrote in
+	Ratio        bool // most of the window
+}
+
+// Catches reports whether this filter catches one message in room.
+func (f Filter) Catches(body, sender string, room RoomFacts) bool {
+	if f.From != "" && !strings.EqualFold(strings.TrimSpace(f.From), sender) {
+		return false
+	}
+	if len(f.In) > 0 && !namesAny(f.In, room) {
+		return false
+	}
+	if f.anything() {
+		return f.From != ""
+	}
+	return len(f.Words.Find(body)) > 0
+}
+
+// anything reports whether the words match everything (none, or only stars).
+func (f Filter) anything() bool {
+	for _, word := range f.Words.Words {
+		if strings.Trim(strings.TrimSpace(word), "*") != "" {
+			return false
+		}
+	}
+	return true
+}
+
+// MoveCase is what a filter's moves know about the message it caught.
+type MoveCase struct {
+	First  bool // nothing in the room before it
+	Direct bool
+	Mine   bool // you have written in this room
+	// Caught and Total count the room's messages in the filter's window.
+	Caught, Total int
+}
+
+// Moving reports whether a caught message moves its room, and by which rule.
+func (f Filter) Moving(c MoveCase) (MoveRule, bool) {
+	switch {
+	case f.Moves.Always:
+		return MoveAlways, true
+	case f.Moves.FirstMessage && c.First:
+		return MoveFirstMessage, true
+	case f.Moves.Direct && c.Direct && !c.Mine:
+		return MoveDirect, true
+	case f.Moves.Ratio && c.Total >= f.Floor && c.share() >= f.Ratio:
+		return MoveMostly, true
+	}
+	return MoveNone, false
+}
+
+// share is Caught/Total, zero for an empty window.
+func (c MoveCase) share() float64 {
+	if c.Total <= 0 {
+		return 0
+	}
+	return float64(c.Caught) / float64(c.Total)
+}
+
+// Filters is every filter, in config order.
+type Filters []Filter
+
+// Catching is every filter that catches a message in room, in config order.
+func (fs Filters) Catching(body, sender string, room RoomFacts) []Filter {
+	var out []Filter
+	for i := range fs {
+		if fs[i].Catches(body, sender, room) {
+			out = append(out, fs[i])
+		}
+	}
+	return out
+}
+
+// MoveCandidate is a room a rescan of cached history would move into a tag, and the
+// message that moves it.
+type MoveCandidate struct {
+	Verdict TagVerdict
+	Sample  Message
+}
+
+// WithVerdict is a room's verdict set with v applied: a move or a release replaces the
+// tag's entry, anything else drops it. A filter's move never overwrites a release.
+func WithVerdict(set []TagVerdict, v TagVerdict) ([]TagVerdict, error) {
+	at := slices.IndexFunc(set, func(o TagVerdict) bool { return SameTag(o.Tag, v.Tag) })
+	if at >= 0 && v.In() && set[at].Released {
+		return set, fmt.Errorf("%s in %s: %w", v.Room, v.Tag, ErrReleased)
+	}
+	out := slices.Clone(set)
+	if at >= 0 {
+		out = slices.Delete(out, at, at+1)
+	}
+	if v.In() || v.Released {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// Retagged is a room's verdict set with tag from's entry moved to tag to, or dropped
+// when to is empty; changed reports whether it held one. Moved onto a tag that has an
+// entry already (two tags combined), a release wins, else to's own entry stays.
+func Retagged(set []TagVerdict, from, to string) (out []TagVerdict, changed bool) {
+	at := slices.IndexFunc(set, func(v TagVerdict) bool { return SameTag(v.Tag, from) })
+	if at < 0 {
+		return set, false
+	}
+	moving := set[at]
+	out = slices.Delete(slices.Clone(set), at, at+1)
+	if to == "" {
+		return out, true
+	}
+	moving.Tag = to
+	if into := slices.IndexFunc(out, func(v TagVerdict) bool { return SameTag(v.Tag, to) }); into >= 0 {
+		if moving.Released && !out[into].Released {
+			out[into] = moving
+		}
+		return out, true
+	}
+	return append(out, moving), true
+}

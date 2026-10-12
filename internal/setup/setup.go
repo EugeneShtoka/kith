@@ -30,7 +30,7 @@ func Validate(cfg config.Config) error {
 		Scripts(cfg),
 		errOf(NotificationRules(cfg.Notifications)),
 		errOf(CodeRules(cfg.Codes)),
-		errOf(SpamRules(cfg.Spam)),
+		errOf(Filters(cfg)),
 		errOf(SkinTone(d.SkinTone)),
 		errOf(Clock(d)),
 		errOf(EmojiTier(d.Emoji.Set)),

@@ -19,7 +19,9 @@ type Tag struct {
 
 	// Silent (counts_unread = false): its rooms count as read everywhere else, for
 	// badges, other tags' rules and mark-all-read.
-	Silent        bool
+	Silent bool
+	// Mute (notifies = false): nothing in its rooms notifies.
+	Mute          bool
 	Exclusive     Exclusive
 	Sticky        bool // the open room stays listed until you move off it
 	HideWhenEmpty bool // no rail row while it holds nothing
@@ -39,7 +41,6 @@ type RoomState struct {
 	Unread  bool // something unread, or marked unread
 	Mention bool // a mention or highlight among the unread
 	Draft   bool // an unsent message is kept for it
-	Spam    bool
 	Invite  bool
 }
 
@@ -55,13 +56,8 @@ var stateWords = map[string]func(RoomState) bool{
 	"unread":  func(s RoomState) bool { return s.Unread },
 	"mention": func(s RoomState) bool { return s.Mention },
 	"draft":   func(s RoomState) bool { return s.Draft },
-	"spam":    func(s RoomState) bool { return s.Spam },
 	"invite":  func(s RoomState) bool { return s.Invite },
 }
-
-// judgedWords are state words that are a fallible judgement, not a fact, so the
-// person corrects them by hand.
-var judgedWords = map[string]bool{"spam": true}
 
 // TagEntry spells a tag as a place: `tag:<name>`.
 func TagEntry(name string) string { return termTag + name }
@@ -77,12 +73,11 @@ func TagOf(entry string) (string, bool) {
 
 // term is one rule term, parsed: what it names and whether it is negated.
 type term struct {
-	not    bool
-	every  bool
-	tag    string               // a tag's name, lower-cased
-	state  func(RoomState) bool // a state word
-	judged bool                 // the state word is a judgement (judgedWords)
-	place  string               // a place entry (RoomFacts.Names)
+	not   bool
+	every bool
+	tag   string               // a tag's name, lower-cased
+	state func(RoomState) bool // a state word
+	place string               // a place entry (RoomFacts.Names)
 	// shownAs is a place:<name> term's name: its spaces match on the room's facts, a
 	// tag of that name (tag, then) through the set, so cycles are broken alike.
 	shownAs string
@@ -100,7 +95,7 @@ func parseTerm(raw string, known map[string]bool) (term, error) {
 	case s == termEvery:
 		t.every = true
 	case stateWords[lower] != nil:
-		t.state, t.judged = stateWords[lower], judgedWords[lower]
+		t.state = stateWords[lower]
 	case hasPrefixFold(s, termTag):
 		name, _ := TagOf(s)
 		if !known[strings.ToLower(name)] {
@@ -308,14 +303,14 @@ func (s TagSet) Index(name string) (int, bool) {
 
 // Automatic reports whether tag i has a rule naming no place (room, space, network,
 // tag), only state, dm/group or "*" (Unread, DMs, All), so filing by hand makes no
-// sense. A judged word (spam) is not automatic.
+// sense.
 func (s TagSet) Automatic(i int) bool {
 	c := s.tags[i]
 	if len(c.positive) == 0 && len(c.negated) == 0 {
 		return false
 	}
 	for _, t := range slices.Concat(c.positive, c.negated) {
-		if t.tag != "" || t.judged || (t.place != "" && !isKind(t.place)) {
+		if t.tag != "" || (t.place != "" && !isKind(t.place)) {
 			return false
 		}
 	}
@@ -371,6 +366,9 @@ func (s TagSet) has(i int, facts RoomFacts, state RoomState, asking map[int]bool
 	}
 	if facts.ArchivedIn != "" && strings.EqualFold(facts.ArchivedIn, strings.TrimSpace(c.tag.Name)) {
 		return true // the network archived it, and this tag is that archive
+	}
+	if slices.ContainsFunc(facts.Caught, func(tag string) bool { return SameTag(tag, c.tag.Name) }) {
+		return true // a filter moved it here
 	}
 	if len(c.positive) == 0 && len(c.negated) == 0 {
 		return false
@@ -438,4 +436,19 @@ func refiled(entries []string, facts RoomFacts, others []RoomFacts) []string {
 		}
 	}
 	return out
+}
+
+// Excludes reports whether the named tag's excluded list names the room: no filter
+// moves it there.
+func (s TagSet) Excludes(name string, facts RoomFacts) bool {
+	i, ok := s.Index(name)
+	return ok && slices.ContainsFunc(s.tags[i].excluded, facts.Names)
+}
+
+// Mutes reports whether one of the named tags has notifies = false.
+func (s TagSet) Mutes(names []string) bool {
+	return slices.ContainsFunc(names, func(name string) bool {
+		i, ok := s.Index(name)
+		return ok && s.tags[i].tag.Mute
+	})
 }

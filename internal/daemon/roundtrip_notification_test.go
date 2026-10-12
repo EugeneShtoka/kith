@@ -156,34 +156,34 @@ func TestReloadConfigRoundTrip(t *testing.T) {
 }
 
 // A rescan's since, apply and rooms cross the wire, and the candidates come back whole.
-func TestRescanSpamRoundTrip(t *testing.T) {
+func TestRescanFiltersRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld()
 	src.put(chatRm, alice, "go vote today", 48*time.Hour)
 	src.put(chatRm, alice, "vote again", 30*time.Minute)
-	n, _ := spamNotifier(t, spamConfig(config.Spam{Filters: []config.SpamFilter{
-		{Name: "elections", Words: []string{"vote"}, Moves: []string{"always"}},
-	}}), src)
+	n, _ := spamNotifier(t, spamConfig(withFilters(
+		config.Filter{Name: "elections", Tag: "Spam", Words: []string{"vote"}, Moves: []string{"always"}},
+	)), src)
 	h := serve(t, &fakeBackend{Nop: nopWithChannels()}, func(d *daemon.Daemon) { d.Notifications = n })
 	client := h.client()
 	ctx := context.Background()
 
-	found, err := client.RescanSpam(ctx, time.Now().Add(-time.Hour), false, nil)
+	found, err := client.RescanFilters(ctx, time.Now().Add(-time.Hour), false, nil)
 	if err != nil {
-		t.Fatalf("RescanSpam: %v", err)
+		t.Fatalf("RescanFilters: %v", err)
 	}
-	if len(found) != 1 || found[0].Verdict.Room != chatRm || found[0].Verdict.Rule != domain.SpamAlways ||
+	if len(found) != 1 || found[0].Verdict.Room != chatRm || found[0].Verdict.Rule != domain.MoveAlways ||
 		found[0].Verdict.Filter != "elections" || found[0].Sample.Body != "vote again" {
 		t.Fatalf("candidates = %+v, want the room by its message within the hour", found)
 	}
 	if len(src.verdicts()) != 0 {
 		t.Fatalf("a preview recorded %+v", src.verdicts())
 	}
-	if moved, err := client.RescanSpam(ctx, time.Time{}, true, []domain.RoomID{dmRoom}); err != nil || len(moved) != 0 {
+	if moved, err := client.RescanFilters(ctx, time.Time{}, true, []domain.RoomID{dmRoom}); err != nil || len(moved) != 0 {
 		t.Fatalf("apply to another room = %+v (%v), want nothing moved", moved, err)
 	}
-	if moved, err := client.RescanSpam(ctx, time.Time{}, true, []domain.RoomID{chatRm}); err != nil || len(moved) != 1 {
+	if moved, err := client.RescanFilters(ctx, time.Time{}, true, []domain.RoomID{chatRm}); err != nil || len(moved) != 1 {
 		t.Fatalf("apply = %+v (%v), want the room moved", moved, err)
 	}
 	if marked := src.verdicts(); len(marked) != 1 || marked[0].Room != chatRm {

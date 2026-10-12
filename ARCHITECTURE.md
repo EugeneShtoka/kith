@@ -356,7 +356,7 @@ A thin wrapper (`db.Cache`) over one SQLite file per account. It persists the ro
 list, the space hierarchy, a bounded window of messages per room (with their
 formatting, attachments, edit history and deletions), reactions, members,
 invitations, unread state and read positions, drafts, usage rankings, and mirrors
-of this client's own account data (starred messages, spam verdicts). The backend
+of this client's own account data (starred messages, filter moves). The backend
 reads it for instant startup and reconciles with the homeserver behind it; live
 sync events are cached write-through as they arrive. An FTS5 index over message
 bodies makes search instant and offline, and the same index serves as the

@@ -309,7 +309,7 @@ notify = false
 # and no `not` term does (a rule of `not` terms alone needs none; an empty rule holds
 # only picked rooms). Terms: `*` (every room), the place words (room:<name>,
 # space:<name>, protocol:<network>, dm, group), the state words (unread,
-# mention, draft, spam, invite) and tag:<name> (another tag's rooms). `hidden = true`
+# mention, draft, invite) and tag:<name> (another tag's rooms). `hidden = true`
 # keeps a tag out of the rail. In the rail order below a tag is `tag:<name>`. Tags
 # whose rules depend on each other in a cycle are reported at startup, and their
 # references to each other match nothing.
@@ -317,6 +317,7 @@ notify = false
 # Properties (all off unless set):
 #   counts_unread = false   its rooms count as read everywhere else: no badge, not
 #                           `unread`/`mention` to other tags, skipped by mark-all-read
+#   notifies      = false   nothing in its rooms notifies (codes are still copied)
 #   exclusive = [...]       where its rooms leave, any of:
 #                             "tags"    every other tag; of two such tags, the
 #                                       first configured keeps them
@@ -341,7 +342,8 @@ notify = false
 # in: change their rules, rename them, or delete them. A room goes into a tag, or out
 # of one, from the filing picker (`S`) or with `/tag <name>`; that edits the tag's
 # picked and excluded lists here. The picker's New tag row, or `/tag` with a name no
-# tag has, makes the tag with the room in it.
+# tag has, makes the tag with the room in it. A [[filter]] moves rooms into a tag too
+# (see Filters below), and [[keys.tag]] binds a key to one.
 
 [[tag]]
 name = "DMs"
@@ -371,12 +373,20 @@ counts_unread   = false
 exclusive       = ["tags", "spaces"]
 hide_when_empty = true
 
+# Where unwanted conversations go: by hand (`!`, bound below) or by a [[filter]].
+# Quiet, uncounted, and out of every other tag and space, its own included.
 [[tag]]
 name            = "Spam"
-rule            = ["spam"]
 counts_unread   = false
+notifies        = false
 exclusive       = ["tags", "spaces", "origin"]
 hide_when_empty = true
+
+# `!` puts the room under the cursor in Spam, or takes it out: a key bound to a tag
+# by its chord. See [keys] for more.
+[[keys.tag]]
+chord = "!"
+tag   = "Spam"
 
 # At the top of the rail, saying how many are waiting.
 [[tag]]
@@ -736,50 +746,43 @@ require_digit = true
 # startup.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Spam: a room in Spam stops notifying and stays readable and answerable; nothing
-# leaves the Matrix room. The Spam tag (rule `spam`) decides where else it shows and
-# whether it counts.
-# `!` in the room list moves a room in and out; `/caught` previews what the filters
-# would catch; `/why` in a caught room names the rule and filter.
+# Filters: words or a sender that move a conversation into a tag (the starter's
+# Spam, or any other). `/caught` previews what they catch, `:rescan` judges what is
+# already cached, and `/why` in a moved room names the filter and the rule.
 #
-# `rooms` is what you put there; `except` outranks everything. Releasing a room writes
-# an exception. Both take the place vocabulary.
-#
-# Nothing fires until a [[spam.filter]] exists. Filters mark messages; each filter's
-# `moves` says which of these rules its catch moves a room by:
+# Each [[filter]] needs a name (what `/why` reports) and the tag it moves rooms into.
+# Words take the tracked-word globs (`pay`, `pay*`, `*pay*`, `*pay`); `from` alone
+# catches everything a sender writes; it needs one or the other. `in` limits it to
+# places (empty is everywhere). `moves` is which rules its catch moves a room by,
+# ["first_message", "direct"] unless set:
 #
 #   always         any message it catches
 #   first_message  the room's first message
 #   direct         a message in a DM you never wrote in
-#   ratio          at least `ratio` of the room's messages over `window`, with at
-#                  least `floor` of them, were caught by ratio filters
+#   ratio          at least `ratio` of the room's messages over `window` (0.6 over a
+#                  week unless set), with at least `floor` of them (5), caught by it
 #
-# Only you demote. A verdict is stored in the room's account data, so it survives a
-# cache rebuild and syncs to your other devices.
-[spam]
-rooms  = []
-except = []
-ratio  = 0.6
-floor  = 5
-window = "168h"
-
-# Each filter needs a name (it is what `/why` reports). Words take the tracked-word
-# globs (`pay`, `pay*`, `*pay*`, `*pay`); `from` alone catches everything a sender
-# writes. `in` limits it to places (empty is everywhere); `moves` defaults to
-# ["first_message", "direct"]. Check with `/caught` before trusting a filter.
+# Only you take a room out: a filter never does, and a room you took out is written
+# into the tag's excluded, so no filter puts it back. A move is stored in the room's
+# account data, so it survives a cache rebuild and reaches your other machines.
 #
-# [[spam.filter]]
+# [[filter]]
 # name  = "crypto"
+# tag   = "Spam"
 # words = ["*bitcoin*", "*binance*", "invest*"]
 # moves = ["first_message", "direct", "ratio"]
+# ratio = 0.6
+# floor = 5
+# window = "168h"
 #
-# [[spam.filter]]
+# [[filter]]
 # name  = "that number"
-# words = ["*"]
+# tag   = "Spam"
 # from  = "@spammer:example.org"
 #
-# [[spam.filter]]
+# [[filter]]
 # name  = "elections"
+# tag   = "Spam"
 # words = ["vote*"]
 # in    = ["place:SMS"]
 # moves = ["always"]
@@ -1314,6 +1317,16 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 #   [[keys.jump]]
 #   chord  = "g d"
 #   target = "room:!dana:example.org"
+#
+# Key sequences bound to tags: the room under the cursor (or the open one) goes into
+# the tag, or out of it. Taking out a room a filter moved writes the tag's excluded, so
+# no filter puts it back. The starter binds "!", the mail clients' "report spam" key,
+# to Spam (next to the [[tag]] list); a binding to a tag that does not exist is
+# reported in `?` and does nothing.
+#
+#   [[keys.tag]]
+#   chord = "!"
+#   tag   = "Spam"
 
 # The rail. Its order and hidden rows are [display.rail]'s.
 [keys.rail]
@@ -1373,9 +1386,6 @@ person        = "I"       # the phonebook card of the room's one person
 # Until kith restarts; [display] show_archived and a place's space_rule set where it
 # starts.
 archived      = "A"       # show or hide this place's archived rooms
-# spam / not spam: move this conversation out of the way, or back
-# See [spam].
-spam          = "!"
 # An empty name clears it.
 rename_thread = "alt+r"   # name the thread under the cursor
 list_threads  = "ctrl+t"  # list the threads in the room under the cursor

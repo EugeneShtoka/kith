@@ -49,12 +49,12 @@ var commands = []command{
 	},
 	{
 		name:    "caught",
-		summary: "what the spam filters catch — the preview, before you trust them",
+		summary: "what the filters catch — the preview, before you trust them",
 		run:     noArg(Model.openCaught),
 	},
 	{
 		name: "rescan", arg: "[since]", argOptional: true,
-		summary: "rooms the spam filters would move, judging what is cached (30d, 12h; all when empty) — ticked ones move",
+		summary: "rooms the filters would move into their tags, judging what is cached (30d, 12h; all when empty) — ticked ones move",
 		run:     Model.openRescan,
 	},
 	{

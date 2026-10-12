@@ -32,9 +32,18 @@ func (r *Router) StarMessage(ctx context.Context, roomID domain.RoomID, eventID 
 	return doOnRoom(r, roomID, "bookmarks", func(c Stars) error { return c.StarMessage(ctx, roomID, eventID, starred) })
 }
 
-// MarkSpam records or clears the verdict on its room.
-func (r *Router) MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error {
-	return doOnRoom(r, verdict.Room, "spam reports", func(c SpamReports) error { return c.MarkSpam(ctx, verdict) })
+// MarkTag records a move or a release on its room.
+func (r *Router) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
+	return doOnRoom(r, verdict.Room, "tag moves", func(c TagMoves) error { return c.MarkTag(ctx, verdict) })
+}
+
+// RetagVerdicts moves (or drops) one tag's verdicts on every network keeping them.
+func (r *Router) RetagVerdicts(ctx context.Context, from, to string) error {
+	var errs []error
+	for _, c := range having[TagMoves](r) {
+		errs = append(errs, c.RetagVerdicts(ctx, from, to))
+	}
+	return errors.Join(errs...)
 }
 
 // CanonicalParent is the space a room names as its parent; none on a network without

@@ -84,9 +84,10 @@ type (
 	Stars interface {
 		StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error
 	}
-	// SpamReports is spam verdicts.
-	SpamReports interface {
-		MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error
+	// TagMoves is filters' moves into tags, and releases from them.
+	TagMoves interface {
+		MarkTag(ctx context.Context, verdict domain.TagVerdict) error
+		RetagVerdicts(ctx context.Context, from, to string) error
 	}
 	// History is a room's past: pages, one message, a message's versions.
 	History interface {

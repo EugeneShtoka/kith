@@ -74,7 +74,17 @@ Targets:
 
   [[keys.jump]]
   chord  = "g d"
-  target = "room:!dana:example.org"`,
+  target = "room:!dana:example.org"
+
+Key sequences bound to tags: the room under the cursor (or the open one) goes into
+the tag, or out of it. Taking out a room a filter moved writes the tag's excluded, so
+no filter puts it back. The starter binds "!", the mail clients' "report spam" key,
+to Spam (next to the [[tag]] list); a binding to a tag that does not exist is
+reported in ` + "`?`" + ` and does nothing.
+
+  [[keys.tag]]
+  chord = "!"
+  tag   = "Spam"`,
 	},
 	{
 		table: "rail",
@@ -130,9 +140,6 @@ leave to joined rooms; leave and reject ask first.`,
 				note: "A DM, or a room with one person besides you and bots."},
 			{path: "rooms.archived", def: "A", doc: "show or hide this place's archived rooms",
 				note: "Until kith restarts; [display] show_archived and a place's space_rule set where it starts."},
-			// "!" is the mail clients' "report spam" key.
-			{path: "rooms.spam", def: "!", doc: "spam / not spam: move this conversation out of the way, or back",
-				note: "See [spam]."},
 			{path: "rooms.rename_thread", def: "alt+r", doc: "name the thread under the cursor",
 				note: "An empty name clears it."},
 			// Same chord as the timeline's; the pane decides which room.

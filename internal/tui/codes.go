@@ -25,6 +25,6 @@ func (m Model) codesHere(roomID domain.RoomID) bool {
 // (domain.Places.Facts): its given or own name, never the shortened list label; the
 // network from its owning bridge space, not roomProtocol(), which guesses from senders.
 func (m Model) factsFor(room domain.Room) domain.RoomFacts {
-	places := domain.Places{Names: m.prefs.roomAliases, Order: m.rail.homes, Tags: m.rail.tags, Archives: m.rail.archives}
+	places := domain.Places{Names: m.prefs.roomAliases, Order: m.rail.homes, Tags: m.rail.tags, Archives: m.rail.archives, Caught: m.rail.caught}
 	return places.Facts(room, domain.HoldersOf(room.ID, m.rooms.spaces))
 }

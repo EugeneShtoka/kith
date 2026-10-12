@@ -586,19 +586,24 @@ func (a *Adapter) StarMessage(ctx context.Context, roomID domain.RoomID, eventID
 	return nil
 }
 
-// MarkSpam records a spam verdict locally; WhatsApp has nowhere to store one.
-func (a *Adapter) MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error {
+// MarkTag records a filter's move or a release locally; WhatsApp has nowhere to keep one.
+func (a *Adapter) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
 	if a.cache == nil {
 		return nil
 	}
-	var err error
-	if !verdict.Spam() && !verdict.Released {
-		err = a.cache.ClearSpam(ctx, verdict.Room)
-	} else {
-		err = a.cache.SetSpam(ctx, verdict)
+	if err := a.cache.MarkTag(ctx, verdict); err != nil {
+		return fmt.Errorf("whatsapp: record the %s verdict on %s: %w", verdict.Tag, verdict.Room, err)
 	}
-	if err != nil {
-		return fmt.Errorf("whatsapp: record the spam verdict on %s: %w", verdict.Room, err)
+	return nil
+}
+
+// RetagVerdicts moves a tag's local verdicts with its new name, or drops them.
+func (a *Adapter) RetagVerdicts(ctx context.Context, from, to string) error {
+	if a.cache == nil {
+		return nil
+	}
+	if err := a.cache.RetagVerdicts(ctx, from, to); err != nil {
+		return fmt.Errorf("whatsapp: move the %s verdicts: %w", from, err)
 	}
 	return nil
 }

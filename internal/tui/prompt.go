@@ -38,7 +38,7 @@ const (
 	promptPersonValue // a phonebook field's value
 	promptPersonKey   // a new phonebook field's name
 	promptLogin       // a :login field; its label and help are the field's (login.go)
-	promptFilterName  // a new spam filter's name (spamfilteradd.go)
+	promptFilterName  // a new filter's name (filteradd.go)
 	promptFilterWords // the words it catches
 	promptFilterFrom  // the sender it catches, when it has no words
 )
@@ -105,7 +105,7 @@ func (p promptState) label() string {
 	case promptTagName:
 		return "tag name: "
 	case promptFilterName:
-		return "new spam filter's name: "
+		return "new filter's name: "
 	case promptFilterWords:
 		return "words it catches (globs: pay, pay*, *pay*; empty for a sender instead): "
 	case promptFilterFrom:
@@ -263,7 +263,7 @@ func (m Model) submitSettingPrompt(kind promptKind, input string) (Model, tea.Cm
 }
 
 // submitEditorPrompt handles a value typed in the tag editor (name or list entry), on a
-// phonebook card (field value or new field name), or for a new spam filter.
+// phonebook card (field value or new field name), or for a new filter.
 func (m Model) submitEditorPrompt(kind promptKind, input string) (Model, tea.Cmd) {
 	switch kind {
 	case promptFilterName:
@@ -283,14 +283,14 @@ func (m Model) submitEditorPrompt(kind promptKind, input string) (Model, tea.Cmd
 	}
 }
 
-// cancelFormPrompt abandons a form step: a sign-in field, a new spam filter (back to the
+// cancelFormPrompt abandons a form step: a sign-in field, a new filter (back to the
 // filters), or a card field (back to the card).
 func (m Model) cancelFormPrompt(kind promptKind) Model {
 	switch kind { //nolint:exhaustive // the form prompts only
 	case promptLogin:
 		return m.cancelLogin()
 	case promptFilterName, promptFilterWords, promptFilterFrom:
-		return m.backToSpamFilters()
+		return m.backToFilters()
 	}
 	return m.cancelPerson()
 }

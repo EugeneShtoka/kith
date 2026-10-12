@@ -51,11 +51,11 @@ starting point, which you can change, rename or delete like any other:
 | Unread | Rooms with something unread (`unread`) | Always |
 | Drafts | Rooms where you left an unsent message (`draft`) | While there is one |
 | Pinned | The rooms you put in it | While it holds something |
-| Spam | Conversations moved to Spam (`spam`) — see [Spam](spam.md) | While something is there |
+| Spam | Rooms you or a [filter](filters.md) put there | While something is there |
 | Archived | The rooms you put in it: they stop counting and leave everything but the space they belong to | While it holds something |
 
-Your spaces sit between Pinned and Archived. Invitations are in no space; spam leaves
-every space because the Spam tag is exclusive from all of them.
+Your spaces sit between Pinned and Archived. Invitations are in no space; Spam's rooms
+leave every space because the Spam tag is exclusive from all of them.
 
 A forum (a Telegram group with topics) is a space: its General topic and each other
 topic are its rooms, each read, counted and filed on its own.
@@ -105,7 +105,7 @@ rooms. The terms are:
 - `*`: every room;
 - the place words: a room ID, `room:<name>`, `space:<name>`, `place:<name>` (a space
   or tag the rail shows by that name), `protocol:<network>`, `dm`, `group`;
-- the state words: `unread`, `mention`, `draft`, `spam`, `invite`, which follow
+- the state words: `unread`, `mention`, `draft`, `invite`, which follow
   the room as it changes;
 - `tag:<name>`: another tag's rooms.
 
@@ -160,7 +160,7 @@ Exclusivity decides where a room shows, not what rules match: `tag:Family` in
 another rule still matches a room Family claims.
 
 A tag is also a place: `tag:Family` works wherever a room, space or network can be
-named, in notification rules, do-not-disturb, `[agent.read]`, `[assist]`, spam lists
+named, in notification rules, do-not-disturb, `[agent.read]`, `[assist]`, filters'
 and the rest. As a place a tag is judged on the room alone, so its state words match
 nothing there (`not unread` matches everything). Tagging a room that way widens what
 names the tag: a room you pick into a tag `[agent.read]` lists becomes readable to the
@@ -243,7 +243,7 @@ A thread's summary sits at its root in the timeline, which may be far up the scr
 - `M` marks a room you have read as still needing you, and clears that mark. It is the homeserver's marked-unread flag, so it shows on your other clients; reading the room clears it too. `/unread` does the same from the composer.
 - **Archiving** a room is putting it in the starter config's Archived tag (`S`, or `/tag Archived`): it stays readable and writable, but stops counting toward any badge, leaves every group except the space it belongs to and Archived, and is skipped by group-wide mark-read. Whether a room list shows archived rooms at all is `[display] show_archived` (on by default), a place's `[[display.space_rule]] show_archived` over it, or settings (`,` → Rail and room list → Archived rooms in …, per space and tag); `A` in the room list (or `:archived`) flips it for the place you are in until kith restarts. The archive's own list always shows them.
 - **Pinning** is putting it in the Pinned tag: it appears there as well as where it lives, and `tag:Pinned` is a place a notification rule can name — a way to let one conversation through do-not-disturb. See [Notifications](notifications.md).
-- `!` moves a conversation to **Spam** and back. See [Spam](spam.md).
+- `!` moves a conversation to **Spam** and back, a [`[[keys.tag]]`](filters.md#the-spam-tag) binding any tag can have.
 
 **Read receipts.** `[display] send_receipts = false` stops announcing your read position to others; the client then sends a private receipt, so your badges still clear everywhere on your account. Both `send_receipts` and `read_delay` can be set per room, space or person:
 

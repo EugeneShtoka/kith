@@ -13,14 +13,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// spamBackend is world() plus room history, caught rooms and a verdict store.
+// spamBackend is world() plus room history, stored moves and a verdict store.
 type spamBackend struct {
 	*scopeBackend
 
 	mu       sync.Mutex
 	timeline map[domain.RoomID][]domain.Message
-	caught   []domain.SpamVerdict
-	marked   []domain.SpamVerdict
+	caught   []domain.TagVerdict
+	marked   []domain.TagVerdict
 	// refuse is what MarkSpam answers, for a write the homeserver turns down.
 	refuse error
 }
@@ -35,13 +35,13 @@ func (s *spamBackend) CachedTimeline(_ context.Context, room domain.RoomID) ([]d
 	return s.timeline[room], nil
 }
 
-func (s *spamBackend) SpamRooms(context.Context) ([]domain.SpamVerdict, error) {
+func (s *spamBackend) TagVerdicts(context.Context) ([]domain.TagVerdict, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.caught, nil
 }
 
-func (s *spamBackend) MarkSpam(_ context.Context, verdict domain.SpamVerdict) error {
+func (s *spamBackend) MarkTag(_ context.Context, verdict domain.TagVerdict) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.refuse != nil {
@@ -52,16 +52,16 @@ func (s *spamBackend) MarkSpam(_ context.Context, verdict domain.SpamVerdict) er
 }
 
 // store replaces the account data, as a sync from another machine would.
-func (s *spamBackend) store(verdicts ...domain.SpamVerdict) {
+func (s *spamBackend) store(verdicts ...domain.TagVerdict) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.caught = verdicts
 }
 
-func (s *spamBackend) verdicts() []domain.SpamVerdict {
+func (s *spamBackend) verdicts() []domain.TagVerdict {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]domain.SpamVerdict(nil), s.marked...)
+	return append([]domain.TagVerdict(nil), s.marked...)
 }
 
 // said fills a room's history.
@@ -80,14 +80,30 @@ func (s *spamBackend) said(room domain.RoomID, bodies ...string) *spamBackend {
 	return s
 }
 
-// spamConfig is a notifying config with one filter plus the case's changes.
-func spamConfig(spam config.Spam) config.Config {
+// crypto is the cases' filter: it moves rooms into Spam by the default moves.
+var crypto = config.Filter{Name: "crypto", Tag: "Spam", Words: []string{"*bitcoin*", "invest*"}}
+
+// spamConfig is a notifying config with a muted Spam tag and the crypto filter, plus the
+// case's changes.
+func spamConfig(changes ...func(*config.Config)) config.Config {
 	cfg := notifsOn("all")
-	if len(spam.Filters) == 0 {
-		spam.Filters = []config.SpamFilter{{Name: "crypto", Words: []string{"*bitcoin*", "invest*"}}}
+	off := false
+	cfg.Tags = []config.Tag{{Name: "Spam", Notifies: &off}}
+	cfg.Filters = []config.Filter{crypto}
+	for _, change := range changes {
+		change(&cfg)
 	}
-	cfg.Spam = spam
 	return cfg
+}
+
+// withFilters replaces the filters.
+func withFilters(filters ...config.Filter) func(*config.Config) {
+	return func(c *config.Config) { c.Filters = filters }
+}
+
+// spamTag changes the Spam tag.
+func spamTag(change func(*config.Tag)) func(*config.Config) {
+	return func(c *config.Config) { change(&c.Tags[0]) }
 }
 
 // spamNotifier is the daemon's notifier over a spam-capable backend.
@@ -109,7 +125,7 @@ func TestTheFirstMessageInARoomPromotesIt(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld()
-	n, rec := spamNotifier(t, spamConfig(config.Spam{}), src)
+	n, rec := spamNotifier(t, spamConfig(), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "double your bitcoin today")); notified {
 		t.Fatal("the message that caught the room notified")
@@ -121,7 +137,7 @@ func TestTheFirstMessageInARoomPromotesIt(t *testing.T) {
 	if len(marked) != 1 {
 		t.Fatalf("recorded %d verdicts, want one", len(marked))
 	}
-	if marked[0].Rule != domain.SpamFirstMessage || marked[0].Filter != "crypto" {
+	if marked[0].Rule != domain.MoveFirstMessage || marked[0].Filter != "crypto" {
 		t.Errorf("verdict = %+v, want the first-message rule naming the filter", marked[0])
 	}
 	if marked[0].Room != chatRm {
@@ -134,7 +150,7 @@ func TestAnEstablishedRoomIsNotPromotedByOneMessage(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld().said(chatRm, "morning", "any news on the deploy?")
-	n, rec := spamNotifier(t, spamConfig(config.Spam{}), src)
+	n, rec := spamNotifier(t, spamConfig(), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "invest with us")); !notified {
 		t.Fatal("a room with history was silenced by one caught message")
@@ -155,7 +171,7 @@ func TestADirectMessageYouHaveAnsweredIsAConversation(t *testing.T) {
 	src.timeline[dmRoom] = append(src.timeline[dmRoom], domain.Message{
 		ID: "$mine", RoomID: dmRoom, Sender: me, Body: "morning", Timestamp: time.Now(),
 	})
-	n, _ := spamNotifier(t, spamConfig(config.Spam{}), src)
+	n, _ := spamNotifier(t, spamConfig(), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(dmRoom, alice, "invest with us")); !notified {
 		t.Error("a DM this account has written in was moved by one caught message")
@@ -170,7 +186,7 @@ func TestADirectMessageIsItsSender(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld().said(dmRoom, "hello").said(chatRm, "morning")
-	n, _ := spamNotifier(t, spamConfig(config.Spam{}), src)
+	n, _ := spamNotifier(t, spamConfig(), src)
 	ctx := context.Background()
 
 	if _, notified := n.Deliver(ctx, msg(dmRoom, alice, "invest with us")); notified {
@@ -181,7 +197,7 @@ func TestADirectMessageIsItsSender(t *testing.T) {
 		t.Error("a group was moved by one sender's message")
 	}
 	marked := src.verdicts()
-	if len(marked) != 1 || marked[0].Rule != domain.SpamDirect || marked[0].Room != dmRoom {
+	if len(marked) != 1 || marked[0].Rule != domain.MoveDirect || marked[0].Room != dmRoom {
 		t.Fatalf("verdicts = %+v, want one direct-message promotion of the DM", marked)
 	}
 }
@@ -192,20 +208,23 @@ func TestMostOfTheMessagesPromotesAGroup(t *testing.T) {
 
 	src := spamWorld().said(chatRm,
 		"double your bitcoin", "invest with us", "bitcoin bitcoin", "morning")
-	ratio := config.Spam{Ratio: 0.6, Floor: 4, Filters: byRatio}
-	n, _ := spamNotifier(t, spamConfig(ratio), src)
+	n, _ := spamNotifier(t, spamConfig(withFilters(byRatio(0.6, 4))), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "invest now")); notified {
 		t.Error("a room that is mostly spam still notified")
 	}
 	marked := src.verdicts()
-	if len(marked) != 1 || marked[0].Rule != domain.SpamMostly {
+	if len(marked) != 1 || marked[0].Rule != domain.MoveMostly {
 		t.Fatalf("verdicts = %+v, want one most-of-them promotion", marked)
 	}
 }
 
-// byRatio is the crypto filter moving by the ratio rule alone.
-var byRatio = []config.SpamFilter{{Name: "crypto", Words: []string{"*bitcoin*", "invest*"}, Moves: []string{"ratio"}}}
+// byRatio is the crypto filter moving by the ratio rule alone, with its numbers.
+func byRatio(ratio float64, floor int) config.Filter {
+	f := crypto
+	f.Moves, f.Ratio, f.Floor = []string{"ratio"}, ratio, floor
+	return f
+}
 
 // A filter that does not move by ratio leaves a mostly-spam group alone.
 func TestOnlyARatioFilterMovesByTheRatio(t *testing.T) {
@@ -213,7 +232,9 @@ func TestOnlyARatioFilterMovesByTheRatio(t *testing.T) {
 
 	src := spamWorld().said(chatRm,
 		"double your bitcoin", "invest with us", "bitcoin bitcoin", "morning")
-	n, _ := spamNotifier(t, spamConfig(config.Spam{Ratio: 0.6, Floor: 4}), src)
+	numbered := crypto
+	numbered.Ratio, numbered.Floor = 0.6, 4
+	n, _ := spamNotifier(t, spamConfig(withFilters(numbered)), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "invest now")); !notified {
 		t.Error("a filter without the ratio move promoted a group by its share")
@@ -231,9 +252,9 @@ func TestAnAlwaysFilterMovesOnlyWhereItWatches(t *testing.T) {
 	src := spamWorld().said(chatRm, "morning", "standup at ten")
 	src.rooms = append(src.rooms, domain.Room{ID: "!other:example.org", Name: "Other"})
 	src.said("!other:example.org", "morning", "lunch?")
-	cfg := spamConfig(config.Spam{Filters: []config.SpamFilter{
-		{Name: "elections", Words: []string{"vote"}, In: []string{"place:Office"}, Moves: []string{"always"}},
-	}})
+	cfg := spamConfig(withFilters(
+		config.Filter{Name: "elections", Tag: "Spam", Words: []string{"vote"}, In: []string{"place:Office"}, Moves: []string{"always"}},
+	))
 	cfg.Display.Names = []config.DisplayName{{Target: "space:" + space, Name: "Office"}}
 	n, _ := spamNotifier(t, cfg, src)
 
@@ -244,7 +265,7 @@ func TestAnAlwaysFilterMovesOnlyWhereItWatches(t *testing.T) {
 		t.Error("an always filter left the room it caught in notifying")
 	}
 	marked := src.verdicts()
-	if len(marked) != 1 || marked[0].Room != chatRm || marked[0].Rule != domain.SpamAlways || marked[0].Filter != "elections" {
+	if len(marked) != 1 || marked[0].Room != chatRm || marked[0].Rule != domain.MoveAlways || marked[0].Filter != "elections" {
 		t.Fatalf("verdicts = %+v, want one always promotion of %s", marked, chatRm)
 	}
 }
@@ -254,8 +275,7 @@ func TestTheFloorStopsASmallSample(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld().said(chatRm, "invest with us", "morning")
-	ratio := config.Spam{Ratio: 0.5, Floor: 10, Filters: byRatio}
-	n, _ := spamNotifier(t, spamConfig(ratio), src)
+	n, _ := spamNotifier(t, spamConfig(withFilters(byRatio(0.5, 10))), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "invest now")); !notified {
 		t.Error("a room with three messages was promoted on a share of them")
@@ -265,12 +285,12 @@ func TestTheFloorStopsASmallSample(t *testing.T) {
 	}
 }
 
-// The exemption outranks every rule.
+// The tag's excluded list outranks every filter.
 func TestAnExemptionOutranksEveryRule(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld()
-	n, _ := spamNotifier(t, spamConfig(config.Spam{Except: []string{chatNamEntry}}), src)
+	n, _ := spamNotifier(t, spamConfig(spamTag(func(t *config.Tag) { t.Excluded = []string{chatNamEntry} })), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "double your bitcoin")); !notified {
 		t.Error("an exempt room was silenced by a rule")
@@ -280,15 +300,15 @@ func TestAnExemptionOutranksEveryRule(t *testing.T) {
 	}
 }
 
-// A room listed as spam needs no rule and records no verdict: the config holds it.
+// A room picked into a muted tag needs no filter and records no move: the config holds it.
 func TestAListedRoomIsSilentWithoutARule(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld()
-	n, _ := spamNotifier(t, spamConfig(config.Spam{Rooms: []string{chatNamEntry}}), src)
+	n, _ := spamNotifier(t, spamConfig(spamTag(func(t *config.Tag) { t.Picked = []string{chatNamEntry} })), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "morning")); notified {
-		t.Error("a room listed as spam notified")
+		t.Error("a room picked into a muted tag notified")
 	}
 	if len(src.verdicts()) != 0 {
 		t.Errorf("recorded %+v, want nothing written for a room the config names", src.verdicts())
@@ -300,8 +320,8 @@ func TestAnAlreadyCaughtRoomStaysQuiet(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld()
-	src.caught = []domain.SpamVerdict{{Room: chatRm, Rule: domain.SpamFirstMessage, Filter: "crypto"}}
-	n, _ := spamNotifier(t, spamConfig(config.Spam{}), src)
+	src.caught = []domain.TagVerdict{{Room: chatRm, Tag: "Spam", Rule: domain.MoveFirstMessage, Filter: "crypto"}}
+	n, _ := spamNotifier(t, spamConfig(), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "morning")); notified {
 		t.Error("a room caught before this start notified again")
@@ -332,7 +352,7 @@ func TestOurOwnMessageNeverPromotes(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld()
-	n, _ := spamNotifier(t, spamConfig(config.Spam{}), src)
+	n, _ := spamNotifier(t, spamConfig(), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, me, "bitcoin, as we discussed")); notified {
 		t.Error("our own message notified")
@@ -368,8 +388,8 @@ func TestAReleaseInAccountDataOutranksEveryRule(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld()
-	src.caught = []domain.SpamVerdict{{Room: chatRm, Released: true}}
-	n, _ := spamNotifier(t, spamConfig(config.Spam{}), src)
+	src.caught = []domain.TagVerdict{{Room: chatRm, Tag: "Spam", Released: true}}
+	n, _ := spamNotifier(t, spamConfig(), src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "double your bitcoin")); !notified {
 		t.Error("a released room was silenced by a rule")
@@ -384,14 +404,14 @@ func TestAReleaseReachesARunningDaemon(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld()
-	src.caught = []domain.SpamVerdict{{Room: chatRm, Rule: domain.SpamFirstMessage, Filter: "crypto"}}
-	cfg := spamConfig(config.Spam{})
+	src.caught = []domain.TagVerdict{{Room: chatRm, Tag: "Spam", Rule: domain.MoveFirstMessage, Filter: "crypto"}}
+	cfg := spamConfig()
 	n, _ := spamNotifier(t, cfg, src)
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "morning")); notified {
 		t.Fatal("a caught room notified")
 	}
-	src.store(domain.SpamVerdict{Room: chatRm, Released: true})
+	src.store(domain.TagVerdict{Room: chatRm, Tag: "Spam", Released: true})
 	if err := n.Reload(cfg); err != nil {
 		t.Fatalf("Reload: %v", err)
 	}
@@ -408,8 +428,8 @@ func TestARuleThatLosesToAReleaseDoesNotSilence(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld()
-	src.refuse = fmt.Errorf("matrix: record spam: %w", domain.ErrSpamReleased)
-	n, _ := spamNotifier(t, spamConfig(config.Spam{}), src)
+	src.refuse = fmt.Errorf("matrix: record the move: %w", domain.ErrReleased)
+	n, _ := spamNotifier(t, spamConfig(), src)
 
 	ctx := context.Background()
 	if _, notified := n.Deliver(ctx, msg(chatRm, alice, "double your bitcoin")); !notified {
@@ -467,48 +487,139 @@ func TestARescanJudgesCachedHistory(t *testing.T) {
 	src.put(exempt, alice, "vote", day)
 	src.put(released, alice, "vote", day)
 	src.put(mineOnly, me, "I will vote", day)
-	src.store(domain.SpamVerdict{Room: released, Released: true})
-	n, _ := spamNotifier(t, spamConfig(config.Spam{
-		Except: []string{"room:Exempt"},
-		Filters: []config.SpamFilter{
-			{Name: "crypto", Words: []string{"*bitcoin*"}},
-			{Name: "elections", Words: []string{"vote"}, In: []string{"space:" + space}, Moves: []string{"always"}},
-		},
-	}), src)
+	src.store(domain.TagVerdict{Room: released, Tag: "Spam", Released: true})
+	n, _ := spamNotifier(t, spamConfig(
+		spamTag(func(t *config.Tag) { t.Excluded = []string{"room:Exempt"} }),
+		withFilters(
+			config.Filter{Name: "crypto", Tag: "Spam", Words: []string{"*bitcoin*"}},
+			config.Filter{Name: "elections", Tag: "Spam", Words: []string{"vote"}, In: []string{"space:" + space}, Moves: []string{"always"}},
+		),
+	), src)
 	ctx := context.Background()
 
-	found, err := n.RescanSpam(ctx, time.Time{}, false, nil)
+	found, err := n.RescanFilters(ctx, time.Time{}, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := map[domain.RoomID]domain.SpamCandidate{}
+	got := map[domain.RoomID]domain.MoveCandidate{}
 	for _, c := range found {
 		got[c.Verdict.Room] = c
 	}
-	if c := got[chatRm]; len(got) != 2 || c.Verdict.Rule != domain.SpamAlways || c.Verdict.Filter != "elections" || c.Sample.Body != "go vote today" {
+	if c := got[chatRm]; len(got) != 2 || c.Verdict.Rule != domain.MoveAlways || c.Verdict.Filter != "elections" || c.Sample.Body != "go vote today" {
 		t.Fatalf("candidates = %+v, want the Work room by elections and the unanswered DM", found)
 	}
-	if c := got[dmRoom]; c.Verdict.Rule != domain.SpamDirect || c.Verdict.Filter != "crypto" {
+	if c := got[dmRoom]; c.Verdict.Rule != domain.MoveDirect || c.Verdict.Filter != "crypto" {
 		t.Errorf("DM candidate = %+v, want the direct rule by crypto", c)
 	}
 	if len(src.verdicts()) != 0 {
 		t.Fatalf("a preview recorded %+v", src.verdicts())
 	}
 
-	recent, err := n.RescanSpam(ctx, time.Now().Add(-36*time.Hour), false, nil)
+	recent, err := n.RescanFilters(ctx, time.Now().Add(-36*time.Hour), false, nil)
 	if err != nil || len(recent) != 0 {
 		t.Errorf("since 36h ago = %+v (%v), want nothing: both catches are older", recent, err)
 	}
 
-	moved, err := n.RescanSpam(ctx, time.Time{}, true, []domain.RoomID{chatRm})
+	moved, err := n.RescanFilters(ctx, time.Time{}, true, []domain.RoomID{chatRm})
 	if err != nil || len(moved) != 1 || moved[0].Verdict.Room != chatRm {
 		t.Fatalf("apply = %+v (%v), want the Work room alone", moved, err)
 	}
-	if marked := src.verdicts(); len(marked) != 1 || marked[0].Room != chatRm || marked[0].Rule != domain.SpamAlways {
+	if marked := src.verdicts(); len(marked) != 1 || marked[0].Room != chatRm || marked[0].Rule != domain.MoveAlways {
 		t.Fatalf("recorded %+v, want the Work room alone", marked)
 	}
-	again, _ := n.RescanSpam(ctx, time.Time{}, false, nil)
+	again, _ := n.RescanFilters(ctx, time.Time{}, false, nil)
 	if len(again) != 1 || again[0].Verdict.Room != dmRoom {
 		t.Errorf("after moving, a preview = %+v, want only the DM left", again)
+	}
+}
+
+// A filter moves rooms into any tag; only a muted tag silences them, and a rule naming
+// the tag reaches a room a filter moved there.
+func TestAFilterMovesIntoAnyTagAndRulesSeeIt(t *testing.T) {
+	t.Parallel()
+
+	src := spamWorld()
+	cfg := notifsOn("all")
+	cfg.Tags = []config.Tag{{Name: "Leads"}}
+	cfg.Filters = []config.Filter{{Name: "prospects", Tag: "Leads", Words: []string{"quote*"}, Moves: []string{"always"}}}
+	n, _ := spamNotifier(t, cfg, src)
+	ctx := context.Background()
+
+	if _, notified := n.Deliver(ctx, msg(chatRm, alice, "quote please")); !notified {
+		t.Error("a filter moving into a tag that notifies silenced the room")
+	}
+	if marked := src.verdicts(); len(marked) != 1 || marked[0].Tag != "Leads" || marked[0].Rule != domain.MoveAlways {
+		t.Fatalf("recorded %+v, want one move into Leads", marked)
+	}
+
+	cfg.Notifications.Rules = append(cfg.Notifications.Rules, config.Rule{Match: "tag:Leads", Show: "none"})
+	if err := n.Reload(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, notified := n.Deliver(ctx, msg(chatRm, alice, "anything")); notified {
+		t.Error("a rule naming tag:Leads missed a room a filter moved there")
+	}
+	if _, notified := n.Deliver(ctx, msg(dmRoom, alice, "anything")); !notified {
+		t.Error("a rule naming tag:Leads silenced a room no filter moved")
+	}
+}
+
+// Two filters catching one message move its room into both their tags.
+func TestOneMessageMovesARoomIntoEachTagWhoseFilterFires(t *testing.T) {
+	t.Parallel()
+
+	src := spamWorld()
+	cfg := spamConfig(func(c *config.Config) {
+		c.Tags = append(c.Tags, config.Tag{Name: "Crypto"})
+		c.Filters = append(c.Filters, config.Filter{Name: "coins", Tag: "Crypto", Words: []string{"*bitcoin*"}, Moves: []string{"always"}})
+	})
+	n, _ := spamNotifier(t, cfg, src)
+	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "double your bitcoin")); notified {
+		t.Error("a room moved into the muted Spam notified")
+	}
+	tags := map[string]domain.MoveRule{}
+	for _, v := range src.verdicts() {
+		tags[v.Tag] = v.Rule
+	}
+	if tags["Spam"] != domain.MoveFirstMessage || tags["Crypto"] != domain.MoveAlways || len(tags) != 2 {
+		t.Errorf("moves = %v, want Spam by its first message and Crypto always", tags)
+	}
+}
+
+// Deliveries, a rescan and a reload at once: no race, and every room is moved (perhaps
+// twice, with the same move: the delivery and the rescan may both write it).
+func TestFiltersHoldUnderConcurrentUse(t *testing.T) {
+	t.Parallel()
+
+	src := spamWorld()
+	var rooms []domain.RoomID
+	for i := range 8 {
+		id := domain.RoomID(fmt.Sprintf("!r%d:example.org", i))
+		src.rooms = append(src.rooms, domain.Room{ID: id, Name: fmt.Sprintf("R%d", i)})
+		rooms = append(rooms, id)
+	}
+	cfg := spamConfig(withFilters(config.Filter{Name: "coins", Tag: "Spam", Words: []string{"*bitcoin*"}, Moves: []string{"always"}}))
+	n, _ := spamNotifier(t, cfg, src)
+	ctx := context.Background()
+
+	var wg sync.WaitGroup
+	for i, room := range rooms {
+		wg.Go(func() {
+			src.put(room, alice, "bitcoin here", time.Duration(i)*time.Minute)
+			n.Deliver(ctx, msg(room, alice, "more bitcoin"))
+		})
+	}
+	wg.Go(func() { _, _ = n.RescanFilters(ctx, time.Time{}, true, nil) })
+	wg.Go(func() { _ = n.Reload(cfg) })
+	wg.Wait()
+
+	moved := map[domain.RoomID]int{}
+	for _, v := range src.verdicts() {
+		moved[v.Room]++
+	}
+	for _, room := range rooms {
+		if moved[room] == 0 {
+			t.Errorf("%s was never moved", room)
+		}
 	}
 }

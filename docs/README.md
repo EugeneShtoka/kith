@@ -23,7 +23,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 | Page | What it covers |
 | --- | --- |
 | [Notifications](notifications.md) | Rules per room, space, sender and thread; quiet hours; do-not-disturb; burst folding; verification-code capture |
-| [Spam](spam.md) | Content filters, promotion rules, the Spam group, `/caught` and `/why` |
+| [Filters](filters.md) | Filters that move rooms into tags, the Spam tag, `/caught`, `:rescan` and `/why` |
 | [Composer](composer.md) | Markdown, mentions, emoji, attachments, drafts, the send queue, scheduled messages, spelling and completion |
 | [Assist](assist.md) | The local completion model and the optional remote model: `/summary`, `:todo`, thread names, privacy scoping |
 | [Commands](commands.md) | Built-in `/` and `:` commands, and writing your own as executable scripts |

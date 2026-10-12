@@ -96,13 +96,17 @@ func (s *server) StarredIn(ctx context.Context, r *req[v1.StarredInRequest]) (*r
 	return reply(&v1.StarredInResponse{EventIds: out}, err)
 }
 
-func (s *server) SpamRooms(ctx context.Context, _ *req[v1.SpamRoomsRequest]) (*resp[v1.SpamRoomsResponse], error) {
-	verdicts, err := s.Backend.SpamRooms(ctx)
-	return reply(&v1.SpamRoomsResponse{Rooms: pc.SpamToProto(verdicts)}, err)
+func (s *server) TagVerdicts(ctx context.Context, _ *req[v1.TagVerdictsRequest]) (*resp[v1.TagVerdictsResponse], error) {
+	verdicts, err := s.Backend.TagVerdicts(ctx)
+	return reply(&v1.TagVerdictsResponse{Verdicts: pc.VerdictsToProto(verdicts)}, err)
 }
 
-func (s *server) MarkSpam(ctx context.Context, r *req[v1.MarkSpamRequest]) (*resp[v1.MarkSpamResponse], error) {
-	return reply(&v1.MarkSpamResponse{}, s.Backend.MarkSpam(ctx, pc.ProtoToSpam(r.Msg.GetVerdict())))
+func (s *server) MarkTag(ctx context.Context, r *req[v1.MarkTagRequest]) (*resp[v1.MarkTagResponse], error) {
+	return reply(&v1.MarkTagResponse{}, s.Backend.MarkTag(ctx, pc.ProtoToVerdict(r.Msg.GetVerdict())))
+}
+
+func (s *server) RetagVerdicts(ctx context.Context, r *req[v1.RetagVerdictsRequest]) (*resp[v1.RetagVerdictsResponse], error) {
+	return reply(&v1.RetagVerdictsResponse{}, s.Backend.RetagVerdicts(ctx, r.Msg.GetFrom(), r.Msg.GetTo()))
 }
 
 func (s *server) MarkRead(ctx context.Context, r *req[v1.MarkReadRequest]) (*resp[v1.MarkReadResponse], error) {
@@ -735,7 +739,7 @@ func (s *server) DND(_ context.Context, _ *req[v1.DNDRequest]) (*resp[v1.DNDResp
 	return connect.NewResponse(&v1.DNDResponse{Rules: pc.TempRulesToProto(s.Notifications.DND())}), nil
 }
 
-func (s *server) RescanSpam(ctx context.Context, r *req[v1.RescanSpamRequest]) (*resp[v1.RescanSpamResponse], error) {
+func (s *server) RescanFilters(ctx context.Context, r *req[v1.RescanFiltersRequest]) (*resp[v1.RescanFiltersResponse], error) {
 	var since time.Time
 	if ms := r.Msg.GetSinceUnixMs(); ms > 0 {
 		since = time.UnixMilli(ms)
@@ -744,8 +748,8 @@ func (s *server) RescanSpam(ctx context.Context, r *req[v1.RescanSpamRequest]) (
 	for _, id := range r.Msg.GetRoomIds() {
 		rooms = append(rooms, domain.RoomID(id))
 	}
-	found, err := s.Notifications.RescanSpam(ctx, since, r.Msg.GetApply(), rooms)
-	return reply(&v1.RescanSpamResponse{Rooms: pc.CandidatesToProto(found)}, err)
+	found, err := s.Notifications.RescanFilters(ctx, since, r.Msg.GetApply(), rooms)
+	return reply(&v1.RescanFiltersResponse{Rooms: pc.CandidatesToProto(found)}, err)
 }
 
 // ReloadConfig reports an unparsable config as InvalidArgument: it is the caller's input.

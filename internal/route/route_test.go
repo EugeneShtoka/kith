@@ -32,7 +32,7 @@ func perRoomCalls(ctx context.Context, r *Router, room domain.RoomID) map[string
 	calls["MarkRead"] = r.MarkRead(ctx, room, "$e", false)
 	calls["MarkRoomUnread"] = r.MarkRoomUnread(ctx, room, true)
 	calls["StarMessage"] = r.StarMessage(ctx, room, "$e", true)
-	calls["MarkSpam"] = r.MarkSpam(ctx, domain.SpamVerdict{Room: room})
+	calls["MarkTag"] = r.MarkTag(ctx, domain.TagVerdict{Room: room, Tag: "Spam"})
 	_, calls["CanonicalParent"] = r.CanonicalParent(ctx, room)
 	_, _, calls["MessageHistory"] = r.MessageHistory(ctx, room, "$e")
 	_, calls["Timeline"] = r.Timeline(ctx, room, "", 10)

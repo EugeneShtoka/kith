@@ -62,7 +62,7 @@ func TestPropertiesAreSetAndReadBack(t *testing.T) {
 		{"display.mouse", "false", "false"},
 		{"display.fps", "60", "60"},
 		{"display.read_delay", "15", "15"},
-		{"spam.ratio", "0.25", "0.25"},
+		{"display.media.audio.speed", "1.5", "1.5"},
 		{"display.theme.accent", "#ff8800", "#ff8800"},
 		{"display.priority", "tag:Work, Friends", "tag:Work, Friends"},
 	} {
@@ -87,7 +87,7 @@ func TestPropertiesAreSetAndReadBack(t *testing.T) {
 			t.Errorf("%s is still set after an empty value", path)
 		}
 	}
-	for path, bad := range map[string]string{"display.fps": "fast", "display.mouse": "maybe", "spam.ratio": "half"} {
+	for path, bad := range map[string]string{"display.fps": "fast", "display.mouse": "maybe", "display.media.audio.speed": "fast"} {
 		if err := cfg.SetValue(path, bad); err == nil {
 			t.Errorf("%s took %q", path, bad)
 		}

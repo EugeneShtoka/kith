@@ -80,10 +80,6 @@ type unreadView struct {
 	parents map[domain.RoomID]domain.SpaceID
 	// facts is the slow way to a room's facts (roomFacts holds them precomputed).
 	facts func(domain.Room) domain.RoomFacts
-	// spamRooms is the union of the hand-written lists and what the filters caught.
-	spam      domain.Spam
-	caught    map[domain.RoomID]domain.SpamVerdict
-	spamRooms map[domain.RoomID]bool
 	// tags and the facts they judge by (precomputed), and the drafts the `draft` state word reads;
 	// tagMemo caches the per-room result (tagged.go), keyed by tagsRev.
 	tags      domain.TagSet
@@ -113,8 +109,8 @@ func (v unreadView) marked(room domain.Room) bool {
 	return v.counts[room.ID].Marked && !v.silenced(room)
 }
 
-// refreshPlaces recomputes the rooms' facts and the spam set, which share their inputs.
-func (m Model) refreshPlaces() Model { return m.refreshFacts().refreshSpam() }
+// refreshPlaces recomputes the rooms' facts.
+func (m Model) refreshPlaces() Model { return m.refreshFacts() }
 
 // refreshFacts recomputes every room's facts, as a new map (see refreshArchived).
 func (m Model) refreshFacts() Model {
@@ -144,9 +140,6 @@ func (m Model) unreadView() unreadView {
 		local:     m.prefs.unreadLocal,
 		parents:   m.parents,
 		facts:     m.factsFor,
-		spam:      m.rail.spam,
-		caught:    m.rail.caught,
-		spamRooms: m.rail.spamRooms,
 		tags:      m.rail.tags,
 		tagsRev:   m.rail.tagsRev,
 		tagMemo:   m.rail.tagMemo,
