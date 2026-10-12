@@ -93,19 +93,18 @@ func TestASpacesPageAddsAFilterWatchingIt(t *testing.T) {
 	}
 }
 
-// `,` on a rail row opens that place's page; elsewhere, the settings groups.
-func TestTheSettingsKeyOnARailRowOpensItsPage(t *testing.T) {
+// e on a rail row opens that place's page; `,` opens all of settings from anywhere.
+func TestTheEditKeyOnARailRowOpensItsPage(t *testing.T) {
 	t.Parallel()
 	m, _ := laidOut(t, config.Display{})
 	m.focus = paneRail
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
-	next, _ := press(t, m, keyText(","))
+	next, _ := press(t, m, keyText("e"))
 	if next.picker.kind != pickerSetting || next.choosing.settingGroup != placePage("Work") {
-		t.Errorf("`,` on Work: picker %v on %q, want Work's page", next.picker.kind, next.choosing.settingGroup)
+		t.Errorf("e on Work: picker %v on %q, want Work's page", next.picker.kind, next.choosing.settingGroup)
 	}
-	m.focus = paneRooms
 	if next, _ = press(t, m, keyText(",")); next.picker.kind != pickerSettingGroups {
-		t.Errorf("`,` in the room list: picker %v, want the groups", next.picker.kind)
+		t.Errorf("`,` on the rail: picker %v, want all of settings", next.picker.kind)
 	}
 }
 

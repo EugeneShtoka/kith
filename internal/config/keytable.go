@@ -93,6 +93,8 @@ reported in ` + "`?`" + ` and does nothing.
 			{path: "rail.name", def: "a", doc: "name this group", note: "A local name; an empty one clears it."},
 			{path: "rail.notify_rule", def: "b", doc: "notification rule for this space"},
 			{path: "rail.mark_read", def: "m", doc: "mark every unread room in this group read", note: "Asks first."},
+			{path: "rail.edit", def: "e", doc: "this space's or tag's settings page",
+				note: "Its rule, rooms, display and filters; the settings key opens all of settings."},
 			{path: "rail.leave", def: "L,x", doc: "leave this space, or delete this tag", note: "Asks first. A Telegram forum is left with all its topics, a WhatsApp community with all its groups; leaving a Matrix space asks which of its rooms go too; an account's own space signs it out."},
 		},
 	},

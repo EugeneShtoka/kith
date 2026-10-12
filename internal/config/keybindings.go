@@ -149,6 +149,7 @@ type RailKeys struct {
 	NotifyRule string `toml:"notify_rule"`
 	MarkRead   string `toml:"mark_read"`
 	Leave      string `toml:"leave"`
+	Edit       string `toml:"edit"`
 }
 
 // SearchKeys open message search over the local cache and drive its results.

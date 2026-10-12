@@ -140,7 +140,7 @@ existing tag would change among that account's chats — and you choose per tag 
 **Copy**. Setting an account up offers the same.
 
 **Editing tags in the app.** Settings (`,`) → **Places** lists your spaces and tags and
-makes a new tag; `,` on a rail row opens that place's page. A tag's page shows its
+makes a new tag; `e` on a rail row opens that place's page. A tag's page shows its
 name, rule, picked and excluded rooms, every property as an on/off row (each word of
 `exclusive` is its own row), which other tags take rooms out of its row (the ones
 exclusive from tags), its display choices and the [filters](filters.md) moving rooms
@@ -243,7 +243,7 @@ A thread's summary sits at its root in the timeline, which may be far up the scr
 - **Opening** a room reads it. **Selecting** it in the list does not, unless you set `[display] read_delay` to a number of seconds to rest on it (`0` reads everything the cursor touches; `-1`, the default, never).
 - `m` in the room list marks a room read without opening it; `m` in the rail marks the whole group.
 - `M` marks a room you have read as still needing you, and clears that mark. It is the homeserver's marked-unread flag, so it shows on your other clients; reading the room clears it too. `/unread` does the same from the composer.
-- **Archiving** a room is putting it in the starter config's Archived tag (`S`, or `/tag Archived`): it stays readable and writable, but stops counting toward any badge, leaves every group except the space it belongs to and Archived, and is skipped by group-wide mark-read. Whether a room list shows archived rooms at all is `[display] show_archived` (on by default), a place's `[[display.space_rule]] show_archived` over it, or settings (a place's page in **Places**, or `,` on its rail row); `A` in the room list (or `:archived`) flips it for the place you are in until kith restarts. The archive's own list always shows them.
+- **Archiving** a room is putting it in the starter config's Archived tag (`S`, or `/tag Archived`): it stays readable and writable, but stops counting toward any badge, leaves every group except the space it belongs to and Archived, and is skipped by group-wide mark-read. Whether a room list shows archived rooms at all is `[display] show_archived` (on by default), a place's `[[display.space_rule]] show_archived` over it, or settings (a place's page in **Places**, or `e` on its rail row); `A` in the room list (or `:archived`) flips it for the place you are in until kith restarts. The archive's own list always shows them.
 - **Pinning** is putting it in the Pinned tag: it appears there as well as where it lives, and `tag:Pinned` is a place a notification rule can name — a way to let one conversation through do-not-disturb. See [Notifications](notifications.md).
 - `!` moves a conversation to **Spam** and back, a [`[[keys.tag]]`](filters.md#the-spam-tag) binding any tag can have.
 

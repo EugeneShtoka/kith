@@ -63,6 +63,7 @@ const (
 	actConfirm
 	actJoin
 	actLeave
+	actEditPlace
 	actAccept
 	actReject
 	actSubmit
@@ -367,6 +368,7 @@ var keyActions = []keyAction{
 	{scopeRail, actNotifyRule, "rail.notify_rule"},
 	{scopeRail, actMarkRead, "rail.mark_read"},
 	{scopeRail, actLeave, "rail.leave"},
+	{scopeRail, actEditPlace, "rail.edit"},
 
 	{scopeRooms, actAccept, "rooms.accept"},
 	{scopeRooms, actReject, "rooms.reject"},
