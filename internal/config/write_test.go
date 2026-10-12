@@ -75,7 +75,7 @@ func TestSaveWritesOnlyChangedBindings(t *testing.T) {
 	t.Parallel()
 
 	cfg := minimal()
-	cfg.Keys.Timeline.React = "R"
+	cfg.Keys.Bindings["timeline.react"] = "R"
 	body, path := saved(t, cfg)
 
 	if !strings.Contains(body, `react = "R"`) {
@@ -88,11 +88,11 @@ func TestSaveWritesOnlyChangedBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.Keys.Timeline.React != "R" {
-		t.Errorf("React = %q, want the saved value", reloaded.Keys.Timeline.React)
+	if reloaded.Keys.Bindings["timeline.react"] != "R" {
+		t.Errorf("React = %q, want the saved value", reloaded.Keys.Bindings["timeline.react"])
 	}
-	if reloaded.Keys.Timeline.Insert != DefaultKeys().Timeline.Insert {
-		t.Errorf("Insert = %q, want the default filled back in", reloaded.Keys.Timeline.Insert)
+	if reloaded.Keys.Bindings["timeline.insert"] != DefaultKeys().Bindings["timeline.insert"] {
+		t.Errorf("Insert = %q, want the default filled back in", reloaded.Keys.Bindings["timeline.insert"])
 	}
 }
 
@@ -263,7 +263,7 @@ func TestSaveEmptiedList(t *testing.T) {
 	}
 
 	// But a list emptied from a non-default one is a real change.
-	cfg.Keys.Nav.Up = "" // unbound, which differs from the filled default
+	cfg.Keys.Bindings["nav.up"] = "" // unbound, which differs from the filled default
 	body2, path := saved(t, cfg)
 	if !strings.Contains(body2, `up = ""`) {
 		t.Errorf("an unbound key differs from its default and must be written:\n%s", body2)
@@ -273,8 +273,8 @@ func TestSaveEmptiedList(t *testing.T) {
 		t.Fatal(err)
 	}
 	// FillDefaults treats "" as unset, so "-" is the unbind sentinel.
-	if reloaded.Keys.Nav.Up != DefaultKeys().Nav.Up {
-		t.Errorf("Nav.Up = %q; an empty binding reads as unset and refills", reloaded.Keys.Nav.Up)
+	if reloaded.Keys.Bindings["nav.up"] != DefaultKeys().Bindings["nav.up"] {
+		t.Errorf("Nav.Up = %q; an empty binding reads as unset and refills", reloaded.Keys.Bindings["nav.up"])
 	}
 }
 

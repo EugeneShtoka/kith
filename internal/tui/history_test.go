@@ -252,8 +252,8 @@ func TestTheHistoryHonorsReboundKeys(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Nav.Down = "n"
-	keys.Nav.SelectNewest = "E"
+	keys.Bindings["nav.down"] = "n"
+	keys.Bindings["nav.select_newest"] = "E"
 
 	m := newModel()
 	m.keys = newKeymap(keys)
@@ -375,8 +375,8 @@ func historyRowContaining(lines []string, want string) (string, bool) {
 func TestTheHistoryViewClosesOnTheQuitBindingOnly(t *testing.T) {
 	t.Parallel()
 	keys := config.DefaultKeys()
-	keys.Quit = "ctrl+q"
-	keys.Nav.Down = "q"
+	keys.Bindings["quit"] = "ctrl+q"
+	keys.Bindings["nav.down"] = "q"
 	m := starterNew(apitest.Nop{}, config.Display{}).WithKeys(keys)
 	m = sized(t, withRooms(t, m))
 	m.focus = paneTimeline
