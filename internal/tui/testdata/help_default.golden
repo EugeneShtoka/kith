@@ -39,6 +39,7 @@
   b                notification rule for this space
   m                mark every unread room in this group read
   L, x             leave this space, or delete this tag
+  e                this space's or tag's settings page
 
 [1;38;2;102;135;153mRoom list[m
   su               unread rooms on top, on/off

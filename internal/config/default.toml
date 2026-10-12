@@ -1335,6 +1335,8 @@ name        = "a"    # name this group
 notify_rule = "b"    # notification rule for this space
 # Asks first.
 mark_read   = "m"    # mark every unread room in this group read
+# Its rule, rooms, display and filters; the settings key opens all of settings.
+edit        = "e"    # this space's or tag's settings page
 # Asks first. A Telegram forum is left with all its topics, a WhatsApp community with
 # all its groups; leaving a Matrix space asks which of its rooms go too; an account's
 # own space signs it out.

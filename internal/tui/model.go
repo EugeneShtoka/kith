@@ -1564,6 +1564,11 @@ func (m Model) handleRailKey(press string) (Model, tea.Cmd) {
 		return m.askMarkGroupRead()
 	case actLeave:
 		return m.askLeaveGroup()
+	case actEditPlace:
+		if page, ok := m.openPlaceUnderCursor(); ok {
+			return page, nil
+		}
+		return m.say("only a space or a tag has a settings page"), nil
 	case actUp:
 		if next, moved := m.rail.moved(-m.take()); moved {
 			m.rail = next

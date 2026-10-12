@@ -521,12 +521,7 @@ func groupLabel(group string) string {
 	return group
 }
 
-func (m Model) openSettings() (Model, tea.Cmd) {
-	if page, ok := m.openPlaceUnderCursor(); ok {
-		return page, nil
-	}
-	return m.settingsTop(""), nil
-}
+func (m Model) openSettings() (Model, tea.Cmd) { return m.settingsTop(""), nil }
 
 // settingsTop shows the groups, the cursor on at. A group holding one row that leads
 // somewhere (Tags) is that row.

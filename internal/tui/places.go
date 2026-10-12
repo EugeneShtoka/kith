@@ -14,8 +14,8 @@ import (
 
 // Settings → Places: every rail row that is a space or a tag, each with one page
 // holding everything about it: a tag's rule, rooms and properties, the place's own
-// display rows, and the filters moving rooms into it or watching it. `,` on a rail row
-// opens its page.
+// display rows, and the filters moving rooms into it or watching it. The rail's edit key
+// opens a row's page.
 
 // placePagePrefix keys a place's page by its rail key: page:Work, page:tag:Spam.
 const placePagePrefix = "page:"
@@ -237,7 +237,8 @@ func (m Model) placeFilterRows(key, group string) []setting {
 	})
 }
 
-// openPlaceUnderCursor is `,` on a rail row: that place's page; elsewhere, settings.
+// openPlaceUnderCursor is the rail's edit key: the page of the space or tag under the
+// cursor; false for any other row.
 func (m Model) openPlaceUnderCursor() (Model, bool) {
 	if m.focus != paneRail || m.rail.cursor < 0 || m.rail.cursor >= len(m.rail.groups) {
 		return m, false

@@ -109,7 +109,7 @@ You rarely need to open the file. Inside kith:
     [phonebook](phonebook.md#a-field-beside-names) field shown beside names, network
     colors and archived rooms; and its [filters](filters.md), the ones moving rooms
     into a tag or watching a space, with a row adding one with the place filled in.
-    `,` on a rail row opens that place's page.
+    `e` on a rail row opens that place's page.
 - `a` on a room, space, rail group, thread or person gives it your own name.
 - `b` on a message, room or space writes a notification rule for it.
 - `/why` shows every notification rule in force for the current room, in order, and
