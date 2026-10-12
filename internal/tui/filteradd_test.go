@@ -70,3 +70,54 @@ func TestAddingAFilterAsksForEachPart(t *testing.T) {
 		t.Errorf("after adding: on %q, want the new filter's page", m.choosing.settingGroup)
 	}
 }
+
+// A filter's own page offers its tag, moves and places as choices, as adding one does;
+// moves cannot be left empty, and a place entry not in the rail is kept.
+func TestAFiltersPageChoosesItsTagMovesAndPlaces(t *testing.T) {
+	t.Parallel()
+	m, _ := laidOut(t, config.Display{})
+	cfg := m.conf.base.Clone()
+	cfg.Filters = []config.Filter{{Name: "politics", Tag: "Spam", Words: []string{"vote"}, In: []string{"room:Bank"}, Moves: []string{"always"}}}
+	m, _ = m.applyConfig(cfg, "")
+	page := filterTable + "#0"
+
+	m = pickLabel(t, m.settingsIn(page, ""), "Tag")
+	if m.picker.kind != pickerSettingValue {
+		t.Fatalf("Tag opened %v, want the tags to choose from", m.picker.kind)
+	}
+	m = pickLabel(t, m, "Archived")
+	if got := m.conf.base.Filters[0].Tag; got != "Archived" {
+		t.Errorf("tag = %q, want Archived", got)
+	}
+
+	m = pickLabel(t, m.settingsIn(page, ""), "Moves")
+	if m.picker.kind != pickerSettingSet || !slices.Equal(m.picker.checkedValues(), []string{"always"}) {
+		t.Fatalf("Moves opened %v ticked %v, want the moves with always ticked", m.picker.kind, m.picker.checkedValues())
+	}
+	m.picker.cursor = 0 // always
+	m = pressX(t, m)
+	if m.picker.ticked("always") {
+		t.Fatal("x did not untick the move under the cursor")
+	}
+	m, _ = m.acceptPick()
+	if got := m.conf.base.Filters[0].Moves; !slices.Equal(got, []string{"always"}) || !strings.Contains(m.status(), "at least one") {
+		t.Errorf("no move ticked: moves %v, status %q; want it refused", got, m.status())
+	}
+	m.picker.checked = map[string]bool{"direct": true, "first_message": true}
+	next, cmd := m.acceptPick()
+	m = deliver(t, next, cmd)
+	if got := m.conf.base.Filters[0].Moves; !slices.Equal(got, []string{"first_message", "direct"}) {
+		t.Errorf("moves = %v, want the ticked ones in order", got)
+	}
+
+	m = pickLabel(t, m.settingsIn(page, ""), "In")
+	if m.picker.kind != pickerSettingSet || !slices.Equal(m.picker.checkedValues(), []string{"room:Bank"}) {
+		t.Fatalf("In opened %v ticked %v, want the places with room:Bank kept", m.picker.kind, m.picker.checkedValues())
+	}
+	m.picker.checked = map[string]bool{"room:Bank": true, "space:Work": true}
+	next, cmd = m.acceptPick()
+	m = deliver(t, next, cmd)
+	if got := m.conf.base.Filters[0].In; !slices.Equal(got, []string{"space:Work", "room:Bank"}) {
+		t.Errorf("in = %v, want Work and the kept room", got)
+	}
+}

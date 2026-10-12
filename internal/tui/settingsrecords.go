@@ -241,7 +241,7 @@ func (m Model) recordFieldRows(t config.RecordTable, i int) []setting {
 	group := fmt.Sprintf("%s%s#%d", recordPrefix, t.Path, i)
 	rows := make([]setting, 0, len(t.Fields)+1)
 	for _, f := range t.Fields {
-		rows = append(rows, recordField(t, i, group, f))
+		rows = append(rows, m.chosenField(recordField(t, i, group, f), t.Path, f.Path))
 	}
 	return append(rows, setting{
 		key: group + recordRemove, group: group, kind: settingOpen, label: "Remove this one", doc: t.Doc,

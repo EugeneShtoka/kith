@@ -27,6 +27,7 @@ const (
 	settingText                      // typed below its group's rows
 	settingNumber                    // typed in place, or stepped with + and -
 	settingList                      // a list of entries, edited one at a time
+	settingMulti                     // a set of allowed values, ticked in a picker
 	settingOpen                      // leads somewhere rather than holding a value
 )
 
@@ -600,6 +601,8 @@ func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 		m.choosing.setting = key
 		m.picker = newPicker(pickerSettingValue, settingValueItems(s, s.show(m.conf.base))).at(s.show(m.conf.base))
 		return m, nil
+	case settingMulti:
+		return m.settingSetOpen(s), nil
 	case settingText, settingNumber:
 		return m.editSettingInPlace(s, editText(s, m.conf.base)), nil
 	case settingList:
@@ -686,7 +689,7 @@ func (m Model) writeSetting(s setting, value string) (Model, tea.Cmd) {
 func (m Model) settingsBack() (Model, bool) {
 	group := m.choosing.settingGroup
 	switch m.picker.kind {
-	case pickerSettingValue, pickerSettingEntries:
+	case pickerSettingValue, pickerSettingEntries, pickerSettingSet:
 		return m.settingsIn(group, m.choosing.setting), true
 	case pickerSetting:
 		if parent, at, ok := settingsParent(group); ok {

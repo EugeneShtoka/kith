@@ -63,6 +63,7 @@ const (
 	pickerSetting
 	pickerSettingValue
 	pickerSettingEntries
+	pickerSettingSet // a set setting's choices, ticked
 	pickerDNDScope
 	pickerMuteScope
 	pickerDNDFor
@@ -117,8 +118,9 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerRuleList:        {title: "Notification rules", modal: true},
 	pickerRulePreset:      {title: "Notify how?"},
 	pickerSettingGroups:   {title: "Settings", modal: true},
-	pickerSetting:         {modal: true}, // titled with the group
-	pickerSettingEntries:  {modal: true}, // titled with the setting
+	pickerSetting:         {modal: true},              // titled with the group
+	pickerSettingEntries:  {modal: true},              // titled with the setting
+	pickerSettingSet:      {modal: true, multi: true}, // titled with the setting
 	pickerSettingValue:    {title: "Set it to"},
 	pickerDNDScope:        {title: "Do not disturb for what?"},
 	pickerMuteScope:       {title: "Mute sound for what?"},
@@ -483,6 +485,8 @@ func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
 		return m.applyRescan(values)
 	case pickerFilterPlaces:
 		return m.acceptFilterPlaces(values)
+	case pickerSettingSet:
+		return m.writeSettingSet(values)
 	case pickerFilterMoves:
 		return m.acceptFilterMoves(values)
 	default:
