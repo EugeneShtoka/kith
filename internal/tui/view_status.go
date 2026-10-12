@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -184,29 +185,13 @@ func (m Model) backLabel() string {
 // promptHint is the open prompt's key legend. A search runs as you type, so its legend
 // shows the keys that leave the prompt rather than a "run" key.
 func (m Model) promptHint() string {
-	submit := "submit"
-	switch m.prompt.kind {
-	case promptJoin:
-		submit = "join"
-	case promptSearchRoom, promptSearchAll, promptMentions, promptFiles, promptStarred,
-		promptTracked, promptCaught:
-		submit = "walk the results"
-	case promptAlias, promptRoomName, promptGroupName, promptThreadName, promptRuleSound,
-		promptRuleName, promptAttach, promptSetting, promptSettingEntry, promptInvite, promptUnban,
-		promptNewRoom, promptJumpBind, promptCommand, promptTagName, promptTagEntry,
-		promptPersonValue, promptPersonKey, promptNone:
-		// "submit" says it for these.
-	case promptFilterName, promptFilterWords, promptFilterFrom:
-		submit = "next"
-	case promptLogin:
+	spec := promptSpecs[m.prompt.kind]
+	submit, cancel := cmp.Or(spec.submitWord, "submit"), cmp.Or(spec.cancelWord, "cancel")
+	if m.prompt.kind == promptLogin {
 		submit = "next"
 		if m.login.at == len(m.login.fields)-1 {
 			submit = "sign in"
 		}
-	}
-	cancel := "cancel"
-	if m.prompt.kind == promptSetting || m.prompt.kind == promptSettingEntry {
-		submit, cancel = "save", "keep it as it was"
 	}
 	hints := []hint{
 		keyed(m.keys.keyHint(scopePrompt, actSubmit), submit),
@@ -252,19 +237,6 @@ func (m Model) hintLine(hints ...hint) string {
 		}
 	}
 	return strings.Join(parts, " · ")
-}
-
-// promptLabel is the open prompt's leading text; some prompts name what they set.
-func (m Model) promptLabel() string {
-	switch m.prompt.kind { //nolint:exhaustive // these prompts label themselves
-	case promptJumpBind:
-		return m.bindingLabel()
-	case promptLogin:
-		return m.loginPromptLabel()
-	case promptSetting, promptSettingEntry:
-		return m.settingPromptLabel()
-	}
-	return m.prompt.label()
 }
 
 // promptValue is what is typed, in room columns: dots for a secret, and an untouched

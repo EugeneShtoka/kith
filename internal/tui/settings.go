@@ -685,32 +685,12 @@ func (m Model) writeSetting(s setting, value string) (Model, tea.Cmd) {
 	return next.settingsIn(s.group, s.key), cmd
 }
 
-// settingsBack steps up a level on esc, or returns false when the picker closes.
-func (m Model) settingsBack() (Model, bool) {
-	group := m.choosing.settingGroup
-	switch m.picker.kind {
-	case pickerSettingValue, pickerSettingEntries, pickerSettingSet:
-		return m.settingsIn(group, m.choosing.setting), true
-	case pickerSetting:
-		if parent, at, ok := settingsParent(group); ok {
-			return m.settingsIn(parent, at), true
-		}
-		return m.settingsTop(group), true
-	case pickerFilterTag, pickerFilterPlaces, pickerFilterMoves:
-		return m.backToFilters(), true
-	case pickerTagEntries:
-		return m.tagOpen(m.choosing.tag.tag), true
-	default:
-		return m, false
-	}
-}
-
 // settingPromptLabel names what a settings prompt sets: the row's label, or its list's
 // for an entry.
 func (m Model) settingPromptLabel() string {
 	s, ok := m.setting(m.choosing.setting)
 	if !ok {
-		return m.prompt.label()
+		return "set to: "
 	}
 	if m.prompt.kind == promptSettingEntry {
 		return s.label + " entry: "

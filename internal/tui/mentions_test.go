@@ -34,7 +34,7 @@ func TestMentionsListShowsTheMessages(t *testing.T) {
 	if m.prompt.kind != promptMentions {
 		t.Errorf("prompt = %d, want the mentions prompt", m.prompt.kind)
 	}
-	if got := m.prompt.label(); !strings.Contains(got, "narrow") {
+	if got := m.promptLabel(); !strings.Contains(got, "narrow") {
 		t.Errorf("label = %q, want it to say typing narrows the list", got)
 	}
 	if len(backend.requests) == 0 {
