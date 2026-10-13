@@ -29,20 +29,20 @@ require (
 	github.com/yuin/goldmark v1.8.6
 	github.com/zalando/go-keyring v0.2.8
 	go.mau.fi/libsignal v0.2.2
-	go.mau.fi/mautrix-meta v0.2609.0
-	go.mau.fi/util v0.10.1
+	go.mau.fi/mautrix-meta v0.2609.1-0.20261013130553-a37ac47c433a
+	go.mau.fi/util v0.10.2-0.20260918225449-a4c0d5b86aa8
 	go.mau.fi/whatsmeow v0.0.0-20260929112325-8b41cfe6d9c4
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.60.0
 	golang.org/x/term v0.46.0
 	golang.org/x/text v0.42.0
 	google.golang.org/protobuf v1.36.12
-	maunium.net/go/mautrix v0.31.0
+	maunium.net/go/mautrix v0.31.1-0.20261005141226-f14e6b5fc009
 	modernc.org/sqlite v1.60.1
 )
 
 require (
-	github.com/andybalholm/brotli v1.2.2 // indirect
+	github.com/andybalholm/brotli v1.2.4 // indirect
 	github.com/beeper/poly1305 v0.0.0-20250815183548-d4eede7bbf3c // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
@@ -55,9 +55,10 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/gotd/ige v0.3.0 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
+	github.com/gtank/ristretto255 v0.2.0 // indirect
 	github.com/icholy/digest v1.2.0 // indirect
 	github.com/imroc/req/v3 v3.56.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/ogen-go/ogen v1.23.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.61.0 // indirect
@@ -310,4 +311,4 @@ replace charm.land/bubbletea/v2 => github.com/EugeneShtoka/bubbletea/v2 v2.0.10-
 
 replace github.com/slack-go/slack => github.com/beeper/slackgo v0.0.0-20260925001310-ea62f6cbc997
 
-replace github.com/imroc/req/v3 => github.com/beeper/req/v3 v3.0.0-20260808092153-100cef0a2fbd
+replace github.com/imroc/req/v3 => github.com/beeper/req/v3 v3.0.0-20260925135712-b49593750e56

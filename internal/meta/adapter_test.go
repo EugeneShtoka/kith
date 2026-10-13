@@ -13,6 +13,7 @@ import (
 
 	"go.mau.fi/mautrix-meta/pkg/messagix/cookies"
 	"go.mau.fi/mautrix-meta/pkg/messagix/httpclient"
+	"go.mau.fi/mautrix-meta/pkg/messagix/table"
 	"go.mau.fi/mautrix-meta/pkg/messagix/types"
 	"maunium.net/go/mautrix/bridgev2"
 
@@ -516,4 +517,28 @@ func TestALoginDuringAnOldWriteStillWins(t *testing.T) {
 	if err != nil || stored.Cookies["xs"] != fmt.Sprintf("s%d-0", newest) {
 		t.Errorf("the stored session is %v (%v), not the login's s%d-0", stored.Cookies["xs"], err, newest)
 	}
+}
+
+// A panic inside the library fails the one call, not the daemon: messagix's login
+// interpreter panicked on a screen Meta had changed (v0.2609.0).
+func TestALibraryPanicIsAnError(t *testing.T) {
+	t.Parallel()
+
+	a := New(nil, newSecrets(), nil, nil)
+	err := a.guard("signing in", func() error {
+		var page *bridgev2.LoginStep
+		_ = page.Instructions // a nil dereference, as in the interpreter
+		return nil
+	})
+	if !errors.Is(err, errLibraryPanicked) || !strings.Contains(err.Error(), "while signing in") {
+		t.Errorf("guard = %v", err)
+	}
+	if err := a.guard("nothing", func() error { return context.Canceled }); !errors.Is(err, context.Canceled) {
+		t.Errorf("guard passes errors through: %v", err)
+	}
+
+	// An event the connection cannot take (a table before any client) is dropped.
+	a.UseConfig(context.Background(), withAccounts("fb"))
+	c := a.newConn(Account{Name: "fb"}, aSession(1, "a"), nil)
+	a.handle(context.Background(), c, &table.LSTable{})
 }

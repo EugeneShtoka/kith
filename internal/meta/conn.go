@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -178,7 +179,11 @@ func (a *Adapter) load(ctx context.Context, c *conn) *loaded {
 		s := c.session
 		c.mu.Unlock()
 		client := a.clientFor(s)
-		_, inbox, err := client.LoadMessagesPage(ctx)
+		var inbox *table.LSTable
+		err := a.guard("loading the messages page", func() (err error) {
+			_, inbox, err = client.LoadMessagesPage(ctx)
+			return err //nolint:wrapcheck // the caller wraps it and reads its kind (errors.Is)
+		})
 		if err == nil {
 			return &loaded{client: client, inbox: inbox}
 		}
@@ -228,6 +233,13 @@ func (a *Adapter) handle(_ context.Context, c *conn, evt any) {
 	if c.closed() {
 		return
 	}
+	if err := a.guard("handling an event", func() error { a.react(c, evt); return nil }); err != nil {
+		a.log.Error("an event was dropped", "account", c.account.Name, "err", err)
+	}
+}
+
+// react is handle's work.
+func (a *Adapter) react(c *conn, evt any) {
 	switch e := evt.(type) {
 	case *messagix.ConnectedEvent, *messagix.ReconnectedEvent:
 		a.session(c.account, Connected, "")
@@ -274,3 +286,20 @@ func (a *Adapter) keepCookies(c *conn) {
 // loginPlatform is the app a login signs in as. iOS: messagix's Android user agent and
 // build number disagree (its own FIXME).
 const loginPlatform = types.MessengerLiteIOS
+
+// guard runs fn, turning a panic into an error. Meta changes its login screens and its
+// protocol without notice, and messagix's interpreter has panicked on a screen it did
+// not know (v0.2609.0, 2026-10-13): that must fail one login or drop one event, not
+// take the daemon and every other network down with it.
+func (a *Adapter) guard(what string, fn func() error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			a.log.Error("the Messenger library panicked", "while", what, "panic", r, "stack", string(debug.Stack()))
+			err = fmt.Errorf("%w while %s: %v", errLibraryPanicked, what, r)
+		}
+	}()
+	return fn()
+}
+
+// errLibraryPanicked is a panic inside messagix, caught.
+var errLibraryPanicked = errors.New("meta: the Messenger library failed")

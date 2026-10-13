@@ -10,6 +10,8 @@ import (
 	"go.mau.fi/mautrix-meta/pkg/messagix"
 	"go.mau.fi/mautrix-meta/pkg/messagix/bloks"
 	"go.mau.fi/mautrix-meta/pkg/messagix/cookies"
+	"go.mau.fi/mautrix-meta/pkg/messagix/table"
+	"go.mau.fi/mautrix-meta/pkg/messagix/types"
 	"go.mau.fi/util/exhttp"
 	"maunium.net/go/mautrix/bridgev2"
 
@@ -55,7 +57,12 @@ func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk)
 		&messagix.Config{ClientSettings: exhttp.SensibleClientSettings})
 	var input map[string]string
 	for {
-		step, got, err := client.MessengerLite.DoLoginSteps(ctx, input)
+		var step *bridgev2.LoginStep
+		var got *cookies.Cookies
+		err := a.guard("signing in", func() (err error) {
+			step, got, err = client.MessengerLite.DoLoginSteps(ctx, input)
+			return err //nolint:wrapcheck // the caller wraps it and reads its kind (errors.Is)
+		})
 		if err != nil {
 			return api.LoginEnd{}, loginFailed(err)
 		}
@@ -152,7 +159,12 @@ func (a *Adapter) finishLogin(ctx context.Context, account string, login *messag
 		return api.LoginEnd{}, fmt.Errorf("meta: that Meta account is the account %s already", other)
 	}
 	client := a.clientFor(s)
-	user, inbox, err := client.LoadMessagesPage(ctx)
+	var user types.UserInfo
+	var inbox *table.LSTable
+	err := a.guard("loading the messages page", func() (err error) {
+		user, inbox, err = client.LoadMessagesPage(ctx)
+		return err //nolint:wrapcheck // the caller wraps it and reads its kind (errors.Is)
+	})
 	if err != nil {
 		if over := sessionOver(err, account); over != "" {
 			return api.LoginEnd{}, errors.New("meta: " + over)
