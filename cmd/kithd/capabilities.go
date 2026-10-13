@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/matrix"
+	"github.com/EugeneShtoka/kith/internal/meta"
 	"github.com/EugeneShtoka/kith/internal/route"
 	"github.com/EugeneShtoka/kith/internal/slack"
 	"github.com/EugeneShtoka/kith/internal/telegram"
@@ -110,4 +111,10 @@ var (
 		roomsRewriter
 		cacheWriter
 	} = (*telegram.Adapter)(nil)
+
+	// Messenger, so far: login and connection (rooms and messages come next).
+	_ interface {
+		route.Adapter
+		configChecker
+	} = (*meta.Adapter)(nil)
 )

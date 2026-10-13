@@ -15,12 +15,16 @@ import "strings"
 //	telegram:<self>/<peer>      a chat, group or channel as one account sees it
 //	telegram:<self>/<peer>/<id> a message in it (a message ID is unique only per chat)
 //	telegram:<user>             a person
+//	messenger:<self>/<thread>   a Messenger thread (a Lightspeed thread key), or an
+//	                            encrypted chat (its WhatsApp-protocol JID, "…@msgr")
+//	messenger:<self>/<thread>/<mid> a message in it
+//	messenger:<person>          a person (a Meta user ID)
 //
 // Rooms and events name the account because one person may run several accounts on a
 // network, and a shared group is then two rooms with the same native message IDs. A
 // person's ID names no account, so a contact folds into one identity across accounts.
 // <account> is the account's stable network ID (WhatsApp phone digits, Slack team ID,
-// Telegram user ID), never a config label.
+// Telegram user ID, Meta user ID), never a config label.
 //
 // A Telegram <peer> is "marked" as in the Bot API (user ID, basic group negated,
 // channel/supergroup -100<id>) because the three kinds' IDs overlap.
@@ -59,6 +63,14 @@ var natives = map[string]native{
 		// "<channel>/<ts>".
 		isRoom: func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
 		// A person is "<team>.<user>": neither part reads as a name.
+		shortName: func(string) string { return "" },
+	},
+	"messenger": {
+		protocol: ProtocolMessenger,
+		// A thread key is digits and a chat JID has no slash; a message is
+		// "<thread>/<mid>".
+		isRoom: func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
+		// A person is a Meta user ID, which reads as no name.
 		shortName: func(string) string { return "" },
 	},
 	"telegram": {

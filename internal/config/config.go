@@ -52,6 +52,7 @@ type Config struct {
 	WhatsApp       WhatsApp      `toml:"whatsapp"`
 	Slack          Slack         `toml:"slack"`
 	Telegram       Telegram      `toml:"telegram"`
+	Messenger      Messenger     `toml:"messenger"`
 	Storage        Storage       `toml:"storage"`
 	Profiles       []Profile     `toml:"profile"`
 	Tags           []Tag         `toml:"tag"`

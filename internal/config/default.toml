@@ -1175,6 +1175,20 @@ mirror = false
 # Which [[tag]] the archive is.
 tag = "Archived"
 
+# Messenger, linked directly: kith signs in to your Meta account as the
+# Messenger Lite app does, with no Matrix bridge. It runs when it has an account;
+# `:login messenger` inside kith sets one up. Each [[messenger.account]] is one
+# Meta account: `name` is what `kith login messenger <name>` takes. Logging in
+# asks for your email or phone and password, then a second-factor code if your
+# account has one; kith keeps the session in the system keyring, never the password.
+#
+# Sign in here or through a bridge, not both: both at once show every chat twice.
+# A login from a new device can make Meta ask for a security check, which kith
+# cannot answer: finish it on facebook.com, then log in again.
+#
+#   [[messenger.account]]
+#   name = "meta"
+
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
 # data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,
 #                                    dictionaries and models
