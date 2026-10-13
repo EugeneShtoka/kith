@@ -78,8 +78,12 @@ type Filter struct {
 	Words Tracked // with Tracked's glob widths
 	From  string  // optional sender ID
 	// In is the places it watches, in the place vocabulary; empty is everywhere.
-	In    []string
-	Moves FilterMoves
+	In []string
+	// Lang and NotLang are language codes (families and regions expanded): a message is
+	// caught when it is in one of Lang, and when it cannot be in any of NotLang. Scripts
+	// are writing systems, one of which must be the message's. Empty is any.
+	Lang, NotLang, Scripts []string
+	Moves                  FilterMoves
 	// Ratio, Floor and Window: the caught share, the minimum message count, and the
 	// period they are counted over, for the ratio move.
 	Ratio  float64
@@ -103,10 +107,25 @@ func (f Filter) Catches(body, sender string, room RoomFacts) bool {
 	if len(f.In) > 0 && !namesAny(f.In, room) {
 		return false
 	}
+	if f.byLanguage() && !f.speaks(LanguageOf(body)) {
+		return false
+	}
 	if f.anything() {
-		return f.From != ""
+		return f.From != "" || f.byLanguage()
 	}
 	return len(f.Words.Find(body)) > 0
+}
+
+// byLanguage reports whether the filter judges what language a message is in.
+func (f Filter) byLanguage() bool {
+	return len(f.Lang) > 0 || len(f.NotLang) > 0 || len(f.Scripts) > 0
+}
+
+// speaks reports whether a message in lang passes every language clause.
+func (f Filter) speaks(lang Language) bool {
+	return (len(f.Lang) == 0 || lang.In(f.Lang)) &&
+		(len(f.NotLang) == 0 || lang.Outside(f.NotLang)) &&
+		(len(f.Scripts) == 0 || slices.Contains(f.Scripts, lang.Script))
 }
 
 // anything reports whether the words match everything (none, or only stars).

@@ -155,8 +155,9 @@ func (m Model) openCaught() (Model, tea.Cmd) {
 	for i := range filters {
 		filter := &filters[i]
 		if len(filter.Words.Words) == 0 {
-			// Sender-only filters cannot be previewed; counted so the summary says so.
-			kind.senders++
+			// Filters with no words (a sender or a language alone) cannot be previewed;
+			// counted so the summary says so.
+			kind.wordless++
 			continue
 		}
 		for _, word := range filter.Words.Words {

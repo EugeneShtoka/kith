@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -28,14 +29,19 @@ func TestFiltersRefuseWhatCannotWork(t *testing.T) {
 		cfg  config.Config
 		want string
 	}{
-		"no name":            {spamTagged(with(func(f *config.Filter) { f.Name = "" })), "needs a name"},
-		"no tag":             {spamTagged(with(func(f *config.Filter) { f.Tag = "Nope" })), `"Nope" names no [[tag]]`},
-		"says nothing":       {spamTagged(with(func(f *config.Filter) { f.Words = nil })), "neither words nor a sender"},
-		"an unknown move":    {spamTagged(with(func(f *config.Filter) { f.Moves = []string{"sometimes"} })), `"sometimes"`},
-		"a share above one":  {spamTagged(with(func(f *config.Filter) { f.Ratio = 1.5 })), "ratio"},
-		"a negative floor":   {spamTagged(with(func(f *config.Filter) { f.Floor = -1 })), "floor"},
-		"a window that isnt": {spamTagged(with(func(f *config.Filter) { f.Window = "one week" })), "window"},
-		"defined twice":      {spamTagged(crypto, with(func(f *config.Filter) { f.Name = "CRYPTO" })), "defined twice"},
+		"no name":             {spamTagged(with(func(f *config.Filter) { f.Name = "" })), "needs a name"},
+		"no tag":              {spamTagged(with(func(f *config.Filter) { f.Tag = "Nope" })), `"Nope" names no [[tag]]`},
+		"says nothing":        {spamTagged(with(func(f *config.Filter) { f.Words = nil })), "no words, sender or language"},
+		"a mistyped language": {spamTagged(with(func(f *config.Filter) { f.NotLang = []string{"en", "russian"} })), `not_lang: "russian"`},
+		"an unknown family":   {spamTagged(with(func(f *config.Filter) { f.Lang = []string{"family:asian"} })), `lang: "family:asian"`},
+		"an unknown region":   {spamTagged(with(func(f *config.Filter) { f.Lang = []string{"region:asia"} })), `lang: "region:asia"`},
+		"an empty language":   {spamTagged(with(func(f *config.Filter) { f.Lang = []string{" "} })), "lang:"},
+		"an unknown script":   {spamTagged(with(func(f *config.Filter) { f.Script = []string{"Chinese"} })), `script: "Chinese"`},
+		"an unknown move":     {spamTagged(with(func(f *config.Filter) { f.Moves = []string{"sometimes"} })), `"sometimes"`},
+		"a share above one":   {spamTagged(with(func(f *config.Filter) { f.Ratio = 1.5 })), "ratio"},
+		"a negative floor":    {spamTagged(with(func(f *config.Filter) { f.Floor = -1 })), "floor"},
+		"a window that isnt":  {spamTagged(with(func(f *config.Filter) { f.Window = "one week" })), "window"},
+		"defined twice":       {spamTagged(crypto, with(func(f *config.Filter) { f.Name = "CRYPTO" })), "defined twice"},
 	} {
 		if _, err := setup.Filters(tc.cfg); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: Filters = %v, want it refused mentioning %q", name, err, tc.want)
@@ -90,5 +96,24 @@ func TestFiltersAndKeysFollowTheirTag(t *testing.T) {
 	}
 	if _, err := setup.Filters(deleted); err != nil {
 		t.Errorf("a config with a tag deleted does not validate: %v", err)
+	}
+}
+
+// A language alone is a filter; its families and regions expand, its scripts read in
+// any case.
+func TestALanguageAloneIsAFilter(t *testing.T) {
+	t.Parallel()
+	filters, err := setup.Filters(spamTagged(config.Filter{
+		Name: "east asian", Tag: "Spam", Lang: []string{"region:asia-east"}, NotLang: []string{"EN"}, Script: []string{"han", "Kana"},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := filters[0]
+	if !slices.Contains(f.Lang, "ja") || !slices.Equal(f.NotLang, []string{"en"}) || !slices.Equal(f.Scripts, []string{"Han", "Kana"}) {
+		t.Errorf("filter = lang %v, not_lang %v, scripts %v", f.Lang, f.NotLang, f.Scripts)
+	}
+	if !f.Catches("你好", "@x:y", domain.RoomFacts{ID: "!r:x"}) {
+		t.Error("the filter does not catch Chinese")
 	}
 }

@@ -752,8 +752,18 @@ require_digit = true
 #
 # Each [[filter]] needs a name (what `/why` reports) and the tag it moves rooms into.
 # Words take the tracked-word globs (`pay`, `pay*`, `*pay*`, `*pay`); `from` alone
-# catches everything a sender writes; it needs one or the other. `in` limits it to
-# places (empty is everywhere). `moves` is which rules its catch moves a room by,
+# catches everything a sender writes, and a language clause alone everything in that
+# language; it needs at least one. `in` limits it to places (empty is everywhere).
+#
+# A message's language is read from its letters, not guessed: the writing system is
+# certain from one character, and letters only some languages use (ы, ß, ơ) narrow
+# it. What they cannot settle stays undecided, so plain Latin letters could always be
+# English. `lang` catches a message that is in one of its languages, `not_lang` one
+# that cannot be in any of them; both take codes ("en", "zh"), a `family:` (slavic,
+# germanic, romance, turkic, sino-tibetan, …) or a `region:` (asia-east,
+# asia-southeast, asia-south, europe-east, …). `script` takes writing systems: Latin,
+# Cyrillic, Hebrew, Arabic, Greek, Han (Chinese characters, no kana), Kana (Japanese),
+# Hangul, Thai, Devanagari, … `moves` is which rules its catch moves a room by,
 # ["first_message", "direct"] unless set:
 #
 #   always         any message it catches
@@ -786,6 +796,17 @@ require_digit = true
 # words = ["vote*"]
 # in    = ["place:SMS"]
 # moves = ["always"]
+#
+# [[filter]]
+# name     = "not mine"
+# tag      = "Spam"
+# not_lang = ["en", "ru", "he"]       # in none of the languages I write
+#
+# [[filter]]
+# name   = "east asian"
+# tag    = "Spam"
+# lang   = ["region:asia-east"]       # Chinese, Japanese, Korean, Mongolian
+# script = ["Han", "Kana", "Hangul"]  # and written in their own scripts
 
 # Writing in your own editor (`alt+e`, see [keys.composer]). If the editor fails or
 # the file cannot be read back, the draft is left unchanged.
