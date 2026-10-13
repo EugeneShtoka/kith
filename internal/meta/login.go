@@ -10,8 +10,6 @@ import (
 	"go.mau.fi/mautrix-meta/pkg/messagix"
 	"go.mau.fi/mautrix-meta/pkg/messagix/bloks"
 	"go.mau.fi/mautrix-meta/pkg/messagix/cookies"
-	"go.mau.fi/mautrix-meta/pkg/messagix/table"
-	"go.mau.fi/mautrix-meta/pkg/messagix/types"
 	"go.mau.fi/util/exhttp"
 	"maunium.net/go/mautrix/bridgev2"
 
@@ -67,6 +65,7 @@ func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk)
 			return api.LoginEnd{}, loginFailed(err)
 		}
 		if got != nil {
+			a.log.Info("Meta accepted the sign-in; loading the messages page", "account", account)
 			return a.finishLogin(ctx, account, client, got)
 		}
 		if input, err = answer(ctx, talk, step); err != nil {
@@ -159,15 +158,14 @@ func (a *Adapter) finishLogin(ctx context.Context, account string, login *messag
 		return api.LoginEnd{}, fmt.Errorf("meta: that Meta account is the account %s already", other)
 	}
 	client := a.clientFor(s)
-	var user types.UserInfo
-	var inbox *table.LSTable
-	err := a.guard("loading the messages page", func() (err error) {
-		user, inbox, err = client.LoadMessagesPage(ctx)
-		return err //nolint:wrapcheck // the caller wraps it and reads its kind (errors.Is)
-	})
+	user, inbox, err := a.loadPage(ctx, client, account)
 	if err != nil {
 		if over := sessionOver(err, account); over != "" {
 			return api.LoginEnd{}, errors.New("meta: " + over)
+		}
+		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			return api.LoginEnd{}, fmt.Errorf("meta: Meta accepted the sign-in but did not send the messages page within %v; "+
+				"log in again", pageTimeout)
 		}
 		return api.LoginEnd{}, fmt.Errorf("meta: load the messages page: %w", err)
 	}
@@ -186,6 +184,7 @@ func (a *Adapter) finishLogin(ctx context.Context, account string, login *messag
 		client.Disconnect()
 		return api.LoginEnd{}, fmt.Errorf("%w named %q: it left the config while signing in", ErrNoAccount, account)
 	}
+	a.log.Info("signed in", "account", account, "meta_id", s.MetaID)
 	go a.connect(a.runContext(), c, &loaded{client: client, inbox: inbox})
 	return api.LoginEnd{Done: "signed in to Messenger as " + user.GetName()}, nil
 }

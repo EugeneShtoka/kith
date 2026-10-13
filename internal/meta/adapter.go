@@ -12,13 +12,26 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/rs/zerolog"
+	zerologlog "github.com/rs/zerolog/log"
+
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/logging"
 )
 
 // streamBuffer bounds each live stream.
 const streamBuffer = 64
+
+// phaseNames are the account states as the log says them.
+var phaseNames = map[domain.AccountPhase]string{
+	SignedOut: "signed out", Connecting: "connecting", Connected: "connected", domain.AccountFailed: "failed",
+}
+
+// quietGlobalLog points zerolog's global logger, which messagix logs to, at kith's log
+// once per process.
+var quietGlobalLog sync.Once
 
 // errStartedTwice guards Start, which runs once.
 var errStartedTwice = errors.New("meta: started twice")
@@ -78,6 +91,11 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
+	quietGlobalLog.Do(func() {
+		// messagix logs its parse warnings to zerolog's global logger, as raw JSON on
+		// stderr, dozens for each inbox: they go through kith's log, errors only.
+		zerologlog.Logger = logging.Zerolog(log.With("network", "messenger", "component", "messagix"), zerolog.ErrorLevel)
+	})
 	return &Adapter{
 		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "messenger"),
 		conns:     map[string]*conn{},
@@ -117,6 +135,7 @@ func (a *Adapter) CheckConfig(_ context.Context, cfg config.Config) error {
 }
 
 func (a *Adapter) session(account Account, phase domain.AccountPhase, detail string) {
+	a.log.Info("account state", "account", account.Name, "phase", phaseNames[phase], "detail", detail)
 	if a.onStatus != nil {
 		a.onStatus(domain.AccountStatus{Network: domain.ProtocolMessenger, Account: account.Name, Phase: phase, Detail: detail})
 	}

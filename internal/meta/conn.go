@@ -28,6 +28,31 @@ const (
 	retryMax   = 5 * time.Minute
 )
 
+// pageTimeout bounds loading the messages page. It takes seconds; Meta has been seen to
+// stop sending one halfway, and messagix's own limit is five minutes of "signing in".
+const pageTimeout = 2 * time.Minute
+
+// loadPage loads the messages page with client, under pageTimeout, a panic in the
+// library an error.
+func (a *Adapter) loadPage(ctx context.Context, client *messagix.Client, account string) (types.UserInfo, *table.LSTable, error) {
+	ctx, cancel := context.WithTimeout(ctx, pageTimeout)
+	defer cancel()
+	start := time.Now()
+	var user types.UserInfo
+	var inbox *table.LSTable
+	err := a.guard("loading the messages page", func() (err error) {
+		user, inbox, err = client.LoadMessagesPage(ctx)
+		return err //nolint:wrapcheck // the caller wraps it and reads its kind (errors.Is)
+	})
+	took := time.Since(start).Round(time.Millisecond)
+	if err != nil {
+		a.log.Warn("load the messages page failed", "account", account, "after", took, "err", err)
+		return nil, nil, err
+	}
+	a.log.Info("loaded the messages page", "account", account, "in", took)
+	return user, inbox, nil
+}
+
 // conn is one signed-in account's connection.
 type conn struct {
 	account Account
@@ -179,11 +204,7 @@ func (a *Adapter) load(ctx context.Context, c *conn) *loaded {
 		s := c.session
 		c.mu.Unlock()
 		client := a.clientFor(s)
-		var inbox *table.LSTable
-		err := a.guard("loading the messages page", func() (err error) {
-			_, inbox, err = client.LoadMessagesPage(ctx)
-			return err //nolint:wrapcheck // the caller wraps it and reads its kind (errors.Is)
-		})
+		_, inbox, err := a.loadPage(ctx, client, c.account.Name)
 		if err == nil {
 			return &loaded{client: client, inbox: inbox}
 		}
@@ -195,7 +216,7 @@ func (a *Adapter) load(ctx context.Context, c *conn) *loaded {
 			a.session(c.account, SignedOut, over)
 			return nil
 		}
-		a.log.Warn("load the messages page failed; retrying", "account", c.account.Name, "err", err, "in", wait)
+		a.log.Info("retrying the messages page", "account", c.account.Name, "in", wait)
 		a.session(c.account, Connecting, fmt.Sprintf("Meta did not answer (%v); retrying", err))
 		select {
 		case <-time.After(wait):
