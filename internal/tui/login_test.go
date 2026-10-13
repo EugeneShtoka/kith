@@ -282,3 +282,39 @@ func TestLoginRestartsTheDaemonWhenAsked(t *testing.T) {
 		t.Errorf("status = %q", m.status())
 	}
 }
+
+// A sign-in left waiting for an answer past its deadline says it gave up. It used to end
+// in silence: the deadline was the very context that carried the news, so the form
+// stayed open, took the answers, and showed "signing in" for good.
+func TestASignInThatTimesOutSaysSo(t *testing.T) {
+	t.Parallel()
+
+	d := &loginDaemon{scripts: [][]api.LoginStep{{{Ask: []api.LoginField{{Key: "password", Label: "password", Secret: true}}}}}}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	events := make(chan loginEvent, 4)
+	go loginWork(d, nil, nil, "fake", "me")(ctx, events)
+
+	var final *loginEvent
+	for e := range events {
+		if e.final {
+			final = &e
+		}
+	}
+	if final == nil || !errors.Is(final.err, errSignInTimedOut) {
+		t.Fatalf("the sign-in ended with %+v, want it to say it timed out", final)
+	}
+
+	// The model shows it and closes the form.
+	m := loggingIn(t, d, nil)
+	m.login = loginState{stage: loginAsking, network: fakeNetwork, events: events}
+	m, _ = asModel(m.Update(loginMsg{event: *final, ok: true}))
+	if m.login.stage != loginOff || !strings.Contains(m.status(), "gave up") {
+		t.Errorf("after the timeout: stage %v, status %q", m.login.stage, m.status())
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.canceled != 1 {
+		t.Errorf("the daemon's login was canceled %d times, want once", d.canceled)
+	}
+}
