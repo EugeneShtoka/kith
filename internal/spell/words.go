@@ -205,7 +205,7 @@ func scriptOfRune(r rune) Script {
 		return Arabic
 	case r >= 0x0370 && r <= 0x03FF, r >= 0x1F00 && r <= 0x1FFF:
 		return Greek
-	case unicode.IsLetter(r):
+	case unicode.Is(unicode.Latin, r):
 		return Latin
 	}
 	return Other

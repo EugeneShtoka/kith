@@ -1,7 +1,7 @@
 # Filters and Spam
 
-A **filter** catches messages by their words or their sender and moves the room they
-arrived in into a **tag**. The starter config's **Spam** tag is where unwanted
+A **filter** catches messages by their words, their sender or their language and moves
+the room they arrived in into a **tag**. The starter config's **Spam** tag is where unwanted
 conversations go, but nothing about it is built in: it is an ordinary tag whose
 properties make it quiet, and any tag can have filters moving rooms into it.
 
@@ -73,17 +73,76 @@ moves = ["always"]      # one caught message is enough
 | `words` | Words to match, with the same globs as tracked words: `pay` matches the whole word, `pay*` words that start with it, `*pay` words that end with it, `*pay*` anywhere. Case is ignored |
 | `from` | Only messages from this sender. With no words (or only `*`), the filter catches everything they write |
 | `in` | Only messages in these places, in the place vocabulary (`space:`, `tag:`, `place:`, `room:`, `protocol:`, `dm`, `group`). Empty is everywhere |
+| `lang` | Only messages in one of these languages: codes (`"en"`, `"zh"`), a `family:` or a `region:`. See [Languages](#languages) |
+| `not_lang` | Only messages that cannot be in any of these languages, in the same vocabulary as `lang` |
+| `script` | Only messages written mostly in one of these writing systems: `Latin`, `Cyrillic`, `Hebrew`, `Arabic`, `Greek`, `Han`, `Kana`, `Hangul`, `Thai`, `Devanagari` and others |
 | `moves` | Which of the rules below its catch moves a room by: `always`, `first_message`, `direct`, `ratio`. Default `["first_message", "direct"]` |
 | `ratio`, `floor`, `window` | The `ratio` move's numbers: the share caught (default 0.6), the least message count (5) and the period (`"168h"`) |
 
-A filter needs `words`, `from` or both, and a tag that exists; one without is refused
-at startup. Two filters may catch one message: each moves the room into its own tag.
+A filter needs `words`, `from` or a language (`lang`, `not_lang`, `script`), and a tag
+that exists; one without is refused at startup, as is a language or writing system it
+does not know. With several, a message must pass each. Two filters may catch one message: each moves the room into its own tag.
 Renaming a tag renames the filters and keys naming it; deleting it deletes them.
 
 Adding a filter from **Settings → Filters → Add one** asks for each part in turn and
 writes the filter only at the end. A place's page in **Settings → Places** lists its
 filters and adds one with the place filled in: a tag's page one moving rooms into it,
 a space's page one watching it.
+
+### Languages
+
+kith reads a message's language from its letters and does not guess it. The writing
+system is certain from a single character: two Chinese characters are enough. Letters
+only some languages use narrow it further: ы and э mean Russian or Belarusian, ї
+Ukrainian, ß German, ơ and ư Vietnamese. What the letters cannot settle stays open, so
+a message has **suspects**, the languages it could be in:
+
+| Message | Suspects |
+| --- | --- |
+| `你好` | Chinese, then Japanese (Chinese characters with no kana) |
+| `東京に行きます` | Japanese (any kana) |
+| `안녕하세요` | Korean |
+| `Вы где?` | Russian, Belarusian |
+| `Да` | every language written in Cyrillic |
+| `Ok, see you tomorrow` | every language written in Latin letters |
+| `😀`, a bare link, `¯\_(ツ)_/¯` | none: no words |
+
+Links, Matrix IDs, `:shortcodes:`, code and faces (kaomoji) are not read as words. A
+telltale letter only counts when at least half of the message's words carry one, so
+"I live in Zürich" stays English. A message written as much in a second writing
+system as in its first has the suspects of both.
+
+`not_lang` catches a message none of whose suspects is in the list. That makes it the
+safe way to catch what you do not speak: `not_lang = ["en", "ru", "he"]` catches the
+two-character Chinese message, but never `Ok` or `Да`, because English and Russian are
+among their suspects. `lang` catches a message the letters settle into the list: either
+every suspect is in it, or the writing system points to one language, as Chinese
+characters point to Chinese. `lang = ["ru"]` does not catch `Вы где?`, which could be
+Belarusian; `lang = ["family:slavic"]` does.
+
+A short message in Latin letters with no telltale letters (Malay, Indonesian, Dutch)
+cannot be told from English, so `lang` will not catch it and `not_lang` naming English
+will not either.
+
+Families and regions name several languages at once:
+
+| Entry | Languages |
+| --- | --- |
+| `family:slavic` | Russian, Ukrainian, Belarusian, Bulgarian, Macedonian, Serbian, Croatian, Bosnian, Slovenian, Czech, Slovak, Polish |
+| `family:germanic`, `family:romance`, `family:turkic`, `family:semitic`, `family:uralic`, `family:baltic`, `family:celtic`, `family:indo-iranian`, `family:dravidian`, `family:sino-tibetan`, `family:japonic`, `family:koreanic`, `family:kra-dai`, `family:austroasiatic`, `family:austronesian`, … | as the name says |
+| `region:asia-east` | Chinese, Japanese, Korean, Mongolian |
+| `region:asia-southeast` | Vietnamese, Thai, Lao, Khmer, Burmese, Indonesian, Malay, Tagalog |
+| `region:asia-south`, `region:asia-central`, `region:asia-west`, `region:europe-east`, `region:europe-north`, `region:europe-south`, `region:europe-west`, `region:africa-north`, `region:africa-east` | the UN regions, each language placed by its main country |
+
+Chinese and Japanese share no family; name a region, or both families, to catch them
+together:
+
+```toml
+[[filter]]
+name = "east asian"
+tag  = "Spam"
+lang = ["region:asia-east"]
+```
 
 ### The moves
 
@@ -111,8 +170,10 @@ moment ago is left alone.
 `/caught` in the composer (or `:caught` on the command line) lists the messages your
 filters' words catch, searched in the local message index. It ignores `in`, so it can
 list messages in places a filter does not watch. From a room it starts with that room
-and `tab` widens the scope; from the rail it starts with everything. Filters that
-match by sender alone are counted in the summary but not listed.
+and `tab` widens the scope; from the rail it starts with everything. It also ignores
+language clauses, so it can list a message a filter's language would not catch.
+Filters with no words (a sender or a language alone) are counted in the summary but
+not listed.
 
 ### Rescanning what is already cached
 

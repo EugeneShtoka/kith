@@ -100,6 +100,10 @@ func TestScriptIsDecidedPerWordByMajority(t *testing.T) {
 		{"привет", Cyrillic},
 		{"Ελλάδα", Greek},
 		{"مرحبا", Arabic},
+		// Scripts with no dictionary here are not Latin, so English never checks them.
+		{"你好", Other},
+		{"こんにちは", Other},
+		{"안녕", Other},
 		// One Latin letter loose in a Hebrew word does not make it Latin.
 		{"שלוםa", Hebrew},
 		// …and the reverse.

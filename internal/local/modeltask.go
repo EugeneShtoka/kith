@@ -12,7 +12,6 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/llm"
-	"github.com/EugeneShtoka/kith/internal/spell"
 )
 
 // The model layer: one endpoint, several tasks, and the rails around them. Every
@@ -324,8 +323,8 @@ const summaryContextMessages = 400
 // threadNameMessages bounds naming a thread: the opening says what it is about.
 const threadNameMessages = 20
 
-// modelLanguage uses the spellchecker's detector so the two never disagree.
-func modelLanguage(draft string) string { return spell.LanguageOf(draft) }
+// modelLanguage names the draft's language as the filters read it.
+func modelLanguage(draft string) string { return domain.LanguageOf(draft).Name() }
 
 // describeAsk renders a task exactly as it would be sent, for `why`.
 func describeAsk(task llm.Task, fields map[string]string) string {

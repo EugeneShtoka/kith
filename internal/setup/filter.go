@@ -20,8 +20,8 @@ const (
 	DefaultFilterWindow = 7 * 24 * time.Hour
 )
 
-// Filters validates the [[filter]]s: each needs a name, a tag that exists, and words or
-// a sender; its moves and ratio numbers must read.
+// Filters validates the [[filter]]s: each needs a name, a tag that exists, and words, a
+// sender or a language; its languages, moves and ratio numbers must read.
 func Filters(cfg config.Config) (domain.Filters, error) {
 	out := make(domain.Filters, 0, len(cfg.Filters))
 	for i := range cfg.Filters {
@@ -55,19 +55,44 @@ func filter(cfg config.Config, i int) (domain.Filter, error) {
 		}
 	}
 	from := strings.TrimSpace(in.From)
-	// `from` with no words is legitimate: everything that sender writes.
-	if len(words) == 0 && from == "" {
-		return domain.Filter{}, fmt.Errorf("filter %q: has neither words nor a sender, so it would catch everything", name)
+	f := domain.Filter{
+		Name: name, Tag: tag, Words: domain.Tracked{Words: words}, From: from, In: in.In,
+		Ratio: in.Ratio, Floor: in.Floor, Window: DefaultFilterWindow,
+	}
+	if err := filterLanguages(&f, in); err != nil {
+		return domain.Filter{}, err
+	}
+	// `from` or a language with no words is legitimate: everything that sender writes,
+	// everything in that language.
+	if len(words) == 0 && from == "" && len(f.Lang)+len(f.NotLang)+len(f.Scripts) == 0 {
+		return domain.Filter{}, fmt.Errorf("filter %q: has no words, sender or language, so it would catch everything", name)
 	}
 	moves, err := filterMoves(name, in.Moves)
 	if err != nil {
 		return domain.Filter{}, err
 	}
-	f := domain.Filter{
-		Name: name, Tag: tag, Words: domain.Tracked{Words: words}, From: from, In: in.In, Moves: moves,
-		Ratio: in.Ratio, Floor: in.Floor, Window: DefaultFilterWindow,
-	}
+	f.Moves = moves
 	return filterRatio(f, in.Window)
+}
+
+// filterLanguages reads a filter's lang, not_lang and script, refusing an entry it does
+// not know rather than reading it as none.
+func filterLanguages(f *domain.Filter, in config.Filter) error {
+	var err error
+	if f.Lang, err = domain.LanguageCodes(in.Lang); err != nil {
+		return fmt.Errorf("filter %q: lang: %w", f.Name, err)
+	}
+	if f.NotLang, err = domain.LanguageCodes(in.NotLang); err != nil {
+		return fmt.Errorf("filter %q: not_lang: %w", f.Name, err)
+	}
+	for _, entry := range in.Script {
+		script, err := domain.ScriptNamed(entry)
+		if err != nil {
+			return fmt.Errorf("filter %q: script: %w", f.Name, err)
+		}
+		f.Scripts = append(f.Scripts, script)
+	}
+	return nil
 }
 
 // filterRatio checks the ratio move's numbers and fills their defaults.
