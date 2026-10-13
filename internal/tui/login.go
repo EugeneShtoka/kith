@@ -203,7 +203,9 @@ func (m Model) startLogin(network api.LoginNetwork, account string) (Model, tea.
 		go work(ctx, events)
 		return nil
 	}
-	return m, tea.Batch(start, listen(ctx, events, wrapLogin))
+	// The model listens for as long as it runs: the sign-in's own deadline must not
+	// silence the event that says it passed.
+	return m, tea.Batch(start, listen(m.ctx, events, wrapLogin))
 }
 
 // configReloader is a daemon that re-reads the config when asked.
@@ -226,14 +228,36 @@ func loginWork(
 		for err == nil {
 			var done bool
 			if step, done, err = r.answer(ctx, step); done {
+				r.sayTimedOut(ctx)
 				return
 			}
+		}
+		if r.sayTimedOut(ctx) {
+			return
 		}
 		if ctx.Err() == nil {
 			r.login = "" // the login ended there
 		}
 		r.send(ctx, loginEvent{final: true, err: err})
 	}
+}
+
+// errSignInTimedOut is a sign-in that waited loginTimeout, most of it for an answer.
+var errSignInTimedOut = fmt.Errorf("it waited %v and gave up; start it again", loginTimeout)
+
+// sayTimedOut tells the model the sign-in ran out of time, reporting whether it did. The
+// deadline is ctx's own, so ctx cannot carry the news: it goes into the events' buffer,
+// which the model reads with its own context. Without it the form stays open, takes the
+// answers, and shows "signing in" for good.
+func (r *loginRun) sayTimedOut(ctx context.Context) bool {
+	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return false
+	}
+	select {
+	case r.events <- loginEvent{final: true, err: errSignInTimedOut}:
+	default: // the buffer is full only when the model stopped reading
+	}
+	return true
 }
 
 // loginRun is one sign-in's client side, as loginWork leads it.
