@@ -401,6 +401,8 @@ func serve(
 	scheduler, cutoff := startScheduler(ctx, log, cfg, backend, backend.schedulePath)
 	defer scheduler.Stop()
 
+	logins := daemon.NewLogins(ctx, backend.loginLeaders)
+	logins.LogTo(log)
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
 	err = daemon.Serve(ctx, ln, &daemon.Daemon{
 		Backend:       backend,
@@ -408,7 +410,7 @@ func serve(
 		State:         w.state,
 		Notifications: w.notifications,
 		Scheduler:     scheduler,
-		Logins:        daemon.NewLogins(ctx, backend.loginLeaders),
+		Logins:        logins,
 		Log:           log,
 		Reload:        reloader(file, relevel, cutoff, backend, w.notifications),
 		CheckConfig:   backend.checkConfig,
