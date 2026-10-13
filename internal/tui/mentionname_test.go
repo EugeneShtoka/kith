@@ -98,3 +98,40 @@ func TestAMentionIsDrawnWithTheNameTheCacheKnowsNow(t *testing.T) {
 		t.Errorf("the mention is not drawn with the name the cache knows now:\n%s", view)
 	}
 }
+
+// `@` offers people by the name the timeline gives them: in a space that keeps first
+// names, "Sagi", not "Sagi Chizik"; an identity's or a DM's alias as the timeline has
+// it. Never truncated to the column width, since the name goes into the message.
+func TestMentionCandidatesAreNamedAsTheTimelineNamesThem(t *testing.T) {
+	t.Parallel()
+	m := withRooms(t, newModel())
+	m.openRoom = "!a:x"
+	m.timeline.members = []domain.Member{
+		{UserID: "slack:T1.U1", DisplayName: "Sagi Chizik"},
+		{UserID: "slack:T1.U2", DisplayName: "Evgeny"},
+		{UserID: "@vanya:x", DisplayName: "ivan.p"},
+		{UserID: "@dm:x", DisplayName: "dm-handle"},
+	}
+	m.prefs.identities = map[string]resolvedIdentity{"@vanya:x": {key: "vanya", alias: "Vanya Sokolov"}}
+	m.peers.aliases = map[string]string{"@dm:x": "Dana Mor"}
+	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: m.ownSpace("!a:x"), FirstNameOnly: true}}
+	m.prefs.display.MaxNameLength = 3
+
+	var got []string
+	for _, c := range m.mentionCandidates("") {
+		got = append(got, c.text)
+	}
+	want := []string{"Sagi", "Evgeny", "Vanya", "Dana"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("@ offers %q, want %q", got, want)
+	}
+	for _, member := range m.timeline.members {
+		_, name := m.personOf(member)
+		m.prefs.display.MaxNameLength = 0
+		timeline := m.processedName(domain.Message{RoomID: "!a:x", Sender: member.UserID, SenderName: member.DisplayName})
+		m.prefs.display.MaxNameLength = 3
+		if name != timeline {
+			t.Errorf("%s: @ offers %q, the timeline says %q", member.UserID, name, timeline)
+		}
+	}
+}
