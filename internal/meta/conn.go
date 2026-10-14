@@ -15,6 +15,7 @@ import (
 	"go.mau.fi/mautrix-meta/pkg/messagix/types"
 	"go.mau.fi/util/exhttp"
 
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
 )
 
@@ -70,6 +71,13 @@ type conn struct {
 	session Session
 	saved   string
 	client  *messagix.Client
+
+	// applying serializes taking tables in: the inbox, and rooms, which is the account's
+	// rooms as last written (the cached ones, then every thread heard of), so a write
+	// never sweeps a thread only an older page listed.
+	applying sync.Mutex
+	inbox    *inbox
+	rooms    map[domain.RoomID]domain.Room
 }
 
 // loaded is a messages page a login already loaded, so connecting does not load it again.
@@ -86,7 +94,10 @@ func (a *Adapter) newConn(account Account, s Session, at *int) *conn {
 		signIn = *at
 	}
 	saved, _ := s.encode() // a session that will not encode is saved again on its first change
-	return &conn{account: account, metaID: s.MetaID, signIn: signIn, session: s, saved: saved, done: make(chan struct{})}
+	return &conn{
+		account: account, metaID: s.MetaID, signIn: signIn, session: s, saved: saved, done: make(chan struct{}),
+		inbox: newInbox(s.MetaID), rooms: map[domain.RoomID]domain.Room{},
+	}
 }
 
 // close lets the connection go; messagix's socket stops.
@@ -184,6 +195,8 @@ func (a *Adapter) connect(ctx context.Context, c *conn, page *loaded) {
 		page.client.Disconnect()
 		return
 	}
+	a.seedRooms(ctx, c)
+	a.take(ctx, c, page.inbox)
 	page.client.SetEventHandler(func(ctx context.Context, evt any) { a.handle(ctx, c, evt) })
 	if err := page.client.Connect(ctx); err != nil {
 		a.log.Warn("connect failed", "account", c.account.Name, "err", err)
@@ -264,6 +277,7 @@ func (a *Adapter) react(c *conn, evt any) {
 	switch e := evt.(type) {
 	case *messagix.ConnectedEvent, *messagix.ReconnectedEvent:
 		a.session(c.account, Connected, "")
+		go a.sendOwed(c)
 	case *messagix.TransientDisconnectEvent:
 		a.log.Debug("disconnected; messagix reconnects", "account", c.account.Name, "attempt", e.ConnectionAttempts, "err", e.Err)
 		a.session(c.account, Connecting, "reconnecting")
@@ -271,6 +285,7 @@ func (a *Adapter) react(c *conn, evt any) {
 		a.log.Warn("the connection ended for good", "account", c.account.Name, "err", e.Err)
 		a.session(c.account, SignedOut, "Meta closed the connection; run `kith login messenger "+c.account.Name+"`")
 	case *table.LSTable:
+		a.take(context.Background(), c, e)
 		c.mu.Lock()
 		client := c.client
 		c.mu.Unlock()
@@ -324,3 +339,36 @@ func (a *Adapter) guard(what string, fn func() error) (err error) {
 
 // errLibraryPanicked is a panic inside messagix, caught.
 var errLibraryPanicked = errors.New("meta: the Messenger library failed")
+
+// seedRooms starts c's rooms from the account's cached ones.
+func (a *Adapter) seedRooms(ctx context.Context, c *conn) {
+	if a.cache == nil {
+		return
+	}
+	rooms, err := a.cache.Rooms(ctx)
+	if err != nil {
+		a.log.Warn("read the cached threads failed", "account", c.account.Name, "err", err)
+		return
+	}
+	c.applying.Lock()
+	defer c.applying.Unlock()
+	for i := range rooms {
+		if owner(c.metaID).Owns(rooms[i].ID) {
+			c.rooms[rooms[i].ID] = rooms[i]
+		}
+	}
+}
+
+// take applies one table to c's inbox and stores what it changed, one table at a time.
+func (a *Adapter) take(ctx context.Context, c *conn, tbl *table.LSTable) {
+	if tbl == nil || c.closed() {
+		return
+	}
+	c.applying.Lock()
+	defer c.applying.Unlock()
+	ch := c.inbox.apply(tbl)
+	if len(ch.left) > 0 {
+		a.log.Info("threads not shown", "account", c.account.Name, "why", ch.left)
+	}
+	a.store(ctx, c, ch)
+}
