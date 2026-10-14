@@ -18,14 +18,20 @@ import (
 //	gmessages:+<number>                   a person with a phone number
 //	gmessages:<self>.<participant>        anyone else, as the phone numbers them
 //
-// <self> is a short hash of the paired phone's ID, which Google writes as
-// "<account email>/<number>": stable, with no address in it and no slash. Conversation
-// and message IDs are the phone's own, path-escaped. A person with a number is named
-// by it, so the same number on another network can be the same person.
+// <self> is a short hash of the Google account the phone pairs as. Google writes the
+// paired phone's ID as "<account address>/<number>", and the number is new with every
+// pairing: only the account part is hashed, so pairing again keeps the same rooms. The
+// hash has no address in it and no slash. Conversation and message IDs are the phone's
+// own, path-escaped. A person with a number is named by it, so the same number on
+// another network can be the same person.
 
 // selfOf is the account part of IDs for the phone paired as phoneID.
 func selfOf(phoneID string) string {
-	sum := sha256.Sum256([]byte(phoneID))
+	account := phoneID
+	if i := strings.LastIndex(phoneID, "/"); i > 0 {
+		account = phoneID[:i]
+	}
+	sum := sha256.Sum256([]byte(account))
 	return hex.EncodeToString(sum[:6])
 }
 

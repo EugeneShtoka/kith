@@ -73,6 +73,10 @@ func TestIDs(t *testing.T) {
 	if strings.ContainsAny(self, "/@") || self == "" || selfOf(phoneID) != self || selfOf("other@example.org/1") == self {
 		t.Errorf("self = %q", self)
 	}
+	// Each pairing gives the phone a new number after the account: the rooms stay.
+	if selfOf("someone@example.org/987654321") != self || selfOf("someone@example.org") != self {
+		t.Error("pairing again changes the account part of IDs")
+	}
 	for _, conversation := range []string{"11", "a/b", "x%2Fy", "sp ace"} {
 		room := roomID(self, conversation)
 		s, got, ok := conversationOf(room)
@@ -143,6 +147,11 @@ func TestTheInboxKeepsConversationsAsThePhoneShowsThem(t *testing.T) {
 	}
 	if !in.me[person(meNum)] || len(in.me) != 1 {
 		t.Errorf("me = %v", in.me)
+	}
+	// Your own number as two participants (you, and the SIM's line) is one member.
+	in.take(active("15", "", true, 40, false, pMe, participant("8", meNum, "", false), pDana, pEli))
+	if r, m := in.room(in.convs["15"]), in.roomMembers(in.convs["15"]); len(r.Members) != 3 || len(m) != 3 {
+		t.Errorf("a person twice: members %v, %+v", r.Members, m)
 	}
 	if cv := in.convs[group]; !cv.unread || !cv.readTo.IsZero() {
 		t.Errorf("an unread conversation: %+v", cv)

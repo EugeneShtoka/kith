@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"go.mau.fi/mautrix-gmessages/pkg/libgm/util"
+
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -88,12 +90,18 @@ type Adapter struct {
 	reactions chan domain.ReactionUpdate
 }
 
+// nameDevice gives kith's name to the device a pairing adds (the phone lists it under
+// Device pairing; libgm's own is "libgm"), once per process: libgm keeps it in a
+// package variable.
+var nameDevice sync.Once
+
 // New is the adapter for accounts, their sessions in secrets, writing into cache. log
 // may be nil.
 func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger) *Adapter {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
+	nameDevice.Do(func() { util.BrowserDetailsMessage.OS = "kith" })
 	return &Adapter{
 		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "gmessages"),
 		conns:     map[string]*conn{},
