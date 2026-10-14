@@ -50,6 +50,9 @@ type Adapter struct {
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
 
+	// reads is the read receipts WhatsApp has not taken yet (unread.go).
+	reads owed
+
 	// arrived is the last live message's position (see arrival).
 	arrived atomic.Int64
 
@@ -239,6 +242,8 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		a.link(account, Connected, "")
 		a.refreshLater(account, client)
 		a.renameLater(account, client) // chats saved before their names were known
+		// Reads made here while WhatsApp was away.
+		go a.sendOwed(context.Background(), account)
 	case *events.JoinedGroup, *events.GroupInfo:
 		a.refreshLater(account, client)
 	case *events.Disconnected:

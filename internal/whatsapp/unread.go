@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow/types"
@@ -133,42 +134,114 @@ func (a *Adapter) lookupFor(account Account) pnOf {
 	return nil
 }
 
-// MarkRead marks a room read up to eventID on WhatsApp and locally; private tells
-// only the account's own devices.
+// MarkRead marks a room read up to eventID here, then on WhatsApp; private tells only
+// the account's own devices. Read here first: WhatsApp not taking the receipt
+// (offline, refused) leaves it read here, and the receipt is owed and sent again when
+// the account connects. The read position only moves forward.
 func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, private bool) error {
 	room := domain.ParseID(string(roomID))
-	event := domain.ParseID(string(eventID))
 	chat, err := types.ParseJID(room.Native)
 	if err != nil {
 		return fmt.Errorf("whatsapp: %s is not a chat: %w", roomID, err)
 	}
+	if a.cache != nil {
+		a.readTo(ctx, roomID, eventID, a.timeOf(ctx, roomID, eventID, time.Now()))
+		a.recount(ctx, roomID)
+	}
+	// Channel posts are marked viewed by server ID, which kith does not keep: local only.
+	if chat.Server == types.NewsletterServer {
+		return nil
+	}
+	m := receipt{event: eventID, private: private, at: time.Now()}
+	a.reads.add(roomID, m)
+	a.sendRead(ctx, roomID, m)
+	return nil
+}
+
+// receipt is a read mark: the message read through, and whether only your devices hear.
+type receipt struct {
+	event   domain.EventID
+	private bool
+	at      time.Time
+}
+
+// sendRead sends a read receipt and settles it when WhatsApp takes it; one it does not
+// take (or an account not connected) stays owed.
+func (a *Adapter) sendRead(ctx context.Context, roomID domain.RoomID, m receipt) {
+	room := domain.ParseID(string(roomID))
+	chat, err := types.ParseJID(room.Native)
+	if err != nil {
+		return
+	}
 	_, client, ok := a.clientFor(room.Account)
 	if !ok {
-		return fmt.Errorf("whatsapp: account %s is not connected: %w", room.Account, errNetworkOff)
+		return // not connected: owed until it is
 	}
 	var sender types.JID
 	if chat.Server == types.GroupServer && a.cache != nil {
 		// In a group, a receipt names the message's sender.
-		if from, err := a.cache.SenderOf(ctx, roomID, eventID); err == nil {
+		if from, err := a.cache.SenderOf(ctx, roomID, m.event); err == nil {
 			sender, _ = types.ParseJID(domain.ParseID(from).Native)
 		}
 	}
 	kind := []types.ReceiptType{}
-	if private {
+	if m.private {
 		kind = append(kind, types.ReceiptTypeReadSelf)
 	}
-	now := time.Now()
-	// Channel posts are marked viewed by server ID, which kith does not keep: local only.
-	if chat.Server != types.NewsletterServer {
-		if err := client.MarkRead(ctx, []types.MessageID{event.Native}, now, chat, sender, kind...); err != nil {
-			return fmt.Errorf("whatsapp: mark %s read: %w", roomID, err)
+	if err := client.MarkRead(ctx, []types.MessageID{domain.ParseID(string(m.event)).Native}, m.at, chat, sender, kind...); err != nil {
+		a.log.Warn("WhatsApp did not take a read receipt; it is kept and sent again on reconnect", "room", roomID, "err", err)
+		return
+	}
+	a.reads.settle(roomID, m)
+}
+
+// sendOwed sends an account's owed read receipts, on (re)connecting.
+func (a *Adapter) sendOwed(ctx context.Context, account Account) {
+	for room, m := range a.reads.take(account.Digits) {
+		a.reads.add(room, m) // owed until WhatsApp takes it
+		a.sendRead(ctx, room, m)
+	}
+}
+
+// owed is the read receipts WhatsApp has not taken yet, by room: the latest.
+type owed struct {
+	mu    sync.Mutex
+	marks map[domain.RoomID]receipt
+}
+
+// add owes m, unless a later receipt is owed already.
+func (o *owed) add(room domain.RoomID, m receipt) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.marks == nil {
+		o.marks = map[domain.RoomID]receipt{}
+	}
+	if old, ok := o.marks[room]; !ok || !old.at.After(m.at) {
+		o.marks[room] = m
+	}
+}
+
+// take removes and returns the receipts owed for rooms of account (its phone digits).
+func (o *owed) take(account string) map[domain.RoomID]receipt {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := map[domain.RoomID]receipt{}
+	for room, m := range o.marks {
+		if domain.ParseID(string(room)).Account == account {
+			out[room] = m
+			delete(o.marks, room)
 		}
 	}
-	if a.cache != nil {
-		a.readTo(ctx, roomID, eventID, a.timeOf(ctx, roomID, eventID, now))
-		a.recount(ctx, roomID)
+	return out
+}
+
+// settle drops a receipt WhatsApp took, unless a later one was owed meanwhile.
+func (o *owed) settle(room domain.RoomID, m receipt) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if old, ok := o.marks[room]; ok && !old.at.After(m.at) {
+		delete(o.marks, room)
 	}
-	return nil
 }
 
 // MarkRoomsRead marks each room read up to its newest cached message.
