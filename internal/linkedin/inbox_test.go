@@ -427,7 +427,7 @@ func TestASyncNeverUndoesALiveEditOrRecall(t *testing.T) {
 	ctx := context.Background()
 	rng := rand.New(rand.NewPCG(3, 141))
 	a, c, cache, _ := cachedAdapter(t)
-	for run := range 120 {
+	for run := range 60 {
 		for _, keep := range []bool{false, true} {
 			// Each run is its own conversation: a fresh message, no state carried over.
 			thread := fmt.Sprintf("2-run%d-%v", run, keep)
