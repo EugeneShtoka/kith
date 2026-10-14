@@ -41,9 +41,56 @@ jobs:
       - name: Modules are tidy and verified, and every package builds as released
         run: make mod-check compile
 
-      # Race detector, coverage profile and the coverage floors (with a summary).
-      - name: Test and coverage gate
-        run: make coverage-check COVERPROFILE=coverage.out
+  # Race detector and a coverage profile, split over parallel runners by package group
+  # (TEST_GROUP in the Makefile): the two slowest packages on their own, the rest
+  # together. One job's 15 minutes held them all before, and no longer did.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [db, tui, rest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test with the race detector
+        env:
+          GROUP: ${{ matrix.group }}
+        run: make test TEST_GROUP=$GROUP COVERPROFILE=cover-$GROUP.out
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cover-${{ matrix.group }}
+          path: cover-${{ matrix.group }}.out
+          retention-days: 1
+
+  # The coverage floors over the groups' profiles, merged (with a summary).
+  coverage:
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: cover-*
+          merge-multiple: true
+
+      - name: Coverage gate
+        run: make coverage-gate COVERPROFILES=cover-*.out
 
   # What a release ships, built only for one (release.yml calls this workflow on the
   # tag; a PR builds for linux alone): every CROSS_TARGETS platform, compile-only (the
@@ -205,7 +252,7 @@ jobs:
     # always(): a skipped required check counts as passed on GitHub. release-builds is
     # not here: it runs on tags alone, and a release needs this whole workflow to pass.
     if: always()
-    needs: [build-and-test, repo-checks, release-config, lint, vuln, secrets, proto, docs]
+    needs: [build-and-test, test, coverage, repo-checks, release-config, lint, vuln, secrets, proto, docs]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
