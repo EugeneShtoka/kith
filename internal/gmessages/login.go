@@ -25,7 +25,9 @@ const (
 	cookiesHelp = "kith pairs with the Google account the phone's Messages uses. In a browser, sign in " +
 		"at https://messages.google.com/web with that account, and open the developer tools (F12) " +
 		"→ Network. Reload the page, pick any request to messages.google.com, and under Request " +
-		"Headers copy the value of Cookie (it holds SID, HSID, SSID, APISID, SAPISID and OSID).\n\n" +
+		"Headers copy the value of Cookie (it holds SID, HSID, SSID, APISID, SAPISID and OSID). A " +
+		"\"Copy as cURL\" of that request works too. The request must be to messages.google.com " +
+		"itself: OSID is sent nowhere else.\n\n" +
 		"The cookies sign in to the Google account: whoever has them can act as you. kith keeps " +
 		"them in the system keyring.\n\nOnly one Messages for web session is active at a time: pairing kith " +
 		"takes it over from a browser or a bridge."

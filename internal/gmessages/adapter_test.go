@@ -162,6 +162,29 @@ func TestCookiesAreRead(t *testing.T) {
 			t.Errorf("%s: kept %v", name, got)
 		}
 	}
+	// "Copy as cURL", as Chrome writes it (several lines) and on one line, by -b or a
+	// Cookie header.
+	curls := map[string]string{
+		"-b, several lines": "curl 'https://messages.google.com/web/config' \\\n  -H 'accept: */*' \\\n  -b '" + all + "' \\\n  -H 'dnt: 1'",
+		"-b, one line":      "curl 'https://messages.google.com/web/config' -H 'accept: */*' -b '" + all + "'",
+		"-H cookie":         "curl \"https://messages.google.com/web/\" -H \"Cookie: " + all + "\" -H \"dnt: 1\"",
+		"$'' quoting":       "curl 'https://messages.google.com/web/' -b $'" + all + "'",
+		// kith's one-line login field turns a pasted line break into a space.
+		"joined by the field": "curl 'https://messages.google.com/web/config' \\  -H 'accept: */*' \\  -b '" + all + "' \\  -H 'dnt: 1'",
+	}
+	for name, paste := range curls {
+		if got, err := parseCookies(paste); err != nil || got["SID"] != "s1" || got["OSID"] != "o1" {
+			t.Errorf("cURL %s: %v, %v", name, got, err)
+		}
+	}
+	if _, err := parseCookies("curl 'https://messages.google.com/web/' -H 'accept: */*'"); !errors.Is(err, errNoCookies) {
+		t.Errorf("a cURL with no cookies = %v", err)
+	}
+	// A request to another Google host carries the account's cookies but not OSID.
+	other := "curl 'https://instantmessaging-pa.clients6.google.com/$rpc/x' -b 'SID=s; HSID=h; SSID=ss; APISID=a; SAPISID=sa'"
+	if _, err := parseCookies(other); !errors.Is(err, errNoOSID) {
+		t.Errorf("a request to another host = %v, want OSID named", err)
+	}
 	if got, err := parseCookies("SID=s; HSID=h; SSID=ss; APISID=a; SAPISID=sa; OSID=o"); err != nil || len(got) != 6 {
 		t.Errorf("without the optional one: %v, %v", got, err)
 	}

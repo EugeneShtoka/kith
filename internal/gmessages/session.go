@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -97,12 +98,27 @@ var (
 var (
 	errNoCookies = errors.New("that has no cookies: copy the value of the Cookie header of a request to messages.google.com")
 	errMissing   = errors.New("those cookies lack some a pairing needs")
+	errNoOSID    = errors.New("those cookies lack OSID, which the browser sends only to messages.google.com itself: " +
+		"in the Network tab, filter by messages.google.com and copy a request to that host, not to another Google one")
+)
+
+var (
+	// curlCookies is a "Copy as cURL" command's -b '<cookies>'; curlHeader one of its
+	// -H '<name>: <value>'.
+	curlCookies = regexp.MustCompile(`(?:-b|--cookie)\s+\$?(?:'([^']*)'|"([^"]*)")`)
+	curlHeader  = regexp.MustCompile(`(?:-H|--header)\s+\$?(?:'([^']*)'|"([^"]*)")`)
+	// continuation is a cURL command's line break.
+	continuation = regexp.MustCompile(`\\\r?\n`)
 )
 
 // parseCookies reads the Google cookies a login was given: the Cookie header's value,
-// or the whole header line. Only the ones a pairing uses are kept.
+// the whole header line, or a "Copy as cURL" command (one line or several). Only the
+// ones a pairing uses are kept.
 func parseCookies(paste string) (map[string]string, error) {
-	paste = strings.TrimSpace(paste)
+	paste = strings.TrimSpace(continuation.ReplaceAllString(paste, " "))
+	if strings.HasPrefix(paste, "curl ") {
+		paste = curlCookieHeader(paste)
+	}
 	if name, value, ok := strings.Cut(paste, ":"); ok && strings.EqualFold(strings.TrimSpace(name), "cookie") {
 		paste = strings.TrimSpace(value)
 	}
@@ -128,8 +144,25 @@ func parseCookies(paste string) (map[string]string, error) {
 			missing = append(missing, name)
 		}
 	}
-	if len(missing) > 0 {
+	switch {
+	case len(missing) == 1 && missing[0] == "OSID":
+		return nil, errNoOSID
+	case len(missing) > 0:
 		return nil, fmt.Errorf("%w: %s", errMissing, strings.Join(missing, ", "))
 	}
 	return out, nil
+}
+
+// curlCookieHeader is the cookies a cURL command sends: its -b, else its Cookie header,
+// else nothing.
+func curlCookieHeader(cmd string) string {
+	if m := curlCookies.FindStringSubmatch(cmd); m != nil {
+		return m[1] + m[2]
+	}
+	for _, m := range curlHeader.FindAllStringSubmatch(cmd, -1) {
+		if name, value, ok := strings.Cut(m[1]+m[2], ":"); ok && strings.EqualFold(strings.TrimSpace(name), "cookie") {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
