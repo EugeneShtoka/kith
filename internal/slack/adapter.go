@@ -60,6 +60,9 @@ type Adapter struct {
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
 
+	// reads is the read marks Slack has not taken yet (unread.go).
+	reads owed
+
 	mu       sync.Mutex
 	accounts []Account
 	// workspaces are the signed-in accounts' connections, by account name.
