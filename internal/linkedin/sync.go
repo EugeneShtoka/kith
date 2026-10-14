@@ -166,6 +166,10 @@ func (a *Adapter) event(ctx context.Context, c *conn, e *linkedingo.DecoratedEve
 		if r := data.DecoratedSeenReceipt; r != nil {
 			a.seen(ctx, c, &r.Result)
 		}
+	case linkedingo.RealtimeEventTopicMessageReactionSummaries:
+		if r := data.DecoratedReactionSummary; r != nil {
+			a.reacted(ctx, c, &r.Result)
+		}
 	}
 }
 
@@ -239,4 +243,23 @@ func (a *Adapter) seen(ctx context.Context, c *conn, r *linkedingo.SeenReceipt) 
 	room := roomID(c.profile, thread)
 	a.readTo(ctx, room, r.SeenAt.Time)
 	a.recount(ctx, room)
+}
+
+// reacted is someone reacting to a message, or taking a reaction back.
+func (a *Adapter) reacted(ctx context.Context, c *conn, r *linkedingo.RealtimeReactionSummary) {
+	thread, ok := threadIn(r.Message.Conversation.EntityURN)
+	if !ok {
+		if thread, ok = threadIn(r.Message.ConversationURN); !ok {
+			return
+		}
+	}
+	actor, emoji := profileOf(r.Actor.EntityURN), r.ReactionSummary.Emoji
+	if r.Message.EntityURN.IsEmpty() || actor == "" || emoji == "" {
+		return
+	}
+	message := r.Message.EntityURN.ID()
+	a.applyReaction(ctx, domain.Reaction{
+		ID: reactionID(c.profile, thread, message, actor, emoji), RoomID: roomID(c.profile, thread),
+		Target: eventID(c.profile, thread, message), Sender: personID(actor), Key: emoji,
+	}, r.ReactionAdded)
 }

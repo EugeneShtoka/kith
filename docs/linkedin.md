@@ -6,7 +6,13 @@ shows your conversations in a space of their own (`LinkedIn <name>`), with the
 messages LinkedIn sends with each conversation and every new one as it arrives:
 replies, forwarded messages (quoted), shared posts (as their address), edits and
 deleted messages. Pictures, files, videos and voice messages show as a short label
-(`[photo]`, `[file: cv.pdf]`) for now. Sending, older history and reactions come next.
+(`[photo]`, `[file: cv.pdf]`) for now.
+
+You can write in a conversation, reply (the reply quotes the original, as LinkedIn
+shows it), mention people (`@` offers the conversation's members), edit and delete
+your messages, react (reacting again with the same emoji takes it back), and scroll
+back past what kith has: older messages are fetched from LinkedIn. Reactions show as
+people make them. Sending pictures and files comes next.
 
 A conversation you read in kith stays read: kith keeps the read position itself,
 before telling LinkedIn, and keeps telling LinkedIn until it hears. LinkedIn marks a

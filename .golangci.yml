@@ -310,6 +310,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/rs/zerolog"
             - "go.mau.fi/mautrix-linkedin/pkg/linkedingo"
+            - "go.mau.fi/util/jsontime"
 
         session-is-a-leaf:
           files:
