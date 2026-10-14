@@ -56,6 +56,29 @@ func threadOf(room domain.RoomID) (self, thread string, ok bool) {
 	return id.Account, thread, ok && thread != ""
 }
 
+// messageOf is an event's account, thread and message URN ID.
+func messageOf(event domain.EventID) (self, thread, message string, ok bool) {
+	id := domain.ParseID(string(event))
+	t, m, cut := strings.Cut(id.Native, "/")
+	if id.Network != domain.ProtocolLinkedIn || id.Account == "" || !cut {
+		return "", "", "", false
+	}
+	thread, ok1 := unesc(t)
+	message, ok2 := unesc(m)
+	return id.Account, thread, message, ok1 && ok2 && thread != "" && message != ""
+}
+
+// messageURN is a message as LinkedIn names it, from its URN ID.
+func messageURN(message string) linkedingo.URN {
+	return linkedingo.NewURN("urn:li:msg_message:" + message)
+}
+
+// reactionID is one person's reaction with emoji to a message: one per person and
+// emoji, as LinkedIn keeps them.
+func reactionID(self, thread, message, profile, emoji string) domain.EventID {
+	return eventID(self, thread, message+"#"+profile+"#"+emoji)
+}
+
 // threadIn is a conversation URN's thread, the part after the mailbox in its
 // parenthesised ID; ok is false for a URN of another shape.
 func threadIn(conversation linkedingo.URN) (string, bool) {
