@@ -112,9 +112,20 @@ var (
 		cacheWriter
 	} = (*telegram.Adapter)(nil)
 
-	// Messenger, so far: login and connection (rooms and messages come next).
+	// Messenger, so far: threads, people, messages from the cache, reading (sending and
+	// history paging come next).
 	_ interface {
 		route.Adapter
+		route.RoomLister
+		route.Homes
+		route.ReadState
+		route.History
+		route.People
+		route.Encryption
+		route.SpaceLister
+		route.SignOuter
 		configChecker
+		roomsRewriter
+		cacheWriter
 	} = (*meta.Adapter)(nil)
 )

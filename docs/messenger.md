@@ -1,10 +1,20 @@
 # Messenger
 
-kith is learning to sign in to Messenger directly, as the Messenger Lite app
-does: no Matrix bridge. **It is being built.** Today kith signs in, keeps the
-session and stays connected, and the account's state shows with your other
-networks; your conversations arrive in a later release, then sending, then
-end-to-end encrypted chats, then files and images.
+kith is learning to sign in to Messenger directly, as the Messenger Lite app does: no
+Matrix bridge. **It is being built.** Today kith signs in, stays connected, and shows
+your threads in a space of their own (`Messenger <name>`), with their messages as
+they arrive and the history Meta sends with each page of the inbox. Pictures, files
+and stickers show as a short label (`[photo]`, `[file: plan.pdf]`) for now. Sending,
+older history, end-to-end encrypted chats, and Instagram come next.
+
+**End-to-end encrypted chats are not shown yet.** Since late 2023 Messenger encrypts
+one-to-one chats by default, so most of your direct messages are among them; group
+chats and older chats are not encrypted and do show. The daemon's log says how many
+threads it left out and why.
+
+A thread you read in kith stays read: kith keeps the read position itself, before
+telling Meta, and keeps telling Meta until it hears. Meta's own read marks only ever
+move it forward.
 
 ## Before you sign in
 

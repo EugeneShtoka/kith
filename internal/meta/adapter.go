@@ -60,6 +60,12 @@ type Adapter struct {
 
 	// onStatus hears an account's state change (see OnStatus).
 	onStatus func(domain.AccountStatus)
+	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
+	onRoomsChanged func()
+	// onCached hears each live message cached, onChanged each room whose cached messages
+	// changed otherwise (see OnCached).
+	onCached  func(domain.Message)
+	onChanged func(domain.RoomID)
 
 	mu       sync.Mutex
 	accounts []Account
@@ -72,6 +78,9 @@ type Adapter struct {
 	stopped bool
 	// run is Start's context; an account added later connects under it.
 	run context.Context //nolint:containedctx // reloads arrive with no context of their own to outlive
+
+	// reads is the read marks Meta has not taken yet (read.go).
+	reads owed
 
 	// keeping serializes writing sessions to the secret store: a login's and a
 	// connection's rotated cookies, so an older session never overwrites a newer one.
@@ -113,6 +122,22 @@ func (a *Adapter) Network() domain.Protocol { return domain.ProtocolMessenger }
 // OnStatus sets who hears an account's state change, with a detail for the person
 // (empty when none). Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
+
+// OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
+// before Start.
+func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
+
+// OnCached sets who hears each live message cached, and each room whose cached
+// messages changed otherwise. Set before Start.
+func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
+	a.onCached, a.onChanged = cached, changed
+}
+
+func (a *Adapter) roomsChanged() {
+	if a.onRoomsChanged != nil {
+		a.onRoomsChanged()
+	}
+}
 
 // UseConfig takes [[messenger.account]], at start and on reload.
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
