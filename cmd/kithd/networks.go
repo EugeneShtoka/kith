@@ -9,6 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/linkedin"
 	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/meta"
 	"github.com/EugeneShtoka/kith/internal/route"
@@ -102,7 +103,7 @@ func openNetworks(
 		stores = append(stores, store{name: "Telegram", Closer: tg})
 	}
 	networks = append(networks, slack.New(cache, secrets, nil, log), telegram.New(cache, secrets, tg, nil, log),
-		meta.New(cache, secrets, nil, log))
+		meta.New(cache, secrets, nil, log), linkedin.New(cache, secrets, nil, log))
 	for _, n := range networks {
 		n.UseConfig(ctx, cfg)
 	}

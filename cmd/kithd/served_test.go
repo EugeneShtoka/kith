@@ -84,6 +84,7 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	}
 	want := []domain.Protocol{
 		domain.ProtocolMatrix, domain.ProtocolWhatsApp, domain.ProtocolSlack, domain.ProtocolTelegram, domain.ProtocolMessenger,
+		domain.ProtocolLinkedIn,
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("networks = %v, want %v", got, want)
@@ -92,7 +93,7 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	for _, l := range backend.loginLeaders() {
 		logins = append(logins, l.LoginNetwork().Network)
 	}
-	if want := []string{"matrix", "whatsapp", "slack", "telegram", "messenger"}; !slices.Equal(logins, want) {
+	if want := []string{"matrix", "whatsapp", "slack", "telegram", "messenger", "linkedin"}; !slices.Equal(logins, want) {
 		t.Errorf("logins = %v, want %v", logins, want)
 	}
 	if got := expected(context.Background(), slog.New(slog.DiscardHandler), backend); len(got) != 0 {

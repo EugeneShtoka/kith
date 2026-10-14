@@ -19,12 +19,15 @@ import "strings"
 //	                            encrypted chat (its WhatsApp-protocol JID, "…@msgr")
 //	messenger:<self>/<thread>/<mid> a message in it
 //	messenger:<person>          a person (a Meta user ID)
+//	linkedin:<self>/<thread>    a LinkedIn conversation (its thread ID, path-escaped)
+//	linkedin:<self>/<thread>/<msg> a message in it (path-escaped)
+//	linkedin:<person>           a person or an organization (a profile ID)
 //
 // Rooms and events name the account because one person may run several accounts on a
 // network, and a shared group is then two rooms with the same native message IDs. A
 // person's ID names no account, so a contact folds into one identity across accounts.
 // <account> is the account's stable network ID (WhatsApp phone digits, Slack team ID,
-// Telegram user ID, Meta user ID), never a config label.
+// Telegram user ID, Meta user ID, LinkedIn profile ID), never a config label.
 //
 // A Telegram <peer> is "marked" as in the Bot API (user ID, basic group negated,
 // channel/supergroup -100<id>) because the three kinds' IDs overlap.
@@ -71,6 +74,13 @@ var natives = map[string]native{
 		// "<thread>/<mid>".
 		isRoom: func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
 		// A person is a Meta user ID, which reads as no name.
+		shortName: func(string) string { return "" },
+	},
+	"linkedin": {
+		protocol: ProtocolLinkedIn,
+		// A thread ID is path-escaped, so it has no slash; a message is "<thread>/<msg>".
+		isRoom: func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
+		// A person is a profile ID ("ACoAA…"), which reads as no name.
 		shortName: func(string) string { return "" },
 	},
 	"telegram": {

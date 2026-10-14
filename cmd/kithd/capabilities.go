@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/linkedin"
 	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/meta"
 	"github.com/EugeneShtoka/kith/internal/route"
@@ -128,4 +129,10 @@ var (
 		roomsRewriter
 		cacheWriter
 	} = (*meta.Adapter)(nil)
+
+	// LinkedIn, so far: login and connection (conversations and messages come next).
+	_ interface {
+		route.Adapter
+		configChecker
+	} = (*linkedin.Adapter)(nil)
 )
