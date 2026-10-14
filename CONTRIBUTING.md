@@ -123,7 +123,8 @@ calls a tool directly instead of through its target. In order:
 | --- | --- |
 | `mod-check` | `go mod tidy -diff` and `go mod verify` |
 | `compile` | every package builds as released (`CGO_ENABLED=0`) |
-| `coverage-check` | `test` (`go test -race -count=1 -coverprofile=… ./...`; the profile goes to `$TMPDIR/kith-cover-<pid>.out`, or `COVERPROFILE=path`), then the floors in `scripts/coverage-gate.sh` |
+| `test` | `go test -race -count=1 -coverprofile=… ./...`; the profile goes to `$TMPDIR/kith-cover-<pid>.out`, or `COVERPROFILE=path`. CI splits it over parallel jobs with `TEST_GROUP=db`, `tui` and `rest` (the two slowest packages on their own) |
+| `coverage-gate` | the floors in `scripts/coverage-gate.sh` over `test`'s profile, or CI's groups' profiles merged (`COVERPROFILES`). `make coverage-check` runs `test` then this |
 | `cross` | every package builds for linux, darwin, freebsd and windows on amd64 and arm64 (`CROSS_TARGETS`) |
 | `lint` | `golangci-lint run`, including the depguard layer rules |
 | `fmt-check` | `golangci-lint fmt --diff` (gofmt + goimports), non-mutating |
