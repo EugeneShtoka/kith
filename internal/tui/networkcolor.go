@@ -8,8 +8,9 @@ import (
 )
 
 // A room's name can be drawn in its network's color ([display.theme.networks]): in room lists
-// per [display] network_colors (a space_rule may override), and on the rail for a space or tag
-// whose rooms are all on one network. A bridged room's network is its bridge's.
+// per [display] network_colors (a space_rule may override), and on the rail for a network's own
+// space (an account's, a bridge's) when that network has a color, empty or not, and else for a
+// space or tag whose rooms are all on one network. A bridged room's network is its bridge's.
 
 // networkColor is the color network's rooms are named in, nil for none.
 func (m Model) networkColor(network domain.Protocol) color.Color {
@@ -32,10 +33,15 @@ func (m Model) roomNameColor(room domain.Room) color.Color {
 	return m.networkColor(m.unreadView().factsOf(room).Protocol)
 }
 
-// withNetworks tags each group with the one network all its rooms are on, if any.
+// withNetworks tags each group with its network: a network's own space with that network,
+// when it has a color; any other group with the one network all its rooms are on, if any.
 func (m Model) withNetworks(groups []group) []group {
 	view := m.unreadView()
 	for i := range groups {
+		if home := groups[i].home; home != "" && m.networkColor(home) != nil {
+			groups[i].network = home
+			continue
+		}
 		var network domain.Protocol
 		for j := range m.rooms.all {
 			if !groups[i].admits(view, m.rooms.all[j]) {
