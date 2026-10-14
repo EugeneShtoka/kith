@@ -17,15 +17,13 @@ import (
 // server's position is ignored without an echo. Locally the room is then read through
 // the newest cached time (not the receipted event's), without waiting for the echo.
 
-// MarkRead sends a main-timeline receipt (MSC3771 thread "main"; reading a room is
-// not reading its threads) for the open room, whose newest shown event is eventID.
+// MarkRead reads the open room, whose newest shown event is eventID, here first, then
+// sends a main-timeline receipt (MSC3771 thread "main"; reading a room is not reading
+// its threads). The homeserver not taking it is logged and the receipt owed (readowed.go);
+// the read here stands.
 func (b *InProc) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, private bool) error {
-	target, hint, err := b.sendRead(ctx, roomID, eventID, private, true)
-	if err != nil {
-		return fmt.Errorf("matrix: mark read: %w", err)
-	}
-	b.clearMarked(ctx, roomID)
-	b.readThrough(ctx, roomID, heldMain, target, hint)
+	unmark := b.readHere(ctx, roomID, heldMain, eventID)
+	_ = b.tellRead(ctx, roomID, owedRead{event: eventID, private: private, mainOnly: true, unmark: unmark})
 	return nil
 }
 
@@ -50,9 +48,11 @@ func (b *InProc) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, pri
 			result.Skipped++
 			continue
 		}
-		target, hint, err := b.sendRead(ctx, roomID, eventID, private, false)
-		if err != nil {
-			// Keep the first reason: a bare count hides a systematic refusal.
+		// Read here first (unthreaded: the thread floor moves now, not on the echo, or
+		// thread rows linger); the receipt follows, owed if the homeserver refuses it.
+		unmark := b.readHere(ctx, roomID, heldUnthreaded, eventID)
+		if err := b.tellRead(ctx, roomID, owedRead{event: eventID, private: private, unmark: unmark}); err != nil {
+			// Read here, but say so: a bare count hides a systematic refusal.
 			result.Failed++
 			if result.FirstError == "" {
 				result.FirstError = err.Error()
@@ -60,9 +60,6 @@ func (b *InProc) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, pri
 			b.log().Warn("mark room read failed", "op", "mark room read", "room", roomID, "event", eventID, "err", err)
 			continue
 		}
-		b.clearMarked(ctx, roomID)
-		// Unthreaded: move the thread floor now, not on the echo, or thread rows linger.
-		b.readThrough(ctx, roomID, heldUnthreaded, target, hint)
 		result.Marked++
 	}
 	return result, nil

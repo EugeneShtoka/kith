@@ -47,6 +47,8 @@ type InProc struct {
 	left leftRooms
 	// networks reads each room's network in the background (networks.go).
 	networks roomNetworks
+	// reads is the read receipts the homeserver has not taken yet (readowed.go).
+	reads owedReads
 
 	// machineMu guards the crypto machine EnableEncryption publishes, possibly while RPCs
 	// are served (degraded start). Never held across a call that can take it again.
@@ -413,6 +415,10 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 		b.onSynced(time.Now())
 	}
 	b.readNetworksIfWanted(ctx)
+	// A sync succeeded: the homeserver is there for receipts owed. Not on this goroutine.
+	if len(b.reads.owed()) > 0 {
+		go b.sendOwed(context.WithoutCancel(ctx))
+	}
 	// Reported, not acted on: refreshing is a network call on the sync goroutine.
 	if b.onRoomsStale != nil && roomsChanged(resp, b.client.UserID) {
 		b.onRoomsStale()
