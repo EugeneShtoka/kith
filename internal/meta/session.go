@@ -29,6 +29,9 @@ type Session struct {
 	Cookies map[string]string `json:"cookies"`
 	// Native is the app session an Android login also carries; nil for iOS.
 	Native *types.NativeSession `json:"native,omitempty"`
+	// WADevice is the number of the device kith registered for encrypted chats, in the
+	// Messenger store; 0 before one is.
+	WADevice uint16 `json:"wa_device,omitempty"`
 }
 
 // errIncomplete is a session missing a part Meta needs.

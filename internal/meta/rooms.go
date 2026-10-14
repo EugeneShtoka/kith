@@ -58,8 +58,11 @@ func (in *inbox) room(t *thread) domain.Room {
 		Membership: domain.MembershipJoin, Network: domain.ProtocolMessenger,
 	}
 	if t.direct() {
-		// A one-to-one thread is named after its person, whatever its row says.
-		r.Name = in.people[t.key]
+		// A one-to-one thread is named after its person; its row's name only until the
+		// person is known.
+		if r.Name = in.people[t.key]; r.Name == "" {
+			r.Name = t.name
+		}
 		if t.key == in.self {
 			r.Name = noteToSelf
 		}

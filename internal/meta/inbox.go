@@ -36,10 +36,25 @@ type inbox struct {
 	threads map[int64]*thread
 	people  map[int64]string
 	members map[int64]map[int64]bool
+	// alias is the room key of a thread Meta keys otherwise: an end-to-end encrypted
+	// chat's thread has a key of its own, and its chat (whose ID its messages carry) is
+	// the other person, or the group's chat ID. Rooms are keyed by the chat.
+	alias map[int64]int64
 }
 
 func newInbox(self int64) *inbox {
-	return &inbox{self: self, threads: map[int64]*thread{}, people: map[int64]string{}, members: map[int64]map[int64]bool{}}
+	return &inbox{
+		self: self, threads: map[int64]*thread{}, people: map[int64]string{},
+		members: map[int64]map[int64]bool{}, alias: map[int64]int64{},
+	}
+}
+
+// key is the room key of Meta's thread key k.
+func (in *inbox) key(k int64) int64 {
+	if v, ok := in.alias[k]; ok {
+		return v
+	}
+	return k
 }
 
 // change is what one table changed.
@@ -64,13 +79,10 @@ func (c *change) touched(key int64) {
 	}
 }
 
-// kept reports why a thread in folder, of kind, is not shown, or "" when it is. Spam
-// and hidden threads are not, and neither are end-to-end encrypted chats, which travel
-// on another channel and carry no messages here.
+// kept reports why a thread in folder, of kind, is not shown, or "" when it is: spam
+// and hidden threads, and Messenger's folders themselves, are not.
 func kept(folder string, kind table.ThreadType) string {
 	switch {
-	case kind.IsWhatsApp(), strings.HasPrefix(folder, "e2ee_cutover"):
-		return "encrypted"
 	case folder == "spam", folder == "hidden":
 		return folder
 	case kind == table.FOLDER:
@@ -83,6 +95,7 @@ func kept(folder string, kind table.ThreadType) string {
 func (in *inbox) apply(tbl *table.LSTable) change {
 	c := change{read: map[int64]int64{}, left: map[string]int{}}
 	in.applyPeople(tbl, &c)
+	in.applyMapping(tbl, &c)
 	full := in.applyThreads(tbl, &c)
 	in.applyGone(tbl, full, &c)
 	in.applyMembers(tbl, &c)
@@ -120,6 +133,7 @@ func (in *inbox) applyPeople(tbl *table.LSTable, c *change) {
 // delete of one of those in the same table is Meta's delete-then-insert).
 func (in *inbox) applyThreads(tbl *table.LSTable, c *change) map[int64]bool {
 	full := map[int64]bool{}
+	in.peersFromParticipants(tbl, c)
 	for _, r := range tbl.LSDeleteThenInsertThread {
 		full[r.ThreadKey] = true
 		in.upsert(r.ThreadKey, r.ThreadType, r.ThreadName, r.FolderName, r.LastActivityTimestampMs,
@@ -134,13 +148,13 @@ func (in *inbox) applyThreads(tbl *table.LSTable, c *change) map[int64]bool {
 			r.LastReadWatermarkTimestampMs, -1, c)
 	}
 	for _, r := range tbl.LSVerifyThreadExists {
-		if t := in.threads[r.ThreadKey]; t == nil && !full[r.ThreadKey] {
+		if t := in.threads[in.key(r.ThreadKey)]; t == nil && !full[r.ThreadKey] {
 			in.upsert(r.ThreadKey, r.ThreadType, "", r.FolderName, 0, 0, -1, c)
 		}
 	}
 	for _, r := range tbl.LSSyncUpdateThreadName {
 		// A one-to-one thread keeps its person's name, as in Messenger itself.
-		if t := in.threads[r.ThreadKey]; t != nil && !t.direct() && t.name != r.ThreadName {
+		if t := in.threads[in.key(r.ThreadKey)]; t != nil && !t.direct() && t.name != r.ThreadName {
 			t.name = r.ThreadName
 			c.touched(t.key)
 		}
@@ -150,9 +164,13 @@ func (in *inbox) applyThreads(tbl *table.LSTable, c *change) map[int64]bool {
 
 // upsert adds or updates a thread from a row, or drops it when the row moves it out of
 // what is shown. unread is -1 when the row carries no count.
-func (in *inbox) upsert(key int64, kind table.ThreadType, name, folder string, lastActive, readTo, unread int64, c *change) {
-	if key == 0 {
+func (in *inbox) upsert(metaKey int64, kind table.ThreadType, name, folder string, lastActive, readTo, unread int64, c *change) {
+	if metaKey == 0 {
 		return
+	}
+	key := in.key(metaKey)
+	if key != metaKey {
+		in.retire(metaKey, c)
 	}
 	t := in.threads[key]
 	if t != nil && kind == table.UNKNOWN_THREAD_TYPE {
@@ -169,7 +187,7 @@ func (in *inbox) upsert(key int64, kind table.ThreadType, name, folder string, l
 	}
 	t.kind, t.folder = kind, folder
 	if name != "" || !t.direct() {
-		t.name = name
+		t.name = name // a one-to-one thread's is the fallback when its person is not known
 	}
 	t.lastActive = max(t.lastActive, lastActive)
 	if unread >= 0 {
@@ -189,6 +207,67 @@ func (in *inbox) drop(key int64, c *change) {
 	c.threads = slices.DeleteFunc(c.threads, func(k int64) bool { return k == key })
 }
 
+// retire forgets a Meta thread key that turned out to be another room's: its room, if
+// one was kept under it, goes.
+func (in *inbox) retire(metaKey int64, c *change) {
+	delete(in.threads, metaKey)
+	delete(in.members, metaKey)
+	if !slices.Contains(c.gone, metaKey) {
+		c.gone = append(c.gone, metaKey)
+	}
+	c.threads = slices.DeleteFunc(c.threads, func(k int64) bool { return k == metaKey })
+}
+
+// rekey keys Meta's thread metaKey by chat from now on.
+func (in *inbox) rekey(metaKey, chat int64, c *change) {
+	if metaKey == 0 || chat == 0 || metaKey == chat || in.alias[metaKey] == chat {
+		return
+	}
+	in.alias[metaKey] = chat
+	if t := in.threads[metaKey]; t != nil {
+		in.retire(metaKey, c)
+		t.key = chat
+		if in.threads[chat] == nil {
+			in.threads[chat] = t
+		}
+		c.touched(chat)
+	} else {
+		in.retire(metaKey, c)
+	}
+}
+
+// applyMapping takes Meta's thread-to-chat mappings for encrypted chats.
+func (in *inbox) applyMapping(tbl *table.LSTable, c *change) {
+	for _, r := range tbl.LSUpdateThreadAuthorityAndMappingWithOTIDFromJID {
+		in.rekey(r.ThreadKey, r.ThreadJID, c)
+	}
+	for _, r := range tbl.LSVerifyHybridThreadExists {
+		in.rekey(r.ThreadKey, r.ThreadJID, c)
+	}
+}
+
+// peersFromParticipants keys an encrypted one-to-one thread by its other person when
+// Meta sent no mapping: its participants are you and them.
+func (in *inbox) peersFromParticipants(tbl *table.LSTable, c *change) {
+	others := map[int64][]int64{}
+	for _, r := range tbl.LSAddParticipantIdToGroupThread {
+		if r.ContactId != 0 && r.ContactId != in.self {
+			others[r.ThreadKey] = append(others[r.ThreadKey], r.ContactId)
+		}
+	}
+	oneToOne := func(key int64, kind table.ThreadType) {
+		if kind == table.ENCRYPTED_OVER_WA_ONE_TO_ONE && len(others[key]) == 1 {
+			in.rekey(key, others[key][0], c)
+		}
+	}
+	for _, r := range tbl.LSDeleteThenInsertThread {
+		oneToOne(r.ThreadKey, r.ThreadType)
+	}
+	for _, r := range tbl.LSUpdateOrInsertThread {
+		oneToOne(r.ThreadKey, r.ThreadType)
+	}
+}
+
 // readTo moves t's read mark forward to at; never back.
 func (in *inbox) readTo(t *thread, at int64, c *change) {
 	if at > t.readTo {
@@ -200,50 +279,61 @@ func (in *inbox) readTo(t *thread, at int64, c *change) {
 func (in *inbox) applyGone(tbl *table.LSTable, full map[int64]bool, c *change) {
 	for _, r := range tbl.LSDeleteThread {
 		if !full[r.ThreadKey] {
-			in.drop(r.ThreadKey, c)
+			in.drop(in.key(r.ThreadKey), c)
 		}
 	}
+	// A thread moved to end-to-end encryption stays the same room: its messages now come
+	// over the encrypted connection, under the same key.
 	for _, r := range tbl.LSMoveThreadToE2EECutoverFolder {
-		in.drop(r.ThreadKey, c)
+		if t := in.threads[in.key(r.ThreadKey)]; t != nil && !t.kind.IsWhatsApp() {
+			if t.direct() {
+				t.kind = table.ENCRYPTED_OVER_WA_ONE_TO_ONE
+			} else {
+				t.kind = table.ENCRYPTED_OVER_WA_GROUP
+			}
+			c.touched(t.key)
+		}
 	}
 }
 
 func (in *inbox) applyMembers(tbl *table.LSTable, c *change) {
 	for _, r := range tbl.LSAddParticipantIdToGroupThread {
-		if in.threads[r.ThreadKey] == nil || r.ContactId == 0 {
+		key := in.key(r.ThreadKey)
+		if in.threads[key] == nil || r.ContactId == 0 {
 			continue
 		}
-		if in.members[r.ThreadKey] == nil {
-			in.members[r.ThreadKey] = map[int64]bool{}
+		if in.members[key] == nil {
+			in.members[key] = map[int64]bool{}
 		}
-		if !in.members[r.ThreadKey][r.ContactId] {
-			in.members[r.ThreadKey][r.ContactId] = true
-			c.touched(r.ThreadKey)
+		if !in.members[key][r.ContactId] {
+			in.members[key][r.ContactId] = true
+			c.touched(key)
 		}
 		if r.Nickname != "" && in.people[r.ContactId] == "" {
 			in.know(r.ContactId, r.Nickname, "", c)
 		}
 	}
 	for _, r := range tbl.LSRemoveParticipantFromThread {
+		key := in.key(r.ThreadKey)
 		if r.ParticipantId == in.self {
-			in.drop(r.ThreadKey, c) // you left: it is no longer yours
+			in.drop(key, c) // you left: it is no longer yours
 			continue
 		}
-		if in.members[r.ThreadKey][r.ParticipantId] {
-			delete(in.members[r.ThreadKey], r.ParticipantId)
-			c.touched(r.ThreadKey)
+		if in.members[key][r.ParticipantId] {
+			delete(in.members[key], r.ParticipantId)
+			c.touched(key)
 		}
 	}
 }
 
 func (in *inbox) applyRead(tbl *table.LSTable, c *change) {
 	for _, r := range tbl.LSMarkThreadReadV2 {
-		if t := in.threads[r.ThreadKey]; t != nil {
+		if t := in.threads[in.key(r.ThreadKey)]; t != nil {
 			in.readTo(t, r.LastReadWatermarkTimestampMs, c)
 		}
 	}
 	for _, r := range tbl.LSMarkThreadRead {
-		if t := in.threads[r.ThreadKey]; t != nil {
+		if t := in.threads[in.key(r.ThreadKey)]; t != nil {
 			in.readTo(t, r.LastReadWatermarkTimestampMs, c)
 		}
 	}
@@ -262,6 +352,7 @@ func (in *inbox) applyMessages(tbl *table.LSTable, c *change) {
 		if m == nil || m.LSInsertMessage == nil || m.MessageId == "" {
 			continue
 		}
+		m.ThreadKey = in.key(m.ThreadKey)
 		t := in.threads[m.ThreadKey]
 		if t == nil {
 			in.upsert(m.ThreadKey, table.UNKNOWN_THREAD_TYPE, "", "inbox", m.TimestampMs, 0, -1, c)
@@ -306,5 +397,16 @@ func (in *inbox) membersOf(t *thread) []int64 {
 		}
 	}
 	slices.Sort(out)
+	return out
+}
+
+// unnamed is the people of one-to-one threads among keys whose names are not known.
+func (in *inbox) unnamed(keys []int64) []int64 {
+	var out []int64
+	for _, key := range keys {
+		if t := in.threads[key]; t != nil && t.direct() && key != in.self && in.people[key] == "" {
+			out = append(out, key)
+		}
+	}
 	return out
 }

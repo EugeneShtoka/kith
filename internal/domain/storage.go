@@ -27,6 +27,10 @@ func (s Storage) WhatsAppPath() string { return s.store("whatsapp") }
 // hashes (the sessions are in the keyring).
 func (s Storage) TelegramPath() string { return s.store("telegram") }
 
+// MessengerPath is the Messenger store: the devices that read Messenger's end-to-end
+// encrypted chats (the sessions are in the keyring).
+func (s Storage) MessengerPath() string { return s.store("messenger") }
+
 func (s Storage) store(kind string) string {
 	return filepath.Join(s.DataDir, kind+"-"+s.Instance+".db")
 }

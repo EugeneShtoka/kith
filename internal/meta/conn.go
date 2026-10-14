@@ -11,9 +11,11 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-meta/pkg/messagix"
 	"go.mau.fi/mautrix-meta/pkg/messagix/httpclient"
+	"go.mau.fi/mautrix-meta/pkg/messagix/socket"
 	"go.mau.fi/mautrix-meta/pkg/messagix/table"
 	"go.mau.fi/mautrix-meta/pkg/messagix/types"
 	"go.mau.fi/util/exhttp"
+	"go.mau.fi/whatsmeow"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
@@ -78,6 +80,13 @@ type conn struct {
 	applying sync.Mutex
 	inbox    *inbox
 	rooms    map[domain.RoomID]domain.Room
+	// asked is the people already asked Meta for (askContacts). Under applying.
+	asked map[int64]bool
+
+	// e2ee is the encrypted chats' connection once up; e2eeBusy marks one being made.
+	// Under mu.
+	e2ee     *whatsmeow.Client
+	e2eeBusy bool
 }
 
 // loaded is a messages page a login already loaded, so connecting does not load it again.
@@ -96,7 +105,7 @@ func (a *Adapter) newConn(account Account, s Session, at *int) *conn {
 	saved, _ := s.encode() // a session that will not encode is saved again on its first change
 	return &conn{
 		account: account, metaID: s.MetaID, signIn: signIn, session: s, saved: saved, done: make(chan struct{}),
-		inbox: newInbox(s.MetaID), rooms: map[domain.RoomID]domain.Room{},
+		inbox: newInbox(s.MetaID), rooms: map[domain.RoomID]domain.Room{}, asked: map[int64]bool{},
 	}
 }
 
@@ -105,8 +114,11 @@ func (c *conn) close() {
 	c.closeOnce.Do(func() {
 		close(c.done)
 		c.mu.Lock()
-		client := c.client
+		client, wa := c.client, c.e2ee
 		c.mu.Unlock()
+		if wa != nil {
+			wa.Disconnect()
+		}
 		client.Disconnect() // nil-safe
 	})
 }
@@ -278,6 +290,7 @@ func (a *Adapter) react(c *conn, evt any) {
 	case *messagix.ConnectedEvent, *messagix.ReconnectedEvent:
 		a.session(c.account, Connected, "")
 		go a.sendOwed(c)
+		go a.connectE2EE(context.Background(), c)
 	case *messagix.TransientDisconnectEvent:
 		a.log.Debug("disconnected; messagix reconnects", "account", c.account.Name, "attempt", e.ConnectionAttempts, "err", e.Err)
 		a.session(c.account, Connecting, "reconnecting")
@@ -371,4 +384,71 @@ func (a *Adapter) take(ctx context.Context, c *conn, tbl *table.LSTable) {
 		a.log.Info("threads not shown", "account", c.account.Name, "why", ch.left)
 	}
 	a.store(ctx, c, ch)
+	var ask []int64
+	for _, id := range c.inbox.unnamed(ch.threads) {
+		if !c.asked[id] {
+			c.asked[id] = true
+			ask = append(ask, id)
+		}
+	}
+	if len(ask) > 0 {
+		go a.askContacts(context.WithoutCancel(ctx), c, ask)
+	}
+}
+
+// contactSpan bounds asking Meta for one contact; contactWait, waiting for the
+// connection to open first.
+const (
+	contactSpan = 30 * time.Second
+	contactWait = 2 * time.Minute
+)
+
+// askContacts asks Meta for people whose one-to-one threads came without them, one at
+// a time, and takes the answers in as any table. Each is asked once per connection.
+func (a *Adapter) askContacts(ctx context.Context, c *conn, ids []int64) {
+	c.mu.Lock()
+	client := c.client
+	c.mu.Unlock()
+	if client == nil {
+		return
+	}
+	// The first page is taken before the socket opens; asking waits for it.
+	if err := client.WaitUntilCanSendMessages(ctx, contactWait); err != nil {
+		a.log.Warn("the connection never opened to ask for contacts; asked again later", "account", c.account.Name, "err", err)
+		a.unask(c, ids)
+		return
+	}
+	rows := 0
+	for _, id := range ids {
+		if c.closed() {
+			return
+		}
+		var resp *table.LSTable
+		err := a.guard("asking for a contact", func() error {
+			asking, cancel := context.WithTimeout(ctx, contactSpan)
+			defer cancel()
+			var err error
+			resp, err = client.ExecuteTasks(asking, &socket.GetContactsFullTask{ContactID: id})
+			return err //nolint:wrapcheck // logged below with what it was for
+		})
+		if err != nil {
+			a.log.Warn("ask Meta for a contact failed; asked again later", "account", c.account.Name, "err", err)
+			a.unask(c, []int64{id})
+			continue
+		}
+		if resp != nil {
+			rows += len(resp.LSDeleteThenInsertContact) + len(resp.LSVerifyContactRowExists)
+		}
+		a.take(ctx, c, resp)
+	}
+	a.log.Info("asked Meta for contacts", "account", c.account.Name, "asked", len(ids), "contact_rows", rows)
+}
+
+// unask lets people whose asking failed be asked again with a later table.
+func (a *Adapter) unask(c *conn, ids []int64) {
+	c.applying.Lock()
+	defer c.applying.Unlock()
+	for _, id := range ids {
+		delete(c.asked, id)
+	}
 }

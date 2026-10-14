@@ -109,7 +109,7 @@ func TestSessionsAreKeptWhole(t *testing.T) {
 		}
 	}
 
-	a := New(nil, secrets, nil, nil)
+	a := New(nil, secrets, nil, nil, nil)
 	a.UseConfig(context.Background(), withAccounts("fb", "broken", "partial", "never"))
 	saved, err := a.SavedSessions(context.Background())
 	if err != nil || len(saved) != 1 || saved[0] != "fb" {
@@ -125,7 +125,7 @@ func TestSessionsAreKeptWhole(t *testing.T) {
 func TestCheckConfig(t *testing.T) {
 	t.Parallel()
 
-	a := New(nil, newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil, nil)
 	for _, tc := range []struct {
 		cfg  config.Config
 		want string
@@ -158,7 +158,7 @@ func (s *statuses) hear(st domain.AccountStatus) {
 func TestAnAccountWithNoSessionSaysHowToSignIn(t *testing.T) {
 	t.Parallel()
 
-	a := New(nil, newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil, nil)
 	var heard statuses
 	a.OnStatus(heard.hear)
 	a.UseConfig(context.Background(), withAccounts("fb"))
@@ -189,7 +189,7 @@ func TestAnAccountWithNoSessionSaysHowToSignIn(t *testing.T) {
 func TestConnectionsFollowSignInsAndConfig(t *testing.T) {
 	t.Parallel()
 
-	a := New(nil, newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil, nil)
 	a.UseConfig(context.Background(), withAccounts("fb", "work"))
 	old := a.newConn(Account{Name: "fb"}, aSession(1, "a"), nil)
 	if !a.adopt(old) {
@@ -247,7 +247,7 @@ func TestTheStoredSessionIsAlwaysTheNewestSignIns(t *testing.T) {
 	rng := rand.New(rand.NewPCG(7, 99))
 	for run := range 300 {
 		secrets := newSecrets()
-		a := New(nil, secrets, nil, nil)
+		a := New(nil, secrets, nil, nil, nil)
 		a.UseConfig(context.Background(), withAccounts("fb"))
 		var writers []*writer
 		login := func() {
@@ -295,7 +295,7 @@ func TestSessionWritersRacing(t *testing.T) {
 	t.Parallel()
 
 	secrets := newSecrets()
-	a := New(nil, secrets, nil, nil)
+	a := New(nil, secrets, nil, nil, nil)
 	a.UseConfig(context.Background(), withAccounts("fb"))
 	first := aSession(1, "s1-0")
 	signIn := a.newSignIn("fb")
@@ -454,7 +454,7 @@ func TestLoginStepsAreAsked(t *testing.T) {
 func TestLoginSetsUpANewAccount(t *testing.T) {
 	t.Parallel()
 
-	a := New(nil, newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil, nil)
 	a.UseConfig(context.Background(), withAccounts("meta"))
 	talk := &talkScript{answers: []map[string]string{{"name": "personal"}}}
 	name, err := a.setUp(context.Background(), talk)
@@ -483,7 +483,7 @@ func TestALoginDuringAnOldWriteStillWins(t *testing.T) {
 	t.Parallel()
 
 	secrets := newSecrets()
-	a := New(nil, secrets, nil, nil)
+	a := New(nil, secrets, nil, nil, nil)
 	a.UseConfig(context.Background(), withAccounts("fb"))
 	signIn := a.newSignIn("fb")
 	first := aSession(1, "s1-0")
@@ -528,7 +528,7 @@ func TestALoginDuringAnOldWriteStillWins(t *testing.T) {
 func TestALibraryPanicIsAnError(t *testing.T) {
 	t.Parallel()
 
-	a := New(nil, newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil, nil)
 	err := a.guard("signing in", func() error {
 		var page *bridgev2.LoginStep
 		_ = page.Instructions // a nil dereference, as in the interpreter

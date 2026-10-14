@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/rs/zerolog"
 	zerologlog "github.com/rs/zerolog/log"
@@ -56,6 +57,8 @@ const (
 type Adapter struct {
 	cache   *db.Cache
 	secrets Secrets
+	// devices keeps the encrypted chats' devices; nil when it would not open.
+	devices *Store
 	log     *slog.Logger
 
 	// onStatus hears an account's state change (see OnStatus).
@@ -81,6 +84,8 @@ type Adapter struct {
 
 	// reads is the read marks Meta has not taken yet (read.go).
 	reads owed
+	// keepDeleted is [display.deleted] keep: an edit or an unsend keeps what it replaced.
+	keepDeleted atomic.Bool
 
 	// keeping serializes writing sessions to the secret store: a login's and a
 	// connection's rotated cookies, so an older session never overwrites a newer one.
@@ -94,9 +99,10 @@ type Adapter struct {
 	reactions chan domain.ReactionUpdate
 }
 
-// New is the adapter for accounts, their sessions in secrets, writing into cache. log
-// may be nil.
-func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger) *Adapter {
+// New is the adapter for accounts, their sessions in secrets, writing into cache. store
+// keeps the devices that read encrypted chats; nil leaves those chats out. log may be
+// nil.
+func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log *slog.Logger) *Adapter {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
@@ -106,7 +112,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		zerologlog.Logger = logging.Zerolog(log.With("network", "messenger", "component", "messagix"), zerolog.ErrorLevel)
 	})
 	return &Adapter{
-		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "messenger"),
+		cache: cache, secrets: secrets, devices: store, accounts: slices.Clone(accounts), log: log.With("network", "messenger"),
 		conns:     map[string]*conn{},
 		signIns:   map[string]int{},
 		messages:  make(chan domain.Message, streamBuffer),
@@ -139,8 +145,12 @@ func (a *Adapter) roomsChanged() {
 	}
 }
 
-// UseConfig takes [[messenger.account]], at start and on reload.
+func (a *Adapter) keepsDeleted() bool { return a.keepDeleted.Load() }
+
+// UseConfig takes [[messenger.account]] and [display.deleted] keep, at start and on
+// reload.
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
+	a.keepDeleted.Store(cfg.Display.Deleted.Keep())
 	accounts := make([]Account, 0, len(cfg.Messenger.Accounts))
 	for _, account := range cfg.Messenger.Accounts {
 		accounts = append(accounts, Account{Name: account.Name})
