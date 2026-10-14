@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
@@ -51,6 +52,12 @@ type Adapter struct {
 
 	// onStatus hears an account's state change (see OnStatus).
 	onStatus func(domain.AccountStatus)
+	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
+	onRoomsChanged func()
+	// onCached hears each live message cached, onChanged each room whose cached messages
+	// changed otherwise (see OnCached).
+	onCached  func(domain.Message)
+	onChanged func(domain.RoomID)
 
 	mu       sync.Mutex
 	accounts []Account
@@ -63,6 +70,11 @@ type Adapter struct {
 	stopped bool
 	// run is Start's context; an account added later connects under it.
 	run context.Context //nolint:containedctx // reloads arrive with no context of their own to outlive
+
+	// reads is the read marks LinkedIn has not taken yet (read.go).
+	reads owed
+	// keepDeleted is [display.deleted] keep: an edit or a recall keeps what it replaced.
+	keepDeleted atomic.Bool
 
 	// keeping serializes writing sessions to the secret store: a login's and a
 	// connection's rotated cookies, so an older session never overwrites a newer one.
@@ -100,8 +112,28 @@ func (a *Adapter) Network() domain.Protocol { return domain.ProtocolLinkedIn }
 // (empty when none). Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
 
-// UseConfig takes [[linkedin.account]], at start and on reload.
+// OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
+// before Start.
+func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
+
+// OnCached sets who hears each live message cached, and each room whose cached
+// messages changed otherwise. Set before Start.
+func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
+	a.onCached, a.onChanged = cached, changed
+}
+
+func (a *Adapter) roomsChanged() {
+	if a.onRoomsChanged != nil {
+		a.onRoomsChanged()
+	}
+}
+
+func (a *Adapter) keepsDeleted() bool { return a.keepDeleted.Load() }
+
+// UseConfig takes [[linkedin.account]] and [display.deleted] keep, at start and on
+// reload.
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
+	a.keepDeleted.Store(cfg.Display.Deleted.Keep())
 	accounts := make([]Account, 0, len(cfg.LinkedIn.Accounts))
 	for _, account := range cfg.LinkedIn.Accounts {
 		accounts = append(accounts, Account{Name: account.Name})
