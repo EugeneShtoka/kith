@@ -10,8 +10,10 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -44,11 +46,18 @@ const (
 
 // Adapter is every configured Google Messages account. Build it with New.
 type Adapter struct {
+	cache   *db.Cache
 	secrets Secrets
 	log     *slog.Logger
 
 	// onStatus hears an account's state change (see OnStatus).
 	onStatus func(domain.AccountStatus)
+	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
+	onRoomsChanged func()
+	// onCached hears each live message cached, onChanged each room whose cached messages
+	// changed otherwise (see OnCached).
+	onCached  func(domain.Message)
+	onChanged func(domain.RoomID)
 
 	mu       sync.Mutex
 	accounts []Account
@@ -62,6 +71,11 @@ type Adapter struct {
 	// run is Start's context; an account added later connects under it.
 	run context.Context //nolint:containedctx // reloads arrive with no context of their own to outlive
 
+	// reads is the read marks the phone has not taken yet (read.go).
+	reads owed
+	// keepDeleted is [display.deleted] keep: a deletion keeps what it removed.
+	keepDeleted atomic.Bool
+
 	// keeping serializes writing sessions to the secret store: a pairing's and a
 	// connection's refreshed token, so an older session never overwrites a newer one.
 	keeping sync.Mutex
@@ -74,13 +88,14 @@ type Adapter struct {
 	reactions chan domain.ReactionUpdate
 }
 
-// New is the adapter for accounts, their sessions in secrets. log may be nil.
-func New(secrets Secrets, accounts []Account, log *slog.Logger) *Adapter {
+// New is the adapter for accounts, their sessions in secrets, writing into cache. log
+// may be nil.
+func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger) *Adapter {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
 	return &Adapter{
-		secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "gmessages"),
+		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "gmessages"),
 		conns:     map[string]*conn{},
 		signIns:   map[string]int{},
 		messages:  make(chan domain.Message, streamBuffer),
@@ -97,8 +112,28 @@ func (a *Adapter) Network() domain.Protocol { return domain.ProtocolGMessages }
 // (empty when none). Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
 
-// UseConfig takes [[gmessages.account]], at start and on reload.
+// OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
+// before Start.
+func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
+
+// OnCached sets who hears each live message cached, and each room whose cached
+// messages changed otherwise. Set before Start.
+func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
+	a.onCached, a.onChanged = cached, changed
+}
+
+func (a *Adapter) roomsChanged() {
+	if a.onRoomsChanged != nil {
+		a.onRoomsChanged()
+	}
+}
+
+func (a *Adapter) keepsDeleted() bool { return a.keepDeleted.Load() }
+
+// UseConfig takes [[gmessages.account]] and [display.deleted] keep, at start and on
+// reload.
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
+	a.keepDeleted.Store(cfg.Display.Deleted.Keep())
 	accounts := make([]Account, 0, len(cfg.GMessages.Accounts))
 	for _, account := range cfg.GMessages.Accounts {
 		accounts = append(accounts, Account{Name: account.Name})
@@ -250,5 +285,21 @@ func (a *Adapter) Unread() <-chan domain.Unread { return a.unread }
 // Reactions is reactions as they change.
 func (a *Adapter) Reactions() <-chan domain.ReactionUpdate { return a.reactions }
 
-// Me is nobody yet: who you are in conversations (your number) comes with them.
-func (a *Adapter) Me() []string { return nil }
+// Me is every Google Messages ID that is this person: the participants the phones mark
+// as you.
+func (a *Adapter) Me() []string {
+	a.mu.Lock()
+	conns := make([]*conn, 0, len(a.conns))
+	for _, c := range a.conns {
+		conns = append(conns, c)
+	}
+	a.mu.Unlock()
+	var me []string
+	for _, c := range conns {
+		c.mu.Lock()
+		me = append(me, c.me...)
+		c.mu.Unlock()
+	}
+	slices.Sort(me)
+	return slices.Compact(me)
+}

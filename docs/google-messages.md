@@ -2,8 +2,18 @@
 
 kith is learning to reach Google Messages directly, as Messages for web does: paired
 with the Messages app on your Android phone, with no Matrix bridge. **It is being
-built.** Today kith pairs and stays connected, and shows how the phone is doing;
-your conversations, their messages, sending and history come next.
+built.** Today kith pairs, stays connected, and shows your conversations in a space
+of their own (`Google Messages <name>`): the inbox, with the newest messages of each
+conversation that has something new, then every message as it arrives. People with a
+phone number are named by their contact name and known by the number. Pictures,
+videos, voice messages and files show as a short label (`[photo]`, `[file: cv.pdf]`)
+for now, and an MMS the phone has not downloaded yet says so. Sending, older history
+and reactions come next.
+
+A conversation you read in kith stays read: kith keeps the read position itself,
+before telling the phone, and keeps telling it until it hears. Conversations the phone
+files as spam or blocked, and deleted ones, are not shown; archived ones are.
+Signing out in kith (from the account's space) unpairs kith from the phone.
 
 ## Before you pair
 

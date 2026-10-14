@@ -105,7 +105,7 @@ func openNetworks(
 	}
 	networks = append(networks, slack.New(cache, secrets, nil, log), telegram.New(cache, secrets, tg, nil, log),
 		meta.New(cache, secrets, nil, log), linkedin.New(cache, secrets, nil, log),
-		gmessages.New(secrets, nil, log))
+		gmessages.New(cache, secrets, nil, log))
 	for _, n := range networks {
 		n.UseConfig(ctx, cfg)
 	}

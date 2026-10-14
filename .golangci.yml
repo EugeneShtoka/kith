@@ -285,6 +285,7 @@ linters:
             - "$gostd"
             - "github.com/EugeneShtoka/kith/internal/api"
             - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/gmessages"
             - "github.com/EugeneShtoka/kith/internal/logging"

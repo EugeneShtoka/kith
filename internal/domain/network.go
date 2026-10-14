@@ -23,8 +23,10 @@ import "strings"
 //	linkedin:<self>/<thread>/<msg> a message in it (path-escaped)
 //	linkedin:<person>           a person or an organization (a profile ID)
 //	gmessages:<phone>/<conv>    a Google Messages conversation, as one paired phone
-//	                            sees it (both path-escaped)
+//	                            sees it (a hash of the phone's ID; the conversation
+//	                            path-escaped)
 //	gmessages:<phone>/<conv>/<id> a message in it
+//	gmessages:+<number>         a person with a phone number
 //
 // Rooms and events name the account because one person may run several accounts on a
 // network, and a shared group is then two rooms with the same native message IDs. A
@@ -90,8 +92,15 @@ var natives = map[string]native{
 		protocol: ProtocolGMessages,
 		// A conversation ID is path-escaped, so it has no slash; a message is
 		// "<conv>/<id>".
-		isRoom:    func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
-		shortName: func(string) string { return "" },
+		isRoom: func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
+		// A person with a number is "+<number>", as people write it; anyone else is the
+		// phone's own ID for them, which reads as no name.
+		shortName: func(id string) string {
+			if strings.HasPrefix(id, "+") {
+				return id
+			}
+			return ""
+		},
 	},
 	"telegram": {
 		protocol: ProtocolTelegram,
