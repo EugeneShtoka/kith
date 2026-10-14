@@ -86,7 +86,10 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 			a.log.Warn("list the chats failed", "account", account.Name, "err", err)
 		}
 		go a.backfill(ctx, account, self.ID, rooms) // ends with the connection
-		return live.run(ctx, client, self.ID, func() { a.session(account, Connected, "") })
+		return live.run(ctx, client, self.ID, func() {
+			a.session(account, Connected, "")
+			go a.sendOwed(ctx, self.ID) // reads made here while Telegram was away
+		})
 	})
 	a.disown(account, gen)
 	switch {

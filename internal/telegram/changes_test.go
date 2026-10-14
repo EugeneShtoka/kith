@@ -477,3 +477,84 @@ func TestATypistIsForgotten(t *testing.T) {
 		t.Error("a typist whose notices stopped was not forgotten")
 	}
 }
+
+// Reading is local first: with Telegram not reachable, the chat is read here and the
+// mark owed; a listing fetched before the read does not undo it, and one fetched after,
+// Telegram not having heard, does not bring the unread back where kith counts it.
+func TestAReadStaysWhenTelegramDoesNotTakeIt(t *testing.T) {
+	t.Parallel()
+	a, cache := cachedAdapter(t, &memSecrets{values: map[string]string{}})
+	ctx, room := t.Context(), domain.RoomID("telegram:42/7")
+	var msgs []domain.Message
+	for i := 3; i <= 5; i++ {
+		msgs = append(msgs, domain.Message{ID: domain.EventID("telegram:42/7/" + strconv.Itoa(i)), RoomID: room,
+			Sender: "telegram:7", Body: "n", Timestamp: time.Unix(int64(1000+i), 0)})
+	}
+	if err := cache.SaveMessages(ctx, room, msgs); err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now()
+	a.changeUnread(ctx, room, before.Add(-time.Minute), func(u *domain.Unread) int64 {
+		u.Notifications = 2
+		return time.Unix(1003, 0).UnixMilli() // read through 3
+	})
+	if err := a.MarkRead(ctx, room, "telegram:42/7/5", false); err != nil {
+		t.Fatalf("reading with Telegram away: %v", err)
+	}
+	if u := unreadOf(t, cache, room); u.ReadEvent != "telegram:42/7/5" || u.Notifications != 0 {
+		t.Errorf("after reading here: %+v", u)
+	}
+	if owed := a.reads.take("42"); owed[room] != 5 {
+		t.Fatalf("the mark is not owed: %v", owed)
+	}
+	a.reads.add(room, 5)
+	a.sendOwed(ctx, 42) // still not connected: the resend cannot go
+	if owed := a.reads.take("42"); owed[room] != 5 {
+		t.Fatalf("a resend that could not go dropped the mark: %v", owed)
+	}
+	// A listing fetched before the read: ignored.
+	a.changeUnread(ctx, room, before, func(u *domain.Unread) int64 {
+		u.Notifications = 2
+		return time.Unix(1003, 0).UnixMilli()
+	})
+	if u := unreadOf(t, cache, room); u.Notifications != 0 {
+		t.Errorf("a listing from before the read undid it: %+v", u)
+	}
+	// One fetched after, Telegram not having heard: its count stays its own, kith's
+	// count after the read position is nothing.
+	a.changeUnread(ctx, room, time.Now().Add(time.Minute), func(u *domain.Unread) int64 {
+		u.Notifications = 2
+		return time.Unix(1003, 0).UnixMilli()
+	})
+	n, _, counted, err := cache.CountUnread(ctx, []string{"telegram:42"}, room)
+	if err != nil || !counted || n != 0 {
+		t.Errorf("kith's count after a stale listing: %d (counted %v, %v)", n, counted, err)
+	}
+	if err := a.MarkRead(ctx, room, "telegram:42/8/5", false); err == nil {
+		t.Error("a message of another chat was read")
+	}
+}
+
+// Owed marks, by account: a later one replaces an earlier, never the reverse; settling
+// an earlier one leaves a later owed; taking one account's leaves another's.
+func TestOwedTelegramReadMarks(t *testing.T) {
+	t.Parallel()
+	var o owed
+	a, b := domain.RoomID("telegram:42/7"), domain.RoomID("telegram:43/7")
+	o.add(a, 4)
+	o.add(a, 6)
+	o.add(a, 5)
+	o.add(b, 9)
+	o.settle(a, 4)
+	if got := o.take("42"); got[a] != 6 || len(got) != 1 {
+		t.Errorf("account 42 owes %v", got)
+	}
+	o.add(b, 10)
+	o.settle(b, 9)
+	if got := o.take("43"); got[b] != 10 {
+		t.Errorf("account 43 owes %v", got)
+	}
+	if got := o.take("43"); len(got) != 0 {
+		t.Errorf("after taking: %v", got)
+	}
+}
