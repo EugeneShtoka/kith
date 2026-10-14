@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/gmessages"
 	"github.com/EugeneShtoka/kith/internal/linkedin"
 	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/meta"
@@ -146,4 +147,11 @@ var (
 		roomsRewriter
 		cacheWriter
 	} = (*linkedin.Adapter)(nil)
+
+	// Google Messages, so far: pairing and connection (conversations and messages come
+	// next).
+	_ interface {
+		route.Adapter
+		configChecker
+	} = (*gmessages.Adapter)(nil)
 )

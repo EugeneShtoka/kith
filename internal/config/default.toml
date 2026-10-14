@@ -1202,6 +1202,20 @@ tag = "Archived"
 #   [[linkedin.account]]
 #   name = "linkedin"
 
+# Google Messages, linked directly: kith pairs with the Messages app on your Android
+# phone as Messages for web does, with no Matrix bridge. It runs when it has an
+# account; `:login gmessages` inside kith sets one up. Each [[gmessages.account]] is
+# one phone: `name` is what `kith login gmessages <name>` takes. Pairing is with the
+# Google account the phone's Messages uses: cookies from messages.google.com, then an
+# emoji you tap on the phone. kith keeps the pairing in the system keyring.
+#
+# The phone relays every message, so it must stay online. Only one Messages for web
+# session is active at a time: pairing kith takes it over from a browser or a bridge,
+# and opening one of those takes it back.
+#
+#   [[gmessages.account]]
+#   name = "phone"
+
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
 # data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,
 #                                    dictionaries and models

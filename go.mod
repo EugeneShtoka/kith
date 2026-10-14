@@ -29,6 +29,7 @@ require (
 	github.com/yuin/goldmark v1.8.6
 	github.com/zalando/go-keyring v0.2.8
 	go.mau.fi/libsignal v0.2.2
+	go.mau.fi/mautrix-gmessages v0.2609.0
 	go.mau.fi/mautrix-linkedin v0.2609.0
 	go.mau.fi/mautrix-meta v0.2609.1-0.20261013130553-a37ac47c433a
 	go.mau.fi/util v0.10.2-0.20260918225449-a4c0d5b86aa8

@@ -31,6 +31,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 | [WhatsApp](whatsapp.md) | Linking WhatsApp directly: setup, several accounts, without Matrix, what works, the risks |
 | [Slack](slack.md) | Signing in to Slack workspaces directly: setup, several workspaces, what you see, the risks |
 | [Telegram](telegram.md) | Logging in to Telegram directly (being built): setup, the app's ID and hash |
+| [Google Messages](google-messages.md) | Pairing an Android phone's Messages directly (being built): pairing with your Google account, the risks |
 | [LinkedIn](linkedin.md) | Signing in to LinkedIn directly (being built): the browser's cookies, the risks |
 | [Messenger](messenger.md) | Signing in to Messenger directly (being built): the password login, the risks |
 | [Phonebook](phonebook.md) | A folder of Markdown cards, one per person, shared with other programs: the format, and `I` on a person |
