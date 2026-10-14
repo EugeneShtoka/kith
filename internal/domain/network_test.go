@@ -45,6 +45,8 @@ func TestIDsSayTheirNetworkAndAccount(t *testing.T) {
 		"telegram user":       {"telegram:222", domain.ID{Network: domain.ProtocolTelegram, Native: "222"}, false, true, ""},
 		"linkedin chat":       {"linkedin:ACoAAA1/2-YWJj%2FZA==", domain.ID{Network: domain.ProtocolLinkedIn, Account: "ACoAAA1", Native: "2-YWJj%2FZA=="}, true, false, ""},
 		"linkedin message":    {"linkedin:ACoAAA1/2-YWJj%2FZA==/2-bWVz", domain.ID{Network: domain.ProtocolLinkedIn, Account: "ACoAAA1", Native: "2-YWJj%2FZA==/2-bWVz"}, false, false, ""},
+		"gmessages chat":      {"gmessages:ph%2F1/42", domain.ID{Network: domain.ProtocolGMessages, Account: "ph%2F1", Native: "42"}, true, false, ""},
+		"gmessages message":   {"gmessages:ph%2F1/42/9", domain.ID{Network: domain.ProtocolGMessages, Account: "ph%2F1", Native: "42/9"}, false, false, ""},
 		"linkedin person":     {"linkedin:ACoAAA2", domain.ID{Network: domain.ProtocolLinkedIn, Native: "ACoAAA2"}, false, true, ""},
 		// An unknown prefix is Matrix's.
 		"unknown prefix": {"room:Standup", domain.ID{Network: domain.ProtocolMatrix, Native: "room:Standup"}, false, false, "room"},

@@ -22,12 +22,15 @@ import "strings"
 //	linkedin:<self>/<thread>    a LinkedIn conversation (its thread ID, path-escaped)
 //	linkedin:<self>/<thread>/<msg> a message in it (path-escaped)
 //	linkedin:<person>           a person or an organization (a profile ID)
+//	gmessages:<phone>/<conv>    a Google Messages conversation, as one paired phone
+//	                            sees it (both path-escaped)
+//	gmessages:<phone>/<conv>/<id> a message in it
 //
 // Rooms and events name the account because one person may run several accounts on a
 // network, and a shared group is then two rooms with the same native message IDs. A
 // person's ID names no account, so a contact folds into one identity across accounts.
 // <account> is the account's stable network ID (WhatsApp phone digits, Slack team ID,
-// Telegram user ID, Meta user ID, LinkedIn profile ID), never a config label.
+// Telegram user ID, Meta user ID, LinkedIn profile ID, paired phone ID), never a config label.
 //
 // A Telegram <peer> is "marked" as in the Bot API (user ID, basic group negated,
 // channel/supergroup -100<id>) because the three kinds' IDs overlap.
@@ -81,6 +84,13 @@ var natives = map[string]native{
 		// A thread ID is path-escaped, so it has no slash; a message is "<thread>/<msg>".
 		isRoom: func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
 		// A person is a profile ID ("ACoAA…"), which reads as no name.
+		shortName: func(string) string { return "" },
+	},
+	"gmessages": {
+		protocol: ProtocolGMessages,
+		// A conversation ID is path-escaped, so it has no slash; a message is
+		// "<conv>/<id>".
+		isRoom:    func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
 		shortName: func(string) string { return "" },
 	},
 	"telegram": {

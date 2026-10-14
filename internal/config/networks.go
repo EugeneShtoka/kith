@@ -12,7 +12,7 @@ type NetworkSection interface {
 
 // Networks is every network's section, in the order the config declares them.
 func (c Config) Networks() []NetworkSection {
-	return []NetworkSection{c.WhatsApp, c.Slack, c.Telegram, c.Messenger, c.LinkedIn}
+	return []NetworkSection{c.WhatsApp, c.Slack, c.Telegram, c.Messenger, c.LinkedIn, c.GMessages}
 }
 
 // Network is "WhatsApp".
@@ -44,3 +44,9 @@ func (LinkedIn) Network() string { return "LinkedIn" }
 
 // Table is "linkedin.account".
 func (LinkedIn) Table() string { return "linkedin.account" }
+
+// Network is "Google Messages".
+func (GMessages) Network() string { return "Google Messages" }
+
+// Table is "gmessages.account".
+func (GMessages) Table() string { return "gmessages.account" }
