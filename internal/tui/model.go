@@ -62,6 +62,9 @@ type group struct {
 	// network is the one network all its rooms are on, "" otherwise; set by rebuiltRail only while
 	// the rail colors by network.
 	network domain.Protocol
+	// home is the network whose own space this is (an account's, a bridge's), "" for a space
+	// you made and for a tag.
+	home domain.Protocol
 }
 
 // railGroups builds the rail (a row per tag, then a group per space) and applies the rail
@@ -85,9 +88,14 @@ func railGroups(
 		// A bridge-kept space (a network's grouping, a community) is where its rooms belong; a
 		// person-made space is not.
 		belongs := s.Keeper != "" || s.Bridge.IsBridged()
+		var home domain.Protocol
+		if s.Bridge != "" && s.Bridge != domain.ProtocolMatrix {
+			home = s.Bridge
+		}
 		groups = append(groups, group{
 			key:   name,
 			label: name,
+			home:  home,
 			admits: func(v unreadView, r domain.Room) bool {
 				// An invitation is not in any space until dealt with.
 				if !children[r.ID] || r.IsInvite() {
