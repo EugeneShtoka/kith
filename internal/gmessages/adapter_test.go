@@ -131,7 +131,7 @@ func TestSessionsAreKeptWhole(t *testing.T) {
 		}
 	}
 
-	a := New(secrets, nil, nil)
+	a := New(nil, secrets, nil, nil)
 	a.UseConfig(context.Background(), withAccounts("phone", "work"))
 	_ = saveSession(secrets, "work", aSession("phone-2", "w"))
 	if paired, err := a.SavedSessions(context.Background()); err != nil || len(paired) != 1 || paired[0] != "work" {
@@ -209,21 +209,22 @@ func TestRefusal(t *testing.T) {
 	resp := func(code int) *http.Response { return &http.Response{StatusCode: code, Body: http.NoBody} }
 	for name, tc := range map[string]struct {
 		err  error
-		over bool
+		says string // "" goes on trying
 	}{
-		"unpaired":            {errUnpaired, true},
-		"unpaired, wrapped":   {fmt.Errorf("ping: %w", errUnpaired), true},
-		"invalid credentials": {events.ErrInvalidCredentials, true},
-		"entity not found":    {fmt.Errorf("connect: %w", events.ErrRequestedEntityNotFound), true},
-		"401":                 {events.HTTPError{Resp: resp(401)}, true},  //nolint:bodyclose // a made-up response, never read
-		"500":                 {events.HTTPError{Resp: resp(500)}, false}, //nolint:bodyclose // a made-up response, never read
-		"no response":         {events.HTTPError{}, false},
-		"phone silent":        {libgm.ErrPhoneNotResponding, false},
-		"no network":          {errors.New("dial tcp: connection refused"), false},
-		"nothing":             {nil, false},
+		"unpaired":            {errUnpaired, unpairedAgain},
+		"unpaired, wrapped":   {fmt.Errorf("ping: %w", errUnpaired), unpairedAgain},
+		"entity not found":    {fmt.Errorf("connect: %w", events.ErrRequestedEntityNotFound), unpairedAgain},
+		"signed out":          {errSignedOut, cookiesStale},
+		"invalid credentials": {events.ErrInvalidCredentials, cookiesStale},
+		"401":                 {events.HTTPError{Resp: resp(401)}, cookiesStale}, //nolint:bodyclose // a made-up response, never read
+		"500":                 {events.HTTPError{Resp: resp(500)}, ""},           //nolint:bodyclose // a made-up response, never read
+		"no response":         {events.HTTPError{}, ""},
+		"phone silent":        {libgm.ErrPhoneNotResponding, ""},
+		"no network":          {errors.New("dial tcp: connection refused"), ""},
+		"nothing":             {nil, ""},
 	} {
-		if got := refusal(tc.err); got != tc.over {
-			t.Errorf("%s: refusal = %v, want %v", name, got, tc.over)
+		if got := refusal(tc.err); got != tc.says {
+			t.Errorf("%s: refusal = %q, want %q", name, got, tc.says)
 		}
 	}
 }
@@ -231,7 +232,7 @@ func TestRefusal(t *testing.T) {
 func TestCheckConfig(t *testing.T) {
 	t.Parallel()
 
-	a := New(newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil)
 	if err := a.CheckConfig(context.Background(), withAccounts("phone", "work")); err != nil {
 		t.Errorf("two named accounts: %v", err)
 	}
@@ -274,7 +275,7 @@ func TestAnAccountWithNoPairingSaysHowToPair(t *testing.T) {
 
 	secrets := newSecrets()
 	secrets.values[sessionRef("broken")] = "{"
-	a := New(secrets, nil, nil)
+	a := New(nil, secrets, nil, nil)
 	var heard statuses
 	a.OnStatus(heard.hear)
 	a.UseConfig(context.Background(), withAccounts("phone", "broken"))
@@ -312,7 +313,7 @@ func TestAnAccountWithNoPairingSaysHowToPair(t *testing.T) {
 func TestConnectionsFollowPairingsAndConfig(t *testing.T) {
 	t.Parallel()
 
-	a := New(newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil)
 	a.UseConfig(context.Background(), withAccounts("phone", "work"))
 	old := a.newConn(Account{Name: "phone"}, aSession("p1", "a"), nil)
 	if !a.adopt(old) {
@@ -389,7 +390,7 @@ func TestTheStoredPairingIsAlwaysTheNewest(t *testing.T) {
 	rng := rand.New(rand.NewPCG(11, 5))
 	for run := range 200 {
 		secrets := newSecrets()
-		a := New(secrets, nil, nil)
+		a := New(nil, secrets, nil, nil)
 		a.UseConfig(context.Background(), withAccounts("phone"))
 		writers := []*writer{pair(t, a, secrets)}
 		var steps []string
@@ -425,7 +426,7 @@ func TestPairingWritersRacing(t *testing.T) {
 	t.Parallel()
 
 	secrets := newSecrets()
-	a := New(secrets, nil, nil)
+	a := New(nil, secrets, nil, nil)
 	a.UseConfig(context.Background(), withAccounts("phone"))
 	old := pair(t, a, secrets)
 	var wg sync.WaitGroup
@@ -452,7 +453,7 @@ func TestEventsShowInTheAccount(t *testing.T) {
 	t.Parallel()
 
 	secrets := newSecrets()
-	a := New(secrets, nil, nil)
+	a := New(nil, secrets, nil, nil)
 	var heard statuses
 	a.OnStatus(heard.hear)
 	a.UseConfig(context.Background(), withAccounts("phone"))
@@ -500,8 +501,8 @@ func TestEventsShowInTheAccount(t *testing.T) {
 		on(evt)
 		select {
 		case err := <-w.c.gaveUp:
-			if refusal(err) != over {
-				t.Errorf("%T ended it with %v (over: %v)", evt, err, refusal(err))
+			if (refusal(err) != "") != over {
+				t.Errorf("%T ended it with %v (says: %q)", evt, err, refusal(err))
 			}
 		default:
 			t.Errorf("%T did not reach the connection", evt)
@@ -538,7 +539,7 @@ func TestEventsShowInTheAccount(t *testing.T) {
 func TestRetry(t *testing.T) {
 	t.Parallel()
 
-	a := New(newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil)
 	var heard statuses
 	a.OnStatus(heard.hear)
 	c := a.newConn(Account{Name: "phone"}, aSession("p1", "a"), nil)
@@ -602,7 +603,7 @@ func (s *talkScript) Named(account string) { s.named = account }
 func TestPairingAsks(t *testing.T) {
 	t.Parallel()
 
-	a := New(newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil)
 	a.UseConfig(context.Background(), withAccounts("phone"))
 	talk := &talkScript{answers: []map[string]string{{"name": "work"}}}
 	if _, err := a.Login(context.Background(), "", talk); !errors.Is(err, ErrNoAccount) {
@@ -664,7 +665,7 @@ func TestGoogleAccountPairingFailures(t *testing.T) {
 func TestALibraryPanicIsAnError(t *testing.T) {
 	t.Parallel()
 
-	a := New(newSecrets(), nil, nil)
+	a := New(nil, newSecrets(), nil, nil)
 	err := a.guard("connecting", func() error {
 		var c *libgm.Client
 		return c.SetActiveSession(context.Background())
@@ -687,7 +688,7 @@ func TestAPairingDuringAnOldWriteStillWins(t *testing.T) {
 	t.Parallel()
 
 	secrets := newSecrets()
-	a := New(secrets, nil, nil)
+	a := New(nil, secrets, nil, nil)
 	a.UseConfig(context.Background(), withAccounts("phone"))
 	old := pair(t, a, secrets)
 	newest := 0

@@ -148,10 +148,20 @@ var (
 		cacheWriter
 	} = (*linkedin.Adapter)(nil)
 
-	// Google Messages, so far: pairing and connection (conversations and messages come
-	// next).
+	// Google Messages, so far: conversations, people, messages from the cache, reading
+	// (sending and history paging come next).
 	_ interface {
 		route.Adapter
+		route.RoomLister
+		route.Homes
+		route.ReadState
+		route.History
+		route.People
+		route.Encryption
+		route.SpaceLister
+		route.SignOuter
 		configChecker
+		roomsRewriter
+		cacheWriter
 	} = (*gmessages.Adapter)(nil)
 )

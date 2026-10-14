@@ -15,6 +15,7 @@ import (
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 	"go.mau.fi/util/exhttp"
 
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
 )
 
@@ -34,13 +35,17 @@ const (
 	otherBrowser  = "Messages for web is active in another browser or a bridge; close it there, then run `kith login gmessages %s`"
 	reconnecting  = "reconnecting"
 	unpairedAgain = "the phone unpaired kith; run `kith login gmessages %s` to pair again"
+	cookiesStale  = "Google no longer takes the account's cookies (the browser they came from signed out, " +
+		"or went on using them and Google changed them): copy fresh ones from a private window, close it " +
+		"without signing out, and run `kith login gmessages %s`"
 )
 
 // conn is one paired account's connection.
 type conn struct {
 	account Account
-	// phone is the paired phone; it never changes, unlike the session's token.
-	phone string
+	// phone is the paired phone; it never changes, unlike the session's token. self is
+	// the account part of its IDs.
+	phone, self string
 	// signIn is the account's pairing the session is from (Adapter.signIns).
 	signIn int
 
@@ -56,6 +61,20 @@ type conn struct {
 	session *Session
 	saved   string
 	client  *libgm.Client
+	// me is who you are on this phone, as the inbox last knew: read by Me, which may run
+	// while the inbox is being written (it counts unread for it).
+	me []string
+
+	// queue is the conversation and message events libgm handed over, for work to take.
+	queue chan any
+	// applying serializes taking them in: the inbox, and rooms, which is the account's
+	// rooms as last written (the cached ones, then every conversation heard of), so a
+	// write never sweeps one only an older listing had.
+	applying sync.Mutex
+	inbox    *inbox
+	rooms    map[domain.RoomID]domain.Room
+	// syncing is held by the sync running, if any.
+	syncing sync.Mutex
 }
 
 func (a *Adapter) newConn(account Account, s *Session, at *int) *conn {
@@ -67,8 +86,9 @@ func (a *Adapter) newConn(account Account, s *Session, at *int) *conn {
 	}
 	saved, _ := s.encode() // a session that will not encode is saved again on its first change
 	return &conn{
-		account: account, phone: s.PhoneID, signIn: signIn, session: s, saved: saved,
+		account: account, phone: s.PhoneID, self: selfOf(s.PhoneID), signIn: signIn, session: s, saved: saved,
 		done: make(chan struct{}), gaveUp: make(chan error, 1),
+		queue: make(chan any, queueCapacity), inbox: newInbox(selfOf(s.PhoneID)), rooms: map[domain.RoomID]domain.Room{},
 	}
 }
 
@@ -144,6 +164,8 @@ func (a *Adapter) connect(ctx context.Context, c *conn, client *libgm.Client) {
 		case <-ctx.Done():
 		}
 	}()
+	a.seedRooms(ctx, c)
+	go a.work(ctx, c)
 	wait := retryFirst
 	for ctx.Err() == nil {
 		if client == nil {
@@ -165,6 +187,8 @@ func (a *Adapter) connect(ctx context.Context, c *conn, client *libgm.Client) {
 		// The session is saved from libgm's events (a refreshed token), on the goroutine
 		// that changes it, never from here.
 		a.session(c.account, Connected, "")
+		go a.sync(ctx, c)
+		go a.sendOwed(ctx, c)
 		var err error
 		select {
 		case err = <-c.gaveUp:
@@ -195,9 +219,9 @@ func (a *Adapter) retry(ctx context.Context, c *conn, err error, wait *time.Dura
 	if ctx.Err() != nil {
 		return false
 	}
-	if refusal(err) {
+	if over := refusal(err); over != "" {
 		a.log.Warn("the pairing is over", "account", c.account.Name, "err", err)
-		a.session(c.account, SignedOut, fmt.Sprintf(unpairedAgain, c.account.Name))
+		a.session(c.account, SignedOut, fmt.Sprintf(over, c.account.Name))
 		return false
 	}
 	a.log.Info("retrying", "account", c.account.Name, "in", *wait, "err", err)
@@ -211,21 +235,27 @@ func (a *Adapter) retry(ctx context.Context, c *conn, err error, wait *time.Dura
 	return true
 }
 
-// errUnpaired is the phone or Google ending the pairing.
-var errUnpaired = errors.New("gmessages: the pairing was ended")
+// errUnpaired is the phone ending the pairing; errSignedOut the Google account
+// signing out where the cookies came from.
+var (
+	errUnpaired  = errors.New("gmessages: the pairing was ended")
+	errSignedOut = errors.New("gmessages: the Google account signed out")
+)
 
-// refusal reports whether err means the pairing is over: unpaired from the phone, the
-// Google account signed out, credentials refused.
-func refusal(err error) bool {
+// refusal is what to tell the person when err means the pairing cannot go on (a format
+// taking the account's name), and "" when it is worth trying again: unpaired on the
+// phone, or the account's cookies no longer taken.
+func refusal(err error) string {
 	var httpErr events.HTTPError
 	switch {
-	case errors.Is(err, errUnpaired), errors.Is(err, events.ErrInvalidCredentials),
-		errors.Is(err, events.ErrRequestedEntityNotFound):
-		return true
-	case errors.As(err, &httpErr) && httpErr.Resp != nil:
-		return httpErr.Resp.StatusCode == http.StatusUnauthorized
+	case errors.Is(err, errUnpaired), errors.Is(err, events.ErrRequestedEntityNotFound):
+		return unpairedAgain
+	case errors.Is(err, errSignedOut), errors.Is(err, events.ErrInvalidCredentials):
+		return cookiesStale
+	case errors.As(err, &httpErr) && httpErr.Resp != nil && httpErr.Resp.StatusCode == http.StatusUnauthorized:
+		return cookiesStale
 	}
-	return false
+	return ""
 }
 
 // handle is libgm's events for c. It runs on libgm's goroutine and must not block:
@@ -261,14 +291,18 @@ func (a *Adapter) react(ctx context.Context, c *conn, client *libgm.Client, evt 
 		if errors.Is(e.Error, events.ErrRequestedEntityNotFound) {
 			gaveUp(fmt.Errorf("%w (%w)", errUnpaired, e.Error))
 		}
-	case *gmproto.RevokePairData, *events.GaiaLoggedOut:
+	case *gmproto.RevokePairData:
 		gaveUp(errUnpaired)
+	case *events.GaiaLoggedOut:
+		gaveUp(errSignedOut)
 	case *events.HackySetActiveMayFail:
 		go a.takeOver(ctx, c, client)
 	case *gmproto.UserAlertEvent:
 		a.alert(ctx, c, client, e.GetAlertType())
 	case *events.AuthTokenRefreshed:
 		a.keep(c)
+	case *gmproto.Conversation, *libgm.WrappedMessage:
+		c.enqueue(e)
 	}
 }
 
@@ -278,6 +312,7 @@ func (a *Adapter) alert(ctx context.Context, c *conn, client *libgm.Client, kind
 	case gmproto.AlertType_BROWSER_ACTIVE:
 		a.session(c.account, Connected, "")
 		a.keep(c)
+		go a.sync(ctx, c) // active again: what came meanwhile is on the phone
 	case gmproto.AlertType_BROWSER_INACTIVE:
 		// Another browser or a bridge took the session: taking it back would fight it.
 		a.session(c.account, Connecting, fmt.Sprintf(otherBrowser, c.account.Name))
@@ -332,3 +367,14 @@ func (a *Adapter) guard(what string, fn func() error) (err error) {
 
 // errLibraryPanicked is a panic inside libgm, caught.
 var errLibraryPanicked = errors.New("gmessages: the Google Messages library failed")
+
+// knowMe copies who the inbox knows you are, for Me. Caller holds c.applying.
+func (c *conn) knowMe() {
+	me := make([]string, 0, len(c.inbox.me))
+	for id := range c.inbox.me {
+		me = append(me, id)
+	}
+	c.mu.Lock()
+	c.me = me
+	c.mu.Unlock()
+}
