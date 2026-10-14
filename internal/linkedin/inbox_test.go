@@ -2,6 +2,7 @@ package linkedin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"go.mau.fi/mautrix-linkedin/pkg/linkedingo"
 	"go.mau.fi/util/jsontime"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -708,5 +710,26 @@ func TestAnEditKeepsWhatItReplaced(t *testing.T) {
 		if keep != slices.Contains(bodies, "first") {
 			t.Errorf("keep=%v: versions %v", keep, bodies)
 		}
+	}
+}
+
+// Leaving needs LinkedIn: a room of another network is refused, and an account not
+// connected says so rather than dropping the conversation only here.
+func TestLeavingNeedsLinkedIn(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	a, c, cache, _ := cachedAdapter(t)
+	a.takeConversations(ctx, c, []linkedingo.Conversation{conversation(group, "G", 1000, 0, true, me, dana, eli)}, nil)
+	if err := a.LeaveRoom(ctx, "!room:example.org"); !errors.Is(err, errNotAConversation) {
+		t.Errorf("a Matrix room = %v", err)
+	}
+	if err := a.LeaveRoom(ctx, roomID(me, group)); !errors.Is(err, api.ErrNetworkOff) {
+		t.Errorf("not connected = %v", err)
+	}
+	if err := a.LeaveRoom(ctx, roomID(eli, group)); !errors.Is(err, api.ErrNetworkOff) {
+		t.Errorf("another account's room = %v", err)
+	}
+	if got := cachedRooms(t, cache); len(got) != 1 {
+		t.Errorf("a refused leave dropped the room: %v", got)
 	}
 }

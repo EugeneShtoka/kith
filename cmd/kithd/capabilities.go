@@ -143,6 +143,7 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.SignOuter
+		route.Leaver
 		configChecker
 		roomsRewriter
 		cacheWriter
