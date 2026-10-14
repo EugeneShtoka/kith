@@ -67,6 +67,10 @@ as signed out with what to do: copy the cookies again and log in. When LinkedIn 
 a check (it may take a new session for a robot), finish it in your browser at
 linkedin.com first.
 
+Leaving a conversation in kith (`L` in the room list) deletes it from your LinkedIn
+inbox, as LinkedIn's own "Delete conversation" does: the others keep theirs, and a new
+message in it brings it back.
+
 Signing out in kith (from the account's space) forgets the session here only. kith
 does not sign out of LinkedIn, because that would end the session the cookies came
 from, which may be your browser's.
