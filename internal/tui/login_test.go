@@ -318,3 +318,40 @@ func TestASignInThatTimesOutSaysSo(t *testing.T) {
 		t.Errorf("the daemon's login was canceled %d times, want once", d.canceled)
 	}
 }
+
+// A refused answer is asked again in place: the pane keeps one row for the field, not
+// one per try, and says why it was refused with the field, until a step with nothing
+// to say.
+func TestARefusedAnswerIsAskedAgainInPlace(t *testing.T) {
+	t.Parallel()
+	m := loggingIn(t, &loginDaemon{networks: []api.LoginNetwork{fakeNetwork}}, nil)
+	m.login = loginState{stage: loginAsking, network: fakeNetwork}
+	ask := func(note string, keys ...string) {
+		t.Helper()
+		var fields []api.LoginField
+		for _, k := range keys {
+			fields = append(fields, api.LoginField{Key: k, Label: k, Secret: k == "cookies"})
+		}
+		m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{ask: fields, note: note, answer: make(chan map[string]string, 1)}, ok: true})
+	}
+	ask("", "name")
+	m, _ = m.submitLogin("work")
+	for range 3 {
+		ask("those cookies lack OSID", "cookies")
+		m, _ = m.submitLogin("SID=1")
+	}
+	ask("those cookies lack OSID", "cookies")
+	pane := strings.Join(m.loginLines(120, 40), "\n")
+	row := "cookies     " // an answered row: the label padded to 12
+	if n := strings.Count(pane, row); n != 0 {
+		t.Errorf("the refused answers stay: %d rows in %q", n, pane)
+	}
+	if !strings.Contains(pane, "work") || !strings.Contains(pane, "lack OSID") {
+		t.Errorf("the pane = %q, want the kept answer and why the field is asked again", pane)
+	}
+	m, _ = m.submitLogin("SID=1; OSID=2")
+	ask("", "code")
+	if pane := strings.Join(m.loginLines(120, 40), "\n"); strings.Contains(pane, "OSID") || strings.Contains(pane, "signing in") || strings.Count(pane, row) != 1 {
+		t.Errorf("after the next step: %q, want the accepted answer once and no old note", pane)
+	}
+}
