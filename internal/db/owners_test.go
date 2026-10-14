@@ -42,54 +42,66 @@ func TestEachNetworksRefreshKeepsToItsOwnRooms(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	for seed := range uint64(40) {
-		rng := rand.New(rand.NewPCG(seed, 3))
-		size := 6
-		if seed%10 == 0 {
-			size = jsonListAt + 5 // the other way IDs are bound
+		t.Run(fmt.Sprint(seed), func(t *testing.T) {
+			t.Parallel()
+			refreshKeepsToItsOwnRooms(ctx, t, seed)
+		})
+	}
+}
+
+// refreshKeepsToItsOwnRooms is one seed of TestEachNetworksRefreshKeepsToItsOwnRooms.
+// Seed 0 has pools past jsonListAt, the other way IDs are bound: once is enough, and
+// each such seed costs as much as the rest together.
+func refreshKeepsToItsOwnRooms(ctx context.Context, t *testing.T, seed uint64) {
+	t.Helper()
+	rng := rand.New(rand.NewPCG(seed, 3))
+	size := 6
+	if seed == 0 {
+		size = jsonListAt + 5
+	}
+	cache := openTemp(t)
+	ws := writers(size, size)
+	want := map[domain.RoomID]bool{}
+	for step := range 12 {
+		w := ws[rng.IntN(len(ws))]
+		var snapshot []domain.Room
+		for _, id := range w.pool {
+			if rng.IntN(3) != 0 {
+				snapshot = append(snapshot, domain.Room{ID: id, Name: "n"})
+			}
 		}
-		cache := openTemp(t)
-		ws := writers(size, size)
-		want := map[domain.RoomID]bool{}
-		for step := range 12 {
-			w := ws[rng.IntN(len(ws))]
-			var snapshot []domain.Room
+		if err := cache.SaveRooms(ctx, w.owner, snapshot); err != nil {
+			t.Fatalf("seed %d step %d: SaveRooms(%q): %v", seed, step, w.owner, err)
+		}
+		if len(snapshot) > 0 {
 			for _, id := range w.pool {
-				if rng.IntN(3) != 0 {
-					snapshot = append(snapshot, domain.Room{ID: id, Name: "n"})
-				}
-			}
-			if err := cache.SaveRooms(ctx, w.owner, snapshot); err != nil {
-				t.Fatalf("seed %d step %d: SaveRooms(%q): %v", seed, step, w.owner, err)
-			}
-			if len(snapshot) > 0 {
-				for _, id := range w.pool {
-					delete(want, id)
-				}
-			}
-			for _, room := range snapshot {
-				want[room.ID] = true
-				if rng.IntN(4) == 0 {
-					mustSave(t, cache, room.ID, domain.Message{ID: domain.EventID("$" + string(room.ID)), RoomID: room.ID, Body: "kept"})
-				}
+				delete(want, id)
 			}
 		}
-		rooms, err := cache.Rooms(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got := map[domain.RoomID]bool{}
-		for i := range rooms {
-			got[rooms[i].ID] = true
-		}
-		for id := range want {
-			if !got[id] {
-				t.Fatalf("seed %d: %s was swept by a writer that does not own it", seed, id)
+		for i := range snapshot {
+			id := snapshot[i].ID
+			want[id] = true
+			if rng.IntN(4) == 0 {
+				mustSave(t, cache, id, domain.Message{ID: domain.EventID("$" + string(id)), RoomID: id, Body: "kept"})
 			}
 		}
-		for id := range got {
-			if !want[id] {
-				t.Fatalf("seed %d: %s survived its own writer's snapshot without it", seed, id)
-			}
+	}
+	rooms, err := cache.Rooms(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[domain.RoomID]bool{}
+	for i := range rooms {
+		got[rooms[i].ID] = true
+	}
+	for id := range want {
+		if !got[id] {
+			t.Fatalf("seed %d: %s was swept by a writer that does not own it", seed, id)
+		}
+	}
+	for id := range got {
+		if !want[id] {
+			t.Fatalf("seed %d: %s survived its own writer's snapshot without it", seed, id)
 		}
 	}
 }
