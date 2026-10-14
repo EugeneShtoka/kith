@@ -14,6 +14,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/qrtext"
 )
 
 // loginTimeout bounds a login: a code to arrive and be typed, a phone to accept one.
@@ -133,8 +134,12 @@ func (l cliLogin) run(ctx context.Context, network, account string) error {
 				return askImport(ctx, g, l.in, network, step.Account, true) // offered, once
 			}
 			return nil
-		case step.Code != "":
-			fmt.Printf("\n    %s\n\n", step.Code)
+		case step.Code != "" || step.QR != "":
+			if step.QR != "" {
+				printQR(step.QR)
+			} else {
+				fmt.Printf("\n    %s\n\n", step.Code)
+			}
 			step, err = l.backend.AnswerLogin(ctx, step.Login, nil)
 		case step.Configure != nil:
 			if err = l.write(ctx, *step.Configure); err == nil {
@@ -215,4 +220,18 @@ func readLine(in *bufio.Reader, prompt string) (string, error) {
 		return "", fmt.Errorf("read %s: %w", prompt, err)
 	}
 	return strings.TrimSpace(line), nil
+}
+
+// printQR prints data as a QR code, light on dark whatever the terminal's colors.
+func printQR(data string) {
+	lines, err := qrtext.Lines(data)
+	if err != nil {
+		fmt.Printf("\n    the QR code could not be drawn: %v\n\n", err)
+		return
+	}
+	fmt.Println()
+	for _, line := range lines {
+		fmt.Printf("    \x1b[97;40m%s\x1b[0m\n", line)
+	}
+	fmt.Println()
 }

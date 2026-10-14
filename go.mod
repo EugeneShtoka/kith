@@ -41,6 +41,7 @@ require (
 	google.golang.org/protobuf v1.36.12
 	maunium.net/go/mautrix v0.31.1-0.20261005141226-f14e6b5fc009
 	modernc.org/sqlite v1.60.1
+	rsc.io/qr v0.2.0
 )
 
 require (
@@ -75,7 +76,6 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect
-	rsc.io/qr v0.2.0 // indirect
 )
 
 require (

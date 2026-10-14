@@ -588,7 +588,8 @@ func (s *talkScript) Ask(_ context.Context, note string, fields ...api.LoginFiel
 	return next, nil
 }
 
-func (s *talkScript) Show(context.Context, string, string) error { return nil }
+func (s *talkScript) Show(context.Context, string, string) error   { return nil }
+func (s *talkScript) ShowQR(context.Context, string, string) error { return nil }
 
 func (s *talkScript) Configure(_ context.Context, record api.LoginRecord) error {
 	s.records = append(s.records, record)

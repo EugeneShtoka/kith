@@ -770,8 +770,8 @@ message LoginRecord {
   map<string, string> values = 2;
 }
 
-// LoginStep is where a login is. Exactly one of ask, code, configure, restart and
-// done says what to do; note may go with any of them.
+// LoginStep is where a login is. Exactly one of ask, code, qr, configure, restart
+// and done says what to do; note may go with any of them.
 message LoginStep {
   // The conversation, for AnswerLogin and CancelLogin.
   string login = 1;
@@ -788,6 +788,8 @@ message LoginStep {
   bool restart = 7;
   // The login ended: what it did.
   string done = 8;
+  // Data to draw as a QR code until the next step, for a phone to scan.
+  string qr = 9;
 }
 
 message LoginAccount {

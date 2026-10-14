@@ -12,8 +12,10 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/qrtext"
 )
 
 // :login sets up and signs in an account inside kith. The daemon lists networks and each leads
@@ -48,10 +50,11 @@ type loginState struct {
 	at       int
 	values   map[string]string
 	answered []answeredField
-	// code is a code to type elsewhere; note what the network said last.
-	code, note string
-	cancel     context.CancelFunc
-	events     <-chan loginEvent
+	// code is a code to type elsewhere, qr data to show as a QR code for a phone to scan;
+	// note what the network said last.
+	code, qr, note string
+	cancel         context.CancelFunc
+	events         <-chan loginEvent
 	// answer takes the step's answers while the sign-in waits for them.
 	answer chan<- map[string]string
 }
@@ -79,6 +82,7 @@ type loginEvent struct {
 	write   *api.LoginRecord
 	written chan<- func() error
 	code    string
+	qr      string
 	note    string
 	account string
 	// final ends the sign-in: done says what it did, or err why it failed.
@@ -314,8 +318,8 @@ func (r *loginRun) answer(ctx context.Context, step api.LoginStep) (api.LoginSte
 		r.login = ""
 		r.send(ctx, loginEvent{final: true, done: step.Done})
 		return step, true, nil
-	case step.Code != "":
-		r.send(ctx, loginEvent{code: step.Code, note: step.Note, account: r.account})
+	case step.Code != "" || step.QR != "":
+		r.send(ctx, loginEvent{code: step.Code, qr: step.QR, note: step.Note, account: r.account})
 		next, err := r.logins.AnswerLogin(ctx, r.login, nil)
 		return next, false, err //nolint:wrapcheck // the daemon's own words
 	case step.Configure != nil:
@@ -397,7 +401,7 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(applied, next)
 	case e.ask != nil:
 		m.login.stage, m.login.fields, m.login.at, m.login.values, m.login.answer = loginAsking, e.ask, 0, map[string]string{}, e.answer
-		m.login.code = ""
+		m.login.code, m.login.qr = "", ""
 		// A field asked again was refused: its earlier answer goes, and why it was
 		// refused shows with the field (no note: nothing to say, and none kept).
 		m.login.note = e.note
@@ -409,8 +413,8 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 			m = m.say(e.note)
 		}
 		return m, next
-	case e.code != "":
-		m.login.code = e.code
+	case e.code != "" || e.qr != "":
+		m.login.code, m.login.qr = e.code, e.qr
 	}
 	return m, next
 }
@@ -545,6 +549,10 @@ func (m Model) loginLines(width, rows int) []string {
 			lines = append(lines, "    "+m.theme.TitleActive.Render(m.login.code), "")
 		}
 		block(m.login.note)
+		if m.login.qr != "" {
+			lines = append(lines, "")
+			lines = append(lines, qrLines(m.login.qr, width, rows-len(lines)-2)...)
+		}
 		lines = append(lines, "", m.theme.Muted.Render(m.keys.keyHint(scopePrompt, actCancel)+" cancels"))
 	}
 	if len(lines) > rows {
@@ -575,4 +583,22 @@ func masked(e editor) editor {
 	dots := func(s string) string { return strings.Repeat("•", utf8.RuneCountInString(s)) }
 	before := dots(e.text[:e.at])
 	return editor{text: before + dots(e.text[e.at:]), at: len(before)}
+}
+
+// qrLines is data as a QR code that fits width and rows, light on dark whatever the
+// theme so a phone can read it; a window too small for it says so instead.
+func qrLines(data string, width, rows int) []string {
+	code, err := qrtext.Lines(data)
+	if err != nil {
+		return []string{"the QR code could not be drawn: " + err.Error()}
+	}
+	if side := utf8.RuneCountInString(code[0]); side > width || len(code) > rows {
+		return []string{fmt.Sprintf("the window is too small for the QR code: it needs %d columns and %d rows", side, len(code)+2)}
+	}
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(qrtext.Light)).Background(lipgloss.Color(qrtext.Dark))
+	out := make([]string, len(code))
+	for i, line := range code {
+		out[i] = style.Render(line)
+	}
+	return out
 }
