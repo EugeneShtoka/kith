@@ -274,6 +274,24 @@ linters:
             - "go.mau.fi/util/exhttp"
             - "maunium.net/go/mautrix/bridgev2"
 
+        # The LinkedIn adapter: the only package that imports mautrix-linkedin's
+        # linkedingo. Only the daemon links it; its sessions reach it through an
+        # interface the daemon backs with the keyring.
+        linkedin-is-the-adapter:
+          files:
+            - "**/internal/linkedin/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/linkedin"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/rs/zerolog"
+            - "go.mau.fi/mautrix-linkedin/pkg/linkedingo"
+
         session-is-a-leaf:
           files:
             - "**/internal/session/**"
@@ -549,6 +567,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/linkedin"
             - "github.com/EugeneShtoka/kith/internal/local"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/matrix"

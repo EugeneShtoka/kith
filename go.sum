@@ -757,6 +757,8 @@ go.augendre.info/fatcontext v0.10.0 h1:HhFopmivh8U1+AU7f0kuwUeg2eiIns7YsGQOMHwSJ
 go.augendre.info/fatcontext v0.10.0/go.mod h1:pqpGvA9GlrXy+aXkp8L2dKz12Zp4g2FhzcAtwToU+2w=
 go.mau.fi/libsignal v0.2.2 h1:QV+XdzQkm3x3aSG7FcqfGSZuFXz83pRZPBFaPygHbOU=
 go.mau.fi/libsignal v0.2.2/go.mod h1:CRlIQg2J8uYTfDFvNoO8/KcZjs5cey0vbc6oj/bssY0=
+go.mau.fi/mautrix-linkedin v0.2609.0 h1:h3FCyOsiUIkrz+a/0vJPq8dSThe6eKLH2CoM9tFp4KU=
+go.mau.fi/mautrix-linkedin v0.2609.0/go.mod h1:2H0ntkAoimaOkVurySZeZBIkvuH6cWVPWopp8Hll80c=
 go.mau.fi/mautrix-meta v0.2609.1-0.20261013130553-a37ac47c433a h1:Fbe3Y1cn/rhyECir8IyHlUv/B3Gx0AAMDsgEoWjOEFE=
 go.mau.fi/mautrix-meta v0.2609.1-0.20261013130553-a37ac47c433a/go.mod h1:CPyIDABYb5BSxzYrQXdOIrQvLy5g1asUidrA4ejCVEY=
 go.mau.fi/util v0.10.2-0.20260918225449-a4c0d5b86aa8 h1:PxaO4u8ti7Eef1WKPAINXrcUkqKshE+n239UtbbJOn4=

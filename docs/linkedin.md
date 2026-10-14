@@ -1,0 +1,59 @@
+# LinkedIn
+
+kith is learning to reach LinkedIn's messages directly: no Matrix bridge. **It is
+being built.** Today kith signs in with your browser's session and stays connected;
+your conversations, their messages, sending and history come next.
+
+## Before you sign in
+
+- **kith signs in with the session your browser holds.** LinkedIn has no login an
+  app can lead, so kith asks for the cookies your browser sends to
+  `www.linkedin.com`. They are a session: whoever has them can read and write as you.
+  kith keeps them in the system keyring, never in the config.
+- **Signing out of LinkedIn in that browser ends kith's session too.** Copy the
+  cookies from a private window and close it without signing out.
+- **LinkedIn does not offer this to third-party apps.** kith uses the same unofficial
+  route as the Matrix bridge mautrix-linkedin. LinkedIn may restrict accounts it
+  believes are automated; the risk is yours to take.
+- **Sign in here or through a Matrix bridge, not both.** Both at once would show
+  every chat twice.
+
+## Setting up
+
+Inside kith, `:login linkedin` asks what to call the account, writes it into the
+config, and then asks for the cookies. From a shell, `kith login linkedin` does the
+same.
+
+To copy the cookies:
+
+1. Open a private window and sign in at <https://www.linkedin.com>.
+2. Open the developer tools (F12) → Network, and reload the page.
+3. Pick any request to `www.linkedin.com`. Under Request Headers, copy the value of
+   **Cookie**. It holds `li_at` and `JSESSIONID`, the two kith needs.
+4. Paste it at kith's prompt, then close the private window without signing out.
+
+`kith login linkedin` in a shell reads a line of at most about 4,000 characters, and
+the header can be longer. Then paste just the two cookies kith needs, with their
+values from the developer tools' Application → Cookies (Storage in Firefox):
+`li_at=…; JSESSIONID=…`. Inside kith, `:login linkedin` takes the whole header.
+
+A "Copy as cURL" of the same request also works when it is on one line. It also
+carries two headers LinkedIn's web app sends, which kith then uses instead of its
+own.
+
+The config holds only the name:
+
+```toml
+[[linkedin.account]]
+name = "linkedin"
+```
+
+`kith login linkedin linkedin` signs that account in again with fresh cookies.
+
+## When the session ends
+
+LinkedIn rotates the cookies as kith uses them, and kith saves each new set, so a
+session lasts until you sign out of it or LinkedIn ends it. Then the account shows
+as signed out with what to do: copy the cookies again and log in. When LinkedIn wants
+a check (it may take a new session for a robot), finish it in your browser at
+linkedin.com first.

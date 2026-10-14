@@ -1189,6 +1189,19 @@ tag = "Archived"
 #   [[messenger.account]]
 #   name = "meta"
 
+# LinkedIn, linked directly: kith signs in with the session a browser holds, with
+# no Matrix bridge. It runs when it has an account; `:login linkedin` inside kith
+# sets one up. Each [[linkedin.account]] is one LinkedIn account: `name` is what
+# `kith login linkedin <name>` takes. Logging in asks for the browser's cookies for
+# www.linkedin.com; kith keeps them in the system keyring.
+#
+# Sign in here or through a bridge, not both: both at once show every chat twice.
+# Signing out of LinkedIn in that browser ends kith's session too, so copy the
+# cookies from a private window and close it without signing out.
+#
+#   [[linkedin.account]]
+#   name = "linkedin"
+
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
 # data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,
 #                                    dictionaries and models
