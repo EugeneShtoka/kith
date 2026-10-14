@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -466,5 +467,126 @@ func TestTyping(t *testing.T) {
 	a.stoppedTyping(roomID("T1", "C1"), "slack:T1.U2")
 	if gone := <-a.Activity(); len(gone.Typing) != 0 {
 		t.Errorf("after the notices stopped: %+v", gone)
+	}
+}
+
+// Reading is local first: Slack refusing the mark leaves the conversation read here, the
+// mark owed; connecting again sends it, and once Slack takes it nothing is owed. Reading
+// with the workspace not connected is the same.
+func TestAReadStaysWhenSlackDoesNotTakeIt(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	f, client := newFakeSlack(t)
+	f.on("client.counts", func(map[string]string) any {
+		return map[string]any{"ok": true, "channels": []any{map[string]any{"id": "C1", "latest": "4.000000", "last_read": "2.000000"}}}
+	})
+	f.on("conversations.history", func(map[string]string) any {
+		return map[string]any{"ok": true, "messages": []any{msgJSON("U2", "4.0", "four"), msgJSON("U2", "3.0", "three")}}
+	})
+	var refuse atomic.Bool
+	refuse.Store(true)
+	f.on("conversations.mark", func(map[string]string) any {
+		if refuse.Load() {
+			return map[string]any{"ok": false, "error": "ratelimited"}
+		}
+		return map[string]any{"ok": true}
+	})
+	a, w := connectedTo(t, client)
+	w.knowChannels([]domain.Room{{ID: roomID("T1", "C1")}})
+	if err := a.catchUp(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	room := roomID("T1", "C1")
+	unread := func() int {
+		rows, err := a.CachedUnread(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, u := range rows {
+			if u.RoomID == room {
+				return u.Messages
+			}
+		}
+		return -1
+	}
+	if n := unread(); n != 2 {
+		t.Fatalf("before reading: %d, want 2", n)
+	}
+	if err := a.MarkRead(ctx, room, messageID("T1", "C1", "4.0"), false); err != nil {
+		t.Fatalf("a refused mark is an error: %v", err)
+	}
+	if n := unread(); n != 0 {
+		t.Errorf("after reading, Slack refusing: %d, want 0", n)
+	}
+	// Catching up again, Slack's own last_read is older: the read here stands.
+	if err := a.catchUp(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	if n := unread(); n != 0 {
+		t.Errorf("after Slack's stale last_read: %d, want 0", n)
+	}
+	if owed := a.reads.take("T1"); owed["C1"] != "4.0" {
+		t.Fatalf("the mark is not owed: %v", owed)
+	}
+	a.reads.add("T1", "C1", "4.0")
+	a.sendOwed(ctx, w) // Slack still refusing: owed still
+	if owed := a.reads.take("T1"); owed["C1"] != "4.0" {
+		t.Fatalf("a resend Slack refused dropped the mark: %v", owed)
+	}
+	a.reads.add("T1", "C1", "4.0")
+	refuse.Store(false)
+	a.onEvent(ctx, w, slackgo.RTMEvent{Data: &slackgo.ConnectedEvent{}}) // connected again: owed marks go
+	deadline := time.Now().Add(5 * time.Second)
+	for len(f.calls("conversations.mark")) < 3 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if calls := f.calls("conversations.mark"); len(calls) != 3 || calls[2]["ts"] != "4.0" {
+		t.Errorf("conversations.mark asked %v", calls)
+	}
+	owedNow := func() int {
+		a.reads.mu.Lock()
+		defer a.reads.mu.Unlock()
+		return len(a.reads.marks["T1"])
+	}
+	for owedNow() > 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if owed := a.reads.take("T1"); len(owed) != 0 {
+		t.Errorf("a mark Slack took is still owed: %v", owed)
+	}
+
+	// Not connected at all: read here, owed for later.
+	b := New(nil, &memSecrets{values: map[string]string{}}, nil, nil)
+	if err := b.MarkRead(ctx, room, messageID("T1", "C1", "4.0"), false); err != nil {
+		t.Errorf("reading with no workspace: %v", err)
+	}
+	if owed := b.reads.take("T1"); owed["C1"] != "4.0" {
+		t.Errorf("not connected, the mark is not owed: %v", owed)
+	}
+	for name, err := range map[string]error{
+		"another network's room": b.MarkRead(ctx, "!r:example.org", "", false),
+		"a message of another":   b.MarkRead(ctx, room, messageID("T1", "C2", "4.0"), false),
+		"no message":             b.MarkRead(ctx, room, "", false),
+	} {
+		if err == nil {
+			t.Errorf("%s was taken", name)
+		}
+	}
+}
+
+// Owed marks: a later one replaces an earlier, an earlier never replaces a later, and
+// settling an earlier mark leaves a later one owed.
+func TestOwedReadMarks(t *testing.T) {
+	t.Parallel()
+	var o owed
+	o.add("T", "C", "2.0")
+	o.add("T", "C", "3.0")
+	o.add("T", "C", "1.0")
+	o.settle("T", "C", "2.0")
+	if got := o.take("T"); got["C"] != "3.0" {
+		t.Errorf("owed = %v", got)
+	}
+	if got := o.take("T"); len(got) != 0 {
+		t.Errorf("owed after taking = %v", got)
 	}
 }
