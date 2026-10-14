@@ -42,15 +42,15 @@ jobs:
         run: make mod-check compile
 
   # Race detector and a coverage profile, split over parallel runners by package group
-  # (TEST_GROUP in the Makefile): the two slowest packages on their own, the rest
-  # together. One job's 15 minutes held them all before, and no longer did.
+  # (TEST_GROUP in the Makefile): the two slowest packages on their own, the network
+  # adapters together, and the rest. One job's 15 minutes held them all before, and no longer did.
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        group: [db, tui, rest]
+        group: [db, tui, adapters, rest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
