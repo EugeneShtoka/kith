@@ -82,7 +82,9 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	for _, n := range backend.networks {
 		got = append(got, n.Network())
 	}
-	want := []domain.Protocol{domain.ProtocolMatrix, domain.ProtocolWhatsApp, domain.ProtocolSlack, domain.ProtocolTelegram}
+	want := []domain.Protocol{
+		domain.ProtocolMatrix, domain.ProtocolWhatsApp, domain.ProtocolSlack, domain.ProtocolTelegram, domain.ProtocolMessenger,
+	}
 	if !slices.Equal(got, want) {
 		t.Errorf("networks = %v, want %v", got, want)
 	}
@@ -90,7 +92,7 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	for _, l := range backend.loginLeaders() {
 		logins = append(logins, l.LoginNetwork().Network)
 	}
-	if want := []string{"matrix", "whatsapp", "slack", "telegram"}; !slices.Equal(logins, want) {
+	if want := []string{"matrix", "whatsapp", "slack", "telegram", "messenger"}; !slices.Equal(logins, want) {
 		t.Errorf("logins = %v, want %v", logins, want)
 	}
 	if got := expected(context.Background(), slog.New(slog.DiscardHandler), backend); len(got) != 0 {
@@ -156,7 +158,7 @@ func TestACacheThatWillNotOpenIsAnError(t *testing.T) {
 	}
 }
 
-// Each network judges its own section: a name-only account is refused naming its
+// Each network judges its own section: an account with no name is refused naming its
 // table, at start and on re-read, and the re-read then changes nothing.
 func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 	t.Parallel()
@@ -167,7 +169,7 @@ func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 	}
 	for _, n := range (config.Config{}).Networks() {
 		var cfg config.Config
-		if err := cfg.Write(n.Table(), map[string]string{"name": "half"}); err != nil {
+		if err := cfg.Write(n.Table(), map[string]string{"name": ""}); err != nil {
 			t.Fatal(err)
 		}
 		err := backend.checkConfig(ctx, cfg)

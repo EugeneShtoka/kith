@@ -155,6 +155,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/markdown"
             - "github.com/EugeneShtoka/kith/internal/matrix"
             - "github.com/EugeneShtoka/kith/internal/richtext"
@@ -251,6 +252,27 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/slack"
             - "github.com/slack-go/slack"
+
+        # The Messenger adapter: the only package that imports mautrix-meta's messagix
+        # (and, through its login steps, mautrix's bridgev2 types). Only the daemon
+        # links it; its sessions reach it through an interface the daemon backs with
+        # the keyring.
+        meta-is-the-adapter:
+          files:
+            - "**/internal/meta/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/meta"
+            - "github.com/rs/zerolog"
+            - "go.mau.fi/mautrix-meta/pkg/messagix"
+            - "go.mau.fi/util/exhttp"
+            - "maunium.net/go/mautrix/bridgev2"
 
         session-is-a-leaf:
           files:
@@ -400,6 +422,7 @@ linters:
           allow:
             - "$gostd"
             - "github.com/coreos/go-systemd/v22/journal"
+            - "github.com/rs/zerolog"
             - "github.com/EugeneShtoka/kith/internal/logging"
 
         # Emoji by name, shared by the client and the Slack adapter: data alone.
@@ -529,6 +552,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/local"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/matrix"
+            - "github.com/EugeneShtoka/kith/internal/meta"
             - "github.com/EugeneShtoka/kith/internal/modelsetup"
             - "github.com/EugeneShtoka/kith/internal/route"
             - "github.com/EugeneShtoka/kith/internal/schedule"
