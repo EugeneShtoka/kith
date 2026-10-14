@@ -46,6 +46,9 @@ type Adapter struct {
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
 
+	// reads is the read marks Telegram has not taken yet (unread.go).
+	reads owed
+
 	onStatus       func(domain.AccountStatus)
 	onRoomsChanged func()
 

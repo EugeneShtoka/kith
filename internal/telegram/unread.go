@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gotd/td/tg"
@@ -206,16 +208,31 @@ func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	return rows, nil
 }
 
-// MarkRead marks a chat read up to eventID on Telegram and here. private is ignored:
-// Telegram doesn't reveal who read in groups.
+// MarkRead reads a chat (or a forum's topic) through eventID here, then on Telegram.
+// Read here first: Telegram not taking it (offline, refused) leaves it read here, and
+// the mark is owed and sent again when the account connects. The read position only
+// moves forward, and a listing fetched before a read here does not undo it.
 func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, _ bool) error {
-	ch, err := a.chatOf(ctx, roomID)
-	if err != nil {
-		return err
-	}
 	id, ok := messageNumber(roomID, eventID)
 	if !ok {
 		return fmt.Errorf("telegram: %s is no message of %s", eventID, roomID)
+	}
+	ts := a.readTime(ctx, roomID, eventID)
+	a.changeUnread(ctx, roomID, time.Time{}, func(u *domain.Unread) int64 {
+		u.ReadEvent, u.Notifications, u.Highlights, u.Marked = eventID, 0, 0, false
+		return ts
+	})
+	a.reads.add(roomID, id)
+	a.sendRead(ctx, roomID, id)
+	return nil
+}
+
+// sendRead tells Telegram a chat is read through message id and settles the mark when
+// it takes it; one it does not take (or an account not connected) stays owed.
+func (a *Adapter) sendRead(ctx context.Context, roomID domain.RoomID, id int) {
+	ch, err := a.chatOf(ctx, roomID)
+	if err != nil {
+		return // not connected: owed until it is
 	}
 	switch channel, isChannel := ch.peer.(*tg.InputPeerChannel); {
 	case ch.topic != 0: // a forum's topic is read as its own
@@ -230,14 +247,57 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 		_, err = ch.conn.client.API().MessagesReadHistory(ctx, &tg.MessagesReadHistoryRequest{Peer: ch.peer, MaxID: id})
 	}
 	if err != nil {
-		return fmt.Errorf("telegram: mark %s read: %w", roomID, err)
+		a.log.Warn("Telegram did not take a read mark; it is kept and sent again on reconnect", "room", roomID, "err", err)
+		return
 	}
-	ts := a.readTime(ctx, roomID, eventID)
-	a.changeUnread(ctx, roomID, time.Time{}, func(u *domain.Unread) int64 {
-		u.ReadEvent, u.Notifications, u.Highlights, u.Marked = eventID, 0, 0, false
-		return ts
-	})
-	return nil
+	a.reads.settle(roomID, id)
+}
+
+// sendOwed sends the owed read marks of the account self, on (re)connecting.
+func (a *Adapter) sendOwed(ctx context.Context, self int64) {
+	for room, id := range a.reads.take(strconv.FormatInt(self, 10)) {
+		a.reads.add(room, id) // owed until Telegram takes it
+		a.sendRead(ctx, room, id)
+	}
+}
+
+// owed is the read marks Telegram has not taken yet, by room: the newest message read.
+type owed struct {
+	mu    sync.Mutex
+	marks map[domain.RoomID]int
+}
+
+// add owes room read through id, unless a later mark is owed already.
+func (o *owed) add(room domain.RoomID, id int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.marks == nil {
+		o.marks = map[domain.RoomID]int{}
+	}
+	o.marks[room] = max(o.marks[room], id)
+}
+
+// take removes and returns the marks owed for rooms of account (its user ID).
+func (o *owed) take(account string) map[domain.RoomID]int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := map[domain.RoomID]int{}
+	for room, id := range o.marks {
+		if domain.ParseID(string(room)).Account == account {
+			out[room] = id
+			delete(o.marks, room)
+		}
+	}
+	return out
+}
+
+// settle drops a mark Telegram took, unless a later one was owed meanwhile.
+func (o *owed) settle(room domain.RoomID, id int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.marks[room] <= id {
+		delete(o.marks, room)
+	}
 }
 
 // MarkRoomsRead marks each room read up to its newest cached message.
