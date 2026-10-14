@@ -1,8 +1,17 @@
 # LinkedIn
 
 kith is learning to reach LinkedIn's messages directly: no Matrix bridge. **It is
-being built.** Today kith signs in with your browser's session and stays connected;
-your conversations, their messages, sending and history come next.
+being built.** Today kith signs in with your browser's session, stays connected, and
+shows your conversations in a space of their own (`LinkedIn <name>`), with the
+messages LinkedIn sends with each conversation and every new one as it arrives:
+replies, forwarded messages (quoted), shared posts (as their address), edits and
+deleted messages. Pictures, files, videos and voice messages show as a short label
+(`[photo]`, `[file: cv.pdf]`) for now. Sending, older history and reactions come next.
+
+A conversation you read in kith stays read: kith keeps the read position itself,
+before telling LinkedIn, and keeps telling LinkedIn until it hears. LinkedIn marks a
+whole conversation read, not a message, and its own read times only ever move kith's
+position forward. Conversations LinkedIn filed as spam are not shown.
 
 ## Before you sign in
 
@@ -57,3 +66,7 @@ session lasts until you sign out of it or LinkedIn ends it. Then the account sho
 as signed out with what to do: copy the cookies again and log in. When LinkedIn wants
 a check (it may take a new session for a robot), finish it in your browser at
 linkedin.com first.
+
+Signing out in kith (from the account's space) forgets the session here only. kith
+does not sign out of LinkedIn, because that would end the session the cookies came
+from, which may be your browser's.

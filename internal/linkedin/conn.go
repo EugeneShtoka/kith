@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-linkedin/pkg/linkedingo"
 
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
 )
 
@@ -48,6 +49,17 @@ type conn struct {
 	session Session
 	saved   string
 	client  *linkedingo.Client
+
+	// applying serializes taking conversations in: the inbox, and rooms, which is the
+	// account's rooms as last written (the cached ones, then every conversation heard
+	// of), so a write never sweeps one only an older listing had.
+	applying sync.Mutex
+	inbox    *inbox
+	rooms    map[domain.RoomID]domain.Room
+	// synced is the session ID of the realtime connection last synced after; syncing
+	// runs one at a time.
+	synced  string
+	syncing sync.Mutex
 }
 
 func (a *Adapter) newConn(account Account, s Session, at *int) *conn {
@@ -61,6 +73,7 @@ func (a *Adapter) newConn(account Account, s Session, at *int) *conn {
 	return &conn{
 		account: account, profile: s.ProfileID, signIn: signIn, session: s, saved: saved,
 		done: make(chan struct{}), gaveUp: make(chan error, 1),
+		inbox: newInbox(s.ProfileID), rooms: map[domain.RoomID]domain.Room{},
 	}
 }
 
@@ -125,7 +138,7 @@ func (a *Adapter) withLog(ctx context.Context) context.Context {
 // clientFor is a linkedingo client signed in with s; handlers hear its realtime stream.
 func (a *Adapter) clientFor(ctx context.Context, s Session, handlers linkedingo.Handlers) *linkedingo.Client {
 	return linkedingo.NewClient(a.withLog(ctx), linkedingo.NewURN(s.ProfileID).AsFsdProfile(), s.Cookies,
-		s.PageInstance, s.Track, "", handlers)
+		s.PageInstance, s.Track, s.SyncToken, handlers)
 }
 
 // profileOf reads the account's own profile with client: the check that its session
@@ -154,6 +167,7 @@ func (a *Adapter) connect(ctx context.Context, c *conn, checked bool) {
 		case <-ctx.Done():
 		}
 	}()
+	a.seedRooms(ctx, c)
 	wait := retryFirst
 	for ctx.Err() == nil {
 		a.session(c.account, Connecting, "")
@@ -233,10 +247,22 @@ func (a *Adapter) handlers(c *conn) linkedingo.Handlers {
 	}
 	return linkedingo.Handlers{
 		Heartbeat: func(context.Context) { heard("a heartbeat", func() { a.keepCookies(c) }) },
-		ClientConnection: func(context.Context, *linkedingo.ClientConnection) {
+		ClientConnection: func(ctx context.Context, cc *linkedingo.ClientConnection) {
 			heard("connecting", func() {
 				a.session(c.account, Connected, "")
 				a.keepCookies(c)
+				go a.sync(context.WithoutCancel(ctx), c, cc.SessID.String())
+				go a.sendOwed(c)
+			})
+		},
+		DecoratedEvent: func(ctx context.Context, e *linkedingo.DecoratedEvent) {
+			heard("an event", func() { a.event(context.WithoutCancel(ctx), c, e) })
+		},
+		ConversationsSyncToken: func(_ context.Context, token string) {
+			heard("a sync token", func() {
+				c.mu.Lock()
+				c.session.SyncToken = token
+				c.mu.Unlock()
 			})
 		},
 		TransientDisconnect: func(_ context.Context, err error) {

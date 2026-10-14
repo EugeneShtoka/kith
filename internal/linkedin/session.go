@@ -31,6 +31,9 @@ type Session struct {
 	// browser sent, when the paste had them; linkedingo's own otherwise.
 	Track        string `json:"x_li_track,omitempty"`
 	PageInstance string `json:"x_li_page_instance,omitempty"`
+	// SyncToken is where LinkedIn's list of changed conversations left off; "" before
+	// the first.
+	SyncToken string `json:"sync_token,omitempty"`
 }
 
 // The cookies a session cannot do without.
