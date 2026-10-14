@@ -153,10 +153,22 @@ func (in *inbox) room(cv *conv) domain.Room {
 		ID: roomID(in.self, cv.id), Name: in.roomName(cv), IsDirect: !cv.group,
 		Membership: domain.MembershipJoin, Network: domain.ProtocolGMessages,
 	}
-	for _, pid := range cv.order {
-		r.Members = append(r.Members, cv.members[pid])
-	}
+	r.Members = append(r.Members, in.membersOf(cv)...)
 	return r
+}
+
+// membersOf is a conversation's people, once each in the phone's order: one person can be
+// two participants (your own number, as you and as the SIM's line).
+func (in *inbox) membersOf(cv *conv) []string {
+	seen := make(map[string]bool, len(cv.order))
+	out := make([]string, 0, len(cv.order))
+	for _, pid := range cv.order {
+		if person := cv.members[pid]; !seen[person] {
+			seen[person] = true
+			out = append(out, person)
+		}
+	}
+	return out
 }
 
 // roomName is a conversation's name: the phone's, else its people's.
@@ -175,9 +187,9 @@ func (in *inbox) roomName(cv *conv) string {
 
 // roomMembers is a conversation's people as room members, named where known.
 func (in *inbox) roomMembers(cv *conv) []domain.Member {
-	out := make([]domain.Member, 0, len(cv.order))
-	for _, pid := range cv.order {
-		person := cv.members[pid]
+	people := in.membersOf(cv)
+	out := make([]domain.Member, 0, len(people))
+	for _, person := range people {
 		out = append(out, domain.Member{UserID: person, DisplayName: in.people[person]})
 	}
 	return out
