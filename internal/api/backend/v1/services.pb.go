@@ -7346,8 +7346,8 @@ func (x *LoginRecord) GetValues() map[string]string {
 	return nil
 }
 
-// LoginStep is where a login is. Exactly one of ask, code, configure, restart and
-// done says what to do; note may go with any of them.
+// LoginStep is where a login is. Exactly one of ask, code, qr, configure, restart
+// and done says what to do; note may go with any of them.
 type LoginStep struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The conversation, for AnswerLogin and CancelLogin.
@@ -7364,7 +7364,9 @@ type LoginStep struct {
 	// The login ended: the daemon must restart, then the login begin again.
 	Restart bool `protobuf:"varint,7,opt,name=restart,proto3" json:"restart,omitempty"`
 	// The login ended: what it did.
-	Done          string `protobuf:"bytes,8,opt,name=done,proto3" json:"done,omitempty"`
+	Done string `protobuf:"bytes,8,opt,name=done,proto3" json:"done,omitempty"`
+	// Data to draw as a QR code until the next step, for a phone to scan.
+	Qr            string `protobuf:"bytes,9,opt,name=qr,proto3" json:"qr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7451,6 +7453,13 @@ func (x *LoginStep) GetRestart() bool {
 func (x *LoginStep) GetDone() string {
 	if x != nil {
 		return x.Done
+	}
+	return ""
+}
+
+func (x *LoginStep) GetQr() string {
+	if x != nil {
+		return x.Qr
 	}
 	return ""
 }
@@ -12650,7 +12659,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x06values\x18\x02 \x03(\v2#.backend.v1.LoginRecord.ValuesEntryR\x06values\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf2\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x82\x02\n" +
 	"\tLoginStep\x12\x14\n" +
 	"\x05login\x18\x01 \x01(\tR\x05login\x12\x18\n" +
 	"\aaccount\x18\x02 \x01(\tR\aaccount\x12\x12\n" +
@@ -12659,7 +12668,8 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x04code\x18\x05 \x01(\tR\x04code\x125\n" +
 	"\tconfigure\x18\x06 \x01(\v2\x17.backend.v1.LoginRecordR\tconfigure\x12\x18\n" +
 	"\arestart\x18\a \x01(\bR\arestart\x12\x12\n" +
-	"\x04done\x18\b \x01(\tR\x04done\":\n" +
+	"\x04done\x18\b \x01(\tR\x04done\x12\x0e\n" +
+	"\x02qr\x18\t \x01(\tR\x02qr\":\n" +
 	"\fLoginAccount\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06detail\x18\x02 \x01(\tR\x06detail\"\x8c\x01\n" +

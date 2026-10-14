@@ -355,3 +355,35 @@ func TestARefusedAnswerIsAskedAgainInPlace(t *testing.T) {
 		t.Errorf("after the next step: %q, want the accepted answer once and no old note", pane)
 	}
 }
+
+// A QR code shows under its note, light on dark, until the next step; a window too
+// small for it says so rather than drawing a code no phone can read.
+func TestLoginShowsAQRCode(t *testing.T) {
+	t.Parallel()
+	m := loggingIn(t, &loginDaemon{networks: []api.LoginNetwork{fakeNetwork}}, nil)
+	m.login = loginState{stage: loginAsking, network: fakeNetwork}
+	const data = "https://support.google.com/messages/?p=web_computer#?c=ZXhhbXBsZQ=="
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{qr: data, note: "scan it in Messages"}, ok: true})
+	pane := strings.Join(m.loginLines(160, 60), "\n")
+	if !strings.Contains(pane, "scan it in Messages") || !strings.Contains(pane, "█") {
+		t.Fatalf("the pane = %q, want the note and the code", pane)
+	}
+	if strings.Index(pane, "scan it") > strings.Index(pane, "█") {
+		t.Error("the code comes before its note")
+	}
+	if small := strings.Join(m.loginLines(30, 60), "\n"); strings.Contains(small, "█") || !strings.Contains(small, "too small") {
+		t.Errorf("a narrow window = %q, want it said", small)
+	}
+	if short := strings.Join(m.loginLines(160, 12), "\n"); strings.Contains(short, "█") || !strings.Contains(short, "too small") {
+		t.Errorf("a short window = %q, want it said", short)
+	}
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{code: "ABCD"}, ok: true})
+	if m.login.qr != "" || m.login.code != "ABCD" {
+		t.Errorf("a code after the QR: qr %q, code %q", m.login.qr, m.login.code)
+	}
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{qr: data}, ok: true})
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{ask: []api.LoginField{{Key: "x", Label: "x"}}, answer: make(chan map[string]string, 1)}, ok: true})
+	if m.login.qr != "" || strings.Contains(strings.Join(m.loginLines(160, 60), "\n"), "█") {
+		t.Error("the QR code stays after the next step")
+	}
+}

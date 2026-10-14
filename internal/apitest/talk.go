@@ -70,6 +70,9 @@ func (t *Talk) Show(_ context.Context, code, _ string) error {
 	return nil
 }
 
+// ShowQR records the data among the codes shown.
+func (t *Talk) ShowQR(ctx context.Context, data, note string) error { return t.Show(ctx, data, note) }
+
 // Configure records the record and runs OnConfigure.
 func (t *Talk) Configure(_ context.Context, record api.LoginRecord) error {
 	t.mu.Lock()

@@ -378,6 +378,10 @@ func (s *talkScript) Show(_ context.Context, code, note string) error {
 	return nil
 }
 
+func (s *talkScript) ShowQR(ctx context.Context, data, note string) error {
+	return s.Show(ctx, data, note)
+}
+
 func (s *talkScript) Configure(_ context.Context, record api.LoginRecord) error {
 	s.records = append(s.records, record)
 	return nil

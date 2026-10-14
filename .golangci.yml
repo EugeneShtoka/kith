@@ -311,6 +311,15 @@ linters:
             - "github.com/rs/zerolog"
             - "go.mau.fi/mautrix-linkedin/pkg/linkedingo"
 
+        # QR codes as text: a leaf over the encoder, drawn by the clients.
+        qrtext-is-a-leaf:
+          files:
+            - "**/internal/qrtext/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "rsc.io/qr"
+
         session-is-a-leaf:
           files:
             - "**/internal/session/**"
@@ -566,6 +575,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/llamacpp"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/matrix"
+            - "github.com/EugeneShtoka/kith/internal/qrtext"
             - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/EugeneShtoka/kith/internal/setup"
             - "github.com/EugeneShtoka/kith/internal/spell"
@@ -648,6 +658,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/media"
             - "github.com/EugeneShtoka/kith/internal/notify"
             - "github.com/EugeneShtoka/kith/internal/phonebook"
+            - "github.com/EugeneShtoka/kith/internal/qrtext"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/theme"
             - "github.com/EugeneShtoka/kith/internal/tui"

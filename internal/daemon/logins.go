@@ -233,8 +233,8 @@ func (c *conversation) say(ctx context.Context, s said) bool {
 	}
 }
 
-// logStep logs what a step is, never what it shows: a code is a secret to type
-// elsewhere, so only that there is one.
+// logStep logs what a step is, never what it shows: a code or a QR code is a secret to
+// use elsewhere, so only that there is one.
 func (c *conversation) logStep(s said) {
 	if c.log == nil {
 		return
@@ -249,6 +249,8 @@ func (c *conversation) logStep(s said) {
 		c.log.Info("login writes an account", "account", account, "table", s.step.Configure.Table)
 	case s.step.Code != "":
 		c.log.Info("login shows a code", "account", account)
+	case s.step.QR != "":
+		c.log.Info("login shows a QR code", "account", account)
 	default:
 		keys := make([]string, 0, len(s.step.Ask))
 		for _, f := range s.step.Ask {
@@ -286,6 +288,13 @@ func (t talk) Ask(ctx context.Context, note string, fields ...api.LoginField) (m
 
 func (t talk) Show(ctx context.Context, code, note string) error {
 	if !t.c.say(ctx, said{step: api.LoginStep{Note: note, Code: code}}) {
+		return ctx.Err() //nolint:wrapcheck // the login's own end
+	}
+	return nil
+}
+
+func (t talk) ShowQR(ctx context.Context, data, note string) error {
+	if !t.c.say(ctx, said{step: api.LoginStep{Note: note, QR: data}}) {
 		return ctx.Err() //nolint:wrapcheck // the login's own end
 	}
 	return nil
