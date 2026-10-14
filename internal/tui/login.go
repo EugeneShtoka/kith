@@ -56,9 +56,10 @@ type loginState struct {
 	answer chan<- map[string]string
 }
 
-// answeredField is an answer as the pane shows it: a secret as dots.
+// answeredField is an answer as the pane shows it: a secret as dots. key is its
+// field's, so a field asked again replaces it.
 type answeredField struct {
-	label, shown string
+	key, label, shown string
 }
 
 func (l loginState) field() (api.LoginField, bool) {
@@ -397,6 +398,12 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 	case e.ask != nil:
 		m.login.stage, m.login.fields, m.login.at, m.login.values, m.login.answer = loginAsking, e.ask, 0, map[string]string{}, e.answer
 		m.login.code = ""
+		// A field asked again was refused: its earlier answer goes, and why it was
+		// refused shows with the field (no note: nothing to say, and none kept).
+		m.login.note = e.note
+		m.login.answered = slices.DeleteFunc(slices.Clone(m.login.answered), func(a answeredField) bool {
+			return slices.ContainsFunc(e.ask, func(f api.LoginField) bool { return f.Key == a.key })
+		})
 		m = m.askLoginField()
 		if e.note != "" {
 			m = m.say(e.note)
@@ -464,7 +471,7 @@ func (m Model) submitLogin(input string) (Model, tea.Cmd) {
 	if f.Secret {
 		shown = strings.Repeat("•", min(utf8.RuneCountInString(value), 12))
 	}
-	m.login.answered = append(slices.Clone(m.login.answered), answeredField{label: f.Label, shown: shown})
+	m.login.answered = append(slices.Clone(m.login.answered), answeredField{key: f.Key, label: f.Label, shown: shown})
 	m.login.at++
 	if m.login.at < len(m.login.fields) {
 		return m.askLoginField(), nil
@@ -518,6 +525,14 @@ func (m Model) loginLines(width, rows int) []string {
 		lines = append(lines, "")
 	}
 	if f, ok := m.login.field(); ok {
+		if m.login.note != "" {
+			for _, para := range docParagraphs(m.login.note) {
+				for _, line := range drawBlock(para, blockSpec{width: width}) {
+					lines = append(lines, m.theme.Badge(true).Render(line))
+				}
+			}
+			lines = append(lines, "")
+		}
 		block(f.Help)
 		if m.promptInline() {
 			lines = append(lines, m.promptLines(width)...)
