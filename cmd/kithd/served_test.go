@@ -143,6 +143,42 @@ func TestAMarkThroughTheDaemonHidesThePerson(t *testing.T) {
 	}
 }
 
+// The daemon's own wiring marks a sender: a sender_first filter catching someone's
+// first message marks them in the cache, and the muted tag hides them from then on.
+func TestAFilterMarksASenderThroughTheDaemon(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	muted := false
+	cfg := config.Config{
+		WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}},
+		Tags:     []config.Tag{{Name: "Spam", Notifies: &muted}},
+		Filters:  []config.Filter{{Name: "crypto", Tag: "Spam", Words: []string{"*bitcoin*"}, Moves: []string{config.FilterMoveSenderFirst}}},
+	}
+	backend := servedFor(t, cfg, domain.Session{})
+	if err := backend.useHidden(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	w, err := newWorkers(slog.New(slog.DiscardHandler), cfg, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.notifications.Synced(time.Now())
+	w.notifications.Synced(time.Now())
+	const room, spammer = "whatsapp:15550000001/120363@g.us", "whatsapp:15550000003@s.whatsapp.net"
+	msg := domain.Message{ID: "whatsapp:15550000001/A1", RoomID: room, Sender: spammer, Body: "buy bitcoin now", Timestamp: time.Now()}
+	if serr := backend.cache.SaveMessages(ctx, room, []domain.Message{msg}); serr != nil {
+		t.Fatal(serr)
+	}
+	w.notifications.Deliver(ctx, msg)
+	marks, err := backend.PersonVerdicts(ctx)
+	if err != nil || len(marks) != 1 || marks[0].Person != spammer || marks[0].Rule != domain.MoveSenderFirst {
+		t.Fatalf("marks = %+v (%v), want the sender marked by their first message", marks, err)
+	}
+	if hidden, err := backend.cache.Hides(ctx, msg); err != nil || !hidden {
+		t.Errorf("the marked sender is not hidden (%v)", err)
+	}
+}
+
 // Every network is built whatever the config holds, so a first account needs no
 // restart; an empty config waits for nothing.
 func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {

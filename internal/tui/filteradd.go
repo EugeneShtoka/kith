@@ -20,12 +20,16 @@ import (
 
 const filterTable = recordPrefix + "filter"
 
-// filterMoveRows are the moves a filter's catch can make, in the order they are tried.
+// filterMoveRows are the moves a filter's catch can make, in the order they are tried:
+// the room's, then the sender's.
 var filterMoveRows = []struct{ value, label, detail string }{
 	{config.FilterMoveAlways, "Always", "any message it catches"},
 	{config.FilterMoveFirstMessage, "First message", "the room's first message"},
 	{config.FilterMoveDirect, "Direct message", "a DM you never wrote in"},
 	{config.FilterMoveRatio, "Mostly", "most of what the room says, over the filter's window"},
+	{config.FilterMoveSenderFirst, "Sender's first", "the sender, by their first message anywhere"},
+	{config.FilterMoveSenderRatio, "Sender mostly", "the sender, when most of what they write is caught"},
+	{config.FilterMoveSenderSpread, "Sender's spread", "the sender, by one message sent in several rooms"},
 }
 
 // startFilter begins a new filter with its name, from the Filters list.

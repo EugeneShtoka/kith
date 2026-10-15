@@ -13,11 +13,13 @@ import (
 // The [[filter]]s, derived in one place so the daemon (on arrival) and the client
 // (previewing, rescanning) agree.
 
-// The ratio move's defaults: the share caught, the least message count, the window.
+// The ratio moves' defaults: the share caught, the least message count, the window;
+// and how many rooms one caught message must reach for sender_spread.
 const (
 	DefaultFilterRatio  = 0.6
 	DefaultFilterFloor  = 5
 	DefaultFilterWindow = 7 * 24 * time.Hour
+	DefaultFilterSpread = 3
 )
 
 // Filters validates the [[filter]]s: each needs a name, a tag that exists, and words, a
@@ -57,7 +59,7 @@ func filter(cfg config.Config, i int) (domain.Filter, error) {
 	from := strings.TrimSpace(in.From)
 	f := domain.Filter{
 		Name: name, Tag: tag, Words: domain.Tracked{Words: words}, From: from, In: in.In,
-		Ratio: in.Ratio, Floor: in.Floor, Window: DefaultFilterWindow,
+		Ratio: in.Ratio, Floor: in.Floor, Window: DefaultFilterWindow, Spread: in.Spread,
 	}
 	if err := filterLanguages(&f, in); err != nil {
 		return domain.Filter{}, err
@@ -109,6 +111,13 @@ func filterRatio(f domain.Filter, window string) (domain.Filter, error) {
 	if f.Floor == 0 {
 		f.Floor = DefaultFilterFloor
 	}
+	// One room is any catch: always, not a spread.
+	if f.Spread < 0 || f.Spread == 1 {
+		return domain.Filter{}, fmt.Errorf("filter %q: spread %d is not a number of rooms of 2 or more", f.Name, f.Spread)
+	}
+	if f.Spread == 0 {
+		f.Spread = DefaultFilterSpread
+	}
 	if spelled := strings.TrimSpace(window); spelled != "" {
 		d, err := time.ParseDuration(spelled)
 		if err != nil || d <= 0 {
@@ -135,9 +144,17 @@ func filterMoves(filter string, words []string) (domain.FilterMoves, error) {
 			out.Direct = true
 		case config.FilterMoveRatio:
 			out.Ratio = true
+		case config.FilterMoveSenderFirst:
+			out.SenderFirst = true
+		case config.FilterMoveSenderRatio:
+			out.SenderRatio = true
+		case config.FilterMoveSenderSpread:
+			out.SenderSpread = true
 		default:
-			return domain.FilterMoves{}, fmt.Errorf("filter %q: moves: %q is not one of %s, %s, %s, %s", filter, word,
-				config.FilterMoveAlways, config.FilterMoveFirstMessage, config.FilterMoveDirect, config.FilterMoveRatio)
+			return domain.FilterMoves{}, fmt.Errorf("filter %q: moves: %q is not one of %s", filter, word, strings.Join([]string{
+				config.FilterMoveAlways, config.FilterMoveFirstMessage, config.FilterMoveDirect, config.FilterMoveRatio,
+				config.FilterMoveSenderFirst, config.FilterMoveSenderRatio, config.FilterMoveSenderSpread,
+			}, ", "))
 		}
 	}
 	return out, nil

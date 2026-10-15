@@ -48,7 +48,7 @@ func TestTheMoveMemoIsReReadFromTheCache(t *testing.T) {
 	clock := time.Date(2026, 9, 25, 9, 0, 0, 0, time.UTC)
 	w := newFilterWatch(store)
 	w.now = func() time.Time { return clock }
-	w.reload(domain.Filters{{Name: "any", Tag: "Spam", Words: domain.Tracked{Words: []string{"morning"}}}}, domain.TagSet{})
+	w.reload(domain.Filters{{Name: "any", Tag: "Spam", Words: domain.Tracked{Words: []string{"morning"}}}}, domain.TagSet{}, nil)
 
 	ctx := context.Background()
 	message := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "morning"}

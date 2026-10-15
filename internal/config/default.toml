@@ -779,9 +779,19 @@ require_digit = true
 #   ratio          at least `ratio` of the room's messages over `window` (0.6 over a
 #                  week unless set), with at least `floor` of them (5), caught by it
 #
-# Only you take a room out: a filter never does, and a room you took out is written
-# into the tag's excluded, so no filter puts it back. A move is stored in the room's
-# account data, so it survives a cache rebuild and reaches your other machines.
+# Three more mark the person who sent the message instead, in every room: in a muted
+# tag (Spam) they are hidden everywhere. Never anyone you have written to (a DM you
+# wrote in, or a reply to them).
+#
+#   sender_first   their first message anywhere you can see
+#   sender_ratio   at least `ratio` of their messages over `window`, every room
+#                  together, with at least `floor` of them, caught by it
+#   sender_spread  the same caught message in `spread` rooms (3) within `window`
+#
+# Only you take a room or a person out: a filter never does, and one you took out
+# stays out on every machine, so no filter puts it back. A move is stored in the
+# room's account data, and a Matrix person's mark in the account's, so it survives a
+# cache rebuild and reaches your other machines.
 #
 # [[filter]]
 # name  = "crypto"
@@ -791,6 +801,7 @@ require_digit = true
 # ratio = 0.6
 # floor = 5
 # window = "168h"
+# spread = 3
 #
 # [[filter]]
 # name  = "that number"
