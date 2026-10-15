@@ -38,6 +38,8 @@ func (Nop) StarredIn(context.Context, domain.RoomID) ([]domain.EventID, error)  
 func (Nop) TagVerdicts(context.Context) ([]domain.TagVerdict, error)                   { return nil, nil }
 func (Nop) MarkTag(context.Context, domain.TagVerdict) error                           { return nil }
 func (Nop) RetagVerdicts(context.Context, string, string) error                        { return nil }
+func (Nop) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error)             { return nil, nil }
+func (Nop) MarkPerson(context.Context, domain.PersonVerdict) error                     { return nil }
 func (Nop) AddToSpace(_ context.Context, _ domain.SpaceID, _ domain.RoomID) error      { return nil }
 func (Nop) CreateRoom(context.Context, domain.NewRoom) (domain.RoomID, error)          { return "", nil }
 func (Nop) InviteUser(context.Context, domain.RoomID, string) error                    { return nil }

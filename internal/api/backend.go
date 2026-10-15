@@ -90,8 +90,14 @@ type Rooms interface {
 	// overwrites a release (domain.ErrReleased).
 	MarkTag(ctx context.Context, verdict domain.TagVerdict) error
 	// RetagVerdicts moves every verdict on tag from to tag to (a renamed tag), or drops
-	// them when to is empty (a deleted one).
+	// them when to is empty (a deleted one), person verdicts included.
 	RetagVerdicts(ctx context.Context, from, to string) error
+	// PersonVerdicts returns every person a filter put into a tag, and every release
+	// (cache read).
+	PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error)
+	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
+	// never overwrites a release (domain.ErrPersonReleased).
+	MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error
 	// LastMessages is each room's latest cached message time. Rooms with no cached
 	// history are absent (unknown), not zero.
 	LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, error)

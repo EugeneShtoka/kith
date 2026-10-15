@@ -81,12 +81,13 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 	if err != nil {
 		return err
 	}
-	marked, groups, err := setup.HiddenInputs(cfg)
+	marked, muted, groups, err := setup.HiddenInputs(cfg)
 	if err != nil {
 		return err
 	}
 	server := &server{
 		marked:   marked,
+		muted:    muted,
 		groups:   groups,
 		places:   setup.PlacesOf(cfg),
 		backend:  daemon.NewRemote(socket),
@@ -178,6 +179,7 @@ type reader interface {
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	Selves(ctx context.Context) ([]string, error)
 	Directory(ctx context.Context) (domain.Directory, error)
+	PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error)
 	LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 }
 
@@ -209,9 +211,11 @@ type server struct {
 	// everyone with them and the directory, asked per call. Assistants get whole names.
 	aliases map[string]string
 	people  domain.People
-	// marked and groups are who the muted tags hide and the identity groups; hidden is
-	// them over the directory, asked per call, and hiddenErr why it could not be read.
+	// marked and groups are who the muted tags list and the identity groups, and muted
+	// the tags whose person verdicts hide people too; hidden is them over the verdicts
+	// and the directory, asked per call, and hiddenErr why they could not be read.
 	marked    []string
+	muted     []string
 	groups    [][]string
 	hidden    domain.HiddenPeople
 	hiddenErr error

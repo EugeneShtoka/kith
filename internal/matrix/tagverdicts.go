@@ -123,6 +123,7 @@ func (b *InProc) RetagVerdicts(ctx context.Context, from, to string) error {
 			errs = append(errs, b.writeVerdicts(ctx, room, retagged))
 		}
 	}
+	errs = append(errs, b.retagPeople(ctx, from, to))
 	return errors.Join(errs...)
 }
 

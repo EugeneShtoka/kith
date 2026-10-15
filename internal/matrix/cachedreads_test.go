@@ -132,7 +132,7 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 		marked []string
 		want   int
 	}{{[]string{"@spam:x"}, 1}, {nil, 2}} {
-		if err := b.cache.UseHidden(ctx, step.marked, nil); err != nil {
+		if err := b.cache.UseHidden(ctx, step.marked, nil, nil); err != nil {
 			t.Fatalf("UseHidden: %v", err)
 		}
 		if got := b.unread.get("!r:x").Messages; got != step.want {

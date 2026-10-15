@@ -209,6 +209,14 @@ func (s *Service) StarredIn(ctx context.Context, roomID domain.RoomID) ([]domain
 	})
 }
 
+// PersonVerdicts is every person's marks and releases from the cache (Matrix IDs'
+// mirrored from account data).
+func (s *Service) PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error) {
+	return fromCache(s, "list person verdicts", func(c *db.Cache) ([]domain.PersonVerdict, error) {
+		return c.PersonVerdicts(ctx)
+	})
+}
+
 // TagVerdicts is every move and release from the cache (mirrored from account data).
 func (s *Service) TagVerdicts(ctx context.Context) ([]domain.TagVerdict, error) {
 	return fromCache(s, "list tag verdicts", func(c *db.Cache) ([]domain.TagVerdict, error) {

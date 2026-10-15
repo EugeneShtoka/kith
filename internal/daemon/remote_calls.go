@@ -158,6 +158,18 @@ func (r *Remote) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
 	return err
 }
 
+// PersonVerdicts is every person's marks and releases, from the daemon's cache.
+func (r *Remote) PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error) {
+	resp, err := call(ctx, "list person verdicts", r.c.PersonVerdicts, &v1.PersonVerdictsRequest{})
+	return pc.ProtoToPersonVerdicts(resp.GetVerdicts()), err
+}
+
+// MarkPerson records a mark or a release on one person ID and tag.
+func (r *Remote) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error {
+	_, err := call(ctx, "mark person", r.c.MarkPerson, &v1.MarkPersonRequest{Verdict: pc.PersonVerdictToProto(verdict)})
+	return err
+}
+
 // RetagVerdicts moves one tag's verdicts to its new name, or drops them.
 func (r *Remote) RetagVerdicts(ctx context.Context, from, to string) error {
 	_, err := call(ctx, "move tag verdicts", r.c.RetagVerdicts, &v1.RetagVerdictsRequest{From: from, To: to})

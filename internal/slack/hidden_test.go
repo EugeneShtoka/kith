@@ -26,7 +26,7 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 		t.Fatal(err)
 	}
 	cache.OnHiddenChange(a.RecountUnread)
-	if err := cache.UseHidden(ctx, []string{"slack:T1/U2"}, nil); err != nil {
+	if err := cache.UseHidden(ctx, []string{"slack:T1/U2"}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -36,5 +36,24 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 		}
 	default:
 		t.Fatal("hiding a person streamed no recount")
+	}
+}
+
+// A person's mark is kept in the cache, which is all this network has, and follows a
+// renamed tag.
+func TestAPersonMarkIsKeptAndRetagged(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	a, cache := cached(t)
+	if err := a.MarkPerson(ctx, domain.PersonVerdict{Person: "slack:U2", Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.RetagVerdicts(ctx, "Spam", "Junk"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := cache.PersonVerdicts(ctx)
+	if err != nil || len(got) != 1 || got[0].Tag != "junk" || got[0].Filter != "crypto" {
+		t.Errorf("kept %+v (%v), want the mark under Junk", got, err)
 	}
 }

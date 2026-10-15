@@ -127,6 +127,31 @@ message MarkTagRequest {
 
 message MarkTagResponse {}
 
+// PersonVerdict is a filter having put one person, by one of their IDs, into one tag,
+// or a person having taken them out (released), which no filter overturns.
+message PersonVerdict {
+  string person = 1;
+  string tag = 2;
+  // rule is domain.MoveRule; 0 is no mark.
+  int32 rule = 3;
+  // filter is the name of the filter that marked them.
+  string filter = 4;
+  int64 at_unix_ms = 5;
+  bool released = 6;
+}
+
+message PersonVerdictsRequest {}
+
+message PersonVerdictsResponse {
+  repeated PersonVerdict verdicts = 1;
+}
+
+message MarkPersonRequest {
+  PersonVerdict verdict = 1;
+}
+
+message MarkPersonResponse {}
+
 message RetagVerdictsRequest {
   string from = 1;
   // to empty drops the verdicts (a deleted tag).
@@ -1380,6 +1405,12 @@ service BackendService {
   rpc MarkTag(MarkTagRequest) returns (MarkTagResponse);
   // RetagVerdicts moves one tag's verdicts to its new name, or drops them.
   rpc RetagVerdicts(RetagVerdictsRequest) returns (RetagVerdictsResponse);
+  // PersonVerdicts lists every person a filter put into a tag, and every release, with
+  // the rule and the filter.
+  rpc PersonVerdicts(PersonVerdictsRequest) returns (PersonVerdictsResponse);
+  // MarkPerson records a filter's mark or a release on one person ID and tag; a mark
+  // never overwrites a release.
+  rpc MarkPerson(MarkPersonRequest) returns (MarkPersonResponse);
   // Space
   // Spaces returns the cached spaces, each with its direct child rooms.
   rpc Spaces(SpacesRequest) returns (SpacesResponse);

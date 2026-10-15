@@ -89,9 +89,11 @@ type (
 	Stars interface {
 		StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error
 	}
-	// TagMoves is filters' moves into tags, and releases from them.
+	// TagMoves is filters' moves into tags, and releases from them: of rooms, and of
+	// the people whose IDs are the network's.
 	TagMoves interface {
 		MarkTag(ctx context.Context, verdict domain.TagVerdict) error
+		MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error
 		RetagVerdicts(ctx context.Context, from, to string) error
 	}
 	// History is a room's past: pages, one message, a message's versions.

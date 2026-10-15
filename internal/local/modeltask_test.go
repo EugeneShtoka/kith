@@ -435,7 +435,7 @@ func TestSummaryAndTodoLeaveOutHiddenPeople(t *testing.T) {
 			t.Fatalf("SaveMessages: %v", err)
 		}
 	}
-	if err := cache.UseHidden(ctx, []string{"@spam:x"}, nil); err != nil {
+	if err := cache.UseHidden(ctx, []string{"@spam:x"}, nil, nil); err != nil {
 		t.Fatalf("UseHidden: %v", err)
 	}
 	for _, u := range []domain.Unread{{RoomID: "!here:x", ReadEvent: "$1"}, {RoomID: "!ads:x", Notifications: 1}} {

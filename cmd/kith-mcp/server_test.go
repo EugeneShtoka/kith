@@ -17,13 +17,16 @@ import (
 // fake answers reads from fixtures and records writes.
 type fake struct {
 	// dir is the directory the daemon gives, dirErr why it cannot.
-	dir      domain.Directory
-	dirErr   error
-	rooms    []domain.Room
-	spaces   []domain.Space
-	unread   []domain.Unread
-	messages map[domain.RoomID][]domain.Message
-	hits     []domain.SearchHit
+	dir    domain.Directory
+	dirErr error
+	// people is the person verdicts the daemon gives, peopleErr why it cannot.
+	people    []domain.PersonVerdict
+	peopleErr error
+	rooms     []domain.Room
+	spaces    []domain.Space
+	unread    []domain.Unread
+	messages  map[domain.RoomID][]domain.Message
+	hits      []domain.SearchHit
 	// searchAsked is the room set of each search, in order.
 	searchAsked [][]domain.RoomID
 	senders     []domain.Member
@@ -116,6 +119,10 @@ func (f *fake) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (
 
 func (f *fake) Rooms(context.Context) ([]domain.Room, error)        { return f.rooms, nil }
 func (f *fake) Directory(context.Context) (domain.Directory, error) { return f.dir, f.dirErr }
+
+func (f *fake) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error) {
+	return f.people, f.peopleErr
+}
 
 func (f *fake) Selves(context.Context) ([]string, error) {
 	if f.selves == nil {

@@ -12,7 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Hidden people are the senders the muted tags' people lists name, matched across
+// Hidden people are the senders the muted tags' people lists name, or verdicts put in a
+// muted tag (person_verdicts), matched across
 // every ID the directory and the identity groups link to them (domain.HiddenPeople).
 // Search leaves them out, and direct replies to them. SQL cannot ask the matcher, so
 // the cache keeps the list of senders it holds that are hidden: rebuilt when the marks
@@ -24,6 +25,8 @@ type hiddenState struct {
 
 	mu     sync.Mutex
 	marked []string
+	// muted is the tags whose verdicts hide people.
+	muted  []string
 	groups [][]string
 	people domain.HiddenPeople
 	// seen is every sender written or found, true for the hidden; ids are those.
@@ -42,11 +45,12 @@ func (c *Cache) OnHiddenChange(fn func(context.Context, []domain.RoomID)) {
 	c.hidden.changed = fn
 }
 
-// UseHidden sets the people the muted tags hide and the identity groups that link
-// IDs, and rebuilds the list of hidden senders. Nobody is hidden until it is called.
-func (c *Cache) UseHidden(ctx context.Context, marked []string, groups [][]string) error {
+// UseHidden sets the people the muted tags list, the muted tags (whose verdicts hide
+// people too) and the identity groups that link IDs, and rebuilds the list of hidden
+// senders. Nobody is hidden until it is called.
+func (c *Cache) UseHidden(ctx context.Context, marked, muted []string, groups [][]string) error {
 	c.hidden.mu.Lock()
-	c.hidden.marked, c.hidden.groups = slices.Clone(marked), slices.Clone(groups)
+	c.hidden.marked, c.hidden.muted, c.hidden.groups = slices.Clone(marked), slices.Clone(muted), slices.Clone(groups)
 	c.hidden.mu.Unlock()
 	return c.rebuildHidden(ctx)
 }
@@ -57,8 +61,15 @@ func (c *Cache) rebuildHidden(ctx context.Context) error {
 	c.hidden.rebuilding.Lock()
 	defer c.hidden.rebuilding.Unlock()
 	c.hidden.mu.Lock()
-	marked, groups := c.hidden.marked, c.hidden.groups
+	marked, muted, groups := c.hidden.marked, c.hidden.muted, c.hidden.groups
 	c.hidden.mu.Unlock()
+	if len(muted) > 0 {
+		verdicts, err := c.PersonVerdicts(ctx)
+		if err != nil {
+			return err
+		}
+		marked = slices.Concat(marked, domain.HiddenByVerdict(verdicts, muted))
+	}
 	var people domain.HiddenPeople
 	var senders []string
 	if len(marked) > 0 {

@@ -144,6 +144,10 @@ func (f *fake) MarkTag(_ context.Context, verdict domain.TagVerdict) error {
 	return f.touch(verdict.Room)
 }
 
+func (f *fake) MarkPerson(_ context.Context, verdict domain.PersonVerdict) error {
+	return f.touch(domain.RoomID(verdict.Person))
+}
+
 func (f *fake) RetagVerdicts(context.Context, string, string) error { return nil }
 
 func (f *fake) CanonicalParent(_ context.Context, room domain.RoomID) (domain.SpaceID, error) {

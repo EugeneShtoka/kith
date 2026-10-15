@@ -108,6 +108,41 @@ func TestAReloadThatHidesSomeoneRecountsTheirRooms(t *testing.T) {
 	}
 }
 
+// A filter's mark through the daemon hides the person once their tag is muted, on a
+// network that keeps its marks in the cache; a release shows them again.
+func TestAMarkThroughTheDaemonHidesThePerson(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	muted := false
+	cfg := config.Config{
+		WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}},
+		Tags:     []config.Tag{{Name: "Spam", Notifies: &muted}},
+	}
+	backend := servedFor(t, cfg, domain.Session{})
+	if err := backend.useHidden(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	const spammer = "whatsapp:15550000003@s.whatsapp.net"
+	msg := domain.Message{ID: "whatsapp:15550000001/A2", RoomID: "whatsapp:15550000001/120363@g.us", Sender: spammer, Body: "buy"}
+	for _, step := range []struct {
+		verdict domain.PersonVerdict
+		hidden  bool
+	}{
+		{domain.PersonVerdict{Person: spammer, Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto"}, true},
+		{domain.PersonVerdict{Person: spammer, Tag: "Spam", Released: true}, false},
+	} {
+		if err := backend.MarkPerson(ctx, step.verdict); err != nil {
+			t.Fatalf("MarkPerson(%+v) = %v", step.verdict, err)
+		}
+		if hidden, err := backend.cache.Hides(ctx, msg); err != nil || hidden != step.hidden {
+			t.Errorf("after %+v hidden = %v (%v), want %v", step.verdict, hidden, err, step.hidden)
+		}
+	}
+	if err := backend.MarkPerson(ctx, domain.PersonVerdict{Person: spammer, Tag: "Spam", Rule: domain.MoveAlways}); !errors.Is(err, domain.ErrPersonReleased) {
+		t.Errorf("a mark after the release = %v, want ErrPersonReleased", err)
+	}
+}
+
 // Every network is built whatever the config holds, so a first account needs no
 // restart; an empty config waits for nothing.
 func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {

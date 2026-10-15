@@ -16,6 +16,10 @@ type railState struct {
 	// tags each room is in by a filter (domain.Places.Caught).
 	verdicts map[domain.RoomID][]domain.TagVerdict
 	caught   map[domain.RoomID][]string
+	// people is what the filters put people into, and releases; peopleRev moves with it,
+	// for the derived cache (a muted tag's people are hidden).
+	people    []domain.PersonVerdict
+	peopleRev uint64
 	// tags: the [[tag]]s. roomFacts is every room's facts, precomputed since every draw asks a tag
 	// about every room; spanning is the tags (tag:<name>, lower-cased) holding every room.
 	tags      domain.TagSet

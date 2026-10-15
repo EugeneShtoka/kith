@@ -1,15 +1,18 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -32,6 +35,7 @@ type markedCase struct {
 	names      []domain.PersonName
 	links      []domain.PersonLink
 	tags       []config.Tag
+	verdicts   []domain.PersonVerdict
 	msgs       []domain.Message
 	shownHere  bool
 	keys       config.TagKeys
@@ -46,7 +50,7 @@ func (c markedCase) String() string {
 	for i := range c.msgs {
 		fmt.Fprintf(&b, "msg %s from %s reply-to %q\n", c.msgs[i].ID, c.msgs[i].Sender, c.msgs[i].ReplyTo)
 	}
-	fmt.Fprintf(&b, "shown here %v", c.shownHere)
+	fmt.Fprintf(&b, "verdicts %v\nshown here %v", c.verdicts, c.shownHere)
 	return b.String()
 }
 
@@ -93,6 +97,9 @@ func genMarkedCase(rng *rand.Rand) markedCase {
 		}
 		c.tags = append(c.tags, tag)
 	}
+	for range rng.IntN(3) {
+		c.verdicts = append(c.verdicts, genVerdict(rng, c.tags))
+	}
 	start := time.Unix(1700000000, 0)
 	for i := range 4 + rng.IntN(8) {
 		msg := domain.Message{
@@ -109,6 +116,17 @@ func genMarkedCase(rng *rand.Rand) markedCase {
 	}
 	c.shownHere = rng.IntN(4) == 0
 	return c
+}
+
+// genVerdict is a filter's mark of someone into one of tags, or a release.
+func genVerdict(rng *rand.Rand, tags []config.Tag) domain.PersonVerdict {
+	v := domain.PersonVerdict{Person: markedPool[rng.IntN(len(markedPool))], Tag: strings.ToLower(tags[rng.IntN(len(tags))].Name)}
+	if rng.IntN(3) == 0 {
+		v.Released = true
+	} else {
+		v.Rule, v.Filter = domain.MoveAlways, "crypto"
+	}
+	return v
 }
 
 // markedOracle answers who is hidden from the generated links alone: a union-find
@@ -169,6 +187,11 @@ func newMarkedOracle(c markedCase) markedOracle {
 			for _, id := range c.tags[i].People {
 				o.marked[o.find(id)] = true
 			}
+			for _, v := range c.verdicts {
+				if v.In() && strings.EqualFold(v.Tag, c.tags[i].Name) {
+					o.marked[o.find(v.Person)] = true
+				}
+			}
 		}
 	}
 	return o
@@ -203,6 +226,7 @@ func markedModel(t *testing.T, c markedCase) Model {
 	m.dir = directoryState{dir: domain.NewDirectory(c.names, c.links), rev: 1}
 	next, _ := m.selectRoom(m.rooms.all[0])
 	m = next.setMessages(c.msgs)
+	m = update(t, m, personVerdictsLoadedMsg{verdicts: c.verdicts})
 	if c.shownHere {
 		m.markedShownIn = m.openRoom
 	}
@@ -236,6 +260,10 @@ func TestMarkedPeopleAreHiddenExactly(t *testing.T) {
 		c.links = append(c.links, link)
 		m = update(t, m, directoryMsg{dir: domain.NewDirectory(c.names, c.links)})
 		check("after a link was learned", c)
+
+		c.verdicts = append(slices.Clone(c.verdicts), genVerdict(rng, c.tags))
+		m = update(t, m, personVerdictsLoadedMsg{verdicts: c.verdicts})
+		check("after a verdict arrived", c)
 
 		next, _ := m.selectRoom(m.rooms.all[1])
 		next, _ = next.selectRoom(next.rooms.all[0])
@@ -290,6 +318,69 @@ func TestATagKeyFilesTheSenderAndTakesThemOut(t *testing.T) {
 	}
 	if got := m.conf.base.Tags[0].People; !slices.Equal(got, []string{"@cat:example.org"}) {
 		t.Errorf("another tag's people changed: %v", got)
+	}
+}
+
+// personMarker records the person marks and releases it is asked to write.
+type personMarker struct {
+	apitest.Nop
+
+	mu       sync.Mutex
+	released []domain.PersonVerdict
+}
+
+func (b *personMarker) MarkPerson(_ context.Context, v domain.PersonVerdict) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.released = append(b.released, v)
+	return nil
+}
+
+// A tag key on someone a filter marked releases every mark that is them, at once here,
+// so no filter puts them back; the config is left alone when it never listed them.
+func TestATagKeyReleasesAFiltersMark(t *testing.T) {
+	t.Parallel()
+
+	off := false
+	c := markedCase{
+		identities: []config.Identity{{Alias: "Bob", IDs: []string{"@bob:example.org", "telegram:1001"}}},
+		tags:       []config.Tag{{Name: "Spam", Notifies: &off}, {Name: "Work"}},
+		verdicts: []domain.PersonVerdict{
+			{Person: "telegram:1001", Tag: "spam", Rule: domain.MoveAlways, Filter: "crypto"},
+			{Person: "@bob:example.org", Tag: "spam", Rule: domain.MoveAlways, Filter: "links"},
+			{Person: "@bob:example.org", Tag: "work", Rule: domain.MoveAlways, Filter: "quotes"},
+		},
+		msgs: []domain.Message{
+			{ID: "$0", RoomID: "!a:x", Sender: "@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
+			{ID: "$1", RoomID: "!a:x", Sender: "@bob:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
+		},
+	}
+	m := markedModel(t, c)
+	backend := &personMarker{}
+	m.backend = backend
+	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{"$0"}) {
+		t.Fatalf("drew %v, want Bob hidden by a filter's mark", got)
+	}
+	m, _ = m.toggleMarkedShown()
+	m.timeline.selected = "$1"
+	m, cmd := m.toggleSenderIn("Spam")
+	m, _ = m.toggleMarkedShown()
+	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{"$0", "$1"}) {
+		t.Errorf("drew %v, want Bob back at once", got)
+	}
+	if got := m.conf.base.Tags[0].People; len(got) != 0 {
+		t.Errorf("Spam lists %v, want the config untouched", got)
+	}
+	deliver(t, m, cmd)
+	released := map[string]bool{}
+	for _, v := range backend.released {
+		if !v.Released || !strings.EqualFold(v.Tag, "spam") {
+			t.Errorf("wrote %+v, want only releases from Spam", v)
+		}
+		released[v.Person] = true
+	}
+	if !released["telegram:1001"] || !released["@bob:example.org"] || len(backend.released) != 2 {
+		t.Errorf("released %v, want both of Bob's Spam marks", backend.released)
 	}
 }
 

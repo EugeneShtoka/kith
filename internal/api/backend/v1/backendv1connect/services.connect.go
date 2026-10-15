@@ -69,6 +69,12 @@ const (
 	// BackendServiceRetagVerdictsProcedure is the fully-qualified name of the BackendService's
 	// RetagVerdicts RPC.
 	BackendServiceRetagVerdictsProcedure = "/backend.v1.BackendService/RetagVerdicts"
+	// BackendServicePersonVerdictsProcedure is the fully-qualified name of the BackendService's
+	// PersonVerdicts RPC.
+	BackendServicePersonVerdictsProcedure = "/backend.v1.BackendService/PersonVerdicts"
+	// BackendServiceMarkPersonProcedure is the fully-qualified name of the BackendService's MarkPerson
+	// RPC.
+	BackendServiceMarkPersonProcedure = "/backend.v1.BackendService/MarkPerson"
 	// BackendServiceSpacesProcedure is the fully-qualified name of the BackendService's Spaces RPC.
 	BackendServiceSpacesProcedure = "/backend.v1.BackendService/Spaces"
 	// BackendServiceRefreshSpacesProcedure is the fully-qualified name of the BackendService's
@@ -380,6 +386,12 @@ type BackendServiceClient interface {
 	MarkTag(context.Context, *connect.Request[v1.MarkTagRequest]) (*connect.Response[v1.MarkTagResponse], error)
 	// RetagVerdicts moves one tag's verdicts to its new name, or drops them.
 	RetagVerdicts(context.Context, *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error)
+	// PersonVerdicts lists every person a filter put into a tag, and every release, with
+	// the rule and the filter.
+	PersonVerdicts(context.Context, *connect.Request[v1.PersonVerdictsRequest]) (*connect.Response[v1.PersonVerdictsResponse], error)
+	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
+	// never overwrites a release.
+	MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -722,6 +734,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceRetagVerdictsProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("RetagVerdicts")),
+			connect.WithClientOptions(opts...),
+		),
+		personVerdicts: connect.NewClient[v1.PersonVerdictsRequest, v1.PersonVerdictsResponse](
+			httpClient,
+			baseURL+BackendServicePersonVerdictsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PersonVerdicts")),
+			connect.WithClientOptions(opts...),
+		),
+		markPerson: connect.NewClient[v1.MarkPersonRequest, v1.MarkPersonResponse](
+			httpClient,
+			baseURL+BackendServiceMarkPersonProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("MarkPerson")),
 			connect.WithClientOptions(opts...),
 		),
 		spaces: connect.NewClient[v1.SpacesRequest, v1.SpacesResponse](
@@ -1330,6 +1354,8 @@ type backendServiceClient struct {
 	tagVerdicts           *connect.Client[v1.TagVerdictsRequest, v1.TagVerdictsResponse]
 	markTag               *connect.Client[v1.MarkTagRequest, v1.MarkTagResponse]
 	retagVerdicts         *connect.Client[v1.RetagVerdictsRequest, v1.RetagVerdictsResponse]
+	personVerdicts        *connect.Client[v1.PersonVerdictsRequest, v1.PersonVerdictsResponse]
+	markPerson            *connect.Client[v1.MarkPersonRequest, v1.MarkPersonResponse]
 	spaces                *connect.Client[v1.SpacesRequest, v1.SpacesResponse]
 	refreshSpaces         *connect.Client[v1.RefreshSpacesRequest, v1.RefreshSpacesResponse]
 	addToSpace            *connect.Client[v1.AddToSpaceRequest, v1.AddToSpaceResponse]
@@ -1493,6 +1519,16 @@ func (c *backendServiceClient) MarkTag(ctx context.Context, req *connect.Request
 // RetagVerdicts calls backend.v1.BackendService.RetagVerdicts.
 func (c *backendServiceClient) RetagVerdicts(ctx context.Context, req *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error) {
 	return c.retagVerdicts.CallUnary(ctx, req)
+}
+
+// PersonVerdicts calls backend.v1.BackendService.PersonVerdicts.
+func (c *backendServiceClient) PersonVerdicts(ctx context.Context, req *connect.Request[v1.PersonVerdictsRequest]) (*connect.Response[v1.PersonVerdictsResponse], error) {
+	return c.personVerdicts.CallUnary(ctx, req)
+}
+
+// MarkPerson calls backend.v1.BackendService.MarkPerson.
+func (c *backendServiceClient) MarkPerson(ctx context.Context, req *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error) {
+	return c.markPerson.CallUnary(ctx, req)
 }
 
 // Spaces calls backend.v1.BackendService.Spaces.
@@ -2022,6 +2058,12 @@ type BackendServiceHandler interface {
 	MarkTag(context.Context, *connect.Request[v1.MarkTagRequest]) (*connect.Response[v1.MarkTagResponse], error)
 	// RetagVerdicts moves one tag's verdicts to its new name, or drops them.
 	RetagVerdicts(context.Context, *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error)
+	// PersonVerdicts lists every person a filter put into a tag, and every release, with
+	// the rule and the filter.
+	PersonVerdicts(context.Context, *connect.Request[v1.PersonVerdictsRequest]) (*connect.Response[v1.PersonVerdictsResponse], error)
+	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
+	// never overwrites a release.
+	MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -2360,6 +2402,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceRetagVerdictsProcedure,
 		svc.RetagVerdicts,
 		connect.WithSchema(backendServiceMethods.ByName("RetagVerdicts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServicePersonVerdictsHandler := connect.NewUnaryHandler(
+		BackendServicePersonVerdictsProcedure,
+		svc.PersonVerdicts,
+		connect.WithSchema(backendServiceMethods.ByName("PersonVerdicts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceMarkPersonHandler := connect.NewUnaryHandler(
+		BackendServiceMarkPersonProcedure,
+		svc.MarkPerson,
+		connect.WithSchema(backendServiceMethods.ByName("MarkPerson")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceSpacesHandler := connect.NewUnaryHandler(
@@ -2978,6 +3032,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceMarkTagHandler.ServeHTTP(w, r)
 		case BackendServiceRetagVerdictsProcedure:
 			backendServiceRetagVerdictsHandler.ServeHTTP(w, r)
+		case BackendServicePersonVerdictsProcedure:
+			backendServicePersonVerdictsHandler.ServeHTTP(w, r)
+		case BackendServiceMarkPersonProcedure:
+			backendServiceMarkPersonHandler.ServeHTTP(w, r)
 		case BackendServiceSpacesProcedure:
 			backendServiceSpacesHandler.ServeHTTP(w, r)
 		case BackendServiceRefreshSpacesProcedure:
@@ -3233,6 +3291,14 @@ func (UnimplementedBackendServiceHandler) MarkTag(context.Context, *connect.Requ
 
 func (UnimplementedBackendServiceHandler) RetagVerdicts(context.Context, *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RetagVerdicts is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PersonVerdicts(context.Context, *connect.Request[v1.PersonVerdictsRequest]) (*connect.Response[v1.PersonVerdictsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PersonVerdicts is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MarkPerson is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error) {
