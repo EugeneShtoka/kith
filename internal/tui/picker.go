@@ -145,7 +145,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerRescan:          {modal: true, multi: true}, // titled with the count
 	pickerFilterTag:       {title: "Move rooms into which tag?"},
 	pickerFilterPlaces:    {title: "Watch where? None ticked is everywhere", modal: true, multi: true},
-	pickerFilterMoves:     {title: "Move a room into Spam when it catches", modal: true, multi: true},
+	pickerFilterMoves:     {title: "Move a room, or mark its sender, into Spam when it catches", modal: true, multi: true},
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text

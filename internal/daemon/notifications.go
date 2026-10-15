@@ -70,7 +70,7 @@ type Notifications struct {
 func (n *Notifications) UseSelves(selves func() []string) {
 	n.selves = selves
 	if n.filters != nil {
-		n.filters.mine = n.isMine
+		n.filters.mine, n.filters.selves = n.isMine, selves
 	}
 }
 
@@ -114,6 +114,9 @@ func (n *Notifications) memberName(ctx context.Context, room domain.RoomID, user
 // UseDirectory sets where people are named from (domain.Directory). Call before Run.
 func (n *Notifications) UseDirectory(people func(context.Context) (domain.Directory, error)) {
 	n.people = people
+	if n.filters != nil {
+		n.filters.directory = people
+	}
 }
 
 // lazyDirectory reads the directory the first time a notification needs it.
@@ -224,6 +227,10 @@ func NewNotifications(cfg config.Config, src scopeSource, sinks Sinks) (*Notific
 	if store, ok := src.(filterStore); ok {
 		n.filters = newFilterWatch(store)
 		n.scope.caught = n.filters.caught
+		n.filters.facts = n.scope.Facts
+		if people, ok := src.(personStore); ok {
+			n.filters.people = people
+		}
 	}
 	if err := n.Reload(cfg); err != nil {
 		return nil, err
@@ -267,7 +274,8 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.scope.SetTags(tags)
 	// A moved room stays moved through a reload.
 	if n.filters != nil {
-		n.filters.reload(filters, tags)
+		_, _, groups, _ := setup.HiddenInputs(cfg)
+		n.filters.reload(filters, tags, groups)
 	}
 	archives, _ := setup.Archives(cfg, tags)
 	n.scope.SetArchives(archives)
@@ -373,8 +381,9 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 		return notify.Notification{}, false
 	}
 	// The filters run first, so the scope sees the tags they moved the room into.
-	if n.filters != nil && !mine {
-		n.filters.watch(ctx, msg, n.scope.Facts(ctx, msg.RoomID))
+	// A sender they just marked is hidden from this message on.
+	if n.filters != nil && !mine && n.filters.watch(ctx, msg, n.scope.Facts(ctx, msg.RoomID)) && n.hidden(ctx, msg) {
+		return notify.Notification{}, false
 	}
 	// A room a tag with notifies = false holds never notifies. Asked after code capture.
 	if n.scope.Mutes(n.scope.Facts(ctx, msg.RoomID)) {

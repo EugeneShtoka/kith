@@ -12,13 +12,17 @@ type Filter struct {
 	Lang    []string `toml:"lang"`
 	NotLang []string `toml:"not_lang"`
 	Script  []string `toml:"script"`
-	// Moves is the rules its catch moves a room by; empty is FilterMovesDefault.
+	// Moves is the rules its catch moves a room, or marks its sender, by; empty is
+	// FilterMovesDefault.
 	Moves []string `toml:"moves"`
-	// Ratio, Floor and Window are the ratio move's share, least message count and
+	// Ratio, Floor and Window are the ratio moves' share, least message count and
 	// period; zero or empty is the default.
 	Ratio  float64 `toml:"ratio"`
 	Floor  int     `toml:"floor"`
 	Window string  `toml:"window"`
+	// Spread is how many rooms one caught message must reach for sender_spread; zero
+	// is the default.
+	Spread int `toml:"spread"`
 }
 
 // The rules a filter's catch can move a room by.
@@ -27,6 +31,10 @@ const (
 	FilterMoveFirstMessage = "first_message"
 	FilterMoveDirect       = "direct"
 	FilterMoveRatio        = "ratio"
+	// The sender moves mark the person who sent a caught message, in every room.
+	FilterMoveSenderFirst  = "sender_first"
+	FilterMoveSenderRatio  = "sender_ratio"
+	FilterMoveSenderSpread = "sender_spread"
 )
 
 // FilterMovesDefault is a filter's moves when it lists none.

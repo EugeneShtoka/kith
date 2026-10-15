@@ -62,6 +62,10 @@ link learned after you marked them. A person in a tag that notifies is listed bu
 hidden. Your own messages are never hidden. Nothing is deleted: take the mark off
 and everything comes back.
 
+A filter can mark a person too, with the [sender moves](#marking-the-sender). The key
+takes a filter's mark off as it takes yours: it writes a release, so no filter on any
+of your machines marks them again, by any of their IDs.
+
 Beyond the timeline, a hidden person and the direct replies to them:
 
 - never notify, and never move a room by a [filter](#filters);
@@ -109,8 +113,9 @@ moves = ["always"]      # one caught message is enough
 | `lang` | Only messages in one of these languages: codes (`"en"`, `"zh"`), a `family:` or a `region:`. See [Languages](#languages) |
 | `not_lang` | Only messages that cannot be in any of these languages, in the same vocabulary as `lang` |
 | `script` | Only messages written mostly in one of these writing systems: `Latin`, `Cyrillic`, `Hebrew`, `Arabic`, `Greek`, `Han`, `Kana`, `Hangul`, `Thai`, `Devanagari` and others |
-| `moves` | Which of the rules below its catch moves a room by: `always`, `first_message`, `direct`, `ratio`. Default `["first_message", "direct"]` |
-| `ratio`, `floor`, `window` | The `ratio` move's numbers: the share caught (default 0.6), the least message count (5) and the period (`"168h"`) |
+| `moves` | Which of the rules below its catch moves a room by: `always`, `first_message`, `direct`, `ratio`; or marks its sender by: `sender_first`, `sender_ratio`, `sender_spread`. Default `["first_message", "direct"]` |
+| `ratio`, `floor`, `window` | The `ratio` and `sender_ratio` moves' numbers: the share caught (default 0.6), the least message count (5) and the period (`"168h"`) |
+| `spread` | How many rooms one caught message must reach for `sender_spread` (default 3, at least 2) |
 
 A filter needs `words`, `from` or a language (`lang`, `not_lang`, `script`), and a tag
 that exists; one without is refused at startup, as is a language or writing system it
@@ -197,6 +202,43 @@ moved either, because the strongest moves rely on knowing that a room is new.
 never changes back on its own, and a release is permanent on every machine: before a
 move is written, the daemon checks the homeserver, and a room released elsewhere a
 moment ago is left alone.
+
+### Marking the sender
+
+The room moves judge a room. In a group of four hundred, one spammer's messages are
+a small share of it, so `direct` refuses and `ratio` rarely fires. The sender moves
+judge the **person** who sent a caught message, over everything they wrote in every
+room you can see, and put them in the filter's tag: in a muted one, such as Spam,
+they are [hidden in every room](#hiding-a-person).
+
+| Move | Marks the sender when |
+| --- | --- |
+| `sender_first` | The caught message is the first thing of theirs kith has seen anywhere |
+| `sender_ratio` | Within `window`, they wrote at least `floor` messages, every room together, and at least `ratio` of them were caught by the filter |
+| `sender_spread` | Within `window`, they sent the same caught message (the same words) in at least `spread` rooms. This is how a spam run looks in groups |
+
+```toml
+[[filter]]
+name  = "spam runs"
+tag   = "Spam"
+words = ["*bitcoin*", "*airdrop*"]
+moves = ["sender_spread", "direct"]   # mark the runner; a DM still moves
+```
+
+A filter may mix both kinds: each fires on its own. The same rails hold, and two
+more:
+
+- **Never anyone you have written to**: the other person in a direct chat you wrote
+  in, and anyone whose message you replied to, under any ID kith links to them.
+- **A release outranks every filter**: someone you took out of the tag is never
+  marked again, by this ID or any ID linked to it.
+- If kith cannot read their messages, whom you wrote to, or the people directory, it
+  marks nobody.
+
+In a muted tag, the message that marks them does not notify, and nothing of theirs
+does after. A
+Matrix ID's mark is kept in your account data, so it reaches your other machines;
+another network's is kept by kith on this machine, as that network's room moves are.
 
 ### Preview before you trust a filter
 

@@ -41,6 +41,8 @@ func TestFiltersRefuseWhatCannotWork(t *testing.T) {
 		"a share above one":   {spamTagged(with(func(f *config.Filter) { f.Ratio = 1.5 })), "ratio"},
 		"a negative floor":    {spamTagged(with(func(f *config.Filter) { f.Floor = -1 })), "floor"},
 		"a window that isnt":  {spamTagged(with(func(f *config.Filter) { f.Window = "one week" })), "window"},
+		"a spread of one":     {spamTagged(with(func(f *config.Filter) { f.Spread = 1 })), "spread"},
+		"a negative spread":   {spamTagged(with(func(f *config.Filter) { f.Spread = -2 })), "spread"},
 		"defined twice":       {spamTagged(crypto, with(func(f *config.Filter) { f.Name = "CRYPTO" })), "defined twice"},
 	} {
 		if _, err := setup.Filters(tc.cfg); err == nil || !strings.Contains(err.Error(), tc.want) {
@@ -75,6 +77,25 @@ func TestFilterDefaults(t *testing.T) {
 	}
 	if len(filters.Catching("hello", "@spam:x", domain.RoomFacts{})) != 1 {
 		t.Error("a sender-only filter caught nothing from that sender")
+	}
+}
+
+// The sender moves read beside the room moves; spread is three rooms unless set.
+func TestSenderMovesRead(t *testing.T) {
+	t.Parallel()
+	filters, err := setup.Filters(spamTagged(
+		config.Filter{Name: "runs", Tag: "Spam", Words: []string{"*bitcoin*"}, Moves: []string{"Sender_First", "sender_ratio", "sender_spread", "direct"}},
+		config.Filter{Name: "wide", Tag: "Spam", Words: []string{"*bitcoin*"}, Moves: []string{"sender_spread"}, Spread: 5},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := domain.FilterMoves{Direct: true, SenderFirst: true, SenderRatio: true, SenderSpread: true}
+	if filters[0].Moves != want || filters[0].Spread != setup.DefaultFilterSpread || filters[1].Spread != 5 {
+		t.Errorf("read %+v spread %d and %d, want %+v spread %d and 5", filters[0].Moves, filters[0].Spread, filters[1].Spread, want, setup.DefaultFilterSpread)
+	}
+	if filters[1].Moves.MovesRooms() || !filters[1].Moves.MarksSenders() {
+		t.Errorf("a sender-only filter moves rooms or marks no one: %+v", filters[1].Moves)
 	}
 }
 

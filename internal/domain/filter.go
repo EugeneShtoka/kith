@@ -26,6 +26,13 @@ const (
 	MoveDirect
 	// MoveMostly: most messages over the filter's window were caught.
 	MoveMostly
+	// MoveSenderFirst: a person's first message anywhere was caught (a mark on them).
+	MoveSenderFirst
+	// MoveSenderMostly: most of a person's messages over the window, in every room,
+	// were caught.
+	MoveSenderMostly
+	// MoveSenderSpread: a person sent the same caught message in several rooms.
+	MoveSenderSpread
 )
 
 // Reason is the rule in words, for `/why`.
@@ -43,6 +50,12 @@ func (r MoveRule) Reason(filter string) string {
 		return "it is a direct message and its message was caught by a filter" + named
 	case MoveMostly:
 		return "most of what is said in it is caught by a filter" + named
+	case MoveSenderFirst:
+		return "their first message was caught by a filter" + named
+	case MoveSenderMostly:
+		return "most of what they write is caught by a filter" + named
+	case MoveSenderSpread:
+		return "they sent the same caught message in several rooms" + named
 	case MoveNone:
 		return ""
 	}
@@ -85,10 +98,12 @@ type Filter struct {
 	Lang, NotLang, Scripts []string
 	Moves                  FilterMoves
 	// Ratio, Floor and Window: the caught share, the minimum message count, and the
-	// period they are counted over, for the ratio move.
+	// period they are counted over, for the ratio moves.
 	Ratio  float64
 	Floor  int
 	Window time.Duration
+	// Spread is how many rooms one caught message must reach, for sender_spread.
+	Spread int
 }
 
 // FilterMoves is which rules a filter's catch can move a room by.
@@ -97,7 +112,17 @@ type FilterMoves struct {
 	FirstMessage bool // the room's first message
 	Direct       bool // a direct message you never wrote in
 	Ratio        bool // most of the window
+	// The sender moves mark the person who sent the message, not its room.
+	SenderFirst  bool // their first message anywhere
+	SenderRatio  bool // most of what they wrote in the window, every room together
+	SenderSpread bool // the same message in Spread rooms within the window
 }
+
+// MovesRooms reports whether a catch can move its room.
+func (m FilterMoves) MovesRooms() bool { return m.Always || m.FirstMessage || m.Direct || m.Ratio }
+
+// MarksSenders reports whether a catch can mark its sender.
+func (m FilterMoves) MarksSenders() bool { return m.SenderFirst || m.SenderRatio || m.SenderSpread }
 
 // Catches reports whether this filter catches one message in room.
 func (f Filter) Catches(body, sender string, room RoomFacts) bool {
@@ -158,6 +183,29 @@ func (f Filter) Moving(c MoveCase) (MoveRule, bool) {
 		return MoveDirect, true
 	case f.Moves.Ratio && c.Total >= f.Floor && c.share() >= f.Ratio:
 		return MoveMostly, true
+	}
+	return MoveNone, false
+}
+
+// SenderCase is what a filter's sender moves know about the person a caught message
+// came from, over every room.
+type SenderCase struct {
+	First bool // nothing of theirs before it
+	// Caught and Total count their messages in the filter's window.
+	Caught, Total int
+	// Rooms is how many rooms the same caught message reached within the window.
+	Rooms int
+}
+
+// Marking reports whether a caught message marks its sender, and by which rule.
+func (f Filter) Marking(c SenderCase) (MoveRule, bool) {
+	switch {
+	case f.Moves.SenderFirst && c.First:
+		return MoveSenderFirst, true
+	case f.Moves.SenderSpread && c.Rooms >= f.Spread:
+		return MoveSenderSpread, true
+	case f.Moves.SenderRatio && c.Total >= f.Floor && MoveCase{Caught: c.Caught, Total: c.Total}.share() >= f.Ratio:
+		return MoveSenderMostly, true
 	}
 	return MoveNone, false
 }
