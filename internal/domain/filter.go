@@ -33,6 +33,9 @@ const (
 	MoveSenderMostly
 	// MoveSenderSpread: a person sent the same caught message in several rooms.
 	MoveSenderSpread
+	// MoveWithPerson: a direct message you never wrote in, with someone a muted tag
+	// holds (listed, or marked by the filter named).
+	MoveWithPerson
 )
 
 // Reason is the rule in words, for `/why`.
@@ -56,6 +59,11 @@ func (r MoveRule) Reason(filter string) string {
 		return "most of what they write is caught by a filter" + named
 	case MoveSenderSpread:
 		return "they sent the same caught message in several rooms" + named
+	case MoveWithPerson:
+		if filter == "" {
+			return "it is a direct message with someone you put in that tag"
+		}
+		return "it is a direct message with someone a filter put in that tag" + named
 	case MoveNone:
 		return ""
 	}

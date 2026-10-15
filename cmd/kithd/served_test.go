@@ -92,6 +92,10 @@ func TestAReloadThatHidesSomeoneRecountsTheirRooms(t *testing.T) {
 	if err := backend.cache.SaveUnread(ctx, domain.Unread{RoomID: room}, start.UnixMilli()); err != nil {
 		t.Fatal(err)
 	}
+	// The hook is registered with the workers, as kithd starts them.
+	if _, err := newWorkers(slog.New(slog.DiscardHandler), cfg, backend); err != nil {
+		t.Fatal(err)
+	}
 	stream := backend.Unread()
 	muted := false
 	cfg.Tags = []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{"whatsapp:15550000003@s.whatsapp.net"}}}
@@ -176,6 +180,41 @@ func TestAFilterMarksASenderThroughTheDaemon(t *testing.T) {
 	}
 	if hidden, err := backend.cache.Hides(ctx, msg); err != nil || !hidden {
 		t.Errorf("the marked sender is not hidden (%v)", err)
+	}
+}
+
+// Hiding someone moves their direct message you never wrote in into the muted tag,
+// through the daemon's own hook.
+func TestHidingSomeoneMovesTheirDirectMessage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}}}
+	backend := servedFor(t, cfg, domain.Session{})
+	w, werr := newWorkers(slog.New(slog.DiscardHandler), cfg, backend)
+	if werr != nil {
+		t.Fatal(werr)
+	}
+	const spammer = "whatsapp:15550000003@s.whatsapp.net"
+	const room domain.RoomID = "whatsapp:15550000001/15550000003@s.whatsapp.net"
+	if err := backend.cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, "15550000001"), []domain.Room{{ID: room, Name: "Stranger", IsDirect: true}}); err != nil {
+		t.Fatal(err)
+	}
+	msg := domain.Message{ID: "whatsapp:15550000001/A1", RoomID: room, Sender: spammer, Body: "hello dear", Timestamp: time.Now()}
+	if err := backend.cache.SaveMessages(ctx, room, []domain.Message{msg}); err != nil {
+		t.Fatal(err)
+	}
+	muted := false
+	cfg.Tags = []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{spammer}}}
+	// As the reloader does: the notifications learn the tags, then the cache who is hidden.
+	if err := w.notifications.Reload(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := backend.useHidden(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	verdicts, err := backend.TagVerdicts(ctx)
+	if err != nil || len(verdicts) != 1 || verdicts[0].Room != room || verdicts[0].Rule != domain.MoveWithPerson {
+		t.Errorf("verdicts = %+v (%v), want the direct message moved with its person", verdicts, err)
 	}
 }
 

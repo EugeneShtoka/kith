@@ -122,15 +122,12 @@ func (w *filterWatch) settled(room domain.RoomID, tag string) bool {
 // tag's excluded list and a release outrank every filter. Our own messages are not
 // watched (Deliver). It reports whether the sender was marked.
 func (w *filterWatch) watch(ctx context.Context, msg domain.Message, facts domain.RoomFacts) bool {
-	w.mu.Lock()
-	filters, tags := w.filters, w.tags
-	fresh := w.seeded && w.now().Sub(w.seededAt) < filterReseed
-	w.mu.Unlock()
 	// Every message refreshes a stale memo: a room moved earlier stays quiet even when
 	// this message catches nothing.
-	if !fresh {
-		w.seed(ctx)
-	}
+	w.seedIfStale(ctx)
+	w.mu.Lock()
+	filters, tags := w.filters, w.tags
+	w.mu.Unlock()
 	caught := filters.Catching(msg.Body, msg.Sender, facts)
 	if len(caught) == 0 {
 		return false
@@ -247,6 +244,16 @@ func (w *filterWatch) record(ctx context.Context, verdict domain.TagVerdict) boo
 	}
 	w.recorded[verdict.Room][key] = true
 	return true
+}
+
+// seedIfStale rereads the memo when it is older than filterReseed or a reload.
+func (w *filterWatch) seedIfStale(ctx context.Context) {
+	w.mu.Lock()
+	fresh := w.seeded && w.now().Sub(w.seededAt) < filterReseed
+	w.mu.Unlock()
+	if !fresh {
+		w.seed(ctx)
+	}
 }
 
 // seed rereads moves and releases from the cache; on failure it stays stale so the

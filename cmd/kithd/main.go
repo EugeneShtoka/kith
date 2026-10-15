@@ -271,9 +271,6 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 			log.Warn("find the hidden people's messages", "err", err)
 		}
 	}
-	// After the first list: nothing is counted yet. Later changes recount the rooms
-	// the newly hidden or shown wrote in.
-	cache.OnHiddenChange(router.RecountUnread)
 	service := local.New(cache, router)
 	service.UseLogger(log)
 	for _, n := range networks {
@@ -513,6 +510,12 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	if backend.cache != nil {
 		notifications.UseMemberNames(backend.cache.RoomMemberName)
 		notifications.UseHidden(backend.cache.Hides)
+		// After the first list: nothing is counted yet. Later changes recount the rooms
+		// the newly hidden or shown wrote in, and move their direct messages.
+		backend.cache.OnHiddenChange(func(ctx context.Context, rooms []domain.RoomID) {
+			backend.RecountUnread(ctx, rooms)
+			notifications.MoveWithHidden(ctx, rooms)
+		})
 		backend.cache.UseKeep(notifications.MessagesKept)
 	}
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
