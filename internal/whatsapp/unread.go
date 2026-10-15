@@ -80,6 +80,17 @@ func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 	emit(a, a.unread, domain.Unread{RoomID: room, Messages: messages, Mentions: mentions, Counted: counted})
 }
 
+// RecountUnread counts rooms' unread again, when the cache counts them differently
+// (who is hidden changed).
+func (a *Adapter) RecountUnread(ctx context.Context, rooms []domain.RoomID) {
+	if a.cache == nil {
+		return
+	}
+	for _, room := range rooms {
+		a.recount(ctx, room)
+	}
+}
+
 // CachedUnread returns every WhatsApp room's unread counts.
 func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	if a.cache == nil {

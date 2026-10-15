@@ -21,6 +21,7 @@ var (
 		route.Session
 		route.Resync
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.Stars
@@ -45,6 +46,7 @@ var (
 	_ interface {
 		route.Adapter
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.Archiver
@@ -70,6 +72,7 @@ var (
 		route.Adapter
 		route.TagMoves
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.History
@@ -91,6 +94,7 @@ var (
 		route.Adapter
 		route.TagMoves
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.Archiver
@@ -119,6 +123,7 @@ var (
 	_ interface {
 		route.Adapter
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.History
@@ -136,6 +141,7 @@ var (
 	_ interface {
 		route.Adapter
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.History
@@ -158,6 +164,7 @@ var (
 	_ interface {
 		route.Adapter
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.History

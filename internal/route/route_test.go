@@ -315,6 +315,28 @@ func TestMarkingRoomsReadAccountsForEveryRoom(t *testing.T) {
 	}
 }
 
+// A recount reaches each room's own network, and skips networks that are off.
+func TestARecountReachesEachRoomsNetwork(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const telegramRoomID domain.RoomID = "telegram:1001/2002"
+	r, m, wa := twoNetworks(t)
+	r.RecountUnread(ctx, []domain.RoomID{matrixRoomID, whatsappRoomID, telegramRoomID})
+	if got := m.seen(); !slices.Equal(got, []domain.RoomID{matrixRoomID}) {
+		t.Errorf("Matrix recounted %v, want its own room", got)
+	}
+	if got := wa.seen(); !slices.Equal(got, []domain.RoomID{whatsappRoomID}) {
+		t.Errorf("WhatsApp recounted %v, want its own room", got)
+	}
+
+	r, m, _ = twoNetworks(t)
+	m.loggedOut.Store(true)
+	r.RecountUnread(ctx, []domain.RoomID{matrixRoomID})
+	if got := m.seen(); len(got) != 0 {
+		t.Errorf("a logged-out Matrix recounted %v", got)
+	}
+}
+
 // Every room gets an encryption answer from its own network only; a room nobody can
 // answer for reads as encrypted.
 func TestEncryptionIsAskedOfEachRoomsNetwork(t *testing.T) {

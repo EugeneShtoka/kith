@@ -702,7 +702,12 @@ func (s *server) unreadSummary(ctx context.Context, raw json.RawMessage) (any, e
 	}
 	var out []waitingView
 	for _, u := range unread {
-		if u.Messages == 0 && u.Highlights == 0 {
+		// Counted mentions leave out the people muted tags hide; the server's cannot.
+		mentions := u.Highlights
+		if u.Counted {
+			mentions = u.Mentions
+		}
+		if u.Messages == 0 && mentions == 0 {
 			continue
 		}
 		room, known := byID[u.RoomID]
@@ -711,7 +716,7 @@ func (s *server) unreadSummary(ctx context.Context, raw json.RawMessage) (any, e
 		}
 		out = append(out, waitingView{
 			Room: string(u.RoomID), Name: room.DisplayName(),
-			Messages: u.Messages, Mentions: u.Highlights,
+			Messages: u.Messages, Mentions: mentions,
 		})
 	}
 	sort.SliceStable(out, func(a, b int) bool {

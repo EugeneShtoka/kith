@@ -99,6 +99,14 @@ func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
 // there is no listing to redo.
 func (a *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) { return a.Rooms(ctx) }
 
+// RecountUnread counts rooms' unread again, when the cache counts them differently
+// (who is hidden changed).
+func (a *Adapter) RecountUnread(ctx context.Context, rooms []domain.RoomID) {
+	for _, room := range rooms {
+		a.recount(ctx, room)
+	}
+}
+
 // CachedUnread is the cached unread state of Messenger rooms, counted locally where
 // the read position is known.
 func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {

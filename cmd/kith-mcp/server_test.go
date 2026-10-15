@@ -860,3 +860,23 @@ func TestAnAssistantReadsPeopleByTheirWholeNames(t *testing.T) {
 		t.Errorf("the assistant read %q saying %q, want Dana Cohen saying \"@Dana Levi can you look?\"", got["sender_name"], got["body"])
 	}
 }
+
+// Counted mentions leave out hidden people, so the summary uses them; a room counted
+// only by its server keeps the server's highlights.
+func TestTheUnreadSummaryUsesCountedMentions(t *testing.T) {
+	t.Parallel()
+
+	f := twoRooms()
+	f.unread = []domain.Unread{
+		{RoomID: "!open:x", Counted: true, Messages: 0, Mentions: 0, Highlights: 2}, // both mentions were hidden people's
+		{RoomID: "!secret:x", Highlights: 1},
+	}
+	out := call(t, newServer(f, shareAllEncrypted), "unread_summary", nil)
+	waiting, _ := out["waiting"].([]any)
+	if len(waiting) != 1 {
+		t.Fatalf("waiting = %v, want only the server-counted room", waiting)
+	}
+	if room, _ := waiting[0].(map[string]any); room["room"] != "!secret:x" || room["mentions"] != float64(1) {
+		t.Errorf("waiting = %v, want !secret:x with its server's one mention", room)
+	}
+}

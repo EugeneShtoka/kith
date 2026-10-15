@@ -205,7 +205,10 @@ func (s *Service) modelFields(ctx context.Context, req domain.ModelRequest, sett
 		}
 		switch req.Task {
 		case domain.ModelSummary:
-			msgs, note = s.summarySpan(ctx, req.RoomID, msgs, req.Span)
+			msgs, note, err = s.summarySpan(ctx, req.RoomID, msgs, req.Span)
+			if err != nil {
+				return nil, "", err
+			}
 		default:
 			// Sentence tasks see the exchange they belong to, within the budget.
 			msgs = domain.CompletionContext(msgs, req.ReplyTo, settings.Pick)
@@ -232,26 +235,38 @@ func (s *Service) promptFields(ctx context.Context, draft, context, language, in
 }
 
 // summarySpan is what a summary reads, with a note naming the span: an explicit span,
-// else what you missed, else (too little missed) the whole cached tail.
+// else what you missed, else (too little missed) the whole cached tail. Hidden people
+// and direct replies to them are left out: before an explicit span counts messages,
+// after the read marker is placed (it can be a hidden message).
 func (s *Service) summarySpan(
 	ctx context.Context, roomID domain.RoomID, msgs []domain.Message, asked domain.SummarySpan,
-) ([]domain.Message, string) {
+) ([]domain.Message, string, error) {
 	// An explicit span wins even when empty.
 	if asked.Given() {
-		chosen := domain.MessagesIn(msgs, asked.Since, asked.Count)
-		return chosen, fmt.Sprintf("%d messages from %s", len(chosen), asked.Said)
+		shown, err := s.cache.WithoutHidden(ctx, msgs)
+		if err != nil {
+			return nil, "", fmt.Errorf("local: leave hidden people out of the summary: %w", err)
+		}
+		chosen := domain.MessagesIn(shown, asked.Since, asked.Count)
+		return chosen, fmt.Sprintf("%d messages from %s", len(chosen), asked.Said), nil
 	}
-	missed := domain.MessagesAfter(msgs, s.readMarker(ctx, roomID))
+	missed, err := s.cache.WithoutHidden(ctx, domain.MessagesAfter(msgs, s.readMarker(ctx, roomID)))
+	if err == nil {
+		msgs, err = s.cache.WithoutHidden(ctx, msgs)
+	}
+	if err != nil {
+		return nil, "", fmt.Errorf("local: leave hidden people out of the summary: %w", err)
+	}
 	if len(missed) >= summaryMinSpan {
-		return missed, fmt.Sprintf("%d messages since you last read this room", len(missed))
+		return missed, fmt.Sprintf("%d messages since you last read this room", len(missed)), nil
 	}
 	if len(msgs) == 0 {
-		return nil, ""
+		return nil, "", nil
 	}
 	if len(missed) == 0 {
-		return msgs, "you are up to date — this is the recent conversation"
+		return msgs, "you are up to date — this is the recent conversation", nil
 	}
-	return msgs, fmt.Sprintf("%d new since you last read, shown with what came before", len(missed))
+	return msgs, fmt.Sprintf("%d new since you last read, shown with what came before", len(missed)), nil
 }
 
 // summaryMinSpan is how many unread messages make "what you missed" enough on its own.
@@ -398,7 +413,11 @@ func (s *Service) todoFields(
 		if merr != nil {
 			return nil, "", fmt.Errorf("local: read a room for the todo list: %w", merr)
 		}
-		missed := domain.MessagesAfter(msgs, unread[i].ReadEvent)
+		// Hidden people are not waiting on you (their rooms count without them too).
+		missed, herr := s.cache.WithoutHidden(ctx, domain.MessagesAfter(msgs, unread[i].ReadEvent))
+		if herr != nil {
+			return nil, "", fmt.Errorf("local: leave hidden people out of the todo list: %w", herr)
+		}
 		if len(missed) == 0 {
 			continue
 		}

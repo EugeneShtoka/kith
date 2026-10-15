@@ -76,17 +76,19 @@ const readKnown = ` (u.read_ts_ms > 0 OR r.event_id IS NOT NULL)`
 // countUnreadQuery counts unread main-timeline messages and mentions per room (or
 // for one room). me is every MXID that is this person. Rooms with an unknown read
 // position are dropped (the caller uses the server count); placeholders count too.
-// Own, redacted and threaded messages are excluded. Only ts_ms is compared: an
+// Own, redacted and threaded messages are excluded, and hidden people's with the
+// direct replies to them (see notHidden). Only ts_ms is compared: an
 // event-ID tiebreak can leave a room permanently unread. The floor is the later of
 // the receipt and your newest message, one index seek per MXID.
-func countUnreadQuery(me []string, room domain.RoomID) (string, []any) {
+func countUnreadQuery(me, hidden []string, room domain.RoomID) (string, []any) {
 	var args []any
 	count := func(mentioned string) string {
-		var notMine, mine string
+		var notMine, mine, visible string
 		notMine, args = inIDs(args, me)
+		visible, args = notHidden(hidden, args)
 		mine, args = inIDs(args, me)
 		return `(SELECT count(*) FROM messages m
-		         WHERE m.room_id = u.room_id AND m.sender NOT` + notMine + ` AND m.redacted = 0
+		         WHERE m.room_id = u.room_id AND m.sender NOT` + notMine + visible + ` AND m.redacted = 0
 		           AND m.thread_root = ''` + mentioned + `
 		           AND m.ts_ms > max(` + readPosition + `, coalesce(
 		               (SELECT max(s.ts_ms) FROM messages s
@@ -108,7 +110,7 @@ func countUnreadQuery(me []string, room domain.RoomID) (string, []any) {
 // CountUnread counts one room's unread main-timeline messages and mentions;
 // counted is false when its read position is unknown.
 func (c *Cache) CountUnread(ctx context.Context, me []string, roomID domain.RoomID) (messages, mentions int, counted bool, err error) {
-	query, args := countUnreadQuery(me, roomID)
+	query, args := countUnreadQuery(me, c.hiddenSenders(), roomID)
 	row := c.db.QueryRowContext(ctx, query, args...)
 	var id string
 	if counted, err = optional(row.Scan(&id, &messages, &mentions)); !counted {
@@ -123,7 +125,7 @@ func (c *Cache) CountUnread(ctx context.Context, me []string, roomID domain.Room
 // CountUnreadAll is CountUnread for every room it can answer, as partial Unread
 // values the caller merges onto the server's.
 func (c *Cache) CountUnreadAll(ctx context.Context, me []string) (map[domain.RoomID]domain.Unread, error) {
-	query, args := countUnreadQuery(me, "")
+	query, args := countUnreadQuery(me, c.hiddenSenders(), "")
 	return collectMap(ctx, c.db, "unread counts", query,
 		func(rows *sql.Rows) (domain.RoomID, domain.Unread, error) {
 			var (

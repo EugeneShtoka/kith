@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -70,6 +71,40 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 	}
 	if got := expected(ctx, slog.New(slog.DiscardHandler), backend); len(got) != 0 {
 		t.Errorf("expected = %v with nothing linked, want nothing to wait for", got)
+	}
+}
+
+// A reload that hides someone recounts the rooms they wrote in, through the network
+// that owns each room, onto the daemon's unread stream.
+func TestAReloadThatHidesSomeoneRecountsTheirRooms(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}}}
+	backend := servedFor(t, cfg, domain.Session{})
+	const room domain.RoomID = "whatsapp:15550000001/120363@g.us"
+	start := time.Unix(1_700_000_000, 0)
+	if err := backend.cache.SaveMessages(ctx, room, []domain.Message{
+		{ID: "whatsapp:15550000001/A1", RoomID: room, Sender: "whatsapp:15550000002@s.whatsapp.net", Body: "hi", Timestamp: start.Add(time.Minute)},
+		{ID: "whatsapp:15550000001/A2", RoomID: room, Sender: "whatsapp:15550000003@s.whatsapp.net", Body: "buy", Timestamp: start.Add(2 * time.Minute)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := backend.cache.SaveUnread(ctx, domain.Unread{RoomID: room}, start.UnixMilli()); err != nil {
+		t.Fatal(err)
+	}
+	stream := backend.Unread()
+	muted := false
+	cfg.Tags = []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{"whatsapp:15550000003@s.whatsapp.net"}}}
+	if err := backend.useHidden(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case u := <-stream:
+		if u.RoomID != room || !u.Counted || u.Messages != 1 {
+			t.Errorf("streamed %+v, want the room counted at 1 without the hidden person", u)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("hiding someone streamed no recount")
 	}
 }
 

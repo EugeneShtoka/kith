@@ -406,22 +406,23 @@ func TestTheBadgeSearchAndThreadQueriesUseTheirIndices(t *testing.T) {
 	}
 	q := func(query string, _ []any) string { return query }
 	me := []string{"@me:x", "@slack_me:x", "@whatsapp_me:x"} // an account and its bridge puppets
+	hidden := []string{"@spam:x"}
 	const ownFloor = "SEARCH s USING COVERING INDEX messages_by_room_sender (room_id=? AND sender=? AND thread_root=?)"
 	for _, tc := range []struct {
 		name  string
 		query string
 		uses  []string
 	}{
-		{"every room's badge", q(countUnreadQuery(me, "")), []string{
+		{"every room's badge", q(countUnreadQuery(me, hidden, "")), []string{
 			ownFloor, "SEARCH m USING INDEX messages_in_thread (room_id=? AND thread_root=? AND ts_ms>?)",
 		}},
-		{"one room's badge", q(countUnreadQuery(me, "!r1:x")), []string{
+		{"one room's badge", q(countUnreadQuery(me, hidden, "!r1:x")), []string{
 			ownFloor, "SEARCH m USING INDEX messages_in_thread (room_id=? AND thread_root=? AND ts_ms>?)",
 		}},
-		{"one room's threads", q(countThreadsQuery(me, "!r1:x")), []string{
+		{"one room's threads", q(countThreadsQuery(me, hidden, "!r1:x")), []string{
 			"SEARCH m USING INDEX messages_threaded (room_id=?)", ownFloor,
 		}},
-		{"every thread", q(countThreadsQuery(me, "")), []string{"SCAN m USING INDEX messages_threaded", ownFloor}},
+		{"every thread", q(countThreadsQuery(me, hidden, "")), []string{"SCAN m USING INDEX messages_threaded", ownFloor}},
 		{"search in some rooms", search(3), []string{"MATERIALIZE page", "SCAN f VIRTUAL TABLE", "MATERIALIZE excerpt"}},
 		{"search in very many rooms", search(jsonListAt + 1), []string{"json_each", "SCAN f VIRTUAL TABLE", "MATERIALIZE excerpt"}},
 	} {
@@ -432,7 +433,7 @@ func TestTheBadgeSearchAndThreadQueriesUseTheirIndices(t *testing.T) {
 			}
 		}
 		for line := range strings.SplitSeq(plan, "\n") {
-			if f := strings.Fields(line); len(f) >= 2 && f[0] == "SCAN" && (f[1] == "m" || f[1] == "s") && !strings.Contains(line, "USING INDEX") {
+			if f := strings.Fields(line); len(f) >= 2 && f[0] == "SCAN" && (f[1] == "m" || f[1] == "s" || f[1] == "p") && !strings.Contains(line, "USING INDEX") {
 				t.Errorf("%s scans messages: %q\n%s", tc.name, line, plan)
 			}
 		}

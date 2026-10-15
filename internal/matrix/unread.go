@@ -41,6 +41,14 @@ func (b *InProc) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	return u, nil
 }
 
+// RecountUnread counts rooms' unread again, when the cache counts them differently
+// (who is hidden changed); only rooms whose counts moved are streamed.
+func (b *InProc) RecountUnread(ctx context.Context, rooms []domain.RoomID) {
+	for _, room := range rooms {
+		b.recount(ctx, room)
+	}
+}
+
 // countLocal fills in a room's local unread counts, threads included; on error
 // Counted stays false.
 func (b *InProc) countLocal(ctx context.Context, u domain.Unread) domain.Unread {

@@ -68,9 +68,13 @@ Beyond the timeline, a hidden person and the direct replies to them:
 - are left out of search and of `from:` completion;
 - are left out of what the assistant reads (`read_room`, `read_around`,
   `search_messages`). If kith-mcp cannot read the people directory, it refuses those
-  reads rather than risk showing them.
-
-Unread counts still include them.
+  reads rather than risk showing them;
+- are left out of unread and mention counts, threads included, and of the
+  assistant's `unread_summary`. Marking or unmarking someone recounts the rooms they
+  wrote in. A room whose read position kith does not know shows the server's count,
+  which still includes them;
+- are left out of [`/summary` and `:todo`](assist.md#assist-tasks). `/summary 50` is
+  the last fifty messages you can see.
 
 ## Filters
 

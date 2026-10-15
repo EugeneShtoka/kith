@@ -50,13 +50,15 @@ func (c *Cache) MessageTS(ctx context.Context, roomID domain.RoomID, eventID dom
 }
 
 // countThreadsQuery counts each thread's unread replies: newer than its receipt, the
-// floor and your own newest reply, excluding yours and redacted ones. Only timestamps
+// floor and your own newest reply, excluding yours, redacted ones, and hidden
+// people's with the direct replies to them (see notHidden). Only timestamps
 // are compared (an event-ID tiebreak can leave a thread unread forever). m.event_id,
 // a bare column beside max(), comes from the max row: the newest unread reply.
-func countThreadsQuery(me []string, room domain.RoomID) (string, []any) {
-	var notMine, mine string
+func countThreadsQuery(me, hidden []string, room domain.RoomID) (string, []any) {
+	var notMine, visible, mine string
 	var args []any
 	notMine, args = inIDs(args, me)
+	visible, args = notHidden(hidden, args)
 	mine, args = inIDs(args, me)
 	// #nosec G202 -- inIDs emits only placeholders; every MXID is bound.
 	query := `
@@ -66,7 +68,7 @@ func countThreadsQuery(me []string, room domain.RoomID) (string, []any) {
 	  LEFT JOIN thread_read t ON t.room_id = m.room_id AND t.root_event = m.thread_root
 	  LEFT JOIN thread_read f ON f.room_id = m.room_id AND f.root_event = ''
 	  LEFT JOIN messages r ON r.room_id = m.room_id AND r.event_id = m.thread_root
-	 WHERE m.thread_root <> '' AND m.sender NOT` + notMine + ` AND m.redacted = 0
+	 WHERE m.thread_root <> '' AND m.sender NOT` + notMine + visible + ` AND m.redacted = 0
 	   AND m.ts_ms > coalesce(t.read_ts_ms, 0)
 	   AND m.ts_ms > coalesce(f.read_ts_ms, 0)
 	   AND m.ts_ms > coalesce((SELECT max(s.ts_ms) FROM messages s
@@ -82,7 +84,7 @@ func countThreadsQuery(me []string, room domain.RoomID) (string, []any) {
 
 // CountThreadUnread is one room's threads with anything unread.
 func (c *Cache) CountThreadUnread(ctx context.Context, me []string, roomID domain.RoomID) ([]domain.ThreadUnread, error) {
-	query, args := countThreadsQuery(me, roomID)
+	query, args := countThreadsQuery(me, c.hiddenSenders(), roomID)
 	rows, err := c.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("db: count unread threads in %s: %w", roomID, err)
@@ -96,7 +98,7 @@ func (c *Cache) CountThreadUnread(ctx context.Context, me []string, roomID domai
 
 // CountThreadUnreadAll is CountThreadUnread for every room; absent rooms have none.
 func (c *Cache) CountThreadUnreadAll(ctx context.Context, me []string) (map[domain.RoomID][]domain.ThreadUnread, error) {
-	query, args := countThreadsQuery(me, "")
+	query, args := countThreadsQuery(me, c.hiddenSenders(), "")
 	rows, err := c.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("db: count unread threads: %w", err)

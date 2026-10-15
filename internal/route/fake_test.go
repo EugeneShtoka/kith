@@ -106,6 +106,12 @@ func (f *fake) CachedUnread(context.Context) ([]domain.Unread, error) {
 	return out, f.fail
 }
 
+func (f *fake) RecountUnread(_ context.Context, rooms []domain.RoomID) {
+	for _, room := range rooms {
+		_ = f.touch(room)
+	}
+}
+
 func (f *fake) MarkRead(_ context.Context, room domain.RoomID, _ domain.EventID, _ bool) error {
 	return f.touch(room)
 }
