@@ -117,6 +117,10 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 		s.log.Warn("read the directory failed; people are named as their networks name them", "err", err)
 	}
 	s.people = setup.PeopleOf(s.aliases, dir)
+	s.hidden, s.hiddenErr = domain.NewHiddenPeople(s.marked, s.groups, dir, s.selves), nil
+	if err != nil && len(s.marked) > 0 {
+		s.hiddenErr = err
+	}
 	result, err := t.run(s, ctx, raw)
 	if err != nil {
 		// The assistant reads the reason; the log keeps it for the person. Tool errors name

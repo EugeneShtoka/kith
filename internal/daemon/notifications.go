@@ -20,8 +20,10 @@ import (
 type Notifications struct {
 	// members reads a person's current name in a room; nil knows none.
 	members func(ctx context.Context, room domain.RoomID, user string) (string, error)
-	scope   *scopeIndex
-	sinks   Sinks
+	// hides reports whether a message is from a hidden person or answers one; nil hides none.
+	hides func(ctx context.Context, msg domain.Message) (bool, error)
+	scope *scopeIndex
+	sinks Sinks
 
 	// syncs counts sync responses processed; see caughtUp.
 	syncs atomic.Int64
@@ -76,6 +78,25 @@ func (n *Notifications) UseSelves(selves func() []string) {
 // message may be stale. Call before Run.
 func (n *Notifications) UseMemberNames(names func(ctx context.Context, room domain.RoomID, user string) (string, error)) {
 	n.members = names
+}
+
+// UseHidden sets how a message from a hidden person (a muted tag's people), or a
+// direct reply to one, is recognized. Call before Run.
+func (n *Notifications) UseHidden(hides func(ctx context.Context, msg domain.Message) (bool, error)) {
+	n.hides = hides
+}
+
+// hidden reports whether msg is hidden; a failed read hides nothing.
+func (n *Notifications) hidden(ctx context.Context, msg domain.Message) bool {
+	if n.hides == nil {
+		return false
+	}
+	hidden, err := n.hides(ctx, msg)
+	if err != nil {
+		n.log.Warn("ask whether a message is hidden", "err", err)
+		return false
+	}
+	return hidden
 }
 
 // memberName is user's name in room now, "" when unknown.
@@ -346,6 +367,11 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 		return notify.Notification{}, false
 	}
 
+	// A hidden person's message, or a reply to one, never notifies, nor moves the room
+	// by a filter: their room is not theirs. Asked after code capture.
+	if !mine && n.hidden(ctx, msg) {
+		return notify.Notification{}, false
+	}
 	// The filters run first, so the scope sees the tags they moved the room into.
 	if n.filters != nil && !mine {
 		n.filters.watch(ctx, msg, n.scope.Facts(ctx, msg.RoomID))

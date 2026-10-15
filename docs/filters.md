@@ -62,8 +62,15 @@ link learned after you marked them. A person in a tag that notifies is listed bu
 hidden. Your own messages are never hidden. Nothing is deleted: take the mark off
 and everything comes back.
 
-In this version, only the timeline hides them. Notifications, search and unread counts
-still include them.
+Beyond the timeline, a hidden person and the direct replies to them:
+
+- never notify, and never move a room by a [filter](#filters);
+- are left out of search and of `from:` completion;
+- are left out of what the assistant reads (`read_room`, `read_around`,
+  `search_messages`). If kith-mcp cannot read the people directory, it refuses those
+  reads rather than risk showing them.
+
+Unread counts still include them.
 
 ## Filters
 

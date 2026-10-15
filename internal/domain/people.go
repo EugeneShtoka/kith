@@ -223,3 +223,43 @@ func (p MarkedPeople) Has(id string) bool {
 	}
 	return false
 }
+
+// HiddenPeople is who the muted tags hide: the people marked, linked by the directory
+// and the identity groups ([[display.identity]]). You are never hidden: not your own
+// IDs, nor anyone an identity group puts with them.
+type HiddenPeople struct {
+	marked MarkedPeople
+	me     map[string]bool
+}
+
+// NewHiddenPeople is the people marked names, linked by dir and groups; selves are you.
+func NewHiddenPeople(marked []string, groups [][]string, dir Directory, selves []string) HiddenPeople {
+	byID := map[string][]string{}
+	var known []string
+	me := map[string]bool{}
+	for _, id := range selves {
+		me[id] = true
+	}
+	for _, group := range groups {
+		mine := slices.ContainsFunc(group, func(id string) bool { return me[id] })
+		for _, id := range group {
+			byID[id] = slices.Concat(byID[id], group)
+			known = append(known, id)
+			if mine {
+				me[id] = true
+			}
+		}
+	}
+	same := func(id string) []string {
+		return slices.Concat(dir.Identifiers(id), byID[id])
+	}
+	return HiddenPeople{marked: NewMarkedPeople(marked, known, same), me: me}
+}
+
+// Empty reports whether nobody is hidden.
+func (h HiddenPeople) Empty() bool { return h.marked.Empty() }
+
+// Has reports whether sender is hidden.
+func (h HiddenPeople) Has(sender string) bool {
+	return !h.me[sender] && h.marked.Has(sender)
+}

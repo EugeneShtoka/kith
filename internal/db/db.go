@@ -25,6 +25,8 @@ type Cache struct {
 	selves func() []string
 	// keep is how many messages a room keeps (see UseKeep); nil keeps every one.
 	keep func(domain.RoomID) int
+	// hidden is who the muted tags hide (see UseHidden).
+	hidden hiddenState
 }
 
 // UseKeep sets how many newest messages each room keeps (negative: all). It is

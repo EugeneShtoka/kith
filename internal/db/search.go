@@ -11,8 +11,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// searchQuery builds the search statement, or reports there is nothing to ask.
-func searchQuery(req domain.SearchRequest) (string, []any, bool) {
+// searchQuery builds the search statement, or reports there is nothing to ask; hidden
+// senders and direct replies to them are left out.
+func searchQuery(req domain.SearchRequest, hidden []string) (string, []any, bool) {
 	if req.Rooms.None() {
 		return "", nil, false
 	}
@@ -22,7 +23,7 @@ func searchQuery(req domain.SearchRequest) (string, []any, bool) {
 		if req.Filter.Empty() {
 			return "", nil, false
 		}
-		where, args, ok := searchWhere(req, nil)
+		where, args, ok := searchWhere(req, hidden, nil)
 		if !ok {
 			return "", nil, false
 		}
@@ -32,7 +33,7 @@ func searchQuery(req domain.SearchRequest) (string, []any, bool) {
 		       COALESCE(mm.name, ''), m.body, ` + mentionsNow + `
 		` + plainFrom(req.Filter) + " WHERE m.redacted = 0" + where + newestFirst + " LIMIT ?", append(args, req.Limit), true
 	}
-	where, args, ok := searchWhere(req, []any{match})
+	where, args, ok := searchWhere(req, hidden, []any{match})
 	if !ok {
 		return "", nil, false
 	}
@@ -62,8 +63,9 @@ const newestFirst = " ORDER BY" + newestFirstIn
 
 // searchWhere returns the request's AND conditions on m (and mm), appending their
 // values to args; false when they can match nothing.
-func searchWhere(req domain.SearchRequest, args []any) (string, []any, bool) {
+func searchWhere(req domain.SearchRequest, hidden []string, args []any) (string, []any, bool) {
 	var sql string
+	sql, args = notHidden(hidden, args)
 	if !req.Rooms.All {
 		var in string
 		in, args = inIDs(args, req.Rooms.IDs)
@@ -154,7 +156,7 @@ const snippetTokens = 12
 
 // SearchMessages finds cached non-redacted messages matching req, newest first.
 func (c *Cache) SearchMessages(ctx context.Context, req domain.SearchRequest) ([]domain.SearchHit, error) {
-	query, args, ok := searchQuery(req)
+	query, args, ok := searchQuery(req, c.hiddenSenders())
 	if !ok {
 		return nil, nil
 	}
