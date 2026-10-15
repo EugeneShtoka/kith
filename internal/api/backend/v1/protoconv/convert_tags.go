@@ -80,6 +80,20 @@ func ProtoToPersonVerdicts(pbs []*v1.PersonVerdict) []domain.PersonVerdict {
 	return mapSlice(pbs, ProtoToPersonVerdict)
 }
 
+// PersonCandidatesToProto converts people rescan candidates.
+func PersonCandidatesToProto(cs []domain.PersonCandidate) []*v1.PersonCandidate {
+	return mapSlice(cs, func(c domain.PersonCandidate) *v1.PersonCandidate {
+		return &v1.PersonCandidate{Verdict: PersonVerdictToProto(c.Verdict), Sample: MessageToProto(c.Sample)}
+	})
+}
+
+// ProtoToPersonCandidates converts a list back.
+func ProtoToPersonCandidates(pbs []*v1.PersonCandidate) []domain.PersonCandidate {
+	return mapSlice(pbs, func(pb *v1.PersonCandidate) domain.PersonCandidate {
+		return domain.PersonCandidate{Verdict: ProtoToPersonVerdict(pb.GetVerdict()), Sample: ProtoToMessage(pb.GetSample())}
+	})
+}
+
 // CandidatesToProto converts rescan candidates.
 func CandidatesToProto(cs []domain.MoveCandidate) []*v1.MoveCandidate {
 	return mapSlice(cs, func(c domain.MoveCandidate) *v1.MoveCandidate {

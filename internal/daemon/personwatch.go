@@ -127,7 +127,8 @@ func (h senderHistory) judge(
 	}
 	for i := range h.window {
 		m := &h.window[i]
-		if m.Timestamp.Before(since) {
+		// Judged as it stood then: what came after is not counted (a rescan).
+		if m.Timestamp.Before(since) || m.Timestamp.After(msg.Timestamp) {
 			continue
 		}
 		c.Total++

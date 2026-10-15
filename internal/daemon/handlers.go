@@ -761,6 +761,15 @@ func (s *server) RescanFilters(ctx context.Context, r *req[v1.RescanFiltersReque
 	return reply(&v1.RescanFiltersResponse{Rooms: pc.CandidatesToProto(found)}, err)
 }
 
+func (s *server) RescanPeople(ctx context.Context, r *req[v1.RescanPeopleRequest]) (*resp[v1.RescanPeopleResponse], error) {
+	var since time.Time
+	if ms := r.Msg.GetSinceUnixMs(); ms > 0 {
+		since = time.UnixMilli(ms)
+	}
+	found, err := s.Notifications.RescanPeople(ctx, since, r.Msg.GetApply(), r.Msg.GetPeople())
+	return reply(&v1.RescanPeopleResponse{People: pc.PersonCandidatesToProto(found)}, err)
+}
+
 // ReloadConfig reports an unparsable config as InvalidArgument: it is the caller's input.
 func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest]) (*resp[v1.ReloadConfigResponse], error) {
 	if err := s.Reload(ctx); err != nil {

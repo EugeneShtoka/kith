@@ -146,6 +146,26 @@ message PersonVerdictsResponse {
   repeated PersonVerdict verdicts = 1;
 }
 
+// PersonCandidate is a person a rescan would mark into a tag, and the message that
+// marks them.
+message PersonCandidate {
+  PersonVerdict verdict = 1;
+  Message sample = 2;
+}
+
+message RescanPeopleRequest {
+  // since_unix_ms is the oldest message judged; 0 is everything cached.
+  int64 since_unix_ms = 1;
+  // apply marks the people; otherwise nothing changes.
+  bool apply = 2;
+  // people limits apply to these IDs; empty is every candidate.
+  repeated string people = 3;
+}
+
+message RescanPeopleResponse {
+  repeated PersonCandidate people = 1;
+}
+
 message MarkPersonRequest {
   PersonVerdict verdict = 1;
 }
@@ -1635,6 +1655,9 @@ service BackendService {
   // RescanFilters judges cached messages by the filters as if they arrived now, and
   // lists the rooms that would move into a tag; with apply it moves them.
   rpc RescanFilters(RescanFiltersRequest) returns (RescanFiltersResponse);
+  // RescanPeople judges the senders of cached messages by the filters' sender moves,
+  // and lists the people they would mark into a tag; with apply it marks them.
+  rpc RescanPeople(RescanPeopleRequest) returns (RescanPeopleResponse);
   // ReloadConfig re-reads the configuration file the daemon was started with, and
   // returns the parse error if it will not load — leaving the running configuration
   // untouched.

@@ -318,6 +318,9 @@ const (
 	// BackendServiceRescanFiltersProcedure is the fully-qualified name of the BackendService's
 	// RescanFilters RPC.
 	BackendServiceRescanFiltersProcedure = "/backend.v1.BackendService/RescanFilters"
+	// BackendServiceRescanPeopleProcedure is the fully-qualified name of the BackendService's
+	// RescanPeople RPC.
+	BackendServiceRescanPeopleProcedure = "/backend.v1.BackendService/RescanPeople"
 	// BackendServiceReloadConfigProcedure is the fully-qualified name of the BackendService's
 	// ReloadConfig RPC.
 	BackendServiceReloadConfigProcedure = "/backend.v1.BackendService/ReloadConfig"
@@ -616,6 +619,9 @@ type BackendServiceClient interface {
 	// RescanFilters judges cached messages by the filters as if they arrived now, and
 	// lists the rooms that would move into a tag; with apply it moves them.
 	RescanFilters(context.Context, *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error)
+	// RescanPeople judges the senders of cached messages by the filters' sender moves,
+	// and lists the people they would mark into a tag; with apply it marks them.
+	RescanPeople(context.Context, *connect.Request[v1.RescanPeopleRequest]) (*connect.Response[v1.RescanPeopleResponse], error)
 	// ReloadConfig re-reads the configuration file the daemon was started with, and
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
@@ -1276,6 +1282,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("RescanFilters")),
 			connect.WithClientOptions(opts...),
 		),
+		rescanPeople: connect.NewClient[v1.RescanPeopleRequest, v1.RescanPeopleResponse](
+			httpClient,
+			baseURL+BackendServiceRescanPeopleProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RescanPeople")),
+			connect.WithClientOptions(opts...),
+		),
 		reloadConfig: connect.NewClient[v1.ReloadConfigRequest, v1.ReloadConfigResponse](
 			httpClient,
 			baseURL+BackendServiceReloadConfigProcedure,
@@ -1444,6 +1456,7 @@ type backendServiceClient struct {
 	clearDND              *connect.Client[v1.ClearDNDRequest, v1.ClearDNDResponse]
 	dND                   *connect.Client[v1.DNDRequest, v1.DNDResponse]
 	rescanFilters         *connect.Client[v1.RescanFiltersRequest, v1.RescanFiltersResponse]
+	rescanPeople          *connect.Client[v1.RescanPeopleRequest, v1.RescanPeopleResponse]
 	reloadConfig          *connect.Client[v1.ReloadConfigRequest, v1.ReloadConfigResponse]
 	checkConfig           *connect.Client[v1.CheckConfigRequest, v1.CheckConfigResponse]
 	getConfig             *connect.Client[v1.GetConfigRequest, v1.GetConfigResponse]
@@ -1971,6 +1984,11 @@ func (c *backendServiceClient) RescanFilters(ctx context.Context, req *connect.R
 	return c.rescanFilters.CallUnary(ctx, req)
 }
 
+// RescanPeople calls backend.v1.BackendService.RescanPeople.
+func (c *backendServiceClient) RescanPeople(ctx context.Context, req *connect.Request[v1.RescanPeopleRequest]) (*connect.Response[v1.RescanPeopleResponse], error) {
+	return c.rescanPeople.CallUnary(ctx, req)
+}
+
 // ReloadConfig calls backend.v1.BackendService.ReloadConfig.
 func (c *backendServiceClient) ReloadConfig(ctx context.Context, req *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error) {
 	return c.reloadConfig.CallUnary(ctx, req)
@@ -2288,6 +2306,9 @@ type BackendServiceHandler interface {
 	// RescanFilters judges cached messages by the filters as if they arrived now, and
 	// lists the rooms that would move into a tag; with apply it moves them.
 	RescanFilters(context.Context, *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error)
+	// RescanPeople judges the senders of cached messages by the filters' sender moves,
+	// and lists the people they would mark into a tag; with apply it marks them.
+	RescanPeople(context.Context, *connect.Request[v1.RescanPeopleRequest]) (*connect.Response[v1.RescanPeopleResponse], error)
 	// ReloadConfig re-reads the configuration file the daemon was started with, and
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
@@ -2944,6 +2965,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("RescanFilters")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceRescanPeopleHandler := connect.NewUnaryHandler(
+		BackendServiceRescanPeopleProcedure,
+		svc.RescanPeople,
+		connect.WithSchema(backendServiceMethods.ByName("RescanPeople")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceReloadConfigHandler := connect.NewUnaryHandler(
 		BackendServiceReloadConfigProcedure,
 		svc.ReloadConfig,
@@ -3212,6 +3239,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceDNDHandler.ServeHTTP(w, r)
 		case BackendServiceRescanFiltersProcedure:
 			backendServiceRescanFiltersHandler.ServeHTTP(w, r)
+		case BackendServiceRescanPeopleProcedure:
+			backendServiceRescanPeopleHandler.ServeHTTP(w, r)
 		case BackendServiceReloadConfigProcedure:
 			backendServiceReloadConfigHandler.ServeHTTP(w, r)
 		case BackendServiceCheckConfigProcedure:
@@ -3651,6 +3680,10 @@ func (UnimplementedBackendServiceHandler) DND(context.Context, *connect.Request[
 
 func (UnimplementedBackendServiceHandler) RescanFilters(context.Context, *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RescanFilters is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RescanPeople(context.Context, *connect.Request[v1.RescanPeopleRequest]) (*connect.Response[v1.RescanPeopleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RescanPeople is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) ReloadConfig(context.Context, *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error) {
