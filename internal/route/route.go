@@ -46,6 +46,11 @@ type (
 		RefreshRooms(ctx context.Context) ([]domain.Room, error)
 		CachedUnread(ctx context.Context) ([]domain.Unread, error)
 	}
+	// Recounter counts rooms' unread again from the cache and streams them, for when
+	// the cache counts them differently (who is hidden changed).
+	Recounter interface {
+		RecountUnread(ctx context.Context, rooms []domain.RoomID)
+	}
 	// Homes is the space a room names as its parent.
 	Homes interface {
 		CanonicalParent(ctx context.Context, roomID domain.RoomID) (domain.SpaceID, error)
@@ -377,6 +382,15 @@ func (r *Router) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 // CachedUnread is every network's unread state.
 func (r *Router) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	return gather(r, func(c RoomLister) ([]domain.Unread, error) { return c.CachedUnread(ctx) })
+}
+
+// RecountUnread has each room's network count its unread again; rooms of a network
+// that is off or keeps no counts are skipped.
+func (r *Router) RecountUnread(ctx context.Context, rooms []domain.RoomID) {
+	parts, _ := byNetwork[Recounter](r, rooms, "recounting unread")
+	for a, theirs := range parts {
+		a.(Recounter).RecountUnread(ctx, theirs)
+	}
 }
 
 // DirectCandidates is every network's people to message, at most limit.

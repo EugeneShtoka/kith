@@ -271,6 +271,9 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 			log.Warn("find the hidden people's messages", "err", err)
 		}
 	}
+	// After the first list: nothing is counted yet. Later changes recount the rooms
+	// the newly hidden or shown wrote in.
+	cache.OnHiddenChange(router.RecountUnread)
 	service := local.New(cache, router)
 	service.UseLogger(log)
 	for _, n := range networks {

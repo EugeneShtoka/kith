@@ -184,6 +184,14 @@ func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 	emit(a, a.unread, u)
 }
 
+// RecountUnread counts rooms' unread again, when the cache counts them differently
+// (who is hidden changed).
+func (a *Adapter) RecountUnread(ctx context.Context, rooms []domain.RoomID) {
+	for _, room := range rooms {
+		a.recount(ctx, room)
+	}
+}
+
 // CachedUnread is every Telegram room's unread counts.
 func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	if a.cache == nil {

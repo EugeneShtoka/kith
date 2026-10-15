@@ -29,6 +29,17 @@ type hiddenState struct {
 	// seen is every sender written or found, true for the hidden; ids are those.
 	seen map[string]bool
 	ids  []string
+	// changed hears the rooms a rebuild changed (OnHiddenChange).
+	changed func(context.Context, []domain.RoomID)
+}
+
+// OnHiddenChange has fn called after a rebuild changes which senders are hidden, with
+// the rooms they wrote in, so counts kept elsewhere can be taken again. Senders first
+// written later are not a change: whoever writes them counts their room anew.
+func (c *Cache) OnHiddenChange(fn func(context.Context, []domain.RoomID)) {
+	c.hidden.mu.Lock()
+	defer c.hidden.mu.Unlock()
+	c.hidden.changed = fn
 }
 
 // UseHidden sets the people the muted tags hide and the identity groups that link
@@ -67,12 +78,49 @@ func (c *Cache) rebuildHidden(ctx context.Context) error {
 		}
 	}
 	c.hidden.mu.Lock()
-	defer c.hidden.mu.Unlock()
 	// Senders noted while the scan ran are in seen, under the old matcher.
 	all := slices.Concat(senders, slices.Collect(maps.Keys(c.hidden.seen)))
+	before := c.hidden.ids
 	c.hidden.people, c.hidden.seen, c.hidden.ids = people, map[string]bool{}, nil
 	c.classify(all)
+	moved := symmetricDifference(before, c.hidden.ids)
+	changed := c.hidden.changed
+	c.hidden.mu.Unlock()
+	if len(moved) == 0 || changed == nil {
+		return nil
+	}
+	// Replies to them are in the rooms they wrote in.
+	where, args := inIDs(nil, moved)
+	// #nosec G202 -- inIDs emits only placeholders; every sender is bound.
+	rooms, err := collect(ctx, c.db, "rooms of newly hidden senders", "SELECT DISTINCT room_id FROM messages WHERE sender"+where,
+		func(rows *sql.Rows) (domain.RoomID, error) {
+			var r string
+			scanErr := rows.Scan(&r)
+			return domain.RoomID(r), scanErr
+		}, args...)
+	if err != nil {
+		return err
+	}
+	if len(rooms) > 0 {
+		changed(ctx, rooms)
+	}
 	return nil
+}
+
+// symmetricDifference is the IDs in exactly one of a and b.
+func symmetricDifference(a, b []string) []string {
+	var out []string
+	for _, id := range a {
+		if !slices.Contains(b, id) {
+			out = append(out, id)
+		}
+	}
+	for _, id := range b {
+		if !slices.Contains(a, id) {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // noteSenders classifies the senders of msgs not seen before. It reads no table, so
@@ -168,4 +216,19 @@ func notHidden(hidden []string, args []any) (string, []any) {
 	// #nosec G202 -- inIDs emits only placeholders; every sender is bound.
 	return " AND m.sender NOT" + own + ` AND NOT EXISTS (SELECT 1 FROM messages p
 		WHERE m.reply_to <> '' AND p.room_id = m.room_id AND p.event_id = m.reply_to AND p.sender` + answered + ")", args
+}
+
+// WithoutHidden is msgs less the hidden ones (see Hides).
+func (c *Cache) WithoutHidden(ctx context.Context, msgs []domain.Message) ([]domain.Message, error) {
+	out := make([]domain.Message, 0, len(msgs))
+	for i := range msgs {
+		hidden, err := c.Hides(ctx, msgs[i])
+		if err != nil {
+			return nil, err
+		}
+		if !hidden {
+			out = append(out, msgs[i])
+		}
+	}
+	return out, nil
 }
