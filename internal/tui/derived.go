@@ -48,6 +48,8 @@ type derivedKey struct {
 	tags uint64
 	// markedShown: the room shows the people muted tags hide.
 	markedShown bool
+	// people is the person verdicts' revision: one in a muted tag hides them.
+	people uint64
 }
 
 // fnvOffset and fnvPrime are FNV-1a; each string is followed by a separator so
@@ -120,6 +122,7 @@ func (m Model) keyFor() derivedKey {
 
 		tags:        m.rail.tagsRev,
 		markedShown: m.markedShownHere(),
+		people:      m.rail.peopleRev,
 	}
 	if room, ok := m.roomByID(m.openRoom); ok {
 		k.place = placeFingerprint(m.factsFor(room))

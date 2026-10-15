@@ -105,6 +105,15 @@ func (s *server) MarkTag(ctx context.Context, r *req[v1.MarkTagRequest]) (*resp[
 	return reply(&v1.MarkTagResponse{}, s.Backend.MarkTag(ctx, pc.ProtoToVerdict(r.Msg.GetVerdict())))
 }
 
+func (s *server) PersonVerdicts(ctx context.Context, _ *req[v1.PersonVerdictsRequest]) (*resp[v1.PersonVerdictsResponse], error) {
+	verdicts, err := s.Backend.PersonVerdicts(ctx)
+	return reply(&v1.PersonVerdictsResponse{Verdicts: pc.PersonVerdictsToProto(verdicts)}, err)
+}
+
+func (s *server) MarkPerson(ctx context.Context, r *req[v1.MarkPersonRequest]) (*resp[v1.MarkPersonResponse], error) {
+	return reply(&v1.MarkPersonResponse{}, s.Backend.MarkPerson(ctx, pc.ProtoToPersonVerdict(r.Msg.GetVerdict())))
+}
+
 func (s *server) RetagVerdicts(ctx context.Context, r *req[v1.RetagVerdictsRequest]) (*resp[v1.RetagVerdictsResponse], error) {
 	return reply(&v1.RetagVerdictsResponse{}, s.Backend.RetagVerdicts(ctx, r.Msg.GetFrom(), r.Msg.GetTo()))
 }

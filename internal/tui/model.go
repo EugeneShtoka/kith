@@ -1107,6 +1107,8 @@ func (m Model) handleAssistMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDraftSaved(msg))
 	case verdictsLoadedMsg:
 		return answered(m.handleVerdictsLoaded(msg))
+	case personVerdictsLoadedMsg:
+		return answered(m.handlePersonVerdictsLoaded(msg))
 	case rescannedMsg:
 		return answered(m.handleRescanned(msg))
 	case verdictsWrittenMsg:

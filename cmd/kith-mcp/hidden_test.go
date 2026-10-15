@@ -71,3 +71,38 @@ func TestAnUnreadableDirectoryRefusesTheRead(t *testing.T) {
 		t.Errorf("with nobody hidden read %v", ids(t, out))
 	}
 }
+
+// A person a filter put in a muted tag is hidden as one listed there; a mark in a tag
+// that notifies, or a release, hides nobody.
+func TestAPersonMarkedByAFilterIsNotRead(t *testing.T) {
+	t.Parallel()
+
+	f := hiddenRoom()
+	f.people = []domain.PersonVerdict{
+		{Person: "telegram:9", Tag: "spam", Rule: domain.MoveAlways},
+		{Person: "@dana:x", Tag: "work", Rule: domain.MoveAlways},
+		{Person: "@me:x", Tag: "spam", Released: true},
+	}
+	s := newServer(f, shareAllEncrypted)
+	s.muted = []string{"Spam"}
+	if got, want := ids(t, call(t, s, "read_room", map[string]any{"room": "Standup"})), []string{"$1", "$4"}; !slices.Equal(got, want) {
+		t.Errorf("read_room gave %v, want %v", got, want)
+	}
+}
+
+// Without the verdicts, anyone may be marked in a muted tag: the read refuses.
+func TestUnreadableVerdictsRefuseTheRead(t *testing.T) {
+	t.Parallel()
+
+	f := hiddenRoom()
+	f.peopleErr = errors.New("daemon restarting")
+	s := newServer(f, shareAllEncrypted)
+	s.muted = []string{"Spam"}
+	if got := callErr(t, s, "read_room", map[string]any{"room": "Standup"}); !strings.Contains(got, "hide") {
+		t.Errorf("refused with %q, want it to say why", got)
+	}
+	// No muted tag: a verdict could hide nobody, so the read goes ahead.
+	if out := call(t, newServer(f, shareAllEncrypted), "read_room", map[string]any{"room": "Standup"}); len(ids(t, out)) != 4 {
+		t.Errorf("with no muted tag read %v", ids(t, out))
+	}
+}

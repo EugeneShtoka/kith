@@ -25,9 +25,11 @@ type hiddenWorld struct {
 	steps  []func(t *testing.T, c *Cache)
 	marked []string
 	groups [][]string
-	names  []domain.PersonName
-	links  []domain.PersonLink
-	msgs   []domain.Message
+	// verdicts is the person verdicts as they stand after every step.
+	verdicts []domain.PersonVerdict
+	names    []domain.PersonName
+	links    []domain.PersonLink
+	msgs     []domain.Message
 }
 
 func genHiddenWorld(rng *rand.Rand) *hiddenWorld {
@@ -86,13 +88,34 @@ func genHiddenWorld(rng *rand.Rand) *hiddenWorld {
 	mark := func() {
 		w.steps = append(w.steps, func(t *testing.T, c *Cache) {
 			t.Helper()
-			if err := c.UseHidden(ctx, w.marked, w.groups); err != nil {
+			if err := c.UseHidden(ctx, w.marked, hiddenMuted, w.groups); err != nil {
 				t.Fatal(err)
 			}
 		})
 	}
-	// Marking lands anywhere among the writes; links and messages come before and after.
-	actions := []func(){saveSome, saveSome, saveSome, link, link, mark}
+	// verdict is a filter's mark into the muted tag or another, or a release; a mark
+	// over a release is refused, as it is everywhere.
+	verdict := func() {
+		v := domain.PersonVerdict{Person: pick(), Tag: []string{"spam", "work"}[rng.IntN(2)], At: start}
+		if rng.IntN(3) == 0 {
+			v.Released = true
+		} else {
+			v.Rule, v.Filter = domain.MoveAlways, "crypto"
+		}
+		set, err := domain.WithPersonVerdict(w.verdicts, v)
+		if err == nil {
+			w.verdicts = set
+		}
+		w.steps = append(w.steps, func(t *testing.T, c *Cache) {
+			t.Helper()
+			if got := c.MarkPerson(ctx, v); (got != nil) != (err != nil) {
+				t.Fatalf("MarkPerson(%+v) = %v, want %v", v, got, err)
+			}
+		})
+	}
+	// Marking lands anywhere among the writes; links, verdicts and messages come before
+	// and after.
+	actions := []func(){saveSome, saveSome, saveSome, link, link, mark, verdict, verdict, verdict}
 	rng.Shuffle(len(actions), func(i, j int) { actions[i], actions[j] = actions[j], actions[i] })
 	for _, a := range actions {
 		a()
@@ -102,13 +125,17 @@ func genHiddenWorld(rng *rand.Rand) *hiddenWorld {
 
 // visible reports whether a message is shown: not from a hidden sender, not answering one.
 func (w *hiddenWorld) visible() func(m *domain.Message) bool {
-	people := domain.NewHiddenPeople(w.marked, w.groups, domain.NewDirectory(w.names, w.links), []string{hiddenMe})
+	marked := slices.Concat(w.marked, domain.HiddenByVerdict(w.verdicts, hiddenMuted))
+	people := domain.NewHiddenPeople(marked, w.groups, domain.NewDirectory(w.names, w.links), []string{hiddenMe})
 	senders := map[domain.EventID]string{}
 	for i := range w.msgs {
 		senders[w.msgs[i].ID] = w.msgs[i].Sender
 	}
 	return func(m *domain.Message) bool { return !people.Has(m.Sender) && !people.Has(senders[m.ReplyTo]) }
 }
+
+// hiddenMuted is the generator's muted tag: Spam hides, Work does not.
+var hiddenMuted = []string{"Spam"}
 
 // hiddenMe is the one of hiddenPool that is you.
 const hiddenMe = "@me:example.org"
@@ -269,7 +296,7 @@ func TestSendersWrittenDuringARebuildAreClassified(t *testing.T) {
 		marked = append(marked, fmt.Sprintf("@spam%d:example.org", i))
 	}
 	wg.Go(func() {
-		if err := c.UseHidden(ctx, marked, nil); err != nil {
+		if err := c.UseHidden(ctx, marked, nil, nil); err != nil {
 			t.Error(err)
 		}
 	})
@@ -294,7 +321,7 @@ func TestSenderCompletionLeavesOutHiddenPeople(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.UseHidden(ctx, []string{"@bob:example.org"}, nil); err != nil {
+	if err := c.UseHidden(ctx, []string{"@bob:example.org"}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	members, err := c.SearchSenders(ctx, domain.EveryRoom(), 10)
@@ -338,11 +365,11 @@ func TestAChangeOfWhoIsHiddenNamesTheirRooms(t *testing.T) {
 		heard = nil
 	}
 
-	if err := c.UseHidden(ctx, []string{"@spam:example.org"}, nil); err != nil {
+	if err := c.UseHidden(ctx, []string{"@spam:example.org"}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	expect("marking", "!a:x")
-	if err := c.UseHidden(ctx, []string{"@spam:example.org", hiddenMe}, nil); err != nil {
+	if err := c.UseHidden(ctx, []string{"@spam:example.org", hiddenMe}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	expect("marking yourself too")
@@ -350,7 +377,7 @@ func TestAChangeOfWhoIsHiddenNamesTheirRooms(t *testing.T) {
 		t.Fatal(err)
 	}
 	expect("linking Ann to the marked", "!b:x")
-	if err := c.UseHidden(ctx, nil, nil); err != nil {
+	if err := c.UseHidden(ctx, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	expect("letting go", "!a:x", "!b:x")

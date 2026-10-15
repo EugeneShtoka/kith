@@ -33,7 +33,7 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 		t.Fatal(err)
 	}
 	cache.OnHiddenChange(a.RecountUnread)
-	if err := cache.UseHidden(ctx, []string{"linkedin:4004"}, nil); err != nil {
+	if err := cache.UseHidden(ctx, []string{"linkedin:4004"}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	select {

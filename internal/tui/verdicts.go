@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -16,18 +17,42 @@ import (
 
 type verdictsLoadedMsg struct{ verdicts []domain.TagVerdict }
 
-// loadVerdictsCmd reads the moves and releases, at startup and on the poll. A read
-// failure moves nothing.
+type personVerdictsLoadedMsg struct{ verdicts []domain.PersonVerdict }
+
+// loadVerdictsCmd reads the moves, marks and releases, at startup and on the poll. A
+// read failure changes nothing.
 func (m Model) loadVerdictsCmd() tea.Cmd {
 	ctx, backend, log := m.ctx, m.backend, m.log
-	return func() tea.Msg {
+	return tea.Batch(func() tea.Msg {
 		verdicts, err := backend.TagVerdicts(ctx)
 		if err != nil {
 			log.Warn("load tag verdicts failed", "err", err)
 			return nil
 		}
 		return verdictsLoadedMsg{verdicts: verdicts}
+	}, func() tea.Msg {
+		verdicts, err := backend.PersonVerdicts(ctx)
+		if err != nil {
+			log.Warn("load person verdicts failed", "err", err)
+			return nil
+		}
+		return personVerdictsLoadedMsg{verdicts: verdicts}
+	})
+}
+
+// handlePersonVerdictsLoaded replaces the person verdicts wholesale; a new set hides
+// or shows people.
+func (m Model) handlePersonVerdictsLoaded(msg personVerdictsLoadedMsg) (Model, tea.Cmd) {
+	if slices.EqualFunc(m.rail.people, msg.verdicts, func(a, b domain.PersonVerdict) bool {
+		return a.Person == b.Person && a.Tag == b.Tag && a.Rule == b.Rule && a.Filter == b.Filter &&
+			a.Released == b.Released && a.At.Equal(b.At)
+	}) {
+		return m, nil
 	}
+	before := m.shownMessages()
+	m.rail.people = msg.verdicts
+	m.rail.peopleRev++
+	return m.keptSelection(before), nil
 }
 
 // handleVerdictsLoaded replaces the verdicts wholesale (a release from another machine

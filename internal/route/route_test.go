@@ -315,6 +315,28 @@ func TestMarkingRoomsReadAccountsForEveryRoom(t *testing.T) {
 	}
 }
 
+// A person's mark or release reaches the network their ID is on, and only it.
+func TestAPersonMarkReachesTheirNetwork(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const whatsappPerson = "whatsapp:15550000001@s.whatsapp.net"
+	r, m, wa := twoNetworks(t)
+	for _, person := range []string{"@ann:x", whatsappPerson} {
+		if err := r.MarkPerson(ctx, domain.PersonVerdict{Person: person, Tag: "Spam", Released: true}); err != nil {
+			t.Errorf("MarkPerson(%s) = %v", person, err)
+		}
+	}
+	if got := m.seen(); !slices.Equal(got, []domain.RoomID{"@ann:x"}) {
+		t.Errorf("Matrix was asked about %v, want its own person", got)
+	}
+	if got := wa.seen(); !slices.Equal(got, []domain.RoomID{whatsappPerson}) {
+		t.Errorf("WhatsApp was asked about %v, want its own person", got)
+	}
+	if err := r.MarkPerson(ctx, domain.PersonVerdict{Person: "slack:T1/U1", Tag: "Spam"}); !errors.Is(err, api.ErrNetworkOff) {
+		t.Errorf("a person on no network = %v, want ErrNetworkOff", err)
+	}
+}
+
 // A recount reaches each room's own network, and skips networks that are off.
 func TestARecountReachesEachRoomsNetwork(t *testing.T) {
 	t.Parallel()
@@ -642,6 +664,7 @@ func TestANetworkWithoutACapabilityRefusesWhatNeedsIt(t *testing.T) {
 		"members": func() error { _, err := r.Members(ctx, room, 5); return err }(),
 		"threads": func() error { _, err := r.ListThreads(ctx, room); return err }(),
 		"invite":  r.InviteUser(ctx, room, "telegram:7"),
+		"person":  r.MarkPerson(ctx, domain.PersonVerdict{Person: "telegram:7", Tag: "Spam", Released: true}),
 	} {
 		if !errors.Is(err, api.ErrNotOnNetwork) {
 			t.Errorf("%s in a Telegram room = %v, want not on that network", name, err)

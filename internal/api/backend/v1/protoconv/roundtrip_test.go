@@ -85,6 +85,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"TagVerdict", domain.TagVerdict{}, func(v any) any {
 			return protoconv.ProtoToVerdict(protoconv.VerdictToProto(v.(domain.TagVerdict)))
 		}},
+		{"PersonVerdict", domain.PersonVerdict{}, func(v any) any {
+			return protoconv.ProtoToPersonVerdicts(protoconv.PersonVerdictsToProto([]domain.PersonVerdict{v.(domain.PersonVerdict)}))[0]
+		}},
 		{"MoveCandidate", domain.MoveCandidate{}, func(v any) any {
 			return protoconv.ProtoToCandidates(protoconv.CandidatesToProto([]domain.MoveCandidate{v.(domain.MoveCandidate)}))[0]
 		}},

@@ -63,6 +63,19 @@ CREATE TABLE tag_verdicts (
 	PRIMARY KEY (room_id, tag)
 ) STRICT, WITHOUT ROWID;
 
+-- Per person ID and tag, the tags a filter put someone into and the ones a person
+-- took them out of; Matrix IDs mirror org.kith.people account data, the rest are kept
+-- here alone. tag is lower-cased.
+CREATE TABLE person_verdicts (
+	person   TEXT    NOT NULL,
+	tag      TEXT    NOT NULL,
+	rule     INTEGER NOT NULL DEFAULT 0,
+	filter   TEXT    NOT NULL DEFAULT '',
+	at_ms    INTEGER NOT NULL DEFAULT 0,
+	released INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (person, tag)
+) STRICT, WITHOUT ROWID;
+
 CREATE TABLE spaces (
 	id     TEXT NOT NULL PRIMARY KEY,
 	name   TEXT NOT NULL DEFAULT '',
@@ -488,6 +501,16 @@ DROP TABLE phone_names;`,
 	// v14, v15: spam's verdicts are tag verdicts now.
 	`DROP TABLE IF EXISTS spam_rooms;`,
 	`DROP TABLE IF EXISTS spam_released;`,
+	// v16: filter marks per person and tag, and releases.
+	`CREATE TABLE IF NOT EXISTS person_verdicts (
+	person   TEXT    NOT NULL,
+	tag      TEXT    NOT NULL,
+	rule     INTEGER NOT NULL DEFAULT 0,
+	filter   TEXT    NOT NULL DEFAULT '',
+	at_ms    INTEGER NOT NULL DEFAULT 0,
+	released INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (person, tag)
+) STRICT, WITHOUT ROWID;`,
 }
 
 // ensureIndexes makes the file's indexes exactly baseSchema's (create missing,

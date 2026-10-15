@@ -266,8 +266,8 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	router := route.New(adapters)
 	// Before any network writes: whose reactions a trim keeps.
 	cache.UseSelves(router.Me)
-	if marked, groups, err := setup.HiddenInputs(cfg); err == nil {
-		if err := cache.UseHidden(ctx, marked, groups); err != nil {
+	if marked, muted, groups, err := setup.HiddenInputs(cfg); err == nil {
+		if err := cache.UseHidden(ctx, marked, muted, groups); err != nil {
 			log.Warn("find the hidden people's messages", "err", err)
 		}
 	}
@@ -292,11 +292,11 @@ func (s served) useHidden(ctx context.Context, cfg config.Config) error {
 	if s.cache == nil {
 		return nil
 	}
-	marked, groups, err := setup.HiddenInputs(cfg)
+	marked, muted, groups, err := setup.HiddenInputs(cfg)
 	if err != nil {
 		return err
 	}
-	if err := s.cache.UseHidden(ctx, marked, groups); err != nil {
+	if err := s.cache.UseHidden(ctx, marked, muted, groups); err != nil {
 		return fmt.Errorf("find the hidden people's messages: %w", err)
 	}
 	return nil

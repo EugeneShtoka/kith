@@ -37,6 +37,19 @@ func (r *Router) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
 	return doOnRoom(r, verdict.Room, "tag moves", func(c TagMoves) error { return c.MarkTag(ctx, verdict) })
 }
 
+// MarkPerson records a mark or a release on the network the person's ID is on.
+func (r *Router) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error {
+	a, err := r.adapterFor(verdict.Person)
+	if err != nil {
+		return err
+	}
+	c, ok := a.(TagMoves)
+	if !ok {
+		return fmt.Errorf("%w: person marks on %s (%s)", api.ErrNotOnNetwork, domain.NetworkOf(verdict.Person), verdict.Person)
+	}
+	return c.MarkPerson(ctx, verdict)
+}
+
 // RetagVerdicts moves (or drops) one tag's verdicts on every network keeping them.
 func (r *Router) RetagVerdicts(ctx context.Context, from, to string) error {
 	var errs []error
