@@ -62,6 +62,13 @@ link learned after you marked them. A person in a tag that notifies is listed bu
 hidden. Your own messages are never hidden. Nothing is deleted: take the mark off
 and everything comes back.
 
+A direct message with someone a muted tag holds moves into that tag, as the
+[`direct` move](#the-moves) would move it: only a DM you never wrote in, never one you
+took out of the tag or its `excluded` names. It moves when they are marked, and when
+they write in it later. Like every move it stays when you take the person out: take
+the room out too if you want it back. `/why` in it says "it is a direct message with
+someone you put in that tag", or names the filter that marked them.
+
 A filter can mark a person too, with the [sender moves](#marking-the-sender). The key
 takes a filter's mark off as it takes yours: it writes a release, so no filter on any
 of your machines marks them again, by any of their IDs.

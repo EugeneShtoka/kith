@@ -306,6 +306,18 @@ func (n *Notifications) RescanFilters(ctx context.Context, since time.Time, appl
 	return n.filters.rescan(ctx, all, since, apply, rooms)
 }
 
+// MoveWithHidden moves each of rooms that is a direct message, never written in, with
+// someone a muted tag hides into that tag. kithd calls it with the rooms of people just
+// hidden.
+func (n *Notifications) MoveWithHidden(ctx context.Context, rooms []domain.RoomID) {
+	if n.filters == nil {
+		return
+	}
+	for _, room := range rooms {
+		n.filters.moveWithPerson(ctx, room)
+	}
+}
+
 // RescanPeople judges the senders of cached messages since since, as if they arrived
 // then, and returns the people the filters' sender moves would mark. With apply it
 // marks them, only those in people when that is not empty, and returns the ones it
@@ -393,6 +405,10 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	// A hidden person's message, or a reply to one, never notifies, nor moves the room
 	// by a filter: their room is not theirs. Asked after code capture.
 	if !mine && n.hidden(ctx, msg) {
+		// Their direct message, though, moves where they are.
+		if n.filters != nil {
+			n.filters.moveWithPerson(ctx, msg.RoomID)
+		}
 		return notify.Notification{}, false
 	}
 	// The filters run first, so the scope sees the tags they moved the room into.
