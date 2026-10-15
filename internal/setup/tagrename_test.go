@@ -249,6 +249,23 @@ func TestCombinedTagsKeepTheirRules(t *testing.T) {
 	}
 }
 
+// Combining keeps the people both tags hold, whether the rules are joined or the
+// rooms picked by ID.
+func TestCombinedTagsKeepTheirPeople(t *testing.T) {
+	t.Parallel()
+	for name, rule := range map[string][]string{"joined rules": {"dm"}, "picked by ID": {"not dm"}} {
+		var cfg config.Config
+		cfg.Tags = []config.Tag{
+			{Name: "Spam", Rule: rule, People: []string{"@a:x", "@b:x"}},
+			{Name: "Junk", People: []string{"@b:x", "telegram:1"}},
+		}
+		got := CombineTags(cfg, "Junk", "Spam", nil, func(string, domain.RoomFacts) bool { return false })
+		if len(got.Tags) != 1 || !slices.Equal(got.Tags[0].People, []string{"@a:x", "@b:x", "telegram:1"}) {
+			t.Errorf("%s: combined = %+v", name, got.Tags)
+		}
+	}
+}
+
 // [storage]'s numbers are -1 (every message) or at least one, and a rule names a place.
 func TestStorageRulesAreChecked(t *testing.T) {
 	t.Parallel()

@@ -11,7 +11,9 @@ type Tag struct {
 	Rule     []string `toml:"rule"`
 	Picked   []string `toml:"picked"`
 	Excluded []string `toml:"excluded"`
-	Hidden   bool     `toml:"hidden"`
+	// People are senders put in the tag by hand; a muted tag's are hidden.
+	People []string `toml:"people"`
+	Hidden bool     `toml:"hidden"`
 
 	// CountsUnread and Notifies nil are true.
 	CountsUnread *bool `toml:"counts_unread"`

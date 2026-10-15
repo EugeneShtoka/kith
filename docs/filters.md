@@ -30,7 +30,7 @@ home); drop `notifies = false` and it notifies again. The properties are listed 
 
 | Where | Key / command | Effect |
 | --- | --- | --- |
-| Room list, timeline | `!` (a [`[[keys.tag]]`](configuration.md) binding) | The room goes into Spam, or comes out |
+| Room list | `!` (a [`[[keys.tag]]`](configuration.md) binding) | The room goes into Spam, or comes out |
 | Room list | `S` | The filing picker: tick or untick any tag |
 | Composer | `/tag Spam` | The same, for the room you are writing in |
 
@@ -42,6 +42,28 @@ Taking out a room a **filter** moved also writes a **release** to the room's acc
 data, so no filter, on this machine or any other running kith with your account,
 moves it back. If the account data cannot be written, the status line says so; the
 `excluded` entry still holds it out here.
+
+## Hiding a person
+
+In a large group, one spammer cannot move the room. You can mark the person instead.
+
+| Where | Key / command | Effect |
+| --- | --- | --- |
+| Timeline | `!` on a message | Its sender goes into Spam, or comes out |
+| Timeline | `z h`, or `/hidden` in the composer | Show the hidden messages in this room until you leave it, or hide them again |
+
+In the timeline every [`[[keys.tag]]`](configuration.md) key acts on the selected
+message's sender, not the room; file the room from the room list or with `/tag`. A
+marked person's ID is written into the tag's `people` list. While the tag is muted
+(`notifies = false`), the person is hidden in every room. That covers their messages
+and the direct replies to them, but not replies to those replies. One ID covers every
+ID kith links to the same person: an identity (`a`) and the people directory, even a
+link learned after you marked them. A person in a tag that notifies is listed but not
+hidden. Your own messages are never hidden. Nothing is deleted: take the mark off
+and everything comes back.
+
+In this version, only the timeline hides them. Notifications, search and unread counts
+still include them.
 
 ## Filters
 

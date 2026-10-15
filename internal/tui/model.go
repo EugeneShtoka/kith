@@ -570,6 +570,9 @@ type Model struct {
 	selves []string
 	// dir is the daemon's directory (directory.go): who people are, on every network.
 	dir directoryState
+	// markedShownIn is the room showing the people muted tags hide (markedpeople.go),
+	// "" for none; leaving it clears it.
+	markedShownIn domain.RoomID
 	// peers is who each room you named is named after (peeralias.go).
 	peers peerState
 	// cards is the phonebook's cards as last read, and members read for show_field (cards.go).
@@ -1903,6 +1906,8 @@ func (m Model) timelineMotion(act action) (Model, tea.Cmd) {
 		return m.openExternalEditor()
 	case actReveal:
 		return m.toggleReveal()
+	case actShowMarked:
+		return m.toggleMarkedShown()
 	case actSpellWalk:
 		return m.openSpellWalk()
 	case actPrevDay:
@@ -2382,6 +2387,8 @@ func (m Model) leavingFor(room domain.Room) Model {
 	m.timeline.opened.unreadFrom = m.unread[room.ID].ReadEvent
 	// Stars belong to the room; the new set arrives via starredInCmd.
 	m.timeline.starred = nil
+	// Hidden people show only until you leave the room.
+	m.markedShownIn = ""
 	return m.stashDraft(m.openRoom)
 }
 
