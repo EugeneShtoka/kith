@@ -170,6 +170,51 @@ func (m Model) releasePersonCmd(release domain.PersonVerdict) tea.Cmd {
 	}
 }
 
+// hiddenReasons say why the selected message is hidden, for `/why`: who of the muted
+// tags' people it is from or answers, and what put them there, by hand or by which
+// filter's rule. None when it is not hidden.
+func (m Model) hiddenReasons() []string {
+	// Only a message the cursor is on: the newest is no question anyone asked.
+	msg, ok := m.selectedMessage()
+	if !ok || m.timeline.selected == "" || m.fromMe(msg.Sender) {
+		return nil
+	}
+	who, lead := msg.Sender, "is from"
+	if why := m.personReasons(who); len(why) == 0 && msg.ReplyTo != "" {
+		at := slices.IndexFunc(m.timeline.messages, func(t domain.Message) bool { return t.ID == msg.ReplyTo })
+		if at >= 0 && !m.fromMe(m.timeline.messages[at].Sender) {
+			who, lead = m.timeline.messages[at].Sender, "answers"
+		}
+	}
+	why := m.personReasons(who)
+	if len(why) == 0 {
+		return nil
+	}
+	head := "this message " + lead + " " + m.personName(who) + ", hidden in every room:"
+	return append([]string{head}, why...)
+}
+
+// personReasons are the muted tags holding sender, by any of their IDs, each with what
+// put them there.
+func (m Model) personReasons(sender string) []string {
+	known, same := m.identityIDs(), m.linkedIDs()
+	isThem := func(id string) bool { return domain.NewMarkedPeople([]string{id}, known, same).Has(sender) }
+	var out []string
+	for _, tag := range m.rail.tags.MutedTags() {
+		label := isolate(m.tagLabel(tag))
+		j := slices.IndexFunc(m.conf.base.Tags, func(t config.Tag) bool { return domain.SameTag(t.Name, tag) })
+		if j >= 0 && slices.ContainsFunc(m.conf.base.Tags[j].People, isThem) {
+			out = append(out, "in "+label+" — you put them there")
+		}
+		for _, v := range m.rail.people {
+			if v.In() && domain.SameTag(v.Tag, tag) && isThem(v.Person) {
+				out = append(out, "in "+label+" — "+v.Rule.Reason(v.Filter))
+			}
+		}
+	}
+	return out
+}
+
 // toggleMarkedShown shows the open room's hidden people's messages, or hides them again.
 func (m Model) toggleMarkedShown() (Model, tea.Cmd) {
 	if m.openRoom == "" {

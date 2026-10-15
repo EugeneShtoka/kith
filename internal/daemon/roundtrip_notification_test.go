@@ -3,6 +3,8 @@ package daemon_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -188,5 +190,47 @@ func TestRescanFiltersRoundTrip(t *testing.T) {
 	}
 	if marked := src.verdicts(); len(marked) != 1 || marked[0].Room != chatRm {
 		t.Errorf("recorded %+v, want the room", marked)
+	}
+}
+
+// A people rescan's since, apply and people cross the wire, and the candidates come
+// back whole.
+func TestRescanPeopleRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	src := &personBackend{spamBackend: spamWorld()}
+	src.rooms = append(src.rooms, domain.Room{ID: "!g1:example.org", Name: "G1"})
+	// One run within the hour, another two days ago: only the first is in the preview.
+	for i, room := range []domain.RoomID{chatRm, "!g1:example.org"} {
+		for who, age := range map[string]time.Duration{"@s1:example.org": time.Minute, "@s2:example.org": 48 * time.Hour} {
+			m := domain.Message{ID: domain.EventID(fmt.Sprintf("$run%d%s", i, who)), RoomID: room, Sender: who,
+				Body: "free bitcoin", Timestamp: time.Now().Add(-age - time.Duration(i)*time.Second)}
+			src.cache(m)
+			src.timeline[room] = append(src.timeline[room], m)
+		}
+	}
+	n := personNotifier(t, spamConfig(withFilters(config.Filter{
+		Name: "runs", Tag: "Spam", Words: []string{"*bitcoin*"}, Moves: []string{config.FilterMoveSenderSpread}, Spread: 2,
+	})), src)
+	h := serve(t, &fakeBackend{Nop: nopWithChannels()}, func(d *daemon.Daemon) { d.Notifications = n })
+	client := h.client()
+	ctx := context.Background()
+
+	found, err := client.RescanPeople(ctx, time.Now().Add(-time.Hour), false, nil)
+	if err != nil {
+		t.Fatalf("RescanPeople: %v", err)
+	}
+	if len(found) != 1 || found[0].Verdict.Person != "@s1:example.org" || found[0].Verdict.Rule != domain.MoveSenderSpread ||
+		found[0].Verdict.Filter != "runs" || found[0].Sample.Body != "free bitcoin" {
+		t.Fatalf("candidates = %+v, want the sender by their run", found)
+	}
+	if marked, err := client.RescanPeople(ctx, time.Time{}, true, []string{"@s3:example.org"}); err != nil || len(marked) != 0 {
+		t.Fatalf("apply to someone else = %+v (%v), want nobody marked", marked, err)
+	}
+	if marked, err := client.RescanPeople(ctx, time.Time{}, true, []string{"@s1:example.org"}); err != nil || len(marked) != 1 {
+		t.Fatalf("apply = %+v (%v), want the sender marked", marked, err)
+	}
+	if got := src.marked(); !slices.Equal(got, []string{"@s1:example.org"}) {
+		t.Errorf("marked %v, want the sender", got)
 	}
 }

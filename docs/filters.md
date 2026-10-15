@@ -267,6 +267,13 @@ makes the rest; a room moves into every tag the rescan found for it. A rescan us
 to a room's first message. It skips rooms already moved or released, the tag's
 `excluded`, and your own messages.
 
+The people the [sender moves](#marking-the-sender) would mark are listed beside the
+rooms, ticked too, with the tag, the filter and the message that marks them. Each
+sender is judged at each caught message by what they had written up to then, with
+`sender_ratio` and `sender_spread`, never `sender_first`, for the same reason. People
+already marked or released, anyone you have written to, and you are skipped. A
+person seen under two linked IDs can be listed twice; marking either marks them.
+
 ## Why is this room here?
 
 In a moved room, `W` (or `/why`) starts with each move: the tag, the filter and the
@@ -274,6 +281,11 @@ rule, such as "in Spam — the first message in it was caught by a filter (crypt
 a tag holding the room does not notify, it says so, then shows the
 [notification rules](notifications.md#why-was-this-silenced) that would apply once
 the room leaves it.
+
+On a hidden message, shown with `z h`, `/why` starts with the person instead: whom
+the message is from, or whom it answers, and what hid them, such as "in Spam — they
+sent the same caught message in several rooms (spam runs)", or "in Spam — you put
+them there".
 
 ## Where moves are stored
 

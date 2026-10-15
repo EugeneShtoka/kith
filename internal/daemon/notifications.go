@@ -306,6 +306,21 @@ func (n *Notifications) RescanFilters(ctx context.Context, since time.Time, appl
 	return n.filters.rescan(ctx, all, since, apply, rooms)
 }
 
+// RescanPeople judges the senders of cached messages since since, as if they arrived
+// then, and returns the people the filters' sender moves would mark. With apply it
+// marks them, only those in people when that is not empty, and returns the ones it
+// marked.
+func (n *Notifications) RescanPeople(ctx context.Context, since time.Time, apply bool, people []string) ([]domain.PersonCandidate, error) {
+	if n.filters == nil {
+		return nil, nil
+	}
+	all, err := n.scope.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return n.filters.rescanPeople(ctx, all, since, apply, people)
+}
+
 // SetDND puts a temporary rule in force, replacing one naming the same thing.
 func (n *Notifications) SetDND(r notify.Rule) notify.Temps {
 	n.mu.Lock()

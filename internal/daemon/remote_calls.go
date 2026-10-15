@@ -708,6 +708,17 @@ func (r *Remote) RescanFilters(ctx context.Context, since time.Time, apply bool,
 	return pc.ProtoToCandidates(resp.GetRooms()), err
 }
 
+// RescanPeople judges the senders of cached messages since since by the filters'
+// sender moves; with apply it marks them (only those in people, when given).
+func (r *Remote) RescanPeople(ctx context.Context, since time.Time, apply bool, people []string) ([]domain.PersonCandidate, error) {
+	req := &v1.RescanPeopleRequest{Apply: apply, People: people}
+	if !since.IsZero() {
+		req.SinceUnixMs = since.UnixMilli()
+	}
+	resp, err := call(ctx, "rescan people", r.c.RescanPeople, req)
+	return pc.ProtoToPersonCandidates(resp.GetPeople()), err
+}
+
 // ReloadConfig asks the daemon to re-read its config, returning the parse error.
 func (r *Remote) ReloadConfig(ctx context.Context) error {
 	_, err := call(ctx, "reload config", r.c.ReloadConfig, &v1.ReloadConfigRequest{})

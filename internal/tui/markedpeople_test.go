@@ -439,3 +439,44 @@ func TestTheTagKeyActsOnWhatThePaneShows(t *testing.T) {
 		t.Errorf("! in the room list filed rooms %v, want the room", got)
 	}
 }
+
+// /why on a hidden message says whom it is from or answers, and what hid them: your
+// own listing, or a filter's rule and name. A message nobody hid says nothing of it.
+func TestWhyNamesWhatHidAPerson(t *testing.T) {
+	t.Parallel()
+
+	off := false
+	c := markedCase{
+		identities: []config.Identity{{Alias: "Bob", IDs: []string{"@bob:example.org", "telegram:1001"}}},
+		tags:       []config.Tag{{Name: "Spam", Notifies: &off, People: []string{"@cat:example.org"}}},
+		verdicts:   []domain.PersonVerdict{{Person: "telegram:1001", Tag: "spam", Rule: domain.MoveSenderSpread, Filter: "runs"}},
+		msgs: []domain.Message{
+			{ID: "$0", RoomID: "!a:x", Sender: "@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
+			{ID: "$1", RoomID: "!a:x", Sender: "@bob:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
+			{ID: "$2", RoomID: "!a:x", Sender: "@ann:example.org", Body: "no", ReplyTo: "$1", Timestamp: time.Unix(1700000120, 0)},
+			{ID: "$3", RoomID: "!a:x", Sender: "@cat:example.org", Body: "sale", Timestamp: time.Unix(1700000180, 0)},
+		},
+		shownHere: true,
+	}
+	m := markedModel(t, c)
+	why := func(id domain.EventID) string {
+		t.Helper()
+		m.timeline.selected = id
+		return strings.Join(m.whyLines(time.Now()), "\n")
+	}
+	if got := why("$1"); !strings.Contains(got, "is from") || !strings.Contains(got, "same caught message in several rooms (runs)") {
+		t.Errorf("why on Bob's message:\n%s", got)
+	}
+	if got := why("$2"); !strings.Contains(got, "answers") || !strings.Contains(got, "(runs)") {
+		t.Errorf("why on the reply to Bob:\n%s", got)
+	}
+	if got := why("$3"); !strings.Contains(got, "you put them there") {
+		t.Errorf("why on Cat's message:\n%s", got)
+	}
+	if got := why("$0"); strings.Contains(got, "hidden in every room") {
+		t.Errorf("why on Ann's message names a hiding:\n%s", got)
+	}
+	if got := why(""); strings.Contains(got, "hidden in every room") {
+		t.Errorf("why with no message under the cursor names a hiding:\n%s", got)
+	}
+}

@@ -72,6 +72,13 @@ func RetaggedPeople(set []PersonVerdict, from, to string) (out []PersonVerdict, 
 	return out, changed
 }
 
+// PersonCandidate is a person a rescan of cached history would mark into a tag, and the
+// message that marks them.
+type PersonCandidate struct {
+	Verdict PersonVerdict
+	Sample  Message
+}
+
 // ErrPersonReleased refuses a filter's mark of a person someone took out of that tag.
 var ErrPersonReleased = errors.New("the person was taken out of that tag")
 

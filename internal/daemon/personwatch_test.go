@@ -122,7 +122,7 @@ const (
 	native = "whatsapp:15550000001@s.whatsapp.net"
 )
 
-var personPool = []string{"@s1:example.org", "@s2:example.org", "@s3:example.org", puppet, native}
+var personPool = []string{"@s1:example.org", "@s2:example.org", "@s3:example.org", puppet, native, me}
 
 // personOf is who an ID is, for the oracle: the puppet and the number are one.
 func personOf(id string) string {
@@ -198,6 +198,9 @@ func (c personCase) oracle() (marked []string, silenced map[domain.EventID]bool)
 		m := &c.stream[i]
 		seen = append(seen, *m)
 		who := personOf(m.Sender)
+		if m.Sender == me {
+			continue // your own messages are never judged
+		}
 		if hidden[who] {
 			silenced[m.ID] = true
 			continue
@@ -319,6 +322,93 @@ func TestAFailedReadMarksNobody(t *testing.T) {
 		}
 		if got := src.marked(); len(got) != 0 {
 			t.Errorf("%s failing: marked %v", read, got)
+		}
+	}
+}
+
+// rescanWant is whom a rescan of everything cached should mark: anyone not released
+// or written to, at a caught message whose history up to it fires a sender move other
+// than sender_first.
+func (c personCase) rescanWant() []string {
+	settled := map[string]bool{}
+	for _, id := range c.released {
+		settled[personOf(id)] = true
+	}
+	all := slices.Concat(c.old, c.stream)
+	slices.SortStableFunc(all, func(a, b domain.Message) int { return a.Timestamp.Compare(b.Timestamp) })
+	var out []string
+	for i := range all {
+		m := &all[i]
+		who := personOf(m.Sender)
+		if m.Sender == me || settled[who] || slices.Contains(out, m.Sender) || !strings.Contains(strings.ToLower(m.Body), "bitcoin") ||
+			slices.ContainsFunc(c.wrote, func(id string) bool { return personOf(id) == who }) {
+			continue
+		}
+		for j := range c.filters {
+			f := c.filters[j]
+			f.Moves = slices.DeleteFunc(slices.Clone(f.Moves), func(move string) bool { return move == config.FilterMoveSenderFirst })
+			if c.fires(&f, all[:i+1], m) {
+				out = append(out, m.Sender)
+				break
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// A rescan of what is cached finds exactly whom the sender moves would have marked, as
+// things stood at each caught message, never by sender_first; applying it to some marks
+// only those, and a second rescan finds them settled.
+func TestARescanFindsThePeopleTheRulesName(t *testing.T) {
+	t.Parallel()
+
+	for seed := range uint64(300) {
+		rng := rand.New(rand.NewPCG(seed, 0x7273)) // #nosec G404 -- reproducible
+		now := time.Now()
+		c := genPersonCase(rng, now)
+		src := &personBackend{spamBackend: spamWorld(), wrote: c.wrote}
+		for _, room := range personRooms[1:] {
+			src.rooms = append(src.rooms, domain.Room{ID: room, Name: string(room)})
+		}
+		for _, id := range c.released {
+			src.people = append(src.people, domain.PersonVerdict{Person: id, Tag: "spam", Released: true, At: now})
+		}
+		for _, m := range slices.Concat(c.old, c.stream) {
+			src.cache(m)
+			src.timeline[m.RoomID] = append(src.timeline[m.RoomID], m)
+		}
+		n := personNotifier(t, spamConfig(withFilters(c.filters...)), src)
+		dir := domain.NewDirectory(nil, []domain.PersonLink{{Source: "book", ID: puppet, Other: native}})
+		n.UseDirectory(func(context.Context) (domain.Directory, error) { return dir, nil })
+		ctx := context.Background()
+		found, err := n.RescanPeople(ctx, time.Time{}, false, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, f := range found {
+			got = append(got, f.Verdict.Person)
+		}
+		slices.Sort(got)
+		if want := c.rescanWant(); !slices.Equal(got, want) {
+			t.Fatalf("seed %d: rescan found %v, want %v\nfilters %+v wrote %v released %v\nold %v\nstream %v",
+				seed, got, want, c.filters, c.wrote, c.released, c.old, c.stream)
+		}
+		if len(got) == 0 {
+			continue
+		}
+		if _, err := n.RescanPeople(ctx, time.Time{}, true, got[:1]); err != nil {
+			t.Fatal(err)
+		}
+		if marked := src.marked(); !slices.Equal(marked, got[:1]) {
+			t.Fatalf("seed %d: applying %v marked %v", seed, got[:1], marked)
+		}
+		// The marked person is settled by every ID: the number and its puppet are one.
+		others := slices.DeleteFunc(slices.Clone(got), func(id string) bool { return personOf(id) == personOf(got[0]) })
+		again, _ := n.RescanPeople(ctx, time.Time{}, false, nil)
+		if len(again) != len(others) {
+			t.Fatalf("seed %d: after marking %s, the rescan found %d, want %v", seed, got[0], len(again), others)
 		}
 	}
 }
