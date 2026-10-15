@@ -1,18 +1,22 @@
 # LinkedIn
 
-kith is learning to reach LinkedIn's messages directly: no Matrix bridge. **It is
-being built.** Today kith signs in with your browser's session, stays connected, and
-shows your conversations in a space of their own (`LinkedIn <name>`), with the
-messages LinkedIn sends with each conversation and every new one as it arrives:
-replies, forwarded messages (quoted), shared posts (as their address), edits and
-deleted messages. Pictures, files, videos and voice messages show as a short label
-(`[photo]`, `[file: cv.pdf]`) for now.
+kith reaches LinkedIn's messages directly: no Matrix bridge. kith signs in with your
+browser's session, stays connected, and shows your conversations in a space of their
+own (`LinkedIn <name>`), with the messages LinkedIn sends with each conversation and
+every new one as it arrives: replies, forwarded messages (quoted), shared posts (as
+their address), edits and deleted messages. Pictures, GIFs, files, videos and voice
+messages show as attachments, as on other networks: pictures inline, the rest opened
+or saved from the message. A message carrying more than one names the others
+(`[file: cv.pdf]`). LinkedIn's links to them expire after a while; an old one then
+stops loading.
 
 You can write in a conversation, reply (the reply quotes the original, as LinkedIn
 shows it), mention people (`@` offers the conversation's members), edit and delete
 your messages, react (reacting again with the same emoji takes it back), and scroll
 back past what kith has: older messages are fetched from LinkedIn. Reactions show as
-people make them. Sending pictures and files comes next.
+people make them. Attaching a file sends it with what you typed as its text: a video
+as a video and audio as a voice message, anything else (pictures too, as LinkedIn's
+web app sends them) as a file.
 
 A conversation you read in kith stays read: kith keeps the read position itself,
 before telling LinkedIn, and keeps telling LinkedIn until it hears. LinkedIn marks a

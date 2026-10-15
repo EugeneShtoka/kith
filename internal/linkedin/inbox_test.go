@@ -179,7 +179,8 @@ func TestTheInboxKeepsConversationsAsLinkedInShowsThem(t *testing.T) {
 }
 
 // What a message carries shows: text with its links' addresses, a reply, a forward
-// quoted, files and pictures as labels, a shared post as its address; a system notice
+// quoted, the first attachment shown and the others as labels, a shared post as its
+// address; a system notice
 // does not show, a recalled message comes redacted.
 func TestMessagesShowWhatTheyCarry(t *testing.T) {
 	t.Parallel()
@@ -218,7 +219,7 @@ func TestMessagesShowWhatTheyCarry(t *testing.T) {
 		&linked:  "see our site (https://a.example) and https://b.example",
 		&reply:   "agreed",
 		&forward: "Forwarded from Eli Stone:\n> line one\n> line two",
-		&files: "[photo]\n[file: cv.pdf]\n[video]\n[voice message]\n[GIF]\n[file]\n" +
+		&files: "[file: cv.pdf]\n[video]\n[voice message]\n[GIF]\n[file]\n" +
 			"https://www.linkedin.com/feed/update/urn:li:activity:7\n[job posting]",
 		&mention: "@Eve look",
 		&edited:  "fixed",
@@ -231,6 +232,9 @@ func TestMessagesShowWhatTheyCarry(t *testing.T) {
 		if got.RoomID != roomID(me, group) || got.Timestamp != m.DeliveredAt.Time || got.SenderName == "" {
 			t.Errorf("%s: room %s time %v sender %q", m.EntityURN, got.RoomID, got.Timestamp, got.SenderName)
 		}
+	}
+	if got, _ := in.message(group, &files); !got.Media.IsImage() {
+		t.Errorf("the first attachment shows as %+v, want the photo", got.Media)
 	}
 	if got, _ := in.message(group, &reply); got.ReplyTo != msgID(group, "m1") {
 		t.Errorf("reply to %s", got.ReplyTo)
