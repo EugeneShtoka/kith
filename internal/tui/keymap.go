@@ -152,6 +152,7 @@ const (
 	actSaveSpeed
 	actStopPlay
 	actReveal
+	actShowMarked
 	actSpellWalk
 	actSpellSkip
 	actSpellAdd
@@ -423,6 +424,7 @@ var keyActions = []keyAction{
 	{scopeTimeline, actNextDay, "timeline.next_day"},
 	{scopeTimeline, actExternalEdit, "composer.external_edit"},
 	{scopeTimeline, actReveal, "timeline.reveal"},
+	{scopeTimeline, actShowMarked, "timeline.show_marked"},
 	{scopeTimeline, actSpellWalk, "spell.open"},
 
 	{scopeCompletion, actNext, "completion.next"},

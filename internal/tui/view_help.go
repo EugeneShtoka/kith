@@ -49,7 +49,7 @@ func (m Model) tagKeyHelp(keyColumn int) []string {
 	lines := []string{"", m.theme.Title.Render("Into a tag, or out of it (your [keys.tag] bindings)")}
 	for _, seq := range slices.Sorted(maps.Keys(m.keys.tagKeys)) {
 		tag := m.keys.tagKeys[seq]
-		label := "this room in " + isolate(tag) + ", or out of it"
+		label := "this room in " + isolate(tag) + ", or out of it — in the timeline, the message's sender"
 		if _, ok := m.rail.tags.Index(tag); !ok {
 			label = isolate(tag) + "  (no such tag)"
 		}

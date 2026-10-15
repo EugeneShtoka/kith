@@ -328,6 +328,11 @@ notify = false
 #   hide_when_empty = true  no rail row while it holds nothing
 #   first           = true  at the top of the rail, unless the order places it
 #   count_in_label  = true  the row says how many rooms it holds
+#   people = [...]          senders put in it by hand, one ID each. A muted tag's
+#                           (notifies = false) are hidden in every room: their
+#                           messages and the direct replies to them, as kith links
+#                           their IDs (identities, the people directory). Your own
+#                           are never hidden.
 # Exclusivity decides where a room shows, not what rules match: `tag:<name>` still
 # matches a room another tag claims.
 #
@@ -374,7 +379,9 @@ exclusive       = ["tags", "spaces"]
 hide_when_empty = true
 
 # Where unwanted conversations go: by hand (`!`, bound below) or by a [[filter]].
-# Quiet, uncounted, and out of every other tag and space, its own included.
+# Quiet, uncounted, and out of every other tag and space, its own included. A person
+# goes here too (people): `!` on their message hides them in every room, and `z h`
+# shows them in the open room.
 [[tag]]
 name            = "Spam"
 counts_unread   = false
@@ -382,8 +389,8 @@ notifies        = false
 exclusive       = ["tags", "spaces", "origin"]
 hide_when_empty = true
 
-# `!` puts the room under the cursor in Spam, or takes it out: a key bound to a tag
-# by its chord. See [keys] for more.
+# `!` puts the room under the cursor in Spam, or takes it out, and in the timeline the
+# selected message's sender: a key bound to a tag by its chord. See [keys] for more.
 [[keys.tag]]
 chord = "!"
 tag   = "Spam"
@@ -1381,7 +1388,8 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 #   target = "room:!dana:example.org"
 #
 # Key sequences bound to tags: the room under the cursor (or the open one) goes into
-# the tag, or out of it. Taking out a room a filter moved writes the tag's excluded, so
+# the tag, or out of it; in the timeline, the selected message's sender does (a muted
+# tag hides them in every room). Taking out a room a filter moved writes the tag's excluded, so
 # no filter puts it back. The starter binds "!", the mail clients' "report spam" key,
 # to Spam (next to the [[tag]] list); a binding to a tag that does not exist is
 # reported in `?` and does nothing.
@@ -1506,6 +1514,10 @@ notify_rule     = "b"       # notification rule for this sender or room
 # uncover what this message is hiding — a spoiler, or a kept deletion
 # Press again to cover it.
 reveal          = "z o"
+# show the hidden people's messages in this room, until you leave it
+# A [keys.tag] key on a message puts its sender in that tag; a muted tag (Spam) hides
+# them.
+show_marked     = "z h"
 # The copy and open keys ask which when a message holds several candidates.
 copy_text       = "yy"      # copy this message's text
 copy_url        = "yu"      # copy a link from it

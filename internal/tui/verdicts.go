@@ -55,8 +55,9 @@ func (m Model) moveOf(room domain.RoomID, tag string) (domain.TagVerdict, bool) 
 	return domain.TagVerdict{}, false
 }
 
-// tagKey acts on a sequence bound to a tag: the room under the cursor (or the open one)
-// goes in, or out. Never while typing.
+// tagKey acts on a sequence bound to a tag: in the timeline the selected message's
+// sender goes in, or out (markedpeople.go); elsewhere the room under the cursor (or the
+// open one). Never while typing.
 func (m Model) tagKey(press string) (Model, tea.Cmd, bool) {
 	if m.typing() {
 		return m, nil, false
@@ -65,14 +66,18 @@ func (m Model) tagKey(press string) (Model, tea.Cmd, bool) {
 	if !ok {
 		return m, nil, false
 	}
-	room, ok := m.currentRoom()
-	if !ok || room.IsInvite() {
-		return m, nil, true
-	}
 	view := m.unreadView()
 	i, ok := view.tags.Index(tag)
 	if !ok {
 		return m.say("no tag is called " + quoted(tag) + " — see [keys.tag]"), nil, true
+	}
+	if m.focus == paneTimeline {
+		next, cmd := m.toggleSenderIn(view.tags.At(i).Name)
+		return next, cmd, true
+	}
+	room, ok := m.currentRoom()
+	if !ok || room.IsInvite() {
+		return m, nil, true
 	}
 	next, cmd := m.fileTags(room, []tagFiling{{tag: i, label: view.tags.At(i).Name, in: !view.tagsOf(room).in[i]}})
 	return next, cmd, true

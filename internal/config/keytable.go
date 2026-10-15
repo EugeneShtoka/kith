@@ -77,7 +77,8 @@ Targets:
   target = "room:!dana:example.org"
 
 Key sequences bound to tags: the room under the cursor (or the open one) goes into
-the tag, or out of it. Taking out a room a filter moved writes the tag's excluded, so
+the tag, or out of it; in the timeline, the selected message's sender does (a muted
+tag hides them in every room). Taking out a room a filter moved writes the tag's excluded, so
 no filter puts it back. The starter binds "!", the mail clients' "report spam" key,
 to Spam (next to the [[tag]] list); a binding to a tag that does not exist is
 reported in ` + "`?`" + ` and does nothing.
@@ -207,6 +208,8 @@ group; timeline: the open room); ` + "`scope`" + ` cycles room → group → eve
 			// vim's "open a fold".
 			{path: "timeline.reveal", def: "z o", doc: "uncover what this message is hiding — a spoiler, or a kept deletion",
 				note: "Press again to cover it."},
+			{path: "timeline.show_marked", def: "z h", doc: "show the hidden people's messages in this room, until you leave it",
+				note: "A [keys.tag] key on a message puts its sender in that tag; a muted tag (Spam) hides them."},
 			{path: "timeline.copy_text", def: "yy", doc: "copy this message's text",
 				note: "The copy and open keys ask which when a message holds several candidates."},
 			{path: "timeline.copy_url", def: "yu", doc: "copy a link from it"},

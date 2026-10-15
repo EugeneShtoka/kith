@@ -127,6 +127,7 @@ func CombineTags(cfg config.Config, from, into string, rooms []domain.RoomFacts,
 	a, b := out.Tags[ii], out.Tags[fi]
 	exact := a
 	exact.Rule, exact.Excluded, exact.Picked = nil, nil, nil
+	exact.People = joined(a.People, b.People)
 	for i := range rooms {
 		if held(a.Name, rooms[i]) || held(b.Name, rooms[i]) {
 			exact.Picked = append(exact.Picked, rooms[i].ID)
@@ -137,6 +138,7 @@ func CombineTags(cfg config.Config, from, into string, rooms []domain.RoomFacts,
 	}
 	a.Rule = joined(a.Rule, b.Rule)
 	a.Picked = joined(a.Picked, b.Picked)
+	a.People = exact.People
 	a.Excluded = joined(unheld(a.Excluded, b.Name, rooms, held), unheld(b.Excluded, a.Name, rooms, held))
 	joinedRules := combined(out, fi, ii, from, a)
 	// A moved reference can close a cycle (A names C, C named B); pick by ID instead.

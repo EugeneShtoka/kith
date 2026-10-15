@@ -101,6 +101,7 @@
   ]                forward a day
   alt+e            write a message in $EDITOR
   zo               uncover what this message is hiding — a spoiler, or a kept deletion
+  zh               show the hidden people's messages in this room, until you leave it
   z=               correct the misspellings in the draft, one at a time
 
 [1;38;2;102;135;153mSearch results[m
@@ -229,7 +230,7 @@
   home and end are the line's ends in a field, not the timeline's.
 
 [1;38;2;102;135;153mInto a tag, or out of it (your [keys.tag] bindings)[m
-  !                this room in Spam, or out of it
+  !                this room in Spam, or out of it — in the timeline, the message's sender
 
 [1;38;2;102;135;153mTyped into the composer[m
   /me <what you are doing>       send as an emote — “* you wave” rather than “you: waves”
@@ -243,6 +244,7 @@
   /files                         every message with a file in this room — tab widens it
   /mentions                      where you were named in this room — tab widens it
   /search [terms]                search this room — tab widens it, no terms just opens the box
+  /hidden                        show the messages of people you hid, in this room until you leave it — or hide them again
   /threads                       the conversations in this room — the same list `ctrl+t` opens
   /starred                       what you have starred here — tab widens it, and it unstars too
   /scheduled                     what is waiting to go out in this room — enter cancels one

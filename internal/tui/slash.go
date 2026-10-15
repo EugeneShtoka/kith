@@ -134,6 +134,13 @@ var slashCommands = []slashCommand{
 		},
 	},
 	{
+		name:     "/hidden",
+		keyScope: scopeTimeline,
+		keyAct:   actShowMarked,
+		summary:  "show the messages of people you hid, in this room until you leave it — or hide them again",
+		run:      consuming(func(m Model) (Model, tea.Cmd) { return m.toggleMarkedShown() }),
+	},
+	{
 		name:     "/threads",
 		keyScope: scopeTimeline,
 		keyAct:   actListThreads,
