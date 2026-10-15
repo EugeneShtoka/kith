@@ -266,6 +266,11 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	router := route.New(adapters)
 	// Before any network writes: whose reactions a trim keeps.
 	cache.UseSelves(router.Me)
+	if marked, groups, err := setup.HiddenInputs(cfg); err == nil {
+		if err := cache.UseHidden(ctx, marked, groups); err != nil {
+			log.Warn("find the hidden people's messages", "err", err)
+		}
+	}
 	service := local.New(cache, router)
 	service.UseLogger(log)
 	for _, n := range networks {
@@ -277,6 +282,21 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), cache: cache,
 	}
+}
+
+// useHidden tells the cache who cfg's muted tags hide.
+func (s served) useHidden(ctx context.Context, cfg config.Config) error {
+	if s.cache == nil {
+		return nil
+	}
+	marked, groups, err := setup.HiddenInputs(cfg)
+	if err != nil {
+		return err
+	}
+	if err := s.cache.UseHidden(ctx, marked, groups); err != nil {
+		return fmt.Errorf("find the hidden people's messages: %w", err)
+	}
+	return nil
 }
 
 func (s served) loginLeaders() []api.LoginLeader {
@@ -451,7 +471,11 @@ func reloader(
 		for _, n := range backend.networks {
 			n.UseConfig(ctx, reloaded)
 		}
-		return notifications.Reload(reloaded)
+		if err := notifications.Reload(reloaded); err != nil {
+			return fmt.Errorf("reload notifications: %w", err)
+		}
+		// Last: everything else is in force even if the cache cannot be read.
+		return backend.useHidden(ctx, reloaded)
 	}
 }
 
@@ -485,6 +509,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	// Before any network writes: retention follows [storage] by room place, and reloads.
 	if backend.cache != nil {
 		notifications.UseMemberNames(backend.cache.RoomMemberName)
+		notifications.UseHidden(backend.cache.Hides)
 		backend.cache.UseKeep(notifications.MessagesKept)
 	}
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)

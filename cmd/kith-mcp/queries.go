@@ -531,6 +531,9 @@ func (s *server) readRoom(ctx context.Context, raw json.RawMessage) (any, error)
 	if err != nil {
 		return nil, fmt.Errorf("reading the room: %w", err)
 	}
+	if msgs, err = s.visible(msgs); err != nil {
+		return nil, err
+	}
 	limit := limitOr(in.Limit, 40, 200)
 	var out []messageView
 	for i := range msgs {
@@ -663,6 +666,9 @@ func (s *server) readAround(ctx context.Context, raw json.RawMessage) (any, erro
 	if len(msgs) == 0 {
 		return nil, fmt.Errorf("%s is not in this room's cached history", in.Event)
 	}
+	if msgs, err = s.visible(msgs); err != nil {
+		return nil, err
+	}
 	out := make([]messageView, 0, len(msgs))
 	for i := range msgs {
 		out = append(out, s.view(msgs[i], false))
@@ -723,4 +729,27 @@ func (s *server) unreadSummary(ctx context.Context, raw json.RawMessage) (any, e
 		return nil, err
 	}
 	return map[string]any{"waiting": out, outsideScopeKey: len(outOfScope)}, nil
+}
+
+// visible drops the messages of people a muted tag hides, and direct replies to them
+// among msgs. Without the directory it refuses rather than show them.
+func (s *server) visible(msgs []domain.Message) ([]domain.Message, error) {
+	if s.hiddenErr != nil {
+		return nil, fmt.Errorf("cannot tell whom the muted tags hide: %w", s.hiddenErr)
+	}
+	if s.hidden.Empty() {
+		return msgs, nil
+	}
+	senders := make(map[domain.EventID]string, len(msgs))
+	for i := range msgs {
+		senders[msgs[i].ID] = msgs[i].Sender
+	}
+	out := make([]domain.Message, 0, len(msgs))
+	for i := range msgs {
+		if s.hidden.Has(msgs[i].Sender) || (msgs[i].ReplyTo != "" && s.hidden.Has(senders[msgs[i].ReplyTo])) {
+			continue
+		}
+		out = append(out, msgs[i])
+	}
+	return out, nil
 }

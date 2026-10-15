@@ -81,7 +81,13 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 	if err != nil {
 		return err
 	}
+	marked, groups, err := setup.HiddenInputs(cfg)
+	if err != nil {
+		return err
+	}
 	server := &server{
+		marked:   marked,
+		groups:   groups,
 		places:   setup.PlacesOf(cfg),
 		backend:  daemon.NewRemote(socket),
 		scope:    setup.AgentReadScope(cfg.Agent),
@@ -203,6 +209,12 @@ type server struct {
 	// everyone with them and the directory, asked per call. Assistants get whole names.
 	aliases map[string]string
 	people  domain.People
+	// marked and groups are who the muted tags hide and the identity groups; hidden is
+	// them over the directory, asked per call, and hiddenErr why it could not be read.
+	marked    []string
+	groups    [][]string
+	hidden    domain.HiddenPeople
+	hiddenErr error
 	// send is `[agent.write] send`: rooms posted to rather than drafted into.
 	send []string
 	// cooldown is how long a room rests after a message goes out to it.

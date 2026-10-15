@@ -178,7 +178,7 @@ func TestTheHotQueriesUseTheirIndices(t *testing.T) {
 	mentions, _, ok := searchQuery(domain.SearchRequest{
 		Filter: domain.SearchFilter{Mentioned: true}, Limit: 100,
 		Rooms: domain.EveryRoom(),
-	})
+	}, nil)
 	if !ok {
 		t.Fatal("the mentions list built no query")
 	}
@@ -398,7 +398,7 @@ func TestTheBadgeSearchAndThreadQueriesUseTheirIndices(t *testing.T) {
 		for i := range ids {
 			ids[i] = domain.RoomID(fmt.Sprintf("!r%d:x", i))
 		}
-		q, _, ok := searchQuery(domain.SearchRequest{Filter: domain.SearchFilter{Terms: "hello"}, Rooms: domain.TheseRooms(ids), Limit: 20})
+		q, _, ok := searchQuery(domain.SearchRequest{Filter: domain.SearchFilter{Terms: "hello"}, Rooms: domain.TheseRooms(ids), Limit: 20}, nil)
 		if !ok {
 			t.Fatal("the search built no query")
 		}
@@ -453,7 +453,7 @@ func TestTheStarredAndFileListsStartFromTheirOwnRows(t *testing.T) {
 		{"files", domain.SearchFilter{HasFile: true}, "SCAN mm"},
 		{"starred files", domain.SearchFilter{Starred: true, HasFile: true}, "SCAN s"},
 	} {
-		q, _, ok := searchQuery(domain.SearchRequest{Filter: tc.filter, Limit: 100, Rooms: domain.EveryRoom()})
+		q, _, ok := searchQuery(domain.SearchRequest{Filter: tc.filter, Limit: 100, Rooms: domain.EveryRoom()}, nil)
 		if !ok {
 			t.Fatalf("%s: no query", tc.name)
 		}
