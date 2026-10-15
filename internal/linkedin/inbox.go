@@ -31,6 +31,8 @@ type inbox struct {
 	// gone is when each conversation was deleted, so a listing fetched before the
 	// deletion does not bring it back.
 	gone map[string]time.Time
+	// sources are the addresses of messages' attachments not yet cached (media.go).
+	sources map[domain.EventID]string
 }
 
 // conv is one conversation as kith keeps it.
@@ -46,7 +48,10 @@ type conv struct {
 }
 
 func newInbox(self string) *inbox {
-	return &inbox{self: self, people: map[string]string{}, convs: map[string]*conv{}, gone: map[string]time.Time{}}
+	return &inbox{
+		self: self, people: map[string]string{}, convs: map[string]*conv{}, gone: map[string]time.Time{},
+		sources: map[domain.EventID]string{},
+	}
 }
 
 // nameOfParticipant is how a participant reads: a member's first and last name, an
@@ -186,19 +191,31 @@ func (in *inbox) message(thread string, m *linkedingo.Message) (domain.Message, 
 	if text := plain(m.Body); strings.TrimSpace(text) != "" {
 		parts = append(parts, text)
 	}
-	for _, rc := range m.RenderContent {
+	for i := range m.RenderContent {
+		rc := &m.RenderContent[i]
 		if reply := rc.RepliedMessageContent; reply != nil && !reply.OriginalMessage.EntityURN.IsEmpty() {
 			msg.ReplyTo = eventID(in.self, thread, reply.OriginalMessage.EntityURN.ID())
 			continue
 		}
-		if part := renderLabel(rc, in.people); part != "" {
+		// The first attachment is shown; any other is named.
+		if media, url := attachment(rc); media != nil && msg.Media == nil {
+			msg.Media = media
+			if url != "" {
+				in.sources[msg.ID] = url
+			}
+			continue
+		}
+		if part := renderLabel(*rc, in.people); part != "" {
 			parts = append(parts, part)
 		}
 	}
-	if len(parts) == 0 {
+	if len(parts) == 0 && msg.Media == nil {
 		return domain.Message{}, false
 	}
 	msg.Body = strings.Join(parts, "\n")
+	if msg.Body == "" {
+		msg.Body = msg.Media.Name
+	}
 	msg.Mentioned = mentions(m.Body, in.self)
 	return msg, true
 }
@@ -247,8 +264,8 @@ func mentions(t linkedingo.AttributedText, self string) bool {
 	return false
 }
 
-// renderLabel is what a message carries besides its text, until files and pictures are
-// shown: a short label, a forwarded message quoted, a shared post's address.
+// renderLabel is what a message carries besides its text and the attachment it shows:
+// a further attachment's label, a forwarded message quoted, a shared post's address.
 func renderLabel(rc linkedingo.RenderContent, people map[string]string) string {
 	switch {
 	case rc.VectorImage != nil:

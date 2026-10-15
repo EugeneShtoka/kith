@@ -136,8 +136,8 @@ var (
 		cacheWriter
 	} = (*meta.Adapter)(nil)
 
-	// LinkedIn, so far: conversations, people, messages, reading, sending, editing,
-	// deleting, reactions, typing and history (media comes next).
+	// LinkedIn: conversations, people, messages, reading, sending, editing, deleting,
+	// reactions, typing, history and attachments.
 	_ interface {
 		route.Adapter
 		route.RoomLister
@@ -154,6 +154,8 @@ var (
 		route.Redactor
 		route.Reactor
 		route.Typist
+		route.Media
+		route.Uploader
 		configChecker
 		roomsRewriter
 		cacheWriter

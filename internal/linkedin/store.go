@@ -41,6 +41,9 @@ func (a *Adapter) seedRooms(ctx context.Context, c *conn) {
 // store writes what one batch changed into the cache and the streams: people, rooms
 // and members, unread state, then messages. Caller holds c.applying.
 func (a *Adapter) store(ctx context.Context, c *conn, ch change) {
+	// What was read but not kept (a page's newer messages, a failed write, no cache) is
+	// dropped: reading and storing happen under one hold of conn.applying.
+	defer clear(c.inbox.sources)
 	if a.cache == nil {
 		return
 	}
@@ -77,8 +80,9 @@ func (a *Adapter) store(ctx context.Context, c *conn, ch change) {
 			counted[roomID(in.self, thread)] = true
 		}
 	}
-	a.saveMessages(ctx, c, ch.history, counted)
+	a.keepSources(ctx, c, a.saveMessages(ctx, c, ch.history, counted))
 	live := a.saveMessages(ctx, c, ch.live, counted)
+	a.keepSources(ctx, c, live)
 	for i := range live {
 		if a.onCached != nil {
 			a.onCached(live[i])
