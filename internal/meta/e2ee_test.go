@@ -21,6 +21,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 const encryptedKey = int64(555) // an encrypted one-to-one thread's own key
@@ -285,7 +286,7 @@ func TestReceiptTarget(t *testing.T) {
 func TestTheDeviceIsKeptAndFoundAgain(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	devices, err := OpenStore(ctx, filepath.Join(t.TempDir(), "messenger.db"), nil)
+	devices, err := OpenStore(ctx, filepath.Join(t.TempDir(), "messenger.db"), make([]byte, sealeddb.KeyLen), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,17 +23,23 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// TestMain keeps tests off the system keyring: it refuses everything, so a Matrix
-// session lives in the file fallback (allow_token_file).
+// TestMain keeps tests off the system keyring: an in-memory one stands in, holding a
+// Matrix session and the network stores' keys for the test's life.
 func TestMain(m *testing.M) {
-	keyring.MockInitWithError(errors.New("no secret service in tests"))
+	keyring.MockInit()
 	os.Exit(m.Run())
 }
 
 // servedFor builds the daemon's backend for cfg in a fresh instance, with a Matrix
 // session saved when saved has one.
+// keyringTurn is the in-memory keyring's turn: go-keyring's mock takes no concurrent
+// callers, as the OS keyring does, so parallel tests take turns building a backend.
+var keyringTurn sync.Mutex
+
 func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 	t.Helper()
+	keyringTurn.Lock()
+	defer keyringTurn.Unlock()
 	dir := t.TempDir()
 	storage := domain.Storage{Instance: "test", DataDir: dir, StateDir: dir, CacheDir: dir, RuntimeDir: dir, KeyringService: "kith-test"}
 	if saved.AccessToken != "" {
