@@ -25,6 +25,8 @@ import (
 	"github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed" // the SQLite build it runs
 	_ "github.com/ncruces/go-sqlite3/vfs/adiantum"
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/api"
 )
 
 // Databases are opened with driver.Open, never by a registered driver name: with cgo
@@ -45,6 +47,15 @@ var (
 
 // Dialect is what whatsmeow and its dbutil call these databases.
 const Dialect = "sqlite3"
+
+// SQLite runs interpreted. Compiled, wazero maps memory both writable and executable,
+// which kithd's systemd unit forbids (MemoryDenyWriteExecute): the first open would
+// fail there, and with it the daemon.
+func init() {
+	sqlite3.RuntimeConfig = wazero.NewRuntimeConfigInterpreter().
+		WithMemoryLimitPages(4096). // 256 MiB, ncruces' own default
+		WithCoreFeatures(api.CoreFeaturesV2)
+}
 
 // Open opens (creating) the encrypted database at path with key, and checks the key
 // opens it: a wrong key is ErrWrongKey, at once rather than at the first query.

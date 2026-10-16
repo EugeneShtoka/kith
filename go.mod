@@ -27,6 +27,7 @@ require (
 	github.com/ncruces/go-sqlite3 v0.32.0
 	github.com/rivo/uniseg v0.4.7
 	github.com/rs/zerolog v1.35.1
+	github.com/tetratelabs/wazero v1.11.0
 	github.com/yuin/goldmark v1.8.6
 	github.com/zalando/go-keyring v0.2.8
 	go.mau.fi/libsignal v0.2.2
@@ -71,7 +72,6 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/tetratelabs/wazero v1.11.0 // indirect
 	go.mau.fi/zeroconfig v0.2.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
