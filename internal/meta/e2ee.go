@@ -232,8 +232,9 @@ func (a *Adapter) takeEncrypted(ctx context.Context, c *conn, e *events.FBMessag
 	if quoted := e.FBApplication.GetMetadata().GetQuotedMessage(); quoted.GetStanzaID() != "" {
 		msg.ReplyTo = eventID(in.self, key, quoted.GetStanzaID())
 	}
-	t := in.threads[key]
-	t.lastActive = max(t.lastActive, e.Info.Timestamp.UnixMilli())
+	if !in.active(key, e.Info.Timestamp.UnixMilli()) {
+		return // a chat you left, and this from before
+	}
 	// Your own message needs no read mark: unread counts start after your newest message.
 	counted := map[domain.RoomID]bool{room: true}
 	a.cacheMessages(ctx, c, map[domain.RoomID][]domain.Message{room: {msg}}, []domain.Message{msg}, counted)
