@@ -24,6 +24,7 @@ require (
 	github.com/gofrs/flock v0.13.1
 	github.com/gotd/log v0.1.0
 	github.com/gotd/td v0.162.0
+	github.com/ncruces/go-sqlite3 v0.32.0
 	github.com/rivo/uniseg v0.4.7
 	github.com/rs/zerolog v1.35.1
 	github.com/yuin/goldmark v1.8.6
@@ -62,6 +63,7 @@ require (
 	github.com/icholy/digest v1.2.0 // indirect
 	github.com/imroc/req/v3 v3.56.0 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/ogen-go/ogen v1.23.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.61.0 // indirect
@@ -69,12 +71,14 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
+	github.com/tetratelabs/wazero v1.11.0 // indirect
 	go.mau.fi/zeroconfig v0.2.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
+	lukechampine.com/adiantum v1.1.1 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect
 )
 

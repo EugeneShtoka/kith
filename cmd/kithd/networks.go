@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 
@@ -71,6 +72,15 @@ func (s served) checkConfig(ctx context.Context, cfg config.Config) error {
 	return nil
 }
 
+// openMessengerStore opens Messenger's store with its key from the keyring.
+func openMessengerStore(ctx context.Context, storage domain.Storage, log *slog.Logger) (*meta.Store, error) {
+	key, err := session.LoadOrCreateStoreKey(storage.KeyringService, storage.Instance, "messenger")
+	if err != nil {
+		return nil, fmt.Errorf("its key cannot be had from the keyring: %w", err)
+	}
+	return meta.OpenStore(ctx, storage.MessengerPath(), key, log) //nolint:wrapcheck // logged with what it was for
+}
+
 // store is a network's own store, closed with the backend.
 type store struct {
 	name string
@@ -89,7 +99,9 @@ func openNetworks(
 		Keys:       func(user string) session.Store { return session.StoreFor(storage, user) },
 	})
 	networks = append(networks, mx)
-	if wa, err := whatsapp.OpenStore(ctx, storage.WhatsAppPath(), whatsapp.NewStoreLogger(log)); err != nil {
+	if key, err := session.LoadOrCreateStoreKey(storage.KeyringService, storage.Instance, "whatsapp"); err != nil {
+		log.Error("WhatsApp is off: its store's key cannot be had from the keyring", "err", err)
+	} else if wa, err := whatsapp.OpenStore(ctx, storage.WhatsAppPath(), key, whatsapp.NewStoreLogger(log)); err != nil {
 		log.Error("WhatsApp is off: its store will not open", "path", storage.WhatsAppPath(), "err", err)
 	} else {
 		stores = append(stores, store{name: "WhatsApp", Closer: wa})
@@ -103,7 +115,7 @@ func openNetworks(
 	} else {
 		stores = append(stores, store{name: "Telegram", Closer: tg})
 	}
-	msgr, err := meta.OpenStore(ctx, storage.MessengerPath(), log)
+	msgr, err := openMessengerStore(ctx, storage, log)
 	if err != nil {
 		log.Error("Messenger's encrypted chats are off: its store will not open", "path", storage.MessengerPath(), "err", err)
 		msgr = nil

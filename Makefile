@@ -6,8 +6,10 @@
 	proto emoji dict-manifest freq-manifest model-manifest keys-doc
 
 # goolm = mautrix's pure-Go E2EE (no libolm/cgo). Also set in .golangci.yml,
-# .goreleaser.yaml and the CI env.
-export GOFLAGS := -tags=goolm
+# .goreleaser.yaml and the CI env. With cgo on (the race detector), mautrix's
+# cryptohelper links mattn/go-sqlite3, which registers "sqlite3" as ncruces' driver
+# does: ncruces' registers under no name (internal/sealeddb opens without one).
+export GOFLAGS := -tags=goolm -ldflags=-X=github.com/ncruces/go-sqlite3/driver.driverName=
 
 # ── The same environment as CI ───────────────────────────────────────────────
 # Every gate runs what CI runs, with what CI runs it with:

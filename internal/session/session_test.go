@@ -319,3 +319,43 @@ func TestACorruptPickleKeyIsKeptAndReported(t *testing.T) {
 		}
 	}
 }
+
+// A network store's key is made once and kept in the keyring, one per store; one that
+// is not a key is reported naming the entry and left as it is; without a keyring there
+// is no key, and nothing is written anywhere.
+func TestStoreKeys(t *testing.T) {
+	keyring.MockInit()
+	wa, err := LoadOrCreateStoreKey("kith-test", "inst", "whatsapp")
+	if err != nil || len(wa) != pickleKeyLen {
+		t.Fatalf("first WhatsApp key: %d bytes, %v", len(wa), err)
+	}
+	again, err := LoadOrCreateStoreKey("kith-test", "inst", "whatsapp")
+	if err != nil || !bytes.Equal(again, wa) {
+		t.Errorf("the key changed between opens (%v)", err)
+	}
+	msgr, err := LoadOrCreateStoreKey("kith-test", "inst", "messenger")
+	if err != nil || bytes.Equal(msgr, wa) {
+		t.Errorf("Messenger's store shares WhatsApp's key (%v)", err)
+	}
+
+	if err = keyring.Set("kith-test", "inst|whatsapp-store", "not a key"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = LoadOrCreateStoreKey("kith-test", "inst", "whatsapp")
+	if !errors.Is(err, ErrCorruptStoreKey) || !strings.Contains(err.Error(), "inst|whatsapp-store") {
+		t.Errorf("a corrupt key: %v, want ErrCorruptStoreKey naming the entry", err)
+	}
+	if kept, _ := keyring.Get("kith-test", "inst|whatsapp-store"); kept != "not a key" {
+		t.Errorf("the corrupt entry was replaced with %q", kept)
+	}
+
+	keyring.MockInitWithError(errors.New("no secret store"))
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if _, err := LoadOrCreateStoreKey("kith-test", "inst", "whatsapp"); !errors.Is(err, ErrNoSecretStore) {
+		t.Errorf("no keyring: %v, want ErrNoSecretStore", err)
+	}
+	if files, _ := os.ReadDir(dir); len(files) != 0 {
+		t.Errorf("without a keyring, a key went to %v", files)
+	}
+}

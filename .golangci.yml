@@ -209,6 +209,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/readstate"
+            - "github.com/EugeneShtoka/kith/internal/sealeddb"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/whatsapp"
             - "go.mau.fi/libsignal"
@@ -271,6 +272,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/readstate"
+            - "github.com/EugeneShtoka/kith/internal/sealeddb"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/meta"
             - "github.com/rs/zerolog"
@@ -337,6 +339,16 @@ linters:
           allow:
             - "$gostd"
             - "rsc.io/qr"
+
+        # Encrypted SQLite for the network stores that act as the account: a leaf over
+        # ncruces' SQLite (WebAssembly, pure Go) and its Adiantum VFS.
+        sealeddb-is-a-leaf:
+          files:
+            - "**/internal/sealeddb/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/ncruces/go-sqlite3"
 
         session-is-a-leaf:
           files:

@@ -7,20 +7,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/url"
 	"sync"
 
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	// The pure-Go SQLite driver the cache uses; whatsmeow supports its dialect.
-	_ "modernc.org/sqlite"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // Store is the WhatsApp session store: device keys, contacts and Signal sessions of
-// every linked account. Anyone holding it can act as those accounts; only the daemon
-// opens it.
+// every linked account. Anyone holding it can act as those accounts, so it is
+// encrypted at rest with a key the OS keyring holds; only the daemon opens it.
 type Store struct {
 	db        *sql.DB
 	container *sqlstore.Container
@@ -33,19 +31,17 @@ var askFullHistory = sync.OnceFunc(func() {
 	store.DeviceProps.RequireFullSync = new(true)
 })
 
-// OpenStore opens the store at path, creating and migrating it.
-func OpenStore(ctx context.Context, path string, log waLog.Logger) (*Store, error) {
+// OpenStore opens the store at path, encrypted with key, creating and upgrading it;
+// a plain store from before is encrypted first (sealeddb.OpenMigrating).
+func OpenStore(ctx context.Context, path string, key []byte, log waLog.Logger) (*Store, error) {
 	askFullHistory()
-	dsn := (&url.URL{Scheme: "file", Opaque: path, RawQuery: url.Values{
-		"_pragma": {"foreign_keys(1)", "journal_mode(WAL)", "busy_timeout(5000)"},
-	}.Encode()}).String()
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sealeddb.OpenMigrating(ctx, path, key)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: open the store: %w", err)
 	}
 	// One connection: whatsmeow's advice for SQLite.
 	db.SetMaxOpenConns(1)
-	container := sqlstore.NewWithDB(db, "sqlite3", log)
+	container := sqlstore.NewWithDB(db, sealeddb.Dialect, log)
 	if err := container.Upgrade(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("whatsapp: migrate the store: %w", err)

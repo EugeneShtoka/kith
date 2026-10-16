@@ -98,22 +98,40 @@ var ErrCorruptPickleKey = errors.New("session: the pickle key in the keyring is 
 // LoadOrCreatePickleKey returns the E2EE crypto store key, generating it on first use.
 // It lives only in the keyring.
 func LoadOrCreatePickleKey(st Store) ([]byte, error) {
-	service, acct := st.Service, st.Account+"|pickle"
+	return loadOrCreateKey(st.Service, st.Account+"|pickle", ErrCorruptPickleKey,
+		"restore it, or delete it together with the crypto store, log in again and restore your keys from backup")
+}
+
+// ErrCorruptStoreKey is a keyring entry that is not a network store's key. It is never
+// replaced: a new key cannot open the store the old one encrypted.
+var ErrCorruptStoreKey = errors.New("session: a network store's key in the keyring is corrupt")
+
+// LoadOrCreateStoreKey returns the key a network's own store (name: "whatsapp",
+// "messenger") of instance is encrypted with, generating it on first use. It lives
+// only in the keyring; without one there is no key, and the store stays closed.
+func LoadOrCreateStoreKey(service, instance, name string) ([]byte, error) {
+	return loadOrCreateKey(service, instance+"|"+name+"-store", ErrCorruptStoreKey,
+		"restore it, or delete it together with the store and link the account again")
+}
+
+// loadOrCreateKey returns the 32-byte key in the keyring entry (service, acct), making
+// and keeping one when there is none. One that is not a key is corrupt, reported with
+// advice and never replaced; no keyring is ErrNoSecretStore, never a key kept elsewhere.
+func loadOrCreateKey(service, acct string, corrupt error, advice string) ([]byte, error) {
 	switch existing, err := keyring.Get(service, acct); {
 	case err == nil:
 		key, derr := base64.StdEncoding.DecodeString(existing)
 		if derr == nil && len(key) == pickleKeyLen {
 			return key, nil
 		}
-		return nil, fmt.Errorf("%w (service %q, account %q): restore it, or delete it together "+
-			"with the crypto store, log in again and restore your keys from backup", ErrCorruptPickleKey, service, acct)
+		return nil, fmt.Errorf("%w (service %q, account %q): %s", corrupt, service, acct, advice)
 	case errors.Is(err, keyring.ErrNotFound):
 	default:
 		return nil, ErrNoSecretStore
 	}
 	key := make([]byte, pickleKeyLen)
 	if _, err := rand.Read(key); err != nil {
-		return nil, fmt.Errorf("session: generate pickle key: %w", err)
+		return nil, fmt.Errorf("session: generate a key: %w", err)
 	}
 	if err := keyring.Set(service, acct, base64.StdEncoding.EncodeToString(key)); err != nil {
 		return nil, ErrNoSecretStore

@@ -15,6 +15,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // offline is an adapter over a fresh cache and store, never connected.
@@ -26,7 +27,7 @@ func offline(t *testing.T, accounts ...Account) (*Adapter, *db.Cache, *Store) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cache.Close() })
-	store, err := OpenStore(ctx, filepath.Join(t.TempDir(), "whatsapp.db"), NewStoreLogger(nil))
+	store, err := OpenStore(ctx, filepath.Join(t.TempDir(), "whatsapp.db"), make([]byte, sealeddb.KeyLen), NewStoreLogger(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
