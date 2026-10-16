@@ -125,64 +125,64 @@ const goldenRatioConjugate = 0.618033988749895
 const (
 	senderSaturation = 0.68
 	senderLightness  = 0.66
-	minHueGap        = 0.07 // ~25°: min distance from an avoided hue
+	// minColorGap is how far, in OKLab, a sender color keeps from an avoided one. Hue
+	// alone is not enough: at this lightness a yellow 47° from a green still reads as it.
+	minColorGap = 0.12
 )
 
 // SpreadColors returns n sender colors stepped around the hue wheel by the golden
-// ratio, skipping hues within minHueGap of any avoid color (e.g. pinned identities).
+// ratio, skipping those that look close to any avoid color (e.g. pinned identities).
 func (t Theme) SpreadColors(n int, avoid []color.Color) []color.Color {
-	avoidHues := make([]float64, len(avoid))
+	avoidLab := make([][3]float64, len(avoid))
 	for i, c := range avoid {
-		avoidHues[i] = hueOf(c)
+		avoidLab[i] = oklab(c)
 	}
 	out := make([]color.Color, 0, n)
 	for k := 0; len(out) < n && k < 4096; k++ {
 		hue := math.Mod(0.1+float64(k)*goldenRatioConjugate, 1)
-		if !nearAnyHue(hue, avoidHues) {
-			out = append(out, hslColor(hue*360, senderSaturation, senderLightness))
+		c := hslColor(hue*360, senderSaturation, senderLightness)
+		if !nearAny(oklab(c), avoidLab) {
+			out = append(out, c)
 		}
 	}
 	return out
 }
 
-// nearAnyHue reports whether hue is within minHueGap of any avoided hue (wrapping at 1).
-func nearAnyHue(hue float64, avoid []float64) bool {
+// nearAny reports whether an OKLab color is within minColorGap of any avoided one.
+func nearAny(lab [3]float64, avoid [][3]float64) bool {
 	for _, a := range avoid {
-		d := math.Abs(hue - a)
-		if d > 0.5 {
-			d = 1 - d
-		}
-		if d < minHueGap {
+		if colorDistance(lab, a) < minColorGap {
 			return true
 		}
 	}
 	return false
 }
 
-// hueOf returns the hue of c in [0,1).
-func hueOf(c color.Color) float64 {
+// colorDistance is the distance between two OKLab colors, which tracks how different
+// they look.
+func colorDistance(a, b [3]float64) float64 {
+	return math.Sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2]))
+}
+
+// oklab is c in OKLab (L, a, b), from sRGB.
+func oklab(c color.Color) [3]float64 {
 	r16, g16, b16, _ := c.RGBA()
-	r, g, b := float64(r16)/0xffff, float64(g16)/0xffff, float64(b16)/0xffff
-	maxc := math.Max(r, math.Max(g, b))
-	minc := math.Min(r, math.Min(g, b))
-	d := maxc - minc
-	if d == 0 {
-		return 0
+	linear := func(v uint32) float64 {
+		x := float64(v) / 0xffff
+		if x <= 0.04045 {
+			return x / 12.92
+		}
+		return math.Pow((x+0.055)/1.055, 2.4)
 	}
-	var h float64
-	switch maxc {
-	case r:
-		h = math.Mod((g-b)/d, 6)
-	case g:
-		h = (b-r)/d + 2
-	default:
-		h = (r-g)/d + 4
+	r, g, b := linear(r16), linear(g16), linear(b16)
+	l := math.Cbrt(0.4122214708*r + 0.5363325363*g + 0.0514459929*b)
+	m := math.Cbrt(0.2119034982*r + 0.6806995451*g + 0.1073969566*b)
+	s := math.Cbrt(0.0883024619*r + 0.2817188376*g + 0.6299787005*b)
+	return [3]float64{
+		0.2104542553*l + 0.7936177850*m - 0.0040720468*s,
+		1.9779984951*l - 2.4285922050*m + 0.4505937099*s,
+		0.0259040371*l + 0.7827717662*m - 0.8086757660*s,
 	}
-	h /= 6
-	if h < 0 {
-		h++
-	}
-	return h
 }
 
 // ParseColor reads a color from a config string: a "#rrggbb" hex value or one of

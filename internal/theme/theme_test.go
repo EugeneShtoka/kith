@@ -10,8 +10,9 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Generated colors avoid hues already pinned to identities.
-func TestSpreadColorsAvoidsPinnedHues(t *testing.T) {
+// Generated colors keep clear of colors already pinned to identities, by how they
+// look rather than by hue alone.
+func TestSpreadColorsAvoidsPinnedColors(t *testing.T) {
 	t.Parallel()
 
 	pinned := []color.Color{lipgloss.Color("#3ad900"), lipgloss.Color("#00aaff")}
@@ -22,23 +23,36 @@ func TestSpreadColorsAvoidsPinnedHues(t *testing.T) {
 	}
 	for i, c := range got {
 		for j, p := range pinned {
-			if d := hueDistance(hueOf(c), hueOf(p)); d < minHueGap {
+			if d := colorDistance(oklab(c), oklab(p)); d < minColorGap {
 				t.Errorf("color %d is %.3f from pinned color %d, want at least %.3f",
-					i, d, j, minHueGap)
+					i, d, j, minColorGap)
 			}
 		}
 	}
 }
 
-// Consecutive senders get distant hues.
+// A room of three with "me" pinned light green: the slots numbered past it never land
+// on a yellow or teal that reads as the same green, as slot 4's yellow did when only
+// the hue was kept 25° away.
+func TestSpreadColorsKeepYellowsAwayFromALightGreen(t *testing.T) {
+	t.Parallel()
+
+	me := lipgloss.Color("#8ff586")
+	for i, c := range New(Default()).SpreadColors(12, []color.Color{me}) {
+		if d := colorDistance(oklab(c), oklab(me)); d < 0.1 {
+			t.Errorf("slot %d (%v) is %.3f from %v: it reads as the same color", i, c, d, me)
+		}
+	}
+}
+
+// Consecutive senders get colors that look different.
 func TestSpreadColorsSeparatesNeighbours(t *testing.T) {
 	t.Parallel()
 
 	got := New(Default()).SpreadColors(12, nil)
 	for i := 1; i < len(got); i++ {
-		if d := hueDistance(hueOf(got[i]), hueOf(got[i-1])); d < 0.15 {
-			t.Errorf("colors %d and %d are %.3f apart on the wheel; they will read as the same",
-				i-1, i, d)
+		if d := colorDistance(oklab(got[i]), oklab(got[i-1])); d < 0.2 {
+			t.Errorf("colors %d and %d are %.3f apart; they will read as the same", i-1, i, d)
 		}
 	}
 }
@@ -109,53 +123,37 @@ func TestHSLConversion(t *testing.T) {
 	}
 }
 
-// hueOf inverts hslColor's hue; SpreadColors depends on the two agreeing.
-func TestHueOfInvertsHSL(t *testing.T) {
-	t.Parallel()
-
-	for deg := 0; deg < 360; deg += 15 {
-		want := float64(deg) / 360
-		got := hueOf(hslColor(float64(deg), senderSaturation, senderLightness))
-		if hueDistance(got, want) > 0.01 {
-			t.Errorf("%d°: read back as %.3f, want %.3f", deg, got, want)
-		}
-	}
-}
-
-// A grey's hue is 0, with no division by zero chroma.
-func TestHueOfGreyIsZero(t *testing.T) {
-	t.Parallel()
-
-	for _, c := range []color.Color{
-		lipgloss.Color("#000000"), lipgloss.Color("#808080"), lipgloss.Color("#ffffff"),
-	} {
-		if got := hueOf(c); got != 0 {
-			t.Errorf("hueOf(%v) = %v, want 0 for a grey", c, got)
-		}
-	}
-}
-
-// The wheel wraps, so 0.99 and 0.01 are close.
-func TestNearAnyHueWrapsAroundTheWheel(t *testing.T) {
+// OKLab puts black, white and grey on the lightness axis, and measures a color as
+// nothing from itself.
+func TestOKLab(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name  string
-		hue   float64
-		avoid []float64
-		want  bool
+		hex  string
+		l    float64
+		grey bool
 	}{
-		{"nothing to avoid", 0.5, nil, false},
-		{"same hue", 0.5, []float64{0.5}, true},
-		{"just inside the gap", 0.5, []float64{0.5 + minHueGap/2}, true},
-		{"just outside the gap", 0.5, []float64{0.5 + minHueGap*1.5}, false},
-		{"across the seam", 0.99, []float64{0.01}, true},
-		{"across the seam, far", 0.75, []float64{0.01}, false},
-		{"second entry matches", 0.5, []float64{0.1, 0.5}, true},
+		{"#000000", 0, true}, {"#ffffff", 1, true}, {"#808080", 0.6, true}, {"#ff0000", 0.628, false},
 	} {
-		if got := nearAnyHue(tc.hue, tc.avoid); got != tc.want {
-			t.Errorf("%s: nearAnyHue(%v, %v) = %v, want %v", tc.name, tc.hue, tc.avoid, got, tc.want)
+		lab := oklab(lipgloss.Color(tc.hex))
+		if math.Abs(lab[0]-tc.l) > 0.01 {
+			t.Errorf("%s: L = %.3f, want %.3f", tc.hex, lab[0], tc.l)
 		}
+		if chroma := math.Hypot(lab[1], lab[2]); tc.grey && chroma > 0.001 {
+			t.Errorf("%s: a grey has chroma %.4f", tc.hex, chroma)
+		}
+		if d := colorDistance(lab, lab); d != 0 {
+			t.Errorf("%s: %.4f from itself", tc.hex, d)
+		}
+	}
+	if !nearAny(oklab(lipgloss.Color("#8ff586")), [][3]float64{oklab(lipgloss.Color("#88f080"))}) {
+		t.Error("two near-identical greens are not near")
+	}
+	if nearAny(oklab(lipgloss.Color("#8ff586")), [][3]float64{oklab(lipgloss.Color("#a07ff0"))}) {
+		t.Error("a green and a violet are near")
+	}
+	if nearAny(oklab(lipgloss.Color("#8ff586")), nil) {
+		t.Error("nothing to avoid, yet near")
 	}
 }
 
@@ -335,12 +333,3 @@ func TestSwatch(t *testing.T) {
 
 // unset is what lipgloss reports for a style with no background.
 var unset = lipgloss.NewStyle().GetBackground()
-
-// hueDistance is the shortest way round the wheel between two hues.
-func hueDistance(a, b float64) float64 {
-	d := math.Abs(a - b)
-	if d > 0.5 {
-		d = 1 - d
-	}
-	return d
-}
