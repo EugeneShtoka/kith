@@ -7,22 +7,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// /joined_rooms returns spaces too; SpaceIDs lets the room list drop them.
-func TestSpaceIDsAreWhatTheRoomListSiftsAgainst(t *testing.T) {
-	t.Parallel()
-
-	cache, ctx := openTemp(t), context.Background()
-	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{
-		{ID: "!work:x", Name: "Work", Children: []domain.RoomID{"!chat:x"}},
-	}); err != nil {
-		t.Fatalf("SaveSpaces() error = %v", err)
-	}
-	ids, err := cache.SpaceIDs(ctx)
-	if err != nil || !ids["!work:x"] || len(ids) != 1 {
-		t.Errorf("SpaceIDs() = %v, %v; want just the space", ids, err)
-	}
-}
-
 // A network's archive flag is set and cleared on its word, survives a listing
 // rewrite, and applies to a room no listing has brought yet.
 func TestTheNetworksArchiveIsKeptBesideItsRooms(t *testing.T) {

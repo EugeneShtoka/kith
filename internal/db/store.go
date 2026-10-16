@@ -407,13 +407,3 @@ func boolToInt(b bool) int {
 	}
 	return 0
 }
-
-// SpaceIDs is the set of cached space IDs (empty on a cold cache).
-func (c *Cache) SpaceIDs(ctx context.Context) (map[domain.RoomID]bool, error) {
-	return collectMap(ctx, c.db, "space ids", "SELECT id FROM spaces",
-		func(rows *sql.Rows) (domain.RoomID, bool, error) {
-			var id string
-			err := rows.Scan(&id)
-			return domain.RoomID(id), true, err
-		})
-}

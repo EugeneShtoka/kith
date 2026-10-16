@@ -7,7 +7,6 @@ import (
 	"slices"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"maunium.net/go/mautrix"
@@ -34,19 +33,17 @@ func (b *InProc) Rooms(ctx context.Context) ([]domain.Room, error) {
 // RefreshRooms fetches joined rooms with their names, DM flags and member names,
 // caches and returns them. Members are reused from the cache for known rooms.
 func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
-	asked := time.Now()
-	resp, err := b.client.JoinedRooms(ctx)
+	// /joined_rooms includes spaces: rooms are the listing's non-spaces, from the same
+	// listing the spaces refresh uses, so neither waits on the other's cache.
+	split, err := b.refreshJoined(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("matrix: joined rooms: %w", err)
+		return nil, err
 	}
 	peers, directRead := b.directPeers(ctx)
 	known := b.cachedRoomIndex(ctx)
-	// /joined_rooms includes spaces; drop them by the cached space list rather than a
-	// state call per room. On a cold cache Cache.Rooms filters them.
-	spaces := b.cachedSpaceIDs(ctx)
-	joined := make([]id.RoomID, 0, len(resp.JoinedRooms))
-	for _, roomID := range resp.JoinedRooms {
-		if !spaces[domain.RoomID(roomID)] && !b.left.since(domain.RoomID(roomID), asked) {
+	joined := make([]id.RoomID, 0, len(split.joined))
+	for _, roomID := range split.joined {
+		if !split.spaceIDs[roomID] && !b.left.since(domain.RoomID(roomID), split.asked) {
 			joined = append(joined, roomID)
 		}
 	}

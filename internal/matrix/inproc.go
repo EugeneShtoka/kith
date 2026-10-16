@@ -45,6 +45,10 @@ type InProc struct {
 	onRoomsStale func()
 	// left is when each room was left here, so an in-flight refresh does not bring it back.
 	left leftRooms
+	// listing is the joined-rooms listing in flight, which concurrent refreshes share;
+	// types is each room's m.room.create type, read once (spaces.go).
+	listing sharedListing
+	types   roomTypes
 	// networks reads each room's network in the background (networks.go).
 	networks roomNetworks
 	// reads is the read receipts the homeserver has not taken yet (readowed.go).

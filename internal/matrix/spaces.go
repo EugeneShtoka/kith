@@ -41,10 +41,68 @@ func (b *InProc) matrixSpaces(ctx context.Context) ([]domain.Space, error) {
 // non-space children. An unreadable space keeps its cached form: its rooms scope
 // agent access, so a failed read must not look like an empty space.
 func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
+	split, err := b.refreshJoined(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return slices.Clone(split.spaces), nil
+}
+
+// joinedSplit is one listing of the joined rooms, split by type: the spaces (cached
+// with their children) and every joined room, as asked at asked.
+type joinedSplit struct {
+	asked    time.Time
+	joined   []id.RoomID
+	spaceIDs map[id.RoomID]bool
+	spaces   []domain.Space
+}
+
+// sharedListing is the listing in flight; a refresh asked meanwhile waits for it.
+type sharedListing struct {
+	mu      sync.Mutex
+	running *listingRun
+}
+
+type listingRun struct {
+	done  chan struct{}
+	split joinedSplit
+	err   error
+}
+
+// refreshJoined lists the joined rooms and refreshes the spaces, or joins a listing
+// already in flight: rooms and spaces come from one listing, so the room list never
+// waits on a cache the spaces refresh has not written yet.
+func (b *InProc) refreshJoined(ctx context.Context) (joinedSplit, error) {
+	b.listing.mu.Lock()
+	if run := b.listing.running; run != nil {
+		b.listing.mu.Unlock()
+		select {
+		case <-run.done:
+			return run.split, run.err
+		case <-ctx.Done():
+			return joinedSplit{}, fmt.Errorf("matrix: joined rooms: %w", ctx.Err())
+		}
+	}
+	run := &listingRun{done: make(chan struct{})}
+	b.listing.running = run
+	b.listing.mu.Unlock()
+
+	run.split, run.err = b.listJoined(ctx)
+
+	b.listing.mu.Lock()
+	b.listing.running = nil
+	b.listing.mu.Unlock()
+	close(run.done)
+	return run.split, run.err
+}
+
+// listJoined lists the joined rooms, tells spaces from rooms by their create type,
+// and caches the spaces with their children.
+func (b *InProc) listJoined(ctx context.Context) (joinedSplit, error) {
 	asked := time.Now()
 	resp, err := b.client.JoinedRooms(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("matrix: joined rooms: %w", err)
+		return joinedSplit{}, fmt.Errorf("matrix: joined rooms: %w", err)
 	}
 	// Drop rooms left since the list was asked for.
 	resp.JoinedRooms = slices.DeleteFunc(resp.JoinedRooms, func(roomID id.RoomID) bool {
@@ -55,9 +113,7 @@ func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 		joined[roomID] = true
 	}
 
-	isSpace, read, predecessors := b.readCreateEvents(ctx, resp.JoinedRooms)
-	b.saveUpgradeLinks(ctx, resp.JoinedRooms, predecessors)
-
+	isSpace, read := b.typesOf(ctx, resp.JoinedRooms)
 	known := b.knownSpaces(ctx)
 	spaceIDs := make(map[id.RoomID]bool)
 	for i, roomID := range resp.JoinedRooms {
@@ -91,7 +147,7 @@ func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	domain.SortSpaces(spaces)
 	if b.cache != nil {
 		if err := b.cache.SaveSpaces(ctx, domain.MatrixRooms, spaces); err != nil {
-			return nil, fmt.Errorf("matrix: cache spaces: %w", err)
+			return joinedSplit{}, fmt.Errorf("matrix: cache spaces: %w", err)
 		}
 		// Original derives from canonical parents: computed on read, not stored.
 		if origins, err := b.cache.OriginSpaces(ctx); err == nil {
@@ -100,7 +156,47 @@ func (b *InProc) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 			}
 		}
 	}
-	return spaces, nil
+	return joinedSplit{asked: asked, joined: resp.JoinedRooms, spaceIDs: spaceIDs, spaces: spaces}, nil
+}
+
+// roomTypes is each room's create type as read; a room's type never changes.
+type roomTypes struct {
+	mu    sync.Mutex
+	space map[id.RoomID]bool
+}
+
+// typesOf is whether each room is a space, and whether that is known: its
+// m.room.create is read for a room not seen before (its upgrade link saved then too).
+func (b *InProc) typesOf(ctx context.Context, rooms []id.RoomID) (isSpace, known []bool) {
+	isSpace, known = make([]bool, len(rooms)), make([]bool, len(rooms))
+	var unseen []int
+	b.types.mu.Lock()
+	for i, roomID := range rooms {
+		if space, ok := b.types.space[roomID]; ok {
+			isSpace[i], known[i] = space, true
+		} else {
+			unseen = append(unseen, i)
+		}
+	}
+	b.types.mu.Unlock()
+	ids := make([]id.RoomID, len(unseen))
+	for k, i := range unseen {
+		ids[k] = rooms[i]
+	}
+	space, read, predecessors := b.readCreateEvents(ctx, ids)
+	b.saveUpgradeLinks(ctx, ids, predecessors)
+	b.types.mu.Lock()
+	defer b.types.mu.Unlock()
+	if b.types.space == nil {
+		b.types.space = map[id.RoomID]bool{}
+	}
+	for k, i := range unseen {
+		isSpace[i], known[i] = space[k], read[k]
+		if read[k] {
+			b.types.space[ids[k]] = space[k]
+		}
+	}
+	return isSpace, known
 }
 
 // readCreateEvents reads every room's m.room.create concurrently.
@@ -341,19 +437,6 @@ func (b *InProc) spacesHolding(ctx context.Context, roomID domain.RoomID) []doma
 		}
 	}
 	return holding
-}
-
-// cachedSpaceIDs is the joined rooms known to be spaces; empty on a cold cache.
-func (b *InProc) cachedSpaceIDs(ctx context.Context) map[domain.RoomID]bool {
-	if b.cache == nil {
-		return nil
-	}
-	ids, err := b.cache.SpaceIDs(ctx)
-	if err != nil {
-		b.warnIf(ctx, err, "read cached space IDs")
-		return nil
-	}
-	return ids
 }
 
 // RemoveFromSpace blanks the space's m.space.child and the room's m.space.parent.
