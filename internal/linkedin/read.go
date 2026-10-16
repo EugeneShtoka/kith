@@ -19,57 +19,64 @@ import (
 // receiptSpan bounds sending one read mark.
 const receiptSpan = 30 * time.Second
 
-// owed is the conversations LinkedIn has not heard are read, by account and thread.
+// owed is the conversations LinkedIn has not heard are read, by account and thread,
+// with the time each is read through: a mark taken settles only what it covered.
 type owed struct {
 	mu    sync.Mutex
-	marks map[string]map[string]bool // self → thread
+	marks map[string]map[string]int64 // self → thread → read through, ms
 }
 
-func (o *owed) add(self, thread string) {
+func (o *owed) add(self, thread string, at int64) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.marks == nil {
-		o.marks = map[string]map[string]bool{}
+		o.marks = map[string]map[string]int64{}
 	}
 	if o.marks[self] == nil {
-		o.marks[self] = map[string]bool{}
+		o.marks[self] = map[string]int64{}
 	}
-	o.marks[self][thread] = true
+	o.marks[self][thread] = max(o.marks[self][thread], at)
 }
 
 // take removes and returns an account's owed marks.
-func (o *owed) take(self string) []string {
+func (o *owed) take(self string) map[string]int64 {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	threads := make([]string, 0, len(o.marks[self]))
-	for thread := range o.marks[self] {
-		threads = append(threads, thread)
-	}
+	marks := o.marks[self]
 	delete(o.marks, self)
-	return threads
+	return marks
 }
 
-// settle drops a mark LinkedIn took.
-func (o *owed) settle(self, thread string) {
+// settle drops a mark LinkedIn took, unless a later one was owed meanwhile.
+func (o *owed) settle(self, thread string, at int64) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	delete(o.marks[self], thread)
+	if o.marks[self][thread] <= at {
+		delete(o.marks[self], thread)
+	}
 }
 
 var errNotAConversation = errors.New("linkedin: not a LinkedIn room")
 
 // MarkRead reads a room through event, here first, then on LinkedIn. LinkedIn not
-// taking it is logged and retried; the read here stands.
+// taking it is logged and retried; the read here stands. A read that cannot be kept
+// here is an error, and LinkedIn is not told.
 func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain.EventID, _ bool) error {
 	self, thread, ok := threadOf(room)
 	if !ok {
 		return fmt.Errorf("%w: %s", errNotAConversation, room)
 	}
-	a.readTo(ctx, room, a.timeOf(ctx, room, event))
+	at, err := a.timeOf(ctx, room, event)
+	if err != nil {
+		return err
+	}
+	if err := a.readTo(ctx, room, at); err != nil {
+		return err
+	}
 	a.recount(ctx, room)
-	a.reads.add(self, thread)
+	a.reads.add(self, thread, at.UnixMilli())
 	if c := a.connOf(self); c != nil {
-		a.sendRead(context.WithoutCancel(ctx), c, thread)
+		a.sendRead(context.WithoutCancel(ctx), c, thread, at.UnixMilli())
 	}
 	return nil
 }
@@ -110,18 +117,23 @@ var errNoMarkUnread = errors.New("linkedin: marking a conversation unread is not
 func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error { return errNoMarkUnread }
 
 // timeOf is when a cached message was sent; now when it is not cached, so the room is
-// read through everything it shows.
-func (a *Adapter) timeOf(ctx context.Context, room domain.RoomID, event domain.EventID) time.Time {
+// read through everything it shows. A lookup that fails is an error, never now.
+func (a *Adapter) timeOf(ctx context.Context, room domain.RoomID, event domain.EventID) (time.Time, error) {
 	if a.cache != nil && event != "" {
-		if msg, ok, err := a.cache.MessageByID(ctx, room, event); err == nil && ok {
-			return msg.Timestamp
+		msg, ok, err := a.cache.MessageByID(ctx, room, event)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("linkedin: read position of %s: %w", event, err)
+		}
+		if ok {
+			return msg.Timestamp, nil
 		}
 	}
-	return time.Now()
+	return time.Now(), nil
 }
 
-// sendRead tells LinkedIn a conversation is read and settles it when LinkedIn takes it.
-func (a *Adapter) sendRead(ctx context.Context, c *conn, thread string) {
+// sendRead tells LinkedIn a conversation is read through at and settles that when
+// LinkedIn takes it.
+func (a *Adapter) sendRead(ctx context.Context, c *conn, thread string, at int64) {
 	c.mu.Lock()
 	client := c.client
 	c.mu.Unlock()
@@ -139,14 +151,14 @@ func (a *Adapter) sendRead(ctx context.Context, c *conn, thread string) {
 			"account", c.account.Name, "err", err)
 		return
 	}
-	a.reads.settle(c.profile, thread)
+	a.reads.settle(c.profile, thread, at)
 }
 
 // sendOwed sends an account's owed read marks, on (re)connecting.
 func (a *Adapter) sendOwed(c *conn) {
-	for _, thread := range a.reads.take(c.profile) {
-		a.reads.add(c.profile, thread) // owed until LinkedIn takes it
-		a.sendRead(context.Background(), c, thread)
+	for thread, at := range a.reads.take(c.profile) {
+		a.reads.add(c.profile, thread, at) // owed until LinkedIn takes it
+		a.sendRead(context.Background(), c, thread, at)
 	}
 }
 
