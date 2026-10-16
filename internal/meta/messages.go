@@ -184,7 +184,8 @@ func (a *Adapter) saveThreadUnread(ctx context.Context, t *thread, c *conn) {
 	}
 }
 
-// storeMessages caches messages room by room, announcing and streaming the live ones.
+// storeMessages caches a table's messages room by room, announcing and streaming the
+// live ones.
 func (a *Adapter) storeMessages(ctx context.Context, c *conn, msgs []*table.WrappedMessage, counted map[domain.RoomID]bool) {
 	byRoom := map[domain.RoomID][]domain.Message{}
 	var live []domain.Message
@@ -198,9 +199,19 @@ func (a *Adapter) storeMessages(ctx context.Context, c *conn, msgs []*table.Wrap
 			live = append(live, msg)
 		}
 	}
+	a.cacheMessages(ctx, c, byRoom, live, counted)
+}
+
+// cacheMessages caches messages by room, then announces and streams live, the ones
+// among them that arrived now.
+func (a *Adapter) cacheMessages(ctx context.Context, c *conn, byRoom map[domain.RoomID][]domain.Message, live []domain.Message, counted map[domain.RoomID]bool) {
+	save := a.cache.SaveMessages
+	if a.keepsDeleted() {
+		save = a.cache.SaveMessagesWithRevisions // an edit keeps what it replaced
+	}
 	saved := map[domain.RoomID]bool{}
 	for room, batch := range byRoom {
-		if err := a.cache.SaveMessages(ctx, room, batch); err != nil {
+		if err := save(ctx, room, batch); err != nil {
 			a.log.Warn("cache messages failed", "account", c.account.Name, "room", room, "count", len(batch), "err", err)
 			continue
 		}

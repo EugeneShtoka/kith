@@ -5,12 +5,16 @@ Matrix bridge. **It is being built.** Today kith signs in, stays connected, and 
 your threads in a space of their own (`Messenger <name>`), with their messages as
 they arrive and the history Meta sends with each page of the inbox. Pictures, files
 and stickers show as a short label (`[photo]`, `[file: plan.pdf]`) for now. Sending,
-older history, end-to-end encrypted chats, and Instagram come next.
+older history and Instagram come next.
 
-**End-to-end encrypted chats are not shown yet.** Since late 2023 Messenger encrypts
-one-to-one chats by default, so most of your direct messages are among them; group
-chats and older chats are not encrypted and do show. The daemon's log says how many
-threads it left out and why.
+**End-to-end encrypted chats** (Messenger encrypts one-to-one chats by default since
+late 2023) are read the way Messenger's own apps read them: kith registers itself
+once as a device of your account, and Messenger lists it with your devices. Only
+messages sent after that can be read; older encrypted history sits behind
+Messenger's PIN-protected backup, which kith cannot open. An encrypted chat is the
+same room as the thread it was, named after its person. Because one room can hold both, kith counts every
+Messenger room as encrypted: the assistant and kith-mcp leave them out unless you
+set `encrypted = true` ([assist](assist.md), [mcp](mcp.md)).
 
 A thread you read in kith stays read: kith keeps the read position itself, before
 telling Meta, and keeps telling Meta until it hears. Meta's own read marks only ever

@@ -128,17 +128,26 @@ func (a *Adapter) tellRead(ctx context.Context, self, thread, at int64) {
 	a.sendRead(context.WithoutCancel(ctx), c, thread, at)
 }
 
-// sendRead sends one read mark and settles it when Meta takes it.
+// sendRead sends one read mark and settles it when Meta takes it: over the encrypted
+// connection for an encrypted chat (owed until that connection is up), else as a
+// Messenger task.
 func (a *Adapter) sendRead(ctx context.Context, c *conn, thread, at int64) {
+	c.applying.Lock()
+	t := c.inbox.threads[thread]
+	encrypted, group := t != nil && t.kind.IsWhatsApp(), t != nil && !t.direct()
+	c.applying.Unlock()
 	c.mu.Lock()
-	client := c.client
+	client, wa := c.client, c.e2ee
 	c.mu.Unlock()
-	if client == nil {
+	if client == nil || encrypted && wa == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, receiptSpan)
 	defer cancel()
 	err := a.guard("sending a read mark", func() error {
+		if encrypted {
+			return a.readEncrypted(ctx, c, wa, thread, at, group)
+		}
 		_, err := client.ExecuteTasks(ctx, &socket.ThreadMarkReadTask{ThreadId: thread, LastReadWatermarkTs: at, SyncGroup: 1})
 		return err //nolint:wrapcheck // logged below with what it was for
 	})

@@ -53,10 +53,13 @@ func TestTheInboxKeepsThreadsAsMessengerShowsThem(t *testing.T) {
 		LSDeleteThread:                  []*table.LSDeleteThread{{ThreadKey: group}}, // delete-then-insert
 		LSAddParticipantIdToGroupThread: []*table.LSAddParticipantIdToGroupThread{{ThreadKey: group, ContactId: eli}, {ThreadKey: group, ContactId: me}},
 	})
-	if ch.left["spam"] != 1 || ch.left["encrypted"] != 2 {
-		t.Errorf("left = %v, want 1 spam and 2 encrypted", ch.left)
+	if ch.left["spam"] != 1 || len(ch.left) != 1 {
+		t.Errorf("left = %v, want 1 spam (encrypted chats are kept)", ch.left)
 	}
-	if !ch.people || len(in.threads) != 3 {
+	if !in.threads[302].kind.IsWhatsApp() || in.threads[303] == nil {
+		t.Errorf("encrypted threads: 302 %+v, 303 %+v", in.threads[302], in.threads[303])
+	}
+	if !ch.people || len(in.threads) != 5 {
 		t.Fatalf("threads = %d, people changed %v", len(in.threads), ch.people)
 	}
 	for key, want := range map[int64]string{dana: "Dana Mor", group: "Board games", me: noteToSelf} {
@@ -71,15 +74,19 @@ func TestTheInboxKeepsThreadsAsMessengerShowsThem(t *testing.T) {
 		t.Errorf("the DM = %+v", r)
 	}
 
-	// A plain delete, a move to end-to-end encryption, and leaving all take threads away.
+	// A plain delete and leaving take threads away; a move to end-to-end encryption
+	// keeps the thread, now encrypted.
 	ch = in.apply(&table.LSTable{
 		LSDeleteThread:                  []*table.LSDeleteThread{{ThreadKey: dana}},
 		LSMoveThreadToE2EECutoverFolder: []*table.LSMoveThreadToE2EECutoverFolder{{ThreadKey: me}},
 		LSRemoveParticipantFromThread:   []*table.LSRemoveParticipantFromThread{{ThreadKey: group, ParticipantId: me}},
 	})
 	slices.Sort(ch.gone)
-	if !slices.Equal(ch.gone, []int64{me, dana, group}) || len(in.threads) != 0 {
-		t.Errorf("gone = %v, left %d threads", ch.gone, len(in.threads))
+	if !slices.Equal(ch.gone, []int64{dana, group}) {
+		t.Errorf("gone = %v", ch.gone)
+	}
+	if moved := in.threads[me]; moved == nil || moved.kind != table.ENCRYPTED_OVER_WA_ONE_TO_ONE || !slices.Contains(ch.threads, me) {
+		t.Errorf("the thread moved to encryption = %+v", moved)
 	}
 }
 
@@ -182,7 +189,7 @@ func cachedAdapter(t *testing.T) (*Adapter, *conn, *db.Cache, *[]domain.Message)
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cache.Close() })
-	a := New(cache, newSecrets(), nil, nil)
+	a := New(cache, newSecrets(), nil, nil, nil)
 	var announced []domain.Message
 	a.OnCached(func(m domain.Message) { announced = append(announced, m) }, nil)
 	a.UseConfig(context.Background(), withAccounts("fb"))

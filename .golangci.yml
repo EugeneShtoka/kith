@@ -254,9 +254,9 @@ linters:
             - "github.com/slack-go/slack"
 
         # The Messenger adapter: the only package that imports mautrix-meta's messagix
-        # (and, through its login steps, mautrix's bridgev2 types). Only the daemon
-        # links it; its sessions reach it through an interface the daemon backs with
-        # the keyring.
+        # (and, through its login steps, mautrix's bridgev2 types). Its encrypted chats
+        # run on whatsmeow, over a store file of its own. Only the daemon links it; its
+        # sessions reach it through an interface the daemon backs with the keyring.
         meta-is-the-adapter:
           files:
             - "**/internal/meta/**"
@@ -272,7 +272,9 @@ linters:
             - "github.com/rs/zerolog"
             - "go.mau.fi/mautrix-meta/pkg/messagix"
             - "go.mau.fi/util/exhttp"
+            - "go.mau.fi/whatsmeow"
             - "maunium.net/go/mautrix/bridgev2"
+            - "modernc.org/sqlite"
 
         # The Google Messages adapter: the only package that imports mautrix-gmessages'
         # libgm. Only the daemon links it; its sessions reach it through an interface

@@ -20,7 +20,7 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cache.Close() })
-	a := New(cache, newSecrets(), nil, nil)
+	a := New(cache, newSecrets(), nil, nil, nil)
 	const room domain.RoomID = "messenger:1001/2002"
 	start := time.Unix(1_700_000_000, 0)
 	if err := cache.SaveMessages(ctx, room, []domain.Message{

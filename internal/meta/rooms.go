@@ -58,8 +58,11 @@ func (in *inbox) room(t *thread) domain.Room {
 		Membership: domain.MembershipJoin, Network: domain.ProtocolMessenger,
 	}
 	if t.direct() {
-		// A one-to-one thread is named after its person, whatever its row says.
-		r.Name = in.people[t.key]
+		// A one-to-one thread is named after its person; its row's name only until the
+		// person is known.
+		if r.Name = in.people[t.key]; r.Name == "" {
+			r.Name = t.name
+		}
 		if t.key == in.self {
 			r.Name = noteToSelf
 		}
@@ -222,11 +225,14 @@ func (a *Adapter) MentionCandidates(ctx context.Context, room domain.RoomID, lim
 // DirectCandidates returns nobody: threads appear as Meta sends them.
 func (a *Adapter) DirectCandidates(context.Context, int) ([]domain.Member, error) { return nil, nil }
 
-// RoomEncryption reports no room as encrypted: end-to-end encrypted chats are not shown yet.
+// RoomEncryption reports every room as encrypted. A thread moved to end-to-end
+// encryption stays its room, so one room can hold plain and encrypted messages, and
+// which kind a thread is is only known once Meta's tables for it arrive; a room told
+// plain before then would pass on what came encrypted.
 func (a *Adapter) RoomEncryption(_ context.Context, rooms []domain.RoomID) (map[domain.RoomID]bool, error) {
 	out := make(map[domain.RoomID]bool, len(rooms))
 	for _, room := range rooms {
-		out[room] = false
+		out[room] = true
 	}
 	return out, nil
 }

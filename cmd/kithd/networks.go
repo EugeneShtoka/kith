@@ -103,8 +103,15 @@ func openNetworks(
 	} else {
 		stores = append(stores, store{name: "Telegram", Closer: tg})
 	}
+	msgr, err := meta.OpenStore(ctx, storage.MessengerPath(), log)
+	if err != nil {
+		log.Error("Messenger's encrypted chats are off: its store will not open", "path", storage.MessengerPath(), "err", err)
+		msgr = nil
+	} else {
+		stores = append(stores, store{name: "Messenger", Closer: msgr})
+	}
 	networks = append(networks, slack.New(cache, secrets, nil, log), telegram.New(cache, secrets, tg, nil, log),
-		meta.New(cache, secrets, nil, log), linkedin.New(cache, secrets, nil, log),
+		meta.New(cache, secrets, msgr, nil, log), linkedin.New(cache, secrets, nil, log),
 		gmessages.New(cache, secrets, nil, log))
 	for _, n := range networks {
 		n.UseConfig(ctx, cfg)
