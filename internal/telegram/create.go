@@ -119,3 +119,18 @@ func (a *Adapter) addMembers(ctx context.Context, c conn, channel *tg.Channel, p
 	}
 	return errors.Join(errs...)
 }
+
+// ChatOffers is each connected account's group, forum and channel.
+func (a *Adapter) ChatOffers(context.Context) ([]domain.ChatOffer, error) {
+	var out []domain.ChatOffer
+	for _, c := range a.connected() {
+		account := strconv.FormatInt(c.user, 10)
+		on := domain.AccountRooms(domain.ProtocolTelegram, account)
+		out = append(out,
+			domain.ChatOffer{On: on, Account: account, Kind: domain.ChatGroup, Label: "Telegram group", Detail: "a group chat"},
+			domain.ChatOffer{On: on, Account: account, Kind: domain.ChatForum, Label: "Telegram forum", Detail: "a group with topics"},
+			domain.ChatOffer{On: on, Account: account, Kind: domain.ChatChannel, Label: "Telegram channel", Detail: "only admins post"},
+		)
+	}
+	return out, nil
+}

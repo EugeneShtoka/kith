@@ -85,3 +85,20 @@ func channelName(name string) string {
 	}
 	return out
 }
+
+// ChatOffers is each connected workspace's public and private channel.
+func (a *Adapter) ChatOffers(context.Context) ([]domain.ChatOffer, error) {
+	var out []domain.ChatOffer
+	for _, w := range a.connected() {
+		on := domain.AccountRooms(domain.ProtocolSlack, w.creds.Team)
+		name := w.teamName
+		if name == "" {
+			name = w.creds.Team
+		}
+		out = append(out,
+			domain.ChatOffer{On: on, Account: name, Kind: domain.ChatChannel, Label: "Slack channel", Detail: "anyone in the workspace can join"},
+			domain.ChatOffer{On: on, Account: name, Kind: domain.ChatPrivateChannel, Label: "Slack private channel", Detail: "invitation only"},
+		)
+	}
+	return out, nil
+}
