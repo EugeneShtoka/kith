@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"path/filepath"
+
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -14,7 +16,23 @@ func (m Model) showsPictures() bool {
 // mediaPolicy is whether one message's attachment is auto-fetched and may be cached,
 // resolved per place with narrowest-wins precedence.
 func (m Model) mediaPolicy(msg domain.Message) domain.MediaPolicy {
-	return domain.ResolveMedia(m.pics.auto, m.pics.caching, m.pics.speed, m.pics.rules, m.placeOf(msg))
+	return m.mediaPolicyAt(m.placeOf(msg))
+}
+
+// mediaPolicyAt is the attachment policy at place.
+func (m Model) mediaPolicyAt(place domain.DownloadPlace) domain.MediaPolicy {
+	defaults := domain.MediaPolicy{Auto: m.pics.auto, Cache: m.pics.caching, Anonymize: m.pics.anonymize, Speed: m.pics.speed}
+	return domain.ResolveMedia(defaults, m.pics.rules, place)
+}
+
+// sentName is the name a file goes out under in a room: a neutral one (domain.SentName)
+// where [display.media] anonymize holds there, its own elsewhere.
+func (m Model) sentName(roomID domain.RoomID, path string) string {
+	name := filepath.Base(path)
+	if m.mediaPolicyAt(m.placeOf(domain.Message{RoomID: roomID, Media: &domain.Media{Name: name}})).Anonymize {
+		return domain.SentName(name)
+	}
+	return name
 }
 
 // mediaRules converts the configured per-place rules into the pure layer's shape.
@@ -26,11 +44,12 @@ func mediaRules(cfg config.Media) []domain.MediaRule {
 	rules := make([]domain.MediaRule, 0, len(configured))
 	for _, rule := range configured {
 		rules = append(rules, domain.MediaRule{
-			Match:  rule.Match,
-			Sender: rule.Sender,
-			Auto:   rule.Auto,
-			Cache:  rule.Cache,
-			Speed:  rule.Speed,
+			Match:     rule.Match,
+			Sender:    rule.Sender,
+			Auto:      rule.Auto,
+			Cache:     rule.Cache,
+			Anonymize: rule.Anonymize,
+			Speed:     rule.Speed,
 		})
 	}
 	return rules

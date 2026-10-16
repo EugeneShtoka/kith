@@ -23,6 +23,7 @@ type sendingBackend struct {
 	apitest.Nop
 	roomID  domain.RoomID
 	path    string
+	name    string
 	caption string
 	media   []byte
 	err     error
@@ -36,8 +37,8 @@ func (b *sendingBackend) Send(_ context.Context, roomID domain.RoomID, draft dom
 	return b.err
 }
 
-func (b *sendingBackend) SendFile(_ context.Context, roomID domain.RoomID, path, caption string) error {
-	b.roomID, b.path, b.caption = roomID, path, caption
+func (b *sendingBackend) SendFile(_ context.Context, roomID domain.RoomID, path, name, caption string) error {
+	b.roomID, b.path, b.name, b.caption = roomID, path, name, caption
 	return b.err
 }
 
@@ -92,6 +93,40 @@ func TestAttachSendsAnAbsolutePath(t *testing.T) {
 	}
 	if !strings.Contains(m.status(), "invoice.pdf") {
 		t.Errorf("status = %q, should name the file", m.status())
+	}
+}
+
+// A file goes out under a neutral name by default, and under its own where a rule for
+// the room turns anonymizing off; the status names it as you know it.
+func TestAttachSendsUnderANeutralName(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	file := filepath.Join(dir, "IMG_2041 Haifa.JPG")
+	if err := os.WriteFile(file, []byte("JPEG"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	send := func(m Model) Model {
+		t.Helper()
+		m, _ = press(t, m, keyText("i"))
+		m, _ = press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModAlt})
+		m, _ = updateWith(t, m, fileChosenMsg{err: filedialog.ErrUnavailable})
+		return typeIn(t, m, file)
+	}
+	m, backend := attaching(t)
+	m = send(m)
+	if backend.name != "photo.jpg" {
+		t.Errorf("sent as %q, want photo.jpg", backend.name)
+	}
+	if !strings.Contains(m.status(), "IMG_2041") {
+		t.Errorf("status = %q, should name the file as you know it", m.status())
+	}
+
+	m, backend = attaching(t)
+	off := false
+	m = m.applyMedia(config.Media{Rules: []config.MediaRule{{Match: "!a:x", Anonymize: &off}}})
+	send(m)
+	if backend.name != "IMG_2041 Haifa.JPG" {
+		t.Errorf("with anonymizing off for the room: sent as %q, want its own name", backend.name)
 	}
 }
 

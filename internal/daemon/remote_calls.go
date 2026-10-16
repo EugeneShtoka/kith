@@ -335,8 +335,8 @@ func (r *Remote) Redact(ctx context.Context, roomID domain.RoomID, eventID domai
 
 // SendFile passes the path, not the bytes: client and daemon are the same user on the
 // same machine. The caller makes it absolute.
-func (r *Remote) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
-	_, err := call(ctx, "send file", r.c.SendFile, &v1.SendFileRequest{RoomId: string(roomID), Path: path, Caption: caption})
+func (r *Remote) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
+	_, err := call(ctx, "send file", r.c.SendFile, &v1.SendFileRequest{RoomId: string(roomID), Path: path, Name: name, Caption: caption})
 	return err
 }
 

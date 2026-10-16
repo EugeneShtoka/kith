@@ -200,13 +200,17 @@ func (s *server) SendTyping(ctx context.Context, r *req[v1.SendTypingRequest]) (
 }
 
 // SendFile refuses relative paths: the daemon's working directory is systemd's,
-// not the user's.
+// not the user's. A request naming no name sends the file under its own.
 func (s *server) SendFile(ctx context.Context, r *req[v1.SendFileRequest]) (*resp[v1.SendFileResponse], error) {
 	path := r.Msg.GetPath()
 	if !filepath.IsAbs(path) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("daemon: send file: the path must be absolute"))
 	}
-	return reply(&v1.SendFileResponse{}, s.Backend.SendFile(ctx, roomID(r.Msg.GetRoomId()), path, r.Msg.GetCaption()))
+	name := r.Msg.GetName()
+	if name == "" {
+		name = filepath.Base(path)
+	}
+	return reply(&v1.SendFileResponse{}, s.Backend.SendFile(ctx, roomID(r.Msg.GetRoomId()), path, name, r.Msg.GetCaption()))
 }
 
 // ── Unread ──

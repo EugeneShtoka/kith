@@ -178,7 +178,7 @@ func (f *fake) SendTyping(_ context.Context, room domain.RoomID, _ bool, _ time.
 	return f.touch(room)
 }
 
-func (f *fake) SendFile(_ context.Context, room domain.RoomID, _, _ string) error {
+func (f *fake) SendFile(_ context.Context, room domain.RoomID, _, _, _ string) error {
 	return f.touch(room)
 }
 

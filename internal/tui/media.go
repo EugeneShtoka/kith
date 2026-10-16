@@ -21,9 +21,9 @@ type mediaState struct {
 	blocks   blockMode
 	// cache holds attachment bytes and per-box drawings; nil just redoes the work.
 	cache *media.Cache
-	// auto and caching are the defaults that rules override per place.
-	auto, caching bool
-	rules         []domain.MediaRule
+	// auto, caching and anonymize are the defaults that rules override per place.
+	auto, caching, anonymize bool
+	rules                    []domain.MediaRule
 	// speed is the default voice-note speed.
 	speed float64
 	// imageRows caches rendered rows by event ID; a nil value means "attempted, nothing to show"

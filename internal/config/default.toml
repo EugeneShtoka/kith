@@ -485,10 +485,18 @@ max_height = 16
 # cache_dir    = ""
 # cache_max_mb = 0
 
+# `anonymize` sends attachments under a neutral name for what they are, so a file's
+# own name ("IMG_2041 Haifa.jpg", "contract-Dana.docx") does not travel with it:
+# photo.jpg, video.mkv, music.mp3, document.pdf, archive.zip (file.ext for anything
+# else). The extension stays, so the file still opens. On every network; a rule turns
+# it off for a place.
+# anonymize    = true
+
 # Per-place overrides, matched by room ID, space:, tag: or place: (a room's first
 # home). The narrower match wins; a rule changes only what it sets. Fields: auto (fetch pictures
-# unasked), cache (keep on disk), dir, template ("-" turns the layout off), speed
-# (voice notes). `sender` makes a rule about a person, for speed.
+# unasked), cache (keep on disk), anonymize (send under a neutral name), dir, template
+# ("-" turns the layout off), speed (voice notes). `sender` makes a rule about a person,
+# for speed.
 #
 # [[display.media.rule]]
 # match = "space:Work"
@@ -497,6 +505,10 @@ max_height = 16
 # [[display.media.rule]]
 # match    = "!standup:server"
 # template = "{date}-{name}{ext}"
+#
+# [[display.media.rule]]
+# match     = "space:Work"
+# anonymize = false
 #
 # [[display.media.rule]]
 # sender = "@dana:example.org"

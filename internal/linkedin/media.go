@@ -127,7 +127,7 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 // SendFile uploads a file and sends it with caption as its text: a video as a video,
 // audio as a voice message, anything else (a photo too, as LinkedIn's web client and
 // the bridge send them) as a file. The answer is the whole message, kept at once.
-func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
+func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
 	c, client, thread, err := a.client(roomID)
 	if err != nil {
 		return err
@@ -136,7 +136,6 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, capt
 	if err != nil {
 		return fmt.Errorf("linkedin: read %s: %w", path, err)
 	}
-	name := filepath.Base(path)
 	if len(data) == 0 {
 		return fmt.Errorf("linkedin: %s is empty, and LinkedIn takes no empty files", name)
 	}

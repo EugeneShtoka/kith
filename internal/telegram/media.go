@@ -182,7 +182,7 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 
 // SendFile uploads and sends a file with a Markdown caption: images as photos, the
 // rest as documents (Telegram renders audio/video by MIME type).
-func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
+func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
 	ch, err := a.chatOf(ctx, roomID)
 	if err != nil {
 		return err
@@ -191,7 +191,6 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, capt
 	if err != nil {
 		return fmt.Errorf("telegram: read %s: %w", path, err)
 	}
-	name := filepath.Base(path)
 	file, err := uploader.NewUploader(ch.conn.client.API()).FromBytes(ctx, name, data)
 	if err != nil {
 		return fmt.Errorf("telegram: upload %s: %w", name, err)

@@ -347,6 +347,7 @@ func paletteOf(display config.Display) theme.Palette {
 func (m Model) applyMedia(media config.Media) Model {
 	m.pics.auto = media.AutoLoad()
 	m.pics.caching = media.Caching()
+	m.pics.anonymize = media.Anonymizes()
 	m.pics.rules = mediaRules(media)
 	m.pics.speed = media.Audio.PlaySpeed()
 	return m

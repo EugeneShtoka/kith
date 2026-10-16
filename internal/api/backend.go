@@ -139,9 +139,10 @@ type Timeline interface {
 	Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error
 	// SendTyping sets or clears the typing notice for timeout.
 	SendTyping(ctx context.Context, roomID domain.RoomID, typing bool, timeout time.Duration) error
-	// SendFile uploads (encrypting where needed) and posts a file. path is absolute
-	// on the shared machine; empty caption uses the filename.
-	SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error
+	// SendFile uploads (encrypting where needed) and posts a file under name (its own,
+	// or a neutral one: domain.SentName). path is absolute on the shared machine; empty
+	// caption uses the name.
+	SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error
 }
 
 // Unread is per-room unread state, as a cache read and a live stream.

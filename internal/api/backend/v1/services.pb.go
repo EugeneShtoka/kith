@@ -2556,7 +2556,10 @@ type SendFileRequest struct {
 	RoomId string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	Path   string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	// caption becomes the message body.
-	Caption       string `protobuf:"bytes,3,opt,name=caption,proto3" json:"caption,omitempty"`
+	Caption string `protobuf:"bytes,3,opt,name=caption,proto3" json:"caption,omitempty"`
+	// name is what the file is sent as (domain.SentName where names are anonymized);
+	// empty sends it under its own.
+	Name          string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2608,6 +2611,13 @@ func (x *SendFileRequest) GetPath() string {
 func (x *SendFileRequest) GetCaption() string {
 	if x != nil {
 		return x.Caption
+	}
+	return ""
+}
+
+func (x *SendFileRequest) GetName() string {
+	if x != nil {
+		return x.Name
 	}
 	return ""
 }
@@ -12953,11 +12963,12 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\vSendRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12'\n" +
 	"\x05draft\x18\x02 \x01(\v2\x11.backend.v1.DraftR\x05draft\"\x0e\n" +
-	"\fSendResponse\"X\n" +
+	"\fSendResponse\"l\n" +
 	"\x0fSendFileRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
-	"\acaption\x18\x03 \x01(\tR\acaption\"\x12\n" +
+	"\acaption\x18\x03 \x01(\tR\acaption\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\"\x12\n" +
 	"\x10SendFileResponse\"c\n" +
 	"\x11SendTypingRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x16\n" +
