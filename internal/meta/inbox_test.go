@@ -135,31 +135,47 @@ func TestMessagesShowWhatTheyCarry(t *testing.T) {
 		return &table.WrappedMessage{LSInsertMessage: live(dana, dana, "mid.1", text, 1000)}
 	}
 	for _, tc := range []struct {
-		name string
-		m    *table.WrappedMessage
-		want string
+		name  string
+		m     *table.WrappedMessage
+		want  string
+		media domain.MediaType // the attachment shown, "" for none
 	}{
-		{"text", base("hello"), "hello"},
+		{"text", base("hello"), "hello", ""},
 		{"a photo with words", func() *table.WrappedMessage {
 			m := base("look")
-			m.BlobAttachments = []*table.LSInsertBlobAttachment{{AttachmentType: table.AttachmentTypeImage}}
+			m.BlobAttachments = []*table.LSInsertBlobAttachment{{AttachmentType: table.AttachmentTypeImage, PreviewUrl: "https://cdn.example/p.jpg"}}
 			return m
-		}(), "look\n[photo]"},
+		}(), "look", domain.MediaImage},
 		{"a file", func() *table.WrappedMessage {
 			m := base("")
 			m.BlobAttachments = []*table.LSInsertBlobAttachment{{AttachmentType: table.AttachmentTypeFile, Filename: "plan.pdf"}}
 			return m
-		}(), "[file: plan.pdf]"},
-		{"a like", func() *table.WrappedMessage { m := base(""); m.StickerId = 369239263222822; return m }(), "👍"},
+		}(), "plan.pdf", domain.MediaFile},
+		{"a photo and a file: the second is named", func() *table.WrappedMessage {
+			m := base("")
+			m.BlobAttachments = []*table.LSInsertBlobAttachment{
+				{AttachmentType: table.AttachmentTypeImage}, {AttachmentType: table.AttachmentTypeFile, Filename: "plan.pdf"},
+			}
+			return m
+		}(), "[file: plan.pdf]", domain.MediaImage},
+		{"a sticker", func() *table.WrappedMessage {
+			m := base("")
+			m.Stickers = []*table.LSInsertStickerAttachment{{PreviewUrl: "https://cdn.example/s.png"}}
+			return m
+		}(), "sticker", domain.MediaImage},
+		{"a like", func() *table.WrappedMessage { m := base(""); m.StickerId = 369239263222822; return m }(), "👍", ""},
 		{"a link", func() *table.WrappedMessage {
 			m := base("")
 			m.XMAAttachments = []*table.WrappedXMA{{LSInsertXmaAttachment: &table.LSInsertXmaAttachment{TitleText: "Docs", ActionUrl: "https://example.org"}}}
 			return m
-		}(), "Docs https://example.org"},
+		}(), "Docs https://example.org", ""},
 	} {
 		msg, ok := in.message(tc.m)
 		if !ok || msg.Body != tc.want || msg.SenderName != "Dana Mor" || msg.Sender != personID(dana) {
 			t.Errorf("%s: %+v (%v), want body %q", tc.name, msg, ok, tc.want)
+		}
+		if got := msg.Media; tc.media == "" && got != nil || tc.media != "" && (got == nil || got.Type != tc.media) {
+			t.Errorf("%s: media %+v, want type %v", tc.name, got, tc.media)
 		}
 	}
 	reply := base("yes")

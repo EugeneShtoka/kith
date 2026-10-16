@@ -29,15 +29,33 @@ func (in *inbox) message(m *table.WrappedMessage) (domain.Message, bool) {
 	if text := strings.TrimSpace(m.Text); text != "" {
 		parts = append(parts, m.Text)
 	}
-	parts = append(parts, attachmentsOf(m)...)
-	if len(parts) == 0 {
+	// The first attachment is shown, its source kept once the message is cached.
+	var media *domain.Media
+	var source mediaSource
+	shown := ""
+	switch {
+	case len(m.BlobAttachments) > 0:
+		media, source = blobMedia(m.BlobAttachments[0])
+		shown = "blob"
+	case len(m.Stickers) > 0:
+		media, source = stickerMedia(m.Stickers[0])
+		shown = "sticker"
+	}
+	parts = append(parts, attachmentsOf(m, shown)...)
+	if len(parts) == 0 && media == nil {
 		return domain.Message{}, false
 	}
 	msg := domain.Message{
 		ID: eventID(in.self, m.ThreadKey, m.MessageId), RoomID: roomID(in.self, m.ThreadKey),
 		Sender: personID(m.SenderId), SenderName: in.people[m.SenderId],
 		Body: strings.Join(parts, "\n"), Timestamp: time.UnixMilli(m.TimestampMs),
-		Edited: m.EditCount > 0,
+		Edited: m.EditCount > 0, Media: media,
+	}
+	if media != nil {
+		if msg.Body == "" {
+			msg.Body = media.Name
+		}
+		in.sources[msg.ID] = source
 	}
 	if m.ReplySourceId != "" {
 		msg.ReplyTo = eventID(in.self, m.ThreadKey, m.ReplySourceId)
@@ -45,11 +63,18 @@ func (in *inbox) message(m *table.WrappedMessage) (domain.Message, bool) {
 	return msg, true
 }
 
-// attachmentsOf names what a message carries besides its text, until files and
-// pictures are shown.
-func attachmentsOf(m *table.WrappedMessage) []string {
+// attachmentsOf names what a message carries besides its text and the attachment
+// shown ("blob" for its first file or picture, "sticker" for its first sticker).
+func attachmentsOf(m *table.WrappedMessage, shown string) []string {
 	var out []string
-	for _, b := range m.BlobAttachments {
+	blobs, stickers := m.BlobAttachments, m.Stickers
+	switch shown {
+	case "blob":
+		blobs = blobs[1:]
+	case "sticker":
+		stickers = stickers[1:]
+	}
+	for _, b := range blobs {
 		out = append(out, attachmentLabel(b.AttachmentType, b.Filename))
 	}
 	for _, at := range m.Attachments {
@@ -68,7 +93,7 @@ func attachmentsOf(m *table.WrappedMessage) []string {
 			out = append(out, "["+x.TitleText+"]")
 		}
 	}
-	for range m.Stickers {
+	for range stickers {
 		out = append(out, "[sticker]")
 	}
 	if m.StickerId != 0 && len(m.Stickers) == 0 {
@@ -221,6 +246,15 @@ func (a *Adapter) cacheMessages(ctx context.Context, c *conn, byRoom map[domain.
 		}
 		saved[room] = true
 		counted[room] = true
+		for i := range batch {
+			if batch[i].Media == nil {
+				continue // a message sent from kith carries none; its caller holds no lock
+			}
+			if source, ok := c.inbox.sources[batch[i].ID]; ok {
+				delete(c.inbox.sources, batch[i].ID)
+				a.keepSource(ctx, batch[i], source)
+			}
+		}
 	}
 	for i := range live {
 		if !saved[live[i].RoomID] {

@@ -218,16 +218,16 @@ func (a *Adapter) takeEncrypted(ctx context.Context, c *conn, e *events.FBMessag
 		}
 		return
 	}
-	body := encryptedBody(content)
-	if ca == nil {
-		body = "[a message only the Messenger app shows]"
-	}
+	body, media, source := encryptedShown(ca, content)
 	if strings.TrimSpace(body) == "" {
 		return
 	}
 	msg := domain.Message{
 		ID: eventID(in.self, key, e.Info.ID), RoomID: room, Sender: personID(sender),
-		SenderName: in.people[sender], Body: body, Timestamp: e.Info.Timestamp,
+		SenderName: in.people[sender], Body: body, Timestamp: e.Info.Timestamp, Media: media,
+	}
+	if media != nil {
+		in.sources[msg.ID] = source
 	}
 	if quoted := e.FBApplication.GetMetadata().GetQuotedMessage(); quoted.GetStanzaID() != "" {
 		msg.ReplyTo = eventID(in.self, key, quoted.GetStanzaID())
@@ -239,6 +239,21 @@ func (a *Adapter) takeEncrypted(ctx context.Context, c *conn, e *events.FBMessag
 	counted := map[domain.RoomID]bool{room: true}
 	a.cacheMessages(ctx, c, map[domain.RoomID][]domain.Message{room: {msg}}, []domain.Message{msg}, counted)
 	a.recount(ctx, room)
+}
+
+// encryptedShown is what an encrypted message shows: its attachment, with its caption
+// (or the attachment's name) as its text, or its text alone.
+func encryptedShown(ca *waConsumerApplication.ConsumerApplication, content *waConsumerApplication.ConsumerApplication_Content) (string, *domain.Media, mediaSource) {
+	if ca == nil {
+		return "[a message only the Messenger app shows]", nil, mediaSource{}
+	}
+	if media, source, caption := encryptedMedia(content); media != nil {
+		if caption == "" {
+			caption = media.Name
+		}
+		return caption, media, source
+	}
+	return encryptedBody(content), nil, mediaSource{}
 }
 
 // encryptedBody is what an encrypted message shows: its text, or a label and caption
