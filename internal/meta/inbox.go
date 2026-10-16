@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"go.mau.fi/mautrix-meta/pkg/messagix/table"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // The inbox is what one connection knows of the account's threads, people and group
@@ -43,12 +45,15 @@ type inbox struct {
 	alias map[int64]int64
 	// left is when you left each chat you left (ms): only newer activity brings it back.
 	left map[int64]int64
+	// sources are where the attachments of messages not yet cached are (media.go).
+	sources map[domain.EventID]mediaSource
 }
 
 func newInbox(self int64) *inbox {
 	return &inbox{
 		self: self, threads: map[int64]*thread{}, people: map[int64]string{},
 		members: map[int64]map[int64]bool{}, alias: map[int64]int64{}, left: map[int64]int64{},
+		sources: map[domain.EventID]mediaSource{},
 	}
 }
 

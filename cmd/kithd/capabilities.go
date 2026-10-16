@@ -119,9 +119,11 @@ var (
 	} = (*telegram.Adapter)(nil)
 
 	// Messenger, so far: threads, people, messages, history, reading, sending, editing
-	// and unsending text, reactions, typing and leaving (files come next).
+	// and unsending text, reactions, typing, leaving and attachments in (sending files
+	// comes next).
 	_ interface {
 		route.Adapter
+		route.Media
 		route.Sender
 		route.Leaver
 		route.Redactor

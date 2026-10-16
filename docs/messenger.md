@@ -7,8 +7,12 @@ older ones as you scroll up, and you can write, reply, edit or unsend what you w
 and react, and others see you typing. Leaving a chat deletes it from your Messenger, as
 Messenger's "Delete chat" does, leaving a group first; a new message brings it back. Messenger keeps one reaction per person on a message:
 reacting again with another emoji replaces yours, and with the same one takes it back.
-Pictures, files and stickers show as a short label (`[photo]`, `[file: plan.pdf]`) for
-now. Sending files and Instagram come next.
+Pictures, videos, voice messages, files and stickers show as attachments, as on other
+networks: pictures inline, the rest opened or saved from the message; a message
+carrying more than one names the others (`[file: plan.pdf]`). A plain thread's
+attachments come from Meta's servers, whose links expire after a while, so an old one
+stops loading; an encrypted chat's are opened with the chat's keys. Sending files and
+Instagram come next.
 
 **End-to-end encrypted chats** (Messenger encrypts one-to-one chats by default since
 late 2023) are read the way Messenger's own apps read them: kith registers itself
