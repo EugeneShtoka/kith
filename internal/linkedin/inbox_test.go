@@ -874,3 +874,39 @@ func TestAListingThatStopsShortKeepsNoSyncToken(t *testing.T) {
 		t.Error("a sync that listed nothing counts as done")
 	}
 }
+
+// Typists are streamed on change, through the realtime stream, never yourself; one
+// whose notices stop is forgotten.
+func TestTypingIsStreamedOnChange(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	a, c, _, _ := cachedAdapter(t)
+	typing := func(thread, who string) *linkedingo.DecoratedEvent {
+		return liveEvent(linkedingo.RealtimeEventTopicTypingIndicators, linkedingo.DecoratedEventData{
+			DecoratedTypingIndicator: &linkedingo.DecoratedTypingIndicator{Result: linkedingo.RealtimeTypingIndicator{
+				TypingParticipant: people[who], Conversation: linkedingo.Conversation{EntityURN: conversationURN(me, thread)},
+			}},
+		}, 1000)
+	}
+	room := roomID(me, danaDM)
+	a.event(ctx, c, typing(danaDM, me)) // yourself, on another device
+	a.event(ctx, c, typing(danaDM, dana))
+	a.event(ctx, c, typing(danaDM, dana)) // still typing: nothing new
+	select {
+	case got := <-a.Activity():
+		if got.RoomID != room || !slices.Equal(got.Typing, []string{personID(dana)}) {
+			t.Errorf("activity = %+v, want Dana typing", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Dana typing was not streamed")
+	}
+	select {
+	case more := <-a.Activity():
+		t.Errorf("a repeated notice streamed %+v", more)
+	default:
+	}
+	a.stoppedTyping(room, personID(dana))
+	if gone := <-a.Activity(); gone.RoomID != room || len(gone.Typing) != 0 {
+		t.Errorf("after the notices stopped: %+v", gone)
+	}
+}

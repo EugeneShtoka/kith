@@ -14,7 +14,7 @@ You can write in a conversation, reply (the reply quotes the original, as Linked
 shows it), mention people (`@` offers the conversation's members), edit and delete
 your messages, react (reacting again with the same emoji takes it back), and scroll
 back past what kith has: older messages are fetched from LinkedIn. Reactions show as
-people make them. Attaching a file sends it with what you typed as its text: a video
+people make them, and so does who is typing. Attaching a file sends it with what you typed as its text: a video
 as a video and audio as a voice message, anything else (pictures too, as LinkedIn's
 web app sends them) as a file.
 
