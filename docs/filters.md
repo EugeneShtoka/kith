@@ -309,8 +309,8 @@ release. The local cache mirrors them. Account data lives on your homeserver, so
   running daemon picks up a release made elsewhere within a minute. Other people in
   the room never see either.
 
-A room of kith's own WhatsApp, Telegram or Slack connection has no account data, so
-its moves are kept in the local cache only. A tag's `picked` and `excluded` are part of
+A room of kith's own WhatsApp, Telegram, Slack or LinkedIn connection has no account
+data, so its moves are kept in the local cache only. A tag's `picked` and `excluded` are part of
 `config.toml`, stored on each machine with the rest of your configuration.
 
 A room a muted tag holds is left out of notifications in the daemon before any
