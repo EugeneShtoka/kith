@@ -641,7 +641,7 @@ func TestRetry(t *testing.T) {
 	ctx := context.Background()
 
 	wait := time.Millisecond
-	if !a.retry(ctx, c, errors.New("connection reset"), &wait) || wait != 2*time.Millisecond {
+	if !a.retry(ctx, c, errors.New("connection reset"), &wait, 0) || wait != 2*time.Millisecond {
 		t.Errorf("a transient failure: wait now %v", wait)
 	}
 	if st := heard.last(); st.Phase != Connecting || !strings.Contains(st.Detail, "retrying") {
@@ -650,14 +650,26 @@ func TestRetry(t *testing.T) {
 	wait = retryMax
 	canceled, cancel := context.WithCancel(ctx)
 	go func() { time.Sleep(time.Millisecond); cancel() }()
-	if a.retry(canceled, c, errors.New("connection reset"), &wait) {
+	if a.retry(canceled, c, errors.New("connection reset"), &wait, 0) {
 		t.Error("retried after the context ended")
 	}
-	if a.retry(canceled, c, errors.New("connection reset"), &wait) {
+	if a.retry(canceled, c, errors.New("connection reset"), &wait, 0) {
 		t.Error("retried with the context already ended")
 	}
+	// A connection that held for a while starts the waits over; a short one does not.
+	// (canceled, so neither waits)
+	wait = retryMax
+	a.retry(canceled, c, errors.New("connection reset"), &wait, retryMax)
+	if wait != retryFirst {
+		t.Errorf("after a connection up for %v: wait %v, want %v", retryMax, wait, retryFirst)
+	}
+	wait = retryMax
+	a.retry(canceled, c, errors.New("connection reset"), &wait, time.Second)
+	if wait != retryMax {
+		t.Errorf("after a connection up for a second: wait %v, want %v kept", wait, retryMax)
+	}
 	wait = time.Millisecond
-	if a.retry(ctx, c, &linkedingo.ResponseError{StatusCode: 401}, &wait) {
+	if a.retry(ctx, c, &linkedingo.ResponseError{StatusCode: 401}, &wait, 0) {
 		t.Error("retried a refused session")
 	}
 	if st := heard.last(); st.Phase != SignedOut || !strings.Contains(st.Detail, "refused these cookies") ||

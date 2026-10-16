@@ -177,7 +177,7 @@ func (a *Adapter) connect(ctx context.Context, c *conn, checked bool) {
 		client := a.clientFor(ctx, s, a.handlers(c))
 		if !checked {
 			if _, err := a.profileOf(ctx, client); err != nil {
-				if !a.retry(ctx, c, err, &wait) {
+				if !a.retry(ctx, c, err, &wait, 0) {
 					return
 				}
 				continue
@@ -188,6 +188,7 @@ func (a *Adapter) connect(ctx context.Context, c *conn, checked bool) {
 			return
 		}
 		_ = client.RealtimeConnect(a.withLog(ctx)) // starts its loops; never fails
+		started := time.Now()
 		c.mu.Lock()
 		c.client = client
 		c.mu.Unlock()
@@ -200,7 +201,7 @@ func (a *Adapter) connect(ctx context.Context, c *conn, checked bool) {
 		}
 		client.RealtimeDisconnect()
 		a.keepCookies(c)
-		if !a.retry(ctx, c, err, &wait) {
+		if !a.retry(ctx, c, err, &wait, time.Since(started)) {
 			return
 		}
 	}
@@ -208,7 +209,13 @@ func (a *Adapter) connect(ctx context.Context, c *conn, checked bool) {
 
 // retry waits before the next attempt after err, doubling wait; false when err means
 // the session is over (the account is then signed out) or the connection was let go.
-func (a *Adapter) retry(ctx context.Context, c *conn, err error, wait *time.Duration) bool {
+// ran is how long the connection that ended was up: one that held for retryMax starts
+// the waits over, so a drop after hours is not waited out as if it were the last of a
+// run of failures.
+func (a *Adapter) retry(ctx context.Context, c *conn, err error, wait *time.Duration, ran time.Duration) bool {
+	if ran >= retryMax {
+		*wait = retryFirst
+	}
 	if ctx.Err() != nil {
 		return false
 	}
