@@ -212,8 +212,11 @@ func (a *Adapter) takeEncrypted(ctx context.Context, c *conn, e *events.FBMessag
 		})
 		return
 	}
-	if content.GetReactionMessage() != nil {
-		return // reactions come with sending
+	if r := content.GetReactionMessage(); r != nil {
+		if reaction, ok := in.reaction(key, r.GetKey().GetID(), sender, r.GetText()); ok {
+			a.applyReaction(ctx, reaction)
+		}
+		return
 	}
 	body := encryptedBody(content)
 	if ca == nil {
