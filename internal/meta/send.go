@@ -32,20 +32,16 @@ const sendWait = 15 * time.Second
 var (
 	errNotConnected  = fmt.Errorf("%w: the Messenger account is not connected", api.ErrNetworkOff)
 	errNoEncrypted   = fmt.Errorf("%w: encrypted chats are not connected yet", api.ErrNetworkOff)
-	errEditsNotYet   = errors.New("meta: editing a sent message is not supported yet")
 	errSendRefused   = errors.New("meta: Meta refused the message")
 	errEmptyMessage  = errors.New("meta: an empty message")
 	errUnknownTarget = errors.New("meta: the message replied to is not a Messenger message")
 )
 
-// Send sends a draft's text, as a reply when it is one.
+// Send sends a draft's text, as a reply when it is one, or as an edit of your message.
 func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Draft) error {
 	self, thread, ok := threadOf(room)
 	if !ok {
 		return fmt.Errorf("%w: %s", errNotAThread, room)
-	}
-	if draft.Edits != "" {
-		return errEditsNotYet
 	}
 	body := draft.Body
 	if draft.Emote {
@@ -57,6 +53,9 @@ func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Dra
 	c := a.connOf(self)
 	if c == nil {
 		return errNotConnected
+	}
+	if draft.Edits != "" {
+		return a.sendEdit(ctx, c, room, thread, draft.Edits, body)
 	}
 	c.applying.Lock()
 	t := c.inbox.threads[thread]
