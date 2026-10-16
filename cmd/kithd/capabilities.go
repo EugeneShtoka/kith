@@ -118,11 +118,12 @@ var (
 		cacheWriter
 	} = (*telegram.Adapter)(nil)
 
-	// Messenger, so far: threads, people, messages, history, reading and sending text,
-	// reactions and typing (files come next).
+	// Messenger, so far: threads, people, messages, history, reading, sending, editing
+	// and unsending text, reactions and typing (files come next).
 	_ interface {
 		route.Adapter
 		route.Sender
+		route.Redactor
 		route.Reactor
 		route.Typist
 		route.RoomLister
