@@ -14,6 +14,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 func TestTheReadPositionFromHistory(t *testing.T) {
@@ -224,13 +225,13 @@ func TestReadingWhileAwayIsKeptAndOwed(t *testing.T) {
 	if !read {
 		t.Errorf("not read here: %+v", rows)
 	}
-	owed := a.reads.take(ownDigits)
+	owed := a.reads.Take(ownDigits)
 	if m := owed[danaChat]; m.event != event || !m.private {
 		t.Fatalf("the receipt is not owed: %+v", owed)
 	}
-	a.reads.add(danaChat, owed[danaChat])
+	a.reads.Add(danaChat, owed[danaChat])
 	a.sendOwed(ctx, Account{Name: "home", Digits: ownDigits}) // still away: cannot go
-	if again := a.reads.take(ownDigits); again[danaChat].event != event {
+	if again := a.reads.Take(ownDigits); again[danaChat].event != event {
 		t.Errorf("a resend that could not go dropped the receipt: %+v", again)
 	}
 	if got, err := a.MarkRoomsRead(ctx, []domain.RoomID{"whatsapp:" + ownDigits + "/nothing@s.whatsapp.net"}, false); err != nil || got.Skipped != 1 {
@@ -245,18 +246,18 @@ func TestReadingWhileAwayIsKeptAndOwed(t *testing.T) {
 // settling an earlier one leaves a later owed; one account's are not another's.
 func TestOwedReadReceipts(t *testing.T) {
 	t.Parallel()
-	var o owed
+	o := readstate.NewOwed(laterReceipt)
 	t0 := time.Unix(1000, 0)
 	a, b := domain.RoomID("whatsapp:1/x@s.whatsapp.net"), domain.RoomID("whatsapp:2/y@s.whatsapp.net")
-	o.add(a, receipt{event: "e1", at: t0})
-	o.add(a, receipt{event: "e3", at: t0.Add(2 * time.Second)})
-	o.add(a, receipt{event: "e2", at: t0.Add(time.Second)})
-	o.add(b, receipt{event: "f1", at: t0})
-	o.settle(a, receipt{event: "e1", at: t0})
-	if got := o.take("1"); got[a].event != "e3" || len(got) != 1 {
+	o.Add(a, receipt{event: "e1", at: t0})
+	o.Add(a, receipt{event: "e3", at: t0.Add(2 * time.Second)})
+	o.Add(a, receipt{event: "e2", at: t0.Add(time.Second)})
+	o.Add(b, receipt{event: "f1", at: t0})
+	o.Settle(a, receipt{event: "e1", at: t0})
+	if got := o.Take("1"); got[a].event != "e3" || len(got) != 1 {
 		t.Errorf("account 1 owes %+v", got)
 	}
-	if got := o.take("2"); got[b].event != "f1" {
+	if got := o.Take("2"); got[b].event != "f1" {
 		t.Errorf("account 2 owes %+v", got)
 	}
 }

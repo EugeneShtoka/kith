@@ -522,7 +522,7 @@ func TestAConversationReadInKithStaysRead(t *testing.T) {
 	if n := unread(); n != 0 {
 		t.Errorf("after reading in kith and LinkedIn's stale view: %d unread, want 0", n)
 	}
-	if owedMarks := a.reads.take(me); len(owedMarks) != 1 || owedMarks[danaDM] != 3000 {
+	if owedMarks := a.reads.Take(me); len(owedMarks) != 1 || owedMarks[room] != 3000 {
 		t.Errorf("the read mark LinkedIn has not taken is not owed: %v", owedMarks)
 	}
 	a.event(ctx, c, liveMessage(message(danaDM, "m4", dana, "four", 4000), 4000))
@@ -612,7 +612,7 @@ func TestAnUnreadMarkFollowsItsLastWord(t *testing.T) {
 					continue
 				}
 				steps = append(steps, "LinkedIn takes a read")
-				a.reads.settle(me, danaDM, owedAt[0])
+				a.reads.Settle(room, owedAt[0])
 				if owedAt[0] >= owedAt[len(owedAt)-1] {
 					owedAt = nil
 				} else {
@@ -722,7 +722,7 @@ func TestAFailedReadReadsNothingAndALateAnswerSettlesOnlyItsOwn(t *testing.T) {
 				}
 				at := taken[r.IntN(len(taken))]
 				steps = append(steps, fmt.Sprint("LinkedIn takes ", at))
-				a.reads.settle(me, danaDM, at)
+				a.reads.Settle(room, at)
 				if owedTo <= at {
 					owedTo = 0
 				}
@@ -740,9 +740,11 @@ func TestAFailedReadReadsNothingAndALateAnswerSettlesOnlyItsOwn(t *testing.T) {
 			if n != want {
 				t.Fatalf("seed %d %v: %d unread, want %d", seed, steps, n, want)
 			}
-			a.reads.mu.Lock()
-			got := a.reads.marks[me][danaDM]
-			a.reads.mu.Unlock()
+			owedNow := a.reads.Take(me)
+			for r, at := range owedNow {
+				a.reads.Add(r, at)
+			}
+			got := owedNow[room]
 			if got != owedTo {
 				t.Fatalf("seed %d %v: LinkedIn is owed %d, want %d", seed, steps, got, owedTo)
 			}

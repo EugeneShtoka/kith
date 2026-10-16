@@ -321,7 +321,9 @@ func (a *Adapter) onEncryptedReceipt(ctx context.Context, c *conn, e *events.Rec
 		return
 	}
 	room := roomID(c.metaID, key)
-	a.readTo(ctx, room, e.Timestamp)
+	if !a.keepRead(ctx, c, room, e.Timestamp) {
+		return
+	}
 	a.recount(ctx, room)
 }
 

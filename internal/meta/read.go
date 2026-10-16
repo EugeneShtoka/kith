@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"go.mau.fi/mautrix-meta/pkg/messagix/socket"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // Reading is local first: what you read in kith is read here before Meta hears of it,
@@ -20,53 +20,23 @@ import (
 // receiptSpan bounds sending one read mark.
 const receiptSpan = 30 * time.Second
 
-// owed is the read marks Meta has not taken yet, by account Meta ID and thread.
-type owed struct {
-	mu    sync.Mutex
-	marks map[int64]map[int64]int64 // self → thread → read through, ms
-}
-
-func (o *owed) add(self, thread, at int64) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.marks == nil {
-		o.marks = map[int64]map[int64]int64{}
-	}
-	if o.marks[self] == nil {
-		o.marks[self] = map[int64]int64{}
-	}
-	o.marks[self][thread] = max(o.marks[self][thread], at)
-}
-
-// take removes and returns an account's owed marks.
-func (o *owed) take(self int64) map[int64]int64 {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	marks := o.marks[self]
-	delete(o.marks, self)
-	return marks
-}
-
-// settle drops a mark Meta took, unless a later one was owed meanwhile.
-func (o *owed) settle(self, thread, at int64) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.marks[self][thread] <= at {
-		delete(o.marks[self], thread)
-	}
-}
-
 var errNotAThread = errors.New("meta: not a Messenger room")
 
 // MarkRead reads a room through eventID, here first, then on Meta. Meta not taking it
-// is logged and retried; the read here stands.
+// is logged and retried; the read here stands. A read that cannot be kept here is an
+// error, and Meta is not told.
 func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain.EventID, _ bool) error {
 	self, thread, ok := threadOf(room)
 	if !ok {
 		return fmt.Errorf("%w: %s", errNotAThread, room)
 	}
-	at := a.timeOf(ctx, room, event)
-	a.readTo(ctx, room, at)
+	at, err := a.timeOf(ctx, room, event)
+	if err != nil {
+		return err
+	}
+	if err := a.readTo(ctx, room, at); err != nil {
+		return err
+	}
 	a.recount(ctx, room)
 	a.tellRead(ctx, self, thread, at.UnixMilli())
 	return nil
@@ -74,29 +44,14 @@ func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain
 
 // MarkRoomsRead reads each room through its newest cached message.
 func (a *Adapter) MarkRoomsRead(ctx context.Context, rooms []domain.RoomID, _ bool) (domain.ReadResult, error) {
-	var result domain.ReadResult
 	if a.cache == nil {
-		result.Skipped = len(rooms)
-		return result, nil
+		return domain.ReadResult{Skipped: len(rooms)}, nil
 	}
-	latest, err := a.cache.LatestEvents(ctx, rooms)
+	result, err := readstate.MarkRoomsRead(ctx, a.cache, rooms, func(room domain.RoomID, event domain.EventID) error {
+		return a.MarkRead(ctx, room, event, false)
+	})
 	if err != nil {
-		return domain.ReadResult{}, fmt.Errorf("meta: newest messages: %w", err)
-	}
-	for _, room := range rooms {
-		event, ok := latest[room]
-		if !ok {
-			result.Skipped++
-			continue
-		}
-		if err := a.MarkRead(ctx, room, event, false); err != nil {
-			result.Failed++
-			if result.FirstError == "" {
-				result.FirstError = err.Error()
-			}
-			continue
-		}
-		result.Marked++
+		return result, fmt.Errorf("meta: %w", err)
 	}
 	return result, nil
 }
@@ -108,19 +63,21 @@ var errNoMarkUnread = errors.New("meta: marking a thread unread is not supported
 func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error { return errNoMarkUnread }
 
 // timeOf is when a cached message was sent; now when it is not cached, so the room is
-// read through everything it shows.
-func (a *Adapter) timeOf(ctx context.Context, room domain.RoomID, event domain.EventID) time.Time {
-	if a.cache != nil && event != "" {
-		if msg, ok, err := a.cache.MessageByID(ctx, room, event); err == nil && ok {
-			return msg.Timestamp
-		}
+// read through everything it shows. A lookup that fails is an error, never now.
+func (a *Adapter) timeOf(ctx context.Context, room domain.RoomID, event domain.EventID) (time.Time, error) {
+	if a.cache == nil {
+		return time.Now(), nil
 	}
-	return time.Now()
+	at, err := readstate.TimeOf(ctx, a.cache, room, event, time.Now())
+	if err != nil {
+		return time.Time{}, fmt.Errorf("meta: %w", err)
+	}
+	return at, nil
 }
 
 // tellRead sends Meta a thread's read mark, owing it when it cannot go now.
 func (a *Adapter) tellRead(ctx context.Context, self, thread, at int64) {
-	a.reads.add(self, thread, at)
+	a.reads.Add(roomID(self, thread), at)
 	c := a.connOf(self)
 	if c == nil {
 		return // owed until the account connects
@@ -156,14 +113,16 @@ func (a *Adapter) sendRead(ctx context.Context, c *conn, thread, at int64) {
 			"account", c.account.Name, "err", err)
 		return
 	}
-	a.reads.settle(c.metaID, thread, at)
+	a.reads.Settle(roomID(c.metaID, thread), at)
 }
 
 // sendOwed sends an account's owed read marks, on (re)connecting.
 func (a *Adapter) sendOwed(c *conn) {
-	for thread, at := range a.reads.take(c.metaID) {
-		a.reads.add(c.metaID, thread, at) // owed until Meta takes it
-		a.sendRead(context.Background(), c, thread, at)
+	for room, at := range a.reads.Take(itoa(c.metaID)) {
+		a.reads.Add(room, at) // owed until Meta takes it
+		if _, thread, ok := threadOf(room); ok {
+			a.sendRead(context.Background(), c, thread, at)
+		}
 	}
 }
 

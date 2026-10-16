@@ -13,6 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // streamBuffer bounds each stream.
@@ -47,7 +48,7 @@ type Adapter struct {
 	onChanged func(domain.RoomID)
 
 	// reads is the read marks Telegram has not taken yet (unread.go).
-	reads owed
+	reads *readstate.Owed[int] // read through, a message number
 
 	onStatus       func(domain.AccountStatus)
 	onRoomsChanged func()
@@ -126,6 +127,7 @@ func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
 		reactions: make(chan domain.ReactionUpdate, streamBuffer),
+		reads:     readstate.NewOwed(func(a, b int) bool { return a > b }),
 	}
 }
 
