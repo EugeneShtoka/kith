@@ -1,7 +1,7 @@
 # kith
 
-**A keyboard-driven chat client for the terminal — Matrix, WhatsApp, Telegram and Slack
-side by side, with a daemon that keeps working when the terminal is closed.**
+**A keyboard-driven chat client for the terminal — Matrix, WhatsApp, Telegram, Slack,
+Messenger and LinkedIn side by side, with a daemon that keeps working when the terminal is closed.**
 
 [![CI](https://github.com/EugeneShtoka/kith/actions/workflows/ci.yml/badge.svg)](https://github.com/EugeneShtoka/kith/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go)](go.mod)
@@ -9,8 +9,8 @@ side by side, with a daemon that keeps working when the terminal is closed.**
 
 kith is a daily-driver chat client for the terminal. It is a full
 [Matrix](https://matrix.org) client — end-to-end encryption, spaces, threads,
-reactions, media and voice notes — and it links **WhatsApp**, **Telegram** and
-**Slack** directly, as a client of each network, with no bridge in between. Matrix
+reactions, media and voice notes — and it links **WhatsApp**, **Telegram**,
+**Slack**, **Messenger** and **LinkedIn** directly, as a client of each network, with no bridge in between. Matrix
 is optional: use any of them alone or all together, in one three-pane terminal UI
 (spaces rail · room list · timeline). What sets it apart is what happens around the
 chat window — an always-on daemon, an offline index of everything you have received
@@ -30,7 +30,8 @@ and spam rules. A person is one person across them: a name saved for a number on
 account names that number wherever it appears, and your own tags group rooms across
 networks. A Telegram forum is a space, its topics rooms of their own. Each network has
 its page: [WhatsApp](docs/whatsapp.md) · [Telegram](docs/telegram.md) (being built) ·
-[Slack](docs/slack.md) (being built).
+[Slack](docs/slack.md) (being built) · [Messenger](docs/messenger.md) (being built) ·
+[LinkedIn](docs/linkedin.md).
 
 ### It keeps working when the terminal is closed
 
@@ -157,8 +158,8 @@ make deploy      # from a clone: enable and start the daemon under systemd
 kith             # attach and go
 ```
 
-Inside kith, `:login` sets up and signs in an account — Matrix, WhatsApp, Telegram or
-Slack — asking for what each needs and explaining where to find it. A Matrix account
+Inside kith, `:login` sets up and signs in an account — Matrix, WhatsApp, Telegram,
+Slack, Messenger or LinkedIn — asking for what each needs and explaining where to find it. A Matrix account
 can also be signed in from the shell with `kith login`, which prompts for the password
 and keeps only the access token, in the OS keyring.
 
