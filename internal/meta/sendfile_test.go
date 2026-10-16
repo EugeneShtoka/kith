@@ -27,23 +27,24 @@ func pngOf(t *testing.T, w, h int) []byte {
 }
 
 // A file's kind and type come from its contents, then its name; a picture's size is
-// read from it.
+// read from it. A picture goes under a neutral name, keeping only its extension; a
+// document keeps its own.
 func TestAFileIsShownAsWhatItIs(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name string
-		data []byte
-		kind domain.MediaType
-		mime string
+		name, sent string
+		data       []byte
+		kind       domain.MediaType
+		mime       string
 	}{
-		{"beach.png", pngOf(t, 800, 600), domain.MediaImage, "image/png"},
-		{"plan.pdf", []byte("%PDF-1.7\n"), domain.MediaFile, "application/pdf"},
-		{"notes.md", []byte("# notes\n"), domain.MediaFile, "text/markdown; charset=utf-8"},
-		{"blob.bin", []byte{0, 1, 2, 3}, domain.MediaFile, "application/octet-stream"},
+		{"IMG_20261016_Haifa beach.PNG", "photo.png", pngOf(t, 800, 600), domain.MediaImage, "image/png"},
+		{"plan.pdf", "plan.pdf", []byte("%PDF-1.7\n"), domain.MediaFile, "application/pdf"},
+		{"notes.md", "notes.md", []byte("# notes\n"), domain.MediaFile, "text/markdown; charset=utf-8"},
+		{"blob.bin", "blob.bin", []byte{0, 1, 2, 3}, domain.MediaFile, "application/octet-stream"},
 	} {
 		m := fileMediaOf(tc.name, tc.data)
-		if m.Type != tc.kind || m.Mime != tc.mime || m.Name != tc.name || m.Size != len(tc.data) {
-			t.Errorf("%s: %+v, want %s %s", tc.name, m, tc.kind, tc.mime)
+		if m.Type != tc.kind || m.Mime != tc.mime || m.Name != tc.sent || m.Size != len(tc.data) {
+			t.Errorf("%s: %+v, want %q, %s %s", tc.name, m, tc.sent, tc.kind, tc.mime)
 		}
 	}
 	if m := fileMediaOf("beach.png", pngOf(t, 800, 600)); m.Width != 800 || m.Height != 600 {
