@@ -90,42 +90,32 @@ func registerRoom(ctx context.Context, exec execer, roomID domain.RoomID) error 
 // SetArchived keeps which rooms the network archived, registering unknown ones: a
 // network may archive a chat before listing it (WhatsApp's first sync).
 func (c *Cache) SetArchived(ctx context.Context, rooms map[domain.RoomID]bool) error {
-	if len(rooms) == 0 {
-		return nil
-	}
-	return c.inTx(ctx, func(tx *sql.Tx) error {
-		for id, archived := range rooms {
-			query := `DELETE FROM room_archived WHERE room_id = ?`
-			if archived {
-				if err := registerRoom(ctx, tx, id); err != nil {
-					return err
-				}
-				query = `INSERT INTO room_archived(room_id) VALUES(?) ON CONFLICT(room_id) DO NOTHING`
-			}
-			if _, err := tx.ExecContext(ctx, query, string(id)); err != nil {
-				return fmt.Errorf("db: keep %s archived=%v: %w", id, archived, err)
-			}
-		}
-		return nil
-	})
+	return c.setRoomFlags(ctx, rooms, "room_archived", "archived")
 }
 
 // SetForums keeps which rooms are made of topics.
 func (c *Cache) SetForums(ctx context.Context, rooms map[domain.RoomID]bool) error {
+	return c.setRoomFlags(ctx, rooms, "room_forums", "forum")
+}
+
+// setRoomFlags keeps rooms' membership of table, a set of room IDs: true adds a room
+// (registering it if unknown), false removes it.
+func (c *Cache) setRoomFlags(ctx context.Context, rooms map[domain.RoomID]bool, table, flag string) error {
 	if len(rooms) == 0 {
 		return nil
 	}
 	return c.inTx(ctx, func(tx *sql.Tx) error {
-		for id, forum := range rooms {
-			query := `DELETE FROM room_forums WHERE room_id = ?`
-			if forum {
+		for id, on := range rooms {
+			// #nosec G202 -- table is one of two fixed names; the room is bound.
+			query := `DELETE FROM ` + table + ` WHERE room_id = ?`
+			if on {
 				if err := registerRoom(ctx, tx, id); err != nil {
 					return err
 				}
-				query = `INSERT INTO room_forums(room_id) VALUES(?) ON CONFLICT(room_id) DO NOTHING`
+				query = `INSERT INTO ` + table + `(room_id) VALUES(?) ON CONFLICT(room_id) DO NOTHING`
 			}
 			if _, err := tx.ExecContext(ctx, query, string(id)); err != nil {
-				return fmt.Errorf("db: keep %s forum=%v: %w", id, forum, err)
+				return fmt.Errorf("db: keep %s %s=%v: %w", id, flag, on, err)
 			}
 		}
 		return nil

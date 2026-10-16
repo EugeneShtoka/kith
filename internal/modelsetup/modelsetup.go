@@ -68,47 +68,29 @@ const (
 // ModelTasks returns the model layer's prompts by name, with defaults filled in.
 func ModelTasks(cfg config.Assist) map[string]llm.Task {
 	return map[string]llm.Task{
-		domain.ModelRewrite: {
-			Name:        domain.ModelRewrite,
-			System:      or(cfg.Rewrite.System, defaultRewriteSystem),
-			Prompt:      or(cfg.Rewrite.Prompt, defaultRewritePrompt),
-			MaxTokens:   orInt(cfg.Rewrite.MaxTokens, defaultRewriteTokens),
-			Temperature: cfg.Rewrite.Temperature,
-			Effort:      or(cfg.Rewrite.Effort, defaultEffort),
-			Model:       cfg.Rewrite.Model,
-			Stop:        cfg.Rewrite.Stop,
-		},
-		domain.ModelTodo: {
-			Name:        domain.ModelTodo,
-			System:      or(cfg.Todo.System, defaultTodoSystem),
-			Prompt:      or(cfg.Todo.Prompt, defaultTodoPrompt),
-			MaxTokens:   orInt(cfg.Todo.MaxTokens, defaultTodoTokens),
-			Temperature: cfg.Todo.Temperature,
-			Effort:      or(cfg.Todo.Effort, defaultEffort),
-			Model:       cfg.Todo.Model,
-			Stop:        cfg.Todo.Stop,
-		},
-		domain.ModelThreadName: {
-			Name:        domain.ModelThreadName,
-			System:      or(cfg.ThreadName.System, defaultThreadNameSystem),
-			Prompt:      or(cfg.ThreadName.Prompt, defaultThreadNamePrompt),
-			MaxTokens:   orInt(cfg.ThreadName.MaxTokens, defaultThreadNameTokens),
-			Temperature: cfg.ThreadName.Temperature,
-			Effort:      or(cfg.ThreadName.Effort, defaultEffort),
-			Model:       cfg.ThreadName.Model,
-			Stop:        orStrings(cfg.ThreadName.Stop, []string{"\n"}),
-		},
-		domain.ModelSummary: {
-			Name:        domain.ModelSummary,
-			System:      or(cfg.Summary.System, defaultSummarySystem),
-			Prompt:      or(cfg.Summary.Prompt, defaultSummaryPrompt),
-			MaxTokens:   orInt(cfg.Summary.MaxTokens, defaultSummaryTokens),
-			Temperature: cfg.Summary.Temperature,
-			Effort:      or(cfg.Summary.Effort, defaultEffort),
-			Model:       cfg.Summary.Model,
-			// No default stop: a summary spans several lines.
-			Stop: cfg.Summary.Stop,
-		},
+		domain.ModelRewrite: task(domain.ModelRewrite, cfg.Rewrite,
+			defaultRewriteSystem, defaultRewritePrompt, defaultRewriteTokens, nil),
+		domain.ModelTodo: task(domain.ModelTodo, cfg.Todo,
+			defaultTodoSystem, defaultTodoPrompt, defaultTodoTokens, nil),
+		domain.ModelThreadName: task(domain.ModelThreadName, cfg.ThreadName,
+			defaultThreadNameSystem, defaultThreadNamePrompt, defaultThreadNameTokens, []string{"\n"}),
+		// No default stop: a summary spans several lines.
+		domain.ModelSummary: task(domain.ModelSummary, cfg.Summary,
+			defaultSummarySystem, defaultSummaryPrompt, defaultSummaryTokens, nil),
+	}
+}
+
+// task is one prompt's configuration over its defaults.
+func task(name string, c config.ModelPrompt, system, prompt string, tokens int, stop []string) llm.Task {
+	return llm.Task{
+		Name:        name,
+		System:      or(c.System, system),
+		Prompt:      or(c.Prompt, prompt),
+		MaxTokens:   orInt(c.MaxTokens, tokens),
+		Temperature: c.Temperature,
+		Effort:      or(c.Effort, defaultEffort),
+		Model:       c.Model,
+		Stop:        orStrings(c.Stop, stop),
 	}
 }
 

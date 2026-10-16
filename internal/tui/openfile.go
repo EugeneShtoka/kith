@@ -11,15 +11,7 @@ import (
 // openFile hands the selected message's file attachment to the desktop's handler.
 func (m Model) openFile(msg domain.Message) (Model, tea.Cmd) {
 	opener, err := m.fileOpenerCommand()
-	if err != nil {
-		return m.say(err.Error()), nil
-	}
-	name := msg.Media.Name
-	if name == "" {
-		name = "the file"
-	}
-	job := m.jobFor(msg)
-	return m.doing("opening " + isolate(name) + "…"), m.openFileCmd(opener, job, name)
+	return m.handOff(msg, opener, err, "the file", "opened", "open")
 }
 
 // fileOpenerCommand is the desktop's file handler, or `[display.media] opener`.
@@ -33,32 +25,39 @@ var fileOpenerCandidates = [][]string{
 	{"open"},
 }
 
-// openFileCmd fetches the attachment and hands it over, off the event loop. A no-cache room
-// still opens files; Trim reclaims the copy.
-func (m Model) openFileCmd(opener []string, job mediaJob, name string) tea.Cmd {
-	cache, backend, ctx := m.pics.cache, m.backend, m.ctx
-	return func() tea.Msg {
-		path := ensureOnDisk(ctx, cache, backend.LoadImage, job)
-		if path == "" {
-			return fileOpenedMsg{name: name, err: errNoFile}
+// handOff fetches msg's attachment onto disk (see ensureOnDisk) and launches program
+// on it, off the event loop. A no-cache room still opens files; Trim reclaims the copy.
+// unnamed stands in for a file with no name; done and fail word the outcome.
+func (m Model) handOff(msg domain.Message, program []string, err error, unnamed, done, fail string) (Model, tea.Cmd) {
+	if err != nil {
+		return m.say(err.Error()), nil
+	}
+	name := msg.Media.Name
+	if name == "" {
+		name = unnamed
+	}
+	out := handedOffMsg{name: name, done: done, fail: fail}
+	cache, backend, ctx, job := m.pics.cache, m.backend, m.ctx, m.jobFor(msg)
+	return m.doing("opening " + isolate(name) + "…"), func() tea.Msg {
+		if path := ensureOnDisk(ctx, cache, backend.LoadImage, job); path == "" {
+			out.err = errNoFile
+		} else {
+			out.err = launch(ctx, program, path)
 		}
-		if err := launch(ctx, opener, path); err != nil {
-			return fileOpenedMsg{name: name, err: err}
-		}
-		return fileOpenedMsg{name: name}
+		return out
 	}
 }
 
-type fileOpenedMsg struct {
-	name string
-	err  error
+type handedOffMsg struct {
+	name, done, fail string
+	err              error
 }
 
-func (m Model) handleFileOpened(msg fileOpenedMsg) (Model, tea.Cmd) {
+func (m Model) handleHandedOff(msg handedOffMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
-		return m.sayErr("could not open "+msg.name, msg.err), nil
+		return m.sayErr("could not "+msg.fail+" "+msg.name, msg.err), nil
 	}
-	return m.say("opened " + isolate(msg.name)), nil
+	return m.say(msg.done + " " + isolate(msg.name)), nil
 }
 
 // errNoFile reports an attachment that could not be fetched.

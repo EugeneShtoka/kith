@@ -80,25 +80,25 @@ func (e editor) moved(at int) editor {
 
 // undo steps back one change; redo steps forward. ok is false when there is nothing.
 func (e editor) undo() (editor, bool) {
-	if len(e.past) == 0 {
-		return e, false
-	}
-	prev := e.past[len(e.past)-1]
-	e.past = e.past[:len(e.past)-1]
-	e.future = append(slices.Clone(e.future), editSnapshot{text: e.text, at: e.at})
-	e.text, e.at, e.last = prev.text, prev.at, editNone
-	return e, true
+	ok := e.step(&e.past, &e.future)
+	return e, ok
 }
 
 func (e editor) redo() (editor, bool) {
-	if len(e.future) == 0 {
-		return e, false
+	ok := e.step(&e.future, &e.past)
+	return e, ok
+}
+
+// step restores the newest snapshot in from, keeping the current text in to.
+func (e *editor) step(from, to *[]editSnapshot) bool {
+	if len(*from) == 0 {
+		return false
 	}
-	next := e.future[len(e.future)-1]
-	e.future = e.future[:len(e.future)-1]
-	e.past = append(slices.Clone(e.past), editSnapshot{text: e.text, at: e.at})
-	e.text, e.at, e.last = next.text, next.at, editNone
-	return e, true
+	prev := (*from)[len(*from)-1]
+	*from = (*from)[:len(*from)-1]
+	*to = append(slices.Clone(*to), editSnapshot{text: e.text, at: e.at})
+	e.text, e.at, e.last = prev.text, prev.at, editNone
+	return true
 }
 
 // newEditor is text with the caret at its end.

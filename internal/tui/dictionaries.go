@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -158,12 +159,9 @@ func (m Model) installFrequencies(tags []string) (Model, tea.Cmd) {
 	if len(tags) == 0 {
 		return m, nil
 	}
-	m = m.say("fetching word counts for " + strings.Join(tags, ", ") + "…")
-	backend, ctx := m.backend, m.ctx
-	return m, func() tea.Msg {
-		done, failed := installEach(tags, func(tag string) error { return backend.InstallFrequencies(ctx, tag) })
+	return m.installEach("word counts for", tags, m.backend.InstallFrequencies, func(done, failed []string) tea.Msg {
 		return frequenciesInstalledMsg{installed: done, failed: failed}
-	}
+	})
 }
 
 type frequenciesInstalledMsg struct {
@@ -213,12 +211,9 @@ func (m Model) installDictionaries(tags []string) (Model, tea.Cmd) {
 	if len(tags) == 0 {
 		return m, nil
 	}
-	m = m.say("fetching " + strings.Join(tags, ", ") + "…")
-	backend, ctx := m.backend, m.ctx
-	return m, func() tea.Msg {
-		done, failed := installEach(tags, func(tag string) error { return backend.InstallDictionary(ctx, tag) })
+	return m.installEach("", tags, m.backend.InstallDictionary, func(done, failed []string) tea.Msg {
 		return dictionariesInstalledMsg{installed: done, failed: failed}
-	}
+	})
 }
 
 type dictionariesInstalledMsg struct {
@@ -250,14 +245,22 @@ func unticked(shown, chosen []string) []string {
 	return out
 }
 
-// installEach runs install for every tag, splitting them by outcome.
-func installEach(tags []string, install func(string) error) (done, failed []string) {
-	for _, tag := range tags {
-		if install(tag) != nil {
-			failed = append(failed, tag)
-		} else {
-			done = append(done, tag)
+// installEach says it is fetching what for tags, then installs each off the event loop
+// and reports which were installed and which failed.
+func (m Model) installEach(
+	what string, tags []string, install func(context.Context, string) error, report func(done, failed []string) tea.Msg,
+) (Model, tea.Cmd) {
+	m = m.say(strings.TrimSpace("fetching "+what) + " " + strings.Join(tags, ", ") + "…")
+	ctx := m.ctx
+	return m, func() tea.Msg {
+		var done, failed []string
+		for _, tag := range tags {
+			if install(ctx, tag) != nil {
+				failed = append(failed, tag)
+			} else {
+				done = append(done, tag)
+			}
 		}
+		return report(done, failed)
 	}
-	return done, failed
 }

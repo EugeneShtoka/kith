@@ -66,9 +66,9 @@ func TestPlayOpensAVideoInAPlayer(t *testing.T) {
 		t.Errorf("status = %q, want it to name what is being opened", m.status())
 	}
 
-	msg, ok := cmd().(videoPlayedMsg)
+	msg, ok := cmd().(handedOffMsg)
 	if !ok {
-		t.Fatalf("play returned %T, want a videoPlayedMsg", cmd())
+		t.Fatalf("play returned %T, want a handedOffMsg", cmd())
 	}
 	if msg.err != nil {
 		t.Fatalf("playing the video failed: %v", msg.err)
@@ -97,15 +97,15 @@ func TestAPlayerThatFailsImmediatelyIsReported(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("the play key issued no command")
 	}
-	msg, ok := cmd().(videoPlayedMsg)
+	msg, ok := cmd().(handedOffMsg)
 	if !ok {
-		t.Fatalf("play returned %T, want a videoPlayedMsg", cmd())
+		t.Fatalf("play returned %T, want a handedOffMsg", cmd())
 	}
 	if msg.err == nil {
 		t.Fatal("a player that exited 4 was reported as success")
 	}
 
-	shown, _ := m.handleVideoPlayed(msg)
+	shown, _ := m.handleHandedOff(msg)
 	if !strings.Contains(shown.status(), "could not play") {
 		t.Errorf("status = %q, want the failure said out loud", shown.status())
 	}
