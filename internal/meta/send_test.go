@@ -38,14 +38,14 @@ func TestSentID(t *testing.T) {
 	}
 }
 
-// A send kith cannot make says why at once: no connection, an edit, nothing to send,
-// a reply to something that is not a Messenger message.
+// A send kith cannot make says why at once: no connection, an edit of nothing cached,
+// nothing to send, a reply to something that is not a Messenger message.
 func TestSendsThatCannotGo(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	a, c, _, _ := cachedAdapter(t)
 	room := roomID(me, dana)
-	if err := a.Send(ctx, room, domain.Draft{Body: "hi", Edits: "x"}); !errors.Is(err, errEditsNotYet) {
+	if err := a.Send(ctx, room, domain.Draft{Body: "hi", Edits: "x"}); !errors.Is(err, errNotCached) {
 		t.Errorf("an edit = %v", err)
 	}
 	if err := a.Send(ctx, room, domain.Draft{Body: "  "}); !errors.Is(err, errEmptyMessage) {

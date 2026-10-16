@@ -192,6 +192,10 @@ func (a *Adapter) storeMessages(ctx context.Context, c *conn, msgs []*table.Wrap
 	for _, m := range msgs {
 		msg, ok := c.inbox.message(m)
 		if !ok {
+			if m.IsUnsent && m.MessageId != "" { // a copy that says it was unsent
+				a.unsent(ctx, c, roomID(c.metaID, m.ThreadKey), eventID(c.metaID, m.ThreadKey, m.MessageId),
+					personID(m.SenderId), unsentAt(m.UnsentTimestampMs))
+			}
 			continue
 		}
 		byRoom[msg.RoomID] = append(byRoom[msg.RoomID], msg)
