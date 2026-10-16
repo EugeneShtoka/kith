@@ -2,6 +2,7 @@ package linkedin
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -191,13 +192,14 @@ func (a *Adapter) keepPeople(ctx context.Context, c *conn) {
 }
 
 // readTo moves a room's read position forward to at; the cache never moves it back.
-func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, at time.Time) {
+func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, at time.Time) error {
 	if a.cache == nil {
-		return
+		return nil
 	}
 	if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room}, at.UnixMilli()); err != nil {
-		a.log.Warn("save a read position failed", "room", room, "err", err)
+		return fmt.Errorf("linkedin: save the read position of %s: %w", room, err)
 	}
+	return nil
 }
 
 // recount streams a room's locally counted unread state.

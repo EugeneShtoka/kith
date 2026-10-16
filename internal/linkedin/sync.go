@@ -241,7 +241,10 @@ func (a *Adapter) seen(ctx context.Context, c *conn, r *linkedingo.SeenReceipt) 
 		}
 	}
 	room := roomID(c.profile, thread)
-	a.readTo(ctx, room, r.SeenAt.Time)
+	if err := a.readTo(ctx, room, r.SeenAt.Time); err != nil {
+		a.log.Warn("save a read position failed", "account", c.account.Name, "err", err)
+		return
+	}
 	a.recount(ctx, room)
 }
 

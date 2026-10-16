@@ -2,6 +2,7 @@ package linkedin
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -278,7 +279,13 @@ func TestMessagesShowWhatTheyCarry(t *testing.T) {
 // messages collected.
 func cachedAdapter(t *testing.T) (*Adapter, *conn, *db.Cache, *[]domain.Message) {
 	t.Helper()
-	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	return cachedAdapterAt(t, filepath.Join(t.TempDir(), "cache.db"))
+}
+
+// cachedAdapterAt is cachedAdapter over the cache file at path.
+func cachedAdapterAt(t *testing.T, path string) (*Adapter, *conn, *db.Cache, *[]domain.Message) {
+	t.Helper()
+	cache, err := db.Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -515,7 +522,7 @@ func TestAConversationReadInKithStaysRead(t *testing.T) {
 	if n := unread(); n != 0 {
 		t.Errorf("after reading in kith and LinkedIn's stale view: %d unread, want 0", n)
 	}
-	if owedMarks := a.reads.take(me); !slices.Equal(owedMarks, []string{danaDM}) {
+	if owedMarks := a.reads.take(me); len(owedMarks) != 1 || owedMarks[danaDM] != 3000 {
 		t.Errorf("the read mark LinkedIn has not taken is not owed: %v", owedMarks)
 	}
 	a.event(ctx, c, liveMessage(message(danaDM, "m4", dana, "four", 4000), 4000))
@@ -546,6 +553,110 @@ func TestAConversationReadInKithStaysRead(t *testing.T) {
 	}
 	if err := a.MarkRoomUnread(ctx, room, true); err == nil {
 		t.Error("marking unread is not supported yet, but said it was done")
+	}
+}
+
+// A read is kept here first or not at all, and LinkedIn is owed the newest one until it
+// takes it: in any order of new messages, reads whose message lookup or position save
+// fails, and LinkedIn taking an earlier read's mark late, a failed read is an error that
+// reads nothing and owes nothing, nothing unseen counts as read, and a late answer for
+// an earlier read never settles a newer one.
+func TestAFailedReadReadsNothingAndALateAnswerSettlesOnlyItsOwn(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for seed := range uint64(40) {
+		r := rand.New(rand.NewPCG(seed, 7))
+		path := filepath.Join(t.TempDir(), "cache.db")
+		a, c, cache, _ := cachedAdapterAt(t, path)
+		raw, err := sql.Open("sqlite", "file:"+path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = raw.Close() })
+		room := roomID(me, danaDM)
+		sent := []int64{1000}
+		a.takeConversations(ctx, c, []linkedingo.Conversation{withMessages(
+			conversation(danaDM, "", 1000, 500, false, me, dana), message(danaDM, "m0", dana, "zero", 1000))}, nil)
+		readTo, owedTo := int64(500), int64(0) // what kith has read through, and owes LinkedIn
+		var taken []int64                      // the marks sent, any of which LinkedIn may answer late
+		fail := func(table string) func() {
+			if _, err := raw.ExecContext(ctx, "ALTER TABLE "+table+" RENAME TO "+table+"_away"); err != nil {
+				t.Fatal(err)
+			}
+			return func() {
+				if _, err := raw.ExecContext(ctx, "ALTER TABLE "+table+"_away RENAME TO "+table); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		var steps []string
+		for range 12 {
+			switch r.IntN(3) {
+			case 0: // a new message
+				at := sent[len(sent)-1] + 1000
+				mid := fmt.Sprint("m", len(sent))
+				sent = append(sent, at)
+				a.event(ctx, c, liveMessage(message(danaDM, mid, dana, "more", at), at))
+				steps = append(steps, "message "+mid)
+			case 1: // read through a message, maybe while the cache fails
+				i := r.IntN(len(sent))
+				event := msgID(danaDM, fmt.Sprint("m", i))
+				switch r.IntN(3) {
+				case 0:
+					steps = append(steps, fmt.Sprint("read m", i))
+					if err := a.MarkRead(ctx, room, event, false); err != nil {
+						t.Fatalf("seed %d %v: %v", seed, steps, err)
+					}
+					readTo, owedTo = max(readTo, sent[i]), max(owedTo, sent[i])
+					taken = append(taken, sent[i])
+				case 1:
+					steps = append(steps, fmt.Sprint("read m", i, " (lookup fails)"))
+					undo := fail("messages")
+					err := a.MarkRead(ctx, room, event, false)
+					undo()
+					if err == nil {
+						t.Fatalf("seed %d %v: a failed lookup was taken as a read", seed, steps)
+					}
+				default:
+					steps = append(steps, fmt.Sprint("read m", i, " (save fails)"))
+					undo := fail("room_unread")
+					res, err := a.MarkRoomsRead(ctx, []domain.RoomID{room}, false)
+					undo()
+					if err == nil && res.Marked != 0 {
+						t.Fatalf("seed %d %v: a read not kept here counts as marked: %+v", seed, steps, res)
+					}
+				}
+			default: // LinkedIn answers an earlier mark
+				if len(taken) == 0 {
+					continue
+				}
+				at := taken[r.IntN(len(taken))]
+				steps = append(steps, fmt.Sprint("LinkedIn takes ", at))
+				a.reads.settle(me, danaDM, at)
+				if owedTo <= at {
+					owedTo = 0
+				}
+			}
+			want := 0
+			for _, at := range sent {
+				if at > readTo {
+					want++
+				}
+			}
+			n, _, _, err := cache.CountUnread(ctx, a.Me(), room)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n != want {
+				t.Fatalf("seed %d %v: %d unread, want %d", seed, steps, n, want)
+			}
+			a.reads.mu.Lock()
+			got := a.reads.marks[me][danaDM]
+			a.reads.mu.Unlock()
+			if got != owedTo {
+				t.Fatalf("seed %d %v: LinkedIn is owed %d, want %d", seed, steps, got, owedTo)
+			}
+		}
 	}
 }
 
