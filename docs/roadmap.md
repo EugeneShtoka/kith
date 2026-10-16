@@ -15,8 +15,6 @@ For what already exists, see the [documentation index](README.md).
 ## Rooms and people
 
 - Pinned messages: reading `m.room.pinned_events` and listing a room's pins.
-- Ordering the people list by power level, so you can see who can act in a room.
-- Presence (online, idle, last seen) for the people you talk to.
 - An unread summary in the terminal window title.
 
 ## Messages and links
