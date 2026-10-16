@@ -22,8 +22,12 @@ type emojiState struct {
 	// skin is the Fitzpatrick modifier from [display] skin_tone; empty means untoned.
 	skin string
 	// refused is what bridged networks were seen to reject as reactions, protocol →
-	// untoned emoji (refusals.go).
+	// emoji as refused, a tone kept: a toned one says the network takes no tones
+	// (refusals.go).
 	refused map[string]map[string]bool
+	// toned is the last toned reaction sent, resent without its tone if a bridge
+	// refuses it after taking it (refusals.go).
+	toned tonedReaction
 	// orders is each room's emoji ranking, fetched once per room per session.
 	orders map[domain.RoomID]emojiOrder
 	// scope is the palette's frequency scope (room|space|global|static), static its

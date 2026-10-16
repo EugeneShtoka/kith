@@ -2067,6 +2067,13 @@ func (m Model) sendReaction(reaction string) (Model, tea.Cmd) {
 	if !ok || strings.TrimSpace(reaction) == "" {
 		return m, nil
 	}
+	if m.refusesTones(m.roomProtocol()) {
+		reaction = withoutTone(reaction) // the tone would only get it refused
+	}
+	m.glyphs.toned = tonedReaction{}
+	if withoutTone(reaction) != reaction {
+		m.glyphs.toned = tonedReaction{room: msg.RoomID, target: msg.ID, key: reaction}
+	}
 	m = m.say("reacting…")
 	return m, m.sendReactionCmd(msg.RoomID, msg.ID, reaction)
 }
@@ -3038,10 +3045,13 @@ func (m Model) handleResize(msg tea.WindowSizeMsg) (Model, tea.Cmd) {
 // handleReactionSent reports a failed reaction, clearing the status on success.
 func (m Model) handleReactionSent(msg reactionSentMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
+		if msg.said != "" {
+			return m.say(msg.said), nil
+		}
 		return m.clearStatus(), nil
 	}
 	// In a bridged room a refused reaction is learned and no longer offered (noteReactionFailure).
-	if next, cmd := m.noteReactionFailure(msg.key); cmd != nil {
+	if next, cmd := m.noteReactionFailure(msg); cmd != nil {
 		return next, cmd
 	}
 	return m.sayErr("reaction failed", msg.err), nil
