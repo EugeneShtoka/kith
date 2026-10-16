@@ -2,6 +2,7 @@ package tui
 
 import (
 	"log/slog"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -11,12 +12,38 @@ import (
 // Reactions a bridged network refuses are learned, not hardcoded: the daemon sees a bridge
 // redact one, the client sees its send fail. Both write one table keyed on protocol.
 
-// refusedIn reports whether emoji is known to be refused by protocol.
+// tonedReaction is a toned reaction sent, kept to resend without its tone.
+type tonedReaction struct {
+	room   domain.RoomID
+	target domain.EventID
+	key    string
+}
+
+// refusalKey is how a refusal is kept: without a presentation selector, its tone kept.
+// A refused tone is no refusal of the emoji: it is sent without one instead.
+func refusalKey(emoji string) string { return strings.ReplaceAll(emoji, presentationSelector, "") }
+
+// refusedIn reports whether emoji is known to be refused by protocol, whatever its
+// tone: a network refusing 👍 refuses 👍🏻 too, but one refusing 👍🏻 takes 👍.
 func (m Model) refusedIn(protocol domain.Protocol, emoji string) bool {
 	if !protocol.IsBridged() {
 		return false
 	}
 	return m.glyphs.refused[protocol.String()][bareEmoji(emoji)]
+}
+
+// refusesTones reports whether protocol takes no toned reaction: known of the network,
+// or learned from one refused.
+func (m Model) refusesTones(protocol domain.Protocol) bool {
+	if !protocol.TakesTonedReactions() {
+		return true
+	}
+	for emoji := range m.glyphs.refused[protocol.String()] {
+		if withoutTone(emoji) != emoji {
+			return true
+		}
+	}
+	return false
 }
 
 // allowedReactions drops what the room's protocol refused, compared untoned (a
@@ -62,16 +89,23 @@ func (m Model) handleRefusals(msg refusalsMsg) (Model, tea.Cmd) {
 		if byProtocol[r.Protocol] == nil {
 			byProtocol[r.Protocol] = map[string]bool{}
 		}
-		byProtocol[r.Protocol][bareEmoji(r.Emoji)] = true
+		byProtocol[r.Protocol][refusalKey(r.Emoji)] = true
 	}
 	m.glyphs.refused = byProtocol
+	// A bridge that took the last toned reaction and then refused it: resend it plain.
+	if t := m.glyphs.toned; t.key != "" && byProtocol[m.roomProtocol().String()][refusalKey(t.key)] {
+		m.glyphs.toned = tonedReaction{}
+		return m, m.sendReactionSaying(t.room, t.target, withoutTone(t.key),
+			m.roomProtocol().String()+" would not take "+t.key+": sent "+withoutTone(t.key)+" instead")
+	}
 	return m, nil
 }
 
 // noteReactionFailure records a refusal only the client saw and says so, so the emoji does
-// not vanish from the palette unexplained.
-func (m Model) noteReactionFailure(emoji string) (Model, tea.Cmd) {
-	protocol := m.roomProtocol()
+// not vanish from the palette unexplained. A toned one refused is resent without its
+// tone, and the network is taken to take no tones from then on.
+func (m Model) noteReactionFailure(sent reactionSentMsg) (Model, tea.Cmd) {
+	protocol, emoji := m.roomProtocol(), sent.key
 	if !protocol.IsBridged() || emoji == "" {
 		return m, nil
 	}
@@ -79,10 +113,16 @@ func (m Model) noteReactionFailure(emoji string) (Model, tea.Cmd) {
 	if refused[protocol.String()] == nil {
 		refused[protocol.String()] = map[string]bool{}
 	}
-	refused[protocol.String()][bareEmoji(emoji)] = true
+	refused[protocol.String()][refusalKey(emoji)] = true
 	m.glyphs.refused = refused
+	record := m.recordRefusalCmd(protocol.String(), emoji)
+	if plain := withoutTone(emoji); plain != emoji {
+		m.glyphs.toned = tonedReaction{}
+		return m, tea.Batch(record, m.sendReactionSaying(sent.room, sent.target, plain,
+			protocol.String()+" would not take "+emoji+": sent "+plain+" instead"))
+	}
 	m = m.say(protocol.String() + " would not take " + emoji + " — it will not be offered here again")
-	return m, m.recordRefusalCmd(protocol.String(), emoji)
+	return m, record
 }
 
 // cloneRefusals deep-copies the table before a write, since Model is copied by value.
