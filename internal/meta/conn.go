@@ -389,6 +389,7 @@ func (a *Adapter) take(ctx context.Context, c *conn, tbl *table.LSTable) {
 	}
 	a.store(ctx, c, ch)
 	a.takeReactions(ctx, c, tbl)
+	a.takeEdits(ctx, c, tbl)
 	heardRanges(c, tbl)
 	var ask []int64
 	for _, id := range c.inbox.unnamed(ch.threads) {
