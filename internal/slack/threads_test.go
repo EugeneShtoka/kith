@@ -63,7 +63,9 @@ func TestThreadsAreReadFromSlack(t *testing.T) {
 	})
 	a, _ := connectedTo(t, client)
 	room := roomID("T1", "C1")
-	a.readTo(ctx, room, "", tsTime("20.0")) // the channel itself is read
+	if err := a.readTo(ctx, room, "", tsTime("20.0")); err != nil { // the channel itself is read
+		t.Fatal(err)
+	}
 
 	if _, err := a.Timeline(ctx, room, "", 50); err != nil {
 		t.Fatal(err)

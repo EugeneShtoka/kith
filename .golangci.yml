@@ -208,6 +208,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/whatsapp"
             - "go.mau.fi/libsignal"
@@ -228,6 +229,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/markdown"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/telegram"
@@ -248,6 +250,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/emoji"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/slack"
@@ -267,6 +270,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/meta"
             - "github.com/rs/zerolog"
@@ -289,6 +293,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/gmessages"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/rs/zerolog"
@@ -308,11 +313,21 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/linkedin"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/rs/zerolog"
             - "go.mau.fi/mautrix-linkedin/pkg/linkedingo"
             - "go.mau.fi/util/jsontime"
+
+        # Local-first reading, shared by the networks: domain types only.
+        readstate-is-a-leaf:
+          files:
+            - "**/internal/readstate/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/domain"
 
         # QR codes as text: a leaf over the encoder, drawn by the clients.
         qrtext-is-a-leaf:

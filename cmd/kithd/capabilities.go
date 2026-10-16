@@ -57,6 +57,8 @@ var (
 		route.Typist
 		route.Uploader
 		route.Reactor
+		route.ChatMaker
+		route.PollReader
 		route.Voter
 		route.Redactor
 		route.People
@@ -80,6 +82,7 @@ var (
 		route.Typist
 		route.Uploader
 		route.Reactor
+		route.ChatMaker
 		route.Redactor
 		route.People
 		route.Media
@@ -104,6 +107,8 @@ var (
 		route.Typist
 		route.Uploader
 		route.Reactor
+		route.ChatMaker
+		route.PollReader
 		route.Redactor
 		route.People
 		route.Media
@@ -144,9 +149,10 @@ var (
 	} = (*meta.Adapter)(nil)
 
 	// LinkedIn: conversations, people, messages, reading, sending, editing, deleting,
-	// reactions, typing, history and attachments.
+	// reactions, typing, history, attachments and filters' moves (kept locally).
 	_ interface {
 		route.Adapter
+		route.TagMoves
 		route.RoomLister
 		route.Recounter
 		route.Homes

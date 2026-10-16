@@ -38,6 +38,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"Unread", domain.Unread{}, func(v any) any {
 			return protoconv.ProtoToUnread(protoconv.UnreadToProto(v.(domain.Unread)))
 		}},
+		{"ChatOffer", domain.ChatOffer{}, func(v any) any {
+			return protoconv.ProtoToChatOffer(protoconv.ChatOfferToProto(v.(domain.ChatOffer)))
+		}},
 		{"Reaction", domain.Reaction{}, func(v any) any {
 			return protoconv.ProtoToReaction(protoconv.ReactionToProto(v.(domain.Reaction)))
 		}},

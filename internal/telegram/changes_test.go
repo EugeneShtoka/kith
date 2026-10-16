@@ -504,12 +504,12 @@ func TestAReadStaysWhenTelegramDoesNotTakeIt(t *testing.T) {
 	if u := unreadOf(t, cache, room); u.ReadEvent != "telegram:42/7/5" || u.Notifications != 0 {
 		t.Errorf("after reading here: %+v", u)
 	}
-	if owed := a.reads.take("42"); owed[room] != 5 {
+	if owed := a.reads.Take("42"); owed[room] != 5 {
 		t.Fatalf("the mark is not owed: %v", owed)
 	}
-	a.reads.add(room, 5)
+	a.reads.Add(room, 5)
 	a.sendOwed(ctx, 42) // still not connected: the resend cannot go
-	if owed := a.reads.take("42"); owed[room] != 5 {
+	if owed := a.reads.Take("42"); owed[room] != 5 {
 		t.Fatalf("a resend that could not go dropped the mark: %v", owed)
 	}
 	// A listing fetched before the read: ignored.
@@ -532,29 +532,5 @@ func TestAReadStaysWhenTelegramDoesNotTakeIt(t *testing.T) {
 	}
 	if err := a.MarkRead(ctx, room, "telegram:42/8/5", false); err == nil {
 		t.Error("a message of another chat was read")
-	}
-}
-
-// Owed marks, by account: a later one replaces an earlier, never the reverse; settling
-// an earlier one leaves a later owed; taking one account's leaves another's.
-func TestOwedTelegramReadMarks(t *testing.T) {
-	t.Parallel()
-	var o owed
-	a, b := domain.RoomID("telegram:42/7"), domain.RoomID("telegram:43/7")
-	o.add(a, 4)
-	o.add(a, 6)
-	o.add(a, 5)
-	o.add(b, 9)
-	o.settle(a, 4)
-	if got := o.take("42"); got[a] != 6 || len(got) != 1 {
-		t.Errorf("account 42 owes %v", got)
-	}
-	o.add(b, 10)
-	o.settle(b, 9)
-	if got := o.take("43"); got[b] != 10 {
-		t.Errorf("account 43 owes %v", got)
-	}
-	if got := o.take("43"); len(got) != 0 {
-		t.Errorf("after taking: %v", got)
 	}
 }

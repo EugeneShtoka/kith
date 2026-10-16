@@ -86,7 +86,9 @@ func (a *Adapter) readPositions(ctx context.Context, w *workspace, counts *slack
 			if c.LastRead == "" || tsTime(c.LastRead).IsZero() {
 				continue
 			}
-			a.readTo(ctx, roomID(w.creds.Team, c.ID), messageID(w.creds.Team, c.ID, c.LastRead), tsTime(c.LastRead))
+			if err := a.readTo(ctx, roomID(w.creds.Team, c.ID), messageID(w.creds.Team, c.ID, c.LastRead), tsTime(c.LastRead)); err != nil {
+				a.log.Warn("save a read position failed", "account", w.account.Name, "err", err)
+			}
 		}
 	}
 }

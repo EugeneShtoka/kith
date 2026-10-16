@@ -16,9 +16,9 @@ import (
 
 // Making a room, space, other-network chat, or tag: pick one whole answer, then a
 // name, and for another network's chat its members. Only what this kith's accounts
-// can make is offered: Matrix rooms and spaces with a Matrix account, each Telegram,
-// WhatsApp and Slack account's kinds (newChatKinds), and a tag always. Encryption can
-// only be chosen at creation, so it is asked here.
+// can make is offered: Matrix rooms and spaces with a Matrix account, the kinds each
+// other network's connected accounts offer (asked of the daemon), and a tag always.
+// Encryption can only be chosen at creation, so it is asked here.
 
 // newRoomKinds are the first step's rows, safe default first.
 var newRoomKinds = []struct {
@@ -49,32 +49,40 @@ var newRoomKinds = []struct {
 	},
 }
 
-// newChatKinds are what each non-Matrix network makes, in offered order.
-var newChatKinds = map[domain.Protocol][]struct {
-	kind   domain.ChatKind
-	label  string
-	detail string
-}{
-	domain.ProtocolTelegram: {
-		{domain.ChatGroup, "Telegram group", "a group chat"},
-		{domain.ChatForum, "Telegram forum", "a group with topics"},
-		{domain.ChatChannel, "Telegram channel", "only admins post"},
-	},
-	domain.ProtocolWhatsApp: {
-		{domain.ChatGroup, "WhatsApp group", "a group chat, at most 25 characters of name"},
-		{domain.ChatCommunity, "WhatsApp community", "groups under one community, with its announcements"},
-	},
-	domain.ProtocolSlack: {
-		{domain.ChatChannel, "Slack channel", "anyone in the workspace can join"},
-		{domain.ChatPrivateChannel, "Slack private channel", "invitation only"},
-	},
-}
-
 // chatValueSep joins account and kind in a new-chat row's value; no Matrix kind contains it.
 const chatValueSep = "|"
 
-// openNewRoom asks what to make, from what this kith's accounts can make.
+// chatOffersMsg is what chats the other networks' accounts can make, for :new.
+type chatOffersMsg struct {
+	offers []domain.ChatOffer
+	err    error
+}
+
+// openNewRoom asks the daemon what the other networks' accounts can make, then what
+// to make.
 func (m Model) openNewRoom() (Model, tea.Cmd) {
+	ctx, backend := m.ctx, m.backend
+	return m, func() tea.Msg {
+		offers, err := backend.ChatOffers(ctx)
+		return chatOffersMsg{offers: offers, err: err}
+	}
+}
+
+// handleCreating is news of :new: what can be made, or what was.
+func (m Model) handleCreating(msg tea.Msg) (Model, tea.Cmd) {
+	if offers, ok := msg.(chatOffersMsg); ok {
+		return m.handleChatOffers(offers)
+	}
+	created, _ := msg.(roomCreatedMsg)
+	return m.handleRoomCreated(created)
+}
+
+// handleChatOffers asks what to make, from what this kith's accounts can make; when
+// the daemon cannot say, Matrix's rooms and a tag are still offered.
+func (m Model) handleChatOffers(msg chatOffersMsg) (Model, tea.Cmd) {
+	if msg.err != nil {
+		m.logErr(slog.LevelWarn, "list the chats accounts can make", msg.err)
+	}
 	var items []pickerItem
 	if m.hasMatrix() {
 		for i := range newRoomKinds {
@@ -87,28 +95,32 @@ func (m Model) openNewRoom() (Model, tea.Cmd) {
 			})
 		}
 	}
-	accounts := m.chatAccounts()
-	for _, network := range []domain.Protocol{domain.ProtocolTelegram, domain.ProtocolWhatsApp, domain.ProtocolSlack} {
-		for _, account := range accounts[network] {
-			for _, kind := range newChatKinds[network] {
-				detail := kind.detail
-				if len(accounts[network]) > 1 {
-					detail = m.accountLabel(network, account) + " · " + detail
-				}
-				items = append(items, pickerItem{
-					label:  kind.label,
-					detail: detail,
-					value:  string(domain.AccountRooms(network, account)) + chatValueSep + strconv.Itoa(int(kind.kind)),
-					match:  kind.label + " " + detail,
-				})
-			}
+	accounts := map[domain.Protocol]map[domain.RoomOwner]bool{}
+	for _, o := range msg.offers {
+		network := domain.NetworkOf(string(o.On))
+		if accounts[network] == nil {
+			accounts[network] = map[domain.RoomOwner]bool{}
 		}
+		accounts[network][o.On] = true
+	}
+	for _, o := range msg.offers {
+		detail := o.Detail
+		if len(accounts[domain.NetworkOf(string(o.On))]) > 1 {
+			detail = o.Account + " · " + detail
+		}
+		items = append(items, pickerItem{
+			label:  o.Label,
+			detail: detail,
+			value:  string(o.On) + chatValueSep + strconv.Itoa(int(o.Kind)),
+			match:  o.Label + " " + detail,
+		})
 	}
 	// A tag needs no account: it is kith's own, over every network.
 	items = append(items, pickerItem{
 		label: "Tag", detail: "kith's own group, by a rule or by hand, over every network",
 		value: tagNew, match: "tag kith's own group",
 	})
+	m.aimedAt.offers = msg.offers
 	m.picker = newPicker(pickerNewRoom, items)
 	return m, nil
 }
@@ -120,37 +132,6 @@ func (m Model) hasMatrix() bool {
 		return true
 	}
 	return slices.ContainsFunc(m.rooms.all, func(r domain.Room) bool { return domain.IsMatrixRoomID(string(r.ID)) })
-}
-
-// chatAccounts is each network's accounts the room list has rooms from, in order.
-func (m Model) chatAccounts() map[domain.Protocol][]string {
-	out := map[domain.Protocol][]string{}
-	for i := range m.rooms.all {
-		id := domain.ParseID(string(m.rooms.all[i].ID))
-		if _, makes := newChatKinds[id.Network]; makes && id.Account != "" && !slices.Contains(out[id.Network], id.Account) {
-			out[id.Network] = append(out[id.Network], id.Account)
-		}
-	}
-	for _, accounts := range out {
-		slices.Sort(accounts)
-	}
-	return out
-}
-
-// accountLabel distinguishes a network's accounts: a WhatsApp number, a Slack
-// workspace name, a Telegram account ID.
-func (m Model) accountLabel(network domain.Protocol, account string) string {
-	if network == domain.ProtocolWhatsApp {
-		return "+" + account
-	}
-	if network == domain.ProtocolSlack {
-		for i := range m.rooms.spaces {
-			if id := domain.ParseID(string(m.rooms.spaces[i].ID)); id.Network == network && id.Account == account && id.Native == account {
-				return m.rooms.spaces[i].DisplayName()
-			}
-		}
-	}
-	return account
 }
 
 // chooseNewRoomKind settles the kind and asks for the name. A room lands in the space
@@ -223,11 +204,16 @@ func (m Model) openNewChatMembers(spec domain.NewRoom) Model {
 	return m
 }
 
-// createNewChat makes the chat with the people ticked; a WhatsApp group needs one.
+// createNewChat makes the chat with the people ticked, as many as its kind needs.
 func (m Model) createNewChat(people []string) (Model, tea.Cmd) {
 	spec := m.aimedAt.creating
-	if domain.NetworkOf(string(spec.On)) == domain.ProtocolWhatsApp && spec.Kind == domain.ChatGroup && len(people) == 0 {
-		return m.say("a WhatsApp group needs someone in it besides you: tick at least one"), nil
+	for _, o := range m.aimedAt.offers {
+		if o.On == spec.On && o.Kind == spec.Kind && len(people) < o.MinMembers {
+			if o.MinMembers == 1 {
+				return m.say("a " + o.Label + " needs someone in it besides you: tick at least one"), nil
+			}
+			return m.say(fmt.Sprintf("a %s needs at least %d people in it besides you: tick them", o.Label, o.MinMembers)), nil
+		}
 	}
 	m = m.closePicker()
 	m.aimedAt.creating = domain.NewRoom{}

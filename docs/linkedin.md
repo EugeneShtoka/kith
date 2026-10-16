@@ -14,14 +14,17 @@ You can write in a conversation, reply (the reply quotes the original, as Linked
 shows it), mention people (`@` offers the conversation's members), edit and delete
 your messages, react (reacting again with the same emoji takes it back), and scroll
 back past what kith has: older messages are fetched from LinkedIn. Reactions show as
-people make them. Attaching a file sends it with what you typed as its text: a video
+people make them, and so does who is typing. Attaching a file sends it with what you typed as its text: a video
 as a video and audio as a voice message, anything else (pictures too, as LinkedIn's
 web app sends them) as a file.
 
 A conversation you read in kith stays read: kith keeps the read position itself,
 before telling LinkedIn, and keeps telling LinkedIn until it hears. LinkedIn marks a
 whole conversation read, not a message, and its own read times only ever move kith's
-position forward. Conversations LinkedIn filed as spam are not shown.
+position forward. Marking a conversation unread, in kith or on another device, shows
+it as marked until it is read; LinkedIn has to take the mark, so offline it is
+refused, and clearing a mark reads the conversation, as it does on LinkedIn.
+Conversations LinkedIn filed as spam are not shown.
 
 ## Before you sign in
 

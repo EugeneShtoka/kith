@@ -80,3 +80,24 @@ func personJID(person string) (types.JID, bool) {
 	}
 	return types.JID{}, false
 }
+
+// ChatOffers is each connected account's group and community; a group is made with
+// someone in it besides you.
+func (a *Adapter) ChatOffers(context.Context) ([]domain.ChatOffer, error) {
+	var out []domain.ChatOffer
+	for _, c := range a.connected() {
+		on := domain.AccountRooms(domain.ProtocolWhatsApp, c.account.Digits)
+		number := "+" + c.account.Digits
+		out = append(out,
+			domain.ChatOffer{
+				On: on, Account: number, Kind: domain.ChatGroup, Label: "WhatsApp group",
+				Detail: fmt.Sprintf("a group chat, at most %d characters of name", groupNameMost), MinMembers: 1,
+			},
+			domain.ChatOffer{
+				On: on, Account: number, Kind: domain.ChatCommunity, Label: "WhatsApp community",
+				Detail: "groups under one community, with its announcements",
+			},
+		)
+	}
+	return out, nil
+}

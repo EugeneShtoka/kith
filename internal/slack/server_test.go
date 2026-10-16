@@ -15,6 +15,7 @@ import (
 	slackgo "github.com/slack-go/slack"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // fakeSlack answers Web API methods by name and records each request.
@@ -525,15 +526,15 @@ func TestAReadStaysWhenSlackDoesNotTakeIt(t *testing.T) {
 	if n := unread(); n != 0 {
 		t.Errorf("after Slack's stale last_read: %d, want 0", n)
 	}
-	if owed := a.reads.take("T1"); owed["C1"] != "4.0" {
+	if owed := a.reads.Take("T1"); owed[room] != "4.0" {
 		t.Fatalf("the mark is not owed: %v", owed)
 	}
-	a.reads.add("T1", "C1", "4.0")
+	a.reads.Add(room, "4.0")
 	a.sendOwed(ctx, w) // Slack still refusing: owed still
-	if owed := a.reads.take("T1"); owed["C1"] != "4.0" {
+	if owed := a.reads.Take("T1"); owed[room] != "4.0" {
 		t.Fatalf("a resend Slack refused dropped the mark: %v", owed)
 	}
-	a.reads.add("T1", "C1", "4.0")
+	a.reads.Add(room, "4.0")
 	refuse.Store(false)
 	a.onEvent(ctx, w, slackgo.RTMEvent{Data: &slackgo.ConnectedEvent{}}) // connected again: owed marks go
 	deadline := time.Now().Add(5 * time.Second)
@@ -544,14 +545,15 @@ func TestAReadStaysWhenSlackDoesNotTakeIt(t *testing.T) {
 		t.Errorf("conversations.mark asked %v", calls)
 	}
 	owedNow := func() int {
-		a.reads.mu.Lock()
-		defer a.reads.mu.Unlock()
-		return len(a.reads.marks["T1"])
+		if a.reads.Has(room) {
+			return 1
+		}
+		return 0
 	}
 	for owedNow() > 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if owed := a.reads.take("T1"); len(owed) != 0 {
+	if owed := a.reads.Take("T1"); len(owed) != 0 {
 		t.Errorf("a mark Slack took is still owed: %v", owed)
 	}
 
@@ -560,7 +562,7 @@ func TestAReadStaysWhenSlackDoesNotTakeIt(t *testing.T) {
 	if err := b.MarkRead(ctx, room, messageID("T1", "C1", "4.0"), false); err != nil {
 		t.Errorf("reading with no workspace: %v", err)
 	}
-	if owed := b.reads.take("T1"); owed["C1"] != "4.0" {
+	if owed := b.reads.Take("T1"); owed[room] != "4.0" {
 		t.Errorf("not connected, the mark is not owed: %v", owed)
 	}
 	for name, err := range map[string]error{
@@ -578,15 +580,16 @@ func TestAReadStaysWhenSlackDoesNotTakeIt(t *testing.T) {
 // settling an earlier mark leaves a later one owed.
 func TestOwedReadMarks(t *testing.T) {
 	t.Parallel()
-	var o owed
-	o.add("T", "C", "2.0")
-	o.add("T", "C", "3.0")
-	o.add("T", "C", "1.0")
-	o.settle("T", "C", "2.0")
-	if got := o.take("T"); got["C"] != "3.0" {
+	o := readstate.NewOwed(laterTS)
+	room := roomID("T", "C")
+	o.Add(room, "2.0")
+	o.Add(room, "3.0")
+	o.Add(room, "1.0")
+	o.Settle(room, "2.0")
+	if got := o.Take("T"); got[room] != "3.0" {
 		t.Errorf("owed = %v", got)
 	}
-	if got := o.take("T"); len(got) != 0 {
+	if got := o.Take("T"); len(got) != 0 {
 		t.Errorf("owed after taking = %v", got)
 	}
 }

@@ -605,6 +605,25 @@ enum ChatKind {
   CHAT_KIND_COMMUNITY = 5;
 }
 
+// One kind of chat an account can make, as its network describes it (domain.ChatOffer).
+message ChatOffer {
+  // The account it is made on, as domain.AccountRooms writes it.
+  string on = 1;
+  // How the account reads, to tell a network's accounts apart.
+  string account = 2;
+  ChatKind kind = 3;
+  string label = 4;
+  string detail = 5;
+  // How many others must be in it from the start.
+  int32 min_members = 6;
+}
+
+message ChatOffersRequest {}
+
+message ChatOffersResponse {
+  repeated ChatOffer offers = 1;
+}
+
 message CreateRoomResponse {
   string room_id = 1;
   // warning is non-empty when the room exists but something after it did not — filing
@@ -1536,6 +1555,9 @@ service BackendService {
   rpc SignOut(SignOutRequest) returns (SignOutResponse);
   // Deciding who else is in a room.
   rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+  // ChatOffers is every kind of chat each connected account of a network other than
+  // Matrix can make.
+  rpc ChatOffers(ChatOffersRequest) returns (ChatOffersResponse);
   rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
   rpc KickUser(KickUserRequest) returns (KickUserResponse);
   rpc BanUser(BanUserRequest) returns (BanUserResponse);

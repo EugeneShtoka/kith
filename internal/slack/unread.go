@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // Unread is counted locally: messages not yours after a room's read position. The
@@ -48,23 +48,25 @@ func (a *Adapter) placeRead(ctx context.Context, room domain.RoomID, at time.Tim
 	if a.cache == nil || a.placed(ctx, room) {
 		return
 	}
-	a.readTo(ctx, room, "", at)
+	if err := a.readTo(ctx, room, "", at); err != nil {
+		a.log.Warn("save a read position failed", "err", err)
+	}
 }
 
 // readTo moves a room's read position forward to event; the cache never moves it back.
-func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, event domain.EventID, at time.Time) {
+func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, event domain.EventID, at time.Time) error {
 	if a.cache == nil {
-		return
+		return nil
 	}
 	if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room, ReadEvent: event}, at.UnixMilli()); err != nil {
-		a.log.Warn("save a read position failed", "room", room, "err", err)
-		return
+		return fmt.Errorf("slack: save the read position of %s: %w", room, err)
 	}
 	a.mu.Lock()
 	if a.positions != nil && at.After(a.positions[room]) {
 		a.positions[room] = at
 	}
 	a.mu.Unlock()
+	return nil
 }
 
 func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
@@ -93,7 +95,10 @@ func (a *Adapter) onMarked(ctx context.Context, w *workspace, channel, ts string
 		return
 	}
 	room := roomID(w.creds.Team, channel)
-	a.readTo(ctx, room, messageID(w.creds.Team, channel, ts), tsTime(ts))
+	if err := a.readTo(ctx, room, messageID(w.creds.Team, channel, ts), tsTime(ts)); err != nil {
+		a.log.Warn("save a read position failed", "account", w.account.Name, "err", err)
+		return
+	}
 	a.recount(ctx, room)
 }
 
@@ -147,9 +152,11 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 	if !ok || in != room.Native {
 		return fmt.Errorf("slack: %s is not a message of %s", eventID, roomID)
 	}
-	a.readTo(ctx, roomID, eventID, tsTime(ts))
+	if err := a.readTo(ctx, roomID, eventID, tsTime(ts)); err != nil {
+		return err
+	}
 	a.recount(ctx, roomID)
-	a.reads.add(room.Account, room.Native, ts)
+	a.reads.Add(roomID, ts)
 	if w, _, err := a.conversation(roomID); err == nil {
 		a.sendRead(ctx, w, room.Native, ts)
 	}
@@ -164,85 +171,37 @@ func (a *Adapter) sendRead(ctx context.Context, w *workspace, channel, ts string
 			"account", w.account.Name, "err", err)
 		return
 	}
-	a.reads.settle(w.creds.Team, channel, ts)
+	a.reads.Settle(roomID(w.creds.Team, channel), ts)
 }
 
 // sendOwed sends a workspace's owed read marks, on (re)connecting.
 func (a *Adapter) sendOwed(ctx context.Context, w *workspace) {
-	for channel, ts := range a.reads.take(w.creds.Team) {
-		a.reads.add(w.creds.Team, channel, ts) // owed until Slack takes it
-		a.sendRead(ctx, w, channel, ts)
+	for room, ts := range a.reads.Take(w.creds.Team) {
+		a.reads.Add(room, ts) // owed until Slack takes it
+		a.sendRead(ctx, w, domain.ParseID(string(room)).Native, ts)
 	}
 }
 
-// owed is the read marks Slack has not taken yet, by team and channel: the latest ts.
-type owed struct {
-	mu    sync.Mutex
-	marks map[string]map[string]string
-}
-
-// add owes channel read through ts, unless a later mark is owed already.
-func (o *owed) add(team, channel, ts string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.marks == nil {
-		o.marks = map[string]map[string]string{}
-	}
-	if o.marks[team] == nil {
-		o.marks[team] = map[string]string{}
-	}
-	if old, ok := o.marks[team][channel]; !ok || !tsTime(old).After(tsTime(ts)) {
-		o.marks[team][channel] = ts
-	}
-}
-
-// take removes and returns a team's owed marks.
-func (o *owed) take(team string) map[string]string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	marks := o.marks[team]
-	delete(o.marks, team)
-	return marks
-}
-
-// settle drops a mark Slack took, unless a later one was owed meanwhile.
-func (o *owed) settle(team, channel, ts string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if old, ok := o.marks[team][channel]; ok && !tsTime(old).After(tsTime(ts)) {
-		delete(o.marks[team], channel)
-	}
-}
+// laterTS reports whether Slack message time a is after b.
+func laterTS(a, b string) bool { return tsTime(a).After(tsTime(b)) }
 
 // MarkRoomsRead marks each room and its threads read up to its newest cached message.
 func (a *Adapter) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error) {
-	var result domain.ReadResult
 	if a.cache == nil {
-		result.Skipped = len(roomIDs)
-		return result, nil
+		return domain.ReadResult{Skipped: len(roomIDs)}, nil
 	}
-	latest, err := a.cache.LatestEvents(ctx, roomIDs)
-	if err != nil {
-		return domain.ReadResult{}, fmt.Errorf("slack: newest messages: %w", err)
-	}
-	for _, room := range roomIDs {
-		event, ok := latest[room]
-		if !ok {
-			result.Skipped++
-			continue
-		}
+	result, err := readstate.MarkRoomsRead(ctx, a.cache, roomIDs, func(room domain.RoomID, event domain.EventID) error {
 		if err := a.MarkRead(ctx, room, event, private); err != nil {
-			result.Failed++
-			if result.FirstError == "" {
-				result.FirstError = err.Error()
-			}
-			continue
+			return err
 		}
 		if ts, ok, err := a.cache.MessageTS(ctx, room, event); err == nil && ok {
 			a.readThreadsTo(ctx, room, event, time.UnixMilli(ts))
 			a.recount(ctx, room)
 		}
-		result.Marked++
+		return nil
+	})
+	if err != nil {
+		return result, fmt.Errorf("slack: %w", err)
 	}
 	return result, nil
 }

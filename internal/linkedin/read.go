@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // Reading is local first: what you read in kith is read here before LinkedIn hears of
@@ -18,43 +18,6 @@ import (
 
 // receiptSpan bounds sending one read mark.
 const receiptSpan = 30 * time.Second
-
-// owed is the conversations LinkedIn has not heard are read, by account and thread,
-// with the time each is read through: a mark taken settles only what it covered.
-type owed struct {
-	mu    sync.Mutex
-	marks map[string]map[string]int64 // self → thread → read through, ms
-}
-
-func (o *owed) add(self, thread string, at int64) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.marks == nil {
-		o.marks = map[string]map[string]int64{}
-	}
-	if o.marks[self] == nil {
-		o.marks[self] = map[string]int64{}
-	}
-	o.marks[self][thread] = max(o.marks[self][thread], at)
-}
-
-// take removes and returns an account's owed marks.
-func (o *owed) take(self string) map[string]int64 {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	marks := o.marks[self]
-	delete(o.marks, self)
-	return marks
-}
-
-// settle drops a mark LinkedIn took, unless a later one was owed meanwhile.
-func (o *owed) settle(self, thread string, at int64) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.marks[self][thread] <= at {
-		delete(o.marks[self], thread)
-	}
-}
 
 var errNotAConversation = errors.New("linkedin: not a LinkedIn room")
 
@@ -74,7 +37,7 @@ func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain
 		return err
 	}
 	a.recount(ctx, room)
-	a.reads.add(self, thread, at.UnixMilli())
+	a.reads.Add(room, at.UnixMilli())
 	if c := a.connOf(self); c != nil {
 		a.sendRead(context.WithoutCancel(ctx), c, thread, at.UnixMilli())
 	}
@@ -83,52 +46,63 @@ func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain
 
 // MarkRoomsRead reads each room through its newest cached message.
 func (a *Adapter) MarkRoomsRead(ctx context.Context, rooms []domain.RoomID, _ bool) (domain.ReadResult, error) {
-	var result domain.ReadResult
 	if a.cache == nil {
-		result.Skipped = len(rooms)
-		return result, nil
+		return domain.ReadResult{Skipped: len(rooms)}, nil
 	}
-	latest, err := a.cache.LatestEvents(ctx, rooms)
+	result, err := readstate.MarkRoomsRead(ctx, a.cache, rooms, func(room domain.RoomID, event domain.EventID) error {
+		return a.MarkRead(ctx, room, event, false)
+	})
 	if err != nil {
-		return domain.ReadResult{}, fmt.Errorf("linkedin: newest messages: %w", err)
-	}
-	for _, room := range rooms {
-		event, ok := latest[room]
-		if !ok {
-			result.Skipped++
-			continue
-		}
-		if err := a.MarkRead(ctx, room, event, false); err != nil {
-			result.Failed++
-			if result.FirstError == "" {
-				result.FirstError = err.Error()
-			}
-			continue
-		}
-		result.Marked++
+		return result, fmt.Errorf("linkedin: %w", err)
 	}
 	return result, nil
 }
 
-// errNoMarkUnread: marking a conversation unread is not supported yet.
-var errNoMarkUnread = errors.New("linkedin: marking a conversation unread is not supported yet")
-
-// MarkRoomUnread is not supported yet.
-func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error { return errNoMarkUnread }
+// MarkRoomUnread marks a conversation unread on LinkedIn, then here; a mark LinkedIn
+// does not take is an error and changes nothing. LinkedIn takes a mark away only by
+// reading the conversation, so clearing one reads it through its newest message.
+func (a *Adapter) MarkRoomUnread(ctx context.Context, room domain.RoomID, unread bool) error {
+	if !unread {
+		result, err := a.MarkRoomsRead(ctx, []domain.RoomID{room}, false)
+		if err != nil {
+			return err
+		}
+		if result.Failed > 0 {
+			return fmt.Errorf("linkedin: clear the unread mark: %s", result.FirstError)
+		}
+		return nil
+	}
+	c, client, thread, err := a.client(room)
+	if err != nil {
+		return err
+	}
+	err = a.ask(ctx, "marking a conversation unread", func(ctx context.Context) error {
+		_, markErr := client.MarkConversationUnread(ctx, conversationURN(c.profile, thread))
+		return markErr //nolint:wrapcheck // wrapped below
+	})
+	if err != nil {
+		return fmt.Errorf("linkedin: mark %s unread: %w", room, err)
+	}
+	if a.cache != nil {
+		if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room, Notifications: 1, Marked: true}, 0); err != nil {
+			return fmt.Errorf("linkedin: keep the unread mark of %s: %w", room, err)
+		}
+	}
+	a.recount(ctx, room)
+	return nil
+}
 
 // timeOf is when a cached message was sent; now when it is not cached, so the room is
 // read through everything it shows. A lookup that fails is an error, never now.
 func (a *Adapter) timeOf(ctx context.Context, room domain.RoomID, event domain.EventID) (time.Time, error) {
-	if a.cache != nil && event != "" {
-		msg, ok, err := a.cache.MessageByID(ctx, room, event)
-		if err != nil {
-			return time.Time{}, fmt.Errorf("linkedin: read position of %s: %w", event, err)
-		}
-		if ok {
-			return msg.Timestamp, nil
-		}
+	if a.cache == nil {
+		return time.Now(), nil
 	}
-	return time.Now(), nil
+	at, err := readstate.TimeOf(ctx, a.cache, room, event, time.Now())
+	if err != nil {
+		return time.Time{}, fmt.Errorf("linkedin: %w", err)
+	}
+	return at, nil
 }
 
 // sendRead tells LinkedIn a conversation is read through at and settles that when
@@ -151,14 +125,16 @@ func (a *Adapter) sendRead(ctx context.Context, c *conn, thread string, at int64
 			"account", c.account.Name, "err", err)
 		return
 	}
-	a.reads.settle(c.profile, thread, at)
+	a.reads.Settle(roomID(c.profile, thread), at)
 }
 
 // sendOwed sends an account's owed read marks, on (re)connecting.
 func (a *Adapter) sendOwed(c *conn) {
-	for thread, at := range a.reads.take(c.profile) {
-		a.reads.add(c.profile, thread, at) // owed until LinkedIn takes it
-		a.sendRead(context.Background(), c, thread, at)
+	for room, at := range a.reads.Take(c.profile) {
+		a.reads.Add(room, at) // owed until LinkedIn takes it
+		if _, thread, ok := threadOf(room); ok {
+			a.sendRead(context.Background(), c, thread, at)
+		}
 	}
 }
 

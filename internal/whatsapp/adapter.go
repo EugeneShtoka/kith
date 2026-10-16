@@ -17,6 +17,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // streamBuffer bounds each stream.
@@ -51,7 +52,7 @@ type Adapter struct {
 	onChanged func(domain.RoomID)
 
 	// reads is the read receipts WhatsApp has not taken yet (unread.go).
-	reads owed
+	reads *readstate.Owed[receipt]
 
 	// arrived is the last live message's position (see arrival).
 	arrived atomic.Int64
@@ -119,6 +120,7 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
 		reactions: make(chan domain.ReactionUpdate, streamBuffer),
+		reads:     readstate.NewOwed(laterReceipt),
 	}
 }
 

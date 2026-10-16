@@ -65,6 +65,11 @@ func (r *Router) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.Ro
 	return c.CreateRoom(ctx, spec)
 }
 
+// ChatOffers is every kind of chat each connected account of every network can make.
+func (r *Router) ChatOffers(ctx context.Context) ([]domain.ChatOffer, error) {
+	return gather(r, func(c ChatMaker) ([]domain.ChatOffer, error) { return c.ChatOffers(ctx) })
+}
+
 // InviteUser invites someone into a room.
 func (r *Router) InviteUser(ctx context.Context, roomID domain.RoomID, userID string) error {
 	return doOnRoom(r, roomID, "invites", func(c api.Membership) error { return c.InviteUser(ctx, roomID, userID) })
