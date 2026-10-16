@@ -62,7 +62,7 @@ func TestOnlyAChannelsAdminsPost(t *testing.T) {
 	unknown := roomID(home.Digits, newsletter("1299"))
 	for name, err := range map[string]error{
 		"Send as a follower":     a.Send(ctx, weather, domain.Draft{Body: "hi"}),
-		"SendFile as a follower": a.SendFile(ctx, weather, "/nonexistent", ""),
+		"SendFile as a follower": a.SendFile(ctx, weather, "/nonexistent", "nonexistent", ""),
 		"Send in an unknown one": a.Send(ctx, unknown, domain.Draft{Body: "hi"}),
 	} {
 		if !errors.Is(err, api.ErrNoPower) {

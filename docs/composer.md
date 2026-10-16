@@ -156,6 +156,8 @@ You can also type the command, which is handy when the path is already on your c
 
 Anything after the `|` is the caption. A leading `~` is expanded, and nothing else is.
 
+**A file goes out under a neutral name** for what it is, on every network: `IMG_2041 Haifa.jpg` is sent as `photo.jpg`, `contract v3.docx` as `document.docx`, a film as `video.mkv`, a song as `music.mp3`, a `.zip` or `.7z` as `archive.zip`, and anything else as `file` plus its extension. The extension stays, so the file still opens; the name you gave it stays yours. Turn it off with `anonymize = false` under `[display.media]`, or for one place with a `[[display.media.rule]]` (a room, a space, a tag), as other media settings are scoped. Settings shows it under Media.
+
 To save attachments other people sent, use `s` and `S` on the timeline. The [usage guide](usage.md) covers both.
 
 ## Drafts

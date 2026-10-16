@@ -97,7 +97,7 @@ func TestAttachmentsNeedLinkedIn(t *testing.T) {
 	if _, err := a.LoadImage(ctx, room, msgID(group, "m1")); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("loading while not connected = %v", err)
 	}
-	if err := a.SendFile(ctx, room, file, ""); !errors.Is(err, api.ErrNetworkOff) {
+	if err := a.SendFile(ctx, room, file, filepath.Base(file), ""); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("sending while not connected = %v", err)
 	}
 	c.client = &linkedingo.Client{} // connected, as far as the checks go: they come first
@@ -108,10 +108,10 @@ func TestAttachmentsNeedLinkedIn(t *testing.T) {
 	if err := os.WriteFile(empty, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.SendFile(ctx, room, empty, ""); err == nil || !strings.Contains(err.Error(), "empty") {
+	if err := a.SendFile(ctx, room, empty, filepath.Base(empty), ""); err == nil || !strings.Contains(err.Error(), "empty") {
 		t.Errorf("sending an empty file = %v", err)
 	}
-	if err := a.SendFile(ctx, room, filepath.Join(t.TempDir(), "gone.png"), ""); err == nil {
+	if err := a.SendFile(ctx, room, filepath.Join(t.TempDir(), "gone.png"), "gone.png", ""); err == nil {
 		t.Error("sending a file that is not there was taken")
 	}
 }

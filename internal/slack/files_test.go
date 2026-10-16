@@ -137,7 +137,7 @@ func TestAFileGoesUpWithItsCaption(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := a.SendFile(ctx, roomID("T1", "C1"), path, "here"); err != nil {
+	if err := a.SendFile(ctx, roomID("T1", "C1"), path, filepath.Base(path), "here"); err != nil {
 		t.Fatalf("SendFile: %v", err)
 	}
 	if asked := f.calls("files.getUploadURLExternal"); len(asked) != 1 || asked[0]["filename"] != "notes.txt" || asked[0]["length"] != "5" {
@@ -155,7 +155,7 @@ func TestAFileGoesUpWithItsCaption(t *testing.T) {
 	if err := os.WriteFile(empty, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.SendFile(ctx, roomID("T1", "C1"), empty, ""); err == nil {
+	if err := a.SendFile(ctx, roomID("T1", "C1"), empty, filepath.Base(empty), ""); err == nil {
 		t.Error("an empty file was sent; Slack takes none")
 	}
 }

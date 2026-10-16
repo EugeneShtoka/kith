@@ -250,6 +250,9 @@ message SendFileRequest {
   string path = 2;
   // caption becomes the message body.
   string caption = 3;
+  // name is what the file is sent as (domain.SentName where names are anonymized);
+  // empty sends it under its own.
+  string name = 4;
 }
 
 message SendFileResponse {}

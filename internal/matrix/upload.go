@@ -33,7 +33,7 @@ import (
 const maxSniff = 512
 
 // SendFile uploads a file (encrypted where the room is) and posts it.
-func (b *InProc) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
+func (b *InProc) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
 	file, err := os.Open(path) // #nosec G304 -- the user's own path, over a 0600 socket
 	if err != nil {
 		return fmt.Errorf("matrix: open %s: %w", filepath.Base(path), err)
@@ -51,7 +51,6 @@ func (b *InProc) SendFile(ctx context.Context, roomID domain.RoomID, path, capti
 		return fmt.Errorf("matrix: %s is empty", filepath.Base(path))
 	}
 
-	name := filepath.Base(path)
 	mimetype, err := sniff(file, name)
 	if err != nil {
 		return err

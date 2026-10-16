@@ -112,7 +112,7 @@ type (
 	}
 	// Uploader posts a file.
 	Uploader interface {
-		SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error
+		SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error
 	}
 	// Reactor reacts to a message.
 	Reactor interface {

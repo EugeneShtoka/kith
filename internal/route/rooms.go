@@ -108,8 +108,8 @@ func (r *Router) SendTyping(ctx context.Context, roomID domain.RoomID, typing bo
 }
 
 // SendFile posts a file.
-func (r *Router) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
-	return doOnRoom(r, roomID, "files", func(c Uploader) error { return c.SendFile(ctx, roomID, path, caption) })
+func (r *Router) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
+	return doOnRoom(r, roomID, "files", func(c Uploader) error { return c.SendFile(ctx, roomID, path, name, caption) })
 }
 
 // PollVoters is who chose what in a message's poll.

@@ -146,7 +146,7 @@ func TestNoCryptoRefusesEncryptedRoomsAndSendsToOthers(t *testing.T) {
 
 			var err error
 			if c.file {
-				err = b.SendFile(ctx, c.room, sampleFile(t), "")
+				err = b.SendFile(ctx, c.room, sampleFile(t), "photo.png", "")
 			} else {
 				err = b.Send(ctx, c.room, domain.Draft{Body: "the plan"})
 			}
