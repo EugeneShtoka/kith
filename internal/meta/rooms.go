@@ -237,11 +237,6 @@ func (a *Adapter) RoomEncryption(_ context.Context, rooms []domain.RoomID) (map[
 	return out, nil
 }
 
-// Timeline is empty: older messages are not fetched from Meta yet; kith reads the cache.
-func (a *Adapter) Timeline(context.Context, domain.RoomID, string, int) (domain.TimelinePage, error) {
-	return domain.TimelinePage{}, nil
-}
-
 // errNotCached is a message the cache does not hold, which cannot be asked for yet.
 var errNotCached = errors.New("meta: that message is not in the cache")
 

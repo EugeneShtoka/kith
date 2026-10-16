@@ -2,17 +2,18 @@
 
 kith is learning to sign in to Messenger directly, as the Messenger Lite app does: no
 Matrix bridge. **It is being built.** Today kith signs in, stays connected, and shows
-your threads in a space of their own (`Messenger <name>`), with their messages as
-they arrive and the history Meta sends with each page of the inbox. Pictures, files
-and stickers show as a short label (`[photo]`, `[file: plan.pdf]`) for now. Sending,
-older history and Instagram come next.
+your threads in a space of their own (`Messenger <name>`): messages as they arrive,
+older ones as you scroll up, and you can write and reply. Pictures, files and
+stickers show as a short label (`[photo]`, `[file: plan.pdf]`) for now. Reactions,
+typing, editing, sending files, and Instagram come next.
 
 **End-to-end encrypted chats** (Messenger encrypts one-to-one chats by default since
 late 2023) are read the way Messenger's own apps read them: kith registers itself
 once as a device of your account, and Messenger lists it with your devices. Only
 messages sent after that can be read; older encrypted history sits behind
-Messenger's PIN-protected backup, which kith cannot open. An encrypted chat is the
-same room as the thread it was, named after its person. Because one room can hold both, kith counts every
+Messenger's PIN-protected backup, which kith cannot open, and Meta keeps no older
+pages of them to scroll back to. An encrypted chat is the same room as the thread it
+was, named after its person. Because one room can hold both, kith counts every
 Messenger room as encrypted: the assistant and kith-mcp leave them out unless you
 set `encrypted = true` ([assist](assist.md), [mcp](mcp.md)).
 

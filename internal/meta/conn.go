@@ -82,6 +82,9 @@ type conn struct {
 	rooms    map[domain.RoomID]domain.Room
 	// asked is the people already asked Meta for (askContacts). Under applying.
 	asked map[int64]bool
+	// ranges is the history requests waiting for a thread's page (history.go). Under
+	// applying.
+	ranges map[int64]chan *table.LSInsertNewMessageRange
 
 	// e2ee is the encrypted chats' connection once up; e2eeBusy marks one being made.
 	// Under mu.
@@ -106,6 +109,7 @@ func (a *Adapter) newConn(account Account, s Session, at *int) *conn {
 	return &conn{
 		account: account, metaID: s.MetaID, signIn: signIn, session: s, saved: saved, done: make(chan struct{}),
 		inbox: newInbox(s.MetaID), rooms: map[domain.RoomID]domain.Room{}, asked: map[int64]bool{},
+		ranges: map[int64]chan *table.LSInsertNewMessageRange{},
 	}
 }
 
@@ -384,6 +388,7 @@ func (a *Adapter) take(ctx context.Context, c *conn, tbl *table.LSTable) {
 		a.log.Info("threads not shown", "account", c.account.Name, "why", ch.left)
 	}
 	a.store(ctx, c, ch)
+	heardRanges(c, tbl)
 	var ask []int64
 	for _, id := range c.inbox.unnamed(ch.threads) {
 		if !c.asked[id] {
