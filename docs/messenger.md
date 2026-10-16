@@ -4,7 +4,8 @@ kith is learning to sign in to Messenger directly, as the Messenger Lite app doe
 Matrix bridge. **It is being built.** Today kith signs in, stays connected, and shows
 your threads in a space of their own (`Messenger <name>`): messages as they arrive,
 older ones as you scroll up, and you can write, reply, edit or unsend what you wrote
-and react, and others see you typing. Messenger keeps one reaction per person on a message:
+and react, and others see you typing. Leaving a chat deletes it from your Messenger, as
+Messenger's "Delete chat" does, leaving a group first; a new message brings it back. Messenger keeps one reaction per person on a message:
 reacting again with another emoji replaces yours, and with the same one takes it back.
 Pictures, files and stickers show as a short label (`[photo]`, `[file: plan.pdf]`) for
 now. Sending files and Instagram come next.
