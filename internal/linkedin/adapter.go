@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
@@ -66,6 +67,8 @@ type Adapter struct {
 	// signIns counts each account's sign-ins, so a connection begun on an older session
 	// never replaces a newer one (see adopt).
 	signIns map[string]int
+	// typing holds each typist's expiry timer, by room (typing.go).
+	typing  map[domain.RoomID]map[string]*time.Timer
 	started bool
 	stopped bool
 	// run is Start's context; an account added later connects under it.
@@ -98,6 +101,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "linkedin"),
 		conns:     map[string]*conn{},
 		signIns:   map[string]int{},
+		typing:    map[domain.RoomID]map[string]*time.Timer{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
