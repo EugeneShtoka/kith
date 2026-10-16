@@ -19,6 +19,8 @@ For the same reason, the client has **no in-process fallback**. If no daemon is 
 | Crypto store (Olm account, Megolm sessions, device lists, cross-signing state) | `$XDG_DATA_HOME/kith/crypto-<hash>.db` | Encrypted at rest with the pickle key |
 | Pickle key (32 random bytes) | OS keyring, service `kith`, account `<your MXID>\|pickle` | Keyring only, never written to disk |
 | Access token and device ID | OS keyring, service `kith`, account `<your MXID>` | Keyring. A `0600` file only if you opt in with `allow_token_file = true` |
+| WhatsApp's and Messenger's key stores (each linked device's identity keys, prekeys, sessions, sender keys) | `$XDG_DATA_HOME/kith/whatsapp-<hash>.db`, `messenger-<hash>.db` | Encrypted at rest, every page and the write-ahead log, with the store's key |
+| Each store's key (32 random bytes) | OS keyring, service `kith`, account `<hash>\|whatsapp-store`, `<hash>\|messenger-store` | Keyring only, never written to disk |
 | Message cache (decrypted text, full-text index) | `$XDG_DATA_HOME/kith/cache-<hash>.db` | **Plaintext SQLite**, protected by file permissions |
 | Downloaded attachments and rendered previews | `$XDG_CACHE_HOME/kith/` | File permissions |
 | Socket and lock | `$XDG_RUNTIME_DIR/kith/<hash>.sock`, `.lock` | Socket `0600`, directory `0700` |
@@ -28,6 +30,8 @@ For the same reason, the client has **no in-process fallback**. If no daemon is 
 **The pickle key requires an OS secret store**: a Secret Service provider such as GNOME Keyring on Linux, or Keychain on macOS. If no keyring can be read, the daemon logs `encryption disabled` (with the reason) and keeps running for unencrypted rooms only. It will not generate a key it would have to store in plaintext. On a headless machine, run a Secret Service provider before starting the daemon.
 
 **A corrupt pickle key is reported, never replaced.** If the keyring entry is not a valid key, the daemon logs `encryption disabled` with `the pickle key in the keyring is corrupt`, naming the entry. A new key could not open the crypto store the old one encrypted, so replacing it would silently cost this device its identity and every room key it holds. Restore the entry if you can. Otherwise delete both the entry and the crypto store file, log in again with `kith login` (a new device: the server already holds the old device's keys, which a fresh crypto store cannot claim), then restore your room keys from the key backup (`kith --restore-keys`).
+
+**WhatsApp's and Messenger's key stores are encrypted the same way.** Whoever holds one could act as that account and read its new messages, so each is encrypted at rest with a key of its own, kept only in the keyring. A store written by an older kith is encrypted at its first open, once: it is copied, the copy checked, and only then the plain file deleted; an interrupted migration is taken up again at the next start. Without a keyring, WhatsApp (and Messenger's encrypted chats) stay off, logged as `its store's key cannot be had from the keyring`; kith never keeps the key on disk instead. A corrupt key is reported naming its entry and never replaced. If the key is lost, the store cannot be opened again: delete the entry and the store file, and link the account again. That costs the link, not your history, which is in the message cache.
 
 ## Verifying this device
 

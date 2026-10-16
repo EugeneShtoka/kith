@@ -125,6 +125,8 @@ internal/audio      → the voice-note player: mpv over its JSON IPC socket, or 
 internal/filedialog → the XDG desktop portal, for picking a file to attach
 internal/phonebook  → people as Markdown cards in a folder other programs share
 internal/qrtext     → a QR code drawn as text, for a phone to scan when pairing
+internal/sealeddb   → SQLite encrypted at rest, for the network stores that act as
+        │              the account (ncruces + Adiantum, pure Go); keys in the keyring
 internal/launch     → starting a terminal for a link the desktop handed over:
         │              a tab in the one already open, a window only when that fails
 internal/focus      → the other direction: raising the browser once a link has gone
@@ -448,13 +450,15 @@ hex-encoded, and goes on using that). There is no instance column anywhere:
 | --- | --- | --- |
 | message cache, every network | `$XDG_DATA_HOME/kith/cache-<instance>.db` | `domain.Storage` |
 | Matrix crypto store | `$XDG_DATA_HOME/kith/crypto-<instance>.db` | `domain.Storage` |
-| WhatsApp devices and Signal sessions | `$XDG_DATA_HOME/kith/whatsapp-<instance>.db` | `domain.Storage` |
+| WhatsApp devices and Signal sessions (encrypted at rest) | `$XDG_DATA_HOME/kith/whatsapp-<instance>.db` | `domain.Storage` |
+| Messenger's encrypted chats' devices (encrypted at rest) | `$XDG_DATA_HOME/kith/messenger-<instance>.db` | `domain.Storage` |
 | Telegram update positions | `$XDG_DATA_HOME/kith/telegram-<instance>.db` | `domain.Storage` |
 | socket | `$XDG_RUNTIME_DIR/kith/<instance>.sock` | `domain.Storage` |
 | exclusive lock | `$XDG_RUNTIME_DIR/kith/<instance>.lock` | `domain.Storage` |
 | scheduled messages | `$XDG_STATE_HOME/kith/scheduled-<instance>.toml` | `domain.Storage` |
 | assistant ledger | `$XDG_STATE_HOME/kith/agent-sends-<instance>.jsonl` | `domain.Storage` |
 | Matrix access token, pickle key | OS keyring, service `keyring_service`, account = the instance | `session` |
+| WhatsApp's and Messenger's store keys | OS keyring, service `keyring_service`, `<instance>\|whatsapp-store`, `\|messenger-store` | `session` |
 | Telegram, Messenger, LinkedIn and Google Messages sessions, Slack token and cookie | OS keyring, under each account | their adapters |
 | service | `kithd@<profile>.service` → `--profile <profile>` | `packaging/systemd` |
 | **notifications, DND** | the daemon's own state | per daemon |
