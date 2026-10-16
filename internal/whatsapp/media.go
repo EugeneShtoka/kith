@@ -150,7 +150,7 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 
 // SendFile uploads and sends a file with an optional caption: image, video or audio
 // by type, else a named document.
-func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
+func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
 	if err := a.mayPost(roomID); err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, capt
 	if err != nil {
 		return fmt.Errorf("whatsapp: read %s: %w", path, err)
 	}
-	message, kind := fileMessage(filepath.Base(path), data, caption)
+	message, kind := fileMessage(name, data, caption)
 	up, err := client.Upload(ctx, data, kind)
 	if err != nil {
 		return fmt.Errorf("whatsapp: upload %s: %w", filepath.Base(path), err)

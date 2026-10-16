@@ -27,8 +27,7 @@ func pngOf(t *testing.T, w, h int) []byte {
 }
 
 // A file's kind and type come from its contents, then its name; a picture's size is
-// read from it. A picture goes under a neutral name, keeping only its extension; a
-// document keeps its own.
+// read from it; it goes under the name it was given.
 func TestAFileIsShownAsWhatItIs(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -37,7 +36,7 @@ func TestAFileIsShownAsWhatItIs(t *testing.T) {
 		kind       domain.MediaType
 		mime       string
 	}{
-		{"IMG_20261016_Haifa beach.PNG", "photo.png", pngOf(t, 800, 600), domain.MediaImage, "image/png"},
+		{"photo.png", "photo.png", pngOf(t, 800, 600), domain.MediaImage, "image/png"},
 		{"plan.pdf", "plan.pdf", []byte("%PDF-1.7\n"), domain.MediaFile, "application/pdf"},
 		{"notes.md", "notes.md", []byte("# notes\n"), domain.MediaFile, "text/markdown; charset=utf-8"},
 		{"blob.bin", "blob.bin", []byte{0, 1, 2, 3}, domain.MediaFile, "application/octet-stream"},
@@ -133,7 +132,7 @@ func TestFilesThatCannotGo(t *testing.T) {
 		{"a file too large", roomID(me, eli), huge, errFileTooLarge},
 		{"another network's room", "!r:example.org", small, errNotAThread},
 	} {
-		if err := a.SendFile(ctx, tc.room, tc.path, "look"); !errors.Is(err, tc.want) {
+		if err := a.SendFile(ctx, tc.room, tc.path, filepath.Base(tc.path), "look"); !errors.Is(err, tc.want) {
 			t.Errorf("%s: %v, want %v", tc.name, err, tc.want)
 		}
 	}

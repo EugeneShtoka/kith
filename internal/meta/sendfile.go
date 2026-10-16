@@ -43,8 +43,9 @@ var (
 	errUploadNoID   = errors.New("meta: Meta took the upload but named no file")
 )
 
-// SendFile sends the file at path with caption.
-func (a *Adapter) SendFile(ctx context.Context, room domain.RoomID, path, caption string) error {
+// SendFile sends the file at path under name (its own, or a neutral one where names
+// are anonymized) with caption.
+func (a *Adapter) SendFile(ctx context.Context, room domain.RoomID, path, name, caption string) error {
 	self, thread, ok := threadOf(room)
 	if !ok {
 		return fmt.Errorf("%w: %s", errNotAThread, room)
@@ -60,7 +61,6 @@ func (a *Adapter) SendFile(ctx context.Context, room domain.RoomID, path, captio
 	if len(data) > mediaMost {
 		return errFileTooLarge
 	}
-	name := filepath.Base(path)
 	media := fileMediaOf(name, data)
 	c.applying.Lock()
 	t := c.inbox.threads[thread]
@@ -84,10 +84,8 @@ func (a *Adapter) SendFile(ctx context.Context, room domain.RoomID, path, captio
 	return nil
 }
 
-// fileMediaOf is a file as kith sends it: its kind and type from its contents (then its
-// name), a picture's size read from it. A picture, video or recording goes under a
-// neutral name (photo.jpg), so its own does not say where or when it was taken; any
-// other file keeps its name, which is what the other person needs to see.
+// fileMediaOf is a file sent as name: its kind and type from its contents (then its
+// name), a picture's size read from it.
 func fileMediaOf(name string, data []byte) *domain.Media {
 	mimeType := http.DetectContentType(data)
 	if mimeType == "application/octet-stream" || strings.HasPrefix(mimeType, "text/plain") {
@@ -96,17 +94,16 @@ func fileMediaOf(name string, data []byte) *domain.Media {
 		}
 	}
 	media := &domain.Media{Type: domain.MediaFile, Name: name, Mime: mimeType, Size: len(data)}
-	ext := strings.ToLower(filepath.Ext(name))
 	switch kind, _, _ := strings.Cut(mimeType, "/"); kind {
 	case "image":
-		media.Type, media.Name = domain.MediaImage, "photo"+ext
+		media.Type = domain.MediaImage
 		if cfg, _, err := image.DecodeConfig(bytes.NewReader(data)); err == nil {
 			media.Width, media.Height = cfg.Width, cfg.Height
 		}
 	case "video":
-		media.Type, media.Name = domain.MediaVideo, "video"+ext
+		media.Type = domain.MediaVideo
 	case "audio":
-		media.Type, media.Name = domain.MediaAudio, "audio"+ext
+		media.Type = domain.MediaAudio
 	}
 	return media
 }

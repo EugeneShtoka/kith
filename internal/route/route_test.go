@@ -40,7 +40,7 @@ func perRoomCalls(ctx context.Context, r *Router, room domain.RoomID) map[string
 	calls["Redact"] = r.Redact(ctx, room, "$e", "")
 	calls["Send"] = r.Send(ctx, room, domain.Draft{Body: "hi"})
 	calls["SendTyping"] = r.SendTyping(ctx, room, true, time.Second)
-	calls["SendFile"] = r.SendFile(ctx, room, "/f", "")
+	calls["SendFile"] = r.SendFile(ctx, room, "/f", "f", "")
 	calls["SendReaction"] = r.SendReaction(ctx, room, "$e", "👍")
 	_, calls["LoadImage"] = r.LoadImage(ctx, room, "$e")
 	_, calls["Members"] = r.Members(ctx, room, 0)

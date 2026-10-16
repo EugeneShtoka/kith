@@ -135,10 +135,10 @@ func TestAFileSentGoesAsWhatItIs(t *testing.T) {
 		}
 	}
 	ctx, room := t.Context(), domain.RoomID("telegram:42/7")
-	if err := a.SendFile(ctx, room, filepath.Join(dir, "dot.png"), "**look**"); err != nil {
+	if err := a.SendFile(ctx, room, filepath.Join(dir, "dot.png"), "dot.png", "**look**"); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.SendFile(ctx, room, filepath.Join(dir, "notes.txt"), ""); err != nil {
+	if err := a.SendFile(ctx, room, filepath.Join(dir, "notes.txt"), "notes.txt", ""); err != nil {
 		t.Fatal(err)
 	}
 	mu.Lock()

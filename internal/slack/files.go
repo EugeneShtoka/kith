@@ -164,7 +164,7 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 
 // SendFile uploads a file with caption as its message. The upload answers with the file,
 // not the message, so the message arrives via Slack's live echo.
-func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
+func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
 	w, channel, err := a.conversation(roomID)
 	if err != nil {
 		return err
@@ -182,7 +182,7 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, capt
 		return fmt.Errorf("slack: %s is empty, and Slack takes no empty files", filepath.Base(path))
 	}
 	if _, err := w.client.UploadFileContext(ctx, slackgo.UploadFileParameters{
-		Reader: file, Filename: filepath.Base(path), FileSize: int(info.Size()),
+		Reader: file, Filename: name, FileSize: int(info.Size()),
 		Channel: channel, InitialComment: caption,
 	}); err != nil {
 		return fmt.Errorf("slack: send %s to %s: %w", filepath.Base(path), roomID, err)
