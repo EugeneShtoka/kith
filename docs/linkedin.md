@@ -21,7 +21,10 @@ web app sends them) as a file.
 A conversation you read in kith stays read: kith keeps the read position itself,
 before telling LinkedIn, and keeps telling LinkedIn until it hears. LinkedIn marks a
 whole conversation read, not a message, and its own read times only ever move kith's
-position forward. Conversations LinkedIn filed as spam are not shown.
+position forward. Marking a conversation unread, in kith or on another device, shows
+it as marked until it is read; LinkedIn has to take the mark, so offline it is
+refused, and clearing a mark reads the conversation, as it does on LinkedIn.
+Conversations LinkedIn filed as spam are not shown.
 
 ## Before you sign in
 

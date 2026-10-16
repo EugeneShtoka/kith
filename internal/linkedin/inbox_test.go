@@ -551,8 +551,98 @@ func TestAConversationReadInKithStaysRead(t *testing.T) {
 	if err := a.MarkRead(ctx, "!other:example.org", "", false); err == nil {
 		t.Error("marking a room of another network read was taken")
 	}
-	if err := a.MarkRoomUnread(ctx, room, true); err == nil {
-		t.Error("marking unread is not supported yet, but said it was done")
+}
+
+// A conversation's unread mark follows its last word, wherever it was said: marked on
+// another device, read there, a newer message, read in kith (LinkedIn told late, or a
+// listing from before it arriving after), the mark cleared in kith, or a mark from
+// kith that LinkedIn could not take. A read in kith is never undone by LinkedIn's
+// view from before it.
+func TestAnUnreadMarkFollowsItsLastWord(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for seed := range uint64(60) {
+		r := rand.New(rand.NewPCG(seed, 11))
+		a, c, cache, _ := cachedAdapter(t)
+		room := roomID(me, danaDM)
+		last, liRead := int64(1000), int64(1000) // newest activity; LinkedIn's read time
+		listing := func(read bool) linkedingo.Conversation {
+			return withMessages(conversation(danaDM, "", last, liRead, read, me, dana))
+		}
+		a.takeConversations(ctx, c, []linkedingo.Conversation{withMessages(
+			conversation(danaDM, "", last, liRead, true, me, dana), message(danaDM, "m0", dana, "zero", last))}, nil)
+		marked, n, liReadFlag := false, 0, true // liReadFlag: LinkedIn's own read flag
+		var owedAt []int64                      // kith's reads LinkedIn has not taken
+		var steps []string
+		for range 12 {
+			switch r.IntN(7) {
+			case 0: // marked unread on another device
+				steps = append(steps, "marked elsewhere")
+				liReadFlag = false
+				a.takeConversations(ctx, c, []linkedingo.Conversation{listing(false)}, nil)
+				marked = liRead >= last && len(owedAt) == 0
+			case 1: // read on another device
+				steps = append(steps, "read elsewhere")
+				liRead, liReadFlag = last, true
+				a.takeConversations(ctx, c, []linkedingo.Conversation{listing(true)}, nil)
+				marked = false
+			case 2: // a newer message
+				n++
+				last += 1000
+				steps = append(steps, fmt.Sprint("message m", n))
+				a.event(ctx, c, liveMessage(message(danaDM, fmt.Sprint("m", n), dana, "more", last), last))
+				liReadFlag = false
+				a.takeConversations(ctx, c, []linkedingo.Conversation{listing(false)}, nil)
+				marked = false
+			case 3: // read in kith, or the mark cleared in kith (which reads it)
+				steps = append(steps, "read in kith")
+				var err error
+				if r.IntN(2) == 0 {
+					err = a.MarkRead(ctx, room, msgID(danaDM, fmt.Sprint("m", n)), false)
+				} else {
+					err = a.MarkRoomUnread(ctx, room, false)
+				}
+				if err != nil {
+					t.Fatalf("seed %d %v: %v", seed, steps, err)
+				}
+				owedAt = append(owedAt, last)
+				marked = false
+			case 4: // LinkedIn takes kith's oldest owed read
+				if len(owedAt) == 0 {
+					continue
+				}
+				steps = append(steps, "LinkedIn takes a read")
+				a.reads.settle(me, danaDM, owedAt[0])
+				if owedAt[0] >= owedAt[len(owedAt)-1] {
+					owedAt = nil
+				} else {
+					owedAt = owedAt[1:]
+				}
+				liRead, liReadFlag = max(liRead, last), true
+			case 5: // a listing from before kith's read: LinkedIn's view as it last was
+				steps = append(steps, "a stale listing")
+				a.takeConversations(ctx, c, []linkedingo.Conversation{listing(liReadFlag)}, nil)
+				marked = !liReadFlag && liRead >= last && len(owedAt) == 0
+			default: // marked unread in kith, which LinkedIn cannot take while offline
+				steps = append(steps, "marked in kith (offline)")
+				if err := a.MarkRoomUnread(ctx, room, true); !errors.Is(err, errNotConnected) {
+					t.Fatalf("seed %d %v: marking unread offline: %v", seed, steps, err)
+				}
+			}
+			rows, err := cache.Unread(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := false
+			for _, u := range rows {
+				if u.RoomID == room {
+					got = u.Marked
+				}
+			}
+			if got != marked {
+				t.Fatalf("seed %d %v: marked %v, want %v", seed, steps, got, marked)
+			}
+		}
 	}
 }
 

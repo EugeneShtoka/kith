@@ -47,6 +47,14 @@ func (o *owed) take(self string) map[string]int64 {
 	return marks
 }
 
+// has reports whether a read of self's thread is owed.
+func (o *owed) has(self, thread string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	_, ok := o.marks[self][thread]
+	return ok
+}
+
 // settle drops a mark LinkedIn took, unless a later one was owed meanwhile.
 func (o *owed) settle(self, thread string, at int64) {
 	o.mu.Lock()
@@ -110,11 +118,39 @@ func (a *Adapter) MarkRoomsRead(ctx context.Context, rooms []domain.RoomID, _ bo
 	return result, nil
 }
 
-// errNoMarkUnread: marking a conversation unread is not supported yet.
-var errNoMarkUnread = errors.New("linkedin: marking a conversation unread is not supported yet")
-
-// MarkRoomUnread is not supported yet.
-func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error { return errNoMarkUnread }
+// MarkRoomUnread marks a conversation unread on LinkedIn, then here; a mark LinkedIn
+// does not take is an error and changes nothing. LinkedIn takes a mark away only by
+// reading the conversation, so clearing one reads it through its newest message.
+func (a *Adapter) MarkRoomUnread(ctx context.Context, room domain.RoomID, unread bool) error {
+	if !unread {
+		result, err := a.MarkRoomsRead(ctx, []domain.RoomID{room}, false)
+		if err != nil {
+			return err
+		}
+		if result.Failed > 0 {
+			return fmt.Errorf("linkedin: clear the unread mark: %s", result.FirstError)
+		}
+		return nil
+	}
+	c, client, thread, err := a.client(room)
+	if err != nil {
+		return err
+	}
+	err = a.ask(ctx, "marking a conversation unread", func(ctx context.Context) error {
+		_, markErr := client.MarkConversationUnread(ctx, conversationURN(c.profile, thread))
+		return markErr //nolint:wrapcheck // wrapped below
+	})
+	if err != nil {
+		return fmt.Errorf("linkedin: mark %s unread: %w", room, err)
+	}
+	if a.cache != nil {
+		if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room, Notifications: 1, Marked: true}, 0); err != nil {
+			return fmt.Errorf("linkedin: keep the unread mark of %s: %w", room, err)
+		}
+	}
+	a.recount(ctx, room)
+	return nil
+}
 
 // timeOf is when a cached message was sent; now when it is not cached, so the room is
 // read through everything it shows. A lookup that fails is an error, never now.
