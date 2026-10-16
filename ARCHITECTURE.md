@@ -99,6 +99,8 @@ internal/linkedin   → the LinkedIn adapter, over linkedingo: each account the 
         │              a browser holds
 internal/gmessages  → the Google Messages adapter, over libgm: each account an Android
         │              phone it is paired with
+internal/readstate  → local-first reading, shared by the networks: the marks a network
+        │              has not taken yet, and a read that cannot be kept reads nothing
 internal/markdown   → the composer's Markdown to HTML, for every network that sends
         │              formatting
 internal/db         → SQLite cache (rooms, timeline, account-data mirrors) + schema

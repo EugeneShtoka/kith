@@ -17,6 +17,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // streamBuffer bounds each live stream.
@@ -74,7 +75,7 @@ type Adapter struct {
 	run context.Context //nolint:containedctx // reloads arrive with no context of their own to outlive
 
 	// reads is the read marks the phone has not taken yet (read.go).
-	reads owed
+	reads *readstate.Owed[mark]
 	// keepDeleted is [display.deleted] keep: a deletion keeps what it removed.
 	keepDeleted atomic.Bool
 
@@ -110,6 +111,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
 		reactions: make(chan domain.ReactionUpdate, streamBuffer),
+		reads:     readstate.NewOwed(later),
 	}
 }
 

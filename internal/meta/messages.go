@@ -2,6 +2,7 @@ package meta
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -148,9 +149,8 @@ func (a *Adapter) store(ctx context.Context, c *conn, ch change) {
 		}
 	}
 	for key, at := range ch.read {
-		if !counted[roomID(in.self, key)] {
-			a.readTo(ctx, roomID(in.self, key), time.UnixMilli(at))
-			counted[roomID(in.self, key)] = true
+		if room := roomID(in.self, key); !counted[room] && a.keepRead(ctx, c, room, time.UnixMilli(at)) {
+			counted[room] = true
 		}
 	}
 	a.storeMessages(ctx, c, ch.messages, counted)
@@ -241,13 +241,24 @@ func (a *Adapter) keepPeople(ctx context.Context, c *conn) {
 }
 
 // readTo moves a room's read position forward to at; the cache never moves it back.
-func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, at time.Time) {
+func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, at time.Time) error {
 	if a.cache == nil {
-		return
+		return nil
 	}
 	if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room}, at.UnixMilli()); err != nil {
-		a.log.Warn("save a read position failed", "room", room, "err", err)
+		return fmt.Errorf("meta: save the read position of %s: %w", room, err)
 	}
+	return nil
+}
+
+// keepRead moves a room's read position to one Meta reports (read on another device),
+// logging one that cannot be saved; false then.
+func (a *Adapter) keepRead(ctx context.Context, c *conn, room domain.RoomID, at time.Time) bool {
+	if err := a.readTo(ctx, room, at); err != nil {
+		a.log.Warn("save a read position failed", "account", c.account.Name, "err", err)
+		return false
+	}
+	return true
 }
 
 // recount streams a room's locally counted unread state.

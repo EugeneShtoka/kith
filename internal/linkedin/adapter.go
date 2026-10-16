@@ -16,6 +16,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // streamBuffer bounds each live stream.
@@ -75,7 +76,7 @@ type Adapter struct {
 	run context.Context //nolint:containedctx // reloads arrive with no context of their own to outlive
 
 	// reads is the read marks LinkedIn has not taken yet (read.go).
-	reads owed
+	reads *readstate.Owed[int64] // read through, ms
 	// keepDeleted is [display.deleted] keep: an edit or a recall keeps what it replaced.
 	keepDeleted atomic.Bool
 
@@ -102,6 +103,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		conns:     map[string]*conn{},
 		signIns:   map[string]int{},
 		typing:    map[domain.RoomID]map[string]*time.Timer{},
+		reads:     readstate.NewOwed(func(a, b int64) bool { return a > b }),
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),

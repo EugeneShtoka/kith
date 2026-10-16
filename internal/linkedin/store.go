@@ -123,7 +123,7 @@ func (a *Adapter) saveUnread(ctx context.Context, c *conn, cv *conv) {
 	if !cv.read {
 		n = 1
 	}
-	marked := !cv.read && !cv.readTo.IsZero() && !cv.readTo.Before(cv.lastActive) && !a.reads.has(c.profile, cv.thread)
+	marked := !cv.read && !cv.readTo.IsZero() && !cv.readTo.Before(cv.lastActive) && !a.reads.Has(roomID(c.profile, cv.thread))
 	u := domain.Unread{RoomID: roomID(c.profile, cv.thread), Notifications: n, Marked: marked}
 	if err := a.cache.SaveUnread(ctx, u, cv.readTo.UnixMilli()); err != nil {
 		a.log.Warn("save a conversation's unread state failed", "account", c.account.Name, "err", err)

@@ -276,7 +276,7 @@ func TestAThreadReadInKithStaysRead(t *testing.T) {
 	if n := unread(); n != 0 {
 		t.Errorf("after reading in kith and Meta's stale view: %d unread, want 0", n)
 	}
-	if owedMarks := a.reads.take(me); owedMarks[dana] != 3000 {
+	if owedMarks := a.reads.Take(itoa(me)); owedMarks[roomID(me, dana)] != 3000 {
 		t.Errorf("the read mark Meta has not taken is not owed: %v", owedMarks)
 	}
 	a.take(ctx, c, &table.LSTable{LSInsertMessage: []*table.LSInsertMessage{live(dana, dana, "mid.4", "four", 4000)}})
