@@ -138,9 +138,10 @@ var (
 	} = (*meta.Adapter)(nil)
 
 	// LinkedIn: conversations, people, messages, reading, sending, editing, deleting,
-	// reactions, typing, history and attachments.
+	// reactions, typing, history, attachments and filters' moves (kept locally).
 	_ interface {
 		route.Adapter
+		route.TagMoves
 		route.RoomLister
 		route.Recounter
 		route.Homes
