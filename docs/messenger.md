@@ -11,8 +11,9 @@ Pictures, videos, voice messages, files and stickers show as attachments, as on 
 networks: pictures inline, the rest opened or saved from the message; a message
 carrying more than one names the others (`[file: plan.pdf]`). A plain thread's
 attachments come from Meta's servers, whose links expire after a while, so an old one
-stops loading; an encrypted chat's are opened with the chat's keys. Sending files and
-Instagram come next.
+stops loading; an encrypted chat's are opened with the chat's keys. Attaching a file
+sends it with what you typed: a picture or a video with it as its caption, audio as a
+voice message, anything else as a file. Instagram comes next.
 
 **End-to-end encrypted chats** (Messenger encrypts one-to-one chats by default since
 late 2023) are read the way Messenger's own apps read them: kith registers itself
