@@ -13,10 +13,15 @@ import (
 // nothing).
 func Tags(cfg config.Config) (domain.TagSet, []string, error) {
 	tags := make([]domain.Tag, len(cfg.Tags))
-	for i, t := range cfg.Tags {
+	for i := range cfg.Tags {
+		t := &cfg.Tags[i]
+		exclusive, err := tagExclusive(*t)
+		if err != nil {
+			return domain.TagSet{}, nil, err
+		}
 		tags[i] = domain.Tag{
-			Name: t.Name, Rule: t.Rule, Picked: t.Picked, Excluded: t.Excluded, Hidden: t.Hidden,
-			Silent: !t.Counts(), Exclusive: t.Exclusive, SpaceExclusive: t.SpaceExclusive,
+			Name: t.Name, Rule: t.Rule, Picked: t.Picked, Excluded: t.Excluded, People: t.People, Hidden: t.Hidden,
+			Silent: !t.Counts(), Mute: !t.Notifying(), Exclusive: exclusive,
 			Sticky: t.Sticky, HideWhenEmpty: t.HideWhenEmpty, First: t.First, CountInLabel: t.CountInLabel,
 		}
 	}
@@ -25,6 +30,25 @@ func Tags(cfg config.Config) (domain.TagSet, []string, error) {
 		return domain.TagSet{}, nil, fmt.Errorf("config: [[tag]]: %w", err)
 	}
 	return set, warnings, nil
+}
+
+// tagExclusive reads a tag's exclusive list.
+func tagExclusive(t config.Tag) (domain.Exclusive, error) {
+	var out domain.Exclusive
+	for _, what := range t.Exclusive {
+		switch strings.ToLower(strings.TrimSpace(what)) {
+		case config.ExclusiveTags:
+			out.Tags = true
+		case config.ExclusiveSpaces:
+			out.Spaces = true
+		case config.ExclusiveOrigin:
+			out.Origin = true
+		default:
+			return domain.Exclusive{}, fmt.Errorf("config: [[tag]] %q: exclusive: %q is not one of %s, %s, %s",
+				t.Name, what, config.ExclusiveTags, config.ExclusiveSpaces, config.ExclusiveOrigin)
+		}
+	}
+	return out, nil
 }
 
 // tagsCheck is Tags for Validate: a cycle is a warning, not an error.

@@ -169,9 +169,6 @@ func TestModelTaskCapIsARollingMinute(t *testing.T) {
 		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"!a:x"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 2,
 	})
-	clock := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
-	b.model.now = func() time.Time { return clock }
-
 	ask := func() domain.ModelResult {
 		got, err := b.ModelTask(ctx, domain.ModelRequest{
 			Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "one two three ",
@@ -194,7 +191,12 @@ func TestModelTaskCapIsARollingMinute(t *testing.T) {
 	if !strings.Contains(third.Refusal, "cap") {
 		t.Errorf("refusal = %q, want it to name the cap", third.Refusal)
 	}
-	clock = clock.Add(61 * time.Second)
+	// A minute passes: the two sends are now older than the window.
+	b.model.mu.Lock()
+	for i := range b.model.recent {
+		b.model.recent[i] = b.model.recent[i].Add(-61 * time.Second)
+	}
+	b.model.mu.Unlock()
 	if !ask().Asked() {
 		t.Fatal("the window did not roll")
 	}
@@ -400,6 +402,86 @@ func TestSummaryFallsBackWhenYouAreUpToDate(t *testing.T) {
 	}
 	if len(*sent) != before {
 		t.Fatal("an empty room still cost a request")
+	}
+}
+
+// A summary and the todo list leave out hidden people and the direct replies to them;
+// the span is placed first, so a hidden read marker still marks what you missed.
+func TestSummaryAndTodoLeaveOutHiddenPeople(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	endpoint, sent := fakeEndpoint(t, "• fine")
+
+	cache := testCache(t)
+	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!here:x", Name: "Here"}, {ID: "!ads:x", Name: "Ads"}}); err != nil {
+		t.Fatalf("SaveRooms: %v", err)
+	}
+	at := func(i int) time.Time { return time.Unix(int64(1_700_000_000+i*60), 0) }
+	here := []domain.Message{
+		{ID: "$0", Sender: "@dana:x", Body: "first"},
+		{ID: "$1", Sender: "@spam:x", Body: "buy coins"},
+		{ID: "$2", Sender: "@dana:x", Body: "second"},
+		{ID: "$3", Sender: "@bob:x", Body: "how much", ReplyTo: "$1"},
+		{ID: "$4", Sender: "@dana:x", Body: "third"},
+		{ID: "$5", Sender: "@dana:x", Body: "fourth"},
+		{ID: "$6", Sender: "@dana:x", Body: "fifth"},
+	}
+	for i := range here {
+		here[i].RoomID, here[i].Timestamp = "!here:x", at(i)
+	}
+	ads := []domain.Message{{ID: "$a", RoomID: "!ads:x", Sender: "@spam:x", Body: "cheap watches", Timestamp: at(0)}}
+	for room, msgs := range map[domain.RoomID][]domain.Message{"!here:x": here, "!ads:x": ads} {
+		if err := cache.SaveMessages(ctx, room, msgs); err != nil {
+			t.Fatalf("SaveMessages: %v", err)
+		}
+	}
+	if err := cache.UseHidden(ctx, []string{"@spam:x"}, nil, nil); err != nil {
+		t.Fatalf("UseHidden: %v", err)
+	}
+	for _, u := range []domain.Unread{{RoomID: "!here:x", ReadEvent: "$1"}, {RoomID: "!ads:x", Notifications: 1}} {
+		if err := cache.SaveUnread(ctx, u, 0); err != nil {
+			t.Fatalf("SaveUnread: %v", err)
+		}
+	}
+
+	b := New(cache, nil)
+	b.UseModel(ModelSettings{
+		Endpoint: endpoint, Scope: domain.ModelScope{Encrypted: true},
+		Tasks: modelTasks(), PerMinute: 10, Budget: 500,
+		Budgets: map[string]int{domain.ModelSummary: 4000, domain.ModelTodo: 4000}, TodoRooms: 5,
+	})
+	got, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: "!here:x"})
+	if err != nil {
+		t.Fatalf("ModelTask(summary): %v", err)
+	}
+	if !strings.Contains(got.Note, "4 new since you last read") {
+		t.Errorf("note = %q, want the 4 shown messages after the hidden marker", got.Note)
+	}
+	body := requestBody(t, sent)
+	if strings.Contains(body, "buy coins") || strings.Contains(body, "how much") {
+		t.Errorf("the summary quoted a hidden person or a reply to them:\n%s", body)
+	}
+	if !strings.Contains(body, "first") {
+		t.Error("the summary lost what came before")
+	}
+	got, err = b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: "!here:x", Span: domain.SummarySpan{Count: 5, Said: "5"}})
+	if err != nil {
+		t.Fatalf("ModelTask(summary 5): %v", err)
+	}
+	if body := requestBody(t, sent); !strings.Contains(got.Note, "5 messages") || strings.Contains(body, "how much") || !strings.Contains(body, "first") {
+		t.Errorf("the last 5 = %q, want the 5 shown ones:\n%s", got.Note, body)
+	}
+
+	if saveErr := cache.SaveUnread(ctx, domain.Unread{RoomID: "!here:x", ReadEvent: "$6"}, 0); saveErr != nil {
+		t.Fatalf("SaveUnread: %v", saveErr)
+	}
+	before := len(*sent)
+	todo, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelTodo})
+	if err != nil {
+		t.Fatalf("ModelTask(todo): %v", err)
+	}
+	if todo.Asked() || len(*sent) != before {
+		t.Errorf("the todo list asked about a room only a hidden person wrote in (refusal %q)", todo.Refusal)
 	}
 }
 

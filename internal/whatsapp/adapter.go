@@ -17,6 +17,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // streamBuffer bounds each stream.
@@ -49,6 +50,9 @@ type Adapter struct {
 	// See OnRoomsChanged, OnStatus and OnCached.
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
+
+	// reads is the read receipts WhatsApp has not taken yet (unread.go).
+	reads *readstate.Owed[receipt]
 
 	// arrived is the last live message's position (see arrival).
 	arrived atomic.Int64
@@ -116,6 +120,7 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
 		reactions: make(chan domain.ReactionUpdate, streamBuffer),
+		reads:     readstate.NewOwed(laterReceipt),
 	}
 }
 
@@ -239,6 +244,8 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		a.link(account, Connected, "")
 		a.refreshLater(account, client)
 		a.renameLater(account, client) // chats saved before their names were known
+		// Reads made here while WhatsApp was away.
+		go a.sendOwed(context.Background(), account)
 	case *events.JoinedGroup, *events.GroupInfo:
 		a.refreshLater(account, client)
 	case *events.Disconnected:
@@ -586,19 +593,39 @@ func (a *Adapter) StarMessage(ctx context.Context, roomID domain.RoomID, eventID
 	return nil
 }
 
-// MarkSpam records a spam verdict locally; WhatsApp has nowhere to store one.
-func (a *Adapter) MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error {
+// MarkTag records a filter's move or a release locally; WhatsApp has nowhere to keep one.
+func (a *Adapter) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
 	if a.cache == nil {
 		return nil
 	}
-	var err error
-	if !verdict.Spam() && !verdict.Released {
-		err = a.cache.ClearSpam(ctx, verdict.Room)
-	} else {
-		err = a.cache.SetSpam(ctx, verdict)
+	if err := a.cache.MarkTag(ctx, verdict); err != nil {
+		return fmt.Errorf("whatsapp: record the %s verdict on %s: %w", verdict.Tag, verdict.Room, err)
 	}
-	if err != nil {
-		return fmt.Errorf("whatsapp: record the spam verdict on %s: %w", verdict.Room, err)
+	return nil
+}
+
+// RetagVerdicts moves a tag's local verdicts with its new name, or drops them.
+func (a *Adapter) RetagVerdicts(ctx context.Context, from, to string) error {
+	if a.cache == nil {
+		return nil
+	}
+	if err := a.cache.RetagVerdicts(ctx, from, to); err != nil {
+		return fmt.Errorf("whatsapp: move the %s verdicts: %w", from, err)
+	}
+	if err := a.cache.RetagPersonVerdicts(ctx, domain.ProtocolWhatsApp, from, to); err != nil {
+		return fmt.Errorf("whatsapp: move the %s person verdicts: %w", from, err)
+	}
+	return nil
+}
+
+// MarkPerson records a filter's mark or a release on a WhatsApp ID locally; WhatsApp has
+// nowhere to keep one.
+func (a *Adapter) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error {
+	if a.cache == nil {
+		return nil
+	}
+	if err := a.cache.MarkPerson(ctx, verdict); err != nil {
+		return fmt.Errorf("whatsapp: record the %s verdict on %s: %w", verdict.Tag, verdict.Person, err)
 	}
 	return nil
 }

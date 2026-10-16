@@ -51,10 +51,11 @@ starting point, which you can change, rename or delete like any other:
 | Unread | Rooms with something unread (`unread`) | Always |
 | Drafts | Rooms where you left an unsent message (`draft`) | While there is one |
 | Pinned | The rooms you put in it | While it holds something |
-| Spam | Conversations moved to Spam (`spam`) — see [Spam](spam.md) | While something is there |
+| Spam | Rooms you or a [filter](filters.md) put there | While something is there |
 | Archived | The rooms you put in it: they stop counting and leave everything but the space they belong to | While it holds something |
 
-Your spaces sit between Pinned and Archived. Invitations and spam are in no space.
+Your spaces sit between Pinned and Archived. Invitations are in no space; Spam's rooms
+leave every space because the Spam tag is exclusive from all of them.
 
 A forum (a Telegram group with topics) is a space: its General topic and each other
 topic are its rooms, each read, counted and filed on its own.
@@ -71,11 +72,11 @@ The rail's order and hidden rows are `[display.rail]` (`order`, `hidden`); a spa
 tag's first-names-only rule is a `[[display.space_rule]]`.
 
 These write to your config for you (a tag is renamed in its `[[tag]]`, not with `a`;
-name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` takes a space's name or a tag as `tag:<name>` (a bare name no space has means the row the rail shows by that name, a tag's included), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing. Without an `order`, tags come first, then spaces.
+name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` names rows as `space:<name>`, `tag:<name>` or `place:<name>` (every row the rail shows by that name, renamed or not, a space's or a tag's; several are placed together), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing. A bare name is refused at startup. Without an `order`, tags come first, then spaces.
 
 ```toml
 [display.rail]
-order = ["tag:Unread", "-", "Work", "Friends", "-", "*", "-", "tag:Archived"]
+order = ["tag:Unread", "-", "space:Work", "place:Friends", "-", "*", "-", "tag:Archived"]
 hide_when_empty = ["tag:Unread"]
 ```
 
@@ -102,9 +103,9 @@ terms alone matches every room they leave, and an empty rule holds only picked
 rooms. The terms are:
 
 - `*`: every room;
-- the place words: a room ID, `room:<name>`, `space:<name>`, `protocol:<network>`,
-  `dm`, `group`;
-- the state words: `unread`, `mention`, `draft`, `spam`, `invite`, which follow
+- the place words: a room ID, `room:<name>`, `space:<name>`, `place:<name>` (a space
+  or tag the rail shows by that name), `protocol:<network>`, `dm`, `group`;
+- the state words: `unread`, `mention`, `draft`, `invite`, which follow
   the room as it changes;
 - `tag:<name>`: another tag's rooms.
 
@@ -127,8 +128,7 @@ A tag can also change how its rooms behave elsewhere (each off unless set):
 | Property | What it does |
 | --- | --- |
 | `counts_unread = false` | Its rooms count as read everywhere else: no badge, not `unread` or `mention` to other tags' rules, skipped by mark-all-read. The tag itself still sees them as they are. |
-| `exclusive = true` | Its rooms show under it alone, in no other tag. Their spaces keep them. Of two exclusive tags holding a room, the first configured wins. |
-| `space_exclusive = true` | Its rooms leave the spaces you made and the tags that are not space-exclusive. The spaces they belong to (a bridge's space, a community, the Matrix space that is their home) keep them, so they stay findable where they live. |
+| `exclusive = [...]` | Where its rooms leave, any of: `"tags"`, every other tag (of two such tags holding a room, the first configured keeps it); `"spaces"`, the spaces they do not belong to, such as ones you filed them in; `"origin"`, the spaces they belong to (a bridge's space, a community, the Matrix space that is their home). The starter's Archived is `["tags", "spaces"]`, so archived rooms stay findable where they live; Spam is all three. |
 | `sticky = true` | The open room stays listed until you move off it, as in Unread. |
 | `hide_when_empty = true` | No rail row while it holds nothing. |
 | `first = true` | At the top of the rail, unless `[display.rail] order` places it. |
@@ -139,14 +139,16 @@ once: the folder list shows each one with what it would do — a new tag, or how
 existing tag would change among that account's chats — and you choose per tag before
 **Copy**. Setting an account up offers the same.
 
-**Editing tags in the app.** Settings (`,`) → **Tags** lists your tags and makes a new
-one. A tag's page shows its name, rule, picked and excluded rooms, every property as
-an on/off row, and which other tags take rooms out of its row (the exclusive ones, and
-the space-exclusive ones). The rule and the room lists are edited an entry at a time:
+**Editing tags in the app.** Settings (`,`) → **Places** lists your spaces and tags and
+makes a new tag; `e` on a rail row opens that place's page. A tag's page shows its
+name, rule, picked and excluded rooms, every property as an on/off row (each word of
+`exclusive` is its own row), which other tags take rooms out of its row (the ones
+exclusive from tags), its display choices and the [filters](filters.md) moving rooms
+into it. The rule and the room lists are edited an entry at a time:
 choose an entry to change it (empty removes it), `x` removes the entry under the cursor,
 or the last row adds one. Renaming
-a tag renames it everywhere it is named — `tag:<name>` in rules, place lists, the rail
-order and priority, and its name in the rail's `hidden` and `hide_when_empty`.
+a tag renames it everywhere it is named as `tag:<name>`: rules, place lists, the rail's
+lists and priority. A `place:<name>` entry is left as written.
 Renaming it to another tag's name asks whether to combine the two: the other tag then
 holds every room either held and keeps its own settings, and everything that named
 the renamed tag names it. Their rules are joined, unless one has a `not` term (which
@@ -160,14 +162,14 @@ Exclusivity decides where a room shows, not what rules match: `tag:Family` in
 another rule still matches a room Family claims.
 
 A tag is also a place: `tag:Family` works wherever a room, space or network can be
-named, in notification rules, do-not-disturb, `[agent.read]`, `[assist]`, spam lists
+named, in notification rules, do-not-disturb, `[agent.read]`, `[assist]`, filters'
 and the rest. As a place a tag is judged on the room alone, so its state words match
 nothing there (`not unread` matches everything). Tagging a room that way widens what
 names the tag: a room you pick into a tag `[agent.read]` lists becomes readable to the
 assistant.
 
-A room's tags are homes beside its spaces. `[display] priority` ranks both (spaces
-by name, tags as `tag:<name>`), and the first decides which name rule applies, the
+A room's tags are homes beside its spaces. `[display] priority` ranks both (`space:<name>`,
+`tag:<name>`, or `place:<name>` for whatever the rail shows by that name), and the first decides which name rule applies, the
 `{space}` of a notification and a download's folder. What it does not name follows:
 spaces first, then tags in the order they are written. Keep a tag that holds every
 room, such as All, last — the starter config writes it last — so it is a room's home
@@ -209,7 +211,7 @@ The order is a **chain** of comparators, applied in turn until one decides. `~` 
 sort = ["unread", "recent", "name"]   # the default
 
 [[display.rooms.rule]]                # per rail group: replaces the chain whole
-group = "dms"
+group = "tag:DMs"
 sort  = ["drafts", "unread", "name"]
 ```
 
@@ -241,9 +243,9 @@ A thread's summary sits at its root in the timeline, which may be far up the scr
 - **Opening** a room reads it. **Selecting** it in the list does not, unless you set `[display] read_delay` to a number of seconds to rest on it (`0` reads everything the cursor touches; `-1`, the default, never).
 - `m` in the room list marks a room read without opening it; `m` in the rail marks the whole group.
 - `M` marks a room you have read as still needing you, and clears that mark. It is the homeserver's marked-unread flag, so it shows on your other clients; reading the room clears it too. `/unread` does the same from the composer.
-- **Archiving** a room is putting it in the starter config's Archived tag (`S`, or `/tag Archived`): it stays readable and writable, but stops counting toward any badge, leaves every group except the space it belongs to and Archived, and is skipped by group-wide mark-read. Whether a room list shows archived rooms at all is `[display] show_archived` (on by default), a place's `[[display.space_rule]] show_archived` over it, or settings (`,` → Rail and room list → Archived rooms in …, per space and tag); `A` in the room list (or `:archived`) flips it for the place you are in until kith restarts. The archive's own list always shows them.
+- **Archiving** a room is putting it in the starter config's Archived tag (`S`, or `/tag Archived`): it stays readable and writable, but stops counting toward any badge, leaves every group except the space it belongs to and Archived, and is skipped by group-wide mark-read. Whether a room list shows archived rooms at all is `[display] show_archived` (on by default), a place's `[[display.space_rule]] show_archived` over it, or settings (a place's page in **Places**, or `e` on its rail row); `A` in the room list (or `:archived`) flips it for the place you are in until kith restarts. The archive's own list always shows them.
 - **Pinning** is putting it in the Pinned tag: it appears there as well as where it lives, and `tag:Pinned` is a place a notification rule can name — a way to let one conversation through do-not-disturb. See [Notifications](notifications.md).
-- `!` moves a conversation to **Spam** and back. See [Spam](spam.md).
+- `!` moves a conversation to **Spam** and back, a [`[[keys.tag]]`](filters.md#the-spam-tag) binding any tag can have. In the timeline it moves the selected message's sender instead, which hides them in every room ([Hiding a person](filters.md#hiding-a-person)).
 
 **Read receipts.** `[display] send_receipts = false` stops announcing your read position to others; the client then sends a private receipt, so your badges still clear everywhere on your account. Both `send_receipts` and `read_delay` can be set per room, space or person:
 
@@ -263,7 +265,7 @@ When you open a room, a **new** rule marks where your unread messages begin. It 
 | `ctrl+o` / `ctrl+i` | Back to the previous room / forward again (`alt+o` also goes forward) |
 | `B` on a room or group | Bind a key sequence that goes straight there |
 
-The **switcher** works from anywhere, mid-sentence included; your draft stays with its room. With nothing typed it lists unread rooms first, then everything else, then groups. People you share no room with appear last as *start a DM*, so typing someone's name or Matrix ID is also how you start a conversation. `:go` opens it by name.
+The **switcher** works from anywhere, mid-sentence included; your draft stays with its room. With nothing typed it lists unread rooms first, then everything else, then groups. People you share no room with appear last as *start a DM*, so typing someone's name or Matrix ID is also how you start a conversation. A field of their [phonebook](phonebook.md#searching-by-field) card finds people too: `role:attorney` lists everyone whose card says so, and choosing one opens your conversation with them. `:go` opens it by name.
 
 **Back and forward** record every room you actually open, however you got there — the switcher, a jump, a search hit, a link. Previewing rooms by walking the list is not recorded, and neither are overlays. Two keys to alternate between conversations is the answer to wanting two rooms on screen at once.
 
@@ -410,10 +412,11 @@ Names you give are local — only you see them — and live in your config.
 - `I` on a message, on a person in the member list, or on a one-person room opens that person's **card** in the [phonebook](phonebook.md): their birthday, family, pets or any field you add, kept as a Markdown file other programs can share.
 - `a` on a room or rail group gives it a name of your own (`[[display.name]]`); `alt+r` names a thread.
   A private chat is named after the person in it, so naming one names them too, wherever they are shown, while the room's own name is still that person's name and nobody else but you is in it. A name given with `a` on their message wins.
-- `[[display.space_rule]]` shows first names only in a space or tag (`space = "tag:Work"` for a tag).
+- `[[display.space_rule]]` shows first names only in a space or tag (`space = "space:Work"`, `"tag:Work"` or `"place:Work"`).
+- A place's `[[display.space_rule]] show_field = "company"` shows that field of a person's [phonebook](phonebook.md#a-field-beside-names) card after their name, in its room list and member list: "Dana Levi · Meta".
 - `[display] network_colors = true` names each room in every room list in its network's color; a place's `[[display.space_rule]] network_colors = true` or `false` overrides that for its own room list.
 - `[display.rail] network_colors = true` colors a rail row whose rooms are all on one network the same way.
-- `[display.theme.networks]` sets those colors (`#rrggbb`, a named color, or `"none"`). Unset, each network has its own, apart from the theme's text, accent, badge and alert colors: WhatsApp teal, Telegram blue, Slack magenta, Messenger and Instagram (Meta) orchid, LinkedIn periwinkle, Google Messages (SMS) coral. A bridged Matrix room counts as its bridge's network. All of it is in settings (`,`): under look, the switch everywhere, each space's and tag's choice (as everywhere, on, off) and each network's color; under rooms, the rail's switch.
+- `[display.theme.networks]` sets those colors (`#rrggbb`, a named color, or `"none"`). Unset, each network has its own, apart from the theme's text, accent, badge and alert colors: WhatsApp teal, Telegram blue, Slack magenta, Messenger and Instagram (Meta) orchid, LinkedIn periwinkle, Google Messages (SMS) coral. A bridged Matrix room counts as its bridge's network. All of it is in settings (`,`): under look, the switch everywhere and each network's color; on each place's page in **Places**, that space's or tag's choice (as everywhere, on, off); under rooms, the rail's switch.
 - `[display] max_name_length` caps the sender column; `color_messages = true` tints message bodies in the sender's color.
 
 kith keeps one directory of the people it knows, on every network and account. A

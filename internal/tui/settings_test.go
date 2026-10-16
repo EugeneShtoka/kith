@@ -402,6 +402,10 @@ func TestSettingsTableIsWellFormed(t *testing.T) {
 			if len(s.choices) != 0 || s.edit != nil {
 				t.Errorf("%s leads somewhere; it should hold no value of its own", s.key)
 			}
+		case settingMulti:
+			if len(s.choices) == 0 || s.entries == nil || s.setEntries == nil {
+				t.Errorf("%s is a set with no choices or no entries", s.key)
+			}
 		case settingToggle, settingText, settingNumber, settingList:
 			if len(s.choices) != 0 {
 				t.Errorf("%s has choices but is not a choice setting", s.key)
@@ -590,13 +594,13 @@ func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 		t.Errorf("the row reads %q after -, want 14", got)
 	}
 
-	// Enter: typed on the row, 14 selected; 8 replaces it.
+	// Enter: typed after the rows, 14 selected; 8 replaces it.
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !m.editingSettingRow() || !m.prompt.fresh || m.prompt.input != "14" {
-		t.Fatalf("enter on a number: editing %v, fresh %v, input %q; want 14 selected on its row", m.editingSettingRow(), m.prompt.fresh, m.prompt.input)
+	if m.prompt.kind != promptSetting || !m.prompt.fresh || m.prompt.input != "14" {
+		t.Fatalf("enter on a number: editing %v, fresh %v, input %q; want 14 selected on its row", (m.prompt.kind == promptSetting), m.prompt.fresh, m.prompt.input)
 	}
-	if view := stripStyles(m.View().Content); !strings.Contains(view, "Sender name width : 14") {
-		t.Errorf("the row does not show the value being typed:\n%s", view)
+	if view := stripStyles(m.View().Content); !strings.Contains(view, "Sender name width: 14") {
+		t.Errorf("the pane does not show the value being typed after its rows:\n%s", view)
 	}
 	m, _ = press(t, m, keyText("8"))
 	next, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -644,8 +648,8 @@ func TestARefusedValueStaysToBeFixed(t *testing.T) {
 	m, _ := opened(t, config.Notifications{Enabled: true})
 	m = toSetting(t, m, "width")
 	m = typeIn(t, m, "wide")
-	if !m.editingSettingRow() || m.prompt.input != "wide" || m.prompt.fresh {
-		t.Errorf("after a refused value: editing %v, input %q, fresh %v; want it kept, not selected", m.editingSettingRow(), m.prompt.input, m.prompt.fresh)
+	if m.prompt.kind != promptSetting || m.prompt.input != "wide" || m.prompt.fresh {
+		t.Errorf("after a refused value: editing %v, input %q, fresh %v; want it kept, not selected", (m.prompt.kind == promptSetting), m.prompt.input, m.prompt.fresh)
 	}
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.prompt.active() || m.picker.kind != pickerSetting {
@@ -679,12 +683,26 @@ func TestEscStepsBackALevel(t *testing.T) {
 	}
 
 	m, _ = opened(t, config.Notifications{})
-	m = pickLabel(t, m, "Tags")
+	m = pickLabel(t, m, "Places")
 	m = pickLabel(t, m, "Pinned")
-	if m = esc(m); m.picker.kind != pickerTags {
-		t.Errorf("esc from a tag: picker %v, want the tags", m.picker.kind)
+	if m = esc(m); m.picker.kind != pickerSetting || m.choosing.settingGroup != "places" {
+		t.Errorf("esc from a tag: picker %v on %q, want Places", m.picker.kind, m.choosing.settingGroup)
 	}
 	if m = esc(m); m.picker.kind != pickerSettingGroups {
-		t.Errorf("esc from the tags: picker %v, want the groups", m.picker.kind)
+		t.Errorf("esc from Places: picker %v, want the groups", m.picker.kind)
+	}
+}
+
+// Every settings group opens with enter, a group of one row leading somewhere (Filters,
+// a list of records) included, and lands on a list.
+func TestEverySettingsGroupOpens(t *testing.T) {
+	t.Parallel()
+	for _, g := range settingGroups {
+		m, _ := opened(t, config.Notifications{})
+		m = m.settingsTop(g.key)
+		next, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+		if !next.picker.active() && !next.prompt.active() {
+			t.Errorf("%s: enter left nothing open", g.label)
+		}
 	}
 }

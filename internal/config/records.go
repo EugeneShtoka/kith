@@ -78,7 +78,8 @@ func walkTables(typ reflect.Type, path []string, found func(string, reflect.Type
 	for f := range typ.Fields() {
 		name := tomlName(f)
 		if len(path) == 0 && name == "keys" {
-			found("keys.jump", reflect.TypeFor[Jump]()) // the keys' one list of records
+			found("keys.jump", reflect.TypeFor[Jump]()) // the keys' lists of records
+			found("keys.tag", reflect.TypeFor[TagKey]())
 			continue
 		}
 		if name == "" || (len(path) == 0 && slices.Contains(notProperties, name)) {

@@ -34,6 +34,8 @@ const inviteBuffer = 4
 type InProc struct {
 	client *mautrix.Client
 	cache  *db.Cache
+	// tagsMu serializes read-change-write of tag account data (tagverdicts.go).
+	tagsMu sync.Mutex
 	// logger receives what the backend cannot return (see UseLogger); nil is silent.
 	logger *slog.Logger
 	// onSynced, when set, is called with each sync response's arrival time. Set before Start.
@@ -49,6 +51,8 @@ type InProc struct {
 	types   roomTypes
 	// networks reads each room's network in the background (networks.go).
 	networks roomNetworks
+	// reads is the read receipts the homeserver has not taken yet (readowed.go).
+	reads owedReads
 
 	// machineMu guards the crypto machine EnableEncryption publishes, possibly while RPCs
 	// are served (degraded start). Never held across a call that can take it again.
@@ -75,8 +79,10 @@ type InProc struct {
 
 	ver verifyState
 
-	// names memoizes each room's user-ID→display-name map.
-	names memberNameMemo
+	// names memoizes each room's user-ID→display-name map; profiles memoizes the names of
+	// senders who are no member of the room they wrote in (rooms.go).
+	names    memberNameMemo
+	profiles profileNames
 
 	unread unreadBook
 	// selves are the other MXIDs that are this person.
@@ -406,16 +412,24 @@ func newestVersionBut(revs []domain.Revision, deleted domain.EventID) (domain.Re
 	return best, found
 }
 
-// onSync ingests each joined room's unread counts, receipts, marked-unread, stars,
-// spam verdicts and typing.
+// onSync ingests the person verdicts, and each joined room's unread counts, receipts,
+// marked-unread, stars, tag verdicts and typing.
 func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since string) bool {
 	if b.onSynced != nil {
 		b.onSynced(time.Now())
 	}
 	b.readNetworksIfWanted(ctx)
+	// A sync succeeded: the homeserver is there for receipts owed. Not on this goroutine.
+	if len(b.reads.owed()) > 0 {
+		go b.sendOwed(context.WithoutCancel(ctx))
+	}
 	// Reported, not acted on: refreshing is a network call on the sync goroutine.
 	if b.onRoomsStale != nil && roomsChanged(resp, b.client.UserID) {
 		b.onRoomsStale()
+	}
+	// The people account data present is the whole set; absence means no change.
+	if content, present := peopleFrom(resp.AccountData.Events); present {
+		b.mirrorPeople(ctx, content.verdicts())
 	}
 	b.syncInvites(ctx, resp, since)
 	b.fetchHeld(ctx)
@@ -431,12 +445,12 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 		if flag, present := markedUnread(jr.AccountData.Events); present {
 			marked = &flag
 		}
-		// A star or spam event present is the room's whole set; absence means no change.
+		// A star or tags event present is the room's whole set; absence means no change.
 		if ids, present := starredFrom(jr.AccountData.Events); present && b.cache != nil {
 			b.warnIf(ctx, b.cache.SetStarred(ctx, domain.RoomID(roomID), ids, time.Now().UnixMilli()), "cache starred messages", "room", roomID)
 		}
-		if verdict, present := spamFrom(jr.AccountData.Events); present {
-			b.spamMirror(ctx, domain.RoomID(roomID), verdict)
+		if content, present := tagsFrom(jr.AccountData.Events); present {
+			b.mirrorVerdicts(ctx, domain.RoomID(roomID), content.verdicts(domain.RoomID(roomID)))
 		}
 		b.emitActivity(domain.RoomID(roomID), jr.Ephemeral.Events)
 		if _, changed := b.mergeUnread(ctx, domain.RoomID(roomID), jr, read, marked); !changed && !threadsMoved {

@@ -8,19 +8,24 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// editingTag opens settings → Tags → the named tag.
+// editingTag opens settings → Places → the named tag's page.
 func editingTag(t *testing.T, name string) (Model, string) {
 	t.Helper()
 	m, path := opened(t, config.Notifications{})
-	m = pickLabel(t, m, "Tags")
-	if m.picker.kind != pickerTags {
-		t.Fatalf("Tags… opened picker %v", m.picker.kind)
+	m = pickLabel(t, m, "Places")
+	if m.picker.kind != pickerSetting || m.choosing.settingGroup != "places" {
+		t.Fatalf("Places opened picker %v on %q", m.picker.kind, m.choosing.settingGroup)
 	}
 	m = pickLabel(t, m, name)
-	if m.picker.kind != pickerTagEdit || m.choosing.tag.tag != name {
-		t.Fatalf("choosing %s opened picker %v on %q", name, m.picker.kind, m.choosing.tag.tag)
+	if !onTagPage(m, name) {
+		t.Fatalf("choosing %s opened picker %v on %q", name, m.picker.kind, m.choosing.settingGroup)
 	}
 	return m, path
+}
+
+// onTagPage reports whether settings show the named tag's page.
+func onTagPage(m Model, name string) bool {
+	return m.picker.kind == pickerSetting && m.choosing.settingGroup == placePage(tagGroupKey(name))
 }
 
 // A rename reaches every reference in the running and saved config, and the editor stays on it.
@@ -44,8 +49,8 @@ func TestRenamingATagFromTheEditor(t *testing.T) {
 	if got := m.conf.base.Notifications.Rules[len(m.conf.base.Notifications.Rules)-1].Match; got != "tag:Followed" {
 		t.Errorf("the rule names %q, want tag:Followed", got)
 	}
-	if m.picker.kind != pickerTagEdit || m.choosing.tag.tag != "Followed" {
-		t.Errorf("after renaming: picker %v on %q, want the editor on Followed", m.picker.kind, m.choosing.tag.tag)
+	if !onTagPage(m, "Followed") {
+		t.Errorf("after renaming: picker %v on %q, want Followed's page", m.picker.kind, m.choosing.settingGroup)
 	}
 	reloaded, err := config.Load(path)
 	if err != nil {
@@ -79,10 +84,10 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")
 	m = pickLabel(t, m, "Rule")
-	if m.picker.kind != pickerTagEntries {
+	if m.picker.kind != pickerSettingEntries {
 		t.Fatalf("Rule opened picker %v", m.picker.kind)
 	}
-	m = pickLabel(t, m, "Add a term")
+	m = pickLabel(t, m, "Add an entry")
 	m = typeIn(t, m, "space:Work")
 	if got := m.conf.base.Tags[m.configTag("Pinned")].Rule; !slices.Equal(got, []string{"space:Work"}) {
 		t.Fatalf("rule = %v, want the added term", got)
@@ -90,7 +95,7 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	if !admitsRoom(m, railRow(t, m, pinnedGroupKey), "!standup:x") {
 		t.Error("the rule's room is not in the tag's row")
 	}
-	m = pickLabel(t, m, "Add a term")
+	m = pickLabel(t, m, "Add an entry")
 	m = typeIn(t, m, "unred")
 	if !strings.Contains(m.status(), "could not apply") || len(m.conf.base.Tags[m.configTag("Pinned")].Rule) != 1 {
 		t.Errorf("status %q, rule %v: want a bad term refused", m.status(), m.conf.base.Tags[m.configTag("Pinned")].Rule)
@@ -100,7 +105,7 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	if got := m.conf.base.Tags[m.configTag("Pinned")].Rule; len(got) != 0 {
 		t.Errorf("rule = %v, want the emptied term removed", got)
 	}
-	if m.picker.kind != pickerTagEntries {
+	if m.picker.kind != pickerSettingEntries {
 		t.Errorf("after editing: picker %v, want the list back", m.picker.kind)
 	}
 }
@@ -109,27 +114,27 @@ func TestXRemovesATagEntry(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")
 	m = pickLabel(t, m, "Rule")
-	m = pickLabel(t, m, "Add a term")
+	m = pickLabel(t, m, "Add an entry")
 	m = typeIn(t, m, "space:Work")
 	m.picker.cursor = 0
 	m, _ = press(t, m, keyText("x"))
 	if got := m.conf.base.Tags[m.configTag("Pinned")].Rule; len(got) != 0 {
 		t.Errorf("rule = %v, want the term removed", got)
 	}
-	if m.picker.kind != pickerTagEntries {
+	if m.picker.kind != pickerSettingEntries {
 		t.Errorf("after x: picker %v, want the list back", m.picker.kind)
 	}
 }
 
-// A new tag is made by name and opens in the editor.
+// A new tag is made by name and opens on its page.
 func TestMakingATag(t *testing.T) {
 	t.Parallel()
 	m, _ := opened(t, config.Notifications{})
-	m = pickLabel(t, m, "Tags")
+	m = pickLabel(t, m, "Places")
 	m = pickLabel(t, m, "New tag")
 	m = typeIn(t, m, "Family")
-	if m.configTag("Family") < 0 || m.choosing.tag.tag != "Family" || m.picker.kind != pickerTagEdit {
-		t.Errorf("tags %+v, editor on %q: want Family made and open", m.conf.base.Tags, m.choosing.tag.tag)
+	if m.configTag("Family") < 0 || !onTagPage(m, "Family") {
+		t.Errorf("tags %+v, on %q: want Family made and open", m.conf.base.Tags, m.choosing.settingGroup)
 	}
 	m = m.tagsOpen()
 	m = pickLabel(t, m, "New tag")

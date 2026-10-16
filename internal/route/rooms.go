@@ -32,9 +32,31 @@ func (r *Router) StarMessage(ctx context.Context, roomID domain.RoomID, eventID 
 	return doOnRoom(r, roomID, "bookmarks", func(c Stars) error { return c.StarMessage(ctx, roomID, eventID, starred) })
 }
 
-// MarkSpam records or clears the verdict on its room.
-func (r *Router) MarkSpam(ctx context.Context, verdict domain.SpamVerdict) error {
-	return doOnRoom(r, verdict.Room, "spam reports", func(c SpamReports) error { return c.MarkSpam(ctx, verdict) })
+// MarkTag records a move or a release on its room.
+func (r *Router) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
+	return doOnRoom(r, verdict.Room, "tag moves", func(c TagMoves) error { return c.MarkTag(ctx, verdict) })
+}
+
+// MarkPerson records a mark or a release on the network the person's ID is on.
+func (r *Router) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error {
+	a, err := r.adapterFor(verdict.Person)
+	if err != nil {
+		return err
+	}
+	c, ok := a.(TagMoves)
+	if !ok {
+		return fmt.Errorf("%w: person marks on %s (%s)", api.ErrNotOnNetwork, domain.NetworkOf(verdict.Person), verdict.Person)
+	}
+	return c.MarkPerson(ctx, verdict)
+}
+
+// RetagVerdicts moves (or drops) one tag's verdicts on every network keeping them.
+func (r *Router) RetagVerdicts(ctx context.Context, from, to string) error {
+	var errs []error
+	for _, c := range having[TagMoves](r) {
+		errs = append(errs, c.RetagVerdicts(ctx, from, to))
+	}
+	return errors.Join(errs...)
 }
 
 // CanonicalParent is the space a room names as its parent; none on a network without
@@ -86,8 +108,8 @@ func (r *Router) SendTyping(ctx context.Context, roomID domain.RoomID, typing bo
 }
 
 // SendFile posts a file.
-func (r *Router) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
-	return doOnRoom(r, roomID, "files", func(c Uploader) error { return c.SendFile(ctx, roomID, path, caption) })
+func (r *Router) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
+	return doOnRoom(r, roomID, "files", func(c Uploader) error { return c.SendFile(ctx, roomID, path, name, caption) })
 }
 
 // PollVoters is who chose what in a message's poll.

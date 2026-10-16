@@ -209,9 +209,32 @@ func (s *Service) StarredIn(ctx context.Context, roomID domain.RoomID) ([]domain
 	})
 }
 
-// SpamRooms is every caught room from the cache (mirrored from account data).
-func (s *Service) SpamRooms(ctx context.Context) ([]domain.SpamVerdict, error) {
-	return fromCache(s, "list spam rooms", func(c *db.Cache) ([]domain.SpamVerdict, error) {
-		return c.SpamRooms(ctx)
+// PersonVerdicts is every person's marks and releases from the cache (Matrix IDs'
+// mirrored from account data).
+func (s *Service) PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error) {
+	return fromCache(s, "list person verdicts", func(c *db.Cache) ([]domain.PersonVerdict, error) {
+		return c.PersonVerdicts(ctx)
+	})
+}
+
+// SenderMessages is a sender's cached messages in every room since since, oldest
+// first, at most limit (db.Cache.SenderMessages).
+func (s *Service) SenderMessages(ctx context.Context, sender string, since time.Time, limit int) ([]domain.Message, error) {
+	return fromCache(s, "read a sender's messages", func(c *db.Cache) ([]domain.Message, error) {
+		return c.SenderMessages(ctx, sender, since, limit)
+	})
+}
+
+// WrittenTo is everyone you have written to (db.Cache.WrittenTo).
+func (s *Service) WrittenTo(ctx context.Context, me []string) ([]string, error) {
+	return fromCache(s, "read whom you wrote to", func(c *db.Cache) ([]string, error) {
+		return c.WrittenTo(ctx, me)
+	})
+}
+
+// TagVerdicts is every move and release from the cache (mirrored from account data).
+func (s *Service) TagVerdicts(ctx context.Context) ([]domain.TagVerdict, error) {
+	return fromCache(s, "list tag verdicts", func(c *db.Cache) ([]domain.TagVerdict, error) {
+		return c.TagVerdicts(ctx)
 	})
 }

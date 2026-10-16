@@ -52,17 +52,14 @@ var known = []Terminal{
 // ErrNoTerminal is returned when nothing on this machine can be started.
 var ErrNoTerminal = errors.New("launch: no terminal found")
 
-// Lookup finds a terminal binary; replaced in tests.
-var Lookup = exec.LookPath
-
-// start runs a short-lived command and returns its exit status; replaced in tests.
-var start = func(ctx context.Context, argv []string) error {
+// start runs a short-lived command and returns its exit status.
+func start(ctx context.Context, argv []string) error {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- argv is this program's own table or the user's own config
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launch: start %s: %w", argv[0], err)
 	}
 	// A tab command is a short-lived client; its exit code is the signal.
-	return cmd.Wait()
+	return cmd.Wait() //nolint:wrapcheck // its exit code is all Run reads
 }
 
 // Detect returns the first terminal on this machine, or false when there is none.
@@ -72,7 +69,7 @@ func Detect() (Terminal, bool) {
 		if len(term.Window) > 0 {
 			name = term.Window[0]
 		}
-		if _, err := Lookup(name); err == nil {
+		if _, err := exec.LookPath(name); err == nil {
 			return term, true
 		}
 	}
@@ -110,7 +107,7 @@ func Run(ctx context.Context, term Terminal, command []string) (opened string, e
 }
 
 // startDetached starts a command and does not wait for it.
-var startDetached = func(ctx context.Context, argv []string) error {
+func startDetached(ctx context.Context, argv []string) error {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- argv is this program's own table or the user's own config
 	// A no-op Cancel lets the terminal outlive the caller's context.
 	cmd.Cancel = func() error { return nil }

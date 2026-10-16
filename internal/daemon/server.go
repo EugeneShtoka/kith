@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"path"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,34 +27,54 @@ const (
 )
 
 // Daemon is everything the socket serves: the backend plus facts about this process
-// that api.Backend cannot answer.
+// that api.Backend cannot answer. Every part is required (Serve checks).
 type Daemon struct {
 	Backend api.Backend
 	// Streams fans each backend channel out to every subscriber.
 	Streams *Streams
 	// State is readiness: whether a sync has landed, and what broke if not.
 	State *State
-	// Notifications may be nil in a test harness; its handlers then refuse.
+	// Notifications delivers alerts and holds the do-not-disturb rules.
 	Notifications *Notifications
-	// Reload re-reads the config file; nil when the daemon was given none.
+	// Reload re-reads the config file.
 	Reload Reload
-	// CheckConfig judges a config a client means to write; nil refuses the call.
+	// CheckConfig judges a config a client means to write.
 	CheckConfig CheckConfig
-	// Config is the config file, written only by the daemon; nil refuses GetConfig and
-	// UpdateConfig.
+	// Config is the config file, written only by the daemon.
 	Config *ConfigFile
-	// Scheduler is nil when the queue path could not be resolved; its handlers refuse.
+	// Scheduler is the send-later queue.
 	Scheduler *Scheduler
-	// Logins logs network accounts in; nil refuses every login with ErrNetworkOff.
+	// Logins logs network accounts in.
 	Logins api.Logins
 	// Log receives every failed call with procedure and reason, so a failure a client
-	// only counted reaches the journal. nil logs nothing.
+	// only counted reaches the journal.
 	Log *slog.Logger
+}
+
+// missing names the parts d lacks.
+func (d *Daemon) missing() []string {
+	var out []string
+	for name, absent := range map[string]bool{
+		"Backend": d.Backend == nil, "Streams": d.Streams == nil, "State": d.State == nil,
+		"Notifications": d.Notifications == nil, "Reload": d.Reload == nil,
+		"CheckConfig": d.CheckConfig == nil, "Config": d.Config == nil,
+		"Scheduler": d.Scheduler == nil, "Logins": d.Logins == nil, "Log": d.Log == nil,
+	} {
+		if absent {
+			out = append(out, name)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // Serve hosts d on ln until ctx is canceled, then shuts down gracefully; the caller
 // runs Streams.Run. No authentication: the socket is 0600.
 func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
+	if missing := d.missing(); len(missing) > 0 {
+		_ = ln.Close() // nothing will be served on it
+		return fmt.Errorf("daemon: cannot serve without %s", strings.Join(missing, ", "))
+	}
 	// Handlers outliving their request (MarkRoomsRead) run on this, so a broken listener
 	// can end them while the caller's ctx is still live.
 	ctx, cancelHandlers := context.WithCancel(ctx)
@@ -109,9 +131,7 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 		if !drained(&inflight, timeout) {
 			return fmt.Errorf("daemon: shutdown: still running %s after closing every connection: %w", timeout, ErrHandlersRunning)
 		}
-		if d.Log != nil {
-			d.Log.Warn("shutdown closed connections a client had stopped reading", "timeout", timeout)
-		}
+		d.Log.Warn("shutdown closed connections a client had stopped reading", "timeout", timeout)
 		return nil
 	}
 }
@@ -175,7 +195,7 @@ func (g *handlerGate) running() int {
 type failureLog struct{ log *slog.Logger }
 
 func (f failureLog) report(ctx context.Context, procedure string, err error) {
-	if err == nil || f.log == nil {
+	if err == nil {
 		return
 	}
 	// The client leaving, or our own shutdown, is not a failure of the call.

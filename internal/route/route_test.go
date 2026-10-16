@@ -32,7 +32,7 @@ func perRoomCalls(ctx context.Context, r *Router, room domain.RoomID) map[string
 	calls["MarkRead"] = r.MarkRead(ctx, room, "$e", false)
 	calls["MarkRoomUnread"] = r.MarkRoomUnread(ctx, room, true)
 	calls["StarMessage"] = r.StarMessage(ctx, room, "$e", true)
-	calls["MarkSpam"] = r.MarkSpam(ctx, domain.SpamVerdict{Room: room})
+	calls["MarkTag"] = r.MarkTag(ctx, domain.TagVerdict{Room: room, Tag: "Spam"})
 	_, calls["CanonicalParent"] = r.CanonicalParent(ctx, room)
 	_, _, calls["MessageHistory"] = r.MessageHistory(ctx, room, "$e")
 	_, calls["Timeline"] = r.Timeline(ctx, room, "", 10)
@@ -40,7 +40,7 @@ func perRoomCalls(ctx context.Context, r *Router, room domain.RoomID) map[string
 	calls["Redact"] = r.Redact(ctx, room, "$e", "")
 	calls["Send"] = r.Send(ctx, room, domain.Draft{Body: "hi"})
 	calls["SendTyping"] = r.SendTyping(ctx, room, true, time.Second)
-	calls["SendFile"] = r.SendFile(ctx, room, "/f", "")
+	calls["SendFile"] = r.SendFile(ctx, room, "/f", "f", "")
 	calls["SendReaction"] = r.SendReaction(ctx, room, "$e", "👍")
 	_, calls["LoadImage"] = r.LoadImage(ctx, room, "$e")
 	_, calls["Members"] = r.Members(ctx, room, 0)
@@ -312,6 +312,50 @@ func TestMarkingRoomsReadAccountsForEveryRoom(t *testing.T) {
 		if got.Failed > 0 && got.FirstError == "" {
 			t.Fatalf("%s: %d failed with no reason", where, got.Failed)
 		}
+	}
+}
+
+// A person's mark or release reaches the network their ID is on, and only it.
+func TestAPersonMarkReachesTheirNetwork(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const whatsappPerson = "whatsapp:15550000001@s.whatsapp.net"
+	r, m, wa := twoNetworks(t)
+	for _, person := range []string{"@ann:x", whatsappPerson} {
+		if err := r.MarkPerson(ctx, domain.PersonVerdict{Person: person, Tag: "Spam", Released: true}); err != nil {
+			t.Errorf("MarkPerson(%s) = %v", person, err)
+		}
+	}
+	if got := m.seen(); !slices.Equal(got, []domain.RoomID{"@ann:x"}) {
+		t.Errorf("Matrix was asked about %v, want its own person", got)
+	}
+	if got := wa.seen(); !slices.Equal(got, []domain.RoomID{whatsappPerson}) {
+		t.Errorf("WhatsApp was asked about %v, want its own person", got)
+	}
+	if err := r.MarkPerson(ctx, domain.PersonVerdict{Person: "slack:T1/U1", Tag: "Spam"}); !errors.Is(err, api.ErrNetworkOff) {
+		t.Errorf("a person on no network = %v, want ErrNetworkOff", err)
+	}
+}
+
+// A recount reaches each room's own network, and skips networks that are off.
+func TestARecountReachesEachRoomsNetwork(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const telegramRoomID domain.RoomID = "telegram:1001/2002"
+	r, m, wa := twoNetworks(t)
+	r.RecountUnread(ctx, []domain.RoomID{matrixRoomID, whatsappRoomID, telegramRoomID})
+	if got := m.seen(); !slices.Equal(got, []domain.RoomID{matrixRoomID}) {
+		t.Errorf("Matrix recounted %v, want its own room", got)
+	}
+	if got := wa.seen(); !slices.Equal(got, []domain.RoomID{whatsappRoomID}) {
+		t.Errorf("WhatsApp recounted %v, want its own room", got)
+	}
+
+	r, m, _ = twoNetworks(t)
+	m.loggedOut.Store(true)
+	r.RecountUnread(ctx, []domain.RoomID{matrixRoomID})
+	if got := m.seen(); len(got) != 0 {
+		t.Errorf("a logged-out Matrix recounted %v", got)
 	}
 }
 
@@ -620,6 +664,7 @@ func TestANetworkWithoutACapabilityRefusesWhatNeedsIt(t *testing.T) {
 		"members": func() error { _, err := r.Members(ctx, room, 5); return err }(),
 		"threads": func() error { _, err := r.ListThreads(ctx, room); return err }(),
 		"invite":  r.InviteUser(ctx, room, "telegram:7"),
+		"person":  r.MarkPerson(ctx, domain.PersonVerdict{Person: "telegram:7", Tag: "Spam", Released: true}),
 	} {
 		if !errors.Is(err, api.ErrNotOnNetwork) {
 			t.Errorf("%s in a Telegram room = %v, want not on that network", name, err)
@@ -647,6 +692,10 @@ func (c *chatMaker) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.R
 	return "telegram:42/-1009", nil
 }
 
+func (c *chatMaker) ChatOffers(context.Context) ([]domain.ChatOffer, error) {
+	return []domain.ChatOffer{{On: domain.AccountRooms(domain.ProtocolTelegram, "42"), Kind: domain.ChatForum, Label: "Telegram forum"}}, nil
+}
+
 // A chat for an account goes to that account's network; a network that makes none
 // refuses; no account named means Matrix.
 func TestANewChatGoesToItsAccountsNetwork(t *testing.T) {
@@ -667,5 +716,9 @@ func TestANewChatGoesToItsAccountsNetwork(t *testing.T) {
 	}
 	if _, err := r.CreateRoom(ctx, domain.NewRoom{Name: "Plain"}); err != nil || !slices.Contains(m.calls(), "CreateRoom") {
 		t.Errorf("a room with no account = %v, Matrix calls %v", err, m.calls())
+	}
+	// What chats can be made is asked of the networks that make them, and only them.
+	if offers, err := r.ChatOffers(ctx); err != nil || len(offers) != 1 || offers[0].Kind != domain.ChatForum {
+		t.Errorf("ChatOffers = (%+v, %v), want Telegram's forum alone", offers, err)
 	}
 }

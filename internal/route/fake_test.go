@@ -106,6 +106,12 @@ func (f *fake) CachedUnread(context.Context) ([]domain.Unread, error) {
 	return out, f.fail
 }
 
+func (f *fake) RecountUnread(_ context.Context, rooms []domain.RoomID) {
+	for _, room := range rooms {
+		_ = f.touch(room)
+	}
+}
+
 func (f *fake) MarkRead(_ context.Context, room domain.RoomID, _ domain.EventID, _ bool) error {
 	return f.touch(room)
 }
@@ -134,9 +140,15 @@ func (f *fake) StarMessage(_ context.Context, room domain.RoomID, _ domain.Event
 	return f.touch(room)
 }
 
-func (f *fake) MarkSpam(_ context.Context, verdict domain.SpamVerdict) error {
+func (f *fake) MarkTag(_ context.Context, verdict domain.TagVerdict) error {
 	return f.touch(verdict.Room)
 }
+
+func (f *fake) MarkPerson(_ context.Context, verdict domain.PersonVerdict) error {
+	return f.touch(domain.RoomID(verdict.Person))
+}
+
+func (f *fake) RetagVerdicts(context.Context, string, string) error { return nil }
 
 func (f *fake) CanonicalParent(_ context.Context, room domain.RoomID) (domain.SpaceID, error) {
 	return "", f.touch(room)
@@ -166,7 +178,7 @@ func (f *fake) SendTyping(_ context.Context, room domain.RoomID, _ bool, _ time.
 	return f.touch(room)
 }
 
-func (f *fake) SendFile(_ context.Context, room domain.RoomID, _, _ string) error {
+func (f *fake) SendFile(_ context.Context, room domain.RoomID, _, _, _ string) error {
 	return f.touch(room)
 }
 

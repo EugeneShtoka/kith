@@ -11,17 +11,22 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/logging"
 )
 
 // fake answers reads from fixtures and records writes.
 type fake struct {
-	// dir is the directory the daemon gives.
-	dir      domain.Directory
-	rooms    []domain.Room
-	spaces   []domain.Space
-	unread   []domain.Unread
-	messages map[domain.RoomID][]domain.Message
-	hits     []domain.SearchHit
+	// dir is the directory the daemon gives, dirErr why it cannot.
+	dir    domain.Directory
+	dirErr error
+	// people is the person verdicts the daemon gives, peopleErr why it cannot.
+	people    []domain.PersonVerdict
+	peopleErr error
+	rooms     []domain.Room
+	spaces    []domain.Space
+	unread    []domain.Unread
+	messages  map[domain.RoomID][]domain.Message
+	hits      []domain.SearchHit
 	// searchAsked is the room set of each search, in order.
 	searchAsked [][]domain.RoomID
 	senders     []domain.Member
@@ -113,7 +118,11 @@ func (f *fake) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (
 }
 
 func (f *fake) Rooms(context.Context) ([]domain.Room, error)        { return f.rooms, nil }
-func (f *fake) Directory(context.Context) (domain.Directory, error) { return f.dir, nil }
+func (f *fake) Directory(context.Context) (domain.Directory, error) { return f.dir, f.dirErr }
+
+func (f *fake) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error) {
+	return f.people, f.peopleErr
+}
 
 func (f *fake) Selves(context.Context) ([]string, error) {
 	if f.selves == nil {
@@ -250,7 +259,7 @@ var (
 )
 
 func newServer(f *fake, scope domain.ModelScope) *server {
-	return &server{backend: f, scope: scope}
+	return &server{backend: f, scope: scope, log: logging.Discard()}
 }
 
 // call runs one tool and returns its decoded JSON.
@@ -856,5 +865,25 @@ func TestAnAssistantReadsPeopleByTheirWholeNames(t *testing.T) {
 	got, _ := msgs[0].(map[string]any)
 	if got["sender_name"] != "Dana Cohen" || got["body"] != "@Dana Levi can you look?" {
 		t.Errorf("the assistant read %q saying %q, want Dana Cohen saying \"@Dana Levi can you look?\"", got["sender_name"], got["body"])
+	}
+}
+
+// Counted mentions leave out hidden people, so the summary uses them; a room counted
+// only by its server keeps the server's highlights.
+func TestTheUnreadSummaryUsesCountedMentions(t *testing.T) {
+	t.Parallel()
+
+	f := twoRooms()
+	f.unread = []domain.Unread{
+		{RoomID: "!open:x", Counted: true, Messages: 0, Mentions: 0, Highlights: 2}, // both mentions were hidden people's
+		{RoomID: "!secret:x", Highlights: 1},
+	}
+	out := call(t, newServer(f, shareAllEncrypted), "unread_summary", nil)
+	waiting, _ := out["waiting"].([]any)
+	if len(waiting) != 1 {
+		t.Fatalf("waiting = %v, want only the server-counted room", waiting)
+	}
+	if room, _ := waiting[0].(map[string]any); room["room"] != "!secret:x" || room["mentions"] != float64(1) {
+		t.Errorf("waiting = %v, want !secret:x with its server's one mention", room)
 	}
 }

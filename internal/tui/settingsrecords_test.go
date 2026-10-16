@@ -31,22 +31,23 @@ func TestFirstNamesPerPlace(t *testing.T) {
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
 		{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}, {ID: "!d:x", Name: "Dana", IsDirect: true},
 	}})
-	m = m.settingsIn("names", "")
-	for _, label := range []string{"First names only in Work", "First names only in Friends", "First names only in DMs"} {
-		if got := rowFor(t, m, label).detail; got != "off" {
-			t.Errorf("%s reads %q, want off", label, got)
+	for _, key := range []string{"Work", "Friends", "tag:DMs"} {
+		if got := rowFor(t, m.settingsIn(placePage(key), ""), "First names only").detail; got != "off" {
+			t.Errorf("%s reads %q, want off", key, got)
 		}
 	}
 	// Unread is state, nobody's home; All is every room.
-	for _, item := range m.picker.items {
-		if item.label == "First names only in Unread" || item.label == "First names only in All" {
-			t.Errorf("%q is offered, but cannot be a room's home", item.label)
+	for _, key := range []string{"tag:Unread", "tag:All"} {
+		for _, item := range m.settingsIn(placePage(key), "").picker.items {
+			if item.label == "First names only" {
+				t.Errorf("%s offers first names, but cannot be a room's home", key)
+			}
 		}
 	}
-	m = pickLabel(t, m, "only in Work")
-	m = pickLabel(t, m, "only in DMs")
+	m = pickLabel(t, m.settingsIn(placePage("Work"), ""), "First names only")
+	m = pickLabel(t, m.settingsIn(placePage("tag:DMs"), ""), "First names only")
 	rules := m.conf.base.Display.SpaceRules
-	if !slices.Contains(rules, config.SpaceRule{Space: "Work", FirstNameOnly: true}) ||
+	if !slices.Contains(rules, config.SpaceRule{Space: "space:Work", FirstNameOnly: true}) ||
 		!slices.Contains(rules, config.SpaceRule{Space: "tag:DMs", FirstNameOnly: true}) {
 		t.Fatalf("rules = %+v, want Work and tag:DMs on", rules)
 	}
@@ -57,18 +58,9 @@ func TestFirstNamesPerPlace(t *testing.T) {
 	if len(reloaded.Display.SpaceRules) != 2 {
 		t.Errorf("saved rules = %+v", reloaded.Display.SpaceRules)
 	}
-	m = pickLabel(t, m, "only in Work")
-	if slices.ContainsFunc(m.conf.base.Display.SpaceRules, func(r config.SpaceRule) bool { return r.Space == "Work" }) {
+	m = pickLabel(t, m.settingsIn(placePage("Work"), ""), "First names only")
+	if slices.ContainsFunc(m.conf.base.Display.SpaceRules, func(r config.SpaceRule) bool { return r.Space == "space:Work" }) {
 		t.Error("switched off, Work's rule is still written")
-	}
-
-	m = m.tagOpen("DMs")
-	if got := rowFor(t, m, "First names only").detail; got != "on" {
-		t.Errorf("the tag editor reads %q for DMs, want on (set from Names)", got)
-	}
-	m = pickLabel(t, m, "First names only")
-	if slices.ContainsFunc(m.conf.base.Display.SpaceRules, func(r config.SpaceRule) bool { return r.Space == "tag:DMs" }) {
-		t.Error("the tag editor's switch did not turn DMs' rule off")
 	}
 }
 
@@ -83,11 +75,11 @@ func TestRecordsAreEditedInSettings(t *testing.T) {
 		t.Fatalf("Read rules opened %v on %q", m.picker.kind, m.choosing.settingGroup)
 	}
 	m = pickLabel(t, m, "Add one")
-	m = typeIn(t, m, "Work")
-	if got := m.conf.base.Display.ReadRules; len(got) != 1 || got[0].Match != "Work" {
-		t.Fatalf("after adding: %+v, want one rule matching Work", got)
+	m = typeIn(t, m, "space:Work")
+	if got := m.conf.base.Display.ReadRules; len(got) != 1 || got[0].Match != "space:Work" {
+		t.Fatalf("after adding: %+v, want one rule matching space:Work", got)
 	}
-	m = pickLabel(t, m, "Work") // the record
+	m = pickLabel(t, m, "space:Work") // the record
 	if m.choosing.settingGroup != recordPrefix+"display.read_rule#0" {
 		t.Fatalf("the record opened %q", m.choosing.settingGroup)
 	}

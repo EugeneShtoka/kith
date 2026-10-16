@@ -3,6 +3,7 @@
 package setup
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -29,7 +30,7 @@ func Validate(cfg config.Config) error {
 		Scripts(cfg),
 		errOf(NotificationRules(cfg.Notifications)),
 		errOf(CodeRules(cfg.Codes)),
-		errOf(SpamRules(cfg.Spam)),
+		errOf(Filters(cfg)),
 		errOf(SkinTone(d.SkinTone)),
 		errOf(Clock(d)),
 		errOf(EmojiTier(d.Emoji.Set)),
@@ -243,8 +244,7 @@ func RoomList(rooms config.Rooms) error {
 	}
 	for _, rule := range rooms.Rules {
 		if strings.TrimSpace(rule.Group) == "" {
-			return fmt.Errorf("display.rooms.rule: a rule needs a group " +
-				"(a space's name, or home/dms/unread)")
+			return errors.New("display.rooms.rule: a rule needs a group: space:, tag: or place:<name>")
 		}
 		if err := sortChain(fmt.Sprintf("display.rooms.rule %q.sort", rule.Group), rule.Sort); err != nil {
 			return err

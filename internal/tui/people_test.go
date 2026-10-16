@@ -74,8 +74,8 @@ func TestInviteAsksForAnMXIDAndSendsIt(t *testing.T) {
 	if !m.prompt.active() {
 		t.Fatal("i in the room list opened no prompt")
 	}
-	if !strings.Contains(m.prompt.label(), "invite") {
-		t.Errorf("prompt label = %q, want it to say invite", m.prompt.label())
+	if !strings.Contains(m.promptLabel(), "invite") {
+		t.Errorf("prompt label = %q, want it to say invite", m.promptLabel())
 	}
 	next, cmd := m.submitInvite("@dana:x")
 	mdl := next

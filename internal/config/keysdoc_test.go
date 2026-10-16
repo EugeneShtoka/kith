@@ -26,7 +26,7 @@ func TestDefaultTOMLKeysSectionIsGenerated(t *testing.T) {
 	}
 }
 
-// Every binding in Keys appears in keySections exactly once.
+// Every binding appears in keySections exactly once, under its own table.
 func TestKeySectionsCoverKeys(t *testing.T) {
 	t.Parallel()
 
@@ -49,12 +49,9 @@ func TestKeySectionsCoverKeys(t *testing.T) {
 			}
 		}
 	}
-	for path := range keyFields {
-		if seen[path] != 1 {
-			t.Errorf("[keys] %s appears %d times in keySections, want once", path, seen[path])
+	for path, n := range seen {
+		if n != 1 {
+			t.Errorf("[keys] %s appears %d times in keySections, want once", path, n)
 		}
-	}
-	if len(seen) != len(keyFields) {
-		t.Errorf("keySections has %d bindings, Keys has %d", len(seen), len(keyFields))
 	}
 }

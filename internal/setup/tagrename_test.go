@@ -17,7 +17,7 @@ import (
 func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 	t.Parallel()
 	refs := []string{"tag:T0", "TAG:t0", "not tag:T0", "not  Tag:T0 "}
-	decoys := []string{"tag:T0x", "room:tag:T0", "T0", "tag:T1", "space:T0"}
+	decoys := []string{"tag:T0x", "room:tag:T0", "place:T0", "tag:T1", "space:T0"}
 	rooms := []domain.RoomFacts{
 		{ID: "!a:x", Name: "tag:T0", Spaces: []string{"T0"}},
 		{ID: "!b:x", Name: "Bravo", Direct: true},
@@ -37,9 +37,9 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 		cfg.Notifications.Rules = []config.Rule{{Match: positive()}, {Match: "space:T0"}}
 		cfg.Codes.Include = []string{positive(), decoy()}
 		cfg.Agent.Read.Rooms = []string{positive(), "room:tag:T0"}
-		cfg.Display.Priority = []string{positive(), "T0"}
-		cfg.Display.Rail.Order = []string{positive(), "T0", "-"}
-		cfg.Display.Rail.Hidden = []string{"t0", decoy()}
+		cfg.Display.Priority = []string{positive(), "space:T0"}
+		cfg.Display.Rail.Order = []string{positive(), "place:T0", "-"}
+		cfg.Display.Rail.Hidden = []string{"tag:t0", decoy()}
 		cfg.Display.SpaceRules = []config.SpaceRule{{Space: positive(), FirstNameOnly: true}}
 		cfg.Display.Emoji.Extra = map[string]string{"tag:T0": "x"} // a key, not a value
 
@@ -77,16 +77,16 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 			}
 		}
 		if out.Tags[0].Rule[1] != "room:tag:T0" || out.Notifications.Rules[1].Match != "space:T0" ||
-			out.Display.Priority[1] != "T0" || out.Display.Rail.Order[1] != "T0" || out.Display.Emoji.Extra["tag:T0"] != "x" {
+			out.Display.Priority[1] != "space:T0" || out.Display.Rail.Order[1] != "place:T0" || out.Display.Emoji.Extra["tag:T0"] != "x" {
 			t.Fatalf("seed %d: a decoy changed: %+v", seed, out)
 		}
-		if out.Display.Rail.Hidden[0] != "Family" {
-			t.Fatalf("seed %d: the rail's bare name %q not renamed", seed, out.Display.Rail.Hidden[0])
+		if out.Display.Rail.Hidden[0] != "tag:Family" {
+			t.Fatalf("seed %d: the rail's tag:t0 became %q", seed, out.Display.Rail.Hidden[0])
 		}
 		if (Validate(cfg) == nil) != (Validate(out) == nil) {
 			t.Fatalf("seed %d: valid before %v, after %v", seed, Validate(cfg), Validate(out))
 		}
-		if cfg.Tags[0].Name != "T0" || cfg.Display.Rail.Hidden[0] != "t0" {
+		if cfg.Tags[0].Name != "T0" || cfg.Display.Rail.Hidden[0] != "tag:t0" {
 			t.Fatalf("seed %d: renaming changed the config it was given", seed)
 		}
 	}
@@ -97,15 +97,15 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 func TestDeletingATag(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Homeserver: "https://x", User: "@me:x", Tags: []config.Tag{{Name: "Old"}, {Name: "Keep"}}}
-	cfg.Display.Rail.Order = []string{"tag:Old", "Work", "tag:Keep"}
-	cfg.Display.Rail.Hidden = []string{"old"}
-	cfg.Display.Priority = []string{"tag:old", "Old"}
+	cfg.Display.Rail.Order = []string{"tag:Old", "space:Work", "tag:Keep"}
+	cfg.Display.Rail.Hidden = []string{"TAG:old"}
+	cfg.Display.Priority = []string{"tag:old", "space:Old", "place:Old"}
 	out := DeleteTag(cfg, "OLD")
 	if len(out.Tags) != 1 || out.Tags[0].Name != "Keep" {
 		t.Errorf("tags = %+v", out.Tags)
 	}
-	if !slices.Equal(out.Display.Rail.Order, []string{"Work", "tag:Keep"}) || len(out.Display.Rail.Hidden) != 0 ||
-		!slices.Equal(out.Display.Priority, []string{"Old"}) { // a space named Old stays
+	if !slices.Equal(out.Display.Rail.Order, []string{"space:Work", "tag:Keep"}) || len(out.Display.Rail.Hidden) != 0 ||
+		!slices.Equal(out.Display.Priority, []string{"space:Old", "place:Old"}) { // a space named Old, a row shown as Old stay
 		t.Errorf("rail %+v, priority %v", out.Display.Rail, out.Display.Priority)
 	}
 	if err := Validate(out); err != nil {
@@ -234,18 +234,35 @@ func TestCombinedTagsKeepTheirRules(t *testing.T) {
 	t.Parallel()
 	var cfg config.Config
 	cfg.Tags = []config.Tag{
-		{Name: "Friends", Rule: []string{"space:Work", "tag:Mates"}, Exclusive: true},
+		{Name: "Friends", Rule: []string{"space:Work", "tag:Mates"}, Exclusive: []string{"tags"}},
 		{Name: "Mates", Rule: []string{"dm"}, Picked: []string{"!x:y"}},
 		{Name: "Quiet", Rule: []string{"tag:Mates"}},
 	}
 	cfg.Display.Rail.Order = []string{"tag:Mates", "tag:Friends"}
 	cfg.Telegram.Archive.Tag = "Mates"
 	got := CombineTags(cfg, "mates", "Friends", nil, func(string, domain.RoomFacts) bool { return false })
-	if len(got.Tags) != 2 || !slices.Equal(got.Tags[0].Rule, []string{"space:Work", "dm"}) || !slices.Equal(got.Tags[0].Picked, []string{"!x:y"}) || !got.Tags[0].Exclusive {
+	if len(got.Tags) != 2 || !slices.Equal(got.Tags[0].Rule, []string{"space:Work", "dm"}) || !slices.Equal(got.Tags[0].Picked, []string{"!x:y"}) || !got.Tags[0].ExclusiveFrom("tags") {
 		t.Errorf("combined = %+v", got.Tags)
 	}
 	if !slices.Equal(got.Tags[1].Rule, []string{"tag:Friends"}) || !slices.Equal(got.Display.Rail.Order, []string{"tag:Friends"}) || got.Telegram.Archive.Tag != "Friends" {
 		t.Errorf("references: Quiet %v, rail %v, archive %q", got.Tags[1].Rule, got.Display.Rail.Order, got.Telegram.Archive.Tag)
+	}
+}
+
+// Combining keeps the people both tags hold, whether the rules are joined or the
+// rooms picked by ID.
+func TestCombinedTagsKeepTheirPeople(t *testing.T) {
+	t.Parallel()
+	for name, rule := range map[string][]string{"joined rules": {"dm"}, "picked by ID": {"not dm"}} {
+		var cfg config.Config
+		cfg.Tags = []config.Tag{
+			{Name: "Spam", Rule: rule, People: []string{"@a:x", "@b:x"}},
+			{Name: "Junk", People: []string{"@b:x", "telegram:1"}},
+		}
+		got := CombineTags(cfg, "Junk", "Spam", nil, func(string, domain.RoomFacts) bool { return false })
+		if len(got.Tags) != 1 || !slices.Equal(got.Tags[0].People, []string{"@a:x", "@b:x", "telegram:1"}) {
+			t.Errorf("%s: combined = %+v", name, got.Tags)
+		}
 	}
 }
 

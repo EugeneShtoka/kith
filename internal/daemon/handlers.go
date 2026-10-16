@@ -96,13 +96,26 @@ func (s *server) StarredIn(ctx context.Context, r *req[v1.StarredInRequest]) (*r
 	return reply(&v1.StarredInResponse{EventIds: out}, err)
 }
 
-func (s *server) SpamRooms(ctx context.Context, _ *req[v1.SpamRoomsRequest]) (*resp[v1.SpamRoomsResponse], error) {
-	verdicts, err := s.Backend.SpamRooms(ctx)
-	return reply(&v1.SpamRoomsResponse{Rooms: pc.SpamToProto(verdicts)}, err)
+func (s *server) TagVerdicts(ctx context.Context, _ *req[v1.TagVerdictsRequest]) (*resp[v1.TagVerdictsResponse], error) {
+	verdicts, err := s.Backend.TagVerdicts(ctx)
+	return reply(&v1.TagVerdictsResponse{Verdicts: pc.VerdictsToProto(verdicts)}, err)
 }
 
-func (s *server) MarkSpam(ctx context.Context, r *req[v1.MarkSpamRequest]) (*resp[v1.MarkSpamResponse], error) {
-	return reply(&v1.MarkSpamResponse{}, s.Backend.MarkSpam(ctx, pc.ProtoToSpam(r.Msg.GetVerdict())))
+func (s *server) MarkTag(ctx context.Context, r *req[v1.MarkTagRequest]) (*resp[v1.MarkTagResponse], error) {
+	return reply(&v1.MarkTagResponse{}, s.Backend.MarkTag(ctx, pc.ProtoToVerdict(r.Msg.GetVerdict())))
+}
+
+func (s *server) PersonVerdicts(ctx context.Context, _ *req[v1.PersonVerdictsRequest]) (*resp[v1.PersonVerdictsResponse], error) {
+	verdicts, err := s.Backend.PersonVerdicts(ctx)
+	return reply(&v1.PersonVerdictsResponse{Verdicts: pc.PersonVerdictsToProto(verdicts)}, err)
+}
+
+func (s *server) MarkPerson(ctx context.Context, r *req[v1.MarkPersonRequest]) (*resp[v1.MarkPersonResponse], error) {
+	return reply(&v1.MarkPersonResponse{}, s.Backend.MarkPerson(ctx, pc.ProtoToPersonVerdict(r.Msg.GetVerdict())))
+}
+
+func (s *server) RetagVerdicts(ctx context.Context, r *req[v1.RetagVerdictsRequest]) (*resp[v1.RetagVerdictsResponse], error) {
+	return reply(&v1.RetagVerdictsResponse{}, s.Backend.RetagVerdicts(ctx, r.Msg.GetFrom(), r.Msg.GetTo()))
 }
 
 func (s *server) MarkRead(ctx context.Context, r *req[v1.MarkReadRequest]) (*resp[v1.MarkReadResponse], error) {
@@ -187,13 +200,17 @@ func (s *server) SendTyping(ctx context.Context, r *req[v1.SendTypingRequest]) (
 }
 
 // SendFile refuses relative paths: the daemon's working directory is systemd's,
-// not the user's.
+// not the user's. A request naming no name sends the file under its own.
 func (s *server) SendFile(ctx context.Context, r *req[v1.SendFileRequest]) (*resp[v1.SendFileResponse], error) {
 	path := r.Msg.GetPath()
 	if !filepath.IsAbs(path) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("daemon: send file: the path must be absolute"))
 	}
-	return reply(&v1.SendFileResponse{}, s.Backend.SendFile(ctx, roomID(r.Msg.GetRoomId()), path, r.Msg.GetCaption()))
+	name := r.Msg.GetName()
+	if name == "" {
+		name = filepath.Base(path)
+	}
+	return reply(&v1.SendFileResponse{}, s.Backend.SendFile(ctx, roomID(r.Msg.GetRoomId()), path, name, r.Msg.GetCaption()))
 }
 
 // ── Unread ──
@@ -428,37 +445,27 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 	return reply(&v1.ReplaceDraftResponse{Saved: saved}, cmp.Or(err, wrote))
 }
 
-// errNoLogins refuses a login on a daemon that runs none.
-var errNoLogins = fmt.Errorf("%w: this daemon logs nothing in", api.ErrNetworkOff)
+func (s *server) ChatOffers(ctx context.Context, _ *req[v1.ChatOffersRequest]) (*resp[v1.ChatOffersResponse], error) {
+	offers, err := s.Backend.ChatOffers(ctx)
+	return reply(&v1.ChatOffersResponse{Offers: pc.ChatOffersToProto(offers)}, err)
+}
 
 func (s *server) LoginNetworks(ctx context.Context, _ *req[v1.LoginNetworksRequest]) (*resp[v1.LoginNetworksResponse], error) {
-	if s.Logins == nil {
-		return reply(&v1.LoginNetworksResponse{}, nil)
-	}
 	networks, err := s.Logins.LoginNetworks(ctx)
 	return reply(&v1.LoginNetworksResponse{Networks: loginNetworksToProto(networks)}, err)
 }
 
 func (s *server) BeginLogin(ctx context.Context, r *req[v1.BeginLoginRequest]) (*resp[v1.BeginLoginResponse], error) {
-	if s.Logins == nil {
-		return nil, rpcErr(errNoLogins)
-	}
 	step, err := s.Logins.BeginLogin(ctx, r.Msg.GetNetwork(), r.Msg.GetAccount())
 	return reply(&v1.BeginLoginResponse{Step: loginStepToProto(step)}, err)
 }
 
 func (s *server) AnswerLogin(ctx context.Context, r *req[v1.AnswerLoginRequest]) (*resp[v1.AnswerLoginResponse], error) {
-	if s.Logins == nil {
-		return nil, rpcErr(errNoLogins)
-	}
 	step, err := s.Logins.AnswerLogin(ctx, r.Msg.GetLogin(), r.Msg.GetValues())
 	return reply(&v1.AnswerLoginResponse{Step: loginStepToProto(step)}, err)
 }
 
 func (s *server) CancelLogin(ctx context.Context, r *req[v1.CancelLoginRequest]) (*resp[v1.CancelLoginResponse], error) {
-	if s.Logins == nil {
-		return reply(&v1.CancelLoginResponse{}, nil)
-	}
 	return reply(&v1.CancelLoginResponse{}, s.Logins.CancelLogin(ctx, r.Msg.GetLogin()))
 }
 
@@ -717,24 +724,12 @@ func (s *server) AllowRareWord(ctx context.Context, r *req[v1.AllowRareWordReque
 
 // ── Notification ──
 
-// noNotifier refuses when the daemon has no notifier (test harnesses): an empty set
-// would falsely read as "nothing is silenced".
-func (s *server) noNotifier() error {
-	if s.Notifications != nil {
-		return nil
-	}
-	return connect.NewError(connect.CodeUnimplemented, errors.New("daemon: this daemon does not deliver notifications"))
-}
-
 func invalid(msg string) error {
 	return connect.NewError(connect.CodeInvalidArgument, errors.New("daemon: set dnd: "+msg))
 }
 
 // SetDND refuses a rule that changes nothing or has already lapsed.
 func (s *server) SetDND(_ context.Context, r *req[v1.SetDNDRequest]) (*resp[v1.SetDNDResponse], error) {
-	if err := s.noNotifier(); err != nil {
-		return nil, err
-	}
 	if r.Msg.GetRule() == nil {
 		return nil, invalid("no rule given; say what to silence")
 	}
@@ -749,9 +744,6 @@ func (s *server) SetDND(_ context.Context, r *req[v1.SetDNDRequest]) (*resp[v1.S
 }
 
 func (s *server) ClearDND(_ context.Context, r *req[v1.ClearDNDRequest]) (*resp[v1.ClearDNDResponse], error) {
-	if err := s.noNotifier(); err != nil {
-		return nil, err
-	}
 	var left notify.Temps
 	if r.Msg.GetAll() {
 		left = s.Notifications.ClearAllDND()
@@ -762,34 +754,44 @@ func (s *server) ClearDND(_ context.Context, r *req[v1.ClearDNDRequest]) (*resp[
 }
 
 func (s *server) DND(_ context.Context, _ *req[v1.DNDRequest]) (*resp[v1.DNDResponse], error) {
-	if err := s.noNotifier(); err != nil {
-		return nil, err
-	}
 	return connect.NewResponse(&v1.DNDResponse{Rules: pc.TempRulesToProto(s.Notifications.DND())}), nil
+}
+
+func (s *server) RescanFilters(ctx context.Context, r *req[v1.RescanFiltersRequest]) (*resp[v1.RescanFiltersResponse], error) {
+	var since time.Time
+	if ms := r.Msg.GetSinceUnixMs(); ms > 0 {
+		since = time.UnixMilli(ms)
+	}
+	rooms := make([]domain.RoomID, 0, len(r.Msg.GetRoomIds()))
+	for _, id := range r.Msg.GetRoomIds() {
+		rooms = append(rooms, domain.RoomID(id))
+	}
+	found, err := s.Notifications.RescanFilters(ctx, since, r.Msg.GetApply(), rooms)
+	return reply(&v1.RescanFiltersResponse{Rooms: pc.CandidatesToProto(found)}, err)
+}
+
+func (s *server) RescanPeople(ctx context.Context, r *req[v1.RescanPeopleRequest]) (*resp[v1.RescanPeopleResponse], error) {
+	var since time.Time
+	if ms := r.Msg.GetSinceUnixMs(); ms > 0 {
+		since = time.UnixMilli(ms)
+	}
+	found, err := s.Notifications.RescanPeople(ctx, since, r.Msg.GetApply(), r.Msg.GetPeople())
+	return reply(&v1.RescanPeopleResponse{People: pc.PersonCandidatesToProto(found)}, err)
 }
 
 // ReloadConfig reports an unparsable config as InvalidArgument: it is the caller's input.
 func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest]) (*resp[v1.ReloadConfigResponse], error) {
-	if s.Reload == nil {
-		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("daemon: this daemon was started without a config to re-read"))
-	}
 	if err := s.Reload(ctx); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if s.Config != nil { // a hand edit: every client hears it as a written change
-		if snap, err := s.Config.Read(); err == nil {
-			s.Streams.Configured(snap)
-		}
+	// A hand edit: every client hears it as a written change.
+	if snap, err := s.Config.Read(); err == nil {
+		s.Streams.Configured(snap)
 	}
 	return connect.NewResponse(&v1.ReloadConfigResponse{}), nil
 }
 
-var errNoConfigFile = errors.New("daemon: this daemon was started without a config file")
-
 func (s *server) GetConfig(context.Context, *req[v1.GetConfigRequest]) (*resp[v1.GetConfigResponse], error) {
-	if s.Config == nil {
-		return nil, connect.NewError(connect.CodeUnimplemented, errNoConfigFile)
-	}
 	snap, err := s.Config.Read()
 	if err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
@@ -800,9 +802,6 @@ func (s *server) GetConfig(context.Context, *req[v1.GetConfigRequest]) (*resp[v1
 // UpdateConfig writes a client's configuration, refusing one based on an older file
 // (ABORTED) or one the daemon would not run with (INVALID_ARGUMENT), and broadcasts it.
 func (s *server) UpdateConfig(ctx context.Context, r *req[v1.UpdateConfigRequest]) (*resp[v1.UpdateConfigResponse], error) {
-	if s.Config == nil {
-		return nil, connect.NewError(connect.CodeUnimplemented, errNoConfigFile)
-	}
 	cfg, err := config.Decode(r.Msg.GetConfig())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -832,9 +831,6 @@ func (s *server) ConfigChanged(ctx context.Context, _ *req[v1.ConfigChangedReque
 
 // CheckConfig reports a config the daemon would refuse as InvalidArgument.
 func (s *server) CheckConfig(ctx context.Context, r *req[v1.CheckConfigRequest]) (*resp[v1.CheckConfigResponse], error) {
-	if s.Daemon.CheckConfig == nil {
-		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("daemon: this daemon cannot check a config"))
-	}
 	cfg, err := config.Decode(r.Msg.GetConfig())
 	if err == nil {
 		err = s.Daemon.CheckConfig(ctx, cfg)
@@ -847,13 +843,8 @@ func (s *server) CheckConfig(ctx context.Context, r *req[v1.CheckConfigRequest])
 
 // ── Schedule ──
 
-var errNoScheduler = errors.New("daemon: scheduled messages are unavailable on this daemon")
-
 // Schedule assigns the ID: it is the cancel handle, and a client-chosen one could collide.
 func (s *server) Schedule(_ context.Context, r *req[v1.ScheduleRequest]) (*resp[v1.ScheduleResponse], error) {
-	if s.Scheduler == nil {
-		return nil, rpcErr(errNoScheduler)
-	}
 	msg := pc.ProtoToScheduled(r.Msg.GetMessage())
 	msg.ID = newScheduleID()
 	if msg.Written.IsZero() {
@@ -863,16 +854,10 @@ func (s *server) Schedule(_ context.Context, r *req[v1.ScheduleRequest]) (*resp[
 }
 
 func (s *server) ScheduledMessages(_ context.Context, _ *req[v1.ScheduledMessagesRequest]) (*resp[v1.ScheduledMessagesResponse], error) {
-	if s.Scheduler == nil {
-		return nil, rpcErr(errNoScheduler)
-	}
 	return connect.NewResponse(&v1.ScheduledMessagesResponse{Messages: pc.ScheduledToProto(s.Scheduler.List())}), nil
 }
 
 func (s *server) CancelScheduled(_ context.Context, r *req[v1.CancelScheduledRequest]) (*resp[v1.CancelScheduledResponse], error) {
-	if s.Scheduler == nil {
-		return nil, rpcErr(errNoScheduler)
-	}
 	return reply(&v1.CancelScheduledResponse{}, s.Scheduler.Cancel(r.Msg.GetId()))
 }
 

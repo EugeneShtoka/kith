@@ -18,7 +18,7 @@ func TestARoomsFactsAreReadOneWay(t *testing.T) {
 	}
 	places := domain.Places{
 		Names: map[domain.RoomID]string{"!r:x": "Daily"},
-		Order: domain.HomeOrder{Priority: []string{"Telegram"}},
+		Order: domain.HomeOrder{Priority: []string{"space:Telegram"}},
 		Tags:  tagSet(t, domain.Tag{Name: "Pinned", Picked: []string{"room:Daily"}}),
 	}
 	got := places.Facts(room, holders)

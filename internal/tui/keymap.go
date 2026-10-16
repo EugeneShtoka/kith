@@ -63,6 +63,7 @@ const (
 	actConfirm
 	actJoin
 	actLeave
+	actEditPlace
 	actAccept
 	actReject
 	actSubmit
@@ -136,7 +137,6 @@ const (
 	actKick
 	actBan
 	actSpaces
-	actSpam
 	actToggleArchived // show or hide the place's archived rooms
 	actOpenThread
 	actStartThread
@@ -152,6 +152,7 @@ const (
 	actSaveSpeed
 	actStopPlay
 	actReveal
+	actShowMarked
 	actSpellWalk
 	actSpellSkip
 	actSpellAdd
@@ -368,6 +369,7 @@ var keyActions = []keyAction{
 	{scopeRail, actNotifyRule, "rail.notify_rule"},
 	{scopeRail, actMarkRead, "rail.mark_read"},
 	{scopeRail, actLeave, "rail.leave"},
+	{scopeRail, actEditPlace, "rail.edit"},
 
 	{scopeRooms, actAccept, "rooms.accept"},
 	{scopeRooms, actReject, "rooms.reject"},
@@ -384,7 +386,6 @@ var keyActions = []keyAction{
 	{scopeRooms, actMarkUnread, "rooms.mark_unread"},
 	{scopeRooms, actInvite, "rooms.invite"},
 	{scopeRooms, actSpaces, "rooms.spaces"},
-	{scopeRooms, actSpam, "rooms.spam"},
 	{scopeRooms, actToggleArchived, "rooms.archived"},
 
 	{scopeTimeline, actInsert, "timeline.insert"},
@@ -423,6 +424,7 @@ var keyActions = []keyAction{
 	{scopeTimeline, actNextDay, "timeline.next_day"},
 	{scopeTimeline, actExternalEdit, "composer.external_edit"},
 	{scopeTimeline, actReveal, "timeline.reveal"},
+	{scopeTimeline, actShowMarked, "timeline.show_marked"},
 	{scopeTimeline, actSpellWalk, "spell.open"},
 
 	{scopeCompletion, actNext, "completion.next"},
@@ -558,10 +560,11 @@ type keymap struct {
 	issues   []string
 	// labels is each action's keys in resolution order, for help and the legend.
 	labels map[scope]map[action][]string
-	// jumps and scripts are sequences bound to a place ([keys.jump]) or a user command. They
-	// resolve only where keys are commands, after the action scopes, so they can neither swallow
-	// text nor shadow a built-in.
+	// jumps, tagKeys and scripts are sequences bound to a place ([keys.jump]), a tag
+	// ([keys.tag], by name) or a user command. They resolve only where keys are commands, after
+	// the action scopes, so they can neither swallow text nor shadow a built-in.
 	jumps   map[string]domain.JumpTarget
+	tagKeys map[string]string
 	scripts map[string]string
 }
 
@@ -636,6 +639,7 @@ func newKeymap(keys config.Keys) keymap {
 
 	km.keepEssentials(defaults)
 	km.bindJumps(keys.Jump.Map())
+	km.bindTagKeys(keys.Tag.Map())
 	return km
 }
 
@@ -705,6 +709,34 @@ func (k *keymap) bindJumps(jumps map[string]string) {
 			k.claimPrefixes(scopeGlobal, seq)
 		}
 	}
+}
+
+// bindTagKeys records sequences bound to tags, under bindJumps' rules. Whether the tag
+// exists is asked when the key is pressed: tags change without a new keymap.
+func (k *keymap) bindTagKeys(tags map[string]string) {
+	for _, binding := range slices.Sorted(maps.Keys(tags)) {
+		seq := normalizeSequence(strings.TrimSpace(binding))
+		switch {
+		case !sequenceValid(seq):
+			k.issues = append(k.issues,
+				fmt.Sprintf("tag %q: %q is not a key name the terminal reports; ignored", tags[binding], binding))
+		case k.jumpConflict(seq) != "":
+			k.issues = append(k.issues,
+				fmt.Sprintf("tag %q: %s — unbind it with \"-\" first", tags[binding], k.jumpConflict(seq)))
+		default:
+			if k.tagKeys == nil {
+				k.tagKeys = map[string]string{}
+			}
+			k.tagKeys[seq] = strings.TrimSpace(tags[binding])
+			k.claimPrefixes(scopeGlobal, seq)
+		}
+	}
+}
+
+// tagFor is the tag a completed sequence puts rooms in, if it is one.
+func (k keymap) tagFor(seq string) (string, bool) {
+	tag, ok := k.tagKeys[seq]
+	return tag, ok
 }
 
 // bindScripts records sequences bound to user commands, under bindJumps' rules; two commands
@@ -782,6 +814,12 @@ var sharedScopes = []scope{scopeGlobal, scopeNav, scopeCommand, scopePlayer}
 func (k keymap) jumpConflict(seq string) string {
 	if s, act, ok := k.actionFor(seq); ok {
 		return "already bound to " + actionName(s, act)
+	}
+	if _, ok := k.jumps[seq]; ok {
+		return "already a jump ([keys.jump])"
+	}
+	if tag, ok := k.tagKeys[seq]; ok {
+		return "already puts rooms in " + tag + " ([keys.tag])"
 	}
 	if k.incompleteAnywhere(seq) {
 		return "the start of a longer binding — that one would become unreachable"
@@ -864,6 +902,9 @@ func (k keymap) incompleteAnywhere(seq string) bool { return len(k.prefixes[seq]
 func (k keymap) boundIn(seq string, scopes ...scope) bool {
 	// Scripts too, or multi-step script bindings are abandoned mid-sequence.
 	if _, ok := k.jumps[seq]; ok {
+		return true
+	}
+	if _, ok := k.tagKeys[seq]; ok {
 		return true
 	}
 	if _, ok := k.scripts[seq]; ok {

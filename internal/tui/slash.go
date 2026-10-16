@@ -134,6 +134,13 @@ var slashCommands = []slashCommand{
 		},
 	},
 	{
+		name:     "/hidden",
+		keyScope: scopeTimeline,
+		keyAct:   actShowMarked,
+		summary:  "show the messages of people you hid, in this room until you leave it — or hide them again",
+		run:      consuming(func(m Model) (Model, tea.Cmd) { return m.toggleMarkedShown() }),
+	},
+	{
 		name:     "/threads",
 		keyScope: scopeTimeline,
 		keyAct:   actListThreads,
@@ -179,15 +186,8 @@ var slashCommands = []slashCommand{
 	},
 	{
 		name:    "/caught",
-		summary: "what the spam filters catch here — {search.scope} widens it",
+		summary: "what the filters catch here — {search.scope} widens it",
 		run:     consuming(Model.openCaught),
-	},
-	{
-		name:     "/spam",
-		keyScope: scopeRooms,
-		keyAct:   actSpam,
-		summary:  "move this conversation into Spam, or take it out — out of the counts, still readable",
-		run:      consuming(Model.toggleSpam),
 	},
 	{
 		name:    "/direction",

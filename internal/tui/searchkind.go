@@ -193,13 +193,14 @@ func (filesList) summary(m Model, where string) string {
 	return countedSummary(len(m.search.hits), where, "no files", "1 file", "files")
 }
 
-// caughtList previews what the spam filters would catch, through the daemon's matcher
+// caughtList previews what the filters would catch, through the daemon's matcher
 // (domain.Tracked).
 type caughtList struct {
 	words   []string          // every filter's words, flattened
 	filters map[string]string // word → the filter that owns it, for the row label
-	// senders counts sender-only filters, which a word query cannot show; the summary says so.
-	senders int
+	// wordless counts filters with no words (a sender or a language alone), which a word
+	// query cannot show; the summary says so.
+	wordless int
 }
 
 func (caughtList) name() string             { return "Caught" }
@@ -222,11 +223,11 @@ func (c caughtList) summary(m Model, where string) string {
 	if m.search.err != nil {
 		return "could not preview the filters: " + m.search.err.Error()
 	}
-	if len(c.words) == 0 && c.senders == 0 {
-		return "no spam filters yet — add one under [[spam.filter]] in the config"
+	if len(c.words) == 0 && c.wordless == 0 {
+		return "no filters yet — add one under [[filter]] in the config"
 	}
 	if len(c.words) == 0 {
-		return c.bySender() + " — nothing here is matched by words, so there is nothing to preview"
+		return c.byOther() + " — nothing here is matched by words, so there is nothing to preview"
 	}
 	if q := strings.TrimSpace(m.search.query); q != "" {
 		return fmt.Sprintf("%d caught %s match %s", len(m.search.hits), where, quoted(q))
@@ -242,15 +243,15 @@ func (c caughtList) summary(m Model, where string) string {
 	default:
 		caught = fmt.Sprintf("%d caught %s, newest first", n, where)
 	}
-	if c.senders > 0 {
-		caught += " · " + c.bySender() + ", not shown"
+	if c.wordless > 0 {
+		caught += " · " + c.byOther() + ", not shown"
 	}
 	return caught
 }
 
-func (c caughtList) bySender() string {
-	if c.senders == 1 {
-		return "1 filter catches by sender"
+func (c caughtList) byOther() string {
+	if c.wordless == 1 {
+		return "1 filter catches by sender or language"
 	}
-	return fmt.Sprintf("%d filters catch by sender", c.senders)
+	return fmt.Sprintf("%d filters catch by sender or language", c.wordless)
 }

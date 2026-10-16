@@ -43,6 +43,12 @@ func TestIDsSayTheirNetworkAndAccount(t *testing.T) {
 		"telegram channel":    {"telegram:111/-1004444", domain.ID{Network: domain.ProtocolTelegram, Account: "111", Native: "-1004444"}, true, false, ""},
 		"telegram message":    {"telegram:111/-1004444/55", domain.ID{Network: domain.ProtocolTelegram, Account: "111", Native: "-1004444/55"}, false, false, ""},
 		"telegram user":       {"telegram:222", domain.ID{Network: domain.ProtocolTelegram, Native: "222"}, false, true, ""},
+		"linkedin chat":       {"linkedin:ACoAAA1/2-YWJj%2FZA==", domain.ID{Network: domain.ProtocolLinkedIn, Account: "ACoAAA1", Native: "2-YWJj%2FZA=="}, true, false, ""},
+		"linkedin message":    {"linkedin:ACoAAA1/2-YWJj%2FZA==/2-bWVz", domain.ID{Network: domain.ProtocolLinkedIn, Account: "ACoAAA1", Native: "2-YWJj%2FZA==/2-bWVz"}, false, false, ""},
+		"gmessages chat":      {"gmessages:ph%2F1/42", domain.ID{Network: domain.ProtocolGMessages, Account: "ph%2F1", Native: "42"}, true, false, ""},
+		"gmessages person":    {"gmessages:+15550000001", domain.ID{Network: domain.ProtocolGMessages, Native: "+15550000001"}, false, true, "+15550000001"},
+		"gmessages message":   {"gmessages:ph%2F1/42/9", domain.ID{Network: domain.ProtocolGMessages, Account: "ph%2F1", Native: "42/9"}, false, false, ""},
+		"linkedin person":     {"linkedin:ACoAAA2", domain.ID{Network: domain.ProtocolLinkedIn, Native: "ACoAAA2"}, false, true, ""},
 		// An unknown prefix is Matrix's.
 		"unknown prefix": {"room:Standup", domain.ID{Network: domain.ProtocolMatrix, Native: "room:Standup"}, false, false, "room"},
 		"empty":          {"", domain.ID{Network: domain.ProtocolMatrix}, false, false, ""},

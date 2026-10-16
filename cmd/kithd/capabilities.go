@@ -2,7 +2,10 @@ package main
 
 import (
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/gmessages"
+	"github.com/EugeneShtoka/kith/internal/linkedin"
 	"github.com/EugeneShtoka/kith/internal/matrix"
+	"github.com/EugeneShtoka/kith/internal/meta"
 	"github.com/EugeneShtoka/kith/internal/route"
 	"github.com/EugeneShtoka/kith/internal/slack"
 	"github.com/EugeneShtoka/kith/internal/telegram"
@@ -18,10 +21,11 @@ var (
 		route.Session
 		route.Resync
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.Stars
-		route.SpamReports
+		route.TagMoves
 		route.History
 		route.Sender
 		route.Typist
@@ -42,16 +46,19 @@ var (
 	_ interface {
 		route.Adapter
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.Archiver
 		route.Stars
-		route.SpamReports
+		route.TagMoves
 		route.History
 		route.Sender
 		route.Typist
 		route.Uploader
 		route.Reactor
+		route.ChatMaker
+		route.PollReader
 		route.Voter
 		route.Redactor
 		route.People
@@ -65,7 +72,9 @@ var (
 
 	_ interface {
 		route.Adapter
+		route.TagMoves
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.History
@@ -73,6 +82,7 @@ var (
 		route.Typist
 		route.Uploader
 		route.Reactor
+		route.ChatMaker
 		route.Redactor
 		route.People
 		route.Media
@@ -85,7 +95,9 @@ var (
 
 	_ interface {
 		route.Adapter
+		route.TagMoves
 		route.RoomLister
+		route.Recounter
 		route.Homes
 		route.ReadState
 		route.Archiver
@@ -95,6 +107,8 @@ var (
 		route.Typist
 		route.Uploader
 		route.Reactor
+		route.ChatMaker
+		route.PollReader
 		route.Redactor
 		route.People
 		route.Media
@@ -108,4 +122,69 @@ var (
 		roomsRewriter
 		cacheWriter
 	} = (*telegram.Adapter)(nil)
+
+	// Messenger, so far: threads, people, messages, history, reading and sending text,
+	// reactions and typing (files come next).
+	_ interface {
+		route.Adapter
+		route.Sender
+		route.Reactor
+		route.Typist
+		route.RoomLister
+		route.Recounter
+		route.Homes
+		route.ReadState
+		route.History
+		route.People
+		route.Encryption
+		route.SpaceLister
+		route.SignOuter
+		configChecker
+		roomsRewriter
+		cacheWriter
+	} = (*meta.Adapter)(nil)
+
+	// LinkedIn: conversations, people, messages, reading, sending, editing, deleting,
+	// reactions, typing, history, attachments and filters' moves (kept locally).
+	_ interface {
+		route.Adapter
+		route.TagMoves
+		route.RoomLister
+		route.Recounter
+		route.Homes
+		route.ReadState
+		route.History
+		route.People
+		route.Encryption
+		route.SpaceLister
+		route.SignOuter
+		route.Leaver
+		route.Sender
+		route.Redactor
+		route.Reactor
+		route.Typist
+		route.Media
+		route.Uploader
+		configChecker
+		roomsRewriter
+		cacheWriter
+	} = (*linkedin.Adapter)(nil)
+
+	// Google Messages, so far: conversations, people, messages from the cache, reading
+	// (sending and history paging come next).
+	_ interface {
+		route.Adapter
+		route.RoomLister
+		route.Recounter
+		route.Homes
+		route.ReadState
+		route.History
+		route.People
+		route.Encryption
+		route.SpaceLister
+		route.SignOuter
+		configChecker
+		roomsRewriter
+		cacheWriter
+	} = (*gmessages.Adapter)(nil)
 )

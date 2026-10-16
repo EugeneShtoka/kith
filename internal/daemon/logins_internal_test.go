@@ -1,10 +1,14 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"math/rand/v2"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -50,6 +54,7 @@ func TestLoginsNeverHangOrLeak(t *testing.T) {
 		running := &atomic.Int32{}
 		run, stop := context.WithCancel(context.Background())
 		l := NewLogins(run, func() []api.LoginLeader { return []api.LoginLeader{asker{running}} })
+		l.LogTo(slog.New(slog.DiscardHandler)) // logging on under every interleaving, for -race
 		var mu sync.Mutex
 		var ids []string
 		pick := func(rng *rand.Rand) string {
@@ -125,4 +130,65 @@ func TestANewLoginOfAnAccountEndsTheOlder(t *testing.T) {
 	if step, err := l.AnswerLogin(ctx, newer.Login, map[string]string{"x": "ok"}); err != nil || step.Done != "done" {
 		t.Errorf("answering the newer login = (%+v, %v), want done", step, err)
 	}
+}
+
+// A login's steps and end are logged, so a stuck one leaves a trace, and nothing
+// typed or shown is: not an answer, not a code.
+func TestLoginsLogStepsButNotWhatIsTyped(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	var mu sync.Mutex
+	l := NewLogins(context.Background(), func() []api.LoginLeader { return []api.LoginLeader{asker{&atomic.Int32{}}} })
+	l.LogTo(slog.New(slog.NewTextHandler(&lockedWriter{w: &buf, mu: &mu}, nil)))
+	ctx := context.Background()
+	step, err := l.BeginLogin(ctx, "fake", "home")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The asker shows CODE on its second round, then asks again.
+	for _, answer := range []string{"hunter2-secret", "ok"} {
+		if step.Code != "" {
+			if step, err = l.AnswerLogin(ctx, step.Login, nil); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if step, err = l.AnswerLogin(ctx, step.Login, map[string]string{"x": answer}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for step.Done == "" {
+		if step.Code != "" {
+			step, err = l.AnswerLogin(ctx, step.Login, nil)
+		} else {
+			step, err = l.AnswerLogin(ctx, step.Login, map[string]string{"x": "ok"})
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	mu.Lock()
+	out := buf.String()
+	mu.Unlock()
+	for _, want := range []string{"login begun", "login asks", "fields=[x]", "login shows a code", "login done"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the log lacks %q:\n%s", want, out)
+		}
+	}
+	for _, leaked := range []string{"hunter2-secret", "CODE"} {
+		if strings.Contains(out, leaked) {
+			t.Errorf("%q reached the log:\n%s", leaked, out)
+		}
+	}
+}
+
+// lockedWriter serializes writes to w.
+type lockedWriter struct {
+	w  io.Writer
+	mu *sync.Mutex
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,6 +52,9 @@ type scopeIndex struct {
 	tags     domain.TagSet
 	archives map[domain.Protocol]string
 	archived map[domain.RoomID]bool
+	// caught is the tags filters moved a room into; nil knows none. Set before use; it
+	// reads memory only.
+	caught func(domain.RoomID) []string
 }
 
 func newScopeIndex(src scopeSource, aliases []config.DisplayName, order domain.HomeOrder) *scopeIndex {
@@ -80,8 +85,8 @@ func (x *scopeIndex) SetArchives(archives map[domain.Protocol]string) {
 	x.archives = archives
 }
 
-// Home is a room's first home (space or tag, in home order), as {space} shows it.
-func (x *scopeIndex) Home(facts domain.RoomFacts) string {
+// FirstHome is a room's first home in home order: a space's name, or tag:<name>.
+func (x *scopeIndex) FirstHome(facts domain.RoomFacts) string {
 	x.mu.Lock()
 	order := x.order
 	x.mu.Unlock()
@@ -89,7 +94,7 @@ func (x *scopeIndex) Home(facts domain.RoomFacts) string {
 	if len(homes) == 0 {
 		return ""
 	}
-	return domain.HomeLabel(homes[0])
+	return homes[0]
 }
 
 // SetHomeOrder replaces the config's part of the home order and drops the index.
@@ -146,10 +151,13 @@ func (x *scopeIndex) Known(roomID domain.RoomID) domain.RoomFacts {
 	return x.factsFrom(roomID, facts)
 }
 
-// factsFrom is one indexed room with current tags.
+// factsFrom is one indexed room with current tags, and the ones filters moved it into.
 func (x *scopeIndex) factsFrom(roomID domain.RoomID, facts domain.RoomFacts) domain.RoomFacts {
 	if facts.ID == "" {
 		facts = domain.RoomFacts{ID: string(roomID), Protocol: domain.NetworkOf(string(roomID))}
+	}
+	if x.caught != nil {
+		facts.Caught = x.caught(roomID)
 	}
 	x.mu.Lock()
 	tags := x.tags
@@ -242,6 +250,42 @@ func buildIndex(
 		}
 	}
 	return index, archived, order, nil
+}
+
+// Mutes reports whether a tag holding the room has notifies = false.
+func (x *scopeIndex) Mutes(facts domain.RoomFacts) bool {
+	x.mu.Lock()
+	tags := x.tags
+	x.mu.Unlock()
+	return tags.Mutes(facts.Tags)
+}
+
+// All is every room's facts, read fresh, in room ID order.
+func (x *scopeIndex) All(ctx context.Context) ([]domain.RoomFacts, error) {
+	x.mu.Lock()
+	src, aliases, base := x.src, x.aliases, x.base
+	x.mu.Unlock()
+	index, archived, _, err := buildIndex(ctx, src, aliases, base)
+	if err != nil {
+		return nil, err
+	}
+	x.mu.Lock()
+	tags, archives := x.tags, x.archives
+	x.mu.Unlock()
+	out := make([]domain.RoomFacts, 0, len(index))
+	for id := range index {
+		facts := index[id]
+		if archived[id] {
+			facts.ArchivedIn = archives[facts.Protocol]
+		}
+		if x.caught != nil {
+			facts.Caught = x.caught(id)
+		}
+		facts.Tags = tags.Of(facts)
+		out = append(out, facts)
+	}
+	slices.SortFunc(out, func(a, b domain.RoomFacts) int { return strings.Compare(a.ID, b.ID) })
+	return out, nil
 }
 
 func roomAliases(names []config.DisplayName) map[domain.RoomID]string {

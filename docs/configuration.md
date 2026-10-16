@@ -87,19 +87,29 @@ You rarely need to open the file. Inside kith:
   the list is what this page's reference says about the setting under the cursor.
   - A change is saved at once and you stay on its row, so several can change in a row;
     `esc` steps back a level.
-  - On/off flips with `enter`. A number steps with `+` and `-`, or `enter` types it on
-    its row (the current value selected, so typing replaces it). Text is typed the
-    same way.
+  - On/off flips with `enter`. A number steps with `+` and `-`, or `enter` types it
+    right below the list (the current value selected, so typing replaces it); the
+    status line shows the keys. Text is typed the same way. Anything asked while a
+    list fills the timeline pane (settings, a person's card, a picker) is typed there,
+    after the list; over the timeline itself, input stays in the status line.
   - A list (priority, the rail's order, include lists) opens its entries: `enter`
-    edits one on its row (emptied, it is removed), `x` removes the entry under the
+    edits one below the list (emptied, it is removed), `x` removes the entry under the
     cursor, the last row adds one, and `K`/`J` move the entry under the cursor.
-  - A list of records (read rules, media rules, people, names you gave, spam filters,
+  - A list of records (read rules, media rules, people, names you gave, filters,
     scripts, accounts, jump shortcuts) opens its records, each one's fields set as
-    above; *Add one* is typed as its first field, *Remove this one* takes it out.
-  - **Names** has a first-names-only switch for every space and tag. **Keys** has
-    every binding by table, typed as the file writes them (`k,up`; empty restores the
-    default, `-` binds nothing); a binding that would clash is refused with the reason.
-  - **Tags** edits your [tags](usage.md#tags).
+    above; *Add one* is typed as its first field, *Remove this one* takes it out. A
+    filter's *Add one* asks for each part in turn (name, tag, words or a sender,
+    where it watches, what it moves) and writes the filter only at the end.
+  - **Keys** has every binding by table, typed as the file writes them (`k,up`; empty
+    restores the default, `-` binds nothing); a binding that would clash is refused
+    with the reason.
+  - **Places** has a page for every space and tag the rail shows (and hidden tags), and
+    makes a new tag. A place's page holds everything about it: a tag's name, rule,
+    rooms and [properties](usage.md#tags); the place's first-names switch, the
+    [phonebook](phonebook.md#a-field-beside-names) field shown beside names, network
+    colors and archived rooms; and its [filters](filters.md), the ones moving rooms
+    into a tag or watching a space, with a row adding one with the place filled in.
+    `e` on a rail row opens that place's page.
 - `a` on a room, space, rail group, thread or person gives it your own name.
 - `b` on a message, room or space writes a notification rule for it.
 - `/why` shows every notification rule in force for the current room, in order, and
@@ -165,7 +175,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[notifications]` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
 | `[clipboard]` | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
 | `[codes]` | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
-| `[spam]` | The Spam group: its room lists, the rules that move rooms there, and `[[spam.filter]]`. | [spam.md](spam.md) |
+| `[[filter]]` | Words, a sender or a language that move rooms into a tag (the starter's Spam, or any other). | [filters.md](filters.md) |
 | `[composer]` | External editor (`alt+e`), temp-file suffix, Markdown on send. | [composer.md](composer.md) |
 | `[spell]` | Spell-checking engine, dictionaries, rare-word detection, check before sending. | [composer.md](composer.md) |
 | `[complete]`, `[complete.model]` | Word completion and ghost text, and the local llama.cpp model behind it. | [composer.md](composer.md) |
@@ -176,39 +186,48 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[log]` | `level`: how much the daemon, the client and `kith-mcp` log (`debug`, `info`, `warn`, `error`; default `info`). `--log-level` and `KITH_LOG_LEVEL` override it. `target`: where the client and a daemon it started log (`auto`, `journal`, `file`; default `auto`, the journal when there is one). `--log-target` and `KITH_LOG_TARGET` override it. | [troubleshooting.md](troubleshooting.md#where-the-log-goes) |
 | `[keys]` and `[keys.*]` | Every keybinding, one table per mode. | [keybindings.md](keybindings.md) |
 
-Some sections take repeatable blocks for per-place overrides. They name places in one
-of three ways.
+Settings that name a place say which kind with a prefix:
+
+- `space:<name>`: a space by its name (a Telegram forum, a WhatsApp community and a
+  Slack workspace are spaces too);
+- `tag:<name>`: a tag;
+- `place:<name>`: every rail row shown as `<name>`, its label after a
+  `[[display.name]]` rename or its name, in any case: a space, a tag, anything the
+  rail shows. Where several rows share the name it means all of them;
+- `room:<name>`: a room by the name kith shows for it; `protocol:<network>` a network.
+
+A room ID (`!abc:example.org`, or a network's own) needs no prefix. A bare name is
+refused at startup, naming the setting and the prefixes it takes, because a space, a
+tag and a room can share one.
 
 **The place vocabulary** is used by `[[notifications.rule]] match`,
-`[[display.tracked.rule]] in` / `except`, and the room lists `[codes] include` /
-`exclude`, `[spam] rooms` / `except`, `[assist] rooms` / `except` and
-`[agent.read]` / `[agent.write]`. An entry is:
-
-- a bare room ID (`!abc:example.org`);
-- `room:<name>`, `space:<name>`, `tag:<name>` or `protocol:<network>` (a tag is
-  judged on the room alone: its state words match nothing as a place);
-- `dm` or `group`.
-
-A bare word that isn't a room ID is refused at startup, because an entry that could mean
-three things is a typo that never matches. An empty list means every place everywhere
-except `[agent.read] rooms`, where it means none.
+`[[display.tracked.rule]] in` / `except`, `[display.direction]`, `[[storage.rule]]
+match`, a tag's `rule`, and the room lists `[codes] include` / `exclude`, `[spam]
+rooms` / `except`, `[assist] rooms` / `except` and `[agent.read]` / `[agent.write]`.
+An entry is a room ID, any of the prefixes above, `dm` or `group` (a tag is judged on
+the room alone: its state words match nothing as a place). An empty list means every
+place everywhere except `[agent.read] rooms`, where it means none.
 
 `kith-mcp` reads the config when it starts, so a room you put in a tag, or take out of
 one, reaches an `[agent.*]` list naming that tag the next time it starts — as does any
 other edit to those lists.
 
-**A room ID or a space's name, as written**, is what `match` takes in
-`[[display.read_rule]]`, `[[display.media.rule]]` and `[[display.threads.rule]]`: for
-example `match = "!abc:example.org"` or `match = "Work"`. These are not checked at
-startup.
+**Rail rows** (`space:`, `tag:` or `place:`) are what `[display] priority`, `[display.rail]
+order` / `hidden` / `hide_when_empty`, `[[display.space_rule]] space` and
+`[[display.rooms.rule]] group` take; the rail order also takes `*` and `-`.
+`[display] filing_spaces` takes `space:`, `place:` or a space's ID. `[[keys.jump]]
+target` takes `room:<room ID>` or a rail row.
+
+**A room ID or a rail row** is what `match` takes in `[[display.read_rule]]`,
+`[[display.media.rule]]` and `[[display.threads.rule]]`, for example
+`match = "space:Work"`; a row there is the room's first home ([display] priority).
 
 **Their own keys:**
 
 - `[[display.name]]` names its `target`: a room ID, `room:<name>`, `space:<name>` or
   `thread:<root event ID>` (a tag is named in its `[[tag]]`);
-- `[[display.rooms.rule]]` names a rail `group`;
 - `[[display.identity]]` lists `ids` (user IDs, on any network);
-- `[[spam.filter]]` matches `words` and `from`.
+- `[[filter]]` matches `words` and `from`.
 
 When several rules match, the narrower one wins: a person in a room beats the room,
 which beats the person anywhere, which beats a space.
@@ -307,8 +326,7 @@ name            = "Archived"
 rule            = ["space:Bots"]
 picked          = ["!announcements:example.org"]
 counts_unread   = false
-exclusive       = true
-space_exclusive = true
+exclusive       = ["tags", "spaces"]
 hide_when_empty = true
 
 [[tag]]
@@ -351,7 +369,7 @@ filing stays in kith (taking a followed chat out writes `excluded`, as for any r
 sort = ["mentions", "unread", "recent", "name"]
 
 [[display.rooms.rule]]
-group = "dms"
+group = "tag:DMs"
 sort  = ["drafts", "unread", "name"]
 ```
 

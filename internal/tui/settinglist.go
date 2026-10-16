@@ -23,7 +23,11 @@ func (m Model) settingEntriesOpen(key, at string) Model {
 	entries := m.settingEntries(key)
 	items := make([]pickerItem, 0, len(entries)+1)
 	for i, e := range entries {
-		items = append(items, pickerItem{label: e, value: strconv.Itoa(i), match: e})
+		label, detail := e, ""
+		if s.entryLabel != nil {
+			label, detail = s.entryLabel(e), e
+		}
+		items = append(items, pickerItem{label: label, detail: detail, value: strconv.Itoa(i), match: label + " " + e})
 	}
 	items = append(items, pickerItem{label: "Add an entry", value: settingAdd, match: "Add an entry"})
 	m.choosing.setting, m.choosing.settingGroup = key, s.group
@@ -124,4 +128,37 @@ func (m Model) writeSettingList(key string, entries []string, at string) (Model,
 	}
 	next, cmd := m.applyConfig(cfg, s.label+": "+s.show(cfg))
 	return next.settingEntriesOpen(key, at), cmd
+}
+
+// settingSetOpen ticks a set setting's values among its choices.
+func (m Model) settingSetOpen(s setting) Model {
+	ticked := map[string]bool{}
+	for _, v := range s.entries(m.conf.base) {
+		ticked[v] = true
+	}
+	items := make([]pickerItem, 0, len(s.choices))
+	for _, c := range s.choices {
+		items = append(items, pickerItem{label: c.label, detail: c.detail, value: c.value, match: c.label + " " + c.value})
+	}
+	m.choosing.setting = s.key
+	spec := pickerSpecs[pickerSettingSet]
+	spec.title = "Settings: " + m.settingGroupLabel(s.group) + " · " + s.label
+	m.picker = newPickerWith(pickerSettingSet, spec, items)
+	m.picker.checked = ticked
+	return m
+}
+
+// writeSettingSet saves the ticked values, in the choices' order; a set refused stays
+// open with the reason.
+func (m Model) writeSettingSet(values []string) (Model, tea.Cmd) {
+	s, ok := m.setting(m.choosing.setting)
+	if !ok || s.setEntries == nil {
+		return m.closePicker(), nil
+	}
+	cfg := m.conf.base.Clone()
+	if err := s.setEntries(&cfg, values); err != nil {
+		return m.sayErr(s.label, err), nil
+	}
+	next, cmd := m.applyConfig(cfg, s.label+": "+s.show(cfg))
+	return next.settingsIn(s.group, s.key), cmd
 }

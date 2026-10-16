@@ -118,7 +118,7 @@ func (m Model) attachPath(room domain.Room, path, caption string) (Model, tea.Cm
 	}
 	// The stat runs in sendFileCmd: a dead mount would otherwise block the UI.
 	m = m.say("sending " + isolate(filepath.Base(abs)) + "…")
-	return m, m.sendFileCmd(room.ID, abs, caption)
+	return m, m.sendFileCmd(room.ID, abs, m.sentName(room.ID, abs), caption)
 }
 
 // splitCaption reads "path | caption"; a pipe because filenames contain spaces.
@@ -148,8 +148,8 @@ type attachSentMsg struct {
 }
 
 // sendFileCmd stats the file first (for a useful "no such file") and hands it to the
-// daemon, which encrypts, uploads and posts it.
-func (m Model) sendFileCmd(roomID domain.RoomID, path, caption string) tea.Cmd {
+// daemon, which encrypts, uploads and posts it under name.
+func (m Model) sendFileCmd(roomID domain.RoomID, path, name, caption string) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
 		sent := attachSentMsg{name: filepath.Base(path)}
@@ -162,7 +162,7 @@ func (m Model) sendFileCmd(roomID domain.RoomID, path, caption string) tea.Cmd {
 			sent.err = errors.New("it is a directory")
 			return sent
 		}
-		sent.err = backend.SendFile(ctx, roomID, path, caption)
+		sent.err = backend.SendFile(ctx, roomID, path, name, caption)
 		return sent
 	}
 }
@@ -312,6 +312,7 @@ func (m Model) placeOf(msg domain.Message) domain.DownloadPlace {
 		place.Room = m.roomLabel(room)
 		if homes := m.homesOf(room.ID); len(homes) > 0 {
 			place.Space = homes[0]
+			place.SpaceLabel = m.rail.homes.Label(homes[0])
 		}
 	}
 	return place

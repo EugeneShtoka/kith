@@ -46,9 +46,13 @@ func saveMentions(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *doma
 	return nil
 }
 
-// senderNow is m's sender's current member name, else the name the message carried.
+// senderNow is m's sender's current member name, else the name the message carried,
+// else their name in any other room: a bridge posts as a ghost that is no member of the
+// room (Slack's Slackbot announcing a huddle in a DM).
 const senderNow = `COALESCE(NULLIF((SELECT rm.display_name FROM room_members rm
-	 WHERE rm.room_id = m.room_id AND rm.user_id = m.sender), ''), m.sender_name)`
+	 WHERE rm.room_id = m.room_id AND rm.user_id = m.sender), ''), NULLIF(m.sender_name, ''),
+	 (SELECT rm.display_name FROM room_members rm
+	   WHERE rm.user_id = m.sender AND rm.display_name <> '' ORDER BY rm.room_id LIMIT 1), '')`
 
 // mentionsNow is m's mentions as a JSON array of [user, written name, current member
 // name (domain.Mention.Known, "" when unknown)].

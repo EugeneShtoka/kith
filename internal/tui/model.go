@@ -62,6 +62,9 @@ type group struct {
 	// network is the one network all its rooms are on, "" otherwise; set by rebuiltRail only while
 	// the rail colors by network.
 	network domain.Protocol
+	// home is the network whose own space this is (an account's, a bridge's), "" for a space
+	// you made and for a tag.
+	home domain.Protocol
 }
 
 // railGroups builds the rail (a row per tag, then a group per space) and applies the rail
@@ -85,17 +88,21 @@ func railGroups(
 		// A bridge-kept space (a network's grouping, a community) is where its rooms belong; a
 		// person-made space is not.
 		belongs := s.Keeper != "" || s.Bridge.IsBridged()
+		var home domain.Protocol
+		if s.Bridge != "" && s.Bridge != domain.ProtocolMatrix {
+			home = s.Bridge
+		}
 		groups = append(groups, group{
 			key:   name,
 			label: name,
+			home:  home,
 			admits: func(v unreadView, r domain.Room) bool {
-				// An invitation and spam are not in any space until dealt with.
-				if !children[r.ID] || r.IsInvite() || v.isSpam(r) {
+				// An invitation is not in any space until dealt with.
+				if !children[r.ID] || r.IsInvite() {
 					return false
 				}
-				// A space-exclusive tag keeps a room only where it belongs: a bridge's space or its canonical
-				// home.
-				return !v.leavesMadeSpaces(r) || belongs || v.parents[r.ID] == spaceID
+				// Its origin is where it belongs: a bridge's space or its canonical home.
+				return !v.leavesSpace(r, belongs || v.parents[r.ID] == spaceID)
 			},
 		})
 	}
@@ -109,13 +116,13 @@ func railGroups(
 // fallbackGroupKey is the rail key of the single row a rail with no spaces and no tags gets.
 const fallbackGroupKey = "*all"
 
-// fallbackGroup is every room but invitations and spam, for a config with no tags and an
-// account with no spaces.
+// fallbackGroup is every room but invitations, for a config with no tags and an account
+// with no spaces.
 func fallbackGroup() group {
 	return group{
 		key:    fallbackGroupKey,
 		label:  "All",
-		admits: func(v unreadView, r domain.Room) bool { return !r.IsInvite() && !v.isSpam(r) },
+		admits: func(v unreadView, r domain.Room) bool { return !r.IsInvite() },
 	}
 }
 
@@ -212,8 +219,8 @@ func promoteFirst(groups []group, cfg config.Rail) []group {
 
 // applyRailConfig renames, hides, then reorders groups; hiding everything keeps Home. Order:
 // named keys first, a separator draws a divider after the preceding group, the wildcard stands
-// for every unnamed group, and the rest keep default order at the end. It returns the order
-// resolved to group keys (resolveOrder).
+// for every unnamed group, and the rest keep default order at the end. Each list holds home
+// entries (domain.NamesHome); it returns the order resolved to group keys (resolveOrder).
 func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName, view unreadView, rooms []domain.Room) ([]group, []string) {
 	display := config.Display{Names: names}
 	for i := range groups {
@@ -223,8 +230,10 @@ func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName
 	}
 
 	hidden := make(map[string]bool, len(cfg.Hidden))
-	for _, k := range cfg.Hidden {
-		hidden[k] = true
+	for _, entry := range cfg.Hidden {
+		for _, key := range groupsNamed(groups, entry) {
+			hidden[key] = true
+		}
 	}
 	// A tag with hide_when_empty, as if listed in [display.rail] hide_when_empty.
 	for _, g := range groups {
@@ -233,13 +242,10 @@ func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName
 		}
 	}
 	// hide_when_empty drops a group whose filter matches no room.
-	for _, name := range cfg.HideWhenEmpty {
-		key := matchGroupKey(groups, name)
-		if key == "" || hidden[key] {
-			continue
-		}
-		if g, ok := findGroup(groups, key); ok && !anyRoomIn(g, view, rooms) {
-			hidden[key] = true
+	for _, g := range groups {
+		named := slices.ContainsFunc(cfg.HideWhenEmpty, g.namedBy)
+		if named && !hidden[g.key] && !anyRoomIn(g, view, rooms) {
+			hidden[g.key] = true
 		}
 	}
 	byKey := make(map[string]group, len(groups))
@@ -262,23 +268,35 @@ func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName
 	return orderGroups(kept, byKey, order), order
 }
 
-// resolveOrder maps each rail-order entry to the key of the group it names: its key as written,
-// else (as hidden and hide_when_empty match) a key or label case-insensitively, so "Services"
-// places the tag shown as Services when no space has that name. Unmatched entries, dividers and
-// the wildcard stay as written.
+// resolveOrder maps each rail-order entry to the keys of the groups it names, in rail order (a
+// place:<name> can name several). Dividers and the wildcard stay as written; an entry naming no
+// group drops out.
 func resolveOrder(groups []group, order []string) []string {
-	out := make([]string, len(order))
-	for i, tok := range order {
-		out[i] = tok
-		if isSeparator(tok) || isWildcard(tok) || slices.ContainsFunc(groups, func(g group) bool { return g.key == tok }) {
+	out := make([]string, 0, len(order))
+	for _, tok := range order {
+		if isSeparator(tok) || isWildcard(tok) {
+			out = append(out, tok)
 			continue
 		}
-		if key := matchGroupKey(groups, tok); key != "" {
-			out[i] = key
-		}
+		out = append(out, groupsNamed(groups, tok)...)
 	}
 	return out
 }
+
+// groupsNamed is the keys of the groups a home entry names, in rail order.
+func groupsNamed(groups []group, entry string) []string {
+	var keys []string
+	for _, g := range groups {
+		if g.namedBy(entry) {
+			keys = append(keys, g.key)
+		}
+	}
+	return keys
+}
+
+// namedBy reports whether a home entry names the group: space:<its name>, tag:<its name>, or
+// place: with its label or name.
+func (g group) namedBy(entry string) bool { return domain.NamesHome(entry, g.key, g.label) }
 
 // orderGroups emits the kept groups in configured order, unplaced ones last.
 func orderGroups(kept []group, byKey map[string]group, order []string) []group {
@@ -334,37 +352,9 @@ func isWildcard(tok string) bool { return tok == railWildcard }
 // isSeparator reports whether a rail-order token is one or more dashes (a divider).
 func isSeparator(tok string) bool { return tok != "" && strings.Trim(tok, "-") == "" }
 
-// matchGroupKey resolves a hide_when_empty entry to a group key by key or label, case-insensitively.
-func matchGroupKey(groups []group, name string) string {
-	want := strings.ToLower(strings.TrimSpace(name))
-	if want == "" {
-		return ""
-	}
-	for _, g := range groups {
-		if strings.EqualFold(g.key, want) {
-			return g.key
-		}
-	}
-	// Then by what the rail shows, so a space named like a tag's label keeps its name.
-	for _, g := range groups {
-		if strings.EqualFold(g.label, want) {
-			return g.key
-		}
-	}
-	return ""
-}
-
 // anyRoomIn reports whether a group would show anything.
 func anyRoomIn(g group, view unreadView, rooms []domain.Room) bool {
 	return slices.ContainsFunc(rooms, func(r domain.Room) bool { return g.admits(view, r) })
-}
-
-// findGroup returns the group with the given key.
-func findGroup(groups []group, key string) (group, bool) {
-	if i := slices.IndexFunc(groups, func(g group) bool { return g.key == key }); i >= 0 {
-		return groups[i], true
-	}
-	return group{}, false
 }
 
 // scrollback is a pane's position in a conversation's history.
@@ -393,6 +383,9 @@ type overlayTarget struct {
 	person personState
 	// creating is the room being created by the new-room prompt.
 	creating domain.NewRoom
+	// offers are the chats the other networks' accounts said they can make, as :new
+	// offered them.
+	offers []domain.ChatOffer
 	// fileInto is the room a space being created from the space picker is to hold.
 	fileInto domain.RoomID
 	// member is the room an open invite or unban prompt aims at.
@@ -580,8 +573,13 @@ type Model struct {
 	selves []string
 	// dir is the daemon's directory (directory.go): who people are, on every network.
 	dir directoryState
+	// markedShownIn is the room showing the people muted tags hide (markedpeople.go),
+	// "" for none; leaving it clears it.
+	markedShownIn domain.RoomID
 	// peers is who each room you named is named after (peeralias.go).
 	peers peerState
+	// cards is the phonebook's cards as last read, and members read for show_field (cards.go).
+	cards cardsState
 	// roomAccounts is each network account the room list has had rooms from (see
 	// selvesAfterRooms); nil before the first list.
 	roomAccounts []string
@@ -623,6 +621,8 @@ type Model struct {
 	prefs prefsState
 	// offers is the one-time download offers. See oneTimeOffers.
 	offers oneTimeOffers
+	// rescanSince is how far back the open rescan judged, for applying it.
+	rescanSince time.Time
 	// spell is the composer's spelling state. See spell.go.
 	spell spellState
 	// assist is the word completion in progress. See assist.go.
@@ -925,7 +925,7 @@ func (m Model) Init() tea.Cmd {
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
 		m.listenFollowCmd(), m.listenSeatCmd(), m.listenRoomsCmd(), m.listenConfigCmd(),
 		m.loadDraftsCmd(),
-		m.loadSpamCmd(),
+		m.loadVerdictsCmd(),
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
 		m.listenAttachedCmd(),
 		m.lastMessagesCmd(),
@@ -1021,8 +1021,8 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleSpaceFiled(msg))
 	case memberChangedMsg:
 		return answered(m.handleMemberChanged(msg))
-	case roomCreatedMsg:
-		return answered(m.handleRoomCreated(msg))
+	case roomCreatedMsg, chatOffersMsg:
+		return answered(m.handleCreating(msg))
 	case configCheckedMsg, configSavedMsg, configNewsMsg:
 		return answered(m.handleConfigNews(msg))
 	case loginMsg, loginNetworksMsg, importNetworksMsg, importPreviewMsg, importedMsg:
@@ -1097,7 +1097,7 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	}
 }
 
-// handleAssistMsg handles writing aids and drafts: completion, the language model, spam and drafts.
+// handleAssistMsg handles writing aids and drafts: completion, the language model, filter moves and drafts.
 func (m Model) handleAssistMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case assistTickMsg:
@@ -1108,10 +1108,14 @@ func (m Model) handleAssistMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDraftTick(msg))
 	case draftSavedMsg:
 		return answered(m.handleDraftSaved(msg))
-	case spamLoadedMsg:
-		return answered(m.handleSpamLoaded(msg))
-	case spamReleasedMsg:
-		return answered(m.handleSpamReleased(msg))
+	case verdictsLoadedMsg:
+		return answered(m.handleVerdictsLoaded(msg))
+	case personVerdictsLoadedMsg:
+		return answered(m.handlePersonVerdictsLoaded(msg))
+	case rescannedMsg:
+		return answered(m.handleRescanned(msg))
+	case verdictsWrittenMsg:
+		return answered(m.handleVerdictsWritten(msg))
 	case draftsLoadedMsg:
 		return answered(m.handleDraftsLoaded(msg))
 	case playerControlMsg:
@@ -1235,7 +1239,9 @@ func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
 	next, offer := next.maybeOfferDictionaries()
 	next, selves := next.selvesAfterRooms(msg.rooms)
 	next, peers := next.refreshPeers()
-	return next, tea.Batch(cmd, offer, selves, next.directoryCmd(), peers)
+	next, fields := next.refreshFieldMembers()
+	next, cards := next.loadCards(false, "")
+	return next, tea.Batch(cmd, offer, selves, next.directoryCmd(), peers, fields, cards)
 }
 
 // handleSideMsg handles account-wide loads, verification, and reactions and images on shown
@@ -1260,6 +1266,12 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handlePollVoters(msg))
 	case peerMembersMsg:
 		return answered(m.handlePeerMembers(msg))
+	case cardsMsg:
+		return answered(m.handleCards(msg))
+	case fieldMembersMsg:
+		return answered(m.handleFieldMembers(msg))
+	case cardRoomsMsg:
+		return answered(m.handleCardRooms(msg))
 	case searchSendersMsg:
 		return answered(m.handleSearchSenders(msg))
 	case lastMessagesMsg:
@@ -1380,6 +1392,9 @@ func (m Model) handleKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	}
 	// Place and script bindings come after the action scopes, so they cannot shadow built-ins.
 	if mdl, cmd, handled := m.jumpKey(press); handled {
+		return mdl, cmd
+	}
+	if mdl, cmd, handled := m.tagKey(press); handled {
 		return mdl, cmd
 	}
 	if mdl, cmd, handled := m.scriptKey(press); handled {
@@ -1565,6 +1580,11 @@ func (m Model) handleRailKey(press string) (Model, tea.Cmd) {
 		return m.askMarkGroupRead()
 	case actLeave:
 		return m.askLeaveGroup()
+	case actEditPlace:
+		if page, ok := m.openPlaceUnderCursor(); ok {
+			return page, nil
+		}
+		return m.say("only a space or a tag has a settings page"), nil
 	case actUp:
 		if next, moved := m.rail.moved(-m.take()); moved {
 			m.rail = next
@@ -1584,7 +1604,7 @@ func (m Model) handleRailKey(press string) (Model, tea.Cmd) {
 }
 
 // roomStandingAction handles room-list keys that change how a room stands: unread state,
-// spaces, archive, pin, spam and sort order.
+// spaces, archive, pin and sort order.
 func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 	switch act {
 	case actToggleUnreadFirst:
@@ -1610,8 +1630,6 @@ func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openSpacePicker())
 	case actInvite:
 		return answered(m.openInvite())
-	case actSpam:
-		return answered(m.toggleSpam())
 	case actToggleArchived:
 		return answered(m.toggleArchived())
 	case actPerson:
@@ -1893,6 +1911,8 @@ func (m Model) timelineMotion(act action) (Model, tea.Cmd) {
 		return m.openExternalEditor()
 	case actReveal:
 		return m.toggleReveal()
+	case actShowMarked:
+		return m.toggleMarkedShown()
 	case actSpellWalk:
 		return m.openSpellWalk()
 	case actPrevDay:
@@ -2372,6 +2392,8 @@ func (m Model) leavingFor(room domain.Room) Model {
 	m.timeline.opened.unreadFrom = m.unread[room.ID].ReadEvent
 	// Stars belong to the room; the new set arrives via starredInCmd.
 	m.timeline.starred = nil
+	// Hidden people show only until you leave the room.
+	m.markedShownIn = ""
 	return m.stashDraft(m.openRoom)
 }
 
@@ -2782,8 +2804,8 @@ func (m Model) spaceRoomsFor(roomID domain.RoomID) []domain.RoomID {
 	}
 	if tag, ok := domain.TagOf(names[0]); ok {
 		var rooms []domain.RoomID
-		for id, facts := range m.rail.roomFacts {
-			if slices.Contains(facts.Tags, tag) {
+		for id := range m.rail.roomFacts {
+			if slices.Contains(m.rail.roomFacts[id].Tags, tag) {
 				rooms = append(rooms, id)
 			}
 		}
@@ -2985,12 +3007,11 @@ func (m Model) placeHomes(roomID domain.RoomID) []string {
 	return slices.DeleteFunc(m.homesOf(roomID), m.spans)
 }
 
-// homeEntry is a home as a place entry: a tag is one already, a space is space:<name>.
-func homeEntry(home string) string {
-	if _, ok := domain.TagOf(home); ok {
-		return home
-	}
-	return domain.SpaceEntry(home)
+// namesHome reports whether a home entry names home (a space's name, or tag:<name>) as
+// the rail shows it.
+func (m Model) namesHome(home string) func(entry string) bool {
+	label := m.rail.homes.Label(home)
+	return func(entry string) bool { return domain.NamesHome(entry, home, label) }
 }
 
 func (m Model) roomByID(id domain.RoomID) (domain.Room, bool) { return m.rooms.byID(id) }

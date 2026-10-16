@@ -34,10 +34,14 @@ func TestAFailedReadAtTheSourceNeverWidensTheScope(t *testing.T) {
 	if one, err := strconv.Atoi(os.Getenv("KITH_SCOPE_SEED")); err == nil {
 		first, seeds = one, one+1
 	}
+	// Each seed is a world of its own (server, client, cache): they run side by side.
 	for seed := first; seed < seeds; seed++ {
-		if msg := playScopeSeed(t, uint64(seed)); msg != "" {
-			t.Fatalf("seed %d: %s", seed, msg)
-		}
+		t.Run(strconv.Itoa(seed), func(t *testing.T) {
+			t.Parallel()
+			if msg := playScopeSeed(t, uint64(seed)); msg != "" {
+				t.Fatalf("seed %d: %s", seed, msg)
+			}
+		})
 	}
 }
 

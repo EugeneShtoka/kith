@@ -141,3 +141,21 @@ func letterSides(s string) (rtl, ltr int) {
 	}
 	return rtl, ltr
 }
+
+// withEntry returns entries with entry removed, then appended if present (nil when
+// empty).
+func withEntry(entries []string, entry string, present bool) []string {
+	out := make([]string, 0, len(entries)+1)
+	for _, e := range entries {
+		if e != entry {
+			out = append(out, e)
+		}
+	}
+	if present {
+		out = append(out, entry)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}

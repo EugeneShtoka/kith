@@ -80,10 +80,6 @@ type unreadView struct {
 	parents map[domain.RoomID]domain.SpaceID
 	// facts is the slow way to a room's facts (roomFacts holds them precomputed).
 	facts func(domain.Room) domain.RoomFacts
-	// spamRooms is the union of the hand-written lists and what the filters caught.
-	spam      domain.Spam
-	caught    map[domain.RoomID]domain.SpamVerdict
-	spamRooms map[domain.RoomID]bool
 	// tags and the facts they judge by (precomputed), and the drafts the `draft` state word reads;
 	// tagMemo caches the per-room result (tagged.go), keyed by tagsRev.
 	tags      domain.TagSet
@@ -98,10 +94,10 @@ func (v unreadView) count(room domain.Room) (count, highlights int) {
 	return v.counts[room.ID].Count(v.local)
 }
 
-// tallies reports whether a room counts toward group badges. Invitations, spam and
-// rooms a silent tag holds do not.
+// tallies reports whether a room counts toward group badges. Invitations and rooms a
+// silent tag holds do not.
 func (v unreadView) tallies(room domain.Room) bool {
-	if room.IsInvite() || v.isSpam(room) || v.silenced(room) {
+	if room.IsInvite() || v.silenced(room) {
 		return false
 	}
 	// HasUnread, not a count: a marked room is unread with nothing to count.
@@ -113,12 +109,12 @@ func (v unreadView) marked(room domain.Room) bool {
 	return v.counts[room.ID].Marked && !v.silenced(room)
 }
 
-// refreshPlaces recomputes the rooms' facts and the spam set, which share their inputs.
-func (m Model) refreshPlaces() Model { return m.refreshFacts().refreshSpam() }
+// refreshPlaces recomputes the rooms' facts.
+func (m Model) refreshPlaces() Model { return m.refreshFacts() }
 
 // refreshFacts recomputes every room's facts, as a new map (see refreshArchived).
 func (m Model) refreshFacts() Model {
-	m.rail.homes = domain.NewHomeOrder(m.prefs.display.Priority, m.prefs.display.Rail.Order, m.rail.tags, m.rooms.spaces)
+	m.rail.homes = domain.NewHomeOrder(m.prefs.display.Priority, m.prefs.display.Rail.Order, m.rail.tags, m.rooms.spaces, m.prefs.display.SpaceLabels())
 	facts := make(map[domain.RoomID]domain.RoomFacts, len(m.rooms.all))
 	held := map[string]int{}
 	for i := range m.rooms.all {
@@ -144,9 +140,6 @@ func (m Model) unreadView() unreadView {
 		local:     m.prefs.unreadLocal,
 		parents:   m.parents,
 		facts:     m.factsFor,
-		spam:      m.rail.spam,
-		caught:    m.rail.caught,
-		spamRooms: m.rail.spamRooms,
 		tags:      m.rail.tags,
 		tagsRev:   m.rail.tagsRev,
 		tagMemo:   m.rail.tagMemo,
@@ -162,7 +155,7 @@ func (m Model) unreadIn(g group) []domain.RoomID {
 	var ids []domain.RoomID
 	for i := range m.rooms.all {
 		room := m.rooms.all[i]
-		if !g.admits(view, room) || room.IsInvite() || view.isSpam(room) || !view.counts[room.ID].HasUnread(view.local) {
+		if !g.admits(view, room) || room.IsInvite() || !view.counts[room.ID].HasUnread(view.local) {
 			continue
 		}
 		ids = append(ids, room.ID)
@@ -237,22 +230,23 @@ func roomsPhrase(n int) string {
 	return fmt.Sprintf("%d rooms", n)
 }
 
-// A room a space-exclusive tag holds stays visible in its canonical parent space
-// (m.space.parent with canonical: true), resolved lazily for those rooms only.
+// A room that leaves its spaces but not its origin, or the other way round, needs its
+// canonical parent space (m.space.parent with canonical: true), resolved lazily for
+// those rooms only.
 
 // parentsMsg carries canonical parents resolved for the rooms that needed them.
 type parentsMsg struct {
 	parents map[domain.RoomID]domain.SpaceID
 }
 
-// resolveParentsCmd asks the daemon for canonical parents of not-yet-known rooms that leave
-// your spaces; nil when there is nothing to ask.
+// resolveParentsCmd asks the daemon for canonical parents of not-yet-known rooms whose
+// spaces differ by origin; nil when there is nothing to ask.
 func (m Model) resolveParentsCmd() tea.Cmd {
 	view := m.unreadView()
 	var want []domain.RoomID
 	for i := range m.rooms.all {
 		room := m.rooms.all[i]
-		if !view.leavesMadeSpaces(room) {
+		if leaves := view.tagsOf(room).leaves; leaves.Spaces == leaves.Origin {
 			continue
 		}
 		if _, known := m.parents[room.ID]; !known {

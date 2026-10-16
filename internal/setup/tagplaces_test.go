@@ -18,6 +18,9 @@ func TestTagPlacesMustNameATag(t *testing.T) {
 		"a notification rule": func(c *config.Config) { c.Notifications.Rules = []config.Rule{{Match: "tag:Nope"}} },
 		"agent read":          func(c *config.Config) { c.Agent.Read.Rooms = []string{"tag:Nope"} },
 		"codes":               func(c *config.Config) { c.Codes.Include = []string{"tag:Nope"} },
+		"a spam filter's in": func(c *config.Config) {
+			c.Filters = []config.Filter{{Name: "x", Tag: "Family", Words: []string{"w"}, In: []string{"tag:Nope"}}}
+		},
 	} {
 		cfg := base
 		set(&cfg)
@@ -37,9 +40,9 @@ func TestTagPlacesMustNameATag(t *testing.T) {
 func TestPlacesCarryTagsAndPriority(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
-	cfg.Display.Priority = []string{"tag:Family", "Work"}
+	cfg.Display.Priority = []string{"tag:Family", "space:Work"}
 	places := PlacesOf(cfg)
-	if !slices.Equal(places.Order.Priority, []string{"tag:Family", "Work"}) || !slices.Equal(places.Order.Tags, []string{"family"}) {
+	if !slices.Equal(places.Order.Priority, []string{"tag:Family", "space:Work"}) || !slices.Equal(places.Order.Tags, []string{"family"}) {
 		t.Errorf("home order = %+v, want [display] priority and the tags", places.Order)
 	}
 	if facts := places.Facts(domain.Room{ID: "!mom:x", IsDirect: true}, nil); !facts.Names("tag:Family") {
@@ -51,8 +54,9 @@ func TestPlacesCarryTagsAndPriority(t *testing.T) {
 func TestTheHomeOrderIsTheSameBuiltInEitherStep(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}, {Name: "All", Rule: []string{"*"}}}}
-	cfg.Display.Priority = []string{"Work"}
-	cfg.Display.Rail.Order = []string{"tag:Family", "-", "*"}
+	cfg.Display.Priority = []string{"space:Work"}
+	cfg.Display.Rail.Order = []string{"tag:Family", "-", "place:Desk", "*"}
+	cfg.Display.Names = []config.DisplayName{{Target: "space:Work", Name: "Desk"}}
 	spaces := []domain.Space{
 		{ID: "!w:x", Name: "Work"},
 		{ID: "!tip:x", Name: "Acme", Original: true},
@@ -63,11 +67,20 @@ func TestTheHomeOrderIsTheSameBuiltInEitherStep(t *testing.T) {
 		t.Fatal(err)
 	}
 	daemon := PlacesOf(cfg).Order.WithManaged(spaces)
-	client := domain.NewHomeOrder(cfg.Display.Priority, cfg.Display.Rail.Order, tags, spaces)
+	client := domain.NewHomeOrder(cfg.Display.Priority, cfg.Display.Rail.Order, tags, spaces, cfg.Display.SpaceLabels())
 	if !reflect.DeepEqual(daemon, client) {
 		t.Errorf("daemon %+v\nclient %+v", daemon, client)
 	}
 	if !client.Managed["acme"] || !client.Managed["whatsapp home"] || client.Managed["work"] || !client.Every["all"] {
 		t.Errorf("order = %+v, want Acme and WhatsApp Home the network's own, All every room", client)
+	}
+}
+
+// A word exclusive does not know is refused at load.
+func TestExclusiveRefusesAnUnknownWord(t *testing.T) {
+	t.Parallel()
+	cfg := config.Config{Tags: []config.Tag{{Name: "Out", Rule: []string{"dm"}, Exclusive: []string{"rooms"}}}}
+	if _, _, err := Tags(cfg); err == nil || !strings.Contains(err.Error(), `"rooms"`) {
+		t.Errorf("Tags = %v, want exclusive's unknown word refused", err)
 	}
 }

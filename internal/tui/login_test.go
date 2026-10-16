@@ -197,8 +197,9 @@ func TestLoginDrawsWhatTheNetworkAsks(t *testing.T) {
 		t.Fatalf("asked %+v after writing, want the token", f)
 	}
 	m = m.openPromptWith(promptLogin, "secret-token")
-	if status := m.renderStatus(); strings.Contains(status, "secret") || !strings.Contains(status, "•••") {
-		t.Errorf("status line while typing the token = %q, want dots", status)
+	field := strings.Join(m.loginLines(100, 30), "\n")
+	if strings.Contains(field, "secret") || !strings.Contains(field, "•••") || strings.Contains(m.renderStatus(), "secret") {
+		t.Errorf("the pane while typing the token = %q, want dots", field)
 	}
 	m, cmd = m.submitPrompt()
 	for _, line := range m.loginLines(100, 30) {
@@ -279,5 +280,110 @@ func TestLoginRestartsTheDaemonWhenAsked(t *testing.T) {
 	}
 	if !strings.Contains(m.status(), "logged in as @me:x") {
 		t.Errorf("status = %q", m.status())
+	}
+}
+
+// A sign-in left waiting for an answer past its deadline says it gave up. It used to end
+// in silence: the deadline was the very context that carried the news, so the form
+// stayed open, took the answers, and showed "signing in" for good.
+func TestASignInThatTimesOutSaysSo(t *testing.T) {
+	t.Parallel()
+
+	d := &loginDaemon{scripts: [][]api.LoginStep{{{Ask: []api.LoginField{{Key: "password", Label: "password", Secret: true}}}}}}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	events := make(chan loginEvent, 4)
+	go loginWork(d, nil, nil, "fake", "me")(ctx, events)
+
+	var final *loginEvent
+	for e := range events {
+		if e.final {
+			final = &e
+		}
+	}
+	if final == nil || !errors.Is(final.err, errSignInTimedOut) {
+		t.Fatalf("the sign-in ended with %+v, want it to say it timed out", final)
+	}
+
+	// The model shows it and closes the form.
+	m := loggingIn(t, d, nil)
+	m.login = loginState{stage: loginAsking, network: fakeNetwork, events: events}
+	m, _ = asModel(m.Update(loginMsg{event: *final, ok: true}))
+	if m.login.stage != loginOff || !strings.Contains(m.status(), "gave up") {
+		t.Errorf("after the timeout: stage %v, status %q", m.login.stage, m.status())
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.canceled != 1 {
+		t.Errorf("the daemon's login was canceled %d times, want once", d.canceled)
+	}
+}
+
+// A refused answer is asked again in place: the pane keeps one row for the field, not
+// one per try, and says why it was refused with the field, until a step with nothing
+// to say.
+func TestARefusedAnswerIsAskedAgainInPlace(t *testing.T) {
+	t.Parallel()
+	m := loggingIn(t, &loginDaemon{networks: []api.LoginNetwork{fakeNetwork}}, nil)
+	m.login = loginState{stage: loginAsking, network: fakeNetwork}
+	ask := func(note string, keys ...string) {
+		t.Helper()
+		var fields []api.LoginField
+		for _, k := range keys {
+			fields = append(fields, api.LoginField{Key: k, Label: k, Secret: k == "cookies"})
+		}
+		m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{ask: fields, note: note, answer: make(chan map[string]string, 1)}, ok: true})
+	}
+	ask("", "name")
+	m, _ = m.submitLogin("work")
+	for range 3 {
+		ask("those cookies lack OSID", "cookies")
+		m, _ = m.submitLogin("SID=1")
+	}
+	ask("those cookies lack OSID", "cookies")
+	pane := strings.Join(m.loginLines(120, 40), "\n")
+	row := "cookies     " // an answered row: the label padded to 12
+	if n := strings.Count(pane, row); n != 0 {
+		t.Errorf("the refused answers stay: %d rows in %q", n, pane)
+	}
+	if !strings.Contains(pane, "work") || !strings.Contains(pane, "lack OSID") {
+		t.Errorf("the pane = %q, want the kept answer and why the field is asked again", pane)
+	}
+	m, _ = m.submitLogin("SID=1; OSID=2")
+	ask("", "code")
+	if pane := strings.Join(m.loginLines(120, 40), "\n"); strings.Contains(pane, "OSID") || strings.Contains(pane, "signing in") || strings.Count(pane, row) != 1 {
+		t.Errorf("after the next step: %q, want the accepted answer once and no old note", pane)
+	}
+}
+
+// A QR code shows under its note, light on dark, until the next step; a window too
+// small for it says so rather than drawing a code no phone can read.
+func TestLoginShowsAQRCode(t *testing.T) {
+	t.Parallel()
+	m := loggingIn(t, &loginDaemon{networks: []api.LoginNetwork{fakeNetwork}}, nil)
+	m.login = loginState{stage: loginAsking, network: fakeNetwork}
+	const data = "https://support.google.com/messages/?p=web_computer#?c=ZXhhbXBsZQ=="
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{qr: data, note: "scan it in Messages"}, ok: true})
+	pane := strings.Join(m.loginLines(160, 60), "\n")
+	if !strings.Contains(pane, "scan it in Messages") || !strings.Contains(pane, "█") {
+		t.Fatalf("the pane = %q, want the note and the code", pane)
+	}
+	if strings.Index(pane, "scan it") > strings.Index(pane, "█") {
+		t.Error("the code comes before its note")
+	}
+	if small := strings.Join(m.loginLines(30, 60), "\n"); strings.Contains(small, "█") || !strings.Contains(small, "too small") {
+		t.Errorf("a narrow window = %q, want it said", small)
+	}
+	if short := strings.Join(m.loginLines(160, 12), "\n"); strings.Contains(short, "█") || !strings.Contains(short, "too small") {
+		t.Errorf("a short window = %q, want it said", short)
+	}
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{code: "ABCD"}, ok: true})
+	if m.login.qr != "" || m.login.code != "ABCD" {
+		t.Errorf("a code after the QR: qr %q, code %q", m.login.qr, m.login.code)
+	}
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{qr: data}, ok: true})
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{ask: []api.LoginField{{Key: "x", Label: "x"}}, answer: make(chan map[string]string, 1)}, ok: true})
+	if m.login.qr != "" || strings.Contains(strings.Join(m.loginLines(160, 60), "\n"), "█") {
+		t.Error("the QR code stays after the next step")
 	}
 }

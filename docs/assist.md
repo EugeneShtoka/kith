@@ -120,6 +120,8 @@ Entries can name a single room or a whole kind of room:
 | `!abc:example.org` | One room, by ID |
 | `room:Standup` | One room, by its name in the rail (or its ID) |
 | `space:Work` | Every room in that space |
+| `tag:Pinned` | Every room that tag holds |
+| `place:Work` | Every room in a rail row shown as Work: a space, a tag, renamed or not |
 | `protocol:WhatsApp` | Every room bridged from that network (`Matrix` for native rooms) |
 | `dm` | Every direct message |
 | `group` | Every room that is not a direct message |
@@ -172,10 +174,11 @@ Type `/summary` in a room's composer. The answer opens in a reader, not in the c
 ```
 
 The time spans use the same words as the search box's `since:`. If kith cannot read a span, it refuses rather than guessing. The reader says how many messages were summarized. Your own messages are labelled `You:` in the context, so the summary can tell what you have already answered.
+A [hidden person](filters.md#hiding-a-person) and the direct replies to them are left out of the context and the count.
 
 ### `:todo`: what people are waiting on you for
 
-`:todo` on the command line reads the rooms that have unread messages, up to `todo_rooms` of them, and lists what people are asking of you. It checks each room against the room lists before reading it. It is a `:` command because it works across rooms. `/summary` answers the same kind of question for one room.
+`:todo` on the command line reads the rooms that have unread messages, up to `todo_rooms` of them, and lists what people are asking of you. It checks each room against the room lists before reading it. It is a `:` command because it works across rooms. `/summary` answers the same kind of question for one room. A [hidden person](filters.md#hiding-a-person) is not waiting on you: their messages are left out, and a room only they wrote in is skipped.
 
 ### Thread naming
 

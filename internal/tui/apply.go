@@ -92,7 +92,6 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m.prefs.identities = buildIdentities(cfg.Display.Identities)
 	m.prefs.aliases = setup.Aliases(cfg.Display.Identities)
 	m.prefs.clock = derived.clock
-	m.prefs.phonebookDir = setup.PhonebookDir(cfg)
 	m.receipts.policy = readSettingsFrom(cfg.Display)
 	// Invalidates the timeline's cached colors, name column and rows.
 	m.conf.rev++
@@ -105,7 +104,6 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m = m.applyMedia(cfg.Display.Media)
 	// Set before the rail is rebuilt: a group's Unread filter captures unreadView.
 	m.prefs.unreadLocal = derived.unreadLocal
-	m.rail.spam = setup.SpamPlaces(cfg.Spam)
 	m = m.refreshPlaces()
 	// A room set by hand, or auto turned on or off, applies to the open room now.
 	m = m.resettleLayout()
@@ -131,8 +129,11 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m = m.say(done)
 	// Naming or unnaming a room renames the person it is named after.
 	m, peers := m.refreshPeers()
+	m, fields := m.refreshFieldMembers()
+	// The folder may have moved.
+	m, cards := m.loadCards(false, "")
 	// A just-archived room needs its parent space resolved to be filed in the rail.
-	return m, tea.Batch(m.resolveParentsCmd(), peers)
+	return m, tea.Batch(m.resolveParentsCmd(), peers, fields, cards)
 }
 
 // adoptConfig runs a config changed elsewhere (another window, a hand edit, the
@@ -149,6 +150,7 @@ func (m Model) adoptConfig(cfg config.Config, note string) (Model, tea.Cmd) {
 // Shared with WithConfigFile so startup and settings changes agree.
 func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.conf.base = cfg
+	m.prefs.phonebookDir = setup.PhonebookDir(cfg)
 	m.prefs.external.clipboard = cfg.Clipboard.Command
 	m.prefs.external.copyDownloads = cfg.Clipboard.CopyDownloads
 	m.prefs.external.open = cfg.Clipboard.OpenCommandOrDefault()
@@ -345,6 +347,7 @@ func paletteOf(display config.Display) theme.Palette {
 func (m Model) applyMedia(media config.Media) Model {
 	m.pics.auto = media.AutoLoad()
 	m.pics.caching = media.Caching()
+	m.pics.anonymize = media.Anonymizes()
 	m.pics.rules = mediaRules(media)
 	m.pics.speed = media.Audio.PlaySpeed()
 	return m

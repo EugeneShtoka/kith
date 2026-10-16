@@ -16,6 +16,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // streamBuffer bounds each live stream.
@@ -59,6 +60,9 @@ type Adapter struct {
 	// changed otherwise (see OnCached).
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
+
+	// reads is the read marks Slack has not taken yet (unread.go).
+	reads *readstate.Owed[string] // read through, a Slack message time
 
 	mu       sync.Mutex
 	accounts []Account
@@ -121,6 +125,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		activity:      make(chan domain.Activity, streamBuffer),
 		unread:        make(chan domain.Unread, streamBuffer),
 		reactions:     make(chan domain.ReactionUpdate, streamBuffer),
+		reads:         readstate.NewOwed(laterTS),
 	}
 }
 

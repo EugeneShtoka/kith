@@ -39,7 +39,8 @@ func TestNilProtoYieldsZeroValue(t *testing.T) {
 		"Draft":          protoconv.ProtoToDraft(nil),
 		"SearchHit":      protoconv.ProtoToSearchHit(nil),
 		"TimelinePage":   protoconv.ProtoToTimelinePage(nil),
-		"SpamVerdict":    protoconv.ProtoToSpam(nil),
+		"TagVerdict":     protoconv.ProtoToVerdict(nil),
+		"PersonVerdict":  protoconv.ProtoToPersonVerdict(nil),
 		"Scheduled":      protoconv.ProtoToScheduled(nil),
 	} {
 		if !reflect.ValueOf(got).IsZero() {

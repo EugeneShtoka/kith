@@ -9,12 +9,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A tag is referenced as `tag:<name>` in place entries and by bare name in
-// [display.rail] hidden/hide_when_empty. Deleting one leaves other references for the
-// person: a rule naming a missing tag is refused, saying where.
+// A tag is referenced as `tag:<name>`. Deleting one leaves other references for the
+// person: a rule naming a missing tag is refused, saying where. A `place:<name>` entry
+// names whatever the rail shows by that name, so neither touches it.
 
 // RenameTag renames tag from (case-insensitive) to to: its [[tag]], every
-// `[not ]tag:<from>` entry in any setting, and bare names in the rail's lists.
+// `[not ]tag:<from>` entry in any setting, and the filters and keys naming it.
 func RenameTag(cfg config.Config, from, to string) config.Config {
 	out := cfg.Clone()
 	to = strings.TrimSpace(to)
@@ -24,39 +24,39 @@ func RenameTag(cfg config.Config, from, to string) config.Config {
 			out.Tags[i].Name = to
 		}
 	}
-	rename := func(entries []string) {
-		for i := range entries {
-			if sameTag(entries[i], from) {
-				entries[i] = to
-			}
-		}
-	}
-	rename(out.Display.Rail.Hidden)
-	rename(out.Display.Rail.HideWhenEmpty)
 	for _, archive := range out.Archives() {
 		if sameTag(archive.TagName(), from) {
 			archive.Tag = to // the archive goes with its tag, default name or not
 		}
 	}
+	for i := range out.Filters {
+		if sameTag(out.Filters[i].Tag, from) {
+			out.Filters[i].Tag = to
+		}
+	}
+	for i := range out.Keys.Tag {
+		if sameTag(out.Keys.Tag[i].Tag, from) {
+			out.Keys.Tag[i].Tag = to
+		}
+	}
 	return out
 }
 
-// DeleteTag removes tag name and its entries in the rail's lists and [display]
-// priority.
+// DeleteTag removes tag name, its entries in the rail's lists and [display] priority,
+// and the filters and keys moving rooms into it.
 func DeleteTag(cfg config.Config, name string) config.Config {
 	out := cfg.Clone()
 	out.Tags = slices.DeleteFunc(out.Tags, func(t config.Tag) bool { return sameTag(t.Name, name) })
 	names := func(entry string) bool {
 		tag, ok := domain.TagOf(entry)
-		return (ok && sameTag(tag, name)) || sameTag(entry, name)
+		return ok && sameTag(tag, name)
 	}
 	out.Display.Rail.Order = slices.DeleteFunc(out.Display.Rail.Order, names)
 	out.Display.Rail.Hidden = slices.DeleteFunc(out.Display.Rail.Hidden, names)
 	out.Display.Rail.HideWhenEmpty = slices.DeleteFunc(out.Display.Rail.HideWhenEmpty, names)
-	out.Display.Priority = slices.DeleteFunc(out.Display.Priority, func(entry string) bool {
-		tag, ok := domain.TagOf(entry)
-		return ok && sameTag(tag, name)
-	})
+	out.Display.Priority = slices.DeleteFunc(out.Display.Priority, names)
+	out.Filters = slices.DeleteFunc(out.Filters, func(f config.Filter) bool { return sameTag(f.Tag, name) })
+	out.Keys.Tag = slices.DeleteFunc(out.Keys.Tag, func(k config.TagKey) bool { return sameTag(k.Tag, name) })
 	for _, archive := range out.Archives() {
 		if sameTag(archive.Tag, name) {
 			archive.Tag = "" // a network's archive then follows no tag (the default, if any)
@@ -127,9 +127,10 @@ func CombineTags(cfg config.Config, from, into string, rooms []domain.RoomFacts,
 	a, b := out.Tags[ii], out.Tags[fi]
 	exact := a
 	exact.Rule, exact.Excluded, exact.Picked = nil, nil, nil
-	for _, r := range rooms {
-		if held(a.Name, r) || held(b.Name, r) {
-			exact.Picked = append(exact.Picked, r.ID)
+	exact.People = joined(a.People, b.People)
+	for i := range rooms {
+		if held(a.Name, rooms[i]) || held(b.Name, rooms[i]) {
+			exact.Picked = append(exact.Picked, rooms[i].ID)
 		}
 	}
 	if hasNot(a.Rule) || hasNot(b.Rule) {
@@ -137,6 +138,7 @@ func CombineTags(cfg config.Config, from, into string, rooms []domain.RoomFacts,
 	}
 	a.Rule = joined(a.Rule, b.Rule)
 	a.Picked = joined(a.Picked, b.Picked)
+	a.People = exact.People
 	a.Excluded = joined(unheld(a.Excluded, b.Name, rooms, held), unheld(b.Excluded, a.Name, rooms, held))
 	joinedRules := combined(out, fi, ii, from, a)
 	// A moved reference can close a cycle (A names C, C named B); pick by ID instead.
@@ -201,9 +203,9 @@ func unheld(excluded []string, other string, rooms []domain.RoomFacts, held func
 			out = append(out, entry)
 			continue
 		}
-		for _, r := range rooms {
-			if r.Names(entry) && !held(other, r) {
-				out = append(out, r.ID)
+		for i := range rooms {
+			if rooms[i].Names(entry) && !held(other, rooms[i]) {
+				out = append(out, rooms[i].ID)
 			}
 		}
 	}

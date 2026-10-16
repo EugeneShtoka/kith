@@ -26,6 +26,10 @@ func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 		"archived": true,
 		// A person's, not a room's: their phonebook card.
 		"person": true,
+		// The phonebook's cards, nobody's room.
+		"people": true,
+		// Every room's cached history.
+		"rescan": true,
 	}
 	// both act on the room written in as /, and on the open room or the rail's place as :.
 	both := map[string]bool{"shortcut": true}
@@ -212,7 +216,7 @@ func TestCommandsShowTheirShortcut(t *testing.T) {
 		}
 	}
 	keys := config.DefaultKeys()
-	keys.JumpTo = "ctrl+g"
+	keys.Bindings["jump_to"] = "ctrl+g"
 	m.keys = newKeymap(keys)
 	rows = m.commandLineCandidates(":go")
 	if len(rows) == 0 || !strings.Contains(rows[0].detail, "ctrl+g") {

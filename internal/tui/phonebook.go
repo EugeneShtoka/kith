@@ -57,10 +57,11 @@ func (m Model) openPerson(id, name string) (Model, tea.Cmd) {
 		return m, nil
 	}
 	book, ids := m.book(), m.personIdentifiers(id)
-	return m.doing("reading " + isolate(name) + "'s card…"), func() tea.Msg {
+	m, cards := m.loadCards(false, "")
+	return m.doing("reading " + isolate(name) + "'s card…"), tea.Batch(cards, func() tea.Msg {
 		card, found, err := book.Find(ids)
 		return personCardMsg{id: id, name: name, card: card, found: found, err: err}
-	}
+	})
 }
 
 func (m Model) book() *phonebook.Book { return phonebook.New(m.prefs.phonebookDir) }
@@ -100,8 +101,8 @@ func (m Model) showPerson(at string) Model {
 
 // choosePersonRow edits a field, or asks which to add.
 func (m Model) choosePersonRow(value string) (Model, tea.Cmd) {
-	m = m.closePicker()
 	if value == personAdd {
+		m = m.closePicker()
 		book := m.book()
 		return m, func() tea.Msg {
 			keys, err := book.Keys()
@@ -149,7 +150,7 @@ func (m Model) handlePersonKeys(msg personKeysMsg) (Model, tea.Cmd) {
 
 // choosePersonKey asks the chosen field's value, or a new field's name.
 func (m Model) choosePersonKey(value string) (Model, tea.Cmd) {
-	m = m.closePicker()
+	m = m.showPerson("") // the card stays behind the field's prompt
 	if value == personNewKey {
 		return m.openPrompt(promptPersonKey), nil
 	}
@@ -167,7 +168,7 @@ func (m Model) submitPersonKey(input string) (Model, tea.Cmd) {
 		return m.showPerson("").say("a field's name cannot hold : or #, nor start with -"), nil
 	}
 	m.aimedAt.person.key, m.aimedAt.person.list = key, false
-	return m.openPrompt(promptPersonValue), nil
+	return m.showPerson("").openPrompt(promptPersonValue), nil
 }
 
 // submitPersonValue writes the field: commas make a list, empty removes it. A person with no
@@ -206,7 +207,9 @@ func (m Model) handlePersonWritten(msg personWrittenMsg) (Model, tea.Cmd) {
 	key := m.aimedAt.person.key
 	m.aimedAt.person.card, m.aimedAt.person.found = msg.card, true
 	m = m.say(isolate(m.aimedAt.person.name) + "'s " + key + " written")
-	return m.showPerson(key), nil
+	// What is drawn beside names, and searched, reads the cards held.
+	m, cards := m.showPerson(key).loadCards(false, "")
+	return m, cards
 }
 
 // cancelPerson goes back to the card from a prompt about one of its fields.
@@ -241,11 +244,7 @@ func (m Model) personOfMember() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	name := stripIsolates(item.label)
-	if idx := strings.Index(name, "  ("); idx > 0 {
-		name = name[:idx]
-	}
-	return m.openPerson(item.value, name)
+	return m.openPerson(item.value, m.memberShown(item.value))
 }
 
 // roomPersonMsg is the one person in a room besides you and the bots, if there is one.
@@ -273,15 +272,9 @@ func (m Model) handleRoomPerson(msg roomPersonMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("could not read the room's members", msg.err), nil
 	}
-	var peer domain.Member
-	for _, member := range msg.members {
-		if m.isMe(member.UserID) || domain.IsBridgeBot(member.UserID) {
-			continue
-		}
-		if peer.UserID != "" || len(msg.members) >= peerMembersLimit {
-			return m.say(m.roomName(msg.room) + " is not a room with one person in it"), nil
-		}
-		peer = member
+	peer, many := m.onePerson(msg.members)
+	if many {
+		return m.say(m.roomName(msg.room) + " is not a room with one person in it"), nil
 	}
 	if peer.UserID == "" {
 		return m.say(m.roomName(msg.room) + " has no one in it but you"), nil

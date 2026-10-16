@@ -64,10 +64,10 @@ func serveLogins(t *testing.T, leaders ...api.LoginLeader) *daemon.Remote {
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
 	go func() {
-		served <- daemon.Serve(ctx, ln, &daemon.Daemon{
+		served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{
 			Backend: apitest.Nop{}, Streams: daemon.NewStreams(), State: daemon.NewState(),
 			Logins: daemon.NewLogins(ctx, func() []api.LoginLeader { return leaders }),
-		})
+		}))
 	}()
 	t.Cleanup(func() {
 		cancel()
@@ -136,5 +136,32 @@ func TestALoginFailureEndsIt(t *testing.T) {
 	}
 	if _, err := remote.BeginLogin(ctx, "nothing", ""); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("a login of no network = %v, want network off", err)
+	}
+}
+
+// qrLeader shows a QR code, then ends.
+type qrLeader struct{}
+
+func (qrLeader) LoginNetwork() api.LoginNetwork { return api.LoginNetwork{Network: "qr", Label: "QR"} }
+
+func (qrLeader) Login(ctx context.Context, _ string, talk api.LoginTalk) (api.LoginEnd, error) {
+	if err := talk.ShowQR(ctx, "https://example.org/pair#abc", "scan it with the phone"); err != nil {
+		return api.LoginEnd{}, err
+	}
+	return api.LoginEnd{Done: "paired"}, nil
+}
+
+// A QR code crosses the socket as its data with its note; answering with nothing waits
+// for the next step.
+func TestAQRCodeCrossesTheSocket(t *testing.T) {
+	t.Parallel()
+	remote := serveLogins(t, qrLeader{})
+	step, err := remote.BeginLogin(t.Context(), "qr", "phone")
+	if err != nil || step.QR != "https://example.org/pair#abc" || step.Note != "scan it with the phone" || step.Code != "" {
+		t.Fatalf("first step = (%+v, %v), want the QR code", step, err)
+	}
+	step, err = remote.AnswerLogin(t.Context(), step.Login, nil)
+	if err != nil || step.Done != "paired" {
+		t.Fatalf("after the scan = (%+v, %v)", step, err)
 	}
 }

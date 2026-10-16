@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -160,4 +161,105 @@ func freeIndex(s, word string, taken []bool) int {
 // digitsOnly reports whether s is non-empty and all digits.
 func digitsOnly(s string) bool {
 	return s != "" && strings.Trim(s, "0123456789") == ""
+}
+
+// MarkedPeople is a set of people, each given by one of their identifiers. Whoever kith
+// knows to be the same person as one of them is in it too. same is an identifier's
+// directly linked ones (the directory, identity groups); some links run one way (an ID
+// the directory knows only by its number), so the links of every known identifier are
+// followed and joined, and a link counts whichever end it is asked from.
+type MarkedPeople struct {
+	people identities
+	marked map[string]bool // roots of the marked people
+	same   func(id string) []string
+}
+
+// NewMarkedPeople is the people ids name, linked by same over ids and known.
+func NewMarkedPeople(ids, known []string, same func(id string) []string) MarkedPeople {
+	p := MarkedPeople{people: identities{}, marked: map[string]bool{}, same: same}
+	for _, id := range slices.Concat(ids, known) {
+		p.add(id)
+	}
+	for _, id := range ids {
+		if id = strings.TrimSpace(id); id != "" {
+			p.marked[p.people.find(id)] = true
+		}
+	}
+	return p
+}
+
+// add joins id with everything linked to it.
+func (p MarkedPeople) add(id string) {
+	if id = strings.TrimSpace(id); id == "" {
+		return
+	}
+	p.people.find(id)
+	if p.same == nil {
+		return
+	}
+	for _, other := range p.same(id) {
+		if other != "" {
+			p.people.union(id, other)
+		}
+	}
+}
+
+// Empty reports whether nobody is marked.
+func (p MarkedPeople) Empty() bool { return len(p.marked) == 0 }
+
+// Has reports whether id is one of the marked people.
+func (p MarkedPeople) Has(id string) bool {
+	if p.Empty() || strings.TrimSpace(id) == "" {
+		return false
+	}
+	ids := []string{strings.TrimSpace(id)}
+	if p.same != nil {
+		ids = append(ids, p.same(ids[0])...)
+	}
+	for _, x := range ids {
+		if _, known := p.people[x]; known && p.marked[p.people.find(x)] {
+			return true
+		}
+	}
+	return false
+}
+
+// HiddenPeople is who the muted tags hide: the people marked, linked by the directory
+// and the identity groups ([[display.identity]]). You are never hidden: not your own
+// IDs, nor anyone an identity group puts with them.
+type HiddenPeople struct {
+	marked MarkedPeople
+	me     map[string]bool
+}
+
+// NewHiddenPeople is the people marked names, linked by dir and groups; selves are you.
+func NewHiddenPeople(marked []string, groups [][]string, dir Directory, selves []string) HiddenPeople {
+	byID := map[string][]string{}
+	var known []string
+	me := map[string]bool{}
+	for _, id := range selves {
+		me[id] = true
+	}
+	for _, group := range groups {
+		mine := slices.ContainsFunc(group, func(id string) bool { return me[id] })
+		for _, id := range group {
+			byID[id] = slices.Concat(byID[id], group)
+			known = append(known, id)
+			if mine {
+				me[id] = true
+			}
+		}
+	}
+	same := func(id string) []string {
+		return slices.Concat(dir.Identifiers(id), byID[id])
+	}
+	return HiddenPeople{marked: NewMarkedPeople(marked, known, same), me: me}
+}
+
+// Empty reports whether nobody is hidden.
+func (h HiddenPeople) Empty() bool { return h.marked.Empty() }
+
+// Has reports whether sender is hidden.
+func (h HiddenPeople) Has(sender string) bool {
+	return !h.me[sender] && h.marked.Has(sender)
 }

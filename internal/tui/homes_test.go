@@ -12,7 +12,7 @@ import (
 func TestATagIsAHomeForRules(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
-	cfg.Display.Priority = []string{"tag:Family", "Friends"}
+	cfg.Display.Priority = []string{"tag:Family", "space:Friends"}
 	cfg.Display.SpaceRules = []config.SpaceRule{{Space: "tag:Family", FirstNameOnly: true}}
 	dm := domain.Room{ID: "!a:x", Name: "Michael Livingston", Members: []string{"Michael Livingston"}, IsDirect: true}
 	other := domain.Room{ID: "!o:x", Name: "Other"} // so Family does not hold every room
@@ -38,7 +38,7 @@ func TestATagIsAHomeForRules(t *testing.T) {
 		t.Errorf("mute targets %+v, want the room's tag", m.muteTargets())
 	}
 
-	cfg.Display.Priority = []string{"Friends"}
+	cfg.Display.Priority = []string{"space:Friends"}
 	m2 := update(t, configured(cfg), roomsMsg{rooms: []domain.Room{dm}})
 	m2 = update(t, m2, spacesMsg{spaces: []domain.Space{{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!a:x"}}}})
 	if got := m2.roomLabel(dm); got != "Michael Livingston" {

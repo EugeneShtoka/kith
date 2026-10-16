@@ -159,10 +159,9 @@ func TestNothingIsReachableBeforeAWorkspaceConnects(t *testing.T) {
 	room := domain.RoomID("slack:T1/C1")
 	for name, err := range map[string]error{
 		"send":     a.Send(ctx, room, domain.Draft{Body: "hi"}),
-		"mark":     a.MarkRead(ctx, room, "", false),
 		"react":    a.SendReaction(ctx, room, "slack:T1/C1/1.2", "👍"),
 		"redact":   a.Redact(ctx, room, "slack:T1/C1/1.2", ""),
-		"file":     a.SendFile(ctx, room, "/tmp/x", ""),
+		"file":     a.SendFile(ctx, room, "/tmp/x", "x", ""),
 		"timeline": func() error { _, err := a.Timeline(ctx, room, "", 10); return err }(),
 		"fetch":    func() error { _, err := a.FetchEvent(ctx, room, "slack:T1/C1/1.2"); return err }(),
 		"image":    func() error { _, err := a.LoadImage(ctx, room, "slack:T1/C1/1.2"); return err }(),

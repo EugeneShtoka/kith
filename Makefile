@@ -88,14 +88,40 @@ ifndef COVERPROFILE
 COVERPROFILE := $(or $(TMPDIR),/tmp)/kith-cover-$(shell echo $$PPID).out
 endif
 
-# -count=1: never serve cached results. The profile feeds coverage-check.
+# Tests never read your data, config or state (a phonebook, a config file): the XDG
+# dirs point at an empty home of their own. Fixed rather than fresh per run, so Go's
+# test cache, which keys on the environment, stays valid. XDG_CACHE_HOME is left alone:
+# it holds Go's build cache.
+TEST_HOME := $(or $(TMPDIR),/tmp)/kith-test-home
+TEST_ENV  := XDG_DATA_HOME=$(TEST_HOME)/data XDG_CONFIG_HOME=$(TEST_HOME)/config XDG_STATE_HOME=$(TEST_HOME)/state
+
+# CI splits the tests over parallel jobs by TEST_GROUP: the two slowest packages each on
+# a runner of its own, the network adapters together, and the rest (each job writes its
+# own profile; the coverage-gate job merges them). Unset, as locally, every package.
+TEST_ADAPTERS := ./internal/matrix/... ./internal/telegram/... ./internal/slack/... ./internal/whatsapp/...
+ifeq ($(TEST_GROUP),db)
+TEST_PKGS := ./internal/db/...
+else ifeq ($(TEST_GROUP),tui)
+TEST_PKGS := ./internal/tui/...
+else ifeq ($(TEST_GROUP),adapters)
+TEST_PKGS := $(TEST_ADAPTERS)
+else ifeq ($(TEST_GROUP),rest)
+TEST_PKGS = $(shell go list ./... | grep -v -e '/internal/db$$' -e '/internal/tui$$' \
+	-e '/internal/matrix$$' -e '/internal/telegram$$' -e '/internal/slack$$' -e '/internal/whatsapp$$')
+else ifeq ($(TEST_GROUP),)
+TEST_PKGS := ./...
+else
+$(error TEST_GROUP is db, tui, adapters, rest, or unset for every package)
+endif
+
+# -count=1: never serve cached results. The profile feeds coverage-gate.
 test:
-	go test -race -count=1 -coverprofile=$(COVERPROFILE) ./...
+	$(TEST_ENV) go test -race -count=1 -coverprofile=$(COVERPROFILE) $(TEST_PKGS)
 
 # The pre-push gate's tests: no race detector, and from Go's test cache, so a package
 # whose code and tests did not change is not run again. CI runs `test`.
 test-quick:
-	go test ./...
+	$(TEST_ENV) go test ./...
 
 # --allow-serial-runners: a second concurrent run waits for the first instead of
 # failing with "parallel golangci-lint is running".
@@ -255,13 +281,17 @@ tools: ensure-tools
 
 # Test-coverage report: total summary to stdout + browsable HTML in coverage.html.
 coverage:
-	go test -count=1 -coverprofile=coverage.out ./...
+	$(TEST_ENV) go test -count=1 -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -1
 	go tool cover -html=coverage.out -o coverage.html
 
-# Floors in scripts/coverage-gate.sh; reuses the profile from `test`.
-coverage-check: test
-	bash scripts/coverage-gate.sh $(COVERPROFILE); status=$$?; rm -f $(COVERPROFILE); exit $$status
+# Floors in scripts/coverage-gate.sh, over the profile from `test`, or (CI) the
+# profiles of its TEST_GROUP jobs, merged.
+COVERPROFILES ?= $(COVERPROFILE)
+coverage-gate:
+	bash scripts/coverage-gate.sh $(COVERPROFILES); status=$$?; rm -f $(COVERPROFILES); exit $$status
+
+coverage-check: test coverage-gate
 
 # The pre-push gate: what this machine can say in about a minute. The race detector and
 # the coverage floors, cross builds, the vulnerability scan, deadcode, the Nix flake and
@@ -271,7 +301,7 @@ quick: mod-check compile test-quick lint fmt-check secrets pin-check unit-check 
 
 # Every CI gate, with CI's tools (ci-parity-check.sh holds the two lists equal).
 # Non-mutating. CHECK_STRICT=1 also fails what would be skipped here.
-check: mod-check compile coverage-check cross lint fmt-check vuln secrets pin-check unit-check \
+check: mod-check compile test coverage-gate cross lint fmt-check vuln secrets pin-check unit-check \
 	arch-check ci-parity script-check release-check proto-check docs-check nix-check
 
 # ── Deploy ───────────────────────────────────────────────────────────────────

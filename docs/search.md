@@ -51,6 +51,7 @@ Two filters are spelled in the query, because their values are open-ended. Filte
 | Filter | Matches |
 | --- | --- |
 | `from:dana` | Messages whose sender's Matrix ID or display name contains `dana`. `from:@dana:example.org` pins one account |
+| `from:role:attorney` | Messages from everyone whose [phonebook](phonebook.md#searching-by-field) card has `attorney` in its `role`, by every ID kith knows them by. A field no card has searches nothing and says so |
 | `since:<when>` | Messages at or after that point |
 | `until:<when>` | Messages before that point |
 
@@ -80,7 +81,7 @@ These are searches with the question already asked. They need no terms: the list
 | Files | `gf` | `:files`, `/files` | The pane's scope, like search | Every message carrying an attachment, with the file name in its own column |
 | Starred | — | `:starred`, `/starred` | The pane's scope | Every message you starred with `*` |
 | Tracked | — | `:tracked [word]`, `/tracked [word]` | The pane's scope | Messages containing your `[tracked]` words, grouped by word |
-| Caught | — | `:caught`, `/caught` | The pane's scope | What your spam filters would catch — see [Spam](spam.md) |
+| Caught | — | `:caught`, `/caught` | The pane's scope | What your filters would catch — see [Filters](filters.md) |
 
 - **Mentions** counts a message as naming you when it carries a mention pill for you (outside any quoted reply), or lists you in its `m.mentions` — except a reply, where clients put the replied-to sender there automatically. A name typed as plain text is not a mention. The mentions list also shows mentions you have already read, which the unread badges cannot.
 - **Starred** is a private bookmark list. `*` on a message in the timeline stars or unstars it; inside the starred list, `*` unstars the selected row. Stars are stored in your room account data, so they survive a cache rebuild and reach your other sessions, and nobody in the room sees them.

@@ -23,11 +23,11 @@ func TestRankOrdersTheLadder(t *testing.T) {
 		name  string
 		match domain.Match
 	}{
-		{"the space", domain.Match{Place: "Work"}},
+		{"the space", domain.Match{Place: "space:Work"}},
 		{"this person anywhere", domain.Match{Sender: "@dana:example.org"}},
 		{"the room", domain.Match{Place: "!room:example.org"}},
 		{"the thread", domain.Match{Place: "$thread"}},
-		{"this person in the space", domain.Match{Place: "Work", Sender: "@dana:example.org"}},
+		{"this person in the space", domain.Match{Place: "space:Work", Sender: "@dana:example.org"}},
 		{"this person in the room", domain.Match{Place: "!room:example.org", Sender: "@dana:example.org"}},
 		{"this person in the thread", domain.Match{Place: "$thread", Sender: "@dana:example.org"}},
 	}
@@ -53,7 +53,7 @@ func TestARuleNamingSomewhereElseDoesNotMatch(t *testing.T) {
 
 	for name, match := range map[string]domain.Match{
 		"another room":   {Place: "!elsewhere:example.org"},
-		"another space":  {Place: "Home"},
+		"another space":  {Place: "space:Home"},
 		"another person": {Sender: "@someone:example.org"},
 		"this room, but somebody else": {
 			Place: "!room:example.org", Sender: "@someone:example.org",
@@ -84,7 +84,7 @@ func TestAmongEqualsTheLastOneWins(t *testing.T) {
 
 	matches := []domain.Match{
 		{Place: "!room:example.org"},
-		{Place: "Work"},
+		{Place: "space:Work"},
 		{Place: "!room:example.org"},
 	}
 	at, ok := domain.Narrowest(matches, atWork)
@@ -96,7 +96,7 @@ func TestAmongEqualsTheLastOneWins(t *testing.T) {
 func TestNarrowestFindsNothingWhenNothingNamesIt(t *testing.T) {
 	t.Parallel()
 
-	if _, ok := domain.Narrowest([]domain.Match{{Place: "Home"}}, atWork); ok {
+	if _, ok := domain.Narrowest([]domain.Match{{Place: "space:Home"}}, atWork); ok {
 		t.Error("a rule about somewhere else was chosen")
 	}
 	if _, ok := domain.Narrowest(nil, atWork); ok {
@@ -109,7 +109,7 @@ func TestThreadCapResolvesPerPlace(t *testing.T) {
 	t.Parallel()
 
 	rules := []domain.ThreadRule{
-		{Match: "Work", Max: 8},
+		{Match: "space:Work", Max: 8},
 		{Match: "!room:example.org", Max: 12},
 		{Match: "!quiet:example.org", Max: -1},
 	}

@@ -50,19 +50,30 @@ CREATE TABLE starred (
 	FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
--- Local mirror of org.kith.spam account data: rule by number, filter by name.
-CREATE TABLE spam_rooms (
-	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
-	rule    INTEGER NOT NULL,
-	filter  TEXT    NOT NULL DEFAULT '',
-	at_ms   INTEGER NOT NULL DEFAULT 0
+-- Local mirror of org.kith.tags account data: per room, the tags a filter moved it
+-- into (rule by number, filter by name) and the ones a person took it out of
+-- (released, which outranks every filter). tag is lower-cased.
+CREATE TABLE tag_verdicts (
+	room_id  TEXT    NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	tag      TEXT    NOT NULL,
+	rule     INTEGER NOT NULL DEFAULT 0,
+	filter   TEXT    NOT NULL DEFAULT '',
+	at_ms    INTEGER NOT NULL DEFAULT 0,
+	released INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (room_id, tag)
 ) STRICT, WITHOUT ROWID;
 
--- Rooms released from Spam; a room is here or in spam_rooms, never both. Kept
--- because a release outranks every rule.
-CREATE TABLE spam_released (
-	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
-	at_ms   INTEGER NOT NULL DEFAULT 0
+-- Per person ID and tag, the tags a filter put someone into and the ones a person
+-- took them out of; Matrix IDs mirror org.kith.people account data, the rest are kept
+-- here alone. tag is lower-cased.
+CREATE TABLE person_verdicts (
+	person   TEXT    NOT NULL,
+	tag      TEXT    NOT NULL,
+	rule     INTEGER NOT NULL DEFAULT 0,
+	filter   TEXT    NOT NULL DEFAULT '',
+	at_ms    INTEGER NOT NULL DEFAULT 0,
+	released INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (person, tag)
 ) STRICT, WITHOUT ROWID;
 
 CREATE TABLE spaces (
@@ -477,6 +488,29 @@ DROP TABLE phone_names;`,
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
 	network TEXT NOT NULL
 ) STRICT, WITHOUT ROWID;`,
+	// v13: filter verdicts per tag, replacing spam's.
+	`CREATE TABLE IF NOT EXISTS tag_verdicts (
+	room_id  TEXT    NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	tag      TEXT    NOT NULL,
+	rule     INTEGER NOT NULL DEFAULT 0,
+	filter   TEXT    NOT NULL DEFAULT '',
+	at_ms    INTEGER NOT NULL DEFAULT 0,
+	released INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (room_id, tag)
+) STRICT, WITHOUT ROWID;`,
+	// v14, v15: spam's verdicts are tag verdicts now.
+	`DROP TABLE IF EXISTS spam_rooms;`,
+	`DROP TABLE IF EXISTS spam_released;`,
+	// v16: filter marks per person and tag, and releases.
+	`CREATE TABLE IF NOT EXISTS person_verdicts (
+	person   TEXT    NOT NULL,
+	tag      TEXT    NOT NULL,
+	rule     INTEGER NOT NULL DEFAULT 0,
+	filter   TEXT    NOT NULL DEFAULT '',
+	at_ms    INTEGER NOT NULL DEFAULT 0,
+	released INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (person, tag)
+) STRICT, WITHOUT ROWID;`,
 }
 
 // ensureIndexes makes the file's indexes exactly baseSchema's (create missing,
@@ -601,19 +635,35 @@ func stripSQLComments(script string) string {
 	return strings.Join(kept, "\n")
 }
 
-// prepare brings the database to the current schema: current (by number and shape)
-// only reconciles indexes, base..current migrates, anything else is copied aside and
+// schemaPlan is the schema a cache is brought to: the base, then migrations, and the
+// shape they build, worked out once.
+type schemaPlan struct {
+	migrations []string
+	shape      func() (map[string]map[string]columnShape, error)
+}
+
+func newSchemaPlan(migrations []string) schemaPlan {
+	return schemaPlan{migrations: migrations, shape: sync.OnceValues(func() (map[string]map[string]columnShape, error) {
+		return expectedShape(migrations)
+	})}
+}
+
+// currentSchema is the schema this build opens every cache with.
+var currentSchema = newSchemaPlan(migrations)
+
+// prepare brings the database to plan's schema: current (by number and shape) only
+// reconciles indexes, base..current migrates, anything else is copied aside and
 // rebuilt. A rebuild is reported so the caller can reset the sync position.
-func prepare(ctx context.Context, sqlDB *sql.DB, path string) (prepared, error) {
+func prepare(ctx context.Context, sqlDB *sql.DB, path string, plan schemaPlan) (prepared, error) {
 	version, err := userVersion(ctx, sqlDB)
 	if err != nil {
 		return prepared{}, err
 	}
-	current := schemaVersion + len(migrations)
+	current := schemaVersion + len(plan.migrations)
 	if version == current {
 		// The number alone is not trusted: a reused version or a hand-edited cache
 		// would fail at the first query.
-		ok, serr := shapeMatches(ctx, sqlDB)
+		ok, serr := shapeMatches(ctx, sqlDB, plan)
 		if serr != nil {
 			return prepared{}, serr
 		}
@@ -634,8 +684,8 @@ func prepare(ctx context.Context, sqlDB *sql.DB, path string) (prepared, error) 
 		version = schemaVersion
 		out.rebuilt = true
 	}
-	for i := version - schemaVersion; i < len(migrations); i++ {
-		if migrateErr := applyMigration(ctx, sqlDB, i); migrateErr != nil {
+	for i := version - schemaVersion; i < len(plan.migrations); i++ {
+		if migrateErr := applyMigration(ctx, sqlDB, plan.migrations, i); migrateErr != nil {
 			return out, migrateErr
 		}
 	}
@@ -650,9 +700,9 @@ type columnShape struct {
 	pk      int
 }
 
-// expectedShape is the schema's tables and columns, built once in memory from the
-// statements a rebuild runs.
-var expectedShape = sync.OnceValues(func() (map[string]map[string]columnShape, error) {
+// expectedShape is the tables and columns the base and migrations build, made in
+// memory from the statements a rebuild runs.
+func expectedShape(migrations []string) (map[string]map[string]columnShape, error) {
 	ctx := context.Background()
 	mem, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
@@ -664,12 +714,12 @@ var expectedShape = sync.OnceValues(func() (map[string]map[string]columnShape, e
 		return nil, fmt.Errorf("db: build the reference schema: %w", err)
 	}
 	for i := range migrations {
-		if err := applyMigration(ctx, mem, i); err != nil {
+		if err := applyMigration(ctx, mem, migrations, i); err != nil {
 			return nil, err
 		}
 	}
 	return shapeOf(ctx, mem)
-})
+}
 
 // shapeOf is every table with its columns and every trigger with its statement:
 // without the FTS triggers search silently goes stale.
@@ -716,10 +766,10 @@ func shapeOf(ctx context.Context, sqlDB *sql.DB) (map[string]map[string]columnSh
 	return out, nil
 }
 
-// shapeMatches reports whether every schema table exists with the same columns;
-// extra tables are ignored.
-func shapeMatches(ctx context.Context, sqlDB *sql.DB) (bool, error) {
-	want, err := expectedShape()
+// shapeMatches reports whether every table of plan's schema exists with the same
+// columns; extra tables are ignored.
+func shapeMatches(ctx context.Context, sqlDB *sql.DB, plan schemaPlan) (bool, error) {
+	want, err := plan.shape()
 	if err != nil {
 		return false, err
 	}
@@ -874,8 +924,8 @@ func stampVersion(ctx context.Context, exec interface {
 	return nil
 }
 
-// applyMigration applies one migration and stamps its version in one transaction.
-func applyMigration(ctx context.Context, sqlDB *sql.DB, index int) error {
+// applyMigration applies migrations[index] and stamps its version in one transaction.
+func applyMigration(ctx context.Context, sqlDB *sql.DB, migrations []string, index int) error {
 	version := schemaVersion + index + 1
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {

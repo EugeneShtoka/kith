@@ -23,7 +23,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 | Page | What it covers |
 | --- | --- |
 | [Notifications](notifications.md) | Rules per room, space, sender and thread; quiet hours; do-not-disturb; burst folding; verification-code capture |
-| [Spam](spam.md) | Content filters, promotion rules, the Spam group, `/caught` and `/why` |
+| [Filters](filters.md) | Filters that move rooms into tags, the Spam tag, `/caught`, `:rescan` and `/why` |
 | [Composer](composer.md) | Markdown, mentions, emoji, attachments, drafts, the send queue, scheduled messages, spelling and completion |
 | [Assist](assist.md) | The local completion model and the optional remote model: `/summary`, `:todo`, thread names, privacy scoping |
 | [Commands](commands.md) | Built-in `/` and `:` commands, and writing your own as executable scripts |
@@ -31,6 +31,9 @@ New here? Start with [Getting started](getting-started.md), then take the
 | [WhatsApp](whatsapp.md) | Linking WhatsApp directly: setup, several accounts, without Matrix, what works, the risks |
 | [Slack](slack.md) | Signing in to Slack workspaces directly: setup, several workspaces, what you see, the risks |
 | [Telegram](telegram.md) | Logging in to Telegram directly (being built): setup, the app's ID and hash |
+| [Google Messages](google-messages.md) | Pairing an Android phone's Messages directly (being built): pairing with your Google account, the risks |
+| [LinkedIn](linkedin.md) | Signing in to LinkedIn directly: the browser's cookies, the risks |
+| [Messenger](messenger.md) | Signing in to Messenger directly (being built): the password login, the risks |
 | [Phonebook](phonebook.md) | A folder of Markdown cards, one per person, shared with other programs: the format, and `I` on a person |
 | [Encryption](encryption.md) | End-to-end encryption, device verification, key backup, key export and import, what is stored where |
 

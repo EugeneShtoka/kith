@@ -94,6 +94,56 @@ func TestCachedUnreadPrefersTheLocalCount(t *testing.T) {
 	}
 }
 
+// Hiding a person recounts the rooms they wrote in: the book and the stream drop
+// their messages, and taking the mark off brings them back.
+func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	b := backendWithCache(t, testUser)
+	seedRoom(t, b, "!r:x")
+	if err := b.cache.SaveMessages(ctx, "!r:x", []domain.Message{
+		{ID: "$read", RoomID: "!r:x", Sender: "@alice:x", Body: "seen", Timestamp: at(1)},
+		{ID: "$1", RoomID: "!r:x", Sender: "@alice:x", Body: "one", Timestamp: at(2)},
+		{ID: "$2", RoomID: "!r:x", Sender: "@spam:x", Body: "buy", Timestamp: at(3)},
+	}); err != nil {
+		t.Fatalf("SaveMessages: %v", err)
+	}
+	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: "!r:x", ReadEvent: "$read"}, 0); err != nil {
+		t.Fatalf("SaveUnread: %v", err)
+	}
+	b.recount(ctx, "!r:x")
+	b.cache.OnHiddenChange(b.RecountUnread)
+	streamed := func() int {
+		t.Helper()
+		var last domain.Unread
+		for {
+			select {
+			case u := <-b.Unread():
+				last = u
+			default:
+				return last.Messages
+			}
+		}
+	}
+	_ = streamed()
+
+	for _, step := range []struct {
+		marked []string
+		want   int
+	}{{[]string{"@spam:x"}, 1}, {nil, 2}} {
+		if err := b.cache.UseHidden(ctx, step.marked, nil, nil); err != nil {
+			t.Fatalf("UseHidden: %v", err)
+		}
+		if got := b.unread.get("!r:x").Messages; got != step.want {
+			t.Errorf("marked %v: the book counts %d, want %d", step.marked, got, step.want)
+		}
+		if got := streamed(); got != step.want {
+			t.Errorf("marked %v: streamed %d, want %d", step.marked, got, step.want)
+		}
+	}
+}
+
 // A backend without a cache answers its unread read with nothing rather than failing.
 func TestCachelessUnreadAnswersNothing(t *testing.T) {
 	t.Parallel()

@@ -1,8 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
-	"reflect"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -32,6 +33,26 @@ func (j Jumps) Validate() error {
 	return nil
 }
 
+// TagKey is one chord and the tag it puts the room in, or takes it out of.
+type TagKey struct {
+	Chord string `toml:"chord"`
+	Tag   string `toml:"tag"`
+}
+
+// TagKeys is the list of tag bindings.
+type TagKeys []TagKey
+
+// Map is the bindings as the keymap wants them: chord to tag name.
+func (t TagKeys) Map() map[string]string {
+	out := make(map[string]string, len(t))
+	for _, entry := range t {
+		if entry.Chord != "" && entry.Tag != "" {
+			out[entry.Chord] = entry.Tag
+		}
+	}
+	return out
+}
+
 // Map is the bindings as the keymap wants them.
 func (j Jumps) Map() map[string]string {
 	out := make(map[string]string, len(j))
@@ -43,355 +64,154 @@ func (j Jumps) Map() map[string]string {
 	return out
 }
 
-// Keys are kith's configurable keybindings; each value is a comma-separated list
-// ("k,up"). Defaults and descriptions live in keySections.
+// Keys are kith's configurable keybindings. Bindings holds each action's keys by path
+// ("timeline.reply" is [keys.timeline] reply), as a comma-separated list ("k,up"); the
+// paths, defaults and descriptions live in keySections.
 type Keys struct {
-	Quit        string         `toml:"quit"`
-	Interrupt   string         `toml:"interrupt"`
-	Paste       string         `toml:"paste"`
-	Help        string         `toml:"help"`
-	Command     string         `toml:"command"`
-	Settings    string         `toml:"settings"`
-	Redraw      string         `toml:"redraw"`
-	FocusNext   string         `toml:"focus_next"`
-	FocusPrev   string         `toml:"focus_prev"`
-	ToggleDND   string         `toml:"toggle_dnd"`
-	ToggleMute  string         `toml:"toggle_mute"`
-	JumpTo      string         `toml:"jump_to"`
-	JumpBack    string         `toml:"jump_back"`
-	JumpForward string         `toml:"jump_forward"`
-	Jump        Jumps          `toml:"jump"`
-	Nav         NavKeys        `toml:"nav"`
-	Rail        RailKeys       `toml:"rail"`
-	Rooms       RoomsKeys      `toml:"rooms"`
-	Sort        SortKeys       `toml:"sort"`
-	Search      SearchKeys     `toml:"search"`
-	Timeline    TimelineKeys   `toml:"timeline"`
-	Insert      InsertKeys     `toml:"insert"`
-	Edit        EditKeys       `toml:"edit"`
-	Completion  CompletionKeys `toml:"completion"`
-	Emoji       EmojiKeys      `toml:"emoji"`
-	Composer    ComposerKeys   `toml:"composer"`
-	Picker      PickerKeys     `toml:"picker"`
-	React       ReactKeys      `toml:"react"`
-	Player      PlayerKeys     `toml:"player"`
-	Verify      VerifyKeys     `toml:"verify"`
-	Confirm     ConfirmKeys    `toml:"confirm"`
-	Prompt      PromptKeys     `toml:"prompt"`
-	Spell       SpellKeys      `toml:"spell"`
+	Bindings map[string]string `toml:"-"`
+	Jump     Jumps             `toml:"jump"`
+	Tag      TagKeys           `toml:"tag"`
 }
 
-// EditKeys edit text in every field that takes typing: the composer, prompts and
-// filters.
-type EditKeys struct {
-	Left              string `toml:"left"`
-	Right             string `toml:"right"`
-	WordLeft          string `toml:"word_left"`
-	WordRight         string `toml:"word_right"`
-	Start             string `toml:"start"`
-	End               string `toml:"end"`
-	DeleteBack        string `toml:"delete_back"`
-	DeleteForward     string `toml:"delete_forward"`
-	DeleteWordBack    string `toml:"delete_word_back"`
-	DeleteWordForward string `toml:"delete_word_forward"`
-	DeleteToStart     string `toml:"delete_to_start"`
-	DeleteToEnd       string `toml:"delete_to_end"`
-	Undo              string `toml:"undo"`
-	Redo              string `toml:"redo"`
-	RowUp             string `toml:"row_up"`
-	RowDown           string `toml:"row_down"`
+// UnmarshalTOML reads [keys]: each binding by its path, and the jump and tag lists.
+// A path keySections does not name is refused, as an unknown key is everywhere else.
+func (k *Keys) UnmarshalTOML(data any) error {
+	table, ok := data.(map[string]any)
+	if !ok {
+		return errors.New("keys: want a table")
+	}
+	k.Bindings = map[string]string{}
+	var unknown []string
+	set := func(path string, value any) error {
+		if _, known := keyByPath[path]; !known {
+			unknown = append(unknown, "keys."+path)
+			return nil
+		}
+		s, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("keys.%s: want a string of keys, like \"k,up\"", path)
+		}
+		k.Bindings[path] = s
+		return nil
+	}
+	for name, value := range table {
+		var err error
+		switch sub, isTable := value.(map[string]any); {
+		case name == "jump":
+			k.Jump, err = chordEntries(name, value, "target", func(c, t string) Jump { return Jump{c, t} })
+		case name == "tag":
+			k.Tag, err = chordEntries(name, value, "tag", func(c, t string) TagKey { return TagKey{c, t} })
+		case isTable:
+			for action, keys := range sub {
+				if err = set(name+"."+action, keys); err != nil {
+					break
+				}
+			}
+		default:
+			err = set(name, value)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if len(unknown) > 0 {
+		slices.Sort(unknown)
+		return fmt.Errorf("unknown keys: %s", strings.Join(unknown, ", "))
+	}
+	return nil
 }
 
-// RoomsKeys are the room list's own actions.
-type RoomsKeys struct {
-	Join         string `toml:"join"`
-	Leave        string `toml:"leave"`
-	Accept       string `toml:"accept"`
-	Reject       string `toml:"reject"`
-	People       string `toml:"people"`
-	Person       string `toml:"person"`
-	ViewMedia    string `toml:"view_media"`
-	Name         string `toml:"name"`
-	NotifyRule   string `toml:"notify_rule"`
-	MarkRead     string `toml:"mark_read"`
-	Invite       string `toml:"invite"`
-	Spaces       string `toml:"spaces"`
-	MarkUnread   string `toml:"mark_unread"`
-	Spam         string `toml:"spam"`
-	Archived     string `toml:"archived"`
-	RenameThread string `toml:"rename_thread"`
-	ListThreads  string `toml:"list_threads"`
+// chordEntries reads [[keys.<list>]]: tables of a chord and one other string, field.
+func chordEntries[T any](list string, value any, field string, entry func(chord, other string) T) ([]T, error) {
+	var entries []map[string]any
+	switch v := value.(type) {
+	case []map[string]any:
+		entries = v
+	case []any: // [] or inline tables
+		for _, e := range v {
+			entry, ok := e.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("keys.%s: want tables of chord and %s", list, field)
+			}
+			entries = append(entries, entry)
+		}
+	default:
+		return nil, fmt.Errorf("keys.%s: want tables of chord and %s", list, field)
+	}
+	out := make([]T, 0, len(entries))
+	for _, table := range entries {
+		var pair [2]string
+		for name, v := range table {
+			i := slices.Index([]string{"chord", field}, name)
+			s, ok := v.(string)
+			switch {
+			case i < 0:
+				return nil, fmt.Errorf("unknown keys: keys.%s.%s", list, name)
+			case !ok:
+				return nil, fmt.Errorf("keys.%s.%s: want a string", list, name)
+			}
+			pair[i] = s
+		}
+		out = append(out, entry(pair[0], pair[1]))
+	}
+	return out, nil
 }
 
-// RailKeys rearrange the spaces rail.
-type RailKeys struct {
-	Name       string `toml:"name"`
-	NotifyRule string `toml:"notify_rule"`
-	MarkRead   string `toml:"mark_read"`
-	Leave      string `toml:"leave"`
-}
-
-// SearchKeys open message search over the local cache and drive its results.
-type SearchKeys struct {
-	Room     string `toml:"room"`
-	All      string `toml:"all"`
-	Mentions string `toml:"mentions"`
-	Files    string `toml:"files"`
-	Jump     string `toml:"jump"`
-	Scope    string `toml:"scope"`
-	Close    string `toml:"close"`
-	Star     string `toml:"star"`
-}
-
-// ConfirmKeys answer a destructive action's confirmation.
-type ConfirmKeys struct {
-	Yes    string `toml:"yes"`
-	No     string `toml:"no"`
-	YesAll string `toml:"yes_all"`
-	NoAll  string `toml:"no_all"`
-}
-
-// PromptKeys drive a one-line text prompt. Anything not bound here types itself,
-// as in the composer.
-type PromptKeys struct {
-	Submit string `toml:"submit"`
-	Cancel string `toml:"cancel"`
-}
-
-// NavKeys is cursor motion, consulted by every pane.
-type NavKeys struct {
-	Up           string `toml:"up"`
-	Down         string `toml:"down"`
-	Back         string `toml:"back"`
-	Open         string `toml:"open"`
-	PageUp       string `toml:"page_up"`
-	PageDown     string `toml:"page_down"`
-	HalfPageUp   string `toml:"half_page_up"`
-	HalfPageDown string `toml:"half_page_down"`
-	SelectOldest string `toml:"select_oldest"`
-	SelectNewest string `toml:"select_newest"`
-	ScrollOldest string `toml:"scroll_oldest"`
-	ScrollNewest string `toml:"scroll_newest"`
-}
-
-// TimelineKeys are the message cursor's actions, outside insert mode.
-type TimelineKeys struct {
-	Insert         string `toml:"insert"`
-	Reply          string `toml:"reply"`
-	GoReply        string `toml:"go_reply"`
-	React          string `toml:"react"`
-	Redact         string `toml:"redact"`
-	Edit           string `toml:"edit"`
-	Reveal         string `toml:"reveal"`
-	NextMention    string `toml:"next_mention"`
-	PrevMention    string `toml:"prev_mention"`
-	NextAttachment string `toml:"next_attachment"`
-	PrevAttachment string `toml:"prev_attachment"`
-	PrevDay        string `toml:"prev_day"`
-	NextDay        string `toml:"next_day"`
-	Name           string `toml:"name"`
-	Person         string `toml:"person"`
-	NotifyRule     string `toml:"notify_rule"`
-	CopyText       string `toml:"copy_text"`
-	CopyURL        string `toml:"copy_url"`
-	OpenURL        string `toml:"open_url"`
-	OpenURLFocus   string `toml:"open_url_focus"`
-	FollowLink     string `toml:"follow_link"`
-	Topic          string `toml:"topic"`
-	Star           string `toml:"star"`
-	History        string `toml:"history"`
-	CopyCode       string `toml:"copy_code"`
-	Download       string `toml:"download"`
-	SaveAs         string `toml:"save_as"`
-	ViewMedia      string `toml:"view_media"`
-	Vote           string `toml:"vote"`
-	Play           string `toml:"play"`
-	OpenThread     string `toml:"open_thread"`
-	StartThread    string `toml:"start_thread"`
-	ListThreads    string `toml:"list_threads"`
-	RenameThread   string `toml:"rename_thread"`
-}
-
-// PlayerKeys drive the voice-note player.
-type PlayerKeys struct {
-	PlayPause   string `toml:"play_pause"`
-	Back        string `toml:"back"`
-	Forward     string `toml:"forward"`
-	Slower      string `toml:"slower"`
-	Faster      string `toml:"faster"`
-	NormalSpeed string `toml:"normal_speed"`
-	SaveSpeed   string `toml:"save_speed"`
-	Stop        string `toml:"stop"`
-}
-
-// InsertKeys apply while composing; unbound keys type themselves, so bind only keys
-// that produce no text.
-type InsertKeys struct {
-	Send         string `toml:"send"`
-	Newline      string `toml:"newline"`
-	Cancel       string `toml:"cancel"`
-	Attach       string `toml:"attach"`
-	Complete     string `toml:"complete"`
-	CompleteAll  string `toml:"complete_all"`
-	ModelPreview string `toml:"model_preview"`
-	// Choose1..Choose5 take the first to fifth option on offer (see [complete]).
-	Choose1 string `toml:"choose_1"`
-	Choose2 string `toml:"choose_2"`
-	Choose3 string `toml:"choose_3"`
-	Choose4 string `toml:"choose_4"`
-	Choose5 string `toml:"choose_5"`
-}
-
-// CompletionKeys apply while the completion popup is open.
-type CompletionKeys struct {
-	Next    string `toml:"next"`
-	Prev    string `toml:"prev"`
-	Accept  string `toml:"accept"`
-	Dismiss string `toml:"dismiss"`
-}
-
-// SpellKeys open the correction walk and drive it.
-type SpellKeys struct {
-	Open       string `toml:"open"`
-	OpenInsert string `toml:"open_insert"`
-	Skip       string `toml:"skip"`
-	Add        string `toml:"add"`
-	Ignore     string `toml:"ignore"`
-	Stop       string `toml:"stop"`
-	// Choose1..Choose9 take the first to ninth suggestion.
-	Choose1 string `toml:"choose_1"`
-	Choose2 string `toml:"choose_2"`
-	Choose3 string `toml:"choose_3"`
-	Choose4 string `toml:"choose_4"`
-	Choose5 string `toml:"choose_5"`
-	Choose6 string `toml:"choose_6"`
-	Choose7 string `toml:"choose_7"`
-	Choose8 string `toml:"choose_8"`
-	Choose9 string `toml:"choose_9"`
-}
-
-// EmojiKeys open and drive the emoji browser grid.
-type EmojiKeys struct {
-	Open   string `toml:"open"`
-	Accept string `toml:"accept"`
-	Cancel string `toml:"cancel"`
-}
-
-// ComposerKeys apply to writing a message.
-type ComposerKeys struct {
-	ExternalEdit string `toml:"external_edit"`
-	Cut          string `toml:"cut"`
-}
-
-// PickerKeys apply while a chooser overlay (people, identities, colors, links) is open.
-type PickerKeys struct {
-	Filter   string `toml:"filter"`
-	Name     string `toml:"name"`
-	Person   string `toml:"person"`
-	Kick     string `toml:"kick"`
-	Ban      string `toml:"ban"`
-	Rename   string `toml:"rename"`
-	Toggle   string `toml:"toggle"`
-	Increase string `toml:"increase"`
-	Decrease string `toml:"decrease"`
-	MoveUp   string `toml:"move_up"`
-	MoveDown string `toml:"move_down"`
-	Remove   string `toml:"remove"`
-	Accept   string `toml:"accept"`
-	Close    string `toml:"close"`
-}
-
-// SortKeys choose the room list's order.
-type SortKeys struct {
-	UnreadFirst   string `toml:"unread_first"`
-	MentionsFirst string `toml:"mentions_first"`
-	DraftsFirst   string `toml:"drafts_first"`
-	Recent        string `toml:"recent"`
-	Alphabetical  string `toml:"alphabetical"`
-}
-
-// ReactKeys apply while the emoji prompt is open. Digits pick palette positions and are
-// not configurable.
-type ReactKeys struct {
-	Send   string `toml:"send"`
-	Cancel string `toml:"cancel"`
-	// Pick1..Pick10 react with the palette's first to tenth emoji.
-	Pick1  string `toml:"pick_1"`
-	Pick2  string `toml:"pick_2"`
-	Pick3  string `toml:"pick_3"`
-	Pick4  string `toml:"pick_4"`
-	Pick5  string `toml:"pick_5"`
-	Pick6  string `toml:"pick_6"`
-	Pick7  string `toml:"pick_7"`
-	Pick8  string `toml:"pick_8"`
-	Pick9  string `toml:"pick_9"`
-	Pick10 string `toml:"pick_10"`
-}
-
-// VerifyKeys apply while the device-verification overlay is up; it captures all other keys.
-type VerifyKeys struct {
-	Confirm string `toml:"confirm"`
-	Cancel  string `toml:"cancel"`
+// bindingsTOML renders the bindings that differ from defaults: [keys]' own as values,
+// the rest as [keys.*] tables, in keySections' order.
+func (k Keys) bindingsTOML(defaults Keys) (values, tables string) {
+	var own, rest strings.Builder
+	for _, section := range keySections {
+		var b strings.Builder
+		for _, bind := range section.binds {
+			if got := k.Bindings[bind.path]; got != defaults.Bindings[bind.path] {
+				fmt.Fprintf(&b, "%s = %s\n", bind.path[strings.LastIndex(bind.path, ".")+1:], quoteTOML(got))
+			}
+		}
+		switch {
+		case b.Len() == 0:
+		case section.table == "":
+			own.WriteString(b.String())
+		default:
+			rest.WriteString("\n[keys." + section.table + "]\n" + b.String())
+		}
+	}
+	return own.String(), rest.String()
 }
 
 // DefaultKeys are the built-in bindings, from keySections.
-func DefaultKeys() Keys { return defaultKeys }
+func DefaultKeys() Keys {
+	return Keys{Bindings: maps.Clone(defaultKeys.Bindings), Tag: slices.Clone(defaultKeys.Tag)}
+}
 
 var defaultKeys = func() Keys {
-	var k Keys
-	v := reflect.ValueOf(&k).Elem()
-	for _, section := range keySections {
-		for _, b := range section.binds {
-			index, ok := keyFields[b.path]
-			if !ok {
-				panic("config: keySections names " + b.path + ", which Keys has no field for")
-			}
-			v.FieldByIndex(index).SetString(b.def)
-		}
+	k := Keys{Bindings: map[string]string{}}
+	for path, b := range keyByPath {
+		k.Bindings[path] = b.def
 	}
+	k.Tag = starter().Keys.Tag // the starter's tag keys, beside its tags
 	return k
-}()
-
-// keyFields maps each binding's path ("timeline.reply") to its field in Keys.
-var keyFields = func() map[string][]int {
-	out := map[string][]int{}
-	var walk func(t reflect.Type, prefix string, index []int)
-	walk = func(t reflect.Type, prefix string, index []int) {
-		for i := range t.NumField() {
-			f := t.Field(i)
-			at := append(slices.Clone(index), i)
-			switch f.Type.Kind() {
-			case reflect.String:
-				out[prefix+tomlName(f)] = at
-			case reflect.Struct:
-				walk(f.Type, prefix+tomlName(f)+".", at)
-			}
-		}
-	}
-	walk(reflect.TypeFor[Keys](), "", nil)
-	return out
 }()
 
 // Binding is the value at path ("timeline.reply"); false for an unknown path.
 func (k Keys) Binding(path string) (string, bool) {
-	index, ok := keyFields[path]
-	if !ok {
-		return "", false
-	}
-	return reflect.ValueOf(k).FieldByIndex(index).String(), true
+	_, known := keyByPath[path]
+	return k.Bindings[path], known
 }
 
 // KeyDoc is the one-line description of the binding at path; false for an unknown path.
 func KeyDoc(path string) (string, bool) {
-	doc, ok := keyDocs[path]
-	return doc, ok
+	b, ok := keyByPath[path]
+	return b.doc, ok
 }
 
-var keyDocs = func() map[string]string {
-	out := map[string]string{}
+// keyByPath is keySections by path. defaultKeys reads it, so it is built first: the
+// starter config defaultKeys decodes checks its paths against it.
+var keyByPath = func() map[string]keyBinding {
+	out := map[string]keyBinding{}
 	for _, section := range keySections {
 		for _, b := range section.binds {
-			out[b.path] = b.doc
+			out[b.path] = b
 		}
 	}
 	return out
@@ -399,21 +219,16 @@ var keyDocs = func() map[string]string {
 
 // FillDefaults sets every unset binding to its built-in value.
 func (k *Keys) FillDefaults() {
-	fillStringDefaults(reflect.ValueOf(k).Elem(), reflect.ValueOf(DefaultKeys()))
-}
-
-// fillStringDefaults recursively copies defaults into empty string fields of target.
-func fillStringDefaults(target, defaults reflect.Value) {
-	for i := range target.NumField() {
-		field, fallback := target.Field(i), defaults.Field(i)
-		switch field.Kind() {
-		case reflect.String:
-			if field.String() == "" {
-				field.Set(fallback)
-			}
-		case reflect.Struct:
-			fillStringDefaults(field, fallback)
+	if k.Bindings == nil {
+		k.Bindings = map[string]string{}
+	}
+	for path, def := range defaultKeys.Bindings {
+		if k.Bindings[path] == "" {
+			k.Bindings[path] = def
 		}
+	}
+	if k.Tag == nil {
+		k.Tag = DefaultKeys().Tag // unset takes the starter's; decode keeps an explicit []
 	}
 }
 
@@ -445,14 +260,16 @@ func KeyTables() []KeyTable {
 
 // SetBinding writes the binding at path; "" restores its default.
 func (k *Keys) SetBinding(path, value string) error {
-	index, ok := keyFields[path]
-	if !ok {
+	if _, known := keyByPath[path]; !known {
 		return fmt.Errorf("config: no key binding %q", path)
 	}
 	value = strings.TrimSpace(value)
 	if value == "" {
-		value, _ = DefaultKeys().Binding(path)
+		value = defaultKeys.Bindings[path]
 	}
-	reflect.ValueOf(k).Elem().FieldByIndex(index).SetString(value)
+	if k.Bindings == nil {
+		k.Bindings = map[string]string{}
+	}
+	k.Bindings[path] = value
 	return nil
 }

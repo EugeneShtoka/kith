@@ -16,6 +16,7 @@ type Media struct {
 	Rules            []MediaRule `toml:"rule"`
 	Auto             *bool       `toml:"auto"`
 	Cache            *bool       `toml:"cache"`
+	Anonymize        *bool       `toml:"anonymize"`
 	CacheDir         string      `toml:"cache_dir"`    // empty is $XDG_CACHE_HOME/kith/media
 	CacheMaxMB       int         `toml:"cache_max_mb"` // 0 is the media package's default
 	Audio            Audio       `toml:"audio"`
@@ -30,15 +31,19 @@ func (m Media) AutoLoad() bool { return enabled(m.Auto) }
 // Caching reports whether attachments are kept on disk (default true).
 func (m Media) Caching() bool { return enabled(m.Cache) }
 
+// Anonymizes reports whether attachments are sent under a neutral name (default true).
+func (m Media) Anonymizes() bool { return enabled(m.Anonymize) }
+
 // MediaRule is one [[display.media.rule]]; unset fields inherit.
 type MediaRule struct {
-	Match    string   `toml:"match"`  // a room ID or a space's name
-	Sender   string   `toml:"sender"` // MXID, for per-person settings (speed)
-	Auto     *bool    `toml:"auto"`
-	Cache    *bool    `toml:"cache"`
-	Dir      string   `toml:"dir"`
-	Template string   `toml:"template"`
-	Speed    *float64 `toml:"speed"`
+	Match     string   `toml:"match"`  // a room ID, space:, tag: or place:
+	Sender    string   `toml:"sender"` // MXID, for per-person settings (speed)
+	Auto      *bool    `toml:"auto"`
+	Cache     *bool    `toml:"cache"`
+	Anonymize *bool    `toml:"anonymize"`
+	Dir       string   `toml:"dir"`
+	Template  string   `toml:"template"`
+	Speed     *float64 `toml:"speed"`
 }
 
 // Audio is [display.media.audio]: the voice-note player.

@@ -84,16 +84,10 @@ var (
 	ErrNoBrowser = errors.New("focus: no default browser on this desktop")
 )
 
-// lookPath is how a binary is found, replaced in tests.
-var lookPath = exec.LookPath
-
-// lookupEnv reads the environment, replaced in tests.
-var lookupEnv = os.LookupEnv
-
-// run executes one command and reports only whether it worked. Replaced in tests.
-var run = func(ctx context.Context, argv []string) error {
+// run executes one command and reports only whether it worked.
+func run(ctx context.Context, argv []string) error {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- argv is this package's own table with a window class substituted in; no shell
-	return cmd.Run()
+	return cmd.Run()                                      //nolint:wrapcheck // Raise wraps it with the focuser's name
 }
 
 // detect returns the focuser for this machine, or false when there is none.
@@ -105,7 +99,7 @@ func detect() (Focuser, bool) {
 		if !f.present() {
 			continue
 		}
-		if _, err := lookPath(f.Command); err != nil {
+		if _, err := exec.LookPath(f.Command); err != nil {
 			continue // probing: this focuser's tool is not installed
 		}
 		return f, true
@@ -116,7 +110,7 @@ func detect() (Focuser, bool) {
 // present reports whether this desktop is the one running.
 func (f Focuser) present() bool {
 	for _, name := range f.Vars {
-		if value, ok := lookupEnv(name); ok && value != "" {
+		if value, ok := os.LookupEnv(name); ok && value != "" {
 			return true
 		}
 	}
@@ -189,17 +183,16 @@ func Go(ctx context.Context, configured string) error {
 const (
 	patience = 8 * time.Second
 	interval = 200 * time.Millisecond
-	// attempts counts tries, not wall time, so tests can make waiting free.
 	attempts = int(patience / interval)
 )
 
-// nap is how wait waits, replaced in tests so they need no clock.
-var nap = func(ctx context.Context, d time.Duration) error {
+// nap sleeps for d, or until ctx ends.
+func nap(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return ctx.Err() //nolint:wrapcheck // wait only asks whether the nap was cut short
 	case <-timer.C:
 		return nil
 	}
@@ -243,8 +236,8 @@ var browserQueries = [][]string{
 	{"xdg-mime", "query", "default", "x-scheme-handler/https"},
 }
 
-// output runs a command and returns its first line. Replaced in tests.
-var output = func(ctx context.Context, argv []string) (string, error) {
+// output runs a command and returns its first line.
+func output(ctx context.Context, argv []string) (string, error) {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- argv is this package's own table; no shell, no outside input
 	out, err := cmd.Output()
 	if err != nil {
@@ -262,7 +255,7 @@ func readBrowser(ctx context.Context) (string, error) {
 	}
 	var desktop string
 	for _, query := range browserQueries {
-		if _, err := lookPath(query[0]); err != nil {
+		if _, err := exec.LookPath(query[0]); err != nil {
 			continue // probing: this query's tool is not installed
 		}
 		if line, err := output(ctx, query); err == nil && strings.HasSuffix(line, ".desktop") {
@@ -313,7 +306,7 @@ func entryValue(file, key string) string {
 // applicationDirs lists desktop-entry dirs in XDG precedence: user first, then system.
 func applicationDirs() []string {
 	var dirs []string
-	home, ok := lookupEnv("XDG_DATA_HOME")
+	home, ok := os.LookupEnv("XDG_DATA_HOME")
 	if !ok || home == "" {
 		if userHome, err := os.UserHomeDir(); err == nil {
 			home = filepath.Join(userHome, ".local", "share")
@@ -322,7 +315,7 @@ func applicationDirs() []string {
 	if home != "" {
 		dirs = append(dirs, filepath.Join(home, "applications"))
 	}
-	system, ok := lookupEnv("XDG_DATA_DIRS")
+	system, ok := os.LookupEnv("XDG_DATA_DIRS")
 	if !ok || system == "" {
 		system = "/usr/local/share:/usr/share"
 	}

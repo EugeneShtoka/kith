@@ -17,7 +17,8 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 
 	// Fields that deliberately do not cross the wire, matched by name at any depth.
 	offWire := map[string]string{
-		"RevisionID": "only the daemon, which writes the cache, needs it",
+		"RevisionID":  "only the daemon, which writes the cache, needs it",
+		"SenderField": "the client resolves it into Senders before it searches",
 	}
 
 	for _, tc := range []struct {
@@ -36,6 +37,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		}},
 		{"Unread", domain.Unread{}, func(v any) any {
 			return protoconv.ProtoToUnread(protoconv.UnreadToProto(v.(domain.Unread)))
+		}},
+		{"ChatOffer", domain.ChatOffer{}, func(v any) any {
+			return protoconv.ProtoToChatOffer(protoconv.ChatOfferToProto(v.(domain.ChatOffer)))
 		}},
 		{"Reaction", domain.Reaction{}, func(v any) any {
 			return protoconv.ProtoToReaction(protoconv.ReactionToProto(v.(domain.Reaction)))
@@ -81,8 +85,17 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"ModelResult", domain.ModelResult{}, func(v any) any {
 			return protoconv.ProtoToModelResult(protoconv.ModelResultToProto(v.(domain.ModelResult)))
 		}},
-		{"SpamVerdict", domain.SpamVerdict{}, func(v any) any {
-			return protoconv.ProtoToSpam(protoconv.SpamToProto([]domain.SpamVerdict{v.(domain.SpamVerdict)})[0])
+		{"TagVerdict", domain.TagVerdict{}, func(v any) any {
+			return protoconv.ProtoToVerdict(protoconv.VerdictToProto(v.(domain.TagVerdict)))
+		}},
+		{"PersonVerdict", domain.PersonVerdict{}, func(v any) any {
+			return protoconv.ProtoToPersonVerdicts(protoconv.PersonVerdictsToProto([]domain.PersonVerdict{v.(domain.PersonVerdict)}))[0]
+		}},
+		{"PersonCandidate", domain.PersonCandidate{}, func(v any) any {
+			return protoconv.ProtoToPersonCandidates(protoconv.PersonCandidatesToProto([]domain.PersonCandidate{v.(domain.PersonCandidate)}))[0]
+		}},
+		{"MoveCandidate", domain.MoveCandidate{}, func(v any) any {
+			return protoconv.ProtoToCandidates(protoconv.CandidatesToProto([]domain.MoveCandidate{v.(domain.MoveCandidate)}))[0]
 		}},
 		{"Deletion", domain.Deletion{}, func(v any) any {
 			return protoconv.ProtoToDeletion(protoconv.DeletionToProto(v.(domain.Deletion)))

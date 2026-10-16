@@ -35,10 +35,14 @@ func (Nop) MarkRoomUnread(context.Context, domain.RoomID, bool) error           
 func (Nop) SetRoomArchived(context.Context, domain.RoomID, bool) error                 { return nil }
 func (Nop) StarMessage(context.Context, domain.RoomID, domain.EventID, bool) error     { return nil }
 func (Nop) StarredIn(context.Context, domain.RoomID) ([]domain.EventID, error)         { return nil, nil }
-func (Nop) SpamRooms(context.Context) ([]domain.SpamVerdict, error)                    { return nil, nil }
-func (Nop) MarkSpam(context.Context, domain.SpamVerdict) error                         { return nil }
+func (Nop) TagVerdicts(context.Context) ([]domain.TagVerdict, error)                   { return nil, nil }
+func (Nop) MarkTag(context.Context, domain.TagVerdict) error                           { return nil }
+func (Nop) RetagVerdicts(context.Context, string, string) error                        { return nil }
+func (Nop) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error)             { return nil, nil }
+func (Nop) MarkPerson(context.Context, domain.PersonVerdict) error                     { return nil }
 func (Nop) AddToSpace(_ context.Context, _ domain.SpaceID, _ domain.RoomID) error      { return nil }
 func (Nop) CreateRoom(context.Context, domain.NewRoom) (domain.RoomID, error)          { return "", nil }
+func (Nop) ChatOffers(context.Context) ([]domain.ChatOffer, error)                     { return nil, nil }
 func (Nop) InviteUser(context.Context, domain.RoomID, string) error                    { return nil }
 func (Nop) KickUser(context.Context, domain.RoomID, string, string) error              { return nil }
 func (Nop) BanUser(context.Context, domain.RoomID, string, string) error               { return nil }
@@ -64,10 +68,10 @@ func (Nop) Timeline(context.Context, domain.RoomID, string, int) (domain.Timelin
 func (Nop) FetchEvent(context.Context, domain.RoomID, domain.EventID) (domain.Message, error) {
 	return domain.Message{}, nil
 }
-func (Nop) Send(context.Context, domain.RoomID, domain.Draft) error       { return nil }
-func (Nop) SendFile(context.Context, domain.RoomID, string, string) error { return nil }
-func (Nop) CachedUnread(context.Context) ([]domain.Unread, error)         { return nil, nil }
-func (n Nop) Unread() <-chan domain.Unread                                { return n.Unreads }
+func (Nop) Send(context.Context, domain.RoomID, domain.Draft) error               { return nil }
+func (Nop) SendFile(context.Context, domain.RoomID, string, string, string) error { return nil }
+func (Nop) CachedUnread(context.Context) ([]domain.Unread, error)                 { return nil, nil }
+func (n Nop) Unread() <-chan domain.Unread                                        { return n.Unreads }
 func (Nop) CachedReactions(context.Context, domain.RoomID) ([]domain.Reaction, error) {
 	return nil, nil
 }

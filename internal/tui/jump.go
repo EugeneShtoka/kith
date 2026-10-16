@@ -15,10 +15,11 @@ import (
 
 // The switcher (ctrl+k): type part of a person, room or space name and go there, over lists
 // already held. People with no room yet come last as "start a DM" rows, so no row looks like a
-// place but creates one.
+// place but creates one. A field term (role:attorney) lists the people whose phonebook card
+// meets it.
 
-// jumpItems is everything the switcher reaches: unread rooms, other rooms, DM candidates, then
-// rail groups.
+// jumpItems is everything the switcher reaches: unread rooms, other rooms, DM candidates, rail
+// groups, then the phonebook's people, shown only for a field term.
 func (m Model) jumpItems() []pickerItem {
 	view := m.unreadView()
 	items := make([]pickerItem, 0, len(m.rooms.all)+len(m.rail.groups))
@@ -48,6 +49,16 @@ func (m Model) jumpItems() []pickerItem {
 			value:  "group:" + g.key,
 			// The key matches too, so a renamed group is findable by its Matrix name.
 			match: g.label + " " + g.key,
+		})
+	}
+	cards := m.cards.index.Cards()
+	for i := range cards {
+		items = append(items, pickerItem{
+			label:   isolate(cards[i].Name),
+			detail:  "person",
+			value:   "card:" + cards[i].Path,
+			card:    &cards[i],
+			byTerms: true,
 		})
 	}
 	return items
@@ -147,6 +158,8 @@ func (m Model) acceptJump(value string) (Model, tea.Cmd) {
 		return m.jumpToGroup(target)
 	case "dm":
 		return m.startDirect(target)
+	case "card":
+		return m.goToCard(target)
 	}
 	return m.goToRoom(domain.RoomID(target))
 }
@@ -221,11 +234,11 @@ func (m Model) jumpKey(press string) (Model, tea.Cmd, bool) {
 
 // goTo goes where a configured target points, or says why it could not.
 func (m Model) goTo(target domain.JumpTarget) (Model, tea.Cmd) {
-	if target.Kind == domain.JumpSpace {
+	if target.Kind == domain.JumpHome {
 		if key, found := m.groupNamed(target.Name); found {
 			return m.jumpToGroup(key)
 		}
-		return m.say("no space in the rail called " + target.Name), nil
+		return m.say("nothing in the rail is " + target.Name), nil
 	}
 	if room, found := m.roomNamed(target); found {
 		return m.goToRoom(room.ID)
@@ -242,20 +255,10 @@ func (m Model) roomNamed(target domain.JumpTarget) (domain.Room, bool) {
 	return domain.Room{}, false
 }
 
-// groupNamed resolves a space target to a rail key: exact label, then key (the Matrix name,
-// which survives a rename), then a label prefix.
-func (m Model) groupNamed(name string) (string, bool) {
-	want := strings.ToLower(name)
-	for _, test := range []func(g group) bool{
-		func(g group) bool { return strings.EqualFold(g.label, name) },
-		func(g group) bool { return strings.EqualFold(g.key, name) },
-		func(g group) bool { return strings.HasPrefix(strings.ToLower(g.label), want) },
-	} {
-		for i := range m.rail.groups {
-			if test(m.rail.groups[i]) {
-				return m.rail.groups[i].key, true
-			}
-		}
+// groupNamed resolves a home entry to the first rail row it names.
+func (m Model) groupNamed(entry string) (string, bool) {
+	if keys := groupsNamed(m.rail.groups, entry); len(keys) > 0 {
+		return keys[0], true
 	}
 	return "", false
 }
@@ -300,7 +303,7 @@ func (m Model) bindingTargets(room *domain.Room) []domain.JumpTarget {
 		roomTarget = []domain.JumpTarget{{Kind: domain.JumpRoom, Name: string(room.ID)}}
 	}
 	if entry, ok := m.currentGroup(); ok && (isSpaceGroup(entry.key) || isTagGroup(entry.key)) {
-		placeTarget = []domain.JumpTarget{{Kind: domain.JumpSpace, Name: entry.key}}
+		placeTarget = []domain.JumpTarget{{Kind: domain.JumpHome, Name: domain.HomeEntry(entry.key)}}
 	}
 	if m.focus == paneRail {
 		return append(placeTarget, roomTarget...)
@@ -359,7 +362,7 @@ func (m Model) samePlace(a, b domain.JumpTarget) bool {
 	if a.Kind != b.Kind {
 		return false
 	}
-	if a.Kind == domain.JumpSpace {
+	if a.Kind == domain.JumpHome {
 		first, ok := m.groupNamed(a.Name)
 		second, also := m.groupNamed(b.Name)
 		return ok && also && first == second
@@ -414,7 +417,7 @@ func (m Model) applyJumps(jumps config.Jumps, done string) (Model, tea.Cmd) {
 
 // targetName is what the status line calls a target: its local name.
 func (m Model) targetName(target domain.JumpTarget) string {
-	if target.Kind == domain.JumpSpace {
+	if target.Kind == domain.JumpHome {
 		if key, ok := m.groupNamed(target.Name); ok {
 			return isolate(m.rail.groups[indexOfGroup(m.rail.groups, key)].label)
 		}

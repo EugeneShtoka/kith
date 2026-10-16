@@ -14,7 +14,7 @@ type inventory struct {
 	all     []domain.Room
 	spaces  []domain.Space
 	// holders is built from spaces by withSpaces; see spaceNames.
-	holders *spaceHolders
+	holders spaceHolders
 }
 
 func (inv inventory) withJoined(joined []domain.Room) inventory {
@@ -36,13 +36,10 @@ func (inv inventory) withSpaces(spaces []domain.Space) inventory {
 
 // spaceHolders maps each room to its holding spaces' names, in hierarchy order. Every draw
 // asks this per listed room; scanning children per room was too slow at a few hundred rooms.
-type spaceHolders struct {
-	from  []domain.Space // the slice it was built from
-	names map[domain.RoomID][]string
-}
+type spaceHolders map[domain.RoomID][]string
 
-func indexHolders(spaces []domain.Space) *spaceHolders {
-	h := &spaceHolders{from: spaces, names: map[domain.RoomID][]string{}}
+func indexHolders(spaces []domain.Space) spaceHolders {
+	h := spaceHolders{}
 	for i := range spaces {
 		name := spaces[i].DisplayName()
 		// A child listed twice is held once, as a scan would find it.
@@ -50,31 +47,16 @@ func indexHolders(spaces []domain.Space) *spaceHolders {
 		for _, child := range spaces[i].Children {
 			if !seen[child] {
 				seen[child] = true
-				h.names[child] = append(h.names[child], name)
+				h[child] = append(h[child], name)
 			}
 		}
 	}
 	return h
 }
 
-// spaceNames is the names of the spaces holding id, in hierarchy order. The index is used when
-// built from the current spaces; otherwise (a test assigning the field) the spaces are scanned.
+// spaceNames is the names of the spaces holding id, in hierarchy order.
 func (inv inventory) spaceNames(id domain.RoomID) []string {
-	if h := inv.holders; h != nil && sameSpaces(h.from, inv.spaces) {
-		return slices.Clip(h.names[id]) // clipped so a caller's append cannot write into the index
-	}
-	var names []string
-	for i := range inv.spaces {
-		if slices.Contains(inv.spaces[i].Children, id) {
-			names = append(names, inv.spaces[i].DisplayName())
-		}
-	}
-	return names
-}
-
-// sameSpaces reports whether a and b are the same slice, not just equal.
-func sameSpaces(a, b []domain.Space) bool {
-	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
+	return slices.Clip(inv.holders[id]) // clipped so a caller's append cannot write into the index
 }
 
 // without drops one room from both sources, for a leave whose refresh has not landed.

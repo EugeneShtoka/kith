@@ -20,7 +20,7 @@ func TestPaletteKeysAreBindings(t *testing.T) {
 		}
 	}
 	keys := config.DefaultKeys()
-	keys.React.Pick2 = "x"
+	keys.Bindings["react.pick_2"] = "x"
 	m := sized(t, withRooms(t, newModel())).WithKeys(keys)
 	m.glyphs.palette = []string{"a", "b", "c"}
 	if n, ok := pickOf(m.keys.lookup("x", scopeReact)); !ok || n != 1 {

@@ -376,6 +376,7 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 	}
 	mine := c.mine() // outside the tx: networks answer under their own locks
 	limit := c.MessagesKept(roomID)
+	c.noteSenders(msgs)
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		if err := registerRoom(ctx, tx, roomID); err != nil {
 			return err

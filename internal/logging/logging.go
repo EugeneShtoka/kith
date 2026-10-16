@@ -86,14 +86,6 @@ func UnderJournald() bool {
 // Discard returns a logger that writes nothing.
 func Discard() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-// OrDiscard returns l, or Discard when l is nil.
-func OrDiscard(l *slog.Logger) *slog.Logger {
-	if l == nil {
-		return Discard()
-	}
-	return l
-}
-
 // ── Secrets ──
 
 // secretPatterns keep group 1 (key and separator) and redact the rest. Bare Matrix

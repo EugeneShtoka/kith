@@ -13,6 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/setup"
 	"github.com/EugeneShtoka/kith/internal/theme"
 )
 
@@ -63,7 +64,7 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 		{ID: "!plain:x", Name: "Plain"},
 	}
 	display := config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "Mixed", NetworkColors: new(true)}, {Space: "Only WhatsApp", NetworkColors: new(false)}},
+		SpaceRules: []config.SpaceRule{{Space: "space:Mixed", NetworkColors: new(true)}, {Space: "space:Only WhatsApp", NetworkColors: new(false)}},
 		Theme:      config.Theme{Networks: config.NetworkColors{Telegram: "orange", Matrix: "none"}},
 		Rail:       config.Rail{NetworkColors: true},
 	}
@@ -136,26 +137,29 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 // rule goes only when neither is set. network_colors off counts as set and overrides [display].
 func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 	t.Parallel()
-	rules := []config.SpaceRule{{Space: "Other", FirstNameOnly: true}}
-	rules = withFirstNames(rules, "Friends", true)
-	rules = withNetworkColors(rules, "friends", new(true)) // the place, in any case
-	c := config.Config{Display: config.Display{SpaceRules: rules}}
-	if !firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn("Friends") || len(rules) != 2 {
-		t.Fatalf("both on: %+v", rules)
+	d := config.Display{SpaceRules: []config.SpaceRule{{Space: "space:Other", FirstNameOnly: true}}}
+	friends := setup.HomeNamer(d, "Friends")
+	d.SpaceRules = withFirstNames(d, "Friends", true)
+	d.SpaceRules = withNetworkColors(d, "Friends", new(true))
+	c := config.Config{Display: d}
+	if !firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn(friends) || len(d.SpaceRules) != 2 ||
+		d.SpaceRules[1].Space != "space:Friends" {
+		t.Fatalf("both on: %+v, want one space:Friends rule", d.SpaceRules)
 	}
-	rules = withFirstNames(rules, "Friends", false)
-	c.Display.SpaceRules = rules
-	if firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn("Friends") {
-		t.Fatalf("first names off took the colors with it: %+v", rules)
+	d.SpaceRules = withFirstNames(d, "Friends", false)
+	c.Display = d
+	if firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn(friends) {
+		t.Fatalf("first names off took the colors with it: %+v", d.SpaceRules)
 	}
-	rules = withNetworkColors(rules, "Friends", new(false))
-	c.Display.SpaceRules, c.Display.NetworkColors = rules, true
-	if c.Display.NetworkColorsIn("Friends") || len(rules) != 2 {
-		t.Fatalf("off is not kept against [display] network_colors: %+v", rules)
+	d.SpaceRules = withNetworkColors(d, "Friends", new(false))
+	d.NetworkColors = true
+	c.Display = d
+	if c.Display.NetworkColorsIn(friends) || len(d.SpaceRules) != 2 {
+		t.Fatalf("off is not kept against [display] network_colors: %+v", d.SpaceRules)
 	}
-	rules = withNetworkColors(rules, "Friends", nil)
-	if len(rules) != 1 || rules[0].Space != "Other" || !rules[0].FirstNameOnly {
-		t.Fatalf("both off: %+v, want only Other's rule", rules)
+	d.SpaceRules = withNetworkColors(d, "Friends", nil)
+	if len(d.SpaceRules) != 1 || d.SpaceRules[0].Space != "space:Other" || !d.SpaceRules[0].FirstNameOnly {
+		t.Fatalf("both off: %+v, want only Other's rule", d.SpaceRules)
 	}
 }
 
@@ -220,5 +224,41 @@ func TestTheRailKeepsItsColorsWhenTheConfigIsApplied(t *testing.T) {
 	m, _ = m.applyDisplay(renamed, "")
 	if network(m) != domain.ProtocolWhatsApp {
 		t.Errorf("after a room was renamed, Only WhatsApp's network = %q, want WhatsApp", network(m))
+	}
+}
+
+// A network's own space (an account's, a bridge's) is in that network's color when the
+// network has one, before any room is in it and whatever rooms it holds; with no color for
+// the network, its rooms decide as for any space. A space you made has no network of its own.
+func TestANetworksOwnSpaceTakesItsColor(t *testing.T) {
+	t.Parallel()
+	display := config.Display{
+		Theme: config.Theme{Networks: config.NetworkColors{GoogleMessages: "coral", LinkedIn: "none"}},
+		Rail:  config.Rail{NetworkColors: true},
+	}
+	rooms := []domain.Room{{ID: "whatsapp:1/g@g.us", Name: "Family"}}
+	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: rooms})
+	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
+		{ID: "gmessages:a/account", Name: "SMS", Bridge: domain.ProtocolGMessages, Original: true},
+		{ID: "gmessages:b/account", Name: "SMS mixed", Bridge: domain.ProtocolGMessages, Original: true,
+			Children: []domain.RoomID{"whatsapp:1/g@g.us"}},
+		{ID: "linkedin:c/account", Name: "LinkedIn", Bridge: domain.ProtocolLinkedIn, Original: true},
+		{ID: "!mine:x", Name: "Mine", Bridge: domain.ProtocolMatrix},
+	}}))
+	networks := map[string]domain.Protocol{}
+	for _, g := range m.rail.groups {
+		networks[g.key] = g.network
+	}
+	if networks["SMS"] != domain.ProtocolGMessages || networks["SMS mixed"] != domain.ProtocolGMessages {
+		t.Errorf("an account's space with its network colored: %q, %q", networks["SMS"], networks["SMS mixed"])
+	}
+	if networks["LinkedIn"] != "" || networks["Mine"] != "" {
+		t.Errorf("no color for the network, or a space of your own: %q, %q", networks["LinkedIn"], networks["Mine"])
+	}
+	sms := m.rail.groups[indexOfGroup(m.rail.groups, "SMS")]
+	coral, _ := theme.ParseColor("coral")
+	r, g, b, _ := coral.RGBA()
+	if row := m.railRow(sms, false, false, 20); !strings.Contains(row, fmt.Sprintf("38;2;%d;%d;%d", r>>8, g>>8, b>>8)) {
+		t.Errorf("the empty SMS space's rail row is not coral: %q", row)
 	}
 }

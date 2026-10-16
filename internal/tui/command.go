@@ -49,8 +49,13 @@ var commands = []command{
 	},
 	{
 		name:    "caught",
-		summary: "what the spam filters catch — the preview, before you trust them",
+		summary: "what the filters catch — the preview, before you trust them",
 		run:     noArg(Model.openCaught),
+	},
+	{
+		name: "rescan", arg: "[since]", argOptional: true,
+		summary: "rooms the filters would move into their tags, judging what is cached (30d, 12h; all when empty) — ticked ones move",
+		run:     Model.openRescan,
 	},
 	{
 		name: "mentions", keyScope: scopeCommand, keyAct: actMentions,
@@ -109,6 +114,11 @@ var commands = []command{
 		name:    "person",
 		summary: "the phonebook card of the person in view: the selected message's sender, else the room's one person",
 		run:     noArg(Model.personInView),
+	},
+	{
+		name: "people", arg: "[terms]", argOptional: true,
+		summary: "every card in the phonebook — a name or key:value (role:attorney) narrows it, and choosing one opens it",
+		run:     Model.openPhonebook,
 	},
 	{
 		name: "archived", keyScope: scopeRooms, keyAct: actToggleArchived,

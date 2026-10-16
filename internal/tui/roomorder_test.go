@@ -120,7 +120,7 @@ func TestPerSpaceOrder(t *testing.T) {
 	t.Parallel()
 
 	m := ordering(t, config.Rooms{
-		Rules: []config.RoomsRule{{Group: "Work", Sort: []string{"name"}}},
+		Rules: []config.RoomsRule{{Group: "space:Work", Sort: []string{"name"}}},
 	})
 	sameOrder(t, listed(m), "Alpha", "Bravo", "Charlie", "Delta")
 
@@ -200,7 +200,7 @@ func TestBadOrderIsRefused(t *testing.T) {
 	}{
 		{name: "global", rooms: config.Rooms{Sort: []string{"recency"}}},
 		{name: "per group", rooms: config.Rooms{
-			Rules: []config.RoomsRule{{Group: "Work", Sort: []string{"alphabetic"}}},
+			Rules: []config.RoomsRule{{Group: "space:Work", Sort: []string{"alphabetic"}}},
 		}},
 		{name: "a rule naming nothing", rooms: config.Rooms{
 			Rules: []config.RoomsRule{{Sort: []string{"recent"}}},

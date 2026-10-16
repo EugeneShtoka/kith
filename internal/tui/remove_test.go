@@ -3,10 +3,12 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // pressX presses the remove key and delivers what it starts.
@@ -49,8 +51,8 @@ func TestXRemovesARecordAndAsksForATag(t *testing.T) {
 	}
 
 	m = m.tagsOpen()
-	m.picker.cursor = 0
-	name := m.picker.items[0].value
+	m.picker.cursor = slices.IndexFunc(m.picker.items, func(i pickerItem) bool { return isTagGroup(strings.TrimPrefix(i.value, placePagePrefix)) })
+	name, _ := domain.TagOf(strings.TrimPrefix(m.picker.items[m.picker.cursor].value, placePagePrefix))
 	m = pressX(t, m)
 	if m.confirm.action != pendingDeleteTag || m.confirm.group != name || m.configTag(name) < 0 {
 		t.Errorf("x on tag %q: confirm %+v, tag still there %v", name, m.confirm, m.configTag(name) >= 0)

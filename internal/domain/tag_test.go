@@ -36,7 +36,8 @@ func TestATagHoldsWhatItsRuleSays(t *testing.T) {
 		Tag{Name: "Everything", Rule: []string{"*"}},
 		Tag{Name: "NotDMs", Rule: []string{"not dm"}},
 		Tag{Name: "Pins"},
-		Tag{Name: "Busy", Rule: []string{"unread", "mention", "not spam"}},
+		Tag{Name: "Busy", Rule: []string{"unread", "mention", "not tag:Spam"}},
+		Tag{Name: "Spam", Excluded: []string{"!mom:x"}},
 		Tag{Name: "WhatsApp", Rule: []string{"protocol:WhatsApp"}},
 		Tag{Name: "Both", Picked: []string{"room:Bots"}, Excluded: []string{"!bots:x"}},
 	)
@@ -57,7 +58,10 @@ func TestATagHoldsWhatItsRuleSays(t *testing.T) {
 		{"Pins", workGrp, RoomState{}, false},
 		{"Busy", workGrp, RoomState{Unread: true}, true},
 		{"Busy", workGrp, RoomState{Mention: true}, true},
-		{"Busy", workGrp, RoomState{Unread: true, Spam: true}, false},
+		{"Busy", caught(workGrp, "spam"), RoomState{Unread: true}, false},
+		{"Spam", caught(workGrp, "SPAM"), RoomState{}, true}, // a filter moved it here
+		{"Spam", caught(momDM, "Spam"), RoomState{}, false},  // excluded beats a filter
+		{"Pins", caught(workGrp, "Spam"), RoomState{}, false},
 		{"Busy", workGrp, RoomState{}, false},
 		{"whatsapp", workGrp, RoomState{}, true}, // names are case-insensitive
 		{"WhatsApp", botsGrp, RoomState{}, false},
@@ -68,6 +72,12 @@ func TestATagHoldsWhatItsRuleSays(t *testing.T) {
 			t.Errorf("Has(%s, %s, %+v) = %t, want %t", tc.tag, tc.facts.Name, tc.state, got, tc.want)
 		}
 	}
+}
+
+// caught is facts with a filter having moved the room into tags.
+func caught(facts RoomFacts, tags ...string) RoomFacts {
+	facts.Caught = tags
+	return facts
 }
 
 // A rule may name other tags, positively or after `not`.

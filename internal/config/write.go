@@ -79,6 +79,12 @@ func encodeDiff(value, defaults reflect.Value, prefix []string) string {
 // a table has values of its own.
 func splitDiff(value, defaults reflect.Value, prefix []string) (string, string) {
 	var values, tables strings.Builder
+	if keys, ok := reflect.TypeAssert[Keys](value); ok {
+		baseline, _ := reflect.TypeAssert[Keys](defaults)
+		own, rest := keys.bindingsTOML(baseline)
+		values.WriteString(own)
+		tables.WriteString(rest)
+	}
 	for i := range value.NumField() {
 		field := value.Type().Field(i)
 		name := tomlName(field)

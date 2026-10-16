@@ -624,11 +624,8 @@ func (m Model) nameRuleFor(space string) nameRule {
 	if space == "" {
 		return rule
 	}
-	for _, r := range m.prefs.display.SpaceRules {
-		if r.Space == space {
-			rule.firstOnly = r.FirstNameOnly
-			break
-		}
+	if r, ok := m.prefs.display.SpaceRule(m.namesHome(space)); ok {
+		rule.firstOnly = r.FirstNameOnly
 	}
 	return rule
 }

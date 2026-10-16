@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -73,6 +74,150 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 	}
 }
 
+// A reload that hides someone recounts the rooms they wrote in, through the network
+// that owns each room, onto the daemon's unread stream.
+func TestAReloadThatHidesSomeoneRecountsTheirRooms(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}}}
+	backend := servedFor(t, cfg, domain.Session{})
+	const room domain.RoomID = "whatsapp:15550000001/120363@g.us"
+	start := time.Unix(1_700_000_000, 0)
+	if err := backend.cache.SaveMessages(ctx, room, []domain.Message{
+		{ID: "whatsapp:15550000001/A1", RoomID: room, Sender: "whatsapp:15550000002@s.whatsapp.net", Body: "hi", Timestamp: start.Add(time.Minute)},
+		{ID: "whatsapp:15550000001/A2", RoomID: room, Sender: "whatsapp:15550000003@s.whatsapp.net", Body: "buy", Timestamp: start.Add(2 * time.Minute)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := backend.cache.SaveUnread(ctx, domain.Unread{RoomID: room}, start.UnixMilli()); err != nil {
+		t.Fatal(err)
+	}
+	// The hook is registered with the workers, as kithd starts them.
+	if _, err := newWorkers(slog.New(slog.DiscardHandler), cfg, backend); err != nil {
+		t.Fatal(err)
+	}
+	stream := backend.Unread()
+	muted := false
+	cfg.Tags = []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{"whatsapp:15550000003@s.whatsapp.net"}}}
+	if err := backend.useHidden(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case u := <-stream:
+		if u.RoomID != room || !u.Counted || u.Messages != 1 {
+			t.Errorf("streamed %+v, want the room counted at 1 without the hidden person", u)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("hiding someone streamed no recount")
+	}
+}
+
+// A filter's mark through the daemon hides the person once their tag is muted, on a
+// network that keeps its marks in the cache; a release shows them again.
+func TestAMarkThroughTheDaemonHidesThePerson(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	muted := false
+	cfg := config.Config{
+		WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}},
+		Tags:     []config.Tag{{Name: "Spam", Notifies: &muted}},
+	}
+	backend := servedFor(t, cfg, domain.Session{})
+	if err := backend.useHidden(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	const spammer = "whatsapp:15550000003@s.whatsapp.net"
+	msg := domain.Message{ID: "whatsapp:15550000001/A2", RoomID: "whatsapp:15550000001/120363@g.us", Sender: spammer, Body: "buy"}
+	for _, step := range []struct {
+		verdict domain.PersonVerdict
+		hidden  bool
+	}{
+		{domain.PersonVerdict{Person: spammer, Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto"}, true},
+		{domain.PersonVerdict{Person: spammer, Tag: "Spam", Released: true}, false},
+	} {
+		if err := backend.MarkPerson(ctx, step.verdict); err != nil {
+			t.Fatalf("MarkPerson(%+v) = %v", step.verdict, err)
+		}
+		if hidden, err := backend.cache.Hides(ctx, msg); err != nil || hidden != step.hidden {
+			t.Errorf("after %+v hidden = %v (%v), want %v", step.verdict, hidden, err, step.hidden)
+		}
+	}
+	if err := backend.MarkPerson(ctx, domain.PersonVerdict{Person: spammer, Tag: "Spam", Rule: domain.MoveAlways}); !errors.Is(err, domain.ErrPersonReleased) {
+		t.Errorf("a mark after the release = %v, want ErrPersonReleased", err)
+	}
+}
+
+// The daemon's own wiring marks a sender: a sender_first filter catching someone's
+// first message marks them in the cache, and the muted tag hides them from then on.
+func TestAFilterMarksASenderThroughTheDaemon(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	muted := false
+	cfg := config.Config{
+		WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}},
+		Tags:     []config.Tag{{Name: "Spam", Notifies: &muted}},
+		Filters:  []config.Filter{{Name: "crypto", Tag: "Spam", Words: []string{"*bitcoin*"}, Moves: []string{config.FilterMoveSenderFirst}}},
+	}
+	backend := servedFor(t, cfg, domain.Session{})
+	if err := backend.useHidden(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	w, err := newWorkers(slog.New(slog.DiscardHandler), cfg, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.notifications.Synced(time.Now())
+	w.notifications.Synced(time.Now())
+	const room, spammer = "whatsapp:15550000001/120363@g.us", "whatsapp:15550000003@s.whatsapp.net"
+	msg := domain.Message{ID: "whatsapp:15550000001/A1", RoomID: room, Sender: spammer, Body: "buy bitcoin now", Timestamp: time.Now()}
+	if serr := backend.cache.SaveMessages(ctx, room, []domain.Message{msg}); serr != nil {
+		t.Fatal(serr)
+	}
+	w.notifications.Deliver(ctx, msg)
+	marks, err := backend.PersonVerdicts(ctx)
+	if err != nil || len(marks) != 1 || marks[0].Person != spammer || marks[0].Rule != domain.MoveSenderFirst {
+		t.Fatalf("marks = %+v (%v), want the sender marked by their first message", marks, err)
+	}
+	if hidden, err := backend.cache.Hides(ctx, msg); err != nil || !hidden {
+		t.Errorf("the marked sender is not hidden (%v)", err)
+	}
+}
+
+// Hiding someone moves their direct message you never wrote in into the muted tag,
+// through the daemon's own hook.
+func TestHidingSomeoneMovesTheirDirectMessage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}}}
+	backend := servedFor(t, cfg, domain.Session{})
+	w, werr := newWorkers(slog.New(slog.DiscardHandler), cfg, backend)
+	if werr != nil {
+		t.Fatal(werr)
+	}
+	const spammer = "whatsapp:15550000003@s.whatsapp.net"
+	const room domain.RoomID = "whatsapp:15550000001/15550000003@s.whatsapp.net"
+	if err := backend.cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, "15550000001"), []domain.Room{{ID: room, Name: "Stranger", IsDirect: true}}); err != nil {
+		t.Fatal(err)
+	}
+	msg := domain.Message{ID: "whatsapp:15550000001/A1", RoomID: room, Sender: spammer, Body: "hello dear", Timestamp: time.Now()}
+	if err := backend.cache.SaveMessages(ctx, room, []domain.Message{msg}); err != nil {
+		t.Fatal(err)
+	}
+	muted := false
+	cfg.Tags = []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{spammer}}}
+	// As the reloader does: the notifications learn the tags, then the cache who is hidden.
+	if err := w.notifications.Reload(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := backend.useHidden(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	verdicts, err := backend.TagVerdicts(ctx)
+	if err != nil || len(verdicts) != 1 || verdicts[0].Room != room || verdicts[0].Rule != domain.MoveWithPerson {
+		t.Errorf("verdicts = %+v (%v), want the direct message moved with its person", verdicts, err)
+	}
+}
+
 // Every network is built whatever the config holds, so a first account needs no
 // restart; an empty config waits for nothing.
 func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
@@ -82,7 +227,10 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	for _, n := range backend.networks {
 		got = append(got, n.Network())
 	}
-	want := []domain.Protocol{domain.ProtocolMatrix, domain.ProtocolWhatsApp, domain.ProtocolSlack, domain.ProtocolTelegram}
+	want := []domain.Protocol{
+		domain.ProtocolMatrix, domain.ProtocolWhatsApp, domain.ProtocolSlack, domain.ProtocolTelegram, domain.ProtocolMessenger,
+		domain.ProtocolLinkedIn, domain.ProtocolGMessages,
+	}
 	if !slices.Equal(got, want) {
 		t.Errorf("networks = %v, want %v", got, want)
 	}
@@ -90,7 +238,7 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	for _, l := range backend.loginLeaders() {
 		logins = append(logins, l.LoginNetwork().Network)
 	}
-	if want := []string{"matrix", "whatsapp", "slack", "telegram"}; !slices.Equal(logins, want) {
+	if want := []string{"matrix", "whatsapp", "slack", "telegram", "messenger", "linkedin", "gmessages"}; !slices.Equal(logins, want) {
 		t.Errorf("logins = %v, want %v", logins, want)
 	}
 	if got := expected(context.Background(), slog.New(slog.DiscardHandler), backend); len(got) != 0 {
@@ -156,7 +304,7 @@ func TestACacheThatWillNotOpenIsAnError(t *testing.T) {
 	}
 }
 
-// Each network judges its own section: a name-only account is refused naming its
+// Each network judges its own section: an account with no name is refused naming its
 // table, at start and on re-read, and the re-read then changes nothing.
 func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 	t.Parallel()
@@ -167,7 +315,7 @@ func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 	}
 	for _, n := range (config.Config{}).Networks() {
 		var cfg config.Config
-		if err := cfg.Write(n.Table(), map[string]string{"name": "half"}); err != nil {
+		if err := cfg.Write(n.Table(), map[string]string{"name": ""}); err != nil {
 			t.Fatal(err)
 		}
 		err := backend.checkConfig(ctx, cfg)

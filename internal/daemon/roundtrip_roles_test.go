@@ -30,7 +30,7 @@ type recording struct {
 	refusals []domain.ReactionRefusal
 	scores   map[string]int
 	slots    map[string]int
-	spam     []domain.SpamVerdict
+	verdicts []domain.TagVerdict
 	spelling []domain.Misspelling
 	model    domain.ModelSuggestion
 	failWith error
@@ -52,7 +52,8 @@ type recording struct {
 	gotVia      []string
 	gotEmoji    string
 	gotSlots    map[string]int
-	gotVerdicts []domain.SpamVerdict
+	gotVerdicts []domain.TagVerdict
+	gotRetag    [2]string
 	gotWord     string
 }
 
@@ -205,12 +206,17 @@ func (r *recording) SaveSenderSlots(_ context.Context, roomID domain.RoomID, slo
 	return r.failWith
 }
 
-func (r *recording) SpamRooms(context.Context) ([]domain.SpamVerdict, error) {
-	return r.spam, r.failWith
+func (r *recording) TagVerdicts(context.Context) ([]domain.TagVerdict, error) {
+	return r.verdicts, r.failWith
 }
 
-func (r *recording) MarkSpam(_ context.Context, verdict domain.SpamVerdict) error {
+func (r *recording) MarkTag(_ context.Context, verdict domain.TagVerdict) error {
 	r.gotVerdicts = append(r.gotVerdicts, verdict)
+	return r.failWith
+}
+
+func (r *recording) RetagVerdicts(_ context.Context, from, to string) error {
+	r.gotRetag = [2]string{from, to}
 	return r.failWith
 }
 
@@ -728,33 +734,37 @@ func TestSenderSlotsRoundTrip(t *testing.T) {
 	}
 }
 
-// A verdict carries its reason (rule, filter); a release travels as one.
-func TestSpamRoundTrip(t *testing.T) {
+// A verdict carries its tag and reason (rule, filter); a release travels as one; a
+// retag carries both names.
+func TestTagVerdictsRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	b := &recording{spam: []domain.SpamVerdict{
-		{Room: "!crypto:example.org", Rule: domain.SpamFirstMessage, Filter: "crypto", At: time.UnixMilli(1_700_000_000_000)},
-		{Room: "!sms:example.org", Rule: domain.SpamDirect, Filter: "that number"},
-		{Room: "!freed:example.org", Released: true, At: time.UnixMilli(1_700_000_100_000)},
+	b := &recording{verdicts: []domain.TagVerdict{
+		{Room: "!crypto:example.org", Tag: "spam", Rule: domain.MoveFirstMessage, Filter: "crypto", At: time.UnixMilli(1_700_000_000_000)},
+		{Room: "!sms:example.org", Tag: "elections", Rule: domain.MoveAlways, Filter: "that number"},
+		{Room: "!freed:example.org", Tag: "spam", Released: true, At: time.UnixMilli(1_700_000_100_000)},
 	}}
 	r, _ := attach(t, b)
 	ctx := context.Background()
 
-	got, err := r.SpamRooms(ctx)
-	if err != nil || !reflect.DeepEqual(got, b.spam) {
-		t.Errorf("SpamRooms() = %+v, %v; want %+v", got, err, b.spam)
+	got, err := r.TagVerdicts(ctx)
+	if err != nil || !reflect.DeepEqual(got, b.verdicts) {
+		t.Errorf("TagVerdicts() = %+v, %v; want %+v", got, err, b.verdicts)
 	}
-	sent := []domain.SpamVerdict{
-		{Room: "!crypto:example.org", Rule: domain.SpamMostly, Filter: "crypto"},
-		{Room: "!crypto:example.org", Released: true, At: time.UnixMilli(1_700_000_200_000)},
+	sent := []domain.TagVerdict{
+		{Room: "!crypto:example.org", Tag: "Spam", Rule: domain.MoveMostly, Filter: "crypto"},
+		{Room: "!crypto:example.org", Tag: "Spam", Released: true, At: time.UnixMilli(1_700_000_200_000)},
 	}
 	for _, v := range sent {
-		if err := r.MarkSpam(ctx, v); err != nil {
-			t.Fatalf("MarkSpam(%+v) error = %v", v, err)
+		if err := r.MarkTag(ctx, v); err != nil {
+			t.Fatalf("MarkTag(%+v) error = %v", v, err)
 		}
 	}
 	if !reflect.DeepEqual(b.gotVerdicts, sent) {
 		t.Errorf("the daemon was told %+v, want %+v", b.gotVerdicts, sent)
+	}
+	if err := r.RetagVerdicts(ctx, "Spam", "Junk"); err != nil || b.gotRetag != [2]string{"Spam", "Junk"} {
+		t.Errorf("RetagVerdicts = %v, the daemon was told %v", err, b.gotRetag)
 	}
 }
 

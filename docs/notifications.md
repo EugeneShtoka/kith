@@ -114,8 +114,9 @@ A misspelled level, window or thread value is an error at startup, and on reload
 | `protocol:WhatsApp` | Every room on that network |
 | `dm` / `group` | Every direct message, or every room that is not one |
 | `tag:Pinned` | Every room that tag holds, judged on the room alone (its state words match nothing here) |
+| `place:Work` | Every room in a rail row shown as Work: a space, a tag, renamed or not |
 
-A bare word that is not a room ID (such as `"Work"`) is **refused at startup**, with an error that names the entry. Room IDs are awkward to type, so it is usually easier to write rules [from the UI](#editing-rules-from-the-ui).
+A bare word that is not a room ID (such as `"Work"`) is **refused at startup**, with an error that names the entry and the prefixes to choose from. Room IDs are awkward to type, so it is usually easier to write rules [from the UI](#editing-rules-from-the-ui).
 
 ### Which rule wins
 
@@ -256,7 +257,7 @@ sound_command = ""   # fallback player, e.g. "pw-play" or "paplay"
 
 - The **status line** names the rule behind the current state, using the rule's `name` when it has one. That is why a `name` is worth adding.
 - **`W`** (or `/why` in the composer) opens **"Why is it quiet?"** for the room you are looking at, or the open thread. It lists every rule in force from least to most specific, including mutes and their time left, marks the rule that decides with `← decides`, and gives the result, for example "mention notifies, silently". It also counts the rules that depend on who sends the message, because those cannot be evaluated without an actual message.
-- If notifications are switched off, or the room is in [Spam](spam.md), the overlay says so first and then shows the rules that would apply otherwise.
+- If notifications are switched off, or a tag that does not notify holds the room (the starter's [Spam](filters.md)), the overlay says so first and then shows the rules that would apply otherwise.
 - **`,` → "Notification rules"** lists every rule in your config with room IDs and MXIDs replaced by the names you know them by.
 
 ## Editing rules from the UI
@@ -289,7 +290,7 @@ There is one rule per target, and each preset adds to it. Anything more complex,
 
 The first sync after the daemon starts is catch-up: everything that arrived while it was down. **None of it notifies.** Twenty popups about yesterday evening would tell you nothing the room list does not. Once the daemon has caught up, every new message is judged as it arrives.
 
-Your own messages, edits and redactions never notify. Rooms in [Spam](spam.md) never notify, whatever the rules say.
+Your own messages, edits and redactions never notify. Rooms a tag with `notifies = false` holds (the starter's [Spam](filters.md)) never notify, whatever the rules say. Nor does a [hidden person](filters.md#hiding-a-person), or a direct reply to one.
 
 `kith` starts a daemon if none is running, and anything that arrived before that was never notified. Run the daemon as a systemd user service so this does not happen (see [getting started](getting-started.md)).
 
@@ -339,7 +340,7 @@ The guards:
 - **Scoped.** `[codes] include` must name at least one place. With an empty list (which means everywhere), the daemon warns once at startup and copies nothing.
 - **Live only.** A code received during catch-up after a restart is never copied, because an expired code pasted over your clipboard costs you something and gains nothing.
 - **Needs a graphical session.** The daemon checks for `WAYLAND_DISPLAY` or `DISPLAY` before copying. Without one, it sends the code in a notification instead. A systemd user unit does not inherit these variables. Run `systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS` or start the unit with your graphical session.
-- **Ignores do-not-disturb.** Copying does not interrupt you. It is also not blocked by [Spam](spam.md).
+- **Ignores do-not-disturb.** Copying does not interrupt you. It is also not blocked by a tag that does not notify ([Spam](filters.md)).
 - **Announced.** Each copy raises a notification with the code and what happened to it, as long as notifications are enabled.
 - Copied codes end up in your clipboard manager's history like anything else.
 

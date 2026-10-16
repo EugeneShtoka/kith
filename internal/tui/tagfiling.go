@@ -63,7 +63,7 @@ func (m Model) byPriority(rows []pickerItem) []pickerItem {
 	}
 	out := make([]pickerItem, 0, len(rows))
 	used := make([]bool, len(rows))
-	for _, key := range domain.OrderSpaces(keys, m.prefs.display.Priority) {
+	for _, key := range domain.NewHomeOrder(m.prefs.display.Priority, nil, domain.TagSet{}, nil, m.prefs.display.SpaceLabels()).ByPriority(keys) {
 		for i := range rows {
 			if !used[i] && keys[i] == key {
 				used[i] = true
@@ -175,7 +175,7 @@ func (m Model) fileTags(room domain.Room, filings []tagFiling) (Model, tea.Cmd) 
 		others = append(others, view.factsOf(m.rooms.all[i]))
 	}
 	cfg := m.conf.base.Clone()
-	var into, outOf []string
+	var into, outOf, leaving []string
 	for _, f := range filings {
 		tag := view.tags.At(f.tag)
 		for j := range cfg.Tags {
@@ -187,6 +187,7 @@ func (m Model) fileTags(room domain.Room, filings []tagFiling) (Model, tea.Cmd) 
 			into = append(into, f.label)
 		} else {
 			outOf = append(outOf, f.label)
+			leaving = append(leaving, tag.Name)
 		}
 	}
 	var said []string
@@ -197,9 +198,10 @@ func (m Model) fileTags(room domain.Room, filings []tagFiling) (Model, tea.Cmd) 
 		said = append(said, "out of "+strings.Join(outOf, ", "))
 	}
 	was := m.roomCursor()
+	release := m.releaseCmds(room.ID, leaving)
 	next, cmd := m.applyConfig(cfg, m.roomName(room)+" is "+strings.Join(said, ", and "))
 	moved, move := next.keepCursorNearby(was)
-	return moved, tea.Batch(cmd, move, archive)
+	return moved, tea.Batch(cmd, move, archive, release)
 }
 
 // fileArchive returns the call that archives or unarchives room on its network when

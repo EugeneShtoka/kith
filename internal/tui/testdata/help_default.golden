@@ -39,6 +39,7 @@
   b                notification rule for this space
   m                mark every unread room in this group read
   L, x             leave this space, or delete this tag
+  e                this space's or tag's settings page
 
 [1;38;2;102;135;153mRoom list[m
   su               unread rooms on top, on/off
@@ -61,7 +62,6 @@
   M                mark this room unread, or clear the mark
   i                invite someone to this room
   S                file this room into a space or a tag, or take it out of one
-  !                spam / not spam: move this conversation out of the way, or back
   A                show or hide this place's archived rooms
 
 [1;38;2;102;135;153mTimeline — message cursor[m
@@ -101,6 +101,7 @@
   ]                forward a day
   alt+e            write a message in $EDITOR
   zo               uncover what this message is hiding — a spoiler, or a kept deletion
+  zh               show the hidden people's messages in this room, until you leave it
   z=               correct the misspellings in the draft, one at a time
 
 [1;38;2;102;135;153mSearch results[m
@@ -228,6 +229,9 @@
   because [keys] puts it there.
   home and end are the line's ends in a field, not the timeline's.
 
+[1;38;2;102;135;153mInto a tag, or out of it (your [keys.tag] bindings)[m
+  !                this room in Spam, or out of it — in the timeline, the message's sender
+
 [1;38;2;102;135;153mTyped into the composer[m
   /me <what you are doing>       send as an emote — “* you wave” rather than “you: waves”
   /summary [2h | 7d | yesterday | 2026-09-18 | 50] what this room has been saying — since you last read it, or over the span you name
@@ -240,6 +244,7 @@
   /files                         every message with a file in this room — tab widens it
   /mentions                      where you were named in this room — tab widens it
   /search [terms]                search this room — tab widens it, no terms just opens the box
+  /hidden                        show the messages of people you hid, in this room until you leave it — or hide them again
   /threads                       the conversations in this room — the same list `ctrl+t` opens
   /starred                       what you have starred here — tab widens it, and it unstars too
   /scheduled                     what is waiting to go out in this room — enter cancels one
@@ -247,8 +252,7 @@
   /why                           why this room does or does not notify you — the whole rule chain
   /unread                        mark this room unread — read, and still needs you
   /tag [name]                    put this room in a tag, or take it out — a new name makes the tag; no name picks among your spaces and tags
-  /caught                        what the spam filters catch here — tab widens it
-  /spam                          move this conversation into Spam, or take it out — out of the counts, still readable
+  /caught                        what the filters catch here — tab widens it
   /direction                     read this room right to left, then left to right, then as [display.direction] says
   /shortcut [keys]               a key sequence that goes to this room ("g w"); none asks — tab there binds the rail's space instead
   /replacement                   go to the room that replaced this one, after an upgrade

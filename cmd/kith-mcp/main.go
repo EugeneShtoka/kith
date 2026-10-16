@@ -81,7 +81,14 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile 
 	if err != nil {
 		return err
 	}
+	marked, muted, groups, err := setup.HiddenInputs(cfg)
+	if err != nil {
+		return err
+	}
 	server := &server{
+		marked:   marked,
+		muted:    muted,
+		groups:   groups,
 		places:   setup.PlacesOf(cfg),
 		backend:  daemon.NewRemote(socket),
 		scope:    setup.AgentReadScope(cfg.Agent),
@@ -172,6 +179,7 @@ type reader interface {
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	Selves(ctx context.Context) ([]string, error)
 	Directory(ctx context.Context) (domain.Directory, error)
+	PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error)
 	LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 }
 
@@ -203,6 +211,14 @@ type server struct {
 	// everyone with them and the directory, asked per call. Assistants get whole names.
 	aliases map[string]string
 	people  domain.People
+	// marked and groups are who the muted tags list and the identity groups, and muted
+	// the tags whose person verdicts hide people too; hidden is them over the verdicts
+	// and the directory, asked per call, and hiddenErr why they could not be read.
+	marked    []string
+	muted     []string
+	groups    [][]string
+	hidden    domain.HiddenPeople
+	hiddenErr error
 	// send is `[agent.write] send`: rooms posted to rather than drafted into.
 	send []string
 	// cooldown is how long a room rests after a message goes out to it.
@@ -222,11 +238,9 @@ type server struct {
 	// book is the phonebook find_people reads fields from; nil unless [agent.read] people
 	// allows it.
 	book *phonebook.Book
-	// log is stderr; nil (a test) logs nothing.
+	// log is stderr.
 	log *slog.Logger
 }
-
-func (s *server) logger() *slog.Logger { return logging.OrDiscard(s.log) }
 
 // callTimeout bounds one tool call against an unresponsive daemon.
 const callTimeout = 20 * time.Second
@@ -238,7 +252,7 @@ func (s *server) serve(in io.Reader, out io.Writer) error {
 	for {
 		line, err := readLine(lines)
 		if errors.Is(err, errLineTooLong) {
-			s.logger().Warn("request line too long; skipped", "limit", maxLine)
+			s.log.Warn("request line too long; skipped", "limit", maxLine)
 			continue
 		}
 		if len(line) == 0 && err != nil {
@@ -247,7 +261,7 @@ func (s *server) serve(in io.Reader, out io.Writer) error {
 		var req request
 		if jsonErr := json.Unmarshal(line, &req); jsonErr != nil {
 			// No id to answer to.
-			s.logger().Warn("unreadable request", "err", jsonErr)
+			s.log.Warn("unreadable request", "err", jsonErr)
 			continue
 		}
 		resp, answer := s.handle(&req)

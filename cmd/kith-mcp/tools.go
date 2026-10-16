@@ -110,18 +110,31 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 	if selves, err := s.backend.Selves(ctx); err == nil {
 		s.selves = selves
 	} else {
-		s.logger().Warn("ask who this person is failed; messages are marked mine by the Matrix account alone", "err", err)
+		s.log.Warn("ask who this person is failed; messages are marked mine by the Matrix account alone", "err", err)
 	}
 	dir, err := s.backend.Directory(ctx)
 	if err != nil {
-		s.logger().Warn("read the directory failed; people are named as their networks name them", "err", err)
+		s.log.Warn("read the directory failed; people are named as their networks name them", "err", err)
 	}
 	s.people = setup.PeopleOf(s.aliases, dir)
+	marked := s.marked
+	verdicts, verr := s.backend.PersonVerdicts(ctx)
+	if verr == nil {
+		marked = slices.Concat(marked, domain.HiddenByVerdict(verdicts, s.muted))
+	}
+	s.hidden, s.hiddenErr = domain.NewHiddenPeople(marked, s.groups, dir, s.selves), nil
+	switch {
+	case verr != nil && len(s.muted) > 0:
+		// Anyone may be marked in a muted tag: unknown must not read as nobody.
+		s.hiddenErr = verr
+	case err != nil && len(marked) > 0:
+		s.hiddenErr = err
+	}
 	result, err := t.run(s, ctx, raw)
 	if err != nil {
 		// The assistant reads the reason; the log keeps it for the person. Tool errors name
 		// rooms and scope, never message text.
-		s.logger().Warn("tool call failed", "tool", t.name, "err", err)
+		s.log.Warn("tool call failed", "tool", t.name, "err", err)
 		return toolError(err)
 	}
 	if c, ok := result.(toolContent); ok {
@@ -173,9 +186,11 @@ var tools = []tool{
 		summary: "Find people by name among those who have posted in the rooms you may read, " +
 			"returning their Matrix IDs, and, where the person's settings allow, what their phonebook " +
 			"card says of them (birthday, family, pets, …) as fields. " +
+			"Where the phonebook is shared, key:value terms (role:attorney) find the people whose card " +
+			"has that field with that in its value. " +
 			"Use it first when a request names somebody, then pass the IDs to find_rooms_with.",
 		schema: schema(map[string]any{
-			"query": str("part of a display name or Matrix ID"),
+			"query": str("part of a display name or Matrix ID, and/or key:value terms matched against phonebook card fields (all must hold)"),
 			"limit": num("optional: how many to return (default 10)"),
 		}, "query"),
 		run: (*server).findPeople,

@@ -41,6 +41,23 @@ func (m Model) jumpHelp(keyColumn int) []string {
 	return lines
 }
 
+// tagKeyHelp lists the [keys.tag] bindings, sorted.
+func (m Model) tagKeyHelp(keyColumn int) []string {
+	if len(m.keys.tagKeys) == 0 {
+		return nil
+	}
+	lines := []string{"", m.theme.Title.Render("Into a tag, or out of it (your [keys.tag] bindings)")}
+	for _, seq := range slices.Sorted(maps.Keys(m.keys.tagKeys)) {
+		tag := m.keys.tagKeys[seq]
+		label := "this room in " + isolate(tag) + ", or out of it — in the timeline, the message's sender"
+		if _, ok := m.rail.tags.Index(tag); !ok {
+			label = isolate(tag) + "  (no such tag)"
+		}
+		lines = append(lines, helpRow(keyColumn, spellSequence(seq), drawSentence(label)))
+	}
+	return lines
+}
+
 // scriptHelp lists keys bound to scripts, with what each script is given.
 func (m Model) scriptHelp(keyColumn int) []string {
 	if len(m.keys.scripts) == 0 {
@@ -64,11 +81,11 @@ func (m Model) scriptHelp(keyColumn int) []string {
 
 // jumpLabel says where a jump target leads, or that it leads nowhere.
 func (m Model) jumpLabel(target domain.JumpTarget) string {
-	if target.Kind == domain.JumpSpace {
+	if target.Kind == domain.JumpHome {
 		if key, found := m.groupNamed(target.Name); found {
-			return "space " + isolate(m.rail.groups[indexOfGroup(m.rail.groups, key)].label)
+			return placeWord(key) + " " + isolate(m.rail.groups[indexOfGroup(m.rail.groups, key)].label)
 		}
-		return target.String() + "  (no such space here)"
+		return target.String() + "  (nothing in the rail here)"
 	}
 	if room, found := m.roomNamed(target); found {
 		return m.roomName(room)
@@ -304,6 +321,7 @@ func (m Model) helpLines() []string {
 	}
 	// Jump and script bindings are not in keyActions, so they are listed separately.
 	lines = append(lines, m.jumpHelp(keyColumn)...)
+	lines = append(lines, m.tagKeyHelp(keyColumn)...)
 	lines = append(lines, m.scriptHelp(keyColumn)...)
 	lines = append(lines, m.commandHelp(keyColumn)...)
 	if issues := m.keys.issues; len(issues) > 0 {

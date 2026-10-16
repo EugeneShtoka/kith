@@ -37,7 +37,7 @@ func TestMediaRulesResolveNarrowestFirst(t *testing.T) {
 	t.Parallel()
 
 	rules := []domain.MediaRule{
-		{Match: "Work", Auto: new(false), Cache: new(false)},
+		{Match: "space:Work", Auto: new(false), Cache: new(false)},
 		{Match: "!room:x", Auto: new(true)},
 	}
 	for _, tt := range []struct {
@@ -64,7 +64,7 @@ func TestMediaRulesResolveNarrowestFirst(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := domain.ResolveMedia(true, true, 1, rules, tt.place)
+			got := domain.ResolveMedia(domain.MediaPolicy{Auto: true, Cache: true, Speed: 1}, rules, tt.place)
 			if got.Auto != tt.auto || got.Cache != tt.cache {
 				t.Errorf("ResolveMedia = %+v, want auto=%v cache=%v", got, tt.auto, tt.cache)
 			}

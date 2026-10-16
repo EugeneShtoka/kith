@@ -5,27 +5,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 )
 
 var updateGolden = flag.Bool("update", false, "rewrite the golden files under testdata")
 
-// flattenKeys lists every binding as "path = value", in struct order.
-func flattenKeys(prefix string, v reflect.Value, out *strings.Builder) {
-	for i := range v.NumField() {
-		f := v.Type().Field(i)
-		name := prefix + strings.Split(f.Tag.Get("toml"), ",")[0]
-		switch v.Field(i).Kind() {
-		case reflect.String:
-			fmt.Fprintf(out, "%s = %q\n", name, v.Field(i).String())
-		case reflect.Struct:
-			flattenKeys(name+".", v.Field(i), out)
-		default:
-			fmt.Fprintf(out, "%s = %v\n", name, v.Field(i).Interface())
+// flattenKeys lists every binding as "path = value", in keySections' order, then the
+// jump and tag lists.
+func flattenKeys(k Keys, out *strings.Builder) {
+	for _, section := range keySections {
+		for _, b := range section.binds {
+			fmt.Fprintf(out, "%s = %q\n", b.path, k.Bindings[b.path])
 		}
 	}
+	fmt.Fprintf(out, "jump = %v\ntag = %v\n", k.Jump, k.Tag)
 }
 
 // DefaultKeys matches the golden file, binding for binding.
@@ -33,7 +27,7 @@ func TestDefaultKeysGolden(t *testing.T) {
 	t.Parallel()
 
 	var b strings.Builder
-	flattenKeys("", reflect.ValueOf(DefaultKeys()), &b)
+	flattenKeys(DefaultKeys(), &b)
 	path := filepath.Join("testdata", "default_keys.golden")
 	if *updateGolden {
 		if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {

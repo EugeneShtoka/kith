@@ -14,9 +14,19 @@ import (
 // builder records the room it was asked to create.
 type builder struct {
 	apitest.Nop
-	spec domain.NewRoom
-	id   domain.RoomID
-	err  error
+	spec   domain.NewRoom
+	id     domain.RoomID
+	err    error
+	offers []domain.ChatOffer
+}
+
+func (b *builder) ChatOffers(context.Context) ([]domain.ChatOffer, error) { return b.offers, nil }
+
+// openedNew is m with :new's picker open, once the daemon has said what can be made.
+func openedNew(t *testing.T, m Model) Model {
+	t.Helper()
+	next, cmd := m.openNewRoom()
+	return deliver(t, next, cmd)
 }
 
 func (b *builder) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.RoomID, error) {
@@ -44,7 +54,8 @@ func TestNewRoomOffersWholeAnswers(t *testing.T) {
 	t.Parallel()
 
 	m, _ := building(t)
-	m, _ = m.runCommandLine("new")
+	next, cmd := m.runCommandLine("new")
+	m = deliver(t, next, cmd)
 	if !m.picker.active() {
 		t.Fatal(":new opened no picker")
 	}
@@ -153,7 +164,19 @@ func TestAnEmptyNameCreatesNothing(t *testing.T) {
 // and a directory naming people on them.
 func chatting(t *testing.T) (Model, *builder) {
 	t.Helper()
-	b := &builder{id: "telegram:42/-1009"}
+	tg := domain.AccountRooms(domain.ProtocolTelegram, "42")
+	b := &builder{id: "telegram:42/-1009", offers: []domain.ChatOffer{
+		{On: tg, Account: "42", Kind: domain.ChatGroup, Label: "Telegram group", Detail: "a group chat"},
+		{On: tg, Account: "42", Kind: domain.ChatForum, Label: "Telegram forum", Detail: "a group with topics"},
+		{On: tg, Account: "42", Kind: domain.ChatChannel, Label: "Telegram channel", Detail: "only admins post"},
+	}}
+	for _, number := range []string{"15550100001", "15550100002"} {
+		wa := domain.AccountRooms(domain.ProtocolWhatsApp, number)
+		b.offers = append(b.offers,
+			domain.ChatOffer{On: wa, Account: "+" + number, Kind: domain.ChatGroup, Label: "WhatsApp group", Detail: "a group chat", MinMembers: 1},
+			domain.ChatOffer{On: wa, Account: "+" + number, Kind: domain.ChatCommunity, Label: "WhatsApp community", Detail: "groups under one community"},
+		)
+	}
 	m := update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: "telegram:42/-11", Name: "Book club"},
 		{ID: "whatsapp:15550100001/g@g.us", Name: "Family"},
@@ -170,12 +193,13 @@ func chatting(t *testing.T) (Model, *builder) {
 	return m, b
 }
 
-// Only what an account here makes is offered: no Matrix rooms without Matrix, each
-// Telegram and WhatsApp account's kinds, with the account named where a network has two.
+// Only what an account here makes is offered: no Matrix rooms without Matrix, the
+// kinds each network's accounts say they make, with the account named where a
+// network has two.
 func TestNewOffersWhatTheAccountsMake(t *testing.T) {
 	t.Parallel()
 	m, _ := chatting(t)
-	m, _ = m.openNewRoom()
+	m = openedNew(t, m)
 	var labels []string
 	for _, item := range m.picker.all {
 		labels = append(labels, item.label+" ["+item.detail+"]")
@@ -191,7 +215,7 @@ func TestNewOffersWhatTheAccountsMake(t *testing.T) {
 	}
 
 	withMatrix, _ := building(t)
-	withMatrix, _ = withMatrix.openNewRoom()
+	withMatrix = openedNew(t, withMatrix)
 	if len(withMatrix.picker.all) != len(newRoomKinds)+1 {
 		t.Errorf("with a Matrix account alone: %d rows, want Matrix's %d and a tag", len(withMatrix.picker.all), len(newRoomKinds))
 	}
@@ -200,24 +224,36 @@ func TestNewOffersWhatTheAccountsMake(t *testing.T) {
 	}
 }
 
+// When the daemon cannot say what other networks make, Matrix's rooms and a tag are
+// still offered.
+func TestNewOffersMatrixAndATagWhenTheDaemonCannotSay(t *testing.T) {
+	t.Parallel()
+	m, _ := building(t)
+	m, _ = m.handleChatOffers(chatOffersMsg{err: errors.New("daemon gone")})
+	if len(m.picker.all) != len(newRoomKinds)+1 || m.picker.all[len(m.picker.all)-1].value != tagNew {
+		t.Errorf("offered %d rows, want Matrix's %d and a tag", len(m.picker.all), len(newRoomKinds))
+	}
+}
+
 // :new makes a tag as the tag list does: named, then opened in the editor.
 func TestNewMakesATag(t *testing.T) {
 	t.Parallel()
 	m, _ := opened(t, config.Notifications{})
-	m, _ = m.openNewRoom()
+	m = openedNew(t, m)
 	m = pickLabel(t, m, "Tag")
 	m = typeIn(t, m, "Family")
-	if m.configTag("Family") < 0 || m.picker.kind != pickerTagEdit || m.choosing.tag.tag != "Family" {
-		t.Errorf("tags %+v, picker %v on %q: want Family made and open", m.conf.base.Tags, m.picker.kind, m.choosing.tag.tag)
+	if m.configTag("Family") < 0 || !onTagPage(m, "Family") {
+		t.Errorf("tags %+v, picker %v on %q: want Family made and open", m.conf.base.Tags, m.picker.kind, m.choosing.settingGroup)
 	}
 }
 
 // A Telegram forum is named, then its account's people are offered and the ticked
-// ones made members; a WhatsApp group with nobody ticked is not made.
+// ones made members; a kind that needs someone (a WhatsApp group) is not made with
+// nobody ticked.
 func TestANewChatIsNamedThenGivenItsPeople(t *testing.T) {
 	t.Parallel()
 	m, b := chatting(t)
-	m, _ = m.openNewRoom()
+	m = openedNew(t, m)
 	m = pickLabel(t, m, "Telegram forum")
 	m = typeIn(t, m, "Hikers")
 	if m.picker.kind != pickerNewMembers {
@@ -239,7 +275,7 @@ func TestANewChatIsNamedThenGivenItsPeople(t *testing.T) {
 	}
 
 	m, b = chatting(t)
-	m, _ = m.openNewRoom()
+	m = openedNew(t, m)
 	m = pickLabel(t, m, "+15550100001 · a group chat")
 	m = typeIn(t, m, "Cousins")
 	m, cmd = m.acceptPick()

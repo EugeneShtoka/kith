@@ -176,16 +176,17 @@ func sortPhrase(k SortKey) string {
 
 // RoomListRule overrides one rail group's list.
 type RoomListRule struct {
-	Group string
+	Group string // a home entry (NamesHome)
 	// Sort replaces the whole chain for this group. Empty inherits.
 	Sort []string
 }
 
-// ResolveRoomList is the global chain, replaced whole by a rule naming the group.
-func ResolveRoomList(chain []string, rules []RoomListRule, group string) RoomList {
+// ResolveRoomList is the global chain, replaced whole by the last rule naming the
+// group: its key (a space's name or tag:<name>), shown in the rail as label.
+func ResolveRoomList(chain []string, rules []RoomListRule, group, label string) RoomList {
 	list := RoomList{Chain: resolveChain(chain)}
 	for _, rule := range rules {
-		if !strings.EqualFold(strings.TrimSpace(rule.Group), group) {
+		if !NamesHome(rule.Group, group, label) {
 			continue
 		}
 		list = RoomList{Chain: resolveChain(rule.Sort)}

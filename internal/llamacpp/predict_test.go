@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 )
 
 // stub is a llama-server that answers /health and one canned distribution.
@@ -47,7 +46,7 @@ func newStub(t *testing.T, probs ...string) *stub {
 
 // server points at the stub without spawning anything.
 func (s *stub) server() *server {
-	return &server{base: s.URL, http: s.Client(), now: time.Now}
+	return &server{base: s.URL, http: s.Client()}
 }
 
 // words keeps word-starting tokens, drops punctuation, folds case (keeping the
@@ -91,7 +90,7 @@ func TestAServerErrorCarriesWhatTheServerSaid(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	s := &server{base: srv.URL, http: srv.Client(), now: time.Now}
+	s := &server{base: srv.URL, http: srv.Client()}
 	_, err := s.distribution(context.Background(), "hello", 4)
 	if err == nil || !strings.Contains(err.Error(), "the prompt is too long") {
 		t.Fatalf("distribution: %v, want the server's own words", err)
@@ -106,7 +105,7 @@ func TestAReplyWithNoDistributionIsAnError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	s := &server{base: srv.URL, http: srv.Client(), now: time.Now}
+	s := &server{base: srv.URL, http: srv.Client()}
 	if _, err := s.distribution(context.Background(), "hello", 4); err == nil {
 		t.Fatal("a reply with no distribution was accepted")
 	}

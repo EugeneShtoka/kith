@@ -122,7 +122,7 @@ func TestAFileGoesOutAsWhatItIs(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
-	if err := a.SendFile(context.Background(), danaChat, path, ""); !errors.Is(err, api.ErrNetworkOff) {
+	if err := a.SendFile(context.Background(), danaChat, path, filepath.Base(path), ""); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("sending a file with nothing connected = %v", err)
 	}
 }

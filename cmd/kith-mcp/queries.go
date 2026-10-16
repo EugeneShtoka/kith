@@ -107,7 +107,7 @@ func (s *server) placesKnown(ctx context.Context) error {
 func (s *server) holdersOf(ctx context.Context, roomID domain.RoomID) ([]domain.Space, error) {
 	spaces, err := s.spaces(ctx)
 	if err != nil {
-		s.logger().Warn("space lookup for the scope check failed", "room", roomID, "err", err)
+		s.log.Warn("space lookup for the scope check failed", "room", roomID, "err", err)
 		return nil, fmt.Errorf("%w: %w", errPlaceUnknown, err)
 	}
 	return domain.HoldersOf(roomID, spaces), nil
@@ -130,7 +130,7 @@ func (s *server) encrypted(ctx context.Context, roomID domain.RoomID) bool {
 	if err != nil {
 		// Fail closed without remembering: one daemon hiccup must not hide a room for the
 		// whole session.
-		s.logger().Warn("room encryption lookup failed; treating the room as encrypted", "room", roomID, "err", err)
+		s.log.Warn("room encryption lookup failed; treating the room as encrypted", "room", roomID, "err", err)
 		return true
 	}
 	answer := state[roomID]
@@ -252,7 +252,7 @@ func (s *server) readableRoom(ctx context.Context, want string) (domain.Room, er
 func (s *server) roomsByID(ctx context.Context) map[domain.RoomID]domain.Room {
 	rooms, err := s.rooms(ctx)
 	if err != nil {
-		s.logger().Warn("room list read failed; results lack room names", "err", err)
+		s.log.Warn("room list read failed; results lack room names", "err", err)
 	}
 	byID := make(map[domain.RoomID]domain.Room, len(rooms))
 	for i := range rooms {
@@ -279,7 +279,7 @@ func (s *server) listRooms(ctx context.Context, raw json.RawMessage) (any, error
 	unread, uerr := s.backend.CachedUnread(ctx)
 	if uerr != nil {
 		// The list still answers, with unread counts of 0.
-		s.logger().Warn("unread counts read failed", "err", uerr)
+		s.log.Warn("unread counts read failed", "err", uerr)
 	}
 	counts := map[domain.RoomID]int{}
 	for _, u := range unread {
@@ -332,11 +332,18 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	if err != nil {
 		return nil, err
 	}
+	// Field terms (role:attorney) are matched against cards, the rest of the words as
+	// they always were: one piece of a name or ID.
+	query := peopleQuery(in.Query)
+	if query.HasTerms() && s.book == nil {
+		return map[string]any{"people": []any{}, "note": phonebookNotSharedNote}, nil
+	}
 	people, err := s.peopleInScope(ctx, inScope)
 	if err != nil {
 		return nil, err
 	}
-	want := strings.ToLower(in.Query)
+	cards := s.cards()
+	want := strings.ToLower(strings.Join(query.Words, " "))
 	type personView struct {
 		UserID string `json:"user_id"`
 		Name   string `json:"name,omitempty"`
@@ -345,13 +352,18 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	}
 	var out []personView
 	for _, person := range people {
-		if strings.Contains(strings.ToLower(person.DisplayName), want) ||
-			strings.Contains(strings.ToLower(person.UserID), want) {
-			out = append(out, personView{UserID: person.UserID, Name: person.DisplayName, Fields: s.cardFields(person.UserID)})
+		named := strings.Contains(strings.ToLower(person.DisplayName), want) ||
+			strings.Contains(strings.ToLower(person.UserID), want)
+		card, found := s.cardOf(cards, person.UserID)
+		if named && (!query.HasTerms() || found && card.Matches(query.Fields())) {
+			out = append(out, personView{UserID: person.UserID, Name: person.DisplayName, Fields: cardFields(card, found)})
 		}
 		if len(out) >= limitOr(in.Limit, 10, 50) {
 			break
 		}
+	}
+	if len(out) == 0 && query.HasTerms() {
+		return nil, fmt.Errorf("nobody whose card meets %q has posted in the rooms [agent.read] allows", in.Query)
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("nobody called %q has posted in the rooms [agent.read] allows", in.Query)
@@ -359,12 +371,37 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	return map[string]any{"people": out}, nil
 }
 
-// cardFields is userID's phonebook card by key (lists as lists, single values as
-// themselves); nil without a phonebook, card or field.
-func (s *server) cardFields(userID string) map[string]any {
-	if s.book == nil {
-		return nil
+// peopleQuery is a find_people query: an ID (@dana:x, telegram:42) is a word, not a
+// field term.
+func peopleQuery(text string) phonebook.Query {
+	var q phonebook.Query
+	for word := range strings.FieldsSeq(text) {
+		if term, ok := phonebook.ParseTerm(word); ok && !domain.IsUserID(word) {
+			q.Terms = append(q.Terms, term)
+			continue
+		}
+		q.Words = append(q.Words, word)
 	}
+	return q
+}
+
+// phonebookNotSharedNote says why field terms find nobody.
+const phonebookNotSharedNote = "the phonebook is not shared ([agent.read] people is off), so field terms find nobody"
+
+// cards is the phonebook's cards, read once per call; empty without a phonebook.
+func (s *server) cards() phonebook.Index {
+	if s.book == nil {
+		return phonebook.Index{}
+	}
+	cards, err := s.book.Cards()
+	if err != nil {
+		s.log.Warn("read the phonebook failed", "err", err)
+	}
+	return phonebook.NewIndex(cards)
+}
+
+// cardOf is userID's person's card: every ID the directory or an identity links to theirs.
+func (s *server) cardOf(cards phonebook.Index, userID string) (phonebook.Card, bool) {
 	ids := s.people.Dir.Identifiers(userID)
 	if alias := s.aliases[userID]; alias != "" {
 		for other, a := range s.aliases {
@@ -373,11 +410,12 @@ func (s *server) cardFields(userID string) map[string]any {
 			}
 		}
 	}
-	card, found, err := s.book.Find(phonebook.Identifiers(domain.CardIdentifiers(ids)))
-	if err != nil {
-		s.logger().Warn("read the phonebook failed", "err", err)
-		return nil
-	}
+	return cards.Find(phonebook.Identifiers(domain.CardIdentifiers(ids)))
+}
+
+// cardFields is a card by key (lists as lists, single values as themselves); nil without
+// a card or field.
+func cardFields(card phonebook.Card, found bool) map[string]any {
 	if !found || len(card.Fields) == 0 {
 		return nil
 	}
@@ -492,6 +530,9 @@ func (s *server) readRoom(ctx context.Context, raw json.RawMessage) (any, error)
 	msgs, err := s.backend.CachedTimeline(ctx, room.ID)
 	if err != nil {
 		return nil, fmt.Errorf("reading the room: %w", err)
+	}
+	if msgs, err = s.visible(msgs); err != nil {
+		return nil, err
 	}
 	limit := limitOr(in.Limit, 40, 200)
 	var out []messageView
@@ -625,6 +666,9 @@ func (s *server) readAround(ctx context.Context, raw json.RawMessage) (any, erro
 	if len(msgs) == 0 {
 		return nil, fmt.Errorf("%s is not in this room's cached history", in.Event)
 	}
+	if msgs, err = s.visible(msgs); err != nil {
+		return nil, err
+	}
 	out := make([]messageView, 0, len(msgs))
 	for i := range msgs {
 		out = append(out, s.view(msgs[i], false))
@@ -658,7 +702,12 @@ func (s *server) unreadSummary(ctx context.Context, raw json.RawMessage) (any, e
 	}
 	var out []waitingView
 	for _, u := range unread {
-		if u.Messages == 0 && u.Highlights == 0 {
+		// Counted mentions leave out the people muted tags hide; the server's cannot.
+		mentions := u.Highlights
+		if u.Counted {
+			mentions = u.Mentions
+		}
+		if u.Messages == 0 && mentions == 0 {
 			continue
 		}
 		room, known := byID[u.RoomID]
@@ -667,7 +716,7 @@ func (s *server) unreadSummary(ctx context.Context, raw json.RawMessage) (any, e
 		}
 		out = append(out, waitingView{
 			Room: string(u.RoomID), Name: room.DisplayName(),
-			Messages: u.Messages, Mentions: u.Highlights,
+			Messages: u.Messages, Mentions: mentions,
 		})
 	}
 	sort.SliceStable(out, func(a, b int) bool {
@@ -685,4 +734,27 @@ func (s *server) unreadSummary(ctx context.Context, raw json.RawMessage) (any, e
 		return nil, err
 	}
 	return map[string]any{"waiting": out, outsideScopeKey: len(outOfScope)}, nil
+}
+
+// visible drops the messages of people a muted tag hides, and direct replies to them
+// among msgs. Without the directory it refuses rather than show them.
+func (s *server) visible(msgs []domain.Message) ([]domain.Message, error) {
+	if s.hiddenErr != nil {
+		return nil, fmt.Errorf("cannot tell whom the muted tags hide: %w", s.hiddenErr)
+	}
+	if s.hidden.Empty() {
+		return msgs, nil
+	}
+	senders := make(map[domain.EventID]string, len(msgs))
+	for i := range msgs {
+		senders[msgs[i].ID] = msgs[i].Sender
+	}
+	out := make([]domain.Message, 0, len(msgs))
+	for i := range msgs {
+		if s.hidden.Has(msgs[i].Sender) || (msgs[i].ReplyTo != "" && s.hidden.Has(senders[msgs[i].ReplyTo])) {
+			continue
+		}
+		out = append(out, msgs[i])
+	}
+	return out, nil
 }

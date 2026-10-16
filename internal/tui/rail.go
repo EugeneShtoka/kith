@@ -5,17 +5,21 @@ import (
 )
 
 // railState is the space rail: groups, cursor, and what decides which rooms a group admits and
-// how they sort. roomFacts and spamRooms are derived (see refreshPlaces); changing their inputs
-// without refreshing leaves them stale.
+// how they sort. roomFacts is derived (see refreshPlaces); changing its inputs without
+// refreshing leaves it stale.
 type railState struct {
 	groups []group
 	cursor int
 	rules  []domain.RoomListRule       // per-group room-list overrides
 	chains map[string][]domain.SortKey // this session's sort changes, by group key
-	// spam: [spam] rooms/except. caught: rooms the daemon's filters promoted.
-	spam      domain.Spam
-	caught    map[domain.RoomID]domain.SpamVerdict
-	spamRooms map[domain.RoomID]bool
+	// verdicts: what the daemon's filters moved each room into, and releases. caught: the
+	// tags each room is in by a filter (domain.Places.Caught).
+	verdicts map[domain.RoomID][]domain.TagVerdict
+	caught   map[domain.RoomID][]string
+	// people is what the filters put people into, and releases; peopleRev moves with it,
+	// for the derived cache (a muted tag's people are hidden).
+	people    []domain.PersonVerdict
+	peopleRev uint64
 	// tags: the [[tag]]s. roomFacts is every room's facts, precomputed since every draw asks a tag
 	// about every room; spanning is the tags (tag:<name>, lower-cased) holding every room.
 	tags      domain.TagSet

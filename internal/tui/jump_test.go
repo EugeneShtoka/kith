@@ -672,7 +672,7 @@ func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 	}
 	m = typePrompt(t, m, "g i")
 	after, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if target, ok := after.keys.jumpFor("g i"); !ok || target.Kind != domain.JumpSpace || target.Name != "Infra" {
+	if target, ok := after.keys.jumpFor("g i"); !ok || target.Kind != domain.JumpHome || target.Name != "space:Infra" {
 		t.Fatalf("g i is bound to %+v (%v), want space Infra", target, ok)
 	}
 	moved := after.clearStatus()
@@ -727,7 +727,7 @@ func TestShortcutStartsOnWhatHasTheFocus(t *testing.T) {
 	m.focus = paneRail
 	if bound, _ := m.runCommandLine("shortcut g i"); func() bool {
 		target, ok := bound.keys.jumpFor("g i")
-		return !ok || target.Kind != domain.JumpSpace || target.Name != "Infra"
+		return !ok || target.Kind != domain.JumpHome || target.Name != "space:Infra"
 	}() {
 		t.Error(":shortcut g i from the rail did not bind the space")
 	}

@@ -85,7 +85,6 @@ func (m Model) identityItems(mxid string) []pickerItem {
 func (m Model) chooseIdentity(alias string) (Model, tea.Cmd) {
 	if alias == newIdentityValue {
 		m.choosing.identity.creating = true
-		m = m.closePicker()
 		m = m.openPromptWith(promptAlias, m.choosing.identity.name)
 		return m, nil
 	}
@@ -198,14 +197,15 @@ func (m Model) openPeopleForRoom() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// peopleItems lists the members by local name, with the MXID as detail.
+// peopleItems lists the members by local name, the place's show_field after it, with the
+// MXID as detail.
 func (m Model) peopleItems() []pickerItem {
 	items := make([]pickerItem, 0, len(m.timeline.members))
 	for _, member := range m.timeline.members {
 		name := m.memberName(member)
-		label := isolate(name)
+		label := isolate(m.besideName(name, member.UserID))
 		if ident, ok := m.prefs.identities[member.UserID]; ok && ident.alias != "" {
-			label = isolate(ident.alias) + "  (" + isolate(name) + ")"
+			label = isolate(m.besideName(ident.alias, member.UserID)) + "  (" + isolate(name) + ")"
 		}
 		items = append(items, pickerItem{
 			label:  label,
@@ -223,9 +223,18 @@ func (m Model) aliasSelectedPerson() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	name := stripIsolates(item.label)
-	if idx := strings.Index(name, "  ("); idx > 0 {
-		name = name[:idx] // strip the "(real name)" qualifier
+	return m.openIdentityFor(item.value, m.memberShown(item.value))
+}
+
+// memberShown is the member list's name for id: their alias, else their name.
+func (m Model) memberShown(id string) string {
+	if ident, ok := m.prefs.identities[id]; ok && ident.alias != "" {
+		return ident.alias
 	}
-	return m.openIdentityFor(item.value, name)
+	for _, member := range m.timeline.members {
+		if member.UserID == id {
+			return m.memberName(member)
+		}
+	}
+	return id
 }

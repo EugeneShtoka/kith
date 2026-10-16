@@ -35,12 +35,3 @@ func (b *InProc) MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unrea
 	}
 	return nil
 }
-
-// clearMarked drops a room's mark after a read, only when it is set (so the common
-// receipt costs no request).
-func (b *InProc) clearMarked(ctx context.Context, roomID domain.RoomID) {
-	if !b.unread.get(roomID).Marked {
-		return
-	}
-	b.warnIf(ctx, b.MarkRoomUnread(ctx, roomID, false), "clear marked-unread", "room", roomID)
-}

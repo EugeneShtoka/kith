@@ -8,15 +8,19 @@ import (
 
 // RoomFacts is what a list entry can match: the room, its spaces, tags and network.
 type RoomFacts struct {
-	ID       string
-	Name     string
-	Spaces   []string // names of the spaces holding it
-	Direct   bool
-	Protocol Protocol // the network: its own (Room.Network), else its space's bridge's
-	Tags     []string // names of the [[tag]]s holding it, judged as a place (TagSet.Of)
+	ID     string
+	Name   string
+	Spaces []string // names of the spaces holding it
+	// SpaceLabels are the rail labels of those spaces that are renamed ([[display.name]]).
+	SpaceLabels []string
+	Direct      bool
+	Protocol    Protocol // the network: its own (Room.Network), else its space's bridge's
+	Tags        []string // names of the [[tag]]s holding it, judged as a place (TagSet.Of)
 	// ArchivedIn is the tag of the network archive holding it, when kith follows that
 	// archive (Places.Archives); "" otherwise.
 	ArchivedIn string
+	// Caught is the tags a filter moved it into, released ones left out.
+	Caught []string
 }
 
 // Places is what RoomFacts depend on besides the room. Every user of RoomFacts builds
@@ -27,6 +31,8 @@ type Places struct {
 	Tags  TagSet
 	// Archives is, per network whose archive kith follows, the tag that archive is.
 	Archives map[Protocol]string
+	// Caught is, per room, the tags a filter moved it into.
+	Caught map[RoomID][]string
 }
 
 // Facts builds room's facts; holders are its spaces in hierarchy order (HoldersOf).
@@ -53,10 +59,16 @@ func (p Places) Facts(room Room, holders []Space) RoomFacts {
 	}
 	if len(names) > 0 {
 		facts.Spaces = p.Order.WithManaged(holders).Sort(names)
+		for _, name := range facts.Spaces {
+			if label := p.Order.Label(name); label != "" {
+				facts.SpaceLabels = append(facts.SpaceLabels, label)
+			}
+		}
 	}
 	if room.Archived {
 		facts.ArchivedIn = p.Archives[NetworkOf(string(room.ID))]
 	}
+	facts.Caught = p.Caught[room.ID]
 	// Last: a tag's rule matches on the facts above.
 	facts.Tags = p.Tags.Of(facts)
 	return facts
@@ -73,7 +85,7 @@ func HoldersOf(roomID RoomID, spaces []Space) []Space {
 	return out
 }
 
-// The prefixes and bare words a list entry may use.
+// The prefixes and bare words a list entry may use (also tag: and place:).
 const (
 	entryRoom     = "room:"
 	entrySpace    = "space:"
@@ -91,7 +103,8 @@ type EntryKind int
 const (
 	// EntryInvalid is an entry that declares no kind — refused rather than guessed at.
 	EntryInvalid EntryKind = iota
-	// EntryClass names a *set* of rooms: a space, a network, or whether it is a DM.
+	// EntryClass names a *set* of rooms: a space, a tag, a rail row, a network, or
+	// whether it is a DM.
 	EntryClass
 	// EntryRoom names one room, by ID or by the name it is shown under.
 	EntryRoom
@@ -104,7 +117,8 @@ func ParseEntry(entry string) (EntryKind, bool) {
 	case entry == "":
 		return EntryInvalid, false
 	case strings.EqualFold(entry, entryDirect), strings.EqualFold(entry, entryGroup),
-		hasPrefixFold(entry, entrySpace), hasPrefixFold(entry, entryProtocol), hasPrefixFold(entry, termTag):
+		hasPrefixFold(entry, entrySpace), hasPrefixFold(entry, entryProtocol), hasPrefixFold(entry, termTag),
+		hasPrefixFold(entry, entryPlace):
 		return EntryClass, true
 	case hasPrefixFold(entry, entryRoom), strings.HasPrefix(entry, roomSigil), IsRoomID(entry):
 		return EntryRoom, true
@@ -125,15 +139,29 @@ func SpaceOf(entry string) (string, bool) {
 	return strings.TrimSpace(entry[len(entrySpace):]), true
 }
 
+// EntryPrefixes are the prefixes a list entry may carry; EntryWords what else it may be.
+const (
+	EntryPrefixes = "room:, space:, tag:, place:, protocol:"
+	EntryWords    = "a room ID, dm, group"
+)
+
 // ValidateEntries reports the first entry that declares no kind.
 func ValidateEntries(what string, entries []string) error {
 	for _, entry := range entries {
 		if _, ok := ParseEntry(entry); !ok {
-			return fmt.Errorf("%s: %q names nothing — write a room ID (!abc:server), "+
-				"room:<name>, space:<name>, tag:<name>, protocol:<network>, dm or group", what, entry)
+			return NeedsPrefix(what, entry, EntryPrefixes, EntryWords)
 		}
 	}
 	return nil
+}
+
+// NeedsPrefix is the error for an entry with no prefix it may carry: which prefixes it
+// may, and what else ("" for nothing) it may be instead.
+func NeedsPrefix(what, entry, prefixes, words string) error {
+	if words == "" {
+		return fmt.Errorf("%s: %q needs a prefix: %s", what, entry, prefixes)
+	}
+	return fmt.Errorf("%s: %q needs a prefix: %s (or %s)", what, entry, prefixes, words)
 }
 
 // Match reports whether one entry describes this room, and how broadly it reaches.
@@ -161,12 +189,21 @@ func (f RoomFacts) Match(entry string) (EntryKind, bool) {
 	case hasPrefixFold(entry, termTag):
 		want, _ := TagOf(entry)
 		return kind, slices.ContainsFunc(f.Tags, func(tag string) bool { return strings.EqualFold(tag, want) })
+	case hasPrefixFold(entry, entryPlace):
+		want := strings.TrimSpace(entry[len(entryPlace):])
+		return kind, f.inSpaceShownAs(want) || slices.ContainsFunc(f.Tags, func(tag string) bool { return strings.EqualFold(tag, want) })
 	case hasPrefixFold(entry, entryRoom):
 		// `room:` takes the displayed name or the ID.
 		entry = strings.TrimSpace(entry[len(entryRoom):])
 	}
 	return kind, strings.EqualFold(entry, strings.TrimSpace(f.ID)) ||
 		(f.Name != "" && strings.EqualFold(entry, strings.TrimSpace(f.Name)))
+}
+
+// inSpaceShownAs reports whether a space holding the room has name or shows as it.
+func (f RoomFacts) inSpaceShownAs(name string) bool {
+	same := func(s string) bool { return strings.EqualFold(strings.TrimSpace(s), name) }
+	return name != "" && (slices.ContainsFunc(f.Spaces, same) || slices.ContainsFunc(f.SpaceLabels, same))
 }
 
 // Names reports whether one list entry describes this room.

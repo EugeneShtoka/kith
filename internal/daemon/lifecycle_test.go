@@ -269,7 +269,7 @@ func TestEnsureAttachesToARunningDaemon(t *testing.T) {
 	pumped := make(chan struct{})
 	go func() { defer close(pumped); streams.Run(ctx, backend) }()
 	go func() {
-		served <- daemon.Serve(ctx, ln, &daemon.Daemon{Backend: backend, Streams: streams, State: state})
+		served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{Backend: backend, Streams: streams, State: state}))
 	}()
 	t.Cleanup(func() {
 		cancel()

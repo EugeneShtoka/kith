@@ -42,7 +42,7 @@ type Display struct {
 	Names         []DisplayName `toml:"name"`
 	RoomNameRules *bool         `toml:"room_name_rules"`
 	Unread        string        `toml:"unread"`   // UnreadSources; empty is "messages"
-	Priority      []string      `toml:"priority"` // space names and tag:<name>s, most preferred first
+	Priority      []string      `toml:"priority"` // home entries (space:, tag:, place:), most preferred first
 	Rooms         Rooms         `toml:"rooms"`
 	Rail          Rail          `toml:"rail"`
 	Media         Media         `toml:"media"`
@@ -169,7 +169,7 @@ type TrackedRule struct {
 
 // SpaceRule is one [[display.space_rule]]: a per-space name-display rule.
 type SpaceRule struct {
-	Space         string `toml:"space"` // the space's rail label
+	Space         string `toml:"space"` // a home entry: space:, tag: or place:<name>
 	FirstNameOnly bool   `toml:"first_name_only"`
 	// NetworkColors names each room in this place's room list in its network's color,
 	// or not, whatever Display.NetworkColors says; nil follows it.
@@ -177,41 +177,61 @@ type SpaceRule struct {
 	// ShowArchived lists archived rooms in this place's room list, or not, whatever
 	// Display.ShowArchived says; nil follows it.
 	ShowArchived *bool `toml:"show_archived"`
+	// ShowField is a phonebook field key whose value this place's room list and member
+	// list show after a person's name; empty shows none.
+	ShowField string `toml:"show_field"`
 }
 
 // Empty reports whether the rule sets nothing, so the file need not keep it.
 func (r SpaceRule) Empty() bool {
-	return !r.FirstNameOnly && r.NetworkColors == nil && r.ShowArchived == nil
+	return !r.FirstNameOnly && r.NetworkColors == nil && r.ShowArchived == nil && r.ShowField == ""
 }
 
-// SpaceRule is place's [[display.space_rule]] (a space's name, or tag:<name>, in any
-// case), if it has one.
-func (d Display) SpaceRule(place string) (SpaceRule, bool) {
-	for _, r := range d.SpaceRules {
-		if strings.EqualFold(r.Space, place) {
-			return r, true
+// SpaceRule is a place's [[display.space_rule]], if it has one: names reports whether
+// a rule's space entry names the place. A space: or tag: rule wins over a place: one.
+func (d Display) SpaceRule(names func(entry string) bool) (SpaceRule, bool) {
+	for _, byLabel := range []bool{false, true} {
+		for _, r := range d.SpaceRules {
+			if isPlaceEntry(r.Space) == byLabel && names(r.Space) {
+				return r, true
+			}
 		}
 	}
 	return SpaceRule{}, false
 }
 
-// NetworkColorsIn reports whether place's room list names its rooms in their networks'
-// colors: as its rule says, else as NetworkColors does.
-func (d Display) NetworkColorsIn(place string) bool {
-	if r, ok := d.SpaceRule(place); ok && r.NetworkColors != nil {
+// placePrefix names rail rows by what the rail shows (domain.PlaceEntry).
+const placePrefix = "place:"
+
+// isPlaceEntry reports whether an entry is place:<name>.
+func isPlaceEntry(entry string) bool {
+	entry = strings.TrimSpace(entry)
+	return len(entry) >= len(placePrefix) && strings.EqualFold(entry[:len(placePrefix)], placePrefix)
+}
+
+// NetworkColorsIn reports whether a place's room list names its rooms in their
+// networks' colors: as its rule says (SpaceRule), else as NetworkColors does.
+func (d Display) NetworkColorsIn(names func(entry string) bool) bool {
+	if r, ok := d.SpaceRule(names); ok && r.NetworkColors != nil {
 		return *r.NetworkColors
 	}
 	return d.NetworkColors
+}
+
+// ShowFieldIn is the phonebook field a place shows beside names, "" for none.
+func (d Display) ShowFieldIn(names func(entry string) bool) string {
+	r, _ := d.SpaceRule(names)
+	return r.ShowField
 }
 
 // ShowsArchived reports whether room lists show archived rooms ([display] show_archived;
 // unset is true).
 func (d Display) ShowsArchived() bool { return enabled(d.ShowArchived) }
 
-// ShowsArchivedIn reports whether place's room list shows archived rooms: as its rule
-// says, else as ShowArchived does.
-func (d Display) ShowsArchivedIn(place string) bool {
-	if r, ok := d.SpaceRule(place); ok && r.ShowArchived != nil {
+// ShowsArchivedIn reports whether a place's room list shows archived rooms: as its
+// rule says (SpaceRule), else as ShowArchived does.
+func (d Display) ShowsArchivedIn(names func(entry string) bool) bool {
+	if r, ok := d.SpaceRule(names); ok && r.ShowArchived != nil {
 		return *r.ShowArchived
 	}
 	return d.ShowsArchived()
@@ -307,6 +327,21 @@ func (d Display) NameFor(target string) string {
 	return name
 }
 
+// SpaceLabels maps each renamed space's name to the label its rail row shows.
+func (d Display) SpaceLabels() map[string]string {
+	out := map[string]string{}
+	for _, entry := range d.Names {
+		if key, ok := strings.CutPrefix(entry.Target, NameTargetSpace); ok {
+			if entry.Name == "" {
+				delete(out, key)
+			} else {
+				out[key] = entry.Name
+			}
+		}
+	}
+	return out
+}
+
 // RoomNames maps each named room ID to its name.
 func (d Display) RoomNames() map[string]string {
 	out := make(map[string]string, len(d.Names))
@@ -360,7 +395,8 @@ func (d Deleted) Keep() bool { return d.KeepDeleted }
 func (d Deleted) HideMine() bool   { return d.Mine == DeletedHide }
 func (d Deleted) HideOthers() bool { return d.Others == DeletedHide }
 
-// Rail is [display.rail]: group order, visibility and labels, by group key.
+// Rail is [display.rail]: group order and visibility, by home entry (space:, tag:,
+// place:).
 type Rail struct {
 	Order         []string `toml:"order"`
 	Hidden        []string `toml:"hidden"`
@@ -378,13 +414,13 @@ type Rooms struct {
 
 // RoomsRule is one [[display.rooms.rule]]; unset fields inherit.
 type RoomsRule struct {
-	Group string   `toml:"group"` // a rail group key
+	Group string   `toml:"group"` // space:, tag: or place:<name>
 	Sort  []string `toml:"sort"`  // replaces the whole chain; empty inherits
 }
 
 // ReadRule is one [[display.read_rule]]; unset fields inherit.
 type ReadRule struct {
-	Match  string `toml:"match"`  // a room ID or a space's name
+	Match  string `toml:"match"`  // a room ID, space:, tag: or place:
 	Sender string `toml:"sender"` // MXID of the message's author
 	Send   *bool  `toml:"send"`
 	Delay  *int   `toml:"delay"` // seconds; -1 never, 0 at once
@@ -406,7 +442,7 @@ type Threads struct {
 
 // ThreadRule is one [[display.threads.rule]].
 type ThreadRule struct {
-	Match         string `toml:"match"`            // a room ID or a space's name
+	Match         string `toml:"match"`            // a room ID, space:, tag: or place:
 	MaxInRoomList int    `toml:"max_in_room_list"` // 0 default, negative no cap
 }
 

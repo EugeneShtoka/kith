@@ -44,12 +44,12 @@ func TestProseNamesKeysByTheirBinding(t *testing.T) {
 func TestProseFollowsARebinding(t *testing.T) {
 	t.Parallel()
 	keys := config.DefaultKeys()
-	keys.Search.Scope = "w"
+	keys.Bindings["search.scope"] = "w"
 	m := sized(t, withRooms(t, newModel())).WithKeys(keys)
 	if got := m.liveKeys("{search.scope} widens it"); got != "w widens it" {
 		t.Fatalf("liveKeys = %q", got)
 	}
-	keys.Search.Scope = unbind
+	keys.Bindings["search.scope"] = unbind
 	m = sized(t, withRooms(t, newModel())).WithKeys(keys)
 	if got := m.liveKeys("{search.scope} widens it"); got != "(unbound) widens it" {
 		t.Fatalf("unbound: liveKeys = %q", got)

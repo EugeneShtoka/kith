@@ -3,7 +3,8 @@
 # coverage-gate.sh — enforce coverage floors: hand-written total >= TOTAL_MIN and
 # every non-exempt package >= PKG_MIN (a package with no tests counts as 0%).
 #
-# Usage: bash scripts/coverage-gate.sh [coverage.out]   (or `make coverage-check`)
+# Usage: bash scripts/coverage-gate.sh [coverage.out ...]   (or `make coverage-check`)
+# Several profiles (CI's test jobs, one per package group) are merged first.
 
 set -euo pipefail
 
@@ -34,7 +35,15 @@ is_exempt() {
 	return 1
 }
 
-[[ -f "$PROFILE" ]] || { echo "coverage-gate: profile not found: $PROFILE" >&2; exit 2; }
+for f in "${@:-$PROFILE}"; do
+	[[ -f "$f" ]] || { echo "coverage-gate: profile not found: $f" >&2; exit 2; }
+done
+if (( $# > 1 )); then
+	# One mode line, then every profile's statements (the groups' packages are disjoint).
+	merged="$(mktemp)"
+	{ head -1 "$1"; for f in "$@"; do tail -n +2 "$f"; done; } > "$merged"
+	PROFILE="$merged"
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stale=0
@@ -84,7 +93,7 @@ done < <(go list ./...)
 
 # Gate on hand-written code; print the raw total (what `make coverage` shows) too.
 handwritten="$(mktemp)"
-trap 'rm -f "$handwritten"' EXIT
+trap 'rm -f "$handwritten" "${merged:-}"' EXIT
 head -1 "$PROFILE" > "$handwritten"
 { grep -vE "$GENERATED_RE" "$PROFILE" || true; } | tail -n +2 >> "$handwritten"
 

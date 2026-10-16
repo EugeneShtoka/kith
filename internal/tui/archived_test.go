@@ -50,7 +50,7 @@ func TestArchivedRoomsAreShownAsConfigured(t *testing.T) {
 	if got := archivedListed(hidden); !slices.Equal(got, []domain.RoomID{"!a:x"}) {
 		t.Errorf("the archive's own list with show_archived off: %v, want Alpha", got)
 	}
-	ruled := archiving(t, config.Display{ShowArchived: new(false), SpaceRules: []config.SpaceRule{{Space: "WhatsApp UK", ShowArchived: new(true)}}})
+	ruled := archiving(t, config.Display{ShowArchived: new(false), SpaceRules: []config.SpaceRule{{Space: "space:WhatsApp UK", ShowArchived: new(true)}}})
 	if got := archivedListed(ruled); len(got) != 2 {
 		t.Errorf("a place shown whatever show_archived says: %v, want both", got)
 	}
@@ -84,11 +84,12 @@ func TestTheArchivedKeyFlipsThePlaceInView(t *testing.T) {
 func TestEachPlaceChoosesItsArchivedRooms(t *testing.T) {
 	t.Parallel()
 	m := archiving(t, config.Display{})
-	m.choosing.settingGroup = "rooms"
+	m.choosing.settingGroup = placePage("WhatsApp UK")
 	row, ok := m.setting(archivedKey + "WhatsApp UK")
 	if !ok {
 		t.Fatal("no archived-rooms row for the bridge's space")
 	}
+	m.choosing.settingGroup = placePage("tag:Archived")
 	if _, ok := m.setting(archivedKey + "tag:Archived"); ok {
 		t.Error("the archive has a row of its own")
 	}
@@ -96,8 +97,9 @@ func TestEachPlaceChoosesItsArchivedRooms(t *testing.T) {
 	if err := row.set(&cfg, "hidden"); err != nil {
 		t.Fatal(err)
 	}
-	if r, ok := cfg.Display.SpaceRule("WhatsApp UK"); !ok || r.ShowArchived == nil || *r.ShowArchived {
-		t.Errorf("rules = %+v, want WhatsApp UK hidden", cfg.Display.SpaceRules)
+	// Written prefixed: a bare name is refused at load.
+	if rules := cfg.Display.SpaceRules; len(rules) != 1 || rules[0].Space != "space:WhatsApp UK" || rules[0].ShowArchived == nil || *rules[0].ShowArchived {
+		t.Errorf("rules = %+v, want space:WhatsApp UK hidden", cfg.Display.SpaceRules)
 	}
 	if got := row.show(cfg); got != "hidden" {
 		t.Errorf("shown as %q", got)

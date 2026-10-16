@@ -100,9 +100,9 @@ show_archived = true
 
 # Which spaces the filing key (`S` in the room list) offers. Empty works it out: your
 # spaces, minus those a bridge keeps and those a room calls its origin. Naming spaces
-# (display name, case-insensitive, or room ID) makes this the whole list, in order.
+# (space:<name>, place:<name> or a space's ID) makes this the whole list, in order.
 #
-#   filing_spaces = ["Work", "Friends", "!w1kIQdLjYDUj7wgUis:example.org"]
+#   filing_spaces = ["space:Work", "place:Friends", "!w1kIQdLjYDUj7wgUis:example.org"]
 filing_spaces = []
 
 # The wheel scrolls the pane under the pointer; clicks do nothing. While on, the
@@ -131,17 +131,21 @@ send_typing = true
 unread = "messages"
 
 # The place vocabulary, which every list of places in this file takes: a room ID bare,
-# `room:<name>`, `space:<name>`, `tag:<name>`, `protocol:<network>`, `dm`, `group`.
+# `room:<name>`, `space:<name>`, `tag:<name>`, `place:<name>`, `protocol:<network>`,
+# `dm`, `group`. `place:<name>` is every rail row shown as <name> (its label after a
+# rename, or its name, in any case): a space, a tag, a forum, a community, a
+# workspace. A setting naming rail rows (priority, the rail's lists, space_rule,
+# rooms rules) takes space:, tag: and place:. A bare name is refused at startup.
 
 # Preference order when one home must be chosen for a room in several spaces or tags:
 # the {space} of a notification, the download folder, which [[display.space_rule]]
-# applies, which place rule counts as the room's space. Spaces by name, tags as
-# tag:<name>. What it does not name follows the rail's order ([display.rail]); what
-# the rail does not name either goes where its "*" is: tags in the order they are
-# written, then spaces you made, then a network's own (a bridge's, a WhatsApp
-# account's, a Slack workspace's). A tag of every room (All) is a room's home only
-# when nothing else is.
-# priority = ["tag:Family", "Work", "Friends"]
+# applies, which place rule counts as the room's space. Spaces as space:<name>, tags
+# as tag:<name>, or place:<name>. What it does not name follows the rail's order
+# ([display.rail]); what the rail does not name either goes where its "*" is: tags in
+# the order they are written, then spaces you made, then a network's own (a bridge's,
+# a WhatsApp account's, a Slack workspace's). A tag of every room (All) is a room's
+# home only when nothing else is.
+# priority = ["tag:Family", "space:Work", "place:Friends"]
 
 # Open a room in the composer rather than the message cursor (one esc away).
 open_in_insert_mode = true
@@ -157,18 +161,22 @@ row_numbers = false
 # (DMs, bridge rooms) too.
 # room_name_rules = true
 
-# Per-place rules: space is a space's name, or tag:<name> for a tag.
+# Per-place rules: space is space:<name>, tag:<name> or place:<name>.
 # first_name_only shows just the first token of a sender's name. A room in two places
 # follows the one selected in the rail in the room list, else its home (see priority).
 # network_colors names each room in this place's room list in its network's color
 # ([display.theme.networks]), true or false whatever [display] network_colors says.
 # show_archived lists archived rooms in this place's room list, true or false whatever
 # [display] show_archived says.
+# show_field names a phonebook field ([phonebook]) whose value this place shows after a
+# person's name: in its room list on a DM or a room with one person in it, and in the
+# member list ("Dana Levi · Meta").
 # [[display.space_rule]]
-# space = "Friends"
+# space = "space:Friends"
 # first_name_only = true
 # network_colors = true
 # show_archived = false
+# show_field = "company"
 
 # Merge several accounts into one person with a shared alias and/or fixed color
 # (#rrggbb or a named color). Both are optional. An alias chooses which name to show;
@@ -214,7 +222,7 @@ read_delay    = -1
 # DM.
 #
 # [[display.read_rule]]
-# match = "Work"        # a room ID or a space's name
+# match = "space:Work"  # a room ID, space:, tag: or place:
 # delay = 30
 #
 # [[display.read_rule]]
@@ -301,7 +309,7 @@ notify = false
 # and no `not` term does (a rule of `not` terms alone needs none; an empty rule holds
 # only picked rooms). Terms: `*` (every room), the place words (room:<name>,
 # space:<name>, protocol:<network>, dm, group), the state words (unread,
-# mention, draft, spam, invite) and tag:<name> (another tag's rooms). `hidden = true`
+# mention, draft, invite) and tag:<name> (another tag's rooms). `hidden = true`
 # keeps a tag out of the rail. In the rail order below a tag is `tag:<name>`. Tags
 # whose rules depend on each other in a cycle are reported at startup, and their
 # references to each other match nothing.
@@ -309,15 +317,22 @@ notify = false
 # Properties (all off unless set):
 #   counts_unread = false   its rooms count as read everywhere else: no badge, not
 #                           `unread`/`mention` to other tags, skipped by mark-all-read
-#   exclusive       = true  its rooms show under it alone, under no other tag (their
-#                           spaces keep them); of two, the first configured wins
-#   space_exclusive = true  its rooms leave the spaces you made and other tags; the
-#                           spaces they belong to (a bridge's, a community, their
-#                           canonical home) keep them
+#   notifies      = false   nothing in its rooms notifies (codes are still copied)
+#   exclusive = [...]       where its rooms leave, any of:
+#                             "tags"    every other tag; of two such tags, the
+#                                       first configured keeps them
+#                             "spaces"  spaces they do not belong to
+#                             "origin"  the spaces they belong to: a bridge's, a
+#                                       community, their canonical home
 #   sticky          = true  the open room stays listed until you move off it
 #   hide_when_empty = true  no rail row while it holds nothing
 #   first           = true  at the top of the rail, unless the order places it
 #   count_in_label  = true  the row says how many rooms it holds
+#   people = [...]          senders put in it by hand, one ID each. A muted tag's
+#                           (notifies = false) are hidden in every room: their
+#                           messages and the direct replies to them, as kith links
+#                           their IDs (identities, the people directory). Your own
+#                           are never hidden.
 # Exclusivity decides where a room shows, not what rules match: `tag:<name>` still
 # matches a room another tag claims.
 #
@@ -332,7 +347,8 @@ notify = false
 # in: change their rules, rename them, or delete them. A room goes into a tag, or out
 # of one, from the filing picker (`S`) or with `/tag <name>`; that edits the tag's
 # picked and excluded lists here. The picker's New tag row, or `/tag` with a name no
-# tag has, makes the tag with the room in it.
+# tag has, makes the tag with the room in it. A [[filter]] moves rooms into a tag too
+# (see Filters below), and [[keys.tag]] binds a key to one.
 
 [[tag]]
 name = "DMs"
@@ -359,21 +375,31 @@ hide_when_empty = true
 [[tag]]
 name            = "Archived"
 counts_unread   = false
-exclusive       = true
-space_exclusive = true
+exclusive       = ["tags", "spaces"]
 hide_when_empty = true
 
+# Where unwanted conversations go: by hand (`!`, bound below) or by a [[filter]].
+# Quiet, uncounted, and out of every other tag and space, its own included. A person
+# goes here too (people): `!` on their message hides them in every room, and `z h`
+# shows them in the open room.
 [[tag]]
 name            = "Spam"
-rule            = ["spam"]
-exclusive       = true
+counts_unread   = false
+notifies        = false
+exclusive       = ["tags", "spaces", "origin"]
 hide_when_empty = true
+
+# `!` puts the room under the cursor in Spam, or takes it out, and in the timeline the
+# selected message's sender: a key bound to a tag by its chord. See [keys] for more.
+[[keys.tag]]
+chord = "!"
+tag   = "Spam"
 
 # At the top of the rail, saying how many are waiting.
 [[tag]]
 name            = "Invites"
 rule            = ["invite"]
-exclusive       = true
+exclusive       = ["tags"]
 first           = true
 count_in_label  = true
 hide_when_empty = true
@@ -385,21 +411,20 @@ hide_when_empty = true
 name = "All"
 rule = ["*"]
 
-# Rail layout, by group key: a space's name, tag:<name>. A name that is neither is
-# matched, in any case, to the row the rail shows by that name (a tag's bare name, a
-# renamed space). "-" draws a divider after the preceding group; "*" stands for every
-# group not named. Unlisted groups (with no "*") follow in default order. A tag marked
-# `first` goes to the top unless named here.
+# Rail layout: space:<name>, tag:<name>, or place:<name> for every row shown as
+# <name> (placed together, in rail order). "-" draws a divider after the preceding
+# group; "*" stands for every group not named. Unlisted groups (with no "*") follow in
+# default order. A tag marked `first` goes to the top unless named here.
 #
 # Rename a space's row with [[display.name]] (target = "space:Work").
 [display.rail]
 order = ["tag:All", "tag:DMs", "tag:Unread", "tag:Drafts", "tag:Pinned", "-", "*", "-", "tag:Archived", "tag:Spam"]
-# Rows hidden while they hold nothing (key or label, case-insensitive); a tag can say
-# so itself (hide_when_empty).
+# Rows hidden while they hold nothing (as order names them); a tag can say so itself
+# (hide_when_empty).
 #
-#   hide_when_empty = ["Work"]
+#   hide_when_empty = ["space:Work"]
 hide_when_empty = []
-# Rows never shown (key or label); a tag can say so itself (hidden).
+# Rows never shown (as order names them); a tag can say so itself (hidden).
 hidden = []
 # Name a space or tag whose rooms are all on one network in that network's color
 # ([display.theme.networks]).
@@ -460,18 +485,30 @@ max_height = 16
 # cache_dir    = ""
 # cache_max_mb = 0
 
-# Per-place overrides, matched by room ID or space name (never a displayed name). The
-# narrower match wins; a rule changes only what it sets. Fields: auto (fetch pictures
-# unasked), cache (keep on disk), dir, template ("-" turns the layout off), speed
-# (voice notes). `sender` makes a rule about a person, for speed.
+# `anonymize` sends attachments under a neutral name for what they are, so a file's
+# own name ("IMG_2041 Haifa.jpg", "contract-Dana.docx") does not travel with it:
+# photo.jpg, video.mkv, music.mp3, document.pdf, archive.zip (file.ext for anything
+# else). The extension stays, so the file still opens. On every network; a rule turns
+# it off for a place.
+# anonymize    = true
+
+# Per-place overrides, matched by room ID, space:, tag: or place: (a room's first
+# home). The narrower match wins; a rule changes only what it sets. Fields: auto (fetch pictures
+# unasked), cache (keep on disk), anonymize (send under a neutral name), dir, template
+# ("-" turns the layout off), speed (voice notes). `sender` makes a rule about a person,
+# for speed.
 #
 # [[display.media.rule]]
-# match = "Work"
+# match = "space:Work"
 # dir   = "~/work/attachments"
 #
 # [[display.media.rule]]
 # match    = "!standup:server"
 # template = "{date}-{name}{ext}"
+#
+# [[display.media.rule]]
+# match     = "space:Work"
+# anonymize = false
 #
 # [[display.media.rule]]
 # sender = "@dana:example.org"
@@ -511,11 +548,10 @@ close_after  = 15      # seconds
 [display.rooms]
 sort = ["unread", "recent", "name"]
 
-# Per rail group, by group key (a space's name, or home/dms/unread). `sort` replaces
-# the chain whole.
+# Per rail group (space:, tag: or place:<name>). `sort` replaces the chain whole.
 #
 #   [[display.rooms.rule]]
-#   group = "Work"
+#   group = "space:Work"
 #   sort  = ["recent", "name"]
 
 # Quick-react palette (1-9, 0 in the react prompt). scope ranks by your usage: "room"
@@ -534,7 +570,7 @@ in_room_list     = "unread"
 max_in_room_list = 5
 # marker         = "↳"   # leads a thread's row
 
-# Per place (room ID or space name; narrowest wins, later wins among equals):
+# Per place (room ID, space:, tag: or place:; narrowest wins, later wins among equals):
 #
 # [[display.threads.rule]]
 # match            = "!busy:example.org"
@@ -729,45 +765,78 @@ require_digit = true
 # startup.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Spam: a place, not a mute. A room in Spam leaves its groups, unread totals and
-# notifications while staying readable and answerable; nothing leaves the Matrix room.
-# `!` in the room list moves a room in and out; `/caught` previews what the filters
-# would catch; `/why` in a caught room names the rule and filter.
+# Filters: words or a sender that move a conversation into a tag (the starter's
+# Spam, or any other). `/caught` previews what they catch, `:rescan` judges what is
+# already cached, and `/why` in a moved room names the filter and the rule.
 #
-# `rooms` is what you put there; `except` outranks everything. Releasing a room writes
-# an exception. Both take the place vocabulary.
+# Each [[filter]] needs a name (what `/why` reports) and the tag it moves rooms into.
+# Words take the tracked-word globs (`pay`, `pay*`, `*pay*`, `*pay`); `from` alone
+# catches everything a sender writes, and a language clause alone everything in that
+# language; it needs at least one. `in` limits it to places (empty is everywhere).
 #
-# Nothing fires until a [[spam.filter]] exists. Filters mark messages; these rules
-# promote rooms:
+# A message's language is read from its letters, not guessed: the writing system is
+# certain from one character, and letters only some languages use (ы, ß, ơ) narrow
+# it. What they cannot settle stays undecided, so plain Latin letters could always be
+# English. `lang` catches a message that is in one of its languages, `not_lang` one
+# that cannot be in any of them; both take codes ("en", "zh"), a `family:` (slavic,
+# germanic, romance, turkic, sino-tibetan, …) or a `region:` (asia-east,
+# asia-southeast, asia-south, europe-east, …). `script` takes writing systems: Latin,
+# Cyrillic, Hebrew, Arabic, Greek, Han (Chinese characters, no kana), Kana (Japanese),
+# Hangul, Thai, Devanagari, … `moves` is which rules its catch moves a room by,
+# ["first_message", "direct"] unless set:
 #
-#   first_message  the room's first message was caught
-#   direct         a message in a DM was caught
-#   ratio/floor/   at least `ratio` of the room's messages over `window` were caught,
-#   window         with at least `floor` messages; ratio = 0 is off
+#   always         any message it catches
+#   first_message  the room's first message
+#   direct         a message in a DM you never wrote in
+#   ratio          at least `ratio` of the room's messages over `window` (0.6 over a
+#                  week unless set), with at least `floor` of them (5), caught by it
 #
-# Only you demote. A verdict is stored in the room's account data, so it survives a
-# cache rebuild and syncs to your other devices.
-[spam]
-rooms  = []
-except = []
-first_message = true
-direct        = true
-ratio  = 0.0
-floor  = 5
-window = "168h"
-
-# Each filter needs a name (it is what `/why` reports). Words take the tracked-word
-# globs (`pay`, `pay*`, `*pay*`, `*pay`); `from` alone catches everything a sender
-# writes. Check with `/caught` before trusting a filter.
+# Three more mark the person who sent the message instead, in every room: in a muted
+# tag (Spam) they are hidden everywhere. Never anyone you have written to (a DM you
+# wrote in, or a reply to them).
 #
-# [[spam.filter]]
+#   sender_first   their first message anywhere you can see
+#   sender_ratio   at least `ratio` of their messages over `window`, every room
+#                  together, with at least `floor` of them, caught by it
+#   sender_spread  the same caught message in `spread` rooms (3) within `window`
+#
+# Only you take a room or a person out: a filter never does, and one you took out
+# stays out on every machine, so no filter puts it back. A move is stored in the
+# room's account data, and a Matrix person's mark in the account's, so it survives a
+# cache rebuild and reaches your other machines.
+#
+# [[filter]]
 # name  = "crypto"
+# tag   = "Spam"
 # words = ["*bitcoin*", "*binance*", "invest*"]
+# moves = ["first_message", "direct", "ratio"]
+# ratio = 0.6
+# floor = 5
+# window = "168h"
+# spread = 3
 #
-# [[spam.filter]]
+# [[filter]]
 # name  = "that number"
-# words = ["*"]
+# tag   = "Spam"
 # from  = "@spammer:example.org"
+#
+# [[filter]]
+# name  = "elections"
+# tag   = "Spam"
+# words = ["vote*"]
+# in    = ["place:SMS"]
+# moves = ["always"]
+#
+# [[filter]]
+# name     = "not mine"
+# tag      = "Spam"
+# not_lang = ["en", "ru", "he"]       # in none of the languages I write
+#
+# [[filter]]
+# name   = "east asian"
+# tag    = "Spam"
+# lang   = ["region:asia-east"]       # Chinese, Japanese, Korean, Mongolian
+# script = ["Han", "Kana", "Hangul"]  # and written in their own scripts
 
 # Writing in your own editor (`alt+e`, see [keys.composer]). If the editor fails or
 # the file cannot be read back, the draft is left unchanged.
@@ -1136,6 +1205,47 @@ mirror = false
 # Which [[tag]] the archive is.
 tag = "Archived"
 
+# Messenger, linked directly: kith signs in to your Meta account as the
+# Messenger Lite app does, with no Matrix bridge. It runs when it has an account;
+# `:login messenger` inside kith sets one up. Each [[messenger.account]] is one
+# Meta account: `name` is what `kith login messenger <name>` takes. Logging in
+# asks for your email or phone and password, then a second-factor code if your
+# account has one; kith keeps the session in the system keyring, never the password.
+#
+# Sign in here or through a bridge, not both: both at once show every chat twice.
+# A login from a new device can make Meta ask for a security check, which kith
+# cannot answer: finish it on facebook.com, then log in again.
+#
+#   [[messenger.account]]
+#   name = "meta"
+
+# LinkedIn, linked directly: kith signs in with the session a browser holds, with
+# no Matrix bridge. It runs when it has an account; `:login linkedin` inside kith
+# sets one up. Each [[linkedin.account]] is one LinkedIn account: `name` is what
+# `kith login linkedin <name>` takes. Logging in asks for the browser's cookies for
+# www.linkedin.com; kith keeps them in the system keyring.
+#
+# Sign in here or through a bridge, not both: both at once show every chat twice.
+# Signing out of LinkedIn in that browser ends kith's session too, so copy the
+# cookies from a private window and close it without signing out.
+#
+#   [[linkedin.account]]
+#   name = "linkedin"
+
+# Google Messages, linked directly: kith pairs with the Messages app on your Android
+# phone as Messages for web does, with no Matrix bridge. It runs when it has an
+# account; `:login gmessages` inside kith sets one up. Each [[gmessages.account]] is
+# one phone: `name` is what `kith login gmessages <name>` takes. Pairing is with the
+# Google account the phone's Messages uses: cookies from messages.google.com, then an
+# emoji you tap on the phone. kith keeps the pairing in the system keyring.
+#
+# The phone relays every message, so it must stay online. Only one Messages for web
+# session is active at a time: pairing kith takes it over from a browser or a bridge,
+# and opening one of those takes it back.
+#
+#   [[gmessages.account]]
+#   name = "phone"
+
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
 # data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,
 #                                    dictionaries and models
@@ -1285,7 +1395,9 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 # Targets:
 #
 #   room:<!id:server>  a room, by ID (names are ambiguous across bridges)
-#   space:<space>      a rail group, by name
+#   space:<name>       a space's rail row
+#   tag:<name>         a tag's rail row
+#   place:<name>       the first rail row shown as <name>
 #
 # `?` lists them resolved to names. A chord bound twice, or colliding with a command
 # (bound, a prefix of one, or prefixed by one), is refused.
@@ -1297,6 +1409,17 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 #   [[keys.jump]]
 #   chord  = "g d"
 #   target = "room:!dana:example.org"
+#
+# Key sequences bound to tags: the room under the cursor (or the open one) goes into
+# the tag, or out of it; in the timeline, the selected message's sender does (a muted
+# tag hides them in every room). Taking out a room a filter moved writes the tag's excluded, so
+# no filter puts it back. The starter binds "!", the mail clients' "report spam" key,
+# to Spam (next to the [[tag]] list); a binding to a tag that does not exist is
+# reported in `?` and does nothing.
+#
+#   [[keys.tag]]
+#   chord = "!"
+#   tag   = "Spam"
 
 # The rail. Its order and hidden rows are [display.rail]'s.
 [keys.rail]
@@ -1305,6 +1428,8 @@ name        = "a"    # name this group
 notify_rule = "b"    # notification rule for this space
 # Asks first.
 mark_read   = "m"    # mark every unread room in this group read
+# Its rule, rooms, display and filters; the settings key opens all of settings.
+edit        = "e"    # this space's or tag's settings page
 # Asks first. A Telegram forum is left with all its topics, a WhatsApp community with
 # all its groups; leaving a Matrix space asks which of its rooms go too; an account's
 # own space signs it out.
@@ -1356,9 +1481,6 @@ person        = "I"       # the phonebook card of the room's one person
 # Until kith restarts; [display] show_archived and a place's space_rule set where it
 # starts.
 archived      = "A"       # show or hide this place's archived rooms
-# spam / not spam: move this conversation out of the way, or back
-# See [spam].
-spam          = "!"
 # An empty name clears it.
 rename_thread = "alt+r"   # name the thread under the cursor
 list_threads  = "ctrl+t"  # list the threads in the room under the cursor
@@ -1415,6 +1537,10 @@ notify_rule     = "b"       # notification rule for this sender or room
 # uncover what this message is hiding — a spoiler, or a kept deletion
 # Press again to cover it.
 reveal          = "z o"
+# show the hidden people's messages in this room, until you leave it
+# A [keys.tag] key on a message puts its sender in that tag; a muted tag (Spam) hides
+# them.
+show_marked     = "z h"
 # The copy and open keys ask which when a message holds several candidates.
 copy_text       = "yy"      # copy this message's text
 copy_url        = "yu"      # copy a link from it

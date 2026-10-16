@@ -481,7 +481,7 @@ func (m Model) openSpeedScope() (Model, tea.Cmd) {
 		scopes = append(scopes, ruleTarget{match: place.RoomID, what: "everything in " + where})
 	}
 	if place.Space != "" && !m.spans(place.Space) {
-		scopes = append(scopes, ruleTarget{match: homeEntry(place.Space), what: "everything in " + domain.HomeLabel(place.Space)})
+		scopes = append(scopes, ruleTarget{match: domain.HomeEntry(place.Space), what: "everything in " + domain.HomeLabel(place.Space)})
 	}
 	// "everywhere" is the base setting, not a rule.
 	scopes = append(scopes, ruleTarget{what: "everywhere"})

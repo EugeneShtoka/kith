@@ -7,7 +7,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/phonebook"
 )
 
 // A picker is a modal chooser over a list. One with letter actions (e.g. `a` to alias a
@@ -28,6 +30,10 @@ type pickerWalk struct {
 	speedScopes []ruleTarget
 	// tag is where the tag editor is (tageditor.go).
 	tag tagEditing
+	// filter is the filter being added, written at its last step (filteradd.go); filterBack
+	// is the place page it began on, "" for the Filters list.
+	filter     config.Filter
+	filterBack string
 }
 
 // pickerMode is whether keystrokes move the cursor or narrow the list.
@@ -57,6 +63,7 @@ const (
 	pickerSetting
 	pickerSettingValue
 	pickerSettingEntries
+	pickerSettingSet // a set setting's choices, ticked
 	pickerDNDScope
 	pickerMuteScope
 	pickerDNDFor
@@ -69,18 +76,20 @@ const (
 	pickerFrequencies
 	pickerCompletionModel
 	pickerNewRoom
-	pickerPerson     // a person's phonebook card: its fields, and a row to add one
-	pickerPersonKeys // which field to add to a card
-	pickerNewMembers // who is in a chat being made on another network
-	pickerJump       // the switcher; see jump.go
-	pickerTags
-	pickerTagEdit
-	pickerTagEntries
+	pickerPerson       // a person's phonebook card: its fields, and a row to add one
+	pickerPersonKeys   // which field to add to a card
+	pickerNewMembers   // who is in a chat being made on another network
+	pickerJump         // the switcher; see jump.go
 	pickerLoginNetwork // :login's networks; see login.go
 	pickerLoginAccount
 	pickerImportAccount // :import's accounts, folders and choices; see imports.go
 	pickerImportFolders
 	pickerImportChoice
+	pickerCards        // :people, every card in the phonebook; see cards.go
+	pickerRescan       // the moves a rescan would make; see rescan.go
+	pickerFilterTag    // the tag a new filter moves rooms into; see filteradd.go
+	pickerFilterPlaces // where it watches
+	pickerFilterMoves  // what its catch moves a room by
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -108,8 +117,9 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerRuleList:        {title: "Notification rules", modal: true},
 	pickerRulePreset:      {title: "Notify how?"},
 	pickerSettingGroups:   {title: "Settings", modal: true},
-	pickerSetting:         {modal: true}, // titled with the group
-	pickerSettingEntries:  {modal: true}, // titled with the setting
+	pickerSetting:         {modal: true},              // titled with the group
+	pickerSettingEntries:  {modal: true},              // titled with the setting
+	pickerSettingSet:      {modal: true, multi: true}, // titled with the setting
 	pickerSettingValue:    {title: "Set it to"},
 	pickerDNDScope:        {title: "Do not disturb for what?"},
 	pickerMuteScope:       {title: "Mute sound for what?"},
@@ -126,14 +136,16 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerPersonKeys:      {},                         // titled with the person
 	pickerNewMembers:      {modal: true, multi: true}, // titled with the chat's name
 	pickerJump:            {title: "Go to"},
-	pickerTags:            {title: "Tags", modal: true},
-	pickerTagEdit:         {},            // titled with the tag
-	pickerTagEntries:      {modal: true}, // titled with the tag and the list
 	pickerLoginNetwork:    {title: "Sign in to what?"},
 	pickerLoginAccount:    {}, // titled with the network
 	pickerImportAccount:   {title: "Copy folders from which account?"},
 	pickerImportFolders:   {}, // titled with the account
 	pickerImportChoice:    {}, // titled with the folder
+	pickerCards:           {title: "People in the phonebook"},
+	pickerRescan:          {modal: true, multi: true}, // titled with the count
+	pickerFilterTag:       {title: "Move rooms into which tag?"},
+	pickerFilterPlaces:    {title: "Watch where? None ticked is everywhere", modal: true, multi: true},
+	pickerFilterMoves:     {title: "Move a room, or mark its sender, into Spam when it catches", modal: true, multi: true},
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text
@@ -145,6 +157,10 @@ type pickerItem struct {
 	match  string
 	// room is where the row's thing lives, for lists spanning rooms; empty means the open room.
 	room domain.RoomID
+	// card matches the row by a person's card (phonebook.Card.Matches) instead of its text;
+	// byTerms hides it until a field term is typed.
+	card    *phonebook.Card
+	byTerms bool
 }
 
 type picker struct {
@@ -225,24 +241,27 @@ func newCheckedPicker(kind pickerKind, items []pickerItem, checked map[string]bo
 }
 
 // refilter recomputes the visible items: prefix matches first, then substring, as in the
-// mention and emoji completions.
+// mention and emoji completions, then the rows matched by their cards.
 func (p picker) refilter() picker {
 	query := strings.ToLower(strings.TrimSpace(p.filter))
-	if query == "" {
-		p.items = p.all
-	} else {
-		var prefix, contains []pickerItem
-		for _, item := range p.all {
-			text := strings.ToLower(item.matchText())
-			switch {
-			case strings.HasPrefix(text, query):
-				prefix = append(prefix, item)
-			case strings.Contains(text, query):
-				contains = append(contains, item)
+	terms := phonebook.ParseQuery(p.filter)
+	var prefix, contains, cards []pickerItem
+	for _, item := range p.all {
+		if item.card != nil {
+			if (!item.byTerms || terms.HasTerms()) && item.card.Matches(terms) {
+				cards = append(cards, item)
 			}
+			continue
 		}
-		p.items = slices.Concat(prefix, contains)
+		text := strings.ToLower(item.matchText())
+		switch {
+		case strings.HasPrefix(text, query):
+			prefix = append(prefix, item)
+		case strings.Contains(text, query):
+			contains = append(contains, item)
+		}
 	}
+	p.items = slices.Concat(prefix, contains, cards)
 	p.cursor = clampIndex(p.cursor, len(p.items))
 	return p
 }
@@ -297,8 +316,8 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		if m.picker.spec.modal && m.picker.mode == pickerFilter {
 			m.picker.mode = pickerNavigate
 		} else if m.picker.filter == "" {
-			if back, ok := m.settingsBack(); ok {
-				return back, nil, true
+			if back := pickerActions[m.picker.kind].back; back != nil {
+				return back(m), nil, true
 			}
 			return m.closePicker(), nil, true
 		}
@@ -392,9 +411,6 @@ func (m Model) pickerAction(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 			return m, nil, false
 		}
 	}
-	if m.picker.kind == pickerTagEntries {
-		return m, nil, false
-	}
 	if m.picker.kind != pickerPeople {
 		return m, nil, false
 	}
@@ -432,113 +448,22 @@ func repaint() tea.Cmd { return tea.ClearScreen }
 
 // acceptPick carries out the picker's primary action on the selection.
 func (m Model) acceptPick() (Model, tea.Cmd) {
+	act := pickerActions[m.picker.kind]
 	// A set applies whole, even when empty.
 	if m.picker.spec.multi {
-		return m.acceptCheckedPick(m.picker.checkedValues())
+		if act.apply == nil {
+			return m.closePicker(), nil
+		}
+		return act.apply(m, m.picker.checkedValues())
 	}
 	item, ok := m.picker.selected()
-	if !ok {
+	if !ok || act.choose == nil {
 		return m.closePicker(), nil
 	}
-	if mdl, cmd, handled := m.acceptConversationPick(item); handled {
-		return mdl, cmd
-	}
-	return m.acceptSettingPick(item)
-}
-
-func (m Model) acceptCheckedPick(values []string) (Model, tea.Cmd) {
-	switch m.picker.kind {
-	case pickerRoomSpaces:
-		return m.applyRoomSpaces(values)
-	case pickerNewMembers:
-		return m.createNewChat(values)
-	case pickerVoteMulti:
-		return m.castVote(values)
-	case pickerDictionaries:
-		return m.acceptDictionaryOffer(values)
-	case pickerFrequencies:
-		return m.acceptFrequencyOffer(values)
-	case pickerCompletionModel:
-		return m.acceptModelOffer(values)
-	default:
-		return m.closePicker(), nil
-	}
+	return act.choose(m, item)
 }
 
 // acceptConversationPick handles pickers acting on what is being read; handled is false for
-// setting pickers.
-func (m Model) acceptConversationPick(item pickerItem) (Model, tea.Cmd, bool) {
-	switch m.picker.kind {
-	case pickerPerson:
-		return answered(m.choosePersonRow(item.value))
-	case pickerPersonKeys:
-		return answered(m.choosePersonKey(item.value))
-	case pickerReaction:
-		return answered(m.reactWithPicked(item.value))
-	case pickerVote:
-		if item.value == voteTakeBack {
-			return answered(m.castVote(nil))
-		}
-		return answered(m.castVote([]string{item.value}))
-	case pickerEmoji:
-		return answered(m.insertPickedEmoji(item.value))
-	case pickerPeople:
-		return answered(m.aliasSelectedPerson())
-	case pickerContext:
-		return answered(m.acceptContext(m.picker.then, item.value))
-	case pickerThread:
-		return answered(m.openPickedThread(domain.EventID(item.value), item.room))
-	case pickerJump:
-		return answered(m.acceptJump(item.value))
-	case pickerScheduled:
-		// Re-read after canceling, so it shows what the daemon holds.
-		return m.closePicker(), m.cancelScheduledCmd(item.value), true
-	default:
-		return m, nil, false
-	}
-}
-
-// acceptSettingPick handles pickers that write a setting.
-func (m Model) acceptSettingPick(item pickerItem) (Model, tea.Cmd) {
-	switch m.picker.kind {
-	case pickerIdentity:
-		return m.chooseIdentity(item.value)
-	case pickerColor:
-		return m.chooseColor(item.value)
-	case pickerRuleScope, pickerRuleList:
-		return m.chooseRuleScope(atoiSafe(item.value))
-	case pickerSpeedScope:
-		return m.chooseSpeedScope(atoiSafe(item.value))
-	case pickerRulePreset:
-		return m.chooseRulePreset(item.value)
-	case pickerSettingGroups:
-		return m.chooseSettingGroup(item.value)
-	case pickerSetting:
-		return m.chooseSetting(item.value)
-	case pickerSettingValue:
-		return m.chooseSettingValue(item.value)
-	case pickerSettingEntries:
-		return m.chooseSettingEntry(item.value)
-	case pickerDNDScope, pickerMuteScope:
-		return m.chooseDNDScope(atoiSafe(item.value))
-	case pickerDNDFor:
-		return m.chooseDNDFor(item.value)
-	case pickerNewRoom:
-		return m.chooseNewRoomKind(item.value)
-	case pickerTags:
-		return m.chooseTag(item.value)
-	case pickerTagEdit:
-		return m.chooseTagRow(item.value)
-	case pickerTagEntries:
-		return m.chooseTagEntry(item.value)
-	case pickerLoginNetwork, pickerLoginAccount, pickerImportAccount, pickerImportFolders, pickerImportChoice:
-		return m.chooseAccountPick(m.picker.kind, item.value)
-	case pickerNone:
-		return m, nil
-	default:
-		return m.closePicker(), nil
-	}
-}
 
 // pickerHint is the picker legend; while filtering, letters are text, so only non-typing keys
 // are shown.
@@ -609,12 +534,6 @@ func (m Model) settingsHint() (string, bool) {
 			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "edit"),
 			keyed(m.keys.keyHint(scopePicker, actRemoveEntry), "remove"),
 			keyed(m.keys.keyHint(scopePicker, actMoveEntryUp)+"/"+m.keys.keyHint(scopePicker, actMoveEntryDown), "move it"),
-			keyed(m.keys.keyHint(scopePicker, actFilter), "filter"),
-			keyed(m.keys.keyHint(scopePicker, actClosePick), "back")), true
-	case pickerTagEntries:
-		return m.hintLine(move,
-			keyed(m.keys.keyHint(scopePicker, actAcceptPick), "edit"),
-			keyed(m.keys.keyHint(scopePicker, actRemoveEntry), "remove"),
 			keyed(m.keys.keyHint(scopePicker, actFilter), "filter"),
 			keyed(m.keys.keyHint(scopePicker, actClosePick), "back")), true
 	default:

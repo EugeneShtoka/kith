@@ -24,9 +24,10 @@ type settingKind int
 const (
 	settingToggle settingKind = iota // flips immediately
 	settingChoice                    // opens a picker of the allowed values
-	settingText                      // typed in place on its row
+	settingText                      // typed below its group's rows
 	settingNumber                    // typed in place, or stepped with + and -
 	settingList                      // a list of entries, edited one at a time
+	settingMulti                     // a set of allowed values, ticked in a picker
 	settingOpen                      // leads somewhere rather than holding a value
 )
 
@@ -55,6 +56,8 @@ type setting struct {
 	entries    func(config.Config) []string
 	setEntries func(*config.Config, []string) error
 	open       func(Model) (Model, tea.Cmd)
+	// entryLabel shows a list entry (a room by its name); nil shows it as written.
+	entryLabel func(string) string
 }
 
 type settingChoiceOption struct {
@@ -260,17 +263,6 @@ var curatedSettings = []setting{
 		show: func(c config.Config) string { return ruleCountNote(len(c.Notifications.Rules)) },
 		kind: settingOpen,
 		open: Model.openRuleList,
-	},
-	{
-		key: "tags", group: "tags", label: "Tags",
-		show: func(c config.Config) string {
-			if len(c.Tags) == 0 {
-				return "none"
-			}
-			return strconv.Itoa(len(c.Tags)) + " tags"
-		},
-		kind: settingOpen,
-		open: Model.openTags,
 	},
 	{
 		key: "notifications.sound", group: "notifications", label: "Notification sound",
@@ -505,12 +497,12 @@ var settingGroups = []settingGroup{
 	{"completion", "Completion"},
 	{"assist", "Assistant"},
 	{"codes", "Codes and clipboard"},
-	{"spam", "Spam"},
+	{"filters", "Filters"},
 	{"agent", "AI agent access"},
 	{"networks", "Accounts and networks"},
 	{"advanced", "Commands, logs and schedule"},
 	{"keys", "Keys"},
-	{"tags", "Tags"},
+	{"places", "Places"},
 }
 
 func groupSettings(group string) []setting {
@@ -586,13 +578,13 @@ func choiceWords(s setting, value string) string {
 func (m Model) chooseSettingGroup(group string) (Model, tea.Cmd) {
 	if rows := m.groupRows(group); len(rows) == 1 && rows[0].kind == settingOpen {
 		m.choosing.settingGroup = group
-		return rows[0].open(m)
+		return m.chooseSetting(rows[0].key) // a record table's row has no open of its own
 	}
 	return m.settingsIn(group, ""), nil
 }
 
 // chooseSetting acts on a setting by kind. The group stays open: a toggle flips in
-// place, a choice returns to it, a typed value is typed on its row.
+// place, a choice returns to it, a typed value is typed below the rows.
 func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 	s, ok := m.setting(key)
 	if !ok {
@@ -611,6 +603,8 @@ func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 		m.choosing.setting = key
 		m.picker = newPicker(pickerSettingValue, settingValueItems(s, s.show(m.conf.base))).at(s.show(m.conf.base))
 		return m, nil
+	case settingMulti:
+		return m.settingSetOpen(s), nil
 	case settingText, settingNumber:
 		return m.editSettingInPlace(s, editText(s, m.conf.base)), nil
 	case settingList:
@@ -619,7 +613,7 @@ func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// editSettingInPlace types a value on the setting's row, starting from text, selected
+// editSettingInPlace types a value for the setting below its group's rows, starting from text, selected
 // so the first key replaces it.
 func (m Model) editSettingInPlace(s setting, text string) Model {
 	m = m.settingsIn(s.group, s.key)
@@ -693,26 +687,17 @@ func (m Model) writeSetting(s setting, value string) (Model, tea.Cmd) {
 	return next.settingsIn(s.group, s.key), cmd
 }
 
-// settingsBack steps up a level on esc, or returns false when the picker closes.
-func (m Model) settingsBack() (Model, bool) {
-	group := m.choosing.settingGroup
-	switch m.picker.kind {
-	case pickerSettingValue, pickerSettingEntries:
-		return m.settingsIn(group, m.choosing.setting), true
-	case pickerSetting:
-		if parent, at, ok := settingsParent(group); ok {
-			return m.settingsIn(parent, at), true
-		}
-		return m.settingsTop(group), true
-	case pickerTags:
-		return m.settingsTop("tags"), true
-	case pickerTagEdit:
-		return m.tagsOpen(), true
-	case pickerTagEntries:
-		return m.tagOpen(m.choosing.tag.tag), true
-	default:
-		return m, false
+// settingPromptLabel names what a settings prompt sets: the row's label, or its list's
+// for an entry.
+func (m Model) settingPromptLabel() string {
+	s, ok := m.setting(m.choosing.setting)
+	if !ok {
+		return "set to: "
 	}
+	if m.prompt.kind == promptSettingEntry {
+		return s.label + " entry: "
+	}
+	return s.label + ": "
 }
 
 func (m Model) settingHelp() string {
@@ -875,12 +860,13 @@ func setInt(target *int, value string) error {
 
 func enterKeyShow(c config.Config) string {
 	return fmt.Sprintf("%s sends · %s new line",
-		firstKey(c.Keys.Insert.Send), firstKey(c.Keys.Insert.Newline))
+		firstKey(c.Keys.Bindings["insert.send"]), firstKey(c.Keys.Bindings["insert.newline"]))
 }
 
 // toggleEnterKey swaps the send and newline bindings, so no key is claimed twice.
 func toggleEnterKey(c *config.Config, _ string) error {
-	c.Keys.Insert.Send, c.Keys.Insert.Newline = c.Keys.Insert.Newline, c.Keys.Insert.Send
+	b := c.Keys.Bindings
+	b["insert.send"], b["insert.newline"] = b["insert.newline"], b["insert.send"]
 	return nil
 }
 
