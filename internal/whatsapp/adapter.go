@@ -192,6 +192,10 @@ func (a *Adapter) Start(ctx context.Context) error {
 	a.mu.Unlock()
 	for _, account := range a.accountsNow() {
 		if err := a.connectLinked(ctx, account); err != nil {
+			if ctx.Err() != nil {
+				// Stopped mid-query: SQLite reports "interrupted", but the cause is our own shutdown.
+				return ctx.Err() //nolint:wrapcheck // our own shutdown, as below
+			}
 			return err
 		}
 	}
