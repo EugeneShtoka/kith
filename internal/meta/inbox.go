@@ -3,6 +3,7 @@ package meta
 import (
 	"slices"
 	"strings"
+	"time"
 
 	"go.mau.fi/mautrix-meta/pkg/messagix/table"
 )
@@ -40,12 +41,14 @@ type inbox struct {
 	// chat's thread has a key of its own, and its chat (whose ID its messages carry) is
 	// the other person, or the group's chat ID. Rooms are keyed by the chat.
 	alias map[int64]int64
+	// left is when you left each chat you left (ms): only newer activity brings it back.
+	left map[int64]int64
 }
 
 func newInbox(self int64) *inbox {
 	return &inbox{
 		self: self, threads: map[int64]*thread{}, people: map[int64]string{},
-		members: map[int64]map[int64]bool{}, alias: map[int64]int64{},
+		members: map[int64]map[int64]bool{}, alias: map[int64]int64{}, left: map[int64]int64{},
 	}
 }
 
@@ -169,6 +172,12 @@ func (in *inbox) upsert(metaKey int64, kind table.ThreadType, name, folder strin
 		return
 	}
 	key := in.key(metaKey)
+	if at, ok := in.left[key]; ok {
+		if lastActive <= at {
+			return // from before you left it
+		}
+		delete(in.left, key)
+	}
 	if key != metaKey {
 		in.retire(metaKey, c)
 	}
@@ -195,6 +204,22 @@ func (in *inbox) upsert(metaKey int64, kind table.ThreadType, name, folder strin
 	}
 	in.readTo(t, readTo, c)
 	c.touched(key)
+}
+
+// active moves a chat's newest activity forward to at; false for a chat not shown.
+func (in *inbox) active(key, at int64) bool {
+	t := in.threads[key]
+	if t == nil {
+		return false
+	}
+	t.lastActive = max(t.lastActive, at)
+	return true
+}
+
+// leave drops the chat keyed key, which you left at at (ms).
+func (in *inbox) leave(key, at int64, c *change) {
+	in.left[key] = max(in.left[key], at)
+	in.drop(key, c)
 }
 
 func (in *inbox) drop(key int64, c *change) {
@@ -279,7 +304,8 @@ func (in *inbox) readTo(t *thread, at int64, c *change) {
 func (in *inbox) applyGone(tbl *table.LSTable, full map[int64]bool, c *change) {
 	for _, r := range tbl.LSDeleteThread {
 		if !full[r.ThreadKey] {
-			in.drop(in.key(r.ThreadKey), c)
+			// Deleted on another device is left there: dated now, as Meta says no time.
+			in.leave(in.key(r.ThreadKey), time.Now().UnixMilli(), c)
 		}
 	}
 	// A thread moved to end-to-end encryption stays the same room: its messages now come
