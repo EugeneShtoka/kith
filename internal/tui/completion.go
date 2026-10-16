@@ -308,16 +308,27 @@ func (m Model) matchPeople(query string, people []domain.Member) []candidate {
 	return rows
 }
 
-// personOf resolves a member to their person key and display name, applying a
-// configured identity's alias.
+// personOf resolves a member to their person key and the name the timeline gives them
+// (processedName): a merged identity's alias, else a DM's alias, else their name.
 func (m Model) personOf(member domain.Member) (person, name string) {
-	if ident, ok := m.prefs.identities[member.UserID]; ok {
-		if ident.alias != "" {
-			return ident.key, ident.alias
-		}
-		return ident.key, m.memberName(member)
+	person = member.UserID
+	ident, merged := m.prefs.identities[member.UserID]
+	if merged {
+		person = ident.key
 	}
-	return member.UserID, m.memberName(member)
+	switch {
+	case merged && ident.alias != "":
+		name = ident.alias
+	case m.peers.aliases[member.UserID] != "":
+		name = m.peers.aliases[member.UserID]
+	default:
+		name = m.memberName(member)
+	}
+	// The open room's space rule, as the timeline names them; never truncated, since
+	// the name goes into the message.
+	rule := m.nameRuleFor(m.ownSpace(m.openRoom))
+	rule.width = 0
+	return person, rule.apply(name)
 }
 
 func (m Model) selectedCandidate() (candidate, bool) {

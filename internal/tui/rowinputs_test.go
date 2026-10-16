@@ -196,6 +196,9 @@ var derivedReads = map[string]string{
 	"selves":            "derivedKey.selves",
 	"dir.dir":           "derivedKey.phones (dir.rev moves with the directory)",
 	"peers.aliases":     "derivedKey.peers (peers.rev moves whenever aliases changes)",
+	"rail.tags":         "derivedKey.tags (rail.tagsRev moves with every tag set)",
+	"markedShownIn":     "derivedKey.markedShown (markedShownHere)",
+	"rail.people":       "derivedKey.people (rail.peopleRev moves with every new set)",
 }
 
 // TestTheDerivedCacheReadsOnlyKeyedState walks computeDerived's calls and reads.

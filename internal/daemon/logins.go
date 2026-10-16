@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sync"
 	"time"
@@ -30,6 +31,8 @@ var (
 type Logins struct {
 	leaders func() []api.LoginLeader
 	run     context.Context //nolint:containedctx // logins outlive the RPC that began them
+	// log hears each login's steps and end (never an answer); nil is silent. Set before use.
+	log *slog.Logger
 
 	mu    sync.Mutex
 	byID  map[string]*conversation
@@ -42,8 +45,22 @@ func NewLogins(run context.Context, leaders func() []api.LoginLeader) *Logins {
 	return &Logins{leaders: leaders, run: run, byID: map[string]*conversation{}, byKey: map[string]*conversation{}}
 }
 
+// LogTo has the logins log each step they hand out and how each ended: a login leads
+// the person through a network's own screens, and without this a stuck one leaves no
+// trace. Answers are never logged, only which fields were asked.
+func (l *Logins) LogTo(log *slog.Logger) { l.log = log }
+
+func (l *Logins) logger() *slog.Logger {
+	if l.log == nil {
+		return slog.New(slog.DiscardHandler)
+	}
+	return l.log
+}
+
 type conversation struct {
 	id, network string
+	// log is the leader's; nil until it runs.
+	log *slog.Logger
 	// steps carries the leader's steps one at a time; answers carries the client's
 	// answers to steps that ask.
 	steps   chan said
@@ -109,6 +126,7 @@ func (l *Logins) BeginLogin(ctx context.Context, network, account string) (api.L
 	}
 	l.byID[id] = c
 	l.mu.Unlock()
+	l.logger().Info("login begun", "network", network, "account", account, "login", id)
 	go l.lead(run, c, leader)
 	return c.next(ctx)
 }
@@ -116,12 +134,23 @@ func (l *Logins) BeginLogin(ctx context.Context, network, account string) (api.L
 // lead runs the leader's side, then reports how it ended and forgets the login.
 func (l *Logins) lead(ctx context.Context, c *conversation, leader api.LoginLeader) {
 	defer l.forget(c)
+	c.log = l.logger().With("network", c.network, "login", c.id)
 	end, err := leader.Login(ctx, c.accountNow(), talk{c})
 	last := said{err: err}
 	if err == nil {
 		last.step = api.LoginStep{Done: end.Done, Restart: end.Restart}
 	}
-	c.say(ctx, last)
+	if !c.say(ctx, last) {
+		c.log.Info("login ended with nobody waiting to hear it", "account", c.accountNow(), "err", cmpErr(err, ctx.Err()))
+	}
+}
+
+// cmpErr is err, else other.
+func cmpErr(err, other error) error {
+	if err != nil {
+		return err
+	}
+	return other
 }
 
 func (l *Logins) forget(c *conversation) {
@@ -195,11 +224,39 @@ func (c *conversation) nextLocked(ctx context.Context) (api.LoginStep, error) {
 
 // say hands the client a step when it next asks.
 func (c *conversation) say(ctx context.Context, s said) bool {
+	c.logStep(s)
 	select {
 	case c.steps <- s:
 		return true
 	case <-ctx.Done():
 		return false
+	}
+}
+
+// logStep logs what a step is, never what it shows: a code or a QR code is a secret to
+// use elsewhere, so only that there is one.
+func (c *conversation) logStep(s said) {
+	if c.log == nil {
+		return
+	}
+	account := c.accountNow()
+	switch {
+	case s.err != nil:
+		c.log.Info("login failed", "account", account, "err", s.err)
+	case s.step.Done != "" || s.step.Restart:
+		c.log.Info("login done", "account", account, "done", s.step.Done, "restart", s.step.Restart)
+	case s.step.Configure != nil:
+		c.log.Info("login writes an account", "account", account, "table", s.step.Configure.Table)
+	case s.step.Code != "":
+		c.log.Info("login shows a code", "account", account)
+	case s.step.QR != "":
+		c.log.Info("login shows a QR code", "account", account)
+	default:
+		keys := make([]string, 0, len(s.step.Ask))
+		for _, f := range s.step.Ask {
+			keys = append(keys, f.Key)
+		}
+		c.log.Info("login asks", "account", account, "fields", keys, "note", s.step.Note != "")
 	}
 }
 
@@ -231,6 +288,13 @@ func (t talk) Ask(ctx context.Context, note string, fields ...api.LoginField) (m
 
 func (t talk) Show(ctx context.Context, code, note string) error {
 	if !t.c.say(ctx, said{step: api.LoginStep{Note: note, Code: code}}) {
+		return ctx.Err() //nolint:wrapcheck // the login's own end
+	}
+	return nil
+}
+
+func (t talk) ShowQR(ctx context.Context, data, note string) error {
+	if !t.c.say(ctx, said{step: api.LoginStep{Note: note, QR: data}}) {
 		return ctx.Err() //nolint:wrapcheck // the login's own end
 	}
 	return nil

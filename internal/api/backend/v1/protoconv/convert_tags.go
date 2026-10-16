@@ -43,6 +43,57 @@ func ProtoToVerdicts(pbs []*v1.TagVerdict) []domain.TagVerdict {
 	return mapSlice(pbs, ProtoToVerdict)
 }
 
+// PersonVerdictsToProto converts person verdicts.
+func PersonVerdictsToProto(verdicts []domain.PersonVerdict) []*v1.PersonVerdict {
+	return mapSlice(verdicts, PersonVerdictToProto)
+}
+
+// PersonVerdictToProto converts one person verdict.
+func PersonVerdictToProto(v domain.PersonVerdict) *v1.PersonVerdict {
+	return &v1.PersonVerdict{
+		Person:   v.Person,
+		Tag:      v.Tag,
+		Rule:     int32(v.Rule), // #nosec G115 -- a small enum
+		Filter:   v.Filter,
+		AtUnixMs: unixMillis(v.At),
+		Released: v.Released,
+	}
+}
+
+// ProtoToPersonVerdict converts one person verdict back; nil reads as no mark.
+func ProtoToPersonVerdict(pb *v1.PersonVerdict) domain.PersonVerdict {
+	if pb == nil {
+		return domain.PersonVerdict{}
+	}
+	return domain.PersonVerdict{
+		Person:   pb.GetPerson(),
+		Tag:      pb.GetTag(),
+		Rule:     domain.MoveRule(pb.GetRule()),
+		Filter:   pb.GetFilter(),
+		Released: pb.GetReleased(),
+		At:       fromUnixMillis(pb.GetAtUnixMs()),
+	}
+}
+
+// ProtoToPersonVerdicts converts a list back.
+func ProtoToPersonVerdicts(pbs []*v1.PersonVerdict) []domain.PersonVerdict {
+	return mapSlice(pbs, ProtoToPersonVerdict)
+}
+
+// PersonCandidatesToProto converts people rescan candidates.
+func PersonCandidatesToProto(cs []domain.PersonCandidate) []*v1.PersonCandidate {
+	return mapSlice(cs, func(c domain.PersonCandidate) *v1.PersonCandidate {
+		return &v1.PersonCandidate{Verdict: PersonVerdictToProto(c.Verdict), Sample: MessageToProto(c.Sample)}
+	})
+}
+
+// ProtoToPersonCandidates converts a list back.
+func ProtoToPersonCandidates(pbs []*v1.PersonCandidate) []domain.PersonCandidate {
+	return mapSlice(pbs, func(pb *v1.PersonCandidate) domain.PersonCandidate {
+		return domain.PersonCandidate{Verdict: ProtoToPersonVerdict(pb.GetVerdict()), Sample: ProtoToMessage(pb.GetSample())}
+	})
+}
+
 // CandidatesToProto converts rescan candidates.
 func CandidatesToProto(cs []domain.MoveCandidate) []*v1.MoveCandidate {
 	return mapSlice(cs, func(c domain.MoveCandidate) *v1.MoveCandidate {

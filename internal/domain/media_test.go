@@ -31,7 +31,7 @@ func TestSpeedResolvesNarrowestFirst(t *testing.T) {
 		if step.add != (domain.MediaRule{}) {
 			rules = append(rules, step.add)
 		}
-		if got := domain.ResolveMedia(true, true, 1, rules, said()).Speed; got != step.want {
+		if got := domain.ResolveMedia(domain.MediaPolicy{Auto: true, Cache: true, Speed: 1}, rules, said()).Speed; got != step.want {
 			t.Errorf("speed = %v, want %v — %s", got, step.want, step.why)
 		}
 	}
@@ -45,7 +45,7 @@ func TestSpeedIgnoresSomebodyElsesRule(t *testing.T) {
 		{Match: "!standup:x", Sender: "@someone:x", Speed: new(float64(3))},
 		{Match: "space:Work", Speed: new(1.25)},
 	}
-	if got := domain.ResolveMedia(true, true, 1, rules, said()).Speed; got != 1.25 {
+	if got := domain.ResolveMedia(domain.MediaPolicy{Auto: true, Cache: true, Speed: 1}, rules, said()).Speed; got != 1.25 {
 		t.Errorf("speed = %v, want the space's 1.25 — the room rule names another person", got)
 	}
 }
@@ -55,7 +55,7 @@ func TestASpeedRuleChangesOnlyTheSpeed(t *testing.T) {
 	t.Parallel()
 
 	rules := []domain.MediaRule{{Match: "!standup:x", Speed: new(float64(2))}}
-	got := domain.ResolveMedia(true, true, 1, rules, said())
+	got := domain.ResolveMedia(domain.MediaPolicy{Auto: true, Cache: true, Speed: 1}, rules, said())
 	if !got.Auto || !got.Cache {
 		t.Errorf("ResolveMedia = %+v, want auto and cache inherited", got)
 	}
@@ -69,7 +69,7 @@ func TestTheLastEquallySpecificRuleWins(t *testing.T) {
 		{Match: "!standup:x", Speed: new(1.5)},
 		{Match: "!standup:x", Speed: new(float64(2))},
 	}
-	if got := domain.ResolveMedia(true, true, 1, rules, said()).Speed; got != 2 {
+	if got := domain.ResolveMedia(domain.MediaPolicy{Auto: true, Cache: true, Speed: 1}, rules, said()).Speed; got != 2 {
 		t.Errorf("speed = %v, want the later rule's 2", got)
 	}
 }
@@ -79,7 +79,7 @@ func TestARuleNamingNothingDoesNotApply(t *testing.T) {
 	t.Parallel()
 
 	rules := []domain.MediaRule{{Speed: new(float64(4))}}
-	if got := domain.ResolveMedia(true, true, 1, rules, said()).Speed; got != 1 {
+	if got := domain.ResolveMedia(domain.MediaPolicy{Auto: true, Cache: true, Speed: 1}, rules, said()).Speed; got != 1 {
 		t.Errorf("speed = %v, want the setting above to stand", got)
 	}
 }
@@ -111,7 +111,58 @@ func TestRulesMatchTheMXIDNotTheName(t *testing.T) {
 	place := said()
 	place.Person = "Dana"
 	rules := []domain.MediaRule{{Sender: "Dana", Speed: new(float64(3))}}
-	if got := domain.ResolveMedia(true, true, 1, rules, place).Speed; got != 1 {
+	if got := domain.ResolveMedia(domain.MediaPolicy{Auto: true, Cache: true, Speed: 1}, rules, place).Speed; got != 1 {
 		t.Errorf("speed = %v, want a display name not to match a sender rule", got)
+	}
+}
+
+// A sent attachment's neutral name says what it is and keeps its extension, lower
+// case, so it still opens; nothing of its own name travels with it.
+func TestSentName(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{
+		"IMG_2041 Haifa.JPG":     "photo.jpg",
+		"scan.jpeg":              "photo.jpeg",
+		"holiday.mkv":            "video.mkv",
+		"talk.MPEG":              "video.mpeg",
+		"song by Dana.mp3":       "music.mp3",
+		"contract v3.docx":       "document.docx",
+		"report.pdf":             "document.pdf",
+		"backup.7z":              "archive.7z",
+		"photos.zip":             "archive.zip",
+		"old.rar":                "archive.rar",
+		"site-2026.tar.gz":       "archive.tar.gz",
+		"model.stl":              "file.stl",
+		"README":                 "file",
+		".bashrc":                "file",
+		"/home/dana/x/plan.pdf":  "document.pdf",
+		`C:\Users\dana\cv.docx`:  "document.docx",
+		"no.ext.dots.unknownext": "file.unknownext",
+	} {
+		if got := domain.SentName(in); got != want {
+			t.Errorf("SentName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Anonymizing holds unless the narrowest rule for the place turns it off.
+func TestAnonymizeResolvesNarrowestFirst(t *testing.T) {
+	t.Parallel()
+	off, on := false, true
+	place := domain.DownloadPlace{RoomID: "!standup:server", Space: "Work"}
+	defaults := domain.MediaPolicy{Anonymize: true}
+	for _, tc := range []struct {
+		rules []domain.MediaRule
+		want  bool
+		why   string
+	}{
+		{nil, true, "nothing says otherwise"},
+		{[]domain.MediaRule{{Match: "space:Work", Anonymize: &off}}, false, "the space turns it off"},
+		{[]domain.MediaRule{{Match: "space:Work", Anonymize: &off}, {Match: "!standup:server", Anonymize: &on}}, true, "the room, narrower, turns it back on"},
+		{[]domain.MediaRule{{Match: "space:Work", Speed: new(float64)}}, true, "a rule about something else leaves it"},
+	} {
+		if got := domain.ResolveMedia(defaults, tc.rules, place).Anonymize; got != tc.want {
+			t.Errorf("%s: anonymize = %v, want %v", tc.why, got, tc.want)
+		}
 	}
 }

@@ -195,6 +195,12 @@ func (c *Cache) topSenders(ctx context.Context, rooms domain.RoomSet, limit int)
 		// #nosec G202 -- inIDs emits only placeholders; every room ID is bound.
 		query += " AND room_id" + in
 	}
+	if hidden := c.hiddenSenders(); len(hidden) > 0 {
+		var in string
+		in, args = inIDs(args, hidden)
+		// #nosec G202 -- inIDs emits only placeholders; every sender is bound.
+		query += " AND sender NOT" + in
+	}
 	query += " GROUP BY sender ORDER BY n DESC, recent DESC"
 	if limit > 0 {
 		query += " LIMIT ?"

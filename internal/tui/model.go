@@ -62,6 +62,9 @@ type group struct {
 	// network is the one network all its rooms are on, "" otherwise; set by rebuiltRail only while
 	// the rail colors by network.
 	network domain.Protocol
+	// home is the network whose own space this is (an account's, a bridge's), "" for a space
+	// you made and for a tag.
+	home domain.Protocol
 }
 
 // railGroups builds the rail (a row per tag, then a group per space) and applies the rail
@@ -85,9 +88,14 @@ func railGroups(
 		// A bridge-kept space (a network's grouping, a community) is where its rooms belong; a
 		// person-made space is not.
 		belongs := s.Keeper != "" || s.Bridge.IsBridged()
+		var home domain.Protocol
+		if s.Bridge != "" && s.Bridge != domain.ProtocolMatrix {
+			home = s.Bridge
+		}
 		groups = append(groups, group{
 			key:   name,
 			label: name,
+			home:  home,
 			admits: func(v unreadView, r domain.Room) bool {
 				// An invitation is not in any space until dealt with.
 				if !children[r.ID] || r.IsInvite() {
@@ -375,6 +383,9 @@ type overlayTarget struct {
 	person personState
 	// creating is the room being created by the new-room prompt.
 	creating domain.NewRoom
+	// offers are the chats the other networks' accounts said they can make, as :new
+	// offered them.
+	offers []domain.ChatOffer
 	// fileInto is the room a space being created from the space picker is to hold.
 	fileInto domain.RoomID
 	// member is the room an open invite or unban prompt aims at.
@@ -562,6 +573,9 @@ type Model struct {
 	selves []string
 	// dir is the daemon's directory (directory.go): who people are, on every network.
 	dir directoryState
+	// markedShownIn is the room showing the people muted tags hide (markedpeople.go),
+	// "" for none; leaving it clears it.
+	markedShownIn domain.RoomID
 	// peers is who each room you named is named after (peeralias.go).
 	peers peerState
 	// cards is the phonebook's cards as last read, and members read for show_field (cards.go).
@@ -1007,8 +1021,8 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleSpaceFiled(msg))
 	case memberChangedMsg:
 		return answered(m.handleMemberChanged(msg))
-	case roomCreatedMsg:
-		return answered(m.handleRoomCreated(msg))
+	case roomCreatedMsg, chatOffersMsg:
+		return answered(m.handleCreating(msg))
 	case configCheckedMsg, configSavedMsg, configNewsMsg:
 		return answered(m.handleConfigNews(msg))
 	case loginMsg, loginNetworksMsg, importNetworksMsg, importPreviewMsg, importedMsg:
@@ -1096,6 +1110,8 @@ func (m Model) handleAssistMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDraftSaved(msg))
 	case verdictsLoadedMsg:
 		return answered(m.handleVerdictsLoaded(msg))
+	case personVerdictsLoadedMsg:
+		return answered(m.handlePersonVerdictsLoaded(msg))
 	case rescannedMsg:
 		return answered(m.handleRescanned(msg))
 	case verdictsWrittenMsg:
@@ -1893,6 +1909,8 @@ func (m Model) timelineMotion(act action) (Model, tea.Cmd) {
 		return m.openExternalEditor()
 	case actReveal:
 		return m.toggleReveal()
+	case actShowMarked:
+		return m.toggleMarkedShown()
 	case actSpellWalk:
 		return m.openSpellWalk()
 	case actPrevDay:
@@ -2372,6 +2390,8 @@ func (m Model) leavingFor(room domain.Room) Model {
 	m.timeline.opened.unreadFrom = m.unread[room.ID].ReadEvent
 	// Stars belong to the room; the new set arrives via starredInCmd.
 	m.timeline.starred = nil
+	// Hidden people show only until you leave the room.
+	m.markedShownIn = ""
 	return m.stashDraft(m.openRoom)
 }
 

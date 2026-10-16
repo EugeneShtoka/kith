@@ -53,6 +53,11 @@ func TestAddingAFilterAsksForEachPart(t *testing.T) {
 	if m.picker.kind != pickerFilterMoves || !slices.Equal(m.picker.checkedValues(), config.FilterMovesDefault) {
 		t.Fatalf("after the places: picker %v ticked %v, want the moves with the default ticked", m.picker.kind, m.picker.checkedValues())
 	}
+	for _, move := range []string{config.FilterMoveSenderFirst, config.FilterMoveSenderRatio, config.FilterMoveSenderSpread} {
+		if !slices.ContainsFunc(m.picker.items, func(it pickerItem) bool { return it.value == move }) {
+			t.Errorf("the moves offer no %s", move)
+		}
+	}
 	m.picker.checked = map[string]bool{}
 	m, _ = m.acceptPick()
 	if m.picker.kind != pickerFilterMoves || len(m.conf.base.Filters) != 0 {

@@ -27,3 +27,25 @@ func Aliases(ids []config.Identity) map[string]string {
 func PeopleOf(aliases map[string]string, dir domain.Directory) domain.People {
 	return domain.People{Alias: func(user string) string { return aliases[user] }, Dir: dir}
 }
+
+// HiddenInputs is the config's part of who is hidden (db.Cache.UseHidden): the muted
+// tags' people, the muted tags (whose person verdicts hide people too), and the
+// identity groups linking IDs. Identities sharing an alias are one group, as the TUI
+// holds them.
+func HiddenInputs(cfg config.Config) (marked, muted []string, groups [][]string, err error) {
+	tags, _, err := Tags(cfg)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	byAlias := map[string]int{}
+	for _, id := range cfg.Display.Identities {
+		at, ok := byAlias[id.Alias]
+		if !ok || id.Alias == "" {
+			at = len(groups)
+			groups = append(groups, nil)
+			byAlias[id.Alias] = at
+		}
+		groups[at] = append(groups[at], id.IDs...)
+	}
+	return tags.MutedPeople(), tags.MutedTags(), groups, nil
+}

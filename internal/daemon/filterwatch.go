@@ -47,6 +47,19 @@ type filterWatch struct {
 	now      func() time.Time
 	// established memoizes rooms known to have history (a room never loses it).
 	established map[domain.RoomID]bool
+
+	// people is where person marks go (personwatch.go); nil leaves the sender moves off.
+	// facts, directory and selves are each room's facts, the people directory and every
+	// ID that is you; groups the identity groups linking IDs, set by reload.
+	people    personStore
+	facts     func(context.Context, domain.RoomID) domain.RoomFacts
+	directory func(context.Context) (domain.Directory, error)
+	selves    func() []string
+	groups    [][]string
+	// peopleStored mirrors the person marks and releases (by ID and tag), peopleRecorded
+	// the marks this process made, as stored and recorded do for rooms.
+	peopleStored   map[string]map[string]domain.PersonVerdict
+	peopleRecorded map[string]map[string]bool
 }
 
 func newFilterWatch(store filterStore) *filterWatch {
@@ -56,17 +69,20 @@ func newFilterWatch(store filterStore) *filterWatch {
 		recorded:    map[domain.RoomID]map[string]bool{},
 		established: map[domain.RoomID]bool{},
 		now:         time.Now,
+
+		peopleStored:   map[string]map[string]domain.PersonVerdict{},
+		peopleRecorded: map[string]map[string]bool{},
 	}
 }
 
 // filterReseed is how long the memo of moves and releases is trusted.
 const filterReseed = time.Minute
 
-// reload replaces the filters and tags and marks the memo stale.
-func (w *filterWatch) reload(filters domain.Filters, tags domain.TagSet) {
+// reload replaces the filters, tags and identity groups and marks the memo stale.
+func (w *filterWatch) reload(filters domain.Filters, tags domain.TagSet, groups [][]string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.filters, w.tags = filters, tags
+	w.filters, w.tags, w.groups = filters, tags, groups
 	w.seeded = false
 }
 
@@ -102,26 +118,30 @@ func (w *filterWatch) settled(room domain.RoomID, tag string) bool {
 }
 
 // watch runs the filters over one message, moving its room into each tag a filter's
-// moves fire for. A tag's excluded list and a release outrank every filter. Our own
-// messages are not watched (Deliver).
-func (w *filterWatch) watch(ctx context.Context, msg domain.Message, facts domain.RoomFacts) {
-	w.mu.Lock()
-	filters, tags := w.filters, w.tags
-	fresh := w.seeded && w.now().Sub(w.seededAt) < filterReseed
-	w.mu.Unlock()
+// room moves fire for, and marking its sender for each its sender moves fire for. A
+// tag's excluded list and a release outrank every filter. Our own messages are not
+// watched (Deliver). It reports whether the sender was marked.
+func (w *filterWatch) watch(ctx context.Context, msg domain.Message, facts domain.RoomFacts) bool {
 	// Every message refreshes a stale memo: a room moved earlier stays quiet even when
 	// this message catches nothing.
-	if !fresh {
-		w.seed(ctx)
-	}
+	w.seedIfStale(ctx)
+	w.mu.Lock()
+	filters, tags := w.filters, w.tags
+	w.mu.Unlock()
 	caught := filters.Catching(msg.Body, msg.Sender, facts)
 	if len(caught) == 0 {
-		return
+		return false
 	}
+	w.watchRoom(ctx, msg, facts, caught, tags)
+	return w.watchSender(ctx, msg, caught)
+}
+
+// watchRoom runs the room moves of the filters that caught msg.
+func (w *filterWatch) watchRoom(ctx context.Context, msg domain.Message, facts domain.RoomFacts, caught []domain.Filter, tags domain.TagSet) {
 	var history *roomHistory
 	for i := range caught {
 		f := &caught[i]
-		if w.settled(msg.RoomID, f.Tag) || tags.Excludes(f.Tag, facts) {
+		if !f.Moves.MovesRooms() || w.settled(msg.RoomID, f.Tag) || tags.Excludes(f.Tag, facts) {
 			continue
 		}
 		if history == nil {
@@ -226,6 +246,16 @@ func (w *filterWatch) record(ctx context.Context, verdict domain.TagVerdict) boo
 	return true
 }
 
+// seedIfStale rereads the memo when it is older than filterReseed or a reload.
+func (w *filterWatch) seedIfStale(ctx context.Context) {
+	w.mu.Lock()
+	fresh := w.seeded && w.now().Sub(w.seededAt) < filterReseed
+	w.mu.Unlock()
+	if !fresh {
+		w.seed(ctx)
+	}
+}
+
 // seed rereads moves and releases from the cache; on failure it stays stale so the
 // next message retries.
 func (w *filterWatch) seed(ctx context.Context) {
@@ -234,6 +264,7 @@ func (w *filterWatch) seed(ctx context.Context) {
 		w.warn(ctx, "filters: reread the moves failed; using the stale set", err)
 		return
 	}
+	w.seedPeople(ctx)
 	stored := make(map[domain.RoomID]map[string]domain.TagVerdict, len(verdicts))
 	for _, v := range verdicts {
 		if !v.In() && !v.Released {

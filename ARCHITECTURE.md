@@ -12,14 +12,17 @@
 
 ## Overview
 
-kith is a terminal chat client for [Matrix](https://matrix.org), WhatsApp, Telegram
-and Slack, built on the [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+kith is a terminal chat client for [Matrix](https://matrix.org), WhatsApp, Telegram,
+Slack, Messenger, LinkedIn and Google Messages, built on the [Bubble Tea](https://github.com/charmbracelet/bubbletea)
 Elm-architecture framework (v2 / `charm.land`). Each network is an **adapter** that
 speaks to it as a client of its own: [`mautrix-go`](https://github.com/mautrix/go)
 for Matrix (sync, the Client-Server API, and **pure-Go end-to-end encryption**
 through its goolm implementation), [`whatsmeow`](https://github.com/tulir/whatsmeow)
-for WhatsApp (a linked device), [`gotd`](https://github.com/gotd/td) for Telegram and
-the web client's API for Slack. No network is required, Matrix included. There is no
+for WhatsApp (a linked device), [`gotd`](https://github.com/gotd/td) for Telegram,
+the web client's API for Slack, and mautrix's bridge libraries in-process for the
+rest: `messagix` (mautrix-meta) for Messenger, `linkedingo` (mautrix-linkedin) for
+LinkedIn and `libgm` (mautrix-gmessages) for Google Messages. No network is
+required, Matrix included. There is no
 libolm and no cgo, so every binary builds with `CGO_ENABLED=0` and cross-compiles
 cleanly. SQLite, through the pure-Go `modernc.org/sqlite` driver, is the one local
 cache every adapter writes into.
@@ -90,6 +93,14 @@ internal/telegram   → the Telegram adapter, over gotd: each account a phone nu
         │              it logs in as (forums as spaces, their topics as rooms)
 internal/slack      → the Slack adapter: each account a workspace, signed in as the
         │              web client is
+internal/meta       → the Messenger adapter, over messagix: each account a Meta
+        │              account, signed in as Messenger Lite is
+internal/linkedin   → the LinkedIn adapter, over linkedingo: each account the session
+        │              a browser holds
+internal/gmessages  → the Google Messages adapter, over libgm: each account an Android
+        │              phone it is paired with
+internal/readstate  → local-first reading, shared by the networks: the marks a network
+        │              has not taken yet, and a read that cannot be kept reads nothing
 internal/markdown   → the composer's Markdown to HTML, for every network that sends
         │              formatting
 internal/db         → SQLite cache (rooms, timeline, account-data mirrors) + schema
@@ -112,6 +123,8 @@ internal/vocab      → word completion ranked over bounded windows of recent me
 internal/audio      → the voice-note player: mpv over its JSON IPC socket, or VLC
         │              over its line-based remote control
 internal/filedialog → the XDG desktop portal, for picking a file to attach
+internal/phonebook  → people as Markdown cards in a folder other programs share
+internal/qrtext     → a QR code drawn as text, for a phone to scan when pairing
 internal/launch     → starting a terminal for a link the desktop handed over:
         │              a tab in the one already open, a window only when that fails
 internal/focus      → the other direction: raising the browser once a link has gone
@@ -442,7 +455,7 @@ hex-encoded, and goes on using that). There is no instance column anywhere:
 | scheduled messages | `$XDG_STATE_HOME/kith/scheduled-<instance>.toml` | `domain.Storage` |
 | assistant ledger | `$XDG_STATE_HOME/kith/agent-sends-<instance>.jsonl` | `domain.Storage` |
 | Matrix access token, pickle key | OS keyring, service `keyring_service`, account = the instance | `session` |
-| Telegram session, Slack token and cookie | OS keyring, under each account | their adapters |
+| Telegram, Messenger, LinkedIn and Google Messages sessions, Slack token and cookie | OS keyring, under each account | their adapters |
 | service | `kithd@<profile>.service` → `--profile <profile>` | `packaging/systemd` |
 | **notifications, DND** | the daemon's own state | per daemon |
 | **search, mentions, unread, threads, colours, emoji ranking** | that cache | per cache |

@@ -36,7 +36,7 @@ func TestRebindingTakesEffect(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Timeline.Reply = "R"
+	keys.Bindings["timeline.reply"] = "R"
 
 	m := withMessage(t, openTimeline(t, sized(t, withRooms(t, newModel())).WithKeys(keys)))
 
@@ -60,7 +60,7 @@ func TestRebindingTakesEffect(t *testing.T) {
 func TestPartialConfigStillGetsDefaults(t *testing.T) {
 	t.Parallel()
 
-	partial := config.Keys{Timeline: config.TimelineKeys{React: "e"}}
+	partial := config.Keys{Bindings: map[string]string{"timeline.react": "e"}}
 	partial.FillDefaults()
 	km := newKeymap(partial)
 
@@ -83,12 +83,12 @@ func TestMovingAndCancelingKeysAreRebindable(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Nav.Back = "h"
-	keys.Nav.Open = "esc"
-	keys.Nav.Up = "k"
-	keys.Nav.PageDown = "pgdown,up"
-	keys.Insert.Cancel = "ctrl+g"
-	keys.Insert.Send = "esc"
+	keys.Bindings["nav.back"] = "h"
+	keys.Bindings["nav.open"] = "esc"
+	keys.Bindings["nav.up"] = "k"
+	keys.Bindings["nav.page_down"] = "pgdown,up"
+	keys.Bindings["insert.cancel"] = "ctrl+g"
+	keys.Bindings["insert.send"] = "esc"
 	km := newKeymap(keys)
 	for _, c := range []struct {
 		key   string
@@ -115,9 +115,9 @@ func TestEssentialActionsAlwaysKeepAKey(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Nav.Back = unbind
-	keys.Insert.Cancel = unbind
-	keys.Prompt.Cancel = unbind
+	keys.Bindings["nav.back"] = unbind
+	keys.Bindings["insert.cancel"] = unbind
+	keys.Bindings["prompt.cancel"] = unbind
 	km := newKeymap(keys)
 	for _, c := range []struct {
 		key   string
@@ -139,7 +139,7 @@ func TestEssentialActionsAlwaysKeepAKey(t *testing.T) {
 	}
 	// A default another action took is reclaimed, and that action falls back to its own default.
 	keys = config.DefaultKeys()
-	keys.Insert.Send = "esc"
+	keys.Bindings["insert.send"] = "esc"
 	km = newKeymap(keys)
 	if km.lookup("esc", scopeInsert) != actCancel || km.lookup("ctrl+enter", scopeInsert) != actSend {
 		t.Errorf("esc = %v, ctrl+enter = %v: want cancel kept and send back on its default",
@@ -147,7 +147,7 @@ func TestEssentialActionsAlwaysKeepAKey(t *testing.T) {
 	}
 	// An action that is not essential may be left with nothing.
 	keys = config.DefaultKeys()
-	keys.Timeline.React = unbind
+	keys.Bindings["timeline.react"] = unbind
 	if km := newKeymap(keys); len(km.keysFor(scopeTimeline, actReact)) != 0 || len(km.issues) != 0 {
 		t.Errorf("unbinding timeline.react: keys %v, issues %v", km.keysFor(scopeTimeline, actReact), km.issues)
 	}
@@ -158,7 +158,7 @@ func TestConflictFallsBackToDefault(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Timeline.React = "enter" // already go_reply's key
+	keys.Bindings["timeline.react"] = "enter" // already go_reply's key
 	km := newKeymap(keys)
 
 	if got := km.lookup("enter", scopeTimeline); got != actGoReply {
@@ -183,7 +183,7 @@ func TestUnbindSentinel(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Timeline.React = unbind
+	keys.Bindings["timeline.react"] = unbind
 	km := newKeymap(keys)
 
 	if got := km.keysFor(scopeTimeline, actReact); len(got) != 0 {
@@ -220,8 +220,8 @@ func TestBindingsNeverSwallowTypedText(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Timeline.Insert = "x"
-	keys.Nav.PageUp = "u" // a printable key bound to a motion
+	keys.Bindings["timeline.insert"] = "x"
+	keys.Bindings["nav.page_up"] = "u" // a printable key bound to a motion
 	m := sized(t, withRooms(t, newModel())).WithKeys(keys)
 	m = openTimeline(t, m)
 	m = update(t, m, keyCode('x')) // enter insert mode
@@ -241,8 +241,8 @@ func TestABoundInterruptQuitsEverywhere(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Quit = unbind // even with quit deliberately unbound
-	keys.Interrupt = "ctrl+c"
+	keys.Bindings["quit"] = unbind // even with quit deliberately unbound
+	keys.Bindings["interrupt"] = "ctrl+c"
 	base := sized(t, withRooms(t, newModel())).WithKeys(keys)
 
 	for name, m := range map[string]Model{
@@ -320,7 +320,7 @@ func TestHintsFollowBindings(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Timeline.React = "e"
+	keys.Bindings["timeline.react"] = "e"
 	m := openTimeline(t, sized(t, withRooms(t, newModel())).WithKeys(keys))
 
 	hints := m.hints()
@@ -331,7 +331,7 @@ func TestHintsFollowBindings(t *testing.T) {
 		t.Errorf("hints = %q, should not still show the old key", hints)
 	}
 	// An unbound action is not advertised at all.
-	keys.Timeline.React = unbind
+	keys.Bindings["timeline.react"] = unbind
 	m2 := openTimeline(t, sized(t, withRooms(t, newModel())).WithKeys(keys))
 	if strings.Contains(m2.hints(), "react") {
 		t.Errorf("hints = %q, should not name an unbound action", m2.hints())
@@ -343,7 +343,7 @@ func TestKeymapIssuesSurfaceOnStatus(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Nav.Open = "esc"
+	keys.Bindings["nav.open"] = "esc"
 	m := sized(t, withRooms(t, newModel())).WithKeys(keys)
 	if !strings.Contains(m.status(), "keybinding issue") || !strings.Contains(m.status(), "?") {
 		t.Errorf("status = %q, want a keybinding-issue notice naming the help key", m.status())
@@ -386,7 +386,7 @@ func TestUnknownKeyNameIsReported(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Timeline.React = "escape" // the real name is "esc"
+	keys.Bindings["timeline.react"] = "escape" // the real name is "esc"
 	km := newKeymap(keys)
 
 	if !strings.Contains(strings.Join(km.issues, " "), `"escape" is not a key name`) {
@@ -396,7 +396,7 @@ func TestUnknownKeyNameIsReported(t *testing.T) {
 		t.Error("react should have fallen back to its default after a bad key name")
 	}
 	// A valid name alongside a bad one still binds.
-	keys.Timeline.React = "escape,e"
+	keys.Bindings["timeline.react"] = "escape,e"
 	km = newKeymap(keys)
 	if got := km.lookup("e", scopeTimeline); got != actReact {
 		t.Error("the valid half of the list should still bind")
@@ -507,7 +507,7 @@ func TestSequenceShorthandIsNarrow(t *testing.T) {
 
 // withNav returns keys with a different select_oldest binding.
 func withNav(keys config.Keys, binding string) config.Keys {
-	keys.Nav.SelectOldest = binding
+	keys.Bindings["nav.select_oldest"] = binding
 	return keys
 }
 
@@ -546,7 +546,7 @@ func TestInterruptAndPasteAreRebindable(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Interrupt, keys.Paste = "ctrl+q", "ctrl+y"
+	keys.Bindings["interrupt"], keys.Bindings["paste"] = "ctrl+q", "ctrl+y"
 	m := openTimeline(t, sized(t, withRooms(t, newModel())).WithKeys(keys))
 	m.compose.insertMode = true
 
@@ -666,9 +666,9 @@ func TestEditingKeysAreRebindable(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Edit.DeleteWordBack = "ctrl+y"
-	keys.Edit.Undo = "-"
-	keys.Edit.RowUp = "ctrl+p"
+	keys.Bindings["edit.delete_word_back"] = "ctrl+y"
+	keys.Bindings["edit.undo"] = "-"
+	keys.Bindings["edit.row_up"] = "ctrl+p"
 	m := openTimeline(t, sized(t, withRooms(t, newModel())).WithKeys(keys))
 	m.focus, m.compose.insertMode = paneTimeline, true
 	m = typeInto(t, m, "one two")
@@ -695,8 +695,8 @@ func TestEditingKeysAreRebindable(t *testing.T) {
 	t.Run("a bad binding is reported and keeps the default", func(t *testing.T) {
 		t.Parallel()
 		for name, set := range map[string]func(*config.Keys){
-			"not a key name":            func(k *config.Keys) { k.Edit.Redo = "ctrl+bogus+key" },
-			"another edit action's key": func(k *config.Keys) { k.Edit.Redo = "ctrl+u" },
+			"not a key name":            func(k *config.Keys) { k.Bindings["edit.redo"] = "ctrl+bogus+key" },
+			"another edit action's key": func(k *config.Keys) { k.Bindings["edit.redo"] = "ctrl+u" },
 		} {
 			keys := config.DefaultKeys()
 			set(&keys)
@@ -719,8 +719,8 @@ func TestEditingKeysAreRebindable(t *testing.T) {
 func TestListPositionsAreBindings(t *testing.T) {
 	t.Parallel()
 	keys := config.DefaultKeys()
-	keys.Insert.Choose2 = "alt+w"
-	keys.Spell.Choose1 = "x"
+	keys.Bindings["insert.choose_2"] = "alt+w"
+	keys.Bindings["spell.choose_1"] = "x"
 	km := newKeymap(keys)
 	if n, ok := choiceOf(km.lookup("alt+w", scopeInsert)); !ok || n != 1 {
 		t.Errorf("alt+w takes option %d,%v, want the second", n, ok)

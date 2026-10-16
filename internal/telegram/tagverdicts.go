@@ -26,5 +26,20 @@ func (a *Adapter) RetagVerdicts(ctx context.Context, from, to string) error {
 	if err := a.cache.RetagVerdicts(ctx, from, to); err != nil {
 		return fmt.Errorf("telegram: move the %s verdicts: %w", from, err)
 	}
+	if err := a.cache.RetagPersonVerdicts(ctx, domain.ProtocolTelegram, from, to); err != nil {
+		return fmt.Errorf("telegram: move the %s person verdicts: %w", from, err)
+	}
+	return nil
+}
+
+// MarkPerson records a filter's mark or a release on a Telegram ID locally; Telegram has
+// nowhere to keep one.
+func (a *Adapter) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error {
+	if a.cache == nil {
+		return nil
+	}
+	if err := a.cache.MarkPerson(ctx, verdict); err != nil {
+		return fmt.Errorf("telegram: record the %s verdict on %s: %w", verdict.Tag, verdict.Person, err)
+	}
 	return nil
 }

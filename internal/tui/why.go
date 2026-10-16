@@ -53,8 +53,9 @@ func (m Model) whyLines(now time.Time) []string {
 	resolved := notify.Resolve(rules, scope, now)
 
 	// A tag that does not notify is not a rule: a room it holds never notifies, so that is
-	// answered first, with the chain shown as what applies once the room leaves it.
-	moves := m.moveReasons(room)
+	// answered first, with the chain shown as what applies once the room leaves it. A
+	// hidden person's message under the cursor comes before both.
+	moves := append(m.hiddenReasons(), m.moveReasons(room)...)
 	if muting := m.mutingTags(room); len(muting) > 0 {
 		head := []string{m.theme.Muted.Render(drawSentence("for " + m.roomName(room) + ", right now:")), ""}
 		head = append(head, moves...)

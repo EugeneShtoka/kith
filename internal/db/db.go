@@ -25,6 +25,8 @@ type Cache struct {
 	selves func() []string
 	// keep is how many messages a room keeps (see UseKeep); nil keeps every one.
 	keep func(domain.RoomID) int
+	// hidden is who the muted tags hide (see UseHidden).
+	hidden hiddenState
 }
 
 // UseKeep sets how many newest messages each room keeps (negative: all). It is
@@ -128,11 +130,13 @@ func (c *Cache) Close() error {
 // repopulates from the homeserver. The crypto store is untouched.
 func (c *Cache) Clear(ctx context.Context) error {
 	return c.inTx(ctx, func(tx *sql.Tx) error {
-		// Everything else cascades from rooms or spaces except reaction_refusals.
+		// Everything else cascades from rooms or spaces except reaction_refusals and
+		// person_verdicts.
 		for _, stmt := range []string{
 			"DELETE FROM rooms",
 			"DELETE FROM spaces",
 			"DELETE FROM reaction_refusals",
+			"DELETE FROM person_verdicts",
 		} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("db: clear (%s): %w", stmt, err)

@@ -175,7 +175,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[notifications]` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
 | `[clipboard]` | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
 | `[codes]` | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
-| `[[filter]]` | Words or a sender that move rooms into a tag (the starter's Spam, or any other). | [filters.md](filters.md) |
+| `[[filter]]` | Words, a sender or a language that move rooms into a tag (the starter's Spam, or any other). | [filters.md](filters.md) |
 | `[composer]` | External editor (`alt+e`), temp-file suffix, Markdown on send. | [composer.md](composer.md) |
 | `[spell]` | Spell-checking engine, dictionaries, rare-word detection, check before sending. | [composer.md](composer.md) |
 | `[complete]`, `[complete.model]` | Word completion and ghost text, and the local llama.cpp model behind it. | [composer.md](composer.md) |

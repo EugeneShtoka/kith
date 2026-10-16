@@ -64,3 +64,20 @@ func TestMentionsAreRewrittenInOnePass(t *testing.T) {
 		t.Error("the mentions given were changed")
 	}
 }
+
+// You are never hidden: not your own IDs, nor an ID an identity group puts with them,
+// even when a link joins you to a marked person.
+func TestHiddenPeopleNeverHideYou(t *testing.T) {
+	t.Parallel()
+
+	dir := NewDirectory(nil, []PersonLink{{Source: "book", ID: "@me:x", Other: "@spam:x"}})
+	h := NewHiddenPeople([]string{"@spam:x"}, [][]string{{"@me:x", "telegram:1"}}, dir, []string{"@me:x"})
+	for id, want := range map[string]bool{"@spam:x": true, "@me:x": false, "telegram:1": false, "@ann:x": false} {
+		if got := h.Has(id); got != want {
+			t.Errorf("Has(%s) = %v, want %v", id, got, want)
+		}
+	}
+	if !NewHiddenPeople(nil, nil, dir, nil).Empty() {
+		t.Error("nobody marked is not empty")
+	}
+}

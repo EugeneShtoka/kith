@@ -117,6 +117,19 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 		s.log.Warn("read the directory failed; people are named as their networks name them", "err", err)
 	}
 	s.people = setup.PeopleOf(s.aliases, dir)
+	marked := s.marked
+	verdicts, verr := s.backend.PersonVerdicts(ctx)
+	if verr == nil {
+		marked = slices.Concat(marked, domain.HiddenByVerdict(verdicts, s.muted))
+	}
+	s.hidden, s.hiddenErr = domain.NewHiddenPeople(marked, s.groups, dir, s.selves), nil
+	switch {
+	case verr != nil && len(s.muted) > 0:
+		// Anyone may be marked in a muted tag: unknown must not read as nobody.
+		s.hiddenErr = verr
+	case err != nil && len(marked) > 0:
+		s.hiddenErr = err
+	}
 	result, err := t.run(s, ctx, raw)
 	if err != nil {
 		// The assistant reads the reason; the log keeps it for the person. Tool errors name

@@ -12,8 +12,10 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/qrtext"
 )
 
 // :login sets up and signs in an account inside kith. The daemon lists networks and each leads
@@ -48,17 +50,19 @@ type loginState struct {
 	at       int
 	values   map[string]string
 	answered []answeredField
-	// code is a code to type elsewhere; note what the network said last.
-	code, note string
-	cancel     context.CancelFunc
-	events     <-chan loginEvent
+	// code is a code to type elsewhere, qr data to show as a QR code for a phone to scan;
+	// note what the network said last.
+	code, qr, note string
+	cancel         context.CancelFunc
+	events         <-chan loginEvent
 	// answer takes the step's answers while the sign-in waits for them.
 	answer chan<- map[string]string
 }
 
-// answeredField is an answer as the pane shows it: a secret as dots.
+// answeredField is an answer as the pane shows it: a secret as dots. key is its
+// field's, so a field asked again replaces it.
 type answeredField struct {
-	label, shown string
+	key, label, shown string
 }
 
 func (l loginState) field() (api.LoginField, bool) {
@@ -78,6 +82,7 @@ type loginEvent struct {
 	write   *api.LoginRecord
 	written chan<- func() error
 	code    string
+	qr      string
 	note    string
 	account string
 	// final ends the sign-in: done says what it did, or err why it failed.
@@ -203,7 +208,9 @@ func (m Model) startLogin(network api.LoginNetwork, account string) (Model, tea.
 		go work(ctx, events)
 		return nil
 	}
-	return m, tea.Batch(start, listen(ctx, events, wrapLogin))
+	// The model listens for as long as it runs: the sign-in's own deadline must not
+	// silence the event that says it passed.
+	return m, tea.Batch(start, listen(m.ctx, events, wrapLogin))
 }
 
 // configReloader is a daemon that re-reads the config when asked.
@@ -226,14 +233,36 @@ func loginWork(
 		for err == nil {
 			var done bool
 			if step, done, err = r.answer(ctx, step); done {
+				r.sayTimedOut(ctx)
 				return
 			}
+		}
+		if r.sayTimedOut(ctx) {
+			return
 		}
 		if ctx.Err() == nil {
 			r.login = "" // the login ended there
 		}
 		r.send(ctx, loginEvent{final: true, err: err})
 	}
+}
+
+// errSignInTimedOut is a sign-in that waited loginTimeout, most of it for an answer.
+var errSignInTimedOut = fmt.Errorf("it waited %v and gave up; start it again", loginTimeout)
+
+// sayTimedOut tells the model the sign-in ran out of time, reporting whether it did. The
+// deadline is ctx's own, so ctx cannot carry the news: it goes into the events' buffer,
+// which the model reads with its own context. Without it the form stays open, takes the
+// answers, and shows "signing in" for good.
+func (r *loginRun) sayTimedOut(ctx context.Context) bool {
+	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return false
+	}
+	select {
+	case r.events <- loginEvent{final: true, err: errSignInTimedOut}:
+	default: // the buffer is full only when the model stopped reading
+	}
+	return true
 }
 
 // loginRun is one sign-in's client side, as loginWork leads it.
@@ -289,8 +318,8 @@ func (r *loginRun) answer(ctx context.Context, step api.LoginStep) (api.LoginSte
 		r.login = ""
 		r.send(ctx, loginEvent{final: true, done: step.Done})
 		return step, true, nil
-	case step.Code != "":
-		r.send(ctx, loginEvent{code: step.Code, note: step.Note, account: r.account})
+	case step.Code != "" || step.QR != "":
+		r.send(ctx, loginEvent{code: step.Code, qr: step.QR, note: step.Note, account: r.account})
 		next, err := r.logins.AnswerLogin(ctx, r.login, nil)
 		return next, false, err //nolint:wrapcheck // the daemon's own words
 	case step.Configure != nil:
@@ -372,14 +401,20 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(applied, next)
 	case e.ask != nil:
 		m.login.stage, m.login.fields, m.login.at, m.login.values, m.login.answer = loginAsking, e.ask, 0, map[string]string{}, e.answer
-		m.login.code = ""
+		m.login.code, m.login.qr = "", ""
+		// A field asked again was refused: its earlier answer goes, and why it was
+		// refused shows with the field (no note: nothing to say, and none kept).
+		m.login.note = e.note
+		m.login.answered = slices.DeleteFunc(slices.Clone(m.login.answered), func(a answeredField) bool {
+			return slices.ContainsFunc(e.ask, func(f api.LoginField) bool { return f.Key == a.key })
+		})
 		m = m.askLoginField()
 		if e.note != "" {
 			m = m.say(e.note)
 		}
 		return m, next
-	case e.code != "":
-		m.login.code = e.code
+	case e.code != "" || e.qr != "":
+		m.login.code, m.login.qr = e.code, e.qr
 	}
 	return m, next
 }
@@ -440,7 +475,7 @@ func (m Model) submitLogin(input string) (Model, tea.Cmd) {
 	if f.Secret {
 		shown = strings.Repeat("•", min(utf8.RuneCountInString(value), 12))
 	}
-	m.login.answered = append(slices.Clone(m.login.answered), answeredField{label: f.Label, shown: shown})
+	m.login.answered = append(slices.Clone(m.login.answered), answeredField{key: f.Key, label: f.Label, shown: shown})
 	m.login.at++
 	if m.login.at < len(m.login.fields) {
 		return m.askLoginField(), nil
@@ -494,6 +529,14 @@ func (m Model) loginLines(width, rows int) []string {
 		lines = append(lines, "")
 	}
 	if f, ok := m.login.field(); ok {
+		if m.login.note != "" {
+			for _, para := range docParagraphs(m.login.note) {
+				for _, line := range drawBlock(para, blockSpec{width: width}) {
+					lines = append(lines, m.theme.Badge(true).Render(line))
+				}
+			}
+			lines = append(lines, "")
+		}
 		block(f.Help)
 		if m.promptInline() {
 			lines = append(lines, m.promptLines(width)...)
@@ -506,6 +549,10 @@ func (m Model) loginLines(width, rows int) []string {
 			lines = append(lines, "    "+m.theme.TitleActive.Render(m.login.code), "")
 		}
 		block(m.login.note)
+		if m.login.qr != "" {
+			lines = append(lines, "")
+			lines = append(lines, qrLines(m.login.qr, width, rows-len(lines)-2)...)
+		}
 		lines = append(lines, "", m.theme.Muted.Render(m.keys.keyHint(scopePrompt, actCancel)+" cancels"))
 	}
 	if len(lines) > rows {
@@ -536,4 +583,22 @@ func masked(e editor) editor {
 	dots := func(s string) string { return strings.Repeat("•", utf8.RuneCountInString(s)) }
 	before := dots(e.text[:e.at])
 	return editor{text: before + dots(e.text[e.at:]), at: len(before)}
+}
+
+// qrLines is data as a QR code that fits width and rows, light on dark whatever the
+// theme so a phone can read it; a window too small for it says so instead.
+func qrLines(data string, width, rows int) []string {
+	code, err := qrtext.Lines(data)
+	if err != nil {
+		return []string{"the QR code could not be drawn: " + err.Error()}
+	}
+	if side := utf8.RuneCountInString(code[0]); side > width || len(code) > rows {
+		return []string{fmt.Sprintf("the window is too small for the QR code: it needs %d columns and %d rows", side, len(code)+2)}
+	}
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(qrtext.Light)).Background(lipgloss.Color(qrtext.Dark))
+	out := make([]string, len(code))
+	for i, line := range code {
+		out[i] = style.Render(line)
+	}
+	return out
 }

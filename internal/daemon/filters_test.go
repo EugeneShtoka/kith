@@ -2,7 +2,9 @@ package daemon_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -621,5 +623,38 @@ func TestFiltersHoldUnderConcurrentUse(t *testing.T) {
 		if moved[room] == 0 {
 			t.Errorf("%s was never moved", room)
 		}
+	}
+}
+
+// A hidden person's message, or a reply to one, neither notifies nor moves the room by
+// a filter; anyone else's still does both. A failed lookup hides nothing.
+func TestAHiddenPersonNeitherNotifiesNorMovesTheRoom(t *testing.T) {
+	t.Parallel()
+
+	src := spamWorld()
+	n, _ := spamNotifier(t, spamConfig(), src)
+	n.UseLogger(slog.New(slog.DiscardHandler))
+	var failing bool
+	n.UseHidden(func(_ context.Context, m domain.Message) (bool, error) {
+		if failing {
+			return true, errors.New("cache closed")
+		}
+		return m.Sender == alice || m.ReplyTo == "$from-alice", nil
+	})
+
+	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "double your bitcoin")); notified {
+		t.Error("a hidden person notified")
+	}
+	reply := msg(chatRm, "@bob:example.org", "double your bitcoin")
+	reply.ReplyTo = "$from-alice"
+	if _, notified := n.Deliver(context.Background(), reply); notified {
+		t.Error("a reply to a hidden person notified")
+	}
+	if len(src.verdicts()) != 0 {
+		t.Fatalf("recorded %+v, want nothing: hidden people do not move rooms", src.verdicts())
+	}
+	failing = true
+	if _, notified := n.Deliver(context.Background(), msg(chatRm, "@bob:example.org", "morning")); !notified {
+		t.Error("a failed lookup silenced a message")
 	}
 }

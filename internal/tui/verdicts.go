@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -16,18 +17,42 @@ import (
 
 type verdictsLoadedMsg struct{ verdicts []domain.TagVerdict }
 
-// loadVerdictsCmd reads the moves and releases, at startup and on the poll. A read
-// failure moves nothing.
+type personVerdictsLoadedMsg struct{ verdicts []domain.PersonVerdict }
+
+// loadVerdictsCmd reads the moves, marks and releases, at startup and on the poll. A
+// read failure changes nothing.
 func (m Model) loadVerdictsCmd() tea.Cmd {
 	ctx, backend, log := m.ctx, m.backend, m.log
-	return func() tea.Msg {
+	return tea.Batch(func() tea.Msg {
 		verdicts, err := backend.TagVerdicts(ctx)
 		if err != nil {
 			log.Warn("load tag verdicts failed", "err", err)
 			return nil
 		}
 		return verdictsLoadedMsg{verdicts: verdicts}
+	}, func() tea.Msg {
+		verdicts, err := backend.PersonVerdicts(ctx)
+		if err != nil {
+			log.Warn("load person verdicts failed", "err", err)
+			return nil
+		}
+		return personVerdictsLoadedMsg{verdicts: verdicts}
+	})
+}
+
+// handlePersonVerdictsLoaded replaces the person verdicts wholesale; a new set hides
+// or shows people.
+func (m Model) handlePersonVerdictsLoaded(msg personVerdictsLoadedMsg) (Model, tea.Cmd) {
+	if slices.EqualFunc(m.rail.people, msg.verdicts, func(a, b domain.PersonVerdict) bool {
+		return a.Person == b.Person && a.Tag == b.Tag && a.Rule == b.Rule && a.Filter == b.Filter &&
+			a.Released == b.Released && a.At.Equal(b.At)
+	}) {
+		return m, nil
 	}
+	before := m.shownMessages()
+	m.rail.people = msg.verdicts
+	m.rail.peopleRev++
+	return m.keptSelection(before), nil
 }
 
 // handleVerdictsLoaded replaces the verdicts wholesale (a release from another machine
@@ -55,8 +80,9 @@ func (m Model) moveOf(room domain.RoomID, tag string) (domain.TagVerdict, bool) 
 	return domain.TagVerdict{}, false
 }
 
-// tagKey acts on a sequence bound to a tag: the room under the cursor (or the open one)
-// goes in, or out. Never while typing.
+// tagKey acts on a sequence bound to a tag: in the timeline the selected message's
+// sender goes in, or out (markedpeople.go); elsewhere the room under the cursor (or the
+// open one). Never while typing.
 func (m Model) tagKey(press string) (Model, tea.Cmd, bool) {
 	if m.typing() {
 		return m, nil, false
@@ -65,14 +91,18 @@ func (m Model) tagKey(press string) (Model, tea.Cmd, bool) {
 	if !ok {
 		return m, nil, false
 	}
-	room, ok := m.currentRoom()
-	if !ok || room.IsInvite() {
-		return m, nil, true
-	}
 	view := m.unreadView()
 	i, ok := view.tags.Index(tag)
 	if !ok {
 		return m.say("no tag is called " + quoted(tag) + " — see [keys.tag]"), nil, true
+	}
+	if m.focus == paneTimeline {
+		next, cmd := m.toggleSenderIn(view.tags.At(i).Name)
+		return next, cmd, true
+	}
+	room, ok := m.currentRoom()
+	if !ok || room.IsInvite() {
+		return m, nil, true
 	}
 	next, cmd := m.fileTags(room, []tagFiling{{tag: i, label: view.tags.At(i).Name, in: !view.tagsOf(room).in[i]}})
 	return next, cmd, true
@@ -155,8 +185,9 @@ func (m Model) openCaught() (Model, tea.Cmd) {
 	for i := range filters {
 		filter := &filters[i]
 		if len(filter.Words.Words) == 0 {
-			// Sender-only filters cannot be previewed; counted so the summary says so.
-			kind.senders++
+			// Filters with no words (a sender or a language alone) cannot be previewed;
+			// counted so the summary says so.
+			kind.wordless++
 			continue
 		}
 		for _, word := range filter.Words.Words {

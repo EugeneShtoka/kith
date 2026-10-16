@@ -104,6 +104,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | `drafts` | the unsent message per room, including reply/edit state, mentions, the caret, and who wrote it (you, or an assistant) |
 | `starred` | mirror of the `org.kith.starred` account data |
 | `tag_verdicts` | mirror of the `org.kith.tags` account data: per room and tag, the rule and filter that moved it, or a release |
+| `person_verdicts` | per person ID and tag, the rule and filter that put them there, or a release; Matrix IDs mirror the `org.kith.people` account data |
 
 ### Rankings and bookkeeping
 
@@ -208,6 +209,9 @@ holds a mirror:
 - `starred` mirrors `org.kith.starred`: your private bookmarks per room.
 - `tag_verdicts` mirrors `org.kith.tags`: per tag, which filter moved a room there and
   by which rule, or a release, which keeps it out of that tag whatever the filters say.
+- `person_verdicts` mirrors `org.kith.people` (account data of the account, not of a
+  room) for Matrix IDs: which filter put a person in a tag, or a release. A person on
+  another network has no homeserver to keep it, so their rows are the only copy.
 
 The homeserver has the record; the table exists because search and the room list
 have to join against something, offline. That split is what makes a rebuild
@@ -302,8 +306,10 @@ Since then:
   `org.kith.tags`. v14 and v15 drop `spam_rooms` and `spam_released`, which spam
   verdicts used before Spam became an ordinary tag; their account data is not
   carried over (`:rescan` judges the cache again).
+- v16 (`person_verdicts`): filter marks per person ID and tag, and releases. Matrix
+  IDs mirror `org.kith.people`; other networks' are kept here alone.
 
-so a current cache is at version 15.
+so a current cache is at version 16.
 
 ### Indexes need no migration
 

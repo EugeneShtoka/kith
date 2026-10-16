@@ -216,7 +216,7 @@ func TestCommandsShowTheirShortcut(t *testing.T) {
 		}
 	}
 	keys := config.DefaultKeys()
-	keys.JumpTo = "ctrl+g"
+	keys.Bindings["jump_to"] = "ctrl+g"
 	m.keys = newKeymap(keys)
 	rows = m.commandLineCandidates(":go")
 	if len(rows) == 0 || !strings.Contains(rows[0].detail, "ctrl+g") {

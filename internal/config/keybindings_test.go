@@ -19,19 +19,19 @@ func TestFillDefaults(t *testing.T) {
 	}
 
 	// One field set: everything else, nested tables included, is filled.
-	partial := Keys{Quit: "Q", Timeline: TimelineKeys{React: "e"}}
+	partial := Keys{Bindings: map[string]string{"quit": "Q", "timeline.react": "e"}}
 	partial.FillDefaults()
-	if partial.Quit != "Q" || partial.Timeline.React != "e" {
+	if partial.Bindings["quit"] != "Q" || partial.Bindings["timeline.react"] != "e" {
 		t.Errorf("FillDefaults overwrote a set value: %+v", partial)
 	}
-	if partial.Help != DefaultKeys().Help {
-		t.Errorf("Help = %q, want the default %q", partial.Help, DefaultKeys().Help)
+	if partial.Bindings["help"] != DefaultKeys().Bindings["help"] {
+		t.Errorf("Help = %q, want the default %q", partial.Bindings["help"], DefaultKeys().Bindings["help"])
 	}
-	if partial.Timeline.Reply != DefaultKeys().Timeline.Reply {
-		t.Errorf("Timeline.Reply = %q, want the default", partial.Timeline.Reply)
+	if partial.Bindings["timeline.reply"] != DefaultKeys().Bindings["timeline.reply"] {
+		t.Errorf("Timeline.Reply = %q, want the default", partial.Bindings["timeline.reply"])
 	}
-	if partial.Nav.Up != DefaultKeys().Nav.Up {
-		t.Errorf("Nav.Up = %q, want the default — a whole omitted table must fill", partial.Nav.Up)
+	if partial.Bindings["nav.up"] != DefaultKeys().Bindings["nav.up"] {
+		t.Errorf("Nav.Up = %q, want the default — a whole omitted table must fill", partial.Bindings["nav.up"])
 	}
 }
 
@@ -78,18 +78,18 @@ react = "e"
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Keys.Quit != "Q,ctrl+q" {
-		t.Errorf("Quit = %q, want the configured list", cfg.Keys.Quit)
+	if cfg.Keys.Bindings["quit"] != "Q,ctrl+q" {
+		t.Errorf("Quit = %q, want the configured list", cfg.Keys.Bindings["quit"])
 	}
-	if cfg.Keys.Timeline.React != "e" {
-		t.Errorf("Timeline.React = %q, want e", cfg.Keys.Timeline.React)
+	if cfg.Keys.Bindings["timeline.react"] != "e" {
+		t.Errorf("Timeline.React = %q, want e", cfg.Keys.Bindings["timeline.react"])
 	}
 	// Load fills the rest, so nothing the file omitted is left unbound.
-	if cfg.Keys.Help != DefaultKeys().Help {
-		t.Errorf("Help = %q, want the default — Load must fill defaults", cfg.Keys.Help)
+	if cfg.Keys.Bindings["help"] != DefaultKeys().Bindings["help"] {
+		t.Errorf("Help = %q, want the default — Load must fill defaults", cfg.Keys.Bindings["help"])
 	}
-	if cfg.Keys.Nav.Up != DefaultKeys().Nav.Up {
-		t.Errorf("Nav.Up = %q, want the default", cfg.Keys.Nav.Up)
+	if cfg.Keys.Bindings["nav.up"] != DefaultKeys().Bindings["nav.up"] {
+		t.Errorf("Nav.Up = %q, want the default", cfg.Keys.Bindings["nav.up"])
 	}
 }
 
@@ -131,8 +131,8 @@ target = "room:!inbox:example.org"
 		t.Fatalf("Load: %v", err)
 	}
 	want := Jumps{{Chord: "g w", Target: "space:Work"}, {Chord: "g i", Target: "room:!inbox:example.org"}}
-	if cfg.Keys.JumpTo != "ctrl+j" || !reflect.DeepEqual(cfg.Keys.Jump, want) {
-		t.Errorf("JumpTo = %q, Jump = %+v", cfg.Keys.JumpTo, cfg.Keys.Jump)
+	if cfg.Keys.Bindings["jump_to"] != "ctrl+j" || !reflect.DeepEqual(cfg.Keys.Jump, want) {
+		t.Errorf("JumpTo = %q, Jump = %+v", cfg.Keys.Bindings["jump_to"], cfg.Keys.Jump)
 	}
 }
 
@@ -193,5 +193,50 @@ func TestTagKeysDefaultToTheStartersAndCanBeEmptied(t *testing.T) {
 	again, err := Decode(Encode(emptied))
 	if err != nil || len(again.Keys.Tag) != 0 {
 		t.Errorf("after a save: %+v, %v; want none still", again.Keys.Tag, err)
+	}
+}
+
+// Every binding survives Save and Load under its own path, whichever table it is in.
+func TestEveryBindingRoundTrips(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := loadText(t, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path := range keyByPath {
+		cfg.Keys.Bindings[path] = "f12," + path // distinct from every default and each other
+	}
+	cfg.Keys.Jump = Jumps{{Chord: "g w", Target: "space:Work"}}
+	cfg.Keys.Tag = TagKeys{}
+	reloaded, err := Decode(Encode(cfg))
+	if err != nil {
+		t.Fatalf("reload: %v\n%s", err, Encode(cfg))
+	}
+	if !reflect.DeepEqual(reloaded.Keys, cfg.Keys) {
+		t.Errorf("keys changed across a save:\n got %+v\nwant %+v", reloaded.Keys, cfg.Keys)
+	}
+}
+
+// What [keys] cannot hold is refused, naming the key, as everywhere else in the file.
+func TestLoadRefusesMalformedKeys(t *testing.T) {
+	t.Parallel()
+
+	for body, want := range map[string]string{
+		"[keys]\nquitt = \"q\"\n":                                      "keys.quitt",
+		"[keys.timeline]\nreplay = \"r\"\n":                            "keys.timeline.replay",
+		"[keys.timelime]\nreply = \"r\"\n":                             "keys.timelime.reply",
+		"[keys]\ntimeline = \"r\"\n":                                   "keys.timeline",
+		"[keys.timeline.reply]\nx = \"r\"\n":                           "keys.timeline.reply",
+		"[keys]\nquit = 5\n":                                           "keys.quit",
+		"[keys]\nquit = [\"q\"]\n":                                     "keys.quit",
+		"[[keys.jump]]\nchord = \"g w\"\ntarget = \"x\"\nto = \"y\"\n": "keys.jump.to",
+		"[[keys.tag]]\nchord = \"t s\"\ntag = 1\n":                     "keys.tag.tag",
+		"[keys]\njump = \"g w\"\n":                                     "keys.jump",
+	} {
+		_, err := loadText(t, body)
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: err = %v, want one naming %s", body, err, want)
+		}
 	}
 }

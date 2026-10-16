@@ -105,6 +105,15 @@ func (s *server) MarkTag(ctx context.Context, r *req[v1.MarkTagRequest]) (*resp[
 	return reply(&v1.MarkTagResponse{}, s.Backend.MarkTag(ctx, pc.ProtoToVerdict(r.Msg.GetVerdict())))
 }
 
+func (s *server) PersonVerdicts(ctx context.Context, _ *req[v1.PersonVerdictsRequest]) (*resp[v1.PersonVerdictsResponse], error) {
+	verdicts, err := s.Backend.PersonVerdicts(ctx)
+	return reply(&v1.PersonVerdictsResponse{Verdicts: pc.PersonVerdictsToProto(verdicts)}, err)
+}
+
+func (s *server) MarkPerson(ctx context.Context, r *req[v1.MarkPersonRequest]) (*resp[v1.MarkPersonResponse], error) {
+	return reply(&v1.MarkPersonResponse{}, s.Backend.MarkPerson(ctx, pc.ProtoToPersonVerdict(r.Msg.GetVerdict())))
+}
+
 func (s *server) RetagVerdicts(ctx context.Context, r *req[v1.RetagVerdictsRequest]) (*resp[v1.RetagVerdictsResponse], error) {
 	return reply(&v1.RetagVerdictsResponse{}, s.Backend.RetagVerdicts(ctx, r.Msg.GetFrom(), r.Msg.GetTo()))
 }
@@ -191,13 +200,17 @@ func (s *server) SendTyping(ctx context.Context, r *req[v1.SendTypingRequest]) (
 }
 
 // SendFile refuses relative paths: the daemon's working directory is systemd's,
-// not the user's.
+// not the user's. A request naming no name sends the file under its own.
 func (s *server) SendFile(ctx context.Context, r *req[v1.SendFileRequest]) (*resp[v1.SendFileResponse], error) {
 	path := r.Msg.GetPath()
 	if !filepath.IsAbs(path) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("daemon: send file: the path must be absolute"))
 	}
-	return reply(&v1.SendFileResponse{}, s.Backend.SendFile(ctx, roomID(r.Msg.GetRoomId()), path, r.Msg.GetCaption()))
+	name := r.Msg.GetName()
+	if name == "" {
+		name = filepath.Base(path)
+	}
+	return reply(&v1.SendFileResponse{}, s.Backend.SendFile(ctx, roomID(r.Msg.GetRoomId()), path, name, r.Msg.GetCaption()))
 }
 
 // ── Unread ──
@@ -430,6 +443,11 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 		return nil
 	})
 	return reply(&v1.ReplaceDraftResponse{Saved: saved}, cmp.Or(err, wrote))
+}
+
+func (s *server) ChatOffers(ctx context.Context, _ *req[v1.ChatOffersRequest]) (*resp[v1.ChatOffersResponse], error) {
+	offers, err := s.Backend.ChatOffers(ctx)
+	return reply(&v1.ChatOffersResponse{Offers: pc.ChatOffersToProto(offers)}, err)
 }
 
 func (s *server) LoginNetworks(ctx context.Context, _ *req[v1.LoginNetworksRequest]) (*resp[v1.LoginNetworksResponse], error) {
@@ -750,6 +768,15 @@ func (s *server) RescanFilters(ctx context.Context, r *req[v1.RescanFiltersReque
 	}
 	found, err := s.Notifications.RescanFilters(ctx, since, r.Msg.GetApply(), rooms)
 	return reply(&v1.RescanFiltersResponse{Rooms: pc.CandidatesToProto(found)}, err)
+}
+
+func (s *server) RescanPeople(ctx context.Context, r *req[v1.RescanPeopleRequest]) (*resp[v1.RescanPeopleResponse], error) {
+	var since time.Time
+	if ms := r.Msg.GetSinceUnixMs(); ms > 0 {
+		since = time.UnixMilli(ms)
+	}
+	found, err := s.Notifications.RescanPeople(ctx, since, r.Msg.GetApply(), r.Msg.GetPeople())
+	return reply(&v1.RescanPeopleResponse{People: pc.PersonCandidatesToProto(found)}, err)
 }
 
 // ReloadConfig reports an unparsable config as InvalidArgument: it is the caller's input.

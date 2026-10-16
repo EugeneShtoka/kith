@@ -44,6 +44,12 @@ type derivedKey struct {
 	members uint64
 	// peers is the room-named people's revision (peeralias.go).
 	peers uint64
+	// tags is the tag set's revision: a muted tag's people are hidden (markedpeople.go).
+	tags uint64
+	// markedShown: the room shows the people muted tags hide.
+	markedShown bool
+	// people is the person verdicts' revision: one in a muted tag hides them.
+	people uint64
 }
 
 // fnvOffset and fnvPrime are FNV-1a; each string is followed by a separator so
@@ -113,6 +119,10 @@ func (m Model) keyFor() derivedKey {
 		phones:  m.dir.rev,
 		members: m.timeline.membersRev,
 		peers:   m.peers.rev,
+
+		tags:        m.rail.tagsRev,
+		markedShown: m.markedShownHere(),
+		people:      m.rail.peopleRev,
 	}
 	if room, ok := m.roomByID(m.openRoom); ok {
 		k.place = placeFingerprint(m.factsFor(room))
@@ -285,6 +295,7 @@ func (m Model) computeDerived(d *derivedCache) *derivedCache {
 		d.shown, d.threads = domain.ThreadMessages(m.timeline.messages, m.thread.root), nil
 	}
 	d.shown = m.withDeletionsHidden(d.shown, d.threads)
+	d.shown = m.withMarkedPeopleHidden(d.shown)
 	d.byAnchor = make(map[domain.EventID][]domain.Thread, len(d.threads))
 	for i := range d.threads {
 		d.byAnchor[d.threads[i].Anchor] = append(d.byAnchor[d.threads[i].Anchor], d.threads[i])

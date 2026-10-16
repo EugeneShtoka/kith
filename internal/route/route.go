@@ -46,6 +46,11 @@ type (
 		RefreshRooms(ctx context.Context) ([]domain.Room, error)
 		CachedUnread(ctx context.Context) ([]domain.Unread, error)
 	}
+	// Recounter counts rooms' unread again from the cache and streams them, for when
+	// the cache counts them differently (who is hidden changed).
+	Recounter interface {
+		RecountUnread(ctx context.Context, rooms []domain.RoomID)
+	}
 	// Homes is the space a room names as its parent.
 	Homes interface {
 		CanonicalParent(ctx context.Context, roomID domain.RoomID) (domain.SpaceID, error)
@@ -84,9 +89,11 @@ type (
 	Stars interface {
 		StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error
 	}
-	// TagMoves is filters' moves into tags, and releases from them.
+	// TagMoves is filters' moves into tags, and releases from them: of rooms, and of
+	// the people whose IDs are the network's.
 	TagMoves interface {
 		MarkTag(ctx context.Context, verdict domain.TagVerdict) error
+		MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error
 		RetagVerdicts(ctx context.Context, from, to string) error
 	}
 	// History is a room's past: pages, one message, a message's versions.
@@ -105,7 +112,7 @@ type (
 	}
 	// Uploader posts a file.
 	Uploader interface {
-		SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error
+		SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error
 	}
 	// Reactor reacts to a message.
 	Reactor interface {
@@ -115,9 +122,11 @@ type (
 	Voter interface {
 		VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error
 	}
-	// ChatMaker makes a chat (group, forum, channel, community) on the account spec.On names.
+	// ChatMaker makes a chat (group, forum, channel, community) on the account spec.On
+	// names, of the kinds its connected accounts offer.
 	ChatMaker interface {
 		CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error)
+		ChatOffers(ctx context.Context) ([]domain.ChatOffer, error)
 	}
 	// PollReader names who chose what in a message's poll.
 	PollReader interface {
@@ -377,6 +386,15 @@ func (r *Router) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 // CachedUnread is every network's unread state.
 func (r *Router) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	return gather(r, func(c RoomLister) ([]domain.Unread, error) { return c.CachedUnread(ctx) })
+}
+
+// RecountUnread has each room's network count its unread again; rooms of a network
+// that is off or keeps no counts are skipped.
+func (r *Router) RecountUnread(ctx context.Context, rooms []domain.RoomID) {
+	parts, _ := byNetwork[Recounter](r, rooms, "recounting unread")
+	for a, theirs := range parts {
+		a.(Recounter).RecountUnread(ctx, theirs)
+	}
 }
 
 // DirectCandidates is every network's people to message, at most limit.

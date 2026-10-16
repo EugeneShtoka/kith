@@ -20,8 +20,10 @@ import (
 type Notifications struct {
 	// members reads a person's current name in a room; nil knows none.
 	members func(ctx context.Context, room domain.RoomID, user string) (string, error)
-	scope   *scopeIndex
-	sinks   Sinks
+	// hides reports whether a message is from a hidden person or answers one; nil hides none.
+	hides func(ctx context.Context, msg domain.Message) (bool, error)
+	scope *scopeIndex
+	sinks Sinks
 
 	// syncs counts sync responses processed; see caughtUp.
 	syncs atomic.Int64
@@ -68,7 +70,7 @@ type Notifications struct {
 func (n *Notifications) UseSelves(selves func() []string) {
 	n.selves = selves
 	if n.filters != nil {
-		n.filters.mine = n.isMine
+		n.filters.mine, n.filters.selves = n.isMine, selves
 	}
 }
 
@@ -76,6 +78,25 @@ func (n *Notifications) UseSelves(selves func() []string) {
 // message may be stale. Call before Run.
 func (n *Notifications) UseMemberNames(names func(ctx context.Context, room domain.RoomID, user string) (string, error)) {
 	n.members = names
+}
+
+// UseHidden sets how a message from a hidden person (a muted tag's people), or a
+// direct reply to one, is recognized. Call before Run.
+func (n *Notifications) UseHidden(hides func(ctx context.Context, msg domain.Message) (bool, error)) {
+	n.hides = hides
+}
+
+// hidden reports whether msg is hidden; a failed read hides nothing.
+func (n *Notifications) hidden(ctx context.Context, msg domain.Message) bool {
+	if n.hides == nil {
+		return false
+	}
+	hidden, err := n.hides(ctx, msg)
+	if err != nil {
+		n.log.Warn("ask whether a message is hidden", "err", err)
+		return false
+	}
+	return hidden
 }
 
 // memberName is user's name in room now, "" when unknown.
@@ -93,6 +114,9 @@ func (n *Notifications) memberName(ctx context.Context, room domain.RoomID, user
 // UseDirectory sets where people are named from (domain.Directory). Call before Run.
 func (n *Notifications) UseDirectory(people func(context.Context) (domain.Directory, error)) {
 	n.people = people
+	if n.filters != nil {
+		n.filters.directory = people
+	}
 }
 
 // lazyDirectory reads the directory the first time a notification needs it.
@@ -203,6 +227,10 @@ func NewNotifications(cfg config.Config, src scopeSource, sinks Sinks) (*Notific
 	if store, ok := src.(filterStore); ok {
 		n.filters = newFilterWatch(store)
 		n.scope.caught = n.filters.caught
+		n.filters.facts = n.scope.Facts
+		if people, ok := src.(personStore); ok {
+			n.filters.people = people
+		}
 	}
 	if err := n.Reload(cfg); err != nil {
 		return nil, err
@@ -246,7 +274,8 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.scope.SetTags(tags)
 	// A moved room stays moved through a reload.
 	if n.filters != nil {
-		n.filters.reload(filters, tags)
+		_, _, groups, _ := setup.HiddenInputs(cfg)
+		n.filters.reload(filters, tags, groups)
 	}
 	archives, _ := setup.Archives(cfg, tags)
 	n.scope.SetArchives(archives)
@@ -275,6 +304,33 @@ func (n *Notifications) RescanFilters(ctx context.Context, since time.Time, appl
 		return nil, err
 	}
 	return n.filters.rescan(ctx, all, since, apply, rooms)
+}
+
+// MoveWithHidden moves each of rooms that is a direct message, never written in, with
+// someone a muted tag hides into that tag. kithd calls it with the rooms of people just
+// hidden.
+func (n *Notifications) MoveWithHidden(ctx context.Context, rooms []domain.RoomID) {
+	if n.filters == nil {
+		return
+	}
+	for _, room := range rooms {
+		n.filters.moveWithPerson(ctx, room)
+	}
+}
+
+// RescanPeople judges the senders of cached messages since since, as if they arrived
+// then, and returns the people the filters' sender moves would mark. With apply it
+// marks them, only those in people when that is not empty, and returns the ones it
+// marked.
+func (n *Notifications) RescanPeople(ctx context.Context, since time.Time, apply bool, people []string) ([]domain.PersonCandidate, error) {
+	if n.filters == nil {
+		return nil, nil
+	}
+	all, err := n.scope.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return n.filters.rescanPeople(ctx, all, since, apply, people)
 }
 
 // SetDND puts a temporary rule in force, replacing one naming the same thing.
@@ -346,9 +402,19 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 		return notify.Notification{}, false
 	}
 
+	// A hidden person's message, or a reply to one, never notifies, nor moves the room
+	// by a filter: their room is not theirs. Asked after code capture.
+	if !mine && n.hidden(ctx, msg) {
+		// Their direct message, though, moves where they are.
+		if n.filters != nil {
+			n.filters.moveWithPerson(ctx, msg.RoomID)
+		}
+		return notify.Notification{}, false
+	}
 	// The filters run first, so the scope sees the tags they moved the room into.
-	if n.filters != nil && !mine {
-		n.filters.watch(ctx, msg, n.scope.Facts(ctx, msg.RoomID))
+	// A sender they just marked is hidden from this message on.
+	if n.filters != nil && !mine && n.filters.watch(ctx, msg, n.scope.Facts(ctx, msg.RoomID)) && n.hidden(ctx, msg) {
+		return notify.Notification{}, false
 	}
 	// A room a tag with notifies = false holds never notifies. Asked after code capture.
 	if n.scope.Mutes(n.scope.Facts(ctx, msg.RoomID)) {

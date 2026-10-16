@@ -25,6 +25,7 @@ type Backend interface {
 	Media
 	Members
 	Membership
+	NewChats
 	Ending
 	Search
 	Drafts
@@ -90,8 +91,14 @@ type Rooms interface {
 	// overwrites a release (domain.ErrReleased).
 	MarkTag(ctx context.Context, verdict domain.TagVerdict) error
 	// RetagVerdicts moves every verdict on tag from to tag to (a renamed tag), or drops
-	// them when to is empty (a deleted one).
+	// them when to is empty (a deleted one), person verdicts included.
 	RetagVerdicts(ctx context.Context, from, to string) error
+	// PersonVerdicts returns every person a filter put into a tag, and every release
+	// (cache read).
+	PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error)
+	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
+	// never overwrites a release (domain.ErrPersonReleased).
+	MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error
 	// LastMessages is each room's latest cached message time. Rooms with no cached
 	// history are absent (unknown), not zero.
 	LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, error)
@@ -132,9 +139,10 @@ type Timeline interface {
 	Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error
 	// SendTyping sets or clears the typing notice for timeout.
 	SendTyping(ctx context.Context, roomID domain.RoomID, typing bool, timeout time.Duration) error
-	// SendFile uploads (encrypting where needed) and posts a file. path is absolute
-	// on the shared machine; empty caption uses the filename.
-	SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error
+	// SendFile uploads (encrypting where needed) and posts a file under name (its own,
+	// or a neutral one: domain.SentName). path is absolute on the shared machine; empty
+	// caption uses the name.
+	SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error
 }
 
 // Unread is per-room unread state, as a cache read and a live stream.
@@ -213,6 +221,13 @@ type Membership interface {
 	UnbanUser(ctx context.Context, roomID domain.RoomID, userID string) error
 	// LeaveRoom leaves a room or rejects an invite.
 	LeaveRoom(ctx context.Context, roomID domain.RoomID) error
+}
+
+// NewChats is what chats each account of a network other than Matrix can make.
+type NewChats interface {
+	// ChatOffers is every kind of chat each connected account can make, as its
+	// network describes it.
+	ChatOffers(ctx context.Context) ([]domain.ChatOffer, error)
 }
 
 // Ending removes chats and accounts that cannot simply be left (Membership.LeaveRoom).

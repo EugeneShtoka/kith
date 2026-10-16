@@ -127,6 +127,51 @@ message MarkTagRequest {
 
 message MarkTagResponse {}
 
+// PersonVerdict is a filter having put one person, by one of their IDs, into one tag,
+// or a person having taken them out (released), which no filter overturns.
+message PersonVerdict {
+  string person = 1;
+  string tag = 2;
+  // rule is domain.MoveRule; 0 is no mark.
+  int32 rule = 3;
+  // filter is the name of the filter that marked them.
+  string filter = 4;
+  int64 at_unix_ms = 5;
+  bool released = 6;
+}
+
+message PersonVerdictsRequest {}
+
+message PersonVerdictsResponse {
+  repeated PersonVerdict verdicts = 1;
+}
+
+// PersonCandidate is a person a rescan would mark into a tag, and the message that
+// marks them.
+message PersonCandidate {
+  PersonVerdict verdict = 1;
+  Message sample = 2;
+}
+
+message RescanPeopleRequest {
+  // since_unix_ms is the oldest message judged; 0 is everything cached.
+  int64 since_unix_ms = 1;
+  // apply marks the people; otherwise nothing changes.
+  bool apply = 2;
+  // people limits apply to these IDs; empty is every candidate.
+  repeated string people = 3;
+}
+
+message RescanPeopleResponse {
+  repeated PersonCandidate people = 1;
+}
+
+message MarkPersonRequest {
+  PersonVerdict verdict = 1;
+}
+
+message MarkPersonResponse {}
+
 message RetagVerdictsRequest {
   string from = 1;
   // to empty drops the verdicts (a deleted tag).
@@ -205,6 +250,9 @@ message SendFileRequest {
   string path = 2;
   // caption becomes the message body.
   string caption = 3;
+  // name is what the file is sent as (domain.SentName where names are anonymized);
+  // empty sends it under its own.
+  string name = 4;
 }
 
 message SendFileResponse {}
@@ -560,6 +608,25 @@ enum ChatKind {
   CHAT_KIND_COMMUNITY = 5;
 }
 
+// One kind of chat an account can make, as its network describes it (domain.ChatOffer).
+message ChatOffer {
+  // The account it is made on, as domain.AccountRooms writes it.
+  string on = 1;
+  // How the account reads, to tell a network's accounts apart.
+  string account = 2;
+  ChatKind kind = 3;
+  string label = 4;
+  string detail = 5;
+  // How many others must be in it from the start.
+  int32 min_members = 6;
+}
+
+message ChatOffersRequest {}
+
+message ChatOffersResponse {
+  repeated ChatOffer offers = 1;
+}
+
 message CreateRoomResponse {
   string room_id = 1;
   // warning is non-empty when the room exists but something after it did not — filing
@@ -770,8 +837,8 @@ message LoginRecord {
   map<string, string> values = 2;
 }
 
-// LoginStep is where a login is. Exactly one of ask, code, configure, restart and
-// done says what to do; note may go with any of them.
+// LoginStep is where a login is. Exactly one of ask, code, qr, configure, restart
+// and done says what to do; note may go with any of them.
 message LoginStep {
   // The conversation, for AnswerLogin and CancelLogin.
   string login = 1;
@@ -788,6 +855,8 @@ message LoginStep {
   bool restart = 7;
   // The login ended: what it did.
   string done = 8;
+  // Data to draw as a QR code until the next step, for a phone to scan.
+  string qr = 9;
 }
 
 message LoginAccount {
@@ -1378,6 +1447,12 @@ service BackendService {
   rpc MarkTag(MarkTagRequest) returns (MarkTagResponse);
   // RetagVerdicts moves one tag's verdicts to its new name, or drops them.
   rpc RetagVerdicts(RetagVerdictsRequest) returns (RetagVerdictsResponse);
+  // PersonVerdicts lists every person a filter put into a tag, and every release, with
+  // the rule and the filter.
+  rpc PersonVerdicts(PersonVerdictsRequest) returns (PersonVerdictsResponse);
+  // MarkPerson records a filter's mark or a release on one person ID and tag; a mark
+  // never overwrites a release.
+  rpc MarkPerson(MarkPersonRequest) returns (MarkPersonResponse);
   // Space
   // Spaces returns the cached spaces, each with its direct child rooms.
   rpc Spaces(SpacesRequest) returns (SpacesResponse);
@@ -1483,6 +1558,9 @@ service BackendService {
   rpc SignOut(SignOutRequest) returns (SignOutResponse);
   // Deciding who else is in a room.
   rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+  // ChatOffers is every kind of chat each connected account of a network other than
+  // Matrix can make.
+  rpc ChatOffers(ChatOffersRequest) returns (ChatOffersResponse);
   rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
   rpc KickUser(KickUserRequest) returns (KickUserResponse);
   rpc BanUser(BanUserRequest) returns (BanUserResponse);
@@ -1602,6 +1680,9 @@ service BackendService {
   // RescanFilters judges cached messages by the filters as if they arrived now, and
   // lists the rooms that would move into a tag; with apply it moves them.
   rpc RescanFilters(RescanFiltersRequest) returns (RescanFiltersResponse);
+  // RescanPeople judges the senders of cached messages by the filters' sender moves,
+  // and lists the people they would mark into a tag; with apply it marks them.
+  rpc RescanPeople(RescanPeopleRequest) returns (RescanPeopleResponse);
   // ReloadConfig re-reads the configuration file the daemon was started with, and
   // returns the parse error if it will not load — leaving the running configuration
   // untouched.

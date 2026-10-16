@@ -69,6 +69,12 @@ const (
 	// BackendServiceRetagVerdictsProcedure is the fully-qualified name of the BackendService's
 	// RetagVerdicts RPC.
 	BackendServiceRetagVerdictsProcedure = "/backend.v1.BackendService/RetagVerdicts"
+	// BackendServicePersonVerdictsProcedure is the fully-qualified name of the BackendService's
+	// PersonVerdicts RPC.
+	BackendServicePersonVerdictsProcedure = "/backend.v1.BackendService/PersonVerdicts"
+	// BackendServiceMarkPersonProcedure is the fully-qualified name of the BackendService's MarkPerson
+	// RPC.
+	BackendServiceMarkPersonProcedure = "/backend.v1.BackendService/MarkPerson"
 	// BackendServiceSpacesProcedure is the fully-qualified name of the BackendService's Spaces RPC.
 	BackendServiceSpacesProcedure = "/backend.v1.BackendService/Spaces"
 	// BackendServiceRefreshSpacesProcedure is the fully-qualified name of the BackendService's
@@ -182,6 +188,9 @@ const (
 	// BackendServiceCreateRoomProcedure is the fully-qualified name of the BackendService's CreateRoom
 	// RPC.
 	BackendServiceCreateRoomProcedure = "/backend.v1.BackendService/CreateRoom"
+	// BackendServiceChatOffersProcedure is the fully-qualified name of the BackendService's ChatOffers
+	// RPC.
+	BackendServiceChatOffersProcedure = "/backend.v1.BackendService/ChatOffers"
 	// BackendServiceInviteUserProcedure is the fully-qualified name of the BackendService's InviteUser
 	// RPC.
 	BackendServiceInviteUserProcedure = "/backend.v1.BackendService/InviteUser"
@@ -312,6 +321,9 @@ const (
 	// BackendServiceRescanFiltersProcedure is the fully-qualified name of the BackendService's
 	// RescanFilters RPC.
 	BackendServiceRescanFiltersProcedure = "/backend.v1.BackendService/RescanFilters"
+	// BackendServiceRescanPeopleProcedure is the fully-qualified name of the BackendService's
+	// RescanPeople RPC.
+	BackendServiceRescanPeopleProcedure = "/backend.v1.BackendService/RescanPeople"
 	// BackendServiceReloadConfigProcedure is the fully-qualified name of the BackendService's
 	// ReloadConfig RPC.
 	BackendServiceReloadConfigProcedure = "/backend.v1.BackendService/ReloadConfig"
@@ -380,6 +392,12 @@ type BackendServiceClient interface {
 	MarkTag(context.Context, *connect.Request[v1.MarkTagRequest]) (*connect.Response[v1.MarkTagResponse], error)
 	// RetagVerdicts moves one tag's verdicts to its new name, or drops them.
 	RetagVerdicts(context.Context, *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error)
+	// PersonVerdicts lists every person a filter put into a tag, and every release, with
+	// the rule and the filter.
+	PersonVerdicts(context.Context, *connect.Request[v1.PersonVerdictsRequest]) (*connect.Response[v1.PersonVerdictsResponse], error)
+	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
+	// never overwrites a release.
+	MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -485,6 +503,9 @@ type BackendServiceClient interface {
 	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// Deciding who else is in a room.
 	CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error)
+	// ChatOffers is every kind of chat each connected account of a network other than
+	// Matrix can make.
+	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
 	InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error)
 	KickUser(context.Context, *connect.Request[v1.KickUserRequest]) (*connect.Response[v1.KickUserResponse], error)
 	BanUser(context.Context, *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error)
@@ -604,6 +625,9 @@ type BackendServiceClient interface {
 	// RescanFilters judges cached messages by the filters as if they arrived now, and
 	// lists the rooms that would move into a tag; with apply it moves them.
 	RescanFilters(context.Context, *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error)
+	// RescanPeople judges the senders of cached messages by the filters' sender moves,
+	// and lists the people they would mark into a tag; with apply it marks them.
+	RescanPeople(context.Context, *connect.Request[v1.RescanPeopleRequest]) (*connect.Response[v1.RescanPeopleResponse], error)
 	// ReloadConfig re-reads the configuration file the daemon was started with, and
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
@@ -722,6 +746,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceRetagVerdictsProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("RetagVerdicts")),
+			connect.WithClientOptions(opts...),
+		),
+		personVerdicts: connect.NewClient[v1.PersonVerdictsRequest, v1.PersonVerdictsResponse](
+			httpClient,
+			baseURL+BackendServicePersonVerdictsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PersonVerdicts")),
+			connect.WithClientOptions(opts...),
+		),
+		markPerson: connect.NewClient[v1.MarkPersonRequest, v1.MarkPersonResponse](
+			httpClient,
+			baseURL+BackendServiceMarkPersonProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("MarkPerson")),
 			connect.WithClientOptions(opts...),
 		),
 		spaces: connect.NewClient[v1.SpacesRequest, v1.SpacesResponse](
@@ -968,6 +1004,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceCreateRoomProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("CreateRoom")),
+			connect.WithClientOptions(opts...),
+		),
+		chatOffers: connect.NewClient[v1.ChatOffersRequest, v1.ChatOffersResponse](
+			httpClient,
+			baseURL+BackendServiceChatOffersProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ChatOffers")),
 			connect.WithClientOptions(opts...),
 		),
 		inviteUser: connect.NewClient[v1.InviteUserRequest, v1.InviteUserResponse](
@@ -1252,6 +1294,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("RescanFilters")),
 			connect.WithClientOptions(opts...),
 		),
+		rescanPeople: connect.NewClient[v1.RescanPeopleRequest, v1.RescanPeopleResponse](
+			httpClient,
+			baseURL+BackendServiceRescanPeopleProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RescanPeople")),
+			connect.WithClientOptions(opts...),
+		),
 		reloadConfig: connect.NewClient[v1.ReloadConfigRequest, v1.ReloadConfigResponse](
 			httpClient,
 			baseURL+BackendServiceReloadConfigProcedure,
@@ -1330,6 +1378,8 @@ type backendServiceClient struct {
 	tagVerdicts           *connect.Client[v1.TagVerdictsRequest, v1.TagVerdictsResponse]
 	markTag               *connect.Client[v1.MarkTagRequest, v1.MarkTagResponse]
 	retagVerdicts         *connect.Client[v1.RetagVerdictsRequest, v1.RetagVerdictsResponse]
+	personVerdicts        *connect.Client[v1.PersonVerdictsRequest, v1.PersonVerdictsResponse]
+	markPerson            *connect.Client[v1.MarkPersonRequest, v1.MarkPersonResponse]
 	spaces                *connect.Client[v1.SpacesRequest, v1.SpacesResponse]
 	refreshSpaces         *connect.Client[v1.RefreshSpacesRequest, v1.RefreshSpacesResponse]
 	addToSpace            *connect.Client[v1.AddToSpaceRequest, v1.AddToSpaceResponse]
@@ -1371,6 +1421,7 @@ type backendServiceClient struct {
 	deleteChat            *connect.Client[v1.DeleteChatRequest, v1.DeleteChatResponse]
 	signOut               *connect.Client[v1.SignOutRequest, v1.SignOutResponse]
 	createRoom            *connect.Client[v1.CreateRoomRequest, v1.CreateRoomResponse]
+	chatOffers            *connect.Client[v1.ChatOffersRequest, v1.ChatOffersResponse]
 	inviteUser            *connect.Client[v1.InviteUserRequest, v1.InviteUserResponse]
 	kickUser              *connect.Client[v1.KickUserRequest, v1.KickUserResponse]
 	banUser               *connect.Client[v1.BanUserRequest, v1.BanUserResponse]
@@ -1418,6 +1469,7 @@ type backendServiceClient struct {
 	clearDND              *connect.Client[v1.ClearDNDRequest, v1.ClearDNDResponse]
 	dND                   *connect.Client[v1.DNDRequest, v1.DNDResponse]
 	rescanFilters         *connect.Client[v1.RescanFiltersRequest, v1.RescanFiltersResponse]
+	rescanPeople          *connect.Client[v1.RescanPeopleRequest, v1.RescanPeopleResponse]
 	reloadConfig          *connect.Client[v1.ReloadConfigRequest, v1.ReloadConfigResponse]
 	checkConfig           *connect.Client[v1.CheckConfigRequest, v1.CheckConfigResponse]
 	getConfig             *connect.Client[v1.GetConfigRequest, v1.GetConfigResponse]
@@ -1493,6 +1545,16 @@ func (c *backendServiceClient) MarkTag(ctx context.Context, req *connect.Request
 // RetagVerdicts calls backend.v1.BackendService.RetagVerdicts.
 func (c *backendServiceClient) RetagVerdicts(ctx context.Context, req *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error) {
 	return c.retagVerdicts.CallUnary(ctx, req)
+}
+
+// PersonVerdicts calls backend.v1.BackendService.PersonVerdicts.
+func (c *backendServiceClient) PersonVerdicts(ctx context.Context, req *connect.Request[v1.PersonVerdictsRequest]) (*connect.Response[v1.PersonVerdictsResponse], error) {
+	return c.personVerdicts.CallUnary(ctx, req)
+}
+
+// MarkPerson calls backend.v1.BackendService.MarkPerson.
+func (c *backendServiceClient) MarkPerson(ctx context.Context, req *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error) {
+	return c.markPerson.CallUnary(ctx, req)
 }
 
 // Spaces calls backend.v1.BackendService.Spaces.
@@ -1698,6 +1760,11 @@ func (c *backendServiceClient) SignOut(ctx context.Context, req *connect.Request
 // CreateRoom calls backend.v1.BackendService.CreateRoom.
 func (c *backendServiceClient) CreateRoom(ctx context.Context, req *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error) {
 	return c.createRoom.CallUnary(ctx, req)
+}
+
+// ChatOffers calls backend.v1.BackendService.ChatOffers.
+func (c *backendServiceClient) ChatOffers(ctx context.Context, req *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error) {
+	return c.chatOffers.CallUnary(ctx, req)
 }
 
 // InviteUser calls backend.v1.BackendService.InviteUser.
@@ -1935,6 +2002,11 @@ func (c *backendServiceClient) RescanFilters(ctx context.Context, req *connect.R
 	return c.rescanFilters.CallUnary(ctx, req)
 }
 
+// RescanPeople calls backend.v1.BackendService.RescanPeople.
+func (c *backendServiceClient) RescanPeople(ctx context.Context, req *connect.Request[v1.RescanPeopleRequest]) (*connect.Response[v1.RescanPeopleResponse], error) {
+	return c.rescanPeople.CallUnary(ctx, req)
+}
+
 // ReloadConfig calls backend.v1.BackendService.ReloadConfig.
 func (c *backendServiceClient) ReloadConfig(ctx context.Context, req *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error) {
 	return c.reloadConfig.CallUnary(ctx, req)
@@ -2022,6 +2094,12 @@ type BackendServiceHandler interface {
 	MarkTag(context.Context, *connect.Request[v1.MarkTagRequest]) (*connect.Response[v1.MarkTagResponse], error)
 	// RetagVerdicts moves one tag's verdicts to its new name, or drops them.
 	RetagVerdicts(context.Context, *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error)
+	// PersonVerdicts lists every person a filter put into a tag, and every release, with
+	// the rule and the filter.
+	PersonVerdicts(context.Context, *connect.Request[v1.PersonVerdictsRequest]) (*connect.Response[v1.PersonVerdictsResponse], error)
+	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
+	// never overwrites a release.
+	MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -2127,6 +2205,9 @@ type BackendServiceHandler interface {
 	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// Deciding who else is in a room.
 	CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error)
+	// ChatOffers is every kind of chat each connected account of a network other than
+	// Matrix can make.
+	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
 	InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error)
 	KickUser(context.Context, *connect.Request[v1.KickUserRequest]) (*connect.Response[v1.KickUserResponse], error)
 	BanUser(context.Context, *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error)
@@ -2246,6 +2327,9 @@ type BackendServiceHandler interface {
 	// RescanFilters judges cached messages by the filters as if they arrived now, and
 	// lists the rooms that would move into a tag; with apply it moves them.
 	RescanFilters(context.Context, *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error)
+	// RescanPeople judges the senders of cached messages by the filters' sender moves,
+	// and lists the people they would mark into a tag; with apply it marks them.
+	RescanPeople(context.Context, *connect.Request[v1.RescanPeopleRequest]) (*connect.Response[v1.RescanPeopleResponse], error)
 	// ReloadConfig re-reads the configuration file the daemon was started with, and
 	// returns the parse error if it will not load — leaving the running configuration
 	// untouched.
@@ -2360,6 +2444,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceRetagVerdictsProcedure,
 		svc.RetagVerdicts,
 		connect.WithSchema(backendServiceMethods.ByName("RetagVerdicts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServicePersonVerdictsHandler := connect.NewUnaryHandler(
+		BackendServicePersonVerdictsProcedure,
+		svc.PersonVerdicts,
+		connect.WithSchema(backendServiceMethods.ByName("PersonVerdicts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceMarkPersonHandler := connect.NewUnaryHandler(
+		BackendServiceMarkPersonProcedure,
+		svc.MarkPerson,
+		connect.WithSchema(backendServiceMethods.ByName("MarkPerson")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceSpacesHandler := connect.NewUnaryHandler(
@@ -2606,6 +2702,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceCreateRoomProcedure,
 		svc.CreateRoom,
 		connect.WithSchema(backendServiceMethods.ByName("CreateRoom")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceChatOffersHandler := connect.NewUnaryHandler(
+		BackendServiceChatOffersProcedure,
+		svc.ChatOffers,
+		connect.WithSchema(backendServiceMethods.ByName("ChatOffers")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceInviteUserHandler := connect.NewUnaryHandler(
@@ -2890,6 +2992,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("RescanFilters")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceRescanPeopleHandler := connect.NewUnaryHandler(
+		BackendServiceRescanPeopleProcedure,
+		svc.RescanPeople,
+		connect.WithSchema(backendServiceMethods.ByName("RescanPeople")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceReloadConfigHandler := connect.NewUnaryHandler(
 		BackendServiceReloadConfigProcedure,
 		svc.ReloadConfig,
@@ -2978,6 +3086,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceMarkTagHandler.ServeHTTP(w, r)
 		case BackendServiceRetagVerdictsProcedure:
 			backendServiceRetagVerdictsHandler.ServeHTTP(w, r)
+		case BackendServicePersonVerdictsProcedure:
+			backendServicePersonVerdictsHandler.ServeHTTP(w, r)
+		case BackendServiceMarkPersonProcedure:
+			backendServiceMarkPersonHandler.ServeHTTP(w, r)
 		case BackendServiceSpacesProcedure:
 			backendServiceSpacesHandler.ServeHTTP(w, r)
 		case BackendServiceRefreshSpacesProcedure:
@@ -3060,6 +3172,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceSignOutHandler.ServeHTTP(w, r)
 		case BackendServiceCreateRoomProcedure:
 			backendServiceCreateRoomHandler.ServeHTTP(w, r)
+		case BackendServiceChatOffersProcedure:
+			backendServiceChatOffersHandler.ServeHTTP(w, r)
 		case BackendServiceInviteUserProcedure:
 			backendServiceInviteUserHandler.ServeHTTP(w, r)
 		case BackendServiceKickUserProcedure:
@@ -3154,6 +3268,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceDNDHandler.ServeHTTP(w, r)
 		case BackendServiceRescanFiltersProcedure:
 			backendServiceRescanFiltersHandler.ServeHTTP(w, r)
+		case BackendServiceRescanPeopleProcedure:
+			backendServiceRescanPeopleHandler.ServeHTTP(w, r)
 		case BackendServiceReloadConfigProcedure:
 			backendServiceReloadConfigHandler.ServeHTTP(w, r)
 		case BackendServiceCheckConfigProcedure:
@@ -3233,6 +3349,14 @@ func (UnimplementedBackendServiceHandler) MarkTag(context.Context, *connect.Requ
 
 func (UnimplementedBackendServiceHandler) RetagVerdicts(context.Context, *connect.Request[v1.RetagVerdictsRequest]) (*connect.Response[v1.RetagVerdictsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RetagVerdicts is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PersonVerdicts(context.Context, *connect.Request[v1.PersonVerdictsRequest]) (*connect.Response[v1.PersonVerdictsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PersonVerdicts is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MarkPerson is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error) {
@@ -3397,6 +3521,10 @@ func (UnimplementedBackendServiceHandler) SignOut(context.Context, *connect.Requ
 
 func (UnimplementedBackendServiceHandler) CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.CreateRoom is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ChatOffers is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error) {
@@ -3585,6 +3713,10 @@ func (UnimplementedBackendServiceHandler) DND(context.Context, *connect.Request[
 
 func (UnimplementedBackendServiceHandler) RescanFilters(context.Context, *connect.Request[v1.RescanFiltersRequest]) (*connect.Response[v1.RescanFiltersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RescanFilters is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RescanPeople(context.Context, *connect.Request[v1.RescanPeopleRequest]) (*connect.Response[v1.RescanPeopleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RescanPeople is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) ReloadConfig(context.Context, *connect.Request[v1.ReloadConfigRequest]) (*connect.Response[v1.ReloadConfigResponse], error) {

@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/gotd/td/tg"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // Unread is counted two ways. Telegram's counts (from the listing, reads on any
@@ -40,23 +42,30 @@ func (a *Adapter) loadUnread(ctx context.Context) {
 // changeUnread applies change to room's Telegram unread, stores and streams it.
 // change returns the read position's time in Unix ms (0 keeps the cached one).
 // fetched is the listing's fetch time, zero for live; live changes since fetched win.
+// A state that cannot be stored is logged.
 func (a *Adapter) changeUnread(ctx context.Context, room domain.RoomID, fetched time.Time, change func(u *domain.Unread) int64) {
+	if err := a.applyUnread(ctx, room, fetched, change); err != nil {
+		a.log.Warn("save unread state failed", "room", room, "err", err)
+	}
+}
+
+// applyUnread is changeUnread, a state that cannot be stored its error.
+func (a *Adapter) applyUnread(ctx context.Context, room domain.RoomID, fetched time.Time, change func(u *domain.Unread) int64) error {
 	if a.cache == nil {
-		return
+		return nil
 	}
 	a.unreadMu.Lock()
 	a.loadUnread(ctx)
 	if live := a.unreadAt[room]; !fetched.IsZero() && !live.IsZero() && !live.Before(fetched) {
 		a.unreadMu.Unlock()
-		return
+		return nil
 	}
 	u := a.unreadState[room]
 	u.RoomID = room
 	readTS := change(&u)
 	if err := a.cache.SaveUnread(ctx, u, readTS); err != nil {
 		a.unreadMu.Unlock()
-		a.log.Warn("save unread state failed", "room", room, "err", err)
-		return
+		return fmt.Errorf("telegram: save the unread state of %s: %w", room, err)
 	}
 	a.unreadState[room] = u
 	if fetched.IsZero() {
@@ -64,6 +73,7 @@ func (a *Adapter) changeUnread(ctx context.Context, room domain.RoomID, fetched 
 	}
 	a.unreadMu.Unlock()
 	a.recount(ctx, room)
+	return nil
 }
 
 // counted bumps unread (and mentions) for an arriving message as Telegram does;
@@ -182,6 +192,14 @@ func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 	emit(a, a.unread, u)
 }
 
+// RecountUnread counts rooms' unread again, when the cache counts them differently
+// (who is hidden changed).
+func (a *Adapter) RecountUnread(ctx context.Context, rooms []domain.RoomID) {
+	for _, room := range rooms {
+		a.recount(ctx, room)
+	}
+}
+
 // CachedUnread is every Telegram room's unread counts.
 func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	if a.cache == nil {
@@ -206,16 +224,34 @@ func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	return rows, nil
 }
 
-// MarkRead marks a chat read up to eventID on Telegram and here. private is ignored:
-// Telegram doesn't reveal who read in groups.
+// MarkRead reads a chat (or a forum's topic) through eventID here, then on Telegram.
+// Read here first: Telegram not taking it (offline, refused) leaves it read here, and
+// the mark is owed and sent again when the account connects. The read position only
+// moves forward, and a listing fetched before a read here does not undo it. A read
+// that cannot be kept here is an error, and Telegram is not told.
 func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, _ bool) error {
-	ch, err := a.chatOf(ctx, roomID)
-	if err != nil {
-		return err
-	}
 	id, ok := messageNumber(roomID, eventID)
 	if !ok {
 		return fmt.Errorf("telegram: %s is no message of %s", eventID, roomID)
+	}
+	ts := a.readTime(ctx, roomID, eventID)
+	if err := a.applyUnread(ctx, roomID, time.Time{}, func(u *domain.Unread) int64 {
+		u.ReadEvent, u.Notifications, u.Highlights, u.Marked = eventID, 0, 0, false
+		return ts
+	}); err != nil {
+		return err
+	}
+	a.reads.Add(roomID, id)
+	a.sendRead(ctx, roomID, id)
+	return nil
+}
+
+// sendRead tells Telegram a chat is read through message id and settles the mark when
+// it takes it; one it does not take (or an account not connected) stays owed.
+func (a *Adapter) sendRead(ctx context.Context, roomID domain.RoomID, id int) {
+	ch, err := a.chatOf(ctx, roomID)
+	if err != nil {
+		return // not connected: owed until it is
 	}
 	switch channel, isChannel := ch.peer.(*tg.InputPeerChannel); {
 	case ch.topic != 0: // a forum's topic is read as its own
@@ -230,41 +266,30 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 		_, err = ch.conn.client.API().MessagesReadHistory(ctx, &tg.MessagesReadHistoryRequest{Peer: ch.peer, MaxID: id})
 	}
 	if err != nil {
-		return fmt.Errorf("telegram: mark %s read: %w", roomID, err)
+		a.log.Warn("Telegram did not take a read mark; it is kept and sent again on reconnect", "room", roomID, "err", err)
+		return
 	}
-	ts := a.readTime(ctx, roomID, eventID)
-	a.changeUnread(ctx, roomID, time.Time{}, func(u *domain.Unread) int64 {
-		u.ReadEvent, u.Notifications, u.Highlights, u.Marked = eventID, 0, 0, false
-		return ts
-	})
-	return nil
+	a.reads.Settle(roomID, id)
+}
+
+// sendOwed sends the owed read marks of the account self, on (re)connecting.
+func (a *Adapter) sendOwed(ctx context.Context, self int64) {
+	for room, id := range a.reads.Take(strconv.FormatInt(self, 10)) {
+		a.reads.Add(room, id) // owed until Telegram takes it
+		a.sendRead(ctx, room, id)
+	}
 }
 
 // MarkRoomsRead marks each room read up to its newest cached message.
 func (a *Adapter) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error) {
-	var result domain.ReadResult
 	if a.cache == nil {
-		result.Skipped = len(roomIDs)
-		return result, nil
+		return domain.ReadResult{Skipped: len(roomIDs)}, nil
 	}
-	latest, err := a.cache.LatestEvents(ctx, roomIDs)
+	result, err := readstate.MarkRoomsRead(ctx, a.cache, roomIDs, func(room domain.RoomID, event domain.EventID) error {
+		return a.MarkRead(ctx, room, event, private)
+	})
 	if err != nil {
-		return domain.ReadResult{}, fmt.Errorf("telegram: newest messages: %w", err)
-	}
-	for _, room := range roomIDs {
-		event, ok := latest[room]
-		if !ok {
-			result.Skipped++
-			continue
-		}
-		if err := a.MarkRead(ctx, room, event, private); err != nil {
-			result.Failed++
-			if result.FirstError == "" {
-				result.FirstError = err.Error()
-			}
-			continue
-		}
-		result.Marked++
+		return result, fmt.Errorf("telegram: %w", err)
 	}
 	return result, nil
 }

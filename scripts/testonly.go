@@ -65,6 +65,7 @@ var implemented = map[string]string{
 	"SetChannelAccessHash":  "gotd updates.ChannelAccessHasher",
 	"GetChannelAccessHash":  "gotd updates.ChannelAccessHasher",
 	"SetUserAccessHash":     "gotd updates.UserAccessHasher",
+	"UnmarshalTOML":         "toml.Unmarshaler",
 	"GetUserAccessHash":     "gotd updates.UserAccessHasher",
 }
 

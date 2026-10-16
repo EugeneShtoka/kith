@@ -132,3 +132,17 @@ const (
 	// ChatCommunity is a WhatsApp community: groups under one parent.
 	ChatCommunity
 )
+
+// ChatOffer is one kind of chat an account can make, as its network describes it.
+type ChatOffer struct {
+	// On is the account it is made on.
+	On RoomOwner
+	// Account is how the account reads, to tell a network's accounts apart: a number,
+	// a workspace's name.
+	Account string
+	Kind    ChatKind
+	Label   string
+	Detail  string
+	// MinMembers is how many others must be in it from the start.
+	MinMembers int
+}

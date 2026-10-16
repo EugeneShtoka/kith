@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 // Unread is counted locally: messages not yours after a room's read position. The
@@ -47,23 +48,25 @@ func (a *Adapter) placeRead(ctx context.Context, room domain.RoomID, at time.Tim
 	if a.cache == nil || a.placed(ctx, room) {
 		return
 	}
-	a.readTo(ctx, room, "", at)
+	if err := a.readTo(ctx, room, "", at); err != nil {
+		a.log.Warn("save a read position failed", "err", err)
+	}
 }
 
 // readTo moves a room's read position forward to event; the cache never moves it back.
-func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, event domain.EventID, at time.Time) {
+func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, event domain.EventID, at time.Time) error {
 	if a.cache == nil {
-		return
+		return nil
 	}
 	if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room, ReadEvent: event}, at.UnixMilli()); err != nil {
-		a.log.Warn("save a read position failed", "room", room, "err", err)
-		return
+		return fmt.Errorf("slack: save the read position of %s: %w", room, err)
 	}
 	a.mu.Lock()
 	if a.positions != nil && at.After(a.positions[room]) {
 		a.positions[room] = at
 	}
 	a.mu.Unlock()
+	return nil
 }
 
 func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
@@ -92,8 +95,19 @@ func (a *Adapter) onMarked(ctx context.Context, w *workspace, channel, ts string
 		return
 	}
 	room := roomID(w.creds.Team, channel)
-	a.readTo(ctx, room, messageID(w.creds.Team, channel, ts), tsTime(ts))
+	if err := a.readTo(ctx, room, messageID(w.creds.Team, channel, ts), tsTime(ts)); err != nil {
+		a.log.Warn("save a read position failed", "account", w.account.Name, "err", err)
+		return
+	}
 	a.recount(ctx, room)
+}
+
+// RecountUnread counts rooms' unread again, when the cache counts them differently
+// (who is hidden changed).
+func (a *Adapter) RecountUnread(ctx context.Context, rooms []domain.RoomID) {
+	for _, room := range rooms {
+		a.recount(ctx, room)
+	}
 }
 
 // CachedUnread is every Slack room's unread counts.
@@ -125,54 +139,69 @@ func (a *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	return rows, nil
 }
 
-// MarkRead marks a conversation read up to eventID on Slack (all your clients follow)
-// and locally. Slack shows nobody your read position, so private changes nothing.
+// MarkRead marks a conversation read up to eventID here, then on Slack (all your
+// clients follow). Read here first: Slack not taking it (offline, refused) leaves it
+// read here, and the mark is owed and sent again when the workspace connects. Slack
+// shows nobody your read position, so private changes nothing.
 func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, _ bool) error {
-	w, channel, err := a.conversation(roomID)
-	if err != nil {
-		return err
+	room := domain.ParseID(string(roomID))
+	if room.Network != domain.ProtocolSlack || room.Account == "" {
+		return fmt.Errorf("slack: %s is not a Slack conversation", roomID)
 	}
 	in, ts, ok := cutLast(domain.ParseID(string(eventID)).Native)
-	if !ok || in != channel {
+	if !ok || in != room.Native {
 		return fmt.Errorf("slack: %s is not a message of %s", eventID, roomID)
 	}
-	if err := w.client.MarkConversationContext(ctx, channel, ts); err != nil {
-		return fmt.Errorf("slack: mark %s read: %w", roomID, err)
+	if err := a.readTo(ctx, roomID, eventID, tsTime(ts)); err != nil {
+		return err
 	}
-	a.readTo(ctx, roomID, eventID, tsTime(ts))
 	a.recount(ctx, roomID)
+	a.reads.Add(roomID, ts)
+	if w, _, err := a.conversation(roomID); err == nil {
+		a.sendRead(ctx, w, room.Native, ts)
+	}
 	return nil
 }
 
+// sendRead tells Slack a conversation is read through ts and settles the mark when it
+// takes it; one it does not take stays owed.
+func (a *Adapter) sendRead(ctx context.Context, w *workspace, channel, ts string) {
+	if err := w.client.MarkConversationContext(ctx, channel, ts); err != nil {
+		a.log.Warn("Slack did not take a read mark; it is kept and sent again on reconnect",
+			"account", w.account.Name, "err", err)
+		return
+	}
+	a.reads.Settle(roomID(w.creds.Team, channel), ts)
+}
+
+// sendOwed sends a workspace's owed read marks, on (re)connecting.
+func (a *Adapter) sendOwed(ctx context.Context, w *workspace) {
+	for room, ts := range a.reads.Take(w.creds.Team) {
+		a.reads.Add(room, ts) // owed until Slack takes it
+		a.sendRead(ctx, w, domain.ParseID(string(room)).Native, ts)
+	}
+}
+
+// laterTS reports whether Slack message time a is after b.
+func laterTS(a, b string) bool { return tsTime(a).After(tsTime(b)) }
+
 // MarkRoomsRead marks each room and its threads read up to its newest cached message.
 func (a *Adapter) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, private bool) (domain.ReadResult, error) {
-	var result domain.ReadResult
 	if a.cache == nil {
-		result.Skipped = len(roomIDs)
-		return result, nil
+		return domain.ReadResult{Skipped: len(roomIDs)}, nil
 	}
-	latest, err := a.cache.LatestEvents(ctx, roomIDs)
-	if err != nil {
-		return domain.ReadResult{}, fmt.Errorf("slack: newest messages: %w", err)
-	}
-	for _, room := range roomIDs {
-		event, ok := latest[room]
-		if !ok {
-			result.Skipped++
-			continue
-		}
+	result, err := readstate.MarkRoomsRead(ctx, a.cache, roomIDs, func(room domain.RoomID, event domain.EventID) error {
 		if err := a.MarkRead(ctx, room, event, private); err != nil {
-			result.Failed++
-			if result.FirstError == "" {
-				result.FirstError = err.Error()
-			}
-			continue
+			return err
 		}
 		if ts, ok, err := a.cache.MessageTS(ctx, room, event); err == nil && ok {
 			a.readThreadsTo(ctx, room, event, time.UnixMilli(ts))
 			a.recount(ctx, room)
 		}
-		result.Marked++
+		return nil
+	})
+	if err != nil {
+		return result, fmt.Errorf("slack: %w", err)
 	}
 	return result, nil
 }

@@ -860,12 +860,13 @@ func setInt(target *int, value string) error {
 
 func enterKeyShow(c config.Config) string {
 	return fmt.Sprintf("%s sends · %s new line",
-		firstKey(c.Keys.Insert.Send), firstKey(c.Keys.Insert.Newline))
+		firstKey(c.Keys.Bindings["insert.send"]), firstKey(c.Keys.Bindings["insert.newline"]))
 }
 
 // toggleEnterKey swaps the send and newline bindings, so no key is claimed twice.
 func toggleEnterKey(c *config.Config, _ string) error {
-	c.Keys.Insert.Send, c.Keys.Insert.Newline = c.Keys.Insert.Newline, c.Keys.Insert.Send
+	b := c.Keys.Bindings
+	b["insert.send"], b["insert.newline"] = b["insert.newline"], b["insert.send"]
 	return nil
 }
 

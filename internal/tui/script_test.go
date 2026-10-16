@@ -345,7 +345,7 @@ func TestTheFocusKeyCanBeReplacedByAScript(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Timeline.OpenURLFocus = "-" // the built-in gives up gX
+	keys.Bindings["timeline.open_url_focus"] = "-" // the built-in gives up gX
 	script := config.Script{Name: "go", Needs: []string{"url"}, Output: "none", Keys: "gX"}
 
 	m := withContext(t, "go", "#!/bin/sh\necho \"would open $KITH_URL\" >&2\n", script,
@@ -380,7 +380,7 @@ func TestTheReplacementStillAsksWhichLink(t *testing.T) {
 	t.Parallel()
 
 	keys := config.DefaultKeys()
-	keys.Timeline.OpenURLFocus = "-"
+	keys.Bindings["timeline.open_url_focus"] = "-"
 	script := config.Script{Name: "go", Needs: []string{"url"}, Output: "none", Keys: "gX"}
 
 	m := withContext(t, "go", "#!/bin/sh\nexit 0\n", script,

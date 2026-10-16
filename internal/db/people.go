@@ -13,7 +13,7 @@ import (
 // "telegram:<id>", a bridge login). Of two names for one identifier, the better
 // ranked is kept.
 func (c *Cache) SetPeople(ctx context.Context, source string, names []domain.PersonName, links []domain.PersonLink) error {
-	return c.inTx(ctx, func(tx *sql.Tx) error {
+	err := c.inTx(ctx, func(tx *sql.Tx) error {
 		for _, table := range []string{"person_names", "person_links"} {
 			// #nosec G202 -- table is one of two constants.
 			if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE source = ?", source); err != nil {
@@ -25,6 +25,11 @@ func (c *Cache) SetPeople(ctx context.Context, source string, names []domain.Per
 		}
 		return savePersonLinks(ctx, tx, source, links)
 	})
+	if err != nil {
+		return err
+	}
+	// A link can join someone to a hidden person.
+	return c.rebuildHidden(ctx)
 }
 
 // savePersonNames adds what source calls identifiers.

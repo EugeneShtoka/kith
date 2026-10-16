@@ -38,6 +38,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"Unread", domain.Unread{}, func(v any) any {
 			return protoconv.ProtoToUnread(protoconv.UnreadToProto(v.(domain.Unread)))
 		}},
+		{"ChatOffer", domain.ChatOffer{}, func(v any) any {
+			return protoconv.ProtoToChatOffer(protoconv.ChatOfferToProto(v.(domain.ChatOffer)))
+		}},
 		{"Reaction", domain.Reaction{}, func(v any) any {
 			return protoconv.ProtoToReaction(protoconv.ReactionToProto(v.(domain.Reaction)))
 		}},
@@ -84,6 +87,12 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		}},
 		{"TagVerdict", domain.TagVerdict{}, func(v any) any {
 			return protoconv.ProtoToVerdict(protoconv.VerdictToProto(v.(domain.TagVerdict)))
+		}},
+		{"PersonVerdict", domain.PersonVerdict{}, func(v any) any {
+			return protoconv.ProtoToPersonVerdicts(protoconv.PersonVerdictsToProto([]domain.PersonVerdict{v.(domain.PersonVerdict)}))[0]
+		}},
+		{"PersonCandidate", domain.PersonCandidate{}, func(v any) any {
+			return protoconv.ProtoToPersonCandidates(protoconv.PersonCandidatesToProto([]domain.PersonCandidate{v.(domain.PersonCandidate)}))[0]
 		}},
 		{"MoveCandidate", domain.MoveCandidate{}, func(v any) any {
 			return protoconv.ProtoToCandidates(protoconv.CandidatesToProto([]domain.MoveCandidate{v.(domain.MoveCandidate)}))[0]

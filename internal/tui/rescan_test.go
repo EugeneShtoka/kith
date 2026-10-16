@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -96,5 +97,62 @@ func TestRescanRefusesABadSpan(t *testing.T) {
 	}
 	if at, err := parseSince("", time.Now()); err != nil || !at.IsZero() {
 		t.Errorf("parseSince(\"\") = %v, %v, want everything", at, err)
+	}
+}
+
+// peopleRescanBackend also judges senders, keeping each people call.
+type peopleRescanBackend struct {
+	rescanBackend
+	people      []domain.PersonCandidate
+	peopleCalls []rescanCall
+	marked      []string
+}
+
+func (b *peopleRescanBackend) RescanPeople(_ context.Context, since time.Time, apply bool, people []string) ([]domain.PersonCandidate, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.peopleCalls = append(b.peopleCalls, rescanCall{since: since, apply: apply})
+	if !apply {
+		return b.people, nil
+	}
+	b.marked = append(b.marked, people...)
+	return b.people[:len(people)], nil
+}
+
+// :rescan lists the people the filters would mark beside the rooms, all ticked; what is
+// left ticked is applied to each list alone, and nothing is asked of a list left empty
+// (an empty list means everything to the daemon).
+func TestRescanListsPeopleBesideRooms(t *testing.T) {
+	t.Parallel()
+	b := &peopleRescanBackend{
+		rescanBackend: rescanBackend{found: []domain.MoveCandidate{{
+			Verdict: domain.TagVerdict{Room: "!a:x", Tag: "Spam", Rule: domain.MoveAlways, Filter: "elections"},
+			Sample:  domain.Message{RoomID: "!a:x", Body: "go vote"},
+		}}},
+		people: []domain.PersonCandidate{{
+			Verdict: domain.PersonVerdict{Person: "@spam:x", Tag: "Spam", Rule: domain.MoveSenderSpread, Filter: "runs"},
+			Sample:  domain.Message{RoomID: "!b:x", Body: "free bitcoin"},
+		}},
+	}
+	m := New(context.Background(), b, config.Display{}).WithConfigFile("", config.Config{})
+	m, cmd := m.runCommandLine(":rescan")
+	m = update(t, m, cmd())
+	if got := m.picker.checkedValues(); m.picker.kind != pickerRescan || len(got) != 2 || !strings.Contains(m.picker.spec.title, "1 move and 1 mark") {
+		t.Fatalf("picker %v %q ticked %v, want the room and the person", m.picker.kind, m.picker.spec.title, got)
+	}
+
+	m.picker.checked = map[string]bool{markValue(b.people[0].Verdict): true}
+	m, cmd = m.acceptPick()
+	m = update(t, m, cmd())
+	if !slices.Equal(b.marked, []string{"@spam:x"}) {
+		t.Errorf("marked %v, want the ticked person", b.marked)
+	}
+	for _, call := range b.calls {
+		if call.apply {
+			t.Errorf("rooms were applied with %v though none was ticked", call.rooms)
+		}
+	}
+	if !strings.Contains(m.status(), "1 mark") {
+		t.Errorf("status %q, want it to count the mark", m.status())
 	}
 }

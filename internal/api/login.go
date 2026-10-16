@@ -30,8 +30,8 @@ type LoginRecord struct {
 	Values map[string]string
 }
 
-// LoginStep is the current login step. Exactly one of Ask, Code, Configure, Restart
-// and Done is set; Note may accompany any.
+// LoginStep is the current login step. Exactly one of Ask, Code, QR, Configure,
+// Restart and Done is set; Note may accompany any.
 type LoginStep struct {
 	// Login identifies the conversation for AnswerLogin and CancelLogin.
 	Login string
@@ -44,6 +44,9 @@ type LoginStep struct {
 	// Code is shown until the next step (Note says where to type it); AnswerLogin
 	// with no values waits for it.
 	Code string
+	// QR is data to draw as a QR code until the next step, for a phone to scan (Note
+	// says where); AnswerLogin with no values waits for the scan.
+	QR string
 	// Configure is an account to write into the config; after the daemon re-reads
 	// it, AnswerLogin with no values continues.
 	Configure *LoginRecord
@@ -89,6 +92,9 @@ type LoginTalk interface {
 	// Show displays code until the next step; note says where to type it. It does
 	// not wait.
 	Show(ctx context.Context, code, note string) error
+	// ShowQR draws data as a QR code until the next step; note says what scans it. It
+	// does not wait.
+	ShowQR(ctx context.Context, data, note string) error
 	// Configure has the client write a new account into the config and waits until
 	// the daemon re-reads it.
 	Configure(ctx context.Context, record LoginRecord) error

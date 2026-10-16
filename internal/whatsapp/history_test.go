@@ -2,7 +2,6 @@ package whatsapp
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -14,8 +13,8 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
 func TestTheReadPositionFromHistory(t *testing.T) {
@@ -204,19 +203,62 @@ func TestTypingIsWhoIsTypingNow(t *testing.T) {
 	}
 }
 
-// Without a connection, marking read errors and typing is a no-op.
-func TestReadingNeedsAConnection(t *testing.T) {
+// Reading is local first: with nothing connected, the room is read here and the
+// receipt owed (for WhatsApp, until the account connects); a resend that still cannot go
+// keeps it owed. A room with nothing cached is skipped; typing is a courtesy.
+func TestReadingWhileAwayIsKeptAndOwed(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
-	if err := a.MarkRead(ctx, danaChat, "whatsapp:"+ownDigits+"/3EB0", false); !errors.Is(err, api.ErrNetworkOff) {
+	a, cache, _ := offline(t, Account{Name: "home", Digits: ownDigits})
+	event := domain.EventID("whatsapp:" + ownDigits + "/3EB0")
+	if err := a.MarkRead(ctx, danaChat, event, true); err != nil {
 		t.Errorf("MarkRead with nothing connected = %v", err)
 	}
-	if got, err := a.MarkRoomsRead(ctx, []domain.RoomID{danaChat}, false); err != nil || got.Skipped != 1 {
+	rows, err := cache.Unread(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := false
+	for _, u := range rows {
+		read = read || (u.RoomID == danaChat && u.ReadEvent == event)
+	}
+	if !read {
+		t.Errorf("not read here: %+v", rows)
+	}
+	owed := a.reads.Take(ownDigits)
+	if m := owed[danaChat]; m.event != event || !m.private {
+		t.Fatalf("the receipt is not owed: %+v", owed)
+	}
+	a.reads.Add(danaChat, owed[danaChat])
+	a.sendOwed(ctx, Account{Name: "home", Digits: ownDigits}) // still away: cannot go
+	if again := a.reads.Take(ownDigits); again[danaChat].event != event {
+		t.Errorf("a resend that could not go dropped the receipt: %+v", again)
+	}
+	if got, err := a.MarkRoomsRead(ctx, []domain.RoomID{"whatsapp:" + ownDigits + "/nothing@s.whatsapp.net"}, false); err != nil || got.Skipped != 1 {
 		t.Errorf("MarkRoomsRead of a room with nothing cached = (%+v, %v), want it skipped", got, err)
 	}
 	if err := a.SendTyping(ctx, danaChat, true, time.Second); err != nil {
 		t.Errorf("SendTyping with nothing connected = %v", err)
+	}
+}
+
+// Owed receipts, by account: a later one replaces an earlier, never the reverse;
+// settling an earlier one leaves a later owed; one account's are not another's.
+func TestOwedReadReceipts(t *testing.T) {
+	t.Parallel()
+	o := readstate.NewOwed(laterReceipt)
+	t0 := time.Unix(1000, 0)
+	a, b := domain.RoomID("whatsapp:1/x@s.whatsapp.net"), domain.RoomID("whatsapp:2/y@s.whatsapp.net")
+	o.Add(a, receipt{event: "e1", at: t0})
+	o.Add(a, receipt{event: "e3", at: t0.Add(2 * time.Second)})
+	o.Add(a, receipt{event: "e2", at: t0.Add(time.Second)})
+	o.Add(b, receipt{event: "f1", at: t0})
+	o.Settle(a, receipt{event: "e1", at: t0})
+	if got := o.Take("1"); got[a].event != "e3" || len(got) != 1 {
+		t.Errorf("account 1 owes %+v", got)
+	}
+	if got := o.Take("2"); got[b].event != "f1" {
+		t.Errorf("account 2 owes %+v", got)
 	}
 }
 

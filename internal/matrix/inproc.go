@@ -47,6 +47,8 @@ type InProc struct {
 	left leftRooms
 	// networks reads each room's network in the background (networks.go).
 	networks roomNetworks
+	// reads is the read receipts the homeserver has not taken yet (readowed.go).
+	reads owedReads
 
 	// machineMu guards the crypto machine EnableEncryption publishes, possibly while RPCs
 	// are served (degraded start). Never held across a call that can take it again.
@@ -406,16 +408,24 @@ func newestVersionBut(revs []domain.Revision, deleted domain.EventID) (domain.Re
 	return best, found
 }
 
-// onSync ingests each joined room's unread counts, receipts, marked-unread, stars,
-// tag verdicts and typing.
+// onSync ingests the person verdicts, and each joined room's unread counts, receipts,
+// marked-unread, stars, tag verdicts and typing.
 func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since string) bool {
 	if b.onSynced != nil {
 		b.onSynced(time.Now())
 	}
 	b.readNetworksIfWanted(ctx)
+	// A sync succeeded: the homeserver is there for receipts owed. Not on this goroutine.
+	if len(b.reads.owed()) > 0 {
+		go b.sendOwed(context.WithoutCancel(ctx))
+	}
 	// Reported, not acted on: refreshing is a network call on the sync goroutine.
 	if b.onRoomsStale != nil && roomsChanged(resp, b.client.UserID) {
 		b.onRoomsStale()
+	}
+	// The people account data present is the whole set; absence means no change.
+	if content, present := peopleFrom(resp.AccountData.Events); present {
+		b.mirrorPeople(ctx, content.verdicts())
 	}
 	b.syncInvites(ctx, resp, since)
 	b.fetchHeld(ctx)

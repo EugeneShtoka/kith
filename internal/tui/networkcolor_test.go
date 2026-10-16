@@ -226,3 +226,39 @@ func TestTheRailKeepsItsColorsWhenTheConfigIsApplied(t *testing.T) {
 		t.Errorf("after a room was renamed, Only WhatsApp's network = %q, want WhatsApp", network(m))
 	}
 }
+
+// A network's own space (an account's, a bridge's) is in that network's color when the
+// network has one, before any room is in it and whatever rooms it holds; with no color for
+// the network, its rooms decide as for any space. A space you made has no network of its own.
+func TestANetworksOwnSpaceTakesItsColor(t *testing.T) {
+	t.Parallel()
+	display := config.Display{
+		Theme: config.Theme{Networks: config.NetworkColors{GoogleMessages: "coral", LinkedIn: "none"}},
+		Rail:  config.Rail{NetworkColors: true},
+	}
+	rooms := []domain.Room{{ID: "whatsapp:1/g@g.us", Name: "Family"}}
+	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: rooms})
+	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
+		{ID: "gmessages:a/account", Name: "SMS", Bridge: domain.ProtocolGMessages, Original: true},
+		{ID: "gmessages:b/account", Name: "SMS mixed", Bridge: domain.ProtocolGMessages, Original: true,
+			Children: []domain.RoomID{"whatsapp:1/g@g.us"}},
+		{ID: "linkedin:c/account", Name: "LinkedIn", Bridge: domain.ProtocolLinkedIn, Original: true},
+		{ID: "!mine:x", Name: "Mine", Bridge: domain.ProtocolMatrix},
+	}}))
+	networks := map[string]domain.Protocol{}
+	for _, g := range m.rail.groups {
+		networks[g.key] = g.network
+	}
+	if networks["SMS"] != domain.ProtocolGMessages || networks["SMS mixed"] != domain.ProtocolGMessages {
+		t.Errorf("an account's space with its network colored: %q, %q", networks["SMS"], networks["SMS mixed"])
+	}
+	if networks["LinkedIn"] != "" || networks["Mine"] != "" {
+		t.Errorf("no color for the network, or a space of your own: %q, %q", networks["LinkedIn"], networks["Mine"])
+	}
+	sms := m.rail.groups[indexOfGroup(m.rail.groups, "SMS")]
+	coral, _ := theme.ParseColor("coral")
+	r, g, b, _ := coral.RGBA()
+	if row := m.railRow(sms, false, false, 20); !strings.Contains(row, fmt.Sprintf("38;2;%d;%d;%d", r>>8, g>>8, b>>8)) {
+		t.Errorf("the empty SMS space's rail row is not coral: %q", row)
+	}
+}

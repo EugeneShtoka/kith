@@ -15,7 +15,10 @@ type Tag struct {
 	Rule     []string // terms; see TagSet.Has
 	Picked   []string // room entries: a room ID, or room:<name>
 	Excluded []string // room entries
-	Hidden   bool     // no rail row; the tag still works wherever a place is named
+	// People are senders put in the tag by hand, one identifier each; a muted tag's
+	// are hidden (MutedPeople).
+	People []string
+	Hidden bool // no rail row; the tag still works wherever a place is named
 
 	// Silent (counts_unread = false): its rooms count as read everywhere else, for
 	// badges, other tags' rules and mark-all-read.
@@ -150,8 +153,8 @@ type TagSet struct {
 func NewTagSet(tags []Tag) (TagSet, []string, error) {
 	set := TagSet{byName: make(map[string]int, len(tags)), cyclic: map[[2]string]bool{}}
 	known := make(map[string]bool, len(tags))
-	for i, t := range tags {
-		name := strings.TrimSpace(t.Name)
+	for i := range tags {
+		name := strings.TrimSpace(tags[i].Name)
 		if name == "" {
 			return TagSet{}, nil, fmt.Errorf("tag %d: name is empty", i+1)
 		}
@@ -161,8 +164,9 @@ func NewTagSet(tags []Tag) (TagSet, []string, error) {
 		}
 		known[lower] = true
 	}
-	for i, t := range tags {
-		c := compiled{tag: t}
+	for i := range tags {
+		t := &tags[i]
+		c := compiled{tag: *t}
 		for _, raw := range t.Rule {
 			parsed, err := parseTerm(raw, known)
 			if err != nil {
@@ -443,6 +447,17 @@ func refiled(entries []string, facts RoomFacts, others []RoomFacts) []string {
 func (s TagSet) Excludes(name string, facts RoomFacts) bool {
 	i, ok := s.Index(name)
 	return ok && slices.ContainsFunc(s.tags[i].excluded, facts.Names)
+}
+
+// MutedPeople is the people of every tag with notifies = false: the ones hidden.
+func (s TagSet) MutedPeople() []string {
+	var out []string
+	for i := range s.tags {
+		if s.tags[i].tag.Mute {
+			out = append(out, s.tags[i].tag.People...)
+		}
+	}
+	return out
 }
 
 // Mutes reports whether one of the named tags has notifies = false.

@@ -158,6 +158,18 @@ func (r *Remote) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
 	return err
 }
 
+// PersonVerdicts is every person's marks and releases, from the daemon's cache.
+func (r *Remote) PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error) {
+	resp, err := call(ctx, "list person verdicts", r.c.PersonVerdicts, &v1.PersonVerdictsRequest{})
+	return pc.ProtoToPersonVerdicts(resp.GetVerdicts()), err
+}
+
+// MarkPerson records a mark or a release on one person ID and tag.
+func (r *Remote) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error {
+	_, err := call(ctx, "mark person", r.c.MarkPerson, &v1.MarkPersonRequest{Verdict: pc.PersonVerdictToProto(verdict)})
+	return err
+}
+
 // RetagVerdicts moves one tag's verdicts to its new name, or drops them.
 func (r *Remote) RetagVerdicts(ctx context.Context, from, to string) error {
 	_, err := call(ctx, "move tag verdicts", r.c.RetagVerdicts, &v1.RetagVerdictsRequest{From: from, To: to})
@@ -226,6 +238,15 @@ func (r *Remote) SignOut(ctx context.Context, space domain.SpaceID, forget bool)
 func (r *Remote) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	_, err := call(ctx, "leave room", r.c.LeaveRoom, &v1.LeaveRoomRequest{RoomId: string(roomID)})
 	return err
+}
+
+// ChatOffers asks the daemon what chats each account can make.
+func (r *Remote) ChatOffers(ctx context.Context) ([]domain.ChatOffer, error) {
+	resp, err := call(ctx, "list the chats accounts can make", r.c.ChatOffers, &v1.ChatOffersRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return pc.ProtoToChatOffers(resp.GetOffers()), nil
 }
 
 // CreateRoom keeps the in-process contract: a partial failure returns the new room's
@@ -314,8 +335,8 @@ func (r *Remote) Redact(ctx context.Context, roomID domain.RoomID, eventID domai
 
 // SendFile passes the path, not the bytes: client and daemon are the same user on the
 // same machine. The caller makes it absolute.
-func (r *Remote) SendFile(ctx context.Context, roomID domain.RoomID, path, caption string) error {
-	_, err := call(ctx, "send file", r.c.SendFile, &v1.SendFileRequest{RoomId: string(roomID), Path: path, Caption: caption})
+func (r *Remote) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
+	_, err := call(ctx, "send file", r.c.SendFile, &v1.SendFileRequest{RoomId: string(roomID), Path: path, Name: name, Caption: caption})
 	return err
 }
 
@@ -694,6 +715,17 @@ func (r *Remote) RescanFilters(ctx context.Context, since time.Time, apply bool,
 	}
 	resp, err := call(ctx, "rescan filters", r.c.RescanFilters, req)
 	return pc.ProtoToCandidates(resp.GetRooms()), err
+}
+
+// RescanPeople judges the senders of cached messages since since by the filters'
+// sender moves; with apply it marks them (only those in people, when given).
+func (r *Remote) RescanPeople(ctx context.Context, since time.Time, apply bool, people []string) ([]domain.PersonCandidate, error) {
+	req := &v1.RescanPeopleRequest{Apply: apply, People: people}
+	if !since.IsZero() {
+		req.SinceUnixMs = since.UnixMilli()
+	}
+	resp, err := call(ctx, "rescan people", r.c.RescanPeople, req)
+	return pc.ProtoToPersonCandidates(resp.GetPeople()), err
 }
 
 // ReloadConfig asks the daemon to re-read its config, returning the parse error.

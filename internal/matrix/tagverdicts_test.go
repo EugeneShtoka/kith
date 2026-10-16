@@ -17,11 +17,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// accountDataServer holds room account data of one type per room and records writes.
+// accountDataServer holds room account data of one type per room, and the account's
+// person verdicts, and records writes.
 type accountDataServer struct {
 	*httptest.Server
 	mu     sync.Mutex
-	stored map[string]string // room ID → the JSON content of org.kith.tags
+	stored map[string]string // room ID → the JSON content of org.kith.tags; peopleType → org.kith.people
 	puts   int
 }
 
@@ -29,7 +30,7 @@ func newAccountDataServer(t *testing.T) *accountDataServer {
 	t.Helper()
 	s := &accountDataServer{stored: map[string]string{}}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// .../user/{user}/rooms/{room}/account_data/{type}
+		// .../user/{user}/rooms/{room}/account_data/{type}, or .../user/{user}/account_data/{type}
 		parts := strings.Split(r.URL.Path, "/")
 		at := -1
 		for i, p := range parts {
@@ -38,12 +39,15 @@ func newAccountDataServer(t *testing.T) *accountDataServer {
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if at < 2 || at+1 >= len(parts) || parts[at+1] != tagsType {
+		if at < 2 || at+1 >= len(parts) || (parts[at+1] != tagsType && parts[at+1] != peopleType) {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = io.WriteString(w, `{"errcode":"M_UNRECOGNIZED"}`)
 			return
 		}
 		room := parts[at-1]
+		if parts[at+1] == peopleType {
+			room = peopleType
+		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		switch r.Method {
