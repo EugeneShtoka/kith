@@ -692,6 +692,10 @@ func (c *chatMaker) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.R
 	return "telegram:42/-1009", nil
 }
 
+func (c *chatMaker) ChatOffers(context.Context) ([]domain.ChatOffer, error) {
+	return []domain.ChatOffer{{On: domain.AccountRooms(domain.ProtocolTelegram, "42"), Kind: domain.ChatForum, Label: "Telegram forum"}}, nil
+}
+
 // A chat for an account goes to that account's network; a network that makes none
 // refuses; no account named means Matrix.
 func TestANewChatGoesToItsAccountsNetwork(t *testing.T) {
@@ -712,5 +716,9 @@ func TestANewChatGoesToItsAccountsNetwork(t *testing.T) {
 	}
 	if _, err := r.CreateRoom(ctx, domain.NewRoom{Name: "Plain"}); err != nil || !slices.Contains(m.calls(), "CreateRoom") {
 		t.Errorf("a room with no account = %v, Matrix calls %v", err, m.calls())
+	}
+	// What chats can be made is asked of the networks that make them, and only them.
+	if offers, err := r.ChatOffers(ctx); err != nil || len(offers) != 1 || offers[0].Kind != domain.ChatForum {
+		t.Errorf("ChatOffers = (%+v, %v), want Telegram's forum alone", offers, err)
 	}
 }

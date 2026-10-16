@@ -441,6 +441,11 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 	return reply(&v1.ReplaceDraftResponse{Saved: saved}, cmp.Or(err, wrote))
 }
 
+func (s *server) ChatOffers(ctx context.Context, _ *req[v1.ChatOffersRequest]) (*resp[v1.ChatOffersResponse], error) {
+	offers, err := s.Backend.ChatOffers(ctx)
+	return reply(&v1.ChatOffersResponse{Offers: pc.ChatOffersToProto(offers)}, err)
+}
+
 func (s *server) LoginNetworks(ctx context.Context, _ *req[v1.LoginNetworksRequest]) (*resp[v1.LoginNetworksResponse], error) {
 	networks, err := s.Logins.LoginNetworks(ctx)
 	return reply(&v1.LoginNetworksResponse{Networks: loginNetworksToProto(networks)}, err)

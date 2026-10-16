@@ -240,6 +240,15 @@ func (r *Remote) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	return err
 }
 
+// ChatOffers asks the daemon what chats each account can make.
+func (r *Remote) ChatOffers(ctx context.Context) ([]domain.ChatOffer, error) {
+	resp, err := call(ctx, "list the chats accounts can make", r.c.ChatOffers, &v1.ChatOffersRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return pc.ProtoToChatOffers(resp.GetOffers()), nil
+}
+
 // CreateRoom keeps the in-process contract: a partial failure returns the new room's
 // ID with an error.
 func (r *Remote) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {

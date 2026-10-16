@@ -188,6 +188,9 @@ const (
 	// BackendServiceCreateRoomProcedure is the fully-qualified name of the BackendService's CreateRoom
 	// RPC.
 	BackendServiceCreateRoomProcedure = "/backend.v1.BackendService/CreateRoom"
+	// BackendServiceChatOffersProcedure is the fully-qualified name of the BackendService's ChatOffers
+	// RPC.
+	BackendServiceChatOffersProcedure = "/backend.v1.BackendService/ChatOffers"
 	// BackendServiceInviteUserProcedure is the fully-qualified name of the BackendService's InviteUser
 	// RPC.
 	BackendServiceInviteUserProcedure = "/backend.v1.BackendService/InviteUser"
@@ -500,6 +503,9 @@ type BackendServiceClient interface {
 	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// Deciding who else is in a room.
 	CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error)
+	// ChatOffers is every kind of chat each connected account of a network other than
+	// Matrix can make.
+	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
 	InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error)
 	KickUser(context.Context, *connect.Request[v1.KickUserRequest]) (*connect.Response[v1.KickUserResponse], error)
 	BanUser(context.Context, *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error)
@@ -1000,6 +1006,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("CreateRoom")),
 			connect.WithClientOptions(opts...),
 		),
+		chatOffers: connect.NewClient[v1.ChatOffersRequest, v1.ChatOffersResponse](
+			httpClient,
+			baseURL+BackendServiceChatOffersProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ChatOffers")),
+			connect.WithClientOptions(opts...),
+		),
 		inviteUser: connect.NewClient[v1.InviteUserRequest, v1.InviteUserResponse](
 			httpClient,
 			baseURL+BackendServiceInviteUserProcedure,
@@ -1409,6 +1421,7 @@ type backendServiceClient struct {
 	deleteChat            *connect.Client[v1.DeleteChatRequest, v1.DeleteChatResponse]
 	signOut               *connect.Client[v1.SignOutRequest, v1.SignOutResponse]
 	createRoom            *connect.Client[v1.CreateRoomRequest, v1.CreateRoomResponse]
+	chatOffers            *connect.Client[v1.ChatOffersRequest, v1.ChatOffersResponse]
 	inviteUser            *connect.Client[v1.InviteUserRequest, v1.InviteUserResponse]
 	kickUser              *connect.Client[v1.KickUserRequest, v1.KickUserResponse]
 	banUser               *connect.Client[v1.BanUserRequest, v1.BanUserResponse]
@@ -1747,6 +1760,11 @@ func (c *backendServiceClient) SignOut(ctx context.Context, req *connect.Request
 // CreateRoom calls backend.v1.BackendService.CreateRoom.
 func (c *backendServiceClient) CreateRoom(ctx context.Context, req *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error) {
 	return c.createRoom.CallUnary(ctx, req)
+}
+
+// ChatOffers calls backend.v1.BackendService.ChatOffers.
+func (c *backendServiceClient) ChatOffers(ctx context.Context, req *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error) {
+	return c.chatOffers.CallUnary(ctx, req)
 }
 
 // InviteUser calls backend.v1.BackendService.InviteUser.
@@ -2187,6 +2205,9 @@ type BackendServiceHandler interface {
 	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// Deciding who else is in a room.
 	CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error)
+	// ChatOffers is every kind of chat each connected account of a network other than
+	// Matrix can make.
+	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
 	InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error)
 	KickUser(context.Context, *connect.Request[v1.KickUserRequest]) (*connect.Response[v1.KickUserResponse], error)
 	BanUser(context.Context, *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error)
@@ -2683,6 +2704,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("CreateRoom")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceChatOffersHandler := connect.NewUnaryHandler(
+		BackendServiceChatOffersProcedure,
+		svc.ChatOffers,
+		connect.WithSchema(backendServiceMethods.ByName("ChatOffers")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceInviteUserHandler := connect.NewUnaryHandler(
 		BackendServiceInviteUserProcedure,
 		svc.InviteUser,
@@ -3145,6 +3172,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceSignOutHandler.ServeHTTP(w, r)
 		case BackendServiceCreateRoomProcedure:
 			backendServiceCreateRoomHandler.ServeHTTP(w, r)
+		case BackendServiceChatOffersProcedure:
+			backendServiceChatOffersHandler.ServeHTTP(w, r)
 		case BackendServiceInviteUserProcedure:
 			backendServiceInviteUserHandler.ServeHTTP(w, r)
 		case BackendServiceKickUserProcedure:
@@ -3492,6 +3521,10 @@ func (UnimplementedBackendServiceHandler) SignOut(context.Context, *connect.Requ
 
 func (UnimplementedBackendServiceHandler) CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.CreateRoom is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ChatOffers is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error) {
