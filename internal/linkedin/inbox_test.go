@@ -848,3 +848,29 @@ func TestLeavingNeedsLinkedIn(t *testing.T) {
 		t.Errorf("a refused leave dropped the room: %v", got)
 	}
 }
+
+// A first listing that stops short keeps no sync token, so the next sync lists the
+// whole inbox again rather than only what changed since.
+func TestAListingThatStopsShortKeepsNoSyncToken(t *testing.T) {
+	t.Parallel()
+	a, _, _, _ := cachedAdapter(t)
+	s := aSession(me, "y")
+	s.SyncToken = "token-from-an-earlier-sync"
+	secrets := a.secrets.(*memSecrets)
+	c := a.newConn(Account{Name: "li"}, s, nil)
+	a.adopt(c)
+	c.client = a.clientFor(context.Background(), s, linkedingo.Handlers{})
+	stopped, cancel := context.WithCancel(context.Background())
+	cancel() // every page fails, before any request goes out
+	a.sync(stopped, c, "session-1")
+	if c.session.SyncToken != "" {
+		t.Errorf("the token kept in memory = %q, want none", c.session.SyncToken)
+	}
+	kept, ok, err := secrets.Secret(sessionRef("li"))
+	if err != nil || !ok || strings.Contains(kept, "token-from-an-earlier-sync") {
+		t.Errorf("the saved session still carries the token (%v, %v): %s", ok, err, kept)
+	}
+	if c.synced == "session-1" {
+		t.Error("a sync that listed nothing counts as done")
+	}
+}

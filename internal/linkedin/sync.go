@@ -2,6 +2,7 @@ package linkedin
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.mau.fi/mautrix-linkedin/pkg/linkedingo"
@@ -36,7 +37,16 @@ func (a *Adapter) sync(ctx context.Context, c *conn, session string) {
 	ctx, cancel := context.WithTimeout(a.withLog(ctx), syncSpan)
 	defer cancel()
 	if first || !a.hasRooms(ctx, c) {
-		a.listAll(ctx, c, client)
+		if err := a.listAll(ctx, c, client); err != nil {
+			// No token until the whole inbox is listed: one kept now would make the next
+			// sync ask only what changed, and the conversations not listed yet would never be.
+			a.log.Warn("list the conversations failed; listed again on the next sync", "account", c.account.Name, "err", err)
+			c.mu.Lock()
+			c.session.SyncToken = ""
+			c.mu.Unlock()
+			a.keepCookies(c)
+			return
+		}
 	}
 	if err := a.listChanges(ctx, c, client); err != nil {
 		a.log.Warn("list the changed conversations failed", "account", c.account.Name, "err", err)
@@ -56,21 +66,23 @@ func (a *Adapter) hasRooms(_ context.Context, c *conn) bool {
 }
 
 // listAll pages through the inbox, newest first, moving back by the oldest
-// conversation's activity each page.
-func (a *Adapter) listAll(ctx context.Context, c *conn, client *linkedingo.Client) {
+// conversation's activity each page; an error is a listing that stopped short.
+func (a *Adapter) listAll(ctx context.Context, c *conn, client *linkedingo.Client) error {
 	before := time.Now()
-	for page := 0; page < listPages && ctx.Err() == nil; page++ {
+	for page := range listPages {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("linkedin: list conversations, page %d: %w", page, err)
+		}
 		var got *linkedingo.CollectionResponse[linkedingo.ConversationCursorMetadata, linkedingo.Conversation]
 		err := a.guard("listing conversations", func() (err error) {
 			got, err = client.GetConversationsUpdatedBefore(ctx, before)
 			return err //nolint:wrapcheck // logged below
 		})
 		if err != nil {
-			a.log.Warn("list conversations failed", "account", c.account.Name, "page", page, "err", err)
-			return
+			return fmt.Errorf("linkedin: list conversations, page %d: %w", page, err)
 		}
 		if got == nil || len(got.Elements) == 0 {
-			return
+			return nil
 		}
 		a.takeConversations(ctx, c, got.Elements, nil)
 		oldest := before
@@ -80,10 +92,11 @@ func (a *Adapter) listAll(ctx context.Context, c *conn, client *linkedingo.Clien
 			}
 		}
 		if !oldest.Before(before) {
-			return // no older conversation: the inbox ends here
+			return nil // no older conversation: the inbox ends here
 		}
 		before = oldest
 	}
+	return nil
 }
 
 // listChanges asks LinkedIn what changed since the sync token (or, without one, its
