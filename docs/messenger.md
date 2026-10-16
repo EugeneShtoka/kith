@@ -12,7 +12,9 @@ late 2023) are read the way Messenger's own apps read them: kith registers itsel
 once as a device of your account, and Messenger lists it with your devices. Only
 messages sent after that can be read; older encrypted history sits behind
 Messenger's PIN-protected backup, which kith cannot open. An encrypted chat is the
-same room as the thread it was, named after its person.
+same room as the thread it was, named after its person. Because one room can hold both, kith counts every
+Messenger room as encrypted: the assistant and kith-mcp leave them out unless you
+set `encrypted = true` ([assist](assist.md), [mcp](mcp.md)).
 
 A thread you read in kith stays read: kith keeps the read position itself, before
 telling Meta, and keeps telling Meta until it hears. Meta's own read marks only ever

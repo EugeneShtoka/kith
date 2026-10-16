@@ -2,6 +2,8 @@ package meta
 
 import (
 	"context"
+	"fmt"
+	"math/rand/v2"
 	"path/filepath"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
+	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -159,6 +162,78 @@ func TestEncryptedMessagesLandInTheirChatsRoom(t *testing.T) {
 	}
 	if rooms := cachedRooms(t, cache); len(rooms) != 2 {
 		t.Errorf("rooms = %q, want dana's and eli's", rooms)
+	}
+}
+
+// No room reads as plain while it may hold encrypted messages: in any order of plain
+// threads of every kind, encrypted threads, a move to encryption and encrypted
+// messages, every cached room, a room not heard of and, after a restart, every room
+// before Meta's first table is encrypted.
+func TestNoRoomIsToldPlain(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	kinds := []table.ThreadType{
+		table.UNKNOWN_THREAD_TYPE, table.ONE_TO_ONE, table.GROUP_THREAD, table.TINCAN_ONE_TO_ONE,
+		table.CARRIER_MESSAGING_ONE_TO_ONE, table.ENCRYPTED_OVER_WA_ONE_TO_ONE,
+		table.ENCRYPTED_OVER_WA_GROUP, table.COMMUNITY_GROUP,
+	}
+	keys := []int64{dana, eli, 300}
+	steps := []func(r *rand.Rand, a *Adapter, c *conn){
+		func(r *rand.Rand, a *Adapter, c *conn) { // a plain or encrypted thread row
+			key := keys[r.IntN(len(keys))]
+			a.take(ctx, c, &table.LSTable{LSDeleteThenInsertThread: []*table.LSDeleteThenInsertThread{
+				threadRow(key, kinds[r.IntN(len(kinds))], "", "inbox", 10, 0, 0),
+			}})
+		},
+		func(_ *rand.Rand, a *Adapter, c *conn) { a.take(ctx, c, encryptedThread()) },
+		func(r *rand.Rand, a *Adapter, c *conn) { // a thread moved to encryption
+			a.take(ctx, c, &table.LSTable{LSMoveThreadToE2EECutoverFolder: []*table.LSMoveThreadToE2EECutoverFolder{
+				{ThreadKey: keys[r.IntN(len(keys))]},
+			}})
+		},
+		func(r *rand.Rand, a *Adapter, c *conn) { // an encrypted message, maybe in a plain thread's room
+			key := keys[r.IntN(2)]
+			a.takeEncrypted(ctx, c, fbMessage(msgrJID(key), msgrJID(key), fmt.Sprint("M", r.Int()), time.UnixMilli(100_000), textContent("hi")))
+		},
+	}
+	allEncrypted := func(t *testing.T, a *Adapter, cache *db.Cache, when string) {
+		t.Helper()
+		rooms, err := cache.Rooms(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := []domain.RoomID{roomID(me, 999)}
+		for i := range rooms {
+			ids = append(ids, rooms[i].ID)
+		}
+		got, err := a.RoomEncryption(ctx, ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range ids {
+			if !got[id] {
+				t.Fatalf("%s: %s reads as plain", when, id)
+			}
+		}
+	}
+	for seed := range uint64(30) {
+		r := rand.New(rand.NewPCG(seed, 1))
+		a, c, cache, _ := cachedAdapter(t)
+		for i := range 8 {
+			steps[r.IntN(len(steps))](r, a, c)
+			allEncrypted(t, a, cache, fmt.Sprintf("seed %d step %d", seed, i))
+		}
+		allEncrypted(t, New(cache, newSecrets(), nil, nil, nil), cache, fmt.Sprintf("seed %d after a restart", seed))
+		// After a restart, a plain row can come before anything says the room's thread
+		// moved to encryption.
+		again := New(cache, newSecrets(), nil, nil, nil)
+		again.UseConfig(ctx, withAccounts("fb"))
+		c2 := again.newConn(Account{Name: "fb"}, aSession(me, "x"), nil)
+		again.adopt(c2)
+		again.take(ctx, c2, &table.LSTable{LSDeleteThenInsertThread: []*table.LSDeleteThenInsertThread{
+			threadRow(dana, table.ONE_TO_ONE, "", "inbox", 10, 0, 0),
+		}})
+		allEncrypted(t, again, cache, fmt.Sprintf("seed %d after a restart's first plain row", seed))
 	}
 }
 
