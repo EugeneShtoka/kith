@@ -25,6 +25,7 @@ type Backend interface {
 	Media
 	Members
 	Membership
+	NewChats
 	Ending
 	Search
 	Drafts
@@ -219,6 +220,13 @@ type Membership interface {
 	UnbanUser(ctx context.Context, roomID domain.RoomID, userID string) error
 	// LeaveRoom leaves a room or rejects an invite.
 	LeaveRoom(ctx context.Context, roomID domain.RoomID) error
+}
+
+// NewChats is what chats each account of a network other than Matrix can make.
+type NewChats interface {
+	// ChatOffers is every kind of chat each connected account can make, as its
+	// network describes it.
+	ChatOffers(ctx context.Context) ([]domain.ChatOffer, error)
 }
 
 // Ending removes chats and accounts that cannot simply be left (Membership.LeaveRoom).

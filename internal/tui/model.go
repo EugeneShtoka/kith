@@ -383,6 +383,9 @@ type overlayTarget struct {
 	person personState
 	// creating is the room being created by the new-room prompt.
 	creating domain.NewRoom
+	// offers are the chats the other networks' accounts said they can make, as :new
+	// offered them.
+	offers []domain.ChatOffer
 	// fileInto is the room a space being created from the space picker is to hold.
 	fileInto domain.RoomID
 	// member is the room an open invite or unban prompt aims at.
@@ -1018,8 +1021,8 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleSpaceFiled(msg))
 	case memberChangedMsg:
 		return answered(m.handleMemberChanged(msg))
-	case roomCreatedMsg:
-		return answered(m.handleRoomCreated(msg))
+	case roomCreatedMsg, chatOffersMsg:
+		return answered(m.handleCreating(msg))
 	case configCheckedMsg, configSavedMsg, configNewsMsg:
 		return answered(m.handleConfigNews(msg))
 	case loginMsg, loginNetworksMsg, importNetworksMsg, importPreviewMsg, importedMsg:

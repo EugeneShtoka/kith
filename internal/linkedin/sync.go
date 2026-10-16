@@ -183,6 +183,10 @@ func (a *Adapter) event(ctx context.Context, c *conn, e *linkedingo.DecoratedEve
 		if r := data.DecoratedReactionSummary; r != nil {
 			a.reacted(ctx, c, &r.Result)
 		}
+	case linkedingo.RealtimeEventTopicTypingIndicators:
+		if t := data.DecoratedTypingIndicator; t != nil {
+			a.onTyping(c, &t.Result)
+		}
 	}
 }
 

@@ -444,7 +444,7 @@ func TestAConversationReadInKithStaysRead(t *testing.T) {
 	if n := unread(); n != 0 {
 		t.Errorf("after reading in kith and the phone's stale view: %d", n)
 	}
-	if owed := a.reads.take(self); owed[danaDM].message != "m3" {
+	if owed := a.reads.Take(self); owed[roomID(self, danaDM)].message != "m3" {
 		t.Errorf("the mark is not owed: %+v", owed)
 	}
 	a.take(ctx, c, &libgm.WrappedMessage{Message: text(danaDM, "m4", "2", "four", 4000, gmproto.MessageStatusType_INCOMING_COMPLETE)})
@@ -464,30 +464,6 @@ func TestAConversationReadInKithStaysRead(t *testing.T) {
 	}
 	if err := a.MarkRoomUnread(ctx, room, true); err == nil {
 		t.Error("marking unread said it was done")
-	}
-}
-
-// Read marks owed: a later one replaces an earlier, settling an earlier one leaves a
-// later, and taking empties them.
-func TestOwedMarks(t *testing.T) {
-	t.Parallel()
-
-	var o owed
-	t0 := time.UnixMilli(1000)
-	o.add("s", "c", mark{message: "m1", at: t0})
-	o.add("s", "c", mark{message: "m2", at: t0.Add(time.Second)})
-	o.add("s", "c", mark{message: "m0", at: t0.Add(-time.Second)})
-	o.settle("s", "c", mark{message: "m1", at: t0})
-	if got := o.take("s"); got["c"].message != "m2" {
-		t.Errorf("owed = %+v", got)
-	}
-	if got := o.take("s"); len(got) != 0 {
-		t.Errorf("owed again = %+v", got)
-	}
-	o.add("s", "c", mark{message: "m1", at: t0})
-	o.settle("s", "c", mark{message: "m1", at: t0})
-	if got := o.take("s"); len(got) != 0 {
-		t.Errorf("a settled mark is still owed: %+v", got)
 	}
 }
 

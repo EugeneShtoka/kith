@@ -115,13 +115,16 @@ func (a *Adapter) saveRooms(ctx context.Context, c *conn, gone []domain.RoomID) 
 
 // saveUnread keeps a conversation's unread state: LinkedIn's flag (it has no count) and
 // its read time, which only moves the cached position forward. A conversation read in
-// kith stays read whatever LinkedIn says.
+// kith stays read whatever LinkedIn says. One LinkedIn calls unread while it is read
+// through its newest activity was marked unread, here or on another device, unless a
+// read in kith is still owed to LinkedIn: then the mark is one that read took away.
 func (a *Adapter) saveUnread(ctx context.Context, c *conn, cv *conv) {
 	n := 0
 	if !cv.read {
 		n = 1
 	}
-	u := domain.Unread{RoomID: roomID(c.profile, cv.thread), Notifications: n}
+	marked := !cv.read && !cv.readTo.IsZero() && !cv.readTo.Before(cv.lastActive) && !a.reads.Has(roomID(c.profile, cv.thread))
+	u := domain.Unread{RoomID: roomID(c.profile, cv.thread), Notifications: n, Marked: marked}
 	if err := a.cache.SaveUnread(ctx, u, cv.readTo.UnixMilli()); err != nil {
 		a.log.Warn("save a conversation's unread state failed", "account", c.account.Name, "err", err)
 	}
