@@ -18,6 +18,10 @@ func (p Protocol) IsBridged() bool { return p != "" && p != ProtocolMatrix }
 // RepliesAreThreads reports whether every reply on the network is a thread.
 func (p Protocol) RepliesAreThreads() bool { return p == ProtocolSlack }
 
+// TakesTonedReactions reports whether a reaction may carry a skin tone there: Telegram
+// reacts only from a fixed set of emoji, none of them toned, and refuses the rest.
+func (p Protocol) TakesTonedReactions() bool { return p != ProtocolTelegram }
+
 // The networks we can name. Anyone we can't attribute to a bridge is Matrix.
 const (
 	ProtocolMatrix     Protocol = "Matrix"

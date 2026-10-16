@@ -140,8 +140,12 @@ type sentMsg struct {
 // reactionSentMsg is a reaction's outcome. The key is kept: a failure is how a
 // network's refusal of that emoji is learned.
 type reactionSentMsg struct {
-	key string
-	err error
+	room   domain.RoomID
+	target domain.EventID
+	key    string
+	err    error
+	// said is what to say once it is taken (a toned one sent again plain).
+	said string
 }
 
 // syncEndedMsg reports that the /sync loop returned (normally on shutdown).
@@ -771,9 +775,14 @@ func (m Model) saveSenderSlotsCmd(roomID domain.RoomID, slots map[string]int) te
 // sendReactionCmd posts a reaction; it echoes back on the reaction stream, so only the
 // outcome is routed back.
 func (m Model) sendReactionCmd(roomID domain.RoomID, target domain.EventID, key string) tea.Cmd {
+	return m.sendReactionSaying(roomID, target, key, "")
+}
+
+// sendReactionSaying is sendReactionCmd saying said once the reaction is taken.
+func (m Model) sendReactionSaying(roomID domain.RoomID, target domain.EventID, key, said string) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
-		return reactionSentMsg{key: key, err: backend.SendReaction(ctx, roomID, target, key)}
+		return reactionSentMsg{room: roomID, target: target, key: key, said: said, err: backend.SendReaction(ctx, roomID, target, key)}
 	}
 }
 

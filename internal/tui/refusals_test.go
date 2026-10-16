@@ -2,10 +2,12 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -125,3 +127,81 @@ func TestFailedReactionIsLearnedAndAnnounced(t *testing.T) {
 type errUnsupported struct{}
 
 func (errUnsupported) Error() string { return "m.reaction not supported by this network" }
+
+// toneRefusingBackend refuses every toned reaction and records each one sent.
+type toneRefusingBackend struct {
+	refusingBackend
+	sent []string
+}
+
+func (b *toneRefusingBackend) SendReaction(_ context.Context, _ domain.RoomID, _ domain.EventID, key string) error {
+	b.sent = append(b.sent, key)
+	if withoutTone(key) != key {
+		return errors.New("REACTION_INVALID")
+	}
+	return nil
+}
+
+// bridgedWhatsApp is a room bridged from a network that may take a toned reaction.
+func bridgedWhatsApp(t *testing.T, b api.Backend) Model {
+	t.Helper()
+	m := update(t, starterNew(b, config.Display{}),
+		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Chat"}}})
+	m = sized(t, m)
+	m, _ = m.selectRoom(m.filteredRooms()[0])
+	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: "$1", RoomID: "!a:x", Sender: "@whatsapp_15550100009:x", SenderName: "Ada", Body: "hi", Timestamp: at(1)},
+	}}})
+	m.focus, m.compose.insertMode = paneTimeline, false
+	m.glyphs.skin = light
+	return m
+}
+
+// A toned reaction the network refuses goes again without its tone, and from then on
+// reactions there go plain; the plain emoji stays on offer.
+func TestARefusedToneIsSentPlain(t *testing.T) {
+	t.Parallel()
+	b := &toneRefusingBackend{}
+	m := bridgedWhatsApp(t, b)
+	m, cmd := m.sendReaction(m.tone("👍"))
+	m = deliverTwice(t, m, cmd)
+	if len(b.sent) != 2 || b.sent[0] != "👍🏻" || b.sent[1] != "👍" {
+		t.Fatalf("sent %q, want 👍🏻 then 👍", b.sent)
+	}
+	if !strings.Contains(m.status(), "sent 👍 instead") {
+		t.Errorf("status = %q", m.status())
+	}
+	if m.refusedIn(m.roomProtocol(), "👍") {
+		t.Error("a refused tone took the plain emoji off the palette")
+	}
+	m, cmd = m.sendReaction(m.tone("👋"))
+	_ = deliver(t, m, cmd)
+	if last := b.sent[len(b.sent)-1]; last != "👋" || len(b.sent) != 3 {
+		t.Errorf("after a refused tone: sent %q, want 👋 alone, untoned", b.sent[2:])
+	}
+}
+
+// A bridge that takes a toned reaction and then refuses it (the daemon records the
+// refusal): the reaction goes again without its tone, once.
+func TestATonedReactionABridgeRefusesLaterGoesPlain(t *testing.T) {
+	t.Parallel()
+	rb := &recordingReact{}
+	m := bridgedWhatsApp(t, rb)
+	m, cmd := m.sendReaction(m.tone("👍"))
+	runCmd(t, cmd)
+	if rb.key != "👍🏻" {
+		t.Fatalf("first sent %q", rb.key)
+	}
+	refusals := []domain.ReactionRefusal{{Protocol: "WhatsApp", Emoji: "👍🏻", At: time.Now()}}
+	m, cmd = m.handleRefusals(refusalsMsg{refusals: refusals})
+	if cmd == nil {
+		t.Fatal("a refused toned reaction was not sent again")
+	}
+	runCmd(t, cmd)
+	if rb.key != "👍" {
+		t.Errorf("resent %q, want 👍", rb.key)
+	}
+	if _, again := m.handleRefusals(refusalsMsg{refusals: refusals}); again != nil {
+		t.Error("the same refusal resent the reaction a second time")
+	}
+}

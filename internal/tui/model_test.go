@@ -1216,6 +1216,32 @@ func TestReactFlowTargetsSelectedMessage(t *testing.T) {
 	}
 }
 
+// A reaction keeps your skin tone where the network takes one, and goes plain to
+// Telegram, which refuses every toned emoji (bridged or not).
+func TestAReactionToTelegramGoesWithoutItsTone(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		sender, want string
+	}{
+		{"@telegram_7:x", "👍"},
+		{"@whatsapp_15550100009:x", "👍🏻"},
+		{"@dana:x", "👍🏻"},
+	} {
+		rb := &recordingReact{}
+		m := sized(t, withRooms(t, starterNew(rb, config.Display{})))
+		msg := msgAt("$1", "one", 1)
+		msg.Sender = tc.sender
+		m = loadPage(t, m, []domain.Message{msg})
+		m.focus = paneTimeline
+		m.glyphs.skin = light
+		m, cmd := m.sendReaction(m.tone("👍"))
+		runCmd(t, cmd)
+		if rb.key != tc.want {
+			t.Errorf("reacting in a room of %s: sent %q, want %q", tc.sender, rb.key, tc.want)
+		}
+	}
+}
+
 func TestReactPaletteAndShortcodes(t *testing.T) {
 	t.Parallel()
 
