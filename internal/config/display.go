@@ -259,7 +259,7 @@ type NetworkColors struct {
 // badge and alert colors; Meta's two networks share one.
 var defaultNetworkColors = map[string]string{
 	"whatsapp": "teal", "telegram": "blue", "slack": "magenta", "messenger": "orchid",
-	"instagram": "orchid", "linkedin": "periwinkle", "google_messages": "coral",
+	"instagram": "orchid", "linkedin": "periwinkle", "google_messages": "coral", "signal": "ultramarine",
 }
 
 // byKey maps each network's key (lower-case name, words joined by "_") to its color.

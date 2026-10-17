@@ -257,14 +257,15 @@ preset = "cobalt2"
 # The color each network's rooms are named in, where the room lists ask for it
 # ([display] network_colors, [[display.space_rule]] network_colors) or the rail does
 # ([display.rail] network_colors): #rrggbb or a named color (red, green, teal,
-# yellow, blue, magenta, orchid, periwinkle, coral, cyan, orange, white), or "none".
+# yellow, blue, magenta, orchid, periwinkle, coral, ultramarine, cyan, orange, white),
+# or "none".
 # Unset: each its own, apart from the theme's text, accent, badge and alert, as below;
 # the rest none. A bad color stops startup.
 [display.theme.networks]
 # whatsapp        = "teal"
 # telegram        = "blue"
 # slack           = "magenta"
-# signal          = ""
+# signal          = "ultramarine"
 # discord         = ""
 # messenger       = "orchid"      # Meta's two share one
 # instagram       = "orchid"
