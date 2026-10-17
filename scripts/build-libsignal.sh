@@ -14,7 +14,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-module=$(go list -m -f '{{.Dir}}' go.mau.fi/mautrix-signal)
+# Downloaded first: `go list -m` names no directory for a module not in the cache yet.
+module=$(go mod download -json go.mau.fi/mautrix-signal | sed -n 's/^[[:space:]]*"Dir": "\(.*\)",$/\1/p')
+if [[ -z $module ]]; then
+	echo "build-libsignal: go.mau.fi/mautrix-signal could not be downloaded" >&2
+	exit 1
+fi
 version=$(sed -n 's/^const Version = "\(v[0-9.]*\)"$/\1/p' "$module/pkg/libsignalgo/signalversion/version.go")
 if [[ -z $version ]]; then
 	echo "build-libsignal: no libsignal version in $module/pkg/libsignalgo/signalversion" >&2

@@ -79,15 +79,20 @@ build-mcp:
 # points at a build of your own). Neither target is in `check`: .github/workflows/
 # signal.yml runs them, outside ci-ok, so a broken Signal build never blocks a merge
 # (it blocks a release).
+# The script's directory is taken first, on a line of its own: inside the command it
+# feeds, its failure would be lost and the link would fail without saying why.
 SIGNAL_TAGS := -tags=goolm,signal
-SIGNAL_CGO   = CGO_ENABLED=1 CGO_LDFLAGS="-L$$(bash scripts/build-libsignal.sh)"
+SIGNAL_LIB   = lib=$$(bash scripts/build-libsignal.sh)
+SIGNAL_CGO   = CGO_ENABLED=1 CGO_LDFLAGS="-L$$lib"
 
 build-signal:
+	@set -e; $(SIGNAL_LIB); \
 	$(SIGNAL_CGO) go build $(BUILDVCS) $(SIGNAL_TAGS) -o kith-signal ./cmd/kith-signal/
 
 # The helper's own tests and lint with the signal tag: no other gate compiles it.
 signal-check:
-	$(SIGNAL_CGO) $(TEST_ENV) go test -race -count=1 $(SIGNAL_TAGS) ./cmd/kith-signal/... ./internal/signalhelper/...
+	@set -e; $(SIGNAL_LIB); \
+	$(SIGNAL_CGO) $(TEST_ENV) go test -race -count=1 $(SIGNAL_TAGS) ./cmd/kith-signal/... ./internal/signalhelper/...; \
 	$(SIGNAL_CGO) $(GOLANGCI) run --allow-serial-runners --build-tags=goolm,signal ./cmd/kith-signal/... ./internal/signalhelper/...
 
 # ── Run from source ──────────────────────────────────────────────────────────

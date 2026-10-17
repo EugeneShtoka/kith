@@ -22,10 +22,13 @@ exempt=(
 	internal/api                              # interface declarations, no logic
 	internal/api/backend/v1                   # generated protobuf types
 	internal/api/backend/v1/backendv1connect  # generated Connect stubs
+	internal/api/signal/v1                    # generated protobuf types (kith-signal's wire)
+	internal/api/signal/v1/signalv1connect    # generated Connect stubs (kith-signal's wire)
 	internal/apitest                          # test-only fakes (Nop backend)
 	internal/filedialog                       # XDG desktop portal over D-Bus; needs a session bus and a human to pick a file
 	cmd/kith                                # main wiring
 	cmd/kithd                               # main wiring (daemon side); serve()'s workers are exercised through internal/daemon
+	cmd/kith-signal                         # main wiring (Signal helper); its service and heartbeat are exercised through internal/signalhelper
 	cmd/emoji-probe                           # interactive terminal diagnostic: writes glyphs to a tty and asks what you see
 )
 
