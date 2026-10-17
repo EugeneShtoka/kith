@@ -27,3 +27,7 @@ func (unbuilt) Open(context.Context, []byte) ([]signalhelper.Device, error) {
 func (unbuilt) Link(context.Context, string, func(string) error) (signalhelper.Device, error) {
 	return signalhelper.Device{}, errUnbuilt
 }
+
+func (unbuilt) Connect(context.Context, string, signalhelper.Sink) error {
+	return errUnbuilt
+}

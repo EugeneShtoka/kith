@@ -33,6 +33,9 @@ type Network interface {
 	// Link makes the helper a linked device named name, calling show with each link to
 	// scan (a new one when the last lapses) until the phone scans one.
 	Link(ctx context.Context, name string, show func(url string) error) (Device, error)
+	// Connect connects the linked account aci, handing sink its events from then on,
+	// until the helper ends.
+	Connect(ctx context.Context, aci string, sink Sink) error
 }
 
 // readHeaderTimeout bounds a request's headers; kithd sends them at once.
@@ -48,7 +51,7 @@ func Serve(ctx context.Context, ln net.Listener, network Network, lapse time.Dur
 	beats := make(chan struct{}, 1)
 	go watch(ctx, beats, lapse, lapsed)
 	mux := http.NewServeMux()
-	mux.Handle(signalv1connect.NewSignalServiceHandler(&service{network: network, beats: beats, log: log}))
+	mux.Handle(signalv1connect.NewSignalServiceHandler(&service{network: network, beats: beats, log: log, out: newOutbox()}))
 	srv := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: readHeaderTimeout,
@@ -88,6 +91,7 @@ type service struct {
 	network Network
 	beats   chan<- struct{}
 	log     *slog.Logger
+	out     *outbox
 
 	mu      sync.Mutex
 	started bool
@@ -137,6 +141,33 @@ func (s *service) Link(ctx context.Context, req *connect.Request[signalv1.LinkRe
 	}
 	s.log.Info("linked", "aci", device.ACI)
 	return stream.Send(&signalv1.LinkResponse{Step: &signalv1.LinkResponse_Linked{Linked: wireDevice(device)}}) //nolint:wrapcheck // the stream's own error
+}
+
+func (s *service) Connect(ctx context.Context, req *connect.Request[signalv1.ConnectRequest]) (*connect.Response[signalv1.ConnectResponse], error) {
+	s.mu.Lock()
+	started := s.started
+	s.mu.Unlock()
+	if !started {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errNotStarted)
+	}
+	// Connected for as long as the helper runs, not the call.
+	if err := s.network.Connect(context.WithoutCancel(ctx), req.Msg.GetAci(), s.out); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(&signalv1.ConnectResponse{}), nil
+}
+
+func (s *service) Events(ctx context.Context, _ *connect.Request[signalv1.EventsRequest], stream *connect.ServerStream[signalv1.EventsResponse]) error {
+	// Headers now, as kithd's own streams do: the stream can be silent for hours.
+	if err := stream.Send(nil); err != nil {
+		return fmt.Errorf("signal helper: open the events: %w", err)
+	}
+	return s.out.listen(ctx, stream.Send)
+}
+
+func (s *service) Ack(_ context.Context, req *connect.Request[signalv1.AckRequest]) (*connect.Response[signalv1.AckResponse], error) {
+	s.out.ack(req.Msg.GetToken())
+	return connect.NewResponse(&signalv1.AckResponse{}), nil
 }
 
 func wireDevice(d Device) *signalv1.Device {

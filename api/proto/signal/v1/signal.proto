@@ -16,6 +16,15 @@ service SignalService {
   // Link makes this helper a linked device of the phone that scans its link: a link to
   // draw as a QR code, a new one each time the last lapses, then the linked account.
   rpc Link(LinkRequest) returns (stream LinkResponse);
+  // Connect connects a linked account: its events start coming on Events.
+  rpc Connect(ConnectRequest) returns (ConnectResponse);
+  // Events is every connected account's events, for one listener (a new call takes
+  // over). An event with a token waits in the helper until Ack: Signal is told it
+  // arrived only then, so one kithd never kept is sent again. A new listener is sent
+  // every event still waiting first.
+  rpc Events(EventsRequest) returns (stream EventsResponse);
+  // Ack says kithd has kept the event with token.
+  rpc Ack(AckRequest) returns (AckResponse);
 }
 
 message HeartbeatRequest {}
@@ -52,3 +61,109 @@ message LinkResponse {
     Device linked = 2;
   }
 }
+
+message ConnectRequest {
+  // The linked account's ACI.
+  string aci = 1;
+}
+
+message ConnectResponse {}
+
+message EventsRequest {}
+
+message EventsResponse {
+  // Ack it once kept; 0 for an event that waits for nothing (a connection's state).
+  uint64 token = 1;
+  // The account (its ACI) the event is for.
+  string account = 2;
+  oneof event {
+    Message message = 3;
+    Connection connection = 4;
+    Contacts contacts = 5;
+    Group group = 6;
+  }
+}
+
+// Message is a message in a chat: someone else's, or the account's own (sent from
+// another of its devices).
+message Message {
+  // The chat: the other side's ACI, or the group's ID (std base64, as Signal has it).
+  string chat = 1;
+  bool group = 2;
+  // The author's ACI, and when they sent it (ms): together the message's ID.
+  string sender = 3;
+  uint64 sent = 4;
+  // When Signal's server took it (ms).
+  uint64 received = 5;
+  string body = 6;
+  // The author's name as the account knows it (contact name, else profile name).
+  string sender_name = 7;
+  // For a one-to-one chat, the other side's name.
+  string chat_name = 8;
+  Quote quote = 9;
+  repeated Mention mentions = 10;
+  repeated Attachment attachments = 11;
+}
+
+// Quote is the message a message replies to.
+message Quote {
+  string author = 1;
+  uint64 sent = 2;
+  string text = 3;
+}
+
+// Mention is a person mentioned in a body: Signal puts U+FFFC in the text there.
+message Mention {
+  // In UTF-16 code units, as Signal counts.
+  uint32 start = 1;
+  uint32 length = 2;
+  string aci = 3;
+  string name = 4;
+}
+
+// Attachment is a file a message carries, still on Signal's CDN.
+message Attachment {
+  string content_type = 1;
+  string file_name = 2;
+  uint64 size = 3;
+  // Signal's AttachmentPointer, serialized: what fetching it takes.
+  bytes pointer = 4;
+}
+
+// Connection is an account's connection to Signal.
+message Connection {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_CONNECTED = 1;
+    STATE_DISCONNECTED = 2;
+    // The phone unlinked this device.
+    STATE_LOGGED_OUT = 3;
+  }
+  State state = 1;
+  string detail = 2;
+}
+
+// Contacts is the phone's contact list, as it syncs it.
+message Contacts {
+  repeated Contact contacts = 1;
+}
+
+message Contact {
+  string aci = 1;
+  string name = 2;
+  string number = 3;
+}
+
+// Group is a group as Signal describes it, sent before the first of its messages.
+message Group {
+  string id = 1;
+  string title = 2;
+  // Its members' ACIs.
+  repeated string members = 3;
+}
+
+message AckRequest {
+  uint64 token = 1;
+}
+
+message AckResponse {}

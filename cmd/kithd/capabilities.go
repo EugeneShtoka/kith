@@ -193,10 +193,20 @@ var (
 		cacheWriter
 	} = (*gmessages.Adapter)(nil)
 
-	// Signal, so far: kith-signal kept running and accounts linked (receiving and
-	// sending come next).
+	// Signal, so far: kith-signal kept running, accounts linked, messages received into
+	// the cache and read there (edits, reactions and sending come next).
 	_ interface {
 		network
+		route.RoomLister
+		route.Recounter
+		route.Homes
+		route.ReadState
+		route.History
+		route.People
+		route.Encryption
+		route.SpaceLister
 		configChecker
+		roomsRewriter
+		cacheWriter
 	} = (*signal.Adapter)(nil)
 )

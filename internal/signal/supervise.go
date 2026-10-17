@@ -51,9 +51,10 @@ var (
 // helper is a running kith-signal that has opened its key store.
 type helper struct {
 	client signalv1connect.SignalServiceClient
-	// devices are the linked devices' ACIs.
+	// devices are the linked devices' ACIs; states their connections, as the helper says.
 	mu      sync.Mutex
 	devices map[string]bool
+	states  map[string]connState
 }
 
 func (h *helper) has(aci string) bool {
@@ -205,12 +206,13 @@ func (a *Adapter) runHelper(ctx context.Context, ln *net.UnixListener) error {
 		}
 		return fmt.Errorf("kith-signal did not start: %w", err)
 	}
-	h := &helper{client: client, devices: map[string]bool{}}
+	h := &helper{client: client, devices: map[string]bool{}, states: map[string]connState{}}
 	for _, d := range resp.Msg.GetDevices() {
 		h.devices[d.GetAci()] = true
 	}
 	a.log.Info("kith-signal is up", "path", path, "linked", len(h.devices))
 	a.cameUp(h)
+	go a.receive(life, h)
 	<-life.Done()
 	return context.Cause(life) //nolint:wrapcheck // says itself what ended it
 }
