@@ -218,7 +218,9 @@ func TestAnEventForNoAccountWaits(t *testing.T) {
 		t.Fatalf("the stray was cached before its account came: %+v", msgs)
 	}
 
-	r.secrets.m["signal|two"] = other
+	if err := r.secrets.StoreSecret("signal|two", other); err != nil {
+		t.Fatal(err)
+	}
 	r.a.UseConfig(context.Background(), config.Config{Signal: config.Signal{Accounts: []config.SignalAccount{{Name: "phone"}, {Name: "two"}}}})
 	r.until(10*time.Second, "the stray acked once its account came", func() bool {
 		return slices.Contains(r.acked(), "for the other account")
