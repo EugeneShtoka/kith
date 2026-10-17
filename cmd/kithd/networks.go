@@ -131,7 +131,7 @@ func openNetworks(
 		log.Error("Signal is off: its store's key cannot be had from the keyring", "err", err)
 	} else {
 		paths := signal.Paths{Store: storage.SignalPath(), Socket: storage.SignalSocketPath()}
-		networks = append(networks, signal.New(secrets, key, paths, nil, log))
+		networks = append(networks, signal.New(cache, secrets, key, paths, nil, log))
 	}
 	for _, n := range networks {
 		n.UseConfig(ctx, cfg)

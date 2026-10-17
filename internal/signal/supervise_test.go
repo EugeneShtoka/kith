@@ -16,8 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protojson"
+
+	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/signal"
 	"github.com/EugeneShtoka/kith/internal/signalhelper"
@@ -31,6 +35,8 @@ const (
 	fakeStarts  = "KITH_FAKE_SIGNAL_STARTS"  // a file it adds its PID to as it starts
 	fakeDevices = "KITH_FAKE_SIGNAL_DEVICES" // the ACIs linked in its store, comma-separated
 	fakeLinks   = "KITH_FAKE_SIGNAL_LINKS"   // the ACI a Link links
+	fakeEvents  = "KITH_FAKE_SIGNAL_EVENTS"  // a file of events (protojson, a line each) Connect plays
+	fakeAcks    = "KITH_FAKE_SIGNAL_ACKS"    // a file it adds a line to as each played event is acked
 )
 
 func TestMain(m *testing.M) {
@@ -89,6 +95,48 @@ func fakeHelper(mode string) int {
 
 type fakeNetwork struct{ devices, links string }
 
+// Connect says the account connected, then plays the events file's events, recording
+// each one's ack (the body of a message, else its kind) as it returns. Each account's
+// events play in order on their own, as each account's signalmeow client delivers.
+func (f *fakeNetwork) Connect(_ context.Context, aci string, sink signalhelper.Sink) error {
+	sink.Tell(&signalv1.EventsResponse{Account: aci, Event: &signalv1.EventsResponse_Connection{
+		Connection: &signalv1.Connection{State: signalv1.Connection_STATE_CONNECTED},
+	}})
+	b, err := os.ReadFile(os.Getenv(fakeEvents))
+	if err != nil {
+		return nil //nolint:nilerr // no events to play
+	}
+	byAccount := map[string][]*signalv1.EventsResponse{}
+	for line := range strings.SplitSeq(strings.TrimSpace(string(b)), "\n") {
+		ev := &signalv1.EventsResponse{}
+		if line == "" || protojson.Unmarshal([]byte(line), ev) != nil {
+			continue
+		}
+		if ev.GetAccount() == "" {
+			ev.Account = aci
+		}
+		byAccount[ev.GetAccount()] = append(byAccount[ev.GetAccount()], ev)
+	}
+	for _, events := range byAccount {
+		go play(sink, events)
+	}
+	return nil
+}
+
+func play(sink signalhelper.Sink, events []*signalv1.EventsResponse) {
+	for _, ev := range events {
+		sink.Deliver(ev)
+		what := fmt.Sprintf("%T", ev.GetEvent())
+		if m := ev.GetMessage(); m != nil {
+			what = m.GetBody()
+		}
+		if f, err := os.OpenFile(os.Getenv(fakeAcks), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
+			_, _ = fmt.Fprintln(f, what)
+			_ = f.Close()
+		}
+	}
+}
+
 func (f *fakeNetwork) Open(context.Context, []byte) ([]signalhelper.Device, error) {
 	var out []signalhelper.Device
 	for aci := range strings.SplitSeq(f.devices, ",") {
@@ -135,13 +183,17 @@ func (s *memSecrets) DeleteSecret(ref string) error {
 
 // rig is one Signal adapter running a fake helper.
 type rig struct {
-	t       *testing.T
-	a       *signal.Adapter
-	bin     string // where the fake kith-signal is installed ($PATH)
-	starts  string
-	secrets *memSecrets
-	cancel  context.CancelFunc
-	done    chan error
+	t         *testing.T
+	a         *signal.Adapter
+	bin       string // where the fake kith-signal is installed ($PATH)
+	starts    string
+	acks      string
+	events    string
+	cache     *db.Cache
+	cachePath string
+	secrets   *memSecrets
+	cancel    context.CancelFunc
+	done      chan error
 
 	mu       sync.Mutex
 	statuses []domain.AccountStatus
@@ -150,6 +202,19 @@ type rig struct {
 // newRig installs the fake helper in mode, with devices linked in its store and the
 // account "phone" linked to linkedTo ("" for not linked), and starts the adapter.
 func newRig(t *testing.T, mode, devices, linkedTo string) *rig {
+	t.Helper()
+	return newRigPlaying(t, mode, devices, linkedTo, nil)
+}
+
+// newRigPlaying is newRig whose helper plays events once the account connects.
+func newRigPlaying(t *testing.T, mode, devices, linkedTo string, events []*signalv1.EventsResponse) *rig {
+	t.Helper()
+	return newRigPrepared(t, mode, devices, linkedTo, events, nil)
+}
+
+// newRigPrepared is newRigPlaying that runs prepare on the rig (its cache open, nothing
+// started) first.
+func newRigPrepared(t *testing.T, mode, devices, linkedTo string, events []*signalv1.EventsResponse, prepare func(*rig)) *rig {
 	t.Helper()
 	self, err := os.Executable()
 	if err != nil {
@@ -162,11 +227,36 @@ func newRig(t *testing.T, mode, devices, linkedTo string) *rig {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	bin := filepath.Join(dir, "bin")
-	if err := os.Mkdir(bin, 0o700); err != nil {
+	if err = os.Mkdir(bin, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	r := &rig{t: t, bin: bin, starts: filepath.Join(dir, "starts"), secrets: &memSecrets{m: map[string]string{}}}
+	r := &rig{
+		t: t, bin: bin, starts: filepath.Join(dir, "starts"), acks: filepath.Join(dir, "acks"),
+		events: filepath.Join(dir, "events"), secrets: &memSecrets{m: map[string]string{}},
+	}
 	r.install(self)
+	var lines []string
+	for _, ev := range events {
+		b, merr := protojson.Marshal(ev)
+		if merr != nil {
+			t.Fatal(merr)
+		}
+		lines = append(lines, string(b))
+	}
+	if err = os.WriteFile(r.events, []byte(strings.Join(lines, "\n")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(fakeEvents, r.events)
+	t.Setenv(fakeAcks, r.acks)
+	cache, err := db.Open(context.Background(), filepath.Join(dir, "cache.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cache.Close() })
+	r.cache, r.cachePath = cache, filepath.Join(dir, "cache.db")
+	if prepare != nil {
+		prepare(r)
+	}
 	t.Setenv("PATH", bin)
 	t.Setenv(fakeMode, mode)
 	t.Setenv(fakeStarts, r.starts)
@@ -176,7 +266,7 @@ func newRig(t *testing.T, mode, devices, linkedTo string) *rig {
 		r.secrets.m["signal|phone"] = linkedTo
 	}
 	paths := signal.Paths{Store: filepath.Join(dir, "signal.db"), Socket: filepath.Join(dir, "s.sock")}
-	r.a = signal.New(r.secrets, make([]byte, 32), paths, nil, nil)
+	r.a = signal.New(r.cache, r.secrets, make([]byte, 32), paths, nil, nil)
 	r.a.OnStatus(func(s domain.AccountStatus) {
 		r.mu.Lock()
 		defer r.mu.Unlock()

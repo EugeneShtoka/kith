@@ -13,7 +13,9 @@ import (
 	"slices"
 	"sync"
 
+	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -60,6 +62,7 @@ type Paths struct {
 
 // Adapter is every configured Signal account. Build it with New.
 type Adapter struct {
+	cache   *db.Cache
 	secrets Secrets
 	key     []byte // the key store's
 	paths   Paths
@@ -70,6 +73,14 @@ type Adapter struct {
 	onStatus func(domain.AccountStatus)
 	saidMu   sync.Mutex
 	said     map[string]domain.AccountStatus
+	// onRoomsChanged hears the account's rooms being rewritten; onCached each live
+	// message cached (see OnRoomsChanged, OnCached).
+	onRoomsChanged func()
+	onCached       func(domain.Message)
+
+	// books is what kithd knows of each account's chats, by its ACI (receive.go).
+	booksMu sync.Mutex
+	books   map[string]*book
 
 	mu       sync.Mutex
 	accounts []Account
@@ -82,6 +93,8 @@ type Adapter struct {
 	// helper is the helper while it is up, nil otherwise; up closes when it comes up.
 	helper *helper
 	up     chan struct{}
+	// held is events of Signal accounts no configured account is linked to (hold).
+	held []*signalv1.EventsResponse
 	// down says why the helper is not up, for the accounts' state; failed when it cannot
 	// be until something changes (no kith-signal installed).
 	down   string
@@ -95,15 +108,16 @@ type Adapter struct {
 	reactions chan domain.ReactionUpdate
 }
 
-// New is the adapter for accounts, whose key store is at paths.Store under key, which
-// secrets maps to their Signal accounts. log may be nil.
-func New(secrets Secrets, key []byte, paths Paths, accounts []Account, log *slog.Logger) *Adapter {
+// New is the adapter for accounts, writing into cache, whose key store is at
+// paths.Store under key, which secrets maps to their Signal accounts. log may be nil.
+func New(cache *db.Cache, secrets Secrets, key []byte, paths Paths, accounts []Account, log *slog.Logger) *Adapter {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
 	return &Adapter{
-		secrets: secrets, key: key, paths: paths, accounts: slices.Clone(accounts), log: log.With("network", "signal"),
+		cache: cache, secrets: secrets, key: key, paths: paths, accounts: slices.Clone(accounts), log: log.With("network", "signal"),
 		said:      map[string]domain.AccountStatus{},
+		books:     map[string]*book{},
 		up:        make(chan struct{}),
 		down:      "starting kith-signal",
 		messages:  make(chan domain.Message, streamBuffer),
@@ -119,6 +133,20 @@ func (a *Adapter) Network() domain.Protocol { return domain.ProtocolSignal }
 // OnStatus sets who hears an account's state change, with a detail for the person
 // (empty when none). Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
+
+// OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
+// before Start.
+func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
+
+// OnCached sets who hears each live message cached. Set before Start; changed is never
+// called (nothing but a live message changes a room's messages yet).
+func (a *Adapter) OnCached(cached func(domain.Message), _ func(domain.RoomID)) { a.onCached = cached }
+
+func (a *Adapter) roomsChanged() {
+	if a.onRoomsChanged != nil {
+		a.onRoomsChanged()
+	}
+}
 
 // UseConfig takes [[signal.account]], at start and on reload.
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
@@ -150,10 +178,39 @@ func (a *Adapter) accountsNow() []Account {
 // there is one, and every account's state is said again.
 func (a *Adapter) useAccounts(accounts []Account) {
 	a.mu.Lock()
+	before := a.accounts
 	a.accounts = slices.Clone(accounts)
 	a.mu.Unlock()
+	a.followRename(before, accounts)
 	a.superviseNow()
 	a.announceAll()
+	a.release()
+}
+
+// followRename carries an account's link over to its new name: when one linked account
+// left the config and one not linked came, in one change, that is a rename (the link is
+// kept under the name).
+func (a *Adapter) followRename(before, after []Account) {
+	gone := slices.DeleteFunc(slices.Clone(before), func(x Account) bool { return slices.Contains(after, x) })
+	came := slices.DeleteFunc(slices.Clone(after), func(x Account) bool { return slices.Contains(before, x) })
+	if len(gone) != 1 || len(came) != 1 {
+		return
+	}
+	aci, linked, err := a.linkedTo(gone[0].Name)
+	if err != nil || !linked {
+		return
+	}
+	if _, taken, err := a.linkedTo(came[0].Name); err != nil || taken {
+		return
+	}
+	if err := a.secrets.StoreSecret(linkRef(came[0].Name), aci); err != nil {
+		a.log.Warn("carrying a renamed account's link over failed", "from", gone[0].Name, "to", came[0].Name, "err", err)
+		return
+	}
+	if err := a.secrets.DeleteSecret(linkRef(gone[0].Name)); err != nil {
+		a.log.Warn("forgetting a renamed account's old name failed", "name", gone[0].Name, "err", err)
+	}
+	a.log.Info("renamed: the link goes with it", "from", gone[0].Name, "to", came[0].Name)
 }
 
 // SavedSessions is the configured accounts linked to a Signal account. An unreadable
@@ -248,7 +305,16 @@ func (a *Adapter) announce(account Account, h *helper, down string, failed bool)
 	case !h.has(aci):
 		a.status(account, Unlinked, "unlinked from the phone; run `kith login signal "+account.Name+"` to link again")
 	default:
-		a.status(account, Linked, "")
+		switch s := h.stateOf(aci); s.state {
+		case signalv1.Connection_STATE_CONNECTED:
+			a.status(account, Linked, "")
+		case signalv1.Connection_STATE_LOGGED_OUT:
+			a.status(account, Unlinked, "unlinked from the phone; run `kith login signal "+account.Name+"` to link again")
+		case signalv1.Connection_STATE_DISCONNECTED:
+			a.status(account, Connecting, "reconnecting to Signal: "+s.detail)
+		default:
+			a.status(account, Connecting, "connecting to Signal")
+		}
 	}
 }
 

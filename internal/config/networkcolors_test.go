@@ -9,7 +9,7 @@ func TestANetworksColor(t *testing.T) {
 	n := NetworkColors{Telegram: "#123456", Slack: "None", GoogleMessages: "cyan"}
 	for network, want := range map[string]string{
 		"WhatsApp": "teal", "Telegram": "#123456", "Slack": "", "Google Messages": "cyan",
-		"Signal": "", "Matrix": "", "Carrier Pigeon": "",
+		"Signal": "ultramarine", "Matrix": "", "Carrier Pigeon": "",
 	} {
 		if got := n.For(network); got != want {
 			t.Errorf("For(%q) = %q, want %q", network, got, want)

@@ -27,6 +27,8 @@ type fakeNetwork struct {
 	linked  signalhelper.Device
 	opened  atomic.Int32
 	key     []byte
+	// sinks are the sinks Connect was handed, by ACI.
+	sinks chan signalhelper.Sink
 }
 
 func (f *fakeNetwork) Open(_ context.Context, key []byte) ([]signalhelper.Device, error) {
@@ -42,6 +44,11 @@ func (f *fakeNetwork) Link(_ context.Context, _ string, show func(string) error)
 		}
 	}
 	return f.linked, nil
+}
+
+func (f *fakeNetwork) Connect(_ context.Context, _ string, sink signalhelper.Sink) error {
+	f.sinks <- sink
+	return nil
 }
 
 // serve runs the helper on a socket of its own and returns a client for it and a
@@ -184,5 +191,147 @@ func TestLinkStreamsLinksThenTheAccount(t *testing.T) {
 	}
 	if linked.GetAci() != "aci-2" || linked.GetNumber() != "+15550002" {
 		t.Errorf("linked = %v", linked)
+	}
+}
+
+// connected starts the helper with a fake network and connects one account, returning
+// the client and the sink the account's events go into.
+func connected(t *testing.T) (signalv1connect.SignalServiceClient, signalhelper.Sink) {
+	t.Helper()
+	ctx := context.Background()
+	network := &fakeNetwork{sinks: make(chan signalhelper.Sink, 1)}
+	client, _ := serve(t, network, time.Minute)
+	if _, err := client.Start(ctx, connect.NewRequest(&signalv1.StartRequest{})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Connect(ctx, connect.NewRequest(&signalv1.ConnectRequest{Aci: "aci-1"})); err != nil {
+		t.Fatal(err)
+	}
+	return client, <-network.sinks
+}
+
+func message(body string) *signalv1.EventsResponse {
+	return &signalv1.EventsResponse{Account: "aci-1", Event: &signalv1.EventsResponse_Message{Message: &signalv1.Message{Body: body}}}
+}
+
+// deliver delivers each body in turn, as signalmeow's handler would, closing its
+// channel in kept as each returns (Signal is told then).
+func deliver(sink signalhelper.Sink, bodies ...string) []chan struct{} {
+	kept := make([]chan struct{}, len(bodies))
+	for i := range kept {
+		kept[i] = make(chan struct{})
+	}
+	go func() {
+		for i, b := range bodies {
+			sink.Deliver(message(b))
+			close(kept[i])
+		}
+	}()
+	return kept
+}
+
+func receive(t *testing.T, stream *connect.ServerStreamForClient[signalv1.EventsResponse]) *signalv1.EventsResponse {
+	t.Helper()
+	if !stream.Receive() {
+		t.Fatalf("the stream ended: %v", stream.Err())
+	}
+	return stream.Msg()
+}
+
+func returned(c chan struct{}) bool {
+	select {
+	case <-c:
+		return true
+	case <-time.After(200 * time.Millisecond):
+		return false
+	}
+}
+
+// An event waits in the helper until kithd acks it: only then does Deliver return (and
+// Signal hear it arrived).
+func TestAnEventWaitsForItsAck(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	client, sink := connected(t)
+	stream, err := client.Events(ctx, connect.NewRequest(&signalv1.EventsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := deliver(sink, "one", "two")
+	first := receive(t, stream)
+	if first.GetMessage().GetBody() != "one" || first.GetToken() == 0 {
+		t.Fatalf("first = %v", first)
+	}
+	if returned(kept[0]) {
+		t.Fatal("Deliver returned before kithd acked")
+	}
+	if _, err := client.Ack(ctx, connect.NewRequest(&signalv1.AckRequest{Token: first.GetToken()})); err != nil {
+		t.Fatal(err)
+	}
+	if !returned(kept[0]) {
+		t.Fatal("Deliver did not return once acked")
+	}
+	second := receive(t, stream)
+	if second.GetMessage().GetBody() != "two" || second.GetToken() == first.GetToken() {
+		t.Errorf("second = %v", second)
+	}
+	// An ack again, or for no event, is nothing.
+	for _, token := range []uint64{first.GetToken(), 999} {
+		if _, err := client.Ack(ctx, connect.NewRequest(&signalv1.AckRequest{Token: token})); err != nil {
+			t.Errorf("Ack(%d) = %v", token, err)
+		}
+	}
+	if returned(kept[1]) {
+		t.Error("an unrelated ack released the second event")
+	}
+}
+
+// A new listener (kithd's stream broke, or kithd came back) is sent every event not yet
+// acked first, in order, then what comes; states are not sent again. The old listener's
+// stream ends.
+func TestANewListenerGetsWhatWasNotAcked(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	client, sink := connected(t)
+	oldCtx, dropOld := context.WithCancel(ctx)
+	defer dropOld()
+	old, err := client.Events(oldCtx, connect.NewRequest(&signalv1.EventsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink.Tell(&signalv1.EventsResponse{Account: "aci-1", Event: &signalv1.EventsResponse_Connection{Connection: &signalv1.Connection{State: signalv1.Connection_STATE_CONNECTED}}})
+	if got := receive(t, old); got.GetConnection() == nil || got.GetToken() != 0 {
+		t.Fatalf("state = %v", got)
+	}
+	kept := deliver(sink, "one", "two", "three")
+	one := receive(t, old)
+	if _, err = client.Ack(ctx, connect.NewRequest(&signalv1.AckRequest{Token: one.GetToken()})); err != nil {
+		t.Fatal(err)
+	}
+	two := receive(t, old) // sent, never acked: lost with the old listener
+	if two.GetMessage().GetBody() != "two" {
+		t.Fatalf("two = %v", two)
+	}
+
+	fresh, err := client.Events(ctx, connect.NewRequest(&signalv1.EventsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	again := receive(t, fresh)
+	if again.GetMessage().GetBody() != "two" || again.GetToken() != two.GetToken() {
+		t.Fatalf("the new listener's first = %v, want two again", again)
+	}
+	if _, err := client.Ack(ctx, connect.NewRequest(&signalv1.AckRequest{Token: again.GetToken()})); err != nil {
+		t.Fatal(err)
+	}
+	three := receive(t, fresh)
+	if three.GetMessage().GetBody() != "three" {
+		t.Fatalf("then %v, want three", three)
+	}
+	if !returned(kept[1]) || returned(kept[2]) {
+		t.Error("two was not released by its ack, or three was without one")
+	}
+	if old.Receive() {
+		t.Errorf("the old listener was sent %v after a new one took over", old.Msg())
 	}
 }

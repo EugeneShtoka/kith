@@ -39,6 +39,12 @@ const (
 	SignalServiceStartProcedure = "/signal.v1.SignalService/Start"
 	// SignalServiceLinkProcedure is the fully-qualified name of the SignalService's Link RPC.
 	SignalServiceLinkProcedure = "/signal.v1.SignalService/Link"
+	// SignalServiceConnectProcedure is the fully-qualified name of the SignalService's Connect RPC.
+	SignalServiceConnectProcedure = "/signal.v1.SignalService/Connect"
+	// SignalServiceEventsProcedure is the fully-qualified name of the SignalService's Events RPC.
+	SignalServiceEventsProcedure = "/signal.v1.SignalService/Events"
+	// SignalServiceAckProcedure is the fully-qualified name of the SignalService's Ack RPC.
+	SignalServiceAckProcedure = "/signal.v1.SignalService/Ack"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -51,6 +57,15 @@ type SignalServiceClient interface {
 	// Link makes this helper a linked device of the phone that scans its link: a link to
 	// draw as a QR code, a new one each time the last lapses, then the linked account.
 	Link(context.Context, *connect.Request[v1.LinkRequest]) (*connect.ServerStreamForClient[v1.LinkResponse], error)
+	// Connect connects a linked account: its events start coming on Events.
+	Connect(context.Context, *connect.Request[v1.ConnectRequest]) (*connect.Response[v1.ConnectResponse], error)
+	// Events is every connected account's events, for one listener (a new call takes
+	// over). An event with a token waits in the helper until Ack: Signal is told it
+	// arrived only then, so one kithd never kept is sent again. A new listener is sent
+	// every event still waiting first.
+	Events(context.Context, *connect.Request[v1.EventsRequest]) (*connect.ServerStreamForClient[v1.EventsResponse], error)
+	// Ack says kithd has kept the event with token.
+	Ack(context.Context, *connect.Request[v1.AckRequest]) (*connect.Response[v1.AckResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -82,6 +97,24 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("Link")),
 			connect.WithClientOptions(opts...),
 		),
+		connect: connect.NewClient[v1.ConnectRequest, v1.ConnectResponse](
+			httpClient,
+			baseURL+SignalServiceConnectProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Connect")),
+			connect.WithClientOptions(opts...),
+		),
+		events: connect.NewClient[v1.EventsRequest, v1.EventsResponse](
+			httpClient,
+			baseURL+SignalServiceEventsProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Events")),
+			connect.WithClientOptions(opts...),
+		),
+		ack: connect.NewClient[v1.AckRequest, v1.AckResponse](
+			httpClient,
+			baseURL+SignalServiceAckProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Ack")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -90,6 +123,9 @@ type signalServiceClient struct {
 	heartbeat *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
 	start     *connect.Client[v1.StartRequest, v1.StartResponse]
 	link      *connect.Client[v1.LinkRequest, v1.LinkResponse]
+	connect   *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	events    *connect.Client[v1.EventsRequest, v1.EventsResponse]
+	ack       *connect.Client[v1.AckRequest, v1.AckResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -107,6 +143,21 @@ func (c *signalServiceClient) Link(ctx context.Context, req *connect.Request[v1.
 	return c.link.CallServerStream(ctx, req)
 }
 
+// Connect calls signal.v1.SignalService.Connect.
+func (c *signalServiceClient) Connect(ctx context.Context, req *connect.Request[v1.ConnectRequest]) (*connect.Response[v1.ConnectResponse], error) {
+	return c.connect.CallUnary(ctx, req)
+}
+
+// Events calls signal.v1.SignalService.Events.
+func (c *signalServiceClient) Events(ctx context.Context, req *connect.Request[v1.EventsRequest]) (*connect.ServerStreamForClient[v1.EventsResponse], error) {
+	return c.events.CallServerStream(ctx, req)
+}
+
+// Ack calls signal.v1.SignalService.Ack.
+func (c *signalServiceClient) Ack(ctx context.Context, req *connect.Request[v1.AckRequest]) (*connect.Response[v1.AckResponse], error) {
+	return c.ack.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -117,6 +168,15 @@ type SignalServiceHandler interface {
 	// Link makes this helper a linked device of the phone that scans its link: a link to
 	// draw as a QR code, a new one each time the last lapses, then the linked account.
 	Link(context.Context, *connect.Request[v1.LinkRequest], *connect.ServerStream[v1.LinkResponse]) error
+	// Connect connects a linked account: its events start coming on Events.
+	Connect(context.Context, *connect.Request[v1.ConnectRequest]) (*connect.Response[v1.ConnectResponse], error)
+	// Events is every connected account's events, for one listener (a new call takes
+	// over). An event with a token waits in the helper until Ack: Signal is told it
+	// arrived only then, so one kithd never kept is sent again. A new listener is sent
+	// every event still waiting first.
+	Events(context.Context, *connect.Request[v1.EventsRequest], *connect.ServerStream[v1.EventsResponse]) error
+	// Ack says kithd has kept the event with token.
+	Ack(context.Context, *connect.Request[v1.AckRequest]) (*connect.Response[v1.AckResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -144,6 +204,24 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("Link")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceConnectHandler := connect.NewUnaryHandler(
+		SignalServiceConnectProcedure,
+		svc.Connect,
+		connect.WithSchema(signalServiceMethods.ByName("Connect")),
+		connect.WithHandlerOptions(opts...),
+	)
+	signalServiceEventsHandler := connect.NewServerStreamHandler(
+		SignalServiceEventsProcedure,
+		svc.Events,
+		connect.WithSchema(signalServiceMethods.ByName("Events")),
+		connect.WithHandlerOptions(opts...),
+	)
+	signalServiceAckHandler := connect.NewUnaryHandler(
+		SignalServiceAckProcedure,
+		svc.Ack,
+		connect.WithSchema(signalServiceMethods.ByName("Ack")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -152,6 +230,12 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceStartHandler.ServeHTTP(w, r)
 		case SignalServiceLinkProcedure:
 			signalServiceLinkHandler.ServeHTTP(w, r)
+		case SignalServiceConnectProcedure:
+			signalServiceConnectHandler.ServeHTTP(w, r)
+		case SignalServiceEventsProcedure:
+			signalServiceEventsHandler.ServeHTTP(w, r)
+		case SignalServiceAckProcedure:
+			signalServiceAckHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -171,4 +255,16 @@ func (UnimplementedSignalServiceHandler) Start(context.Context, *connect.Request
 
 func (UnimplementedSignalServiceHandler) Link(context.Context, *connect.Request[v1.LinkRequest], *connect.ServerStream[v1.LinkResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Link is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Connect(context.Context, *connect.Request[v1.ConnectRequest]) (*connect.Response[v1.ConnectResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Connect is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Events(context.Context, *connect.Request[v1.EventsRequest], *connect.ServerStream[v1.EventsResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Events is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Ack(context.Context, *connect.Request[v1.AckRequest]) (*connect.Response[v1.AckResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Ack is not implemented"))
 }

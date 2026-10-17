@@ -90,6 +90,7 @@ func (a *Adapter) finish(account string, h *helper, linked *signalv1.Device) (ap
 	}
 	h.add(aci)
 	a.log.Info("linked", "account", account, "aci", aci)
+	a.connectOne(a.runContext(), h, Account{Name: account}, aci)
 	a.announceAll()
 	return api.LoginEnd{Done: "linked to Signal as " + linked.GetNumber()}, nil
 }
@@ -149,4 +150,11 @@ func (a *Adapter) setUp(ctx context.Context, talk api.LoginTalk) (string, error)
 	}
 	talk.Named(name)
 	return name, nil
+}
+
+// runContext is Start's context: what a connection begun in a login runs under.
+func (a *Adapter) runContext() context.Context {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.run
 }
