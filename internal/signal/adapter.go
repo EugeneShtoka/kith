@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -77,6 +79,12 @@ type Adapter struct {
 	// message cached (see OnRoomsChanged, OnCached).
 	onRoomsChanged func()
 	onCached       func(domain.Message)
+	onChanged      func(domain.RoomID)
+	// keepDeleted is [display.deleted] keep: a deletion or an edit keeps what it removed.
+	keepDeleted atomic.Bool
+	// typing is who types in each room, each until they stop or typingLapse passes.
+	typingMu sync.Mutex
+	typing   map[domain.RoomID]map[string]*time.Timer
 
 	// books is what kithd knows of each account's chats, by its ACI (receive.go).
 	booksMu sync.Mutex
@@ -122,6 +130,7 @@ func New(cache *db.Cache, secrets Secrets, key []byte, paths Paths, accounts []A
 		said:      map[string]domain.AccountStatus{},
 		books:     map[string]*book{},
 		txns:      map[string]uint64{},
+		typing:    map[domain.RoomID]map[string]*time.Timer{},
 		up:        make(chan struct{}),
 		down:      "starting kith-signal",
 		messages:  make(chan domain.Message, streamBuffer),
@@ -142,9 +151,13 @@ func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = ch
 // before Start.
 func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
 
-// OnCached sets who hears each live message cached. Set before Start; changed is never
-// called (nothing but a live message changes a room's messages yet).
-func (a *Adapter) OnCached(cached func(domain.Message), _ func(domain.RoomID)) { a.onCached = cached }
+// OnCached sets who hears each live message cached, and each room whose cached
+// messages changed otherwise (a deletion). Set before Start.
+func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
+	a.onCached, a.onChanged = cached, changed
+}
+
+func (a *Adapter) keepsDeleted() bool { return a.keepDeleted.Load() }
 
 func (a *Adapter) roomsChanged() {
 	if a.onRoomsChanged != nil {
@@ -152,8 +165,9 @@ func (a *Adapter) roomsChanged() {
 	}
 }
 
-// UseConfig takes [[signal.account]], at start and on reload.
+// UseConfig takes [[signal.account]] and [display.deleted] keep, at start and on reload.
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
+	a.keepDeleted.Store(cfg.Display.Deleted.Keep())
 	accounts := make([]Account, 0, len(cfg.Signal.Accounts))
 	for _, account := range cfg.Signal.Accounts {
 		accounts = append(accounts, Account{Name: account.Name})

@@ -85,7 +85,83 @@ message EventsResponse {
     Connection connection = 4;
     Contacts contacts = 5;
     Group group = 6;
+    Edit edit = 7;
+    Delete delete = 8;
+    Reaction reaction = 9;
+    Receipt receipt = 10;
+    Typing typing = 11;
+    Read read = 12;
   }
+}
+
+// Edit replaces a message's text.
+message Edit {
+  string chat = 1;
+  bool group = 2;
+  string sender = 3;
+  // The edited message's sent time: its ID, whatever edits came since.
+  uint64 target = 4;
+  // This edit's own sent time (a reaction to the edited message names it).
+  uint64 sent = 5;
+  string body = 6;
+  repeated Mention mentions = 7;
+}
+
+// Delete deletes a message for everyone.
+message Delete {
+  string chat = 1;
+  bool group = 2;
+  string sender = 3;
+  // The deleted message's sent time.
+  uint64 target = 4;
+  // When it was deleted (ms).
+  uint64 sent = 5;
+}
+
+// Reaction is an emoji put on a message, or taken off it.
+message Reaction {
+  string chat = 1;
+  bool group = 2;
+  string sender = 3;
+  string emoji = 4;
+  bool remove = 5;
+  // The message reacted to: its author, and the sent time of its latest version (an
+  // edit's, if it was edited).
+  string target_author = 6;
+  uint64 target_sent = 7;
+  string sender_name = 8;
+}
+
+// Receipt is someone having got, read or viewed the account's messages.
+message Receipt {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_DELIVERED = 1;
+    KIND_READ = 2;
+    KIND_VIEWED = 3;
+  }
+  string sender = 1;
+  Kind kind = 2;
+  // The account's messages', by sent time.
+  repeated uint64 sent = 3;
+}
+
+// Typing is someone typing in a chat, or stopping.
+message Typing {
+  string chat = 1;
+  bool group = 2;
+  string sender = 3;
+  bool started = 4;
+}
+
+// Read is messages read on another of the account's devices.
+message Read {
+  repeated ReadMessage messages = 1;
+}
+
+message ReadMessage {
+  string author = 1;
+  uint64 sent = 2;
 }
 
 // Message is a message in a chat: someone else's, or the account's own (sent from
