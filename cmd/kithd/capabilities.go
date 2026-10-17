@@ -194,7 +194,8 @@ var (
 	} = (*gmessages.Adapter)(nil)
 
 	// Signal, so far: kith-signal kept running, accounts linked, messages received into
-	// the cache and read there (edits, reactions and sending come next).
+	// the cache and read there, text sent with replies, typing (edits, reactions and
+	// attachments come next).
 	_ interface {
 		network
 		route.RoomLister
@@ -202,6 +203,8 @@ var (
 		route.Homes
 		route.ReadState
 		route.History
+		route.Sender
+		route.Typist
 		route.People
 		route.Encryption
 		route.SpaceLister

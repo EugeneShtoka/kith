@@ -45,6 +45,10 @@ const (
 	SignalServiceEventsProcedure = "/signal.v1.SignalService/Events"
 	// SignalServiceAckProcedure is the fully-qualified name of the SignalService's Ack RPC.
 	SignalServiceAckProcedure = "/signal.v1.SignalService/Ack"
+	// SignalServiceSendProcedure is the fully-qualified name of the SignalService's Send RPC.
+	SignalServiceSendProcedure = "/signal.v1.SignalService/Send"
+	// SignalServiceTypingProcedure is the fully-qualified name of the SignalService's Typing RPC.
+	SignalServiceTypingProcedure = "/signal.v1.SignalService/Typing"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -66,6 +70,10 @@ type SignalServiceClient interface {
 	Events(context.Context, *connect.Request[v1.EventsRequest]) (*connect.ServerStreamForClient[v1.EventsResponse], error)
 	// Ack says kithd has kept the event with token.
 	Ack(context.Context, *connect.Request[v1.AckRequest]) (*connect.Response[v1.AckResponse], error)
+	// Send sends a message from a connected account.
+	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
+	// Typing says a connected account is typing in a chat, or stopped.
+	Typing(context.Context, *connect.Request[v1.TypingRequest]) (*connect.Response[v1.TypingResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -115,6 +123,18 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("Ack")),
 			connect.WithClientOptions(opts...),
 		),
+		send: connect.NewClient[v1.SendRequest, v1.SendResponse](
+			httpClient,
+			baseURL+SignalServiceSendProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Send")),
+			connect.WithClientOptions(opts...),
+		),
+		typing: connect.NewClient[v1.TypingRequest, v1.TypingResponse](
+			httpClient,
+			baseURL+SignalServiceTypingProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Typing")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -126,6 +146,8 @@ type signalServiceClient struct {
 	connect   *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
 	events    *connect.Client[v1.EventsRequest, v1.EventsResponse]
 	ack       *connect.Client[v1.AckRequest, v1.AckResponse]
+	send      *connect.Client[v1.SendRequest, v1.SendResponse]
+	typing    *connect.Client[v1.TypingRequest, v1.TypingResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -158,6 +180,16 @@ func (c *signalServiceClient) Ack(ctx context.Context, req *connect.Request[v1.A
 	return c.ack.CallUnary(ctx, req)
 }
 
+// Send calls signal.v1.SignalService.Send.
+func (c *signalServiceClient) Send(ctx context.Context, req *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error) {
+	return c.send.CallUnary(ctx, req)
+}
+
+// Typing calls signal.v1.SignalService.Typing.
+func (c *signalServiceClient) Typing(ctx context.Context, req *connect.Request[v1.TypingRequest]) (*connect.Response[v1.TypingResponse], error) {
+	return c.typing.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -177,6 +209,10 @@ type SignalServiceHandler interface {
 	Events(context.Context, *connect.Request[v1.EventsRequest], *connect.ServerStream[v1.EventsResponse]) error
 	// Ack says kithd has kept the event with token.
 	Ack(context.Context, *connect.Request[v1.AckRequest]) (*connect.Response[v1.AckResponse], error)
+	// Send sends a message from a connected account.
+	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
+	// Typing says a connected account is typing in a chat, or stopped.
+	Typing(context.Context, *connect.Request[v1.TypingRequest]) (*connect.Response[v1.TypingResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -222,6 +258,18 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("Ack")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceSendHandler := connect.NewUnaryHandler(
+		SignalServiceSendProcedure,
+		svc.Send,
+		connect.WithSchema(signalServiceMethods.ByName("Send")),
+		connect.WithHandlerOptions(opts...),
+	)
+	signalServiceTypingHandler := connect.NewUnaryHandler(
+		SignalServiceTypingProcedure,
+		svc.Typing,
+		connect.WithSchema(signalServiceMethods.ByName("Typing")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -236,6 +284,10 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceEventsHandler.ServeHTTP(w, r)
 		case SignalServiceAckProcedure:
 			signalServiceAckHandler.ServeHTTP(w, r)
+		case SignalServiceSendProcedure:
+			signalServiceSendHandler.ServeHTTP(w, r)
+		case SignalServiceTypingProcedure:
+			signalServiceTypingHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -267,4 +319,12 @@ func (UnimplementedSignalServiceHandler) Events(context.Context, *connect.Reques
 
 func (UnimplementedSignalServiceHandler) Ack(context.Context, *connect.Request[v1.AckRequest]) (*connect.Response[v1.AckResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Ack is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Send is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Typing(context.Context, *connect.Request[v1.TypingRequest]) (*connect.Response[v1.TypingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Typing is not implemented"))
 }

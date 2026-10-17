@@ -381,7 +381,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/signalhelper"
             - "github.com/google/uuid"
             - "github.com/rs/zerolog"
-            - "go.mau.fi/mautrix-signal/pkg/signalmeow"
+            - "go.mau.fi/mautrix-signal/pkg"
             - "go.mau.fi/util/dbutil"
             - "google.golang.org/protobuf"
 
@@ -724,6 +724,7 @@ linters:
             - "**/cmd/kith-signal/**"
           allow:
             - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api/signal/v1"
             - "github.com/EugeneShtoka/kith/internal/signalhelper"
 
         probe-main-wiring:

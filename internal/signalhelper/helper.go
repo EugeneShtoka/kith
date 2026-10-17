@@ -36,6 +36,9 @@ type Network interface {
 	// Connect connects the linked account aci, handing sink its events from then on,
 	// until the helper ends.
 	Connect(ctx context.Context, aci string, sink Sink) error
+	// Send sends a message from a connected account; Typing says it is typing.
+	Send(ctx context.Context, req *signalv1.SendRequest) error
+	Typing(ctx context.Context, req *signalv1.TypingRequest) error
 }
 
 // readHeaderTimeout bounds a request's headers; kithd sends them at once.
@@ -168,6 +171,20 @@ func (s *service) Events(ctx context.Context, _ *connect.Request[signalv1.Events
 func (s *service) Ack(_ context.Context, req *connect.Request[signalv1.AckRequest]) (*connect.Response[signalv1.AckResponse], error) {
 	s.out.ack(req.Msg.GetToken())
 	return connect.NewResponse(&signalv1.AckResponse{}), nil
+}
+
+func (s *service) Send(ctx context.Context, req *connect.Request[signalv1.SendRequest]) (*connect.Response[signalv1.SendResponse], error) {
+	if err := s.network.Send(ctx, req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(&signalv1.SendResponse{}), nil
+}
+
+func (s *service) Typing(ctx context.Context, req *connect.Request[signalv1.TypingRequest]) (*connect.Response[signalv1.TypingResponse], error) {
+	if err := s.network.Typing(ctx, req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(&signalv1.TypingResponse{}), nil
 }
 
 func wireDevice(d Device) *signalv1.Device {

@@ -30,11 +30,13 @@ type Network struct {
 	mu    sync.Mutex
 	db    *sql.DB
 	store *store.Container
+	// accounts are the connected accounts, by ACI (receive.go).
+	accounts map[string]*account
 }
 
 // New returns the Network whose key store is at path; Open opens it.
 func New(path string, log *slog.Logger) *Network {
-	return &Network{path: path, log: log}
+	return &Network{path: path, log: log, accounts: map[string]*account{}}
 }
 
 // zerolog is signalmeow's logger: warnings and up, whatever kith's level, as messagix's.

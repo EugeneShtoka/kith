@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log/slog"
 
+	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
+
 	"github.com/EugeneShtoka/kith/internal/signalhelper"
 )
 
@@ -31,3 +33,7 @@ func (unbuilt) Link(context.Context, string, func(string) error) (signalhelper.D
 func (unbuilt) Connect(context.Context, string, signalhelper.Sink) error {
 	return errUnbuilt
 }
+
+func (unbuilt) Send(context.Context, *signalv1.SendRequest) error { return errUnbuilt }
+
+func (unbuilt) Typing(context.Context, *signalv1.TypingRequest) error { return errUnbuilt }

@@ -49,6 +49,9 @@ func (n *Network) Connect(ctx context.Context, aci string, sink signalhelper.Sin
 	if err != nil {
 		return fmt.Errorf("signal: connect: %w", err)
 	}
+	n.mu.Lock()
+	n.accounts[aci] = a
+	n.mu.Unlock()
 	go func() {
 		for s := range status {
 			sink.Tell(&signalv1.EventsResponse{Account: aci, Event: &signalv1.EventsResponse_Connection{Connection: connection(s)}})
