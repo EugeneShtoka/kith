@@ -87,6 +87,10 @@ func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsm
 		}
 		a.placeRead(ctx, in.msg.RoomID, in.msg.Timestamp.Add(-time.Millisecond))
 		a.recount(ctx, in.msg.RoomID)
+		// A message without a timer says nothing: only a change of timer turns it off.
+		if timer := timerOf(e.Message); timer > 0 {
+			a.keepTimers(ctx, map[domain.RoomID]time.Duration{in.msg.RoomID: timer})
+		}
 	}
 	emit(a, a.messages, in.msg)
 }
