@@ -395,6 +395,25 @@ func TestTheHelperEndsWithItsAccounts(t *testing.T) {
 	}
 }
 
+// A state is said once: config re-reads that change nothing say nothing again.
+func TestAStateIsSaidOnce(t *testing.T) {
+	r := newRig(t, "ok", "aci-1", "aci-1")
+	r.until(5*time.Second, "linked", r.phase(signal.Linked, ""))
+	r.mu.Lock()
+	before := len(r.statuses)
+	r.mu.Unlock()
+	cfg := config.Config{Signal: config.Signal{Accounts: []config.SignalAccount{{Name: "phone"}}}}
+	for range 10 {
+		r.a.UseConfig(context.Background(), cfg)
+	}
+	r.mu.Lock()
+	after := len(r.statuses)
+	r.mu.Unlock()
+	if after != before {
+		t.Errorf("ten re-reads said the state %d more times", after-before)
+	}
+}
+
 // Login draws the helper's link as a QR code and keeps which Signal account it linked.
 func TestLoginLinksByQR(t *testing.T) {
 	r := newRig(t, "ok", "", "")
