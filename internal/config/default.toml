@@ -1246,6 +1246,16 @@ tag = "Archived"
 #   [[gmessages.account]]
 #   name = "phone"
 
+# Signal, linked directly: kith links to your phone as a secondary device, as Signal
+# Desktop does, with no Matrix bridge. It runs when it has an account; `:login signal`
+# inside kith sets one up. Each [[signal.account]] is one Signal account: `name` is
+# what `kith login signal <name>` takes, and linking is a QR code you scan on the phone
+# (Signal → Settings → Linked devices). Signal needs a helper of its own, kith-signal,
+# installed beside kithd or on $PATH; without it there is no Signal.
+#
+#   [[signal.account]]
+#   name = "phone"
+
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
 # data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,
 #                                    dictionaries and models

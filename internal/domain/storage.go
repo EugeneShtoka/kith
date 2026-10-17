@@ -31,6 +31,16 @@ func (s Storage) TelegramPath() string { return s.store("telegram") }
 // encrypted chats (the sessions are in the keyring).
 func (s Storage) MessengerPath() string { return s.store("messenger") }
 
+// SignalPath is the Signal key store (every linked account's device keys), which only
+// kith-signal opens.
+func (s Storage) SignalPath() string { return s.store("signal") }
+
+// SignalSocketPath is the socket kithd serves kith-signal through (kithd listens; the
+// helper is handed it).
+func (s Storage) SignalSocketPath() string {
+	return filepath.Join(s.RuntimeDir, "signal-"+s.Instance+".sock")
+}
+
 func (s Storage) store(kind string) string {
 	return filepath.Join(s.DataDir, kind+"-"+s.Instance+".db")
 }

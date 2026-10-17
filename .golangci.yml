@@ -340,6 +340,19 @@ linters:
             - "$gostd"
             - "rsc.io/qr"
 
+        # The Signal adapter: kithd's side of kith-signal. Pure Go: it starts the helper,
+        # keeps it alive and speaks its wire, and never links libsignal (meow) itself.
+        signal-is-the-adapter:
+          files:
+            - "**/internal/signal/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "connectrpc.com/connect"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+
         # kith-signal's process: SignalService and the heartbeat, over Network. Pure Go,
         # so it builds and is tested without cgo; it never sees kithd's cache.
         signalhelper-serves-the-wire:
@@ -675,10 +688,14 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/schedule"
             - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/EugeneShtoka/kith/internal/setup"
+            - "github.com/EugeneShtoka/kith/internal/signal"
             - "github.com/EugeneShtoka/kith/internal/slack"
             - "github.com/EugeneShtoka/kith/internal/telegram"
             - "github.com/EugeneShtoka/kith/internal/whatsapp"
             - "github.com/adrg/xdg"
+          deny:
+            - pkg: "github.com/EugeneShtoka/kith/internal/signalhelper"
+              desc: "kithd never links libsignal: kith-signal does, in a process of its own"
 
         # Talks only to the daemon; never opens the single-writer cache itself.
         mcp-main-wiring:

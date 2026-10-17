@@ -7,6 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/meta"
 	"github.com/EugeneShtoka/kith/internal/route"
+	"github.com/EugeneShtoka/kith/internal/signal"
 	"github.com/EugeneShtoka/kith/internal/slack"
 	"github.com/EugeneShtoka/kith/internal/telegram"
 	"github.com/EugeneShtoka/kith/internal/whatsapp"
@@ -191,4 +192,11 @@ var (
 		roomsRewriter
 		cacheWriter
 	} = (*gmessages.Adapter)(nil)
+
+	// Signal, so far: kith-signal kept running and accounts linked (receiving and
+	// sending come next).
+	_ interface {
+		network
+		configChecker
+	} = (*signal.Adapter)(nil)
 )
