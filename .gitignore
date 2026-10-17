@@ -3,6 +3,7 @@
 /kithd
 /*.exe
 /kith-mcp
+/kith-signal
 /emoji-probe
 dist/
 # Generated packaging inputs (scripts/prepare-packaging.sh, the GoReleaser before hook)

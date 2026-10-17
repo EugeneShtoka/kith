@@ -4,6 +4,7 @@
 Messenger and LinkedIn side by side, with a daemon that keeps working when the terminal is closed.**
 
 [![CI](https://github.com/EugeneShtoka/kith/actions/workflows/ci.yml/badge.svg)](https://github.com/EugeneShtoka/kith/actions/workflows/ci.yml)
+[![Signal](https://github.com/EugeneShtoka/kith/actions/workflows/signal.yml/badge.svg)](https://github.com/EugeneShtoka/kith/actions/workflows/signal.yml)
 [![Go](https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go)](go.mod)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 

@@ -1,0 +1,77 @@
+name: Signal
+
+# kith-signal, the Signal helper: the one binary built with cgo, against libsignal_ffi
+# (Rust). Outside ci-ok on purpose: a broken Signal build never blocks a merge. On a PR
+# it labels the PR `signal-broken` until it is green again; release.yml calls this
+# workflow, so a broken Signal build does block a release.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Its own group: called from release.yml, github.workflow is the caller's, and ci.yml's
+# group would make the two wait on each other.
+concurrency:
+  group: "signal-${{ github.ref }}"
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    # A cold libsignal build is most of it; the cache below makes later runs short.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # cargo, cmake and clang are on the runner; libsignal also needs protoc.
+      - name: libsignal's build tools
+        run: sudo apt-get install -y --no-install-recommends protobuf-compiler
+
+      # libsignal's version follows go.mod's mautrix-signal (scripts/build-libsignal.sh),
+      # so that line keys its build.
+      - name: The libsignal build's cache key
+        id: libsignal
+        run: echo "key=libsignal-${{ runner.os }}-$(grep -E '^\s*go.mau.fi/mautrix-signal ' go.mod | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/libsignal-*
+          key: ${{ steps.libsignal.outputs.key }}
+
+      - name: Build kith-signal
+        run: make build-signal
+
+      - name: Test and lint kith-signal with the signal tag
+        run: make signal-check
+
+  # A PR whose Signal build fails is labelled `signal-broken`; the label goes when it
+  # passes again.
+  label:
+    needs: signal
+    if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Label the PR while its Signal build fails
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          RESULT: ${{ needs.signal.result }}
+        run: |
+          case "$RESULT" in
+            failure) gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label signal-broken ;;
+            success) gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label signal-broken ;;
+          esac

@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package signal.v1;
+
+option go_package = "github.com/EugeneShtoka/kith/internal/api/signal/v1;signalv1";
+
+// SignalService is served by kith-signal, the helper that alone links libsignal (cgo),
+// to kithd over a socket kithd hands it. kithd starts it, keeps it alive with
+// Heartbeat, and owns everything but the helper's key store.
+service SignalService {
+  // Heartbeat is kithd's keep-alive: the helper exits when they stop.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  // Start opens the key store with kithd's key and lists the devices linked in it.
+  // Once per helper.
+  rpc Start(StartRequest) returns (StartResponse);
+  // Link makes this helper a linked device of the phone that scans its link: a link to
+  // draw as a QR code, a new one each time the last lapses, then the linked account.
+  rpc Link(LinkRequest) returns (stream LinkResponse);
+}
+
+message HeartbeatRequest {}
+
+message HeartbeatResponse {}
+
+message StartRequest {
+  // The key store's key, from kithd's keyring.
+  bytes key = 1;
+}
+
+message StartResponse {
+  repeated Device devices = 1;
+}
+
+// Device is a Signal account this helper is linked to as a secondary device.
+message Device {
+  // The account's ACI, Signal's own ID for it (a UUID).
+  string aci = 1;
+  // The account's phone number, E.164.
+  string number = 2;
+}
+
+message LinkRequest {
+  // The name the phone lists this device under.
+  string device_name = 1;
+}
+
+message LinkResponse {
+  oneof step {
+    // An sgnl://linkdevice link to draw as a QR code; it lapses after about a minute.
+    string url = 1;
+    // The phone scanned it: the account this helper is now linked to.
+    Device linked = 2;
+  }
+}

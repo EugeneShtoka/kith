@@ -63,12 +63,22 @@ It is applied in four places, and they must agree:
 - the CI workflow sets `GOFLAGS: -tags=goolm` for every job;
 - `.goreleaser.yaml` passes `-tags=goolm` to each release build.
 
-Every binary is built with `CGO_ENABLED=0`: `make build`, `make install`, `make run`,
+Every binary but one is built with `CGO_ENABLED=0`: `make build`, `make install`, `make run`,
 CI's build and cross-compile jobs, and each release build. That matters beyond libolm.
 With cgo on, mautrix's `cryptohelper` links `mattn/go-sqlite3` (a C SQLite, through
 `go.mau.fi/util/dbutil/litestream`), although only the pure-Go `modernc.org/sqlite`
 driver is ever opened. Tests are the exception: `-race` needs cgo, so `make test` and
 CI's test step build with it.
+
+The one cgo binary is `kith-signal`, the Signal helper: Signal's crypto is libsignal, a
+Rust library, which mautrix-signal reaches through cgo. Only the code behind the
+`signal` build tag (`cmd/kith-signal`, `internal/signalhelper/meow`) links it; without
+the tag `kith-signal` builds cgo-free and refuses every call, so every gate above still
+holds. `make build-signal` builds it (needs cargo, cmake, clang and protoc;
+`scripts/build-libsignal.sh` builds libsignal at the version mautrix-signal wraps), and
+`make signal-check` runs its tests and lint with the tag. CI runs both in
+`.github/workflows/signal.yml`, outside ci-ok: a broken Signal build labels the PR
+`signal-broken` and blocks a release, never a merge.
 
 Running `go` directly, outside `make`, set it yourself:
 

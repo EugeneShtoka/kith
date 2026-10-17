@@ -34,6 +34,7 @@ require (
 	go.mau.fi/mautrix-gmessages v0.2609.0
 	go.mau.fi/mautrix-linkedin v0.2609.0
 	go.mau.fi/mautrix-meta v0.2609.1-0.20261013130553-a37ac47c433a
+	go.mau.fi/mautrix-signal v0.2609.0
 	go.mau.fi/util v0.10.2-0.20260918225449-a4c0d5b86aa8
 	go.mau.fi/whatsmeow v0.0.0-20260929112325-8b41cfe6d9c4
 	golang.org/x/image v0.47.0
@@ -64,6 +65,7 @@ require (
 	github.com/icholy/digest v1.2.0 // indirect
 	github.com/imroc/req/v3 v3.56.0 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/ogen-go/ogen v1.23.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
@@ -77,6 +79,8 @@ require (
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	lukechampine.com/adiantum v1.1.1 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect
@@ -162,7 +166,7 @@ require (
 	github.com/go-xmlfmt/xmlfmt v1.1.3 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godoc-lint/godoc-lint v0.11.2 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golangci/asciicheck v0.5.0 // indirect
 	github.com/golangci/dupl v0.0.0-20260401084720-c99c5cf5c202 // indirect
 	github.com/golangci/go-printf-func-name v0.1.1 // indirect
