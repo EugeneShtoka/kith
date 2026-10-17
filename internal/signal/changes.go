@@ -83,7 +83,7 @@ func (a *Adapter) takeReaction(ctx context.Context, self string, r *signalv1.Rea
 	} else if ok {
 		target = edited
 	}
-	id := domain.EventID(fmt.Sprintf("%s/reaction:%s.%d:%s", room, r.GetTargetAuthor(), r.GetTargetSent(), r.GetSender()))
+	id := reactionID(target, r.GetSender())
 	old, had, err := a.cache.DeleteReaction(ctx, id)
 	if err != nil {
 		return fmt.Errorf("take a reaction off: %w", err)
@@ -175,3 +175,12 @@ func (a *Adapter) save(ctx context.Context, room domain.RoomID, msgs ...domain.M
 func sentTime(ms uint64) time.Time {
 	return time.UnixMilli(int64(ms)) //nolint:gosec // a Signal timestamp fits
 }
+
+// reactionID is sender's reaction on the message target: one per sender and message,
+// whichever version of it the reaction names.
+func reactionID(target domain.EventID, sender string) domain.EventID {
+	return domain.EventID(string(target) + reactionMark + sender)
+}
+
+// reactionMark joins a reaction's message and sender in its ID.
+const reactionMark = ":reaction:"

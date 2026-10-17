@@ -39,6 +39,8 @@ type Network interface {
 	// Send sends a message from a connected account; Typing says it is typing.
 	Send(ctx context.Context, req *signalv1.SendRequest) error
 	Typing(ctx context.Context, req *signalv1.TypingRequest) error
+	// MarkRead says the account read messages.
+	MarkRead(ctx context.Context, req *signalv1.MarkReadRequest) error
 }
 
 // readHeaderTimeout bounds a request's headers; kithd sends them at once.
@@ -185,6 +187,13 @@ func (s *service) Typing(ctx context.Context, req *connect.Request[signalv1.Typi
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}
 	return connect.NewResponse(&signalv1.TypingResponse{}), nil
+}
+
+func (s *service) MarkRead(ctx context.Context, req *connect.Request[signalv1.MarkReadRequest]) (*connect.Response[signalv1.MarkReadResponse], error) {
+	if err := s.network.MarkRead(ctx, req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(&signalv1.MarkReadResponse{}), nil
 }
 
 func wireDevice(d Device) *signalv1.Device {

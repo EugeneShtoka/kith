@@ -116,6 +116,12 @@ func (f *fakeNetwork) Send(_ context.Context, req *signalv1.SendRequest) error {
 	return nil
 }
 
+// MarkRead records req.
+func (f *fakeNetwork) MarkRead(_ context.Context, req *signalv1.MarkReadRequest) error {
+	record(req)
+	return nil
+}
+
 // Typing records req.
 func (f *fakeNetwork) Typing(_ context.Context, req *signalv1.TypingRequest) error {
 	record(req)

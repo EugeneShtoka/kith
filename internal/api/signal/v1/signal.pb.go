@@ -1983,7 +1983,14 @@ type SendRequest struct {
 	// repeated with the same time is the same message to Signal's clients.
 	Sent uint64 `protobuf:"varint,5,opt,name=sent,proto3" json:"sent,omitempty"`
 	// The message replied to, if any.
-	Quote         *Quote `protobuf:"bytes,6,opt,name=quote,proto3" json:"quote,omitempty"`
+	Quote *Quote `protobuf:"bytes,6,opt,name=quote,proto3" json:"quote,omitempty"`
+	// Instead of a new message, at most one of: an edit of the account's message (the
+	// sent time of its latest version, which is what an edit names), a reaction (its
+	// target the latest version too), or a deletion for everyone of the account's
+	// message (by its original sent time).
+	EditOf        uint64    `protobuf:"varint,7,opt,name=edit_of,json=editOf,proto3" json:"edit_of,omitempty"`
+	Reaction      *Reaction `protobuf:"bytes,8,opt,name=reaction,proto3" json:"reaction,omitempty"`
+	DeleteOf      uint64    `protobuf:"varint,9,opt,name=delete_of,json=deleteOf,proto3" json:"delete_of,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2058,6 +2065,27 @@ func (x *SendRequest) GetQuote() *Quote {
 		return x.Quote
 	}
 	return nil
+}
+
+func (x *SendRequest) GetEditOf() uint64 {
+	if x != nil {
+		return x.EditOf
+	}
+	return 0
+}
+
+func (x *SendRequest) GetReaction() *Reaction {
+	if x != nil {
+		return x.Reaction
+	}
+	return nil
+}
+
+func (x *SendRequest) GetDeleteOf() uint64 {
+	if x != nil {
+		return x.DeleteOf
+	}
+	return 0
 }
 
 type SendResponse struct {
@@ -2200,6 +2228,104 @@ func (*TypingResponse) Descriptor() ([]byte, []int) {
 	return file_signal_v1_signal_proto_rawDescGZIP(), []int{31}
 }
 
+type MarkReadRequest struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Account string                 `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	// The messages read, by author and sent time.
+	Messages []*ReadMessage `protobuf:"bytes,2,rep,name=messages,proto3" json:"messages,omitempty"`
+	// Whether the authors are told too (read receipts), not only the account's devices.
+	Receipts      bool `protobuf:"varint,3,opt,name=receipts,proto3" json:"receipts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MarkReadRequest) Reset() {
+	*x = MarkReadRequest{}
+	mi := &file_signal_v1_signal_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MarkReadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MarkReadRequest) ProtoMessage() {}
+
+func (x *MarkReadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MarkReadRequest.ProtoReflect.Descriptor instead.
+func (*MarkReadRequest) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *MarkReadRequest) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+func (x *MarkReadRequest) GetMessages() []*ReadMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *MarkReadRequest) GetReceipts() bool {
+	if x != nil {
+		return x.Receipts
+	}
+	return false
+}
+
+type MarkReadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MarkReadResponse) Reset() {
+	*x = MarkReadResponse{}
+	mi := &file_signal_v1_signal_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MarkReadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MarkReadResponse) ProtoMessage() {}
+
+func (x *MarkReadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MarkReadResponse.ProtoReflect.Descriptor instead.
+func (*MarkReadResponse) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{33}
+}
+
 var File_signal_v1_signal_proto protoreflect.FileDescriptor
 
 const file_signal_v1_signal_proto_rawDesc = "" +
@@ -2340,21 +2466,29 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\n" +
 	"AckRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\x04R\x05token\"\r\n" +
-	"\vAckResponse\"\xa1\x01\n" +
+	"\vAckResponse\"\x88\x02\n" +
 	"\vSendRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04chat\x18\x02 \x01(\tR\x04chat\x12\x14\n" +
 	"\x05group\x18\x03 \x01(\bR\x05group\x12\x12\n" +
 	"\x04body\x18\x04 \x01(\tR\x04body\x12\x12\n" +
 	"\x04sent\x18\x05 \x01(\x04R\x04sent\x12&\n" +
-	"\x05quote\x18\x06 \x01(\v2\x10.signal.v1.QuoteR\x05quote\"\x0e\n" +
+	"\x05quote\x18\x06 \x01(\v2\x10.signal.v1.QuoteR\x05quote\x12\x17\n" +
+	"\aedit_of\x18\a \x01(\x04R\x06editOf\x12/\n" +
+	"\breaction\x18\b \x01(\v2\x13.signal.v1.ReactionR\breaction\x12\x1b\n" +
+	"\tdelete_of\x18\t \x01(\x04R\bdeleteOf\"\x0e\n" +
 	"\fSendResponse\"k\n" +
 	"\rTypingRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04chat\x18\x02 \x01(\tR\x04chat\x12\x14\n" +
 	"\x05group\x18\x03 \x01(\bR\x05group\x12\x16\n" +
 	"\x06typing\x18\x04 \x01(\bR\x06typing\"\x10\n" +
-	"\x0eTypingResponse2\xff\x03\n" +
+	"\x0eTypingResponse\"{\n" +
+	"\x0fMarkReadRequest\x12\x18\n" +
+	"\aaccount\x18\x01 \x01(\tR\aaccount\x122\n" +
+	"\bmessages\x18\x02 \x03(\v2\x16.signal.v1.ReadMessageR\bmessages\x12\x1a\n" +
+	"\breceipts\x18\x03 \x01(\bR\breceipts\"\x12\n" +
+	"\x10MarkReadResponse2\xc4\x04\n" +
 	"\rSignalService\x12F\n" +
 	"\tHeartbeat\x12\x1b.signal.v1.HeartbeatRequest\x1a\x1c.signal.v1.HeartbeatResponse\x12:\n" +
 	"\x05Start\x12\x17.signal.v1.StartRequest\x1a\x18.signal.v1.StartResponse\x129\n" +
@@ -2363,7 +2497,8 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\x06Events\x12\x18.signal.v1.EventsRequest\x1a\x19.signal.v1.EventsResponse0\x01\x124\n" +
 	"\x03Ack\x12\x15.signal.v1.AckRequest\x1a\x16.signal.v1.AckResponse\x127\n" +
 	"\x04Send\x12\x16.signal.v1.SendRequest\x1a\x17.signal.v1.SendResponse\x12=\n" +
-	"\x06Typing\x12\x18.signal.v1.TypingRequest\x1a\x19.signal.v1.TypingResponseB>Z<github.com/EugeneShtoka/kith/internal/api/signal/v1;signalv1b\x06proto3"
+	"\x06Typing\x12\x18.signal.v1.TypingRequest\x1a\x19.signal.v1.TypingResponse\x12C\n" +
+	"\bMarkRead\x12\x1a.signal.v1.MarkReadRequest\x1a\x1b.signal.v1.MarkReadResponseB>Z<github.com/EugeneShtoka/kith/internal/api/signal/v1;signalv1b\x06proto3"
 
 var (
 	file_signal_v1_signal_proto_rawDescOnce sync.Once
@@ -2378,7 +2513,7 @@ func file_signal_v1_signal_proto_rawDescGZIP() []byte {
 }
 
 var file_signal_v1_signal_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_signal_v1_signal_proto_goTypes = []any{
 	(Receipt_Kind)(0),         // 0: signal.v1.Receipt.Kind
 	(Connection_State)(0),     // 1: signal.v1.Connection.State
@@ -2414,6 +2549,8 @@ var file_signal_v1_signal_proto_goTypes = []any{
 	(*SendResponse)(nil),      // 31: signal.v1.SendResponse
 	(*TypingRequest)(nil),     // 32: signal.v1.TypingRequest
 	(*TypingResponse)(nil),    // 33: signal.v1.TypingResponse
+	(*MarkReadRequest)(nil),   // 34: signal.v1.MarkReadRequest
+	(*MarkReadResponse)(nil),  // 35: signal.v1.MarkReadResponse
 }
 var file_signal_v1_signal_proto_depIdxs = []int32{
 	6,  // 0: signal.v1.StartResponse.devices:type_name -> signal.v1.Device
@@ -2437,27 +2574,31 @@ var file_signal_v1_signal_proto_depIdxs = []int32{
 	1,  // 18: signal.v1.Connection.state:type_name -> signal.v1.Connection.State
 	26, // 19: signal.v1.Contacts.contacts:type_name -> signal.v1.Contact
 	21, // 20: signal.v1.SendRequest.quote:type_name -> signal.v1.Quote
-	2,  // 21: signal.v1.SignalService.Heartbeat:input_type -> signal.v1.HeartbeatRequest
-	4,  // 22: signal.v1.SignalService.Start:input_type -> signal.v1.StartRequest
-	7,  // 23: signal.v1.SignalService.Link:input_type -> signal.v1.LinkRequest
-	9,  // 24: signal.v1.SignalService.Connect:input_type -> signal.v1.ConnectRequest
-	11, // 25: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
-	28, // 26: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
-	30, // 27: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
-	32, // 28: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
-	3,  // 29: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
-	5,  // 30: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
-	8,  // 31: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
-	10, // 32: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
-	12, // 33: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
-	29, // 34: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
-	31, // 35: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
-	33, // 36: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
-	29, // [29:37] is the sub-list for method output_type
-	21, // [21:29] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	15, // 21: signal.v1.SendRequest.reaction:type_name -> signal.v1.Reaction
+	19, // 22: signal.v1.MarkReadRequest.messages:type_name -> signal.v1.ReadMessage
+	2,  // 23: signal.v1.SignalService.Heartbeat:input_type -> signal.v1.HeartbeatRequest
+	4,  // 24: signal.v1.SignalService.Start:input_type -> signal.v1.StartRequest
+	7,  // 25: signal.v1.SignalService.Link:input_type -> signal.v1.LinkRequest
+	9,  // 26: signal.v1.SignalService.Connect:input_type -> signal.v1.ConnectRequest
+	11, // 27: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
+	28, // 28: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
+	30, // 29: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
+	32, // 30: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
+	34, // 31: signal.v1.SignalService.MarkRead:input_type -> signal.v1.MarkReadRequest
+	3,  // 32: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
+	5,  // 33: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
+	8,  // 34: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
+	10, // 35: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
+	12, // 36: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
+	29, // 37: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
+	31, // 38: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
+	33, // 39: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
+	35, // 40: signal.v1.SignalService.MarkRead:output_type -> signal.v1.MarkReadResponse
+	32, // [32:41] is the sub-list for method output_type
+	23, // [23:32] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_signal_v1_signal_proto_init() }
@@ -2487,7 +2628,7 @@ func file_signal_v1_signal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signal_v1_signal_proto_rawDesc), len(file_signal_v1_signal_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   32,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

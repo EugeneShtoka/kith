@@ -159,3 +159,17 @@ func TestEditsOfEditsLandOnTheMessage(t *testing.T) {
 		t.Errorf("reactions = %+v, want one on the message", rs)
 	}
 }
+
+// A sender's reaction is one per message, whichever version of it each names: reacting
+// again after an edit (naming the edit) replaces the first.
+func TestOneReactionPerSenderAcrossEdits(t *testing.T) {
+	r := connected(t,
+		msg(dana, dana, 1700000000100, "one"),
+		react(dana, me, "👍", false, dana, 1700000000100),
+		edit(dana, dana, 1700000000100, 1700000000200, "two"),
+		react(dana, me, "❤️", false, dana, 1700000000200),
+	)
+	if rs := r.reactions(direct(dana)); len(rs) != 1 || rs[0].Key != "❤️" {
+		t.Errorf("reactions = %+v, want only my ❤️", rs)
+	}
+}

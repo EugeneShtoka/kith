@@ -29,6 +29,9 @@ service SignalService {
   rpc Send(SendRequest) returns (SendResponse);
   // Typing says a connected account is typing in a chat, or stopped.
   rpc Typing(TypingRequest) returns (TypingResponse);
+  // MarkRead tells the account's other devices (the phone), and with receipts the
+  // messages' authors, that it read messages.
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
 }
 
 message HeartbeatRequest {}
@@ -264,6 +267,13 @@ message SendRequest {
   uint64 sent = 5;
   // The message replied to, if any.
   Quote quote = 6;
+  // Instead of a new message, at most one of: an edit of the account's message (the
+  // sent time of its latest version, which is what an edit names), a reaction (its
+  // target the latest version too), or a deletion for everyone of the account's
+  // message (by its original sent time).
+  uint64 edit_of = 7;
+  Reaction reaction = 8;
+  uint64 delete_of = 9;
 }
 
 message SendResponse {}
@@ -276,3 +286,13 @@ message TypingRequest {
 }
 
 message TypingResponse {}
+
+message MarkReadRequest {
+  string account = 1;
+  // The messages read, by author and sent time.
+  repeated ReadMessage messages = 2;
+  // Whether the authors are told too (read receipts), not only the account's devices.
+  bool receipts = 3;
+}
+
+message MarkReadResponse {}

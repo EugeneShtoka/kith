@@ -50,6 +50,8 @@ func (f *fakeNetwork) Send(context.Context, *signalv1.SendRequest) error { retur
 
 func (f *fakeNetwork) Typing(context.Context, *signalv1.TypingRequest) error { return nil }
 
+func (f *fakeNetwork) MarkRead(context.Context, *signalv1.MarkReadRequest) error { return nil }
+
 func (f *fakeNetwork) Connect(_ context.Context, _ string, sink signalhelper.Sink) error {
 	f.sinks <- sink
 	return nil
