@@ -116,17 +116,17 @@ func (a *account) handle(ctx context.Context, evt events.SignalEvent) {
 // message is data as a wire message.
 func (a *account) message(ctx context.Context, info events.MessageInfo, data *signalpb.DataMessage) *signalv1.Message {
 	m := &signalv1.Message{
-		Chat:       info.ChatID,
-		Group:      data.GetGroupV2() != nil,
-		Sender:     info.Sender.String(),
-		Sent:       data.GetTimestamp(),
-		Received:   info.ServerTimestamp,
-		Body:       data.GetBody(),
-		SenderName: a.nameOf(ctx, info.Sender),
+		Chat:     info.ChatID,
+		Group:    data.GetGroupV2() != nil,
+		Sender:   info.Sender.String(),
+		Sent:     data.GetTimestamp(),
+		Received: info.ServerTimestamp,
+		Body:     data.GetBody(),
 	}
+	m.SenderName, m.SenderNumber = a.whoIs(ctx, info.Sender)
 	if !m.GetGroup() {
 		if other, err := uuid.Parse(info.ChatID); err == nil {
-			m.ChatName = a.nameOf(ctx, other)
+			m.ChatName, m.ChatNumber = a.whoIs(ctx, other)
 		}
 	}
 	if q := data.GetQuote(); q != nil {
@@ -175,16 +175,23 @@ func (a *account) describe(ctx context.Context, id string, revision uint32) {
 	a.sink.Tell(&signalv1.EventsResponse{Account: a.aci, Event: &signalv1.EventsResponse_Group{Group: group}})
 }
 
-// nameOf is who's name as the account knows them, or "".
+// nameOf is who's name as the account knows them, or "". A profile name needs their
+// profile key, which a new device has only once they wrote.
 func (a *account) nameOf(ctx context.Context, who uuid.UUID) string {
+	name, _ := a.whoIs(ctx, who)
+	return name
+}
+
+// whoIs is who's name and phone number (E.164) as the account knows them, either "".
+func (a *account) whoIs(ctx context.Context, who uuid.UUID) (string, string) {
 	if who == uuid.Nil {
-		return ""
+		return "", ""
 	}
 	r, err := a.cli.ContactByACI(ctx, who)
 	if err != nil || r == nil {
-		return ""
+		return "", ""
 	}
-	return name(r)
+	return name(r), r.E164
 }
 
 // name is a recipient's name: the nickname the account gave them, their contact name,

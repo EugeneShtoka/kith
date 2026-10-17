@@ -684,10 +684,14 @@ type Message struct {
 	// The author's name as the account knows it (contact name, else profile name).
 	SenderName string `protobuf:"bytes,7,opt,name=sender_name,json=senderName,proto3" json:"sender_name,omitempty"`
 	// For a one-to-one chat, the other side's name.
-	ChatName      string        `protobuf:"bytes,8,opt,name=chat_name,json=chatName,proto3" json:"chat_name,omitempty"`
-	Quote         *Quote        `protobuf:"bytes,9,opt,name=quote,proto3" json:"quote,omitempty"`
-	Mentions      []*Mention    `protobuf:"bytes,10,rep,name=mentions,proto3" json:"mentions,omitempty"`
-	Attachments   []*Attachment `protobuf:"bytes,11,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	ChatName    string        `protobuf:"bytes,8,opt,name=chat_name,json=chatName,proto3" json:"chat_name,omitempty"`
+	Quote       *Quote        `protobuf:"bytes,9,opt,name=quote,proto3" json:"quote,omitempty"`
+	Mentions    []*Mention    `protobuf:"bytes,10,rep,name=mentions,proto3" json:"mentions,omitempty"`
+	Attachments []*Attachment `protobuf:"bytes,11,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	// The author's and, for a one-to-one chat, the other side's phone numbers (E.164),
+	// when the account knows them: what joins them to the same people elsewhere.
+	SenderNumber  string `protobuf:"bytes,12,opt,name=sender_number,json=senderNumber,proto3" json:"sender_number,omitempty"`
+	ChatNumber    string `protobuf:"bytes,13,opt,name=chat_number,json=chatNumber,proto3" json:"chat_number,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -797,6 +801,20 @@ func (x *Message) GetAttachments() []*Attachment {
 		return x.Attachments
 	}
 	return nil
+}
+
+func (x *Message) GetSenderNumber() string {
+	if x != nil {
+		return x.SenderNumber
+	}
+	return ""
+}
+
+func (x *Message) GetChatNumber() string {
+	if x != nil {
+		return x.ChatNumber
+	}
+	return ""
 }
 
 // Quote is the message a message replies to.
@@ -1334,7 +1352,7 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"connection\x121\n" +
 	"\bcontacts\x18\x05 \x01(\v2\x13.signal.v1.ContactsH\x00R\bcontacts\x12(\n" +
 	"\x05group\x18\x06 \x01(\v2\x10.signal.v1.GroupH\x00R\x05groupB\a\n" +
-	"\x05event\"\xde\x02\n" +
+	"\x05event\"\xa4\x03\n" +
 	"\aMessage\x12\x12\n" +
 	"\x04chat\x18\x01 \x01(\tR\x04chat\x12\x14\n" +
 	"\x05group\x18\x02 \x01(\bR\x05group\x12\x16\n" +
@@ -1348,7 +1366,10 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\x05quote\x18\t \x01(\v2\x10.signal.v1.QuoteR\x05quote\x12.\n" +
 	"\bmentions\x18\n" +
 	" \x03(\v2\x12.signal.v1.MentionR\bmentions\x127\n" +
-	"\vattachments\x18\v \x03(\v2\x15.signal.v1.AttachmentR\vattachments\"G\n" +
+	"\vattachments\x18\v \x03(\v2\x15.signal.v1.AttachmentR\vattachments\x12#\n" +
+	"\rsender_number\x18\f \x01(\tR\fsenderNumber\x12\x1f\n" +
+	"\vchat_number\x18\r \x01(\tR\n" +
+	"chatNumber\"G\n" +
 	"\x05Quote\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x12\n" +
 	"\x04sent\x18\x02 \x01(\x04R\x04sent\x12\x12\n" +

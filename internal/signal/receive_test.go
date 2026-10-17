@@ -252,3 +252,23 @@ func TestARenameKeepsTheLink(t *testing.T) {
 		}
 	}
 }
+
+// A person with no name but a known number is that number, "+digits", which the
+// phonebook or another network's name for it names; and they are linked to it, so their
+// messages are named the same way.
+func TestANumberJoinsAPersonToTheirPhone(t *testing.T) {
+	hi := msg(dana, me, 1700000000100, "hi")
+	hi.GetMessage().ChatNumber = "+972 50-000-0002"
+	r := newRigPlaying(t, "ok", me, me, []*signalv1.EventsResponse{hi})
+	r.until(10*time.Second, "acked", func() bool { return len(r.acked()) == 1 })
+	if room, _ := r.room(direct(dana)); room.Name != "+972500000002" {
+		t.Errorf("Dana's room is %q, want her number", room.Name)
+	}
+	dir, err := r.cache.Directory(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(dir.Identifiers("signal:"+dana), domain.PhoneID("972500000002")) {
+		t.Errorf("Dana is not joined to her number: %v", dir.Identifiers("signal:"+dana))
+	}
+}

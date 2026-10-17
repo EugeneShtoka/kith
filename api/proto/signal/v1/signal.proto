@@ -103,6 +103,10 @@ message Message {
   Quote quote = 9;
   repeated Mention mentions = 10;
   repeated Attachment attachments = 11;
+  // The author's and, for a one-to-one chat, the other side's phone numbers (E.164),
+  // when the account knows them: what joins them to the same people elsewhere.
+  string sender_number = 12;
+  string chat_number = 13;
 }
 
 // Quote is the message a message replies to.

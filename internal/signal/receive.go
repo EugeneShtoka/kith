@@ -167,12 +167,13 @@ func (a *Adapter) configuredLocked(aci string) bool {
 	return false
 }
 
-// book is what kithd knows of one account's chats: its rooms, the names of the people
-// in them, and its groups.
+// book is what kithd knows of one account's chats: its rooms, the names and phone
+// numbers of the people in them, and its groups.
 type book struct {
-	rooms  map[domain.RoomID]domain.Room
-	people map[string]string // person ID → name
-	groups map[string]*signalv1.Group
+	rooms   map[domain.RoomID]domain.Room
+	people  map[string]string // person ID → name
+	numbers map[string]string // person ID → phone digits: joins them to the same person elsewhere
+	groups  map[string]*signalv1.Group
 }
 
 // bookOf is self's book, read from the cache the first time.
@@ -182,37 +183,51 @@ func (a *Adapter) bookOf(ctx context.Context, self string) (*book, error) {
 	if b := a.books[self]; b != nil {
 		return b, nil
 	}
-	b := &book{rooms: map[domain.RoomID]domain.Room{}, people: map[string]string{}, groups: map[string]*signalv1.Group{}}
+	b := &book{
+		rooms: map[domain.RoomID]domain.Room{}, people: map[string]string{}, numbers: map[string]string{},
+		groups: map[string]*signalv1.Group{},
+	}
 	rooms, err := a.cache.Rooms(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read the cached chats: %w", err)
 	}
 	for i := range rooms {
-		if !owner(self).Owns(rooms[i].ID) {
-			continue
+		if owner(self).Owns(rooms[i].ID) {
+			b.rooms[rooms[i].ID] = rooms[i]
 		}
-		b.rooms[rooms[i].ID] = rooms[i]
-		members, err := a.cache.Members(ctx, rooms[i].ID, 0)
-		if err != nil {
-			return nil, fmt.Errorf("read a chat's people: %w", err)
+	}
+	// What this account said of people before: each write replaces all of it.
+	dir, err := a.cache.Directory(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read who people are: %w", err)
+	}
+	source := "signal:" + self
+	for _, n := range dir.Names() {
+		if n.Source == source {
+			b.people[n.ID] = n.Name
 		}
-		for _, m := range members {
-			if m.DisplayName != "" {
-				b.people[m.UserID] = m.DisplayName
-			}
+	}
+	for _, l := range dir.Links() {
+		if digits, ok := strings.CutPrefix(l.Other, domain.PhoneID("")); l.Source == source && ok {
+			b.numbers[l.ID] = digits
 		}
 	}
 	a.books[self] = b
 	return b, nil
 }
 
-// learn keeps who's name, reporting whether it is new.
-func (b *book) learn(who, name string) bool {
-	if name == "" || b.people[who] == name {
-		return false
+// learn keeps who's name and phone number (E.164), reporting whether either is new.
+func (b *book) learn(who, name, number string) bool {
+	learned := false
+	if name != "" && b.people[who] != name {
+		b.people[who] = name
+		learned = true
 	}
-	b.people[who] = name
-	return true
+	if digits := domain.PhoneDigits(number); digits != "" && b.numbers[who] != digits {
+		b.numbers[who] = digits
+		learned = true
+	}
+	return learned
 }
 
 // takeMessage caches m, its chat and its people, then announces it.
@@ -222,13 +237,13 @@ func (a *Adapter) takeMessage(ctx context.Context, self string, m *signalv1.Mess
 		return err
 	}
 	a.booksMu.Lock()
-	learned := b.learn(person(m.GetSender()), m.GetSenderName())
+	learned := b.learn(person(m.GetSender()), m.GetSenderName(), m.GetSenderNumber())
 	if !m.GetGroup() {
-		learned = b.learn(person(m.GetChat()), m.GetChatName()) || learned
+		learned = b.learn(person(m.GetChat()), m.GetChatName(), m.GetChatNumber()) || learned
 	}
 	room, changed := b.chat(self, m.GetChat(), m.GetGroup())
 	members := b.members(self, m.GetChat(), m.GetGroup())
-	names := b.names()
+	names, links := b.names(), b.links()
 	a.booksMu.Unlock()
 	if changed || learned {
 		if err := a.keepChat(ctx, self, room, members); err != nil {
@@ -236,7 +251,7 @@ func (a *Adapter) takeMessage(ctx context.Context, self string, m *signalv1.Mess
 		}
 	}
 	if learned {
-		if err := a.cache.SetPeople(ctx, "signal:"+self, names, nil); err != nil {
+		if err := a.cache.SetPeople(ctx, "signal:"+self, names, links); err != nil {
 			return fmt.Errorf("keep who people are: %w", err)
 		}
 	}
@@ -275,10 +290,22 @@ func (b *book) chat(self, chat string, group bool) (domain.Room, bool) {
 	case group && b.groups[chat] != nil:
 		r.Name = b.groups[chat].GetTitle()
 	case !group:
-		r.Name = b.people[person(chat)]
+		r.Name = b.nameOf(person(chat))
 	}
 	b.rooms[id] = r
 	return r, !had || r.Name != old.Name || !slices.Equal(r.Members, old.Members)
+}
+
+// nameOf is who's name, else their number as "+digits" (which the phonebook, or
+// another network's name for that number, then names), else "". Caller holds booksMu.
+func (b *book) nameOf(who string) string {
+	if name := b.people[who]; name != "" {
+		return name
+	}
+	if digits := b.numbers[who]; digits != "" {
+		return "+" + digits
+	}
+	return ""
 }
 
 // members is a chat's people but self: the other side, or the group's members. Caller
@@ -293,7 +320,7 @@ func (b *book) members(self, chat string, group bool) []domain.Member {
 	var out []domain.Member
 	for _, aci := range acis {
 		if aci != self {
-			out = append(out, domain.Member{UserID: person(aci), DisplayName: b.people[person(aci)]})
+			out = append(out, domain.Member{UserID: person(aci), DisplayName: b.nameOf(person(aci))})
 		}
 	}
 	return out
@@ -305,6 +332,16 @@ func (b *book) names() []domain.PersonName {
 	out := make([]domain.PersonName, 0, len(b.people))
 	for id, name := range b.people {
 		out = append(out, domain.PersonName{ID: id, Name: name, Rank: domain.RankChosen})
+	}
+	return out
+}
+
+// links joins each person with a known number to that number, so a phonebook card or
+// another network's name for it names them here too. Caller holds booksMu.
+func (b *book) links() []domain.PersonLink {
+	out := make([]domain.PersonLink, 0, len(b.numbers))
+	for id, digits := range b.numbers {
+		out = append(out, domain.PersonLink{ID: id, Other: domain.PhoneID(digits)})
 	}
 	return out
 }
@@ -357,7 +394,7 @@ func (a *Adapter) takeContacts(ctx context.Context, self string, c *signalv1.Con
 	a.booksMu.Lock()
 	learned := false
 	for _, contact := range c.GetContacts() {
-		learned = b.learn(person(contact.GetAci()), contact.GetName()) || learned
+		learned = b.learn(person(contact.GetAci()), contact.GetName(), contact.GetNumber()) || learned
 	}
 	if learned {
 		for id := range b.rooms {
@@ -370,12 +407,12 @@ func (a *Adapter) takeContacts(ctx context.Context, self string, c *signalv1.Con
 			}
 		}
 	}
-	names := b.names()
+	names, links := b.names(), b.links()
 	a.booksMu.Unlock()
 	if !learned {
 		return nil
 	}
-	if err := a.cache.SetPeople(ctx, "signal:"+self, names, nil); err != nil {
+	if err := a.cache.SetPeople(ctx, "signal:"+self, names, links); err != nil {
 		return fmt.Errorf("keep who people are: %w", err)
 	}
 	for i := range renamed {
