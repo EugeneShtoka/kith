@@ -46,6 +46,9 @@ func (a *Adapter) onChange(ctx context.Context, account Account, client *whatsme
 		a.onDeleted(ctx, account, client, e, pm.GetKey().GetID())
 	case waE2E.ProtocolMessage_MESSAGE_EDIT:
 		a.onEdited(ctx, account, client, e, pm)
+	case waE2E.ProtocolMessage_EPHEMERAL_SETTING:
+		room, _, _ := a.change(ctx, account, client, e, "")
+		a.keepTimers(ctx, map[domain.RoomID]time.Duration{room: time.Duration(pm.GetEphemeralExpiration()) * time.Second})
 	default:
 		// Other protocol messages are ignored.
 	}
