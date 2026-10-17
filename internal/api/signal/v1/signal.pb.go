@@ -21,6 +21,58 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type Receipt_Kind int32
+
+const (
+	Receipt_KIND_UNSPECIFIED Receipt_Kind = 0
+	Receipt_KIND_DELIVERED   Receipt_Kind = 1
+	Receipt_KIND_READ        Receipt_Kind = 2
+	Receipt_KIND_VIEWED      Receipt_Kind = 3
+)
+
+// Enum value maps for Receipt_Kind.
+var (
+	Receipt_Kind_name = map[int32]string{
+		0: "KIND_UNSPECIFIED",
+		1: "KIND_DELIVERED",
+		2: "KIND_READ",
+		3: "KIND_VIEWED",
+	}
+	Receipt_Kind_value = map[string]int32{
+		"KIND_UNSPECIFIED": 0,
+		"KIND_DELIVERED":   1,
+		"KIND_READ":        2,
+		"KIND_VIEWED":      3,
+	}
+)
+
+func (x Receipt_Kind) Enum() *Receipt_Kind {
+	p := new(Receipt_Kind)
+	*p = x
+	return p
+}
+
+func (x Receipt_Kind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Receipt_Kind) Descriptor() protoreflect.EnumDescriptor {
+	return file_signal_v1_signal_proto_enumTypes[0].Descriptor()
+}
+
+func (Receipt_Kind) Type() protoreflect.EnumType {
+	return &file_signal_v1_signal_proto_enumTypes[0]
+}
+
+func (x Receipt_Kind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Receipt_Kind.Descriptor instead.
+func (Receipt_Kind) EnumDescriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{14, 0}
+}
+
 type Connection_State int32
 
 const (
@@ -58,11 +110,11 @@ func (x Connection_State) String() string {
 }
 
 func (Connection_State) Descriptor() protoreflect.EnumDescriptor {
-	return file_signal_v1_signal_proto_enumTypes[0].Descriptor()
+	return file_signal_v1_signal_proto_enumTypes[1].Descriptor()
 }
 
 func (Connection_State) Type() protoreflect.EnumType {
-	return &file_signal_v1_signal_proto_enumTypes[0]
+	return &file_signal_v1_signal_proto_enumTypes[1]
 }
 
 func (x Connection_State) Number() protoreflect.EnumNumber {
@@ -71,7 +123,7 @@ func (x Connection_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Connection_State.Descriptor instead.
 func (Connection_State) EnumDescriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{15, 0}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{22, 0}
 }
 
 type HeartbeatRequest struct {
@@ -548,6 +600,12 @@ type EventsResponse struct {
 	//	*EventsResponse_Connection
 	//	*EventsResponse_Contacts
 	//	*EventsResponse_Group
+	//	*EventsResponse_Edit
+	//	*EventsResponse_Delete
+	//	*EventsResponse_Reaction
+	//	*EventsResponse_Receipt
+	//	*EventsResponse_Typing
+	//	*EventsResponse_Read
 	Event         isEventsResponse_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -640,6 +698,60 @@ func (x *EventsResponse) GetGroup() *Group {
 	return nil
 }
 
+func (x *EventsResponse) GetEdit() *Edit {
+	if x != nil {
+		if x, ok := x.Event.(*EventsResponse_Edit); ok {
+			return x.Edit
+		}
+	}
+	return nil
+}
+
+func (x *EventsResponse) GetDelete() *Delete {
+	if x != nil {
+		if x, ok := x.Event.(*EventsResponse_Delete); ok {
+			return x.Delete
+		}
+	}
+	return nil
+}
+
+func (x *EventsResponse) GetReaction() *Reaction {
+	if x != nil {
+		if x, ok := x.Event.(*EventsResponse_Reaction); ok {
+			return x.Reaction
+		}
+	}
+	return nil
+}
+
+func (x *EventsResponse) GetReceipt() *Receipt {
+	if x != nil {
+		if x, ok := x.Event.(*EventsResponse_Receipt); ok {
+			return x.Receipt
+		}
+	}
+	return nil
+}
+
+func (x *EventsResponse) GetTyping() *Typing {
+	if x != nil {
+		if x, ok := x.Event.(*EventsResponse_Typing); ok {
+			return x.Typing
+		}
+	}
+	return nil
+}
+
+func (x *EventsResponse) GetRead() *Read {
+	if x != nil {
+		if x, ok := x.Event.(*EventsResponse_Read); ok {
+			return x.Read
+		}
+	}
+	return nil
+}
+
 type isEventsResponse_Event interface {
 	isEventsResponse_Event()
 }
@@ -660,6 +772,30 @@ type EventsResponse_Group struct {
 	Group *Group `protobuf:"bytes,6,opt,name=group,proto3,oneof"`
 }
 
+type EventsResponse_Edit struct {
+	Edit *Edit `protobuf:"bytes,7,opt,name=edit,proto3,oneof"`
+}
+
+type EventsResponse_Delete struct {
+	Delete *Delete `protobuf:"bytes,8,opt,name=delete,proto3,oneof"`
+}
+
+type EventsResponse_Reaction struct {
+	Reaction *Reaction `protobuf:"bytes,9,opt,name=reaction,proto3,oneof"`
+}
+
+type EventsResponse_Receipt struct {
+	Receipt *Receipt `protobuf:"bytes,10,opt,name=receipt,proto3,oneof"`
+}
+
+type EventsResponse_Typing struct {
+	Typing *Typing `protobuf:"bytes,11,opt,name=typing,proto3,oneof"`
+}
+
+type EventsResponse_Read struct {
+	Read *Read `protobuf:"bytes,12,opt,name=read,proto3,oneof"`
+}
+
 func (*EventsResponse_Message) isEventsResponse_Event() {}
 
 func (*EventsResponse_Connection) isEventsResponse_Event() {}
@@ -667,6 +803,523 @@ func (*EventsResponse_Connection) isEventsResponse_Event() {}
 func (*EventsResponse_Contacts) isEventsResponse_Event() {}
 
 func (*EventsResponse_Group) isEventsResponse_Event() {}
+
+func (*EventsResponse_Edit) isEventsResponse_Event() {}
+
+func (*EventsResponse_Delete) isEventsResponse_Event() {}
+
+func (*EventsResponse_Reaction) isEventsResponse_Event() {}
+
+func (*EventsResponse_Receipt) isEventsResponse_Event() {}
+
+func (*EventsResponse_Typing) isEventsResponse_Event() {}
+
+func (*EventsResponse_Read) isEventsResponse_Event() {}
+
+// Edit replaces a message's text.
+type Edit struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Chat   string                 `protobuf:"bytes,1,opt,name=chat,proto3" json:"chat,omitempty"`
+	Group  bool                   `protobuf:"varint,2,opt,name=group,proto3" json:"group,omitempty"`
+	Sender string                 `protobuf:"bytes,3,opt,name=sender,proto3" json:"sender,omitempty"`
+	// The edited message's sent time: its ID, whatever edits came since.
+	Target uint64 `protobuf:"varint,4,opt,name=target,proto3" json:"target,omitempty"`
+	// This edit's own sent time (a reaction to the edited message names it).
+	Sent          uint64     `protobuf:"varint,5,opt,name=sent,proto3" json:"sent,omitempty"`
+	Body          string     `protobuf:"bytes,6,opt,name=body,proto3" json:"body,omitempty"`
+	Mentions      []*Mention `protobuf:"bytes,7,rep,name=mentions,proto3" json:"mentions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Edit) Reset() {
+	*x = Edit{}
+	mi := &file_signal_v1_signal_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Edit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Edit) ProtoMessage() {}
+
+func (x *Edit) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Edit.ProtoReflect.Descriptor instead.
+func (*Edit) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *Edit) GetChat() string {
+	if x != nil {
+		return x.Chat
+	}
+	return ""
+}
+
+func (x *Edit) GetGroup() bool {
+	if x != nil {
+		return x.Group
+	}
+	return false
+}
+
+func (x *Edit) GetSender() string {
+	if x != nil {
+		return x.Sender
+	}
+	return ""
+}
+
+func (x *Edit) GetTarget() uint64 {
+	if x != nil {
+		return x.Target
+	}
+	return 0
+}
+
+func (x *Edit) GetSent() uint64 {
+	if x != nil {
+		return x.Sent
+	}
+	return 0
+}
+
+func (x *Edit) GetBody() string {
+	if x != nil {
+		return x.Body
+	}
+	return ""
+}
+
+func (x *Edit) GetMentions() []*Mention {
+	if x != nil {
+		return x.Mentions
+	}
+	return nil
+}
+
+// Delete deletes a message for everyone.
+type Delete struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Chat   string                 `protobuf:"bytes,1,opt,name=chat,proto3" json:"chat,omitempty"`
+	Group  bool                   `protobuf:"varint,2,opt,name=group,proto3" json:"group,omitempty"`
+	Sender string                 `protobuf:"bytes,3,opt,name=sender,proto3" json:"sender,omitempty"`
+	// The deleted message's sent time.
+	Target uint64 `protobuf:"varint,4,opt,name=target,proto3" json:"target,omitempty"`
+	// When it was deleted (ms).
+	Sent          uint64 `protobuf:"varint,5,opt,name=sent,proto3" json:"sent,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Delete) Reset() {
+	*x = Delete{}
+	mi := &file_signal_v1_signal_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Delete) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Delete) ProtoMessage() {}
+
+func (x *Delete) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Delete.ProtoReflect.Descriptor instead.
+func (*Delete) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *Delete) GetChat() string {
+	if x != nil {
+		return x.Chat
+	}
+	return ""
+}
+
+func (x *Delete) GetGroup() bool {
+	if x != nil {
+		return x.Group
+	}
+	return false
+}
+
+func (x *Delete) GetSender() string {
+	if x != nil {
+		return x.Sender
+	}
+	return ""
+}
+
+func (x *Delete) GetTarget() uint64 {
+	if x != nil {
+		return x.Target
+	}
+	return 0
+}
+
+func (x *Delete) GetSent() uint64 {
+	if x != nil {
+		return x.Sent
+	}
+	return 0
+}
+
+// Reaction is an emoji put on a message, or taken off it.
+type Reaction struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Chat   string                 `protobuf:"bytes,1,opt,name=chat,proto3" json:"chat,omitempty"`
+	Group  bool                   `protobuf:"varint,2,opt,name=group,proto3" json:"group,omitempty"`
+	Sender string                 `protobuf:"bytes,3,opt,name=sender,proto3" json:"sender,omitempty"`
+	Emoji  string                 `protobuf:"bytes,4,opt,name=emoji,proto3" json:"emoji,omitempty"`
+	Remove bool                   `protobuf:"varint,5,opt,name=remove,proto3" json:"remove,omitempty"`
+	// The message reacted to: its author, and the sent time of its latest version (an
+	// edit's, if it was edited).
+	TargetAuthor  string `protobuf:"bytes,6,opt,name=target_author,json=targetAuthor,proto3" json:"target_author,omitempty"`
+	TargetSent    uint64 `protobuf:"varint,7,opt,name=target_sent,json=targetSent,proto3" json:"target_sent,omitempty"`
+	SenderName    string `protobuf:"bytes,8,opt,name=sender_name,json=senderName,proto3" json:"sender_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Reaction) Reset() {
+	*x = Reaction{}
+	mi := &file_signal_v1_signal_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Reaction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Reaction) ProtoMessage() {}
+
+func (x *Reaction) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Reaction.ProtoReflect.Descriptor instead.
+func (*Reaction) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *Reaction) GetChat() string {
+	if x != nil {
+		return x.Chat
+	}
+	return ""
+}
+
+func (x *Reaction) GetGroup() bool {
+	if x != nil {
+		return x.Group
+	}
+	return false
+}
+
+func (x *Reaction) GetSender() string {
+	if x != nil {
+		return x.Sender
+	}
+	return ""
+}
+
+func (x *Reaction) GetEmoji() string {
+	if x != nil {
+		return x.Emoji
+	}
+	return ""
+}
+
+func (x *Reaction) GetRemove() bool {
+	if x != nil {
+		return x.Remove
+	}
+	return false
+}
+
+func (x *Reaction) GetTargetAuthor() string {
+	if x != nil {
+		return x.TargetAuthor
+	}
+	return ""
+}
+
+func (x *Reaction) GetTargetSent() uint64 {
+	if x != nil {
+		return x.TargetSent
+	}
+	return 0
+}
+
+func (x *Reaction) GetSenderName() string {
+	if x != nil {
+		return x.SenderName
+	}
+	return ""
+}
+
+// Receipt is someone having got, read or viewed the account's messages.
+type Receipt struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Sender string                 `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"`
+	Kind   Receipt_Kind           `protobuf:"varint,2,opt,name=kind,proto3,enum=signal.v1.Receipt_Kind" json:"kind,omitempty"`
+	// The account's messages', by sent time.
+	Sent          []uint64 `protobuf:"varint,3,rep,packed,name=sent,proto3" json:"sent,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Receipt) Reset() {
+	*x = Receipt{}
+	mi := &file_signal_v1_signal_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Receipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Receipt) ProtoMessage() {}
+
+func (x *Receipt) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Receipt.ProtoReflect.Descriptor instead.
+func (*Receipt) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *Receipt) GetSender() string {
+	if x != nil {
+		return x.Sender
+	}
+	return ""
+}
+
+func (x *Receipt) GetKind() Receipt_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return Receipt_KIND_UNSPECIFIED
+}
+
+func (x *Receipt) GetSent() []uint64 {
+	if x != nil {
+		return x.Sent
+	}
+	return nil
+}
+
+// Typing is someone typing in a chat, or stopping.
+type Typing struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Chat          string                 `protobuf:"bytes,1,opt,name=chat,proto3" json:"chat,omitempty"`
+	Group         bool                   `protobuf:"varint,2,opt,name=group,proto3" json:"group,omitempty"`
+	Sender        string                 `protobuf:"bytes,3,opt,name=sender,proto3" json:"sender,omitempty"`
+	Started       bool                   `protobuf:"varint,4,opt,name=started,proto3" json:"started,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Typing) Reset() {
+	*x = Typing{}
+	mi := &file_signal_v1_signal_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Typing) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Typing) ProtoMessage() {}
+
+func (x *Typing) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Typing.ProtoReflect.Descriptor instead.
+func (*Typing) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *Typing) GetChat() string {
+	if x != nil {
+		return x.Chat
+	}
+	return ""
+}
+
+func (x *Typing) GetGroup() bool {
+	if x != nil {
+		return x.Group
+	}
+	return false
+}
+
+func (x *Typing) GetSender() string {
+	if x != nil {
+		return x.Sender
+	}
+	return ""
+}
+
+func (x *Typing) GetStarted() bool {
+	if x != nil {
+		return x.Started
+	}
+	return false
+}
+
+// Read is messages read on another of the account's devices.
+type Read struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Messages      []*ReadMessage         `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Read) Reset() {
+	*x = Read{}
+	mi := &file_signal_v1_signal_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Read) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Read) ProtoMessage() {}
+
+func (x *Read) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Read.ProtoReflect.Descriptor instead.
+func (*Read) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *Read) GetMessages() []*ReadMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+type ReadMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Author        string                 `protobuf:"bytes,1,opt,name=author,proto3" json:"author,omitempty"`
+	Sent          uint64                 `protobuf:"varint,2,opt,name=sent,proto3" json:"sent,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadMessage) Reset() {
+	*x = ReadMessage{}
+	mi := &file_signal_v1_signal_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadMessage) ProtoMessage() {}
+
+func (x *ReadMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadMessage.ProtoReflect.Descriptor instead.
+func (*ReadMessage) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ReadMessage) GetAuthor() string {
+	if x != nil {
+		return x.Author
+	}
+	return ""
+}
+
+func (x *ReadMessage) GetSent() uint64 {
+	if x != nil {
+		return x.Sent
+	}
+	return 0
+}
 
 // Message is a message in a chat: someone else's, or the account's own (sent from
 // another of its devices).
@@ -698,7 +1351,7 @@ type Message struct {
 
 func (x *Message) Reset() {
 	*x = Message{}
-	mi := &file_signal_v1_signal_proto_msgTypes[11]
+	mi := &file_signal_v1_signal_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -710,7 +1363,7 @@ func (x *Message) String() string {
 func (*Message) ProtoMessage() {}
 
 func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[11]
+	mi := &file_signal_v1_signal_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -723,7 +1376,7 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{11}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Message) GetChat() string {
@@ -829,7 +1482,7 @@ type Quote struct {
 
 func (x *Quote) Reset() {
 	*x = Quote{}
-	mi := &file_signal_v1_signal_proto_msgTypes[12]
+	mi := &file_signal_v1_signal_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -841,7 +1494,7 @@ func (x *Quote) String() string {
 func (*Quote) ProtoMessage() {}
 
 func (x *Quote) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[12]
+	mi := &file_signal_v1_signal_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -854,7 +1507,7 @@ func (x *Quote) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Quote.ProtoReflect.Descriptor instead.
 func (*Quote) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{12}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Quote) GetAuthor() string {
@@ -892,7 +1545,7 @@ type Mention struct {
 
 func (x *Mention) Reset() {
 	*x = Mention{}
-	mi := &file_signal_v1_signal_proto_msgTypes[13]
+	mi := &file_signal_v1_signal_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -904,7 +1557,7 @@ func (x *Mention) String() string {
 func (*Mention) ProtoMessage() {}
 
 func (x *Mention) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[13]
+	mi := &file_signal_v1_signal_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -917,7 +1570,7 @@ func (x *Mention) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Mention.ProtoReflect.Descriptor instead.
 func (*Mention) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{13}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Mention) GetStart() uint32 {
@@ -962,7 +1615,7 @@ type Attachment struct {
 
 func (x *Attachment) Reset() {
 	*x = Attachment{}
-	mi := &file_signal_v1_signal_proto_msgTypes[14]
+	mi := &file_signal_v1_signal_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -974,7 +1627,7 @@ func (x *Attachment) String() string {
 func (*Attachment) ProtoMessage() {}
 
 func (x *Attachment) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[14]
+	mi := &file_signal_v1_signal_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -987,7 +1640,7 @@ func (x *Attachment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Attachment.ProtoReflect.Descriptor instead.
 func (*Attachment) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{14}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Attachment) GetContentType() string {
@@ -1029,7 +1682,7 @@ type Connection struct {
 
 func (x *Connection) Reset() {
 	*x = Connection{}
-	mi := &file_signal_v1_signal_proto_msgTypes[15]
+	mi := &file_signal_v1_signal_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1041,7 +1694,7 @@ func (x *Connection) String() string {
 func (*Connection) ProtoMessage() {}
 
 func (x *Connection) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[15]
+	mi := &file_signal_v1_signal_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1054,7 +1707,7 @@ func (x *Connection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Connection.ProtoReflect.Descriptor instead.
 func (*Connection) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{15}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Connection) GetState() Connection_State {
@@ -1081,7 +1734,7 @@ type Contacts struct {
 
 func (x *Contacts) Reset() {
 	*x = Contacts{}
-	mi := &file_signal_v1_signal_proto_msgTypes[16]
+	mi := &file_signal_v1_signal_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1093,7 +1746,7 @@ func (x *Contacts) String() string {
 func (*Contacts) ProtoMessage() {}
 
 func (x *Contacts) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[16]
+	mi := &file_signal_v1_signal_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1106,7 +1759,7 @@ func (x *Contacts) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Contacts.ProtoReflect.Descriptor instead.
 func (*Contacts) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{16}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Contacts) GetContacts() []*Contact {
@@ -1127,7 +1780,7 @@ type Contact struct {
 
 func (x *Contact) Reset() {
 	*x = Contact{}
-	mi := &file_signal_v1_signal_proto_msgTypes[17]
+	mi := &file_signal_v1_signal_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1139,7 +1792,7 @@ func (x *Contact) String() string {
 func (*Contact) ProtoMessage() {}
 
 func (x *Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[17]
+	mi := &file_signal_v1_signal_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1152,7 +1805,7 @@ func (x *Contact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Contact.ProtoReflect.Descriptor instead.
 func (*Contact) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{17}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Contact) GetAci() string {
@@ -1189,7 +1842,7 @@ type Group struct {
 
 func (x *Group) Reset() {
 	*x = Group{}
-	mi := &file_signal_v1_signal_proto_msgTypes[18]
+	mi := &file_signal_v1_signal_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1201,7 +1854,7 @@ func (x *Group) String() string {
 func (*Group) ProtoMessage() {}
 
 func (x *Group) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[18]
+	mi := &file_signal_v1_signal_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1214,7 +1867,7 @@ func (x *Group) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Group.ProtoReflect.Descriptor instead.
 func (*Group) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{18}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Group) GetId() string {
@@ -1247,7 +1900,7 @@ type AckRequest struct {
 
 func (x *AckRequest) Reset() {
 	*x = AckRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[19]
+	mi := &file_signal_v1_signal_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1259,7 +1912,7 @@ func (x *AckRequest) String() string {
 func (*AckRequest) ProtoMessage() {}
 
 func (x *AckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[19]
+	mi := &file_signal_v1_signal_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1272,7 +1925,7 @@ func (x *AckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AckRequest.ProtoReflect.Descriptor instead.
 func (*AckRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{19}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *AckRequest) GetToken() uint64 {
@@ -1290,7 +1943,7 @@ type AckResponse struct {
 
 func (x *AckResponse) Reset() {
 	*x = AckResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[20]
+	mi := &file_signal_v1_signal_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1302,7 +1955,7 @@ func (x *AckResponse) String() string {
 func (*AckResponse) ProtoMessage() {}
 
 func (x *AckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[20]
+	mi := &file_signal_v1_signal_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1315,7 +1968,7 @@ func (x *AckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AckResponse.ProtoReflect.Descriptor instead.
 func (*AckResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{20}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{27}
 }
 
 type SendRequest struct {
@@ -1337,7 +1990,7 @@ type SendRequest struct {
 
 func (x *SendRequest) Reset() {
 	*x = SendRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[21]
+	mi := &file_signal_v1_signal_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1349,7 +2002,7 @@ func (x *SendRequest) String() string {
 func (*SendRequest) ProtoMessage() {}
 
 func (x *SendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[21]
+	mi := &file_signal_v1_signal_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1362,7 +2015,7 @@ func (x *SendRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendRequest.ProtoReflect.Descriptor instead.
 func (*SendRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{21}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *SendRequest) GetAccount() string {
@@ -1415,7 +2068,7 @@ type SendResponse struct {
 
 func (x *SendResponse) Reset() {
 	*x = SendResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[22]
+	mi := &file_signal_v1_signal_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1427,7 +2080,7 @@ func (x *SendResponse) String() string {
 func (*SendResponse) ProtoMessage() {}
 
 func (x *SendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[22]
+	mi := &file_signal_v1_signal_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1440,7 +2093,7 @@ func (x *SendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendResponse.ProtoReflect.Descriptor instead.
 func (*SendResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{22}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{29}
 }
 
 type TypingRequest struct {
@@ -1455,7 +2108,7 @@ type TypingRequest struct {
 
 func (x *TypingRequest) Reset() {
 	*x = TypingRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[23]
+	mi := &file_signal_v1_signal_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1467,7 +2120,7 @@ func (x *TypingRequest) String() string {
 func (*TypingRequest) ProtoMessage() {}
 
 func (x *TypingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[23]
+	mi := &file_signal_v1_signal_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1480,7 +2133,7 @@ func (x *TypingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypingRequest.ProtoReflect.Descriptor instead.
 func (*TypingRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{23}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *TypingRequest) GetAccount() string {
@@ -1519,7 +2172,7 @@ type TypingResponse struct {
 
 func (x *TypingResponse) Reset() {
 	*x = TypingResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[24]
+	mi := &file_signal_v1_signal_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1531,7 +2184,7 @@ func (x *TypingResponse) String() string {
 func (*TypingResponse) ProtoMessage() {}
 
 func (x *TypingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[24]
+	mi := &file_signal_v1_signal_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1544,7 +2197,7 @@ func (x *TypingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypingResponse.ProtoReflect.Descriptor instead.
 func (*TypingResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{24}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{31}
 }
 
 var File_signal_v1_signal_proto protoreflect.FileDescriptor
@@ -1571,7 +2224,7 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\x0eConnectRequest\x12\x10\n" +
 	"\x03aci\x18\x01 \x01(\tR\x03aci\"\x11\n" +
 	"\x0fConnectResponse\"\x0f\n" +
-	"\rEventsRequest\"\x8f\x02\n" +
+	"\rEventsRequest\"\x9a\x04\n" +
 	"\x0eEventsResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\x04R\x05token\x12\x18\n" +
 	"\aaccount\x18\x02 \x01(\tR\aaccount\x12.\n" +
@@ -1580,8 +2233,59 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"connection\x18\x04 \x01(\v2\x15.signal.v1.ConnectionH\x00R\n" +
 	"connection\x121\n" +
 	"\bcontacts\x18\x05 \x01(\v2\x13.signal.v1.ContactsH\x00R\bcontacts\x12(\n" +
-	"\x05group\x18\x06 \x01(\v2\x10.signal.v1.GroupH\x00R\x05groupB\a\n" +
-	"\x05event\"\xa4\x03\n" +
+	"\x05group\x18\x06 \x01(\v2\x10.signal.v1.GroupH\x00R\x05group\x12%\n" +
+	"\x04edit\x18\a \x01(\v2\x0f.signal.v1.EditH\x00R\x04edit\x12+\n" +
+	"\x06delete\x18\b \x01(\v2\x11.signal.v1.DeleteH\x00R\x06delete\x121\n" +
+	"\breaction\x18\t \x01(\v2\x13.signal.v1.ReactionH\x00R\breaction\x12.\n" +
+	"\areceipt\x18\n" +
+	" \x01(\v2\x12.signal.v1.ReceiptH\x00R\areceipt\x12+\n" +
+	"\x06typing\x18\v \x01(\v2\x11.signal.v1.TypingH\x00R\x06typing\x12%\n" +
+	"\x04read\x18\f \x01(\v2\x0f.signal.v1.ReadH\x00R\x04readB\a\n" +
+	"\x05event\"\xb8\x01\n" +
+	"\x04Edit\x12\x12\n" +
+	"\x04chat\x18\x01 \x01(\tR\x04chat\x12\x14\n" +
+	"\x05group\x18\x02 \x01(\bR\x05group\x12\x16\n" +
+	"\x06sender\x18\x03 \x01(\tR\x06sender\x12\x16\n" +
+	"\x06target\x18\x04 \x01(\x04R\x06target\x12\x12\n" +
+	"\x04sent\x18\x05 \x01(\x04R\x04sent\x12\x12\n" +
+	"\x04body\x18\x06 \x01(\tR\x04body\x12.\n" +
+	"\bmentions\x18\a \x03(\v2\x12.signal.v1.MentionR\bmentions\"v\n" +
+	"\x06Delete\x12\x12\n" +
+	"\x04chat\x18\x01 \x01(\tR\x04chat\x12\x14\n" +
+	"\x05group\x18\x02 \x01(\bR\x05group\x12\x16\n" +
+	"\x06sender\x18\x03 \x01(\tR\x06sender\x12\x16\n" +
+	"\x06target\x18\x04 \x01(\x04R\x06target\x12\x12\n" +
+	"\x04sent\x18\x05 \x01(\x04R\x04sent\"\xe1\x01\n" +
+	"\bReaction\x12\x12\n" +
+	"\x04chat\x18\x01 \x01(\tR\x04chat\x12\x14\n" +
+	"\x05group\x18\x02 \x01(\bR\x05group\x12\x16\n" +
+	"\x06sender\x18\x03 \x01(\tR\x06sender\x12\x14\n" +
+	"\x05emoji\x18\x04 \x01(\tR\x05emoji\x12\x16\n" +
+	"\x06remove\x18\x05 \x01(\bR\x06remove\x12#\n" +
+	"\rtarget_author\x18\x06 \x01(\tR\ftargetAuthor\x12\x1f\n" +
+	"\vtarget_sent\x18\a \x01(\x04R\n" +
+	"targetSent\x12\x1f\n" +
+	"\vsender_name\x18\b \x01(\tR\n" +
+	"senderName\"\xb4\x01\n" +
+	"\aReceipt\x12\x16\n" +
+	"\x06sender\x18\x01 \x01(\tR\x06sender\x12+\n" +
+	"\x04kind\x18\x02 \x01(\x0e2\x17.signal.v1.Receipt.KindR\x04kind\x12\x12\n" +
+	"\x04sent\x18\x03 \x03(\x04R\x04sent\"P\n" +
+	"\x04Kind\x12\x14\n" +
+	"\x10KIND_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eKIND_DELIVERED\x10\x01\x12\r\n" +
+	"\tKIND_READ\x10\x02\x12\x0f\n" +
+	"\vKIND_VIEWED\x10\x03\"d\n" +
+	"\x06Typing\x12\x12\n" +
+	"\x04chat\x18\x01 \x01(\tR\x04chat\x12\x14\n" +
+	"\x05group\x18\x02 \x01(\bR\x05group\x12\x16\n" +
+	"\x06sender\x18\x03 \x01(\tR\x06sender\x12\x18\n" +
+	"\astarted\x18\x04 \x01(\bR\astarted\":\n" +
+	"\x04Read\x122\n" +
+	"\bmessages\x18\x01 \x03(\v2\x16.signal.v1.ReadMessageR\bmessages\"9\n" +
+	"\vReadMessage\x12\x16\n" +
+	"\x06author\x18\x01 \x01(\tR\x06author\x12\x12\n" +
+	"\x04sent\x18\x02 \x01(\x04R\x04sent\"\xa4\x03\n" +
 	"\aMessage\x12\x12\n" +
 	"\x04chat\x18\x01 \x01(\tR\x04chat\x12\x14\n" +
 	"\x05group\x18\x02 \x01(\bR\x05group\x12\x16\n" +
@@ -1673,70 +2377,87 @@ func file_signal_v1_signal_proto_rawDescGZIP() []byte {
 	return file_signal_v1_signal_proto_rawDescData
 }
 
-var file_signal_v1_signal_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_signal_v1_signal_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_signal_v1_signal_proto_goTypes = []any{
-	(Connection_State)(0),     // 0: signal.v1.Connection.State
-	(*HeartbeatRequest)(nil),  // 1: signal.v1.HeartbeatRequest
-	(*HeartbeatResponse)(nil), // 2: signal.v1.HeartbeatResponse
-	(*StartRequest)(nil),      // 3: signal.v1.StartRequest
-	(*StartResponse)(nil),     // 4: signal.v1.StartResponse
-	(*Device)(nil),            // 5: signal.v1.Device
-	(*LinkRequest)(nil),       // 6: signal.v1.LinkRequest
-	(*LinkResponse)(nil),      // 7: signal.v1.LinkResponse
-	(*ConnectRequest)(nil),    // 8: signal.v1.ConnectRequest
-	(*ConnectResponse)(nil),   // 9: signal.v1.ConnectResponse
-	(*EventsRequest)(nil),     // 10: signal.v1.EventsRequest
-	(*EventsResponse)(nil),    // 11: signal.v1.EventsResponse
-	(*Message)(nil),           // 12: signal.v1.Message
-	(*Quote)(nil),             // 13: signal.v1.Quote
-	(*Mention)(nil),           // 14: signal.v1.Mention
-	(*Attachment)(nil),        // 15: signal.v1.Attachment
-	(*Connection)(nil),        // 16: signal.v1.Connection
-	(*Contacts)(nil),          // 17: signal.v1.Contacts
-	(*Contact)(nil),           // 18: signal.v1.Contact
-	(*Group)(nil),             // 19: signal.v1.Group
-	(*AckRequest)(nil),        // 20: signal.v1.AckRequest
-	(*AckResponse)(nil),       // 21: signal.v1.AckResponse
-	(*SendRequest)(nil),       // 22: signal.v1.SendRequest
-	(*SendResponse)(nil),      // 23: signal.v1.SendResponse
-	(*TypingRequest)(nil),     // 24: signal.v1.TypingRequest
-	(*TypingResponse)(nil),    // 25: signal.v1.TypingResponse
+	(Receipt_Kind)(0),         // 0: signal.v1.Receipt.Kind
+	(Connection_State)(0),     // 1: signal.v1.Connection.State
+	(*HeartbeatRequest)(nil),  // 2: signal.v1.HeartbeatRequest
+	(*HeartbeatResponse)(nil), // 3: signal.v1.HeartbeatResponse
+	(*StartRequest)(nil),      // 4: signal.v1.StartRequest
+	(*StartResponse)(nil),     // 5: signal.v1.StartResponse
+	(*Device)(nil),            // 6: signal.v1.Device
+	(*LinkRequest)(nil),       // 7: signal.v1.LinkRequest
+	(*LinkResponse)(nil),      // 8: signal.v1.LinkResponse
+	(*ConnectRequest)(nil),    // 9: signal.v1.ConnectRequest
+	(*ConnectResponse)(nil),   // 10: signal.v1.ConnectResponse
+	(*EventsRequest)(nil),     // 11: signal.v1.EventsRequest
+	(*EventsResponse)(nil),    // 12: signal.v1.EventsResponse
+	(*Edit)(nil),              // 13: signal.v1.Edit
+	(*Delete)(nil),            // 14: signal.v1.Delete
+	(*Reaction)(nil),          // 15: signal.v1.Reaction
+	(*Receipt)(nil),           // 16: signal.v1.Receipt
+	(*Typing)(nil),            // 17: signal.v1.Typing
+	(*Read)(nil),              // 18: signal.v1.Read
+	(*ReadMessage)(nil),       // 19: signal.v1.ReadMessage
+	(*Message)(nil),           // 20: signal.v1.Message
+	(*Quote)(nil),             // 21: signal.v1.Quote
+	(*Mention)(nil),           // 22: signal.v1.Mention
+	(*Attachment)(nil),        // 23: signal.v1.Attachment
+	(*Connection)(nil),        // 24: signal.v1.Connection
+	(*Contacts)(nil),          // 25: signal.v1.Contacts
+	(*Contact)(nil),           // 26: signal.v1.Contact
+	(*Group)(nil),             // 27: signal.v1.Group
+	(*AckRequest)(nil),        // 28: signal.v1.AckRequest
+	(*AckResponse)(nil),       // 29: signal.v1.AckResponse
+	(*SendRequest)(nil),       // 30: signal.v1.SendRequest
+	(*SendResponse)(nil),      // 31: signal.v1.SendResponse
+	(*TypingRequest)(nil),     // 32: signal.v1.TypingRequest
+	(*TypingResponse)(nil),    // 33: signal.v1.TypingResponse
 }
 var file_signal_v1_signal_proto_depIdxs = []int32{
-	5,  // 0: signal.v1.StartResponse.devices:type_name -> signal.v1.Device
-	5,  // 1: signal.v1.LinkResponse.linked:type_name -> signal.v1.Device
-	12, // 2: signal.v1.EventsResponse.message:type_name -> signal.v1.Message
-	16, // 3: signal.v1.EventsResponse.connection:type_name -> signal.v1.Connection
-	17, // 4: signal.v1.EventsResponse.contacts:type_name -> signal.v1.Contacts
-	19, // 5: signal.v1.EventsResponse.group:type_name -> signal.v1.Group
-	13, // 6: signal.v1.Message.quote:type_name -> signal.v1.Quote
-	14, // 7: signal.v1.Message.mentions:type_name -> signal.v1.Mention
-	15, // 8: signal.v1.Message.attachments:type_name -> signal.v1.Attachment
-	0,  // 9: signal.v1.Connection.state:type_name -> signal.v1.Connection.State
-	18, // 10: signal.v1.Contacts.contacts:type_name -> signal.v1.Contact
-	13, // 11: signal.v1.SendRequest.quote:type_name -> signal.v1.Quote
-	1,  // 12: signal.v1.SignalService.Heartbeat:input_type -> signal.v1.HeartbeatRequest
-	3,  // 13: signal.v1.SignalService.Start:input_type -> signal.v1.StartRequest
-	6,  // 14: signal.v1.SignalService.Link:input_type -> signal.v1.LinkRequest
-	8,  // 15: signal.v1.SignalService.Connect:input_type -> signal.v1.ConnectRequest
-	10, // 16: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
-	20, // 17: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
-	22, // 18: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
-	24, // 19: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
-	2,  // 20: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
-	4,  // 21: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
-	7,  // 22: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
-	9,  // 23: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
-	11, // 24: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
-	21, // 25: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
-	23, // 26: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
-	25, // 27: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
-	20, // [20:28] is the sub-list for method output_type
-	12, // [12:20] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	6,  // 0: signal.v1.StartResponse.devices:type_name -> signal.v1.Device
+	6,  // 1: signal.v1.LinkResponse.linked:type_name -> signal.v1.Device
+	20, // 2: signal.v1.EventsResponse.message:type_name -> signal.v1.Message
+	24, // 3: signal.v1.EventsResponse.connection:type_name -> signal.v1.Connection
+	25, // 4: signal.v1.EventsResponse.contacts:type_name -> signal.v1.Contacts
+	27, // 5: signal.v1.EventsResponse.group:type_name -> signal.v1.Group
+	13, // 6: signal.v1.EventsResponse.edit:type_name -> signal.v1.Edit
+	14, // 7: signal.v1.EventsResponse.delete:type_name -> signal.v1.Delete
+	15, // 8: signal.v1.EventsResponse.reaction:type_name -> signal.v1.Reaction
+	16, // 9: signal.v1.EventsResponse.receipt:type_name -> signal.v1.Receipt
+	17, // 10: signal.v1.EventsResponse.typing:type_name -> signal.v1.Typing
+	18, // 11: signal.v1.EventsResponse.read:type_name -> signal.v1.Read
+	22, // 12: signal.v1.Edit.mentions:type_name -> signal.v1.Mention
+	0,  // 13: signal.v1.Receipt.kind:type_name -> signal.v1.Receipt.Kind
+	19, // 14: signal.v1.Read.messages:type_name -> signal.v1.ReadMessage
+	21, // 15: signal.v1.Message.quote:type_name -> signal.v1.Quote
+	22, // 16: signal.v1.Message.mentions:type_name -> signal.v1.Mention
+	23, // 17: signal.v1.Message.attachments:type_name -> signal.v1.Attachment
+	1,  // 18: signal.v1.Connection.state:type_name -> signal.v1.Connection.State
+	26, // 19: signal.v1.Contacts.contacts:type_name -> signal.v1.Contact
+	21, // 20: signal.v1.SendRequest.quote:type_name -> signal.v1.Quote
+	2,  // 21: signal.v1.SignalService.Heartbeat:input_type -> signal.v1.HeartbeatRequest
+	4,  // 22: signal.v1.SignalService.Start:input_type -> signal.v1.StartRequest
+	7,  // 23: signal.v1.SignalService.Link:input_type -> signal.v1.LinkRequest
+	9,  // 24: signal.v1.SignalService.Connect:input_type -> signal.v1.ConnectRequest
+	11, // 25: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
+	28, // 26: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
+	30, // 27: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
+	32, // 28: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
+	3,  // 29: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
+	5,  // 30: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
+	8,  // 31: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
+	10, // 32: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
+	12, // 33: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
+	29, // 34: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
+	31, // 35: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
+	33, // 36: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
+	29, // [29:37] is the sub-list for method output_type
+	21, // [21:29] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_signal_v1_signal_proto_init() }
@@ -1753,14 +2474,20 @@ func file_signal_v1_signal_proto_init() {
 		(*EventsResponse_Connection)(nil),
 		(*EventsResponse_Contacts)(nil),
 		(*EventsResponse_Group)(nil),
+		(*EventsResponse_Edit)(nil),
+		(*EventsResponse_Delete)(nil),
+		(*EventsResponse_Reaction)(nil),
+		(*EventsResponse_Receipt)(nil),
+		(*EventsResponse_Typing)(nil),
+		(*EventsResponse_Read)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signal_v1_signal_proto_rawDesc), len(file_signal_v1_signal_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   25,
+			NumEnums:      2,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

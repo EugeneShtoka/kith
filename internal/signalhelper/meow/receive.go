@@ -87,23 +87,29 @@ func connection(s signalmeow.SignalConnectionStatus) *signalv1.Connection {
 	return c
 }
 
-// handle hands kithd what evt carries and returns once kept. What kith does not keep
-// yet (reactions, edits, deletions, receipts, typing) returns at once.
+// handle hands kithd what evt carries and returns once kept; typing waits for nothing.
+// What kith does not keep returns at once.
 func (a *account) handle(ctx context.Context, evt events.SignalEvent) {
 	switch e := evt.(type) {
 	case *events.ChatEvent:
-		data, ok := e.Event.(*signalpb.DataMessage)
-		if !ok || data.GetReaction() != nil || data.GetDelete() != nil {
-			return
+		a.chatEvent(ctx, e)
+	case *events.Receipt:
+		r := &signalv1.Receipt{Sender: e.Sender.String(), Sent: e.Content.GetTimestamp()}
+		switch e.Content.GetType() {
+		case signalpb.ReceiptMessage_DELIVERY:
+			r.Kind = signalv1.Receipt_KIND_DELIVERED
+		case signalpb.ReceiptMessage_READ:
+			r.Kind = signalv1.Receipt_KIND_READ
+		case signalpb.ReceiptMessage_VIEWED:
+			r.Kind = signalv1.Receipt_KIND_VIEWED
 		}
-		m := a.message(ctx, e.Info, data)
-		if m.GetBody() == "" && len(m.GetAttachments()) == 0 {
-			return // a profile key, a timer change: nothing to read
+		a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Receipt{Receipt: r}})
+	case *events.ReadSelf:
+		read := &signalv1.Read{}
+		for _, m := range e.Messages {
+			read.Messages = append(read.Messages, &signalv1.ReadMessage{Author: m.GetSenderAci(), Sent: m.GetTimestamp()})
 		}
-		if m.GetGroup() {
-			a.describe(ctx, m.GetChat(), e.Info.GroupRevision)
-		}
-		a.sink.Deliver(&signalv1.EventsResponse{Account: a.aci, Event: &signalv1.EventsResponse_Message{Message: m}})
+		a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Read{Read: read}})
 	case *events.ContactList:
 		contacts := &signalv1.Contacts{}
 		for _, r := range e.Contacts {
@@ -114,6 +120,70 @@ func (a *account) handle(ctx context.Context, evt events.SignalEvent) {
 		}
 		a.sink.Deliver(&signalv1.EventsResponse{Account: a.aci, Event: &signalv1.EventsResponse_Contacts{Contacts: contacts}})
 	}
+}
+
+// deliver hands kithd ev as the account's and waits until kept.
+func (a *account) deliver(ev *signalv1.EventsResponse) {
+	ev.Account = a.aci
+	a.sink.Deliver(ev)
+}
+
+// chatEvent hands kithd a message, an edit, a deletion, a reaction or typing.
+func (a *account) chatEvent(ctx context.Context, e *events.ChatEvent) {
+	chat, sender := e.Info.ChatID, e.Info.Sender.String()
+	switch c := e.Event.(type) {
+	case *signalpb.DataMessage:
+		group := c.GetGroupV2() != nil
+		switch {
+		case c.GetReaction() != nil:
+			r := c.GetReaction()
+			a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Reaction{Reaction: &signalv1.Reaction{
+				Chat: chat, Group: group, Sender: sender, Emoji: r.GetEmoji(), Remove: r.GetRemove(),
+				TargetAuthor: r.GetTargetAuthorAci(), TargetSent: r.GetTargetSentTimestamp(), SenderName: a.nameOf(ctx, e.Info.Sender),
+			}}})
+		case c.GetDelete() != nil:
+			a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Delete{Delete: &signalv1.Delete{
+				Chat: chat, Group: group, Sender: sender, Target: c.GetDelete().GetTargetSentTimestamp(), Sent: c.GetTimestamp(),
+			}}})
+		default:
+			m := a.message(ctx, e.Info, c)
+			if m.GetBody() == "" && len(m.GetAttachments()) == 0 {
+				return // a profile key, a timer change: nothing to read
+			}
+			if m.GetGroup() {
+				a.describe(ctx, m.GetChat(), e.Info.GroupRevision)
+			}
+			a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Message{Message: m}})
+		}
+	case *signalpb.EditMessage:
+		data := c.GetDataMessage()
+		a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Edit{Edit: &signalv1.Edit{
+			Chat: chat, Group: data.GetGroupV2() != nil, Sender: sender, Target: c.GetTargetSentTimestamp(),
+			Sent: data.GetTimestamp(), Body: data.GetBody(), Mentions: a.mentions(ctx, data.GetBodyRanges()),
+		}}})
+	case *signalpb.TypingMessage:
+		if sender == a.aci {
+			return
+		}
+		a.sink.Tell(&signalv1.EventsResponse{Account: a.aci, Event: &signalv1.EventsResponse_Typing{Typing: &signalv1.Typing{
+			Chat: chat, Group: len(c.GetGroupId()) > 0, Sender: sender,
+			Started: c.GetAction() == signalpb.TypingMessage_STARTED,
+		}}})
+	}
+}
+
+// mentions are a body's mentions of people (not its styles).
+func (a *account) mentions(ctx context.Context, ranges []*signalpb.BodyRange) []*signalv1.Mention {
+	var out []*signalv1.Mention
+	for _, r := range ranges {
+		mentioned := r.GetMentionAci()
+		if mentioned == "" {
+			continue // a style (bold, spoiler), not a person
+		}
+		who, _ := uuid.Parse(mentioned)
+		out = append(out, &signalv1.Mention{Start: r.GetStart(), Length: r.GetLength(), Aci: mentioned, Name: a.nameOf(ctx, who)})
+	}
+	return out
 }
 
 // message is data as a wire message.
@@ -135,16 +205,7 @@ func (a *account) message(ctx context.Context, info events.MessageInfo, data *si
 	if q := data.GetQuote(); q != nil {
 		m.Quote = &signalv1.Quote{Author: q.GetAuthorAci(), Sent: q.GetId(), Text: q.GetText()}
 	}
-	for _, r := range data.GetBodyRanges() {
-		mentioned := r.GetMentionAci()
-		if mentioned == "" {
-			continue // a style (bold, spoiler), not a person
-		}
-		who, _ := uuid.Parse(mentioned)
-		m.Mentions = append(m.Mentions, &signalv1.Mention{
-			Start: r.GetStart(), Length: r.GetLength(), Aci: mentioned, Name: a.nameOf(ctx, who),
-		})
-	}
+	m.Mentions = a.mentions(ctx, data.GetBodyRanges())
 	for _, p := range data.GetAttachments() {
 		pointer, err := proto.Marshal(p)
 		if err != nil {

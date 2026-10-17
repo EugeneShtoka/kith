@@ -146,6 +146,18 @@ func (a *Adapter) take(ctx context.Context, h *helper, ev *signalv1.EventsRespon
 		return a.takeGroup(ctx, self, e.Group)
 	case *signalv1.EventsResponse_Contacts:
 		return a.takeContacts(ctx, self, e.Contacts)
+	case *signalv1.EventsResponse_Edit:
+		return a.takeEdit(ctx, self, e.Edit)
+	case *signalv1.EventsResponse_Delete:
+		return a.takeDelete(ctx, self, e.Delete)
+	case *signalv1.EventsResponse_Reaction:
+		return a.takeReaction(ctx, self, e.Reaction)
+	case *signalv1.EventsResponse_Typing:
+		a.takeTyping(self, e.Typing)
+	case *signalv1.EventsResponse_Read:
+		return a.takeRead(ctx, self, e.Read)
+	case *signalv1.EventsResponse_Receipt:
+		// Someone got or read the account's messages: kith shows no receipts yet.
 	}
 	return nil
 }
@@ -256,7 +268,7 @@ func (a *Adapter) takeMessage(ctx context.Context, self string, m *signalv1.Mess
 		}
 	}
 	msg := message(self, m)
-	if err := a.cache.SaveMessages(ctx, room.ID, []domain.Message{msg}); err != nil {
+	if err := a.save(ctx, room.ID, msg); err != nil {
 		return fmt.Errorf("cache a message: %w", err)
 	}
 	if m.GetSender() == self {
