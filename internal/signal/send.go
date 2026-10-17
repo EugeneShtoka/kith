@@ -2,10 +2,7 @@ package signal
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -15,16 +12,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// errNoEdit: editing a sent message comes with edits received.
-var errNoEdit = errors.New("signal: editing a sent message is not supported yet")
-
 // Send sends draft to a chat from its account, then caches it: a message sent from this
 // device does not come back to it. A send repeated with the same TxnID goes at the same
 // sent time, which is the message's ID, so Signal's clients take it once.
 func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Draft) error {
-	if draft.Edits != "" {
-		return errNoEdit
-	}
 	self, chat, group, err := a.chatTo(room)
 	if err != nil {
 		return err
@@ -32,6 +23,9 @@ func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Dra
 	h, err := a.sender(self)
 	if err != nil {
 		return err
+	}
+	if draft.Edits != "" {
+		return a.editOwn(ctx, room, self, chat, group, h, draft)
 	}
 	sent := a.sentAt(draft.TxnID)
 	req := &signalv1.SendRequest{Account: self, Chat: chat, Group: group, Body: draft.Body, Sent: sent}
@@ -116,13 +110,8 @@ func (a *Adapter) forgetTxn(txn string) {
 // quote is the message a reply quotes: its author and sent time (from its ID), and its
 // text when cached.
 func (a *Adapter) quote(ctx context.Context, room domain.RoomID, target domain.EventID) *signalv1.Quote {
-	part, ok := strings.CutPrefix(string(target), string(room)+"/")
+	author, sent, ok := authorAndSent(room, target)
 	if !ok {
-		return nil
-	}
-	author, at, ok := strings.Cut(part, ".")
-	sent, err := strconv.ParseUint(at, 10, 64)
-	if !ok || err != nil {
 		return nil
 	}
 	q := &signalv1.Quote{Author: author, Sent: sent}

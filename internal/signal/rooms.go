@@ -194,8 +194,9 @@ func (a *Adapter) MessageHistory(ctx context.Context, room domain.RoomID, event 
 	return revisions, domain.Deletion{}, nil
 }
 
-// MarkRead reads a room through event, in kith (telling the phone comes next).
-func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain.EventID, _ bool) error {
+// MarkRead reads a room through event in kith, then tells the phone (and, unless
+// private, the authors) so; kith's read stands whatever Signal says.
+func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain.EventID, private bool) error {
 	at, err := readstate.TimeOf(ctx, a.cache, room, event, time.Now())
 	if err != nil {
 		return fmt.Errorf("signal: %w", err)
@@ -204,6 +205,7 @@ func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain
 		return fmt.Errorf("signal: save the read position of %s: %w", room, err)
 	}
 	a.recount(ctx, room)
+	a.tellRead(context.WithoutCancel(ctx), room, at, private)
 	return nil
 }
 

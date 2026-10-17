@@ -37,3 +37,5 @@ func (unbuilt) Connect(context.Context, string, signalhelper.Sink) error {
 func (unbuilt) Send(context.Context, *signalv1.SendRequest) error { return errUnbuilt }
 
 func (unbuilt) Typing(context.Context, *signalv1.TypingRequest) error { return errUnbuilt }
+
+func (unbuilt) MarkRead(context.Context, *signalv1.MarkReadRequest) error { return errUnbuilt }

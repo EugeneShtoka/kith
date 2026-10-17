@@ -49,6 +49,8 @@ const (
 	SignalServiceSendProcedure = "/signal.v1.SignalService/Send"
 	// SignalServiceTypingProcedure is the fully-qualified name of the SignalService's Typing RPC.
 	SignalServiceTypingProcedure = "/signal.v1.SignalService/Typing"
+	// SignalServiceMarkReadProcedure is the fully-qualified name of the SignalService's MarkRead RPC.
+	SignalServiceMarkReadProcedure = "/signal.v1.SignalService/MarkRead"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -74,6 +76,9 @@ type SignalServiceClient interface {
 	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
 	// Typing says a connected account is typing in a chat, or stopped.
 	Typing(context.Context, *connect.Request[v1.TypingRequest]) (*connect.Response[v1.TypingResponse], error)
+	// MarkRead tells the account's other devices (the phone), and with receipts the
+	// messages' authors, that it read messages.
+	MarkRead(context.Context, *connect.Request[v1.MarkReadRequest]) (*connect.Response[v1.MarkReadResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -135,6 +140,12 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("Typing")),
 			connect.WithClientOptions(opts...),
 		),
+		markRead: connect.NewClient[v1.MarkReadRequest, v1.MarkReadResponse](
+			httpClient,
+			baseURL+SignalServiceMarkReadProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("MarkRead")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -148,6 +159,7 @@ type signalServiceClient struct {
 	ack       *connect.Client[v1.AckRequest, v1.AckResponse]
 	send      *connect.Client[v1.SendRequest, v1.SendResponse]
 	typing    *connect.Client[v1.TypingRequest, v1.TypingResponse]
+	markRead  *connect.Client[v1.MarkReadRequest, v1.MarkReadResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -190,6 +202,11 @@ func (c *signalServiceClient) Typing(ctx context.Context, req *connect.Request[v
 	return c.typing.CallUnary(ctx, req)
 }
 
+// MarkRead calls signal.v1.SignalService.MarkRead.
+func (c *signalServiceClient) MarkRead(ctx context.Context, req *connect.Request[v1.MarkReadRequest]) (*connect.Response[v1.MarkReadResponse], error) {
+	return c.markRead.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -213,6 +230,9 @@ type SignalServiceHandler interface {
 	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
 	// Typing says a connected account is typing in a chat, or stopped.
 	Typing(context.Context, *connect.Request[v1.TypingRequest]) (*connect.Response[v1.TypingResponse], error)
+	// MarkRead tells the account's other devices (the phone), and with receipts the
+	// messages' authors, that it read messages.
+	MarkRead(context.Context, *connect.Request[v1.MarkReadRequest]) (*connect.Response[v1.MarkReadResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -270,6 +290,12 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("Typing")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceMarkReadHandler := connect.NewUnaryHandler(
+		SignalServiceMarkReadProcedure,
+		svc.MarkRead,
+		connect.WithSchema(signalServiceMethods.ByName("MarkRead")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -288,6 +314,8 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceSendHandler.ServeHTTP(w, r)
 		case SignalServiceTypingProcedure:
 			signalServiceTypingHandler.ServeHTTP(w, r)
+		case SignalServiceMarkReadProcedure:
+			signalServiceMarkReadHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -327,4 +355,8 @@ func (UnimplementedSignalServiceHandler) Send(context.Context, *connect.Request[
 
 func (UnimplementedSignalServiceHandler) Typing(context.Context, *connect.Request[v1.TypingRequest]) (*connect.Response[v1.TypingResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Typing is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) MarkRead(context.Context, *connect.Request[v1.MarkReadRequest]) (*connect.Response[v1.MarkReadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.MarkRead is not implemented"))
 }
