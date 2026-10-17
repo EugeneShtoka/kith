@@ -65,8 +65,11 @@ type Adapter struct {
 	paths   Paths
 	log     *slog.Logger
 
-	// onStatus hears an account's state change (see OnStatus).
+	// onStatus hears an account's state change (see OnStatus); said is each account's
+	// last, so a state is said once, not again on every config re-read.
 	onStatus func(domain.AccountStatus)
+	saidMu   sync.Mutex
+	said     map[string]domain.AccountStatus
 
 	mu       sync.Mutex
 	accounts []Account
@@ -100,6 +103,7 @@ func New(secrets Secrets, key []byte, paths Paths, accounts []Account, log *slog
 	}
 	return &Adapter{
 		secrets: secrets, key: key, paths: paths, accounts: slices.Clone(accounts), log: log.With("network", "signal"),
+		said:      map[string]domain.AccountStatus{},
 		up:        make(chan struct{}),
 		down:      "starting kith-signal",
 		messages:  make(chan domain.Message, streamBuffer),
@@ -248,10 +252,19 @@ func (a *Adapter) announce(account Account, h *helper, down string, failed bool)
 	}
 }
 
+// status says account's state, unless it is what was said last.
 func (a *Adapter) status(account Account, phase domain.AccountPhase, detail string) {
+	s := domain.AccountStatus{Network: domain.ProtocolSignal, Account: account.Name, Phase: phase, Detail: detail}
+	a.saidMu.Lock()
+	same := a.said[account.Name] == s
+	a.said[account.Name] = s
+	a.saidMu.Unlock()
+	if same {
+		return
+	}
 	a.log.Info("account state", "account", account.Name, "phase", phaseNames[phase], "detail", detail)
 	if a.onStatus != nil {
-		a.onStatus(domain.AccountStatus{Network: domain.ProtocolSignal, Account: account.Name, Phase: phase, Detail: detail})
+		a.onStatus(s)
 	}
 }
 
