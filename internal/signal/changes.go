@@ -17,12 +17,20 @@ import (
 const typingLapse = 15 * time.Second
 
 // takeEdit replaces a message's text, keeping the version it replaced under
-// [display.deleted] keep.
+// [display.deleted] keep. An edit names the version it replaces: a second edit names the
+// first edit's time, which leads back to the message.
 func (a *Adapter) takeEdit(ctx context.Context, self string, e *signalv1.Edit) error {
 	at := sentTime(e.GetSent())
+	room := roomID(self, e.GetChat(), e.GetGroup())
+	target := eventID(self, e.GetChat(), e.GetGroup(), e.GetSender(), e.GetTarget())
+	if edited, ok, err := a.cache.EditShownBy(ctx, room, target); err != nil {
+		return fmt.Errorf("find the message an edit is of: %w", err)
+	} else if ok {
+		target = edited
+	}
 	msg := domain.Message{
-		ID:         eventID(self, e.GetChat(), e.GetGroup(), e.GetSender(), e.GetTarget()),
-		RoomID:     roomID(self, e.GetChat(), e.GetGroup()),
+		ID:         target,
+		RoomID:     room,
 		Sender:     person(e.GetSender()),
 		Timestamp:  at,
 		Edited:     true,

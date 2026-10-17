@@ -140,3 +140,22 @@ func TestTypingShowsWhoTypes(t *testing.T) {
 		t.Errorf("typing = %v, want Dana then nobody", seen)
 	}
 }
+
+// Each edit names the version it replaces, so a second edit names the first edit's time
+// (as Signal's apps send it), not the message's: every edit still lands on the message.
+func TestEditsOfEditsLandOnTheMessage(t *testing.T) {
+	r := connected(t,
+		msg(dana, dana, 1700000000100, "one"),
+		edit(dana, dana, 1700000000100, 1700000000200, "two"),
+		edit(dana, dana, 1700000000200, 1700000000300, "three"),
+		edit(dana, dana, 1700000000300, 1700000000400, "four"),
+		react(dana, me, "👍", false, dana, 1700000000400),
+	)
+	msgs := r.messages(direct(dana))
+	if len(msgs) != 1 || msgs[0].Body != "four" {
+		t.Fatalf("messages = %+v, want one, reading four", msgs)
+	}
+	if rs := r.reactions(direct(dana)); len(rs) != 1 || rs[0].Target != msgs[0].ID {
+		t.Errorf("reactions = %+v, want one on the message", rs)
+	}
+}
