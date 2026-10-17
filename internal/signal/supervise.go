@@ -151,6 +151,7 @@ func (a *Adapter) goneDown(why string, failed bool) {
 		a.helper = nil
 		a.up = make(chan struct{})
 	}
+	a.held = nil // the helper that held them is gone: Signal sends them again
 	a.down, a.failed = why, failed
 	a.mu.Unlock()
 	a.announceAll()

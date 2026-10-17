@@ -51,17 +51,67 @@ func (a *Adapter) listen(life context.Context, h *helper, opened func()) error {
 	opened()
 	for stream.Receive() {
 		ev := stream.Msg()
-		if err := a.take(life, h, ev); err != nil {
-			return fmt.Errorf("keep an event: %w", err)
-		}
-		if ev.GetToken() == 0 {
+		if !a.isConfigured(ev.GetAccount()) {
+			a.hold(h, ev)
 			continue
 		}
-		if _, err := h.client.Ack(life, connect.NewRequest(&signalv1.AckRequest{Token: ev.GetToken()})); err != nil {
-			return fmt.Errorf("ack: %w", err)
+		if err := a.keep(life, h, ev); err != nil {
+			return err
 		}
 	}
 	return stream.Err() //nolint:wrapcheck // the stream's own end, logged by receive
+}
+
+// keep writes ev into the cache, then acks it.
+func (a *Adapter) keep(ctx context.Context, h *helper, ev *signalv1.EventsResponse) error {
+	if err := a.take(ctx, h, ev); err != nil {
+		return fmt.Errorf("keep an event: %w", err)
+	}
+	if ev.GetToken() == 0 {
+		return nil
+	}
+	if _, err := h.client.Ack(ctx, connect.NewRequest(&signalv1.AckRequest{Token: ev.GetToken()})); err != nil {
+		return fmt.Errorf("ack: %w", err)
+	}
+	return nil
+}
+
+// hold keeps an event of a Signal account no configured account is linked to, unacked:
+// the account was renamed or taken out of the config, and Signal keeps the event until
+// it is back (release), or until the helper ends and Signal sends it again.
+func (a *Adapter) hold(h *helper, ev *signalv1.EventsResponse) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.helper != h {
+		return
+	}
+	a.held = append(a.held, ev)
+}
+
+// release keeps the held events of accounts configured again.
+func (a *Adapter) release() {
+	a.mu.Lock()
+	h, ctx := a.helper, a.run
+	var now []*signalv1.EventsResponse
+	still := a.held[:0]
+	for _, ev := range a.held {
+		if a.configuredLocked(ev.GetAccount()) {
+			now = append(now, ev)
+		} else {
+			still = append(still, ev)
+		}
+	}
+	a.held = still
+	a.mu.Unlock()
+	if h == nil || len(now) == 0 {
+		return
+	}
+	for _, ev := range now {
+		if err := a.keep(ctx, h, ev); err != nil {
+			// Unacked: the helper sends it again to the next listener.
+			a.log.Warn("keeping a held event failed", "err", err)
+		}
+	}
 }
 
 // connectAll connects every configured account linked in h's store.
@@ -82,13 +132,9 @@ func (a *Adapter) connectOne(ctx context.Context, h *helper, account Account, ac
 	}
 }
 
-// take writes what ev carries into the cache. An event for no configured account is
-// dropped: that account left the config.
+// take writes what ev carries into the cache.
 func (a *Adapter) take(ctx context.Context, h *helper, ev *signalv1.EventsResponse) error {
 	self := ev.GetAccount()
-	if !a.isConfigured(self) {
-		return nil
-	}
 	switch e := ev.GetEvent().(type) {
 	case *signalv1.EventsResponse_Connection:
 		h.setState(self, e.Connection.GetState(), e.Connection.GetDetail())
@@ -106,7 +152,14 @@ func (a *Adapter) take(ctx context.Context, h *helper, ev *signalv1.EventsRespon
 
 // isConfigured is whether a configured account is linked to aci.
 func (a *Adapter) isConfigured(aci string) bool {
-	for _, account := range a.accountsNow() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.configuredLocked(aci)
+}
+
+// configuredLocked is isConfigured with a.mu held.
+func (a *Adapter) configuredLocked(aci string) bool {
+	for _, account := range a.accounts {
 		if linked, ok, err := a.linkedTo(account.Name); err == nil && ok && linked == aci {
 			return true
 		}

@@ -95,8 +95,9 @@ func fakeHelper(mode string) int {
 
 type fakeNetwork struct{ devices, links string }
 
-// Connect says the account connected, then plays the events file's events for it,
-// recording each one's ack (the body of a message, else its kind) as it returns.
+// Connect says the account connected, then plays the events file's events, recording
+// each one's ack (the body of a message, else its kind) as it returns. Each account's
+// events play in order on their own, as each account's signalmeow client delivers.
 func (f *fakeNetwork) Connect(_ context.Context, aci string, sink signalhelper.Sink) error {
 	sink.Tell(&signalv1.EventsResponse{Account: aci, Event: &signalv1.EventsResponse_Connection{
 		Connection: &signalv1.Connection{State: signalv1.Connection_STATE_CONNECTED},
@@ -105,27 +106,35 @@ func (f *fakeNetwork) Connect(_ context.Context, aci string, sink signalhelper.S
 	if err != nil {
 		return nil //nolint:nilerr // no events to play
 	}
-	go func() {
-		for line := range strings.SplitSeq(strings.TrimSpace(string(b)), "\n") {
-			ev := &signalv1.EventsResponse{}
-			if line == "" || protojson.Unmarshal([]byte(line), ev) != nil {
-				continue
-			}
-			if ev.GetAccount() == "" {
-				ev.Account = aci
-			}
-			sink.Deliver(ev)
-			what := fmt.Sprintf("%T", ev.GetEvent())
-			if m := ev.GetMessage(); m != nil {
-				what = m.GetBody()
-			}
-			if f, err := os.OpenFile(os.Getenv(fakeAcks), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
-				_, _ = fmt.Fprintln(f, what)
-				_ = f.Close()
-			}
+	byAccount := map[string][]*signalv1.EventsResponse{}
+	for line := range strings.SplitSeq(strings.TrimSpace(string(b)), "\n") {
+		ev := &signalv1.EventsResponse{}
+		if line == "" || protojson.Unmarshal([]byte(line), ev) != nil {
+			continue
 		}
-	}()
+		if ev.GetAccount() == "" {
+			ev.Account = aci
+		}
+		byAccount[ev.GetAccount()] = append(byAccount[ev.GetAccount()], ev)
+	}
+	for _, events := range byAccount {
+		go play(sink, events)
+	}
 	return nil
+}
+
+func play(sink signalhelper.Sink, events []*signalv1.EventsResponse) {
+	for _, ev := range events {
+		sink.Deliver(ev)
+		what := fmt.Sprintf("%T", ev.GetEvent())
+		if m := ev.GetMessage(); m != nil {
+			what = m.GetBody()
+		}
+		if f, err := os.OpenFile(os.Getenv(fakeAcks), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
+			_, _ = fmt.Fprintln(f, what)
+			_ = f.Close()
+		}
+	}
 }
 
 func (f *fakeNetwork) Open(context.Context, []byte) ([]signalhelper.Device, error) {

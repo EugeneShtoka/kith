@@ -11,6 +11,7 @@ import (
 	"time"
 
 	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/signal"
 )
@@ -202,17 +203,52 @@ func TestAnEventNotCachedIsNotAcked(t *testing.T) {
 	}
 }
 
-// An event for a Signal account no configured account is linked to is dropped (acked):
-// that account left the config.
-func TestAnEventForNoAccountIsDropped(t *testing.T) {
-	stray := msg(dana, dana, 1700000000100, "for someone else")
+// An event for a Signal account no configured account is linked to waits, unacked and
+// uncached, while the rest go on; once an account is linked to it again, it is kept.
+func TestAnEventForNoAccountWaits(t *testing.T) {
+	stray := msg(dana, dana, 1700000000100, "for the other account")
 	stray.Account = other
 	r := newRigPlaying(t, "ok", me+","+other, me, []*signalv1.EventsResponse{stray, msg(dana, dana, 1700000000200, "mine")})
-	r.until(10*time.Second, "both acked", func() bool { return len(r.acked()) == 2 })
-	if msgs := r.messages(direct(dana)); len(msgs) != 1 || msgs[0].Body != "mine" {
-		t.Errorf("cached = %+v", msgs)
+	r.until(10*time.Second, "mine acked", func() bool { return slices.Contains(r.acked(), "mine") })
+	time.Sleep(time.Second)
+	if acked := r.acked(); slices.Contains(acked, "for the other account") {
+		t.Fatalf("acked %v: the stray was let go", acked)
 	}
 	if msgs := r.messages(domain.RoomID("signal:" + other + "/" + dana)); len(msgs) != 0 {
-		t.Errorf("the stray was cached: %+v", msgs)
+		t.Fatalf("the stray was cached before its account came: %+v", msgs)
+	}
+
+	r.secrets.m["signal|two"] = other
+	r.a.UseConfig(context.Background(), config.Config{Signal: config.Signal{Accounts: []config.SignalAccount{{Name: "phone"}, {Name: "two"}}}})
+	r.until(10*time.Second, "the stray acked once its account came", func() bool {
+		return slices.Contains(r.acked(), "for the other account")
+	})
+	if msgs := r.messages(domain.RoomID("signal:" + other + "/" + dana)); len(msgs) != 1 {
+		t.Errorf("the stray's account's messages = %+v", msgs)
+	}
+}
+
+// Renaming an account in the config keeps its link: one linked account gone and one
+// unlinked come, in one change, is a rename.
+func TestARenameKeepsTheLink(t *testing.T) {
+	r := newRig(t, "ok", me, me)
+	r.until(5*time.Second, "linked", r.phase(signal.Linked, ""))
+	r.a.UseConfig(context.Background(), config.Config{Signal: config.Signal{Accounts: []config.SignalAccount{{Name: "il"}}}})
+	r.until(5*time.Second, "il linked", func() bool {
+		s, ok := r.last()
+		return ok && s.Account == "il" && s.Phase == signal.Linked
+	})
+	if aci, _, _ := r.secrets.Secret("signal|il"); aci != me {
+		t.Errorf("il is linked to %q", aci)
+	}
+	if _, kept, _ := r.secrets.Secret("signal|phone"); kept {
+		t.Error("the old name's link was kept too")
+	}
+	// Two names out and in at once is no rename: neither is guessed.
+	r.a.UseConfig(context.Background(), config.Config{Signal: config.Signal{Accounts: []config.SignalAccount{{Name: "a"}, {Name: "b"}}}})
+	for _, name := range []string{"a", "b"} {
+		if _, linked, _ := r.secrets.Secret("signal|" + name); linked {
+			t.Errorf("%s took a link that was il's", name)
+		}
 	}
 }

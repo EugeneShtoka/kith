@@ -93,6 +93,8 @@ type Adapter struct {
 	// helper is the helper while it is up, nil otherwise; up closes when it comes up.
 	helper *helper
 	up     chan struct{}
+	// held is events of Signal accounts no configured account is linked to (hold).
+	held []*signalv1.EventsResponse
 	// down says why the helper is not up, for the accounts' state; failed when it cannot
 	// be until something changes (no kith-signal installed).
 	down   string
@@ -176,10 +178,39 @@ func (a *Adapter) accountsNow() []Account {
 // there is one, and every account's state is said again.
 func (a *Adapter) useAccounts(accounts []Account) {
 	a.mu.Lock()
+	before := a.accounts
 	a.accounts = slices.Clone(accounts)
 	a.mu.Unlock()
+	a.followRename(before, accounts)
 	a.superviseNow()
 	a.announceAll()
+	a.release()
+}
+
+// followRename carries an account's link over to its new name: when one linked account
+// left the config and one not linked came, in one change, that is a rename (the link is
+// kept under the name).
+func (a *Adapter) followRename(before, after []Account) {
+	gone := slices.DeleteFunc(slices.Clone(before), func(x Account) bool { return slices.Contains(after, x) })
+	came := slices.DeleteFunc(slices.Clone(after), func(x Account) bool { return slices.Contains(before, x) })
+	if len(gone) != 1 || len(came) != 1 {
+		return
+	}
+	aci, linked, err := a.linkedTo(gone[0].Name)
+	if err != nil || !linked {
+		return
+	}
+	if _, taken, err := a.linkedTo(came[0].Name); err != nil || taken {
+		return
+	}
+	if err := a.secrets.StoreSecret(linkRef(came[0].Name), aci); err != nil {
+		a.log.Warn("carrying a renamed account's link over failed", "from", gone[0].Name, "to", came[0].Name, "err", err)
+		return
+	}
+	if err := a.secrets.DeleteSecret(linkRef(gone[0].Name)); err != nil {
+		a.log.Warn("forgetting a renamed account's old name failed", "name", gone[0].Name, "err", err)
+	}
+	a.log.Info("renamed: the link goes with it", "from", gone[0].Name, "to", came[0].Name)
 }
 
 // SavedSessions is the configured accounts linked to a Signal account. An unreadable
