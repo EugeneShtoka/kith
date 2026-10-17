@@ -55,6 +55,7 @@ type Config struct {
 	Messenger      Messenger     `toml:"messenger"`
 	LinkedIn       LinkedIn      `toml:"linkedin"`
 	GMessages      GMessages     `toml:"gmessages"`
+	Signal         Signal        `toml:"signal"`
 	Storage        Storage       `toml:"storage"`
 	Profiles       []Profile     `toml:"profile"`
 	Tags           []Tag         `toml:"tag"`

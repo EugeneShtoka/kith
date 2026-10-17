@@ -27,12 +27,17 @@ import "strings"
 //	                            path-escaped)
 //	gmessages:<phone>/<conv>/<id> a message in it
 //	gmessages:+<number>         a person with a phone number
+//	signal:<self>/<chat>        a Signal chat as one account sees it: the other side's
+//	                            ACI, or a group's ID (base64url, no padding)
+//	signal:<self>/<chat>/<author>.<millis> a message in it (Signal messages have no
+//	                            ID of their own: the author and its sent time)
+//	signal:<person>             a person (an ACI)
 //
 // Rooms and events name the account because one person may run several accounts on a
 // network, and a shared group is then two rooms with the same native message IDs. A
 // person's ID names no account, so a contact folds into one identity across accounts.
 // <account> is the account's stable network ID (WhatsApp phone digits, Slack team ID,
-// Telegram user ID, Meta user ID, LinkedIn profile ID, paired phone ID), never a config label.
+// Telegram user ID, Meta user ID, LinkedIn profile ID, paired phone ID, Signal ACI), never a config label.
 //
 // A Telegram <peer> is "marked" as in the Bot API (user ID, basic group negated,
 // channel/supergroup -100<id>) because the three kinds' IDs overlap.
@@ -108,6 +113,14 @@ var natives = map[string]native{
 		// "<peer>/<id>".
 		isRoom: func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
 		// A person is a user ID, which reads as no name.
+		shortName: func(string) string { return "" },
+	},
+	"signal": {
+		protocol: ProtocolSignal,
+		// A chat is an ACI or a base64url group ID, neither with a slash; a message is
+		// "<chat>/<author>.<millis>".
+		isRoom: func(id string) bool { return id != "" && !strings.Contains(id, accountSep) },
+		// A person is an ACI (a UUID), which reads as no name.
 		shortName: func(string) string { return "" },
 	},
 }
