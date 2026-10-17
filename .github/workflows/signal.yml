@@ -35,9 +35,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # cargo, cmake and clang are on the runner; libsignal also needs protoc.
+      # cargo, cmake and clang are on the runner; libsignal also needs protoc and the
+      # well-known .proto files (google/protobuf/*.proto), which Ubuntu ships apart.
       - name: libsignal's build tools
-        run: sudo apt-get install -y --no-install-recommends protobuf-compiler
+        run: sudo apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev
 
       # libsignal's version follows go.mod's mautrix-signal (scripts/build-libsignal.sh),
       # so that line keys its build.
