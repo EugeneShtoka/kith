@@ -18,8 +18,13 @@ jobs:
   verify:
     uses: ./.github/workflows/ci.yml
 
+  # kith-signal builds and passes its own gates: a broken Signal build blocks a release
+  # (merges stay unblocked; see signal.yml).
+  signal:
+    uses: ./.github/workflows/signal.yml
+
   release:
-    needs: verify
+    needs: [verify, signal]
     # Protection rules (required reviewers, tag patterns) are set on the environment in
     # the repository settings; see docs/packaging.md.
     environment: release

@@ -340,6 +340,32 @@ linters:
             - "$gostd"
             - "rsc.io/qr"
 
+        # kith-signal's process: SignalService and the heartbeat, over Network. Pure Go,
+        # so it builds and is tested without cgo; it never sees kithd's cache.
+        signalhelper-serves-the-wire:
+          files:
+            - "**/internal/signalhelper/*.go"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "connectrpc.com/connect"
+            - "github.com/EugeneShtoka/kith/internal/api/signal/v1"
+
+        # Signal itself: the only package that imports mautrix-signal (libsignal, cgo).
+        # Only kith-signal built with the signal tag links it; kithd and kith never do.
+        signalhelper-meow-is-signal:
+          files:
+            - "**/internal/signalhelper/meow/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/sealeddb"
+            - "github.com/EugeneShtoka/kith/internal/signalhelper"
+            - "github.com/rs/zerolog"
+            - "go.mau.fi/mautrix-signal/pkg/signalmeow"
+            - "go.mau.fi/util/dbutil"
+
         # Encrypted SQLite for the network stores that act as the account: a leaf over
         # ncruces' SQLite (WebAssembly, pure Go) and its Adiantum VFS.
         sealeddb-is-a-leaf:
@@ -443,6 +469,17 @@ linters:
             - "google.golang.org/protobuf"
             - "connectrpc.com/connect"
             - "github.com/EugeneShtoka/kith/internal/api/backend/v1"
+
+        # kith-signal's wire (SignalService), generated likewise.
+        signal-wire-is-generated:
+          files:
+            - "**/internal/api/signal/v1/*.go"
+            - "**/internal/api/signal/v1/signalv1connect/**"
+          allow:
+            - "$gostd"
+            - "google.golang.org/protobuf"
+            - "connectrpc.com/connect"
+            - "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 
         # Wire <-> domain mapping; no infrastructure.
         protoconv-maps-wire-to-domain:
@@ -657,6 +694,14 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/phonebook"
             - "github.com/EugeneShtoka/kith/internal/setup"
+
+        # The Signal helper's main: the helper and, built with the signal tag, Signal.
+        signal-main-wiring:
+          files:
+            - "**/cmd/kith-signal/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/signalhelper"
 
         probe-main-wiring:
           files:

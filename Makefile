@@ -3,7 +3,7 @@
 	test lint fmt fmt-check fix vuln secrets pin-check unit-check arch-check mod-check release-check \
 	proto-check docs-check nix-check hooks check coverage coverage-check tools pins-outdated \
 	compile cross ci-parity ensure-tools vet script-check quick test-quick arch-quick \
-	proto emoji dict-manifest freq-manifest model-manifest keys-doc
+	proto emoji dict-manifest freq-manifest model-manifest keys-doc build-signal signal-check
 
 # goolm = mautrix's pure-Go E2EE (no libolm/cgo). Also set in .golangci.yml,
 # .goreleaser.yaml and the CI env. With cgo on (the race detector), mautrix's
@@ -72,6 +72,23 @@ build-daemon:
 
 build-mcp:
 	$(GOBUILD) -o kith-mcp ./cmd/kith-mcp/
+
+# ── Signal helper ────────────────────────────────────────────────────────────
+# kith-signal is the one binary built with cgo: it links libsignal_ffi (Rust), at the
+# version mautrix-signal wraps (scripts/build-libsignal.sh builds it; LIBSIGNAL_DIR
+# points at a build of your own). Neither target is in `check`: .github/workflows/
+# signal.yml runs them, outside ci-ok, so a broken Signal build never blocks a merge
+# (it blocks a release).
+SIGNAL_TAGS := -tags=goolm,signal
+SIGNAL_CGO   = CGO_ENABLED=1 CGO_LDFLAGS="-L$$(bash scripts/build-libsignal.sh)"
+
+build-signal:
+	$(SIGNAL_CGO) go build $(BUILDVCS) $(SIGNAL_TAGS) -o kith-signal ./cmd/kith-signal/
+
+# The helper's own tests and lint with the signal tag: no other gate compiles it.
+signal-check:
+	$(SIGNAL_CGO) $(TEST_ENV) go test -race -count=1 $(SIGNAL_TAGS) ./cmd/kith-signal/... ./internal/signalhelper/...
+	$(SIGNAL_CGO) $(GOLANGCI) run --allow-serial-runners --build-tags=goolm,signal ./cmd/kith-signal/... ./internal/signalhelper/...
 
 # ── Run from source ──────────────────────────────────────────────────────────
 # Spawns a detached daemon if none runs — the *installed* one, if present.
