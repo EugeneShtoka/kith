@@ -25,6 +25,10 @@ service SignalService {
   rpc Events(EventsRequest) returns (stream EventsResponse);
   // Ack says kithd has kept the event with token.
   rpc Ack(AckRequest) returns (AckResponse);
+  // Send sends a message from a connected account.
+  rpc Send(SendRequest) returns (SendResponse);
+  // Typing says a connected account is typing in a chat, or stopped.
+  rpc Typing(TypingRequest) returns (TypingResponse);
 }
 
 message HeartbeatRequest {}
@@ -171,3 +175,28 @@ message AckRequest {
 }
 
 message AckResponse {}
+
+message SendRequest {
+  // The connected account's ACI.
+  string account = 1;
+  // The chat, as Message has it: the other side's ACI, or the group's ID.
+  string chat = 2;
+  bool group = 3;
+  string body = 4;
+  // The message's sent time (ms), kithd's to choose: with the account, its ID. A send
+  // repeated with the same time is the same message to Signal's clients.
+  uint64 sent = 5;
+  // The message replied to, if any.
+  Quote quote = 6;
+}
+
+message SendResponse {}
+
+message TypingRequest {
+  string account = 1;
+  string chat = 2;
+  bool group = 3;
+  bool typing = 4;
+}
+
+message TypingResponse {}

@@ -93,6 +93,9 @@ type Adapter struct {
 	// helper is the helper while it is up, nil otherwise; up closes when it comes up.
 	helper *helper
 	up     chan struct{}
+	// txns is each unfinished send's sent time, by its TxnID: a retry goes at the same
+	// time, so it is the same message (send.go).
+	txns map[string]uint64
 	// held is events of Signal accounts no configured account is linked to (hold).
 	held []*signalv1.EventsResponse
 	// down says why the helper is not up, for the accounts' state; failed when it cannot
@@ -118,6 +121,7 @@ func New(cache *db.Cache, secrets Secrets, key []byte, paths Paths, accounts []A
 		cache: cache, secrets: secrets, key: key, paths: paths, accounts: slices.Clone(accounts), log: log.With("network", "signal"),
 		said:      map[string]domain.AccountStatus{},
 		books:     map[string]*book{},
+		txns:      map[string]uint64{},
 		up:        make(chan struct{}),
 		down:      "starting kith-signal",
 		messages:  make(chan domain.Message, streamBuffer),

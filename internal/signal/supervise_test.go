@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 	"github.com/EugeneShtoka/kith/internal/apitest"
@@ -37,6 +38,8 @@ const (
 	fakeLinks   = "KITH_FAKE_SIGNAL_LINKS"   // the ACI a Link links
 	fakeEvents  = "KITH_FAKE_SIGNAL_EVENTS"  // a file of events (protojson, a line each) Connect plays
 	fakeAcks    = "KITH_FAKE_SIGNAL_ACKS"    // a file it adds a line to as each played event is acked
+	fakeSent    = "KITH_FAKE_SIGNAL_SENT"    // a file it adds each Send and Typing to (protojson)
+	fakeFails   = "KITH_FAKE_SIGNAL_FAILS"   // how many Sends fail first
 )
 
 func TestMain(m *testing.M) {
@@ -93,7 +96,42 @@ func fakeHelper(mode string) int {
 	return serve()
 }
 
-type fakeNetwork struct{ devices, links string }
+type fakeNetwork struct {
+	devices, links string
+	mu             sync.Mutex
+	failed         int
+}
+
+// Send records req, failing the first fakeFails of them.
+func (f *fakeNetwork) Send(_ context.Context, req *signalv1.SendRequest) error {
+	f.mu.Lock()
+	fails, _ := strconv.Atoi(os.Getenv(fakeFails))
+	failing := f.failed < fails
+	f.failed++
+	f.mu.Unlock()
+	record(req)
+	if failing {
+		return errors.New("fake: the network is down")
+	}
+	return nil
+}
+
+// Typing records req.
+func (f *fakeNetwork) Typing(_ context.Context, req *signalv1.TypingRequest) error {
+	record(req)
+	return nil
+}
+
+func record(m proto.Message) {
+	b, err := protojson.Marshal(m)
+	if err != nil {
+		return
+	}
+	if f, err := os.OpenFile(os.Getenv(fakeSent), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
+		_, _ = fmt.Fprintln(f, string(b))
+		_ = f.Close()
+	}
+}
 
 // Connect says the account connected, then plays the events file's events, recording
 // each one's ack (the body of a message, else its kind) as it returns. Each account's
@@ -188,6 +226,7 @@ type rig struct {
 	bin       string // where the fake kith-signal is installed ($PATH)
 	starts    string
 	acks      string
+	sent      string
 	events    string
 	cache     *db.Cache
 	cachePath string
@@ -231,7 +270,7 @@ func newRigPrepared(t *testing.T, mode, devices, linkedTo string, events []*sign
 		t.Fatal(err)
 	}
 	r := &rig{
-		t: t, bin: bin, starts: filepath.Join(dir, "starts"), acks: filepath.Join(dir, "acks"),
+		t: t, bin: bin, starts: filepath.Join(dir, "starts"), acks: filepath.Join(dir, "acks"), sent: filepath.Join(dir, "sent"),
 		events: filepath.Join(dir, "events"), secrets: &memSecrets{m: map[string]string{}},
 	}
 	r.install(self)
@@ -248,6 +287,7 @@ func newRigPrepared(t *testing.T, mode, devices, linkedTo string, events []*sign
 	}
 	t.Setenv(fakeEvents, r.events)
 	t.Setenv(fakeAcks, r.acks)
+	t.Setenv(fakeSent, r.sent)
 	cache, err := db.Open(context.Background(), filepath.Join(dir, "cache.db"))
 	if err != nil {
 		t.Fatal(err)

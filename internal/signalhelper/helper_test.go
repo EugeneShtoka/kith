@@ -46,6 +46,10 @@ func (f *fakeNetwork) Link(_ context.Context, _ string, show func(string) error)
 	return f.linked, nil
 }
 
+func (f *fakeNetwork) Send(context.Context, *signalv1.SendRequest) error { return nil }
+
+func (f *fakeNetwork) Typing(context.Context, *signalv1.TypingRequest) error { return nil }
+
 func (f *fakeNetwork) Connect(_ context.Context, _ string, sink signalhelper.Sink) error {
 	f.sinks <- sink
 	return nil
