@@ -16,12 +16,12 @@ import (
 )
 
 // Download fetches an attachment from Signal's CDN by its pointer and decrypts it.
-func (n *Network) Download(ctx context.Context, pointer []byte) ([]byte, error) {
+func (n *Network) Download(ctx context.Context, req *signalv1.DownloadRequest) ([]byte, error) {
 	p := &signalpb.AttachmentPointer{}
-	if err := proto.Unmarshal(pointer, p); err != nil {
+	if err := proto.Unmarshal(req.GetPointer(), p); err != nil {
 		return nil, fmt.Errorf("signal: read the attachment's pointer: %w", err)
 	}
-	data, err := signalmeow.DownloadAttachmentWithPointer(ctx, p, nil, nil)
+	data, err := signalmeow.DownloadAttachmentWithPointer(ctx, p, req.GetPlaintextHash(), nil)
 	if errors.Is(err, signalmeow.ErrAttachmentNotFound) {
 		return nil, signalhelper.ErrGone
 	}

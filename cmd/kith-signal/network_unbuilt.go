@@ -40,7 +40,9 @@ func (unbuilt) Typing(context.Context, *signalv1.TypingRequest) error { return e
 
 func (unbuilt) MarkRead(context.Context, *signalv1.MarkReadRequest) error { return errUnbuilt }
 
-func (unbuilt) Download(context.Context, []byte) ([]byte, error) { return nil, errUnbuilt }
+func (unbuilt) Download(context.Context, *signalv1.DownloadRequest) ([]byte, error) {
+	return nil, errUnbuilt
+}
 
 func (unbuilt) Upload(context.Context, *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	return nil, errUnbuilt

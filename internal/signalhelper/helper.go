@@ -43,7 +43,7 @@ type Network interface {
 	MarkRead(ctx context.Context, req *signalv1.MarkReadRequest) error
 	// Download fetches and decrypts an attachment by its pointer; one Signal no longer
 	// has is ErrGone.
-	Download(ctx context.Context, pointer []byte) ([]byte, error)
+	Download(ctx context.Context, req *signalv1.DownloadRequest) ([]byte, error)
 	// Upload puts a file on Signal's CDN from a connected account, as a Send carries it.
 	Upload(ctx context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error)
 }
@@ -205,7 +205,7 @@ func (s *service) MarkRead(ctx context.Context, req *connect.Request[signalv1.Ma
 }
 
 func (s *service) Download(ctx context.Context, req *connect.Request[signalv1.DownloadRequest]) (*connect.Response[signalv1.DownloadResponse], error) {
-	data, err := s.network.Download(ctx, req.Msg.GetPointer())
+	data, err := s.network.Download(ctx, req.Msg)
 	if errors.Is(err, ErrGone) {
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}

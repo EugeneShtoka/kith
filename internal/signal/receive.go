@@ -158,6 +158,8 @@ func (a *Adapter) take(ctx context.Context, h *helper, ev *signalv1.EventsRespon
 		return a.takeRead(ctx, self, e.Read)
 	case *signalv1.EventsResponse_Timer:
 		return a.takeTimer(ctx, self, e.Timer)
+	case *signalv1.EventsResponse_History:
+		return a.takeHistory(ctx, self, e.History)
 	case *signalv1.EventsResponse_Receipt:
 		// Someone got or read the account's messages: kith shows no receipts yet.
 	}
@@ -311,6 +313,8 @@ func (b *book) chat(self, chat string, group bool) (domain.Room, bool) {
 	switch {
 	case group && b.groups[chat] != nil:
 		r.Name = b.groups[chat].GetTitle()
+	case !group && chat == self:
+		r.Name = noteToSelf
 	case !group:
 		r.Name = b.nameOf(person(chat))
 	}

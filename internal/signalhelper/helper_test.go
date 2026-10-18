@@ -54,8 +54,8 @@ func (f *fakeNetwork) Typing(context.Context, *signalv1.TypingRequest) error { r
 func (f *fakeNetwork) MarkRead(context.Context, *signalv1.MarkReadRequest) error { return nil }
 
 // Download has the attachment "kept" and nothing else: any other is gone.
-func (f *fakeNetwork) Download(_ context.Context, pointer []byte) ([]byte, error) {
-	if string(pointer) != "kept" {
+func (f *fakeNetwork) Download(_ context.Context, req *signalv1.DownloadRequest) ([]byte, error) {
+	if string(req.GetPointer()) != "kept" {
 		return nil, fmt.Errorf("fake: %w", signalhelper.ErrGone)
 	}
 	return []byte("the photo"), nil

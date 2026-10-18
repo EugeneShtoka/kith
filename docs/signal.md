@@ -3,9 +3,14 @@
 kith links to Signal directly: it becomes one of your phone's linked devices, as
 Signal Desktop does, with no Matrix bridge in between. Your chats show in a space of
 their own (`Signal <name>`): a one-to-one chat by the person's name, a group by its
-title. Messages arrive as they are sent, from the moment you link: **kith starts with
-no history.** When you link, your phone may offer to transfer your message history;
-kith does not take it yet.
+title, and your notes to yourself as Note to Self. Messages arrive as they are sent.
+
+**History.** When you link, your phone offers to transfer your message history. Accept
+it and kith takes it once linked: your chats appear with their messages, read as far
+as you had read them, quietly (nothing in it notifies). If kith stops part-way, it carries on the next time
+it connects. Decline it,
+and kith starts with only what arrives from then on, and a chat appears when its next
+message does.
 
 Replies, mentions, edits, deleted messages, reactions and who is typing show as they
 do in Signal's apps, and so do messages written on your phone, and chats read there.
@@ -29,8 +34,9 @@ delete expired messages from its own cache: they stay in kith, and in its search
 after Signal's apps have removed them.
 
 **Names.** Signal hides phone numbers unless someone shares theirs. kith names a person
-by the name your phone's contacts give them, else by their Signal profile name, which
-kith learns only once they have written to you. When kith knows a person's number, it
+by the name your phone's contacts give them (kith asks your phone for its contacts
+each time it connects), else by their Signal profile name, which kith learns only once
+they have written to you. When kith knows a person's number, it
 joins them to the same person on your other networks (see
 [Phonebook](phonebook.md)).
 
@@ -91,8 +97,8 @@ name = "phone"
 
 Unlink kith on your phone: Signal → Settings → Linked devices → `kith` → Unlink. The
 account then shows as unlinked, with how to link it again, and what kith had cached
-stays readable. Linking
-again makes kith a new device; messages from in between do not come to it.
+stays readable. Linking again makes kith a new device; accept the history transfer
+again to bring what was said in between.
 
 kith keeps the device's keys in `$XDG_DATA_HOME/kith/signal-<instance>.db`, encrypted
 with a key kept in the system keyring (`<instance>|signal-store`).
