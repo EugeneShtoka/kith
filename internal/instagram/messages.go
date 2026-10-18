@@ -14,11 +14,12 @@ import (
 // fbid is a person's or thread's Facebook-side ID as kith writes it.
 func fbid(id int64) string { return strconv.FormatInt(id, 10) }
 
-// message is m, a message in the thread chat, as kith keeps it; ok is false for what
-// kith does not show (admin notes Instagram's own apps keep quiet).
-func message(self, chat string, m *slidetypes.Message) (domain.Message, bool) {
+// message is m, a message in the thread chat, as kith keeps it, and where its
+// attachment is; ok is false for what kith does not show (admin notes Instagram's own
+// apps keep quiet).
+func message(self, chat string, m *slidetypes.Message) (domain.Message, mediaSource, bool) {
 	if m == nil || m.ID == "" {
-		return domain.Message{}, false
+		return domain.Message{}, mediaSource{}, false
 	}
 	out := domain.Message{
 		ID:        eventID(self, chat, m.ID),
@@ -37,47 +38,45 @@ func message(self, chat string, m *slidetypes.Message) (domain.Message, bool) {
 	}
 	if c, ok := m.Content.Content.(*slidetypes.MessageContentText); ok {
 		out.Body, out.Mentioned = mentioned(self, cmp.Or(c.TextBody, m.TextBody), m.Mentions)
-		return out, true
+		return out, mediaSource{}, true
 	}
 	if a, ok := m.Content.Content.(*slidetypes.MessageContentAdminText); ok {
 		if m.ContentType != "IG_VIDEO_CALL_XMAT" {
-			return domain.Message{}, false
+			return domain.Message{}, mediaSource{}, false
 		}
 		out.Body = adminText(a, m.IGDSnippet)
-		return out, true
+		return out, mediaSource{}, true
 	}
-	out.Media, out.Body = described(m)
-	return out, true
+	var source mediaSource
+	out.Media, source, out.Body = described(m)
+	return out, source, true
 }
 
-// described is what a message that is no plain text carries: its first file's media,
-// and a body saying the rest.
-func described(m *slidetypes.Message) (*domain.Media, string) {
+// described is what a message that is no plain text carries: its first file's media
+// and where it is, and a body saying the rest. A view-once photo or video stays in
+// the Instagram app.
+func described(m *slidetypes.Message) (*domain.Media, mediaSource, string) {
 	var media *domain.Media
+	var source mediaSource
 	body := ""
 	switch c := m.Content.Content.(type) {
 	case *slidetypes.MessageContentImage:
-		media, body = attachments(domain.MediaImage, c.Attachments, "")
+		media, source, body = attached(domain.MediaImage, c.Attachments, "")
 	case *slidetypes.MessageContentMultiMedia:
-		media, body = attachments(domain.MediaImage, c.Attachments, "")
+		media, source, body = attached(domain.MediaImage, c.Attachments, "")
 	case *slidetypes.MessageContentVideo:
-		media, body = attachments(domain.MediaVideo, c.Videos, "")
+		media, source, body = attached(domain.MediaVideo, c.Videos, "")
 	case *slidetypes.MessageContentRavenImage:
 		body = "[a photo that can only be seen in the Instagram app]"
 	case *slidetypes.MessageContentRavenVideo:
 		body = "[a video that can only be seen in the Instagram app]"
 	case *slidetypes.MessageContentAudio:
-		media = &domain.Media{Type: domain.MediaAudio, Name: "voice message"}
+		media, source = voice(c)
 	case *slidetypes.MessageContentAnimatedMedia:
-		body = "[GIF]"
-		if len(c.AnimatedMedia) > 0 && c.AnimatedMedia[0].IsSticker {
-			body = "[sticker]"
-		}
-		if len(c.AnimatedMedia) > 0 && c.AnimatedMedia[0].AltText != "" {
-			body += " " + c.AnimatedMedia[0].AltText
-		}
+		media, source, body = animated(c)
 	case *slidetypes.MessageContentSticker:
-		body = strings.TrimSpace("[sticker] " + c.AltText)
+		media = &domain.Media{Type: domain.MediaImage, Name: "sticker", Width: c.PreviewWidth, Height: c.PreviewHeight}
+		source, body = mediaSource{URL: c.PreviewURL}, c.AltText
 	case *slidetypes.MessageContentMusicSticker:
 		body = "[music]"
 	case *slidetypes.MessageContentXMA:
@@ -85,7 +84,7 @@ func described(m *slidetypes.Message) (*domain.Media, string) {
 	default:
 		body = cmp.Or(m.TextBody, m.IGDSnippet, "[a message kith cannot show; open it in the Instagram app]")
 	}
-	return media, body
+	return media, source, body
 }
 
 // nameOf is a user's name: their full name, else their username.
@@ -94,25 +93,6 @@ func nameOf(u *slidetypes.User) string {
 		return ""
 	}
 	return cmp.Or(strings.TrimSpace(u.FullName), u.Username)
-}
-
-// attachments describes a message's files: the first as its media (fetching them comes
-// later), the rest counted in its body.
-func attachments(kind domain.MediaType, files []*slidetypes.Attachment, body string) (*domain.Media, string) {
-	if len(files) == 0 {
-		return nil, cmp.Or(body, "[an attachment kith cannot show]")
-	}
-	m := &domain.Media{Type: kind, Width: files[0].PreviewWidth, Height: files[0].PreviewHeight}
-	switch kind {
-	case domain.MediaVideo:
-		m.Name = "video"
-	default:
-		m.Name = "photo"
-	}
-	if more := len(files) - 1; more > 0 {
-		body = strings.TrimSpace(body + "\n(+" + strconv.Itoa(more) + " more)")
-	}
-	return m, body
 }
 
 // shared is a shared post, story, reel or link as text: its title, what it says, and

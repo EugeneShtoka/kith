@@ -305,6 +305,7 @@ linters:
             - "go.mau.fi/mautrix-meta/pkg/messagix/httpclient"
             - "go.mau.fi/mautrix-meta/pkg/messagix/methods"
             - "go.mau.fi/mautrix-meta/pkg/messagix/types"
+            - "go.mau.fi/mautrix-meta/pkg/messagix/useragent"
             - "go.mau.fi/util/exhttp"
 
         # The Google Messages adapter: the only package that imports mautrix-gmessages'

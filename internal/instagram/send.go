@@ -87,15 +87,18 @@ func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Dra
 	if sent.ID == "" {
 		return nil // its echo brings it
 	}
-	msg := domain.Message{
-		ID: eventID(c.self, chat, sent.ID), RoomID: room, Sender: person(c.self),
-		Body: draft.Body, Timestamp: sent.TimestampMS.Time, ReplyTo: replyTo,
-	}
+	return a.keepSent(ctx, c, chat, sent, domain.Message{Body: draft.Body, ReplyTo: replyTo})
+}
+
+// keepSent caches msg, sent as Instagram named it, as the account's, reading its thread.
+func (a *Adapter) keepSent(ctx context.Context, c *conn, chat string, sent slidetypes.SentMessage, msg domain.Message) error {
+	msg.ID, msg.RoomID, msg.Sender = eventID(c.self, chat, sent.ID), roomID(c.self, chat), person(c.self)
+	msg.Timestamp = sent.TimestampMS.Time
 	if msg.Timestamp.IsZero() {
 		msg.Timestamp = time.Now()
 	}
 	if a.cache != nil {
-		if err := a.save(ctx, room, msg); err != nil {
+		if err := a.save(ctx, msg.RoomID, msg); err != nil {
 			return fmt.Errorf("instagram: cache what was sent: %w", err)
 		}
 		a.readTo(ctx, c, chat, msg.Timestamp)

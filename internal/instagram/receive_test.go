@@ -322,22 +322,22 @@ func TestMessagesAsKithShowsThem(t *testing.T) {
 	}}}
 	admin := &slidetypes.Message{ID: "m6", Content: slidetypes.MessageContentWrapper{Content: &slidetypes.MessageContentAdminText{}}}
 
-	if m, _ := message(self, danaChat, mention); !m.Mentioned || m.Body != "@eve look" {
+	if m, _, _ := message(self, danaChat, mention); !m.Mentioned || m.Body != "@eve look" {
 		t.Errorf("mention = %+v", m)
 	}
-	if m, _ := message(self, danaChat, reply); m.ReplyTo != eventID(self, danaChat, "m1") {
+	if m, _, _ := message(self, danaChat, reply); m.ReplyTo != eventID(self, danaChat, "m1") {
 		t.Errorf("reply = %+v", m)
 	}
-	if m, _ := message(self, danaChat, photo); m.Media == nil || m.Media.Type != domain.MediaImage || m.Media.Width != 720 || !strings.Contains(m.Body, "+1") {
+	if m, _, _ := message(self, danaChat, photo); m.Media == nil || m.Media.Type != domain.MediaImage || m.Media.Width != 720 || !strings.Contains(m.Body, "+1") {
 		t.Errorf("photo = %+v", m)
 	}
-	if m, _ := message(self, danaChat, raven); !strings.Contains(m.Body, "Instagram app") {
+	if m, _, _ := message(self, danaChat, raven); !strings.Contains(m.Body, "Instagram app") {
 		t.Errorf("view-once = %+v", m)
 	}
-	if m, _ := message(self, danaChat, post); !strings.Contains(m.Body, "sunset") || !strings.Contains(m.Body, "/p/x/") {
+	if m, _, _ := message(self, danaChat, post); !strings.Contains(m.Body, "sunset") || !strings.Contains(m.Body, "/p/x/") {
 		t.Errorf("shared post = %q", m.Body)
 	}
-	if _, shown := message(self, danaChat, admin); shown {
+	if _, _, shown := message(self, danaChat, admin); shown {
 		t.Error("an admin note is shown")
 	}
 }
