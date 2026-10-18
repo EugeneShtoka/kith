@@ -32,36 +32,37 @@ const historyPage = 500
 // syncHistory fetches the phone's transfer when one is owed, then hands kithd every
 // chat the store still holds.
 func (a *account) syncHistory(ctx context.Context) {
-	log := a.cli.Log
 	if a.cli.Store.EphemeralBackupKey != nil {
-		log.Info().Msg("waiting for the phone's history transfer")
+		a.log.Info("waiting for the phone's history transfer")
 		meta, err := a.cli.WaitForTransfer(ctx)
 		switch {
 		case err != nil:
-			log.Warn().Err(err).Msg("the history transfer did not come; asked again at the next connection")
+			a.log.Warn("the history transfer did not come; asked again at the next connection", "err", err)
 			return
 		case meta.Error != "":
 			// Declined on the phone: none is coming, so stop asking.
-			log.Info().Str("why", meta.Error).Msg("the phone sent no history")
+			a.log.Info("the phone sent no history", "why", meta.Error)
 			a.cli.Store.EphemeralBackupKey = nil
 			if err := a.cli.Store.DeviceStore.PutDevice(ctx, &a.cli.Store.DeviceData); err != nil {
-				log.Warn().Err(err).Msg("forgetting the history transfer failed")
+				a.log.Warn("forgetting the history transfer failed", "err", err)
 			}
 		default:
 			if err := a.cli.FetchAndProcessTransfer(ctx, meta); err != nil {
-				log.Warn().Err(err).Msg("the history transfer could not be read")
+				a.log.Warn("the history transfer could not be read", "err", err)
 				return
 			}
+			a.log.Info("the phone's history transfer came")
 		}
 	}
 	chats, err := a.cli.Store.BackupStore.GetBackupChats(ctx)
 	if err != nil {
-		log.Warn().Err(err).Msg("the history's chats could not be read")
+		a.log.Warn("the history's chats could not be read", "err", err)
 		return
 	}
-	if len(chats) > 0 {
-		log.Info().Int("chats", len(chats)).Msg("handing kithd the history")
+	if len(chats) == 0 {
+		return
 	}
+	a.log.Info("handing kithd the history", "chats", len(chats))
 	h := &history{a: a, recipients: map[uint64]*backuppb.Recipient{}}
 	for _, chat := range chats {
 		if ctx.Err() != nil {
@@ -69,10 +70,11 @@ func (a *account) syncHistory(ctx context.Context) {
 		}
 		if h.chat(ctx, chat) {
 			if err := a.cli.Store.BackupStore.DeleteBackupChat(ctx, chat.Id); err != nil {
-				log.Warn().Err(err).Msg("a synced chat could not be let go")
+				a.log.Warn("a synced chat could not be let go", "err", err)
 			}
 		}
 	}
+	a.log.Info("kithd has the history")
 }
 
 // history reads one account's archive.

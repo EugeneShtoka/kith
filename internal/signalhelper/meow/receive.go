@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ func (n *Network) Connect(ctx context.Context, aci string, sink signalhelper.Sin
 	if device == nil {
 		return fmt.Errorf("signal: no device linked to %s", aci)
 	}
-	a := &account{aci: aci, sink: sink, groups: map[string]bool{}}
+	a := &account{aci: aci, sink: sink, groups: map[string]bool{}, log: n.log}
 	a.cli = signalmeow.NewClient(device, n.zerolog(), func(evt events.SignalEvent) bool {
 		a.handle(ctx, evt)
 		return true // kept, or not kept at all on purpose
@@ -70,6 +71,9 @@ type account struct {
 	aci  string
 	sink signalhelper.Sink
 	cli  *signalmeow.Client
+	// log is the helper's own log, which kithd's journal keeps at Info (signalmeow's
+	// keeps only warnings).
+	log *slog.Logger
 
 	mu sync.Mutex
 	// groups are the groups kithd has been described this run.

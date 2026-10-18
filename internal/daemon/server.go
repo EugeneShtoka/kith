@@ -198,9 +198,12 @@ func (f failureLog) report(ctx context.Context, procedure string, err error) {
 	if err == nil {
 		return
 	}
-	// The client leaving, or our own shutdown, is not a failure of the call.
+	// The client leaving, or our own shutdown, is not a failure of the call; nor is a
+	// network saying it cannot do what was asked (a client may ask every network, as the
+	// folder offer after a login does).
 	level := slog.LevelWarn
-	if ctx.Err() != nil || errors.Is(err, context.Canceled) || connect.CodeOf(err) == connect.CodeCanceled {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) || connect.CodeOf(err) == connect.CodeCanceled ||
+		errors.Is(err, api.ErrNotOnNetwork) {
 		level = slog.LevelDebug
 	}
 	f.log.Log(ctx, level, "call failed", "op", path.Base(procedure), "err", err)
