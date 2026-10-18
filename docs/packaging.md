@@ -44,6 +44,10 @@ Every Linux package, the AUR packages and the Nix package install the same set:
 | `/usr/share/doc/kith/` | `README.md`, `ARCHITECTURE.md`, `docs/*.md`, and `config.toml.example` from `kith --print-config` |
 | `/usr/share/licenses/kith/LICENSE` (`/usr/share/doc/kith/copyright` in the `.deb`) | `LICENSE` |
 
+`kith-signal`, the Signal helper, is in no package yet: it links libsignal through
+cgo, and is built from source with `make build-signal` (see [Signal](signal.md)). The
+release still builds it and runs its tests, so a broken Signal build blocks a release.
+
 The Nix package uses `$out/...` for the same paths, with the units pointing into the
 store. Before GoReleaser packages anything, its `before` hook runs
 `scripts/prepare-packaging.sh`. The script writes the rendered units and the config

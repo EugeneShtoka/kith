@@ -8,7 +8,8 @@ For what already exists, see the [documentation index](README.md).
 
 ## Networks
 
-- Signal, linked as a secondary device by scanning a QR code with your phone. Signal's encryption library is written in Rust and needs cgo, unlike the rest of kith, so it comes as a separate helper, `kith-signal`, that the daemon starts when it is installed.
+- Signal: the history your phone offers to transfer when you link, mentions in what you send, and `kith-signal` in the packages ([Signal](signal.md)).
+- Deleting a disappearing message from kith's cache when it expires (Signal, WhatsApp); today kith only gives what it sends the chat's timer.
 - Google Messages (SMS and RCS through your Android phone), paired as Messages for web is.
 
 ## Accounts and devices
