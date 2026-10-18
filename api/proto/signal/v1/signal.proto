@@ -32,6 +32,10 @@ service SignalService {
   // MarkRead tells the account's other devices (the phone), and with receipts the
   // messages' authors, that it read messages.
   rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+  // Download fetches an attachment from Signal's CDN and decrypts it.
+  rpc Download(DownloadRequest) returns (DownloadResponse);
+  // Upload encrypts a file and puts it on Signal's CDN, for a Send to carry.
+  rpc Upload(UploadRequest) returns (UploadResponse);
 }
 
 message HeartbeatRequest {}
@@ -299,6 +303,33 @@ message SendRequest {
   // the change that set it (see Timer).
   uint32 timer = 10;
   uint32 timer_version = 11;
+  // Files a new message carries, each as Upload returned it; body is then their caption.
+  repeated Attachment attachments = 12;
+}
+
+message DownloadRequest {
+  // An attachment's pointer, as a Message (or Upload) had it.
+  bytes pointer = 1;
+}
+
+message DownloadResponse {
+  bytes data = 1;
+}
+
+message UploadRequest {
+  // The connected account's ACI: its connection uploads.
+  string account = 1;
+  bytes data = 2;
+  string content_type = 3;
+  string file_name = 4;
+  // A picture's size in pixels, 0 when unknown.
+  uint32 width = 5;
+  uint32 height = 6;
+}
+
+message UploadResponse {
+  // The file as a Send carries it.
+  Attachment attachment = 1;
 }
 
 message SendResponse {}

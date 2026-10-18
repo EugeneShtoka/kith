@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -51,6 +52,18 @@ func (f *fakeNetwork) Send(context.Context, *signalv1.SendRequest) error { retur
 func (f *fakeNetwork) Typing(context.Context, *signalv1.TypingRequest) error { return nil }
 
 func (f *fakeNetwork) MarkRead(context.Context, *signalv1.MarkReadRequest) error { return nil }
+
+// Download has the attachment "kept" and nothing else: any other is gone.
+func (f *fakeNetwork) Download(_ context.Context, pointer []byte) ([]byte, error) {
+	if string(pointer) != "kept" {
+		return nil, fmt.Errorf("fake: %w", signalhelper.ErrGone)
+	}
+	return []byte("the photo"), nil
+}
+
+func (f *fakeNetwork) Upload(_ context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error) {
+	return &signalv1.Attachment{FileName: req.GetFileName(), Pointer: []byte("kept")}, nil
+}
 
 func (f *fakeNetwork) Connect(_ context.Context, _ string, sink signalhelper.Sink) error {
 	f.sinks <- sink
@@ -339,5 +352,25 @@ func TestANewListenerGetsWhatWasNotAcked(t *testing.T) {
 	}
 	if old.Receive() {
 		t.Errorf("the old listener was sent %v after a new one took over", old.Msg())
+	}
+}
+
+// An attachment comes back as its bytes; one Signal no longer has is NotFound, which
+// kithd tells apart from the helper's being unreachable.
+func TestADownloadSaysWhenTheAttachmentIsGone(t *testing.T) {
+	t.Parallel()
+	client, _ := serve(t, &fakeNetwork{}, time.Minute)
+	ctx := context.Background()
+	up, err := client.Upload(ctx, connect.NewRequest(&signalv1.UploadRequest{Account: "a", FileName: "beach.jpg"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := client.Download(ctx, connect.NewRequest(&signalv1.DownloadRequest{Pointer: up.Msg.GetAttachment().GetPointer()}))
+	if err != nil || string(got.Msg.GetData()) != "the photo" {
+		t.Fatalf("downloaded %q, %v", got.Msg.GetData(), err)
+	}
+	_, err = client.Download(ctx, connect.NewRequest(&signalv1.DownloadRequest{Pointer: []byte("old")}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("a gone attachment: %v, want NotFound", err)
 	}
 }

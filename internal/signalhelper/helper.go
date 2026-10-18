@@ -41,7 +41,15 @@ type Network interface {
 	Typing(ctx context.Context, req *signalv1.TypingRequest) error
 	// MarkRead says the account read messages.
 	MarkRead(ctx context.Context, req *signalv1.MarkReadRequest) error
+	// Download fetches and decrypts an attachment by its pointer; one Signal no longer
+	// has is ErrGone.
+	Download(ctx context.Context, pointer []byte) ([]byte, error)
+	// Upload puts a file on Signal's CDN from a connected account, as a Send carries it.
+	Upload(ctx context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error)
 }
+
+// ErrGone is an attachment Signal no longer keeps (its CDN drops them after a while).
+var ErrGone = errors.New("signal no longer has that attachment")
 
 // readHeaderTimeout bounds a request's headers; kithd sends them at once.
 const readHeaderTimeout = 30 * time.Second
@@ -194,6 +202,25 @@ func (s *service) MarkRead(ctx context.Context, req *connect.Request[signalv1.Ma
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}
 	return connect.NewResponse(&signalv1.MarkReadResponse{}), nil
+}
+
+func (s *service) Download(ctx context.Context, req *connect.Request[signalv1.DownloadRequest]) (*connect.Response[signalv1.DownloadResponse], error) {
+	data, err := s.network.Download(ctx, req.Msg.GetPointer())
+	if errors.Is(err, ErrGone) {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(&signalv1.DownloadResponse{Data: data}), nil
+}
+
+func (s *service) Upload(ctx context.Context, req *connect.Request[signalv1.UploadRequest]) (*connect.Response[signalv1.UploadResponse], error) {
+	att, err := s.network.Upload(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(&signalv1.UploadResponse{Attachment: att}), nil
 }
 
 func wireDevice(d Device) *signalv1.Device {

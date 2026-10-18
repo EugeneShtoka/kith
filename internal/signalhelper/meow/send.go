@@ -12,6 +12,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
+	"google.golang.org/protobuf/proto"
 
 	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 )
@@ -46,6 +47,13 @@ func (n *Network) Send(ctx context.Context, req *signalv1.SendRequest) error {
 		data.Delete = &signalpb.DataMessage_Delete{TargetSentTimestamp: new(req.GetDeleteOf())}
 	default:
 		data.Body = new(req.GetBody())
+		for _, f := range req.GetAttachments() {
+			p := &signalpb.AttachmentPointer{}
+			if err := proto.Unmarshal(f.GetPointer(), p); err != nil {
+				return fmt.Errorf("signal: read an attachment's pointer: %w", err)
+			}
+			data.Attachments = append(data.Attachments, p)
+		}
 		if req.GetTimer() > 0 {
 			data.ExpireTimer = new(req.GetTimer())
 			if req.GetTimerVersion() > 0 {
