@@ -69,6 +69,13 @@ func (h *helper) add(aci string) {
 	h.devices[aci] = true
 }
 
+func (h *helper) remove(aci string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	delete(h.devices, aci)
+	delete(h.states, aci)
+}
+
 // supervisor runs kith-signal until stopped, starting it again whenever it ends.
 type supervisor struct {
 	stop context.CancelFunc

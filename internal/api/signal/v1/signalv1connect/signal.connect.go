@@ -55,6 +55,8 @@ const (
 	SignalServiceDownloadProcedure = "/signal.v1.SignalService/Download"
 	// SignalServiceUploadProcedure is the fully-qualified name of the SignalService's Upload RPC.
 	SignalServiceUploadProcedure = "/signal.v1.SignalService/Upload"
+	// SignalServiceUnlinkProcedure is the fully-qualified name of the SignalService's Unlink RPC.
+	SignalServiceUnlinkProcedure = "/signal.v1.SignalService/Unlink"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -87,6 +89,9 @@ type SignalServiceClient interface {
 	Download(context.Context, *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error)
 	// Upload encrypts a file and puts it on Signal's CDN, for a Send to carry.
 	Upload(context.Context, *connect.Request[v1.UploadRequest]) (*connect.Response[v1.UploadResponse], error)
+	// Unlink removes a linked device: Signal is told (when it is connected), and its keys
+	// are deleted from the store.
+	Unlink(context.Context, *connect.Request[v1.UnlinkRequest]) (*connect.Response[v1.UnlinkResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -166,6 +171,12 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("Upload")),
 			connect.WithClientOptions(opts...),
 		),
+		unlink: connect.NewClient[v1.UnlinkRequest, v1.UnlinkResponse](
+			httpClient,
+			baseURL+SignalServiceUnlinkProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Unlink")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -182,6 +193,7 @@ type signalServiceClient struct {
 	markRead  *connect.Client[v1.MarkReadRequest, v1.MarkReadResponse]
 	download  *connect.Client[v1.DownloadRequest, v1.DownloadResponse]
 	upload    *connect.Client[v1.UploadRequest, v1.UploadResponse]
+	unlink    *connect.Client[v1.UnlinkRequest, v1.UnlinkResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -239,6 +251,11 @@ func (c *signalServiceClient) Upload(ctx context.Context, req *connect.Request[v
 	return c.upload.CallUnary(ctx, req)
 }
 
+// Unlink calls signal.v1.SignalService.Unlink.
+func (c *signalServiceClient) Unlink(ctx context.Context, req *connect.Request[v1.UnlinkRequest]) (*connect.Response[v1.UnlinkResponse], error) {
+	return c.unlink.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -269,6 +286,9 @@ type SignalServiceHandler interface {
 	Download(context.Context, *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error)
 	// Upload encrypts a file and puts it on Signal's CDN, for a Send to carry.
 	Upload(context.Context, *connect.Request[v1.UploadRequest]) (*connect.Response[v1.UploadResponse], error)
+	// Unlink removes a linked device: Signal is told (when it is connected), and its keys
+	// are deleted from the store.
+	Unlink(context.Context, *connect.Request[v1.UnlinkRequest]) (*connect.Response[v1.UnlinkResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -344,6 +364,12 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("Upload")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceUnlinkHandler := connect.NewUnaryHandler(
+		SignalServiceUnlinkProcedure,
+		svc.Unlink,
+		connect.WithSchema(signalServiceMethods.ByName("Unlink")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -368,6 +394,8 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceDownloadHandler.ServeHTTP(w, r)
 		case SignalServiceUploadProcedure:
 			signalServiceUploadHandler.ServeHTTP(w, r)
+		case SignalServiceUnlinkProcedure:
+			signalServiceUnlinkHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -419,4 +447,8 @@ func (UnimplementedSignalServiceHandler) Download(context.Context, *connect.Requ
 
 func (UnimplementedSignalServiceHandler) Upload(context.Context, *connect.Request[v1.UploadRequest]) (*connect.Response[v1.UploadResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Upload is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Unlink(context.Context, *connect.Request[v1.UnlinkRequest]) (*connect.Response[v1.UnlinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Unlink is not implemented"))
 }

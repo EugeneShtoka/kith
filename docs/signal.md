@@ -96,9 +96,10 @@ name = "phone"
 
 ## Unlinking
 
-Unlink kith on your phone: Signal → Settings → Linked devices → `kith` → Unlink. The
-account then shows as unlinked, with how to link it again, and what kith had cached
-stays readable. Linking again makes kith a new device; accept the history transfer
+Sign out from the account's space in kith: kith tells Signal to unlink it, deletes the
+device's keys, and, if you choose, forgets its chats. Or unlink kith on your phone:
+Signal → Settings → Linked devices → `kith` → Unlink. Either way the account then shows
+as unlinked, with how to link it again, and what kith keeps stays readable. Linking again makes kith a new device; accept the history transfer
 again to bring what was said in between.
 
 kith keeps the device's keys in `$XDG_DATA_HOME/kith/signal-<instance>.db`, encrypted

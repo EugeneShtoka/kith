@@ -194,10 +194,11 @@ var (
 		cacheWriter
 	} = (*gmessages.Adapter)(nil)
 
-	// Signal: kith-signal kept running, accounts linked, messages received into the
-	// cache and read there, text sent with replies, edits, reactions, deletions and the
-	// chat's timer, typing, and attachments both ways.
+	// Signal: kith-signal kept running, accounts linked and signed out, messages
+	// received into the cache and read there, text sent with replies, edits, reactions,
+	// deletions and the chat's timer, typing, and attachments both ways.
 	_ interface {
+		route.SignOuter
 		route.Media
 		route.Uploader
 		network

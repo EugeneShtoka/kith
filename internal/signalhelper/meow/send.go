@@ -145,3 +145,39 @@ func (a *account) send(ctx context.Context, chat string, group bool, content *si
 	}
 	return nil
 }
+
+// Unlink removes the linked device aci: Signal is told when the account is connected
+// (an unlink while offline leaves the device listed on the phone until removed there),
+// then its keys are deleted from the store, so it can never act again.
+func (n *Network) Unlink(ctx context.Context, aci string) error {
+	id, err := uuid.Parse(aci)
+	if err != nil {
+		return fmt.Errorf("signal: %q is no ACI: %w", aci, err)
+	}
+	n.mu.Lock()
+	st, a := n.store, n.accounts[aci]
+	delete(n.accounts, aci)
+	n.mu.Unlock()
+	if st == nil {
+		return errors.New("signal: the key store is not open")
+	}
+	if a != nil {
+		if uerr := a.cli.Unlink(ctx); uerr != nil {
+			a.cli.Log.Warn().Err(uerr).Msg("Signal was not told of the unlink; remove the device on the phone")
+		}
+		if serr := a.cli.StopReceiveLoops(); serr != nil {
+			a.cli.Log.Warn().Err(serr).Msg("stopping the unlinked device failed")
+		}
+	}
+	device, err := st.DeviceByACI(ctx, id)
+	if err != nil {
+		return fmt.Errorf("signal: read the linked device: %w", err)
+	}
+	if device == nil {
+		return nil // gone already
+	}
+	if err := st.DeleteDevice(ctx, &device.DeviceData); err != nil {
+		return fmt.Errorf("signal: delete the device's keys: %w", err)
+	}
+	return nil
+}
