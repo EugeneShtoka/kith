@@ -156,6 +156,8 @@ func (a *Adapter) take(ctx context.Context, h *helper, ev *signalv1.EventsRespon
 		a.takeTyping(self, e.Typing)
 	case *signalv1.EventsResponse_Read:
 		return a.takeRead(ctx, self, e.Read)
+	case *signalv1.EventsResponse_Timer:
+		return a.takeTimer(ctx, self, e.Timer)
 	case *signalv1.EventsResponse_Receipt:
 		// Someone got or read the account's messages: kith shows no receipts yet.
 	}
@@ -265,6 +267,13 @@ func (a *Adapter) takeMessage(ctx context.Context, self string, m *signalv1.Mess
 	if learned {
 		if err := a.cache.SetPeople(ctx, "signal:"+self, names, links); err != nil {
 			return fmt.Errorf("keep who people are: %w", err)
+		}
+	}
+	if !m.GetGroup() {
+		// A group's timer is the group's (its listing and changes say it); a one-to-one
+		// chat's is what its messages carry, numbered.
+		if err := a.keepTimer(ctx, room.ID, time.Duration(m.GetTimer())*time.Second, m.GetTimerVersion()); err != nil {
+			return err
 		}
 	}
 	msg := message(self, m)
@@ -386,6 +395,9 @@ func (a *Adapter) takeGroup(ctx context.Context, self string, g *signalv1.Group)
 	}
 	members := b.members(self, g.GetId(), true)
 	a.booksMu.Unlock()
+	if err := a.keepTimer(ctx, roomID(self, g.GetId(), true), time.Duration(g.GetTimer())*time.Second, 0); err != nil {
+		return err
+	}
 	if !changed {
 		return nil
 	}

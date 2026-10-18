@@ -137,6 +137,14 @@ CREATE TABLE room_timers (
 	seconds INTEGER NOT NULL
 ) STRICT, WITHOUT ROWID;
 
+-- The version a chat's timer was set at, a row once a network has numbered one: Signal
+-- counts a one-to-one chat's timer changes, and an older change is not taken
+-- (KeepTimer). It outlives the timer's being turned off.
+CREATE TABLE room_timer_versions (
+	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	version INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;
+
 -- A message's poll, as JSON (domain.Poll): its question, answers and how the votes
 -- stand, rewritten whole as results change (SetPoll).
 CREATE TABLE message_polls (
@@ -522,6 +530,11 @@ DROP TABLE phone_names;`,
 	`CREATE TABLE IF NOT EXISTS room_timers (
 	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
 	seconds INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;`,
+	// v18: the version a chat's timer was set at (Signal).
+	`CREATE TABLE IF NOT EXISTS room_timer_versions (
+	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	version INTEGER NOT NULL
 ) STRICT, WITHOUT ROWID;`,
 }
 

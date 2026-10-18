@@ -145,10 +145,16 @@ func (a *account) chatEvent(ctx context.Context, e *events.ChatEvent) {
 			a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Delete{Delete: &signalv1.Delete{
 				Chat: chat, Group: group, Sender: sender, Target: c.GetDelete().GetTargetSentTimestamp(), Sent: c.GetTimestamp(),
 			}}})
+		case c.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0:
+			a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Timer{Timer: &signalv1.Timer{
+				Chat: chat, Group: group, Sender: sender, Seconds: c.GetExpireTimer(), Version: c.GetExpireTimerVersion(),
+			}}})
+		case c.GetGroupV2().GetGroupChange() != nil:
+			a.groupChange(ctx, e.Info, c)
 		default:
 			m := a.message(ctx, e.Info, c)
 			if m.GetBody() == "" && len(m.GetAttachments()) == 0 {
-				return // a profile key, a timer change: nothing to read
+				return // a profile key: nothing to read
 			}
 			if m.GetGroup() {
 				a.describe(ctx, m.GetChat(), e.Info.GroupRevision)
@@ -195,7 +201,9 @@ func (a *account) message(ctx context.Context, info events.MessageInfo, data *si
 		Sent:     data.GetTimestamp(),
 		Received: info.ServerTimestamp,
 		Body:     data.GetBody(),
+		Timer:    data.GetExpireTimer(),
 	}
+	m.TimerVersion = data.GetExpireTimerVersion()
 	m.SenderName, m.SenderNumber = a.whoIs(ctx, info.Sender)
 	if !m.GetGroup() {
 		if other, err := uuid.Parse(info.ChatID); err == nil {
@@ -232,11 +240,26 @@ func (a *account) describe(ctx context.Context, id string, revision uint32) {
 		a.cli.Log.Warn().Err(err).Msg("the group's details could not be had")
 		return
 	}
-	group := &signalv1.Group{Id: id, Title: g.Title}
+	group := &signalv1.Group{Id: id, Title: g.Title, Timer: g.DisappearingMessagesDuration}
 	for _, member := range g.Members {
 		group.Members = append(group.Members, member.ACI.String())
 	}
 	a.sink.Tell(&signalv1.EventsResponse{Account: a.aci, Event: &signalv1.EventsResponse_Group{Group: group}})
+}
+
+// groupChange hands kithd what of a group's change kith keeps: its new timer.
+func (a *account) groupChange(ctx context.Context, info events.MessageInfo, data *signalpb.DataMessage) {
+	change, err := a.cli.DecryptGroupChange(ctx, data.GetGroupV2())
+	if err != nil {
+		a.cli.Log.Warn().Err(err).Msg("a group's change could not be read")
+		return
+	}
+	if change == nil || change.ModifyDisappearingMessagesDuration == nil {
+		return
+	}
+	a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Timer{Timer: &signalv1.Timer{
+		Chat: info.ChatID, Group: true, Sender: info.Sender.String(), Seconds: *change.ModifyDisappearingMessagesDuration,
+	}}})
 }
 
 // nameOf is who's name as the account knows them, or "". A profile name needs their

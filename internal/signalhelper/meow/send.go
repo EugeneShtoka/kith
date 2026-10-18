@@ -46,6 +46,12 @@ func (n *Network) Send(ctx context.Context, req *signalv1.SendRequest) error {
 		data.Delete = &signalpb.DataMessage_Delete{TargetSentTimestamp: new(req.GetDeleteOf())}
 	default:
 		data.Body = new(req.GetBody())
+		if req.GetTimer() > 0 {
+			data.ExpireTimer = new(req.GetTimer())
+			if req.GetTimerVersion() > 0 {
+				data.ExpireTimerVersion = new(req.GetTimerVersion())
+			}
+		}
 		if q := req.GetQuote(); q != nil {
 			data.Quote = &signalpb.DataMessage_Quote{
 				Id: new(q.GetSent()), AuthorAci: new(q.GetAuthor()), Text: new(q.GetText()),
