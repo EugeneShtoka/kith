@@ -5,6 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
@@ -85,6 +89,37 @@ func TestAPhotoArrivesLoadable(t *testing.T) {
 	a.onMessage(ctx, account, client, danaWrites("3EB0Q", "just words"))
 	if _, err := a.LoadImage(ctx, danaChat, "whatsapp:"+ownDigits+"/3EB0Q"); err == nil || errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("loading a message with no attachment = %v", err)
+	}
+}
+
+// A picture goes with its size and a small JPEG preview, so the phone shows it before
+// it downloads; one that cannot be decoded still goes, without them.
+func TestAPictureGoesWithAPreview(t *testing.T) {
+	t.Parallel()
+	picture := image.NewNRGBA(image.Rect(0, 0, 200, 100))
+	for i := range picture.Pix {
+		picture.Pix[i] = 0xff
+	}
+	picture.Set(0, 0, color.Black)
+	var data bytes.Buffer
+	if err := png.Encode(&data, picture); err != nil {
+		t.Fatal(err)
+	}
+	msg, _ := fileMessage("shot.png", data.Bytes(), "")
+	m := msg.GetImageMessage()
+	if m.GetWidth() != 200 || m.GetHeight() != 100 {
+		t.Errorf("size = %dx%d, want 200x100", m.GetWidth(), m.GetHeight())
+	}
+	preview, err := jpeg.Decode(bytes.NewReader(m.GetJPEGThumbnail()))
+	if err != nil {
+		t.Fatalf("preview is no JPEG: %v", err)
+	}
+	if got := preview.Bounds().Size(); got != image.Pt(72, 36) {
+		t.Errorf("preview is %v, want 72x36", got)
+	}
+	msg, _ = fileMessage("broken.png", []byte("\x89PNG\r\n\x1a\n0000"), "")
+	if m := msg.GetImageMessage(); m == nil || m.JPEGThumbnail != nil || m.Width != nil {
+		t.Errorf("an undecodable picture = %+v, want an image without preview or size", m)
 	}
 }
 
