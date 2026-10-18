@@ -39,6 +39,7 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 
 	text, mentioned := composed(draft)
 	message, replyTo := a.outgoing(ctx, account.Digits, roomID, text, mentioned, draft.ReplyTo)
+	a.withTimer(ctx, roomID, message)
 	msgID := a.messageIDFor(client, draft.TxnID)
 	resp, err := client.SendMessage(ctx, chat, message, whatsmeow.SendRequestExtra{ID: msgID})
 	if err != nil {

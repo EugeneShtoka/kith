@@ -30,6 +30,7 @@ var migrationFingerprints = []struct {
 	{14, "drop spam_rooms: spam verdicts are tag verdicts", "2243f0b8aa8f"},
 	{15, "drop spam_released: spam releases are tag releases", "eee14992913e"},
 	{16, "person_verdicts: filter marks per person and tag, and releases", "b5ed1027de59"},
+	{17, "room_timers: a chat's disappearing-messages timer", "6809131de809"},
 }
 
 func fingerprint(stmt string) string {

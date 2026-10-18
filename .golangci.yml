@@ -214,6 +214,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/whatsapp"
             - "go.mau.fi/libsignal"
             - "go.mau.fi/whatsmeow"
+            - "golang.org/x/image"
             - "google.golang.org/protobuf"
             - "modernc.org/sqlite"
 

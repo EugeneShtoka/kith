@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -51,29 +52,40 @@ func (m Model) openExport(room domain.Room, arg string) (Model, tea.Cmd) {
 	}
 	ctx, backend, people, clock := m.ctx, m.backend, m.people(), m.prefs.clock
 	return m.say("exporting " + of.Title + "…"), func() tea.Msg {
-		msgs, err := cachedHistory(ctx, backend, room.ID, span)
-		if err != nil {
-			return exportedMsg{err: err}
-		}
-		if thread != "" {
-			msgs = domain.ThreadMessages(msgs, thread)
-		}
-		msgs = domain.MessagesIn(msgs, span.Since, span.Count)
-		if len(msgs) == 0 {
-			return exportedMsg{err: fmt.Errorf("nothing cached to export%s", spanSaid(span))}
-		}
-		reactions, err := backend.CachedReactions(ctx, room.ID)
-		if err != nil {
-			return exportedMsg{err: err}
-		}
-		md := domain.ExportMarkdown(of, msgs, reactions, people.Name, clock)
-		name := file
-		if name == "" {
-			name = exportFileName(of)
-		}
-		path, err := writeDownload(dir, name, []byte(md))
-		return exportedMsg{path: path, count: len(msgs), err: err}
+		return exportRoom(ctx, backend, room.ID, thread, of, span, people, clock, dir, file)
 	}
+}
+
+// errNothingToExport is a room or thread with no cached message in the span.
+var errNothingToExport = errors.New("nothing cached to export")
+
+// exportRoom writes room's cached messages in span, or only thread's when given, to
+// dir as file, or named after the room when file is "".
+func exportRoom(ctx context.Context, backend api.Backend, room domain.RoomID, thread domain.EventID, of domain.ExportOf,
+	span domain.SummarySpan, people domain.People, clock domain.Clock, dir, file string,
+) exportedMsg {
+	msgs, err := cachedHistory(ctx, backend, room, span)
+	if err != nil {
+		return exportedMsg{err: err}
+	}
+	if thread != "" {
+		msgs = domain.ThreadMessages(msgs, thread)
+	}
+	msgs = domain.MessagesIn(msgs, span.Since, span.Count)
+	if len(msgs) == 0 {
+		return exportedMsg{err: fmt.Errorf("%w%s", errNothingToExport, spanSaid(span))}
+	}
+	reactions, err := backend.CachedReactions(ctx, room)
+	if err != nil {
+		return exportedMsg{err: err}
+	}
+	md := domain.ExportMarkdown(of, msgs, reactions, people.Name, clock)
+	name := file
+	if name == "" {
+		name = exportFileName(of)
+	}
+	path, err := writeDownload(dir, name, []byte(md))
+	return exportedMsg{path: path, count: len(msgs), err: err}
 }
 
 // cachedHistory is everything cached of a room, oldest first, read back a page at a

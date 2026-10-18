@@ -354,7 +354,8 @@ func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *w
 	}
 	rooms = append(rooms, channelList...)
 	domain.SortRooms(rooms)
-	if err := a.saveListing(ctx, account, groupListing{rooms: rooms, members: members, spaces: spaces}, fetched); err != nil {
+	listing := groupListing{rooms: rooms, members: members, spaces: spaces, timers: groupTimers(account.Digits, chats)}
+	if err := a.saveListing(ctx, account, listing, fetched); err != nil {
 		return nil, err
 	}
 	a.mu.Lock()
@@ -370,6 +371,7 @@ type groupListing struct {
 	rooms   []domain.Room
 	members map[domain.RoomID][]domain.Member
 	spaces  []domain.Space
+	timers  map[domain.RoomID]time.Duration
 }
 
 // saveListing writes an account's groups, members and communities over the cache.
@@ -396,6 +398,9 @@ func (a *Adapter) saveListing(ctx context.Context, account Account, l groupListi
 		if err := a.cache.SaveMembers(ctx, id, list); err != nil {
 			return fmt.Errorf("whatsapp: cache members of %s: %w", id, err)
 		}
+	}
+	if err := a.cache.SetTimers(ctx, l.timers); err != nil {
+		return fmt.Errorf("whatsapp: cache %s's disappearing-messages timers: %w", account.Name, err)
 	}
 	if a.onRoomsChanged != nil {
 		a.onRoomsChanged()

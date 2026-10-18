@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -96,6 +98,44 @@ func (c *Cache) SetArchived(ctx context.Context, rooms map[domain.RoomID]bool) e
 // SetForums keeps which rooms are made of topics.
 func (c *Cache) SetForums(ctx context.Context, rooms map[domain.RoomID]bool) error {
 	return c.setRoomFlags(ctx, rooms, "room_forums", "forum")
+}
+
+// SetTimers keeps chats' disappearing-messages timers: zero removes a chat's.
+func (c *Cache) SetTimers(ctx context.Context, timers map[domain.RoomID]time.Duration) error {
+	if len(timers) == 0 {
+		return nil
+	}
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		for id, timer := range timers {
+			if timer <= 0 {
+				if _, err := tx.ExecContext(ctx, `DELETE FROM room_timers WHERE room_id = ?`, string(id)); err != nil {
+					return fmt.Errorf("db: drop the timer of %s: %w", id, err)
+				}
+				continue
+			}
+			if err := registerRoom(ctx, tx, id); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO room_timers(room_id, seconds) VALUES(?, ?)
+				ON CONFLICT(room_id) DO UPDATE SET seconds = excluded.seconds`, string(id), int64(timer/time.Second)); err != nil {
+				return fmt.Errorf("db: keep the timer of %s: %w", id, err)
+			}
+		}
+		return nil
+	})
+}
+
+// Timer is a chat's disappearing-messages timer; zero when it has none.
+func (c *Cache) Timer(ctx context.Context, room domain.RoomID) (time.Duration, error) {
+	var seconds int64
+	err := c.db.QueryRowContext(ctx, `SELECT seconds FROM room_timers WHERE room_id = ?`, string(room)).Scan(&seconds)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("db: read the timer of %s: %w", room, err)
+	}
+	return time.Duration(seconds) * time.Second, nil
 }
 
 // setRoomFlags keeps rooms' membership of table, a set of room IDs: true adds a room
