@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
@@ -85,6 +87,20 @@ func TestFailedCallIsLoggedWithItsReason(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("daemon log %q lacks %q", out, want)
 		}
+	}
+}
+
+// A network that cannot do what was asked answers so; the journal does not keep it as a
+// failure.
+func TestANetworkThatCannotIsNoFailure(t *testing.T) {
+	t.Parallel()
+	r, logs := serveLogged(t, &refusingBackend{fakeBackend{err: fmt.Errorf("%w: groupings on signal", api.ErrNotOnNetwork)}})
+
+	if _, err := r.Rooms(context.Background()); !errors.Is(err, api.ErrNotOnNetwork) {
+		t.Fatalf("Rooms() = %v, want ErrNotOnNetwork", err)
+	}
+	if out := logs.String(); strings.Contains(out, "level=WARN") {
+		t.Errorf("logged as a failure: %q", out)
 	}
 }
 
