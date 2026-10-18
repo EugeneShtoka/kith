@@ -21,6 +21,7 @@ type arrived struct {
 	quoted   *quote // what it quotes, when a reply
 	fromMe   bool
 	pushName string
+	timer    time.Duration // the disappearing-messages timer it was sent with, 0 for none
 }
 
 // convert converts a live or history WhatsApp message.
@@ -61,7 +62,7 @@ func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeo
 	return arrived{
 		msg: msg, source: source, chat: chat, group: e.Info.IsGroup, channel: channelPost,
 		quoted: quotedBy(ctx, account.Digits, e.Message, lookup),
-		fromMe: e.Info.IsFromMe, pushName: e.Info.PushName,
+		fromMe: e.Info.IsFromMe, pushName: e.Info.PushName, timer: timerOf(e.Message),
 	}, true
 }
 
@@ -82,14 +83,15 @@ func (a *Adapter) onMessage(ctx context.Context, account Account, client *whatsm
 		})
 		a.keepSource(ctx, in.msg, in.source)
 		a.keepQuote(ctx, in.msg.RoomID, in.quoted)
+		a.keepExpiry(ctx, in.msg, in.timer)
 		if newGroup {
 			a.refreshLater(account, client) // for its name and members
 		}
 		a.placeRead(ctx, in.msg.RoomID, in.msg.Timestamp.Add(-time.Millisecond))
 		a.recount(ctx, in.msg.RoomID)
 		// A message without a timer says nothing: only a change of timer turns it off.
-		if timer := timerOf(e.Message); timer > 0 {
-			a.keepTimers(ctx, map[domain.RoomID]time.Duration{in.msg.RoomID: timer})
+		if in.timer > 0 {
+			a.keepTimers(ctx, map[domain.RoomID]time.Duration{in.msg.RoomID: in.timer})
 		}
 	}
 	emit(a, a.messages, in.msg)

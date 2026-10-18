@@ -217,6 +217,8 @@ func (h *history) message(ctx context.Context, chat string, group bool, item *ba
 	}
 	m := h.a.message(ctx, info, data)
 	m.Group = group
+	m.Timer = uint32(item.GetExpiresInMs() / 1000) //nolint:gosec // Signal's timers fit
+	m.TimerStarted = item.GetExpireStartDate()
 	if m.GetBody() == "" && len(m.GetAttachments()) == 0 {
 		return nil, false
 	}

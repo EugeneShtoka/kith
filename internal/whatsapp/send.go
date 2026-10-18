@@ -61,6 +61,7 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 		})
 	}
 	a.cacheSent(ctx, account, sent)
+	a.keepExpiry(ctx, sent, timerOf(message))
 	emit(a, a.messages, sent)
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 
 	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/expiry"
 )
 
 // A chat with disappearing messages expects every message in it to carry its timer:
@@ -57,4 +58,47 @@ func (a *Adapter) timerOf(ctx context.Context, room domain.RoomID) (uint32, uint
 		return 0, 0
 	}
 	return uint32(timer / time.Second), version //nolint:gosec // Signal's timers fit
+}
+
+// A message sent with a timer disappears once it has run: from its sending for the
+// account's own, from the account's reading for others' (as Signal's apps count), or
+// from when the phone had started it, for one in the history. It is then deleted as a
+// deletion is.
+
+// signalRooms are every Signal account's rooms: a message expires whether or not its
+// account is connected.
+var signalRooms = domain.NetworkRooms(domain.ProtocolSignal)
+
+// keepExpiry keeps when msg, as m came, disappears.
+func (a *Adapter) keepExpiry(ctx context.Context, self string, msg domain.Message, m *signalv1.Message) {
+	if a.cache == nil || m.GetTimer() == 0 {
+		return
+	}
+	var starts time.Time
+	switch {
+	case m.GetTimerStarted() > 0:
+		starts = time.UnixMilli(int64(m.GetTimerStarted())) //nolint:gosec // a Signal timestamp fits
+	case m.GetSender() == self:
+		starts = msg.Timestamp
+	}
+	if err := a.cache.SetExpiry(ctx, msg.RoomID, msg.ID, time.Duration(m.GetTimer())*time.Second, starts); err != nil {
+		a.log.Warn("keep when a message disappears failed", "room", msg.RoomID, "err", err)
+	}
+}
+
+// keepExpiring deletes disappearing messages as they come due, until ctx ends.
+func (a *Adapter) keepExpiring(ctx context.Context) {
+	if a.cache == nil {
+		return
+	}
+	expiry.Sweeper{
+		Cache: a.cache, Rooms: signalRooms, Keep: a.keepsDeleted, Log: a.log,
+		Gone: func(stub domain.Message) { emit(a, a.messages, stub) },
+		Changed: func(room domain.RoomID) {
+			if a.onChanged != nil {
+				a.onChanged(room)
+			}
+			a.recount(ctx, room)
+		},
+	}.Run(ctx)
 }

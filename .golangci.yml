@@ -208,6 +208,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/expiry"
             - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/sealeddb"
             - "github.com/EugeneShtoka/kith/internal/richtext"
@@ -357,6 +358,15 @@ linters:
             - "$gostd"
             - "github.com/EugeneShtoka/kith/internal/domain"
 
+        # Disappearing messages' deletion, shared by the networks: domain types only.
+        expiry-is-a-leaf:
+          files:
+            - "**/internal/expiry/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+
         # QR codes as text: a leaf over the encoder, drawn by the clients.
         qrtext-is-a-leaf:
           files:
@@ -379,6 +389,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/expiry"
             - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/google/uuid"
 

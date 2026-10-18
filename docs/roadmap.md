@@ -9,7 +9,6 @@ For what already exists, see the [documentation index](README.md).
 ## Networks
 
 - Signal: mentions in what you send, reactions and stickers in the history your phone transfers, and `kith-signal` in the packages ([Signal](signal.md)).
-- Deleting a disappearing message from kith's cache when it expires (Signal, WhatsApp); today kith only gives what it sends the chat's timer.
 - Google Messages (SMS and RCS through your Android phone), paired as Messages for web is.
 
 ## Accounts and devices

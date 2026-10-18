@@ -29,9 +29,10 @@ your phone and, with read receipts, the people who wrote. `[display] send_receip
 false` tells your phone only.
 
 **Disappearing messages.** kith keeps each chat's timer, and what you send there
-carries it, so it disappears as everything else in the chat does. kith does not yet
-delete expired messages from its own cache: they stay in kith, and in its search,
-after Signal's apps have removed them.
+carries it. Each message is deleted from kith once its timer has run, counted as
+Signal's apps count it: from its sending for yours, from your reading (in kith or on
+the phone) for others'. It is deleted as a deletion is: gone from the timeline and
+search, or kept, with `[display.deleted] keep`, under `H`.
 
 **Names.** Signal hides phone numbers unless someone shares theirs. kith names a person
 by the name your phone's contacts give them (kith asks your phone for its contacts

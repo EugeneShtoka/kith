@@ -2,7 +2,9 @@ package signal_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -97,5 +99,64 @@ func TestASendCarriesTheChatsTimer(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// deletedWithin reports whether the cached message id is deleted within limit.
+func (r *rig) deletedWithin(room domain.RoomID, id domain.EventID, limit time.Duration) bool {
+	r.t.Helper()
+	deadline := time.Now().Add(limit)
+	for time.Now().Before(deadline) {
+		msgs := r.messages(room)
+		for i := range msgs {
+			if msgs[i].ID == id && msgs[i].Redacted {
+				return true
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return false
+}
+
+// A disappearing message is deleted once its timer has run: the account's own from its
+// sending, one from the phone's history from when the phone had started it, someone
+// else's only once the account has read it. Clients hear of it as of a deletion.
+func TestADisappearingMessageIsDeletedWhenItsTimeRuns(t *testing.T) {
+	long := uint64(time.Now().Add(-2 * time.Hour).UnixMilli())
+	archived := historyOf(ofer, false, 0, msg(ofer, ofer, long, "from the phone's history"))
+	archived.GetHistory().Messages[0].Timer, archived.GetHistory().Messages[0].TimerStarted = hour, long+60_000
+	r := connected(t,
+		timed(msg(dana, me, long, "mine, an hour"), hour, 1),
+		timed(msg(dana, dana, long+1, "hers, a second once read"), 1, 1),
+		archived,
+	)
+	ctx := context.Background()
+	id := func(room domain.RoomID, sender string, sent uint64) domain.EventID {
+		return domain.EventID(fmt.Sprintf("%s/%s.%d", room, sender, sent))
+	}
+	if !r.deletedWithin(direct(dana), id(direct(dana), me, long), 10*time.Second) {
+		t.Error("the account's own message outlived its timer")
+	}
+	if !r.deletedWithin(direct(ofer), id(direct(ofer), ofer, long), 10*time.Second) {
+		t.Error("a history message outlived the timer the phone had started")
+	}
+	hers := id(direct(dana), dana, long+1)
+	if r.deletedWithin(direct(dana), hers, 6*time.Second) {
+		t.Fatal("someone else's message went before it was read")
+	}
+	if err := r.a.MarkRead(ctx, direct(dana), hers, false); err != nil {
+		t.Fatal(err)
+	}
+	if !r.deletedWithin(direct(dana), hers, 10*time.Second) {
+		t.Error("a read message outlived its timer")
+	}
+	heard := false
+	for len(r.a.Messages()) > 0 {
+		if m := <-r.a.Messages(); m.ID == hers && m.Redacted {
+			heard = true
+		}
+	}
+	if !heard {
+		t.Error("clients did not hear the message go")
 	}
 }

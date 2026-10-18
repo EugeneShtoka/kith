@@ -197,6 +197,7 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, name
 	if a.cache != nil {
 		a.record(ctx, account, sent, func() {})
 		a.keepSource(ctx, sent, source)
+		a.keepExpiry(ctx, sent, timerOf(message))
 	}
 	emit(a, a.messages, sent)
 	return nil

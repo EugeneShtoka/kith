@@ -57,6 +57,7 @@ func (a *Adapter) takeHistory(ctx context.Context, self string, h *signalv1.Hist
 		}
 		for i, m := range h.GetMessages() {
 			a.keepSource(ctx, msgs[i], m.GetAttachments())
+			a.keepExpiry(ctx, self, msgs[i], m)
 		}
 	}
 	if read := h.GetReadThrough(); read > 0 {

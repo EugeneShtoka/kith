@@ -8,6 +8,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/expiry"
 )
 
 // A chat with disappearing messages expects every message in it to carry its timer:
@@ -90,4 +91,34 @@ func contextOf(msg *waE2E.Message) **waE2E.ContextInfo {
 		return &msg.DocumentMessage.ContextInfo
 	}
 	return nil
+}
+
+// A message sent with a timer disappears once it has run from its sending (WhatsApp
+// counts from there, for everyone), and is then deleted as a deletion is.
+
+// keepExpiry keeps when msg, sent with timer, disappears.
+func (a *Adapter) keepExpiry(ctx context.Context, msg domain.Message, timer time.Duration) {
+	if a.cache == nil || timer <= 0 {
+		return
+	}
+	if err := a.cache.SetExpiry(ctx, msg.RoomID, msg.ID, timer, msg.Timestamp); err != nil {
+		a.log.Warn("keep when a message disappears failed", "room", msg.RoomID, "err", err)
+	}
+}
+
+// keepExpiring deletes disappearing messages as they come due, until ctx ends.
+func (a *Adapter) keepExpiring(ctx context.Context) {
+	if a.cache == nil {
+		return
+	}
+	expiry.Sweeper{
+		Cache: a.cache, Rooms: domain.NetworkRooms(domain.ProtocolWhatsApp), Keep: a.keepsDeleted, Log: a.log,
+		Gone: func(stub domain.Message) { emit(a, a.messages, stub) },
+		Changed: func(room domain.RoomID) {
+			if a.onChanged != nil {
+				a.onChanged(room)
+			}
+			a.recount(ctx, room)
+		},
+	}.Run(ctx)
 }
