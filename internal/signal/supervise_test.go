@@ -123,11 +123,15 @@ func (f *fakeNetwork) MarkRead(_ context.Context, req *signalv1.MarkReadRequest)
 }
 
 // Download is any attachment's bytes ("bytes of" its pointer) but a pointer "gone".
-func (f *fakeNetwork) Download(_ context.Context, pointer []byte) ([]byte, error) {
-	if string(pointer) == "gone" {
+func (f *fakeNetwork) Download(_ context.Context, req *signalv1.DownloadRequest) ([]byte, error) {
+	pointer := string(req.GetPointer())
+	if pointer == "gone" {
 		return nil, signalhelper.ErrGone
 	}
-	return []byte("bytes of " + string(pointer)), nil
+	if hash := req.GetPlaintextHash(); len(hash) > 0 {
+		pointer += " checked by " + string(hash)
+	}
+	return []byte("bytes of " + pointer), nil
 }
 
 // Upload records req and returns the file with the pointer "up:" and its name.

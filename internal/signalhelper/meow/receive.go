@@ -45,6 +45,7 @@ func (n *Network) Connect(ctx context.Context, aci string, sink signalhelper.Sin
 		a.handle(ctx, evt)
 		return true // kept, or not kept at all on purpose
 	})
+	a.cli.SyncContactsOnConnect = true // the phone's contacts name people kith has no chat with yet
 	status, err := a.cli.StartReceiveLoops(ctx)
 	if err != nil {
 		return fmt.Errorf("signal: connect: %w", err)
@@ -53,8 +54,12 @@ func (n *Network) Connect(ctx context.Context, aci string, sink signalhelper.Sin
 	n.accounts[aci] = a
 	n.mu.Unlock()
 	go func() {
+		var history sync.Once
 		for s := range status {
 			sink.Tell(&signalv1.EventsResponse{Account: aci, Event: &signalv1.EventsResponse_Connection{Connection: connection(s)}})
+			if s.Event == signalmeow.SignalConnectionEventConnected {
+				history.Do(func() { go a.syncHistory(ctx) })
+			}
 		}
 	}()
 	return nil

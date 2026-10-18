@@ -19,9 +19,11 @@ import (
 // where it is on Signal's CDN and its keys. Signal keeps an attachment for a while
 // only; then it stops loading.
 
-// mediaSource is where an attachment is: its pointer, as the helper reads it.
+// mediaSource is where an attachment is: its pointer, as the helper reads it, and the
+// plaintext hash an archived one may need instead of a digest.
 type mediaSource struct {
-	Pointer []byte `json:"pointer"`
+	Pointer       []byte `json:"pointer"`
+	PlaintextHash []byte `json:"plaintext_hash,omitempty"`
 }
 
 var (
@@ -34,7 +36,7 @@ func (a *Adapter) keepSource(ctx context.Context, msg domain.Message, files []*s
 	if a.cache == nil || msg.Media == nil || len(files) == 0 || len(files[0].GetPointer()) == 0 {
 		return
 	}
-	raw, err := json.Marshal(mediaSource{Pointer: files[0].GetPointer()})
+	raw, err := json.Marshal(mediaSource{Pointer: files[0].GetPointer(), PlaintextHash: files[0].GetPlaintextHash()})
 	if err != nil {
 		return
 	}
@@ -63,7 +65,7 @@ func (a *Adapter) LoadImage(ctx context.Context, room domain.RoomID, event domai
 	if h == nil {
 		return nil, fmt.Errorf("%w: Signal is not running", api.ErrNetworkOff)
 	}
-	resp, err := h.client.Download(ctx, connect.NewRequest(&signalv1.DownloadRequest{Pointer: s.Pointer}))
+	resp, err := h.client.Download(ctx, connect.NewRequest(&signalv1.DownloadRequest{Pointer: s.Pointer, PlaintextHash: s.PlaintextHash}))
 	if connect.CodeOf(err) == connect.CodeNotFound {
 		return nil, fmt.Errorf("%w: %s", errGone, event)
 	}

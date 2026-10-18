@@ -99,7 +99,22 @@ message EventsResponse {
     Typing typing = 11;
     Read read = 12;
     Timer timer = 13;
+    History history = 14;
   }
+}
+
+// History is part of a chat's history, from the archive the phone transfers when this
+// device is linked: history, not news. A chat's history may come in several parts.
+message History {
+  string chat = 1;
+  bool group = 2;
+  // Oldest first.
+  repeated Message messages = 3;
+  // The sent time (ms) of the newest message the account had read, 0 for none.
+  uint64 read_through = 4;
+  // The chat's disappearing-messages timer (s) and its number (see Timer).
+  uint32 timer = 5;
+  uint32 timer_version = 6;
 }
 
 // Timer is a chat's disappearing-messages timer changed, by someone in it or on another
@@ -237,6 +252,8 @@ message Attachment {
   uint64 size = 3;
   // Signal's AttachmentPointer, serialized: what fetching it takes.
   bytes pointer = 4;
+  // The file's hash, for an archived attachment whose pointer has no digest to check.
+  bytes plaintext_hash = 5;
 }
 
 // Connection is an account's connection to Signal.
@@ -308,8 +325,10 @@ message SendRequest {
 }
 
 message DownloadRequest {
-  // An attachment's pointer, as a Message (or Upload) had it.
+  // An attachment's pointer, as a Message (or Upload) had it, and its plaintext hash
+  // when it came with one.
   bytes pointer = 1;
+  bytes plaintext_hash = 2;
 }
 
 message DownloadResponse {
