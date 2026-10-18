@@ -180,6 +180,7 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, name
 		return fmt.Errorf("whatsapp: upload %s: %w", filepath.Base(path), err)
 	}
 	withUpload(message, up)
+	a.withTimer(ctx, roomID, message)
 	resp, err := client.SendMessage(ctx, chat, message)
 	if err != nil {
 		return fmt.Errorf("whatsapp: send %s to %s: %w", filepath.Base(path), roomID, err)

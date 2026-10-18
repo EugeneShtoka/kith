@@ -308,8 +308,10 @@ Since then:
   carried over (`:rescan` judges the cache again).
 - v16 (`person_verdicts`): filter marks per person ID and tag, and releases. Matrix
   IDs mirror `org.kith.people`; other networks' are kept here alone.
+- v17 (`room_timers`): a chat's disappearing-messages timer in seconds, a row only
+  while it has one, so what kith sends there carries it (WhatsApp).
 
-so a current cache is at version 16.
+so a current cache is at version 17.
 
 ### Indexes need no migration
 
