@@ -98,3 +98,46 @@ func TestATimerIsLearnedFromHistoryAndListing(t *testing.T) {
 		t.Errorf("a group listed without one: %v", got)
 	}
 }
+
+// A message sent with a timer is deleted once it has run from its sending, whether it
+// came live or with the history, and clients hear of it as of a deletion; one without
+// a timer stays.
+func TestADisappearingMessageIsDeletedWhenItsTimeRuns(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	account := Account{Name: "home", Digits: ownDigits}
+	a, _, store := offline(t, account)
+	client := linkedClient(t, store, ownDigits)
+	a.onMessage(ctx, account, client, danaWritesWithTimer("3EB0E1", "gone in a second", time.Second))
+	a.onMessage(ctx, account, client, danaWrites("3EB0E2", "stays"))
+	a.onHistory(ctx, account, client, historyOf(danaWritesWithTimer("3EB0E3", "old, gone in a second", time.Second)))
+	go a.keepExpiring(ctx)
+
+	deleted := func(room domain.RoomID, id string) bool {
+		msg, ok, err := a.cache.MessageByID(ctx, room, domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, ownDigits, id)))
+		return err == nil && ok && msg.Redacted
+	}
+	history := roomID(ownDigits, lid(danaLID))
+	deadline := time.Now().Add(10 * time.Second)
+	for (!deleted(danaChat, "3EB0E1") || !deleted(history, "3EB0E3")) && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !deleted(danaChat, "3EB0E1") {
+		t.Error("a live message outlived its timer")
+	}
+	if !deleted(history, "3EB0E3") {
+		t.Error("a message from the history outlived its timer")
+	}
+	if deleted(danaChat, "3EB0E2") {
+		t.Error("a message without a timer was deleted")
+	}
+	heard := false
+	for len(a.messages) > 0 {
+		if m := <-a.messages; m.Redacted && m.ID == domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, ownDigits, "3EB0E1")) {
+			heard = true
+		}
+	}
+	if !heard {
+		t.Error("clients did not hear the message go")
+	}
+}

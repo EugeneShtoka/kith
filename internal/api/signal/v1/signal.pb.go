@@ -1549,8 +1549,11 @@ type Message struct {
 	ChatNumber   string `protobuf:"bytes,13,opt,name=chat_number,json=chatNumber,proto3" json:"chat_number,omitempty"`
 	// The chat's disappearing-messages timer (s) as the message was sent with it, 0 for
 	// none, and for a one-to-one chat the number of the change that set it (see Timer).
-	Timer         uint32 `protobuf:"varint,14,opt,name=timer,proto3" json:"timer,omitempty"`
-	TimerVersion  uint32 `protobuf:"varint,15,opt,name=timer_version,json=timerVersion,proto3" json:"timer_version,omitempty"`
+	Timer        uint32 `protobuf:"varint,14,opt,name=timer,proto3" json:"timer,omitempty"`
+	TimerVersion uint32 `protobuf:"varint,15,opt,name=timer_version,json=timerVersion,proto3" json:"timer_version,omitempty"`
+	// When the message's own countdown started (ms), for an archived one whose countdown
+	// the phone had started; 0 otherwise (it starts when sent, or when read).
+	TimerStarted  uint64 `protobuf:"varint,16,opt,name=timer_started,json=timerStarted,proto3" json:"timer_started,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1686,6 +1689,13 @@ func (x *Message) GetTimer() uint32 {
 func (x *Message) GetTimerVersion() uint32 {
 	if x != nil {
 		return x.TimerVersion
+	}
+	return 0
+}
+
+func (x *Message) GetTimerStarted() uint64 {
+	if x != nil {
+		return x.TimerStarted
 	}
 	return 0
 }
@@ -2921,7 +2931,7 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\bmessages\x18\x01 \x03(\v2\x16.signal.v1.ReadMessageR\bmessages\"9\n" +
 	"\vReadMessage\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x12\n" +
-	"\x04sent\x18\x02 \x01(\x04R\x04sent\"\xdf\x03\n" +
+	"\x04sent\x18\x02 \x01(\x04R\x04sent\"\x84\x04\n" +
 	"\aMessage\x12\x12\n" +
 	"\x04chat\x18\x01 \x01(\tR\x04chat\x12\x14\n" +
 	"\x05group\x18\x02 \x01(\bR\x05group\x12\x16\n" +
@@ -2940,7 +2950,8 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\vchat_number\x18\r \x01(\tR\n" +
 	"chatNumber\x12\x14\n" +
 	"\x05timer\x18\x0e \x01(\rR\x05timer\x12#\n" +
-	"\rtimer_version\x18\x0f \x01(\rR\ftimerVersion\"G\n" +
+	"\rtimer_version\x18\x0f \x01(\rR\ftimerVersion\x12#\n" +
+	"\rtimer_started\x18\x10 \x01(\x04R\ftimerStarted\"G\n" +
 	"\x05Quote\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x12\n" +
 	"\x04sent\x18\x02 \x01(\x04R\x04sent\x12\x12\n" +

@@ -271,6 +271,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 	a.mu.Unlock()
 	a.superviseNow()
 	a.announceAll()
+	go a.keepExpiring(ctx)
 	<-ctx.Done()
 	a.stopSupervising()
 	return ctx.Err() //nolint:wrapcheck // our own shutdown, as the other adapters'

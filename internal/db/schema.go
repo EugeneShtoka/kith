@@ -145,6 +145,18 @@ CREATE TABLE room_timer_versions (
 	version INTEGER NOT NULL
 ) STRICT, WITHOUT ROWID;
 
+-- A disappearing message's timer (s) and when its countdown started (0: not yet, until
+-- the account reads it), a row until it expires (SetExpiry, ExpireDue).
+CREATE TABLE message_expiry (
+	room_id   TEXT    NOT NULL,
+	event_id  TEXT    NOT NULL,
+	seconds   INTEGER NOT NULL,
+	starts_ms INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (room_id, event_id),
+	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+CREATE INDEX message_expiry_due ON message_expiry(starts_ms + seconds * 1000) WHERE starts_ms > 0;
+
 -- A message's poll, as JSON (domain.Poll): its question, answers and how the votes
 -- stand, rewritten whole as results change (SetPoll).
 CREATE TABLE message_polls (
@@ -535,6 +547,15 @@ DROP TABLE phone_names;`,
 	`CREATE TABLE IF NOT EXISTS room_timer_versions (
 	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
 	version INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;`,
+	// v19: a disappearing message's timer and countdown.
+	`CREATE TABLE IF NOT EXISTS message_expiry (
+	room_id   TEXT    NOT NULL,
+	event_id  TEXT    NOT NULL,
+	seconds   INTEGER NOT NULL,
+	starts_ms INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (room_id, event_id),
+	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;`,
 }
 

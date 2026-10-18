@@ -199,6 +199,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 			return err
 		}
 	}
+	go a.keepExpiring(ctx)
 	<-ctx.Done()
 	return ctx.Err() //nolint:wrapcheck // our own shutdown, as the Matrix adapter's
 }

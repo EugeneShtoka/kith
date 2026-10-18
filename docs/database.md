@@ -313,8 +313,11 @@ Since then:
 - v18 (`room_timer_versions`): the version a chat's timer was set at, a row once a
   network has numbered one (Signal counts a one-to-one chat's timer changes; an older
   change is not taken). It outlives the timer's being turned off.
+- v19 (`message_expiry`): a disappearing message's timer and when its countdown started
+  (0 until the account reads it, for networks that count from reading), a row until
+  the message expires and is deleted as a deletion is.
 
-so a current cache is at version 18.
+so a current cache is at version 19.
 
 ### Indexes need no migration
 

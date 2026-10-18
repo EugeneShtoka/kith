@@ -73,7 +73,12 @@ command that links it.
 
 Not yet: reacting to channel posts and sending channel read receipts (kith keeps
 read state there for itself), calls, status updates, votes cast before kith was
-linked (a poll counts the votes it hears from then on), disappearing-message settings.
+linked (a poll counts the votes it hears from then on), changing a chat's
+disappearing-message timer.
+
+A chat with disappearing messages works as on the phone: what you send carries the
+chat's timer, and each message is deleted from kith once its timer has run from when it
+was sent, as a deletion is (`[display.deleted] keep` keeps what it said, under `H`).
 
 A poll shows its answers and how the votes stand as they arrive, your own marked; `P`
 votes, or takes the vote back, and lists who chose each answer.

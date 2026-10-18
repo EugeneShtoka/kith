@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -34,8 +35,14 @@ func (c *Cache) Unread(ctx context.Context) ([]domain.Unread, error) {
 // event's own (see matrix.resolveReceipt). Counts and mark are replaced; the
 // position only moves forward by readTS, like the server's receipts, since echoes
 // and per-kind receipts arrive out of order.
+//
+// Reading a disappearing message starts its countdown (see SetExpiry).
 func (c *Cache) SaveUnread(ctx context.Context, u domain.Unread, readTS int64) error {
-	return c.execInRoom(ctx, u.RoomID, "upsert unread "+string(u.RoomID), `
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		if err := registerRoom(ctx, tx, u.RoomID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
 		INSERT INTO room_unread(room_id, notifications, highlights, read_event, marked, read_ts_ms)
 		VALUES(?, ?, ?, ?, ?, ?)
 		ON CONFLICT(room_id) DO UPDATE SET
@@ -45,7 +52,11 @@ func (c *Cache) SaveUnread(ctx context.Context, u domain.Unread, readTS int64) e
 			                THEN excluded.read_event ELSE room_unread.read_event END,
 			read_ts_ms=max(excluded.read_ts_ms, room_unread.read_ts_ms),
 			marked=excluded.marked`,
-		string(u.RoomID), u.Notifications, u.Highlights, string(u.ReadEvent), u.Marked, readTS)
+			string(u.RoomID), u.Notifications, u.Highlights, string(u.ReadEvent), u.Marked, readTS); err != nil {
+			return fmt.Errorf("db: upsert unread %s: %w", u.RoomID, err)
+		}
+		return startCountdowns(ctx, tx, u.RoomID, time.Now())
+	})
 }
 
 // ReadPositions is when each room's read event happened: the stored timestamp, or

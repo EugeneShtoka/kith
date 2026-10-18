@@ -227,6 +227,9 @@ message Message {
   // none, and for a one-to-one chat the number of the change that set it (see Timer).
   uint32 timer = 14;
   uint32 timer_version = 15;
+  // When the message's own countdown started (ms), for an archived one whose countdown
+  // the phone had started; 0 otherwise (it starts when sent, or when read).
+  uint64 timer_started = 16;
 }
 
 // Quote is the message a message replies to.

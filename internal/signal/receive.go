@@ -283,6 +283,7 @@ func (a *Adapter) takeMessage(ctx context.Context, self string, m *signalv1.Mess
 		return fmt.Errorf("cache a message: %w", err)
 	}
 	a.keepSource(ctx, msg, m.GetAttachments())
+	a.keepExpiry(ctx, self, msg, m)
 	if m.GetSender() == self {
 		// Written on another of the account's devices: read up to here.
 		if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room.ID}, msg.Timestamp.UnixMilli()); err != nil {

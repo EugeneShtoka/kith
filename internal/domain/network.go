@@ -240,6 +240,12 @@ func AccountRooms(network Protocol, account string) RoomOwner {
 	return RoomOwner(prefixOf(network) + ":" + account + accountSep)
 }
 
+// NetworkRooms is the prefix of every room of network's accounts, for a query over all
+// of them (its Owns matches none: a room is owned by its account).
+func NetworkRooms(network Protocol) RoomOwner {
+	return RoomOwner(prefixOf(network) + ":")
+}
+
 // OwnerOf is the writer a room belongs to.
 func OwnerOf(roomID RoomID) RoomOwner {
 	id := ParseID(string(roomID))
