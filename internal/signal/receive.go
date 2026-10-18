@@ -280,6 +280,7 @@ func (a *Adapter) takeMessage(ctx context.Context, self string, m *signalv1.Mess
 	if err := a.save(ctx, room.ID, msg); err != nil {
 		return fmt.Errorf("cache a message: %w", err)
 	}
+	a.keepSource(ctx, msg, m.GetAttachments())
 	if m.GetSender() == self {
 		// Written on another of the account's devices: read up to here.
 		if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room.ID}, msg.Timestamp.UnixMilli()); err != nil {
@@ -513,7 +514,7 @@ func mentioned(self, body string, mentions []*signalv1.Mention) (string, bool) {
 	return out.String(), me
 }
 
-// media is an attachment as kith describes it (fetching it comes later).
+// media is an attachment as kith describes it.
 func media(f *signalv1.Attachment) *domain.Media {
 	m := &domain.Media{Name: f.GetFileName(), Mime: f.GetContentType(), Size: int(f.GetSize())} //nolint:gosec // an attachment's size fits
 	switch kind, _, _ := strings.Cut(f.GetContentType(), "/"); kind {

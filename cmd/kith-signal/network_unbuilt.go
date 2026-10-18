@@ -39,3 +39,9 @@ func (unbuilt) Send(context.Context, *signalv1.SendRequest) error { return errUn
 func (unbuilt) Typing(context.Context, *signalv1.TypingRequest) error { return errUnbuilt }
 
 func (unbuilt) MarkRead(context.Context, *signalv1.MarkReadRequest) error { return errUnbuilt }
+
+func (unbuilt) Download(context.Context, []byte) ([]byte, error) { return nil, errUnbuilt }
+
+func (unbuilt) Upload(context.Context, *signalv1.UploadRequest) (*signalv1.Attachment, error) {
+	return nil, errUnbuilt
+}

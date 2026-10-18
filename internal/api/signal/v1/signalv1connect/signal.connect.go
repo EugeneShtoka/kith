@@ -51,6 +51,10 @@ const (
 	SignalServiceTypingProcedure = "/signal.v1.SignalService/Typing"
 	// SignalServiceMarkReadProcedure is the fully-qualified name of the SignalService's MarkRead RPC.
 	SignalServiceMarkReadProcedure = "/signal.v1.SignalService/MarkRead"
+	// SignalServiceDownloadProcedure is the fully-qualified name of the SignalService's Download RPC.
+	SignalServiceDownloadProcedure = "/signal.v1.SignalService/Download"
+	// SignalServiceUploadProcedure is the fully-qualified name of the SignalService's Upload RPC.
+	SignalServiceUploadProcedure = "/signal.v1.SignalService/Upload"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -79,6 +83,10 @@ type SignalServiceClient interface {
 	// MarkRead tells the account's other devices (the phone), and with receipts the
 	// messages' authors, that it read messages.
 	MarkRead(context.Context, *connect.Request[v1.MarkReadRequest]) (*connect.Response[v1.MarkReadResponse], error)
+	// Download fetches an attachment from Signal's CDN and decrypts it.
+	Download(context.Context, *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error)
+	// Upload encrypts a file and puts it on Signal's CDN, for a Send to carry.
+	Upload(context.Context, *connect.Request[v1.UploadRequest]) (*connect.Response[v1.UploadResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -146,6 +154,18 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("MarkRead")),
 			connect.WithClientOptions(opts...),
 		),
+		download: connect.NewClient[v1.DownloadRequest, v1.DownloadResponse](
+			httpClient,
+			baseURL+SignalServiceDownloadProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Download")),
+			connect.WithClientOptions(opts...),
+		),
+		upload: connect.NewClient[v1.UploadRequest, v1.UploadResponse](
+			httpClient,
+			baseURL+SignalServiceUploadProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Upload")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -160,6 +180,8 @@ type signalServiceClient struct {
 	send      *connect.Client[v1.SendRequest, v1.SendResponse]
 	typing    *connect.Client[v1.TypingRequest, v1.TypingResponse]
 	markRead  *connect.Client[v1.MarkReadRequest, v1.MarkReadResponse]
+	download  *connect.Client[v1.DownloadRequest, v1.DownloadResponse]
+	upload    *connect.Client[v1.UploadRequest, v1.UploadResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -207,6 +229,16 @@ func (c *signalServiceClient) MarkRead(ctx context.Context, req *connect.Request
 	return c.markRead.CallUnary(ctx, req)
 }
 
+// Download calls signal.v1.SignalService.Download.
+func (c *signalServiceClient) Download(ctx context.Context, req *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error) {
+	return c.download.CallUnary(ctx, req)
+}
+
+// Upload calls signal.v1.SignalService.Upload.
+func (c *signalServiceClient) Upload(ctx context.Context, req *connect.Request[v1.UploadRequest]) (*connect.Response[v1.UploadResponse], error) {
+	return c.upload.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -233,6 +265,10 @@ type SignalServiceHandler interface {
 	// MarkRead tells the account's other devices (the phone), and with receipts the
 	// messages' authors, that it read messages.
 	MarkRead(context.Context, *connect.Request[v1.MarkReadRequest]) (*connect.Response[v1.MarkReadResponse], error)
+	// Download fetches an attachment from Signal's CDN and decrypts it.
+	Download(context.Context, *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error)
+	// Upload encrypts a file and puts it on Signal's CDN, for a Send to carry.
+	Upload(context.Context, *connect.Request[v1.UploadRequest]) (*connect.Response[v1.UploadResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -296,6 +332,18 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("MarkRead")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceDownloadHandler := connect.NewUnaryHandler(
+		SignalServiceDownloadProcedure,
+		svc.Download,
+		connect.WithSchema(signalServiceMethods.ByName("Download")),
+		connect.WithHandlerOptions(opts...),
+	)
+	signalServiceUploadHandler := connect.NewUnaryHandler(
+		SignalServiceUploadProcedure,
+		svc.Upload,
+		connect.WithSchema(signalServiceMethods.ByName("Upload")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -316,6 +364,10 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceTypingHandler.ServeHTTP(w, r)
 		case SignalServiceMarkReadProcedure:
 			signalServiceMarkReadHandler.ServeHTTP(w, r)
+		case SignalServiceDownloadProcedure:
+			signalServiceDownloadHandler.ServeHTTP(w, r)
+		case SignalServiceUploadProcedure:
+			signalServiceUploadHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -359,4 +411,12 @@ func (UnimplementedSignalServiceHandler) Typing(context.Context, *connect.Reques
 
 func (UnimplementedSignalServiceHandler) MarkRead(context.Context, *connect.Request[v1.MarkReadRequest]) (*connect.Response[v1.MarkReadResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.MarkRead is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Download(context.Context, *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Download is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Upload(context.Context, *connect.Request[v1.UploadRequest]) (*connect.Response[v1.UploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Upload is not implemented"))
 }
