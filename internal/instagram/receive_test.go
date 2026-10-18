@@ -58,7 +58,15 @@ func newRig(t *testing.T) *rig {
 	}
 	t.Cleanup(func() { _ = cache.Close() })
 	a := New(cache, newSecrets(), nil, nil)
-	c := &conn{a: a, account: Account{Name: "me"}, self: self, done: make(chan struct{}), inbox: newInbox()}
+	cookies, err := parseCookies(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &conn{
+		a: a, account: Account{Name: "me"}, self: self, stop: func() {}, done: make(chan struct{}), inbox: newInbox(),
+		session: &Session{Cookies: cookies, Self: self},
+	}
+	close(c.done) // nothing runs: the rig drives the connection's handlers itself
 	a.conns["me"] = c
 	return &rig{t: t, a: a, c: c, cache: cache}
 }
@@ -142,11 +150,6 @@ func TestThreadsBecomeRooms(t *testing.T) {
 	if err != nil || len(members) != 2 {
 		t.Errorf("members = %+v, %v", members, err)
 	}
-	spaces, err := r.a.Spaces(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = spaces // the space needs a kept session: see TestSignedInAccountsAreSpaces
 }
 
 // The account's read position comes from Instagram's read watermark; a thread marked
@@ -367,5 +370,80 @@ func TestAnOwnMessageReadsItsThread(t *testing.T) {
 	n, _, counted, err := r.cache.CountUnread(context.Background(), []string{person(self)}, roomID(self, danaChat))
 	if err != nil || !counted || n != 1 {
 		t.Errorf("unread = %d (counted %v, %v), want only the message after mine", n, counted, err)
+	}
+}
+
+// A signed-in account is a space holding its rooms, read from the cache: unread
+// counts, members, a message and its versions, no encryption; marking read reads it in
+// kith; signing out ends the session, keeps or forgets the rooms, and the space goes.
+func TestSignedInAccountsAreSpaces(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	ctx := context.Background()
+	if err := saveSession(r.a.secrets, "me", r.c.session); err != nil {
+		t.Fatal(err)
+	}
+	r.a.UseConfig(ctx, withAccounts("me"))
+	early := dm()
+	early.SlideReadReceipts = []slidetypes.ReadReceipt{{ParticipantFBID: 1000, WatermarkTimestampMS: ms(30 * time.Second)}}
+	r.thread(early)
+	r.thread(group())
+	r.delta(danaChat, &slidetypes.NewMessageEvent{Message: text("m1", danaFBID, time.Minute, "hi")})
+	room := roomID(self, danaChat)
+
+	spaces, err := r.a.Spaces(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spaces) != 1 || spaces[0].Name != "Instagram me" || len(spaces[0].Children) != 2 || spaces[0].ID != accountSpaceID(self) {
+		t.Fatalf("spaces = %+v", spaces)
+	}
+	if parent, _ := r.a.CanonicalParent(ctx, room); parent != accountSpaceID(self) {
+		t.Errorf("parent = %s", parent)
+	}
+	unread, err := r.a.CachedUnread(ctx)
+	if err != nil || len(unread) == 0 {
+		t.Fatalf("unread = %+v, %v", unread, err)
+	}
+	if members, _ := r.a.MentionCandidates(ctx, roomID(self, groupChat), 10); len(members) != 2 {
+		t.Errorf("mention candidates = %+v", members)
+	}
+	if enc, _ := r.a.RoomEncryption(ctx, []domain.RoomID{room}); enc[room] {
+		t.Error("an Instagram room counts as encrypted")
+	}
+	msg, err := r.a.FetchEvent(ctx, room, eventID(self, danaChat, "m1"))
+	if err != nil || msg.Body != "hi" {
+		t.Errorf("fetch = %+v, %v", msg, err)
+	}
+	if _, err := r.a.FetchEvent(ctx, room, eventID(self, danaChat, "nope")); err == nil {
+		t.Error("an uncached message was found")
+	}
+	if _, _, err := r.a.MessageHistory(ctx, room, msg.ID); err != nil {
+		t.Error(err)
+	}
+	if _, err := r.a.MarkRoomsRead(ctx, []domain.RoomID{room}, false); err != nil {
+		t.Fatal(err)
+	}
+	if n := r.unread(danaChat); n != 0 {
+		t.Errorf("unread after reading = %d", n)
+	}
+	if err := r.a.MarkRoomUnread(ctx, room, true); err == nil {
+		t.Error("marking unread claimed to work")
+	}
+
+	if err := r.a.SignOut(ctx, "instagram:nobody/account", false); err == nil {
+		t.Error("signed out of no account")
+	}
+	if err := r.a.SignOut(ctx, accountSpaceID(self), true); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := loadSession(r.a.secrets, "me"); ok {
+		t.Error("the session outlived signing out")
+	}
+	if rooms, _ := r.a.Rooms(ctx); len(rooms) != 0 {
+		t.Errorf("rooms after signing out and forgetting = %d", len(rooms))
+	}
+	if spaces, _ = r.a.Spaces(ctx); len(spaces) != 0 {
+		t.Errorf("spaces after signing out = %+v", spaces)
 	}
 }
