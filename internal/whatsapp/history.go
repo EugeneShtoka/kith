@@ -39,6 +39,9 @@ func (a *Adapter) onHistory(ctx context.Context, account Account, client *whatsm
 		}
 		for room, msgs := range byRoom {
 			a.recordHistory(ctx, account, client, room, msgs, conv.GetName(), int(conv.GetUnreadCount()))
+			if timer := conv.GetEphemeralExpiration(); timer > 0 {
+				a.keepTimers(ctx, map[domain.RoomID]time.Duration{room: time.Duration(timer) * time.Second})
+			}
 		}
 	}
 	if a.onRoomsChanged != nil {

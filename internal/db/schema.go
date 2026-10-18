@@ -130,6 +130,13 @@ CREATE TABLE room_forums (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
+-- A chat's disappearing-messages timer, a row only while it has one: what kith sends
+-- there must carry it (SetTimers).
+CREATE TABLE room_timers (
+	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	seconds INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;
+
 -- A message's poll, as JSON (domain.Poll): its question, answers and how the votes
 -- stand, rewritten whole as results change (SetPoll).
 CREATE TABLE message_polls (
@@ -510,6 +517,11 @@ DROP TABLE phone_names;`,
 	at_ms    INTEGER NOT NULL DEFAULT 0,
 	released INTEGER NOT NULL DEFAULT 0,
 	PRIMARY KEY (person, tag)
+) STRICT, WITHOUT ROWID;`,
+	// v17: a chat's disappearing-messages timer.
+	`CREATE TABLE IF NOT EXISTS room_timers (
+	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	seconds INTEGER NOT NULL
 ) STRICT, WITHOUT ROWID;`,
 }
 

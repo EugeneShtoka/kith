@@ -1,10 +1,15 @@
 package whatsapp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	_ "image/gif" // a GIF's preview
+	"image/jpeg"
+	_ "image/png" // a picture's preview
 	"math"
 	"mime"
 	"net/http"
@@ -15,6 +20,8 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
+	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp" // a WebP's preview
 	"google.golang.org/protobuf/proto"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -173,6 +180,7 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, name
 		return fmt.Errorf("whatsapp: upload %s: %w", filepath.Base(path), err)
 	}
 	withUpload(message, up)
+	a.withTimer(ctx, roomID, message)
 	resp, err := client.SendMessage(ctx, chat, message)
 	if err != nil {
 		return fmt.Errorf("whatsapp: send %s to %s: %w", filepath.Base(path), roomID, err)
@@ -208,7 +216,9 @@ func fileMessage(name string, data []byte, caption string) (*waE2E.Message, what
 	size := uint64(len(data))
 	switch {
 	case strings.HasPrefix(mimeType, "image/") && mimeType != "image/svg+xml":
-		return &waE2E.Message{ImageMessage: &waE2E.ImageMessage{Mimetype: &mimeType, Caption: words, FileLength: &size}}, whatsmeow.MediaImage
+		m := &waE2E.ImageMessage{Mimetype: &mimeType, Caption: words, FileLength: &size}
+		withPreview(m, data)
+		return &waE2E.Message{ImageMessage: m}, whatsmeow.MediaImage
 	case strings.HasPrefix(mimeType, "video/"):
 		return &waE2E.Message{VideoMessage: &waE2E.VideoMessage{Mimetype: &mimeType, Caption: words, FileLength: &size}}, whatsmeow.MediaVideo
 	case strings.HasPrefix(mimeType, "audio/"):
@@ -217,6 +227,36 @@ func fileMessage(name string, data []byte, caption string) (*waE2E.Message, what
 	return &waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{
 		Mimetype: &mimeType, FileName: &name, Title: &name, Caption: words, FileLength: &size,
 	}}, whatsmeow.MediaDocument
+}
+
+// previewSide is the longer side of the preview sent with a picture, as WhatsApp's
+// apps send it: without one the phone shows a blank box until the picture downloads.
+const previewSide = 72
+
+// withPreview sets a picture's size and its small JPEG preview. A picture kith cannot
+// decode goes without them.
+func withPreview(m *waE2E.ImageMessage, data []byte) {
+	src, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return
+	}
+	w, h := src.Bounds().Dx(), src.Bounds().Dy()
+	if w <= 0 || h <= 0 {
+		return
+	}
+	width, height := uint32(w), uint32(h) // #nosec G115 -- positive, checked above
+	m.Width, m.Height = &width, &height
+	if longer := max(w, h); longer > previewSide {
+		w, h = max(1, w*previewSide/longer), max(1, h*previewSide/longer)
+	}
+	// JPEG has no transparency: a transparent picture's preview is on white.
+	preview := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.Draw(preview, preview.Bounds(), image.White, image.Point{}, draw.Src)
+	draw.ApproxBiLinear.Scale(preview, preview.Bounds(), src, src.Bounds(), draw.Over, nil)
+	var out bytes.Buffer
+	if err := jpeg.Encode(&out, preview, nil); err == nil {
+		m.JPEGThumbnail = out.Bytes()
+	}
 }
 
 // bytesOf converts WhatsApp's uint64 size.
