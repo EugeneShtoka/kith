@@ -43,10 +43,11 @@ func inGroup(ev *signalv1.EventsResponse) *signalv1.EventsResponse {
 	return ev
 }
 
-// sql runs a statement on the cache's file behind its back (a fault to inject).
+// sql runs a statement on the cache's file behind its back (a fault to inject),
+// waiting for the adapter's own writes as the cache does.
 func (r *rig) sql(stmt string) {
 	r.t.Helper()
-	raw, err := sql.Open("sqlite", "file:"+r.cachePath)
+	raw, err := sql.Open("sqlite", "file:"+r.cachePath+"?_pragma=busy_timeout(10000)")
 	if err != nil {
 		r.t.Fatal(err)
 	}
