@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -57,6 +59,16 @@ type Adapter struct {
 	onStatus func(domain.AccountStatus)
 	saidMu   sync.Mutex
 	said     map[string]domain.AccountStatus
+	// onRoomsChanged hears an account's rooms being rewritten; onCached each live message
+	// cached, onChanged each room whose cached messages changed otherwise.
+	onRoomsChanged func()
+	onCached       func(domain.Message)
+	onChanged      func(domain.RoomID)
+	// keepDeleted is [display.deleted] keep: an unsend or an edit keeps what it removed.
+	keepDeleted atomic.Bool
+	// typing is who types in each room, each until they stop or their time passes.
+	typingMu sync.Mutex
+	typing   map[domain.RoomID]map[string]*time.Timer
 
 	mu       sync.Mutex
 	accounts []Account
@@ -89,6 +101,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "instagram"),
 		said:      map[string]domain.AccountStatus{},
 		conns:     map[string]*conn{},
+		typing:    map[domain.RoomID]map[string]*time.Timer{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
@@ -103,13 +116,60 @@ func (a *Adapter) Network() domain.Protocol { return domain.ProtocolInstagram }
 // (empty when none). Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
 
+// OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
+// before Start.
+func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
+
+// OnCached sets who hears each live message cached, and each room whose cached
+// messages changed otherwise. Set before Start.
+func (a *Adapter) OnCached(cached func(domain.Message), changed func(domain.RoomID)) {
+	a.onCached, a.onChanged = cached, changed
+}
+
+func (a *Adapter) roomsChanged() {
+	if a.onRoomsChanged != nil {
+		a.onRoomsChanged()
+	}
+}
+
+// recount streams a room's locally counted unread state.
+func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
+	if a.cache == nil {
+		return
+	}
+	messages, mentions, counted, err := a.cache.CountUnread(ctx, a.Me(), room)
+	if err != nil {
+		a.log.Warn("count unread failed", "room", room, "err", err)
+		return
+	}
+	emit(a, a.unread, domain.Unread{RoomID: room, Messages: messages, Mentions: mentions, Counted: counted})
+}
+
+// emit sends v without blocking; a client not reading misses it and catches up from the
+// cache, as with the other adapters.
+func emit[T any](a *Adapter, ch chan T, v T) {
+	a.streamMu.RLock()
+	defer a.streamMu.RUnlock()
+	if a.closed {
+		return
+	}
+	select {
+	case ch <- v:
+	default:
+	}
+}
+
 // zerolog is instameow's logger: warnings and up, whatever kith's level, as messagix's.
 func (a *Adapter) zerolog(account string) zerolog.Logger {
 	return logging.Zerolog(a.log.With("component", "instameow", "account", account), zerolog.WarnLevel)
 }
 
-// UseConfig takes [[instagram.account]], at start and on reload.
+func (a *Adapter) keepsDeleted() bool { return a.keepDeleted.Load() }
+
+// UseConfig takes [[instagram.account]] and [display.deleted] keep, at start and on
+// reload.
 func (a *Adapter) UseConfig(_ context.Context, cfg config.Config) {
+	a.keepDeleted.Store(cfg.Display.Deleted.Keep())
 	accounts := make([]Account, 0, len(cfg.Instagram.Accounts))
 	for _, account := range cfg.Instagram.Accounts {
 		accounts = append(accounts, Account{Name: account.Name})

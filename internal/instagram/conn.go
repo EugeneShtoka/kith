@@ -37,12 +37,14 @@ type conn struct {
 	session *Session
 	client  *instameow.Client
 	kept    time.Time
+	// inbox is what the connection knows of its threads and people (inbox.go).
+	inbox *inbox
 }
 
 // connect starts account's connection under ctx, unless it has one.
 func (a *Adapter) connect(ctx context.Context, account Account, s *Session) {
 	ctx, stop := context.WithCancel(ctx)
-	c := &conn{a: a, account: account, self: s.Self, stop: stop, done: make(chan struct{}), session: s}
+	c := &conn{a: a, account: account, self: s.Self, stop: stop, done: make(chan struct{}), session: s, inbox: newInbox()}
 	a.mu.Lock()
 	if a.stopped || a.conns[account.Name] != nil {
 		a.mu.Unlock()
@@ -93,11 +95,17 @@ func (c *conn) once(ctx context.Context) error {
 		SeqIDTS:      s.SeqTS,
 		EventHandler: c.handle,
 	})
+	var mailbox *slidetypes.Mailbox
 	var err error
 	if client.HasSeqID() {
-		_, err = client.ReloadIndex(ctx)
+		if _, err = client.ReloadIndex(ctx); err == nil {
+			var resp *slidetypes.MailboxResponse
+			if resp, err = client.GetMailbox(ctx); err == nil {
+				mailbox = resp.Mailbox
+			}
+		}
 	} else {
-		_, _, err = client.LoadIndex(ctx)
+		_, mailbox, err = client.LoadIndex(ctx)
 	}
 	if err != nil {
 		return fmt.Errorf("load the inbox: %w", err)
@@ -105,15 +113,26 @@ func (c *conn) once(ctx context.Context) error {
 	c.mu.Lock()
 	c.client = client
 	c.mu.Unlock()
+	c.a.seed(ctx, c)
+	go c.a.syncInbox(ctx, c, client, mailbox)
 	client.Connect(ctx)
 	<-ctx.Done()
 	return ctx.Err() //nolint:wrapcheck // our own end
 }
 
-// handle takes instameow's events: the connection's state and the seq ID now; the
-// inbox's changes come with receiving.
-func (c *conn) handle(_ context.Context, evt slidetypes.ClientEvent) error {
+// handle takes instameow's events: the connection's state, the inbox's changes, typing
+// and the seq ID, kept once the changes before it are.
+func (c *conn) handle(ctx context.Context, evt slidetypes.ClientEvent) error {
 	switch e := evt.(type) {
+	case *slidetypes.Delta:
+		c.mu.Lock()
+		client := c.client
+		c.mu.Unlock()
+		if client != nil {
+			c.a.takeDelta(ctx, c, client, e)
+		}
+	case *slidetypes.TypingNotification:
+		c.a.takeTyping(c, e)
 	case *slidetypes.Connected:
 		c.a.status(c.account, Connected, "")
 	case *slidetypes.Disconnected:

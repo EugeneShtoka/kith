@@ -297,6 +297,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/rs/zerolog"
+            - "github.com/EugeneShtoka/kith/internal/readstate"
             - "go.mau.fi/mautrix-meta/pkg/instameow"
             - "go.mau.fi/mautrix-meta/pkg/messagix/cookies"
             - "go.mau.fi/mautrix-meta/pkg/messagix/dgw"
