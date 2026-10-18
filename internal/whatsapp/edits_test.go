@@ -6,9 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.mau.fi/whatsmeow/util/gcmutil"
+	"go.mau.fi/whatsmeow/util/hkdfutil"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -46,6 +50,59 @@ func TestAnEditFoldsOntoItsMessage(t *testing.T) {
 		versions, _, _ := a.MessageHistory(ctx, danaChat, "whatsapp:"+ownDigits+"/3EB0E")
 		if keep && len(versions) < 2 {
 			t.Errorf("keep=true: versions = %+v, want the original kept", versions)
+		}
+	}
+}
+
+// danaEditsSecretly is Dana's edit of her message id as WhatsApp's apps send it now:
+// payload encrypted with the message's secret, which the client already keeps.
+func danaEditsSecretly(t *testing.T, client *whatsmeow.Client, editID, id string, payload *waE2E.Message) *events.Message {
+	t.Helper()
+	ctx := context.Background()
+	secret := make([]byte, 32)
+	secret[0] = 7
+	if err := client.Store.MsgSecrets.PutMessageSecret(ctx, lid(danaLID), lid(danaLID), id, secret); err != nil {
+		t.Fatal(err)
+	}
+	plain, err := proto.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dana := lid(danaLID).String()
+	encKey := hkdfutil.SHA256(secret, nil, []byte(id+dana+dana+string(whatsmeow.EncSecretMessageEdit)), 32)
+	iv := make([]byte, 12)
+	sealed, err := gcmutil.Encrypt(encKey, iv, plain, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return danaChanges(editID, &waE2E.Message{SecretEncryptedMessage: &waE2E.SecretEncryptedMessage{
+		TargetMessageKey: &waCommon.MessageKey{RemoteJID: new(dana), ID: new(id)},
+		EncPayload:       sealed, EncIV: iv,
+		SecretEncType: waE2E.SecretEncryptedMessage_MESSAGE_EDIT.Enum(),
+	}})
+}
+
+// An edit sent encrypted with its message's secret folds onto that message, whether
+// it decrypts to an edit or to the new text alone.
+func TestASecretEditFoldsOntoItsMessage(t *testing.T) {
+	t.Parallel()
+	payloads := map[string]*waE2E.Message{
+		"an edit": {EditedMessage: &waE2E.FutureProofMessage{Message: &waE2E.Message{ProtocolMessage: &waE2E.ProtocolMessage{
+			Type: waE2E.ProtocolMessage_MESSAGE_EDIT.Enum(), Key: key("3EB0E"),
+			EditedMessage: &waE2E.Message{Conversation: new("the plan")},
+		}}}},
+		"the new text": {Conversation: new("the plan")},
+	}
+	for name, payload := range payloads {
+		ctx := context.Background()
+		account := Account{Name: "home", Digits: ownDigits}
+		a, cache, store := offline(t, account)
+		client := linkedClient(t, store, ownDigits)
+		a.onMessage(ctx, account, client, danaWrites("3EB0E", "the plna"))
+		a.onMessage(ctx, account, client, danaEditsSecretly(t, client, "3EB0E2", "3EB0E", payload))
+		msgs, _ := cache.Messages(ctx, danaChat, 10)
+		if len(msgs) != 1 || msgs[0].Body != "the plan" || !msgs[0].Edited {
+			t.Errorf("%s: messages = %+v, want the one, edited", name, msgs)
 		}
 	}
 }

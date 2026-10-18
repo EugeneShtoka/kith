@@ -37,6 +37,10 @@ func (a *Adapter) onChange(ctx context.Context, account Account, client *whatsme
 		a.onPollVote(ctx, account, client, e, vote)
 		return true
 	}
+	if secret := e.Message.GetSecretEncryptedMessage(); secret != nil {
+		a.onSecretEdit(ctx, account, client, e, secret)
+		return true
+	}
 	pm := e.Message.GetProtocolMessage()
 	if pm == nil {
 		return false
@@ -84,6 +88,28 @@ func (a *Adapter) onEdited(ctx context.Context, account Account, client *whatsme
 		a.record(ctx, account, edit, func() {})
 	}
 	emit(a, a.messages, edit)
+}
+
+// onSecretEdit decrypts an edit WhatsApp sent encrypted with its message's secret, as
+// its apps now send them, and folds it like any other. Poll and event edits are not shown.
+func (a *Adapter) onSecretEdit(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message, secret *waE2E.SecretEncryptedMessage) {
+	if secret.GetSecretEncType() != waE2E.SecretEncryptedMessage_MESSAGE_EDIT {
+		return
+	}
+	plain, err := client.DecryptSecretEncryptedMessage(ctx, e)
+	if err != nil {
+		a.log.Warn("decrypt an edit failed", "err", err)
+		return
+	}
+	decrypted := &events.Message{RawMessage: plain}
+	decrypted.UnwrapRaw()
+	pm := decrypted.Message.GetProtocolMessage()
+	if pm.GetType() != waE2E.ProtocolMessage_MESSAGE_EDIT {
+		// The new content alone: the message it replaces is the one the secret is of.
+		pm = &waE2E.ProtocolMessage{Type: waE2E.ProtocolMessage_MESSAGE_EDIT.Enum(), EditedMessage: decrypted.Message}
+	}
+	pm.Key = secret.GetTargetMessageKey()
+	a.onEdited(ctx, account, client, e, pm)
 }
 
 // onDeleted marks a message deleted for everyone, keeping its text only under
