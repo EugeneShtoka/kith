@@ -47,6 +47,12 @@ func (n *Network) Send(ctx context.Context, req *signalv1.SendRequest) error {
 		data.Delete = &signalpb.DataMessage_Delete{TargetSentTimestamp: new(req.GetDeleteOf())}
 	default:
 		data.Body = new(req.GetBody())
+		for _, m := range req.GetMentions() {
+			data.BodyRanges = append(data.BodyRanges, &signalpb.BodyRange{
+				Start: new(m.GetStart()), Length: new(m.GetLength()),
+				AssociatedValue: &signalpb.BodyRange_MentionAci{MentionAci: m.GetAci()},
+			})
+		}
 		for _, f := range req.GetAttachments() {
 			p := &signalpb.AttachmentPointer{}
 			if err := proto.Unmarshal(f.GetPointer(), p); err != nil {

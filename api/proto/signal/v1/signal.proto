@@ -328,6 +328,8 @@ message SendRequest {
   uint32 timer_version = 11;
   // Files a new message carries, each as Upload returned it; body is then their caption.
   repeated Attachment attachments = 12;
+  // People the body (or an edit's) mentions, each where it has U+FFFC.
+  repeated Mention mentions = 13;
 }
 
 message DownloadRequest {

@@ -19,8 +19,9 @@ pictures inline, the rest opened or saved from the message. A message carrying m
 than one shows the first and counts the others (`(+2 more attachments)`). Signal keeps
 attachments for a while only; an old one then stops loading.
 
-You can write in a chat, reply, edit and delete what you wrote (for everyone), react,
-and others see you typing. An `@name` you type goes as text, not yet as a mention.
+You can write in a chat, reply, mention people (`@` offers the chat's members, and
+the mention reaches them as one), edit and delete what you wrote (for everyone),
+react, and others see you typing.
 Attaching a file sends it with what you typed as its caption; AAC audio goes as a
 voice message, as Signal's apps record them.
 
