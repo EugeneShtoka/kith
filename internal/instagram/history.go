@@ -104,7 +104,8 @@ func (a *Adapter) connected(self string) (*conn, *instameow.Client) {
 	return nil, nil
 }
 
-// MarkRead reads a room through event in kith (telling Instagram comes with sending).
+// MarkRead reads a room through event in kith, then tells Instagram (its read
+// receipts are not private: Instagram has no private read).
 func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain.EventID, _ bool) error {
 	if a.cache == nil {
 		return nil
@@ -117,6 +118,7 @@ func (a *Adapter) MarkRead(ctx context.Context, room domain.RoomID, event domain
 		return fmt.Errorf("instagram: save the read position of %s: %w", room, err)
 	}
 	a.recount(ctx, room)
+	a.tellRead(context.WithoutCancel(ctx), room, event, at)
 	return nil
 }
 

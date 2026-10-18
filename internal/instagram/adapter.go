@@ -79,6 +79,10 @@ type Adapter struct {
 	// run is Start's context; an account added later connects under it.
 	run context.Context //nolint:containedctx // reloads arrive with no context of their own to outlive
 
+	// txns is each unfinished send's offline threading ID, by its TxnID: a retry goes as
+	// the same message (send.go).
+	txns map[string]string
+
 	// keeping serializes writing sessions to the keyring: a sign-in's, and a
 	// connection's rotated cookies and seq IDs.
 	keeping sync.Mutex
@@ -101,6 +105,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		cache: cache, secrets: secrets, accounts: slices.Clone(accounts), log: log.With("network", "instagram"),
 		said:      map[string]domain.AccountStatus{},
 		conns:     map[string]*conn{},
+		txns:      map[string]string{},
 		typing:    map[domain.RoomID]map[string]*time.Timer{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),

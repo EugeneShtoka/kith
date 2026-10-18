@@ -303,6 +303,7 @@ linters:
             - "go.mau.fi/mautrix-meta/pkg/messagix/cookies"
             - "go.mau.fi/mautrix-meta/pkg/messagix/dgw"
             - "go.mau.fi/mautrix-meta/pkg/messagix/httpclient"
+            - "go.mau.fi/mautrix-meta/pkg/messagix/methods"
             - "go.mau.fi/mautrix-meta/pkg/messagix/types"
             - "go.mau.fi/util/exhttp"
 
