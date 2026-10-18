@@ -66,7 +66,7 @@ func (a *Adapter) takeMessage(ctx context.Context, c *conn, client *instameow.Cl
 			}
 		}
 	}
-	msg, ok := message(c.self, chat, m)
+	msg, source, ok := message(c.self, chat, m)
 	if !ok {
 		return
 	}
@@ -74,6 +74,7 @@ func (a *Adapter) takeMessage(ctx context.Context, c *conn, client *instameow.Cl
 		a.log.Warn("cache a message failed", "account", c.account.Name, "err", err)
 		return
 	}
+	a.keepSource(ctx, msg, source)
 	if fbid(m.SenderFBID) == c.self {
 		a.readTo(ctx, c, chat, msg.Timestamp)
 	}

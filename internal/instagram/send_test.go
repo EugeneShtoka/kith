@@ -81,6 +81,9 @@ type igCall struct {
 }
 
 func (f *instagram) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Path == uploadPath {
+		return f.upload(req)
+	}
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err

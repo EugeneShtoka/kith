@@ -216,10 +216,12 @@ var (
 		cacheWriter
 	} = (*signal.Adapter)(nil)
 
-	// Instagram, so far: signed in by cookies, the inbox and messages received, and text
-	// sent, replied, edited, reacted, unsent, typed and read (media comes next).
+	// Instagram: signed in by cookies, the inbox and messages received, text sent,
+	// replied, edited, reacted, unsent, typed and read, and attachments both ways.
 	_ interface {
 		network
+		route.Media
+		route.Uploader
 		route.RoomLister
 		route.Recounter
 		route.Homes

@@ -238,16 +238,18 @@ func (a *Adapter) fetchRecent(ctx context.Context, c *conn, client *instameow.Cl
 	a.cachePage(ctx, c, chat, t.SlideMessages.Edges)
 }
 
-// cachePage caches a page of a thread's messages, with their reactions.
+// cachePage caches a page of a thread's messages, with their reactions and where their
+// attachments are.
 func (a *Adapter) cachePage(ctx context.Context, c *conn, chat string, edges []slidetypes.Node[*slidetypes.Message]) []domain.Message {
 	var msgs []domain.Message
+	var sources []mediaSource
 	var reactions []domain.Reaction
 	for _, e := range edges {
-		m, ok := message(c.self, chat, e.Node)
+		m, source, ok := message(c.self, chat, e.Node)
 		if !ok {
 			continue
 		}
-		msgs = append(msgs, m)
+		msgs, sources = append(msgs, m), append(sources, source)
 		for _, r := range e.Node.Reactions {
 			if r != nil && r.Reaction != "" {
 				reactions = append(reactions, c.reaction(m.ID, r))
@@ -261,6 +263,9 @@ func (a *Adapter) cachePage(ctx context.Context, c *conn, chat string, edges []s
 	if err := a.save(ctx, room, msgs...); err != nil {
 		a.log.Warn("cache a thread's messages failed", "account", c.account.Name, "err", err)
 		return nil
+	}
+	for i := range msgs {
+		a.keepSource(ctx, msgs[i], sources[i])
 	}
 	if len(reactions) > 0 {
 		if err := a.cache.SaveReactions(ctx, reactions); err != nil {
