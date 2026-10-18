@@ -29,6 +29,7 @@ func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Dra
 	}
 	sent := a.sentAt(draft.TxnID)
 	req := &signalv1.SendRequest{Account: self, Chat: chat, Group: group, Body: draft.Body, Sent: sent}
+	req.Timer, req.TimerVersion = a.timerOf(ctx, room)
 	if draft.ReplyTo != "" {
 		req.Quote = a.quote(ctx, room, draft.ReplyTo)
 	}
@@ -38,6 +39,7 @@ func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Dra
 	a.forgetTxn(draft.TxnID)
 	return a.takeMessage(ctx, self, &signalv1.Message{
 		Chat: chat, Group: group, Sender: self, Sent: sent, Received: sent, Body: draft.Body, Quote: req.GetQuote(),
+		Timer: req.GetTimer(), TimerVersion: req.GetTimerVersion(),
 	})
 }
 

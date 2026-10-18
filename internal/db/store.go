@@ -125,6 +125,69 @@ func (c *Cache) SetTimers(ctx context.Context, timers map[domain.RoomID]time.Dur
 	})
 }
 
+// KeepTimer keeps a chat's timer as something set at version says it: Signal numbers a
+// one-to-one chat's timer changes, so one older than the version kept is not taken (an
+// equal one is: it says the same change again, or a later message's view of it). Zero
+// removes the timer, and version 0 is none. kept says whether it was taken.
+func (c *Cache) KeepTimer(ctx context.Context, room domain.RoomID, timer time.Duration, version uint32) (bool, error) {
+	kept := false
+	err := c.inTx(ctx, func(tx *sql.Tx) error {
+		var have int64
+		row := tx.QueryRowContext(ctx, `SELECT version FROM room_timer_versions WHERE room_id = ?`, string(room))
+		if err := row.Scan(&have); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("db: read the timer version of %s: %w", room, err)
+		}
+		if int64(version) < have {
+			return nil
+		}
+		kept = true
+		return writeTimer(ctx, tx, room, timer, version)
+	})
+	return kept, err
+}
+
+// writeTimer writes a chat's timer (zero removes it) and, when numbered, its version.
+func writeTimer(ctx context.Context, tx *sql.Tx, room domain.RoomID, timer time.Duration, version uint32) error {
+	if timer <= 0 {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM room_timers WHERE room_id = ?`, string(room)); err != nil {
+			return fmt.Errorf("db: drop the timer of %s: %w", room, err)
+		}
+	}
+	if timer <= 0 && version == 0 {
+		return nil
+	}
+	if err := registerRoom(ctx, tx, room); err != nil {
+		return err
+	}
+	if timer > 0 {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO room_timers(room_id, seconds) VALUES(?, ?)
+			ON CONFLICT(room_id) DO UPDATE SET seconds = excluded.seconds`, string(room), int64(timer/time.Second)); err != nil {
+			return fmt.Errorf("db: keep the timer of %s: %w", room, err)
+		}
+	}
+	if version > 0 {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO room_timer_versions(room_id, version) VALUES(?, ?)
+			ON CONFLICT(room_id) DO UPDATE SET version = excluded.version`, string(room), int64(version)); err != nil {
+			return fmt.Errorf("db: keep the timer version of %s: %w", room, err)
+		}
+	}
+	return nil
+}
+
+// TimerVersion is a chat's timer and the version it was set at; zeros when none.
+func (c *Cache) TimerVersion(ctx context.Context, room domain.RoomID) (time.Duration, uint32, error) {
+	timer, err := c.Timer(ctx, room)
+	if err != nil {
+		return 0, 0, err
+	}
+	var version int64
+	err = c.db.QueryRowContext(ctx, `SELECT version FROM room_timer_versions WHERE room_id = ?`, string(room)).Scan(&version)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, fmt.Errorf("db: read the timer version of %s: %w", room, err)
+	}
+	return timer, uint32(version), nil //nolint:gosec // kept from a uint32
+}
+
 // Timer is a chat's disappearing-messages timer; zero when it has none.
 func (c *Cache) Timer(ctx context.Context, room domain.RoomID) (time.Duration, error) {
 	var seconds int64

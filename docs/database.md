@@ -310,8 +310,11 @@ Since then:
   IDs mirror `org.kith.people`; other networks' are kept here alone.
 - v17 (`room_timers`): a chat's disappearing-messages timer in seconds, a row only
   while it has one, so what kith sends there carries it (WhatsApp).
+- v18 (`room_timer_versions`): the version a chat's timer was set at, a row once a
+  network has numbered one (Signal counts a one-to-one chat's timer changes; an older
+  change is not taken). It outlives the timer's being turned off.
 
-so a current cache is at version 17.
+so a current cache is at version 18.
 
 ### Indexes need no migration
 

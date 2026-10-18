@@ -94,7 +94,21 @@ message EventsResponse {
     Receipt receipt = 10;
     Typing typing = 11;
     Read read = 12;
+    Timer timer = 13;
   }
+}
+
+// Timer is a chat's disappearing-messages timer changed, by someone in it or on another
+// of the account's devices.
+message Timer {
+  string chat = 1;
+  bool group = 2;
+  string sender = 3;
+  // The timer in seconds; 0 turns it off.
+  uint32 seconds = 4;
+  // For a one-to-one chat, the change's number: Signal counts them, and an older one
+  // does not undo a newer. 0 when the sender's app numbers none.
+  uint32 version = 5;
 }
 
 // Edit replaces a message's text.
@@ -190,6 +204,10 @@ message Message {
   // when the account knows them: what joins them to the same people elsewhere.
   string sender_number = 12;
   string chat_number = 13;
+  // The chat's disappearing-messages timer (s) as the message was sent with it, 0 for
+  // none, and for a one-to-one chat the number of the change that set it (see Timer).
+  uint32 timer = 14;
+  uint32 timer_version = 15;
 }
 
 // Quote is the message a message replies to.
@@ -247,6 +265,8 @@ message Group {
   string title = 2;
   // Its members' ACIs.
   repeated string members = 3;
+  // Its disappearing-messages timer (s), 0 for none.
+  uint32 timer = 4;
 }
 
 message AckRequest {
@@ -274,6 +294,11 @@ message SendRequest {
   uint64 edit_of = 7;
   Reaction reaction = 8;
   uint64 delete_of = 9;
+  // A new message's disappearing-messages timer (s): the chat's, which every message
+  // there must carry, or it does not disappear. For a one-to-one chat, the number of
+  // the change that set it (see Timer).
+  uint32 timer = 10;
+  uint32 timer_version = 11;
 }
 
 message SendResponse {}

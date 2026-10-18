@@ -64,7 +64,7 @@ func TestOpenRebuildsAnOlderCache(t *testing.T) {
 		CREATE TABLE messages(room_id TEXT, event_id TEXT, body TEXT, ts INTEGER);
 		INSERT INTO messages VALUES('!a:x', '$1', 'from the old shape', 1700000000000);
 		CREATE TABLE thread_reindex(room_id TEXT PRIMARY KEY, cursor TEXT, oldest_ts INTEGER, done INTEGER);
-		PRAGMA user_version = 17`); seedErr != nil {
+		PRAGMA user_version = 27`); seedErr != nil {
 		t.Fatalf("seed old schema: %v", seedErr)
 	}
 	if closeErr := old.Close(); closeErr != nil {
