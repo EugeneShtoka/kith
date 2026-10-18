@@ -11,6 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/gmessages"
+	"github.com/EugeneShtoka/kith/internal/instagram"
 	"github.com/EugeneShtoka/kith/internal/linkedin"
 	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/meta"
@@ -125,7 +126,7 @@ func openNetworks(
 	}
 	networks = append(networks, slack.New(cache, secrets, nil, log), telegram.New(cache, secrets, tg, nil, log),
 		meta.New(cache, secrets, msgr, nil, log), linkedin.New(cache, secrets, nil, log),
-		gmessages.New(cache, secrets, nil, log))
+		gmessages.New(cache, secrets, nil, log), instagram.New(cache, secrets, nil, log))
 	// kith-signal opens Signal's store itself; kithd holds its key and hands it over.
 	if key, err := session.LoadOrCreateStoreKey(storage.KeyringService, storage.Instance, "signal"); err != nil {
 		log.Error("Signal is off: its store's key cannot be had from the keyring", "err", err)
