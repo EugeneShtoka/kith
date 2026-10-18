@@ -61,6 +61,8 @@ func (f *fakeNetwork) Download(_ context.Context, req *signalv1.DownloadRequest)
 	return []byte("the photo"), nil
 }
 
+func (f *fakeNetwork) Unlink(context.Context, string) error { return nil }
+
 func (f *fakeNetwork) Upload(_ context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	return &signalv1.Attachment{FileName: req.GetFileName(), Pointer: []byte("kept")}, nil
 }

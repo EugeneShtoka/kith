@@ -134,6 +134,12 @@ func (f *fakeNetwork) Download(_ context.Context, req *signalv1.DownloadRequest)
 	return []byte("bytes of " + pointer), nil
 }
 
+// Unlink records which device went.
+func (f *fakeNetwork) Unlink(_ context.Context, aci string) error {
+	record(&signalv1.UnlinkRequest{Account: aci})
+	return nil
+}
+
 // Upload records req and returns the file with the pointer "up:" and its name.
 func (f *fakeNetwork) Upload(_ context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	record(req)

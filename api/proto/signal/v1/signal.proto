@@ -36,6 +36,9 @@ service SignalService {
   rpc Download(DownloadRequest) returns (DownloadResponse);
   // Upload encrypts a file and puts it on Signal's CDN, for a Send to carry.
   rpc Upload(UploadRequest) returns (UploadResponse);
+  // Unlink removes a linked device: Signal is told (when it is connected), and its keys
+  // are deleted from the store.
+  rpc Unlink(UnlinkRequest) returns (UnlinkResponse);
 }
 
 message HeartbeatRequest {}
@@ -348,6 +351,13 @@ message UploadRequest {
   uint32 width = 5;
   uint32 height = 6;
 }
+
+message UnlinkRequest {
+  // The linked account's ACI.
+  string account = 1;
+}
+
+message UnlinkResponse {}
 
 message UploadResponse {
   // The file as a Send carries it.

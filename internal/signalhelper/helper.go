@@ -46,6 +46,9 @@ type Network interface {
 	Download(ctx context.Context, req *signalv1.DownloadRequest) ([]byte, error)
 	// Upload puts a file on Signal's CDN from a connected account, as a Send carries it.
 	Upload(ctx context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error)
+	// Unlink removes the linked device aci: Signal is told when it is connected, and the
+	// device's keys are deleted either way.
+	Unlink(ctx context.Context, aci string) error
 }
 
 // ErrGone is an attachment Signal no longer keeps (its CDN drops them after a while).
@@ -221,6 +224,14 @@ func (s *service) Upload(ctx context.Context, req *connect.Request[signalv1.Uplo
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}
 	return connect.NewResponse(&signalv1.UploadResponse{Attachment: att}), nil
+}
+
+func (s *service) Unlink(ctx context.Context, req *connect.Request[signalv1.UnlinkRequest]) (*connect.Response[signalv1.UnlinkResponse], error) {
+	if err := s.network.Unlink(ctx, req.Msg.GetAccount()); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	s.log.Info("unlinked", "aci", req.Msg.GetAccount())
+	return connect.NewResponse(&signalv1.UnlinkResponse{}), nil
 }
 
 func wireDevice(d Device) *signalv1.Device {
