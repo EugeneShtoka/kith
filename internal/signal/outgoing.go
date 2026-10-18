@@ -58,12 +58,13 @@ func (a *Adapter) editOwn(ctx context.Context, room domain.RoomID, self, chat st
 		return errNotYours
 	}
 	sent := a.sentAt(draft.TxnID)
-	req := &signalv1.SendRequest{Account: self, Chat: chat, Group: group, Body: draft.Body, Sent: sent, EditOf: of}
+	body, mentions := mentionsOf(draft)
+	req := &signalv1.SendRequest{Account: self, Chat: chat, Group: group, Body: body, Sent: sent, EditOf: of, Mentions: mentions}
 	if _, err := h.client.Send(ctx, connect.NewRequest(req)); err != nil {
 		return fmt.Errorf("signal: edit in %s: %w", room, err)
 	}
 	a.forgetTxn(draft.TxnID)
-	return a.takeEdit(ctx, self, &signalv1.Edit{Chat: chat, Group: group, Sender: self, Target: of, Sent: sent, Body: draft.Body})
+	return a.takeEdit(ctx, self, &signalv1.Edit{Chat: chat, Group: group, Sender: self, Target: of, Sent: sent, Body: body, Mentions: mentions})
 }
 
 // SendReaction puts the account's reaction key on a message (naming its latest version,
