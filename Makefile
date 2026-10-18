@@ -390,6 +390,8 @@ endif
 #  - import only *set* session vars: importing an unset one clears it in the manager.
 #  - restart, not start, so the new binary runs.
 #  - the socket name hashes the MXID, so wait for any socket newer than a marker.
+#    Not the Signal helper's (signal-*.sock), which kithd also makes there: it says
+#    nothing of whether clients can connect.
 #    `activating` (auto-restart) is not failure: don't send users to re-login,
 #    which costs the device its E2EE identity.
 ifeq ($(HAVE_SYSTEMCTL),yes)
@@ -406,7 +408,7 @@ deploy: install
 	systemctl --user restart "$(DEPLOY_UNIT)"; \
 	sock=""; \
 	i=0; while [ $$i -lt 240 ]; do \
-	  sock=$$(find "$$sockdir" -maxdepth 1 -type s -newer "$$marker" 2>/dev/null | head -n 1); \
+	  sock=$$(find "$$sockdir" -maxdepth 1 -type s -newer "$$marker" ! -name 'signal-*' 2>/dev/null | head -n 1); \
 	  [ -n "$$sock" ] && break; \
 	  case "$$(systemctl --user is-active "$(DEPLOY_UNIT)" 2>/dev/null)" in \
 	    failed|inactive) break ;; \
