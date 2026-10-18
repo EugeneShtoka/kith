@@ -9,7 +9,6 @@ For what already exists, see the [documentation index](README.md).
 ## Networks
 
 - Signal, linked as a secondary device by scanning a QR code with your phone. Signal's encryption library is written in Rust and needs cgo, unlike the rest of kith, so it comes as a separate helper, `kith-signal`, that the daemon starts when it is installed.
-- Instagram direct messages, through the same connection as [Messenger](messenger.md).
 - Google Messages (SMS and RCS through your Android phone), paired as Messages for web is.
 
 ## Accounts and devices

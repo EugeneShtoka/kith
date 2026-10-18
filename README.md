@@ -32,7 +32,7 @@ account names that number wherever it appears, and your own tags group rooms acr
 networks. A Telegram forum is a space, its topics rooms of their own. Each network has
 its page: [WhatsApp](docs/whatsapp.md) · [Telegram](docs/telegram.md) (being built) ·
 [Slack](docs/slack.md) (being built) · [Messenger](docs/messenger.md) (being built) ·
-[LinkedIn](docs/linkedin.md).
+[Instagram](docs/instagram.md) · [LinkedIn](docs/linkedin.md).
 
 ### It keeps working when the terminal is closed
 
