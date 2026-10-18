@@ -283,6 +283,28 @@ linters:
             - "maunium.net/go/mautrix/bridgev2"
             - "modernc.org/sqlite"
 
+        # The Instagram adapter: the only package that imports mautrix-meta's instameow.
+        # Only the daemon links it; its sessions reach it through an interface the daemon
+        # backs with the keyring.
+        instagram-is-the-adapter:
+          files:
+            - "**/internal/instagram/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/rs/zerolog"
+            - "go.mau.fi/mautrix-meta/pkg/instameow"
+            - "go.mau.fi/mautrix-meta/pkg/messagix/cookies"
+            - "go.mau.fi/mautrix-meta/pkg/messagix/dgw"
+            - "go.mau.fi/mautrix-meta/pkg/messagix/httpclient"
+            - "go.mau.fi/mautrix-meta/pkg/messagix/types"
+            - "go.mau.fi/util/exhttp"
+
         # The Google Messages adapter: the only package that imports mautrix-gmessages'
         # libgm. Only the daemon links it; its sessions reach it through an interface
         # the daemon backs with the keyring.
@@ -685,6 +707,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/gmessages"
+            - "github.com/EugeneShtoka/kith/internal/instagram"
             - "github.com/EugeneShtoka/kith/internal/linkedin"
             - "github.com/EugeneShtoka/kith/internal/local"
             - "github.com/EugeneShtoka/kith/internal/logging"

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/gmessages"
+	"github.com/EugeneShtoka/kith/internal/instagram"
 	"github.com/EugeneShtoka/kith/internal/linkedin"
 	"github.com/EugeneShtoka/kith/internal/matrix"
 	"github.com/EugeneShtoka/kith/internal/meta"
@@ -214,4 +215,11 @@ var (
 		roomsRewriter
 		cacheWriter
 	} = (*signal.Adapter)(nil)
+
+	// Instagram, so far: signed in by cookies and connected (the inbox, messages and
+	// sending come next).
+	_ interface {
+		network
+		configChecker
+	} = (*instagram.Adapter)(nil)
 )

@@ -1257,6 +1257,17 @@ tag = "Archived"
 #   [[signal.account]]
 #   name = "phone"
 
+# Instagram direct messages, linked directly, with no Matrix bridge. It runs when it
+# has an account; `:login instagram` inside kith sets one up. Each
+# [[instagram.account]] is one Instagram account: `name` is what `kith login instagram
+# <name>` takes. Signing in is with your browser's instagram.com cookies (paste a
+# request's Cookie header, or a "Copy as cURL"): Instagram's password sign-in stops at
+# a cookie-consent page kith cannot answer. kith keeps the session in the system
+# keyring.
+#
+#   [[instagram.account]]
+#   name = "me"
+
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
 # data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,
 #                                    dictionaries and models

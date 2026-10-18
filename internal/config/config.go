@@ -56,6 +56,7 @@ type Config struct {
 	LinkedIn       LinkedIn      `toml:"linkedin"`
 	GMessages      GMessages     `toml:"gmessages"`
 	Signal         Signal        `toml:"signal"`
+	Instagram      Instagram     `toml:"instagram"`
 	Storage        Storage       `toml:"storage"`
 	Profiles       []Profile     `toml:"profile"`
 	Tags           []Tag         `toml:"tag"`
