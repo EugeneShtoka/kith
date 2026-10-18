@@ -34,6 +34,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 | [Google Messages](google-messages.md) | Pairing an Android phone's Messages directly (being built): pairing with your Google account, the risks |
 | [LinkedIn](linkedin.md) | Signing in to LinkedIn directly: the browser's cookies, the risks |
 | [Messenger](messenger.md) | Signing in to Messenger directly (being built): the password login, the risks |
+| [Signal](signal.md) | Linking Signal as one of your phone's devices: building the `kith-signal` helper, what works, disappearing messages, the risks |
 | [Instagram](instagram.md) | Signing in to Instagram's direct messages directly: the browser's cookies, no private read, the risks |
 | [Phonebook](phonebook.md) | A folder of Markdown cards, one per person, shared with other programs: the format, and `I` on a person |
 | [Encryption](encryption.md) | End-to-end encryption, device verification, key backup, key export and import, what is stored where |

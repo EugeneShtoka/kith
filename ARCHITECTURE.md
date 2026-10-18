@@ -452,13 +452,15 @@ hex-encoded, and goes on using that). There is no instance column anywhere:
 | Matrix crypto store | `$XDG_DATA_HOME/kith/crypto-<instance>.db` | `domain.Storage` |
 | WhatsApp devices and Signal sessions (encrypted at rest) | `$XDG_DATA_HOME/kith/whatsapp-<instance>.db` | `domain.Storage` |
 | Messenger's encrypted chats' devices (encrypted at rest) | `$XDG_DATA_HOME/kith/messenger-<instance>.db` | `domain.Storage` |
+| Signal's linked devices (encrypted at rest), opened by `kith-signal` | `$XDG_DATA_HOME/kith/signal-<instance>.db` | `domain.Storage` |
 | Telegram update positions | `$XDG_DATA_HOME/kith/telegram-<instance>.db` | `domain.Storage` |
 | socket | `$XDG_RUNTIME_DIR/kith/<instance>.sock` | `domain.Storage` |
+| the Signal helper's socket (kithd listens, `kith-signal` is handed it) | `$XDG_RUNTIME_DIR/kith/signal-<instance>.sock` | `domain.Storage` |
 | exclusive lock | `$XDG_RUNTIME_DIR/kith/<instance>.lock` | `domain.Storage` |
 | scheduled messages | `$XDG_STATE_HOME/kith/scheduled-<instance>.toml` | `domain.Storage` |
 | assistant ledger | `$XDG_STATE_HOME/kith/agent-sends-<instance>.jsonl` | `domain.Storage` |
 | Matrix access token, pickle key | OS keyring, service `keyring_service`, account = the instance | `session` |
-| WhatsApp's and Messenger's store keys | OS keyring, service `keyring_service`, `<instance>\|whatsapp-store`, `\|messenger-store` | `session` |
+| WhatsApp's, Messenger's and Signal's store keys | OS keyring, service `keyring_service`, `<instance>\|whatsapp-store`, `\|messenger-store`, `\|signal-store` | `session` |
 | Telegram, Messenger, LinkedIn and Google Messages sessions, Slack token and cookie | OS keyring, under each account | their adapters |
 | service | `kithd@<profile>.service` → `--profile <profile>` | `packaging/systemd` |
 | **notifications, DND** | the daemon's own state | per daemon |
