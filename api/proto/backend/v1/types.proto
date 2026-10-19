@@ -124,6 +124,9 @@ message Message {
   // Orders messages sharing a time, the larger the later; 0 for none
   // (domain.Message.Seq).
   int64 seq = 25;
+  // A stand-in for an encrypted message whose key has not arrived; the decrypted copy
+  // replaces it (domain.Message.Undecrypted).
+  bool undecrypted = 26;
 }
 
 // Poll is a question a message asks (domain.Poll).

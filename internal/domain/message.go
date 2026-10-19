@@ -47,6 +47,9 @@ type Message struct {
 	// Placeholder marks a bridge's stand-in for a message it could not decrypt yet; the
 	// bridge later replaces it by an edit, which counts as new.
 	Placeholder bool
+	// Undecrypted marks a stand-in for an encrypted message whose key has not arrived;
+	// the decrypted copy, when it comes, replaces it.
+	Undecrypted bool
 	Media       *Media // attachment metadata, or nil
 	Poll        *Poll  // the poll the message asks, or nil
 	// Seq orders messages sharing a Timestamp (larger is later); 0 when unknown. Set
@@ -193,7 +196,7 @@ func MergeMessages(existing, incoming []Message) []Message {
 			m := &group[i]
 			if m.ID != "" {
 				if idx, ok := index[m.ID]; ok {
-					merged[idx] = combine(merged[idx], *m)
+					merged[idx] = combineStandIn(merged[idx], *m)
 					continue
 				}
 				index[m.ID] = len(merged)
@@ -213,6 +216,15 @@ func MergeMessages(existing, incoming []Message) []Message {
 func CompareMessages(a, b Message) int {
 	return cmp.Or(a.Timestamp.Compare(b.Timestamp), cmp.Compare(a.Seq, b.Seq),
 		cmp.Compare(len(a.ID), len(b.ID)), strings.Compare(string(a.ID), string(b.ID)))
+}
+
+// combineStandIn is combine, except that a decrypted message is never folded onto its
+// undecrypted stand-in: the stand-in is folded onto it instead, so the message shows.
+func combineStandIn(a, b Message) Message {
+	if a.Undecrypted && !b.Undecrypted {
+		return combine(b, a)
+	}
+	return combine(a, b)
 }
 
 // combine folds duplicate b onto first-seen a: Redacted/Edited are sticky, missing
