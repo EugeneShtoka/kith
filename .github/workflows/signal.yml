@@ -64,8 +64,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: ubuntu-22.04, arch: amd64 }
-          - { runner: ubuntu-22.04-arm, arch: arm64 }
+          - { runner: ubuntu-22.04, arch: amd64, protoc: x86_64, protoc_sha256: 3e866620c5be27664f3d2fa2d656b5f3e09b5152b42f1bedbf427b333e90021a }
+          - { runner: ubuntu-22.04-arm, arch: arm64, protoc: aarch_64, protoc_sha256: 6427349140e01f06e049e707a58709a4f221ae73ab9a0425bc4a00c8d0e1ab32 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
@@ -78,12 +78,23 @@ jobs:
           cache: true
 
       # As above, plus cmake, clang and rustup where the image lacks them; rustup then
-      # installs the toolchain libsignal's rust-toolchain file names.
+      # installs the toolchain libsignal's rust-toolchain file names. Ubuntu 22.04's protoc
+      # (3.12) cannot read libsignal's proto3 optional fields, so protoc is protobuf's own
+      # release, checked against its digest; it carries the well-known .proto files.
       - name: libsignal's build tools
+        env:
+          PROTOC_VERSION: "29.3"
+          PROTOC_ARCH: ${{ matrix.protoc }}
+          PROTOC_SHA256: ${{ matrix.protoc_sha256 }}
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev cmake clang
+          sudo apt-get install -y --no-install-recommends cmake clang unzip
+          zip="protoc-$PROTOC_VERSION-linux-$PROTOC_ARCH.zip"
+          curl -fsSLo "$RUNNER_TEMP/$zip" "https://github.com/protocolbuffers/protobuf/releases/download/v$PROTOC_VERSION/$zip"
+          echo "$PROTOC_SHA256  $RUNNER_TEMP/$zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/$zip" -d "$RUNNER_TEMP/protoc"
+          echo "$RUNNER_TEMP/protoc/bin" >> "$GITHUB_PATH"
           if ! command -v rustup >/dev/null; then
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
