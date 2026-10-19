@@ -6,8 +6,8 @@ their own (`Signal <name>`): a one-to-one chat by the person's name, a group by 
 title, and your notes to yourself as Note to Self. Messages arrive as they are sent.
 
 **History.** When you link, your phone offers to transfer your message history. Accept
-it and kith takes it once linked: your chats appear with their messages, read as far
-as you had read them, quietly (nothing in it notifies). If kith stops part-way, it carries on the next time
+it and kith takes it once linked: your chats appear with their messages and their
+reactions, read as far as you had read them, quietly (nothing in it notifies). If kith stops part-way, it carries on the next time
 it connects. Decline it,
 and kith starts with only what arrives from then on, and a chat appears when its next
 message does.
@@ -15,7 +15,7 @@ message does.
 Replies, mentions, edits, deleted messages, reactions and who is typing show as they
 do in Signal's apps, and so do messages written on your phone, and chats read there.
 Pictures, videos, voice messages and files show as attachments, as on other networks:
-pictures inline, the rest opened or saved from the message. A message carrying more
+pictures and stickers inline, the rest opened or saved from the message. A message carrying more
 than one shows the first and counts the others (`(+2 more attachments)`). Signal keeps
 attachments for a while only; an old one then stops loading.
 

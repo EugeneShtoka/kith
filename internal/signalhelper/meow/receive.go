@@ -3,10 +3,12 @@
 package meow
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -232,7 +234,23 @@ func (a *account) message(ctx context.Context, info events.MessageInfo, data *si
 			ContentType: p.GetContentType(), FileName: p.GetFileName(), Size: uint64(p.GetSize()), Pointer: pointer,
 		})
 	}
+	if s := data.GetSticker(); s != nil {
+		m.Attachments, m.Body = sticker(s, m.GetAttachments(), m.GetBody())
+	}
 	return m
+}
+
+// sticker adds a sticker to a message as its picture, as other networks' show; one
+// whose picture is not there reads as its emoji.
+func sticker(s *signalpb.DataMessage_Sticker, files []*signalv1.Attachment, body string) ([]*signalv1.Attachment, string) {
+	p := s.GetData()
+	pointer, err := proto.Marshal(p)
+	if p == nil || err != nil {
+		return files, strings.TrimSpace(body + " [sticker] " + s.GetEmoji())
+	}
+	return append(files, &signalv1.Attachment{
+		ContentType: cmp.Or(p.GetContentType(), "image/webp"), FileName: "sticker", Size: uint64(p.GetSize()), Pointer: pointer,
+	}), body
 }
 
 // describe hands kithd a group's title and members before its first message this run.
