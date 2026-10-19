@@ -51,7 +51,12 @@ func (b *InProc) Timeline(ctx context.Context, roomID domain.RoomID, from string
 	if next == "" {
 		next = b.chainNext(ctx, roomID, depth)
 	}
-	return b.pageFrom(ctx, roomID, resp.Chunk, next), nil
+	page := b.pageFrom(ctx, roomID, resp.Chunk, next)
+	if depth == 0 && len(page.Messages) > 0 {
+		// Scrolling back from the newest has gone past every gap above this page.
+		b.dropGapsAbove(ctx, roomID, page.Messages[0].Timestamp)
+	}
+	return page, nil
 }
 
 // chainPrefix marks a Next token of our own meaning "continue in this other room";
@@ -96,6 +101,12 @@ func chainStep(roomID domain.RoomID, from string) (domain.RoomID, string, int) {
 // pageFrom turns one backward chunk (newest-first) into an oldest-first page,
 // decrypted, converted and written to the cache. Shared by /messages and /relations.
 func (b *InProc) pageFrom(ctx context.Context, roomID domain.RoomID, chunk []*event.Event, next string) domain.TimelinePage {
+	page, _ := b.cachePage(ctx, roomID, chunk, next)
+	return page
+}
+
+// cachePage is pageFrom, also returning the messages it cached (not the undecrypted).
+func (b *InProc) cachePage(ctx context.Context, roomID domain.RoomID, chunk []*event.Event, next string) (domain.TimelinePage, []domain.Message) {
 	msgs := make([]domain.Message, 0, len(chunk))
 	// Undecryptable placeholders are not cached: a cache hit would pin them unreadable
 	// after the session arrives.
@@ -134,7 +145,7 @@ func (b *InProc) pageFrom(ctx context.Context, roomID domain.RoomID, chunk []*ev
 		b.warnIf(ctx, b.cache.SaveReactions(ctx, reactions), "cache reactions", "room", roomID, "count", len(reactions))
 	}
 	b.restoreKept(ctx, roomID, msgs)
-	return domain.TimelinePage{Messages: msgs, Reactions: reactions, Next: next}
+	return domain.TimelinePage{Messages: msgs, Reactions: reactions, Next: next}, cacheable
 }
 
 // hydrate readies a server-fetched event: /messages and friends omit room_id and

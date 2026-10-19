@@ -136,6 +136,20 @@ CREATE TABLE room_sms (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
+-- Stretches of a room's history a sync skipped (a Matrix timeline cut short after
+-- kith was away), from the newest message held below (boundary, since_ms) to the oldest
+-- fetched above (until_ms); token is where paging back resumes. A row until filled.
+CREATE TABLE room_gaps (
+	id        INTEGER PRIMARY KEY,
+	room_id   TEXT    NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	boundary  TEXT    NOT NULL,
+	since_ms  INTEGER NOT NULL,
+	until_ms  INTEGER NOT NULL,
+	token     TEXT    NOT NULL,
+	announce  INTEGER NOT NULL CHECK (announce IN (0, 1)),
+	capped    INTEGER NOT NULL DEFAULT 0 CHECK (capped IN (0, 1))
+) STRICT;
+
 -- A chat's disappearing-messages timer, a row only while it has one: what kith sends
 -- there must carry it (SetTimers).
 CREATE TABLE room_timers (
@@ -567,6 +581,17 @@ DROP TABLE phone_names;`,
 	`CREATE TABLE IF NOT EXISTS room_sms (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;`,
+	// v21: stretches of history a sync skipped, until filled.
+	`CREATE TABLE IF NOT EXISTS room_gaps (
+	id        INTEGER PRIMARY KEY,
+	room_id   TEXT    NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	boundary  TEXT    NOT NULL,
+	since_ms  INTEGER NOT NULL,
+	until_ms  INTEGER NOT NULL,
+	token     TEXT    NOT NULL,
+	announce  INTEGER NOT NULL CHECK (announce IN (0, 1)),
+	capped    INTEGER NOT NULL DEFAULT 0 CHECK (capped IN (0, 1))
+) STRICT;`,
 }
 
 // ensureIndexes makes the file's indexes exactly baseSchema's (create missing,

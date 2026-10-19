@@ -93,6 +93,11 @@ type InProc struct {
 	held    heldReceipts
 	fetches receiptFetches
 
+	// gaps fills the history syncs skipped (gaps.go); syncs counts responses, the first
+	// being the catch-up after a start.
+	gaps  gapFiller
+	syncs atomic.Int64
+
 	// invites is the whole invite set; a sync carries only changes.
 	invites struct {
 		mu    sync.Mutex
@@ -257,6 +262,8 @@ func (b *InProc) Start(ctx context.Context) error {
 	syncer.OnEventType(event.StateMember, b.onMember)
 	syncer.OnSync(b.onSync)
 	b.wantNetworks()
+	// Gaps the last run left unfilled are taken up on the first sync.
+	b.gaps.pending.Store(true)
 	// Handlers are registered on syncer itself; the wrapper only adds logging.
 	b.client.Syncer = &failingSyncer{DefaultSyncer: syncer, b: b}
 	if err := b.syncUntilDone(ctx); err != nil {
@@ -277,6 +284,7 @@ func (b *InProc) Stop() {
 		b.ver.stop()
 		// Read-position fetches write the cache; their context is already canceled.
 		b.fetches.wg.Wait()
+		b.gaps.wg.Wait()
 
 		if helper := b.cryptoHelper(); helper != nil {
 			b.warnIf(context.Background(), helper.Close(), "close the crypto store")
@@ -418,6 +426,9 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 	if b.onSynced != nil {
 		b.onSynced(time.Now())
 	}
+	b.syncs.Add(1)
+	// Before the token moves on: the gap is kept even if kithd stops right after.
+	b.recordGaps(ctx, resp, since)
 	b.readNetworksIfWanted(ctx)
 	// A sync succeeded: the homeserver is there for receipts owed. Not on this goroutine.
 	if len(b.reads.owed()) > 0 {

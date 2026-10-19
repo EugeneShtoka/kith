@@ -52,6 +52,9 @@ type Message struct {
 	// Seq orders messages sharing a Timestamp (larger is later); 0 when unknown. Set
 	// by networks with whole-second times and unordered IDs (WhatsApp).
 	Seq int64
+	// Late marks a message that arrived by filling a gap in history after it was sent
+	// (off the client wire): notifications fold the old ones into one.
+	Late bool
 	// Mentions are the formatted-body pills.
 	Mentions []Mention
 }

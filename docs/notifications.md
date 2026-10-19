@@ -290,6 +290,8 @@ There is one rule per target, and each preset adds to it. Anything more complex,
 
 The first sync after the daemon starts is catch-up: everything that arrived while it was down. **None of it notifies.** Twenty popups about yesterday evening would tell you nothing the room list does not. Once the daemon has caught up, every new message is judged as it arrives.
 
+On Matrix, a busy room's first sync after a while away carries only its newest few messages; kith fetches the rest in the background, back to the last message it had. What that brings after a restart is catch-up and does not notify either. When the daemon was running and only lost its connection, what it brings is judged as it arrives, except that messages more than ten minutes old fold into one silent popup per room ("3 messages from earlier"). Either way they are counted as unread.
+
 Your own messages, edits and redactions never notify. Rooms a tag with `notifies = false` holds (the starter's [Spam](filters.md)) never notify, whatever the rules say. Nor does a [hidden person](filters.md#hiding-a-person), or a direct reply to one.
 
 `kith` starts a daemon if none is running, and anything that arrived before that was never notified. Run the daemon as a systemd user service so this does not happen (see [getting started](getting-started.md)).
