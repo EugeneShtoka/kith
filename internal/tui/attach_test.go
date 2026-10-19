@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/filedialog"
+	"github.com/EugeneShtoka/kith/internal/media"
 )
 
 // sendingBackend records what was asked, so tests can assert on the path the daemon
@@ -26,6 +28,7 @@ type sendingBackend struct {
 	name    string
 	caption string
 	media   []byte
+	bytes   []byte // the file SendFile was given, as it read then
 	err     error
 	// sent records the drafts that went out.
 	sent []domain.Draft
@@ -39,6 +42,8 @@ func (b *sendingBackend) Send(_ context.Context, roomID domain.RoomID, draft dom
 
 func (b *sendingBackend) SendFile(_ context.Context, roomID domain.RoomID, path, name, caption string) error {
 	b.roomID, b.path, b.name, b.caption = roomID, path, name, caption
+	// What the daemon would read: a copy made for the send is gone once it returns.
+	b.bytes, _ = os.ReadFile(path)
 	return b.err
 }
 
@@ -127,6 +132,77 @@ func TestAttachSendsUnderANeutralName(t *testing.T) {
 	send(m)
 	if backend.name != "IMG_2041 Haifa.JPG" {
 		t.Errorf("with anonymizing off for the room: sent as %q, want its own name", backend.name)
+	}
+}
+
+// Where names are anonymized a photo goes without where it was taken, as a copy that is
+// gone once sent; the person's own file is untouched, and with anonymizing off the photo
+// goes as it is. HEIC, which kith cannot clean, goes as it is and the status says so.
+func TestAttachSendsAPhotoWithoutWhereItWasTaken(t *testing.T) {
+	t.Parallel()
+	const where = "GPS 32.0853N 34.7818E"
+	exif := append([]byte("Exif\x00\x00MM\x00\x2A\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00"), where...)
+	photo := []byte{0xFF, 0xD8, 0xFF, 0xE1, 0, byte(2 + len(exif))}
+	photo = append(photo, exif...)
+	photo = append(photo, 0xFF, 0xDA, 0x00, 0x02, 0x11, 0x22, 0xFF, 0xD9)
+	heic := append([]byte{0, 0, 0, 24}, []byte("ftypheic\x00\x00\x00\x00mif1heic"+where)...)
+
+	sendFile := func(m Model, file string) Model {
+		t.Helper()
+		m, _ = press(t, m, keyText("i"))
+		m, _ = press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModAlt})
+		m, _ = updateWith(t, m, fileChosenMsg{err: filedialog.ErrUnavailable})
+		return typeIn(t, m, file)
+	}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "IMG_2041.jpg")
+	if err := os.WriteFile(file, photo, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	withCache := func(m Model) Model {
+		t.Helper()
+		cache, err := media.New(t.TempDir(), -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.pics.cache = cache
+		return m
+	}
+	m, backend := attaching(t)
+	sendFile(withCache(m), file)
+	if strings.Contains(string(backend.bytes), where) || len(backend.bytes) == 0 {
+		t.Errorf("sent %q; want the photo without its location", backend.bytes)
+	}
+	if backend.path == file {
+		t.Error("the photo itself was sent, not a clean copy")
+	}
+	if _, err := os.Stat(backend.path); !os.IsNotExist(err) {
+		t.Errorf("the clean copy outlived the send: %v", err)
+	}
+	if own, _ := os.ReadFile(file); !bytes.Equal(own, photo) {
+		t.Error("the person's own photo was changed")
+	}
+
+	m, backend = attaching(t)
+	off := false
+	m = m.applyMedia(config.Media{Rules: []config.MediaRule{{Match: "!a:x", Anonymize: &off}}})
+	sendFile(m, file)
+	if backend.path != file || !strings.Contains(string(backend.bytes), where) {
+		t.Errorf("with anonymizing off: sent %s, want the photo as it is", backend.path)
+	}
+
+	heicFile := filepath.Join(dir, "IMG_2042.HEIC")
+	if err := os.WriteFile(heicFile, heic, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m, backend = attaching(t)
+	m = sendFile(withCache(m), heicFile)
+	if backend.path != heicFile {
+		t.Errorf("HEIC sent from %s, want the file as it is", backend.path)
+	}
+	if !strings.Contains(m.status(), "HEIC") {
+		t.Errorf("status = %q; want it to say HEIC keeps where it was taken", m.status())
 	}
 }
 
@@ -294,7 +370,8 @@ func TestUploadCommand(t *testing.T) {
 
 	dir := t.TempDir()
 	file := filepath.Join(dir, "shot.png")
-	if err := os.WriteFile(file, []byte("\x89PNG\r\n\x1a\n"), 0o600); err != nil {
+	// Not a real PNG: a picture would go as a clean copy (TestAttachSendsAPhotoWithoutWhereItWasTaken).
+	if err := os.WriteFile(file, []byte("shot"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

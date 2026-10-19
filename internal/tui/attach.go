@@ -13,6 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/filedialog"
+	"github.com/EugeneShtoka/kith/internal/media"
 )
 
 // downloadDir is where attachments land: the configured directory, else
@@ -157,12 +158,16 @@ func expandHome(path string) (string, error) {
 type attachSentMsg struct {
 	name string
 	err  error
+	// kept: an anonymized picture went with its metadata, which kith cannot remove.
+	kept bool
 }
 
 // sendFileCmd stats the file first (for a useful "no such file") and hands it to the
-// daemon, which encrypts, uploads and posts it under name.
+// daemon, which encrypts, uploads and posts it under name. Where names are anonymized, a
+// picture goes as a copy without its metadata (media.Strip), removed once sent.
 func (m Model) sendFileCmd(roomID domain.RoomID, path, name, caption string) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
+	strip, outgoing := m.anonymizes(roomID, path), m.pics.cache.Outgoing()
 	return func() tea.Msg {
 		sent := attachSentMsg{name: filepath.Base(path)}
 		info, err := os.Stat(path)
@@ -173,6 +178,16 @@ func (m Model) sendFileCmd(roomID domain.RoomID, path, name, caption string) tea
 		case info.IsDir():
 			sent.err = errors.New("it is a directory")
 			return sent
+		}
+		if strip {
+			clean, what, err := media.Strip(path, outgoing)
+			if err != nil {
+				sent.err = err
+				return sent
+			}
+			defer media.Unstrip(clean, path)
+			sent.kept = what == media.Kept
+			path = clean
 		}
 		sent.err = backend.SendFile(ctx, roomID, path, name, caption)
 		return sent
@@ -187,6 +202,9 @@ func (m Model) handleAttachSent(msg attachSentMsg) (Model, tea.Cmd) {
 	case msg.err != nil:
 		m = m.sayErr("could not send "+isolate(msg.name), msg.err)
 		return m, nil
+	}
+	if msg.kept {
+		return m.say("sent " + isolate(msg.name) + " with where and when it was taken: kith cannot remove that from HEIC"), nil
 	}
 	m = m.say("sent " + isolate(msg.name))
 	return m, nil

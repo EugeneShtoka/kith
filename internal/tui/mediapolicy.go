@@ -29,10 +29,16 @@ func (m Model) mediaPolicyAt(place domain.DownloadPlace) domain.MediaPolicy {
 // where [display.media] anonymize holds there, its own elsewhere.
 func (m Model) sentName(roomID domain.RoomID, path string) string {
 	name := filepath.Base(path)
-	if m.mediaPolicyAt(m.placeOf(domain.Message{RoomID: roomID, Media: &domain.Media{Name: name}})).Anonymize {
+	if m.anonymizes(roomID, path) {
 		return domain.SentName(name)
 	}
 	return name
+}
+
+// anonymizes reports whether [display.media] anonymize holds for a file sent to a room:
+// a neutral name, and a picture without its metadata.
+func (m Model) anonymizes(roomID domain.RoomID, path string) bool {
+	return m.mediaPolicyAt(m.placeOf(domain.Message{RoomID: roomID, Media: &domain.Media{Name: filepath.Base(path)}})).Anonymize
 }
 
 // mediaRules converts the configured per-place rules into the pure layer's shape.

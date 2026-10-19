@@ -163,6 +163,8 @@ Anything after the `|` is the caption. A leading `~` is expanded, and nothing el
 
 **A file goes out under a neutral name** for what it is, on every network: `IMG_2041 Haifa.jpg` is sent as `photo.jpg`, `contract v3.docx` as `document.docx`, a film as `video.mkv`, a song as `music.mp3`, a `.zip` or `.7z` as `archive.zip`, and anything else as `file` plus its extension. The extension stays, so the file still opens; the name you gave it stays yours. Turn it off with `anonymize = false` under `[display.media]`, or for one place with a `[[display.media.rule]]` (a room, a space, a tag), as other media settings are scoped. Settings shows it under Media.
 
+**A photo goes without where it was taken**, under the same setting. A phone writes the place (GPS), the camera and the time into every photo; kith sends a copy without them and keeps your file as it is. A JPEG loses its EXIF, XMP, IPTC and comments but keeps which way up it is, so it is not shown sideways; a PNG loses its text and EXIF chunks; a WebP its EXIF and XMP. The picture itself is copied, never re-encoded. kith cannot clean HEIC (an iPhone's default): it goes as it is, and the status line says so. Videos go as they are.
+
 To save attachments other people sent, use `s` and `S` on the timeline. The [usage guide](usage.md) covers both.
 
 ## Drafts
