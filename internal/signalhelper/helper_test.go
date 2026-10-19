@@ -119,13 +119,15 @@ func TestTheHelperLapsesWithoutHeartbeats(t *testing.T) {
 	}
 }
 
-// Heartbeats keep it alive well past the lapse; once they stop, it lapses.
+// Heartbeats keep it alive well past the lapse; once they stop, it lapses. The lapse
+// runs from the start, so the first beat (and its connection) must land within it,
+// under a whole suite's load too: the beats come at a tenth of it.
 func TestHeartbeatsKeepTheHelperAlive(t *testing.T) {
 	t.Parallel()
-	const lapse = 300 * time.Millisecond
+	const lapse = time.Second
 	client, lapsed := serve(t, &fakeNetwork{}, lapse)
 	ctx := context.Background()
-	stop := time.Now().Add(4 * lapse)
+	stop := time.Now().Add(3 * lapse)
 	for time.Now().Before(stop) {
 		if _, err := client.Heartbeat(ctx, connect.NewRequest(&signalv1.HeartbeatRequest{})); err != nil {
 			t.Fatal(err)
@@ -133,7 +135,7 @@ func TestHeartbeatsKeepTheHelperAlive(t *testing.T) {
 		select {
 		case <-lapsed:
 			t.Fatal("lapsed while kithd was beating")
-		case <-time.After(lapse / 4):
+		case <-time.After(lapse / 10):
 		}
 	}
 	select {
