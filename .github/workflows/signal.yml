@@ -3,7 +3,8 @@ name: Signal
 # kith-signal, the Signal helper: the one binary built with cgo, against libsignal_ffi
 # (Rust). Outside ci-ok on purpose: a broken Signal build never blocks a merge. On a PR
 # it labels the PR `signal-broken` until it is green again; release.yml calls this
-# workflow, so a broken Signal build does block a release.
+# workflow, so a broken Signal build does block a release, and packages the kith-signal
+# its `package` job builds.
 
 on:
   push:
@@ -56,10 +57,68 @@ jobs:
       - name: Test and lint kith-signal with the signal tag
         run: make signal-check
 
+  # The kith-signal the release packages beside kithd (.goreleaser.yaml), built natively
+  # per arch, as cgo needs. On Ubuntu 22.04: it then needs glibc 2.35 or newer, and a
+  # newer runner would raise that floor.
+  package:
+    strategy:
+      matrix:
+        include:
+          - { runner: ubuntu-22.04, arch: amd64 }
+          - { runner: ubuntu-22.04-arm, arch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # As above, plus cmake, clang and rustup where the image lacks them; rustup then
+      # installs the toolchain libsignal's rust-toolchain file names.
+      - name: libsignal's build tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev cmake clang
+          if ! command -v rustup >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
+      # Keyed by runner image too: a library built against a newer glibc raises the floor.
+      - name: The libsignal build's cache key
+        id: libsignal
+        run: echo "key=libsignal-${{ matrix.runner }}-$(grep -E '^\s*go.mau.fi/mautrix-signal ' go.mod | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/libsignal-*
+          key: ${{ steps.libsignal.outputs.key }}
+
+      # As `make build-signal`, stripped and without paths, as GoReleaser builds the rest.
+      # The last line logs the newest glibc it needs.
+      - name: Build kith-signal for the release
+        run: |
+          set -euo pipefail
+          lib=$(bash scripts/build-libsignal.sh)
+          CGO_ENABLED=1 CGO_LDFLAGS="-L$lib" go build -trimpath -tags=goolm,signal -ldflags="-s -w" \
+            -o build/signal/kith-signal ./cmd/kith-signal/
+          objdump -T build/signal/kith-signal | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -n 1
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kith-signal-linux_${{ matrix.arch }}
+          path: build/signal/kith-signal
+          retention-days: 5
+          if-no-files-found: error
+
   # A PR whose Signal build fails is labelled `signal-broken`; the label goes when it
   # passes again.
   label:
-    needs: signal
+    needs: [signal, package]
     if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -70,7 +129,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-          RESULT: ${{ needs.signal.result }}
+          RESULT: ${{ contains(needs.*.result, 'failure') && 'failure' || needs.package.result == 'success' && needs.signal.result }}
         run: |
           case "$RESULT" in
             failure) gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label signal-broken ;;

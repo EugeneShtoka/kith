@@ -44,9 +44,21 @@ Every Linux package, the AUR packages and the Nix package install the same set:
 | `/usr/share/doc/kith/` | `README.md`, `ARCHITECTURE.md`, `docs/*.md`, and `config.toml.example` from `kith --print-config` |
 | `/usr/share/licenses/kith/LICENSE` (`/usr/share/doc/kith/copyright` in the `.deb`) | `LICENSE` |
 
-`kith-signal`, the Signal helper, is in no package yet: it links libsignal through
-cgo, and is built from source with `make build-signal` (see [Signal](signal.md)). The
-release still builds it and runs its tests, so a broken Signal build blocks a release.
+`kith-signal`, the Signal helper, links libsignal through cgo, so GoReleaser cannot
+cross-build it. `signal.yml`'s `package` job builds it natively on Ubuntu 22.04 for
+amd64 and arm64 (glibc 2.35 is then the floor) and uploads each as an artifact. It
+runs on every PR and push too, so a break shows before a tag. The release job
+downloads the artifacts into `build/signal/`, and GoReleaser puts the helper beside
+kithd. It goes in:
+
+| Ships `kith-signal` | Does not, and why |
+| --- | --- |
+| the `linux_{amd64,arm64}` archives, so `kith-bin` too | darwin and FreeBSD archives, Homebrew: no build there yet, and it has never run on either |
+| `.deb`, `.rpm`, `.pkg.tar.zst` as `/usr/bin/kith-signal` | `.apk`: Alpine has musl, the helper is linked against glibc |
+| | `kith` (AUR, from source), `kith-git`, Nix: building libsignal needs Rust, cmake, clang and protoc and fetches its own sources |
+
+The release still runs the helper's tests, so a broken Signal build blocks a release.
+Users without a package build it with `make build-signal` (see [Signal](signal.md)).
 
 The Nix package uses `$out/...` for the same paths, with the units pointing into the
 store. Before GoReleaser packages anything, its `before` hook runs
