@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf16"
 
 	"connectrpc.com/connect"
 
@@ -479,7 +480,7 @@ func message(self string, m *signalv1.Message) domain.Message {
 		SenderName: m.GetSenderName(),
 		Timestamp:  time.UnixMilli(int64(m.GetSent())), //nolint:gosec // a Signal timestamp fits
 	}
-	msg.Body, msg.Mentioned = mentioned(self, m.GetBody(), m.GetMentions())
+	msg.Body, msg.Format, msg.Mentioned = rendered(self, m.GetBody(), m.GetMentions(), m.GetStyles())
 	if q := m.GetQuote(); q != nil && q.GetAuthor() != "" {
 		msg.ReplyTo = eventID(self, m.GetChat(), m.GetGroup(), q.GetAuthor(), q.GetSent())
 	}
@@ -493,16 +494,17 @@ func message(self string, m *signalv1.Message) domain.Message {
 }
 
 // mentioned writes each mention's name where Signal left U+FFFC, in order, and reports
-// whether self is among them.
-func mentioned(self, body string, mentions []*signalv1.Mention) (string, bool) {
-	if len(mentions) == 0 {
-		return body, false
-	}
+// whether self is among them. at maps each UTF-16 offset of body (and one past its end)
+// to its byte offset in the text written.
+func mentioned(self, body string, mentions []*signalv1.Mention) (text string, at []int, me bool) {
 	ordered := slices.Clone(mentions)
 	slices.SortFunc(ordered, func(x, y *signalv1.Mention) int { return int(x.GetStart()) - int(y.GetStart()) })
 	var out strings.Builder
-	next, me := 0, false
+	next := 0
 	for _, r := range body {
+		for range utf16.RuneLen(r) {
+			at = append(at, out.Len())
+		}
 		if r == '￼' && next < len(ordered) {
 			m := ordered[next]
 			next++
@@ -516,7 +518,7 @@ func mentioned(self, body string, mentions []*signalv1.Mention) (string, bool) {
 		}
 		out.WriteRune(r)
 	}
-	return out.String(), me
+	return out.String(), append(at, out.Len()), me
 }
 
 // media is an attachment as kith describes it.

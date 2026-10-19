@@ -390,7 +390,9 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/expiry"
+            - "github.com/EugeneShtoka/kith/internal/markdown"
             - "github.com/EugeneShtoka/kith/internal/readstate"
+            - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/google/uuid"
 
         # kith-signal's process: SignalService and the heartbeat, over Network. Pure Go,

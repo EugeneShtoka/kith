@@ -177,6 +177,7 @@ func (a *account) chatEvent(ctx context.Context, e *events.ChatEvent) {
 		a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Edit{Edit: &signalv1.Edit{
 			Chat: chat, Group: data.GetGroupV2() != nil, Sender: sender, Target: c.GetTargetSentTimestamp(),
 			Sent: data.GetTimestamp(), Body: data.GetBody(), Mentions: a.mentions(ctx, data.GetBodyRanges()),
+			Styles: styles(data.GetBodyRanges()),
 		}}})
 	case *signalpb.TypingMessage:
 		if sender == a.aci {
@@ -203,6 +204,18 @@ func (a *account) mentions(ctx context.Context, ranges []*signalpb.BodyRange) []
 	return out
 }
 
+// styles is how a body is formatted: its ranges that are styles, not people. Signal's
+// styles are numbered as the wire's kinds.
+func styles(ranges []*signalpb.BodyRange) []*signalv1.Style {
+	var out []*signalv1.Style
+	for _, r := range ranges {
+		if style := r.GetStyle(); style != signalpb.BodyRange_NONE {
+			out = append(out, &signalv1.Style{Start: r.GetStart(), Length: r.GetLength(), Kind: signalv1.Style_Kind(style)})
+		}
+	}
+	return out
+}
+
 // message is data as a wire message.
 func (a *account) message(ctx context.Context, info events.MessageInfo, data *signalpb.DataMessage) *signalv1.Message {
 	m := &signalv1.Message{
@@ -225,6 +238,7 @@ func (a *account) message(ctx context.Context, info events.MessageInfo, data *si
 		m.Quote = &signalv1.Quote{Author: q.GetAuthorAci(), Sent: q.GetId(), Text: q.GetText()}
 	}
 	m.Mentions = a.mentions(ctx, data.GetBodyRanges())
+	m.Styles = styles(data.GetBodyRanges())
 	for _, p := range data.GetAttachments() {
 		pointer, err := proto.Marshal(p)
 		if err != nil {

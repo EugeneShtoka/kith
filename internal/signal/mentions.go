@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -14,9 +15,10 @@ const placeholder = "￼"
 
 // mentionsOf is a draft's text as Signal sends it: each mention of a Signal person (its
 // text, "@Dana") is U+FFFC, with the person named at that place (in UTF-16 units, as
-// Signal counts). A mention of anyone else stays as typed.
-func mentionsOf(draft domain.Draft) (string, []*signalv1.Mention) {
-	body := draft.Body
+// Signal counts). A mention of anyone else stays as typed. units maps each byte offset
+// of the draft's text (and one past its end) to its UTF-16 offset in what is sent.
+func mentionsOf(draft domain.Draft) (body string, mentions []*signalv1.Mention, units []int) {
+	body = draft.Body
 	type at struct {
 		start int // in bytes of body
 		m     domain.Mention
@@ -43,22 +45,32 @@ func mentionsOf(draft domain.Draft) (string, []*signalv1.Mention) {
 			from = i + len(m.Name)
 		}
 	}
-	if len(found) == 0 {
-		return body, nil
-	}
 	slices.SortFunc(found, func(x, y at) int { return x.start - y.start })
 	var out strings.Builder
-	var mentions []*signalv1.Mention
-	last := 0
+	units = make([]int, len(body)+1)
+	u, last := 0, 0
+	kept := func(to int) { // copies body up to to as it is
+		for i, r := range body[last:to] {
+			for j := range utf8.RuneLen(r) {
+				units[last+i+j] = u
+			}
+			u += utf16.RuneLen(r)
+		}
+		out.WriteString(body[last:to])
+	}
 	for _, f := range found {
-		out.WriteString(body[last:f.start])
-		start := len(utf16.Encode([]rune(out.String())))
+		kept(f.start)
+		for j := range len(f.m.Name) {
+			units[f.start+j] = u
+		}
 		out.WriteString(placeholder)
 		mentions = append(mentions, &signalv1.Mention{
-			Start: uint32(start), Length: 1, Aci: f.aci, Name: strings.TrimPrefix(f.m.Name, "@"), //nolint:gosec // a message's length fits
+			Start: uint32(u), Length: 1, Aci: f.aci, Name: strings.TrimPrefix(f.m.Name, "@"), //nolint:gosec // a message's length fits
 		})
+		u++
 		last = f.start + len(f.m.Name)
 	}
-	out.WriteString(body[last:])
-	return out.String(), mentions
+	kept(len(body))
+	units[len(body)] = u
+	return out.String(), mentions, units
 }

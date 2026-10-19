@@ -53,6 +53,12 @@ func (n *Network) Send(ctx context.Context, req *signalv1.SendRequest) error {
 				AssociatedValue: &signalpb.BodyRange_MentionAci{MentionAci: m.GetAci()},
 			})
 		}
+		for _, st := range req.GetStyles() {
+			data.BodyRanges = append(data.BodyRanges, &signalpb.BodyRange{
+				Start: new(st.GetStart()), Length: new(st.GetLength()),
+				AssociatedValue: &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_Style(st.GetKind())},
+			})
+		}
 		for _, f := range req.GetAttachments() {
 			p := &signalpb.AttachmentPointer{}
 			if err := proto.Unmarshal(f.GetPointer(), p); err != nil {

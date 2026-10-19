@@ -12,8 +12,9 @@ it connects. Decline it,
 and kith starts with only what arrives from then on, and a chat appears when its next
 message does.
 
-Replies, mentions, edits, deleted messages, reactions and who is typing show as they
-do in Signal's apps, and so do messages written on your phone, and chats read there.
+Replies, mentions, formatting (bold, italic, strikethrough, monospace, spoilers),
+edits, deleted messages, reactions and who is typing show as they do in Signal's
+apps, and so do messages written on your phone, and chats read there.
 Pictures, videos, voice messages and files show as attachments, as on other networks:
 pictures and stickers inline, the rest opened or saved from the message. A message carrying more
 than one shows the first and counts the others (`(+2 more attachments)`). Signal keeps
@@ -21,8 +22,10 @@ attachments for a while only; an old one then stops loading.
 
 You can write in a chat, reply, mention people (`@` offers the chat's members, and
 the mention reaches them as one), edit and delete what you wrote (for everyone),
-react, and others see you typing. Leaving a group takes you out of it on Signal, and
-its other members are told; a one-to-one chat cannot be left.
+react, and others see you typing. What you write is Markdown, as on other networks,
+and goes as Signal's formatting; Signal has no links, so a link's address follows its
+words. Leaving a group takes you out of it on Signal, and its other members are told;
+a one-to-one chat cannot be left.
 Attaching a file sends it with what you typed as its caption; AAC audio goes as a
 voice message, as Signal's apps record them.
 
