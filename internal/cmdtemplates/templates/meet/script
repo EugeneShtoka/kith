@@ -1,0 +1,29 @@
+#!/bin/sh -eu
+# /meet [topic]: create a Google Meet space with your own OAuth client and post its link.
+# The refresh token comes from one consent with the meetings.space.created scope; see
+# kith's docs/commands.md. Credentials reach curl through a private file, never its
+# command line, which other users can read.
+conf=$(mktemp)
+trap 'rm -f "$conf"' EXIT
+chmod 600 "$conf"
+
+# The form is URL-encoded, so nothing in it needs quoting in curl's config.
+jq -jn --arg id "$KITH_SECRET_CLIENT_ID" --arg secret "$KITH_SECRET_CLIENT_SECRET" \
+  --arg refresh "$KITH_SECRET_REFRESH_TOKEN" \
+  '"url = \"https://oauth2.googleapis.com/token\"\ndata = \"client_id=\($id|@uri)&client_secret=\($secret|@uri)&refresh_token=\($refresh|@uri)&grant_type=refresh_token\"\n"' >"$conf"
+token=$(curl -fsS -X POST -K "$conf" | jq -er .access_token) || {
+  echo "Google refused the OAuth client or its refresh token" >&2
+  exit 1
+}
+
+printf 'url = "https://meet.googleapis.com/v2/spaces"\nheader = "Authorization: Bearer %s"\n' "$token" >"$conf"
+link=$(curl -fsS -X POST -K "$conf" -H 'Content-Type: application/json' --data '{}' | jq -er .meetingUri) || {
+  echo "Google did not create a meeting" >&2
+  exit 1
+}
+
+if [ -n "${1:-}" ]; then
+  printf 'Meet about %s: %s\n' "$1" "$link"
+else
+  printf 'Joining Meet: %s\n' "$link"
+fi

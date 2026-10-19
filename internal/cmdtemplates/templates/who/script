@@ -1,0 +1,5 @@
+#!/bin/sh -eu
+# /who: message counts per person over the last 100 messages.
+jq -r '.history | group_by(.sender_name // .sender)
+       | map({who: (.[0].sender_name // .[0].sender), n: length})
+       | sort_by(-.n)[] | "\(.n)\t\(.who)"'

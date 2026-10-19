@@ -608,6 +608,11 @@ type Model struct {
 	voters votersState
 	// schedules queues messages for later; nil without a daemon, where the commands refuse.
 	schedules Schedules
+	// secrets is the keyring commands' secrets are kept in; nil without one, where a
+	// command with secrets refuses (cmdtemplate.go).
+	secrets Secrets
+	// commandSecrets is which declared secrets the keyring was last found to hold, by ref.
+	commandSecrets map[string]bool
 	// picker is the open chooser overlay; choosing what its answer is for. See pickerWalk.
 	picker   picker
 	choosing pickerWalk
@@ -930,6 +935,7 @@ func (m Model) Init() tea.Cmd {
 		m.listenAttachedCmd(),
 		m.lastMessagesCmd(),
 		m.loadSelvesCmd(),
+		m.checkCommandSecretsCmd(),
 	)
 }
 
@@ -1078,6 +1084,10 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleSenderSlots(msg))
 	case userCommandsMsg:
 		return answered(m.handleUserCommands(msg))
+	case secretsKeptMsg:
+		return answered(m.handleSecretsKept(msg))
+	case commandSecretsMsg:
+		return answered(m.handleCommandSecrets(msg))
 	case scheduledMsg:
 		return answered(m.handleScheduled(msg))
 	case scheduleDoneMsg:

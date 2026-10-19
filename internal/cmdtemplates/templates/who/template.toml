@@ -1,0 +1,6 @@
+about = "/who: who has been talking, message counts over the last 100 messages, in the pager. Needs jq"
+
+[command]
+name   = "who"
+needs  = ["history:100"]
+output = "pager"

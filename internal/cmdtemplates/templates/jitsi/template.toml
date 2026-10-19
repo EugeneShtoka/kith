@@ -1,0 +1,5 @@
+about = "/call [topic]: posts a fresh Jitsi link named after the room. No account, nothing to set up"
+
+[command]
+name   = "call"
+output = "send"

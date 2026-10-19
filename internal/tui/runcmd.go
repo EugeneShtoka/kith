@@ -126,15 +126,19 @@ func (m Model) userCommandCmd(name, path, arg string, room domain.Room) tea.Cmd 
 	// Built on the loop: the goroutine must not read the model.
 	payload, payloadErr := m.scriptJSON()
 	out := m.scriptOutput(name)
-	parent := m.ctx
+	readSecrets, parent := m.secretReader(name), m.ctx
 	return func() tea.Msg {
 		if payloadErr != nil {
 			return commandRanMsg{name: name, room: room.ID, why: "could not assemble its context: " + payloadErr.Error()}
 		}
+		secretEnv, secretErr := readSecrets()
+		if secretErr != nil {
+			return commandRanMsg{name: name, room: room.ID, why: secretErr.Error()}
+		}
 		ctx, cancel := context.WithTimeout(parent, timeout)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, path, arg) // #nosec G204 -- the path is a file the user made executable in their own commands directory
-		cmd.Env = env
+		cmd.Env = slices.Concat(env, secretEnv)
 		// On stdin, never argv: /proc/<pid>/cmdline is world-readable.
 		cmd.Stdin = bytes.NewReader(payload)
 		cmd.WaitDelay = commandWaitDelay

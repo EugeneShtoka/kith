@@ -1347,6 +1347,14 @@ timeout = 15
 # `in` is where it applies, in the place vocabulary; empty is everywhere. Elsewhere it is
 # left out of the `/` list, its key does nothing, and typing it is refused, not sent.
 #
+#   secrets = ["client_id", "client_secret"]
+#
+# `secrets` names values kept in the OS keyring, set in Settings → Advanced → Commands
+# (masked); the script reads each as $KITH_SECRET_CLIENT_ID and so on, never on its
+# command line. One that is not set stops the command before it runs, naming it. With
+# no keyring a command with secrets does not run. Settings → Commands → Add from template
+# writes a ready-made one (Jitsi, Zoom, Google Meet, standup, who) and asks for its secrets.
+#
 # `keys` binds it; a sequence a built-in holds is refused (unbind it with "-" first),
 # as is one two commands share.
 #

@@ -317,6 +317,7 @@ func run(configPath, profile string, jobs startup) error {
 		RestartDaemon: func(ctx context.Context) error {
 			return daemon.Restart(ctx, at.storage, at.launch, readyTimeout)
 		},
+		Secrets: commandSecrets{service: at.storage.KeyringService},
 	}); errors.Is(err, tui.ErrOpenedElsewhere) {
 		log.Info("kith closed: opened in another window")
 		fmt.Fprintln(os.Stderr, "kith: opened in another window")

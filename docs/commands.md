@@ -172,6 +172,22 @@ A block named like a built-in (`me`) never limits the built-in.
 
 A `needs` or `output` value kith does not recognize is refused at startup, and so is an `in` entry with no prefix.
 
+## Commands from a template
+
+**Settings → Advanced → Commands → Add from template** lists the commands kith ships, each with a line on what it does and what it needs:
+
+| Template | Command | Needs |
+| --- | --- | --- |
+| Jitsi | `/call [topic]` posts a fresh Jitsi link | nothing: no account |
+| Zoom | `/zoom [topic]` starts a meeting and posts its link | a Zoom Server-to-Server OAuth app (account ID, client ID, client secret), `curl`, `jq` |
+| Google Meet | `/meet [topic]` creates a meeting and posts its link | your own Google Cloud OAuth client (client ID, secret) and a refresh token, `curl`, `jq` |
+| standup | `/standup [plan]` a standup to fill in | nothing |
+| who | `/who` who has been talking, in the pager | `jq` |
+
+Picking one asks for its secrets, if it has any, then writes the script into your commands folder and its `[[command]]` block into the config. Nothing is written until every secret is kept, and a command of the same name, in the config or the folder, is never overwritten: the template is refused instead. The script is yours from then on, to read and change.
+
+For Google Meet, kith ships no OAuth client of its own. Create one in your Google Cloud project (a desktop app), allow the `https://www.googleapis.com/auth/meetings.space.created` scope, and get a refresh token from one consent in the browser, for example in Google's OAuth 2.0 Playground with your own client's ID and secret.
+
 ## Example scripts
 
 ### A Jitsi call link, sent straight to the room
@@ -237,19 +253,22 @@ output = "pager"
 
 ## Keeping secrets out of scripts
 
-Store API tokens in the desktop keyring, not in the script and not in the config:
+Name a command's secrets in its block, never their values:
 
-```sh
-printf '%s' 'the-secret' | secret-tool store --label='kith zoom' service kith-zoom key client-secret
+```toml
+[[command]]
+name    = "zoom"
+output  = "send"
+secrets = ["account_id", "client_id", "client_secret"]
 ```
 
-The script then reads the token back:
+Each one then has a row on the command's page in **Settings → Advanced → Commands**: enter asks for it, typed as dots, and kith keeps it in the OS keyring (the same one that holds your Matrix keys). The command's row says which are missing.
 
-```sh
-secret=$(secret-tool lookup service kith-zoom key client-secret)
-```
+When the command runs, the script reads each from its environment: `$KITH_SECRET_ACCOUNT_ID`, `$KITH_SECRET_CLIENT_ID`, `$KITH_SECRET_CLIENT_SECRET`, the name upper-cased. A secret that is not set stops the command before the script starts, with a message naming it, so a script never runs with an empty variable. With no keyring, a command with secrets is neither set up nor run: there is no plain-text fallback.
 
-Never pass a secret as a command-line argument. Other processes can read it from `/proc`.
+A secret name is lower-case letters, digits and `_`. A script is given only the secrets its own block names.
+
+Never pass a secret as a command-line argument, to `curl` or anything else. Other processes can read it from `/proc`. The Zoom and Meet templates hand theirs to `curl` in a private file (`curl -K`) for that reason.
 
 ## Related
 

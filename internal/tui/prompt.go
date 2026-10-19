@@ -32,13 +32,14 @@ const (
 	promptJumpBind
 	promptCommand
 	promptTagName
-	promptPersonValue // a phonebook field's value
-	promptPersonKey   // a new phonebook field's name
-	promptLogin       // a :login field; its label and help are the field's (login.go)
-	promptFilterName  // a new filter's name (filteradd.go)
-	promptFilterWords // the words it catches
-	promptFilterFrom  // the sender it catches, when it has no words
-	promptKinds       // how many kinds there are; not a prompt
+	promptPersonValue   // a phonebook field's value
+	promptPersonKey     // a new phonebook field's name
+	promptLogin         // a :login field; its label and help are the field's (login.go)
+	promptFilterName    // a new filter's name (filteradd.go)
+	promptFilterWords   // the words it catches
+	promptFilterFrom    // the sender it catches, when it has no words
+	promptCommandSecret // a command's secret, drawn as dots (cmdtemplate.go)
+	promptKinds         // how many kinds there are; not a prompt
 )
 
 type promptState struct {

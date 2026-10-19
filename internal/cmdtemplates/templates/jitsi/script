@@ -1,0 +1,10 @@
+#!/bin/sh -eu
+# /call [topic]: post a fresh Jitsi link named after this room.
+slug=$(printf '%s' "$KITH_ROOM" | tr -cs 'A-Za-z0-9' '-' | tr 'A-Z' 'a-z' | sed 's/^-*//; s/-*$//')
+token=$(od -An -N4 -tx4 /dev/urandom | tr -d ' \n')
+link="https://meet.jit.si/${slug:-call}-$token"
+if [ -n "${1:-}" ]; then
+  printf 'Call about %s: %s\n' "$1" "$link"
+else
+  printf 'Joining a call: %s\n' "$link"
+fi

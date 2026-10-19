@@ -2,6 +2,8 @@ package setup
 
 import (
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -23,9 +25,29 @@ func Scripts(cfg config.Config) error {
 		if err := scriptNeeds(name, script.Needs); err != nil {
 			return err
 		}
+		if err := scriptSecrets(name, script.Secrets); err != nil {
+			return err
+		}
 		if _, ok := domain.ParseScriptOutput(script.Output); !ok {
 			return fmt.Errorf("command %q: output %q is not one of %s",
 				name, script.Output, strings.Join(domain.OutputVocabulary(), ", "))
+		}
+	}
+	return nil
+}
+
+// secretName is what a secret may be called: it becomes part of a variable's name.
+var secretName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+// scriptSecrets refuses a secret name that cannot be a variable's, or one given twice.
+func scriptSecrets(name string, secrets []string) error {
+	for i, secret := range secrets {
+		if !secretName.MatchString(secret) {
+			return fmt.Errorf("command %q: secret %q needs a name of lower-case letters, digits and _ (it is read as $%s)",
+				name, secret, config.SecretEnv(secret))
+		}
+		if slices.Contains(secrets[:i], secret) {
+			return fmt.Errorf("command %q: secret %q is listed twice", name, secret)
 		}
 	}
 	return nil
