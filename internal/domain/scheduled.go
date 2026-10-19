@@ -22,6 +22,11 @@ type ScheduledMessage struct {
 	Emote   bool
 	At      time.Time // when to send, UTC
 	Written time.Time // when it was composed
+	// Refused is why the network refused it for good (no access, too large, the room
+	// gone), "" until then: it stays queued, unsent, until retried or canceled.
+	Refused string
+	// Failing is why its last try failed while it is being retried; listed, not kept.
+	Failing string
 }
 
 // Overdue reports whether the send time has passed at now.
@@ -48,6 +53,8 @@ func PlanSchedule(queue []ScheduledMessage, now time.Time, cutoff time.Duration)
 	for i := range queue {
 		msg := &queue[i]
 		switch {
+		case msg.Refused != "":
+			// Waits for its author: retried only when asked.
 		case !msg.Overdue(now):
 			if plan.Next.IsZero() || msg.At.Before(plan.Next) {
 				plan.Next = msg.At

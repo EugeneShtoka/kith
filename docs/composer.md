@@ -187,6 +187,8 @@ To save attachments other people sent, use `s` and `S` on the timeline. The [usa
 
 If the homeserver does not accept a message, for example because the network dropped, a token is being refreshed, or the server is restarting, **the daemon keeps it and retries**. The status line says `send failed — queued, retrying`. The retry reuses the original transaction ID, so a send that actually got through before the connection died does not arrive twice. Because the daemon runs on its own, the message goes out when the connection comes back, even if the terminal has been closed.
 
+A message the network refuses for good is not retried: you are not allowed to post in the room, it is too large, or the room is gone. It fails at once, the daemon logs why, and it stays in the queue, unsent and marked as refused, until you retry or cancel it in `/scheduled`. Each network decides what counts as refused; on Matrix it is a forbidden, too-large or unknown-room answer.
+
 Edits are not queued, because a replacement that arrives late is worse than one that failed. If there is no daemon to hand the message to, the words go back into that room's draft rather than being lost.
 
 ## Scheduled messages
@@ -195,7 +197,7 @@ Edits are not queued, because a replacement that arrives late is worse than one 
 | --- | --- | --- |
 | `/at <time> <message>` | `/at 09:00 good morning` | Send at a clock time; a time already past today means tomorrow |
 | `/in <delay> <message>` | `/in 2h see you then` | Send after a delay |
-| `/scheduled` | | What is waiting to go out in this room; `enter` cancels one |
+| `/scheduled` | | What is waiting to go out in this room; `enter` cancels one, or tries a refused or failing one again now; `delete` cancels any |
 | `:scheduled` | | The same list across every room |
 
 `/at` accepts `15:04`, `1504`, `3pm` and `3:04pm`. `/in` accepts Go durations: `30m`, `2h`, `1h30m`.

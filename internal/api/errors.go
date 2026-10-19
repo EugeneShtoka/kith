@@ -47,6 +47,9 @@ var (
 	// ErrNotOnNetwork: the room's network has no such thing (spaces, threads,
 	// moderation are Matrix's).
 	ErrNotOnNetwork = errors.New("daemon: that room's network cannot do this")
+	// ErrRefused: the network refused a message for good (no access, too large, the room
+	// gone): sending it again cannot help, so a queued one fails at once.
+	ErrRefused = errors.New("the network refused this message")
 	// ErrConfigMoved: a config change was based on a revision no longer on disk;
 	// re-read and retry.
 	ErrConfigMoved = errors.New("daemon: the configuration changed meanwhile; read it again")

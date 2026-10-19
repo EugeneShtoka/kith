@@ -879,6 +879,10 @@ func (s *server) CancelScheduled(_ context.Context, r *req[v1.CancelScheduledReq
 	return reply(&v1.CancelScheduledResponse{}, s.Scheduler.Cancel(r.Msg.GetId()))
 }
 
+func (s *server) RetryScheduled(_ context.Context, r *req[v1.RetryScheduledRequest]) (*resp[v1.RetryScheduledResponse], error) {
+	return reply(&v1.RetryScheduledResponse{}, s.Scheduler.Retry(r.Msg.GetId()))
+}
+
 // newScheduleID is random because the queue outlives the process: a restarted
 // counter could reuse an ID still in the file.
 func newScheduleID() string {

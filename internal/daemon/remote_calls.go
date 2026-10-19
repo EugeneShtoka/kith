@@ -787,6 +787,12 @@ func (r *Remote) CancelScheduled(ctx context.Context, id string) error {
 	return err
 }
 
+// RetryScheduled sends a refused or failing queued message now.
+func (r *Remote) RetryScheduled(ctx context.Context, id string) error {
+	_, err := call(ctx, "retry scheduled message", r.c.RetryScheduled, &v1.RetryScheduledRequest{Id: id})
+	return err
+}
+
 // Follow hands a URI to whichever client is attached, reporting whether one was.
 func (r *Remote) Follow(ctx context.Context, uri string) (bool, error) {
 	resp, err := call(ctx, "follow", r.c.Follow, &v1.FollowRequest{Uri: uri})

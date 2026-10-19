@@ -44,6 +44,8 @@ type entry struct {
 	Emote   bool   `toml:"emote,omitempty"`
 	At      string `toml:"at"`
 	Written string `toml:"written"`
+	// Refused is why the network refused it for good; it waits to be retried.
+	Refused string `toml:"refused,omitempty"`
 }
 
 type mention struct {
@@ -113,6 +115,7 @@ func (e entry) decode() (domain.ScheduledMessage, error) {
 		Emote:      e.Emote,
 		At:         at.UTC(),
 		Written:    written.UTC(),
+		Refused:    e.Refused,
 	}, nil
 }
 
@@ -137,6 +140,7 @@ func (s *Store) Save(queue []domain.ScheduledMessage) error {
 			Emote:      msg.Emote,
 			At:         msg.At.UTC().Format(time.RFC3339),
 			Written:    msg.Written.UTC().Format(time.RFC3339),
+			Refused:    msg.Refused,
 		})
 	}
 

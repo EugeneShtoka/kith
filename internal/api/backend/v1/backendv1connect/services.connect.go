@@ -359,6 +359,9 @@ const (
 	// BackendServiceCancelScheduledProcedure is the fully-qualified name of the BackendService's
 	// CancelScheduled RPC.
 	BackendServiceCancelScheduledProcedure = "/backend.v1.BackendService/CancelScheduled"
+	// BackendServiceRetryScheduledProcedure is the fully-qualified name of the BackendService's
+	// RetryScheduled RPC.
+	BackendServiceRetryScheduledProcedure = "/backend.v1.BackendService/RetryScheduled"
 )
 
 // BackendServiceClient is a client for the backend.v1.BackendService service.
@@ -667,6 +670,8 @@ type BackendServiceClient interface {
 	ScheduledMessages(context.Context, *connect.Request[v1.ScheduledMessagesRequest]) (*connect.Response[v1.ScheduledMessagesResponse], error)
 	// CancelScheduled drops one pending message.
 	CancelScheduled(context.Context, *connect.Request[v1.CancelScheduledRequest]) (*connect.Response[v1.CancelScheduledResponse], error)
+	// RetryScheduled sends a refused or failing message now.
+	RetryScheduled(context.Context, *connect.Request[v1.RetryScheduledRequest]) (*connect.Response[v1.RetryScheduledResponse], error)
 }
 
 // NewBackendServiceClient constructs a client for the backend.v1.BackendService service. By
@@ -1382,6 +1387,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("CancelScheduled")),
 			connect.WithClientOptions(opts...),
 		),
+		retryScheduled: connect.NewClient[v1.RetryScheduledRequest, v1.RetryScheduledResponse](
+			httpClient,
+			baseURL+BackendServiceRetryScheduledProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RetryScheduled")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1504,6 +1515,7 @@ type backendServiceClient struct {
 	schedule              *connect.Client[v1.ScheduleRequest, v1.ScheduleResponse]
 	scheduledMessages     *connect.Client[v1.ScheduledMessagesRequest, v1.ScheduledMessagesResponse]
 	cancelScheduled       *connect.Client[v1.CancelScheduledRequest, v1.CancelScheduledResponse]
+	retryScheduled        *connect.Client[v1.RetryScheduledRequest, v1.RetryScheduledResponse]
 }
 
 // Rooms calls backend.v1.BackendService.Rooms.
@@ -2091,6 +2103,11 @@ func (c *backendServiceClient) CancelScheduled(ctx context.Context, req *connect
 	return c.cancelScheduled.CallUnary(ctx, req)
 }
 
+// RetryScheduled calls backend.v1.BackendService.RetryScheduled.
+func (c *backendServiceClient) RetryScheduled(ctx context.Context, req *connect.Request[v1.RetryScheduledRequest]) (*connect.Response[v1.RetryScheduledResponse], error) {
+	return c.retryScheduled.CallUnary(ctx, req)
+}
+
 // BackendServiceHandler is an implementation of the backend.v1.BackendService service.
 type BackendServiceHandler interface {
 	// Room
@@ -2397,6 +2414,8 @@ type BackendServiceHandler interface {
 	ScheduledMessages(context.Context, *connect.Request[v1.ScheduledMessagesRequest]) (*connect.Response[v1.ScheduledMessagesResponse], error)
 	// CancelScheduled drops one pending message.
 	CancelScheduled(context.Context, *connect.Request[v1.CancelScheduledRequest]) (*connect.Response[v1.CancelScheduledResponse], error)
+	// RetryScheduled sends a refused or failing message now.
+	RetryScheduled(context.Context, *connect.Request[v1.RetryScheduledRequest]) (*connect.Response[v1.RetryScheduledResponse], error)
 }
 
 // NewBackendServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -3108,6 +3127,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("CancelScheduled")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceRetryScheduledHandler := connect.NewUnaryHandler(
+		BackendServiceRetryScheduledProcedure,
+		svc.RetryScheduled,
+		connect.WithSchema(backendServiceMethods.ByName("RetryScheduled")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/backend.v1.BackendService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BackendServiceRoomsProcedure:
@@ -3344,6 +3369,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceScheduledMessagesHandler.ServeHTTP(w, r)
 		case BackendServiceCancelScheduledProcedure:
 			backendServiceCancelScheduledHandler.ServeHTTP(w, r)
+		case BackendServiceRetryScheduledProcedure:
+			backendServiceRetryScheduledHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -3819,4 +3846,8 @@ func (UnimplementedBackendServiceHandler) ScheduledMessages(context.Context, *co
 
 func (UnimplementedBackendServiceHandler) CancelScheduled(context.Context, *connect.Request[v1.CancelScheduledRequest]) (*connect.Response[v1.CancelScheduledResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.CancelScheduled is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RetryScheduled(context.Context, *connect.Request[v1.RetryScheduledRequest]) (*connect.Response[v1.RetryScheduledResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RetryScheduled is not implemented"))
 }

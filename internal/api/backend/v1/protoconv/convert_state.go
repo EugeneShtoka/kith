@@ -427,6 +427,8 @@ func ScheduledToProto(queue []domain.ScheduledMessage) []*v1.ScheduledMessage {
 			Emote:      m.Emote,
 			AtMs:       m.At.UTC().UnixMilli(),
 			WrittenMs:  m.Written.UTC().UnixMilli(),
+			Refused:    m.Refused,
+			Failing:    m.Failing,
 		})
 	}
 	return out
@@ -447,6 +449,8 @@ func ProtoToScheduled(pb *v1.ScheduledMessage) domain.ScheduledMessage {
 		TxnID:      pb.GetTxnId(),
 		Emote:      pb.GetEmote(),
 		At:         time.UnixMilli(pb.GetAtMs()).UTC(),
+		Refused:    pb.GetRefused(),
+		Failing:    pb.GetFailing(),
 	}
 	if ms := pb.GetWrittenMs(); ms != 0 {
 		msg.Written = time.UnixMilli(ms).UTC()

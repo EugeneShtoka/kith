@@ -1418,6 +1418,10 @@ message ScheduledMessage {
   // so a send whose outcome was unknown can be tried again without a second copy
   // arriving.
   string txn_id = 10;
+  // refused is why the network refused it for good: it waits, unsent, to be retried or
+  // canceled. failing is why its last try failed while it is retried.
+  string refused = 11;
+  string failing = 12;
 }
 
 message ScheduleRequest {
@@ -1441,6 +1445,12 @@ message CancelScheduledRequest {
 }
 
 message CancelScheduledResponse {}
+
+message RetryScheduledRequest {
+  string id = 1;
+}
+
+message RetryScheduledResponse {}
 
 // BackendService is the daemon's whole socket API; its RPCs mirror api.Backend.
 // There is no login: the daemon owns its session, so nothing on the socket can
@@ -1750,4 +1760,6 @@ service BackendService {
   rpc ScheduledMessages(ScheduledMessagesRequest) returns (ScheduledMessagesResponse);
   // CancelScheduled drops one pending message.
   rpc CancelScheduled(CancelScheduledRequest) returns (CancelScheduledResponse);
+  // RetryScheduled sends a refused or failing message now.
+  rpc RetryScheduled(RetryScheduledRequest) returns (RetryScheduledResponse);
 }

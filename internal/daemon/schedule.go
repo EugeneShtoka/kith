@@ -2,12 +2,14 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -116,6 +118,11 @@ func (s *Scheduler) List() []domain.ScheduledMessage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := slices.Clone(s.queue)
+	for i := range out {
+		if out[i].Refused == "" {
+			out[i].Failing = s.failed[out[i].ID]
+		}
+	}
 	domain.SortScheduled(out)
 	return out
 }
@@ -211,10 +218,11 @@ func (s *Scheduler) pass(ctx context.Context) {
 		return
 	}
 
-	unsent := s.sendAll(ctx, sending)
-	if len(unsent) > 0 {
-		s.restore(unsent)
+	unsent, refused := s.sendAll(ctx, sending)
+	if len(unsent)+len(refused) > 0 {
+		s.restore(append(unsent, refused...))
 	}
+	// A refused message waits for its author, not the retry clock.
 	s.setBackoff(len(unsent) > 0)
 	s.rearm()
 }
@@ -273,9 +281,9 @@ func (s *Scheduler) noteSuccess(msg domain.ScheduledMessage) string {
 	return fmt.Sprintf("message to %s went out after all", msg.RoomID)
 }
 
-// sendAll sends what the pass claimed and returns what it could not, in order.
-func (s *Scheduler) sendAll(ctx context.Context, sending []domain.ScheduledMessage) []domain.ScheduledMessage {
-	var unsent []domain.ScheduledMessage
+// sendAll sends what the pass claimed and returns what it could not, in order: unsent
+// to retry, and refused (marked) to keep until asked.
+func (s *Scheduler) sendAll(ctx context.Context, sending []domain.ScheduledMessage) (unsent, refused []domain.ScheduledMessage) {
 	for i := range sending {
 		msg := sending[i]
 		if ctx.Err() != nil {
@@ -292,6 +300,14 @@ func (s *Scheduler) sendAll(ctx context.Context, sending []domain.ScheduledMessa
 			// The same txn ID on every try makes a retry idempotent.
 			TxnID: msg.TxnID,
 		})
+		if err != nil && refusedForGood(err) {
+			// Retrying cannot help: kept, marked, for its author to retry or cancel.
+			msg.Refused = err.Error()
+			s.forgetFailure(msg)
+			s.report(slog.LevelWarn, fmt.Sprintf("message to %s refused, not retried: %v", msg.RoomID, err))
+			refused = append(refused, msg)
+			continue
+		}
 		if err != nil {
 			// Put back; the next pass retries until the cutoff catches it.
 			if line := s.noteFailure(msg, err); line != "" {
@@ -304,7 +320,48 @@ func (s *Scheduler) sendAll(ctx context.Context, sending []domain.ScheduledMessa
 			s.report(slog.LevelInfo, line)
 		}
 	}
-	return unsent
+	return unsent, refused
+}
+
+// refusedForGood reports a send no retry can change: the network refused it, or the
+// account may not post there.
+func refusedForGood(err error) bool {
+	return errors.Is(err, api.ErrRefused) || errors.Is(err, api.ErrNoPower)
+}
+
+// forgetFailure drops a message's failure record.
+func (s *Scheduler) forgetFailure(msg domain.ScheduledMessage) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.failed, msg.ID)
+}
+
+// Retry sends a refused or failing message now: its mark and its wait are cleared.
+// Retrying one already gone is not an error.
+func (s *Scheduler) Retry(id string) error {
+	s.mu.Lock()
+	found := false
+	for i := range s.queue {
+		if s.queue[i].ID == id {
+			// Due a moment ago, so the pass below sends it rather than waking for it.
+			s.queue[i].Refused, s.queue[i].At = "", s.now().Add(-time.Millisecond)
+			found = true
+		}
+	}
+	delete(s.failed, id)
+	delete(s.held, id)
+	s.backoff = 0
+	err := s.saveLocked()
+	base := s.base
+	s.mu.Unlock()
+
+	if err != nil {
+		return fmt.Errorf("daemon: save schedule: %w", err)
+	}
+	if found {
+		s.pass(base)
+	}
+	return nil
 }
 
 // setBackoff grows the retry wait after a pass left something unsent, and resets it
