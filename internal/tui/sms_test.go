@@ -2,11 +2,56 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
+
+// A file sent to a chat that sends as SMS asks first, naming it; the caption waits in
+// the composer; a yes sends both, a no sends nothing and keeps the caption.
+func TestAFileAsMMSAsksFirst(t *testing.T) {
+	t.Parallel()
+
+	file := filepath.Join(t.TempDir(), "invoice.pdf")
+	if err := os.WriteFile(file, []byte("%PDF-1.4\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, yes := range []bool{true, false} {
+		backend := &sendingBackend{}
+		m := sized(t, update(t, starterNew(backend, config.Display{}),
+			roomsMsg{rooms: []domain.Room{{ID: "gmessages:a/1", Name: "Dana", SMS: true}}}))
+		m, _ = m.selectRoom(m.filteredRooms()[0])
+		m.focus, m.compose.insertMode = paneTimeline, true
+		m = typeInto(t, m.clearStatus(), "here you go")
+		m, cmd := updateWith(t, m, fileChosenMsg{path: file})
+		m = deliver(t, m, cmd)
+		if !m.confirm.active() || backend.path != "" {
+			t.Fatalf("yes=%v: asked %v, sent %q", yes, m.confirm.active(), backend.path)
+		}
+		if got := m.confirmPrompt(); !strings.Contains(got, "invoice.pdf") || !strings.Contains(got, "MMS") {
+			t.Errorf("the question: %q", got)
+		}
+		if m.compose.input != "here you go" {
+			t.Errorf("the caption while asking: %q", m.compose.input)
+		}
+		key := "n"
+		if yes {
+			key = "y"
+		}
+		m, cmd = press(t, m, keyText(key))
+		m = deliver(t, m, cmd)
+		switch {
+		case yes && (backend.path != file || backend.caption != "here you go" || m.compose.input != ""):
+			t.Errorf("after yes: sent %q with %q, composer %q", backend.path, backend.caption, m.compose.input)
+		case !yes && (backend.path != "" || m.compose.input != "here you go"):
+			t.Errorf("after no: sent %q, composer %q", backend.path, m.compose.input)
+		}
+	}
+}
 
 // Sending to a chat, over whether it sends as SMS, every [composer] confirm_sms
 // setting, each way of sending (enter, /me, /in) and each answer: it asks exactly when

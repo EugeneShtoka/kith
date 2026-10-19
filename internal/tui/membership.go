@@ -44,8 +44,10 @@ const (
 	pendingCombineTags
 	// pendingSendSMS, pendingScheduleSMS: the composer's text (body, emote) sent to a chat
 	// that sends as SMS (room), or scheduled there by /at or /in (address) (sms.go).
+	// pendingAttachSMS: a file (body) sent there with its caption (address).
 	pendingSendSMS
 	pendingScheduleSMS
+	pendingAttachSMS
 )
 
 // confirmState is the pending action and its targets, captured with the question so a list
@@ -226,7 +228,7 @@ func (m Model) confirmPrompt() string {
 		return m.deleteChatPrompt(m.confirm)
 	case pendingSignOutForget, pendingSignOut:
 		return m.signOutPrompt(m.confirm)
-	case pendingSendSMS, pendingScheduleSMS:
+	case pendingSendSMS, pendingScheduleSMS, pendingAttachSMS:
 		return m.smsPrompt(m.confirm)
 	case pendingNone:
 		return ""
@@ -283,6 +285,8 @@ func (m Model) carryOut(pending confirmState) (Model, tea.Cmd) {
 		return m.sendComposedNow(pending.room, pending.body, pending.emote)
 	case pendingScheduleSMS:
 		return m.scheduleComposedNow(pending.room, pending.address, pending.body)
+	case pendingAttachSMS:
+		return m.attachPathNow(pending.room, pending.body, pending.address)
 	case pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingDeleteForThem, pendingSignOutForget, pendingNone:
 		return m, nil
 	}

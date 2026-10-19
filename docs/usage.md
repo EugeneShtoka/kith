@@ -482,7 +482,7 @@ Who else is typing is shown on the rule above the composer. `[display] typing = 
 
 ## Help
 
-`?` opens the help overlay: every key in every mode, your jump bindings with the places they lead to, your script keys, the `:` and `/` commands, the text-editing keys, and any problems with your keybinding config. It is generated from the running keymap, so it always matches what the keys do. `j`/`k` and the page keys scroll it, and `gg`/`G` (or `home`/`end`) jump to its ends. `/` searches it: type, and only the matching rows stay, under their section's title (a section whose title matches stays whole). `enter` keeps the filter while you scroll, `esc` clears it, and `?`, `q` or a second `esc` close the help. `:help` opens it too.
+`?` opens the help overlay: every key in every mode, your jump bindings with the places they lead to, your command keys, the `:` and `/` commands, the text-editing keys, and any problems with your keybinding config. It is generated from the running keymap, so it always matches what the keys do. `j`/`k` and the page keys scroll it, and `gg`/`G` (or `home`/`end`) jump to its ends. `/` searches it: type, and only the matching rows stay, under their section's title (a section whose title matches stays whole). `enter` keeps the filter while you scroll, `esc` clears it, and `?`, `q` or a second `esc` close the help. `:help` opens it too.
 
 ## Mouse
 

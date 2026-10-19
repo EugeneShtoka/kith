@@ -229,23 +229,23 @@ func TestModelIdleZeroMeansNever(t *testing.T) {
 	}
 }
 
-func TestScriptBlocks(t *testing.T) {
+func TestCommandBlocks(t *testing.T) {
 	t.Parallel()
 
 	var cfg Config
 	if _, err := toml.Decode(`
-[[commands.script]]
+[[command]]
 name   = "save"
 needs  = ["url", "message"]
 output = "none"
 `, &cfg); err != nil {
 		t.Fatal(err)
 	}
-	got, ok := cfg.Commands.ScriptFor("/SAVE")
+	got, ok := cfg.CommandFor("/SAVE")
 	if !ok || got.Output != "none" || len(got.Needs) != 2 {
-		t.Errorf("ScriptFor(\"/SAVE\") = %+v, %v", got, ok)
+		t.Errorf("CommandFor(\"/SAVE\") = %+v, %v", got, ok)
 	}
-	if _, ok := cfg.Commands.ScriptFor("nothing"); ok {
+	if _, ok := cfg.CommandFor("nothing"); ok {
 		t.Error("a command with no block was reported as having one")
 	}
 }

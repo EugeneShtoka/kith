@@ -852,7 +852,7 @@ file_suffix = ".md"
 markdown    = true
 # Ask before sending to a chat whose messages go out as SMS or MMS through your phone's
 # carrier (a Google Messages SMS chat), which may cost what your plan charges for them.
-# Also asked before scheduling one there.
+# Also asked before sending a file (as MMS) or scheduling a message there.
 confirm_sms = true
 
 # Spell-checking. The checker is a subprocess speaking the ispell pipe protocol, so
@@ -1337,7 +1337,7 @@ timeout = 15
 
 # Per-command settings: what a command is given and where its output goes.
 #
-#   [[commands.script]]
+#   [[command]]
 #   name   = "save"
 #   needs  = ["url", "message"]
 #   output = "none"
@@ -1373,7 +1373,7 @@ timeout = 15
 #   [keys.timeline]
 #   open_url_focus = "-"
 #
-#   [[commands.script]]
+#   [[command]]
 #   name   = "go"
 #   needs  = ["url"]
 #   output = "none"

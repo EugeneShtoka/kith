@@ -8,15 +8,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-func withScripts(scripts ...config.Script) config.Config {
-	return config.Config{Commands: config.Commands{Scripts: scripts}}
+func withScripts(scripts ...config.Command) config.Config {
+	return config.Config{UserCommands: scripts}
 }
 
 // An unknown need is refused at startup, listing the vocabulary.
 func TestAMistypedNeedIsRefusedWithTheVocabulary(t *testing.T) {
 	t.Parallel()
 
-	err := setup.Scripts(withScripts(config.Script{Name: "save", Needs: []string{"ulr"}}))
+	err := setup.Scripts(withScripts(config.Command{Name: "save", Needs: []string{"ulr"}}))
 
 	if err == nil {
 		t.Fatal("a need this client cannot supply was accepted")
@@ -34,7 +34,7 @@ func TestAMistypedNeedIsRefusedWithTheVocabulary(t *testing.T) {
 func TestAnUnknownOutputIsRefused(t *testing.T) {
 	t.Parallel()
 
-	err := setup.Scripts(withScripts(config.Script{Name: "save", Output: "printer"}))
+	err := setup.Scripts(withScripts(config.Command{Name: "save", Output: "printer"}))
 
 	if err == nil || !strings.Contains(err.Error(), "printer") {
 		t.Fatalf("error = %v, want it to refuse the sink by name", err)
@@ -50,8 +50,8 @@ func TestOneBlockPerCommand(t *testing.T) {
 	t.Parallel()
 
 	err := setup.Scripts(withScripts(
-		config.Script{Name: "save", Needs: []string{"url"}},
-		config.Script{Name: "/SAVE", Output: "none"},
+		config.Command{Name: "save", Needs: []string{"url"}},
+		config.Command{Name: "/SAVE", Output: "none"},
 	))
 
 	if err == nil || !strings.Contains(err.Error(), "twice") {
@@ -62,7 +62,7 @@ func TestOneBlockPerCommand(t *testing.T) {
 func TestABlockNeedsAName(t *testing.T) {
 	t.Parallel()
 
-	if err := setup.Scripts(withScripts(config.Script{Needs: []string{"url"}})); err == nil {
+	if err := setup.Scripts(withScripts(config.Command{Needs: []string{"url"}})); err == nil {
 		t.Fatal("a nameless block was accepted")
 	}
 }

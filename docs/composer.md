@@ -75,8 +75,8 @@ markdown = false
 ```
 
 **Sending as SMS asks first.** A chat whose messages go out as SMS or MMS through your
-phone's carrier (a Google Messages SMS chat) asks before each message you send or
-schedule there; `[composer] confirm_sms = false` sends without asking. See
+phone's carrier (a Google Messages SMS chat) asks before each message or file you
+send, or message you schedule, there; `[composer] confirm_sms = false` sends without asking. See
 [Google Messages](google-messages.md#sending).
 
 ## Mentions and room links
@@ -302,7 +302,7 @@ An optional local language model can add next-word suggestions to the same keys.
 
 ## Commands
 
-A `/` at the very start of the composer opens the command list: `/me`, `/plain`, `/upload`, `/at`, `/in`, `/summary`, `/export`, the `/scheduled` family, and any scripts you have written. To send a message that starts with a slash, begin it with `//`. See [Commands](commands.md).
+A `/` at the very start of the composer opens the command list: `/me`, `/plain`, `/upload`, `/at`, `/in`, `/summary`, `/export`, the `/scheduled` family, and your own commands. To send a message that starts with a slash, begin it with `//`. See [Commands](commands.md).
 
 ## Related
 
