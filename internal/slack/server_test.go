@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -283,6 +284,50 @@ func TestAGroupDMIsNamedByItsPeople(t *testing.T) {
 	members, err := a.Members(ctx, rooms[0].ID, 0)
 	if err != nil || len(members) != 2 {
 		t.Errorf("members = %+v, %v; want Dana and Sam", members, err)
+	}
+}
+
+// A listed conversation takes @here and @channel unless it is a DM, and @everyone only
+// in the general channel; read back from the cache, it still does.
+func TestAConversationTakesTheBroadcastsSlackAllowsThere(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	f, client := newFakeSlack(t)
+	f.on("users.conversations", func(map[string]string) any {
+		return map[string]any{"ok": true, "channels": []any{
+			map[string]any{"id": "C1", "name": "general", "is_channel": true, "is_general": true},
+			map[string]any{"id": "C2", "name": "random", "is_channel": true},
+			map[string]any{"id": "G3", "name": "mpdm-me--dana-1", "is_mpim": true},
+			map[string]any{"id": "D4", "is_im": true, "user": "U2"},
+		}}
+	})
+	f.on("conversations.members", func(map[string]string) any {
+		return map[string]any{"ok": true, "members": []string{"U1", "U2"}}
+	})
+	a, w := connectedTo(t, client)
+	want := map[domain.RoomID][]string{
+		"slack:T1/C1": {"@here", "@channel", "@everyone"},
+		"slack:T1/C2": {"@here", "@channel"},
+		"slack:T1/G3": {"@here", "@channel"},
+		"slack:T1/D4": nil,
+	}
+	listedRooms, err := a.list(ctx, w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cachedRooms, err := a.Rooms(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for source, rooms := range map[string][]domain.Room{"listed": listedRooms, "cached": cachedRooms} {
+		if len(rooms) != len(want) {
+			t.Fatalf("%s rooms = %+v, want %d", source, rooms, len(want))
+		}
+		for _, r := range rooms {
+			if !slices.Equal(r.Broadcasts, want[r.ID]) {
+				t.Errorf("%s %s takes %q, want %q", source, r.ID, r.Broadcasts, want[r.ID])
+			}
+		}
 	}
 }
 

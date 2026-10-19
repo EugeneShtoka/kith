@@ -68,7 +68,8 @@ func TestSlackMentionsNameWhomTheyMention(t *testing.T) {
 	}
 }
 
-// A draft goes as mrkdwn: escaped, mentions as <@U…>, Markdown as markers, links in
+// A draft goes as mrkdwn: escaped, mentions as <@U…>, @here and the like as Slack's,
+// Markdown as markers, links in
 // Slack's form; a plain draft keeps its words.
 func TestDraftsGoAsMrkdwn(t *testing.T) {
 	t.Parallel()
@@ -80,6 +81,9 @@ func TestDraftsGoAsMrkdwn(t *testing.T) {
 	}{
 		{domain.Draft{Body: "hi @Dana", Mentions: []domain.Mention{dana}}, "hi <@U2>"},
 		{domain.Draft{Body: "hi @Sam", Mentions: []domain.Mention{other}}, "hi @Sam"},
+		{domain.Draft{Body: "@here lunch, @channel too (@everyone)"}, "<!here> lunch, <!channel> too (<!everyone>)"},
+		{domain.Draft{Body: "@here", Plain: true}, "<!here>"},
+		{domain.Draft{Body: "mail a@here.io, see @heresy, @channels"}, "mail a@here.io, see @heresy, @channels"},
 		{domain.Draft{Body: "**bold** and *it*"}, "*bold* and _it_"},
 		{domain.Draft{Body: "[site](https://x.io?a=1&b=2)"}, "<https://x.io?a=1&amp;b=2|site>"},
 		{domain.Draft{Body: "a < b & c"}, "a &lt; b &amp; c"},

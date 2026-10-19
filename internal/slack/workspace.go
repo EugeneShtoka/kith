@@ -47,6 +47,8 @@ type workspace struct {
 	people   map[string]string
 	channels map[string]string
 	joined   map[string]bool
+	// general is the last listing's general channel; the cache does not keep it.
+	general string
 	// phones is each user's number, where their profile has it in international form.
 	phones map[string]string
 }
@@ -139,6 +141,23 @@ func (w *workspace) knowChannels(rooms []domain.Room) {
 			w.channels[id] = rooms[i].Name
 		}
 	}
+}
+
+// knowGeneral notes the last listing's general channel.
+func (w *workspace) knowGeneral(channel string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.general = channel
+}
+
+// generalRoom is the general channel's room ID, "" until a listing names it.
+func (w *workspace) generalRoom() domain.RoomID {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.general == "" {
+		return ""
+	}
+	return roomID(w.creds.Team, w.general)
 }
 
 // listedNow is the last listing's conversations, sorted.
@@ -340,6 +359,7 @@ func (a *Adapter) list(ctx context.Context, w *workspace) ([]domain.Room, error)
 	}
 	l := listed(w.creds.Team, w.teamName, self{user: w.creds.User, handle: w.handle}, conversations, groups, names)
 	w.knowChannels(l.rooms)
+	w.knowGeneral(l.general)
 	if err := a.save(ctx, w, l, fetched); err != nil {
 		return nil, err
 	}

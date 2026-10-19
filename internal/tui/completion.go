@@ -181,9 +181,17 @@ func (m Model) refreshCandidates() Model {
 	return m
 }
 
-// mentionCandidates filters the room's pre-ranked members for a query.
+// mentionCandidates filters the room's pre-ranked members for a query, after the
+// room-wide mentions it takes (@here) that the query begins.
 func (m Model) mentionCandidates(query string) []candidate {
-	return m.matchPeople(query, m.timeline.members)
+	room, _ := m.currentRoom()
+	var out []candidate
+	for _, b := range room.Broadcasts {
+		if strings.HasPrefix(b, "@"+strings.ToLower(query)) {
+			out = append(out, candidate{text: b, label: b, spaceAfter: true})
+		}
+	}
+	return append(out, m.matchPeople(query, m.timeline.members)...)
 }
 
 // roomCandidates are the rooms a `#` names, across all joined rooms. The name is

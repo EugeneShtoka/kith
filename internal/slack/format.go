@@ -146,8 +146,12 @@ func cmpOr(a, b string) string {
 // escape escapes &, < and > for Slack.
 var escape = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
+// typedBroadcasts finds a typed @here, @channel or @everyone, standing as a word of its own.
+var typedBroadcasts = regexp.MustCompile(`(^|[^\pL\pN_.@/])@(here|channel|everyone)\b`)
+
 // composed is a draft as Slack takes it: escaped, mentions of this workspace's people
-// as <@U…>, and Markdown converted to mrkdwn unless sent as typed.
+// as <@U…> and @here, @channel or @everyone as Slack's, and Markdown converted to
+// mrkdwn unless sent as typed.
 func composed(draft domain.Draft, team string) string {
 	text := escape.Replace(draft.Body)
 	for _, m := range draft.LiveMentions() {
@@ -155,6 +159,7 @@ func composed(draft domain.Draft, team string) string {
 			text = strings.Replace(text, escape.Replace(m.Name), "<@"+user+">", 1)
 		}
 	}
+	text = typedBroadcasts.ReplaceAllString(text, "$1<!$2>")
 	if draft.Plain {
 		return text
 	}

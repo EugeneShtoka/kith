@@ -44,6 +44,9 @@ type Room struct {
 	Deleting ChatDeleting
 	// Network is the bridged network behind a Matrix room; "" when unknown.
 	Network Protocol
+	// Broadcasts are the room-wide mentions the room takes, as typed ("@here"); the
+	// network sends them as such.
+	Broadcasts []string
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted instead.

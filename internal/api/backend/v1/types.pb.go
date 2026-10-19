@@ -322,7 +322,9 @@ type Room struct {
 	// How a chat that cannot be left is deleted instead (domain.Room.Deleting).
 	Deleting ChatDeleting `protobuf:"varint,11,opt,name=deleting,proto3,enum=backend.v1.ChatDeleting" json:"deleting,omitempty"`
 	// The network behind a bridged room (domain.Room.Network).
-	Network       string `protobuf:"bytes,12,opt,name=network,proto3" json:"network,omitempty"`
+	Network string `protobuf:"bytes,12,opt,name=network,proto3" json:"network,omitempty"`
+	// The room-wide mentions the room takes, as typed (domain.Room.Broadcasts).
+	Broadcasts    []string `protobuf:"bytes,13,rep,name=broadcasts,proto3" json:"broadcasts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -439,6 +441,13 @@ func (x *Room) GetNetwork() string {
 		return x.Network
 	}
 	return ""
+}
+
+func (x *Room) GetBroadcasts() []string {
+	if x != nil {
+		return x.Broadcasts
+	}
+	return nil
 }
 
 // Mention is one @-mention within a message (domain.Mention).
@@ -2723,7 +2732,7 @@ var File_backend_v1_types_proto protoreflect.FileDescriptor
 const file_backend_v1_types_proto_rawDesc = "" +
 	"\n" +
 	"\x16backend/v1/types.proto\x12\n" +
-	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xda\x02\n" +
+	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfa\x02\n" +
 	"\x04Room\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
@@ -2740,7 +2749,10 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x05forum\x18\n" +
 	" \x01(\bR\x05forum\x124\n" +
 	"\bdeleting\x18\v \x01(\x0e2\x18.backend.v1.ChatDeletingR\bdeleting\x12\x18\n" +
-	"\anetwork\x18\f \x01(\tR\anetwork\"e\n" +
+	"\anetwork\x18\f \x01(\tR\anetwork\x12\x1e\n" +
+	"\n" +
+	"broadcasts\x18\r \x03(\tR\n" +
+	"broadcasts\"e\n" +
 	"\aMention\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +
