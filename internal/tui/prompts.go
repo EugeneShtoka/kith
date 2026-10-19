@@ -100,7 +100,8 @@ func init() {
 		promptFilterName: {label: "new filter's name: ", submit: Model.submitFilterName, cancel: cancelToFilters, submitWord: "next"},
 		promptFilterWords: {label: "words it catches (globs: pay, pay*, *pay*; empty for a sender instead): ",
 			submit: Model.submitFilterWords, cancel: cancelToFilters, submitWord: "next"},
-		promptFilterFrom: {label: "sender it catches (@user:server): ", submit: Model.submitFilterFrom, cancel: cancelToFilters, submitWord: "next"},
+		promptFilterFrom:    {label: "sender it catches (@user:server): ", submit: Model.submitFilterFrom, cancel: cancelToFilters, submitWord: "next"},
+		promptCommandSecret: {labelOf: Model.commandSecretLabel, submit: Model.submitCommandSecret, cancel: cancelCommandSecret, submitWord: "keep it", cancelWord: "stop, writing nothing"},
 	}
 }
 

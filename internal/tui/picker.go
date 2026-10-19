@@ -34,6 +34,8 @@ type pickerWalk struct {
 	// is the place page it began on, "" for the Filters list.
 	filter     config.Filter
 	filterBack string
+	// secret is a command's secrets being asked for (cmdtemplate.go).
+	secret secretWalk
 }
 
 // pickerMode is whether keystrokes move the cursor or narrow the list.
@@ -85,11 +87,12 @@ const (
 	pickerImportAccount // :import's accounts, folders and choices; see imports.go
 	pickerImportFolders
 	pickerImportChoice
-	pickerCards        // :people, every card in the phonebook; see cards.go
-	pickerRescan       // the moves a rescan would make; see rescan.go
-	pickerFilterTag    // the tag a new filter moves rooms into; see filteradd.go
-	pickerFilterPlaces // where it watches
-	pickerFilterMoves  // what its catch moves a room by
+	pickerCards           // :people, every card in the phonebook; see cards.go
+	pickerRescan          // the moves a rescan would make; see rescan.go
+	pickerFilterTag       // the tag a new filter moves rooms into; see filteradd.go
+	pickerFilterPlaces    // where it watches
+	pickerFilterMoves     // what its catch moves a room by
+	pickerCommandTemplate // a command to add from a template; see cmdtemplate.go
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -146,6 +149,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerFilterTag:       {title: "Move rooms into which tag?"},
 	pickerFilterPlaces:    {title: "Watch where? None ticked is everywhere", modal: true, multi: true},
 	pickerFilterMoves:     {title: "Move a room, or mark its sender, into Spam when it catches", modal: true, multi: true},
+	pickerCommandTemplate: {title: "Add which command?"},
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text

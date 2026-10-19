@@ -33,6 +33,8 @@ type RunOptions struct {
 	// RestartDaemon restarts the daemon and returns once it answers (for :login enabling a network
 	// the daemon lacks); nil when unavailable.
 	RestartDaemon func(ctx context.Context) error
+	// Secrets is the keyring commands' secrets are kept in; nil when there is none.
+	Secrets Secrets
 }
 
 // Run starts the Bubble Tea program bound to ctx and blocks until it exits.
@@ -55,7 +57,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 		WithSchedules(opts.Schedules).
 		WithConfigFile(opts.ConfigPath, cfg).
 		WithCache(cache).
-		WithRestart(opts.RestartDaemon)
+		WithRestart(opts.RestartDaemon).
+		WithSecrets(opts.Secrets)
 	if cacheErr != nil {
 		model = model.sayErr("no media cache", cacheErr)
 	}

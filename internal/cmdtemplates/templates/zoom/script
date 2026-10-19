@@ -1,0 +1,32 @@
+#!/bin/sh -eu
+# /zoom [topic]: start a Zoom meeting with your Server-to-Server OAuth app and post its link.
+# kith passes the app's credentials as $KITH_SECRET_*; they reach curl through a private
+# file, never its command line, which other users can read.
+conf=$(mktemp)
+trap 'rm -f "$conf"' EXIT
+chmod 600 "$conf"
+
+# quoted is $1 inside a curl config string: backslashes and quotes escaped.
+quoted() { printf '%s' "$1" | sed 's/[\\"]/\\&/g'; }
+
+account=$(jq -jn --arg a "$KITH_SECRET_ACCOUNT_ID" '$a|@uri')
+printf 'url = "https://zoom.us/oauth/token?grant_type=account_credentials&account_id=%s"\nuser = "%s:%s"\n' \
+  "$account" "$(quoted "$KITH_SECRET_CLIENT_ID")" "$(quoted "$KITH_SECRET_CLIENT_SECRET")" >"$conf"
+token=$(curl -fsS -X POST -K "$conf" | jq -er .access_token) || {
+  echo "Zoom refused the app's credentials" >&2
+  exit 1
+}
+
+printf 'url = "https://api.zoom.us/v2/users/me/meetings"\nheader = "Authorization: Bearer %s"\n' "$token" >"$conf"
+topic=${1:-Meeting}
+link=$(jq -n --arg topic "$topic" '{topic: $topic, type: 1}' |
+  curl -fsS -X POST -K "$conf" -H 'Content-Type: application/json' --data @- | jq -er .join_url) || {
+  echo "Zoom did not start a meeting" >&2
+  exit 1
+}
+
+if [ -n "${1:-}" ]; then
+  printf 'Zoom about %s: %s\n' "$1" "$link"
+else
+  printf 'Joining Zoom: %s\n' "$link"
+fi

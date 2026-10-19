@@ -1,0 +1,6 @@
+about = "/meet: creates a Google Meet and posts its link. Needs your own Google Cloud OAuth client (client ID, secret) and a refresh token from one consent in the browser, curl and jq"
+
+[command]
+name    = "meet"
+output  = "send"
+secrets = ["client_id", "client_secret", "refresh_token"]

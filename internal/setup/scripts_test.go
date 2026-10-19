@@ -66,3 +66,17 @@ func TestABlockNeedsAName(t *testing.T) {
 		t.Fatal("a nameless block was accepted")
 	}
 }
+
+// A secret's name becomes a variable's: one that cannot, or one listed twice, is refused.
+func TestASecretNeedsAVariablesName(t *testing.T) {
+	t.Parallel()
+
+	for _, secrets := range [][]string{{"Client-ID"}, {"1st"}, {""}, {"key", "key"}} {
+		if err := setup.Scripts(withScripts(config.Command{Name: "zoom", Secrets: secrets})); err == nil {
+			t.Errorf("secrets %q were accepted", secrets)
+		}
+	}
+	if err := setup.Scripts(withScripts(config.Command{Name: "zoom", Secrets: []string{"client_id", "key2"}})); err != nil {
+		t.Errorf("good names refused: %v", err)
+	}
+}

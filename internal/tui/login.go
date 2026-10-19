@@ -572,8 +572,12 @@ func (m Model) loginPromptLabel() string {
 	return ""
 }
 
-// loginSecret reports whether the field being typed is drawn as dots.
+// loginSecret reports whether the field being typed is drawn as dots: a secret login
+// field, or a command's secret.
 func (m Model) loginSecret() bool {
+	if m.prompt.kind == promptCommandSecret {
+		return true
+	}
 	f, ok := m.login.field()
 	return ok && f.Secret && m.prompt.kind == promptLogin
 }

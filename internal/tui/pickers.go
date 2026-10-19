@@ -89,6 +89,7 @@ func init() {
 		pickerFilterTag:       {choose: byValue(Model.chooseFilterTag), back: filterStep.back},
 		pickerFilterPlaces:    {apply: Model.acceptFilterPlaces, back: filterStep.back},
 		pickerFilterMoves:     {apply: Model.acceptFilterMoves, back: filterStep.back},
+		pickerCommandTemplate: {choose: byValue(Model.chooseCommandTemplate), back: func(m Model) Model { return m.settingsIn(commandsTable, commandsTable+"#template") }},
 		pickerLoginNetwork:    {choose: account},
 		pickerLoginAccount:    {choose: account},
 		pickerImportAccount:   {choose: account},

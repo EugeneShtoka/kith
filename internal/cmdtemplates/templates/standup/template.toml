@@ -1,0 +1,4 @@
+about = "/standup [today's plan]: a standup to fill in, left in the composer"
+
+[command]
+name = "standup"

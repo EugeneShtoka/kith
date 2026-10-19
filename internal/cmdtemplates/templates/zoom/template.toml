@@ -1,0 +1,6 @@
+about = "/zoom [topic]: starts a Zoom meeting and posts its link. Needs a Server-to-Server OAuth app (account ID, client ID, client secret), curl and jq"
+
+[command]
+name    = "zoom"
+output  = "send"
+secrets = ["account_id", "client_id", "client_secret"]

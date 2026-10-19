@@ -172,12 +172,26 @@ func (m Model) recordRows(t config.RecordTable) []setting {
 	group := recordPrefix + t.Path
 	for i := range n {
 		key := fmt.Sprintf("%s#%d", group, i)
+		shown := ""
+		if group == commandsTable && i < len(m.conf.base.UserCommands) {
+			if missing := m.missingSecrets(m.conf.base.UserCommands[i]); len(missing) > 0 {
+				shown = "missing " + strings.Join(missing, ", ")
+			}
+		}
 		rows = append(rows, setting{
 			key: key, group: group, kind: settingOpen, doc: t.Doc,
 			label: recordSummary(m.conf.base, t, i),
-			show:  func(config.Config) string { return "" },
-			open:  func(m Model) (Model, tea.Cmd) { return m.settingsIn(key, ""), nil },
+			show:  func(config.Config) string { return shown },
+			open: func(m Model) (Model, tea.Cmd) {
+				if group == commandsTable { // asks the keyring again: a secret may be kept or gone since
+					return m.settingsIn(key, ""), m.checkCommandSecretsCmd()
+				}
+				return m.settingsIn(key, ""), nil
+			},
 		})
+	}
+	if group == commandsTable {
+		rows = append(rows, templateRow(t))
 	}
 	if group == filterTable {
 		return append(rows, setting{
@@ -242,6 +256,9 @@ func (m Model) recordFieldRows(t config.RecordTable, i int) []setting {
 	rows := make([]setting, 0, len(t.Fields)+1)
 	for _, f := range t.Fields {
 		rows = append(rows, m.chosenField(recordField(t, i, group, f), t.Path, f.Path))
+	}
+	if recordPrefix+t.Path == commandsTable {
+		rows = append(rows, m.commandSecretRows(i, group)...)
 	}
 	return append(rows, setting{
 		key: group + recordRemove, group: group, kind: settingOpen, label: "Remove this one", doc: t.Doc,

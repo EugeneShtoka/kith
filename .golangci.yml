@@ -377,6 +377,16 @@ linters:
             - "$gostd"
             - "rsc.io/qr"
 
+        # The command templates kith ships: embedded files and the block they write.
+        cmdtemplates-is-a-leaf:
+          files:
+            - "**/internal/cmdtemplates/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/BurntSushi/toml"
+            - "github.com/EugeneShtoka/kith/internal/config"
+
         # The Signal adapter: kithd's side of kith-signal. Pure Go: it starts the helper,
         # keeps it alive and speaks its wire, and never links libsignal (meow) itself.
         signal-is-the-adapter:
@@ -791,6 +801,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/setup"
             - "github.com/EugeneShtoka/kith/internal/audio"
+            - "github.com/EugeneShtoka/kith/internal/cmdtemplates"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/emoji"
             - "github.com/EugeneShtoka/kith/internal/filedialog"

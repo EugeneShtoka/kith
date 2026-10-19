@@ -1,0 +1,6 @@
+#!/bin/sh -eu
+# /standup [today's plan]: a template to fill in, left in the composer.
+printf 'Standup %s\n' "$(date +%F)"
+printf '• yesterday: \n'
+printf '• today: %s\n' "${1:-}"
+printf '• blocked: nothing\n'
