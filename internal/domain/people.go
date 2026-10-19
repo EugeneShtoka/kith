@@ -224,6 +224,20 @@ func (p MarkedPeople) Has(id string) bool {
 	return false
 }
 
+// IDs is every identifier of the marked people, sorted: the ones Has finds them by. An
+// ID Has finds only through a link that runs one way, to them (a number the directory
+// never listed), is not among them.
+func (p MarkedPeople) IDs() []string {
+	var out []string
+	for id := range p.people {
+		if p.marked[p.people.find(id)] {
+			out = append(out, id)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // HiddenPeople is who the muted tags hide: the people marked, linked by the directory
 // and the identity groups ([[display.identity]]). You are never hidden: not your own
 // IDs, nor anyone an identity group puts with them.

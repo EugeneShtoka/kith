@@ -139,6 +139,9 @@ func (Nop) RoomsWith(context.Context, []string, domain.RoomSet, int) ([]domain.R
 func (Nop) MessagesAround(context.Context, domain.RoomID, domain.EventID, int, int) ([]domain.Message, error) {
 	return nil, nil
 }
+func (Nop) MessagesFrom(context.Context, domain.SaidRequest) ([]domain.Message, error) {
+	return nil, nil
+}
 func (Nop) ModelTask(context.Context, domain.ModelRequest) (domain.ModelResult, error) {
 	return domain.ModelResult{Refusal: domain.ModelRefusedOff}, nil
 }

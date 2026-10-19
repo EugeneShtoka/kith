@@ -111,6 +111,11 @@ var commands = []command{
 		run: Model.openImport,
 	},
 	{
+		name: "from", arg: "[person]", argOptional: true, keyScope: scopeTimeline, keyAct: actSaid,
+		summary: "everything someone said, in every room you share, by every ID kith links to them — none is the person in view",
+		run:     Model.saidOf,
+	},
+	{
 		name:    "person",
 		summary: "the phonebook card of the person in view: the selected message's sender, else the room's one person",
 		run:     noArg(Model.personInView),

@@ -27,3 +27,28 @@ const (
 	HighlightStart = "\x01"
 	HighlightEnd   = "\x02"
 )
+
+// SaidRequest is one page of what someone said, across rooms: newest first from Before,
+// by any of Senders. Hidden people are not left out; the caller asked for them.
+type SaidRequest struct {
+	// Senders is every ID the person goes by (PersonIDs); none is nobody.
+	Senders []string
+	Rooms   RoomSet
+	// Before is the oldest message already shown; the page is what came before it. Zero
+	// starts at the newest.
+	Before MessagePlace
+	Limit  int
+}
+
+// MessagePlace is where a message stands in time across rooms: what MessagesFrom pages by.
+type MessagePlace struct {
+	RoomID    RoomID
+	ID        EventID
+	Timestamp time.Time
+	Seq       int64
+}
+
+// Place is where msg stands.
+func (msg Message) Place() MessagePlace {
+	return MessagePlace{RoomID: msg.RoomID, ID: msg.ID, Timestamp: msg.Timestamp, Seq: msg.Seq}
+}

@@ -91,9 +91,15 @@ func (m Model) replyPreview(msg domain.Message, derived *derivedCache, nameW, wi
 	if msg.ReplyTo == "" {
 		return ""
 	}
+	tgt, ok := m.quotedTarget(derived, msg.ReplyTo)
+	return m.quoteRow(msg, tgt, ok, nameW, width, colors)
+}
+
+// quoteRow is replyPreview once the replied-to message is looked for: ok is whether it
+// was found.
+func (m Model) quoteRow(msg, tgt domain.Message, ok bool, nameW, width int, colors map[string]color.Color) string {
 	faint := m.theme.Faint
 	avail := max(width-m.bodyColumn(nameW), 1)
-	tgt, ok := m.quotedTarget(derived, msg.ReplyTo)
 	if !ok {
 		// Not loaded yet; quotes.go fetches it.
 		return faint.Render(clamp("↪ (loading the quoted message…)", avail))

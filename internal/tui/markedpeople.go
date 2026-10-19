@@ -43,6 +43,12 @@ func (m Model) linkedIDs() func(id string) []string {
 	}
 }
 
+// personIDs is every ID id's person goes by: the IDs markedPeople would hide them by, so
+// what lists them and what hides them agree.
+func (m Model) personIDs(id string) []string {
+	return domain.NewMarkedPeople([]string{id}, m.identityIDs(), m.linkedIDs()).IDs()
+}
+
 // identityIDs is every ID a [[display.identity]] names.
 func (m Model) identityIDs() []string {
 	return slices.Collect(maps.Keys(m.prefs.identities))

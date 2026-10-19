@@ -29,6 +29,7 @@ type personState struct {
 const (
 	personAdd    = "\x00add"
 	personNewKey = "\x00new"
+	personSaid   = "\x00said"
 )
 
 // personCardMsg is a person's card as the folder has it now, and the keys its cards use.
@@ -76,8 +77,8 @@ func (m Model) handlePersonCard(msg personCardMsg) (Model, tea.Cmd) {
 	return m.showPerson(""), nil
 }
 
-// showPerson lists the card's keys, identifiers first, then an add row, with the cursor on
-// the row valued at.
+// showPerson lists the card's keys, identifiers first, then a row for what they said and
+// an add row, with the cursor on the row valued at.
 func (m Model) showPerson(at string) Model {
 	p := m.aimedAt.person
 	var items []pickerItem
@@ -89,7 +90,9 @@ func (m Model) showPerson(at string) Model {
 	for _, f := range p.card.Fields {
 		items = append(items, pickerItem{label: f.Key, detail: isolate(strings.Join(f.Values, ", ")), value: f.Key, match: f.Key + " " + strings.Join(f.Values, " ")})
 	}
-	items = append(items, pickerItem{label: "Add a field", value: personAdd, match: "add a field"})
+	items = append(items,
+		pickerItem{label: "Everything they said", detail: "in every room you share", value: personSaid, match: "everything they said messages"},
+		pickerItem{label: "Add a field", value: personAdd, match: "add a field"})
 	spec := pickerSpecs[pickerPerson]
 	spec.title = "About " + p.name + " — no card yet"
 	if p.found {
@@ -101,6 +104,10 @@ func (m Model) showPerson(at string) Model {
 
 // choosePersonRow edits a field, or asks which to add.
 func (m Model) choosePersonRow(value string) (Model, tea.Cmd) {
+	if value == personSaid {
+		p := m.aimedAt.person
+		return m.closePicker().openSaid(p.id, p.name)
+	}
 	if value == personAdd {
 		m = m.closePicker()
 		book := m.book()

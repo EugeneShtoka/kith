@@ -65,7 +65,7 @@ func (m Model) renderStatus() string {
 // Empty outside the timeline and under an overlay, where it would describe something
 // not on screen.
 func (m Model) timelinePosition() string {
-	if m.focus != paneTimeline || len(m.timeline.messages) == 0 || m.picker.active() || m.search.active {
+	if m.focus != paneTimeline || len(m.timeline.messages) == 0 || m.picker.active() || m.search.active || m.said.open {
 		return ""
 	}
 	return fmt.Sprintf("%d/%d", m.selectedIndex()+1, len(m.timeline.messages))
@@ -129,6 +129,8 @@ func (m Model) hints() string {
 // react prompt, composer or message browser.
 func (m Model) timelineHints() string {
 	switch {
+	case m.said.open:
+		return m.saidHint()
 	case m.search.active:
 		return m.searchHint()
 	case m.picker.active():

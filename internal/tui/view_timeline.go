@@ -74,8 +74,8 @@ func (m Model) renderTimeline(w, h int) string {
 		return m.framePane(m.searchTitle(), lines, w, h, active)
 	}
 
-	if m.history.active() {
-		return m.framePane(m.historyTitle(), m.historyLines(inner, h-paneBorder), w, h, active)
+	if title, lines, ok := m.viewTakingThePane(inner, h); ok {
+		return m.framePane(title, lines, w, h, active)
 	}
 
 	title := "(no room)"
@@ -126,6 +126,18 @@ func (m Model) renderTimeline(w, h int) string {
 	}
 
 	return m.framePane(title, lines, w, h, active)
+}
+
+// viewTakingThePane is the history view or what someone said, when one is open: its title
+// and lines for a pane h rows high and inner wide.
+func (m Model) viewTakingThePane(inner, h int) (string, []string, bool) {
+	switch {
+	case m.history.active():
+		return m.historyTitle(), m.historyLines(inner, h-paneBorder), true
+	case m.said.open:
+		return m.saidTitle(), m.saidLines(inner, h-paneBorder-1), true
+	}
+	return "", nil, false
 }
 
 // primeTimeline settles the open room's side (settleLayout) and makes, on the Update

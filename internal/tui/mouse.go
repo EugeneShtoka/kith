@@ -37,6 +37,8 @@ func (m Model) handleMouseWheel(msg tea.MouseWheelMsg) (Model, tea.Cmd) {
 		n := len(m.picker.items)
 		m.picker.cursor = moveCursor(m.picker.cursor, n, -sign, false)
 		return m, nil
+	case m.said.open:
+		return m.moveSaid(-sign)
 	case m.search.active:
 		return m.moveSearchCursor(-sign)
 	}

@@ -51,6 +51,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"SearchRequest", domain.SearchRequest{}, func(v any) any {
 			return protoconv.ProtoToSearchRequest(protoconv.SearchRequestToProto(v.(domain.SearchRequest)))
 		}},
+		{"SaidRequest", domain.SaidRequest{}, func(v any) any {
+			return protoconv.ProtoToSaidRequest(protoconv.SaidRequestToProto(v.(domain.SaidRequest)))
+		}},
 		{"Draft", domain.Draft{}, func(v any) any {
 			return protoconv.ProtoToDraft(protoconv.DraftToProto(v.(domain.Draft)))
 		}},

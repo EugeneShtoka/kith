@@ -430,6 +430,11 @@ func (r *Remote) MessagesAround(ctx context.Context, roomID domain.RoomID, event
 	return pc.ProtoToMessages(resp.GetMessages()), err
 }
 
+func (r *Remote) MessagesFrom(ctx context.Context, said domain.SaidRequest) ([]domain.Message, error) {
+	resp, err := call(ctx, "messages from", r.c.MessagesFrom, pc.SaidRequestToProto(said))
+	return pc.ProtoToMessages(resp.GetMessages()), err
+}
+
 // RoomEncryption reports rooms the daemon did not name as unencrypted; the daemon
 // already reports unknowns as encrypted.
 func (r *Remote) RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {

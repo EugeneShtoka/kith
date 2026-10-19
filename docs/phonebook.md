@@ -57,7 +57,9 @@ person under the cursor's; in the room list or a room that is a DM, or has one p
 in it besides you and bots, that person's. `:person` does the same for what you are
 on.
 
-The card lists its identifiers, then its fields, then **Add a field**. Enter on a
+The card lists its identifiers, then its fields, then **Everything they said** (every
+message they wrote in a room you share; see [Search](search.md#everything-one-person-said)),
+then **Add a field**. Enter on a
 field edits it: commas between values make it a list, and clearing it removes the key.
 Add a field offers the keys the folder's other cards already use, then **New field**
 to name one.

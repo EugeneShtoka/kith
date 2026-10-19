@@ -245,6 +245,29 @@ func ProtoToSearchRequest(msg *v1.SearchMessagesRequest) domain.SearchRequest {
 	}
 }
 
+// SaidRequestToProto converts a page of what someone said.
+func SaidRequestToProto(req domain.SaidRequest) *v1.MessagesFromRequest {
+	return &v1.MessagesFromRequest{
+		Senders: req.Senders, RoomIds: RoomIDsToStrings(req.Rooms.IDs), AllRooms: req.Rooms.All,
+		BeforeRoomId: string(req.Before.RoomID), BeforeEventId: string(req.Before.ID),
+		BeforeTsMs: unixMillis(req.Before.Timestamp), BeforeSeq: req.Before.Seq,
+		Limit: int64(req.Limit),
+	}
+}
+
+// ProtoToSaidRequest converts it back.
+func ProtoToSaidRequest(msg *v1.MessagesFromRequest) domain.SaidRequest {
+	return domain.SaidRequest{
+		Senders: msg.GetSenders(),
+		Rooms:   ProtoToRoomSet(msg.GetRoomIds(), msg.GetAllRooms()),
+		Before: domain.MessagePlace{
+			RoomID: domain.RoomID(msg.GetBeforeRoomId()), ID: domain.EventID(msg.GetBeforeEventId()),
+			Timestamp: fromUnixMillis(msg.GetBeforeTsMs()), Seq: msg.GetBeforeSeq(),
+		},
+		Limit: int(msg.GetLimit()),
+	}
+}
+
 // ProtoToRoomSet is the rooms a request names: every room with all, else exactly ids
 // (none when there are none).
 func ProtoToRoomSet(ids []string, all bool) domain.RoomSet {
