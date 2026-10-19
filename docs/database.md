@@ -323,8 +323,11 @@ Since then:
   came cut short after kith was away), a row until filled: from the newest message held
   below to the oldest fetched above, and where paging back resumes, so a restart
   mid-fill carries on.
+- v22 (`room_read_only`): the rooms this account may read but not post in (a Matrix
+  room whose power levels put messages above ours), a row only for one; written by the
+  network when it lists rooms, so the composer says so after a restart too.
 
-so a current cache is at version 21.
+so a current cache is at version 22.
 
 ### Indexes need no migration
 

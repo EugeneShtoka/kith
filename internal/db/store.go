@@ -39,7 +39,8 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 	return collect(ctx, c.db, "rooms",
 		`SELECT r.id, r.name, r.is_direct, r.invited_by, r.heroes,
 		        COALESCE(t.topic, ''), COALESCE(u.replacement, ''), a.room_id IS NOT NULL,
-		        f.room_id IS NOT NULL, COALESCE(n.network, ''), m.room_id IS NOT NULL
+		        f.room_id IS NOT NULL, COALESCE(n.network, ''), m.room_id IS NOT NULL,
+		        o.room_id IS NOT NULL
 		   FROM rooms r
 		   LEFT JOIN room_topics   t ON t.room_id = r.id
 		   LEFT JOIN room_upgrades u ON u.room_id = r.id
@@ -47,14 +48,15 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 		   LEFT JOIN room_forums   f ON f.room_id = r.id
 		   LEFT JOIN room_networks n ON n.room_id = r.id
 		   LEFT JOIN room_sms      m ON m.room_id = r.id
+		   LEFT JOIN room_read_only o ON o.room_id = r.id
 		  WHERE r.membership = ?`,
 		func(rows *sql.Rows) (domain.Room, error) {
 			var (
 				id, name, invitedBy, heroes, topic, replacement, network string
 				isDirect                                                 int
-				archived, forum, sms                                     bool
+				archived, forum, sms, readOnly                           bool
 			)
-			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived, &forum, &network, &sms); err != nil {
+			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived, &forum, &network, &sms, &readOnly); err != nil {
 				return domain.Room{}, err
 			}
 			room := domain.Room{
@@ -69,6 +71,7 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 				Forum:       forum,
 				Network:     domain.Protocol(network),
 				SMS:         sms,
+				ReadOnly:    readOnly,
 			}
 			if heroes != "" {
 				if err := json.Unmarshal([]byte(heroes), &room.Members); err != nil {
@@ -105,6 +108,11 @@ func (c *Cache) SetForums(ctx context.Context, rooms map[domain.RoomID]bool) err
 // SetSMS keeps which rooms' messages go out as SMS or MMS.
 func (c *Cache) SetSMS(ctx context.Context, rooms map[domain.RoomID]bool) error {
 	return c.setRoomFlags(ctx, rooms, "room_sms", "sms")
+}
+
+// SetReadOnly keeps which rooms this account may read but not post in.
+func (c *Cache) SetReadOnly(ctx context.Context, rooms map[domain.RoomID]bool) error {
+	return c.setRoomFlags(ctx, rooms, "room_read_only", "read-only")
 }
 
 // SetTimers keeps chats' disappearing-messages timers: zero removes a chat's.

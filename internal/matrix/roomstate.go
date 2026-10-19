@@ -18,6 +18,8 @@ var roomStateTypes = map[event.Type]bool{
 	event.StateSpaceParent:    true,
 	event.StateCreate:         true,
 	event.StateTopic:          true,
+	// Who may post: a room becomes read-only, or writable again (readOnly).
+	event.StatePowerLevels: true,
 }
 
 // roomsChanged reports whether a sync changes the room list, names or spaces.

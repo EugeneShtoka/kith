@@ -48,6 +48,7 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 		}
 	}
 	rooms := make([]domain.Room, len(joined))
+	readOnly := b.readOnlyRooms(ctx, joined)
 	fanOut(len(joined), func(i int) {
 		roomID := joined[i]
 		peer, isDM := peers[roomID]
@@ -65,6 +66,7 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 			IsDirect: isDM,
 			Members:  members,
 			Network:  prev.Network, // read once and kept (networks.go)
+			ReadOnly: readOnly[domain.RoomID(roomID)],
 		}
 	})
 	domain.SortRooms(rooms)
@@ -72,6 +74,7 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 		if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
 			return nil, fmt.Errorf("matrix: cache rooms: %w", err)
 		}
+		b.warnIf(ctx, b.cache.SetReadOnly(ctx, readOnly), "cache which rooms are read-only")
 		b.wantNetworks() // a room new to the cache has its network read
 	}
 	return rooms, nil

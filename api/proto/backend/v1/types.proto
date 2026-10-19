@@ -35,6 +35,8 @@ message Room {
   repeated string broadcasts = 13;
   // Messages go out as SMS or MMS through a phone's carrier (domain.Room.SMS).
   bool sms = 14;
+  // This account may read but not post here (domain.Room.ReadOnly).
+  bool read_only = 15;
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted (domain.ChatDeleting).

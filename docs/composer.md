@@ -8,6 +8,8 @@ Every key on this page is a default. The [`[keys.*]` tables](keybindings.md) let
 
 Press `i` on the timeline to start writing. By default **enter adds a new line** and **`ctrl+enter` or `alt+enter` sends**, so a message can run to as many lines as it needs.
 
+In a Matrix room you may read but not post in (an announcements room, a bridge's status room: its power levels put messages above yours), the composer says **read-only here**, and a message, a scheduled one or a file is not sent; the status line says why and the draft stays.
+
 | Key | What it does |
 | --- | --- |
 | `ctrl+enter`, `alt+enter` | Send |
