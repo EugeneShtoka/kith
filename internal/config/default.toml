@@ -1337,7 +1337,7 @@ timeout = 15
 
 # Per-command settings: what a command is given and where its output goes.
 #
-#   [[commands.script]]
+#   [[command]]
 #   name   = "save"
 #   needs  = ["url", "message"]
 #   output = "none"
@@ -1373,7 +1373,7 @@ timeout = 15
 #   [keys.timeline]
 #   open_url_focus = "-"
 #
-#   [[commands.script]]
+#   [[command]]
 #   name   = "go"
 #   needs  = ["url"]
 #   output = "none"

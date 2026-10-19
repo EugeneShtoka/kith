@@ -15,8 +15,8 @@ import (
 )
 
 // withContext is `scripted` plus a declared context: one script, its
-// `[[commands.script]]` block, and messages in the room.
-func withContext(t *testing.T, name, body string, script config.Script, msgs ...domain.Message) Model {
+// `[[command]]` block, and messages in the room.
+func withContext(t *testing.T, name, body string, script config.Command, msgs ...domain.Message) Model {
 	t.Helper()
 	home := t.TempDir()
 	dir := filepath.Join(home, "commands")
@@ -27,7 +27,7 @@ func withContext(t *testing.T, name, body string, script config.Script, msgs ...
 
 	m, _ := attaching(t)
 	script.Name = name
-	cfg := config.Config{Commands: config.Commands{Dir: dir, Timeout: 5, Scripts: []config.Script{script}}}
+	cfg := config.Config{Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{script}}
 	m = m.WithConfigFile(filepath.Join(home, "config.toml"), cfg).keptIn()
 	if len(msgs) > 0 {
 		m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: msgs}})
@@ -47,7 +47,7 @@ func TestAScriptGetsTheHistoryItAskedFor(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "sum", "#!/bin/sh\ncat\n",
-		config.Script{Needs: []string{"history:2"}},
+		config.Command{Needs: []string{"history:2"}},
 		msgWith("$1", "first"), msgWith("$2", "second"), msgWith("$3", "third"))
 
 	m = runTyped(t, m, "/sum")
@@ -72,7 +72,7 @@ func TestAScriptGetsTheHistoryItAskedFor(t *testing.T) {
 func TestAScriptGetsNothingItDidNotAskFor(t *testing.T) {
 	t.Parallel()
 
-	m := withContext(t, "bare", "#!/bin/sh\ncat\n", config.Script{}, msgWith("$1", "a https://one.org here"))
+	m := withContext(t, "bare", "#!/bin/sh\ncat\n", config.Command{}, msgWith("$1", "a https://one.org here"))
 
 	m = runTyped(t, m, "/bare")
 
@@ -86,7 +86,7 @@ func TestTheConversationNeverReachesTheArgv(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "argv", "#!/bin/sh\necho \"argc=$# argv=$*\"\n",
-		config.Script{Needs: []string{"history:3", "message"}},
+		config.Command{Needs: []string{"history:3", "message"}},
 		msgWith("$1", "something secret"), msgWith("$2", "and more of it"))
 
 	m = runTyped(t, m, "/argv typed")
@@ -104,7 +104,7 @@ func TestAScriptAsksWhichLinkBeforeItRuns(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "save", "#!/bin/sh\necho \"got $KITH_URL\"\n",
-		config.Script{Needs: []string{"url"}},
+		config.Command{Needs: []string{"url"}},
 		msgWith("$1", "read https://one.org and https://two.org"))
 
 	m = typeInto(t, m, "/save")
@@ -138,7 +138,7 @@ func TestASingleLinkIsNotAQuestion(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "save", "#!/bin/sh\necho \"got $KITH_URL\"\n",
-		config.Script{Needs: []string{"url"}},
+		config.Command{Needs: []string{"url"}},
 		msgWith("$1", "read https://one.org today"))
 
 	m = runTyped(t, m, "/save")
@@ -155,7 +155,7 @@ func TestAScriptThatNeedsALinkAndFindsNoneSaysSo(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "save", "#!/bin/sh\necho ran\n",
-		config.Script{Needs: []string{"url"}},
+		config.Command{Needs: []string{"url"}},
 		msgWith("$1", "no links in here at all"))
 
 	m = typeInto(t, m, "/save")
@@ -184,7 +184,7 @@ func TestOutputSinks(t *testing.T) {
 		{output: "status", wants: "printed this"},
 		{output: "none", wants: "ran"},
 	} {
-		m := withContext(t, "side", "#!/bin/sh\necho 'printed this'\n", config.Script{Output: tc.output})
+		m := withContext(t, "side", "#!/bin/sh\necho 'printed this'\n", config.Command{Output: tc.output})
 		m = runTyped(t, m, "/side")
 
 		if !strings.Contains(m.status(), tc.wants) {
@@ -199,7 +199,7 @@ func TestOutputSinks(t *testing.T) {
 func TestASilentScriptIsFineWhenItsOutputIsDiscarded(t *testing.T) {
 	t.Parallel()
 
-	m := withContext(t, "quiet", "#!/bin/sh\nexit 0\n", config.Script{Output: "none"})
+	m := withContext(t, "quiet", "#!/bin/sh\nexit 0\n", config.Command{Output: "none"})
 	m = runTyped(t, m, "/quiet")
 
 	if strings.Contains(m.status(), "printed nothing") {
@@ -211,7 +211,7 @@ func TestAScriptRunsFromItsKey(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "sum", "#!/bin/sh\ncat\n",
-		config.Script{Needs: []string{"history:1"}, Keys: "alt+t"},
+		config.Command{Needs: []string{"history:1"}, Keys: "alt+t"},
 		msgWith("$1", "only this one"))
 	// Script keys never fire while typing.
 	m.focus, m.compose.insertMode = paneTimeline, false
@@ -229,7 +229,7 @@ func TestAKeyBoundScriptStillAsks(t *testing.T) {
 
 	m := withContext(t, "save", "#!/bin/sh\necho \"got $KITH_URL\"\n",
 		// Not alt+s: that is spell.open_insert, and shadowing a built-in is refused.
-		config.Script{Needs: []string{"url"}, Keys: "alt+g"},
+		config.Command{Needs: []string{"url"}, Keys: "alt+g"},
 		msgWith("$1", "https://one.org and https://two.org"))
 	m.focus, m.compose.insertMode = paneTimeline, false
 
@@ -246,8 +246,8 @@ func TestAKeyBoundScriptStillAsks(t *testing.T) {
 func TestAScriptKeyCannotShadowABuiltIn(t *testing.T) {
 	t.Parallel()
 
-	km := keymapFor(config.Config{Keys: config.DefaultKeys(), Commands: config.Commands{
-		Scripts: []config.Script{{Name: "save", Keys: "gx"}},
+	km := keymapFor(config.Config{Keys: config.DefaultKeys(), UserCommands: []config.Command{
+		{Name: "save", Keys: "gx"},
 	}})
 
 	if _, bound := km.scriptFor("g x"); bound {
@@ -262,15 +262,15 @@ func TestAScriptKeyCannotShadowABuiltIn(t *testing.T) {
 func TestTwoScriptsCannotShareAKey(t *testing.T) {
 	t.Parallel()
 
-	km := keymapFor(config.Config{Keys: config.DefaultKeys(), Commands: config.Commands{Scripts: []config.Script{
+	km := keymapFor(config.Config{Keys: config.DefaultKeys(), UserCommands: []config.Command{
 		{Name: "first", Keys: "alt+t"},
 		{Name: "second", Keys: "alt+t"},
-	}}})
+	}})
 
 	if name, _ := km.scriptFor("alt+t"); name != "first" {
 		t.Errorf("alt+t runs %q, want the first block to hold it", name)
 	}
-	if !strings.Contains(strings.Join(km.issues, "\n"), `commands.script "second"`) {
+	if !strings.Contains(strings.Join(km.issues, "\n"), `command "second"`) {
 		t.Errorf("issues = %+v, want the second reported", km.issues)
 	}
 }
@@ -279,7 +279,7 @@ func TestTheHelpOverlayListsYourScriptKeys(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "sum", "#!/bin/sh\ncat\n",
-		config.Script{Needs: []string{"history:20"}, Keys: "alt+t"})
+		config.Command{Needs: []string{"history:20"}, Keys: "alt+t"})
 
 	help := strings.Join(m.helpLines(), "\n")
 
@@ -296,7 +296,7 @@ func TestAScriptCanPrintIntoTheReader(t *testing.T) {
 	t.Parallel()
 
 	m := withContext(t, "whois", "#!/bin/sh\nprintf 'Alice\\nBob\\nCarol\\n'\n",
-		config.Script{Output: "pager"})
+		config.Command{Output: "pager"})
 
 	m = runTyped(t, m, "/whois")
 
@@ -323,7 +323,7 @@ func TestAScriptCanPrintIntoTheReader(t *testing.T) {
 func TestEachReaderScrollsAgainstItsOwnLength(t *testing.T) {
 	t.Parallel()
 
-	m := withContext(t, "long", "#!/bin/sh\nseq 1 200\n", config.Script{Output: "pager"})
+	m := withContext(t, "long", "#!/bin/sh\nseq 1 200\n", config.Command{Output: "pager"})
 	m = sized(t, m)
 	m = runTyped(t, m, "/long")
 
@@ -346,13 +346,13 @@ func TestTheFocusKeyCanBeReplacedByAScript(t *testing.T) {
 
 	keys := config.DefaultKeys()
 	keys.Bindings["timeline.open_url_focus"] = "-" // the built-in gives up gX
-	script := config.Script{Name: "go", Needs: []string{"url"}, Output: "none", Keys: "gX"}
+	script := config.Command{Name: "go", Needs: []string{"url"}, Output: "none", Keys: "gX"}
 
 	m := withContext(t, "go", "#!/bin/sh\necho \"would open $KITH_URL\" >&2\n", script,
 		msgWith("$1", "read https://one.org today"))
 	m.keys = keymapFor(config.Config{
-		Keys:     keys,
-		Commands: config.Commands{Scripts: []config.Script{script}},
+		Keys:         keys,
+		UserCommands: []config.Command{script},
 	})
 	m.focus, m.compose.insertMode = paneTimeline, false
 
@@ -381,13 +381,13 @@ func TestTheReplacementStillAsksWhichLink(t *testing.T) {
 
 	keys := config.DefaultKeys()
 	keys.Bindings["timeline.open_url_focus"] = "-"
-	script := config.Script{Name: "go", Needs: []string{"url"}, Output: "none", Keys: "gX"}
+	script := config.Command{Name: "go", Needs: []string{"url"}, Output: "none", Keys: "gX"}
 
 	m := withContext(t, "go", "#!/bin/sh\nexit 0\n", script,
 		msgWith("$1", "https://one.org and https://two.org"))
 	m.keys = keymapFor(config.Config{
-		Keys:     keys,
-		Commands: config.Commands{Scripts: []config.Script{script}},
+		Keys:         keys,
+		UserCommands: []config.Command{script},
 	})
 	m.focus, m.compose.insertMode = paneTimeline, false
 
@@ -406,8 +406,8 @@ func TestTheReplacementStillAsksWhichLink(t *testing.T) {
 func TestASequenceBoundToAScriptCompletes(t *testing.T) {
 	t.Parallel()
 
-	km := keymapFor(config.Config{Keys: config.DefaultKeys(), Commands: config.Commands{
-		Scripts: []config.Script{{Name: "go", Keys: "z s"}},
+	km := keymapFor(config.Config{Keys: config.DefaultKeys(), UserCommands: []config.Command{
+		{Name: "go", Keys: "z s"},
 	}})
 
 	if !km.boundIn("z s", scopeGlobal, scopeTimeline) {

@@ -44,7 +44,7 @@ var recordTableLabels = withNetworkTables(map[string]string{
 	"display.threads.rule": "Threads per place",
 	"display.media.rule":   "Media per place",
 	"filter":               "Filters",
-	"commands.script":      "Scripts",
+	"command":              "Commands",
 	"keys.jump":            "Jump shortcuts",
 	"keys.tag":             "Tag keys",
 })

@@ -2870,8 +2870,8 @@ func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 		derived, _ = derive(config.Config{})
 	}
 	next := m.applyIntegrations(cfg, derived)
-	// Script bindings live in [[commands.script]], not [keys], so bind them onto the existing keymap.
-	next.keys = next.keys.withScripts(cfg.Commands.Scripts)
+	// Command bindings live in [[command]], not [keys], so bind them onto the existing keymap.
+	next.keys = next.keys.withScripts(cfg.UserCommands)
 	// The rail is the spaces and the tags; New had no tags to build it from.
 	return next.rebuiltRail()
 }

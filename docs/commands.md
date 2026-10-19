@@ -122,12 +122,12 @@ timeout = 15     # seconds before a command is killed and reported
 
 **Proposing the text is the default** because a script that misfires should cost you a keystroke, not a message in a room full of people. For scripts whose output you would never edit, such as "start a call and post the link", set `output = "send"` in the command's block (below). The policy lives in the config rather than in the scripts so a script copied from somewhere else cannot grant itself permission to post.
 
-### Giving a script context: `[[commands.script]]`
+### A command's settings: `[[command]]`
 
 A block per command lets it receive **what you are looking at**, choose where its output goes, and bind it to a key:
 
 ```toml
-[[commands.script]]
+[[command]]
 name   = "who"
 needs  = ["history:100"]
 output = "pager"
@@ -181,7 +181,7 @@ fi
 ```
 
 ```toml
-[[commands.script]]
+[[command]]
 name   = "call"
 output = "send"
 ```
@@ -216,7 +216,7 @@ jq -r '.history | group_by(.sender_name // .sender)
 ```
 
 ```toml
-[[commands.script]]
+[[command]]
 name   = "who"
 needs  = ["history:100"]
 output = "pager"
