@@ -49,6 +49,8 @@ type Network interface {
 	// Unlink removes the linked device aci: Signal is told when it is connected, and the
 	// device's keys are deleted either way.
 	Unlink(ctx context.Context, aci string) error
+	// Leave takes the connected account aci out of a group, telling its other members.
+	Leave(ctx context.Context, aci, group string) error
 }
 
 // ErrGone is an attachment Signal no longer keeps (its CDN drops them after a while).
@@ -232,6 +234,13 @@ func (s *service) Unlink(ctx context.Context, req *connect.Request[signalv1.Unli
 	}
 	s.log.Info("unlinked", "aci", req.Msg.GetAccount())
 	return connect.NewResponse(&signalv1.UnlinkResponse{}), nil
+}
+
+func (s *service) Leave(ctx context.Context, req *connect.Request[signalv1.LeaveRequest]) (*connect.Response[signalv1.LeaveResponse], error) {
+	if err := s.network.Leave(ctx, req.Msg.GetAccount(), req.Msg.GetGroup()); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(&signalv1.LeaveResponse{}), nil
 }
 
 func wireDevice(d Device) *signalv1.Device {

@@ -187,3 +187,17 @@ func (n *Network) Unlink(ctx context.Context, aci string) error {
 	}
 	return nil
 }
+
+// Leave takes the connected account aci out of group; Signal tells its other members.
+func (n *Network) Leave(ctx context.Context, aci, group string) error {
+	a, err := n.connected(aci)
+	if err != nil {
+		return err
+	}
+	self := a.cli.Store.ACI
+	change := &signalmeow.GroupChange{DeleteMembers: []*uuid.UUID{&self}}
+	if _, err := a.cli.UpdateGroup(ctx, change, types.GroupIdentifier(group)); err != nil {
+		return fmt.Errorf("signal: leave the group: %w", err)
+	}
+	return nil
+}
