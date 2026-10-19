@@ -46,6 +46,15 @@ func New(dir string, max int64) (*Cache, error) {
 	return &Cache{dir: dir, renders: renders, max: max}, nil
 }
 
+// Outgoing is where clean copies of pictures wait while they are sent (Strip): inside
+// the cache, which the daemon can read where its /tmp is private. Empty on a nil cache.
+func (c *Cache) Outgoing() string {
+	if c == nil {
+		return ""
+	}
+	return filepath.Join(c.dir, "outgoing")
+}
+
 // Dir is where the cache keeps its files.
 func (c *Cache) Dir() string {
 	if c == nil {
