@@ -74,6 +74,11 @@ To send one message exactly as typed, start it with `/plain`. To turn rendering 
 markdown = false
 ```
 
+**Sending as SMS asks first.** A chat whose messages go out as SMS or MMS through your
+phone's carrier (a Google Messages SMS chat) asks before each message you send or
+schedule there; `[composer] confirm_sms = false` sends without asking. See
+[Google Messages](google-messages.md#sending).
+
 ## Mentions and room links
 
 Type `@` at the start of the message or after a space to open the member list. It narrows as you type:

@@ -316,8 +316,11 @@ Since then:
 - v19 (`message_expiry`): a disappearing message's timer and when its countdown started
   (0 until the account reads it, for networks that count from reading), a row until
   the message expires and is deleted as a deletion is.
+- v20 (`room_sms`): the chats whose messages go out as SMS or MMS through a phone's
+  carrier (Google Messages), a row only for one; written only by that network, so the
+  question before sending there stands after a restart.
 
-so a current cache is at version 19.
+so a current cache is at version 20.
 
 ### Indexes need no migration
 

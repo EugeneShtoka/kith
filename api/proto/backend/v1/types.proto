@@ -33,6 +33,8 @@ message Room {
   string network = 12;
   // The room-wide mentions the room takes, as typed (domain.Room.Broadcasts).
   repeated string broadcasts = 13;
+  // Messages go out as SMS or MMS through a phone's carrier (domain.Room.SMS).
+  bool sms = 14;
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted (domain.ChatDeleting).

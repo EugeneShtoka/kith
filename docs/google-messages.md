@@ -7,13 +7,36 @@ of their own (`Google Messages <name>`): the inbox, with the newest messages of 
 conversation that has something new, then every message as it arrives. People with a
 phone number are named by their contact name and known by the number. Pictures,
 videos, voice messages and files show as a short label (`[photo]`, `[file: cv.pdf]`)
-for now, and an MMS the phone has not downloaded yet says so. Sending, older history
-and reactions come next.
+for now, and an MMS the phone has not downloaded yet says so. You can send text and
+replies; attachments, older history and reactions come next.
 
 A conversation you read in kith stays read: kith keeps the read position itself,
 before telling the phone, and keeps telling it until it hears. Conversations the phone
 files as spam or blocked, and deleted ones, are not shown; archived ones are.
 Signing out in kith (from the account's space) unpairs kith from the phone.
+
+## Sending
+
+A message you send goes to the phone, which sends it as the Messages app would: in an
+SMS chat by SMS (or MMS), in an RCS chat by RCS. If an RCS message cannot go, the phone
+falls back to SMS as its own settings say (Messages → Settings → RCS chats); a chat
+that switched to end-to-end encryption is held to RCS. The message shows in kith once
+the phone sends it back, and one the phone could not send ends with
+`[not sent: the phone could not send it]`. Sent messages cannot be edited.
+
+**SMS goes through your carrier**, which may charge for each message. Before sending
+(or scheduling with `/at` and `/in`) to a chat whose messages go as SMS, kith asks:
+`y` sends, `n` keeps the draft. To send without asking:
+
+```toml
+[composer]
+confirm_sms = false
+```
+
+A chat is known to send as SMS from the phone's listing (its type, or that the phone
+holds it to SMS), so it asks from the first listing after kith connects. If the phone
+is not answering when you send, Google keeps the message for it, and kith waits for
+the phone to send it rather than sending it twice.
 
 ## Before you pair
 

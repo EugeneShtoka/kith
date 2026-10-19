@@ -2552,6 +2552,15 @@ func (m Model) sendComposed(room domain.Room, body string, emote bool) (Model, t
 	if room.Replacement != "" {
 		return m.say("this room was replaced — /replacement goes to the room that continues it"), nil
 	}
+	if m.asksSMS(room) {
+		m.confirm = confirmState{action: pendingSendSMS, room: room, body: body, emote: emote}
+		return m, nil
+	}
+	return m.sendComposedNow(room, body, emote)
+}
+
+// sendComposedNow is sendComposed with nothing left to ask.
+func (m Model) sendComposedNow(room domain.Room, body string, emote bool) (Model, tea.Cmd) {
 	// An open thread receives the message; otherwise the room does.
 	draft := domain.Draft{
 		Body: body, Mentions: m.compose.drafted, ReplyTo: m.compose.replyTo, ThreadRoot: m.thread.root, Emote: emote,

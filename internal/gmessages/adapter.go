@@ -76,6 +76,8 @@ type Adapter struct {
 
 	// reads is the read marks the phone has not taken yet (read.go).
 	reads *readstate.Owed[mark]
+	// outbox is the sends the phone has or is being handed (outbox.go).
+	outbox *outbox
 	// keepDeleted is [display.deleted] keep: a deletion keeps what it removed.
 	keepDeleted atomic.Bool
 
@@ -112,6 +114,7 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 		unread:    make(chan domain.Unread, streamBuffer),
 		reactions: make(chan domain.ReactionUpdate, streamBuffer),
 		reads:     readstate.NewOwed(later),
+		outbox:    newOutbox(),
 	}
 }
 

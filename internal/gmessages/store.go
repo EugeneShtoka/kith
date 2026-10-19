@@ -50,6 +50,7 @@ func (a *Adapter) store(ctx context.Context, c *conn, ch change) {
 		a.keepPeople(ctx, c)
 	}
 	c.knowMe()
+	sms := map[domain.RoomID]bool{}
 	for _, conversation := range ch.convs {
 		cv := in.convs[conversation]
 		if cv == nil {
@@ -57,6 +58,7 @@ func (a *Adapter) store(ctx context.Context, c *conn, ch change) {
 		}
 		id := roomID(in.self, conversation)
 		c.rooms[id] = in.room(cv)
+		sms[id] = cv.sms()
 		if err := a.cache.SaveMembers(ctx, id, in.roomMembers(cv)); err != nil {
 			a.log.Warn("cache a conversation's members failed", "account", c.account.Name, "err", err)
 		}
@@ -70,7 +72,7 @@ func (a *Adapter) store(ctx context.Context, c *conn, ch change) {
 		}
 	}
 	if len(ch.convs) > 0 || len(gone) > 0 {
-		a.saveRooms(ctx, c, gone)
+		a.saveRooms(ctx, c, gone, sms)
 	}
 	counted := map[domain.RoomID]bool{}
 	for _, conversation := range ch.convs {
@@ -92,8 +94,9 @@ func (a *Adapter) store(ctx context.Context, c *conn, ch change) {
 	}
 }
 
-// saveRooms writes c's rooms, or forgets the gone ones when none is left to write.
-func (a *Adapter) saveRooms(ctx context.Context, c *conn, gone []domain.RoomID) {
+// saveRooms writes c's rooms, or forgets the gone ones when none is left to write, and
+// which of the changed ones send as SMS.
+func (a *Adapter) saveRooms(ctx context.Context, c *conn, gone []domain.RoomID, sms map[domain.RoomID]bool) {
 	rooms := make([]domain.Room, 0, len(c.rooms))
 	for id := range c.rooms {
 		rooms = append(rooms, c.rooms[id])
@@ -106,6 +109,9 @@ func (a *Adapter) saveRooms(ctx context.Context, c *conn, gone []domain.RoomID) 
 	}
 	if err != nil {
 		a.log.Warn("cache the conversations failed", "account", c.account.Name, "err", err)
+	}
+	if err := a.cache.SetSMS(ctx, sms); err != nil {
+		a.log.Warn("keep which conversations send as SMS failed", "account", c.account.Name, "err", err)
 	}
 	a.roomsChanged()
 }
