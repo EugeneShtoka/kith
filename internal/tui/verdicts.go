@@ -100,6 +100,10 @@ func (m Model) tagKey(press string) (Model, tea.Cmd, bool) {
 		next, cmd := m.toggleSenderIn(view.tags.At(i).Name)
 		return next, cmd, true
 	}
+	if m.focus == paneRooms && m.showingTagPeople() {
+		next, cmd := m.takeTagPersonOut(view.tags.At(i).Name)
+		return next, cmd, true
+	}
 	room, ok := m.currentRoom()
 	if !ok || room.IsInvite() {
 		return m, nil, true

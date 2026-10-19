@@ -238,6 +238,9 @@ const (
 	// BackendServiceMessagesFromProcedure is the fully-qualified name of the BackendService's
 	// MessagesFrom RPC.
 	BackendServiceMessagesFromProcedure = "/backend.v1.BackendService/MessagesFrom"
+	// BackendServiceMessageCountsProcedure is the fully-qualified name of the BackendService's
+	// MessageCounts RPC.
+	BackendServiceMessageCountsProcedure = "/backend.v1.BackendService/MessageCounts"
 	// BackendServiceCompleteWordProcedure is the fully-qualified name of the BackendService's
 	// CompleteWord RPC.
 	BackendServiceCompleteWordProcedure = "/backend.v1.BackendService/CompleteWord"
@@ -547,6 +550,8 @@ type BackendServiceClient interface {
 	MessagesAround(context.Context, *connect.Request[v1.MessagesAroundRequest]) (*connect.Response[v1.MessagesAroundResponse], error)
 	// MessagesFrom is one page of what someone said, across rooms.
 	MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error)
+	// MessageCounts is how many cached messages each person wrote.
+	MessageCounts(context.Context, *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error)
 	// CompleteWord finishes a partly typed word from what has been said in scope, ranked,
 	// then tops the list up from the installed word-frequency list for the language the
 	// prefix is in.
@@ -1119,6 +1124,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("MessagesFrom")),
 			connect.WithClientOptions(opts...),
 		),
+		messageCounts: connect.NewClient[v1.MessageCountsRequest, v1.MessageCountsResponse](
+			httpClient,
+			baseURL+BackendServiceMessageCountsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("MessageCounts")),
+			connect.WithClientOptions(opts...),
+		),
 		completeWord: connect.NewClient[v1.CompleteWordRequest, v1.CompleteWordResponse](
 			httpClient,
 			baseURL+BackendServiceCompleteWordProcedure,
@@ -1450,6 +1461,7 @@ type backendServiceClient struct {
 	roomEncryption        *connect.Client[v1.RoomEncryptionRequest, v1.RoomEncryptionResponse]
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
 	messagesFrom          *connect.Client[v1.MessagesFromRequest, v1.MessagesFromResponse]
+	messageCounts         *connect.Client[v1.MessageCountsRequest, v1.MessageCountsResponse]
 	completeWord          *connect.Client[v1.CompleteWordRequest, v1.CompleteWordResponse]
 	messages              *connect.Client[v1.MessagesRequest, v1.MessagesResponse]
 	activityStream        *connect.Client[v1.ActivityStreamRequest, v1.ActivityStreamResponse]
@@ -1864,6 +1876,11 @@ func (c *backendServiceClient) MessagesFrom(ctx context.Context, req *connect.Re
 	return c.messagesFrom.CallUnary(ctx, req)
 }
 
+// MessageCounts calls backend.v1.BackendService.MessageCounts.
+func (c *backendServiceClient) MessageCounts(ctx context.Context, req *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error) {
+	return c.messageCounts.CallUnary(ctx, req)
+}
+
 // CompleteWord calls backend.v1.BackendService.CompleteWord.
 func (c *backendServiceClient) CompleteWord(ctx context.Context, req *connect.Request[v1.CompleteWordRequest]) (*connect.Response[v1.CompleteWordResponse], error) {
 	return c.completeWord.CallUnary(ctx, req)
@@ -2263,6 +2280,8 @@ type BackendServiceHandler interface {
 	MessagesAround(context.Context, *connect.Request[v1.MessagesAroundRequest]) (*connect.Response[v1.MessagesAroundResponse], error)
 	// MessagesFrom is one page of what someone said, across rooms.
 	MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error)
+	// MessageCounts is how many cached messages each person wrote.
+	MessageCounts(context.Context, *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error)
 	// CompleteWord finishes a partly typed word from what has been said in scope, ranked,
 	// then tops the list up from the installed word-frequency list for the language the
 	// prefix is in.
@@ -2831,6 +2850,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("MessagesFrom")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceMessageCountsHandler := connect.NewUnaryHandler(
+		BackendServiceMessageCountsProcedure,
+		svc.MessageCounts,
+		connect.WithSchema(backendServiceMethods.ByName("MessageCounts")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceCompleteWordHandler := connect.NewUnaryHandler(
 		BackendServiceCompleteWordProcedure,
 		svc.CompleteWord,
@@ -3233,6 +3258,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceMessagesAroundHandler.ServeHTTP(w, r)
 		case BackendServiceMessagesFromProcedure:
 			backendServiceMessagesFromHandler.ServeHTTP(w, r)
+		case BackendServiceMessageCountsProcedure:
+			backendServiceMessageCountsHandler.ServeHTTP(w, r)
 		case BackendServiceCompleteWordProcedure:
 			backendServiceCompleteWordHandler.ServeHTTP(w, r)
 		case BackendServiceMessagesProcedure:
@@ -3620,6 +3647,10 @@ func (UnimplementedBackendServiceHandler) MessagesAround(context.Context, *conne
 
 func (UnimplementedBackendServiceHandler) MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MessagesFrom is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) MessageCounts(context.Context, *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MessageCounts is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) CompleteWord(context.Context, *connect.Request[v1.CompleteWordRequest]) (*connect.Response[v1.CompleteWordResponse], error) {

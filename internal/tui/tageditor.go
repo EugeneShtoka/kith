@@ -27,6 +27,7 @@ const (
 	tagRule     = "rule"
 	tagPicked   = "picked"
 	tagExcluded = "excluded"
+	tagPeople   = "people"
 	tagNew      = "\x00new"
 )
 

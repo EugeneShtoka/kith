@@ -435,6 +435,24 @@ func (r *Remote) MessagesFrom(ctx context.Context, said domain.SaidRequest) ([]d
 	return pc.ProtoToMessages(resp.GetMessages()), err
 }
 
+func (r *Remote) MessageCounts(ctx context.Context, people [][]string) ([]int, error) {
+	req := &v1.MessageCountsRequest{People: make([]*v1.PersonIDs, len(people))}
+	for i, ids := range people {
+		req.People[i] = &v1.PersonIDs{Ids: ids}
+	}
+	resp, err := call(ctx, "count messages", r.c.MessageCounts, req)
+	if err != nil {
+		return nil, err
+	}
+	counts := make([]int, len(people))
+	for i, n := range resp.GetCounts() {
+		if i < len(counts) {
+			counts[i] = int(n)
+		}
+	}
+	return counts, nil
+}
+
 // RoomEncryption reports rooms the daemon did not name as unencrypted; the daemon
 // already reports unknowns as encrypted.
 func (r *Remote) RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {

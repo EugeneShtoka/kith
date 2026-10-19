@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"slices"
@@ -140,10 +141,12 @@ func (m Model) tagPageRows(name, group string) []setting {
 		{tagRule, "Rule", func(c *config.Tag) *[]string { return &c.Rule }},
 		{tagPicked, "Picked", func(c *config.Tag) *[]string { return &c.Picked }},
 		{tagExcluded, "Excluded", func(c *config.Tag) *[]string { return &c.Excluded }},
+		{tagPeople, "People", func(c *config.Tag) *[]string { return &c.People }},
 	} {
 		rows = append(rows, m.tagListRow(name, group, list.key, list.label, list.field))
 	}
 	rows = append(rows,
+		m.tagMarksRow(name, group),
 		tagToggle(name, group, countsUnreadKey, "Counts as unread", config.Tag.Counts, func(tag *config.Tag, on bool) { tag.CountsUnread = unsetIfOn(on) }),
 		tagToggle(name, group, notifiesKey, "Notifies", config.Tag.Notifying, func(tag *config.Tag, on bool) { tag.Notifies = unsetIfOn(on) }),
 	)
@@ -189,11 +192,51 @@ func (m Model) tagListRow(name, group, key, label string, field func(*config.Tag
 		},
 		entryLabel: m.entryName,
 	}
-	if key == tagRule {
+	switch key {
+	case tagRule:
 		s.show = func(c config.Config) string { return ruleWords(entries(c)) }
 		s.entryLabel = nil
+	case tagPeople:
+		s.show = func(c config.Config) string { return m.peopleWords(entries(c)) }
+		s.entryLabel = m.personName
 	}
 	return s
+}
+
+// peopleWords is a list of people as shown: how many, and their names.
+func (m Model) peopleWords(ids []string) string {
+	if len(ids) == 0 {
+		return "none"
+	}
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		names = append(names, m.personName(id))
+	}
+	return fmt.Sprintf("%d: %s", len(ids), strings.Join(names, ", "))
+}
+
+// tagMarksRow lists the people filters put in the tag, read-only: a filter's mark is
+// taken off in the tag's people (tagpeople.go), where taking it off also releases it.
+func (m Model) tagMarksRow(name, group string) setting {
+	return setting{
+		key: group + "#marks", group: group, kind: settingOpen, label: "Put here by filters",
+		show: func(config.Config) string {
+			var marks []string
+			for _, v := range m.rail.people {
+				if v.In() && domain.SameTag(v.Tag, name) {
+					marks = append(marks, m.personName(v.Person)+" ("+cmp.Or(v.Filter, "a filter")+")")
+				}
+			}
+			if len(marks) == 0 {
+				return "none"
+			}
+			return fmt.Sprintf("%d: %s", len(marks), strings.Join(marks, ", "))
+		},
+		open: func(m Model) (Model, tea.Cmd) {
+			key := m.keys.keyHint(scopeRooms, actTagPeople)
+			return m.say("a filter's mark comes off in the tag's people — " + key + " in its room list, then the tag's key"), nil
+		},
+	}
 }
 
 // unsetIfOn is a *bool whose nil is true: nil for on, false for off.

@@ -75,6 +75,13 @@ func (s *Service) MessagesFrom(ctx context.Context, req domain.SaidRequest) ([]d
 	})
 }
 
+// MessageCounts is how many cached messages each person wrote.
+func (s *Service) MessageCounts(ctx context.Context, people [][]string) ([]int, error) {
+	return fromCache(s, "count messages", func(c *db.Cache) ([]int, error) {
+		return c.MessageCounts(ctx, people)
+	})
+}
+
 // CachedReactions returns a room's cached reactions (nil without a cache).
 func (s *Service) CachedReactions(ctx context.Context, roomID domain.RoomID) ([]domain.Reaction, error) {
 	return fromCache(s, "read cached reactions", func(c *db.Cache) ([]domain.Reaction, error) { return c.Reactions(ctx, roomID) })

@@ -639,6 +639,8 @@ type Model struct {
 	said saidState
 	// saidPeople is everyone who has written anywhere, read when `:from ` is typed.
 	saidPeople []domain.Member
+	// tagPeople is the room list showing a tag's people. See tagpeople.go.
+	tagPeople tagPeopleState
 	// followAt is a link this client was started to follow (`kith --open`), held until rooms load.
 	followAt string
 	// plainSend makes the next send skip Markdown (`/plain`); cleared by it.
@@ -1011,7 +1013,7 @@ func (m Model) handleDataMsg(msg tea.Msg) (Model, tea.Cmd) {
 	if mdl, cmd, handled := m.handleAppMsg(msg); handled {
 		return mdl, cmd
 	}
-	if mdl, cmd, handled := m.handleSaidMsg(msg); handled {
+	if mdl, cmd, handled := m.handlePeopleViewsMsg(msg); handled {
 		return mdl, cmd
 	}
 	return m.handleContentMsg(msg)
@@ -1672,6 +1674,9 @@ func (m Model) roomThreadAction(act action) (Model, tea.Cmd, bool) {
 // handleRoomsKey drives the room list; the rooms scope is consulted first so its keys win over
 // navigation.
 func (m Model) handleRoomsKey(press string) (Model, tea.Cmd) {
+	if m.showingTagPeople() {
+		return m.handleTagPeopleKey(press)
+	}
 	act := m.keys.lookup(press, m.withPlayerScope(scopeRooms, scopeNav, scopeCommand)...)
 	if mdl, cmd, handled := m.commandAction(act); handled {
 		return mdl, cmd
@@ -1689,6 +1694,10 @@ func (m Model) handleRoomsKey(press string) (Model, tea.Cmd) {
 		return m.askReject()
 	case actShowPeople:
 		return m.openPeopleForRoom()
+	case actTagPeople:
+		return m.toggleTagPeople()
+	case actSaid:
+		return m.saidOfRoom()
 	case actViewMedia:
 		return m.viewMedia()
 	case actNotifyRule:

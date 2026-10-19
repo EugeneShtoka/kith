@@ -98,6 +98,23 @@ func placesOf(msgs []domain.Message) []string {
 	return out
 }
 
+// Each person's count is what MessagesFrom would read of them: their IDs, and an
+// account their number reaches.
+func TestMessageCountsCountWhatIsReadOfEachPerson(t *testing.T) {
+	t.Parallel()
+	cache, ctx := openTemp(t), context.Background()
+	for i, sender := range []string{"@ann:x", "@ann:x", "@whatsapp_15550000001:example.org", "@bob:x"} {
+		mustSave(t, cache, "!a:x", domain.Message{ID: domain.EventID(fmt.Sprint("$", i)), Sender: sender, Body: "hi", Timestamp: time.UnixMilli(int64(i))})
+	}
+	got, err := cache.MessageCounts(ctx, [][]string{{"@ann:x", domain.PhoneID("15550000001")}, {"@bob:x"}, nil})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []int{3, 1, 0}; !slices.Equal(got, want) {
+		t.Errorf("counts = %v, want %v", got, want)
+	}
+}
+
 // What someone said is read by exactly the senders that hiding them hides: the IDs their
 // person goes by (domain.MarkedPeople.IDs) and an account the directory never listed but
 // whose number is theirs. Links, a group and messages are generated; the cache's own

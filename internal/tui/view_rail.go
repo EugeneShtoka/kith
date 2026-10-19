@@ -139,6 +139,10 @@ func railDivider(w int) string {
 
 func (m Model) renderRooms(w, h int) string {
 	active := m.focus == paneRooms
+	if m.showingTagPeople() {
+		people := m.shownTagPeople()
+		return m.framePane(m.tagPeopleTitle(len(people)), m.tagPeopleLines(people, w-paneBorder, paneBodyRows(h), active), w, h, active)
+	}
 	rows := m.roomRows()
 	cursor := m.rowCursor(rows)
 	body := paneBodyRows(h)

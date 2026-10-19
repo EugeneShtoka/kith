@@ -110,28 +110,10 @@ func (m Model) toggleSenderIn(tag string) (Model, tea.Cmd) {
 	if j < 0 {
 		return m, nil
 	}
+	if next, cmd, out := m.takePersonOut(tag, msg.Sender); out {
+		return next, cmd
+	}
 	name, label := m.personName(msg.Sender), isolate(cfg.Tags[j].Name)
-	known, same := m.identityIDs(), m.linkedIDs()
-	isThem := func(entry string) bool { return domain.NewMarkedPeople([]string{entry}, known, same).Has(msg.Sender) }
-	kept := cfg.Tags[j].People[:0:0]
-	for _, entry := range cfg.Tags[j].People {
-		if !isThem(entry) {
-			kept = append(kept, entry)
-		}
-	}
-	marks := slices.DeleteFunc(slices.Clone(m.rail.people), func(v domain.PersonVerdict) bool {
-		return !v.In() || !domain.SameTag(v.Tag, tag) || !isThem(v.Person)
-	})
-	if len(kept) < len(cfg.Tags[j].People) || len(marks) > 0 {
-		done := name + " is out of " + label
-		released, release := m.releasePeople(marks)
-		if len(kept) == len(cfg.Tags[j].People) {
-			return released.say(done), release
-		}
-		cfg.Tags[j].People = kept
-		next, cmd := released.applyKeepingSelection(cfg, done)
-		return next, tea.Batch(cmd, release)
-	}
 	cfg.Tags[j].People = append(cfg.Tags[j].People, msg.Sender)
 	done := name + " is in " + label
 	if !cfg.Tags[j].Notifying() {
@@ -141,6 +123,40 @@ func (m Model) toggleSenderIn(tag string) (Model, tea.Cmd) {
 		}
 	}
 	return m.applyKeepingSelection(cfg, done)
+}
+
+// takePersonOut takes every entry of tag that is who, by any of their IDs, out of it,
+// listed or put there by a filter; a filter's mark is released, so no filter puts them
+// back. out is false when the tag holds none of them.
+func (m Model) takePersonOut(tag, who string) (next Model, cmd tea.Cmd, out bool) {
+	cfg := m.conf.base.Clone()
+	j := slices.IndexFunc(cfg.Tags, func(t config.Tag) bool { return domain.SameTag(t.Name, tag) })
+	if j < 0 {
+		return m, nil, false
+	}
+	name, label := m.personName(who), isolate(cfg.Tags[j].Name)
+	known, same := m.identityIDs(), m.linkedIDs()
+	isThem := func(entry string) bool { return domain.NewMarkedPeople([]string{entry}, known, same).Has(who) }
+	kept := cfg.Tags[j].People[:0:0]
+	for _, entry := range cfg.Tags[j].People {
+		if !isThem(entry) {
+			kept = append(kept, entry)
+		}
+	}
+	marks := slices.DeleteFunc(slices.Clone(m.rail.people), func(v domain.PersonVerdict) bool {
+		return !v.In() || !domain.SameTag(v.Tag, tag) || !isThem(v.Person)
+	})
+	if len(kept) == len(cfg.Tags[j].People) && len(marks) == 0 {
+		return m, nil, false
+	}
+	done := name + " is out of " + label
+	released, release := m.releasePeople(marks)
+	if len(kept) == len(cfg.Tags[j].People) {
+		return released.say(done), release, true
+	}
+	cfg.Tags[j].People = kept
+	next, cmd = released.applyKeepingSelection(cfg, done)
+	return next, tea.Batch(cmd, release), true
 }
 
 // releasePeople takes filters' marks out at once here and writes their releases, so

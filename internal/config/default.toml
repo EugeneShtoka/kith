@@ -1508,6 +1508,11 @@ invite        = "i"       # invite someone to this room
 view_media    = "v"       # open this room's pictures in an image viewer, newest first
 # A DM, or a room with one person besides you and bots.
 person        = "I"       # the phonebook card of the room's one person
+# everything the room's one person said, in every room you share
+said          = "gI"
+# One row per person: how they got there and how much they wrote; the tag's key takes
+# one out.
+tag_people    = "gp"      # on a tag: its people instead of its rooms, and back
 # Until kith restarts; [display] show_archived and a place's space_rule set where it
 # starts.
 archived      = "A"       # show or hide this place's archived rooms

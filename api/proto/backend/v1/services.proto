@@ -773,6 +773,20 @@ message MessagesFromRequest {
   int64 limit = 8;
 }
 
+// PersonIDs is one person: every ID they go by.
+message PersonIDs {
+  repeated string ids = 1;
+}
+
+message MessageCountsRequest {
+  repeated PersonIDs people = 1;
+}
+
+message MessageCountsResponse {
+  // How many cached messages each person wrote, in the request's order.
+  repeated int64 counts = 1;
+}
+
 message MessagesFromResponse {
   // Oldest first.
   repeated Message messages = 1;
@@ -1619,6 +1633,8 @@ service BackendService {
   rpc MessagesAround(MessagesAroundRequest) returns (MessagesAroundResponse);
   // MessagesFrom is one page of what someone said, across rooms.
   rpc MessagesFrom(MessagesFromRequest) returns (MessagesFromResponse);
+  // MessageCounts is how many cached messages each person wrote.
+  rpc MessageCounts(MessageCountsRequest) returns (MessageCountsResponse);
   // CompleteWord finishes a partly typed word from what has been said in scope, ranked,
   // then tops the list up from the installed word-frequency list for the language the
   // prefix is in.

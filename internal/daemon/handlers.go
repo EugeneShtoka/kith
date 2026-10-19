@@ -530,6 +530,19 @@ func (s *server) MessagesFrom(ctx context.Context, r *req[v1.MessagesFromRequest
 	return reply(&v1.MessagesFromResponse{Messages: pc.MessagesToProto(msgs)}, err)
 }
 
+func (s *server) MessageCounts(ctx context.Context, r *req[v1.MessageCountsRequest]) (*resp[v1.MessageCountsResponse], error) {
+	people := make([][]string, len(r.Msg.GetPeople()))
+	for i, p := range r.Msg.GetPeople() {
+		people[i] = p.GetIds()
+	}
+	counts, err := s.Backend.MessageCounts(ctx, people)
+	out := make([]int64, len(counts))
+	for i, n := range counts {
+		out[i] = int64(n)
+	}
+	return reply(&v1.MessageCountsResponse{Counts: out}, err)
+}
+
 // RoomEncryption answers with the encrypted subset; the backend has already
 // reported unknown rooms as encrypted.
 func (s *server) RoomEncryption(ctx context.Context, r *req[v1.RoomEncryptionRequest]) (*resp[v1.RoomEncryptionResponse], error) {

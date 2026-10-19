@@ -73,6 +73,22 @@ A filter can mark a person too, with the [sender moves](#marking-the-sender). Th
 takes a filter's mark off as it takes yours: it writes a release, so no filter on any
 of your machines marks them again, by any of their IDs.
 
+### Who a tag holds
+
+`gp` in a tag's room list switches it to the tag's **people**, and back; the title says
+how many. There is one row per person, whatever IDs they were marked by, with the
+networks they are on, who put them there (you, or the filter by name), when a filter
+did, and how many messages of theirs are cached. On a row:
+
+- the tag's key takes them out, as on their message: your entry goes and a filter's
+  mark is released;
+- `enter` or `I` opens their [phonebook](phonebook.md) card;
+- `gI` shows [everything they said](search.md#everything-one-person-said), hidden or
+  not.
+
+In Settings → Places, a tag's page lists the people you put there (**People**,
+editable like its picked rooms) and, read-only, those **put here by filters**.
+
 Beyond the timeline, a hidden person and the direct replies to them:
 
 - never notify, and never move a room by a [filter](#filters);
