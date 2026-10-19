@@ -74,6 +74,9 @@ func (m Model) scriptHelp(keyColumn int) []string {
 			}
 			label += " — " + strings.Join(written, ", ")
 		}
+		if places := m.commandPlaces(name); len(places) > 0 {
+			label += " · only in " + strings.Join(places, ", ")
+		}
 		lines = append(lines, helpRow(keyColumn, spellSequence(seq), drawSentence(label)))
 	}
 	return lines

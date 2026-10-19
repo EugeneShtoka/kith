@@ -124,7 +124,7 @@ timeout = 15     # seconds before a command is killed and reported
 
 ### A command's settings: `[[command]]`
 
-A block per command lets it receive **what you are looking at**, choose where its output goes, and bind it to a key:
+A block per command lets it receive **what you are looking at**, choose where its output goes, bind it to a key, and say where it applies:
 
 ```toml
 [[command]]
@@ -159,7 +159,18 @@ Bulk context goes on stdin and never on the command line, because a process's co
 
 **`keys`** runs the command without typing its name. It is written like any other binding, and it works everywhere except while you are typing. A script run from a key gets an empty argument. A key sequence that a built-in already uses is refused. To free one, unbind the built-in first with `"-"`. Two scripts cannot share a key. `?` lists your script bindings together with what each is given.
 
-A `needs` or `output` value kith does not recognize is refused at startup.
+**`in`** limits the command to some places, in the place vocabulary every other list uses (`protocol:`, `space:`, `tag:`, `place:`, `room:`, `dm`, `group`; see [Configuration](configuration.md)). Empty, the default, is everywhere. Outside its places the command is left out of the `/` list, its key does nothing, and typing it is refused with a status line naming its places. It is not sent as text the way an unknown `/word` is, because `/zoom` posted into a room full of people is the misfire `in` is there to stop. `?` shows where each keyed command applies.
+
+```toml
+[[command]]
+name   = "zoom"
+output = "send"
+in     = ["protocol:slack"]
+```
+
+A block named like a built-in (`me`) never limits the built-in.
+
+A `needs` or `output` value kith does not recognize is refused at startup, and so is an `in` entry with no prefix.
 
 ## Example scripts
 
