@@ -48,6 +48,10 @@ func (unbuilt) Unlink(context.Context, string) error { return errUnbuilt }
 
 func (unbuilt) Leave(context.Context, string, string) error { return errUnbuilt }
 
+func (unbuilt) CreateGroup(context.Context, *signalv1.CreateGroupRequest) (*signalv1.CreateGroupResponse, error) {
+	return nil, errUnbuilt
+}
+
 func (unbuilt) Upload(context.Context, *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	return nil, errUnbuilt
 }

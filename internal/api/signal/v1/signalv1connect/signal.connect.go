@@ -59,6 +59,9 @@ const (
 	SignalServiceUnlinkProcedure = "/signal.v1.SignalService/Unlink"
 	// SignalServiceLeaveProcedure is the fully-qualified name of the SignalService's Leave RPC.
 	SignalServiceLeaveProcedure = "/signal.v1.SignalService/Leave"
+	// SignalServiceCreateGroupProcedure is the fully-qualified name of the SignalService's CreateGroup
+	// RPC.
+	SignalServiceCreateGroupProcedure = "/signal.v1.SignalService/CreateGroup"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -96,6 +99,9 @@ type SignalServiceClient interface {
 	Unlink(context.Context, *connect.Request[v1.UnlinkRequest]) (*connect.Response[v1.UnlinkResponse], error)
 	// Leave takes a connected account out of a group; its other members are told.
 	Leave(context.Context, *connect.Request[v1.LeaveRequest]) (*connect.Response[v1.LeaveResponse], error)
+	// CreateGroup makes a group from a connected account, with it as admin and the
+	// people named as members; its members are told.
+	CreateGroup(context.Context, *connect.Request[v1.CreateGroupRequest]) (*connect.Response[v1.CreateGroupResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -187,24 +193,31 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("Leave")),
 			connect.WithClientOptions(opts...),
 		),
+		createGroup: connect.NewClient[v1.CreateGroupRequest, v1.CreateGroupResponse](
+			httpClient,
+			baseURL+SignalServiceCreateGroupProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("CreateGroup")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // signalServiceClient implements SignalServiceClient.
 type signalServiceClient struct {
-	heartbeat *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
-	start     *connect.Client[v1.StartRequest, v1.StartResponse]
-	link      *connect.Client[v1.LinkRequest, v1.LinkResponse]
-	connect   *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
-	events    *connect.Client[v1.EventsRequest, v1.EventsResponse]
-	ack       *connect.Client[v1.AckRequest, v1.AckResponse]
-	send      *connect.Client[v1.SendRequest, v1.SendResponse]
-	typing    *connect.Client[v1.TypingRequest, v1.TypingResponse]
-	markRead  *connect.Client[v1.MarkReadRequest, v1.MarkReadResponse]
-	download  *connect.Client[v1.DownloadRequest, v1.DownloadResponse]
-	upload    *connect.Client[v1.UploadRequest, v1.UploadResponse]
-	unlink    *connect.Client[v1.UnlinkRequest, v1.UnlinkResponse]
-	leave     *connect.Client[v1.LeaveRequest, v1.LeaveResponse]
+	heartbeat   *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
+	start       *connect.Client[v1.StartRequest, v1.StartResponse]
+	link        *connect.Client[v1.LinkRequest, v1.LinkResponse]
+	connect     *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	events      *connect.Client[v1.EventsRequest, v1.EventsResponse]
+	ack         *connect.Client[v1.AckRequest, v1.AckResponse]
+	send        *connect.Client[v1.SendRequest, v1.SendResponse]
+	typing      *connect.Client[v1.TypingRequest, v1.TypingResponse]
+	markRead    *connect.Client[v1.MarkReadRequest, v1.MarkReadResponse]
+	download    *connect.Client[v1.DownloadRequest, v1.DownloadResponse]
+	upload      *connect.Client[v1.UploadRequest, v1.UploadResponse]
+	unlink      *connect.Client[v1.UnlinkRequest, v1.UnlinkResponse]
+	leave       *connect.Client[v1.LeaveRequest, v1.LeaveResponse]
+	createGroup *connect.Client[v1.CreateGroupRequest, v1.CreateGroupResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -272,6 +285,11 @@ func (c *signalServiceClient) Leave(ctx context.Context, req *connect.Request[v1
 	return c.leave.CallUnary(ctx, req)
 }
 
+// CreateGroup calls signal.v1.SignalService.CreateGroup.
+func (c *signalServiceClient) CreateGroup(ctx context.Context, req *connect.Request[v1.CreateGroupRequest]) (*connect.Response[v1.CreateGroupResponse], error) {
+	return c.createGroup.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -307,6 +325,9 @@ type SignalServiceHandler interface {
 	Unlink(context.Context, *connect.Request[v1.UnlinkRequest]) (*connect.Response[v1.UnlinkResponse], error)
 	// Leave takes a connected account out of a group; its other members are told.
 	Leave(context.Context, *connect.Request[v1.LeaveRequest]) (*connect.Response[v1.LeaveResponse], error)
+	// CreateGroup makes a group from a connected account, with it as admin and the
+	// people named as members; its members are told.
+	CreateGroup(context.Context, *connect.Request[v1.CreateGroupRequest]) (*connect.Response[v1.CreateGroupResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -394,6 +415,12 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("Leave")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceCreateGroupHandler := connect.NewUnaryHandler(
+		SignalServiceCreateGroupProcedure,
+		svc.CreateGroup,
+		connect.WithSchema(signalServiceMethods.ByName("CreateGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -422,6 +449,8 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceUnlinkHandler.ServeHTTP(w, r)
 		case SignalServiceLeaveProcedure:
 			signalServiceLeaveHandler.ServeHTTP(w, r)
+		case SignalServiceCreateGroupProcedure:
+			signalServiceCreateGroupHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -481,4 +510,8 @@ func (UnimplementedSignalServiceHandler) Unlink(context.Context, *connect.Reques
 
 func (UnimplementedSignalServiceHandler) Leave(context.Context, *connect.Request[v1.LeaveRequest]) (*connect.Response[v1.LeaveResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Leave is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) CreateGroup(context.Context, *connect.Request[v1.CreateGroupRequest]) (*connect.Response[v1.CreateGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.CreateGroup is not implemented"))
 }

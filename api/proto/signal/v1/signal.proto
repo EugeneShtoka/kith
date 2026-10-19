@@ -41,6 +41,9 @@ service SignalService {
   rpc Unlink(UnlinkRequest) returns (UnlinkResponse);
   // Leave takes a connected account out of a group; its other members are told.
   rpc Leave(LeaveRequest) returns (LeaveResponse);
+  // CreateGroup makes a group from a connected account, with it as admin and the
+  // people named as members; its members are told.
+  rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
 }
 
 message HeartbeatRequest {}
@@ -439,6 +442,22 @@ message LeaveRequest {
 }
 
 message LeaveResponse {}
+
+message CreateGroupRequest {
+  // The connected account's ACI.
+  string account = 1;
+  string title = 2;
+  // The members besides the account: by ACI, and by number (E.164, "+972…"), which
+  // Signal is asked for the ACI behind.
+  repeated string members = 3;
+  repeated string numbers = 4;
+}
+
+message CreateGroupResponse {
+  Group group = 1;
+  // The numbers Signal knows no account for, left out.
+  repeated string unknown = 2;
+}
 
 message UploadResponse {
   // The file as a Send carries it.
