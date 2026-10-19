@@ -100,6 +100,8 @@ func NewAdapter(cache *db.Cache, log *slog.Logger, place Place) *Adapter {
 		contacts: bridgeContacts{changed: make(chan struct{}, 1)},
 	}
 	m.phase = awaitingLogin
+	// Still trying, but said where it is seen rather than only logged.
+	m.onSyncTrouble = func(detail string) { m.report(domain.AccountConnecting, detail) }
 	m.UseLogger(log)
 	return m
 }

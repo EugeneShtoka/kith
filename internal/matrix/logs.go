@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -64,20 +65,42 @@ func (b *InProc) attachLogger(client *mautrix.Client) {
 }
 
 // failingSyncer logs sync failures, which mautrix retries silently every 10s: warn on
-// each power-of-two streak, info on recovery.
+// each power-of-two streak, info on recovery. The same failure syncTroubleAfter times
+// running is also said on the account's status line, once per run of it: a response
+// that never unmarshals is retried on the same token with no end.
 type failingSyncer struct {
 	*mautrix.DefaultSyncer
 	b      *InProc
 	mu     sync.Mutex
 	streak int
+	// same counts the failures in a row with the same text as last.
+	same int
+	last string
 }
+
+// syncTroubleAfter is how many identical sync failures in a row are said on the status
+// line.
+const syncTroubleAfter = 5
 
 func (f *failingSyncer) OnFailedSync(res *mautrix.RespSync, err error) (time.Duration, error) {
 	wait, stop := f.DefaultSyncer.OnFailedSync(res, err)
 	f.mu.Lock()
 	f.streak++
 	streak := f.streak
+	text := ""
+	if err != nil {
+		text = err.Error()
+	}
+	if text == f.last {
+		f.same++
+	} else {
+		f.last, f.same = text, 1
+	}
+	trouble := f.same == syncTroubleAfter
 	f.mu.Unlock()
+	if trouble && f.b.onSyncTrouble != nil {
+		f.b.onSyncTrouble(fmt.Sprintf("sync keeps failing (%d times): %v", syncTroubleAfter, err))
+	}
 	level := slog.LevelDebug
 	if streak&(streak-1) == 0 { // a power of two
 		level = slog.LevelWarn
@@ -103,7 +126,7 @@ func (f *failingSyncer) ProcessResponse(ctx context.Context, res *mautrix.RespSy
 	}
 	f.mu.Lock()
 	streak := f.streak
-	f.streak = 0
+	f.streak, f.same, f.last = 0, 0, ""
 	f.mu.Unlock()
 	if streak > 0 {
 		f.b.log().Info("sync recovered", "op", "sync", "failures", streak)

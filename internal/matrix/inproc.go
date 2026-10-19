@@ -99,6 +99,9 @@ type InProc struct {
 	// being the catch-up after a start.
 	gaps  gapFiller
 	syncs atomic.Int64
+	// onSyncTrouble hears a sync failing the same way again and again (logs.go); a
+	// sync that then succeeds says online again.
+	onSyncTrouble func(detail string)
 
 	// invites is the whole invite set; a sync carries only changes.
 	invites struct {

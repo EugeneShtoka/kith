@@ -68,8 +68,8 @@ func tagsFrom(events []*event.Event) (content tagsContent, present bool) {
 		}
 		var parsed tagsContent
 		if err := json.Unmarshal(evt.Content.VeryRaw, &parsed); err != nil {
-			// Unparseable still counts as present; empty reads as no move.
-			return tagsContent{}, true
+			// Unparseable is absent: the mirror keeps its verdicts rather than losing them.
+			continue
 		}
 		content, present = parsed, true
 	}

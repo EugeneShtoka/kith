@@ -28,10 +28,11 @@ func starredFrom(events []*event.Event) (ids []domain.EventID, present bool) {
 		if evt == nil || evt.Type.Type != starredType {
 			continue
 		}
-		// Our own type: decode raw. Unparseable still counts as present (empty set).
+		// Our own type: decode raw. Unparseable is absent: the mirror keeps what it has,
+		// since an empty set written back from it would erase every star.
 		var content starredContent
 		if err := json.Unmarshal(evt.Content.VeryRaw, &content); err != nil {
-			return nil, true
+			continue
 		}
 		ids = make([]domain.EventID, 0, len(content.Events))
 		for _, raw := range content.Events {

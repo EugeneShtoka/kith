@@ -223,6 +223,11 @@ It keeps retrying, every 30 seconds at most, and logs
 meantime are queued and sent later. If the homeserver rejects the token rather than
 being unreachable, the daemon says so and stops retrying (see above).
 
+Once running, a sync that fails the same way five times in a row (a response kith
+cannot read, say) is shown on the account's status line as `sync keeps failing`, with
+the error, not only in the log. The daemon keeps retrying; the next sync that succeeds
+puts the account back online.
+
 ## The cache
 
 ### Rebuild the cache
