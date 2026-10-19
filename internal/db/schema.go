@@ -150,6 +150,12 @@ CREATE TABLE room_gaps (
 	capped    INTEGER NOT NULL DEFAULT 0 CHECK (capped IN (0, 1))
 ) STRICT;
 
+-- Rooms this account may read but not post in (a Matrix room whose power levels put
+-- messages above ours). Its own table, written only by the network (SetReadOnly).
+CREATE TABLE room_read_only (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
 -- A chat's disappearing-messages timer, a row only while it has one: what kith sends
 -- there must carry it (SetTimers).
 CREATE TABLE room_timers (
@@ -592,6 +598,10 @@ DROP TABLE phone_names;`,
 	announce  INTEGER NOT NULL CHECK (announce IN (0, 1)),
 	capped    INTEGER NOT NULL DEFAULT 0 CHECK (capped IN (0, 1))
 ) STRICT;`,
+	// v22: rooms this account may read but not post in.
+	`CREATE TABLE IF NOT EXISTS room_read_only (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;`,
 }
 
 // ensureIndexes makes the file's indexes exactly baseSchema's (create missing,

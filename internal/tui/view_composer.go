@@ -91,6 +91,10 @@ func (m Model) composerPrefix() (tag, prompt string) {
 	if marker := m.modelMarker(); marker != "" {
 		tag += m.theme.Muted.Render(marker + " ")
 	}
+	// A room this account may not post in says so where the message would be typed.
+	if room, ok := m.currentRoom(); ok && room.ReadOnly {
+		tag += m.theme.Muted.Render("read-only here ")
+	}
 	// A draft restored from an earlier session is labeled until the first keystroke.
 	if note := m.draftNote(); note != "" {
 		tag += m.theme.Muted.Render("✎ " + drawSentence(note) + " ")

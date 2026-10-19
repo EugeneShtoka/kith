@@ -203,6 +203,9 @@ func (m Model) scheduleComposed(room domain.Room, kind, arg string) (Model, tea.
 	if _, _, err := parseScheduleTime(kind, arg, time.Now()); err != nil {
 		return m.say("/" + kind + " " + err.Error()), nil
 	}
+	if room.ReadOnly {
+		return m.say(readOnlyNote), nil
+	}
 	if m.asksSMS(room) {
 		m.confirm = confirmState{action: pendingScheduleSMS, room: room, address: kind, body: arg}
 		return m, nil

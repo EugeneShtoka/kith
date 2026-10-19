@@ -2572,6 +2572,9 @@ func (m Model) sendComposed(room domain.Room, body string, emote bool) (Model, t
 	if room.Replacement != "" {
 		return m.say("this room was replaced — /replacement goes to the room that continues it"), nil
 	}
+	if room.ReadOnly {
+		return m.say(readOnlyNote), nil
+	}
 	if m.asksSMS(room) {
 		m.confirm = confirmState{action: pendingSendSMS, room: room, body: body, emote: emote}
 		return m, nil
