@@ -70,6 +70,7 @@
   alt+r            name this thread
   a                name the sender of the selected message
   I                the sender's card in the phonebook: their fields, to read and edit
+  gI               everything the sender said, in every room you share
   b                notification rule for this sender or room
   yy               copy this message's text
   yu               copy a link from it

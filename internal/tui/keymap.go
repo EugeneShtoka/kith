@@ -103,6 +103,7 @@ const (
 	actClosePick
 	actName
 	actPerson // the phonebook card of the person in view
+	actSaid   // everything the person in view said
 	actShowPeople
 	actCopyText
 	actCopyURL
@@ -393,6 +394,7 @@ var keyActions = []keyAction{
 	{scopeTimeline, actRenameThread, "timeline.rename_thread"},
 	{scopeTimeline, actName, "timeline.name"},
 	{scopeTimeline, actPerson, "timeline.person"},
+	{scopeTimeline, actSaid, "timeline.said"},
 	{scopeTimeline, actNotifyRule, "timeline.notify_rule"},
 	{scopeTimeline, actCopyText, "timeline.copy_text"},
 	{scopeTimeline, actCopyURL, "timeline.copy_url"},

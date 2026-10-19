@@ -758,6 +758,26 @@ message MessagesAroundResponse {
   repeated Message messages = 1;
 }
 
+message MessagesFromRequest {
+  // Every ID the person goes by; none is nobody.
+  repeated string senders = 1;
+  // Only these rooms, or every room with all_rooms; none listed without all_rooms is none.
+  repeated string room_ids = 2;
+  bool all_rooms = 3;
+  // The oldest message already shown, by its place in time: the page is what came before
+  // it. No event starts at the newest.
+  string before_room_id = 4;
+  string before_event_id = 5;
+  int64 before_ts_ms = 6;
+  int64 before_seq = 7;
+  int64 limit = 8;
+}
+
+message MessagesFromResponse {
+  // Oldest first.
+  repeated Message messages = 1;
+}
+
 message StoredDraft {
   string room_id = 1;
   string body = 2;
@@ -1597,6 +1617,8 @@ service BackendService {
   rpc RoomEncryption(RoomEncryptionRequest) returns (RoomEncryptionResponse);
   // MessagesAround is one message with its neighbours.
   rpc MessagesAround(MessagesAroundRequest) returns (MessagesAroundResponse);
+  // MessagesFrom is one page of what someone said, across rooms.
+  rpc MessagesFrom(MessagesFromRequest) returns (MessagesFromResponse);
   // CompleteWord finishes a partly typed word from what has been said in scope, ranked,
   // then tops the list up from the installed word-frequency list for the language the
   // prefix is in.

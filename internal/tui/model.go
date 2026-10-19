@@ -635,6 +635,10 @@ type Model struct {
 	model modelState
 	// history is the open message-history view. See history.go.
 	history historyState
+	// said is the open view of everything one person said. See said.go.
+	said saidState
+	// saidPeople is everyone who has written anywhere, read when `:from ` is typed.
+	saidPeople []domain.Member
 	// followAt is a link this client was started to follow (`kith --open`), held until rooms load.
 	followAt string
 	// plainSend makes the next send skip Markdown (`/plain`); cleared by it.
@@ -1005,6 +1009,9 @@ func (m Model) handleDataMsg(msg tea.Msg) (Model, tea.Cmd) {
 		return mdl, cmd
 	}
 	if mdl, cmd, handled := m.handleAppMsg(msg); handled {
+		return mdl, cmd
+	}
+	if mdl, cmd, handled := m.handleSaidMsg(msg); handled {
 		return mdl, cmd
 	}
 	return m.handleContentMsg(msg)
@@ -1767,6 +1774,8 @@ func (m Model) handleTimelineKey(key tea.KeyPressMsg, press string) (Model, tea.
 	switch {
 	case m.history.active():
 		return m.handleHistoryKey(key)
+	case m.said.open:
+		return m.handleSaidKey(press)
 	case m.search.active:
 		return m.handleSearchKey(key)
 	case m.compose.reacting:
@@ -1862,6 +1871,8 @@ func (m Model) messageAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openIdentityForSender())
 	case actPerson:
 		return answered(m.personOfSender())
+	case actSaid:
+		return answered(m.saidOfSender())
 	case actNotifyRule:
 		return answered(m.openRuleForSender())
 	case actCopyText:

@@ -50,7 +50,7 @@ Two filters are spelled in the query, because their values are open-ended. Filte
 
 | Filter | Matches |
 | --- | --- |
-| `from:dana` | Messages whose sender's Matrix ID or display name contains `dana`. `from:@dana:example.org` pins one account |
+| `from:dana` | Messages whose sender's Matrix ID or display name contains `dana`. A whole ID, `from:@dana:example.org`, is the person: every ID kith links to them (their accounts on other networks, bridge puppets, a `[[display.identity]]`) |
 | `from:role:attorney` | Messages from everyone whose [phonebook](phonebook.md#searching-by-field) card has `attorney` in its `role`, by every ID kith knows them by. A field no card has searches nothing and says so |
 | `since:<when>` | Messages at or after that point |
 | `until:<when>` | Messages before that point |
@@ -88,6 +88,16 @@ These are searches with the question already asked. They need no terms: the list
 - **Tracked** with a word (`/tracked deploy`) narrows to that word and drops the grouping. Configure the words under `[tracked]` — see [Configuration](configuration.md).
 
 The room's threads have their own list, `ctrl+t` or `/threads` — a chooser rather than the results pane. See [Usage](usage.md#threads).
+
+## Everything one person said
+
+`gI` on a message, `:from <person>` (or `:from` alone, for the person in view), or **Everything they said** on a [phonebook](phonebook.md) card shows every message that person wrote in any room you share, by every ID kith links to them. It takes the timeline pane and reads like a timeline: whole messages, attachments and quoted replies, newest at the bottom, with the room's name above each run of messages in one room. Each message's sender is drawn in its network's color, so a person on three networks shows which one a message came by.
+
+- `enter` opens the message in its room, as a search result does.
+- `tab` (the scope key) narrows to the selected message's room, then to its network, then back to everywhere.
+- Going up reads further back from the cache, a hundred messages at a time. Where the cache's history of them ends, the view says so: older messages exist only once a room's history is loaded by scrolling back in it. A gap inside a room's cached history is not marked.
+- A [hidden](filters.md) person is shown here, since you opened them on purpose, and the line under the title says they are hidden everywhere else.
+- `esc` closes it.
 
 ## Opening a result
 

@@ -68,7 +68,8 @@ func TestASendersCardIsMadeAtTheFirstField(t *testing.T) {
 	if m.picker.kind != pickerPerson || !strings.Contains(m.picker.spec.title, "no card yet") {
 		t.Fatalf("picker %v %q", m.picker.kind, m.picker.spec.title)
 	}
-	next, cmd := m.acceptPick() // Add a field
+	m.picker.cursor = len(m.picker.items) - 1 // Add a field
+	next, cmd := m.acceptPick()
 	m = deliver(t, next, cmd)
 	if strings.Join(rows(m), ",") != "origin=,pets=,New field=name it" {
 		t.Fatalf("keys offered = %v", rows(m))
@@ -96,7 +97,7 @@ func TestACardIsEditedAField(t *testing.T) {
 	t.Parallel()
 	m, dir := carding(t, nil)
 	m = cardOf(t, m, "eli")
-	if got := strings.Join(rows(m), ","); got != "matrix=@eli:x,pets=Rex,origin=Haifa,Add a field=" {
+	if got := strings.Join(rows(m), ","); got != "matrix=@eli:x,pets=Rex,origin=Haifa,Everything they said=in every room you share,Add a field=" {
 		t.Fatalf("rows = %v", got)
 	}
 	m = pickLabel(t, m, "pets")

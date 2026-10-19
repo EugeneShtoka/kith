@@ -69,6 +69,15 @@ func (m Model) openCompletion(target completionTarget, trigger string, start int
 		active: true, target: target, trigger: trigger, start: start,
 		scanning: trigger == "/",
 	}
+	if trigger == fromTrigger {
+		// Who has written is read once; until then the room's members are offered.
+		m.completion.scanning = m.saidPeople == nil
+		m = m.refreshCandidates()
+		if m.saidPeople != nil {
+			return m, nil
+		}
+		return m, m.saidPeopleCmd()
+	}
 	m = m.refreshCandidates()
 	if trigger != "/" {
 		return m, nil
@@ -128,6 +137,8 @@ var completionSources = map[string]func(m Model, query string) []candidate{
 	":":     Model.emojiCandidates,
 	"/":     Model.commandCandidates,
 	"from:": Model.senderCandidates,
+	// The command line's `:from `, not the search prompt's filter.
+	fromTrigger: Model.saidCandidates,
 }
 
 // completionSourceFor is the source for one popup. The command line and word
@@ -148,9 +159,10 @@ func completionSourceFor(target completionTarget, trigger string) (func(Model, s
 func triggerKept(trigger string) bool { return strings.HasSuffix(trigger, ":") && len(trigger) > 1 }
 
 // triggerOpens reports whether a trigger typed after text opens a popup: only at the
-// start or after whitespace (not in an email address), and "/" only at the very start.
+// start or after whitespace (not in an email address), and "/" and `:from ` only at the
+// very start.
 func triggerOpens(trigger, text string) bool {
-	if trigger == "/" {
+	if trigger == "/" || trigger == fromTrigger {
 		return text == ""
 	}
 	if text == "" {
@@ -443,17 +455,21 @@ func (m Model) textTyped(target completionTarget, typed string) (Model, tea.Cmd)
 		if m.completion.trigger == ":" && strings.HasSuffix(m.completion.query, ":") {
 			return m.acceptClosedShortcode()
 		}
-		// Names do not span words.
-		if strings.ContainsFunc(m.completion.query, unicode.IsSpace) {
-			return m.closeCompletion(), nil
+		// Names do not span words; the space may start another trigger (`:from `).
+		if !strings.ContainsFunc(m.completion.query, unicode.IsSpace) {
+			return m.refreshCandidates(), nil
 		}
-		return m.refreshCandidates(), nil
+		m = m.closeCompletion()
 	}
 	if typed == "" {
 		return m, nil
 	}
 	// A trigger ends at the caret.
-	for _, trigger := range triggersFor(target) {
+	triggers := triggersFor(target)
+	if target == targetPrompt && m.prompt.kind == promptCommand {
+		triggers = append(triggers, fromTrigger)
+	}
+	for _, trigger := range triggers {
 		start := ed.at - len(trigger)
 		if start < 0 || ed.text[start:ed.at] != trigger {
 			continue

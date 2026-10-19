@@ -68,6 +68,13 @@ func (s *Service) MessagesAround(
 	})
 }
 
+// MessagesFrom is one page of what someone said, across the cached rooms.
+func (s *Service) MessagesFrom(ctx context.Context, req domain.SaidRequest) ([]domain.Message, error) {
+	return fromCache(s, "messages from", func(c *db.Cache) ([]domain.Message, error) {
+		return c.MessagesFrom(ctx, req)
+	})
+}
+
 // CachedReactions returns a room's cached reactions (nil without a cache).
 func (s *Service) CachedReactions(ctx context.Context, roomID domain.RoomID) ([]domain.Reaction, error) {
 	return fromCache(s, "read cached reactions", func(c *db.Cache) ([]domain.Reaction, error) { return c.Reactions(ctx, roomID) })

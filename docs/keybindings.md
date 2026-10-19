@@ -113,7 +113,7 @@ Opening search and the lists that ride the results pane, then driving the result
 | `files` | `gf` | Every message with a file, newest first | not while typing |
 | `jump` | `enter` | Go to the selected message | search results |
 | `close` | `esc` | Close the results | search results |
-| `scope` | `tab` | Widen or narrow: room → group → everywhere | search results, search prompt |
+| `scope` | `tab` | Widen or narrow: room → group → everywhere; in what someone said, their message's room → its network → everywhere | search results, search prompt, what someone said |
 | `star` | `*` | Unstar the selected message (the starred list) | search results |
 
 ### `[keys.timeline]`
@@ -134,6 +134,7 @@ The message cursor — the timeline when you are not typing. Consulted before `[
 | `topic` | `gt` | Read the room's topic |
 | `star` | `*` | Star it, or unstar it |
 | `history` | `H` | What this message used to say |
+| `said` | `gI` | [Everything the sender said](search.md#everything-one-person-said), in every room you share |
 | `copy_code` | `yc` | Copy the verification code in it |
 | `download` | `s` | Save this message's attachment |
 | `save_as` | `S` | Save it somewhere else — opens a folder picker |

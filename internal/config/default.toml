@@ -1561,6 +1561,9 @@ prev_day        = "["       # back a day (start of this day first)
 next_day        = "]"       # forward a day
 # the sender's card in the phonebook: their fields, to read and edit
 person          = "I"
+# By every ID kith links to them; enter goes to a message, search.scope narrows to its
+# room or network.
+said            = "gI"      # everything the sender said, in every room you share
 # A local name; an empty one clears it.
 name            = "a"       # name the sender of the selected message
 notify_rule     = "b"       # notification rule for this sender or room

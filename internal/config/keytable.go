@@ -201,6 +201,8 @@ group; timeline: the open room); ` + "`scope`" + ` cycles room → group → eve
 			{path: "timeline.prev_day", def: "[", doc: "back a day (start of this day first)"},
 			{path: "timeline.next_day", def: "]", doc: "forward a day"},
 			{path: "timeline.person", def: "I", doc: "the sender's card in the phonebook: their fields, to read and edit"},
+			{path: "timeline.said", def: "gI", doc: "everything the sender said, in every room you share",
+				note: "By every ID kith links to them; enter goes to a message, search.scope narrows to its room or network."},
 			{path: "timeline.name", def: "a", doc: "name the sender of the selected message",
 				note: "A local name; an empty one clears it."},
 			// b for bell.

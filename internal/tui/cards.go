@@ -327,8 +327,8 @@ func (m Model) fieldSenders(term string) ([]string, string) {
 		if card, found := m.cardOf(id); !found || !met[card.Path] {
 			continue
 		}
-		for _, other := range m.dir.dir.Identifiers(id) {
-			if domain.IsUserID(other) && !slices.Contains(out, other) {
+		for _, other := range m.personIDs(id) {
+			if !slices.Contains(out, other) {
 				out = append(out, other)
 			}
 		}

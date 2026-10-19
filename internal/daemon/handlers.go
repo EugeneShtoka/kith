@@ -525,6 +525,11 @@ func (s *server) MessagesAround(ctx context.Context, r *req[v1.MessagesAroundReq
 	return reply(&v1.MessagesAroundResponse{Messages: pc.MessagesToProto(msgs)}, err)
 }
 
+func (s *server) MessagesFrom(ctx context.Context, r *req[v1.MessagesFromRequest]) (*resp[v1.MessagesFromResponse], error) {
+	msgs, err := s.Backend.MessagesFrom(ctx, pc.ProtoToSaidRequest(r.Msg))
+	return reply(&v1.MessagesFromResponse{Messages: pc.MessagesToProto(msgs)}, err)
+}
+
 // RoomEncryption answers with the encrypted subset; the backend has already
 // reported unknown rooms as encrypted.
 func (s *server) RoomEncryption(ctx context.Context, r *req[v1.RoomEncryptionRequest]) (*resp[v1.RoomEncryptionResponse], error) {

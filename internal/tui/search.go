@@ -2,6 +2,7 @@ package tui
 
 import (
 	"log/slog"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -230,6 +231,10 @@ func (m Model) runSearch(query string) (Model, tea.Cmd) {
 			return m.say(why), nil
 		}
 		filter.Senders = senders
+	}
+	// A full ID is the person: every ID kith links to them, as the person view reads.
+	if strings.Contains(filter.Sender, ":") {
+		filter.Senders, filter.Sender = m.personIDs(filter.Sender), ""
 	}
 	if filter.Empty() {
 		m.search.hits, m.search.cursor = nil, 0

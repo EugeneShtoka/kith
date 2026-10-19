@@ -254,6 +254,9 @@ type Search interface {
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	// MessagesAround returns a message with its neighbors, oldest first.
 	MessagesAround(ctx context.Context, roomID domain.RoomID, event domain.EventID, before, after int) ([]domain.Message, error)
+	// MessagesFrom is one page of what someone said across rooms, oldest first, hidden
+	// people included; empty past the oldest cached.
+	MessagesFrom(ctx context.Context, req domain.SaidRequest) ([]domain.Message, error)
 }
 
 // Drafts is the composer's drafts, kept per room.

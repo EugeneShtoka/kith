@@ -235,6 +235,9 @@ const (
 	// BackendServiceMessagesAroundProcedure is the fully-qualified name of the BackendService's
 	// MessagesAround RPC.
 	BackendServiceMessagesAroundProcedure = "/backend.v1.BackendService/MessagesAround"
+	// BackendServiceMessagesFromProcedure is the fully-qualified name of the BackendService's
+	// MessagesFrom RPC.
+	BackendServiceMessagesFromProcedure = "/backend.v1.BackendService/MessagesFrom"
 	// BackendServiceCompleteWordProcedure is the fully-qualified name of the BackendService's
 	// CompleteWord RPC.
 	BackendServiceCompleteWordProcedure = "/backend.v1.BackendService/CompleteWord"
@@ -542,6 +545,8 @@ type BackendServiceClient interface {
 	RoomEncryption(context.Context, *connect.Request[v1.RoomEncryptionRequest]) (*connect.Response[v1.RoomEncryptionResponse], error)
 	// MessagesAround is one message with its neighbours.
 	MessagesAround(context.Context, *connect.Request[v1.MessagesAroundRequest]) (*connect.Response[v1.MessagesAroundResponse], error)
+	// MessagesFrom is one page of what someone said, across rooms.
+	MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error)
 	// CompleteWord finishes a partly typed word from what has been said in scope, ranked,
 	// then tops the list up from the installed word-frequency list for the language the
 	// prefix is in.
@@ -1108,6 +1113,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("MessagesAround")),
 			connect.WithClientOptions(opts...),
 		),
+		messagesFrom: connect.NewClient[v1.MessagesFromRequest, v1.MessagesFromResponse](
+			httpClient,
+			baseURL+BackendServiceMessagesFromProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("MessagesFrom")),
+			connect.WithClientOptions(opts...),
+		),
 		completeWord: connect.NewClient[v1.CompleteWordRequest, v1.CompleteWordResponse](
 			httpClient,
 			baseURL+BackendServiceCompleteWordProcedure,
@@ -1438,6 +1449,7 @@ type backendServiceClient struct {
 	roomsWith             *connect.Client[v1.RoomsWithRequest, v1.RoomsWithResponse]
 	roomEncryption        *connect.Client[v1.RoomEncryptionRequest, v1.RoomEncryptionResponse]
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
+	messagesFrom          *connect.Client[v1.MessagesFromRequest, v1.MessagesFromResponse]
 	completeWord          *connect.Client[v1.CompleteWordRequest, v1.CompleteWordResponse]
 	messages              *connect.Client[v1.MessagesRequest, v1.MessagesResponse]
 	activityStream        *connect.Client[v1.ActivityStreamRequest, v1.ActivityStreamResponse]
@@ -1847,6 +1859,11 @@ func (c *backendServiceClient) MessagesAround(ctx context.Context, req *connect.
 	return c.messagesAround.CallUnary(ctx, req)
 }
 
+// MessagesFrom calls backend.v1.BackendService.MessagesFrom.
+func (c *backendServiceClient) MessagesFrom(ctx context.Context, req *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error) {
+	return c.messagesFrom.CallUnary(ctx, req)
+}
+
 // CompleteWord calls backend.v1.BackendService.CompleteWord.
 func (c *backendServiceClient) CompleteWord(ctx context.Context, req *connect.Request[v1.CompleteWordRequest]) (*connect.Response[v1.CompleteWordResponse], error) {
 	return c.completeWord.CallUnary(ctx, req)
@@ -2244,6 +2261,8 @@ type BackendServiceHandler interface {
 	RoomEncryption(context.Context, *connect.Request[v1.RoomEncryptionRequest]) (*connect.Response[v1.RoomEncryptionResponse], error)
 	// MessagesAround is one message with its neighbours.
 	MessagesAround(context.Context, *connect.Request[v1.MessagesAroundRequest]) (*connect.Response[v1.MessagesAroundResponse], error)
+	// MessagesFrom is one page of what someone said, across rooms.
+	MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error)
 	// CompleteWord finishes a partly typed word from what has been said in scope, ranked,
 	// then tops the list up from the installed word-frequency list for the language the
 	// prefix is in.
@@ -2806,6 +2825,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("MessagesAround")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceMessagesFromHandler := connect.NewUnaryHandler(
+		BackendServiceMessagesFromProcedure,
+		svc.MessagesFrom,
+		connect.WithSchema(backendServiceMethods.ByName("MessagesFrom")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceCompleteWordHandler := connect.NewUnaryHandler(
 		BackendServiceCompleteWordProcedure,
 		svc.CompleteWord,
@@ -3206,6 +3231,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceRoomEncryptionHandler.ServeHTTP(w, r)
 		case BackendServiceMessagesAroundProcedure:
 			backendServiceMessagesAroundHandler.ServeHTTP(w, r)
+		case BackendServiceMessagesFromProcedure:
+			backendServiceMessagesFromHandler.ServeHTTP(w, r)
 		case BackendServiceCompleteWordProcedure:
 			backendServiceCompleteWordHandler.ServeHTTP(w, r)
 		case BackendServiceMessagesProcedure:
@@ -3589,6 +3616,10 @@ func (UnimplementedBackendServiceHandler) RoomEncryption(context.Context, *conne
 
 func (UnimplementedBackendServiceHandler) MessagesAround(context.Context, *connect.Request[v1.MessagesAroundRequest]) (*connect.Response[v1.MessagesAroundResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MessagesAround is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MessagesFrom is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) CompleteWord(context.Context, *connect.Request[v1.CompleteWordRequest]) (*connect.Response[v1.CompleteWordResponse], error) {

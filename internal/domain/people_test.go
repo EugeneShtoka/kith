@@ -1,6 +1,10 @@
 package domain
 
 import (
+	"fmt"
+	"maps"
+	"math/rand/v2"
+	"slices"
 	"testing"
 )
 
@@ -79,5 +83,57 @@ func TestHiddenPeopleNeverHideYou(t *testing.T) {
 	}
 	if !NewHiddenPeople(nil, nil, dir, nil).Empty() {
 		t.Error("nobody marked is not empty")
+	}
+}
+
+// A person's IDs are exactly the IDs Has counts as them: what lists everything they
+// said must agree with what hides them. Directories and identity groups are generated,
+// chains through both included, and every listed ID asked about.
+func TestAPersonsIDsAreTheOnesHasFinds(t *testing.T) {
+	t.Parallel()
+	ids := []string{"@a:x", "@b:x", "@c:x", "whatsapp:15550100001", "telegram:7", "slack:T1/U2",
+		PhoneID("15550100001"), "signal:15550100002", PhoneID("15550100002"), "@d:x"}
+	for seed := range uint64(300) {
+		rng := rand.New(rand.NewPCG(seed, 11))
+		pick := func() string { return ids[rng.IntN(len(ids))] }
+		var links []PersonLink
+		for range rng.IntN(5) {
+			links = append(links, PersonLink{Source: "book", ID: pick(), Other: pick()})
+		}
+		var names []PersonName
+		for range rng.IntN(3) {
+			names = append(names, PersonName{Source: "book", ID: pick(), Name: "Dana", Rank: RankSaved})
+		}
+		dir := NewDirectory(names, links)
+		// Identity groups as [[display.identity]] makes them: a key over several IDs.
+		groups := map[string][]string{}
+		key := map[string]string{}
+		for range rng.IntN(4) {
+			k := fmt.Sprint("g", rng.IntN(2))
+			id := pick()
+			if _, taken := key[id]; !taken {
+				key[id] = k
+				groups[k] = append(groups[k], id)
+			}
+		}
+		same := func(id string) []string {
+			out := dir.Identifiers(id)
+			if k, ok := key[id]; ok {
+				out = append(slices.Clone(out), groups[k]...)
+			}
+			return out
+		}
+		known := slices.Sorted(maps.Keys(key))
+		marked := NewMarkedPeople([]string{pick()}, known, same)
+		listed := marked.IDs()
+		// Every ID the directory or a group lists, and the marked one.
+		for _, id := range ids {
+			if _, inDir := dir.personOf(id); !inDir && key[id] == "" && !slices.Contains(listed, id) {
+				continue
+			}
+			if has, in := marked.Has(id), slices.Contains(listed, id); has != in {
+				t.Fatalf("seed %d: Has(%s) = %v but IDs() = %v (links %v, groups %v)", seed, id, has, listed, links, groups)
+			}
+		}
 	}
 }
