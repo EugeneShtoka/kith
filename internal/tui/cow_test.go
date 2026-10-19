@@ -163,7 +163,7 @@ func TestWithConfigFileLeavesItsReceiversKeymapAlone(t *testing.T) {
 	before := starterNew(apitest.Nop{}, config.Display{}).WithKeys(config.DefaultKeys())
 	prefixes, scripts := len(before.keys.prefixes), len(before.keys.scripts)
 	cfg := config.Config{}
-	cfg.Commands.Scripts = []config.Script{{Name: "deploy", Keys: "f9 f10"}}
+	cfg.UserCommands = []config.Command{{Name: "deploy", Keys: "f9 f10"}}
 	after := before.WithConfigFile("", cfg)
 	if len(before.keys.prefixes) != prefixes || len(before.keys.scripts) != scripts {
 		t.Errorf("the receiver's keymap changed: prefixes %d → %d, scripts %d → %d",

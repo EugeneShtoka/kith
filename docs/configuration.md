@@ -96,7 +96,7 @@ You rarely need to open the file. Inside kith:
     edits one below the list (emptied, it is removed), `x` removes the entry under the
     cursor, the last row adds one, and `K`/`J` move the entry under the cursor.
   - A list of records (read rules, media rules, people, names you gave, filters,
-    scripts, accounts, jump shortcuts) opens its records, each one's fields set as
+    commands, accounts, jump shortcuts) opens its records, each one's fields set as
     above; *Add one* is typed as its first field, *Remove this one* takes it out. A
     filter's *Add one* asks for each part in turn (name, tag, words or a sender,
     where it watches, what it moves) and writes the filter only at the end.
@@ -181,7 +181,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[complete]`, `[complete.model]` | Word completion and ghost text, and the local llama.cpp model behind it. | [composer.md](composer.md) |
 | `[assist]` and its sub-tables | The optional remote language model for `/summary`, `:todo`, rewrites and thread names: endpoint, scope, budgets, prompts. | [assist.md](assist.md) |
 | `[agent.read]`, `[agent.write]` | What `kith-mcp` may read (**nothing until you list rooms** — the one room list where empty means none); where it may write (never wider than what it may read), where it sends instead of drafting, its cooldown. Write entries that reading rules out are warned about at startup. | [mcp.md](mcp.md) |
-| `[commands]` | Your own slash commands: script folder, timeout, and per-command context, output (compose, send, …) and keys. | [commands.md](commands.md) |
+| `[commands]`, `[[command]]` | Your own slash commands: their folder and timeout; per command, its context, output (compose, send, …) and keys. | [commands.md](commands.md) |
 | `[schedule]` | Send-later messages: `overdue_cutoff_hours` (default 24) holds back messages that come due too late. | [usage.md](usage.md) |
 | `[log]` | `level`: how much the daemon, the client and `kith-mcp` log (`debug`, `info`, `warn`, `error`; default `info`). `--log-level` and `KITH_LOG_LEVEL` override it. `target`: where the client and a daemon it started log (`auto`, `journal`, `file`; default `auto`, the journal when there is one). `--log-target` and `KITH_LOG_TARGET` override it. | [troubleshooting.md](troubleshooting.md#where-the-log-goes) |
 | `[keys]` and `[keys.*]` | Every keybinding, one table per mode. | [keybindings.md](keybindings.md) |

@@ -346,7 +346,7 @@ func TestSendOutputPostsStraightAway(t *testing.T) {
 
 	m, backend := attaching(t)
 	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{
-		Commands: config.Commands{Dir: dir, Timeout: 5, Scripts: []config.Script{{Name: "zoom", Output: "send"}}},
+		Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{{Name: "zoom", Output: "send"}},
 	})
 	m, _ = press(t, m, keyText("i"))
 	m = typeInto(t, m, "/zoom")
@@ -381,7 +381,7 @@ func TestSentOutputGoesToTheRoomItWasTypedIn(t *testing.T) {
 
 	m, backend := attaching(t)
 	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{
-		Commands: config.Commands{Dir: dir, Timeout: 5, Scripts: []config.Script{{Name: "zoom", Output: "send"}}},
+		Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{{Name: "zoom", Output: "send"}},
 	})
 	m, _ = press(t, m, keyText("i"))
 	m = typeInto(t, m, "/zoom")
@@ -411,7 +411,7 @@ func TestTruncatedOutputIsNeverSentUnreviewed(t *testing.T) {
 
 	m, backend := attaching(t)
 	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{
-		Commands: config.Commands{Dir: dir, Timeout: 5, Scripts: []config.Script{{Name: "flood", Output: "send"}}},
+		Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{{Name: "flood", Output: "send"}},
 	})
 	m, _ = press(t, m, keyText("i"))
 	m = typeInto(t, m, "/flood")

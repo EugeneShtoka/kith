@@ -5,30 +5,29 @@ import (
 	"time"
 )
 
-// Commands is [commands]: the slash commands you write yourself.
+// Commands is [commands]: where the slash commands you write yourself live, and how long they run.
 type Commands struct {
-	Dir     string   `toml:"dir"`     // empty is the `commands` folder beside the config
-	Timeout int      `toml:"timeout"` // seconds; 0 is DefaultCommandTimeout
-	Scripts []Script `toml:"script"`
+	Dir     string `toml:"dir"`     // empty is the `commands` folder beside the config
+	Timeout int    `toml:"timeout"` // seconds; 0 is DefaultCommandTimeout
 }
 
-// Script is one [[commands.script]]: a command's settings.
-type Script struct {
+// Command is one [[command]]: a command's settings.
+type Command struct {
 	Name   string   `toml:"name"`   // the file name, without the slash
 	Needs  []string `toml:"needs"`  // message, url, history:n
 	Output string   `toml:"output"` // compose (default), send, status, pager, clipboard, none
 	Keys   string   `toml:"keys"`   // bindings, written as in [keys]
 }
 
-// ScriptFor returns a command's block, matched case-insensitively without the slash.
-func (c Commands) ScriptFor(command string) (Script, bool) {
+// CommandFor returns a command's block, matched case-insensitively without the slash.
+func (c Config) CommandFor(command string) (Command, bool) {
 	command = commandName(command)
-	for _, script := range c.Scripts {
-		if commandName(script.Name) == command {
-			return script, true
+	for _, block := range c.UserCommands {
+		if commandName(block.Name) == command {
+			return block, true
 		}
 	}
-	return Script{}, false
+	return Command{}, false
 }
 
 // commandName is a command name normalized for matching.

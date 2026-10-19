@@ -63,7 +63,7 @@ func (m Model) scriptHelp(keyColumn int) []string {
 	if len(m.keys.scripts) == 0 {
 		return nil
 	}
-	lines := []string{"", m.theme.Title.Render("Your commands (keys on [[commands.script]])")}
+	lines := []string{"", m.theme.Title.Render("Your commands (keys on [[command]])")}
 	for _, seq := range slices.Sorted(maps.Keys(m.keys.scripts)) {
 		name := m.keys.scripts[seq]
 		label := "/" + name

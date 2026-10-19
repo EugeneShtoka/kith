@@ -573,7 +573,7 @@ const unbind = "-"
 
 // withScripts returns k with user-command bindings added, k untouched: Model copies share k's
 // maps, which bindScripts writes into.
-func (k keymap) withScripts(scripts []config.Script) keymap {
+func (k keymap) withScripts(scripts []config.Command) keymap {
 	k.issues = slices.Clone(k.issues)
 	k.scripts = maps.Clone(k.scripts)
 	prefixes := make(map[string]map[scope]bool, len(k.prefixes))
@@ -589,7 +589,7 @@ func (k keymap) withScripts(scripts []config.Script) keymap {
 // bindings, refused where they collide with the table.
 func keymapFor(cfg config.Config) keymap {
 	km := newKeymap(cfg.Keys)
-	km.bindScripts(cfg.Commands.Scripts)
+	km.bindScripts(cfg.UserCommands)
 	return km
 }
 
@@ -741,20 +741,20 @@ func (k keymap) tagFor(seq string) (string, bool) {
 
 // bindScripts records sequences bound to user commands, under bindJumps' rules; two commands
 // on one sequence are refused rather than resolved by file order.
-func (k *keymap) bindScripts(scripts []config.Script) {
+func (k *keymap) bindScripts(scripts []config.Command) {
 	for _, script := range scripts {
 		name := strings.TrimPrefix(strings.TrimSpace(script.Name), "/")
 		for _, seq := range splitKeys(script.Keys) {
 			switch {
 			case !sequenceValid(seq):
 				k.issues = append(k.issues, fmt.Sprintf(
-					"commands.script %q: %q is not a key name the terminal reports; ignored", name, seq))
+					"command %q: %q is not a key name the terminal reports; ignored", name, seq))
 			case k.scripts[seq] != "":
 				k.issues = append(k.issues, fmt.Sprintf(
-					"commands.script %q: %q already runs /%s", name, spellSequence(seq), k.scripts[seq]))
+					"command %q: %q already runs /%s", name, spellSequence(seq), k.scripts[seq]))
 			case k.jumpConflict(seq) != "":
 				k.issues = append(k.issues, fmt.Sprintf(
-					"commands.script %q: %s — unbind it with \"-\" first", name, k.jumpConflict(seq)))
+					"command %q: %s — unbind it with \"-\" first", name, k.jumpConflict(seq)))
 			default:
 				if k.scripts == nil {
 					k.scripts = map[string]string{}

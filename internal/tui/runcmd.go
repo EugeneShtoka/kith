@@ -39,7 +39,7 @@ type commandRanMsg struct {
 	name string // as typed, "/zoom"
 	// room is where it was typed; the output belongs there even if you moved on.
 	room domain.RoomID
-	out  domain.ScriptOutput // where stdout goes (config.Script.Output)
+	out  domain.ScriptOutput // where stdout goes (config.Command.Output)
 	body string              // stdout, trailing newline trimmed
 	// why explains a command that produced nothing usable.
 	why       string

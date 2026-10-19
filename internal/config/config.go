@@ -61,6 +61,7 @@ type Config struct {
 	Profiles       []Profile     `toml:"profile"`
 	Tags           []Tag         `toml:"tag"`
 	Filters        []Filter      `toml:"filter"`
+	UserCommands   []Command     `toml:"command"`
 }
 
 // Log is `[log]`: how much each binary writes to its log, and where. Level empty is
