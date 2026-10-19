@@ -204,13 +204,10 @@ func (h *history) message(ctx context.Context, chat string, group bool, item *ba
 			hashes = append(hashes, att.GetPointer().GetLocatorInfo().GetPlaintextHash())
 		}
 	}
-	if s := st.GetSticker(); s != nil {
-		data.Sticker = &signalpb.DataMessage_Sticker{
-			PackId: s.GetPackId(), PackKey: s.GetPackKey(), StickerId: new(s.GetStickerId()), Emoji: new(s.GetEmoji()),
-		}
-		if p := filePointer(s.GetData()); p != nil {
-			data.Sticker.Data = p
-			hashes = append(hashes, s.GetData().GetLocatorInfo().GetPlaintextHash())
+	if sticker, hash := archivedSticker(st.GetSticker()); sticker != nil {
+		data.Sticker = sticker
+		if sticker.GetData() != nil {
+			hashes = append(hashes, hash)
 		}
 	}
 	if q := sm.GetQuote(); q.GetTargetSentTimestamp() != 0 {
@@ -238,12 +235,35 @@ func (h *history) message(ctx context.Context, chat string, group bool, item *ba
 			m.Attachments[i].PlaintextHash = hashes[i]
 		}
 	}
-	for _, r := range slices.Concat(sm.GetReactions(), st.GetReactions()) {
+	m.Reactions = h.reactions(ctx, slices.Concat(sm.GetReactions(), st.GetReactions()))
+	return m, read
+}
+
+// archivedSticker is an archived sticker as a message carries it, with its picture's
+// plaintext hash when the archive locates the picture; nil for none.
+func archivedSticker(s *backuppb.Sticker) (*signalpb.DataMessage_Sticker, []byte) {
+	if s == nil {
+		return nil, nil
+	}
+	sticker := &signalpb.DataMessage_Sticker{
+		PackId: s.GetPackId(), PackKey: s.GetPackKey(), StickerId: new(s.GetStickerId()), Emoji: new(s.GetEmoji()),
+	}
+	if p := filePointer(s.GetData()); p != nil {
+		sticker.Data = p
+		return sticker, s.GetData().GetLocatorInfo().GetPlaintextHash()
+	}
+	return sticker, nil
+}
+
+// reactions is an archived message's reactions by authors the account knows.
+func (h *history) reactions(ctx context.Context, archived []*backuppb.Reaction) []*signalv1.Reaction {
+	var out []*signalv1.Reaction
+	for _, r := range archived {
 		if author := h.aciOf(ctx, r.GetAuthorId()); author != uuid.Nil && r.GetEmoji() != "" {
-			m.Reactions = append(m.Reactions, &signalv1.Reaction{Sender: author.String(), Emoji: r.GetEmoji()})
+			out = append(out, &signalv1.Reaction{Sender: author.String(), Emoji: r.GetEmoji()})
 		}
 	}
-	return m, read
+	return out
 }
 
 // attachment is an archived file as the pointer a message carries, as mautrix-signal
