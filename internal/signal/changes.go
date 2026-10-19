@@ -37,7 +37,7 @@ func (a *Adapter) takeEdit(ctx context.Context, self string, e *signalv1.Edit) e
 		EditedAt:   at,
 		RevisionID: eventID(self, e.GetChat(), e.GetGroup(), e.GetSender(), e.GetSent()),
 	}
-	msg.Body, msg.Mentioned = mentioned(self, e.GetBody(), e.GetMentions())
+	msg.Body, msg.Format, msg.Mentioned = rendered(self, e.GetBody(), e.GetMentions(), e.GetStyles())
 	if err := a.save(ctx, msg.RoomID, msg); err != nil {
 		return fmt.Errorf("cache an edit: %w", err)
 	}

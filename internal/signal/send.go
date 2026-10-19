@@ -28,8 +28,8 @@ func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Dra
 		return a.editOwn(ctx, room, self, chat, group, h, draft)
 	}
 	sent := a.sentAt(draft.TxnID)
-	body, mentions := mentionsOf(draft)
-	req := &signalv1.SendRequest{Account: self, Chat: chat, Group: group, Body: body, Sent: sent, Mentions: mentions}
+	body, mentions, styles := outgoing(draft)
+	req := &signalv1.SendRequest{Account: self, Chat: chat, Group: group, Body: body, Sent: sent, Mentions: mentions, Styles: styles}
 	req.Timer, req.TimerVersion = a.timerOf(ctx, room)
 	if draft.ReplyTo != "" {
 		req.Quote = a.quote(ctx, room, draft.ReplyTo)
@@ -39,7 +39,7 @@ func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Dra
 	}
 	a.forgetTxn(draft.TxnID)
 	return a.takeMessage(ctx, self, &signalv1.Message{
-		Chat: chat, Group: group, Sender: self, Sent: sent, Received: sent, Body: body, Mentions: mentions, Quote: req.GetQuote(),
+		Chat: chat, Group: group, Sender: self, Sent: sent, Received: sent, Body: body, Mentions: mentions, Styles: styles, Quote: req.GetQuote(),
 		Timer: req.GetTimer(), TimerVersion: req.GetTimerVersion(),
 	})
 }

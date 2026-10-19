@@ -150,13 +150,14 @@ func TestADisappearingMessageIsDeletedWhenItsTimeRuns(t *testing.T) {
 	if !r.deletedWithin(direct(dana), hers, 10*time.Second) {
 		t.Error("a read message outlived its timer")
 	}
-	heard := false
-	for len(r.a.Messages()) > 0 {
-		if m := <-r.a.Messages(); m.ID == hers && m.Redacted {
-			heard = true
+	// Clients are told after the cache is written, so the news may still be on its way.
+	deadline := time.After(5 * time.Second)
+	for heard := false; !heard; {
+		select {
+		case m := <-r.a.Messages():
+			heard = m.ID == hers && m.Redacted
+		case <-deadline:
+			t.Fatal("clients did not hear the message go")
 		}
-	}
-	if !heard {
-		t.Error("clients did not hear the message go")
 	}
 }

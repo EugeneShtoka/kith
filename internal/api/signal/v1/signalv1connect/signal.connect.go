@@ -57,6 +57,8 @@ const (
 	SignalServiceUploadProcedure = "/signal.v1.SignalService/Upload"
 	// SignalServiceUnlinkProcedure is the fully-qualified name of the SignalService's Unlink RPC.
 	SignalServiceUnlinkProcedure = "/signal.v1.SignalService/Unlink"
+	// SignalServiceLeaveProcedure is the fully-qualified name of the SignalService's Leave RPC.
+	SignalServiceLeaveProcedure = "/signal.v1.SignalService/Leave"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -92,6 +94,8 @@ type SignalServiceClient interface {
 	// Unlink removes a linked device: Signal is told (when it is connected), and its keys
 	// are deleted from the store.
 	Unlink(context.Context, *connect.Request[v1.UnlinkRequest]) (*connect.Response[v1.UnlinkResponse], error)
+	// Leave takes a connected account out of a group; its other members are told.
+	Leave(context.Context, *connect.Request[v1.LeaveRequest]) (*connect.Response[v1.LeaveResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -177,6 +181,12 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("Unlink")),
 			connect.WithClientOptions(opts...),
 		),
+		leave: connect.NewClient[v1.LeaveRequest, v1.LeaveResponse](
+			httpClient,
+			baseURL+SignalServiceLeaveProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Leave")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -194,6 +204,7 @@ type signalServiceClient struct {
 	download  *connect.Client[v1.DownloadRequest, v1.DownloadResponse]
 	upload    *connect.Client[v1.UploadRequest, v1.UploadResponse]
 	unlink    *connect.Client[v1.UnlinkRequest, v1.UnlinkResponse]
+	leave     *connect.Client[v1.LeaveRequest, v1.LeaveResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -256,6 +267,11 @@ func (c *signalServiceClient) Unlink(ctx context.Context, req *connect.Request[v
 	return c.unlink.CallUnary(ctx, req)
 }
 
+// Leave calls signal.v1.SignalService.Leave.
+func (c *signalServiceClient) Leave(ctx context.Context, req *connect.Request[v1.LeaveRequest]) (*connect.Response[v1.LeaveResponse], error) {
+	return c.leave.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -289,6 +305,8 @@ type SignalServiceHandler interface {
 	// Unlink removes a linked device: Signal is told (when it is connected), and its keys
 	// are deleted from the store.
 	Unlink(context.Context, *connect.Request[v1.UnlinkRequest]) (*connect.Response[v1.UnlinkResponse], error)
+	// Leave takes a connected account out of a group; its other members are told.
+	Leave(context.Context, *connect.Request[v1.LeaveRequest]) (*connect.Response[v1.LeaveResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -370,6 +388,12 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("Unlink")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceLeaveHandler := connect.NewUnaryHandler(
+		SignalServiceLeaveProcedure,
+		svc.Leave,
+		connect.WithSchema(signalServiceMethods.ByName("Leave")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -396,6 +420,8 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceUploadHandler.ServeHTTP(w, r)
 		case SignalServiceUnlinkProcedure:
 			signalServiceUnlinkHandler.ServeHTTP(w, r)
+		case SignalServiceLeaveProcedure:
+			signalServiceLeaveHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -451,4 +477,8 @@ func (UnimplementedSignalServiceHandler) Upload(context.Context, *connect.Reques
 
 func (UnimplementedSignalServiceHandler) Unlink(context.Context, *connect.Request[v1.UnlinkRequest]) (*connect.Response[v1.UnlinkResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Unlink is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Leave(context.Context, *connect.Request[v1.LeaveRequest]) (*connect.Response[v1.LeaveResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Leave is not implemented"))
 }

@@ -140,6 +140,12 @@ func (f *fakeNetwork) Unlink(_ context.Context, aci string) error {
 	return nil
 }
 
+// Leave records which group was left.
+func (f *fakeNetwork) Leave(_ context.Context, aci, group string) error {
+	record(&signalv1.LeaveRequest{Account: aci, Group: group})
+	return nil
+}
+
 // Upload records req and returns the file with the pointer "up:" and its name.
 func (f *fakeNetwork) Upload(_ context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	record(req)

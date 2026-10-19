@@ -176,32 +176,31 @@ func (h *history) chatID(ctx context.Context, chat *store.BackupChat) (string, b
 	return "", false, false
 }
 
-// message is an archived item as a wire message, and whether the account had read it;
-// nil for one kith does not show: what is no plain message (a deleted one, a payment, a
-// sticker, a view-once one), or one with no author it knows.
+// message is an archived item as a wire message, with its reactions, and whether the
+// account had read it; nil for one kith does not show: what is no plain message or
+// sticker (a deleted one, a payment, a view-once one), or one with no author it knows.
 func (h *history) message(ctx context.Context, chat string, group bool, item *backuppb.ChatItem) (*signalv1.Message, bool) {
-	sm := item.GetStandardMessage()
+	sm, st := item.GetStandardMessage(), item.GetStickerMessage()
 	sender := h.aciOf(ctx, item.GetAuthorId())
-	if sm == nil || sender == uuid.Nil {
+	if (sm == nil && st == nil) || sender == uuid.Nil {
 		return nil, false
 	}
 	data := &signalpb.DataMessage{Timestamp: new(item.GetDateSent())}
 	if text := sm.GetText(); text != nil {
 		data.Body = new(text.GetBody())
-		for _, r := range text.GetBodyRanges() {
-			if aci := r.GetMentionAci(); len(aci) == 16 {
-				data.BodyRanges = append(data.BodyRanges, &signalpb.BodyRange{
-					Start: new(r.GetStart()), Length: new(r.GetLength()),
-					AssociatedValue: &signalpb.BodyRange_MentionAci{MentionAci: uuid.UUID(aci).String()},
-				})
-			}
-		}
+		data.BodyRanges = archivedRanges(text.GetBodyRanges())
 	}
 	var hashes [][]byte
 	for _, att := range sm.GetAttachments() {
 		if p := attachment(att); p != nil {
 			data.Attachments = append(data.Attachments, p)
 			hashes = append(hashes, att.GetPointer().GetLocatorInfo().GetPlaintextHash())
+		}
+	}
+	if sticker, hash := archivedSticker(st.GetSticker()); sticker != nil {
+		data.Sticker = sticker
+		if sticker.GetData() != nil {
+			hashes = append(hashes, hash)
 		}
 	}
 	if q := sm.GetQuote(); q.GetTargetSentTimestamp() != 0 {
@@ -229,22 +228,63 @@ func (h *history) message(ctx context.Context, chat string, group bool, item *ba
 			m.Attachments[i].PlaintextHash = hashes[i]
 		}
 	}
+	m.Reactions = h.reactions(ctx, slices.Concat(sm.GetReactions(), st.GetReactions()))
 	return m, read
+}
+
+// archivedRanges is an archived body's mentions and styles as a message carries them;
+// the archive numbers styles as messages do.
+func archivedRanges(ranges []*backuppb.BodyRange) []*signalpb.BodyRange {
+	var out []*signalpb.BodyRange
+	for _, r := range ranges {
+		at := &signalpb.BodyRange{Start: new(r.GetStart()), Length: new(r.GetLength())}
+		switch aci, style := r.GetMentionAci(), r.GetStyle(); {
+		case len(aci) == 16:
+			at.AssociatedValue = &signalpb.BodyRange_MentionAci{MentionAci: uuid.UUID(aci).String()}
+		case style != backuppb.BodyRange_NONE:
+			at.AssociatedValue = &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_Style(style)}
+		default:
+			continue
+		}
+		out = append(out, at)
+	}
+	return out
+}
+
+// archivedSticker is an archived sticker as a message carries it, with its picture's
+// plaintext hash when the archive locates the picture; nil for none.
+func archivedSticker(s *backuppb.Sticker) (*signalpb.DataMessage_Sticker, []byte) {
+	if s == nil {
+		return nil, nil
+	}
+	sticker := &signalpb.DataMessage_Sticker{
+		PackId: s.GetPackId(), PackKey: s.GetPackKey(), StickerId: new(s.GetStickerId()), Emoji: new(s.GetEmoji()),
+	}
+	if p := filePointer(s.GetData()); p != nil {
+		sticker.Data = p
+		return sticker, s.GetData().GetLocatorInfo().GetPlaintextHash()
+	}
+	return sticker, nil
+}
+
+// reactions is an archived message's reactions by authors the account knows.
+func (h *history) reactions(ctx context.Context, archived []*backuppb.Reaction) []*signalv1.Reaction {
+	var out []*signalv1.Reaction
+	for _, r := range archived {
+		if author := h.aciOf(ctx, r.GetAuthorId()); author != uuid.Nil && r.GetEmoji() != "" {
+			out = append(out, &signalv1.Reaction{Sender: author.String(), Emoji: r.GetEmoji()})
+		}
+	}
+	return out
 }
 
 // attachment is an archived file as the pointer a message carries, as mautrix-signal
 // reads one: where it is on the CDN while the transfer keeps it there, and its key; nil
 // for one the archive does not locate.
 func attachment(att *backuppb.MessageAttachment) *signalpb.AttachmentPointer {
-	fp := att.GetPointer()
-	li := fp.GetLocatorInfo()
-	if li.GetTransitCdnKey() == "" {
+	p := filePointer(att.GetPointer())
+	if p == nil {
 		return nil
-	}
-	p := &signalpb.AttachmentPointer{
-		AttachmentIdentifier: &signalpb.AttachmentPointer_CdnKey{CdnKey: li.GetTransitCdnKey()},
-		ContentType:          fp.ContentType, FileName: fp.FileName, Width: fp.Width, Height: fp.Height,
-		Size: new(li.GetSize()), Digest: li.GetEncryptedDigest(), CdnNumber: li.TransitCdnNumber, Key: li.GetKey(),
 	}
 	switch att.GetFlag() {
 	case backuppb.MessageAttachment_VOICE_MESSAGE:
@@ -254,4 +294,18 @@ func attachment(att *backuppb.MessageAttachment) *signalpb.AttachmentPointer {
 	case backuppb.MessageAttachment_NONE, backuppb.MessageAttachment_BORDERLESS:
 	}
 	return p
+}
+
+// filePointer is an archived file's pointer: where it is on the CDN while the transfer
+// keeps it there, and its key; nil for one the archive does not locate.
+func filePointer(fp *backuppb.FilePointer) *signalpb.AttachmentPointer {
+	li := fp.GetLocatorInfo()
+	if li.GetTransitCdnKey() == "" {
+		return nil
+	}
+	return &signalpb.AttachmentPointer{
+		AttachmentIdentifier: &signalpb.AttachmentPointer_CdnKey{CdnKey: li.GetTransitCdnKey()},
+		ContentType:          fp.ContentType, FileName: fp.FileName, Width: fp.Width, Height: fp.Height,
+		Size: new(li.GetSize()), Digest: li.GetEncryptedDigest(), CdnNumber: li.TransitCdnNumber, Key: li.GetKey(),
+	}
 }

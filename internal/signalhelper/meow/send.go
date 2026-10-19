@@ -53,6 +53,12 @@ func (n *Network) Send(ctx context.Context, req *signalv1.SendRequest) error {
 				AssociatedValue: &signalpb.BodyRange_MentionAci{MentionAci: m.GetAci()},
 			})
 		}
+		for _, st := range req.GetStyles() {
+			data.BodyRanges = append(data.BodyRanges, &signalpb.BodyRange{
+				Start: new(st.GetStart()), Length: new(st.GetLength()),
+				AssociatedValue: &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_Style(st.GetKind())},
+			})
+		}
 		for _, f := range req.GetAttachments() {
 			p := &signalpb.AttachmentPointer{}
 			if err := proto.Unmarshal(f.GetPointer(), p); err != nil {
@@ -184,6 +190,20 @@ func (n *Network) Unlink(ctx context.Context, aci string) error {
 	}
 	if err := st.DeleteDevice(ctx, &device.DeviceData); err != nil {
 		return fmt.Errorf("signal: delete the device's keys: %w", err)
+	}
+	return nil
+}
+
+// Leave takes the connected account aci out of group; Signal tells its other members.
+func (n *Network) Leave(ctx context.Context, aci, group string) error {
+	a, err := n.connected(aci)
+	if err != nil {
+		return err
+	}
+	self := a.cli.Store.ACI
+	change := &signalmeow.GroupChange{DeleteMembers: []*uuid.UUID{&self}}
+	if _, err := a.cli.UpdateGroup(ctx, change, types.GroupIdentifier(group)); err != nil {
+		return fmt.Errorf("signal: leave the group: %w", err)
 	}
 	return nil
 }

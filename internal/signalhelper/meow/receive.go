@@ -3,10 +3,12 @@
 package meow
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -175,6 +177,7 @@ func (a *account) chatEvent(ctx context.Context, e *events.ChatEvent) {
 		a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Edit{Edit: &signalv1.Edit{
 			Chat: chat, Group: data.GetGroupV2() != nil, Sender: sender, Target: c.GetTargetSentTimestamp(),
 			Sent: data.GetTimestamp(), Body: data.GetBody(), Mentions: a.mentions(ctx, data.GetBodyRanges()),
+			Styles: styles(data.GetBodyRanges()),
 		}}})
 	case *signalpb.TypingMessage:
 		if sender == a.aci {
@@ -201,6 +204,18 @@ func (a *account) mentions(ctx context.Context, ranges []*signalpb.BodyRange) []
 	return out
 }
 
+// styles is how a body is formatted: its ranges that are styles, not people. Signal's
+// styles are numbered as the wire's kinds.
+func styles(ranges []*signalpb.BodyRange) []*signalv1.Style {
+	var out []*signalv1.Style
+	for _, r := range ranges {
+		if style := r.GetStyle(); style != signalpb.BodyRange_NONE {
+			out = append(out, &signalv1.Style{Start: r.GetStart(), Length: r.GetLength(), Kind: signalv1.Style_Kind(style)})
+		}
+	}
+	return out
+}
+
 // message is data as a wire message.
 func (a *account) message(ctx context.Context, info events.MessageInfo, data *signalpb.DataMessage) *signalv1.Message {
 	m := &signalv1.Message{
@@ -223,6 +238,7 @@ func (a *account) message(ctx context.Context, info events.MessageInfo, data *si
 		m.Quote = &signalv1.Quote{Author: q.GetAuthorAci(), Sent: q.GetId(), Text: q.GetText()}
 	}
 	m.Mentions = a.mentions(ctx, data.GetBodyRanges())
+	m.Styles = styles(data.GetBodyRanges())
 	for _, p := range data.GetAttachments() {
 		pointer, err := proto.Marshal(p)
 		if err != nil {
@@ -232,7 +248,23 @@ func (a *account) message(ctx context.Context, info events.MessageInfo, data *si
 			ContentType: p.GetContentType(), FileName: p.GetFileName(), Size: uint64(p.GetSize()), Pointer: pointer,
 		})
 	}
+	if s := data.GetSticker(); s != nil {
+		m.Attachments, m.Body = sticker(s, m.GetAttachments(), m.GetBody())
+	}
 	return m
+}
+
+// sticker adds a sticker to a message as its picture, as other networks' show; one
+// whose picture is not there reads as its emoji.
+func sticker(s *signalpb.DataMessage_Sticker, files []*signalv1.Attachment, body string) ([]*signalv1.Attachment, string) {
+	p := s.GetData()
+	pointer, err := proto.Marshal(p)
+	if p == nil || err != nil {
+		return files, strings.TrimSpace(body + " [sticker] " + s.GetEmoji())
+	}
+	return append(files, &signalv1.Attachment{
+		ContentType: cmp.Or(p.GetContentType(), "image/webp"), FileName: "sticker", Size: uint64(p.GetSize()), Pointer: pointer,
+	}), body
 }
 
 // describe hands kithd a group's title and members before its first message this run.
