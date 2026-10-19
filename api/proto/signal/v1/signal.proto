@@ -146,6 +146,7 @@ message Edit {
   uint64 sent = 5;
   string body = 6;
   repeated Mention mentions = 7;
+  repeated Style styles = 8;
 }
 
 // Delete deletes a message for everyone.
@@ -237,6 +238,8 @@ message Message {
   uint64 timer_started = 16;
   // An archived message's reactions, one per sender: each its sender and emoji.
   repeated Reaction reactions = 17;
+  // How the body is formatted (bold, spoilers), over the text with its U+FFFC.
+  repeated Style styles = 18;
 }
 
 // Quote is the message a message replies to.
@@ -244,6 +247,22 @@ message Quote {
   string author = 1;
   uint64 sent = 2;
   string text = 3;
+}
+
+// Style is a stretch of a body drawn one way.
+message Style {
+  // In UTF-16 code units, as Signal counts, over the text with its U+FFFC.
+  uint32 start = 1;
+  uint32 length = 2;
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_BOLD = 1;
+    KIND_ITALIC = 2;
+    KIND_SPOILER = 3;
+    KIND_STRIKETHROUGH = 4;
+    KIND_MONOSPACE = 5;
+  }
+  Kind kind = 3;
 }
 
 // Mention is a person mentioned in a body: Signal puts U+FFFC in the text there.
@@ -334,6 +353,8 @@ message SendRequest {
   repeated Attachment attachments = 12;
   // People the body (or an edit's) mentions, each where it has U+FFFC.
   repeated Mention mentions = 13;
+  // How the body (or an edit's) is formatted.
+  repeated Style styles = 14;
 }
 
 message DownloadRequest {

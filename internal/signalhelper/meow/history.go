@@ -188,14 +188,7 @@ func (h *history) message(ctx context.Context, chat string, group bool, item *ba
 	data := &signalpb.DataMessage{Timestamp: new(item.GetDateSent())}
 	if text := sm.GetText(); text != nil {
 		data.Body = new(text.GetBody())
-		for _, r := range text.GetBodyRanges() {
-			if aci := r.GetMentionAci(); len(aci) == 16 {
-				data.BodyRanges = append(data.BodyRanges, &signalpb.BodyRange{
-					Start: new(r.GetStart()), Length: new(r.GetLength()),
-					AssociatedValue: &signalpb.BodyRange_MentionAci{MentionAci: uuid.UUID(aci).String()},
-				})
-			}
-		}
+		data.BodyRanges = archivedRanges(text.GetBodyRanges())
 	}
 	var hashes [][]byte
 	for _, att := range sm.GetAttachments() {
@@ -237,6 +230,25 @@ func (h *history) message(ctx context.Context, chat string, group bool, item *ba
 	}
 	m.Reactions = h.reactions(ctx, slices.Concat(sm.GetReactions(), st.GetReactions()))
 	return m, read
+}
+
+// archivedRanges is an archived body's mentions and styles as a message carries them;
+// the archive numbers styles as messages do.
+func archivedRanges(ranges []*backuppb.BodyRange) []*signalpb.BodyRange {
+	var out []*signalpb.BodyRange
+	for _, r := range ranges {
+		at := &signalpb.BodyRange{Start: new(r.GetStart()), Length: new(r.GetLength())}
+		switch aci, style := r.GetMentionAci(), r.GetStyle(); {
+		case len(aci) == 16:
+			at.AssociatedValue = &signalpb.BodyRange_MentionAci{MentionAci: uuid.UUID(aci).String()}
+		case style != backuppb.BodyRange_NONE:
+			at.AssociatedValue = &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_Style(style)}
+		default:
+			continue
+		}
+		out = append(out, at)
+	}
+	return out
 }
 
 // archivedSticker is an archived sticker as a message carries it, with its picture's

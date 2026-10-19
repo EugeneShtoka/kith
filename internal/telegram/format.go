@@ -18,38 +18,32 @@ import (
 // Telegram formatting is entities at UTF-16 offsets. kith maps them to nested
 // richtext markup; overlapping entities are split where they cross.
 
-// mark is one entity as markup, in byte offsets.
-type mark struct {
-	start, end  int
-	open, close string
-}
-
 // formatted is a text's words, its markup (zero if none) and name mentions.
 func formatted(text string, entities []tg.MessageEntityClass) (string, richtext.Formatted, []domain.Mention) {
 	if len(entities) == 0 {
 		return text, richtext.Formatted{}, nil
 	}
 	at := byteOffsets(text)
-	var marks []mark
+	var marks []richtext.Mark
 	var mentions []domain.Mention
 	for _, e := range entities {
 		start, end := e.GetOffset(), e.GetOffset()+e.GetLength()
 		if start < 0 || end > len(at)-1 || start >= end {
 			continue // past the text: a malformed entity draws nothing
 		}
-		m := mark{start: at[start], end: at[end]}
+		m := richtext.Mark{Start: at[start], End: at[end]}
 		if mention, ok := e.(*tg.MessageEntityMentionName); ok {
-			mentions = append(mentions, domain.Mention{UserID: personID(mention.UserID), Name: text[m.start:m.end]})
+			mentions = append(mentions, domain.Mention{UserID: personID(mention.UserID), Name: text[m.Start:m.End]})
 			continue
 		}
-		if m.open, m.close = tags(e, text[m.start:m.end]); m.open != "" {
+		if m.Open, m.Close = tags(e, text[m.Start:m.End]); m.Open != "" {
 			marks = append(marks, m)
 		}
 	}
 	if len(marks) == 0 {
 		return text, richtext.Formatted{}, mentions
 	}
-	f := richtext.FromMarkup(richtext.Sanitize(nested(text, marks)))
+	f := richtext.FromMarkup(richtext.Sanitize(richtext.Nested(text, marks)))
 	if f.IsZero() || f.Text() == "" {
 		return text, richtext.Formatted{}, mentions
 	}
@@ -95,50 +89,6 @@ func byteOffsets(text string) []int {
 		}
 	}
 	return append(at, len(text))
-}
-
-// nested renders marks as properly nested markup: at each boundary, close ending
-// marks (reopening any closed early), then open starting ones, longest outermost.
-func nested(text string, marks []mark) string {
-	bounds := []int{0, len(text)}
-	for _, m := range marks {
-		bounds = append(bounds, m.start, m.end)
-	}
-	slices.Sort(bounds)
-	bounds = slices.Compact(bounds)
-	var out strings.Builder
-	var open []mark
-	for i, at := range bounds {
-		// Close what ends here; reopen what was closed on the way.
-		if lowest := slices.IndexFunc(open, func(m mark) bool { return m.end == at }); lowest >= 0 {
-			var reopen []mark
-			for len(open) > lowest {
-				top := open[len(open)-1]
-				open = open[:len(open)-1]
-				out.WriteString(top.close)
-				if top.end != at {
-					reopen = append(reopen, top)
-				}
-			}
-			for _, m := range slices.Backward(reopen) {
-				out.WriteString(m.open)
-				open = append(open, m)
-			}
-		}
-		starting := slices.DeleteFunc(slices.Clone(marks), func(m mark) bool { return m.start != at })
-		slices.SortStableFunc(starting, func(a, b mark) int { return b.end - a.end })
-		for _, m := range starting {
-			out.WriteString(m.open)
-			open = append(open, m)
-		}
-		if i+1 < len(bounds) {
-			out.WriteString(html.EscapeString(text[at:bounds[i+1]]))
-		}
-	}
-	for _, m := range slices.Backward(open) {
-		out.WriteString(m.close)
-	}
-	return out.String()
 }
 
 // outgoing renders a draft's Markdown (unless plain) to text and UTF-16 entities.
