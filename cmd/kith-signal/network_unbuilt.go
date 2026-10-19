@@ -46,6 +46,8 @@ func (unbuilt) Download(context.Context, *signalv1.DownloadRequest) ([]byte, err
 
 func (unbuilt) Unlink(context.Context, string) error { return errUnbuilt }
 
+func (unbuilt) Leave(context.Context, string, string) error { return errUnbuilt }
+
 func (unbuilt) Upload(context.Context, *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	return nil, errUnbuilt
 }

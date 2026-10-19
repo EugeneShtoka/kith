@@ -39,6 +39,8 @@ service SignalService {
   // Unlink removes a linked device: Signal is told (when it is connected), and its keys
   // are deleted from the store.
   rpc Unlink(UnlinkRequest) returns (UnlinkResponse);
+  // Leave takes a connected account out of a group; its other members are told.
+  rpc Leave(LeaveRequest) returns (LeaveResponse);
 }
 
 message HeartbeatRequest {}
@@ -360,6 +362,15 @@ message UnlinkRequest {
 }
 
 message UnlinkResponse {}
+
+message LeaveRequest {
+  // The connected account's ACI.
+  string account = 1;
+  // The group's ID, as a Message's chat names it.
+  string group = 2;
+}
+
+message LeaveResponse {}
 
 message UploadResponse {
   // The file as a Send carries it.
