@@ -33,11 +33,29 @@ func (b *InProc) JoinRoom(ctx context.Context, roomIDOrAlias string, via []strin
 	if len(via) > 0 {
 		req = &mautrix.ReqJoinRoom{Via: via}
 	}
+	// Read before joining: the sync that says we joined drops the invite.
+	invite, invited := b.pendingInvite(domain.RoomID(roomIDOrAlias))
 	resp, err := b.client.JoinRoom(ctx, roomIDOrAlias, req)
 	if err != nil {
 		return "", fmt.Errorf("matrix: join %s: %w", roomIDOrAlias, err)
 	}
-	return domain.RoomID(resp.RoomID), nil
+	roomID := domain.RoomID(resp.RoomID)
+	if invited && invite.IsDirect && invite.InvitedBy != "" {
+		// is_direct is only the inviter's hint; our own m.direct is what marks the room
+		// a DM, here and in our other clients (Element records it the same way).
+		if derr := b.recordDirect(ctx, invite.InvitedBy, roomID); derr != nil {
+			return roomID, fmt.Errorf("joined, but could not record it as a direct message: %w", derr)
+		}
+	}
+	return roomID, nil
+}
+
+// pendingInvite is the invitation to a room, if one is pending.
+func (b *InProc) pendingInvite(roomID domain.RoomID) (domain.Room, bool) {
+	b.invites.mu.Lock()
+	defer b.invites.mu.Unlock()
+	invite, ok := b.invites.rooms[roomID]
+	return invite, ok
 }
 
 // LeaveRoom leaves a room (also rejects an invitation). The room leaves the cache at

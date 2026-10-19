@@ -205,3 +205,68 @@ func TestDirectCandidatesLeaveOutTheDMsYouAlreadyHave(t *testing.T) {
 		t.Errorf("candidates = %v, want only @sam:x — Dana has a DM and @me:x is us", got)
 	}
 }
+
+// Accepting an invitation marked is_direct records the room in our m.direct under the
+// inviter; any other join, and an invite that is not a DM, writes nothing.
+func TestAcceptingADirectInviteRecordsItAsADirectMessage(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		invite domain.Room
+		join   string
+		want   bool
+	}{
+		"a DM invite":         {invite: domain.Room{ID: "!dm:x", IsDirect: true, InvitedBy: "@dana:x"}, join: "!dm:x", want: true},
+		"a group invite":      {invite: domain.Room{ID: "!group:x", InvitedBy: "@dana:x"}, join: "!group:x"},
+		"a room not invited":  {invite: domain.Room{ID: "!dm:x", IsDirect: true, InvitedBy: "@dana:x"}, join: "#lobby:x"},
+		"a DM with no sender": {invite: domain.Room{ID: "!dm:x", IsDirect: true}, join: "!dm:x"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var (
+				mu      sync.Mutex
+				written map[string][]string
+			)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				body, _ := io.ReadAll(r.Body)
+				mu.Lock()
+				defer mu.Unlock()
+				switch {
+				case strings.Contains(r.URL.Path, "/join/"):
+					_, _ = w.Write([]byte(`{"room_id":"` + string(tc.invite.ID) + `"}`))
+				case strings.Contains(r.URL.Path, "/account_data/m.direct"):
+					if r.Method == http.MethodPut {
+						_ = json.Unmarshal(body, &written)
+						_, _ = w.Write([]byte(`{}`))
+						return
+					}
+					_, _ = w.Write([]byte(`{"@old:x":["!existing:x"]}`))
+				default:
+					http.Error(w, "unexpected path: "+r.URL.Path, http.StatusNotFound)
+				}
+			}))
+			defer srv.Close()
+
+			b := backendOn(t, srv)
+			b.invites.rooms[tc.invite.ID] = tc.invite
+			if _, err := b.JoinRoom(context.Background(), tc.join, nil); err != nil {
+				t.Fatalf("JoinRoom: %v", err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if !tc.want {
+				if written != nil {
+					t.Errorf("m.direct written = %v, want no write", written)
+				}
+				return
+			}
+			if got := written["@dana:x"]; len(got) != 1 || got[0] != "!dm:x" {
+				t.Errorf("m.direct[@dana:x] = %v, want [!dm:x]", got)
+			}
+			if got := written["@old:x"]; len(got) != 1 || got[0] != "!existing:x" {
+				t.Errorf("m.direct[@old:x] = %v — the existing DM was dropped by the write", got)
+			}
+		})
+	}
+}

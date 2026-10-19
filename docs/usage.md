@@ -190,7 +190,7 @@ Walking the list with `j`/`k` previews each room's timeline beside it; `enter` (
 | `·3` | Unread in a room a `counts_unread = false` tag holds (Archived, in the starter config) — shown, but not counted anywhere else |
 | `✎` | You have an unsent draft here |
 | `→` | The room was upgraded; `/replacement` goes to its replacement |
-| `✉` | An invitation: `y` accepts, `d` declines (asks first) |
+| `✉` | An invitation: `y` accepts, `d` declines (asks first). Accepting one the sender marked as a direct message files it with your DMs, here and in your other clients |
 
 What a badge counts is `[display] unread`: `messages` (the default) counts unread messages from the local cache; `notifications` uses the homeserver's count of what your push rules would have notified.
 
