@@ -21,7 +21,8 @@ attachments for a while only; an old one then stops loading.
 
 You can write in a chat, reply, mention people (`@` offers the chat's members, and
 the mention reaches them as one), edit and delete what you wrote (for everyone),
-react, and others see you typing.
+react, and others see you typing. Leaving a group takes you out of it on Signal, and
+its other members are told; a one-to-one chat cannot be left.
 Attaching a file sends it with what you typed as its caption; AAC audio goes as a
 voice message, as Signal's apps record them.
 

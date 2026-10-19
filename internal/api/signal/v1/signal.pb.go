@@ -2647,6 +2647,96 @@ func (*UnlinkResponse) Descriptor() ([]byte, []int) {
 	return file_signal_v1_signal_proto_rawDescGZIP(), []int{35}
 }
 
+type LeaveRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The connected account's ACI.
+	Account string `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	// The group's ID, as a Message's chat names it.
+	Group         string `protobuf:"bytes,2,opt,name=group,proto3" json:"group,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaveRequest) Reset() {
+	*x = LeaveRequest{}
+	mi := &file_signal_v1_signal_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaveRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaveRequest) ProtoMessage() {}
+
+func (x *LeaveRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaveRequest.ProtoReflect.Descriptor instead.
+func (*LeaveRequest) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *LeaveRequest) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+func (x *LeaveRequest) GetGroup() string {
+	if x != nil {
+		return x.Group
+	}
+	return ""
+}
+
+type LeaveResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaveResponse) Reset() {
+	*x = LeaveResponse{}
+	mi := &file_signal_v1_signal_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaveResponse) ProtoMessage() {}
+
+func (x *LeaveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaveResponse.ProtoReflect.Descriptor instead.
+func (*LeaveResponse) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{37}
+}
+
 type UploadResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The file as a Send carries it.
@@ -2657,7 +2747,7 @@ type UploadResponse struct {
 
 func (x *UploadResponse) Reset() {
 	*x = UploadResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[36]
+	mi := &file_signal_v1_signal_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2669,7 +2759,7 @@ func (x *UploadResponse) String() string {
 func (*UploadResponse) ProtoMessage() {}
 
 func (x *UploadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[36]
+	mi := &file_signal_v1_signal_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2682,7 +2772,7 @@ func (x *UploadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadResponse.ProtoReflect.Descriptor instead.
 func (*UploadResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{36}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *UploadResponse) GetAttachment() *Attachment {
@@ -2700,7 +2790,7 @@ type SendResponse struct {
 
 func (x *SendResponse) Reset() {
 	*x = SendResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[37]
+	mi := &file_signal_v1_signal_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2712,7 +2802,7 @@ func (x *SendResponse) String() string {
 func (*SendResponse) ProtoMessage() {}
 
 func (x *SendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[37]
+	mi := &file_signal_v1_signal_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2725,7 +2815,7 @@ func (x *SendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendResponse.ProtoReflect.Descriptor instead.
 func (*SendResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{37}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{39}
 }
 
 type TypingRequest struct {
@@ -2740,7 +2830,7 @@ type TypingRequest struct {
 
 func (x *TypingRequest) Reset() {
 	*x = TypingRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[38]
+	mi := &file_signal_v1_signal_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2752,7 +2842,7 @@ func (x *TypingRequest) String() string {
 func (*TypingRequest) ProtoMessage() {}
 
 func (x *TypingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[38]
+	mi := &file_signal_v1_signal_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2765,7 +2855,7 @@ func (x *TypingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypingRequest.ProtoReflect.Descriptor instead.
 func (*TypingRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{38}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *TypingRequest) GetAccount() string {
@@ -2804,7 +2894,7 @@ type TypingResponse struct {
 
 func (x *TypingResponse) Reset() {
 	*x = TypingResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[39]
+	mi := &file_signal_v1_signal_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2816,7 +2906,7 @@ func (x *TypingResponse) String() string {
 func (*TypingResponse) ProtoMessage() {}
 
 func (x *TypingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[39]
+	mi := &file_signal_v1_signal_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2829,7 +2919,7 @@ func (x *TypingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypingResponse.ProtoReflect.Descriptor instead.
 func (*TypingResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{39}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{41}
 }
 
 type MarkReadRequest struct {
@@ -2845,7 +2935,7 @@ type MarkReadRequest struct {
 
 func (x *MarkReadRequest) Reset() {
 	*x = MarkReadRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[40]
+	mi := &file_signal_v1_signal_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2857,7 +2947,7 @@ func (x *MarkReadRequest) String() string {
 func (*MarkReadRequest) ProtoMessage() {}
 
 func (x *MarkReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[40]
+	mi := &file_signal_v1_signal_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2870,7 +2960,7 @@ func (x *MarkReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkReadRequest.ProtoReflect.Descriptor instead.
 func (*MarkReadRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{40}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *MarkReadRequest) GetAccount() string {
@@ -2902,7 +2992,7 @@ type MarkReadResponse struct {
 
 func (x *MarkReadResponse) Reset() {
 	*x = MarkReadResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[41]
+	mi := &file_signal_v1_signal_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2914,7 +3004,7 @@ func (x *MarkReadResponse) String() string {
 func (*MarkReadResponse) ProtoMessage() {}
 
 func (x *MarkReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[41]
+	mi := &file_signal_v1_signal_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2927,7 +3017,7 @@ func (x *MarkReadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkReadResponse.ProtoReflect.Descriptor instead.
 func (*MarkReadResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{41}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{43}
 }
 
 var File_signal_v1_signal_proto protoreflect.FileDescriptor
@@ -3121,7 +3211,11 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\x06height\x18\x06 \x01(\rR\x06height\")\n" +
 	"\rUnlinkRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\"\x10\n" +
-	"\x0eUnlinkResponse\"G\n" +
+	"\x0eUnlinkResponse\">\n" +
+	"\fLeaveRequest\x12\x18\n" +
+	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x14\n" +
+	"\x05group\x18\x02 \x01(\tR\x05group\"\x0f\n" +
+	"\rLeaveResponse\"G\n" +
 	"\x0eUploadResponse\x125\n" +
 	"\n" +
 	"attachment\x18\x01 \x01(\v2\x15.signal.v1.AttachmentR\n" +
@@ -3137,7 +3231,7 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x122\n" +
 	"\bmessages\x18\x02 \x03(\v2\x16.signal.v1.ReadMessageR\bmessages\x12\x1a\n" +
 	"\breceipts\x18\x03 \x01(\bR\breceipts\"\x12\n" +
-	"\x10MarkReadResponse2\x87\x06\n" +
+	"\x10MarkReadResponse2\xc3\x06\n" +
 	"\rSignalService\x12F\n" +
 	"\tHeartbeat\x12\x1b.signal.v1.HeartbeatRequest\x1a\x1c.signal.v1.HeartbeatResponse\x12:\n" +
 	"\x05Start\x12\x17.signal.v1.StartRequest\x1a\x18.signal.v1.StartResponse\x129\n" +
@@ -3150,7 +3244,8 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\bMarkRead\x12\x1a.signal.v1.MarkReadRequest\x1a\x1b.signal.v1.MarkReadResponse\x12C\n" +
 	"\bDownload\x12\x1a.signal.v1.DownloadRequest\x1a\x1b.signal.v1.DownloadResponse\x12=\n" +
 	"\x06Upload\x12\x18.signal.v1.UploadRequest\x1a\x19.signal.v1.UploadResponse\x12=\n" +
-	"\x06Unlink\x12\x18.signal.v1.UnlinkRequest\x1a\x19.signal.v1.UnlinkResponseB>Z<github.com/EugeneShtoka/kith/internal/api/signal/v1;signalv1b\x06proto3"
+	"\x06Unlink\x12\x18.signal.v1.UnlinkRequest\x1a\x19.signal.v1.UnlinkResponse\x12:\n" +
+	"\x05Leave\x12\x17.signal.v1.LeaveRequest\x1a\x18.signal.v1.LeaveResponseB>Z<github.com/EugeneShtoka/kith/internal/api/signal/v1;signalv1b\x06proto3"
 
 var (
 	file_signal_v1_signal_proto_rawDescOnce sync.Once
@@ -3165,7 +3260,7 @@ func file_signal_v1_signal_proto_rawDescGZIP() []byte {
 }
 
 var file_signal_v1_signal_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
+var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
 var file_signal_v1_signal_proto_goTypes = []any{
 	(Receipt_Kind)(0),         // 0: signal.v1.Receipt.Kind
 	(Connection_State)(0),     // 1: signal.v1.Connection.State
@@ -3205,12 +3300,14 @@ var file_signal_v1_signal_proto_goTypes = []any{
 	(*UploadRequest)(nil),     // 35: signal.v1.UploadRequest
 	(*UnlinkRequest)(nil),     // 36: signal.v1.UnlinkRequest
 	(*UnlinkResponse)(nil),    // 37: signal.v1.UnlinkResponse
-	(*UploadResponse)(nil),    // 38: signal.v1.UploadResponse
-	(*SendResponse)(nil),      // 39: signal.v1.SendResponse
-	(*TypingRequest)(nil),     // 40: signal.v1.TypingRequest
-	(*TypingResponse)(nil),    // 41: signal.v1.TypingResponse
-	(*MarkReadRequest)(nil),   // 42: signal.v1.MarkReadRequest
-	(*MarkReadResponse)(nil),  // 43: signal.v1.MarkReadResponse
+	(*LeaveRequest)(nil),      // 38: signal.v1.LeaveRequest
+	(*LeaveResponse)(nil),     // 39: signal.v1.LeaveResponse
+	(*UploadResponse)(nil),    // 40: signal.v1.UploadResponse
+	(*SendResponse)(nil),      // 41: signal.v1.SendResponse
+	(*TypingRequest)(nil),     // 42: signal.v1.TypingRequest
+	(*TypingResponse)(nil),    // 43: signal.v1.TypingResponse
+	(*MarkReadRequest)(nil),   // 44: signal.v1.MarkReadRequest
+	(*MarkReadResponse)(nil),  // 45: signal.v1.MarkReadResponse
 }
 var file_signal_v1_signal_proto_depIdxs = []int32{
 	6,  // 0: signal.v1.StartResponse.devices:type_name -> signal.v1.Device
@@ -3250,25 +3347,27 @@ var file_signal_v1_signal_proto_depIdxs = []int32{
 	11, // 34: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
 	30, // 35: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
 	32, // 36: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
-	40, // 37: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
-	42, // 38: signal.v1.SignalService.MarkRead:input_type -> signal.v1.MarkReadRequest
+	42, // 37: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
+	44, // 38: signal.v1.SignalService.MarkRead:input_type -> signal.v1.MarkReadRequest
 	33, // 39: signal.v1.SignalService.Download:input_type -> signal.v1.DownloadRequest
 	35, // 40: signal.v1.SignalService.Upload:input_type -> signal.v1.UploadRequest
 	36, // 41: signal.v1.SignalService.Unlink:input_type -> signal.v1.UnlinkRequest
-	3,  // 42: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
-	5,  // 43: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
-	8,  // 44: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
-	10, // 45: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
-	12, // 46: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
-	31, // 47: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
-	39, // 48: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
-	41, // 49: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
-	43, // 50: signal.v1.SignalService.MarkRead:output_type -> signal.v1.MarkReadResponse
-	34, // 51: signal.v1.SignalService.Download:output_type -> signal.v1.DownloadResponse
-	38, // 52: signal.v1.SignalService.Upload:output_type -> signal.v1.UploadResponse
-	37, // 53: signal.v1.SignalService.Unlink:output_type -> signal.v1.UnlinkResponse
-	42, // [42:54] is the sub-list for method output_type
-	30, // [30:42] is the sub-list for method input_type
+	38, // 42: signal.v1.SignalService.Leave:input_type -> signal.v1.LeaveRequest
+	3,  // 43: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
+	5,  // 44: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
+	8,  // 45: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
+	10, // 46: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
+	12, // 47: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
+	31, // 48: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
+	41, // 49: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
+	43, // 50: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
+	45, // 51: signal.v1.SignalService.MarkRead:output_type -> signal.v1.MarkReadResponse
+	34, // 52: signal.v1.SignalService.Download:output_type -> signal.v1.DownloadResponse
+	40, // 53: signal.v1.SignalService.Upload:output_type -> signal.v1.UploadResponse
+	37, // 54: signal.v1.SignalService.Unlink:output_type -> signal.v1.UnlinkResponse
+	39, // 55: signal.v1.SignalService.Leave:output_type -> signal.v1.LeaveResponse
+	43, // [43:56] is the sub-list for method output_type
+	30, // [30:43] is the sub-list for method input_type
 	30, // [30:30] is the sub-list for extension type_name
 	30, // [30:30] is the sub-list for extension extendee
 	0,  // [0:30] is the sub-list for field type_name
@@ -3303,7 +3402,7 @@ func file_signal_v1_signal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signal_v1_signal_proto_rawDesc), len(file_signal_v1_signal_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   42,
+			NumMessages:   44,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
