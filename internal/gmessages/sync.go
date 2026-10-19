@@ -90,12 +90,19 @@ func (a *Adapter) takeConversations(ctx context.Context, c *conn, convs []*gmpro
 // takeMessages stores messages: live ones are announced, a listing's are history. A
 // deleted one is marked so; one in a conversation not known yet asks for a sync.
 func (a *Adapter) takeMessages(ctx context.Context, c *conn, msgs []*gmproto.Message, live bool) {
+	a.takeMessagesAt(ctx, c, msgs, live, time.Now())
+}
+
+// takeMessagesAt is takeMessages for messages as the phone had them at at (a listing's
+// when it was asked for), so their reactions never undo a newer change.
+func (a *Adapter) takeMessagesAt(ctx context.Context, c *conn, msgs []*gmproto.Message, live bool, at time.Time) {
 	if c.closed() {
 		return
 	}
 	c.applying.Lock()
 	defer c.applying.Unlock()
 	var ch change
+	var reacted []*gmproto.Message
 	unknown := false
 	for _, m := range msgs {
 		a.outbox.echoed(m.GetTmpID())
@@ -114,11 +121,14 @@ func (a *Adapter) takeMessages(ctx context.Context, c *conn, msgs []*gmproto.Mes
 			}
 		case live:
 			ch.live = append(ch.live, msg)
+			reacted = append(reacted, m)
 		default:
 			ch.history = append(ch.history, msg)
+			reacted = append(reacted, m)
 		}
 	}
 	a.store(ctx, c, ch)
+	a.takeReactions(ctx, c, reacted, live, at)
 	if unknown {
 		go a.sync(context.WithoutCancel(ctx), c)
 	}
@@ -174,6 +184,7 @@ func (a *Adapter) fetchNewer(ctx context.Context, c *conn, client *libgm.Client,
 			continue
 		}
 		fetched++
+		asked := time.Now()
 		var got *gmproto.ListMessagesResponse
 		err := a.guard("fetching messages", func() (err error) {
 			got, err = client.FetchMessages(ctx, v.GetConversationID(), historyCount, nil)
@@ -183,7 +194,7 @@ func (a *Adapter) fetchNewer(ctx context.Context, c *conn, client *libgm.Client,
 			a.log.Warn("fetch a conversation's messages failed", "account", c.account.Name, "err", err)
 			continue
 		}
-		a.takeMessages(ctx, c, got.GetMessages(), false)
+		a.takeMessagesAt(ctx, c, got.GetMessages(), false, asked)
 	}
 	return fetched
 }

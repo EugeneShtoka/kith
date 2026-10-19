@@ -15,6 +15,7 @@ import (
 //
 //	gmessages:<self>/<conversation>       a conversation, as one paired phone sees it
 //	gmessages:<self>/<conversation>/<id>  a message in it
+//	gmessages:<self>/<conversation>/<id>/<participant>  a participant's reaction to it
 //	gmessages:+<number>                   a person with a phone number
 //	gmessages:<self>.<participant>        anyone else, as the phone numbers them
 //
@@ -65,11 +66,18 @@ func conversationOf(room domain.RoomID) (self, conversation string, ok bool) {
 	return id.Account, conversation, err == nil && conversation != ""
 }
 
-// messageOf is an event's message ID on the phone.
+// reactionID is a participant's reaction to a message: one each, as Google Messages
+// allows.
+func reactionID(self, conversation, message, participant string) domain.EventID {
+	return domain.EventID(domain.NativeID(domain.ProtocolGMessages, self,
+		esc(conversation)+"/"+esc(message)+"/"+esc(participant)))
+}
+
+// messageOf is an event's message ID on the phone; a reaction is not a message.
 func messageOf(event domain.EventID) (string, bool) {
 	id := domain.ParseID(string(event))
 	_, m, cut := strings.Cut(id.Native, "/")
-	if id.Network != domain.ProtocolGMessages || !cut {
+	if id.Network != domain.ProtocolGMessages || !cut || strings.Contains(m, "/") {
 		return "", false
 	}
 	message, err := url.PathUnescape(m)

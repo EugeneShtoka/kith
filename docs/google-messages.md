@@ -8,7 +8,7 @@ conversation that has something new, then every message as it arrives. People wi
 phone number are named by their contact name and known by the number. Pictures,
 videos, voice messages and files show as a short label (`[photo]`, `[file: cv.pdf]`)
 for now, and an MMS the phone has not downloaded yet says so. You can send text and
-replies; attachments, older history and reactions come next.
+replies, and react; attachments and older history come next.
 
 A conversation you read in kith stays read: kith keeps the read position itself,
 before telling the phone, and keeps telling it until it hears. Conversations the phone
@@ -23,6 +23,11 @@ falls back to SMS as its own settings say (Messages → Settings → RCS chats);
 that switched to end-to-end encryption is held to RCS. The message shows in kith once
 the phone sends it back, and one the phone could not send ends with
 `[not sent: the phone could not send it]`. Sent messages cannot be edited.
+
+Reactions show under the message, one per person as Google Messages allows: reacting
+again replaces yours, and reacting with the same emoji again takes it off. A reaction
+drawn as one of Google's own pictures shows as `:custom:`. While you type, the other
+person sees that you are typing (in an RCS chat).
 
 **SMS goes through your carrier**, which may charge for each message. Before sending
 (or scheduling with `/at` and `/in`) to a chat whose messages go as SMS, kith asks:
