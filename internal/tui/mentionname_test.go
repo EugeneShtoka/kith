@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -96,6 +97,50 @@ func TestAMentionIsDrawnWithTheNameTheCacheKnowsNow(t *testing.T) {
 	}}}}))
 	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "@Bo New, standup moved") {
 		t.Errorf("the mention is not drawn with the name the cache knows now:\n%s", view)
+	}
+}
+
+// `@` offers the room's broadcasts the query begins before its people, and inserts
+// them as typed, recording no mention.
+func TestMentionCandidatesOfferTheRoomsBroadcastsFirst(t *testing.T) {
+	t.Parallel()
+	m := update(t, newModel(), roomsMsg{rooms: []domain.Room{
+		{ID: "slack:T1/C1", Name: "general", Broadcasts: []string{"@here", "@channel", "@everyone"}},
+		{ID: "slack:T1/D2", Name: "Hela", IsDirect: true},
+	}})
+	m.timeline.members = []domain.Member{{UserID: "slack:T1.U2", DisplayName: "Hela"}}
+	for _, tc := range []struct {
+		room  domain.RoomID
+		query string
+		want  []string
+	}{
+		{"slack:T1/C1", "", []string{"@here", "@channel", "@everyone", "Hela"}},
+		{"slack:T1/C1", "He", []string{"@here", "Hela"}},
+		{"slack:T1/C1", "ch", []string{"@channel"}},
+		{"slack:T1/D2", "he", []string{"Hela"}},
+	} {
+		m.openRoom = tc.room
+		var got []string
+		for _, c := range m.mentionCandidates(tc.query) {
+			got = append(got, c.text)
+		}
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("in %s, @%s offers %q, want %q", tc.room, tc.query, got, tc.want)
+		}
+	}
+
+	m.openRoom = "slack:T1/C1"
+	m.focus, m.compose.insertMode = paneTimeline, true
+	m = typeInto(t, m, "hi @he")
+	if !m.completion.active || m.completion.trigger != "@" {
+		t.Fatalf("typing @he opened %+v, want the mention popup", m.completion)
+	}
+	m, _ = m.acceptCompletion()
+	if got := m.editorFor(fieldComposer).text; got != "hi @here " {
+		t.Errorf("composer = %q, want %q", got, "hi @here ")
+	}
+	if len(m.compose.drafted) != 0 {
+		t.Errorf("a broadcast recorded mentions %+v", m.compose.drafted)
 	}
 }
 

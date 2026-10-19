@@ -296,9 +296,17 @@ func (a *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
 	if err != nil {
 		return nil, fmt.Errorf("slack: read cached rooms: %w", err)
 	}
-	return slices.DeleteFunc(rooms, func(r domain.Room) bool {
+	rooms = slices.DeleteFunc(rooms, func(r domain.Room) bool {
 		return domain.NetworkOf(string(r.ID)) != domain.ProtocolSlack
-	}), nil
+	})
+	general := map[domain.RoomID]bool{}
+	for _, w := range a.connected() {
+		general[w.generalRoom()] = true
+	}
+	for i := range rooms {
+		rooms[i].Broadcasts = broadcasts(rooms[i].IsDirect, general[rooms[i].ID])
+	}
+	return rooms, nil
 }
 
 // RefreshRooms lists every connected workspace's conversations again.

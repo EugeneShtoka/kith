@@ -94,5 +94,9 @@ daemon re-read the config. Turning `[slack]` on or off takes a restart of kithd.
   or it mentions you. Its read position is Slack's, and follows you reading it on
   another client; reading a thread in kith is kept in kith only, and marking rooms
   read reads their threads too.
+- **`@here` and `@channel`** are offered first when you type `@` in a channel or group
+  DM, and `@everyone` too in the workspace's general channel. Typed out, they notify
+  as in Slack: `@here` those active now, `@channel` everyone in the channel,
+  `@everyone` the whole workspace.
 - The status line says when a workspace is not signed in, or when Slack has ended
   its session.

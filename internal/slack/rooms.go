@@ -62,6 +62,8 @@ type listing struct {
 	rooms   []domain.Room
 	members map[domain.RoomID][]domain.Member
 	space   domain.Space
+	// general is the workspace's general channel, "" when not listed.
+	general string
 }
 
 // self is the signed-in person's user ID and handle.
@@ -108,12 +110,29 @@ func listed(team, teamName string, me self, conversations []slackgo.Channel, gro
 		default:
 			room.Name = c.Name
 		}
+		if c.IsGeneral {
+			l.general = c.ID
+		}
+		room.Broadcasts = broadcasts(room.IsDirect, c.IsGeneral)
 		l.rooms = append(l.rooms, room)
 		l.space.Children = append(l.space.Children, room.ID)
 	}
 	domain.SortRooms(l.rooms)
 	slices.Sort(l.space.Children)
 	return l
+}
+
+// broadcasts is what a conversation takes beside its people: @here (those active) and
+// @channel (all) in any but a DM, @everyone (the whole workspace) only in the general
+// channel.
+func broadcasts(direct, general bool) []string {
+	switch {
+	case direct:
+		return nil
+	case general:
+		return []string{"@here", "@channel", "@everyone"}
+	}
+	return []string{"@here", "@channel"}
 }
 
 // groupDMs is the group DMs' IDs.
