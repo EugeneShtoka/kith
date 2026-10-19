@@ -59,11 +59,14 @@ joins them to the same person on your other networks (see
 
 ## Before you link
 
-- **kith needs its Signal helper, `kith-signal`, which you build yourself.** Signal's
-  encryption library is written in Rust, and linking it takes cgo, which the rest of
-  kith does without. So it lives in a separate program that kithd starts when the
-  config has a Signal account and finds the program beside kithd or on your `PATH`.
-  No package includes it yet; see [Building kith-signal](#building-kith-signal).
+- **kith needs its Signal helper, `kith-signal`.** Signal's encryption library is
+  written in Rust, and linking it takes cgo, which the rest of kith does without. So
+  it lives in a separate program that kithd starts when the config has a Signal
+  account and finds the program beside kithd or on your `PATH`. The Linux release
+  archives and the `.deb`, `.rpm`, Arch package and `kith-bin` include it, for amd64
+  and arm64; it needs glibc 2.35 or newer (Debian 12, Ubuntu 22.04, Fedora 36 and
+  later). Alpine's package, macOS, FreeBSD, the `kith` and `kith-git` AUR packages
+  and Nix leave it out: there, [build it yourself](#building-kith-signal).
 - **Signal unlinks a device it has not seen for a while** (30 days, at the time of
   writing). Link again then.
 - **Signal does not support third-party apps.** kith uses the same library as the
@@ -74,7 +77,8 @@ joins them to the same person on your other networks (see
 
 ## Building kith-signal
 
-It needs Go, git, Rust (`cargo`, from rustup), cmake, clang and protoc. From kith's
+Where no package includes it (see [Before you link](#before-you-link)), or on an older
+glibc. It needs Go, git, Rust (`cargo`, from rustup), cmake, clang and protoc. From kith's
 source:
 
 ```sh
