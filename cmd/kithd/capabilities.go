@@ -196,10 +196,13 @@ var (
 
 	// Signal: kith-signal kept running, accounts linked and signed out, messages
 	// received into the cache and read there, text sent with replies, edits, reactions,
-	// deletions and the chat's timer, typing, attachments both ways, and groups left.
+	// deletions and the chat's timer, typing, attachments both ways, groups left, and
+	// polls read and voted in.
 	_ interface {
 		route.SignOuter
 		route.Leaver
+		route.Voter
+		route.PollReader
 		route.Media
 		route.Uploader
 		network

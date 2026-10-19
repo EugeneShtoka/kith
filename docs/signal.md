@@ -26,6 +26,11 @@ react, and others see you typing. What you write is Markdown, as on other networ
 and goes as Signal's formatting; Signal has no links, so a link's address follows its
 words. Leaving a group takes you out of it on Signal, and its other members are told;
 a one-to-one chat cannot be left.
+
+**Polls** show with their answers and votes, and you can vote, change your vote or
+take it back, and see who chose what (Signal's polls name their voters). Polls from
+the phone's history come with their votes. An ended poll takes no more votes. kith
+cannot start a poll.
 Attaching a file sends it with what you typed as its caption; AAC audio goes as a
 voice message, as Signal's apps record them.
 

@@ -180,9 +180,9 @@ func (h *history) chatID(ctx context.Context, chat *store.BackupChat) (string, b
 // account had read it; nil for one kith does not show: what is no plain message or
 // sticker (a deleted one, a payment, a view-once one), or one with no author it knows.
 func (h *history) message(ctx context.Context, chat string, group bool, item *backuppb.ChatItem) (*signalv1.Message, bool) {
-	sm, st := item.GetStandardMessage(), item.GetStickerMessage()
+	sm, st, poll := item.GetStandardMessage(), item.GetStickerMessage(), item.GetPoll()
 	sender := h.aciOf(ctx, item.GetAuthorId())
-	if (sm == nil && st == nil) || sender == uuid.Nil {
+	if (sm == nil && st == nil && poll == nil) || sender == uuid.Nil {
 		return nil, false
 	}
 	data := &signalpb.DataMessage{Timestamp: new(item.GetDateSent())}
@@ -220,7 +220,8 @@ func (h *history) message(ctx context.Context, chat string, group bool, item *ba
 	m.Group = group
 	m.Timer = uint32(item.GetExpiresInMs() / 1000) //nolint:gosec // Signal's timers fit
 	m.TimerStarted = item.GetExpireStartDate()
-	if m.GetBody() == "" && len(m.GetAttachments()) == 0 {
+	m.Poll = h.archivedPoll(ctx, poll)
+	if m.GetBody() == "" && len(m.GetAttachments()) == 0 && m.GetPoll() == nil {
 		return nil, false
 	}
 	for i := range m.GetAttachments() {
@@ -228,8 +229,40 @@ func (h *history) message(ctx context.Context, chat string, group bool, item *ba
 			m.Attachments[i].PlaintextHash = hashes[i]
 		}
 	}
-	m.Reactions = h.reactions(ctx, slices.Concat(sm.GetReactions(), st.GetReactions()))
+	m.Reactions = h.reactions(ctx, slices.Concat(sm.GetReactions(), st.GetReactions(), poll.GetReactions()))
 	return m, read
+}
+
+// archivedPoll is an archived poll with its votes: each voter's chosen answers and
+// the number of their latest vote; nil for none.
+func (h *history) archivedPoll(ctx context.Context, p *backuppb.Poll) *signalv1.Poll {
+	if p == nil {
+		return nil
+	}
+	out := &signalv1.Poll{Question: p.GetQuestion(), Multiple: p.GetAllowMultiple(), Closed: p.GetHasEnded()}
+	ballots := map[string]*signalv1.Ballot{}
+	var voters []string
+	for i, o := range p.GetOptions() {
+		out.Options = append(out.Options, o.GetOption())
+		for _, v := range o.GetVotes() {
+			voter := h.aciOf(ctx, v.GetVoterId())
+			if voter == uuid.Nil {
+				continue
+			}
+			b := ballots[voter.String()]
+			if b == nil {
+				b = &signalv1.Ballot{Voter: voter.String()}
+				ballots[voter.String()] = b
+				voters = append(voters, voter.String())
+			}
+			b.Options = append(b.Options, uint32(i))
+			b.Round = max(b.GetRound(), v.GetVoteCount())
+		}
+	}
+	for _, voter := range voters {
+		out.Ballots = append(out.Ballots, ballots[voter])
+	}
+	return out
 }
 
 // archivedRanges is an archived body's mentions and styles as a message carries them;

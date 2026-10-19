@@ -105,6 +105,8 @@ message EventsResponse {
     Read read = 12;
     Timer timer = 13;
     History history = 14;
+    Vote vote = 15;
+    PollEnd poll_end = 16;
   }
 }
 
@@ -240,6 +242,47 @@ message Message {
   repeated Reaction reactions = 17;
   // How the body is formatted (bold, spoilers), over the text with its U+FFFC.
   repeated Style styles = 18;
+  // The poll the message asks, if it is one.
+  Poll poll = 19;
+}
+
+// Poll is a message's poll: its answers are named by their place, from 0.
+message Poll {
+  string question = 1;
+  bool multiple = 2;
+  repeated string options = 3;
+  // From the archive only: whether it was ended, and each voter's latest vote.
+  bool closed = 4;
+  repeated Ballot ballots = 5;
+}
+
+// Ballot is one voter's latest vote in a poll.
+message Ballot {
+  string voter = 1;
+  repeated uint32 options = 2;
+  // The vote's number among the voter's votes in this poll: the highest stands.
+  uint32 round = 3;
+}
+
+// Vote is someone's vote in a poll, replacing their earlier ones; no options takes it
+// back.
+message Vote {
+  string chat = 1;
+  bool group = 2;
+  string sender = 3;
+  // The poll's message: its author and sent time.
+  string target_author = 4;
+  uint64 target_sent = 5;
+  repeated uint32 options = 6;
+  uint32 round = 7;
+}
+
+// PollEnd is a poll ended by its author, who sends it: no more votes.
+message PollEnd {
+  string chat = 1;
+  bool group = 2;
+  string sender = 3;
+  uint64 target_sent = 4;
 }
 
 // Quote is the message a message replies to.
@@ -355,6 +398,8 @@ message SendRequest {
   repeated Mention mentions = 13;
   // How the body (or an edit's) is formatted.
   repeated Style styles = 14;
+  // Instead of a new message: a vote in a poll (its chat and group are the request's).
+  Vote vote = 15;
 }
 
 message DownloadRequest {

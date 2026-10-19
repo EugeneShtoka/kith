@@ -45,6 +45,10 @@ func (n *Network) Send(ctx context.Context, req *signalv1.SendRequest) error {
 		}
 	case req.GetDeleteOf() != 0:
 		data.Delete = &signalpb.DataMessage_Delete{TargetSentTimestamp: new(req.GetDeleteOf())}
+	case req.GetVote() != nil:
+		if data.PollVote, err = pollVote(req.GetVote()); err != nil {
+			return err
+		}
 	default:
 		data.Body = new(req.GetBody())
 		for _, m := range req.GetMentions() {
@@ -206,4 +210,16 @@ func (n *Network) Leave(ctx context.Context, aci, group string) error {
 		return fmt.Errorf("signal: leave the group: %w", err)
 	}
 	return nil
+}
+
+// pollVote is a vote as Signal sends it, naming its poll's author by ACI.
+func pollVote(v *signalv1.Vote) (*signalpb.DataMessage_PollVote, error) {
+	author, err := uuid.Parse(v.GetTargetAuthor())
+	if err != nil {
+		return nil, fmt.Errorf("signal: the poll's author %q is no ACI: %w", v.GetTargetAuthor(), err)
+	}
+	return &signalpb.DataMessage_PollVote{
+		TargetAuthorAciBinary: author[:], TargetSentTimestamp: new(v.GetTargetSent()),
+		OptionIndexes: v.GetOptions(), VoteCount: new(v.GetRound()),
+	}, nil
 }

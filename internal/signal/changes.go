@@ -166,6 +166,14 @@ func (a *Adapter) takeRead(ctx context.Context, self string, r *signalv1.Read) e
 
 // save is the cache's save, keeping replaced versions under [display.deleted] keep.
 func (a *Adapter) save(ctx context.Context, room domain.RoomID, msgs ...domain.Message) error {
+	if slices.ContainsFunc(msgs, func(m domain.Message) bool { return m.Poll != nil }) {
+		// A poll's copy arriving again keeps the votes kith holds for it.
+		a.pollsMu.Lock()
+		defer a.pollsMu.Unlock()
+		if err := a.withHeldVotes(ctx, room, msgs); err != nil {
+			return err
+		}
+	}
 	if a.keepsDeleted() {
 		return a.cache.SaveMessagesWithRevisions(ctx, room, msgs) //nolint:wrapcheck // the caller says what failed
 	}
