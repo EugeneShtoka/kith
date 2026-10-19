@@ -9,8 +9,8 @@ For what already exists, see the [documentation index](README.md).
 ## Networks
 
 - Google Messages (SMS and RCS through your Android phone, paired as Messages for web
-  is): conversations come in, and text and reactions go out; attachments and older
-  history are still to come.
+  is): conversations and attachments come in, and text, files and reactions go
+  out; older history is still to come.
 
 ## Accounts and devices
 

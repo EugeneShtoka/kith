@@ -104,8 +104,20 @@ func (m Model) submitAttach(input string) (Model, tea.Cmd) {
 }
 
 // attachPath sends the file. The path is resolved here: the daemon (under systemd)
-// has no home or working directory and accepts only absolute paths.
+// has no home or working directory and accepts only absolute paths. To a chat that
+// sends as SMS it asks first, the caption back in the composer meanwhile.
 func (m Model) attachPath(room domain.Room, path, caption string) (Model, tea.Cmd) {
+	if m.asksSMS(room) {
+		m.compose.input = caption
+		m.confirm = confirmState{action: pendingAttachSMS, room: room, body: path, address: caption}
+		return m, nil
+	}
+	return m.attachPathNow(room, path, caption)
+}
+
+// attachPathNow is attachPath with nothing left to ask.
+func (m Model) attachPathNow(room domain.Room, path, caption string) (Model, tea.Cmd) {
+	m.compose.input = ""
 	expanded, err := expandHome(path)
 	if err != nil {
 		m = m.sayErr("cannot attach", err)

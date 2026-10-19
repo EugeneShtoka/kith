@@ -102,7 +102,7 @@ func (a *Adapter) takeMessagesAt(ctx context.Context, c *conn, msgs []*gmproto.M
 	c.applying.Lock()
 	defer c.applying.Unlock()
 	var ch change
-	var reacted []*gmproto.Message
+	var kept []*gmproto.Message // the messages cached, with what is kept beside them
 	unknown := false
 	for _, m := range msgs {
 		a.outbox.echoed(m.GetTmpID())
@@ -121,14 +121,15 @@ func (a *Adapter) takeMessagesAt(ctx context.Context, c *conn, msgs []*gmproto.M
 			}
 		case live:
 			ch.live = append(ch.live, msg)
-			reacted = append(reacted, m)
+			kept = append(kept, m)
 		default:
 			ch.history = append(ch.history, msg)
-			reacted = append(reacted, m)
+			kept = append(kept, m)
 		}
 	}
 	a.store(ctx, c, ch)
-	a.takeReactions(ctx, c, reacted, live, at)
+	a.keepSources(ctx, c, kept)
+	a.takeReactions(ctx, c, kept, live, at)
 	if unknown {
 		go a.sync(context.WithoutCancel(ctx), c)
 	}
