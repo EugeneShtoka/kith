@@ -203,6 +203,7 @@ func MessageToProto(m domain.Message) *v1.Message {
 		ThreadRoot:       string(m.ThreadRoot),
 		Emote:            m.Emote,
 		Placeholder:      m.Placeholder,
+		Undecrypted:      m.Undecrypted,
 		Poll:             PollToProto(m.Poll),
 		Seq:              m.Seq,
 	}
@@ -292,6 +293,7 @@ func ProtoToMessage(pb *v1.Message) domain.Message {
 		ThreadRoot:     domain.EventID(pb.GetThreadRoot()),
 		Emote:          pb.GetEmote(),
 		Placeholder:    pb.GetPlaceholder(),
+		Undecrypted:    pb.GetUndecrypted(),
 		Poll:           ProtoToPoll(pb.GetPoll()),
 		Seq:            pb.GetSeq(),
 	}

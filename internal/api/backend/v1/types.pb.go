@@ -778,7 +778,10 @@ type Message struct {
 	Poll        *Poll `protobuf:"bytes,24,opt,name=poll,proto3" json:"poll,omitempty"` // unset when the message asks no poll
 	// Orders messages sharing a time, the larger the later; 0 for none
 	// (domain.Message.Seq).
-	Seq           int64 `protobuf:"varint,25,opt,name=seq,proto3" json:"seq,omitempty"`
+	Seq int64 `protobuf:"varint,25,opt,name=seq,proto3" json:"seq,omitempty"`
+	// A stand-in for an encrypted message whose key has not arrived; the decrypted copy
+	// replaces it (domain.Message.Undecrypted).
+	Undecrypted   bool `protobuf:"varint,26,opt,name=undecrypted,proto3" json:"undecrypted,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -979,6 +982,13 @@ func (x *Message) GetSeq() int64 {
 		return x.Seq
 	}
 	return 0
+}
+
+func (x *Message) GetUndecrypted() bool {
+	if x != nil {
+		return x.Undecrypted
+	}
+	return false
 }
 
 // Poll is a question a message asks (domain.Poll).
@@ -2782,7 +2792,7 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x06format\x18\x05 \x01(\v2\x15.backend.v1.FormattedR\x06formatJ\x04\b\x03\x10\x04R\x04html\";\n" +
 	"\bActivity\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x16\n" +
-	"\x06typing\x18\x02 \x03(\tR\x06typing\"\xad\x06\n" +
+	"\x06typing\x18\x02 \x03(\tR\x06typing\"\xcf\x06\n" +
 	"\aMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x16\n" +
@@ -2812,7 +2822,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x06format\x18\x16 \x01(\v2\x15.backend.v1.FormattedR\x06format\x12 \n" +
 	"\vplaceholder\x18\x17 \x01(\bR\vplaceholder\x12$\n" +
 	"\x04poll\x18\x18 \x01(\v2\x10.backend.v1.PollR\x04poll\x12\x10\n" +
-	"\x03seq\x18\x19 \x01(\x03R\x03seqJ\x04\b\x0f\x10\x10R\x04html\"\xf2\x01\n" +
+	"\x03seq\x18\x19 \x01(\x03R\x03seq\x12 \n" +
+	"\vundecrypted\x18\x1a \x01(\bR\vundecryptedJ\x04\b\x0f\x10\x10R\x04html\"\xf2\x01\n" +
 	"\x04Poll\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bquestion\x18\x02 \x01(\tR\bquestion\x120\n" +

@@ -83,6 +83,7 @@ func (b *InProc) EnableEncryption(ctx context.Context, pickleKey []byte) error {
 		return fmt.Errorf("matrix: new crypto helper: %w", err)
 	}
 	helper.CustomPostDecrypt = b.postDecrypt
+	helper.DecryptErrorCallback = b.onDecryptError
 	// Init moves the sync position into the crypto store (client.Store).
 	b.storeMu.Lock()
 	err = helper.Init(ctx)

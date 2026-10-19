@@ -92,6 +92,8 @@ type InProc struct {
 	// those that never arrive.
 	held    heldReceipts
 	fetches receiptFetches
+	// keys asks for the sessions of messages that could not be decrypted (keys.go).
+	keys keyWaits
 
 	// gaps fills the history syncs skipped (gaps.go); syncs counts responses, the first
 	// being the catch-up after a start.
@@ -262,6 +264,7 @@ func (b *InProc) Start(ctx context.Context) error {
 	syncer.OnEventType(event.StateMember, b.onMember)
 	syncer.OnSync(b.onSync)
 	b.wantNetworks()
+	b.keys.start(ctx)
 	// Gaps the last run left unfilled are taken up on the first sync.
 	b.gaps.pending.Store(true)
 	// Handlers are registered on syncer itself; the wrapper only adds logging.
@@ -284,6 +287,7 @@ func (b *InProc) Stop() {
 		b.ver.stop()
 		// Read-position fetches write the cache; their context is already canceled.
 		b.fetches.wg.Wait()
+		b.keys.wg.Wait()
 		b.gaps.wg.Wait()
 
 		if helper := b.cryptoHelper(); helper != nil {

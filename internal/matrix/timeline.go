@@ -165,12 +165,15 @@ func (b *InProc) fetchedMessage(ctx context.Context, roomID domain.RoomID, evt *
 			return domain.Message{}, false, false
 		}
 		msg = domain.Message{
-			ID:        domain.EventID(evt.ID),
-			Sender:    string(evt.Sender),
-			Body:      undecryptableBody,
-			Timestamp: time.UnixMilli(evt.Timestamp),
+			ID:          domain.EventID(evt.ID),
+			Sender:      string(evt.Sender),
+			Body:        undecryptableBody,
+			Timestamp:   time.UnixMilli(evt.Timestamp),
+			Undecrypted: true,
 		}
 		undecrypted = true
+		// Asked for in the background; the message replaces this when its key comes.
+		b.wantKey(evt)
 	}
 	msg.RoomID = roomID
 	msg.Mentioned = mentionsMe(evt, b.client.UserID)
