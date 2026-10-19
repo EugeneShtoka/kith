@@ -65,8 +65,8 @@ func peopleFrom(events []*event.Event) (content peopleContent, present bool) {
 		}
 		var parsed peopleContent
 		if err := json.Unmarshal(evt.Content.VeryRaw, &parsed); err != nil {
-			// Unparseable still counts as present; empty reads as no mark.
-			return peopleContent{}, true
+			// Unparseable is absent: the mirror keeps its marks rather than losing them.
+			continue
 		}
 		content, present = parsed, true
 	}
