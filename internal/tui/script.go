@@ -147,6 +147,9 @@ func (m Model) scriptKey(press string) (Model, tea.Cmd, bool) {
 	if !open {
 		return m.say("/" + name + " needs a room open"), nil, true
 	}
+	if !m.commandAppliesIn(name, room) {
+		return m, nil, true // outside its places its key does nothing
+	}
 	mdl, cmd := m.runUserCommand("/"+name, path, "", room)
 	return mdl, cmd, true
 }

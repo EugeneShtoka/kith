@@ -288,14 +288,19 @@ func commandArg(body, command string) (string, bool) {
 }
 
 // allCommands is the built-ins plus the scripts found when the popup last opened
-// (built-ins win). It runs on every keystroke, so it touches no disk.
+// (built-ins win), less those whose places leave out the open room. It runs on every
+// keystroke, so it touches no disk.
 func (m Model) allCommands() []slashCommand {
 	if len(m.completion.userCommands) == 0 {
 		return slashCommands
 	}
 	all := slices.Clone(slashCommands)
+	room, open := m.currentRoom()
 	for _, cmd := range m.completion.userCommands {
 		if slices.ContainsFunc(all, func(c slashCommand) bool { return c.name == cmd.name }) {
+			continue
+		}
+		if open && !m.commandAppliesIn(cmd.name, room) {
 			continue
 		}
 		all = append(all, cmd)

@@ -17,6 +17,7 @@ type Command struct {
 	Needs  []string `toml:"needs"`  // message, url, history:n
 	Output string   `toml:"output"` // compose (default), send, status, pager, clipboard, none
 	Keys   string   `toml:"keys"`   // bindings, written as in [keys]
+	In     []string `toml:"in"`     // place vocabulary; empty is everywhere
 }
 
 // CommandFor returns a command's block, matched case-insensitively without the slash.

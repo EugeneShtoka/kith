@@ -1342,6 +1342,10 @@ timeout = 15
 #   needs  = ["url", "message"]
 #   output = "none"
 #   keys   = "alt+s"
+#   in     = ["protocol:slack", "dm"]
+#
+# `in` is where it applies, in the place vocabulary; empty is everywhere. Elsewhere it is
+# left out of the `/` list, its key does nothing, and typing it is refused, not sent.
 #
 # `keys` binds it; a sequence a built-in holds is refused (unbind it with "-" first),
 # as is one two commands share.

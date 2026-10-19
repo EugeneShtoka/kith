@@ -63,6 +63,9 @@ func placeSettings() []placeSetting {
 		{"filter[0].in", func(c *config.Config, e string) {
 			c.Filters = []config.Filter{{Name: "x", Tag: "Pinned", Words: one("w"), In: one(e)}}
 		}, placeForms},
+		{"command[0].in", func(c *config.Config, e string) {
+			c.UserCommands = []config.Command{{Name: "zoom", In: one(e)}}
+		}, placeForms},
 		{"assist.rooms", func(c *config.Config, e string) { c.Assist.Rooms = one(e) }, placeForms},
 		{"assist.except", func(c *config.Config, e string) { c.Assist.Except = one(e) }, placeForms},
 		{"tracked.rule[0].in", func(c *config.Config, e string) {

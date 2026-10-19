@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -78,9 +79,26 @@ func (m Model) commandsDir() (string, error) {
 	return filepath.Join(filepath.Dir(m.conf.path), "commands"), nil
 }
 
+// commandPlaces is where a command applies, its block's `in`; empty is everywhere.
+func (m Model) commandPlaces(name string) []string {
+	block, _ := m.conf.base.CommandFor(name)
+	return block.In
+}
+
+// commandAppliesIn reports whether a command may run in room: its `in` names the room, or
+// it has none.
+func (m Model) commandAppliesIn(name string, room domain.Room) bool {
+	places := m.commandPlaces(name)
+	return len(places) == 0 || slices.ContainsFunc(places, m.factsFor(room).Names)
+}
+
 // runUserCommand starts a command once it has the context it declared (script.go). One at a
-// time, so a double enter cannot book two meetings.
+// time, so a double enter cannot book two meetings. Outside its places it is refused, never
+// sent as text: `/zoom` posted into a room full of people is the misfire `in` exists to stop.
 func (m Model) runUserCommand(name, path, arg string, room domain.Room) (Model, tea.Cmd) {
+	if !m.commandAppliesIn(name, room) {
+		return m.say(name + " is only for " + strings.Join(m.commandPlaces(name), ", ")), nil
+	}
 	if m.running != "" {
 		return m.say(m.running + " is still running"), nil
 	}
