@@ -70,3 +70,6 @@ crypto.db
 
 # Pinned tools (scripts/ensure-tools.sh)
 /.tools/
+
+# Python bytecode from tools/*.py
+__pycache__/
