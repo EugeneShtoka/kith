@@ -76,6 +76,9 @@ type conn struct {
 	applying sync.Mutex
 	inbox    *inbox
 	rooms    map[domain.RoomID]domain.Room
+	// reacted is when each message's reactions last changed as kith knows it (a live
+	// update, or a reaction sent): a listing asked for before then is older.
+	reacted map[domain.EventID]time.Time
 	// syncing is held by the sync running, if any.
 	syncing sync.Mutex
 }
@@ -92,6 +95,7 @@ func (a *Adapter) newConn(account Account, s *Session, at *int) *conn {
 		account: account, phone: s.PhoneID, self: selfOf(s.PhoneID), signIn: signIn, session: s, saved: saved,
 		done: make(chan struct{}), gaveUp: make(chan error, 1),
 		queue: make(chan any, queueCapacity), inbox: newInbox(selfOf(s.PhoneID)), rooms: map[domain.RoomID]domain.Room{},
+		reacted: map[domain.EventID]time.Time{},
 	}
 }
 
