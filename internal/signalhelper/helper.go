@@ -51,6 +51,8 @@ type Network interface {
 	Unlink(ctx context.Context, aci string) error
 	// Leave takes the connected account aci out of a group, telling its other members.
 	Leave(ctx context.Context, aci, group string) error
+	// CreateGroup makes a group from a connected account, telling its members.
+	CreateGroup(ctx context.Context, req *signalv1.CreateGroupRequest) (*signalv1.CreateGroupResponse, error)
 }
 
 // ErrGone is an attachment Signal no longer keeps (its CDN drops them after a while).
@@ -241,6 +243,14 @@ func (s *service) Leave(ctx context.Context, req *connect.Request[signalv1.Leave
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}
 	return connect.NewResponse(&signalv1.LeaveResponse{}), nil
+}
+
+func (s *service) CreateGroup(ctx context.Context, req *connect.Request[signalv1.CreateGroupRequest]) (*connect.Response[signalv1.CreateGroupResponse], error) {
+	res, err := s.network.CreateGroup(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(res), nil
 }
 
 func wireDevice(d Device) *signalv1.Device {

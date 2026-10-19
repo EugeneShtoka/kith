@@ -140,6 +140,23 @@ func (f *fakeNetwork) Unlink(_ context.Context, aci string) error {
 	return nil
 }
 
+// CreateGroup records req and makes the group "made", its members the account and
+// those asked for by account; the number +15550000000 is no one's.
+func (f *fakeNetwork) CreateGroup(_ context.Context, req *signalv1.CreateGroupRequest) (*signalv1.CreateGroupResponse, error) {
+	record(req)
+	g := &signalv1.Group{Id: madeGroup, Title: req.GetTitle(), Members: append([]string{req.GetAccount()}, req.GetMembers()...)}
+	res := &signalv1.CreateGroupResponse{Group: g}
+	for _, n := range req.GetNumbers() {
+		if n == "+15550000000" {
+			res.Unknown = append(res.Unknown, n)
+		}
+	}
+	return res, nil
+}
+
+// madeGroup is the ID of each group the fake makes (std base64, as Signal's).
+const madeGroup = "bWFkZSBncm91cA=="
+
 // Leave records which group was left.
 func (f *fakeNetwork) Leave(_ context.Context, aci, group string) error {
 	record(&signalv1.LeaveRequest{Account: aci, Group: group})

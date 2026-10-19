@@ -197,8 +197,9 @@ var (
 	// Signal: kith-signal kept running, accounts linked and signed out, messages
 	// received into the cache and read there, text sent with replies, edits, reactions,
 	// deletions and the chat's timer, typing, attachments both ways, groups left, and
-	// polls read and voted in.
+	// polls read and voted in, and groups made.
 	_ interface {
+		route.ChatMaker
 		route.SignOuter
 		route.Leaver
 		route.Voter

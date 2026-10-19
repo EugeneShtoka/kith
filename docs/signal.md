@@ -27,7 +27,11 @@ the mention reaches them as one), edit and delete what you wrote (for everyone),
 react, and others see you typing. What you write is Markdown, as on other networks,
 and goes as Signal's formatting; Signal has no links, so a link's address follows its
 words. Leaving a group takes you out of it on Signal, and its other members are told;
-a one-to-one chat cannot be left.
+a one-to-one chat cannot be left. A new group is made from the new-chat menu, as on
+other networks: with you as its admin, the Signal people you pick, and anyone else by
+their number, if Signal has an account for it (those it has none for are named after).
+Signal adds someone to a group only once it has their profile, so someone who has
+never written to you may not be addable.
 
 **Polls** show with their answers and votes, and you can vote, change your vote or
 take it back, and see who chose what (Signal's polls name their voters). Polls from
