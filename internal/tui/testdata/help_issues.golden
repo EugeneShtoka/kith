@@ -55,6 +55,8 @@
   ctrl+t           list the threads in the room under the cursor
   a                name this room
   I                the phonebook card of the room's one person
+  gI               everything the room's one person said, in every room you share
+  gp               on a tag: its people instead of its rooms, and back
   b                notification rule for this room
   (unbound)        join a room by ID or alias
   L, x             leave the selected room

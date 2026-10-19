@@ -257,6 +257,9 @@ type Search interface {
 	// MessagesFrom is one page of what someone said across rooms, oldest first, hidden
 	// people included; empty past the oldest cached.
 	MessagesFrom(ctx context.Context, req domain.SaidRequest) ([]domain.Message, error)
+	// MessageCounts is how many cached messages each person wrote, a person given as every
+	// ID they go by; in people's order.
+	MessageCounts(ctx context.Context, people [][]string) ([]int, error)
 }
 
 // Drafts is the composer's drafts, kept per room.

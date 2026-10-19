@@ -142,6 +142,9 @@ func (Nop) MessagesAround(context.Context, domain.RoomID, domain.EventID, int, i
 func (Nop) MessagesFrom(context.Context, domain.SaidRequest) ([]domain.Message, error) {
 	return nil, nil
 }
+func (Nop) MessageCounts(_ context.Context, people [][]string) ([]int, error) {
+	return make([]int, len(people)), nil
+}
 func (Nop) ModelTask(context.Context, domain.ModelRequest) (domain.ModelResult, error) {
 	return domain.ModelResult{Refusal: domain.ModelRefusedOff}, nil
 }

@@ -82,6 +82,9 @@ func (m Model) hints() string {
 	}
 	nav := keyed(m.keys.keyHint(scopeNav, actUp)+"/"+m.keys.keyHint(scopeNav, actDown), "navigate")
 	if m.focus == paneRooms {
+		if m.showingTagPeople() {
+			return m.tagPeopleHint()
+		}
 		if room, ok := m.currentRoom(); ok && room.IsInvite() {
 			return m.hintLine(
 				keyed(m.keys.keyHint(scopeRooms, actAccept), "accept"),

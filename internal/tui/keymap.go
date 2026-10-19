@@ -104,6 +104,8 @@ const (
 	actName
 	actPerson // the phonebook card of the person in view
 	actSaid   // everything the person in view said
+	// actTagPeople switches the room list on a tag between its rooms and its people.
+	actTagPeople
 	actShowPeople
 	actCopyText
 	actCopyURL
@@ -380,6 +382,8 @@ var keyActions = []keyAction{
 	{scopeRooms, actListThreads, "rooms.list_threads"},
 	{scopeRooms, actName, "rooms.name"},
 	{scopeRooms, actPerson, "rooms.person"},
+	{scopeRooms, actSaid, "rooms.said"},
+	{scopeRooms, actTagPeople, "rooms.tag_people"},
 	{scopeRooms, actNotifyRule, "rooms.notify_rule"},
 	{scopeRooms, actJoin, "rooms.join"},
 	{scopeRooms, actLeave, "rooms.leave"},

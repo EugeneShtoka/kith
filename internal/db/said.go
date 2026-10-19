@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -104,6 +105,27 @@ func (c *Cache) withTheirNumbers(ctx context.Context, ids []string) ([]string, e
 	for _, s := range senders {
 		if digits := domain.PhoneOf(s); digits != "" && numbers[domain.PhoneID(digits)] && !slices.Contains(out, s) {
 			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
+// MessageCounts is how many cached messages each person wrote, by their IDs and the
+// accounts their numbers reach, as MessagesFrom reads them.
+func (c *Cache) MessageCounts(ctx context.Context, people [][]string) ([]int, error) {
+	out := make([]int, len(people))
+	for i, ids := range people {
+		if len(ids) == 0 {
+			continue
+		}
+		senders, err := c.withTheirNumbers(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		in, args := inIDs(nil, senders)
+		// #nosec G202 -- inIDs emits only placeholders; every sender is bound.
+		if err := c.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM messages WHERE sender"+in, args...).Scan(&out[i]); err != nil {
+			return nil, fmt.Errorf("db: count messages from %v: %w", ids, err)
 		}
 	}
 	return out, nil

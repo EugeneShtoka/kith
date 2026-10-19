@@ -50,6 +50,10 @@ func (m Model) handleMouseWheel(msg tea.MouseWheelMsg) (Model, tea.Cmd) {
 		}
 		return m, nil
 	case paneRooms:
+		if m.showingTagPeople() {
+			m.tagPeople.cursor = clampIndex(m.tagPeople.cursor-sign, len(m.shownTagPeople()))
+			return m, nil
+		}
 		return m.stepRow(-sign)
 	default:
 		// The message cursor follows the scroll (as with page keys) except while typing.

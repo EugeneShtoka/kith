@@ -87,6 +87,8 @@ The room list, the middle pane. Consulted before `[keys.nav]`. `accept` and `rej
 | `mark_unread` | `M` | Mark this room unread, or clear the mark |
 | `invite` | `i` | Invite someone to this room |
 | `spaces` | `S` | File this room into a space or a tag, or take it out of one |
+| `said` | `gI` | [Everything](search.md#everything-one-person-said) the room's one person said; in a tag's people, that person's |
+| `tag_people` | `gp` | On a tag: [its people](filters.md#who-a-tag-holds) instead of its rooms, and back |
 | `spam` | `!` | Spam / not spam: move this conversation out of the way, or back |
 
 ### `[keys.sort]`

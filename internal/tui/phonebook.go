@@ -259,10 +259,17 @@ type roomPersonMsg struct {
 	room    domain.Room
 	members []domain.Member
 	err     error
+	// said opens what they said rather than their card.
+	said bool
 }
 
 // personOfRoom opens the card of the room's one person, read from its members.
-func (m Model) personOfRoom() (Model, tea.Cmd) {
+func (m Model) personOfRoom() (Model, tea.Cmd) { return m.oneOfRoom(false) }
+
+// saidOfRoom opens everything the room's one person said.
+func (m Model) saidOfRoom() (Model, tea.Cmd) { return m.oneOfRoom(true) }
+
+func (m Model) oneOfRoom(said bool) (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok {
 		return m, nil
@@ -270,7 +277,7 @@ func (m Model) personOfRoom() (Model, tea.Cmd) {
 	ctx, backend := m.ctx, m.backend
 	return m, func() tea.Msg {
 		members, err := backend.Members(ctx, room.ID, peerMembersLimit)
-		return roomPersonMsg{room: room, members: members, err: err}
+		return roomPersonMsg{room: room, members: members, err: err, said: said}
 	}
 }
 
@@ -286,7 +293,11 @@ func (m Model) handleRoomPerson(msg roomPersonMsg) (Model, tea.Cmd) {
 	if peer.UserID == "" {
 		return m.say(m.roomName(msg.room) + " has no one in it but you"), nil
 	}
-	return m.openPerson(peer.UserID, stripIsolates(m.processedName(domain.Message{RoomID: msg.room.ID, Sender: peer.UserID, SenderName: peer.DisplayName})))
+	name := stripIsolates(m.processedName(domain.Message{RoomID: msg.room.ID, Sender: peer.UserID, SenderName: peer.DisplayName}))
+	if msg.said {
+		return m.openSaid(peer.UserID, name)
+	}
+	return m.openPerson(peer.UserID, name)
 }
 
 // personInView is :person: the selected message's sender in the timeline, else the open room's

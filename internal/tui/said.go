@@ -108,13 +108,16 @@ func (m Model) saidPageCmd(older bool) tea.Cmd {
 	}
 }
 
-// handleSaidMsg routes the view's answers; handled is false for any other message.
-func (m Model) handleSaidMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
+// handlePeopleViewsMsg routes the answers of the views of people (this one and a tag's
+// people); handled is false for any other message.
+func (m Model) handlePeopleViewsMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case saidPageMsg:
 		return answered(m.handleSaidPage(msg))
 	case saidPeopleMsg:
 		return answered(m.handleSaidPeople(msg))
+	case tagPeopleCountsMsg:
+		return answered(m.handleTagPeopleCounts(msg))
 	}
 	return m, nil, false
 }
