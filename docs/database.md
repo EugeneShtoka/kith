@@ -319,8 +319,12 @@ Since then:
 - v20 (`room_sms`): the chats whose messages go out as SMS or MMS through a phone's
   carrier (Google Messages), a row only for one; written only by that network, so the
   question before sending there stands after a restart.
+- v21 (`room_gaps`): stretches of a Matrix room's history a sync skipped (the timeline
+  came cut short after kith was away), a row until filled: from the newest message held
+  below to the oldest fetched above, and where paging back resumes, so a restart
+  mid-fill carries on.
 
-so a current cache is at version 20.
+so a current cache is at version 21.
 
 ### Indexes need no migration
 

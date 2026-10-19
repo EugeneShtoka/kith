@@ -35,6 +35,8 @@ type Notifications struct {
 	// standIns are unannounced bridge placeholders by message and arrival time; the edit
 	// replacing one is announced instead (placeholderSpan).
 	standIns map[domain.EventID]time.Time
+	// late counts, per room, the old messages a filled gap brought, folded into one.
+	late map[string]int
 	// keep and keepRules are [storage] messages_per_room and its rules.
 	keep      int
 	keepRules []domain.KeepRule
@@ -426,6 +428,7 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	if !ok {
 		return notify.Notification{}, false
 	}
+	alert = n.foldLate(alert, msg, now)
 	alert, ok = n.rated(alert, string(msg.RoomID), now)
 	if !ok {
 		return notify.Notification{}, false
@@ -486,6 +489,41 @@ func (n *Notifications) rated(alert notify.Notification, room string, now time.T
 		return notify.Notification{}, false
 	}
 	return alert, true
+}
+
+// lateAfter is how old a message from a filled gap may be and still notify on its own.
+const lateAfter = 10 * time.Minute
+
+// foldLate folds a message older than lateAfter that a filled gap brought into one
+// silent popup per room counting them; any other message there starts the count over.
+func (n *Notifications) foldLate(alert notify.Notification, msg domain.Message, now time.Time) notify.Notification {
+	room := string(msg.RoomID)
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if !msg.Late || now.Sub(msg.Timestamp) <= lateAfter {
+		delete(n.late, room)
+		return alert
+	}
+	if n.late == nil {
+		n.late = map[string]int{}
+	}
+	n.late[room]++
+	return notify.Notification{
+		Room:     alert.Room,
+		Space:    alert.Space,
+		Protocol: alert.Protocol,
+		Sent:     alert.Sent,
+		Body:     earlierMessages(n.late[room]),
+		Silent:   true,
+		Replaces: room,
+	}
+}
+
+func earlierMessages(count int) string {
+	if count == 1 {
+		return "1 message from earlier"
+	}
+	return fmt.Sprintf("%d messages from earlier", count)
 }
 
 func newMessages(held int) string {

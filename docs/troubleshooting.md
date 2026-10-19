@@ -360,7 +360,9 @@ Work through these in order:
    if it's missing.
 5. **Is it the catch-up batch?** Messages that arrived while the daemon was down are
    cached as history but not announced. Only messages the daemon receives live
-   notify. Your own messages never notify.
+   notify, or that it fetches into a Matrix room after losing its connection while
+   running (those older than ten minutes as one count per room). Your own messages
+   never notify.
 6. **Is the room rate-limited?** With `max_per_room` set, a busy room turns its
    notifications into one summary popup per `rate_window`.
 

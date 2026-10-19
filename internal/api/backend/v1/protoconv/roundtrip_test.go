@@ -20,6 +20,7 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		"RevisionID":  "only the daemon, which writes the cache, needs it",
 		"SenderField": "the client resolves it into Senders before it searches",
 		"Rounds":      "only the daemon, which tallies a poll's votes, needs it",
+		"Late":        "only the daemon, which folds late notifications, needs it",
 	}
 
 	for _, tc := range []struct {

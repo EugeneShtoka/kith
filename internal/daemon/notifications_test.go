@@ -3,6 +3,7 @@ package daemon_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -641,6 +642,38 @@ func TestABurstyRoomIsSummarizedRatherThanStacked(t *testing.T) {
 	}
 	if summary.Replaces != string(chatRm) {
 		t.Errorf("summary Replaces = %q, want the room id", summary.Replaces)
+	}
+}
+
+// Old messages a filled gap brings fold into one silent count per room; a recent late one
+// and any live one notify as themselves and start the count over.
+func TestOldMessagesFromAFilledGapFoldIntoOne(t *testing.T) {
+	t.Parallel()
+
+	n, rec, _ := notifier(t, notifsOn("all"))
+	late := func(body string, age time.Duration) domain.Message {
+		m := msg(chatRm, alice, body)
+		m.Late, m.Timestamp = true, time.Now().Add(-age)
+		return m
+	}
+	ctx := context.Background()
+	n.Deliver(ctx, late("an hour ago", time.Hour))
+	n.Deliver(ctx, late("two hours ago", 2*time.Hour))
+	n.Deliver(ctx, late("a minute ago", time.Minute))
+	n.Deliver(ctx, msg(chatRm, alice, "just now"))
+	n.Deliver(ctx, late("a day ago", 24*time.Hour))
+
+	sent := rec.all()
+	var bodies []string
+	for _, s := range sent {
+		bodies = append(bodies, s.Body)
+	}
+	want := []string{"1 message from earlier", "2 messages from earlier", "a minute ago", "just now", "1 message from earlier"}
+	if !slices.Equal(bodies, want) {
+		t.Fatalf("notified %q, want %q", bodies, want)
+	}
+	if folded := sent[1]; !folded.Silent || folded.Sender != "" || folded.Replaces != string(chatRm) {
+		t.Errorf("folded = %+v, want a silent count about the room, replacing itself", folded)
 	}
 }
 
