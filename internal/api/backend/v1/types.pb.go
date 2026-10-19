@@ -324,7 +324,9 @@ type Room struct {
 	// The network behind a bridged room (domain.Room.Network).
 	Network string `protobuf:"bytes,12,opt,name=network,proto3" json:"network,omitempty"`
 	// The room-wide mentions the room takes, as typed (domain.Room.Broadcasts).
-	Broadcasts    []string `protobuf:"bytes,13,rep,name=broadcasts,proto3" json:"broadcasts,omitempty"`
+	Broadcasts []string `protobuf:"bytes,13,rep,name=broadcasts,proto3" json:"broadcasts,omitempty"`
+	// Messages go out as SMS or MMS through a phone's carrier (domain.Room.SMS).
+	Sms           bool `protobuf:"varint,14,opt,name=sms,proto3" json:"sms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -448,6 +450,13 @@ func (x *Room) GetBroadcasts() []string {
 		return x.Broadcasts
 	}
 	return nil
+}
+
+func (x *Room) GetSms() bool {
+	if x != nil {
+		return x.Sms
+	}
+	return false
 }
 
 // Mention is one @-mention within a message (domain.Mention).
@@ -2732,7 +2741,7 @@ var File_backend_v1_types_proto protoreflect.FileDescriptor
 const file_backend_v1_types_proto_rawDesc = "" +
 	"\n" +
 	"\x16backend/v1/types.proto\x12\n" +
-	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfa\x02\n" +
+	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8c\x03\n" +
 	"\x04Room\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
@@ -2752,7 +2761,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\anetwork\x18\f \x01(\tR\anetwork\x12\x1e\n" +
 	"\n" +
 	"broadcasts\x18\r \x03(\tR\n" +
-	"broadcasts\"e\n" +
+	"broadcasts\x12\x10\n" +
+	"\x03sms\x18\x0e \x01(\bR\x03sms\"e\n" +
 	"\aMention\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +

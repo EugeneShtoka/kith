@@ -130,6 +130,12 @@ CREATE TABLE room_forums (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
+-- Chats whose messages go out as SMS or MMS through a phone's carrier (Google Messages).
+-- Its own table, written only by that network (SetSMS), as room_archived is.
+CREATE TABLE room_sms (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
 -- A chat's disappearing-messages timer, a row only while it has one: what kith sends
 -- there must carry it (SetTimers).
 CREATE TABLE room_timers (
@@ -556,6 +562,10 @@ DROP TABLE phone_names;`,
 	starts_ms INTEGER NOT NULL DEFAULT 0,
 	PRIMARY KEY (room_id, event_id),
 	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;`,
+	// v20: chats whose messages go out as SMS or MMS.
+	`CREATE TABLE IF NOT EXISTS room_sms (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;`,
 }
 

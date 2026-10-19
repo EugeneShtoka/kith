@@ -42,6 +42,10 @@ const (
 	pendingSignOut
 	// pendingCombineTags: a tag (group) renamed to another's name (address), folded into it.
 	pendingCombineTags
+	// pendingSendSMS, pendingScheduleSMS: the composer's text (body, emote) sent to a chat
+	// that sends as SMS (room), or scheduled there by /at or /in (address) (sms.go).
+	pendingSendSMS
+	pendingScheduleSMS
 )
 
 // confirmState is the pending action and its targets, captured with the question so a list
@@ -67,6 +71,9 @@ type confirmState struct {
 	// forEveryone: a chat being deleted goes for its other person too; an account being
 	// signed out takes its rooms with it.
 	forEveryone bool
+	// body and emote: the text a pending send carries, and whether it is a /me.
+	body  string
+	emote bool
 }
 
 func (c confirmState) active() bool { return c.action != pendingNone }
@@ -219,6 +226,8 @@ func (m Model) confirmPrompt() string {
 		return m.deleteChatPrompt(m.confirm)
 	case pendingSignOutForget, pendingSignOut:
 		return m.signOutPrompt(m.confirm)
+	case pendingSendSMS, pendingScheduleSMS:
+		return m.smsPrompt(m.confirm)
 	case pendingNone:
 		return ""
 	}
@@ -236,6 +245,11 @@ func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 		m = m.say("canceled")
 		return m, nil
 	}
+	return m.carryOut(pending)
+}
+
+// carryOut does the action a yes confirmed.
+func (m Model) carryOut(pending confirmState) (Model, tea.Cmd) {
 	switch pending.action {
 	case pendingLeave:
 		m = m.say("leaving " + m.roomName(pending.room) + "…")
@@ -265,6 +279,10 @@ func (m Model) resolveConfirm(yes bool) (Model, tea.Cmd) {
 		return m.deleteChat(pending)
 	case pendingSignOut:
 		return m.signOut(pending)
+	case pendingSendSMS:
+		return m.sendComposedNow(pending.room, pending.body, pending.emote)
+	case pendingScheduleSMS:
+		return m.scheduleComposedNow(pending.room, pending.address, pending.body)
 	case pendingLeaveSpaceRooms, pendingLeaveSharedRoom, pendingDeleteForThem, pendingSignOutForget, pendingNone:
 		return m, nil
 	}

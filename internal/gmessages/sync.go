@@ -98,6 +98,8 @@ func (a *Adapter) takeMessages(ctx context.Context, c *conn, msgs []*gmproto.Mes
 	var ch change
 	unknown := false
 	for _, m := range msgs {
+		a.outbox.echoed(m.GetTmpID())
+		c.inbox.switched(m)
 		msg, ok := c.inbox.message(m)
 		if !ok {
 			continue

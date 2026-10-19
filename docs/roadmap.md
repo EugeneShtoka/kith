@@ -8,7 +8,9 @@ For what already exists, see the [documentation index](README.md).
 
 ## Networks
 
-- Google Messages (SMS and RCS through your Android phone), paired as Messages for web is.
+- Google Messages (SMS and RCS through your Android phone, paired as Messages for web
+  is): conversations come in and text goes out; reactions, attachments and older
+  history are still to come.
 
 ## Accounts and devices
 

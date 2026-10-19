@@ -47,6 +47,9 @@ type Room struct {
 	// Broadcasts are the room-wide mentions the room takes, as typed ("@here"); the
 	// network sends them as such.
 	Broadcasts []string
+	// SMS marks a chat whose messages go out as SMS or MMS, through a phone's carrier
+	// (Google Messages), rather than over the internet.
+	SMS bool
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted instead.

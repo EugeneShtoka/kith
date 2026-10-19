@@ -64,6 +64,9 @@ type conn struct {
 	// me is who you are on this phone, as the inbox last knew: read by Me, which may run
 	// while the inbox is being written (it counts unread for it).
 	me []string
+	// sims are the phone's SIMs, by the participant each sends as, as its settings last
+	// said.
+	sims map[string]*gmproto.SIMCard
 
 	// queue is the conversation and message events libgm handed over, for work to take.
 	queue chan any
@@ -301,6 +304,8 @@ func (a *Adapter) react(ctx context.Context, c *conn, client *libgm.Client, evt 
 		a.alert(ctx, c, client, e.GetAlertType())
 	case *events.AuthTokenRefreshed:
 		a.keep(c)
+	case *gmproto.Settings:
+		c.keepSIMs(e.GetSIMCards())
 	case *gmproto.Conversation, *libgm.WrappedMessage:
 		c.enqueue(e)
 	}
@@ -377,4 +382,29 @@ func (c *conn) knowMe() {
 	c.mu.Lock()
 	c.me = me
 	c.mu.Unlock()
+}
+
+// keepSIMs takes the phone's SIMs from its settings; settings with none leave them.
+func (c *conn) keepSIMs(cards []*gmproto.SIMCard) {
+	if len(cards) == 0 {
+		return
+	}
+	sims := make(map[string]*gmproto.SIMCard, len(cards))
+	for _, card := range cards {
+		sims[card.GetSIMParticipant().GetID()] = card
+	}
+	c.mu.Lock()
+	c.sims = sims
+	c.mu.Unlock()
+}
+
+// simOf is the SIM a conversation sends from: its own (sim), else the phone's for the
+// participant it sends as; nil when neither is known (the phone then picks).
+func (c *conn) simOf(sim *gmproto.SIMCard, outgoing string) *gmproto.SIMCard {
+	if sim != nil {
+		return sim
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.sims[outgoing]
 }

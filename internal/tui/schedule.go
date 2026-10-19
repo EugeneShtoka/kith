@@ -200,6 +200,18 @@ func exampleFor(kind string) string {
 // scheduleComposed queues the text after /at or /in, with its thread, reply target and
 // mention pills, and clears the composer.
 func (m Model) scheduleComposed(room domain.Room, kind, arg string) (Model, tea.Cmd) {
+	if _, _, err := parseScheduleTime(kind, arg, time.Now()); err != nil {
+		return m.say("/" + kind + " " + err.Error()), nil
+	}
+	if m.asksSMS(room) {
+		m.confirm = confirmState{action: pendingScheduleSMS, room: room, address: kind, body: arg}
+		return m, nil
+	}
+	return m.scheduleComposedNow(room, kind, arg)
+}
+
+// scheduleComposedNow is scheduleComposed with nothing left to ask.
+func (m Model) scheduleComposedNow(room domain.Room, kind, arg string) (Model, tea.Cmd) {
 	at, body, err := parseScheduleTime(kind, arg, time.Now())
 	if err != nil {
 		return m.say("/" + kind + " " + err.Error()), nil

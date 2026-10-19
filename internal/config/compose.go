@@ -12,10 +12,15 @@ type Composer struct {
 	Editor     string `toml:"editor"`      // split on spaces; empty $VISUAL, $EDITOR, vi
 	FileSuffix string `toml:"file_suffix"` // empty is ".md"
 	Markdown   *bool  `toml:"markdown"`
+	ConfirmSMS *bool  `toml:"confirm_sms"`
 }
 
 // MarkdownEnabled reports whether the composer renders Markdown (unset: true).
 func (c Composer) MarkdownEnabled() bool { return enabled(c.Markdown) }
+
+// ConfirmsSMS reports whether a message to a chat that sends as SMS asks first (unset:
+// true).
+func (c Composer) ConfirmsSMS() bool { return enabled(c.ConfirmSMS) }
 
 // defaultEditor is the fallback editor; POSIX requires vi.
 const defaultEditor = "vi"

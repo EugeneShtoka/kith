@@ -850,6 +850,10 @@ file_suffix = ".md"
 # body (bridges translate the HTML, so this is what formats bridged messages). The
 # plain body is always what you typed. `/plain` sends one message unformatted.
 markdown    = true
+# Ask before sending to a chat whose messages go out as SMS or MMS through your phone's
+# carrier (a Google Messages SMS chat), which may cost what your plan charges for them.
+# Also asked before scheduling one there.
+confirm_sms = true
 
 # Spell-checking. The checker is a subprocess speaking the ispell pipe protocol, so
 # `command` can be hunspell (default: loads several dictionaries in one process),

@@ -328,6 +328,7 @@ linters:
             - "github.com/rs/zerolog"
             - "go.mau.fi/mautrix-gmessages/pkg/libgm"
             - "go.mau.fi/util/exhttp"
+            - "github.com/google/uuid"
 
         # The LinkedIn adapter: the only package that imports mautrix-linkedin's
         # linkedingo. Only the daemon links it; its sessions reach it through an

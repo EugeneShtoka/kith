@@ -33,6 +33,7 @@ var migrationFingerprints = []struct {
 	{17, "room_timers: a chat's disappearing-messages timer", "6809131de809"},
 	{18, "room_timer_versions: the version a chat's timer was set at", "6f5a367f6ec0"},
 	{19, "message_expiry: a disappearing message's timer and countdown", "488045fe6e27"},
+	{20, "room_sms: chats whose messages go out as SMS or MMS", "8c1211e90cee"},
 }
 
 func fingerprint(stmt string) string {

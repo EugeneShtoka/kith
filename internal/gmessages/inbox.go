@@ -40,6 +40,30 @@ type conv struct {
 	// says (it says only read or not, so read means read through the newest).
 	lastActive, readTo time.Time
 	unread             bool
+	// kind and mode are how the phone sends there (SMS or RCS, and whether it holds to
+	// SMS); outgoing is the participant you send as, sim the SIM it is on when the
+	// phone says.
+	kind     gmproto.ConversationType
+	mode     gmproto.ConversationSendMode
+	outgoing string
+	sim      *gmproto.SIMCard
+	// encrypted is whether the chat last switched to end-to-end encrypted RCS, as of
+	// switchedAt, the newest such notice seen.
+	encrypted  bool
+	switchedAt time.Time
+}
+
+// sms reports whether a message sent to cv goes out as SMS or MMS: an SMS chat, or
+// one the phone holds to SMS.
+func (cv *conv) sms() bool {
+	return cv.kind == gmproto.ConversationType_SMS || cv.mode != gmproto.ConversationSendMode_SEND_MODE_AUTO
+}
+
+// forceRCS reports whether a send to cv must not fall back to SMS: an RCS chat sent to
+// as the phone chooses, that switched to end-to-end encryption (as mautrix-gmessages
+// decides it).
+func (cv *conv) forceRCS() bool {
+	return cv.kind == gmproto.ConversationType_RCS && cv.mode == gmproto.ConversationSendMode_SEND_MODE_AUTO && cv.encrypted
 }
 
 func newInbox(self string) *inbox {
@@ -128,6 +152,7 @@ func (in *inbox) take(c *gmproto.Conversation) (shownNow, met bool) {
 	if len(members) > 0 {
 		cv.members, cv.order = members, order
 	}
+	cv.kind, cv.mode, cv.outgoing, cv.sim = c.GetType(), c.GetSendMode(), c.GetDefaultOutgoingID(), c.GetSimCard()
 	cv.lastActive = latest(cv.lastActive, active)
 	cv.unread = c.GetUnread()
 	if !cv.unread {
@@ -151,7 +176,7 @@ func (in *inbox) others(cv *conv) []string {
 func (in *inbox) room(cv *conv) domain.Room {
 	r := domain.Room{
 		ID: roomID(in.self, cv.id), Name: in.roomName(cv), IsDirect: !cv.group,
-		Membership: domain.MembershipJoin, Network: domain.ProtocolGMessages,
+		Membership: domain.MembershipJoin, Network: domain.ProtocolGMessages, SMS: cv.sms(),
 	}
 	r.Members = append(r.Members, in.membersOf(cv)...)
 	return r
@@ -210,6 +235,44 @@ func deleted(status gmproto.MessageStatusType) bool {
 // ("RCS chat started", "Dana left"), not a message.
 func notice(status gmproto.MessageStatusType) bool {
 	return status >= gmproto.MessageStatusType_TOMBSTONE_PARTICIPANT_JOINED && status < gmproto.MessageStatusType_MESSAGE_DELETED
+}
+
+// switched takes the phone's notice that a chat switched to or from end-to-end
+// encrypted RCS; the newest notice stands, in whatever order they come.
+func (in *inbox) switched(m *gmproto.Message) {
+	var on bool
+	switch m.GetMessageStatus().GetStatus() {
+	case gmproto.MessageStatusType_MESSAGE_STATUS_TOMBSTONE_PROTOCOL_SWITCH_RCS_TO_E2EE,
+		gmproto.MessageStatusType_MESSAGE_STATUS_TOMBSTONE_PROTOCOL_SWITCH_TEXT_TO_E2EE:
+		on = true
+	case gmproto.MessageStatusType_MESSAGE_STATUS_TOMBSTONE_PROTOCOL_SWITCH_E2EE_TO_RCS,
+		gmproto.MessageStatusType_MESSAGE_STATUS_TOMBSTONE_PROTOCOL_SWITCH_E2EE_TO_TEXT:
+	default:
+		return
+	}
+	cv := in.convs[m.GetConversationID()]
+	at := micros(m.GetTimestamp())
+	if cv == nil || at.Before(cv.switchedAt) {
+		return
+	}
+	cv.encrypted, cv.switchedAt = on, at
+}
+
+// notSent reports whether the phone could not send an outgoing message.
+func notSent(status gmproto.MessageStatusType) bool {
+	switch status {
+	case gmproto.MessageStatusType_OUTGOING_FAILED_GENERIC, gmproto.MessageStatusType_OUTGOING_FAILED_EMERGENCY_NUMBER,
+		gmproto.MessageStatusType_OUTGOING_CANCELED, gmproto.MessageStatusType_OUTGOING_FAILED_TOO_LARGE,
+		gmproto.MessageStatusType_OUTGOING_FAILED_RECIPIENT_LOST_RCS, gmproto.MessageStatusType_OUTGOING_FAILED_NO_RETRY_NO_FALLBACK,
+		gmproto.MessageStatusType_OUTGOING_FAILED_RECIPIENT_DID_NOT_DECRYPT, gmproto.MessageStatusType_OUTGOING_FAILED_RECIPIENT_LOST_ENCRYPTION,
+		gmproto.MessageStatusType_OUTGOING_FAILED_RECIPIENT_DID_NOT_DECRYPT_NO_MORE_RETRY,
+		gmproto.MessageStatusType_OUTGOING_FAILED_RECIPIENT_NEGATIVE_DELIVERY,
+		gmproto.MessageStatusType_MESSAGE_STATUS_OUTGOING_FAILED_EMERGENCY_PROTOCOL_DETERMINATION_MESSAGE,
+		gmproto.MessageStatusType_OUTGOING_FAILED_TO_ENCRYPT:
+		return true
+	default:
+		return false
+	}
 }
 
 // notDownloaded reports whether an MMS's content is still on the carrier's side.
@@ -283,12 +346,18 @@ func (in *inbox) message(m *gmproto.Message) (domain.Message, bool) {
 	if len(parts) == 0 {
 		return domain.Message{}, false
 	}
+	if notSent(status) {
+		parts = append(parts, notSentLabel)
+	}
 	msg.Body = strings.Join(parts, "\n")
 	if reply := m.GetReplyMessage().GetMessageID(); reply != "" {
 		msg.ReplyTo = eventID(in.self, m.GetConversationID(), reply)
 	}
 	return msg, true
 }
+
+// notSentLabel ends a message the phone could not send.
+const notSentLabel = "[not sent: the phone could not send it]"
 
 // mediaLabel names an attachment until pictures and files are shown.
 func mediaLabel(media *gmproto.MediaContent) string {
