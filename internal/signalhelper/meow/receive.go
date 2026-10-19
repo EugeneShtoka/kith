@@ -272,6 +272,12 @@ func (a *account) message(ctx context.Context, info events.MessageInfo, data *si
 	if s := data.GetSticker(); s != nil {
 		m.Attachments, m.Body = sticker(s, m.GetAttachments(), m.GetBody())
 	}
+	if words := described(data); words != "" {
+		if data.GetIsViewOnce() {
+			m.Attachments = nil // it stays in Signal's apps
+		}
+		m.Body = words
+	}
 	return m
 }
 

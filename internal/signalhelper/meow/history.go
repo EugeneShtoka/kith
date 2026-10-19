@@ -177,15 +177,16 @@ func (h *history) chatID(ctx context.Context, chat *store.BackupChat) (string, b
 }
 
 // message is an archived item as a wire message, with its reactions, and whether the
-// account had read it; nil for one kith does not show: what is no plain message or
-// sticker (a deleted one, a payment, a view-once one), or one with no author it knows.
+// account had read it; nil for one kith does not show (a deleted message, a chat's
+// update) or one with no author it knows.
 func (h *history) message(ctx context.Context, chat string, group bool, item *backuppb.ChatItem) (*signalv1.Message, bool) {
 	sm, st, poll := item.GetStandardMessage(), item.GetStickerMessage(), item.GetPoll()
 	sender := h.aciOf(ctx, item.GetAuthorId())
-	if (sm == nil && st == nil && poll == nil) || sender == uuid.Nil {
+	data := &signalpb.DataMessage{Timestamp: new(item.GetDateSent())}
+	otherReactions, other := archivedOther(item, data)
+	if (sm == nil && st == nil && poll == nil && !other) || sender == uuid.Nil {
 		return nil, false
 	}
-	data := &signalpb.DataMessage{Timestamp: new(item.GetDateSent())}
 	if text := sm.GetText(); text != nil {
 		data.Body = new(text.GetBody())
 		data.BodyRanges = archivedRanges(text.GetBodyRanges())
@@ -229,8 +230,33 @@ func (h *history) message(ctx context.Context, chat string, group bool, item *ba
 			m.Attachments[i].PlaintextHash = hashes[i]
 		}
 	}
-	m.Reactions = h.reactions(ctx, slices.Concat(sm.GetReactions(), st.GetReactions(), poll.GetReactions()))
+	m.Reactions = h.reactions(ctx, slices.Concat(sm.GetReactions(), st.GetReactions(), poll.GetReactions(), otherReactions))
 	return m, read
+}
+
+// archivedOther sets on data what an archived shared contact, view-once message or
+// payment is as a message carries it, so it reads as one does (described), and returns
+// its reactions; false for an item that is none of them.
+func archivedOther(item *backuppb.ChatItem, data *signalpb.DataMessage) ([]*backuppb.Reaction, bool) {
+	switch {
+	case item.GetContactMessage() != nil:
+		c := item.GetContactMessage().GetContact()
+		n := c.GetName()
+		data.Contact = []*signalpb.DataMessage_Contact{{
+			Name: &signalpb.DataMessage_Contact_Name{
+				GivenName: new(n.GetGivenName()), FamilyName: new(n.GetFamilyName()), Nickname: new(n.GetNickname()),
+			},
+			Organization: new(c.GetOrganization()),
+		}}
+		return item.GetContactMessage().GetReactions(), true
+	case item.GetViewOnceMessage() != nil:
+		data.IsViewOnce = new(true)
+		return item.GetViewOnceMessage().GetReactions(), true
+	case item.GetPaymentNotification() != nil:
+		data.Payment = &signalpb.DataMessage_Payment{}
+		return nil, true
+	}
+	return nil, false
 }
 
 // archivedPoll is an archived poll with its votes: each voter's chosen answers and
