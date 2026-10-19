@@ -331,17 +331,22 @@ func (in *inbox) message(m *gmproto.Message) (domain.Message, bool) {
 		parts = append(parts, s)
 	}
 	for _, info := range m.GetMessageInfo() {
-		switch {
+		switch media := info.GetMediaContent(); {
 		case info.GetMessageContent() != nil:
 			if text := info.GetMessageContent().GetContent(); strings.TrimSpace(text) != "" {
 				parts = append(parts, text)
 			}
-		case info.GetMediaContent() != nil:
-			parts = append(parts, mediaLabel(info.GetMediaContent()))
+		case media != nil && msg.Media == nil && loadable(media):
+			msg.Media = mediaOf(media)
+		case media != nil:
+			parts = append(parts, mediaLabel(media))
 		}
 	}
-	if notDownloaded(status) && len(parts) == 0 {
+	if notDownloaded(status) && len(parts) == 0 && msg.Media == nil {
 		parts = append(parts, "[MMS not downloaded yet]")
+	}
+	if len(parts) == 0 && msg.Media != nil {
+		parts = append(parts, msg.Media.Name) // no caption
 	}
 	if len(parts) == 0 {
 		return domain.Message{}, false
@@ -359,7 +364,8 @@ func (in *inbox) message(m *gmproto.Message) (domain.Message, bool) {
 // notSentLabel ends a message the phone could not send.
 const notSentLabel = "[not sent: the phone could not send it]"
 
-// mediaLabel names an attachment until pictures and files are shown.
+// mediaLabel names an attachment kith does not show: one past the first, or one it
+// cannot load.
 func mediaLabel(media *gmproto.MediaContent) string {
 	mime := media.GetMimeType()
 	switch {

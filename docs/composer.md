@@ -75,8 +75,8 @@ markdown = false
 ```
 
 **Sending as SMS asks first.** A chat whose messages go out as SMS or MMS through your
-phone's carrier (a Google Messages SMS chat) asks before each message you send or
-schedule there; `[composer] confirm_sms = false` sends without asking. See
+phone's carrier (a Google Messages SMS chat) asks before each message or file you
+send, or message you schedule, there; `[composer] confirm_sms = false` sends without asking. See
 [Google Messages](google-messages.md#sending).
 
 ## Mentions and room links

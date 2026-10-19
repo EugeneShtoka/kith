@@ -62,13 +62,18 @@ func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Dra
 	if err != nil {
 		return err
 	}
+	return a.hand(ctx, client, tmp, req)
+}
+
+// hand gives the phone req, sent as tmp, unless the phone already has it.
+func (a *Adapter) hand(ctx context.Context, client *libgm.Client, tmp string, req *gmproto.SendMessageRequest) error {
 	if due, settled := a.outbox.begin(tmp, time.Now()); !due {
 		return settled
 	}
 	ctx, cancel := context.WithTimeout(ctx, sendSpan)
 	defer cancel()
 	var resp *gmproto.SendMessageResponse
-	err = a.guard("sending a message", func() (err error) {
+	err := a.guard("sending a message", func() (err error) {
 		resp, err = client.SendMessage(ctx, req)
 		return err //nolint:wrapcheck // end says what it was
 	})
