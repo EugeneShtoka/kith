@@ -90,8 +90,11 @@ type Adapter struct {
 	booksMu sync.Mutex
 	books   map[string]*book
 
-	// pollsMu is held while a poll's votes are read and written again (polls.go).
+	// pollsMu is held while a poll's votes are read and written again (polls.go), and
+	// while the account's next vote in a poll is numbered: voted is the last number each
+	// poll's vote from here took, so two quick votes never share one.
 	pollsMu sync.Mutex
+	voted   map[domain.EventID]uint32
 
 	mu       sync.Mutex
 	accounts []Account

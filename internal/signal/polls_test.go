@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -25,6 +26,15 @@ func asked() *signalv1.EventsResponse {
 	ev := inGroup(msg(groupID, dana, pollSent, "poll"))
 	ev.GetMessage().Poll = &signalv1.Poll{Question: "Trail?", Multiple: true, Options: []string{"north", "south", "east"}}
 	return ev
+}
+
+// answers is a vote's answer IDs as one string, "0,2".
+func answers(indexes []uint32) string {
+	var out []string
+	for _, i := range indexes {
+		out = append(out, fmt.Sprint(i))
+	}
+	return strings.Join(out, ",")
 }
 
 func vote(sender string, round uint32, options ...uint32) *signalv1.EventsResponse {
@@ -139,6 +149,32 @@ func TestVotingInAPoll(t *testing.T) {
 	if err != nil || len(voters.Voters) != 2 || voters.Voters[0].ID != "signal:"+me || !slices.Equal(voters.Voters[1].Options, []string{"0"}) {
 		t.Errorf("voters %+v, %v", voters, err)
 	}
+	// Two votes at once (each reads the same last number) still go numbered one after
+	// the other, and the higher-numbered one is what counts.
+	var wg sync.WaitGroup
+	for _, answer := range []string{"0", "2"} {
+		wg.Go(func() {
+			if err := r.a.VotePoll(ctx, hikers, id, []string{answer}); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	b, _ = os.ReadFile(r.sent)
+	answerOf := map[uint32]string{}
+	for line := range strings.SplitSeq(strings.TrimSpace(string(b)), "\n") {
+		req := &signalv1.SendRequest{}
+		if protojson.Unmarshal([]byte(line), req) == nil && req.GetVote() != nil {
+			answerOf[req.GetVote().GetRound()] = answers(req.GetVote().GetOptions())
+		}
+	}
+	if !slices.Equal(slices.Sorted(maps.Keys(answerOf)), []uint32{5, 6, 7}) {
+		t.Fatalf("own votes numbered %v, want 5, 6, 7", slices.Sorted(maps.Keys(answerOf)))
+	}
+	if got := strings.Join(r.poll().Ballots["signal:"+me], ","); got != answerOf[7] {
+		t.Errorf("counted %v, want the vote numbered 7 (%s)", got, answerOf[7])
+	}
+
 	r2 := connected(t, asked(), ended())
 	if err := r2.a.VotePoll(ctx, hikers, id, []string{"0"}); err == nil {
 		t.Error("a vote went in an ended poll")

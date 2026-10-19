@@ -200,13 +200,26 @@ func (a *Adapter) VotePoll(ctx context.Context, room domain.RoomID, target domai
 	}
 	vote := &signalv1.Vote{
 		Chat: chat, Group: group, Sender: self, TargetAuthor: author, TargetSent: sent,
-		Options: indexes, Round: poll.Rounds[person(self)] + 1,
+		Options: indexes, Round: a.nextVote(target, poll.Rounds[person(self)]),
 	}
 	req := &signalv1.SendRequest{Account: self, Chat: chat, Group: group, Sent: a.sentAt(""), Vote: vote}
 	if _, err := h.client.Send(ctx, connect.NewRequest(req)); err != nil {
 		return fmt.Errorf("signal: vote in %s: %w", room, err)
 	}
 	return a.takeVote(ctx, self, vote)
+}
+
+// nextVote is the number the account's next vote in the poll target takes: after its
+// last held (held) and after any taken from here not yet held.
+func (a *Adapter) nextVote(target domain.EventID, held uint32) uint32 {
+	a.pollsMu.Lock()
+	defer a.pollsMu.Unlock()
+	if a.voted == nil {
+		a.voted = map[domain.EventID]uint32{}
+	}
+	round := max(held, a.voted[target]) + 1
+	a.voted[target] = round
+	return round
 }
 
 // PollVoters is who chose what, from the votes kith holds: Signal's polls name their
