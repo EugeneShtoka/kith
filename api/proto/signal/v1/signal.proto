@@ -233,6 +233,8 @@ message Message {
   // When the message's own countdown started (ms), for an archived one whose countdown
   // the phone had started; 0 otherwise (it starts when sent, or when read).
   uint64 timer_started = 16;
+  // An archived message's reactions, one per sender: each its sender and emoji.
+  repeated Reaction reactions = 17;
 }
 
 // Quote is the message a message replies to.

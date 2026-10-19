@@ -8,7 +8,7 @@ For what already exists, see the [documentation index](README.md).
 
 ## Networks
 
-- Signal: reactions and stickers in the history your phone transfers, and `kith-signal` in the packages ([Signal](signal.md)).
+- Signal: `kith-signal` in the packages ([Signal](signal.md)).
 - Google Messages (SMS and RCS through your Android phone), paired as Messages for web is.
 
 ## Accounts and devices

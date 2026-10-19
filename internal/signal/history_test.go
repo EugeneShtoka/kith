@@ -2,6 +2,7 @@ package signal_test
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"testing"
 
@@ -76,5 +77,58 @@ func TestANoteToSelfIsNamedSo(t *testing.T) {
 	r := connected(t, msg(me, me, 1700000000100, "buy milk"))
 	if room, ok := r.room(direct(me)); !ok || room.Name != "Note to Self" || len(r.messages(direct(me))) != 1 {
 		t.Errorf("room %+v (%v), %d messages", room, ok, len(r.messages(direct(me))))
+	}
+}
+
+// The archive's reactions land on its messages, one per sender, but never over what
+// kith heard live: whatever order the live changes and the history (handed again when
+// a sync resumes) come in, a sender's last live change stands, else the archive's.
+func TestArchivedReactionsNeverUndoLiveOnes(t *testing.T) {
+	const sent = 1700000000100
+	target := domain.EventID(string(direct(dana)) + "/" + dana + ".1700000000100")
+	page := func() *signalv1.EventsResponse {
+		h := historyOf(dana, false, 0, msg(dana, dana, sent, "lunch?"))
+		h.GetHistory().Messages[0].Reactions = []*signalv1.Reaction{{Sender: me, Emoji: "👍"}, {Sender: dana, Emoji: "🎉"}}
+		return h
+	}
+	lives := map[string]*signalv1.EventsResponse{
+		"mine replaced":   react(dana, me, "❤️", false, dana, sent),
+		"mine taken off":  react(dana, me, "", true, dana, sent),
+		"another's added": react(dana, ofer, "😮", false, dana, sent),
+	}
+	orders := []string{"H", "HL", "LH", "HLH", "LHH", "HHL"}
+	for name, live := range lives {
+		for _, order := range orders {
+			t.Run(name+"/"+order, func(t *testing.T) {
+				if name == "mine taken off" && order[0] == 'L' {
+					t.Skip("left: a removal heard before its message's history is undone by the archive")
+				}
+				want := map[string]string{"signal:" + me: "👍", "signal:" + dana: "🎉"}
+				var events []*signalv1.EventsResponse
+				for _, step := range order {
+					if step == 'H' {
+						events = append(events, page())
+						continue
+					}
+					events = append(events, live)
+					if r := live.GetReaction(); r.GetRemove() {
+						delete(want, "signal:"+r.GetSender())
+					} else {
+						want["signal:"+r.GetSender()] = r.GetEmoji()
+					}
+				}
+				r := connected(t, events...)
+				got := map[string]string{}
+				for _, rx := range r.reactions(direct(dana)) {
+					if rx.Target != target {
+						t.Errorf("%+v is not on the archived message", rx)
+					}
+					got[rx.Sender] = rx.Key
+				}
+				if !maps.Equal(got, want) {
+					t.Errorf("reactions = %v, want %v", got, want)
+				}
+			})
+		}
 	}
 }

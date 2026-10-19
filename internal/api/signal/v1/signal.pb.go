@@ -1553,7 +1553,9 @@ type Message struct {
 	TimerVersion uint32 `protobuf:"varint,15,opt,name=timer_version,json=timerVersion,proto3" json:"timer_version,omitempty"`
 	// When the message's own countdown started (ms), for an archived one whose countdown
 	// the phone had started; 0 otherwise (it starts when sent, or when read).
-	TimerStarted  uint64 `protobuf:"varint,16,opt,name=timer_started,json=timerStarted,proto3" json:"timer_started,omitempty"`
+	TimerStarted uint64 `protobuf:"varint,16,opt,name=timer_started,json=timerStarted,proto3" json:"timer_started,omitempty"`
+	// An archived message's reactions, one per sender: each its sender and emoji.
+	Reactions     []*Reaction `protobuf:"bytes,17,rep,name=reactions,proto3" json:"reactions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1698,6 +1700,13 @@ func (x *Message) GetTimerStarted() uint64 {
 		return x.TimerStarted
 	}
 	return 0
+}
+
+func (x *Message) GetReactions() []*Reaction {
+	if x != nil {
+		return x.Reactions
+	}
+	return nil
 }
 
 // Quote is the message a message replies to.
@@ -3021,7 +3030,7 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\bmessages\x18\x01 \x03(\v2\x16.signal.v1.ReadMessageR\bmessages\"9\n" +
 	"\vReadMessage\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x12\n" +
-	"\x04sent\x18\x02 \x01(\x04R\x04sent\"\x84\x04\n" +
+	"\x04sent\x18\x02 \x01(\x04R\x04sent\"\xb7\x04\n" +
 	"\aMessage\x12\x12\n" +
 	"\x04chat\x18\x01 \x01(\tR\x04chat\x12\x14\n" +
 	"\x05group\x18\x02 \x01(\bR\x05group\x12\x16\n" +
@@ -3041,7 +3050,8 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"chatNumber\x12\x14\n" +
 	"\x05timer\x18\x0e \x01(\rR\x05timer\x12#\n" +
 	"\rtimer_version\x18\x0f \x01(\rR\ftimerVersion\x12#\n" +
-	"\rtimer_started\x18\x10 \x01(\x04R\ftimerStarted\"G\n" +
+	"\rtimer_started\x18\x10 \x01(\x04R\ftimerStarted\x121\n" +
+	"\treactions\x18\x11 \x03(\v2\x13.signal.v1.ReactionR\treactions\"G\n" +
 	"\x05Quote\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x12\n" +
 	"\x04sent\x18\x02 \x01(\x04R\x04sent\x12\x12\n" +
@@ -3224,43 +3234,44 @@ var file_signal_v1_signal_proto_depIdxs = []int32{
 	23, // 18: signal.v1.Message.quote:type_name -> signal.v1.Quote
 	24, // 19: signal.v1.Message.mentions:type_name -> signal.v1.Mention
 	25, // 20: signal.v1.Message.attachments:type_name -> signal.v1.Attachment
-	1,  // 21: signal.v1.Connection.state:type_name -> signal.v1.Connection.State
-	28, // 22: signal.v1.Contacts.contacts:type_name -> signal.v1.Contact
-	23, // 23: signal.v1.SendRequest.quote:type_name -> signal.v1.Quote
-	17, // 24: signal.v1.SendRequest.reaction:type_name -> signal.v1.Reaction
-	25, // 25: signal.v1.SendRequest.attachments:type_name -> signal.v1.Attachment
-	24, // 26: signal.v1.SendRequest.mentions:type_name -> signal.v1.Mention
-	25, // 27: signal.v1.UploadResponse.attachment:type_name -> signal.v1.Attachment
-	21, // 28: signal.v1.MarkReadRequest.messages:type_name -> signal.v1.ReadMessage
-	2,  // 29: signal.v1.SignalService.Heartbeat:input_type -> signal.v1.HeartbeatRequest
-	4,  // 30: signal.v1.SignalService.Start:input_type -> signal.v1.StartRequest
-	7,  // 31: signal.v1.SignalService.Link:input_type -> signal.v1.LinkRequest
-	9,  // 32: signal.v1.SignalService.Connect:input_type -> signal.v1.ConnectRequest
-	11, // 33: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
-	30, // 34: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
-	32, // 35: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
-	40, // 36: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
-	42, // 37: signal.v1.SignalService.MarkRead:input_type -> signal.v1.MarkReadRequest
-	33, // 38: signal.v1.SignalService.Download:input_type -> signal.v1.DownloadRequest
-	35, // 39: signal.v1.SignalService.Upload:input_type -> signal.v1.UploadRequest
-	36, // 40: signal.v1.SignalService.Unlink:input_type -> signal.v1.UnlinkRequest
-	3,  // 41: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
-	5,  // 42: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
-	8,  // 43: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
-	10, // 44: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
-	12, // 45: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
-	31, // 46: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
-	39, // 47: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
-	41, // 48: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
-	43, // 49: signal.v1.SignalService.MarkRead:output_type -> signal.v1.MarkReadResponse
-	34, // 50: signal.v1.SignalService.Download:output_type -> signal.v1.DownloadResponse
-	38, // 51: signal.v1.SignalService.Upload:output_type -> signal.v1.UploadResponse
-	37, // 52: signal.v1.SignalService.Unlink:output_type -> signal.v1.UnlinkResponse
-	41, // [41:53] is the sub-list for method output_type
-	29, // [29:41] is the sub-list for method input_type
-	29, // [29:29] is the sub-list for extension type_name
-	29, // [29:29] is the sub-list for extension extendee
-	0,  // [0:29] is the sub-list for field type_name
+	17, // 21: signal.v1.Message.reactions:type_name -> signal.v1.Reaction
+	1,  // 22: signal.v1.Connection.state:type_name -> signal.v1.Connection.State
+	28, // 23: signal.v1.Contacts.contacts:type_name -> signal.v1.Contact
+	23, // 24: signal.v1.SendRequest.quote:type_name -> signal.v1.Quote
+	17, // 25: signal.v1.SendRequest.reaction:type_name -> signal.v1.Reaction
+	25, // 26: signal.v1.SendRequest.attachments:type_name -> signal.v1.Attachment
+	24, // 27: signal.v1.SendRequest.mentions:type_name -> signal.v1.Mention
+	25, // 28: signal.v1.UploadResponse.attachment:type_name -> signal.v1.Attachment
+	21, // 29: signal.v1.MarkReadRequest.messages:type_name -> signal.v1.ReadMessage
+	2,  // 30: signal.v1.SignalService.Heartbeat:input_type -> signal.v1.HeartbeatRequest
+	4,  // 31: signal.v1.SignalService.Start:input_type -> signal.v1.StartRequest
+	7,  // 32: signal.v1.SignalService.Link:input_type -> signal.v1.LinkRequest
+	9,  // 33: signal.v1.SignalService.Connect:input_type -> signal.v1.ConnectRequest
+	11, // 34: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
+	30, // 35: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
+	32, // 36: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
+	40, // 37: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
+	42, // 38: signal.v1.SignalService.MarkRead:input_type -> signal.v1.MarkReadRequest
+	33, // 39: signal.v1.SignalService.Download:input_type -> signal.v1.DownloadRequest
+	35, // 40: signal.v1.SignalService.Upload:input_type -> signal.v1.UploadRequest
+	36, // 41: signal.v1.SignalService.Unlink:input_type -> signal.v1.UnlinkRequest
+	3,  // 42: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
+	5,  // 43: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
+	8,  // 44: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
+	10, // 45: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
+	12, // 46: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
+	31, // 47: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
+	39, // 48: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
+	41, // 49: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
+	43, // 50: signal.v1.SignalService.MarkRead:output_type -> signal.v1.MarkReadResponse
+	34, // 51: signal.v1.SignalService.Download:output_type -> signal.v1.DownloadResponse
+	38, // 52: signal.v1.SignalService.Upload:output_type -> signal.v1.UploadResponse
+	37, // 53: signal.v1.SignalService.Unlink:output_type -> signal.v1.UnlinkResponse
+	42, // [42:54] is the sub-list for method output_type
+	30, // [30:42] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_signal_v1_signal_proto_init() }
