@@ -21,6 +21,8 @@ type Schedules interface {
 	ScheduledMessages(ctx context.Context) ([]domain.ScheduledMessage, error)
 	// CancelScheduled drops one pending message.
 	CancelScheduled(ctx context.Context, id string) error
+	// RetryScheduled sends a refused or failing message now.
+	RetryScheduled(ctx context.Context, id string) error
 }
 
 type scheduledMsg struct {
@@ -99,6 +101,19 @@ func (m Model) cancelScheduledCmd(id string) tea.Cmd {
 	}
 }
 
+func (m Model) retryScheduledCmd(id string) tea.Cmd {
+	if m.schedules == nil {
+		return nil
+	}
+	schedules, ctx := m.schedules, m.ctx
+	return func() tea.Msg {
+		if err := schedules.RetryScheduled(ctx, id); err != nil {
+			return scheduleDoneMsg{err: err}
+		}
+		return scheduleDoneMsg{what: "trying again"}
+	}
+}
+
 // handleScheduleDone reports the outcome: the only sign a queued message left the composer.
 func (m Model) handleScheduleDone(msg scheduleDoneMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
@@ -124,7 +139,15 @@ func (m Model) handleScheduled(msg scheduledMsg) (Model, tea.Cmd) {
 		if msg.onlyRoom != "" {
 			label = entry.SummaryWith(now, isolate)
 		}
-		items = append(items, pickerItem{label: label, value: entry.ID, match: label})
+		// A refused or failing one says why; choosing it tries again.
+		detail := ""
+		switch {
+		case entry.Refused != "":
+			detail = "refused, enter retries: " + entry.Refused
+		case entry.Failing != "":
+			detail = "failing, enter retries now: " + entry.Failing
+		}
+		items = append(items, pickerItem{label: label, detail: detail, value: entry.ID, match: label})
 	}
 	if len(items) == 0 {
 		if msg.onlyRoom != "" {

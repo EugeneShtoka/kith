@@ -36,6 +36,7 @@ var sentinels = map[string]error{
 	"network-off":       api.ErrNetworkOff,
 	"not-on-network":    api.ErrNotOnNetwork,
 	"config-moved":      api.ErrConfigMoved,
+	"refused":           api.ErrRefused,
 }
 
 // sentinelOrder fixes the order sentinels are tried in, so an error wrapping two is

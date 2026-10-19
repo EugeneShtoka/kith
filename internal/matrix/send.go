@@ -27,7 +27,7 @@ func (b *InProc) Send(ctx context.Context, roomID domain.RoomID, draft domain.Dr
 		_, err := b.client.SendMessageEvent(ctx, id.RoomID(roomID), event.EventMessage, &content, opts...)
 		return err //nolint:wrapcheck // wrapped below, once for both refusal and failure
 	}); err != nil {
-		return fmt.Errorf("matrix: send message: %w", err)
+		return fmt.Errorf("matrix: send message: %w", refusal(err))
 	}
 	// Rank addressed people higher in future mention dropdowns; best-effort.
 	if b.cache != nil {

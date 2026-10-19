@@ -30,6 +30,7 @@ func (q *queueStub) ScheduledMessages(context.Context) ([]domain.ScheduledMessag
 }
 
 func (q *queueStub) CancelScheduled(context.Context, string) error { return nil }
+func (q *queueStub) RetryScheduled(context.Context, string) error  { return nil }
 
 // failing builds a client whose sends fail, with a queue behind it.
 func failing(t *testing.T) (Model, *queueStub) {

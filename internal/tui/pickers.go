@@ -68,7 +68,7 @@ func init() {
 		}},
 		pickerJump:  {choose: byValue(Model.acceptJump)},
 		pickerCards: {choose: Model.choosePhonebookCard},
-		pickerScheduled: {choose: cancelScheduled, remove: func(m Model, item pickerItem) (Model, tea.Cmd, bool) {
+		pickerScheduled: {choose: chooseScheduled, remove: func(m Model, item pickerItem) (Model, tea.Cmd, bool) {
 			return answered(cancelScheduled(m, item))
 		}},
 		pickerIdentity:        {choose: byValue(Model.chooseIdentity)},
@@ -101,6 +101,15 @@ func init() {
 		pickerCompletionModel: {apply: Model.acceptModelOffer},
 		pickerRescan:          {apply: Model.applyRescan},
 	}
+}
+
+// chooseScheduled retries a refused or failing message now, and cancels any other
+// (delete cancels any).
+func chooseScheduled(m Model, item pickerItem) (Model, tea.Cmd) {
+	if item.detail != "" {
+		return m.closePicker(), m.retryScheduledCmd(item.value)
+	}
+	return cancelScheduled(m, item)
 }
 
 // cancelScheduled cancels the queued message chosen, then re-reads the queue so it shows
