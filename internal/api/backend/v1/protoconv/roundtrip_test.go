@@ -19,6 +19,7 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 	offWire := map[string]string{
 		"RevisionID":  "only the daemon, which writes the cache, needs it",
 		"SenderField": "the client resolves it into Senders before it searches",
+		"Rounds":      "only the daemon, which tallies a poll's votes, needs it",
 	}
 
 	for _, tc := range []struct {

@@ -90,6 +90,9 @@ type Adapter struct {
 	booksMu sync.Mutex
 	books   map[string]*book
 
+	// pollsMu is held while a poll's votes are read and written again (polls.go).
+	pollsMu sync.Mutex
+
 	mu       sync.Mutex
 	accounts []Account
 	started  bool

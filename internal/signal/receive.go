@@ -161,6 +161,10 @@ func (a *Adapter) take(ctx context.Context, h *helper, ev *signalv1.EventsRespon
 		return a.takeTimer(ctx, self, e.Timer)
 	case *signalv1.EventsResponse_History:
 		return a.takeHistory(ctx, self, e.History)
+	case *signalv1.EventsResponse_Vote:
+		return a.takeVote(ctx, self, e.Vote)
+	case *signalv1.EventsResponse_PollEnd:
+		return a.takePollEnd(ctx, self, e.PollEnd)
 	case *signalv1.EventsResponse_Receipt:
 		// Someone got or read the account's messages: kith shows no receipts yet.
 	}
@@ -481,6 +485,10 @@ func message(self string, m *signalv1.Message) domain.Message {
 		Timestamp:  time.UnixMilli(int64(m.GetSent())), //nolint:gosec // a Signal timestamp fits
 	}
 	msg.Body, msg.Format, msg.Mentioned = rendered(self, m.GetBody(), m.GetMentions(), m.GetStyles())
+	if p := m.GetPoll(); p != nil {
+		msg.Poll = pollOf(self, p)
+		msg.Body = msg.Poll.Summary()
+	}
 	if q := m.GetQuote(); q != nil && q.GetAuthor() != "" {
 		msg.ReplyTo = eventID(self, m.GetChat(), m.GetGroup(), q.GetAuthor(), q.GetSent())
 	}

@@ -162,9 +162,15 @@ func (a *account) chatEvent(ctx context.Context, e *events.ChatEvent) {
 			}}})
 		case c.GetGroupV2().GetGroupChange() != nil:
 			a.groupChange(ctx, e.Info, c)
+		case c.GetPollVote() != nil:
+			a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Vote{Vote: vote(chat, group, sender, c.GetPollVote())}})
+		case c.GetPollTerminate() != nil:
+			a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_PollEnd{PollEnd: &signalv1.PollEnd{
+				Chat: chat, Group: group, Sender: sender, TargetSent: c.GetPollTerminate().GetTargetSentTimestamp(),
+			}}})
 		default:
 			m := a.message(ctx, e.Info, c)
-			if m.GetBody() == "" && len(m.GetAttachments()) == 0 {
+			if m.GetBody() == "" && len(m.GetAttachments()) == 0 && m.GetPoll() == nil {
 				return // a profile key: nothing to read
 			}
 			if m.GetGroup() {
@@ -204,6 +210,18 @@ func (a *account) mentions(ctx context.Context, ranges []*signalpb.BodyRange) []
 	return out
 }
 
+// vote is a poll vote as the wire carries it; a target author not an ACI is left out.
+func vote(chat string, group bool, sender string, v *signalpb.DataMessage_PollVote) *signalv1.Vote {
+	out := &signalv1.Vote{
+		Chat: chat, Group: group, Sender: sender, TargetSent: v.GetTargetSentTimestamp(),
+		Options: v.GetOptionIndexes(), Round: v.GetVoteCount(),
+	}
+	if author := v.GetTargetAuthorAciBinary(); len(author) == 16 {
+		out.TargetAuthor = uuid.UUID(author).String()
+	}
+	return out
+}
+
 // styles is how a body is formatted: its ranges that are styles, not people. Signal's
 // styles are numbered as the wire's kinds.
 func styles(ranges []*signalpb.BodyRange) []*signalv1.Style {
@@ -239,6 +257,9 @@ func (a *account) message(ctx context.Context, info events.MessageInfo, data *si
 	}
 	m.Mentions = a.mentions(ctx, data.GetBodyRanges())
 	m.Styles = styles(data.GetBodyRanges())
+	if p := data.GetPollCreate(); p != nil {
+		m.Poll = &signalv1.Poll{Question: p.GetQuestion(), Multiple: p.GetAllowMultiple(), Options: p.GetOptions()}
+	}
 	for _, p := range data.GetAttachments() {
 		pointer, err := proto.Marshal(p)
 		if err != nil {

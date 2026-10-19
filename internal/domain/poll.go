@@ -19,6 +19,9 @@ type Poll struct {
 	// Ballots is each voter's answer IDs, where the network reports individual votes
 	// (WhatsApp); Retally counts them.
 	Ballots map[string][]string `json:",omitempty"`
+	// Rounds is the number of each voter's latest vote, where the network numbers them
+	// (Signal): a vote numbered no higher replaces nothing.
+	Rounds map[string]uint32 `json:",omitempty"`
 }
 
 // Retally recounts votes, voters and Mine from Ballots.
