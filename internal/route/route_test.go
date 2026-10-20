@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
@@ -196,6 +197,91 @@ func TestMeIsEveryNetworksSelf(t *testing.T) {
 	wa.me = []string{"whatsapp:44881234567@s.whatsapp.net", "@me:x"}
 	if got := r.Me(); !slices.Equal(got, []string{"@me:x", "@whatsapp_me:x", "whatsapp:44881234567@s.whatsapp.net"}) {
 		t.Errorf("Me = %v", got)
+	}
+}
+
+// Me is kept, not asked of every network on every call: a filter rescan asks it twice
+// per cached message, and Signal's answer reads the keyring.
+func TestMeIsKeptWhileNothingChanged(t *testing.T) {
+	t.Parallel()
+	r, m, wa := twoNetworks(t)
+	for range 100 {
+		r.Me()
+	}
+	if got := m.meAsked.Load() + wa.meAsked.Load(); got != 2 {
+		t.Errorf("networks asked who you are %d times over 100 calls, want once each", got)
+	}
+}
+
+// An account's state changing has Me ask again, and returning what it asked.
+func TestForgetMeAsksTheNetworksAgain(t *testing.T) {
+	t.Parallel()
+	r, _, wa := twoNetworks(t)
+	r.Me()
+	wa.setMe("whatsapp:44881234567@s.whatsapp.net")
+	if got := r.Me(); slices.Contains(got, "whatsapp:44881234567@s.whatsapp.net") {
+		t.Fatalf("Me = %v before ForgetMe; the test needs it kept", got)
+	}
+	r.ForgetMe()
+	if got := r.Me(); !slices.Contains(got, "whatsapp:44881234567@s.whatsapp.net") {
+		t.Errorf("Me after ForgetMe = %v, want the new account in it", got)
+	}
+}
+
+// A network logging in or out changes Me at once, kept or not: the router sees it
+// without a status reaching ForgetMe.
+func TestMeFollowsANetworkLoggingInAndOut(t *testing.T) {
+	t.Parallel()
+	r, m, _ := withoutMatrix(t)["logged out, WhatsApp"]()
+	if got := r.Me(); slices.Contains(got, m.account) {
+		t.Fatalf("Me = %v while Matrix is logged out", got)
+	}
+	m.loggedOut.Store(false)
+	if got := r.Me(); !slices.Contains(got, m.account) {
+		t.Errorf("Me after Matrix logged in = %v, want its account", got)
+	}
+	m.loggedOut.Store(true)
+	if got := r.Me(); slices.Contains(got, m.account) {
+		t.Errorf("Me after Matrix logged out = %v, still names it", got)
+	}
+}
+
+// A network learning an ID without a status (Google Messages, as its inbox fills) is
+// heard once meFresh has passed.
+func TestMeIsAskedAgainOnceStale(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		r, _, wa := twoNetworks(t)
+		r.Me()
+		wa.setMe("whatsapp:44881234567@s.whatsapp.net")
+		time.Sleep(meFresh)
+		if got := r.Me(); !slices.Contains(got, "whatsapp:44881234567@s.whatsapp.net") {
+			t.Errorf("Me after meFresh = %v, want the learned ID in it", got)
+		}
+	})
+}
+
+// A ForgetMe landing while Me is being built is not undone by that build: what it
+// gathered may predate the change.
+func TestForgetMeDuringABuildIsNotLost(t *testing.T) {
+	t.Parallel()
+	r, _, wa := twoNetworks(t)
+	held, entered := make(chan struct{}), make(chan struct{})
+	wa.mu.Lock()
+	wa.meHeld, wa.meEntered = held, entered
+	wa.mu.Unlock()
+	built := make(chan []string)
+	go func() { built <- r.Me() }()
+	<-entered // the build holds WhatsApp's answer from before the account connected
+	wa.mu.Lock()
+	wa.meHeld = nil
+	wa.mu.Unlock()
+	wa.setMe("whatsapp:44881234567@s.whatsapp.net")
+	r.ForgetMe()
+	close(held)
+	<-built
+	if got := r.Me(); !slices.Contains(got, "whatsapp:44881234567@s.whatsapp.net") {
+		t.Errorf("Me = %v, want the account the ForgetMe announced", got)
 	}
 }
 

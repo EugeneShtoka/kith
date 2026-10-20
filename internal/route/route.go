@@ -208,6 +208,15 @@ type Router struct {
 	reactions     <-chan domain.ReactionUpdate
 	invites       <-chan []domain.Room
 	verifications <-chan domain.Verification
+
+	// me is Me as last built, from the adapters in meLive, at meAt, in meOf. meGen
+	// counts ForgetMe.
+	meMu   sync.Mutex
+	me     []string
+	meLive []Adapter
+	meAt   time.Time
+	meGen  uint64
+	meOf   uint64 // the gen me was built in
 }
 
 // New routes adapters keyed by the network their IDs name. None at all is a daemon
@@ -363,17 +372,46 @@ func (r *Router) Stop() {
 	})
 }
 
-// Me is every ID on every network that is this person.
+// meFresh is how long a built Me is kept when nothing said it changed. A network may
+// learn one of your IDs without reporting a status (Google Messages, as its inbox
+// fills), so it is short; asking the networks can be dear (Signal reads the keyring).
+const meFresh = 5 * time.Second
+
+// Me is every ID on every network that is this person. It is built again when the
+// logged-in networks change, after ForgetMe, or once meFresh has passed.
 func (r *Router) Me() []string {
+	live := r.live()
+	r.meMu.Lock()
+	if r.meOf == r.meGen && slices.Equal(r.meLive, live) && time.Since(r.meAt) < meFresh {
+		me := slices.Clone(r.me)
+		r.meMu.Unlock()
+		return me
+	}
+	gen := r.meGen
+	r.meMu.Unlock()
+
 	var me []string
-	for _, a := range r.live() {
+	for _, a := range live {
 		for _, id := range a.Me() {
 			if !slices.Contains(me, id) {
 				me = append(me, id)
 			}
 		}
 	}
-	return me
+
+	// Kept under the gen it began in: one a ForgetMe overtook is built again next call.
+	r.meMu.Lock()
+	r.me, r.meLive, r.meAt, r.meOf = me, live, time.Now(), gen
+	r.meMu.Unlock()
+	return slices.Clone(me)
+}
+
+// ForgetMe has the next Me ask every network again: an account connected, disconnected
+// or changed its state.
+func (r *Router) ForgetMe() {
+	r.meMu.Lock()
+	r.meGen++
+	r.meMu.Unlock()
 }
 
 // Selves is Me as the API serves it (api.Identity).

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,6 +45,12 @@ type fake struct {
 	// start blocks until ctx ends, then returns startErr; started is closed as it begins.
 	startErr error
 	started  chan struct{}
+
+	// meAsked counts Me; while meHeld is set, Me reads its answer, says so on meEntered
+	// and waits for meHeld to close before giving it.
+	meAsked   atomic.Int32
+	meHeld    chan struct{}
+	meEntered chan struct{}
 }
 
 func newFake(name string) *fake {
@@ -88,7 +95,25 @@ func (f *fake) Activity() <-chan domain.Activity        { return f.activity }
 func (f *fake) Unread() <-chan domain.Unread            { return f.unread }
 func (f *fake) Reactions() <-chan domain.ReactionUpdate { return f.reactions }
 func (f *fake) Account() string                         { return f.account }
-func (f *fake) Me() []string                            { return f.me }
+
+func (f *fake) Me() []string {
+	f.meAsked.Add(1)
+	f.mu.Lock()
+	me, held, entered := slices.Clone(f.me), f.meHeld, f.meEntered
+	f.mu.Unlock()
+	if held != nil {
+		entered <- struct{}{}
+		<-held
+	}
+	return me
+}
+
+// setMe changes who the fake says you are, as an account connecting would.
+func (f *fake) setMe(me ...string) {
+	f.mu.Lock()
+	f.me = me
+	f.mu.Unlock()
+}
 
 func (f *fake) RewindSync(context.Context) error {
 	f.mu.Lock()
