@@ -10,5 +10,11 @@
     "package": "markdown-it",
     "until": "2026-11-20",
     "why": "Quadratic-time DoS in inline HTML parsing with html enabled; markdown-it 15.0.2 is the latest and no fix is published yet. markdown-it runs only inside markdownlint-cli2 at dev time, parsing kith's own docs: nothing untrusted reaches it. Drop this entry when a fixed release lands; it expires so it cannot linger."
+  },
+  {
+    "advisory": "GHSA-gfr2-rv44-r23c",
+    "package": "markdown-it",
+    "until": "2026-11-10",
+    "why": "Quadratic-time DoS on a single multi-line link reference definition (regression since 14.0); no fixed release yet. markdown-it runs only inside markdownlint-cli2 at dev time, parsing kith's own docs: nothing untrusted reaches it. Shorter expiry than the other markdown-it entry because this is high-severity; revisit by then."
   }
 ]
