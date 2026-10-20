@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
@@ -32,29 +34,63 @@ func (r *Router) StarMessage(ctx context.Context, roomID domain.RoomID, eventID 
 	return doOnRoom(r, roomID, "bookmarks", func(c Stars) error { return c.StarMessage(ctx, roomID, eventID, starred) })
 }
 
+// verdictKeeper is where a room's or person's moves are kept.
+type verdictKeeper interface {
+	MarkTag(ctx context.Context, verdict domain.TagVerdict) error
+	MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error
+}
+
+// keeperFor is the network id is on when it keeps its own moves, else the store.
+func (r *Router) keeperFor(id, what string) (verdictKeeper, error) {
+	a, err := r.adapterFor(id)
+	if err != nil {
+		return nil, err
+	}
+	if c, ok := a.(TagMoves); ok {
+		return c, nil
+	}
+	if r.verdicts == nil {
+		return nil, fmt.Errorf("%w: %s on %s (%s)", api.ErrNotOnNetwork, what, domain.NetworkOf(id), id)
+	}
+	return r.verdicts, nil
+}
+
 // MarkTag records a move or a release on its room.
 func (r *Router) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
-	return doOnRoom(r, verdict.Room, "tag moves", func(c TagMoves) error { return c.MarkTag(ctx, verdict) })
+	k, err := r.keeperFor(string(verdict.Room), "tag moves")
+	if err != nil {
+		return err
+	}
+	return k.MarkTag(ctx, verdict)
 }
 
 // MarkPerson records a mark or a release on the network the person's ID is on.
 func (r *Router) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error {
-	a, err := r.adapterFor(verdict.Person)
+	k, err := r.keeperFor(verdict.Person, "person marks")
 	if err != nil {
 		return err
 	}
-	c, ok := a.(TagMoves)
-	if !ok {
-		return fmt.Errorf("%w: person marks on %s (%s)", api.ErrNotOnNetwork, domain.NetworkOf(verdict.Person), verdict.Person)
-	}
-	return c.MarkPerson(ctx, verdict)
+	return k.MarkPerson(ctx, verdict)
 }
 
-// RetagVerdicts moves (or drops) one tag's verdicts on every network keeping them.
+// RetagVerdicts moves (or drops) one tag's verdicts on every network keeping its own,
+// then in the store for every other network's. The store leaves those networks' alone
+// even while they are logged out: theirs are mirrors, and the network's copy wins.
 func (r *Router) RetagVerdicts(ctx context.Context, from, to string) error {
 	var errs []error
-	for _, c := range having[TagMoves](r) {
-		errs = append(errs, c.RetagVerdicts(ctx, from, to))
+	var own []domain.Protocol
+	for _, network := range slices.Sorted(maps.Keys(r.adapters)) {
+		c, ok := r.adapters[network].(TagMoves)
+		if !ok {
+			continue
+		}
+		own = append(own, network)
+		if on(r.adapters[network]) {
+			errs = append(errs, c.RetagVerdicts(ctx, from, to))
+		}
+	}
+	if r.verdicts != nil {
+		errs = append(errs, r.verdicts.RetagVerdicts(ctx, from, to, own))
 	}
 	return errors.Join(errs...)
 }

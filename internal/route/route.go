@@ -90,7 +90,8 @@ type (
 		StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error
 	}
 	// TagMoves is filters' moves into tags, and releases from them: of rooms, and of
-	// the people whose IDs are the network's.
+	// the people whose IDs are the network's, for a network that keeps them itself
+	// (Matrix, in account data). Every other network's are the router's VerdictStore's.
 	TagMoves interface {
 		MarkTag(ctx context.Context, verdict domain.TagVerdict) error
 		MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error
@@ -171,12 +172,24 @@ type (
 	}
 )
 
+// VerdictStore keeps the moves and releases of the networks with nowhere of their own
+// to keep them (the cache).
+type VerdictStore interface {
+	MarkTag(ctx context.Context, verdict domain.TagVerdict) error
+	MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error
+	// RetagVerdicts moves (or drops) one tag's verdicts of every room and person but
+	// those on the networks in except, which keep their own.
+	RetagVerdicts(ctx context.Context, from, to string, except []domain.Protocol) error
+}
+
 // Router is every network served as one. Build it with New.
 type Router struct {
 	// adapters are the networks, by the network their IDs name.
 	adapters map[domain.Protocol]Adapter
 	// all is every adapter in network order, logged in or not.
 	all []Adapter
+	// verdicts keeps the moves of networks without TagMoves; nil refuses them.
+	verdicts VerdictStore
 
 	// noInvites and noVerifications stand in for streams no network has: never sent on,
 	// closed by Stop.
@@ -209,6 +222,10 @@ func New(adapters map[domain.Protocol]Adapter) *Router {
 	}
 	return r
 }
+
+// UseVerdicts sets where the moves of networks without TagMoves are kept. Call before
+// Start.
+func (r *Router) UseVerdicts(store VerdictStore) { r.verdicts = store }
 
 // on reports whether a can be asked: it has no session, or a logged-in one.
 func on(a Adapter) bool {

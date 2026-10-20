@@ -34,6 +34,7 @@ type fake struct {
 	marked  []domain.RoomID
 	asked   []domain.RoomID // rooms RoomEncryption was asked about
 	rewinds int
+	retags  int // RetagVerdicts calls
 
 	messages  chan domain.Message
 	activity  chan domain.Activity
@@ -148,7 +149,40 @@ func (f *fake) MarkPerson(_ context.Context, verdict domain.PersonVerdict) error
 	return f.touch(domain.RoomID(verdict.Person))
 }
 
-func (f *fake) RetagVerdicts(context.Context, string, string) error { return nil }
+func (f *fake) RetagVerdicts(context.Context, string, string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.retags++
+	return nil
+}
+
+// verdictStore is the router's store: it records what reached it.
+type verdictStore struct {
+	mu     sync.Mutex
+	kept   []string // the rooms and people marked, in order
+	except [][]domain.Protocol
+}
+
+func (s *verdictStore) MarkTag(_ context.Context, v domain.TagVerdict) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.kept = append(s.kept, string(v.Room))
+	return nil
+}
+
+func (s *verdictStore) MarkPerson(_ context.Context, v domain.PersonVerdict) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.kept = append(s.kept, v.Person)
+	return nil
+}
+
+func (s *verdictStore) RetagVerdicts(_ context.Context, _, _ string, except []domain.Protocol) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.except = append(s.except, except)
+	return nil
+}
 
 func (f *fake) CanonicalParent(_ context.Context, room domain.RoomID) (domain.SpaceID, error) {
 	return "", f.touch(room)

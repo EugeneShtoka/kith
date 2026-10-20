@@ -337,6 +337,61 @@ func TestAPersonMarkReachesTheirNetwork(t *testing.T) {
 	}
 }
 
+// A network keeping its own moves is asked for them; every other network's go to the
+// store, not refused.
+func TestMovesGoToTheNetworkOrTheStore(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	m := newFakeMatrix()
+	r := routed(m, map[domain.Protocol]Adapter{domain.ProtocolTelegram: bare{newFake("telegram")}})
+	store := &verdictStore{}
+	r.UseVerdicts(store)
+	const telegramRoom domain.RoomID = "telegram:42/-1001"
+	for _, err := range []error{
+		r.MarkTag(ctx, domain.TagVerdict{Room: matrixRoomID, Tag: "Spam"}),
+		r.MarkTag(ctx, domain.TagVerdict{Room: telegramRoom, Tag: "Spam"}),
+		r.MarkPerson(ctx, domain.PersonVerdict{Person: "@ann:x", Tag: "Spam"}),
+		r.MarkPerson(ctx, domain.PersonVerdict{Person: "telegram:7", Tag: "Spam"}),
+	} {
+		if err != nil {
+			t.Errorf("mark = %v", err)
+		}
+	}
+	if got := m.seen(); !slices.Equal(got, []domain.RoomID{matrixRoomID, "@ann:x"}) {
+		t.Errorf("Matrix kept %v, want its own room and person", got)
+	}
+	if !slices.Equal(store.kept, []string{string(telegramRoom), "telegram:7"}) {
+		t.Errorf("the store kept %v, want Telegram's room and person", store.kept)
+	}
+	if err := r.MarkTag(ctx, domain.TagVerdict{Room: "slack:T1/C1", Tag: "Spam"}); !errors.Is(err, api.ErrNetworkOff) {
+		t.Errorf("a move on no network = %v, want ErrNetworkOff", err)
+	}
+}
+
+// A renamed tag is renamed by each network keeping its own, and in the store for the
+// rest: never the store over Matrix's mirror, which the homeserver's copy would undo,
+// even while Matrix is logged out.
+func TestARetagLeavesEachNetworksOwnToIt(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for _, loggedOut := range []bool{false, true} {
+		m := newFakeMatrix()
+		m.loggedOut.Store(loggedOut)
+		r := routed(m, map[domain.Protocol]Adapter{domain.ProtocolTelegram: bare{newFake("telegram")}})
+		store := &verdictStore{}
+		r.UseVerdicts(store)
+		if err := r.RetagVerdicts(ctx, "Spam", "Junk"); err != nil {
+			t.Fatalf("RetagVerdicts = %v", err)
+		}
+		if want := map[bool]int{false: 1, true: 0}[loggedOut]; m.retags != want {
+			t.Errorf("logged out %v: Matrix retagged %d times, want %d", loggedOut, m.retags, want)
+		}
+		if len(store.except) != 1 || !slices.Equal(store.except[0], []domain.Protocol{domain.ProtocolMatrix}) {
+			t.Errorf("logged out %v: the store retagged except %v, want once, leaving Matrix", loggedOut, store.except)
+		}
+	}
+}
+
 // A recount reaches each room's own network, and skips networks that are off.
 func TestARecountReachesEachRoomsNetwork(t *testing.T) {
 	t.Parallel()

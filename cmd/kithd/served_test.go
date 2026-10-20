@@ -364,3 +364,78 @@ func TestAReReadTakesTheProfilesMatrixAccount(t *testing.T) {
 		t.Errorf("Matrix accounts after the re-read = %v, want the work profile's", got)
 	}
 }
+
+// Every network without a store of its own keeps its filters' moves and marks in the
+// cache, through the router: kept (so they outlive a restart, which seeds from the
+// cache), renamed with their tag, and a release still outranks a later move.
+func TestEveryNetworkKeepsItsMovesInTheCache(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	backend := servedFor(t, config.Config{}, domain.Session{})
+	for _, network := range []string{"gmessages", "signal", "instagram", "messenger", "telegram"} {
+		room, person := domain.RoomID(network+":1/2"), network+":9"
+		if err := backend.MarkTag(ctx, domain.TagVerdict{Room: room, Tag: "Spam", Rule: domain.MoveAlways, Filter: "politics"}); err != nil {
+			t.Errorf("%s: MarkTag = %v", network, err)
+		}
+		if err := backend.MarkPerson(ctx, domain.PersonVerdict{Person: person, Tag: "Spam", Rule: domain.MoveAlways, Filter: "politics"}); err != nil {
+			t.Errorf("%s: MarkPerson = %v", network, err)
+		}
+	}
+	if err := backend.RetagVerdicts(ctx, "Spam", "Junk"); err != nil {
+		t.Fatalf("RetagVerdicts = %v", err)
+	}
+	rooms, err := backend.TagVerdicts(ctx)
+	if err != nil || len(rooms) != 5 {
+		t.Fatalf("room verdicts = %+v (%v), want one per network", rooms, err)
+	}
+	people, err := backend.PersonVerdicts(ctx)
+	if err != nil || len(people) != 5 {
+		t.Fatalf("person verdicts = %+v (%v), want one per network", people, err)
+	}
+	for _, v := range rooms {
+		if !domain.SameTag(v.Tag, "Junk") || v.Filter != "politics" {
+			t.Errorf("%s kept %+v, want the move under Junk", v.Room, v)
+		}
+	}
+	for _, v := range people {
+		if !domain.SameTag(v.Tag, "Junk") {
+			t.Errorf("%s kept %+v, want the mark under Junk", v.Person, v)
+		}
+	}
+	const room domain.RoomID = "gmessages:1/2"
+	if err := backend.MarkTag(ctx, domain.TagVerdict{Room: room, Tag: "Junk", Released: true}); err != nil {
+		t.Fatalf("release = %v", err)
+	}
+	if err := backend.MarkTag(ctx, domain.TagVerdict{Room: room, Tag: "Junk", Rule: domain.MoveAlways}); !errors.Is(err, domain.ErrReleased) {
+		t.Errorf("a move after the release = %v, want ErrReleased", err)
+	}
+}
+
+// A filter catching an SMS moves its room, and the move is in the cache: Google
+// Messages had nowhere to keep one, so it held until the daemon restarted.
+func TestAFilterMovesAnSMSRoomThroughTheDaemon(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cfg := config.Config{
+		GMessages: config.GMessages{Accounts: []config.GMessagesAccount{{Name: "SMS"}}},
+		Tags:      []config.Tag{{Name: "Spam"}},
+		Filters:   []config.Filter{{Name: "politics", Tag: "Spam", Words: []string{"*election*"}, Moves: []string{config.FilterMoveAlways}}},
+	}
+	backend := servedFor(t, cfg, domain.Session{})
+	w, err := newWorkers(slog.New(slog.DiscardHandler), cfg, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.notifications.Synced(time.Now())
+	w.notifications.Synced(time.Now())
+	const room domain.RoomID = "gmessages:1/7"
+	msg := domain.Message{ID: "gmessages:1/70", RoomID: room, Sender: "gmessages:+15550000003", Body: "vote in the elections", Timestamp: time.Now()}
+	if serr := backend.cache.SaveMessages(ctx, room, []domain.Message{msg}); serr != nil {
+		t.Fatal(serr)
+	}
+	w.notifications.Deliver(ctx, msg)
+	moves, err := backend.cache.TagVerdicts(ctx)
+	if err != nil || len(moves) != 1 || moves[0].Room != room || moves[0].Filter != "politics" {
+		t.Errorf("kept moves = %+v (%v), want the SMS room's", moves, err)
+	}
+}
