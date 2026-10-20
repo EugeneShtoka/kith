@@ -4,5 +4,11 @@
     "package": "braces",
     "until": "2026-11-03",
     "why": "Stack-exhaustion DoS on deeply nested brace patterns; every braces release (<=3.0.3) is affected and none is fixed yet. braces runs only inside markdownlint-cli2 at dev time, on the repo's own glob patterns: nothing untrusted reaches it. Drop this entry when a fixed release lands; it expires so it cannot linger."
+  },
+  {
+    "advisory": "GHSA-vfgh-jcmw-g37q",
+    "package": "markdown-it",
+    "until": "2026-11-20",
+    "why": "Quadratic-time DoS in inline HTML parsing with html enabled; markdown-it 15.0.2 is the latest and no fix is published yet. markdown-it runs only inside markdownlint-cli2 at dev time, parsing kith's own docs: nothing untrusted reaches it. Drop this entry when a fixed release lands; it expires so it cannot linger."
   }
 ]

@@ -43,8 +43,15 @@ func installed(t *testing.T, programs ...string) *bin {
 		t.Skip("opening a link raises the browser here; the stand-ins are shell scripts")
 	}
 	b := &bin{t: t, dir: t.TempDir()}
+	// Resolve /bin/sh to the real binary so the shebang's basename does not match a
+	// stand-in named sh — on some kernels (observed on Linux 7.1.2) an execve of such a
+	// stand-in on PATH is rejected as a shebang loop.
+	shebang, err := filepath.EvalSymlinks("/bin/sh")
+	if err != nil {
+		shebang = "/bin/sh"
+	}
 	for _, name := range programs {
-		script := "#!/bin/sh\n" +
+		script := "#!" + shebang + "\n" +
 			"d='" + b.dir + "'\n" +
 			"{ printf '%s' '" + name + "'; for a in \"$@\"; do printf '\\037%s' \"$a\"; done; printf '\\n'; } >>\"$d/runs\"\n" +
 			"n=0; [ -f \"$d/count\" ] && read -r n <\"$d/count\"; n=$((n+1)); echo $n >\"$d/count\"\n" +
