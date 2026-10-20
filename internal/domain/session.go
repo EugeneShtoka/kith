@@ -19,7 +19,7 @@ type Session struct {
 	// AccessTokenExpiresAt is when AccessToken stops working, as the token endpoint said
 	// at exchange. Zero on password and SSO sessions. The mautrix client refreshes before
 	// this instant so a request never finds the token already dead.
-	AccessTokenExpiresAt time.Time `json:",omitempty"`
+	AccessTokenExpiresAt time.Time `json:",omitzero"`
 	// OAuthClientID is the OAuth 2.0 client_id this session's homeserver issued to kith
 	// (dynamic client registration). Empty on password and SSO sessions. Refresh needs
 	// it, so it travels with the tokens rather than being re-registered on every start.

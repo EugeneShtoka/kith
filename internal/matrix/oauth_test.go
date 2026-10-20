@@ -95,7 +95,7 @@ func (f *fakeMAS) server(t *testing.T) *httptest.Server {
 			return
 		}
 		base := "http://" + r.Host
-		fmt.Fprint(w, f.metadata(base))
+		_, _ = fmt.Fprint(w, f.metadata(base))
 	})
 	// Login flows: lists what the server supports (OAuth servers also return it).
 	mux.HandleFunc("/_matrix/client/v3/login", func(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +122,7 @@ func (f *fakeMAS) server(t *testing.T) *httptest.Server {
 			http.Error(w, "bad json", http.StatusBadRequest)
 			return
 		}
-		fmt.Fprintf(w,
+		_, _ = fmt.Fprintf(w,
 			`{"user_id":"@eugene:example.org","device_id":"DEV1","access_token":"sso-access","home_server":"example.org"}`)
 	})
 	// OAuth: dynamic client registration.
@@ -133,7 +133,7 @@ func (f *fakeMAS) server(t *testing.T) *httptest.Server {
 			return
 		}
 		_ = r.Body.Close()
-		fmt.Fprintf(w, `{"client_id":"client-xyz"}`)
+		_, _ = fmt.Fprintf(w, `{"client_id":"client-xyz"}`)
 	})
 	// OAuth: authorize endpoint — a real server shows a login page. Here it redirects
 	// straight to the loopback with the state the caller sent (or the override).
@@ -173,17 +173,17 @@ func (f *fakeMAS) server(t *testing.T) *httptest.Server {
 				http.Error(w, "no", http.StatusBadRequest)
 				return
 			}
-			fmt.Fprintf(w, `{"access_token":%q,"token_type":"Bearer","expires_in":%d,"refresh_token":"refresh-1"}`,
+			_, _ = fmt.Fprintf(w, `{"access_token":%q,"token_type":"Bearer","expires_in":%d,"refresh_token":"refresh-1"}`,
 				f.nextAccessToken.Load().(string), int(f.expiresIn.Seconds()))
 		case "refresh_token":
 			f.refreshCalls.Add(1)
 			if f.refreshReject {
 				w.WriteHeader(http.StatusUnauthorized)
-				fmt.Fprint(w, `{"errcode":"M_UNKNOWN_TOKEN","error":"refresh revoked"}`)
+				_, _ = fmt.Fprint(w, `{"errcode":"M_UNKNOWN_TOKEN","error":"refresh revoked"}`)
 				return
 			}
 			f.nextAccessToken.Store("access-2")
-			fmt.Fprintf(w, `{"access_token":"access-2","token_type":"Bearer","expires_in":%d,"refresh_token":"refresh-2"}`,
+			_, _ = fmt.Fprintf(w, `{"access_token":"access-2","token_type":"Bearer","expires_in":%d,"refresh_token":"refresh-2"}`,
 				int(f.expiresIn.Seconds()))
 		default:
 			http.Error(w, "unknown grant", http.StatusBadRequest)
@@ -195,7 +195,7 @@ func (f *fakeMAS) server(t *testing.T) *httptest.Server {
 		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if tok == "" {
 			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprint(w, `{"errcode":"M_MISSING_TOKEN"}`)
+			_, _ = fmt.Fprint(w, `{"errcode":"M_MISSING_TOKEN"}`)
 			return
 		}
 		// A stale token means the client did not refresh in time — reject so a test
@@ -203,10 +203,10 @@ func (f *fakeMAS) server(t *testing.T) *httptest.Server {
 		cur, _ := f.nextAccessToken.Load().(string)
 		if cur != "" && tok != cur && tok != "access-1" {
 			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprint(w, `{"errcode":"M_UNKNOWN_TOKEN"}`)
+			_, _ = fmt.Fprint(w, `{"errcode":"M_UNKNOWN_TOKEN"}`)
 			return
 		}
-		fmt.Fprint(w, `{"user_id":"@eugene:example.org","device_id":"DEV1"}`)
+		_, _ = fmt.Fprint(w, `{"user_id":"@eugene:example.org","device_id":"DEV1"}`)
 	})
 	// SSO: redirect to the given redirectUrl, optionally without a loginToken.
 	mux.HandleFunc("/_matrix/client/v3/login/sso/redirect", func(w http.ResponseWriter, r *http.Request) {
@@ -234,7 +234,8 @@ func (f *fakeMAS) server(t *testing.T) *httptest.Server {
 func browserFollow(t *testing.T, authURL string) {
 	t.Helper()
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := client.Get(authURL)
+	ctx := t.Context()
+	resp, err := do(ctx, client, authURL)
 	if err != nil {
 		t.Errorf("open authorize url: %v", err)
 		return
@@ -250,12 +251,21 @@ func browserFollow(t *testing.T, authURL string) {
 		t.Error("authorize url did not set Location")
 		return
 	}
-	back, err := client.Get(loc)
+	back, err := do(ctx, client, loc)
 	if err != nil {
 		t.Errorf("hit loopback: %v", err)
 		return
 	}
 	back.Body.Close()
+}
+
+// do runs a GET through client under ctx, so noctx stays happy.
+func do(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	return client.Do(req)
 }
 
 // browserCtx is a short-lived test context so a flow that never comes back fails

@@ -59,7 +59,7 @@ func DiscoverFlow(ctx context.Context, homeserver string) (LoginFlow, error) {
 	if _, oerr := client.OAuthGetServerMetadata(ctx); oerr == nil {
 		return FlowOAuth, nil
 	} else if ctx.Err() != nil {
-		return FlowPassword, ctx.Err()
+		return FlowPassword, fmt.Errorf("discover oauth metadata: %w", ctx.Err())
 	}
 	flows, err := client.GetLoginFlows(ctx)
 	if err != nil {
@@ -175,7 +175,7 @@ func awaitCallback(ctx context.Context, ln *net.TCPListener) (callback, error) {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		fmt.Fprintf(w, callbackPage, msg)
+		_, _ = fmt.Fprintf(w, callbackPage, msg)
 		select {
 		case ch <- cb:
 		case <-done:
@@ -219,44 +219,9 @@ func (b *InProc) LoginOAuth(
 	if _, err = client.OAuthGetServerMetadata(ctx); err != nil {
 		return domain.Session{}, fmt.Errorf("matrix: oauth metadata: %w", err)
 	}
-	redirectURI, ln, err := listenLoopback()
+	cb, authResp, redirectURI, clientID, err := runOAuthBrowser(ctx, client, keys, homeserver, userHint, show)
 	if err != nil {
-		return domain.Session{}, fmt.Errorf("matrix: %w", err)
-	}
-	served := false
-	defer func() {
-		if !served {
-			_ = ln.Close()
-		}
-	}()
-	clientID, err := ensureOAuthClient(ctx, client, keys, homeserver, redirectURI)
-	if err != nil {
-		return domain.Session{}, fmt.Errorf("matrix: %w", err)
-	}
-	deviceID := id.DeviceID(newMatrixDeviceID())
-	authResp, err := client.OAuthGetAuthorizationURL(ctx, oauth.GetAuthorizationURLParams{
-		RedirectURI: redirectURI, Scopes: oauthScopes(deviceID),
-		UserIDHint: id.UserID(userHint), ClientID: clientID,
-	})
-	if err != nil {
-		return domain.Session{}, fmt.Errorf("matrix: build authorize url: %w", err)
-	}
-	if err = show(authResp.URL,
-		"open this URL in a browser to sign in; this terminal continues when you come back"); err != nil {
-		return domain.Session{}, fmt.Errorf("matrix: show authorize url: %w", err)
-	}
-	served = true
-	cb, err := awaitCallback(ctx, ln)
-	if err != nil {
-		return domain.Session{}, fmt.Errorf("matrix: oauth callback: %w", err)
-	}
-	switch {
-	case cb.errMsg != "":
-		return domain.Session{}, fmt.Errorf("%w: %s %s", ErrOAuthRefused, cb.errMsg, cb.errDesc)
-	case cb.code == "":
-		return domain.Session{}, errors.New("matrix: oauth callback has no code")
-	case cb.state != authResp.State:
-		return domain.Session{}, ErrOAuthStateMismatch
+		return domain.Session{}, err
 	}
 	tokenStart := time.Now()
 	tokens, err := client.OAuthExchangeToken(ctx, oauth.ExchangeTokenParams{
@@ -278,6 +243,56 @@ func (b *InProc) LoginOAuth(
 		RefreshToken: tokens.RefreshToken, OAuthClientID: clientID,
 		AccessTokenExpiresAt: tokenStart.Add(tokens.ExpiresIn.Duration),
 	}, nil
+}
+
+// runOAuthBrowser handles the browser half of the OAuth flow: register (or reuse) the
+// client, bind the loopback port, build and show the authorize URL, wait for the
+// callback, and verify the state. The code (ready to exchange) and the inputs the
+// exchange needs come back together so the caller does not re-plumb them.
+func runOAuthBrowser(
+	ctx context.Context, client *mautrix.Client, keys session.Store,
+	homeserver, userHint string, show func(authURL, note string) error,
+) (callback, *oauth.AuthorizationCodeResponse, string, string, error) {
+	redirectURI, ln, err := listenLoopback()
+	if err != nil {
+		return callback{}, nil, "", "", fmt.Errorf("matrix: %w", err)
+	}
+	served := false
+	defer func() {
+		if !served {
+			_ = ln.Close()
+		}
+	}()
+	clientID, err := ensureOAuthClient(ctx, client, keys, homeserver, redirectURI)
+	if err != nil {
+		return callback{}, nil, "", "", fmt.Errorf("matrix: %w", err)
+	}
+	deviceID := id.DeviceID(newMatrixDeviceID())
+	authResp, err := client.OAuthGetAuthorizationURL(ctx, oauth.GetAuthorizationURLParams{
+		RedirectURI: redirectURI, Scopes: oauthScopes(deviceID),
+		UserIDHint: id.UserID(userHint), ClientID: clientID,
+	})
+	if err != nil {
+		return callback{}, nil, "", "", fmt.Errorf("matrix: build authorize url: %w", err)
+	}
+	if err = show(authResp.URL,
+		"open this URL in a browser to sign in; this terminal continues when you come back"); err != nil {
+		return callback{}, nil, "", "", fmt.Errorf("matrix: show authorize url: %w", err)
+	}
+	served = true
+	cb, err := awaitCallback(ctx, ln)
+	if err != nil {
+		return callback{}, nil, "", "", fmt.Errorf("matrix: oauth callback: %w", err)
+	}
+	switch {
+	case cb.errMsg != "":
+		return callback{}, nil, "", "", fmt.Errorf("%w: %s %s", ErrOAuthRefused, cb.errMsg, cb.errDesc)
+	case cb.code == "":
+		return callback{}, nil, "", "", errors.New("matrix: oauth callback has no code")
+	case cb.state != authResp.State:
+		return callback{}, nil, "", "", ErrOAuthStateMismatch
+	}
+	return cb, authResp, redirectURI, clientID, nil
 }
 
 // LoginSSO signs in through m.login.sso: the homeserver redirects to its IdP and back
