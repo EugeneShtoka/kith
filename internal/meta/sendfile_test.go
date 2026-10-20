@@ -6,6 +6,7 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"mime"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,6 +16,13 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
+
+// Register the extensions this test asserts about, so it does not depend on the host's
+// shared-mime-info or /etc/mime.types — the upstream Go toolchain reads neither when
+// those files are absent, as on NixOS without the Nix-patched Go.
+func init() {
+	_ = mime.AddExtensionType(".md", "text/markdown; charset=utf-8")
+}
 
 // pngOf is a w×h PNG.
 func pngOf(t *testing.T, w, h int) []byte {
