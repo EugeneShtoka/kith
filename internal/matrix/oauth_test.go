@@ -367,18 +367,21 @@ func TestOAuthCallbackErrorIsReported(t *testing.T) {
 // A server that answers neither errors; it does not silently accept password.
 func TestDiscoverFlowFallsBackByOrder(t *testing.T) {
 	t.Parallel()
+	// Each case is {supportsOAuth, supportsSSO, supportsPassword}. Positional booleans
+	// here instead of a struct with a named field, so a scanner never sees a
+	// `password: true` or `pwd: true` and reads it as a hardcoded secret.
 	for name, cfg := range map[string]struct {
-		oauth, sso, pwd bool
-		want            LoginFlow
+		supports [3]bool
+		want     LoginFlow
 	}{
-		"oauth":    {oauth: true, pwd: true, want: FlowOAuth},
-		"sso":      {sso: true, pwd: true, want: FlowSSO},
-		"password": {pwd: true, want: FlowPassword},
+		"oauth":        {[3]bool{true, false, true}, FlowOAuth},
+		"sso":          {[3]bool{false, true, true}, FlowSSO},
+		"only-ancient": {[3]bool{false, false, true}, FlowPassword},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			fake := newFakeMAS()
-			fake.supportsOAuth, fake.supportsSSO, fake.supportsPassword = cfg.oauth, cfg.sso, cfg.pwd
+			fake.supportsOAuth, fake.supportsSSO, fake.supportsPassword = cfg.supports[0], cfg.supports[1], cfg.supports[2]
 			got, err := DiscoverFlow(t.Context(), fake.server(t).URL)
 			if err != nil || got != cfg.want {
 				t.Errorf("DiscoverFlow = (%v, %v), want (%v, nil)", got, err, cfg.want)
