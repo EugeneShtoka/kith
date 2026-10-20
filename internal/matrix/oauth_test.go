@@ -368,17 +368,17 @@ func TestOAuthCallbackErrorIsReported(t *testing.T) {
 func TestDiscoverFlowFallsBackByOrder(t *testing.T) {
 	t.Parallel()
 	for name, cfg := range map[string]struct {
-		oauth, sso, pass bool
-		want             LoginFlow
+		oauth, sso, pwd bool
+		want            LoginFlow
 	}{
-		"oauth":    {oauth: true, pass: true, want: FlowOAuth},
-		"sso":      {sso: true, pass: true, want: FlowSSO},
-		"password": {pass: true, want: FlowPassword},
+		"oauth":    {oauth: true, pwd: true, want: FlowOAuth},
+		"sso":      {sso: true, pwd: true, want: FlowSSO},
+		"password": {pwd: true, want: FlowPassword},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			fake := newFakeMAS()
-			fake.supportsOAuth, fake.supportsSSO, fake.supportsPassword = cfg.oauth, cfg.sso, cfg.pass
+			fake.supportsOAuth, fake.supportsSSO, fake.supportsPassword = cfg.oauth, cfg.sso, cfg.pwd
 			got, err := DiscoverFlow(t.Context(), fake.server(t).URL)
 			if err != nil || got != cfg.want {
 				t.Errorf("DiscoverFlow = (%v, %v), want (%v, nil)", got, err, cfg.want)
