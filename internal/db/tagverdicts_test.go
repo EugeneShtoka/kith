@@ -54,3 +54,48 @@ func TestTagVerdictsMirrorTheRoomsWholeSet(t *testing.T) {
 		t.Errorf("after clearing: %+v", got)
 	}
 }
+
+// A retag renames the rooms' and people's verdicts of every network but those excepted,
+// whose are a mirror of their own.
+func TestARetagLeavesTheExceptedNetworks(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := openTemp(t)
+	for _, room := range []domain.RoomID{"!a:x", "telegram:1/2", "gmessages:1/3"} {
+		if err := cache.MarkTag(ctx, domain.TagVerdict{Room: room, Tag: "Spam", Rule: domain.MoveAlways}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, person := range []string{"@ann:x", "telegram:9", "gmessages:+15550000003"} {
+		if err := cache.MarkPerson(ctx, domain.PersonVerdict{Person: person, Tag: "Spam", Rule: domain.MoveAlways}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := cache.RetagVerdicts(ctx, "Spam", "Junk", []domain.Protocol{domain.ProtocolMatrix}); err != nil {
+		t.Fatal(err)
+	}
+	want := func(id string) string {
+		if domain.NetworkOf(id) == domain.ProtocolMatrix {
+			return "spam"
+		}
+		return "junk"
+	}
+	rooms, err := cache.TagVerdicts(ctx)
+	if err != nil || len(rooms) != 3 {
+		t.Fatalf("room verdicts = %+v (%v)", rooms, err)
+	}
+	for _, v := range rooms {
+		if v.Tag != want(string(v.Room)) {
+			t.Errorf("%s is in %s, want %s", v.Room, v.Tag, want(string(v.Room)))
+		}
+	}
+	people, err := cache.PersonVerdicts(ctx)
+	if err != nil || len(people) != 3 {
+		t.Fatalf("person verdicts = %+v (%v)", people, err)
+	}
+	for _, v := range people {
+		if v.Tag != want(v.Person) {
+			t.Errorf("%s is in %s, want %s", v.Person, v.Tag, want(v.Person))
+		}
+	}
+}

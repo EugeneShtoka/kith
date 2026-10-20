@@ -94,19 +94,39 @@ func (c *Cache) MarkTag(ctx context.Context, v domain.TagVerdict) error {
 }
 
 // RetagVerdicts moves tag from's verdicts to tag to in the cache, or drops them when to
-// is empty.
-func (c *Cache) RetagVerdicts(ctx context.Context, from, to string) error {
+// is empty: of every room and person but those on the networks in except, which keep
+// their own (Matrix's are a mirror of the homeserver's).
+func (c *Cache) RetagVerdicts(ctx context.Context, from, to string, except []domain.Protocol) error {
 	all, err := c.TagVerdicts(ctx)
 	if err != nil {
 		return err
 	}
 	for _, room := range VerdictRooms(all, from) {
-		set, err := c.RoomVerdicts(ctx, room)
-		if err != nil {
-			return err
+		if slices.Contains(except, domain.NetworkOf(string(room))) {
+			continue
+		}
+		set, rerr := c.RoomVerdicts(ctx, room)
+		if rerr != nil {
+			return rerr
 		}
 		retagged, _ := domain.Retagged(set, from, to)
-		if err := c.SetRoomVerdicts(ctx, room, retagged); err != nil {
+		if serr := c.SetRoomVerdicts(ctx, room, retagged); serr != nil {
+			return serr
+		}
+	}
+	people, err := c.PersonVerdicts(ctx)
+	if err != nil {
+		return err
+	}
+	var networks []domain.Protocol
+	for _, v := range people {
+		network := domain.NetworkOf(v.Person)
+		if domain.SameTag(v.Tag, from) && !slices.Contains(except, network) && !slices.Contains(networks, network) {
+			networks = append(networks, network)
+		}
+	}
+	for _, network := range networks {
+		if err := c.RetagPersonVerdicts(ctx, network, from, to); err != nil {
 			return err
 		}
 	}

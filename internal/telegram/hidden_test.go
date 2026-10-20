@@ -45,27 +45,3 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 		t.Fatal("hiding a person streamed no recount")
 	}
 }
-
-// A person's mark is kept in the cache, which is all this network has, and follows a
-// renamed tag.
-func TestAPersonMarkIsKeptAndRetagged(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	cache, err := db.Open(ctx, filepath.Join(t.TempDir(), "cache.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = cache.Close() })
-	a := New(cache, &memSecrets{values: map[string]string{}}, nil, nil, nil)
-	if merr := a.MarkPerson(ctx, domain.PersonVerdict{Person: "telegram:4004", Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto"}); merr != nil {
-		t.Fatal(merr)
-	}
-	if rerr := a.RetagVerdicts(ctx, "Spam", "Junk"); rerr != nil {
-		t.Fatal(rerr)
-	}
-	got, err := cache.PersonVerdicts(ctx)
-	if err != nil || len(got) != 1 || got[0].Tag != "junk" || got[0].Filter != "crypto" {
-		t.Errorf("kept %+v (%v), want the mark under Junk", got, err)
-	}
-}

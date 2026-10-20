@@ -264,6 +264,8 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 		adapters[n.Network()] = n
 	}
 	router := route.New(adapters)
+	// Every network but Matrix keeps its filters' moves here.
+	router.UseVerdicts(cache)
 	// Before any network writes: whose reactions a trim keeps.
 	cache.UseSelves(router.Me)
 	if marked, muted, groups, err := setup.HiddenInputs(cfg); err == nil {

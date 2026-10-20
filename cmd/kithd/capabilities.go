@@ -53,7 +53,6 @@ var (
 		route.ReadState
 		route.Archiver
 		route.Stars
-		route.TagMoves
 		route.History
 		route.Sender
 		route.Typist
@@ -74,7 +73,6 @@ var (
 
 	_ interface {
 		route.Adapter
-		route.TagMoves
 		route.RoomLister
 		route.Recounter
 		route.Homes
@@ -97,7 +95,6 @@ var (
 
 	_ interface {
 		route.Adapter
-		route.TagMoves
 		route.RoomLister
 		route.Recounter
 		route.Homes
@@ -151,10 +148,9 @@ var (
 	} = (*meta.Adapter)(nil)
 
 	// LinkedIn: conversations, people, messages, reading, sending, editing, deleting,
-	// reactions, typing, history, attachments and filters' moves (kept locally).
+	// reactions, typing, history and attachments.
 	_ interface {
 		route.Adapter
-		route.TagMoves
 		route.RoomLister
 		route.Recounter
 		route.Homes
