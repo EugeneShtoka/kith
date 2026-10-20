@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -233,30 +232,33 @@ func (f *fakeMAS) server(t *testing.T) *httptest.Server {
 // out on ctx (every OAuth test wraps t.Context with a timeout).
 func browserFollow(t *testing.T, authURL string) {
 	t.Helper()
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	ctx := t.Context()
-	resp, err := do(ctx, client, authURL)
-	if err != nil {
-		t.Errorf("open authorize url: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusFound {
-		b, _ := io.ReadAll(resp.Body)
-		t.Errorf("authorize url returned %d, want 302: %s", resp.StatusCode, b)
-		return
-	}
-	loc := resp.Header.Get("Location")
-	if loc == "" {
-		t.Error("authorize url did not set Location")
-		return
-	}
-	back, err := do(ctx, client, loc)
-	if err != nil {
-		t.Errorf("hit loopback: %v", err)
-		return
-	}
-	back.Body.Close()
+	// Hold the test open until the goroutine returns: a test that fails on its own
+	// assertion (SSO without loginToken, callback error, …) returns quickly and the
+	// browser hit lands afterwards, where t.Error would panic.
+	done := make(chan struct{})
+	t.Cleanup(func() { <-done })
+	go func() {
+		defer close(done)
+		client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		ctx := t.Context()
+		resp, err := do(ctx, client, authURL)
+		if err != nil {
+			return // ctx cancellation after the test ends is not a failure
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusFound {
+			return
+		}
+		loc := resp.Header.Get("Location")
+		if loc == "" {
+			return
+		}
+		back, err := do(ctx, client, loc)
+		if err != nil {
+			return
+		}
+		back.Body.Close()
+	}()
 }
 
 // do runs a GET through client under ctx, so noctx stays happy.
@@ -299,7 +301,7 @@ func TestOAuthHappyPathReturnsRefreshToken(t *testing.T) {
 
 	keys := testKeys(t)
 	show := func(authURL, _ string) error {
-		go browserFollow(t, authURL)
+		browserFollow(t, authURL)
 		return nil
 	}
 	sess, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show)
@@ -328,7 +330,7 @@ func TestOAuthCSRFStateMismatchIsRefused(t *testing.T) {
 	srv := fake.server(t)
 
 	show := func(authURL, _ string) error {
-		go browserFollow(t, authURL)
+		browserFollow(t, authURL)
 		return nil
 	}
 	_, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", testKeys(t), show)
@@ -349,7 +351,7 @@ func TestOAuthCallbackErrorIsReported(t *testing.T) {
 	srv := fake.server(t)
 
 	show := func(authURL, _ string) error {
-		go browserFollow(t, authURL)
+		browserFollow(t, authURL)
 		return nil
 	}
 	_, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", testKeys(t), show)
@@ -402,7 +404,7 @@ func TestSSOHappyPathReturnsAccessToken(t *testing.T) {
 	srv := fake.server(t)
 
 	show := func(authURL, _ string) error {
-		go browserFollow(t, authURL)
+		browserFollow(t, authURL)
 		return nil
 	}
 	sess, err := New(nil).LoginSSO(t.Context(), srv.URL, "@eugene:example.org", show)
@@ -425,7 +427,7 @@ func TestSSOWithoutLoginTokenIsRefused(t *testing.T) {
 	srv := fake.server(t)
 
 	show := func(authURL, _ string) error {
-		go browserFollow(t, authURL)
+		browserFollow(t, authURL)
 		return nil
 	}
 	if _, err := New(nil).LoginSSO(t.Context(), srv.URL, "@eugene:example.org", show); err == nil {
@@ -492,7 +494,7 @@ func TestOAuthClientIDIsCachedPerHomeserver(t *testing.T) {
 
 	keys := testKeys(t)
 	show := func(authURL, _ string) error {
-		go browserFollow(t, authURL)
+		browserFollow(t, authURL)
 		return nil
 	}
 	if _, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show); err != nil {
