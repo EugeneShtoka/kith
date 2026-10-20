@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -225,7 +226,7 @@ func (m *Adapter) Start(ctx context.Context) error {
 			}
 		}
 		m.report(domain.AccountConnecting, "resuming the session")
-		prepare, err := resumeSession(ctx, log, m.InProc, acc.Crypto, next)
+		prepare, err := resumeSession(ctx, log, m.InProc, acc.Crypto, next, m.saveRefreshed(acc, next))
 		if errors.Is(err, api.ErrSessionRejected) {
 			log.Warn("the saved Matrix session was rejected; waiting for `kith login`", "err", err)
 			m.report(domain.AccountLoggedOut, "the homeserver rejected the session; "+loginHint)
@@ -244,6 +245,22 @@ func (m *Adapter) Start(ctx context.Context) error {
 		m.onLoggedIn()
 		go m.followBridgeContacts(ctx)
 		return m.run(ctx, prepare)
+	}
+}
+
+// saveRefreshed returns a callback mautrix calls each time it refreshes a
+// near-expired OAuth access token. The closure keeps the base session fields (which
+// never change on refresh) and writes a new session into the keyring under the same
+// account, so the next kithd restart resumes with a current token. nil for a session
+// without a refresh token: Resume will not wire it in and mautrix will not call it.
+func (m *Adapter) saveRefreshed(acc account, base domain.Session) func(context.Context, string, string, time.Time) error {
+	if base.RefreshToken == "" {
+		return nil
+	}
+	return func(_ context.Context, refresh, access string, expiry time.Time) error {
+		next := base
+		next.AccessToken, next.RefreshToken, next.AccessTokenExpiresAt = access, refresh, expiry
+		return session.Save(acc.Crypto.Keys, next, acc.AllowTokenFile)
 	}
 }
 

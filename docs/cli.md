@@ -40,10 +40,15 @@ for again.
 - Telegram asks for the app to log in through (your own api_id and api_hash, or none
   for kith's own when the build carries one), then the code Telegram sends, then the
   two-step verification password when the account has one. See [Telegram](telegram.md).
-- Matrix asks for the password of the config's user. kith logs in as a new session
-  and keeps it in the system keyring, never the password. Every login is a new
-  Matrix device: log in once per machine. When kithd already runs Matrix on another
-  session, the new one is used from its next start.
+- Matrix picks the sign-in path the homeserver advertises: OAuth 2.0 / OIDC
+  (Matrix Authentication Service), SSO (`m.login.sso`), or password, in that
+  order. OAuth and SSO open a URL for you to sign in to in a browser and come back
+  on a loopback redirect; password reads your password on the terminal with echo
+  off. kith keeps the session in the system keyring (OAuth sessions also keep a
+  refresh token, used automatically before the access token expires); never the
+  password. Every login is a new Matrix device: log in once per machine. When
+  kithd already runs Matrix on another session, the new one is used from its next
+  start.
 
 `account` is the account's `name` in the config; it can be left out when the network
 has one. With none, the command sets a new one up first: it asks what the network
