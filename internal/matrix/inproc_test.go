@@ -747,7 +747,7 @@ func TestResumeSeparatesUnreachableFromRejected(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		err := New(nil).Resume(t.Context(), session(srv.URL))
+		err := New(nil).Resume(t.Context(), session(srv.URL), nil)
 		if !errors.Is(err, api.ErrSessionRejected) {
 			t.Fatalf("err = %v, want ErrSessionRejected", err)
 		}
@@ -762,7 +762,7 @@ func TestResumeSeparatesUnreachableFromRejected(t *testing.T) {
 		addr := srv.URL
 		srv.Close()
 
-		err := New(nil).Resume(t.Context(), session(addr))
+		err := New(nil).Resume(t.Context(), session(addr), nil)
 		if !errors.Is(err, api.ErrUnreachable) {
 			t.Fatalf("err = %v, want ErrUnreachable", err)
 		}
@@ -778,7 +778,7 @@ func TestResumeSeparatesUnreachableFromRejected(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		err := New(nil).Resume(t.Context(), session(srv.URL))
+		err := New(nil).Resume(t.Context(), session(srv.URL), nil)
 		if !errors.Is(err, api.ErrUnreachable) {
 			t.Fatalf("err = %v, want ErrUnreachable — a 502 is the gateway, not the token", err)
 		}
@@ -794,7 +794,7 @@ func TestReachableClassifiesLikeResume(t *testing.T) {
 		b := New(nil)
 		_ = b.Resume(t.Context(), domain.Session{
 			Homeserver: url, UserID: "@eugene:example.org", DeviceID: "DEV1", AccessToken: "token",
-		})
+		}, nil)
 		return b
 	}
 
@@ -836,7 +836,7 @@ func TestReachableClassifiesLikeResume(t *testing.T) {
 		b := New(nil)
 		_ = b.Resume(t.Context(), domain.Session{
 			Homeserver: srv.URL, UserID: "@eugene:example.org", DeviceID: "DEV1", AccessToken: "token",
-		})
+		}, nil)
 		if err := b.Reachable(t.Context()); !errors.Is(err, api.ErrUnreachable) && !errors.Is(err, api.ErrSessionRejected) {
 			t.Errorf("Reachable = %v, want a classified error", err)
 		}

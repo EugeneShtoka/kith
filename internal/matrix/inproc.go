@@ -199,13 +199,25 @@ func (b *InProc) Login(ctx context.Context, homeserver, user, password string) (
 }
 
 // Resume rebuilds a client from a saved session and checks the token with /whoami.
-func (b *InProc) Resume(ctx context.Context, s domain.Session) error {
+// For OAuth sessions, saveNewToken is called whenever mautrix refreshes a near-expired
+// access token so the keyring stays current across restarts; it is nil for password
+// and SSO sessions, which do not refresh.
+func (b *InProc) Resume(
+	ctx context.Context, s domain.Session,
+	saveNewToken func(ctx context.Context, refresh, access string, expiry time.Time) error,
+) error {
 	client, err := mautrix.NewClient(s.Homeserver, id.UserID(s.UserID), s.AccessToken)
 	if err != nil {
 		return fmt.Errorf("matrix: new client: %w", err)
 	}
 	client.DeviceID = id.DeviceID(s.DeviceID)
 	b.attachLogger(client)
+	if s.RefreshToken != "" {
+		// Wire refresh BEFORE whoami: the first request may itself refresh if the
+		// access token already expired across the restart.
+		client.OAuthSetTokens(s.OAuthClientID, s.RefreshToken, s.AccessToken, s.AccessTokenExpiresAt)
+		client.SaveNewToken = saveNewToken
+	}
 	err = whoami(ctx, client)
 	// Keep the client unless the token was rejected: offline, the daemon serves from cache.
 	if !errors.Is(err, api.ErrSessionRejected) {

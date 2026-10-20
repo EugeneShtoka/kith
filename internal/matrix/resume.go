@@ -26,11 +26,14 @@ func SavedSession(cfg config.Config, keys session.Store) (domain.Session, error)
 }
 
 // resumeSession restores a session. prepare is the startup still waiting on the
-// homeserver (nil if it answered). A rejected session (api.ErrSessionRejected) leaves the crypto store unopened.
+// homeserver (nil if it answered). A rejected session (api.ErrSessionRejected) leaves
+// the crypto store unopened. For OAuth sessions, saveNewToken persists a refreshed
+// token back to the keyring; it is nil otherwise.
 func resumeSession(
 	ctx context.Context, log *slog.Logger, backend *InProc, crypto cryptoPlace, saved domain.Session,
+	saveNewToken func(ctx context.Context, refresh, access string, expiry time.Time) error,
 ) (prepare func(context.Context) error, err error) {
-	rerr := backend.Resume(ctx, saved)
+	rerr := backend.Resume(ctx, saved, saveNewToken)
 	if rerr == nil || errors.Is(rerr, api.ErrUnreachable) {
 		// Offline too: the state store must exist before any RPC runs.
 		openCryptoStore(ctx, log, backend, crypto.Path)
