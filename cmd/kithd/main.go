@@ -528,7 +528,10 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	state := daemon.NewState()
 	streams := daemon.NewStreams()
 	for _, n := range backend.networks {
-		n.OnStatus(func(s domain.AccountStatus) { state.Report(daemon.StatusOf(s), time.Now()) })
+		n.OnStatus(func(s domain.AccountStatus) {
+			backend.ForgetMe() // who you are on it may have changed with it
+			state.Report(daemon.StatusOf(s), time.Now())
+		})
 		// A network rewriting its own rooms needs the scope reread and clients told; one whose
 		// rooms went stale needs the refresher, which refreshes every network (not for the
 		// first kind: its own refresh would retrigger it).
