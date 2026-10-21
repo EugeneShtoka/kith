@@ -4,9 +4,11 @@
 // kept only in the OS keyring (session.LoadOrCreateStoreKey), so whatever a library
 // writes into its store is covered without the library knowing.
 //
-// It is SQLite compiled to WebAssembly (ncruces/go-sqlite3, under wazero) with the
-// Adiantum VFS: pure Go, so every binary still builds without cgo. It sits beside the
-// cache's own SQLite driver (modernc), which it does not replace.
+// It is SQLite translated to Go from WebAssembly (ncruces/go-sqlite3, under wasm2go)
+// with the Adiantum VFS: pure Go, so every binary still builds without cgo, and no
+// runtime maps memory writable and executable — kithd's systemd unit forbids that
+// (MemoryDenyWriteExecute). It sits beside the cache's own SQLite driver (modernc),
+// which it does not replace.
 package sealeddb
 
 import (
@@ -23,10 +25,7 @@ import (
 
 	"github.com/ncruces/go-sqlite3"
 	"github.com/ncruces/go-sqlite3/driver"
-	_ "github.com/ncruces/go-sqlite3/embed" // the SQLite build it runs
 	_ "github.com/ncruces/go-sqlite3/vfs/adiantum"
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
 )
 
 // Databases are opened with driver.Open, never by a registered driver name: with cgo
@@ -47,15 +46,6 @@ var (
 
 // Dialect is what whatsmeow and its dbutil call these databases.
 const Dialect = "sqlite3"
-
-// SQLite runs interpreted. Compiled, wazero maps memory both writable and executable,
-// which kithd's systemd unit forbids (MemoryDenyWriteExecute): the first open would
-// fail there, and with it the daemon.
-func init() {
-	sqlite3.RuntimeConfig = wazero.NewRuntimeConfigInterpreter().
-		WithMemoryLimitPages(4096). // 256 MiB, ncruces' own default
-		WithCoreFeatures(api.CoreFeaturesV2)
-}
 
 // Open opens (creating) the encrypted database at path with key, and checks the key
 // opens it: a wrong key is ErrWrongKey, at once rather than at the first query.
