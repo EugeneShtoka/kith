@@ -36,6 +36,8 @@ type InProc struct {
 	cache  *db.Cache
 	// tagsMu serializes read-change-write of tag account data (tagverdicts.go).
 	tagsMu sync.Mutex
+	// ignoredMu serializes read-change-write of m.ignored_user_list (ignored.go).
+	ignoredMu sync.Mutex
 	// logger receives what the backend cannot return (see UseLogger); nil is silent.
 	logger *slog.Logger
 	// onSynced, when set, is called with each sync response's arrival time. Set before Start.
@@ -460,6 +462,10 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 	// The people account data present is the whole set; absence means no change.
 	if content, present := peopleFrom(resp.AccountData.Events); present {
 		b.mirrorPeople(ctx, content.verdicts())
+	}
+	// Same for m.ignored_user_list: present is the whole set, absence is no change.
+	if content, present := ignoredFrom(resp.AccountData.Events); present {
+		b.mirrorIgnored(ctx, content.users())
 	}
 	b.syncInvites(ctx, resp, since)
 	b.fetchHeld(ctx)
