@@ -27,7 +27,6 @@ require (
 	github.com/ncruces/go-sqlite3 v0.35.6
 	github.com/rivo/uniseg v0.4.7
 	github.com/rs/zerolog v1.35.1
-	github.com/tetratelabs/wazero v1.12.0
 	github.com/yuin/goldmark v1.8.6
 	github.com/zalando/go-keyring v0.2.8
 	go.mau.fi/libsignal v0.2.2
