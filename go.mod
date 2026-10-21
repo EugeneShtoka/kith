@@ -2,7 +2,7 @@ module github.com/EugeneShtoka/kith
 
 go 1.26.3
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 tool (
 	connectrpc.com/connect/cmd/protoc-gen-connect-go
