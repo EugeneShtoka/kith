@@ -26,7 +26,7 @@ func TestSetMatrixIgnoredReplacesTheSet(t *testing.T) {
 	if err := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"@ann:x", "@bob:x"}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := c.matrixIgnored(ctx, domain.ProtocolMatrix)
+	got, err := c.MatrixIgnored(ctx, domain.ProtocolMatrix)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestSetMatrixIgnoredReplacesTheSet(t *testing.T) {
 	if werr := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"@ann:x", "@carl:x"}); werr != nil {
 		t.Fatal(werr)
 	}
-	got, err = c.matrixIgnored(ctx, domain.ProtocolMatrix)
+	got, err = c.MatrixIgnored(ctx, domain.ProtocolMatrix)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestSetMatrixIgnoredReplacesTheSet(t *testing.T) {
 	if werr := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, nil); werr != nil {
 		t.Fatal(werr)
 	}
-	got, err = c.matrixIgnored(ctx, domain.ProtocolMatrix)
+	got, err = c.MatrixIgnored(ctx, domain.ProtocolMatrix)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestMatrixIgnoredIsPerNetwork(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Another network reading its own ignored list sees nothing.
-	got, err := c.matrixIgnored(ctx, domain.ProtocolTelegram)
+	got, err := c.MatrixIgnored(ctx, domain.ProtocolTelegram)
 	if err != nil {
 		t.Fatal(err)
 	}

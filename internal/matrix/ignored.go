@@ -67,22 +67,22 @@ func ignoredFrom(events []*event.Event) (content ignoredContent, present bool) {
 	return content, present
 }
 
-// ignoreUser adds mxid to this account's m.ignored_user_list on the homeserver,
+// Ignore adds mxid to this account's m.ignored_user_list on the homeserver,
 // then the mirror. The whole set is read first (another device may have moved
 // since the last sync), so a concurrent write never shrinks the list silently.
-func (b *InProc) ignoreUser(ctx context.Context, mxid string) error {
+func (b *InProc) Ignore(ctx context.Context, mxid string) error {
 	return b.updateIgnored(ctx, func(set map[string]bool) { set[mxid] = true })
 }
 
-// unignoreUser is ignoreUser's inverse: drops mxid from the set, writes it back,
+// Unignore is Ignore's inverse: drops mxid from the set, writes it back,
 // mirrors. A user who was not ignored is a no-op (no write), so repeated calls
 // are cheap.
-func (b *InProc) unignoreUser(ctx context.Context, mxid string) error {
+func (b *InProc) Unignore(ctx context.Context, mxid string) error {
 	return b.updateIgnored(ctx, func(set map[string]bool) { delete(set, mxid) })
 }
 
-// ignored is the MXIDs this account ignores, as the homeserver has them.
-func (b *InProc) ignored(ctx context.Context) ([]string, error) {
+// Ignored is the MXIDs this account ignores, as the homeserver has them.
+func (b *InProc) Ignored(ctx context.Context) ([]string, error) {
 	return b.serverIgnored(ctx)
 }
 

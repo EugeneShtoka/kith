@@ -66,23 +66,23 @@ func TestIgnoreUserRoundTrip(t *testing.T) {
 	srv := store.serve(t)
 	defer srv.Close()
 	b := backendWith(t, srv, nil)
-	if err := b.ignoreUser(ctx, "@spam:x"); err != nil {
+	if err := b.Ignore(ctx, "@spam:x"); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.ignoreUser(ctx, "@spam2:x"); err != nil {
+	if err := b.Ignore(ctx, "@spam2:x"); err != nil {
 		t.Fatal(err)
 	}
-	got, err := b.ignored(ctx)
+	got, err := b.Ignored(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"@spam2:x", "@spam:x"}; !sameStringSet(got, want) {
 		t.Errorf("Ignored = %v, want %v (one write per call, both kept)", got, want)
 	}
-	if uerr := b.unignoreUser(ctx, "@spam:x"); uerr != nil {
+	if uerr := b.Unignore(ctx, "@spam:x"); uerr != nil {
 		t.Fatal(uerr)
 	}
-	got, err = b.ignored(ctx)
+	got, err = b.Ignored(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,11 +91,11 @@ func TestIgnoreUserRoundTrip(t *testing.T) {
 	}
 	// Unignoring someone not in the set is a no-op: no error, no server write.
 	writesBefore := store.writes()
-	if err := b.unignoreUser(ctx, "@never:x"); err != nil {
+	if err := b.Unignore(ctx, "@never:x"); err != nil {
 		t.Fatal(err)
 	}
 	if store.writes() != writesBefore {
-		t.Errorf("unignoreUser on a non-member wrote to the server (%d → %d)", writesBefore, store.writes())
+		t.Errorf("Unignore on a non-member wrote to the server (%d → %d)", writesBefore, store.writes())
 	}
 }
 

@@ -170,6 +170,27 @@ func (r *Remote) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) e
 	return err
 }
 
+// Ignore adds mxid to the Matrix account's m.ignored_user_list.
+func (r *Remote) Ignore(ctx context.Context, mxid string) error {
+	_, err := call(ctx, "ignore user", r.c.Ignore, &v1.IgnoreRequest{Mxid: mxid})
+	return err
+}
+
+// Unignore drops mxid from the Matrix account's m.ignored_user_list.
+func (r *Remote) Unignore(ctx context.Context, mxid string) error {
+	_, err := call(ctx, "unignore user", r.c.Unignore, &v1.UnignoreRequest{Mxid: mxid})
+	return err
+}
+
+// Ignored lists the MXIDs this account currently ignores on Matrix.
+func (r *Remote) Ignored(ctx context.Context) ([]string, error) {
+	res, err := call(ctx, "list ignored users", r.c.Ignored, &v1.IgnoredRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return res.GetMxids(), nil
+}
+
 // RetagVerdicts moves one tag's verdicts to its new name, or drops them.
 func (r *Remote) RetagVerdicts(ctx context.Context, from, to string) error {
 	_, err := call(ctx, "move tag verdicts", r.c.RetagVerdicts, &v1.RetagVerdictsRequest{From: from, To: to})

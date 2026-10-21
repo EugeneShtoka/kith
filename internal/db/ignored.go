@@ -42,8 +42,8 @@ func (c *Cache) SetMatrixIgnored(ctx context.Context, network domain.Protocol, i
 	})
 }
 
-// matrixIgnored is the MXIDs this account ignores on network, alphabetically.
-func (c *Cache) matrixIgnored(ctx context.Context, network domain.Protocol) ([]string, error) {
+// MatrixIgnored is the MXIDs this account ignores on network, alphabetically.
+func (c *Cache) MatrixIgnored(ctx context.Context, network domain.Protocol) ([]string, error) {
 	return collect(ctx, c.db, "ignored_users",
 		`SELECT user_id FROM ignored_users WHERE network = ? ORDER BY user_id`,
 		func(rows *sql.Rows) (string, error) {
