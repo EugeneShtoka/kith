@@ -27,9 +27,11 @@ type personState struct {
 
 // Non-field rows of the person picker and the key list's new-key row; no key is spelled so.
 const (
-	personAdd    = "\x00add"
-	personNewKey = "\x00new"
-	personSaid   = "\x00said"
+	personAdd      = "\x00add"
+	personNewKey   = "\x00new"
+	personSaid     = "\x00said"
+	personIgnore   = "\x00ignore"
+	personUnignore = "\x00unignore"
 )
 
 // personCardMsg is a person's card as the folder has it now, and the keys its cards use.
@@ -93,6 +95,14 @@ func (m Model) showPerson(at string) Model {
 	items = append(items,
 		pickerItem{label: "Everything they said", detail: "in every room you share", value: personSaid, match: "everything they said messages"},
 		pickerItem{label: "Add a field", value: personAdd, match: "add a field"})
+	// Only Matrix-identified people can be server-ignored (m.ignored_user_list is
+	// Matrix-only). The row is a bulk toggle: enter asks the server to add them;
+	// adding one already on the list is a no-op, so pressing twice is harmless.
+	if mxids := p.card.IDs["matrix"]; len(mxids) > 0 {
+		items = append(items,
+			pickerItem{label: "Ignore on Matrix", detail: "the homeserver stops delivering their events to this account", value: personIgnore, match: "ignore matrix"},
+			pickerItem{label: "Unignore on Matrix", detail: "take them off m.ignored_user_list, if they were on it", value: personUnignore, match: "unignore matrix"})
+	}
 	spec := pickerSpecs[pickerPerson]
 	spec.title = "About " + p.name + " — no card yet"
 	if p.found {
@@ -115,6 +125,23 @@ func (m Model) choosePersonRow(value string) (Model, tea.Cmd) {
 			keys, err := book.Keys()
 			return personKeysMsg{keys: keys, err: err}
 		}
+	}
+	if value == personIgnore || value == personUnignore {
+		p := m.aimedAt.person
+		mxids := p.card.IDs["matrix"]
+		if len(mxids) == 0 {
+			return m.say("this person has no Matrix ID"), nil
+		}
+		// Act on every Matrix ID: a merged person can have more than one.
+		cmds := make([]tea.Cmd, 0, len(mxids))
+		for _, mxid := range mxids {
+			if value == personIgnore {
+				cmds = append(cmds, m.ignoreCmd(mxid))
+			} else {
+				cmds = append(cmds, m.unignoreCmd(mxid))
+			}
+		}
+		return m.closePicker(), tea.Batch(cmds...)
 	}
 	values, list := m.aimedAt.person.valuesOf(value)
 	m.aimedAt.person.key, m.aimedAt.person.list = value, list
