@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"maunium.net/go/mautrix/event"
 )
 
@@ -96,6 +97,36 @@ func TestIgnoreUserRoundTrip(t *testing.T) {
 	}
 	if store.writes() != writesBefore {
 		t.Errorf("Unignore on a non-member wrote to the server (%d → %d)", writesBefore, store.writes())
+	}
+}
+
+// A server refusal on write surfaces up as an error, not a silent success; the
+// mirror is left alone (the server copy is the record, so a failed write must
+// not leave a lie in the cache).
+func TestIgnoreUserPropagatesServerErrors(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"errcode":"M_NOT_FOUND"}`))
+			return
+		}
+		http.Error(w, "nope", http.StatusForbidden)
+	}))
+	defer srv.Close()
+	b := backendWith(t, srv, nil)
+	err := b.Ignore(ctx, "@someone:x")
+	if err == nil {
+		t.Fatal("Ignore succeeded despite a 403 from the server")
+	}
+	// The cache must have no row for a write that failed.
+	got, cerr := b.cache.MatrixIgnored(ctx, domain.ProtocolMatrix)
+	if cerr != nil {
+		t.Fatal(cerr)
+	}
+	if len(got) != 0 {
+		t.Errorf("mirror after a refused write = %v, want empty (server copy is the record)", got)
 	}
 }
 
