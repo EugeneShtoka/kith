@@ -329,8 +329,12 @@ Since then:
 - v23 (`ignored_users`): the MXIDs this account ignores, mirror of Matrix's
   `m.ignored_user_list` account data event; the server copy is the record, this table
   keeps the list readable offline and across cache rebuilds.
+- v24 (`network_blocks`): a network's server-side block list (WhatsApp blocklist,
+  Telegram's `contacts.blocked`, Meta's), mirrored for offline reads and quick
+  person-card display; the server copy wins, pulled on connect and after every
+  blocklist-change event.
 
-so a current cache is at version 23.
+so a current cache is at version 24.
 
 ### Indexes need no migration
 

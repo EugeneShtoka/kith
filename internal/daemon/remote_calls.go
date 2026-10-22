@@ -355,6 +355,31 @@ func (r *Remote) KnockRoom(ctx context.Context, roomIDOrAlias, reason string, vi
 	return domain.RoomID(resp.GetRoomId()), err
 }
 
+// BlockPerson adds userID to its network's server-side block list.
+func (r *Remote) BlockPerson(ctx context.Context, userID string) error {
+	_, err := call(ctx, "block user", r.c.BlockPerson, &v1.BlockPersonRequest{UserId: userID})
+	return err
+}
+
+// UnblockPerson drops userID from its network's block list.
+func (r *Remote) UnblockPerson(ctx context.Context, userID string) error {
+	_, err := call(ctx, "unblock user", r.c.UnblockPerson, &v1.UnblockPersonRequest{UserId: userID})
+	return err
+}
+
+// BlockedPeople lists each network's blocked people, from the cache mirror.
+func (r *Remote) BlockedPeople(ctx context.Context) (map[domain.Protocol][]string, error) {
+	resp, err := call(ctx, "list blocked people", r.c.BlockedPeople, &v1.BlockedPeopleRequest{})
+	if err != nil {
+		return nil, err
+	}
+	out := map[domain.Protocol][]string{}
+	for _, list := range resp.GetLists() {
+		out[domain.Protocol(list.GetNetwork())] = list.GetUserIds()
+	}
+	return out, nil
+}
+
 func (r *Remote) MessageHistory(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, domain.Deletion, error) {
 	resp, err := call(ctx, "message history", r.c.MessageHistory,
 		&v1.MessageHistoryRequest{RoomId: string(roomID), EventId: string(eventID)})

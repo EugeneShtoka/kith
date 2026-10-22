@@ -125,6 +125,15 @@ CREATE TABLE ignored_users (
 	PRIMARY KEY (network, user_id)
 ) STRICT, WITHOUT ROWID;
 
+-- Local mirror of a network's server-side block list (WhatsApp's blocklist, Telegram's
+-- contacts.blocked, Meta's). Rebuild-friendly: the server copy is the record. Pulled
+-- on connect and after a blocklist-change event; the sync is one-way, server to local.
+CREATE TABLE network_blocks (
+	network TEXT NOT NULL,
+	user_id TEXT NOT NULL,
+	PRIMARY KEY (network, user_id)
+) STRICT, WITHOUT ROWID;
+
 -- Chats the network itself archived (Telegram's Archived folder, WhatsApp's archive).
 -- Its own table, written only by that network (SetArchived), so no listing's whole-list
 -- rewrite blanks it.
@@ -614,6 +623,13 @@ DROP TABLE phone_names;`,
 	// v23: Matrix MXIDs this account ignores: mirror of m.ignored_user_list, so the
 	// list survives a cache rebuild and is readable without a server round-trip.
 	`CREATE TABLE IF NOT EXISTS ignored_users (
+	network TEXT NOT NULL,
+	user_id TEXT NOT NULL,
+	PRIMARY KEY (network, user_id)
+) STRICT, WITHOUT ROWID;`,
+	// v24: a network's server-side block list, mirrored for offline reads and quick
+	// person-card display. Server copy wins; this table is replaced on each pull.
+	`CREATE TABLE IF NOT EXISTS network_blocks (
 	network TEXT NOT NULL,
 	user_id TEXT NOT NULL,
 	PRIMARY KEY (network, user_id)

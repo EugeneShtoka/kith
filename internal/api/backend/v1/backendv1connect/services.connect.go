@@ -192,6 +192,15 @@ const (
 	// BackendServiceKnockRoomProcedure is the fully-qualified name of the BackendService's KnockRoom
 	// RPC.
 	BackendServiceKnockRoomProcedure = "/backend.v1.BackendService/KnockRoom"
+	// BackendServiceBlockPersonProcedure is the fully-qualified name of the BackendService's
+	// BlockPerson RPC.
+	BackendServiceBlockPersonProcedure = "/backend.v1.BackendService/BlockPerson"
+	// BackendServiceUnblockPersonProcedure is the fully-qualified name of the BackendService's
+	// UnblockPerson RPC.
+	BackendServiceUnblockPersonProcedure = "/backend.v1.BackendService/UnblockPerson"
+	// BackendServiceBlockedPeopleProcedure is the fully-qualified name of the BackendService's
+	// BlockedPeople RPC.
+	BackendServiceBlockedPeopleProcedure = "/backend.v1.BackendService/BlockedPeople"
 	// BackendServiceLeaveRoomProcedure is the fully-qualified name of the BackendService's LeaveRoom
 	// RPC.
 	BackendServiceLeaveRoomProcedure = "/backend.v1.BackendService/LeaveRoom"
@@ -530,6 +539,11 @@ type BackendServiceClient interface {
 	PublicRooms(context.Context, *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error)
 	// KnockRoom asks to join a knock-only Matrix room.
 	KnockRoom(context.Context, *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error)
+	// BlockPerson, UnblockPerson, BlockedPeople: server-side block lists on
+	// networks that have them (WhatsApp, Telegram, Meta). Matrix uses Ignore.
+	BlockPerson(context.Context, *connect.Request[v1.BlockPersonRequest]) (*connect.Response[v1.BlockPersonResponse], error)
+	UnblockPerson(context.Context, *connect.Request[v1.UnblockPersonRequest]) (*connect.Response[v1.UnblockPersonResponse], error)
+	BlockedPeople(context.Context, *connect.Request[v1.BlockedPeopleRequest]) (*connect.Response[v1.BlockedPeopleResponse], error)
 	// LeaveRoom leaves a room.
 	LeaveRoom(context.Context, *connect.Request[v1.LeaveRoomRequest]) (*connect.Response[v1.LeaveRoomResponse], error)
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
@@ -1062,6 +1076,24 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("KnockRoom")),
 			connect.WithClientOptions(opts...),
 		),
+		blockPerson: connect.NewClient[v1.BlockPersonRequest, v1.BlockPersonResponse](
+			httpClient,
+			baseURL+BackendServiceBlockPersonProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("BlockPerson")),
+			connect.WithClientOptions(opts...),
+		),
+		unblockPerson: connect.NewClient[v1.UnblockPersonRequest, v1.UnblockPersonResponse](
+			httpClient,
+			baseURL+BackendServiceUnblockPersonProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("UnblockPerson")),
+			connect.WithClientOptions(opts...),
+		),
+		blockedPeople: connect.NewClient[v1.BlockedPeopleRequest, v1.BlockedPeopleResponse](
+			httpClient,
+			baseURL+BackendServiceBlockedPeopleProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("BlockedPeople")),
+			connect.WithClientOptions(opts...),
+		),
 		leaveRoom: connect.NewClient[v1.LeaveRoomRequest, v1.LeaveRoomResponse](
 			httpClient,
 			baseURL+BackendServiceLeaveRoomProcedure,
@@ -1521,6 +1553,9 @@ type backendServiceClient struct {
 	joinRoom              *connect.Client[v1.JoinRoomRequest, v1.JoinRoomResponse]
 	publicRooms           *connect.Client[v1.PublicRoomsRequest, v1.PublicRoomsResponse]
 	knockRoom             *connect.Client[v1.KnockRoomRequest, v1.KnockRoomResponse]
+	blockPerson           *connect.Client[v1.BlockPersonRequest, v1.BlockPersonResponse]
+	unblockPerson         *connect.Client[v1.UnblockPersonRequest, v1.UnblockPersonResponse]
+	blockedPeople         *connect.Client[v1.BlockedPeopleRequest, v1.BlockedPeopleResponse]
 	leaveRoom             *connect.Client[v1.LeaveRoomRequest, v1.LeaveRoomResponse]
 	deleteChat            *connect.Client[v1.DeleteChatRequest, v1.DeleteChatResponse]
 	signOut               *connect.Client[v1.SignOutRequest, v1.SignOutResponse]
@@ -1877,6 +1912,21 @@ func (c *backendServiceClient) PublicRooms(ctx context.Context, req *connect.Req
 // KnockRoom calls backend.v1.BackendService.KnockRoom.
 func (c *backendServiceClient) KnockRoom(ctx context.Context, req *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error) {
 	return c.knockRoom.CallUnary(ctx, req)
+}
+
+// BlockPerson calls backend.v1.BackendService.BlockPerson.
+func (c *backendServiceClient) BlockPerson(ctx context.Context, req *connect.Request[v1.BlockPersonRequest]) (*connect.Response[v1.BlockPersonResponse], error) {
+	return c.blockPerson.CallUnary(ctx, req)
+}
+
+// UnblockPerson calls backend.v1.BackendService.UnblockPerson.
+func (c *backendServiceClient) UnblockPerson(ctx context.Context, req *connect.Request[v1.UnblockPersonRequest]) (*connect.Response[v1.UnblockPersonResponse], error) {
+	return c.unblockPerson.CallUnary(ctx, req)
+}
+
+// BlockedPeople calls backend.v1.BackendService.BlockedPeople.
+func (c *backendServiceClient) BlockedPeople(ctx context.Context, req *connect.Request[v1.BlockedPeopleRequest]) (*connect.Response[v1.BlockedPeopleResponse], error) {
+	return c.blockedPeople.CallUnary(ctx, req)
 }
 
 // LeaveRoom calls backend.v1.BackendService.LeaveRoom.
@@ -2360,6 +2410,11 @@ type BackendServiceHandler interface {
 	PublicRooms(context.Context, *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error)
 	// KnockRoom asks to join a knock-only Matrix room.
 	KnockRoom(context.Context, *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error)
+	// BlockPerson, UnblockPerson, BlockedPeople: server-side block lists on
+	// networks that have them (WhatsApp, Telegram, Meta). Matrix uses Ignore.
+	BlockPerson(context.Context, *connect.Request[v1.BlockPersonRequest]) (*connect.Response[v1.BlockPersonResponse], error)
+	UnblockPerson(context.Context, *connect.Request[v1.UnblockPersonRequest]) (*connect.Response[v1.UnblockPersonResponse], error)
+	BlockedPeople(context.Context, *connect.Request[v1.BlockedPeopleRequest]) (*connect.Response[v1.BlockedPeopleResponse], error)
 	// LeaveRoom leaves a room.
 	LeaveRoom(context.Context, *connect.Request[v1.LeaveRoomRequest]) (*connect.Response[v1.LeaveRoomResponse], error)
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
@@ -2888,6 +2943,24 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("KnockRoom")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceBlockPersonHandler := connect.NewUnaryHandler(
+		BackendServiceBlockPersonProcedure,
+		svc.BlockPerson,
+		connect.WithSchema(backendServiceMethods.ByName("BlockPerson")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceUnblockPersonHandler := connect.NewUnaryHandler(
+		BackendServiceUnblockPersonProcedure,
+		svc.UnblockPerson,
+		connect.WithSchema(backendServiceMethods.ByName("UnblockPerson")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceBlockedPeopleHandler := connect.NewUnaryHandler(
+		BackendServiceBlockedPeopleProcedure,
+		svc.BlockedPeople,
+		connect.WithSchema(backendServiceMethods.ByName("BlockedPeople")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceLeaveRoomHandler := connect.NewUnaryHandler(
 		BackendServiceLeaveRoomProcedure,
 		svc.LeaveRoom,
@@ -3402,6 +3475,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServicePublicRoomsHandler.ServeHTTP(w, r)
 		case BackendServiceKnockRoomProcedure:
 			backendServiceKnockRoomHandler.ServeHTTP(w, r)
+		case BackendServiceBlockPersonProcedure:
+			backendServiceBlockPersonHandler.ServeHTTP(w, r)
+		case BackendServiceUnblockPersonProcedure:
+			backendServiceUnblockPersonHandler.ServeHTTP(w, r)
+		case BackendServiceBlockedPeopleProcedure:
+			backendServiceBlockedPeopleHandler.ServeHTTP(w, r)
 		case BackendServiceLeaveRoomProcedure:
 			backendServiceLeaveRoomHandler.ServeHTTP(w, r)
 		case BackendServiceDeleteChatProcedure:
@@ -3773,6 +3852,18 @@ func (UnimplementedBackendServiceHandler) PublicRooms(context.Context, *connect.
 
 func (UnimplementedBackendServiceHandler) KnockRoom(context.Context, *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.KnockRoom is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) BlockPerson(context.Context, *connect.Request[v1.BlockPersonRequest]) (*connect.Response[v1.BlockPersonResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.BlockPerson is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) UnblockPerson(context.Context, *connect.Request[v1.UnblockPersonRequest]) (*connect.Response[v1.UnblockPersonResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.UnblockPerson is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) BlockedPeople(context.Context, *connect.Request[v1.BlockedPeopleRequest]) (*connect.Response[v1.BlockedPeopleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.BlockedPeople is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) LeaveRoom(context.Context, *connect.Request[v1.LeaveRoomRequest]) (*connect.Response[v1.LeaveRoomResponse], error) {

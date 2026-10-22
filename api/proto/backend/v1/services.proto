@@ -620,6 +620,29 @@ message KnockRoomResponse {
   string room_id = 1;
 }
 
+message BlockPersonRequest {
+  string user_id = 1;
+}
+
+message BlockPersonResponse {}
+
+message UnblockPersonRequest {
+  string user_id = 1;
+}
+
+message UnblockPersonResponse {}
+
+message BlockedPeopleRequest {}
+
+message NetworkBlocklist {
+  string network = 1;
+  repeated string user_ids = 2;
+}
+
+message BlockedPeopleResponse {
+  repeated NetworkBlocklist lists = 1;
+}
+
 message LeaveRoomRequest {
   string room_id = 1;
 }
@@ -1666,6 +1689,11 @@ service BackendService {
   rpc PublicRooms(PublicRoomsRequest) returns (PublicRoomsResponse);
   // KnockRoom asks to join a knock-only Matrix room.
   rpc KnockRoom(KnockRoomRequest) returns (KnockRoomResponse);
+  // BlockPerson, UnblockPerson, BlockedPeople: server-side block lists on
+  // networks that have them (WhatsApp, Telegram, Meta). Matrix uses Ignore.
+  rpc BlockPerson(BlockPersonRequest) returns (BlockPersonResponse);
+  rpc UnblockPerson(UnblockPersonRequest) returns (UnblockPersonResponse);
+  rpc BlockedPeople(BlockedPeopleRequest) returns (BlockedPeopleResponse);
   // LeaveRoom leaves a room.
   rpc LeaveRoom(LeaveRoomRequest) returns (LeaveRoomResponse);
   // DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,

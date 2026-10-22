@@ -89,6 +89,18 @@ type (
 	Stars interface {
 		StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error
 	}
+	// Blocker is a network with its own server-side block list (WhatsApp, Telegram,
+	// Meta's family). The homeserver stops delivering a blocked user's messages,
+	// calls and presence. Matrix uses m.ignored_user_list separately (see
+	// api.Backend.Ignore). Blocked is pulled on connect and after a BlocklistChange
+	// event; the local mirror follows the server, never the other way around.
+	Blocker interface {
+		BlockPerson(ctx context.Context, userID string) error
+		UnblockPerson(ctx context.Context, userID string) error
+		// Blocked lists the user IDs this account currently has blocked on the
+		// network, server copy.
+		Blocked(ctx context.Context) ([]string, error)
+	}
 	// TagMoves is filters' moves into tags, and releases from them: of rooms, and of
 	// the people whose IDs are the network's, for a network that keeps them itself
 	// (Matrix, in account data). Every other network's are the router's VerdictStore's.

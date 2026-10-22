@@ -32,6 +32,8 @@ const (
 	personSaid     = "\x00said"
 	personIgnore   = "\x00ignore"
 	personUnignore = "\x00unignore"
+	personBlock    = "\x00block"
+	personUnblock  = "\x00unblock"
 )
 
 // personCardMsg is a person's card as the folder has it now, and the keys its cards use.
@@ -103,6 +105,15 @@ func (m Model) showPerson(at string) Model {
 			pickerItem{label: "Ignore on Matrix", detail: "the homeserver stops delivering their events to this account", value: personIgnore, match: "ignore matrix"},
 			pickerItem{label: "Unignore on Matrix", detail: "take them off m.ignored_user_list, if they were on it", value: personUnignore, match: "unignore matrix"})
 	}
+	// Server-side block on networks that have one (WhatsApp, Telegram, Meta): a
+	// person with any ID on such a network gets a Block/Unblock row. The action
+	// routes to whichever network the ID is on; a merged person with IDs on more
+	// than one gets one call per ID.
+	if hasBlockableID(p.card.IDs) {
+		items = append(items,
+			pickerItem{label: "Block on their network", detail: "WhatsApp / Telegram / Meta drop their messages, calls and presence", value: personBlock, match: "block"},
+			pickerItem{label: "Unblock on their network", detail: "take them off the server-side block list", value: personUnblock, match: "unblock"})
+	}
 	spec := pickerSpecs[pickerPerson]
 	spec.title = "About " + p.name + " — no card yet"
 	if p.found {
@@ -142,6 +153,9 @@ func (m Model) choosePersonRow(value string) (Model, tea.Cmd) {
 			}
 		}
 		return m.closePicker(), tea.Batch(cmds...)
+	}
+	if value == personBlock || value == personUnblock {
+		return m.closePicker(), m.blockUnblockCmd(m.aimedAt.person, value == personBlock)
 	}
 	values, list := m.aimedAt.person.valuesOf(value)
 	m.aimedAt.person.key, m.aimedAt.person.list = value, list

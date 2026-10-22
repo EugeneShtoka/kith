@@ -107,6 +107,15 @@ type Rooms interface {
 	// Ignored lists the MXIDs this account currently ignores (server copy, since
 	// the mirror can lag until the next sync).
 	Ignored(ctx context.Context) ([]string, error)
+	// BlockPerson adds userID to its network's server-side block list. userID
+	// names the network; the network refuses if it has none (Matrix uses
+	// Ignore above; Slack and LinkedIn have no in-API block).
+	BlockPerson(ctx context.Context, userID string) error
+	// UnblockPerson is BlockPerson's inverse.
+	UnblockPerson(ctx context.Context, userID string) error
+	// BlockedPeople returns every user ID this account has blocked, grouped by
+	// network, from the cache mirror. A fresh install reads empty.
+	BlockedPeople(ctx context.Context) (map[domain.Protocol][]string, error)
 	// PublicRooms lists one page of the Matrix public rooms directory. Matrix only.
 	// server is the homeserver to search (empty: this account's); since carries over
 	// the cursor from a previous page's NextSince to fetch the next.
