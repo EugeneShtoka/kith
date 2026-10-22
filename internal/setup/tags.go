@@ -23,6 +23,7 @@ func Tags(cfg config.Config) (domain.TagSet, []string, error) {
 			Name: t.Name, Rule: t.Rule, Picked: t.Picked, Excluded: t.Excluded, People: t.People, Hidden: t.Hidden,
 			Silent: !t.Counts(), Mute: !t.Notifying(), Exclusive: exclusive,
 			Sticky: t.Sticky, HideWhenEmpty: t.HideWhenEmpty, First: t.First, CountInLabel: t.CountInLabel,
+			PushArchive: t.PushArchive,
 		}
 	}
 	set, warnings, err := domain.NewTagSet(tags)
