@@ -80,6 +80,11 @@ func (Nop) PublicRooms(context.Context, string, string) (domain.PublicRoomsPage,
 func (Nop) KnockRoom(_ context.Context, roomIDOrAlias string, _ string, _ []string) (domain.RoomID, error) {
 	return domain.RoomID(roomIDOrAlias), nil
 }
+func (Nop) BlockPerson(context.Context, string) error   { return nil }
+func (Nop) UnblockPerson(context.Context, string) error { return nil }
+func (Nop) BlockedPeople(context.Context) (map[domain.Protocol][]string, error) {
+	return nil, nil
+}
 func (Nop) Send(context.Context, domain.RoomID, domain.Draft) error               { return nil }
 func (Nop) SendFile(context.Context, domain.RoomID, string, string, string) error { return nil }
 func (Nop) CachedUnread(context.Context) ([]domain.Unread, error)                 { return nil, nil }

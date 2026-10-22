@@ -386,6 +386,23 @@ func (s *server) KnockRoom(ctx context.Context, r *req[v1.KnockRoomRequest]) (*r
 	return reply(&v1.KnockRoomResponse{RoomId: string(id)}, err)
 }
 
+func (s *server) BlockPerson(ctx context.Context, r *req[v1.BlockPersonRequest]) (*resp[v1.BlockPersonResponse], error) {
+	return reply(&v1.BlockPersonResponse{}, s.Backend.BlockPerson(ctx, r.Msg.GetUserId()))
+}
+
+func (s *server) UnblockPerson(ctx context.Context, r *req[v1.UnblockPersonRequest]) (*resp[v1.UnblockPersonResponse], error) {
+	return reply(&v1.UnblockPersonResponse{}, s.Backend.UnblockPerson(ctx, r.Msg.GetUserId()))
+}
+
+func (s *server) BlockedPeople(ctx context.Context, _ *req[v1.BlockedPeopleRequest]) (*resp[v1.BlockedPeopleResponse], error) {
+	byNetwork, err := s.Backend.BlockedPeople(ctx)
+	out := make([]*v1.NetworkBlocklist, 0, len(byNetwork))
+	for net, ids := range byNetwork {
+		out = append(out, &v1.NetworkBlocklist{Network: net.String(), UserIds: ids})
+	}
+	return reply(&v1.BlockedPeopleResponse{Lists: out}, err)
+}
+
 func (s *server) PublicRooms(ctx context.Context, r *req[v1.PublicRoomsRequest]) (*resp[v1.PublicRoomsResponse], error) {
 	page, err := s.Backend.PublicRooms(ctx, r.Msg.GetServer(), r.Msg.GetSince())
 	return reply(&v1.PublicRoomsResponse{

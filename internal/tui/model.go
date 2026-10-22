@@ -1136,6 +1136,8 @@ func (m Model) handleMatrixFeatureMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handlePublicRoomJoined(msg))
 	case knockedMsg:
 		return answered(m.handleKnocked(msg))
+	case blockedChangedMsg:
+		return answered(m.handleBlockedChanged(msg))
 	default:
 		return m, nil, false
 	}

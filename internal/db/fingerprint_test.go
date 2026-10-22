@@ -37,6 +37,7 @@ var migrationFingerprints = []struct {
 	{21, "room_gaps: stretches of history a sync skipped, until filled", "7b308a266c57"},
 	{22, "room_read_only: rooms this account may read but not post in", "991afc455e6d"},
 	{23, "ignored_users: Matrix MXIDs this account ignores (m.ignored_user_list mirror)", "39ce6833da72"},
+	{24, "network_blocks: a network's server-side block list mirror", "00720526d8e2"},
 }
 
 func fingerprint(stmt string) string {
