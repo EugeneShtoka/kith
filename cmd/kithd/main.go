@@ -332,6 +332,17 @@ func (s served) Ignored(ctx context.Context) ([]string, error) {
 	return ids, nil
 }
 
+// FetchEventSource is Matrix-only (nothing on the other networks exposes a
+// comparable raw event): it goes straight to the Matrix adapter rather than
+// through the router.
+func (s served) FetchEventSource(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
+	src, err := s.matrix.FetchEventSource(ctx, roomID, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("served: %w", err)
+	}
+	return src, nil
+}
+
 func (s served) loginLeaders() []api.LoginLeader {
 	leaders := make([]api.LoginLeader, 0, len(s.networks))
 	for _, n := range s.networks {

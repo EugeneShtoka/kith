@@ -1103,6 +1103,8 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleIgnoredLoaded(msg))
 	case ignoredChangedMsg:
 		return answered(m.handleIgnoredChanged(msg))
+	case sourceLoadedMsg:
+		return answered(m.handleSourceLoaded(msg))
 	case scheduleDoneMsg:
 		return answered(m.handleScheduleDone(msg))
 	case queuedUnsentMsg:
@@ -1466,7 +1468,8 @@ func (m Model) handleCapturedKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	// The help overlay captures everything while it's up, as does verification.
 	case m.reader.showing(readerAsk), m.reader.showing(readerSummary),
 		m.reader.showing(readerTodo), m.reader.showing(readerTopic),
-		m.reader.showing(readerScript), m.reader.showing(readerHelp):
+		m.reader.showing(readerScript), m.reader.showing(readerSource),
+		m.reader.showing(readerHelp):
 		return answered(m.handleHelpKey(key))
 	case m.verify.active:
 		return answered(m.handleVerifyKey(key))
@@ -1907,6 +1910,8 @@ func (m Model) messageAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openTopic())
 	case actStar:
 		return answered(m.toggleStar())
+	case actSource:
+		return answered(m.openEventSource())
 	case actHistory:
 		return answered(m.openHistory())
 	case actVote:

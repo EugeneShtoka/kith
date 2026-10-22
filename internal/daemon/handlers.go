@@ -198,6 +198,11 @@ func (s *server) FetchEvent(ctx context.Context, r *req[v1.FetchEventRequest]) (
 	return reply(&v1.FetchEventResponse{Message: pc.MessageToProto(msg)}, err)
 }
 
+func (s *server) FetchEventSource(ctx context.Context, r *req[v1.FetchEventSourceRequest]) (*resp[v1.FetchEventSourceResponse], error) {
+	src, err := s.Backend.FetchEventSource(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()))
+	return reply(&v1.FetchEventSourceResponse{Source: src}, err)
+}
+
 func (s *server) Send(ctx context.Context, r *req[v1.SendRequest]) (*resp[v1.SendResponse], error) {
 	return reply(&v1.SendResponse{}, s.Backend.Send(ctx, roomID(r.Msg.GetRoomId()), pc.ProtoToDraft(r.Msg.GetDraft())))
 }

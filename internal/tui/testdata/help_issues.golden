@@ -81,6 +81,7 @@
   gl               follow a Matrix link in it
   gt               read the room's topic
   *                star it, or unstar it
+  gs               show the raw event JSON of the selected message (Matrix only)
   H                what this message used to say
   yc               copy the verification code in it
   s                save this message's attachment
