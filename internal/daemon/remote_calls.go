@@ -337,6 +337,17 @@ func (r *Remote) FetchEventSource(ctx context.Context, roomID domain.RoomID, eve
 	return resp.GetSource(), err
 }
 
+// PublicRooms fetches one page of the Matrix public rooms directory.
+func (r *Remote) PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error) {
+	resp, err := call(ctx, "list public rooms", r.c.PublicRooms,
+		&v1.PublicRoomsRequest{Server: server, Since: since})
+	return domain.PublicRoomsPage{
+		Rooms:         pc.ProtoToPublicRooms(resp.GetRooms()),
+		NextSince:     resp.GetNextSince(),
+		TotalEstimate: int(resp.GetTotalEstimate()),
+	}, err
+}
+
 func (r *Remote) MessageHistory(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, domain.Deletion, error) {
 	resp, err := call(ctx, "message history", r.c.MessageHistory,
 		&v1.MessageHistoryRequest{RoomId: string(roomID), EventId: string(eventID)})

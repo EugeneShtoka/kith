@@ -107,6 +107,10 @@ type Rooms interface {
 	// Ignored lists the MXIDs this account currently ignores (server copy, since
 	// the mirror can lag until the next sync).
 	Ignored(ctx context.Context) ([]string, error)
+	// PublicRooms lists one page of the Matrix public rooms directory. Matrix only.
+	// server is the homeserver to search (empty: this account's); since carries over
+	// the cursor from a previous page's NextSince to fetch the next.
+	PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error)
 	// LastMessages is each room's latest cached message time. Rooms with no cached
 	// history are absent (unknown), not zero.
 	LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, error)

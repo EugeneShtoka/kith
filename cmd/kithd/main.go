@@ -343,6 +343,17 @@ func (s served) FetchEventSource(ctx context.Context, roomID domain.RoomID, even
 	return src, nil
 }
 
+// PublicRooms lists the Matrix public rooms directory. Matrix only; the other
+// networks have no equivalent (invite-only, workspace-scoped, phone-contact-
+// scoped).
+func (s served) PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error) {
+	page, err := s.matrix.PublicRooms(ctx, server, since)
+	if err != nil {
+		return domain.PublicRoomsPage{}, fmt.Errorf("served: %w", err)
+	}
+	return page, nil
+}
+
 func (s served) loginLeaders() []api.LoginLeader {
 	leaders := make([]api.LoginLeader, 0, len(s.networks))
 	for _, n := range s.networks {

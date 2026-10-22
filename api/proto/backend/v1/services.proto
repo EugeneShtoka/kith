@@ -304,6 +304,27 @@ message FetchEventSourceResponse {
   bytes source = 1;
 }
 
+message PublicRoom {
+  string room_id = 1;
+  string alias = 2;
+  string name = 3;
+  string topic = 4;
+  int32 members = 5;
+  bool world_readable = 6;
+  bool encrypted = 7;
+}
+
+message PublicRoomsRequest {
+  string server = 1;
+  string since = 2;
+}
+
+message PublicRoomsResponse {
+  repeated PublicRoom rooms = 1;
+  string next_since = 2;
+  int32 total_estimate = 3;
+}
+
 message MessageHistoryRequest {
   string room_id = 1;
   string event_id = 2;
@@ -1631,6 +1652,8 @@ service BackendService {
   // JoinRoom joins a room by ID or alias, which is also how an invite is accepted, and
   // returns the ID joined.
   rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse);
+  // PublicRooms lists one page of the Matrix public rooms directory.
+  rpc PublicRooms(PublicRoomsRequest) returns (PublicRoomsResponse);
   // LeaveRoom leaves a room.
   rpc LeaveRoom(LeaveRoomRequest) returns (LeaveRoomResponse);
   // DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,

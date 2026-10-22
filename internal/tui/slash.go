@@ -166,6 +166,11 @@ var slashCommands = []slashCommand{
 		run:     consuming(Model.openIgnored),
 	},
 	{
+		name:    "/discover",
+		summary: "the Matrix public rooms directory — {picker.accept} joins the selected row",
+		run:     consuming(Model.openPublicRooms),
+	},
+	{
 		name:     "/topic",
 		keyScope: scopeTimeline,
 		keyAct:   actTopic,

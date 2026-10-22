@@ -94,6 +94,7 @@ const (
 	pickerFilterMoves     // what its catch moves a room by
 	pickerCommandTemplate // a command to add from a template; see cmdtemplate.go
 	pickerIgnored         // the MXIDs this account ignores on Matrix; see ignored.go
+	pickerPublicRooms     // Matrix public rooms directory; see publicrooms.go
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -152,6 +153,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerFilterMoves:     {title: "Move a room, or mark its sender, into Spam when it catches", modal: true, multi: true},
 	pickerCommandTemplate: {title: "Add which command?"},
 	pickerIgnored:         {title: "Ignored on Matrix", modal: true},
+	pickerPublicRooms:     {title: "Matrix public rooms — enter joins", modal: true},
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text
