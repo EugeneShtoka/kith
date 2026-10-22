@@ -326,8 +326,11 @@ Since then:
 - v22 (`room_read_only`): the rooms this account may read but not post in (a Matrix
   room whose power levels put messages above ours), a row only for one; written by the
   network when it lists rooms, so the composer says so after a restart too.
+- v23 (`ignored_users`): the MXIDs this account ignores, mirror of Matrix's
+  `m.ignored_user_list` account data event; the server copy is the record, this table
+  keeps the list readable offline and across cache rebuilds.
 
-so a current cache is at version 22.
+so a current cache is at version 23.
 
 ### Indexes need no migration
 

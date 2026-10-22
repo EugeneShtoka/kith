@@ -116,6 +116,15 @@ CREATE TABLE room_parents (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX room_parents_by_space ON room_parents(space_id) WHERE space_id <> '';
 
+-- Local mirror of a network's "ignore this person" list: Matrix's m.ignored_user_list
+-- for now. network is the protocol (as domain.Protocol.String()); user_id is a MXID
+-- for Matrix. Rebuild-friendly: the server copy is the record.
+CREATE TABLE ignored_users (
+	network TEXT NOT NULL,
+	user_id TEXT NOT NULL,
+	PRIMARY KEY (network, user_id)
+) STRICT, WITHOUT ROWID;
+
 -- Chats the network itself archived (Telegram's Archived folder, WhatsApp's archive).
 -- Its own table, written only by that network (SetArchived), so no listing's whole-list
 -- rewrite blanks it.
@@ -601,6 +610,13 @@ DROP TABLE phone_names;`,
 	// v22: rooms this account may read but not post in.
 	`CREATE TABLE IF NOT EXISTS room_read_only (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;`,
+	// v23: Matrix MXIDs this account ignores: mirror of m.ignored_user_list, so the
+	// list survives a cache rebuild and is readable without a server round-trip.
+	`CREATE TABLE IF NOT EXISTS ignored_users (
+	network TEXT NOT NULL,
+	user_id TEXT NOT NULL,
+	PRIMARY KEY (network, user_id)
 ) STRICT, WITHOUT ROWID;`,
 }
 

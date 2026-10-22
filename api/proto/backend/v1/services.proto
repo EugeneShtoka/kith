@@ -172,6 +172,27 @@ message MarkPersonRequest {
 
 message MarkPersonResponse {}
 
+// IgnoreRequest asks the Matrix adapter to add mxid to m.ignored_user_list.
+message IgnoreRequest {
+  string mxid = 1;
+}
+
+message IgnoreResponse {}
+
+// UnignoreRequest asks the Matrix adapter to drop mxid from m.ignored_user_list.
+message UnignoreRequest {
+  string mxid = 1;
+}
+
+message UnignoreResponse {}
+
+// IgnoredRequest asks for every MXID this account ignores.
+message IgnoredRequest {}
+
+message IgnoredResponse {
+  repeated string mxids = 1;
+}
+
 message RetagVerdictsRequest {
   string from = 1;
   // to empty drops the verdicts (a deleted tag).
@@ -1497,6 +1518,13 @@ service BackendService {
   // MarkPerson records a filter's mark or a release on one person ID and tag; a mark
   // never overwrites a release.
   rpc MarkPerson(MarkPersonRequest) returns (MarkPersonResponse);
+  // Ignore adds mxid to the Matrix account's m.ignored_user_list; the homeserver
+  // stops sending the user's events on every device.
+  rpc Ignore(IgnoreRequest) returns (IgnoreResponse);
+  // Unignore is Ignore's inverse: drops mxid from the ignored list.
+  rpc Unignore(UnignoreRequest) returns (UnignoreResponse);
+  // Ignored lists the MXIDs this account currently ignores on Matrix.
+  rpc Ignored(IgnoredRequest) returns (IgnoredResponse);
   // Space
   // Spaces returns the cached spaces, each with its direct child rooms.
   rpc Spaces(SpacesRequest) returns (SpacesResponse);

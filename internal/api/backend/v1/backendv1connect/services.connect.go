@@ -75,6 +75,12 @@ const (
 	// BackendServiceMarkPersonProcedure is the fully-qualified name of the BackendService's MarkPerson
 	// RPC.
 	BackendServiceMarkPersonProcedure = "/backend.v1.BackendService/MarkPerson"
+	// BackendServiceIgnoreProcedure is the fully-qualified name of the BackendService's Ignore RPC.
+	BackendServiceIgnoreProcedure = "/backend.v1.BackendService/Ignore"
+	// BackendServiceUnignoreProcedure is the fully-qualified name of the BackendService's Unignore RPC.
+	BackendServiceUnignoreProcedure = "/backend.v1.BackendService/Unignore"
+	// BackendServiceIgnoredProcedure is the fully-qualified name of the BackendService's Ignored RPC.
+	BackendServiceIgnoredProcedure = "/backend.v1.BackendService/Ignored"
 	// BackendServiceSpacesProcedure is the fully-qualified name of the BackendService's Spaces RPC.
 	BackendServiceSpacesProcedure = "/backend.v1.BackendService/Spaces"
 	// BackendServiceRefreshSpacesProcedure is the fully-qualified name of the BackendService's
@@ -407,6 +413,13 @@ type BackendServiceClient interface {
 	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
 	// never overwrites a release.
 	MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error)
+	// Ignore adds mxid to the Matrix account's m.ignored_user_list; the homeserver
+	// stops sending the user's events on every device.
+	Ignore(context.Context, *connect.Request[v1.IgnoreRequest]) (*connect.Response[v1.IgnoreResponse], error)
+	// Unignore is Ignore's inverse: drops mxid from the ignored list.
+	Unignore(context.Context, *connect.Request[v1.UnignoreRequest]) (*connect.Response[v1.UnignoreResponse], error)
+	// Ignored lists the MXIDs this account currently ignores on Matrix.
+	Ignored(context.Context, *connect.Request[v1.IgnoredRequest]) (*connect.Response[v1.IgnoredResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -773,6 +786,24 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceMarkPersonProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("MarkPerson")),
+			connect.WithClientOptions(opts...),
+		),
+		ignore: connect.NewClient[v1.IgnoreRequest, v1.IgnoreResponse](
+			httpClient,
+			baseURL+BackendServiceIgnoreProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Ignore")),
+			connect.WithClientOptions(opts...),
+		),
+		unignore: connect.NewClient[v1.UnignoreRequest, v1.UnignoreResponse](
+			httpClient,
+			baseURL+BackendServiceUnignoreProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Unignore")),
+			connect.WithClientOptions(opts...),
+		),
+		ignored: connect.NewClient[v1.IgnoredRequest, v1.IgnoredResponse](
+			httpClient,
+			baseURL+BackendServiceIgnoredProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Ignored")),
 			connect.WithClientOptions(opts...),
 		),
 		spaces: connect.NewClient[v1.SpacesRequest, v1.SpacesResponse](
@@ -1413,6 +1444,9 @@ type backendServiceClient struct {
 	retagVerdicts         *connect.Client[v1.RetagVerdictsRequest, v1.RetagVerdictsResponse]
 	personVerdicts        *connect.Client[v1.PersonVerdictsRequest, v1.PersonVerdictsResponse]
 	markPerson            *connect.Client[v1.MarkPersonRequest, v1.MarkPersonResponse]
+	ignore                *connect.Client[v1.IgnoreRequest, v1.IgnoreResponse]
+	unignore              *connect.Client[v1.UnignoreRequest, v1.UnignoreResponse]
+	ignored               *connect.Client[v1.IgnoredRequest, v1.IgnoredResponse]
 	spaces                *connect.Client[v1.SpacesRequest, v1.SpacesResponse]
 	refreshSpaces         *connect.Client[v1.RefreshSpacesRequest, v1.RefreshSpacesResponse]
 	addToSpace            *connect.Client[v1.AddToSpaceRequest, v1.AddToSpaceResponse]
@@ -1591,6 +1625,21 @@ func (c *backendServiceClient) PersonVerdicts(ctx context.Context, req *connect.
 // MarkPerson calls backend.v1.BackendService.MarkPerson.
 func (c *backendServiceClient) MarkPerson(ctx context.Context, req *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error) {
 	return c.markPerson.CallUnary(ctx, req)
+}
+
+// Ignore calls backend.v1.BackendService.Ignore.
+func (c *backendServiceClient) Ignore(ctx context.Context, req *connect.Request[v1.IgnoreRequest]) (*connect.Response[v1.IgnoreResponse], error) {
+	return c.ignore.CallUnary(ctx, req)
+}
+
+// Unignore calls backend.v1.BackendService.Unignore.
+func (c *backendServiceClient) Unignore(ctx context.Context, req *connect.Request[v1.UnignoreRequest]) (*connect.Response[v1.UnignoreResponse], error) {
+	return c.unignore.CallUnary(ctx, req)
+}
+
+// Ignored calls backend.v1.BackendService.Ignored.
+func (c *backendServiceClient) Ignored(ctx context.Context, req *connect.Request[v1.IgnoredRequest]) (*connect.Response[v1.IgnoredResponse], error) {
+	return c.ignored.CallUnary(ctx, req)
 }
 
 // Spaces calls backend.v1.BackendService.Spaces.
@@ -2151,6 +2200,13 @@ type BackendServiceHandler interface {
 	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
 	// never overwrites a release.
 	MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error)
+	// Ignore adds mxid to the Matrix account's m.ignored_user_list; the homeserver
+	// stops sending the user's events on every device.
+	Ignore(context.Context, *connect.Request[v1.IgnoreRequest]) (*connect.Response[v1.IgnoreResponse], error)
+	// Unignore is Ignore's inverse: drops mxid from the ignored list.
+	Unignore(context.Context, *connect.Request[v1.UnignoreRequest]) (*connect.Response[v1.UnignoreResponse], error)
+	// Ignored lists the MXIDs this account currently ignores on Matrix.
+	Ignored(context.Context, *connect.Request[v1.IgnoredRequest]) (*connect.Response[v1.IgnoredResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -2513,6 +2569,24 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceMarkPersonProcedure,
 		svc.MarkPerson,
 		connect.WithSchema(backendServiceMethods.ByName("MarkPerson")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceIgnoreHandler := connect.NewUnaryHandler(
+		BackendServiceIgnoreProcedure,
+		svc.Ignore,
+		connect.WithSchema(backendServiceMethods.ByName("Ignore")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceUnignoreHandler := connect.NewUnaryHandler(
+		BackendServiceUnignoreProcedure,
+		svc.Unignore,
+		connect.WithSchema(backendServiceMethods.ByName("Unignore")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceIgnoredHandler := connect.NewUnaryHandler(
+		BackendServiceIgnoredProcedure,
+		svc.Ignored,
+		connect.WithSchema(backendServiceMethods.ByName("Ignored")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceSpacesHandler := connect.NewUnaryHandler(
@@ -3165,6 +3239,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServicePersonVerdictsHandler.ServeHTTP(w, r)
 		case BackendServiceMarkPersonProcedure:
 			backendServiceMarkPersonHandler.ServeHTTP(w, r)
+		case BackendServiceIgnoreProcedure:
+			backendServiceIgnoreHandler.ServeHTTP(w, r)
+		case BackendServiceUnignoreProcedure:
+			backendServiceUnignoreHandler.ServeHTTP(w, r)
+		case BackendServiceIgnoredProcedure:
+			backendServiceIgnoredHandler.ServeHTTP(w, r)
 		case BackendServiceSpacesProcedure:
 			backendServiceSpacesHandler.ServeHTTP(w, r)
 		case BackendServiceRefreshSpacesProcedure:
@@ -3438,6 +3518,18 @@ func (UnimplementedBackendServiceHandler) PersonVerdicts(context.Context, *conne
 
 func (UnimplementedBackendServiceHandler) MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MarkPerson is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Ignore(context.Context, *connect.Request[v1.IgnoreRequest]) (*connect.Response[v1.IgnoreResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Ignore is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Unignore(context.Context, *connect.Request[v1.UnignoreRequest]) (*connect.Response[v1.UnignoreResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Unignore is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Ignored(context.Context, *connect.Request[v1.IgnoredRequest]) (*connect.Response[v1.IgnoredResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Ignored is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error) {

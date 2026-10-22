@@ -97,25 +97,21 @@ func TestACardIsEditedAField(t *testing.T) {
 	t.Parallel()
 	m, dir := carding(t, nil)
 	m = cardOf(t, m, "eli")
-	if got := strings.Join(rows(m), ","); got != "matrix=@eli:x,pets=Rex,origin=Haifa,Everything they said=in every room you share,Add a field=" {
+	if got := strings.Join(rows(m), ","); got != "matrix=@eli:x,pets=Rex,origin=Haifa,Everything they said=in every room you share,Add a field=,Ignore on Matrix=the homeserver stops delivering their events to this account,Unignore on Matrix=take them off m.ignored_user_list, if they were on it" {
 		t.Fatalf("rows = %v", got)
 	}
 	m = pickLabel(t, m, "pets")
 	m = typeIn(t, m, "Rex, Mia")
 	m = pickLabel(t, m, "origin")
 	m = typeIn(t, m, "")
-	m.picker.cursor = len(m.picker.items) - 1 // Add a field
-	next, cmd := m.acceptPick()
-	m = deliver(t, next, cmd)
+	m = pickLabel(t, m, "Add a field")
 	m = pickLabel(t, m, "New field")
 	m = typeIn(t, m, "spouse")
 	m = typeIn(t, m, "[[Noa Stone]]")
-	m.picker.cursor = len(m.picker.items) - 1
-	next, cmd = m.acceptPick()
-	m = deliver(t, next, cmd)
+	m = pickLabel(t, m, "Add a field")
 	m = pickLabel(t, m, "New field")
 	m = typeIn(t, m, "children")
-	m = typeIn(t, m, "Noa, Tom")
+	_ = typeIn(t, m, "Noa, Tom")
 	raw, _ := os.ReadFile(filepath.Join(dir, "Eli Stone.md"))
 	text := string(raw)
 	if !strings.Contains(text, "pets: [Rex, Mia]") || strings.Contains(text, "origin") || !strings.Contains(text, "spouse: '[[Noa Stone]]'") || !strings.HasSuffix(text, "Old friend.\n") ||

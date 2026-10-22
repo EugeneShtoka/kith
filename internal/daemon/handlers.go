@@ -114,6 +114,19 @@ func (s *server) MarkPerson(ctx context.Context, r *req[v1.MarkPersonRequest]) (
 	return reply(&v1.MarkPersonResponse{}, s.Backend.MarkPerson(ctx, pc.ProtoToPersonVerdict(r.Msg.GetVerdict())))
 }
 
+func (s *server) Ignore(ctx context.Context, r *req[v1.IgnoreRequest]) (*resp[v1.IgnoreResponse], error) {
+	return reply(&v1.IgnoreResponse{}, s.Backend.Ignore(ctx, r.Msg.GetMxid()))
+}
+
+func (s *server) Unignore(ctx context.Context, r *req[v1.UnignoreRequest]) (*resp[v1.UnignoreResponse], error) {
+	return reply(&v1.UnignoreResponse{}, s.Backend.Unignore(ctx, r.Msg.GetMxid()))
+}
+
+func (s *server) Ignored(ctx context.Context, _ *req[v1.IgnoredRequest]) (*resp[v1.IgnoredResponse], error) {
+	ids, err := s.Backend.Ignored(ctx)
+	return reply(&v1.IgnoredResponse{Mxids: ids}, err)
+}
+
 func (s *server) RetagVerdicts(ctx context.Context, r *req[v1.RetagVerdictsRequest]) (*resp[v1.RetagVerdictsResponse], error) {
 	return reply(&v1.RetagVerdictsResponse{}, s.Backend.RetagVerdicts(ctx, r.Msg.GetFrom(), r.Msg.GetTo()))
 }

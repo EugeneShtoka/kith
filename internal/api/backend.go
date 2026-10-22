@@ -99,6 +99,14 @@ type Rooms interface {
 	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
 	// never overwrites a release (domain.ErrPersonReleased).
 	MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error
+	// Ignore adds mxid to the Matrix account's m.ignored_user_list; the homeserver
+	// stops sending the user's events on every device.
+	Ignore(ctx context.Context, mxid string) error
+	// Unignore drops mxid from the ignored list; a user not ignored is a no-op.
+	Unignore(ctx context.Context, mxid string) error
+	// Ignored lists the MXIDs this account currently ignores (server copy, since
+	// the mirror can lag until the next sync).
+	Ignored(ctx context.Context) ([]string, error)
 	// LastMessages is each room's latest cached message time. Rooms with no cached
 	// history are absent (unknown), not zero.
 	LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, error)

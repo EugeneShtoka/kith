@@ -40,6 +40,9 @@ func (Nop) MarkTag(context.Context, domain.TagVerdict) error                    
 func (Nop) RetagVerdicts(context.Context, string, string) error                        { return nil }
 func (Nop) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error)             { return nil, nil }
 func (Nop) MarkPerson(context.Context, domain.PersonVerdict) error                     { return nil }
+func (Nop) Ignore(context.Context, string) error                                       { return nil }
+func (Nop) Unignore(context.Context, string) error                                     { return nil }
+func (Nop) Ignored(context.Context) ([]string, error)                                  { return nil, nil }
 func (Nop) AddToSpace(_ context.Context, _ domain.SpaceID, _ domain.RoomID) error      { return nil }
 func (Nop) CreateRoom(context.Context, domain.NewRoom) (domain.RoomID, error)          { return "", nil }
 func (Nop) ChatOffers(context.Context) ([]domain.ChatOffer, error)                     { return nil, nil }

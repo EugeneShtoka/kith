@@ -1099,6 +1099,10 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleCommandSecrets(msg))
 	case scheduledMsg:
 		return answered(m.handleScheduled(msg))
+	case ignoredLoadedMsg:
+		return answered(m.handleIgnoredLoaded(msg))
+	case ignoredChangedMsg:
+		return answered(m.handleIgnoredChanged(msg))
 	case scheduleDoneMsg:
 		return answered(m.handleScheduleDone(msg))
 	case queuedUnsentMsg:

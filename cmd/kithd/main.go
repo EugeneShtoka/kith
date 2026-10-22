@@ -301,6 +301,37 @@ func (s served) useHidden(ctx context.Context, cfg config.Config) error {
 	return nil
 }
 
+// Ignore, Unignore and Ignored are Matrix-only (m.ignored_user_list is a Matrix
+// account-data event, not a kith-wide concept): they go straight to the Matrix
+// adapter rather than through the router. A kithd that configured no Matrix account
+// still has the adapter built (newServed always makes one), so a client that calls
+// in before login gets Matrix's own "not signed in" style error.
+func (s served) Ignore(ctx context.Context, mxid string) error {
+	if err := s.matrix.Ignore(ctx, mxid); err != nil {
+		return fmt.Errorf("served: %w", err)
+	}
+	return nil
+}
+
+func (s served) Unignore(ctx context.Context, mxid string) error {
+	if err := s.matrix.Unignore(ctx, mxid); err != nil {
+		return fmt.Errorf("served: %w", err)
+	}
+	return nil
+}
+
+// Ignored reads the mirror rather than the homeserver: the sync keeps it in
+// step and a client should not wait on an account-data GET to list what it
+// already has. A fresh install (empty cache) answers empty, as it would from
+// the server.
+func (s served) Ignored(ctx context.Context) ([]string, error) {
+	ids, err := s.cache.MatrixIgnored(ctx, domain.ProtocolMatrix)
+	if err != nil {
+		return nil, fmt.Errorf("served: %w", err)
+	}
+	return ids, nil
+}
+
 func (s served) loginLeaders() []api.LoginLeader {
 	leaders := make([]api.LoginLeader, 0, len(s.networks))
 	for _, n := range s.networks {

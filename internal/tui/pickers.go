@@ -90,6 +90,7 @@ func init() {
 		pickerFilterPlaces:    {apply: Model.acceptFilterPlaces, back: filterStep.back},
 		pickerFilterMoves:     {apply: Model.acceptFilterMoves, back: filterStep.back},
 		pickerCommandTemplate: {choose: byValue(Model.chooseCommandTemplate), back: func(m Model) Model { return m.settingsIn(commandsTable, commandsTable+"#template") }},
+		pickerIgnored:         {choose: func(m Model, _ pickerItem) (Model, tea.Cmd) { return m.closePicker(), nil }, remove: Model.removeIgnoredRow},
 		pickerLoginNetwork:    {choose: account},
 		pickerLoginAccount:    {choose: account},
 		pickerImportAccount:   {choose: account},

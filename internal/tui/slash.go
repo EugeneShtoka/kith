@@ -161,6 +161,11 @@ var slashCommands = []slashCommand{
 		},
 	},
 	{
+		name:    "/ignored",
+		summary: "the Matrix users you ignore — {picker.remove} unignores one",
+		run:     consuming(Model.openIgnored),
+	},
+	{
 		name:     "/topic",
 		keyScope: scopeTimeline,
 		keyAct:   actTopic,
