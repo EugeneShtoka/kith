@@ -111,6 +111,10 @@ type Rooms interface {
 	// server is the homeserver to search (empty: this account's); since carries over
 	// the cursor from a previous page's NextSince to fetch the next.
 	PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error)
+	// KnockRoom asks to join a knock-only Matrix room; a moderator decides. The
+	// room becomes an ordinary joined one only once the moderator accepts. reason
+	// is shown to the moderators.
+	KnockRoom(ctx context.Context, roomIDOrAlias, reason string, via []string) (domain.RoomID, error)
 	// LastMessages is each room's latest cached message time. Rooms with no cached
 	// history are absent (unknown), not zero.
 	LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, error)

@@ -77,6 +77,9 @@ func (Nop) FetchEventSource(context.Context, domain.RoomID, domain.EventID) ([]b
 func (Nop) PublicRooms(context.Context, string, string) (domain.PublicRoomsPage, error) {
 	return domain.PublicRoomsPage{}, nil
 }
+func (Nop) KnockRoom(_ context.Context, roomIDOrAlias string, _ string, _ []string) (domain.RoomID, error) {
+	return domain.RoomID(roomIDOrAlias), nil
+}
 func (Nop) Send(context.Context, domain.RoomID, domain.Draft) error               { return nil }
 func (Nop) SendFile(context.Context, domain.RoomID, string, string, string) error { return nil }
 func (Nop) CachedUnread(context.Context) ([]domain.Unread, error)                 { return nil, nil }

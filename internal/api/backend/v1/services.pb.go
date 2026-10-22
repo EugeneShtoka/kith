@@ -6178,6 +6178,110 @@ func (x *JoinRoomResponse) GetRoomId() string {
 	return ""
 }
 
+type KnockRoomRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomIdOrAlias string                 `protobuf:"bytes,1,opt,name=room_id_or_alias,json=roomIdOrAlias,proto3" json:"room_id_or_alias,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	Via           []string               `protobuf:"bytes,3,rep,name=via,proto3" json:"via,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KnockRoomRequest) Reset() {
+	*x = KnockRoomRequest{}
+	mi := &file_backend_v1_services_proto_msgTypes[126]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KnockRoomRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KnockRoomRequest) ProtoMessage() {}
+
+func (x *KnockRoomRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_services_proto_msgTypes[126]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KnockRoomRequest.ProtoReflect.Descriptor instead.
+func (*KnockRoomRequest) Descriptor() ([]byte, []int) {
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{126}
+}
+
+func (x *KnockRoomRequest) GetRoomIdOrAlias() string {
+	if x != nil {
+		return x.RoomIdOrAlias
+	}
+	return ""
+}
+
+func (x *KnockRoomRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *KnockRoomRequest) GetVia() []string {
+	if x != nil {
+		return x.Via
+	}
+	return nil
+}
+
+type KnockRoomResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KnockRoomResponse) Reset() {
+	*x = KnockRoomResponse{}
+	mi := &file_backend_v1_services_proto_msgTypes[127]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KnockRoomResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KnockRoomResponse) ProtoMessage() {}
+
+func (x *KnockRoomResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_services_proto_msgTypes[127]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KnockRoomResponse.ProtoReflect.Descriptor instead.
+func (*KnockRoomResponse) Descriptor() ([]byte, []int) {
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{127}
+}
+
+func (x *KnockRoomResponse) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
 type LeaveRoomRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
@@ -6187,7 +6291,7 @@ type LeaveRoomRequest struct {
 
 func (x *LeaveRoomRequest) Reset() {
 	*x = LeaveRoomRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[126]
+	mi := &file_backend_v1_services_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6199,7 +6303,7 @@ func (x *LeaveRoomRequest) String() string {
 func (*LeaveRoomRequest) ProtoMessage() {}
 
 func (x *LeaveRoomRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[126]
+	mi := &file_backend_v1_services_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6212,7 +6316,7 @@ func (x *LeaveRoomRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveRoomRequest.ProtoReflect.Descriptor instead.
 func (*LeaveRoomRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{126}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *LeaveRoomRequest) GetRoomId() string {
@@ -6230,7 +6334,7 @@ type LeaveRoomResponse struct {
 
 func (x *LeaveRoomResponse) Reset() {
 	*x = LeaveRoomResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[127]
+	mi := &file_backend_v1_services_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6242,7 +6346,7 @@ func (x *LeaveRoomResponse) String() string {
 func (*LeaveRoomResponse) ProtoMessage() {}
 
 func (x *LeaveRoomResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[127]
+	mi := &file_backend_v1_services_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6255,7 +6359,7 @@ func (x *LeaveRoomResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveRoomResponse.ProtoReflect.Descriptor instead.
 func (*LeaveRoomResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{127}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{129}
 }
 
 type DeleteChatRequest struct {
@@ -6269,7 +6373,7 @@ type DeleteChatRequest struct {
 
 func (x *DeleteChatRequest) Reset() {
 	*x = DeleteChatRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[128]
+	mi := &file_backend_v1_services_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6281,7 +6385,7 @@ func (x *DeleteChatRequest) String() string {
 func (*DeleteChatRequest) ProtoMessage() {}
 
 func (x *DeleteChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[128]
+	mi := &file_backend_v1_services_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6294,7 +6398,7 @@ func (x *DeleteChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteChatRequest.ProtoReflect.Descriptor instead.
 func (*DeleteChatRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{128}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *DeleteChatRequest) GetRoomId() string {
@@ -6319,7 +6423,7 @@ type DeleteChatResponse struct {
 
 func (x *DeleteChatResponse) Reset() {
 	*x = DeleteChatResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[129]
+	mi := &file_backend_v1_services_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6331,7 +6435,7 @@ func (x *DeleteChatResponse) String() string {
 func (*DeleteChatResponse) ProtoMessage() {}
 
 func (x *DeleteChatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[129]
+	mi := &file_backend_v1_services_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6344,7 +6448,7 @@ func (x *DeleteChatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteChatResponse.ProtoReflect.Descriptor instead.
 func (*DeleteChatResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{129}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{131}
 }
 
 type SignOutRequest struct {
@@ -6359,7 +6463,7 @@ type SignOutRequest struct {
 
 func (x *SignOutRequest) Reset() {
 	*x = SignOutRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[130]
+	mi := &file_backend_v1_services_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6371,7 +6475,7 @@ func (x *SignOutRequest) String() string {
 func (*SignOutRequest) ProtoMessage() {}
 
 func (x *SignOutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[130]
+	mi := &file_backend_v1_services_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6384,7 +6488,7 @@ func (x *SignOutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignOutRequest.ProtoReflect.Descriptor instead.
 func (*SignOutRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{130}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *SignOutRequest) GetSpaceId() string {
@@ -6409,7 +6513,7 @@ type SignOutResponse struct {
 
 func (x *SignOutResponse) Reset() {
 	*x = SignOutResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[131]
+	mi := &file_backend_v1_services_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6421,7 +6525,7 @@ func (x *SignOutResponse) String() string {
 func (*SignOutResponse) ProtoMessage() {}
 
 func (x *SignOutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[131]
+	mi := &file_backend_v1_services_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6434,7 +6538,7 @@ func (x *SignOutResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignOutResponse.ProtoReflect.Descriptor instead.
 func (*SignOutResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{131}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{133}
 }
 
 // Making a room or a space (domain.NewRoom).
@@ -6458,7 +6562,7 @@ type CreateRoomRequest struct {
 
 func (x *CreateRoomRequest) Reset() {
 	*x = CreateRoomRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[132]
+	mi := &file_backend_v1_services_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6470,7 +6574,7 @@ func (x *CreateRoomRequest) String() string {
 func (*CreateRoomRequest) ProtoMessage() {}
 
 func (x *CreateRoomRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[132]
+	mi := &file_backend_v1_services_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6483,7 +6587,7 @@ func (x *CreateRoomRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRoomRequest.ProtoReflect.Descriptor instead.
 func (*CreateRoomRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{132}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *CreateRoomRequest) GetName() string {
@@ -6567,7 +6671,7 @@ type ChatOffer struct {
 
 func (x *ChatOffer) Reset() {
 	*x = ChatOffer{}
-	mi := &file_backend_v1_services_proto_msgTypes[133]
+	mi := &file_backend_v1_services_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6579,7 +6683,7 @@ func (x *ChatOffer) String() string {
 func (*ChatOffer) ProtoMessage() {}
 
 func (x *ChatOffer) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[133]
+	mi := &file_backend_v1_services_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6592,7 +6696,7 @@ func (x *ChatOffer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatOffer.ProtoReflect.Descriptor instead.
 func (*ChatOffer) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{133}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *ChatOffer) GetOn() string {
@@ -6645,7 +6749,7 @@ type ChatOffersRequest struct {
 
 func (x *ChatOffersRequest) Reset() {
 	*x = ChatOffersRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[134]
+	mi := &file_backend_v1_services_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6657,7 +6761,7 @@ func (x *ChatOffersRequest) String() string {
 func (*ChatOffersRequest) ProtoMessage() {}
 
 func (x *ChatOffersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[134]
+	mi := &file_backend_v1_services_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6670,7 +6774,7 @@ func (x *ChatOffersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatOffersRequest.ProtoReflect.Descriptor instead.
 func (*ChatOffersRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{134}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{136}
 }
 
 type ChatOffersResponse struct {
@@ -6682,7 +6786,7 @@ type ChatOffersResponse struct {
 
 func (x *ChatOffersResponse) Reset() {
 	*x = ChatOffersResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[135]
+	mi := &file_backend_v1_services_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6694,7 +6798,7 @@ func (x *ChatOffersResponse) String() string {
 func (*ChatOffersResponse) ProtoMessage() {}
 
 func (x *ChatOffersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[135]
+	mi := &file_backend_v1_services_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6707,7 +6811,7 @@ func (x *ChatOffersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatOffersResponse.ProtoReflect.Descriptor instead.
 func (*ChatOffersResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{135}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *ChatOffersResponse) GetOffers() []*ChatOffer {
@@ -6729,7 +6833,7 @@ type CreateRoomResponse struct {
 
 func (x *CreateRoomResponse) Reset() {
 	*x = CreateRoomResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[136]
+	mi := &file_backend_v1_services_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6741,7 +6845,7 @@ func (x *CreateRoomResponse) String() string {
 func (*CreateRoomResponse) ProtoMessage() {}
 
 func (x *CreateRoomResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[136]
+	mi := &file_backend_v1_services_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6754,7 +6858,7 @@ func (x *CreateRoomResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRoomResponse.ProtoReflect.Descriptor instead.
 func (*CreateRoomResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{136}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{138}
 }
 
 func (x *CreateRoomResponse) GetRoomId() string {
@@ -6781,7 +6885,7 @@ type InviteUserRequest struct {
 
 func (x *InviteUserRequest) Reset() {
 	*x = InviteUserRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[137]
+	mi := &file_backend_v1_services_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6793,7 +6897,7 @@ func (x *InviteUserRequest) String() string {
 func (*InviteUserRequest) ProtoMessage() {}
 
 func (x *InviteUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[137]
+	mi := &file_backend_v1_services_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6806,7 +6910,7 @@ func (x *InviteUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InviteUserRequest.ProtoReflect.Descriptor instead.
 func (*InviteUserRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{137}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *InviteUserRequest) GetRoomId() string {
@@ -6831,7 +6935,7 @@ type InviteUserResponse struct {
 
 func (x *InviteUserResponse) Reset() {
 	*x = InviteUserResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[138]
+	mi := &file_backend_v1_services_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6843,7 +6947,7 @@ func (x *InviteUserResponse) String() string {
 func (*InviteUserResponse) ProtoMessage() {}
 
 func (x *InviteUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[138]
+	mi := &file_backend_v1_services_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6856,7 +6960,7 @@ func (x *InviteUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InviteUserResponse.ProtoReflect.Descriptor instead.
 func (*InviteUserResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{138}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{140}
 }
 
 // Removing somebody.
@@ -6871,7 +6975,7 @@ type KickUserRequest struct {
 
 func (x *KickUserRequest) Reset() {
 	*x = KickUserRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[139]
+	mi := &file_backend_v1_services_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6883,7 +6987,7 @@ func (x *KickUserRequest) String() string {
 func (*KickUserRequest) ProtoMessage() {}
 
 func (x *KickUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[139]
+	mi := &file_backend_v1_services_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6896,7 +7000,7 @@ func (x *KickUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KickUserRequest.ProtoReflect.Descriptor instead.
 func (*KickUserRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{139}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *KickUserRequest) GetRoomId() string {
@@ -6928,7 +7032,7 @@ type KickUserResponse struct {
 
 func (x *KickUserResponse) Reset() {
 	*x = KickUserResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[140]
+	mi := &file_backend_v1_services_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6940,7 +7044,7 @@ func (x *KickUserResponse) String() string {
 func (*KickUserResponse) ProtoMessage() {}
 
 func (x *KickUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[140]
+	mi := &file_backend_v1_services_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6953,7 +7057,7 @@ func (x *KickUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KickUserResponse.ProtoReflect.Descriptor instead.
 func (*KickUserResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{140}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{142}
 }
 
 type BanUserRequest struct {
@@ -6967,7 +7071,7 @@ type BanUserRequest struct {
 
 func (x *BanUserRequest) Reset() {
 	*x = BanUserRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[141]
+	mi := &file_backend_v1_services_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6979,7 +7083,7 @@ func (x *BanUserRequest) String() string {
 func (*BanUserRequest) ProtoMessage() {}
 
 func (x *BanUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[141]
+	mi := &file_backend_v1_services_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6992,7 +7096,7 @@ func (x *BanUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BanUserRequest.ProtoReflect.Descriptor instead.
 func (*BanUserRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{141}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *BanUserRequest) GetRoomId() string {
@@ -7024,7 +7128,7 @@ type BanUserResponse struct {
 
 func (x *BanUserResponse) Reset() {
 	*x = BanUserResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[142]
+	mi := &file_backend_v1_services_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7036,7 +7140,7 @@ func (x *BanUserResponse) String() string {
 func (*BanUserResponse) ProtoMessage() {}
 
 func (x *BanUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[142]
+	mi := &file_backend_v1_services_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7049,7 +7153,7 @@ func (x *BanUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BanUserResponse.ProtoReflect.Descriptor instead.
 func (*BanUserResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{142}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{144}
 }
 
 type UnbanUserRequest struct {
@@ -7062,7 +7166,7 @@ type UnbanUserRequest struct {
 
 func (x *UnbanUserRequest) Reset() {
 	*x = UnbanUserRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[143]
+	mi := &file_backend_v1_services_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7074,7 +7178,7 @@ func (x *UnbanUserRequest) String() string {
 func (*UnbanUserRequest) ProtoMessage() {}
 
 func (x *UnbanUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[143]
+	mi := &file_backend_v1_services_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7087,7 +7191,7 @@ func (x *UnbanUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnbanUserRequest.ProtoReflect.Descriptor instead.
 func (*UnbanUserRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{143}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *UnbanUserRequest) GetRoomId() string {
@@ -7112,7 +7216,7 @@ type UnbanUserResponse struct {
 
 func (x *UnbanUserResponse) Reset() {
 	*x = UnbanUserResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[144]
+	mi := &file_backend_v1_services_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7124,7 +7228,7 @@ func (x *UnbanUserResponse) String() string {
 func (*UnbanUserResponse) ProtoMessage() {}
 
 func (x *UnbanUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[144]
+	mi := &file_backend_v1_services_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7137,7 +7241,7 @@ func (x *UnbanUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnbanUserResponse.ProtoReflect.Descriptor instead.
 func (*UnbanUserResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{144}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{146}
 }
 
 type SearchMessagesRequest struct {
@@ -7173,7 +7277,7 @@ type SearchMessagesRequest struct {
 
 func (x *SearchMessagesRequest) Reset() {
 	*x = SearchMessagesRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[145]
+	mi := &file_backend_v1_services_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7185,7 +7289,7 @@ func (x *SearchMessagesRequest) String() string {
 func (*SearchMessagesRequest) ProtoMessage() {}
 
 func (x *SearchMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[145]
+	mi := &file_backend_v1_services_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7198,7 +7302,7 @@ func (x *SearchMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchMessagesRequest.ProtoReflect.Descriptor instead.
 func (*SearchMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{145}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *SearchMessagesRequest) GetQuery() string {
@@ -7301,7 +7405,7 @@ type SearchMessagesResponse struct {
 
 func (x *SearchMessagesResponse) Reset() {
 	*x = SearchMessagesResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[146]
+	mi := &file_backend_v1_services_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7313,7 +7417,7 @@ func (x *SearchMessagesResponse) String() string {
 func (*SearchMessagesResponse) ProtoMessage() {}
 
 func (x *SearchMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[146]
+	mi := &file_backend_v1_services_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7326,7 +7430,7 @@ func (x *SearchMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchMessagesResponse.ProtoReflect.Descriptor instead.
 func (*SearchMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{146}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *SearchMessagesResponse) GetHits() []*SearchHit {
@@ -7355,7 +7459,7 @@ type CompleteWordRequest struct {
 
 func (x *CompleteWordRequest) Reset() {
 	*x = CompleteWordRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[147]
+	mi := &file_backend_v1_services_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7367,7 +7471,7 @@ func (x *CompleteWordRequest) String() string {
 func (*CompleteWordRequest) ProtoMessage() {}
 
 func (x *CompleteWordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[147]
+	mi := &file_backend_v1_services_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7380,7 +7484,7 @@ func (x *CompleteWordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteWordRequest.ProtoReflect.Descriptor instead.
 func (*CompleteWordRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{147}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{149}
 }
 
 func (x *CompleteWordRequest) GetPrefix() string {
@@ -7436,7 +7540,7 @@ type WordCandidate struct {
 
 func (x *WordCandidate) Reset() {
 	*x = WordCandidate{}
-	mi := &file_backend_v1_services_proto_msgTypes[148]
+	mi := &file_backend_v1_services_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7448,7 +7552,7 @@ func (x *WordCandidate) String() string {
 func (*WordCandidate) ProtoMessage() {}
 
 func (x *WordCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[148]
+	mi := &file_backend_v1_services_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7461,7 +7565,7 @@ func (x *WordCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WordCandidate.ProtoReflect.Descriptor instead.
 func (*WordCandidate) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{148}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{150}
 }
 
 func (x *WordCandidate) GetWord() string {
@@ -7487,7 +7591,7 @@ type CompleteWordResponse struct {
 
 func (x *CompleteWordResponse) Reset() {
 	*x = CompleteWordResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[149]
+	mi := &file_backend_v1_services_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7499,7 +7603,7 @@ func (x *CompleteWordResponse) String() string {
 func (*CompleteWordResponse) ProtoMessage() {}
 
 func (x *CompleteWordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[149]
+	mi := &file_backend_v1_services_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7512,7 +7616,7 @@ func (x *CompleteWordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteWordResponse.ProtoReflect.Descriptor instead.
 func (*CompleteWordResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{149}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{151}
 }
 
 func (x *CompleteWordResponse) GetCandidates() []*WordCandidate {
@@ -7531,7 +7635,7 @@ type RoomEncryptionRequest struct {
 
 func (x *RoomEncryptionRequest) Reset() {
 	*x = RoomEncryptionRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[150]
+	mi := &file_backend_v1_services_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7543,7 +7647,7 @@ func (x *RoomEncryptionRequest) String() string {
 func (*RoomEncryptionRequest) ProtoMessage() {}
 
 func (x *RoomEncryptionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[150]
+	mi := &file_backend_v1_services_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7556,7 +7660,7 @@ func (x *RoomEncryptionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoomEncryptionRequest.ProtoReflect.Descriptor instead.
 func (*RoomEncryptionRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{150}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{152}
 }
 
 func (x *RoomEncryptionRequest) GetRoomIds() []string {
@@ -7576,7 +7680,7 @@ type RoomEncryptionResponse struct {
 
 func (x *RoomEncryptionResponse) Reset() {
 	*x = RoomEncryptionResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[151]
+	mi := &file_backend_v1_services_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7588,7 +7692,7 @@ func (x *RoomEncryptionResponse) String() string {
 func (*RoomEncryptionResponse) ProtoMessage() {}
 
 func (x *RoomEncryptionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[151]
+	mi := &file_backend_v1_services_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7601,7 +7705,7 @@ func (x *RoomEncryptionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoomEncryptionResponse.ProtoReflect.Descriptor instead.
 func (*RoomEncryptionResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{151}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{153}
 }
 
 func (x *RoomEncryptionResponse) GetEncryptedRoomIds() []string {
@@ -7626,7 +7730,7 @@ type RoomsWithRequest struct {
 
 func (x *RoomsWithRequest) Reset() {
 	*x = RoomsWithRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[152]
+	mi := &file_backend_v1_services_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7638,7 +7742,7 @@ func (x *RoomsWithRequest) String() string {
 func (*RoomsWithRequest) ProtoMessage() {}
 
 func (x *RoomsWithRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[152]
+	mi := &file_backend_v1_services_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7651,7 +7755,7 @@ func (x *RoomsWithRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoomsWithRequest.ProtoReflect.Descriptor instead.
 func (*RoomsWithRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{152}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{154}
 }
 
 func (x *RoomsWithRequest) GetUserIds() []string {
@@ -7691,7 +7795,7 @@ type RoomsWithResponse struct {
 
 func (x *RoomsWithResponse) Reset() {
 	*x = RoomsWithResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[153]
+	mi := &file_backend_v1_services_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7703,7 +7807,7 @@ func (x *RoomsWithResponse) String() string {
 func (*RoomsWithResponse) ProtoMessage() {}
 
 func (x *RoomsWithResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[153]
+	mi := &file_backend_v1_services_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7716,7 +7820,7 @@ func (x *RoomsWithResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoomsWithResponse.ProtoReflect.Descriptor instead.
 func (*RoomsWithResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{153}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{155}
 }
 
 func (x *RoomsWithResponse) GetRooms() []*Room {
@@ -7739,7 +7843,7 @@ type MessagesAroundRequest struct {
 
 func (x *MessagesAroundRequest) Reset() {
 	*x = MessagesAroundRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[154]
+	mi := &file_backend_v1_services_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7751,7 +7855,7 @@ func (x *MessagesAroundRequest) String() string {
 func (*MessagesAroundRequest) ProtoMessage() {}
 
 func (x *MessagesAroundRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[154]
+	mi := &file_backend_v1_services_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7764,7 +7868,7 @@ func (x *MessagesAroundRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessagesAroundRequest.ProtoReflect.Descriptor instead.
 func (*MessagesAroundRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{154}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *MessagesAroundRequest) GetRoomId() string {
@@ -7804,7 +7908,7 @@ type MessagesAroundResponse struct {
 
 func (x *MessagesAroundResponse) Reset() {
 	*x = MessagesAroundResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[155]
+	mi := &file_backend_v1_services_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7816,7 +7920,7 @@ func (x *MessagesAroundResponse) String() string {
 func (*MessagesAroundResponse) ProtoMessage() {}
 
 func (x *MessagesAroundResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[155]
+	mi := &file_backend_v1_services_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7829,7 +7933,7 @@ func (x *MessagesAroundResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessagesAroundResponse.ProtoReflect.Descriptor instead.
 func (*MessagesAroundResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{155}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{157}
 }
 
 func (x *MessagesAroundResponse) GetMessages() []*Message {
@@ -7859,7 +7963,7 @@ type MessagesFromRequest struct {
 
 func (x *MessagesFromRequest) Reset() {
 	*x = MessagesFromRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[156]
+	mi := &file_backend_v1_services_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7871,7 +7975,7 @@ func (x *MessagesFromRequest) String() string {
 func (*MessagesFromRequest) ProtoMessage() {}
 
 func (x *MessagesFromRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[156]
+	mi := &file_backend_v1_services_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7884,7 +7988,7 @@ func (x *MessagesFromRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessagesFromRequest.ProtoReflect.Descriptor instead.
 func (*MessagesFromRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{156}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *MessagesFromRequest) GetSenders() []string {
@@ -7953,7 +8057,7 @@ type PersonIDs struct {
 
 func (x *PersonIDs) Reset() {
 	*x = PersonIDs{}
-	mi := &file_backend_v1_services_proto_msgTypes[157]
+	mi := &file_backend_v1_services_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7965,7 +8069,7 @@ func (x *PersonIDs) String() string {
 func (*PersonIDs) ProtoMessage() {}
 
 func (x *PersonIDs) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[157]
+	mi := &file_backend_v1_services_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7978,7 +8082,7 @@ func (x *PersonIDs) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PersonIDs.ProtoReflect.Descriptor instead.
 func (*PersonIDs) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{157}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{159}
 }
 
 func (x *PersonIDs) GetIds() []string {
@@ -7997,7 +8101,7 @@ type MessageCountsRequest struct {
 
 func (x *MessageCountsRequest) Reset() {
 	*x = MessageCountsRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[158]
+	mi := &file_backend_v1_services_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8009,7 +8113,7 @@ func (x *MessageCountsRequest) String() string {
 func (*MessageCountsRequest) ProtoMessage() {}
 
 func (x *MessageCountsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[158]
+	mi := &file_backend_v1_services_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8022,7 +8126,7 @@ func (x *MessageCountsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageCountsRequest.ProtoReflect.Descriptor instead.
 func (*MessageCountsRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{158}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{160}
 }
 
 func (x *MessageCountsRequest) GetPeople() []*PersonIDs {
@@ -8042,7 +8146,7 @@ type MessageCountsResponse struct {
 
 func (x *MessageCountsResponse) Reset() {
 	*x = MessageCountsResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[159]
+	mi := &file_backend_v1_services_proto_msgTypes[161]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8054,7 +8158,7 @@ func (x *MessageCountsResponse) String() string {
 func (*MessageCountsResponse) ProtoMessage() {}
 
 func (x *MessageCountsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[159]
+	mi := &file_backend_v1_services_proto_msgTypes[161]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8067,7 +8171,7 @@ func (x *MessageCountsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageCountsResponse.ProtoReflect.Descriptor instead.
 func (*MessageCountsResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{159}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{161}
 }
 
 func (x *MessageCountsResponse) GetCounts() []int64 {
@@ -8087,7 +8191,7 @@ type MessagesFromResponse struct {
 
 func (x *MessagesFromResponse) Reset() {
 	*x = MessagesFromResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[160]
+	mi := &file_backend_v1_services_proto_msgTypes[162]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8099,7 +8203,7 @@ func (x *MessagesFromResponse) String() string {
 func (*MessagesFromResponse) ProtoMessage() {}
 
 func (x *MessagesFromResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[160]
+	mi := &file_backend_v1_services_proto_msgTypes[162]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8112,7 +8216,7 @@ func (x *MessagesFromResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessagesFromResponse.ProtoReflect.Descriptor instead.
 func (*MessagesFromResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{160}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{162}
 }
 
 func (x *MessagesFromResponse) GetMessages() []*Message {
@@ -8142,7 +8246,7 @@ type StoredDraft struct {
 
 func (x *StoredDraft) Reset() {
 	*x = StoredDraft{}
-	mi := &file_backend_v1_services_proto_msgTypes[161]
+	mi := &file_backend_v1_services_proto_msgTypes[163]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8154,7 +8258,7 @@ func (x *StoredDraft) String() string {
 func (*StoredDraft) ProtoMessage() {}
 
 func (x *StoredDraft) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[161]
+	mi := &file_backend_v1_services_proto_msgTypes[163]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8167,7 +8271,7 @@ func (x *StoredDraft) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoredDraft.ProtoReflect.Descriptor instead.
 func (*StoredDraft) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{161}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{163}
 }
 
 func (x *StoredDraft) GetRoomId() string {
@@ -8255,7 +8359,7 @@ type ReplaceDraftRequest struct {
 
 func (x *ReplaceDraftRequest) Reset() {
 	*x = ReplaceDraftRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[162]
+	mi := &file_backend_v1_services_proto_msgTypes[164]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8267,7 +8371,7 @@ func (x *ReplaceDraftRequest) String() string {
 func (*ReplaceDraftRequest) ProtoMessage() {}
 
 func (x *ReplaceDraftRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[162]
+	mi := &file_backend_v1_services_proto_msgTypes[164]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8280,7 +8384,7 @@ func (x *ReplaceDraftRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceDraftRequest.ProtoReflect.Descriptor instead.
 func (*ReplaceDraftRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{162}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{164}
 }
 
 func (x *ReplaceDraftRequest) GetDraft() *StoredDraft {
@@ -8313,7 +8417,7 @@ type ReplaceDraftResponse struct {
 
 func (x *ReplaceDraftResponse) Reset() {
 	*x = ReplaceDraftResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[163]
+	mi := &file_backend_v1_services_proto_msgTypes[165]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8325,7 +8429,7 @@ func (x *ReplaceDraftResponse) String() string {
 func (*ReplaceDraftResponse) ProtoMessage() {}
 
 func (x *ReplaceDraftResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[163]
+	mi := &file_backend_v1_services_proto_msgTypes[165]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8338,7 +8442,7 @@ func (x *ReplaceDraftResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceDraftResponse.ProtoReflect.Descriptor instead.
 func (*ReplaceDraftResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{163}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{165}
 }
 
 func (x *ReplaceDraftResponse) GetSaved() bool {
@@ -8356,7 +8460,7 @@ type DraftsRequest struct {
 
 func (x *DraftsRequest) Reset() {
 	*x = DraftsRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[164]
+	mi := &file_backend_v1_services_proto_msgTypes[166]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8368,7 +8472,7 @@ func (x *DraftsRequest) String() string {
 func (*DraftsRequest) ProtoMessage() {}
 
 func (x *DraftsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[164]
+	mi := &file_backend_v1_services_proto_msgTypes[166]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8381,7 +8485,7 @@ func (x *DraftsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DraftsRequest.ProtoReflect.Descriptor instead.
 func (*DraftsRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{164}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{166}
 }
 
 type SeatRequest struct {
@@ -8398,7 +8502,7 @@ type SeatRequest struct {
 
 func (x *SeatRequest) Reset() {
 	*x = SeatRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[165]
+	mi := &file_backend_v1_services_proto_msgTypes[167]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8410,7 +8514,7 @@ func (x *SeatRequest) String() string {
 func (*SeatRequest) ProtoMessage() {}
 
 func (x *SeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[165]
+	mi := &file_backend_v1_services_proto_msgTypes[167]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8423,7 +8527,7 @@ func (x *SeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SeatRequest.ProtoReflect.Descriptor instead.
 func (*SeatRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{165}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{167}
 }
 
 func (x *SeatRequest) GetClient() string {
@@ -8460,7 +8564,7 @@ type SeatHolder struct {
 
 func (x *SeatHolder) Reset() {
 	*x = SeatHolder{}
-	mi := &file_backend_v1_services_proto_msgTypes[166]
+	mi := &file_backend_v1_services_proto_msgTypes[168]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8472,7 +8576,7 @@ func (x *SeatHolder) String() string {
 func (*SeatHolder) ProtoMessage() {}
 
 func (x *SeatHolder) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[166]
+	mi := &file_backend_v1_services_proto_msgTypes[168]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8485,7 +8589,7 @@ func (x *SeatHolder) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SeatHolder.ProtoReflect.Descriptor instead.
 func (*SeatHolder) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{166}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{168}
 }
 
 func (x *SeatHolder) GetPid() int64 {
@@ -8530,7 +8634,7 @@ type SeatResponse struct {
 
 func (x *SeatResponse) Reset() {
 	*x = SeatResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[167]
+	mi := &file_backend_v1_services_proto_msgTypes[169]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8542,7 +8646,7 @@ func (x *SeatResponse) String() string {
 func (*SeatResponse) ProtoMessage() {}
 
 func (x *SeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[167]
+	mi := &file_backend_v1_services_proto_msgTypes[169]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8555,7 +8659,7 @@ func (x *SeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SeatResponse.ProtoReflect.Descriptor instead.
 func (*SeatResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{167}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{169}
 }
 
 func (x *SeatResponse) GetEvent() isSeatResponse_Event {
@@ -8636,7 +8740,7 @@ type LoginField struct {
 
 func (x *LoginField) Reset() {
 	*x = LoginField{}
-	mi := &file_backend_v1_services_proto_msgTypes[168]
+	mi := &file_backend_v1_services_proto_msgTypes[170]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8648,7 +8752,7 @@ func (x *LoginField) String() string {
 func (*LoginField) ProtoMessage() {}
 
 func (x *LoginField) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[168]
+	mi := &file_backend_v1_services_proto_msgTypes[170]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8661,7 +8765,7 @@ func (x *LoginField) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginField.ProtoReflect.Descriptor instead.
 func (*LoginField) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{168}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{170}
 }
 
 func (x *LoginField) GetKey() string {
@@ -8717,7 +8821,7 @@ type LoginRecord struct {
 
 func (x *LoginRecord) Reset() {
 	*x = LoginRecord{}
-	mi := &file_backend_v1_services_proto_msgTypes[169]
+	mi := &file_backend_v1_services_proto_msgTypes[171]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8729,7 +8833,7 @@ func (x *LoginRecord) String() string {
 func (*LoginRecord) ProtoMessage() {}
 
 func (x *LoginRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[169]
+	mi := &file_backend_v1_services_proto_msgTypes[171]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8742,7 +8846,7 @@ func (x *LoginRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginRecord.ProtoReflect.Descriptor instead.
 func (*LoginRecord) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{169}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{171}
 }
 
 func (x *LoginRecord) GetTable() string {
@@ -8786,7 +8890,7 @@ type LoginStep struct {
 
 func (x *LoginStep) Reset() {
 	*x = LoginStep{}
-	mi := &file_backend_v1_services_proto_msgTypes[170]
+	mi := &file_backend_v1_services_proto_msgTypes[172]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8798,7 +8902,7 @@ func (x *LoginStep) String() string {
 func (*LoginStep) ProtoMessage() {}
 
 func (x *LoginStep) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[170]
+	mi := &file_backend_v1_services_proto_msgTypes[172]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8811,7 +8915,7 @@ func (x *LoginStep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginStep.ProtoReflect.Descriptor instead.
 func (*LoginStep) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{170}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{172}
 }
 
 func (x *LoginStep) GetLogin() string {
@@ -8887,7 +8991,7 @@ type LoginAccount struct {
 
 func (x *LoginAccount) Reset() {
 	*x = LoginAccount{}
-	mi := &file_backend_v1_services_proto_msgTypes[171]
+	mi := &file_backend_v1_services_proto_msgTypes[173]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8899,7 +9003,7 @@ func (x *LoginAccount) String() string {
 func (*LoginAccount) ProtoMessage() {}
 
 func (x *LoginAccount) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[171]
+	mi := &file_backend_v1_services_proto_msgTypes[173]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8912,7 +9016,7 @@ func (x *LoginAccount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginAccount.ProtoReflect.Descriptor instead.
 func (*LoginAccount) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{171}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{173}
 }
 
 func (x *LoginAccount) GetName() string {
@@ -8942,7 +9046,7 @@ type LoginNetwork struct {
 
 func (x *LoginNetwork) Reset() {
 	*x = LoginNetwork{}
-	mi := &file_backend_v1_services_proto_msgTypes[172]
+	mi := &file_backend_v1_services_proto_msgTypes[174]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8954,7 +9058,7 @@ func (x *LoginNetwork) String() string {
 func (*LoginNetwork) ProtoMessage() {}
 
 func (x *LoginNetwork) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[172]
+	mi := &file_backend_v1_services_proto_msgTypes[174]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8967,7 +9071,7 @@ func (x *LoginNetwork) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginNetwork.ProtoReflect.Descriptor instead.
 func (*LoginNetwork) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{172}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{174}
 }
 
 func (x *LoginNetwork) GetNetwork() string {
@@ -9006,7 +9110,7 @@ type LoginNetworksRequest struct {
 
 func (x *LoginNetworksRequest) Reset() {
 	*x = LoginNetworksRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[173]
+	mi := &file_backend_v1_services_proto_msgTypes[175]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9018,7 +9122,7 @@ func (x *LoginNetworksRequest) String() string {
 func (*LoginNetworksRequest) ProtoMessage() {}
 
 func (x *LoginNetworksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[173]
+	mi := &file_backend_v1_services_proto_msgTypes[175]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9031,7 +9135,7 @@ func (x *LoginNetworksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginNetworksRequest.ProtoReflect.Descriptor instead.
 func (*LoginNetworksRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{173}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{175}
 }
 
 type LoginNetworksResponse struct {
@@ -9043,7 +9147,7 @@ type LoginNetworksResponse struct {
 
 func (x *LoginNetworksResponse) Reset() {
 	*x = LoginNetworksResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[174]
+	mi := &file_backend_v1_services_proto_msgTypes[176]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9055,7 +9159,7 @@ func (x *LoginNetworksResponse) String() string {
 func (*LoginNetworksResponse) ProtoMessage() {}
 
 func (x *LoginNetworksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[174]
+	mi := &file_backend_v1_services_proto_msgTypes[176]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9068,7 +9172,7 @@ func (x *LoginNetworksResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginNetworksResponse.ProtoReflect.Descriptor instead.
 func (*LoginNetworksResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{174}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{176}
 }
 
 func (x *LoginNetworksResponse) GetNetworks() []*LoginNetwork {
@@ -9089,7 +9193,7 @@ type BeginLoginRequest struct {
 
 func (x *BeginLoginRequest) Reset() {
 	*x = BeginLoginRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[175]
+	mi := &file_backend_v1_services_proto_msgTypes[177]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9101,7 +9205,7 @@ func (x *BeginLoginRequest) String() string {
 func (*BeginLoginRequest) ProtoMessage() {}
 
 func (x *BeginLoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[175]
+	mi := &file_backend_v1_services_proto_msgTypes[177]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9114,7 +9218,7 @@ func (x *BeginLoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginLoginRequest.ProtoReflect.Descriptor instead.
 func (*BeginLoginRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{175}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{177}
 }
 
 func (x *BeginLoginRequest) GetNetwork() string {
@@ -9140,7 +9244,7 @@ type BeginLoginResponse struct {
 
 func (x *BeginLoginResponse) Reset() {
 	*x = BeginLoginResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[176]
+	mi := &file_backend_v1_services_proto_msgTypes[178]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9152,7 +9256,7 @@ func (x *BeginLoginResponse) String() string {
 func (*BeginLoginResponse) ProtoMessage() {}
 
 func (x *BeginLoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[176]
+	mi := &file_backend_v1_services_proto_msgTypes[178]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9165,7 +9269,7 @@ func (x *BeginLoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginLoginResponse.ProtoReflect.Descriptor instead.
 func (*BeginLoginResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{176}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{178}
 }
 
 func (x *BeginLoginResponse) GetStep() *LoginStep {
@@ -9186,7 +9290,7 @@ type AnswerLoginRequest struct {
 
 func (x *AnswerLoginRequest) Reset() {
 	*x = AnswerLoginRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[177]
+	mi := &file_backend_v1_services_proto_msgTypes[179]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9198,7 +9302,7 @@ func (x *AnswerLoginRequest) String() string {
 func (*AnswerLoginRequest) ProtoMessage() {}
 
 func (x *AnswerLoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[177]
+	mi := &file_backend_v1_services_proto_msgTypes[179]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9211,7 +9315,7 @@ func (x *AnswerLoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnswerLoginRequest.ProtoReflect.Descriptor instead.
 func (*AnswerLoginRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{177}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{179}
 }
 
 func (x *AnswerLoginRequest) GetLogin() string {
@@ -9237,7 +9341,7 @@ type AnswerLoginResponse struct {
 
 func (x *AnswerLoginResponse) Reset() {
 	*x = AnswerLoginResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[178]
+	mi := &file_backend_v1_services_proto_msgTypes[180]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9249,7 +9353,7 @@ func (x *AnswerLoginResponse) String() string {
 func (*AnswerLoginResponse) ProtoMessage() {}
 
 func (x *AnswerLoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[178]
+	mi := &file_backend_v1_services_proto_msgTypes[180]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9262,7 +9366,7 @@ func (x *AnswerLoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnswerLoginResponse.ProtoReflect.Descriptor instead.
 func (*AnswerLoginResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{178}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{180}
 }
 
 func (x *AnswerLoginResponse) GetStep() *LoginStep {
@@ -9281,7 +9385,7 @@ type CancelLoginRequest struct {
 
 func (x *CancelLoginRequest) Reset() {
 	*x = CancelLoginRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[179]
+	mi := &file_backend_v1_services_proto_msgTypes[181]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9293,7 +9397,7 @@ func (x *CancelLoginRequest) String() string {
 func (*CancelLoginRequest) ProtoMessage() {}
 
 func (x *CancelLoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[179]
+	mi := &file_backend_v1_services_proto_msgTypes[181]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9306,7 +9410,7 @@ func (x *CancelLoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelLoginRequest.ProtoReflect.Descriptor instead.
 func (*CancelLoginRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{179}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{181}
 }
 
 func (x *CancelLoginRequest) GetLogin() string {
@@ -9324,7 +9428,7 @@ type CancelLoginResponse struct {
 
 func (x *CancelLoginResponse) Reset() {
 	*x = CancelLoginResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[180]
+	mi := &file_backend_v1_services_proto_msgTypes[182]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9336,7 +9440,7 @@ func (x *CancelLoginResponse) String() string {
 func (*CancelLoginResponse) ProtoMessage() {}
 
 func (x *CancelLoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[180]
+	mi := &file_backend_v1_services_proto_msgTypes[182]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9349,7 +9453,7 @@ func (x *CancelLoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelLoginResponse.ProtoReflect.Descriptor instead.
 func (*CancelLoginResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{180}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{182}
 }
 
 type DraftsResponse struct {
@@ -9361,7 +9465,7 @@ type DraftsResponse struct {
 
 func (x *DraftsResponse) Reset() {
 	*x = DraftsResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[181]
+	mi := &file_backend_v1_services_proto_msgTypes[183]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9373,7 +9477,7 @@ func (x *DraftsResponse) String() string {
 func (*DraftsResponse) ProtoMessage() {}
 
 func (x *DraftsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[181]
+	mi := &file_backend_v1_services_proto_msgTypes[183]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9386,7 +9490,7 @@ func (x *DraftsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DraftsResponse.ProtoReflect.Descriptor instead.
 func (*DraftsResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{181}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{183}
 }
 
 func (x *DraftsResponse) GetDrafts() []*StoredDraft {
@@ -9423,7 +9527,7 @@ type ModelTaskRequest struct {
 
 func (x *ModelTaskRequest) Reset() {
 	*x = ModelTaskRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[182]
+	mi := &file_backend_v1_services_proto_msgTypes[184]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9435,7 +9539,7 @@ func (x *ModelTaskRequest) String() string {
 func (*ModelTaskRequest) ProtoMessage() {}
 
 func (x *ModelTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[182]
+	mi := &file_backend_v1_services_proto_msgTypes[184]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9448,7 +9552,7 @@ func (x *ModelTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelTaskRequest.ProtoReflect.Descriptor instead.
 func (*ModelTaskRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{182}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{184}
 }
 
 func (x *ModelTaskRequest) GetTask() string {
@@ -9537,7 +9641,7 @@ type ModelTaskResponse struct {
 
 func (x *ModelTaskResponse) Reset() {
 	*x = ModelTaskResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[183]
+	mi := &file_backend_v1_services_proto_msgTypes[185]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9549,7 +9653,7 @@ func (x *ModelTaskResponse) String() string {
 func (*ModelTaskResponse) ProtoMessage() {}
 
 func (x *ModelTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[183]
+	mi := &file_backend_v1_services_proto_msgTypes[185]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9562,7 +9666,7 @@ func (x *ModelTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelTaskResponse.ProtoReflect.Descriptor instead.
 func (*ModelTaskResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{183}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{185}
 }
 
 func (x *ModelTaskResponse) GetText() string {
@@ -9615,7 +9719,7 @@ type MessagesRequest struct {
 
 func (x *MessagesRequest) Reset() {
 	*x = MessagesRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[184]
+	mi := &file_backend_v1_services_proto_msgTypes[186]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9627,7 +9731,7 @@ func (x *MessagesRequest) String() string {
 func (*MessagesRequest) ProtoMessage() {}
 
 func (x *MessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[184]
+	mi := &file_backend_v1_services_proto_msgTypes[186]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9640,7 +9744,7 @@ func (x *MessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessagesRequest.ProtoReflect.Descriptor instead.
 func (*MessagesRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{184}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{186}
 }
 
 type MessagesResponse struct {
@@ -9652,7 +9756,7 @@ type MessagesResponse struct {
 
 func (x *MessagesResponse) Reset() {
 	*x = MessagesResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[185]
+	mi := &file_backend_v1_services_proto_msgTypes[187]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9664,7 +9768,7 @@ func (x *MessagesResponse) String() string {
 func (*MessagesResponse) ProtoMessage() {}
 
 func (x *MessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[185]
+	mi := &file_backend_v1_services_proto_msgTypes[187]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9677,7 +9781,7 @@ func (x *MessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessagesResponse.ProtoReflect.Descriptor instead.
 func (*MessagesResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{185}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{187}
 }
 
 func (x *MessagesResponse) GetMessage() *Message {
@@ -9695,7 +9799,7 @@ type ActivityStreamRequest struct {
 
 func (x *ActivityStreamRequest) Reset() {
 	*x = ActivityStreamRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[186]
+	mi := &file_backend_v1_services_proto_msgTypes[188]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9707,7 +9811,7 @@ func (x *ActivityStreamRequest) String() string {
 func (*ActivityStreamRequest) ProtoMessage() {}
 
 func (x *ActivityStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[186]
+	mi := &file_backend_v1_services_proto_msgTypes[188]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9720,7 +9824,7 @@ func (x *ActivityStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityStreamRequest.ProtoReflect.Descriptor instead.
 func (*ActivityStreamRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{186}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{188}
 }
 
 type ActivityStreamResponse struct {
@@ -9732,7 +9836,7 @@ type ActivityStreamResponse struct {
 
 func (x *ActivityStreamResponse) Reset() {
 	*x = ActivityStreamResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[187]
+	mi := &file_backend_v1_services_proto_msgTypes[189]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9744,7 +9848,7 @@ func (x *ActivityStreamResponse) String() string {
 func (*ActivityStreamResponse) ProtoMessage() {}
 
 func (x *ActivityStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[187]
+	mi := &file_backend_v1_services_proto_msgTypes[189]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9757,7 +9861,7 @@ func (x *ActivityStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityStreamResponse.ProtoReflect.Descriptor instead.
 func (*ActivityStreamResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{187}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{189}
 }
 
 func (x *ActivityStreamResponse) GetActivity() *Activity {
@@ -9776,7 +9880,7 @@ type FollowRequest struct {
 
 func (x *FollowRequest) Reset() {
 	*x = FollowRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[188]
+	mi := &file_backend_v1_services_proto_msgTypes[190]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9788,7 +9892,7 @@ func (x *FollowRequest) String() string {
 func (*FollowRequest) ProtoMessage() {}
 
 func (x *FollowRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[188]
+	mi := &file_backend_v1_services_proto_msgTypes[190]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9801,7 +9905,7 @@ func (x *FollowRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FollowRequest.ProtoReflect.Descriptor instead.
 func (*FollowRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{188}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{190}
 }
 
 func (x *FollowRequest) GetUri() string {
@@ -9821,7 +9925,7 @@ type FollowResponse struct {
 
 func (x *FollowResponse) Reset() {
 	*x = FollowResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[189]
+	mi := &file_backend_v1_services_proto_msgTypes[191]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9833,7 +9937,7 @@ func (x *FollowResponse) String() string {
 func (*FollowResponse) ProtoMessage() {}
 
 func (x *FollowResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[189]
+	mi := &file_backend_v1_services_proto_msgTypes[191]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9846,7 +9950,7 @@ func (x *FollowResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FollowResponse.ProtoReflect.Descriptor instead.
 func (*FollowResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{189}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{191}
 }
 
 func (x *FollowResponse) GetDelivered() bool {
@@ -9864,7 +9968,7 @@ type RoomsChangedRequest struct {
 
 func (x *RoomsChangedRequest) Reset() {
 	*x = RoomsChangedRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[190]
+	mi := &file_backend_v1_services_proto_msgTypes[192]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9876,7 +9980,7 @@ func (x *RoomsChangedRequest) String() string {
 func (*RoomsChangedRequest) ProtoMessage() {}
 
 func (x *RoomsChangedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[190]
+	mi := &file_backend_v1_services_proto_msgTypes[192]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9889,7 +9993,7 @@ func (x *RoomsChangedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoomsChangedRequest.ProtoReflect.Descriptor instead.
 func (*RoomsChangedRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{190}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{192}
 }
 
 // RoomsChangedResponse says a network rewrote its rooms; the client reads them again.
@@ -9901,7 +10005,7 @@ type RoomsChangedResponse struct {
 
 func (x *RoomsChangedResponse) Reset() {
 	*x = RoomsChangedResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[191]
+	mi := &file_backend_v1_services_proto_msgTypes[193]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9913,7 +10017,7 @@ func (x *RoomsChangedResponse) String() string {
 func (*RoomsChangedResponse) ProtoMessage() {}
 
 func (x *RoomsChangedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[191]
+	mi := &file_backend_v1_services_proto_msgTypes[193]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9926,7 +10030,7 @@ func (x *RoomsChangedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoomsChangedResponse.ProtoReflect.Descriptor instead.
 func (*RoomsChangedResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{191}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{193}
 }
 
 type FollowStreamRequest struct {
@@ -9937,7 +10041,7 @@ type FollowStreamRequest struct {
 
 func (x *FollowStreamRequest) Reset() {
 	*x = FollowStreamRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[192]
+	mi := &file_backend_v1_services_proto_msgTypes[194]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9949,7 +10053,7 @@ func (x *FollowStreamRequest) String() string {
 func (*FollowStreamRequest) ProtoMessage() {}
 
 func (x *FollowStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[192]
+	mi := &file_backend_v1_services_proto_msgTypes[194]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9962,7 +10066,7 @@ func (x *FollowStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FollowStreamRequest.ProtoReflect.Descriptor instead.
 func (*FollowStreamRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{192}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{194}
 }
 
 type FollowStreamResponse struct {
@@ -9974,7 +10078,7 @@ type FollowStreamResponse struct {
 
 func (x *FollowStreamResponse) Reset() {
 	*x = FollowStreamResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[193]
+	mi := &file_backend_v1_services_proto_msgTypes[195]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9986,7 +10090,7 @@ func (x *FollowStreamResponse) String() string {
 func (*FollowStreamResponse) ProtoMessage() {}
 
 func (x *FollowStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[193]
+	mi := &file_backend_v1_services_proto_msgTypes[195]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9999,7 +10103,7 @@ func (x *FollowStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FollowStreamResponse.ProtoReflect.Descriptor instead.
 func (*FollowStreamResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{193}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{195}
 }
 
 func (x *FollowStreamResponse) GetUri() string {
@@ -10017,7 +10121,7 @@ type VerificationsRequest struct {
 
 func (x *VerificationsRequest) Reset() {
 	*x = VerificationsRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[194]
+	mi := &file_backend_v1_services_proto_msgTypes[196]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10029,7 +10133,7 @@ func (x *VerificationsRequest) String() string {
 func (*VerificationsRequest) ProtoMessage() {}
 
 func (x *VerificationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[194]
+	mi := &file_backend_v1_services_proto_msgTypes[196]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10042,7 +10146,7 @@ func (x *VerificationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerificationsRequest.ProtoReflect.Descriptor instead.
 func (*VerificationsRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{194}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{196}
 }
 
 type VerificationsResponse struct {
@@ -10054,7 +10158,7 @@ type VerificationsResponse struct {
 
 func (x *VerificationsResponse) Reset() {
 	*x = VerificationsResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[195]
+	mi := &file_backend_v1_services_proto_msgTypes[197]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10066,7 +10170,7 @@ func (x *VerificationsResponse) String() string {
 func (*VerificationsResponse) ProtoMessage() {}
 
 func (x *VerificationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[195]
+	mi := &file_backend_v1_services_proto_msgTypes[197]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10079,7 +10183,7 @@ func (x *VerificationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerificationsResponse.ProtoReflect.Descriptor instead.
 func (*VerificationsResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{195}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{197}
 }
 
 func (x *VerificationsResponse) GetVerification() *Verification {
@@ -10097,7 +10201,7 @@ type StartVerificationRequest struct {
 
 func (x *StartVerificationRequest) Reset() {
 	*x = StartVerificationRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[196]
+	mi := &file_backend_v1_services_proto_msgTypes[198]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10109,7 +10213,7 @@ func (x *StartVerificationRequest) String() string {
 func (*StartVerificationRequest) ProtoMessage() {}
 
 func (x *StartVerificationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[196]
+	mi := &file_backend_v1_services_proto_msgTypes[198]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10122,7 +10226,7 @@ func (x *StartVerificationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartVerificationRequest.ProtoReflect.Descriptor instead.
 func (*StartVerificationRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{196}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{198}
 }
 
 type StartVerificationResponse struct {
@@ -10136,7 +10240,7 @@ type StartVerificationResponse struct {
 
 func (x *StartVerificationResponse) Reset() {
 	*x = StartVerificationResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[197]
+	mi := &file_backend_v1_services_proto_msgTypes[199]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10148,7 +10252,7 @@ func (x *StartVerificationResponse) String() string {
 func (*StartVerificationResponse) ProtoMessage() {}
 
 func (x *StartVerificationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[197]
+	mi := &file_backend_v1_services_proto_msgTypes[199]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10161,7 +10265,7 @@ func (x *StartVerificationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartVerificationResponse.ProtoReflect.Descriptor instead.
 func (*StartVerificationResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{197}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{199}
 }
 
 func (x *StartVerificationResponse) GetTxnId() string {
@@ -10180,7 +10284,7 @@ type AcceptVerificationRequest struct {
 
 func (x *AcceptVerificationRequest) Reset() {
 	*x = AcceptVerificationRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[198]
+	mi := &file_backend_v1_services_proto_msgTypes[200]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10192,7 +10296,7 @@ func (x *AcceptVerificationRequest) String() string {
 func (*AcceptVerificationRequest) ProtoMessage() {}
 
 func (x *AcceptVerificationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[198]
+	mi := &file_backend_v1_services_proto_msgTypes[200]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10205,7 +10309,7 @@ func (x *AcceptVerificationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptVerificationRequest.ProtoReflect.Descriptor instead.
 func (*AcceptVerificationRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{198}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{200}
 }
 
 func (x *AcceptVerificationRequest) GetTxnId() string {
@@ -10223,7 +10327,7 @@ type AcceptVerificationResponse struct {
 
 func (x *AcceptVerificationResponse) Reset() {
 	*x = AcceptVerificationResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[199]
+	mi := &file_backend_v1_services_proto_msgTypes[201]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10235,7 +10339,7 @@ func (x *AcceptVerificationResponse) String() string {
 func (*AcceptVerificationResponse) ProtoMessage() {}
 
 func (x *AcceptVerificationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[199]
+	mi := &file_backend_v1_services_proto_msgTypes[201]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10248,7 +10352,7 @@ func (x *AcceptVerificationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptVerificationResponse.ProtoReflect.Descriptor instead.
 func (*AcceptVerificationResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{199}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{201}
 }
 
 type ConfirmSASRequest struct {
@@ -10260,7 +10364,7 @@ type ConfirmSASRequest struct {
 
 func (x *ConfirmSASRequest) Reset() {
 	*x = ConfirmSASRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[200]
+	mi := &file_backend_v1_services_proto_msgTypes[202]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10272,7 +10376,7 @@ func (x *ConfirmSASRequest) String() string {
 func (*ConfirmSASRequest) ProtoMessage() {}
 
 func (x *ConfirmSASRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[200]
+	mi := &file_backend_v1_services_proto_msgTypes[202]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10285,7 +10389,7 @@ func (x *ConfirmSASRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmSASRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmSASRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{200}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{202}
 }
 
 func (x *ConfirmSASRequest) GetTxnId() string {
@@ -10303,7 +10407,7 @@ type ConfirmSASResponse struct {
 
 func (x *ConfirmSASResponse) Reset() {
 	*x = ConfirmSASResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[201]
+	mi := &file_backend_v1_services_proto_msgTypes[203]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10315,7 +10419,7 @@ func (x *ConfirmSASResponse) String() string {
 func (*ConfirmSASResponse) ProtoMessage() {}
 
 func (x *ConfirmSASResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[201]
+	mi := &file_backend_v1_services_proto_msgTypes[203]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10328,7 +10432,7 @@ func (x *ConfirmSASResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmSASResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmSASResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{201}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{203}
 }
 
 type CancelVerificationRequest struct {
@@ -10340,7 +10444,7 @@ type CancelVerificationRequest struct {
 
 func (x *CancelVerificationRequest) Reset() {
 	*x = CancelVerificationRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[202]
+	mi := &file_backend_v1_services_proto_msgTypes[204]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10352,7 +10456,7 @@ func (x *CancelVerificationRequest) String() string {
 func (*CancelVerificationRequest) ProtoMessage() {}
 
 func (x *CancelVerificationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[202]
+	mi := &file_backend_v1_services_proto_msgTypes[204]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10365,7 +10469,7 @@ func (x *CancelVerificationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelVerificationRequest.ProtoReflect.Descriptor instead.
 func (*CancelVerificationRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{202}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{204}
 }
 
 func (x *CancelVerificationRequest) GetTxnId() string {
@@ -10383,7 +10487,7 @@ type CancelVerificationResponse struct {
 
 func (x *CancelVerificationResponse) Reset() {
 	*x = CancelVerificationResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[203]
+	mi := &file_backend_v1_services_proto_msgTypes[205]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10395,7 +10499,7 @@ func (x *CancelVerificationResponse) String() string {
 func (*CancelVerificationResponse) ProtoMessage() {}
 
 func (x *CancelVerificationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[203]
+	mi := &file_backend_v1_services_proto_msgTypes[205]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10408,7 +10512,7 @@ func (x *CancelVerificationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelVerificationResponse.ProtoReflect.Descriptor instead.
 func (*CancelVerificationResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{203}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{205}
 }
 
 type StatusRequest struct {
@@ -10419,7 +10523,7 @@ type StatusRequest struct {
 
 func (x *StatusRequest) Reset() {
 	*x = StatusRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[204]
+	mi := &file_backend_v1_services_proto_msgTypes[206]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10431,7 +10535,7 @@ func (x *StatusRequest) String() string {
 func (*StatusRequest) ProtoMessage() {}
 
 func (x *StatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[204]
+	mi := &file_backend_v1_services_proto_msgTypes[206]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10444,7 +10548,7 @@ func (x *StatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusRequest.ProtoReflect.Descriptor instead.
 func (*StatusRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{204}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{206}
 }
 
 type StatusResponse struct {
@@ -10464,7 +10568,7 @@ type StatusResponse struct {
 
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[205]
+	mi := &file_backend_v1_services_proto_msgTypes[207]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10476,7 +10580,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[205]
+	mi := &file_backend_v1_services_proto_msgTypes[207]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10489,7 +10593,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{205}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{207}
 }
 
 func (x *StatusResponse) GetReady() bool {
@@ -10538,7 +10642,7 @@ type NetworkStatus struct {
 
 func (x *NetworkStatus) Reset() {
 	*x = NetworkStatus{}
-	mi := &file_backend_v1_services_proto_msgTypes[206]
+	mi := &file_backend_v1_services_proto_msgTypes[208]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10550,7 +10654,7 @@ func (x *NetworkStatus) String() string {
 func (*NetworkStatus) ProtoMessage() {}
 
 func (x *NetworkStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[206]
+	mi := &file_backend_v1_services_proto_msgTypes[208]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10563,7 +10667,7 @@ func (x *NetworkStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkStatus.ProtoReflect.Descriptor instead.
 func (*NetworkStatus) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{206}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{208}
 }
 
 func (x *NetworkStatus) GetNetwork() string {
@@ -10609,7 +10713,7 @@ type SelvesRequest struct {
 
 func (x *SelvesRequest) Reset() {
 	*x = SelvesRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[207]
+	mi := &file_backend_v1_services_proto_msgTypes[209]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10621,7 +10725,7 @@ func (x *SelvesRequest) String() string {
 func (*SelvesRequest) ProtoMessage() {}
 
 func (x *SelvesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[207]
+	mi := &file_backend_v1_services_proto_msgTypes[209]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10634,7 +10738,7 @@ func (x *SelvesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SelvesRequest.ProtoReflect.Descriptor instead.
 func (*SelvesRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{207}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{209}
 }
 
 type SelvesResponse struct {
@@ -10647,7 +10751,7 @@ type SelvesResponse struct {
 
 func (x *SelvesResponse) Reset() {
 	*x = SelvesResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[208]
+	mi := &file_backend_v1_services_proto_msgTypes[210]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10659,7 +10763,7 @@ func (x *SelvesResponse) String() string {
 func (*SelvesResponse) ProtoMessage() {}
 
 func (x *SelvesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[208]
+	mi := &file_backend_v1_services_proto_msgTypes[210]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10672,7 +10776,7 @@ func (x *SelvesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SelvesResponse.ProtoReflect.Descriptor instead.
 func (*SelvesResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{208}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{210}
 }
 
 func (x *SelvesResponse) GetIds() []string {
@@ -10690,7 +10794,7 @@ type DirectoryRequest struct {
 
 func (x *DirectoryRequest) Reset() {
 	*x = DirectoryRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[209]
+	mi := &file_backend_v1_services_proto_msgTypes[211]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10702,7 +10806,7 @@ func (x *DirectoryRequest) String() string {
 func (*DirectoryRequest) ProtoMessage() {}
 
 func (x *DirectoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[209]
+	mi := &file_backend_v1_services_proto_msgTypes[211]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10715,7 +10819,7 @@ func (x *DirectoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DirectoryRequest.ProtoReflect.Descriptor instead.
 func (*DirectoryRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{209}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{211}
 }
 
 type DirectoryResponse struct {
@@ -10730,7 +10834,7 @@ type DirectoryResponse struct {
 
 func (x *DirectoryResponse) Reset() {
 	*x = DirectoryResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[210]
+	mi := &file_backend_v1_services_proto_msgTypes[212]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10742,7 +10846,7 @@ func (x *DirectoryResponse) String() string {
 func (*DirectoryResponse) ProtoMessage() {}
 
 func (x *DirectoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[210]
+	mi := &file_backend_v1_services_proto_msgTypes[212]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10755,7 +10859,7 @@ func (x *DirectoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DirectoryResponse.ProtoReflect.Descriptor instead.
 func (*DirectoryResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{210}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{212}
 }
 
 func (x *DirectoryResponse) GetNames() []*PersonName {
@@ -10780,7 +10884,7 @@ type ClearCacheRequest struct {
 
 func (x *ClearCacheRequest) Reset() {
 	*x = ClearCacheRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[211]
+	mi := &file_backend_v1_services_proto_msgTypes[213]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10792,7 +10896,7 @@ func (x *ClearCacheRequest) String() string {
 func (*ClearCacheRequest) ProtoMessage() {}
 
 func (x *ClearCacheRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[211]
+	mi := &file_backend_v1_services_proto_msgTypes[213]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10805,7 +10909,7 @@ func (x *ClearCacheRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearCacheRequest.ProtoReflect.Descriptor instead.
 func (*ClearCacheRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{211}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{213}
 }
 
 type ClearCacheResponse struct {
@@ -10816,7 +10920,7 @@ type ClearCacheResponse struct {
 
 func (x *ClearCacheResponse) Reset() {
 	*x = ClearCacheResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[212]
+	mi := &file_backend_v1_services_proto_msgTypes[214]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10828,7 +10932,7 @@ func (x *ClearCacheResponse) String() string {
 func (*ClearCacheResponse) ProtoMessage() {}
 
 func (x *ClearCacheResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[212]
+	mi := &file_backend_v1_services_proto_msgTypes[214]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10841,7 +10945,7 @@ func (x *ClearCacheResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearCacheResponse.ProtoReflect.Descriptor instead.
 func (*ClearCacheResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{212}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{214}
 }
 
 type RestoreKeyBackupRequest struct {
@@ -10854,7 +10958,7 @@ type RestoreKeyBackupRequest struct {
 
 func (x *RestoreKeyBackupRequest) Reset() {
 	*x = RestoreKeyBackupRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[213]
+	mi := &file_backend_v1_services_proto_msgTypes[215]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10866,7 +10970,7 @@ func (x *RestoreKeyBackupRequest) String() string {
 func (*RestoreKeyBackupRequest) ProtoMessage() {}
 
 func (x *RestoreKeyBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[213]
+	mi := &file_backend_v1_services_proto_msgTypes[215]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10879,7 +10983,7 @@ func (x *RestoreKeyBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreKeyBackupRequest.ProtoReflect.Descriptor instead.
 func (*RestoreKeyBackupRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{213}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{215}
 }
 
 func (x *RestoreKeyBackupRequest) GetSecret() string {
@@ -10899,7 +11003,7 @@ type ExportRoomKeysRequest struct {
 
 func (x *ExportRoomKeysRequest) Reset() {
 	*x = ExportRoomKeysRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[214]
+	mi := &file_backend_v1_services_proto_msgTypes[216]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10911,7 +11015,7 @@ func (x *ExportRoomKeysRequest) String() string {
 func (*ExportRoomKeysRequest) ProtoMessage() {}
 
 func (x *ExportRoomKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[214]
+	mi := &file_backend_v1_services_proto_msgTypes[216]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10924,7 +11028,7 @@ func (x *ExportRoomKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportRoomKeysRequest.ProtoReflect.Descriptor instead.
 func (*ExportRoomKeysRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{214}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{216}
 }
 
 func (x *ExportRoomKeysRequest) GetPassphrase() string {
@@ -10943,7 +11047,7 @@ type ExportRoomKeysResponse struct {
 
 func (x *ExportRoomKeysResponse) Reset() {
 	*x = ExportRoomKeysResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[215]
+	mi := &file_backend_v1_services_proto_msgTypes[217]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10955,7 +11059,7 @@ func (x *ExportRoomKeysResponse) String() string {
 func (*ExportRoomKeysResponse) ProtoMessage() {}
 
 func (x *ExportRoomKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[215]
+	mi := &file_backend_v1_services_proto_msgTypes[217]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10968,7 +11072,7 @@ func (x *ExportRoomKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportRoomKeysResponse.ProtoReflect.Descriptor instead.
 func (*ExportRoomKeysResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{215}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{217}
 }
 
 func (x *ExportRoomKeysResponse) GetData() []byte {
@@ -10988,7 +11092,7 @@ type ImportRoomKeysRequest struct {
 
 func (x *ImportRoomKeysRequest) Reset() {
 	*x = ImportRoomKeysRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[216]
+	mi := &file_backend_v1_services_proto_msgTypes[218]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11000,7 +11104,7 @@ func (x *ImportRoomKeysRequest) String() string {
 func (*ImportRoomKeysRequest) ProtoMessage() {}
 
 func (x *ImportRoomKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[216]
+	mi := &file_backend_v1_services_proto_msgTypes[218]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11013,7 +11117,7 @@ func (x *ImportRoomKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportRoomKeysRequest.ProtoReflect.Descriptor instead.
 func (*ImportRoomKeysRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{216}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{218}
 }
 
 func (x *ImportRoomKeysRequest) GetPassphrase() string {
@@ -11041,7 +11145,7 @@ type ImportRoomKeysResponse struct {
 
 func (x *ImportRoomKeysResponse) Reset() {
 	*x = ImportRoomKeysResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[217]
+	mi := &file_backend_v1_services_proto_msgTypes[219]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11053,7 +11157,7 @@ func (x *ImportRoomKeysResponse) String() string {
 func (*ImportRoomKeysResponse) ProtoMessage() {}
 
 func (x *ImportRoomKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[217]
+	mi := &file_backend_v1_services_proto_msgTypes[219]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11066,7 +11170,7 @@ func (x *ImportRoomKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportRoomKeysResponse.ProtoReflect.Descriptor instead.
 func (*ImportRoomKeysResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{217}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{219}
 }
 
 func (x *ImportRoomKeysResponse) GetImported() int64 {
@@ -11092,7 +11196,7 @@ type RestoreKeyBackupResponse struct {
 
 func (x *RestoreKeyBackupResponse) Reset() {
 	*x = RestoreKeyBackupResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[218]
+	mi := &file_backend_v1_services_proto_msgTypes[220]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11104,7 +11208,7 @@ func (x *RestoreKeyBackupResponse) String() string {
 func (*RestoreKeyBackupResponse) ProtoMessage() {}
 
 func (x *RestoreKeyBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[218]
+	mi := &file_backend_v1_services_proto_msgTypes[220]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11117,7 +11221,7 @@ func (x *RestoreKeyBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreKeyBackupResponse.ProtoReflect.Descriptor instead.
 func (*RestoreKeyBackupResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{218}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{220}
 }
 
 func (x *RestoreKeyBackupResponse) GetKeys() int64 {
@@ -11137,7 +11241,7 @@ type BootstrapKeyBackupRequest struct {
 
 func (x *BootstrapKeyBackupRequest) Reset() {
 	*x = BootstrapKeyBackupRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[219]
+	mi := &file_backend_v1_services_proto_msgTypes[221]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11149,7 +11253,7 @@ func (x *BootstrapKeyBackupRequest) String() string {
 func (*BootstrapKeyBackupRequest) ProtoMessage() {}
 
 func (x *BootstrapKeyBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[219]
+	mi := &file_backend_v1_services_proto_msgTypes[221]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11162,7 +11266,7 @@ func (x *BootstrapKeyBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BootstrapKeyBackupRequest.ProtoReflect.Descriptor instead.
 func (*BootstrapKeyBackupRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{219}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{221}
 }
 
 func (x *BootstrapKeyBackupRequest) GetPassword() string {
@@ -11188,7 +11292,7 @@ type BootstrapKeyBackupResponse struct {
 
 func (x *BootstrapKeyBackupResponse) Reset() {
 	*x = BootstrapKeyBackupResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[220]
+	mi := &file_backend_v1_services_proto_msgTypes[222]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11200,7 +11304,7 @@ func (x *BootstrapKeyBackupResponse) String() string {
 func (*BootstrapKeyBackupResponse) ProtoMessage() {}
 
 func (x *BootstrapKeyBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[220]
+	mi := &file_backend_v1_services_proto_msgTypes[222]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11213,7 +11317,7 @@ func (x *BootstrapKeyBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BootstrapKeyBackupResponse.ProtoReflect.Descriptor instead.
 func (*BootstrapKeyBackupResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{220}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{222}
 }
 
 func (x *BootstrapKeyBackupResponse) GetRecoveryKey() string {
@@ -11254,7 +11358,7 @@ type CheckSpellingRequest struct {
 
 func (x *CheckSpellingRequest) Reset() {
 	*x = CheckSpellingRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[221]
+	mi := &file_backend_v1_services_proto_msgTypes[223]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11266,7 +11370,7 @@ func (x *CheckSpellingRequest) String() string {
 func (*CheckSpellingRequest) ProtoMessage() {}
 
 func (x *CheckSpellingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[221]
+	mi := &file_backend_v1_services_proto_msgTypes[223]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11279,7 +11383,7 @@ func (x *CheckSpellingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckSpellingRequest.ProtoReflect.Descriptor instead.
 func (*CheckSpellingRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{221}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{223}
 }
 
 func (x *CheckSpellingRequest) GetText() string {
@@ -11308,7 +11412,7 @@ type Misspelling struct {
 
 func (x *Misspelling) Reset() {
 	*x = Misspelling{}
-	mi := &file_backend_v1_services_proto_msgTypes[222]
+	mi := &file_backend_v1_services_proto_msgTypes[224]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11320,7 +11424,7 @@ func (x *Misspelling) String() string {
 func (*Misspelling) ProtoMessage() {}
 
 func (x *Misspelling) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[222]
+	mi := &file_backend_v1_services_proto_msgTypes[224]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11333,7 +11437,7 @@ func (x *Misspelling) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Misspelling.ProtoReflect.Descriptor instead.
 func (*Misspelling) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{222}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{224}
 }
 
 func (x *Misspelling) GetWord() string {
@@ -11387,7 +11491,7 @@ type CheckSpellingResponse struct {
 
 func (x *CheckSpellingResponse) Reset() {
 	*x = CheckSpellingResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[223]
+	mi := &file_backend_v1_services_proto_msgTypes[225]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11399,7 +11503,7 @@ func (x *CheckSpellingResponse) String() string {
 func (*CheckSpellingResponse) ProtoMessage() {}
 
 func (x *CheckSpellingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[223]
+	mi := &file_backend_v1_services_proto_msgTypes[225]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11412,7 +11516,7 @@ func (x *CheckSpellingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckSpellingResponse.ProtoReflect.Descriptor instead.
 func (*CheckSpellingResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{223}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{225}
 }
 
 func (x *CheckSpellingResponse) GetMisspellings() []*Misspelling {
@@ -11434,7 +11538,7 @@ type LearnWordRequest struct {
 
 func (x *LearnWordRequest) Reset() {
 	*x = LearnWordRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[224]
+	mi := &file_backend_v1_services_proto_msgTypes[226]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11446,7 +11550,7 @@ func (x *LearnWordRequest) String() string {
 func (*LearnWordRequest) ProtoMessage() {}
 
 func (x *LearnWordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[224]
+	mi := &file_backend_v1_services_proto_msgTypes[226]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11459,7 +11563,7 @@ func (x *LearnWordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LearnWordRequest.ProtoReflect.Descriptor instead.
 func (*LearnWordRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{224}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{226}
 }
 
 func (x *LearnWordRequest) GetWord() string {
@@ -11484,7 +11588,7 @@ type LearnWordResponse struct {
 
 func (x *LearnWordResponse) Reset() {
 	*x = LearnWordResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[225]
+	mi := &file_backend_v1_services_proto_msgTypes[227]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11496,7 +11600,7 @@ func (x *LearnWordResponse) String() string {
 func (*LearnWordResponse) ProtoMessage() {}
 
 func (x *LearnWordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[225]
+	mi := &file_backend_v1_services_proto_msgTypes[227]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11509,7 +11613,7 @@ func (x *LearnWordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LearnWordResponse.ProtoReflect.Descriptor instead.
 func (*LearnWordResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{225}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{227}
 }
 
 type AllowRareWordRequest struct {
@@ -11522,7 +11626,7 @@ type AllowRareWordRequest struct {
 
 func (x *AllowRareWordRequest) Reset() {
 	*x = AllowRareWordRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[226]
+	mi := &file_backend_v1_services_proto_msgTypes[228]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11534,7 +11638,7 @@ func (x *AllowRareWordRequest) String() string {
 func (*AllowRareWordRequest) ProtoMessage() {}
 
 func (x *AllowRareWordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[226]
+	mi := &file_backend_v1_services_proto_msgTypes[228]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11547,7 +11651,7 @@ func (x *AllowRareWordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllowRareWordRequest.ProtoReflect.Descriptor instead.
 func (*AllowRareWordRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{226}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{228}
 }
 
 func (x *AllowRareWordRequest) GetWord() string {
@@ -11565,7 +11669,7 @@ type AllowRareWordResponse struct {
 
 func (x *AllowRareWordResponse) Reset() {
 	*x = AllowRareWordResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[227]
+	mi := &file_backend_v1_services_proto_msgTypes[229]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11577,7 +11681,7 @@ func (x *AllowRareWordResponse) String() string {
 func (*AllowRareWordResponse) ProtoMessage() {}
 
 func (x *AllowRareWordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[227]
+	mi := &file_backend_v1_services_proto_msgTypes[229]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11590,7 +11694,7 @@ func (x *AllowRareWordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllowRareWordResponse.ProtoReflect.Descriptor instead.
 func (*AllowRareWordResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{227}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{229}
 }
 
 type InstallDictionaryRequest struct {
@@ -11603,7 +11707,7 @@ type InstallDictionaryRequest struct {
 
 func (x *InstallDictionaryRequest) Reset() {
 	*x = InstallDictionaryRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[228]
+	mi := &file_backend_v1_services_proto_msgTypes[230]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11615,7 +11719,7 @@ func (x *InstallDictionaryRequest) String() string {
 func (*InstallDictionaryRequest) ProtoMessage() {}
 
 func (x *InstallDictionaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[228]
+	mi := &file_backend_v1_services_proto_msgTypes[230]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11628,7 +11732,7 @@ func (x *InstallDictionaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallDictionaryRequest.ProtoReflect.Descriptor instead.
 func (*InstallDictionaryRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{228}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{230}
 }
 
 func (x *InstallDictionaryRequest) GetTag() string {
@@ -11646,7 +11750,7 @@ type InstallDictionaryResponse struct {
 
 func (x *InstallDictionaryResponse) Reset() {
 	*x = InstallDictionaryResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[229]
+	mi := &file_backend_v1_services_proto_msgTypes[231]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11658,7 +11762,7 @@ func (x *InstallDictionaryResponse) String() string {
 func (*InstallDictionaryResponse) ProtoMessage() {}
 
 func (x *InstallDictionaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[229]
+	mi := &file_backend_v1_services_proto_msgTypes[231]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11671,7 +11775,7 @@ func (x *InstallDictionaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallDictionaryResponse.ProtoReflect.Descriptor instead.
 func (*InstallDictionaryResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{229}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{231}
 }
 
 type InstallFrequenciesRequest struct {
@@ -11683,7 +11787,7 @@ type InstallFrequenciesRequest struct {
 
 func (x *InstallFrequenciesRequest) Reset() {
 	*x = InstallFrequenciesRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[230]
+	mi := &file_backend_v1_services_proto_msgTypes[232]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11695,7 +11799,7 @@ func (x *InstallFrequenciesRequest) String() string {
 func (*InstallFrequenciesRequest) ProtoMessage() {}
 
 func (x *InstallFrequenciesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[230]
+	mi := &file_backend_v1_services_proto_msgTypes[232]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11708,7 +11812,7 @@ func (x *InstallFrequenciesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallFrequenciesRequest.ProtoReflect.Descriptor instead.
 func (*InstallFrequenciesRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{230}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{232}
 }
 
 func (x *InstallFrequenciesRequest) GetTag() string {
@@ -11726,7 +11830,7 @@ type InstallFrequenciesResponse struct {
 
 func (x *InstallFrequenciesResponse) Reset() {
 	*x = InstallFrequenciesResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[231]
+	mi := &file_backend_v1_services_proto_msgTypes[233]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11738,7 +11842,7 @@ func (x *InstallFrequenciesResponse) String() string {
 func (*InstallFrequenciesResponse) ProtoMessage() {}
 
 func (x *InstallFrequenciesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[231]
+	mi := &file_backend_v1_services_proto_msgTypes[233]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11751,7 +11855,7 @@ func (x *InstallFrequenciesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallFrequenciesResponse.ProtoReflect.Descriptor instead.
 func (*InstallFrequenciesResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{231}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{233}
 }
 
 type InstallModelRequest struct {
@@ -11764,7 +11868,7 @@ type InstallModelRequest struct {
 
 func (x *InstallModelRequest) Reset() {
 	*x = InstallModelRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[232]
+	mi := &file_backend_v1_services_proto_msgTypes[234]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11776,7 +11880,7 @@ func (x *InstallModelRequest) String() string {
 func (*InstallModelRequest) ProtoMessage() {}
 
 func (x *InstallModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[232]
+	mi := &file_backend_v1_services_proto_msgTypes[234]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11789,7 +11893,7 @@ func (x *InstallModelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallModelRequest.ProtoReflect.Descriptor instead.
 func (*InstallModelRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{232}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{234}
 }
 
 func (x *InstallModelRequest) GetTag() string {
@@ -11807,7 +11911,7 @@ type InstallModelResponse struct {
 
 func (x *InstallModelResponse) Reset() {
 	*x = InstallModelResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[233]
+	mi := &file_backend_v1_services_proto_msgTypes[235]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11819,7 +11923,7 @@ func (x *InstallModelResponse) String() string {
 func (*InstallModelResponse) ProtoMessage() {}
 
 func (x *InstallModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[233]
+	mi := &file_backend_v1_services_proto_msgTypes[235]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11832,7 +11936,7 @@ func (x *InstallModelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallModelResponse.ProtoReflect.Descriptor instead.
 func (*InstallModelResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{233}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{235}
 }
 
 type DetectModelRequest struct {
@@ -11843,7 +11947,7 @@ type DetectModelRequest struct {
 
 func (x *DetectModelRequest) Reset() {
 	*x = DetectModelRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[234]
+	mi := &file_backend_v1_services_proto_msgTypes[236]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11855,7 +11959,7 @@ func (x *DetectModelRequest) String() string {
 func (*DetectModelRequest) ProtoMessage() {}
 
 func (x *DetectModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[234]
+	mi := &file_backend_v1_services_proto_msgTypes[236]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11868,7 +11972,7 @@ func (x *DetectModelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectModelRequest.ProtoReflect.Descriptor instead.
 func (*DetectModelRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{234}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{236}
 }
 
 // ModelCandidate is the local completion model with the evidence behind it, so the
@@ -11890,7 +11994,7 @@ type ModelCandidate struct {
 
 func (x *ModelCandidate) Reset() {
 	*x = ModelCandidate{}
-	mi := &file_backend_v1_services_proto_msgTypes[235]
+	mi := &file_backend_v1_services_proto_msgTypes[237]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11902,7 +12006,7 @@ func (x *ModelCandidate) String() string {
 func (*ModelCandidate) ProtoMessage() {}
 
 func (x *ModelCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[235]
+	mi := &file_backend_v1_services_proto_msgTypes[237]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11915,7 +12019,7 @@ func (x *ModelCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelCandidate.ProtoReflect.Descriptor instead.
 func (*ModelCandidate) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{235}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{237}
 }
 
 func (x *ModelCandidate) GetTag() string {
@@ -11961,7 +12065,7 @@ type DetectModelResponse struct {
 
 func (x *DetectModelResponse) Reset() {
 	*x = DetectModelResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[236]
+	mi := &file_backend_v1_services_proto_msgTypes[238]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11973,7 +12077,7 @@ func (x *DetectModelResponse) String() string {
 func (*DetectModelResponse) ProtoMessage() {}
 
 func (x *DetectModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[236]
+	mi := &file_backend_v1_services_proto_msgTypes[238]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11986,7 +12090,7 @@ func (x *DetectModelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectModelResponse.ProtoReflect.Descriptor instead.
 func (*DetectModelResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{236}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{238}
 }
 
 func (x *DetectModelResponse) GetCandidate() *ModelCandidate {
@@ -12018,7 +12122,7 @@ type DetectLanguagesRequest struct {
 
 func (x *DetectLanguagesRequest) Reset() {
 	*x = DetectLanguagesRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[237]
+	mi := &file_backend_v1_services_proto_msgTypes[239]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12030,7 +12134,7 @@ func (x *DetectLanguagesRequest) String() string {
 func (*DetectLanguagesRequest) ProtoMessage() {}
 
 func (x *DetectLanguagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[237]
+	mi := &file_backend_v1_services_proto_msgTypes[239]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12043,7 +12147,7 @@ func (x *DetectLanguagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectLanguagesRequest.ProtoReflect.Descriptor instead.
 func (*DetectLanguagesRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{237}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{239}
 }
 
 // LanguageCandidate is one suggested dictionary with the evidence behind it, so a
@@ -12066,7 +12170,7 @@ type LanguageCandidate struct {
 
 func (x *LanguageCandidate) Reset() {
 	*x = LanguageCandidate{}
-	mi := &file_backend_v1_services_proto_msgTypes[238]
+	mi := &file_backend_v1_services_proto_msgTypes[240]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12078,7 +12182,7 @@ func (x *LanguageCandidate) String() string {
 func (*LanguageCandidate) ProtoMessage() {}
 
 func (x *LanguageCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[238]
+	mi := &file_backend_v1_services_proto_msgTypes[240]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12091,7 +12195,7 @@ func (x *LanguageCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LanguageCandidate.ProtoReflect.Descriptor instead.
 func (*LanguageCandidate) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{238}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{240}
 }
 
 func (x *LanguageCandidate) GetTag() string {
@@ -12144,7 +12248,7 @@ type DetectLanguagesResponse struct {
 
 func (x *DetectLanguagesResponse) Reset() {
 	*x = DetectLanguagesResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[239]
+	mi := &file_backend_v1_services_proto_msgTypes[241]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12156,7 +12260,7 @@ func (x *DetectLanguagesResponse) String() string {
 func (*DetectLanguagesResponse) ProtoMessage() {}
 
 func (x *DetectLanguagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[239]
+	mi := &file_backend_v1_services_proto_msgTypes[241]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12169,7 +12273,7 @@ func (x *DetectLanguagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectLanguagesResponse.ProtoReflect.Descriptor instead.
 func (*DetectLanguagesResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{239}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{241}
 }
 
 func (x *DetectLanguagesResponse) GetCandidates() []*LanguageCandidate {
@@ -12216,7 +12320,7 @@ type FrequencyCandidate struct {
 
 func (x *FrequencyCandidate) Reset() {
 	*x = FrequencyCandidate{}
-	mi := &file_backend_v1_services_proto_msgTypes[240]
+	mi := &file_backend_v1_services_proto_msgTypes[242]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12228,7 +12332,7 @@ func (x *FrequencyCandidate) String() string {
 func (*FrequencyCandidate) ProtoMessage() {}
 
 func (x *FrequencyCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[240]
+	mi := &file_backend_v1_services_proto_msgTypes[242]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12241,7 +12345,7 @@ func (x *FrequencyCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FrequencyCandidate.ProtoReflect.Descriptor instead.
 func (*FrequencyCandidate) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{240}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{242}
 }
 
 func (x *FrequencyCandidate) GetTag() string {
@@ -12309,7 +12413,7 @@ type SetDNDRequest struct {
 
 func (x *SetDNDRequest) Reset() {
 	*x = SetDNDRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[241]
+	mi := &file_backend_v1_services_proto_msgTypes[243]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12321,7 +12425,7 @@ func (x *SetDNDRequest) String() string {
 func (*SetDNDRequest) ProtoMessage() {}
 
 func (x *SetDNDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[241]
+	mi := &file_backend_v1_services_proto_msgTypes[243]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12334,7 +12438,7 @@ func (x *SetDNDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDNDRequest.ProtoReflect.Descriptor instead.
 func (*SetDNDRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{241}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{243}
 }
 
 func (x *SetDNDRequest) GetRule() *TempRule {
@@ -12357,7 +12461,7 @@ type ClearDNDRequest struct {
 
 func (x *ClearDNDRequest) Reset() {
 	*x = ClearDNDRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[242]
+	mi := &file_backend_v1_services_proto_msgTypes[244]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12369,7 +12473,7 @@ func (x *ClearDNDRequest) String() string {
 func (*ClearDNDRequest) ProtoMessage() {}
 
 func (x *ClearDNDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[242]
+	mi := &file_backend_v1_services_proto_msgTypes[244]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12382,7 +12486,7 @@ func (x *ClearDNDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearDNDRequest.ProtoReflect.Descriptor instead.
 func (*ClearDNDRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{242}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{244}
 }
 
 func (x *ClearDNDRequest) GetMatch() string {
@@ -12414,7 +12518,7 @@ type DNDRequest struct {
 
 func (x *DNDRequest) Reset() {
 	*x = DNDRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[243]
+	mi := &file_backend_v1_services_proto_msgTypes[245]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12426,7 +12530,7 @@ func (x *DNDRequest) String() string {
 func (*DNDRequest) ProtoMessage() {}
 
 func (x *DNDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[243]
+	mi := &file_backend_v1_services_proto_msgTypes[245]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12439,7 +12543,7 @@ func (x *DNDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DNDRequest.ProtoReflect.Descriptor instead.
 func (*DNDRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{243}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{245}
 }
 
 // Every method that touches do-not-disturb answers with the whole set of entries in
@@ -12454,7 +12558,7 @@ type SetDNDResponse struct {
 
 func (x *SetDNDResponse) Reset() {
 	*x = SetDNDResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[244]
+	mi := &file_backend_v1_services_proto_msgTypes[246]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12466,7 +12570,7 @@ func (x *SetDNDResponse) String() string {
 func (*SetDNDResponse) ProtoMessage() {}
 
 func (x *SetDNDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[244]
+	mi := &file_backend_v1_services_proto_msgTypes[246]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12479,7 +12583,7 @@ func (x *SetDNDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDNDResponse.ProtoReflect.Descriptor instead.
 func (*SetDNDResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{244}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{246}
 }
 
 func (x *SetDNDResponse) GetRules() []*TempRule {
@@ -12498,7 +12602,7 @@ type ClearDNDResponse struct {
 
 func (x *ClearDNDResponse) Reset() {
 	*x = ClearDNDResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[245]
+	mi := &file_backend_v1_services_proto_msgTypes[247]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12510,7 +12614,7 @@ func (x *ClearDNDResponse) String() string {
 func (*ClearDNDResponse) ProtoMessage() {}
 
 func (x *ClearDNDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[245]
+	mi := &file_backend_v1_services_proto_msgTypes[247]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12523,7 +12627,7 @@ func (x *ClearDNDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearDNDResponse.ProtoReflect.Descriptor instead.
 func (*ClearDNDResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{245}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{247}
 }
 
 func (x *ClearDNDResponse) GetRules() []*TempRule {
@@ -12542,7 +12646,7 @@ type DNDResponse struct {
 
 func (x *DNDResponse) Reset() {
 	*x = DNDResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[246]
+	mi := &file_backend_v1_services_proto_msgTypes[248]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12554,7 +12658,7 @@ func (x *DNDResponse) String() string {
 func (*DNDResponse) ProtoMessage() {}
 
 func (x *DNDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[246]
+	mi := &file_backend_v1_services_proto_msgTypes[248]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12567,7 +12671,7 @@ func (x *DNDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DNDResponse.ProtoReflect.Descriptor instead.
 func (*DNDResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{246}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{248}
 }
 
 func (x *DNDResponse) GetRules() []*TempRule {
@@ -12585,7 +12689,7 @@ type ReloadConfigRequest struct {
 
 func (x *ReloadConfigRequest) Reset() {
 	*x = ReloadConfigRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[247]
+	mi := &file_backend_v1_services_proto_msgTypes[249]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12597,7 +12701,7 @@ func (x *ReloadConfigRequest) String() string {
 func (*ReloadConfigRequest) ProtoMessage() {}
 
 func (x *ReloadConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[247]
+	mi := &file_backend_v1_services_proto_msgTypes[249]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12610,7 +12714,7 @@ func (x *ReloadConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadConfigRequest.ProtoReflect.Descriptor instead.
 func (*ReloadConfigRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{247}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{249}
 }
 
 type ReloadConfigResponse struct {
@@ -12621,7 +12725,7 @@ type ReloadConfigResponse struct {
 
 func (x *ReloadConfigResponse) Reset() {
 	*x = ReloadConfigResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[248]
+	mi := &file_backend_v1_services_proto_msgTypes[250]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12633,7 +12737,7 @@ func (x *ReloadConfigResponse) String() string {
 func (*ReloadConfigResponse) ProtoMessage() {}
 
 func (x *ReloadConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[248]
+	mi := &file_backend_v1_services_proto_msgTypes[250]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12646,7 +12750,7 @@ func (x *ReloadConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadConfigResponse.ProtoReflect.Descriptor instead.
 func (*ReloadConfigResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{248}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{250}
 }
 
 type CheckConfigRequest struct {
@@ -12659,7 +12763,7 @@ type CheckConfigRequest struct {
 
 func (x *CheckConfigRequest) Reset() {
 	*x = CheckConfigRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[249]
+	mi := &file_backend_v1_services_proto_msgTypes[251]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12671,7 +12775,7 @@ func (x *CheckConfigRequest) String() string {
 func (*CheckConfigRequest) ProtoMessage() {}
 
 func (x *CheckConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[249]
+	mi := &file_backend_v1_services_proto_msgTypes[251]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12684,7 +12788,7 @@ func (x *CheckConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckConfigRequest.ProtoReflect.Descriptor instead.
 func (*CheckConfigRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{249}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{251}
 }
 
 func (x *CheckConfigRequest) GetConfig() string {
@@ -12702,7 +12806,7 @@ type CheckConfigResponse struct {
 
 func (x *CheckConfigResponse) Reset() {
 	*x = CheckConfigResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[250]
+	mi := &file_backend_v1_services_proto_msgTypes[252]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12714,7 +12818,7 @@ func (x *CheckConfigResponse) String() string {
 func (*CheckConfigResponse) ProtoMessage() {}
 
 func (x *CheckConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[250]
+	mi := &file_backend_v1_services_proto_msgTypes[252]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12727,7 +12831,7 @@ func (x *CheckConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckConfigResponse.ProtoReflect.Descriptor instead.
 func (*CheckConfigResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{250}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{252}
 }
 
 // GroupingDiff is what copying one grouping (a Telegram folder) into its tag would
@@ -12746,7 +12850,7 @@ type GroupingDiff struct {
 
 func (x *GroupingDiff) Reset() {
 	*x = GroupingDiff{}
-	mi := &file_backend_v1_services_proto_msgTypes[251]
+	mi := &file_backend_v1_services_proto_msgTypes[253]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12758,7 +12862,7 @@ func (x *GroupingDiff) String() string {
 func (*GroupingDiff) ProtoMessage() {}
 
 func (x *GroupingDiff) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[251]
+	mi := &file_backend_v1_services_proto_msgTypes[253]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12771,7 +12875,7 @@ func (x *GroupingDiff) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupingDiff.ProtoReflect.Descriptor instead.
 func (*GroupingDiff) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{251}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{253}
 }
 
 func (x *GroupingDiff) GetName() string {
@@ -12826,7 +12930,7 @@ type PreviewGroupingsRequest struct {
 
 func (x *PreviewGroupingsRequest) Reset() {
 	*x = PreviewGroupingsRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[252]
+	mi := &file_backend_v1_services_proto_msgTypes[254]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12838,7 +12942,7 @@ func (x *PreviewGroupingsRequest) String() string {
 func (*PreviewGroupingsRequest) ProtoMessage() {}
 
 func (x *PreviewGroupingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[252]
+	mi := &file_backend_v1_services_proto_msgTypes[254]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12851,7 +12955,7 @@ func (x *PreviewGroupingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewGroupingsRequest.ProtoReflect.Descriptor instead.
 func (*PreviewGroupingsRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{252}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{254}
 }
 
 func (x *PreviewGroupingsRequest) GetNetwork() string {
@@ -12877,7 +12981,7 @@ type PreviewGroupingsResponse struct {
 
 func (x *PreviewGroupingsResponse) Reset() {
 	*x = PreviewGroupingsResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[253]
+	mi := &file_backend_v1_services_proto_msgTypes[255]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12889,7 +12993,7 @@ func (x *PreviewGroupingsResponse) String() string {
 func (*PreviewGroupingsResponse) ProtoMessage() {}
 
 func (x *PreviewGroupingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[253]
+	mi := &file_backend_v1_services_proto_msgTypes[255]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12902,7 +13006,7 @@ func (x *PreviewGroupingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewGroupingsResponse.ProtoReflect.Descriptor instead.
 func (*PreviewGroupingsResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{253}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{255}
 }
 
 func (x *PreviewGroupingsResponse) GetGroupings() []*GroupingDiff {
@@ -12923,7 +13027,7 @@ type ApplyGroupingsRequest struct {
 
 func (x *ApplyGroupingsRequest) Reset() {
 	*x = ApplyGroupingsRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[254]
+	mi := &file_backend_v1_services_proto_msgTypes[256]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12935,7 +13039,7 @@ func (x *ApplyGroupingsRequest) String() string {
 func (*ApplyGroupingsRequest) ProtoMessage() {}
 
 func (x *ApplyGroupingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[254]
+	mi := &file_backend_v1_services_proto_msgTypes[256]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12948,7 +13052,7 @@ func (x *ApplyGroupingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyGroupingsRequest.ProtoReflect.Descriptor instead.
 func (*ApplyGroupingsRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{254}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{256}
 }
 
 func (x *ApplyGroupingsRequest) GetNetwork() string {
@@ -12980,7 +13084,7 @@ type ApplyGroupingsResponse struct {
 
 func (x *ApplyGroupingsResponse) Reset() {
 	*x = ApplyGroupingsResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[255]
+	mi := &file_backend_v1_services_proto_msgTypes[257]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12992,7 +13096,7 @@ func (x *ApplyGroupingsResponse) String() string {
 func (*ApplyGroupingsResponse) ProtoMessage() {}
 
 func (x *ApplyGroupingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[255]
+	mi := &file_backend_v1_services_proto_msgTypes[257]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13005,7 +13109,7 @@ func (x *ApplyGroupingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyGroupingsResponse.ProtoReflect.Descriptor instead.
 func (*ApplyGroupingsResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{255}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{257}
 }
 
 type GetConfigRequest struct {
@@ -13016,7 +13120,7 @@ type GetConfigRequest struct {
 
 func (x *GetConfigRequest) Reset() {
 	*x = GetConfigRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[256]
+	mi := &file_backend_v1_services_proto_msgTypes[258]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13028,7 +13132,7 @@ func (x *GetConfigRequest) String() string {
 func (*GetConfigRequest) ProtoMessage() {}
 
 func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[256]
+	mi := &file_backend_v1_services_proto_msgTypes[258]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13041,7 +13145,7 @@ func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigRequest.ProtoReflect.Descriptor instead.
 func (*GetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{256}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{258}
 }
 
 // GetConfigResponse is the configuration the daemon runs with, and the revision of the
@@ -13056,7 +13160,7 @@ type GetConfigResponse struct {
 
 func (x *GetConfigResponse) Reset() {
 	*x = GetConfigResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[257]
+	mi := &file_backend_v1_services_proto_msgTypes[259]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13068,7 +13172,7 @@ func (x *GetConfigResponse) String() string {
 func (*GetConfigResponse) ProtoMessage() {}
 
 func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[257]
+	mi := &file_backend_v1_services_proto_msgTypes[259]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13081,7 +13185,7 @@ func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetConfigResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{257}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{259}
 }
 
 func (x *GetConfigResponse) GetConfig() string {
@@ -13111,7 +13215,7 @@ type UpdateConfigRequest struct {
 
 func (x *UpdateConfigRequest) Reset() {
 	*x = UpdateConfigRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[258]
+	mi := &file_backend_v1_services_proto_msgTypes[260]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13123,7 +13227,7 @@ func (x *UpdateConfigRequest) String() string {
 func (*UpdateConfigRequest) ProtoMessage() {}
 
 func (x *UpdateConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[258]
+	mi := &file_backend_v1_services_proto_msgTypes[260]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13136,7 +13240,7 @@ func (x *UpdateConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigRequest.ProtoReflect.Descriptor instead.
 func (*UpdateConfigRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{258}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{260}
 }
 
 func (x *UpdateConfigRequest) GetBaseRevision() string {
@@ -13162,7 +13266,7 @@ type UpdateConfigResponse struct {
 
 func (x *UpdateConfigResponse) Reset() {
 	*x = UpdateConfigResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[259]
+	mi := &file_backend_v1_services_proto_msgTypes[261]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13174,7 +13278,7 @@ func (x *UpdateConfigResponse) String() string {
 func (*UpdateConfigResponse) ProtoMessage() {}
 
 func (x *UpdateConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[259]
+	mi := &file_backend_v1_services_proto_msgTypes[261]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13187,7 +13291,7 @@ func (x *UpdateConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigResponse.ProtoReflect.Descriptor instead.
 func (*UpdateConfigResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{259}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{261}
 }
 
 func (x *UpdateConfigResponse) GetRevision() string {
@@ -13205,7 +13309,7 @@ type ConfigChangedRequest struct {
 
 func (x *ConfigChangedRequest) Reset() {
 	*x = ConfigChangedRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[260]
+	mi := &file_backend_v1_services_proto_msgTypes[262]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13217,7 +13321,7 @@ func (x *ConfigChangedRequest) String() string {
 func (*ConfigChangedRequest) ProtoMessage() {}
 
 func (x *ConfigChangedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[260]
+	mi := &file_backend_v1_services_proto_msgTypes[262]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13230,7 +13334,7 @@ func (x *ConfigChangedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigChangedRequest.ProtoReflect.Descriptor instead.
 func (*ConfigChangedRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{260}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{262}
 }
 
 // ConfigChangedResponse is the configuration after a change, however made.
@@ -13244,7 +13348,7 @@ type ConfigChangedResponse struct {
 
 func (x *ConfigChangedResponse) Reset() {
 	*x = ConfigChangedResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[261]
+	mi := &file_backend_v1_services_proto_msgTypes[263]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13256,7 +13360,7 @@ func (x *ConfigChangedResponse) String() string {
 func (*ConfigChangedResponse) ProtoMessage() {}
 
 func (x *ConfigChangedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[261]
+	mi := &file_backend_v1_services_proto_msgTypes[263]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13269,7 +13373,7 @@ func (x *ConfigChangedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigChangedResponse.ProtoReflect.Descriptor instead.
 func (*ConfigChangedResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{261}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{263}
 }
 
 func (x *ConfigChangedResponse) GetConfig() string {
@@ -13320,7 +13424,7 @@ type ScheduledMessage struct {
 
 func (x *ScheduledMessage) Reset() {
 	*x = ScheduledMessage{}
-	mi := &file_backend_v1_services_proto_msgTypes[262]
+	mi := &file_backend_v1_services_proto_msgTypes[264]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13332,7 +13436,7 @@ func (x *ScheduledMessage) String() string {
 func (*ScheduledMessage) ProtoMessage() {}
 
 func (x *ScheduledMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[262]
+	mi := &file_backend_v1_services_proto_msgTypes[264]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13345,7 +13449,7 @@ func (x *ScheduledMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScheduledMessage.ProtoReflect.Descriptor instead.
 func (*ScheduledMessage) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{262}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{264}
 }
 
 func (x *ScheduledMessage) GetId() string {
@@ -13442,7 +13546,7 @@ type ScheduleRequest struct {
 
 func (x *ScheduleRequest) Reset() {
 	*x = ScheduleRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[263]
+	mi := &file_backend_v1_services_proto_msgTypes[265]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13454,7 +13558,7 @@ func (x *ScheduleRequest) String() string {
 func (*ScheduleRequest) ProtoMessage() {}
 
 func (x *ScheduleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[263]
+	mi := &file_backend_v1_services_proto_msgTypes[265]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13467,7 +13571,7 @@ func (x *ScheduleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScheduleRequest.ProtoReflect.Descriptor instead.
 func (*ScheduleRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{263}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{265}
 }
 
 func (x *ScheduleRequest) GetMessage() *ScheduledMessage {
@@ -13487,7 +13591,7 @@ type ScheduleResponse struct {
 
 func (x *ScheduleResponse) Reset() {
 	*x = ScheduleResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[264]
+	mi := &file_backend_v1_services_proto_msgTypes[266]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13499,7 +13603,7 @@ func (x *ScheduleResponse) String() string {
 func (*ScheduleResponse) ProtoMessage() {}
 
 func (x *ScheduleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[264]
+	mi := &file_backend_v1_services_proto_msgTypes[266]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13512,7 +13616,7 @@ func (x *ScheduleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScheduleResponse.ProtoReflect.Descriptor instead.
 func (*ScheduleResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{264}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{266}
 }
 
 func (x *ScheduleResponse) GetId() string {
@@ -13530,7 +13634,7 @@ type ScheduledMessagesRequest struct {
 
 func (x *ScheduledMessagesRequest) Reset() {
 	*x = ScheduledMessagesRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[265]
+	mi := &file_backend_v1_services_proto_msgTypes[267]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13542,7 +13646,7 @@ func (x *ScheduledMessagesRequest) String() string {
 func (*ScheduledMessagesRequest) ProtoMessage() {}
 
 func (x *ScheduledMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[265]
+	mi := &file_backend_v1_services_proto_msgTypes[267]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13555,7 +13659,7 @@ func (x *ScheduledMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScheduledMessagesRequest.ProtoReflect.Descriptor instead.
 func (*ScheduledMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{265}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{267}
 }
 
 type ScheduledMessagesResponse struct {
@@ -13567,7 +13671,7 @@ type ScheduledMessagesResponse struct {
 
 func (x *ScheduledMessagesResponse) Reset() {
 	*x = ScheduledMessagesResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[266]
+	mi := &file_backend_v1_services_proto_msgTypes[268]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13579,7 +13683,7 @@ func (x *ScheduledMessagesResponse) String() string {
 func (*ScheduledMessagesResponse) ProtoMessage() {}
 
 func (x *ScheduledMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[266]
+	mi := &file_backend_v1_services_proto_msgTypes[268]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13592,7 +13696,7 @@ func (x *ScheduledMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScheduledMessagesResponse.ProtoReflect.Descriptor instead.
 func (*ScheduledMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{266}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{268}
 }
 
 func (x *ScheduledMessagesResponse) GetMessages() []*ScheduledMessage {
@@ -13611,7 +13715,7 @@ type CancelScheduledRequest struct {
 
 func (x *CancelScheduledRequest) Reset() {
 	*x = CancelScheduledRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[267]
+	mi := &file_backend_v1_services_proto_msgTypes[269]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13623,7 +13727,7 @@ func (x *CancelScheduledRequest) String() string {
 func (*CancelScheduledRequest) ProtoMessage() {}
 
 func (x *CancelScheduledRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[267]
+	mi := &file_backend_v1_services_proto_msgTypes[269]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13636,7 +13740,7 @@ func (x *CancelScheduledRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelScheduledRequest.ProtoReflect.Descriptor instead.
 func (*CancelScheduledRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{267}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{269}
 }
 
 func (x *CancelScheduledRequest) GetId() string {
@@ -13654,7 +13758,7 @@ type CancelScheduledResponse struct {
 
 func (x *CancelScheduledResponse) Reset() {
 	*x = CancelScheduledResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[268]
+	mi := &file_backend_v1_services_proto_msgTypes[270]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13666,7 +13770,7 @@ func (x *CancelScheduledResponse) String() string {
 func (*CancelScheduledResponse) ProtoMessage() {}
 
 func (x *CancelScheduledResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[268]
+	mi := &file_backend_v1_services_proto_msgTypes[270]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13679,7 +13783,7 @@ func (x *CancelScheduledResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelScheduledResponse.ProtoReflect.Descriptor instead.
 func (*CancelScheduledResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{268}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{270}
 }
 
 type RetryScheduledRequest struct {
@@ -13691,7 +13795,7 @@ type RetryScheduledRequest struct {
 
 func (x *RetryScheduledRequest) Reset() {
 	*x = RetryScheduledRequest{}
-	mi := &file_backend_v1_services_proto_msgTypes[269]
+	mi := &file_backend_v1_services_proto_msgTypes[271]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13703,7 +13807,7 @@ func (x *RetryScheduledRequest) String() string {
 func (*RetryScheduledRequest) ProtoMessage() {}
 
 func (x *RetryScheduledRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[269]
+	mi := &file_backend_v1_services_proto_msgTypes[271]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13716,7 +13820,7 @@ func (x *RetryScheduledRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryScheduledRequest.ProtoReflect.Descriptor instead.
 func (*RetryScheduledRequest) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{269}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{271}
 }
 
 func (x *RetryScheduledRequest) GetId() string {
@@ -13734,7 +13838,7 @@ type RetryScheduledResponse struct {
 
 func (x *RetryScheduledResponse) Reset() {
 	*x = RetryScheduledResponse{}
-	mi := &file_backend_v1_services_proto_msgTypes[270]
+	mi := &file_backend_v1_services_proto_msgTypes[272]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13746,7 +13850,7 @@ func (x *RetryScheduledResponse) String() string {
 func (*RetryScheduledResponse) ProtoMessage() {}
 
 func (x *RetryScheduledResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[270]
+	mi := &file_backend_v1_services_proto_msgTypes[272]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13759,7 +13863,7 @@ func (x *RetryScheduledResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryScheduledResponse.ProtoReflect.Descriptor instead.
 func (*RetryScheduledResponse) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{270}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{272}
 }
 
 var File_backend_v1_services_proto protoreflect.FileDescriptor
@@ -14083,6 +14187,12 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x10room_id_or_alias\x18\x01 \x01(\tR\rroomIdOrAlias\x12\x10\n" +
 	"\x03via\x18\x02 \x03(\tR\x03via\"+\n" +
 	"\x10JoinRoomResponse\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"e\n" +
+	"\x10KnockRoomRequest\x12'\n" +
+	"\x10room_id_or_alias\x18\x01 \x01(\tR\rroomIdOrAlias\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x10\n" +
+	"\x03via\x18\x03 \x03(\tR\x03via\",\n" +
+	"\x11KnockRoomResponse\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"+\n" +
 	"\x10LeaveRoomRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"\x13\n" +
@@ -14547,7 +14657,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x0eGroupingChoice\x12\x1f\n" +
 	"\x1bGROUPING_CHOICE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18GROUPING_CHOICE_MERGE_IN\x10\x01\x12!\n" +
-	"\x1dGROUPING_CHOICE_TAKE_NETWORKS\x10\x022\x8cN\n" +
+	"\x1dGROUPING_CHOICE_TAKE_NETWORKS\x10\x022\xd6N\n" +
 	"\x0eBackendService\x12<\n" +
 	"\x05Rooms\x12\x18.backend.v1.RoomsRequest\x1a\x19.backend.v1.RoomsResponse\x12Q\n" +
 	"\fRefreshRooms\x12\x1f.backend.v1.RefreshRoomsRequest\x1a .backend.v1.RefreshRoomsResponse\x12E\n" +
@@ -14612,6 +14722,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\aInvites\x12\x1a.backend.v1.InvitesRequest\x1a\x1b.backend.v1.InvitesResponse0\x01\x12E\n" +
 	"\bJoinRoom\x12\x1b.backend.v1.JoinRoomRequest\x1a\x1c.backend.v1.JoinRoomResponse\x12N\n" +
 	"\vPublicRooms\x12\x1e.backend.v1.PublicRoomsRequest\x1a\x1f.backend.v1.PublicRoomsResponse\x12H\n" +
+	"\tKnockRoom\x12\x1c.backend.v1.KnockRoomRequest\x1a\x1d.backend.v1.KnockRoomResponse\x12H\n" +
 	"\tLeaveRoom\x12\x1c.backend.v1.LeaveRoomRequest\x1a\x1d.backend.v1.LeaveRoomResponse\x12K\n" +
 	"\n" +
 	"DeleteChat\x12\x1d.backend.v1.DeleteChatRequest\x1a\x1e.backend.v1.DeleteChatResponse\x12B\n" +
@@ -14699,7 +14810,7 @@ func file_backend_v1_services_proto_rawDescGZIP() []byte {
 }
 
 var file_backend_v1_services_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_backend_v1_services_proto_msgTypes = make([]protoimpl.MessageInfo, 276)
+var file_backend_v1_services_proto_msgTypes = make([]protoimpl.MessageInfo, 278)
 var file_backend_v1_services_proto_goTypes = []any{
 	(ChatKind)(0),                         // 0: backend.v1.ChatKind
 	(NetworkPhase)(0),                     // 1: backend.v1.NetworkPhase
@@ -14830,265 +14941,267 @@ var file_backend_v1_services_proto_goTypes = []any{
 	(*InvitesResponse)(nil),               // 126: backend.v1.InvitesResponse
 	(*JoinRoomRequest)(nil),               // 127: backend.v1.JoinRoomRequest
 	(*JoinRoomResponse)(nil),              // 128: backend.v1.JoinRoomResponse
-	(*LeaveRoomRequest)(nil),              // 129: backend.v1.LeaveRoomRequest
-	(*LeaveRoomResponse)(nil),             // 130: backend.v1.LeaveRoomResponse
-	(*DeleteChatRequest)(nil),             // 131: backend.v1.DeleteChatRequest
-	(*DeleteChatResponse)(nil),            // 132: backend.v1.DeleteChatResponse
-	(*SignOutRequest)(nil),                // 133: backend.v1.SignOutRequest
-	(*SignOutResponse)(nil),               // 134: backend.v1.SignOutResponse
-	(*CreateRoomRequest)(nil),             // 135: backend.v1.CreateRoomRequest
-	(*ChatOffer)(nil),                     // 136: backend.v1.ChatOffer
-	(*ChatOffersRequest)(nil),             // 137: backend.v1.ChatOffersRequest
-	(*ChatOffersResponse)(nil),            // 138: backend.v1.ChatOffersResponse
-	(*CreateRoomResponse)(nil),            // 139: backend.v1.CreateRoomResponse
-	(*InviteUserRequest)(nil),             // 140: backend.v1.InviteUserRequest
-	(*InviteUserResponse)(nil),            // 141: backend.v1.InviteUserResponse
-	(*KickUserRequest)(nil),               // 142: backend.v1.KickUserRequest
-	(*KickUserResponse)(nil),              // 143: backend.v1.KickUserResponse
-	(*BanUserRequest)(nil),                // 144: backend.v1.BanUserRequest
-	(*BanUserResponse)(nil),               // 145: backend.v1.BanUserResponse
-	(*UnbanUserRequest)(nil),              // 146: backend.v1.UnbanUserRequest
-	(*UnbanUserResponse)(nil),             // 147: backend.v1.UnbanUserResponse
-	(*SearchMessagesRequest)(nil),         // 148: backend.v1.SearchMessagesRequest
-	(*SearchMessagesResponse)(nil),        // 149: backend.v1.SearchMessagesResponse
-	(*CompleteWordRequest)(nil),           // 150: backend.v1.CompleteWordRequest
-	(*WordCandidate)(nil),                 // 151: backend.v1.WordCandidate
-	(*CompleteWordResponse)(nil),          // 152: backend.v1.CompleteWordResponse
-	(*RoomEncryptionRequest)(nil),         // 153: backend.v1.RoomEncryptionRequest
-	(*RoomEncryptionResponse)(nil),        // 154: backend.v1.RoomEncryptionResponse
-	(*RoomsWithRequest)(nil),              // 155: backend.v1.RoomsWithRequest
-	(*RoomsWithResponse)(nil),             // 156: backend.v1.RoomsWithResponse
-	(*MessagesAroundRequest)(nil),         // 157: backend.v1.MessagesAroundRequest
-	(*MessagesAroundResponse)(nil),        // 158: backend.v1.MessagesAroundResponse
-	(*MessagesFromRequest)(nil),           // 159: backend.v1.MessagesFromRequest
-	(*PersonIDs)(nil),                     // 160: backend.v1.PersonIDs
-	(*MessageCountsRequest)(nil),          // 161: backend.v1.MessageCountsRequest
-	(*MessageCountsResponse)(nil),         // 162: backend.v1.MessageCountsResponse
-	(*MessagesFromResponse)(nil),          // 163: backend.v1.MessagesFromResponse
-	(*StoredDraft)(nil),                   // 164: backend.v1.StoredDraft
-	(*ReplaceDraftRequest)(nil),           // 165: backend.v1.ReplaceDraftRequest
-	(*ReplaceDraftResponse)(nil),          // 166: backend.v1.ReplaceDraftResponse
-	(*DraftsRequest)(nil),                 // 167: backend.v1.DraftsRequest
-	(*SeatRequest)(nil),                   // 168: backend.v1.SeatRequest
-	(*SeatHolder)(nil),                    // 169: backend.v1.SeatHolder
-	(*SeatResponse)(nil),                  // 170: backend.v1.SeatResponse
-	(*LoginField)(nil),                    // 171: backend.v1.LoginField
-	(*LoginRecord)(nil),                   // 172: backend.v1.LoginRecord
-	(*LoginStep)(nil),                     // 173: backend.v1.LoginStep
-	(*LoginAccount)(nil),                  // 174: backend.v1.LoginAccount
-	(*LoginNetwork)(nil),                  // 175: backend.v1.LoginNetwork
-	(*LoginNetworksRequest)(nil),          // 176: backend.v1.LoginNetworksRequest
-	(*LoginNetworksResponse)(nil),         // 177: backend.v1.LoginNetworksResponse
-	(*BeginLoginRequest)(nil),             // 178: backend.v1.BeginLoginRequest
-	(*BeginLoginResponse)(nil),            // 179: backend.v1.BeginLoginResponse
-	(*AnswerLoginRequest)(nil),            // 180: backend.v1.AnswerLoginRequest
-	(*AnswerLoginResponse)(nil),           // 181: backend.v1.AnswerLoginResponse
-	(*CancelLoginRequest)(nil),            // 182: backend.v1.CancelLoginRequest
-	(*CancelLoginResponse)(nil),           // 183: backend.v1.CancelLoginResponse
-	(*DraftsResponse)(nil),                // 184: backend.v1.DraftsResponse
-	(*ModelTaskRequest)(nil),              // 185: backend.v1.ModelTaskRequest
-	(*ModelTaskResponse)(nil),             // 186: backend.v1.ModelTaskResponse
-	(*MessagesRequest)(nil),               // 187: backend.v1.MessagesRequest
-	(*MessagesResponse)(nil),              // 188: backend.v1.MessagesResponse
-	(*ActivityStreamRequest)(nil),         // 189: backend.v1.ActivityStreamRequest
-	(*ActivityStreamResponse)(nil),        // 190: backend.v1.ActivityStreamResponse
-	(*FollowRequest)(nil),                 // 191: backend.v1.FollowRequest
-	(*FollowResponse)(nil),                // 192: backend.v1.FollowResponse
-	(*RoomsChangedRequest)(nil),           // 193: backend.v1.RoomsChangedRequest
-	(*RoomsChangedResponse)(nil),          // 194: backend.v1.RoomsChangedResponse
-	(*FollowStreamRequest)(nil),           // 195: backend.v1.FollowStreamRequest
-	(*FollowStreamResponse)(nil),          // 196: backend.v1.FollowStreamResponse
-	(*VerificationsRequest)(nil),          // 197: backend.v1.VerificationsRequest
-	(*VerificationsResponse)(nil),         // 198: backend.v1.VerificationsResponse
-	(*StartVerificationRequest)(nil),      // 199: backend.v1.StartVerificationRequest
-	(*StartVerificationResponse)(nil),     // 200: backend.v1.StartVerificationResponse
-	(*AcceptVerificationRequest)(nil),     // 201: backend.v1.AcceptVerificationRequest
-	(*AcceptVerificationResponse)(nil),    // 202: backend.v1.AcceptVerificationResponse
-	(*ConfirmSASRequest)(nil),             // 203: backend.v1.ConfirmSASRequest
-	(*ConfirmSASResponse)(nil),            // 204: backend.v1.ConfirmSASResponse
-	(*CancelVerificationRequest)(nil),     // 205: backend.v1.CancelVerificationRequest
-	(*CancelVerificationResponse)(nil),    // 206: backend.v1.CancelVerificationResponse
-	(*StatusRequest)(nil),                 // 207: backend.v1.StatusRequest
-	(*StatusResponse)(nil),                // 208: backend.v1.StatusResponse
-	(*NetworkStatus)(nil),                 // 209: backend.v1.NetworkStatus
-	(*SelvesRequest)(nil),                 // 210: backend.v1.SelvesRequest
-	(*SelvesResponse)(nil),                // 211: backend.v1.SelvesResponse
-	(*DirectoryRequest)(nil),              // 212: backend.v1.DirectoryRequest
-	(*DirectoryResponse)(nil),             // 213: backend.v1.DirectoryResponse
-	(*ClearCacheRequest)(nil),             // 214: backend.v1.ClearCacheRequest
-	(*ClearCacheResponse)(nil),            // 215: backend.v1.ClearCacheResponse
-	(*RestoreKeyBackupRequest)(nil),       // 216: backend.v1.RestoreKeyBackupRequest
-	(*ExportRoomKeysRequest)(nil),         // 217: backend.v1.ExportRoomKeysRequest
-	(*ExportRoomKeysResponse)(nil),        // 218: backend.v1.ExportRoomKeysResponse
-	(*ImportRoomKeysRequest)(nil),         // 219: backend.v1.ImportRoomKeysRequest
-	(*ImportRoomKeysResponse)(nil),        // 220: backend.v1.ImportRoomKeysResponse
-	(*RestoreKeyBackupResponse)(nil),      // 221: backend.v1.RestoreKeyBackupResponse
-	(*BootstrapKeyBackupRequest)(nil),     // 222: backend.v1.BootstrapKeyBackupRequest
-	(*BootstrapKeyBackupResponse)(nil),    // 223: backend.v1.BootstrapKeyBackupResponse
-	(*CheckSpellingRequest)(nil),          // 224: backend.v1.CheckSpellingRequest
-	(*Misspelling)(nil),                   // 225: backend.v1.Misspelling
-	(*CheckSpellingResponse)(nil),         // 226: backend.v1.CheckSpellingResponse
-	(*LearnWordRequest)(nil),              // 227: backend.v1.LearnWordRequest
-	(*LearnWordResponse)(nil),             // 228: backend.v1.LearnWordResponse
-	(*AllowRareWordRequest)(nil),          // 229: backend.v1.AllowRareWordRequest
-	(*AllowRareWordResponse)(nil),         // 230: backend.v1.AllowRareWordResponse
-	(*InstallDictionaryRequest)(nil),      // 231: backend.v1.InstallDictionaryRequest
-	(*InstallDictionaryResponse)(nil),     // 232: backend.v1.InstallDictionaryResponse
-	(*InstallFrequenciesRequest)(nil),     // 233: backend.v1.InstallFrequenciesRequest
-	(*InstallFrequenciesResponse)(nil),    // 234: backend.v1.InstallFrequenciesResponse
-	(*InstallModelRequest)(nil),           // 235: backend.v1.InstallModelRequest
-	(*InstallModelResponse)(nil),          // 236: backend.v1.InstallModelResponse
-	(*DetectModelRequest)(nil),            // 237: backend.v1.DetectModelRequest
-	(*ModelCandidate)(nil),                // 238: backend.v1.ModelCandidate
-	(*DetectModelResponse)(nil),           // 239: backend.v1.DetectModelResponse
-	(*DetectLanguagesRequest)(nil),        // 240: backend.v1.DetectLanguagesRequest
-	(*LanguageCandidate)(nil),             // 241: backend.v1.LanguageCandidate
-	(*DetectLanguagesResponse)(nil),       // 242: backend.v1.DetectLanguagesResponse
-	(*FrequencyCandidate)(nil),            // 243: backend.v1.FrequencyCandidate
-	(*SetDNDRequest)(nil),                 // 244: backend.v1.SetDNDRequest
-	(*ClearDNDRequest)(nil),               // 245: backend.v1.ClearDNDRequest
-	(*DNDRequest)(nil),                    // 246: backend.v1.DNDRequest
-	(*SetDNDResponse)(nil),                // 247: backend.v1.SetDNDResponse
-	(*ClearDNDResponse)(nil),              // 248: backend.v1.ClearDNDResponse
-	(*DNDResponse)(nil),                   // 249: backend.v1.DNDResponse
-	(*ReloadConfigRequest)(nil),           // 250: backend.v1.ReloadConfigRequest
-	(*ReloadConfigResponse)(nil),          // 251: backend.v1.ReloadConfigResponse
-	(*CheckConfigRequest)(nil),            // 252: backend.v1.CheckConfigRequest
-	(*CheckConfigResponse)(nil),           // 253: backend.v1.CheckConfigResponse
-	(*GroupingDiff)(nil),                  // 254: backend.v1.GroupingDiff
-	(*PreviewGroupingsRequest)(nil),       // 255: backend.v1.PreviewGroupingsRequest
-	(*PreviewGroupingsResponse)(nil),      // 256: backend.v1.PreviewGroupingsResponse
-	(*ApplyGroupingsRequest)(nil),         // 257: backend.v1.ApplyGroupingsRequest
-	(*ApplyGroupingsResponse)(nil),        // 258: backend.v1.ApplyGroupingsResponse
-	(*GetConfigRequest)(nil),              // 259: backend.v1.GetConfigRequest
-	(*GetConfigResponse)(nil),             // 260: backend.v1.GetConfigResponse
-	(*UpdateConfigRequest)(nil),           // 261: backend.v1.UpdateConfigRequest
-	(*UpdateConfigResponse)(nil),          // 262: backend.v1.UpdateConfigResponse
-	(*ConfigChangedRequest)(nil),          // 263: backend.v1.ConfigChangedRequest
-	(*ConfigChangedResponse)(nil),         // 264: backend.v1.ConfigChangedResponse
-	(*ScheduledMessage)(nil),              // 265: backend.v1.ScheduledMessage
-	(*ScheduleRequest)(nil),               // 266: backend.v1.ScheduleRequest
-	(*ScheduleResponse)(nil),              // 267: backend.v1.ScheduleResponse
-	(*ScheduledMessagesRequest)(nil),      // 268: backend.v1.ScheduledMessagesRequest
-	(*ScheduledMessagesResponse)(nil),     // 269: backend.v1.ScheduledMessagesResponse
-	(*CancelScheduledRequest)(nil),        // 270: backend.v1.CancelScheduledRequest
-	(*CancelScheduledResponse)(nil),       // 271: backend.v1.CancelScheduledResponse
-	(*RetryScheduledRequest)(nil),         // 272: backend.v1.RetryScheduledRequest
-	(*RetryScheduledResponse)(nil),        // 273: backend.v1.RetryScheduledResponse
-	nil,                                   // 274: backend.v1.EmojiScoresResponse.ScoresEntry
-	nil,                                   // 275: backend.v1.LastMessagesResponse.AtEntry
-	nil,                                   // 276: backend.v1.LoginRecord.ValuesEntry
-	nil,                                   // 277: backend.v1.AnswerLoginRequest.ValuesEntry
-	nil,                                   // 278: backend.v1.ApplyGroupingsRequest.ChoicesEntry
-	(*Room)(nil),                          // 279: backend.v1.Room
-	(*Message)(nil),                       // 280: backend.v1.Message
-	(*Space)(nil),                         // 281: backend.v1.Space
-	(*TimelinePage)(nil),                  // 282: backend.v1.TimelinePage
-	(*Draft)(nil),                         // 283: backend.v1.Draft
-	(*Revision)(nil),                      // 284: backend.v1.Revision
-	(*Unread)(nil),                        // 285: backend.v1.Unread
-	(*Thread)(nil),                        // 286: backend.v1.Thread
-	(*Reaction)(nil),                      // 287: backend.v1.Reaction
-	(*ReactionUpdate)(nil),                // 288: backend.v1.ReactionUpdate
-	(*PollVoter)(nil),                     // 289: backend.v1.PollVoter
-	(PollHiding)(0),                       // 290: backend.v1.PollHiding
-	(*Member)(nil),                        // 291: backend.v1.Member
-	(*SearchHit)(nil),                     // 292: backend.v1.SearchHit
-	(*Mention)(nil),                       // 293: backend.v1.Mention
-	(*Activity)(nil),                      // 294: backend.v1.Activity
-	(*Verification)(nil),                  // 295: backend.v1.Verification
-	(*timestamppb.Timestamp)(nil),         // 296: google.protobuf.Timestamp
-	(*PersonName)(nil),                    // 297: backend.v1.PersonName
-	(*PersonLink)(nil),                    // 298: backend.v1.PersonLink
-	(*TempRule)(nil),                      // 299: backend.v1.TempRule
+	(*KnockRoomRequest)(nil),              // 129: backend.v1.KnockRoomRequest
+	(*KnockRoomResponse)(nil),             // 130: backend.v1.KnockRoomResponse
+	(*LeaveRoomRequest)(nil),              // 131: backend.v1.LeaveRoomRequest
+	(*LeaveRoomResponse)(nil),             // 132: backend.v1.LeaveRoomResponse
+	(*DeleteChatRequest)(nil),             // 133: backend.v1.DeleteChatRequest
+	(*DeleteChatResponse)(nil),            // 134: backend.v1.DeleteChatResponse
+	(*SignOutRequest)(nil),                // 135: backend.v1.SignOutRequest
+	(*SignOutResponse)(nil),               // 136: backend.v1.SignOutResponse
+	(*CreateRoomRequest)(nil),             // 137: backend.v1.CreateRoomRequest
+	(*ChatOffer)(nil),                     // 138: backend.v1.ChatOffer
+	(*ChatOffersRequest)(nil),             // 139: backend.v1.ChatOffersRequest
+	(*ChatOffersResponse)(nil),            // 140: backend.v1.ChatOffersResponse
+	(*CreateRoomResponse)(nil),            // 141: backend.v1.CreateRoomResponse
+	(*InviteUserRequest)(nil),             // 142: backend.v1.InviteUserRequest
+	(*InviteUserResponse)(nil),            // 143: backend.v1.InviteUserResponse
+	(*KickUserRequest)(nil),               // 144: backend.v1.KickUserRequest
+	(*KickUserResponse)(nil),              // 145: backend.v1.KickUserResponse
+	(*BanUserRequest)(nil),                // 146: backend.v1.BanUserRequest
+	(*BanUserResponse)(nil),               // 147: backend.v1.BanUserResponse
+	(*UnbanUserRequest)(nil),              // 148: backend.v1.UnbanUserRequest
+	(*UnbanUserResponse)(nil),             // 149: backend.v1.UnbanUserResponse
+	(*SearchMessagesRequest)(nil),         // 150: backend.v1.SearchMessagesRequest
+	(*SearchMessagesResponse)(nil),        // 151: backend.v1.SearchMessagesResponse
+	(*CompleteWordRequest)(nil),           // 152: backend.v1.CompleteWordRequest
+	(*WordCandidate)(nil),                 // 153: backend.v1.WordCandidate
+	(*CompleteWordResponse)(nil),          // 154: backend.v1.CompleteWordResponse
+	(*RoomEncryptionRequest)(nil),         // 155: backend.v1.RoomEncryptionRequest
+	(*RoomEncryptionResponse)(nil),        // 156: backend.v1.RoomEncryptionResponse
+	(*RoomsWithRequest)(nil),              // 157: backend.v1.RoomsWithRequest
+	(*RoomsWithResponse)(nil),             // 158: backend.v1.RoomsWithResponse
+	(*MessagesAroundRequest)(nil),         // 159: backend.v1.MessagesAroundRequest
+	(*MessagesAroundResponse)(nil),        // 160: backend.v1.MessagesAroundResponse
+	(*MessagesFromRequest)(nil),           // 161: backend.v1.MessagesFromRequest
+	(*PersonIDs)(nil),                     // 162: backend.v1.PersonIDs
+	(*MessageCountsRequest)(nil),          // 163: backend.v1.MessageCountsRequest
+	(*MessageCountsResponse)(nil),         // 164: backend.v1.MessageCountsResponse
+	(*MessagesFromResponse)(nil),          // 165: backend.v1.MessagesFromResponse
+	(*StoredDraft)(nil),                   // 166: backend.v1.StoredDraft
+	(*ReplaceDraftRequest)(nil),           // 167: backend.v1.ReplaceDraftRequest
+	(*ReplaceDraftResponse)(nil),          // 168: backend.v1.ReplaceDraftResponse
+	(*DraftsRequest)(nil),                 // 169: backend.v1.DraftsRequest
+	(*SeatRequest)(nil),                   // 170: backend.v1.SeatRequest
+	(*SeatHolder)(nil),                    // 171: backend.v1.SeatHolder
+	(*SeatResponse)(nil),                  // 172: backend.v1.SeatResponse
+	(*LoginField)(nil),                    // 173: backend.v1.LoginField
+	(*LoginRecord)(nil),                   // 174: backend.v1.LoginRecord
+	(*LoginStep)(nil),                     // 175: backend.v1.LoginStep
+	(*LoginAccount)(nil),                  // 176: backend.v1.LoginAccount
+	(*LoginNetwork)(nil),                  // 177: backend.v1.LoginNetwork
+	(*LoginNetworksRequest)(nil),          // 178: backend.v1.LoginNetworksRequest
+	(*LoginNetworksResponse)(nil),         // 179: backend.v1.LoginNetworksResponse
+	(*BeginLoginRequest)(nil),             // 180: backend.v1.BeginLoginRequest
+	(*BeginLoginResponse)(nil),            // 181: backend.v1.BeginLoginResponse
+	(*AnswerLoginRequest)(nil),            // 182: backend.v1.AnswerLoginRequest
+	(*AnswerLoginResponse)(nil),           // 183: backend.v1.AnswerLoginResponse
+	(*CancelLoginRequest)(nil),            // 184: backend.v1.CancelLoginRequest
+	(*CancelLoginResponse)(nil),           // 185: backend.v1.CancelLoginResponse
+	(*DraftsResponse)(nil),                // 186: backend.v1.DraftsResponse
+	(*ModelTaskRequest)(nil),              // 187: backend.v1.ModelTaskRequest
+	(*ModelTaskResponse)(nil),             // 188: backend.v1.ModelTaskResponse
+	(*MessagesRequest)(nil),               // 189: backend.v1.MessagesRequest
+	(*MessagesResponse)(nil),              // 190: backend.v1.MessagesResponse
+	(*ActivityStreamRequest)(nil),         // 191: backend.v1.ActivityStreamRequest
+	(*ActivityStreamResponse)(nil),        // 192: backend.v1.ActivityStreamResponse
+	(*FollowRequest)(nil),                 // 193: backend.v1.FollowRequest
+	(*FollowResponse)(nil),                // 194: backend.v1.FollowResponse
+	(*RoomsChangedRequest)(nil),           // 195: backend.v1.RoomsChangedRequest
+	(*RoomsChangedResponse)(nil),          // 196: backend.v1.RoomsChangedResponse
+	(*FollowStreamRequest)(nil),           // 197: backend.v1.FollowStreamRequest
+	(*FollowStreamResponse)(nil),          // 198: backend.v1.FollowStreamResponse
+	(*VerificationsRequest)(nil),          // 199: backend.v1.VerificationsRequest
+	(*VerificationsResponse)(nil),         // 200: backend.v1.VerificationsResponse
+	(*StartVerificationRequest)(nil),      // 201: backend.v1.StartVerificationRequest
+	(*StartVerificationResponse)(nil),     // 202: backend.v1.StartVerificationResponse
+	(*AcceptVerificationRequest)(nil),     // 203: backend.v1.AcceptVerificationRequest
+	(*AcceptVerificationResponse)(nil),    // 204: backend.v1.AcceptVerificationResponse
+	(*ConfirmSASRequest)(nil),             // 205: backend.v1.ConfirmSASRequest
+	(*ConfirmSASResponse)(nil),            // 206: backend.v1.ConfirmSASResponse
+	(*CancelVerificationRequest)(nil),     // 207: backend.v1.CancelVerificationRequest
+	(*CancelVerificationResponse)(nil),    // 208: backend.v1.CancelVerificationResponse
+	(*StatusRequest)(nil),                 // 209: backend.v1.StatusRequest
+	(*StatusResponse)(nil),                // 210: backend.v1.StatusResponse
+	(*NetworkStatus)(nil),                 // 211: backend.v1.NetworkStatus
+	(*SelvesRequest)(nil),                 // 212: backend.v1.SelvesRequest
+	(*SelvesResponse)(nil),                // 213: backend.v1.SelvesResponse
+	(*DirectoryRequest)(nil),              // 214: backend.v1.DirectoryRequest
+	(*DirectoryResponse)(nil),             // 215: backend.v1.DirectoryResponse
+	(*ClearCacheRequest)(nil),             // 216: backend.v1.ClearCacheRequest
+	(*ClearCacheResponse)(nil),            // 217: backend.v1.ClearCacheResponse
+	(*RestoreKeyBackupRequest)(nil),       // 218: backend.v1.RestoreKeyBackupRequest
+	(*ExportRoomKeysRequest)(nil),         // 219: backend.v1.ExportRoomKeysRequest
+	(*ExportRoomKeysResponse)(nil),        // 220: backend.v1.ExportRoomKeysResponse
+	(*ImportRoomKeysRequest)(nil),         // 221: backend.v1.ImportRoomKeysRequest
+	(*ImportRoomKeysResponse)(nil),        // 222: backend.v1.ImportRoomKeysResponse
+	(*RestoreKeyBackupResponse)(nil),      // 223: backend.v1.RestoreKeyBackupResponse
+	(*BootstrapKeyBackupRequest)(nil),     // 224: backend.v1.BootstrapKeyBackupRequest
+	(*BootstrapKeyBackupResponse)(nil),    // 225: backend.v1.BootstrapKeyBackupResponse
+	(*CheckSpellingRequest)(nil),          // 226: backend.v1.CheckSpellingRequest
+	(*Misspelling)(nil),                   // 227: backend.v1.Misspelling
+	(*CheckSpellingResponse)(nil),         // 228: backend.v1.CheckSpellingResponse
+	(*LearnWordRequest)(nil),              // 229: backend.v1.LearnWordRequest
+	(*LearnWordResponse)(nil),             // 230: backend.v1.LearnWordResponse
+	(*AllowRareWordRequest)(nil),          // 231: backend.v1.AllowRareWordRequest
+	(*AllowRareWordResponse)(nil),         // 232: backend.v1.AllowRareWordResponse
+	(*InstallDictionaryRequest)(nil),      // 233: backend.v1.InstallDictionaryRequest
+	(*InstallDictionaryResponse)(nil),     // 234: backend.v1.InstallDictionaryResponse
+	(*InstallFrequenciesRequest)(nil),     // 235: backend.v1.InstallFrequenciesRequest
+	(*InstallFrequenciesResponse)(nil),    // 236: backend.v1.InstallFrequenciesResponse
+	(*InstallModelRequest)(nil),           // 237: backend.v1.InstallModelRequest
+	(*InstallModelResponse)(nil),          // 238: backend.v1.InstallModelResponse
+	(*DetectModelRequest)(nil),            // 239: backend.v1.DetectModelRequest
+	(*ModelCandidate)(nil),                // 240: backend.v1.ModelCandidate
+	(*DetectModelResponse)(nil),           // 241: backend.v1.DetectModelResponse
+	(*DetectLanguagesRequest)(nil),        // 242: backend.v1.DetectLanguagesRequest
+	(*LanguageCandidate)(nil),             // 243: backend.v1.LanguageCandidate
+	(*DetectLanguagesResponse)(nil),       // 244: backend.v1.DetectLanguagesResponse
+	(*FrequencyCandidate)(nil),            // 245: backend.v1.FrequencyCandidate
+	(*SetDNDRequest)(nil),                 // 246: backend.v1.SetDNDRequest
+	(*ClearDNDRequest)(nil),               // 247: backend.v1.ClearDNDRequest
+	(*DNDRequest)(nil),                    // 248: backend.v1.DNDRequest
+	(*SetDNDResponse)(nil),                // 249: backend.v1.SetDNDResponse
+	(*ClearDNDResponse)(nil),              // 250: backend.v1.ClearDNDResponse
+	(*DNDResponse)(nil),                   // 251: backend.v1.DNDResponse
+	(*ReloadConfigRequest)(nil),           // 252: backend.v1.ReloadConfigRequest
+	(*ReloadConfigResponse)(nil),          // 253: backend.v1.ReloadConfigResponse
+	(*CheckConfigRequest)(nil),            // 254: backend.v1.CheckConfigRequest
+	(*CheckConfigResponse)(nil),           // 255: backend.v1.CheckConfigResponse
+	(*GroupingDiff)(nil),                  // 256: backend.v1.GroupingDiff
+	(*PreviewGroupingsRequest)(nil),       // 257: backend.v1.PreviewGroupingsRequest
+	(*PreviewGroupingsResponse)(nil),      // 258: backend.v1.PreviewGroupingsResponse
+	(*ApplyGroupingsRequest)(nil),         // 259: backend.v1.ApplyGroupingsRequest
+	(*ApplyGroupingsResponse)(nil),        // 260: backend.v1.ApplyGroupingsResponse
+	(*GetConfigRequest)(nil),              // 261: backend.v1.GetConfigRequest
+	(*GetConfigResponse)(nil),             // 262: backend.v1.GetConfigResponse
+	(*UpdateConfigRequest)(nil),           // 263: backend.v1.UpdateConfigRequest
+	(*UpdateConfigResponse)(nil),          // 264: backend.v1.UpdateConfigResponse
+	(*ConfigChangedRequest)(nil),          // 265: backend.v1.ConfigChangedRequest
+	(*ConfigChangedResponse)(nil),         // 266: backend.v1.ConfigChangedResponse
+	(*ScheduledMessage)(nil),              // 267: backend.v1.ScheduledMessage
+	(*ScheduleRequest)(nil),               // 268: backend.v1.ScheduleRequest
+	(*ScheduleResponse)(nil),              // 269: backend.v1.ScheduleResponse
+	(*ScheduledMessagesRequest)(nil),      // 270: backend.v1.ScheduledMessagesRequest
+	(*ScheduledMessagesResponse)(nil),     // 271: backend.v1.ScheduledMessagesResponse
+	(*CancelScheduledRequest)(nil),        // 272: backend.v1.CancelScheduledRequest
+	(*CancelScheduledResponse)(nil),       // 273: backend.v1.CancelScheduledResponse
+	(*RetryScheduledRequest)(nil),         // 274: backend.v1.RetryScheduledRequest
+	(*RetryScheduledResponse)(nil),        // 275: backend.v1.RetryScheduledResponse
+	nil,                                   // 276: backend.v1.EmojiScoresResponse.ScoresEntry
+	nil,                                   // 277: backend.v1.LastMessagesResponse.AtEntry
+	nil,                                   // 278: backend.v1.LoginRecord.ValuesEntry
+	nil,                                   // 279: backend.v1.AnswerLoginRequest.ValuesEntry
+	nil,                                   // 280: backend.v1.ApplyGroupingsRequest.ChoicesEntry
+	(*Room)(nil),                          // 281: backend.v1.Room
+	(*Message)(nil),                       // 282: backend.v1.Message
+	(*Space)(nil),                         // 283: backend.v1.Space
+	(*TimelinePage)(nil),                  // 284: backend.v1.TimelinePage
+	(*Draft)(nil),                         // 285: backend.v1.Draft
+	(*Revision)(nil),                      // 286: backend.v1.Revision
+	(*Unread)(nil),                        // 287: backend.v1.Unread
+	(*Thread)(nil),                        // 288: backend.v1.Thread
+	(*Reaction)(nil),                      // 289: backend.v1.Reaction
+	(*ReactionUpdate)(nil),                // 290: backend.v1.ReactionUpdate
+	(*PollVoter)(nil),                     // 291: backend.v1.PollVoter
+	(PollHiding)(0),                       // 292: backend.v1.PollHiding
+	(*Member)(nil),                        // 293: backend.v1.Member
+	(*SearchHit)(nil),                     // 294: backend.v1.SearchHit
+	(*Mention)(nil),                       // 295: backend.v1.Mention
+	(*Activity)(nil),                      // 296: backend.v1.Activity
+	(*Verification)(nil),                  // 297: backend.v1.Verification
+	(*timestamppb.Timestamp)(nil),         // 298: google.protobuf.Timestamp
+	(*PersonName)(nil),                    // 299: backend.v1.PersonName
+	(*PersonLink)(nil),                    // 300: backend.v1.PersonLink
+	(*TempRule)(nil),                      // 301: backend.v1.TempRule
 }
 var file_backend_v1_services_proto_depIdxs = []int32{
-	279, // 0: backend.v1.RoomsResponse.rooms:type_name -> backend.v1.Room
-	279, // 1: backend.v1.RefreshRoomsResponse.rooms:type_name -> backend.v1.Room
+	281, // 0: backend.v1.RoomsResponse.rooms:type_name -> backend.v1.Room
+	281, // 1: backend.v1.RefreshRoomsResponse.rooms:type_name -> backend.v1.Room
 	19,  // 2: backend.v1.TagVerdictsResponse.verdicts:type_name -> backend.v1.TagVerdict
 	19,  // 3: backend.v1.MoveCandidate.verdict:type_name -> backend.v1.TagVerdict
-	280, // 4: backend.v1.MoveCandidate.sample:type_name -> backend.v1.Message
+	282, // 4: backend.v1.MoveCandidate.sample:type_name -> backend.v1.Message
 	22,  // 5: backend.v1.RescanFiltersResponse.rooms:type_name -> backend.v1.MoveCandidate
 	19,  // 6: backend.v1.MarkTagRequest.verdict:type_name -> backend.v1.TagVerdict
 	27,  // 7: backend.v1.PersonVerdictsResponse.verdicts:type_name -> backend.v1.PersonVerdict
 	27,  // 8: backend.v1.PersonCandidate.verdict:type_name -> backend.v1.PersonVerdict
-	280, // 9: backend.v1.PersonCandidate.sample:type_name -> backend.v1.Message
+	282, // 9: backend.v1.PersonCandidate.sample:type_name -> backend.v1.Message
 	30,  // 10: backend.v1.RescanPeopleResponse.people:type_name -> backend.v1.PersonCandidate
 	27,  // 11: backend.v1.MarkPersonRequest.verdict:type_name -> backend.v1.PersonVerdict
-	281, // 12: backend.v1.SpacesResponse.spaces:type_name -> backend.v1.Space
-	281, // 13: backend.v1.RefreshSpacesResponse.spaces:type_name -> backend.v1.Space
-	280, // 14: backend.v1.CachedTimelineResponse.messages:type_name -> backend.v1.Message
-	282, // 15: backend.v1.TimelineResponse.page:type_name -> backend.v1.TimelinePage
-	283, // 16: backend.v1.SendRequest.draft:type_name -> backend.v1.Draft
-	280, // 17: backend.v1.FetchEventResponse.message:type_name -> backend.v1.Message
+	283, // 12: backend.v1.SpacesResponse.spaces:type_name -> backend.v1.Space
+	283, // 13: backend.v1.RefreshSpacesResponse.spaces:type_name -> backend.v1.Space
+	282, // 14: backend.v1.CachedTimelineResponse.messages:type_name -> backend.v1.Message
+	284, // 15: backend.v1.TimelineResponse.page:type_name -> backend.v1.TimelinePage
+	285, // 16: backend.v1.SendRequest.draft:type_name -> backend.v1.Draft
+	282, // 17: backend.v1.FetchEventResponse.message:type_name -> backend.v1.Message
 	67,  // 18: backend.v1.PublicRoomsResponse.rooms:type_name -> backend.v1.PublicRoom
-	284, // 19: backend.v1.MessageHistoryResponse.revisions:type_name -> backend.v1.Revision
+	286, // 19: backend.v1.MessageHistoryResponse.revisions:type_name -> backend.v1.Revision
 	72,  // 20: backend.v1.MessageHistoryResponse.deletion:type_name -> backend.v1.Deletion
-	285, // 21: backend.v1.CachedUnreadResponse.unread:type_name -> backend.v1.Unread
-	285, // 22: backend.v1.UnreadStreamResponse.unread:type_name -> backend.v1.Unread
-	286, // 23: backend.v1.ListThreadsResponse.threads:type_name -> backend.v1.Thread
-	282, // 24: backend.v1.ThreadPageResponse.page:type_name -> backend.v1.TimelinePage
-	287, // 25: backend.v1.CachedReactionsResponse.reactions:type_name -> backend.v1.Reaction
-	288, // 26: backend.v1.ReactionsResponse.update:type_name -> backend.v1.ReactionUpdate
-	289, // 27: backend.v1.PollVotersResponse.voters:type_name -> backend.v1.PollVoter
-	290, // 28: backend.v1.PollVotersResponse.hidden:type_name -> backend.v1.PollHiding
+	287, // 21: backend.v1.CachedUnreadResponse.unread:type_name -> backend.v1.Unread
+	287, // 22: backend.v1.UnreadStreamResponse.unread:type_name -> backend.v1.Unread
+	288, // 23: backend.v1.ListThreadsResponse.threads:type_name -> backend.v1.Thread
+	284, // 24: backend.v1.ThreadPageResponse.page:type_name -> backend.v1.TimelinePage
+	289, // 25: backend.v1.CachedReactionsResponse.reactions:type_name -> backend.v1.Reaction
+	290, // 26: backend.v1.ReactionsResponse.update:type_name -> backend.v1.ReactionUpdate
+	291, // 27: backend.v1.PollVotersResponse.voters:type_name -> backend.v1.PollVoter
+	292, // 28: backend.v1.PollVotersResponse.hidden:type_name -> backend.v1.PollHiding
 	93,  // 29: backend.v1.ReactionRefusalsResponse.refusals:type_name -> backend.v1.ReactionRefusal
-	274, // 30: backend.v1.EmojiScoresResponse.scores:type_name -> backend.v1.EmojiScoresResponse.ScoresEntry
-	291, // 31: backend.v1.MembersResponse.members:type_name -> backend.v1.Member
-	291, // 32: backend.v1.RefreshMembersResponse.members:type_name -> backend.v1.Member
-	291, // 33: backend.v1.MentionCandidatesResponse.members:type_name -> backend.v1.Member
-	291, // 34: backend.v1.SearchSendersResponse.members:type_name -> backend.v1.Member
-	291, // 35: backend.v1.DirectCandidatesResponse.members:type_name -> backend.v1.Member
-	275, // 36: backend.v1.LastMessagesResponse.at:type_name -> backend.v1.LastMessagesResponse.AtEntry
+	276, // 30: backend.v1.EmojiScoresResponse.scores:type_name -> backend.v1.EmojiScoresResponse.ScoresEntry
+	293, // 31: backend.v1.MembersResponse.members:type_name -> backend.v1.Member
+	293, // 32: backend.v1.RefreshMembersResponse.members:type_name -> backend.v1.Member
+	293, // 33: backend.v1.MentionCandidatesResponse.members:type_name -> backend.v1.Member
+	293, // 34: backend.v1.SearchSendersResponse.members:type_name -> backend.v1.Member
+	293, // 35: backend.v1.DirectCandidatesResponse.members:type_name -> backend.v1.Member
+	277, // 36: backend.v1.LastMessagesResponse.at:type_name -> backend.v1.LastMessagesResponse.AtEntry
 	118, // 37: backend.v1.SenderSlotsResponse.slots:type_name -> backend.v1.SenderSlot
 	118, // 38: backend.v1.SaveSenderSlotsRequest.slots:type_name -> backend.v1.SenderSlot
-	279, // 39: backend.v1.CachedInvitesResponse.invites:type_name -> backend.v1.Room
-	279, // 40: backend.v1.InvitesResponse.invites:type_name -> backend.v1.Room
+	281, // 39: backend.v1.CachedInvitesResponse.invites:type_name -> backend.v1.Room
+	281, // 40: backend.v1.InvitesResponse.invites:type_name -> backend.v1.Room
 	0,   // 41: backend.v1.CreateRoomRequest.kind:type_name -> backend.v1.ChatKind
 	0,   // 42: backend.v1.ChatOffer.kind:type_name -> backend.v1.ChatKind
-	136, // 43: backend.v1.ChatOffersResponse.offers:type_name -> backend.v1.ChatOffer
-	292, // 44: backend.v1.SearchMessagesResponse.hits:type_name -> backend.v1.SearchHit
-	151, // 45: backend.v1.CompleteWordResponse.candidates:type_name -> backend.v1.WordCandidate
-	279, // 46: backend.v1.RoomsWithResponse.rooms:type_name -> backend.v1.Room
-	280, // 47: backend.v1.MessagesAroundResponse.messages:type_name -> backend.v1.Message
-	160, // 48: backend.v1.MessageCountsRequest.people:type_name -> backend.v1.PersonIDs
-	280, // 49: backend.v1.MessagesFromResponse.messages:type_name -> backend.v1.Message
-	293, // 50: backend.v1.StoredDraft.mentions:type_name -> backend.v1.Mention
-	164, // 51: backend.v1.ReplaceDraftRequest.draft:type_name -> backend.v1.StoredDraft
-	164, // 52: backend.v1.ReplaceDraftRequest.over:type_name -> backend.v1.StoredDraft
-	169, // 53: backend.v1.SeatRequest.where:type_name -> backend.v1.SeatHolder
-	169, // 54: backend.v1.SeatResponse.taken:type_name -> backend.v1.SeatHolder
-	276, // 55: backend.v1.LoginRecord.values:type_name -> backend.v1.LoginRecord.ValuesEntry
-	171, // 56: backend.v1.LoginStep.ask:type_name -> backend.v1.LoginField
-	172, // 57: backend.v1.LoginStep.configure:type_name -> backend.v1.LoginRecord
-	174, // 58: backend.v1.LoginNetwork.accounts:type_name -> backend.v1.LoginAccount
-	175, // 59: backend.v1.LoginNetworksResponse.networks:type_name -> backend.v1.LoginNetwork
-	173, // 60: backend.v1.BeginLoginResponse.step:type_name -> backend.v1.LoginStep
-	277, // 61: backend.v1.AnswerLoginRequest.values:type_name -> backend.v1.AnswerLoginRequest.ValuesEntry
-	173, // 62: backend.v1.AnswerLoginResponse.step:type_name -> backend.v1.LoginStep
-	164, // 63: backend.v1.DraftsResponse.drafts:type_name -> backend.v1.StoredDraft
-	280, // 64: backend.v1.MessagesResponse.message:type_name -> backend.v1.Message
-	294, // 65: backend.v1.ActivityStreamResponse.activity:type_name -> backend.v1.Activity
-	295, // 66: backend.v1.VerificationsResponse.verification:type_name -> backend.v1.Verification
-	296, // 67: backend.v1.StatusResponse.synced_at:type_name -> google.protobuf.Timestamp
-	209, // 68: backend.v1.StatusResponse.networks:type_name -> backend.v1.NetworkStatus
+	138, // 43: backend.v1.ChatOffersResponse.offers:type_name -> backend.v1.ChatOffer
+	294, // 44: backend.v1.SearchMessagesResponse.hits:type_name -> backend.v1.SearchHit
+	153, // 45: backend.v1.CompleteWordResponse.candidates:type_name -> backend.v1.WordCandidate
+	281, // 46: backend.v1.RoomsWithResponse.rooms:type_name -> backend.v1.Room
+	282, // 47: backend.v1.MessagesAroundResponse.messages:type_name -> backend.v1.Message
+	162, // 48: backend.v1.MessageCountsRequest.people:type_name -> backend.v1.PersonIDs
+	282, // 49: backend.v1.MessagesFromResponse.messages:type_name -> backend.v1.Message
+	295, // 50: backend.v1.StoredDraft.mentions:type_name -> backend.v1.Mention
+	166, // 51: backend.v1.ReplaceDraftRequest.draft:type_name -> backend.v1.StoredDraft
+	166, // 52: backend.v1.ReplaceDraftRequest.over:type_name -> backend.v1.StoredDraft
+	171, // 53: backend.v1.SeatRequest.where:type_name -> backend.v1.SeatHolder
+	171, // 54: backend.v1.SeatResponse.taken:type_name -> backend.v1.SeatHolder
+	278, // 55: backend.v1.LoginRecord.values:type_name -> backend.v1.LoginRecord.ValuesEntry
+	173, // 56: backend.v1.LoginStep.ask:type_name -> backend.v1.LoginField
+	174, // 57: backend.v1.LoginStep.configure:type_name -> backend.v1.LoginRecord
+	176, // 58: backend.v1.LoginNetwork.accounts:type_name -> backend.v1.LoginAccount
+	177, // 59: backend.v1.LoginNetworksResponse.networks:type_name -> backend.v1.LoginNetwork
+	175, // 60: backend.v1.BeginLoginResponse.step:type_name -> backend.v1.LoginStep
+	279, // 61: backend.v1.AnswerLoginRequest.values:type_name -> backend.v1.AnswerLoginRequest.ValuesEntry
+	175, // 62: backend.v1.AnswerLoginResponse.step:type_name -> backend.v1.LoginStep
+	166, // 63: backend.v1.DraftsResponse.drafts:type_name -> backend.v1.StoredDraft
+	282, // 64: backend.v1.MessagesResponse.message:type_name -> backend.v1.Message
+	296, // 65: backend.v1.ActivityStreamResponse.activity:type_name -> backend.v1.Activity
+	297, // 66: backend.v1.VerificationsResponse.verification:type_name -> backend.v1.Verification
+	298, // 67: backend.v1.StatusResponse.synced_at:type_name -> google.protobuf.Timestamp
+	211, // 68: backend.v1.StatusResponse.networks:type_name -> backend.v1.NetworkStatus
 	1,   // 69: backend.v1.NetworkStatus.phase:type_name -> backend.v1.NetworkPhase
-	296, // 70: backend.v1.NetworkStatus.online_at:type_name -> google.protobuf.Timestamp
-	297, // 71: backend.v1.DirectoryResponse.names:type_name -> backend.v1.PersonName
-	298, // 72: backend.v1.DirectoryResponse.links:type_name -> backend.v1.PersonLink
-	225, // 73: backend.v1.CheckSpellingResponse.misspellings:type_name -> backend.v1.Misspelling
-	238, // 74: backend.v1.DetectModelResponse.candidate:type_name -> backend.v1.ModelCandidate
-	241, // 75: backend.v1.DetectLanguagesResponse.candidates:type_name -> backend.v1.LanguageCandidate
-	243, // 76: backend.v1.DetectLanguagesResponse.frequencies:type_name -> backend.v1.FrequencyCandidate
-	299, // 77: backend.v1.SetDNDRequest.rule:type_name -> backend.v1.TempRule
-	299, // 78: backend.v1.SetDNDResponse.rules:type_name -> backend.v1.TempRule
-	299, // 79: backend.v1.ClearDNDResponse.rules:type_name -> backend.v1.TempRule
-	299, // 80: backend.v1.DNDResponse.rules:type_name -> backend.v1.TempRule
-	254, // 81: backend.v1.PreviewGroupingsResponse.groupings:type_name -> backend.v1.GroupingDiff
-	278, // 82: backend.v1.ApplyGroupingsRequest.choices:type_name -> backend.v1.ApplyGroupingsRequest.ChoicesEntry
-	293, // 83: backend.v1.ScheduledMessage.mentions:type_name -> backend.v1.Mention
-	265, // 84: backend.v1.ScheduleRequest.message:type_name -> backend.v1.ScheduledMessage
-	265, // 85: backend.v1.ScheduledMessagesResponse.messages:type_name -> backend.v1.ScheduledMessage
+	298, // 70: backend.v1.NetworkStatus.online_at:type_name -> google.protobuf.Timestamp
+	299, // 71: backend.v1.DirectoryResponse.names:type_name -> backend.v1.PersonName
+	300, // 72: backend.v1.DirectoryResponse.links:type_name -> backend.v1.PersonLink
+	227, // 73: backend.v1.CheckSpellingResponse.misspellings:type_name -> backend.v1.Misspelling
+	240, // 74: backend.v1.DetectModelResponse.candidate:type_name -> backend.v1.ModelCandidate
+	243, // 75: backend.v1.DetectLanguagesResponse.candidates:type_name -> backend.v1.LanguageCandidate
+	245, // 76: backend.v1.DetectLanguagesResponse.frequencies:type_name -> backend.v1.FrequencyCandidate
+	301, // 77: backend.v1.SetDNDRequest.rule:type_name -> backend.v1.TempRule
+	301, // 78: backend.v1.SetDNDResponse.rules:type_name -> backend.v1.TempRule
+	301, // 79: backend.v1.ClearDNDResponse.rules:type_name -> backend.v1.TempRule
+	301, // 80: backend.v1.DNDResponse.rules:type_name -> backend.v1.TempRule
+	256, // 81: backend.v1.PreviewGroupingsResponse.groupings:type_name -> backend.v1.GroupingDiff
+	280, // 82: backend.v1.ApplyGroupingsRequest.choices:type_name -> backend.v1.ApplyGroupingsRequest.ChoicesEntry
+	295, // 83: backend.v1.ScheduledMessage.mentions:type_name -> backend.v1.Mention
+	267, // 84: backend.v1.ScheduleRequest.message:type_name -> backend.v1.ScheduledMessage
+	267, // 85: backend.v1.ScheduledMessagesResponse.messages:type_name -> backend.v1.ScheduledMessage
 	2,   // 86: backend.v1.ApplyGroupingsRequest.ChoicesEntry.value:type_name -> backend.v1.GroupingChoice
 	3,   // 87: backend.v1.BackendService.Rooms:input_type -> backend.v1.RoomsRequest
 	5,   // 88: backend.v1.BackendService.RefreshRooms:input_type -> backend.v1.RefreshRoomsRequest
@@ -15147,197 +15260,199 @@ var file_backend_v1_services_proto_depIdxs = []int32{
 	125, // 141: backend.v1.BackendService.Invites:input_type -> backend.v1.InvitesRequest
 	127, // 142: backend.v1.BackendService.JoinRoom:input_type -> backend.v1.JoinRoomRequest
 	68,  // 143: backend.v1.BackendService.PublicRooms:input_type -> backend.v1.PublicRoomsRequest
-	129, // 144: backend.v1.BackendService.LeaveRoom:input_type -> backend.v1.LeaveRoomRequest
-	131, // 145: backend.v1.BackendService.DeleteChat:input_type -> backend.v1.DeleteChatRequest
-	133, // 146: backend.v1.BackendService.SignOut:input_type -> backend.v1.SignOutRequest
-	135, // 147: backend.v1.BackendService.CreateRoom:input_type -> backend.v1.CreateRoomRequest
-	137, // 148: backend.v1.BackendService.ChatOffers:input_type -> backend.v1.ChatOffersRequest
-	140, // 149: backend.v1.BackendService.InviteUser:input_type -> backend.v1.InviteUserRequest
-	142, // 150: backend.v1.BackendService.KickUser:input_type -> backend.v1.KickUserRequest
-	144, // 151: backend.v1.BackendService.BanUser:input_type -> backend.v1.BanUserRequest
-	146, // 152: backend.v1.BackendService.UnbanUser:input_type -> backend.v1.UnbanUserRequest
-	148, // 153: backend.v1.BackendService.SearchMessages:input_type -> backend.v1.SearchMessagesRequest
-	185, // 154: backend.v1.BackendService.ModelTask:input_type -> backend.v1.ModelTaskRequest
-	165, // 155: backend.v1.BackendService.ReplaceDraft:input_type -> backend.v1.ReplaceDraftRequest
-	167, // 156: backend.v1.BackendService.Drafts:input_type -> backend.v1.DraftsRequest
-	168, // 157: backend.v1.BackendService.Seat:input_type -> backend.v1.SeatRequest
-	176, // 158: backend.v1.BackendService.LoginNetworks:input_type -> backend.v1.LoginNetworksRequest
-	178, // 159: backend.v1.BackendService.BeginLogin:input_type -> backend.v1.BeginLoginRequest
-	180, // 160: backend.v1.BackendService.AnswerLogin:input_type -> backend.v1.AnswerLoginRequest
-	182, // 161: backend.v1.BackendService.CancelLogin:input_type -> backend.v1.CancelLoginRequest
-	155, // 162: backend.v1.BackendService.RoomsWith:input_type -> backend.v1.RoomsWithRequest
-	153, // 163: backend.v1.BackendService.RoomEncryption:input_type -> backend.v1.RoomEncryptionRequest
-	157, // 164: backend.v1.BackendService.MessagesAround:input_type -> backend.v1.MessagesAroundRequest
-	159, // 165: backend.v1.BackendService.MessagesFrom:input_type -> backend.v1.MessagesFromRequest
-	161, // 166: backend.v1.BackendService.MessageCounts:input_type -> backend.v1.MessageCountsRequest
-	150, // 167: backend.v1.BackendService.CompleteWord:input_type -> backend.v1.CompleteWordRequest
-	187, // 168: backend.v1.BackendService.Messages:input_type -> backend.v1.MessagesRequest
-	189, // 169: backend.v1.BackendService.ActivityStream:input_type -> backend.v1.ActivityStreamRequest
-	191, // 170: backend.v1.BackendService.Follow:input_type -> backend.v1.FollowRequest
-	195, // 171: backend.v1.BackendService.FollowStream:input_type -> backend.v1.FollowStreamRequest
-	193, // 172: backend.v1.BackendService.RoomsChanged:input_type -> backend.v1.RoomsChangedRequest
-	197, // 173: backend.v1.BackendService.Verifications:input_type -> backend.v1.VerificationsRequest
-	199, // 174: backend.v1.BackendService.StartVerification:input_type -> backend.v1.StartVerificationRequest
-	201, // 175: backend.v1.BackendService.AcceptVerification:input_type -> backend.v1.AcceptVerificationRequest
-	203, // 176: backend.v1.BackendService.ConfirmSAS:input_type -> backend.v1.ConfirmSASRequest
-	205, // 177: backend.v1.BackendService.CancelVerification:input_type -> backend.v1.CancelVerificationRequest
-	207, // 178: backend.v1.BackendService.Status:input_type -> backend.v1.StatusRequest
-	210, // 179: backend.v1.BackendService.Selves:input_type -> backend.v1.SelvesRequest
-	212, // 180: backend.v1.BackendService.Directory:input_type -> backend.v1.DirectoryRequest
-	214, // 181: backend.v1.BackendService.ClearCache:input_type -> backend.v1.ClearCacheRequest
-	216, // 182: backend.v1.BackendService.RestoreKeyBackup:input_type -> backend.v1.RestoreKeyBackupRequest
-	217, // 183: backend.v1.BackendService.ExportRoomKeys:input_type -> backend.v1.ExportRoomKeysRequest
-	219, // 184: backend.v1.BackendService.ImportRoomKeys:input_type -> backend.v1.ImportRoomKeysRequest
-	222, // 185: backend.v1.BackendService.BootstrapKeyBackup:input_type -> backend.v1.BootstrapKeyBackupRequest
-	240, // 186: backend.v1.BackendService.DetectLanguages:input_type -> backend.v1.DetectLanguagesRequest
-	231, // 187: backend.v1.BackendService.InstallDictionary:input_type -> backend.v1.InstallDictionaryRequest
-	233, // 188: backend.v1.BackendService.InstallFrequencies:input_type -> backend.v1.InstallFrequenciesRequest
-	237, // 189: backend.v1.BackendService.DetectModel:input_type -> backend.v1.DetectModelRequest
-	235, // 190: backend.v1.BackendService.InstallModel:input_type -> backend.v1.InstallModelRequest
-	224, // 191: backend.v1.BackendService.CheckSpelling:input_type -> backend.v1.CheckSpellingRequest
-	227, // 192: backend.v1.BackendService.LearnWord:input_type -> backend.v1.LearnWordRequest
-	229, // 193: backend.v1.BackendService.AllowRareWord:input_type -> backend.v1.AllowRareWordRequest
-	244, // 194: backend.v1.BackendService.SetDND:input_type -> backend.v1.SetDNDRequest
-	245, // 195: backend.v1.BackendService.ClearDND:input_type -> backend.v1.ClearDNDRequest
-	246, // 196: backend.v1.BackendService.DND:input_type -> backend.v1.DNDRequest
-	23,  // 197: backend.v1.BackendService.RescanFilters:input_type -> backend.v1.RescanFiltersRequest
-	31,  // 198: backend.v1.BackendService.RescanPeople:input_type -> backend.v1.RescanPeopleRequest
-	250, // 199: backend.v1.BackendService.ReloadConfig:input_type -> backend.v1.ReloadConfigRequest
-	252, // 200: backend.v1.BackendService.CheckConfig:input_type -> backend.v1.CheckConfigRequest
-	259, // 201: backend.v1.BackendService.GetConfig:input_type -> backend.v1.GetConfigRequest
-	255, // 202: backend.v1.BackendService.PreviewGroupings:input_type -> backend.v1.PreviewGroupingsRequest
-	257, // 203: backend.v1.BackendService.ApplyGroupings:input_type -> backend.v1.ApplyGroupingsRequest
-	261, // 204: backend.v1.BackendService.UpdateConfig:input_type -> backend.v1.UpdateConfigRequest
-	263, // 205: backend.v1.BackendService.ConfigChanged:input_type -> backend.v1.ConfigChangedRequest
-	266, // 206: backend.v1.BackendService.Schedule:input_type -> backend.v1.ScheduleRequest
-	268, // 207: backend.v1.BackendService.ScheduledMessages:input_type -> backend.v1.ScheduledMessagesRequest
-	270, // 208: backend.v1.BackendService.CancelScheduled:input_type -> backend.v1.CancelScheduledRequest
-	272, // 209: backend.v1.BackendService.RetryScheduled:input_type -> backend.v1.RetryScheduledRequest
-	4,   // 210: backend.v1.BackendService.Rooms:output_type -> backend.v1.RoomsResponse
-	6,   // 211: backend.v1.BackendService.RefreshRooms:output_type -> backend.v1.RefreshRoomsResponse
-	8,   // 212: backend.v1.BackendService.MarkRead:output_type -> backend.v1.MarkReadResponse
-	18,  // 213: backend.v1.BackendService.MarkRoomsRead:output_type -> backend.v1.MarkRoomsReadResponse
-	10,  // 214: backend.v1.BackendService.MarkRoomUnread:output_type -> backend.v1.MarkRoomUnreadResponse
-	12,  // 215: backend.v1.BackendService.SetRoomArchived:output_type -> backend.v1.SetRoomArchivedResponse
-	14,  // 216: backend.v1.BackendService.StarMessage:output_type -> backend.v1.StarMessageResponse
-	16,  // 217: backend.v1.BackendService.StarredIn:output_type -> backend.v1.StarredInResponse
-	44,  // 218: backend.v1.BackendService.CanonicalParent:output_type -> backend.v1.CanonicalParentResponse
-	115, // 219: backend.v1.BackendService.LastMessages:output_type -> backend.v1.LastMessagesResponse
-	21,  // 220: backend.v1.BackendService.TagVerdicts:output_type -> backend.v1.TagVerdictsResponse
-	26,  // 221: backend.v1.BackendService.MarkTag:output_type -> backend.v1.MarkTagResponse
-	42,  // 222: backend.v1.BackendService.RetagVerdicts:output_type -> backend.v1.RetagVerdictsResponse
-	29,  // 223: backend.v1.BackendService.PersonVerdicts:output_type -> backend.v1.PersonVerdictsResponse
-	34,  // 224: backend.v1.BackendService.MarkPerson:output_type -> backend.v1.MarkPersonResponse
-	36,  // 225: backend.v1.BackendService.Ignore:output_type -> backend.v1.IgnoreResponse
-	38,  // 226: backend.v1.BackendService.Unignore:output_type -> backend.v1.UnignoreResponse
-	40,  // 227: backend.v1.BackendService.Ignored:output_type -> backend.v1.IgnoredResponse
-	46,  // 228: backend.v1.BackendService.Spaces:output_type -> backend.v1.SpacesResponse
-	48,  // 229: backend.v1.BackendService.RefreshSpaces:output_type -> backend.v1.RefreshSpacesResponse
-	50,  // 230: backend.v1.BackendService.AddToSpace:output_type -> backend.v1.AddToSpaceResponse
-	52,  // 231: backend.v1.BackendService.RemoveFromSpace:output_type -> backend.v1.RemoveFromSpaceResponse
-	54,  // 232: backend.v1.BackendService.CachedTimeline:output_type -> backend.v1.CachedTimelineResponse
-	56,  // 233: backend.v1.BackendService.Timeline:output_type -> backend.v1.TimelineResponse
-	71,  // 234: backend.v1.BackendService.MessageHistory:output_type -> backend.v1.MessageHistoryResponse
-	64,  // 235: backend.v1.BackendService.FetchEvent:output_type -> backend.v1.FetchEventResponse
-	66,  // 236: backend.v1.BackendService.FetchEventSource:output_type -> backend.v1.FetchEventSourceResponse
-	58,  // 237: backend.v1.BackendService.Send:output_type -> backend.v1.SendResponse
-	117, // 238: backend.v1.BackendService.Redact:output_type -> backend.v1.RedactResponse
-	60,  // 239: backend.v1.BackendService.SendFile:output_type -> backend.v1.SendFileResponse
-	62,  // 240: backend.v1.BackendService.SendTyping:output_type -> backend.v1.SendTypingResponse
-	74,  // 241: backend.v1.BackendService.CachedUnread:output_type -> backend.v1.CachedUnreadResponse
-	76,  // 242: backend.v1.BackendService.UnreadStream:output_type -> backend.v1.UnreadStreamResponse
-	78,  // 243: backend.v1.BackendService.ListThreads:output_type -> backend.v1.ListThreadsResponse
-	82,  // 244: backend.v1.BackendService.ThreadPage:output_type -> backend.v1.ThreadPageResponse
-	80,  // 245: backend.v1.BackendService.MarkThreadRead:output_type -> backend.v1.MarkThreadReadResponse
-	84,  // 246: backend.v1.BackendService.CachedReactions:output_type -> backend.v1.CachedReactionsResponse
-	86,  // 247: backend.v1.BackendService.Reactions:output_type -> backend.v1.ReactionsResponse
-	88,  // 248: backend.v1.BackendService.SendReaction:output_type -> backend.v1.SendReactionResponse
-	90,  // 249: backend.v1.BackendService.VotePoll:output_type -> backend.v1.VotePollResponse
-	92,  // 250: backend.v1.BackendService.PollVoters:output_type -> backend.v1.PollVotersResponse
-	95,  // 251: backend.v1.BackendService.ReactionRefusals:output_type -> backend.v1.ReactionRefusalsResponse
-	97,  // 252: backend.v1.BackendService.RecordReactionRefusal:output_type -> backend.v1.RecordReactionRefusalResponse
-	99,  // 253: backend.v1.BackendService.RecordEmoji:output_type -> backend.v1.RecordEmojiResponse
-	101, // 254: backend.v1.BackendService.EmojiScores:output_type -> backend.v1.EmojiScoresResponse
-	103, // 255: backend.v1.BackendService.LoadImage:output_type -> backend.v1.LoadImageResponse
-	105, // 256: backend.v1.BackendService.Members:output_type -> backend.v1.MembersResponse
-	107, // 257: backend.v1.BackendService.RefreshMembers:output_type -> backend.v1.RefreshMembersResponse
-	109, // 258: backend.v1.BackendService.MentionCandidates:output_type -> backend.v1.MentionCandidatesResponse
-	111, // 259: backend.v1.BackendService.SearchSenders:output_type -> backend.v1.SearchSendersResponse
-	113, // 260: backend.v1.BackendService.DirectCandidates:output_type -> backend.v1.DirectCandidatesResponse
-	120, // 261: backend.v1.BackendService.SenderSlots:output_type -> backend.v1.SenderSlotsResponse
-	122, // 262: backend.v1.BackendService.SaveSenderSlots:output_type -> backend.v1.SaveSenderSlotsResponse
-	124, // 263: backend.v1.BackendService.CachedInvites:output_type -> backend.v1.CachedInvitesResponse
-	126, // 264: backend.v1.BackendService.Invites:output_type -> backend.v1.InvitesResponse
-	128, // 265: backend.v1.BackendService.JoinRoom:output_type -> backend.v1.JoinRoomResponse
-	69,  // 266: backend.v1.BackendService.PublicRooms:output_type -> backend.v1.PublicRoomsResponse
-	130, // 267: backend.v1.BackendService.LeaveRoom:output_type -> backend.v1.LeaveRoomResponse
-	132, // 268: backend.v1.BackendService.DeleteChat:output_type -> backend.v1.DeleteChatResponse
-	134, // 269: backend.v1.BackendService.SignOut:output_type -> backend.v1.SignOutResponse
-	139, // 270: backend.v1.BackendService.CreateRoom:output_type -> backend.v1.CreateRoomResponse
-	138, // 271: backend.v1.BackendService.ChatOffers:output_type -> backend.v1.ChatOffersResponse
-	141, // 272: backend.v1.BackendService.InviteUser:output_type -> backend.v1.InviteUserResponse
-	143, // 273: backend.v1.BackendService.KickUser:output_type -> backend.v1.KickUserResponse
-	145, // 274: backend.v1.BackendService.BanUser:output_type -> backend.v1.BanUserResponse
-	147, // 275: backend.v1.BackendService.UnbanUser:output_type -> backend.v1.UnbanUserResponse
-	149, // 276: backend.v1.BackendService.SearchMessages:output_type -> backend.v1.SearchMessagesResponse
-	186, // 277: backend.v1.BackendService.ModelTask:output_type -> backend.v1.ModelTaskResponse
-	166, // 278: backend.v1.BackendService.ReplaceDraft:output_type -> backend.v1.ReplaceDraftResponse
-	184, // 279: backend.v1.BackendService.Drafts:output_type -> backend.v1.DraftsResponse
-	170, // 280: backend.v1.BackendService.Seat:output_type -> backend.v1.SeatResponse
-	177, // 281: backend.v1.BackendService.LoginNetworks:output_type -> backend.v1.LoginNetworksResponse
-	179, // 282: backend.v1.BackendService.BeginLogin:output_type -> backend.v1.BeginLoginResponse
-	181, // 283: backend.v1.BackendService.AnswerLogin:output_type -> backend.v1.AnswerLoginResponse
-	183, // 284: backend.v1.BackendService.CancelLogin:output_type -> backend.v1.CancelLoginResponse
-	156, // 285: backend.v1.BackendService.RoomsWith:output_type -> backend.v1.RoomsWithResponse
-	154, // 286: backend.v1.BackendService.RoomEncryption:output_type -> backend.v1.RoomEncryptionResponse
-	158, // 287: backend.v1.BackendService.MessagesAround:output_type -> backend.v1.MessagesAroundResponse
-	163, // 288: backend.v1.BackendService.MessagesFrom:output_type -> backend.v1.MessagesFromResponse
-	162, // 289: backend.v1.BackendService.MessageCounts:output_type -> backend.v1.MessageCountsResponse
-	152, // 290: backend.v1.BackendService.CompleteWord:output_type -> backend.v1.CompleteWordResponse
-	188, // 291: backend.v1.BackendService.Messages:output_type -> backend.v1.MessagesResponse
-	190, // 292: backend.v1.BackendService.ActivityStream:output_type -> backend.v1.ActivityStreamResponse
-	192, // 293: backend.v1.BackendService.Follow:output_type -> backend.v1.FollowResponse
-	196, // 294: backend.v1.BackendService.FollowStream:output_type -> backend.v1.FollowStreamResponse
-	194, // 295: backend.v1.BackendService.RoomsChanged:output_type -> backend.v1.RoomsChangedResponse
-	198, // 296: backend.v1.BackendService.Verifications:output_type -> backend.v1.VerificationsResponse
-	200, // 297: backend.v1.BackendService.StartVerification:output_type -> backend.v1.StartVerificationResponse
-	202, // 298: backend.v1.BackendService.AcceptVerification:output_type -> backend.v1.AcceptVerificationResponse
-	204, // 299: backend.v1.BackendService.ConfirmSAS:output_type -> backend.v1.ConfirmSASResponse
-	206, // 300: backend.v1.BackendService.CancelVerification:output_type -> backend.v1.CancelVerificationResponse
-	208, // 301: backend.v1.BackendService.Status:output_type -> backend.v1.StatusResponse
-	211, // 302: backend.v1.BackendService.Selves:output_type -> backend.v1.SelvesResponse
-	213, // 303: backend.v1.BackendService.Directory:output_type -> backend.v1.DirectoryResponse
-	215, // 304: backend.v1.BackendService.ClearCache:output_type -> backend.v1.ClearCacheResponse
-	221, // 305: backend.v1.BackendService.RestoreKeyBackup:output_type -> backend.v1.RestoreKeyBackupResponse
-	218, // 306: backend.v1.BackendService.ExportRoomKeys:output_type -> backend.v1.ExportRoomKeysResponse
-	220, // 307: backend.v1.BackendService.ImportRoomKeys:output_type -> backend.v1.ImportRoomKeysResponse
-	223, // 308: backend.v1.BackendService.BootstrapKeyBackup:output_type -> backend.v1.BootstrapKeyBackupResponse
-	242, // 309: backend.v1.BackendService.DetectLanguages:output_type -> backend.v1.DetectLanguagesResponse
-	232, // 310: backend.v1.BackendService.InstallDictionary:output_type -> backend.v1.InstallDictionaryResponse
-	234, // 311: backend.v1.BackendService.InstallFrequencies:output_type -> backend.v1.InstallFrequenciesResponse
-	239, // 312: backend.v1.BackendService.DetectModel:output_type -> backend.v1.DetectModelResponse
-	236, // 313: backend.v1.BackendService.InstallModel:output_type -> backend.v1.InstallModelResponse
-	226, // 314: backend.v1.BackendService.CheckSpelling:output_type -> backend.v1.CheckSpellingResponse
-	228, // 315: backend.v1.BackendService.LearnWord:output_type -> backend.v1.LearnWordResponse
-	230, // 316: backend.v1.BackendService.AllowRareWord:output_type -> backend.v1.AllowRareWordResponse
-	247, // 317: backend.v1.BackendService.SetDND:output_type -> backend.v1.SetDNDResponse
-	248, // 318: backend.v1.BackendService.ClearDND:output_type -> backend.v1.ClearDNDResponse
-	249, // 319: backend.v1.BackendService.DND:output_type -> backend.v1.DNDResponse
-	24,  // 320: backend.v1.BackendService.RescanFilters:output_type -> backend.v1.RescanFiltersResponse
-	32,  // 321: backend.v1.BackendService.RescanPeople:output_type -> backend.v1.RescanPeopleResponse
-	251, // 322: backend.v1.BackendService.ReloadConfig:output_type -> backend.v1.ReloadConfigResponse
-	253, // 323: backend.v1.BackendService.CheckConfig:output_type -> backend.v1.CheckConfigResponse
-	260, // 324: backend.v1.BackendService.GetConfig:output_type -> backend.v1.GetConfigResponse
-	256, // 325: backend.v1.BackendService.PreviewGroupings:output_type -> backend.v1.PreviewGroupingsResponse
-	258, // 326: backend.v1.BackendService.ApplyGroupings:output_type -> backend.v1.ApplyGroupingsResponse
-	262, // 327: backend.v1.BackendService.UpdateConfig:output_type -> backend.v1.UpdateConfigResponse
-	264, // 328: backend.v1.BackendService.ConfigChanged:output_type -> backend.v1.ConfigChangedResponse
-	267, // 329: backend.v1.BackendService.Schedule:output_type -> backend.v1.ScheduleResponse
-	269, // 330: backend.v1.BackendService.ScheduledMessages:output_type -> backend.v1.ScheduledMessagesResponse
-	271, // 331: backend.v1.BackendService.CancelScheduled:output_type -> backend.v1.CancelScheduledResponse
-	273, // 332: backend.v1.BackendService.RetryScheduled:output_type -> backend.v1.RetryScheduledResponse
-	210, // [210:333] is the sub-list for method output_type
-	87,  // [87:210] is the sub-list for method input_type
+	129, // 144: backend.v1.BackendService.KnockRoom:input_type -> backend.v1.KnockRoomRequest
+	131, // 145: backend.v1.BackendService.LeaveRoom:input_type -> backend.v1.LeaveRoomRequest
+	133, // 146: backend.v1.BackendService.DeleteChat:input_type -> backend.v1.DeleteChatRequest
+	135, // 147: backend.v1.BackendService.SignOut:input_type -> backend.v1.SignOutRequest
+	137, // 148: backend.v1.BackendService.CreateRoom:input_type -> backend.v1.CreateRoomRequest
+	139, // 149: backend.v1.BackendService.ChatOffers:input_type -> backend.v1.ChatOffersRequest
+	142, // 150: backend.v1.BackendService.InviteUser:input_type -> backend.v1.InviteUserRequest
+	144, // 151: backend.v1.BackendService.KickUser:input_type -> backend.v1.KickUserRequest
+	146, // 152: backend.v1.BackendService.BanUser:input_type -> backend.v1.BanUserRequest
+	148, // 153: backend.v1.BackendService.UnbanUser:input_type -> backend.v1.UnbanUserRequest
+	150, // 154: backend.v1.BackendService.SearchMessages:input_type -> backend.v1.SearchMessagesRequest
+	187, // 155: backend.v1.BackendService.ModelTask:input_type -> backend.v1.ModelTaskRequest
+	167, // 156: backend.v1.BackendService.ReplaceDraft:input_type -> backend.v1.ReplaceDraftRequest
+	169, // 157: backend.v1.BackendService.Drafts:input_type -> backend.v1.DraftsRequest
+	170, // 158: backend.v1.BackendService.Seat:input_type -> backend.v1.SeatRequest
+	178, // 159: backend.v1.BackendService.LoginNetworks:input_type -> backend.v1.LoginNetworksRequest
+	180, // 160: backend.v1.BackendService.BeginLogin:input_type -> backend.v1.BeginLoginRequest
+	182, // 161: backend.v1.BackendService.AnswerLogin:input_type -> backend.v1.AnswerLoginRequest
+	184, // 162: backend.v1.BackendService.CancelLogin:input_type -> backend.v1.CancelLoginRequest
+	157, // 163: backend.v1.BackendService.RoomsWith:input_type -> backend.v1.RoomsWithRequest
+	155, // 164: backend.v1.BackendService.RoomEncryption:input_type -> backend.v1.RoomEncryptionRequest
+	159, // 165: backend.v1.BackendService.MessagesAround:input_type -> backend.v1.MessagesAroundRequest
+	161, // 166: backend.v1.BackendService.MessagesFrom:input_type -> backend.v1.MessagesFromRequest
+	163, // 167: backend.v1.BackendService.MessageCounts:input_type -> backend.v1.MessageCountsRequest
+	152, // 168: backend.v1.BackendService.CompleteWord:input_type -> backend.v1.CompleteWordRequest
+	189, // 169: backend.v1.BackendService.Messages:input_type -> backend.v1.MessagesRequest
+	191, // 170: backend.v1.BackendService.ActivityStream:input_type -> backend.v1.ActivityStreamRequest
+	193, // 171: backend.v1.BackendService.Follow:input_type -> backend.v1.FollowRequest
+	197, // 172: backend.v1.BackendService.FollowStream:input_type -> backend.v1.FollowStreamRequest
+	195, // 173: backend.v1.BackendService.RoomsChanged:input_type -> backend.v1.RoomsChangedRequest
+	199, // 174: backend.v1.BackendService.Verifications:input_type -> backend.v1.VerificationsRequest
+	201, // 175: backend.v1.BackendService.StartVerification:input_type -> backend.v1.StartVerificationRequest
+	203, // 176: backend.v1.BackendService.AcceptVerification:input_type -> backend.v1.AcceptVerificationRequest
+	205, // 177: backend.v1.BackendService.ConfirmSAS:input_type -> backend.v1.ConfirmSASRequest
+	207, // 178: backend.v1.BackendService.CancelVerification:input_type -> backend.v1.CancelVerificationRequest
+	209, // 179: backend.v1.BackendService.Status:input_type -> backend.v1.StatusRequest
+	212, // 180: backend.v1.BackendService.Selves:input_type -> backend.v1.SelvesRequest
+	214, // 181: backend.v1.BackendService.Directory:input_type -> backend.v1.DirectoryRequest
+	216, // 182: backend.v1.BackendService.ClearCache:input_type -> backend.v1.ClearCacheRequest
+	218, // 183: backend.v1.BackendService.RestoreKeyBackup:input_type -> backend.v1.RestoreKeyBackupRequest
+	219, // 184: backend.v1.BackendService.ExportRoomKeys:input_type -> backend.v1.ExportRoomKeysRequest
+	221, // 185: backend.v1.BackendService.ImportRoomKeys:input_type -> backend.v1.ImportRoomKeysRequest
+	224, // 186: backend.v1.BackendService.BootstrapKeyBackup:input_type -> backend.v1.BootstrapKeyBackupRequest
+	242, // 187: backend.v1.BackendService.DetectLanguages:input_type -> backend.v1.DetectLanguagesRequest
+	233, // 188: backend.v1.BackendService.InstallDictionary:input_type -> backend.v1.InstallDictionaryRequest
+	235, // 189: backend.v1.BackendService.InstallFrequencies:input_type -> backend.v1.InstallFrequenciesRequest
+	239, // 190: backend.v1.BackendService.DetectModel:input_type -> backend.v1.DetectModelRequest
+	237, // 191: backend.v1.BackendService.InstallModel:input_type -> backend.v1.InstallModelRequest
+	226, // 192: backend.v1.BackendService.CheckSpelling:input_type -> backend.v1.CheckSpellingRequest
+	229, // 193: backend.v1.BackendService.LearnWord:input_type -> backend.v1.LearnWordRequest
+	231, // 194: backend.v1.BackendService.AllowRareWord:input_type -> backend.v1.AllowRareWordRequest
+	246, // 195: backend.v1.BackendService.SetDND:input_type -> backend.v1.SetDNDRequest
+	247, // 196: backend.v1.BackendService.ClearDND:input_type -> backend.v1.ClearDNDRequest
+	248, // 197: backend.v1.BackendService.DND:input_type -> backend.v1.DNDRequest
+	23,  // 198: backend.v1.BackendService.RescanFilters:input_type -> backend.v1.RescanFiltersRequest
+	31,  // 199: backend.v1.BackendService.RescanPeople:input_type -> backend.v1.RescanPeopleRequest
+	252, // 200: backend.v1.BackendService.ReloadConfig:input_type -> backend.v1.ReloadConfigRequest
+	254, // 201: backend.v1.BackendService.CheckConfig:input_type -> backend.v1.CheckConfigRequest
+	261, // 202: backend.v1.BackendService.GetConfig:input_type -> backend.v1.GetConfigRequest
+	257, // 203: backend.v1.BackendService.PreviewGroupings:input_type -> backend.v1.PreviewGroupingsRequest
+	259, // 204: backend.v1.BackendService.ApplyGroupings:input_type -> backend.v1.ApplyGroupingsRequest
+	263, // 205: backend.v1.BackendService.UpdateConfig:input_type -> backend.v1.UpdateConfigRequest
+	265, // 206: backend.v1.BackendService.ConfigChanged:input_type -> backend.v1.ConfigChangedRequest
+	268, // 207: backend.v1.BackendService.Schedule:input_type -> backend.v1.ScheduleRequest
+	270, // 208: backend.v1.BackendService.ScheduledMessages:input_type -> backend.v1.ScheduledMessagesRequest
+	272, // 209: backend.v1.BackendService.CancelScheduled:input_type -> backend.v1.CancelScheduledRequest
+	274, // 210: backend.v1.BackendService.RetryScheduled:input_type -> backend.v1.RetryScheduledRequest
+	4,   // 211: backend.v1.BackendService.Rooms:output_type -> backend.v1.RoomsResponse
+	6,   // 212: backend.v1.BackendService.RefreshRooms:output_type -> backend.v1.RefreshRoomsResponse
+	8,   // 213: backend.v1.BackendService.MarkRead:output_type -> backend.v1.MarkReadResponse
+	18,  // 214: backend.v1.BackendService.MarkRoomsRead:output_type -> backend.v1.MarkRoomsReadResponse
+	10,  // 215: backend.v1.BackendService.MarkRoomUnread:output_type -> backend.v1.MarkRoomUnreadResponse
+	12,  // 216: backend.v1.BackendService.SetRoomArchived:output_type -> backend.v1.SetRoomArchivedResponse
+	14,  // 217: backend.v1.BackendService.StarMessage:output_type -> backend.v1.StarMessageResponse
+	16,  // 218: backend.v1.BackendService.StarredIn:output_type -> backend.v1.StarredInResponse
+	44,  // 219: backend.v1.BackendService.CanonicalParent:output_type -> backend.v1.CanonicalParentResponse
+	115, // 220: backend.v1.BackendService.LastMessages:output_type -> backend.v1.LastMessagesResponse
+	21,  // 221: backend.v1.BackendService.TagVerdicts:output_type -> backend.v1.TagVerdictsResponse
+	26,  // 222: backend.v1.BackendService.MarkTag:output_type -> backend.v1.MarkTagResponse
+	42,  // 223: backend.v1.BackendService.RetagVerdicts:output_type -> backend.v1.RetagVerdictsResponse
+	29,  // 224: backend.v1.BackendService.PersonVerdicts:output_type -> backend.v1.PersonVerdictsResponse
+	34,  // 225: backend.v1.BackendService.MarkPerson:output_type -> backend.v1.MarkPersonResponse
+	36,  // 226: backend.v1.BackendService.Ignore:output_type -> backend.v1.IgnoreResponse
+	38,  // 227: backend.v1.BackendService.Unignore:output_type -> backend.v1.UnignoreResponse
+	40,  // 228: backend.v1.BackendService.Ignored:output_type -> backend.v1.IgnoredResponse
+	46,  // 229: backend.v1.BackendService.Spaces:output_type -> backend.v1.SpacesResponse
+	48,  // 230: backend.v1.BackendService.RefreshSpaces:output_type -> backend.v1.RefreshSpacesResponse
+	50,  // 231: backend.v1.BackendService.AddToSpace:output_type -> backend.v1.AddToSpaceResponse
+	52,  // 232: backend.v1.BackendService.RemoveFromSpace:output_type -> backend.v1.RemoveFromSpaceResponse
+	54,  // 233: backend.v1.BackendService.CachedTimeline:output_type -> backend.v1.CachedTimelineResponse
+	56,  // 234: backend.v1.BackendService.Timeline:output_type -> backend.v1.TimelineResponse
+	71,  // 235: backend.v1.BackendService.MessageHistory:output_type -> backend.v1.MessageHistoryResponse
+	64,  // 236: backend.v1.BackendService.FetchEvent:output_type -> backend.v1.FetchEventResponse
+	66,  // 237: backend.v1.BackendService.FetchEventSource:output_type -> backend.v1.FetchEventSourceResponse
+	58,  // 238: backend.v1.BackendService.Send:output_type -> backend.v1.SendResponse
+	117, // 239: backend.v1.BackendService.Redact:output_type -> backend.v1.RedactResponse
+	60,  // 240: backend.v1.BackendService.SendFile:output_type -> backend.v1.SendFileResponse
+	62,  // 241: backend.v1.BackendService.SendTyping:output_type -> backend.v1.SendTypingResponse
+	74,  // 242: backend.v1.BackendService.CachedUnread:output_type -> backend.v1.CachedUnreadResponse
+	76,  // 243: backend.v1.BackendService.UnreadStream:output_type -> backend.v1.UnreadStreamResponse
+	78,  // 244: backend.v1.BackendService.ListThreads:output_type -> backend.v1.ListThreadsResponse
+	82,  // 245: backend.v1.BackendService.ThreadPage:output_type -> backend.v1.ThreadPageResponse
+	80,  // 246: backend.v1.BackendService.MarkThreadRead:output_type -> backend.v1.MarkThreadReadResponse
+	84,  // 247: backend.v1.BackendService.CachedReactions:output_type -> backend.v1.CachedReactionsResponse
+	86,  // 248: backend.v1.BackendService.Reactions:output_type -> backend.v1.ReactionsResponse
+	88,  // 249: backend.v1.BackendService.SendReaction:output_type -> backend.v1.SendReactionResponse
+	90,  // 250: backend.v1.BackendService.VotePoll:output_type -> backend.v1.VotePollResponse
+	92,  // 251: backend.v1.BackendService.PollVoters:output_type -> backend.v1.PollVotersResponse
+	95,  // 252: backend.v1.BackendService.ReactionRefusals:output_type -> backend.v1.ReactionRefusalsResponse
+	97,  // 253: backend.v1.BackendService.RecordReactionRefusal:output_type -> backend.v1.RecordReactionRefusalResponse
+	99,  // 254: backend.v1.BackendService.RecordEmoji:output_type -> backend.v1.RecordEmojiResponse
+	101, // 255: backend.v1.BackendService.EmojiScores:output_type -> backend.v1.EmojiScoresResponse
+	103, // 256: backend.v1.BackendService.LoadImage:output_type -> backend.v1.LoadImageResponse
+	105, // 257: backend.v1.BackendService.Members:output_type -> backend.v1.MembersResponse
+	107, // 258: backend.v1.BackendService.RefreshMembers:output_type -> backend.v1.RefreshMembersResponse
+	109, // 259: backend.v1.BackendService.MentionCandidates:output_type -> backend.v1.MentionCandidatesResponse
+	111, // 260: backend.v1.BackendService.SearchSenders:output_type -> backend.v1.SearchSendersResponse
+	113, // 261: backend.v1.BackendService.DirectCandidates:output_type -> backend.v1.DirectCandidatesResponse
+	120, // 262: backend.v1.BackendService.SenderSlots:output_type -> backend.v1.SenderSlotsResponse
+	122, // 263: backend.v1.BackendService.SaveSenderSlots:output_type -> backend.v1.SaveSenderSlotsResponse
+	124, // 264: backend.v1.BackendService.CachedInvites:output_type -> backend.v1.CachedInvitesResponse
+	126, // 265: backend.v1.BackendService.Invites:output_type -> backend.v1.InvitesResponse
+	128, // 266: backend.v1.BackendService.JoinRoom:output_type -> backend.v1.JoinRoomResponse
+	69,  // 267: backend.v1.BackendService.PublicRooms:output_type -> backend.v1.PublicRoomsResponse
+	130, // 268: backend.v1.BackendService.KnockRoom:output_type -> backend.v1.KnockRoomResponse
+	132, // 269: backend.v1.BackendService.LeaveRoom:output_type -> backend.v1.LeaveRoomResponse
+	134, // 270: backend.v1.BackendService.DeleteChat:output_type -> backend.v1.DeleteChatResponse
+	136, // 271: backend.v1.BackendService.SignOut:output_type -> backend.v1.SignOutResponse
+	141, // 272: backend.v1.BackendService.CreateRoom:output_type -> backend.v1.CreateRoomResponse
+	140, // 273: backend.v1.BackendService.ChatOffers:output_type -> backend.v1.ChatOffersResponse
+	143, // 274: backend.v1.BackendService.InviteUser:output_type -> backend.v1.InviteUserResponse
+	145, // 275: backend.v1.BackendService.KickUser:output_type -> backend.v1.KickUserResponse
+	147, // 276: backend.v1.BackendService.BanUser:output_type -> backend.v1.BanUserResponse
+	149, // 277: backend.v1.BackendService.UnbanUser:output_type -> backend.v1.UnbanUserResponse
+	151, // 278: backend.v1.BackendService.SearchMessages:output_type -> backend.v1.SearchMessagesResponse
+	188, // 279: backend.v1.BackendService.ModelTask:output_type -> backend.v1.ModelTaskResponse
+	168, // 280: backend.v1.BackendService.ReplaceDraft:output_type -> backend.v1.ReplaceDraftResponse
+	186, // 281: backend.v1.BackendService.Drafts:output_type -> backend.v1.DraftsResponse
+	172, // 282: backend.v1.BackendService.Seat:output_type -> backend.v1.SeatResponse
+	179, // 283: backend.v1.BackendService.LoginNetworks:output_type -> backend.v1.LoginNetworksResponse
+	181, // 284: backend.v1.BackendService.BeginLogin:output_type -> backend.v1.BeginLoginResponse
+	183, // 285: backend.v1.BackendService.AnswerLogin:output_type -> backend.v1.AnswerLoginResponse
+	185, // 286: backend.v1.BackendService.CancelLogin:output_type -> backend.v1.CancelLoginResponse
+	158, // 287: backend.v1.BackendService.RoomsWith:output_type -> backend.v1.RoomsWithResponse
+	156, // 288: backend.v1.BackendService.RoomEncryption:output_type -> backend.v1.RoomEncryptionResponse
+	160, // 289: backend.v1.BackendService.MessagesAround:output_type -> backend.v1.MessagesAroundResponse
+	165, // 290: backend.v1.BackendService.MessagesFrom:output_type -> backend.v1.MessagesFromResponse
+	164, // 291: backend.v1.BackendService.MessageCounts:output_type -> backend.v1.MessageCountsResponse
+	154, // 292: backend.v1.BackendService.CompleteWord:output_type -> backend.v1.CompleteWordResponse
+	190, // 293: backend.v1.BackendService.Messages:output_type -> backend.v1.MessagesResponse
+	192, // 294: backend.v1.BackendService.ActivityStream:output_type -> backend.v1.ActivityStreamResponse
+	194, // 295: backend.v1.BackendService.Follow:output_type -> backend.v1.FollowResponse
+	198, // 296: backend.v1.BackendService.FollowStream:output_type -> backend.v1.FollowStreamResponse
+	196, // 297: backend.v1.BackendService.RoomsChanged:output_type -> backend.v1.RoomsChangedResponse
+	200, // 298: backend.v1.BackendService.Verifications:output_type -> backend.v1.VerificationsResponse
+	202, // 299: backend.v1.BackendService.StartVerification:output_type -> backend.v1.StartVerificationResponse
+	204, // 300: backend.v1.BackendService.AcceptVerification:output_type -> backend.v1.AcceptVerificationResponse
+	206, // 301: backend.v1.BackendService.ConfirmSAS:output_type -> backend.v1.ConfirmSASResponse
+	208, // 302: backend.v1.BackendService.CancelVerification:output_type -> backend.v1.CancelVerificationResponse
+	210, // 303: backend.v1.BackendService.Status:output_type -> backend.v1.StatusResponse
+	213, // 304: backend.v1.BackendService.Selves:output_type -> backend.v1.SelvesResponse
+	215, // 305: backend.v1.BackendService.Directory:output_type -> backend.v1.DirectoryResponse
+	217, // 306: backend.v1.BackendService.ClearCache:output_type -> backend.v1.ClearCacheResponse
+	223, // 307: backend.v1.BackendService.RestoreKeyBackup:output_type -> backend.v1.RestoreKeyBackupResponse
+	220, // 308: backend.v1.BackendService.ExportRoomKeys:output_type -> backend.v1.ExportRoomKeysResponse
+	222, // 309: backend.v1.BackendService.ImportRoomKeys:output_type -> backend.v1.ImportRoomKeysResponse
+	225, // 310: backend.v1.BackendService.BootstrapKeyBackup:output_type -> backend.v1.BootstrapKeyBackupResponse
+	244, // 311: backend.v1.BackendService.DetectLanguages:output_type -> backend.v1.DetectLanguagesResponse
+	234, // 312: backend.v1.BackendService.InstallDictionary:output_type -> backend.v1.InstallDictionaryResponse
+	236, // 313: backend.v1.BackendService.InstallFrequencies:output_type -> backend.v1.InstallFrequenciesResponse
+	241, // 314: backend.v1.BackendService.DetectModel:output_type -> backend.v1.DetectModelResponse
+	238, // 315: backend.v1.BackendService.InstallModel:output_type -> backend.v1.InstallModelResponse
+	228, // 316: backend.v1.BackendService.CheckSpelling:output_type -> backend.v1.CheckSpellingResponse
+	230, // 317: backend.v1.BackendService.LearnWord:output_type -> backend.v1.LearnWordResponse
+	232, // 318: backend.v1.BackendService.AllowRareWord:output_type -> backend.v1.AllowRareWordResponse
+	249, // 319: backend.v1.BackendService.SetDND:output_type -> backend.v1.SetDNDResponse
+	250, // 320: backend.v1.BackendService.ClearDND:output_type -> backend.v1.ClearDNDResponse
+	251, // 321: backend.v1.BackendService.DND:output_type -> backend.v1.DNDResponse
+	24,  // 322: backend.v1.BackendService.RescanFilters:output_type -> backend.v1.RescanFiltersResponse
+	32,  // 323: backend.v1.BackendService.RescanPeople:output_type -> backend.v1.RescanPeopleResponse
+	253, // 324: backend.v1.BackendService.ReloadConfig:output_type -> backend.v1.ReloadConfigResponse
+	255, // 325: backend.v1.BackendService.CheckConfig:output_type -> backend.v1.CheckConfigResponse
+	262, // 326: backend.v1.BackendService.GetConfig:output_type -> backend.v1.GetConfigResponse
+	258, // 327: backend.v1.BackendService.PreviewGroupings:output_type -> backend.v1.PreviewGroupingsResponse
+	260, // 328: backend.v1.BackendService.ApplyGroupings:output_type -> backend.v1.ApplyGroupingsResponse
+	264, // 329: backend.v1.BackendService.UpdateConfig:output_type -> backend.v1.UpdateConfigResponse
+	266, // 330: backend.v1.BackendService.ConfigChanged:output_type -> backend.v1.ConfigChangedResponse
+	269, // 331: backend.v1.BackendService.Schedule:output_type -> backend.v1.ScheduleResponse
+	271, // 332: backend.v1.BackendService.ScheduledMessages:output_type -> backend.v1.ScheduledMessagesResponse
+	273, // 333: backend.v1.BackendService.CancelScheduled:output_type -> backend.v1.CancelScheduledResponse
+	275, // 334: backend.v1.BackendService.RetryScheduled:output_type -> backend.v1.RetryScheduledResponse
+	211, // [211:335] is the sub-list for method output_type
+	87,  // [87:211] is the sub-list for method input_type
 	87,  // [87:87] is the sub-list for extension type_name
 	87,  // [87:87] is the sub-list for extension extendee
 	0,   // [0:87] is the sub-list for field type_name
@@ -15349,7 +15464,7 @@ func file_backend_v1_services_proto_init() {
 		return
 	}
 	file_backend_v1_types_proto_init()
-	file_backend_v1_services_proto_msgTypes[167].OneofWrappers = []any{
+	file_backend_v1_services_proto_msgTypes[169].OneofWrappers = []any{
 		(*SeatResponse_Granted)(nil),
 		(*SeatResponse_Taken)(nil),
 		(*SeatResponse_StepAside)(nil),
@@ -15360,7 +15475,7 @@ func file_backend_v1_services_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backend_v1_services_proto_rawDesc), len(file_backend_v1_services_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   276,
+			NumMessages:   278,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

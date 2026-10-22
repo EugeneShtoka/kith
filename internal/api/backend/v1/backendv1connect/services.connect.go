@@ -189,6 +189,9 @@ const (
 	// BackendServicePublicRoomsProcedure is the fully-qualified name of the BackendService's
 	// PublicRooms RPC.
 	BackendServicePublicRoomsProcedure = "/backend.v1.BackendService/PublicRooms"
+	// BackendServiceKnockRoomProcedure is the fully-qualified name of the BackendService's KnockRoom
+	// RPC.
+	BackendServiceKnockRoomProcedure = "/backend.v1.BackendService/KnockRoom"
 	// BackendServiceLeaveRoomProcedure is the fully-qualified name of the BackendService's LeaveRoom
 	// RPC.
 	BackendServiceLeaveRoomProcedure = "/backend.v1.BackendService/LeaveRoom"
@@ -525,6 +528,8 @@ type BackendServiceClient interface {
 	JoinRoom(context.Context, *connect.Request[v1.JoinRoomRequest]) (*connect.Response[v1.JoinRoomResponse], error)
 	// PublicRooms lists one page of the Matrix public rooms directory.
 	PublicRooms(context.Context, *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error)
+	// KnockRoom asks to join a knock-only Matrix room.
+	KnockRoom(context.Context, *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error)
 	// LeaveRoom leaves a room.
 	LeaveRoom(context.Context, *connect.Request[v1.LeaveRoomRequest]) (*connect.Response[v1.LeaveRoomResponse], error)
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
@@ -1051,6 +1056,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("PublicRooms")),
 			connect.WithClientOptions(opts...),
 		),
+		knockRoom: connect.NewClient[v1.KnockRoomRequest, v1.KnockRoomResponse](
+			httpClient,
+			baseURL+BackendServiceKnockRoomProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("KnockRoom")),
+			connect.WithClientOptions(opts...),
+		),
 		leaveRoom: connect.NewClient[v1.LeaveRoomRequest, v1.LeaveRoomResponse](
 			httpClient,
 			baseURL+BackendServiceLeaveRoomProcedure,
@@ -1509,6 +1520,7 @@ type backendServiceClient struct {
 	invites               *connect.Client[v1.InvitesRequest, v1.InvitesResponse]
 	joinRoom              *connect.Client[v1.JoinRoomRequest, v1.JoinRoomResponse]
 	publicRooms           *connect.Client[v1.PublicRoomsRequest, v1.PublicRoomsResponse]
+	knockRoom             *connect.Client[v1.KnockRoomRequest, v1.KnockRoomResponse]
 	leaveRoom             *connect.Client[v1.LeaveRoomRequest, v1.LeaveRoomResponse]
 	deleteChat            *connect.Client[v1.DeleteChatRequest, v1.DeleteChatResponse]
 	signOut               *connect.Client[v1.SignOutRequest, v1.SignOutResponse]
@@ -1860,6 +1872,11 @@ func (c *backendServiceClient) JoinRoom(ctx context.Context, req *connect.Reques
 // PublicRooms calls backend.v1.BackendService.PublicRooms.
 func (c *backendServiceClient) PublicRooms(ctx context.Context, req *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error) {
 	return c.publicRooms.CallUnary(ctx, req)
+}
+
+// KnockRoom calls backend.v1.BackendService.KnockRoom.
+func (c *backendServiceClient) KnockRoom(ctx context.Context, req *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error) {
+	return c.knockRoom.CallUnary(ctx, req)
 }
 
 // LeaveRoom calls backend.v1.BackendService.LeaveRoom.
@@ -2341,6 +2358,8 @@ type BackendServiceHandler interface {
 	JoinRoom(context.Context, *connect.Request[v1.JoinRoomRequest]) (*connect.Response[v1.JoinRoomResponse], error)
 	// PublicRooms lists one page of the Matrix public rooms directory.
 	PublicRooms(context.Context, *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error)
+	// KnockRoom asks to join a knock-only Matrix room.
+	KnockRoom(context.Context, *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error)
 	// LeaveRoom leaves a room.
 	LeaveRoom(context.Context, *connect.Request[v1.LeaveRoomRequest]) (*connect.Response[v1.LeaveRoomResponse], error)
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
@@ -2863,6 +2882,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("PublicRooms")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceKnockRoomHandler := connect.NewUnaryHandler(
+		BackendServiceKnockRoomProcedure,
+		svc.KnockRoom,
+		connect.WithSchema(backendServiceMethods.ByName("KnockRoom")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceLeaveRoomHandler := connect.NewUnaryHandler(
 		BackendServiceLeaveRoomProcedure,
 		svc.LeaveRoom,
@@ -3375,6 +3400,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceJoinRoomHandler.ServeHTTP(w, r)
 		case BackendServicePublicRoomsProcedure:
 			backendServicePublicRoomsHandler.ServeHTTP(w, r)
+		case BackendServiceKnockRoomProcedure:
+			backendServiceKnockRoomHandler.ServeHTTP(w, r)
 		case BackendServiceLeaveRoomProcedure:
 			backendServiceLeaveRoomHandler.ServeHTTP(w, r)
 		case BackendServiceDeleteChatProcedure:
@@ -3742,6 +3769,10 @@ func (UnimplementedBackendServiceHandler) JoinRoom(context.Context, *connect.Req
 
 func (UnimplementedBackendServiceHandler) PublicRooms(context.Context, *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PublicRooms is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) KnockRoom(context.Context, *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.KnockRoom is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) LeaveRoom(context.Context, *connect.Request[v1.LeaveRoomRequest]) (*connect.Response[v1.LeaveRoomResponse], error) {

@@ -171,6 +171,11 @@ var slashCommands = []slashCommand{
 		run:     consuming(Model.openPublicRooms),
 	},
 	{
+		name:    "/knock",
+		summary: "ask a moderator to let you into a knock-only Matrix room: /knock <room> [reason]",
+		run:     runKnock,
+	},
+	{
 		name:     "/topic",
 		keyScope: scopeTimeline,
 		keyAct:   actTopic,
