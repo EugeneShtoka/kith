@@ -110,8 +110,9 @@ func (m Model) readerBody() (string, []string, func(string) string) {
 		return "Waiting on you", m.todoLines(), nil
 	case readerAsk:
 		return "What would be sent", m.modelPreviewLines(), nil
-	case readerScript:
-		// No palette: a script's words are not known to be names.
+	case readerScript, readerSource:
+		// No palette: a script's words are not known to be names, and JSON
+		// has no names to color either.
 		return m.pager.title, m.pager.lines, nil
 	case readerNone, readerHelp, readerWhy:
 	}

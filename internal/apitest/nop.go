@@ -71,6 +71,9 @@ func (Nop) Timeline(context.Context, domain.RoomID, string, int) (domain.Timelin
 func (Nop) FetchEvent(context.Context, domain.RoomID, domain.EventID) (domain.Message, error) {
 	return domain.Message{}, nil
 }
+func (Nop) FetchEventSource(context.Context, domain.RoomID, domain.EventID) ([]byte, error) {
+	return nil, nil
+}
 func (Nop) Send(context.Context, domain.RoomID, domain.Draft) error               { return nil }
 func (Nop) SendFile(context.Context, domain.RoomID, string, string, string) error { return nil }
 func (Nop) CachedUnread(context.Context) ([]domain.Unread, error)                 { return nil, nil }

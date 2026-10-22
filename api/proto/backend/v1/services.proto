@@ -295,6 +295,15 @@ message FetchEventResponse {
   Message message = 1;
 }
 
+message FetchEventSourceRequest {
+  string room_id = 1;
+  string event_id = 2;
+}
+
+message FetchEventSourceResponse {
+  bytes source = 1;
+}
+
 message MessageHistoryRequest {
   string room_id = 1;
   string event_id = 2;
@@ -1547,6 +1556,9 @@ service BackendService {
   // FetchEvent fetches one event by ID — a thread root, or a reply target, that is
   // older than the room's cached window.
   rpc FetchEvent(FetchEventRequest) returns (FetchEventResponse);
+  // FetchEventSource fetches an event's raw JSON from the Matrix homeserver,
+  // pretty-printed; a debugging aid.
+  rpc FetchEventSource(FetchEventSourceRequest) returns (FetchEventSourceResponse);
   // Send posts a message, with its mentions and its reply target.
   rpc Send(SendRequest) returns (SendResponse);
   // Redact removes a message's content.

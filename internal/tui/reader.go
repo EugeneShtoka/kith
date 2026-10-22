@@ -14,6 +14,7 @@ const (
 	readerSummary        // `/summary`
 	readerTodo           // what people are waiting on you for
 	readerScript         // a script's output with `output = "pager"`
+	readerSource         // one message's raw event JSON from the homeserver (gs)
 )
 
 // readerState is the overlay up and its first visible row. filter narrows the help overlay;
@@ -30,7 +31,7 @@ func (r readerState) up() bool { return r.kind != readerNone }
 // boxed reports whether readerBox draws this overlay (title, body, footer).
 func (r readerState) boxed() bool {
 	switch r.kind {
-	case readerSummary, readerTopic, readerTodo, readerAsk, readerScript:
+	case readerSummary, readerTopic, readerTodo, readerAsk, readerScript, readerSource:
 		return true
 	case readerNone, readerHelp, readerWhy:
 		return false

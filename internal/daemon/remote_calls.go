@@ -331,6 +331,12 @@ func (r *Remote) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID d
 	return pc.ProtoToMessage(resp.GetMessage()), err
 }
 
+func (r *Remote) FetchEventSource(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
+	resp, err := call(ctx, "fetch event source", r.c.FetchEventSource,
+		&v1.FetchEventSourceRequest{RoomId: string(roomID), EventId: string(eventID)})
+	return resp.GetSource(), err
+}
+
 func (r *Remote) MessageHistory(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, domain.Deletion, error) {
 	resp, err := call(ctx, "message history", r.c.MessageHistory,
 		&v1.MessageHistoryRequest{RoomId: string(roomID), EventId: string(eventID)})

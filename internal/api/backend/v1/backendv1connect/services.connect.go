@@ -103,6 +103,9 @@ const (
 	// BackendServiceFetchEventProcedure is the fully-qualified name of the BackendService's FetchEvent
 	// RPC.
 	BackendServiceFetchEventProcedure = "/backend.v1.BackendService/FetchEvent"
+	// BackendServiceFetchEventSourceProcedure is the fully-qualified name of the BackendService's
+	// FetchEventSource RPC.
+	BackendServiceFetchEventSourceProcedure = "/backend.v1.BackendService/FetchEventSource"
 	// BackendServiceSendProcedure is the fully-qualified name of the BackendService's Send RPC.
 	BackendServiceSendProcedure = "/backend.v1.BackendService/Send"
 	// BackendServiceRedactProcedure is the fully-qualified name of the BackendService's Redact RPC.
@@ -442,6 +445,9 @@ type BackendServiceClient interface {
 	// FetchEvent fetches one event by ID — a thread root, or a reply target, that is
 	// older than the room's cached window.
 	FetchEvent(context.Context, *connect.Request[v1.FetchEventRequest]) (*connect.Response[v1.FetchEventResponse], error)
+	// FetchEventSource fetches an event's raw JSON from the Matrix homeserver,
+	// pretty-printed; a debugging aid.
+	FetchEventSource(context.Context, *connect.Request[v1.FetchEventSourceRequest]) (*connect.Response[v1.FetchEventSourceResponse], error)
 	// Send posts a message, with its mentions and its reply target.
 	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
 	// Redact removes a message's content.
@@ -852,6 +858,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceFetchEventProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("FetchEvent")),
+			connect.WithClientOptions(opts...),
+		),
+		fetchEventSource: connect.NewClient[v1.FetchEventSourceRequest, v1.FetchEventSourceResponse](
+			httpClient,
+			baseURL+BackendServiceFetchEventSourceProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("FetchEventSource")),
 			connect.WithClientOptions(opts...),
 		),
 		send: connect.NewClient[v1.SendRequest, v1.SendResponse](
@@ -1455,6 +1467,7 @@ type backendServiceClient struct {
 	timeline              *connect.Client[v1.TimelineRequest, v1.TimelineResponse]
 	messageHistory        *connect.Client[v1.MessageHistoryRequest, v1.MessageHistoryResponse]
 	fetchEvent            *connect.Client[v1.FetchEventRequest, v1.FetchEventResponse]
+	fetchEventSource      *connect.Client[v1.FetchEventSourceRequest, v1.FetchEventSourceResponse]
 	send                  *connect.Client[v1.SendRequest, v1.SendResponse]
 	redact                *connect.Client[v1.RedactRequest, v1.RedactResponse]
 	sendFile              *connect.Client[v1.SendFileRequest, v1.SendFileResponse]
@@ -1680,6 +1693,11 @@ func (c *backendServiceClient) MessageHistory(ctx context.Context, req *connect.
 // FetchEvent calls backend.v1.BackendService.FetchEvent.
 func (c *backendServiceClient) FetchEvent(ctx context.Context, req *connect.Request[v1.FetchEventRequest]) (*connect.Response[v1.FetchEventResponse], error) {
 	return c.fetchEvent.CallUnary(ctx, req)
+}
+
+// FetchEventSource calls backend.v1.BackendService.FetchEventSource.
+func (c *backendServiceClient) FetchEventSource(ctx context.Context, req *connect.Request[v1.FetchEventSourceRequest]) (*connect.Response[v1.FetchEventSourceResponse], error) {
+	return c.fetchEventSource.CallUnary(ctx, req)
 }
 
 // Send calls backend.v1.BackendService.Send.
@@ -2229,6 +2247,9 @@ type BackendServiceHandler interface {
 	// FetchEvent fetches one event by ID — a thread root, or a reply target, that is
 	// older than the room's cached window.
 	FetchEvent(context.Context, *connect.Request[v1.FetchEventRequest]) (*connect.Response[v1.FetchEventResponse], error)
+	// FetchEventSource fetches an event's raw JSON from the Matrix homeserver,
+	// pretty-printed; a debugging aid.
+	FetchEventSource(context.Context, *connect.Request[v1.FetchEventSourceRequest]) (*connect.Response[v1.FetchEventSourceResponse], error)
 	// Send posts a message, with its mentions and its reply target.
 	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
 	// Redact removes a message's content.
@@ -2635,6 +2656,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceFetchEventProcedure,
 		svc.FetchEvent,
 		connect.WithSchema(backendServiceMethods.ByName("FetchEvent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceFetchEventSourceHandler := connect.NewUnaryHandler(
+		BackendServiceFetchEventSourceProcedure,
+		svc.FetchEventSource,
+		connect.WithSchema(backendServiceMethods.ByName("FetchEventSource")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceSendHandler := connect.NewUnaryHandler(
@@ -3261,6 +3288,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceMessageHistoryHandler.ServeHTTP(w, r)
 		case BackendServiceFetchEventProcedure:
 			backendServiceFetchEventHandler.ServeHTTP(w, r)
+		case BackendServiceFetchEventSourceProcedure:
+			backendServiceFetchEventSourceHandler.ServeHTTP(w, r)
 		case BackendServiceSendProcedure:
 			backendServiceSendHandler.ServeHTTP(w, r)
 		case BackendServiceRedactProcedure:
@@ -3562,6 +3591,10 @@ func (UnimplementedBackendServiceHandler) MessageHistory(context.Context, *conne
 
 func (UnimplementedBackendServiceHandler) FetchEvent(context.Context, *connect.Request[v1.FetchEventRequest]) (*connect.Response[v1.FetchEventResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FetchEvent is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) FetchEventSource(context.Context, *connect.Request[v1.FetchEventSourceRequest]) (*connect.Response[v1.FetchEventSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FetchEventSource is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error) {

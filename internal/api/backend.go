@@ -140,6 +140,10 @@ type Timeline interface {
 	Timeline(ctx context.Context, roomID domain.RoomID, from string, limit int) (domain.TimelinePage, error)
 	// FetchEvent fetches one event by ID, e.g. a thread root older than the cache.
 	FetchEvent(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, error)
+	// FetchEventSource fetches one event's raw JSON from the homeserver as it was
+	// served, pretty-printed; a debugging aid, not for merging into the cache.
+	// Matrix only (nothing on the other networks exposes a comparable raw event).
+	FetchEventSource(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 	// Redact deletes a message, checking the redact level for others' messages. The
 	// change arrives on the sync stream.
 	Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error
