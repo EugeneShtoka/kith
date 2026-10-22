@@ -577,6 +577,10 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	notifications.UseLogger(log)
 	notifications.UseSelves(backend.Me)
 	notifications.UseDirectory(backend.Directory)
+	// push_archive hands diffs back to the Router's SetRoomArchived, which forwards
+	// to the room's network. A network without an archive (Slack, LinkedIn, Matrix)
+	// refuses with ErrNotOnNetwork — the reconciler keeps silent on that error.
+	notifications.UseArchiver(backend.SetRoomArchived)
 	// Before any network writes: retention follows [storage] by room place, and reloads.
 	if backend.cache != nil {
 		notifications.UseMemberNames(backend.cache.RoomMemberName)
