@@ -255,6 +255,15 @@ func (a *Adapter) edit(ctx context.Context, roomID domain.RoomID, draft domain.D
 		RevisionID: domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, account.Digits, resp.ID)),
 	}
 	edit.Body, edit.Format = formatted(text)
+	// Carry mentions on the local echo the same way send does: the wire message
+	// already names them (that is what the server shows), but the cached copy is
+	// what the TUI renders, and without a Mentions list the renderer falls back
+	// to the raw @<digits> body — the sender ID instead of their name.
+	for _, jid := range mentioned {
+		edit.Mentions = append(edit.Mentions, domain.Mention{
+			UserID: domain.NativePerson(domain.ProtocolWhatsApp, jid.String()), Name: "@" + jid.User,
+		})
+	}
 	if a.cache != nil {
 		a.record(ctx, account, edit, func() {})
 	}
