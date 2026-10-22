@@ -1105,6 +1105,10 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleIgnoredChanged(msg))
 	case sourceLoadedMsg:
 		return answered(m.handleSourceLoaded(msg))
+	case publicRoomsLoadedMsg:
+		return answered(m.handlePublicRoomsLoaded(msg))
+	case publicRoomJoinedMsg:
+		return answered(m.handlePublicRoomJoined(msg))
 	case scheduleDoneMsg:
 		return answered(m.handleScheduleDone(msg))
 	case queuedUnsentMsg:
