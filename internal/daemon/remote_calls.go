@@ -348,6 +348,13 @@ func (r *Remote) PublicRooms(ctx context.Context, server, since string) (domain.
 	}, err
 }
 
+// KnockRoom asks to join a knock-only Matrix room.
+func (r *Remote) KnockRoom(ctx context.Context, roomIDOrAlias, reason string, via []string) (domain.RoomID, error) {
+	resp, err := call(ctx, "knock on room", r.c.KnockRoom,
+		&v1.KnockRoomRequest{RoomIdOrAlias: roomIDOrAlias, Reason: reason, Via: via})
+	return domain.RoomID(resp.GetRoomId()), err
+}
+
 func (r *Remote) MessageHistory(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, domain.Deletion, error) {
 	resp, err := call(ctx, "message history", r.c.MessageHistory,
 		&v1.MessageHistoryRequest{RoomId: string(roomID), EventId: string(eventID)})

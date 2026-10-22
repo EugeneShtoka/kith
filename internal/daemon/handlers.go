@@ -381,6 +381,11 @@ func (s *server) JoinRoom(ctx context.Context, r *req[v1.JoinRoomRequest]) (*res
 	return reply(&v1.JoinRoomResponse{RoomId: string(id)}, err)
 }
 
+func (s *server) KnockRoom(ctx context.Context, r *req[v1.KnockRoomRequest]) (*resp[v1.KnockRoomResponse], error) {
+	id, err := s.Backend.KnockRoom(ctx, r.Msg.GetRoomIdOrAlias(), r.Msg.GetReason(), r.Msg.GetVia())
+	return reply(&v1.KnockRoomResponse{RoomId: string(id)}, err)
+}
+
 func (s *server) PublicRooms(ctx context.Context, r *req[v1.PublicRoomsRequest]) (*resp[v1.PublicRoomsResponse], error) {
 	page, err := s.Backend.PublicRooms(ctx, r.Msg.GetServer(), r.Msg.GetSince())
 	return reply(&v1.PublicRoomsResponse{

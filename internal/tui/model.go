@@ -1099,16 +1099,6 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleCommandSecrets(msg))
 	case scheduledMsg:
 		return answered(m.handleScheduled(msg))
-	case ignoredLoadedMsg:
-		return answered(m.handleIgnoredLoaded(msg))
-	case ignoredChangedMsg:
-		return answered(m.handleIgnoredChanged(msg))
-	case sourceLoadedMsg:
-		return answered(m.handleSourceLoaded(msg))
-	case publicRoomsLoadedMsg:
-		return answered(m.handlePublicRoomsLoaded(msg))
-	case publicRoomJoinedMsg:
-		return answered(m.handlePublicRoomJoined(msg))
 	case scheduleDoneMsg:
 		return answered(m.handleScheduleDone(msg))
 	case queuedUnsentMsg:
@@ -1122,7 +1112,32 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case spellBeforeSendMsg:
 		return answered(m.handleSpellBeforeSend(msg))
 	default:
+		if next, cmd, ok := m.handleMatrixFeatureMsg(msg); ok {
+			return next, cmd, true
+		}
 		return m.handleAssistMsg(msg)
+	}
+}
+
+// handleMatrixFeatureMsg handles messages from the Matrix-specific features
+// (ignore list, raw event source, public rooms, knocking). Kept out of
+// handleComposeMsg so each stays under the per-function statement budget.
+func (m Model) handleMatrixFeatureMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case ignoredLoadedMsg:
+		return answered(m.handleIgnoredLoaded(msg))
+	case ignoredChangedMsg:
+		return answered(m.handleIgnoredChanged(msg))
+	case sourceLoadedMsg:
+		return answered(m.handleSourceLoaded(msg))
+	case publicRoomsLoadedMsg:
+		return answered(m.handlePublicRoomsLoaded(msg))
+	case publicRoomJoinedMsg:
+		return answered(m.handlePublicRoomJoined(msg))
+	case knockedMsg:
+		return answered(m.handleKnocked(msg))
+	default:
+		return m, nil, false
 	}
 }
 

@@ -354,6 +354,16 @@ func (s served) PublicRooms(ctx context.Context, server, since string) (domain.P
 	return page, nil
 }
 
+// KnockRoom asks to join a knock-only Matrix room; a moderator decides. Matrix
+// only (no other adapter has a comparable half-joined state).
+func (s served) KnockRoom(ctx context.Context, roomIDOrAlias, reason string, via []string) (domain.RoomID, error) {
+	id, err := s.matrix.KnockRoom(ctx, roomIDOrAlias, reason, via)
+	if err != nil {
+		return "", fmt.Errorf("served: %w", err)
+	}
+	return id, nil
+}
+
 func (s served) loginLeaders() []api.LoginLeader {
 	leaders := make([]api.LoginLeader, 0, len(s.networks))
 	for _, n := range s.networks {

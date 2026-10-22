@@ -610,6 +610,16 @@ message JoinRoomResponse {
   string room_id = 1;
 }
 
+message KnockRoomRequest {
+  string room_id_or_alias = 1;
+  string reason = 2;
+  repeated string via = 3;
+}
+
+message KnockRoomResponse {
+  string room_id = 1;
+}
+
 message LeaveRoomRequest {
   string room_id = 1;
 }
@@ -1654,6 +1664,8 @@ service BackendService {
   rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse);
   // PublicRooms lists one page of the Matrix public rooms directory.
   rpc PublicRooms(PublicRoomsRequest) returns (PublicRoomsResponse);
+  // KnockRoom asks to join a knock-only Matrix room.
+  rpc KnockRoom(KnockRoomRequest) returns (KnockRoomResponse);
   // LeaveRoom leaves a room.
   rpc LeaveRoom(LeaveRoomRequest) returns (LeaveRoomResponse);
   // DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
