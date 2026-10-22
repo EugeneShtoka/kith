@@ -468,6 +468,12 @@ func serve(
 	logins := daemon.NewLogins(ctx, backend.loginLeaders)
 	logins.LogTo(log)
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
+	reload := reloader(file, relevel, cutoff, backend, w.notifications)
+	// A hand edit to config.toml is picked up without a restart: the watcher
+	// runs the same reload the RPC does, and logs the outcome.
+	if werr := daemon.WatchConfig(ctx, file.path, reload, log); werr != nil {
+		log.Warn("config hot reload is off; edits need a restart or `kith config reload`", "err", werr)
+	}
 	err = daemon.Serve(ctx, ln, &daemon.Daemon{
 		Backend:       backend,
 		Streams:       w.streams,
@@ -476,7 +482,7 @@ func serve(
 		Scheduler:     scheduler,
 		Logins:        logins,
 		Log:           log,
-		Reload:        reloader(file, relevel, cutoff, backend, w.notifications),
+		Reload:        reload,
 		CheckConfig:   backend.checkConfig,
 		Config:        daemon.NewConfigFile(file.path, file.profile),
 	})
