@@ -144,6 +144,11 @@ func (b *InProc) cachePage(ctx context.Context, roomID domain.RoomID, chunk []*e
 	if b.cache != nil && len(reactions) > 0 {
 		b.warnIf(ctx, b.cache.SaveReactions(ctx, reactions), "cache reactions", "room", roomID, "count", len(reactions))
 	}
+	for i := range cacheable {
+		if cacheable[i].Poll != nil {
+			b.scheduleBackfill(ctx, roomID, cacheable[i].ID)
+		}
+	}
 	b.restoreKept(ctx, roomID, msgs)
 	return domain.TimelinePage{Messages: msgs, Reactions: reactions, Next: next}, cacheable
 }
@@ -159,7 +164,11 @@ func (b *InProc) hydrate(ctx context.Context, roomID domain.RoomID, evt *event.E
 // fetchedMessage converts a hydrated event, with a placeholder for one not decrypted
 // (undecrypted: do not cache it). ok is false for non-message events.
 func (b *InProc) fetchedMessage(ctx context.Context, roomID domain.RoomID, evt *event.Event) (msg domain.Message, undecrypted, ok bool) {
-	msg, ok = toDomainMessage(evt)
+	if evt.Type == event.EventUnstablePollStart {
+		msg, ok = pollStartMessage(evt)
+	} else {
+		msg, ok = toDomainMessage(evt)
+	}
 	if !ok {
 		if evt.Type != event.EventEncrypted {
 			return domain.Message{}, false, false

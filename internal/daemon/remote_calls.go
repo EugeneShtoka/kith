@@ -433,6 +433,12 @@ func (r *Remote) VotePoll(ctx context.Context, roomID domain.RoomID, eventID dom
 	return err
 }
 
+func (r *Remote) CreatePoll(ctx context.Context, roomID domain.RoomID, question string, options []string, multiple bool) (domain.EventID, error) {
+	resp, err := call(ctx, "create poll", r.c.CreatePoll,
+		&v1.CreatePollRequest{RoomId: string(roomID), Question: question, Options: options, Multiple: multiple})
+	return domain.EventID(resp.GetEventId()), err
+}
+
 func (r *Remote) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {
 	_, err := call(ctx, "send reaction", r.c.SendReaction,
 		&v1.SendReactionRequest{RoomId: string(roomID), Target: string(target), Key: key})

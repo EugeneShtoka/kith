@@ -176,6 +176,11 @@ var slashCommands = []slashCommand{
 		run:     runKnock,
 	},
 	{
+		name: "/poll", arg: "<question> | <answer> | <answer> [| …] [| any]",
+		summary: "ask a poll in this room — Matrix only; trailing \"| any\" lets voters pick several",
+		run:     runCreatePoll,
+	},
+	{
 		name:     "/topic",
 		keyScope: scopeTimeline,
 		keyAct:   actTopic,

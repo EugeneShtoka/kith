@@ -98,7 +98,10 @@ func (Nop) SendReaction(context.Context, domain.RoomID, domain.EventID, string) 
 func (Nop) PollVoters(context.Context, domain.RoomID, domain.EventID) (domain.PollVoters, error) {
 	return domain.PollVoters{}, nil
 }
-func (Nop) VotePoll(context.Context, domain.RoomID, domain.EventID, []string) error    { return nil }
+func (Nop) VotePoll(context.Context, domain.RoomID, domain.EventID, []string) error { return nil }
+func (Nop) CreatePoll(context.Context, domain.RoomID, string, []string, bool) (domain.EventID, error) {
+	return "", nil
+}
 func (Nop) RecordEmoji(context.Context, domain.EmojiKind, domain.RoomID, string) error { return nil }
 func (Nop) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error)   { return nil, nil }
 func (Nop) Start(context.Context) error                                                { return nil }

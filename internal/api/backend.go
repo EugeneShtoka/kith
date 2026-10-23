@@ -192,6 +192,9 @@ type Reactions interface {
 	// PollVoters is who chose each answer of a message's poll, as its network names
 	// them, or why it names no one.
 	PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error)
+	// CreatePoll asks a poll in roomID with question and the answer texts in options;
+	// multiple lets a voter pick several. Returns the start event ID.
+	CreatePoll(ctx context.Context, roomID domain.RoomID, question string, options []string, multiple bool) (domain.EventID, error)
 	// ReactionRefusals is the learned set of emoji bridged networks reject.
 	ReactionRefusals(ctx context.Context) ([]domain.ReactionRefusal, error)
 	// RecordReactionRefusal notes a refusal the client saw as a failed send.
