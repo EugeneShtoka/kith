@@ -265,10 +265,6 @@ func TestPollBackfillClaimDedupes(t *testing.T) {
 	if !b.claim("$b") {
 		t.Error("different id should claim")
 	}
-	b.forget("$a")
-	if !b.claim("$a") {
-		t.Error("claim after forget should succeed")
-	}
 }
 
 func TestPollResponseTargetFromParsed(t *testing.T) {

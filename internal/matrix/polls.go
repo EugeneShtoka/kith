@@ -201,13 +201,6 @@ func (b *pollBackfill) claim(startID domain.EventID) bool {
 	return true
 }
 
-// forget drops a start from the done set, used by tests to re-fetch.
-func (b *pollBackfill) forget(startID domain.EventID) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	delete(b.done, startID)
-}
-
 // onPollStart caches a live m.poll.start, emits its message, and backfills responses.
 func (b *InProc) onPollStart(ctx context.Context, evt *event.Event) {
 	msg, ok := pollStartMessage(evt)
