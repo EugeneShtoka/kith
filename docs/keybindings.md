@@ -190,9 +190,11 @@ The correction walk over the misspellings in your draft. Inside it, `1`–`9` ch
 | Action | Default | What it does | Where |
 | --- | --- | --- | --- |
 | `open` | `z =` | Correct the misspellings in the draft, one at a time | message cursor |
-| `skip` | `s`, `space` | Leave this word, go to the next | correction walk |
-| `add` | `a` | Add it to your dictionary — kept after a restart | correction walk |
-| `ignore` | `i` | Accept it for this session | correction walk |
+| `skip` | `s`, `space` | Leave this word and its other copies, go to the next | correction walk |
+| `add` | `a` | Add it to your dictionary, every copy — kept after a restart | correction walk |
+| `ignore` | `i` | Accept it, every copy, for this session | correction walk |
+| `skip_all` | `S` | Leave every word left and finish — a send goes out | correction walk |
+| `ignore_all` | `I` | Accept every word left for this session and finish — a send goes out | correction walk |
 | `stop` | `esc` | Stop, leaving the rest underlined | correction walk |
 | `open_insert` | `alt+s` | Correct the misspellings in what you are writing | composer |
 

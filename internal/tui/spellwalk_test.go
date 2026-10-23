@@ -664,14 +664,11 @@ func TestCorrectingAWordFixesItsOtherOccurrences(t *testing.T) {
 	}
 }
 
-// A skipped word is not corrected by a later choice.
-func TestCorrectingDoesNotReachBackPastASkip(t *testing.T) {
-	t.Parallel()
-
-	b := &spellBackend{}
+// threeCopies is a draft with typoReceive three times, each underlined.
+func threeCopies() (string, []domain.Misspelling) {
 	const draft = typoReceive + " and " + typoReceive + " and " + typoReceive
 	var marks []domain.Misspelling
-	for at := 0; at >= 0; {
+	for at := 0; ; {
 		i := strings.Index(draft[at:], typoReceive)
 		if i < 0 {
 			break
@@ -683,17 +680,130 @@ func TestCorrectingDoesNotReachBackPastASkip(t *testing.T) {
 		})
 		at = start + len(typoReceive)
 	}
+	return draft, marks
+}
+
+// Every answer covers the word's other copies: none of them is asked about again.
+func TestEveryAnswerCoversTheWordsOtherCopies(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []string{"s", " ", "a", "i", "1"} {
+		b := &spellBackend{}
+		draft, marks := threeCopies()
+		draft += " " + typoThe
+		marks = append(marks, wrong(draft, typoThe, "the"))
+		m := walking(t, b, draft, marks...)
+		m = openWalk(t, m)
+
+		m, _ = press(t, m, keyText(key))
+		got, ok := m.walk.current()
+		if !ok || got.Word != typoThe {
+			t.Errorf("%q: the walk is on %+v, want the next different word", key, got)
+		}
+	}
+}
+
+// A skip leaves every copy as written and underlined.
+func TestSkipLeavesEveryCopyUnderlined(t *testing.T) {
+	t.Parallel()
+
+	b := &spellBackend{}
+	draft, marks := threeCopies()
 	m := walking(t, b, draft, marks...)
 	m = openWalk(t, m)
 
-	// Skip the first, correct the second: the first stays as typed, the third follows the second.
-	skipped, _ := m.handleSpellWalkKey(key('s'))
-	m = skipped
-	next, _ := m.takeSuggestion(1)
-	m = next
+	m, _ = press(t, m, keyText("s"))
+	if m.walk.active {
+		t.Error("the walk is still asking after the only word was skipped")
+	}
+	if m.compose.input != draft {
+		t.Errorf("skipping changed the draft to %q", m.compose.input)
+	}
+	if len(m.spell.shown) != len(marks) {
+		t.Errorf("%d of %d copies still underlined, want all", len(m.spell.shown), len(marks))
+	}
+}
 
-	want := typoReceive + " and receive and receive"
-	if got := m.editorFor(fieldComposer).text; got != want {
-		t.Errorf("draft = %q, want the skipped one left alone:\n  %q", got, want)
+// Skip all finishes at once: the rest stays underlined, and a send goes out as written.
+func TestSkipAllFinishesAndSends(t *testing.T) {
+	t.Parallel()
+
+	b := &spellBackend{}
+	draft := "I " + typoReceive + " " + typoThe + " mail"
+	m := sendReady(t, b, draft, wrong(draft, typoReceive, "receive"), wrong(draft, typoThe, "the"))
+	m, _ = press(t, m, sendKey())
+
+	m, cmd := press(t, m, keyText("S"))
+	if m.walk.active {
+		t.Fatal("skip all left the walk open")
+	}
+	settle(t, m, cmd)
+	if got := b.posted(); len(got) != 1 || got[0].Body != draft {
+		t.Errorf("sent %v, want the draft as written", got)
+	}
+	if got := b.lessons(); len(got) != 0 {
+		t.Errorf("skip all taught %v", got)
+	}
+}
+
+// Skip all on a walk that no send opened only closes it.
+func TestSkipAllWithoutASendLeavesTheDraft(t *testing.T) {
+	t.Parallel()
+
+	b := &spellBackend{}
+	draft := "I " + typoReceive + " " + typoThe + " mail"
+	marks := []domain.Misspelling{wrong(draft, typoReceive, "receive"), wrong(draft, typoThe, "the")}
+	m := walking(t, b, draft, marks...)
+	m = openWalk(t, m)
+
+	m, cmd := press(t, m, keyText("S"))
+	m = settle(t, m, cmd)
+	if m.walk.active || len(b.posted()) != 0 || m.compose.input != draft {
+		t.Errorf("walk open %v, posted %v, draft %q", m.walk.active, b.posted(), m.compose.input)
+	}
+	if len(m.spell.shown) != len(marks) {
+		t.Errorf("skip all rubbed out %d marks", len(marks)-len(m.spell.shown))
+	}
+}
+
+// Ignore all accepts each word left once, for the session, past the ones answered, and
+// a send goes out.
+func TestIgnoreAllAcceptsTheRestAndSends(t *testing.T) {
+	t.Parallel()
+
+	b := &spellBackend{}
+	draft := "I " + typoReceive + " " + typoThe + " mail " + typoThe
+	last := strings.LastIndex(draft, typoThe)
+	m := sendReady(t, b, draft,
+		wrong(draft, typoReceive, "receive"), wrong(draft, typoThe, "the"),
+		domain.Misspelling{Word: typoThe, Start: last, End: last + len(typoThe), Suggestions: []string{"the"}})
+	m, _ = press(t, m, sendKey())
+
+	m, _ = press(t, m, keyText("s"))
+	m, cmd := press(t, m, keyText("I"))
+	if m.walk.active {
+		t.Fatal("ignore all left the walk open")
+	}
+	settle(t, m, cmd)
+	if got := b.lessons(); len(got) != 1 || got[0] != (learned{word: typoThe, forever: false}) {
+		t.Errorf("taught %v, want %s once for the session", got, typoThe)
+	}
+	if got := b.posted(); len(got) != 1 || got[0].Body != draft {
+		t.Errorf("sent %v, want the draft as written", got)
+	}
+}
+
+// The footer names both new keys.
+func TestTheWalkFooterOffersSkipAllAndIgnoreAll(t *testing.T) {
+	t.Parallel()
+
+	b := &spellBackend{}
+	draft := "I " + typoReceive + " mail"
+	m := openWalk(t, walking(t, b, draft, wrong(draft, typoReceive, "receive")))
+	help := m.spellWalkHelp()
+	for _, want := range []string{"S skip all", "I ignore all"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("footer %q lacks %q", help, want)
+		}
 	}
 }

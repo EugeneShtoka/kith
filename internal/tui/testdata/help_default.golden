@@ -139,9 +139,11 @@
   esc              close the popup
 
 [1;38;2;102;135;153mCorrecting a misspelling[m
-  s, space         leave this word, go to the next (space too)
-  a                add it to your dictionary — kept after a restart
-  i                accept it for this session
+  s, space         leave this word and its other copies, go to the next (space too)
+  a                add it to your dictionary, every copy — kept after a restart
+  i                accept it, every copy, for this session
+  S                leave every word left and finish — a send goes out
+  I                accept every word left for this session and finish — a send goes out
   esc              stop, leaving the rest underlined
   1                take the first suggestion and go to the next word
   2                take the second suggestion and go to the next word
