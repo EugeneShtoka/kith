@@ -35,7 +35,14 @@ import (
 const readyTimeout = 60 * time.Second
 
 // subcommands are `kith <name> …`, each with its own flags.
-var subcommands = map[string]func([]string) error{"login": runLogin, "import": runImport, "export": runExport}
+var subcommands = map[string]func([]string) error{
+	"login":    runLogin,
+	"import":   runImport,
+	"export":   runExport,
+	"ignore":   runIgnore,
+	"unignore": runUnignore,
+	"ignored":  runIgnored,
+}
 
 func firstArg() string {
 	if len(os.Args) > 1 {

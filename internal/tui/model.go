@@ -1112,7 +1112,36 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case spellBeforeSendMsg:
 		return answered(m.handleSpellBeforeSend(msg))
 	default:
+		if next, cmd, ok := m.handleMatrixFeatureMsg(msg); ok {
+			return next, cmd, true
+		}
 		return m.handleAssistMsg(msg)
+	}
+}
+
+// handleMatrixFeatureMsg handles messages from the Matrix-specific features
+// (ignore list, raw event source, public rooms, knocking, poll creation). Kept
+// out of handleComposeMsg so each stays under the per-function statement budget.
+func (m Model) handleMatrixFeatureMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case ignoredLoadedMsg:
+		return answered(m.handleIgnoredLoaded(msg))
+	case ignoredChangedMsg:
+		return answered(m.handleIgnoredChanged(msg))
+	case sourceLoadedMsg:
+		return answered(m.handleSourceLoaded(msg))
+	case publicRoomsLoadedMsg:
+		return answered(m.handlePublicRoomsLoaded(msg))
+	case publicRoomJoinedMsg:
+		return answered(m.handlePublicRoomJoined(msg))
+	case knockedMsg:
+		return answered(m.handleKnocked(msg))
+	case pollCreatedMsg:
+		return answered(m.handlePollCreated(msg))
+	case blockedChangedMsg:
+		return answered(m.handleBlockedChanged(msg))
+	default:
+		return m, nil, false
 	}
 }
 
@@ -1462,7 +1491,8 @@ func (m Model) handleCapturedKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	// The help overlay captures everything while it's up, as does verification.
 	case m.reader.showing(readerAsk), m.reader.showing(readerSummary),
 		m.reader.showing(readerTodo), m.reader.showing(readerTopic),
-		m.reader.showing(readerScript), m.reader.showing(readerHelp):
+		m.reader.showing(readerScript), m.reader.showing(readerSource),
+		m.reader.showing(readerHelp):
 		return answered(m.handleHelpKey(key))
 	case m.verify.active:
 		return answered(m.handleVerifyKey(key))
@@ -1903,6 +1933,8 @@ func (m Model) messageAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openTopic())
 	case actStar:
 		return answered(m.toggleStar())
+	case actSource:
+		return answered(m.openEventSource())
 	case actHistory:
 		return answered(m.openHistory())
 	case actVote:

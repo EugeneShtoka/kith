@@ -326,8 +326,15 @@ Since then:
 - v22 (`room_read_only`): the rooms this account may read but not post in (a Matrix
   room whose power levels put messages above ours), a row only for one; written by the
   network when it lists rooms, so the composer says so after a restart too.
+- v23 (`ignored_users`): the MXIDs this account ignores, mirror of Matrix's
+  `m.ignored_user_list` account data event; the server copy is the record, this table
+  keeps the list readable offline and across cache rebuilds.
+- v24 (`network_blocks`): a network's server-side block list (WhatsApp blocklist,
+  Telegram's `contacts.blocked`, Meta's), mirrored for offline reads and quick
+  person-card display; the server copy wins, pulled on connect and after every
+  blocklist-change event.
 
-so a current cache is at version 22.
+so a current cache is at version 24.
 
 ### Indexes need no migration
 

@@ -117,6 +117,7 @@ const (
 	actRunScript
 	actTopic
 	actStar
+	actSource // show the raw event JSON of the message under the cursor
 	actHistory
 	actNotifyRule
 	actSettings
@@ -409,6 +410,7 @@ var keyActions = []keyAction{
 	{scopeTimeline, actFollowLink, "timeline.follow_link"},
 	{scopeTimeline, actTopic, "timeline.topic"},
 	{scopeTimeline, actStar, "timeline.star"},
+	{scopeTimeline, actSource, "timeline.source"},
 	{scopeTimeline, actHistory, "timeline.history"},
 	{scopeTimeline, actCopyCode, "timeline.copy_code"},
 	{scopeTimeline, actDownload, "timeline.download"},

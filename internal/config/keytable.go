@@ -230,6 +230,8 @@ group; timeline: the open room); ` + "`scope`" + ` cycles room → group → eve
 					"room or message, asks before joining, or opens the switcher for a person."},
 			// "go to topic", beside gl and gx.
 			{path: "timeline.topic", def: "gt", doc: "read the room's topic"},
+			// "go to source", vim's gs is unassigned.
+			{path: "timeline.source", def: "gs", doc: "show the raw event JSON of the selected message (Matrix only)"},
 			// vim's word search under * has no use in a timeline.
 			{path: "timeline.star", def: "*", doc: "star it, or unstar it",
 				note: "Private, synced account data. `/starred` lists them."},

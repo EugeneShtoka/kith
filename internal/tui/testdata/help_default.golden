@@ -81,6 +81,7 @@
   gl               follow a Matrix link in it
   gt               read the room's topic
   *                star it, or unstar it
+  gs               show the raw event JSON of the selected message (Matrix only)
   H                what this message used to say
   yc               copy the verification code in it
   s                save this message's attachment
@@ -253,6 +254,10 @@
   /threads                       the conversations in this room — the same list `ctrl+t` opens
   /starred                       what you have starred here — tab widens it, and it unstars too
   /scheduled                     what is waiting to go out in this room — enter cancels one
+  /ignored                       the Matrix users you ignore — x unignores one
+  /discover                      the Matrix public rooms directory — enter joins the selected row
+  /knock                         ask a moderator to let you into a knock-only Matrix room: /knock <room> [reason]
+  /poll <question> | <answer> | <answer> [| …] [| any] ask a poll in this room — Matrix only; trailing "| any" lets voters pick several
   /topic                         what this room is for, in full — the same reader `gt` opens
   /why                           why this room does or does not notify you — the whole rule chain
   /unread                        mark this room unread — read, and still needs you

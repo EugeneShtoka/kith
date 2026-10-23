@@ -30,6 +30,9 @@ type Tag struct {
 	HideWhenEmpty bool // no rail row while it holds nothing
 	First         bool // at the top of the rail, unless the rail order places it
 	CountInLabel  bool // its row's label says how many rooms it holds
+	// PushArchive calls the network's SetArchived when a room enters or leaves the
+	// tag; see config.Tag.PushArchive.
+	PushArchive bool
 }
 
 // Exclusive is where a tag takes its rooms from.
@@ -455,6 +458,18 @@ func (s TagSet) MutedPeople() []string {
 	for i := range s.tags {
 		if s.tags[i].tag.Mute {
 			out = append(out, s.tags[i].tag.People...)
+		}
+	}
+	return out
+}
+
+// PushArchiveNames is every tag with push_archive = true, in config order. The
+// archive reconciler calls SetArchived on each room that joins or leaves one.
+func (s TagSet) PushArchiveNames() []string {
+	var out []string
+	for i := range s.tags {
+		if s.tags[i].tag.PushArchive {
+			out = append(out, s.tags[i].tag.Name)
 		}
 	}
 	return out

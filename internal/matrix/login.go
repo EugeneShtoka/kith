@@ -54,8 +54,9 @@ func (m *Adapter) LoginNetwork() api.LoginNetwork {
 	return n
 }
 
-// Login logs the config's account in with its password, re-asking when refused. With
-// no account configured it first writes a homeserver and Matrix ID into the config.
+// Login logs the config's account in through whichever flow the homeserver offers:
+// OAuth 2.0 (MAS) first, then m.login.sso, then m.login.password. With no account
+// configured it first writes a homeserver and Matrix ID into the config.
 func (m *Adapter) Login(ctx context.Context, name string, talk api.LoginTalk) (api.LoginEnd, error) {
 	acc := m.accountNow()
 	switch {
@@ -72,6 +73,23 @@ func (m *Adapter) Login(ctx context.Context, name string, talk api.LoginTalk) (a
 		return api.LoginEnd{}, fmt.Errorf("%w: this daemon runs Matrix as %s; another account is a [[profile]] "+
 			"(`kith login --profile <name>`)", api.ErrNotOnNetwork, acc.User)
 	}
+	flow, err := DiscoverFlow(ctx, acc.Homeserver)
+	if err != nil {
+		return api.LoginEnd{}, fmt.Errorf("matrix: discover login flow: %w", err)
+	}
+	switch flow {
+	case FlowOAuth:
+		return m.browserLogin(ctx, acc, talk, FlowOAuth)
+	case FlowSSO:
+		return m.browserLogin(ctx, acc, talk, FlowSSO)
+	default:
+		return m.passwordLoop(ctx, acc, talk)
+	}
+}
+
+// passwordLoop is the pre-OAuth flow kept for homeservers that still only answer
+// m.login.password: ask for the password, retry with a note on refusal.
+func (m *Adapter) passwordLoop(ctx context.Context, acc account, talk api.LoginTalk) (api.LoginEnd, error) {
 	note := ""
 	for {
 		got, err := talk.Ask(ctx, note, api.LoginField{Key: "password", Label: "password", Secret: true,
@@ -90,6 +108,40 @@ func (m *Adapter) Login(ctx context.Context, name string, talk api.LoginTalk) (a
 		}
 		return api.LoginEnd{Done: "logged in to Matrix as " + in.UserID, Restart: !in.Started}, nil
 	}
+}
+
+// browserLogin runs the OAuth or SSO flow, same user-facing shape: start a loopback
+// server, show the authorize URL via Show, wait for the browser's callback here, then
+// hand the session over to a waiting Start.
+func (m *Adapter) browserLogin(ctx context.Context, acc account, talk api.LoginTalk, flow LoginFlow) (api.LoginEnd, error) {
+	m.logins.Lock()
+	defer m.logins.Unlock()
+	show := func(authURL, note string) error { return talk.Show(ctx, authURL, note) }
+	var sess domain.Session
+	var err error
+	switch flow {
+	case FlowOAuth:
+		sess, err = New(nil).LoginOAuth(ctx, acc.Homeserver, acc.User, acc.Crypto.Keys, show)
+	case FlowSSO:
+		sess, err = New(nil).LoginSSO(ctx, acc.Homeserver, acc.User, show)
+	default:
+		return api.LoginEnd{}, fmt.Errorf("matrix: unexpected browser flow %d", flow)
+	}
+	if err != nil {
+		return api.LoginEnd{}, fmt.Errorf("log in as %s: %w", acc.User, err)
+	}
+	if err = session.Save(acc.Crypto.Keys, sess, acc.AllowTokenFile); err != nil {
+		return api.LoginEnd{}, fmt.Errorf("save session: %w", err)
+	}
+	started, err := m.handOver(ctx, sess)
+	if err != nil {
+		return api.LoginEnd{Done: "logged in to Matrix as " + sess.UserID, Restart: !started}, err
+	}
+	m.mu.Lock()
+	log := m.userLog
+	m.mu.Unlock()
+	log.Info("logged in to Matrix", "device", sess.DeviceID, "started", started, "flow", flow)
+	return api.LoginEnd{Done: "logged in to Matrix as " + sess.UserID, Restart: !started}, nil
 }
 
 var matrixIDShape = regexp.MustCompile(`^@[^:\s]+:\S+$`)

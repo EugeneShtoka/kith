@@ -73,6 +73,40 @@ func (r *Router) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) e
 	return k.MarkPerson(ctx, verdict)
 }
 
+// BlockPerson adds userID to its network's server-side block list.
+func (r *Router) BlockPerson(ctx context.Context, userID string) error {
+	a, err := r.adapterFor(userID)
+	if err != nil {
+		return err
+	}
+	b, ok := a.(Blocker)
+	if !ok {
+		return fmt.Errorf("%w: block in %s has no server-side counterpart (%s)",
+			api.ErrNotOnNetwork, domain.NetworkOf(userID), userID)
+	}
+	if err := b.BlockPerson(ctx, userID); err != nil {
+		return fmt.Errorf("block %s: %w", userID, err)
+	}
+	return nil
+}
+
+// UnblockPerson is BlockPerson's inverse.
+func (r *Router) UnblockPerson(ctx context.Context, userID string) error {
+	a, err := r.adapterFor(userID)
+	if err != nil {
+		return err
+	}
+	b, ok := a.(Blocker)
+	if !ok {
+		return fmt.Errorf("%w: unblock in %s has no server-side counterpart (%s)",
+			api.ErrNotOnNetwork, domain.NetworkOf(userID), userID)
+	}
+	if err := b.UnblockPerson(ctx, userID); err != nil {
+		return fmt.Errorf("unblock %s: %w", userID, err)
+	}
+	return nil
+}
+
 // RetagVerdicts moves (or drops) one tag's verdicts on every network keeping its own,
 // then in the store for every other network's. The store leaves those networks' alone
 // even while they are logged out: theirs are mirrors, and the network's copy wins.
@@ -156,6 +190,13 @@ func (r *Router) PollVoters(ctx context.Context, roomID domain.RoomID, eventID d
 // VotePoll votes in a message's poll.
 func (r *Router) VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error {
 	return doOnRoom(r, roomID, "polls", func(c Voter) error { return c.VotePoll(ctx, roomID, eventID, options) })
+}
+
+// CreatePoll asks a poll in a room.
+func (r *Router) CreatePoll(ctx context.Context, roomID domain.RoomID, question string, options []string, multiple bool) (domain.EventID, error) {
+	return onRoom(r, roomID, "creating polls", func(c PollCreator) (domain.EventID, error) {
+		return c.CreatePoll(ctx, roomID, question, options, multiple)
+	})
 }
 
 // SendReaction reacts to a message.

@@ -99,6 +99,31 @@ type Rooms interface {
 	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
 	// never overwrites a release (domain.ErrPersonReleased).
 	MarkPerson(ctx context.Context, verdict domain.PersonVerdict) error
+	// Ignore adds mxid to the Matrix account's m.ignored_user_list; the homeserver
+	// stops sending the user's events on every device.
+	Ignore(ctx context.Context, mxid string) error
+	// Unignore drops mxid from the ignored list; a user not ignored is a no-op.
+	Unignore(ctx context.Context, mxid string) error
+	// Ignored lists the MXIDs this account currently ignores (server copy, since
+	// the mirror can lag until the next sync).
+	Ignored(ctx context.Context) ([]string, error)
+	// BlockPerson adds userID to its network's server-side block list. userID
+	// names the network; the network refuses if it has none (Matrix uses
+	// Ignore above; Slack and LinkedIn have no in-API block).
+	BlockPerson(ctx context.Context, userID string) error
+	// UnblockPerson is BlockPerson's inverse.
+	UnblockPerson(ctx context.Context, userID string) error
+	// BlockedPeople returns every user ID this account has blocked, grouped by
+	// network, from the cache mirror. A fresh install reads empty.
+	BlockedPeople(ctx context.Context) (map[domain.Protocol][]string, error)
+	// PublicRooms lists one page of the Matrix public rooms directory. Matrix only.
+	// server is the homeserver to search (empty: this account's); since carries over
+	// the cursor from a previous page's NextSince to fetch the next.
+	PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error)
+	// KnockRoom asks to join a knock-only Matrix room; a moderator decides. The
+	// room becomes an ordinary joined one only once the moderator accepts. reason
+	// is shown to the moderators.
+	KnockRoom(ctx context.Context, roomIDOrAlias, reason string, via []string) (domain.RoomID, error)
 	// LastMessages is each room's latest cached message time. Rooms with no cached
 	// history are absent (unknown), not zero.
 	LastMessages(ctx context.Context) (map[domain.RoomID]time.Time, error)
@@ -132,6 +157,10 @@ type Timeline interface {
 	Timeline(ctx context.Context, roomID domain.RoomID, from string, limit int) (domain.TimelinePage, error)
 	// FetchEvent fetches one event by ID, e.g. a thread root older than the cache.
 	FetchEvent(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, error)
+	// FetchEventSource fetches one event's raw JSON from the homeserver as it was
+	// served, pretty-printed; a debugging aid, not for merging into the cache.
+	// Matrix only (nothing on the other networks exposes a comparable raw event).
+	FetchEventSource(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 	// Redact deletes a message, checking the redact level for others' messages. The
 	// change arrives on the sync stream.
 	Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error
@@ -163,6 +192,9 @@ type Reactions interface {
 	// PollVoters is who chose each answer of a message's poll, as its network names
 	// them, or why it names no one.
 	PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error)
+	// CreatePoll asks a poll in roomID with question and the answer texts in options;
+	// multiple lets a voter pick several. Returns the start event ID.
+	CreatePoll(ctx context.Context, roomID domain.RoomID, question string, options []string, multiple bool) (domain.EventID, error)
 	// ReactionRefusals is the learned set of emoji bridged networks reject.
 	ReactionRefusals(ctx context.Context) ([]domain.ReactionRefusal, error)
 	// RecordReactionRefusal notes a refusal the client saw as a failed send.

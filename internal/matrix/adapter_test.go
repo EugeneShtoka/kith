@@ -47,6 +47,9 @@ func newHomeserver(t *testing.T) *homeserver {
 func (h *homeserver) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	switch {
+	case strings.HasSuffix(r.URL.Path, "/login") && r.Method == http.MethodGet:
+		// DiscoverFlow asks; this server speaks m.login.password.
+		_, _ = w.Write([]byte(`{"flows":[{"type":"m.login.password"}]}`))
 	case strings.HasSuffix(r.URL.Path, "/login") && r.Method == http.MethodPost:
 		n := h.logins.Add(1)
 		token := fmt.Sprintf("token-%d", n)

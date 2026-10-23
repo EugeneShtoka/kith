@@ -33,6 +33,9 @@ func NewConfigFile(path, profile string) *ConfigFile {
 	return &ConfigFile{path: path, profile: profile}
 }
 
+// Path is the config file the daemon reads and writes.
+func (f *ConfigFile) Path() string { return f.path }
+
 // Read is the served configuration (profile applied) and the file's revision.
 func (f *ConfigFile) Read() (config.Snapshot, error) {
 	data, err := os.ReadFile(f.path)

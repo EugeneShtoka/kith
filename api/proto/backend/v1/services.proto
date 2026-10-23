@@ -172,6 +172,27 @@ message MarkPersonRequest {
 
 message MarkPersonResponse {}
 
+// IgnoreRequest asks the Matrix adapter to add mxid to m.ignored_user_list.
+message IgnoreRequest {
+  string mxid = 1;
+}
+
+message IgnoreResponse {}
+
+// UnignoreRequest asks the Matrix adapter to drop mxid from m.ignored_user_list.
+message UnignoreRequest {
+  string mxid = 1;
+}
+
+message UnignoreResponse {}
+
+// IgnoredRequest asks for every MXID this account ignores.
+message IgnoredRequest {}
+
+message IgnoredResponse {
+  repeated string mxids = 1;
+}
+
 message RetagVerdictsRequest {
   string from = 1;
   // to empty drops the verdicts (a deleted tag).
@@ -272,6 +293,36 @@ message FetchEventRequest {
 
 message FetchEventResponse {
   Message message = 1;
+}
+
+message FetchEventSourceRequest {
+  string room_id = 1;
+  string event_id = 2;
+}
+
+message FetchEventSourceResponse {
+  bytes source = 1;
+}
+
+message PublicRoom {
+  string room_id = 1;
+  string alias = 2;
+  string name = 3;
+  string topic = 4;
+  int32 members = 5;
+  bool world_readable = 6;
+  bool encrypted = 7;
+}
+
+message PublicRoomsRequest {
+  string server = 1;
+  string since = 2;
+}
+
+message PublicRoomsResponse {
+  repeated PublicRoom rooms = 1;
+  string next_since = 2;
+  int32 total_estimate = 3;
 }
 
 message MessageHistoryRequest {
@@ -386,6 +437,17 @@ message PollVotersRequest {
 message PollVotersResponse {
   repeated PollVoter voters = 1;
   PollHiding hidden = 2;
+}
+
+message CreatePollRequest {
+  string room_id = 1;
+  string question = 2;
+  repeated string options = 3; // the answer texts, in order
+  bool multiple = 4;           // a voter may pick several
+}
+
+message CreatePollResponse {
+  string event_id = 1; // the start event ID
 }
 
 // A reaction a bridged network would not accept, learned by observation — see
@@ -557,6 +619,39 @@ message JoinRoomRequest {
 
 message JoinRoomResponse {
   string room_id = 1;
+}
+
+message KnockRoomRequest {
+  string room_id_or_alias = 1;
+  string reason = 2;
+  repeated string via = 3;
+}
+
+message KnockRoomResponse {
+  string room_id = 1;
+}
+
+message BlockPersonRequest {
+  string user_id = 1;
+}
+
+message BlockPersonResponse {}
+
+message UnblockPersonRequest {
+  string user_id = 1;
+}
+
+message UnblockPersonResponse {}
+
+message BlockedPeopleRequest {}
+
+message NetworkBlocklist {
+  string network = 1;
+  repeated string user_ids = 2;
+}
+
+message BlockedPeopleResponse {
+  repeated NetworkBlocklist lists = 1;
 }
 
 message LeaveRoomRequest {
@@ -1497,6 +1592,13 @@ service BackendService {
   // MarkPerson records a filter's mark or a release on one person ID and tag; a mark
   // never overwrites a release.
   rpc MarkPerson(MarkPersonRequest) returns (MarkPersonResponse);
+  // Ignore adds mxid to the Matrix account's m.ignored_user_list; the homeserver
+  // stops sending the user's events on every device.
+  rpc Ignore(IgnoreRequest) returns (IgnoreResponse);
+  // Unignore is Ignore's inverse: drops mxid from the ignored list.
+  rpc Unignore(UnignoreRequest) returns (UnignoreResponse);
+  // Ignored lists the MXIDs this account currently ignores on Matrix.
+  rpc Ignored(IgnoredRequest) returns (IgnoredResponse);
   // Space
   // Spaces returns the cached spaces, each with its direct child rooms.
   rpc Spaces(SpacesRequest) returns (SpacesResponse);
@@ -1519,6 +1621,9 @@ service BackendService {
   // FetchEvent fetches one event by ID — a thread root, or a reply target, that is
   // older than the room's cached window.
   rpc FetchEvent(FetchEventRequest) returns (FetchEventResponse);
+  // FetchEventSource fetches an event's raw JSON from the Matrix homeserver,
+  // pretty-printed; a debugging aid.
+  rpc FetchEventSource(FetchEventSourceRequest) returns (FetchEventSourceResponse);
   // Send posts a message, with its mentions and its reply target.
   rpc Send(SendRequest) returns (SendResponse);
   // Redact removes a message's content.
@@ -1552,6 +1657,8 @@ service BackendService {
   rpc VotePoll(VotePollRequest) returns (VotePollResponse);
   // PollVoters is who chose each answer of a message's poll, as its network names them.
   rpc PollVoters(PollVotersRequest) returns (PollVotersResponse);
+  // CreatePoll asks a poll in a room; returns its start event ID.
+  rpc CreatePoll(CreatePollRequest) returns (CreatePollResponse);
   // ReactionRefusals returns what has been learned about the emoji bridged networks
   // refuse as reactions.
   rpc ReactionRefusals(ReactionRefusalsRequest) returns (ReactionRefusalsResponse);
@@ -1591,6 +1698,15 @@ service BackendService {
   // JoinRoom joins a room by ID or alias, which is also how an invite is accepted, and
   // returns the ID joined.
   rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse);
+  // PublicRooms lists one page of the Matrix public rooms directory.
+  rpc PublicRooms(PublicRoomsRequest) returns (PublicRoomsResponse);
+  // KnockRoom asks to join a knock-only Matrix room.
+  rpc KnockRoom(KnockRoomRequest) returns (KnockRoomResponse);
+  // BlockPerson, UnblockPerson, BlockedPeople: server-side block lists on
+  // networks that have them (WhatsApp, Telegram, Meta). Matrix uses Ignore.
+  rpc BlockPerson(BlockPersonRequest) returns (BlockPersonResponse);
+  rpc UnblockPerson(UnblockPersonRequest) returns (UnblockPersonResponse);
+  rpc BlockedPeople(BlockedPeopleRequest) returns (BlockedPeopleResponse);
   // LeaveRoom leaves a room.
   rpc LeaveRoom(LeaveRoomRequest) returns (LeaveRoomResponse);
   // DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,

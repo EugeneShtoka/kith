@@ -217,6 +217,15 @@ func (s *Service) PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, e
 	})
 }
 
+// BlockedPeople is each network's block list, from the cache mirror. The server
+// copy is the record; the adapters refresh the mirror on connect and after a
+// blocklist-change event.
+func (s *Service) BlockedPeople(ctx context.Context) (map[domain.Protocol][]string, error) {
+	return fromCache(s, "list blocked people", func(c *db.Cache) (map[domain.Protocol][]string, error) {
+		return c.AllNetworkBlocked(ctx)
+	})
+}
+
 // SenderMessages is a sender's cached messages in every room since since, oldest
 // first, at most limit (db.Cache.SenderMessages).
 func (s *Service) SenderMessages(ctx context.Context, sender string, since time.Time, limit int) ([]domain.Message, error) {

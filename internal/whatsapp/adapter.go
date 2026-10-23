@@ -251,6 +251,9 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		a.renameLater(account, client) // chats saved before their names were known
 		// Reads made here while WhatsApp was away.
 		go a.sendOwed(context.Background(), account)
+		go a.RefreshBlocklist(a.lifetime())
+	case *events.BlocklistChange:
+		go a.RefreshBlocklist(a.lifetime())
 	case *events.JoinedGroup, *events.GroupInfo:
 		a.refreshLater(account, client)
 	case *events.Disconnected:

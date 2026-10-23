@@ -314,10 +314,24 @@ user       = "@alice:example.org"
 kith login
 ```
 
-`kith login` asks for your password on the terminal with echo off and hands it to the
-daemon (starting it if need be), which performs a password login, stores the
-resulting access token in the OS keyring and starts syncing. The password itself is
-never written anywhere. It must run interactively. Only password login is supported.
+`kith login` discovers what the homeserver supports and takes the first path it can:
+
+- **OAuth 2.0 / OIDC** when the server runs Matrix Authentication Service
+  (MSC3861 / MSC2965): kith registers itself as a native client, starts a local
+  loopback redirect, and shows you a URL to open in a browser. You sign in there,
+  and the browser returns to kith with an authorization code; the resulting access
+  and refresh tokens live in the OS keyring. The access token refreshes
+  automatically before it expires, so there is nothing to re-enter.
+- **SSO** (`m.login.sso`) the same way for homeservers without MAS: kith opens a
+  browser to the server's SSO endpoint, which hands back a loginToken that becomes
+  an access token.
+- **Password** (`m.login.password`) when the server advertises neither of the
+  above: kith asks for your password on the terminal with echo off, logs in, and
+  keeps the access token in the OS keyring. The password itself is never written
+  anywhere.
+
+`kith login` must run interactively. The daemon starts if it is not already running
+and begins syncing as soon as the session is in the keyring.
 
 Every successful login creates a **new Matrix device**. Log in once per machine and
 leave it. If you log in again, the new device can't read encrypted history until you

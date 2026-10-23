@@ -60,6 +60,7 @@ var tagProperties = []tagProperty{
 	boolProperty("first", "At the top of the rail", func(t *config.Tag) *bool { return &t.First }),
 	boolProperty("count_in_label", "Says how many rooms it holds", func(t *config.Tag) *bool { return &t.CountInLabel }),
 	boolProperty("hidden", "Hidden from the rail", func(t *config.Tag) *bool { return &t.Hidden }),
+	boolProperty("push_archive", "Archives its rooms on their network", func(t *config.Tag) *bool { return &t.PushArchive }),
 }
 
 // countsUnreadKey and notifiesKey are counts_unread's and notifies' rows: *bools whose
