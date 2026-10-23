@@ -311,7 +311,7 @@ would give a worse result than the tarball:
 
 - **There is no window.** `kith` runs inside your terminal. Flatpak can run it with
   `flatpak run` from a shell, but that gives you a longer command, nothing to launch
-  from a desktop menu, and a `matrix:` handler that has to start a terminal from
+  from a desktop menu, and a `matrix:` / `tg:` handler that has to start a terminal from
   inside the sandbox. `--open` would need a host-spawn escape to do that.
 - **The daemon is a systemd user service.** Flatpak has no way to install or enable
   one. The sandbox would have to be told to start `kithd` itself, from a separate

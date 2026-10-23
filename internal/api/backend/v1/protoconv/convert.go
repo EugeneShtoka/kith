@@ -29,6 +29,7 @@ func RoomToProto(r domain.Room) *v1.Room {
 		Broadcasts:  r.Broadcasts,
 		Sms:         r.SMS,
 		ReadOnly:    r.ReadOnly,
+		Handle:      r.Handle,
 	}
 }
 
@@ -237,6 +238,7 @@ func ProtoToRoom(pb *v1.Room) domain.Room {
 		Broadcasts:  pb.GetBroadcasts(),
 		SMS:         pb.GetSms(),
 		ReadOnly:    pb.GetReadOnly(),
+		Handle:      pb.GetHandle(),
 	}
 }
 

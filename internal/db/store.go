@@ -40,7 +40,7 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 		`SELECT r.id, r.name, r.is_direct, r.invited_by, r.heroes,
 		        COALESCE(t.topic, ''), COALESCE(u.replacement, ''), a.room_id IS NOT NULL,
 		        f.room_id IS NOT NULL, COALESCE(n.network, ''), m.room_id IS NOT NULL,
-		        o.room_id IS NOT NULL
+		        o.room_id IS NOT NULL, COALESCE(h.handle, '')
 		   FROM rooms r
 		   LEFT JOIN room_topics   t ON t.room_id = r.id
 		   LEFT JOIN room_upgrades u ON u.room_id = r.id
@@ -49,14 +49,15 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 		   LEFT JOIN room_networks n ON n.room_id = r.id
 		   LEFT JOIN room_sms      m ON m.room_id = r.id
 		   LEFT JOIN room_read_only o ON o.room_id = r.id
+		   LEFT JOIN room_handles  h ON h.room_id = r.id
 		  WHERE r.membership = ?`,
 		func(rows *sql.Rows) (domain.Room, error) {
 			var (
-				id, name, invitedBy, heroes, topic, replacement, network string
-				isDirect                                                 int
-				archived, forum, sms, readOnly                           bool
+				id, name, invitedBy, heroes, topic, replacement, network, handle string
+				isDirect                                                         int
+				archived, forum, sms, readOnly                                   bool
 			)
-			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived, &forum, &network, &sms, &readOnly); err != nil {
+			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived, &forum, &network, &sms, &readOnly, &handle); err != nil {
 				return domain.Room{}, err
 			}
 			room := domain.Room{
@@ -72,6 +73,7 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 				Network:     domain.Protocol(network),
 				SMS:         sms,
 				ReadOnly:    readOnly,
+				Handle:      handle,
 			}
 			if heroes != "" {
 				if err := json.Unmarshal([]byte(heroes), &room.Members); err != nil {
@@ -113,6 +115,35 @@ func (c *Cache) SetSMS(ctx context.Context, rooms map[domain.RoomID]bool) error 
 // SetReadOnly keeps which rooms this account may read but not post in.
 func (c *Cache) SetReadOnly(ctx context.Context, rooms map[domain.RoomID]bool) error {
 	return c.setRoomFlags(ctx, rooms, "room_read_only", "read-only")
+}
+
+// SetHandles keeps rooms' public @usernames (lowercase, no "@"); an empty handle
+// removes the row. Unlisted rooms are left untouched: no caller sees every network's
+// rooms at once.
+func (c *Cache) SetHandles(ctx context.Context, handles map[domain.RoomID]string) error {
+	if len(handles) == 0 {
+		return nil
+	}
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		for id, handle := range handles {
+			if handle == "" {
+				if _, err := tx.ExecContext(ctx, `DELETE FROM room_handles WHERE room_id = ?`, string(id)); err != nil {
+					return fmt.Errorf("db: drop the handle of %s: %w", id, err)
+				}
+				continue
+			}
+			if err := registerRoom(ctx, tx, id); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx,
+				`INSERT INTO room_handles(room_id, handle) VALUES(?, ?)
+				 ON CONFLICT(room_id) DO UPDATE SET handle=excluded.handle`,
+				string(id), handle); err != nil {
+				return fmt.Errorf("db: keep the handle of %s: %w", id, err)
+			}
+		}
+		return nil
+	})
 }
 
 // SetTimers keeps chats' disappearing-messages timers: zero removes a chat's.

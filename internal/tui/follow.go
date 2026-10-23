@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strconv"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -138,13 +140,34 @@ func (m Model) followPendingLink() (Model, tea.Cmd, bool) {
 }
 
 // followLink goes where uri points and says so after the move, since opening a room
-// sets its own status and the last writer wins.
+// sets its own status and the last writer wins. Matrix is tried first; a tg:// link
+// looks up a chat by its stored @username.
 func (m Model) followLink(uri string) (Model, tea.Cmd) {
-	place, ok := domain.ParsePlace(uri)
-	if !ok {
-		return m.say("not a Matrix link: " + uri), nil
+	if place, ok := domain.ParsePlace(uri); ok {
+		label, _ := m.placeLabel(place)
+		next, cmd := m.goToPlace(place)
+		return next.say("followed a link to " + isolate(label)), cmd
 	}
-	label, _ := m.placeLabel(place)
+	if link, ok := domain.ParseTelegramLink(uri); ok {
+		return m.followTelegramLink(link, uri)
+	}
+	return m.say("not a Matrix or Telegram link: " + uri), nil
+}
+
+// followTelegramLink resolves link against the cached Telegram chats and goes to the
+// one whose @username (or private channel ID) matches. An unknown chat says what was
+// unknown instead of making anything.
+func (m Model) followTelegramLink(link domain.TelegramLink, uri string) (Model, tea.Cmd) {
+	room, found := m.rooms.telegramLink(link)
+	if !found {
+		return m.say("no Telegram chat found for " + uri), nil
+	}
+	label := m.roomName(room)
+	place := domain.Place{Kind: domain.PlaceRoom, Room: string(room.ID)}
+	if link.Post > 0 {
+		place.Kind = domain.PlaceEvent
+		place.Event = domain.EventID(string(room.ID) + "/" + strconv.Itoa(link.Post))
+	}
 	next, cmd := m.goToPlace(place)
 	return next.say("followed a link to " + isolate(label)), cmd
 }

@@ -37,6 +37,10 @@ message Room {
   bool sms = 14;
   // This account may read but not post here (domain.Room.ReadOnly).
   bool read_only = 15;
+  // The public @username that names this room on its network (domain.Room.Handle),
+  // lowercase and without "@"; empty for a private chat. Used to resolve tg:// links
+  // and the like.
+  string handle = 16;
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted (domain.ChatDeleting).

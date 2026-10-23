@@ -2,6 +2,7 @@ package tui
 
 import (
 	"slices"
+	"strconv"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -82,6 +83,42 @@ func (inv inventory) byID(id domain.RoomID) (domain.Room, bool) {
 		}
 	}
 	return domain.Room{}, false
+}
+
+// telegramLink is the joined or invited Telegram chat a tg:// link names, by its
+// stored @username, or by its channel ID for a private channel. Several accounts may
+// see the same chat; the first is picked, since the chat the user wants to open is
+// the same.
+func (inv inventory) telegramLink(link domain.TelegramLink) (domain.Room, bool) {
+	for i := range inv.all {
+		r := &inv.all[i]
+		if domain.NetworkOf(string(r.ID)) != domain.ProtocolTelegram {
+			continue
+		}
+		switch link.Kind {
+		case domain.TelegramLinkUsername:
+			if r.Handle == link.Username {
+				return *r, true
+			}
+		case domain.TelegramLinkPrivateChannel:
+			if link.Channel == 0 {
+				return domain.Room{}, false
+			}
+			parsed := domain.ParseID(string(r.ID))
+			if parsed.Native == "-"+telegramPrivateMark(link.Channel) {
+				return *r, true
+			}
+		case domain.TelegramLinkNone:
+		}
+	}
+	return domain.Room{}, false
+}
+
+// telegramPrivateMark is a private channel's native ID without the leading minus (the
+// Bot API's "-100<id>" without the sign), matching how Telegram chats are stored
+// (telegram/rooms.go: channelMark).
+func telegramPrivateMark(channel int64) string {
+	return strconv.FormatInt(1_000_000_000_000+channel, 10)
 }
 
 // removeRoom returns rooms without id; the three-index slice keeps append off the caller's

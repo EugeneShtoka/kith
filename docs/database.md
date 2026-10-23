@@ -333,8 +333,12 @@ Since then:
   Telegram's `contacts.blocked`, Meta's), mirrored for offline reads and quick
   person-card display; the server copy wins, pulled on connect and after every
   blocklist-change event.
+- v25 (`room_handles`): the public `@username` that names a room on its network
+  (Telegram public chats and channels), lowercase and without the `@`; written by that
+  network when it lists rooms, so `tg://` link resolution survives a restart without
+  waiting for the next refresh.
 
-so a current cache is at version 24.
+so a current cache is at version 25.
 
 ### Indexes need no migration
 

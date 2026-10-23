@@ -328,7 +328,11 @@ type Room struct {
 	// Messages go out as SMS or MMS through a phone's carrier (domain.Room.SMS).
 	Sms bool `protobuf:"varint,14,opt,name=sms,proto3" json:"sms,omitempty"`
 	// This account may read but not post here (domain.Room.ReadOnly).
-	ReadOnly      bool `protobuf:"varint,15,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	ReadOnly bool `protobuf:"varint,15,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	// The public @username that names this room on its network (domain.Room.Handle),
+	// lowercase and without "@"; empty for a private chat. Used to resolve tg:// links
+	// and the like.
+	Handle        string `protobuf:"bytes,16,opt,name=handle,proto3" json:"handle,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -466,6 +470,13 @@ func (x *Room) GetReadOnly() bool {
 		return x.ReadOnly
 	}
 	return false
+}
+
+func (x *Room) GetHandle() string {
+	if x != nil {
+		return x.Handle
+	}
+	return ""
 }
 
 // Mention is one @-mention within a message (domain.Mention).
@@ -2760,7 +2771,7 @@ var File_backend_v1_types_proto protoreflect.FileDescriptor
 const file_backend_v1_types_proto_rawDesc = "" +
 	"\n" +
 	"\x16backend/v1/types.proto\x12\n" +
-	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa9\x03\n" +
+	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc1\x03\n" +
 	"\x04Room\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
@@ -2782,7 +2793,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"broadcasts\x18\r \x03(\tR\n" +
 	"broadcasts\x12\x10\n" +
 	"\x03sms\x18\x0e \x01(\bR\x03sms\x12\x1b\n" +
-	"\tread_only\x18\x0f \x01(\bR\breadOnly\"e\n" +
+	"\tread_only\x18\x0f \x01(\bR\breadOnly\x12\x16\n" +
+	"\x06handle\x18\x10 \x01(\tR\x06handle\"e\n" +
 	"\aMention\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +

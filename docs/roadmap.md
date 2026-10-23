@@ -26,7 +26,7 @@ For what already exists, see the [documentation index](README.md).
 ## Messages and links
 
 - Per-message delivery status from bridges that report one (sent to the remote network, failed there).
-- Following bridge links (`wa.me`, `t.me`) to the bridged chat, the way `matrix:` and `matrix.to` links already work.
+- Following `wa.me` and other bridge-network links to the bridged chat, the way `matrix:` / `matrix.to` and `tg:` / `t.me` links already do.
 
 ## Search
 
@@ -37,7 +37,7 @@ For what already exists, see the [documentation index](README.md).
 - Full Windows support, released as a zip and through Scoop or winget. It builds for
   Windows today but has never run there. What it takes: Windows in the test matrix;
   toast notifications (the desktop sink is D-Bus); the native file dialog (the picker
-  uses the XDG portal); clipboard and link-opening defaults; `matrix:` links through
+  uses the XDG portal); clipboard and link-opening defaults; `matrix:` and `tg:` links through
   the registry and Windows Terminal; starting `kithd` at login; and signed binaries,
   so SmartScreen does not warn. Windows Terminal will be required: the old console
   cannot draw the TUI.

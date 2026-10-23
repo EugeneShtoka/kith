@@ -77,6 +77,49 @@ func TestDialogsAreRooms(t *testing.T) {
 	}
 }
 
+// A public chat's @username is kept so tg:// links resolve to the right kith room,
+// and a private chat has none. Secondary usernames (Fragment auctions) stand in for a
+// user who sets no primary one.
+func TestADialogsHandleIsIts_atUsername(t *testing.T) {
+	t.Parallel()
+	ent := peer.NewEntities(
+		map[int64]*tg.User{
+			7: {ID: 7, FirstName: "Dana", Username: "DanaChat"},
+			8: {ID: 8, FirstName: "Fay", Usernames: []tg.Username{{Username: "fay_old"}, {Username: "FayNow", Active: true}}},
+			9: {ID: 9, FirstName: "Pri"}, // no username: private
+		},
+		nil,
+		map[int64]*tg.Channel{
+			21: {ID: 21, Title: "News", Username: "DailyNews", Broadcast: true},
+			22: {ID: 22, Title: "Secret", Megagroup: true}, // no username: private
+		},
+	)
+	elem := func(p tg.InputPeerClass) dialog { return dialog{peer: p, entities: ent} }
+	l := listed(42, []dialog{
+		elem(&tg.InputPeerUser{UserID: 7, AccessHash: 70}),
+		elem(&tg.InputPeerUser{UserID: 8, AccessHash: 80}),
+		elem(&tg.InputPeerUser{UserID: 9, AccessHash: 90}),
+		elem(&tg.InputPeerChannel{ChannelID: 21, AccessHash: 210}),
+		elem(&tg.InputPeerChannel{ChannelID: 22, AccessHash: 220}),
+	})
+	handles := map[domain.RoomID]string{}
+	for _, r := range l.rooms {
+		handles[r.ID] = r.Handle
+	}
+	want := map[domain.RoomID]string{
+		"telegram:42/7":              "danachat",
+		"telegram:42/8":              "faynow",
+		"telegram:42/9":              "",
+		"telegram:42/-1000000000021": "dailynews",
+		"telegram:42/-1000000000022": "",
+	}
+	for id, h := range want {
+		if handles[id] != h {
+			t.Errorf("%s handle = %q, want %q", id, handles[id], h)
+		}
+	}
+}
+
 // dialogsOf answers getDialogs with chats() as one main-folder page; Archived is empty.
 func (f *fakeTelegram) dialogsOf(chats func() []*tg.Chat, delay func() time.Duration) {
 	d := f.cluster.Dispatch(2, "dc2")
