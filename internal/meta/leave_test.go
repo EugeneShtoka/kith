@@ -73,6 +73,9 @@ func TestALeftChatStaysGoneUntilSomethingNewer(t *testing.T) {
 				at := time.Now().UnixMilli()
 				a.take(ctx, c, &table.LSTable{LSDeleteThread: []*table.LSDeleteThread{{ThreadKey: metaKey[key]}}})
 				leftAt[key], shown[key] = max(leftAt[key], at), false
+				// The adapter stamps Meta's delete with the wall clock; what follows is newer
+				// only if the test's clock has not fallen behind it, as it does under load.
+				now = max(now, time.Now().UnixMilli())
 			default: // a new message
 				now += 1000
 				steps = append(steps, fmt.Sprint("new message in ", key))
