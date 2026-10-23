@@ -25,6 +25,10 @@ func lineIndex(screen, text string) int {
 func TestAPromptOverAListFollowsItsRows(t *testing.T) {
 	t.Parallel()
 	m, _ := laidOut(t, config.Display{})
+	// A tag's settings page runs long; the default 30-row window pushes the row
+	// the test asserts on (Delete this tag) off-screen as new properties are
+	// added (push_archive, future ones). Bump height so the page fits.
+	m = update(t, m, tea.WindowSizeMsg{Width: 100, Height: 40})
 	m = m.settingsIn(placePage("tag:Spam"), "")
 	m = pickLabel(t, m, "Add a filter moving rooms here")
 	if !m.promptInline() {
