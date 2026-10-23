@@ -38,8 +38,14 @@ jobs:
 
       # cargo, cmake and clang are on the runner; libsignal also needs protoc and the
       # well-known .proto files (google/protobuf/*.proto), which Ubuntu ships apart.
+      # apt-get update first: the runner's cached metadata may point at a package
+      # version Ubuntu's mirrors have since retracted (seen 2026-10-23 with
+      # libprotobuf32t64 3.21.12-8.2ubuntu0.3), and the install step fetches by that
+      # pinned name.
       - name: libsignal's build tools
-        run: sudo apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev
 
       # libsignal's version follows go.mod's mautrix-signal (scripts/build-libsignal.sh),
       # so that line keys its build.
