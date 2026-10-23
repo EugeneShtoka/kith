@@ -62,8 +62,19 @@ type Notifications struct {
 	people func(context.Context) (domain.Directory, error)
 	// filters has its own lock and outlives reloads: a moved room stays moved.
 	filters *filterWatch
+	// archive mirrors push_archive tag membership into each room's network archive.
+	// Nil leaves pushing off (test cases, or a daemon without a Router hooked up).
+	archive *archiveWatch
+	// archiver is Router.SetRoomArchived; nil leaves push_archive inert.
+	archiver setArchiver
 	// log hears what Deliver cannot return; nil is silent.
 	log *slog.Logger
+}
+
+// UseArchiver gives the push_archive reconciler the function it calls to apply
+// archive state on each network. Call before Reload so the first reconcile has it.
+func (n *Notifications) UseArchiver(archiver func(ctx context.Context, roomID domain.RoomID, archived bool) error) {
+	n.archiver = archiver
 }
 
 // UseSelves sets every ID that is this person on any network, including bridge
@@ -234,6 +245,7 @@ func NewNotifications(cfg config.Config, src scopeSource, sinks Sinks) (*Notific
 			n.filters.people = people
 		}
 	}
+	n.archive = newArchiveWatch()
 	if err := n.Reload(cfg); err != nil {
 		return nil, err
 	}
@@ -271,16 +283,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 
 	n.scope.SetAliases(cfg.Display.Names)
 	n.scope.SetHomeOrder(homeOrderOf(cfg))
-	// Already validated by Reload.
-	tags, _, _ := setup.Tags(cfg)
-	n.scope.SetTags(tags)
-	// A moved room stays moved through a reload.
-	if n.filters != nil {
-		_, _, groups, _ := setup.HiddenInputs(cfg)
-		n.filters.reload(filters, tags, groups)
-	}
-	archives, _ := setup.Archives(cfg, tags)
-	n.scope.SetArchives(archives)
+	n.applyTagsAndArchives(cfg, filters)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.notifier, n.limit, n.clock = rules, notifier, limit, clock
@@ -292,6 +295,57 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.autocopy, n.clip = autocopy, clipboard{command: cfg.Clipboard.Command}
 	n.tracked, n.trackedNotify = setup.TrackedRules(cfg.Display.Tracked), cfg.Display.Tracked.Notify
 	return nil
+}
+
+// applyTagsAndArchives pushes the config's tags into the scope and runs them
+// through the filters, archive mapping and push_archive reconciler.
+func (n *Notifications) applyTagsAndArchives(cfg config.Config, filters domain.Filters) {
+	// Already validated by Reload.
+	tags, _, _ := setup.Tags(cfg)
+	n.scope.SetTags(tags)
+	// A moved room stays moved through a reload.
+	if n.filters != nil {
+		_, _, groups, _ := setup.HiddenInputs(cfg)
+		n.filters.reload(filters, tags, groups)
+	}
+	archives, _ := setup.Archives(cfg, tags)
+	n.scope.SetArchives(archives)
+	n.applyArchiveWatcher(tags)
+}
+
+// applyArchiveWatcher updates the push_archive reconciler with the new tags and
+// re-runs it. A tag that just became push_archive catches up to the network; a
+// tag that stopped pushing leaves its rooms where they are.
+func (n *Notifications) applyArchiveWatcher(tags domain.TagSet) {
+	if n.archive == nil {
+		return
+	}
+	n.archive.setPushing(tags)
+	n.archive.setLog(n.log)
+	n.pushArchiveReconcile()
+}
+
+// pushArchiveReconcile runs the push_archive diff against the current scope. The
+// scope read may fail (e.g. the cache went away mid-reload); in that case the
+// reconcile is skipped and the next one picks it up. Called from Reload and
+// from InvalidateScope's hub, so the reconciler reacts to filter catches, picked
+// list changes, and new rooms alike.
+func (n *Notifications) pushArchiveReconcile() {
+	if n.archive == nil || n.archiver == nil {
+		return
+	}
+	// Separate goroutine: a reconcile can block on an adapter's SetArchived
+	// network call, and Reload must not wait for that.
+	go func() {
+		facts, err := n.scope.All(context.Background())
+		if err != nil {
+			if n.log != nil {
+				n.log.Warn("push_archive: skipping reconcile; scope read failed", "err", err)
+			}
+			return
+		}
+		n.archive.reconcile(context.Background(), facts, n.archiver)
+	}()
 }
 
 // RescanFilters judges cached messages since since, as if they arrived now, and returns
@@ -376,7 +430,12 @@ func (n *Notifications) Synced(time.Time) { n.syncs.Add(1) }
 func (n *Notifications) caughtUp() bool { return n.syncs.Load() > 1 }
 
 // InvalidateScope drops the room/space index, e.g. after a refresh has landed.
-func (n *Notifications) InvalidateScope() { n.scope.Invalidate() }
+// The push_archive reconciler re-runs since the room set or tag membership may
+// have changed.
+func (n *Notifications) InvalidateScope() {
+	n.scope.Invalidate()
+	n.pushArchiveReconcile()
+}
 
 // MessagesKept is how many messages the cache keeps of a room, negative for all.
 // Called on every cache write, so it never rebuilds the index (which reads the

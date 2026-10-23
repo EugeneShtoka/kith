@@ -89,6 +89,7 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 		return live.run(ctx, client, self.ID, func() {
 			a.session(account, Connected, "")
 			go a.sendOwed(ctx, self.ID) // reads made here while Telegram was away
+			go a.RefreshBlocklist(ctx)
 		})
 	})
 	a.disown(account, gen)

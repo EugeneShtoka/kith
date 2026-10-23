@@ -114,6 +114,19 @@ func (s *server) MarkPerson(ctx context.Context, r *req[v1.MarkPersonRequest]) (
 	return reply(&v1.MarkPersonResponse{}, s.Backend.MarkPerson(ctx, pc.ProtoToPersonVerdict(r.Msg.GetVerdict())))
 }
 
+func (s *server) Ignore(ctx context.Context, r *req[v1.IgnoreRequest]) (*resp[v1.IgnoreResponse], error) {
+	return reply(&v1.IgnoreResponse{}, s.Backend.Ignore(ctx, r.Msg.GetMxid()))
+}
+
+func (s *server) Unignore(ctx context.Context, r *req[v1.UnignoreRequest]) (*resp[v1.UnignoreResponse], error) {
+	return reply(&v1.UnignoreResponse{}, s.Backend.Unignore(ctx, r.Msg.GetMxid()))
+}
+
+func (s *server) Ignored(ctx context.Context, _ *req[v1.IgnoredRequest]) (*resp[v1.IgnoredResponse], error) {
+	ids, err := s.Backend.Ignored(ctx)
+	return reply(&v1.IgnoredResponse{Mxids: ids}, err)
+}
+
 func (s *server) RetagVerdicts(ctx context.Context, r *req[v1.RetagVerdictsRequest]) (*resp[v1.RetagVerdictsResponse], error) {
 	return reply(&v1.RetagVerdictsResponse{}, s.Backend.RetagVerdicts(ctx, r.Msg.GetFrom(), r.Msg.GetTo()))
 }
@@ -183,6 +196,11 @@ func (s *server) Timeline(ctx context.Context, r *req[v1.TimelineRequest]) (*res
 func (s *server) FetchEvent(ctx context.Context, r *req[v1.FetchEventRequest]) (*resp[v1.FetchEventResponse], error) {
 	msg, err := s.Backend.FetchEvent(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()))
 	return reply(&v1.FetchEventResponse{Message: pc.MessageToProto(msg)}, err)
+}
+
+func (s *server) FetchEventSource(ctx context.Context, r *req[v1.FetchEventSourceRequest]) (*resp[v1.FetchEventSourceResponse], error) {
+	src, err := s.Backend.FetchEventSource(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()))
+	return reply(&v1.FetchEventSourceResponse{Source: src}, err)
 }
 
 func (s *server) Send(ctx context.Context, r *req[v1.SendRequest]) (*resp[v1.SendResponse], error) {
@@ -266,6 +284,11 @@ func (s *server) PollVoters(ctx context.Context, r *req[v1.PollVotersRequest]) (
 func (s *server) VotePoll(ctx context.Context, r *req[v1.VotePollRequest]) (*resp[v1.VotePollResponse], error) {
 	err := s.Backend.VotePoll(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()), r.Msg.GetOptions())
 	return reply(&v1.VotePollResponse{}, err)
+}
+
+func (s *server) CreatePoll(ctx context.Context, r *req[v1.CreatePollRequest]) (*resp[v1.CreatePollResponse], error) {
+	id, err := s.Backend.CreatePoll(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetQuestion(), r.Msg.GetOptions(), r.Msg.GetMultiple())
+	return reply(&v1.CreatePollResponse{EventId: string(id)}, err)
 }
 
 func (s *server) SendReaction(ctx context.Context, r *req[v1.SendReactionRequest]) (*resp[v1.SendReactionResponse], error) {
@@ -361,6 +384,37 @@ func (s *server) Invites(ctx context.Context, _ *req[v1.InvitesRequest], st *con
 func (s *server) JoinRoom(ctx context.Context, r *req[v1.JoinRoomRequest]) (*resp[v1.JoinRoomResponse], error) {
 	id, err := s.Backend.JoinRoom(ctx, r.Msg.GetRoomIdOrAlias(), r.Msg.GetVia())
 	return reply(&v1.JoinRoomResponse{RoomId: string(id)}, err)
+}
+
+func (s *server) KnockRoom(ctx context.Context, r *req[v1.KnockRoomRequest]) (*resp[v1.KnockRoomResponse], error) {
+	id, err := s.Backend.KnockRoom(ctx, r.Msg.GetRoomIdOrAlias(), r.Msg.GetReason(), r.Msg.GetVia())
+	return reply(&v1.KnockRoomResponse{RoomId: string(id)}, err)
+}
+
+func (s *server) BlockPerson(ctx context.Context, r *req[v1.BlockPersonRequest]) (*resp[v1.BlockPersonResponse], error) {
+	return reply(&v1.BlockPersonResponse{}, s.Backend.BlockPerson(ctx, r.Msg.GetUserId()))
+}
+
+func (s *server) UnblockPerson(ctx context.Context, r *req[v1.UnblockPersonRequest]) (*resp[v1.UnblockPersonResponse], error) {
+	return reply(&v1.UnblockPersonResponse{}, s.Backend.UnblockPerson(ctx, r.Msg.GetUserId()))
+}
+
+func (s *server) BlockedPeople(ctx context.Context, _ *req[v1.BlockedPeopleRequest]) (*resp[v1.BlockedPeopleResponse], error) {
+	byNetwork, err := s.Backend.BlockedPeople(ctx)
+	out := make([]*v1.NetworkBlocklist, 0, len(byNetwork))
+	for net, ids := range byNetwork {
+		out = append(out, &v1.NetworkBlocklist{Network: net.String(), UserIds: ids})
+	}
+	return reply(&v1.BlockedPeopleResponse{Lists: out}, err)
+}
+
+func (s *server) PublicRooms(ctx context.Context, r *req[v1.PublicRoomsRequest]) (*resp[v1.PublicRoomsResponse], error) {
+	page, err := s.Backend.PublicRooms(ctx, r.Msg.GetServer(), r.Msg.GetSince())
+	return reply(&v1.PublicRoomsResponse{
+		Rooms:         pc.PublicRoomsToProto(page.Rooms),
+		NextSince:     page.NextSince,
+		TotalEstimate: pc.ClampInt32(page.TotalEstimate),
+	}, err)
 }
 
 func (s *server) DeleteChat(ctx context.Context, r *req[v1.DeleteChatRequest]) (*resp[v1.DeleteChatResponse], error) {

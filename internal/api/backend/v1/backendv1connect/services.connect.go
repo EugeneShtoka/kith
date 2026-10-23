@@ -75,6 +75,12 @@ const (
 	// BackendServiceMarkPersonProcedure is the fully-qualified name of the BackendService's MarkPerson
 	// RPC.
 	BackendServiceMarkPersonProcedure = "/backend.v1.BackendService/MarkPerson"
+	// BackendServiceIgnoreProcedure is the fully-qualified name of the BackendService's Ignore RPC.
+	BackendServiceIgnoreProcedure = "/backend.v1.BackendService/Ignore"
+	// BackendServiceUnignoreProcedure is the fully-qualified name of the BackendService's Unignore RPC.
+	BackendServiceUnignoreProcedure = "/backend.v1.BackendService/Unignore"
+	// BackendServiceIgnoredProcedure is the fully-qualified name of the BackendService's Ignored RPC.
+	BackendServiceIgnoredProcedure = "/backend.v1.BackendService/Ignored"
 	// BackendServiceSpacesProcedure is the fully-qualified name of the BackendService's Spaces RPC.
 	BackendServiceSpacesProcedure = "/backend.v1.BackendService/Spaces"
 	// BackendServiceRefreshSpacesProcedure is the fully-qualified name of the BackendService's
@@ -97,6 +103,9 @@ const (
 	// BackendServiceFetchEventProcedure is the fully-qualified name of the BackendService's FetchEvent
 	// RPC.
 	BackendServiceFetchEventProcedure = "/backend.v1.BackendService/FetchEvent"
+	// BackendServiceFetchEventSourceProcedure is the fully-qualified name of the BackendService's
+	// FetchEventSource RPC.
+	BackendServiceFetchEventSourceProcedure = "/backend.v1.BackendService/FetchEventSource"
 	// BackendServiceSendProcedure is the fully-qualified name of the BackendService's Send RPC.
 	BackendServiceSendProcedure = "/backend.v1.BackendService/Send"
 	// BackendServiceRedactProcedure is the fully-qualified name of the BackendService's Redact RPC.
@@ -135,6 +144,9 @@ const (
 	// BackendServicePollVotersProcedure is the fully-qualified name of the BackendService's PollVoters
 	// RPC.
 	BackendServicePollVotersProcedure = "/backend.v1.BackendService/PollVoters"
+	// BackendServiceCreatePollProcedure is the fully-qualified name of the BackendService's CreatePoll
+	// RPC.
+	BackendServiceCreatePollProcedure = "/backend.v1.BackendService/CreatePoll"
 	// BackendServiceReactionRefusalsProcedure is the fully-qualified name of the BackendService's
 	// ReactionRefusals RPC.
 	BackendServiceReactionRefusalsProcedure = "/backend.v1.BackendService/ReactionRefusals"
@@ -177,6 +189,21 @@ const (
 	BackendServiceInvitesProcedure = "/backend.v1.BackendService/Invites"
 	// BackendServiceJoinRoomProcedure is the fully-qualified name of the BackendService's JoinRoom RPC.
 	BackendServiceJoinRoomProcedure = "/backend.v1.BackendService/JoinRoom"
+	// BackendServicePublicRoomsProcedure is the fully-qualified name of the BackendService's
+	// PublicRooms RPC.
+	BackendServicePublicRoomsProcedure = "/backend.v1.BackendService/PublicRooms"
+	// BackendServiceKnockRoomProcedure is the fully-qualified name of the BackendService's KnockRoom
+	// RPC.
+	BackendServiceKnockRoomProcedure = "/backend.v1.BackendService/KnockRoom"
+	// BackendServiceBlockPersonProcedure is the fully-qualified name of the BackendService's
+	// BlockPerson RPC.
+	BackendServiceBlockPersonProcedure = "/backend.v1.BackendService/BlockPerson"
+	// BackendServiceUnblockPersonProcedure is the fully-qualified name of the BackendService's
+	// UnblockPerson RPC.
+	BackendServiceUnblockPersonProcedure = "/backend.v1.BackendService/UnblockPerson"
+	// BackendServiceBlockedPeopleProcedure is the fully-qualified name of the BackendService's
+	// BlockedPeople RPC.
+	BackendServiceBlockedPeopleProcedure = "/backend.v1.BackendService/BlockedPeople"
 	// BackendServiceLeaveRoomProcedure is the fully-qualified name of the BackendService's LeaveRoom
 	// RPC.
 	BackendServiceLeaveRoomProcedure = "/backend.v1.BackendService/LeaveRoom"
@@ -407,6 +434,13 @@ type BackendServiceClient interface {
 	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
 	// never overwrites a release.
 	MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error)
+	// Ignore adds mxid to the Matrix account's m.ignored_user_list; the homeserver
+	// stops sending the user's events on every device.
+	Ignore(context.Context, *connect.Request[v1.IgnoreRequest]) (*connect.Response[v1.IgnoreResponse], error)
+	// Unignore is Ignore's inverse: drops mxid from the ignored list.
+	Unignore(context.Context, *connect.Request[v1.UnignoreRequest]) (*connect.Response[v1.UnignoreResponse], error)
+	// Ignored lists the MXIDs this account currently ignores on Matrix.
+	Ignored(context.Context, *connect.Request[v1.IgnoredRequest]) (*connect.Response[v1.IgnoredResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -429,6 +463,9 @@ type BackendServiceClient interface {
 	// FetchEvent fetches one event by ID — a thread root, or a reply target, that is
 	// older than the room's cached window.
 	FetchEvent(context.Context, *connect.Request[v1.FetchEventRequest]) (*connect.Response[v1.FetchEventResponse], error)
+	// FetchEventSource fetches an event's raw JSON from the Matrix homeserver,
+	// pretty-printed; a debugging aid.
+	FetchEventSource(context.Context, *connect.Request[v1.FetchEventSourceRequest]) (*connect.Response[v1.FetchEventSourceResponse], error)
 	// Send posts a message, with its mentions and its reply target.
 	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
 	// Redact removes a message's content.
@@ -462,6 +499,8 @@ type BackendServiceClient interface {
 	VotePoll(context.Context, *connect.Request[v1.VotePollRequest]) (*connect.Response[v1.VotePollResponse], error)
 	// PollVoters is who chose each answer of a message's poll, as its network names them.
 	PollVoters(context.Context, *connect.Request[v1.PollVotersRequest]) (*connect.Response[v1.PollVotersResponse], error)
+	// CreatePoll asks a poll in a room; returns its start event ID.
+	CreatePoll(context.Context, *connect.Request[v1.CreatePollRequest]) (*connect.Response[v1.CreatePollResponse], error)
 	// ReactionRefusals returns what has been learned about the emoji bridged networks
 	// refuse as reactions.
 	ReactionRefusals(context.Context, *connect.Request[v1.ReactionRefusalsRequest]) (*connect.Response[v1.ReactionRefusalsResponse], error)
@@ -501,6 +540,15 @@ type BackendServiceClient interface {
 	// JoinRoom joins a room by ID or alias, which is also how an invite is accepted, and
 	// returns the ID joined.
 	JoinRoom(context.Context, *connect.Request[v1.JoinRoomRequest]) (*connect.Response[v1.JoinRoomResponse], error)
+	// PublicRooms lists one page of the Matrix public rooms directory.
+	PublicRooms(context.Context, *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error)
+	// KnockRoom asks to join a knock-only Matrix room.
+	KnockRoom(context.Context, *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error)
+	// BlockPerson, UnblockPerson, BlockedPeople: server-side block lists on
+	// networks that have them (WhatsApp, Telegram, Meta). Matrix uses Ignore.
+	BlockPerson(context.Context, *connect.Request[v1.BlockPersonRequest]) (*connect.Response[v1.BlockPersonResponse], error)
+	UnblockPerson(context.Context, *connect.Request[v1.UnblockPersonRequest]) (*connect.Response[v1.UnblockPersonResponse], error)
+	BlockedPeople(context.Context, *connect.Request[v1.BlockedPeopleRequest]) (*connect.Response[v1.BlockedPeopleResponse], error)
 	// LeaveRoom leaves a room.
 	LeaveRoom(context.Context, *connect.Request[v1.LeaveRoomRequest]) (*connect.Response[v1.LeaveRoomResponse], error)
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
@@ -775,6 +823,24 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("MarkPerson")),
 			connect.WithClientOptions(opts...),
 		),
+		ignore: connect.NewClient[v1.IgnoreRequest, v1.IgnoreResponse](
+			httpClient,
+			baseURL+BackendServiceIgnoreProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Ignore")),
+			connect.WithClientOptions(opts...),
+		),
+		unignore: connect.NewClient[v1.UnignoreRequest, v1.UnignoreResponse](
+			httpClient,
+			baseURL+BackendServiceUnignoreProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Unignore")),
+			connect.WithClientOptions(opts...),
+		),
+		ignored: connect.NewClient[v1.IgnoredRequest, v1.IgnoredResponse](
+			httpClient,
+			baseURL+BackendServiceIgnoredProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Ignored")),
+			connect.WithClientOptions(opts...),
+		),
 		spaces: connect.NewClient[v1.SpacesRequest, v1.SpacesResponse](
 			httpClient,
 			baseURL+BackendServiceSpacesProcedure,
@@ -821,6 +887,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceFetchEventProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("FetchEvent")),
+			connect.WithClientOptions(opts...),
+		),
+		fetchEventSource: connect.NewClient[v1.FetchEventSourceRequest, v1.FetchEventSourceResponse](
+			httpClient,
+			baseURL+BackendServiceFetchEventSourceProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("FetchEventSource")),
 			connect.WithClientOptions(opts...),
 		),
 		send: connect.NewClient[v1.SendRequest, v1.SendResponse](
@@ -905,6 +977,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServicePollVotersProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("PollVoters")),
+			connect.WithClientOptions(opts...),
+		),
+		createPoll: connect.NewClient[v1.CreatePollRequest, v1.CreatePollResponse](
+			httpClient,
+			baseURL+BackendServiceCreatePollProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("CreatePoll")),
 			connect.WithClientOptions(opts...),
 		),
 		reactionRefusals: connect.NewClient[v1.ReactionRefusalsRequest, v1.ReactionRefusalsResponse](
@@ -995,6 +1073,36 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceJoinRoomProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("JoinRoom")),
+			connect.WithClientOptions(opts...),
+		),
+		publicRooms: connect.NewClient[v1.PublicRoomsRequest, v1.PublicRoomsResponse](
+			httpClient,
+			baseURL+BackendServicePublicRoomsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PublicRooms")),
+			connect.WithClientOptions(opts...),
+		),
+		knockRoom: connect.NewClient[v1.KnockRoomRequest, v1.KnockRoomResponse](
+			httpClient,
+			baseURL+BackendServiceKnockRoomProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("KnockRoom")),
+			connect.WithClientOptions(opts...),
+		),
+		blockPerson: connect.NewClient[v1.BlockPersonRequest, v1.BlockPersonResponse](
+			httpClient,
+			baseURL+BackendServiceBlockPersonProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("BlockPerson")),
+			connect.WithClientOptions(opts...),
+		),
+		unblockPerson: connect.NewClient[v1.UnblockPersonRequest, v1.UnblockPersonResponse](
+			httpClient,
+			baseURL+BackendServiceUnblockPersonProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("UnblockPerson")),
+			connect.WithClientOptions(opts...),
+		),
+		blockedPeople: connect.NewClient[v1.BlockedPeopleRequest, v1.BlockedPeopleResponse](
+			httpClient,
+			baseURL+BackendServiceBlockedPeopleProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("BlockedPeople")),
 			connect.WithClientOptions(opts...),
 		),
 		leaveRoom: connect.NewClient[v1.LeaveRoomRequest, v1.LeaveRoomResponse](
@@ -1413,6 +1521,9 @@ type backendServiceClient struct {
 	retagVerdicts         *connect.Client[v1.RetagVerdictsRequest, v1.RetagVerdictsResponse]
 	personVerdicts        *connect.Client[v1.PersonVerdictsRequest, v1.PersonVerdictsResponse]
 	markPerson            *connect.Client[v1.MarkPersonRequest, v1.MarkPersonResponse]
+	ignore                *connect.Client[v1.IgnoreRequest, v1.IgnoreResponse]
+	unignore              *connect.Client[v1.UnignoreRequest, v1.UnignoreResponse]
+	ignored               *connect.Client[v1.IgnoredRequest, v1.IgnoredResponse]
 	spaces                *connect.Client[v1.SpacesRequest, v1.SpacesResponse]
 	refreshSpaces         *connect.Client[v1.RefreshSpacesRequest, v1.RefreshSpacesResponse]
 	addToSpace            *connect.Client[v1.AddToSpaceRequest, v1.AddToSpaceResponse]
@@ -1421,6 +1532,7 @@ type backendServiceClient struct {
 	timeline              *connect.Client[v1.TimelineRequest, v1.TimelineResponse]
 	messageHistory        *connect.Client[v1.MessageHistoryRequest, v1.MessageHistoryResponse]
 	fetchEvent            *connect.Client[v1.FetchEventRequest, v1.FetchEventResponse]
+	fetchEventSource      *connect.Client[v1.FetchEventSourceRequest, v1.FetchEventSourceResponse]
 	send                  *connect.Client[v1.SendRequest, v1.SendResponse]
 	redact                *connect.Client[v1.RedactRequest, v1.RedactResponse]
 	sendFile              *connect.Client[v1.SendFileRequest, v1.SendFileResponse]
@@ -1435,6 +1547,7 @@ type backendServiceClient struct {
 	sendReaction          *connect.Client[v1.SendReactionRequest, v1.SendReactionResponse]
 	votePoll              *connect.Client[v1.VotePollRequest, v1.VotePollResponse]
 	pollVoters            *connect.Client[v1.PollVotersRequest, v1.PollVotersResponse]
+	createPoll            *connect.Client[v1.CreatePollRequest, v1.CreatePollResponse]
 	reactionRefusals      *connect.Client[v1.ReactionRefusalsRequest, v1.ReactionRefusalsResponse]
 	recordReactionRefusal *connect.Client[v1.RecordReactionRefusalRequest, v1.RecordReactionRefusalResponse]
 	recordEmoji           *connect.Client[v1.RecordEmojiRequest, v1.RecordEmojiResponse]
@@ -1450,6 +1563,11 @@ type backendServiceClient struct {
 	cachedInvites         *connect.Client[v1.CachedInvitesRequest, v1.CachedInvitesResponse]
 	invites               *connect.Client[v1.InvitesRequest, v1.InvitesResponse]
 	joinRoom              *connect.Client[v1.JoinRoomRequest, v1.JoinRoomResponse]
+	publicRooms           *connect.Client[v1.PublicRoomsRequest, v1.PublicRoomsResponse]
+	knockRoom             *connect.Client[v1.KnockRoomRequest, v1.KnockRoomResponse]
+	blockPerson           *connect.Client[v1.BlockPersonRequest, v1.BlockPersonResponse]
+	unblockPerson         *connect.Client[v1.UnblockPersonRequest, v1.UnblockPersonResponse]
+	blockedPeople         *connect.Client[v1.BlockedPeopleRequest, v1.BlockedPeopleResponse]
 	leaveRoom             *connect.Client[v1.LeaveRoomRequest, v1.LeaveRoomResponse]
 	deleteChat            *connect.Client[v1.DeleteChatRequest, v1.DeleteChatResponse]
 	signOut               *connect.Client[v1.SignOutRequest, v1.SignOutResponse]
@@ -1593,6 +1711,21 @@ func (c *backendServiceClient) MarkPerson(ctx context.Context, req *connect.Requ
 	return c.markPerson.CallUnary(ctx, req)
 }
 
+// Ignore calls backend.v1.BackendService.Ignore.
+func (c *backendServiceClient) Ignore(ctx context.Context, req *connect.Request[v1.IgnoreRequest]) (*connect.Response[v1.IgnoreResponse], error) {
+	return c.ignore.CallUnary(ctx, req)
+}
+
+// Unignore calls backend.v1.BackendService.Unignore.
+func (c *backendServiceClient) Unignore(ctx context.Context, req *connect.Request[v1.UnignoreRequest]) (*connect.Response[v1.UnignoreResponse], error) {
+	return c.unignore.CallUnary(ctx, req)
+}
+
+// Ignored calls backend.v1.BackendService.Ignored.
+func (c *backendServiceClient) Ignored(ctx context.Context, req *connect.Request[v1.IgnoredRequest]) (*connect.Response[v1.IgnoredResponse], error) {
+	return c.ignored.CallUnary(ctx, req)
+}
+
 // Spaces calls backend.v1.BackendService.Spaces.
 func (c *backendServiceClient) Spaces(ctx context.Context, req *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error) {
 	return c.spaces.CallUnary(ctx, req)
@@ -1631,6 +1764,11 @@ func (c *backendServiceClient) MessageHistory(ctx context.Context, req *connect.
 // FetchEvent calls backend.v1.BackendService.FetchEvent.
 func (c *backendServiceClient) FetchEvent(ctx context.Context, req *connect.Request[v1.FetchEventRequest]) (*connect.Response[v1.FetchEventResponse], error) {
 	return c.fetchEvent.CallUnary(ctx, req)
+}
+
+// FetchEventSource calls backend.v1.BackendService.FetchEventSource.
+func (c *backendServiceClient) FetchEventSource(ctx context.Context, req *connect.Request[v1.FetchEventSourceRequest]) (*connect.Response[v1.FetchEventSourceResponse], error) {
+	return c.fetchEventSource.CallUnary(ctx, req)
 }
 
 // Send calls backend.v1.BackendService.Send.
@@ -1701,6 +1839,11 @@ func (c *backendServiceClient) VotePoll(ctx context.Context, req *connect.Reques
 // PollVoters calls backend.v1.BackendService.PollVoters.
 func (c *backendServiceClient) PollVoters(ctx context.Context, req *connect.Request[v1.PollVotersRequest]) (*connect.Response[v1.PollVotersResponse], error) {
 	return c.pollVoters.CallUnary(ctx, req)
+}
+
+// CreatePoll calls backend.v1.BackendService.CreatePoll.
+func (c *backendServiceClient) CreatePoll(ctx context.Context, req *connect.Request[v1.CreatePollRequest]) (*connect.Response[v1.CreatePollResponse], error) {
+	return c.createPoll.CallUnary(ctx, req)
 }
 
 // ReactionRefusals calls backend.v1.BackendService.ReactionRefusals.
@@ -1776,6 +1919,31 @@ func (c *backendServiceClient) Invites(ctx context.Context, req *connect.Request
 // JoinRoom calls backend.v1.BackendService.JoinRoom.
 func (c *backendServiceClient) JoinRoom(ctx context.Context, req *connect.Request[v1.JoinRoomRequest]) (*connect.Response[v1.JoinRoomResponse], error) {
 	return c.joinRoom.CallUnary(ctx, req)
+}
+
+// PublicRooms calls backend.v1.BackendService.PublicRooms.
+func (c *backendServiceClient) PublicRooms(ctx context.Context, req *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error) {
+	return c.publicRooms.CallUnary(ctx, req)
+}
+
+// KnockRoom calls backend.v1.BackendService.KnockRoom.
+func (c *backendServiceClient) KnockRoom(ctx context.Context, req *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error) {
+	return c.knockRoom.CallUnary(ctx, req)
+}
+
+// BlockPerson calls backend.v1.BackendService.BlockPerson.
+func (c *backendServiceClient) BlockPerson(ctx context.Context, req *connect.Request[v1.BlockPersonRequest]) (*connect.Response[v1.BlockPersonResponse], error) {
+	return c.blockPerson.CallUnary(ctx, req)
+}
+
+// UnblockPerson calls backend.v1.BackendService.UnblockPerson.
+func (c *backendServiceClient) UnblockPerson(ctx context.Context, req *connect.Request[v1.UnblockPersonRequest]) (*connect.Response[v1.UnblockPersonResponse], error) {
+	return c.unblockPerson.CallUnary(ctx, req)
+}
+
+// BlockedPeople calls backend.v1.BackendService.BlockedPeople.
+func (c *backendServiceClient) BlockedPeople(ctx context.Context, req *connect.Request[v1.BlockedPeopleRequest]) (*connect.Response[v1.BlockedPeopleResponse], error) {
+	return c.blockedPeople.CallUnary(ctx, req)
 }
 
 // LeaveRoom calls backend.v1.BackendService.LeaveRoom.
@@ -2151,6 +2319,13 @@ type BackendServiceHandler interface {
 	// MarkPerson records a filter's mark or a release on one person ID and tag; a mark
 	// never overwrites a release.
 	MarkPerson(context.Context, *connect.Request[v1.MarkPersonRequest]) (*connect.Response[v1.MarkPersonResponse], error)
+	// Ignore adds mxid to the Matrix account's m.ignored_user_list; the homeserver
+	// stops sending the user's events on every device.
+	Ignore(context.Context, *connect.Request[v1.IgnoreRequest]) (*connect.Response[v1.IgnoreResponse], error)
+	// Unignore is Ignore's inverse: drops mxid from the ignored list.
+	Unignore(context.Context, *connect.Request[v1.UnignoreRequest]) (*connect.Response[v1.UnignoreResponse], error)
+	// Ignored lists the MXIDs this account currently ignores on Matrix.
+	Ignored(context.Context, *connect.Request[v1.IgnoredRequest]) (*connect.Response[v1.IgnoredResponse], error)
 	// Space
 	// Spaces returns the cached spaces, each with its direct child rooms.
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
@@ -2173,6 +2348,9 @@ type BackendServiceHandler interface {
 	// FetchEvent fetches one event by ID — a thread root, or a reply target, that is
 	// older than the room's cached window.
 	FetchEvent(context.Context, *connect.Request[v1.FetchEventRequest]) (*connect.Response[v1.FetchEventResponse], error)
+	// FetchEventSource fetches an event's raw JSON from the Matrix homeserver,
+	// pretty-printed; a debugging aid.
+	FetchEventSource(context.Context, *connect.Request[v1.FetchEventSourceRequest]) (*connect.Response[v1.FetchEventSourceResponse], error)
 	// Send posts a message, with its mentions and its reply target.
 	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
 	// Redact removes a message's content.
@@ -2206,6 +2384,8 @@ type BackendServiceHandler interface {
 	VotePoll(context.Context, *connect.Request[v1.VotePollRequest]) (*connect.Response[v1.VotePollResponse], error)
 	// PollVoters is who chose each answer of a message's poll, as its network names them.
 	PollVoters(context.Context, *connect.Request[v1.PollVotersRequest]) (*connect.Response[v1.PollVotersResponse], error)
+	// CreatePoll asks a poll in a room; returns its start event ID.
+	CreatePoll(context.Context, *connect.Request[v1.CreatePollRequest]) (*connect.Response[v1.CreatePollResponse], error)
 	// ReactionRefusals returns what has been learned about the emoji bridged networks
 	// refuse as reactions.
 	ReactionRefusals(context.Context, *connect.Request[v1.ReactionRefusalsRequest]) (*connect.Response[v1.ReactionRefusalsResponse], error)
@@ -2245,6 +2425,15 @@ type BackendServiceHandler interface {
 	// JoinRoom joins a room by ID or alias, which is also how an invite is accepted, and
 	// returns the ID joined.
 	JoinRoom(context.Context, *connect.Request[v1.JoinRoomRequest]) (*connect.Response[v1.JoinRoomResponse], error)
+	// PublicRooms lists one page of the Matrix public rooms directory.
+	PublicRooms(context.Context, *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error)
+	// KnockRoom asks to join a knock-only Matrix room.
+	KnockRoom(context.Context, *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error)
+	// BlockPerson, UnblockPerson, BlockedPeople: server-side block lists on
+	// networks that have them (WhatsApp, Telegram, Meta). Matrix uses Ignore.
+	BlockPerson(context.Context, *connect.Request[v1.BlockPersonRequest]) (*connect.Response[v1.BlockPersonResponse], error)
+	UnblockPerson(context.Context, *connect.Request[v1.UnblockPersonRequest]) (*connect.Response[v1.UnblockPersonResponse], error)
+	BlockedPeople(context.Context, *connect.Request[v1.BlockedPeopleRequest]) (*connect.Response[v1.BlockedPeopleResponse], error)
 	// LeaveRoom leaves a room.
 	LeaveRoom(context.Context, *connect.Request[v1.LeaveRoomRequest]) (*connect.Response[v1.LeaveRoomResponse], error)
 	// DeleteChat deletes a chat that cannot be left (domain.Room.Deleting): for you,
@@ -2515,6 +2704,24 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("MarkPerson")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceIgnoreHandler := connect.NewUnaryHandler(
+		BackendServiceIgnoreProcedure,
+		svc.Ignore,
+		connect.WithSchema(backendServiceMethods.ByName("Ignore")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceUnignoreHandler := connect.NewUnaryHandler(
+		BackendServiceUnignoreProcedure,
+		svc.Unignore,
+		connect.WithSchema(backendServiceMethods.ByName("Unignore")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceIgnoredHandler := connect.NewUnaryHandler(
+		BackendServiceIgnoredProcedure,
+		svc.Ignored,
+		connect.WithSchema(backendServiceMethods.ByName("Ignored")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceSpacesHandler := connect.NewUnaryHandler(
 		BackendServiceSpacesProcedure,
 		svc.Spaces,
@@ -2561,6 +2768,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceFetchEventProcedure,
 		svc.FetchEvent,
 		connect.WithSchema(backendServiceMethods.ByName("FetchEvent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceFetchEventSourceHandler := connect.NewUnaryHandler(
+		BackendServiceFetchEventSourceProcedure,
+		svc.FetchEventSource,
+		connect.WithSchema(backendServiceMethods.ByName("FetchEventSource")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceSendHandler := connect.NewUnaryHandler(
@@ -2645,6 +2858,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServicePollVotersProcedure,
 		svc.PollVoters,
 		connect.WithSchema(backendServiceMethods.ByName("PollVoters")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceCreatePollHandler := connect.NewUnaryHandler(
+		BackendServiceCreatePollProcedure,
+		svc.CreatePoll,
+		connect.WithSchema(backendServiceMethods.ByName("CreatePoll")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceReactionRefusalsHandler := connect.NewUnaryHandler(
@@ -2735,6 +2954,36 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceJoinRoomProcedure,
 		svc.JoinRoom,
 		connect.WithSchema(backendServiceMethods.ByName("JoinRoom")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServicePublicRoomsHandler := connect.NewUnaryHandler(
+		BackendServicePublicRoomsProcedure,
+		svc.PublicRooms,
+		connect.WithSchema(backendServiceMethods.ByName("PublicRooms")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceKnockRoomHandler := connect.NewUnaryHandler(
+		BackendServiceKnockRoomProcedure,
+		svc.KnockRoom,
+		connect.WithSchema(backendServiceMethods.ByName("KnockRoom")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceBlockPersonHandler := connect.NewUnaryHandler(
+		BackendServiceBlockPersonProcedure,
+		svc.BlockPerson,
+		connect.WithSchema(backendServiceMethods.ByName("BlockPerson")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceUnblockPersonHandler := connect.NewUnaryHandler(
+		BackendServiceUnblockPersonProcedure,
+		svc.UnblockPerson,
+		connect.WithSchema(backendServiceMethods.ByName("UnblockPerson")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceBlockedPeopleHandler := connect.NewUnaryHandler(
+		BackendServiceBlockedPeopleProcedure,
+		svc.BlockedPeople,
+		connect.WithSchema(backendServiceMethods.ByName("BlockedPeople")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceLeaveRoomHandler := connect.NewUnaryHandler(
@@ -3165,6 +3414,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServicePersonVerdictsHandler.ServeHTTP(w, r)
 		case BackendServiceMarkPersonProcedure:
 			backendServiceMarkPersonHandler.ServeHTTP(w, r)
+		case BackendServiceIgnoreProcedure:
+			backendServiceIgnoreHandler.ServeHTTP(w, r)
+		case BackendServiceUnignoreProcedure:
+			backendServiceUnignoreHandler.ServeHTTP(w, r)
+		case BackendServiceIgnoredProcedure:
+			backendServiceIgnoredHandler.ServeHTTP(w, r)
 		case BackendServiceSpacesProcedure:
 			backendServiceSpacesHandler.ServeHTTP(w, r)
 		case BackendServiceRefreshSpacesProcedure:
@@ -3181,6 +3436,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceMessageHistoryHandler.ServeHTTP(w, r)
 		case BackendServiceFetchEventProcedure:
 			backendServiceFetchEventHandler.ServeHTTP(w, r)
+		case BackendServiceFetchEventSourceProcedure:
+			backendServiceFetchEventSourceHandler.ServeHTTP(w, r)
 		case BackendServiceSendProcedure:
 			backendServiceSendHandler.ServeHTTP(w, r)
 		case BackendServiceRedactProcedure:
@@ -3209,6 +3466,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceVotePollHandler.ServeHTTP(w, r)
 		case BackendServicePollVotersProcedure:
 			backendServicePollVotersHandler.ServeHTTP(w, r)
+		case BackendServiceCreatePollProcedure:
+			backendServiceCreatePollHandler.ServeHTTP(w, r)
 		case BackendServiceReactionRefusalsProcedure:
 			backendServiceReactionRefusalsHandler.ServeHTTP(w, r)
 		case BackendServiceRecordReactionRefusalProcedure:
@@ -3239,6 +3498,16 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceInvitesHandler.ServeHTTP(w, r)
 		case BackendServiceJoinRoomProcedure:
 			backendServiceJoinRoomHandler.ServeHTTP(w, r)
+		case BackendServicePublicRoomsProcedure:
+			backendServicePublicRoomsHandler.ServeHTTP(w, r)
+		case BackendServiceKnockRoomProcedure:
+			backendServiceKnockRoomHandler.ServeHTTP(w, r)
+		case BackendServiceBlockPersonProcedure:
+			backendServiceBlockPersonHandler.ServeHTTP(w, r)
+		case BackendServiceUnblockPersonProcedure:
+			backendServiceUnblockPersonHandler.ServeHTTP(w, r)
+		case BackendServiceBlockedPeopleProcedure:
+			backendServiceBlockedPeopleHandler.ServeHTTP(w, r)
 		case BackendServiceLeaveRoomProcedure:
 			backendServiceLeaveRoomHandler.ServeHTTP(w, r)
 		case BackendServiceDeleteChatProcedure:
@@ -3440,6 +3709,18 @@ func (UnimplementedBackendServiceHandler) MarkPerson(context.Context, *connect.R
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MarkPerson is not implemented"))
 }
 
+func (UnimplementedBackendServiceHandler) Ignore(context.Context, *connect.Request[v1.IgnoreRequest]) (*connect.Response[v1.IgnoreResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Ignore is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Unignore(context.Context, *connect.Request[v1.UnignoreRequest]) (*connect.Response[v1.UnignoreResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Unignore is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Ignored(context.Context, *connect.Request[v1.IgnoredRequest]) (*connect.Response[v1.IgnoredResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Ignored is not implemented"))
+}
+
 func (UnimplementedBackendServiceHandler) Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Spaces is not implemented"))
 }
@@ -3470,6 +3751,10 @@ func (UnimplementedBackendServiceHandler) MessageHistory(context.Context, *conne
 
 func (UnimplementedBackendServiceHandler) FetchEvent(context.Context, *connect.Request[v1.FetchEventRequest]) (*connect.Response[v1.FetchEventResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FetchEvent is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) FetchEventSource(context.Context, *connect.Request[v1.FetchEventSourceRequest]) (*connect.Response[v1.FetchEventSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FetchEventSource is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error) {
@@ -3526,6 +3811,10 @@ func (UnimplementedBackendServiceHandler) VotePoll(context.Context, *connect.Req
 
 func (UnimplementedBackendServiceHandler) PollVoters(context.Context, *connect.Request[v1.PollVotersRequest]) (*connect.Response[v1.PollVotersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PollVoters is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) CreatePoll(context.Context, *connect.Request[v1.CreatePollRequest]) (*connect.Response[v1.CreatePollResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.CreatePoll is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) ReactionRefusals(context.Context, *connect.Request[v1.ReactionRefusalsRequest]) (*connect.Response[v1.ReactionRefusalsResponse], error) {
@@ -3586,6 +3875,26 @@ func (UnimplementedBackendServiceHandler) Invites(context.Context, *connect.Requ
 
 func (UnimplementedBackendServiceHandler) JoinRoom(context.Context, *connect.Request[v1.JoinRoomRequest]) (*connect.Response[v1.JoinRoomResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.JoinRoom is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PublicRooms(context.Context, *connect.Request[v1.PublicRoomsRequest]) (*connect.Response[v1.PublicRoomsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PublicRooms is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) KnockRoom(context.Context, *connect.Request[v1.KnockRoomRequest]) (*connect.Response[v1.KnockRoomResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.KnockRoom is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) BlockPerson(context.Context, *connect.Request[v1.BlockPersonRequest]) (*connect.Response[v1.BlockPersonResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.BlockPerson is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) UnblockPerson(context.Context, *connect.Request[v1.UnblockPersonRequest]) (*connect.Response[v1.UnblockPersonResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.UnblockPerson is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) BlockedPeople(context.Context, *connect.Request[v1.BlockedPeopleRequest]) (*connect.Response[v1.BlockedPeopleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.BlockedPeople is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) LeaveRoom(context.Context, *connect.Request[v1.LeaveRoomRequest]) (*connect.Response[v1.LeaveRoomResponse], error) {

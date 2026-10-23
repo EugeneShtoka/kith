@@ -170,6 +170,27 @@ func (r *Remote) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) e
 	return err
 }
 
+// Ignore adds mxid to the Matrix account's m.ignored_user_list.
+func (r *Remote) Ignore(ctx context.Context, mxid string) error {
+	_, err := call(ctx, "ignore user", r.c.Ignore, &v1.IgnoreRequest{Mxid: mxid})
+	return err
+}
+
+// Unignore drops mxid from the Matrix account's m.ignored_user_list.
+func (r *Remote) Unignore(ctx context.Context, mxid string) error {
+	_, err := call(ctx, "unignore user", r.c.Unignore, &v1.UnignoreRequest{Mxid: mxid})
+	return err
+}
+
+// Ignored lists the MXIDs this account currently ignores on Matrix.
+func (r *Remote) Ignored(ctx context.Context) ([]string, error) {
+	res, err := call(ctx, "list ignored users", r.c.Ignored, &v1.IgnoredRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return res.GetMxids(), nil
+}
+
 // RetagVerdicts moves one tag's verdicts to its new name, or drops them.
 func (r *Remote) RetagVerdicts(ctx context.Context, from, to string) error {
 	_, err := call(ctx, "move tag verdicts", r.c.RetagVerdicts, &v1.RetagVerdictsRequest{From: from, To: to})
@@ -310,6 +331,55 @@ func (r *Remote) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID d
 	return pc.ProtoToMessage(resp.GetMessage()), err
 }
 
+func (r *Remote) FetchEventSource(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
+	resp, err := call(ctx, "fetch event source", r.c.FetchEventSource,
+		&v1.FetchEventSourceRequest{RoomId: string(roomID), EventId: string(eventID)})
+	return resp.GetSource(), err
+}
+
+// PublicRooms fetches one page of the Matrix public rooms directory.
+func (r *Remote) PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error) {
+	resp, err := call(ctx, "list public rooms", r.c.PublicRooms,
+		&v1.PublicRoomsRequest{Server: server, Since: since})
+	return domain.PublicRoomsPage{
+		Rooms:         pc.ProtoToPublicRooms(resp.GetRooms()),
+		NextSince:     resp.GetNextSince(),
+		TotalEstimate: int(resp.GetTotalEstimate()),
+	}, err
+}
+
+// KnockRoom asks to join a knock-only Matrix room.
+func (r *Remote) KnockRoom(ctx context.Context, roomIDOrAlias, reason string, via []string) (domain.RoomID, error) {
+	resp, err := call(ctx, "knock on room", r.c.KnockRoom,
+		&v1.KnockRoomRequest{RoomIdOrAlias: roomIDOrAlias, Reason: reason, Via: via})
+	return domain.RoomID(resp.GetRoomId()), err
+}
+
+// BlockPerson adds userID to its network's server-side block list.
+func (r *Remote) BlockPerson(ctx context.Context, userID string) error {
+	_, err := call(ctx, "block user", r.c.BlockPerson, &v1.BlockPersonRequest{UserId: userID})
+	return err
+}
+
+// UnblockPerson drops userID from its network's block list.
+func (r *Remote) UnblockPerson(ctx context.Context, userID string) error {
+	_, err := call(ctx, "unblock user", r.c.UnblockPerson, &v1.UnblockPersonRequest{UserId: userID})
+	return err
+}
+
+// BlockedPeople lists each network's blocked people, from the cache mirror.
+func (r *Remote) BlockedPeople(ctx context.Context) (map[domain.Protocol][]string, error) {
+	resp, err := call(ctx, "list blocked people", r.c.BlockedPeople, &v1.BlockedPeopleRequest{})
+	if err != nil {
+		return nil, err
+	}
+	out := map[domain.Protocol][]string{}
+	for _, list := range resp.GetLists() {
+		out[domain.Protocol(list.GetNetwork())] = list.GetUserIds()
+	}
+	return out, nil
+}
+
 func (r *Remote) MessageHistory(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, domain.Deletion, error) {
 	resp, err := call(ctx, "message history", r.c.MessageHistory,
 		&v1.MessageHistoryRequest{RoomId: string(roomID), EventId: string(eventID)})
@@ -361,6 +431,12 @@ func (r *Remote) VotePoll(ctx context.Context, roomID domain.RoomID, eventID dom
 	_, err := call(ctx, "vote", r.c.VotePoll,
 		&v1.VotePollRequest{RoomId: string(roomID), EventId: string(eventID), Options: options})
 	return err
+}
+
+func (r *Remote) CreatePoll(ctx context.Context, roomID domain.RoomID, question string, options []string, multiple bool) (domain.EventID, error) {
+	resp, err := call(ctx, "create poll", r.c.CreatePoll,
+		&v1.CreatePollRequest{RoomId: string(roomID), Question: question, Options: options, Multiple: multiple})
+	return domain.EventID(resp.GetEventId()), err
 }
 
 func (r *Remote) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {

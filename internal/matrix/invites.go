@@ -26,6 +26,19 @@ func (b *InProc) CachedInvites(ctx context.Context) ([]domain.Room, error) {
 // Invites streams the complete set of pending invitations on each change.
 func (b *InProc) Invites() <-chan []domain.Room { return b.out.invites }
 
+// KnockRoom asks to join a knock-only room; a moderator decides. The homeserver
+// returns the room ID the knock was recorded against — the room becomes a joined
+// one only once the moderator accepts, which arrives as an ordinary sync event.
+// reason is shown to moderators (empty is fine); via are routing servers.
+func (b *InProc) KnockRoom(ctx context.Context, roomIDOrAlias, reason string, via []string) (domain.RoomID, error) {
+	req := &mautrix.ReqKnockRoom{Via: via, Reason: reason}
+	resp, err := b.client.KnockRoom(ctx, roomIDOrAlias, req)
+	if err != nil {
+		return "", fmt.Errorf("matrix: knock %s: %w", roomIDOrAlias, err)
+	}
+	return domain.RoomID(resp.RoomID), nil
+}
+
 // JoinRoom joins a room by ID or alias (also how an invitation is accepted). via are
 // routing servers, needed when this homeserver has no member of the room.
 func (b *InProc) JoinRoom(ctx context.Context, roomIDOrAlias string, via []string) (domain.RoomID, error) {

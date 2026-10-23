@@ -36,6 +36,8 @@ type InProc struct {
 	cache  *db.Cache
 	// tagsMu serializes read-change-write of tag account data (tagverdicts.go).
 	tagsMu sync.Mutex
+	// ignoredMu serializes read-change-write of m.ignored_user_list (ignored.go).
+	ignoredMu sync.Mutex
 	// logger receives what the backend cannot return (see UseLogger); nil is silent.
 	logger *slog.Logger
 	// onSynced, when set, is called with each sync response's arrival time. Set before Start.
@@ -94,6 +96,8 @@ type InProc struct {
 	fetches receiptFetches
 	// keys asks for the sessions of messages that could not be decrypted (keys.go).
 	keys keyWaits
+	// pollBackfill tracks poll starts whose responses are being fetched (polls.go).
+	pollBackfill pollBackfill
 
 	// gaps fills the history syncs skipped (gaps.go); syncs counts responses, the first
 	// being the catch-up after a start.
@@ -199,13 +203,25 @@ func (b *InProc) Login(ctx context.Context, homeserver, user, password string) (
 }
 
 // Resume rebuilds a client from a saved session and checks the token with /whoami.
-func (b *InProc) Resume(ctx context.Context, s domain.Session) error {
+// For OAuth sessions, saveNewToken is called whenever mautrix refreshes a near-expired
+// access token so the keyring stays current across restarts; it is nil for password
+// and SSO sessions, which do not refresh.
+func (b *InProc) Resume(
+	ctx context.Context, s domain.Session,
+	saveNewToken func(ctx context.Context, refresh, access string, expiry time.Time) error,
+) error {
 	client, err := mautrix.NewClient(s.Homeserver, id.UserID(s.UserID), s.AccessToken)
 	if err != nil {
 		return fmt.Errorf("matrix: new client: %w", err)
 	}
 	client.DeviceID = id.DeviceID(s.DeviceID)
 	b.attachLogger(client)
+	if s.RefreshToken != "" {
+		// Wire refresh BEFORE whoami: the first request may itself refresh if the
+		// access token already expired across the restart.
+		client.OAuthSetTokens(s.OAuthClientID, s.RefreshToken, s.AccessToken, s.AccessTokenExpiresAt)
+		client.SaveNewToken = saveNewToken
+	}
 	err = whoami(ctx, client)
 	// Keep the client unless the token was rejected: offline, the daemon serves from cache.
 	if !errors.Is(err, api.ErrSessionRejected) {
@@ -264,6 +280,9 @@ func (b *InProc) Start(ctx context.Context) error {
 	syncer.OnEventType(event.EventSticker, b.onMessage)
 	syncer.OnEventType(event.EventRedaction, b.onRedaction)
 	syncer.OnEventType(event.EventReaction, b.onReaction)
+	syncer.OnEventType(event.EventUnstablePollStart, b.onPollStart)
+	syncer.OnEventType(event.EventUnstablePollResponse, b.onPollResponse)
+	syncer.OnEventType(event.EventUnstablePollEnd, b.onPollEnd)
 	syncer.OnEventType(event.StateMember, b.onMember)
 	syncer.OnSync(b.onSync)
 	b.wantNetworks()
@@ -292,6 +311,7 @@ func (b *InProc) Stop() {
 		b.fetches.wg.Wait()
 		b.keys.wg.Wait()
 		b.gaps.wg.Wait()
+		b.pollBackfill.wg.Wait()
 
 		if helper := b.cryptoHelper(); helper != nil {
 			b.warnIf(context.Background(), helper.Close(), "close the crypto store")
@@ -448,6 +468,10 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 	// The people account data present is the whole set; absence means no change.
 	if content, present := peopleFrom(resp.AccountData.Events); present {
 		b.mirrorPeople(ctx, content.verdicts())
+	}
+	// Same for m.ignored_user_list: present is the whole set, absence is no change.
+	if content, present := ignoredFrom(resp.AccountData.Events); present {
+		b.mirrorIgnored(ctx, content.users())
 	}
 	b.syncInvites(ctx, resp, since)
 	b.fetchHeld(ctx)

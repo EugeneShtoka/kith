@@ -329,6 +329,11 @@ notify = false
 #   hide_when_empty = true  no rail row while it holds nothing
 #   first           = true  at the top of the rail, unless the order places it
 #   count_in_label  = true  the row says how many rooms it holds
+#   push_archive    = true  mirror the tag's membership into each room's network
+#                           archive — a room joining the tag calls SetArchived on
+#                           its network, leaving unarchives. Per-device: `true` on
+#                           a laptop with `false` on a homelab keeps the homelab's
+#                           narrower view local.
 #   people = [...]          senders put in it by hand, one ID each. A muted tag's
 #                           (notifies = false) are hidden in every room: their
 #                           messages and the direct replies to them, as kith links
@@ -1598,6 +1603,8 @@ open_url_focus  = "gX"      # open a link from it and go to the browser
 # or message, asks before joining, or opens the switcher for a person.
 follow_link     = "gl"      # follow a Matrix link in it
 topic           = "gt"      # read the room's topic
+# show the raw event JSON of the selected message (Matrix only)
+source          = "gs"
 # Private, synced account data. `/starred` lists them.
 star            = "*"       # star it, or unstar it
 # Every version and its deletion, if any (complete only with [display.deleted] keep).

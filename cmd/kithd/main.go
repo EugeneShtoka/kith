@@ -301,6 +301,69 @@ func (s served) useHidden(ctx context.Context, cfg config.Config) error {
 	return nil
 }
 
+// Ignore, Unignore and Ignored are Matrix-only (m.ignored_user_list is a Matrix
+// account-data event, not a kith-wide concept): they go straight to the Matrix
+// adapter rather than through the router. A kithd that configured no Matrix account
+// still has the adapter built (newServed always makes one), so a client that calls
+// in before login gets Matrix's own "not signed in" style error.
+func (s served) Ignore(ctx context.Context, mxid string) error {
+	if err := s.matrix.Ignore(ctx, mxid); err != nil {
+		return fmt.Errorf("served: %w", err)
+	}
+	return nil
+}
+
+func (s served) Unignore(ctx context.Context, mxid string) error {
+	if err := s.matrix.Unignore(ctx, mxid); err != nil {
+		return fmt.Errorf("served: %w", err)
+	}
+	return nil
+}
+
+// Ignored reads the mirror rather than the homeserver: the sync keeps it in
+// step and a client should not wait on an account-data GET to list what it
+// already has. A fresh install (empty cache) answers empty, as it would from
+// the server.
+func (s served) Ignored(ctx context.Context) ([]string, error) {
+	ids, err := s.cache.MatrixIgnored(ctx, domain.ProtocolMatrix)
+	if err != nil {
+		return nil, fmt.Errorf("served: %w", err)
+	}
+	return ids, nil
+}
+
+// FetchEventSource is Matrix-only (nothing on the other networks exposes a
+// comparable raw event): it goes straight to the Matrix adapter rather than
+// through the router.
+func (s served) FetchEventSource(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
+	src, err := s.matrix.FetchEventSource(ctx, roomID, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("served: %w", err)
+	}
+	return src, nil
+}
+
+// PublicRooms lists the Matrix public rooms directory. Matrix only; the other
+// networks have no equivalent (invite-only, workspace-scoped, phone-contact-
+// scoped).
+func (s served) PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error) {
+	page, err := s.matrix.PublicRooms(ctx, server, since)
+	if err != nil {
+		return domain.PublicRoomsPage{}, fmt.Errorf("served: %w", err)
+	}
+	return page, nil
+}
+
+// KnockRoom asks to join a knock-only Matrix room; a moderator decides. Matrix
+// only (no other adapter has a comparable half-joined state).
+func (s served) KnockRoom(ctx context.Context, roomIDOrAlias, reason string, via []string) (domain.RoomID, error) {
+	id, err := s.matrix.KnockRoom(ctx, roomIDOrAlias, reason, via)
+	if err != nil {
+		return "", fmt.Errorf("served: %w", err)
+	}
+	return id, nil
+}
+
 func (s served) loginLeaders() []api.LoginLeader {
 	leaders := make([]api.LoginLeader, 0, len(s.networks))
 	for _, n := range s.networks {
@@ -426,6 +489,12 @@ func serve(
 	logins := daemon.NewLogins(ctx, backend.loginLeaders)
 	logins.LogTo(log)
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
+	reload := reloader(file, relevel, cutoff, backend, w.notifications)
+	// A hand edit to config.toml is picked up without a restart: the watcher
+	// runs the same reload the RPC does, and logs the outcome.
+	if werr := daemon.WatchConfig(ctx, file.path, reload, log); werr != nil {
+		log.Warn("config hot reload is off; edits need a restart or `kith config reload`", "err", werr)
+	}
 	err = daemon.Serve(ctx, ln, &daemon.Daemon{
 		Backend:       backend,
 		Streams:       w.streams,
@@ -434,7 +503,7 @@ func serve(
 		Scheduler:     scheduler,
 		Logins:        logins,
 		Log:           log,
-		Reload:        reloader(file, relevel, cutoff, backend, w.notifications),
+		Reload:        reload,
 		CheckConfig:   backend.checkConfig,
 		Config:        daemon.NewConfigFile(file.path, file.profile),
 	})
@@ -508,6 +577,10 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	notifications.UseLogger(log)
 	notifications.UseSelves(backend.Me)
 	notifications.UseDirectory(backend.Directory)
+	// push_archive hands diffs back to the Router's SetRoomArchived, which forwards
+	// to the room's network. A network without an archive (Slack, LinkedIn, Matrix)
+	// refuses with ErrNotOnNetwork — the reconciler keeps silent on that error.
+	notifications.UseArchiver(backend.SetRoomArchived)
 	// Before any network writes: retention follows [storage] by room place, and reloads.
 	if backend.cache != nil {
 		notifications.UseMemberNames(backend.cache.RoomMemberName)

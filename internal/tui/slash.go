@@ -161,6 +161,26 @@ var slashCommands = []slashCommand{
 		},
 	},
 	{
+		name:    "/ignored",
+		summary: "the Matrix users you ignore — {picker.remove} unignores one",
+		run:     consuming(Model.openIgnored),
+	},
+	{
+		name:    "/discover",
+		summary: "the Matrix public rooms directory — {picker.accept} joins the selected row",
+		run:     consuming(Model.openPublicRooms),
+	},
+	{
+		name:    "/knock",
+		summary: "ask a moderator to let you into a knock-only Matrix room: /knock <room> [reason]",
+		run:     runKnock,
+	},
+	{
+		name: "/poll", arg: "<question> | <answer> | <answer> [| …] [| any]",
+		summary: "ask a poll in this room — Matrix only; trailing \"| any\" lets voters pick several",
+		run:     runCreatePoll,
+	},
+	{
 		name:     "/topic",
 		keyScope: scopeTimeline,
 		keyAct:   actTopic,

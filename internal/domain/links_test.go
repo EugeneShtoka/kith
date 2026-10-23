@@ -171,3 +171,32 @@ func TestSafeHyperlink(t *testing.T) {
 		})
 	}
 }
+
+// A formatted link whose text has no scheme (Slack's <https://x/y|x/y>) is still a link;
+// a target that is not the web is not, and one already in the body is not repeated.
+func TestLinksWithHrefs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		body  string
+		hrefs []string
+		want  []string
+	}{
+		{"href only", "please review: github.com/o/r/pull/9", []string{"https://github.com/o/r/pull/9"},
+			[]string{"https://github.com/o/r/pull/9"}},
+		{"body first, then hrefs", "see https://a.org and b.org", []string{"https://a.org", "https://b.org"},
+			[]string{"https://a.org", "https://b.org"}},
+		{"non-web hrefs dropped", "x", []string{"javascript:alert(1)", "file:///etc/passwd", "matrix:r/x"}, nil},
+		{"no hrefs", "https://a.org", nil, []string{"https://a.org"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := domain.LinksWithHrefs(tc.body, tc.hrefs)
+			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
+				t.Errorf("LinksWithHrefs(%q, %q) = %q, want %q", tc.body, tc.hrefs, got, tc.want)
+			}
+		})
+	}
+}

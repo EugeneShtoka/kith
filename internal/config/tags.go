@@ -24,6 +24,11 @@ type Tag struct {
 	HideWhenEmpty bool     `toml:"hide_when_empty"`
 	First         bool     `toml:"first"`
 	CountInLabel  bool     `toml:"count_in_label"`
+	// PushArchive mirrors the tag's membership into the network's own archive: a
+	// room joining the tag calls SetArchived(true) on its network (where supported),
+	// and leaving calls SetArchived(false). Per-device by design: `true` on a laptop
+	// and `false` on a homelab makes the homelab's narrower view stay local.
+	PushArchive bool `toml:"push_archive"`
 }
 
 // Where a tag's rooms leave.

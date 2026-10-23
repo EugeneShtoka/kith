@@ -40,6 +40,9 @@ func (Nop) MarkTag(context.Context, domain.TagVerdict) error                    
 func (Nop) RetagVerdicts(context.Context, string, string) error                        { return nil }
 func (Nop) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error)             { return nil, nil }
 func (Nop) MarkPerson(context.Context, domain.PersonVerdict) error                     { return nil }
+func (Nop) Ignore(context.Context, string) error                                       { return nil }
+func (Nop) Unignore(context.Context, string) error                                     { return nil }
+func (Nop) Ignored(context.Context) ([]string, error)                                  { return nil, nil }
 func (Nop) AddToSpace(_ context.Context, _ domain.SpaceID, _ domain.RoomID) error      { return nil }
 func (Nop) CreateRoom(context.Context, domain.NewRoom) (domain.RoomID, error)          { return "", nil }
 func (Nop) ChatOffers(context.Context) ([]domain.ChatOffer, error)                     { return nil, nil }
@@ -68,6 +71,20 @@ func (Nop) Timeline(context.Context, domain.RoomID, string, int) (domain.Timelin
 func (Nop) FetchEvent(context.Context, domain.RoomID, domain.EventID) (domain.Message, error) {
 	return domain.Message{}, nil
 }
+func (Nop) FetchEventSource(context.Context, domain.RoomID, domain.EventID) ([]byte, error) {
+	return nil, nil
+}
+func (Nop) PublicRooms(context.Context, string, string) (domain.PublicRoomsPage, error) {
+	return domain.PublicRoomsPage{}, nil
+}
+func (Nop) KnockRoom(_ context.Context, roomIDOrAlias string, _ string, _ []string) (domain.RoomID, error) {
+	return domain.RoomID(roomIDOrAlias), nil
+}
+func (Nop) BlockPerson(context.Context, string) error   { return nil }
+func (Nop) UnblockPerson(context.Context, string) error { return nil }
+func (Nop) BlockedPeople(context.Context) (map[domain.Protocol][]string, error) {
+	return nil, nil
+}
 func (Nop) Send(context.Context, domain.RoomID, domain.Draft) error               { return nil }
 func (Nop) SendFile(context.Context, domain.RoomID, string, string, string) error { return nil }
 func (Nop) CachedUnread(context.Context) ([]domain.Unread, error)                 { return nil, nil }
@@ -81,7 +98,10 @@ func (Nop) SendReaction(context.Context, domain.RoomID, domain.EventID, string) 
 func (Nop) PollVoters(context.Context, domain.RoomID, domain.EventID) (domain.PollVoters, error) {
 	return domain.PollVoters{}, nil
 }
-func (Nop) VotePoll(context.Context, domain.RoomID, domain.EventID, []string) error    { return nil }
+func (Nop) VotePoll(context.Context, domain.RoomID, domain.EventID, []string) error { return nil }
+func (Nop) CreatePoll(context.Context, domain.RoomID, string, []string, bool) (domain.EventID, error) {
+	return "", nil
+}
 func (Nop) RecordEmoji(context.Context, domain.EmojiKind, domain.RoomID, string) error { return nil }
 func (Nop) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error)   { return nil, nil }
 func (Nop) Start(context.Context) error                                                { return nil }
