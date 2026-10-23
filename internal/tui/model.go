@@ -1120,8 +1120,8 @@ func (m Model) handleComposeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 }
 
 // handleMatrixFeatureMsg handles messages from the Matrix-specific features
-// (ignore list, raw event source, public rooms, knocking). Kept out of
-// handleComposeMsg so each stays under the per-function statement budget.
+// (ignore list, raw event source, public rooms, knocking, poll creation). Kept
+// out of handleComposeMsg so each stays under the per-function statement budget.
 func (m Model) handleMatrixFeatureMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case ignoredLoadedMsg:
@@ -1136,6 +1136,8 @@ func (m Model) handleMatrixFeatureMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handlePublicRoomJoined(msg))
 	case knockedMsg:
 		return answered(m.handleKnocked(msg))
+	case pollCreatedMsg:
+		return answered(m.handlePollCreated(msg))
 	case blockedChangedMsg:
 		return answered(m.handleBlockedChanged(msg))
 	default:

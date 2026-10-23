@@ -255,6 +255,7 @@
   /ignored                       the Matrix users you ignore — x unignores one
   /discover                      the Matrix public rooms directory — enter joins the selected row
   /knock                         ask a moderator to let you into a knock-only Matrix room: /knock <room> [reason]
+  /poll <question> | <answer> | <answer> [| …] [| any] ask a poll in this room — Matrix only; trailing "| any" lets voters pick several
   /topic                         what this room is for, in full — the same reader `gt` opens
   /why                           why this room does or does not notify you — the whole rule chain
   /unread                        mark this room unread — read, and still needs you

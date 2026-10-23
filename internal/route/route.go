@@ -145,6 +145,10 @@ type (
 	PollReader interface {
 		PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error)
 	}
+	// PollCreator asks a poll in a room.
+	PollCreator interface {
+		CreatePoll(ctx context.Context, roomID domain.RoomID, question string, options []string, multiple bool) (domain.EventID, error)
+	}
 	// Redactor deletes a message.
 	Redactor interface {
 		Redact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, reason string) error

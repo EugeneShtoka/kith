@@ -192,6 +192,13 @@ func (r *Router) VotePoll(ctx context.Context, roomID domain.RoomID, eventID dom
 	return doOnRoom(r, roomID, "polls", func(c Voter) error { return c.VotePoll(ctx, roomID, eventID, options) })
 }
 
+// CreatePoll asks a poll in a room.
+func (r *Router) CreatePoll(ctx context.Context, roomID domain.RoomID, question string, options []string, multiple bool) (domain.EventID, error) {
+	return onRoom(r, roomID, "creating polls", func(c PollCreator) (domain.EventID, error) {
+		return c.CreatePoll(ctx, roomID, question, options, multiple)
+	})
+}
+
 // SendReaction reacts to a message.
 func (r *Router) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {
 	return doOnRoom(r, roomID, "reactions", func(c Reactor) error { return c.SendReaction(ctx, roomID, target, key) })

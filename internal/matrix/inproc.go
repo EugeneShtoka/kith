@@ -96,6 +96,8 @@ type InProc struct {
 	fetches receiptFetches
 	// keys asks for the sessions of messages that could not be decrypted (keys.go).
 	keys keyWaits
+	// pollBackfill tracks poll starts whose responses are being fetched (polls.go).
+	pollBackfill pollBackfill
 
 	// gaps fills the history syncs skipped (gaps.go); syncs counts responses, the first
 	// being the catch-up after a start.
@@ -278,6 +280,9 @@ func (b *InProc) Start(ctx context.Context) error {
 	syncer.OnEventType(event.EventSticker, b.onMessage)
 	syncer.OnEventType(event.EventRedaction, b.onRedaction)
 	syncer.OnEventType(event.EventReaction, b.onReaction)
+	syncer.OnEventType(event.EventUnstablePollStart, b.onPollStart)
+	syncer.OnEventType(event.EventUnstablePollResponse, b.onPollResponse)
+	syncer.OnEventType(event.EventUnstablePollEnd, b.onPollEnd)
 	syncer.OnEventType(event.StateMember, b.onMember)
 	syncer.OnSync(b.onSync)
 	b.wantNetworks()
@@ -306,6 +311,7 @@ func (b *InProc) Stop() {
 		b.fetches.wg.Wait()
 		b.keys.wg.Wait()
 		b.gaps.wg.Wait()
+		b.pollBackfill.wg.Wait()
 
 		if helper := b.cryptoHelper(); helper != nil {
 			b.warnIf(context.Background(), helper.Close(), "close the crypto store")
