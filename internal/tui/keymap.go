@@ -160,6 +160,8 @@ const (
 	actSpellSkip
 	actSpellAdd
 	actSpellIgnore
+	actSpellSkipAll
+	actSpellIgnoreAll
 	// Editing text in a field (scopeEdit), after the field's own actions.
 	actEditLeft
 	actEditRight
@@ -441,6 +443,8 @@ var keyActions = []keyAction{
 	{scopeSpell, actSpellSkip, "spell.skip"},
 	{scopeSpell, actSpellAdd, "spell.add"},
 	{scopeSpell, actSpellIgnore, "spell.ignore"},
+	{scopeSpell, actSpellSkipAll, "spell.skip_all"},
+	{scopeSpell, actSpellIgnoreAll, "spell.ignore_all"},
 	{scopeSpell, actDismiss, "spell.stop"},
 	{scopeSpell, actSpellChoose1, "spell.choose_1"},
 	{scopeSpell, actSpellChoose2, "spell.choose_2"},

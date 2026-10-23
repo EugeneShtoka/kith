@@ -134,11 +134,15 @@ func (m Model) handleSpellWalkKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch act {
 	case actSpellSkip:
 		// Skipping is an answer: a walk skipped to the end still sends.
-		return m.nextMisspelling()
+		return m.skipCurrentWord()
 	case actSpellAdd:
 		return m.learnCurrentWord(true)
 	case actSpellIgnore:
 		return m.learnCurrentWord(false)
+	case actSpellSkipAll:
+		return m.endSpellWalk()
+	case actSpellIgnoreAll:
+		return m.ignoreRestOfWalk()
 	case actDismiss:
 		return m.closeSpellWalk(), nil
 	}
@@ -212,6 +216,7 @@ func (m Model) learnCurrentWord(forever bool) (Model, tea.Cmd) {
 	}
 	// The draft didn't change, so no check will clear it: drop every occurrence.
 	m.spell.shown = withoutWord(m.spell.shown, item.Word)
+	m.walk.items = withoutLaterCopies(m.walk.items, m.walk.at, item.Word)
 	backend, word, ctx := m.backend, item.Word, m.ctx
 	teach := func() tea.Msg {
 		return spellLearnedMsg{word: word, err: backend.LearnWord(ctx, word, forever)}
@@ -255,11 +260,63 @@ func (m Model) handleSpellLearned(msg spellLearnedMsg) (Model, tea.Cmd) {
 	return m.say(fmt.Sprintf("%q could not be added to the dictionary", msg.word)), nil
 }
 
+// skipCurrentWord leaves the current word and its later copies as written, still
+// underlined.
+func (m Model) skipCurrentWord() (Model, tea.Cmd) {
+	if item, ok := m.walk.current(); ok {
+		m.walk.items = withoutLaterCopies(m.walk.items, m.walk.at, item.Word)
+	}
+	return m.nextMisspelling()
+}
+
+// withoutLaterCopies drops the occurrences of word after at, so an answer covers them.
+func withoutLaterCopies(items []domain.Misspelling, at int, word string) []domain.Misspelling {
+	if at < 0 || at >= len(items) {
+		return items
+	}
+	out := slices.Clone(items[:at+1])
+	for _, r := range items[at+1:] {
+		if r.Word != word {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// ignoreRestOfWalk accepts every word not yet answered for this session, as ignore
+// does one by one, and finishes the walk.
+func (m Model) ignoreRestOfWalk() (Model, tea.Cmd) {
+	if m.walk.at < 0 || m.walk.at >= len(m.walk.items) {
+		return m.closeSpellWalk(), nil
+	}
+	backend, ctx := m.backend, m.ctx
+	var teach []tea.Cmd
+	seen := map[string]bool{}
+	for _, item := range m.walk.items[m.walk.at:] {
+		if seen[item.Word] {
+			continue
+		}
+		seen[item.Word] = true
+		m.spell.shown = withoutWord(m.spell.shown, item.Word)
+		word := item.Word
+		teach = append(teach, func() tea.Msg {
+			return spellLearnedMsg{word: word, err: backend.LearnWord(ctx, word, false)}
+		})
+	}
+	next, after := m.endSpellWalk()
+	return next, tea.Batch(append(teach, after)...)
+}
+
 func (m Model) nextMisspelling() (Model, tea.Cmd) {
 	m.walk.at++
 	if m.walk.at < len(m.walk.items) {
 		return m, nil
 	}
+	return m.endSpellWalk()
+}
+
+// endSpellWalk finishes the walk as answered: a walk opened by a send sends.
+func (m Model) endSpellWalk() (Model, tea.Cmd) {
 	sending := m.walk.sendWhenDone
 	m = m.closeSpellWalk()
 	if !sending {
@@ -312,9 +369,11 @@ func (m Model) spellWalkHelp() string {
 	if item, ok := m.walk.current(); ok && item.Rare {
 		add = "it's fine"
 	}
-	return fmt.Sprintf("  %s %s  ·  %s ignore  ·  %s skip  ·  %s stop",
+	return fmt.Sprintf("  %s %s  ·  %s ignore  ·  %s skip  ·  %s ignore all  ·  %s skip all  ·  %s stop",
 		m.keys.keyHint(scopeSpell, actSpellAdd), add,
 		m.keys.keyHint(scopeSpell, actSpellIgnore),
 		m.keys.keyHint(scopeSpell, actSpellSkip),
+		m.keys.keyHint(scopeSpell, actSpellIgnoreAll),
+		m.keys.keyHint(scopeSpell, actSpellSkipAll),
 		m.keys.keyHint(scopeSpell, actDismiss))
 }

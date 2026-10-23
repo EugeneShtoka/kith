@@ -1693,9 +1693,13 @@ dismiss = "esc"          # close the popup
 # From the message cursor; shown as z=.
 open        = "z ="      # correct the misspellings in the draft, one at a time
 open_insert = "alt+s"    # correct the misspellings in what you are writing
-skip        = "s,space"  # leave this word, go to the next (space too)
-add         = "a"        # add it to your dictionary — kept after a restart
-ignore      = "i"        # accept it for this session
+# leave this word and its other copies, go to the next (space too)
+skip        = "s,space"
+add         = "a"        # add it to your dictionary, every copy — kept after a restart
+ignore      = "i"        # accept it, every copy, for this session
+skip_all    = "S"        # leave every word left and finish — a send goes out
+# accept every word left for this session and finish — a send goes out
+ignore_all  = "I"
 stop        = "esc"      # stop, leaving the rest underlined
 choose_1    = "1"        # take the first suggestion and go to the next word
 choose_2    = "2"        # take the second suggestion and go to the next word
