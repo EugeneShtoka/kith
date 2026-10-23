@@ -10,6 +10,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/richtext"
 )
 
 // yanking returns a model at the message cursor over bodies, newest last.
@@ -382,5 +383,17 @@ func TestSavingCanCopyThePath(t *testing.T) {
 	}
 	if !strings.Contains(failed.status(), "could not save") {
 		t.Errorf("status = %q", failed.status())
+	}
+}
+
+// Slack shows a link's text without its scheme; the link keys find it by its target.
+func TestLinkKeysFindAFormattedLinkWithoutAScheme(t *testing.T) {
+	t.Parallel()
+
+	msg := msgWith("$1", "please review: github.com/o/r/pull/9")
+	msg.Format = richtext.FromMarkup(`please review: <a href="https://github.com/o/r/pull/9">github.com/o/r/pull/9</a>`)
+	m, cmd := chord(t, yanking(t, msg), "y", "u")
+	if cmd == nil || !strings.Contains(m.status(), "https://github.com/o/r/pull/9") {
+		t.Errorf("status = %q, want the link copied", m.status())
 	}
 }

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -23,6 +24,19 @@ func Links(body string) []string {
 		}
 		seen[link] = true
 		out = append(out, link)
+	}
+	return out
+}
+
+// LinksWithHrefs is Links plus the web targets of the message's formatted links, which
+// can show text without a scheme (Slack's <https://x/y|x/y>). Body links come first;
+// non-web targets are dropped.
+func LinksWithHrefs(body string, hrefs []string) []string {
+	out := Links(body)
+	for _, href := range hrefs {
+		if OpenableLink(href) && !slices.Contains(out, href) {
+			out = append(out, href)
+		}
 	}
 	return out
 }

@@ -37,8 +37,8 @@ type contextSpec struct {
 var contextSpecs = map[contextKind]contextSpec{
 	ctxLink: {
 		noun: "link",
-		items: func(_ Model, msg domain.Message) []pickerItem {
-			return linkItems(domain.Links(msg.Body))
+		items: func(m Model, msg domain.Message) []pickerItem {
+			return linkItems(domain.LinksWithHrefs(msg.Body, m.messageHrefs(msg)))
 		},
 		empty: func(Model) string { return "no link in that message" },
 	},
