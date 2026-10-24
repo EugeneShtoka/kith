@@ -155,6 +155,7 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.prefs.external.copyDownloads = cfg.Clipboard.CopyDownloads
 	m.prefs.external.open = cfg.Clipboard.OpenCommandOrDefault()
 	m.prefs.external.focus = cfg.Clipboard.FocusCommand
+	m.prefs.external.raise = cfg.Clipboard.RaiseCommand
 	m.prefs.codes.rules, m.prefs.codes.scope = derived.codeRules, derived.codeScope
 	m.rail.tags = derived.tags
 	m.rail.archives, m.rail.mirrored = derived.archives, derived.mirrored

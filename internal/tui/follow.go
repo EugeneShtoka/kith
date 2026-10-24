@@ -210,8 +210,10 @@ type roomsChangedMsg struct{}
 // followMsg is a link the desktop handed to this client.
 type followMsg struct{ uri string }
 
-// handleFollow goes where a handed-over link points, and re-arms the listener.
+// handleFollow goes where a handed-over link points, brings this window forward
+// ([clipboard] raise_command), and re-arms the listener. A startup link does not
+// raise: its terminal was just opened.
 func (m Model) handleFollow(msg followMsg) (Model, tea.Cmd) {
 	next, cmd := m.followLink(msg.uri)
-	return next, tea.Batch(cmd, next.listenFollowCmd())
+	return next, tea.Batch(cmd, next.listenFollowCmd(), next.raiseWindowCmd())
 }

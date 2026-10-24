@@ -19,6 +19,8 @@ type externalCommands struct {
 	open      string
 	// focus raises the browser after opening a link; empty asks the desktop.
 	focus string
+	// raise brings this window forward when a link is handed over; empty does nothing.
+	raise string
 	// copyDownloads also copies a saved attachment's path ([clipboard] copy_downloads).
 	copyDownloads bool
 }

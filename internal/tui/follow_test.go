@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -293,5 +296,97 @@ func TestAStartupLinkWaitsForTheRoomList(t *testing.T) {
 	}
 	if m.followAt != "" {
 		t.Error("the link stayed pending after it was followed")
+	}
+}
+
+// raising is a sized model whose [clipboard] raise_command is command.
+func raising(t *testing.T, command string) Model {
+	t.Helper()
+	cfg := config.Config{Clipboard: config.Clipboard{RaiseCommand: command}}
+	return sized(t, newModel().WithConfigFile("", cfg))
+}
+
+// raiseMarker is a raise command that writes its parent's PID to a file, and that file.
+func raiseMarker(t *testing.T) (command, marker string) {
+	t.Helper()
+	marker = filepath.Join(t.TempDir(), "raised")
+	return `echo "$PPID" > '` + marker + `'`, marker
+}
+
+// A handed-over link runs raise_command in this process, so it sees this window's
+// environment; $PPID is kith.
+func TestAHandedOverLinkRaisesTheWindow(t *testing.T) {
+	t.Parallel()
+
+	command, marker := raiseMarker(t)
+	m := withRooms(t, raising(t, command))
+	next, cmd := asModel(m.Update(followMsg{uri: "https://matrix.to/#/!b:x"}))
+	raised, ok := msgOf[raisedMsg](t, cmd)
+	if !ok {
+		t.Fatal("a handed-over link did not run raise_command")
+	}
+	if raised.err != nil {
+		t.Fatalf("raise_command failed: %v", raised.err)
+	}
+	if next.openRoom != "!b:x" {
+		t.Errorf("open room = %q, want !b:x", next.openRoom)
+	}
+	got, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("raise_command left no mark: %v", err)
+	}
+	if want := strconv.Itoa(os.Getpid()); strings.TrimSpace(string(got)) != want {
+		t.Errorf("$PPID = %q, want kith's own PID %s", strings.TrimSpace(string(got)), want)
+	}
+}
+
+// The link a client was started with does not raise: that terminal was just opened.
+func TestAStartupLinkDoesNotRaise(t *testing.T) {
+	t.Parallel()
+
+	command, marker := raiseMarker(t)
+	m := raising(t, command).WithFollow("https://matrix.to/#/!b:x")
+	next, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{
+		{ID: "!a:x", Name: "Alpha"},
+		{ID: "!b:x", Name: "Bravo", IsDirect: true},
+	}}))
+	if next.openRoom != "!b:x" {
+		t.Fatalf("open room = %q, want !b:x — the startup link was not followed", next.openRoom)
+	}
+	if _, ok := msgOf[raisedMsg](t, cmd); ok {
+		t.Error("the startup link ran raise_command")
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Error("the startup link ran raise_command")
+	}
+}
+
+// With no raise_command, following a handed-over link runs nothing.
+func TestNoRaiseCommandRunsNothing(t *testing.T) {
+	t.Parallel()
+
+	m := withRooms(t, raising(t, ""))
+	_, cmd := asModel(m.Update(followMsg{uri: "https://matrix.to/#/!b:x"}))
+	if _, ok := msgOf[raisedMsg](t, cmd); ok {
+		t.Error("an empty raise_command ran")
+	}
+}
+
+// A raise_command that fails says so; the link was still followed.
+func TestAFailingRaiseCommandIsReported(t *testing.T) {
+	t.Parallel()
+
+	m := withRooms(t, raising(t, "exit 3"))
+	next, cmd := asModel(m.Update(followMsg{uri: "https://matrix.to/#/!b:x"}))
+	raised, ok := msgOf[raisedMsg](t, cmd)
+	if !ok || raised.err == nil {
+		t.Fatalf("raisedMsg = %+v, %v; want the failure", raised, ok)
+	}
+	next = update(t, next, raised)
+	if next.openRoom != "!b:x" {
+		t.Errorf("open room = %q, want !b:x", next.openRoom)
+	}
+	if !strings.Contains(next.status(), "could not raise this window") {
+		t.Errorf("status = %q, want it to say the window was not raised", next.status())
 	}
 }
