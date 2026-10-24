@@ -4,6 +4,8 @@ package config
 // it has an account.
 type LinkedIn struct {
 	Accounts []LinkedInAccount `toml:"account"`
+	// Default names the account a call naming none goes to when several could.
+	Default string `toml:"default"`
 }
 
 // LinkedInAccount is one [[linkedin.account]], named for `kith login linkedin <name>`.

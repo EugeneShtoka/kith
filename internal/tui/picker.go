@@ -95,6 +95,7 @@ const (
 	pickerCommandTemplate // a command to add from a template; see cmdtemplate.go
 	pickerIgnored         // the MXIDs this account ignores on Matrix; see ignored.go
 	pickerPublicRooms     // Matrix public rooms directory; see publicrooms.go
+	pickerChooseAccount   // which account a call naming none goes to; see accountpick.go
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -154,6 +155,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerCommandTemplate: {title: "Add which command?"},
 	pickerIgnored:         {title: "Ignored on Matrix", modal: true},
 	pickerPublicRooms:     {title: "Matrix public rooms — enter joins", modal: true},
+	pickerChooseAccount:   {}, // titled with the network
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text

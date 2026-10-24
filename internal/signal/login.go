@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"connectrpc.com/connect"
 
@@ -157,4 +158,16 @@ func (a *Adapter) runContext() context.Context {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.run
+}
+
+// Accounts is each linked account that can send, by the ACI its rooms are under.
+func (a *Adapter) Accounts() []domain.Account {
+	var out []domain.Account
+	for name, aci := range a.linkedAccounts() {
+		if _, err := a.sender(aci); err == nil {
+			out = append(out, domain.Account{Network: domain.ProtocolSignal, On: owner(aci), Name: name})
+		}
+	}
+	slices.SortFunc(out, func(x, y domain.Account) int { return strings.Compare(x.Name, y.Name) })
+	return out
 }

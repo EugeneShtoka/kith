@@ -4,7 +4,9 @@ package config
 // when it has an account.
 type WhatsApp struct {
 	Accounts []WhatsAppAccount `toml:"account"`
-	Archive  NetworkArchive    `toml:"archive"`
+	// Default names the account a call naming none goes to when several could.
+	Default string         `toml:"default"`
+	Archive NetworkArchive `toml:"archive"`
 }
 
 // WhatsAppAccount is one [[whatsapp.account]], named for `kith login whatsapp <name>`.

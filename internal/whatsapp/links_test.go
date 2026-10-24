@@ -119,13 +119,16 @@ func TestAMessageThatStartsAChatRecordsIt(t *testing.T) {
 func TestALinkNeedsAConnectedAccount(t *testing.T) {
 	t.Parallel()
 	a, _, _ := offline(t, Account{Name: "home", Digits: ownDigits})
-	if _, err := a.ResolveLink(context.Background(), "https://wa.me/"+danaPhone); !errors.Is(err, api.ErrNetworkOff) {
+	if _, err := a.ResolveLink(context.Background(), "https://wa.me/"+danaPhone, waOn); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("ResolveLink with nothing connected = %v, want the network off", err)
 	}
-	if _, err := a.JoinLink(context.Background(), "https://wa.me/"+danaPhone); err == nil {
+	if _, err := a.JoinLink(context.Background(), "https://wa.me/"+danaPhone, waOn); err == nil {
 		t.Error("joined a person's link")
 	}
-	if _, err := a.ResolveLink(context.Background(), "tg://resolve?domain=novosalsa"); err == nil {
+	if _, err := a.ResolveLink(context.Background(), "tg://resolve?domain=novosalsa", waOn); err == nil {
 		t.Error("looked up a Telegram link")
 	}
 }
+
+// waOn is the test account, which links are looked up on.
+var waOn = domain.AccountRooms(domain.ProtocolWhatsApp, ownDigits)

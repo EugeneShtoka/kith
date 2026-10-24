@@ -1169,6 +1169,12 @@ target = "auto"
 #   name = "personal"
 #   phone = "+44 7700 900000"
 
+[whatsapp]
+# With several accounts, the name of the one that opening a link, joining a room or
+# starting a chat uses without asking (one already in that chat comes first).
+# Empty: kith asks which.
+default = ""
+
 # How WhatsApp's own archive and kith's archive tag go together. With both on, WhatsApp
 # decides: the tag shows what WhatsApp has archived.
 [whatsapp.archive]
@@ -1198,6 +1204,12 @@ tag = "Archived"
 #   name = "work"
 #   workspace = "acme"
 
+[slack]
+# With several accounts, the name of the one that opening a link, joining a room or
+# starting a chat uses without asking (one already in that chat comes first).
+# Empty: kith asks which.
+default = ""
+
 # Telegram, linked directly: kith logs in to the account as a Telegram client of its
 # own, with no Matrix bridge. It runs when it has an account; `:login telegram` inside
 # kith sets one up. Each [[telegram.account]] is one phone number: `name` is what
@@ -1212,6 +1224,12 @@ tag = "Archived"
 #   [[telegram.account]]
 #   name = "personal"
 #   phone = "+359 88 000 0000"
+
+[telegram]
+# With several accounts, the name of the one that opening a link, joining a room or
+# starting a chat uses without asking (one already in that chat comes first).
+# Empty: kith asks which.
+default = ""
 
 # How Telegram's own archive and kith's archive tag go together. With both on, Telegram
 # decides: the tag shows what Telegram has archived.
@@ -1239,6 +1257,12 @@ tag = "Archived"
 #   [[messenger.account]]
 #   name = "meta"
 
+[messenger]
+# With several accounts, the name of the one that opening a link, joining a room or
+# starting a chat uses without asking (one already in that chat comes first).
+# Empty: kith asks which.
+default = ""
+
 # LinkedIn, linked directly: kith signs in with the session a browser holds, with
 # no Matrix bridge. It runs when it has an account; `:login linkedin` inside kith
 # sets one up. Each [[linkedin.account]] is one LinkedIn account: `name` is what
@@ -1251,6 +1275,12 @@ tag = "Archived"
 #
 #   [[linkedin.account]]
 #   name = "linkedin"
+
+[linkedin]
+# With several accounts, the name of the one that opening a link, joining a room or
+# starting a chat uses without asking (one already in that chat comes first).
+# Empty: kith asks which.
+default = ""
 
 # Google Messages, linked directly: kith pairs with the Messages app on your Android
 # phone as Messages for web does, with no Matrix bridge. It runs when it has an
@@ -1266,6 +1296,12 @@ tag = "Archived"
 #   [[gmessages.account]]
 #   name = "phone"
 
+[gmessages]
+# With several accounts, the name of the one that opening a link, joining a room or
+# starting a chat uses without asking (one already in that chat comes first).
+# Empty: kith asks which.
+default = ""
+
 # Signal, linked directly: kith links to your phone as a secondary device, as Signal
 # Desktop does, with no Matrix bridge. It runs when it has an account; `:login signal`
 # inside kith sets one up. Each [[signal.account]] is one Signal account: `name` is
@@ -1275,6 +1311,12 @@ tag = "Archived"
 #
 #   [[signal.account]]
 #   name = "phone"
+
+[signal]
+# With several accounts, the name of the one that opening a link, joining a room or
+# starting a chat uses without asking (one already in that chat comes first).
+# Empty: kith asks which.
+default = ""
 
 # Instagram direct messages, linked directly, with no Matrix bridge. It runs when it
 # has an account; `:login instagram` inside kith sets one up. Each
@@ -1286,6 +1328,12 @@ tag = "Archived"
 #
 #   [[instagram.account]]
 #   name = "me"
+
+[instagram]
+# With several accounts, the name of the one that opening a link, joining a room or
+# starting a chat uses without asking (one already in that chat comes first).
+# Empty: kith asks which.
+default = ""
 
 # Where this kith keeps its files. Each directory, when empty, is the usual place:
 # data_dir    $XDG_DATA_HOME/kith    the cache, the encryption and WhatsApp stores,

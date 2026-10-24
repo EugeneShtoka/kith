@@ -499,18 +499,23 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 	return reply(&v1.ReplaceDraftResponse{Saved: saved}, cmp.Or(err, wrote))
 }
 
+func (s *server) Accounts(ctx context.Context, _ *req[v1.AccountsRequest]) (*resp[v1.AccountsResponse], error) {
+	accounts, err := s.Backend.Accounts(ctx)
+	return reply(&v1.AccountsResponse{Accounts: pc.AccountsToProto(accounts)}, err)
+}
+
 func (s *server) ChatOffers(ctx context.Context, _ *req[v1.ChatOffersRequest]) (*resp[v1.ChatOffersResponse], error) {
 	offers, err := s.Backend.ChatOffers(ctx)
 	return reply(&v1.ChatOffersResponse{Offers: pc.ChatOffersToProto(offers)}, err)
 }
 
 func (s *server) ResolveLink(ctx context.Context, r *req[v1.ResolveLinkRequest]) (*resp[v1.ResolveLinkResponse], error) {
-	target, err := s.Backend.ResolveLink(ctx, r.Msg.GetUri())
+	target, err := s.Backend.ResolveLink(ctx, r.Msg.GetUri(), domain.RoomOwner(r.Msg.GetOn()))
 	return reply(pc.LinkTargetToProto(target), err)
 }
 
 func (s *server) JoinLink(ctx context.Context, r *req[v1.JoinLinkRequest]) (*resp[v1.JoinLinkResponse], error) {
-	id, err := s.Backend.JoinLink(ctx, r.Msg.GetUri())
+	id, err := s.Backend.JoinLink(ctx, r.Msg.GetUri(), domain.RoomOwner(r.Msg.GetOn()))
 	return reply(&v1.JoinLinkResponse{RoomId: string(id)}, err)
 }
 

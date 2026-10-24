@@ -68,9 +68,11 @@ type confirmState struct {
 	// event is the message a pending redaction is about; mine decides the wording.
 	event domain.EventID
 	mine  bool
-	// address and via: the room a followed link named (alias or ID) and its servers.
+	// address and via: the room a followed link named (alias or ID) and its servers;
+	// on the account a link's chat is joined on.
 	address string
 	via     []string
+	on      domain.RoomOwner
 	// leaving is a space being left, over several questions.
 	leaving spaceLeave
 	// forEveryone: a chat being deleted goes for its other person too; an account being
@@ -310,11 +312,15 @@ func (m Model) acceptInvite() (Model, tea.Cmd) {
 	return m, m.joinRoomCmd(string(room.ID))
 }
 
-// submitJoin joins whatever address was typed. An empty prompt just closes.
+// submitJoin joins whatever address was typed: a Matrix one on the account picked
+// (pickAccount). An empty prompt just closes.
 func (m Model) submitJoin(target string) (Model, tea.Cmd) {
 	target = strings.TrimSpace(target)
 	if target == "" {
 		return m, nil
+	}
+	if domain.IsMatrixAddress(target) {
+		return m.pickAccount(accountThen{kind: thenJoin, network: domain.ProtocolMatrix, address: target})
 	}
 	m = m.say("joining " + target + "…")
 	return m, m.joinRoomCmd(target)

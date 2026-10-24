@@ -21,24 +21,25 @@ import (
 // errJoinRequested: the group's admins approve who joins, so joining sent a request.
 var errJoinRequested = errors.New("whatsapp: asked to join; an admin of the group has to approve it")
 
-// linkClient is the account links are looked up on: the first connected, in the
-// config's order, so a lookup and the join after it use the same one.
-func (a *Adapter) linkClient() (Account, *whatsmeow.Client, error) {
-	conns := a.connected()
-	if len(conns) == 0 {
-		return Account{}, nil, fmt.Errorf("whatsapp: no account to look a link up on: %w", api.ErrNetworkOff)
+// linkClient is the connected account on names, which the caller picked
+// (domain.PickAccount).
+func (a *Adapter) linkClient(on domain.RoomOwner) (Account, *whatsmeow.Client, error) {
+	for _, c := range a.connected() {
+		if domain.AccountRooms(domain.ProtocolWhatsApp, c.account.Digits) == on {
+			return c.account, c.client, nil
+		}
 	}
-	return conns[0].account, conns[0].client, nil
+	return Account{}, nil, fmt.Errorf("whatsapp: %s is no connected account: %w", on, api.ErrNetworkOff)
 }
 
 // ResolveLink looks up the chat a WhatsApp link names: a person to write to, or a
 // group, joined or to be joined.
-func (a *Adapter) ResolveLink(ctx context.Context, uri string) (domain.LinkTarget, error) {
+func (a *Adapter) ResolveLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.LinkTarget, error) {
 	link, ok := domain.ParseWhatsAppLink(uri)
 	if !ok {
 		return domain.LinkTarget{}, fmt.Errorf("whatsapp: not a WhatsApp link: %s", uri)
 	}
-	account, client, err := a.linkClient()
+	account, client, err := a.linkClient(on)
 	if err != nil {
 		return domain.LinkTarget{}, err
 	}
@@ -63,12 +64,12 @@ func (a *Adapter) ResolveLink(ctx context.Context, uri string) (domain.LinkTarge
 }
 
 // JoinLink joins the group a WhatsApp invite names, and returns its room.
-func (a *Adapter) JoinLink(ctx context.Context, uri string) (domain.RoomID, error) {
+func (a *Adapter) JoinLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.RoomID, error) {
 	link, ok := domain.ParseWhatsAppLink(uri)
 	if !ok || link.Kind != domain.WhatsAppLinkInvite {
 		return "", fmt.Errorf("whatsapp: not a group invite: %s", uri)
 	}
-	account, client, err := a.linkClient()
+	account, client, err := a.linkClient(on)
 	if err != nil {
 		return "", err
 	}

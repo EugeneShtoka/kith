@@ -224,3 +224,12 @@ func (m *Adapter) handOver(ctx context.Context, sess domain.Session) (bool, erro
 		}
 	}
 }
+
+// Accounts is the account, by the AccountKey its rooms are under, once one is named.
+func (m *Adapter) Accounts() []domain.Account {
+	acc := m.accountNow()
+	if acc.User == "" {
+		return nil
+	}
+	return []domain.Account{{Network: domain.ProtocolMatrix, On: m.ids.owner(), Name: acc.User}}
+}

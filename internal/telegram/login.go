@@ -372,3 +372,16 @@ func (s *loginSession) saved(ctx context.Context) ([]byte, error) {
 	}
 	return data, nil
 }
+
+// Accounts is each connected account, by the user ID its rooms are under.
+func (a *Adapter) Accounts() []domain.Account {
+	var out []domain.Account
+	for _, c := range a.connected() {
+		out = append(out, domain.Account{
+			Network: domain.ProtocolTelegram, On: domain.AccountRooms(domain.ProtocolTelegram, strconv.FormatInt(c.user, 10)),
+			Name: c.account.Name,
+		})
+	}
+	slices.SortFunc(out, func(x, y domain.Account) int { return strings.Compare(x.Name, y.Name) })
+	return out
+}

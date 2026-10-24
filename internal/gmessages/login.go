@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"go.mau.fi/mautrix-gmessages/pkg/libgm"
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/events"
@@ -224,4 +225,16 @@ func (a *Adapter) setUp(ctx context.Context, talk api.LoginTalk) (string, error)
 	}
 	talk.Named(name)
 	return name, nil
+}
+
+// Accounts is each paired account, by the phone its rooms are under.
+func (a *Adapter) Accounts() []domain.Account {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := make([]domain.Account, 0, len(a.conns))
+	for _, c := range a.conns {
+		out = append(out, domain.Account{Network: domain.ProtocolGMessages, On: owner(c.self), Name: c.account.Name})
+	}
+	slices.SortFunc(out, func(x, y domain.Account) int { return strings.Compare(x.Name, y.Name) })
+	return out
 }
