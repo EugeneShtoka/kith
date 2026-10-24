@@ -13,66 +13,96 @@ WhatsApp, Signal, Messenger, Google Messages, it's *a linked-device slot* at the
 network. Any multi-process story has to respect this: two bridges cannot share one
 device identity, so each bridge is its own linked device per network.
 
-## Two layers: bridge and client
+## Two layers: bridge and clients, with focuses
 
 ```
 Bridge (kithd)
   - network sessions, cache, crypto stores
-  - every room; tags, filters, notification rules (shared config)
-  - decides what is worth notifying, for every room
+  - every room; tags, filters, notification rules, focuses (one config)
+  - decides what is worth notifying, and for which focuses
+  - publishes each notification to the push topic of every focus it matches
   - 1..N instances across the user's devices and servers
                 │
                 │  Connect over TLS/mTLS (or unix socket when colocated)
                 │
 Client (TUI / Electron / Android), one per device
-  - reads its own device config (what this device shows)
-  - computes this device's rail and unread totals from per-room counts
-  - raises notifications on its own device (libnotify / native / FCM wake)
+  - picks a focus; asks the bridge for that focus's rooms and unread
+  - subscribes to that focus's push topic
+  - keeps a partial cache of its focus's rooms for offline reading
+  - applies its own DND by ignoring wakes
 ```
 
-**The bridge owns all rooms and all shared rules.** Tags, filters, `[[notification]]`
-rules, spam verdicts: everything that describes *the rooms* lives in the bridge's
-config and applies on every device. The bridge already holds every message in
-plaintext and every network's keys, so keeping rules off it protects little.
-(Superseded 2026-10-24: a separate per-device notifier process, `kith-notify`,
-between bridge and GUI. It cost a third process, a third config file and a second
-API to hide filter rules from a process that can read every message.)
+**The bridge owns all rooms and all rules.** Tags, filters, `[[notification]]`
+rules, spam verdicts and focuses live in one config on the bridge. The bridge
+already holds every message in plaintext and every network's keys, so keeping
+rules off it would protect little. (Superseded 2026-10-24: a per-device notifier
+process, `kith-notify`, holding each device's rules; then a `device.toml` with a
+per-device hidden list. Both made the bridge either blind to what a device wants,
+so push could not filter, or told it per device.)
 
-**What a device shows is device config.** A tag's `notifies` or `counts_unread`
-applies everywhere, because it is the bridge's. Focusing one device (the work
-laptop shows only work places, the phone hides the noisy groups) needs config that
-belongs to the device: which rail rows it shows, and whether what it hides still
-counts.
+**The bridge knows focuses, not who uses them.** It knows which devices are paired
+(pairing needs that), but not which focus each one uses. A client names its focus on each request for the
+length of a connection; nothing about it is stored. Push goes to topics, and who
+subscribes to a topic is between the device and the push service.
 
-### Device visibility and unread
+### Focuses
 
-The device config names the rail rows this device shows (`[display.rail]` order,
-`hidden`, `hide_when_empty`, in the place vocabulary). A room is **hidden on this
-device** when no row the device shows contains it (a catch-all row such as All
-or Unread contains every room, so a focused device hides those rows or lets them
-follow the rule). One toggle decides whether hidden rooms count:
+A focus is a named set of rooms, in the place vocabulary `[[filter]] in` and tag
+rules already use (`space:`, `tag:`, `place:`, `room:`, `protocol:`, `dm`,
+`group`, `not …`):
 
 ```toml
-# device.toml
-[display.rail]
-hidden = ["space:Work", "tag:Groups"]
+[[focus]]
+name    = "phone"
+include = ["dm", "tag:Family", "protocol:signal"]
+exclude = ["space:Work"]
 
-[unread]
-count_hidden = false   # default true: today's behaviour
+[[focus]]
+name    = "work"
+include = ["space:Work", "protocol:slack"]
 ```
 
-With `count_hidden = false`, a hidden room adds **nothing** to this device's
-unread: not to the Unread row, not to badges, not to the window title or the
-phone's badge. **No exceptions**: a mention or a DM in a hidden room does not count
-either. Hiding is the user saying "not on this device", and an exception would
-undo the point of focusing it.
+- **What a focus decides**: which rooms the rail and room lists show, which count
+  towards unread (badges, the Unread row, the window title, the phone's badge),
+  and which notifications reach its topic. A room outside the focus counts for
+  nothing in it: no exception for mentions or DMs.
+- **No focus** (or one with no `include`) is every room: today's behaviour, and
+  what the TUI on the bridge's own machine uses unless told otherwise.
+- **Tags still apply inside a focus.** A tag's `counts_unread = false` or
+  `notifies = false` holds in every focus; a focus only narrows.
+- **Several devices may share a focus**, and a device can switch focus at any
+  time (a key in the TUI, a menu on the phone); switching re-subscribes its topic.
+- **People** are not part of a focus yet. Hiding a person is the spam mark today;
+  a per-focus person filter is a separate decision.
 
-The bridge keeps sending per-room counts as it does today; the client adds up only
-the rooms it shows. Nothing about visibility needs the bridge, except push (below).
+### Push topics
 
-**Receive-all, filter-locally.** The bridge sends all events to every attached
-device; each client draws what its device shows. Bandwidth cost is trivial at the
-target scale (3–4 devices, normal messaging volume).
+Each focus has a push topic. The bridge evaluates its notification rules once per
+message, then publishes a wake to the topic of **every focus the room is in**. A
+message matching three focuses is three publishes.
+
+- **Topic names are secret**: a random 128-bit ID per focus, generated by the
+  bridge and kept in its config, never the focus's name. FCM's provider sees topic
+  names and subscribers; on ntfy, topics are protected or secret.
+- **The payload is wake-only**: no body, no sender, no room. The device wakes,
+  pulls from the bridge, and renders.
+- **DND is the device's own.** A device in quiet hours ignores a wake, or
+  unsubscribes for the night; the bridge never learns its schedule.
+- **Desktop.** A client that is open is already connected and is told directly.
+  With no client open, something has to subscribe: the Electron app in the tray,
+  or an ntfy desktop client. On the bridge's own machine, kithd's D-Bus sink keeps
+  notifying for the focus named in its config.
+
+### Where messages are kept
+
+**The bridge's cache stays the source.** Notifications with no client open,
+tracked words, content filters that move rooms or mark people, search over all
+history, assist, kith-mcp, scheduled sends and replay after failover all run on
+it. A device-only cache would make each of those wait for a device to be awake,
+and make every device download everything.
+
+**Each device keeps a partial cache**: its focus's rooms and a recent window, for
+offline reading and instant start. Scrollback beyond it comes from the bridge.
 
 ## Topology: one architecture, N:M
 
@@ -123,27 +153,23 @@ matters to a user, the hybrid shape sidesteps the whole issue by not needing a
 bridge on the phone at all — the phone's client just dials a bridge
 elsewhere.
 
-## Config scope: bridge vs device
+## Config scope
 
-Today's single config file splits in two:
-
-**Bridge config** (`config.toml`, per bridge, the same on every bridge):
+**One config on the bridge**, the same on every bridge:
 - `[storage]`, `[[<network>.account]]` per network
 - `[[tag]]`, `[[filter]]`, `[[notification]]` rules, `[spam]`
+- `[[focus]]`, with each focus's push topic
 - `[assist]`, `[agent.*]`, `[codes]`, commands
 - Encryption, keyring service, reconnect behaviour
 
-**Device config** (`device.toml`, per device, written on the device):
-- `[display.rail]`: which rows this device shows, and their order
-- `[unread] count_hidden`
-- `[display.theme]`, `[display.media]`, `[keys]`, open-with behaviour
-- DND for this device (quiet hours, `ctrl+n`)
-- `[[bridge]]` entries: `(endpoint, pinned_pubkey, priority)` the device may dial
+**On each device**, settings that are about the device rather than the rooms:
+- which focus it uses
+- the bridges it may dial (`(endpoint, pinned_pubkey, priority)`)
+- its push endpoint and DND
+- for the TUI, what it already keeps local: theme, keys, media display
 
-Each process reloads its own file. A migration reads today's unified file on first
-start and routes each field; the first write-back splits it. Bridges with the same
-accounts need the same bridge config: it travels with pairing a new bridge, and
-edits reach the others through the mesh CRDT (below).
+Bridges with the same accounts need the same config: it travels with pairing a new
+bridge, and edits reach the others through the mesh CRDT (below).
 
 ## What crosses between devices (the mesh CRDT)
 
@@ -175,9 +201,8 @@ list of user-metadata that no network holds:
   notification rules. LWW per key.
 - **Shared starred messages, filter moves.**
 
-**Device config does not cross to other devices.** Each device's rail, unread
-toggle, DND and keys stay its own. Only the visibility subset push needs is told
-to the bridges (below).
+**Device settings do not cross.** Each device's focus choice, DND and keys stay
+its own.
 
 **Shared phonebook** continues through the existing file mechanism
 ([phonebook](../docs/phonebook.md)), not the CRDT.
@@ -213,7 +238,7 @@ The client holds `[[bridge]]` entries and tries them in priority order on
 startup, with failover on disconnect.
 
 **Discovery sources** (in order of simplicity, not necessarily shipped order):
-1. User-added endpoints in `device.toml` (always available)
+1. Endpoints the user adds on the device (always available)
 2. CRDT-propagated bridge roster (an entry added at pairing time)
 3. mDNS on LAN (nice for same-network discovery)
 4. WAN rendezvous (deferred — Tailscale is the lazy answer; a self-hosted
@@ -276,19 +301,9 @@ networks, not needed day one.
 ## Push notifications
 
 **FCM default, custom endpoint option.** Users can configure a different push
-endpoint (UnifiedPush, ntfy, self-hosted) via the device config. The bridge's
-`notify` package gains a push sink that posts wake tokens.
-
-**The bridge decides, per device.** The bridge already runs the notification rules
-for every room. A device that wants push registers its endpoint with its
-visibility: the rooms it hides (resolved from its rail rows) and its DND window.
-The bridge wakes that device only for a notification in a room it shows, outside
-its DND. A phone that hides the noisy groups is not woken by them, which settles
-the battery and FCM-quota cost. The device re-registers when its rail changes.
-
-**Payload is wake-only.** No message body, no sender ID in the push payload.
-Device wakes, pulls over Connect from the bridge, and renders. Avoids leaking
-content to Google/Apple.
+service (UnifiedPush, ntfy, self-hosted) on the device. The bridge's `notify`
+package gains a push sink that publishes wakes to focus topics (see *Push topics*
+above).
 
 **Server-originated push (optional, deferred).** For networks whose servers can
 push without the local bridge being online — Matrix (via a Sygnal-style pusher),
@@ -365,25 +380,25 @@ As of 2026-10-24, from each product's public site and documentation.
    the generalized form is strictly simpler and failover only works if there is
    one implementation.
 
-2. **Two layers: bridge and client.** The bridge owns every room, the shared rules
-   (tags, filters, notification rules) and decides what is worth notifying. The
-   client owns what its device shows. Rejected (and first decided, then reversed
-   the same day): a separate per-device notifier process holding the rules, to keep
-   them off a bridge on shared hardware; the bridge holds every message anyway.
+2. **Two layers: bridge and clients.** The bridge owns every room and every rule,
+   and decides what is worth notifying. Rejected the same day: a per-device
+   notifier process holding the rules (to keep them off a bridge on shared
+   hardware, which holds every message anyway), and a per-device hidden list sent
+   to the bridge.
 
-3. **Visibility is per device, and hidden means hidden.** A device's rail rows
-   decide what it shows; `[unread] count_hidden = false` makes a hidden room count
-   for nothing on that device, mentions and DMs included. Unread totals are added
-   up on the client from per-room counts; push wakes only for rooms the device
-   shows.
+3. **Focuses, not device config.** A focus is a named set of rooms in the bridge's
+   config; a device picks one. Outside its focus a room shows nothing and counts
+   for nothing, mentions and DMs included. The bridge knows focuses, never which
+   device uses which.
 
 4. **Pairing: trust-on-first-use with pinned keys, roster propagates via CRDT.**
    No CA, no special root device. Rejected: local CA with signed device certs —
    makes one device special with no real gain at mesh size 3–4.
 
-5. **Push: FCM default, custom endpoint option.** Wake-only payload (no body, no
-   sender). The bridge wakes a device only for rooms that device shows, outside
-   its DND; the device pulls on wake.
+5. **Push by topic.** One secret topic per focus; the bridge publishes a
+   wake-only payload to every focus a notification matches, and devices subscribe
+   to their focus's topic. FCM by default, any topic-based service (ntfy,
+   UnifiedPush) instead. DND stays on the device.
 
 6. **Mesh CRDT: a tiny Automerge-shape CRDT over Connect streams between paired
    peers.** LWW for scalar flags, monotonic max for cursors, structured CRDT for
@@ -402,9 +417,9 @@ As of 2026-10-24, from each product's public site and documentation.
    "scheduled queue migrates between devices" problem. Transient failover gaps
    (3–5s) buffer and flush on reconnect; not considered offline.
 
-9. **Config split: bridge config (rooms and rules) vs device.toml (what this
-   device shows, how it looks, its keys and DND).** Migration reads today's
-   unified file on first start; first write-back splits it.
+9. **The message cache stays on the bridge.** Devices keep a partial cache of
+   their focus's rooms. Rejected: moving the cache to devices, which would stop
+   everything kithd does with no client open.
 
 10. **Bridge selection is pinned priority with fallback.** Not latency-measured.
     Simpler and sufficient at 2–4 bridges.
@@ -418,11 +433,10 @@ As of 2026-10-24, from each product's public site and documentation.
 
 ## Phasing
 
-**Phase 0 — device config, in-process.** Split today's config into the bridge's
-file and `device.toml`; the client reads `device.toml` and computes its rail and
-unread totals from per-room counts (`[unread] count_hidden`). Useful at once with
-one bridge: two terminals on two machines already see different places. No new
-process.
+**Phase 0 — focuses, in-process.** `[[focus]]` in the config; the TUI picks one
+(a flag and a key); the bridge answers rooms and unread for the focus named on the
+request; kithd's own notifications follow the focus its config names. Useful at
+once with one bridge: two terminals can already focus differently.
 
 **Phase 1 — mesh CRDT skeleton and replay.**
 - Mesh CRDT library in `internal/mesh/crdt` (spike: pick library or roll
@@ -434,8 +448,8 @@ process.
 - Pairing flow: QR between any two paired entities (device↔bridge, device↔device).
   Reuse `internal/qrtext`; TOFU + pinned keys.
 - Bridge heartbeat RPC (`Heartbeat(network, caught_up_as_of)`).
-- Push registration (endpoint, hidden rooms, DND) and a push sink in `notify`
-  posting FCM wake tokens.
+- A push sink in `notify` publishing wakes to focus topics; each focus's topic
+  ID generated and kept in the config.
 
 **Phase 3 — multi-bridge failover.**
 - Client-side bridge roster, pinned priority, failover on disconnect / stale
@@ -465,12 +479,13 @@ master-device constraint from above still applies.
    What exactly goes in each CRDT variant (scalar LWW, monotonic max, structured),
    how roster entries authorize themselves (signed by adding device?), bounded
    size story, compaction / snapshotting.
-2. **Notifications on a device for rooms it hides.** Push skips them; should the
-   desktop client also stay silent for a room hidden on its device? Recommended:
-   yes, the same rule as unread, since focusing a device is the point.
-3. **Which settings move to `device.toml`.** The list above is a first cut;
-   `[display]` keys that describe rooms rather than the screen (name rules,
-   identities) probably stay shared. Go key by key before Phase 0.
+2. **What else a focus may carry.** Rooms only, for now. Candidates: people
+   (include or exclude a person's messages), its own rail order, its own
+   notification rules beyond the shared ones. Each makes a focus more like a
+   second config; add only on a real need.
+3. **Unread across focuses.** A device on focus "phone" sees nothing of "work".
+   Should a focus be able to show a single "elsewhere: N" count, or is that
+   exactly the distraction a focus exists to remove? Default: nothing.
 4. **WAN discovery for multi-bridge.** Tailscale is lazy; self-hosted rendezvous
    with hole-punching is ambitious; "paste the current IP" is zero-build v1.
    Product values call.
@@ -498,7 +513,10 @@ master-device constraint from above still applies.
     down before send time, does the message send? Options: migrate via CRDT,
     accept the loss, require the user to re-schedule. Not urgent; mobile has no
     offline writes so this only affects a desktop user with ephemeral bridges.
-12. **Where assistants connect.** Tags, verdicts, `[agent.*]` and `[assist]` are
-    bridge config now, but kith-mcp runs beside an assistant on one device: it
-    dials a bridge like a client does, and the completion model runs on the
+12. **Where assistants connect.** kith-mcp runs beside an assistant on one device:
+    it dials a bridge like a client does, and may name a focus (narrowing what the
+    assistant reads, alongside `[agent.read]`). The completion model runs on the
     bridge or on the device. Decide which.
+13. **`[[profile]]`.** Today it names a second Matrix account, run as its own
+    `kithd@<name>`. With focuses it carries no other purpose; once Matrix takes
+    `[[matrix.account]]` like every other network, it can go.
