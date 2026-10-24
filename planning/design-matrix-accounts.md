@@ -121,7 +121,7 @@ Each PR lands working.
    ID; the migration's test enumerates every text column from `sqlite_master` and
    asserts no bare ID survives in an ID column and free text is untouched, with a
    mutation check (drop one column from the map, the test fails).
-3. **feat: Matrix-only calls name their account.** Verification, key backup,
+3. **feat: calls naming no room pick an account by one rule, on every network; Matrix-only calls name their account.** The rule is decision 4 (`[<network>] default`). Verification, key backup,
    ignore list, public rooms, knocking, event source, join by alias and room
    creation take an account (API, proto, router; `sole[]` goes, since it would
    silently pick the first account). Matrix offers rooms and spaces through
@@ -148,23 +148,23 @@ Each PR lands working.
 
 Then profiles ([design-clients.md](design-clients.md), Phase 0) take the freed name.
 
-## Decisions
+## Decisions (2026-10-24)
 
-Recommended answers in bold; the plan above assumes them.
-
-1. **Account part: a hash of the MXID**, or the raw MXID with a Matrix-only split
-   rule (first `/` after the first `:`), which is readable but long and puts the MXID
-   in every ID.
-2. **Cache: rewrite in place**, or drop Matrix rows and resync (cheaper; loses
-   offline history and Matrix drafts).
-3. Person-level state across accounts (ignore list, people marks): **applied to
-   every logged-in account, read as the union**, or one account only.
-4. Which account opens a `matrix:` link or joins an alias: **the account that has
-   already joined the room, preferring the one of the message holding the link,
-   then the open room's; otherwise ask** when there is more than one.
-5. Typed bare MXIDs (prompts, `kith ignore`, `from:`, kith-mcp arguments): **turned
-   into `matrix:@…`** as input normalisation (what people type, not stored data).
-6. `{mxid}` / `KITH_MXID` in notification commands already carry non-Matrix IDs:
-   **renamed** (`{sender_id}` / `KITH_SENDER_ID`) in step 2.
-7. `allow_token_file` and `bridge_contacts`: **stay top-level** (bridges are
-   already filtered by homeserver; only their sources become per account).
+1. **Account part: a hash of the MXID** (`domain.AccountKey`), not the raw MXID.
+2. **Cache: rewritten in place**, keeping offline history and Matrix drafts.
+3. **Person-level state** (ignore list, people marks) **applies to every logged-in
+   account and is read as the union.**
+4. **Which account, when a call names no room — on every network.** Opening a link
+   (`matrix:`, `matrix.to`, `tg:`, `t.me`, …), joining by alias, starting a chat,
+   browsing public rooms:
+   - one account of that network configured: it is used;
+   - several, and one is the network's default (`[<network>] default = "<name>"`):
+     the default is used, without asking;
+   - several and no default: kith asks which.
+   Implemented for every network in step 3, not only Matrix.
+5. **Typed bare MXIDs** (prompts, `kith ignore`, `from:`, kith-mcp arguments) **are
+   turned into `matrix:@…`** as input normalisation.
+6. **`{mxid}` / `KITH_MXID` are renamed** `{sender_id}` / `KITH_SENDER_ID` in step 2:
+   they already carry non-Matrix IDs.
+7. **`allow_token_file` and `bridge_contacts` stay top-level**; only bridge-contact
+   sources become per account.
