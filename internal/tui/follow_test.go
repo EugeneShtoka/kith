@@ -593,7 +593,7 @@ func TestAHandedOverWhatsAppLinkOpensTheNumbersChat(t *testing.T) {
 // salsaRooms is a room list with a Telegram channel and a Matrix room in it.
 var salsaRooms = roomsMsg{rooms: []domain.Room{
 	{ID: "telegram:42/-1000000000021", Name: "Novo Salsa", Handle: "novosalsa"},
-	{ID: "!b:x", Name: "Bravo"},
+	{ID: mx + "!b:x", Name: "Bravo"},
 }}
 
 // gx follows a Telegram or WhatsApp chat link as it follows a Matrix one, and asks
@@ -631,7 +631,7 @@ func TestOpeningALinkKithFollowsStaysInKith(t *testing.T) {
 		m := update(t, sized(t, newModel()), salsaRooms)
 		for link, want := range map[string]domain.RoomID{
 			"https://t.me/novosalsa":    "telegram:42/-1000000000021",
-			"https://matrix.to/#/!b:x":  "!b:x",
+			"https://matrix.to/#/!b:x":  mx + "!b:x",
 			"https://wa.me/15550100009": "", // no WhatsApp chat listed: the browser's
 			"https://example.org/docs":  "",
 		} {
