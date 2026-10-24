@@ -53,7 +53,7 @@ them as "no entry".
 | session, device, crypto store | one | one each: `crypto-<instance>-<account>.db`, keyring `<instance>\|matrix\|<account>` (session and pickle key) |
 | rooms, spaces, events | bare | `matrix:<account>/…`; the same room joined by two accounts is two rooms |
 | account data (`org.kith.starred`, `org.kith.tags`, `org.kith.people`, `m.direct`, `m.ignored_user_list`, marked unread) | native | stays native on the homeserver, translated at the adapter boundary; each account's data names only its own rooms |
-| verification, key backup, ignore list, public rooms, knocking, event source, creating a room | "the only Matrix" | the call names its account; clients ask only when there is more than one |
+| verification, key backup, public rooms, knocking, event source, creating a room | "the only Matrix" | the call names its account; clients ask only when there is more than one |
 | catch-up batch (no notifications for it) | one global counter | per account |
 | cache mirrors replaced wholesale (`ignored_users`, `person_verdicts`, bridge-contact sources) | keyed by network | keyed by account, so one account's update never erases another's |
 | people (`matrix:@…`), identities, phonebook | bare MXIDs | `matrix:@…`; phonebook card files stay native and app-neutral, only the reading side adds the prefix |
@@ -122,9 +122,9 @@ Each PR lands working.
    asserts no bare ID survives in an ID column and free text is untouched, with a
    mutation check (drop one column from the map, the test fails).
 3. **feat: calls naming no account pick one by one rule, on every network; Matrix-only calls name their account.** The rule is decision 4 (`[<network>] default`). Verification, key backup,
-   ignore list, public rooms, knocking, event source, join by alias and room
-   creation take an account (API, proto, router; `sole[]` goes, since it would
-   silently pick the first account). Matrix offers rooms and spaces through
+   public rooms, knocking, event source, join by alias and room creation take an
+   account (API, proto, router; `sole[]` goes, since it would silently pick the first
+   account). The ignore list takes none: it applies to every account (decision 3). Matrix offers rooms and spaces through
    `ChatOffers` like other networks. Clients ask for the account only when there
    is more than one. Behaviour unchanged with one account.
 4. **fix: Matrix cache mirrors and catch-up are per account.** `ignored_users` and

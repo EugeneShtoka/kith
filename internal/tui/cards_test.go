@@ -131,6 +131,7 @@ func TestTheSwitcherFindsPeopleByCardFields(t *testing.T) {
 	t.Parallel()
 	m, _ := carded(t, cardBack())
 	m = update(t, m, directCandidatesMsg{people: []domain.Member{{UserID: "matrix:@zed:x", DisplayName: "Zed"}}})
+	m.accounts = []domain.Account{{Network: domain.ProtocolMatrix, On: domain.RoomOwner(mx)}}
 	cards := func(m Model, filter string) []string {
 		m, _ = m.openJump()
 		m = typeInto(t, m, filter)

@@ -338,16 +338,6 @@ func gather[C, T any](r *Router, read func(C) ([]T, error)) ([]T, error) {
 	return out, nil
 }
 
-// sole is the live network with C, for a call naming no room (keys, verification, a
-// new room); ErrNetworkOff when none has it.
-func sole[C any](r *Router, what string) (C, error) {
-	if found := having[C](r); len(found) > 0 {
-		return found[0], nil
-	}
-	var zero C
-	return zero, fmt.Errorf("%w: nothing logged in does %s", api.ErrNetworkOff, what)
-}
-
 // byNetwork splits rooms by the adapter serving them with C, keeping order; rooms on
 // no such network are returned apart, with why.
 func byNetwork[C any](r *Router, rooms []domain.RoomID, what string) (map[Adapter][]domain.RoomID, map[domain.RoomID]error) {

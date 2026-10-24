@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"slices"
 	"testing"
 
@@ -94,5 +95,47 @@ func TestAMatrixLinkToARoomTwoAccountsAreInTakesTheDefault(t *testing.T) {
 	m = followed(t, m, "https://matrix.to/#/!club:x")
 	if m.openRoom != mx+"!club:x" {
 		t.Errorf("open room = %q, want the default account's view", m.openRoom)
+	}
+}
+
+// /discover lists the directory the picked account sees, and joining an alias from it
+// joins on that account; a room listed by ID names its account already.
+func TestTheDirectoryJoinsOnItsAccount(t *testing.T) {
+	t.Parallel()
+	on := domain.RoomOwner(mx)
+	byAlias := publicRoomItem(on, domain.PublicRoom{ID: mx + "!c:x", Alias: "#club:x", Name: "Club"})
+	if byAlias.value != mx+"#club:x" {
+		t.Errorf("an alias row joins %q, want #club:x on the directory's account", byAlias.value)
+	}
+	byID := publicRoomItem(on, domain.PublicRoom{ID: mx + "!c:x", Name: "Club"})
+	if byID.value != mx+"!c:x" {
+		t.Errorf("an ID row joins %q, want the room's own ID", byID.value)
+	}
+}
+
+// knocker records the room knocked on.
+type knocker struct {
+	linkBackend
+	knocked []string
+}
+
+func (k *knocker) KnockRoom(_ context.Context, target, _ string, _ []string) (domain.RoomID, error) {
+	k.knocked = append(k.knocked, target)
+	return "", nil
+}
+
+// /knock knocks on the room as the account picked.
+func TestAKnockGoesOutAsThePickedAccount(t *testing.T) {
+	t.Parallel()
+	k := &knocker{}
+	m := sized(t, starterNew(k, config.Display{}))
+	m.accounts = []domain.Account{{Network: domain.ProtocolMatrix, On: domain.RoomOwner(mx)}}
+	_, cmd := runKnock(m, "#club:x let me in", domain.Room{})
+	if cmd == nil {
+		t.Fatal("/knock sent nothing")
+	}
+	cmd()
+	if !slices.Equal(k.knocked, []string{mx + "#club:x"}) {
+		t.Errorf("knocked on %v, want #club:x as the Matrix account", k.knocked)
 	}
 }

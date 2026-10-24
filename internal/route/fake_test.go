@@ -332,6 +332,9 @@ func (m *fakeMatrix) CreateRoom(context.Context, domain.NewRoom) (domain.RoomID,
 	return "", nil
 }
 
+// ChatOffers is none: the tests ask Matrix to make rooms by name.
+func (m *fakeMatrix) ChatOffers(context.Context) ([]domain.ChatOffer, error) { return nil, nil }
+
 func (m *fakeMatrix) InviteUser(context.Context, domain.RoomID, string) error {
 	m.only("InviteUser")
 	return nil
@@ -378,7 +381,7 @@ func (m *fakeMatrix) ThreadParticipant(context.Context, domain.RoomID, domain.Ev
 }
 
 func (m *fakeMatrix) Verifications() <-chan domain.Verification { return nil }
-func (m *fakeMatrix) StartVerification(context.Context) (string, error) {
+func (m *fakeMatrix) StartVerification(context.Context, domain.RoomOwner) (string, error) {
 	m.only("StartVerification")
 	return "", nil
 }
@@ -398,22 +401,22 @@ func (m *fakeMatrix) CancelVerification(context.Context, string) error {
 	return nil
 }
 
-func (m *fakeMatrix) RestoreKeyBackup(context.Context, string) (int, error) {
+func (m *fakeMatrix) RestoreKeyBackup(context.Context, domain.RoomOwner, string) (int, error) {
 	m.only("RestoreKeyBackup")
 	return 0, nil
 }
 
-func (m *fakeMatrix) ExportRoomKeys(context.Context, string) ([]byte, error) {
+func (m *fakeMatrix) ExportRoomKeys(context.Context, domain.RoomOwner, string) ([]byte, error) {
 	m.only("ExportRoomKeys")
 	return nil, nil
 }
 
-func (m *fakeMatrix) ImportRoomKeys(context.Context, string, []byte) (int, int, error) {
+func (m *fakeMatrix) ImportRoomKeys(context.Context, domain.RoomOwner, string, []byte) (int, int, error) {
 	m.only("ImportRoomKeys")
 	return 0, 0, nil
 }
 
-func (m *fakeMatrix) BootstrapKeyBackup(context.Context, string) (domain.KeyBackup, error) {
+func (m *fakeMatrix) BootstrapKeyBackup(context.Context, domain.RoomOwner, string) (domain.KeyBackup, error) {
 	m.only("BootstrapKeyBackup")
 	return domain.KeyBackup{}, nil
 }

@@ -96,7 +96,7 @@ func (m Model) applyRoomSpaces(values []string) (Model, tea.Cmd) {
 	next, cmd := m.fileAsTicked(room, rows, values, made == "")
 	switch made {
 	case spaceNew:
-		next.aimedAt.creating = domain.NewRoom{Space: true}
+		next.aimedAt.creating = domain.NewRoom{On: domain.OwnerOf(room), Kind: domain.ChatSpace}
 		next.aimedAt.fileInto = room
 		next = next.openPrompt(promptNewRoom)
 	case tagNew:

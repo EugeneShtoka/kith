@@ -144,6 +144,15 @@ const (
 	ChatPrivateChannel
 	// ChatCommunity is a WhatsApp community: groups under one parent.
 	ChatCommunity
+	// ChatRoom is a Matrix room, private and encrypted.
+	ChatRoom
+	// ChatRoomUnencrypted is a private Matrix room without encryption, for bridges and
+	// bots that cannot read encrypted rooms.
+	ChatRoomUnencrypted
+	// ChatRoomPublic is a public Matrix room: anyone who finds it can join.
+	ChatRoomPublic
+	// ChatSpace is a Matrix space: a container for rooms.
+	ChatSpace
 )
 
 // ChatOffer is one kind of chat an account can make, as its network describes it.

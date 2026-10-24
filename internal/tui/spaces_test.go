@@ -356,7 +356,7 @@ func TestTheSpacePickerMakesASpaceForAMatrixRoom(t *testing.T) {
 		t.Fatalf("New space opened prompt %v", m.prompt.kind)
 	}
 	m = typeIn(t, m, "Services")
-	if !s.made.Space || s.made.Name != "Services" || s.made.Parent != "" {
+	if s.made.Kind != domain.ChatSpace || s.made.On != domain.RoomOwner(mx) || s.made.Name != "Services" || s.made.Parent != "" {
 		t.Errorf("made %+v, want a space named Services", s.made)
 	}
 	if !s.added || s.addedTo != mx+"!svc:x" || s.room != mx+"!a:x" {

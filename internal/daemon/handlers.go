@@ -409,7 +409,7 @@ func (s *server) BlockedPeople(ctx context.Context, _ *req[v1.BlockedPeopleReque
 }
 
 func (s *server) PublicRooms(ctx context.Context, r *req[v1.PublicRoomsRequest]) (*resp[v1.PublicRoomsResponse], error) {
-	page, err := s.Backend.PublicRooms(ctx, r.Msg.GetServer(), r.Msg.GetSince())
+	page, err := s.Backend.PublicRooms(ctx, domain.RoomOwner(r.Msg.GetOn()), r.Msg.GetServer(), r.Msg.GetSince())
 	return reply(&v1.PublicRoomsResponse{
 		Rooms:         pc.PublicRoomsToProto(page.Rooms),
 		NextSince:     page.NextSince,
@@ -671,8 +671,8 @@ func (s *server) Verifications(ctx context.Context, _ *req[v1.VerificationsReque
 	})
 }
 
-func (s *server) StartVerification(ctx context.Context, _ *req[v1.StartVerificationRequest]) (*resp[v1.StartVerificationResponse], error) {
-	txnID, err := s.Backend.StartVerification(ctx)
+func (s *server) StartVerification(ctx context.Context, r *req[v1.StartVerificationRequest]) (*resp[v1.StartVerificationResponse], error) {
+	txnID, err := s.Backend.StartVerification(ctx, domain.RoomOwner(r.Msg.GetOn()))
 	return reply(&v1.StartVerificationResponse{TxnId: txnID}, err)
 }
 
@@ -753,24 +753,24 @@ func (s *server) ClearCache(ctx context.Context, _ *req[v1.ClearCacheRequest]) (
 }
 
 func (s *server) RestoreKeyBackup(ctx context.Context, r *req[v1.RestoreKeyBackupRequest]) (*resp[v1.RestoreKeyBackupResponse], error) {
-	keys, err := s.Backend.RestoreKeyBackup(ctx, r.Msg.GetSecret())
+	keys, err := s.Backend.RestoreKeyBackup(ctx, domain.RoomOwner(r.Msg.GetOn()), r.Msg.GetSecret())
 	return reply(&v1.RestoreKeyBackupResponse{Keys: int64(keys)}, err)
 }
 
 func (s *server) ExportRoomKeys(ctx context.Context, r *req[v1.ExportRoomKeysRequest]) (*resp[v1.ExportRoomKeysResponse], error) {
-	data, err := s.Backend.ExportRoomKeys(ctx, r.Msg.GetPassphrase())
+	data, err := s.Backend.ExportRoomKeys(ctx, domain.RoomOwner(r.Msg.GetOn()), r.Msg.GetPassphrase())
 	return reply(&v1.ExportRoomKeysResponse{Data: data}, err)
 }
 
 func (s *server) ImportRoomKeys(ctx context.Context, r *req[v1.ImportRoomKeysRequest]) (*resp[v1.ImportRoomKeysResponse], error) {
-	imported, total, err := s.Backend.ImportRoomKeys(ctx, r.Msg.GetPassphrase(), r.Msg.GetData())
+	imported, total, err := s.Backend.ImportRoomKeys(ctx, domain.RoomOwner(r.Msg.GetOn()), r.Msg.GetPassphrase(), r.Msg.GetData())
 	return reply(&v1.ImportRoomKeysResponse{Imported: int64(imported), Total: int64(total)}, err)
 }
 
 // BootstrapKeyBackup reports a failure after the recovery key exists in Incomplete,
 // not as an error, so the key is never lost.
 func (s *server) BootstrapKeyBackup(ctx context.Context, r *req[v1.BootstrapKeyBackupRequest]) (*resp[v1.BootstrapKeyBackupResponse], error) {
-	made, err := s.Backend.BootstrapKeyBackup(ctx, r.Msg.GetPassword())
+	made, err := s.Backend.BootstrapKeyBackup(ctx, domain.RoomOwner(r.Msg.GetOn()), r.Msg.GetPassword())
 	return reply(pc.KeyBackupToProto(made), err)
 }
 

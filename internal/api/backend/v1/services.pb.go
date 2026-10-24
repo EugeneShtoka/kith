@@ -26,12 +26,16 @@ const (
 type ChatKind int32
 
 const (
-	ChatKind_CHAT_KIND_UNSPECIFIED     ChatKind = 0
-	ChatKind_CHAT_KIND_GROUP           ChatKind = 1
-	ChatKind_CHAT_KIND_FORUM           ChatKind = 2
-	ChatKind_CHAT_KIND_CHANNEL         ChatKind = 3
-	ChatKind_CHAT_KIND_PRIVATE_CHANNEL ChatKind = 4
-	ChatKind_CHAT_KIND_COMMUNITY       ChatKind = 5
+	ChatKind_CHAT_KIND_UNSPECIFIED      ChatKind = 0
+	ChatKind_CHAT_KIND_GROUP            ChatKind = 1
+	ChatKind_CHAT_KIND_FORUM            ChatKind = 2
+	ChatKind_CHAT_KIND_CHANNEL          ChatKind = 3
+	ChatKind_CHAT_KIND_PRIVATE_CHANNEL  ChatKind = 4
+	ChatKind_CHAT_KIND_COMMUNITY        ChatKind = 5
+	ChatKind_CHAT_KIND_ROOM             ChatKind = 6
+	ChatKind_CHAT_KIND_ROOM_UNENCRYPTED ChatKind = 7
+	ChatKind_CHAT_KIND_ROOM_PUBLIC      ChatKind = 8
+	ChatKind_CHAT_KIND_SPACE            ChatKind = 9
 )
 
 // Enum value maps for ChatKind.
@@ -43,14 +47,22 @@ var (
 		3: "CHAT_KIND_CHANNEL",
 		4: "CHAT_KIND_PRIVATE_CHANNEL",
 		5: "CHAT_KIND_COMMUNITY",
+		6: "CHAT_KIND_ROOM",
+		7: "CHAT_KIND_ROOM_UNENCRYPTED",
+		8: "CHAT_KIND_ROOM_PUBLIC",
+		9: "CHAT_KIND_SPACE",
 	}
 	ChatKind_value = map[string]int32{
-		"CHAT_KIND_UNSPECIFIED":     0,
-		"CHAT_KIND_GROUP":           1,
-		"CHAT_KIND_FORUM":           2,
-		"CHAT_KIND_CHANNEL":         3,
-		"CHAT_KIND_PRIVATE_CHANNEL": 4,
-		"CHAT_KIND_COMMUNITY":       5,
+		"CHAT_KIND_UNSPECIFIED":      0,
+		"CHAT_KIND_GROUP":            1,
+		"CHAT_KIND_FORUM":            2,
+		"CHAT_KIND_CHANNEL":          3,
+		"CHAT_KIND_PRIVATE_CHANNEL":  4,
+		"CHAT_KIND_COMMUNITY":        5,
+		"CHAT_KIND_ROOM":             6,
+		"CHAT_KIND_ROOM_UNENCRYPTED": 7,
+		"CHAT_KIND_ROOM_PUBLIC":      8,
+		"CHAT_KIND_SPACE":            9,
 	}
 )
 
@@ -3282,9 +3294,11 @@ func (x *PublicRoom) GetEncrypted() bool {
 }
 
 type PublicRoomsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Server        string                 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	Since         string                 `protobuf:"bytes,2,opt,name=since,proto3" json:"since,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Server string                 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	Since  string                 `protobuf:"bytes,2,opt,name=since,proto3" json:"since,omitempty"`
+	// The Matrix account it is for, as domain.AccountRooms writes it.
+	On            string `protobuf:"bytes,3,opt,name=on,proto3" json:"on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3329,6 +3343,13 @@ func (x *PublicRoomsRequest) GetServer() string {
 func (x *PublicRoomsRequest) GetSince() string {
 	if x != nil {
 		return x.Since
+	}
+	return ""
+}
+
+func (x *PublicRoomsRequest) GetOn() string {
+	if x != nil {
+		return x.On
 	}
 	return ""
 }
@@ -10966,7 +10987,9 @@ func (x *VerificationsResponse) GetVerification() *Verification {
 }
 
 type StartVerificationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The Matrix account it is for, as domain.AccountRooms writes it.
+	On            string `protobuf:"bytes,1,opt,name=on,proto3" json:"on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10999,6 +11022,13 @@ func (x *StartVerificationRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StartVerificationRequest.ProtoReflect.Descriptor instead.
 func (*StartVerificationRequest) Descriptor() ([]byte, []int) {
 	return file_backend_v1_services_proto_rawDescGZIP(), []int{214}
+}
+
+func (x *StartVerificationRequest) GetOn() string {
+	if x != nil {
+		return x.On
+	}
+	return ""
 }
 
 type StartVerificationResponse struct {
@@ -11723,7 +11753,9 @@ func (*ClearCacheResponse) Descriptor() ([]byte, []int) {
 type RestoreKeyBackupRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// secret is the account's recovery key or passphrase, typed by a human.
-	Secret        string `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
+	Secret string `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
+	// The Matrix account it is for, as domain.AccountRooms writes it.
+	On            string `protobuf:"bytes,2,opt,name=on,proto3" json:"on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11765,10 +11797,19 @@ func (x *RestoreKeyBackupRequest) GetSecret() string {
 	return ""
 }
 
+func (x *RestoreKeyBackupRequest) GetOn() string {
+	if x != nil {
+		return x.On
+	}
+	return ""
+}
+
 // Room keys as a file, for an account with no server-side backup to restore from.
 type ExportRoomKeysRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Passphrase    string                 `protobuf:"bytes,1,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Passphrase string                 `protobuf:"bytes,1,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
+	// The Matrix account it is for, as domain.AccountRooms writes it.
+	On            string `protobuf:"bytes,2,opt,name=on,proto3" json:"on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11806,6 +11847,13 @@ func (*ExportRoomKeysRequest) Descriptor() ([]byte, []int) {
 func (x *ExportRoomKeysRequest) GetPassphrase() string {
 	if x != nil {
 		return x.Passphrase
+	}
+	return ""
+}
+
+func (x *ExportRoomKeysRequest) GetOn() string {
+	if x != nil {
+		return x.On
 	}
 	return ""
 }
@@ -11855,9 +11903,11 @@ func (x *ExportRoomKeysResponse) GetData() []byte {
 }
 
 type ImportRoomKeysRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Passphrase    string                 `protobuf:"bytes,1,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
-	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Passphrase string                 `protobuf:"bytes,1,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
+	Data       []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	// The Matrix account it is for, as domain.AccountRooms writes it.
+	On            string `protobuf:"bytes,3,opt,name=on,proto3" json:"on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11904,6 +11954,13 @@ func (x *ImportRoomKeysRequest) GetData() []byte {
 		return x.Data
 	}
 	return nil
+}
+
+func (x *ImportRoomKeysRequest) GetOn() string {
+	if x != nil {
+		return x.On
+	}
+	return ""
 }
 
 type ImportRoomKeysResponse struct {
@@ -12005,8 +12062,10 @@ func (x *RestoreKeyBackupResponse) GetKeys() int64 {
 
 // Setting an account up for key backup when it has none.
 type BootstrapKeyBackupRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Password      string                 `protobuf:"bytes,1,opt,name=password,proto3" json:"password,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Password string                 `protobuf:"bytes,1,opt,name=password,proto3" json:"password,omitempty"`
+	// The Matrix account it is for, as domain.AccountRooms writes it.
+	On            string `protobuf:"bytes,2,opt,name=on,proto3" json:"on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -12044,6 +12103,13 @@ func (*BootstrapKeyBackupRequest) Descriptor() ([]byte, []int) {
 func (x *BootstrapKeyBackupRequest) GetPassword() string {
 	if x != nil {
 		return x.Password
+	}
+	return ""
+}
+
+func (x *BootstrapKeyBackupRequest) GetOn() string {
+	if x != nil {
+		return x.On
 	}
 	return ""
 }
@@ -14803,10 +14869,11 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x05topic\x18\x04 \x01(\tR\x05topic\x12\x18\n" +
 	"\amembers\x18\x05 \x01(\x05R\amembers\x12%\n" +
 	"\x0eworld_readable\x18\x06 \x01(\bR\rworldReadable\x12\x1c\n" +
-	"\tencrypted\x18\a \x01(\bR\tencrypted\"B\n" +
+	"\tencrypted\x18\a \x01(\bR\tencrypted\"R\n" +
 	"\x12PublicRoomsRequest\x12\x16\n" +
 	"\x06server\x18\x01 \x01(\tR\x06server\x12\x14\n" +
-	"\x05since\x18\x02 \x01(\tR\x05since\"\x89\x01\n" +
+	"\x05since\x18\x02 \x01(\tR\x05since\x12\x0e\n" +
+	"\x02on\x18\x03 \x01(\tR\x02on\"\x89\x01\n" +
 	"\x13PublicRoomsResponse\x12,\n" +
 	"\x05rooms\x18\x01 \x03(\v2\x16.backend.v1.PublicRoomR\x05rooms\x12\x1d\n" +
 	"\n" +
@@ -15250,8 +15317,9 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\"\x16\n" +
 	"\x14VerificationsRequest\"U\n" +
 	"\x15VerificationsResponse\x12<\n" +
-	"\fverification\x18\x01 \x01(\v2\x18.backend.v1.VerificationR\fverification\"\x1a\n" +
-	"\x18StartVerificationRequest\"2\n" +
+	"\fverification\x18\x01 \x01(\v2\x18.backend.v1.VerificationR\fverification\"*\n" +
+	"\x18StartVerificationRequest\x12\x0e\n" +
+	"\x02on\x18\x01 \x01(\tR\x02on\"2\n" +
 	"\x19StartVerificationResponse\x12\x15\n" +
 	"\x06txn_id\x18\x01 \x01(\tR\x05txnId\"2\n" +
 	"\x19AcceptVerificationRequest\x12\x15\n" +
@@ -15284,27 +15352,31 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x05names\x18\x01 \x03(\v2\x16.backend.v1.PersonNameR\x05names\x12,\n" +
 	"\x05links\x18\x02 \x03(\v2\x16.backend.v1.PersonLinkR\x05links\"\x13\n" +
 	"\x11ClearCacheRequest\"\x14\n" +
-	"\x12ClearCacheResponse\"1\n" +
+	"\x12ClearCacheResponse\"A\n" +
 	"\x17RestoreKeyBackupRequest\x12\x16\n" +
-	"\x06secret\x18\x01 \x01(\tR\x06secret\"7\n" +
+	"\x06secret\x18\x01 \x01(\tR\x06secret\x12\x0e\n" +
+	"\x02on\x18\x02 \x01(\tR\x02on\"G\n" +
 	"\x15ExportRoomKeysRequest\x12\x1e\n" +
 	"\n" +
 	"passphrase\x18\x01 \x01(\tR\n" +
-	"passphrase\",\n" +
+	"passphrase\x12\x0e\n" +
+	"\x02on\x18\x02 \x01(\tR\x02on\",\n" +
 	"\x16ExportRoomKeysResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"K\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"[\n" +
 	"\x15ImportRoomKeysRequest\x12\x1e\n" +
 	"\n" +
 	"passphrase\x18\x01 \x01(\tR\n" +
 	"passphrase\x12\x12\n" +
-	"\x04data\x18\x02 \x01(\fR\x04data\"J\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\x12\x0e\n" +
+	"\x02on\x18\x03 \x01(\tR\x02on\"J\n" +
 	"\x16ImportRoomKeysResponse\x12\x1a\n" +
 	"\bimported\x18\x01 \x01(\x03R\bimported\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\".\n" +
 	"\x18RestoreKeyBackupResponse\x12\x12\n" +
-	"\x04keys\x18\x01 \x01(\x03R\x04keys\"7\n" +
+	"\x04keys\x18\x01 \x01(\x03R\x04keys\"G\n" +
 	"\x19BootstrapKeyBackupRequest\x12\x1a\n" +
-	"\bpassword\x18\x01 \x01(\tR\bpassword\"\x95\x01\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpassword\x12\x0e\n" +
+	"\x02on\x18\x02 \x01(\tR\x02on\"\x95\x01\n" +
 	"\x1aBootstrapKeyBackupResponse\x12!\n" +
 	"\frecovery_key\x18\x01 \x01(\tR\vrecoveryKey\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1a\n" +
@@ -15451,14 +15523,18 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x17CancelScheduledResponse\"'\n" +
 	"\x15RetryScheduledRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x18\n" +
-	"\x16RetryScheduledResponse*\x9e\x01\n" +
+	"\x16RetryScheduledResponse*\x82\x02\n" +
 	"\bChatKind\x12\x19\n" +
 	"\x15CHAT_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fCHAT_KIND_GROUP\x10\x01\x12\x13\n" +
 	"\x0fCHAT_KIND_FORUM\x10\x02\x12\x15\n" +
 	"\x11CHAT_KIND_CHANNEL\x10\x03\x12\x1d\n" +
 	"\x19CHAT_KIND_PRIVATE_CHANNEL\x10\x04\x12\x17\n" +
-	"\x13CHAT_KIND_COMMUNITY\x10\x05*\x9d\x01\n" +
+	"\x13CHAT_KIND_COMMUNITY\x10\x05\x12\x12\n" +
+	"\x0eCHAT_KIND_ROOM\x10\x06\x12\x1e\n" +
+	"\x1aCHAT_KIND_ROOM_UNENCRYPTED\x10\a\x12\x19\n" +
+	"\x15CHAT_KIND_ROOM_PUBLIC\x10\b\x12\x13\n" +
+	"\x0fCHAT_KIND_SPACE\x10\t*\x9d\x01\n" +
 	"\fNetworkPhase\x12\x1d\n" +
 	"\x19NETWORK_PHASE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18NETWORK_PHASE_LOGGED_OUT\x10\x01\x12\x1c\n" +
