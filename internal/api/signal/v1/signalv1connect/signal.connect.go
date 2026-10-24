@@ -62,6 +62,9 @@ const (
 	// SignalServiceCreateGroupProcedure is the fully-qualified name of the SignalService's CreateGroup
 	// RPC.
 	SignalServiceCreateGroupProcedure = "/signal.v1.SignalService/CreateGroup"
+	// SignalServiceFindPersonProcedure is the fully-qualified name of the SignalService's FindPerson
+	// RPC.
+	SignalServiceFindPersonProcedure = "/signal.v1.SignalService/FindPerson"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -102,6 +105,9 @@ type SignalServiceClient interface {
 	// CreateGroup makes a group from a connected account, with it as admin and the
 	// people named as members; its members are told.
 	CreateGroup(context.Context, *connect.Request[v1.CreateGroupRequest]) (*connect.Response[v1.CreateGroupResponse], error)
+	// FindPerson asks Signal for the account behind a phone number or a username link,
+	// from a connected account.
+	FindPerson(context.Context, *connect.Request[v1.FindPersonRequest]) (*connect.Response[v1.FindPersonResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -199,6 +205,12 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("CreateGroup")),
 			connect.WithClientOptions(opts...),
 		),
+		findPerson: connect.NewClient[v1.FindPersonRequest, v1.FindPersonResponse](
+			httpClient,
+			baseURL+SignalServiceFindPersonProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("FindPerson")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -218,6 +230,7 @@ type signalServiceClient struct {
 	unlink      *connect.Client[v1.UnlinkRequest, v1.UnlinkResponse]
 	leave       *connect.Client[v1.LeaveRequest, v1.LeaveResponse]
 	createGroup *connect.Client[v1.CreateGroupRequest, v1.CreateGroupResponse]
+	findPerson  *connect.Client[v1.FindPersonRequest, v1.FindPersonResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -290,6 +303,11 @@ func (c *signalServiceClient) CreateGroup(ctx context.Context, req *connect.Requ
 	return c.createGroup.CallUnary(ctx, req)
 }
 
+// FindPerson calls signal.v1.SignalService.FindPerson.
+func (c *signalServiceClient) FindPerson(ctx context.Context, req *connect.Request[v1.FindPersonRequest]) (*connect.Response[v1.FindPersonResponse], error) {
+	return c.findPerson.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -328,6 +346,9 @@ type SignalServiceHandler interface {
 	// CreateGroup makes a group from a connected account, with it as admin and the
 	// people named as members; its members are told.
 	CreateGroup(context.Context, *connect.Request[v1.CreateGroupRequest]) (*connect.Response[v1.CreateGroupResponse], error)
+	// FindPerson asks Signal for the account behind a phone number or a username link,
+	// from a connected account.
+	FindPerson(context.Context, *connect.Request[v1.FindPersonRequest]) (*connect.Response[v1.FindPersonResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -421,6 +442,12 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("CreateGroup")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceFindPersonHandler := connect.NewUnaryHandler(
+		SignalServiceFindPersonProcedure,
+		svc.FindPerson,
+		connect.WithSchema(signalServiceMethods.ByName("FindPerson")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -451,6 +478,8 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceLeaveHandler.ServeHTTP(w, r)
 		case SignalServiceCreateGroupProcedure:
 			signalServiceCreateGroupHandler.ServeHTTP(w, r)
+		case SignalServiceFindPersonProcedure:
+			signalServiceFindPersonHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -514,4 +543,8 @@ func (UnimplementedSignalServiceHandler) Leave(context.Context, *connect.Request
 
 func (UnimplementedSignalServiceHandler) CreateGroup(context.Context, *connect.Request[v1.CreateGroupRequest]) (*connect.Response[v1.CreateGroupResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.CreateGroup is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) FindPerson(context.Context, *connect.Request[v1.FindPersonRequest]) (*connect.Response[v1.FindPersonResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.FindPerson is not implemented"))
 }

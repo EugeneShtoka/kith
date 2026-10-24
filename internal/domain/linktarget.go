@@ -15,14 +15,18 @@ type LinkTarget struct {
 }
 
 // LinkNetwork is the network a chat link is for, among those whose chats the daemon
-// looks up (Matrix rooms the client joins itself): Telegram's tg: and t.me links, and
-// WhatsApp's whatsapp:, wa.me and chat.whatsapp.com links.
+// looks up (Matrix rooms the client joins itself): Telegram's tg: and t.me links,
+// WhatsApp's whatsapp:, wa.me and chat.whatsapp.com links, and Signal's signal.me and
+// signal.group links.
 func LinkNetwork(uri string) (Protocol, bool) {
 	if _, ok := ParseTelegramLink(uri); ok {
 		return ProtocolTelegram, true
 	}
 	if _, ok := ParseWhatsAppLink(uri); ok {
 		return ProtocolWhatsApp, true
+	}
+	if _, ok := ParseSignalLink(uri); ok {
+		return ProtocolSignal, true
 	}
 	return "", false
 }

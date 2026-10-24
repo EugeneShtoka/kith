@@ -203,7 +203,7 @@ func TestAHandedOverNonLinkIsReported(t *testing.T) {
 	if got.openRoom == "!b:x" {
 		t.Error("a non-link moved the client")
 	}
-	if !strings.Contains(got.status(), "not a Matrix, Telegram or WhatsApp link") {
+	if !strings.Contains(got.status(), "not a Matrix, Telegram, WhatsApp or Signal link") {
 		t.Errorf("status = %q, want it to say what was wrong", got.status())
 	}
 }
@@ -646,5 +646,31 @@ func TestOpeningALinkKithFollowsStaysInKith(t *testing.T) {
 				t.Errorf("%v on %s: status %q, want the browser only for a link kith does not follow", act, link, next.status())
 			}
 		}
+	}
+}
+
+// A handed-over Signal link is always looked up (no chat stores a number or username
+// link) and opens what Signal found: a chat already listed, or a fresh one.
+func TestAHandedOverSignalLinkOpensWhatSignalFound(t *testing.T) {
+	t.Parallel()
+
+	known := domain.Room{ID: "signal:11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222", Name: "Dana", IsDirect: true}
+	b := &linkBackend{target: domain.LinkTarget{Room: known}}
+	m := sized(t, starterNew(b, config.Display{}))
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, known}})
+
+	next := followed(t, m, "sgnl://signal.me/#p/+15550100002")
+	if len(b.resolved) != 1 || next.openRoom != known.ID {
+		t.Errorf("open room = %q, asked %v: want the number looked up and Dana's chat opened", next.openRoom, b.resolved)
+	}
+
+	fresh := domain.Room{ID: "signal:11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333333", Name: "ofer.42", IsDirect: true}
+	b.target = domain.LinkTarget{Room: fresh}
+	next = followed(t, next, "https://signal.me/#p/+15550100009")
+	if next.openRoom != fresh.ID {
+		t.Fatalf("open room = %q, want the fresh chat Signal found", next.openRoom)
+	}
+	if room, ok := next.currentRoom(); !ok || room.Name != "ofer.42" {
+		t.Errorf("current room = (%+v, %v), want a fresh chat to write in", room, ok)
 	}
 }

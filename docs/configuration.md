@@ -43,7 +43,7 @@ Other top-level keys:
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `allow_token_file` | `false` | Store the access token in a 0600 file under `~/.local/state/kith/` (one per account) when no OS keyring exists. Use it only on a headless machine. |
-| `terminal` | `""` (detect) | What `kith --open` starts when a `matrix:`, `tg:` or `whatsapp:` link arrives and no client is running. See [getting-started.md](getting-started.md#open-matrix-tg-and-whatsapp-links-in-kith). |
+| `terminal` | `""` (detect) | What `kith --open` starts when a `matrix:`, `tg:` or `whatsapp:` link arrives and no client is running. See [getting-started.md](getting-started.md#open-matrix-tg-whatsapp-and-signal-links-in-kith). |
 
 ### Profiles
 

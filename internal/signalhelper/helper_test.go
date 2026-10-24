@@ -69,6 +69,10 @@ func (f *fakeNetwork) CreateGroup(context.Context, *signalv1.CreateGroupRequest)
 	return &signalv1.CreateGroupResponse{}, nil
 }
 
+func (f *fakeNetwork) FindPerson(context.Context, *signalv1.FindPersonRequest) (*signalv1.FindPersonResponse, error) {
+	return &signalv1.FindPersonResponse{}, nil
+}
+
 func (f *fakeNetwork) Upload(_ context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	return &signalv1.Attachment{FileName: req.GetFileName(), Pointer: []byte("kept")}, nil
 }

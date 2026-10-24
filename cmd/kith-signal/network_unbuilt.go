@@ -52,6 +52,10 @@ func (unbuilt) CreateGroup(context.Context, *signalv1.CreateGroupRequest) (*sign
 	return nil, errUnbuilt
 }
 
+func (unbuilt) FindPerson(context.Context, *signalv1.FindPersonRequest) (*signalv1.FindPersonResponse, error) {
+	return nil, errUnbuilt
+}
+
 func (unbuilt) Upload(context.Context, *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	return nil, errUnbuilt
 }

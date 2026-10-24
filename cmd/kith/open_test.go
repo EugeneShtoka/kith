@@ -12,6 +12,8 @@ func TestOpenAcceptsWhatTheClientFollows(t *testing.T) {
 		"whatsapp://send?phone=15550100009":     true,
 		"https://wa.me/15550100009?text=hi":     true,
 		"https://chat.whatsapp.com/AbCdEf12345": true,
+		"sgnl://signal.me/#p/+15550100009":      true,
+		"sgnl://linkdevice?uuid=x&pub_key=y":    false,
 		"https://example.org/":                  false,
 		"whatsapp://send?text=only-text":        false,
 	} {

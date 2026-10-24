@@ -79,7 +79,7 @@ The `.deb`, `.rpm`, `.apk` and Arch packages all install the same files:
 | --- | --- |
 | `/usr/bin/kith`, `kithd`, `kith-mcp` | The binaries. |
 | `/usr/lib/systemd/user/kithd.service`, `kithd@.service` | The systemd user units, with `ExecStart=/usr/bin/kithd`. |
-| `/usr/share/applications/kith.desktop` | The `matrix:`, `tg:` and `whatsapp:` link handler. |
+| `/usr/share/applications/kith.desktop` | The `matrix:`, `tg:`, `whatsapp:` and `sgnl:` link handler. |
 | `/usr/share/doc/kith/` | README, ARCHITECTURE, these docs and `config.toml.example`, the annotated default config. |
 
 ```sh
@@ -150,7 +150,7 @@ What doesn't work on macOS yet:
 - **Desktop notifications.** They are sent over D-Bus, which macOS doesn't have. Use
   `[notifications] command` to run your own script instead.
 - **The file chooser.** It is the XDG desktop portal. Type the path instead.
-- **The `matrix:`, `tg:` and `whatsapp:` link handler.** It is a `.desktop` file.
+- **The `matrix:`, `tg:`, `whatsapp:` and `sgnl:` link handler.** It is a `.desktop` file.
 - **Clipboard from the daemon.** Set `[clipboard] command = "pbcopy"`.
 
 The keyring (the macOS Keychain), sync, encryption and everything in the terminal
@@ -257,7 +257,7 @@ make install     # build, then install binaries, the systemd units and the matri
    `~/.config/systemd/user/`, with `ExecStart` set to wherever the binary went, and
    runs `systemctl --user daemon-reload`.
 4. Installs `kith.desktop` into `~/.local/share/applications/` and registers it as
-   the `matrix:`, `tg:` and `whatsapp:` link handler with `xdg-mime`.
+   the `matrix:`, `tg:`, `whatsapp:` and `sgnl:` link handler with `xdg-mime`.
 
 `make install` doesn't start anything. `make deploy` does everything `make install`
 does and then brings the daemon up (see
@@ -491,20 +491,22 @@ uploads new room keys to it as they arrive.
 Device verification, key export and the details are covered in
 [encryption.md](encryption.md).
 
-## Open matrix:, tg: and whatsapp: links in kith
+## Open matrix:, tg:, whatsapp: and Signal links in kith
 
-`make install` registers kith as the handler for `matrix:`, `tg:` and `whatsapp:` links. When you
-click one in a browser or another app, the desktop runs:
+`make install` registers kith as the handler for `matrix:`, `tg:`, `whatsapp:` and `sgnl:`
+links. When you click one in a browser or another app, the desktop runs:
 
 ```sh
 kith --open 'matrix:r/room:example.org'
 kith --open 'tg://resolve?domain=novosalsa&post=35'
 kith --open 'whatsapp://send?phone=15551234567&text=hello'
+kith --open 'sgnl://signal.me/#p/+15551234567'
 ```
 
 `--open` accepts `matrix:` URIs and `https://matrix.to/#/…` links, `tg://` URIs and
 `https://t.me/…` links, and `whatsapp://` URIs with their `wa.me`, `api.whatsapp.com`
-and `chat.whatsapp.com` web forms. It doesn't draw anything. It hands the link to the
+and `chat.whatsapp.com` web forms, and Signal's `signal.me` links and their `sgnl://` forms.
+It doesn't draw anything. It hands the link to the
 `kith` that is already attached to the daemon, which then goes there. If no client is
 attached, it starts one in a terminal, as a new tab if the terminal supports it. It
 prefers wezterm, kitty, konsole or gnome-terminal (which can open tabs), then foot,
@@ -536,18 +538,24 @@ chat yet, it opens a new, empty one, which joins the list once your first messag
 starts it. A group invite (`chat.whatsapp.com/…`, `whatsapp://chat?code=…`) asks before
 joining, as a Telegram one does; a suggested `text=` goes into the composer.
 
+A Signal link to a person, by number (`signal.me/#p/+15551234567`) or by the username
+link Signal's apps share (`signal.me/#eu/…`), opens your chat with them, on the first
+connected account by name: a new, empty one if there is none, which joins the list once
+your first message starts it. Signal finds nobody by a number whose owner has turned off
+being found by it. Group invite links (`signal.group/#…`) are not followed yet.
+
 Links your browser opens as web pages (`https://t.me/…`, `https://wa.me/…`) reach kith
 only if you paste them into `kith --open`: the desktop sends `https:` to the browser.
 
-If Telegram Desktop is installed, both apps claim `x-scheme-handler/tg`; whichever
-was registered last wins.
+If Telegram Desktop or Signal Desktop is installed, both apps claim
+`x-scheme-handler/tg` or `x-scheme-handler/sgnl`; whichever was registered last wins.
 
 Release archives don't include the desktop entry. To register the handler by hand,
 copy `packaging/desktop/kith.desktop` from the repository, then run:
 
 ```sh
 install -Dm644 kith.desktop ~/.local/share/applications/kith.desktop
-xdg-mime default kith.desktop x-scheme-handler/matrix x-scheme-handler/tg
+xdg-mime default kith.desktop x-scheme-handler/matrix x-scheme-handler/tg x-scheme-handler/whatsapp x-scheme-handler/sgnl
 ```
 
 If `kith` isn't on the desktop session's `PATH`, change the entry's `Exec=` line to
