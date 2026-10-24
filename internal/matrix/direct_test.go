@@ -3,6 +3,7 @@ package matrix
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -268,5 +269,49 @@ func TestAcceptingADirectInviteRecordsItAsADirectMessage(t *testing.T) {
 				t.Errorf("m.direct[@old:x] = %v — the existing DM was dropped by the write", got)
 			}
 		})
+	}
+}
+
+// A :new kind is the room it names: encrypted, public or a space; one named for another
+// account is refused before anything reaches the homeserver.
+func TestANewRoomsKindIsItsShape(t *testing.T) {
+	t.Parallel()
+	var (
+		mu      sync.Mutex
+		created []map[string]any
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		defer mu.Unlock()
+		var req map[string]any
+		_ = json.Unmarshal(body, &req)
+		created = append(created, req)
+		_, _ = w.Write([]byte(`{"room_id":"!made:x"}`))
+	}))
+	defer srv.Close()
+	b := backendOn(t, srv)
+	ctx := context.Background()
+	for _, kind := range []domain.ChatKind{domain.ChatRoom, domain.ChatRoomUnencrypted, domain.ChatRoomPublic, domain.ChatSpace} {
+		if _, err := b.CreateRoom(ctx, domain.NewRoom{Name: "R", On: testIDs.owner(), Kind: kind}); err != nil {
+			t.Fatalf("CreateRoom(%v): %v", kind, err)
+		}
+	}
+	if _, err := b.CreateRoom(ctx, domain.NewRoom{Name: "R", On: domain.AccountRooms(domain.ProtocolMatrix, "fedcba9876543210")}); err == nil {
+		t.Error("a room for another account was made here")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(created) != 4 {
+		t.Fatalf("%d rooms reached the homeserver, want 4", len(created))
+	}
+	encrypted := func(req map[string]any) bool { return strings.Contains(fmt.Sprint(req["initial_state"]), megolm) }
+	space := func(req map[string]any) bool {
+		c, _ := req["creation_content"].(map[string]any)
+		return c["type"] == "m.space"
+	}
+	if !encrypted(created[0]) || encrypted(created[1]) || created[2]["visibility"] != "public" || !space(created[3]) {
+		t.Errorf("rooms made = %v, want encrypted, plain, public and a space", created)
 	}
 }

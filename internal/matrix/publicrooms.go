@@ -19,7 +19,10 @@ const publicRoomsPageSize = 50
 // PublicRoomsPage.NextSince to fetch the next page. The chooser filters its own
 // rows by substring — the mautrix client's PublicRooms is GET-only and does not
 // pass a search body.
-func (b *InProc) PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error) {
+func (b *InProc) PublicRooms(ctx context.Context, on domain.RoomOwner, server, since string) (domain.PublicRoomsPage, error) {
+	if err := b.mine(on); err != nil {
+		return domain.PublicRoomsPage{}, err
+	}
 	req := &mautrix.ReqPublicRooms{
 		Limit:  publicRoomsPageSize,
 		Server: server,

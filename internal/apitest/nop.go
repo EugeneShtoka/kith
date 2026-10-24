@@ -79,7 +79,7 @@ func (Nop) FetchEvent(context.Context, domain.RoomID, domain.EventID) (domain.Me
 func (Nop) FetchEventSource(context.Context, domain.RoomID, domain.EventID) ([]byte, error) {
 	return nil, nil
 }
-func (Nop) PublicRooms(context.Context, string, string) (domain.PublicRoomsPage, error) {
+func (Nop) PublicRooms(context.Context, domain.RoomOwner, string, string) (domain.PublicRoomsPage, error) {
 	return domain.PublicRoomsPage{}, nil
 }
 func (Nop) KnockRoom(_ context.Context, roomIDOrAlias string, _ string, _ []string) (domain.RoomID, error) {
@@ -115,7 +115,7 @@ func (n Nop) Messages() <-chan domain.Message                                   
 func (n Nop) Activity() <-chan domain.Activity                                         { return n.Acts }
 func (n Nop) Attached() <-chan bool                                                    { return n.Attach }
 func (n Nop) Verifications() <-chan domain.Verification                                { return n.Verifs }
-func (Nop) StartVerification(context.Context) (string, error)                          { return "", nil }
+func (Nop) StartVerification(context.Context, domain.RoomOwner) (string, error)        { return "", nil }
 func (Nop) AcceptVerification(context.Context, string) error                           { return nil }
 func (Nop) ConfirmSAS(context.Context, string) error                                   { return nil }
 func (Nop) CancelVerification(context.Context, string) error                           { return nil }
@@ -178,19 +178,21 @@ func (Nop) RefreshMembers(context.Context, domain.RoomID) ([]domain.Member, erro
 func (Nop) MentionCandidates(context.Context, domain.RoomID, int) ([]domain.Member, error) {
 	return nil, nil
 }
-func (Nop) DirectCandidates(context.Context, int) ([]domain.Member, error)   { return nil, nil }
-func (Nop) ExportRoomKeys(context.Context, string) ([]byte, error)           { return nil, nil }
-func (Nop) ImportRoomKeys(context.Context, string, []byte) (int, int, error) { return 0, 0, nil }
+func (Nop) DirectCandidates(context.Context, int) ([]domain.Member, error)           { return nil, nil }
+func (Nop) ExportRoomKeys(context.Context, domain.RoomOwner, string) ([]byte, error) { return nil, nil }
+func (Nop) ImportRoomKeys(context.Context, domain.RoomOwner, string, []byte) (int, int, error) {
+	return 0, 0, nil
+}
 func (Nop) SearchSenders(context.Context, domain.RoomSet, int) ([]domain.Member, error) {
 	return nil, nil
 }
-func (Nop) Redact(context.Context, domain.RoomID, domain.EventID, string) error  { return nil }
-func (Nop) LastMessages(context.Context) (map[domain.RoomID]time.Time, error)    { return nil, nil }
-func (Nop) SenderSlots(context.Context, domain.RoomID) (map[string]int, error)   { return nil, nil }
-func (Nop) SaveSenderSlots(context.Context, domain.RoomID, map[string]int) error { return nil }
-func (Nop) ClearCache(context.Context) error                                     { return nil }
-func (Nop) RestoreKeyBackup(context.Context, string) (int, error)                { return 0, nil }
-func (Nop) BootstrapKeyBackup(context.Context, string) (domain.KeyBackup, error) {
+func (Nop) Redact(context.Context, domain.RoomID, domain.EventID, string) error     { return nil }
+func (Nop) LastMessages(context.Context) (map[domain.RoomID]time.Time, error)       { return nil, nil }
+func (Nop) SenderSlots(context.Context, domain.RoomID) (map[string]int, error)      { return nil, nil }
+func (Nop) SaveSenderSlots(context.Context, domain.RoomID, map[string]int) error    { return nil }
+func (Nop) ClearCache(context.Context) error                                        { return nil }
+func (Nop) RestoreKeyBackup(context.Context, domain.RoomOwner, string) (int, error) { return 0, nil }
+func (Nop) BootstrapKeyBackup(context.Context, domain.RoomOwner, string) (domain.KeyBackup, error) {
 	return domain.KeyBackup{}, nil
 }
 func (Nop) DetectLanguages(context.Context) (domain.SpellSuggestion, error) {

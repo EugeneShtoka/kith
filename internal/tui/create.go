@@ -20,51 +20,24 @@ import (
 // other network's connected accounts offer (asked of the daemon), and a tag always.
 // Encryption can only be chosen at creation, so it is asked here.
 
-// newRoomKinds are the first step's rows, safe default first.
-var newRoomKinds = []struct {
-	value  string
-	label  string
-	detail string
-	spec   domain.NewRoom
-}{
-	{
-		value: "private", label: "Private room",
-		detail: "encrypted, invitation only",
-		spec:   domain.NewRoom{Encrypted: true},
-	},
-	{
-		value: "plain", label: "Private room, unencrypted",
-		detail: "invitation only — for bridges and bots that cannot read encrypted rooms",
-		spec:   domain.NewRoom{},
-	},
-	{
-		value: "public", label: "Public room",
-		detail: "anyone who finds it can join; not encrypted",
-		spec:   domain.NewRoom{Public: true},
-	},
-	{
-		value: "space", label: "Space",
-		detail: "a container for rooms, not a conversation",
-		spec:   domain.NewRoom{Space: true},
-	},
-}
-
-// chatValueSep joins account and kind in a new-chat row's value; no Matrix kind contains it.
+// chatValueSep joins account and kind in a new-chat row's value.
 const chatValueSep = "|"
 
-// chatOffersMsg is what chats the other networks' accounts can make, for :new.
+// chatOffersMsg is what chats the accounts can make, for :new, and the accounts with
+// their defaults.
 type chatOffersMsg struct {
-	offers []domain.ChatOffer
-	err    error
+	offers   []domain.ChatOffer
+	accounts []domain.Account
+	err      error
 }
 
-// openNewRoom asks the daemon what the other networks' accounts can make, then what
-// to make.
+// openNewRoom asks the daemon what the accounts can make, then what to make.
 func (m Model) openNewRoom() (Model, tea.Cmd) {
 	ctx, backend := m.ctx, m.backend
 	return m, func() tea.Msg {
 		offers, err := backend.ChatOffers(ctx)
-		return chatOffersMsg{offers: offers, err: err}
+		accounts, aerr := backend.Accounts(ctx)
+		return chatOffersMsg{offers: offers, accounts: accounts, err: errors.Join(err, aerr)}
 	}
 }
 
@@ -78,23 +51,14 @@ func (m Model) handleCreating(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // handleChatOffers asks what to make, from what this kith's accounts can make; when
-// the daemon cannot say, Matrix's rooms and a tag are still offered.
+// the daemon cannot say, a tag is still offered. Where a network's default is among
+// its accounts, only the default's offers are shown: it makes chats without asking.
 func (m Model) handleChatOffers(msg chatOffersMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		m.logErr(slog.LevelWarn, "list the chats accounts can make", msg.err)
 	}
+	msg.offers = defaultsOnly(msg.offers, msg.accounts)
 	var items []pickerItem
-	if m.hasMatrix() {
-		for i := range newRoomKinds {
-			kind := &newRoomKinds[i]
-			items = append(items, pickerItem{
-				label:  kind.label,
-				detail: kind.detail,
-				value:  kind.value,
-				match:  kind.label + " " + kind.detail,
-			})
-		}
-	}
 	accounts := map[domain.Protocol]map[domain.RoomOwner]bool{}
 	for _, o := range msg.offers {
 		network := domain.NetworkOf(string(o.On))
@@ -125,13 +89,19 @@ func (m Model) handleChatOffers(msg chatOffersMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// hasMatrix reports whether this kith has a Matrix account: one of my IDs is a Matrix
-// user's, or a Matrix room is listed.
-func (m Model) hasMatrix() bool {
-	if slices.ContainsFunc(m.selves, domain.IsMatrixUserID) {
-		return true
+// defaultsOnly drops the offers of a network's other accounts where its default
+// offers something.
+func defaultsOnly(offers []domain.ChatOffer, accounts []domain.Account) []domain.ChatOffer {
+	byDefault := map[domain.Protocol]domain.RoomOwner{}
+	for _, a := range accounts {
+		if a.Default && slices.ContainsFunc(offers, func(o domain.ChatOffer) bool { return o.On == a.On }) {
+			byDefault[a.Network] = a.On
+		}
 	}
-	return slices.ContainsFunc(m.rooms.all, func(r domain.Room) bool { return domain.IsMatrixRoomID(string(r.ID)) })
+	return slices.DeleteFunc(slices.Clone(offers), func(o domain.ChatOffer) bool {
+		on, ok := byDefault[domain.NetworkOf(string(o.On))]
+		return ok && o.On != on
+	})
 }
 
 // chooseNewRoomKind settles the kind and asks for the name. A room lands in the space
@@ -142,23 +112,19 @@ func (m Model) chooseNewRoomKind(value string) (Model, tea.Cmd) {
 		m.choosing.tag = tagEditing{}
 		return m.openPrompt(promptTagName), nil
 	}
-	if on, kind, isChat := strings.Cut(value, chatValueSep); isChat {
-		m.aimedAt.creating = domain.NewRoom{On: domain.RoomOwner(on), Kind: domain.ChatKind(atoiSafe(kind))}
-		return m.openPrompt(promptNewRoom), nil
+	on, kind, isChat := strings.Cut(value, chatValueSep)
+	if !isChat {
+		return m, nil
 	}
-	for i := range newRoomKinds {
-		kind := &newRoomKinds[i]
-		if kind.value != value {
-			continue
-		}
-		m.aimedAt.creating = kind.spec
-		if !kind.spec.Space {
-			// Nesting a space is left to the S key, not assumed.
-			m.aimedAt.creating.Parent = m.selectedSpaceID()
-		}
-		return m.openPrompt(promptNewRoom), nil
+	spec := domain.NewRoom{On: domain.RoomOwner(on), Kind: domain.ChatKind(atoiSafe(kind))}
+	// A Matrix room lands in the space selected, when that account holds it; nesting a
+	// space is left to the S key, not assumed.
+	if parent := m.selectedSpaceID(); spec.Kind != domain.ChatSpace && parent != "" &&
+		domain.OwnerOf(domain.RoomID(parent)) == spec.On {
+		spec.Parent = parent
 	}
-	return m, nil
+	m.aimedAt.creating = spec
+	return m.openPrompt(promptNewRoom), nil
 }
 
 func (m Model) submitNewRoom(input string) (Model, tea.Cmd) {
@@ -169,11 +135,11 @@ func (m Model) submitNewRoom(input string) (Model, tea.Cmd) {
 		// Nothing typed is a cancel.
 		return m, nil
 	}
-	if spec.On != "" {
+	if domain.NetworkOf(string(spec.On)) != domain.ProtocolMatrix {
 		return m.openNewChatMembers(spec), nil
 	}
 	what := "room"
-	if spec.Space {
+	if spec.Kind == domain.ChatSpace {
 		what = "space"
 	}
 	m = m.doing("creating " + what + " " + isolate(spec.Name) + "…")

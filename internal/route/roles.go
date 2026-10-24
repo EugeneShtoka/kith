@@ -56,18 +56,15 @@ func (r *Router) JoinRoom(ctx context.Context, roomIDOrAlias string, via []strin
 	})
 }
 
-// CreateRoom makes a room or space on Matrix, or a chat on the account spec.On names.
+// CreateRoom makes a chat, room or space on the account spec.On names; a call naming
+// none is refused, never sent to some account.
 func (r *Router) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {
-	if spec.On != "" && domain.NetworkOf(string(spec.On)) != domain.ProtocolMatrix {
-		return onRoom(r, domain.RoomID(spec.On), "new chats", func(c ChatMaker) (domain.RoomID, error) {
-			return c.CreateRoom(ctx, spec)
-		})
+	if spec.On == "" {
+		return "", fmt.Errorf("%w: a new room names no account", api.ErrNotOnNetwork)
 	}
-	c, err := sole[api.Membership](r, "new rooms")
-	if err != nil {
-		return "", err
-	}
-	return c.CreateRoom(ctx, spec)
+	return onRoom(r, domain.RoomID(spec.On), "new chats", func(c ChatMaker) (domain.RoomID, error) {
+		return c.CreateRoom(ctx, spec)
+	})
 }
 
 // Accounts is every connected account of every network that lists its accounts.
@@ -139,76 +136,60 @@ func (r *Router) SignOut(ctx context.Context, space domain.SpaceID, forget bool)
 	return doOnRoom(r, domain.RoomID(space), "signing out", func(c SignOuter) error { return c.SignOut(ctx, space, forget) })
 }
 
-// StartVerification asks this account's other devices to verify this one.
-func (r *Router) StartVerification(ctx context.Context) (string, error) {
-	c, err := sole[api.Verification](r, "device verification")
-	if err != nil {
-		return "", err
-	}
-	return c.StartVerification(ctx)
+// StartVerification asks the other devices of the account on names to verify this one.
+func (r *Router) StartVerification(ctx context.Context, on domain.RoomOwner) (string, error) {
+	return onRoom(r, domain.RoomID(on), "device verification", func(c api.Verification) (string, error) {
+		return c.StartVerification(ctx, on)
+	})
+}
+
+// onVerification runs call on Matrix, whose adapter knows the account a transaction is
+// for.
+func onVerification(r *Router, call func(api.Verification) error) error {
+	return doOnRoom(r, domain.RoomID(domain.NetworkRooms(domain.ProtocolMatrix)), "device verification", call)
 }
 
 // AcceptVerification accepts a verification request.
 func (r *Router) AcceptVerification(ctx context.Context, txnID string) error {
-	c, err := sole[api.Verification](r, "device verification")
-	if err != nil {
-		return err
-	}
-	return c.AcceptVerification(ctx, txnID)
+	return onVerification(r, func(c api.Verification) error { return c.AcceptVerification(ctx, txnID) })
 }
 
 // ConfirmSAS confirms the emoji matched.
 func (r *Router) ConfirmSAS(ctx context.Context, txnID string) error {
-	c, err := sole[api.Verification](r, "device verification")
-	if err != nil {
-		return err
-	}
-	return c.ConfirmSAS(ctx, txnID)
+	return onVerification(r, func(c api.Verification) error { return c.ConfirmSAS(ctx, txnID) })
 }
 
 // CancelVerification cancels a verification.
 func (r *Router) CancelVerification(ctx context.Context, txnID string) error {
-	c, err := sole[api.Verification](r, "device verification")
-	if err != nil {
-		return err
-	}
-	return c.CancelVerification(ctx, txnID)
+	return onVerification(r, func(c api.Verification) error { return c.CancelVerification(ctx, txnID) })
 }
 
-// RestoreKeyBackup imports the backed-up room keys.
-func (r *Router) RestoreKeyBackup(ctx context.Context, secret string) (int, error) {
-	c, err := sole[api.Keys](r, "key backup")
-	if err != nil {
-		return 0, err
-	}
-	return c.RestoreKeyBackup(ctx, secret)
+// RestoreKeyBackup imports the backed-up room keys of the account on names.
+func (r *Router) RestoreKeyBackup(ctx context.Context, on domain.RoomOwner, secret string) (int, error) {
+	return onRoom(r, domain.RoomID(on), "key backup", func(c api.Keys) (int, error) { return c.RestoreKeyBackup(ctx, on, secret) })
 }
 
-// ExportRoomKeys is an encrypted key export.
-func (r *Router) ExportRoomKeys(ctx context.Context, passphrase string) ([]byte, error) {
-	c, err := sole[api.Keys](r, "key export")
-	if err != nil {
-		return nil, err
-	}
-	return c.ExportRoomKeys(ctx, passphrase)
+// ExportRoomKeys is an encrypted key export of the account on names.
+func (r *Router) ExportRoomKeys(ctx context.Context, on domain.RoomOwner, passphrase string) ([]byte, error) {
+	return onRoom(r, domain.RoomID(on), "key export", func(c api.Keys) ([]byte, error) { return c.ExportRoomKeys(ctx, on, passphrase) })
 }
 
-// ImportRoomKeys imports a key export.
-func (r *Router) ImportRoomKeys(ctx context.Context, passphrase string, data []byte) (imported, total int, err error) {
-	c, err := sole[api.Keys](r, "key import")
-	if err != nil {
-		return 0, 0, err
-	}
-	return c.ImportRoomKeys(ctx, passphrase, data)
+// ImportRoomKeys imports a key export into the account on names.
+func (r *Router) ImportRoomKeys(ctx context.Context, on domain.RoomOwner, passphrase string, data []byte) (imported, total int, err error) {
+	type counts struct{ imported, total int }
+	got, err := onRoom(r, domain.RoomID(on), "key import", func(c api.Keys) (counts, error) {
+		i, n, ierr := c.ImportRoomKeys(ctx, on, passphrase, data)
+		return counts{i, n}, ierr
+	})
+	return got.imported, got.total, err
 }
 
-// BootstrapKeyBackup creates cross-signing, secret storage and a key backup.
-func (r *Router) BootstrapKeyBackup(ctx context.Context, password string) (domain.KeyBackup, error) {
-	c, err := sole[api.Keys](r, "key backup")
-	if err != nil {
-		return domain.KeyBackup{}, err
-	}
-	return c.BootstrapKeyBackup(ctx, password)
+// BootstrapKeyBackup creates cross-signing, secret storage and a key backup for the
+// account on names.
+func (r *Router) BootstrapKeyBackup(ctx context.Context, on domain.RoomOwner, password string) (domain.KeyBackup, error) {
+	return onRoom(r, domain.RoomID(on), "key backup", func(c api.Keys) (domain.KeyBackup, error) {
+		return c.BootstrapKeyBackup(ctx, on, password)
+	})
 }
 
 // Attached never fires in-process (see matrix.InProc.Attached).

@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"errors"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -11,16 +13,30 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
+// matrixOffers is what the Matrix account offers, as its adapter does.
+var matrixOffers = []domain.ChatOffer{
+	{On: domain.RoomOwner(mx), Kind: domain.ChatRoom, Label: "Private room", Detail: "encrypted, invitation only"},
+	{On: domain.RoomOwner(mx), Kind: domain.ChatRoomUnencrypted, Label: "Private room, unencrypted", Detail: "invitation only"},
+	{On: domain.RoomOwner(mx), Kind: domain.ChatRoomPublic, Label: "Public room", Detail: "anyone who finds it can join"},
+	{On: domain.RoomOwner(mx), Kind: domain.ChatSpace, Label: "Space", Detail: "a container for rooms"},
+}
+
+// matrixKind is the :new row value of the Matrix account's kind.
+func matrixKind(kind domain.ChatKind) string { return mx + chatValueSep + strconv.Itoa(int(kind)) }
+
 // builder records the room it was asked to create.
 type builder struct {
 	apitest.Nop
-	spec   domain.NewRoom
-	id     domain.RoomID
-	err    error
-	offers []domain.ChatOffer
+	spec     domain.NewRoom
+	id       domain.RoomID
+	err      error
+	offers   []domain.ChatOffer
+	accounts []domain.Account
 }
 
 func (b *builder) ChatOffers(context.Context) ([]domain.ChatOffer, error) { return b.offers, nil }
+
+func (b *builder) Accounts(context.Context) ([]domain.Account, error) { return b.accounts, nil }
 
 // openedNew is m with :new's picker open, once the daemon has said what can be made.
 func openedNew(t *testing.T, m Model) Model {
@@ -36,7 +52,7 @@ func (b *builder) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.Roo
 
 func building(t *testing.T) (Model, *builder) {
 	t.Helper()
-	b := &builder{id: mx + "!new:x"}
+	b := &builder{id: mx + "!new:x", offers: matrixOffers}
 	m := update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
 		{ID: mx + "!a:x", Name: "Alpha"},
 	}})
@@ -73,7 +89,7 @@ func TestCreatingAnEncryptedRoomAndASpace(t *testing.T) {
 
 	m, b := building(t)
 	m, _ = m.runCommandLine("new")
-	next, _ := m.chooseNewRoomKind("private")
+	next, _ := m.chooseNewRoomKind(matrixKind(domain.ChatRoom))
 	m = next
 	if !m.prompt.active() {
 		t.Fatal("choosing a kind opened no name prompt")
@@ -81,19 +97,19 @@ func TestCreatingAnEncryptedRoomAndASpace(t *testing.T) {
 	next, cmd := m.submitNewRoom("Plans")
 	mdl := next
 	_ = deliver(t, mdl, cmd)
-	if b.spec.Name != "Plans" || !b.spec.Encrypted || b.spec.Space || b.spec.Public {
-		t.Errorf("spec = %+v, want an encrypted private room called Plans", b.spec)
+	if b.spec.Name != "Plans" || b.spec.Kind != domain.ChatRoom || b.spec.On != domain.RoomOwner(mx) {
+		t.Errorf("spec = %+v, want an encrypted private room called Plans, on the Matrix account", b.spec)
 	}
 
 	m2, b2 := building(t)
 	m2, _ = m2.runCommandLine("new")
-	next, _ = m2.chooseNewRoomKind("space")
+	next, _ = m2.chooseNewRoomKind(matrixKind(domain.ChatSpace))
 	m2 = next
 	next, cmd = m2.submitNewRoom("Side projects")
 	mdl2 := next
 	_ = deliver(t, mdl2, cmd)
-	if !b2.spec.Space || b2.spec.Encrypted {
-		t.Errorf("spec = %+v, want an unencrypted space", b2.spec)
+	if b2.spec.Kind != domain.ChatSpace {
+		t.Errorf("spec = %+v, want a space", b2.spec)
 	}
 }
 
@@ -104,7 +120,7 @@ func TestANewRoomLandsInTheSelectedSpace(t *testing.T) {
 	m, b := building(t)
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
 	m, _ = m.runCommandLine("new")
-	next, _ := m.chooseNewRoomKind("private")
+	next, _ := m.chooseNewRoomKind(matrixKind(domain.ChatRoom))
 	m = next
 	next, cmd := m.submitNewRoom("Standup")
 	mdl := next
@@ -116,7 +132,7 @@ func TestANewRoomLandsInTheSelectedSpace(t *testing.T) {
 	m2, b2 := building(t)
 	m2.rail.cursor = indexOfGroup(m2.rail.groups, "Work")
 	m2, _ = m2.runCommandLine("new")
-	next, _ = m2.chooseNewRoomKind("space")
+	next, _ = m2.chooseNewRoomKind(matrixKind(domain.ChatSpace))
 	m2 = next
 	next, cmd = m2.submitNewRoom("Nested")
 	mdl2 := next
@@ -133,7 +149,7 @@ func TestAPartialCreationSaysBothHalves(t *testing.T) {
 	m, b := building(t)
 	b.err = errors.New("created it, but could not file it into the space")
 	m, _ = m.runCommandLine("new")
-	next, _ := m.chooseNewRoomKind("private")
+	next, _ := m.chooseNewRoomKind(matrixKind(domain.ChatRoom))
 	m = next
 	next, cmd := m.submitNewRoom("Plans")
 	mdl := next
@@ -150,7 +166,7 @@ func TestAnEmptyNameCreatesNothing(t *testing.T) {
 
 	m, b := building(t)
 	m, _ = m.runCommandLine("new")
-	next, _ := m.chooseNewRoomKind("private")
+	next, _ := m.chooseNewRoomKind(matrixKind(domain.ChatRoom))
 	m = next
 	if _, cmd := m.submitNewRoom("   "); cmd != nil {
 		t.Error("an empty name should create nothing")
@@ -216,22 +232,21 @@ func TestNewOffersWhatTheAccountsMake(t *testing.T) {
 
 	withMatrix, _ := building(t)
 	withMatrix = openedNew(t, withMatrix)
-	if len(withMatrix.picker.all) != len(newRoomKinds)+1 {
-		t.Errorf("with a Matrix account alone: %d rows, want Matrix's %d and a tag", len(withMatrix.picker.all), len(newRoomKinds))
+	if len(withMatrix.picker.all) != len(matrixOffers)+1 {
+		t.Errorf("with a Matrix account alone: %d rows, want Matrix's %d and a tag", len(withMatrix.picker.all), len(matrixOffers))
 	}
 	if !strings.Contains(got, "Tag [kith's own group") {
 		t.Errorf("no tag offered without a Matrix account:\n%s", got)
 	}
 }
 
-// When the daemon cannot say what other networks make, Matrix's rooms and a tag are
-// still offered.
-func TestNewOffersMatrixAndATagWhenTheDaemonCannotSay(t *testing.T) {
+// When the daemon cannot say what the accounts make, a tag is still offered.
+func TestNewOffersATagWhenTheDaemonCannotSay(t *testing.T) {
 	t.Parallel()
 	m, _ := building(t)
 	m, _ = m.handleChatOffers(chatOffersMsg{err: errors.New("daemon gone")})
-	if len(m.picker.all) != len(newRoomKinds)+1 || m.picker.all[len(m.picker.all)-1].value != tagNew {
-		t.Errorf("offered %d rows, want Matrix's %d and a tag", len(m.picker.all), len(newRoomKinds))
+	if len(m.picker.all) != 1 || m.picker.all[0].value != tagNew {
+		t.Errorf("offered %d rows, want a tag", len(m.picker.all))
 	}
 }
 
@@ -281,5 +296,26 @@ func TestANewChatIsNamedThenGivenItsPeople(t *testing.T) {
 	m, cmd = m.acceptPick()
 	if cmd != nil || b.spec.Name != "" || !strings.Contains(m.status(), "needs someone") || m.picker.kind != pickerNewMembers {
 		t.Errorf("a WhatsApp group with no one: made %+v, said %q, picker %v", b.spec, m.status(), m.picker.kind)
+	}
+}
+
+// With a network's default set, :new offers only what that account makes: it makes
+// chats without asking which account. Networks with no default still name each row's.
+func TestNewOffersOnlyTheDefaultsChats(t *testing.T) {
+	t.Parallel()
+	m, b := chatting(t)
+	second := domain.AccountRooms(domain.ProtocolWhatsApp, "15550100002")
+	b.accounts = []domain.Account{{Network: domain.ProtocolWhatsApp, On: second, Name: "work", Default: true}}
+	m = openedNew(t, m)
+	for _, item := range m.picker.all {
+		if strings.HasPrefix(item.value, string(domain.AccountRooms(domain.ProtocolWhatsApp, "15550100001"))) {
+			t.Errorf("offered %q on the account that is not the default", item.label)
+		}
+	}
+	if !slices.ContainsFunc(m.picker.all, func(i pickerItem) bool { return strings.HasPrefix(i.value, string(second)) }) {
+		t.Error("the default's chats are not offered")
+	}
+	if !slices.ContainsFunc(m.picker.all, func(i pickerItem) bool { return i.label == "Telegram group" }) {
+		t.Error("a network with no default lost its offers")
 	}
 }

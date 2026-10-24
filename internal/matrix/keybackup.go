@@ -15,6 +15,7 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // gossipTimeout bounds how long restoreFromGossip waits for a verified device to
@@ -24,7 +25,10 @@ const gossipTimeout = 30 * time.Second
 // RestoreKeyBackup unlocks secret storage with a recovery key or passphrase, imports
 // every room key from the server-side backup, and (with a recovery key) self-signs
 // this device. secret is never persisted. It returns the backup's key count.
-func (b *InProc) RestoreKeyBackup(ctx context.Context, secret string) (int, error) {
+func (b *InProc) RestoreKeyBackup(ctx context.Context, on domain.RoomOwner, secret string) (int, error) {
+	if err := b.mine(on); err != nil {
+		return 0, err
+	}
 	helper := b.cryptoHelper()
 	if helper == nil {
 		return 0, api.ErrNoEncryption

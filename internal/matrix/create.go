@@ -22,6 +22,19 @@ const megolm = "m.megolm.v1.aes-sha2"
 // at creation (in initial state); spaces are never encrypted. Recording a DM and
 // filing into a parent happen after, and their failure returns the ID with an error.
 func (b *InProc) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {
+	if spec.On != "" && spec.On != b.ids.owner() {
+		return "", fmt.Errorf("matrix: %s is not this account", spec.On)
+	}
+	switch spec.Kind {
+	case domain.ChatRoom:
+		spec.Encrypted = true
+	case domain.ChatRoomPublic:
+		spec.Public = true
+	case domain.ChatSpace:
+		spec.Space = true
+	case domain.ChatRoomUnencrypted, domain.ChatGroup, domain.ChatForum, domain.ChatChannel,
+		domain.ChatPrivateChannel, domain.ChatCommunity:
+	}
 	req := &mautrix.ReqCreateRoom{
 		Name:       spec.Name,
 		Preset:     "private_chat",
@@ -96,4 +109,23 @@ func (b *InProc) recordDirect(ctx context.Context, peer string, roomID domain.Ro
 		return fmt.Errorf("write m.direct: %w", err)
 	}
 	return nil
+}
+
+// ChatOffers is the account's rooms and space, safe default first; encryption can only
+// be chosen at creation, so it is a kind of its own.
+func (m *Adapter) ChatOffers(context.Context) ([]domain.ChatOffer, error) {
+	acc := m.accountNow()
+	if acc.User == "" {
+		return nil, nil
+	}
+	on := m.ids.owner()
+	return []domain.ChatOffer{
+		{On: on, Account: acc.User, Kind: domain.ChatRoom, Label: "Private room", Detail: "encrypted, invitation only"},
+		{
+			On: on, Account: acc.User, Kind: domain.ChatRoomUnencrypted, Label: "Private room, unencrypted",
+			Detail: "invitation only — for bridges and bots that cannot read encrypted rooms",
+		},
+		{On: on, Account: acc.User, Kind: domain.ChatRoomPublic, Label: "Public room", Detail: "anyone who finds it can join; not encrypted"},
+		{On: on, Account: acc.User, Kind: domain.ChatSpace, Label: "Space", Detail: "a container for rooms, not a conversation"},
+	}, nil
 }

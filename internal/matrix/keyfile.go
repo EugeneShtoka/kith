@@ -8,6 +8,7 @@ import (
 	"maunium.net/go/mautrix/crypto"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // Room keys as a spec-format export file (Element-compatible), for accounts without
@@ -15,7 +16,10 @@ import (
 
 // ExportRoomKeys encrypts every megolm session this device holds and returns the
 // export's bytes, not a path: the daemon cannot write outside its sandbox.
-func (b *InProc) ExportRoomKeys(ctx context.Context, passphrase string) ([]byte, error) {
+func (b *InProc) ExportRoomKeys(ctx context.Context, on domain.RoomOwner, passphrase string) ([]byte, error) {
+	if err := b.mine(on); err != nil {
+		return nil, err
+	}
 	helper := b.cryptoHelper()
 	if helper == nil {
 		return nil, api.ErrNoEncryption
@@ -34,7 +38,10 @@ func (b *InProc) ExportRoomKeys(ctx context.Context, passphrase string) ([]byte,
 
 // ImportRoomKeys adds a key export's sessions, returning how many were new and how
 // many the file held.
-func (b *InProc) ImportRoomKeys(ctx context.Context, passphrase string, data []byte) (int, int, error) {
+func (b *InProc) ImportRoomKeys(ctx context.Context, on domain.RoomOwner, passphrase string, data []byte) (int, int, error) {
+	if err := b.mine(on); err != nil {
+		return 0, 0, err
+	}
 	helper := b.cryptoHelper()
 	if helper == nil {
 		return 0, 0, api.ErrNoEncryption

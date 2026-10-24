@@ -12,6 +12,7 @@ import (
 // publicRoomsLoadedMsg carries one page of the Matrix public rooms directory for
 // the chooser; err !=nil says the request failed and nothing is to show.
 type publicRoomsLoadedMsg struct {
+	on   domain.RoomOwner
 	page domain.PublicRoomsPage
 	err  error
 }
@@ -23,17 +24,19 @@ type publicRoomJoinedMsg struct {
 	err    error
 }
 
-// openPublicRooms is `/discover`: fetch the first page and open the chooser.
+// openPublicRooms is `/discover`: fetch the first page of the directory the account
+// picked sees (pickAccount), and open the chooser.
 func (m Model) openPublicRooms() (Model, tea.Cmd) {
-	return m, m.publicRoomsCmd("")
+	return m.pickAccount(accountThen{kind: thenDiscover, network: domain.ProtocolMatrix})
 }
 
-// publicRoomsCmd fetches one page; since is empty for the first page.
-func (m Model) publicRoomsCmd(since string) tea.Cmd {
+// publicRoomsCmd fetches one page, as the account on sees it; since is empty for the
+// first page.
+func (m Model) publicRoomsCmd(on domain.RoomOwner, since string) tea.Cmd {
 	backend, ctx := m.backend, m.ctx
 	return func() tea.Msg {
-		page, err := backend.PublicRooms(ctx, "", since)
-		return publicRoomsLoadedMsg{page: page, err: err}
+		page, err := backend.PublicRooms(ctx, on, "", since)
+		return publicRoomsLoadedMsg{on: on, page: page, err: err}
 	}
 }
 
@@ -48,15 +51,15 @@ func (m Model) handlePublicRoomsLoaded(msg publicRoomsLoadedMsg) (Model, tea.Cmd
 	}
 	items := make([]pickerItem, 0, len(msg.page.Rooms))
 	for _, r := range msg.page.Rooms {
-		items = append(items, publicRoomItem(r))
+		items = append(items, publicRoomItem(msg.on, r))
 	}
 	m.picker = newPicker(pickerPublicRooms, items)
 	return m, nil
 }
 
-// publicRoomItem renders one directory row: the room's name (or alias, or ID),
-// its member count and a short topic in detail.
-func publicRoomItem(r domain.PublicRoom) pickerItem {
+// publicRoomItem renders one directory row of the account on: the room's name (or
+// alias, or ID), its member count and a short topic in detail.
+func publicRoomItem(on domain.RoomOwner, r domain.PublicRoom) pickerItem {
 	label := r.Name
 	if label == "" {
 		label = r.Alias
@@ -69,9 +72,9 @@ func publicRoomItem(r domain.PublicRoom) pickerItem {
 		detail += " · " + flatten(topic)
 	}
 	// value is the alias when known (joining by alias keeps the server hint for
-	// routing); otherwise the room ID. Both are accepted by JoinRoom.
-	target := r.Alias
-	if target == "" {
+	// routing), on the directory's account; otherwise the room ID, which names it.
+	target := string(on) + r.Alias
+	if r.Alias == "" {
 		target = string(r.ID)
 	}
 	return pickerItem{

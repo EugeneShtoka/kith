@@ -91,6 +91,7 @@ func TestStartingADMCreatesAnEncryptedUnnamedRoomForOnePerson(t *testing.T) {
 	spy := &createSpy{}
 	m := sized(t, update(t, starterNew(spy, config.Display{}), roomsMsg{}))
 	m.dmCandidates = []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}}
+	m.accounts = []domain.Account{{Network: domain.ProtocolMatrix, On: domain.RoomOwner(mx)}}
 
 	next, cmd := m.acceptJump("dm:matrix:@dana:x")
 	got := next
@@ -100,6 +101,9 @@ func TestStartingADMCreatesAnEncryptedUnnamedRoomForOnePerson(t *testing.T) {
 	cmd()
 
 	spec := spy.spec
+	if spec.On != domain.RoomOwner(mx) {
+		t.Errorf("made on %q, want the one Matrix account", spec.On)
+	}
 	if !spec.Direct {
 		t.Error("the room was not created as a direct message")
 	}

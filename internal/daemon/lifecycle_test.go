@@ -308,7 +308,7 @@ func TestMaintenanceRoundTrip(t *testing.T) {
 		t.Error("ClearCache() did not reach the daemon's backend")
 	}
 
-	keys, err := r.RestoreKeyBackup(ctx, "EsTx recovery key")
+	keys, err := r.RestoreKeyBackup(ctx, domain.RoomOwner(mx), "EsTx recovery key")
 	if err != nil {
 		t.Fatalf("RestoreKeyBackup() error = %v", err)
 	}
@@ -333,7 +333,7 @@ func (m *maintenance) ClearCache(context.Context) error {
 	return nil
 }
 
-func (m *maintenance) RestoreKeyBackup(_ context.Context, secret string) (int, error) {
+func (m *maintenance) RestoreKeyBackup(_ context.Context, _ domain.RoomOwner, secret string) (int, error) {
 	m.gotSecret = secret
 	return m.keys, nil
 }
