@@ -238,7 +238,7 @@ func (b *InProc) LoginOAuth(
 	client.DeviceID = who.DeviceID
 	b.client = client
 	return domain.Session{
-		Homeserver: homeserver, UserID: string(who.UserID), DeviceID: string(who.DeviceID),
+		Homeserver: homeserver, UserID: b.ids.user(who.UserID), DeviceID: string(who.DeviceID),
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken, OAuthClientID: clientID,
 		AccessTokenExpiresAt: tokenStart.Add(tokens.ExpiresIn.Duration),
@@ -270,7 +270,7 @@ func runOAuthBrowser(
 	deviceID := id.DeviceID(newMatrixDeviceID())
 	authResp, err := client.OAuthGetAuthorizationURL(ctx, oauth.GetAuthorizationURLParams{
 		RedirectURI: redirectURI, Scopes: oauthScopes(deviceID),
-		UserIDHint: id.UserID(userHint), ClientID: clientID,
+		UserIDHint: configuredUser(userHint), ClientID: clientID,
 	})
 	if err != nil {
 		return callback{}, nil, "", "", fmt.Errorf("matrix: build authorize url: %w", err)
@@ -345,7 +345,7 @@ func (b *InProc) LoginSSO(
 	}
 	b.client = client
 	return domain.Session{
-		Homeserver: homeserver, UserID: string(resp.UserID), DeviceID: string(resp.DeviceID),
+		Homeserver: homeserver, UserID: b.ids.user(resp.UserID), DeviceID: string(resp.DeviceID),
 		AccessToken: resp.AccessToken,
 	}, nil
 }

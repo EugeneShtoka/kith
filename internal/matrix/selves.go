@@ -64,7 +64,7 @@ func (b *InProc) accountID() string {
 	if b.client == nil {
 		return ""
 	}
-	return string(b.client.UserID)
+	return b.ids.user(b.client.UserID)
 }
 
 // Account is this account's MXID, or "" before a session exists.

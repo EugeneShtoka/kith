@@ -169,7 +169,7 @@ func TestToDomainMessage(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := toDomainMessage(tc.evt)
+			got, ok := (ids{}).toDomainMessage(tc.evt)
 			if ok != tc.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
 			}
@@ -186,14 +186,14 @@ func TestRedactionTarget(t *testing.T) {
 	// Room v11 carries the target event in the redaction's content.
 	v11 := &event.Event{Type: event.EventRedaction, Content: event.Content{
 		Parsed: &event.RedactionEventContent{Redacts: id.EventID("$target:x")}}}
-	if got := redactionTarget(v11); got != "$target:x" {
+	if got := (ids{}).redactionTarget(v11); got != "$target:x" {
 		t.Errorf("v11 target = %q, want $target:x", got)
 	}
 
 	// Older rooms carry it as the top-level redacts field (content empty).
 	legacy := &event.Event{Type: event.EventRedaction, Redacts: id.EventID("$old:x"),
 		Content: event.Content{Parsed: &event.RedactionEventContent{}}}
-	if got := redactionTarget(legacy); got != "$old:x" {
+	if got := (ids{}).redactionTarget(legacy); got != "$old:x" {
 		t.Errorf("legacy target = %q, want $old:x", got)
 	}
 }
@@ -210,7 +210,7 @@ func TestToReaction(t *testing.T) {
 			RelatesTo: event.RelatesTo{Type: event.RelAnnotation, EventID: id.EventID("$m:x"), Key: "👍"},
 		}},
 	}
-	got, ok := toReaction(good)
+	got, ok := (ids{}).toReaction(good)
 	if !ok {
 		t.Fatal("valid reaction not parsed")
 	}
@@ -226,7 +226,7 @@ func TestToReaction(t *testing.T) {
 			RelatesTo: event.RelatesTo{Type: event.RelAnnotation, EventID: id.EventID("$m:x")},
 		}},
 	}
-	if _, ok := toReaction(noKey); ok {
+	if _, ok := (ids{}).toReaction(noKey); ok {
 		t.Error("reaction without a key should be ignored")
 	}
 }
@@ -246,7 +246,7 @@ func TestToDomainMessageMedia(t *testing.T) {
 			Info:    &event.FileInfo{MimeType: "image/jpeg", Width: 800, Height: 600, Size: 12345},
 		}},
 	}
-	got, ok := toDomainMessage(img)
+	got, ok := (ids{}).toDomainMessage(img)
 	if !ok || got.Media == nil {
 		t.Fatalf("image not recognized as media: ok=%v media=%v", ok, got.Media)
 	}
@@ -261,7 +261,7 @@ func TestToDomainMessageMedia(t *testing.T) {
 		Type: event.EventMessage, Timestamp: 1700000000000,
 		Content: event.Content{Parsed: &event.MessageEventContent{MsgType: event.MsgImage, Body: ""}},
 	}
-	if _, kept := toDomainMessage(noName); !kept {
+	if _, kept := (ids{}).toDomainMessage(noName); !kept {
 		t.Error("an image with no filename should not be dropped")
 	}
 
@@ -276,7 +276,7 @@ func TestToDomainMessageMedia(t *testing.T) {
 			Info:     &event.FileInfo{MimeType: "image/jpeg"},
 		}},
 	}
-	got, ok = toDomainMessage(captioned)
+	got, ok = (ids{}).toDomainMessage(captioned)
 	if !ok || got.Media == nil {
 		t.Fatalf("captioned image not recognized as media: ok=%v media=%v", ok, got.Media)
 	}
@@ -295,7 +295,7 @@ func TestToDomainMessageMedia(t *testing.T) {
 			MsgType: event.MsgFile, FileName: "invoice-2026.pdf",
 		}},
 	}
-	got, ok = toDomainMessage(bodyless)
+	got, ok = (ids{}).toDomainMessage(bodyless)
 	if !ok || got.Media == nil {
 		t.Fatalf("bodyless attachment dropped: ok=%v media=%v", ok, got.Media)
 	}
@@ -326,7 +326,7 @@ func TestParseMentions(t *testing.T) {
 
 	fb := `hey <a href="https://matrix.to/#/@alice:x">Alice</a> and ` +
 		`<a href="https://matrix.to/#/@bob:server.org">@Bob</a>!`
-	got := parseMentions(fb)
+	got := (ids{}).parseMentions(fb)
 	if len(got) != 2 {
 		t.Fatalf("mentions = %+v, want 2", got)
 	}
@@ -337,7 +337,7 @@ func TestParseMentions(t *testing.T) {
 	if got[1].UserID != "@bob:server.org" || got[1].Name != "Bob" {
 		t.Errorf("mention 1 = %+v, want @bob:server.org/Bob", got[1])
 	}
-	if parseMentions("") != nil || parseMentions("plain, no pills") != nil {
+	if (ids{}).parseMentions("") != nil || (ids{}).parseMentions("plain, no pills") != nil {
 		t.Error("no pills should yield nil")
 	}
 }
@@ -436,7 +436,7 @@ func TestMentionsMe(t *testing.T) {
 			t.Parallel()
 			content := tc.content
 			evt := &event.Event{Content: event.Content{Parsed: &content}}
-			if got := mentionsMe(evt, me); got != tc.want {
+			if got := (ids{}).mentionsMe(evt, me); got != tc.want {
 				t.Errorf("mentionsMe = %v, want %v", got, tc.want)
 			}
 		})
@@ -445,7 +445,7 @@ func TestMentionsMe(t *testing.T) {
 	viaMentions := &event.Event{Content: event.Content{Parsed: &event.MessageEventContent{
 		MsgType: event.MsgText, Body: "hey", Mentions: &event.Mentions{UserIDs: []id.UserID{me}},
 	}}}
-	if mentionsMe(viaMentions, "") {
+	if (ids{}).mentionsMe(viaMentions, "") {
 		t.Error("with no logged-in user there is no mention")
 	}
 }
@@ -579,7 +579,7 @@ func TestReadReceipts(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := readReceipts(tc.events, id.UserID("@me:x"))
+			got := (ids{}).readReceipts(tc.events, id.UserID("@me:x"))
 			var room, threads []string
 			for _, c := range got.Room {
 				label := string(c.Event)
@@ -668,7 +668,7 @@ func TestMergeUnread(t *testing.T) {
 		},
 	}
 	for _, s := range steps {
-		read, _ := b.applyReceipts(context.Background(), room, readReceipts(s.jr.Ephemeral.Events, client.UserID))
+		read, _ := b.applyReceipts(context.Background(), room, (ids{}).readReceipts(s.jr.Ephemeral.Events, client.UserID))
 		var marked *bool
 		if flag, present := markedUnread(s.jr.AccountData.Events); present {
 			marked = &flag
@@ -858,14 +858,14 @@ func TestAnEditCarriesItsNewFormatting(t *testing.T) {
 			}},
 		}
 	}
-	formatted, ok := toDomainMessage(edit(&event.MessageEventContent{
+	formatted, ok := (ids{}).toDomainMessage(edit(&event.MessageEventContent{
 		MsgType: event.MsgText, Body: "new", Format: event.FormatHTML,
 		FormattedBody: `<b>new</b><script>alert(1)</script>`,
 	}))
 	if !ok || formatted.ID != "$orig:x" || formatted.Body != "new" || formatted.Format.Markup() != "<b>new</b>" {
 		t.Fatalf("formatted edit = %+v, want the new sanitized HTML on $orig:x", formatted)
 	}
-	plain, ok := toDomainMessage(edit(&event.MessageEventContent{MsgType: event.MsgText, Body: "new"}))
+	plain, ok := (ids{}).toDomainMessage(edit(&event.MessageEventContent{MsgType: event.MsgText, Body: "new"}))
 	if !ok || plain.Format.Markup() != "" {
 		t.Fatalf("plain edit = %+v, want no HTML", plain)
 	}

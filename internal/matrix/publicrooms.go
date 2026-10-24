@@ -39,7 +39,7 @@ func (b *InProc) PublicRooms(ctx context.Context, server, since string) (domain.
 			continue
 		}
 		page.Rooms = append(page.Rooms, domain.PublicRoom{
-			ID:            domain.RoomID(info.RoomID),
+			ID:            b.ids.room(info.RoomID),
 			Alias:         string(info.CanonicalAlias),
 			Name:          info.Name,
 			Topic:         info.Topic,

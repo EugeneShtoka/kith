@@ -79,7 +79,7 @@ var neverAttaches = func() chan bool {
 
 // emitActivity publishes a room's typing state, only when the batch has a typing event.
 func (b *InProc) emitActivity(roomID domain.RoomID, events []*event.Event) {
-	typing, present := typingIn(events, b.client.UserID)
+	typing, present := b.ids.typingIn(events, b.client.UserID)
 	if !present {
 		return
 	}

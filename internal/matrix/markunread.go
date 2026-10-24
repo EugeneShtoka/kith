@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -30,7 +29,7 @@ func markedUnread(events []*event.Event) (flag, present bool) {
 // sync echo, not locally.
 func (b *InProc) MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unread bool) error {
 	content := event.MarkedUnreadEventContent{Unread: unread}
-	if err := b.client.SetRoomAccountData(ctx, id.RoomID(roomID), event.AccountDataMarkedUnread.Type, &content); err != nil {
+	if err := b.client.SetRoomAccountData(ctx, b.ids.nativeRoom(roomID), event.AccountDataMarkedUnread.Type, &content); err != nil {
 		return fmt.Errorf("matrix: mark %s unread=%v: %w", roomID, unread, err)
 	}
 	return nil

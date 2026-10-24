@@ -16,8 +16,8 @@ import (
 func TestIgnoredContentRoundTrip(t *testing.T) {
 	t.Parallel()
 	in := []string{"@bob:x", "@ann:x", "@carl:x"}
-	content := ignoredContentOf(in)
-	got := content.users()
+	content := ignoredContentOf(ids{}, in)
+	got := content.users(ids{})
 	// users() returns alphabetical order, independent of the input.
 	want := []string{"@ann:x", "@bob:x", "@carl:x"}
 	if !sameStringSet(got, want) {
@@ -41,7 +41,7 @@ func TestIgnoredFromReadsOnlyItsOwnType(t *testing.T) {
 	if !present {
 		t.Fatal("ignoredFrom: want present")
 	}
-	if got := content.users(); len(got) != 1 || got[0] != "@spam:x" {
+	if got := content.users(ids{}); len(got) != 1 || got[0] != "@spam:x" {
 		t.Errorf("users = %v, want [@spam:x]", got)
 	}
 	if _, present := ignoredFrom([]*event.Event{{Type: event.Type{Type: "m.other"}}}); present {
@@ -181,9 +181,9 @@ func (f *fakeAccountData) serve(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func mkIgnoredEvent(t *testing.T, ids []string) *event.Event {
+func mkIgnoredEvent(t *testing.T, users []string) *event.Event {
 	t.Helper()
-	content := ignoredContentOf(ids)
+	content := ignoredContentOf(ids{}, users)
 	raw, err := json.Marshal(content)
 	if err != nil {
 		t.Fatal(err)

@@ -6,7 +6,6 @@ import (
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -102,7 +101,7 @@ func (b *InProc) resolveReceipt(ctx context.Context, roomID domain.RoomID, kind,
 		return readPos{Event: eventID, TS: ts}, true
 	}
 	newest := b.newestCached(ctx, roomID)
-	resp, err := b.client.Context(ctx, id.RoomID(roomID), id.EventID(eventID),
+	resp, err := b.client.Context(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID),
 		&mautrix.FilterPart{Types: timelineTypes, LazyLoadMembers: true}, contextLimit)
 	if err != nil || resp == nil || resp.Event == nil || resp.Event.Timestamp <= 0 {
 		// Tried once per receipt; the room then counts from the server.
@@ -112,19 +111,19 @@ func (b *InProc) resolveReceipt(ctx context.Context, roomID domain.RoomID, kind,
 	if kind != heldUnthreaded && kind != heldMain {
 		return readPos{Event: eventID, TS: resp.Event.Timestamp}, true
 	}
-	return streamPosition(resp.Event, resp.EventsBefore, resp.EventsAfter, newest)
+	return b.ids.streamPosition(resp.Event, resp.EventsBefore, resp.EventsAfter, newest)
 }
 
 // streamPosition places a room receipt at the newest message at or before it, by that
 // message's time. With nothing after it the room is read through (at least the
 // receipt's time and newest). A receipt before every message sits just before the
 // first. ok is false when the answer settles nothing (the server ignored the filter).
-func streamPosition(receipt *event.Event, before, after []*event.Event, newest readPos) (readPos, bool) {
+func (x ids) streamPosition(receipt *event.Event, before, after []*event.Event, newest readPos) (readPos, bool) {
 	var anchor readPos
 	if isTimeline(receipt) {
-		anchor = readPos{Event: domain.EventID(receipt.ID), TS: receipt.Timestamp}
+		anchor = readPos{Event: x.event(receipt.ID), TS: receipt.Timestamp}
 	} else if m := firstTimeline(before); m != nil {
-		anchor = readPos{Event: domain.EventID(m.ID), TS: m.Timestamp}
+		anchor = readPos{Event: x.event(m.ID), TS: m.Timestamp}
 	}
 	if len(after) > 0 {
 		if anchor.Event != "" {
@@ -134,14 +133,14 @@ func streamPosition(receipt *event.Event, before, after []*event.Event, newest r
 		if next == nil {
 			return readPos{}, false
 		}
-		return readPos{Event: domain.EventID(receipt.ID), TS: min(receipt.Timestamp, next.Timestamp-1)}, true
+		return readPos{Event: x.event(receipt.ID), TS: min(receipt.Timestamp, next.Timestamp-1)}, true
 	}
 	pos := anchor
 	if newest.Event != "" && newest.TS >= pos.TS {
 		pos = newest
 	}
 	if pos.Event == "" {
-		pos.Event = domain.EventID(receipt.ID)
+		pos.Event = x.event(receipt.ID)
 	}
 	pos.TS = max(pos.TS, receipt.Timestamp)
 	return pos, true

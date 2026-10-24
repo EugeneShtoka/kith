@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"maunium.net/go/mautrix/id"
-
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -25,7 +23,7 @@ func (b *InProc) Members(ctx context.Context, roomID domain.RoomID, limit int) (
 // the sender-name memo.
 func (b *InProc) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]domain.Member, error) {
 	seen := b.names.seen(roomID)
-	resp, err := b.client.JoinedMembers(ctx, id.RoomID(roomID))
+	resp, err := b.client.JoinedMembers(ctx, b.ids.nativeRoom(roomID))
 	if err != nil {
 		return nil, fmt.Errorf("matrix: joined members of %s: %w", roomID, err)
 	}
@@ -33,9 +31,9 @@ func (b *InProc) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]do
 	names := make(map[string]string, len(resp.Joined))
 	for userID, member := range resp.Joined {
 		display := member.DisplayName
-		members = append(members, domain.Member{UserID: string(userID), DisplayName: display})
+		members = append(members, domain.Member{UserID: b.ids.user(userID), DisplayName: display})
 		if display != "" {
-			names[string(userID)] = display
+			names[b.ids.user(userID)] = display
 		}
 	}
 	domain.SortMembers(members)
@@ -85,10 +83,10 @@ func (b *InProc) DirectCandidates(ctx context.Context, limit int) ([]domain.Memb
 	if err != nil {
 		return nil, fmt.Errorf("matrix: direct candidates: %w", err)
 	}
-	taken := map[string]bool{string(b.client.UserID): true}
+	taken := map[string]bool{b.ids.user(b.client.UserID): true}
 	peers, _ := b.directPeers(ctx) // unread: no peers to add
 	for _, peer := range peers {
-		taken[string(peer)] = true
+		taken[b.ids.user(peer)] = true
 	}
 	out := make([]domain.Member, 0, min(limit, len(talkers)))
 	for _, member := range talkers {

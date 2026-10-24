@@ -15,7 +15,7 @@ import (
 
 // typingIn reports who is typing (excluding us) and whether m.typing, which carries
 // the complete set, was present; absence means unchanged.
-func typingIn(events []*event.Event, self id.UserID) (users []string, present bool) {
+func (x ids) typingIn(events []*event.Event, self id.UserID) (users []string, present bool) {
 	for _, evt := range events {
 		if evt == nil || evt.Type != event.EphemeralEventTyping {
 			continue
@@ -27,7 +27,7 @@ func typingIn(events []*event.Event, self id.UserID) (users []string, present bo
 			if u == self {
 				continue
 			}
-			users = append(users, string(u))
+			users = append(users, x.user(u))
 		}
 	}
 	return users, present
@@ -35,7 +35,7 @@ func typingIn(events []*event.Event, self id.UserID) (users []string, present bo
 
 // SendTyping starts or stops our typing notice; the caller, which refreshes it, owns the timeout.
 func (b *InProc) SendTyping(ctx context.Context, roomID domain.RoomID, typing bool, timeout time.Duration) error {
-	if _, err := b.client.UserTyping(ctx, id.RoomID(roomID), typing, timeout); err != nil {
+	if _, err := b.client.UserTyping(ctx, b.ids.nativeRoom(roomID), typing, timeout); err != nil {
 		return fmt.Errorf("matrix: typing notice for %s: %w", roomID, err)
 	}
 	return nil

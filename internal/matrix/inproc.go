@@ -34,6 +34,8 @@ const inviteBuffer = 4
 type InProc struct {
 	client *mautrix.Client
 	cache  *db.Cache
+	// ids converts every ID crossing between Matrix's form and kith's (ids.go).
+	ids ids
 	// tagsMu serializes read-change-write of tag account data (tagverdicts.go).
 	tagsMu sync.Mutex
 	// ignoredMu serializes read-change-write of m.ignored_user_list (ignored.go).
@@ -196,7 +198,7 @@ func (b *InProc) Login(ctx context.Context, homeserver, user, password string) (
 	b.client = client
 	return domain.Session{
 		Homeserver:  homeserver,
-		UserID:      string(resp.UserID),
+		UserID:      matrixString(resp.UserID),
 		DeviceID:    string(resp.DeviceID),
 		AccessToken: resp.AccessToken,
 	}, nil
@@ -210,7 +212,7 @@ func (b *InProc) Resume(
 	ctx context.Context, s domain.Session,
 	saveNewToken func(ctx context.Context, refresh, access string, expiry time.Time) error,
 ) error {
-	client, err := mautrix.NewClient(s.Homeserver, id.UserID(s.UserID), s.AccessToken)
+	client, err := mautrix.NewClient(s.Homeserver, configuredUser(s.UserID), s.AccessToken)
 	if err != nil {
 		return fmt.Errorf("matrix: new client: %w", err)
 	}
@@ -323,11 +325,11 @@ func (b *InProc) Stop() {
 
 // onMessage caches a live message and hands it to the UI (dropped if the buffer is full).
 func (b *InProc) onMessage(ctx context.Context, evt *event.Event) {
-	msg, ok := toDomainMessage(evt)
+	msg, ok := b.ids.toDomainMessage(evt)
 	if !ok {
 		return
 	}
-	msg.Mentioned = mentionsMe(evt, b.client.UserID)
+	msg.Mentioned = b.ids.mentionsMe(evt, b.client.UserID)
 	msg.SenderName = b.senderName(ctx, msg.RoomID, msg.Sender)
 	if b.cache != nil {
 		b.cacheMessages(ctx, msg.RoomID, []domain.Message{msg})
@@ -348,11 +350,11 @@ func (b *InProc) onMessage(ctx context.Context, evt *event.Event) {
 // onRedaction handles a live redaction: an un-react for a cached reaction, else it
 // marks the message redacted and emits a Redacted stub.
 func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
-	target := redactionTarget(evt)
+	target := b.ids.redactionTarget(evt)
 	if target == "" {
 		return
 	}
-	roomID := domain.RoomID(evt.RoomID)
+	roomID := b.ids.room(evt.RoomID)
 	if b.cache != nil {
 		r, ok, derr := b.cache.DeleteReaction(ctx, target)
 		b.warnIf(ctx, derr, "delete cached reaction", "room", roomID, "event", target)
@@ -364,7 +366,7 @@ func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 		// Find the edit's target before MarkRedacted strips its body.
 		shownOn, isEdit, serr := b.cache.EditShownBy(ctx, roomID, target)
 		b.warnIf(ctx, serr, "find the message a deleted edit shows on", "room", roomID, "event", target)
-		b.warnIf(ctx, b.cache.MarkRedacted(ctx, roomID, target, string(evt.Sender), redactionReason(evt),
+		b.warnIf(ctx, b.cache.MarkRedacted(ctx, roomID, target, b.ids.user(evt.Sender), redactionReason(evt),
 			time.UnixMilli(evt.Timestamp), b.keepDeleted.Load()),
 			"cache redaction", "room", roomID, "event", target)
 		b.changed(roomID)
@@ -376,7 +378,7 @@ func (b *InProc) onRedaction(ctx context.Context, evt *event.Event) {
 	}
 	gone := domain.Message{
 		ID: target, RoomID: roomID, Redacted: true,
-		RedactedBy: string(evt.Sender), RedactedReason: redactionReason(evt),
+		RedactedBy: b.ids.user(evt.Sender), RedactedReason: redactionReason(evt),
 		RedactedAt: eventTime(evt.Timestamp),
 	}
 	if b.keepDeleted.Load() && b.cache != nil {
@@ -462,16 +464,16 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 		go b.sendOwed(context.WithoutCancel(ctx))
 	}
 	// Reported, not acted on: refreshing is a network call on the sync goroutine.
-	if b.onRoomsStale != nil && roomsChanged(resp, b.client.UserID) {
+	if b.onRoomsStale != nil && b.ids.roomsChanged(resp, b.client.UserID) {
 		b.onRoomsStale()
 	}
 	// The people account data present is the whole set; absence means no change.
 	if content, present := peopleFrom(resp.AccountData.Events); present {
-		b.mirrorPeople(ctx, content.verdicts())
+		b.mirrorPeople(ctx, content.verdicts(b.ids))
 	}
 	// Same for m.ignored_user_list: present is the whole set, absence is no change.
 	if content, present := ignoredFrom(resp.AccountData.Events); present {
-		b.mirrorIgnored(ctx, content.users())
+		b.mirrorIgnored(ctx, content.users(b.ids))
 	}
 	b.syncInvites(ctx, resp, since)
 	b.fetchHeld(ctx)
@@ -481,25 +483,25 @@ func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since strin
 		}
 		// Room and thread receipts are read together: only then can an unthreaded
 		// receipt be told from a "main" one.
-		receipts := readReceipts(jr.Ephemeral.Events, b.client.UserID)
-		read, threadsMoved := b.applyReceipts(ctx, domain.RoomID(roomID), receipts)
+		receipts := b.ids.readReceipts(jr.Ephemeral.Events, b.client.UserID)
+		read, threadsMoved := b.applyReceipts(ctx, b.ids.room(roomID), receipts)
 		var marked *bool
 		if flag, present := markedUnread(jr.AccountData.Events); present {
 			marked = &flag
 		}
 		// A star or tags event present is the room's whole set; absence means no change.
-		if ids, present := starredFrom(jr.AccountData.Events); present && b.cache != nil {
-			b.warnIf(ctx, b.cache.SetStarred(ctx, domain.RoomID(roomID), ids, time.Now().UnixMilli()), "cache starred messages", "room", roomID)
+		if ids, present := b.ids.starredFrom(jr.AccountData.Events); present && b.cache != nil {
+			b.warnIf(ctx, b.cache.SetStarred(ctx, b.ids.room(roomID), ids, time.Now().UnixMilli()), "cache starred messages", "room", roomID)
 		}
 		if content, present := tagsFrom(jr.AccountData.Events); present {
-			b.mirrorVerdicts(ctx, domain.RoomID(roomID), content.verdicts(domain.RoomID(roomID)))
+			b.mirrorVerdicts(ctx, b.ids.room(roomID), content.verdicts(b.ids.room(roomID)))
 		}
-		b.emitActivity(domain.RoomID(roomID), jr.Ephemeral.Events)
-		if _, changed := b.mergeUnread(ctx, domain.RoomID(roomID), jr, read, marked); !changed && !threadsMoved {
+		b.emitActivity(b.ids.room(roomID), jr.Ephemeral.Events)
+		if _, changed := b.mergeUnread(ctx, b.ids.room(roomID), jr, read, marked); !changed && !threadsMoved {
 			continue
 		}
 		// This response's messages come after OnSync; onMessage recounts again then.
-		b.recountAndEmit(ctx, domain.RoomID(roomID), true)
+		b.recountAndEmit(ctx, b.ids.room(roomID), true)
 	}
 	return true
 }

@@ -7,7 +7,6 @@ import (
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -58,7 +57,7 @@ func (b *InProc) readRoomNetworks(ctx context.Context) {
 	}
 	networks := make(map[domain.RoomID]domain.Protocol, len(unknown))
 	for _, room := range unknown {
-		joined := resp.Rooms.Join[id.RoomID(room)]
+		joined := resp.Rooms.Join[b.ids.nativeRoom(room)]
 		if joined == nil {
 			continue // not in this reading: read again next time
 		}

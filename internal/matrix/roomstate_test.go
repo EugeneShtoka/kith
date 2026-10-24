@@ -60,7 +60,7 @@ func TestRoomsChanged(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if got := roomsChanged(tc.resp, meUser); got != tc.want {
+			if got := (ids{}).roomsChanged(tc.resp, meUser); got != tc.want {
 				t.Errorf("roomsChanged = %v, want %v", got, tc.want)
 			}
 		})
@@ -77,7 +77,7 @@ func TestRoomsChangedReadsBothSections(t *testing.T) {
 			stateEvent(event.StateRoomName, ""),
 		}}},
 	}
-	if !roomsChanged(resp, meUser) {
+	if !(ids{}).roomsChanged(resp, meUser) {
 		t.Error("a rename in the state section should count")
 	}
 }

@@ -10,7 +10,6 @@ import (
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -130,7 +129,7 @@ func (b *InProc) RetagVerdicts(ctx context.Context, from, to string) error {
 // serverVerdicts is a room's verdict set as the homeserver has it; none yet is empty.
 func (b *InProc) serverVerdicts(ctx context.Context, roomID domain.RoomID) ([]domain.TagVerdict, error) {
 	var current tagsContent
-	err := b.client.GetRoomAccountData(ctx, id.RoomID(roomID), tagsType, &current)
+	err := b.client.GetRoomAccountData(ctx, b.ids.nativeRoom(roomID), tagsType, &current)
 	switch {
 	case errors.Is(err, mautrix.MNotFound):
 		return nil, nil
@@ -143,7 +142,7 @@ func (b *InProc) serverVerdicts(ctx context.Context, roomID domain.RoomID) ([]do
 // writeVerdicts stores a room's whole set on the homeserver, then the mirror.
 func (b *InProc) writeVerdicts(ctx context.Context, roomID domain.RoomID, set []domain.TagVerdict) error {
 	content := contentOf(set)
-	if err := b.client.SetRoomAccountData(ctx, id.RoomID(roomID), tagsType, &content); err != nil {
+	if err := b.client.SetRoomAccountData(ctx, b.ids.nativeRoom(roomID), tagsType, &content); err != nil {
 		return fmt.Errorf("matrix: record the tag verdicts of %s: %w", roomID, err)
 	}
 	return toCache(b, "mirror the tag verdicts of "+string(roomID), func(c *db.Cache) error {

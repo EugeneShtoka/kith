@@ -72,7 +72,7 @@ func TestToDomainMessageKeepsASticker(t *testing.T) {
 	})
 	sticker.Type = event.EventSticker
 
-	got, ok := toDomainMessage(sticker)
+	got, ok := (ids{}).toDomainMessage(sticker)
 	if !ok {
 		t.Fatal("a sticker was dropped — it renders as no row at all")
 	}
@@ -93,7 +93,7 @@ func TestToDomainMessageKeepsASticker(t *testing.T) {
 		URL: "mxc://x/sticker2",
 	})
 	wordless.Type = event.EventSticker
-	if _, ok := toDomainMessage(wordless); !ok {
+	if _, ok := (ids{}).toDomainMessage(wordless); !ok {
 		t.Error("a sticker with no alt text was dropped")
 	}
 }
@@ -130,15 +130,15 @@ func TestTypingIn(t *testing.T) {
 		}
 	}
 
-	if _, present := typingIn(nil, self); present {
+	if _, present := (ids{}).typingIn(nil, self); present {
 		t.Error("no events reported as 'nobody is typing'; the indicator would flicker off")
 	}
 	other := &event.Event{Type: event.EphemeralEventReceipt}
-	if _, present := typingIn([]*event.Event{other, nil}, self); present {
+	if _, present := (ids{}).typingIn([]*event.Event{other, nil}, self); present {
 		t.Error("a batch with no m.typing was read as one")
 	}
 
-	users, present := typingIn([]*event.Event{typing("@alice:x", "@me:x")}, self)
+	users, present := (ids{}).typingIn([]*event.Event{typing("@alice:x", "@me:x")}, self)
 	if !present {
 		t.Fatal("an m.typing event was not seen")
 	}
@@ -146,7 +146,7 @@ func TestTypingIn(t *testing.T) {
 		t.Errorf("typing = %v, want just Alice — we are not news to ourselves", users)
 	}
 
-	users, present = typingIn([]*event.Event{typing("@alice:x"), typing()}, self)
+	users, present = (ids{}).typingIn([]*event.Event{typing("@alice:x"), typing()}, self)
 	if !present || len(users) != 0 {
 		t.Errorf("typing = %v (present=%v), want the later empty set to win", users, present)
 	}
@@ -216,7 +216,7 @@ func TestAnEditReplacingAPlaceholderBringsItsPicture(t *testing.T) {
 		Type:    event.EventMessage,
 		Content: event.Content{Parsed: &event.MessageEventContent{MsgType: event.MsgNotice, Body: "Decrypting message from WhatsApp failed"}, Raw: map[string]any{"fi.mau.whatsapp.undecryptable": true}},
 	}
-	if msg, ok := toDomainMessage(notice); !ok || !msg.Placeholder {
+	if msg, ok := (ids{}).toDomainMessage(notice); !ok || !msg.Placeholder {
 		t.Errorf("the placeholder = (%+v, %v), want it marked", msg, ok)
 	}
 	for name, caption := range map[string]string{"captioned": "look at this", "bare": ""} {
@@ -228,7 +228,7 @@ func TestAnEditReplacingAPlaceholderBringsItsPicture(t *testing.T) {
 				Info: &event.FileInfo{MimeType: "image/jpeg", Width: 1008, Height: 216, Size: 17431},
 			},
 		})
-		msg, ok := toDomainMessage(edit)
+		msg, ok := (ids{}).toDomainMessage(edit)
 		if !ok || msg.ID != "$stand" || !msg.Edited || msg.Body != caption || !msg.Media.IsImage() || msg.Media.Name != "image.jpg" {
 			t.Errorf("%s: the replacing edit = (%+v, %v)", name, msg, ok)
 		}

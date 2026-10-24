@@ -28,23 +28,23 @@ type ignoredContent struct {
 	IgnoredUsers map[string]json.RawMessage `json:"ignored_users"`
 }
 
-// users is the content as a sorted set of MXIDs. Sorting makes the record stable
+// users is the content as a sorted set of user IDs. Sorting makes the record stable
 // across writes so a diff is readable, and the mirror can compare whole-set.
-func (c ignoredContent) users() []string {
-	ids := make([]string, 0, len(c.IgnoredUsers))
-	for id := range c.IgnoredUsers {
-		ids = append(ids, id)
+func (c ignoredContent) users(x ids) []string {
+	users := make([]string, 0, len(c.IgnoredUsers))
+	for native := range c.IgnoredUsers {
+		users = append(users, x.userOf(native))
 	}
-	sort.Strings(ids)
-	return ids
+	sort.Strings(users)
+	return users
 }
 
 // ignoredContentOf is a set of MXIDs as account data carries it: an empty object
 // per user, which the spec reserves for a future value.
-func ignoredContentOf(ids []string) ignoredContent {
+func ignoredContentOf(x ids, users []string) ignoredContent {
 	out := ignoredContent{IgnoredUsers: map[string]json.RawMessage{}}
-	for _, id := range ids {
-		out.IgnoredUsers[id] = json.RawMessage("{}")
+	for _, user := range users {
+		out.IgnoredUsers[matrixString(x.nativeUser(user))] = json.RawMessage("{}")
 	}
 	return out
 }
@@ -123,17 +123,17 @@ func (b *InProc) serverIgnored(ctx context.Context) ([]string, error) {
 	case err != nil:
 		return nil, fmt.Errorf("matrix: read the ignored list: %w", err)
 	}
-	return current.users(), nil
+	return current.users(b.ids), nil
 }
 
 // writeIgnored stores the whole set on the homeserver, then the mirror.
-func (b *InProc) writeIgnored(ctx context.Context, ids []string) error {
-	content := ignoredContentOf(ids)
+func (b *InProc) writeIgnored(ctx context.Context, users []string) error {
+	content := ignoredContentOf(b.ids, users)
 	if err := b.client.SetAccountData(ctx, ignoredType, &content); err != nil {
 		return fmt.Errorf("matrix: record the ignored list: %w", err)
 	}
 	return toCache(b, "mirror the ignored list", func(c *db.Cache) error {
-		return c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, ids)
+		return c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, users)
 	})
 }
 

@@ -106,7 +106,7 @@ func (b *InProc) listJoined(ctx context.Context) (joinedSplit, error) {
 	}
 	// Drop rooms left since the list was asked for.
 	resp.JoinedRooms = slices.DeleteFunc(resp.JoinedRooms, func(roomID id.RoomID) bool {
-		return b.left.since(domain.RoomID(roomID), asked)
+		return b.left.since(b.ids.room(roomID), asked)
 	})
 	joined := make(map[id.RoomID]bool, len(resp.JoinedRooms))
 	for _, roomID := range resp.JoinedRooms {
@@ -118,7 +118,7 @@ func (b *InProc) listJoined(ctx context.Context) (joinedSplit, error) {
 	spaceIDs := make(map[id.RoomID]bool)
 	for i, roomID := range resp.JoinedRooms {
 		if !read[i] {
-			_, isSpace[i] = known[domain.SpaceID(roomID)]
+			_, isSpace[i] = known[b.ids.space(roomID)]
 		}
 		if isSpace[i] {
 			spaceIDs[roomID] = true
@@ -128,7 +128,7 @@ func (b *InProc) listJoined(ctx context.Context) (joinedSplit, error) {
 	// Asked once for all spaces (see domain.Space.Keeper).
 	wide := map[string]bool{}
 	if b.cache != nil {
-		if found, err := b.cache.WideReachingUsers(ctx, string(b.client.UserID), domain.KeeperReach); err == nil {
+		if found, err := b.cache.WideReachingUsers(ctx, b.ids.user(b.client.UserID), domain.KeeperReach); err == nil {
 			wide = found
 		}
 	}
@@ -140,7 +140,7 @@ func (b *InProc) listJoined(ctx context.Context) (joinedSplit, error) {
 		}
 		if space, ok := b.spaceChildren(ctx, roomID, joined, spaceIDs, wide); ok {
 			spaces = append(spaces, space)
-		} else if cached, had := known[domain.SpaceID(roomID)]; had {
+		} else if cached, had := known[b.ids.space(roomID)]; had {
 			spaces = append(spaces, cached)
 		}
 	}
@@ -249,7 +249,7 @@ func (b *InProc) saveUpgradeLinks(ctx context.Context, joined []id.RoomID, prede
 		if predecessor == "" {
 			continue
 		}
-		successor := domain.RoomID(joined[i])
+		successor := b.ids.room(joined[i])
 		b.warnIf(ctx, b.cache.SaveRoomUpgrade(ctx, successor, db.RoomUpgrade{Predecessor: predecessor}),
 			"cache room upgrade", "room", successor, "predecessor", predecessor)
 		b.warnIf(ctx, b.cache.SaveRoomUpgrade(ctx, predecessor, db.RoomUpgrade{Replacement: successor}),
@@ -264,7 +264,7 @@ func (b *InProc) roomCreate(ctx context.Context, roomID id.RoomID) (isSpace bool
 		b.warnIf(ctx, err, "read m.room.create", "room", roomID)
 		return false, "", false
 	}
-	return content.Type == event.RoomTypeSpace, domain.RoomID(content.GetPredecessor().RoomID), true
+	return content.Type == event.RoomTypeSpace, b.ids.room(content.GetPredecessor().RoomID), true
 }
 
 // spaceChildren resolves a space's name and joined, non-space children from the
@@ -272,7 +272,7 @@ func (b *InProc) roomCreate(ctx context.Context, roomID id.RoomID) (isSpace bool
 // results and caps limit at 100. Left rooms' child events stay in state forever,
 // hence the joined filter.
 func (b *InProc) spaceChildren(ctx context.Context, spaceID id.RoomID, joined, spaces map[id.RoomID]bool, wide map[string]bool) (domain.Space, bool) {
-	space := domain.Space{ID: domain.SpaceID(spaceID)}
+	space := domain.Space{ID: b.ids.space(spaceID)}
 	state, err := b.client.State(ctx, spaceID)
 	if err != nil {
 		b.warnIf(ctx, err, "read space state", "space", spaceID)
@@ -285,7 +285,7 @@ func (b *InProc) spaceChildren(ctx context.Context, spaceID id.RoomID, joined, s
 	}
 	var creator string
 	if created := state[event.StateCreate][""]; created != nil {
-		creator = string(created.Sender)
+		creator = b.ids.user(created.Sender)
 	}
 	children := make([]*event.Event, 0, len(state[event.StateSpaceChild]))
 	for stateKey, evt := range state[event.StateSpaceChild] {
@@ -294,15 +294,15 @@ func (b *InProc) spaceChildren(ctx context.Context, spaceID id.RoomID, joined, s
 		if evt == nil || len(evt.Content.VeryRaw) <= 2 {
 			continue
 		}
-		child := id.RoomID(stateKey)
+		child := b.ids.nativeRoom(b.ids.roomOf(stateKey))
 		if !joined[child] || spaces[child] {
 			continue
 		}
-		space.Children = append(space.Children, domain.RoomID(child))
+		space.Children = append(space.Children, b.ids.room(child))
 	}
 	space.Leaving = leavingOf(state)
-	space.Bridge = spaceOwner(creator, children)
-	space.Keeper = spaceKeeper(state[event.StateMember], string(b.client.UserID), wide)
+	space.Bridge = b.ids.spaceOwner(creator, children)
+	space.Keeper = spaceKeeper(state[event.StateMember], b.ids.user(b.client.UserID), wide)
 	// Sorted: children arrive in map order and downstream compares lists.
 	slices.Sort(space.Children)
 	return space, true
@@ -348,7 +348,7 @@ func leavingOf(state map[event.Type]map[string]*event.Event) domain.SpaceLeaving
 
 // spaceOwner returns the bridge that created the space or wrote every live child
 // event; ProtocolMatrix otherwise. Blanked child events do not count.
-func spaceOwner(creator string, children []*event.Event) domain.Protocol {
+func (x ids) spaceOwner(creator string, children []*event.Event) domain.Protocol {
 	if p := domain.ProtocolOf(creator); p.IsBridged() {
 		return p
 	}
@@ -359,7 +359,7 @@ func spaceOwner(creator string, children []*event.Event) domain.Protocol {
 			continue
 		}
 		live++
-		p := domain.ProtocolOf(string(evt.Sender))
+		p := domain.ProtocolOf(x.user(evt.Sender))
 		if p.IsBridged() && (filler == domain.ProtocolMatrix || filler == p) {
 			byBridge++
 			filler = p
@@ -409,7 +409,7 @@ func (b *InProc) CanonicalParent(ctx context.Context, roomID domain.RoomID) (dom
 func (b *InProc) lookupParent(ctx context.Context, roomID domain.RoomID) domain.SpaceID {
 	for _, spaceID := range b.spacesHolding(ctx, roomID) {
 		var content event.SpaceParentEventContent
-		err := b.client.StateEvent(ctx, id.RoomID(roomID), event.StateSpaceParent, string(spaceID), &content)
+		err := b.client.StateEvent(ctx, b.ids.nativeRoom(roomID), event.StateSpaceParent, matrixString(b.ids.nativeSpace(spaceID)), &content)
 		if err != nil {
 			continue // no such state event, or the room is unreadable: not this space
 		}
@@ -443,10 +443,10 @@ func (b *InProc) spacesHolding(ctx context.Context, roomID domain.RoomID) []doma
 // A refused parent returns ErrNoSpaceParent: the room is already out.
 func (b *InProc) RemoveFromSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
 	empty := struct{}{}
-	if _, err := b.client.SendStateEvent(ctx, id.RoomID(spaceID), event.StateSpaceChild, string(roomID), &empty); err != nil {
+	if _, err := b.client.SendStateEvent(ctx, b.ids.nativeSpace(spaceID), event.StateSpaceChild, matrixString(b.ids.nativeRoom(roomID)), &empty); err != nil {
 		return fmt.Errorf("matrix: remove %s from space %s: %w", roomID, spaceID, err)
 	}
-	if _, err := b.client.SendStateEvent(ctx, id.RoomID(roomID), event.StateSpaceParent, string(spaceID), &empty); err != nil {
+	if _, err := b.client.SendStateEvent(ctx, b.ids.nativeRoom(roomID), event.StateSpaceParent, matrixString(b.ids.nativeSpace(spaceID)), &empty); err != nil {
 		return fmt.Errorf("%w: %w", api.ErrNoSpaceParent, err)
 	}
 	return nil
@@ -457,12 +457,12 @@ func (b *InProc) RemoveFromSpace(ctx context.Context, spaceID domain.SpaceID, ro
 // single origin (see domain.Space.Original).
 func (b *InProc) AddToSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
 	via := []string{b.client.UserID.Homeserver()}
-	_, err := b.client.SendStateEvent(ctx, id.RoomID(spaceID), event.StateSpaceChild, string(roomID),
+	_, err := b.client.SendStateEvent(ctx, b.ids.nativeSpace(spaceID), event.StateSpaceChild, matrixString(b.ids.nativeRoom(roomID)),
 		&event.SpaceChildEventContent{Via: via})
 	if err != nil {
 		return fmt.Errorf("matrix: add %s to space %s: %w", roomID, spaceID, err)
 	}
-	if _, err := b.client.SendStateEvent(ctx, id.RoomID(roomID), event.StateSpaceParent, string(spaceID),
+	if _, err := b.client.SendStateEvent(ctx, b.ids.nativeRoom(roomID), event.StateSpaceParent, matrixString(b.ids.nativeSpace(spaceID)),
 		&event.SpaceParentEventContent{Via: via}); err != nil {
 		return fmt.Errorf("%w: %w", api.ErrNoSpaceParent, err)
 	}

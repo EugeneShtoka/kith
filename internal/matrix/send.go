@@ -17,34 +17,34 @@ import (
 
 // Send posts a draft to a room.
 func (b *InProc) Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error {
-	content := buildMessage(draft, b.threadFallback(ctx, roomID, draft))
+	content := b.ids.buildMessage(draft, b.threadFallback(ctx, roomID, draft))
 	// A caller-supplied txn ID makes a retried send idempotent on the homeserver.
 	var opts []mautrix.ReqSendEvent
 	if draft.TxnID != "" {
 		opts = append(opts, mautrix.ReqSendEvent{TransactionID: draft.TxnID})
 	}
 	if err := b.sealed(ctx, roomID, func() error {
-		_, err := b.client.SendMessageEvent(ctx, id.RoomID(roomID), event.EventMessage, &content, opts...)
+		_, err := b.client.SendMessageEvent(ctx, b.ids.nativeRoom(roomID), event.EventMessage, &content, opts...)
 		return err //nolint:wrapcheck // wrapped below, once for both refusal and failure
 	}); err != nil {
 		return fmt.Errorf("matrix: send message: %w", refusal(err))
 	}
 	// Rank addressed people higher in future mention dropdowns; best-effort.
 	if b.cache != nil {
-		b.debugIf(ctx, recordMentions(ctx, b.cache, roomID, &content), "record mentions", "room", roomID)
+		b.debugIf(ctx, b.ids.recordMentions(ctx, b.cache, roomID, &content), "record mentions", "room", roomID)
 	}
 	return nil
 }
 
 // recordMentions notes who a sent message addressed. content.Mentions may be nil.
-func recordMentions(ctx context.Context, rec *db.Cache, roomID domain.RoomID, content *event.MessageEventContent) error {
+func (x ids) recordMentions(ctx context.Context, rec *db.Cache, roomID domain.RoomID, content *event.MessageEventContent) error {
 	if content == nil || content.Mentions == nil {
 		return nil
 	}
 	now := time.Now().UnixMilli()
 	var errs []error
 	for _, mention := range content.Mentions.UserIDs {
-		errs = append(errs, rec.RecordMention(ctx, roomID, string(mention), now))
+		errs = append(errs, rec.RecordMention(ctx, roomID, x.user(mention), now))
 	}
 	return errors.Join(errs...)
 }
@@ -66,7 +66,7 @@ func (b *InProc) threadFallback(ctx context.Context, roomID domain.RoomID, draft
 // buildMessage turns a draft into event content. A mention goes in m.mentions, as a
 // matrix.to pill and as the plain name. SetThread precedes SetReplyTo so a real
 // reply overwrites the thread's fallback m.in_reply_to.
-func buildMessage(draft domain.Draft, fallback domain.EventID) event.MessageEventContent {
+func (x ids) buildMessage(draft domain.Draft, fallback domain.EventID) event.MessageEventContent {
 	msgType := event.MsgText
 	if draft.Emote {
 		msgType = event.MsgEmote
@@ -74,16 +74,16 @@ func buildMessage(draft domain.Draft, fallback domain.EventID) event.MessageEven
 	content := event.MessageEventContent{MsgType: msgType, Body: draft.Body}
 	switch {
 	case draft.ThreadRoot != "":
-		content.RelatesTo = (&event.RelatesTo{}).SetThread(id.EventID(draft.ThreadRoot), id.EventID(fallback))
+		content.RelatesTo = (&event.RelatesTo{}).SetThread(x.nativeEvent(draft.ThreadRoot), x.nativeEvent(fallback))
 		if draft.ReplyTo != "" {
-			content.RelatesTo.SetReplyTo(id.EventID(draft.ReplyTo))
+			content.RelatesTo.SetReplyTo(x.nativeEvent(draft.ReplyTo))
 		}
 	case draft.ReplyTo != "":
-		content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(id.EventID(draft.ReplyTo))
+		content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(x.nativeEvent(draft.ReplyTo))
 	}
 	mentions := draft.LiveMentions()
 	// No HTML at all for a message with neither formatting nor mentions.
-	if html := messageHTML(draft, mentions); html != "" {
+	if html := x.messageHTML(draft, mentions); html != "" {
 		content.Format = event.FormatHTML
 		content.FormattedBody = html
 	}
@@ -92,28 +92,28 @@ func buildMessage(draft domain.Draft, fallback domain.EventID) event.MessageEven
 		content.Mentions = &event.Mentions{UserIDs: make([]id.UserID, 0, len(mentions))}
 		for _, mention := range mentions {
 			if mention.Notifies() {
-				content.Mentions.UserIDs = append(content.Mentions.UserIDs, id.UserID(mention.UserID))
+				content.Mentions.UserIDs = append(content.Mentions.UserIDs, x.nativeUser(mention.UserID))
 			}
 		}
 	}
 	// Edit last: SetEdit copies the content into m.new_content and clears the outer
 	// m.mentions so a correction does not re-ping.
 	if draft.Edits != "" {
-		content.SetEdit(id.EventID(draft.Edits))
+		content.SetEdit(x.nativeEvent(draft.Edits))
 	}
 	return content
 }
 
 // messageHTML is the formatted body for a draft, or "" when none is needed. A Plain
 // draft still pills its mentions.
-func messageHTML(draft domain.Draft, mentions []domain.Mention) string {
+func (x ids) messageHTML(draft domain.Draft, mentions []domain.Mention) string {
 	if draft.Plain {
 		if len(mentions) == 0 {
 			return ""
 		}
 		return pillHTML(draft.Body, mentions)
 	}
-	return renderBody(draft.Body, mentions)
+	return x.renderBody(draft.Body, mentions)
 }
 
 // pillHTML escapes body and wraps the first occurrence of each mention's name in a
@@ -160,7 +160,7 @@ func splitOnce(segments []string, mention domain.Mention) []string {
 // when the room is: mautrix never encrypts reactions itself.
 func (b *InProc) SendReaction(ctx context.Context, roomID domain.RoomID, target domain.EventID, key string) error {
 	content := &event.ReactionEventContent{RelatesTo: event.RelatesTo{
-		EventID: id.EventID(target),
+		EventID: b.ids.nativeEvent(target),
 		Type:    event.RelAnnotation,
 		Key:     key,
 	}}
@@ -169,7 +169,7 @@ func (b *InProc) SendReaction(ctx context.Context, roomID domain.RoomID, target 
 		if err != nil {
 			return err
 		}
-		_, err = b.client.SendMessageEvent(ctx, id.RoomID(roomID), evtType, payload)
+		_, err = b.client.SendMessageEvent(ctx, b.ids.nativeRoom(roomID), evtType, payload)
 		return err //nolint:wrapcheck // wrapped below, once for both refusal and failure
 	}); err != nil {
 		return fmt.Errorf("matrix: send reaction: %w", err)
@@ -183,7 +183,7 @@ func (b *InProc) sealReaction(ctx context.Context, roomID domain.RoomID, content
 	if b.client.Crypto == nil || !b.roomEncrypted(ctx, roomID) {
 		return event.EventReaction, content, nil
 	}
-	encrypted, err := b.client.Crypto.Encrypt(ctx, id.RoomID(roomID), event.EventReaction, content)
+	encrypted, err := b.client.Crypto.Encrypt(ctx, b.ids.nativeRoom(roomID), event.EventReaction, content)
 	if err != nil {
 		return event.Type{}, nil, fmt.Errorf("encrypt reaction: %w", err)
 	}

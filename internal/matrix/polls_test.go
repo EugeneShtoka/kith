@@ -29,7 +29,7 @@ func TestPollStartMessage(t *testing.T) {
 			},
 		}},
 	}
-	msg, ok := pollStartMessage(evt)
+	msg, ok := (ids{}).pollStartMessage(evt)
 	if !ok {
 		t.Fatal("pollStartMessage returned ok=false")
 	}
@@ -67,7 +67,7 @@ func TestPollStartMessageMultiple(t *testing.T) {
 			},
 		}},
 	}
-	msg, ok := pollStartMessage(evt)
+	msg, ok := (ids{}).pollStartMessage(evt)
 	if !ok {
 		t.Fatal("ok=false")
 	}
@@ -79,7 +79,7 @@ func TestPollStartMessageMultiple(t *testing.T) {
 func TestPollStartMessageUnparsedIsSkipped(t *testing.T) {
 	t.Parallel()
 	evt := &event.Event{Type: event.EventUnstablePollStart, Content: event.Content{}}
-	if _, ok := pollStartMessage(evt); ok {
+	if _, ok := (ids{}).pollStartMessage(evt); ok {
 		t.Error("unparsed poll start was accepted")
 	}
 }
@@ -225,7 +225,7 @@ func TestApplyEventsLatestWinsAndEndStops(t *testing.T) {
 		pollResponseEvent("$r2", "@bob:x", 300, []string{"b"}),
 		pollEndEvent("$end", starter, 200), // ends at 200: bob's 300 is dropped
 	}
-	applyEvents(p, starter, events, isSelfNone)
+	(ids{}).applyEvents(p, starter, events, isSelfNone)
 	if got := p.Ballots["@bob:x"]; !reflect.DeepEqual(got, []string{"a"}) {
 		t.Errorf("bob's a (pre-end) should win, got %v", got)
 	}
@@ -238,7 +238,7 @@ func TestApplyEventsEndRequiresStarter(t *testing.T) {
 	t.Parallel()
 	p := &domain.Poll{Options: []domain.PollOption{{ID: "a"}}, Ballots: map[string][]string{}}
 	events := []*event.Event{pollEndEvent("$x", "@mallory:x", 100)}
-	applyEvents(p, "@ann:x", events, isSelfNone)
+	(ids{}).applyEvents(p, "@ann:x", events, isSelfNone)
 	if p.Closed {
 		t.Error("a non-starter's end closed the poll")
 	}
@@ -272,7 +272,7 @@ func TestPollResponseTargetFromParsed(t *testing.T) {
 	evt := &event.Event{Content: event.Content{Parsed: &event.PollResponseEventContent{
 		RelatesTo: event.RelatesTo{Type: event.RelReference, EventID: id.EventID("$start")},
 	}}}
-	if got := pollResponseTarget(evt); got != "$start" {
+	if got := (ids{}).pollResponseTarget(evt); got != "$start" {
 		t.Errorf("target = %q, want $start", got)
 	}
 }
@@ -282,7 +282,7 @@ func TestPollResponseTargetFromRaw(t *testing.T) {
 	evt := &event.Event{Content: event.Content{Raw: map[string]any{
 		"m.relates_to": map[string]any{"rel_type": "m.reference", "event_id": "$start"},
 	}}}
-	if got := pollResponseTarget(evt); got != "$start" {
+	if got := (ids{}).pollResponseTarget(evt); got != "$start" {
 		t.Errorf("target = %q, want $start", got)
 	}
 }

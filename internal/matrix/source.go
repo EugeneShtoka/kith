@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"maunium.net/go/mautrix/id"
-
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -15,7 +13,7 @@ import (
 // is a debugging aid, not a message to merge; the parsed form is what the rest
 // of kith uses, which FetchEvent handles separately.
 func (b *InProc) FetchEventSource(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
-	evt, err := b.client.GetEvent(ctx, id.RoomID(roomID), id.EventID(eventID))
+	evt, err := b.client.GetEvent(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID))
 	if err != nil {
 		return nil, fmt.Errorf("matrix: fetch event source %s: %w", eventID, err)
 	}

@@ -11,7 +11,6 @@ import (
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -55,7 +54,7 @@ func (b *InProc) recordGaps(ctx context.Context, resp *mautrix.RespSync, since s
 			if jr == nil || !jr.Timeline.Limited || jr.Timeline.PrevBatch == "" {
 				continue
 			}
-			added, err := b.cache.AddGap(ctx, domain.RoomID(roomID), jr.Timeline.PrevBatch, oldestOf(jr.Timeline.Events), announce)
+			added, err := b.cache.AddGap(ctx, b.ids.room(roomID), jr.Timeline.PrevBatch, oldestOf(jr.Timeline.Events), announce)
 			b.warnIf(ctx, err, "record a gap", "room", roomID)
 			if added {
 				b.gaps.pending.Store(true)
@@ -131,7 +130,7 @@ func (b *InProc) fillRecorded(ctx context.Context) error {
 func (b *InProc) fillGap(ctx context.Context, g db.Gap) error {
 	token := g.Token
 	for range gapPages {
-		resp, err := b.client.Messages(ctx, id.RoomID(g.RoomID), token, "", mautrix.DirectionBackward, nil, gapPage)
+		resp, err := b.client.Messages(ctx, b.ids.nativeRoom(g.RoomID), token, "", mautrix.DirectionBackward, nil, gapPage)
 		if err != nil {
 			if errors.Is(err, mautrix.MForbidden) {
 				// Left (or never let in): nothing more to read here.
@@ -159,13 +158,13 @@ func (b *InProc) fillPage(ctx context.Context, g db.Gap, chunk []*event.Event) (
 	// arrived holds the edit's later time: the original is still new.
 	ids := make([]domain.EventID, 0, len(chunk))
 	for _, evt := range chunk {
-		ids = append(ids, domain.EventID(evt.ID))
+		ids = append(ids, b.ids.event(evt.ID))
 	}
 	times, err := b.cache.MessageTimes(ctx, g.RoomID, ids)
 	b.warnIf(ctx, err, "read what a gap's page holds", "room", g.RoomID)
 	held := map[domain.EventID]bool{}
 	for _, evt := range chunk {
-		eventID, sent := domain.EventID(evt.ID), time.UnixMilli(evt.Timestamp)
+		eventID, sent := b.ids.event(evt.ID), time.UnixMilli(evt.Timestamp)
 		at, ok := times[eventID]
 		if !ok || at.After(sent) {
 			continue

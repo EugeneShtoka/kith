@@ -64,7 +64,7 @@ func (cur readPos) ahead(next readPos) bool {
 
 // readReceipts collects all our receipts from one room's ephemeral events; only
 // their events' times say which is newest.
-func readReceipts(events []*event.Event, self id.UserID) selfReceipts {
+func (x ids) readReceipts(events []*event.Event, self id.UserID) selfReceipts {
 	out := selfReceipts{}
 	for _, evt := range events {
 		if evt == nil || evt.Type != event.EphemeralEventReceipt {
@@ -82,11 +82,11 @@ func readReceipts(events []*event.Event, self id.UserID) selfReceipts {
 				switch rr.ThreadID {
 				case "", event.ReadReceiptThreadMain:
 					out.Room = append(out.Room, readCandidate{
-						Event: domain.EventID(eventID), Unthreaded: rr.ThreadID == "", At: rr.Timestamp,
+						Event: x.event(eventID), Unthreaded: rr.ThreadID == "", At: rr.Timestamp,
 					})
 				default:
 					out.Threads = append(out.Threads, threadReceipt{
-						Root: domain.EventID(rr.ThreadID), Event: domain.EventID(eventID),
+						Root: x.event(rr.ThreadID), Event: x.event(eventID),
 					})
 				}
 			}
@@ -205,8 +205,8 @@ func (b *InProc) positionOf(ctx context.Context, roomID domain.RoomID, eventID d
 // MarkThreadRead sends a threaded receipt and writes it through to the cache so the
 // badge clears before the sync echo.
 func (b *InProc) MarkThreadRead(ctx context.Context, roomID domain.RoomID, root, eventID domain.EventID, private bool) error {
-	if err := b.client.SendReceipt(ctx, id.RoomID(roomID), id.EventID(eventID), receiptType(private),
-		&mautrix.ReqSendReceipt{ThreadID: string(root)}); err != nil {
+	if err := b.client.SendReceipt(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID), receiptType(private),
+		&mautrix.ReqSendReceipt{ThreadID: matrixString(b.ids.nativeEvent(root))}); err != nil {
 		return fmt.Errorf("matrix: mark thread read: %w", err)
 	}
 	if b.cache == nil {
@@ -275,7 +275,7 @@ func (b *InProc) ThreadPage(ctx context.Context, roomID domain.RoomID, root doma
 	if limit <= 0 {
 		limit = threadPageSize
 	}
-	resp, err := b.client.GetRelations(ctx, id.RoomID(roomID), id.EventID(root), &mautrix.ReqGetRelations{
+	resp, err := b.client.GetRelations(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(root), &mautrix.ReqGetRelations{
 		RelationType: event.RelThread,
 		Dir:          mautrix.DirectionBackward,
 		From:         from,

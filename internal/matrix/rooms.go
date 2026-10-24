@@ -43,7 +43,7 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	known := b.cachedRoomIndex(ctx)
 	joined := make([]id.RoomID, 0, len(split.joined))
 	for _, roomID := range split.joined {
-		if !split.spaceIDs[roomID] && !b.left.since(domain.RoomID(roomID), split.asked) {
+		if !split.spaceIDs[roomID] && !b.left.since(b.ids.room(roomID), split.asked) {
 			joined = append(joined, roomID)
 		}
 	}
@@ -60,13 +60,13 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 		}
 		name, members := b.roomName(ctx, roomID, peer, prev, seen)
 		rooms[i] = domain.Room{
-			ID:       domain.RoomID(roomID),
+			ID:       b.ids.room(roomID),
 			Name:     name,
 			Topic:    b.roomTopic(ctx, roomID),
 			IsDirect: isDM,
 			Members:  members,
 			Network:  prev.Network, // read once and kept (networks.go)
-			ReadOnly: readOnly[domain.RoomID(roomID)],
+			ReadOnly: readOnly[b.ids.room(roomID)],
 		}
 	})
 	domain.SortRooms(rooms)
@@ -92,7 +92,7 @@ func (b *InProc) cachedRoomIndex(ctx context.Context) map[id.RoomID]domain.Room 
 		return out
 	}
 	for i := range prev {
-		out[id.RoomID(prev[i].ID)] = prev[i]
+		out[b.ids.nativeRoom(prev[i].ID)] = prev[i]
 	}
 	return out
 }
@@ -236,7 +236,7 @@ func (b *InProc) onMember(ctx context.Context, evt *event.Event) {
 	if !ok {
 		return // unparsed content is not a membership claim worth acting on
 	}
-	roomID, userID := domain.RoomID(evt.RoomID), *evt.StateKey
+	roomID, userID := b.ids.room(evt.RoomID), *evt.StateKey
 	if content.Membership != event.MembershipJoin {
 		b.warnIf(ctx, b.cache.RemoveMember(ctx, roomID, userID), "cache member removal", "room", roomID, "user", userID)
 		b.names.rename(roomID, userID, "")
@@ -267,7 +267,7 @@ func (b *InProc) nameElsewhere(ctx context.Context, sender string) string {
 	if name, asked := b.profiles.get(sender); asked {
 		return name
 	}
-	resp, err := b.client.GetDisplayName(ctx, id.UserID(sender))
+	resp, err := b.client.GetDisplayName(ctx, b.ids.nativeUser(sender))
 	if err != nil {
 		// Remembered as nameless: asking again for every message would flood the server.
 		b.warnIf(ctx, err, "read a sender's profile name", "user", sender)
@@ -307,7 +307,7 @@ func (b *InProc) roomMemberNames(ctx context.Context, roomID domain.RoomID) map[
 		return cached
 	}
 	seen := b.names.seen(roomID)
-	resp, err := b.client.JoinedMembers(ctx, id.RoomID(roomID))
+	resp, err := b.client.JoinedMembers(ctx, b.ids.nativeRoom(roomID))
 	if err != nil {
 		b.warnIf(ctx, err, "fetch joined members", "room", roomID)
 		return nil
@@ -315,7 +315,7 @@ func (b *InProc) roomMemberNames(ctx context.Context, roomID domain.RoomID) map[
 	names := make(map[string]string, len(resp.Joined))
 	for userID, member := range resp.Joined {
 		if member.DisplayName != "" {
-			names[string(userID)] = member.DisplayName
+			names[b.ids.user(userID)] = member.DisplayName
 		}
 	}
 	b.names.putAt(roomID, seen, names)

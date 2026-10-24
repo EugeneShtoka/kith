@@ -57,7 +57,7 @@ func TestUnparseableOwnAccountDataIsAbsent(t *testing.T) {
 			present := func(events ...*event.Event) bool {
 				switch kind {
 				case starredType:
-					_, p := starredFrom(events)
+					_, p := (ids{}).starredFrom(events)
 					return p
 				case tagsType:
 					_, p := tagsFrom(events)
