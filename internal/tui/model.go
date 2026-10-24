@@ -1213,9 +1213,13 @@ func (m Model) handleAttachmentMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	}
 }
 
-// handleHousekeepingMsg handles the client's own timers and records.
+// handleHousekeepingMsg handles the client's own timers and records, and raising its
+// window.
 func (m Model) handleHousekeepingMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
+	case raisedMsg:
+		// The link was followed; only bringing this window forward failed.
+		return m.sayFailure("followed the link, but could not raise this window: ", msg.err), nil, true
 	case statusTickMsg:
 		return answered(m.handleStatusTick())
 	case refusalsMsg:

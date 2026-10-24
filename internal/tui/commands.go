@@ -1187,6 +1187,21 @@ func (m Model) focusBrowserCmd() tea.Cmd {
 	}
 }
 
+// raisedMsg reports a raise command that failed.
+type raisedMsg struct{ err error }
+
+// raiseWindowCmd runs [clipboard] raise_command through a shell in this process, so it
+// sees this window's environment ($WEZTERM_PANE, $WINDOWID, …); nil when unset.
+func (m Model) raiseWindowCmd() tea.Cmd {
+	ctx, command := m.ctx, m.prefs.external.raise
+	if command == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		return raisedMsg{err: launch(ctx, []string{"sh", "-c", command})}
+	}
+}
+
 // clipboardSinkCmd pipes text to the user's clipboard command on stdin, never argv.
 func (m Model) clipboardSinkCmd(text string) tea.Cmd {
 	ctx, log := m.ctx, m.log

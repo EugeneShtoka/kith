@@ -722,6 +722,13 @@ sound_command = ""
 #
 #     focus_command = "i3-msg '[class=\"Vivaldi-stable\"] focus'"
 #
+# `raise_command` brings kith's own window forward when `kith --open` hands a clicked
+# link to it (not for a link kith was started with); empty does nothing. It runs
+# through a shell in the kith that got the link, so $WEZTERM_PANE, $TMUX_PANE,
+# $KITTY_WINDOW_ID and $WINDOWID name its pane or window, and $PPID is kith:
+#
+#     raise_command = "xdotool windowactivate $WINDOWID"
+#
 # `auto_copy` lets kithd copy a verification code as it arrives. It is remotely
 # triggerable by anyone who can message you, so it fails closed:
 #
@@ -735,6 +742,7 @@ sound_command = ""
 command       = ""           # e.g. "wl-copy", "pbcopy", "xclip -selection clipboard"
 open_command  = "xdg-open"
 focus_command = ""           # empty detects i3/sway/Hyprland/KWin/wmctrl
+raise_command = ""           # empty leaves the window where it is
 auto_copy     = false        # needs `command`, a graphical session, and a [codes] include
 # Put a saved attachment's path on the clipboard too.
 copy_downloads = false

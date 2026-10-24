@@ -386,6 +386,28 @@ command = "wl-copy"            # or "xclip -selection clipboard", "pbcopy"
 Inside tmux you can instead keep OSC 52 and add `set -g set-clipboard on` to your
 tmux config.
 
+### Bring kith forward when a link is clicked
+
+A `matrix:` or `tg:` link clicked elsewhere goes to the running kith (`kith --open`),
+but its window stays where it was. `raise_command` is run by the kith that got the
+link, through `sh -c`, so the terminal's own variables name that kith's pane or window
+(and `$PPID` is kith):
+
+```toml
+[clipboard]
+raise_command = "xdotool windowactivate $WINDOWID"
+```
+
+| Terminal | `raise_command` |
+| --- | --- |
+| X11, a terminal that sets `$WINDOWID` (xterm, urxvt, Alacritty) | `xdotool windowactivate $WINDOWID` |
+| kitty, with `allow_remote_control` in `kitty.conf` | `kitten @ focus-window --match id:$KITTY_WINDOW_ID` |
+| wezterm | `wezterm cli activate-pane --pane-id $WEZTERM_PANE` selects kith's tab and pane, but does not raise wezterm's window: follow it with your window manager's command, e.g. `&& i3-msg '[class="org.wezfurlong.wezterm"] focus'` on i3 |
+| tmux | `tmux select-window -t $TMUX_PANE && tmux select-pane -t $TMUX_PANE` selects kith's window and pane; add the outer terminal's command to raise it |
+
+It is not run for the link kith was started with, since that terminal was just
+opened. A command that fails is reported on the status line.
+
 ### Rebind keys
 
 Each value is a comma-separated list of key names, `"-"` unbinds an action, and the

@@ -6,6 +6,7 @@ type Clipboard struct {
 	AutoCopy      bool   `toml:"auto_copy"`
 	OpenCommand   string `toml:"open_command"`  // gets one URL argument, no shell; empty xdg-open
 	FocusCommand  string `toml:"focus_command"` // run through a shell; empty detects the WM
+	RaiseCommand  string `toml:"raise_command"` // run through a shell by the client a link is handed to
 	CopyDownloads bool   `toml:"copy_downloads"`
 }
 
