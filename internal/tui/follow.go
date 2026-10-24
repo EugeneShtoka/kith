@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
@@ -8,7 +9,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Following a Matrix link moves inside the client (gx opens a browser): a joined room
+// Following a Matrix link moves inside the client (gx too, where it would otherwise
+// open a browser; see followsHere): a joined room
 // or message goes there; an unjoined room asks before joining; a person opens the
 // switcher filtered to them, since following must not create anything.
 
@@ -49,6 +51,35 @@ func placeItems(m Model, places []domain.Place) []pickerItem {
 		})
 	}
 	return items
+}
+
+// networkLinkItems turns Telegram and WhatsApp chat links into picker rows, labeled
+// by the link itself and the network that looks it up.
+func networkLinkItems(links []string) []pickerItem {
+	items := make([]pickerItem, 0, len(links))
+	for _, link := range links {
+		network, _ := domain.LinkNetwork(link)
+		items = append(items, pickerItem{
+			label:  isolate(link),
+			detail: network.String() + " chat",
+			value:  link,
+			match:  link,
+		})
+	}
+	return items
+}
+
+// followsHere reports whether link opens in kith rather than the browser: a Matrix
+// address, or a Telegram or WhatsApp chat link, on a network one of the room list's
+// chats is on (a bridged chat is Matrix's, which looks up no Telegram link).
+func (m Model) followsHere(link string) bool {
+	network, ok := domain.LinkNetwork(link)
+	if _, place := domain.ParsePlace(link); place {
+		network, ok = domain.ProtocolMatrix, true
+	}
+	return ok && slices.ContainsFunc(m.rooms.joined, func(r domain.Room) bool {
+		return domain.NetworkOf(string(r.ID)) == network
+	})
 }
 
 // placeLabel is what to call a place, and what kind of thing it is.

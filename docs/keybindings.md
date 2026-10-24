@@ -132,7 +132,7 @@ The message cursor — the timeline when you are not typing. Consulted before `[
 | `copy_url` | `yu` | Copy a link from it |
 | `open_url` | `gx` | Open a link from it |
 | `open_url_focus` | `gX` | Open a link from it and go to the browser |
-| `follow_link` | `gl` | Follow a Matrix link in it |
+| `follow_link` | `gl` | Follow a Matrix, Telegram or WhatsApp link in it |
 | `topic` | `gt` | Read the room's topic |
 | `star` | `*` | Star it, or unstar it |
 | `history` | `H` | What this message used to say |

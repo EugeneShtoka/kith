@@ -220,14 +220,17 @@ group; timeline: the open room); ` + "`scope`" + ` cycles room → group → eve
 			{path: "timeline.copy_url", def: "yu", doc: "copy a link from it"},
 			{path: "timeline.copy_code", def: "yc", doc: "copy the verification code in it"},
 			// As vim's gx.
-			{path: "timeline.open_url", def: "gx", doc: "open a link from it"},
+			{path: "timeline.open_url", def: "gx", doc: "open a link from it",
+				note: "A link follow_link takes, on a network in your room list, opens in this client."},
 			// Shift also focuses the browser.
 			{path: "timeline.open_url_focus", def: "gX", doc: "open a link from it and go to the browser",
 				note: "See [clipboard] focus_command."},
 			// "go to link"; not vim's gf, which is the attachment list here.
-			{path: "timeline.follow_link", def: "gl", doc: "follow a Matrix link in it",
+			{path: "timeline.follow_link", def: "gl", doc: "follow a Matrix, Telegram or WhatsApp link in it",
 				note: "A matrix: or matrix.to address, mention pills included, in this client: opens a " +
-					"room or message, asks before joining, or opens the switcher for a person."},
+					"room or message, asks before joining, or opens the switcher for a person. " +
+					"A tg:, t.me, whatsapp:, wa.me or chat.whatsapp.com link opens or starts the chat, " +
+					"asking before joining."},
 			// "go to topic", beside gl and gx.
 			{path: "timeline.topic", def: "gt", doc: "read the room's topic"},
 			// "go to source", vim's gs is unassigned.
