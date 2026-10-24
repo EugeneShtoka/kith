@@ -154,6 +154,21 @@ func (f *fakeNetwork) CreateGroup(_ context.Context, req *signalv1.CreateGroupRe
 	return res, nil
 }
 
+// FindPerson records req and finds ofer by +15550100009, dana by +15550100002, and
+// ofer as "ofer.42" by the username link of 48 bytes of 7; anything else is nobody.
+func (f *fakeNetwork) FindPerson(_ context.Context, req *signalv1.FindPersonRequest) (*signalv1.FindPersonResponse, error) {
+	record(req)
+	switch {
+	case req.GetNumber() == "+15550100009":
+		return &signalv1.FindPersonResponse{Aci: ofer}, nil
+	case req.GetNumber() == "+15550100002":
+		return &signalv1.FindPersonResponse{Aci: dana}, nil
+	case string(req.GetUsernameLink()) == strings.Repeat("\x07", 48):
+		return &signalv1.FindPersonResponse{Aci: ofer, Username: "ofer.42"}, nil
+	}
+	return &signalv1.FindPersonResponse{}, nil
+}
+
 // madeGroup is the ID of each group the fake makes (std base64, as Signal's).
 const madeGroup = "bWFkZSBncm91cA=="
 

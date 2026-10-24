@@ -140,7 +140,7 @@ func (m Model) followPendingLink() (Model, tea.Cmd, bool) {
 // followLink goes where uri points and says so after the move, since opening a room
 // sets its own status and the last writer wins. Matrix is tried first; a tg:// link
 // looks up a chat by its stored @username, a WhatsApp link by its number, else the
-// network is asked.
+// network is asked; a Signal link is always asked about, since no chat stores one.
 func (m Model) followLink(uri string) (Model, tea.Cmd) {
 	if place, ok := domain.ParsePlace(uri); ok {
 		label, _ := m.placeLabel(place)
@@ -153,7 +153,10 @@ func (m Model) followLink(uri string) (Model, tea.Cmd) {
 	if link, ok := domain.ParseWhatsAppLink(uri); ok {
 		return m.followWhatsAppLink(link, uri)
 	}
-	return m.say("not a Matrix, Telegram or WhatsApp link: " + uri), nil
+	if _, ok := domain.ParseSignalLink(uri); ok {
+		return m.doing("looking up " + uri + "…"), m.resolveLinkCmd(uri, 0, "")
+	}
+	return m.say("not a Matrix, Telegram, WhatsApp or Signal link: " + uri), nil
 }
 
 // followTelegramLink goes to the cached Telegram chat whose @username (or private

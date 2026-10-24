@@ -408,7 +408,7 @@ A message with several links asks which one. Links in formatted messages count t
 
 A Matrix link opens a room or a message you can see directly. A room you are not in asks before joining, since everyone there sees you join. A person opens the switcher filtered to them, listing your conversations with them and the option to start one — following a link never creates a room on its own.
 
-With `[display] hyperlinks = true` (default), links are also clickable in terminals that support OSC 8 (usually with `ctrl` held). To have your desktop's `matrix:`, `tg:` and `whatsapp:` links open in kith, see `kith --open` in [Command line](cli.md); `[clipboard] raise_command` brings kith's window forward when one arrives ([configuration](configuration.md#bring-kith-forward-when-a-link-is-clicked)).
+With `[display] hyperlinks = true` (default), links are also clickable in terminals that support OSC 8 (usually with `ctrl` held). To have your desktop's `matrix:`, `tg:`, `whatsapp:` and `sgnl:` links open in kith, see `kith --open` in [Command line](cli.md); `[clipboard] raise_command` brings kith's window forward when one arrives ([configuration](configuration.md#bring-kith-forward-when-a-link-is-clicked)).
 
 ## People and rooms
 

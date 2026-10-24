@@ -44,6 +44,9 @@ service SignalService {
   // CreateGroup makes a group from a connected account, with it as admin and the
   // people named as members; its members are told.
   rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
+  // FindPerson asks Signal for the account behind a phone number or a username link,
+  // from a connected account.
+  rpc FindPerson(FindPersonRequest) returns (FindPersonResponse);
 }
 
 message HeartbeatRequest {}
@@ -457,6 +460,25 @@ message CreateGroupResponse {
   Group group = 1;
   // The numbers Signal knows no account for, left out.
   repeated string unknown = 2;
+}
+
+message FindPersonRequest {
+  // The connected account's ACI.
+  string account = 1;
+  oneof by {
+    // A phone number, E.164.
+    string number = 2;
+    // A username link: its 32-byte key, then its 16-byte handle.
+    bytes username_link = 3;
+  }
+}
+
+message FindPersonResponse {
+  // The person's ACI; empty when Signal knows nobody by that number or link (a number
+  // whose owner keeps it from being looked up is nobody).
+  string aci = 1;
+  // Their username, for a username link.
+  string username = 2;
 }
 
 message UploadResponse {

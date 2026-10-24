@@ -3,10 +3,10 @@ Type=Application
 Name=kith
 GenericName=Chat client
 Comment=A terminal chat client for Matrix, WhatsApp, Telegram and Slack
-# Hands matrix:, tg: and whatsapp: URIs to the running kith over the daemon socket.
+# Hands matrix:, tg:, whatsapp: and sgnl: URIs to the running kith over the daemon socket.
 Exec=kith --open %u
 Terminal=false
 NoDisplay=true
-MimeType=x-scheme-handler/matrix;x-scheme-handler/tg;x-scheme-handler/whatsapp;
+MimeType=x-scheme-handler/matrix;x-scheme-handler/tg;x-scheme-handler/whatsapp;x-scheme-handler/sgnl;
 Categories=Network;InstantMessaging;
-Keywords=matrix;telegram;whatsapp;chat;
+Keywords=matrix;telegram;whatsapp;signal;chat;

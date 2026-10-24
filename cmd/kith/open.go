@@ -15,12 +15,12 @@ import (
 // openTimeout is shorter than readyTimeout: somebody clicked a link and is waiting.
 const openTimeout = 20 * time.Second
 
-// runOpen (`kith --open <uri>`, the desktop's matrix:, tg: and whatsapp: handler) delivers a URI
+// runOpen (`kith --open <uri>`, the desktop's matrix:, tg:, whatsapp: and sgnl: handler) delivers a URI
 // to a running client via the daemon, or starts a terminal running one. It never
 // draws.
 func runOpen(configPath, profile, uri string) error {
 	if !openableURI(uri) {
-		return fmt.Errorf("not a Matrix, Telegram or WhatsApp link: %s", uri)
+		return fmt.Errorf("not a Matrix, Telegram, WhatsApp or Signal link: %s", uri)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
