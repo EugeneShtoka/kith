@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -198,5 +199,35 @@ func TestLinksWithHrefs(t *testing.T) {
 				t.Errorf("LinksWithHrefs(%q, %q) = %q, want %q", tc.body, tc.hrefs, got, tc.want)
 			}
 		})
+	}
+}
+
+// A message's links are its web links (words, then named links' targets) and then the
+// links kith follows that are not web links, from the words and the targets (a pill
+// shows "Alice" but links her address).
+func TestMessageLinksReadsTheWordsAndTheTargets(t *testing.T) {
+	t.Parallel()
+
+	body := "see https://matrix.to/#/!room:example.org and matrix:u/bob:example.org, tg://resolve?domain=salsa or wa.me/15550100009."
+	hrefs := []string{
+		"https://matrix.to/#/@alice:example.org", // the pill
+		"https://example.org/docs",               // an ordinary named link
+		"https://matrix.to/#/!room:example.org",  // the same room again
+		"matrix:r/club:example.org",
+	}
+	want := []string{
+		"https://matrix.to/#/!room:example.org",
+		"https://matrix.to/#/@alice:example.org",
+		"https://example.org/docs",
+		"matrix:u/bob:example.org",
+		"tg://resolve?domain=salsa",
+		"wa.me/15550100009",
+		"matrix:r/club:example.org",
+	}
+	if got := domain.MessageLinks(body, hrefs); !slices.Equal(got, want) {
+		t.Errorf("MessageLinks() =\n  %q\nwant\n  %q", got, want)
+	}
+	if got := domain.MessageLinks("lunch at one? @bob:example.org t.me", nil); len(got) != 0 {
+		t.Errorf("MessageLinks(prose) = %q, want none", got)
 	}
 }

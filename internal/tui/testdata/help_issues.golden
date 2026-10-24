@@ -78,7 +78,6 @@
   yu               copy a link from it
   gx               open a link from it
   gX               open a link from it and go to the browser
-  gl               follow a Matrix, Telegram or WhatsApp link in it
   gt               read the room's topic
   *                star it, or unstar it
   gs               show the raw event JSON of the selected message (Matrix only)

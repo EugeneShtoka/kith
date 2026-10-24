@@ -107,37 +107,6 @@ func TestParsePlaceRefusesWhatIsNotOne(t *testing.T) {
 	}
 }
 
-// Addresses come from the body and from hrefs (a pill shows "Alice" but links the MXID).
-func TestPlaceLinksReadsTheWordsAndTheTargets(t *testing.T) {
-	t.Parallel()
-
-	body := "see https://matrix.to/#/!room:example.org and matrix:u/bob:example.org, plus https://example.org/nope"
-	hrefs := []string{
-		"https://matrix.to/#/@alice:example.org", // the pill
-		"https://example.org/docs",               // an ordinary named link
-		"https://matrix.to/#/!room:example.org",  // the same room again
-	}
-	got := domain.PlaceLinks(body, hrefs)
-
-	want := []domain.Place{
-		{Kind: domain.PlaceRoom, Room: "!room:example.org"},
-		{Kind: domain.PlacePerson, User: "@bob:example.org"},
-		{Kind: domain.PlacePerson, User: "@alice:example.org"},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("PlaceLinks() =\n  %+v\nwant\n  %+v", got, want)
-	}
-}
-
-// A message with no addresses yields none.
-func TestPlaceLinksFindsNothingInOrdinaryProse(t *testing.T) {
-	t.Parallel()
-
-	if got := domain.PlaceLinks("lunch at one? https://example.org/menu", nil); len(got) != 0 {
-		t.Errorf("PlaceLinks() = %+v, want none", got)
-	}
-}
-
 // String and ParsePlace round-trip.
 func TestPlaceStringIsTheSpellingPeopleRecognize(t *testing.T) {
 	t.Parallel()
@@ -214,7 +183,7 @@ func TestAPlaceRoundTripsThroughItsURI(t *testing.T) {
 		}
 	}
 
-	// String omits via, so links differing only in routes deduplicate in PlaceLinks.
+	// String omits via: links differing only in routes name one destination.
 	with, _ := domain.ParsePlace("https://matrix.to/#/!room:example.org?via=one.org")
 	without, _ := domain.ParsePlace("https://matrix.to/#/!room:example.org")
 	if with.String() != without.String() {

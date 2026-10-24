@@ -9,8 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Following a Matrix link moves inside the client (gx too, where it would otherwise
-// open a browser; see followsHere): a joined room
+// Following a Matrix link (gx, where followsHere) moves inside the client: a joined room
 // or message goes there; an unjoined room asks before joining; a person opens the
 // switcher filtered to them, since following must not create anything.
 
@@ -35,38 +34,6 @@ func (m Model) messageHrefs(msg domain.Message) []string {
 		}
 	}
 	return hrefs
-}
-
-// placeItems turns places into picker rows, labeled by their local names.
-func placeItems(m Model, places []domain.Place) []pickerItem {
-	items := make([]pickerItem, 0, len(places))
-	for _, place := range places {
-		label, detail := m.placeLabel(place)
-		items = append(items, pickerItem{
-			label:  isolate(label),
-			detail: detail,
-			// URI, not String: String drops the routing servers.
-			value: place.URI(),
-			match: label + " " + place.String(),
-		})
-	}
-	return items
-}
-
-// networkLinkItems turns Telegram and WhatsApp chat links into picker rows, labeled
-// by the link itself and the network that looks it up.
-func networkLinkItems(links []string) []pickerItem {
-	items := make([]pickerItem, 0, len(links))
-	for _, link := range links {
-		network, _ := domain.LinkNetwork(link)
-		items = append(items, pickerItem{
-			label:  isolate(link),
-			detail: network.String() + " chat",
-			value:  link,
-			match:  link,
-		})
-	}
-	return items
 }
 
 // followsHere reports whether link opens in kith rather than the browser: a Matrix

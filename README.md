@@ -135,7 +135,7 @@ Releases are signed and ship with build attestations and an SBOM.
 - Markdown on send and on receive; right-to-left and bidirectional text done properly
 - Read receipts and typing notices you control, per space, room or person
 - A `ctrl+k` switcher, per-room key sequences (`B`), `ctrl+o`/`ctrl+i` history, and
-  `gl` to follow a Matrix link without leaving the client
+  `gx` to follow a Matrix, Telegram or WhatsApp link without leaving the client
 - Fully configurable keybindings with generated help (a bad keymap never stops the
   client from starting), themes, multiple accounts
 - Starts and serves cached history even when a network is unreachable

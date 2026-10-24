@@ -201,31 +201,6 @@ func hasFoldedPrefix(s, prefix string) bool {
 	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
 }
 
-// PlaceLinks is every address in a message's text and its markup's hrefs, deduplicated.
-func PlaceLinks(body string, hrefs []string) []Place {
-	var out []Place
-	seen := make(map[string]bool)
-	add := func(candidate string) {
-		place, ok := ParsePlace(candidate)
-		if !ok {
-			return
-		}
-		key := place.String()
-		if seen[key] {
-			return
-		}
-		seen[key] = true
-		out = append(out, place)
-	}
-	for _, word := range strings.FieldsFunc(body, isURIBoundary) {
-		add(strings.Trim(word, ".,;:!?\"'()[]<>"))
-	}
-	for _, href := range hrefs {
-		add(href)
-	}
-	return out
-}
-
 // isURIBoundary splits only on whitespace: a link contains slashes, colons and sigils.
 func isURIBoundary(r rune) bool {
 	return r == ' ' || r == '\t' || r == '\n' || r == '\r'

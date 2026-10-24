@@ -70,15 +70,22 @@ func (m Model) hasCode() bool {
 	return ok && m.codesHere(msg.RoomID) && len(domain.Codes(msg.Body, m.prefs.codes.rules)) > 0
 }
 
-// linkItems turns links into picker rows, qualified by host.
-func linkItems(links []string) []pickerItem {
+// linkItems turns links into picker rows: a Matrix address by its local name and what
+// it names, a chat link by its network, a web link by host.
+func (m Model) linkItems(links []string) []pickerItem {
 	items := make([]pickerItem, 0, len(links))
 	for _, link := range links {
+		label, detail := link, hostOf(link)
+		if place, ok := domain.ParsePlace(link); ok {
+			label, detail = m.placeLabel(place)
+		} else if network, ok := domain.LinkNetwork(link); ok {
+			detail = network.String() + " chat"
+		}
 		items = append(items, pickerItem{
-			label:  isolate(link),
-			detail: hostOf(link),
+			label:  isolate(label),
+			detail: detail,
 			value:  link,
-			match:  link,
+			match:  label + " " + link,
 		})
 	}
 	return items

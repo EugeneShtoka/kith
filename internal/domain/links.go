@@ -41,6 +41,30 @@ func LinksWithHrefs(body string, hrefs []string) []string {
 	return out
 }
 
+// MessageLinks is LinksWithHrefs plus the links kith follows itself that are not web
+// links (matrix: URIs, tg: and whatsapp: links, a bare t.me/<name>), from the words
+// and then the hrefs, without duplicates.
+func MessageLinks(body string, hrefs []string) []string {
+	out := LinksWithHrefs(body, hrefs)
+	add := func(candidate string) {
+		if OpenableLink(candidate) || slices.Contains(out, candidate) {
+			return
+		}
+		_, place := ParsePlace(candidate)
+		_, chat := LinkNetwork(candidate)
+		if place || chat {
+			out = append(out, candidate)
+		}
+	}
+	for _, word := range strings.FieldsFunc(body, isURIBoundary) {
+		add(strings.Trim(word, ".,;:!?\"'()[]<>"))
+	}
+	for _, href := range hrefs {
+		add(href)
+	}
+	return out
+}
+
 // trimLinkTail strips trailing sentence punctuation and unbalanced closing brackets.
 func trimLinkTail(link string) string {
 	for len(link) > 0 {
