@@ -1,10 +1,5 @@
 package domain
 
-import (
-	"slices"
-	"strings"
-)
-
 // A link to a chat kith has not listed (a Telegram @username, a phone number, an
 // invite) is looked up on its network: the chat to open, or to join first.
 
@@ -30,22 +25,4 @@ func LinkNetwork(uri string) (Protocol, bool) {
 		return ProtocolWhatsApp, true
 	}
 	return "", false
-}
-
-// NetworkLinks returns the chat links in body and in the message's formatted links
-// (hrefs) that LinkNetwork reads, in that order, without duplicates.
-func NetworkLinks(body string, hrefs []string) []string {
-	var out []string
-	add := func(candidate string) {
-		if _, ok := LinkNetwork(candidate); ok && !slices.Contains(out, candidate) {
-			out = append(out, candidate)
-		}
-	}
-	for _, word := range strings.FieldsFunc(body, isURIBoundary) {
-		add(strings.Trim(word, ".,;:!?\"'()[]<>"))
-	}
-	for _, href := range hrefs {
-		add(href)
-	}
-	return out
 }

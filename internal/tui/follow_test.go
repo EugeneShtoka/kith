@@ -34,7 +34,7 @@ func TestFollowingALinkToAJoinedRoomOpensIt(t *testing.T) {
 	m = m.setMessages([]domain.Message{linkMsg("see https://matrix.to/#/!b:x for details", "")})
 	m.timeline.selected = "$1"
 
-	next, _ := m.takeContext(actFollowLink)
+	next, _ := m.takeContext(actOpenURL)
 	got := next
 	if got.openRoom != "!b:x" {
 		t.Errorf("open room = %q, want !b:x", got.openRoom)
@@ -52,7 +52,7 @@ func TestFollowingALinkToAMessageQueuesTheJump(t *testing.T) {
 	m = m.setMessages([]domain.Message{linkMsg("https://matrix.to/#/!b:x/$deep", "")})
 	m.timeline.selected = "$1"
 
-	next, _ := m.takeContext(actFollowLink)
+	next, _ := m.takeContext(actOpenURL)
 	got := next
 	if got.openRoom != "!b:x" {
 		t.Fatalf("open room = %q, want !b:x", got.openRoom)
@@ -71,7 +71,7 @@ func TestFollowingALinkToARoomWeAreNotInAsksFirst(t *testing.T) {
 	m = m.setMessages([]domain.Message{linkMsg("https://matrix.to/#/%23book-club:example.org?via=one.org", "")})
 	m.timeline.selected = "$1"
 
-	next, _ := m.takeContext(actFollowLink)
+	next, _ := m.takeContext(actOpenURL)
 	got := next
 	if got.confirm.action != pendingJoinPlace {
 		t.Fatalf("confirm action = %v, want pendingJoinPlace", got.confirm.action)
@@ -97,7 +97,7 @@ func TestFollowingALinkToAPersonOpensTheSwitcher(t *testing.T) {
 	m = m.setMessages([]domain.Message{linkMsg("matrix:u/alice:example.org said so", "")})
 	m.timeline.selected = "$1"
 
-	next, _ := m.takeContext(actFollowLink)
+	next, _ := m.takeContext(actOpenURL)
 	got := next
 	if got.picker.kind != pickerJump {
 		t.Fatalf("picker = %v, want the switcher", got.picker.kind)
@@ -121,7 +121,7 @@ func TestFollowingFindsTheAddressInsideAPill(t *testing.T) {
 	)})
 	m.timeline.selected = "$1"
 
-	next, _ := m.takeContext(actFollowLink)
+	next, _ := m.takeContext(actOpenURL)
 	got := next
 	if got.picker.kind != pickerJump {
 		t.Errorf("picker = %v, want the switcher — the pill's target was not read", got.picker.kind)
@@ -137,9 +137,9 @@ func TestSeveralPlacesAsksWhich(t *testing.T) {
 		"https://matrix.to/#/!b:x and https://matrix.to/#/@alice:example.org", "")})
 	m.timeline.selected = "$1"
 
-	next, _ := m.takeContext(actFollowLink)
+	next, _ := m.takeContext(actOpenURL)
 	got := next
-	if got.picker.kind != pickerContext || got.picker.then != actFollowLink {
+	if got.picker.kind != pickerContext || got.picker.then != actOpenURL {
 		t.Fatalf("picker = %v/%v, want the follow chooser", got.picker.kind, got.picker.then)
 	}
 	if len(got.picker.items) != 2 {
@@ -148,24 +148,6 @@ func TestSeveralPlacesAsksWhich(t *testing.T) {
 	// A known room is shown by name, not ID.
 	if got.picker.items[0].label != "Bravo" {
 		t.Errorf("first row = %q, want the room's name", got.picker.items[0].label)
-	}
-}
-
-// A message with only web links says it has no Matrix link, not that the link is broken.
-func TestFollowingSaysWhenThereIsNoMatrixLink(t *testing.T) {
-	t.Parallel()
-
-	m := withRooms(t, sized(t, newModel()))
-	m = m.setMessages([]domain.Message{linkMsg("the docs are at https://example.org/docs", "")})
-	m.timeline.selected = "$1"
-
-	next, _ := m.takeContext(actFollowLink)
-	got := next
-	if !strings.Contains(got.status(), "Matrix") {
-		t.Errorf("status = %q, want it to say nothing points into Matrix", got.status())
-	}
-	if got.picker.kind != pickerNone {
-		t.Error("a message with no Matrix link opened a picker")
 	}
 }
 
@@ -614,28 +596,28 @@ var salsaRooms = roomsMsg{rooms: []domain.Room{
 	{ID: "!b:x", Name: "Bravo"},
 }}
 
-// gl follows a Telegram or WhatsApp chat link as it follows a Matrix one, and asks
-// which when the message holds both.
+// gx follows a Telegram or WhatsApp chat link as it follows a Matrix one, and asks
+// which when the message holds several, the web links first.
 func TestFollowingTakesTelegramAndWhatsAppLinks(t *testing.T) {
 	t.Parallel()
 
 	m := update(t, sized(t, newModel()), salsaRooms)
 	m = m.setMessages([]domain.Message{linkMsg("salsa tonight: https://t.me/novosalsa.", "")})
 	m.timeline.selected = "$1"
-	next, _ := m.takeContext(actFollowLink)
+	next, _ := m.takeContext(actOpenURL)
 	if next.openRoom != "telegram:42/-1000000000021" {
 		t.Errorf("open room = %q, want the channel the t.me link names", next.openRoom)
 	}
 
 	m = m.setMessages([]domain.Message{linkMsg("https://matrix.to/#/!b:x or wa.me/15550100009",
 		`<a href="https://t.me/novosalsa">the channel</a>`)})
-	next, _ = m.takeContext(actFollowLink)
+	next, _ = m.takeContext(actOpenURL)
 	var rows []string
 	for _, item := range next.picker.items {
 		rows = append(rows, item.value)
 	}
-	want := []string{"https://matrix.to/#/!b:x", "wa.me/15550100009", "https://t.me/novosalsa"}
-	if next.picker.then != actFollowLink || !slices.Equal(rows, want) {
+	want := []string{"https://matrix.to/#/!b:x", "https://t.me/novosalsa", "wa.me/15550100009"}
+	if next.picker.then != actOpenURL || !slices.Equal(rows, want) {
 		t.Errorf("chooser = %q, want %q", rows, want)
 	}
 }

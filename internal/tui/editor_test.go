@@ -687,7 +687,7 @@ func TestNoCursorWhenNotTyping(t *testing.T) {
 	}
 	// An open picker takes the keyboard, hiding the composer's caret.
 	withPicker := base
-	withPicker.picker = newContextPicker(actCopyURL, linkItems([]string{"https://a", "https://b"}))
+	withPicker.picker = newContextPicker(actCopyURL, newModel().linkItems([]string{"https://a", "https://b"}))
 	if v := withPicker.View(); v.Cursor != nil {
 		t.Errorf("cursor at %v while a chooser owns the keyboard", v.Cursor.Position)
 	}

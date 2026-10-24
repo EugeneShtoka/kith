@@ -15,11 +15,9 @@ type contextKind int
 
 const (
 	ctxNone contextKind = iota
-	// ctxLink is an http/https link — what `gx`, `gX` and `yu` work on.
+	// ctxLink is a link — what `gx`, `gX` and `yu` work on: a web link, or a link kith
+	// follows itself (a Matrix address, a Telegram or WhatsApp chat link).
 	ctxLink
-	// ctxPlace is a Matrix address (a room, a person, or one message in a room), or a
-	// Telegram or WhatsApp chat link.
-	ctxPlace
 	// ctxCode is a verification code, as [codes] defines one.
 	ctxCode
 )
@@ -39,18 +37,9 @@ var contextSpecs = map[contextKind]contextSpec{
 	ctxLink: {
 		noun: "link",
 		items: func(m Model, msg domain.Message) []pickerItem {
-			return linkItems(domain.LinksWithHrefs(msg.Body, m.messageHrefs(msg)))
+			return m.linkItems(domain.MessageLinks(msg.Body, m.messageHrefs(msg)))
 		},
 		empty: func(Model) string { return "no link in that message" },
-	},
-	ctxPlace: {
-		noun: "place",
-		items: func(m Model, msg domain.Message) []pickerItem {
-			hrefs := m.messageHrefs(msg)
-			return append(placeItems(m, domain.PlaceLinks(msg.Body, hrefs)),
-				networkLinkItems(domain.NetworkLinks(msg.Body, hrefs))...)
-		},
-		empty: func(Model) string { return "no Matrix, Telegram or WhatsApp link in that message" },
 	},
 	ctxCode: {
 		noun: "code",
@@ -70,7 +59,6 @@ var contextFor = map[action]contextKind{
 	actCopyURL:      ctxLink,
 	actOpenURL:      ctxLink,
 	actOpenURLFocus: ctxLink,
-	actFollowLink:   ctxPlace,
 	actCopyCode:     ctxCode,
 }
 
@@ -79,7 +67,6 @@ var contextTitles = map[action]string{
 	actCopyURL:      "Copy which link?",
 	actOpenURL:      "Open which link?",
 	actOpenURLFocus: "Go to which link?",
-	actFollowLink:   "Follow which link?",
 	actCopyCode:     "Copy which code?",
 }
 
@@ -119,18 +106,17 @@ func (m Model) useContext(then action, value string) (Model, tea.Cmd) {
 	case actCopyURL:
 		return m.copy(value, describeCopy("link", value))
 	case actOpenURL, actOpenURLFocus:
-		if m.followsHere(value) {
+		switch place, isPlace := domain.ParsePlace(value); {
+		case !m.followsHere(value):
+		case isPlace:
+			return m.goToPlace(place)
+		default:
 			return m.followLink(value)
 		}
 		if then == actOpenURLFocus {
 			return m.openFocused(value)
 		}
 		return m.open(value)
-	case actFollowLink:
-		if place, ok := domain.ParsePlace(value); ok {
-			return m.goToPlace(place)
-		}
-		return m.followLink(value)
 	case actCopyCode:
 		return m.copy(value, describeCopy("code", value))
 	case actRunScript:

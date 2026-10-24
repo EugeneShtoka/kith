@@ -111,7 +111,6 @@ const (
 	actCopyURL
 	actOpenURL
 	actOpenURLFocus
-	actFollowLink
 	// actRunScript is bound to nothing: it is the intent of a chooser opened for a user command
 	// whose need has several answers.
 	actRunScript
@@ -407,7 +406,6 @@ var keyActions = []keyAction{
 	{scopeTimeline, actCopyURL, "timeline.copy_url"},
 	{scopeTimeline, actOpenURL, "timeline.open_url"},
 	{scopeTimeline, actOpenURLFocus, "timeline.open_url_focus"},
-	{scopeTimeline, actFollowLink, "timeline.follow_link"},
 	{scopeTimeline, actTopic, "timeline.topic"},
 	{scopeTimeline, actStar, "timeline.star"},
 	{scopeTimeline, actSource, "timeline.source"},

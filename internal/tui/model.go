@@ -1930,7 +1930,7 @@ func (m Model) messageAction(act action) (Model, tea.Cmd, bool) {
 		return answered(m.openRuleForSender())
 	case actCopyText:
 		return answered(m.copyMessageText())
-	case actCopyURL, actOpenURL, actOpenURLFocus, actFollowLink, actCopyCode:
+	case actCopyURL, actOpenURL, actOpenURLFocus, actCopyCode:
 		// Each takes a thing out of the message; see context.go.
 		return answered(m.takeContext(act))
 	case actTopic:

@@ -398,16 +398,15 @@ In the composer, `alt+u` opens the desktop's file chooser and sends the file wit
 
 | Key | Does |
 | --- | --- |
-| `gx` | Open a link from the message in your browser, and stay here |
-| `gX` | Open it and switch to the browser (see `[clipboard] focus_command`) |
+| `gx` | Open a link from the message: a chat link inside the client, any other in your browser, and stay here |
+| `gX` | The same, switching to the browser for a web link (see `[clipboard] focus_command`) |
 | `yu` | Copy a link |
-| `gl` | Follow a Matrix, Telegram or WhatsApp link inside the client |
 
 A message with several links asks which one. Links in formatted messages count too, including the address behind a named link.
 
-`gl` takes a `matrix:` URI or a `matrix.to` address, a Telegram `tg:` or `t.me` link, and a WhatsApp `whatsapp:`, `wa.me` or `chat.whatsapp.com` link. `gx` and `gX` follow such a link inside the client too, as long as a chat in your room list is on its network; any other link goes to the browser.
+`gx` follows inside the client a `matrix:` URI or a `matrix.to` address, a Telegram `tg:` or `t.me` link, and a WhatsApp `whatsapp:`, `wa.me` or `chat.whatsapp.com` link, as long as a chat in your room list is on its network. Any other link goes to the browser.
 
-`gl` opens a room or a message you can see directly. A room you are not in asks before joining, since everyone there sees you join. A person opens the switcher filtered to them, listing your conversations with them and the option to start one — following a link never creates a room on its own.
+A Matrix link opens a room or a message you can see directly. A room you are not in asks before joining, since everyone there sees you join. A person opens the switcher filtered to them, listing your conversations with them and the option to start one — following a link never creates a room on its own.
 
 With `[display] hyperlinks = true` (default), links are also clickable in terminals that support OSC 8 (usually with `ctrl` held). To have your desktop's `matrix:`, `tg:` and `whatsapp:` links open in kith, see `kith --open` in [Command line](cli.md); `[clipboard] raise_command` brings kith's window forward when one arrives ([configuration](configuration.md#bring-kith-forward-when-a-link-is-clicked)).
 
