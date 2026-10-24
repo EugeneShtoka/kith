@@ -17,7 +17,8 @@ const (
 	ctxNone contextKind = iota
 	// ctxLink is an http/https link — what `gx`, `gX` and `yu` work on.
 	ctxLink
-	// ctxPlace is a Matrix address: a room, a person, or one message in a room.
+	// ctxPlace is a Matrix address (a room, a person, or one message in a room), or a
+	// Telegram or WhatsApp chat link.
 	ctxPlace
 	// ctxCode is a verification code, as [codes] defines one.
 	ctxCode
@@ -45,9 +46,11 @@ var contextSpecs = map[contextKind]contextSpec{
 	ctxPlace: {
 		noun: "place",
 		items: func(m Model, msg domain.Message) []pickerItem {
-			return placeItems(m, domain.PlaceLinks(msg.Body, m.messageHrefs(msg)))
+			hrefs := m.messageHrefs(msg)
+			return append(placeItems(m, domain.PlaceLinks(msg.Body, hrefs)),
+				networkLinkItems(domain.NetworkLinks(msg.Body, hrefs))...)
 		},
-		empty: func(Model) string { return "nothing in that message points into Matrix" },
+		empty: func(Model) string { return "no Matrix, Telegram or WhatsApp link in that message" },
 	},
 	ctxCode: {
 		noun: "code",
@@ -115,16 +118,19 @@ func (m Model) useContext(then action, value string) (Model, tea.Cmd) {
 	switch then {
 	case actCopyURL:
 		return m.copy(value, describeCopy("link", value))
-	case actOpenURL:
-		return m.open(value)
-	case actOpenURLFocus:
-		return m.openFocused(value)
-	case actFollowLink:
-		place, ok := domain.ParsePlace(value)
-		if !ok {
-			return m, nil
+	case actOpenURL, actOpenURLFocus:
+		if m.followsHere(value) {
+			return m.followLink(value)
 		}
-		return m.goToPlace(place)
+		if then == actOpenURLFocus {
+			return m.openFocused(value)
+		}
+		return m.open(value)
+	case actFollowLink:
+		if place, ok := domain.ParsePlace(value); ok {
+			return m.goToPlace(place)
+		}
+		return m.followLink(value)
 	case actCopyCode:
 		return m.copy(value, describeCopy("code", value))
 	case actRunScript:

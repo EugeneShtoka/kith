@@ -607,3 +607,62 @@ func TestAHandedOverWhatsAppLinkOpensTheNumbersChat(t *testing.T) {
 		t.Errorf("composer = %q (room held: %v), want a fresh chat holding the suggested message", next.compose.input, ok)
 	}
 }
+
+// salsaRooms is a room list with a Telegram channel and a Matrix room in it.
+var salsaRooms = roomsMsg{rooms: []domain.Room{
+	{ID: "telegram:42/-1000000000021", Name: "Novo Salsa", Handle: "novosalsa"},
+	{ID: "!b:x", Name: "Bravo"},
+}}
+
+// gl follows a Telegram or WhatsApp chat link as it follows a Matrix one, and asks
+// which when the message holds both.
+func TestFollowingTakesTelegramAndWhatsAppLinks(t *testing.T) {
+	t.Parallel()
+
+	m := update(t, sized(t, newModel()), salsaRooms)
+	m = m.setMessages([]domain.Message{linkMsg("salsa tonight: https://t.me/novosalsa.", "")})
+	m.timeline.selected = "$1"
+	next, _ := m.takeContext(actFollowLink)
+	if next.openRoom != "telegram:42/-1000000000021" {
+		t.Errorf("open room = %q, want the channel the t.me link names", next.openRoom)
+	}
+
+	m = m.setMessages([]domain.Message{linkMsg("https://matrix.to/#/!b:x or wa.me/15550100009",
+		`<a href="https://t.me/novosalsa">the channel</a>`)})
+	next, _ = m.takeContext(actFollowLink)
+	var rows []string
+	for _, item := range next.picker.items {
+		rows = append(rows, item.value)
+	}
+	want := []string{"https://matrix.to/#/!b:x", "wa.me/15550100009", "https://t.me/novosalsa"}
+	if next.picker.then != actFollowLink || !slices.Equal(rows, want) {
+		t.Errorf("chooser = %q, want %q", rows, want)
+	}
+}
+
+// gx and gX follow a link kith can open on a network the room list is on, and hand
+// every other link to the browser.
+func TestOpeningALinkKithFollowsStaysInKith(t *testing.T) {
+	t.Parallel()
+
+	for _, act := range []action{actOpenURL, actOpenURLFocus} {
+		m := update(t, sized(t, newModel()), salsaRooms)
+		for link, want := range map[string]domain.RoomID{
+			"https://t.me/novosalsa":    "telegram:42/-1000000000021",
+			"https://matrix.to/#/!b:x":  "!b:x",
+			"https://wa.me/15550100009": "", // no WhatsApp chat listed: the browser's
+			"https://example.org/docs":  "",
+		} {
+			m = m.setMessages([]domain.Message{linkMsg("see "+link, "")})
+			m.timeline.selected = "$1"
+			m.openRoom = ""
+			next, _ := m.takeContext(act)
+			if next.openRoom != want {
+				t.Errorf("%v on %s: open room = %q, want %q", act, link, next.openRoom, want)
+			}
+			if browsed := strings.HasPrefix(next.status(), "opening "); browsed != (want == "") {
+				t.Errorf("%v on %s: status %q, want the browser only for a link kith does not follow", act, link, next.status())
+			}
+		}
+	}
+}

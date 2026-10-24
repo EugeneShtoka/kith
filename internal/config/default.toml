@@ -1604,12 +1604,15 @@ show_marked     = "z h"
 copy_text       = "yy"      # copy this message's text
 copy_url        = "yu"      # copy a link from it
 copy_code       = "yc"      # copy the verification code in it
+# A link follow_link takes, on a network in your room list, opens in this client.
 open_url        = "gx"      # open a link from it
 # See [clipboard] focus_command.
 open_url_focus  = "gX"      # open a link from it and go to the browser
 # A matrix: or matrix.to address, mention pills included, in this client: opens a room
-# or message, asks before joining, or opens the switcher for a person.
-follow_link     = "gl"      # follow a Matrix link in it
+# or message, asks before joining, or opens the switcher for a person. A tg:, t.me,
+# whatsapp:, wa.me or chat.whatsapp.com link opens or starts the chat, asking before
+# joining.
+follow_link     = "gl"      # follow a Matrix, Telegram or WhatsApp link in it
 topic           = "gt"      # read the room's topic
 # show the raw event JSON of the selected message (Matrix only)
 source          = "gs"

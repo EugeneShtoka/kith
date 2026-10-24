@@ -401,9 +401,11 @@ In the composer, `alt+u` opens the desktop's file chooser and sends the file wit
 | `gx` | Open a link from the message in your browser, and stay here |
 | `gX` | Open it and switch to the browser (see `[clipboard] focus_command`) |
 | `yu` | Copy a link |
-| `gl` | Follow a Matrix link — a `matrix:` URI or a `matrix.to` address — inside the client |
+| `gl` | Follow a Matrix, Telegram or WhatsApp link inside the client |
 
 A message with several links asks which one. Links in formatted messages count too, including the address behind a named link.
+
+`gl` takes a `matrix:` URI or a `matrix.to` address, a Telegram `tg:` or `t.me` link, and a WhatsApp `whatsapp:`, `wa.me` or `chat.whatsapp.com` link. `gx` and `gX` follow such a link inside the client too, as long as a chat in your room list is on its network; any other link goes to the browser.
 
 `gl` opens a room or a message you can see directly. A room you are not in asks before joining, since everyone there sees you join. A person opens the switcher filtered to them, listing your conversations with them and the option to start one — following a link never creates a room on its own.
 
